@@ -424,3 +424,51 @@ describe("Analytics Dashboard店舗一覧の利用候補", () => {
     ]);
   });
 });
+
+describe("Analytics Dashboard要望一覧", () => {
+  it("店舗scopeと組織scopeを対象種別つきで返す", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const organizationId = await insertOrganization(ctx);
+      const shopId = await insertShop(ctx, {
+        organizationId,
+        displayName: "要望対象店舗",
+        registeredAt: PAST_DAY.startMs,
+      });
+      await ctx.db.insert("featureRequests", {
+        shopId,
+        comment: "店舗への要望",
+        requestId: "analytics-shop-request",
+      });
+      await ctx.db.insert("featureRequests", {
+        organizationId,
+        comment: "組織全体への要望",
+        requestId: "analytics-organization-request",
+      });
+      return { organizationId, shopId };
+    });
+
+    const response = await t.query(internal.analyticsDashboard.queries.getFeatureRequests, {
+      cursor: null,
+      limit: 50,
+    });
+
+    expect(response.rows).toHaveLength(2);
+    expect(response.rows.find((row) => row.comment === "店舗への要望")).toMatchObject({
+      targetKind: "shop",
+      organizationId: null,
+      organizationName: null,
+      shopId: seeded.shopId,
+      shopName: "要望対象店舗",
+      senderType: "manager",
+    });
+    expect(response.rows.find((row) => row.comment === "組織全体への要望")).toMatchObject({
+      targetKind: "organization",
+      organizationId: seeded.organizationId,
+      organizationName: "利用候補テスト組織",
+      shopId: null,
+      shopName: "利用候補テスト組織（組織全体）",
+      senderType: "manager",
+    });
+  });
+});

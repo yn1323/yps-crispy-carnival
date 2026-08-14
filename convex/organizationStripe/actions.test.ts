@@ -3051,6 +3051,66 @@ describe("organizationStripe/actions", () => {
     expect(payload).not.toHaveProperty("exp_year");
   });
 
+  it("organization-scoped Checkoutは組織を保持してapp課金画面へ戻す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, {
+        subject: "stripe_app_checkout_return",
+        plan: "free",
+      }),
+    );
+    const checkoutCreateCalls: unknown[][] = [];
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+      if (resource === "prices.retrieve") {
+        return providerResponse({
+          id: READY_TEST_CONFIGURATION.proPriceId,
+          active: true,
+          livemode: false,
+          currency: "jpy",
+          unit_amount: 1480,
+          tax_behavior: "inclusive",
+          recurring: { interval: "month", interval_count: 1 },
+        });
+      }
+      if (resource === "customers.create") {
+        return providerResponse({ id: "cus_app_checkout_return", livemode: false });
+      }
+      if (resource === "checkout.sessions.create") {
+        checkoutCreateCalls.push(args);
+        return providerResponse({
+          id: "cs_app_checkout_return",
+          url: "https://checkout.stripe.test/app-return",
+          livemode: false,
+        });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_app_checkout_return" })
+        .action(api.organizationStripe.actions.startPaidCheckoutForOrganization, {
+          organizationId: ids.organizationId,
+          targetPlan: "pro",
+          requestId: "app-checkout-return",
+        }),
+    ).resolves.toEqual({ status: "available", url: "https://checkout.stripe.test/app-return" });
+
+    expect(checkoutCreateCalls).toHaveLength(1);
+    const payload = checkoutCreateCalls[0]?.[0] as Record<string, unknown>;
+    for (const [urlValue, result] of [
+      [payload.success_url, "returned"],
+      [payload.cancel_url, "cancelled"],
+    ] as const) {
+      const url = new URL(String(urlValue));
+      expect(`${url.origin}${url.pathname}`).toBe("https://app.example.test/app/manage/billing");
+      expect(url.searchParams.get("org")).toBe(ids.organizationId);
+      expect(url.searchParams.get("stripe")).toBe(result);
+    }
+  });
+
   it.each([
     { name: "SetupIntent status", setupPatch: { status: "requires_action" }, errorCode: "setup_intent_invalid" },
     { name: "SetupIntent usage", setupPatch: { usage: "on_session" }, errorCode: "setup_intent_invalid" },
@@ -7671,7 +7731,7 @@ describe("organizationStripe/actions", () => {
     expect(new Set(idempotencyKeys).size).toBe(1);
   });
 
-  it("Portal設定が危険ならSessionを作成せず、安全設定ではstable idempotency keyを使う", async () => {
+  it("Portal設定が危険ならSessionを作成せず、安全設定ではapp課金画面へ戻す", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, { subject: "stripe_portal_safety", plan: "pro" });
@@ -7726,12 +7786,15 @@ describe("organizationStripe/actions", () => {
 
     safeConfiguration = true;
     await expect(
-      actor.action(api.organizationStripe.actions.openCustomerPortal, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.openCustomerPortalForOrganization, {
+        organizationId: ids.organizationId,
         requestId: "portal-safe-configuration",
       }),
     ).resolves.toEqual({ status: "redirect", url: "https://billing.stripe.test/session" });
     expect(portalCreateCalls).toHaveLength(1);
+    const returnUrl = new URL(String((portalCreateCalls[0][0] as { return_url: string }).return_url));
+    expect(`${returnUrl.origin}${returnUrl.pathname}`).toBe("https://app.example.test/app/manage/billing");
+    expect(returnUrl.searchParams.get("org")).toBe(ids.organizationId);
     const portalOperation = await t.run(
       async (ctx) =>
         await ctx.db

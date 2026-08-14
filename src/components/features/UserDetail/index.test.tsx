@@ -2,6 +2,7 @@
 
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Id } from "@/convex/_generated/dataModel";
 import type { UserDetailData, UserDetailPanel, UserMembershipChangeInput } from "./types";
 
 const mocks = vi.hoisted(() => ({
@@ -152,6 +153,48 @@ beforeEach(() => {
 });
 
 describe("UserDetail", () => {
+  it("app導線はモーダルをlocal stateで開き、orgを保って親一覧・店舗別設定・管理者設定へ遷移する", () => {
+    const organizationId = "organization-a" as Id<"organizations">;
+    const appData = {
+      ...data,
+      line: { actionShopId: "shop-a" },
+      shops: [{ shopId: "shop-a", shopStatus: "active" }],
+    } as UserDetailData;
+    render(
+      <UserDetail
+        data={appData}
+        selectedShopId={null}
+        returnTo="dashboard"
+        visibleUserCount={10}
+        appOrganizationId={organizationId}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "スタッフ情報を開く" }));
+    expect(screen.getByTestId("active-panel").textContent).toBe("basic");
+    expect(mocks.navigate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "店舗別設定を開く" }));
+    expect(mocks.navigate).toHaveBeenNthCalledWith(1, {
+      to: "/app/staff/$personId/shops/$shopId",
+      params: { personId: "person-1", shopId: "shop-b" },
+      search: { org: organizationId },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "管理者設定を開く" }));
+    expect(mocks.navigate).toHaveBeenNthCalledWith(2, {
+      to: "/app/manage/managers",
+      search: { org: organizationId },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "戻る" }));
+    expect(mocks.navigate).toHaveBeenNthCalledWith(3, {
+      to: "/app/staff",
+      search: { org: organizationId },
+      replace: true,
+    });
+  });
+
   it("スタッフ情報の更新が成功したら編集モーダルを閉じる", async () => {
     mocks.updateProfile.mockResolvedValue(true);
     render(
@@ -382,6 +425,26 @@ describe("UserDetail", () => {
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/dashboard",
       search: { shop: undefined },
+      replace: true,
+    });
+  });
+
+  it("appで本人を削除した後は削除済みorgを保持せずcanonical組織を再解決する", () => {
+    render(
+      <UserDetail
+        data={{ ...data, isSelf: true, line: { actionShopId: "shop-a" } } as UserDetailData}
+        selectedShopId={null}
+        returnTo="dashboard"
+        visibleUserCount={10}
+        appOrganizationId={"organization-a" as Id<"organizations">}
+      />,
+    );
+
+    mocks.removalOptions?.onPersonRemoved("person-1");
+
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/app/home",
+      search: {},
       replace: true,
     });
   });

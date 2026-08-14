@@ -10,10 +10,12 @@ export function useUserShopMembershipActions({
   targetShopId,
   membership,
   isReadOnly,
+  expectedOrganizationId,
 }: {
   targetShopId: Id<"shops">;
   membership: UserShopDetailMembership;
   isReadOnly: boolean;
+  expectedOrganizationId?: Id<"organizations">;
 }) {
   const [optimisticShiftExclusion, setOptimisticShiftExclusion] = useState<{
     targetShopId: Id<"shops">;
@@ -97,7 +99,12 @@ export function useUserShopMembershipActions({
       const excluded = !isShiftTarget;
       setOptimisticShiftExclusion({ targetShopId: target.targetShopId, staffId: target.staffId, excluded });
       try {
-        await setShiftExclusion({ shopId: target.targetShopId, staffId: target.staffId, excluded });
+        await setShiftExclusion({
+          shopId: target.targetShopId,
+          staffId: target.staffId,
+          excluded,
+          ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+        });
         const current = currentTargetRef.current;
         if (current.targetShopId === target.targetShopId && current.staffId === target.staffId) {
           showSuccessToast({ title: excluded ? "シフト対象外にしました" : "シフト対象に戻しました" });

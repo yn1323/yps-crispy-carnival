@@ -9,9 +9,11 @@ import type { UserDetailData } from "./types";
 export function useUserProfileUpdate({
   data,
   selectedShopId,
+  expectedOrganizationId,
 }: {
   data: UserDetailData;
   selectedShopId: string | null;
+  expectedOrganizationId?: Id<"organizations">;
 }) {
   const updatePersonProfile = useMutation(api.organization.mutations.updatePersonProfile);
   const { run, isRunning } = useSingleFlight(async (formData: PersonProfileFormData): Promise<boolean> => {
@@ -24,6 +26,7 @@ export function useUserProfileUpdate({
         name: formData.name,
         email: formData.email,
         requestId: crypto.randomUUID(),
+        ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
       });
       showSuccessToast({ title: "ユーザー情報を更新しました" });
       return true;

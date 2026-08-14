@@ -21,13 +21,14 @@ type Props = {
   returnShopId?: string;
   returnShopTo?: "dashboard";
   visibleUserCount?: number;
+  appOrganizationId?: Id<"organizations">;
 };
 
 export function UserShopDetailPage(props: Props) {
   return (
     <AuthenticatedPageContent>
       <ErrorBoundary
-        key={`${props.personId}:${props.targetShopId}`}
+        key={`${props.appOrganizationId ?? "legacy"}:${props.personId}:${props.targetShopId}`}
         fallback={(error) => <DefaultErrorFallback error={error} minH={pageMinimumHeight} />}
       >
         <ConnectedUserShopDetailPage {...props} />
@@ -44,6 +45,7 @@ function ConnectedUserShopDetailPage({
   returnShopId,
   returnShopTo,
   visibleUserCount = DEFAULT_USER_LIST_COUNT,
+  appOrganizationId,
 }: Props) {
   const navigate = useNavigate();
   // 同じ画面を開いている間はcapability判定時刻を固定する。
@@ -54,6 +56,7 @@ function ConnectedUserShopDetailPage({
     personId,
     now: queryNow,
     requireTargetShopMembership: true,
+    ...(appOrganizationId ? { expectedOrganizationId: appOrganizationId } : {}),
   });
   const membership = data?.memberships.find((candidate) => candidate.shopId === targetShopId);
   const backDestination = getUserShopDetailBackDestination(
@@ -65,6 +68,15 @@ function ConnectedUserShopDetailPage({
     returnShopTo,
   );
   const handleBack = () => {
+    if (appOrganizationId) {
+      void navigate({
+        to: "/app/staff/$personId",
+        params: { personId },
+        search: { org: appOrganizationId },
+        replace: true,
+      });
+      return;
+    }
     void navigate({ ...backDestination, replace: true });
   };
 
@@ -87,7 +99,15 @@ function ConnectedUserShopDetailPage({
     );
   }
 
-  return <UserShopDetail data={data} membership={membership} targetShopId={typedTargetShopId} onBack={handleBack} />;
+  return (
+    <UserShopDetail
+      data={data}
+      membership={membership}
+      targetShopId={typedTargetShopId}
+      expectedOrganizationId={appOrganizationId}
+      onBack={handleBack}
+    />
+  );
 }
 
 const pageMinimumHeight = {

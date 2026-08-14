@@ -1423,11 +1423,30 @@ export const getFeatureRequests = internalQuery({
     const page = await ctx.db.query("featureRequests").order("desc").paginate(paginationOptions(args.cursor, limit));
     const rows = await Promise.all(
       page.page.map(async (request) => {
-        const shop = await ctx.db.get(request.shopId);
+        if (request.shopId) {
+          const shop = await ctx.db.get(request.shopId);
+          return {
+            id: request._id,
+            targetKind: "shop" as const,
+            organizationId: null,
+            organizationName: null,
+            shopId: request.shopId,
+            shopName: !shop || shop.isDeleted ? "削除済み店舗" : shop.name,
+            senderType: request.staffId === undefined ? ("manager" as const) : ("staff" as const),
+            comment: request.comment,
+            createdAt: request._creationTime,
+          };
+        }
+
+        const organization = request.organizationId ? await ctx.db.get(request.organizationId) : null;
+        const organizationName = !organization || organization.isDeleted ? "削除済み組織" : organization.name;
         return {
           id: request._id,
-          shopId: request.shopId,
-          shopName: !shop || shop.isDeleted ? "削除済み店舗" : shop.name,
+          targetKind: "organization" as const,
+          organizationId: request.organizationId ?? null,
+          organizationName,
+          shopId: null,
+          shopName: `${organizationName}（組織全体）`,
           senderType: request.staffId === undefined ? ("manager" as const) : ("staff" as const),
           comment: request.comment,
           createdAt: request._creationTime,

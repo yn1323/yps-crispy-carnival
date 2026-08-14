@@ -488,6 +488,27 @@ export const ExternalInvitationMobile: Story = {
   ),
 };
 
+export const ExternalInvitationUnavailable: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => (
+    <SubpageFrame title="新しいユーザーを管理者として招待">
+      <ManagerExternalInviteFormView
+        isSubmitting={false}
+        isReadOnly
+        disabledReason="閲覧のみの管理者は、管理者を招待できません。"
+        onRequestInvite={noop}
+      />
+    </SubpageFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement);
+    await expect(page.getByText("閲覧のみの管理者は、管理者を招待できません。")).toBeInTheDocument();
+    await expect(page.getByRole("textbox", { name: "氏名" })).toBeDisabled();
+    await expect(page.getByRole("textbox", { name: "メールアドレス" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "招待内容を確認する" })).toBeDisabled();
+  },
+};
+
 export const Loading: Story = { render: () => <ManagerSettingsSkeleton /> };
 
 export const LoadingMobile: Story = {

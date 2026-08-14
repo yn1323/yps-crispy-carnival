@@ -10,7 +10,7 @@ import { OrganizationContext } from "./OrganizationContext";
 import { OrganizationCreationSection } from "./OrganizationCreation/OrganizationCreationSection";
 import { OrganizationDeletionSection } from "./OrganizationDeletion/OrganizationDeletionSection";
 import { OrganizationUsageSection, OrganizationUsageSectionSkeleton } from "./OrganizationUsageSection";
-import { PeopleSection } from "./PeopleSection";
+import { PeopleSection, PeopleSectionSkeleton } from "./PeopleSection";
 import { PlanAndPaymentSection } from "./PlanAndPaymentSection";
 import { ShopsSection } from "./ShopsSection";
 import type { OrganizationSettingsTab, OrganizationSettingsViewProps } from "./types";
@@ -207,15 +207,7 @@ function organizationSettingsBodySkeleton(tab: OrganizationSettingsTab, features
 }
 
 function PeopleSettingsSkeleton({ showManagerInvitation }: { showManagerInvitation: boolean }) {
-  return (
-    <Stack gap={4}>
-      <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={3} wrap="wrap">
-        <SectionHeadingSkeleton width="184px" />
-        {showManagerInvitation && <Skeleton h="36px" w="136px" />}
-      </Flex>
-      <SettingsDrilldownListSkeleton kind="people" />
-    </Stack>
-  );
+  return <PeopleSectionSkeleton showManagerInvitation={showManagerInvitation} />;
 }
 
 function ShopsSettingsSkeleton({ showAddShop }: { showAddShop: boolean }) {

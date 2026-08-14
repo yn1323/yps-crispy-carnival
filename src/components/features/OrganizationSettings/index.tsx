@@ -144,7 +144,7 @@ export { OrganizationCreationSection } from "./OrganizationCreation/Organization
 export { OrganizationDeletionSection } from "./OrganizationDeletion/OrganizationDeletionSection";
 export { OrganizationSettingsSkeleton, OrganizationSettingsView } from "./OrganizationSettingsView";
 export { OrganizationUsageSection } from "./OrganizationUsageSection";
-export { PeopleSection } from "./PeopleSection";
+export { PeopleSection, PeopleSectionSkeleton } from "./PeopleSection";
 export { PlanAndPaymentSection } from "./PlanAndPaymentSection";
 export { ShopsSection } from "./ShopsSection";
 export type {

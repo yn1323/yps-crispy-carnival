@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { isPastShiftPeriod } from "../_lib/dateFormat";
-import { managerQuery } from "../_lib/functions";
+import { managerQuery, organizationQuery } from "../_lib/functions";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
 import { shiftAssignmentReadValidator } from "../_lib/shiftAssignmentValidators";
 import { getSubmissionPatternTimeRange, submissionPatternValidator } from "../_lib/submissionPattern";
@@ -237,5 +237,20 @@ export const getShiftBoardData = managerQuery({
         editableEndMinutes,
       },
     };
+  },
+});
+
+/** `/app` の必須orgから募集→店舗→組織を再検証し、既存ShiftBoard queryへ渡す明示scopeを返す。 */
+export const getShiftBoardShopScopeForOrganization = organizationQuery({
+  args: { recruitmentId: v.id("recruitments") },
+  returns: v.union(v.object({ shopId: v.id("shops"), shopName: v.string() }), v.null()),
+  handler: async (ctx, { recruitmentId }) => {
+    const recruitment = await ctx.db.get(recruitmentId);
+    if (!recruitment || recruitment.isDeleted) return null;
+
+    const shop = await ctx.db.get(recruitment.shopId);
+    if (!shop || shop.isDeleted || shop.organizationId !== ctx.organization._id) return null;
+
+    return { shopId: shop._id, shopName: shop.name };
   },
 });

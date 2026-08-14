@@ -218,6 +218,17 @@ export const OrganizationSettingsLinkBehavior: Story = {
   },
 };
 
+export const AppOrganizationSettingsLinkBehavior: Story = {
+  args: { expectedOrganizationId: "organization-1" as Id<"organizations"> },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const organizationSettingsLink = within(canvasElement).getByRole("link", {
+      name: "こちら（組織情報を開く）",
+    });
+    await expect(organizationSettingsLink).toHaveAttribute("href", "/app/manage/organization?org=organization-1");
+  },
+};
+
 export const SettingsDialog: Story = {
   args: {
     settingsDialog: { ...closedSettingsDialog, isOpen: true },
@@ -426,6 +437,12 @@ export const StaffMembershipAdditionBehavior: Story = {
       name: "所属スタッフを変更",
     });
     const content = within(dialog);
+    await expect(content.getByRole("checkbox", { name: "田中 太郎を所属スタッフにする" })).toHaveAccessibleDescription(
+      /管理者。所属：スーパー美味しいカフェ新宿店、めっちゃおいしいカフェ渋谷店。/,
+    );
+    await expect(
+      content.getByText("所属：スーパー美味しいカフェ新宿店、めっちゃおいしいカフェ渋谷店"),
+    ).toBeInTheDocument();
     const candidate = content.getByRole("checkbox", {
       name: "鈴木 次郎を所属スタッフにする",
     });

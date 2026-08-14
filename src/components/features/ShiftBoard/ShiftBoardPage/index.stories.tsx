@@ -1,10 +1,16 @@
-import { HStack } from "@chakra-ui/react";
+import { Box, Flex, HStack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
+import { type ComponentProps, useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
+import {
+  AUTHENTICATED_APP_CONTENT_HEIGHT,
+  AuthenticatedAppShell,
+} from "@/src/components/templates/AuthenticatedAppShell";
+import { FocusedFlowHeader } from "@/src/components/templates/FocusedFlowHeader";
 import { Button } from "@/src/components/ui/Button";
 import { Toaster, toaster } from "@/src/components/ui/toaster";
+import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
 import type { ShiftBoardData } from "../types";
 import { ShiftBoardPage } from "./index";
 
@@ -222,6 +228,43 @@ export const SP: Story = {
   },
 };
 
+const APP_ORGANIZATION_ID = "organization-1";
+
+const renderAppShiftBoard = (args: ComponentProps<typeof ShiftBoardPage>) => (
+  <AuthenticatedAppShell activeKey="shifts" activeOrganizationId={APP_ORGANIZATION_ID}>
+    <Flex direction="column" h={AUTHENTICATED_APP_CONTENT_HEIGHT} minH={0}>
+      <FocusedFlowHeader
+        title="シフトを調整"
+        backTo="/app/shifts"
+        backLabel="シフト一覧へ戻る"
+        backAriaLabel="シフト一覧へ戻る"
+        activeOrganizationId={APP_ORGANIZATION_ID}
+      />
+      <Box flex={1} minH={0}>
+        <ManagerShopScopeProvider shopId="shop-1" expectedOrganizationId={APP_ORGANIZATION_ID}>
+          <ShiftBoardPage {...args} layout="app" />
+        </ManagerShopScopeProvider>
+      </Box>
+    </Flex>
+  </AuthenticatedAppShell>
+);
+
+export const AppOrganizationScoped: Story = {
+  name: "App Organization Scoped",
+  tags: ["vrt-mobile1"],
+  globals: {
+    viewport: { value: "mobile1", isRotated: false },
+  },
+  parameters: { vrt: { releaseFixedHeader: true } },
+  render: renderAppShiftBoard,
+};
+
+export const AppOrganizationScopedDesktop: Story = {
+  name: "App Organization Scoped Desktop",
+  parameters: { vrt: { releaseFixedHeader: true } },
+  render: renderAppShiftBoard,
+};
+
 export const SPDialogInteraction: Story = {
   tags: ["vrt-mobile2"],
   globals: {
@@ -292,6 +335,29 @@ const dynamicCapabilityData: ShiftBoardData = {
   requestedSlots: [],
   requestedDates: [],
   shiftAssignments: [],
+};
+
+export const AppConfirmDialogMobile: Story = {
+  name: "App Confirm Dialog Mobile",
+  args: {
+    data: dynamicCapabilityData,
+  },
+  tags: ["vrt-mobile2"],
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
+  },
+  parameters: { vrt: { releaseFixedHeader: true } },
+  render: renderAppShiftBoard,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const screen = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(await canvas.findByRole("button", { name: "確定" }));
+
+    await expect(
+      await screen.findByRole("dialog", { name: "このシフトをスタッフに通知しますか？" }),
+    ).toBeInTheDocument();
+  },
 };
 
 const DynamicCapabilityHarness = () => {

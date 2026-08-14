@@ -1,5 +1,6 @@
-import { Box, Flex, Heading, HStack, Skeleton, Stack } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
 import type { PaginationStatus } from "convex/browser";
+import { useId } from "react";
 import { LuCalendarDays, LuChevronDown, LuInbox, LuPlus } from "react-icons/lu";
 import type { DashboardRecruitmentGroup, Recruitment } from "@/src/components/features/Dashboard/types";
 import { Button } from "@/src/components/ui/Button";
@@ -11,14 +12,22 @@ type Props = {
   title?: string;
   groups: DashboardRecruitmentGroup[];
   isReadOnly?: boolean;
+  canCreateRecruitments?: boolean;
+  createRecruitmentDisabledReason?: string;
   showRecruitmentMenus?: boolean;
   canDeleteRecruitments?: boolean;
   deleteRecruitmentDisabledReason?: string;
+  emptyState?: {
+    title: string;
+    description: string;
+    actionLabel: string;
+  };
   pastStatus: PaginationStatus;
   hasPastRecruitments: boolean;
   isPastRecruitmentsVisible: boolean;
   canLoadMorePastRecruitments: boolean;
   tourRecruitmentId?: Recruitment["_id"];
+  getRecruitmentShopName?: (recruitment: Recruitment) => string | undefined;
   onCreateClick: () => void;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onDeleteRecruitment: (recruitment: Recruitment) => void;
@@ -30,20 +39,35 @@ export const RecruitmentBoard = ({
   title = "シフト一覧",
   groups,
   isReadOnly = false,
+  canCreateRecruitments,
+  createRecruitmentDisabledReason,
   showRecruitmentMenus,
   canDeleteRecruitments,
   deleteRecruitmentDisabledReason,
+  emptyState,
   pastStatus,
   hasPastRecruitments,
   isPastRecruitmentsVisible,
   canLoadMorePastRecruitments,
   tourRecruitmentId,
+  getRecruitmentShopName,
   onCreateClick,
   onOpenShiftBoard,
   onDeleteRecruitment,
   onShowPastRecruitments,
   onLoadMorePastRecruitments,
 }: Props) => {
+  const createDisabledReasonId = useId();
+  const canCreate = canCreateRecruitments ?? !isReadOnly;
+  const resolvedCreateDisabledReason = canCreate
+    ? undefined
+    : (createRecruitmentDisabledReason ??
+      (isReadOnly ? "閲覧のみの店舗では募集を作成できません" : "募集を作成できません"));
+  const resolvedEmptyState = emptyState ?? {
+    title: `${title}はまだありません`,
+    description: "期間と締切を決めて、スタッフに希望を聞きましょう。",
+    actionLabel: "はじめての募集をつくる",
+  };
   const isPastFirstPageLoading = isPastRecruitmentsVisible && pastStatus === "LoadingFirstPage";
   const showPastEntryButton = hasPastRecruitments && (!isPastRecruitmentsVisible || isPastFirstPageLoading);
   const showPastMoreButton = isPastRecruitmentsVisible && canLoadMorePastRecruitments;
@@ -73,33 +97,49 @@ export const RecruitmentBoard = ({
             </Heading>
           </HStack>
         </Stack>
-        <Button
-          data-tour={DASHBOARD_TOUR_TARGET.createRecruitment}
-          variant="ghost"
-          colorPalette="teal"
-          size="sm"
-          onClick={onCreateClick}
-          disabled={isReadOnly}
-          title={isReadOnly ? "閲覧のみの店舗では募集を作成できません" : undefined}
-          gap={1.5}
-          fontWeight="semibold"
-        >
-          <LuPlus />
-          新しい募集をつくる
-        </Button>
+        <Stack gap={1} align={{ base: "flex-start", sm: "flex-end" }}>
+          <Button
+            data-tour={DASHBOARD_TOUR_TARGET.createRecruitment}
+            variant="ghost"
+            colorPalette="teal"
+            size="sm"
+            onClick={onCreateClick}
+            disabled={!canCreate}
+            title={resolvedCreateDisabledReason}
+            aria-describedby={resolvedCreateDisabledReason ? createDisabledReasonId : undefined}
+            gap={1.5}
+            fontWeight="semibold"
+          >
+            <LuPlus />
+            新しい募集をつくる
+          </Button>
+          {resolvedCreateDisabledReason && (
+            <Text id={createDisabledReasonId} fontSize="xs" color="fg.muted" textAlign={{ base: "left", sm: "right" }}>
+              {resolvedCreateDisabledReason}
+            </Text>
+          )}
+        </Stack>
       </Flex>
 
       {!hasVisibleContent ? (
         <Empty
           icon={LuInbox}
-          title={`${title}はまだありません`}
-          description="期間と締切を決めて、スタッフに希望を聞きましょう。"
+          title={resolvedEmptyState.title}
+          description={resolvedEmptyState.description}
           tone="brand"
           variant="section"
           action={
-            <Button colorPalette="teal" size="md" onClick={onCreateClick} gap={1.5} disabled={isReadOnly}>
+            <Button
+              colorPalette="teal"
+              size="md"
+              onClick={onCreateClick}
+              gap={1.5}
+              disabled={!canCreate}
+              title={resolvedCreateDisabledReason}
+              aria-describedby={resolvedCreateDisabledReason ? createDisabledReasonId : undefined}
+            >
               <LuPlus />
-              はじめての募集をつくる
+              {resolvedEmptyState.actionLabel}
             </Button>
           }
         />
@@ -137,6 +177,7 @@ export const RecruitmentBoard = ({
                     canDelete={canDeleteRecruitments}
                     deleteDisabledReason={deleteRecruitmentDisabledReason}
                     dataTour={r._id === tourRecruitmentId ? DASHBOARD_TOUR_TARGET.latestRecruitment : undefined}
+                    shopName={getRecruitmentShopName?.(r)}
                     onOpenShiftBoard={onOpenShiftBoard}
                     onDeleteRecruitment={onDeleteRecruitment}
                   />

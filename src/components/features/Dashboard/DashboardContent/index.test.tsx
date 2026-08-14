@@ -27,6 +27,13 @@ const probes = vi.hoisted(() => ({
   },
   valueVersion: 1,
   viewThrows: false,
+  recruitmentShopTargets: [] as Array<
+    | {
+        mode: "fixed";
+        shop: { shopId: string; shopName: string };
+      }
+    | undefined
+  >,
   viewSnapshots: [] as Array<{
     selectedShopId: string;
     stages: Record<SourceKind, { status: QueryStage["status"]; valueVersion?: number }>;
@@ -39,8 +46,15 @@ vi.mock("../DashboardAnnouncement", () => ({
 }));
 
 vi.mock("../RecruitmentManagement", () => ({
-  RecruitmentManagement: ({ children }: { children: (state: Record<string, unknown>) => ReactNode }) => {
+  RecruitmentManagement: ({
+    children,
+    shopTarget,
+  }: {
+    children: (state: Record<string, unknown>) => ReactNode;
+    shopTarget?: { mode: "fixed"; shop: { shopId: string; shopName: string } };
+  }) => {
     const [probeMountId] = useState(() => ++probes.mounts.recruitment);
+    probes.recruitmentShopTargets.push(shopTarget);
     if (probes.shouldThrow.recruitment) throw new Error("recruitment query failed");
     return children({
       isInitialLoading: false,
@@ -207,6 +221,7 @@ beforeEach(() => {
   }
   probes.valueVersion = 1;
   probes.viewThrows = false;
+  probes.recruitmentShopTargets = [];
   probes.viewSnapshots = [];
   vi.spyOn(console, "error").mockImplementation(() => undefined);
 });
@@ -217,6 +232,23 @@ afterEach(() => {
 });
 
 describe("DashboardContent production composition", () => {
+  it("OperationContextの選択店舗を募集作成フォームへ明示的に渡す", async () => {
+    renderDashboard("app-home-shop");
+
+    await screen.findByTestId("recruitment-ready");
+    expect(probes.recruitmentShopTargets).toContainEqual({
+      mode: "fixed",
+      shop: { shopId: "app-home-shop", shopName: "店舗app-home-shop" },
+    });
+  });
+
+  it("OperationContextを注入しない旧Dashboardでは店舗指定を省略してatom fallbackを維持する", async () => {
+    render(<DashboardContent shop={shop} />);
+
+    await screen.findByTestId("recruitment-ready");
+    expect(probes.recruitmentShopTargets.every((target) => target === undefined)).toBe(true);
+  });
+
   it.each(sourceKinds)("%sのthrowだけを該当queryのunavailableへ分類する", async (failedKind) => {
     probes.shouldThrow[failedKind] = true;
 

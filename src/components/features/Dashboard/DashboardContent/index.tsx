@@ -19,6 +19,7 @@ import {
 import type { TrialEndingNoticeData } from "../TrialEndingCallout";
 import type {
   DashboardAnnouncement as DashboardAnnouncementData,
+  DashboardNavigation,
   DashboardRecruitmentGroup,
   PaginationStatus,
   Recruitment,
@@ -84,6 +85,7 @@ type Props = {
   trialEndingNotice?: TrialEndingNoticeData | null;
   billingSettingsShopId?: string;
   isBillingFeatureVisible?: boolean;
+  navigation?: DashboardNavigation;
 };
 
 export const DashboardContent = ({
@@ -118,6 +120,7 @@ export const DashboardContent = ({
   trialEndingNotice,
   billingSettingsShopId,
   isBillingFeatureVisible = false,
+  navigation,
 }: Props) => {
   // Storyはqueryに依存せず募集・スタッフの代表状態を固定する。本番の募集・スタッフは各子featureが購読する。
   const usesInjectedData = recruitments !== undefined || staffs !== undefined;
@@ -162,6 +165,21 @@ export const DashboardContent = ({
           }
         : undefined,
     [canLoadMoreStaffs, loadMoreStaffs, staffStatus, staffs, usesInjectedData],
+  );
+  const operationSelectedShopId = operationContextData?.selectedShop.shopId;
+  const operationSelectedShopName = operationContextData?.selectedShop.shopName;
+  const recruitmentShopTarget = useMemo(
+    () =>
+      operationSelectedShopId
+        ? {
+            mode: "fixed" as const,
+            shop: {
+              shopId: operationSelectedShopId,
+              shopName: operationSelectedShopName ?? "",
+            },
+          }
+        : undefined,
+    [operationSelectedShopId, operationSelectedShopName],
   );
 
   const sourceIdentity =
@@ -210,7 +228,10 @@ export const DashboardContent = ({
   const notificationFailureStage = getCurrentDashboardQueryStage(notificationFailureSnapshot, sourceIdentity);
 
   return (
-    <DashboardAnnouncement announcement={usesInjectedData ? (announcement ?? null) : undefined}>
+    <DashboardAnnouncement
+      announcement={usesInjectedData ? (announcement ?? null) : undefined}
+      context={operationContextData?.selectedShop}
+    >
       {({ content: announcementContent }) => {
         if (!shop) {
           return (
@@ -228,8 +249,10 @@ export const DashboardContent = ({
               key={`recruitment:${sourceIdentity}`}
               onStageChange={reportRecruitmentStage}
               regularClosedDays={shop.regularClosedDays}
+              shopTarget={recruitmentShopTarget}
               data={recruitmentData}
               isReadOnly={isReadOnly}
+              onOpenShiftBoard={navigation?.onOpenShiftBoard}
             />
             <StaffQuerySource
               key={`staff:${sourceIdentity}`}
@@ -246,6 +269,8 @@ export const DashboardContent = ({
               initialVisibleUserCount={visibleUserCount}
               focusedPersonId={focusedPersonId}
               onVisibleUserCountChange={onVisibleUserCountChange}
+              onOpenStaffDetail={navigation?.onOpenStaffDetail}
+              onManageManagers={navigation?.onManageManagers}
             />
             <RegistrationRequestQuerySource
               key={`registration-requests:${sourceIdentity}`}
@@ -269,6 +294,7 @@ export const DashboardContent = ({
               trialEndingNotice={trialEndingNotice}
               billingSettingsShopId={billingSettingsShopId}
               isBillingFeatureVisible={isBillingFeatureVisible}
+              navigation={navigation}
               recruitment={recruitmentStage}
               staff={staffStage}
               registrationRequests={registrationRequestStage}

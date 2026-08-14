@@ -1,5 +1,6 @@
 import { Box, Flex, Grid, Icon, Link, Text, VisuallyHidden } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
+import { resolveAppNavigationTarget } from "../appNavigationTargetResolver";
 import type { AppNavigationKey, AppPrimaryNavigationItem } from "./navigation";
 import { APP_PRIMARY_NAVIGATION_ITEMS } from "./navigation";
 
@@ -7,9 +8,10 @@ export const MOBILE_APP_NAVIGATION_HEIGHT = "68px";
 
 type Props = {
   activeKey: AppNavigationKey | null;
+  activeOrganizationId?: string | null;
 };
 
-export function DesktopAppPrimaryNavigation({ activeKey }: Props) {
+export function DesktopAppPrimaryNavigation({ activeKey, activeOrganizationId }: Props) {
   return (
     <Flex
       as="nav"
@@ -22,13 +24,18 @@ export function DesktopAppPrimaryNavigation({ activeKey }: Props) {
       w="full"
     >
       {APP_PRIMARY_NAVIGATION_ITEMS.map((item) => (
-        <DesktopNavigationLink key={item.key} item={item} isActive={activeKey === item.key} />
+        <DesktopNavigationLink
+          key={item.key}
+          item={item}
+          isActive={activeKey === item.key}
+          activeOrganizationId={activeOrganizationId}
+        />
       ))}
     </Flex>
   );
 }
 
-export function MobileAppPrimaryNavigation({ activeKey }: Props) {
+export function MobileAppPrimaryNavigation({ activeKey, activeOrganizationId }: Props) {
   return (
     <Box
       as="nav"
@@ -47,14 +54,27 @@ export function MobileAppPrimaryNavigation({ activeKey }: Props) {
     >
       <Grid templateColumns="repeat(5, minmax(0, 1fr))" w="full">
         {APP_PRIMARY_NAVIGATION_ITEMS.map((item) => (
-          <MobileNavigationLink key={item.key} item={item} isActive={activeKey === item.key} />
+          <MobileNavigationLink
+            key={item.key}
+            item={item}
+            isActive={activeKey === item.key}
+            activeOrganizationId={activeOrganizationId}
+          />
         ))}
       </Grid>
     </Box>
   );
 }
 
-function DesktopNavigationLink({ item, isActive }: { item: AppPrimaryNavigationItem; isActive: boolean }) {
+type NavigationLinkProps = {
+  item: AppPrimaryNavigationItem;
+  isActive: boolean;
+  activeOrganizationId?: string | null;
+};
+
+function DesktopNavigationLink({ item, isActive, activeOrganizationId }: NavigationLinkProps) {
+  const target = resolveAppNavigationTarget(item.href, activeOrganizationId);
+
   return (
     <Link
       asChild
@@ -74,7 +94,7 @@ function DesktopNavigationLink({ item, isActive }: { item: AppPrimaryNavigationI
       _hover={{ color: "teal.800", bg: "gray.50", textDecoration: "none" }}
       _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "2px" }}
     >
-      <RouterLink to={item.href} aria-current={isActive ? "page" : undefined}>
+      <RouterLink to={target.to} search={target.search} aria-current={isActive ? "page" : undefined}>
         <NavigationIcon item={item} size="20px" />
         <Text as="span">{item.label}</Text>
         {item.badge && <VisuallyHidden>、{item.badge.label}</VisuallyHidden>}
@@ -83,7 +103,9 @@ function DesktopNavigationLink({ item, isActive }: { item: AppPrimaryNavigationI
   );
 }
 
-function MobileNavigationLink({ item, isActive }: { item: AppPrimaryNavigationItem; isActive: boolean }) {
+function MobileNavigationLink({ item, isActive, activeOrganizationId }: NavigationLinkProps) {
+  const target = resolveAppNavigationTarget(item.href, activeOrganizationId);
+
   return (
     <Link
       asChild
@@ -103,7 +125,7 @@ function MobileNavigationLink({ item, isActive }: { item: AppPrimaryNavigationIt
       _hover={{ bg: "gray.50", color: isActive ? "teal.800" : "gray.900", textDecoration: "none" }}
       _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "-3px" }}
     >
-      <RouterLink to={item.href} aria-current={isActive ? "page" : undefined}>
+      <RouterLink to={target.to} search={target.search} aria-current={isActive ? "page" : undefined}>
         {isActive && (
           <Box aria-hidden position="absolute" top={0} insetX="18%" h="3px" bg="teal.600" borderBottomRadius="full" />
         )}

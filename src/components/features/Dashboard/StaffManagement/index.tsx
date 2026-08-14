@@ -6,6 +6,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { StaffNotificationHistory } from "@/src/components/features/StaffNotificationHistory";
 import { useShopPaginatedQuery } from "@/src/hooks/useShopPaginatedQuery";
 import { DEFAULT_USER_LIST_COUNT, toUserListCountSearch, USER_LIST_PAGE_SIZE } from "@/src/lib/userListSearch";
+import { useManagerShopScope } from "@/src/providers/ManagerShopScopeProvider";
 import { selectedShopAtom } from "@/src/stores/shop";
 import { featureVisibilityAtom } from "@/src/stores/user";
 import type { PaginationStatus, Recruitment, Staff } from "../types";
@@ -37,6 +38,8 @@ type Props = {
   initialVisibleUserCount?: number;
   focusedPersonId?: string;
   onVisibleUserCountChange?: (count: number) => void;
+  onOpenStaffDetail?: (personId: Id<"organizationPeople">, visibleUserCount: number) => void;
+  onManageManagers?: () => void;
   children: (state: StaffManagementState) => ReactNode;
 };
 
@@ -49,10 +52,13 @@ export function StaffManagement({
   initialVisibleUserCount = DEFAULT_USER_LIST_COUNT,
   focusedPersonId,
   onVisibleUserCountChange,
+  onOpenStaffDetail,
+  onManageManagers,
   children,
 }: Props) {
   const navigate = useNavigate();
   const selectedShop = useAtomValue(selectedShopAtom);
+  const managerShopScope = useManagerShopScope();
   const featureVisibility = useAtomValue(featureVisibilityAtom);
   const [visibleStaffCount, setVisibleStaffCount] = useState(initialVisibleUserCount);
   const staffQuery = useShopPaginatedQuery(api.dashboard.queries.getDashboardStaffs, data ? "skip" : {}, {
@@ -91,12 +97,17 @@ export function StaffManagement({
       profile.onOpen(staff);
       return;
     }
-    if (!selectedShop?.shopId) return;
+    if (onOpenStaffDetail) {
+      onOpenStaffDetail(staff.organizationPersonId, visibleStaffCount);
+      return;
+    }
+    const shopId = managerShopScope?.shopId ?? selectedShop?.shopId;
+    if (!shopId) return;
     void navigate({
       to: "/users/$personId",
       params: { personId: staff.organizationPersonId },
       search: {
-        shop: selectedShop.shopId,
+        shop: shopId,
         returnTo: "dashboard",
         users: toUserListCountSearch(visibleStaffCount),
       },
@@ -128,8 +139,13 @@ export function StaffManagement({
         onChangeShiftTarget: profile.onChangeShiftTarget,
         isChangingShiftTarget: profile.isChangingShiftTarget,
         onManageManagers: () => {
-          if (!selectedShop?.shopId) return;
-          void navigate({ to: "/settings/managers", search: { shop: selectedShop.shopId } });
+          if (onManageManagers) {
+            onManageManagers();
+            return;
+          }
+          const shopId = managerShopScope?.shopId ?? selectedShop?.shopId;
+          if (!shopId) return;
+          void navigate({ to: "/settings/managers", search: { shop: shopId } });
         },
         onShowLineQr: lineConnection.onShowQr,
         lineQrState: lineConnection.qrState,
@@ -140,12 +156,13 @@ export function StaffManagement({
         onSendCurrentShift: notifications.onSendCurrentShift,
         isSendingCurrentShift: notifications.isSendingCurrentShift,
         notificationHistory:
-          profile.staff && selectedShop ? (
+          profile.staff && (managerShopScope?.shopId || selectedShop?.shopId) ? (
             <StaffNotificationHistory
               key={profile.staff._id}
-              shopId={selectedShop.shopId as Id<"shops">}
+              shopId={(managerShopScope?.shopId ?? selectedShop?.shopId) as Id<"shops">}
               staffId={profile.staff._id}
               enabled={profile.dialog.isOpen}
+              expectedOrganizationId={managerShopScope?.expectedOrganizationId as Id<"organizations"> | undefined}
             />
           ) : null,
       }}

@@ -126,6 +126,136 @@ describe("organizationInvitation/mutations", () => {
     vi.useRealTimers();
   });
 
+  it("organization-scoped兄弟APIは店舗anchorなしで発行・再送・取消を行う", async () => {
+    const t = convexTest(schema, modules);
+    const manager = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "organization_invitation_app_owner", plan: "business" }),
+    );
+    const owner = t.withIdentity({ subject: "organization_invitation_app_owner" });
+
+    const issued = await owner.mutation(api.organizationInvitation.mutations.issueForOrganization, {
+      organizationId: manager.organizationId,
+      recipient: { kind: "external", invitedName: "新しい管理者", email: "new-manager@example.com" },
+      requestId: "app-manager-issue",
+    });
+    const resent = await owner.mutation(api.organizationInvitation.mutations.resendForOrganization, {
+      organizationId: manager.organizationId,
+      invitationId: issued.invitationId,
+      requestId: "app-manager-resend",
+    });
+    expect(resent).toMatchObject({ status: "created" });
+    expect(resent.invitationId).not.toBe(issued.invitationId);
+    await expect(
+      owner.mutation(api.organizationInvitation.mutations.revokeForOrganization, {
+        organizationId: manager.organizationId,
+        invitationId: resent.invitationId,
+        requestId: "app-manager-revoke",
+      }),
+    ).resolves.toMatchObject({ invitationId: resent.invitationId, status: "revoked" });
+  });
+
+  it.each(["issue", "resend", "revoke"] as const)(
+    "organization-scoped %sはorg Aからorg Bのinvitationを副作用なしで拒否する",
+    async (operation) => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const actor = await seedOrganizationManagerShop(ctx, {
+          subject: `organization_invitation_app_cross_${operation}_actor`,
+          plan: "business",
+        });
+        const foreign = await seedOrganizationManagerShop(ctx, {
+          subject: `organization_invitation_app_cross_${operation}_foreign`,
+          plan: "business",
+        });
+        return { actor, foreign };
+      });
+      const foreign = t.withIdentity({ subject: `organization_invitation_app_cross_${operation}_foreign` });
+      const invitation = await foreign.mutation(api.organizationInvitation.mutations.issueForOrganization, {
+        organizationId: ids.foreign.organizationId,
+        recipient: { kind: "external", invitedName: "別組織管理者", email: `foreign-${operation}@example.com` },
+        requestId: `app-manager-cross-${operation}-seed`,
+      });
+      const before = await invitationSecurityState(t, { includeRateLimits: true });
+      const actor = t.withIdentity({ subject: `organization_invitation_app_cross_${operation}_actor` });
+      await expect(
+        operation === "issue"
+          ? actor.mutation(api.organizationInvitation.mutations.issueForOrganization, {
+              organizationId: ids.foreign.organizationId,
+              recipient: {
+                kind: "external",
+                invitedName: "不正な別組織管理者",
+                email: "cross-issue@example.com",
+              },
+              requestId: "app-manager-cross-issue",
+            })
+          : operation === "resend"
+            ? actor.mutation(api.organizationInvitation.mutations.resendForOrganization, {
+                organizationId: ids.actor.organizationId,
+                invitationId: invitation.invitationId,
+                requestId: "app-manager-cross-resend",
+              })
+            : actor.mutation(api.organizationInvitation.mutations.revokeForOrganization, {
+                organizationId: ids.actor.organizationId,
+                invitationId: invitation.invitationId,
+                requestId: "app-manager-cross-revoke",
+              }),
+      ).rejects.toThrow("Not found");
+      expect(await invitationSecurityState(t, { includeRateLimits: true })).toEqual(before);
+    },
+  );
+
+  it.each(["readOnly", "removed"] as const)(
+    "organization-scoped招待APIは%s所属からの発行・再送・取消を副作用なしで拒否する",
+    async (status) => {
+      const t = convexTest(schema, modules);
+      const manager = await t.run((ctx) =>
+        seedOrganizationManagerShop(ctx, {
+          subject: `organization_invitation_app_${status}`,
+          plan: "business",
+        }),
+      );
+      const actor = t.withIdentity({ subject: `organization_invitation_app_${status}` });
+      const invitation = await actor.mutation(api.organizationInvitation.mutations.issueForOrganization, {
+        organizationId: manager.organizationId,
+        recipient: {
+          kind: "external",
+          invitedName: "既存の招待先",
+          email: `${status}-invitation@example.com`,
+        },
+        requestId: `app-manager-${status}-seed`,
+      });
+      await t.run((ctx) => ctx.db.patch(manager.memberId, { status, updatedAt: Date.now() }));
+      const before = await invitationSecurityState(t, { includeRateLimits: true });
+
+      await expect(
+        actor.mutation(api.organizationInvitation.mutations.issueForOrganization, {
+          organizationId: manager.organizationId,
+          recipient: {
+            kind: "external",
+            invitedName: "拒否される招待先",
+            email: `${status}-rejected@example.com`,
+          },
+          requestId: `app-manager-${status}-issue`,
+        }),
+      ).rejects.toThrow("Not found");
+      await expect(
+        actor.mutation(api.organizationInvitation.mutations.resendForOrganization, {
+          organizationId: manager.organizationId,
+          invitationId: invitation.invitationId,
+          requestId: `app-manager-${status}-resend`,
+        }),
+      ).rejects.toThrow("Not found");
+      await expect(
+        actor.mutation(api.organizationInvitation.mutations.revokeForOrganization, {
+          organizationId: manager.organizationId,
+          invitationId: invitation.invitationId,
+          requestId: `app-manager-${status}-revoke`,
+        }),
+      ).rejects.toThrow("Not found");
+      expect(await invitationSecurityState(t, { includeRateLimits: true })).toEqual(before);
+    },
+  );
+
   it("未使用招待は取消と期限処理を継続できる", async () => {
     const t = convexTest(schema, modules);
     const manager = await t.run((ctx) =>

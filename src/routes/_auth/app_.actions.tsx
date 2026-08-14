@@ -1,9 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AppActionsPage } from "@/src/pages/app-navigation-prototype";
-import { buildAppPrototypePageHead } from "@/src/pages/app-navigation-prototype/meta";
+import {
+  useAppOrganizationScope,
+  validateAppFilteredListRouteSearch,
+} from "@/src/components/features/AuthenticatedApp";
+import { AppActionsRoutePage } from "@/src/pages/app-actions";
+import { buildAppActionsPageHead } from "@/src/pages/app-actions/meta";
 
 export const Route = createFileRoute("/_auth/app_/actions")({
-  head: () => buildAppPrototypePageHead("対応"),
+  validateSearch: validateAppFilteredListRouteSearch,
+  head: buildAppActionsPageHead,
   staticData: { appShell: { mode: "navigation", activeKey: "actions" } },
-  component: AppActionsPage,
+  component: AppActionsRoute,
 });
+
+function AppActionsRoute() {
+  const { shopFilter } = Route.useSearch();
+  const organization = useAppOrganizationScope();
+
+  return (
+    <AppActionsRoutePage
+      organizationId={organization.organizationId}
+      memberStatus={organization.memberStatus}
+      activeShops={organization.activeShops}
+      requestedShopFilter={shopFilter}
+    />
+  );
+}

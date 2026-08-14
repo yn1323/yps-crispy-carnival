@@ -15,15 +15,16 @@ type Input = {
   organizationUpdatedAt?: number;
   organizationName: string;
   canDeleteOrganization: boolean;
-  selectedShopId: string;
-  shops: readonly ShopContextOption[];
+  selectedShopId?: string;
+  shops?: readonly ShopContextOption[];
+  appOrganizationId?: Id<"organizations">;
 };
 
 type DeletionIntent = {
   organizationId: string;
   organizationUpdatedAt: number;
   organizationName: string;
-  selectedShopId: string;
+  selectedShopId?: string;
   requestId: string;
 };
 
@@ -36,6 +37,7 @@ export function useOrganizationDeletionController(
   { replaceLocation = (path) => window.location.replace(path) }: ControllerOptions = {},
 ) {
   const deleteOrganization = useMutation(api.organization.mutations.deleteOrganization);
+  const deleteOrganizationForOrganization = useMutation(api.organization.mutations.deleteOrganizationForOrganization);
   const setSelectedShop = useSetAtom(selectedShopAtom);
   const setUser = useSetAtom(userAtom);
   const [intent, setIntent] = useState<DeletionIntent | null>(null);
@@ -71,15 +73,26 @@ export function useOrganizationDeletionController(
     }
 
     try {
-      await deleteOrganization({
-        shopId: intent.selectedShopId as Id<"shops">,
-        organizationId: intent.organizationId as Id<"organizations">,
-        confirmOrganizationId: intent.organizationId as Id<"organizations">,
+      const organizationId = intent.organizationId as Id<"organizations">;
+      const deletionArgs = {
+        organizationId,
+        confirmOrganizationId: organizationId,
         expectedOrganizationUpdatedAt: intent.organizationUpdatedAt,
         requestId: intent.requestId,
-      });
-      const nextShop = latest.shops.find((shop) => shop.organizationId !== intent.organizationId);
-      const nextUrl = nextShop ? `/dashboard?shop=${encodeURIComponent(nextShop.shopId)}` : "/dashboard";
+      };
+      if (latest.appOrganizationId) {
+        await deleteOrganizationForOrganization(deletionArgs);
+      } else if (intent.selectedShopId) {
+        await deleteOrganization({ shopId: intent.selectedShopId as Id<"shops">, ...deletionArgs });
+      } else {
+        return;
+      }
+      const nextShop = latest.shops?.find((shop) => shop.organizationId !== intent.organizationId);
+      const nextUrl = latest.appOrganizationId
+        ? "/app/home"
+        : nextShop
+          ? `/dashboard?shop=${encodeURIComponent(nextShop.shopId)}`
+          : "/dashboard";
       // Dialogの履歴guardを先に戻し、そのhistory.back()に遷移を上書きされないようにする。
       pendingRedirectRef.current = nextUrl;
       setSelectedShop(nextShop ? toSelectedShop(nextShop) : null);

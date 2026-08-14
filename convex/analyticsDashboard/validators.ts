@@ -357,7 +357,10 @@ export const segmentsResponseValidator = v.object({
 
 const featureRequestRowValidator = v.object({
   id: v.string(),
-  shopId: v.string(),
+  targetKind: v.union(v.literal("shop"), v.literal("organization")),
+  organizationId: v.union(v.string(), v.null()),
+  organizationName: v.union(v.string(), v.null()),
+  shopId: v.union(v.string(), v.null()),
   shopName: v.string(),
   senderType: v.union(v.literal("manager"), v.literal("staff")),
   comment: v.string(),

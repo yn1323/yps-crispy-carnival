@@ -1,16 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AppShiftBoardPage } from "@/src/pages/app-navigation-prototype";
-import { buildAppPrototypePageHead } from "@/src/pages/app-navigation-prototype/meta";
+import {
+  useAppOrganizationScope,
+  validateAppOrganizationRouteSearch,
+} from "@/src/components/features/AuthenticatedApp";
+import { AppShiftBoardRoutePage } from "@/src/pages/app-shift-board";
+import { buildAppShiftBoardPageHead } from "@/src/pages/app-shift-board/meta";
 
 export const Route = createFileRoute("/_auth/app_/shifts_/$recruitmentId_/board")({
-  head: () => buildAppPrototypePageHead("シフト表"),
+  validateSearch: validateAppOrganizationRouteSearch,
+  head: buildAppShiftBoardPageHead,
   staticData: {
     appShell: {
-      mode: "focused",
-      title: "シフトを調整",
-      backTo: "/app/shifts",
-      backLabel: "シフト一覧へ戻る",
+      mode: "navigation",
+      activeKey: "shifts",
     },
   },
-  component: AppShiftBoardPage,
+  component: RouteComponent,
 });
+
+function RouteComponent() {
+  const { recruitmentId } = Route.useParams();
+  const { organizationId } = useAppOrganizationScope();
+
+  return <AppShiftBoardRoutePage organizationId={organizationId} recruitmentId={recruitmentId} />;
+}

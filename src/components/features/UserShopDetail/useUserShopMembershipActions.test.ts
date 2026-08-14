@@ -28,6 +28,7 @@ vi.mock("@/src/components/shared/feedback", () => ({
 import { useUserShopMembershipActions } from "./useUserShopMembershipActions";
 
 const targetShopId = "shop-target" as Id<"shops">;
+const organizationId = "organization-a" as Id<"organizations">;
 const staffId = "staff-target" as Id<"staffs">;
 const membership = {
   staffId,
@@ -51,6 +52,28 @@ beforeEach(() => {
 });
 
 describe("useUserShopMembershipActions", () => {
+  it("app導線ではexpected organizationをmutationへ渡す", async () => {
+    const { result } = renderHook(() =>
+      useUserShopMembershipActions({
+        targetShopId,
+        membership,
+        isReadOnly: false,
+        expectedOrganizationId: organizationId,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.onChangeShiftTarget(false);
+    });
+
+    expect(mocks.setShiftExclusion).toHaveBeenCalledExactlyOnceWith({
+      shopId: targetShopId,
+      staffId,
+      excluded: true,
+      expectedOrganizationId: organizationId,
+    });
+  });
+
   it("シフト対象設定へpathのtargetShopIdを明示する", async () => {
     const { result } = renderHook(() =>
       useUserShopMembershipActions({

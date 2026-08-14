@@ -1,6 +1,7 @@
 import { Alert, Badge, Box, Flex, Skeleton, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LuUser } from "react-icons/lu";
+import type { Id } from "@/convex/_generated/dataModel";
 import { MembershipRemovalImpact } from "@/src/components/shared/MembershipRemovalImpact";
 import { Button } from "@/src/components/ui/Button";
 import { CheckboxListCard, CheckboxListCardItem } from "@/src/components/ui/CheckboxListCard";
@@ -49,17 +50,20 @@ type DialogProps = {
 
 export function ConnectedShopStaffMembershipDialog({
   shop,
+  expectedOrganizationId,
   isOpen,
   onOpenChange,
   onClose,
 }: {
   shop: ShopDetailData;
+  expectedOrganizationId?: Id<"organizations">;
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;
 }) {
   const controller = useShopStaffMembershipController({
     shopId: shop.id as ShopId,
+    expectedOrganizationId,
     isOpen,
     onSucceeded: onClose,
   });
@@ -354,6 +358,11 @@ export function ShopStaffMembershipDialog({
             {session.people.map((person) => {
               const disabledReason = globalDisabledReason ? null : person.changeDisabledReason;
               const personContextId = `shop-staff-membership-person-context-${person.personId}`;
+              const membershipShopNames = person.isSelected
+                ? [shopName, ...person.otherShopNames]
+                : person.otherShopNames;
+              const membershipDescription =
+                membershipShopNames.length > 0 ? `所属：${membershipShopNames.join("、")}` : "所属：なし";
               const isRemoved =
                 initialSelectedPersonIdSet.has(person.personId) && !selectedPersonIdSet.has(person.personId);
               const isFirstRemoved = removedPeople[0]?.personId === person.personId;
@@ -394,17 +403,13 @@ export function ShopStaffMembershipDialog({
                   <Stack gap={0.5} minW={0}>
                     <VisuallyHidden id={personContextId}>
                       {person.isManager ? "管理者。" : "スタッフ。"}
-                      {person.otherShopNames.length > 0
-                        ? `所属：${person.otherShopNames.join("、")}。`
-                        : "所属：なし。"}
+                      {`${membershipDescription}。`}
                     </VisuallyHidden>
                     {isRemoved ? (
                       <MembershipRemovalImpact
                         id={removalImpactId}
                         heading={person.name}
-                        description={
-                          person.otherShopNames.length > 0 ? `所属：${person.otherShopNames.join("、")}` : "所属：なし"
-                        }
+                        description={membershipDescription}
                         badgeLabel="この店舗から外す"
                         statusMessage={isFirstRemoved && isPreviewLoading ? "変更内容を確認しています…" : undefined}
                       />
@@ -414,9 +419,7 @@ export function ShopStaffMembershipDialog({
                           {person.name}
                         </Text>
                         <Text fontSize="xs" color="fg.subtle" overflowWrap="anywhere">
-                          {person.otherShopNames.length > 0
-                            ? `所属：${person.otherShopNames.join("、")}`
-                            : "所属：なし"}
+                          {membershipDescription}
                         </Text>
                       </>
                     )}

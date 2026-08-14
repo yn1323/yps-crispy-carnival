@@ -6,10 +6,11 @@ import { useShiftBoardPageController } from "./useShiftBoardPageController";
 export type ShiftBoardPageProps = {
   data: ShiftBoardData;
   recruitmentId: Id<"recruitments">;
+  layout?: "legacy" | "app";
 };
 
-export const ShiftBoardPage = ({ data, recruitmentId }: ShiftBoardPageProps) => {
+export const ShiftBoardPage = ({ data, recruitmentId, layout = "legacy" }: ShiftBoardPageProps) => {
   const controller = useShiftBoardPageController(data, recruitmentId);
 
-  return <ShiftBoardPageView {...controller} />;
+  return <ShiftBoardPageView {...controller} layout={layout} />;
 };

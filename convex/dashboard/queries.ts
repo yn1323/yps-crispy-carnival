@@ -58,7 +58,7 @@ const dashboardStaffValidator = v.object({
   managerInvitationState: managerInvitationStateValidator,
 });
 
-const dashboardRecruitmentValidator = v.object({
+export const dashboardRecruitmentValidator = v.object({
   _id: v.id("recruitments"),
   createdAt: v.number(),
   periodStart: v.string(),
@@ -68,7 +68,9 @@ const dashboardRecruitmentValidator = v.object({
   status: v.union(v.literal("open"), v.literal("confirmed")),
   confirmedAt: v.union(v.number(), v.null()),
   responseCount: v.number(),
+  responseCountHasOverflow: v.optional(v.boolean()),
   totalStaffCount: v.number(),
+  totalStaffCountHasOverflow: v.optional(v.boolean()),
 });
 
 const dashboardAnnouncementValidator = v.object({
@@ -374,10 +376,11 @@ async function getTotalStaffCount(ctx: { db: GenericDatabaseReader<DataModel> },
   return activeStaffs.filter((s) => !s.excludedFromShift).length;
 }
 
-async function toDashboardRecruitment(
+export async function toDashboardRecruitment(
   ctx: { db: GenericDatabaseReader<DataModel> },
   recruitment: Doc<"recruitments">,
   totalStaffCount: number,
+  options?: { legacySubmissionCountLimit?: number },
 ) {
   // 回答数は shiftSubmissions を正とする。
   // 全日休み提出では明細が0件になるため、提出記録を数えないと未提出扱いになってしまう。
@@ -385,12 +388,23 @@ async function toDashboardRecruitment(
     .query("recruitmentStats")
     .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitment._id))
     .first();
-  const submissions = stats
-    ? []
-    : await ctx.db
-        .query("shiftSubmissions")
-        .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitment._id))
-        .take(DASHBOARD_RESPONSE_COUNT_LIMIT);
+  const legacySubmissionCountLimit = options?.legacySubmissionCountLimit ?? DASHBOARD_RESPONSE_COUNT_LIMIT;
+  if (
+    !Number.isSafeInteger(legacySubmissionCountLimit) ||
+    legacySubmissionCountLimit < 1 ||
+    legacySubmissionCountLimit > DASHBOARD_RESPONSE_COUNT_LIMIT
+  ) {
+    throw new Error(`legacySubmissionCountLimit must be between 1 and ${DASHBOARD_RESPONSE_COUNT_LIMIT}`);
+  }
+  const legacySubmissionReadLimit = Math.min(totalStaffCount, legacySubmissionCountLimit + 1);
+  const submissions =
+    stats || legacySubmissionReadLimit === 0
+      ? []
+      : await ctx.db
+          .query("shiftSubmissions")
+          .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitment._id))
+          .take(legacySubmissionReadLimit);
+  const responseCountHasOverflow = !stats && submissions.length > legacySubmissionCountLimit;
   return {
     _id: recruitment._id,
     createdAt: recruitment._creationTime,
@@ -404,7 +418,11 @@ async function toDashboardRecruitment(
     confirmedAt: recruitment.confirmedAt ?? null,
     // 提出数は対象外スタッフの提出も含みうるため、母数（対象外を除いた総数）を上限にクランプし、
     // 「3/2人」のような不可能な比率が表示されないようにする。
-    responseCount: Math.min(stats?.submittedCount ?? submissions.length, totalStaffCount),
+    responseCount: Math.min(
+      stats?.submittedCount ?? Math.min(submissions.length, legacySubmissionCountLimit),
+      totalStaffCount,
+    ),
+    ...(responseCountHasOverflow ? { responseCountHasOverflow: true } : {}),
     totalStaffCount,
   };
 }
@@ -437,7 +455,7 @@ async function getNonPastConfirmedRecruitmentDocs(
     .take(DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT);
 }
 
-async function getDashboardRecruitmentCandidateDocs(
+export async function getDashboardRecruitmentCandidateDocs(
   ctx: { db: GenericDatabaseReader<DataModel> },
   shopId: Doc<"shops">["_id"],
   groupLimit: number,

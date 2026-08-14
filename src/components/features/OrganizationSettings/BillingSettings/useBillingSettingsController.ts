@@ -10,12 +10,16 @@ import { selectedShopAtom } from "@/src/stores/shop";
 import type { OrganizationBillingView } from "../types";
 
 type Input = {
+  organizationId?: Id<"organizations">;
   billing: OrganizationBillingView;
 };
 
 export function useBillingSettingsController(input: Input) {
   const selectedShop = useAtomValue(selectedShopAtom);
   const updateBillingEmail = useMutation(api.organizationBilling.mutations.updateBillingEmail);
+  const updateBillingEmailForOrganization = useMutation(
+    api.organizationBilling.mutations.updateBillingEmailForOrganization,
+  );
   const [isBillingEmailOpen, setIsBillingEmailOpen] = useState(false);
   const latestRef = useRef(input);
   latestRef.current = input;
@@ -25,16 +29,22 @@ export function useBillingSettingsController(input: Input) {
   }, [input.billing.canUpdateBillingEmail]);
 
   const { run: submitBillingEmail, isRunning: isUpdatingBillingEmail } = useSingleFlight(async (email: string) => {
-    if (!latestRef.current.billing.canUpdateBillingEmail || !selectedShop?.shopId) {
+    const latest = latestRef.current;
+    if (!latest.billing.canUpdateBillingEmail || (!latest.organizationId && !selectedShop?.shopId)) {
       setIsBillingEmailOpen(false);
       return;
     }
     try {
-      await updateBillingEmail({
-        shopId: selectedShop.shopId as Id<"shops">,
-        email,
-        requestId: crypto.randomUUID(),
-      });
+      const requestId = crypto.randomUUID();
+      if (latest.organizationId) {
+        await updateBillingEmailForOrganization({ organizationId: latest.organizationId, email, requestId });
+      } else if (selectedShop) {
+        await updateBillingEmail({
+          shopId: selectedShop.shopId as Id<"shops">,
+          email,
+          requestId,
+        });
+      }
       showSuccessToast({ title: "請求先メールアドレスを変更しました" });
       setIsBillingEmailOpen(false);
     } catch (error) {

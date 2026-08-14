@@ -39,6 +39,7 @@ import type * as _lib_time from "../_lib/time.js";
 import type * as _lib_turnstile from "../_lib/turnstile.js";
 import type * as _lib_uuid from "../_lib/uuid.js";
 import type * as _lib_validation from "../_lib/validation.js";
+import type * as _test_actionInboxFixtures from "../_test/actionInboxFixtures.js";
 import type * as _test_scenarioBuilders from "../_test/scenarioBuilders.js";
 import type * as _test_scenarioFixtures from "../_test/scenarioFixtures.js";
 import type * as _test_seed from "../_test/seed.js";
@@ -75,6 +76,10 @@ import type * as analyticsDashboard_rateLimit from "../analyticsDashboard/rateLi
 import type * as analyticsDashboard_refs from "../analyticsDashboard/refs.js";
 import type * as analyticsDashboard_schemas from "../analyticsDashboard/schemas.js";
 import type * as analyticsDashboard_validators from "../analyticsDashboard/validators.js";
+import type * as appOrganization_actionInboxQueries from "../appOrganization/actionInboxQueries.js";
+import type * as appOrganization_detailQueries from "../appOrganization/detailQueries.js";
+import type * as appOrganization_manageQueries from "../appOrganization/manageQueries.js";
+import type * as appOrganization_queries from "../appOrganization/queries.js";
 import type * as constants from "../constants.js";
 import type * as contact_actions from "../contact/actions.js";
 import type * as contact_httpActions from "../contact/httpActions.js";
@@ -294,6 +299,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/turnstile": typeof _lib_turnstile;
   "_lib/uuid": typeof _lib_uuid;
   "_lib/validation": typeof _lib_validation;
+  "_test/actionInboxFixtures": typeof _test_actionInboxFixtures;
   "_test/scenarioBuilders": typeof _test_scenarioBuilders;
   "_test/scenarioFixtures": typeof _test_scenarioFixtures;
   "_test/seed": typeof _test_seed;
@@ -330,6 +336,10 @@ declare const fullApi: ApiFromModules<{
   "analyticsDashboard/refs": typeof analyticsDashboard_refs;
   "analyticsDashboard/schemas": typeof analyticsDashboard_schemas;
   "analyticsDashboard/validators": typeof analyticsDashboard_validators;
+  "appOrganization/actionInboxQueries": typeof appOrganization_actionInboxQueries;
+  "appOrganization/detailQueries": typeof appOrganization_detailQueries;
+  "appOrganization/manageQueries": typeof appOrganization_manageQueries;
+  "appOrganization/queries": typeof appOrganization_queries;
   constants: typeof constants;
   "contact/actions": typeof contact_actions;
   "contact/httpActions": typeof contact_httpActions;

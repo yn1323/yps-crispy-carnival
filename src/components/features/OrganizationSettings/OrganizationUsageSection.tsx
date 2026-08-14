@@ -2,7 +2,12 @@ import { Box, Flex, Grid, HStack, Skeleton, Stack, Text } from "@chakra-ui/react
 import { LuStore, LuUserRoundCog, LuUsers } from "react-icons/lu";
 import type { OrganizationBillingView } from "./types";
 
-export function OrganizationUsageSection({ billing }: { billing: OrganizationBillingView }) {
+export type OrganizationUsageSummary = Pick<
+  OrganizationBillingView,
+  "state" | "currentPlan" | "limitPlan" | "peopleUsage" | "shopUsage" | "managerUsage"
+>;
+
+export function OrganizationUsageSection({ billing }: { billing: OrganizationUsageSummary }) {
   if (billing.state === "migrationPending") return null;
 
   if (billing.state === "restricted" && billing.limitPlan === undefined) {
@@ -183,7 +188,7 @@ function UsageDivider() {
   return <Box aria-hidden alignSelf="stretch" w="1px" my={2} bg="blackAlpha.100" />;
 }
 
-function getAppliedLimitLabel(billing: OrganizationBillingView) {
+function getAppliedLimitLabel(billing: OrganizationUsageSummary) {
   if (billing.state === "restricted") {
     return billing.limitPlan === "pro"
       ? "現在はProの上限が適用されています"

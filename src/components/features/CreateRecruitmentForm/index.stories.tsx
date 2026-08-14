@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import { createDeferred } from "@/src/devtools/createDeferred";
-import { CreateRecruitmentForm } from "./index.tsx";
+import { CreateRecruitmentForm, type CreateRecruitmentSelectableShop } from "./index.tsx";
 
 const meta = {
   title: "Features/CreateRecruitmentForm",
@@ -21,8 +21,42 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const STORY_TODAY = "2026-05-01";
+const FIXED_SHOP = { shopId: "shop-main", shopName: "本店" };
+const SELECTABLE_SHOPS: CreateRecruitmentSelectableShop[] = [
+  { ...FIXED_SHOP, regularClosedDays: ["mon"] },
+  { shopId: "shop-station", shopName: "駅前店", regularClosedDays: ["tue"] },
+];
 const LONG_WEEKDAYS = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"] as const;
 const storyToday = () => dayjs(STORY_TODAY);
+
+const ShopSelectionHarness = () => {
+  const [submittedShopName, setSubmittedShopName] = useState("");
+  const [shops, setShops] = useState(SELECTABLE_SHOPS);
+
+  return (
+    <>
+      <StepperDialog title="新しい募集をつくる" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
+        <CreateRecruitmentForm
+          today={STORY_TODAY}
+          shopTarget={{ mode: "select", shops }}
+          onSubmit={(_, selectedShop) => setSubmittedShopName(selectedShop?.shopName ?? "")}
+          onCancel={() => {}}
+        />
+      </StepperDialog>
+      <output hidden data-testid="submitted-shop-name">
+        {submittedShopName}
+      </output>
+      <button
+        type="button"
+        hidden
+        data-testid="remove-station-shop"
+        onClick={() => setShops((current) => current.filter((shop) => shop.shopId !== "shop-station"))}
+      >
+        駅前店を候補から外す
+      </button>
+    </>
+  );
+};
 
 const DoubleSubmitGuardHarness = () => {
   const [submitCount, setSubmitCount] = useState(0);
@@ -84,7 +118,12 @@ const DoubleSubmitGuardHarness = () => {
 export const InDialog: Story = {
   render: () => (
     <StepperDialog title="新しい募集をつくる" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
-      <CreateRecruitmentForm today={STORY_TODAY} onSubmit={() => {}} onCancel={() => {}} />
+      <CreateRecruitmentForm
+        today={STORY_TODAY}
+        shopTarget={{ mode: "fixed", shop: FIXED_SHOP }}
+        onSubmit={() => {}}
+        onCancel={() => {}}
+      />
     </StepperDialog>
   ),
 };
@@ -96,9 +135,26 @@ export const MobileFullScreen: Story = {
   },
   render: () => (
     <StepperDialog title="新しい募集をつくる" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
-      <CreateRecruitmentForm today={STORY_TODAY} onSubmit={() => {}} onCancel={() => {}} />
+      <CreateRecruitmentForm
+        today={STORY_TODAY}
+        shopTarget={{ mode: "fixed", shop: FIXED_SHOP }}
+        onSubmit={() => {}}
+        onCancel={() => {}}
+      />
     </StepperDialog>
   ),
+};
+
+export const ShopSelectionInDialog: Story = {
+  render: () => <ShopSelectionHarness />,
+};
+
+export const ShopSelectionMobile: Story = {
+  tags: ["vrt-mobile1"],
+  globals: {
+    viewport: { value: "mobile1", isRotated: false },
+  },
+  render: () => <ShopSelectionHarness />,
 };
 
 export const FutureMonthsNavigation: Story = {
@@ -221,6 +277,8 @@ export const InteractiveBasicFlow: Story = {
     const periodEnd = today.add(5, "day");
     const deadline = periodStart.subtract(1, "day");
 
+    expect(canvas.queryByText("対象店舗を選択")).not.toBeInTheDocument();
+    await canvas.findByText("シフト期間を選択");
     expectDateDisabled(root, today, "期間カレンダーで今日以前は選択不可");
     await clickDate(root, periodStart);
     await clickDate(root, periodEnd);
@@ -234,11 +292,103 @@ export const InteractiveBasicFlow: Story = {
     await clickButton(root, "確認へ");
 
     await canvas.findByText("内容を確認");
+    expect(canvas.getByText("対象店舗")).toBeTruthy();
+    expect(canvas.getByText("本店")).toBeTruthy();
     expect(canvas.getByText("お店のお休み")).toBeTruthy();
     expect(canvas.getByText("なし")).toBeTruthy();
     expect(canvas.getAllByText("提出締切").length).toBeGreaterThan(0);
     expect(canvas.getByText("通知")).toBeTruthy();
     expect(await canvas.findByText("スタッフにシフト提出案内を送ります")).toBeTruthy();
+  },
+};
+
+export const InteractiveShopSelectionFlow: Story = {
+  parameters: {
+    screenshot: { skip: true },
+  },
+  render: () => <ShopSelectionHarness />,
+  play: async ({ canvasElement }) => {
+    const root = await getTestRoot(canvasElement);
+    const canvas = within(root);
+    const story = within(canvasElement);
+    const periodStart = dayjs("2026-05-04");
+    const periodEnd = dayjs("2026-05-06");
+    const monday = periodStart;
+    const tuesday = periodStart.add(1, "day");
+
+    await canvas.findByText("対象店舗を選択");
+    await expect(canvas.getByRole("button", { name: "次へ" })).toBeDisabled();
+    await userEvent.click(canvas.getByRole("radio", { name: "本店を選択" }));
+    await expect(canvas.getByRole("radio", { name: "本店を選択" })).toBeChecked();
+    await clickButton(root, "次へ");
+
+    await canvas.findByText("シフト期間を選択");
+    await clickDate(root, periodStart);
+    await clickDate(root, periodEnd);
+    await clickButton(root, "次へ");
+
+    await canvas.findByText("お店のお休みを選択");
+    await expect(getDateButton(root, monday)).toHaveAttribute("data-selected");
+    await clickButton(root, "戻る");
+    await canvas.findByText("シフト期間を選択");
+    await clickButton(root, "戻る");
+
+    await canvas.findByText("対象店舗を選択");
+    await userEvent.click(canvas.getByRole("radio", { name: "駅前店を選択" }));
+    await expect(canvas.getByRole("radio", { name: "駅前店を選択" })).toBeChecked();
+    await clickButton(root, "次へ");
+    await canvas.findByText("シフト期間を選択");
+    await clickButton(root, "次へ");
+
+    await canvas.findByText("お店のお休みを選択");
+    await waitFor(() => expect(getDateButton(root, monday)).not.toHaveAttribute("data-selected"));
+    await expect(getDateButton(root, tuesday)).toHaveAttribute("data-selected");
+    await clickButton(root, "次へ");
+
+    await canvas.findByText("提出締切日を選択");
+    await clickDate(root, periodStart.subtract(1, "day"));
+    await clickButton(root, "確認へ");
+
+    await canvas.findByText("内容を確認");
+    expect(canvas.getByText("対象店舗")).toBeTruthy();
+    expect(canvas.getByText("駅前店")).toBeTruthy();
+    expect(canvas.getByText(formatDatePreview(tuesday))).toBeTruthy();
+    expect(canvas.queryByText(formatDatePreview(monday))).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "募集をつくる" }));
+    await waitFor(() => expect(story.getByTestId("submitted-shop-name")).toHaveTextContent("駅前店"));
+  },
+};
+
+export const InteractiveSelectedShopInvalidation: Story = {
+  parameters: {
+    screenshot: { skip: true },
+  },
+  render: () => <ShopSelectionHarness />,
+  play: async ({ canvasElement }) => {
+    const root = await getTestRoot(canvasElement);
+    const canvas = within(root);
+    const story = within(canvasElement);
+    const periodStart = dayjs("2026-05-04");
+
+    await userEvent.click(await canvas.findByRole("radio", { name: "駅前店を選択" }));
+    await clickButton(root, "次へ");
+    await clickDate(root, periodStart);
+    await clickDate(root, periodStart.add(2, "day"));
+    await clickButton(root, "次へ");
+    await canvas.findByText("お店のお休みを選択");
+    await clickButton(root, "次へ");
+    await canvas.findByText("提出締切日を選択");
+    await clickDate(root, periodStart.subtract(1, "day"));
+    await clickButton(root, "確認へ");
+    await canvas.findByText("内容を確認");
+    expect(canvas.getByText("駅前店")).toBeTruthy();
+
+    fireEvent.click(story.getByTestId("remove-station-shop"));
+
+    await canvas.findByText("対象店舗を選択");
+    expect(canvas.queryByText("内容を確認")).not.toBeInTheDocument();
+    expect(canvas.queryByRole("radio", { name: "駅前店を選択" })).not.toBeInTheDocument();
+    await expect(canvas.getByRole("button", { name: "次へ" })).toBeDisabled();
   },
 };
 

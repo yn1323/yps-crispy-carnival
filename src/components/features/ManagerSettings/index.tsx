@@ -1,15 +1,26 @@
+import type { Id } from "@/convex/_generated/dataModel";
 import { ManagerSettingsConfirmationDialog } from "./ManagerSettingsConfirmationDialog";
 import { ManagerSettingsView } from "./ManagerSettingsView";
 import type { ReadyManagerSettingsOverview } from "./types";
 import { useManagerSettingsController } from "./useManagerSettingsController";
 
-export function ManagerSettings({ overview, shopId }: { overview: ReadyManagerSettingsOverview; shopId: string }) {
-  const controller = useManagerSettingsController({ overview, shopId });
+export function ManagerSettings({
+  overview,
+  shopId,
+  organizationId,
+}: {
+  overview: ReadyManagerSettingsOverview;
+  shopId?: string;
+  organizationId?: Id<"organizations">;
+}) {
+  const controller = useManagerSettingsController({ overview, shopId, organizationId });
   return (
     <>
       <ManagerSettingsView
         overview={overview}
-        shopId={shopId}
+        shopId={shopId ?? ""}
+        organizationId={organizationId}
+        navigationMode={organizationId ? "app" : "legacy"}
         onBack={controller.onBack}
         onRequestResend={controller.onRequestResend}
         onRequestRevoke={controller.onRequestRevoke}

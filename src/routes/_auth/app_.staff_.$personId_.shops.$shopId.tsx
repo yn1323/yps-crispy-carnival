@@ -1,15 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AppStaffShopDetailPage } from "@/src/pages/app-navigation-prototype";
-import { buildAppPrototypePageHead } from "@/src/pages/app-navigation-prototype/meta";
+import {
+  useAppOrganizationScope,
+  validateAppOrganizationRouteSearch,
+} from "@/src/components/features/AuthenticatedApp";
+import { UserShopDetailPage } from "@/src/pages/user-shop-detail";
+import { buildUserShopDetailPageHead } from "@/src/pages/user-shop-detail/meta";
 
 export const Route = createFileRoute("/_auth/app_/staff_/$personId_/shops/$shopId")({
-  head: () => buildAppPrototypePageHead("スタッフの店舗別設定"),
+  validateSearch: validateAppOrganizationRouteSearch,
+  head: buildUserShopDetailPageHead,
   staticData: { appShell: { mode: "navigation", activeKey: "staff" } },
   component: StaffShopDetailRoutePage,
 });
 
 function StaffShopDetailRoutePage() {
-  const { shopId } = Route.useParams();
+  const { personId, shopId } = Route.useParams();
+  const { organizationId } = useAppOrganizationScope();
 
-  return <AppStaffShopDetailPage shopId={shopId} />;
+  return <UserShopDetailPage personId={personId} targetShopId={shopId} appOrganizationId={organizationId} />;
 }

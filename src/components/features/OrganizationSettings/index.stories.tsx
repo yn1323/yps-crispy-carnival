@@ -485,7 +485,7 @@ export const DisabledActionReasonsBehavior: Story = {
   args: disabledActionReasonArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("button", { name: "管理者を変更" })).toBeEnabled();
+    await expect(canvas.getByRole("button", { name: "管理者を設定" })).toBeEnabled();
     await expectDisabledActionDescription(
       canvas.getByRole("button", { name: "組織名を変更" }),
       "閲覧のみの管理者は、組織名を変更できません。",

@@ -3,6 +3,7 @@ import { Link as RouterLink } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import type { IconType } from "react-icons";
 import { LuChevronRight, LuMailPlus, LuShieldCheck, LuUserMinus, LuUserPlus, LuUsers } from "react-icons/lu";
+import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/src/components/ui/Button";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import { Empty } from "@/src/components/ui/Empty";
@@ -18,6 +19,7 @@ type Props = {
   overview: ReadyManagerSettingsOverview;
   shopId: string;
   navigationMode?: "legacy" | "app";
+  organizationId?: Id<"organizations">;
   title?: string;
   titleIcon?: IconType;
   backLabel?: string;
@@ -32,6 +34,7 @@ export function ManagerSettingsView({
   overview,
   shopId,
   navigationMode = "legacy",
+  organizationId,
   title = "管理者設定",
   titleIcon,
   backLabel = "組織設定へ戻る",
@@ -69,6 +72,7 @@ export function ManagerSettingsView({
             destination="existingStaff"
             shopId={shopId}
             navigationMode={navigationMode}
+            organizationId={organizationId}
             enabled={canIssueManagerAddition && overview.actions.canInviteExistingStaff}
             disabledReason={
               canIssueManagerAddition ? overview.actions.existingStaffDisabledReason : legacyModeDisabledReason
@@ -81,6 +85,7 @@ export function ManagerSettingsView({
             destination="external"
             shopId={shopId}
             navigationMode={navigationMode}
+            organizationId={organizationId}
             enabled={canIssueManagerAddition && overview.actions.canInviteExternal}
             disabledReason={
               canIssueManagerAddition ? overview.actions.externalDisabledReason : legacyModeDisabledReason
@@ -159,6 +164,7 @@ type ActionCardProps = {
   destination: "existingStaff" | "external";
   shopId: string;
   navigationMode: "legacy" | "app";
+  organizationId?: Id<"organizations">;
   enabled: boolean;
   disabledReason?: string;
 };
@@ -170,6 +176,7 @@ function ManagerActionCard({
   destination,
   shopId,
   navigationMode,
+  organizationId,
   enabled,
   disabledReason,
 }: ActionCardProps) {
@@ -238,6 +245,7 @@ function ManagerActionCard({
       destination === "existingStaff" ? (
         <RouterLink
           to="/app/manage/managers/invite-staff"
+          search={organizationId ? { org: organizationId } : {}}
           preload="intent"
           aria-labelledby={titleId}
           aria-describedby={descriptionId}
@@ -247,6 +255,7 @@ function ManagerActionCard({
       ) : (
         <RouterLink
           to="/app/manage/managers/invite-new"
+          search={organizationId ? { org: organizationId } : {}}
           preload="intent"
           aria-labelledby={titleId}
           aria-describedby={descriptionId}

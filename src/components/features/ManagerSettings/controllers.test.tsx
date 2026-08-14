@@ -11,6 +11,10 @@ const mocks = vi.hoisted(() => ({
   resendRef: Symbol("resend"),
   revokeRef: Symbol("revoke"),
   removeManagerRoleRef: Symbol("removeManagerRole"),
+  issueForOrganizationRef: Symbol("issueForOrganization"),
+  resendForOrganizationRef: Symbol("resendForOrganization"),
+  revokeForOrganizationRef: Symbol("revokeForOrganization"),
+  removeManagerRoleForOrganizationRef: Symbol("removeManagerRoleForOrganization"),
   issue: vi.fn(),
   resend: vi.fn(),
   revoke: vi.fn(),
@@ -28,11 +32,27 @@ vi.mock("@/convex/_generated/api", () => ({
         issue: mocks.issueRef,
         resend: mocks.resendRef,
         revoke: mocks.revokeRef,
+        issueForOrganization: mocks.issueForOrganizationRef,
+        resendForOrganization: mocks.resendForOrganizationRef,
+        revokeForOrganization: mocks.revokeForOrganizationRef,
       },
     },
     organization: {
-      mutations: { removeManagerRole: mocks.removeManagerRoleRef },
+      mutations: {
+        removeManagerRole: mocks.removeManagerRoleRef,
+        removeManagerRoleForOrganization: mocks.removeManagerRoleForOrganizationRef,
+      },
     },
+  },
+}));
+
+vi.mock("convex/react", () => ({
+  useMutation: (reference: symbol) => {
+    if (reference === mocks.issueForOrganizationRef) return mocks.issue;
+    if (reference === mocks.resendForOrganizationRef) return mocks.resend;
+    if (reference === mocks.revokeForOrganizationRef) return mocks.revoke;
+    if (reference === mocks.removeManagerRoleForOrganizationRef) return mocks.removeManagerRole;
+    throw new Error("Unexpected organization mutation reference");
   },
 }));
 
@@ -139,6 +159,22 @@ afterEach(() => {
 });
 
 describe("useManagerSettingsController", () => {
+  it("app管理者操作は明示organizationIdを送り、selectedShopを認可anchorにしない", async () => {
+    const organizationId = "organization-app" as Id<"organizations">;
+    const { result } = renderHook(() => useManagerSettingsController({ overview, organizationId }));
+
+    act(() => result.current.onRequestResend(overview.invitations[0]));
+    act(() => result.current.onConfirm());
+
+    await waitFor(() =>
+      expect(mocks.resend).toHaveBeenCalledExactlyOnceWith({
+        organizationId,
+        invitationId,
+        requestId: requestIds[0],
+      }),
+    );
+  });
+
   it("旧backendが交代招待を再送可能として返しても再送を開始しない", () => {
     const legacyInvitation = {
       ...overview.invitations[0],
@@ -249,6 +285,27 @@ describe("useManagerSettingsController", () => {
 });
 
 describe("useManagerIssueController", () => {
+  it("app管理者招待は明示organizationIdを送り、成功後もorgを保持する", async () => {
+    const organizationId = "organization-app" as Id<"organizations">;
+    const { result } = renderHook(() => useManagerIssueController({ overview, organizationId }));
+
+    act(() => result.current.onRequestExistingStaff(candidate));
+    act(() => result.current.onConfirm());
+
+    await waitFor(() =>
+      expect(mocks.issue).toHaveBeenCalledExactlyOnceWith({
+        organizationId,
+        recipient: { kind: "existingStaff", personId: candidatePersonId },
+        requestId: requestIds[0],
+      }),
+    );
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/app/manage/managers",
+      search: { org: organizationId },
+      replace: true,
+    });
+  });
+
   it("旧backendのFree交代modeではaction capabilityがtrueでも新しい招待を開始しない", () => {
     const legacyOverview: ReadyManagerSettingsOverview = {
       ...overview,

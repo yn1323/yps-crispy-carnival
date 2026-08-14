@@ -11,7 +11,9 @@ export type Recruitment = {
   status: "open" | "confirmed";
   confirmedAt: number | null;
   responseCount: number;
+  responseCountHasOverflow?: boolean;
   totalStaffCount: number;
+  totalStaffCountHasOverflow?: boolean;
 };
 
 export type RecruitmentDisplayStatus = RecruitmentLifecycleStatus;
@@ -66,6 +68,15 @@ export type StaffRegistrationRequest = {
   name: string;
   email: string;
   createdAt: number;
+};
+
+export type DashboardNavigation = {
+  onOpenBillingSettings?: () => void;
+  onOpenOrganizationSettings?: () => void;
+  onOpenShopDetail?: (shopId: string) => void;
+  onOpenShiftBoard?: (recruitmentId: Recruitment["_id"]) => void;
+  onOpenStaffDetail?: (personId: Id<"organizationPeople">, visibleUserCount: number) => void;
+  onManageManagers?: () => void;
 };
 
 export type DashboardAnnouncement = {

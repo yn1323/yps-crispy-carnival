@@ -1,6 +1,8 @@
 import { useNavigate } from "@tanstack/react-router";
+import { useMutation } from "convex/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
@@ -16,14 +18,19 @@ import { canResendManagerInvitation } from "./types";
 export function useManagerSettingsController({
   overview,
   shopId,
+  organizationId,
 }: {
   overview: ReadyManagerSettingsOverview;
-  shopId: string;
+  shopId?: string;
+  organizationId?: Id<"organizations">;
 }) {
   const navigate = useNavigate();
   const resend = useShopMutation(api.organizationInvitation.mutations.resend);
   const revoke = useShopMutation(api.organizationInvitation.mutations.revoke);
   const removeManagerRole = useShopMutation(api.organization.mutations.removeManagerRole);
+  const resendForOrganization = useMutation(api.organizationInvitation.mutations.resendForOrganization);
+  const revokeForOrganization = useMutation(api.organizationInvitation.mutations.revokeForOrganization);
+  const removeManagerRoleForOrganization = useMutation(api.organization.mutations.removeManagerRoleForOrganization);
   const [confirmation, setConfirmation] = useState<ManagerSettingsConfirmation>(null);
   const latestOverviewRef = useRef(overview);
   latestOverviewRef.current = overview;
@@ -42,20 +49,30 @@ export function useManagerSettingsController({
 
       try {
         if (current.kind === "resend") {
-          await resend({ invitationId: current.invitation.invitationId, requestId: current.requestId });
+          const args = { invitationId: current.invitation.invitationId, requestId: current.requestId };
+          if (organizationId) await resendForOrganization({ organizationId, ...args });
+          else await resend(args);
           showSuccessToast({ title: "再送を受け付けました" });
         } else if (current.kind === "revoke") {
-          await revoke({ invitationId: current.invitation.invitationId, requestId: current.requestId });
+          const args = { invitationId: current.invitation.invitationId, requestId: current.requestId };
+          if (organizationId) await revokeForOrganization({ organizationId, ...args });
+          else await revoke(args);
           showSuccessToast({ title: "招待を取り消しました" });
         } else {
-          await removeManagerRole({ personId: current.manager.personId, requestId: current.requestId });
+          const args = { personId: current.manager.personId, requestId: current.requestId };
+          if (organizationId) await removeManagerRoleForOrganization({ organizationId, ...args });
+          else await removeManagerRole(args);
           showSuccessToast({
             title: "管理者権限を外しました",
             description: "人物情報とスタッフとしての店舗所属は維持しています。",
           });
           if (current.manager.isSelf) {
             setConfirmation(null);
-            void navigate({ to: "/dashboard", search: clearRequestedShopSearch(), replace: true });
+            void navigate(
+              organizationId
+                ? { to: "/app/home", search: {}, replace: true }
+                : { to: "/dashboard", search: clearRequestedShopSearch(), replace: true },
+            );
             return;
           }
         }
@@ -64,7 +81,16 @@ export function useManagerSettingsController({
         showErrorToast(error);
       }
     },
-    [navigate, removeManagerRole, resend, revoke],
+    [
+      navigate,
+      organizationId,
+      removeManagerRole,
+      removeManagerRoleForOrganization,
+      resend,
+      resendForOrganization,
+      revoke,
+      revokeForOrganization,
+    ],
   );
   const { run, isRunning } = useSingleFlight(execute);
 
@@ -86,7 +112,12 @@ export function useManagerSettingsController({
     onConfirm: () => {
       if (confirmation) void run(confirmation);
     },
-    onBack: () => void navigate({ to: "/settings", search: { shop: shopId }, replace: true }),
+    onBack: () =>
+      void navigate(
+        organizationId
+          ? { to: "/app/manage", search: { org: organizationId }, replace: true }
+          : { to: "/settings", search: { shop: shopId ?? "" }, replace: true },
+      ),
   };
 }
 

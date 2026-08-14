@@ -3,6 +3,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Id } from "@/convex/_generated/dataModel";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -23,9 +24,18 @@ vi.mock("@/src/components/features/UserDetail", () => ({
 
 vi.mock("@/src/components/features/UserShopDetail", () => ({
   UserShopDetailSkeleton: () => <output>loading</output>,
-  UserShopDetail: ({ targetShopId, onBack }: { targetShopId: string; onBack: () => void }) => (
+  UserShopDetail: ({
+    targetShopId,
+    expectedOrganizationId,
+    onBack,
+  }: {
+    targetShopId: string;
+    expectedOrganizationId?: string;
+    onBack: () => void;
+  }) => (
     <div>
       <output data-testid="target-shop">{targetShopId}</output>
+      <output data-testid="expected-organization">{expectedOrganizationId}</output>
       <button type="button" onClick={onBack}>
         戻る
       </button>
@@ -123,5 +133,32 @@ describe("UserShopDetailPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "戻る" }));
 
     expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({ ...backDestination, replace: true });
+  });
+
+  it("app導線はexpected organizationをreadとwrite controllerへ渡し、orgを保って戻る", () => {
+    render(
+      <UserShopDetailPage
+        personId="person-target"
+        targetShopId="shop-target"
+        appOrganizationId={"organization-a" as Id<"organizations">}
+      />,
+    );
+
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.getUserDetailRef, {
+      shopId: "shop-target",
+      personId: "person-target",
+      now: expect.any(Number),
+      requireTargetShopMembership: true,
+      expectedOrganizationId: "organization-a",
+    });
+    expect(screen.getByTestId("expected-organization").textContent).toBe("organization-a");
+
+    fireEvent.click(screen.getByRole("button", { name: "戻る" }));
+    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
+      to: "/app/staff/$personId",
+      params: { personId: "person-target" },
+      search: { org: "organization-a" },
+      replace: true,
+    });
   });
 });

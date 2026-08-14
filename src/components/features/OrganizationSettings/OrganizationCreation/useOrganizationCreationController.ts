@@ -11,13 +11,17 @@ import type { OrganizationCreationDialogState } from "./types";
 
 type Input = {
   canCreateOrganization: boolean;
-  onCreated: (shopId: string) => void;
+  onCreated: (shopId: string, organizationId?: Id<"organizations">) => void;
+  sourceShopId?: string | null;
+  appMode?: boolean;
+  organizationId?: Id<"organizations">;
 };
 
 export function useOrganizationCreationController(input: Input) {
   // 新しい組織自体は選択中店舗に属さないため、shop mutationにはしない。
   // sourceShopIdは現在のcanonical personを安全に引き継ぐためだけに送る。
   const createOrganization = useMutation(api.setup.mutations.createOrganization);
+  const createOrganizationForApp = useMutation(api.setup.mutations.createOrganizationForApp);
   const selectedShop = useAtomValue(selectedShopAtom);
   const [dialog, setDialog] = useState<OrganizationCreationDialogState | null>(null);
   const latestRef = useRef(input);
@@ -37,16 +41,40 @@ export function useOrganizationCreationController(input: Input) {
     }
 
     try {
-      const { shopId } = await createOrganization({
+      const baseArgs = {
         shopName: data.shopName,
-        ...(selectedShop ? { sourceShopId: selectedShop.shopId as Id<"shops"> } : {}),
         regularClosedDays: data.regularClosedDays,
         submissionPattern: data.submissionPattern,
         requestId,
-      });
+      };
+      const result = latest.appMode
+        ? {
+            ...(await createOrganizationForApp({
+              ...baseArgs,
+              organizationId: requireAppOrganizationId(latest.organizationId),
+            })),
+            appMode: true as const,
+          }
+        : {
+            ...(await createOrganization({
+              ...baseArgs,
+              ...((latest.sourceShopId === undefined ? selectedShop?.shopId : latest.sourceShopId)
+                ? {
+                    sourceShopId: (latest.sourceShopId === undefined
+                      ? selectedShop?.shopId
+                      : latest.sourceShopId) as Id<"shops">,
+                  }
+                : {}),
+            })),
+            appMode: false as const,
+          };
       showSuccessToast({ title: "新しい組織を作りました" });
       setDialog(null);
-      latest.onCreated(shopId);
+      if (result.appMode) {
+        latest.onCreated(result.shopId, result.organizationId);
+      } else {
+        latest.onCreated(result.shopId);
+      }
     } catch (error) {
       showErrorToast(error);
       throw error;
@@ -72,4 +100,9 @@ export function useOrganizationCreationController(input: Input) {
       },
     },
   };
+}
+
+function requireAppOrganizationId(organizationId: Id<"organizations"> | undefined): Id<"organizations"> {
+  if (!organizationId) throw new Error("app組織作成にはorganizationIdが必要です。");
+  return organizationId;
 }

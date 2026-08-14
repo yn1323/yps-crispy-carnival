@@ -8,6 +8,7 @@ import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { selectedShopAtom } from "@/src/stores/shop";
 
 type Input = {
+  organizationId?: Id<"organizations">;
   organizationName: string;
   canUpdateOrganizationName: boolean;
 };
@@ -15,6 +16,9 @@ type Input = {
 export function useOrganizationNameController(input: Input) {
   const selectedShop = useAtomValue(selectedShopAtom);
   const updateOrganizationName = useMutation(api.organization.mutations.updateOrganizationName);
+  const updateOrganizationNameForOrganization = useMutation(
+    api.organization.mutations.updateOrganizationNameForOrganization,
+  );
   const [isOpen, setIsOpen] = useState(false);
   const latestRef = useRef(input);
   latestRef.current = input;
@@ -25,17 +29,26 @@ export function useOrganizationNameController(input: Input) {
 
   const { run: submit, isRunning } = useSingleFlight(async (name: string) => {
     const latest = latestRef.current;
-    if (!latest.canUpdateOrganizationName || !selectedShop?.shopId) {
+    if (!latest.canUpdateOrganizationName || (!latest.organizationId && !selectedShop?.shopId)) {
       setIsOpen(false);
       return;
     }
 
     try {
-      await updateOrganizationName({
-        shopId: selectedShop.shopId as Id<"shops">,
-        name,
-        requestId: crypto.randomUUID(),
-      });
+      const requestId = crypto.randomUUID();
+      if (latest.organizationId) {
+        await updateOrganizationNameForOrganization({
+          organizationId: latest.organizationId,
+          name,
+          requestId,
+        });
+      } else if (selectedShop) {
+        await updateOrganizationName({
+          shopId: selectedShop.shopId as Id<"shops">,
+          name,
+          requestId,
+        });
+      }
       showSuccessToast({ title: "組織名を変更しました" });
       setIsOpen(false);
     } catch (error) {

@@ -13,6 +13,7 @@ import type { StaffManagementState } from "../StaffManagement";
 import type { StaffRegistrationRequestManagementState } from "../StaffRegistrationRequestManagement";
 import { StaffRosterSkeleton } from "../StaffRoster";
 import { TrialEndingCallout, type TrialEndingNoticeData } from "../TrialEndingCallout";
+import type { DashboardNavigation } from "../types";
 import { DashboardSectionUnavailable } from "./DashboardSectionUnavailable";
 import { type DashboardQueryStage, getDashboardStageReadiness } from "./queryStage";
 
@@ -38,6 +39,7 @@ export type DashboardContentViewProps = {
   staff: DashboardQueryStage<StaffManagementState>;
   registrationRequests: DashboardQueryStage<StaffRegistrationRequestManagementState>;
   notificationFailures: DashboardQueryStage<NotificationFailureRecoveryState>;
+  navigation?: DashboardNavigation;
 };
 
 export function DashboardContentView({
@@ -54,6 +56,7 @@ export function DashboardContentView({
   staff,
   registrationRequests,
   notificationFailures,
+  navigation,
 }: DashboardContentViewProps) {
   if (recruitment.status === "loading") return <DashboardContentSkeleton />;
 
@@ -92,6 +95,8 @@ export function DashboardContentView({
                   data={operationContextData}
                   planStatusCard={isBillingFeatureVisible ? planStatusCard : null}
                   billingSettingsShopId={isBillingFeatureVisible ? billingSettingsShopId : undefined}
+                  onOpenOrganizationSettings={navigation?.onOpenOrganizationSettings}
+                  onOpenShopDetail={navigation?.onOpenShopDetail}
                 />
                 <LegalReconsent status={managerLegalConsentStatus} />
                 {isBillingFeatureVisible && planStatusCard === undefined && billingSettingsShopId ? (
@@ -99,6 +104,7 @@ export function DashboardContentView({
                     notice={trialEndingNotice ?? null}
                     shopId={billingSettingsShopId}
                     isBillingVisible={isBillingFeatureVisible}
+                    onOpenBillingSettings={navigation?.onOpenBillingSettings}
                   />
                 ) : null}
               </Stack>

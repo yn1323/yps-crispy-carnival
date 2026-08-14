@@ -1,7 +1,9 @@
 import { Link as RouterLink } from "@tanstack/react-router";
+import { useQuery } from "convex/react";
 import { useState } from "react";
 import { LuUserRoundX } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import {
   getUserDetailBackDestination,
   UserDetail,
@@ -13,6 +15,7 @@ import { AuthenticatedPageContent } from "@/src/components/templates/Authenticat
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
+import { DefaultErrorFallback, ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { DEFAULT_USER_LIST_COUNT } from "@/src/lib/userListSearch";
 
@@ -89,6 +92,70 @@ export function UserDetailPage({
         />
       )}
     </AuthenticatedPageContent>
+  );
+}
+
+export function AppUserDetailPage({
+  personId,
+  organizationId,
+}: {
+  personId: string;
+  organizationId: Id<"organizations">;
+}) {
+  return (
+    <AuthenticatedPageContent>
+      <ErrorBoundary key={`${organizationId}:${personId}`} fallback={(error) => <DefaultErrorFallback error={error} />}>
+        <ConnectedAppUserDetailPage personId={personId} organizationId={organizationId} />
+      </ErrorBoundary>
+    </AuthenticatedPageContent>
+  );
+}
+
+function ConnectedAppUserDetailPage({
+  personId,
+  organizationId,
+}: {
+  personId: string;
+  organizationId: Id<"organizations">;
+}) {
+  const [queryNow] = useState(() => Date.now());
+  const data = useQuery(api.appOrganization.detailQueries.getUserDetail, {
+    organizationId,
+    personId,
+    now: queryNow,
+  });
+
+  if (data === undefined) return <UserDetailSkeleton />;
+  if (data === null) {
+    return (
+      <Empty
+        icon={LuUserRoundX}
+        title="ユーザーを表示できません"
+        description="ユーザーが削除されたか、表示する権限がありません。"
+        tone="warning"
+        minH={{
+          base: `calc(100dvh - ${HEADER_HEIGHT.base} - 32px)`,
+          md: `calc(100dvh - ${HEADER_HEIGHT.md} - 64px)`,
+        }}
+        action={
+          <Button asChild colorPalette="teal">
+            <RouterLink to="/app/staff" search={{ org: organizationId }}>
+              スタッフへ戻る
+            </RouterLink>
+          </Button>
+        }
+      />
+    );
+  }
+
+  return (
+    <UserDetail
+      data={data}
+      selectedShopId={null}
+      returnTo="dashboard"
+      visibleUserCount={DEFAULT_USER_LIST_COUNT}
+      appOrganizationId={organizationId}
+    />
   );
 }
 

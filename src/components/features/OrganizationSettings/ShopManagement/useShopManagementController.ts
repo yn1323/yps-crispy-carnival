@@ -1,16 +1,20 @@
+import { useMutation } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import type { ShopManagementDialogState, ShopManagementOperation } from "./types";
 
 type Input = {
+  organizationId?: Id<"organizations">;
   canAddShop: boolean;
 };
 
 export function useShopManagementController(input: Input) {
   const addShop = useShopMutation(api.organization.mutations.addShop);
+  const addShopForOrganization = useMutation(api.organization.mutations.addShopForOrganization);
   const [dialog, setDialog] = useState<ShopManagementDialogState | null>(null);
   const latestRef = useRef(input);
   latestRef.current = input;
@@ -29,10 +33,12 @@ export function useShopManagementController(input: Input) {
 
     try {
       const requestId = crypto.randomUUID();
-      await addShop({
-        ...operation.data,
-        requestId,
-      });
+      const args = { ...operation.data, requestId };
+      if (latest.organizationId) {
+        await addShopForOrganization({ organizationId: latest.organizationId, ...args });
+      } else {
+        await addShop(args);
+      }
       showSuccessToast({ title: "店舗を追加しました" });
       setDialog(null);
     } catch (error) {

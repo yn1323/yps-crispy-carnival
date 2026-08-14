@@ -10,7 +10,11 @@ import {
   analyticsPlanForBillingState,
   recordAnalyticsSourceEvent,
 } from "../analytics/sourceEvents";
-import { requireOrganizationActorForShop } from "../organization/access";
+import {
+  type OrganizationReadActor,
+  requireOrganizationActorForShop,
+  requireOrganizationReadActor,
+} from "../organization/access";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import {
   getOrganizationBillingState,
@@ -2008,6 +2012,71 @@ export const tightenVerifiedPaymentGrace = internalMutation({
   },
 });
 
+async function updateBillingEmailForActor(
+  ctx: MutationCtx,
+  args: { email: string; requestId: string },
+  actor: OrganizationReadActor,
+) {
+  const billingState = await getOrganizationBillingState(ctx, actor.organization._id);
+  if (!billingState) {
+    throw new ConvexError("組織の契約情報を確認中です");
+  }
+  if (billingState.state.kind === "complimentary") {
+    throw new ConvexError("支払い不要Businessでは請求先メールアドレスを変更できません");
+  }
+  const normalized = normalizeEmail(args.email);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) || normalized.length > 254) {
+    throw new ConvexError("メールアドレスの形式で入力してください");
+  }
+  const requiresRestrictedRecovery =
+    billingState.state.kind === "restricted" ||
+    (billingState.state.kind === "pendingActivation" && billingState.state.fallback === "restricted");
+  if (requiresRestrictedRecovery) {
+    await requireRestrictedRecoveryCapability(ctx, {
+      organizationId: actor.organization._id,
+      personId: actor.person._id,
+      capability: "updateBillingEmail",
+    });
+  } else if (actor.member.status !== "active") {
+    throw new ConvexError("この操作を行う権限がありません");
+  }
+  const requestKey = await toAuditRequestKey(args.requestId);
+  if (actor.organization.billingEmailNormalized === normalized) return { changed: false };
+
+  const correlationId = `${actor.organization._id}:billing-email:${requestKey}`;
+  const existing = await ctx.db
+    .query("organizationAuditEvents")
+    .withIndex("by_correlationId", (q) => q.eq("correlationId", correlationId))
+    .first();
+  if (existing) return { changed: false };
+
+  await ctx.db.patch(actor.organization._id, {
+    billingEmail: args.email.trim(),
+    billingEmailNormalized: normalized,
+    billingEmailSyncKey: requestKey,
+    updatedAt: Date.now(),
+  });
+  await recordOrganizationAuditEvent(ctx, {
+    organizationId: actor.organization._id,
+    actorUserId: actor.member.userId,
+    actorPersonId: actor.person._id,
+    action: "organization.billing_email_changed",
+    targetKind: "organization",
+    targetId: actor.organization._id,
+    correlationId,
+  });
+  await ctx.scheduler.runAfter(0, internal.organizationBilling.actions.enqueueBillingNotification, {
+    organizationId: actor.organization._id,
+    event: "billingEmailChanged",
+    eventKey: correlationId,
+  });
+  await ctx.scheduler.runAfter(0, internal.organizationStripe.actions.syncBillingEmail, {
+    organizationId: actor.organization._id,
+    requestId: requestKey,
+  });
+  return { changed: true };
+}
+
 export const updateBillingEmail = authenticatedMutation({
   args: { shopId: v.id("shops"), email: v.string(), requestId: v.string() },
   returns: v.object({ changed: v.boolean() }),
@@ -2017,63 +2086,18 @@ export const updateBillingEmail = authenticatedMutation({
       shopId: args.shopId,
       allowReadOnly: true,
     });
-    const billingState = await getOrganizationBillingState(ctx, actor.organization._id);
-    if (!billingState) {
-      throw new ConvexError("組織の契約情報を確認中です");
-    }
-    if (billingState.state.kind === "complimentary") {
-      throw new ConvexError("支払い不要Businessでは請求先メールアドレスを変更できません");
-    }
-    const normalized = normalizeEmail(args.email);
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) || normalized.length > 254) {
-      throw new ConvexError("メールアドレスの形式で入力してください");
-    }
-    const requiresRestrictedRecovery =
-      billingState.state.kind === "restricted" ||
-      (billingState.state.kind === "pendingActivation" && billingState.state.fallback === "restricted");
-    if (requiresRestrictedRecovery) {
-      await requireRestrictedRecoveryCapability(ctx, {
-        organizationId: actor.organization._id,
-        personId: actor.person._id,
-        capability: "updateBillingEmail",
-      });
-    } else if (actor.member.status !== "active") {
-      throw new ConvexError("この操作を行う権限がありません");
-    }
-    const requestKey = await toAuditRequestKey(args.requestId);
-    if (actor.organization.billingEmailNormalized === normalized) return { changed: false };
+    return await updateBillingEmailForActor(ctx, args, actor);
+  },
+});
 
-    const correlationId = `${actor.organization._id}:billing-email:${requestKey}`;
-    const existing = await ctx.db
-      .query("organizationAuditEvents")
-      .withIndex("by_correlationId", (q) => q.eq("correlationId", correlationId))
-      .first();
-    if (existing) return { changed: false };
-
-    await ctx.db.patch(actor.organization._id, {
-      billingEmail: args.email.trim(),
-      billingEmailNormalized: normalized,
-      billingEmailSyncKey: requestKey,
-      updatedAt: Date.now(),
+export const updateBillingEmailForOrganization = authenticatedMutation({
+  args: { organizationId: v.id("organizations"), email: v.string(), requestId: v.string() },
+  returns: v.object({ changed: v.boolean() }),
+  handler: async (ctx, args) => {
+    const actor = await requireOrganizationReadActor(ctx, {
+      user: ctx.user,
+      organizationId: args.organizationId,
     });
-    await recordOrganizationAuditEvent(ctx, {
-      organizationId: actor.organization._id,
-      actorUserId: actor.member.userId,
-      actorPersonId: actor.person._id,
-      action: "organization.billing_email_changed",
-      targetKind: "organization",
-      targetId: actor.organization._id,
-      correlationId,
-    });
-    await ctx.scheduler.runAfter(0, internal.organizationBilling.actions.enqueueBillingNotification, {
-      organizationId: actor.organization._id,
-      event: "billingEmailChanged",
-      eventKey: correlationId,
-    });
-    await ctx.scheduler.runAfter(0, internal.organizationStripe.actions.syncBillingEmail, {
-      organizationId: actor.organization._id,
-      requestId: requestKey,
-    });
-    return { changed: true };
+    return await updateBillingEmailForActor(ctx, args, actor);
   },
 });

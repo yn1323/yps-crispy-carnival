@@ -125,6 +125,7 @@ describe("static site manifest", () => {
 
     expect(disallowRules).not.toContain("/welcome");
     expect(disallowRules).toEqual([
+      "/app",
       "/dashboard",
       "/shiftboard",
       "/shifts",

@@ -1047,6 +1047,7 @@ export const upsertQuotaStatus = internalMutation({
 export const disconnectOrganizationPersonLine = authenticatedMutation({
   args: {
     shopId: v.id("shops"),
+    expectedOrganizationId: v.optional(v.id("organizations")),
     organizationPersonId: v.id("organizationPeople"),
     requestId: v.string(),
   },
@@ -1057,6 +1058,9 @@ export const disconnectOrganizationPersonLine = authenticatedMutation({
       user: ctx.user,
       shopId: args.shopId,
     });
+    if (args.expectedOrganizationId && actor.organization._id !== args.expectedOrganizationId) {
+      throw new ConvexError("Not found");
+    }
     const person = await ctx.db.get(args.organizationPersonId);
     if (person?.status !== "active" || person.organizationId !== actor.organization._id) {
       throw new ConvexError("Not found");

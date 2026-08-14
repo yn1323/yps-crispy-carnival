@@ -117,6 +117,29 @@ describe("usePlanStatusCardController", () => {
     });
   });
 
+  it("app routeでは店舗とcanonical organizationを同じ利用状況queryへ渡す", () => {
+    vi.useFakeTimers();
+    const openedAt = Date.parse("2026-08-11T02:30:00.000Z");
+    vi.setSystemTime(openedAt);
+    const { result } = renderHook(() =>
+      usePlanStatusCardController({
+        planStatus: paidPlan,
+        shopId: "shop-1",
+        expectedOrganizationId: "organization-1" as never,
+        enabled: true,
+        onOpenBillingSettings: vi.fn(),
+      }),
+    );
+
+    act(() => currentCard(result.current).onExpandedChange?.(true));
+
+    expect(mocks.query).toHaveBeenLastCalledWith(mocks.getDashboardPlanUsage, {
+      shopId: "shop-1",
+      expectedOrganizationId: "organization-1",
+      now: openedAt,
+    });
+  });
+
   it.each([
     {
       name: "支払い問題",

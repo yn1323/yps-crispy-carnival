@@ -2,6 +2,7 @@
 
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Id } from "@/convex/_generated/dataModel";
 import type { OrganizationBillingView } from "./types";
 
 const mocks = vi.hoisted(() => ({
@@ -37,7 +38,7 @@ vi.mock("convex/react", async () => {
   return {
     useMutation: () => mocks.mutation,
     useAction: (reference: never) => {
-      const name = getFunctionName(reference);
+      const name = getFunctionName(reference).replace("ForOrganization", "");
       if (name === "organizationStripe/actions:getPlanPrice") return mocks.actions.getProPrice;
       if (name === "organizationStripe/actions:startPaidCheckout") return mocks.actions.startProCheckout;
       if (name === "organizationStripe/actions:previewPaidPlanChange") return mocks.actions.previewPaidPlanChange;
@@ -118,6 +119,94 @@ afterEach(() => {
 });
 
 describe("OrganizationSettings controllers", () => {
+  it("app組織名変更はselectedShopではなく明示organizationIdを送る", async () => {
+    mocks.mutation.mockResolvedValue({ changed: true });
+    const { result } = renderHook(() =>
+      useOrganizationNameController({
+        organizationId: "organization-app" as never,
+        organizationName: "さくらダイニング",
+        canUpdateOrganizationName: true,
+      }),
+    );
+
+    act(() => result.current.open());
+    act(() => result.current.dialog.onSubmit("新しい組織名"));
+
+    await waitFor(() =>
+      expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
+        organizationId: "organization-app",
+        name: "新しい組織名",
+        requestId: "request-1",
+      }),
+    );
+  });
+
+  it("app店舗追加はselectedShopではなく明示organizationIdを送る", async () => {
+    mocks.mutation.mockResolvedValue({ changed: true });
+    const { result } = renderHook(() =>
+      useShopManagementController({ organizationId: "organization-app" as never, canAddShop: true }),
+    );
+    const data = {
+      shopName: "新宿店",
+      regularClosedDays: [],
+      submissionPattern: { kind: "dateOnly" as const },
+    };
+
+    act(() => result.current.addShop());
+    await act(async () => {
+      await result.current.dialog.onSubmit({ kind: "addShop", data });
+    });
+
+    expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
+      organizationId: "organization-app",
+      ...data,
+      requestId: "request-1",
+    });
+  });
+
+  it("app請求先変更はselectedShopではなく明示organizationIdを送る", async () => {
+    mocks.mutation.mockResolvedValue({ changed: true });
+    const { result } = renderHook(() =>
+      useBillingSettingsController({ organizationId: "organization-app" as never, billing }),
+    );
+
+    act(() => result.current.updateBillingEmail());
+    act(() => result.current.dialog.onSubmit("new-billing@example.com"));
+
+    await waitFor(() =>
+      expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
+        organizationId: "organization-app",
+        email: "new-billing@example.com",
+        requestId: "request-1",
+      }),
+    );
+  });
+
+  it("app課金controllerは料金取得にselectedShopではなく明示organizationIdを使う", async () => {
+    mocks.actions.getProPrice.mockResolvedValue({
+      status: "available",
+      currency: "jpy",
+      unitAmount: 3000,
+      interval: "month",
+      intervalCount: 1,
+      taxBehavior: "inclusive",
+    });
+
+    renderHook(() =>
+      useStripeBillingController({
+        organizationId: "organization-app" as never,
+        organizationName: "さくらダイニング",
+        billing,
+      }),
+    );
+
+    await waitFor(() => expect(mocks.actions.getProPrice).toHaveBeenCalledTimes(2));
+    expect(mocks.actions.getProPrice.mock.calls).toEqual([
+      [{ organizationId: "organization-app", targetPlan: "pro" }],
+      [{ organizationId: "organization-app", targetPlan: "business" }],
+    ]);
+  });
+
   it("組織名の変更中に権限を失うとDialogを閉じ、古いsubmitからmutationを呼ばない", async () => {
     const { result, rerender } = renderHook(
       ({ canUpdate }) =>
@@ -237,6 +326,41 @@ describe("OrganizationSettings controllers", () => {
     );
     expect(onCreated).toHaveBeenCalledExactlyOnceWith("shop-created");
     expect(result.current.dialog.dialog).toBeNull();
+  });
+
+  it("app組織作成はselectedShopを送らず、作成したorganizationIdを完了先へ渡す", async () => {
+    mocks.mutation.mockResolvedValue({
+      organizationId: "organization-created",
+      shopId: "shop-created",
+      created: true,
+    });
+    const onCreated = vi.fn();
+    const { result } = renderHook(() =>
+      useOrganizationCreationController({
+        canCreateOrganization: true,
+        appMode: true,
+        organizationId: "organization-current" as Id<"organizations">,
+        sourceShopId: null,
+        onCreated,
+      }),
+    );
+    const data = {
+      shopName: "二つ目の店舗",
+      regularClosedDays: [],
+      submissionPattern: { kind: "dateOnly" as const },
+    };
+
+    act(() => result.current.createOrganization());
+    await act(async () => {
+      await result.current.dialog.onSubmit(data);
+    });
+
+    expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
+      ...data,
+      organizationId: "organization-current",
+      requestId: "request-1",
+    });
+    expect(onCreated).toHaveBeenCalledExactlyOnceWith("shop-created", "organization-created");
   });
 
   it("組織作成は応答喪失後の手動再送で同じrequestIdを使い、作成済み応答を成功とする", async () => {

@@ -12,6 +12,7 @@ type Props = {
   canDelete?: boolean;
   deleteDisabledReason?: string;
   dataTour?: string;
+  shopName?: string;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onDeleteRecruitment: (recruitment: Recruitment) => void;
 };
@@ -23,11 +24,13 @@ export function RecruitmentRow({
   canDelete,
   deleteDisabledReason,
   dataTour,
+  shopName,
   onOpenShiftBoard,
   onDeleteRecruitment,
 }: Props) {
   const { _id, periodStart, periodEnd } = recruitment;
   const periodLabel = `${formatDateShort(periodStart)} 〜 ${formatDateShort(periodEnd)}`;
+  const recruitmentLabel = shopName ? `${shopName}の${periodLabel}` : periodLabel;
   const isMenuVisible = showMenu ?? !isReadOnly;
   const isDeleteEnabled = (canDelete ?? !isReadOnly) && !deleteDisabledReason;
   const resolvedDeleteDisabledReason = isDeleteEnabled
@@ -38,14 +41,15 @@ export function RecruitmentRow({
     <RecruitmentSummaryRow
       recruitment={recruitment}
       dataTour={dataTour}
-      ariaLabel={`${periodLabel}のシフトを見る`}
+      shopName={shopName}
+      ariaLabel={`${recruitmentLabel}のシフトを見る`}
       onClick={() => onOpenShiftBoard(_id)}
       endSlot={
         isMenuVisible ? (
           <Menu.Root positioning={{ placement: "bottom-end" }}>
             <Menu.Trigger asChild>
               <IconButton
-                aria-label={`${periodLabel}の募集操作メニュー`}
+                aria-label={`${recruitmentLabel}の募集操作メニュー`}
                 variant="ghost"
                 minW="44px"
                 minH="44px"

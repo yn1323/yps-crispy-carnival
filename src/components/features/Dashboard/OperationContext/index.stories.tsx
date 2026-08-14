@@ -1,7 +1,7 @@
 import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { ShopContextOption } from "@/src/domains/shop/context";
 import type { PlanStatusCardProps } from "../PlanStatusCard";
 import { buildOperationContextModel } from "./script";
@@ -32,6 +32,14 @@ const longOrganizationName = "株式会社とても長い名前のフードサ�
 const mobileShops = multipleOrganizations.map((option) =>
   option.organizationId === "org-a" ? { ...option, organizationName: longOrganizationName } : option,
 );
+const canonicalOrganizationOptions = [
+  { key: "org-b", organizationName: "関西事業部", targetId: "org-b" },
+  {
+    key: "org-c",
+    organizationName: "株式会社とても長い名前の中部フードサービス事業部",
+    targetId: "org-c",
+  },
+];
 const paidPlanStatusCard = {
   data: {
     kind: "paidPlan",
@@ -150,6 +158,23 @@ export const ExpandedWithPaidPlanAndMultipleOrganizationsMobile: Story = {
   },
 };
 
+export const CanonicalOrganizationOptionsMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  args: {
+    model: createModel(
+      mobileShops.filter((option) => option.organizationId === "org-a"),
+      "shop-a-1",
+    ),
+    organizationChangeOptions: canonicalOrganizationOptions,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: new RegExp(longOrganizationName) }));
+    await waitFor(() => expect(canvas.getByRole("button", { name: "組織を変更：関西事業部" })).toBeVisible());
+  },
+};
+
 export const SelectionBehavior: Story = {
   args: {
     model: createModel(multipleShops, "shop-a-1"),
@@ -182,6 +207,22 @@ export const SelectionBehavior: Story = {
   },
 };
 
+export const CanonicalOrganizationSelectionBehavior: Story = {
+  args: {
+    model: createModel(multipleShops.slice(0, 2), "shop-a-1"),
+  },
+  parameters: { screenshot: { skip: true } },
+  render: () => <CanonicalOrganizationSelectionBehaviorStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(canvas.getByRole("button", { name: /東日本事業部/ }));
+    await userEvent.click(await canvas.findByRole("button", { name: "組織を変更：関西事業部" }));
+
+    await expect(await canvas.findByRole("status")).toHaveTextContent("org-bへ切り替えました");
+  },
+};
+
 const SelectionBehaviorStory = () => {
   const [selectedShopId, setSelectedShopId] = useState("shop-a-1");
   const model = createModel(multipleShops, selectedShopId);
@@ -194,5 +235,24 @@ const SelectionBehaviorStory = () => {
       onOpenShopDetail={() => {}}
       organizationSettingsShopId={model.selectedShop.shopId}
     />
+  );
+};
+
+const CanonicalOrganizationSelectionBehaviorStory = () => {
+  const [selectedOrganizationId, setSelectedOrganizationId] = useState<string | null>(null);
+  const model = createModel(multipleShops.slice(0, 2), "shop-a-1");
+
+  return (
+    <Stack gap={3}>
+      <OperationContextView
+        model={model}
+        onShopSelect={() => {}}
+        onOpenShopDetail={() => {}}
+        organizationSettingsShopId={model.selectedShop.shopId}
+        organizationChangeOptions={canonicalOrganizationOptions}
+        onOrganizationChange={setSelectedOrganizationId}
+      />
+      {selectedOrganizationId && <output>{selectedOrganizationId}へ切り替えました</output>}
+    </Stack>
   );
 };

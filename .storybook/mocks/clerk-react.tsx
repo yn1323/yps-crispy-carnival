@@ -131,6 +131,11 @@ export const useUser = () => ({
     reload: async () => {},
   },
 });
+export const useSession = () => ({
+  isLoaded: true,
+  isSignedIn: true,
+  session: null,
+});
 export const useClerk = () => ({
   loaded: true,
   handleRedirectCallback: async () => {},

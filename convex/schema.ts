@@ -517,7 +517,10 @@ const schema = defineSchema({
     .index("by_userId_and_shopId_and_isDeleted", ["userId", "shopId", "isDeleted"]),
 
   featureRequests: defineTable({
-    shopId: v.id("shops"),
+    // 送信時点で店舗が確定していればshopId、組織全体の文脈ならorganizationIdを保存する。
+    // public mutationでどちらか一方を必須にし、旧documentはshopIdのまま互換維持する。
+    organizationId: v.optional(v.id("organizations")),
+    shopId: v.optional(v.id("shops")),
     // 管理者要望はuserId、スタッフ要望はstaffIdで送信者をサーバー側から確定する。
     userId: v.optional(v.id("users")),
     staffId: v.optional(v.id("staffs")),
@@ -525,6 +528,7 @@ const schema = defineSchema({
     requestId: v.string(),
   })
     .index("by_shopId", ["shopId"])
+    .index("by_organizationId", ["organizationId"])
     .index("by_userId_and_requestId", ["userId", "requestId"])
     .index("by_staffId_and_requestId", ["staffId", "requestId"]),
 

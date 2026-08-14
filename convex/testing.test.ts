@@ -228,6 +228,13 @@ describe("E2E testing helpers", () => {
     };
     const first = await t.mutation(internal.testing.seedShopLifecycleScenario, args);
     const second = await t.mutation(internal.testing.seedShopLifecycleScenario, args);
+    const organizationFeatureRequestId = await t.run((ctx) =>
+      ctx.db.insert("featureRequests", {
+        organizationId: second.organizationId,
+        comment: "組織scopeのE2E要望",
+        requestId: "testing-reset-organization-feature-request",
+      }),
+    );
 
     const reseeded = await t.run(async (ctx) => ({
       firstOrganization: await ctx.db.get(first.organizationId),
@@ -241,6 +248,7 @@ describe("E2E testing helpers", () => {
     expect(reseeded.secondOrganization?.isDeleted).toBe(false);
     expect(reseeded.secondShop?.name).toBe(args.shopName);
     expect(reseeded.otherOwnerShop?.isDeleted).toBe(false);
+    expect(second.managerName).toBe("田中太郎");
 
     await t.mutation(internal.testing.resetManagerScenarioData, {
       managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
@@ -248,10 +256,12 @@ describe("E2E testing helpers", () => {
     const reset = await t.run(async (ctx) => ({
       secondOrganization: await ctx.db.get(second.organizationId),
       secondShop: await ctx.db.get(second.shopId),
+      organizationFeatureRequest: await ctx.db.get(organizationFeatureRequestId),
       otherOwnerShop: await ctx.db.get(otherOwner.shopId),
     }));
     expect(reset.secondOrganization).toBeNull();
     expect(reset.secondShop).toBeNull();
+    expect(reset.organizationFeatureRequest).toBeNull();
     expect(reset.otherOwnerShop?.isDeleted).toBe(false);
   });
 
@@ -350,9 +360,14 @@ describe("E2E testing helpers", () => {
     });
 
     expect(seed).toMatchObject({
+      shopName: "スタッフライフサイクルテスト店舗",
       organizationName: "スタッフライフサイクルテストグループ",
       staffName: "E2E 新規スタッフ",
       staffEmail: "staff-lifecycle@example.test",
+    });
+    expect(await t.run((ctx) => ctx.db.get(seed.organizationId))).toMatchObject({
+      name: "スタッフライフサイクルテストグループ",
+      isDeleted: false,
     });
     expect(await t.run((ctx) => ctx.db.get(seed.shopId))).toMatchObject({
       name: "スタッフライフサイクルテスト店舗",

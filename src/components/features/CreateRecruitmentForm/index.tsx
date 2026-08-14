@@ -20,15 +20,21 @@ import {
   isDeadlineInRange,
   pruneHolidaysInRange,
 } from "./script";
-import type { CreateRecruitmentStep } from "./types";
+import type { CreateRecruitmentShop, CreateRecruitmentShopTarget, CreateRecruitmentStep } from "./types";
 
 export type { CreateRecruitmentData } from "./script";
+export type {
+  CreateRecruitmentSelectableShop,
+  CreateRecruitmentShop,
+  CreateRecruitmentShopTarget,
+} from "./types";
 
 type Props = {
   defaultValues?: CreateRecruitmentData;
   regularClosedDays?: RegularClosedDay[];
+  shopTarget?: CreateRecruitmentShopTarget;
   displayMode?: "full" | "periodOnly";
-  onSubmit: (data: CreateRecruitmentData) => void | Promise<void>;
+  onSubmit: (data: CreateRecruitmentData, selectedShop?: CreateRecruitmentShop) => void | Promise<void>;
   onCancel?: () => void;
   onSubmittingChange?: (isSubmitting: boolean) => void;
   today?: string;
@@ -56,6 +62,7 @@ const toMonthStartDateValue = (date?: string): DateValue | undefined => {
 export const CreateRecruitmentForm = ({
   defaultValues,
   regularClosedDays = [],
+  shopTarget,
   displayMode = "full",
   onSubmit,
   onCancel,
@@ -65,7 +72,9 @@ export const CreateRecruitmentForm = ({
   const today = todayProp ?? dayjs().format("YYYY-MM-DD");
   const tomorrow = dayjs(today).add(1, "day").format("YYYY-MM-DD");
   const isPeriodOnly = displayMode === "periodOnly";
-  const [currentStep, setCurrentStep] = useState<CreateRecruitmentStep>("period");
+  const hasShopStep = !isPeriodOnly && shopTarget?.mode === "select";
+  const [currentStep, setCurrentStep] = useState<CreateRecruitmentStep>(() => (hasShopStep ? "shop" : "period"));
+  const [selectedShopId, setSelectedShopId] = useState<string>();
   const [periodValue, setPeriodValue] = useState<DateValue[]>(() =>
     toDateValues([defaultValues?.periodStart, defaultValues?.periodEnd].filter((date): date is string => !!date)),
   );
@@ -101,6 +110,11 @@ export const CreateRecruitmentForm = ({
   const periodStart = watch("periodStart");
   const periodEnd = watch("periodEnd");
   const deadline = watch("deadline");
+  const selectedSelectableShop =
+    shopTarget?.mode === "select" ? shopTarget.shops.find((shop) => shop.shopId === selectedShopId) : undefined;
+  const selectedShop = shopTarget?.mode === "fixed" ? shopTarget.shop : selectedSelectableShop;
+  const activeRegularClosedDays =
+    shopTarget?.mode === "select" ? (selectedSelectableShop?.regularClosedDays ?? []) : regularClosedDays;
   const periodDays = getInclusiveDateCount(periodStart, periodEnd);
   const allPeriodDaysAreHolidays = periodDays > 0 && selectedHolidays.length >= periodDays;
   const periodLabel =
@@ -144,11 +158,21 @@ export const CreateRecruitmentForm = ({
     clearErrors("deadline");
   }, [clearErrors, deadline, isPeriodOnly, periodStart, setValue]);
 
+  useEffect(() => {
+    if (shopTarget?.mode !== "select" || !selectedShopId) return;
+    if (shopTarget.shops.some((shop) => shop.shopId === selectedShopId)) return;
+
+    setSelectedShopId(undefined);
+    setSelectedHolidays([]);
+    setValue("shopClosedDates", [], { shouldDirty: true });
+    if (hasShopStep) setCurrentStep("shop");
+  }, [hasShopStep, selectedShopId, setValue, shopTarget]);
+
   const handlePeriodChange = (value: DateValue[]) => {
     const nextValue = value.slice(0, 2);
     const start = nextValue[0] ? toIso(nextValue[0]) : "";
     const end = nextValue[1] ? toIso(nextValue[1]) : "";
-    const defaultShopClosedDates = deriveShopClosedDatesFromRegularDays(start, end, regularClosedDays);
+    const defaultShopClosedDates = deriveShopClosedDatesFromRegularDays(start, end, activeRegularClosedDays);
     setPeriodValue(nextValue);
     setValue("periodStart", start, { shouldDirty: true });
     setValue("periodEnd", end, { shouldDirty: true });
@@ -161,6 +185,17 @@ export const CreateRecruitmentForm = ({
     const holidays = pruneHolidaysInRange(value.map(toIso), periodStart, periodEnd);
     setSelectedHolidays(holidays);
     setValue("shopClosedDates", holidays, { shouldDirty: true });
+  };
+
+  const handleShopChange = (shopId: string) => {
+    if (shopTarget?.mode !== "select") return;
+    const shop = shopTarget.shops.find((candidate) => candidate.shopId === shopId);
+    if (!shop) return;
+
+    const shopClosedDates = deriveShopClosedDatesFromRegularDays(periodStart, periodEnd, shop.regularClosedDays);
+    setSelectedShopId(shop.shopId);
+    setSelectedHolidays(shopClosedDates);
+    setValue("shopClosedDates", shopClosedDates, { shouldDirty: true });
   };
 
   const handleDeadlineChange = (value: DateValue[]) => {
@@ -179,6 +214,11 @@ export const CreateRecruitmentForm = ({
     setCurrentStep("holidays");
   };
 
+  const goToPeriodFromShop = () => {
+    if (!selectedShop) return;
+    setCurrentStep("period");
+  };
+
   const goToDeadline = () => {
     if (allPeriodDaysAreHolidays) return;
     setCurrentStep("deadline");
@@ -195,13 +235,16 @@ export const CreateRecruitmentForm = ({
   };
 
   const submitForm = handleSubmit(async (data) => {
-    await submitOnce({ ...data, shopClosedDates: selectedHolidays });
+    if (shopTarget?.mode === "select" && !selectedShop) return;
+    await submitOnce({ ...data, shopClosedDates: selectedHolidays }, selectedShop);
   });
 
   return (
     <CreateRecruitmentFormView
       currentStep={currentStep}
       isPeriodOnly={isPeriodOnly}
+      hasShopStep={hasShopStep}
+      canContinueFromShop={!!selectedShop}
       submitLoading={isSubmitBusy}
       hiddenFields={{
         periodStart: register("periodStart"),
@@ -234,12 +277,16 @@ export const CreateRecruitmentForm = ({
         desktopMonths: deadlineDesktopMonths,
         error: errors.deadline?.message,
       }}
-      confirmation={{ periodLabel, holidaySummary, deadlineLabel }}
+      confirmation={{ shopName: selectedShop?.shopName, periodLabel, holidaySummary, deadlineLabel }}
+      shop={shopTarget?.mode === "select" ? { shops: shopTarget.shops, selectedShopId } : undefined}
       onSubmit={submitForm}
       onCancel={onCancel}
       onPeriodChange={handlePeriodChange}
       onHolidayChange={handleHolidayChange}
       onDeadlineChange={handleDeadlineChange}
+      onShopChange={handleShopChange}
+      onGoToShop={() => setCurrentStep("shop")}
+      onGoToPeriodFromShop={goToPeriodFromShop}
       onGoToPeriod={() => setCurrentStep("period")}
       onGoToHolidays={goToHolidays}
       onGoToDeadline={goToDeadline}

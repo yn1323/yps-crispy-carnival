@@ -22,15 +22,23 @@ test.describe("スタッフライフサイクル", { tag: ["@e2e-core"] }, () =>
     const updatedStaffEmail = createUpdatedStaffLifecycleEmail(seed.staffEmail);
     const lifecycle = new StaffLifecyclePage(page);
 
-    await lifecycle.gotoDashboard(seed.shopId);
-    await lifecycle.addManualStaff(seed.staffName, seed.staffEmail);
-    await lifecycle.openStaffDetail(seed.staffName, seed.shopId);
-    await lifecycle.updateStaffProfile(
-      { name: seed.staffName, email: seed.staffEmail },
-      { name: updatedStaffName, email: updatedStaffEmail },
-    );
-    await lifecycle.reloadAndExpectStaffProfile(updatedStaffName, updatedStaffEmail);
-    await lifecycle.removeStaffFromOrganization(updatedStaffName, seed.shopId);
-    await lifecycle.reloadAndExpectStaffAbsent(updatedStaffName);
+    await test.step("全店舗表示から対象店舗を選び、スタッフを追加する", async () => {
+      await lifecycle.gotoStaff(seed.organizationId);
+      await lifecycle.addManualStaff(seed.shopName, seed.staffName, seed.staffEmail);
+    });
+
+    await test.step("スタッフ情報を変更し、再読込後も維持する", async () => {
+      await lifecycle.openStaffDetail(seed.staffName, seed.organizationId);
+      await lifecycle.updateStaffProfile(
+        { name: seed.staffName, email: seed.staffEmail },
+        { name: updatedStaffName, email: updatedStaffEmail },
+      );
+      await lifecycle.reloadAndExpectStaffProfile(updatedStaffName, updatedStaffEmail);
+    });
+
+    await test.step("スタッフを組織から削除し、再読込後も不在を維持する", async () => {
+      await lifecycle.removeStaffFromOrganization(updatedStaffName, seed.organizationId);
+      await lifecycle.reloadAndExpectStaffAbsent(updatedStaffName);
+    });
   });
 });

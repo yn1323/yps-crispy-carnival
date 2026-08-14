@@ -1,9 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AppManageShopDetailPage } from "@/src/pages/app-navigation-prototype";
-import { buildAppPrototypePageHead } from "@/src/pages/app-navigation-prototype/meta";
+import {
+  useAppOrganizationScope,
+  validateAppOrganizationRouteSearch,
+} from "@/src/components/features/AuthenticatedApp";
+import { AppShopDetailPage } from "@/src/pages/shop-detail";
+import { buildShopDetailPageHead } from "@/src/pages/shop-detail/meta";
 
 export const Route = createFileRoute("/_auth/app_/manage_/shops/$shopId")({
-  head: () => buildAppPrototypePageHead("店舗詳細"),
+  validateSearch: validateAppOrganizationRouteSearch,
+  head: buildShopDetailPageHead,
   staticData: { appShell: { mode: "navigation", activeKey: "manage" } },
-  component: AppManageShopDetailPage,
+  component: AppManageShopDetailRoute,
 });
+
+function AppManageShopDetailRoute() {
+  const { shopId } = Route.useParams();
+  const { organizationId } = useAppOrganizationScope();
+  return <AppShopDetailPage shopId={shopId} organizationId={organizationId} />;
+}

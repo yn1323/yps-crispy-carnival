@@ -1,5 +1,5 @@
 import { Badge, Box, Flex, HStack, Icon, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { IconType } from "react-icons";
 import { LuBellOff, LuCalendarClock, LuCircleCheck, LuShieldAlert, LuStore, LuUserRoundPlus } from "react-icons/lu";
 import { Button, type ButtonProps } from "@/src/components/ui/Button";
@@ -14,6 +14,7 @@ import type {
 
 type Props = {
   items: readonly ActionInboxItem[];
+  completedItemId?: string | null;
   /** @deprecated 少量の対応項目を一つの一覧で扱うため、種類フィルターは表示しません。 */
   activeCategory?: ActionInboxCategory;
   /** @deprecated 少量の対応項目を一つの一覧で扱うため、種類フィルターは表示しません。 */
@@ -66,23 +67,85 @@ const CATEGORY_PRESENTATION: Record<ActionInboxItemCategory, CategoryPresentatio
 
 const EXIT_DURATION_MS = 240;
 
-export function ActionInboxView({ items }: Props) {
+export function ActionInboxView({ items, completedItemId }: Props) {
   const [exitingItemIds, setExitingItemIds] = useState<ReadonlySet<string>>(() => new Set());
   const [dismissedItemIds, setDismissedItemIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [retainedItems, setRetainedItems] = useState<ReadonlyMap<string, { item: ActionInboxItem; index: number }>>(
+    () => new Map(),
+  );
   const [runningActionKey, setRunningActionKey] = useState<string | null>(null);
   const [actionError, setActionError] = useState<{ key: string; message: string } | null>(null);
   const [completionAnnouncement, setCompletionAnnouncement] = useState("");
-  const exitTimersRef = useRef<Set<number>>(new Set());
+  const exitTimersRef = useRef<Map<string, number>>(new Map());
   const runningActionKeyRef = useRef<string | null>(null);
-  const visibleItems = items.filter((item) => !dismissedItemIds.has(item.id));
+  const currentItemIdsRef = useRef<ReadonlySet<string>>(new Set());
+  const itemSnapshotsRef = useRef(new Map<string, { item: ActionInboxItem; index: number }>());
+  currentItemIdsRef.current = new Set(items.map((item) => item.id));
+  for (const [index, item] of items.entries()) itemSnapshotsRef.current.set(item.id, { item, index });
+  const renderedItems = mergeRetainedItems(items, retainedItems);
+  const visibleItems = renderedItems.filter((item) => !dismissedItemIds.has(item.id));
+
+  const beginExit = useCallback((snapshot: { item: ActionInboxItem; index: number }, announcement: string) => {
+    const { item, index } = snapshot;
+    if (exitTimersRef.current.has(item.id)) return;
+
+    setRetainedItems((current) => new Map(current).set(item.id, { item, index }));
+    setExitingItemIds((current) => new Set(current).add(item.id));
+    setCompletionAnnouncement(announcement);
+
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const timerId = window.setTimeout(
+      () => {
+        setDismissedItemIds((current) => {
+          const next = new Set(current);
+          if (currentItemIdsRef.current.has(item.id)) next.add(item.id);
+          else next.delete(item.id);
+          return next;
+        });
+        setExitingItemIds((current) => {
+          const next = new Set(current);
+          next.delete(item.id);
+          return next;
+        });
+        setRetainedItems((current) => {
+          const next = new Map(current);
+          next.delete(item.id);
+          return next;
+        });
+        if (!currentItemIdsRef.current.has(item.id)) itemSnapshotsRef.current.delete(item.id);
+        exitTimersRef.current.delete(item.id);
+      },
+      prefersReducedMotion ? 0 : EXIT_DURATION_MS,
+    );
+    exitTimersRef.current.set(item.id, timerId);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!completedItemId) return;
+    const snapshot = itemSnapshotsRef.current.get(completedItemId);
+    if (snapshot) beginExit(snapshot, "対応を完了しました。");
+  }, [beginExit, completedItemId]);
 
   useEffect(
     () => () => {
-      for (const timerId of exitTimersRef.current) window.clearTimeout(timerId);
+      for (const timerId of exitTimersRef.current.values()) window.clearTimeout(timerId);
       exitTimersRef.current.clear();
     },
     [],
   );
+
+  useEffect(() => {
+    const currentItemIds = new Set(items.map((item) => item.id));
+    setDismissedItemIds((current) => {
+      const retained = new Set([...current].filter((itemId) => currentItemIds.has(itemId)));
+      return retained.size === current.size ? current : retained;
+    });
+    for (const itemId of itemSnapshotsRef.current.keys()) {
+      if (!currentItemIds.has(itemId) && !retainedItems.has(itemId) && !exitTimersRef.current.has(itemId)) {
+        itemSnapshotsRef.current.delete(itemId);
+      }
+    }
+  }, [items, retainedItems]);
 
   const runAction = async (item: ActionInboxItem, action: ActionInboxAction) => {
     if (action.disabled) return;
@@ -93,28 +156,24 @@ export function ActionInboxView({ items }: Props) {
     runningActionKeyRef.current = actionKey;
     setRunningActionKey(actionKey);
     setActionError(null);
+    if (action.removesItemOnSuccess) {
+      const itemIndex = renderedItems.findIndex((candidate) => candidate.id === item.id);
+      const snapshot = { item, index: Math.max(0, itemIndex) };
+      itemSnapshotsRef.current.set(item.id, snapshot);
+      setRetainedItems((current) => new Map(current).set(item.id, snapshot));
+    }
     try {
       await action.onClick();
       if (!action.removesItemOnSuccess) return;
 
-      setExitingItemIds((current) => new Set(current).add(item.id));
-      setCompletionAnnouncement(action.successMessage);
-
-      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const timerId = window.setTimeout(
-        () => {
-          setDismissedItemIds((current) => new Set(current).add(item.id));
-          setExitingItemIds((current) => {
-            const next = new Set(current);
-            next.delete(item.id);
-            return next;
-          });
-          exitTimersRef.current.delete(timerId);
-        },
-        prefersReducedMotion ? 0 : EXIT_DURATION_MS,
-      );
-      exitTimersRef.current.add(timerId);
+      const snapshot = itemSnapshotsRef.current.get(item.id);
+      if (snapshot) beginExit(snapshot, action.successMessage);
     } catch {
+      setRetainedItems((current) => {
+        const next = new Map(current);
+        next.delete(item.id);
+        return next;
+      });
       const message = action.failureMessage ?? `${action.label}を実行できませんでした。もう一度お試しください。`;
       setActionError({ key: actionKey, message });
       setCompletionAnnouncement(message);
@@ -162,6 +221,21 @@ export function ActionInboxView({ items }: Props) {
       )}
     </Stack>
   );
+}
+
+function mergeRetainedItems(
+  items: readonly ActionInboxItem[],
+  retainedItems: ReadonlyMap<string, { item: ActionInboxItem; index: number }>,
+) {
+  const merged = [...items];
+  const currentItemIds = new Set(items.map((item) => item.id));
+  const missingItems = [...retainedItems.values()]
+    .filter(({ item }) => !currentItemIds.has(item.id))
+    .sort((left, right) => left.index - right.index);
+  for (const retained of missingItems) {
+    merged.splice(Math.min(retained.index, merged.length), 0, retained.item);
+  }
+  return merged;
 }
 
 function ActionCard({

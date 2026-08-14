@@ -1,7 +1,9 @@
 import { useNavigate } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
+import type { Id } from "@/convex/_generated/dataModel";
 import { DashboardContent, DashboardContentSkeleton } from "./DashboardContent";
 import { type DashboardPlanStatusSource, usePlanStatusCardController } from "./PlanStatusCard";
+import type { DashboardNavigation } from "./types";
 
 type DashboardContentProps = ComponentProps<typeof DashboardContent>;
 
@@ -28,6 +30,8 @@ type Props = {
   trialEndingNotice?: DashboardContentProps["trialEndingNotice"];
   billingSettingsShopId?: DashboardContentProps["billingSettingsShopId"];
   isBillingFeatureVisible?: DashboardContentProps["isBillingFeatureVisible"];
+  expectedOrganizationId?: Id<"organizations">;
+  navigation?: DashboardNavigation;
 };
 
 export function Dashboard({
@@ -43,17 +47,22 @@ export function Dashboard({
   trialEndingNotice,
   billingSettingsShopId,
   isBillingFeatureVisible,
+  expectedOrganizationId,
+  navigation,
 }: Props) {
   const navigate = useNavigate();
   const planStatusCard = usePlanStatusCardController({
     planStatus,
     shopId: billingSettingsShopId,
+    expectedOrganizationId,
     enabled: Boolean(isBillingFeatureVisible),
-    onOpenBillingSettings: () =>
-      void navigate({
-        to: "/settings",
-        search: { ...(billingSettingsShopId ? { shop: billingSettingsShopId } : {}), tab: "billing" },
-      }),
+    onOpenBillingSettings:
+      navigation?.onOpenBillingSettings ??
+      (() =>
+        void navigate({
+          to: "/settings",
+          search: { ...(billingSettingsShopId ? { shop: billingSettingsShopId } : {}), tab: "billing" },
+        })),
   });
 
   return (
@@ -68,6 +77,7 @@ export function Dashboard({
       trialEndingNotice={trialEndingNotice}
       billingSettingsShopId={billingSettingsShopId}
       isBillingFeatureVisible={isBillingFeatureVisible}
+      navigation={navigation}
       isDashboardOnboardingDismissed={Boolean(
         currentUser && !currentUser.isNewUser && currentUser.dashboardOnboardingDismissedAt,
       )}
@@ -88,4 +98,4 @@ export type { OperationContextModel } from "./OperationContext";
 export { buildOperationContextModel, OperationContextView } from "./OperationContext";
 export { RecruitmentBoard } from "./RecruitmentBoard";
 export { StaffRoster } from "./StaffRoster";
-export type { DashboardRecruitmentGroup, Recruitment, Staff } from "./types";
+export type { DashboardNavigation, DashboardRecruitmentGroup, Recruitment, Staff } from "./types";

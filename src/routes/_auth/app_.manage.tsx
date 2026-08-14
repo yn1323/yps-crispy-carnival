@@ -1,9 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AppManagePage } from "@/src/pages/app-navigation-prototype";
-import { buildAppPrototypePageHead } from "@/src/pages/app-navigation-prototype/meta";
+import {
+  useAppOrganizationScope,
+  validateAppOrganizationRouteSearch,
+} from "@/src/components/features/AuthenticatedApp";
+import { AppManageRoutePage } from "@/src/pages/app-manage";
+import { buildAppManagePageHead } from "@/src/pages/app-manage/meta";
 
 export const Route = createFileRoute("/_auth/app_/manage")({
-  head: () => buildAppPrototypePageHead("管理"),
+  validateSearch: validateAppOrganizationRouteSearch,
+  head: () => buildAppManagePageHead(),
   staticData: { appShell: { mode: "navigation", activeKey: "manage" } },
-  component: AppManagePage,
+  component: AppManageRoute,
 });
+
+function AppManageRoute() {
+  const organization = useAppOrganizationScope();
+  return <AppManageRoutePage organizationId={organization.organizationId} memberStatus={organization.memberStatus} />;
+}

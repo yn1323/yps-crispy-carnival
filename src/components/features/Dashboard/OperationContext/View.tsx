@@ -33,6 +33,8 @@ const ORGANIZATION_DETAILS_VALUE = "organization-details";
 export type OperationContextViewProps = {
   model: OperationContextModel;
   onShopSelect: (shopId: string) => void;
+  organizationChangeOptions?: readonly OperationContextOrganizationChangeOption[];
+  onOrganizationChange?: (targetId: string) => void;
   onOpenShopDetail: () => void;
   organizationSettingsShopId?: string;
   onOpenOrganizationSettings?: () => void;
@@ -42,9 +44,17 @@ export type OperationContextViewProps = {
   showShopContext?: boolean;
 };
 
+export type OperationContextOrganizationChangeOption = {
+  key: string;
+  organizationName: string;
+  targetId: string;
+};
+
 export const OperationContextView = ({
   model,
   onShopSelect,
+  organizationChangeOptions,
+  onOrganizationChange,
   onOpenShopDetail,
   organizationSettingsShopId,
   onOpenOrganizationSettings,
@@ -59,9 +69,17 @@ export const OperationContextView = ({
   const previousDefaultExpanded = useRef(defaultExpanded);
   const previousHasPlanDetails = useRef(Boolean(planStatusCard));
   const isExpanded = value.includes(ORGANIZATION_DETAILS_VALUE);
+  const resolvedOrganizationChangeOptions =
+    organizationChangeOptions ??
+    model.organizationChangeOptions.map((option) => ({
+      key: option.key,
+      organizationName: option.organizationName,
+      targetId: option.shopId,
+    }));
+  const handleOrganizationChange = onOrganizationChange ?? onShopSelect;
   const hasOrganizationSettingsAction = Boolean(organizationSettingsShopId || onOpenOrganizationSettings);
   const hasAccordionContent = Boolean(
-    hasOrganizationSettingsAction || planStatusCard || model.organizationChangeOptions.length > 0,
+    hasOrganizationSettingsAction || planStatusCard || resolvedOrganizationChangeOptions.length > 0,
   );
   const presentation = planStatusCard ? getPlanStatusPresentation(planStatusCard.data) : null;
   const billingAction = planStatusCard ? getBillingAction(planStatusCard.data) : null;
@@ -150,13 +168,13 @@ export const OperationContextView = ({
                     onOpen={() => planStatusCard.onAction(billingAction.action)}
                   />
                 )}
-                {model.organizationChangeOptions.map((option, index) => (
+                {resolvedOrganizationChangeOptions.map((option, index) => (
                   <OrganizationChangeButton
                     key={option.key}
                     organizationName={option.organizationName}
-                    shopId={option.shopId}
+                    targetId={option.targetId}
                     withBorder={Boolean(planStatusCard || organizationSettingsShopId || index > 0)}
-                    onSelect={onShopSelect}
+                    onSelect={handleOrganizationChange}
                   />
                 ))}
               </Accordion.ItemBody>
@@ -326,14 +344,14 @@ const PlanAndPaymentLink = ({ label, onOpen }: { label: string; onOpen: () => vo
 
 const OrganizationChangeButton = ({
   organizationName,
-  shopId,
+  targetId,
   withBorder,
   onSelect,
 }: {
   organizationName: string;
-  shopId: string;
+  targetId: string;
   withBorder: boolean;
-  onSelect: (shopId: string) => void;
+  onSelect: (targetId: string) => void;
 }) => (
   <Button
     type="button"
@@ -357,9 +375,9 @@ const OrganizationChangeButton = ({
       textDecorationColor: "teal.700",
       textUnderlineOffset: "3px",
     }}
-    onClick={() => onSelect(shopId)}
+    onClick={() => onSelect(targetId)}
   >
-    <Text as="span" flex={1} textAlign="left">
+    <Text as="span" flex={1} minW={0} textAlign="left" lineHeight="short" whiteSpace="normal" overflowWrap="anywhere">
       組織を変更：{organizationName}
     </Text>
     <Icon as={LuChevronRight} boxSize={5} color="fg.muted" flexShrink={0} />

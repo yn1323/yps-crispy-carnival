@@ -9,10 +9,11 @@ type Props = {
   data: UserShopDetailData;
   membership: UserShopDetailMembership;
   targetShopId: Id<"shops">;
+  expectedOrganizationId?: Id<"organizations">;
   onBack: () => void;
 };
 
-export function UserShopDetail({ data, membership, targetShopId, onBack }: Props) {
+export function UserShopDetail({ data, membership, targetShopId, expectedOrganizationId, onBack }: Props) {
   const isStoreReadOnly = !data.canWrite || membership.shopStatus !== "active";
   const storeDisabledReason = getStoreDisabledReason(data, membership);
   const notifications = useUserShopNotificationActions({
@@ -20,11 +21,13 @@ export function UserShopDetail({ data, membership, targetShopId, onBack }: Props
     membership,
     isReadOnly: isStoreReadOnly,
     enabled: true,
+    expectedOrganizationId,
   });
   const membershipActions = useUserShopMembershipActions({
     targetShopId,
     membership,
     isReadOnly: isStoreReadOnly,
+    expectedOrganizationId,
   });
   const viewMembership =
     membership.excludedFromShift === membershipActions.excludedFromShift
@@ -43,6 +46,7 @@ export function UserShopDetail({ data, membership, targetShopId, onBack }: Props
           staffId={membership.staffId}
           enabled
           lineConnectionStatus={data.line.status === "unlinked" ? "unlinked" : "linked"}
+          expectedOrganizationId={expectedOrganizationId}
         />
       }
       state={{

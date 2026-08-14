@@ -13,20 +13,22 @@ export function useUserShopNotificationActions({
   membership,
   isReadOnly,
   enabled,
+  expectedOrganizationId,
 }: {
   targetShopId: Id<"shops">;
   membership: UserShopDetailMembership;
   isReadOnly: boolean;
   enabled: boolean;
+  expectedOrganizationId?: Id<"organizations">;
 }) {
   const recruitments = usePaginatedQuery(
     api.dashboard.queries.getDashboardRecruitments,
-    enabled ? { shopId: targetShopId } : "skip",
+    enabled ? { shopId: targetShopId, ...(expectedOrganizationId ? { expectedOrganizationId } : {}) } : "skip",
     { initialNumItems: RECRUITMENT_QUERY_PAGE_SIZE },
   );
   const currentRecruitments = useQuery(
     api.dashboard.queries.getDashboardCurrentRecruitments,
-    enabled ? { shopId: targetShopId } : "skip",
+    enabled ? { shopId: targetShopId, ...(expectedOrganizationId ? { expectedOrganizationId } : {}) } : "skip",
   );
   const sendOpenRecruitmentNotifications = useMutation(api.staff.mutations.sendOpenRecruitmentNotifications);
   const sendCurrentShiftNotification = useMutation(api.staff.mutations.sendCurrentShiftNotification);
@@ -34,7 +36,11 @@ export function useUserShopNotificationActions({
   const { run: sendRecruitments, isRunning: isSendingRecruitments } = useSingleFlight(async () => {
     if (!enabled || isReadOnly || membership.shopId !== targetShopId) return;
     try {
-      const result = await sendOpenRecruitmentNotifications({ shopId: targetShopId, staffId: membership.staffId });
+      const result = await sendOpenRecruitmentNotifications({
+        shopId: targetShopId,
+        staffId: membership.staffId,
+        ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+      });
       if (result.scheduled) {
         showSuccessToast({ title: "シフト募集通知を再送しました" });
         return;
@@ -52,7 +58,11 @@ export function useUserShopNotificationActions({
   const { run: sendCurrentShift, isRunning: isSendingCurrentShift } = useSingleFlight(async () => {
     if (!enabled || isReadOnly || membership.shopId !== targetShopId) return;
     try {
-      const result = await sendCurrentShiftNotification({ shopId: targetShopId, staffId: membership.staffId });
+      const result = await sendCurrentShiftNotification({
+        shopId: targetShopId,
+        staffId: membership.staffId,
+        ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+      });
       if (result.scheduled) {
         showSuccessToast({ title: "確定シフト通知を再送しました" });
         return;

@@ -1,15 +1,20 @@
 import { Box } from "@chakra-ui/react";
-import { useAtomValue } from "jotai";
 import { lazy, type ReactNode, Suspense } from "react";
+import type { Id } from "@/convex/_generated/dataModel";
 import {
   type AppNavigationKey,
   DesktopAppPrimaryNavigation,
   MOBILE_APP_NAVIGATION_HEIGHT,
   MobileAppPrimaryNavigation,
 } from "@/src/components/features/AuthenticatedApp/AppPrimaryNavigation";
-import { FeatureRequestAction } from "@/src/components/features/FeatureRequestDialog";
+import { AppFeatureRequestAction, type AppFeatureRequestScope } from "@/src/components/features/FeatureRequestDialog";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
-import { hasSelectedShopAtom } from "@/src/stores/shop";
+
+export const AUTHENTICATED_APP_CONTENT_HEIGHT = {
+  base: `calc(100dvh - ${HEADER_HEIGHT.base} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
+  md: `calc(100dvh - ${HEADER_HEIGHT.md} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
+  lg: `calc(100dvh - ${HEADER_HEIGHT.md})`,
+} as const;
 
 const UserMenu = lazy(() =>
   import("@/src/components/features/UserMenu").then((module) => ({ default: module.UserMenu })),
@@ -17,22 +22,35 @@ const UserMenu = lazy(() =>
 
 type Props = {
   activeKey: AppNavigationKey | null;
+  activeOrganizationId?: string | null;
+  organizationSwitcher?: ReactNode;
+  featureRequest?: {
+    expectedOrganizationId: Id<"organizations">;
+    scope: AppFeatureRequestScope;
+  };
   children: ReactNode;
 };
 
-export function AuthenticatedAppShell({ activeKey, children }: Props) {
-  const hasSelectedShop = useAtomValue(hasSelectedShopAtom);
-
+export function AuthenticatedAppShell({
+  activeKey,
+  activeOrganizationId,
+  organizationSwitcher,
+  featureRequest,
+  children,
+}: Props) {
   return (
     <Box w="full" minH="100dvh" bg="gray.50">
       <Header
         brandTo="/app/home"
+        brandSearch={activeOrganizationId ? { org: activeOrganizationId } : undefined}
         brandAriaLabel="ホームへ"
-        showTagline={false}
-        primaryNavigation={<DesktopAppPrimaryNavigation activeKey={activeKey} />}
+        primaryNavigation={
+          <DesktopAppPrimaryNavigation activeKey={activeKey} activeOrganizationId={activeOrganizationId} />
+        }
         userActions={
           <>
-            {hasSelectedShop && <FeatureRequestAction />}
+            {organizationSwitcher}
+            {featureRequest && <AppFeatureRequestAction {...featureRequest} />}
             <Suspense fallback={<Box boxSize={8} aria-hidden />}>
               <UserMenu tone="light" accountDestination="/app/account" showOrganizationSettings={false} />
             </Suspense>
@@ -46,7 +64,7 @@ export function AuthenticatedAppShell({ activeKey, children }: Props) {
       >
         {children}
       </Box>
-      <MobileAppPrimaryNavigation activeKey={activeKey} />
+      <MobileAppPrimaryNavigation activeKey={activeKey} activeOrganizationId={activeOrganizationId} />
     </Box>
   );
 }

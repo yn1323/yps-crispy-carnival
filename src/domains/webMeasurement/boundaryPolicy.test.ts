@@ -71,14 +71,26 @@ const MIXED_SOURCE_FILES = new Set(["src/components/templates/Header/index.tsx",
 // mixed sourceまたは静的にtargetを確定できない既存箇所だけを、owner単位・件数込みで例外化する。
 // 新しいcallsiteやtarget変更は同じfile内でも別keyになり、レビューなしでは通らない。
 const NAVIGATION_CALLSITE_ALLOWLIST = [
+  // AppPrimaryNavigationのtargetはAppNavigationPathに限定され、全候補がclosed surfaceである。
+  "src/components/features/AuthenticatedApp/AppPrimaryNavigation/index.tsx :: DesktopNavigationLink :: jsx:RouterLink :: dynamic:target.to",
+  "src/components/features/AuthenticatedApp/AppPrimaryNavigation/index.tsx :: MobileNavigationLink :: jsx:RouterLink :: dynamic:target.to",
   // AuthModeLinkのtoはAuthRoutePathに限定され、全候補がclosed surfaceである。
   "src/components/features/AuthPage/AuthFormControls.tsx :: AuthModeLink :: jsx:RouterLink :: dynamic:to",
   // UserDetailの各destination helperはスタッフ・店舗詳細、settings、dashboardのclosed routeだけを返す。
   "src/components/features/UserDetail/index.tsx :: onPersonRemoved :: call:navigate :: dynamic:{ ...destination, replace: true }",
   "src/components/features/UserDetail/index.tsx :: handleBack :: call:navigate :: dynamic:{ ...destination, replace: true }",
   "src/components/features/UserDetail/index.tsx :: onOpenShop :: call:navigate :: dynamic:destination",
+  // app/legacyの条件分岐はいずれも認証済みのclosed routeだけを返す。
+  'src/components/features/ManagerSettings/useManagerIssueController.ts :: useManagerIssueController :: call:navigate :: dynamic:organizationId ? { to: "/app/manage/managers", search: { org: organizationId }, replace: true } : { to: "/settings/managers", search: { shop: shopId ?? "" }, replace: true }',
+  'src/components/features/ManagerSettings/useManagerSettingsController.ts :: execute :: call:navigate :: dynamic:organizationId ? { to: "/app/home", search: {}, replace: true } : { to: "/dashboard", search: clearRequestedShopSearch(), replace: true }',
+  'src/components/features/ManagerSettings/useManagerSettingsController.ts :: onBack :: call:navigate :: dynamic:organizationId ? { to: "/app/manage", search: { org: organizationId }, replace: true } : { to: "/settings", search: { shop: shopId ?? "" }, replace: true }',
+  'src/components/features/UserDetail/index.tsx :: onPersonRemoved :: call:navigate :: dynamic:appOrganizationId ? { to: "/app/home", search: {}, replace: true } : { to: "/dashboard", search: clearRequestedShopSearch(), replace: true }',
+  // UserMenuのaccountDestinationは/accountまたは/app/accountに限定される。
+  "src/components/features/UserMenu/index.tsx :: UserMenu :: jsx:RouterLink :: dynamic:accountDestination",
   // public HeaderはMeasurementBoundaryLink、user HeaderだけがこのRouterLink branchを使う。
   "src/components/templates/Header/index.tsx :: HeaderBrand :: jsx:RouterLink :: dynamic:to",
+  // focused flowのbackTargetはAppShellRouteDataで許可したclosed app routeだけを返す。
+  "src/components/templates/FocusedFlowHeader/index.tsx :: FocusedFlowHeader :: jsx:RouterLink :: dynamic:backTarget.to",
   // backDestinationは同じclosed surfaceのdashboardまたはsettingsを返す。
   "src/pages/user-detail/index.tsx :: UserDetailPage :: jsx:RouterLink :: dynamic:backDestination.to",
   // 店舗別スタッフ詳細のbackDestinationはclosedなスタッフ詳細routeを返す。
@@ -86,8 +98,14 @@ const NAVIGATION_CALLSITE_ALLOWLIST = [
   // toを省略した各navigateは現在のclosed routeを保ち、searchだけを正規化・更新する。
   "src/routes/_auth/account.tsx :: AccountSecurityRoute :: call:navigate :: dynamic:{ replace: true, search: () => buildCanonicalAccountSecuritySearch(validatedSearch), }",
   "src/routes/_auth/account.tsx :: handleStartFlow :: call:navigate :: dynamic:{ search: () => ({ flow: nextFlow, oauth: undefined, shop: undefined }) }",
+  "src/routes/_auth.tsx :: handleOrganizationSelect :: call:navigate :: dynamic:{ to: target.to, search: target.search }",
   "src/routes/_auth/account.tsx :: handleBackToOverview :: call:navigate :: dynamic:{ replace: true, search: clearAccountSecurityFlowSearch }",
   "src/routes/_auth/account.tsx :: handleGoogleOAuthReturn :: call:navigate :: dynamic:{ replace: true, search: clearAccountSecurityOAuthSearch, }",
+  // app account内のnavigateは現在のclosed routeを保ち、flow/oauth searchだけを更新する。
+  "src/routes/_auth/app_.account.tsx :: AppAccountRoute :: call:navigate :: dynamic:{ replace: true, search: () => buildCanonicalAccountSecuritySearch(validatedSearch), }",
+  "src/routes/_auth/app_.account.tsx :: handleStartFlow :: call:navigate :: dynamic:{ search: () => ({ flow: nextFlow, oauth: undefined }) }",
+  "src/routes/_auth/app_.account.tsx :: handleBackToOverview :: call:navigate :: dynamic:{ replace: true, search: clearAccountSecurityFlowSearch }",
+  "src/routes/_auth/app_.account.tsx :: handleGoogleOAuthReturn :: call:navigate :: dynamic:{ replace: true, search: clearAccountSecurityOAuthSearch }",
   "src/routes/_auth/dashboard.tsx :: DashboardRoute :: call:navigate :: dynamic:{ replace: true, search: (previous) => updateUserListSearch(previous, { count, focus: undefined }), }",
   "src/routes/_auth/settings.tsx :: SettingsRoute :: call:navigate :: dynamic:{ replace: true, search: (previous) => updateSettingsTabSearch(previous, nextTab), }",
   "src/routes/_auth/settings.tsx :: SettingsRoute :: call:navigate :: dynamic:{ replace: true, search: (previous) => updateUserListSearch(previous, { count, focus: undefined }), }",

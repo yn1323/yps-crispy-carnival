@@ -2,6 +2,7 @@ import { Box, Container, Grid, Heading, Link, Text } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { LuChevronLeft } from "react-icons/lu";
+import { resolveAppNavigationTarget } from "@/src/components/features/AuthenticatedApp";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 
 type FocusedFlowBackDestination = "/app/shifts" | "/app/manage/managers";
@@ -11,10 +12,20 @@ type Props = {
   backTo: FocusedFlowBackDestination;
   backLabel?: string;
   backAriaLabel?: string;
+  activeOrganizationId?: string | null;
   action?: ReactNode;
 };
 
-export function FocusedFlowHeader({ title, backTo, backLabel = "戻る", backAriaLabel = backLabel, action }: Props) {
+export function FocusedFlowHeader({
+  title,
+  backTo,
+  backLabel = "戻る",
+  backAriaLabel = backLabel,
+  activeOrganizationId,
+  action,
+}: Props) {
+  const backTarget = resolveAppNavigationTarget(backTo, activeOrganizationId);
+
   return (
     <Box
       as="header"
@@ -48,7 +59,7 @@ export function FocusedFlowHeader({ title, backTo, backLabel = "戻る", backAri
             _hover={{ color: "teal.800", textDecoration: "none" }}
             _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "2px" }}
           >
-            <RouterLink to={backTo} aria-label={backAriaLabel}>
+            <RouterLink to={backTarget.to} search={backTarget.search} aria-label={backAriaLabel}>
               <LuChevronLeft aria-hidden />
               <Text as="span" display={{ base: "none", sm: "inline" }}>
                 戻る

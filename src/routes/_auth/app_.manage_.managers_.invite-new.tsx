@@ -1,9 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AppManageInviteNewPage } from "@/src/pages/app-navigation-prototype";
-import { buildAppPrototypePageHead } from "@/src/pages/app-navigation-prototype/meta";
+import {
+  useAppOrganizationScope,
+  validateAppOrganizationRouteSearch,
+} from "@/src/components/features/AuthenticatedApp";
+import { AppManageInviteNewRoutePage } from "@/src/pages/app-manage";
+import { buildAppManagePageHead } from "@/src/pages/app-manage/meta";
 
 export const Route = createFileRoute("/_auth/app_/manage_/managers_/invite-new")({
-  head: () => buildAppPrototypePageHead("新しい管理者を招待"),
+  validateSearch: validateAppOrganizationRouteSearch,
+  head: () => buildAppManagePageHead("新しい管理者を招待"),
   staticData: {
     appShell: {
       mode: "focused",
@@ -12,5 +17,15 @@ export const Route = createFileRoute("/_auth/app_/manage_/managers_/invite-new")
       backLabel: "管理者と権限へ戻る",
     },
   },
-  component: AppManageInviteNewPage,
+  component: AppManageInviteNewRoute,
 });
+
+function AppManageInviteNewRoute() {
+  const organization = useAppOrganizationScope();
+  return (
+    <AppManageInviteNewRoutePage
+      organizationId={organization.organizationId}
+      memberStatus={organization.memberStatus}
+    />
+  );
+}

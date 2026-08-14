@@ -38,8 +38,8 @@ type UserHeaderVariantProps = {
   userActions?: ReactNode;
   primaryNavigation?: ReactNode;
   brandTo?: string;
+  brandSearch?: { org?: string };
   brandAriaLabel?: string;
-  showTagline?: boolean;
 };
 
 type StaffHeaderVariantProps = {
@@ -85,8 +85,9 @@ export const Header = (props: HeaderProps = {}) => {
   const brand = (
     <HeaderBrand
       to={props.brandTo ?? "/dashboard"}
+      search={props.brandSearch}
       ariaLabel={props.brandAriaLabel ?? "ダッシュボードへ"}
-      showTagline={props.showTagline ?? true}
+      showTagline
     />
   );
   const userActions = (
@@ -168,6 +169,7 @@ const HeaderShell = ({
 
 type HeaderBrandProps = {
   to: string;
+  search?: { org?: string };
   ariaLabel?: string;
   logoSize?: ImageProps["boxSize"];
   fontSize?: TextProps["fontSize"];
@@ -177,6 +179,7 @@ type HeaderBrandProps = {
 
 const HeaderBrand = ({
   to,
+  search,
   ariaLabel,
   logoSize,
   fontSize,
@@ -189,7 +192,7 @@ const HeaderBrand = ({
         <HeaderBrandContent logoSize={logoSize} fontSize={fontSize} showTagline={showTagline} />
       </MeasurementBoundaryLink>
     ) : (
-      <RouterLink to={to} aria-label={ariaLabel}>
+      <RouterLink to={to} search={search} aria-label={ariaLabel}>
         <HeaderBrandContent logoSize={logoSize} fontSize={fontSize} showTagline={showTagline} />
       </RouterLink>
     )}

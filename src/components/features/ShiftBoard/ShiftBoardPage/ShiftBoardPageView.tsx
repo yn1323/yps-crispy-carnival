@@ -10,90 +10,96 @@ import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
 import { UnsavedChangesDialog } from "../UnsavedChangesDialog";
 import type { ShiftBoardPageViewProps } from "./types";
 
-export const ShiftBoardPageView = ({ viewModel, intents }: ShiftBoardPageViewProps) => {
+export const ShiftBoardPageView = ({ viewModel, intents, layout = "legacy" }: ShiftBoardPageViewProps) => {
   const { shiftForm, confirmDialog, unsubmittedDialog, unsavedChangesDialog } = viewModel;
 
   return (
     <Flex
       direction="column"
-      h={{
-        base: `calc(100dvh - ${HEADER_HEIGHT.base})`,
-        md: `calc(100dvh - ${HEADER_HEIGHT.md})`,
-      }}
+      h={
+        layout === "app"
+          ? "full"
+          : {
+              base: `calc(100dvh - ${HEADER_HEIGHT.base})`,
+              md: `calc(100dvh - ${HEADER_HEIGHT.md})`,
+            }
+      }
       minH={0}
     >
-      <Grid
-        templateColumns={{ base: "56px minmax(0, 1fr) 56px", lg: "minmax(0, 1fr) auto minmax(0, 1fr)" }}
-        alignItems="center"
-        bg="white"
-        px={{ base: 4, lg: 6 }}
-        py={2}
-        flexShrink={0}
-      >
-        <Box justifySelf="start">
-          <Link to="/dashboard" search={{ shop: shiftForm.shopId }}>
-            <Flex
-              align="center"
-              gap={1}
-              color="gray.500"
-              whiteSpace="nowrap"
-              _hover={{ color: "gray.700" }}
-              cursor="pointer"
-            >
-              <Icon boxSize={4}>
-                <LuChevronLeft />
-              </Icon>
-              <Text fontSize="sm">戻る</Text>
-            </Flex>
-          </Link>
-        </Box>
-        <Text
-          fontSize={{ base: "sm", lg: "md" }}
-          fontWeight={600}
-          color="gray.900"
-          textAlign="center"
-          whiteSpace="nowrap"
-          overflow="hidden"
-          textOverflow="ellipsis"
+      {layout === "legacy" && (
+        <Grid
+          templateColumns={{ base: "56px minmax(0, 1fr) 56px", lg: "minmax(0, 1fr) auto minmax(0, 1fr)" }}
+          alignItems="center"
+          bg="white"
+          px={{ base: 4, lg: 6 }}
+          py={2}
+          flexShrink={0}
         >
-          {viewModel.periodLabel}
-        </Text>
-        <Flex justifySelf="end" align="center" gap={3} minW={0}>
-          {viewModel.isConfirmed && viewModel.confirmedAtLabel && (
-            <Flex align="center" gap={1} flexShrink={0}>
-              <Icon color="green.600" boxSize={3.5}>
-                <LuCircleCheck />
-              </Icon>
-              <Text fontSize="xs" color="green.600" display={{ base: "none", lg: "inline" }}>
-                確定済み（{viewModel.confirmedAtLabel}）
-              </Text>
-              <Text fontSize="2xs" color="green.600" display={{ base: "inline", lg: "none" }}>
-                確定済み
-              </Text>
-            </Flex>
-          )}
-          {viewModel.showTimeInputGuide && (
-            <Button
-              asChild
-              size="sm"
-              variant="ghost"
-              colorPalette="teal"
-              display={{ base: "none", lg: "inline-flex" }}
-              flexShrink={0}
-            >
-              <a
-                href="/demo/shiftboard"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="勤務時間の入力方法（別タブで開きます）"
+          <Box justifySelf="start">
+            <Link to="/dashboard" search={{ shop: shiftForm.shopId }}>
+              <Flex
+                align="center"
+                gap={1}
+                color="gray.500"
+                whiteSpace="nowrap"
+                _hover={{ color: "gray.700" }}
+                cursor="pointer"
               >
-                勤務時間の入力方法
-                <LuExternalLink aria-hidden="true" focusable="false" />
-              </a>
-            </Button>
-          )}
-        </Flex>
-      </Grid>
+                <Icon boxSize={4}>
+                  <LuChevronLeft />
+                </Icon>
+                <Text fontSize="sm">戻る</Text>
+              </Flex>
+            </Link>
+          </Box>
+          <Text
+            fontSize={{ base: "sm", lg: "md" }}
+            fontWeight={600}
+            color="gray.900"
+            textAlign="center"
+            whiteSpace="nowrap"
+            overflow="hidden"
+            textOverflow="ellipsis"
+          >
+            {viewModel.periodLabel}
+          </Text>
+          <Flex justifySelf="end" align="center" gap={3} minW={0}>
+            {viewModel.isConfirmed && viewModel.confirmedAtLabel && (
+              <Flex align="center" gap={1} flexShrink={0}>
+                <Icon color="green.600" boxSize={3.5}>
+                  <LuCircleCheck />
+                </Icon>
+                <Text fontSize="xs" color="green.600" display={{ base: "none", lg: "inline" }}>
+                  確定済み（{viewModel.confirmedAtLabel}）
+                </Text>
+                <Text fontSize="2xs" color="green.600" display={{ base: "inline", lg: "none" }}>
+                  確定済み
+                </Text>
+              </Flex>
+            )}
+            {viewModel.showTimeInputGuide && (
+              <Button
+                asChild
+                size="sm"
+                variant="ghost"
+                colorPalette="teal"
+                display={{ base: "none", lg: "inline-flex" }}
+                flexShrink={0}
+              >
+                <a
+                  href="/demo/shiftboard"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="勤務時間の入力方法（別タブで開きます）"
+                >
+                  勤務時間の入力方法
+                  <LuExternalLink aria-hidden="true" focusable="false" />
+                </a>
+              </Button>
+            )}
+          </Flex>
+        </Grid>
+      )}
 
       {viewModel.isReadOnly && (
         <Alert.Root status="info" borderRadius={0} flexShrink={0}>
@@ -140,7 +146,7 @@ export const ShiftBoardPageView = ({ viewModel, intents }: ShiftBoardPageViewPro
         onClose={intents.onCloseConfirmDialog}
         isLoading={shiftForm.isConfirming}
         isSubmitDisabled={viewModel.isReadOnly || shiftForm.isConfirming}
-        mobileActionLayout="stacked"
+        mobileActionLayout="inline"
       >
         <ConfirmShiftContent
           staffCount={confirmDialog.staffCount}

@@ -1,12 +1,9 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { expectAppHydrated } from "../helpers/appReadiness";
 import { assertNotificationRecipientSuppressed } from "../helpers/notificationProbe";
 
-const JAPANESE_WEEKDAYS = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"] as const;
 const DASHBOARD_DATA_TIMEOUT = 20_000;
 const SHOP_SWITCHER_BUTTON_NAME = /^店舗を切り替える/;
-const SHIFT_BOARD_OPEN_BUTTON_NAME = /回収状況を見る|シフトを組む|シフトを見る/;
-const RECRUITMENT_CREATED_TOAST_TITLE = /募集をつくりました|募集をつくり、スタッフに通知しました/;
 
 export class DashboardPage {
   constructor(private page: Page) {}
@@ -69,42 +66,6 @@ export class DashboardPage {
     await expect(this.page.getByRole("button", { name: "新しい募集をつくる" })).toBeVisible({
       timeout: DASHBOARD_DATA_TIMEOUT,
     });
-  }
-
-  async createRecruitment(data: { periodStart: string; periodEnd: string; deadline: string }) {
-    await this.page.getByRole("button", { name: "新しい募集をつくる" }).click({ noWaitAfter: true });
-    const dialog = this.page.getByRole("dialog", { name: "新しい募集をつくる" });
-    await expect(dialog).toBeVisible();
-
-    await this.selectCalendarDate(dialog, data.periodStart);
-    await this.selectCalendarDate(dialog, data.periodEnd);
-    await dialog.getByRole("button", { name: "次へ" }).click();
-
-    await expect(dialog.getByText("お店のお休みを選択")).toBeVisible();
-    await dialog.getByRole("button", { name: "次へ" }).click();
-
-    await expect(dialog.getByText("提出締切日を選択")).toBeVisible();
-    await this.selectCalendarDate(dialog, data.deadline);
-    await dialog.getByRole("button", { name: "確認へ" }).click();
-
-    await expect(dialog.getByText("内容を確認", { exact: true })).toBeVisible();
-    await dialog.getByRole("button", { name: "募集をつくる" }).click();
-    await this.expectToastVisibleThenHidden(RECRUITMENT_CREATED_TOAST_TITLE);
-  }
-
-  async openShiftBoard() {
-    const openButton = this.recruitmentOpenButton();
-    await expect(openButton).toHaveCount(1, { timeout: DASHBOARD_DATA_TIMEOUT });
-    await expect(openButton).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
-
-    const continueButton = this.page
-      .getByRole("alertdialog", { name: "まだ希望がそろっていません" })
-      .getByRole("button", { name: "このまま進む" });
-    const shiftBoardReady = this.page.getByRole("link", { name: "戻る", exact: true });
-    await openButton.click();
-    await expect(continueButton.or(shiftBoardReady).first()).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
-    if (await continueButton.isVisible()) await continueButton.click();
-    await expect(this.page).toHaveURL(/\/shiftboard\//, { timeout: DASHBOARD_DATA_TIMEOUT });
   }
 
   async expectStaffVisible(name: string) {
@@ -184,23 +145,8 @@ export class DashboardPage {
     await expect(this.staffSection()).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
   }
 
-  private recruitmentOpenButton() {
-    return this.page
-      .getByRole("region", { name: "シフト一覧" })
-      .getByRole("button", { name: SHIFT_BOARD_OPEN_BUTTON_NAME });
-  }
-
   private staffSection() {
     return this.page.getByRole("region", { name: "スタッフ一覧" });
-  }
-
-  private async expectToastVisibleThenHidden(title: string | RegExp) {
-    const toast = this.page.locator("[data-scope='toast'][data-part='root']").filter({ hasText: title }).first();
-    await expect(toast).toBeVisible();
-    await toast.locator("[data-part='close-trigger']").evaluate((element: HTMLElement) => element.click());
-    await expect(
-      this.page.locator("[data-scope='toast'][data-part='root'][data-state='open']").filter({ hasText: title }),
-    ).toHaveCount(0);
   }
 
   private async selectTime(label: string, value: string) {
@@ -210,20 +156,6 @@ export class DashboardPage {
       .getByRole("option", { name: value, exact: true })
       .click({ noWaitAfter: true });
   }
-
-  private async selectCalendarDate(scope: Locator, date: string) {
-    const button = scope.getByRole("button", {
-      name: new RegExp(`^Choose ${escapeRegExp(formatCalendarAriaDate(date))}$`),
-    });
-    await expect(button).toBeVisible();
-    await button.click();
-  }
-}
-
-function formatCalendarAriaDate(date: string) {
-  const [year, month, day] = date.split("-").map(Number);
-  const weekday = JAPANESE_WEEKDAYS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
-  return `${year}年${month}月${day}日${weekday}`;
 }
 
 function escapeRegExp(value: string) {

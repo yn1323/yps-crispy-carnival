@@ -2,9 +2,16 @@
 
 import { renderHook } from "@testing-library/react";
 import type { FunctionReference } from "convex/server";
+import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
 
-type TestQuery = FunctionReference<"query", "public", { label: string; shopId: string }, { name: string }>;
+type TestQuery = FunctionReference<
+  "query",
+  "public",
+  { label: string; shopId: string; expectedOrganizationId?: string },
+  { name: string }
+>;
 
 const mocks = vi.hoisted(() => ({
   useQuery: vi.fn(),
@@ -42,6 +49,25 @@ describe("useShopQuery", () => {
     renderHook(() => useShopQuery(queryRef, { label: "募集A" }));
 
     expect(mocks.useQuery).toHaveBeenCalledWith(queryRef, "skip");
+  });
+
+  it("app routeの明示scopeを保存済み店舗より優先する", () => {
+    mocks.selectedShop = { shopId: "stale-shop", shopName: "別組織の店舗" };
+
+    renderHook(() => useShopQuery(queryRef, { label: "募集A" }), {
+      wrapper: ({ children }: { children: ReactNode }) =>
+        createElement(ManagerShopScopeProvider, {
+          shopId: "shop-app",
+          expectedOrganizationId: "organization-app",
+          children,
+        }),
+    });
+
+    expect(mocks.useQuery).toHaveBeenCalledWith(queryRef, {
+      label: "募集A",
+      shopId: "shop-app",
+      expectedOrganizationId: "organization-app",
+    });
   });
 
   it("呼び出し側のskipを維持する", () => {

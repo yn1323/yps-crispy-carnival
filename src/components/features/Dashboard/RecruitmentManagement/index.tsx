@@ -3,7 +3,10 @@ import { useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { RegularClosedDay } from "@/convex/shop/schemas";
-import type { CreateRecruitmentData } from "@/src/components/features/CreateRecruitmentForm";
+import type {
+  CreateRecruitmentData,
+  CreateRecruitmentShopTarget,
+} from "@/src/components/features/CreateRecruitmentForm";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { toaster } from "@/src/components/ui/toaster";
@@ -54,12 +57,31 @@ export type RecruitmentManagementState = {
 
 type Props = {
   regularClosedDays: RegularClosedDay[];
+  shopTarget?: Extract<CreateRecruitmentShopTarget, { mode: "fixed" }>;
   data?: RecruitmentManagementData;
   isReadOnly?: boolean;
+  title?: string;
+  enablePastRecruitmentsQuery?: boolean;
+  showRecruitmentMenus?: boolean;
+  canDeleteRecruitments?: boolean;
+  deleteRecruitmentDisabledReason?: string;
+  onOpenShiftBoard?: (recruitmentId: Recruitment["_id"]) => void;
   children: (state: RecruitmentManagementState) => ReactNode;
 };
 
-export function RecruitmentManagement({ regularClosedDays, data, isReadOnly = false, children }: Props) {
+export function RecruitmentManagement({
+  regularClosedDays,
+  shopTarget,
+  data,
+  isReadOnly = false,
+  title,
+  enablePastRecruitmentsQuery = false,
+  showRecruitmentMenus,
+  canDeleteRecruitments,
+  deleteRecruitmentDisabledReason,
+  onOpenShiftBoard,
+  children,
+}: Props) {
   const navigate = useNavigate();
   const selectedShop = useAtomValue(selectedShopAtom);
   const createDialog = useDialog();
@@ -72,7 +94,7 @@ export function RecruitmentManagement({ regularClosedDays, data, isReadOnly = fa
   const hasPastRecruitments = useShopQuery(api.dashboard.queries.hasDashboardPastRecruitments, data ? "skip" : {});
   const pastRecruitments = useShopPaginatedQuery(
     api.dashboard.queries.getDashboardPastRecruitments,
-    data || !isPastRecruitmentsVisible ? "skip" : {},
+    !isPastRecruitmentsVisible || (data && !enablePastRecruitmentsQuery) ? "skip" : {},
     { initialNumItems: PAST_RECRUITMENT_PAGE_SIZE },
   );
   const createRecruitment = useShopMutation(api.recruitment.mutations.createRecruitment);
@@ -152,6 +174,10 @@ export function RecruitmentManagement({ regularClosedDays, data, isReadOnly = fa
     onBeforeOpenShiftBoard?: (recruitmentId: Recruitment["_id"]) => void,
   ) => {
     onBeforeOpenShiftBoard?.(recruitmentId);
+    if (onOpenShiftBoard) {
+      onOpenShiftBoard(recruitmentId);
+      return;
+    }
     navigate({
       to: "/shiftboard/$recruitmentId",
       params: { recruitmentId },
@@ -167,8 +193,18 @@ export function RecruitmentManagement({ regularClosedDays, data, isReadOnly = fa
   const renderContent = ({ onBeforeOpenShiftBoard }: RenderContentOptions = {}) => (
     <RecruitmentManagementView
       regularClosedDays={regularClosedDays}
+      shopTarget={
+        shopTarget ??
+        (selectedShop
+          ? { mode: "fixed", shop: { shopId: selectedShop.shopId, shopName: selectedShop.shopName } }
+          : undefined)
+      }
+      title={title}
       groups={groups}
       isReadOnly={isReadOnly}
+      showRecruitmentMenus={showRecruitmentMenus}
+      canDeleteRecruitments={canDeleteRecruitments}
+      deleteRecruitmentDisabledReason={deleteRecruitmentDisabledReason}
       pastStatus={resolvedPastStatus}
       hasPastRecruitments={resolvedHasPastRecruitments}
       isPastRecruitmentsVisible={data?.isPastRecruitmentsVisible ?? isPastRecruitmentsVisible}

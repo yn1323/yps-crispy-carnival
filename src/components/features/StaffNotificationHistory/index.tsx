@@ -8,9 +8,16 @@ type Props = {
   staffId: Id<"staffs">;
   enabled: boolean;
   lineConnectionStatus?: "linked" | "unlinked";
+  expectedOrganizationId?: Id<"organizations">;
 };
 
-export function StaffNotificationHistory({ shopId, staffId, enabled, lineConnectionStatus }: Props) {
+export function StaffNotificationHistory({
+  shopId,
+  staffId,
+  enabled,
+  lineConnectionStatus,
+  expectedOrganizationId,
+}: Props) {
   return (
     <ErrorBoundary
       key={`${shopId}:${staffId}:${enabled}`}
@@ -21,13 +28,20 @@ export function StaffNotificationHistory({ shopId, staffId, enabled, lineConnect
         staffId={staffId}
         enabled={enabled}
         lineConnectionStatus={lineConnectionStatus}
+        expectedOrganizationId={expectedOrganizationId}
       />
     </ErrorBoundary>
   );
 }
 
-function ConnectedStaffNotificationHistory({ shopId, staffId, enabled, lineConnectionStatus }: Props) {
-  const history = useStaffNotificationHistory(shopId, staffId, enabled);
+function ConnectedStaffNotificationHistory({
+  shopId,
+  staffId,
+  enabled,
+  lineConnectionStatus,
+  expectedOrganizationId,
+}: Props) {
+  const history = useStaffNotificationHistory(shopId, staffId, enabled, expectedOrganizationId);
   return <StaffNotificationHistoryView {...history} lineConnectionStatus={lineConnectionStatus} />;
 }
 

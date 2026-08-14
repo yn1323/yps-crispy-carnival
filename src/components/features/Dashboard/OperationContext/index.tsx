@@ -22,16 +22,31 @@ export { OperationContextSkeleton, OperationContextView } from "./View";
 export type OperationContextData = {
   shops: readonly ShopContextOption[];
   selectedShop: NonNullable<SelectedShopType>;
+  organizations?: readonly OperationContextOrganizationOption[];
+  onOrganizationSelect?: (organization: OperationContextOrganizationOption) => void;
   onSelect?: (shop: ShopContextOption) => void;
+};
+
+export type OperationContextOrganizationOption = {
+  id: string;
+  name: string;
 };
 
 type Props = {
   data?: OperationContextData;
   planStatusCard?: PlanStatusCardProps | null;
   billingSettingsShopId?: string;
+  onOpenShopDetail?: (shopId: string) => void;
+  onOpenOrganizationSettings?: () => void;
 };
 
-export const OperationContext = ({ data, planStatusCard, billingSettingsShopId }: Props) => {
+export const OperationContext = ({
+  data,
+  planStatusCard,
+  billingSettingsShopId,
+  onOpenShopDetail,
+  onOpenOrganizationSettings,
+}: Props) => {
   const navigate = useNavigate();
   const rawShops = useQuery(api.dashboard.queries.getMyShops, data ? "skip" : {});
   const storedSelectedShop = useAtomValue(selectedShopAtom);
@@ -50,6 +65,17 @@ export const OperationContext = ({ data, planStatusCard, billingSettingsShopId }
   if (!data && rawShops === undefined) return <OperationContextSkeleton />;
   if (!model) return null;
 
+  const organizationChangeOptions =
+    data?.organizations && data.onOrganizationSelect
+      ? data.organizations
+          .filter((organization) => organization.id !== model.selectedGroup.key)
+          .map((organization) => ({
+            key: organization.id,
+            organizationName: organization.name,
+            targetId: organization.id,
+          }))
+      : undefined;
+
   const selectShop = (shop: ShopContextOption) => {
     if (data?.onSelect) {
       data.onSelect(shop);
@@ -65,6 +91,10 @@ export const OperationContext = ({ data, planStatusCard, billingSettingsShopId }
   };
 
   const handleOpenShopDetail = () => {
+    if (onOpenShopDetail) {
+      onOpenShopDetail(model.selectedShop.shopId);
+      return;
+    }
     void navigate({
       to: "/shops/$shopId",
       params: { shopId: model.selectedShop.shopId },
@@ -79,6 +109,16 @@ export const OperationContext = ({ data, planStatusCard, billingSettingsShopId }
       onShopSelect={handleShopSelect}
       onOpenShopDetail={handleOpenShopDetail}
       organizationSettingsShopId={showOrganizationSettings ? model.selectedShop.shopId : undefined}
+      onOpenOrganizationSettings={onOpenOrganizationSettings}
+      organizationChangeOptions={organizationChangeOptions}
+      onOrganizationChange={
+        data?.onOrganizationSelect
+          ? (organizationId) => {
+              const organization = data.organizations?.find((candidate) => candidate.id === organizationId);
+              if (organization) data.onOrganizationSelect?.(organization);
+            }
+          : undefined
+      }
       planStatusCard={planStatusCard}
       billingSettingsShopId={billingSettingsShopId}
     />

@@ -67,6 +67,41 @@ export function buildDashboardRecruitmentGroups({
   };
 }
 
+/**
+ * サーバーでJST基準に分類済みの複数店舗groupを、分類をやり直さず一つの一覧へまとめる。
+ * ブラウザのtimezoneで締切境界を再判定しないため、組織横断一覧はこちらを使う。
+ */
+export function mergeDashboardRecruitmentGroups(
+  sourceGroups: readonly DashboardRecruitmentGroup[],
+): DashboardRecruitmentGroupsResult {
+  const grouped: Record<DashboardRecruitmentGroupKey, Map<Recruitment["_id"], Recruitment>> = {
+    current: new Map(),
+    actionRequired: new Map(),
+    collecting: new Map(),
+    confirmed: new Map(),
+    past: new Map(),
+  };
+
+  for (const group of sourceGroups) {
+    for (const recruitment of group.recruitments) {
+      grouped[group.key].set(recruitment._id, recruitment);
+    }
+  }
+
+  const groups = createDashboardRecruitmentGroups({
+    current: [...grouped.current.values()].sort(sortCurrentRecruitments),
+    actionRequired: [...grouped.actionRequired.values()].sort(sortActionRequiredRecruitments),
+    collecting: [...grouped.collecting.values()].sort(sortCollectingRecruitments),
+    confirmed: [...grouped.confirmed.values()].sort(sortFutureConfirmedRecruitments),
+    past: [...grouped.past.values()].sort(sortPastRecruitments),
+  });
+
+  return {
+    groups,
+    totalCount: groups.reduce((total, group) => total + group.recruitments.length, 0),
+  };
+}
+
 export function sortRecruitmentsByCreatedAt(recruitments: Recruitment[]): Recruitment[] {
   return [...recruitments].sort((a, b) => b.createdAt - a.createdAt);
 }
