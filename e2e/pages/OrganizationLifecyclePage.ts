@@ -24,7 +24,8 @@ export class OrganizationLifecyclePage {
   }
 
   async createOrganization(shopName: string) {
-    const createButton = this.page.getByRole("button", { name: "新しい組織を作る", exact: true });
+    const createSection = this.page.getByRole("region", { name: "新しい組織を作る", exact: true });
+    const createButton = createSection.getByRole("button", { name: "作成する", exact: true });
     await expect(createButton).toBeEnabled({ timeout: ORGANIZATION_DATA_TIMEOUT });
     await createButton.click();
 
