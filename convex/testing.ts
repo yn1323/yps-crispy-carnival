@@ -961,14 +961,14 @@ export const seedAuthenticatedManagerScenario = internalMutation({
     managerAuthTokenIdentifier: v.string(),
     managerEmail: v.optional(v.string()),
   },
-  returns: v.object({ shopId: v.id("shops") }),
+  returns: v.object({ organizationId: v.id("organizations"), shopId: v.id("shops") }),
   handler: async (ctx, args) => {
-    const { shopId } = await createManagerScenario(ctx, {
+    const { organizationId, shopId } = await createManagerScenario(ctx, {
       managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
       managerEmail: args.managerEmail,
       shopName: "認証境界テスト店舗",
     });
-    return { shopId };
+    return { organizationId, shopId };
   },
 });
 
@@ -1087,6 +1087,7 @@ export const seedManagerSettingsScenario = internalMutation({
     managerEmail: v.optional(v.string()),
   },
   returns: v.object({
+    organizationId: v.id("organizations"),
     shopId: v.id("shops"),
     organizationName: v.string(),
     currentManagerName: v.string(),
@@ -1112,6 +1113,7 @@ export const seedManagerSettingsScenario = internalMutation({
       email: candidateEmail,
     });
     return {
+      organizationId: fixture.organizationId,
       shopId: fixture.shopId,
       organizationName,
       currentManagerName,

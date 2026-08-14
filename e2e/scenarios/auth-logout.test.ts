@@ -12,6 +12,7 @@ import { DashboardPage } from "../pages/DashboardPage";
 import { UserMenu } from "../pages/UserMenu";
 
 type AuthenticatedManagerScenarioSeed = {
+  organizationId: string;
   shopId: string;
 };
 
@@ -46,9 +47,9 @@ authLogoutTest.describe("ログアウト後の認証境界", { tag: ["@e2e-core"
         e2eFreshManagerActor,
         "testing:seedAuthenticatedManagerScenario",
       );
-      const protectedPath = `/dashboard?shop=${encodeURIComponent(seed.shopId)}`;
+      const protectedPath = `/dashboard?org=${encodeURIComponent(seed.organizationId)}&shop=${encodeURIComponent(seed.shopId)}`;
 
-      await new DashboardPage(page).goto(seed.shopId);
+      await new DashboardPage(page).goto({ organizationId: seed.organizationId, shopId: seed.shopId });
       await new UserMenu(page).logout();
       await page.goto(protectedPath, { waitUntil: "domcontentloaded" });
       await expectAppHydrated(page);

@@ -6,18 +6,18 @@ const SHOP_DATA_TIMEOUT = 20_000;
 export class ShopLifecyclePage {
   constructor(private page: Page) {}
 
-  async gotoSettings(contextShopId: string) {
-    await this.page.goto(`/settings?shop=${encodeURIComponent(contextShopId)}&tab=shops`, {
+  async gotoManagement(organizationId: string) {
+    await this.page.goto(`/app/manage?org=${encodeURIComponent(organizationId)}`, {
       waitUntil: "domcontentloaded",
     });
     await expectAppHydrated(this.page);
     await expect(this.page).toHaveURL(
-      (url) =>
-        url.pathname === "/settings" &&
-        url.searchParams.get("shop") === contextShopId &&
-        url.searchParams.get("tab") === "shops",
+      (url) => url.pathname === "/app/manage" && url.searchParams.get("org") === organizationId,
       { timeout: SHOP_DATA_TIMEOUT },
     );
+    await expect(this.page.getByRole("heading", { name: "管理", exact: true })).toBeVisible({
+      timeout: SHOP_DATA_TIMEOUT,
+    });
     const addShopButton = this.page.getByRole("button", { name: "店舗を追加する" });
     await expect(addShopButton).toBeVisible({
       timeout: SHOP_DATA_TIMEOUT,
@@ -103,5 +103,15 @@ export class ShopLifecyclePage {
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "店舗を削除", exact: true }).click();
     await expect(dialog).toHaveCount(0, { timeout: SHOP_DATA_TIMEOUT });
+  }
+
+  async expectManagementReady(organizationId: string) {
+    await expect(this.page).toHaveURL(
+      (url) => url.pathname === "/app/manage" && url.searchParams.get("org") === organizationId,
+      { timeout: SHOP_DATA_TIMEOUT },
+    );
+    await expect(this.page.getByRole("heading", { name: "管理", exact: true })).toBeVisible({
+      timeout: SHOP_DATA_TIMEOUT,
+    });
   }
 }

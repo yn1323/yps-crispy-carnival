@@ -38,7 +38,7 @@ test.describe("管理者の招待受諾と権限解除", { tag: ["@e2e-core", "@
 
     await test.step("別のClerkアカウントBが招待を受諾し管理者設定へ到達する", async () => {
       await inviteeAcceptance.acceptAndExpectDashboard(capability.token, seed);
-      await inviteeSettings.openDirectly(seed.shopId);
+      await inviteeSettings.openDirectly(seed.organizationId);
       await inviteeSettings.expectActiveManager(seed);
     });
 
@@ -48,8 +48,8 @@ test.describe("管理者の招待受諾と権限解除", { tag: ["@e2e-core", "@
     });
 
     await test.step("Bは管理者設定へ戻れないがスタッフ所属は維持される", async () => {
-      await inviteeSettings.expectAccessRevoked(seed.shopId);
-      await inviterDashboard.goto(seed.shopId);
+      await inviteeSettings.expectAccessRevoked(seed.organizationId);
+      await inviterDashboard.goto({ organizationId: seed.organizationId, shopId: seed.shopId });
       await inviterDashboard.expectStaffVisible(seed.candidateName);
     });
   });

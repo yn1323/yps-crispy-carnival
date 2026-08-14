@@ -1,7 +1,7 @@
 import { expect, test } from "../fixtures/e2eTest";
-import { expectAppHydrated } from "../helpers/appReadiness";
 import { resetCurrentManagerScenarioData, seedManagerScenario } from "../helpers/scenarioSeeds";
 import { AppStaffPage } from "../pages/AppStaffPage";
+import { DashboardPage } from "../pages/DashboardPage";
 
 type AppNavigationScenarioSeed = {
   organizationId: string;
@@ -26,11 +26,7 @@ test.describe("新appのメインナビゲーション", { tag: ["@e2e-core"] },
       shopName: "E2E ナビゲーション店舗",
     });
 
-    await page.goto(
-      `/app/home?org=${encodeURIComponent(seed.organizationId)}&shop=${encodeURIComponent(seed.shopId)}`,
-      { waitUntil: "domcontentloaded" },
-    );
-    await expectAppHydrated(page);
+    await new DashboardPage(page).goto({ organizationId: seed.organizationId, shopId: seed.shopId });
     const staffPage = new AppStaffPage(page);
 
     const navigation = page.getByRole("navigation", { name: "メインメニュー" });

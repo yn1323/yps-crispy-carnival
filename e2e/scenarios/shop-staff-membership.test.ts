@@ -21,16 +21,17 @@ test.describe("店舗の所属スタッフ変更", { tag: ["@e2e-core"] }, () =>
     const membership = new ShopStaffMembershipPage(page);
     const dashboard = new DashboardPage(page);
 
-    await membership.openTargetShopFromOrganizationSettings(seed);
+    await membership.openTargetShopFromManagement(seed);
     await membership.expectInitialTargetStaffList(seed);
     await membership.addCandidate(seed);
     await membership.expectCandidateAdded(seed);
+    await membership.openCandidateStaffDetailAndReturn(seed);
     await membership.reloadAndExpectCandidateSelected(seed);
     await membership.removeAddedCandidate(seed);
     await membership.expectCandidateRemoved(seed);
     await membership.reloadAndExpectCandidateRemoved(seed);
 
-    await dashboard.goto(seed.contextShopId);
+    await dashboard.goto({ organizationId: seed.organizationId, shopId: seed.contextShopId });
     await dashboard.expectStaffVisible(seed.additionCandidateName);
   });
 });

@@ -9,7 +9,10 @@ test.use({ trace: "off", screenshot: "off", video: "off" });
 test.describe("管理者の初期設定", { tag: ["@e2e-core"] }, () => {
   test.setTimeout(45_000);
 
-  test("[E2E-SETUP-01] 認証済みの新規管理者が店舗を登録してDashboardへ到達する", async ({ e2eClerkUser, page }) => {
+  test("[E2E-SETUP-01] 新規管理者が1組織1店舗のBusiness利用状態でDashboardへ到達する", async ({
+    e2eClerkUser,
+    page,
+  }) => {
     await resetCurrentManagerScenarioData();
     const dashboard = new DashboardPage(page);
     const shopName = "E2E初期設定店舗";
@@ -24,9 +27,13 @@ test.describe("管理者の初期設定", { tag: ["@e2e-core"] }, () => {
     });
     await dashboard.expectSetupComplete();
     await dashboard.expectShopAvailable(shopName);
+    const scope = await dashboard.readCanonicalScope();
+    await dashboard.expectSelectedShop(shopName, scope.organizationId, scope.shopId);
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await expectAppHydrated(page);
     await dashboard.expectShopAvailable(shopName);
+    await dashboard.expectSelectedShop(shopName, scope.organizationId, scope.shopId);
+    await dashboard.expectInitialBusinessScopeInManagement(scope.organizationId, shopName);
   });
 });

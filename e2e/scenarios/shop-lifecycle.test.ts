@@ -33,11 +33,11 @@ test.describe("同一組織の店舗ライフサイクル", { tag: ["@e2e-core"]
     const appShifts = new AppShiftsPage(page);
     const dashboard = new DashboardPage(page);
 
-    await lifecycle.gotoSettings(seed.shopId);
+    await lifecycle.gotoManagement(seed.organizationId);
     await lifecycle.addShop(addedShopName);
 
-    await dashboard.goto(seed.shopId);
-    const addedShopId = await dashboard.switchShopAndReadId(addedShopName);
+    await dashboard.goto({ organizationId: seed.organizationId, shopId: seed.shopId });
+    const addedShopId = await dashboard.switchShopAndReadId(addedShopName, seed.organizationId);
     assertNotificationDeliverySuppressed(addedShopId);
 
     await test.step("追加店舗がシフト画面の全店舗filterへ反映される", async () => {
@@ -46,27 +46,31 @@ test.describe("同一組織の店舗ライフサイクル", { tag: ["@e2e-core"]
       await appShifts.selectShopFilter(addedShopName, addedShopId);
     });
 
-    await dashboard.goto(addedShopId);
+    await dashboard.goto({ organizationId: seed.organizationId, shopId: addedShopId });
     await page.reload({ waitUntil: "domcontentloaded" });
     await expectAppHydrated(page);
-    await dashboard.expectSelectedShop(addedShopName, addedShopId);
+    await dashboard.expectSelectedShop(addedShopName, seed.organizationId, addedShopId);
 
-    await dashboard.openCurrentShopDetail(addedShopId);
+    await dashboard.openCurrentShopDetail(seed.organizationId, addedShopId);
     await lifecycle.updateCurrentShopSettings(addedShopName, updatedShopName);
     await page.reload({ waitUntil: "domcontentloaded" });
     await expectAppHydrated(page);
     await lifecycle.expectCurrentShopSettings(updatedShopName);
     await lifecycle.deleteCurrentShop(updatedShopName);
+    await lifecycle.expectManagementReady(seed.organizationId);
+    await lifecycle.expectShopListed(seed.shopName);
+    await lifecycle.expectShopAbsent(updatedShopName);
 
-    await dashboard.expectSingleShopContext(seed.shopName, seed.shopId);
+    await dashboard.goto({ organizationId: seed.organizationId, shopId: seed.shopId });
+    await dashboard.expectSingleShopContext(seed.shopName, seed.organizationId, seed.shopId);
     await expect(page).toHaveURL(
       (url) => !url.pathname.includes(addedShopId) && ![...url.searchParams.values()].includes(addedShopId),
     );
     await page.reload({ waitUntil: "domcontentloaded" });
     await expectAppHydrated(page);
-    await dashboard.expectSingleShopContext(seed.shopName, seed.shopId);
+    await dashboard.expectSingleShopContext(seed.shopName, seed.organizationId, seed.shopId);
 
-    await lifecycle.gotoSettings(seed.shopId);
+    await lifecycle.gotoManagement(seed.organizationId);
     await lifecycle.expectShopListed(seed.shopName);
     await lifecycle.expectShopAbsent(updatedShopName);
   });
