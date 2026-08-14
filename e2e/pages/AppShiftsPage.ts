@@ -98,6 +98,16 @@ export class AppShiftsPage {
     await expect(row).toContainText(data.shopName);
   }
 
+  async expectSubmissionCount(
+    data: Pick<RecruitmentInput, "periodStart" | "periodEnd" | "shopName">,
+    responseCount: number,
+    totalStaffCount: number,
+  ) {
+    await expect(
+      this.recruitmentRow(data).getByText(`提出 ${responseCount}/${totalStaffCount}人`, { exact: true }),
+    ).toBeVisible({ timeout: APP_SHIFTS_DATA_TIMEOUT });
+  }
+
   async openRecruitment(data: Pick<RecruitmentInput, "periodStart" | "periodEnd" | "shopName">) {
     if (!this.activeOrganizationId) throw new Error("Open the shifts page before selecting a recruitment");
     const row = this.recruitmentRow(data);

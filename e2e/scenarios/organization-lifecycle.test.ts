@@ -30,14 +30,14 @@ test.describe("組織ライフサイクル", { tag: ["@e2e-core"] }, () => {
     const created = await organization.createOrganization(createdShopName);
     await dashboard.expectSelectedShop(createdShopName, created.organizationId, created.shopId);
 
-    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.reload({ waitUntil: "commit" });
     await expectAppHydrated(page);
     await dashboard.expectSelectedShop(createdShopName, created.organizationId, created.shopId);
 
     await organization.gotoOrganization(created.organizationId);
     await organization.expectCurrentOrganization(created.organizationId, createdOrganizationName);
     await organization.renameCurrentOrganization(renamedOrganizationName);
-    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.reload({ waitUntil: "commit" });
     await expectAppHydrated(page);
     await organization.expectCurrentOrganization(created.organizationId, renamedOrganizationName);
 
@@ -64,7 +64,7 @@ test.describe("組織ライフサイクル", { tag: ["@e2e-core"] }, () => {
     await expectAppHydrated(page);
     await dashboard.expectSelectedShop(seed.alternateShopName, seed.alternateOrganizationId, seed.alternateShopId);
 
-    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.reload({ waitUntil: "commit" });
     await expectAppHydrated(page);
     await dashboard.expectSelectedShop(seed.alternateShopName, seed.alternateOrganizationId, seed.alternateShopId);
 

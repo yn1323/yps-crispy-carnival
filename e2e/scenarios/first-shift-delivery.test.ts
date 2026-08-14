@@ -69,6 +69,7 @@ test.describe("代表シフト導線", { tag: ["@e2e-core", "@capability"] }, ()
     });
 
     await test.step("管理者が店舗名付きカードからシフト表を開いて確定する", async () => {
+      await appShifts.expectSubmissionCount({ ...dates, shopName: SCENARIO_SHOP_NAME }, 1, 1);
       await appShifts.openRecruitment({ ...dates, shopName: SCENARIO_SHOP_NAME });
       await shiftBoard.expectOverviewStaffTimeCount("田中太郎", 1);
       await shiftBoard.confirm(1);
