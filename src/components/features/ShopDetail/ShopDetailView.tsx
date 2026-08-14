@@ -79,6 +79,7 @@ export function ShopDetailView({
       <ShopStaffList
         staffs={staffs}
         canChangeStaffs={shop.canUpdateSettings}
+        managerNotificationRecipientStatus={shop.managerNotificationRecipientStatus}
         changeButtonRef={staffMembershipTriggerRef}
         onOpenUser={onOpenUser}
         onChangeStaffs={() => setIsStaffMembershipDialogOpen(true)}

@@ -66,7 +66,7 @@ const baseArgs: OrganizationSettingsViewProps = {
   freeManagerExchangeCandidates: [],
   canUpdateOrganizationName: true,
   canCreateOrganization: true,
-  // 店舗追加だけはcanonical LINE rollout gateと同期し、ほかの現行導線は公開する。
+  // 現行の組織設定導線はすべて公開済み。
   features: { organizationCreation: true, shopAddition: true, billing: true, managerInvitation: true },
   people: [
     {
@@ -89,6 +89,7 @@ const baseArgs: OrganizationSettingsViewProps = {
       email: "sato@sakura.example.com",
       managerRole: "readOnly",
       isStaff: false,
+      lineStatus: "linked_unfollowed",
       shopNames: [],
       shopIds: [],
       canRemoveManagerRole: false,
@@ -100,6 +101,7 @@ const baseArgs: OrganizationSettingsViewProps = {
       email: "suzuki@sakura.example.com",
       managerRole: "none",
       isStaff: true,
+      lineStatus: "unlinked",
       shopNames: ["渋谷店", "新宿店"],
       shopIds: ["shop-shibuya", "shop-shinjuku"],
       canRemoveManagerRole: false,
@@ -558,14 +560,8 @@ export const Free: Story = {
     defaultTab: "billing",
     managerInvitations: [],
     canInviteManager: true,
-    managerInvitationMode: "freeManagerExchange",
-    freeManagerExchangeCandidates: [
-      {
-        id: "person-staff",
-        name: "鈴木 次郎",
-        email: "suzuki@sakura.example.com",
-      },
-    ],
+    managerInvitationMode: "addition",
+    freeManagerExchangeCandidates: [],
     canAddShop: false,
     addShopDisabledReason: "無料では店舗を1件まで登録できます。",
     billing: billing({
@@ -573,7 +569,7 @@ export const Free: Story = {
       currentPlan: "free",
       peopleUsage: { current: 5, max: 5 },
       shopUsage: { current: 1, max: 1 },
-      managerUsage: { current: 1, max: 1 },
+      managerUsage: { current: 1, max: 2 },
       nextEvent: undefined,
       hasStripeCustomer: false,
       canUpdatePaymentMethod: false,
@@ -664,20 +660,6 @@ export const ShopCapacityReachedBehavior: Story = {
   },
 };
 
-export const ShopAdditionHiddenBehavior: Story = {
-  name: "店舗｜rollout gate閉鎖（操作確認）",
-  parameters: { screenshot: { skip: true } },
-  args: {
-    defaultTab: "shops",
-    features: { ...baseArgs.features, shopAddition: false },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.queryByRole("button", { name: "店舗を追加する" })).not.toBeInTheDocument();
-    await expect(canvas.getByRole("heading", { name: /全店舗/ })).toBeInTheDocument();
-  },
-};
-
 export const InitialPaymentPending: Story = {
   name: "プランと支払い｜初回支払い確認中",
   args: {
@@ -701,14 +683,8 @@ export const PendingActivationFreeFallback: Story = {
     defaultTab: "billing",
     managerInvitations: [],
     canInviteManager: true,
-    managerInvitationMode: "freeManagerExchange",
-    freeManagerExchangeCandidates: [
-      {
-        id: "person-staff",
-        name: "鈴木 次郎",
-        email: "suzuki@sakura.example.com",
-      },
-    ],
+    managerInvitationMode: "addition",
+    freeManagerExchangeCandidates: [],
     canAddShop: false,
     addShopDisabledReason: "支払い結果が確定してから、店舗を追加できます。",
     billing: billing({
@@ -717,6 +693,7 @@ export const PendingActivationFreeFallback: Story = {
       targetPlan: "pro",
       peopleUsage: { current: 5, max: 5 },
       shopUsage: { current: 1, max: 1 },
+      managerUsage: { current: 1, max: 2 },
       blockedReason: "有料プランの支払い結果を確認中です。\n無料の基本機能は引き続き利用できます。",
       nextEvent: { label: "支払い結果", date: "確認中" },
       canManagePlan: false,
@@ -898,6 +875,18 @@ export const MobileUsers: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: { defaultTab: "people" },
+};
+
+export const MobileUsersLongName: Story = {
+  name: "スタッフ｜長い名前・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: {
+    defaultTab: "people",
+    people: baseArgs.people.map((person) =>
+      person.id === "person-staff" ? { ...person, name: "yns1323@gmail.com" } : person,
+    ),
+  },
 };
 
 export const MobilePendingInvitations: Story = {

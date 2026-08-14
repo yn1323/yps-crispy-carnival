@@ -1,5 +1,5 @@
 import { Stack } from "@chakra-ui/react";
-import type { FocusEventHandler, ReactNode, Ref } from "react";
+import type { ReactNode } from "react";
 import { LuStore } from "react-icons/lu";
 import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
@@ -16,8 +16,6 @@ export type UserShopDetailViewProps = {
   membership: UserShopDetailMembership;
   isStoreReadOnly: boolean;
   storeDisabledReason?: string;
-  notificationSectionRef?: Ref<HTMLDivElement>;
-  onNotificationSectionFocus?: FocusEventHandler<HTMLDivElement>;
   notificationHistory: ReactNode;
   state: {
     notifications: {
@@ -44,8 +42,6 @@ export function UserShopDetailView({
   membership,
   isStoreReadOnly,
   storeDisabledReason,
-  notificationSectionRef,
-  onNotificationSectionFocus,
   notificationHistory,
   state,
   actions,
@@ -70,7 +66,7 @@ export function UserShopDetailView({
         <UserShopLineSection data={data} membership={membership} />
       </UserShopDetailPageSection>
 
-      <UserShopDetailPageSection sectionRef={notificationSectionRef} onFocusCapture={onNotificationSectionFocus}>
+      <UserShopDetailPageSection>
         <UserShopNotificationSection
           data={data}
           membership={membership}

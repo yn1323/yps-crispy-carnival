@@ -150,6 +150,13 @@ export function ShopStaffMembershipDialog({
   const removesAllEditableStaff = Boolean(
     removedPeople.length > 0 && session?.selectedPersonIds.length === 0 && session.preservedStaffs.length === 0,
   );
+  const removesLastManagerNotificationRecipient = Boolean(
+    removedPeople.some((person) => person.isActiveManager && person.email.trim().length > 0) &&
+      !session?.people.some(
+        (person) =>
+          person.isActiveManager && person.email.trim().length > 0 && selectedPersonIdSet.has(person.personId),
+      ),
+  );
   const currentRemovalPreviewKey = useMemo(
     () =>
       session && removedPersonIds.length > 0
@@ -454,6 +461,18 @@ export function ShopStaffMembershipDialog({
               <Alert.Title>変更後、この店舗のスタッフは0名になります</Alert.Title>
               <Alert.Description>
                 組織への所属や管理者権限は変更されません。また、利用人数のカウントも残ります。
+              </Alert.Description>
+            </Alert.Content>
+          </Alert.Root>
+        )}
+
+        {removesLastManagerNotificationRecipient && (
+          <Alert.Root status="warning" borderRadius="lg">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>変更後、この店舗の管理通知は送信されません</Alert.Title>
+              <Alert.Description>
+                通知が必要な場合は、有効な管理者を1名以上、この店舗の所属スタッフに残してください。管理者権限自体は変更されません。
               </Alert.Description>
             </Alert.Content>
           </Alert.Root>

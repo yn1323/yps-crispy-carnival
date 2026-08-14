@@ -16,6 +16,7 @@ import {
   STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT,
 } from "../notification/templates";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
+import { STAFF_REGISTRATION_OWNER_DIGEST_CONTEXT } from "../notificationOutbox/shopManagerNotification";
 import { lineRecipientOutboxSnapshot } from "../notificationOutbox/types";
 
 type PendingRequestShopIdsPage = {
@@ -111,7 +112,7 @@ async function sendOwnerDigestForShop(ctx: ActionCtx, shopId: Id<"shops">) {
                 managerName: recipient.name,
                 dashboardUrl: data.dashboardUrl,
               }),
-              context: "staffRegistration.sendOwnerDailyDigest",
+              context: STAFF_REGISTRATION_OWNER_DIGEST_CONTEXT,
               suppressDelivery,
             }),
           },
@@ -134,7 +135,7 @@ async function sendOwnerDigestForShop(ctx: ActionCtx, shopId: Id<"shops">) {
           managerName: recipient.name,
           dashboardUrl: data.dashboardUrl,
         }),
-        context: "staffRegistration.sendOwnerDailyDigest",
+        context: STAFF_REGISTRATION_OWNER_DIGEST_CONTEXT,
         suppressDelivery,
       }),
     });

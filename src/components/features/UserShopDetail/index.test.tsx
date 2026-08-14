@@ -10,17 +10,6 @@ const mocks = vi.hoisted(() => ({
   useNotificationActions: vi.fn(),
   useMembershipActions: vi.fn(),
   historyProps: undefined as undefined | { shopId: string; staffId: string; enabled: boolean },
-  notificationSectionActive: true,
-  notificationSectionRef: vi.fn(),
-  activateNotificationSection: vi.fn(),
-}));
-
-vi.mock("@/src/hooks/useViewportActivation", () => ({
-  useViewportActivation: () => ({
-    ref: mocks.notificationSectionRef,
-    isActive: mocks.notificationSectionActive,
-    activate: mocks.activateNotificationSection,
-  }),
 }));
 
 vi.mock("@/src/components/features/StaffNotificationHistory", () => ({
@@ -79,9 +68,6 @@ beforeEach(() => {
   mocks.useNotificationActions.mockReset();
   mocks.useMembershipActions.mockReset();
   mocks.historyProps = undefined;
-  mocks.notificationSectionActive = true;
-  mocks.notificationSectionRef.mockReset();
-  mocks.activateNotificationSection.mockReset();
   mocks.useNotificationActions.mockReturnValue({
     openRecruitments: [],
     currentRecruitments: [],
@@ -115,21 +101,6 @@ describe("UserShopDetail", () => {
     });
     expect(mocks.historyProps).toEqual({ shopId: targetShopId, staffId: membership.staffId, enabled: true });
     expect(screen.getByTestId("history-shop").textContent).toBe("shop-target");
-  });
-
-  it("通知sectionがviewport外の間は通知queryと履歴を開始しない", () => {
-    mocks.notificationSectionActive = false;
-
-    render(<UserShopDetail data={data} membership={membership} targetShopId={targetShopId} onBack={vi.fn()} />);
-
-    expect(mocks.useNotificationActions).toHaveBeenCalledWith({
-      targetShopId,
-      membership,
-      isReadOnly: false,
-      enabled: false,
-    });
-    expect(mocks.historyProps).toBeUndefined();
-    expect(screen.queryByTestId("history-shop")).toBeNull();
   });
 
   it("停止中店舗は閲覧専用として全controllerへ渡す", () => {

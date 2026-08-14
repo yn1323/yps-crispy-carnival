@@ -127,7 +127,10 @@ pnpm exec convex run migrations/index:runLineCommonLinkBackfill \
   --deployment <fully-qualified-deployment>
 ```
 
-実行後はmigration statusとLINE共通化readinessを全ページ再確認します。  canonical counterpart欠損、未完了fan-out、snapshotが不完全なtoken・Outbox・scheduled callerを0件にしてから`LINE_COMMON_LINK_CANONICAL_READS=enabled`へ切り替えます。  切替後のreadinessが0件になるまで`LINE_COMMON_LINK_CANONICAL_READY`は有効にせず、二店舗目と人物の別店舗所属をserver側で閉じます。
+実行後はmigration statusとLINE共通化readinessを全ページ再確認します。
+canonical counterpart欠損、未完了fan-out、snapshotが不完全なtoken・Outbox・scheduled callerを0件にしてから、常時canonical readと店舗・所属追加の常時公開を含むartifactを対象deploymentへ反映します。
+このartifactはruntime環境変数で旧readや非公開状態へ切り替えられないため、残件がある間は反映しません。
+反映後のreadinessとcanaryは別々に確認し、Productionでの完了状態を[リリース状態](release-status.md)へ記録します。
 
 ## Conflict修復後の限定再実行
 
@@ -237,7 +240,7 @@ pnpm exec convex run migrations/index:runShopMembersNarrowPreparation \
 - trial継続選択で`plan`を省略する旧checkout actionと予約済みcallerがなく、`trialSetupCheckout.targetPlan`欠損が0である。
 - Stripeの旧`immediateProCheckout`、target planなしtrial operation、subscription planなしrowがなく、provider snapshotと保存済みplanが一致する。
 - 旧API名、旧literal、optional argsを利用する外部callerがないことを、deploy履歴とアクセス記録で確認する。
-- LINE共通化では、旧shapeの未使用token、generation snapshotのないactive LINE Outbox、旧shapeの予約済み`sendInviteEmail`が0件である。canonical readerへの切替後も、旧shapeを新規作成するwriterがない。
+- LINE共通化では、旧shapeの未使用token、generation snapshotのないactive LINE Outbox、旧shapeの予約済み`sendInviteEmail`が0件である。常時canonical readのartifact反映後も、旧shapeを新規作成するwriterがない。
 
 このgateを確認できない場合、保存schemaだけを先にrequired化しません。  runtime fallbackには削除条件を示す`TODO[narrow]`を残し、次のNarrow deployでschema、validator、reader、writerを同時に削除します。
 
@@ -266,7 +269,7 @@ Narrow deploy後も、旧形式を投入するMigration Testはschema validation
 
 `notificationOutbox`は、m024 / m025 / m030 / m037のstatus、全ページreadiness、Outbox所有conflictの未解消0件、旧scheduled callerのdrainが揃った後にだけNarrowします。  `organizationId` / `purpose` / `notificationContext` / `deliverySuppressed`をrequired化し、`purpose ?? "business"`、purpose未設定のindex分岐、Widen前shop-scoped scan、店舗所属へ戻すreader fallbackを同じ契約変更で削除します。  `shopId`はbilling等のorganization-only通知で、`organizationBillingVersionAtEnqueue`は履歴snapshotとして、どちらもoptionalのまま維持します。
 
-LINE共通化のlegacy readとdual-writeを削除できるのは、m041を実行した場合のstatus、全LINE readiness、旧token・scheduled caller・generation欠損Outboxのdrain、canonical read切替後の観測が揃った後です。  `staffLineAccounts`の物理削除は別の保持判断とcleanupに分け、reader切替と同時には行いません。
+LINE共通化のlegacy readを削除したartifactは、m041を実行した場合のstatus、全LINE readiness、旧token・scheduled caller・generation欠損Outboxのdrainを確認してから対象deploymentへ反映します。  dual-writeの停止と`staffLineAccounts`の物理削除は別の保持判断とcleanupに分け、常時canonical readへの変更と同時には行いません。
 
 条件付きfieldをtable全体でrequiredにはしません。  `magicLinks.notificationOperationKey`は有効なview linkだけ、`notificationOutbox.fanoutTargetKey`と`fanoutOperationId`はfanout通知だけで組として必須です。  `notificationFanoutOperations.scheduledFunctionId`は予約前とterminal状態では存在しないため、lifecycle上optionalのまま維持します。
 

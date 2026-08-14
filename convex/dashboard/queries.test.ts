@@ -680,7 +680,7 @@ describe("dashboard/queries", () => {
         expected: {
           peopleUsage: { current: 1, max: 5 },
           shopUsage: { current: 1, max: 1 },
-          managerUsage: { current: 1, max: 1 },
+          managerUsage: { current: 1, max: 2 },
         },
       },
       {

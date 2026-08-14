@@ -29,11 +29,8 @@ developmentとproductionの設定を同じ証跡や変数値として扱わな�
 | `LINE_LOGIN_CHANNEL_SECRET` | OAuth codeをtokenへ交換する |
 | `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN` | Push、Reply、quota取得に使う |
 | `LINE_MESSAGING_CHANNEL_SECRET` | Webhook署名を検証する |
-| `LINE_COMMON_LINK_CANONICAL_READS` | `enabled`と完全一致する場合だけ、組織人物単位のLINE正本を読む。未設定とほかの値は互換用の店舗投影だけを読む |
-| `LINE_COMMON_LINK_CANONICAL_READY` | `enabled`と完全一致する場合だけ、二店舗目と既存人物の複数店舗所属を許可する |
 
-`pnpm convex:env:setup`は、LINEのsecretを含む先頭4変数を同期しない。
-二つのrollout変数はallowlistに含むが、Productionではこのcommandを使わず、対象deploymentを完全修飾したDashboardまたはCLIで個別に設定する。
+`pnpm convex:env:setup`は、この4変数を同期しない。
 LINE用のsecretは、Convex Dashboardまたは完全修飾deployment名を指定したCLIで個別に設定する。
 CLIでは値を引数へ書かず、次のように対話入力する。
 
@@ -56,24 +53,22 @@ LINE Login設定がない場合、通知メール内のLINE連携CTAは省略さ
 一方、管理画面のLINE連携操作を隠す全体feature gateはなく、既存のLINE連携状態も環境変数の有無だけでは解除されない。
 Messaging API設定がないまま既存連携先へのLINE送信を受け付けるとworkerが失敗し得るため、LINE機能を使うdeploymentでは4変数を一組で設定する。
 
-二つのrollout変数は別の責務を持つ。
-`LINE_COMMON_LINK_CANONICAL_READS`は通知、画面、Outboxの読取正本をdeployment全体で切り替える。
-`LINE_COMMON_LINK_CANONICAL_READY`は複数店舗の書込みを開くだけであり、読取正本を切り替えない。
-どちらも値の前後空白を除いた結果が`enabled`の場合だけ有効となる。
+現在のrepository artifactは、通知、画面、Outboxで組織人物単位のcanonicalなLINE正本を常に読む。
+店舗追加と既存人物の複数店舗所属もrepository上では常時有効であり、runtime環境変数による段階切替は行わない。
 
-## 組織共通LINE連携の段階切替
+## 組織共通LINE連携artifactの反映
 
-既存の`staffLineAccounts`があるdeploymentでは、次の順序を固定する。
-画面非表示だけで複数店舗を閉じず、server-side guardが閉じていることも確認する。
+既存の`staffLineAccounts`があるdeploymentへ、常時canonical readと店舗・所属追加の常時公開を含むartifactを反映するときは、次の順序を固定する。
+このartifactではread authorityと公開状態をruntime環境変数で分離できないため、migration、readiness、旧非同期処理のdrainを反映前の停止条件として扱う。
 
 1. 対象artifactのSHAと完全修飾deployment名を記録し、変更前のexportまたはbackupを取得する。
 2. exportへ`pnpm convex:verify-line-common-readiness -- --path <export.zip>`を実行する。`ok: false`または`rolloutPath: blocked`なら停止する。
-3. `LINE_COMMON_LINK_CANONICAL_READY`と`LINE_COMMON_LINK_CANONICAL_READS`を未設定のままWiden版を反映する。既存LINE通知は互換用の店舗投影を読み、新しい連携は組織人物正本と互換投影へ書く。
+3. 専用runnerとdual-writeを含むWiden互換artifactが対象deploymentへ反映済みであることを、artifactとcommitの証跡で確認する。証跡がない場合は停止し、常時canonical readのartifactを先に反映しない。
 4. counterpart欠損がある`staged`経路だけ、専用runnerを最初は`dryRun`で実行する。完全ゼロ経路では実行しない。
 5. 実変換後はmigration componentのstatusと、export verifier、全ページのbounded readiness queryを別々に確認する。
 6. 旧token、旧scheduled caller、世代snapshotのない処理中LINE Outboxが0件になるまで、互換readとdual-writeを維持する。
-7. `LINE_COMMON_LINK_CANONICAL_READS=enabled`を設定した版へ切り替え、通知、Webhook fan-out、Analytics、人物詳細と店舗詳細を確認する。この時点でも`LINE_COMMON_LINK_CANONICAL_READY`は開かない。
-8. canonical不整合、`actionRequired` fan-out、旧非同期caller、互換Outboxがすべて0件であることを再確認してから、`LINE_COMMON_LINK_CANONICAL_READY=enabled`で複数店舗を開く。
+7. canonical不整合、`actionRequired` fan-out、旧非同期caller、互換Outboxがすべて0件であることを再確認する。1件でも残る場合はartifactを反映しない。
+8. 常時canonical readと店舗・所属追加の常時公開を含むartifactを反映し、通知、Webhook fan-out、Analytics、人物詳細、店舗詳細、店舗追加、複数店舗所属のcanary結果を記録する。
 
 専用backfillは固定migration seriesへ含まれない。
 対象deploymentを完全修飾し、次のrunnerだけを使う。
@@ -91,8 +86,8 @@ pnpm exec convex run --component migrations lib:getStatus \
   --deployment <fully-qualified-deployment>
 ```
 
-Productionの変数変更、backfill実行、deployは、それぞれ対象と直前のreadinessを示して明示承認を得てから行う。
-`canonical reads`へ切り替えた後に旧readへ戻すのは、dual-writeが継続し、互換投影の完全一致を確認できる間に限る。
+Productionのbackfill実行とdeployは、それぞれ対象と直前のreadinessを示して明示承認を得てから行う。
+常時canonical readのartifactから旧artifactへ戻すのは、dual-writeが継続し、互換投影の完全一致を確認できる間に限る。
 legacy writeを停止した後は、canonical側を修復するforward recoveryだけを行う。
 
 ## Provider側の設定

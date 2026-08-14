@@ -7,11 +7,7 @@ import { deriveOrganizationBillingPolicy, getEffectiveRestrictedBillingState } f
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 import { isOrganizationBillingContact } from "./billingContact";
 import { managerInvitationStateValidator, resolvePersonManagerInvitationState } from "./managerInvitationState";
-import {
-  deriveOrganizationPersonCapabilities,
-  MANAGER_PERSON_REMOVAL_DISABLED_REASON,
-  type ManagerRole,
-} from "./personCapabilities";
+import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
 import {
   collectPersonRemovalPreview,
   personRemovalPreviewValidator,
@@ -180,12 +176,10 @@ export const getUserDetail = managerQuery({
               shopStatus: targetShopStatus,
               // TODO[narrow]: 全deploymentでm027完走・missingExcludedFromShift=0確認後にfallbackを外す。
               excludedFromShift: staff.excludedFromShift ?? false,
-              canRemove: targetShopStatus === "active" && managerRole === "none",
-              ...(managerRole !== "none"
-                ? { removeDisabledReason: MANAGER_PERSON_REMOVAL_DISABLED_REASON }
-                : targetShopStatus === "active"
-                  ? {}
-                  : { removeDisabledReason: INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON }),
+              canRemove: targetShopStatus === "active",
+              ...(targetShopStatus === "active"
+                ? {}
+                : { removeDisabledReason: INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON }),
               removalPreview: toPublicPersonRemovalPreview(membershipRemovalPreview),
             },
           };
@@ -219,17 +213,14 @@ export const getUserDetail = managerQuery({
     const shops = shopDocs
       .map((targetShop) => {
         const targetShopStatus = organizationShopOperatingStatus(targetShop.operatingStatus);
-        const protectsExistingMembership = managerRole !== "none" && seenShopIds.has(targetShop._id);
         return {
           shopId: targetShop._id,
           shopName: targetShop.name,
           shopStatus: targetShopStatus,
-          canChangeMembership: targetShopStatus === "active" && !protectsExistingMembership,
-          ...(protectsExistingMembership
-            ? { membershipChangeDisabledReason: MANAGER_PERSON_REMOVAL_DISABLED_REASON }
-            : targetShopStatus === "active"
-              ? {}
-              : { membershipChangeDisabledReason: INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON }),
+          canChangeMembership: targetShopStatus === "active",
+          ...(targetShopStatus === "active"
+            ? {}
+            : { membershipChangeDisabledReason: INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON }),
         };
       })
       .sort((a, b) => a.shopName.localeCompare(b.shopName, "ja") || a.shopId.localeCompare(b.shopId));

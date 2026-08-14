@@ -63,6 +63,7 @@ const data: ShopStaffMembershipData = {
       name: "田中 花子",
       email: "hanako@example.com",
       isManager: false,
+      isActiveManager: false,
       otherShopNames: [],
       isSelected: true,
       staffId,

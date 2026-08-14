@@ -292,7 +292,7 @@ describe("organization person removal", () => {
 
   afterEach(() => vi.useRealTimers());
 
-  it("active管理者の店舗所属解除を副作用なしで拒否する", async () => {
+  it("active管理者を店舗から外し、管理者権限と他店舗所属を維持する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "shop_remove_actor", plan: "pro" });
@@ -318,15 +318,46 @@ describe("organization person removal", () => {
       return { ...base, ...target, ...access, managerOutboxId, otherShopId, staffOutboxId };
     });
 
-    const before = await readManagerRemovalProtectedState(t);
     await expect(
       t.withIdentity({ subject: "shop_remove_actor" }).mutation(api.organization.mutations.removePersonFromShop, {
         shopId: ids.shopId,
         staffId: ids.staffIds[0],
         requestId: "shop-remove-request",
       }),
-    ).rejects.toThrow("先に管理者権限を外してください。");
-    expect(await readManagerRemovalProtectedState(t)).toEqual(before);
+    ).resolves.toEqual({ changed: true });
+
+    const state = await t.run(async (ctx) => ({
+      audit: await ctx.db
+        .query("organizationAuditEvents")
+        .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
+        .filter((q) => q.eq(q.field("targetId"), ids.personId))
+        .first(),
+      lineAccount: await ctx.db.get(ids.lineAccountId),
+      lineLinkToken: await ctx.db.get(ids.lineLinkTokenId),
+      magicLink: await ctx.db.get(ids.magicLinkId),
+      managerOutbox: await ctx.db.get(ids.managerOutboxId),
+      member: await ctx.db.get(ids.memberId as Id<"organizationMembers">),
+      otherStaff: await ctx.db.get(ids.staffIds[1]),
+      person: await ctx.db.get(ids.personId),
+      session: await ctx.db.get(ids.sessionId),
+      staff: await ctx.db.get(ids.staffIds[0]),
+      staffOutbox: await ctx.db.get(ids.staffOutboxId),
+    }));
+    expect(state.staff?.isDeleted).toBe(true);
+    expect(state.otherStaff?.isDeleted).toBe(false);
+    expect(state.member?.status).toBe("active");
+    expect(state.person?.status).toBe("active");
+    expect(state.session?.revokedAt).toBe(NOW);
+    expect(state.magicLink?.revokedAt).toBe(NOW);
+    expect(state.lineLinkToken?.revokedAt).toBe(NOW);
+    expect(state.lineAccount).toMatchObject({ isDeleted: true, following: false });
+    expect(state.staffOutbox).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
+    expect(state.managerOutbox?.status).toBe("pending");
+    expect(state.audit).toMatchObject({
+      action: "organization.person_removed_from_shop",
+      fromState: `active:${ids.shopId}`,
+      toState: `removed:${ids.shopId}`,
+    });
   });
 
   it.each(["archived", "planSuspended"] as const)(
@@ -1372,7 +1403,7 @@ describe("organization person removal", () => {
     ).rejects.toThrow("最後の有効管理者の管理者権限は外せません");
   });
 
-  it("Freeでは管理権限を個別に外せない", async () => {
+  it("Freeでも2人目の管理者権限を外して1人へ戻せる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "role_free_actor", plan: "free" });
@@ -1390,7 +1421,61 @@ describe("organization person removal", () => {
         personId: ids.personId,
         requestId: "role-free-request",
       }),
-    ).rejects.toThrow("この機能はトライアルまたはProで利用できます。");
+    ).resolves.toEqual({ changed: true });
+    const state = await t.run(async (ctx) => ({
+      member: await ctx.db.get(ids.memberId as Id<"organizationMembers">),
+      person: await ctx.db.get(ids.personId),
+      staff: await ctx.db.get(ids.staffIds[0]),
+    }));
+    expect(state.member?.status).toBe("removed");
+    expect(state.person?.status).toBe("active");
+    expect(state.staff?.isDeleted).toBe(false);
+  });
+
+  it("2人の管理者が互いの権限を同時に外してもOCCで必ず1人を残す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, { subject: "role_free_concurrent_actor", plan: "free" });
+      const target = await seedTargetPerson(ctx, {
+        base,
+        subject: "role_free_concurrent_target",
+        shopIds: [base.shopId],
+        manager: true,
+      });
+      return { ...base, target };
+    });
+
+    const results = await Promise.allSettled([
+      t.withIdentity({ subject: "role_free_concurrent_actor" }).mutation(api.organization.mutations.removeManagerRole, {
+        shopId: ids.shopId,
+        personId: ids.target.personId,
+        requestId: "role-free-concurrent-remove-target",
+      }),
+      t
+        .withIdentity({ subject: "role_free_concurrent_target" })
+        .mutation(api.organization.mutations.removeManagerRole, {
+          shopId: ids.shopId,
+          personId: ids.personId,
+          requestId: "role-free-concurrent-remove-actor",
+        }),
+    ]);
+
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+    const rejected = results.find((result) => result.status === "rejected");
+    if (rejected?.status !== "rejected") throw new Error("concurrent manager removal rejection not found");
+    expect(rejected.reason).toBeInstanceOf(Error);
+
+    const activeMembers = await t.run(
+      async (ctx) =>
+        await ctx.db
+          .query("organizationMembers")
+          .withIndex("by_organizationId_and_status", (q) =>
+            q.eq("organizationId", ids.organizationId).eq("status", "active"),
+          )
+          .collect(),
+    );
+    expect(activeMembers).toHaveLength(1);
   });
 
   it("契約制限中は最後の復旧担当者の保護を優先して管理権限解除を拒否する", async () => {

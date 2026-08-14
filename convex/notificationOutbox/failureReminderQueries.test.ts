@@ -244,6 +244,14 @@ describe("notificationOutbox/failureReminderQueries", () => {
 
         const secondUserId = await seedUser(ctx, "owner_email", "owner-email@example.com");
         await seedLegacyShopMembership(ctx, { shopId: seeded.shopId, userId: secondUserId });
+        await ctx.db.insert("staffs", {
+          shopId: seeded.shopId,
+          userId: secondUserId,
+          name: "メール通知管理者",
+          email: "owner-email@example.com",
+          emailNormalized: "owner-email@example.com",
+          isDeleted: false,
+        });
         await insertFailure(ctx, { shopId: seeded.shopId, status: "open" });
         return { shopId: seeded.shopId };
       });
@@ -283,6 +291,22 @@ describe("notificationOutbox/failureReminderQueries", () => {
         t.query(internal.notificationOutbox.failureReminderQueries.getFailureReminderTargetForShop, {
           shopId: otherKindShopId,
         }),
+      ).resolves.toBeNull();
+    });
+
+    it("対象店舗のstaffではないactive管理者には送らない", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: "failure_manager_without_shop_staff",
+          email: "manager-without-shop-staff@example.com",
+        });
+        await insertFailure(ctx, { shopId: seeded.shopId, status: "open" });
+        return seeded.shopId;
+      });
+
+      await expect(
+        t.query(internal.notificationOutbox.failureReminderQueries.getFailureReminderTargetForShop, { shopId }),
       ).resolves.toBeNull();
     });
 

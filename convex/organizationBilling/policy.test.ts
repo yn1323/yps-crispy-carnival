@@ -22,7 +22,7 @@ describe("organizationBilling/policy plan limits", () => {
   it("Trial、Free、Pro、Businessの人数・店舗・管理者上限を定義する", () => {
     expect(ORGANIZATION_PLAN_LIMITS).toEqual({
       trial: { maxPeople: 20, maxActiveShops: 5, maxActiveManagers: 5 },
-      free: { maxPeople: 5, maxActiveShops: 1, maxActiveManagers: 1 },
+      free: { maxPeople: 5, maxActiveShops: 1, maxActiveManagers: 2 },
       pro: { maxPeople: 20, maxActiveShops: 5, maxActiveManagers: 5 },
       business: { maxPeople: 40, maxActiveShops: 5, maxActiveManagers: 5 },
     });
@@ -125,6 +125,7 @@ describe("organizationBilling/policy capabilities", () => {
       targetingPlan: "trial",
       limits: ORGANIZATION_PLAN_LIMITS.pro,
       canWriteBusinessData: true,
+      canManageManagers: true,
       canUsePaidFeatures: true,
       deadlineAt: 100,
     });
@@ -132,6 +133,7 @@ describe("organizationBilling/policy capabilities", () => {
       entitlementPlan: "pro",
       limits: ORGANIZATION_PLAN_LIMITS.pro,
       canWriteBusinessData: true,
+      canManageManagers: true,
       canUsePaidFeatures: true,
     });
     expect(business).toMatchObject({
@@ -141,6 +143,7 @@ describe("organizationBilling/policy capabilities", () => {
       targetingPlan: "business",
       limits: ORGANIZATION_PLAN_LIMITS.business,
       canWriteBusinessData: true,
+      canManageManagers: true,
       canUsePaidFeatures: true,
     });
   });
@@ -157,6 +160,7 @@ describe("organizationBilling/policy capabilities", () => {
       canReadExistingData: true,
       canWriteBusinessData: true,
       businessWriteBlockReason: null,
+      canManageManagers: true,
       canUsePaidFeatures: true,
       paidFeatureBlockReason: null,
       allowedRecoveryCapabilities: [],
@@ -171,6 +175,7 @@ describe("organizationBilling/policy capabilities", () => {
       limits: ORGANIZATION_PLAN_LIMITS.free,
       canWriteBusinessData: true,
       businessWriteBlockReason: null,
+      canManageManagers: true,
       canUsePaidFeatures: false,
       paidFeatureBlockReason: "freePlan",
     });
@@ -183,6 +188,7 @@ describe("organizationBilling/policy capabilities", () => {
       entitlementPlan: "pro",
       limits: ORGANIZATION_PLAN_LIMITS.pro,
       canWriteBusinessData: true,
+      canManageManagers: true,
       canUsePaidFeatures: true,
     });
     expect(
@@ -193,6 +199,7 @@ describe("organizationBilling/policy capabilities", () => {
       displayPlan: "business",
       limits: ORGANIZATION_PLAN_LIMITS.pro,
       canWriteBusinessData: true,
+      canManageManagers: true,
       canUsePaidFeatures: true,
     });
   });
@@ -210,6 +217,7 @@ describe("organizationBilling/policy capabilities", () => {
       limits: ORGANIZATION_PLAN_LIMITS.free,
       canWriteBusinessData: true,
       businessWriteBlockReason: null,
+      canManageManagers: true,
       canUsePaidFeatures: false,
       paidFeatureBlockReason: "paymentResultPending",
       allowedRecoveryCapabilities: [],
@@ -228,6 +236,7 @@ describe("organizationBilling/policy capabilities", () => {
       entitlementPlan: null,
       canWriteBusinessData: false,
       businessWriteBlockReason: "restricted",
+      canManageManagers: false,
       canUsePaidFeatures: false,
       paidFeatureBlockReason: "restricted",
       allowedRecoveryCapabilities: RESTRICTED_RECOVERY_CAPABILITIES,
@@ -246,6 +255,7 @@ describe("organizationBilling/policy capabilities", () => {
       entitlementPlan: "pro",
       limits: ORGANIZATION_PLAN_LIMITS.pro,
       canWriteBusinessData: true,
+      canManageManagers: true,
       canUsePaidFeatures: true,
       deadlineAt: 100,
     });
@@ -260,6 +270,7 @@ describe("organizationBilling/policy capabilities", () => {
       entitlementPlan: "business",
       limits: ORGANIZATION_PLAN_LIMITS.business,
       canWriteBusinessData: true,
+      canManageManagers: true,
       canUsePaidFeatures: true,
       deadlineAt: 200,
     });
@@ -269,6 +280,7 @@ describe("organizationBilling/policy capabilities", () => {
     expect(deriveOrganizationBillingPolicy({ kind: "grace", plan: "pro", startedAt: 10, endsAt: 20 })).toMatchObject({
       entitlementPlan: "pro",
       canWriteBusinessData: true,
+      canManageManagers: true,
       canUsePaidFeatures: true,
       deadlineAt: 20,
     });
@@ -288,6 +300,7 @@ describe("organizationBilling/policy capabilities", () => {
       canReadExistingData: true,
       canWriteBusinessData: false,
       businessWriteBlockReason: "restricted",
+      canManageManagers: false,
       canUsePaidFeatures: false,
       paidFeatureBlockReason: "restricted",
       allowedRecoveryCapabilities: RESTRICTED_RECOVERY_CAPABILITIES,
@@ -296,7 +309,7 @@ describe("organizationBilling/policy capabilities", () => {
 });
 
 describe("organizationBilling/policy Free eligibility", () => {
-  it("有効管理者1名、稼働店舗1件以下、利用人数5名以下で成立する", () => {
+  it("有効管理者1〜2名、稼働店舗1件以下、利用人数5名以下で成立する", () => {
     expect(evaluateFreeEligibility({ peopleCount: 5, activeShopCount: 1, activeManagerCount: 1 })).toEqual({
       eligible: true,
       failures: [],
@@ -305,12 +318,20 @@ describe("organizationBilling/policy Free eligibility", () => {
       eligible: true,
       failures: [],
     });
+    expect(evaluateFreeEligibility({ peopleCount: 5, activeShopCount: 1, activeManagerCount: 2 })).toEqual({
+      eligible: true,
+      failures: [],
+    });
   });
 
-  it("管理者未確定、複数店舗、人数超過を区別する", () => {
+  it("管理者未確定、管理者3名、複数店舗、人数超過を区別する", () => {
     expect(evaluateFreeEligibility({ peopleCount: 6, activeShopCount: 2, activeManagerCount: 0 })).toEqual({
       eligible: false,
       failures: ["activeManagerCount", "activeShopCount", "peopleCount"],
+    });
+    expect(evaluateFreeEligibility({ peopleCount: 3, activeShopCount: 1, activeManagerCount: 3 })).toEqual({
+      eligible: false,
+      failures: ["activeManagerCount"],
     });
   });
 });

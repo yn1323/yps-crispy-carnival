@@ -1,6 +1,6 @@
 # 店舗登録後の本番募集リマインダー
 
-初回店舗登録から7日後17:00 JSTに、まだ本人以外のシフト対象スタッフが登録されていない店舗の active manager へ本番募集作成を促すリマインダーを送ります。
+初回店舗登録から7日後17:00 JSTに、まだ本人以外のシフト対象スタッフが登録されていない店舗の、対象店舗にスタッフとして所属するactive managerへ本番募集作成を促すリマインダーを送ります。
 既存店舗への backfill は行わず、店舗登録時に scheduled function を1本だけ予約します。
 
 ## 関連ファイル
@@ -25,6 +25,10 @@
 ## 補足
 
 - setup時点では outbox に入れず、7日後の発火時に必要な場合だけ outbox を作成する。
-- active manager staff が LINE 連携済みなら LINE を優先し、未連携・友達解除・Quota超過時はメールへ送る。LINE job には Quota 超過時用の `fallbackEmail` を付ける。
+- activeな組織管理者と、同じ組織人物に紐づく対象店舗のactiveな正規staffを両方一意に解決できる人物だけを対象にする。
+  対象が0人なら通知を送らない。
+- 組織共通のLINE連携が有効かつ友だち状態ならLINEを優先し、未連携・友だち解除・Quota超過時は現在のシフト連絡先へメールで送る。
+  LINE jobにはQuota超過時用の`fallbackEmail`を付ける。
+  外部送信直前にも管理者権限、店舗所属、宛先を再確認する。
 - メール / LINE のCTAは通知元店舗を `shop` クエリで指定したDashboard URLを使う。
 - context は `shopActivationReminder.sendReminder`。配送イベントは残すが、失敗しても Dashboard の再送モーダルに出る `notificationFailureInbox` は作らない。

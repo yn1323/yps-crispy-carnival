@@ -1150,7 +1150,11 @@ describe("notificationOutbox/actions", () => {
     { label: "宛先が変わった", variant: "recipientMismatch", reason: "invitation_inactive" },
     { label: "権限を失った招待者", variant: "inviterMemberRemoved", reason: "invitation_inactive" },
     { label: "削除された招待者", variant: "inviterPersonRemoved", reason: "invitation_inactive" },
-    { label: "有料機能を失った事業者", variant: "paidFeatureUnavailable", reason: "invitation_inactive" },
+    {
+      label: "管理者変更が制限された事業者",
+      variant: "managerChangesUnavailable",
+      reason: "organization_restricted",
+    },
     { label: "削除された事業者", variant: "organizationDeleted", reason: "organization_inactive" },
   ] as const)("$labelの管理者招待はproviderを呼ばずに停止する", async ({ variant, reason }) => {
     vi.stubEnv("RESEND_API_KEY", "resend-token");
@@ -1742,7 +1746,7 @@ type InvalidOrganizationInvitationVariant =
   | "recipientMismatch"
   | "inviterMemberRemoved"
   | "inviterPersonRemoved"
-  | "paidFeatureUnavailable"
+  | "managerChangesUnavailable"
   | "organizationDeleted";
 
 async function setupInvalidOrganizationInvitationJob(variant: InvalidOrganizationInvitationVariant) {
@@ -1785,7 +1789,17 @@ async function setupOrganizationInvitationJob(variant: InvalidOrganizationInvita
     });
     await ctx.db.insert("organizationBillingStates", {
       organizationId,
-      state: { kind: "active", plan: variant === "paidFeatureUnavailable" ? "free" : "pro" },
+      state:
+        variant === "managerChangesUnavailable"
+          ? {
+              kind: "restricted",
+              reason: "paymentGraceExpired",
+              previousPlan: "pro",
+              recoveryManagerPersonIds: [personId],
+              previousActiveShopIds: [],
+              restrictedAt: now,
+            }
+          : { kind: "active", plan: "pro" },
       version: 1,
       createdAt: now,
       updatedAt: now,

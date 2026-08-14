@@ -61,6 +61,7 @@ const membershipData: ShopStaffMembershipData = {
       name: "田中 太郎",
       email: "taro.tanaka@example.com",
       isManager: true,
+      isActiveManager: true,
       otherShopNames: ["めっちゃおいしいカフェ渋谷店"],
       isSelected: true,
       staffId: managerStaffId,
@@ -72,6 +73,7 @@ const membershipData: ShopStaffMembershipData = {
       name: "佐藤 花子",
       email: "hanako.sato@example.com",
       isManager: false,
+      isActiveManager: false,
       otherShopNames: [],
       isSelected: true,
       staffId: staffStaffId,
@@ -83,6 +85,7 @@ const membershipData: ShopStaffMembershipData = {
       name: "鈴木 次郎",
       email: "jiro.suzuki@example.com",
       isManager: false,
+      isActiveManager: false,
       otherShopNames: ["池袋店"],
       isSelected: false,
       staffId: null,
@@ -155,6 +158,17 @@ export const LoadingMobile: Story = {
 
 export const NoStaffs: Story = {
   args: { staffs: [] },
+};
+
+export const NoManagerNotificationRecipient: Story = {
+  args: {
+    shop: { ...shop, managerNotificationRecipientStatus: "none" },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("店舗通知を受け取る管理者がいません")).toBeInTheDocument();
+    await expect(canvas.getByText(/管理者をこの店舗の所属スタッフに追加することをおすすめします/)).toBeInTheDocument();
+  },
 };
 
 export const ReadOnly: Story = {
@@ -450,6 +464,7 @@ export const StaffMembershipRemovalBehavior: Story = {
       }),
     );
     await expect(content.getByText("この店舗から外す")).toBeInTheDocument();
+    await expect(content.getByText("変更後、この店舗の管理通知は送信されません")).toBeInTheDocument();
     await expect(content.getByText("今日以降のシフト割り当てから削除します。")).toBeInTheDocument();
     await expect(
       content.getByText("この店舗へのシフト通知は送られなくなります。組織のLINE連携は残ります。"),
@@ -498,6 +513,7 @@ export const StaffMembershipRemovalToggleBehavior: Story = {
     await waitFor(() =>
       expect(content.queryByText("今日以降のシフト割り当てから削除します。")).not.toBeInTheDocument(),
     );
+    await expect(content.queryByText("変更後、この店舗の管理通知は送信されません")).not.toBeInTheDocument();
     await expect(content.getByRole("button", { name: "変更する" })).toBeDisabled();
   },
 };

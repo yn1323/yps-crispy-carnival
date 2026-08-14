@@ -1,10 +1,8 @@
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { requireShopMembershipAdditionEnabled } from "../_lib/config";
 import { normalizeEmail } from "../_lib/validation";
 import { SHOP_MEMBERSHIP_STATS_ACTIVE_STAFF_LIMIT } from "../constants";
-import { MANAGER_PERSON_REMOVAL_DISABLED_REASON } from "../organization/personCapabilities";
 import {
   createOrganizationShopStaffMembershipFingerprint,
   ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT,
@@ -27,6 +25,7 @@ export const ACTIVE_STAFF_EMAIL_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON =
 export type OrganizationShopStaffMembershipSnapshotPerson = {
   person: Doc<"organizationPeople">;
   isManager: boolean;
+  isActiveManager: boolean;
   otherShopNames: string[];
   currentStaff: Doc<"staffs"> | null;
   canChange: boolean;
@@ -188,19 +187,17 @@ export async function collectOrganizationShopStaffMembershipSnapshot(
           (ownerPersonId) => ownerPersonId !== person._id,
         );
       const hasPendingRegistrationConflict = !currentStaff && pendingEmails.has(person.emailNormalized);
-      const changeDisabledReason =
-        currentStaff && isManager
-          ? MANAGER_PERSON_REMOVAL_DISABLED_REASON
-          : hasLegacyEmailConflict
-            ? LEGACY_EMAIL_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON
-            : hasActiveStaffEmailConflict
-              ? ACTIVE_STAFF_EMAIL_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON
-              : hasPendingRegistrationConflict
-                ? PENDING_REGISTRATION_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON
-                : null;
+      const changeDisabledReason = hasLegacyEmailConflict
+        ? LEGACY_EMAIL_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON
+        : hasActiveStaffEmailConflict
+          ? ACTIVE_STAFF_EMAIL_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON
+          : hasPendingRegistrationConflict
+            ? PENDING_REGISTRATION_SHOP_STAFF_MEMBERSHIP_CHANGE_DISABLED_REASON
+            : null;
       return {
         person,
         isManager,
+        isActiveManager: activeManagerPersonIds.has(person._id),
         otherShopNames: [...(otherShopNamesByPersonId.get(person._id) ?? [])].sort((left, right) =>
           left.localeCompare(right, "ja"),
         ),
@@ -270,42 +267,6 @@ export function isShiftTargetStaff(staff: { isDeleted: boolean; excludedFromShif
 export async function getActiveStaffInShop(ctx: DbCtx, shopId: Id<"shops">, staffId: Id<"staffs">) {
   const staff = await ctx.db.get(staffId);
   return staff && staff.shopId === shopId && !staff.isDeleted ? staff : null;
-}
-
-/** canonical切替前は、既存人物へ二つ目のactive店舗所属を作らせない。 */
-export async function requireAdditionalShopMembershipEnabled(
-  ctx: { db: MutationCtx["db"] },
-  args: {
-    organizationId: Id<"organizations">;
-    organizationPersonId: Id<"organizationPeople">;
-    targetShopId: Id<"shops">;
-  },
-) {
-  const staffRows = await ctx.db
-    .query("staffs")
-    .withIndex("by_organizationId_and_organizationPersonId_and_isDeleted", (q) =>
-      q
-        .eq("organizationId", args.organizationId)
-        .eq("organizationPersonId", args.organizationPersonId)
-        .eq("isDeleted", false),
-    )
-    .take(ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT + 1);
-  if (staffRows.length > ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT) {
-    throw new ConvexError("ユーザーの店舗所属を確認できません。\n画面を更新して、もう一度お試しください。");
-  }
-  const otherActiveMemberships = staffRows.filter((staff) => staff.shopId !== args.targetShopId);
-  const otherShops = await Promise.all(otherActiveMemberships.map(async (staff) => await ctx.db.get(staff.shopId)));
-  if (
-    otherShops.some(
-      (shop) =>
-        shop !== null &&
-        !shop.isDeleted &&
-        shop.organizationId === args.organizationId &&
-        organizationShopOperatingStatus(shop.operatingStatus) === "active",
-    )
-  ) {
-    requireShopMembershipAdditionEnabled();
-  }
 }
 
 export async function findActiveStaffByEmail(

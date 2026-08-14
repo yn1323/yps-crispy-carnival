@@ -1,4 +1,4 @@
-import { Box, HStack, Icon, Menu, Portal, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
+import { Box, HStack, Icon, Menu, Portal, Stack, Text } from "@chakra-ui/react";
 import { LuBuilding2, LuCheck, LuChevronDown, LuSettings } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
@@ -70,34 +70,28 @@ function OrganizationSelector({
   onSelect: (shopId: string) => void;
 }) {
   return (
-    <Box flex={1} minW={0}>
-      <VisuallyHidden>{model.selectedOrganizationName}</VisuallyHidden>
-      <Menu.Root positioning={{ placement: "bottom-start", gutter: 8 }}>
+    <Box display="flex" justifyContent="flex-end" minW={0}>
+      <Menu.Root positioning={{ placement: "bottom-end", gutter: 8 }}>
         <Menu.Trigger asChild>
           <Button
             type="button"
             variant="outline"
             aria-label={`組織を切り替える（現在：${model.selectedOrganizationName}）`}
-            display="flex"
-            alignItems="center"
-            justifyContent="space-between"
-            gap={3}
-            w="full"
-            minW={0}
-            minH={{ base: "48px", md: "56px" }}
+            gap={1.5}
+            minH="36px"
             h="auto"
-            px={{ base: 3, md: 4 }}
-            py={2.5}
+            px={2.5}
+            py={1.5}
             borderColor="gray.300"
-            borderRadius="lg"
+            borderRadius="md"
             color="gray.900"
             cursor="pointer"
             _hover={{ bg: "gray.50", borderColor: "gray.400" }}
           >
-            <Text textStyle={{ base: "sectionTitle", md: "pageTitle" }} fontWeight="bold" truncate minW={0}>
-              {model.selectedOrganizationName}
+            <Text fontSize="xs" fontWeight="medium" whiteSpace="nowrap">
+              組織を切り替える
             </Text>
-            <Icon as={LuChevronDown} boxSize={5} color="gray.500" flexShrink={0} />
+            <Icon as={LuChevronDown} boxSize={4} color="gray.500" flexShrink={0} />
           </Button>
         </Menu.Trigger>
 

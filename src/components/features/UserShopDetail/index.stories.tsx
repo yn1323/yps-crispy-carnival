@@ -83,6 +83,8 @@ const notificationItems: StaffNotificationHistoryItem[] = [
 
 const notificationHistory = <StaffNotificationHistoryView items={notificationItems} />;
 
+const notificationHistoryLoading = <StaffNotificationHistoryView items={[]} isLoading />;
+
 const baseState: UserShopDetailViewProps["state"] = {
   notifications: {
     isLoading: false,
@@ -173,7 +175,16 @@ const initialDataLoadedState: UserShopDetailViewProps["state"] = {
 
 export const InitialDataLoaded: Story = {
   args: {
-    notificationHistory: null,
+    notificationHistory: notificationHistoryLoading,
+    state: initialDataLoadedState,
+  },
+};
+
+export const InitialDataLoadedMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  args: {
+    notificationHistory: notificationHistoryLoading,
     state: initialDataLoadedState,
   },
 };
@@ -239,7 +250,7 @@ function NotificationLoadingHarness() {
         data={data}
         membership={membership}
         isStoreReadOnly={false}
-        notificationHistory={isLoaded ? notificationHistory : null}
+        notificationHistory={isLoaded ? notificationHistory : notificationHistoryLoading}
         state={{
           ...baseState,
           notifications: {

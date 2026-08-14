@@ -4,7 +4,6 @@ import type { DataModel, Doc } from "../_generated/dataModel";
 import { normalizeEmail } from "../_lib/validation";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import { getOrganizationInvitationPurpose } from "../organizationInvitation/purpose";
-import { resolveFreeManagerExchangeEligibility } from "../organizationInvitation/service";
 import type { OrganizationUsageSnapshot } from "./service";
 
 export const managerInvitationStateValidator = v.union(
@@ -32,7 +31,7 @@ type DbCtx = {
 };
 
 export async function resolvePersonManagerInvitationState(
-  ctx: DbCtx,
+  _ctx: DbCtx,
   args: {
     organization: Doc<"organizations"> | null;
     actorMember: Doc<"organizationMembers"> | null;
@@ -124,33 +123,19 @@ export async function resolvePersonManagerInvitationState(
   if (!policy.canWriteBusinessData) {
     return { kind: "unavailable", reason: "現在の契約状態では、管理者招待を送れません。" };
   }
-  if (policy.entitlementPlan === "free") {
-    const exchange = await resolveFreeManagerExchangeEligibility(ctx, {
-      organizationId: organization._id,
-      inviterMemberId: actorMember._id,
-      emailNormalized,
-      targetPersonId: person._id,
-    });
-    const staleInvitationId = staleTargetInvitations[0]?._id;
-    const hasOtherFreeExchange = args.activePendingInvitations.some(
-      (invitation) =>
-        invitation._id !== staleInvitationId && getOrganizationInvitationPurpose(invitation) === "freeManagerExchange",
-    );
-    return exchange && !hasOtherFreeExchange
-      ? {
-          kind: "available",
-          mode: "freeManagerExchange",
-          replacesStaleInvitation: staleTargetInvitations.length === 1,
-        }
-      : {
-          kind: "unavailable",
-          reason: hasOtherFreeExchange
-            ? "次の管理者が招待を受け入れるのを待っています。\n交代が完了するまでは、現在の管理者が引き続き利用できます。"
-            : "無料プランでは、組織内の既存スタッフへの管理者交代のみ行えます。",
-        };
-  }
-  if (!policy.canUsePaidFeatures || !policy.limits) {
+  if (!policy.canManageManagers || !policy.limits) {
     return { kind: "unavailable", reason: "現在のプランでは管理者を追加できません。" };
+  }
+
+  const hasLegacyFreeExchange = args.activePendingInvitations.some(
+    (invitation) => getOrganizationInvitationPurpose(invitation) === "freeManagerExchange",
+  );
+  if (hasLegacyFreeExchange) {
+    return {
+      kind: "unavailable",
+      reason:
+        "以前に発行した管理者交代の招待が残っています。\n取り消すか有効期限が切れてから、管理者を追加してください。",
+    };
   }
 
   const staleManagerReservation = staleTargetInvitations.some(

@@ -50,6 +50,14 @@ describe("shiftConfirmationReminder/queries", () => {
 
         const secondUserId = await seedUser(ctx, "reminder_email", "owner-email@example.com");
         await seedLegacyShopMembership(ctx, { shopId: seeded.shopId, userId: secondUserId });
+        await ctx.db.insert("staffs", {
+          shopId: seeded.shopId,
+          userId: secondUserId,
+          name: "メール通知管理者",
+          email: "owner-email@example.com",
+          emailNormalized: "owner-email@example.com",
+          isDeleted: false,
+        });
 
         return await insertRecruitment(ctx, { shopId: seeded.shopId, status: "open" });
       });
@@ -100,6 +108,23 @@ describe("shiftConfirmationReminder/queries", () => {
       await expect(
         t.query(internal.shiftConfirmationReminder.queries.getManagerConfirmationReminderTarget, {
           recruitmentId: deletedId,
+        }),
+      ).resolves.toBeNull();
+    });
+
+    it("対象店舗のstaffではないactive管理者には送らない", async () => {
+      const t = convexTest(schema, modules);
+      const recruitmentId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: "reminder_manager_without_shop_staff",
+          email: "manager-without-shop-staff@example.com",
+        });
+        return await insertRecruitment(ctx, { shopId: seeded.shopId, status: "open" });
+      });
+
+      await expect(
+        t.query(internal.shiftConfirmationReminder.queries.getManagerConfirmationReminderTarget, {
+          recruitmentId,
         }),
       ).resolves.toBeNull();
     });

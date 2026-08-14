@@ -230,40 +230,33 @@ describe("Analytics simplified control plane", () => {
     expect(await scheduledFunctions(t)).toEqual([]);
   });
 
-  it.each([
-    { authority: "legacy", canonicalReads: "" },
-    { authority: "canonical", canonicalReads: "enabled" },
-  ] as const)("resetは$authority read authorityのLINE状態をstaff membershipへ保持する", async (variant) => {
-    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", variant.canonicalReads);
+  it("resetはcanonical LINE状態をstaff membershipへ保持し、legacy rowを読まない", async () => {
     const t = convexTest(schema, modules);
     const fixture = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
-        subject: `analytics_reset_line_${variant.authority}`,
+        subject: "analytics_reset_line_canonical",
       });
       const staffId = await ctx.db.insert("staffs", {
         shopId: seeded.shopId,
         organizationId: seeded.organizationId,
         organizationPersonId: seeded.personId,
-        name: `${variant.authority} LINEスタッフ`,
-        email: `${variant.authority}-line@example.com`,
-        emailNormalized: `${variant.authority}-line@example.com`,
+        name: "canonical LINEスタッフ",
+        email: "canonical-line@example.com",
+        emailNormalized: "canonical-line@example.com",
         isDeleted: false,
       });
-      if (variant.authority === "canonical") {
-        await seedCanonicalStaffLineRecipient(ctx, { staffId, lineUserId: "U_analytics_canonical", following: true });
-      } else {
-        await seedStaffLineAccount(ctx, {
-          shopId: seeded.shopId,
-          staffId,
-          lineUserId: "U_analytics_legacy",
-          following: true,
-        });
-      }
+      await seedStaffLineAccount(ctx, {
+        shopId: seeded.shopId,
+        staffId,
+        lineUserId: "U_analytics_legacy_ignored",
+        following: false,
+      });
+      await seedCanonicalStaffLineRecipient(ctx, { staffId, lineUserId: "U_analytics_canonical", following: true });
       const runId = await insertRun(ctx, {
         kind: "reset",
         status: "running",
         startedAt: SCENARIO_NOW,
-        runKey: `reset:staff-line-${variant.authority}`,
+        runKey: "reset:staff-line-canonical",
         stage: "resetStaffs",
         stepVersion: 1,
       });

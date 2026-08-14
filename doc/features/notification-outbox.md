@@ -100,11 +100,15 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 
 ## 管理者通知の宛先
 
-- 現行の組織所属では、`organizationPeople.name`と`organizationPeople.email`を管理者向け業務通知の正本とする。移行途中でperson作成後かつ`organizationMembers`作成前でも、同じuserと組織のpersonを一意に確認できる場合はpersonを使う。
-- person自体がまだ存在しない旧`shopMembers`だけ、移行互換として`users.name`と`users.email`へfallbackする。personが重複または不整合な場合はusersへ戻さずfail-closedにする。
-- LINE通知は、管理者と同じ人物に紐づく対象店舗の有効スタッフを一意に解決し、組織人物の現在のLINE連携ID、世代、送信先がenqueue時のsnapshotと一致する場合だけ配送する。段階切替中のlegacy readでは、世代snapshotのない旧jobをLINE IDの完全一致時だけ互換配送する。
-- 管理者向けメールはprovider呼び出し直前に組織人物の現在のメールアドレスを再確認し、enqueue時の宛先が古い場合は`recipient_inactive`でcancelする。
-- シフトリから有効管理者へ送る課金関連メールも組織人物の連絡先を使い、Stripeが請求書やカード関連を送る`organizations.billingEmail`とは分ける。
+- 店舗単位の管理通知は、スタッフ参加申請digest、シフト確定催促、店舗登録後の本番募集案内、通知不達digestを対象とする。
+- 店舗単位の管理通知は、activeな`organizationMembers`と、同じ組織人物に紐づく対象店舗のactiveな正規`staffs`を両方一意に解決できる人物だけへ送る。
+  該当者が0人ならメールとLINEのどちらも予約しない。
+- `organizationPeople.name`と`organizationPeople.email`を店舗管理通知の正本にする。
+  組織共通のLINE連携が有効かつ友だち状態ならLINEを優先し、それ以外は現在のシフト連絡先へメールで送る。
+- 店舗管理通知のメール、LINE、Quota超過時のfallbackメールは、provider呼び出し直前に管理者権限、店舗のstaff所属、現在の宛先を再確認する。
+  条件を満たさない場合は`recipient_inactive`でcancelする。
+- 課金通知と管理者招待は組織単位の通知のままとし、店舗のstaff所属を受信条件にしない。
+  シフトリから有効管理者へ送る課金関連メールは組織人物の連絡先を使い、Stripeが請求書やカード関連を送る`organizations.billingEmail`と分ける。
 - Clerkのログイン用メールアドレスは通知先の正本として参照しない。
 
 ## 配送イベントログ（`notificationDeliveryEvents`）
@@ -125,7 +129,8 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - `shopId` / `staffId` / `channel` / `notificationKind` / `displayTitle` / 送信・配信状態と各時刻だけを保持する。
 - 宛先、メールHTML、LINE本文、Flex Message、token URL、provider errorは保存しない。
 - dry-run、disabled、mockなど配送抑止中の通知は履歴を作成しない。
-- 店舗managerのdry-run判定はactive manager全員がallowlistに一致する場合だけ抑止する。走査上限を超えて全員を確認できない場合は抑止せず、通常配送へ倒す。
+- 店舗managerのdry-run判定は、対象店舗の受信条件を満たすactive manager全員がallowlistに一致する場合だけ抑止する。
+  走査上限を超えて全員を確認できない場合は抑止せず、通常配送へ倒す。
 - メールの`delivered`は受信側メールサーバーへの到達であり、開封を意味しない。LINEは個別到達を確認できない。
 - スタッフ削除時はmanager queryから直ちに隠し、履歴本体をbounded cleanupで削除する。店舗・組織削除は既存の削除workflowで完走を確認する。
 

@@ -83,10 +83,6 @@ const convexLogicProject = defineConfig({
     testTimeout: 30_000,
     include: ["./convex/**/*.test.ts"],
     exclude: ["node_modules", "./convex/_generated/**", "./convex/_scenario/**"],
-    env: {
-      LINE_COMMON_LINK_CANONICAL_READY: "enabled",
-      LINE_COMMON_LINK_CANONICAL_READS: "enabled",
-    },
   },
 });
 
@@ -98,10 +94,6 @@ const convexScenarioProject = defineConfig({
     testTimeout: 30_000,
     include: ["./convex/_scenario/**/*.test.ts"],
     exclude: ["node_modules", "./convex/_generated/**"],
-    env: {
-      LINE_COMMON_LINK_CANONICAL_READY: "enabled",
-      LINE_COMMON_LINK_CANONICAL_READS: "enabled",
-    },
   },
 });
 

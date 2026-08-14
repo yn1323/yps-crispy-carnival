@@ -26,7 +26,7 @@ export const LimitReached: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    const button = canvas.getByRole("button", { name: "新しい組織を作る" });
+    const button = canvas.getByRole("button", { name: "作成する" });
     await expect(button).toBeDisabled();
     await userEvent.click(button, { pointerEventsCheck: 0 });
     await expect(args.onCreate).not.toHaveBeenCalled();

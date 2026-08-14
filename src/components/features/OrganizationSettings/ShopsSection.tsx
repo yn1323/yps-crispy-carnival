@@ -26,38 +26,30 @@ export const ShopsSection = ({
   onOpenShop,
 }: Props) => (
   <Stack as="section" gap={4} aria-labelledby="organization-shops-heading">
-    <Stack gap={1}>
-      <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={3} wrap="wrap">
-        <HStack gap={2}>
-          <LuStore aria-hidden />
-          <Heading id="organization-shops-heading" as="h2" fontSize="lg">
-            全店舗{shopUsage.max > 0 ? ` (${shopUsage.current}/${shopUsage.max})` : ""}
-          </Heading>
-        </HStack>
-        {showAddShop && (
-          <Button
-            variant="ghost"
-            size="sm"
-            colorPalette="teal"
-            onClick={onAddShop}
-            disabled={!canAddShop}
-            title={!canAddShop ? addShopDisabledReason : undefined}
-            aria-describedby={
-              !canAddShop && addShopDisabledReason ? "organization-shop-add-disabled-reason" : undefined
-            }
-            gap={1.5}
-            fontWeight="semibold"
-          >
-            <LuPlus aria-hidden />
-            店舗を追加する
-          </Button>
-        )}
-      </Flex>
-
-      <Text fontSize="xs" color="fg.muted">
-        店舗ごとの設定を確認できます。LINE連携は、スタッフごとに同じ組織の所属店舗で共通です。
-      </Text>
-    </Stack>
+    <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={3} wrap="wrap">
+      <HStack gap={2}>
+        <LuStore aria-hidden />
+        <Heading id="organization-shops-heading" as="h2" fontSize="lg">
+          全店舗{shopUsage.max > 0 ? ` (${shopUsage.current}/${shopUsage.max})` : ""}
+        </Heading>
+      </HStack>
+      {showAddShop && (
+        <Button
+          variant="ghost"
+          size="sm"
+          colorPalette="teal"
+          onClick={onAddShop}
+          disabled={!canAddShop}
+          title={!canAddShop ? addShopDisabledReason : undefined}
+          aria-describedby={!canAddShop && addShopDisabledReason ? "organization-shop-add-disabled-reason" : undefined}
+          gap={1.5}
+          fontWeight="semibold"
+        >
+          <LuPlus aria-hidden />
+          店舗を追加する
+        </Button>
+      )}
+    </Flex>
 
     {showAddShop && !canAddShop && addShopDisabledReason && (
       <Text id="organization-shop-add-disabled-reason" fontSize="sm" color="orange.700">

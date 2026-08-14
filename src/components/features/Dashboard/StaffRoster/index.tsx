@@ -2,11 +2,11 @@ import { Box, Flex, Heading, HStack, Skeleton, Stack } from "@chakra-ui/react";
 import type { PaginationStatus } from "convex/browser";
 import { LuChevronDown, LuPlus, LuUsers } from "react-icons/lu";
 import type { Staff } from "@/src/components/features/Dashboard/types";
+import { StaffListRow, type StaffListRowBadge } from "@/src/components/shared/StaffListRow";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { useScrollToListItem } from "@/src/hooks/useScrollToListItem";
 import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
-import { StaffRow } from "./StaffRow";
 
 type Props = {
   staffs: Staff[];
@@ -114,9 +114,27 @@ export const StaffRoster = ({
           overflow="hidden"
         >
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.50">
-            {sorted.map((s) => (
-              <StaffRow key={s._id} staff={s} onOpenDetail={onOpenDetail} onOpenDetailIntent={onOpenDetailIntent} />
-            ))}
+            {sorted.map((staff) => {
+              const badges: StaffListRowBadge[] = [];
+              if (staff.isManager) badges.push({ kind: "role" });
+              if (staff.isLineLinked && staff.isLineFollowing) {
+                badges.push({ kind: "line", status: "linked_following" });
+              }
+              if (staff.excludedFromShift) badges.push({ kind: "shiftExcluded" });
+
+              return (
+                <StaffListRow
+                  key={staff._id}
+                  id={staff.organizationPersonId ? `dashboard-user-${staff.organizationPersonId}` : undefined}
+                  name={staff.name}
+                  role={staff.isManager ? "manager" : "staff"}
+                  detail={{ kind: "email", value: staff.email }}
+                  badges={badges}
+                  onOpen={() => onOpenDetail(staff)}
+                  onOpenIntent={onOpenDetailIntent}
+                />
+              );
+            })}
           </Stack>
         </Box>
       )}
@@ -164,19 +182,19 @@ const StaffRowSkeleton = ({ isManager, showLineLinked }: { isManager: boolean; s
   <HStack
     as="article"
     gap={3}
-    px={{ base: 3, lg: 4 }}
+    px={{ base: 3, md: 4 }}
     py={3.5}
     align="center"
     bg={isManager ? "teal.50/50" : "transparent"}
     minH="68px"
   >
     <Skeleton boxSize="40px" borderRadius="full" flexShrink={0} />
-    <Flex flex={1} minW={0} align="center" gap={1.5} wrap="wrap">
-      <Stack gap={0} flex="1 1 96px" minW={0}>
+    <Flex flex={1} minW={0} align="center" gap={2} wrap="wrap">
+      <Stack gap={1} flex="1 1 10rem" minW={0}>
         <Skeleton h="20px" w={{ base: "96px", lg: "112px" }} maxW="full" />
         <Skeleton h="16px" w="180px" maxW="full" display={{ base: "none", lg: "block" }} />
       </Stack>
-      <HStack gap={1.5} wrap="wrap" ms="auto" minW={0} maxW="full" justify="flex-end">
+      <HStack gap={1.5} wrap="wrap" ms="auto" w={{ base: "full", sm: "auto" }} minW={0} maxW="full" justify="flex-end">
         {isManager && <Skeleton h="20px" w="52px" borderRadius="full" />}
         {showLineLinked && <Skeleton h="20px" w="78px" borderRadius="full" />}
       </HStack>

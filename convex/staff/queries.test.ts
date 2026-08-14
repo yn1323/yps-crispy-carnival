@@ -2,7 +2,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { seedOrganizationManagerShop } from "../_test/seed";
+import { seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT } from "../constants";
 
@@ -15,11 +15,13 @@ async function insertOrganizationPerson(
     name: string;
     email: string;
     status?: "active" | "removed";
+    userId?: Id<"users">;
   },
 ) {
   const now = Date.now();
   return await ctx.db.insert("organizationPeople", {
     organizationId: args.organizationId,
+    ...(args.userId ? { userId: args.userId } : {}),
     name: args.name,
     email: args.email,
     emailNormalized: args.email.trim().toLowerCase(),
@@ -430,6 +432,7 @@ describe("staff/queries", () => {
             name: "A現在所属",
             email: "current@example.com",
             isManager: false,
+            isActiveManager: false,
             otherShopNames: [],
             isSelected: true,
             staffId: seeded.currentStaffId,
@@ -441,6 +444,7 @@ describe("staff/queries", () => {
             name: "管理者",
             email: "manager@example.com",
             isManager: true,
+            isActiveManager: true,
             otherShopNames: [],
             isSelected: false,
             staffId: null,
@@ -452,6 +456,7 @@ describe("staff/queries", () => {
             name: "B移行待ち",
             email: "Legacy@Example.com",
             isManager: false,
+            isActiveManager: false,
             otherShopNames: [],
             isSelected: false,
             staffId: null,
@@ -463,6 +468,7 @@ describe("staff/queries", () => {
             name: "C他店舗所属",
             email: "other@example.com",
             isManager: false,
+            isActiveManager: false,
             otherShopNames: ["2号店"],
             isSelected: false,
             staffId: null,
@@ -474,6 +480,7 @@ describe("staff/queries", () => {
             name: "D承認待ち",
             email: "pending@example.com",
             isManager: false,
+            isActiveManager: false,
             otherShopNames: [],
             isSelected: false,
             staffId: null,
@@ -533,6 +540,56 @@ describe("staff/queries", () => {
         isSelected: false,
         canChange: false,
         changeDisabledReason: "同じメールアドレスのスタッフがこの店舗に所属しているため、変更できません。",
+      });
+    });
+
+    it("readOnly管理者は管理者表示を維持しつつactive通知対象から外し、現在の店舗所属を変更可能にする", async () => {
+      const t = convexTest(schema, modules);
+      const seeded = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "shop_staff_readonly_target_manager",
+          plan: "business",
+        });
+        const userId = await seedUser(ctx, "shop_staff_readonly_target", "readonly-target@example.com");
+        const personId = await insertOrganizationPerson(ctx, {
+          organizationId: base.organizationId,
+          name: "閲覧専用管理者",
+          email: "readonly-target@example.com",
+          userId,
+        });
+        await ctx.db.insert("organizationMembers", {
+          organizationId: base.organizationId,
+          personId,
+          userId,
+          status: "readOnly",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+        const staffId = await insertCanonicalStaff(ctx, {
+          organizationId: base.organizationId,
+          personId,
+          shopId: base.shopId,
+          name: "閲覧専用管理者",
+          email: "readonly-target@example.com",
+        });
+        return { ...base, personId, staffId };
+      });
+
+      const result = await t
+        .withIdentity({ subject: "shop_staff_readonly_target_manager" })
+        .query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: seeded.shopId });
+
+      expect(result?.people.find((person) => person.personId === seeded.personId)).toEqual({
+        personId: seeded.personId,
+        name: "閲覧専用管理者",
+        email: "readonly-target@example.com",
+        isManager: true,
+        isActiveManager: false,
+        otherShopNames: [],
+        isSelected: true,
+        staffId: seeded.staffId,
+        canChange: true,
+        changeDisabledReason: null,
       });
     });
 

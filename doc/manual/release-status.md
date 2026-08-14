@@ -18,8 +18,8 @@
 | ProductionのConvex deployとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | Productionのmigration seriesと各migrationの完了 | 未確認 | 未確認 | 未確認 | 未登録 |
 | LINE共通化のProduction export判定、m041の実行要否と完了、全ページreadiness | 未確認 | 未確認 | 未確認 | 未登録 |
-| `LINE_COMMON_LINK_CANONICAL_READS`の切替と、旧token・Outbox・scheduled callerのdrain | 未確認 | 未確認 | 未確認 | 未登録 |
-| `LINE_COMMON_LINK_CANONICAL_READY`による複数店舗公開と、切替後canary | 未確認 | 未確認 | 未確認 | 未登録 |
+| LINE共通化の旧token・Outbox・scheduled callerのdrainと、常時canonical read artifactのProduction反映 | 未確認 | 未確認 | 未確認 | 未登録 |
+| 店舗追加・複数店舗所属を常時公開するartifactのProduction反映と、反映後canary | 未確認 | 未確認 | 未確認 | 未登録 |
 | 組織作成、課金、管理者招待を常時利用可能にするartifactと、旧feature flag環境変数に依存しないこと | 未確認 | 未確認 | 未確認 | 未登録 |
 | 新規組織の2暦月Trial、未契約・利用停止後のデータ保持と利用制限 | 未確認 | 未確認 | 未確認 | 未登録 |
 | StripeのPro・Business公開設定、Price、明示された税区分、Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
@@ -54,7 +54,8 @@
 
 ログイン方法とシフト連絡先の分離を公開する前に、対象となる完全修飾Convex deploymentで`narrowReadiness/queries:verifyStaffs`を`isDone: true`まで全ページ実行し、`activeStaffPersonEmailMismatch`の合計が0件であることを記録します。  1件以上の場合は公開を停止し、連絡先を推測して修復せず、別のmigration判定へ分けます。
 
-LINE共通化を公開する前は、対象Production exportの`convex:verify-line-common-readiness`結果、`migrations/index:runLineCommonLinkBackfill`の実行またはskip根拠、LINE共通化readiness全ページ、旧非同期callerのdrainを別々に記録します。  canonical reader切替と複数店舗公開も別の証跡とし、ローカルテストやrepository実装から完了を推測しません。
+常時canonical readと店舗・所属追加の常時公開を含むartifactをProductionへ反映する前は、対象Production exportの`convex:verify-line-common-readiness`結果、`migrations/index:runLineCommonLinkBackfill`の実行またはskip根拠、LINE共通化readiness全ページ、旧非同期callerのdrainを別々に記録します。
+artifactのProduction反映と反映後canaryも別の証跡とし、ローカルテストやrepository実装から完了を推測しません。
 
 ## 確認記録の様式
 

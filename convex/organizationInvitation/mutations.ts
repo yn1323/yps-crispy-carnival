@@ -20,11 +20,7 @@ import {
 } from "../organization/service";
 import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
-import {
-  requireOrganizationBusinessWrite,
-  requireOrganizationCapacity,
-  requireOrganizationPaidFeature,
-} from "../organizationBilling/service";
+import { requireOrganizationBusinessWrite, requireOrganizationCapacity } from "../organizationBilling/service";
 import { getActiveStaffInShop } from "../staff/service";
 import { getOrganizationInvitationExpiresAt } from "./constants";
 import {
@@ -38,7 +34,7 @@ import {
   createOrganizationManagerInvitationSchema,
   organizationInvitationRequestSchema,
 } from "./schemas";
-import { resolveFreeManagerExchangeEligibility, resolveOrganizationInvitationEligibility } from "./service";
+import { resolveOrganizationInvitationEligibility } from "./service";
 import { deriveInvitationToken, digestInvitationToken, invitationRateLimitKey } from "./token";
 
 const invitationMutationResultValidator = v.object({
@@ -162,11 +158,10 @@ async function requireInvitationResendBudget(
   }
 }
 
-async function requireNoOtherPendingFreeManagerExchange(
+async function requireNoPendingLegacyFreeManagerExchange(
   ctx: MutationCtx,
   organizationId: Id<"organizations">,
   now: number,
-  excludedInvitationId?: Id<"organizationInvitations">,
 ) {
   const pendingInvitations = (
     await Promise.all(
@@ -180,11 +175,11 @@ async function requireNoOtherPendingFreeManagerExchange(
   ).flat();
   const hasOtherExchange = pendingInvitations.some(
     (invitation) =>
-      invitation._id !== excludedInvitationId &&
-      invitation.expiresAt > now &&
-      getOrganizationInvitationPurpose(invitation) === "freeManagerExchange",
+      invitation.expiresAt > now && getOrganizationInvitationPurpose(invitation) === "freeManagerExchange",
   );
-  if (hasOtherExchange) throw new ConvexError("管理者交代の招待は一度に一件までです");
+  if (hasOtherExchange) {
+    throw new ConvexError("以前に発行した管理者交代の招待を取り消すか、期限が切れてからお試しください。");
+  }
 }
 
 async function issueInvitation(
@@ -386,12 +381,12 @@ async function createManagerInvitation(
   }
 
   const billingState = await getOrganizationBillingState(ctx, organization._id);
-  const hasFreeEntitlement = Boolean(
-    billingState && deriveOrganizationBillingPolicy(billingState.state).entitlementPlan === "free",
-  );
-  if (!hasFreeEntitlement) await requireOrganizationPaidFeature(ctx, organization._id);
-
+  const billingPolicy = billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
+  if (!billingPolicy?.canManageManagers) {
+    throw new ConvexError("現在の契約状態では、管理者を変更できません。");
+  }
   const now = Date.now();
+  await requireNoPendingLegacyFreeManagerExchange(ctx, organization._id, now);
   const pendingByEmail = (
     await Promise.all(
       (["issued", "pending"] as const).map((status) =>
@@ -430,7 +425,7 @@ async function createManagerInvitation(
     throw new ConvexError("招待の状態を確認できません");
   }
 
-  const expectedPurpose: OrganizationInvitationPurpose = hasFreeEntitlement ? "freeManagerExchange" : "managerAddition";
+  const expectedPurpose: OrganizationInvitationPurpose = "managerAddition";
   const recordStrictAlreadyPendingReceipt = async (invitationId: Id<"organizationInvitations">) => {
     if (!args.auditIntentState) return;
     await recordOrganizationAuditEvent(ctx, {
@@ -470,6 +465,16 @@ async function createManagerInvitation(
       return { status: "alreadyPending" as const, invitationId: currentEmailInvitation._id };
     }
     const targetPersonId = targetPerson?._id ?? currentEmailInvitation.targetPersonId;
+    const currentTargetPerson = targetPersonId ? await ctx.db.get(targetPersonId) : null;
+    const reservedSeat = currentTargetPerson
+      ? !(await organizationPersonCountsTowardPeopleLimit(ctx, organization._id, currentTargetPerson._id))
+      : true;
+    await requireOrganizationCapacity(ctx, {
+      organizationId: organization._id,
+      additionalPeople: reservedSeat ? 1 : 0,
+      additionalActiveManagers: 1,
+      excludedInvitationId: currentEmailInvitation._id,
+    });
     const invitation = await reissueActiveInvitation(ctx, {
       organization,
       inviterMember,
@@ -501,53 +506,28 @@ async function createManagerInvitation(
     );
   }
 
-  let purpose: OrganizationInvitationPurpose = "managerAddition";
-  let reservedSeat = false;
-  if (hasFreeEntitlement) {
-    const exchange = await resolveFreeManagerExchangeEligibility(ctx, {
-      organizationId: organization._id,
-      inviterMemberId: inviterMember._id,
-      emailNormalized,
-      ...(targetPerson ? { targetPersonId: targetPerson._id } : {}),
-    });
-    if (!exchange) {
-      throw new ConvexError("無料プランでは、組織内の既存スタッフへの管理者交代のみ行えます。");
-    }
-    await requireNoOtherPendingFreeManagerExchange(ctx, organization._id, now, staleTargetInvitation?._id);
-    await requireOrganizationCapacity(ctx, { organizationId: organization._id });
-    purpose = "freeManagerExchange";
-  } else {
-    const people = targetPerson ? [targetPerson] : [];
-    if (people.length > 1) {
-      throw new ConvexError(
-        "同じメールアドレスのユーザーが複数見つかりました。\n組織のユーザー情報を確認してください。",
-      );
-    }
-    const existingPerson = people[0];
-    if (existingPerson?.status === "removed") {
-      throw new ConvexError("このユーザーは削除済みです。\nユーザー画面から再追加してください。");
-    }
-    if (existingPerson) {
-      const members = await ctx.db
-        .query("organizationMembers")
-        .withIndex("by_organizationId_and_personId", (q) =>
-          q.eq("organizationId", organization._id).eq("personId", existingPerson._id),
-        )
-        .take(2);
-      if (members.length > 1) throw new ConvexError("管理者所属を一意に確認できません");
-      if (members[0]?.status === "active") throw new ConvexError("この利用者はすでに管理者です");
-    }
-
-    reservedSeat = existingPerson
-      ? !(await organizationPersonCountsTowardPeopleLimit(ctx, organization._id, existingPerson._id))
-      : true;
-    await requireOrganizationCapacity(ctx, {
-      organizationId: organization._id,
-      additionalPeople: reservedSeat ? 1 : 0,
-      additionalActiveManagers: 1,
-      ...(staleTargetInvitation ? { excludedInvitationId: staleTargetInvitation._id } : {}),
-    });
+  const purpose: OrganizationInvitationPurpose = "managerAddition";
+  const existingPerson = targetPerson;
+  if (existingPerson) {
+    const members = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_organizationId_and_personId", (q) =>
+        q.eq("organizationId", organization._id).eq("personId", existingPerson._id),
+      )
+      .take(2);
+    if (members.length > 1) throw new ConvexError("管理者所属を一意に確認できません");
+    if (members[0]?.status === "active") throw new ConvexError("この利用者はすでに管理者です");
   }
+
+  const reservedSeat = existingPerson
+    ? !(await organizationPersonCountsTowardPeopleLimit(ctx, organization._id, existingPerson._id))
+    : true;
+  await requireOrganizationCapacity(ctx, {
+    organizationId: organization._id,
+    additionalPeople: reservedSeat ? 1 : 0,
+    additionalActiveManagers: 1,
+    ...(staleTargetInvitation ? { excludedInvitationId: staleTargetInvitation._id } : {}),
+  });
 
   const invitationsToExpire = new Map<Id<"organizationInvitations">, Doc<"organizationInvitations">>();
   for (const invitation of [...pendingByEmail, ...pendingForTarget]) {
@@ -593,7 +573,7 @@ async function createManagerInvitation(
     targetKind: "invitation",
     targetId: invitation._id,
     ...(args.auditIntentState ? { fromState: args.auditIntentState } : {}),
-    toState: purpose === "freeManagerExchange" ? "issuedFreeManagerExchange" : "issued",
+    toState: "issued",
     correlationId,
     occurredAt: now,
   });
@@ -725,10 +705,6 @@ export const issue = authenticatedMutation({
       await requirePersonIsEligibleManagerInviteTarget(ctx, actor.organization._id, targetPerson, {
         requireActiveStaff: false,
       });
-    }
-    const billingState = await getOrganizationBillingState(ctx, actor.organization._id);
-    if (billingState && deriveOrganizationBillingPolicy(billingState.state).entitlementPlan === "free") {
-      throw new ConvexError("無料プランでは、新しいユーザーを管理者として招待できません。");
     }
     const result = await createManagerInvitation(ctx, {
       organization: actor.organization,
@@ -928,6 +904,14 @@ export const resend = authenticatedMutation({
     await requireOrganizationBusinessWrite(ctx, organization._id);
     const parsed = organizationInvitationRequestSchema.safeParse({ requestId: args.requestId });
     if (!parsed.success) throw new ConvexError("入力内容を確認してください。");
+    const requestedInvitation = await ctx.db.get(args.invitationId);
+    if (!requestedInvitation || requestedInvitation.organizationId !== organization._id) {
+      throw new ConvexError("Not found");
+    }
+    if (getOrganizationInvitationPurpose(requestedInvitation) === "freeManagerExchange") {
+      throw new ConvexError("以前に発行した管理者交代の招待は再送できません。取り消すか、有効期限までお待ちください。");
+    }
+    await requireNoPendingLegacyFreeManagerExchange(ctx, organization._id, Date.now());
     const requestKey = await toAuditRequestKey(parsed.data.requestId);
     const correlationId = `${organization._id}:manager-invite:resend:${requestKey}`;
     const priorAudit = await ctx.db
@@ -991,8 +975,7 @@ export const resend = authenticatedMutation({
       return { status: "alreadyPending" as const, invitationId: priorInvitation._id };
     }
 
-    const oldInvitation = await ctx.db.get(args.invitationId);
-    if (!oldInvitation || oldInvitation.organizationId !== organization._id) throw new ConvexError("Not found");
+    const oldInvitation = requestedInvitation;
     if (!isOrganizationInvitationIssued(oldInvitation) && oldInvitation.status !== "expired") {
       throw new ConvexError("この招待は再送できません");
     }
@@ -1043,43 +1026,37 @@ export const resend = authenticatedMutation({
     const eligibility = await resolveOrganizationInvitationEligibility(ctx, oldInvitation);
     if (!eligibility) throw new ConvexError("この招待は現在の契約では利用できません");
     const purpose = getOrganizationInvitationPurpose(oldInvitation);
-    let reservedSeat = false;
-    if (purpose === "freeManagerExchange") {
-      await requireNoOtherPendingFreeManagerExchange(ctx, organization._id, now, oldInvitation._id);
-      await requireOrganizationCapacity(ctx, { organizationId: organization._id });
-    } else {
-      const people = await ctx.db
-        .query("organizationPeople")
-        .withIndex("by_organizationId_and_emailNormalized", (q) =>
-          q.eq("organizationId", organization._id).eq("emailNormalized", oldInvitation.emailNormalized),
+    const people = await ctx.db
+      .query("organizationPeople")
+      .withIndex("by_organizationId_and_emailNormalized", (q) =>
+        q.eq("organizationId", organization._id).eq("emailNormalized", oldInvitation.emailNormalized),
+      )
+      .take(2);
+    if (people.length > 1 || people[0]?.status === "removed") {
+      throw new ConvexError("招待先の利用者を一意に確認できません");
+    }
+    if (people[0]) {
+      const members = await ctx.db
+        .query("organizationMembers")
+        .withIndex("by_organizationId_and_personId", (q) =>
+          q.eq("organizationId", organization._id).eq("personId", people[0]._id),
         )
         .take(2);
-      if (people.length > 1 || people[0]?.status === "removed") {
-        throw new ConvexError("招待先の利用者を一意に確認できません");
+      if (members.length > 1) throw new ConvexError("管理者所属を一意に確認できません");
+      if (members[0]?.status === "active") throw new ConvexError("この利用者はすでに管理者です");
+      if (members[0]?.status === "readOnly") {
+        throw new ConvexError("この利用者は閲覧のみの管理者です。\n契約状態を復旧してから、もう一度お試しください。");
       }
-      if (people[0]) {
-        const members = await ctx.db
-          .query("organizationMembers")
-          .withIndex("by_organizationId_and_personId", (q) =>
-            q.eq("organizationId", organization._id).eq("personId", people[0]._id),
-          )
-          .take(2);
-        if (members.length > 1) throw new ConvexError("管理者所属を一意に確認できません");
-        if (members[0]?.status === "active") throw new ConvexError("この利用者はすでに管理者です");
-        if (members[0]?.status === "readOnly") {
-          throw new ConvexError("この利用者は閲覧のみの管理者です。\n契約状態を復旧してから、もう一度お試しください。");
-        }
-      }
-      reservedSeat = people[0]
-        ? !(await organizationPersonCountsTowardPeopleLimit(ctx, organization._id, people[0]._id))
-        : true;
-      await requireOrganizationCapacity(ctx, {
-        organizationId: organization._id,
-        additionalPeople: reservedSeat ? 1 : 0,
-        additionalActiveManagers: 1,
-        excludedInvitationId: oldInvitation._id,
-      });
     }
+    const reservedSeat = people[0]
+      ? !(await organizationPersonCountsTowardPeopleLimit(ctx, organization._id, people[0]._id))
+      : true;
+    await requireOrganizationCapacity(ctx, {
+      organizationId: organization._id,
+      additionalPeople: reservedSeat ? 1 : 0,
+      additionalActiveManagers: 1,
+      excludedInvitationId: oldInvitation._id,
+    });
     await requireInvitationResendBudget(ctx, organization._id, oldInvitation.emailNormalized);
 
     await ctx.db.patch(oldInvitation._id, {

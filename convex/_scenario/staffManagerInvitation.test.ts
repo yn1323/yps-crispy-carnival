@@ -131,7 +131,7 @@ describe("既存スタッフの管理者招待シナリオ", () => {
     });
   });
 
-  it("管理者連携と権限解除に4種digestの宛先が追従し、スタッフ通知だけは維持する", async () => {
+  it("4種digestは対象店舗所属の管理者だけに追従し、権限解除後もスタッフ通知は維持する", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const owner = scenario.manager({ subject: "digest_owner", email: "owner@example.com" });
@@ -250,7 +250,7 @@ describe("既存スタッフの管理者招待シナリオ", () => {
       });
     });
 
-    const managerUserIds = [seeded.userId, targetUserId].sort();
+    const managerUserIds = [targetUserId];
     await expect(readManagerDigestRecipientIds(t, seeded.shopId, recruitmentId)).resolves.toEqual({
       staffRegistration: managerUserIds,
       shiftConfirmation: managerUserIds,
@@ -261,22 +261,13 @@ describe("既存スタッフの管理者招待シナリオ", () => {
     await scheduleManagerDigests(t, seeded.shopId, recruitmentId);
     const activeManagerDigestOutbox = await readManagerDigestOutbox(t);
     expect(activeManagerDigestOutbox).toEqual(
-      [
-        ...expectedManagerDigestOutbox({
-          shopId: seeded.shopId,
-          recruitmentId,
-          userId: seeded.userId,
-          email: "owner@example.com",
-          status: "pending",
-        }),
-        ...expectedManagerDigestOutbox({
-          shopId: seeded.shopId,
-          recruitmentId,
-          userId: targetUserId,
-          email: shiftContactEmail,
-          status: "pending",
-        }),
-      ].sort(compareManagerDigestOutbox),
+      expectedManagerDigestOutbox({
+        shopId: seeded.shopId,
+        recruitmentId,
+        userId: targetUserId,
+        email: shiftContactEmail,
+        status: "pending",
+      }).sort(compareManagerDigestOutbox),
     );
     const staffNotificationBeforeRemoval = await readStaffNotificationOutbox(t, staffId);
     expect(staffNotificationBeforeRemoval).toEqual([
@@ -294,31 +285,22 @@ describe("既存スタッフの管理者招待シナリオ", () => {
 
     await expect(owner.removeManagerRole(personId)).resolves.toEqual({ changed: true });
     await expect(readManagerDigestRecipientIds(t, seeded.shopId, recruitmentId)).resolves.toEqual({
-      staffRegistration: [seeded.userId],
-      shiftConfirmation: [seeded.userId],
-      shopActivation: [seeded.userId],
-      failureReminder: [seeded.userId],
+      staffRegistration: [],
+      shiftConfirmation: [],
+      shopActivation: [],
+      failureReminder: [],
     });
     await scheduleManagerDigests(t, seeded.shopId, recruitmentId);
 
     expect(await readManagerDigestOutbox(t)).toEqual(
-      [
-        ...expectedManagerDigestOutbox({
-          shopId: seeded.shopId,
-          recruitmentId,
-          userId: seeded.userId,
-          email: "owner@example.com",
-          status: "pending",
-        }),
-        ...expectedManagerDigestOutbox({
-          shopId: seeded.shopId,
-          recruitmentId,
-          userId: targetUserId,
-          email: shiftContactEmail,
-          status: "cancelled",
-          cancelReason: "recipient_inactive",
-        }),
-      ].sort(compareManagerDigestOutbox),
+      expectedManagerDigestOutbox({
+        shopId: seeded.shopId,
+        recruitmentId,
+        userId: targetUserId,
+        email: shiftContactEmail,
+        status: "cancelled",
+        cancelReason: "recipient_inactive",
+      }).sort(compareManagerDigestOutbox),
     );
     await owner.setShiftExclusion(staffId, false);
     await expect(owner.sendOpenRecruitmentNotifications(staffId)).resolves.toEqual({ scheduled: true });

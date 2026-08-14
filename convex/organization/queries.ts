@@ -1,11 +1,12 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
-import { isLineCommonLinkCanonicalReady } from "../_lib/config";
 import { formatDateJa, formatDateTimeJa } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
+import { loadShopManagerNotificationRecipientStatus } from "../_lib/shopManagerRecipients";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
 import { normalizeEmail, requiredEmailSchema } from "../_lib/validation";
+import { NOTIFICATION_DRY_RUN_MANAGER_SCAN_LIMIT } from "../constants";
 import { getOrganizationPersonLineState } from "../line/service";
 import {
   deriveOrganizationBillingPolicy,
@@ -22,10 +23,7 @@ import {
   readActiveIssuedInvitationsByOrganization,
 } from "../organizationInvitation/lifecycle";
 import { getOrganizationInvitationPurpose } from "../organizationInvitation/purpose";
-import {
-  resolveFreeManagerExchangeEligibility,
-  resolveOrganizationInvitationEligibility,
-} from "../organizationInvitation/service";
+import { resolveOrganizationInvitationEligibility } from "../organizationInvitation/service";
 import { getStripeBillingConfiguration } from "../organizationStripe/config";
 import { getOrganizationCreationAvailability, type OrganizationCreationAvailability } from "../setup/service";
 import { isOrganizationBillingContact } from "./billingContact";
@@ -89,6 +87,7 @@ const organizationShopViewValidator = v.object({
   ),
   submissionPattern: submissionPatternValidator,
   staffCount: v.number(),
+  managerNotificationRecipientStatus: v.union(v.literal("available"), v.literal("none"), v.literal("unknown")),
   canUpdateSettings: v.boolean(),
   settingsDisabledReason: v.optional(v.string()),
   canDelete: v.boolean(),
@@ -240,6 +239,7 @@ function legacyMigrationPendingSettings(
         regularClosedDays: shop.regularClosedDays ?? [],
         submissionPattern: shop.submissionPattern,
         staffCount: 0,
+        managerNotificationRecipientStatus: "unknown" as const,
         canUpdateSettings: false,
         settingsDisabledReason: migrationReason,
         canDelete: false,
@@ -289,7 +289,7 @@ function getOrganizationSettingsFeatures() {
   return {
     // 旧frontendの表示DTOとの互換のため項目を残す。
     organizationCreation: true,
-    shopAddition: isLineCommonLinkCanonicalReady(),
+    shopAddition: true,
     billing: true,
     managerInvitation: true,
   };
@@ -514,61 +514,26 @@ export const getSettings = managerQuery({
       (invitation) => invitation.expiresAt > now && getOrganizationInvitationPurpose(invitation) === "managerAddition",
     ).length;
     const projectedActiveManagerCount = activeManagerCount + pendingManagerInvitationCount;
-    const canInviteManagerAddition = Boolean(
-      isActiveActor &&
-        policy?.canUsePaidFeatures &&
-        policy.limits &&
-        projectedActiveManagerCount < policy.limits.maxActiveManagers,
-    );
-    const hasFreeEntitlement = policy?.entitlementPlan === "free";
-    const invitationInviterMemberId = ctx.organizationMember?._id;
-    const freeManagerExchangeEligibilities =
-      hasFreeEntitlement && invitationInviterMemberId
-        ? await Promise.all(
-            people.map(
-              async (person) =>
-                await resolveFreeManagerExchangeEligibility(ctx, {
-                  organizationId: organization._id,
-                  inviterMemberId: invitationInviterMemberId,
-                  emailNormalized: person.emailNormalized,
-                }),
-            ),
-          )
-        : [];
-    const freeManagerExchangeCandidates = freeManagerExchangeEligibilities.flatMap((eligibility) =>
-      eligibility
-        ? [
-            {
-              id: eligibility.targetPerson._id,
-              name: eligibility.targetPerson.name,
-              email: eligibility.targetPerson.email,
-            },
-          ]
-        : [],
-    );
-    const freeManagerExchangeCandidateEmails = new Set(
-      freeManagerExchangeEligibilities.flatMap((eligibility) =>
-        eligibility ? [eligibility.targetPerson.emailNormalized] : [],
-      ),
-    );
     const activeFreeManagerExchangeInvitations = pendingInvitations.filter(
       (invitation) =>
         invitation.expiresAt > now && getOrganizationInvitationPurpose(invitation) === "freeManagerExchange",
     );
+    const hasActiveFreeManagerExchangeInvitation = activeFreeManagerExchangeInvitations.length > 0;
+    const canInviteManagerAddition = Boolean(
+      isActiveActor &&
+        policy?.canManageManagers &&
+        policy.limits &&
+        projectedActiveManagerCount < policy.limits.maxActiveManagers &&
+        !hasActiveFreeManagerExchangeInvitation,
+    );
+    const freeManagerExchangeCandidates: Array<{ id: string; name: string; email: string }> = [];
     const invitedPersonIds = new Set(
       pendingInvitations.flatMap((invitation) =>
         invitation.expiresAt > now && invitation.targetPersonId ? [invitation.targetPersonId] : [],
       ),
     );
-    const canInviteFreeManagerExchange = Boolean(
-      isActiveActor &&
-        hasFreeEntitlement &&
-        freeManagerExchangeCandidates.length > 0 &&
-        activeFreeManagerExchangeInvitations.length === 0,
-    );
-    const managerInvitationMode = hasFreeEntitlement ? ("freeManagerExchange" as const) : ("addition" as const);
-    const canInviteManager =
-      managerInvitationMode === "freeManagerExchange" ? canInviteFreeManagerExchange : canInviteManagerAddition;
+    const managerInvitationMode = "addition" as const;
+    const canInviteManager = canInviteManagerAddition;
     const canRevokeInvitation = Boolean(isActiveActor && policy?.canWriteBusinessData);
     const managerInvitations = await Promise.all(
       invitationDocs.map(async (invitation) => {
@@ -614,9 +579,6 @@ export const getSettings = managerQuery({
         const purpose = getOrganizationInvitationPurpose(invitation);
         const canRetryStatus = lifecycleStatus === "issued" || lifecycleStatus === "expired";
         const eligibility = canRetryStatus ? await resolveOrganizationInvitationEligibility(ctx, invitation) : null;
-        const hasOtherPendingFreeExchange = activeFreeManagerExchangeInvitations.some(
-          (candidate) => candidate._id !== invitation._id,
-        );
         const targetPerson = invitation.targetPersonId ? await ctx.db.get(invitation.targetPersonId) : null;
         const targetPersonMismatch = Boolean(
           invitation.targetPersonId &&
@@ -654,8 +616,6 @@ export const getSettings = managerQuery({
               matchingPeople.length > 1 ||
               matchingPeople[0]?.status === "removed" ||
               (existingPerson && managerRoleByPersonId.get(existingPerson._id) === "active") ||
-              (purpose === "freeManagerExchange" &&
-                !freeManagerExchangeCandidateEmails.has(invitation.emailNormalized)) ||
               (!eligibility && !isExpired)),
         );
         const hasCapacityConflict = Boolean(
@@ -669,12 +629,11 @@ export const getSettings = managerQuery({
             canRetryStatus &&
             eligibility &&
             !hasTargetConflict &&
-            (purpose === "freeManagerExchange"
-              ? !hasOtherPendingFreeExchange && freeManagerExchangeCandidateEmails.has(invitation.emailNormalized)
-              : canFitResentManager &&
-                matchingPeople.length <= 1 &&
-                (!existingPerson || managerRoleByPersonId.get(existingPerson._id) !== "active") &&
-                canFitResentPerson),
+            purpose === "managerAddition" &&
+            canFitResentManager &&
+            matchingPeople.length <= 1 &&
+            (!existingPerson || managerRoleByPersonId.get(existingPerson._id) !== "active") &&
+            canFitResentPerson,
         );
         const status = isExpired
           ? ("expired" as const)
@@ -791,35 +750,49 @@ export const getSettings = managerQuery({
           : restrictedState
             ? "店舗を削除できるのは、契約の復旧担当者だけです。"
             : "現在の契約状態では、店舗を削除できません。";
-    const shopsView = shops
-      .map((shop) => {
-        const canUpdateSettings = Boolean(canWriteNormally && shop.operatingStatus === "active");
-        const settingsDisabledReason = canUpdateSettings
-          ? undefined
-          : shop.operatingStatus !== "active"
-            ? "利用停止中の店舗は、設定を変更できません。"
-            : !billingState
-              ? "組織単位の設定を移行しています。\n完了するまでお待ちください。"
-              : !isActiveActor
-                ? "閲覧のみの管理者は、店舗設定を変更できません。"
-                : restrictedState
-                  ? "契約制限中は、店舗設定を変更できません。"
-                  : "支払い結果が確定するまで、店舗設定を変更できません。";
-        return {
-          id: shop._id,
-          name: shop.name,
-          // TODO[narrow]: 全deploymentでm039のshop workerが完走し、
-          // verifyShops.missingRegularClosedDaysが0件になった後にfallbackを削除する。
-          regularClosedDays: shop.regularClosedDays ?? [],
-          submissionPattern: shop.submissionPattern,
-          staffCount: staffCountByShopId.get(shop._id) ?? 0,
-          canUpdateSettings,
-          ...(settingsDisabledReason ? { settingsDisabledReason } : {}),
-          canDelete: canDeleteShop,
-          ...(deleteShopDisabledReason ? { deleteDisabledReason: deleteShopDisabledReason } : {}),
-        };
-      })
-      .sort((a, b) => a.name.localeCompare(b.name, "ja"));
+    const shopsView = (
+      await Promise.all(
+        shops.map(async (shop) => {
+          const canUpdateSettings = Boolean(canWriteNormally && shop.operatingStatus === "active");
+          const settingsDisabledReason = canUpdateSettings
+            ? undefined
+            : shop.operatingStatus !== "active"
+              ? "利用停止中の店舗は、設定を変更できません。"
+              : !billingState
+                ? "組織単位の設定を移行しています。\n完了するまでお待ちください。"
+                : !isActiveActor
+                  ? "閲覧のみの管理者は、店舗設定を変更できません。"
+                  : restrictedState
+                    ? "契約制限中は、店舗設定を変更できません。"
+                    : "支払い結果が確定するまで、店舗設定を変更できません。";
+          const recipientStatus = await loadShopManagerNotificationRecipientStatus(
+            ctx,
+            shop._id,
+            NOTIFICATION_DRY_RUN_MANAGER_SCAN_LIMIT,
+          );
+          const managerNotificationRecipientStatus =
+            recipientStatus.activeRecipientCount > 0
+              ? ("available" as const)
+              : recipientStatus.scanComplete
+                ? ("none" as const)
+                : ("unknown" as const);
+          return {
+            id: shop._id,
+            name: shop.name,
+            // TODO[narrow]: 全deploymentでm039のshop workerが完走し、
+            // verifyShops.missingRegularClosedDaysが0件になった後にfallbackを削除する。
+            regularClosedDays: shop.regularClosedDays ?? [],
+            submissionPattern: shop.submissionPattern,
+            staffCount: staffCountByShopId.get(shop._id) ?? 0,
+            managerNotificationRecipientStatus,
+            canUpdateSettings,
+            ...(settingsDisabledReason ? { settingsDisabledReason } : {}),
+            canDelete: canDeleteShop,
+            ...(deleteShopDisabledReason ? { deleteDisabledReason: deleteShopDisabledReason } : {}),
+          };
+        }),
+      )
+    ).sort((a, b) => a.name.localeCompare(b.name, "ja"));
 
     const runtimeBillingState = billingState?.state ?? null;
     const canAccessCustomerPortal = Boolean(
@@ -1081,38 +1054,27 @@ export const getSettings = managerQuery({
           ? "閲覧のみの管理者は、管理者を招待できません。"
           : restrictedState
             ? "契約制限中は、管理者を招待できません。"
-            : managerInvitationMode === "freeManagerExchange" && activeFreeManagerExchangeInvitations.length > 0
-              ? "次の管理者のアカウント連携を待っています。\n連携が完了するまでは、現在の管理者が引き続き操作できます。"
-              : managerInvitationMode === "freeManagerExchange"
-                ? "無料プランでは、組織内の既存スタッフへの管理者交代のみ行えます。"
-                : policy?.paidFeatureBlockReason === "freePlan"
-                  ? "無料プランでは、管理者を追加できません。\n有料プランを選択してください。"
-                  : policy?.paidFeatureBlockReason === "paymentResultPending"
-                    ? "支払い結果が確定してから、管理者を招待できます。"
-                    : `管理者と招待中の管理者は、組織全体で${policy?.limits?.maxActiveManagers ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveManagers}名までです。`;
-    const shopAdditionEnabled = isLineCommonLinkCanonicalReady();
+            : hasActiveFreeManagerExchangeInvitation
+              ? "以前の管理者交代招待が残っています。\n取り消すか有効期限が切れてから、管理者を追加してください。"
+              : policy?.paidFeatureBlockReason === "paymentResultPending"
+                ? "支払い結果が確定してから、管理者を招待できます。"
+                : `管理者と招待中の管理者は、組織全体で${policy?.limits?.maxActiveManagers ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveManagers}名までです。`;
     const canAddShop = Boolean(
-      shopAdditionEnabled &&
-        isActiveActor &&
-        policy?.canUsePaidFeatures &&
-        policy.limits &&
-        activeShopCount < policy.limits.maxActiveShops,
+      isActiveActor && policy?.canUsePaidFeatures && policy.limits && activeShopCount < policy.limits.maxActiveShops,
     );
     const addShopDisabledReason = canAddShop
       ? undefined
-      : !shopAdditionEnabled
-        ? "現在は店舗を追加できません。\n画面を再読み込みして、しばらくしてからもう一度お試しください。"
-        : !billingState
-          ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
-          : !isActiveActor
-            ? "閲覧のみの管理者は、店舗を追加できません。"
-            : restrictedState
-              ? "契約制限中は、店舗を追加できません。"
-              : policy?.paidFeatureBlockReason === "freePlan"
-                ? "無料プランでは、店舗を追加できません。\n有料プランを選択してください。"
-                : policy?.paidFeatureBlockReason === "paymentResultPending"
-                  ? "支払い結果が確定してから、店舗を追加できます。"
-                  : `店舗は、組織ごとに${policy?.limits?.maxActiveShops ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveShops}件まで登録できます。`;
+      : !billingState
+        ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
+        : !isActiveActor
+          ? "閲覧のみの管理者は、店舗を追加できません。"
+          : restrictedState
+            ? "契約制限中は、店舗を追加できません。"
+            : policy?.paidFeatureBlockReason === "freePlan"
+              ? "無料プランでは、店舗を追加できません。\n有料プランを選択してください。"
+              : policy?.paidFeatureBlockReason === "paymentResultPending"
+                ? "支払い結果が確定してから、店舗を追加できます。"
+                : `店舗は、組織ごとに${policy?.limits?.maxActiveShops ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveShops}件まで登録できます。`;
     const canUpdateOrganizationName = isActiveActor;
     const updateOrganizationNameDisabledReason = canUpdateOrganizationName
       ? undefined
@@ -1345,15 +1307,9 @@ export const getManagerSettingsOverview = managerQuery({
     const pendingExchanges = purposes.filter((purpose) => purpose === "freeManagerExchange").length;
     const projectedManagers = managerState.active.length + pendingAdditions;
     const isActiveActor = organizationMember.status === "active";
-    const isFree = policy.entitlementPlan === "free";
     const canWrite = Boolean(isActiveActor && policy.canWriteBusinessData && !restrictedState);
-    const mode = !canWrite
-      ? ("restricted" as const)
-      : isFree
-        ? ("freeManagerExchange" as const)
-        : policy.canUsePaidFeatures
-          ? ("managerAddition" as const)
-          : ("restricted" as const);
+    const mode: "managerAddition" | "freeManagerExchange" | "restricted" =
+      canWrite && policy.canManageManagers ? "managerAddition" : "restricted";
 
     const activePeople = await ctx.db
       .query("organizationPeople")
@@ -1385,25 +1341,27 @@ export const getManagerSettingsOverview = managerQuery({
       ? "閲覧のみの管理者は、管理者を招待できません。"
       : restrictedState || !policy.canWriteBusinessData
         ? "契約状態を復旧してから変更できます。"
-        : !canFitManager
-          ? `管理者と招待中の管理者は、組織全体で${limits.maxActiveManagers}名までです。`
-          : undefined;
+        : !policy.canManageManagers
+          ? "現在の契約状態では、管理者を招待できません。"
+          : hasExchangePending
+            ? "以前の管理者交代招待が残っています。取り消すか有効期限が切れてから、管理者を追加してください。"
+            : !canFitManager
+              ? `管理者と招待中の管理者は、組織全体で${limits.maxActiveManagers}名までです。`
+              : undefined;
     const canInviteExistingStaff = Boolean(
-      canWrite && (mode === "managerAddition" ? canFitManager : mode === "freeManagerExchange" && !hasExchangePending),
+      canWrite && policy.canManageManagers && canFitManager && !hasExchangePending,
     );
     const existingStaffDisabledReason = canInviteExistingStaff
       ? undefined
-      : mode === "freeManagerExchange" && hasExchangePending
-        ? "次の管理者の承認を待っています。"
-        : (inviteBaseReason ?? "現在の契約状態では、管理者を招待できません。");
-    const canInviteExternal = Boolean(canWrite && mode === "managerAddition" && canFitManager && canFitPerson);
+      : (inviteBaseReason ?? "現在の契約状態では、管理者を招待できません。");
+    const canInviteExternal = Boolean(
+      canWrite && policy.canManageManagers && canFitManager && canFitPerson && !hasExchangePending,
+    );
     const externalDisabledReason = canInviteExternal
       ? undefined
-      : mode === "freeManagerExchange"
-        ? "Freeでは組織内の既存スタッフと交代できます。"
-        : !canFitPerson
-          ? `利用人数は、組織全体で${limits.maxPeople}名までです。`
-          : (inviteBaseReason ?? "現在の契約状態では、新しいユーザーを招待できません。");
+      : !canFitPerson
+        ? `利用人数は、組織全体で${limits.maxPeople}名までです。`
+        : (inviteBaseReason ?? "現在の契約状態では、新しいユーザーを招待できません。");
 
     const validRecoveryPersonIds = restrictedState
       ? (
@@ -1535,7 +1493,9 @@ export const getManagerSettingsOverview = managerQuery({
         purpose,
         status,
         expiresAt: invitation.expiresAt,
-        canResend: Boolean(canWrite && status !== "conflict" && !limitReached),
+        canResend: Boolean(
+          canWrite && purpose === "managerAddition" && !hasExchangePending && status !== "conflict" && !limitReached,
+        ),
         canRevoke: canWrite,
       });
     }
@@ -1550,7 +1510,7 @@ export const getManagerSettingsOverview = managerQuery({
         pendingAdditions,
         pendingExchanges,
         projectedManagers,
-        maxManagers: limits.maxActiveManagers,
+        maxManagers: Number(limits.maxActiveManagers),
       },
       actions: {
         canInviteExistingStaff,
@@ -1631,8 +1591,20 @@ export const getManagerCandidates = managerQuery({
     );
     const pendingEmails = new Set(invitations.invitations.map((invitation) => invitation.emailNormalized));
     const isActiveActor = organizationMember.status === "active";
-    const isFree = policy.entitlementPlan === "free";
     const canWrite = Boolean(isActiveActor && policy.canWriteBusinessData && !restrictedState);
+    const pendingPurposes = invitations.invitations.map((invitation) => getOrganizationInvitationPurpose(invitation));
+    const pendingAdditions = pendingPurposes.filter((purpose) => purpose === "managerAddition").length;
+    const hasPendingExchange = pendingPurposes.some((purpose) => purpose === "freeManagerExchange");
+    const canFitManager = managers.active.length + pendingAdditions < limits.maxActiveManagers;
+    const canInviteManager = Boolean(canWrite && policy.canManageManagers && canFitManager && !hasPendingExchange);
+    const managerInvitationDisabledReason =
+      !canWrite || !policy.canManageManagers
+        ? "現在の契約状態では、管理者を招待できません。"
+        : hasPendingExchange
+          ? "以前の管理者交代招待が残っています。取り消すか有効期限が切れてから、管理者を追加してください。"
+          : !canFitManager
+            ? `管理者と招待中の管理者は、組織全体で${limits.maxActiveManagers}名までです。`
+            : undefined;
 
     const candidates = [];
     for (const person of people) {
@@ -1641,14 +1613,6 @@ export const getManagerCandidates = managerQuery({
       const parsedEmail = requiredEmailSchema.safeParse(person.email);
       const hasValidEmail = parsedEmail.success && normalizeEmail(parsedEmail.data) === person.emailNormalized;
       const pending = pendingTargetIds.has(person._id) || pendingEmails.has(person.emailNormalized);
-      const freeEligibility = isFree
-        ? await resolveFreeManagerExchangeEligibility(ctx, {
-            organizationId: organization._id,
-            inviterMemberId: organizationMember._id,
-            emailNormalized: person.emailNormalized,
-            targetPersonId: person._id,
-          })
-        : null;
       const disabledReason =
         member?.status === "active"
           ? "すでに管理者です。"
@@ -1660,11 +1624,9 @@ export const getManagerCandidates = managerQuery({
                 ? person.email.trim().length === 0
                   ? "メールアドレスが登録されていません。"
                   : "メールアドレスの形式を確認してください。"
-                : !canWrite
-                  ? "現在の契約状態では、管理者を招待できません。"
-                  : isFree && !freeEligibility
-                    ? "Freeの管理者交代の対象にできません。"
-                    : undefined;
+                : !canInviteManager
+                  ? managerInvitationDisabledReason
+                  : undefined;
       candidates.push({
         personId: person._id,
         name: person.name,

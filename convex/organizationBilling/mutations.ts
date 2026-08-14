@@ -23,6 +23,7 @@ import {
   type OrganizationBillingNotificationDetails,
   organizationBillingNotificationDetailsValidator,
 } from "./notification";
+import { ORGANIZATION_PLAN_LIMITS } from "./planLimits";
 import {
   createPaymentGraceState,
   decideScheduledTransition,
@@ -839,15 +840,13 @@ async function resolvePendingActivationFailure(
 
   if (billingState.state.fallback === "free") {
     const usage = await getOrganizationUsageSnapshot(ctx, billingState.organizationId);
-    const selectedManagerIsValid = Boolean(
-      billingState.freeManagerPersonId &&
-        validActiveManagerPersonIds.includes(billingState.freeManagerPersonId) &&
-        validActiveManagerPersonIds.length === 1 &&
-        activeMemberRows.length === 1,
-    );
+    const activeManagersAreValid =
+      validActiveManagerPersonIds.length >= 1 &&
+      validActiveManagerPersonIds.length <= ORGANIZATION_PLAN_LIMITS.free.maxActiveManagers &&
+      activeMemberRows.length === validActiveManagerPersonIds.length;
     const eligibility = evaluateFreeEligibility({
       peopleCount: usage.projectedPersonCount,
-      activeManagerCount: selectedManagerIsValid ? 1 : 0,
+      activeManagerCount: activeManagersAreValid ? validActiveManagerPersonIds.length : 0,
       activeShopCount: activeShops.length,
     });
     if (eligibility.eligible) {

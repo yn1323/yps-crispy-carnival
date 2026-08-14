@@ -355,46 +355,7 @@ describe("AuthGuard", () => {
     }
   });
 
-  it("古いbackendが公開状態を返さないとき複数店舗writerだけ閉じる", async () => {
-    mocks.currentUser = { name: "管理者", email: "manager@example.com" };
-    mocks.selectedShop = {
-      shopId: "active-shop",
-      shopName: "所属店舗",
-      shopStatus: "active",
-      organizationId: null,
-      organizationName: null,
-      organizationPlan: null,
-      memberStatus: "active",
-    };
-    mocks.user.featureVisibility = {
-      organizationSettingsNavigation: true,
-      billing: true,
-      shopMembershipAddition: false,
-    };
-
-    render(
-      <AuthGuard requestedShopId="active-shop">
-        <ManagerChild />
-      </AuthGuard>,
-    );
-
-    expect(screen.queryByTestId("manager-child")).not.toBeNull();
-    expect(screen.queryByTestId("full-page-spinner")).toBeNull();
-    await waitFor(() => {
-      expect(mocks.setUser).toHaveBeenCalledWith({
-        authId: "manager-user",
-        name: "管理者",
-        email: "manager@example.com",
-        featureVisibility: {
-          organizationSettingsNavigation: true,
-          billing: true,
-          shopMembershipAddition: false,
-        },
-      });
-    });
-  });
-
-  it("backendの閉状態を複数店舗writerへ反映し、常時公開機能は維持する", async () => {
+  it("旧backendと保存済みatomの閉状態を常時公開へ正規化して同期する", async () => {
     mocks.currentUser = {
       name: "管理者",
       email: "manager@example.com",
@@ -425,7 +386,8 @@ describe("AuthGuard", () => {
       </AuthGuard>,
     );
 
-    expect(screen.queryByTestId("manager-child")).not.toBeNull();
+    expect(screen.queryByTestId("manager-child")).toBeNull();
+    expect(screen.queryByTestId("full-page-spinner")).not.toBeNull();
     await waitFor(() => {
       expect(mocks.setUser).toHaveBeenCalledWith({
         authId: "manager-user",
@@ -434,7 +396,7 @@ describe("AuthGuard", () => {
         featureVisibility: {
           organizationSettingsNavigation: true,
           billing: true,
-          shopMembershipAddition: false,
+          shopMembershipAddition: true,
         },
       });
     });
@@ -442,7 +404,7 @@ describe("AuthGuard", () => {
     mocks.user.featureVisibility = {
       organizationSettingsNavigation: true,
       billing: true,
-      shopMembershipAddition: false,
+      shopMembershipAddition: true,
     };
     rerender(
       <AuthGuard requestedShopId="active-shop">
@@ -451,6 +413,7 @@ describe("AuthGuard", () => {
     );
 
     expect(screen.queryByTestId("manager-child")).not.toBeNull();
+    expect(screen.queryByTestId("full-page-spinner")).toBeNull();
   });
 
   it("保存済みの不所属店舗を整合するまではmanager子画面を描画しない", async () => {

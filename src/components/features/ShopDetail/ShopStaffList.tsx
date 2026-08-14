@@ -1,19 +1,27 @@
-import { Accordion, Flex, HStack, Stack, Text } from "@chakra-ui/react";
+import { Accordion, Alert, Flex, HStack, Stack, Text } from "@chakra-ui/react";
 import type { Ref } from "react";
 import { LuPencil } from "react-icons/lu";
-import { OrganizationPersonRow } from "@/src/components/shared/OrganizationPersonRow";
+import { StaffListRow } from "@/src/components/shared/StaffListRow";
 import { Button } from "@/src/components/ui/Button";
 import type { ShopDetailPerson } from "./types";
 
 type Props = {
   staffs: ShopDetailPerson[];
   canChangeStaffs: boolean;
+  managerNotificationRecipientStatus?: "available" | "none" | "unknown";
   changeButtonRef?: Ref<HTMLButtonElement>;
   onOpenUser: (personId: string) => void;
   onChangeStaffs: () => void;
 };
 
-export function ShopStaffList({ staffs, canChangeStaffs, changeButtonRef, onOpenUser, onChangeStaffs }: Props) {
+export function ShopStaffList({
+  staffs,
+  canChangeStaffs,
+  managerNotificationRecipientStatus,
+  changeButtonRef,
+  onOpenUser,
+  onChangeStaffs,
+}: Props) {
   return (
     <Stack as="section" gap={3} aria-labelledby="shop-detail-staff-list-heading">
       <Flex align="center" justify="space-between" gap={3}>
@@ -43,6 +51,18 @@ export function ShopStaffList({ staffs, canChangeStaffs, changeButtonRef, onOpen
           所属スタッフを変更する
         </Button>
       </Flex>
+
+      {managerNotificationRecipientStatus === "none" && (
+        <Alert.Root status="warning" borderRadius="lg">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>店舗通知を受け取る管理者がいません</Alert.Title>
+            <Alert.Description>
+              スタッフ申請、シフト確定、通知エラーなど、この店舗に関する管理者向け通知は送信されません。通知が必要な場合は、管理者をこの店舗の所属スタッフに追加することをおすすめします。
+            </Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
+      )}
 
       <Accordion.Root collapsible variant="plain">
         <Accordion.Item
@@ -88,16 +108,19 @@ export function ShopStaffList({ staffs, canChangeStaffs, changeButtonRef, onOpen
                 </Flex>
               ) : (
                 <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
-                  {staffs.map((person) => (
-                    <OrganizationPersonRow
-                      key={person.id}
-                      person={person}
-                      idPrefix="shop-detail-user"
-                      showLineConnection={false}
-                      showShopNames={false}
-                      onOpen={() => onOpenUser(person.id)}
-                    />
-                  ))}
+                  {staffs.map((person) => {
+                    const isManager = person.managerRole !== "none";
+                    return (
+                      <StaffListRow
+                        key={person.id}
+                        id={`shop-detail-user-${person.id}`}
+                        name={person.name}
+                        role={isManager ? "manager" : "staff"}
+                        badges={[{ kind: "role" }]}
+                        onOpen={() => onOpenUser(person.id)}
+                      />
+                    );
+                  })}
                 </Stack>
               )}
             </Accordion.ItemBody>

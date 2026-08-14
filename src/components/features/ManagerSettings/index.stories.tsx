@@ -128,34 +128,94 @@ export const DefaultMobile: Story = {
   globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
-export const FreePendingExchange: Story = {
+export const FreeAvailable: Story = {
   args: {
     overview: {
       ...overview,
-      mode: "freeManagerExchange",
+      mode: "managerAddition",
+      usage: {
+        activeManagers: 1,
+        activeInvitationCount: 0,
+        pendingAdditions: 0,
+        pendingExchanges: 0,
+        projectedManagers: 1,
+        maxManagers: 2,
+      },
+      actions: {
+        canInviteExistingStaff: true,
+        canInviteExternal: true,
+      },
+      managers: [
+        {
+          ...overview.managers[0],
+          canRemoveRole: false,
+          removeRoleDisabledReason: "最後の有効管理者の管理者権限は外せません。",
+        },
+      ],
+      invitations: [],
+    },
+  },
+};
+
+export const LegacyFreeExchangePending: Story = {
+  args: {
+    overview: {
+      ...overview,
+      mode: "managerAddition",
       usage: {
         activeManagers: 1,
         activeInvitationCount: 1,
         pendingAdditions: 0,
         pendingExchanges: 1,
         projectedManagers: 1,
-        maxManagers: 1,
+        maxManagers: 2,
       },
       actions: {
         canInviteExistingStaff: false,
-        existingStaffDisabledReason: "次の管理者の承認待ちです。招待を取り消すと別のスタッフを選べます。",
+        existingStaffDisabledReason:
+          "以前の管理者交代招待が残っています。取り消すか有効期限が切れてから、管理者を追加してください。",
         canInviteExternal: false,
-        externalDisabledReason: "Freeでは組織内の既存スタッフと交代できます。",
+        externalDisabledReason:
+          "以前の管理者交代招待が残っています。取り消すか有効期限が切れてから、管理者を追加してください。",
       },
-      managers: [
+      managers: [overview.managers[0]],
+      invitations: [
         {
-          ...overview.managers[0],
-          canRemoveRole: false,
-          removeRoleDisabledReason: "Freeでは、次の管理者への交代招待を利用してください。",
+          ...overview.invitations[0],
+          purpose: "freeManagerExchange",
+          canResend: true,
+          canRevoke: true,
         },
       ],
-      invitations: [{ ...overview.invitations[0], purpose: "freeManagerExchange" }],
     },
+  },
+  play: async () => {
+    await expect(
+      await screen.findByText("以前の交代方式の招待です。承認されると、現在の管理者から管理者権限が外れます。"),
+    ).toBeInTheDocument();
+    await expect(screen.getByRole("button", { name: "再送する" })).toBeDisabled();
+    await expect(screen.getByRole("button", { name: "取り消す" })).toBeEnabled();
+  },
+};
+
+export const LegacyBackendFreeExchangeMode: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    overview: {
+      ...overview,
+      mode: "freeManagerExchange",
+      actions: { canInviteExistingStaff: true, canInviteExternal: true },
+    },
+  },
+  play: async () => {
+    await expect(screen.getByRole("heading", { name: "管理者を追加" })).toBeInTheDocument();
+    await expect(screen.queryByRole("link", { name: /既存スタッフを管理者として招待/ })).not.toBeInTheDocument();
+    await expect(screen.queryByRole("link", { name: /新しいユーザーを管理者として招待/ })).not.toBeInTheDocument();
+    await expect(
+      screen.getAllByText(
+        "以前の管理者交代機能は終了しました。送信済みの交代招待を取り消すか、有効期限が切れてから画面を更新してください。",
+      ),
+    ).toHaveLength(2);
   },
 };
 
@@ -326,15 +386,16 @@ export const CandidateSelectionBehavior: Story = {
   },
 };
 
-export const FreeCandidateConfirmationBehavior: Story = {
+export const FreeCandidateAdditionBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   render: () => (
-    <SubpageFrame title="既存スタッフを次の管理者として招待">
+    <SubpageFrame title="既存スタッフを管理者として招待">
       <ManagerCandidatePageContent
         overview={{
           ...overview,
-          mode: "freeManagerExchange",
-          actions: { canInviteExistingStaff: true, canInviteExternal: false },
+          mode: "managerAddition",
+          usage: { ...overview.usage, activeManagers: 1, projectedManagers: 1, maxManagers: 2 },
+          actions: { canInviteExistingStaff: true, canInviteExternal: true },
         }}
         result={{ kind: "ready", candidates }}
         shopId={shopId}
@@ -346,8 +407,8 @@ export const FreeCandidateConfirmationBehavior: Story = {
     await userEvent.click(page.getByRole("radio", { name: "山田 一郎を選択" }));
     await userEvent.click(page.getByRole("button", { name: "管理者として招待する" }));
     const confirmation = await page.findByRole("alertdialog", { name: "山田 一郎さんを招待しますか？" });
-    await expect(within(confirmation).getByText(/この組織の唯一の管理者になります/)).toBeInTheDocument();
-    await expect(within(confirmation).getByText(/あなたはこの組織の管理者ではなくなり/)).toBeInTheDocument();
+    await expect(within(confirmation).getByText(/招待を受け入れると管理者になります/)).toBeInTheDocument();
+    await expect(within(confirmation).queryByText(/あなたはこの組織の管理者ではなくなり/)).not.toBeInTheDocument();
   },
 };
 

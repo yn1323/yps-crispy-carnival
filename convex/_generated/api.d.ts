@@ -174,6 +174,7 @@ import type * as notificationOutbox_resendProviderEvents from "../notificationOu
 import type * as notificationOutbox_resendWebhook from "../notificationOutbox/resendWebhook.js";
 import type * as notificationOutbox_safeError from "../notificationOutbox/safeError.js";
 import type * as notificationOutbox_schemas from "../notificationOutbox/schemas.js";
+import type * as notificationOutbox_shopManagerNotification from "../notificationOutbox/shopManagerNotification.js";
 import type * as notificationOutbox_types from "../notificationOutbox/types.js";
 import type * as organization_access from "../organization/access.js";
 import type * as organization_audit from "../organization/audit.js";
@@ -428,6 +429,7 @@ declare const fullApi: ApiFromModules<{
   "notificationOutbox/resendWebhook": typeof notificationOutbox_resendWebhook;
   "notificationOutbox/safeError": typeof notificationOutbox_safeError;
   "notificationOutbox/schemas": typeof notificationOutbox_schemas;
+  "notificationOutbox/shopManagerNotification": typeof notificationOutbox_shopManagerNotification;
   "notificationOutbox/types": typeof notificationOutbox_types;
   "organization/access": typeof organization_access;
   "organization/audit": typeof organization_audit;

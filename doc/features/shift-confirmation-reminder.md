@@ -1,6 +1,7 @@
 # シフト確定催促リマインダー
 
-シフト募集の提出締め切り日の翌日17:00 (JST) に、その募集がまだ確定（`status: "confirmed"`）になっていなければ、店舗のマネージャー全員へ「スタッフの希望を確認してシフトを調整・確定しましょう」と催促する通知。締め切り後にシフト確定が放置されてスタッフに確定シフトが届かない事態を防ぐ。
+シフト募集の提出締め切り日の翌日17:00 (JST) に、その募集がまだ確定（`status: "confirmed"`）になっていなければ、対象店舗にスタッフとして所属するactive管理者へ「スタッフの希望を確認してシフトを調整・確定しましょう」と催促する通知。
+締め切り後にシフト確定が放置されてスタッフに確定シフトが届かない事態を防ぐ。
 
 補助的な通知のため、**送信に失敗しても要対応Inbox（`notificationFailureInbox`）には載せない**。配送イベントログ（`notificationDeliveryEvents`）には従来どおり記録される。
 
@@ -17,7 +18,7 @@
 
 ### バックエンド（`convex/`）
 
-- `convex/shiftConfirmationReminder/queries.ts` — 送信対象（店舗・募集情報・マネージャー一覧）を取得。削除済み/確定済みは `null`
+- `convex/shiftConfirmationReminder/queries.ts` — 送信対象（店舗・募集情報・対象店舗所属のactive管理者一覧）を取得。削除済み/確定済みは `null`
 - `convex/shiftConfirmationReminder/actions.ts` — マネージャーへのリマインダーを LINE / メールで enqueue する worker
 - `convex/recruitment/mutations.ts` — `createRecruitment` で締切翌日17:00に `runAt` 予約
 - `convex/_lib/dateFormat.ts` — `getManagerConfirmationReminderAt`（締切翌日17:00 JSTのUnix ms）
@@ -36,6 +37,11 @@
 |---|---|---|
 | `internal.shiftConfirmationReminder.queries.getManagerConfirmationReminderTarget` | internalQuery | 募集が `open` のときだけ、店舗名・期間・締切ラベル・Dashboard URL・マネージャー受信者一覧を返す。削除済み/確定済み/対象不在は `null` |
 | `internal.shiftConfirmationReminder.actions.sendManagerConfirmationReminder` | internalAction | マネージャーごとに LINE（Quota超過時のemailフォールバック付き）またはメールを enqueue する |
+
+送信対象は、activeな組織管理者と、同じ組織人物に紐づく対象店舗のactiveな正規staffを両方一意に解決できる人物だけとする。
+対象が0人なら通知を送らない。
+組織共通のLINE連携が有効かつ友だち状態ならLINEを優先し、それ以外は現在のシフト連絡先へメールで送る。
+外部送信直前にも管理者権限、店舗所属、宛先を再確認する。
 
 ## failureInbox に載せない仕組み
 

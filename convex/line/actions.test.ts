@@ -241,7 +241,6 @@ describe("line/actions", () => {
   });
 
   it("旧shapeのscheduled callerも実行時にcanonical連携済みならtokenとメールを作らない", async () => {
-    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
     const t = convexTest(schema, modules);
     const staffId = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
@@ -288,7 +287,6 @@ describe("line/actions", () => {
   });
 
   it("旧shape予約後に連携・解除されunlinkedへ戻っても新しいcapabilityを発行しない", async () => {
-    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
     const t = convexTest(schema, modules);
     const target = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
@@ -338,7 +336,6 @@ describe("line/actions", () => {
   });
 
   it.each([true, false])("snapshot一致ならfollowing=%sの連携済み人物にも再連携メールを作る", async (following) => {
-    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
     const t = convexTest(schema, modules);
     const target = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
@@ -394,7 +391,6 @@ describe("line/actions", () => {
   });
 
   it("snapshot後にgenerationが変わった再連携メールはtokenもoutboxも作らない", async () => {
-    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
     const t = convexTest(schema, modules);
     const target = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {

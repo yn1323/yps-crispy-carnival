@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
@@ -57,9 +57,6 @@ async function seedStaff(
 }
 
 describe("organization/userDetailQueries.getUserDetail", () => {
-  beforeEach(() => vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", ""));
-  afterEach(() => vi.unstubAllEnvs());
-
   it("組織人物と有効店舗所属を最小DTOで返し、招待状態を同じ契約で更新する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -120,20 +117,20 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         shopId: secondShopId,
         isDeleted: true,
       });
-      await ctx.db.insert("staffLineAccounts", {
-        staffId: firstStaffId,
-        shopId: base.shopId,
+      const lineProviderUserId = await ctx.db.insert("lineProviderUsers", {
         lineUserId: "never-return-line-user-id",
-        linkedAt: NOW,
         following: true,
+        stateVersion: 1,
+        friendshipObservedAt: NOW,
+        friendshipObservationSource: "oauth",
         isDeleted: false,
       });
-      await ctx.db.insert("staffLineAccounts", {
-        staffId: secondStaffId,
-        shopId: secondShopId,
-        lineUserId: "never-return-line-user-id",
+      await ctx.db.insert("organizationPersonLineLinks", {
+        organizationId: base.organizationId,
+        organizationPersonId: personId,
+        lineProviderUserId,
+        generation: 0,
         linkedAt: NOW,
-        following: true,
         isDeleted: false,
       });
       return { ...base, personId, firstStaffId, secondStaffId, archivedShopId, archivedStaffId, secondShopId };
@@ -285,7 +282,6 @@ describe("organization/userDetailQueries.getUserDetail", () => {
   });
 
   it("組織人物のcanonical LINE状態を全店舗で共通の最小DTOへ射影する", async () => {
-    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -360,7 +356,6 @@ describe("organization/userDetailQueries.getUserDetail", () => {
   });
 
   it("canonical LINE linkの重複またはgeneration不整合を人物詳細ごとfail closedにする", async () => {
-    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -406,71 +401,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     await expect(actor.query(api.organization.userDetailQueries.getUserDetail, args)).resolves.toBeNull();
   });
 
-  it("legacy read authorityでは人物の有効所属を集約し、競合をPIIなしでfail closedにする", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, {
-        subject: "user_detail_legacy_line_conflict",
-        shopName: "青山店",
-        plan: "pro",
-      });
-      const secondShopId = await ctx.db.insert("shops", {
-        organizationId: base.organizationId,
-        operatingStatus: "active",
-        name: "赤坂店",
-        regularClosedDays: [],
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-        isDeleted: false,
-      });
-      const personId = await seedPerson(ctx, { organizationId: base.organizationId });
-      const firstStaffId = await seedStaff(ctx, {
-        organizationId: base.organizationId,
-        personId,
-        shopId: base.shopId,
-      });
-      const secondStaffId = await seedStaff(ctx, {
-        organizationId: base.organizationId,
-        personId,
-        shopId: secondShopId,
-      });
-      await ctx.db.insert("staffLineAccounts", {
-        staffId: firstStaffId,
-        shopId: base.shopId,
-        lineUserId: "legacy-line-user-a",
-        linkedAt: NOW,
-        following: true,
-        isDeleted: false,
-      });
-      const secondAccountId = await ctx.db.insert("staffLineAccounts", {
-        staffId: secondStaffId,
-        shopId: secondShopId,
-        lineUserId: "legacy-line-user-a",
-        linkedAt: NOW,
-        following: false,
-        isDeleted: false,
-      });
-      return { ...base, personId, secondAccountId };
-    });
-    const actor = t.withIdentity({ subject: "user_detail_legacy_line_conflict" });
-    const args = { shopId: ids.shopId, personId: ids.personId, now: NOW };
-
-    await expect(actor.query(api.organization.userDetailQueries.getUserDetail, args)).resolves.toBeNull();
-
-    await t.run(async (ctx) => {
-      await ctx.db.patch(ids.secondAccountId, { lineUserId: "legacy-line-user-b", following: true });
-    });
-    await expect(actor.query(api.organization.userDetailQueries.getUserDetail, args)).resolves.toBeNull();
-
-    await t.run(async (ctx) => {
-      await ctx.db.patch(ids.secondAccountId, { lineUserId: "legacy-line-user-a" });
-    });
-    const linked = await actor.query(api.organization.userDetailQueries.getUserDetail, args);
-    expect(linked?.line.status).toBe("linked_following");
-    expect(JSON.stringify(linked)).not.toContain("legacy-line-user-a");
-  });
-
   it("canonical read authorityではlegacy LINE行へfallbackしない", async () => {
-    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -585,7 +516,6 @@ describe("organization/userDetailQueries.getUserDetail", () => {
   });
 
   it("店舗未所属の組織管理者もユーザー詳細として返す", async () => {
-    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -644,6 +574,12 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       canRemoveManagerRole: true,
       canRemove: false,
       removeDisabledReason: "先に管理者権限を外してください。",
+      shops: [
+        {
+          shopId: ids.shopId,
+          canChangeMembership: true,
+        },
+      ],
       memberships: [],
       line: {
         status: "linked_following",
@@ -676,6 +612,60 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       });
     expect(self?.isSelf).toBe(true);
     expect(self?.person.hasLinkedAccount).toBe(true);
+  });
+
+  it("active管理者の店舗所属は解除可能と返し、人物削除と管理者role解除の契約を分離する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "user_detail_manager_membership",
+        plan: "pro",
+      });
+      const targetUserId = await seedUser(
+        ctx,
+        "user_detail_manager_membership_target",
+        "manager-membership@example.com",
+      );
+      const targetPersonId = await seedPerson(ctx, {
+        organizationId: base.organizationId,
+        email: "manager-membership@example.com",
+        userId: targetUserId,
+      });
+      await ctx.db.insert("organizationMembers", {
+        organizationId: base.organizationId,
+        personId: targetPersonId,
+        userId: targetUserId,
+        status: "active",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      const targetStaffId = await seedStaff(ctx, {
+        organizationId: base.organizationId,
+        personId: targetPersonId,
+        shopId: base.shopId,
+        email: "manager-membership@example.com",
+      });
+      return { ...base, targetPersonId, targetStaffId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "user_detail_manager_membership" })
+      .query(api.organization.userDetailQueries.getUserDetail, {
+        shopId: ids.shopId,
+        personId: ids.targetPersonId,
+        now: NOW,
+      });
+
+    expect(result).toMatchObject({
+      managerRole: "active",
+      canRemoveManagerRole: true,
+      canRemove: false,
+      removeDisabledReason: "先に管理者権限を外してください。",
+      shops: [{ shopId: ids.shopId, canChangeMembership: true }],
+      memberships: [{ staffId: ids.targetStaffId, canRemove: true }],
+    });
+    expect(result?.shops[0]).not.toHaveProperty("membershipChangeDisabledReason");
+    expect(result?.memberships[0]).not.toHaveProperty("removeDisabledReason");
   });
 
   it("本人性を確認できないactive memberを有効な後任管理者として数えない", async () => {
@@ -989,7 +979,6 @@ describe("organization/userDetailQueries.getUserDetail", () => {
   });
 
   it("閲覧専用actorと課金state欠落では書き込み不可を返す", async () => {
-    vi.stubEnv("LINE_COMMON_LINK_CANONICAL_READS", "enabled");
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {

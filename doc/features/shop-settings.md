@@ -10,7 +10,7 @@
 - `src/components/features/OrganizationSettings/` — 組織設定の店舗一覧と店舗追加UI
 - `src/components/features/ShopDetail/` — 店舗情報の閲覧・一括編集、所属スタッフ数とAccordion一覧、削除確認UI
 - `src/components/shared/ShopSettingsFields/` — 店舗編集モーダルと店舗詳細で共有する入力UI
-- `src/components/shared/OrganizationPersonRow/` — 組織設定と店舗詳細で共有するユーザー一覧行
+- `src/components/shared/StaffListRow/` — Dashboard、組織設定、店舗詳細で共有するスタッフ一覧行
 - `convex/organization/mutations.ts` — 組織所属店舗の追加、状態変更、削除受付
 - `convex/shop/mutations.ts` — 店舗設定更新と旧店舗モデル向け削除互換API
 - `convex/staff/queries.ts` と `convex/staff/mutations.ts` — 表示中の店舗に対する所属スタッフのsnapshot、解除影響preview、一括変更
@@ -32,7 +32,7 @@
 | API | 種別 | 説明 |
 |---|---|---|
 | `api.dashboard.queries.getDashboardShop` | query | 店舗設定を取得する |
-| `api.organization.queries.getSettings` | query | 同じ組織に属する店舗、所属店舗ID付きユーザー、各操作の可否を取得する |
+| `api.organization.queries.getSettings` | query | 同じ組織に属する店舗、所属店舗ID付きユーザー、店舗管理通知の受信可否、各操作の可否を取得する |
 | `api.staff.queries.getOrganizationShopStaffMembershipChange` | query | 表示中の店舗IDを明示し、所属候補、現在の選択状態、変更可否、競合検知用fingerprintを取得する |
 | `api.staff.queries.previewOrganizationShopStaffMembershipRemovals` | query | 店舗から外す人物とsnapshotを指定し、今日以降のシフト割り当てへの影響を取得する。snapshotが更新済みなら`stale`を返す |
 | `api.staff.mutations.changeOrganizationShopStaffMemberships` | mutation | 希望する人物ID一覧、fingerprint、解除preview、request IDを検証し、1店舗の所属スタッフを一括変更する |
@@ -51,14 +51,21 @@
 - 店舗詳細の基本情報は読み取り用の一覧として表示する。見出し右の鉛筆アイコン付き`編集する`ボタンから`ShopForm`を開き、表示中の店舗IDを明示して店舗名、希望シフトの集め方と勤務時間、定休日を1回のmutationで一括更新する。
 - Dashboardの歯車から開く場合は`returnTo=dashboard`を付け、店舗詳細の戻る操作で同じ店舗のDashboardへ戻る。組織設定から開く場合は従来どおり店舗タブへ戻る。
 - 店舗詳細のスタッフ欄は、対象店舗に所属する人物単位の件数だけを初期表示し、`スタッフ一覧を見る`から同じカード内へ全件を展開する。
+- 対象店舗にスタッフとして所属するactive管理者が0人の場合は、スタッフ欄に店舗管理通知が送信されないことと、必要なら管理者をこの店舗の所属スタッフに追加する推奨案内を表示する。
+  閲覧専用の場合も案内は表示する。
+  店舗管理通知には、スタッフ参加申請digest、シフト確定催促、店舗登録後の本番募集案内、通知不達digestを含む。
 - スタッフ欄の見出し右にある`所属スタッフを変更する`から、組織に登録済みの人物をチェックボックスで選ぶ。管理者かどうかと、ほかの店舗への所属は確認用に表示するだけで、この操作では変更しない。店舗設定が閲覧専用の場合は導線も無効にする。
 - Dialogを開いた時点の所属snapshotを編集対象として固定する。追加だけならそのまま保存し、追加した人物が組織共通のLINE連携を持たない場合だけ連携案内を予約する。
 - 初期状態で所属していた人物のチェックを外した場合だけ、その人物の行を解除状態にし、「この店舗から外す」と次の2項目を赤字の箇条書きで表示する。再びチェックすると解除表示を消す。解除対象ごとの件数と合計は表示しない。
   - 今日以降のシフト割り当てから削除します。
   - この店舗からの通知を停止します。LINE連携は組織に残ります。
 - 解除対象がある場合は、現在の選択に対応する解除previewを自動で取得する。取得中、`tooMany`、`stale`では確定を無効にし、古いpreviewを変更処理へ渡さない。Dialog内の確認表示へ切り替えず、フッターは常に「キャンセル」と「変更する」を表示し、追加と解除のどちらも「変更する」を1回押すと確定する。
-- 所属を外すと対象店舗へのアクセス、互換用の店舗LINE投影、未送信通知を終了し、今日以降のシフト割り当てを削除する。組織共通のLINE連携、組織への登録、管理者権限、ほかの店舗への所属、過去のシフト記録は保持する。
-- `active`または`readOnly`の管理者を個別に店舗から外す変更は、画面の選択可否に加えてserverでも拒否する。先に管理者設定で管理者権限を外してから、改めて所属スタッフ変更を行う。店舗または組織そのものを削除するresource-wide cleanupには、この個別人物guardを適用しない。
+- 所属を外すと対象店舗のスタッフとしてのアクセス、互換用の店舗LINE投影、未送信通知を終了し、今日以降のシフト割り当てを削除する。
+  組織共通のLINE連携、組織への登録、管理者権限、ほかの店舗への所属、過去のシフト記録は保持する。
+- `active`または`readOnly`の管理者も個別に店舗から外せる。
+  この変更で管理者権限と組織人物は維持し、`organizationMembers`に基づく管理画面アクセスは変更しない。
+- 変更後にこの店舗へ所属するactive管理者が0人になる場合は、店舗管理通知が送信されなくなることを変更Dialog内で警告する。
+  警告は変更を拒否せず、保存後は店舗詳細の案内で同じ状態を示す。
 - 人物に対応しない既存スタッフなど、安全に人物単位へ変更できない行は選択済みのまま保持し、変更できない理由を表示する。全員を外す変更では、変更後に店舗のスタッフが0名になることを変更Dialog内で警告する。
 - 所属snapshotまたは解除対象のシフトが変わった場合は古い内容を保存しない。通信結果が不明な同一操作だけは、同じ入力とrequest IDで再試行する。
 - 店舗詳細のスタッフ一覧は、`getSettings.people.shopIds`を対象店舗IDで絞り込む。同名店舗を店舗名で誤判定せず、人物単位の一覧件数と表示件数を一致させる。行を押すとスタッフ詳細へ進み、出発元店舗は`returnShop`に保持するため、スタッフ詳細内で店舗を切り替えても戻る操作で元の店舗詳細へ復帰する。
