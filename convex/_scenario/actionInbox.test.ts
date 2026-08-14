@@ -12,9 +12,13 @@ describe("組織の対応一覧シナリオ", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
+    vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
   });
 
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.useRealTimers();
+  });
 
   it("4種の未対応状態を投影し、既存mutationで解決すると各項目だけが消える", async () => {
     const t = convexTest(schema, modules);
