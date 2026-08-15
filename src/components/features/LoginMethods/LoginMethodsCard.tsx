@@ -25,7 +25,7 @@ export function LoginMethodsCard({
       <Text color="fg.muted" fontSize="xs">
         Google認証、メールアドレス両方でログインできます。
         <br />
-        シフト通知は、個別のユーザーに設定されているメール、LINEに送ります。
+        シフト通知は、個別のユーザーに設定したメール・LINEに送ります。
       </Text>
       <Stack gap={0} borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" overflow="hidden" bg="white">
         <Box p={{ base: 3, md: 4 }} bg="white">

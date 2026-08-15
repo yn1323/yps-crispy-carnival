@@ -127,6 +127,7 @@ vi.mock("@/src/components/templates/AuthenticatedAppShell", () => ({
     return (
       <div data-testid="app-shell">
         {organizationSwitcher}
+        {featureRequest && <button type="button">要望を送る</button>}
         {children}
       </div>
     );
@@ -222,21 +223,39 @@ describe("認証済み親route", () => {
     });
   });
 
-  it("アカウント設定は新shellを使い、組織scopeを要求しない", () => {
+  it("アカウント設定は本文を組織scopeに依存させず、canonical組織の要望送信を表示する", () => {
     mocks.pathname = "/account";
     mocks.appShell = { mode: "navigation", activeKey: null };
-    mocks.useSearch.mockReturnValue({ flow: "connect-google", oauth: "google" });
+    mocks.useSearch.mockReturnValue({ org: "organization-a", flow: "connect-google", oauth: "google" });
     const RouteComponent = Route.options.component;
     if (!RouteComponent) throw new Error("Route component is required");
 
     render(<RouteComponent />);
 
     expect(screen.getByTestId("app-shell")).toBeTruthy();
-    expect(mocks.organizationProviderProps).not.toHaveBeenCalled();
+    expect(mocks.organizationProviderProps).toHaveBeenCalledWith({ requestedOrganizationId: "organization-a" });
     expect(screen.queryByRole("button", { name: "B組織へ切り替える" })).toBeNull();
+    expect(screen.getByRole("button", { name: "要望を送る" })).toBeTruthy();
+    expect(mocks.authenticatedAppShellProps).toHaveBeenCalledWith({
+      featureRequest: {
+        expectedOrganizationId: "organization-a",
+        scope: { kind: "organization" },
+      },
+    });
+  });
+
+  it("組織に所属していないアカウント設定は本文を表示し、要望送信を表示しない", () => {
+    mocks.pathname = "/account";
+    mocks.appShell = { mode: "navigation", activeKey: null };
+    mocks.organizationState = { kind: "empty" };
+    const RouteComponent = Route.options.component;
+    if (!RouteComponent) throw new Error("Route component is required");
+
+    render(<RouteComponent />);
+
+    expect(screen.getByTestId("app-shell")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "要望を送る" })).toBeNull();
     expect(mocks.authenticatedAppShellProps).toHaveBeenCalledWith({ featureRequest: undefined });
-    expect(mocks.featureRequestActionProps).not.toHaveBeenCalled();
   });
 
   it("Dashboardのorg・shopを新しい組織scopeとapp shellへ接続する", () => {

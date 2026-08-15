@@ -29,22 +29,26 @@ export const Route = createFileRoute("/_auth/account")({
 
 function AccountSecurityRoute() {
   const navigate = Route.useNavigate();
-  const { flow, oauth } = Route.useSearch();
+  const { flow, oauth, org } = Route.useSearch();
 
   useEffect(() => {
-    const validatedSearch = { ...(flow ? { flow } : {}), ...(oauth ? { oauth } : {}) };
+    const validatedSearch = {
+      ...(org ? { org } : {}),
+      ...(flow ? { flow } : {}),
+      ...(oauth ? { oauth } : {}),
+    };
     if (!needsAccountSecuritySearchCanonicalization(window.location.search, validatedSearch)) return;
     void navigate({
       replace: true,
       search: () => buildCanonicalAccountSecuritySearch(validatedSearch),
     });
-  }, [flow, navigate, oauth]);
+  }, [flow, navigate, oauth, org]);
 
   const handleStartFlow = useCallback(
     (nextFlow: AccountSecurityPageFlow) => {
-      void navigate({ search: () => ({ flow: nextFlow, oauth: undefined, shop: undefined }) });
+      void navigate({ search: () => ({ org, flow: nextFlow, oauth: undefined, shop: undefined }) });
     },
-    [navigate],
+    [navigate, org],
   );
   const handleBackToOverview = useCallback(() => {
     void navigate({ replace: true, search: clearAccountSecurityFlowSearch });

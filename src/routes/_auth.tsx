@@ -111,9 +111,17 @@ function AuthenticatedLayout() {
 
   if (pathname === "/account" && appShell) {
     return (
-      <AppLayoutFrame appShell={appShell}>
-        <Outlet />
-      </AppLayoutFrame>
+      <AppOrganizationScopeProvider
+        requestedOrganizationId={org}
+        onCanonicalOrganizationResolved={normalizeOrganizationUrl}
+        renderState={() => (
+          <AppLayoutFrame appShell={appShell}>
+            <Outlet />
+          </AppLayoutFrame>
+        )}
+      >
+        <OrganizationScopedAppLayout appShell={appShell} pathname={pathname} showOrganizationSwitcher={false} />
+      </AppOrganizationScopeProvider>
     );
   }
 
@@ -145,23 +153,31 @@ function OrganizationScopedAppLayout({
   appShell,
   pathname,
   homeShopId,
+  showOrganizationSwitcher = true,
 }: {
   appShell: AppShellData;
   pathname: string;
   homeShopId?: string;
+  showOrganizationSwitcher?: boolean;
 }) {
   const organization = useAppOrganizationScope();
   const navigate = useNavigate();
-  const featureRequest = organization.activeShops
-    ? {
-        expectedOrganizationId: organization.organizationId,
-        scope: resolveAppFeatureRequestScope({
-          pathname,
-          homeShopId,
-          activeShops: organization.activeShops,
-        }),
-      }
-    : undefined;
+  const featureRequest =
+    pathname === "/account"
+      ? {
+          expectedOrganizationId: organization.organizationId,
+          scope: { kind: "organization" as const },
+        }
+      : organization.activeShops
+        ? {
+            expectedOrganizationId: organization.organizationId,
+            scope: resolveAppFeatureRequestScope({
+              pathname,
+              homeShopId,
+              activeShops: organization.activeShops,
+            }),
+          }
+        : undefined;
   const handleOrganizationSelect = useCallback(
     (nextOrganizationId: Id<"organizations">) => {
       if (nextOrganizationId === organization.organizationId) return;
@@ -172,7 +188,7 @@ function OrganizationScopedAppLayout({
     [navigate, organization.organizationId, pathname],
   );
   const organizationSwitcher =
-    appShell.mode === "navigation" ? (
+    showOrganizationSwitcher && appShell.mode === "navigation" ? (
       <AppOrganizationSwitcher
         activeOrganizationId={organization.organizationId}
         activeOrganizationName={organization.organizationName}

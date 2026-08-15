@@ -76,6 +76,23 @@ export const AccountWithoutOrganizationAction: Story = {
   },
 };
 
+export const AccountWithOrganizationAction: Story = {
+  args: {
+    activeKey: null,
+    activeOrganizationId: ORGANIZATION_ID,
+    organizationSwitcher: undefined,
+    featureRequest: {
+      expectedOrganizationId: ORGANIZATION_ID,
+      scope: { kind: "organization" },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("button", { name: /組織を切り替える/ })).not.toBeInTheDocument();
+    await expect(canvas.getByRole("button", { name: "要望を送る" })).toBeVisible();
+  },
+};
+
 export const InitialSetupWithoutPrimaryNavigation: Story = {
   args: {
     activeKey: null,

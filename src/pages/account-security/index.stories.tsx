@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Id } from "@/convex/_generated/dataModel";
 import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedAppShell";
 import { AccountSecurityPage } from ".";
+
+const ORGANIZATION_ID = "organizations_account_story" as Id<"organizations">;
 
 const meta = {
   title: "Pages/AccountSecurity/Composition",
@@ -10,7 +13,11 @@ const meta = {
     vrt: { releaseFixedHeader: true },
   },
   render: (args) => (
-    <AuthenticatedAppShell activeKey={null}>
+    <AuthenticatedAppShell
+      activeKey={null}
+      activeOrganizationId={ORGANIZATION_ID}
+      featureRequest={{ expectedOrganizationId: ORGANIZATION_ID, scope: { kind: "organization" } }}
+    >
       <AccountSecurityPage {...args} includeMobileNavigation />
     </AuthenticatedAppShell>
   ),
