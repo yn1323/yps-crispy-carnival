@@ -16,7 +16,8 @@ type ShopLifecycleScenarioSeed = {
 test.use({ trace: "off", screenshot: "off", video: "off" });
 
 test.describe("同一組織の店舗ライフサイクル", { tag: ["@e2e-core"] }, () => {
-  test.setTimeout(60_000);
+  // 複数routeで店舗追加・設定変更・削除・再訪を確認するため、cold CI実測へ余裕を加えた失敗上限。
+  test.setTimeout(90_000);
 
   test.afterEach(async () => {
     await resetCurrentManagerScenarioData();
