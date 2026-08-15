@@ -33,7 +33,7 @@ export function OrganizationCreationDialog({ dialog, isRunning, onClose, onSubmi
         {/* 作成操作がトライアル開始になるため、確定前に契約境界を示す。 */}
         <Box borderRadius="lg" bg="blue.50" px={4} py={3}>
           <Text fontSize="sm" color="blue.900" lineHeight="tall">
-            新しい組織は2暦月のトライアルで始まります。
+            新しい組織は2ヶ月のトライアルで始まります。
             <br />
             終了後はProまたはBusinessの契約が必要です。未契約の場合は利用停止になりますが、店舗・ユーザー・過去のシフトは削除されません。
           </Text>

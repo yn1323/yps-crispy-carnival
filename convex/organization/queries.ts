@@ -940,7 +940,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
           currentPlan: "trial",
           ...(state.selectedPaidPlan ? { targetPlan: state.selectedPaidPlan } : {}),
           trialEndsAt: state.trialEndsAt,
-          // trialEndsAt は登録開始日の2暦月後の同日（同日がなければ月末）の0:00 JSTを表す排他的な境界。
+          // trialEndsAt は登録開始日の2ヶ月後の同日（同日がなければ月末）の0:00 JSTを表す排他的な境界。
           // 次の予定ではトライアルを利用できる最終日を表示する。
           nextEvent: { label: "トライアル最終日", date: formatDateJa(state.trialEndsAt - 1) },
         };

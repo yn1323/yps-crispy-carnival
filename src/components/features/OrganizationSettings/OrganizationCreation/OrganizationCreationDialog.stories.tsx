@@ -54,7 +54,7 @@ export const SubmissionBehavior: Story = {
     const dialog = await screen.findByRole("dialog", { name: "新しい組織を作る" });
     const form = within(dialog);
 
-    await expect(form.getByText(/新しい組織は2暦月のトライアルで始まります/)).toBeInTheDocument();
+    await expect(form.getByText(/新しい組織は2ヶ月のトライアルで始まります/)).toBeInTheDocument();
     const pricingLink = form.getByRole("link", { name: "料金とプランを確認する（新しいタブ）" });
     await expect(pricingLink).toHaveAttribute("href", "/pricing");
     await expect(pricingLink).toHaveAttribute("target", "_blank");

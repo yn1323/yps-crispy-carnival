@@ -194,7 +194,7 @@ export const setupShopAndManager = authenticatedMutation({
  * 既に管理者として利用している人が、二つ目以降の組織を作る。
  *
  * 初回セットアップと違い、users行と利用規約の同意状態は既にあるため変更しない。
- * 追加組織だけを2暦月のトライアルで始める。
+ * 追加組織だけを2ヶ月のトライアルで始める。
  */
 export const createOrganization = authenticatedMutation({
   args: additionalOrganizationArgs,

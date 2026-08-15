@@ -140,7 +140,7 @@ Freeは既存の`active.free`、そのFreeをfallbackとする`pendingActivation
 | 入口 | 対象 | 開始プラン |
 |---|---|---|
 | 初回セットアップ（`/dashboard`） | 所属がまだない利用者 | `complimentary.business` |
-| 将来用の組織作成 | 公開設定を明示的に有効化した環境の既存管理者 | 2暦月の`trial` |
+| 将来用の組織作成 | 公開設定を明示的に有効化した環境の既存管理者 | 2ヶ月の`trial` |
 
 初回Setupは本人のactiveな組織所属が0件であることをserver-sideで確認する。
 最初の組織、店舗、人物、管理者、店舗スタッフと`complimentary.business`を一度だけ作り、Trial期限、Stripe object、課金deadlineを作らない。
@@ -340,7 +340,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | 入口 | 用途 |
 |---|---|
 | `api.setup.mutations.setupShopAndManager` | 所属0件の初期設定と、1組織、1店舗、管理者本人、`complimentary.business`の作成。Trial deadlineとStripe objectは作らない |
-| `api.setup.mutations.createOrganization` | 将来用の追加組織作成。通常環境では公開設定により副作用前に拒否し、明示的に有効化した場合だけ2暦月Trialを作る |
+| `api.setup.mutations.createOrganization` | 将来用の追加組織作成。通常環境では公開設定により副作用前に拒否し、明示的に有効化した場合だけ2ヶ月Trialを作る |
 | `api.dashboard.queries.getMyShops` | 利用可能な店舗、組織、所属状態の取得 |
 | `api.dashboard.queries.getDashboardShop` | 選択店舗を認可し、Dashboard用の`planStatus`とrolling deploy用の旧`trialEndingNotice`を取得 |
 | `api.dashboard.queries.getDashboardPlanUsage` | 選択店舗を認可し、明示された時刻を基準にスタッフ・店舗・管理者の現在値と上限を取得 |

@@ -878,7 +878,7 @@ describe("setup/mutations", () => {
       expect(state.audits).toEqual([]);
     });
 
-    it("二つ目の組織も2暦月Trialで作り、既存組織の支払い不要Businessを変えない", async () => {
+    it("二つ目の組織も2ヶ月Trialで作り、既存組織の支払い不要Businessを変えない", async () => {
       const t = convexTest(schema, modules);
       const now = new Date("2026-07-25T10:00:00+09:00");
       vi.setSystemTime(now);

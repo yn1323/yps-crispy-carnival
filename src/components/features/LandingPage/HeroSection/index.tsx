@@ -39,20 +39,6 @@ export const HeroSection = () => (
           textAlign={{ base: "center", lg: "start" }}
         >
           <VStack align={{ base: "center", lg: "start" }} gap={{ base: 4, md: 5 }}>
-            <Flex
-              align="center"
-              gap={2}
-              bg="teal.50"
-              color="teal.700"
-              borderRadius="full"
-              px={{ base: 3, md: 4 }}
-              py={2}
-              textStyle={{ base: "xs", md: "sm" }}
-              fontWeight="bold"
-            >
-              <Icon as={LuClipboardCheck} boxSize={4} flexShrink={0} />
-              支払い情報の登録なしで始められるシフト管理
-            </Flex>
 
             <Heading
               as="h1"
@@ -80,7 +66,7 @@ export const HeroSection = () => (
               <br />
               毎月くり返すやりとりをシフトリがまとめて担当
               <br />
-              スタッフはアプリ不要。1つの組織と店舗で、シフト運用をまとめて管理できます
+              専用アプリインストールはなし
             </Text>
           </VStack>
 

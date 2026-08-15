@@ -66,7 +66,7 @@ export function PricingSite() {
                 </Box>
               </Heading>
               <Text color="gray.700" fontSize={{ base: "md", md: "lg" }} lineHeight="1.9" maxW="760px">
-                初回登録で作る最初の組織には、支払い不要のBusinessが適用されます。2暦月のトライアル期限や支払い方法の登録はありません。
+                初回登録で作る最初の組織には、支払い不要のBusinessが適用されます。2ヶ月のトライアル期限や支払い方法の登録はありません。
               </Text>
             </Stack>
             <Stack direction={{ base: "column", sm: "row" }} gap={3} align={{ base: "stretch", sm: "center" }}>
@@ -155,7 +155,7 @@ export function PricingSite() {
                   初回登録はトライアルではありません
                 </Heading>
                 <Text color="gray.800" lineHeight="1.85">
-                  初回登録で作る最初の組織には、2暦月のトライアル終了日を設定しません。支払い情報を登録せず、支払い不要のBusinessで利用を始めます。
+                  初回登録で作る最初の組織には、2ヶ月のトライアル終了日を設定しません。支払い情報を登録せず、支払い不要のBusinessで利用を始めます。
                 </Text>
                 <Text color="gray.800" lineHeight="1.85">
                   複数組織、複数店舗、複数管理者、有料プランの契約と支払いは、現在の公開範囲に含まれません。

@@ -7,7 +7,7 @@ export const ComparisonSection = () => (
   <Box as="section" bg="white" py={14}>
     <Container maxW="7xl">
       <VStack gap={7}>
-        <SectionHeading phrases={["紙・Excel・LINEグループの", "シフト管理を、ひとつに。"]} textAlign="center" />
+        <SectionHeading phrases={["紙・Excel・LINEグループの", "シフト管理を統一"]} textAlign="center" />
 
         <ComparisonImages />
       </VStack>
