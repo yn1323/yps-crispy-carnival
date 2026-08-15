@@ -10,9 +10,16 @@ type Props = {
   backLabel?: string;
   backAriaLabel?: string;
   action?: ReactNode;
+  compact?: boolean;
 };
 
-export function FocusedFlowHeader({ title, backLabel = "戻る", backAriaLabel = backLabel, action }: Props) {
+export function FocusedFlowHeader({
+  title,
+  backLabel = "戻る",
+  backAriaLabel = backLabel,
+  action,
+  compact = false,
+}: Props) {
   const router = useRouter();
 
   return (
@@ -27,7 +34,12 @@ export function FocusedFlowHeader({ title, backLabel = "戻る", backAriaLabel =
       borderColor="blackAlpha.100"
       backdropFilter="blur(14px)"
     >
-      <Container maxW="1024px" minH={HEADER_HEIGHT} px={{ base: 3, md: 4 }} py={2}>
+      <Container
+        maxW="1024px"
+        minH={compact ? { base: "48px", md: "52px" } : HEADER_HEIGHT}
+        px={{ base: 3, md: 4 }}
+        py={compact ? 0 : 2}
+      >
         <Grid
           minH={{ base: "48px", md: "52px" }}
           templateColumns="minmax(72px, 1fr) minmax(0, auto) minmax(72px, 1fr)"

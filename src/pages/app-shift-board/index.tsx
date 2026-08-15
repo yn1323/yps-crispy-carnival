@@ -29,7 +29,7 @@ export function AppShiftBoardRoutePage({ organizationId, recruitmentId }: Props)
 
   return (
     <Flex direction="column" h={AUTHENTICATED_APP_CONTENT_HEIGHT} minH={0}>
-      <FocusedFlowHeader title={headerTitle} backLabel="前の画面へ戻る" backAriaLabel="前の画面へ戻る" />
+      <FocusedFlowHeader title={headerTitle} backLabel="前の画面へ戻る" backAriaLabel="前の画面へ戻る" compact />
       <Box flex={1} minH={0}>
         {!organizationId ? (
           <ShiftoriLoading variant="section" message="組織を確認しています" minH="full" />
