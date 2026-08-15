@@ -1,7 +1,13 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
-import { seedManagerShop, seedOrganizationManagerShop, seedShop } from "../_test/seed";
+import {
+  seedManagerShop,
+  seedOrganizationManagerShop,
+  seedOrganizationPersonLineLink,
+  seedShop,
+  seedUser,
+} from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { getLegalDocumentsForAudience } from "../legal/documents";
 
@@ -477,7 +483,7 @@ describe("staffRegistration/queries", () => {
     it.each([
       ["閉状態", ""],
       ["公開状態", "true"],
-    ])("店舗追加が%sでも削除済み人物と同じemailの申請は承認不可にする", async (_label, featureValue) => {
+    ])("店舗追加が%sでも安全な削除済み人物と同じemailの申請は承認可能にする", async (_label, featureValue) => {
       vi.stubEnv("FEATURE_SHOP_ADDITION", featureValue);
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
@@ -518,6 +524,90 @@ describe("staffRegistration/queries", () => {
       expect(result).toEqual([
         expect.objectContaining({
           name: "削除済みスタッフ",
+          canApprove: true,
+          approveDisabledReason: null,
+        }),
+      ]);
+    });
+
+    it.each([
+      ["アカウント削除受付済み", "accountDeletion"],
+      ["activeな旧staffあり", "activeStaff"],
+      ["activeな管理者所属あり", "activeManagerMembership"],
+      ["activeなcanonical LINE連携あり", "activeCanonicalLine"],
+    ] as const)("削除済み人物に%sの不整合がある申請は汎用理由で承認不可にする", async (_label, state) => {
+      const t = convexTest(schema, modules);
+      const { shopId, subject } = await t.run(async (ctx) => {
+        const subject = `unsafe_removed_registration_${state}`;
+        const seeded = await seedOrganizationManagerShop(ctx, { subject, complimentary: true });
+        const now = Date.now();
+        const email = `${state.toLowerCase()}@example.com`;
+        const needsUser = state === "accountDeletion" || state === "activeManagerMembership";
+        const userId = needsUser ? await seedUser(ctx, `${subject}_person`, email) : undefined;
+        if (state === "accountDeletion" && userId) {
+          await ctx.db.patch(userId, { accountDeletionRequestedAt: now });
+        }
+        const personId = await ctx.db.insert("organizationPeople", {
+          organizationId: seeded.organizationId,
+          ...(userId ? { userId } : {}),
+          name: "状態不整合の削除済みスタッフ",
+          email,
+          emailNormalized: email,
+          status: "removed",
+          createdAt: now,
+          updatedAt: now,
+        });
+        if (state === "activeStaff") {
+          await ctx.db.insert("staffs", {
+            shopId: seeded.shopId,
+            organizationId: seeded.organizationId,
+            organizationPersonId: personId,
+            name: "残存staff",
+            email,
+            emailNormalized: email,
+            isDeleted: false,
+          });
+        }
+        if (state === "activeManagerMembership" && userId) {
+          await ctx.db.insert("organizationMembers", {
+            organizationId: seeded.organizationId,
+            personId,
+            userId,
+            status: "active",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        if (state === "activeCanonicalLine") {
+          await seedOrganizationPersonLineLink(ctx, {
+            organizationId: seeded.organizationId,
+            organizationPersonId: personId,
+            lineUserId: "U_unsafe_removed_registration",
+          });
+        }
+        await ctx.db.insert("staffRegistrationRequests", {
+          shopId: seeded.shopId,
+          name: "状態不整合の削除済みスタッフ",
+          email,
+          emailNormalized: email,
+          status: "pending",
+          termsConsentVersion: "terms-consent",
+          privacyConsentVersion: "privacy-consent",
+          termsDocumentVersion: "terms-document",
+          privacyDocumentVersion: "privacy-document",
+          consentedAt: now,
+          createdAt: now,
+        });
+        return { shopId: seeded.shopId, subject };
+      });
+
+      const result = await t.withIdentity({ subject }).query(api.staffRegistration.queries.getPendingRequests, {
+        shopId,
+      });
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          name: "状態不整合の削除済みスタッフ",
           canApprove: false,
           approveDisabledReason: "この申請は現在承認できません。不要な申請は却下できます。",
         }),

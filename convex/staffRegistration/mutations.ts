@@ -23,6 +23,7 @@ import {
 } from "../staff/service";
 import { resolveStaffRegistrationCapability } from "./capability";
 import { staffRegistrationFormSchema } from "./schemas";
+import { resolveStaffRegistrationApprovalAvailability, STAFF_REGISTRATION_APPROVAL_DISABLED_REASON } from "./service";
 
 const registrationRequestResultValidator = v.object({ status: v.literal("accepted") });
 const registrationRequestHttpResultValidator = v.object({
@@ -241,21 +242,35 @@ export const approveRequest = managerMutation({
       throw new ConvexError("Not found");
     }
 
+    const organizationId = ctx.shop.organizationId;
+    if (organizationId) {
+      if (ctx.organization?._id !== organizationId) {
+        throw new ConvexError("Not found");
+      }
+      const approvalAvailability = await resolveStaffRegistrationApprovalAvailability(ctx, {
+        organizationId,
+        targetShopId: ctx.shop._id,
+        emailNormalized: request.emailNormalized,
+      });
+      if (!approvalAvailability.canApprove) {
+        throw new ConvexError(
+          approvalAvailability.approveDisabledReason ?? STAFF_REGISTRATION_APPROVAL_DISABLED_REASON,
+        );
+      }
+    }
+
     const existingStaff = await findActiveStaffByEmail(ctx, ctx.shop._id, request.emailNormalized);
     if (existingStaff) {
       throw new ConvexError("このメールアドレスはすでに使用されています。");
     }
 
-    const organizationId = ctx.shop.organizationId;
     let organizationPersonId: Id<"organizationPeople"> | undefined;
-    let staffSourceState: "new" | "activePerson" = "new";
+    let reactivatedPersonId: Id<"organizationPeople"> | undefined;
+    let staffSourceState: "new" | "activePerson" | "removedPerson" = "new";
     let staffName = request.name;
     let staffEmail = request.email;
     let staffEmailNormalized = request.emailNormalized;
     if (organizationId) {
-      if (ctx.organization?._id !== organizationId) {
-        throw new ConvexError("Not found");
-      }
       const prepared = await prepareOrganizationPeopleForStaffAddition(ctx, {
         organizationId,
         shopId: ctx.shop._id,
@@ -274,7 +289,12 @@ export const approveRequest = managerMutation({
         throw new ConvexError("Not found");
       }
       organizationPersonId = materialized.personId;
-      staffSourceState = materialized.personState === "active" ? "activePerson" : "new";
+      reactivatedPersonId = materialized.reactivated ? materialized.personId : undefined;
+      staffSourceState = materialized.reactivated
+        ? "removedPerson"
+        : materialized.personState === "active"
+          ? "activePerson"
+          : "new";
       staffName = materialized.name;
       staffEmail = materialized.email;
       staffEmailNormalized = materialized.email;
@@ -336,6 +356,7 @@ export const approveRequest = managerMutation({
     });
 
     if (organizationId) {
+      const correlationBase = `${organizationId}:staff-registration:${request._id}`;
       await recordOrganizationAuditEvent(ctx, {
         organizationId,
         actorUserId: ctx.user._id,
@@ -345,7 +366,7 @@ export const approveRequest = managerMutation({
         targetId: staffId,
         fromState: staffSourceState,
         toState: `active:${ctx.shop._id}:batch:1`,
-        correlationId: `${organizationId}:staff-registration:${request._id}:staff`,
+        correlationId: `${correlationBase}:staff`,
         occurredAt: reviewedAt,
         analyticsEvent: {
           eventType: "staffMembership.changed",
@@ -364,6 +385,21 @@ export const approveRequest = managerMutation({
           },
         },
       });
+      if (reactivatedPersonId) {
+        await recordOrganizationAuditEvent(ctx, {
+          organizationId,
+          actorUserId: ctx.user._id,
+          actorPersonId: ctx.organizationMember?.personId,
+          action: "organization.person_reactivated",
+          targetKind: "person",
+          targetId: reactivatedPersonId,
+          fromState: "removed",
+          toState: "active",
+          correlationId: `${correlationBase}:person:${reactivatedPersonId}`,
+          occurredAt: reviewedAt,
+          suppressAnalyticsEvent: true,
+        });
+      }
     }
     const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
 

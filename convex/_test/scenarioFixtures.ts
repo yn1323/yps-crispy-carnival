@@ -168,9 +168,6 @@ export function createScenario(t: ScenarioTest) {
             requestId: generateUUID(),
             shopId: await getSelectedShopId(),
           });
-          if (result.status !== "added") {
-            throw new Error("Scenario staff addition unexpectedly requires confirmation");
-          }
           return result.staffIds;
         },
         async inviteStaffAsManager(staffId: Id<"staffs">) {

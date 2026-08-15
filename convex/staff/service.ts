@@ -303,7 +303,6 @@ export async function findActiveStaffByEmail(
 export type PreparedOrganizationStaffEntry = {
   name: string;
   email: string;
-  registeredEmail: string;
   existingPersonId: Id<"organizationPeople"> | null;
   personState: "new" | "active" | "removed";
   addsPersonToUsage: boolean;
@@ -311,7 +310,7 @@ export type PreparedOrganizationStaffEntry = {
 
 /**
  * manager招待が予約した利用人数枠を、同じメールのstaff人物へ付け替える。
- * 初回の再有効化previewでは呼ばず、実際に人物・staffを保存するtransaction内だけで実行する。
+ * 人物・staffを保存するtransaction内だけで実行する。
  */
 export async function releasePendingInvitationReservationsForStaffAddition(
   ctx: { db: MutationCtx["db"] },
@@ -377,7 +376,6 @@ export async function prepareOrganizationPeopleForStaffAddition(
     organizationId: Id<"organizations">;
     shopId: Id<"shops">;
     entries: ReadonlyArray<{ name: string; email: string }>;
-    allowRemovedPeople?: boolean;
     deferCapacityCheck?: boolean;
   },
 ): Promise<PreparedOrganizationStaffEntry[]> {
@@ -405,9 +403,6 @@ export async function prepareOrganizationPeopleForStaffAddition(
     }
 
     const person = matchingPeople[0] ?? null;
-    if (person?.status === "removed" && !args.allowRemovedPeople) {
-      throw new ConvexError("削除済みのユーザーです。\nユーザー画面で再追加したうえで、店舗に追加してください。");
-    }
 
     let addsPersonToUsage = false;
     if (person) {
@@ -423,16 +418,32 @@ export async function prepareOrganizationPeopleForStaffAddition(
           .withIndex("by_organizationId_and_personId", (q) =>
             q.eq("organizationId", args.organizationId).eq("personId", person._id),
           )
-          .collect(),
+          .take(ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT + 1),
       ]);
       if (staffRows.length > ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT) {
         throw new ConvexError("ユーザーの店舗所属を確認できません。\n画面を更新して、もう一度お試しください。");
       }
+      if (managerMemberships.length > ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT) {
+        throw new ConvexError("ユーザーの管理者権限を確認できません。\nユーザー画面で登録内容を確認してください。");
+      }
       if (person.status === "removed") {
         if (managerMemberships.some((membership) => membership.status !== "removed")) {
-          throw new ConvexError(
-            "削除済みユーザーの管理者権限を確認できません。\nユーザー画面で登録内容を確認してください。",
-          );
+          throw new ConvexError("ユーザーの管理者権限を確認できません。\nユーザー画面で登録内容を確認してください。");
+        }
+        if (person.userId) {
+          const user = await ctx.db.get(person.userId);
+          if (!user || user.isDeleted || user.accountDeletionRequestedAt !== undefined) {
+            throw new ConvexError("このユーザーを追加できません。\nアカウントの状態を確認してください。");
+          }
+        }
+        const activeLineLinks = await ctx.db
+          .query("organizationPersonLineLinks")
+          .withIndex("by_organizationPersonId_and_isDeleted", (q) =>
+            q.eq("organizationPersonId", person._id).eq("isDeleted", false),
+          )
+          .take(1);
+        if (activeLineLinks.length > 0) {
+          throw new ConvexError("ユーザーのLINE連携状態を確認できません。\nユーザー画面で登録内容を確認してください。");
         }
       }
       const activeStaffRows = staffRows.filter((staff) => !staff.isDeleted);
@@ -442,9 +453,7 @@ export async function prepareOrganizationPeopleForStaffAddition(
       }
       // removed人物をactiveへ戻した瞬間に、過去の別店舗staffが暗黙復元されないことを保証する。
       if (person.status === "removed" && activeStaffRows.length > 0) {
-        throw new ConvexError(
-          "削除済みユーザーの店舗所属を確認できません。\nユーザー画面で登録内容を確認してください。",
-        );
+        throw new ConvexError("ユーザーの店舗所属を確認できません。\nユーザー画面で登録内容を確認してください。");
       }
       const otherActiveStaffShopIds = [
         ...new Set(activeStaffRows.filter((staff) => staff.shopId !== args.shopId).map((staff) => staff.shopId)),
@@ -470,11 +479,11 @@ export async function prepareOrganizationPeopleForStaffAddition(
     }
     if (addsPersonToUsage) additionalPeople += 1;
 
-    // 既存人物では事業者に登録済みの名前を正とし、店舗追加時の入力で上書きしない。
+    // active人物の別店舗追加では既存profileを正とする。removed人物の再登録では今回確認したprofileを採用する。
+    const reactivatesPerson = person?.status === "removed";
     prepared.push({
-      name: person?.name ?? entry.name,
-      email: person ? normalizeEmail(person.email) : email,
-      registeredEmail: person?.email ?? email,
+      name: person && !reactivatesPerson ? person.name : entry.name,
+      email: person && !reactivatesPerson ? normalizeEmail(person.email) : email,
       existingPersonId: person?._id ?? null,
       personState: person?.status ?? "new",
       addsPersonToUsage,
@@ -482,7 +491,7 @@ export async function prepareOrganizationPeopleForStaffAddition(
   }
 
   // active managerまたはstaff履歴を持つ既存人物を別店舗へ紐づけるだけなら利用人数は増えない。
-  // 明示確認が必要な呼び出しでは、確認後のmutationで同じread setから上限を再検証する。
+  // 招待予約を解放する呼び出しでは、保存前に同じread setから上限を再検証する。
   if (additionalPeople > 0 && !args.deferCapacityCheck) {
     await requireOrganizationCapacity(ctx, {
       organizationId: args.organizationId,
@@ -515,15 +524,21 @@ export async function materializeOrganizationPeopleForStaffAddition(
         person.status !== "removed" ||
         normalizeEmail(person.email) !== entry.email
       ) {
-        throw new ConvexError("確認したユーザー情報が変わりました。\n追加内容をもう一度確認してください。");
+        throw new ConvexError("追加対象のユーザー情報が変わりました。\n追加内容をもう一度確認してください。");
       }
       if (person.userId) {
         const user = await ctx.db.get(person.userId);
         if (!user || user.isDeleted || user.accountDeletionRequestedAt !== undefined) {
-          throw new ConvexError("このユーザーは再追加できません。");
+          throw new ConvexError("このユーザーを追加できません。\nアカウントの状態を確認してください。");
         }
       }
-      await ctx.db.patch(personId, { status: "active", updatedAt: now });
+      await ctx.db.patch(personId, {
+        status: "active",
+        name: entry.name,
+        email: entry.email,
+        emailNormalized: entry.email,
+        updatedAt: now,
+      });
       reactivated = true;
     }
     personId ??= await ctx.db.insert("organizationPeople", {

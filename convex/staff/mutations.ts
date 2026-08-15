@@ -70,26 +70,13 @@ type ManagerStaffMutationCtx = MutationCtx & {
   organizationMember: Doc<"organizationMembers"> | null;
 };
 
-const staffAddResultValidator = v.union(
-  v.object({ status: v.literal("added"), staffIds: v.array(v.id("staffs")) }),
-  v.object({
-    status: v.literal("requiresConfirmation"),
-    candidates: v.array(v.object({ personId: v.id("organizationPeople"), name: v.string(), email: v.string() })),
-  }),
-);
-
-function sameIds(left: readonly Id<"organizationPeople">[], right: readonly Id<"organizationPeople">[]) {
-  if (left.length !== right.length) return false;
-  const leftSet = new Set(left);
-  return leftSet.size === left.length && right.every((id) => leftSet.has(id));
-}
+const staffAddResultValidator = v.object({ status: v.literal("added"), staffIds: v.array(v.id("staffs")) });
 
 async function recoverCompletedStaffAddition(
   ctx: ManagerStaffMutationCtx,
   args: {
     organizationId: Id<"organizations">;
     entries: ReadonlyArray<{ name: string; email: string }>;
-    confirmedPersonIds: readonly Id<"organizationPeople">[];
     requestId: string;
   },
 ) {
@@ -108,7 +95,6 @@ async function recoverCompletedStaffAddition(
   }
 
   const staffIds: Id<"staffs">[] = [];
-  const reactivatedPersonIds: Id<"organizationPeople">[] = [];
   for (const [index, entry] of args.entries.entries()) {
     const audit =
       index === 0
@@ -132,20 +118,11 @@ async function recoverCompletedStaffAddition(
       staff.organizationId !== args.organizationId ||
       staff.isDeleted ||
       normalizeEmail(staff.email) !== entry.email ||
-      (audit.fromState === "new" && staff.name !== entry.name)
+      (audit.fromState !== "activePerson" && staff.name !== entry.name)
     ) {
       throw new ConvexError("以前のスタッフ追加結果を確認できません。\n画面を更新して、もう一度お試しください。");
     }
     staffIds.push(staff._id);
-    if (audit.fromState === "removedPerson") {
-      if (!staff.organizationPersonId) {
-        throw new ConvexError("以前のスタッフ追加結果を確認できません。\n画面を更新して、もう一度お試しください。");
-      }
-      reactivatedPersonIds.push(staff.organizationPersonId);
-    }
-  }
-  if (!sameIds(reactivatedPersonIds, args.confirmedPersonIds)) {
-    throw new ConvexError("確認対象が変わりました。\n追加内容をもう一度確認してください。");
   }
   return { status: "added" as const, staffIds };
 }
@@ -288,6 +265,7 @@ async function createCurrentShiftNotificationFanouts(
 
 type AddStaffEntriesArgs = {
   entries: Array<{ name: string; email: string }>;
+  // TODO[narrow]: 旧frontendが配信されなくなった後、互換入力をpublic validatorとともに削除する。
   confirmReactivationPersonIds?: Array<Id<"organizationPeople">>;
   prevalidatedActiveOrganizationPeople?: Array<{
     personId: Id<"organizationPeople">;
@@ -307,17 +285,12 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
   const validEntries = parsed.data.entries
     .map((entry) => ({ name: entry.name, email: normalizeEmail(entry.email) }))
     .filter((e) => e.name !== "");
-  const confirmedPersonIds = args.confirmReactivationPersonIds ?? [];
-  if (new Set(confirmedPersonIds).size !== confirmedPersonIds.length) {
-    throw new ConvexError("確認対象が重複しています。\n追加内容をもう一度確認してください。");
-  }
 
   const organizationId = ctx.shop.organizationId;
   const prevalidatedActivePeople = args.prevalidatedActiveOrganizationPeople;
   if (
     prevalidatedActivePeople &&
     (!organizationId ||
-      confirmedPersonIds.length > 0 ||
       prevalidatedActivePeople.length !== validEntries.length ||
       prevalidatedActivePeople.some(
         (person, index) =>
@@ -331,12 +304,9 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
     const completed = await recoverCompletedStaffAddition(ctx, {
       organizationId,
       entries: validEntries,
-      confirmedPersonIds,
       requestId,
     });
     if (completed) return completed;
-  } else if (confirmedPersonIds.length > 0) {
-    throw new ConvexError("確認対象が変わりました。\n追加内容をもう一度確認してください。");
   }
 
   const inputEmails = new Set<string>();
@@ -409,28 +379,14 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
       organizationId,
       shopId: ctx.shop._id,
       entries: validEntries,
-      allowRemovedPeople: true,
       deferCapacityCheck: true,
     });
-    const reactivationCandidates = prepared.flatMap((entry) =>
-      entry.personState === "removed" && entry.existingPersonId
-        ? [{ personId: entry.existingPersonId, name: entry.name, email: entry.registeredEmail }]
-        : [],
-    );
-    const reactivationPersonIds = reactivationCandidates.map((candidate) => candidate.personId);
-    if (reactivationCandidates.length > 0 && args.confirmReactivationPersonIds === undefined) {
-      return { status: "requiresConfirmation" as const, candidates: reactivationCandidates };
-    }
-    if (!sameIds(reactivationPersonIds, confirmedPersonIds)) {
-      throw new ConvexError("確認対象が変わりました。\n追加内容をもう一度確認してください。");
-    }
-    if (reactivationCandidates.length > 0 && !ctx.organizationMember) throw new ConvexError("Not found");
 
     // pending manager招待の予約枠を、これから保存する同一人物へtransaction内で付け替える。
     await releasePendingInvitationReservationsForStaffAddition(ctx, organizationId, prepared);
     const additionalPeople = prepared.filter((entry) => entry.addsPersonToUsage).length;
     if (additionalPeople > 0) {
-      // pending招待の予約枠も含め、明示確認後の最新read setで再検証する。
+      // pending招待の予約枠も含め、保存直前の最新read setで再検証する。
       await requireOrganizationCapacity(ctx, { organizationId, additionalPeople });
     }
     const materialized = await materializeOrganizationPeopleForStaffAddition(ctx, organizationId, prepared);
@@ -593,6 +549,7 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
 export const addStaffs = managerMutation({
   args: {
     entries: v.array(v.object({ name: v.string(), email: v.string() })),
+    // TODO[narrow]: 旧frontendが配信されなくなった後に削除するrolling deploy互換入力。
     confirmReactivationPersonIds: v.optional(v.array(v.id("organizationPeople"))),
     requestId: v.string(),
   },
@@ -625,7 +582,7 @@ export const addOrganizationPersonToShop = managerMutation({
       entries: [{ name: person.name, email: person.email }],
       requestId: args.requestId,
     });
-    if (result.status !== "added" || result.staffIds.length !== 1) {
+    if (result.staffIds.length !== 1) {
       throw new ConvexError("スタッフの追加結果を確認できません。\n画面を更新して、もう一度お試しください。");
     }
     const staffId = result.staffIds[0];

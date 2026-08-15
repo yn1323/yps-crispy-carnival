@@ -124,7 +124,7 @@ export const StaffRegistrationRequestDialog = ({
           <Text fontSize="sm" color="fg.muted">
             承認するとスタッフとして登録されます。
             <br />
-            LINE連携の案内を送り、募集中のシフトがあれば提出リンクも送ります。
+            LINE未連携の場合は連携の案内を送り、募集中のシフトがあれば提出リンクも送ります。
           </Text>
           <StaffRegistrationRequestList
             requests={requests}

@@ -208,6 +208,29 @@ describe("useActionInboxController", () => {
     expect(getAction(management.actions, "取り消す")).not.toHaveProperty("disabled");
   });
 
+  it("スタッフ登録申請を承認できない理由を一覧の操作へ引き継ぐ", () => {
+    const unavailableItems = sourceItems.map((item) =>
+      item.kind === "staffRegistration"
+        ? {
+            ...item,
+            canApprove: false,
+            approveDisabledReason: "この申請は現在承認できません。不要な申請は却下できます。",
+          }
+        : item,
+    );
+    const { result } = renderHook(() =>
+      useActionInboxController({ organizationId, sourceItems: unavailableItems, onRefresh: mocks.refresh }),
+    );
+
+    const staff = findItem(result.current.items, "staff");
+    expect(getAction(staff.actions, "承認する")).toEqual({
+      label: "承認する",
+      emphasis: "primary",
+      disabled: true,
+      disabledReason: "この申請は現在承認できません。不要な申請は却下できます。",
+    });
+  });
+
   it("追加pageの操作は成功時だけ再取得し、失敗時は表示対象を保持する", async () => {
     const registration = sourceItems.find((item) => item.kind === "staffRegistration");
     if (!registration) throw new Error("Missing staff registration");
@@ -275,6 +298,7 @@ function createSourceItems(): readonly ActionInboxSourceItem[] {
       applicantName: "山田花子",
       createdAt: 2,
       canApprove: true,
+      approveDisabledReason: null,
       canReject: true,
       occurredAt: 2,
     },

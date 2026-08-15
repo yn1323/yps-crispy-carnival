@@ -42,15 +42,7 @@ function nextStaffAddRequestId() {
   return `staff-add-test-${staffAddRequestSequence}`;
 }
 
-function addedStaffIds(
-  result:
-    | { status: "added"; staffIds: Id<"staffs">[] }
-    | {
-        status: "requiresConfirmation";
-        candidates: Array<{ personId: Id<"organizationPeople">; name: string; email: string }>;
-      },
-) {
-  if (result.status !== "added") throw new Error("スタッフ追加が確認待ちになりました");
+function addedStaffIds(result: { status: "added"; staffIds: Id<"staffs">[] }) {
   return result.staffIds;
 }
 
@@ -736,7 +728,7 @@ describe("staff/mutations", () => {
       expect(state.scheduled).toEqual([]);
     });
 
-    it("削除済み人物は明示確認後だけ再有効化し、旧権限・店舗所属・認証情報を復元せず冪等に追加する", async () => {
+    it("削除済み人物を通常追加で再有効化し、旧権限・店舗所属・認証情報を復元せず冪等に追加する", async () => {
       const t = convexTest(schema, modules);
       const seeded = await t.run(async (ctx) => {
         const organization = await seedOrganizationManagerShop(ctx, {
@@ -874,43 +866,29 @@ describe("staff/mutations", () => {
       const entries = [{ name: "入力された別名", email: " removed@example.COM " }];
       const requestId = nextStaffAddRequestId();
       const asManager = t.withIdentity({ subject: "removed_manager" });
-      const preview = await asManager.mutation(api.staff.mutations.addStaffs, {
+      const added = await asManager.mutation(api.staff.mutations.addStaffs, {
         shopId: seeded.shopId,
         requestId,
         entries,
       });
-      expect(preview).toEqual({
-        status: "requiresConfirmation",
-        candidates: [{ personId: seeded.removedPersonId, name: "登録済み人物", email: "Removed@Example.com" }],
-      });
-
-      const previewState = await t.run(async (ctx) => ({
-        audits: await ctx.db.query("organizationAuditEvents").collect(),
-        person: await ctx.db.get(seeded.removedPersonId),
-        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-        staffs: await ctx.db
-          .query("staffs")
-          .withIndex("by_organizationId_and_organizationPersonId", (q) =>
-            q.eq("organizationId", seeded.organizationId).eq("organizationPersonId", seeded.removedPersonId),
-          )
-          .collect(),
-      }));
-      expect(previewState.person?.status).toBe("removed");
-      expect(previewState.staffs.map((staff) => staff._id)).toEqual([seeded.oldTargetStaffId, seeded.oldOtherStaffId]);
-      expect(previewState.audits).toEqual([]);
-      expect(previewState.scheduled).toEqual([]);
-
-      if (preview.status !== "requiresConfirmation") throw new Error("再追加確認候補がありません");
-      const confirmationArgs = {
-        shopId: seeded.shopId,
-        requestId,
-        entries,
-        confirmReactivationPersonIds: preview.candidates.map((candidate) => candidate.personId),
-      };
-      const confirmed = await asManager.mutation(api.staff.mutations.addStaffs, confirmationArgs);
-      const confirmedStaffIds = addedStaffIds(confirmed);
-      expect(confirmedStaffIds).toHaveLength(1);
-      await expect(asManager.mutation(api.staff.mutations.addStaffs, confirmationArgs)).resolves.toEqual(confirmed);
+      const addedIds = addedStaffIds(added);
+      expect(addedIds).toHaveLength(1);
+      await expect(
+        asManager.mutation(api.staff.mutations.addStaffs, {
+          shopId: seeded.shopId,
+          requestId,
+          entries,
+          // rolling deploy中に古い画面から届く互換入力は、追加結果を変えずに受理する。
+          confirmReactivationPersonIds: [seeded.removedPersonId],
+        }),
+      ).resolves.toEqual(added);
+      await expect(
+        asManager.mutation(api.staff.mutations.addStaffs, {
+          shopId: seeded.shopId,
+          requestId,
+          entries: [{ name: "異なる再送名", email: "removed@example.com" }],
+        }),
+      ).rejects.toThrow("以前のスタッフ追加結果を確認できません。\n画面を更新して、もう一度お試しください。");
 
       const state = await t.run(async (ctx) => ({
         audits: await ctx.db.query("organizationAuditEvents").collect(),
@@ -919,7 +897,7 @@ describe("staff/mutations", () => {
         lineLinkToken: await ctx.db.get(seeded.lineLinkTokenId),
         magicLink: await ctx.db.get(seeded.magicLinkId),
         member: await ctx.db.get(seeded.removedMemberId),
-        newStaff: await ctx.db.get(confirmedStaffIds[0]),
+        newStaff: await ctx.db.get(addedIds[0]),
         oldOtherStaff: await ctx.db.get(seeded.oldOtherStaffId),
         oldTargetStaff: await ctx.db.get(seeded.oldTargetStaffId),
         person: await ctx.db.get(seeded.removedPersonId),
@@ -932,18 +910,18 @@ describe("staff/mutations", () => {
           )
           .collect(),
       }));
-      expect(state.person).toMatchObject({ status: "active", name: "登録済み人物", email: "Removed@Example.com" });
+      expect(state.person).toMatchObject({ status: "active", name: "入力された別名", email: "removed@example.com" });
       expect(state.newStaff).toMatchObject({
         shopId: seeded.shopId,
         organizationId: seeded.organizationId,
         organizationPersonId: seeded.removedPersonId,
-        name: "登録済み人物",
+        name: "入力された別名",
         email: "removed@example.com",
         isDeleted: false,
       });
       expect(state.staffs).toHaveLength(3);
-      expect(state.oldTargetStaff?.isDeleted).toBe(true);
-      expect(state.oldOtherStaff?.isDeleted).toBe(true);
+      expect(state.oldTargetStaff).toMatchObject({ name: "旧店舗表示名", isDeleted: true });
+      expect(state.oldOtherStaff).toMatchObject({ name: "旧所属表示名", isDeleted: true });
       expect(state.member?.status).toBe("removed");
       expect(state.session?.revokedAt).toBe(seeded.revokedAt);
       expect(state.magicLink?.revokedAt).toBe(seeded.revokedAt);
@@ -955,7 +933,7 @@ describe("staff/mutations", () => {
       expect(state.audits.filter((audit) => audit.action === "organization.person_reactivated")).toHaveLength(1);
     });
 
-    it("アカウント削除受付済みuserを持つ削除済み人物は明示確認しても再有効化しない", async () => {
+    it("アカウント削除受付済みuserを持つ削除済み人物は通常追加でも再有効化しない", async () => {
       const t = convexTest(schema, modules);
       const seeded = await t.run(async (ctx) => {
         const organization = await seedOrganizationManagerShop(ctx, {
@@ -981,21 +959,13 @@ describe("staff/mutations", () => {
       const actor = t.withIdentity({ subject: "requested_reactivation_manager" });
       const requestId = nextStaffAddRequestId();
       const entries = [{ name: "再追加入力", email: "requested-person@example.com" }];
-      const preview = await actor.mutation(api.staff.mutations.addStaffs, {
-        shopId: seeded.shopId,
-        requestId,
-        entries,
-      });
-      if (preview.status !== "requiresConfirmation") throw new Error("再追加確認候補がありません");
-
       await expect(
         actor.mutation(api.staff.mutations.addStaffs, {
           shopId: seeded.shopId,
           requestId,
           entries,
-          confirmReactivationPersonIds: preview.candidates.map((candidate) => candidate.personId),
         }),
-      ).rejects.toThrow("このユーザーは再追加できません。");
+      ).rejects.toThrow("このユーザーを追加できません。\nアカウントの状態を確認してください。");
 
       const state = await t.run(async (ctx) => ({
         person: await ctx.db.get(seeded.removedPersonId),
@@ -1063,7 +1033,7 @@ describe("staff/mutations", () => {
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "再追加", email: "stale-manager@example.com" }],
         }),
-      ).rejects.toThrow("削除済みユーザーの管理者権限を確認できません。\nユーザー画面で登録内容を確認してください。");
+      ).rejects.toThrow("ユーザーの管理者権限を確認できません。\nユーザー画面で登録内容を確認してください。");
 
       const state = await t.run(async (ctx) => ({
         member: await ctx.db.get(seeded.memberId),
@@ -1078,61 +1048,45 @@ describe("staff/mutations", () => {
       expect(state.staffs).toEqual([]);
     });
 
-    it("再有効化確認は同一事業者の最新候補ID集合だけを受け付ける", async () => {
+    it("削除済み人物に有効なcanonical LINE連携が残る不整合では連携を暗黙復元しない", async () => {
       const t = convexTest(schema, modules);
       const seeded = await t.run(async (ctx) => {
         const organization = await seedOrganizationManagerShop(ctx, {
-          subject: "confirmation_manager",
-          email: "confirmation-manager@example.com",
-          plan: "pro",
-        });
-        const foreignOrganization = await seedOrganizationManagerShop(ctx, {
-          subject: "foreign_manager",
-          email: "foreign-manager@example.com",
+          subject: "stale_line_link_owner",
+          email: "stale-line-owner@example.com",
           plan: "pro",
         });
         const now = Date.now();
-        const removedPersonId = await ctx.db.insert("organizationPeople", {
+        const personId = await ctx.db.insert("organizationPeople", {
           organizationId: organization.organizationId,
-          name: "確認対象",
-          email: "confirmation-target@example.com",
-          emailNormalized: "confirmation-target@example.com",
+          name: "旧LINE連携人物",
+          email: "stale-line-person@example.com",
+          emailNormalized: "stale-line-person@example.com",
           status: "removed",
           createdAt: now,
           updatedAt: now,
         });
-        return { ...organization, foreignPersonId: foreignOrganization.personId, removedPersonId };
+        const line = await seedOrganizationPersonLineLink(ctx, {
+          organizationId: organization.organizationId,
+          organizationPersonId: personId,
+          lineUserId: "U_stale_removed_person",
+        });
+        return { ...organization, ...line, personId };
       });
-      const asManager = t.withIdentity({ subject: "confirmation_manager" });
-      const entries = [{ name: "再追加", email: "confirmation-target@example.com" }];
-      const requestId = nextStaffAddRequestId();
-      const preview = await asManager.mutation(api.staff.mutations.addStaffs, {
-        shopId: seeded.shopId,
-        requestId,
-        entries,
-      });
-      expect(preview.status).toBe("requiresConfirmation");
 
       await expect(
-        asManager.mutation(api.staff.mutations.addStaffs, {
+        t.withIdentity({ subject: "stale_line_link_owner" }).mutation(api.staff.mutations.addStaffs, {
           shopId: seeded.shopId,
-          requestId,
-          entries,
-          confirmReactivationPersonIds: [seeded.foreignPersonId],
+          requestId: nextStaffAddRequestId(),
+          entries: [{ name: "通常追加", email: "stale-line-person@example.com" }],
         }),
-      ).rejects.toThrow("確認対象が変わりました");
-      await expect(
-        asManager.mutation(api.staff.mutations.addStaffs, {
-          shopId: seeded.shopId,
-          requestId,
-          entries,
-          confirmReactivationPersonIds: [seeded.removedPersonId, seeded.removedPersonId],
-        }),
-      ).rejects.toThrow("確認対象が重複しています");
+      ).rejects.toThrow("ユーザーのLINE連携状態を確認できません。\nユーザー画面で登録内容を確認してください。");
 
       const state = await t.run(async (ctx) => ({
         audits: await ctx.db.query("organizationAuditEvents").collect(),
-        person: await ctx.db.get(seeded.removedPersonId),
+        link: await ctx.db.get(seeded.organizationPersonLineLinkId),
+        person: await ctx.db.get(seeded.personId),
+        provider: await ctx.db.get(seeded.lineProviderUserId),
         scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
         staffs: await ctx.db
           .query("staffs")
@@ -1140,12 +1094,14 @@ describe("staff/mutations", () => {
           .collect(),
       }));
       expect(state.person?.status).toBe("removed");
+      expect(state.link?.isDeleted).toBe(false);
+      expect(state.provider?.isDeleted).toBe(false);
       expect(state.staffs).toEqual([]);
       expect(state.audits).toEqual([]);
       expect(state.scheduled).toEqual([]);
     });
 
-    it("再有効化確認時に予約枠を含む最新の利用人数上限を再検証する", async () => {
+    it("削除済み人物の通常追加時に予約枠を含む最新の利用人数上限を検証する", async () => {
       const t = convexTest(schema, modules);
       const seeded = await t.run(async (ctx) => {
         const organization = await seedOrganizationManagerShop(ctx, {
@@ -1202,19 +1158,11 @@ describe("staff/mutations", () => {
       const entries = [{ name: "再有効化候補", email: "capacity-reactivation@example.com" }];
       const requestId = nextStaffAddRequestId();
       const asManager = t.withIdentity({ subject: "reactivation_capacity_manager" });
-      const preview = await asManager.mutation(api.staff.mutations.addStaffs, {
-        shopId: seeded.shopId,
-        requestId,
-        entries,
-      });
-      if (preview.status !== "requiresConfirmation") throw new Error("再追加確認候補がありません");
-
       await expect(
         asManager.mutation(api.staff.mutations.addStaffs, {
           shopId: seeded.shopId,
           requestId,
           entries,
-          confirmReactivationPersonIds: preview.candidates.map((candidate) => candidate.personId),
         }),
       ).rejects.toThrow("利用人数が現在のプラン上限を超えます");
 

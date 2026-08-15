@@ -1,4 +1,4 @@
-import { Alert, Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import { forwardRef, type ReactNode, type RefObject, useEffect, useRef } from "react";
 import type { IconType } from "react-icons";
 import { LuChevronRight, LuClipboardPenLine, LuQrCode, LuUsersRound } from "react-icons/lu";
@@ -38,17 +38,6 @@ export type StaffInvitationViewModel = {
   onAddStaffs: (data: AddStaffFormData) => void | Promise<void>;
   onAddOrganizationPerson: (personId: Id<"organizationPeople">) => void | Promise<void>;
   onOpenBillingSettings?: () => void;
-  reactivationConfirmation: {
-    dialog: DialogState;
-    candidates: Array<{
-      personId: Id<"organizationPeople">;
-      name: string;
-      email: string;
-    }>;
-    isConfirming: boolean;
-    onConfirm: () => void | Promise<void>;
-    onClose: () => void;
-  };
 };
 
 type Props = {
@@ -112,7 +101,6 @@ export function StaffInvitationDialogView({ invitation, isReadOnly = false, orga
 
 function StaffInvitationDialogBody({ invitation, organizationPeopleContent }: BodyProps) {
   const selectedMethod = getStaffInvitationSelectedMethod(invitation);
-  const isReactivationConfirmation = invitation.reactivationConfirmation.dialog.isOpen;
   const isBusy = invitation.isAddingStaffs || invitation.isAddingOrganizationPerson;
   const methodButtonRefs = useRef<Partial<Record<StaffInvitationMethod, HTMLButtonElement | null>>>({});
   const detailHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -120,7 +108,6 @@ function StaffInvitationDialogBody({ invitation, organizationPeopleContent }: Bo
 
   useEffect(() => {
     if (!invitation.dialog.isOpen) return;
-    if (isReactivationConfirmation) return;
 
     if (selectedMethod) {
       detailHeadingRef.current?.focus();
@@ -129,7 +116,7 @@ function StaffInvitationDialogBody({ invitation, organizationPeopleContent }: Bo
 
     const previousButton = methodButtonRefs.current[lastSelectedMethodRef.current];
     (previousButton ?? methodButtonRefs.current.link)?.focus();
-  }, [invitation.dialog.isOpen, isReactivationConfirmation, selectedMethod]);
+  }, [invitation.dialog.isOpen, selectedMethod]);
 
   const handleSelectMethod = (method: StaffInvitationMethod) => {
     lastSelectedMethodRef.current = method;
@@ -137,86 +124,45 @@ function StaffInvitationDialogBody({ invitation, organizationPeopleContent }: Bo
   };
 
   return (
-    <>
-      {isReactivationConfirmation && <StaffReactivationConfirmationBody invitation={invitation} />}
-      <Box hidden={isReactivationConfirmation}>
-        <Stack gap={5} pt={2} minH={0}>
-          {selectedMethod === null && (
-            <StaffInvitationMethodMenu
-              showOrganizationPeopleAddition={invitation.showOrganizationPeopleAddition}
-              disabled={isBusy}
-              buttonRefs={methodButtonRefs}
-              onSelect={handleSelectMethod}
-            />
-          )}
-
-          {selectedMethod !== null && <StaffInvitationDetailHeader ref={detailHeadingRef} method={selectedMethod} />}
-
-          {selectedMethod === "link" && (
-            <Stack gap={6}>
-              <StaffRegistrationLinkPanel
-                registrationUrl={invitation.registrationUrl}
-                isLoading={invitation.isRegistrationUrlLoading}
-                hasError={invitation.registrationUrlError}
-                onRetry={invitation.onRetryRegistrationUrl}
-              />
-            </Stack>
-          )}
-
-          <Box hidden={selectedMethod !== "manual"}>
-            <Stack gap={4}>
-              {invitation.peopleCapacityResolution && (
-                <PeopleCapacityResolutionAlert
-                  resolution={invitation.peopleCapacityResolution}
-                  retryActionLabel="スタッフを追加"
-                  onOpenBillingSettings={invitation.onOpenBillingSettings}
-                />
-              )}
-              <AddStaffForm onSubmit={invitation.onAddStaffs} />
-            </Stack>
-          </Box>
-
-          {selectedMethod === "organization" && invitation.showOrganizationPeopleAddition && (
-            <Box>{organizationPeopleContent}</Box>
-          )}
-        </Stack>
-      </Box>
-    </>
-  );
-}
-
-function StaffReactivationConfirmationBody({ invitation }: { invitation: StaffInvitationViewModel }) {
-  return (
-    <Stack gap={4}>
-      {invitation.peopleCapacityResolution && (
-        <PeopleCapacityResolutionAlert
-          resolution={invitation.peopleCapacityResolution}
-          retryActionLabel="スタッフを再追加"
-          onOpenBillingSettings={invitation.onOpenBillingSettings}
+    <Stack gap={5} pt={2} minH={0}>
+      {selectedMethod === null && (
+        <StaffInvitationMethodMenu
+          showOrganizationPeopleAddition={invitation.showOrganizationPeopleAddition}
+          disabled={isBusy}
+          buttonRefs={methodButtonRefs}
+          onSelect={handleSelectMethod}
         />
       )}
-      <Text fontSize="sm">入力したメールアドレスは、以前この組織から削除されたユーザーのものです。</Text>
-      <Stack gap={2}>
-        {invitation.reactivationConfirmation.candidates.map((candidate) => (
-          <Stack key={candidate.personId} gap={0} rounded="md" borderWidth="1px" px={3} py={2}>
-            <Text fontWeight="medium">{candidate.name}</Text>
-            <Text fontSize="sm" color="fg.muted">
-              {candidate.email}
-            </Text>
-          </Stack>
-        ))}
-      </Stack>
-      <Alert.Root status="warning">
-        <Alert.Indicator />
-        <Alert.Content>
-          <Alert.Title>この店舗のスタッフとしてのみ再追加します</Alert.Title>
-          <Alert.Description>
-            以前の管理者権限や、ほかの店舗への所属は復元しません。
-            <br />
-            必要な権限と店舗所属は、再追加後に個別に設定してください。
-          </Alert.Description>
-        </Alert.Content>
-      </Alert.Root>
+
+      {selectedMethod !== null && <StaffInvitationDetailHeader ref={detailHeadingRef} method={selectedMethod} />}
+
+      {selectedMethod === "link" && (
+        <Stack gap={6}>
+          <StaffRegistrationLinkPanel
+            registrationUrl={invitation.registrationUrl}
+            isLoading={invitation.isRegistrationUrlLoading}
+            hasError={invitation.registrationUrlError}
+            onRetry={invitation.onRetryRegistrationUrl}
+          />
+        </Stack>
+      )}
+
+      <Box hidden={selectedMethod !== "manual"}>
+        <Stack gap={4}>
+          {invitation.peopleCapacityResolution && (
+            <PeopleCapacityResolutionAlert
+              resolution={invitation.peopleCapacityResolution}
+              retryActionLabel="スタッフを追加"
+              onOpenBillingSettings={invitation.onOpenBillingSettings}
+            />
+          )}
+          <AddStaffForm onSubmit={invitation.onAddStaffs} />
+        </Stack>
+      </Box>
+
+      {selectedMethod === "organization" && invitation.showOrganizationPeopleAddition && (
+        <Box>{organizationPeopleContent}</Box>
+      )}
     </Stack>
   );
 }

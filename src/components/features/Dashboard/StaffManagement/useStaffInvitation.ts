@@ -28,22 +28,12 @@ export function useStaffInvitation(
   isReadOnlyRef.current = isReadOnly;
   showOrganizationPeopleAdditionRef.current = showOrganizationPeopleAddition;
   const dialog = useDialog();
-  const reactivationDialog = useDialog();
   const [selectedMethod, setSelectedMethod] = useState<StaffInvitationMethod | null>(null);
   const [registrationUrl, setRegistrationUrl] = useState<string | null>(null);
   const [registrationUrlError, setRegistrationUrlError] = useState(false);
   const [isRegistrationUrlLoading, setIsRegistrationUrlLoading] = useState(false);
   const [peopleCapacityResolution, setPeopleCapacityResolution] = useState<PeopleCapacityResolution | null>(null);
   const [addingOrganizationPersonId, setAddingOrganizationPersonId] = useState<Id<"organizationPeople"> | null>(null);
-  const [pendingReactivation, setPendingReactivation] = useState<{
-    data: AddStaffFormData;
-    requestId: string;
-    candidates: Array<{
-      personId: Id<"organizationPeople">;
-      name: string;
-      email: string;
-    }>;
-  } | null>(null);
   const addStaffs = useShopMutation(api.staff.mutations.addStaffs);
   const addOrganizationPersonToShop = useShopMutation(api.staff.mutations.addOrganizationPersonToShop);
   const ensureShopRegistrationLink = useShopMutation(api.staffRegistration.mutations.ensureShopRegistrationLink);
@@ -63,11 +53,9 @@ export function useStaffInvitation(
   useEffect(() => {
     if (!isReadOnly) return;
     closeDialogSession();
-    reactivationDialog.close();
     setPeopleCapacityResolution(null);
     setAddingOrganizationPersonId(null);
-    setPendingReactivation(null);
-  }, [closeDialogSession, isReadOnly, reactivationDialog.close]);
+  }, [closeDialogSession, isReadOnly]);
 
   useEffect(() => {
     if (showOrganizationPeopleAddition) return;
@@ -82,50 +70,13 @@ export function useStaffInvitation(
     try {
       const requestId = crypto.randomUUID();
       const result = await addStaffs({ entries: data.entries, requestId });
-      if (result.status === "requiresConfirmation") {
-        setPendingReactivation({ data, requestId, candidates: result.candidates });
-        reactivationDialog.open();
-        return;
+      if ((result as { status: string }).status !== "added") {
+        throw new Error("スタッフ追加の処理が更新されました。画面を再読み込みして、もう一度お試しください。");
       }
       closeDialogSession();
       showSuccessToast({
-        title: "スタッフを追加し、案内通知を送りました",
-        description:
-          "同意依頼とLINE連携案内をメールで送りました。\n募集中のシフトがある場合は、提出リンクもメールで送ります。",
-      });
-    } catch (error) {
-      const resolution = classifyPeopleCapacityError(getConvexErrorMessage(error));
-      if (resolution) {
-        setPeopleCapacityResolution(resolution);
-        return;
-      }
-      showErrorToast(error);
-    } finally {
-      invitationMutationInFlightRef.current = false;
-    }
-  });
-
-  const { run: handleConfirmReactivation, isRunning: isConfirmingReactivation } = useSingleFlight(async () => {
-    if (isReadOnlyRef.current || !pendingReactivation || invitationMutationInFlightRef.current) return;
-
-    invitationMutationInFlightRef.current = true;
-    setPeopleCapacityResolution(null);
-    try {
-      const result = await addStaffs({
-        entries: pendingReactivation.data.entries,
-        requestId: pendingReactivation.requestId,
-        confirmReactivationPersonIds: pendingReactivation.candidates.map((candidate) => candidate.personId),
-      });
-      if (result.status !== "added") {
-        throw new Error("確認対象が変わりました。\n追加内容をもう一度確認してください。");
-      }
-      reactivationDialog.close();
-      closeDialogSession();
-      setPendingReactivation(null);
-      showSuccessToast({
-        title: "スタッフを再追加し、案内通知を送りました",
-        description:
-          "この店舗のスタッフとして再追加しました。\n以前の管理者権限や、ほかの店舗への所属は復元していません。",
+        title: "スタッフを追加しました",
+        description: "必要な案内通知の送信を受け付けました。\n募集中のシフトがある場合は、提出リンクも送信します。",
       });
     } catch (error) {
       const resolution = classifyPeopleCapacityError(getConvexErrorMessage(error));
@@ -244,13 +195,11 @@ export function useStaffInvitation(
     setIsRegistrationUrlLoading(false);
     setPeopleCapacityResolution(null);
     setAddingOrganizationPersonId(null);
-    setPendingReactivation(null);
-    reactivationDialog.close();
     dialog.open();
   };
 
   const handleClose = () => {
-    if (reactivationDialog.isOpen || invitationMutationInFlightRef.current) return;
+    if (invitationMutationInFlightRef.current) return;
     closeDialogSession();
   };
 
@@ -282,28 +231,5 @@ export function useStaffInvitation(
     onAddStaffs: handleAddStaffs,
     onAddOrganizationPerson: handleAddOrganizationPerson,
     onOpenBillingSettings,
-    reactivationConfirmation: {
-      dialog: {
-        isOpen: reactivationDialog.isOpen,
-        onOpenChange: ({ open }: { open: boolean }) => {
-          if (open) {
-            if (isReadOnlyRef.current || invitationMutationInFlightRef.current) return;
-            reactivationDialog.open();
-            return;
-          }
-          if (invitationMutationInFlightRef.current) return;
-          reactivationDialog.close();
-          setPendingReactivation(null);
-        },
-      },
-      candidates: pendingReactivation?.candidates ?? [],
-      isConfirming: isConfirmingReactivation,
-      onConfirm: handleConfirmReactivation,
-      onClose: () => {
-        if (invitationMutationInFlightRef.current) return;
-        reactivationDialog.close();
-        setPendingReactivation(null);
-      },
-    },
   };
 }

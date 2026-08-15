@@ -55,13 +55,6 @@ function createInvitation(
     onRetryRegistrationUrl: noop,
     onAddStaffs: noop,
     onAddOrganizationPerson: noop,
-    reactivationConfirmation: {
-      dialog: { isOpen: false, onOpenChange: noop },
-      candidates: [],
-      isConfirming: false,
-      onConfirm: noop,
-      onClose: noop,
-    },
     ...overrides,
   };
 }

@@ -15,6 +15,7 @@ import {
 import { getCanonicalManagerSettingsOverview } from "../organization/queries";
 import { getOrganizationBillingState } from "../organization/service";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
+import { resolveStaffRegistrationApprovalAvailability } from "../staffRegistration/service";
 
 const SOURCE_PAGE_SIZE = 8;
 const MAX_ACTIVE_SHOPS = 50;
@@ -61,6 +62,7 @@ const actionItemValidator = v.union(
     applicantName: v.string(),
     createdAt: v.number(),
     canApprove: v.boolean(),
+    approveDisabledReason: v.union(v.string(), v.null()),
     canReject: v.boolean(),
     occurredAt: v.number(),
   }),
@@ -643,19 +645,34 @@ async function readStaffRegistrationActions(
     shopIndex += 1;
     sourceCursor = null;
   }
+  const items = await Promise.all(
+    pageRows.map(async ({ shop, request }) => {
+      const approvalAvailability = canWrite
+        ? await resolveStaffRegistrationApprovalAvailability(ctx, {
+            organizationId: ctx.organization._id,
+            targetShopId: shop._id,
+            emailNormalized: request.emailNormalized,
+          })
+        : {
+            canApprove: false,
+            approveDisabledReason: "閲覧のみ、または契約制限中のため承認できません。",
+          };
+      return {
+        id: `staffRegistration:${request._id}`,
+        kind: "staffRegistration" as const,
+        scope: { kind: "shop" as const, organizationId: ctx.organization._id, shopId: shop._id },
+        requestId: request._id,
+        shopName: shop.name,
+        applicantName: request.name,
+        createdAt: request.createdAt,
+        ...approvalAvailability,
+        canReject: canWrite,
+        occurredAt: request.createdAt,
+      };
+    }),
+  );
   return {
-    items: pageRows.map(({ shop, request }) => ({
-      id: `staffRegistration:${request._id}`,
-      kind: "staffRegistration" as const,
-      scope: { kind: "shop" as const, organizationId: ctx.organization._id, shopId: shop._id },
-      requestId: request._id,
-      shopName: shop.name,
-      applicantName: request.name,
-      createdAt: request.createdAt,
-      canApprove: canWrite,
-      canReject: canWrite,
-      occurredAt: request.createdAt,
-    })),
+    items,
     ...(continuation ? { continuation } : {}),
   };
 }

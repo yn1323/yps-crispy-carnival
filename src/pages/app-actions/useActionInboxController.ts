@@ -224,11 +224,11 @@ export function buildActionInboxItems(
             enabled: item.canApprove,
             label: "承認する",
             emphasis: "primary",
-            disabledReason: "閲覧のみ、または契約制限中のため承認できません。",
+            disabledReason: item.approveDisabledReason ?? "この申請は現在承認できません。",
             onClick: () => commands.approveRegistration(item),
             removesItemOnSuccess: true,
             successMessage: `${item.applicantName}さんのスタッフ登録申請を承認しました。`,
-            failureMessage: "スタッフ登録申請を承認できませんでした。申請と利用人数を確認してください。",
+            failureMessage: "スタッフ登録申請を承認できませんでした。申請の状態を確認して、もう一度お試しください。",
           }),
         ],
       };

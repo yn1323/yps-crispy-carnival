@@ -9,7 +9,7 @@ import {
   seedNotificationFailure,
   seedPendingRegistrationRequests,
 } from "../_test/actionInboxFixtures";
-import { seedOrganizationManagerShop } from "../_test/seed";
+import { seedOrganizationManagerShop, seedOrganizationPersonLineLink } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { DASHBOARD_RESPONSE_COUNT_LIMIT } from "../constants";
 
@@ -99,6 +99,7 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
     ]);
     expect(result.items.find((item) => item.kind === "staffRegistration")).toMatchObject({
       canApprove: false,
+      approveDisabledReason: "閲覧のみ、または契約制限中のため承認できません。",
       canReject: false,
     });
     expect(result.items.find((item) => item.kind === "notificationFailure")).toMatchObject({
@@ -109,6 +110,94 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
       canResend: false,
       canRevoke: false,
     });
+  });
+
+  it("登録申請の承認可否と理由をDashboardと同じ判定で返す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "action_registration_approval_availability",
+        complimentary: true,
+      });
+      const now = Date.now();
+      const requests = [
+        { name: "安全な削除済み人物", email: "action-safe-removed@example.com", activeLine: false },
+        { name: "LINE状態不整合の削除済み人物", email: "action-unsafe-removed@example.com", activeLine: true },
+      ];
+      for (const request of requests) {
+        const personId = await ctx.db.insert("organizationPeople", {
+          organizationId: base.organizationId,
+          name: request.name,
+          email: request.email,
+          emailNormalized: request.email,
+          status: "removed",
+          createdAt: now,
+          updatedAt: now,
+        });
+        if (request.activeLine) {
+          await seedOrganizationPersonLineLink(ctx, {
+            organizationId: base.organizationId,
+            organizationPersonId: personId,
+            lineUserId: "U_action_unsafe_removed",
+          });
+        }
+        await ctx.db.insert("staffRegistrationRequests", {
+          shopId: base.shopId,
+          name: request.name,
+          email: request.email,
+          emailNormalized: request.email,
+          status: "pending",
+          termsConsentVersion: "terms-consent",
+          privacyConsentVersion: "privacy-consent",
+          termsDocumentVersion: "terms-document",
+          privacyDocumentVersion: "privacy-document",
+          consentedAt: now,
+          createdAt: now,
+        });
+      }
+      return base;
+    });
+    const actor = t.withIdentity({ subject: "action_registration_approval_availability" });
+
+    const inbox = await actor.query(api.appOrganization.actionInboxQueries.getActionInbox, {
+      organizationId: ids.organizationId,
+      shopFilter: ids.shopId,
+      refreshBucket: 0,
+    });
+    const dashboard = await actor.query(api.staffRegistration.queries.getPendingRequests, { shopId: ids.shopId });
+    const inboxEligibility = inbox.items
+      .filter((item) => item.kind === "staffRegistration")
+      .map(({ requestId, applicantName, canApprove, approveDisabledReason }) => ({
+        requestId,
+        name: applicantName,
+        canApprove,
+        approveDisabledReason,
+      }))
+      .sort((left, right) => left.requestId.localeCompare(right.requestId));
+    const dashboardEligibility = dashboard
+      .map(({ _id, name, canApprove, approveDisabledReason }) => ({
+        requestId: _id,
+        name,
+        canApprove,
+        approveDisabledReason,
+      }))
+      .sort((left, right) => left.requestId.localeCompare(right.requestId));
+
+    expect(inboxEligibility).toEqual(dashboardEligibility);
+    expect(inboxEligibility).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "安全な削除済み人物",
+          canApprove: true,
+          approveDisabledReason: null,
+        }),
+        expect.objectContaining({
+          name: "LINE状態不整合の削除済み人物",
+          canApprove: false,
+          approveDisabledReason: "この申請は現在承認できません。不要な申請は却下できます。",
+        }),
+      ]),
+    );
   });
 
   it("管理者招待が未公開でも残存招待の取消は維持し、再送だけを閉じる", async () => {

@@ -103,6 +103,12 @@ export class StaffLifecyclePage {
     await this.appStaff.expectPersonAbsent(name);
   }
 
+  async reloadAndExpectStaffVisible(name: string) {
+    await this.page.reload({ waitUntil: "domcontentloaded" });
+    await expectAppHydrated(this.page);
+    await this.appStaff.expectPersonVisible(name);
+  }
+
   private async expectStaffProfile(name: string, email: string) {
     await expect(this.page.getByRole("heading", { name: "スタッフ詳細", exact: true })).toBeVisible({
       timeout: STAFF_LIFECYCLE_TIMEOUT,

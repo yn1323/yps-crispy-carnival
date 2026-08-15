@@ -65,8 +65,8 @@ export function StaffRegistrationRequestManagement({
     try {
       await approveRequest({ requestId: request._id });
       showSuccessToast({
-        title: "スタッフ登録申請を承認し、案内通知を送りました",
-        description: "LINE連携案内をメールで送りました。\n募集中のシフトがある場合は、提出リンクもメールで送ります。",
+        title: "スタッフ登録申請を承認しました",
+        description: "必要な案内通知の送信を受け付けました。\n募集中のシフトがある場合は、提出リンクも送信します。",
       });
     } catch (error) {
       const resolution = classifyPeopleCapacityError(getConvexErrorMessage(error));
