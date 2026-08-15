@@ -1,5 +1,5 @@
 import { convexTest, type TestConvex } from "convex-test";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { ClerkVerifiedEmailProviderError } from "../_lib/clerkVerifiedEmailProvider";
@@ -16,6 +16,10 @@ type Deferred<T = void> = {
   promise: Promise<T>;
   resolve: (value: T | PromiseLike<T>) => void;
 };
+
+beforeEach(() => {
+  vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();

@@ -41,7 +41,7 @@ describe("sitemap generator", () => {
     const freeToolArticle = entries.find(({ loc }) => new URL(loc).pathname === "/articles/free-shift-tool-selection");
     expect(freeToolArticle).toEqual({
       loc: "https://shiftori.app/articles/free-shift-tool-selection",
-      lastmod: "2026-08-13",
+      lastmod: "2026-08-15",
     });
     expect(entries.find(({ loc }) => new URL(loc).pathname === "/articles")?.lastmod).toBeUndefined();
     expect(
@@ -98,6 +98,6 @@ describe("sitemap generator", () => {
     const sitemap = await createExpectedSitemap();
 
     expect(sitemap).toContain("<loc>https://shiftori.app/</loc>");
-    expect(sitemap).toContain("<lastmod>2026-08-13</lastmod>");
+    expect(sitemap).toContain("<lastmod>2026-08-15</lastmod>");
   });
 });

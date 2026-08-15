@@ -87,6 +87,8 @@ Dashboardから外部AIへ自動送信せず、保存後のファイルをどこ
 reset完了日の初回partialも通常の`complete`日次として期間集計と比較へ含め、専用の注記や警告は表示しません。
 `/requests`はAnalytics runの状態を画面表示せず、現在の要望を独立した一覧として表示します。
 
+要望の対象には店舗名、または「組織名（組織全体）」を表示します。
+
 | 状態 | 表示 |
 |---|---|
 | 正確な0 | `0`または`0%` |
@@ -216,7 +218,9 @@ cutoff以後の活動値と日次KPIの`hasRecentActivity`、`activeShopCount`�
 切替前から存在する店舗も、切替後の現在値、health、完全なcycle rateを表示します。
 切替前には正確に復元できない初回募集以降のmilestoneは、未達ではなく「算出対象外」と表示します。
 
-要望一覧はAnalytics runへ混ぜず、独立した`/requests`契約として残します。これはDashboard queryが運用tableを読まない原則の唯一の例外で、`featureRequests`と現在の`shops`を直接読み、一page最大50件を返します。
+要望一覧はAnalytics runへ混ぜず、独立した`/requests`契約として残します。
+
+これはDashboard queryが運用tableを読まない原則の唯一の例外で、`featureRequests`と現在の`organizations`または`shops`を直接読み、一page最大50件を返します。
 組織名と店舗名は内部識別のため返しますが、staff email、manager email、token、通知本文、provider raw errorはDTOへ含めません。
 
 ## セキュリティと運用

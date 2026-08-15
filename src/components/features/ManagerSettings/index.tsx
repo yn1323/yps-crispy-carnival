@@ -1,15 +1,22 @@
+import type { Id } from "@/convex/_generated/dataModel";
 import { ManagerSettingsConfirmationDialog } from "./ManagerSettingsConfirmationDialog";
 import { ManagerSettingsView } from "./ManagerSettingsView";
 import type { ReadyManagerSettingsOverview } from "./types";
 import { useManagerSettingsController } from "./useManagerSettingsController";
 
-export function ManagerSettings({ overview, shopId }: { overview: ReadyManagerSettingsOverview; shopId: string }) {
-  const controller = useManagerSettingsController({ overview, shopId });
+export function ManagerSettings({
+  overview,
+  organizationId,
+}: {
+  overview: ReadyManagerSettingsOverview;
+  organizationId: Id<"organizations">;
+}) {
+  const controller = useManagerSettingsController({ overview, organizationId });
   return (
     <>
       <ManagerSettingsView
         overview={overview}
-        shopId={shopId}
+        organizationId={organizationId}
         onBack={controller.onBack}
         onRequestResend={controller.onRequestResend}
         onRequestRevoke={controller.onRequestRevoke}
@@ -25,8 +32,9 @@ export function ManagerSettings({ overview, shopId }: { overview: ReadyManagerSe
   );
 }
 
+export { ManagerCandidateListView } from "./ManagerCandidateListView";
 export { ManagerCandidatePageContent } from "./ManagerCandidatePageContent";
-export { ManagerExternalInviteForm } from "./ManagerExternalInviteForm";
+export { ManagerExternalInviteForm, ManagerExternalInviteFormView } from "./ManagerExternalInviteForm";
 export {
   ManagerCandidatePageSkeleton,
   ManagerExternalInvitePageSkeleton,

@@ -1,4 +1,4 @@
-import { Alert, Badge, Box, Flex, Grid, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import { Alert, Badge, Box, chakra, Flex, Grid, Heading, HStack, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
 import {
   LuCalendarClock,
   LuChevronRight,
@@ -10,7 +10,7 @@ import {
   LuReceiptText,
 } from "react-icons/lu";
 import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
-import { Button, IconButton } from "@/src/components/ui/Button";
+import { Button } from "@/src/components/ui/Button";
 import {
   type BillingPlanAction,
   formatPlanPrice,
@@ -164,17 +164,12 @@ export const PlanAndPaymentSection = ({
           : "確認中");
   return (
     <Stack gap={{ base: 6, md: 7 }}>
-      <Stack as="section" gap={4} aria-labelledby="plan-heading">
-        <Stack gap={2}>
-          <Heading id="plan-heading" as="h2" fontSize="lg">
-            プラン
-          </Heading>
-          {!billing.isComplimentary && !billing.canManagePlan && billing.managePlanDisabledReason && (
-            <Text id="organization-billing-manage-plan-disabled-reason" fontSize="sm" color="orange.700">
-              {billing.managePlanDisabledReason}
-            </Text>
-          )}
-        </Stack>
+      <Stack gap={4}>
+        {!billing.isComplimentary && !billing.canManagePlan && billing.managePlanDisabledReason && (
+          <Text id="organization-billing-manage-plan-disabled-reason" fontSize="sm" color="orange.700">
+            {billing.managePlanDisabledReason}
+          </Text>
+        )}
 
         <PlanSummary
           billing={billing}
@@ -252,7 +247,7 @@ function PlanSummary({
           py={{ base: 4, md: 5 }}
           justify="center"
         >
-          <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
+          <Text textStyle="label" fontWeight="semibold" color="fg.muted">
             {currentPlanHeading}
           </Text>
           <HStack gap={2} wrap="wrap">
@@ -271,12 +266,12 @@ function PlanSummary({
             )}
           </HStack>
           {currentPlanDescription && (
-            <Text fontSize="xs" color="fg.muted">
+            <Text textStyle="bodySm" color="fg.muted">
               {currentPlanDescription}
             </Text>
           )}
           {billing.isComplimentary && (
-            <Text fontSize="xs" color="fg.muted">
+            <Text textStyle="bodySm" color="fg.muted">
               早期登録特典によりBusinessプラン相当の機能をずっと無料で利用できます。
             </Text>
           )}
@@ -292,7 +287,7 @@ function PlanSummary({
           borderColor="blackAlpha.100"
           justify="center"
         >
-          <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
+          <Text textStyle="label" fontWeight="semibold" color="fg.muted">
             状態
           </Text>
           <BillingStatus state={billing.state} status={presentation.status} label={billingStatusLabel(billing.state)} />
@@ -307,7 +302,7 @@ function PlanSummary({
           borderColor="blackAlpha.100"
           justify="center"
         >
-          <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
+          <Text textStyle="label" fontWeight="semibold" color="fg.muted">
             {billing.nextEvent?.label ?? "次の支払日"}
           </Text>
           <HStack gap={1.5} align="flex-start">
@@ -319,7 +314,7 @@ function PlanSummary({
             </Text>
           </HStack>
           {billing.state === "trial" && (
-            <Text fontSize="xs" color="fg.muted" lineHeight="tall">
+            <Text textStyle="bodySm" color="fg.muted">
               {trialContinuationDescription(billing)}
             </Text>
           )}
@@ -384,9 +379,9 @@ function PlanComparisonCards({
               />
 
               <Stack gap={1} color="fg.muted">
-                <Text fontSize="xs">利用人数 {limits.maxPeople}名まで</Text>
-                <Text fontSize="xs">店舗 {limits.maxActiveShops}店舗まで</Text>
-                <Text fontSize="xs">管理者 {limits.maxActiveManagers}名まで</Text>
+                <Text textStyle="sm">利用人数 {limits.maxPeople}名まで</Text>
+                <Text textStyle="sm">店舗 {limits.maxActiveShops}店舗まで</Text>
+                <Text textStyle="sm">管理者 {limits.maxActiveManagers}名まで</Text>
               </Stack>
 
               {action && action.kind !== "openPortal" && (
@@ -638,7 +633,7 @@ function PaymentInformation({
       </Heading>
       <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
         {billing.isComplimentary ? (
-          <Text px={{ base: 4, md: 5 }} py={4} fontSize="12px">
+          <Text px={{ base: 4, md: 5 }} py={4} textStyle="bodySm">
             早期登録特典により利用料金はかかりません。
           </Text>
         ) : (
@@ -701,11 +696,38 @@ function BillingInformationRow({
   disabledReasonId: string;
   showDisabledReason?: boolean;
 }) {
-  const descriptionId = disabled && disabledReason && showDisabledReason ? disabledReasonId : undefined;
+  const descriptionId = disabled && disabledReason ? disabledReasonId : undefined;
 
   return (
-    <Stack gap={1.5} px={{ base: 3, md: 4 }} py={{ base: 3, md: 2.5 }}>
-      <Flex align="center" gap={{ base: 2, md: 3 }}>
+    <Stack gap={0}>
+      <chakra.button
+        type="button"
+        aria-label={actionLabel}
+        aria-describedby={descriptionId}
+        disabled={disabled}
+        title={disabled ? disabledReason : undefined}
+        display="flex"
+        alignItems="center"
+        gap={{ base: 2.5, md: 3 }}
+        w="full"
+        minH="64px"
+        px={{ base: 3, md: 4 }}
+        py={3.5}
+        textAlign="left"
+        bg="transparent"
+        color="gray.900"
+        cursor={disabled ? "not-allowed" : "pointer"}
+        opacity={disabled ? 0.64 : 1}
+        transition="background-color 150ms ease"
+        _hover={disabled ? undefined : { bg: "gray.50" }}
+        _focusVisible={{
+          outlineWidth: "2px",
+          outlineStyle: "solid",
+          outlineColor: "teal.500",
+          outlineOffset: "-2px",
+        }}
+        onClick={onAction}
+      >
         <Box color="gray.700" flexShrink={0}>
           <RowIcon aria-hidden />
         </Box>
@@ -718,55 +740,32 @@ function BillingInformationRow({
           alignItems="center"
           gap={{ base: 2, md: 4 }}
         >
-          <Text fontSize={{ base: "xs", md: "sm" }} fontWeight="semibold" color="gray.700">
+          <Text textStyle="label" fontWeight="semibold" color="gray.700">
             {label}
           </Text>
           {value && (
-            <Text
-              fontSize={{ base: "xs", md: "sm" }}
-              color="gray.900"
-              fontWeight={{ base: "normal", md: "medium" }}
-              overflowWrap="anywhere"
-            >
+            <Text textStyle="sm" color="gray.900" fontWeight="medium" overflowWrap="anywhere">
               {value}
             </Text>
           )}
         </Grid>
-        <Button
-          display={{ base: "none", md: "inline-flex" }}
-          size="sm"
-          variant="solid"
-          colorPalette="teal"
-          flexShrink={0}
-          onClick={onAction}
-          disabled={disabled}
-          title={disabled ? disabledReason : undefined}
-          aria-describedby={descriptionId}
-        >
-          {actionLabel}
-        </Button>
-        <IconButton
-          display={{ base: "inline-flex", md: "none" }}
-          size="sm"
-          minW="44px"
-          minH="44px"
-          variant="solid"
-          colorPalette="teal"
-          flexShrink={0}
-          aria-label={actionLabel}
-          onClick={onAction}
-          disabled={disabled}
-          title={disabled ? disabledReason : undefined}
-          aria-describedby={descriptionId}
-        >
+        <Flex color="fg.muted" fontSize="lg" flexShrink={0} aria-hidden>
           <LuChevronRight aria-hidden />
-        </IconButton>
-      </Flex>
-      {descriptionId && (
-        <Text id={disabledReasonId} ml={{ base: 7, md: 8 }} fontSize="xs" color="orange.700">
+        </Flex>
+      </chakra.button>
+      {descriptionId && showDisabledReason && (
+        <Text
+          id={disabledReasonId}
+          px={{ base: 3, md: 4 }}
+          pb={3}
+          ps={{ base: 10, md: 11 }}
+          textStyle="bodySm"
+          color="orange.700"
+        >
           {disabledReason}
         </Text>
       )}
+      {descriptionId && !showDisabledReason && <VisuallyHidden id={disabledReasonId}>{disabledReason}</VisuallyHidden>}
     </Stack>
   );
 }

@@ -24,3 +24,9 @@ export const Mobile: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
 };
+
+export const AppShellMobile: Story = {
+  args: { includeMobileNavigation: true },
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};

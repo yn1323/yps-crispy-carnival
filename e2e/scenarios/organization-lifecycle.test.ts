@@ -26,23 +26,23 @@ test.describe("組織ライフサイクル", { tag: ["@e2e-core"] }, () => {
     const organization = new OrganizationLifecyclePage(page);
     const dashboard = new DashboardPage(page);
 
-    await organization.gotoSettings(seed.shopId);
-    const createdShopId = await organization.createOrganization(createdShopName);
-    await dashboard.expectSelectedShop(createdShopName, createdShopId);
+    await organization.gotoManagement(seed.organizationId);
+    const created = await organization.createOrganization(createdShopName);
+    await dashboard.expectSelectedShop(createdShopName, created.organizationId, created.shopId);
 
-    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.reload({ waitUntil: "commit" });
     await expectAppHydrated(page);
-    await dashboard.expectSelectedShop(createdShopName, createdShopId);
+    await dashboard.expectSelectedShop(createdShopName, created.organizationId, created.shopId);
 
-    await organization.gotoSettings(createdShopId);
-    await organization.expectCurrentOrganization(createdOrganizationName);
+    await organization.gotoOrganization(created.organizationId);
+    await organization.expectCurrentOrganization(created.organizationId, createdOrganizationName);
     await organization.renameCurrentOrganization(renamedOrganizationName);
-    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.reload({ waitUntil: "commit" });
     await expectAppHydrated(page);
-    await organization.expectCurrentOrganization(renamedOrganizationName);
+    await organization.expectCurrentOrganization(created.organizationId, renamedOrganizationName);
 
-    await organization.switchOrganization(seed.organizationName, seed.shopId);
-    await organization.switchOrganization(renamedOrganizationName, createdShopId);
+    await organization.switchOrganization(seed.organizationName, seed.organizationId);
+    await organization.switchOrganization(renamedOrganizationName, created.organizationId);
   });
 
   test("[E2E-ORGANIZATION-02] 組織を削除し、残した組織の店舗で管理を継続する", async ({ page }) => {
@@ -50,22 +50,29 @@ test.describe("組織ライフサイクル", { tag: ["@e2e-core"] }, () => {
     const organization = new OrganizationLifecyclePage(page);
     const dashboard = new DashboardPage(page);
 
-    await organization.gotoSettings(seed.targetShopId);
-    await organization.expectCurrentOrganization(seed.targetOrganizationName);
+    await organization.gotoOrganization(seed.targetOrganizationId);
+    await organization.expectCurrentOrganization(seed.targetOrganizationId, seed.targetOrganizationName);
     await organization.deleteCurrentOrganization(seed.targetOrganizationName);
 
     await expect(page).toHaveURL(
-      (url) => url.pathname === "/dashboard" && url.searchParams.get("shop") === seed.alternateShopId,
+      (url) =>
+        url.pathname === "/dashboard" &&
+        url.searchParams.get("org") === seed.alternateOrganizationId &&
+        url.searchParams.get("shop") === seed.alternateShopId,
       { timeout: 20_000 },
     );
     await expectAppHydrated(page);
-    await dashboard.expectSelectedShop(seed.alternateShopName, seed.alternateShopId);
+    await dashboard.expectSelectedShop(seed.alternateShopName, seed.alternateOrganizationId, seed.alternateShopId);
 
-    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.reload({ waitUntil: "commit" });
     await expectAppHydrated(page);
-    await dashboard.expectSelectedShop(seed.alternateShopName, seed.alternateShopId);
+    await dashboard.expectSelectedShop(seed.alternateShopName, seed.alternateOrganizationId, seed.alternateShopId);
 
-    await organization.gotoSettings(seed.alternateShopId);
-    await organization.expectOnlyOrganization(seed.alternateOrganizationName, seed.targetOrganizationName);
+    await organization.gotoOrganization(seed.alternateOrganizationId);
+    await organization.expectOnlyOrganization(
+      seed.alternateOrganizationId,
+      seed.alternateOrganizationName,
+      seed.targetOrganizationName,
+    );
   });
 });

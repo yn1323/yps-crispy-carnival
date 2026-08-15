@@ -73,7 +73,7 @@ export function StaffRegistrationLinkPanel({ registrationUrl, isLoading, hasErro
           }
         </Text>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          登録申請を承認すると、スタッフにLINE連携の案内を送ります。
+          登録申請の承認後、LINE未連携の場合はスタッフに連携の案内を送ります。
           <br />
           募集中のシフトがある場合は、シフト提出リンクもあわせて送ります。
         </Text>

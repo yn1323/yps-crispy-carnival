@@ -11,7 +11,6 @@ import { createScenario } from "../_test/scenarioFixtures";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const SETUP_MANAGER_SUBJECT = "scenario_setup_manager";
-const INITIAL_TRIAL_ENDS_AT = Date.parse("2026-07-10T00:00:00+09:00");
 
 describe("管理者セットアップシナリオ", () => {
   beforeEach(() => {
@@ -22,6 +21,7 @@ describe("管理者セットアップシナリオ", () => {
     vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_manager_setup_pro");
     vi.stubEnv("STRIPE_BUSINESS_PRICE_ID", "price_manager_setup_business");
     vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "bpc_manager_setup");
+    vi.stubEnv("FEATURE_BILLING", "true");
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -59,17 +59,15 @@ describe("管理者セットアップシナリオ", () => {
       canWriteBusinessData: true,
       name: "初回セットアップ店舗",
       planStatus: {
-        canManagePlan: true,
+        canManagePlan: false,
         canUpdatePaymentMethod: false,
-        kind: "trial",
-        trialEndsAt: INITIAL_TRIAL_ENDS_AT,
+        isComplimentary: true,
+        kind: "paidPlan",
+        plan: "business",
       },
       regularClosedDays: [],
       submissionPattern: { kind: "dateOnly" },
-      trialEndingNotice: {
-        trialEndsAt: INITIAL_TRIAL_ENDS_AT,
-        visibleFrom: Date.parse("2026-07-03T00:00:00+09:00"),
-      },
+      trialEndingNotice: null,
     });
     expect(staffPage.page).toMatchObject([{ name: "山田 太郎", email: "manager@example.com", isManager: true }]);
     expect(consentStatus.required).toBe(false);

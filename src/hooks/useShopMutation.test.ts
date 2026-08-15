@@ -2,9 +2,16 @@
 
 import { renderHook } from "@testing-library/react";
 import type { FunctionReference } from "convex/server";
+import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
 
-type TestMutation = FunctionReference<"mutation", "public", { label: string; shopId: string }, { saved: boolean }>;
+type TestMutation = FunctionReference<
+  "mutation",
+  "public",
+  { label: string; shopId: string; expectedOrganizationId?: string },
+  { saved: boolean }
+>;
 
 const mocks = vi.hoisted(() => ({
   mutate: vi.fn(),
@@ -49,6 +56,27 @@ describe("useShopMutation", () => {
     await expect(result.current({ label: "募集A" })).rejects.toThrow("店舗が選択されていません");
 
     expect(mocks.mutate).not.toHaveBeenCalled();
+  });
+
+  it("app routeの明示scopeを保存済み店舗より優先する", async () => {
+    mocks.selectedShop = { shopId: "stale-shop", shopName: "別組織の店舗" };
+    mocks.mutate.mockResolvedValueOnce({ saved: true });
+    const { result } = renderHook(() => useShopMutation(mutationRef), {
+      wrapper: ({ children }: { children: ReactNode }) =>
+        createElement(ManagerShopScopeProvider, {
+          shopId: "shop-app",
+          expectedOrganizationId: "organization-app",
+          children,
+        }),
+    });
+
+    await result.current({ label: "募集A" });
+
+    expect(mocks.mutate).toHaveBeenCalledWith({
+      label: "募集A",
+      shopId: "shop-app",
+      expectedOrganizationId: "organization-app",
+    });
   });
 
   it("店舗選択が変わった後は最新の店舗IDを使う", async () => {

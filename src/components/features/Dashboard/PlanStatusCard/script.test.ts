@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPlanStatusCardData,
   formatJstDate,
+  formatJstDateWithWeekday,
   getPlanStatusNextTimeBoundary,
   getPlanStatusTimerDelay,
   MAX_PLAN_STATUS_TIMER_DELAY_MS,
@@ -17,7 +18,7 @@ describe("buildPlanStatusCardData", () => {
     expect(buildPlanStatusCardData({ kind: "trial", trialEndsAt, ...actions }, now)).toEqual({
       kind: "trial",
       remainingDays: 7,
-      trialEndsOnLabel: "2026/8/16",
+      trialEndsOnLabel: "8/16(日)",
       continuationPlanName: undefined,
       description:
         "未選択のまま終了すると利用停止になります。データは削除されないため、継続して利用するにはプランを選んでください。",
@@ -219,6 +220,10 @@ describe("buildPlanStatusCardData", () => {
 describe("JSTの日付表示", () => {
   it("UTCでは前日でもJSTの日付で表示する", () => {
     expect(formatJstDate(Date.parse("2026-08-16T15:00:00.000Z"))).toBe("2026/8/17");
+  });
+
+  it("JSTの日付を月日と曜日1文字で表示する", () => {
+    expect(formatJstDateWithWeekday(Date.parse("2026-08-16T15:00:00.000Z"))).toBe("8/17(月)");
   });
 
   it("時刻差ではなくJSTの暦日差を残日数にする", () => {

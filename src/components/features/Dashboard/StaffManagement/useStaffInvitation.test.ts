@@ -43,7 +43,7 @@ beforeEach(() => {
 });
 
 describe("useStaffInvitation", () => {
-  it("利用人数上限エラーを解決導線へ変換し、自動で再追加しない", async () => {
+  it("利用人数上限エラーを解決導線へ変換し、自動で再実行しない", async () => {
     mocks.addStaffs.mockRejectedValue(new Error("利用人数が現在のプラン上限を超えます。\n現在30名、上限30名です。"));
     const { result } = renderHook(() => useStaffInvitation(false, true));
 
@@ -56,54 +56,44 @@ describe("useStaffInvitation", () => {
     expect(mocks.showErrorToast).not.toHaveBeenCalled();
   });
 
-  it("削除済み人物は登録情報を確認して同じrequestIdで明示再追加する", async () => {
-    mocks.addStaffs
-      .mockResolvedValueOnce({
-        status: "requiresConfirmation",
-        candidates: [
-          {
-            personId: "person-removed",
-            name: "登録済み 花子",
-            email: "hanako@example.com",
-          },
-        ],
-      })
-      .mockResolvedValueOnce({ status: "added", staffIds: ["staff-reactivated"] });
+  it("削除履歴を画面へ出さず、一度の通常追加として完了する", async () => {
+    mocks.addStaffs.mockResolvedValueOnce({ status: "added", staffIds: ["staff-reactivated"] });
     const data = { entries: [{ name: "入力名", email: "hanako@example.com" }] };
     const { result } = renderHook(() => useStaffInvitation());
 
+    act(() => result.current.onOpen());
     await act(async () => {
       await result.current.onAddStaffs(data);
     });
 
-    expect(result.current.reactivationConfirmation.dialog.isOpen).toBe(true);
-    expect(result.current.reactivationConfirmation.candidates).toEqual([
-      {
-        personId: "person-removed",
-        name: "登録済み 花子",
-        email: "hanako@example.com",
-      },
-    ]);
-    expect(mocks.addStaffs).toHaveBeenNthCalledWith(1, {
+    expect(mocks.addStaffs).toHaveBeenCalledOnce();
+    expect(mocks.addStaffs).toHaveBeenCalledWith({
       entries: data.entries,
       requestId: "3fe27945-d0b8-4ea4-bd24-5ce95738af27",
     });
-
-    await act(async () => {
-      await result.current.reactivationConfirmation.onConfirm();
+    expect(result.current.dialog.isOpen).toBe(false);
+    expect(result.current).not.toHaveProperty("reactivationConfirmation");
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
+      title: "スタッフを追加しました",
+      description: "必要な案内通知の送信を受け付けました。\n募集中のシフトがある場合は、提出リンクも送信します。",
     });
-
-    expect(mocks.addStaffs).toHaveBeenNthCalledWith(2, {
-      entries: data.entries,
-      requestId: "3fe27945-d0b8-4ea4-bd24-5ce95738af27",
-      confirmReactivationPersonIds: ["person-removed"],
-    });
-    expect(result.current.reactivationConfirmation.dialog.isOpen).toBe(false);
-    expect(result.current.reactivationConfirmation.candidates).toEqual([]);
-    expect(mocks.showSuccessToast).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "スタッフを再追加し、案内通知を送りました" }),
-    );
     expect(mocks.showErrorToast).not.toHaveBeenCalled();
+  });
+
+  it("旧backendの未確定responseを成功扱いせず、再読み込みを案内する", async () => {
+    mocks.addStaffs.mockResolvedValueOnce({ status: "legacy-unconfirmed", candidates: [] });
+    const { result } = renderHook(() => useStaffInvitation());
+
+    act(() => result.current.onOpen());
+    await act(async () => {
+      await result.current.onAddStaffs({ entries: [{ name: "入力名", email: "hanako@example.com" }] });
+    });
+
+    expect(result.current.dialog.isOpen).toBe(true);
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+    expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(
+      new Error("スタッフ追加の処理が更新されました。画面を再読み込みして、もう一度お試しください。"),
+    );
   });
 
   it("閲覧専用へ切り替わると招待Dialogを閉じ、以後の追加処理を開始しない", async () => {

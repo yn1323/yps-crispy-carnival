@@ -81,9 +81,13 @@ const notificationItems: StaffNotificationHistoryItem[] = [
   },
 ];
 
-const notificationHistory = <StaffNotificationHistoryView items={notificationItems} />;
+const notificationHistory = (lineConnectionStatus: "linked" | "unlinked") => (
+  <StaffNotificationHistoryView items={notificationItems} lineConnectionStatus={lineConnectionStatus} />
+);
 
-const notificationHistoryLoading = <StaffNotificationHistoryView items={[]} isLoading />;
+const notificationHistoryLoading = (lineConnectionStatus: "linked" | "unlinked") => (
+  <StaffNotificationHistoryView items={[]} isLoading lineConnectionStatus={lineConnectionStatus} />
+);
 
 const baseState: UserShopDetailViewProps["state"] = {
   notifications: {
@@ -147,7 +151,7 @@ const meta = {
     data,
     membership,
     isStoreReadOnly: false,
-    notificationHistory,
+    notificationHistory: notificationHistory("unlinked"),
     state: baseState,
     actions: baseActions,
   },
@@ -175,7 +179,7 @@ const initialDataLoadedState: UserShopDetailViewProps["state"] = {
 
 export const InitialDataLoaded: Story = {
   args: {
-    notificationHistory: notificationHistoryLoading,
+    notificationHistory: notificationHistoryLoading("unlinked"),
     state: initialDataLoadedState,
   },
 };
@@ -184,7 +188,7 @@ export const InitialDataLoadedMobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   args: {
-    notificationHistory: notificationHistoryLoading,
+    notificationHistory: notificationHistoryLoading("unlinked"),
     state: initialDataLoadedState,
   },
 };
@@ -197,6 +201,7 @@ export const Mobile: Story = {
       ...data,
       line: { ...data.line, status: "linked_unfollowed", canDisconnect: true },
     },
+    notificationHistory: notificationHistory("linked"),
   },
 };
 
@@ -250,7 +255,7 @@ function NotificationLoadingHarness() {
         data={data}
         membership={membership}
         isStoreReadOnly={false}
-        notificationHistory={isLoaded ? notificationHistory : notificationHistoryLoading}
+        notificationHistory={isLoaded ? notificationHistory("unlinked") : notificationHistoryLoading("unlinked")}
         state={{
           ...baseState,
           notifications: {
@@ -272,7 +277,7 @@ export const NotificationLoadingBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvas.getByRole("heading", { name: "LINE通知" })).toBeInTheDocument();
+    await expect(canvas.getByRole("heading", { name: "通知" })).toBeInTheDocument();
     await expect(canvas.getByLabelText("通知情報を読み込み中")).toBeInTheDocument();
     await userEvent.click(canvas.getByRole("button", { name: "通知情報の取得を完了" }));
 
@@ -280,7 +285,7 @@ export const NotificationLoadingBehavior: Story = {
     await expect(resendButtons).toHaveLength(2);
     await expect(resendButtons[0]).toBeEnabled();
     await expect(canvas.queryByLabelText("通知情報を読み込み中")).not.toBeInTheDocument();
-    await expect(canvas.getByRole("heading", { name: "LINE通知" })).toBeInTheDocument();
+    await expect(canvas.getByRole("heading", { name: "通知" })).toBeInTheDocument();
   },
 };
 
@@ -297,7 +302,7 @@ function InteractionHarness() {
         data={data}
         membership={membership}
         isStoreReadOnly={false}
-        notificationHistory={notificationHistory}
+        notificationHistory={notificationHistory("unlinked")}
         state={{
           ...baseState,
           notifications: {
@@ -324,6 +329,7 @@ export const LineLinked: Story = {
       ...data,
       line: { ...data.line, status: "linked_following", canDisconnect: true },
     },
+    notificationHistory: notificationHistory("linked"),
   },
 };
 
@@ -333,6 +339,7 @@ export const LineUnavailable: Story = {
       ...data,
       line: { ...data.line, status: "linked_unfollowed", canDisconnect: true },
     },
+    notificationHistory: notificationHistory("linked"),
   },
 };
 

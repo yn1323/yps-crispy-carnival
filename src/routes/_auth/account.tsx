@@ -2,74 +2,53 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect } from "react";
 import { AccountSecurityPage, type AccountSecurityPageFlow } from "@/src/pages/account-security";
 import { buildAccountSecurityPageHead } from "@/src/pages/account-security/meta";
+import {
+  buildCanonicalAccountSecuritySearch,
+  clearAccountSecurityFlowSearch,
+  clearAccountSecurityOAuthSearch,
+  needsAccountSecuritySearchCanonicalization,
+  validateAccountSecuritySearch,
+} from "@/src/pages/account-security/search";
 
-export type AccountSecuritySearch = {
-  flow?: AccountSecurityPageFlow;
-  oauth?: "google";
-};
+export type { AccountSecuritySearch } from "@/src/pages/account-security/search";
+export {
+  buildCanonicalAccountSecuritySearch,
+  buildCanonicalAccountSecuritySearchString,
+  clearAccountSecurityFlowSearch,
+  clearAccountSecurityOAuthSearch,
+  needsAccountSecuritySearchCanonicalization,
+  validateAccountSecuritySearch,
+} from "@/src/pages/account-security/search";
 
 export const Route = createFileRoute("/_auth/account")({
   validateSearch: validateAccountSecuritySearch,
   head: buildAccountSecurityPageHead,
+  staticData: { appShell: { mode: "navigation", activeKey: null } },
   component: AccountSecurityRoute,
 });
 
-export function validateAccountSecuritySearch(search: Record<string, unknown>): AccountSecuritySearch {
-  const flow = isAccountSecurityFlow(search.flow) ? search.flow : undefined;
-  const oauth = search.oauth === "google" && isGoogleOAuthFlow(flow) ? "google" : undefined;
-  return {
-    ...(flow ? { flow } : {}),
-    ...(oauth ? { oauth } : {}),
-  };
-}
-
-export function clearAccountSecurityOAuthSearch(search: Record<string, unknown>) {
-  const { flow } = validateAccountSecuritySearch(search);
-  return { ...(flow ? { flow } : {}), oauth: undefined, shop: undefined };
-}
-
-export function clearAccountSecurityFlowSearch() {
-  return { flow: undefined, oauth: undefined, shop: undefined };
-}
-
-export function buildCanonicalAccountSecuritySearch(search: Record<string, unknown>): AccountSecuritySearch {
-  return validateAccountSecuritySearch(search);
-}
-
-export function buildCanonicalAccountSecuritySearchString(search: Record<string, unknown>): string {
-  const canonical = buildCanonicalAccountSecuritySearch(search);
-  const params = new URLSearchParams();
-  if (canonical.flow) params.set("flow", canonical.flow);
-  if (canonical.oauth) params.set("oauth", canonical.oauth);
-  const value = params.toString();
-  return value ? `?${value}` : "";
-}
-
-export function needsAccountSecuritySearchCanonicalization(
-  rawSearch: string,
-  validatedSearch: AccountSecuritySearch,
-): boolean {
-  return rawSearch !== buildCanonicalAccountSecuritySearchString(validatedSearch);
-}
-
 function AccountSecurityRoute() {
   const navigate = Route.useNavigate();
-  const { flow, oauth } = Route.useSearch();
+  const { flow, oauth, org } = Route.useSearch();
 
   useEffect(() => {
-    const validatedSearch = { ...(flow ? { flow } : {}), ...(oauth ? { oauth } : {}) };
+    const validatedSearch = {
+      ...(org ? { org } : {}),
+      ...(flow ? { flow } : {}),
+      ...(oauth ? { oauth } : {}),
+    };
     if (!needsAccountSecuritySearchCanonicalization(window.location.search, validatedSearch)) return;
     void navigate({
       replace: true,
       search: () => buildCanonicalAccountSecuritySearch(validatedSearch),
     });
-  }, [flow, navigate, oauth]);
+  }, [flow, navigate, oauth, org]);
 
   const handleStartFlow = useCallback(
     (nextFlow: AccountSecurityPageFlow) => {
-      void navigate({ search: () => ({ flow: nextFlow, oauth: undefined, shop: undefined }) });
+      void navigate({ search: () => ({ org, flow: nextFlow, oauth: undefined, shop: undefined }) });
     },
-    [navigate],
+    [navigate, org],
   );
   const handleBackToOverview = useCallback(() => {
     void navigate({ replace: true, search: clearAccountSecurityFlowSearch });
@@ -83,6 +62,7 @@ function AccountSecurityRoute() {
 
   return (
     <AccountSecurityPage
+      includeMobileNavigation
       flow={flow}
       oauth={oauth}
       onStartFlow={handleStartFlow}
@@ -90,12 +70,4 @@ function AccountSecurityRoute() {
       onGoogleOAuthReturnHandled={handleGoogleOAuthReturn}
     />
   );
-}
-
-function isAccountSecurityFlow(value: unknown): value is AccountSecurityPageFlow {
-  return value === "add-email-password" || value === "connect-google";
-}
-
-function isGoogleOAuthFlow(flow: AccountSecurityPageFlow | undefined) {
-  return flow === "connect-google";
 }

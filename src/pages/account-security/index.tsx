@@ -8,6 +8,7 @@ import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 export type AccountSecurityPageFlow = LoginMethodMigrationFlow;
 
 type AccountSecurityPageProps = {
+  includeMobileNavigation?: boolean;
   flow?: AccountSecurityPageFlow;
   oauth?: "google";
   onStartFlow?: (flow: AccountSecurityPageFlow) => void;
@@ -16,6 +17,7 @@ type AccountSecurityPageProps = {
 };
 
 export function AccountSecurityPage({
+  includeMobileNavigation = false,
   flow,
   oauth,
   onStartFlow,
@@ -23,7 +25,7 @@ export function AccountSecurityPage({
   onGoogleOAuthReturnHandled,
 }: AccountSecurityPageProps) {
   return (
-    <AuthenticatedPageContent>
+    <AuthenticatedPageContent includeMobileNavigation={includeMobileNavigation}>
       <Stack gap={3}>
         <DetailPageHeader title="アカウント設定" icon={LuUserRound} onBack={() => window.history.back()} />
         <LoginMethods

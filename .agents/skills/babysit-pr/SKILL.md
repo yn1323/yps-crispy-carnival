@@ -8,6 +8,12 @@ description: ユーザーが`$babysit-pr`を明示したとき、現在のchecko
 このSkillの明示的な呼び出しを、依頼範囲の修正、テスト更新、commit、push、Pull Request作成、CI再実行の許可として扱う。
 新しいbranchやworktreeの作成、依頼外の変更、secretの変更、VRT差分の承認は許可に含めない。
 
+## 併用スキル
+
+複数fileにまたがる大きなlocal diff、取得済みの大きなGHA logからの事実抽出、親Agentが選んだlocalのtest・lint・buildの実行・log整理では、`$delegate-bounded-repo-work`を併用する。
+対象判定、固定model、委譲契約は同Skillを正本とする。
+GitHub・GHAへの接続と監視、失敗原因と修正要否の判断、修正、rerun、stage、commit、push、Pull Request作成は本Skillの親Agentが判断・実行する。
+
 ## ゴールを設定する
 
 goal追跡機能を利用でき、未完了のgoalがない場合は、次の内容を一つのgoalとして設定する。

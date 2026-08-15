@@ -2,12 +2,19 @@
 
 import { renderHook } from "@testing-library/react";
 import type { FunctionReference, PaginationResult } from "convex/server";
+import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
 
 type TestQuery = FunctionReference<
   "query",
   "public",
-  { label: string; shopId: string; paginationOpts: { numItems: number; cursor: string | null } },
+  {
+    label: string;
+    shopId: string;
+    expectedOrganizationId?: string;
+    paginationOpts: { numItems: number; cursor: string | null };
+  },
   PaginationResult<{ name: string }>
 >;
 
@@ -48,6 +55,25 @@ describe("useShopCustomPaginatedQuery", () => {
     renderHook(() => useShopCustomPaginatedQuery(queryRef, { label: "募集A" }, options));
 
     expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(queryRef, "skip", options);
+  });
+
+  it("app routeの明示scopeを保存済み店舗より優先する", () => {
+    mocks.selectedShop = { shopId: "stale-shop", shopName: "別組織の店舗" };
+
+    renderHook(() => useShopCustomPaginatedQuery(queryRef, { label: "募集A" }, options), {
+      wrapper: ({ children }: { children: ReactNode }) =>
+        createElement(ManagerShopScopeProvider, {
+          shopId: "shop-app",
+          expectedOrganizationId: "organization-app",
+          children,
+        }),
+    });
+
+    expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(
+      queryRef,
+      { label: "募集A", shopId: "shop-app", expectedOrganizationId: "organization-app" },
+      options,
+    );
   });
 
   it("呼び出し側のskipを維持する", () => {

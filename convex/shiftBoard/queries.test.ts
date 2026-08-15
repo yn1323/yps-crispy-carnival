@@ -11,6 +11,68 @@ describe("shiftBoard/queries", () => {
   afterEach(() => {
     vi.useRealTimers();
   });
+
+  it("app用queryはURL組織と募集の店舗組織を再検証し、別組織の募集を返さない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const actor = await seedOrganizationManagerShop(ctx, {
+        subject: "app_shift_board_actor",
+        shopName: "対象店舗",
+      });
+      const other = await seedOrganizationManagerShop(ctx, {
+        subject: "app_shift_board_other",
+        shopName: "別組織店舗",
+      });
+      const createRecruitment = (shopId: typeof actor.shopId) =>
+        ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-08-17",
+          periodEnd: "2026-08-24",
+          deadline: "2026-08-12",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "22:00" },
+        });
+      return {
+        actor,
+        other,
+        actorRecruitmentId: await createRecruitment(actor.shopId),
+        otherRecruitmentId: await createRecruitment(other.shopId),
+      };
+    });
+    const actor = t.withIdentity({ subject: "app_shift_board_actor" });
+
+    await expect(
+      actor.query(api.shiftBoard.queries.getShiftBoardShopScopeForOrganization, {
+        organizationId: ids.actor.organizationId,
+        recruitmentId: ids.actorRecruitmentId,
+      }),
+    ).resolves.toEqual({ shopId: ids.actor.shopId, shopName: "対象店舗" });
+    await expect(
+      actor.query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId: ids.actor.shopId,
+        expectedOrganizationId: ids.actor.organizationId,
+        recruitmentId: ids.actorRecruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      }),
+    ).resolves.toMatchObject({
+      recruitment: { _id: ids.actorRecruitmentId },
+    });
+    await expect(
+      actor.query(api.shiftBoard.queries.getShiftBoardShopScopeForOrganization, {
+        organizationId: ids.actor.organizationId,
+        recruitmentId: ids.otherRecruitmentId,
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      actor.query(api.shiftBoard.queries.getShiftBoardShopScopeForOrganization, {
+        organizationId: ids.other.organizationId,
+        recruitmentId: ids.actorRecruitmentId,
+      }),
+    ).rejects.toThrow("Not found");
+  });
+
   it("削除済み募集は null を返す", async () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId } = await t.run(async (ctx) => {
@@ -191,7 +253,7 @@ describe("shiftBoard/queries", () => {
 
   it("閲覧のみ管理者にはシフトデータを返しつつ書き込み不可理由を返す", async () => {
     const t = convexTest(schema, modules);
-    const { shopId, recruitmentId } = await t.run(async (ctx) => {
+    const { organizationId, shopId, recruitmentId } = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
         subject: "readonly_shift_board",
         shopName: "閲覧店舗",
@@ -209,16 +271,23 @@ describe("shiftBoard/queries", () => {
         isDeleted: false,
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
-      return { shopId: seeded.shopId, recruitmentId };
+      return { organizationId: seeded.organizationId, shopId: seeded.shopId, recruitmentId };
     });
 
-    const result = await t
-      .withIdentity({ subject: "readonly_shift_board" })
-      .query(api.shiftBoard.queries.getShiftBoardData, {
-        shopId,
+    const actor = t.withIdentity({ subject: "readonly_shift_board" });
+    await expect(
+      actor.query(api.shiftBoard.queries.getShiftBoardShopScopeForOrganization, {
+        organizationId,
         recruitmentId,
-        refreshDayKey: QUERY_REFRESH_DAY_KEY,
-      });
+      }),
+    ).resolves.toEqual({ shopId, shopName: "閲覧店舗" });
+
+    const result = await actor.query(api.shiftBoard.queries.getShiftBoardData, {
+      shopId,
+      expectedOrganizationId: organizationId,
+      recruitmentId,
+      refreshDayKey: QUERY_REFRESH_DAY_KEY,
+    });
 
     expect(result).toMatchObject({
       canWriteBusinessData: false,

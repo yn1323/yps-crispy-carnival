@@ -3,6 +3,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { expect, fireEvent, screen, userEvent, waitFor, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
+import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedAppShell";
+import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 import { createDeferred } from "@/src/devtools/createDeferred";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { ShopDetailSkeleton, ShopDetailView } from ".";
@@ -47,6 +49,7 @@ const staffs: ShopDetailPerson[] = [
 const managerPersonId = "person-manager" as Id<"organizationPeople">;
 const staffPersonId = "person-staff" as Id<"organizationPeople">;
 const candidatePersonId = "person-candidate" as Id<"organizationPeople">;
+const firstShopCandidatePersonId = "person-first-shop-candidate" as Id<"organizationPeople">;
 const managerStaffId = "staff-manager" as Id<"staffs">;
 const staffStaffId = "staff-staff" as Id<"staffs">;
 const preservedStaffId = "staff-preserved" as Id<"staffs">;
@@ -92,6 +95,18 @@ const membershipData: ShopStaffMembershipData = {
       canChange: true,
       changeDisabledReason: null,
     },
+    {
+      personId: firstShopCandidatePersonId,
+      name: "高橋 美咲",
+      email: "misaki.takahashi@example.com",
+      isManager: false,
+      isActiveManager: false,
+      otherShopNames: [],
+      isSelected: false,
+      staffId: null,
+      canChange: true,
+      changeDisabledReason: null,
+    },
   ],
   preservedStaffs: [],
 };
@@ -121,16 +136,20 @@ const meta = {
   title: "Features/ShopDetail",
   component: ShopDetailView,
   decorators: [
-    (Story) => (
-      <Box maxW="1024px" mx="auto">
+    (Story, context) =>
+      context.parameters.appComposition ? (
         <Story />
-      </Box>
-    ),
+      ) : (
+        <Box maxW="1024px" mx="auto">
+          <Story />
+        </Box>
+      ),
   ],
   parameters: { layout: "padded" },
   args: {
     shop,
-    organizationSettingsShopId: "shop-context",
+    expectedOrganizationId: "organization-1" as Id<"organizations">,
+    isShopAdditionEnabled: true,
     staffs,
     settingsDialog: closedSettingsDialog,
     isDeleting: false,
@@ -145,6 +164,25 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
+
+export const AppCompositionDesktop: Story = {
+  name: "店舗詳細・新shell・デスクトップ",
+  parameters: { appComposition: true, layout: "fullscreen", vrt: { releaseFixedHeader: true } },
+  render: (args) => (
+    <AuthenticatedAppShell activeKey="manage" activeOrganizationId="organization-1">
+      <AuthenticatedPageContent includeMobileNavigation>
+        <ShopDetailView {...args} />
+      </AuthenticatedPageContent>
+    </AuthenticatedAppShell>
+  ),
+};
+
+export const AppCompositionMobile: Story = {
+  ...AppCompositionDesktop,
+  name: "店舗詳細・新shell・モバイル414px",
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
 
 export const Loading: Story = {
   render: () => <ShopDetailSkeleton />,
@@ -212,9 +250,9 @@ export const OrganizationSettingsLinkBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const organizationSettingsLink = within(canvasElement).getByRole("link", {
-      name: "こちら（組織設定の設定タブを開く）",
+      name: "こちら（組織情報を開く）",
     });
-    await expect(organizationSettingsLink).toHaveAttribute("href", "/settings?shop=shop-context&tab=settings");
+    await expect(organizationSettingsLink).toHaveAttribute("href", "/app/manage/organization?org=organization-1");
   },
 };
 
@@ -419,13 +457,19 @@ export const StaffMembershipTriggerReturnBehavior: Story = {
 
 export const StaffMembershipAdditionBehavior: Story = {
   parameters: { screenshot: { skip: true } },
-  render: () => <MembershipDialogHarness />,
+  render: () => <MembershipDialogHarness isShopAdditionEnabled />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const dialog = await screen.findByRole("dialog", {
       name: "所属スタッフを変更",
     });
     const content = within(dialog);
+    await expect(content.getByRole("checkbox", { name: "田中 太郎を所属スタッフにする" })).toHaveAccessibleDescription(
+      /管理者。所属：スーパー美味しいカフェ新宿店、めっちゃおいしいカフェ渋谷店。/,
+    );
+    await expect(
+      content.getByText("所属：スーパー美味しいカフェ新宿店、めっちゃおいしいカフェ渋谷店"),
+    ).toBeInTheDocument();
     const candidate = content.getByRole("checkbox", {
       name: "鈴木 次郎を所属スタッフにする",
     });
@@ -444,6 +488,44 @@ export const StaffMembershipAdditionBehavior: Story = {
       expect(inputs).toHaveLength(1);
       expect(inputs[0]?.desiredActivePersonIds).toEqual([managerPersonId, staffPersonId, candidatePersonId]);
       expect(inputs[0]?.removalPreviews).toEqual([]);
+    });
+  },
+};
+
+export const StaffMembershipShopAdditionClosedBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <MembershipDialogHarness isShopAdditionEnabled={false} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const dialog = await screen.findByRole("dialog", {
+      name: "所属スタッフを変更",
+    });
+    const content = within(dialog);
+    const selectedOtherShopPerson = content.getByRole("checkbox", {
+      name: "田中 太郎を所属スタッフにする",
+    });
+
+    await expect(selectedOtherShopPerson).toBeEnabled();
+    await userEvent.click(selectedOtherShopPerson);
+    await expect(selectedOtherShopPerson).not.toBeChecked();
+    await userEvent.click(selectedOtherShopPerson);
+    await expect(selectedOtherShopPerson).toBeChecked();
+    await expect(content.queryByRole("checkbox", { name: "鈴木 次郎を所属スタッフにする" })).not.toBeInTheDocument();
+    await expect(content.queryByText("鈴木 次郎")).not.toBeInTheDocument();
+
+    const firstShopCandidate = content.getByRole("checkbox", {
+      name: "高橋 美咲を所属スタッフにする",
+    });
+    await expect(firstShopCandidate).toBeEnabled();
+    await userEvent.click(firstShopCandidate);
+    await userEvent.click(content.getByRole("button", { name: "変更する" }));
+
+    await waitFor(() => {
+      const inputs = JSON.parse(
+        canvas.getByTestId("staff-membership-change-inputs").textContent ?? "[]",
+      ) as Array<ShopStaffMembershipChangeInput>;
+      expect(inputs).toHaveLength(1);
+      expect(inputs[0]?.desiredActivePersonIds).toEqual([managerPersonId, staffPersonId, firstShopCandidatePersonId]);
     });
   },
 };
@@ -745,7 +827,8 @@ function InteractionHarness() {
       <output aria-label="操作結果">{result}</output>
       <ShopDetailView
         shop={shop}
-        organizationSettingsShopId="shop-context"
+        expectedOrganizationId={"organization-1" as Id<"organizations">}
+        isShopAdditionEnabled
         staffs={staffs}
         settingsDialog={{
           isOpen: isSettingsDialogOpen,
@@ -794,7 +877,8 @@ function SettingsSubmitLockHarness() {
       </button>
       <ShopDetailView
         shop={shop}
-        organizationSettingsShopId="shop-context"
+        expectedOrganizationId={"organization-1" as Id<"organizations">}
+        isShopAdditionEnabled
         staffs={staffs}
         settingsDialog={{
           isOpen: isSettingsDialogOpen,
@@ -817,10 +901,12 @@ function MembershipDialogHarness({
   data = membershipData,
   preview = readyRemovalPreview,
   isPreviewLoading = false,
+  isShopAdditionEnabled = true,
 }: {
   data?: ShopStaffMembershipData | null;
   preview?: ShopStaffMembershipRemovalPreview;
   isPreviewLoading?: boolean;
+  isShopAdditionEnabled?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const [previewKey, setPreviewKey] = useState<string>();
@@ -893,6 +979,7 @@ function MembershipDialogHarness({
           onOpenChange={({ open }) => setIsOpen(open)}
           onClose={() => setIsOpen(false)}
           controller={controller}
+          isShopAdditionEnabled={isShopAdditionEnabled}
         />
       )}
     </>
@@ -944,6 +1031,7 @@ function MembershipUnknownResultHarness() {
           onOpenChange={({ open }) => setIsOpen(open)}
           onClose={() => setIsOpen(false)}
           controller={controller}
+          isShopAdditionEnabled
         />
       )}
     </>
@@ -985,6 +1073,7 @@ function MembershipRejectedResultHarness() {
         onOpenChange={() => {}}
         onClose={() => {}}
         controller={controller}
+        isShopAdditionEnabled
       />
     </>
   );
@@ -1047,6 +1136,7 @@ function MembershipRemovalRejectedResultHarness() {
         onOpenChange={() => {}}
         onClose={() => {}}
         controller={controller}
+        isShopAdditionEnabled
       />
     </>
   );

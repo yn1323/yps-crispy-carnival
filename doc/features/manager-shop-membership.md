@@ -3,6 +3,10 @@
 この文書名は既存リンクを維持するために残している。
 現在の組織所属と店舗選択は[組織課金、複数店舗、複数管理者](organization-billing.md)を参照する。
 
+通常の公開範囲は1組織、1店舗、1管理者である。
+複数組織、複数店舗、複数管理者の実装と移行互換は将来の再公開に備えて保持するが、公開設定は未設定時に閉じ、通常の画面とpublic mutationから利用できない。
+既存E2E契約は、専用deploymentで公開設定を明示的に有効化して検証する。
+
 ## 現行仕様
 
 - `organizationMembers`が組織単位の管理画面権限を表し、有効管理者は同じ組織の全店舗を管理する。
@@ -14,10 +18,12 @@
 - `readOnly`は契約制限中でも復旧操作を担う管理者に限る。管理者交代やFree適用で管理者ではなくなった人物は`removed`にする。
 - `shops.organizationId`が店舗の組織を表し、管理者APIは認証済み利用者の組織所属と選択店舗をサーバー側で検証する。
 - `getMyShops`は利用可能な店舗を組織名、店舗状態、所属状態付きで返し、`removed`になった人物へ当該組織の店舗を返さない。
-- Dashboardは現在の組織名を組織設定への上位リンクとして表示し、その下に現在店舗を表示する。複数組織に所属する場合は組織Accordion内に別組織への変更行を並べ、選んだ組織の名称順先頭店舗へ切り替える。店舗候補が複数ある場合は店舗セレクターからも切り替えられる。Dashboard以外の認証済み画面では、複数店舗がある場合だけヘッダーから切り替えられる。
-- 現在タブの店舗は`?shop=`を正とし、`selectedShopAtom`は最後に確定した有効な店舗をlocalStorageへ保持するfallbackとして扱う。
-- 別タブのlocalStorage更新は実行中の選択状態へ反映せず、各タブの`?shop=`を維持する。
-- URL指定がない場合は、有効な保存済み店舗、`getMyShops`の先頭候補の順で自動決定し、URLを正規化する。候補が複数でも専用選択画面は表示しない。
+- `/dashboard`は`org`で検証した一つの組織だけを表示し、`shop`はその組織のactive店舗から選ぶ。  URLで有効な店舗、現在組織の保存済みhint、active店舗の先頭の順に解決し、名称や人物情報はbrowser storageへ保存しない。
+- `/app/manage`と`/app/manage/organization`は、検証済みの`org`を組織authorityとして使う。  組織全体のread/writeに先頭店舗やHome店舗を要求せず、canonicalな組織所属がない利用者を旧`shopMembers`だけで通さない。
+- 管理者一覧、管理者招待、課金画面は未公開である。  direct accessでは情報を描画せず管理画面へ戻し、招待と課金のpublic mutation/actionも副作用前に公開設定を再確認する。
+- `/dashboard`の店舗query・mutationは、画面で解決した`shopId`と`expectedOrganizationId`を同時に渡す。  URLと保存済み店舗を認可根拠にせず、管理者APIが店舗所属と組織所属の一致を再検証する。
+- `/dashboard`でactive店舗がない場合は、店舗作成を自動開始せず管理画面への回復導線を表示する。組織または店舗の切替中は、旧店舗のquery結果と開いていたDialogを次のscopeへ持ち越さない。
+- URL指定がない場合は、有効な保存済み店舗、`getMyShops`の先頭候補の順で自動決定し、URLを正規化する。
 - URLに明示された店舗が候補外なら別店舗へfallbackせず、店舗スコープの子画面を描画しない汎用エラーを表示する。
 - URLとlocalStorageは認可根拠にせず、候補照合後の店舗だけを管理者向けhookへ渡し、管理者APIでも所属と店舗境界を再検証する。
 - 購読更新で保存済み店舗の管理権限が消えた場合は、選択状態を正規化するまで旧店舗の子画面を描画しない。
@@ -47,6 +53,8 @@
 - `convex/migrations/m014_removed_organization_members_delete_legacy_shop_members.ts`
 - `convex/narrowReadiness/queries.ts`
 - `src/components/features/AuthenticatedApp/AuthGuard.tsx`
+- `src/components/features/AuthenticatedApp/AppOrganizationScope/`
+- `src/components/features/AuthenticatedApp/AppOrganizationSwitcher/`
+- `src/components/features/AuthenticatedApp/appOrganizationSwitchTarget.ts`
 - `src/components/features/Dashboard/OperationContext/`
-- `src/components/features/ShopSwitcher/`
-- `src/stores/shop/`
+- `src/pages/dashboard/`

@@ -127,10 +127,6 @@ export function UserLineConnectionDialog({
         <Stack gap={6}>
           <LineStatus status={data.line.status} />
 
-          <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            LINE連携は、同じ組織の所属店舗で共通です。別の組織では、あらためて連携してください。
-          </Text>
-
           {data.line.canLink ? (
             <Stack gap={6}>
               <LineConnectionMethod
@@ -152,8 +148,8 @@ export function UserLineConnectionDialog({
                   <Stack gap={3} w="full">
                     <Stack gap={1} fontSize="sm" color="fg.muted" lineHeight="tall">
                       <Text>{data.person.name}さん専用のURL（QRコード）です。</Text>
-                      <Text>本人へ直接共有してください。ほかのスタッフには共有しないでください。</Text>
-                      <Text>この組織で現在および今後所属する店舗に共通で使われます。</Text>
+                      <Text>本人へ直接共有してください。</Text>
+                      <Text>ほかのスタッフには共有しないでください。</Text>
                     </Stack>
                     <LineLinkQrDialog authorizeUrl={authorizeUrl} isLoading={isQrLoading} />
                   </Stack>
@@ -194,10 +190,10 @@ export function UserLineConnectionDialog({
             <Stack gap={3} borderTopWidth="1px" borderColor="blackAlpha.100" pt={5}>
               <Stack gap={1}>
                 <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
-                  この組織との連携を解除
+                  連携を解除
                 </Heading>
                 <Text fontSize="xs" color="fg.muted" lineHeight="tall">
-                  この組織のすべての所属店舗でLINE通知が停止します。
+                  解除後はメールで通知が届くようになります。
                 </Text>
               </Stack>
               <Button
@@ -233,9 +229,6 @@ function LineStatus({ status }: { status: UserDetailData["line"]["status"] }) {
       <Alert.Indicator />
       <Alert.Content>
         <Alert.Title>{presentation.label}</Alert.Title>
-        <Alert.Description fontSize="sm" lineHeight="tall">
-          {presentation.description}
-        </Alert.Description>
       </Alert.Content>
     </Alert.Root>
   );

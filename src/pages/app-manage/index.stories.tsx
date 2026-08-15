@@ -1,0 +1,192 @@
+import { Stack } from "@chakra-ui/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
+import { type OrganizationBillingView, OrganizationUsageSection } from "@/src/components/features/OrganizationSettings";
+import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedAppShell";
+import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
+import {
+  AppManageBillingPageSkeleton,
+  AppManageHeader,
+  AppManagePageStateView,
+  AppManageReadOnlyNotice,
+  ManageShopsSection,
+  OrganizationBasicInformationSection,
+  OrganizationManagementSection,
+} from ".";
+
+const billing: OrganizationBillingView = {
+  state: "business",
+  currentPlan: "business",
+  isComplimentary: false,
+  hasTrialContinuation: false,
+  stripeBillingAvailable: true,
+  hasStripeCustomer: true,
+  peopleUsage: { current: 18, max: 40 },
+  shopUsage: { current: 6, max: 5 },
+  managerUsage: { current: 3, max: 5, pendingInvitations: 1 },
+  billingEmail: "billing@example.com",
+  canManagePlan: true,
+  canUpdatePaymentMethod: true,
+  canUpdateBillingEmail: true,
+  canScheduleFree: true,
+};
+
+const shops = Array.from({ length: 6 }, (_, index) => ({
+  id: `shop-preview-${index + 1}`,
+  name: index === 5 ? "旧駅前店（アーカイブ）" : `${index + 1}号店`,
+  regularClosedDays: [],
+  submissionPattern: { kind: "dateOnly" as const },
+  staffCount: 0,
+  canUpdateSettings: false,
+  canDelete: false,
+}));
+
+const meta = {
+  title: "Pages/AppManage/States",
+  component: AppManagePageStateView,
+  args: { state: { kind: "loading" } },
+  parameters: { layout: "padded" },
+} satisfies Meta<typeof AppManagePageStateView>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const Loading: Story = {};
+
+export const LoadingMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
+export const BillingLoading: Story = {
+  name: "読み込み｜プランと支払い",
+  render: () => <AppManageBillingPageSkeleton />,
+};
+
+export const BillingLoadingMobile: Story = {
+  name: "読み込み｜プランと支払い・モバイル",
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  render: () => <AppManageBillingPageSkeleton />,
+};
+
+export const QueryError: Story = {
+  args: { state: { kind: "error" } },
+};
+
+const organizationId = "organization-preview" as never;
+
+function ReadyClosedPreview({ readOnly = false }: { readOnly?: boolean }) {
+  return (
+    <Stack gap={6}>
+      <AppManageHeader />
+      <AppManageReadOnlyNotice memberStatus={readOnly ? "readOnly" : "active"} />
+      <OrganizationUsageSection billing={billing} />
+      <OrganizationManagementSection
+        organizationId={organizationId}
+        organizationName="ハイパーカンパニーグループ"
+        managerCount={1}
+        pendingManagerCount={0}
+        billingState={billing.state}
+        features={{ organizationCreation: false, managerInvitation: false, billing: false }}
+        canCreateOrganization={false}
+      />
+      <ManageShopsSection
+        organizationId={organizationId}
+        shops={shops}
+        shopUsage={billing.shopUsage}
+        showAddShop={false}
+        canAddShop={false}
+        canLoadMore={false}
+        isLoadingMore={false}
+        onLoadMore={() => undefined}
+        onOpenShop={() => undefined}
+      />
+    </Stack>
+  );
+}
+
+function AppCompositionPreview() {
+  return (
+    <AuthenticatedAppShell activeKey="manage" activeOrganizationId="organization-preview">
+      <AuthenticatedPageContent includeMobileNavigation>
+        <ReadyClosedPreview />
+      </AuthenticatedPageContent>
+    </AuthenticatedAppShell>
+  );
+}
+
+export const AppCompositionDesktop: Story = {
+  name: "管理・未リリース機能は非表示・新shell・デスクトップ",
+  parameters: { layout: "fullscreen", vrt: { releaseFixedHeader: true } },
+  render: () => <AppCompositionPreview />,
+};
+
+export const AppCompositionMobile: Story = {
+  ...AppCompositionDesktop,
+  name: "管理・未リリース機能は非表示・新shell・モバイル414px",
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
+export const ReadyReadOnly: Story = {
+  render: () => <ReadyClosedPreview readOnly />,
+};
+
+export const ReadyReadOnlyMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  render: () => <ReadyClosedPreview readOnly />,
+};
+
+export const ReleasedFeaturesHiddenBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <ReadyClosedPreview />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("button", { name: "組織情報を開く" })).toBeInTheDocument();
+    await expect(canvas.getByRole("heading", { name: "全店舗 (6/5)" })).toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "新しい組織を作る" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "管理者と権限を開く" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "プランと支払いを開く" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "店舗を追加する" })).not.toBeInTheDocument();
+  },
+};
+
+function RetryPreview() {
+  const [retried, setRetried] = useState(false);
+  return retried ? (
+    <output>管理情報を再読み込みしました</output>
+  ) : (
+    <AppManagePageStateView state={{ kind: "error" }} onRetry={() => setRetried(true)} />
+  );
+}
+
+export const QueryErrorRetryBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <RetryPreview />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "再試行する" }));
+    await expect(await canvas.findByRole("status")).toHaveTextContent("管理情報を再読み込みしました");
+  },
+};
+
+export const OrganizationBasicInformation: Story = {
+  render: () => (
+    <OrganizationBasicInformationSection
+      organizationName="ハイパーカンパニーグループ"
+      organizationCreatedAt={Date.parse("2026-08-13T00:00:00+09:00")}
+      canUpdateOrganizationName
+      onEdit={() => undefined}
+    />
+  ),
+};
+
+export const OrganizationBasicInformationMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  render: OrganizationBasicInformation.render,
+};

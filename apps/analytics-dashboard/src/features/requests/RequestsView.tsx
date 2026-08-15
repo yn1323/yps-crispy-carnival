@@ -67,7 +67,7 @@ export function RequestsView({
               <Table.Header>
                 <Table.Row bg="gray.50">
                   <Table.ColumnHeader w="180px">受付日時</Table.ColumnHeader>
-                  <Table.ColumnHeader w="180px">店舗</Table.ColumnHeader>
+                  <Table.ColumnHeader w="180px">対象</Table.ColumnHeader>
                   <Table.ColumnHeader w="90px">送信者</Table.ColumnHeader>
                   <Table.ColumnHeader>要望</Table.ColumnHeader>
                 </Table.Row>

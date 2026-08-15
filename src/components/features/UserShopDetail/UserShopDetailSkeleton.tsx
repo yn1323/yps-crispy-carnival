@@ -1,4 +1,4 @@
-import { Box, Flex, HStack, Skeleton, Stack } from "@chakra-ui/react";
+import { Flex, Skeleton, Stack } from "@chakra-ui/react";
 import { StaffNotificationHistoryView } from "@/src/components/features/StaffNotificationHistory";
 import { DetailPageHeaderSkeleton } from "@/src/components/ui/DetailPageHeader";
 import { UserShopDetailPageSection } from "./UserShopDetailPageSection";
@@ -8,10 +8,6 @@ export function UserShopDetailSkeleton() {
   return (
     <Stack gap={{ base: 4, md: 6 }} aria-label="店舗別設定を読み込み中" aria-busy="true">
       <DetailPageHeaderSkeleton titleWidth={{ base: "236px", md: "360px" }} />
-
-      <UserShopDetailPageSection>
-        <LineSectionSkeleton />
-      </UserShopDetailPageSection>
 
       <UserShopDetailPageSection>
         <Stack gap={10}>
@@ -26,29 +22,6 @@ export function UserShopDetailSkeleton() {
       <UserShopDetailPageSection>
         <SettingsSectionSkeleton />
       </UserShopDetailPageSection>
-    </Stack>
-  );
-}
-
-function LineSectionSkeleton() {
-  return (
-    <Stack gap={3}>
-      <Stack gap={3}>
-        <Stack gap={1}>
-          <Skeleton h="24px" w="80px" />
-          <Stack gap={1}>
-            <Skeleton h="18px" w="300px" maxW="88%" />
-            <Skeleton h="18px" w="340px" maxW="96%" />
-          </Stack>
-        </Stack>
-
-        <Box borderWidth="1px" borderColor="border.default" bg="blackAlpha.50" borderRadius="md" p={3}>
-          <HStack gap={2}>
-            <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
-            <Skeleton h="24px" w="88px" />
-          </HStack>
-        </Box>
-      </Stack>
     </Stack>
   );
 }

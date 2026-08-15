@@ -1,22 +1,32 @@
 import { expect, type Page } from "@playwright/test";
 import { expectAppHydrated } from "../helpers/appReadiness";
-import { DashboardPage } from "./DashboardPage";
+import { AppStaffPage } from "./AppStaffPage";
 
 const STAFF_LIFECYCLE_TIMEOUT = 20_000;
 
 export class StaffLifecyclePage {
-  private dashboard: DashboardPage;
+  private appStaff: AppStaffPage;
 
   constructor(private page: Page) {
-    this.dashboard = new DashboardPage(page);
+    this.appStaff = new AppStaffPage(page);
   }
 
-  async gotoDashboard(shopId: string) {
-    await this.dashboard.goto(shopId);
+  async gotoStaff(organizationId: string) {
+    await this.appStaff.goto(organizationId);
   }
 
-  async addManualStaff(name: string, email: string) {
-    await this.page.getByRole("button", { name: "スタッフを追加する", exact: true }).click();
+  async addManualStaff(shopName: string, name: string, email: string) {
+    await this.page.getByRole("button", { name: "スタッフを追加", exact: true }).click();
+    const shopSelectionDialog = this.page.getByRole("dialog", {
+      name: "スタッフを追加する店舗を選択",
+      exact: true,
+    });
+    await expect(shopSelectionDialog).toBeVisible({ timeout: STAFF_LIFECYCLE_TIMEOUT });
+    await shopSelectionDialog
+      .getByRole("button", { name: `${shopName}をスタッフ追加の対象店舗として選択`, exact: true })
+      .click();
+    await expect(shopSelectionDialog).toHaveCount(0, { timeout: STAFF_LIFECYCLE_TIMEOUT });
+
     const dialog = this.page.getByRole("dialog", { name: "スタッフを追加", exact: true });
     await expect(dialog).toBeVisible({ timeout: STAFF_LIFECYCLE_TIMEOUT });
 
@@ -30,20 +40,13 @@ export class StaffLifecyclePage {
     await dialog.getByRole("button", { name: "スタッフを登録する", exact: true }).click();
 
     await expect(dialog).toHaveCount(0, { timeout: STAFF_LIFECYCLE_TIMEOUT });
-    await this.expectDashboardStaffVisible(name);
+    await this.appStaff.expectPersonVisible(name);
   }
 
-  async expectDashboardStaffVisible(name: string) {
-    await expect(this.staffRow(name)).toBeVisible({ timeout: STAFF_LIFECYCLE_TIMEOUT });
-  }
-
-  async openStaffDetail(name: string, shopId: string) {
-    await this.staffRow(name).click();
+  async openStaffDetail(name: string, organizationId: string) {
+    await this.appStaff.personRow(name).click();
     await expect(this.page).toHaveURL(
-      (url) =>
-        /^\/users\/[^/]+$/.test(url.pathname) &&
-        url.searchParams.get("shop") === shopId &&
-        url.searchParams.get("returnTo") === "dashboard",
+      (url) => /^\/app\/staff\/[^/]+$/.test(url.pathname) && url.searchParams.get("org") === organizationId,
       { timeout: STAFF_LIFECYCLE_TIMEOUT },
     );
     await expect(this.page.getByRole("heading", { name: "スタッフ詳細", exact: true })).toBeVisible({
@@ -81,23 +84,29 @@ export class StaffLifecyclePage {
     await this.expectStaffProfile(name, email);
   }
 
-  async removeStaffFromOrganization(name: string, shopId: string) {
+  async removeStaffFromOrganization(name: string, organizationId: string) {
     await this.page.getByRole("button", { name: "削除する", exact: true }).click();
     const confirmation = this.page.getByRole("alertdialog", { name: "スタッフを削除", exact: true });
     await expect(confirmation).toBeVisible({ timeout: STAFF_LIFECYCLE_TIMEOUT });
-    await confirmation.getByRole("button", { name: "組織から削除", exact: true }).click();
+    await confirmation.getByRole("button", { name: "削除する", exact: true }).click();
 
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === "/dashboard" && url.searchParams.get("shop") === shopId,
+      (url) => url.pathname === "/app/staff" && url.searchParams.get("org") === organizationId,
       { timeout: STAFF_LIFECYCLE_TIMEOUT },
     );
-    await this.dashboard.expectStaffNotVisible(name);
+    await this.appStaff.expectPersonAbsent(name);
   }
 
   async reloadAndExpectStaffAbsent(name: string) {
     await this.page.reload({ waitUntil: "domcontentloaded" });
     await expectAppHydrated(this.page);
-    await this.dashboard.expectStaffNotVisible(name);
+    await this.appStaff.expectPersonAbsent(name);
+  }
+
+  async reloadAndExpectStaffVisible(name: string) {
+    await this.page.reload({ waitUntil: "domcontentloaded" });
+    await expectAppHydrated(this.page);
+    await this.appStaff.expectPersonVisible(name);
   }
 
   private async expectStaffProfile(name: string, email: string) {
@@ -106,11 +115,5 @@ export class StaffLifecyclePage {
     });
     await expect(this.page.getByText(name, { exact: true })).toBeVisible({ timeout: STAFF_LIFECYCLE_TIMEOUT });
     await expect(this.page.getByText(email, { exact: true })).toBeVisible({ timeout: STAFF_LIFECYCLE_TIMEOUT });
-  }
-
-  private staffRow(name: string) {
-    return this.page
-      .getByRole("region", { name: "スタッフ一覧", exact: true })
-      .getByRole("button", { name: `${name}のスタッフ詳細を開く`, exact: true });
   }
 }

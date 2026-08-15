@@ -39,20 +39,6 @@ export const HeroSection = () => (
           textAlign={{ base: "center", lg: "start" }}
         >
           <VStack align={{ base: "center", lg: "start" }} gap={{ base: 4, md: 5 }}>
-            <Flex
-              align="center"
-              gap={2}
-              bg="teal.50"
-              color="teal.700"
-              borderRadius="full"
-              px={{ base: 3, md: 4 }}
-              py={2}
-              textStyle={{ base: "xs", md: "sm" }}
-              fontWeight="bold"
-            >
-              <Icon as={LuClipboardCheck} boxSize={4} flexShrink={0} />
-              2暦月トライアルつきのシフト管理
-            </Flex>
 
             <Heading
               as="h1"
@@ -80,7 +66,7 @@ export const HeroSection = () => (
               <br />
               毎月くり返すやりとりをシフトリがまとめて担当
               <br />
-              スタッフはアプリ不要。店舗や担当者が増えても、組織でまとめて管理できます
+              専用アプリインストールはなし
             </Text>
           </VStack>
 
@@ -91,7 +77,7 @@ export const HeroSection = () => (
             gap={4}
             w={{ base: "full", md: "auto" }}
           >
-            <HeroButton href="/signup" label="2暦月トライアルを始める" tone="primary" measurementCtaId="hero_signup" />
+            <HeroButton href="/signup" label="シフトリを始める" tone="primary" measurementCtaId="hero_signup" />
             <HeroButton href="/demo/flow" label="登録不要でデモを見る" tone="secondary" measurementCtaId="hero_demo" />
           </Stack>
         </VStack>

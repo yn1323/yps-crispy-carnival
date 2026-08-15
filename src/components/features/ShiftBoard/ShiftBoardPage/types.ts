@@ -64,4 +64,5 @@ export type ShiftBoardPageIntents = {
 export type ShiftBoardPageViewProps = {
   viewModel: ShiftBoardPageViewModel;
   intents: ShiftBoardPageIntents;
+  layout?: "legacy" | "app";
 };

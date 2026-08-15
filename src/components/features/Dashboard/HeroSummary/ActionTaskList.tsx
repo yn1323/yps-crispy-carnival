@@ -19,7 +19,9 @@ type Props = {
   action?: NextAction;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onCreateRecruitment: () => void;
-  notificationTask: { onClick: () => void } | null;
+  isCreateRecruitmentActionDisabled?: boolean;
+  createRecruitmentDisabledReason?: string;
+  notificationTask: { onClick: () => void; isDisabled?: boolean } | null;
   staffRegistrationRequest?: {
     count: number;
     onClick: () => void;
@@ -30,12 +32,24 @@ export const ActionTaskList = ({
   action,
   onOpenShiftBoard,
   onCreateRecruitment,
+  isCreateRecruitmentActionDisabled = false,
+  createRecruitmentDisabledReason,
   notificationTask,
   staffRegistrationRequest,
 }: Props) => {
   const tasks = [
-    action ? createShiftActionTask(action, onOpenShiftBoard, onCreateRecruitment) : null,
-    notificationTask ? createNotificationFailureTask(notificationTask.onClick) : null,
+    action
+      ? createShiftActionTask(
+          action,
+          onOpenShiftBoard,
+          onCreateRecruitment,
+          isCreateRecruitmentActionDisabled,
+          createRecruitmentDisabledReason,
+        )
+      : null,
+    notificationTask
+      ? createNotificationFailureTask(notificationTask.onClick, notificationTask.isDisabled ?? false)
+      : null,
     staffRegistrationRequest
       ? createStaffRegistrationRequestTask(staffRegistrationRequest.count, staffRegistrationRequest.onClick)
       : null,
@@ -64,6 +78,8 @@ const createShiftActionTask = (
   action: NextAction,
   onOpenShiftBoard: (recruitmentId: string) => void,
   onCreateRecruitment: () => void,
+  isCreateRecruitmentActionDisabled: boolean,
+  createRecruitmentDisabledReason?: string,
 ): ActionTask => {
   if (action.kind === "idle") {
     return {
@@ -73,7 +89,15 @@ const createShiftActionTask = (
       iconFg: "teal.700",
       title: "次の募集をつくりましょう",
       metaItems: [{ label: "募集中のシフトなし" }],
-      cta: { label: "募集をつくる", icon: LuPlus, palette: "teal", variant: "solid", onClick: onCreateRecruitment },
+      cta: {
+        label: "募集をつくる",
+        icon: LuPlus,
+        palette: "teal",
+        variant: "solid",
+        onClick: onCreateRecruitment,
+        isDisabled: isCreateRecruitmentActionDisabled,
+        disabledReason: createRecruitmentDisabledReason,
+      },
     };
   }
 
@@ -94,7 +118,7 @@ const createShiftActionTask = (
   };
 };
 
-const createNotificationFailureTask = (onClick: () => void): ActionTask => ({
+const createNotificationFailureTask = (onClick: () => void, isDisabled: boolean): ActionTask => ({
   key: "notification-failure",
   icon: LuTriangleAlert,
   iconBg: "orange.100",
@@ -102,7 +126,7 @@ const createNotificationFailureTask = (onClick: () => void): ActionTask => ({
   title: "送れなかった通知があります",
   titleColor: "orange.800",
   rowBg: "orange.50/30",
-  cta: { label: "通知を確認する", palette: "orange", variant: "outline", onClick },
+  cta: { label: "通知を確認する", palette: "orange", variant: "outline", onClick, isDisabled },
 });
 
 const createStaffRegistrationRequestTask = (count: number, onClick: () => void): ActionTask => ({
@@ -131,6 +155,8 @@ type ActionTask = {
     palette: "teal" | "orange";
     variant: "solid" | "outline";
     onClick: () => void;
+    isDisabled?: boolean;
+    disabledReason?: string;
   };
 };
 
@@ -203,6 +229,8 @@ const ActionTaskRow = ({ task, isFirst }: { task: ActionTask; isFirst: boolean }
         justifyContent="center"
         minW={{ md: "136px" }}
         flexShrink={0}
+        disabled={task.cta.isDisabled}
+        title={task.cta.isDisabled ? task.cta.disabledReason : undefined}
         onClick={task.cta.onClick}
       >
         {CtaIcon && <CtaIcon />}

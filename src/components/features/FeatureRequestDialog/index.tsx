@@ -13,6 +13,7 @@ import { Button, IconButton } from "@/src/components/ui/Button";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { type AppFeatureRequestScope, resolveAppFeatureRequestShopId } from "./appScope";
 
 const formSchema = z.object({ comment: featureRequestCommentSchema });
 type FormData = z.infer<typeof formSchema>;
@@ -28,6 +29,17 @@ const submitStaffFeatureRequestRef = makeFunctionReference<
   { comment: string; requestId: string; sessionToken: string; accessKind: "submit" },
   { status: "accepted" }
 >("featureRequest/mutations:submitFromStaff");
+
+const submitOrganizationFeatureRequestRef = makeFunctionReference<
+  "mutation",
+  {
+    expectedOrganizationId: Id<"organizations">;
+    shopId?: Id<"shops">;
+    comment: string;
+    requestId: string;
+  },
+  { status: "accepted" }
+>("featureRequest/mutations:submitForOrganization");
 
 type FeatureRequestDialogProps = {
   onSubmit: (data: { comment: string; requestId: string }) => Promise<void>;
@@ -124,6 +136,40 @@ export function FeatureRequestDialog({ onSubmit }: FeatureRequestDialogProps) {
   );
 }
 
+type AppFeatureRequestDialogProps = {
+  scope: AppFeatureRequestScope;
+  onSubmit: (data: { shopId?: Id<"shops">; comment: string; requestId: string }) => Promise<void>;
+};
+
+/** /appの画面scopeは内部送信だけに使い、利用者には要望本文だけを入力してもらう。 */
+export function AppFeatureRequestDialog({ scope, onSubmit }: AppFeatureRequestDialogProps) {
+  const shopId = resolveAppFeatureRequestShopId(scope);
+
+  return (
+    <FeatureRequestDialog
+      onSubmit={async (data) => {
+        await onSubmit(shopId ? { ...data, shopId } : data);
+      }}
+    />
+  );
+}
+
+type AppFeatureRequestActionProps = {
+  expectedOrganizationId: Id<"organizations">;
+  scope: AppFeatureRequestScope;
+};
+
+/** canonicalな組織と内部scopeだけをapp用mutationへ渡すheader action。 */
+export function AppFeatureRequestAction({ expectedOrganizationId, scope }: AppFeatureRequestActionProps) {
+  const submit = useMutation(submitOrganizationFeatureRequestRef);
+  return (
+    <AppFeatureRequestDialog
+      scope={scope}
+      onSubmit={async (data) => void (await submit({ ...data, expectedOrganizationId }))}
+    />
+  );
+}
+
 export function FeatureRequestAction() {
   const submit = useShopMutation(submitFeatureRequestRef);
   return <FeatureRequestDialog onSubmit={async (data) => void (await submit(data))} />;
@@ -137,3 +183,5 @@ export function StaffFeatureRequestAction({ sessionToken }: { sessionToken: stri
     />
   );
 }
+
+export type { AppFeatureRequestScope, AppFeatureRequestShop } from "./appScope";

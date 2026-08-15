@@ -51,6 +51,10 @@ jobs:
           echo "::add-mask::$E2E_INVITATION_SIGNING_SECRET"
           npx convex env set E2E_TESTING_DEPLOYMENT_URL "$PREVIEW_URL" --deployment "preview/$CONVEX_PREVIEW_NAME"
           npx convex env set E2E_TESTING_ENABLED true --deployment "preview/$CONVEX_PREVIEW_NAME"
+          npx convex env set FEATURE_ORGANIZATION_CREATION true --deployment "preview/$CONVEX_PREVIEW_NAME"
+          npx convex env set FEATURE_SHOP_ADDITION true --deployment "preview/$CONVEX_PREVIEW_NAME"
+          npx convex env set FEATURE_MANAGER_INVITATION true --deployment "preview/$CONVEX_PREVIEW_NAME"
+          npx convex env set FEATURE_BILLING true --deployment "preview/$CONVEX_PREVIEW_NAME"
           npx convex env set NOTIFICATION_DELIVERY_MODE dry-run --deployment "preview/$CONVEX_PREVIEW_NAME"
           npx convex env set ORGANIZATION_INVITATION_SIGNING_SECRET "$E2E_INVITATION_SIGNING_SECRET" --deployment "preview/$CONVEX_PREVIEW_NAME"
       # NOTE: convex-seeds/seeds/db.zip is currently stale against the schema.

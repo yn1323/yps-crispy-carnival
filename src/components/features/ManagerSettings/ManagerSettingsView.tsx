@@ -1,7 +1,9 @@
 import { Badge, Box, Flex, Grid, Heading, HStack, Icon, Stack, Text } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { LuChevronRight, LuMailPlus, LuShieldCheck, LuUserPlus, LuUsers } from "react-icons/lu";
+import type { IconType } from "react-icons";
+import { LuChevronRight, LuMailPlus, LuShieldCheck, LuUserMinus, LuUserPlus, LuUsers } from "react-icons/lu";
+import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/src/components/ui/Button";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import { Empty } from "@/src/components/ui/Empty";
@@ -15,7 +17,11 @@ import {
 
 type Props = {
   overview: ReadyManagerSettingsOverview;
-  shopId: string;
+  organizationId: Id<"organizations">;
+  title?: string;
+  titleIcon?: IconType;
+  backLabel?: string;
+  mutationDisabledReason?: string;
   onBack: () => void;
   onRequestResend: (invitation: ManagerSettingsInvitation) => void;
   onRequestRevoke: (invitation: ManagerSettingsInvitation) => void;
@@ -24,7 +30,11 @@ type Props = {
 
 export function ManagerSettingsView({
   overview,
-  shopId,
+  organizationId,
+  title = "管理者設定",
+  titleIcon,
+  backLabel = "前の画面へ戻る",
+  mutationDisabledReason,
   onBack,
   onRequestResend,
   onRequestRevoke,
@@ -36,7 +46,15 @@ export function ManagerSettingsView({
 
   return (
     <Stack gap={{ base: 6, md: 8 }}>
-      <DetailPageHeader title="管理者設定" onBack={onBack} backLabel="組織設定へ戻る" backAriaLabel="組織設定へ戻る" />
+      <DetailPageHeader
+        title={title}
+        icon={titleIcon}
+        onBack={onBack}
+        backLabel={backLabel}
+        backAriaLabel={backLabel}
+      />
+
+      <ManagerUsageBar overview={overview} />
 
       <Stack as="section" gap={4} aria-labelledby="manager-addition-heading">
         <SectionHeading id="manager-addition-heading" icon={LuUserPlus}>
@@ -48,7 +66,7 @@ export function ManagerSettingsView({
             description="組織に登録済みのスタッフから選択"
             icon={LuUsers}
             destination="existingStaff"
-            shopId={shopId}
+            organizationId={organizationId}
             enabled={canIssueManagerAddition && overview.actions.canInviteExistingStaff}
             disabledReason={
               canIssueManagerAddition ? overview.actions.existingStaffDisabledReason : legacyModeDisabledReason
@@ -59,7 +77,7 @@ export function ManagerSettingsView({
             description="経営者・本部担当者などをメールで招待"
             icon={LuMailPlus}
             destination="external"
-            shopId={shopId}
+            organizationId={organizationId}
             enabled={canIssueManagerAddition && overview.actions.canInviteExternal}
             disabledReason={
               canIssueManagerAddition ? overview.actions.externalDisabledReason : legacyModeDisabledReason
@@ -68,8 +86,6 @@ export function ManagerSettingsView({
         </Grid>
       </Stack>
 
-      <ManagerUsageBar overview={overview} />
-
       <Stack as="section" gap={4} aria-labelledby="current-managers-heading">
         <SectionHeading id="current-managers-heading" icon={LuShieldCheck}>
           現在の管理者
@@ -77,7 +93,12 @@ export function ManagerSettingsView({
         <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
             {overview.managers.map((manager) => (
-              <ManagerRow key={manager.personId} manager={manager} onRequestRemoveRole={onRequestRemoveRole} />
+              <ManagerRow
+                key={manager.personId}
+                manager={manager}
+                mutationDisabledReason={mutationDisabledReason}
+                onRequestRemoveRole={onRequestRemoveRole}
+              />
             ))}
           </Stack>
         </Box>
@@ -102,6 +123,7 @@ export function ManagerSettingsView({
                 <InvitationRow
                   key={invitation.invitationId}
                   invitation={invitation}
+                  mutationDisabledReason={mutationDisabledReason}
                   onRequestResend={onRequestResend}
                   onRequestRevoke={onRequestRevoke}
                 />
@@ -132,7 +154,7 @@ type ActionCardProps = {
   description: string;
   icon: typeof LuUsers;
   destination: "existingStaff" | "external";
-  shopId: string;
+  organizationId: Id<"organizations">;
   enabled: boolean;
   disabledReason?: string;
 };
@@ -142,7 +164,7 @@ function ManagerActionCard({
   description,
   icon,
   destination,
-  shopId,
+  organizationId,
   enabled,
   disabledReason,
 }: ActionCardProps) {
@@ -209,8 +231,8 @@ function ManagerActionCard({
   const link =
     destination === "existingStaff" ? (
       <RouterLink
-        to="/settings/managers/invite-staff"
-        search={{ shop: shopId }}
+        to="/app/manage/managers/invite-staff"
+        search={{ org: organizationId }}
         preload="intent"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
@@ -219,8 +241,8 @@ function ManagerActionCard({
       </RouterLink>
     ) : (
       <RouterLink
-        to="/settings/managers/invite-new"
-        search={{ shop: shopId }}
+        to="/app/manage/managers/invite-new"
+        search={{ org: organizationId }}
         preload="intent"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
@@ -287,78 +309,97 @@ function ManagerAvatar({ name, readOnly = false }: { name: string; readOnly?: bo
 
 function ManagerRow({
   manager,
+  mutationDisabledReason,
   onRequestRemoveRole,
 }: {
   manager: ManagerSettingsManager;
+  mutationDisabledReason?: string;
   onRequestRemoveRole: (manager: ManagerSettingsManager) => void;
 }) {
   const reasonId = `manager-role-removal-${manager.personId}-reason`;
+  const canRemoveRole = manager.canRemoveRole && !mutationDisabledReason;
+  const disabledReason = manager.canRemoveRole ? mutationDisabledReason : manager.removeRoleDisabledReason;
+
   return (
-    <Flex
+    <Stack
       as="article"
       aria-label={`${manager.name}さんの管理者情報`}
-      direction={{ base: "column", md: "row" }}
-      gap={{ base: 3, md: 4 }}
+      gap={1.5}
       px={{ base: 3, md: 4 }}
       py={3.5}
-      align={{ base: "stretch", md: "center" }}
       minH="72px"
     >
-      <HStack gap={3} flex={1} minW={0} align="center">
-        <ManagerAvatar name={manager.name} readOnly={manager.role === "readOnly"} />
-        <Stack gap={0.5} minW={0} flex={1}>
-          <HStack gap={1.5} wrap="wrap">
-            <Text fontWeight="semibold" color="gray.900" overflowWrap="anywhere">
-              {manager.name}
+      <Flex gap={{ base: 2, md: 4 }} align="center" minW={0}>
+        <HStack gap={3} flex={1} minW={0} align="center">
+          <ManagerAvatar name={manager.name} readOnly={manager.role === "readOnly"} />
+          <Stack gap={0.5} minW={0} flex={1}>
+            <HStack gap={1.5} wrap="wrap">
+              <Text fontWeight="semibold" color="gray.900" overflowWrap="anywhere">
+                {manager.name}
+              </Text>
+              {manager.isSelf && (
+                <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
+                  あなた
+                </Badge>
+              )}
+              {manager.role === "readOnly" && (
+                <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
+                  閲覧のみ
+                </Badge>
+              )}
+            </HStack>
+            <Text fontSize="sm" color="fg.muted" overflowWrap="anywhere">
+              {manager.contactEmail}
             </Text>
-            {manager.isSelf && (
-              <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
-                あなた
-              </Badge>
-            )}
-            {manager.role === "readOnly" && (
-              <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
-                閲覧のみ
-              </Badge>
-            )}
-          </HStack>
-          <Text fontSize="sm" color="fg.muted" overflowWrap="anywhere">
-            {manager.contactEmail}
-          </Text>
-        </Stack>
-      </HStack>
-      <Stack gap={1.5} align={{ base: "stretch", md: "flex-end" }}>
+          </Stack>
+        </HStack>
         <Button
           variant="outline"
           colorPalette="red"
           minH={{ base: "44px", md: "36px" }}
+          minW={{ base: "44px", md: "auto" }}
+          px={{ base: 0, md: 3 }}
+          gap={{ base: 0, md: 2 }}
           size={{ base: "md", md: "sm" }}
-          disabled={!manager.canRemoveRole}
-          aria-describedby={!manager.canRemoveRole ? reasonId : undefined}
+          flexShrink={0}
+          disabled={!canRemoveRole}
+          aria-label="管理者権限を外す"
+          aria-describedby={!canRemoveRole && disabledReason ? reasonId : undefined}
           onClick={() => onRequestRemoveRole(manager)}
         >
-          管理者権限を外す
-        </Button>
-        {!manager.canRemoveRole && manager.removeRoleDisabledReason && (
-          <Text id={reasonId} fontSize="xs" color="orange.700" textAlign={{ base: "left", md: "right" }}>
-            {manager.removeRoleDisabledReason}
+          <LuUserMinus aria-hidden />
+          <Text as="span" display={{ base: "none", md: "inline" }}>
+            管理者権限を外す
           </Text>
-        )}
-      </Stack>
-    </Flex>
+        </Button>
+      </Flex>
+      {!canRemoveRole && disabledReason && (
+        <Text id={reasonId} fontSize="xs" color="orange.700" textAlign={{ base: "left", md: "right" }}>
+          {disabledReason}
+        </Text>
+      )}
+    </Stack>
   );
 }
 
 function InvitationRow({
   invitation,
+  mutationDisabledReason,
   onRequestResend,
   onRequestRevoke,
 }: {
   invitation: ManagerSettingsInvitation;
+  mutationDisabledReason?: string;
   onRequestResend: (invitation: ManagerSettingsInvitation) => void;
   onRequestRevoke: (invitation: ManagerSettingsInvitation) => void;
 }) {
   const status = getManagerInvitationStatusPresentation(invitation.status);
+  const canResend = canResendManagerInvitation(invitation) && !mutationDisabledReason;
+  const canRevoke = invitation.canRevoke && !mutationDisabledReason;
+  const disabledReasonId = mutationDisabledReason
+    ? `manager-invitation-${invitation.invitationId}-disabled-reason`
+    : undefined;
+
   return (
     <Flex
       as="article"
@@ -394,27 +435,36 @@ function InvitationRow({
           {getManagerInvitationExpiryLabel(invitation.expiresAt)}
         </Text>
       </Stack>
-      <Grid templateColumns="repeat(2, minmax(0, 1fr))" gap={2} minW={{ md: "196px" }}>
-        <Button
-          variant="outline"
-          size={{ base: "md", md: "sm" }}
-          minH={{ base: "44px", md: "36px" }}
-          disabled={!canResendManagerInvitation(invitation)}
-          onClick={() => onRequestResend(invitation)}
-        >
-          再送する
-        </Button>
-        <Button
-          variant="outline"
-          colorPalette="red"
-          size={{ base: "md", md: "sm" }}
-          minH={{ base: "44px", md: "36px" }}
-          disabled={!invitation.canRevoke}
-          onClick={() => onRequestRevoke(invitation)}
-        >
-          取り消す
-        </Button>
-      </Grid>
+      <Stack gap={1.5} minW={{ md: "196px" }}>
+        <Grid templateColumns="repeat(2, minmax(0, 1fr))" gap={2}>
+          <Button
+            variant="outline"
+            size={{ base: "md", md: "sm" }}
+            minH={{ base: "44px", md: "36px" }}
+            disabled={!canResend}
+            aria-describedby={!canResend ? disabledReasonId : undefined}
+            onClick={() => onRequestResend(invitation)}
+          >
+            再送する
+          </Button>
+          <Button
+            variant="outline"
+            colorPalette="red"
+            size={{ base: "md", md: "sm" }}
+            minH={{ base: "44px", md: "36px" }}
+            disabled={!canRevoke}
+            aria-describedby={!canRevoke ? disabledReasonId : undefined}
+            onClick={() => onRequestRevoke(invitation)}
+          >
+            取り消す
+          </Button>
+        </Grid>
+        {mutationDisabledReason && (
+          <Text id={disabledReasonId} fontSize="xs" color="fg.muted" textAlign={{ base: "left", md: "right" }}>
+            {mutationDisabledReason}
+          </Text>
+        )}
+      </Stack>
     </Flex>
   );
 }

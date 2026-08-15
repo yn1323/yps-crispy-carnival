@@ -44,13 +44,13 @@ function report(phaseName: "desktop" | "mobile", override: ResultOverride = {}) 
 }
 
 describe("E2E burn-in result gate", () => {
-  it("desktop 12契約を120回、mobile 1契約を10回のphaseへ固定する", () => {
+  it("desktop 13契約を130回、mobile 1契約を10回のphaseへ固定する", () => {
     const desktop = E2E_BURN_IN_PHASES.get("desktop");
     const mobile = E2E_BURN_IN_PHASES.get("mobile");
 
     expect(desktop).toMatchObject({ repetitions: 10 });
-    expect(desktop?.contractIds).toHaveLength(12);
-    expect((desktop?.contractIds.length ?? 0) * (desktop?.repetitions ?? 0)).toBe(120);
+    expect(desktop?.contractIds).toHaveLength(13);
+    expect((desktop?.contractIds.length ?? 0) * (desktop?.repetitions ?? 0)).toBe(130);
     expect(mobile).toMatchObject({ repetitions: 10 });
     expect(mobile?.contractIds).toHaveLength(1);
     expect((mobile?.contractIds.length ?? 0) * (mobile?.repetitions ?? 0)).toBe(10);

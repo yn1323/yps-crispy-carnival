@@ -4,8 +4,12 @@ import type { CreateRecruitmentStep } from "./types";
 
 type Props = {
   currentStep: CreateRecruitmentStep;
+  hasShopStep: boolean;
+  canContinueFromShop: boolean;
   submitLoading: boolean;
   onCancel?: () => void;
+  onGoToShop: () => void;
+  onGoToPeriodFromShop: () => void;
   onGoToPeriod: () => void;
   onGoToHolidays: () => void;
   onGoToDeadline: () => void;
@@ -14,18 +18,41 @@ type Props = {
 
 export const RecruitmentWizardActions = ({
   currentStep,
+  hasShopStep,
+  canContinueFromShop,
   submitLoading,
   onCancel,
+  onGoToShop,
+  onGoToPeriodFromShop,
   onGoToPeriod,
   onGoToHolidays,
   onGoToDeadline,
   onGoToConfirm,
 }: Props) => {
-  if (currentStep === "period") {
+  if (currentStep === "shop") {
     return (
       <>
         <Button type="button" variant="outline" onClick={onCancel} disabled={submitLoading}>
           キャンセル
+        </Button>
+        <Button
+          type="button"
+          colorPalette="teal"
+          onClick={onGoToPeriodFromShop}
+          disabled={!canContinueFromShop || submitLoading}
+        >
+          次へ
+        </Button>
+      </>
+    );
+  }
+
+  if (currentStep === "period") {
+    return (
+      <>
+        <Button type="button" variant="outline" onClick={hasShopStep ? onGoToShop : onCancel} disabled={submitLoading}>
+          {hasShopStep && <LuChevronLeft />}
+          {hasShopStep ? "戻る" : "キャンセル"}
         </Button>
         <Button type="button" colorPalette="teal" onClick={onGoToHolidays} disabled={submitLoading}>
           次へ

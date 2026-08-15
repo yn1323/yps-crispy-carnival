@@ -5,6 +5,7 @@ import { internalAction } from "../_generated/server";
 import { getAppUrl, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { isDryRunManagerEmail } from "../_lib/notificationDelivery";
+import { isReleaseFeatureEnabled } from "../_lib/releaseFeatures";
 import { buildOrganizationBillingEmailHtml } from "../notification/templates";
 import { emailPayload, enqueueEmail, organizationManagerInvitationEmailPayload } from "../notificationOutbox/enqueue";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
@@ -24,6 +25,7 @@ export const enqueueManagerInvitation = internalAction({
   },
   returns: v.object({ enqueued: v.boolean() }),
   handler: async (ctx, args): Promise<{ enqueued: boolean }> => {
+    if (!isReleaseFeatureEnabled("managerInvitation")) return { enqueued: false };
     const data: ManagerInvitationEnqueueData | null = await ctx.runQuery(
       internal.organizationInvitation.queries.getEnqueueData,
       {
@@ -61,14 +63,15 @@ export const enqueueAcceptanceNotifications = internalAction({
   },
   returns: v.object({ enqueuedCount: v.number() }),
   handler: async (ctx, args) => {
+    if (!isReleaseFeatureEnabled("managerInvitation")) return { enqueuedCount: 0 };
     const data = await ctx.runQuery(internal.organizationInvitation.queries.getAcceptanceNotificationData, {
       invitationId: args.invitationId,
       expectedVersion: args.expectedVersion,
     });
     if (!data) return { enqueuedCount: 0 };
 
-    const settingsUrl = new URL("/settings/managers", getAppUrl());
-    if (data.shopId) settingsUrl.searchParams.set("shop", data.shopId);
+    const settingsUrl = new URL("/app/manage/managers", getAppUrl());
+    settingsUrl.searchParams.set("org", data.organizationId);
     let enqueuedCount = 0;
     for (const recipient of data.recipients) {
       const result = await enqueueEmail(ctx, {

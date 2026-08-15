@@ -5,7 +5,7 @@ import { api } from "@/convex/_generated/api";
 import { selectedShopAtom } from "@/src/stores/shop";
 import type { DashboardAnnouncement as DashboardAnnouncementData } from "../types";
 import { DashboardAnnouncementView } from "./DashboardAnnouncementView";
-import { selectDashboardAnnouncementForContext } from "./script";
+import { type AnnouncementContext, selectDashboardAnnouncementForContext } from "./script";
 
 export type DashboardAnnouncementState = {
   announcement: DashboardAnnouncementData | null;
@@ -15,10 +15,11 @@ export type DashboardAnnouncementState = {
 type Props = {
   announcement?: DashboardAnnouncementData | null;
   defaultOpen?: boolean;
+  context?: AnnouncementContext;
   children?: (state: DashboardAnnouncementState) => ReactNode;
 };
 
-export const DashboardAnnouncement = ({ announcement, defaultOpen = false, children }: Props) => {
+export const DashboardAnnouncement = ({ announcement, defaultOpen = false, context, children }: Props) => {
   const selectedShop = useAtomValue(selectedShopAtom);
   const queriedAnnouncements = useQuery(
     api.dashboard.queries.getActiveDashboardAnnouncementsV2,
@@ -26,7 +27,7 @@ export const DashboardAnnouncement = ({ announcement, defaultOpen = false, child
   );
   const resolvedAnnouncement =
     announcement === undefined
-      ? selectDashboardAnnouncementForContext(queriedAnnouncements, selectedShop)
+      ? selectDashboardAnnouncementForContext(queriedAnnouncements, context ?? selectedShop)
       : announcement;
   const content = resolvedAnnouncement ? (
     <DashboardAnnouncementView announcement={resolvedAnnouncement} defaultOpen={defaultOpen} />

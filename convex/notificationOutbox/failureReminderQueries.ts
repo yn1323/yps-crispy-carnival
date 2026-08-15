@@ -41,6 +41,9 @@ export const getFailureReminderTargetForShop = internalQuery({
   handler: async (ctx, { shopId }) => {
     const shop = await ctx.db.get(shopId);
     if (!shop || shop.isDeleted) return null;
+    if (!shop.organizationId) return null;
+    const organization = await ctx.db.get(shop.organizationId);
+    if (!organization || organization.isDeleted) return null;
 
     const openFailure = await filter(
       ctx.db
@@ -56,7 +59,7 @@ export const getFailureReminderTargetForShop = internalQuery({
     return {
       shopId,
       shopName: shop.name,
-      dashboardUrl: buildShopDashboardUrl(shopId),
+      dashboardUrl: buildShopDashboardUrl({ organizationId: organization._id, shopId }),
       recipients,
     };
   },

@@ -108,15 +108,16 @@ export const StepperDialogSteps = <TStep extends string>({ steps, currentStep }:
     steps.findIndex((step) => step.value === currentStep),
     0,
   );
+  const useCompactMobileSpacing = steps.length >= 5;
 
   return (
-    <Flex align="center" w="full" px={{ base: 4, md: 0 }}>
+    <Flex align="center" w="full" px={{ base: useCompactMobileSpacing ? 2 : 4, md: 0 }}>
       {steps.map((step, index) => {
         const isDone = index < currentIndex;
         const isCurrent = index === currentIndex;
         return (
           <Fragment key={step.value}>
-            <HStack gap={2} flexShrink={0} minW={0}>
+            <HStack gap={{ base: useCompactMobileSpacing ? 1.5 : 2, md: 2 }} flexShrink={0} minW={0}>
               <Flex
                 w="24px"
                 h="24px"
@@ -142,7 +143,13 @@ export const StepperDialogSteps = <TStep extends string>({ steps, currentStep }:
               </Text>
             </HStack>
             {index < steps.length - 1 && (
-              <Box flex={1} minW={{ base: 3, md: 8 }} h="1px" bg={isDone ? "teal.600" : "gray.200"} mx={4} />
+              <Box
+                flex={1}
+                minW={{ base: useCompactMobileSpacing ? 1 : 3, md: 8 }}
+                h="1px"
+                bg={isDone ? "teal.600" : "gray.200"}
+                mx={{ base: useCompactMobileSpacing ? 1.5 : 4, md: 4 }}
+              />
             )}
           </Fragment>
         );

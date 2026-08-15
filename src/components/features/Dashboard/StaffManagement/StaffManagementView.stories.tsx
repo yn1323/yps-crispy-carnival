@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
-import type { Id } from "@/convex/_generated/dataModel";
 import type { StaffInvitationMethod, StaffInvitationViewModel } from "./StaffInvitationDialog";
 import { StaffManagementView } from "./StaffManagementView";
 
@@ -137,68 +136,22 @@ export const ManualDraftRetentionAndCloseResetBehavior: Story = {
   },
 };
 
-export const ReactivationInlineConfirmationBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  render: () => <ProductionStaffInvitationHarness reactivationOnManualSubmit />,
-  play: async ({ canvasElement }) => {
-    const page = within(canvasElement.ownerDocument.body);
-
-    await userEvent.click(await page.findByRole("button", { name: "管理者が情報を入力して追加する" }, lazyBodyWait));
-    const [nameInput] = await page.findAllByPlaceholderText("例：田中 花子");
-    const [emailInput] = await page.findAllByPlaceholderText("例：hanako@example.com");
-    await userEvent.type(nameInput, "再追加スタッフ");
-    await userEvent.type(emailInput, "reactivation@example.com");
-    await userEvent.click(page.getByRole("button", { name: "スタッフを登録する" }));
-
-    const confirmation = await page.findByRole("alertdialog", { name: "削除済みの人物を再追加しますか？" });
-    await expect(page.queryAllByRole("dialog")).toHaveLength(0);
-    await expect(page.getAllByRole("alertdialog")).toHaveLength(1);
-    const confirmationActionArea = getActionArea(confirmation);
-    await expect(confirmationActionArea).toHaveAttribute("data-mobile-layout", "stacked");
-    const confirmationActions = within(confirmationActionArea);
-    await expect(confirmationActions.queryByRole("button", { name: "戻る" })).not.toBeInTheDocument();
-    await expect(confirmationActions.queryByRole("button", { name: "スタッフを登録する" })).not.toBeInTheDocument();
-    const cancelButton = confirmationActions.getByRole("button", { name: "キャンセル" });
-    await waitFor(() => expect(cancelButton).toHaveFocus());
-    await userEvent.click(cancelButton);
-
-    await waitFor(() => expect(page.queryByRole("alertdialog")).not.toBeInTheDocument());
-    const restoredDialog = await page.findByRole("dialog", { name: "スタッフを追加" });
-    await expect(page.queryAllByRole("dialog")).toHaveLength(1);
-    const restoredHeading = within(restoredDialog).getByRole("heading", {
-      name: "管理者が情報を入力して追加する",
-    });
-    await waitFor(() => expect(restoredHeading).toHaveFocus());
-    const [restoredNameInput] = within(restoredDialog).getAllByPlaceholderText("例：田中 花子");
-    const [restoredEmailInput] = within(restoredDialog).getAllByPlaceholderText("例：hanako@example.com");
-    await expect(restoredNameInput).toHaveValue("再追加スタッフ");
-    await expect(restoredEmailInput).toHaveValue("reactivation@example.com");
-  },
-};
-
 function getActionArea(dialog: HTMLElement) {
   const actionArea = dialog.querySelector<HTMLElement>("[data-dialog-action-area]");
   if (!actionArea) throw new Error("Dialog action area was not rendered");
   return actionArea;
 }
 
-function ProductionStaffInvitationHarness({
-  reactivationOnManualSubmit = false,
-}: {
-  reactivationOnManualSubmit?: boolean;
-}) {
+function ProductionStaffInvitationHarness() {
   const [selectedMethod, setSelectedMethod] = useState<StaffInvitationMethod | null>(null);
   const [isOpen, setIsOpen] = useState(true);
-  const [isReactivationOpen, setIsReactivationOpen] = useState(false);
 
   const closeDialog = () => {
     setIsOpen(false);
     setSelectedMethod(null);
-    setIsReactivationOpen(false);
   };
   const openDialog = () => {
     setSelectedMethod(null);
-    setIsReactivationOpen(false);
     setIsOpen(true);
   };
   const invitation: StaffInvitationViewModel = {
@@ -223,28 +176,8 @@ function ProductionStaffInvitationHarness({
     onSelectMethod: setSelectedMethod,
     onBackToMethods: () => setSelectedMethod(null),
     onRetryRegistrationUrl: noop,
-    onAddStaffs: () => {
-      if (reactivationOnManualSubmit) setIsReactivationOpen(true);
-    },
+    onAddStaffs: noop,
     onAddOrganizationPerson: noop,
-    reactivationConfirmation: {
-      dialog: {
-        isOpen: isReactivationOpen,
-        onOpenChange: ({ open }) => setIsReactivationOpen(open),
-      },
-      candidates: isReactivationOpen
-        ? [
-            {
-              personId: "reactivation-person" as Id<"organizationPeople">,
-              name: "再追加スタッフ",
-              email: "reactivation@example.com",
-            },
-          ]
-        : [],
-      isConfirming: false,
-      onConfirm: closeDialog,
-      onClose: () => setIsReactivationOpen(false),
-    },
   };
 
   return (

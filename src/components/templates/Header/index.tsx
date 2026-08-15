@@ -1,5 +1,5 @@
 import type { BoxProps, ContainerProps, FlexProps, ImageProps, TextProps } from "@chakra-ui/react";
-import { Box, Container, Flex, Image, Link, Text } from "@chakra-ui/react";
+import { Box, Container, Flex, Grid, Image, Link, Text } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
@@ -36,6 +36,10 @@ type UserHeaderVariantProps = {
   variant?: "user";
   position?: HeaderPosition;
   userActions?: ReactNode;
+  primaryNavigation?: ReactNode;
+  brandTo?: string;
+  brandSearch?: { org?: string };
+  brandAriaLabel?: string;
 };
 
 type StaffHeaderVariantProps = {
@@ -78,12 +82,36 @@ export const Header = (props: HeaderProps = {}) => {
     );
   }
 
+  const brand = (
+    <HeaderBrand
+      to={props.brandTo ?? "/dashboard"}
+      search={props.brandSearch}
+      ariaLabel={props.brandAriaLabel ?? "ダッシュボードへ"}
+      showTagline
+    />
+  );
+  const userActions = (
+    <Flex align="center" gap={{ base: 1, md: 2 }} flexShrink={0}>
+      {props.userActions}
+    </Flex>
+  );
+
+  if (props.primaryNavigation !== undefined) {
+    return (
+      <HeaderShell position={props.position ?? "fixed"}>
+        <Grid templateColumns="auto minmax(0, 1fr) auto" alignItems="center" gap={{ base: 2, lg: 4 }} w="full" minW={0}>
+          {brand}
+          <Box minW={0}>{props.primaryNavigation}</Box>
+          {userActions}
+        </Grid>
+      </HeaderShell>
+    );
+  }
+
   return (
     <HeaderShell position={props.position ?? "fixed"}>
-      <HeaderBrand to="/dashboard" ariaLabel="ダッシュボードへ" showTagline />
-      <Flex align="center" gap={{ base: 1, md: 2 }} flexShrink={0}>
-        {props.userActions}
-      </Flex>
+      {brand}
+      {userActions}
     </HeaderShell>
   );
 };
@@ -141,6 +169,7 @@ const HeaderShell = ({
 
 type HeaderBrandProps = {
   to: string;
+  search?: { org?: string };
   ariaLabel?: string;
   logoSize?: ImageProps["boxSize"];
   fontSize?: TextProps["fontSize"];
@@ -150,6 +179,7 @@ type HeaderBrandProps = {
 
 const HeaderBrand = ({
   to,
+  search,
   ariaLabel,
   logoSize,
   fontSize,
@@ -162,7 +192,7 @@ const HeaderBrand = ({
         <HeaderBrandContent logoSize={logoSize} fontSize={fontSize} showTagline={showTagline} />
       </MeasurementBoundaryLink>
     ) : (
-      <RouterLink to={to} aria-label={ariaLabel}>
+      <RouterLink to={to} search={search} aria-label={ariaLabel}>
         <HeaderBrandContent logoSize={logoSize} fontSize={fontSize} showTagline={showTagline} />
       </RouterLink>
     )}
@@ -260,7 +290,7 @@ const PublicLoginButton = ({ display }: PublicLoginButtonProps) => (
 const PublicSignupButton = () => (
   <Button asChild colorPalette="teal" h="38px" px={5} borderRadius="md" fontSize="sm" fontWeight="bold" hideBelow="md">
     <MeasurementBoundaryLink href="/signup" measurementCtaId="header_signup">
-      トライアルを始める
+      シフトリを始める
     </MeasurementBoundaryLink>
   </Button>
 );

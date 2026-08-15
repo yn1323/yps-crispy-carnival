@@ -51,6 +51,10 @@ LINEアプリ内ブラウザではGoogle OAuthがprovider側で拒否される�
 
 認証済み利用者は、ヘッダー右上のユーザーメニューから`/account`を開く。  メニュー名とページ見出しは「アカウント設定」とする。  ページ見出しの戻る操作では、ブラウザ履歴を1件戻す。  ヘッダーにClerk primary emailは表示しない。
 
+`/account`は認証済みアプリshell内のcanonical URLである。
+重複していた`/app/account`は削除し、互換redirectを設けない。
+Google account linkingの帰還先も`/account?flow=connect-google&oauth=google`だけを使う。
+
 このページは組織や店舗に依存しない本人専用画面である。  `?shop=`を引き継がず、店舗一覧取得、selected shop解決、無効店舗による全体blockを行わない。認証、削除済みアカウント判定などの共通契約だけを維持する。
 
 画面はClerkのcurrent User resourceからメールアドレス、パスワード、Google認証の状態を表示する。  メールログインの対象として表示・変更するメールアドレスは、Primaryの1件だけとし、UIでは「メインのメールアドレス」と呼ぶ。  過去から残るsecondary EmailAddressや確認途中のEmailAddressがClerk上にあっても、別のログイン対象行としては表示せず、Primary変更に無関係なresourceを推測削除しない。
@@ -59,7 +63,7 @@ Clerk内部のprimary・secondaryという用語は製品UIに出さない。
 Googleのみの状態ではメールログイン方法を未設定として扱い、EmailAddress resourceが存在してもメールアドレス欄は「未設定」と表示する。  「設定する」から既存のメールアドレス・パスワード設定モーダルを開く。
 確認済みPrimary EmailAddressとパスワードがそろう場合は、メールアドレスとGoogle認証の間にパスワード行を表示する。  実際のパスワードは表示せず「設定済み」と表示し、右側の「変更する」から変更モーダルを開く。Googleのみの状態ではパスワード行を表示しない。
 
-ページ見出しの直下には、Google認証の連携状態にかかわらず「Google認証、メールアドレス両方でログインできます。」を表示し、その下に「シフト通知は、個別のユーザーに設定されているメール、LINEに送ります。」を表示する。
+ページ見出しの直下には、Google認証の連携状態にかかわらず「Google認証、メールアドレス両方でログインできます。」を表示し、その下に「シフト通知は、個別のユーザーに設定したメール・LINEに送ります。」を表示する。
 初回読み込み中はログイン方法一覧の構造をスケルトンで表示し、読み込み専用のメッセージやspinnerは表示しない。
 
 resourceを安全に判定できない場合は、アカウント設定内の局所errorとして表示する。
@@ -138,6 +142,8 @@ Google account linkingのOAuth帰還先は`/account`専用とし、サインイ�
 ## 管理者招待のメール所有確認
 
 管理者招待の受諾は、招待先をClerk primary emailとみなさない。
+この受諾フローは複数管理者の将来用実装であり、通常環境では招待previewと受諾を公開設定で閉じる。
+次の本人確認契約は、公開設定を明示した検証環境で維持する。
 
 - すでにpersonとClerk Userが接続済みの場合は、現在の内部`userId`との一致で本人を確認する。
 - 未接続personまたは外部招待の場合は、招待先が現在のClerk Userのverified EmailAddressに含まれることをConvex Node actionからClerk Backend APIで確認する。
@@ -166,8 +172,8 @@ ClerkのEmailAddress: 1件または複数件
 - `/signup`：新規登録
 - `/forgot-password`：パスワード再設定
 - `/sso-callback`：サインイン・サインアップ用Google OAuth callback
-- `/account`：店舗非依存の本人用アカウント設定
-- `/manager-invite`：管理者招待の確認、受諾、必要なメール所有確認
+- `/account`：認証済みアプリshellで表示する、本文は店舗・組織非依存の本人用アカウント設定。所属組織がある場合は、ヘッダーから組織scopeの要望を送信できる
+- `/manager-invite`：将来用の管理者招待受諾。通常環境ではpreviewと受諾を閉じる
 
 ## 主なAPI
 

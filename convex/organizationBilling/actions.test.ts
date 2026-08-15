@@ -1,10 +1,35 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
 import { seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("organizationBilling/actions", () => {
+  beforeEach(() => vi.stubEnv("FEATURE_BILLING", "true"));
+
+  it("課金機能が閉じているときは内部通知actionもOutboxを作らない", async () => {
+    vi.stubEnv("FEATURE_BILLING", "");
+    const t = convexTest(schema, modules);
+    const ids = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "closed_billing_notice", plan: "business" }),
+    );
+
+    await expect(
+      t.action(internal.organizationBilling.actions.enqueueBillingNotification, {
+        organizationId: ids.organizationId,
+        event: "planActivated",
+        eventKey: "closed-plan-activated",
+        notificationDetails: {
+          targetPlan: "business",
+          amountDue: 1_200,
+          currency: "jpy",
+          effectiveAt: Date.parse("2026-09-01T00:00:00+09:00"),
+        },
+      }),
+    ).resolves.toEqual({ enqueuedCount: 0 });
+    await expect(t.run((ctx) => ctx.db.query("notificationOutbox").collect())).resolves.toEqual([]);
+  });
+
   it("課金通知を管理者ごとのemailだけでOutboxへ積み、同じeventKeyを重複させない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run((ctx) => seedOrganizationManagerShop(ctx, { subject: "billing_notice", plan: "business" }));
@@ -48,6 +73,9 @@ describe("organizationBilling/actions", () => {
     expect(jobs[0]?.payload.kind === "email" ? jobs[0].payload.subject : "").toContain("Businessを開始しました");
     expect(jobs[0]?.payload.kind === "email" ? jobs[0].payload.html : "").toContain("1,200");
     expect(jobs[0]?.payload.kind === "email" ? jobs[0].payload.html : "").not.toContain("9,999");
+    expect(jobs[0]?.payload.kind === "email" ? jobs[0].payload.html : "").toContain(
+      `/app/manage/billing?org=${ids.organizationId}`,
+    );
     expect(jobs.some((job) => job.channel === "line")).toBe(false);
   });
 

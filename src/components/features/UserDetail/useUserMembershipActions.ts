@@ -7,7 +7,13 @@ import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { getConvexErrorMessage } from "@/src/lib/convex/error";
 import type { UserMembershipChangeInput } from "./types";
 
-export function useUserMembershipActions({ canChangeMembership }: { canChangeMembership: boolean }) {
+export function useUserMembershipActions({
+  canChangeMembership,
+  expectedOrganizationId,
+}: {
+  canChangeMembership: boolean;
+  expectedOrganizationId?: Id<"organizations">;
+}) {
   const canChangeMembershipRef = useRef(canChangeMembership);
   canChangeMembershipRef.current = canChangeMembership;
   const changeOrganizationPersonShopMemberships = useMutation(
@@ -18,7 +24,11 @@ export function useUserMembershipActions({ canChangeMembership }: { canChangeMem
     async (personId: Id<"organizationPeople">, input: UserMembershipChangeInput) => {
       if (!canChangeMembershipRef.current) return false;
       try {
-        await changeOrganizationPersonShopMemberships({ ...input, personId });
+        await changeOrganizationPersonShopMemberships({
+          ...input,
+          personId,
+          ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+        });
         if (!canChangeMembershipRef.current) return false;
         showSuccessToast({ title: "所属店舗を変更しました" });
         return true;

@@ -30,6 +30,7 @@ vi.mock("@/src/components/shared/feedback", () => ({
 import { useUserMembershipActions } from "./useUserMembershipActions";
 
 const personId = "person-target" as Id<"organizationPeople">;
+const organizationId = "organization-a" as Id<"organizations">;
 const shopId = "shop-target" as Id<"shops">;
 const addedShopId = "shop-added" as Id<"shops">;
 const removedShopId = "shop-removed" as Id<"shops">;
@@ -58,6 +59,23 @@ beforeEach(() => {
 });
 
 describe("useUserMembershipActions", () => {
+  it("app導線ではexpected organizationをmutationへ渡す", async () => {
+    mocks.changeMemberships.mockResolvedValue(undefined);
+    const { result } = renderHook(() =>
+      useUserMembershipActions({ canChangeMembership: true, expectedOrganizationId: organizationId }),
+    );
+
+    await act(async () => {
+      await result.current.onChangeMemberships(personId, input);
+    });
+
+    expect(mocks.changeMemberships).toHaveBeenCalledExactlyOnceWith({
+      ...input,
+      personId,
+      expectedOrganizationId: organizationId,
+    });
+  });
+
   it("所属店舗の差分を一つのmutationへ一度だけ渡す", async () => {
     let resolveMutation: (() => void) | undefined;
     mocks.changeMemberships.mockReturnValue(

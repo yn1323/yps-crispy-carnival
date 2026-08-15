@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { getConvexErrorMessage } from "@/src/lib/convex/error";
@@ -56,14 +57,15 @@ type RetainedReadyRemovalPreview = {
 
 type Options = {
   shopId: ShopId;
+  expectedOrganizationId?: Id<"organizations">;
   isOpen: boolean;
   onSucceeded: () => void;
 };
 
-export function useShopStaffMembershipController({ shopId, isOpen, onSucceeded }: Options) {
+export function useShopStaffMembershipController({ shopId, expectedOrganizationId, isOpen, onSucceeded }: Options) {
   const membershipData = useQuery(
     api.staff.queries.getOrganizationShopStaffMembershipChange,
-    isOpen ? { shopId } : "skip",
+    isOpen ? { shopId, ...(expectedOrganizationId ? { expectedOrganizationId } : {}) } : "skip",
   );
   const [previewRequest, setPreviewRequest] = useState<PreviewRequest | null>(null);
   const queriedRemovalPreview = useQuery(
@@ -74,6 +76,7 @@ export function useShopStaffMembershipController({ shopId, isOpen, onSucceeded }
           personIds: previewRequest.personIds,
           expectedMembershipFingerprint: previewRequest.expectedMembershipFingerprint,
           now: previewRequest.now,
+          ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
         }
       : "skip",
   );
@@ -189,7 +192,7 @@ export function useShopStaffMembershipController({ shopId, isOpen, onSucceeded }
       }
       setPreviewRequest(null);
       try {
-        await changeMemberships(input);
+        await changeMemberships({ ...input, ...(expectedOrganizationId ? { expectedOrganizationId } : {}) });
         if (isMountedRef.current) setRetainedReadyRemovalPreview(undefined);
         const latest = latestStateRef.current;
         if (isMountedRef.current && latest.isOpen && latest.shopId === input.shopId) {

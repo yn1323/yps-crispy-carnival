@@ -1,15 +1,9 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import { useRef } from "react";
-import { clearRequestedShopSearch } from "@/src/lib/authenticatedSearch";
+import { useEffect, useRef, useState } from "react";
+import type { Id } from "@/convex/_generated/dataModel";
 import { featureVisibilityAtom } from "@/src/stores/user";
-import {
-  getUserDetailBackDestination,
-  getUserDetailRemovedDestination,
-  getUserShopDetailDestination,
-  mergeUserDetailSearch,
-} from "./navigation";
-import type { UserDetailData, UserDetailPanel, UserDetailReturnTo } from "./types";
+import type { UserDetailData, UserDetailPanel } from "./types";
 import { UserDetailView } from "./UserDetailView";
 import { useUserLineActions } from "./useUserLineActions";
 import { useUserMembershipActions } from "./useUserMembershipActions";
@@ -18,95 +12,70 @@ import { useUserRemovalActions } from "./useUserRemovalActions";
 
 type Props = {
   data: UserDetailData;
-  selectedShopId: string | null;
-  activePanel?: UserDetailPanel;
-  returnTo: UserDetailReturnTo;
-  returnShopId?: string;
-  returnShopTo?: "dashboard";
-  visibleUserCount: number;
+  organizationId: Id<"organizations">;
 };
 
-export function UserDetail({
-  data,
-  selectedShopId,
-  activePanel,
-  returnTo,
-  returnShopId,
-  returnShopTo,
-  visibleUserCount,
-}: Props) {
+export function UserDetail({ data, organizationId }: Props) {
   const navigate = useNavigate();
+  const router = useRouter();
+  const [appPanel, setAppPanel] = useState<UserDetailPanel>();
+  const resolvedActivePanel = appPanel;
+  const appDetailScope = `${organizationId}:${data.person.id}`;
+  useEffect(() => {
+    if (appDetailScope) setAppPanel(undefined);
+  }, [appDetailScope]);
   const featureVisibility = useAtomValue(featureVisibilityAtom);
   const showShopMembershipAddition = featureVisibility.shopMembershipAddition;
   const showShopMembershipAdditionRef = useRef(showShopMembershipAddition);
   showShopMembershipAdditionRef.current = showShopMembershipAddition;
-  const activePanelRef = useRef(activePanel);
-  activePanelRef.current = activePanel;
+  const activePanelRef = useRef(resolvedActivePanel);
+  activePanelRef.current = resolvedActivePanel;
   const visiblePersonIdRef = useRef(data.person.id);
   visiblePersonIdRef.current = data.person.id;
 
-  const profile = useUserProfileUpdate({ data, selectedShopId });
-  const line = useUserLineActions({ data });
+  const operationShopId = data.line.actionShopId;
+  const profile = useUserProfileUpdate({
+    data,
+    selectedShopId: operationShopId,
+    expectedOrganizationId: organizationId,
+  });
+  const line = useUserLineActions({ data, expectedOrganizationId: organizationId });
   const membership = useUserMembershipActions({
     canChangeMembership: data.canWrite && showShopMembershipAddition,
+    expectedOrganizationId: organizationId,
   });
   const removal = useUserRemovalActions({
     data,
-    selectedShopId,
+    selectedShopId: operationShopId,
+    expectedOrganizationId: organizationId,
     onPersonRemoved: (removedPersonId) => {
       if (visiblePersonIdRef.current !== removedPersonId) return;
       if (data.isSelf) {
-        void navigate({ to: "/dashboard", search: clearRequestedShopSearch(), replace: true });
+        void navigate({ to: "/dashboard", search: {}, replace: true });
         return;
       }
-      const destination = getUserDetailRemovedDestination(
-        returnTo,
-        selectedShopId,
-        visibleUserCount,
-        returnShopId,
-        returnShopTo,
-      );
-      void navigate({ ...destination, replace: true });
+      void navigate({ to: "/app/staff", search: { org: organizationId }, replace: true });
     },
   });
 
   const updateSearch = (next: { panel?: UserDetailPanel }) => {
     if ("panel" in next) activePanelRef.current = next.panel;
-    void navigate({
-      to: ".",
-      search: (previous) => mergeUserDetailSearch(previous, next),
-      replace: true,
-      resetScroll: false,
-    });
+    setAppPanel(next.panel);
   };
 
   const handleBack = () => {
-    const destination = getUserDetailBackDestination(
-      returnTo,
-      selectedShopId,
-      visibleUserCount,
-      data.person.id,
-      returnShopId,
-      returnShopTo,
-    );
-    void navigate({ ...destination, replace: true });
+    router.history.back();
   };
 
   const handleClosePanel = () => {
     updateSearch({ panel: undefined });
   };
 
-  const managerSettingsShopId =
-    selectedShopId ?? data.shops.find((shop) => shop.shopStatus === "active")?.shopId ?? data.shops[0]?.shopId;
-
   return (
     <UserDetailView
       data={data}
       showShopMembershipAddition={showShopMembershipAddition}
-      managerSettingsDisabledReason={
-        managerSettingsShopId ? undefined : "操作できる店舗がないため、管理者設定を開けません。"
-      }
-      activePanel={activePanel}
+      activePanel={resolvedActivePanel}
       state={{
         isUpdatingProfile: profile.isUpdating,
         line: {
@@ -133,16 +102,11 @@ export function UserDetail({
           updateSearch({ panel: "addShop" });
         },
         onOpenShop: (targetShopId) => {
-          const destination = getUserShopDetailDestination(
-            data.person.id,
-            targetShopId,
-            selectedShopId,
-            returnTo,
-            visibleUserCount,
-            returnShopId,
-            returnShopTo,
-          );
-          void navigate(destination);
+          void navigate({
+            to: "/app/staff/$personId/shops/$shopId",
+            params: { personId: data.person.id, shopId: targetShopId },
+            search: { org: organizationId },
+          });
         },
         onClosePanel: handleClosePanel,
         onUpdateProfile: async (formData) => {
@@ -163,8 +127,7 @@ export function UserDetail({
           }
         },
         onManageManagers: () => {
-          if (!managerSettingsShopId) return;
-          void navigate({ to: "/settings/managers", search: { shop: managerSettingsShopId } });
+          void navigate({ to: "/app/manage/managers", search: { org: organizationId } });
         },
         onRequestRemovePerson: removal.onRequestRemovePerson,
         onConfirmRemovePerson: async () => {
@@ -176,7 +139,6 @@ export function UserDetail({
   );
 }
 
-export { getUserDetailBackDestination, getUserShopDetailBackDestination } from "./navigation";
-export type { UserDetailData, UserDetailPanel, UserDetailReturnTo } from "./types";
+export type { UserDetailData, UserDetailPanel } from "./types";
 export { UserDetailSkeleton } from "./UserDetailSkeleton";
 export { UserDetailView } from "./UserDetailView";

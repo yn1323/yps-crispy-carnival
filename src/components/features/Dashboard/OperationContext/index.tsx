@@ -1,4 +1,3 @@
-import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { useAtomValue } from "jotai";
 import { useMemo } from "react";
@@ -15,22 +14,40 @@ import type { PlanStatusCardProps } from "../PlanStatusCard";
 import { buildOperationContextModel } from "./script";
 import { OperationContextSkeleton, OperationContextView } from "./View";
 
+export type { OperationContextModel } from "./script";
+export { buildOperationContextModel } from "./script";
 export { OperationContextSkeleton, OperationContextView } from "./View";
 
 export type OperationContextData = {
   shops: readonly ShopContextOption[];
   selectedShop: NonNullable<SelectedShopType>;
+  organizations?: readonly OperationContextOrganizationOption[];
+  onOrganizationSelect?: (organization: OperationContextOrganizationOption) => void;
   onSelect?: (shop: ShopContextOption) => void;
+};
+
+export type OperationContextOrganizationOption = {
+  id: string;
+  name: string;
 };
 
 type Props = {
   data?: OperationContextData;
   planStatusCard?: PlanStatusCardProps | null;
   billingSettingsShopId?: string;
+  onOpenShopDetail?: (shopId: string) => void;
+  onOpenOrganizationSettings?: () => void;
+  showOrganizationContext?: boolean;
 };
 
-export const OperationContext = ({ data, planStatusCard, billingSettingsShopId }: Props) => {
-  const navigate = useNavigate();
+export const OperationContext = ({
+  data,
+  planStatusCard,
+  billingSettingsShopId,
+  onOpenShopDetail,
+  onOpenOrganizationSettings,
+  showOrganizationContext = true,
+}: Props) => {
   const rawShops = useQuery(api.dashboard.queries.getMyShops, data ? "skip" : {});
   const storedSelectedShop = useAtomValue(selectedShopAtom);
   const featureVisibility = useAtomValue(featureVisibilityAtom);
@@ -48,13 +65,19 @@ export const OperationContext = ({ data, planStatusCard, billingSettingsShopId }
   if (!data && rawShops === undefined) return <OperationContextSkeleton />;
   if (!model) return null;
 
-  const selectShop = (shop: ShopContextOption) => {
-    if (data?.onSelect) {
-      data.onSelect(shop);
-      return;
-    }
+  const organizationChangeOptions =
+    data?.organizations && data.onOrganizationSelect
+      ? data.organizations
+          .filter((organization) => organization.id !== model.selectedGroup.key)
+          .map((organization) => ({
+            key: organization.id,
+            organizationName: organization.name,
+            targetId: organization.id,
+          }))
+      : undefined;
 
-    void navigate({ to: "/dashboard", search: { shop: shop.shopId } });
+  const selectShop = (shop: ShopContextOption) => {
+    data?.onSelect?.(shop);
   };
 
   const handleShopSelect = (shopId: string) => {
@@ -63,11 +86,7 @@ export const OperationContext = ({ data, planStatusCard, billingSettingsShopId }
   };
 
   const handleOpenShopDetail = () => {
-    void navigate({
-      to: "/shops/$shopId",
-      params: { shopId: model.selectedShop.shopId },
-      search: { shop: model.selectedShop.shopId, returnTo: "dashboard" },
-    });
+    onOpenShopDetail?.(model.selectedShop.shopId);
   };
 
   return (
@@ -76,9 +95,19 @@ export const OperationContext = ({ data, planStatusCard, billingSettingsShopId }
       model={model}
       onShopSelect={handleShopSelect}
       onOpenShopDetail={handleOpenShopDetail}
-      organizationSettingsShopId={showOrganizationSettings ? model.selectedShop.shopId : undefined}
+      onOpenOrganizationSettings={showOrganizationSettings ? onOpenOrganizationSettings : undefined}
+      organizationChangeOptions={organizationChangeOptions}
+      onOrganizationChange={
+        data?.onOrganizationSelect
+          ? (organizationId) => {
+              const organization = data.organizations?.find((candidate) => candidate.id === organizationId);
+              if (organization) data.onOrganizationSelect?.(organization);
+            }
+          : undefined
+      }
       planStatusCard={planStatusCard}
       billingSettingsShopId={billingSettingsShopId}
+      showOrganizationContext={showOrganizationContext}
     />
   );
 };

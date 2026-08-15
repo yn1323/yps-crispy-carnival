@@ -13,7 +13,6 @@ import {
   Text,
   VisuallyHidden,
 } from "@chakra-ui/react";
-import { Link as RouterLink } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { LuBuilding2, LuCheck, LuChevronDown, LuChevronRight, LuSettings, LuStore } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
@@ -33,19 +32,35 @@ const ORGANIZATION_DETAILS_VALUE = "organization-details";
 export type OperationContextViewProps = {
   model: OperationContextModel;
   onShopSelect: (shopId: string) => void;
+  organizationChangeOptions?: readonly OperationContextOrganizationChangeOption[];
+  onOrganizationChange?: (targetId: string) => void;
   onOpenShopDetail: () => void;
-  organizationSettingsShopId?: string;
+  onOpenOrganizationSettings?: () => void;
   planStatusCard?: PlanStatusCardProps | null;
   billingSettingsShopId?: string;
+  showPageHeading?: boolean;
+  showOrganizationContext?: boolean;
+  showShopContext?: boolean;
+};
+
+export type OperationContextOrganizationChangeOption = {
+  key: string;
+  organizationName: string;
+  targetId: string;
 };
 
 export const OperationContextView = ({
   model,
   onShopSelect,
+  organizationChangeOptions,
+  onOrganizationChange,
   onOpenShopDetail,
-  organizationSettingsShopId,
+  onOpenOrganizationSettings,
   planStatusCard,
   billingSettingsShopId,
+  showPageHeading = true,
+  showOrganizationContext = true,
+  showShopContext = true,
 }: OperationContextViewProps) => {
   const defaultExpanded = planStatusCard?.defaultExpanded ?? false;
   const [value, setValue] = useState<string[]>(defaultExpanded ? [ORGANIZATION_DETAILS_VALUE] : []);
@@ -53,8 +68,17 @@ export const OperationContextView = ({
   const previousDefaultExpanded = useRef(defaultExpanded);
   const previousHasPlanDetails = useRef(Boolean(planStatusCard));
   const isExpanded = value.includes(ORGANIZATION_DETAILS_VALUE);
+  const resolvedOrganizationChangeOptions =
+    organizationChangeOptions ??
+    model.organizationChangeOptions.map((option) => ({
+      key: option.key,
+      organizationName: option.organizationName,
+      targetId: option.shopId,
+    }));
+  const handleOrganizationChange = onOrganizationChange ?? onShopSelect;
+  const hasOrganizationSettingsAction = onOpenOrganizationSettings !== undefined;
   const hasAccordionContent = Boolean(
-    organizationSettingsShopId || planStatusCard || model.organizationChangeOptions.length > 0,
+    hasOrganizationSettingsAction || planStatusCard || resolvedOrganizationChangeOptions.length > 0,
   );
   const presentation = planStatusCard ? getPlanStatusPresentation(planStatusCard.data) : null;
   const billingAction = planStatusCard ? getBillingAction(planStatusCard.data) : null;
@@ -82,93 +106,96 @@ export const OperationContextView = ({
 
   return (
     <Stack gap={{ base: 2, lg: 3 }}>
-      <VisuallyHidden as="h1">{model.selectedShop.shopName}</VisuallyHidden>
+      {showPageHeading && <VisuallyHidden as="h1">{model.selectedShop.shopName}</VisuallyHidden>}
 
-      {hasAccordionContent ? (
-        <Accordion.Root
-          collapsible
-          variant="plain"
-          colorPalette="gray"
-          value={value}
-          onValueChange={(details) => updateExpanded(details.value.includes(ORGANIZATION_DETAILS_VALUE))}
-        >
-          <Accordion.Item
-            value={ORGANIZATION_DETAILS_VALUE}
-            borderWidth="1px"
-            borderColor="gray.300"
-            borderRadius="lg"
-            bg="white"
-            overflow="hidden"
+      {showOrganizationContext &&
+        (hasAccordionContent ? (
+          <Accordion.Root
+            collapsible
+            variant="plain"
+            colorPalette="gray"
+            value={value}
+            onValueChange={(details) => updateExpanded(details.value.includes(ORGANIZATION_DETAILS_VALUE))}
           >
-            <Heading as="h2" fontSize="inherit" fontWeight="normal">
-              <Accordion.ItemTrigger
-                ref={triggerRef}
-                minH={{ base: "48px", md: "56px" }}
-                px={{ base: 3, md: 4 }}
-                py={2.5}
-                borderRadius="0"
-                cursor="pointer"
-                _hover={{ bg: "gray.50" }}
-                _focusVisible={{
-                  outline: "2px solid",
-                  outlineColor: "teal.700",
-                  outlineOffset: "-2px",
-                }}
-              >
-                <OrganizationSummary model={model} presentation={presentation} />
-                <Accordion.ItemIndicator color="fg.muted" flexShrink={0} />
-              </Accordion.ItemTrigger>
+            <Accordion.Item
+              value={ORGANIZATION_DETAILS_VALUE}
+              borderWidth="1px"
+              borderColor="gray.300"
+              borderRadius="lg"
+              bg="white"
+              overflow="hidden"
+            >
+              <Heading as="h2" fontSize="inherit" fontWeight="normal">
+                <Accordion.ItemTrigger
+                  ref={triggerRef}
+                  minH={{ base: "48px", md: "56px" }}
+                  px={{ base: 3, md: 4 }}
+                  py={2.5}
+                  borderRadius="0"
+                  cursor="pointer"
+                  _hover={{ bg: "gray.50" }}
+                  _focusVisible={{
+                    outline: "2px solid",
+                    outlineColor: "teal.700",
+                    outlineOffset: "-2px",
+                  }}
+                >
+                  <OrganizationSummary model={model} presentation={presentation} />
+                  <Accordion.ItemIndicator color="fg.muted" flexShrink={0} />
+                </Accordion.ItemTrigger>
+              </Heading>
+
+              <Accordion.ItemContent borderTopWidth="1px" borderTopColor="gray.200">
+                <Accordion.ItemBody p={0}>
+                  {planStatusCard && (
+                    <PlanStatusCard
+                      key={billingSettingsShopId ?? model.selectedShop.shopId}
+                      {...planStatusCard}
+                      onRequestCollapse={handleRequestCollapse}
+                    />
+                  )}
+                  {hasOrganizationSettingsAction && (
+                    <OrganizationSettingsAction
+                      organizationName={model.selectedGroup.organizationName}
+                      onOpen={onOpenOrganizationSettings}
+                      withBorder={Boolean(planStatusCard)}
+                    />
+                  )}
+                  {planStatusCard && billingAction && (
+                    <PlanAndPaymentLink
+                      label={billingAction.label}
+                      onOpen={() => planStatusCard.onAction(billingAction.action)}
+                    />
+                  )}
+                  {resolvedOrganizationChangeOptions.map((option, index) => (
+                    <OrganizationChangeButton
+                      key={option.key}
+                      organizationName={option.organizationName}
+                      targetId={option.targetId}
+                      withBorder={Boolean(planStatusCard || onOpenOrganizationSettings || index > 0)}
+                      onSelect={handleOrganizationChange}
+                    />
+                  ))}
+                </Accordion.ItemBody>
+              </Accordion.ItemContent>
+            </Accordion.Item>
+          </Accordion.Root>
+        ) : (
+          <Box borderWidth="1px" borderColor="gray.300" borderRadius="lg" bg="white">
+            <Heading as="h2" fontSize="inherit" fontWeight="normal" minH={{ base: "48px", md: "56px" }}>
+              <Flex as="span" align="center" h="full" minH="inherit" px={{ base: 3, md: 4 }} py={2.5}>
+                <OrganizationSummary model={model} />
+              </Flex>
             </Heading>
+          </Box>
+        ))}
 
-            <Accordion.ItemContent borderTopWidth="1px" borderTopColor="gray.200">
-              <Accordion.ItemBody p={0}>
-                {planStatusCard && (
-                  <PlanStatusCard
-                    key={billingSettingsShopId ?? model.selectedShop.shopId}
-                    {...planStatusCard}
-                    onRequestCollapse={handleRequestCollapse}
-                  />
-                )}
-                {organizationSettingsShopId && (
-                  <OrganizationSettingsLink
-                    organizationName={model.selectedGroup.organizationName}
-                    shopId={organizationSettingsShopId}
-                    withBorder={Boolean(planStatusCard)}
-                  />
-                )}
-                {planStatusCard && billingAction && (
-                  <PlanAndPaymentLink
-                    label={billingAction.label}
-                    onOpen={() => planStatusCard.onAction(billingAction.action)}
-                  />
-                )}
-                {model.organizationChangeOptions.map((option, index) => (
-                  <OrganizationChangeButton
-                    key={option.key}
-                    organizationName={option.organizationName}
-                    shopId={option.shopId}
-                    withBorder={Boolean(planStatusCard || organizationSettingsShopId || index > 0)}
-                    onSelect={onShopSelect}
-                  />
-                ))}
-              </Accordion.ItemBody>
-            </Accordion.ItemContent>
-          </Accordion.Item>
-        </Accordion.Root>
-      ) : (
-        <Box borderWidth="1px" borderColor="gray.300" borderRadius="lg" bg="white">
-          <Heading as="h2" fontSize="inherit" fontWeight="normal" minH={{ base: "48px", md: "56px" }}>
-            <Flex as="span" align="center" h="full" minH="inherit" px={{ base: 3, md: 4 }} py={2.5}>
-              <OrganizationSummary model={model} />
-            </Flex>
-          </Heading>
-        </Box>
+      {showShopContext && (
+        <Flex align="center" justify="space-between" direction="row" gap={3} minW={0}>
+          <ShopSelector model={model} onSelect={onShopSelect} />
+          <ShopDetailButton onOpenShopDetail={onOpenShopDetail} />
+        </Flex>
       )}
-
-      <Flex align="center" justify="space-between" direction="row" gap={3} minW={0}>
-        <ShopSelector model={model} onSelect={onShopSelect} />
-        <ShopDetailButton onOpenShopDetail={onOpenShopDetail} />
-      </Flex>
     </Stack>
   );
 };
@@ -221,40 +248,52 @@ const getBillingAction = (data: PlanStatusCardData): BillingAction => {
   return { action: "openPlanAndPayment", label: "プランと支払いへ" };
 };
 
-const OrganizationSettingsLink = ({
+const OrganizationSettingsAction = ({
   organizationName,
-  shopId,
+  onOpen,
   withBorder,
 }: {
   organizationName: string;
-  shopId: string;
+  onOpen: () => void;
   withBorder: boolean;
-}) => (
-  <Button
-    asChild
-    variant="plain"
-    justifyContent="flex-start"
-    w="full"
-    minH="52px"
-    h="auto"
-    px={{ base: 4, md: 5 }}
-    py={3}
-    borderTopWidth={withBorder ? "1px" : 0}
-    borderTopColor="gray.200"
-    borderRadius="0"
-    color="gray.900"
-    fontSize="md"
-    fontWeight="medium"
-    _hover={{ bg: "gray.50" }}
-  >
-    <RouterLink to="/settings" search={{ shop: shopId }} aria-label={`${organizationName}の組織設定を開く`}>
+}) => {
+  const content = (
+    <>
       <Text as="span" flex={1} textAlign="left">
         組織情報を見る
       </Text>
       <Icon as={LuChevronRight} boxSize={5} color="fg.muted" flexShrink={0} />
-    </RouterLink>
-  </Button>
-);
+    </>
+  );
+  const buttonProps = {
+    variant: "plain" as const,
+    justifyContent: "flex-start",
+    w: "full",
+    minH: "52px",
+    h: "auto",
+    px: { base: 4, md: 5 },
+    py: 3,
+    borderTopWidth: withBorder ? "1px" : 0,
+    borderTopColor: "gray.200",
+    borderRadius: "0",
+    color: "gray.900",
+    fontSize: "md",
+    fontWeight: "medium",
+    _hover: {
+      bg: "gray.50",
+      color: "teal.700",
+      textDecoration: "underline",
+      textDecorationColor: "teal.700",
+      textUnderlineOffset: "3px",
+    },
+  };
+
+  return (
+    <Button type="button" aria-label={`${organizationName}の組織設定を開く`} {...buttonProps} onClick={onOpen}>
+      {content}
+    </Button>
+  );
+};
 
 const PlanAndPaymentLink = ({ label, onOpen }: { label: string; onOpen: () => void }) => (
   <Button
@@ -272,7 +311,13 @@ const PlanAndPaymentLink = ({ label, onOpen }: { label: string; onOpen: () => vo
     color="gray.900"
     fontSize="md"
     fontWeight="medium"
-    _hover={{ bg: "gray.50" }}
+    _hover={{
+      bg: "gray.50",
+      color: "teal.700",
+      textDecoration: "underline",
+      textDecorationColor: "teal.700",
+      textUnderlineOffset: "3px",
+    }}
     onClick={onOpen}
   >
     <Text as="span" flex={1} textAlign="left">
@@ -284,14 +329,14 @@ const PlanAndPaymentLink = ({ label, onOpen }: { label: string; onOpen: () => vo
 
 const OrganizationChangeButton = ({
   organizationName,
-  shopId,
+  targetId,
   withBorder,
   onSelect,
 }: {
   organizationName: string;
-  shopId: string;
+  targetId: string;
   withBorder: boolean;
-  onSelect: (shopId: string) => void;
+  onSelect: (targetId: string) => void;
 }) => (
   <Button
     type="button"
@@ -308,10 +353,16 @@ const OrganizationChangeButton = ({
     color="gray.900"
     fontSize="md"
     fontWeight="medium"
-    _hover={{ bg: "gray.50" }}
-    onClick={() => onSelect(shopId)}
+    _hover={{
+      bg: "gray.50",
+      color: "teal.700",
+      textDecoration: "underline",
+      textDecorationColor: "teal.700",
+      textUnderlineOffset: "3px",
+    }}
+    onClick={() => onSelect(targetId)}
   >
-    <Text as="span" flex={1} textAlign="left">
+    <Text as="span" flex={1} minW={0} textAlign="left" lineHeight="short" whiteSpace="normal" overflowWrap="anywhere">
       組織を変更：{organizationName}
     </Text>
     <Icon as={LuChevronRight} boxSize={5} color="fg.muted" flexShrink={0} />
@@ -476,35 +527,44 @@ const ShopStatusBadges = ({ shop }: { shop: ShopContextOption }) => {
   );
 };
 
-export const OperationContextSkeleton = () => (
-  <Stack gap={{ base: 2, lg: 3 }} aria-label="現在の組織と店舗を読み込み中">
-    <Flex
-      align="center"
-      gap={3}
-      minH={{ base: "48px", md: "56px" }}
-      px={{ base: 3, md: 4 }}
-      py={2.5}
-      borderWidth="1px"
-      borderColor="gray.200"
-      borderRadius="lg"
-      bg="white"
-    >
-      <Stack flex={1} minW={0} gap={1}>
-        <Skeleton h="12px" w={{ base: "44px", md: "56px" }} ms={7} />
-        <HStack gap={2}>
-          <Skeleton boxSize="20px" borderRadius="sm" flexShrink={0} />
-          <Skeleton h="22px" w={{ base: "140px", md: "220px" }} maxW="70%" />
-        </HStack>
-      </Stack>
-      <Skeleton boxSize="20px" flexShrink={0} />
-    </Flex>
+export const OperationContextSkeleton = ({
+  showOrganizationContext = true,
+}: {
+  showOrganizationContext?: boolean;
+} = {}) => (
+  <Stack
+    gap={{ base: 2, lg: 3 }}
+    aria-label={showOrganizationContext ? "現在の組織と店舗を読み込み中" : "現在の店舗を読み込み中"}
+  >
+    {showOrganizationContext && (
+      <Flex
+        align="center"
+        gap={3}
+        minH={{ base: "48px", md: "56px" }}
+        px={{ base: 3, md: 4 }}
+        py={2.5}
+        borderWidth="1px"
+        borderColor="gray.200"
+        borderRadius="lg"
+        bg="white"
+      >
+        <Stack flex={1} minW={0} gap={1}>
+          <Skeleton h="12px" w={{ base: "44px", md: "56px" }} ms={7} />
+          <HStack gap={2}>
+            <Skeleton boxSize="20px" borderRadius="sm" flexShrink={0} />
+            <Skeleton h="22px" w={{ base: "140px", md: "220px" }} maxW="70%" />
+          </HStack>
+        </Stack>
+        <Skeleton boxSize="20px" flexShrink={0} />
+      </Flex>
+    )}
     <Flex align="center" justify="space-between" gap={3}>
       <Flex
         align="center"
         gap={2}
         flex={1}
         minW={0}
-        minH={{ base: "48px", md: "56px" }}
+        minH="64px"
         px={{ base: 3, md: 4 }}
         borderWidth="1px"
         borderColor="gray.200"

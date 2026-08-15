@@ -69,6 +69,8 @@ const pendingStaffRequests = [
     name: "田中 花子",
     email: "hanako@example.com",
     createdAt: Date.now(),
+    canApprove: true,
+    approveDisabledReason: null,
   },
 ] as unknown as StaffRegistrationRequest[];
 const notificationFailures = [
@@ -190,7 +192,7 @@ export const RecruitmentQueryRecoveryBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvas.getByRole("button", { name: /たなかグループ/ })).toBeVisible();
+    await expect(canvas.getByRole("heading", { name: /たなかグループ/, level: 2 })).toBeVisible();
     await expect(canvas.getByLabelText("スタッフ一覧")).toBeVisible();
     await expect(canvas.getByText("シフト募集を読み込めませんでした")).toBeVisible();
 
@@ -226,12 +228,12 @@ export const OperationalTodoQueryRecoveryBehavior: Story = {
 
     await expect(canvas.getByLabelText("シフト一覧")).toBeVisible();
     await expect(canvas.getByLabelText("スタッフ一覧")).toBeVisible();
-    await expect(canvas.getByText("一部のTODOを読み込めませんでした")).toBeVisible();
+    await expect(canvas.getByText("一部の要対応項目を読み込めませんでした")).toBeVisible();
 
     await userEvent.click(canvas.getByRole("button", { name: "登録申請を再試行" }));
     await userEvent.click(canvas.getByRole("button", { name: "通知を再試行" }));
 
-    await expect(canvas.queryByText("一部のTODOを読み込めませんでした")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("一部の要対応項目を読み込めませんでした")).not.toBeInTheDocument();
     await expect(canvas.getByRole("button", { name: "申請を確認" })).toBeEnabled();
     await expect(canvas.getByRole("button", { name: "通知を確認する" })).toBeEnabled();
   },

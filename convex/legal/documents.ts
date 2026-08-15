@@ -31,8 +31,8 @@ export const LEGAL_DOCUMENTS = {
       audience: "manager",
       kind: "terms",
       title: "管理ユーザー向け利用規約",
-      documentVersion: "manager-terms-doc-2026-08-13",
-      requiredConsentVersion: "manager-terms-consent-2026-08-13",
+      documentVersion: "manager-terms-doc-2026-08-15",
+      requiredConsentVersion: "manager-terms-consent-2026-08-15",
       path: "/terms/manager",
     },
     privacy: {

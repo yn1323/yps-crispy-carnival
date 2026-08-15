@@ -28,14 +28,14 @@ LINE APIの429はquota fallbackとは別に再試行し、通常のLINE通知で
 
 | 画面 | 利用者ができること |
 |---|---|
-| `/users/<personId>?shop=<sourceShopId>&panel=line` | 組織共通のLINE連携状態を確認し、連携URLの表示、依頼メールの送信、明示解除を行う |
-| `/users/<personId>/shops/<targetShopId>?shop=<sourceShopId>` | `targetShopId`で指定した店舗の送信可否、通知履歴、個別の通知再送を確認する。LINE連携の変更はスタッフ詳細で行う |
+| `/app/staff/<personId>?org=<organizationId>` | 組織共通のLINE連携状態を確認し、連携URLの表示、依頼メールの送信、明示解除を行う |
+| `/app/staff/<personId>/shops/<shopId>?org=<organizationId>` | pathの`shopId`で指定した店舗の送信可否、通知履歴、個別の通知再送を確認する。LINE連携の変更はスタッフ詳細で行う |
 | `/line/callback` | LINE Loginの成功、期限切れ、試行上限、エラーを確認する |
 | LINE公式アカウントのトーク画面 | 受信メッセージに対する定型応答を受け取る |
 
 個別再送は、通常の募集作成時またはシフト確定時に通知できなかった場合の補助導線である。
 操作後の画面は「送りました」と案内し、配送済みとは表現しない。
-店舗別設定ではパスの`targetShopId`を各queryとmutationの`shopId`へ明示して渡し、出発元を表す`shop`や`selectedShopAtom`を送信対象に使わない。
+店舗別設定ではpathの`shopId`とURLで検証済みの`organizationId`を各queryとmutationへ明示して渡し、browser storageの店舗IDを送信対象に使わない。
 
 ## 連携token
 
@@ -98,7 +98,7 @@ LINE公式アカウント上の友だち状態はLINE利用者単位で管理す
 
 ## 認可と機密情報
 
-ブラウザから渡される`personId`、`targetShopId`、`staffId`や、所属店舗一覧からの遷移は認可根拠にしない。
+ブラウザから渡される`personId`、`shopId`、`organizationId`、`staffId`や、所属店舗一覧からの遷移は認可根拠にしない。
 Convexは認証identityから管理アクセスを解決し、対象店舗への権限、スタッフと店舗・人物の対応、削除状態、店舗状態を各操作で再検証する。
 権限のない店舗、不正な組み合わせ、削除済み対象は拒否するか、存在を区別できない最小情報の状態へ寄せる。
 連携URL発行は既存tokenの失効を維持し、メール送信は既存のrate limitとOutboxの再検証を維持する。

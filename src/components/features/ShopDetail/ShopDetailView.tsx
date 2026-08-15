@@ -1,6 +1,7 @@
 import { Box, Flex, Grid, HStack, Skeleton, Stack } from "@chakra-ui/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LuStore } from "react-icons/lu";
+import type { Id } from "@/convex/_generated/dataModel";
 import { ShopForm, type ShopFormData } from "@/src/components/features/ShopForm";
 import { DeletionActionSectionSkeleton } from "@/src/components/shared/DeletionActionSection";
 import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
@@ -24,7 +25,6 @@ type SettingsDialogState = {
 
 type Props = {
   shop: ShopDetailData;
-  organizationSettingsShopId: string;
   staffs: ShopDetailPerson[];
   settingsDialog: SettingsDialogState;
   isDeleting: boolean;
@@ -32,11 +32,12 @@ type Props = {
   onOpenUser: (personId: string) => void;
   onUpdateSettings: (data: ShopFormData) => void | Promise<void>;
   onDelete: () => Promise<boolean>;
+  expectedOrganizationId: Id<"organizations">;
+  isShopAdditionEnabled: boolean;
 };
 
 export function ShopDetailView({
   shop,
-  organizationSettingsShopId,
   staffs,
   settingsDialog,
   isDeleting,
@@ -44,6 +45,8 @@ export function ShopDetailView({
   onOpenUser,
   onUpdateSettings,
   onDelete,
+  expectedOrganizationId,
+  isShopAdditionEnabled,
 }: Props) {
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
   const [isStaffMembershipDialogOpen, setIsStaffMembershipDialogOpen] = useState(false);
@@ -86,7 +89,7 @@ export function ShopDetailView({
       />
       <ShopOtherSettingsSection
         shop={shop}
-        organizationSettingsShopId={organizationSettingsShopId}
+        organizationId={expectedOrganizationId}
         onRequestDelete={() => setIsDeleteConfirmationOpen(true)}
       />
 
@@ -104,11 +107,13 @@ export function ShopDetailView({
         >
           <ConnectedShopStaffMembershipDialog
             shop={shop}
+            expectedOrganizationId={expectedOrganizationId}
             isOpen
             onOpenChange={({ open }) => {
               if (!open) closeStaffMembershipDialog();
             }}
             onClose={closeStaffMembershipDialog}
+            isShopAdditionEnabled={isShopAdditionEnabled}
           />
         </ErrorBoundary>
       )}

@@ -73,7 +73,7 @@ const scheduledPlanChange = {
 const trial = {
   kind: "trial",
   remainingDays: 7,
-  trialEndsOnLabel: "2026/8/16",
+  trialEndsOnLabel: "8/16(日)",
   description:
     "未選択のまま終了すると利用停止になります。データは削除されないため、継続して利用するにはプランを選んでください。",
   primaryAction: { action: "choosePlan", label: "プランを選ぶ" },
@@ -83,13 +83,13 @@ const trial = {
 const ongoingTrial = {
   ...trial,
   remainingDays: 14,
-  trialEndsOnLabel: "2026/8/23",
+  trialEndsOnLabel: "8/23(日)",
 } satisfies PlanStatusCardData;
 
 const selectedTrial = {
   kind: "trial",
   remainingDays: 7,
-  trialEndsOnLabel: "2026/8/16",
+  trialEndsOnLabel: "8/16(日)",
   continuationPlanName: "Pro",
   description: "トライアル終了後はProプランへ移行します。",
   showRemindLater: false,
@@ -264,12 +264,14 @@ export const TrialToggleBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const toggle = canvas.getByRole("button", { name: /すーぱーかんぱにー.*あと7日/ });
+    const toggle = canvas.getByRole("button", { name: /すーぱーかんぱにー.*8\/16まで/ });
 
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(toggle);
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
     const details = await canvas.findByRole("region", { name: "無料トライアルの詳細" });
+    await expect(within(details).getByText("8/16(日)にトライアルが終了します。")).toBeInTheDocument();
+    await expect(within(details).queryByText("8/16まで")).not.toBeInTheDocument();
 
     await userEvent.click(canvas.getByRole("button", { name: "後で確認する" }));
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -307,7 +309,7 @@ export const UrgentStateAutoExpansionBehavior: Story = {
   render: () => <UrgentStateAutoExpansionStory />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const toggle = canvas.getByRole("button", { name: /すーぱーかんぱにー.*あと14日/ });
+    const toggle = canvas.getByRole("button", { name: /すーぱーかんぱにー.*8\/23まで/ });
 
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(canvas.getByRole("button", { name: "終了7日前へ進める" }));
@@ -333,7 +335,7 @@ function OrganizationPlanStory({
       model={storyModel}
       onShopSelect={noop}
       onOpenShopDetail={noop}
-      organizationSettingsShopId={storyShop.shopId}
+      onOpenOrganizationSettings={noop}
       billingSettingsShopId={storyShop.shopId}
       planStatusCard={{ data, usage, defaultExpanded, onAction, onExpandedChange }}
     />

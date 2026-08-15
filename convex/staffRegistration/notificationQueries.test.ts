@@ -150,7 +150,7 @@ describe("staffRegistration/notificationQueries", () => {
   describe("getOwnerDigestTargetForShop", () => {
     it("canonical管理者はpersonの連絡先を使い、legacy管理者だけusersへfallbackする", async () => {
       const t = convexTest(schema, modules);
-      const { shopId } = await t.run(async (ctx) => {
+      const { organizationId, shopId } = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
           subject: "owner_line",
           email: "owner-login@example.com",
@@ -185,7 +185,7 @@ describe("staffRegistration/notificationQueries", () => {
           email: "owner-email@example.com",
         });
         await insertPendingRequest(ctx, { shopId: seeded.shopId, status: "pending" });
-        return { shopId: seeded.shopId };
+        return { organizationId: seeded.organizationId, shopId: seeded.shopId };
       });
 
       const result = await t.query(internal.staffRegistration.notificationQueries.getOwnerDigestTargetForShop, {
@@ -200,7 +200,10 @@ describe("staffRegistration/notificationQueries", () => {
       if (!result) return;
       const dashboardUrl = new URL(result.dashboardUrl);
       expect(dashboardUrl.pathname).toBe("/dashboard");
-      expect([...dashboardUrl.searchParams.entries()]).toEqual([["shop", String(shopId)]]);
+      expect([...dashboardUrl.searchParams.entries()]).toEqual([
+        ["org", String(organizationId)],
+        ["shop", String(shopId)],
+      ]);
       expect(
         result.recipients
           .map(({ name, email, lineUserId, lineFollowing }) => ({ name, email, lineUserId, lineFollowing }))

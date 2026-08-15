@@ -4,6 +4,7 @@ import {
   buildDashboardRecruitmentGroups,
   getDashboardRecruitmentGroupKey,
   getDisplayStatus,
+  mergeDashboardRecruitmentGroups,
   sortRecruitmentsByPeriodStart,
 } from "./script";
 import type { Recruitment } from "./types";
@@ -220,5 +221,30 @@ describe("Dashboard recruitment display helpers", () => {
 
     expect(result.groups[0]).toMatchObject({ key: "past", totalCount: 2 });
     expect(result.groups[0].recruitments.map((r) => r._id)).toEqual(["recent-past", "older-past"]);
+  });
+
+  it("店舗ごとに分類済みのgroupをJST境界を再判定せず状態別にまとめる", () => {
+    const later = recruitment({ _id: "later" as Recruitment["_id"], deadline: "2026-06-25" });
+    const sooner = recruitment({ _id: "sooner" as Recruitment["_id"], deadline: "2026-06-18" });
+    const current = recruitment({
+      _id: "current" as Recruitment["_id"],
+      status: "confirmed",
+      periodStart: "2026-06-01",
+      periodEnd: "2026-06-30",
+    });
+
+    const result = mergeDashboardRecruitmentGroups([
+      { key: "collecting", title: "募集中", recruitments: [later], totalCount: 1 },
+      { key: "current", title: "現在のシフト", recruitments: [current], totalCount: 1 },
+      { key: "collecting", title: "募集中", recruitments: [sooner, later], totalCount: 2 },
+    ]);
+
+    expect(result.groups.map((group) => group.key)).toEqual(["current", "collecting"]);
+    expect(result.groups.flatMap((group) => group.recruitments.map((item) => item._id))).toEqual([
+      "current",
+      "sooner",
+      "later",
+    ]);
+    expect(result.totalCount).toBe(3);
   });
 });

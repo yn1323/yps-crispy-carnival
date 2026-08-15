@@ -32,11 +32,52 @@ async function addManager(ctx: MutationCtx, organizationId: Id<"organizations">,
   return { userId, personId, memberId };
 }
 
+beforeEach(() => vi.stubEnv("FEATURE_BILLING", "true"));
+afterEach(() => vi.unstubAllEnvs());
+
 describe("organizationBilling/mutations Free管理者選択", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => {
     vi.clearAllTimers();
     vi.useRealTimers();
+  });
+  it("未リリースflagが閉じている場合は課金mutationを副作用なしで拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "billing_feature_closed", plan: "pro" }),
+    );
+    const readProtectedState = () =>
+      t.run(async (ctx) => ({
+        organization: await ctx.db.get(ids.organizationId),
+        billingStates: await ctx.db.query("organizationBillingStates").collect(),
+        audits: await ctx.db.query("organizationAuditEvents").collect(),
+        rateLimits: await ctx.db.query("rateLimits").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+    const before = await readProtectedState();
+    vi.stubEnv("FEATURE_BILLING", "");
+
+    await expect(
+      t
+        .withIdentity({ subject: "billing_feature_closed" })
+        .mutation(api.organizationBilling.mutations.updateBillingEmail, {
+          shopId: ids.shopId,
+          email: "updated@example.test",
+          requestId: "billing-feature-closed",
+        }),
+    ).rejects.toThrow("この機能は現在利用できません。");
+    await expect(
+      t
+        .withIdentity({ subject: "billing_feature_closed" })
+        .mutation(api.organizationBilling.mutations.setFreeSelection, {
+          shopId: ids.shopId,
+          managerPersonId: ids.personId,
+          freeShopId: ids.shopId,
+          requestId: "billing-free-selection-feature-closed",
+        }),
+    ).rejects.toThrow("この機能は現在利用できません。");
+
+    expect(await readProtectedState()).toEqual(before);
   });
   it("TrialではFree選択自体を開始できない", async () => {
     const t = convexTest(schema, modules);

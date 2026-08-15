@@ -509,6 +509,12 @@ async function deleteOrganizationGraph(
   await deleteOrganizationNotificationGraph(ctx, organizationId);
   await deleteOrganizationCleanupJobs(ctx, organizationId);
 
+  const organizationFeatureRequests = await ctx.db
+    .query("featureRequests")
+    .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+    .collect();
+  for (const request of organizationFeatureRequests) await ctx.db.delete(request._id);
+
   const shops = await ctx.db
     .query("shops")
     .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
@@ -955,14 +961,14 @@ export const seedAuthenticatedManagerScenario = internalMutation({
     managerAuthTokenIdentifier: v.string(),
     managerEmail: v.optional(v.string()),
   },
-  returns: v.object({ shopId: v.id("shops") }),
+  returns: v.object({ organizationId: v.id("organizations"), shopId: v.id("shops") }),
   handler: async (ctx, args) => {
-    const { shopId } = await createManagerScenario(ctx, {
+    const { organizationId, shopId } = await createManagerScenario(ctx, {
       managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
       managerEmail: args.managerEmail,
       shopName: "認証境界テスト店舗",
     });
-    return { shopId };
+    return { organizationId, shopId };
   },
 });
 
@@ -978,6 +984,7 @@ export const seedShopLifecycleScenario = internalMutation({
     organizationId: v.id("organizations"),
     shopId: v.id("shops"),
     shopName: v.string(),
+    managerName: v.string(),
   }),
   handler: async (ctx, args) => {
     const shopName = args.shopName ?? "店舗ライフサイクルテスト店舗";
@@ -987,7 +994,7 @@ export const seedShopLifecycleScenario = internalMutation({
       organizationName: args.organizationName,
       shopName,
     });
-    return { organizationId, shopId, shopName };
+    return { organizationId, shopId, shopName, managerName: DEFAULT_MANAGER.name };
   },
 });
 
@@ -998,7 +1005,9 @@ export const seedStaffLifecycleScenario = internalMutation({
     managerEmail: v.optional(v.string()),
   },
   returns: v.object({
+    organizationId: v.id("organizations"),
     shopId: v.id("shops"),
+    shopName: v.string(),
     organizationName: v.string(),
     staffName: v.string(),
     staffEmail: v.string(),
@@ -1007,13 +1016,14 @@ export const seedStaffLifecycleScenario = internalMutation({
     const organizationName = "スタッフライフサイクルテストグループ";
     const staffName = "E2E 新規スタッフ";
     const staffEmail = "staff-lifecycle@example.test";
-    const { shopId } = await createManagerScenario(ctx, {
+    const shopName = "スタッフライフサイクルテスト店舗";
+    const { organizationId, shopId } = await createManagerScenario(ctx, {
       managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
       managerEmail: args.managerEmail,
       organizationName,
-      shopName: "スタッフライフサイクルテスト店舗",
+      shopName,
     });
-    return { shopId, organizationName, staffName, staffEmail };
+    return { organizationId, shopId, shopName, organizationName, staffName, staffEmail };
   },
 });
 
@@ -1077,6 +1087,7 @@ export const seedManagerSettingsScenario = internalMutation({
     managerEmail: v.optional(v.string()),
   },
   returns: v.object({
+    organizationId: v.id("organizations"),
     shopId: v.id("shops"),
     organizationName: v.string(),
     currentManagerName: v.string(),
@@ -1102,6 +1113,7 @@ export const seedManagerSettingsScenario = internalMutation({
       email: candidateEmail,
     });
     return {
+      organizationId: fixture.organizationId,
       shopId: fixture.shopId,
       organizationName,
       currentManagerName,
@@ -1520,6 +1532,7 @@ export const getLatestMagicLinkToken = internalQuery({
 
     for (const link of links) {
       if (args.recruitmentId && link.recruitmentId !== args.recruitmentId) continue;
+      if ((link.accessKind ?? "submit") !== args.purpose) continue;
       const recruitment = await ctx.db.get(link.recruitmentId);
       if (!recruitment || recruitment.isDeleted || !matchesPurpose(recruitment.status, args.purpose)) continue;
       return {

@@ -17,6 +17,9 @@ export const getManagerConfirmationReminderTarget = internalQuery({
 
     const shop = await ctx.db.get(recruitment.shopId);
     if (!shop || shop.isDeleted) return null;
+    if (!shop.organizationId) return null;
+    const organization = await ctx.db.get(shop.organizationId);
+    if (!organization || organization.isDeleted) return null;
 
     const recipients = await loadShopManagerRecipients(
       ctx,
@@ -30,7 +33,10 @@ export const getManagerConfirmationReminderTarget = internalQuery({
       shopName: shop.name,
       periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
       deadlineLabel: formatDeadlineLabel(recruitment.deadline),
-      dashboardUrl: buildShopDashboardUrl(recruitment.shopId),
+      dashboardUrl: buildShopDashboardUrl({
+        organizationId: organization._id,
+        shopId: recruitment.shopId,
+      }),
       recipients,
     };
   },

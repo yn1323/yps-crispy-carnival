@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getShopBasicInformationRows, getShopStaffs } from "./script";
-import type { ShopDetailPerson } from "./types";
+import { getShopBasicInformationRows, getShopStaffs, getVisibleShopStaffMembershipPeople } from "./script";
+import type { ShopDetailPerson, ShopStaffMembershipData } from "./types";
 
 const people: ShopDetailPerson[] = [
   {
@@ -41,6 +41,41 @@ describe("店舗詳細のスタッフ一覧", () => {
 
   it("対象店舗に所属するユーザーがいない場合は空配列を返す", () => {
     expect(getShopStaffs(people, "shop-none")).toEqual([]);
+  });
+});
+
+describe("所属スタッフ変更の候補", () => {
+  const membershipPeople = [
+    {
+      personId: "person-selected-other-shop",
+      isSelected: true,
+      otherShopNames: ["池袋店"],
+    },
+    {
+      personId: "person-unselected-other-shop",
+      isSelected: false,
+      otherShopNames: ["渋谷店"],
+    },
+    {
+      personId: "person-unselected-first-shop",
+      isSelected: false,
+      otherShopNames: [],
+    },
+  ] as ShopStaffMembershipData["people"];
+
+  it("店舗追加が閉じている場合は別店舗所属の追加候補だけを除外する", () => {
+    expect(getVisibleShopStaffMembershipPeople(membershipPeople, false).map((person) => person.personId)).toEqual([
+      "person-selected-other-shop",
+      "person-unselected-first-shop",
+    ]);
+  });
+
+  it("店舗追加を明示的に開いた場合は別店舗所属の追加候補も含める", () => {
+    expect(getVisibleShopStaffMembershipPeople(membershipPeople, true).map((person) => person.personId)).toEqual([
+      "person-selected-other-shop",
+      "person-unselected-other-shop",
+      "person-unselected-first-shop",
+    ]);
   });
 });
 

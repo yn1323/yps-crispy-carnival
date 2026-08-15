@@ -1,6 +1,6 @@
 # スタッフ通知履歴
 
-ユーザーの店舗別設定ページと旧スタッフ詳細の「通知」タブで、対象店舗のスタッフへ送ったメールとLINEの日時、タイトル、送信状況と配信状況を確認する機能。
+スタッフの店舗別設定ページと、人物IDが未移行のスタッフ向け暫定詳細で、対象店舗のスタッフへ送ったメールとLINEの日時、タイトル、送信状況と配信状況を確認する機能。
 履歴は実装後に新しく作成した実配送通知だけを対象とし、通知本文や宛先は保存・表示しない。
 
 ## 関連ファイル
@@ -32,7 +32,7 @@
 
 | 画面 | 表示内容 |
 |---|---|
-| `/users/<personId>/shops/<targetShopId>?shop=<sourceShopId>` | 店舗別設定ページの通知セクションで、`targetShopId`のスタッフへの通知履歴を最新順に表示する。初回3件を取得し、「もっと見る」で10件ずつ続きを取得する。`shop`は出発元店舗として維持する |
+| `/app/staff/<personId>/shops/<shopId>?org=<organizationId>` | 店舗別設定ページの通知セクションで、`shopId`のスタッフへの通知履歴を最新順に表示する。初回3件を取得し、「もっと見る」で10件ずつ続きを取得する |
 | Dashboard > スタッフ一覧 > 旧スタッフ詳細 > 通知 | `organizationPersonId`が未移行のスタッフに限り、同じ通知履歴を暫定表示する |
 
 ## API一覧
@@ -62,8 +62,8 @@ LINEのシフト募集、確定シフト、シフト変更のタイトルは、�
 - magic link、法務同意URL、招待URL
 - providerのraw error、Webhook body、署名
 
-店舗別設定ページは`targetShopId`をqueryの`shopId`へ明示して渡し、出発元を表す`shop`や`selectedShopAtom`を履歴の取得対象に使わない。
-ブラウザから渡される`personId`、`targetShopId`、`staffId`は認可情報として扱わない。
+店舗別設定ページはpathの`shopId`とURLで検証済みの`organizationId`をqueryへ明示して渡し、browser storageの店舗IDを履歴の取得対象に使わない。
+ブラウザから渡される`personId`、`shopId`、`organizationId`、`staffId`は認可情報として扱わない。
 manager queryは認証identityから対象店舗への管理アクセスを解決し、スタッフと店舗の所属関係、削除状態、店舗状態をサーバー側で検証する。
 権限のない店舗、不正な組み合わせ、削除済み対象では履歴を返さず、拒否時にOutboxや履歴を更新しない。
 

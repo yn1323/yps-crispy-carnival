@@ -39,7 +39,7 @@ describe("Dashboard query stage", () => {
   );
 
   it.each(["recruitment", "registrationRequests", "notificationFailures"] as const)(
-    "%sが取得できない場合はTODOの一部失敗として扱う",
+    "%sが取得できない場合は要対応の一部失敗として扱う",
     (key) => {
       const stages = {
         recruitment: ready(),
@@ -54,7 +54,7 @@ describe("Dashboard query stage", () => {
     },
   );
 
-  it("スタッフ一覧だけの失敗はTODOの失敗に混ぜない", () => {
+  it("スタッフ一覧だけの失敗は要対応の失敗に混ぜない", () => {
     expect(
       getDashboardStageReadiness({
         recruitment: ready(),

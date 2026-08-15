@@ -12,7 +12,7 @@ test.describe("管理者設定", { tag: ["@e2e-core"] }, () => {
     await resetManagerSettingsScenario();
   });
 
-  test("[E2E-MANAGER-01] 既存スタッフを招待し再読込後に取り消して組織設定へ戻る", async ({ page }) => {
+  test("[E2E-MANAGER-01] 既存スタッフを招待し再読込後に取り消して管理へ戻る", async ({ page }) => {
     const seed = seedManagerSettingsScenario();
     const managerSettings = new ManagerSettingsPage(page);
 
@@ -20,6 +20,6 @@ test.describe("管理者設定", { tag: ["@e2e-core"] }, () => {
     await managerSettings.inviteExistingStaff(seed);
     await managerSettings.reloadAndExpectInvitationPending(seed);
     await managerSettings.revokeInvitation(seed);
-    await managerSettings.returnToOrganizationStaff(seed);
+    await managerSettings.returnToManagement(seed);
   });
 });

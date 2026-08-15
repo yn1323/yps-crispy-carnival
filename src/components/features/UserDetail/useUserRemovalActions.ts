@@ -1,6 +1,7 @@
 import { useMutation } from "convex/react";
 import { useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { getConvexErrorMessage } from "@/src/lib/convex/error";
@@ -10,10 +11,12 @@ export function useUserRemovalActions({
   data,
   selectedShopId,
   onPersonRemoved,
+  expectedOrganizationId,
 }: {
   data: UserDetailData;
   selectedShopId: string | null;
   onPersonRemoved: (personId: UserDetailData["person"]["id"]) => void;
+  expectedOrganizationId?: Id<"organizations">;
 }) {
   const [dialog, setDialog] = useState<UserDetailDialog>(null);
   const removePerson = useMutation(api.organization.mutations.removePersonFromOrganization);
@@ -44,6 +47,7 @@ export function useUserRemovalActions({
           assignmentCount: dialog.removalPreview.assignmentCount,
           fingerprint: dialog.removalPreview.fingerprint,
         },
+        ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
       });
       setDialog(null);
       showSuccessToast({

@@ -26,7 +26,7 @@ describe("shiftConfirmationReminder/queries", () => {
   describe("getManagerConfirmationReminderTarget", () => {
     it("open募集では店舗のmanager全員を対象にし、manager staffのLINE連携を付与する", async () => {
       const t = convexTest(schema, modules);
-      const recruitmentId = await t.run(async (ctx) => {
+      const { organizationId, recruitmentId } = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
           subject: "reminder_line",
           email: "owner-line@example.com",
@@ -59,7 +59,10 @@ describe("shiftConfirmationReminder/queries", () => {
           isDeleted: false,
         });
 
-        return await insertRecruitment(ctx, { shopId: seeded.shopId, status: "open" });
+        return {
+          organizationId: seeded.organizationId,
+          recruitmentId: await insertRecruitment(ctx, { shopId: seeded.shopId, status: "open" }),
+        };
       });
 
       const result = await t.query(internal.shiftConfirmationReminder.queries.getManagerConfirmationReminderTarget, {
@@ -75,7 +78,10 @@ describe("shiftConfirmationReminder/queries", () => {
       if (!result) return;
       const dashboardUrl = new URL(result.dashboardUrl);
       expect(dashboardUrl.pathname).toBe("/dashboard");
-      expect([...dashboardUrl.searchParams.entries()]).toEqual([["shop", String(result.shopId)]]);
+      expect([...dashboardUrl.searchParams.entries()]).toEqual([
+        ["org", String(organizationId)],
+        ["shop", String(result.shopId)],
+      ]);
       expect(result?.recipients).toEqual(
         expect.arrayContaining([
           expect.objectContaining({

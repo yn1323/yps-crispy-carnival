@@ -19,22 +19,32 @@ test.describe("複数グループ切り替え", { tag: ["@e2e-core"] }, () => {
     });
     const dashboard = new DashboardPage(page);
 
-    await dashboard.goto(seed.targetShopId);
-    await dashboard.expectSelectedShop(seed.targetShopName, seed.targetShopId);
+    await dashboard.goto({ organizationId: seed.targetOrganizationId, shopId: seed.targetShopId });
+    await dashboard.expectSelectedShop(seed.targetShopName, seed.targetOrganizationId, seed.targetShopId);
     await dashboard.expectStaffVisible(seed.actorBName);
 
-    await dashboard.switchShop(seed.alternateShopName, seed.alternateShopId);
-    await dashboard.expectSelectedShop(seed.alternateShopName, seed.alternateShopId);
+    await dashboard.switchOrganization(
+      seed.alternateOrganizationName,
+      seed.alternateOrganizationId,
+      seed.alternateShopName,
+      seed.alternateShopId,
+    );
+    await dashboard.expectSelectedShop(seed.alternateShopName, seed.alternateOrganizationId, seed.alternateShopId);
     await dashboard.expectStaffNotVisible(seed.actorBName);
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await expectAppHydrated(page);
-    await dashboard.expectSelectedShop(seed.alternateShopName, seed.alternateShopId);
+    await dashboard.expectSelectedShop(seed.alternateShopName, seed.alternateOrganizationId, seed.alternateShopId);
     await dashboard.expectStaffVisible(seed.actorAName);
     await dashboard.expectStaffNotVisible(seed.actorBName);
 
-    await dashboard.switchShop(seed.targetShopName, seed.targetShopId);
-    await dashboard.expectSelectedShop(seed.targetShopName, seed.targetShopId);
+    await dashboard.switchOrganization(
+      seed.targetOrganizationName,
+      seed.targetOrganizationId,
+      seed.targetShopName,
+      seed.targetShopId,
+    );
+    await dashboard.expectSelectedShop(seed.targetShopName, seed.targetOrganizationId, seed.targetShopId);
     await dashboard.expectStaffVisible(seed.actorBName);
   });
 });

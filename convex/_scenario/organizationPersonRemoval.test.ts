@@ -5,7 +5,7 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { MANAGER_SUBJECT, SCENARIO_NOW, scenarioDate } from "../_test/scenarioBuilders";
-import { seedOrganizationManagerShop, seedStaffLineAccount } from "../_test/seed";
+import { seedOrganizationManagerShop, seedOrganizationPersonLineLink, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const TARGET_SUBJECT = "organization_removal_target";
@@ -43,14 +43,14 @@ async function seedRecruitment(
   });
 }
 
-describe("割当付き組織人物削除シナリオ", () => {
+describe("割当付き組織人物削除・再追加シナリオ", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
   });
   afterEach(() => vi.useRealTimers());
 
-  it("今日以降の割当と対象アクセスだけを削除し、過去履歴・別人物・別組織を維持する", async () => {
+  it("削除後の通常追加では新しい店舗所属だけを作り、過去履歴・失効済みアクセス・旧権限を戻さない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const alternate = await seedOrganizationManagerShop(ctx, {
@@ -201,6 +201,11 @@ describe("割当付き組織人物削除シナリオ", () => {
         shopId: primary.shopId,
         lineUserId: "organization-removal-line-user",
       });
+      const canonicalLine = await seedOrganizationPersonLineLink(ctx, {
+        organizationId: primary.organizationId,
+        organizationPersonId: targetPersonId,
+        lineUserId: "U_organization_removal_target",
+      });
       const invitationId = await ctx.db.insert("organizationInvitations", {
         organizationId: primary.organizationId,
         email: "removal-target@example.com",
@@ -254,6 +259,7 @@ describe("割当付き組織人物削除シナリオ", () => {
         sessionId,
         magicLinkId,
         lineAccountId,
+        canonicalLine,
         invitationId,
         outboxId,
       };
@@ -312,6 +318,8 @@ describe("割当付き組織人物削除シナリオ", () => {
       session: await ctx.db.get(ids.sessionId),
       magicLink: await ctx.db.get(ids.magicLinkId),
       lineAccount: await ctx.db.get(ids.lineAccountId),
+      canonicalLineLink: await ctx.db.get(ids.canonicalLine.organizationPersonLineLinkId),
+      lineProviderUser: await ctx.db.get(ids.canonicalLine.lineProviderUserId),
       invitation: await ctx.db.get(ids.invitationId),
       outbox: await ctx.db.get(ids.outboxId),
       audits: await ctx.db
@@ -335,6 +343,8 @@ describe("割当付き組織人物削除シナリオ", () => {
     expect(state.session?.revokedAt).toBe(SCENARIO_NOW);
     expect(state.magicLink?.revokedAt).toBe(SCENARIO_NOW);
     expect(state.lineAccount).toMatchObject({ isDeleted: true, following: false });
+    expect(state.canonicalLineLink).toMatchObject({ isDeleted: true, unlinkedAt: SCENARIO_NOW });
+    expect(state.lineProviderUser?.isDeleted).toBe(true);
     expect(state.invitation).toMatchObject({ status: "revoked", reservedSeat: false });
     expect(state.outbox).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
     expect(state.audits).toHaveLength(1);
@@ -353,6 +363,74 @@ describe("割当付き組織人物削除シナリオ", () => {
       expect.objectContaining({ _id: ids.targetStaffIds[0], name: "削除対象ユーザー", isRemoved: true }),
     );
     expect(currentBoard?.staffs.map((staff) => staff._id)).not.toContain(ids.targetStaffIds[0]);
+
+    const readded = await manager.mutation(api.staff.mutations.addStaffs, {
+      shopId: ids.shopId,
+      requestId: "organization-person-readdition-scenario",
+      entries: [{ name: "今回入力された名前", email: "removal-target@example.com" }],
+    });
+    expect(readded.staffIds).toHaveLength(1);
+    const readdedStaffId = readded.staffIds[0];
+    const readdedState = await t.run(async (ctx) => ({
+      audits: await ctx.db.query("organizationAuditEvents").collect(),
+      canonicalLineLink: await ctx.db.get(ids.canonicalLine.organizationPersonLineLinkId),
+      lineAccount: await ctx.db.get(ids.lineAccountId),
+      lineProviderUser: await ctx.db.get(ids.canonicalLine.lineProviderUserId),
+      magicLink: await ctx.db.get(ids.magicLinkId),
+      member: await ctx.db.get(ids.targetMemberId),
+      newAssignments: await ctx.db
+        .query("shiftAssignments")
+        .withIndex("by_staffId_and_date", (q) => q.eq("staffId", readdedStaffId))
+        .collect(),
+      newStaff: await ctx.db.get(readdedStaffId),
+      oldStaffs: await Promise.all(ids.targetStaffIds.map((staffId) => ctx.db.get(staffId))),
+      person: await ctx.db.get(ids.targetPersonId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      session: await ctx.db.get(ids.sessionId),
+    }));
+    expect(readdedState.person).toMatchObject({ status: "active", name: "今回入力された名前" });
+    expect(readdedState.newStaff).toMatchObject({
+      shopId: ids.shopId,
+      organizationId: ids.organizationId,
+      organizationPersonId: ids.targetPersonId,
+      name: "今回入力された名前",
+      isDeleted: false,
+    });
+    expect(readdedState.oldStaffs.every((staff) => staff?.isDeleted)).toBe(true);
+    expect(readdedState.member?.status).toBe("removed");
+    expect(readdedState.session?.revokedAt).toBe(SCENARIO_NOW);
+    expect(readdedState.magicLink?.revokedAt).toBe(SCENARIO_NOW);
+    expect(readdedState.lineAccount).toMatchObject({ isDeleted: true, following: false });
+    expect(readdedState.canonicalLineLink).toMatchObject({ isDeleted: true, unlinkedAt: SCENARIO_NOW });
+    expect(readdedState.lineProviderUser?.isDeleted).toBe(true);
+    expect(readdedState.newAssignments).toEqual([]);
+    expect(
+      readdedState.scheduled.some(
+        (job) => job.name === "legal/actions:sendStaffConsentEmail" && job.args[0]?.staffId === readdedStaffId,
+      ),
+    ).toBe(true);
+    expect(
+      readdedState.scheduled.some(
+        (job) => job.name === "line/actions:sendInviteEmail" && job.args[0]?.staffId === readdedStaffId,
+      ),
+    ).toBe(true);
+    expect(
+      readdedState.scheduled.some(
+        (job) =>
+          job.name === "notification/actions:sendOpenRecruitmentNotificationEmailsForStaff" &&
+          job.args[0]?.staffId === readdedStaffId,
+      ),
+    ).toBe(true);
+    expect(
+      readdedState.audits.filter(
+        (audit) => audit.action === "organization.staff_added" && audit.targetId === readdedStaffId,
+      ),
+    ).toHaveLength(1);
+    expect(
+      readdedState.audits.filter(
+        (audit) => audit.action === "organization.person_reactivated" && audit.targetId === ids.targetPersonId,
+      ),
+    ).toHaveLength(1);
 
     await expect(targetActor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toBeNull();
     await expect(

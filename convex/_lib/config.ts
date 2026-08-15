@@ -77,12 +77,35 @@ export type FeatureVisibility = {
   shopMembershipAddition: boolean;
 };
 
-/** 旧frontend互換の表示DTO。公開済み機能は常に利用可能として返す。 */
-export function getFeatureVisibility(): FeatureVisibility {
+export type ReleaseFeatureVisibility = {
+  organizationCreation: boolean;
+  shopAddition: boolean;
+  managerInvitation: boolean;
+  billing: boolean;
+};
+
+function isExplicitlyEnabled(value: string | undefined): boolean {
+  return value?.trim().toLowerCase() === "true";
+}
+
+/** 未設定を含むすべての値を閉じる、未リリース機能のserver-side正本。 */
+export function getReleaseFeatureVisibility(): ReleaseFeatureVisibility {
   return {
-    organizationSettingsNavigation: true,
-    billing: true,
-    shopMembershipAddition: true,
+    organizationCreation: isExplicitlyEnabled(process.env.FEATURE_ORGANIZATION_CREATION),
+    shopAddition: isExplicitlyEnabled(process.env.FEATURE_SHOP_ADDITION),
+    managerInvitation: isExplicitlyEnabled(process.env.FEATURE_MANAGER_INVITATION),
+    billing: isExplicitlyEnabled(process.env.FEATURE_BILLING),
+  };
+}
+
+/** 旧frontend互換の表示DTO。操作の許可判定には使わない。 */
+export function getFeatureVisibility(): FeatureVisibility {
+  const features = getReleaseFeatureVisibility();
+  return {
+    organizationSettingsNavigation:
+      features.organizationCreation || features.shopAddition || features.managerInvitation || features.billing,
+    billing: features.billing,
+    shopMembershipAddition: features.shopAddition,
   };
 }
 

@@ -6,8 +6,8 @@
 
 - `src/components/features/Dashboard/OperationContext/` — ダッシュボードから現在店舗の店舗詳細ページへ進む導線
 - `src/components/features/ShopForm/` — 店舗追加・編集で使うステップ形式フォーム
-- `src/routes/_auth/shops.$shopId.tsx` と `src/pages/shop-detail/` — 店舗詳細ページのURL、読み込み、Not Found境界
-- `src/components/features/OrganizationSettings/` — 組織設定の店舗一覧と店舗追加UI
+- `src/routes/_auth/app_.manage_.shops.$shopId.tsx`と`src/pages/shop-detail/` — 管理タブから開く店舗詳細ページのURL、読み込み、Not Found境界
+- `src/components/features/OrganizationSettings/` — 組織設定の店舗一覧と、将来公開用の店舗追加UI
 - `src/components/features/ShopDetail/` — 店舗情報の閲覧・一括編集、所属スタッフ数とAccordion一覧、削除確認UI
 - `src/components/shared/ShopSettingsFields/` — 店舗編集モーダルと店舗詳細で共有する入力UI
 - `src/components/shared/StaffListRow/` — Dashboard、組織設定、店舗詳細で共有するスタッフ一覧行
@@ -24,15 +24,18 @@
 |---|---|
 | ダッシュボード 店舗詳細導線 | 現在店舗の店舗詳細ページへ進む |
 | 初回セットアップ | 店舗名、希望シフトの提出方法を登録する |
-| 組織設定 店舗タブ | 店舗一覧から専用の店舗詳細ページへ進む |
-| `/shops/<shopId>?shop=<contextShopId>&returnTo=dashboard` | 基本情報、所属スタッフ数、その他設定を縦並びで表示し、店舗情報の一括編集、スタッフ一覧の展開、削除を受け付ける |
+| `/app/manage?org=<organizationId>` | 現在の1店舗から専用の店舗詳細ページへ進む。店舗追加は公開しない |
+| `/app/manage/shops/<shopId>?org=<organizationId>` | 管理タブで選択した組織の店舗詳細を表示し、戻る操作は管理タブ、スタッフ行は同じ組織のスタッフ詳細へ進む |
 
 ## API一覧
 
 | API | 種別 | 説明 |
 |---|---|---|
 | `api.dashboard.queries.getDashboardShop` | query | 店舗設定を取得する |
-| `api.organization.queries.getSettings` | query | 同じ組織に属する店舗、所属店舗ID付きユーザー、店舗管理通知の受信可否、各操作の可否を取得する |
+| `api.organization.queries.getSettings` | query | 同じ組織に属する店舗、所属店舗ID付きユーザー、店舗管理通知の受信可否、各操作の可否を取得する。`/app`ではURLの`org`を`expectedOrganizationId`として渡し、店舗との一致をサーバーで再検証する |
+| `api.appOrganization.manageQueries.getManageOverview` | query | `/app/manage`向けに組織名、利用状況、店舗状態別件数、操作可否を返す。店舗実体は含めない |
+| `api.appOrganization.manageQueries.listOrganizationShops` | paginated query | URLで検証した組織のactive・archived店舗をcursor paginationし、プラン上限件数でtruncateしない |
+| `api.organization.mutations.addShopForOrganization` | mutation | 将来公開用の店舗追加API。公開設定が閉じている通常環境ではwrite、通知、監査より前に拒否する |
 | `api.staff.queries.getOrganizationShopStaffMembershipChange` | query | 表示中の店舗IDを明示し、所属候補、現在の選択状態、変更可否、競合検知用fingerprintを取得する |
 | `api.staff.queries.previewOrganizationShopStaffMembershipRemovals` | query | 店舗から外す人物とsnapshotを指定し、今日以降のシフト割り当てへの影響を取得する。snapshotが更新済みなら`stale`を返す |
 | `api.staff.mutations.changeOrganizationShopStaffMemberships` | mutation | 希望する人物ID一覧、fingerprint、解除preview、request IDを検証し、1店舗の所属スタッフを一括変更する |
@@ -49,7 +52,7 @@
 - `日ごと` はスタッフが出勤可能日だけを選び、時間入力は持たない。
 - `勤務区分` は区分名と時間帯を最大4件まで定義し、保存時に開始時間が早い順、同じ開始時間なら終了時間が早い順へ並べてから募集作成時点の設定が募集に保存される。
 - 店舗詳細の基本情報は読み取り用の一覧として表示する。見出し右の鉛筆アイコン付き`編集する`ボタンから`ShopForm`を開き、表示中の店舗IDを明示して店舗名、希望シフトの集め方と勤務時間、定休日を1回のmutationで一括更新する。
-- Dashboardの歯車から開く場合は`returnTo=dashboard`を付け、店舗詳細の戻る操作で同じ店舗のDashboardへ戻る。組織設定から開く場合は従来どおり店舗タブへ戻る。
+- Dashboardと管理画面から店舗詳細へ進むときは同じ`org`を維持する。  店舗詳細の戻る操作はbrowser historyを使い、旧`returnTo` searchは受け付けない。
 - 店舗詳細のスタッフ欄は、対象店舗に所属する人物単位の件数だけを初期表示し、`スタッフ一覧を見る`から同じカード内へ全件を展開する。
 - 対象店舗にスタッフとして所属するactive管理者が0人の場合は、スタッフ欄に店舗管理通知が送信されないことと、必要なら管理者をこの店舗の所属スタッフに追加する推奨案内を表示する。
   閲覧専用の場合も案内は表示する。
@@ -68,12 +71,13 @@
   警告は変更を拒否せず、保存後は店舗詳細の案内で同じ状態を示す。
 - 人物に対応しない既存スタッフなど、安全に人物単位へ変更できない行は選択済みのまま保持し、変更できない理由を表示する。全員を外す変更では、変更後に店舗のスタッフが0名になることを変更Dialog内で警告する。
 - 所属snapshotまたは解除対象のシフトが変わった場合は古い内容を保存しない。通信結果が不明な同一操作だけは、同じ入力とrequest IDで再試行する。
-- 店舗詳細のスタッフ一覧は、`getSettings.people.shopIds`を対象店舗IDで絞り込む。同名店舗を店舗名で誤判定せず、人物単位の一覧件数と表示件数を一致させる。行を押すとスタッフ詳細へ進み、出発元店舗は`returnShop`に保持するため、スタッフ詳細内で店舗を切り替えても戻る操作で元の店舗詳細へ復帰する。
+- 店舗詳細のスタッフ一覧は、`getSettings.people.shopIds`を対象店舗IDで絞り込む。同名店舗を店舗名で誤判定せず、人物単位の一覧件数と表示件数を一致させる。行を押すと同じ`org`のスタッフ詳細へ進む。
 - 店舗削除は物理削除ではなく、受付時に店舗名を保持したまま`shops.isDeleted = true`にする。最後の未削除店舗は削除できない。
 - 店舗削除に成功したら、削除対象とは異なる現在contextの店舗を優先し、なければ同じ組織の先頭の未削除店舗へ復帰する。復帰先URLへ削除済み店舗IDを残さない。
-- 店舗詳細のpath paramは表示対象、`shop` queryは認証済みの店舗・組織コンテキストとして扱う。詳細表示は`api.organization.queries.getSettings`が返した同一組織の店舗だけに限定する。
+- `/app/manage/shops/<shopId>`ではURLの`org`が組織scopeの正本であり、`shopId`がその組織に属することをQueryとMutationの双方で再検証する。`selectedShopAtom`、先頭店舗、旧`shopMembers` fallbackをこの認可判断に使わない。戻る操作とスタッフ詳細へのdrilldownは同じ`org`を維持する。
 - 外部から無効な店舗IDを明示した保護routeは、自動で別店舗へ読み替えず、認証境界でfail closedにする。
 - 後続の永続cleanup jobは、対象店舗の`staffs`にある氏名、メールアドレス、正規化メールを保持したまま論理削除し、`staffLineAccounts`のLINE IDだけを削除済みの値へ置き換える。組織人物の`organizationPersonLineLinks`は変更しない。店舗用session、magic link、LINE連携token、法務同意token、登録リンクを失効し、未送信通知を停止する。
 - 店舗削除では`users`、`organizationPeople`、`organizationMembers`を変更しない。対象店舗のユーザーは組織人物として残る。
 - 店舗名、スタッフの氏名とメールアドレス、rate limit、自由入力欄、送信済みメール、LINEはDBに残るため、この導線を個人データの消去や匿名化とは扱わない。詳細は`doc/features/data-deletion.md`を参照する。
 - 保持契約はConvex Function TestとScenario Testで検証する。E2Eはworker専用scenario上でUI追加した2店舗目だけを削除し、実browserの復帰導線を検証する。Clerk userや組織全体を破壊するE2Eは追加しない。
+- 複数店舗と既存人物の複数店舗所属は未公開である。  通常の画面は店舗追加や所属追加の操作を描画せず、public mutationも未設定を閉状態として拒否する。  将来機能のE2Eは公開設定を明示的に有効化した専用deploymentで実行する。

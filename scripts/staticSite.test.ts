@@ -125,8 +125,9 @@ describe("static site manifest", () => {
 
     expect(disallowRules).not.toContain("/welcome");
     expect(disallowRules).toEqual([
+      "/app",
+      "/account",
       "/dashboard",
-      "/shiftboard",
       "/shifts",
       "/staff/register",
       "/line/callback",
@@ -176,7 +177,15 @@ describe("static site manifest", () => {
       '/articles/line-shift-collection-guide/\n  Link: <https://shiftori.app/articles/shiftori-line-workflow>; rel="canonical"',
     );
 
-    for (const route of [...CSR_SHELL_STATIC_ROUTES, ...CSR_SHELL_DYNAMIC_ROUTES]) {
+    for (const route of ["/app", "/app/*"]) {
+      expect(headers).toContain(
+        `${route}\n  Cache-Control: no-store\n  X-Robots-Tag: noindex, nofollow\n  Referrer-Policy: no-referrer`,
+      );
+    }
+
+    for (const route of [...CSR_SHELL_STATIC_ROUTES, ...CSR_SHELL_DYNAMIC_ROUTES].filter(
+      (path) => path !== "/app" && !path.startsWith("/app/"),
+    )) {
       for (const source of [route, `${route}/`]) {
         expect(headers).toContain(
           `${source}\n  Cache-Control: no-store\n  X-Robots-Tag: noindex, nofollow\n  Referrer-Policy: no-referrer`,

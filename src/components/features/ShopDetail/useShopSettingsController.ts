@@ -8,7 +8,7 @@ import { useDialog } from "@/src/components/ui/Dialog";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import type { ShopDetailData } from "./types";
 
-export function useShopSettingsController(shop: ShopDetailData) {
+export function useShopSettingsController(shop: ShopDetailData, expectedOrganizationId?: Id<"organizations">) {
   const updateMutation = useMutation(api.shop.mutations.updateShopSettings);
   const dialog = useDialog();
   const latestShopRef = useRef(shop);
@@ -25,6 +25,7 @@ export function useShopSettingsController(shop: ShopDetailData) {
     try {
       await updateMutation({
         shopId: latestShop.id as Id<"shops">,
+        ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
         ...data,
       });
       dialog.close();

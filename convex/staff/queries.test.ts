@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { seedOrganizationManagerShop, seedUser } from "../_test/seed";
@@ -54,6 +54,9 @@ async function insertCanonicalStaff(
 
 describe("staff/queries", () => {
   describe("listOrganizationPeopleAvailableForShop", () => {
+    beforeEach(() => vi.stubEnv("FEATURE_SHOP_ADDITION", "true"));
+    afterEach(() => vi.unstubAllEnvs());
+
     it("未認証では候補を返さない", async () => {
       const t = convexTest(schema, modules);
       const { shopId } = await t.run(
@@ -190,6 +193,65 @@ describe("staff/queries", () => {
           name: "他店舗スタッフ",
           email: "Other@Example.com",
           shopNames: ["2号店"],
+          isManager: false,
+        },
+      ]);
+    });
+
+    it("未リリース中は別active店舗所属の人物を除外し、所属0件の初回追加候補は残す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "candidate_shop_feature_closed_manager",
+          email: "candidate-shop-feature-closed-manager@example.com",
+          plan: "business",
+        });
+        const otherShopId = await ctx.db.insert("shops", {
+          organizationId: base.organizationId,
+          operatingStatus: "active",
+          name: "既存所属店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        });
+        const otherShopPersonId = await insertOrganizationPerson(ctx, {
+          organizationId: base.organizationId,
+          name: "別店舗所属候補",
+          email: "candidate-other-shop@example.com",
+        });
+        await insertCanonicalStaff(ctx, {
+          organizationId: base.organizationId,
+          personId: otherShopPersonId,
+          shopId: otherShopId,
+          name: "別店舗所属候補",
+          email: "candidate-other-shop@example.com",
+        });
+        const firstShopPersonId = await insertOrganizationPerson(ctx, {
+          organizationId: base.organizationId,
+          name: "初回追加候補",
+          email: "candidate-first-shop@example.com",
+        });
+        return { ...base, firstShopPersonId };
+      });
+      vi.stubEnv("FEATURE_SHOP_ADDITION", "");
+
+      await expect(
+        t
+          .withIdentity({ subject: "candidate_shop_feature_closed_manager" })
+          .query(api.staff.queries.listOrganizationPeopleAvailableForShop, { shopId: ids.shopId }),
+      ).resolves.toEqual([
+        {
+          personId: ids.personId,
+          name: "管理者",
+          email: "candidate-shop-feature-closed-manager@example.com",
+          shopNames: [],
+          isManager: true,
+        },
+        {
+          personId: ids.firstShopPersonId,
+          name: "初回追加候補",
+          email: "candidate-first-shop@example.com",
+          shopNames: [],
           isManager: false,
         },
       ]);

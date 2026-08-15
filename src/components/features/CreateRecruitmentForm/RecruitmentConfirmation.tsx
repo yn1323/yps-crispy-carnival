@@ -1,6 +1,7 @@
 import { Box, Flex, Separator, Stack, Text } from "@chakra-ui/react";
 
 type Props = {
+  shopName?: string;
   periodLabel: string;
   holidaySummary: {
     value: string;
@@ -27,22 +28,22 @@ const SummaryLine = ({ label, value, detail }: { label: string; value: string; d
   </Flex>
 );
 
-export const RecruitmentConfirmation = ({ periodLabel, holidaySummary, deadlineLabel }: Props) => (
+export const RecruitmentConfirmation = ({ shopName, periodLabel, holidaySummary, deadlineLabel }: Props) => (
   <Box px={{ base: 0, md: 8 }}>
     <Stack gap={0}>
+      {shopName && (
+        <>
+          <SummaryLine label="対象店舗" value={shopName} />
+          <Separator />
+        </>
+      )}
       <SummaryLine label="シフト期間" value={periodLabel} />
       <Separator />
       <SummaryLine label="お店のお休み" value={holidaySummary.value} detail={holidaySummary.detail} />
       <Separator />
       <SummaryLine label="提出締切" value={deadlineLabel} />
       <Separator />
-      <SummaryLine
-        label="通知"
-        value="スタッフにシフト提出案内を送ります"
-        detail={
-          "LINE連携済みのスタッフには通常LINEで、それ以外のスタッフにはメールで送ります。\n締切前日の17:00には、催促通知も自動で送ります。"
-        }
-      />
+      <SummaryLine label="通知" value="メール・LINEで通知します" detail="締切前日の17:00に自動催促通知を送ります。" />
     </Stack>
   </Box>
 );

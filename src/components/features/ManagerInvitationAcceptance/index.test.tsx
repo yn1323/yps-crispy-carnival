@@ -289,7 +289,7 @@ describe("ManagerInvitationAcceptance controller", () => {
     await waitFor(() =>
       expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
         to: "/dashboard",
-        search: { shop: "shop-invited" },
+        search: { org: "organization-invited", shop: "shop-invited" },
         replace: true,
       }),
     );
@@ -314,6 +314,9 @@ describe("ManagerInvitationAcceptance controller", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "ダッシュボードへ" }));
 
-    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({ to: "/dashboard" });
+    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
+      to: "/dashboard",
+      search: { org: "organization-invited", shop: "shop-invited" },
+    });
   });
 });

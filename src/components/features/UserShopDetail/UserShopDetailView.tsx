@@ -5,7 +5,6 @@ import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import type { UserShopDetailData, UserShopDetailMembership, UserShopDetailRecruitment } from "./types";
 import { UserShopDetailPageSection } from "./UserShopDetailPageSection";
-import { UserShopLineSection } from "./UserShopLineSection";
 import { UserShopNotificationSection } from "./UserShopNotificationSection";
 import { UserShopSettingsSection } from "./UserShopSettingsSection";
 
@@ -61,10 +60,6 @@ export function UserShopDetailView({
           description={storeDisabledReason ?? "現在、この店舗の設定を変更できません。"}
         />
       )}
-
-      <UserShopDetailPageSection>
-        <UserShopLineSection data={data} membership={membership} />
-      </UserShopDetailPageSection>
 
       <UserShopDetailPageSection>
         <UserShopNotificationSection

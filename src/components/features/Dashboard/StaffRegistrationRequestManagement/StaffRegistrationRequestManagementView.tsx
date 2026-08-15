@@ -9,6 +9,7 @@ type Props = {
   onClose: () => void;
   requests: StaffRegistrationRequest[];
   peopleCapacityResolution: PeopleCapacityResolution | null;
+  onOpenBillingSettings?: () => void;
   rejectTarget: StaffRegistrationRequest | null;
   onApprove: (request: StaffRegistrationRequest) => void;
   onRejectClick: (request: StaffRegistrationRequest) => void;
@@ -25,6 +26,7 @@ export function StaffRegistrationRequestManagementView({
   onClose,
   requests,
   peopleCapacityResolution,
+  onOpenBillingSettings,
   rejectTarget,
   onApprove,
   onRejectClick,
@@ -41,6 +43,7 @@ export function StaffRegistrationRequestManagementView({
       onClose={onClose}
       requests={requests}
       peopleCapacityResolution={peopleCapacityResolution}
+      onOpenBillingSettings={onOpenBillingSettings}
       onApprove={onApprove}
       onReject={onRejectClick}
       isApproving={isApproving}

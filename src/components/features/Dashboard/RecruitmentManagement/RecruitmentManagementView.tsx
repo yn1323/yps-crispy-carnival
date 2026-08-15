@@ -1,7 +1,12 @@
 import { Text } from "@chakra-ui/react";
 import { useState } from "react";
 import type { RegularClosedDay } from "@/convex/shop/schemas";
-import { type CreateRecruitmentData, CreateRecruitmentForm } from "@/src/components/features/CreateRecruitmentForm";
+import {
+  type CreateRecruitmentData,
+  CreateRecruitmentForm,
+  type CreateRecruitmentShop,
+  type CreateRecruitmentShopTarget,
+} from "@/src/components/features/CreateRecruitmentForm";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import { formatDateShort } from "@/src/domains/shift/date";
@@ -10,8 +15,13 @@ import type { DashboardRecruitmentGroup, PaginationStatus, Recruitment } from ".
 
 type Props = {
   regularClosedDays: RegularClosedDay[];
+  shopTarget?: CreateRecruitmentShopTarget;
+  title?: string;
   groups: DashboardRecruitmentGroup[];
   isReadOnly: boolean;
+  showRecruitmentMenus?: boolean;
+  canDeleteRecruitments?: boolean;
+  deleteRecruitmentDisabledReason?: string;
   pastStatus: PaginationStatus;
   hasPastRecruitments: boolean;
   isPastRecruitmentsVisible: boolean;
@@ -30,7 +40,7 @@ type Props = {
   deleteTarget: Recruitment | null;
   isDeleting: boolean;
   onOpenCreate: () => void;
-  onCreate: (data: CreateRecruitmentData) => void | Promise<void>;
+  onCreate: (data: CreateRecruitmentData, selectedShop?: CreateRecruitmentShop) => void | Promise<void>;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onDeleteClick: (recruitment: Recruitment) => void;
   onDeleteConfirm: () => void | Promise<void>;
@@ -40,8 +50,13 @@ type Props = {
 
 export function RecruitmentManagementView({
   regularClosedDays,
+  shopTarget,
+  title,
   groups,
   isReadOnly,
+  showRecruitmentMenus,
+  canDeleteRecruitments,
+  deleteRecruitmentDisabledReason,
   pastStatus,
   hasPastRecruitments,
   isPastRecruitmentsVisible,
@@ -67,8 +82,12 @@ export function RecruitmentManagementView({
   return (
     <>
       <RecruitmentBoard
+        title={title}
         groups={groups}
         isReadOnly={isReadOnly}
+        showRecruitmentMenus={showRecruitmentMenus}
+        canDeleteRecruitments={canDeleteRecruitments}
+        deleteRecruitmentDisabledReason={deleteRecruitmentDisabledReason}
         pastStatus={pastStatus}
         hasPastRecruitments={hasPastRecruitments}
         isPastRecruitmentsVisible={isPastRecruitmentsVisible}
@@ -90,6 +109,7 @@ export function RecruitmentManagementView({
       >
         <CreateRecruitmentForm
           regularClosedDays={regularClosedDays}
+          shopTarget={shopTarget}
           onSubmit={onCreate}
           onCancel={createDialog.close}
           onSubmittingChange={setIsCreateSubmitting}

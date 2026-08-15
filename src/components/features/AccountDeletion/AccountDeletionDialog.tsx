@@ -55,10 +55,6 @@ export function AccountDeletionDialog({
           <Text fontWeight="bold">この操作は元に戻せません。</Text>
           <Stack gap={2} fontSize="sm" color="fg" lineHeight="tall">
             {content.description}
-            <Text>
-              氏名、メールアドレス、店舗名、過去のシフト・同意・請求・操作記録などは、法令または契約上必要な業務記録として残る場合があります。
-            </Text>
-            <Text>同じメールアドレスで登録し直しても、削除前の履歴は新しいアカウントへ自動では引き継がれません。</Text>
           </Stack>
           {isPreviewStale ? (
             <Alert.Root status="warning" borderRadius="lg" alignItems="flex-start">
@@ -122,7 +118,7 @@ function getDialogContent(
         submitLabel: "組織と店舗を終了して削除",
         description: (
           <>
-            <Text>{`あなたが唯一の管理者であるため、「${organizationName}」と全${shopCount}店舗の利用を終了し、ログインアカウントを削除します。`}</Text>
+            <Text>{`「${organizationName}」と全${shopCount}店舗の利用を終了し、ログインアカウントを削除します。`}</Text>
             <Text>
               組織と店舗に所属するスタッフも利用できなくなります。招待・スタッフ用リンクは無効になり、LINEからのシフト操作はできなくなります。未送信のお知らせは取り消します。
             </Text>

@@ -104,6 +104,14 @@ const dashboardRecruitments = [
   futureConfirmed,
 ];
 const dashboardGroups = buildDashboardRecruitmentGroups({ recruitments: dashboardRecruitments }).groups;
+const shopNamesByRecruitmentId = new Map<Recruitment["_id"], string>([
+  [currentRecruitment._id, "yn1323店舗"],
+  [actionRequiredRecruitment._id, "駅前店"],
+  [collectingSoonRecruitment._id, "とても長い店舗名の中央駅前店"],
+  [collectingLaterRecruitment._id, "yn1323店舗"],
+  [futureConfirmed._id, "駅前店"],
+]);
+const getRecruitmentShopName = (recruitment: Recruitment) => shopNamesByRecruitmentId.get(recruitment._id);
 const groupsFor = (
   recruitments: Recruitment[],
   options: Omit<Parameters<typeof buildDashboardRecruitmentGroups>[0], "recruitments"> = {},
@@ -153,9 +161,59 @@ export const CollectingOnly: Story = {
   },
 };
 
+export const StaffCountOverflow: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    groups: groupsFor([
+      makeRecruitment({
+        responseCount: 999,
+        totalStaffCount: 1000,
+        totalStaffCountHasOverflow: true,
+      }),
+    ]),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("提出 999人 / 対象 1000人以上")).toBeInTheDocument();
+  },
+};
+
+export const LegacyResponseCountOverflow: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    groups: groupsFor([
+      makeRecruitment({
+        responseCount: 1,
+        responseCountHasOverflow: true,
+        totalStaffCount: 3,
+      }),
+    ]),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("提出 1人以上 / 対象 3人")).toBeInTheDocument();
+  },
+};
+
 export const FutureConfirmed: Story = {
   args: {
     groups: groupsFor([futureConfirmed]),
+  },
+};
+
+export const WithShopNamesDesktop: Story = {
+  args: {
+    groups: dashboardGroups,
+    getRecruitmentShopName,
+  },
+};
+
+export const WithShopNamesMobileSmall: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: {
+    groups: groupsFor([actionRequiredRecruitment, collectingSoonRecruitment]),
+    getRecruitmentShopName,
   },
 };
 
@@ -184,6 +242,25 @@ export const Empty: Story = {
   },
 };
 
+export const AllShopsPastOnly: Story = {
+  args: {
+    groups: [],
+    hasPastRecruitments: false,
+    isPastRecruitmentsVisible: false,
+    emptyState: {
+      title: "表示中のシフトはありません",
+      description: "過去のシフトは、店舗で絞り込むと確認できます。",
+      actionLabel: "新しい募集をつくる",
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(await canvas.findByText("表示中のシフトはありません")).toBeInTheDocument();
+    await expect(canvas.queryByText("シフト一覧はまだありません")).not.toBeInTheDocument();
+  },
+};
+
 export const OnlyPastExists: Story = {
   args: {
     groups: [],
@@ -195,6 +272,21 @@ export const OnlyPastExists: Story = {
 export const OnlyCurrentShift: Story = {
   args: {
     groups: groupsFor([currentRecruitment]),
+  },
+};
+
+export const CreateRestricted: Story = {
+  args: {
+    groups: groupsFor([currentRecruitment]),
+    isReadOnly: false,
+    canCreateRecruitments: false,
+    createRecruitmentDisabledReason: "支払い結果を確認中のため、新しい募集を作成できません。",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByRole("button", { name: "新しい募集をつくる" })).toBeDisabled();
+    await expect(canvas.getByText("支払い結果を確認中のため、新しい募集を作成できません。")).toBeInTheDocument();
   },
 };
 

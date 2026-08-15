@@ -28,7 +28,7 @@ async function seedShopWithManagerStaff(t: TestConvexInstance, options: { includ
       ...(options.includeStaffUserId === false ? {} : { userId }),
       isDeleted: false,
     });
-    return { shopId, userId, memberId, managerStaffId };
+    return { organizationId, shopId, userId, memberId, managerStaffId };
   });
 }
 
@@ -59,7 +59,7 @@ async function insertStaff(
 describe("shopActivationReminder/queries", () => {
   it("manager本人のstaffだけなら送信対象を返す", async () => {
     const t = createTest();
-    const { shopId, userId } = await seedShopWithManagerStaff(t);
+    const { organizationId, shopId, userId } = await seedShopWithManagerStaff(t);
 
     const target = await t.query(getReminderTargetRef, { shopId });
 
@@ -71,7 +71,10 @@ describe("shopActivationReminder/queries", () => {
     if (!target) return;
     const dashboardUrl = new URL(target.dashboardUrl);
     expect(dashboardUrl.pathname).toBe("/dashboard");
-    expect([...dashboardUrl.searchParams.entries()]).toEqual([["shop", String(shopId)]]);
+    expect([...dashboardUrl.searchParams.entries()]).toEqual([
+      ["org", String(organizationId)],
+      ["shop", String(shopId)],
+    ]);
     expect(target?.recipients).toHaveLength(1);
     expect(target?.recipients[0]).toMatchObject({
       userId,

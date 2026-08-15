@@ -21,12 +21,14 @@ export function LoginMethodsView({
   onStartFlow,
   reverification,
   isMigrationDialogOpen,
+  isReadOnly = false,
 }: {
   controller: LoginMethodsController;
   passwordChangeController: PasswordChangeController;
   onStartFlow: (flow: LoginMethodMigrationFlow) => void;
   reverification: LoginMethodReverificationController;
   isMigrationDialogOpen: boolean;
+  isReadOnly?: boolean;
 }) {
   const [googleToDisconnect, setGoogleToDisconnect] = useState<
     | ({
@@ -62,6 +64,7 @@ export function LoginMethodsView({
             setGoogleToDisconnect({ externalAccountId, ...preparation });
           }
         }}
+        isReadOnly={isReadOnly}
       />
 
       <LoginEmailChangeDialog

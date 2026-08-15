@@ -110,18 +110,23 @@ export const useAuth = () => ({
   userId: null,
   getToken: async () => "storybook-session-token",
 });
+
+const primaryEmailAddress = {
+  id: "idn_storybook_primary",
+  emailAddress: "login@example.com",
+  verification: { status: "verified" },
+};
+
 export const useUser = () => ({
   isSignedIn: true,
   isLoaded: true,
   user: {
     id: "user_storybook",
     primaryEmailAddressId: "idn_storybook_primary",
-    primaryEmailAddress: {
-      id: "idn_storybook_primary",
-      emailAddress: "login@example.com",
-      verification: { status: "verified" },
-    },
-    emailAddresses: [],
+    passwordEnabled: true,
+    externalAccounts: [],
+    primaryEmailAddress,
+    emailAddresses: [primaryEmailAddress],
     createEmailAddress: async () => {
       throw new Error("StorybookではClerk外部操作を実行しません");
     },
@@ -130,6 +135,11 @@ export const useUser = () => ({
     },
     reload: async () => {},
   },
+});
+export const useSession = () => ({
+  isLoaded: true,
+  isSignedIn: true,
+  session: null,
 });
 export const useClerk = () => ({
   loaded: true,

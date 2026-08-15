@@ -19,6 +19,10 @@ describe("E2E testing helpers", () => {
     vi.stubEnv("E2E_TESTING_DEPLOYMENT_URL", "https://e2e-test.convex.cloud");
     vi.stubEnv("E2E_TESTING_ENABLED", "true");
     vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "dry-run");
+    vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "true");
+    vi.stubEnv("FEATURE_SHOP_ADDITION", "true");
+    vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
+    vi.stubEnv("FEATURE_BILLING", "true");
   });
 
   afterEach(() => {
@@ -228,6 +232,13 @@ describe("E2E testing helpers", () => {
     };
     const first = await t.mutation(internal.testing.seedShopLifecycleScenario, args);
     const second = await t.mutation(internal.testing.seedShopLifecycleScenario, args);
+    const organizationFeatureRequestId = await t.run((ctx) =>
+      ctx.db.insert("featureRequests", {
+        organizationId: second.organizationId,
+        comment: "組織scopeのE2E要望",
+        requestId: "testing-reset-organization-feature-request",
+      }),
+    );
 
     const reseeded = await t.run(async (ctx) => ({
       firstOrganization: await ctx.db.get(first.organizationId),
@@ -241,6 +252,7 @@ describe("E2E testing helpers", () => {
     expect(reseeded.secondOrganization?.isDeleted).toBe(false);
     expect(reseeded.secondShop?.name).toBe(args.shopName);
     expect(reseeded.otherOwnerShop?.isDeleted).toBe(false);
+    expect(second.managerName).toBe("田中太郎");
 
     await t.mutation(internal.testing.resetManagerScenarioData, {
       managerAuthTokenIdentifier: args.managerAuthTokenIdentifier,
@@ -248,10 +260,12 @@ describe("E2E testing helpers", () => {
     const reset = await t.run(async (ctx) => ({
       secondOrganization: await ctx.db.get(second.organizationId),
       secondShop: await ctx.db.get(second.shopId),
+      organizationFeatureRequest: await ctx.db.get(organizationFeatureRequestId),
       otherOwnerShop: await ctx.db.get(otherOwner.shopId),
     }));
     expect(reset.secondOrganization).toBeNull();
     expect(reset.secondShop).toBeNull();
+    expect(reset.organizationFeatureRequest).toBeNull();
     expect(reset.otherOwnerShop?.isDeleted).toBe(false);
   });
 
@@ -327,6 +341,7 @@ describe("E2E testing helpers", () => {
     });
 
     expect(seed).toMatchObject({
+      organizationId: before.shop?.organizationId,
       organizationName: "管理者設定テストグループ",
       currentManagerName: "田中太郎",
       candidateName: "管理者候補スタッフ",
@@ -350,9 +365,14 @@ describe("E2E testing helpers", () => {
     });
 
     expect(seed).toMatchObject({
+      shopName: "スタッフライフサイクルテスト店舗",
       organizationName: "スタッフライフサイクルテストグループ",
       staffName: "E2E 新規スタッフ",
       staffEmail: "staff-lifecycle@example.test",
+    });
+    expect(await t.run((ctx) => ctx.db.get(seed.organizationId))).toMatchObject({
+      name: "スタッフライフサイクルテストグループ",
+      isDeleted: false,
     });
     expect(await t.run((ctx) => ctx.db.get(seed.shopId))).toMatchObject({
       name: "スタッフライフサイクルテスト店舗",
@@ -489,6 +509,100 @@ describe("E2E testing helpers", () => {
       token: created.token,
       recruitmentId: seed.recruitmentId,
       staffId: seed.staffId,
+      usedAt: null,
+    });
+  });
+
+  it("view capability lookupは確定募集のsubmit linkを返さない", async () => {
+    const t = convexTest(schema, modules);
+    const managerEmail = "view-capability-owner@example.com";
+    const seed = await t.mutation(internal.testing.seedOpenRecruitmentNotificationScenario, {
+      managerAuthTokenIdentifier: "issuer|view-capability-owner",
+      managerEmail,
+      dates: DATES,
+    });
+    const submitLink = await t.mutation(internal.testing.createMagicLinkTokenForLatestRecruitment, {
+      shopId: seed.shopId,
+      recruitmentId: seed.recruitmentId,
+      staffEmail: managerEmail,
+      purpose: "submit",
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(seed.recruitmentId, { status: "confirmed", confirmedAt: Date.now() });
+    });
+
+    const withoutViewLink = await t.query(internal.testing.getLatestMagicLinkToken, {
+      shopId: seed.shopId,
+      recruitmentId: seed.recruitmentId,
+      staffEmail: managerEmail,
+      purpose: "view",
+    });
+
+    expect(withoutViewLink).toEqual({ token: null });
+
+    await t.run(async (ctx) => {
+      const link = await ctx.db
+        .query("magicLinks")
+        .withIndex("by_token", (q) => q.eq("token", submitLink.token))
+        .unique();
+      if (!link) throw new Error("submit link was not created");
+      await ctx.db.patch(link._id, { accessKind: undefined });
+    });
+    const withLegacySubmitLink = await t.query(internal.testing.getLatestMagicLinkToken, {
+      shopId: seed.shopId,
+      recruitmentId: seed.recruitmentId,
+      staffEmail: managerEmail,
+      purpose: "view",
+    });
+
+    expect(withLegacySubmitLink).toEqual({ token: null });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(seed.recruitmentId, { status: "open", confirmedAt: undefined });
+    });
+    const legacySubmitLink = await t.query(internal.testing.getLatestMagicLinkToken, {
+      shopId: seed.shopId,
+      recruitmentId: seed.recruitmentId,
+      staffEmail: managerEmail,
+      purpose: "submit",
+    });
+
+    expect(legacySubmitLink).toMatchObject({
+      token: submitLink.token,
+      staffId: seed.staffId,
+      recruitmentId: seed.recruitmentId,
+      usedAt: null,
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(seed.recruitmentId, { status: "confirmed", confirmedAt: Date.now() });
+    });
+
+    const viewLink = await t.run(async (ctx) => {
+      const token = "view-capability-token";
+      const expiresAt = Date.now() + 60_000;
+      await ctx.db.insert("magicLinks", {
+        token,
+        staffId: seed.staffId,
+        shopId: seed.shopId,
+        recruitmentId: seed.recruitmentId,
+        accessKind: "view",
+        expiresAt,
+      });
+      return { token, expiresAt };
+    });
+    const withViewLink = await t.query(internal.testing.getLatestMagicLinkToken, {
+      shopId: seed.shopId,
+      recruitmentId: seed.recruitmentId,
+      staffEmail: managerEmail,
+      purpose: "view",
+    });
+
+    expect(withViewLink).toEqual({
+      token: viewLink.token,
+      staffId: seed.staffId,
+      recruitmentId: seed.recruitmentId,
+      expiresAt: viewLink.expiresAt,
       usedAt: null,
     });
   });

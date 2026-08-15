@@ -16,7 +16,7 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 | 作業 | 参照する節 |
 |---|---|
 | 実環境での完了条件と作業前確認 | [完了の判定](#完了の判定)、[作業前の共通確認](#作業前の共通確認) |
-| 旧ダークローンチ設定の撤去 | [廃止した公開フラグ](#廃止した公開フラグ) |
+| 未リリース機能の公開制御 | [公開状態](#公開状態) |
 | Stripeの環境変数、Price、Portal、Webhook設定 | [Stripeの設定](#stripeの設定) |
 | Trial期限を開発用に短縮 | [Trial期限の開発用設定](#trial期限の開発用設定) |
 | 利用停止と旧Free予約の境界確認 | [利用停止とgrandfathered契約](#利用停止とgrandfathered契約) |
@@ -54,20 +54,21 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 
 ## 公開状態
 
-現在のrepository artifactは、組織追加、支払い、管理者招待・交代、店舗追加、既存人物の複数店舗所属を常時公開する。
-LINE連携の読取正本も組織人物単位のcanonical dataへ固定され、runtime環境変数では公開状態やread authorityを切り替えない。
-Productionへ反映する前のreadiness、backfill、旧非同期処理のdrain、反映後canaryは[LINE通知の設定と運用](line-notification.md)を正本とする。
-
-## 廃止した公開フラグ
-
-旧deploymentに残る次の設定は公開状態へ影響しない。
+現在のrepository artifactは、複数組織、複数店舗、複数管理者、支払いを未リリース機能として扱う。
+Frontendの非表示だけでなく、Convex public mutationとactionも次の公開フラグをserver-sideで確認し、未設定を含む`true`以外の値では副作用前に拒否する。
 
 - `FEATURE_ORGANIZATION_CREATION`
 - `FEATURE_BILLING`
 - `FEATURE_MANAGER_INVITATION`
 - `FEATURE_SHOP_ADDITION`
 
-対応コードを対象deploymentへ反映した後は、完全修飾deployment名を指定して旧設定を削除できる。
+値は前後の空白と大小文字を正規化したうえで、`true`だけを有効として扱う。
+初回Setupは追加組織の公開フラグに依存せず、所属0件の本人だけが1組織、1店舗、1管理者を作成できる。
+
+Playwright用Previewでは既存E2E契約を実行するため4フラグを明示的に`true`へ設定する。
+Productionの現在値はrepositoryから推測せず、[リリース状態](release-status.md)で証跡がある項目だけを確認済みとする。
+
+未リリース状態へ閉じる場合は、対象projectと完全修飾deployment名を確認してから各キーを削除する。
 
 ```bash
 pnpm exec convex env remove --deployment <fully-qualified-deployment> FEATURE_ORGANIZATION_CREATION
@@ -76,7 +77,7 @@ pnpm exec convex env remove --deployment <fully-qualified-deployment> FEATURE_MA
 pnpm exec convex env remove --deployment <fully-qualified-deployment> FEATURE_SHOP_ADDITION
 ```
 
-作業後は`env list --names-only`でキーの存在だけを確認し、対象deployment、commit、確認日時、結果を[リリース状態](release-status.md)へ記録する。
+作業後は`env list --names-only`でキーの不存在だけを確認し、対象deployment、commit、確認日時、結果を[リリース状態](release-status.md)へ記録する。
 値そのものをログや証跡へ残さない。
 
 ## Stripeの設定
@@ -168,7 +169,7 @@ canaryの成功を確認するまで販売可能と判定しない。
 
 ## Trial期限の開発用設定
 
-開発deploymentでは、新規初回設定と追加組織作成で`calculateTrialEndsAt`が決める期限を、次の環境変数で短縮できる。
+開発deploymentでは、公開設定を明示した追加組織作成で`calculateTrialEndsAt`が決める期限を、次の環境変数で短縮できる。所属0件からの初回Setupは支払い不要Businessを作るため、この設定の対象外である。
 
 | 変数 | 用途 |
 |---|---|
@@ -176,7 +177,7 @@ canaryの成功を確認するまで販売可能と判定しない。
 | `DEBUG_TRIAL_DURATION_DAYS` | 登録日の何暦日後を期限にするか。`1`から`30`までの整数 |
 
 両方のURLは前後の空白と末尾の`/`を除いて比較する。
-URLが未設定または一致しない場合と、日数が未設定または空白の場合は、通常どおり2暦月後のJST 00:00を期限にする。
+URLが未設定または一致しない場合と、日数が未設定または空白の場合は、通常どおり2ヶ月後のJST 00:00を期限にする。
 対象URLが一致している状態で日数が不正な場合は、通常期間へ戻さず設定エラーにする。
 `1`は登録から24時間後ではなく、登録日の翌日00:00 JSTを表す。
 環境変数の変更は将来作成するTrialの計算にだけ反映し、保存済みの期限は更新しない。

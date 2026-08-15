@@ -1,5 +1,6 @@
-import { Box, Flex, Heading, HStack, Skeleton, Stack } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
 import type { PaginationStatus } from "convex/browser";
+import { useId } from "react";
 import { LuCalendarDays, LuChevronDown, LuInbox, LuPlus } from "react-icons/lu";
 import type { DashboardRecruitmentGroup, Recruitment } from "@/src/components/features/Dashboard/types";
 import { Button } from "@/src/components/ui/Button";
@@ -8,13 +9,25 @@ import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
 import { RecruitmentRow } from "./RecruitmentRow";
 
 type Props = {
+  title?: string;
   groups: DashboardRecruitmentGroup[];
   isReadOnly?: boolean;
+  canCreateRecruitments?: boolean;
+  createRecruitmentDisabledReason?: string;
+  showRecruitmentMenus?: boolean;
+  canDeleteRecruitments?: boolean;
+  deleteRecruitmentDisabledReason?: string;
+  emptyState?: {
+    title: string;
+    description: string;
+    actionLabel: string;
+  };
   pastStatus: PaginationStatus;
   hasPastRecruitments: boolean;
   isPastRecruitmentsVisible: boolean;
   canLoadMorePastRecruitments: boolean;
   tourRecruitmentId?: Recruitment["_id"];
+  getRecruitmentShopName?: (recruitment: Recruitment) => string | undefined;
   onCreateClick: () => void;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onDeleteRecruitment: (recruitment: Recruitment) => void;
@@ -23,19 +36,38 @@ type Props = {
 };
 
 export const RecruitmentBoard = ({
+  title = "シフト一覧",
   groups,
   isReadOnly = false,
+  canCreateRecruitments,
+  createRecruitmentDisabledReason,
+  showRecruitmentMenus,
+  canDeleteRecruitments,
+  deleteRecruitmentDisabledReason,
+  emptyState,
   pastStatus,
   hasPastRecruitments,
   isPastRecruitmentsVisible,
   canLoadMorePastRecruitments,
   tourRecruitmentId,
+  getRecruitmentShopName,
   onCreateClick,
   onOpenShiftBoard,
   onDeleteRecruitment,
   onShowPastRecruitments,
   onLoadMorePastRecruitments,
 }: Props) => {
+  const createDisabledReasonId = useId();
+  const canCreate = canCreateRecruitments ?? !isReadOnly;
+  const resolvedCreateDisabledReason = canCreate
+    ? undefined
+    : (createRecruitmentDisabledReason ??
+      (isReadOnly ? "閲覧のみの店舗では募集を作成できません" : "募集を作成できません"));
+  const resolvedEmptyState = emptyState ?? {
+    title: `${title}はまだありません`,
+    description: "期間と締切を決めて、スタッフに希望を聞きましょう。",
+    actionLabel: "はじめての募集をつくる",
+  };
   const isPastFirstPageLoading = isPastRecruitmentsVisible && pastStatus === "LoadingFirstPage";
   const showPastEntryButton = hasPastRecruitments && (!isPastRecruitmentsVisible || isPastFirstPageLoading);
   const showPastMoreButton = isPastRecruitmentsVisible && canLoadMorePastRecruitments;
@@ -47,7 +79,7 @@ export const RecruitmentBoard = ({
   const hasVisibleContent = hasRecruitments || showPastButton;
 
   return (
-    <Stack as="section" aria-label="シフト一覧" gap={{ base: 4, lg: 5 }}>
+    <Stack as="section" aria-label={title} gap={{ base: 4, lg: 5 }}>
       <Flex justify="space-between" align="flex-end" gap={3} wrap="wrap">
         <Stack gap={1} minW={0}>
           <HStack gap={2.5} align="center">
@@ -61,37 +93,53 @@ export const RecruitmentBoard = ({
               fontWeight="bold"
               color="gray.900"
             >
-              シフト一覧
+              {title}
             </Heading>
           </HStack>
         </Stack>
-        <Button
-          data-tour={DASHBOARD_TOUR_TARGET.createRecruitment}
-          variant="ghost"
-          colorPalette="teal"
-          size="sm"
-          onClick={onCreateClick}
-          disabled={isReadOnly}
-          title={isReadOnly ? "閲覧のみの店舗では募集を作成できません" : undefined}
-          gap={1.5}
-          fontWeight="semibold"
-        >
-          <LuPlus />
-          新しい募集をつくる
-        </Button>
+        <Stack gap={1} align={{ base: "flex-start", sm: "flex-end" }}>
+          <Button
+            data-tour={DASHBOARD_TOUR_TARGET.createRecruitment}
+            variant="ghost"
+            colorPalette="teal"
+            size="sm"
+            onClick={onCreateClick}
+            disabled={!canCreate}
+            title={resolvedCreateDisabledReason}
+            aria-describedby={resolvedCreateDisabledReason ? createDisabledReasonId : undefined}
+            gap={1.5}
+            fontWeight="semibold"
+          >
+            <LuPlus />
+            新しい募集をつくる
+          </Button>
+          {resolvedCreateDisabledReason && (
+            <Text id={createDisabledReasonId} fontSize="xs" color="fg.muted" textAlign={{ base: "left", sm: "right" }}>
+              {resolvedCreateDisabledReason}
+            </Text>
+          )}
+        </Stack>
       </Flex>
 
       {!hasVisibleContent ? (
         <Empty
           icon={LuInbox}
-          title="シフト一覧はまだありません"
-          description="期間と締切を決めて、スタッフに希望を聞きましょう。"
+          title={resolvedEmptyState.title}
+          description={resolvedEmptyState.description}
           tone="brand"
           variant="section"
           action={
-            <Button colorPalette="teal" size="md" onClick={onCreateClick} gap={1.5} disabled={isReadOnly}>
+            <Button
+              colorPalette="teal"
+              size="md"
+              onClick={onCreateClick}
+              gap={1.5}
+              disabled={!canCreate}
+              title={resolvedCreateDisabledReason}
+              aria-describedby={resolvedCreateDisabledReason ? createDisabledReasonId : undefined}
+            >
               <LuPlus />
-              はじめての募集をつくる
+              {resolvedEmptyState.actionLabel}
             </Button>
           }
         />
@@ -125,7 +173,11 @@ export const RecruitmentBoard = ({
                     key={r._id}
                     recruitment={r}
                     isReadOnly={isReadOnly}
+                    showMenu={showRecruitmentMenus}
+                    canDelete={canDeleteRecruitments}
+                    deleteDisabledReason={deleteRecruitmentDisabledReason}
                     dataTour={r._id === tourRecruitmentId ? DASHBOARD_TOUR_TARGET.latestRecruitment : undefined}
+                    shopName={getRecruitmentShopName?.(r)}
                     onOpenShiftBoard={onOpenShiftBoard}
                     onDeleteRecruitment={onDeleteRecruitment}
                   />
@@ -198,8 +250,6 @@ const RecruitmentGroupSkeleton = ({ rows, tone }: { rows: number; tone: "confirm
 );
 
 const RecruitmentRowSkeleton = ({ tone }: { tone: "confirmed" | "collecting" }) => {
-  const accent = tone === "confirmed" ? "blue.300" : "green.400";
-
   return (
     <Flex
       align="stretch"
@@ -211,7 +261,7 @@ const RecruitmentRowSkeleton = ({ tone }: { tone: "confirmed" | "collecting" }) 
       boxShadow="xs"
       w="full"
     >
-      <Box w="4px" bg={accent} flexShrink={0} />
+      <Box w="4px" bg="white" flexShrink={0} />
       <Flex
         flex={1}
         minW={0}
@@ -233,16 +283,24 @@ const RecruitmentRowSkeleton = ({ tone }: { tone: "confirmed" | "collecting" }) 
           <Flex
             flex={1}
             minW={0}
-            direction="row"
-            align="center"
-            justify={{ base: "space-between", md: "flex-end" }}
+            direction={{ base: "column", sm: "row" }}
+            align={{ base: "stretch", sm: "center" }}
+            justify={{ base: "flex-start", sm: "space-between", md: "flex-end" }}
             gap={{ base: 2, md: 4 }}
-            wrap={{ base: "wrap", sm: "nowrap" }}
+            wrap="nowrap"
           >
             <HStack minW={{ lg: "84px" }} flexShrink={0} gap={2} wrap="wrap">
               <Skeleton h="22px" w={tone === "confirmed" ? "68px" : "56px"} borderRadius="full" />
             </HStack>
-            <HStack gap={{ base: 3, lg: 8 }} flex={1} justify="flex-end" align="center" minW={0} wrap="nowrap">
+            <HStack
+              gap={{ base: 3, lg: 8 }}
+              flex={{ base: "none", sm: 1 }}
+              w={{ base: "full", sm: "auto" }}
+              justify={{ base: "space-between", sm: "flex-end" }}
+              align="center"
+              minW={0}
+              wrap="nowrap"
+            >
               <Skeleton h="18px" w={{ base: "88px", lg: "96px" }} />
               <Skeleton h="18px" w="72px" flexShrink={0} />
             </HStack>
@@ -250,7 +308,7 @@ const RecruitmentRowSkeleton = ({ tone }: { tone: "confirmed" | "collecting" }) 
         </Flex>
       </Flex>
       <Flex align="center" justify="center" pe={{ base: 2, lg: 3 }} flexShrink={0}>
-        <Flex boxSize="36px" align="center" justify="center">
+        <Flex boxSize="44px" align="center" justify="center">
           <Skeleton h="20px" w="4px" borderRadius="full" />
         </Flex>
       </Flex>

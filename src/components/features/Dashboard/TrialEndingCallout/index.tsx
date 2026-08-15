@@ -1,37 +1,49 @@
 import { Alert, Flex, Stack, Text } from "@chakra-ui/react";
-import { Link as RouterLink } from "@tanstack/react-router";
 import { Button } from "@/src/components/ui/Button";
 import type { TrialEndingNoticeData } from "./script";
 import { useTrialEndingCallout } from "./useTrialEndingCallout";
 
 type Props = {
   notice: TrialEndingNoticeData | null;
-  shopId: string;
   isBillingVisible: boolean;
+  onOpenBillingSettings: () => void;
 };
 
-export function TrialEndingCallout({ notice, shopId, isBillingVisible }: Props) {
+export function TrialEndingCallout({ notice, isBillingVisible, onOpenBillingSettings }: Props) {
   if (!isBillingVisible) return null;
 
   const noticeKey = notice ? `${notice.visibleFrom}:${notice.trialEndsAt}` : "none";
-  return <TrialEndingCalloutController key={noticeKey} notice={notice} shopId={shopId} isBillingVisible />;
+  return (
+    <TrialEndingCalloutController
+      key={noticeKey}
+      notice={notice}
+      isBillingVisible
+      onOpenBillingSettings={onOpenBillingSettings}
+    />
+  );
 }
 
-function TrialEndingCalloutController({ notice, shopId }: Props) {
+function TrialEndingCalloutController({ notice, onOpenBillingSettings }: Props) {
   const viewModel = useTrialEndingCallout(notice);
   if (!viewModel) return null;
 
-  return <TrialEndingCalloutView finalDateLabel={viewModel.finalDateLabel} shopId={shopId} isBillingVisible />;
+  return (
+    <TrialEndingCalloutView
+      finalDateLabel={viewModel.finalDateLabel}
+      isBillingVisible
+      onOpenBillingSettings={onOpenBillingSettings}
+    />
+  );
 }
 
 export function TrialEndingCalloutView({
   finalDateLabel,
-  shopId,
   isBillingVisible,
+  onOpenBillingSettings,
 }: {
   finalDateLabel: string;
-  shopId: string;
   isBillingVisible: boolean;
+  onOpenBillingSettings: () => void;
 }) {
   if (!isBillingVisible) return null;
 
@@ -52,15 +64,14 @@ export function TrialEndingCalloutView({
             <Text>継続して利用するには、ProまたはBusinessを選択してください。</Text>
           </Stack>
           <Button
-            asChild
+            type="button"
             colorPalette="teal"
             flexShrink={0}
             alignSelf={{ base: "stretch", md: "center" }}
             ms={{ base: 0, md: "auto" }}
+            onClick={onOpenBillingSettings}
           >
-            <RouterLink to="/settings" search={{ shop: shopId, tab: "billing" }}>
-              プランと支払いを見る
-            </RouterLink>
+            プランと支払いを見る
           </Button>
         </Flex>
       </Alert.Content>

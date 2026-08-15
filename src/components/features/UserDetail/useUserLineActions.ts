@@ -1,11 +1,18 @@
 import { useMutation } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import type { UserDetailData } from "./types";
 
-export function useUserLineActions({ data }: { data: UserDetailData }) {
+export function useUserLineActions({
+  data,
+  expectedOrganizationId,
+}: {
+  data: UserDetailData;
+  expectedOrganizationId?: Id<"organizations">;
+}) {
   const [authorizeUrl, setAuthorizeUrl] = useState<string | null>(null);
   const [qrTargetKey, setQrTargetKey] = useState<string | null>(null);
   const currentTargetRef = useRef(toLineActionTarget(data));
@@ -28,7 +35,11 @@ export function useUserLineActions({ data }: { data: UserDetailData }) {
     setQrTargetKey(toLineTargetSourceKey(target));
     setAuthorizeUrl(null);
     try {
-      const result = await generateLineLinkToken({ shopId: target.sourceShopId, staffId: target.sourceStaffId });
+      const result = await generateLineLinkToken({
+        shopId: target.sourceShopId,
+        staffId: target.sourceStaffId,
+        ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+      });
       if (isSameLineLinkTarget(currentTargetRef.current, target)) {
         setAuthorizeUrl(result.authorizeUrl);
         return true;
@@ -46,7 +57,11 @@ export function useUserLineActions({ data }: { data: UserDetailData }) {
     const target = currentTargetRef.current;
     if (!target.canLink || !target.sourceShopId || !target.sourceStaffId) return false;
     try {
-      await sendLineInvite({ shopId: target.sourceShopId, staffId: target.sourceStaffId });
+      await sendLineInvite({
+        shopId: target.sourceShopId,
+        staffId: target.sourceStaffId,
+        ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+      });
       if (isSameLineLinkTarget(currentTargetRef.current, target)) {
         showSuccessToast({ title: "LINE連携リンクをメールで送りました" });
         return true;
@@ -65,6 +80,7 @@ export function useUserLineActions({ data }: { data: UserDetailData }) {
         shopId: target.actionShopId,
         organizationPersonId: target.personId,
         requestId,
+        ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
       });
       if (isSameLinePersonTarget(currentTargetRef.current, target)) {
         setAuthorizeUrl(null);

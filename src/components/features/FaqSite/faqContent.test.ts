@@ -162,16 +162,10 @@ describe("FAQコンテンツ", () => {
     ["LINE 届かない", ["line-not-delivered", "confirmed-link-unavailable"]],
     ["下書き 再提出", ["draft-after-resubmission"]],
     ["時間指定 日ごと 勤務区分", ["submission-patterns"]],
-    ["スタッフ 別店舗", ["add-staff"]],
+    ["スタッフ 別店舗", []],
     [
       "グループ",
-      [
-        "add-staff",
-        "staff-membership-differences",
-        "organization-and-shop",
-        "switch-shop",
-        "delete-shop-or-organization",
-      ],
+      ["staff-membership-differences", "organization-and-shop", "switch-shop", "delete-shop-or-organization"],
     ],
     ["催促 予約されない", ["automatic-reminder"]],
   ])("複数語の検索「%s」で該当するFAQだけを返す", (query, expectedIds) => {

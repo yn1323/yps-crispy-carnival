@@ -63,6 +63,37 @@ async function seedAdditionalManager(
 }
 
 describe("organization shop management", () => {
+  beforeEach(() => vi.stubEnv("FEATURE_SHOP_ADDITION", "true"));
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("未リリースflagが閉じている場合は店舗追加を副作用なしで拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "add_shop_feature_closed", plan: "business" }),
+    );
+    const readProtectedState = () =>
+      t.run(async (ctx) => ({
+        shops: await ctx.db.query("shops").collect(),
+        positions: await ctx.db.query("positions").collect(),
+        audits: await ctx.db.query("organizationAuditEvents").collect(),
+        rateLimits: await ctx.db.query("rateLimits").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+    const before = await readProtectedState();
+    vi.stubEnv("FEATURE_SHOP_ADDITION", "");
+
+    await expect(
+      t.withIdentity({ subject: "add_shop_feature_closed" }).mutation(api.organization.mutations.addShop, {
+        shopId: ids.shopId,
+        shopName: "閉鎖中の店舗",
+        submissionPattern,
+        requestId: "add-shop-feature-closed",
+      }),
+    ).rejects.toThrow("この機能は現在利用できません。");
+
+    expect(await readProtectedState()).toEqual(before);
+  });
+
   it("店舗追加は上限確認後に初期ポジション・監査を作成し、旧店舗所属を再生成しない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -415,6 +446,106 @@ describe("organization shop management", () => {
         requestId: "restricted-reactivate",
       }),
     ).rejects.toThrow("契約制限中は店舗を再稼働できません");
+  });
+
+  it.each(["archived", "planSuspended"] as const)(
+    "未リリース中は別active店舗がある%s店舗の再稼働を副作用なしで拒否する",
+    async (operatingStatus) => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: `reactivate_shop_feature_closed_${operatingStatus}`,
+          plan: "pro",
+        });
+        const targetShopId = await seedOrganizationShop(ctx, {
+          organizationId: base.organizationId,
+          name: "未リリース再稼働対象",
+          status: operatingStatus,
+        });
+        return { ...base, targetShopId };
+      });
+      const readProtectedState = () =>
+        t.run(async (ctx) => ({
+          audits: await ctx.db
+            .query("organizationAuditEvents")
+            .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
+            .collect(),
+          billingStates: await ctx.db
+            .query("organizationBillingStates")
+            .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+            .collect(),
+          rateLimits: await ctx.db.query("rateLimits").collect(),
+          scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+          shops: await ctx.db
+            .query("shops")
+            .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+            .collect(),
+        }));
+      const before = await readProtectedState();
+      vi.stubEnv("FEATURE_SHOP_ADDITION", "");
+
+      await expect(
+        t
+          .withIdentity({ subject: `reactivate_shop_feature_closed_${operatingStatus}` })
+          .mutation(api.organization.mutations.reactivateShop, {
+            shopId: ids.targetShopId,
+            requestId: `reactivate-shop-feature-closed-${operatingStatus}`,
+          }),
+      ).rejects.toThrow("この機能は現在利用できません。");
+
+      await expect(readProtectedState()).resolves.toEqual(before);
+    },
+  );
+
+  it.each(["archived", "planSuspended"] as const)(
+    "未リリース中もactive店舗が0件なら%s店舗を最初の1店舗として再稼働できる",
+    async (operatingStatus) => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: `reactivate_first_shop_${operatingStatus}`,
+          plan: "pro",
+        });
+        await ctx.db.patch(base.shopId, { operatingStatus });
+        return base;
+      });
+      vi.stubEnv("FEATURE_SHOP_ADDITION", "");
+
+      await expect(
+        t
+          .withIdentity({ subject: `reactivate_first_shop_${operatingStatus}` })
+          .mutation(api.organization.mutations.reactivateShop, {
+            shopId: ids.shopId,
+            requestId: `reactivate-first-shop-${operatingStatus}`,
+          }),
+      ).resolves.toEqual({ shopId: ids.shopId, shopStatus: "active", changed: true });
+      await expect(t.run(async (ctx) => await ctx.db.get(ids.shopId))).resolves.toMatchObject({
+        operatingStatus: "active",
+      });
+    },
+  );
+
+  it("未リリース中もactive店舗の再稼働はidempotent no-opを維持する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(
+      async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "reactivate_active_noop", plan: "pro" }),
+    );
+    vi.stubEnv("FEATURE_SHOP_ADDITION", "");
+
+    await expect(
+      t.withIdentity({ subject: "reactivate_active_noop" }).mutation(api.organization.mutations.reactivateShop, {
+        shopId: ids.shopId,
+        requestId: "reactivate-active-noop",
+      }),
+    ).resolves.toEqual({ shopId: ids.shopId, shopStatus: "active", changed: false });
+    await expect(
+      t.run(async (ctx) =>
+        ctx.db
+          .query("organizationAuditEvents")
+          .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
+          .collect(),
+      ),
+    ).resolves.toEqual([]);
   });
 
   it("再稼働時に店舗上限を再確認し、空きができた後だけ稼働へ戻す", async () => {

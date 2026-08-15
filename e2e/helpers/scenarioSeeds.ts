@@ -154,10 +154,12 @@ export type SingleActorMultiOrganizationScenarioArgs = {
 
 export type SingleActorMultiOrganizationScenarioSeed = {
   actorAName: string;
+  targetOrganizationId: string;
   targetOrganizationName: string;
   targetShopId: string;
   targetShopName: string;
   actorBName: string;
+  alternateOrganizationId: string;
   alternateOrganizationName: string;
   alternateShopId: string;
   alternateShopName: string;

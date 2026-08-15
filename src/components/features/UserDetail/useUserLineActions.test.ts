@@ -41,6 +41,7 @@ const personId = "person-target" as Id<"organizationPeople">;
 const sourceStaffId = "staff-source" as Id<"staffs">;
 const sourceShopId = "shop-source" as Id<"shops">;
 const actionShopId = "shop-action" as Id<"shops">;
+const organizationId = "organization-a" as Id<"organizations">;
 
 const data = {
   person: { id: personId },
@@ -73,6 +74,33 @@ beforeEach(() => {
 });
 
 describe("useUserLineActions", () => {
+  it("app導線では全mutationにexpected organizationを渡す", async () => {
+    const { result } = renderHook(() => useUserLineActions({ data, expectedOrganizationId: organizationId }));
+
+    await act(async () => {
+      await result.current.onShowQr();
+      await result.current.onSendInvite();
+      await result.current.onDisconnect("disconnect-request");
+    });
+
+    expect(mocks.generateLinkToken).toHaveBeenCalledExactlyOnceWith({
+      shopId: sourceShopId,
+      staffId: sourceStaffId,
+      expectedOrganizationId: organizationId,
+    });
+    expect(mocks.sendInvite).toHaveBeenCalledExactlyOnceWith({
+      shopId: sourceShopId,
+      staffId: sourceStaffId,
+      expectedOrganizationId: organizationId,
+    });
+    expect(mocks.disconnect).toHaveBeenCalledExactlyOnceWith({
+      shopId: actionShopId,
+      organizationPersonId: personId,
+      requestId: "disconnect-request",
+      expectedOrganizationId: organizationId,
+    });
+  });
+
   it("連携元membershipをtokenとメールへ渡し、明示解除は組織人物単位で実行する", async () => {
     const { result } = renderHook(() => useUserLineActions({ data }));
 

@@ -9,6 +9,7 @@ import {
   classifyClerkVerifiedEmailProviderError,
   createClerkVerifiedEmailProvider,
 } from "../_lib/clerkVerifiedEmailProvider";
+import { isReleaseFeatureEnabled } from "../_lib/releaseFeatures";
 import { getAccountDeletionConfiguration, normalizeIssuer } from "../accountDeletion/config";
 
 const acceptanceActionResultValidator = v.union(
@@ -34,6 +35,9 @@ export const accept = action({
   args: { token: v.string() },
   returns: acceptanceActionResultValidator,
   handler: async (ctx, { token }) => {
+    if (!isReleaseFeatureEnabled("managerInvitation")) {
+      return { status: "unavailable" as const, retryable: false };
+    }
     const config = getAccountDeletionConfiguration();
     return await runInvitationAcceptance(ctx, createClerkVerifiedEmailProvider(config), config, token);
   },

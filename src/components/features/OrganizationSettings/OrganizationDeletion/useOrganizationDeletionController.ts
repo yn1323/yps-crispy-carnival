@@ -4,26 +4,22 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
-import { type ShopContextOption, toSelectedShop } from "@/src/domains/shop/context";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { selectedShopAtom } from "@/src/stores/shop";
 import { EMPTY_USER, userAtom } from "@/src/stores/user";
 import type { OrganizationDeletionDialogState } from "./OrganizationDeletionDialog";
 
 type Input = {
-  organizationId?: string;
-  organizationUpdatedAt?: number;
+  organizationId: Id<"organizations">;
+  organizationUpdatedAt: number;
   organizationName: string;
   canDeleteOrganization: boolean;
-  selectedShopId: string;
-  shops: readonly ShopContextOption[];
 };
 
 type DeletionIntent = {
-  organizationId: string;
+  organizationId: Id<"organizations">;
   organizationUpdatedAt: number;
   organizationName: string;
-  selectedShopId: string;
   requestId: string;
 };
 
@@ -35,7 +31,7 @@ export function useOrganizationDeletionController(
   input: Input,
   { replaceLocation = (path) => window.location.replace(path) }: ControllerOptions = {},
 ) {
-  const deleteOrganization = useMutation(api.organization.mutations.deleteOrganization);
+  const deleteOrganizationForOrganization = useMutation(api.organization.mutations.deleteOrganizationForOrganization);
   const setSelectedShop = useSetAtom(selectedShopAtom);
   const setUser = useSetAtom(userAtom);
   const [intent, setIntent] = useState<DeletionIntent | null>(null);
@@ -49,8 +45,7 @@ export function useOrganizationDeletionController(
       !input.canDeleteOrganization ||
       input.organizationId !== intent.organizationId ||
       input.organizationUpdatedAt !== intent.organizationUpdatedAt ||
-      input.organizationName !== intent.organizationName ||
-      input.selectedShopId !== intent.selectedShopId
+      input.organizationName !== intent.organizationName
     ) {
       setIntent(null);
     }
@@ -63,26 +58,23 @@ export function useOrganizationDeletionController(
       !latest.canDeleteOrganization ||
       latest.organizationId !== intent.organizationId ||
       latest.organizationUpdatedAt !== intent.organizationUpdatedAt ||
-      latest.organizationName !== intent.organizationName ||
-      latest.selectedShopId !== intent.selectedShopId
+      latest.organizationName !== intent.organizationName
     ) {
       setIntent(null);
       return;
     }
 
     try {
-      await deleteOrganization({
-        shopId: intent.selectedShopId as Id<"shops">,
-        organizationId: intent.organizationId as Id<"organizations">,
-        confirmOrganizationId: intent.organizationId as Id<"organizations">,
+      const deletionArgs = {
+        organizationId: intent.organizationId,
+        confirmOrganizationId: intent.organizationId,
         expectedOrganizationUpdatedAt: intent.organizationUpdatedAt,
         requestId: intent.requestId,
-      });
-      const nextShop = latest.shops.find((shop) => shop.organizationId !== intent.organizationId);
-      const nextUrl = nextShop ? `/dashboard?shop=${encodeURIComponent(nextShop.shopId)}` : "/dashboard";
+      };
+      await deleteOrganizationForOrganization(deletionArgs);
       // Dialogの履歴guardを先に戻し、そのhistory.back()に遷移を上書きされないようにする。
-      pendingRedirectRef.current = nextUrl;
-      setSelectedShop(nextShop ? toSelectedShop(nextShop) : null);
+      pendingRedirectRef.current = "/dashboard";
+      setSelectedShop(null);
       setUser(EMPTY_USER);
       setIntent(null);
       showSuccessToast({ title: "組織の削除を受け付けました" });
@@ -94,14 +86,11 @@ export function useOrganizationDeletionController(
 
   const open = () => {
     const latest = latestRef.current;
-    if (!latest.canDeleteOrganization || !latest.organizationId || latest.organizationUpdatedAt === undefined) {
-      return;
-    }
+    if (!latest.canDeleteOrganization) return;
     setIntent({
       organizationId: latest.organizationId,
       organizationUpdatedAt: latest.organizationUpdatedAt,
       organizationName: latest.organizationName,
-      selectedShopId: latest.selectedShopId,
       requestId: crypto.randomUUID(),
     });
   };

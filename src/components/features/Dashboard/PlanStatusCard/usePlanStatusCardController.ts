@@ -8,6 +8,7 @@ import type { DashboardPlanStatusSource, PlanStatusCardAction, PlanStatusCardPro
 type Props = {
   planStatus: DashboardPlanStatusSource | null | undefined;
   shopId?: string;
+  expectedOrganizationId?: Id<"organizations">;
   enabled: boolean;
   onOpenBillingSettings: () => void;
 };
@@ -26,6 +27,7 @@ type UsageRequest = {
 export function usePlanStatusCardController({
   planStatus,
   shopId,
+  expectedOrganizationId,
   enabled,
   onOpenBillingSettings,
 }: Props): PlanStatusCardProps | null | undefined {
@@ -71,7 +73,11 @@ export function usePlanStatusCardController({
   );
   const usageQueryArgs =
     canSubscribeToUsage && shopId && usageRequest?.shopId === shopId
-      ? { shopId: shopId as Id<"shops">, now: usageRequest.now }
+      ? {
+          shopId: shopId as Id<"shops">,
+          ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+          now: usageRequest.now,
+        }
       : "skip";
   const usageQueryResult = useQuery(api.dashboard.queries.getDashboardPlanUsage, usageQueryArgs);
   const usage = usageQueryArgs === "skip" ? undefined : usageQueryResult;

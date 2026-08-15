@@ -7,12 +7,12 @@ const SHOP_STAFF_MEMBERSHIP_TIMEOUT = 20_000;
 export class ShopStaffMembershipPage {
   constructor(private page: Page) {}
 
-  async openTargetShopFromOrganizationSettings(seed: ShopStaffMembershipScenarioSeed) {
-    await this.page.goto(`/settings?shop=${encodeURIComponent(seed.contextShopId)}&tab=shops`, {
+  async openTargetShopFromManagement(seed: ShopStaffMembershipScenarioSeed) {
+    await this.page.goto(`/app/manage?org=${encodeURIComponent(seed.organizationId)}`, {
       waitUntil: "domcontentloaded",
     });
     await expectAppHydrated(this.page);
-    await expect(this.page.getByRole("tab", { name: "店舗", exact: true })).toHaveAttribute("aria-selected", "true", {
+    await expect(this.page.getByRole("heading", { name: "管理", exact: true })).toBeVisible({
       timeout: SHOP_STAFF_MEMBERSHIP_TIMEOUT,
     });
     await this.page.getByRole("button", { name: `${seed.targetShopName}の店舗詳細を開く`, exact: true }).click();
@@ -51,6 +51,21 @@ export class ShopStaffMembershipPage {
       visibleNames: [seed.additionCandidateName, seed.existingTargetName],
       hiddenNames: [],
     });
+  }
+
+  async openCandidateStaffDetailAndReturn(seed: ShopStaffMembershipScenarioSeed) {
+    await this.staffRow(seed.additionCandidateName).click();
+    await expect(this.page).toHaveURL(
+      (url) => /^\/app\/staff\/[^/]+$/.test(url.pathname) && url.searchParams.get("org") === seed.organizationId,
+      { timeout: SHOP_STAFF_MEMBERSHIP_TIMEOUT },
+    );
+    await expect(this.page.getByRole("heading", { name: "スタッフ詳細", exact: true })).toBeVisible({
+      timeout: SHOP_STAFF_MEMBERSHIP_TIMEOUT,
+    });
+
+    await this.page.goBack({ waitUntil: "domcontentloaded" });
+    await expectAppHydrated(this.page);
+    await this.expectTargetShopWithContext(seed);
   }
 
   async reloadAndExpectCandidateSelected(seed: ShopStaffMembershipScenarioSeed) {
@@ -101,9 +116,8 @@ export class ShopStaffMembershipPage {
   private async expectTargetShopWithContext(seed: ShopStaffMembershipScenarioSeed) {
     await expect(this.page).toHaveURL(
       (url) =>
-        url.pathname === `/shops/${seed.targetShopId}` &&
-        url.searchParams.get("shop") === seed.contextShopId &&
-        url.searchParams.get("returnTo") === "settings",
+        url.pathname === `/app/manage/shops/${seed.targetShopId}` &&
+        url.searchParams.get("org") === seed.organizationId,
       { timeout: SHOP_STAFF_MEMBERSHIP_TIMEOUT },
     );
     await expect(this.page.getByRole("heading", { name: seed.targetShopName, exact: true })).toBeVisible({

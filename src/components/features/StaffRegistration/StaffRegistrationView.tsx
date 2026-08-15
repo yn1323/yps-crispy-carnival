@@ -80,7 +80,7 @@ export function StaffRegistrationView({ state }: Props) {
         <PanelFrame tone="action" icon={<LuUserPlus />} title="申請内容を確認してください">
           <VStack align="stretch" gap={5}>
             <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              承認後、このメールアドレスへ登録完了とLINE連携の案内を送ります。
+              承認後、LINE未連携の場合はこのメールアドレスへ連携の案内を送ります。
               <br />
               募集中のシフトがある場合は、提出案内も送ります。
             </Text>

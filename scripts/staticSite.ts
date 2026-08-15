@@ -41,16 +41,22 @@ export const NOINDEX_PUBLIC_ROUTES = new Set<string>([
 /** Queryを含めず、指定されたpathだけをCSR shellへ渡す。 */
 export const CSR_SHELL_STATIC_ROUTES = [
   "/account",
+  "/app",
+  "/app/actions",
+  "/app/manage",
+  "/app/manage/billing",
+  "/app/manage/managers",
+  "/app/manage/managers/invite-new",
+  "/app/manage/managers/invite-staff",
+  "/app/manage/organization",
+  "/app/shifts",
+  "/app/staff",
   "/dashboard",
   "/forgot-password",
   "/legal/staff/consent",
   "/line/callback",
   "/login",
   "/manager-invite",
-  "/settings",
-  "/settings/managers",
-  "/settings/managers/invite-new",
-  "/settings/managers/invite-staff",
   "/shifts/reissue",
   "/shifts/submit",
   "/shifts/submit/completed",
@@ -62,10 +68,10 @@ export const CSR_SHELL_STATIC_ROUTES = [
 
 /** Cloudflare Pagesのnamed placeholder。長いpathを先に評価する。 */
 export const CSR_SHELL_DYNAMIC_ROUTES = [
-  "/users/:personId/shops/:targetShopId",
-  "/shiftboard/:recruitmentId",
-  "/shops/:shopId",
-  "/users/:personId",
+  "/app/staff/:personId/shops/:shopId",
+  "/app/manage/shops/:shopId",
+  "/app/shifts/:recruitmentId/board",
+  "/app/staff/:personId",
 ] as const;
 
 const ARTICLE_CONTENT_DIR = join("src", "components", "features", "ArticleSite", "content");
@@ -185,7 +191,11 @@ export function createCloudflareHeaders(publicRoutes: readonly string[]): string
     blocks.push([`${route}/`, `  Link: <https://shiftori.app${getCanonicalRoute(route)}>; rel="canonical"`]);
   }
 
-  for (const route of [...CSR_SHELL_STATIC_ROUTES, ...CSR_SHELL_DYNAMIC_ROUTES].flatMap(withOptionalTrailingSlash)) {
+  const explicitShellHeaderRoutes = [...CSR_SHELL_STATIC_ROUTES, ...CSR_SHELL_DYNAMIC_ROUTES]
+    .filter((route) => route !== "/app" && !route.startsWith("/app/"))
+    .flatMap(withOptionalTrailingSlash);
+  // `/app`だけはrootと配下を2ルールへ集約し、Cloudflare Pagesの100 header rules制限を守る。
+  for (const route of ["/app", "/app/*", ...explicitShellHeaderRoutes]) {
     blocks.push([route, ...SHELL_HEADERS]);
   }
 

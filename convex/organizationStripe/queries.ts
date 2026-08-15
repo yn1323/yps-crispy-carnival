@@ -1,7 +1,11 @@
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { internalQuery, type QueryCtx } from "../_generated/server";
-import { requireOrganizationActorForShop } from "../organization/access";
+import {
+  type OrganizationReadActor,
+  requireOrganizationActorForShop,
+  requireOrganizationReadActor,
+} from "../organization/access";
 import { organizationBillingStateValidator } from "../organization/validators";
 import { getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
 import {
@@ -23,37 +27,41 @@ const actionPurposeValidator = v.union(
   v.literal("cancelScheduledPlanChange"),
 );
 
+type ActionPurpose = typeof actionPurposeValidator.type;
+
+const actionContextValidator = v.union(
+  v.null(),
+  v.object({
+    organizationId: v.id("organizations"),
+    organizationName: v.string(),
+    billingEmail: v.string(),
+    personId: v.id("organizationPeople"),
+    billingState: v.object({
+      state: organizationBillingStateValidator,
+      version: v.number(),
+    }),
+    stripeCustomerId: v.optional(v.string()),
+    stripeCustomerLivemode: v.optional(v.boolean()),
+    providerGeneration: v.number(),
+    currentStripeSubscriptionId: v.optional(v.string()),
+    currentStripeSubscriptionLivemode: v.optional(v.boolean()),
+    currentStripePriceId: v.optional(v.string()),
+    currentStripePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+    currentStripeSubscriptionItemId: v.optional(v.string()),
+    currentPeriodStartsAt: v.optional(v.number()),
+    currentPeriodEndsAt: v.optional(v.number()),
+    billingCycleAnchor: v.optional(v.number()),
+    stripeSubscriptionScheduleId: v.optional(v.string()),
+  }),
+);
+
 export const getActionContext = internalQuery({
   args: {
     tokenIdentifier: v.string(),
     shopId: v.id("shops"),
     purpose: actionPurposeValidator,
   },
-  returns: v.union(
-    v.null(),
-    v.object({
-      organizationId: v.id("organizations"),
-      organizationName: v.string(),
-      billingEmail: v.string(),
-      personId: v.id("organizationPeople"),
-      billingState: v.object({
-        state: organizationBillingStateValidator,
-        version: v.number(),
-      }),
-      stripeCustomerId: v.optional(v.string()),
-      stripeCustomerLivemode: v.optional(v.boolean()),
-      providerGeneration: v.number(),
-      currentStripeSubscriptionId: v.optional(v.string()),
-      currentStripeSubscriptionLivemode: v.optional(v.boolean()),
-      currentStripePriceId: v.optional(v.string()),
-      currentStripePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
-      currentStripeSubscriptionItemId: v.optional(v.string()),
-      currentPeriodStartsAt: v.optional(v.number()),
-      currentPeriodEndsAt: v.optional(v.number()),
-      billingCycleAnchor: v.optional(v.number()),
-      stripeSubscriptionScheduleId: v.optional(v.string()),
-    }),
-  ),
+  returns: actionContextValidator,
   handler: async (ctx, args) => {
     const users = await ctx.db
       .query("users")
@@ -66,92 +74,119 @@ export const getActionContext = internalQuery({
       shopId: args.shopId,
       allowReadOnly: true,
     });
-    const [billingState, customer, latestSubscription] = await Promise.all([
-      ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", actor.organization._id))
-        .unique(),
-      ctx.db
-        .query("organizationStripeCustomers")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", actor.organization._id))
-        .unique(),
-      ctx.db
-        .query("organizationStripeSubscriptions")
-        .withIndex("by_organizationId_and_providerGeneration", (q) => q.eq("organizationId", actor.organization._id))
-        .order("desc")
-        .first(),
-    ]);
-    if (!billingState) return null;
-    if (args.purpose === "currentSubscriptionPrice" && latestSubscription?.terminalAt !== undefined) return null;
-    const restrictedState = getEffectiveRestrictedBillingState(billingState.state);
-    const isRecoveryManager = restrictedState?.recoveryManagerPersonIds.includes(actor.person._id) === true;
-    const isActiveManager = actor.member.status === "active";
-    if (!isActiveManager && !isRecoveryManager) return null;
-    if (!isPurposeAllowed(args.purpose, billingState.state, isActiveManager, isRecoveryManager)) return null;
-    if (
-      args.purpose === "startCheckout" &&
-      billingState.state.kind === "restricted" &&
-      billingState.state.reason === "paymentGraceExpired" &&
-      latestSubscription?.terminalAt !== undefined
-    ) {
-      const collectionFinalized = (
-        await Promise.all(
-          (["cancelSubscription", "stopInvoiceCollection"] as const).map(async (kind) =>
-            ctx.db
-              .query("organizationStripeOperations")
-              .withIndex("by_organizationId_and_providerGeneration_and_kind_and_status", (q) =>
-                q
-                  .eq("organizationId", actor.organization._id)
-                  .eq("providerGeneration", latestSubscription.providerGeneration)
-                  .eq("kind", kind)
-                  .eq("status", "succeeded"),
-              )
-              .first(),
-          ),
-        )
-      ).every((operation) => operation !== null);
-      if (!collectionFinalized) return null;
-    }
-
-    return {
-      organizationId: actor.organization._id,
-      organizationName: actor.organization.name,
-      billingEmail: actor.organization.billingEmail ?? actor.person.email,
-      personId: actor.person._id,
-      billingState: { state: billingState.state, version: billingState.version },
-      ...(customer ? { stripeCustomerId: customer.stripeCustomerId } : {}),
-      ...(customer ? { stripeCustomerLivemode: customer.livemode } : {}),
-      providerGeneration: latestSubscription?.providerGeneration ?? 0,
-      ...(latestSubscription && !latestSubscription.terminalAt
-        ? { currentStripeSubscriptionId: latestSubscription.stripeSubscriptionId }
-        : {}),
-      ...(latestSubscription && !latestSubscription.terminalAt
-        ? { currentStripeSubscriptionLivemode: latestSubscription.livemode }
-        : {}),
-      ...(latestSubscription && !latestSubscription.terminalAt
-        ? { currentStripePriceId: latestSubscription.stripePriceId }
-        : {}),
-      ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.plan
-        ? { currentStripePlan: latestSubscription.plan }
-        : {}),
-      ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.stripeSubscriptionItemId
-        ? { currentStripeSubscriptionItemId: latestSubscription.stripeSubscriptionItemId }
-        : {}),
-      ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.currentPeriodStartsAt !== undefined
-        ? { currentPeriodStartsAt: latestSubscription.currentPeriodStartsAt }
-        : {}),
-      ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.currentPeriodEndsAt !== undefined
-        ? { currentPeriodEndsAt: latestSubscription.currentPeriodEndsAt }
-        : {}),
-      ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.billingCycleAnchor !== undefined
-        ? { billingCycleAnchor: latestSubscription.billingCycleAnchor }
-        : {}),
-      ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.stripeSubscriptionScheduleId
-        ? { stripeSubscriptionScheduleId: latestSubscription.stripeSubscriptionScheduleId }
-        : {}),
-    };
+    return await getActionContextForActor(ctx, actor, args.purpose);
   },
 });
+
+/** app管理画面用。店舗anchorを経由せずcanonical組織所属から課金対象を確定する。 */
+export const getActionContextForOrganization = internalQuery({
+  args: {
+    tokenIdentifier: v.string(),
+    organizationId: v.id("organizations"),
+    purpose: actionPurposeValidator,
+  },
+  returns: actionContextValidator,
+  handler: async (ctx, args) => {
+    const users = await ctx.db
+      .query("users")
+      .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", args.tokenIdentifier))
+      .take(2);
+    if (users.length !== 1) return null;
+
+    const actor = await requireOrganizationReadActor(ctx, {
+      user: users[0],
+      organizationId: args.organizationId,
+    });
+    return await getActionContextForActor(ctx, actor, args.purpose);
+  },
+});
+
+async function getActionContextForActor(ctx: QueryCtx, actor: OrganizationReadActor, purpose: ActionPurpose) {
+  const [billingState, customer, latestSubscription] = await Promise.all([
+    ctx.db
+      .query("organizationBillingStates")
+      .withIndex("by_organizationId", (q) => q.eq("organizationId", actor.organization._id))
+      .unique(),
+    ctx.db
+      .query("organizationStripeCustomers")
+      .withIndex("by_organizationId", (q) => q.eq("organizationId", actor.organization._id))
+      .unique(),
+    ctx.db
+      .query("organizationStripeSubscriptions")
+      .withIndex("by_organizationId_and_providerGeneration", (q) => q.eq("organizationId", actor.organization._id))
+      .order("desc")
+      .first(),
+  ]);
+  if (!billingState) return null;
+  if (purpose === "currentSubscriptionPrice" && latestSubscription?.terminalAt !== undefined) return null;
+  const restrictedState = getEffectiveRestrictedBillingState(billingState.state);
+  const isRecoveryManager = restrictedState?.recoveryManagerPersonIds.includes(actor.person._id) === true;
+  const isActiveManager = actor.member.status === "active";
+  if (!isActiveManager && !isRecoveryManager) return null;
+  if (!isPurposeAllowed(purpose, billingState.state, isActiveManager, isRecoveryManager)) return null;
+  if (
+    purpose === "startCheckout" &&
+    billingState.state.kind === "restricted" &&
+    billingState.state.reason === "paymentGraceExpired" &&
+    latestSubscription?.terminalAt !== undefined
+  ) {
+    const collectionFinalized = (
+      await Promise.all(
+        (["cancelSubscription", "stopInvoiceCollection"] as const).map(async (kind) =>
+          ctx.db
+            .query("organizationStripeOperations")
+            .withIndex("by_organizationId_and_providerGeneration_and_kind_and_status", (q) =>
+              q
+                .eq("organizationId", actor.organization._id)
+                .eq("providerGeneration", latestSubscription.providerGeneration)
+                .eq("kind", kind)
+                .eq("status", "succeeded"),
+            )
+            .first(),
+        ),
+      )
+    ).every((operation) => operation !== null);
+    if (!collectionFinalized) return null;
+  }
+
+  return {
+    organizationId: actor.organization._id,
+    organizationName: actor.organization.name,
+    billingEmail: actor.organization.billingEmail ?? actor.person.email,
+    personId: actor.person._id,
+    billingState: { state: billingState.state, version: billingState.version },
+    ...(customer ? { stripeCustomerId: customer.stripeCustomerId } : {}),
+    ...(customer ? { stripeCustomerLivemode: customer.livemode } : {}),
+    providerGeneration: latestSubscription?.providerGeneration ?? 0,
+    ...(latestSubscription && !latestSubscription.terminalAt
+      ? { currentStripeSubscriptionId: latestSubscription.stripeSubscriptionId }
+      : {}),
+    ...(latestSubscription && !latestSubscription.terminalAt
+      ? { currentStripeSubscriptionLivemode: latestSubscription.livemode }
+      : {}),
+    ...(latestSubscription && !latestSubscription.terminalAt
+      ? { currentStripePriceId: latestSubscription.stripePriceId }
+      : {}),
+    ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.plan
+      ? { currentStripePlan: latestSubscription.plan }
+      : {}),
+    ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.stripeSubscriptionItemId
+      ? { currentStripeSubscriptionItemId: latestSubscription.stripeSubscriptionItemId }
+      : {}),
+    ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.currentPeriodStartsAt !== undefined
+      ? { currentPeriodStartsAt: latestSubscription.currentPeriodStartsAt }
+      : {}),
+    ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.currentPeriodEndsAt !== undefined
+      ? { currentPeriodEndsAt: latestSubscription.currentPeriodEndsAt }
+      : {}),
+    ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.billingCycleAnchor !== undefined
+      ? { billingCycleAnchor: latestSubscription.billingCycleAnchor }
+      : {}),
+    ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.stripeSubscriptionScheduleId
+      ? { stripeSubscriptionScheduleId: latestSubscription.stripeSubscriptionScheduleId }
+      : {}),
+  };
+}
 
 export const getOperation = internalQuery({
   args: { operationId: v.id("organizationStripeOperations") },

@@ -1,5 +1,6 @@
 import { Alert, Stack } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
+import type { Id } from "@/convex/_generated/dataModel";
 import { ManagerCandidateListView } from "./ManagerCandidateListView";
 import { ManagerIssueConfirmationDialog } from "./ManagerIssueConfirmationDialog";
 import type { ManagerSettingsCandidateResult, ReadyManagerSettingsOverview } from "./types";
@@ -8,12 +9,12 @@ import { useManagerIssueController } from "./useManagerIssueController";
 type Props = {
   overview: ReadyManagerSettingsOverview;
   result: ManagerSettingsCandidateResult;
-  shopId: string;
+  organizationId: Id<"organizations">;
 };
 
-export function ManagerCandidatePageContent({ overview, result, shopId }: Props) {
+export function ManagerCandidatePageContent({ overview, result, organizationId }: Props) {
   const [selectedPersonId, setSelectedPersonId] = useState("");
-  const controller = useManagerIssueController({ overview, shopId });
+  const controller = useManagerIssueController({ overview, organizationId });
 
   const candidates = result.kind === "ready" ? result.candidates : [];
   useEffect(() => {

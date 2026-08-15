@@ -11,6 +11,7 @@ type Props = {
   secondary?: ReactNode;
   accessibleDescription?: ReactNode;
   highlighted?: boolean;
+  disabled?: boolean;
   onClick: () => void;
   onOpenIntent?: () => void;
 };
@@ -24,6 +25,7 @@ export function DrilldownRow({
   secondary,
   accessibleDescription,
   highlighted = false,
+  disabled = false,
   onClick,
   onOpenIntent,
 }: Props) {
@@ -36,6 +38,7 @@ export function DrilldownRow({
       id={id}
       aria-label={ariaLabel}
       aria-describedby={descriptionId}
+      disabled={disabled}
       gap={3}
       px={{ base: 3, md: 4 }}
       py={3.5}
@@ -45,17 +48,18 @@ export function DrilldownRow({
       textAlign="left"
       bg={highlighted ? "teal.50/50" : "transparent"}
       borderWidth={0}
-      cursor="pointer"
+      cursor={disabled ? "not-allowed" : "pointer"}
+      opacity={disabled ? 0.64 : 1}
       transition="background-color 150ms ease"
-      _hover={{ bg: "teal.50" }}
+      _hover={disabled ? undefined : { bg: "teal.50" }}
       _focusVisible={{
         outlineWidth: "2px",
         outlineStyle: "solid",
         outlineColor: "teal.500",
         outlineOffset: "-2px",
       }}
-      onPointerEnter={onOpenIntent}
-      onFocus={onOpenIntent}
+      onPointerEnter={disabled ? undefined : onOpenIntent}
+      onFocus={disabled ? undefined : onOpenIntent}
       onClick={onClick}
     >
       {leading}

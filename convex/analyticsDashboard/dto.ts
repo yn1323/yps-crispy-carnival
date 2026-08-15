@@ -391,7 +391,11 @@ export type SegmentsResponse = {
 
 export type FeatureRequestRowDto = {
   id: string;
-  shopId: string;
+  targetKind: "shop" | "organization";
+  organizationId: string | null;
+  organizationName: string | null;
+  shopId: string | null;
+  // 既存Analytics UIの表示契約を維持し、組織scopeでは「組織名（組織全体）」を返す。
   shopName: string;
   senderType: "manager" | "staff";
   comment: string;

@@ -3,7 +3,7 @@
 `doc/plans/`は、計画を作成した時点の判断、実装順序、受入条件を残す場所です。
 現在の機能や常設規約は、各表の「現在の正本」を参照してください。
 
-> 分類日: 2026-08-13
+> 分類日: 2026-08-15
 >
 > 分類基準: 既存計画は2026-07-23のworktree、2026-08-02以降の追加計画は作成時点のworktreeと各計画本文
 
@@ -28,7 +28,8 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
-| [LINE連携のグループ内共通化](2026-08-13_LINE連携のグループ内共通化_実装計画.md) | `rollout verification` | repository artifactはcanonical readと店舗・所属追加の常時公開へ更新済み。Production artifactとdeploymentの確定、exportとbackup、必要なmigration、非同期処理のdrain、反映後canary、Preview E2E、CI VRT、法務確認と実環境証跡は未実施 | [LINE通知連携](../features/line-notification.md)、[ユーザー詳細](../features/user-detail.md)、[通知配送outbox](../features/notification-outbox.md)、[リリース状態](../manual/release-status.md) |
+| [認証済み新ページ正式切替と旧ページ削除](2026-08-15_認証済み新ページ正式切替と旧ページ削除_実装計画.md) | `rollout verification` | repository実装、目的別commit、Pull Request更新、最新head SHAの全test・build・全E2E・VRT captureとcompare開始は確認済み。Productionのcanonical所属readiness、artifact反映、4公開flagの閉状態、canaryは未確認 | 現行仕様は[機能インデックス](../features/INDEX.md)、実環境証跡は[リリース状態](../manual/release-status.md)、設計と検証は[フロントエンド方針](../rules/frontend-architecture.md)、[テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md) |
+| [LINE連携のグループ内共通化](2026-08-13_LINE連携のグループ内共通化_実装計画.md) | `rollout verification` | repository artifactのcanonical readは更新済み。店舗・所属追加の公開は2026-08-15計画のfail-closed policyに従う。Production artifactとdeploymentの確定、exportとbackup、必要なmigration、非同期処理のdrain、反映後canary、Preview E2E、CI VRT、法務確認と実環境証跡は未実施 | [LINE通知連携](../features/line-notification.md)、[ユーザー詳細](../features/user-detail.md)、[通知配送outbox](../features/notification-outbox.md)、[リリース状態](../manual/release-status.md) |
 | [管理者設定ページ](2026-08-13_管理者設定ページ_実装計画.md) | `rollout verification` | repository実装、主担当test、標準検証は完了。Preview E2E・CI VRT、Widen deploy後の旧client排出確認とAPI Narrow、Production公開判断・canaryは未確認 | [グループ課金](../features/organization-billing.md)、[ユーザー詳細](../features/user-detail.md)、[店舗所属の移行互換](../features/manager-shop-membership.md)、[課金業務フロー](../specs/organization-billing-business-flow.md) |
 | [UI・UX・SEO監査残件 実装計画](2026-08-12_UI_UX_SEO監査残件_実装計画.md) | `rollout verification` | 確定不具合のrepository実装と主担当testは完了。外部GTM・GA4・Clarity設定、Production deploy・canary、Preview Deployed Smoke、計測browser契約の実走、CI VRT、GSC・RUM・Product判断gateは未実施。gate未成立項目とユーザー指定の除外二項目は現行維持 | [公開Web計測](../features/web-measurement.md)、[希望シフト提出](../features/shift-submission.md)、[公開サイト](../features/public-pages.md)、[リリース状態](../manual/release-status.md) |
 | [テスト充足度監査と改善計画](2026-08-12_テスト充足度監査_改善計画.md) | `rollout verification` | リポジトリ内の不足テスト、Trial継続取消の別requestId排他、全機能契約表、内部BI・VRT・Deployed SmokeのCI gateは実装済み。管理者招待の契約と主担当層は[管理者設定ページ計画](2026-08-13_管理者設定ページ_実装計画.md)へ移管済み。GitHub Actions上のVRT・Analytics CI・管理者設定E2E、Preview Deployed Smoke、実Convex・Stripe到達は未確認 | [テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md)、[CI/CD運用](../manual/ci-cd.md) |
@@ -43,7 +44,7 @@
 | [スタッフ通知履歴](2026-07-19_スタッフ通知履歴_実装計画.md) | `rollout` | リリースとResendの`email.delivered` Webhook設定を証跡付きで確認する | [スタッフ通知履歴](../features/notification-history.md)、[リリース状態](../manual/release-status.md) |
 | [Stripeセキュリティ対策](2026-07-20_Stripeセキュリティ対策_テスト計画.md) | `blocked` | Stripe sandbox canary、Clerk・Cloudflare・端末保護などの実環境証跡 | [セキュリティ再検証](../manual/security-validation.md)、[リリース状態](../manual/release-status.md) |
 | [課金プラン改定・Business再導入](2026-07-21_課金プラン改定_Business再導入_実装計画.md) | `rollout` | Stripe外部設定、Convex deploy、snapshot、m021、公開判定の証跡 | [課金業務フロー](../specs/organization-billing-business-flow.md)、[グループ課金の運用](../manual/organization-billing.md)、[リリース状態](../manual/release-status.md) |
-| [グループ追加、店舗追加、支払い、管理者招待・交代のダークローンチ](2026-07-25_ダークローンチ_実装計画.md) | `rollout` | 対象deploymentへのdeploy、残存3フラグの設定値、`FEATURE_SHOP_ADDITION`の削除、m022、閉状態の実環境表示を証跡付きで確認する | [グループ課金、複数店舗、複数管理者](../features/organization-billing.md)、[グループ課金の運用](../manual/organization-billing.md)、[リリース状態](../manual/release-status.md) |
+| [グループ追加、店舗追加、支払い、管理者招待・交代のダークローンチ](2026-07-25_ダークローンチ_実装計画.md) | `rollout` | repository artifactは`FEATURE_ORGANIZATION_CREATION`、`FEATURE_SHOP_ADDITION`、`FEATURE_MANAGER_INVITATION`、`FEATURE_BILLING`をfail-closedで保持する契約へ更新済み。対象deploymentへのdeploy、4フラグの実設定値、閉状態の非表示・server拒否、m022の実環境証跡は未確認 | [グループ課金、複数店舗、複数管理者](../features/organization-billing.md)、[グループ課金の運用](../manual/organization-billing.md)、[リリース状態](../manual/release-status.md) |
 | [doc現行コード差分調査](2026-07-23_doc現行コード差分調査.md) | `reviewing` | 10論点のProduct、Security、Backend、運用判断を確定し、必要な別計画へ引き渡す | [現行コード差分調査](2026-07-23_doc現行コード差分調査.md) |
 
 `frontend-test-vrt-refactor`は本文に実施結果がないため、完了済みと推測せず`Active`に残しています。
@@ -130,6 +131,9 @@ Historyの本文には、現在と異なる名称、パス、状態、上限、�
 
 | 計画 | 分類根拠 | 現在の正本 |
 |---|---|---|
+| [SPボトムナビゲーションと画面遷移](2026-08-14_SPボトムナビゲーションと画面遷移_実装計画.md) | 5目的とresponsive shellの判断を実装し、正式切替を2026-08-15計画へ移管 | [認証済み新ページ正式切替と旧ページ削除](2026-08-15_認証済み新ページ正式切替と旧ページ削除_実装計画.md)、[UI設計方針](../rules/ui-design.md) |
+| [レスポンシブナビゲーションと固定画面遷移 Phase 1](2026-08-14_レスポンシブナビゲーションと固定画面遷移_Phase1実装計画.md) | 固定15画面とnavigation shellを実装し、実データ接続と正式切替を後続計画へ移管 | [認証済み新ページ正式切替と旧ページ削除](2026-08-15_認証済み新ページ正式切替と旧ページ削除_実装計画.md)、[機能インデックス](../features/INDEX.md) |
+| [レスポンシブナビゲーションの実データ・操作接続 Phase 2](2026-08-14_レスポンシブナビゲーション実データ操作接続_Phase2実装計画.md) | Phase 2-0から2-7を実装し、未着手のPhase 2-8を2026-08-15計画へ移管 | [認証済み新ページ正式切替と旧ページ削除](2026-08-15_認証済み新ページ正式切替と旧ページ削除_実装計画.md)、[機能インデックス](../features/INDEX.md) |
 | [UI・UX・SEO全体監査 最終報告・改善計画](2026-08-12_UI_UX_SEO全体監査_最終報告・改善計画.md) | Dashboard、非ログインページ、公開SSG、CSR shell、SEO、性能、計測を時点監査し、採用する残件を[UI・UX・SEO監査残件 実装計画](2026-08-12_UI_UX_SEO監査残件_実装計画.md)へ移管。ShiftBoardデモの終了・SP代替導線とDashboardのcontext-first順序は今回の修正対象外と判断した | [UI設計方針](../rules/ui-design.md)、[希望シフト提出](../features/shift-submission.md)、[公開サイト](../features/public-pages.md)、[ログイン後オンボーディング](../features/dashboard-onboarding.md) |
 | [Analytics利用候補店舗](2026-08-12_Analytics利用候補店舗_実装計画.md) | 最新complete run基準の候補分類、`usage` filter、一覧の根拠表示、店舗・組織詳細への導線、Logic・Function Testを実装し、必須検証を完了。Production反映と実データ負荷計測は未実施 | [分析KPI可視化アプリ](../features/analytics-dashboard.md)、[分析KPI蓄積基盤](../features/analytics.md) |
 | [UI・UX・SEO全体監査 調査計画とゴールプロンプト](2026-08-12_UI_UX_SEO全体監査_調査計画.md) | Dashboard中心journeyと公開獲得journeyをPC/SPで実操作し、公開33 URL、CSR shell、D1〜D7、SEO・性能を証拠レイヤー別に監査して[最終報告・改善計画](2026-08-12_UI_UX_SEO全体監査_最終報告・改善計画.md)へ引き渡した | [UI設計方針](../rules/ui-design.md)、[公開サイト](../features/public-pages.md) |

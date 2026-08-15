@@ -1,8 +1,9 @@
 import { useNavigate } from "@tanstack/react-router";
+import { useMutation } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
-import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import type {
   ManagerInvitationIssueConfirmation,
@@ -12,13 +13,13 @@ import type {
 
 export function useManagerIssueController({
   overview,
-  shopId,
+  organizationId,
 }: {
   overview: ReadyManagerSettingsOverview;
-  shopId: string;
+  organizationId: Id<"organizations">;
 }) {
   const navigate = useNavigate();
-  const issue = useShopMutation(api.organizationInvitation.mutations.issue);
+  const issueForOrganization = useMutation(api.organizationInvitation.mutations.issueForOrganization);
   const [confirmation, setConfirmation] = useState<ManagerInvitationIssueConfirmation>(null);
   const latestOverviewRef = useRef(overview);
   latestOverviewRef.current = overview;
@@ -36,18 +37,22 @@ export function useManagerIssueController({
       }
 
       try {
-        const result = await issue({
-          recipient:
-            current.kind === "existingStaff"
-              ? { kind: "existingStaff", personId: current.candidate.personId }
-              : { kind: "external", invitedName: current.invitedName, email: current.email },
+        const recipient:
+          | { kind: "existingStaff"; personId: Id<"organizationPeople"> }
+          | { kind: "external"; invitedName: string; email: string } =
+          current.kind === "existingStaff"
+            ? { kind: "existingStaff", personId: current.candidate.personId }
+            : { kind: "external", invitedName: current.invitedName, email: current.email };
+        const args = {
+          recipient,
           requestId: current.requestId,
-        });
+        };
+        const result = await issueForOrganization({ organizationId, ...args });
         setConfirmation(null);
         showSuccessToast({
           title: result.status === "alreadyPending" ? "この管理者招待は送信済みです" : "送信を受け付けました",
         });
-        void navigate({ to: "/settings/managers", search: { shop: shopId }, replace: true });
+        void navigate({ to: "/app/manage/managers", search: { org: organizationId }, replace: true });
         return true;
       } catch (error) {
         showErrorToast(error);

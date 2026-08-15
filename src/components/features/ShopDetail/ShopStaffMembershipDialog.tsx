@@ -1,10 +1,12 @@
 import { Alert, Badge, Box, Flex, Skeleton, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LuUser } from "react-icons/lu";
+import type { Id } from "@/convex/_generated/dataModel";
 import { MembershipRemovalImpact } from "@/src/components/shared/MembershipRemovalImpact";
 import { Button } from "@/src/components/ui/Button";
 import { CheckboxListCard, CheckboxListCardItem } from "@/src/components/ui/CheckboxListCard";
 import { Dialog, DialogActionArea } from "@/src/components/ui/Dialog";
+import { getVisibleShopStaffMembershipPeople } from "./script";
 import type { ShopDetailData, ShopStaffMembershipChangeInput, ShopStaffMembershipData } from "./types";
 import {
   buildShopStaffRemovalPreviewKey,
@@ -18,6 +20,7 @@ type ShopId = NonNullable<ShopStaffMembershipChangeInput["shopId"]>;
 
 type MembershipSession = {
   shopId: string;
+  isShopAdditionEnabled: boolean;
   people: ShopStaffMembershipData["people"];
   preservedStaffs: ShopStaffMembershipData["preservedStaffs"];
   initialSelectedPersonIds: MembershipPerson["personId"][];
@@ -45,21 +48,27 @@ type DialogProps = {
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;
   controller: ShopStaffMembershipDialogController;
+  isShopAdditionEnabled: boolean;
 };
 
 export function ConnectedShopStaffMembershipDialog({
   shop,
+  expectedOrganizationId,
   isOpen,
   onOpenChange,
   onClose,
+  isShopAdditionEnabled,
 }: {
   shop: ShopDetailData;
+  expectedOrganizationId?: Id<"organizations">;
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;
+  isShopAdditionEnabled: boolean;
 }) {
   const controller = useShopStaffMembershipController({
     shopId: shop.id as ShopId,
+    expectedOrganizationId,
     isOpen,
     onSucceeded: onClose,
   });
@@ -72,6 +81,7 @@ export function ConnectedShopStaffMembershipDialog({
       onOpenChange={onOpenChange}
       onClose={onClose}
       controller={controller}
+      isShopAdditionEnabled={isShopAdditionEnabled}
     />
   );
 }
@@ -83,6 +93,7 @@ export function ShopStaffMembershipDialog({
   onOpenChange,
   onClose,
   controller,
+  isShopAdditionEnabled,
 }: DialogProps) {
   const [session, setSession] = useState<MembershipSession | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -93,10 +104,10 @@ export function ShopStaffMembershipDialog({
       setSession(null);
       return;
     }
-    if (controller.data && session?.shopId !== shopId) {
-      setSession(createSession(shopId, controller.data));
+    if (controller.data && (session?.shopId !== shopId || session?.isShopAdditionEnabled !== isShopAdditionEnabled)) {
+      setSession(createSession(shopId, controller.data, isShopAdditionEnabled));
     }
-  }, [controller.data, isOpen, session?.shopId, shopId]);
+  }, [controller.data, isOpen, isShopAdditionEnabled, session?.isShopAdditionEnabled, session?.shopId, shopId]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -354,6 +365,11 @@ export function ShopStaffMembershipDialog({
             {session.people.map((person) => {
               const disabledReason = globalDisabledReason ? null : person.changeDisabledReason;
               const personContextId = `shop-staff-membership-person-context-${person.personId}`;
+              const membershipShopNames = person.isSelected
+                ? [shopName, ...person.otherShopNames]
+                : person.otherShopNames;
+              const membershipDescription =
+                membershipShopNames.length > 0 ? `所属：${membershipShopNames.join("、")}` : "所属：なし";
               const isRemoved =
                 initialSelectedPersonIdSet.has(person.personId) && !selectedPersonIdSet.has(person.personId);
               const isFirstRemoved = removedPeople[0]?.personId === person.personId;
@@ -394,17 +410,13 @@ export function ShopStaffMembershipDialog({
                   <Stack gap={0.5} minW={0}>
                     <VisuallyHidden id={personContextId}>
                       {person.isManager ? "管理者。" : "スタッフ。"}
-                      {person.otherShopNames.length > 0
-                        ? `所属：${person.otherShopNames.join("、")}。`
-                        : "所属：なし。"}
+                      {`${membershipDescription}。`}
                     </VisuallyHidden>
                     {isRemoved ? (
                       <MembershipRemovalImpact
                         id={removalImpactId}
                         heading={person.name}
-                        description={
-                          person.otherShopNames.length > 0 ? `所属：${person.otherShopNames.join("、")}` : "所属：なし"
-                        }
+                        description={membershipDescription}
                         badgeLabel="この店舗から外す"
                         statusMessage={isFirstRemoved && isPreviewLoading ? "変更内容を確認しています…" : undefined}
                       />
@@ -414,9 +426,7 @@ export function ShopStaffMembershipDialog({
                           {person.name}
                         </Text>
                         <Text fontSize="xs" color="fg.subtle" overflowWrap="anywhere">
-                          {person.otherShopNames.length > 0
-                            ? `所属：${person.otherShopNames.join("、")}`
-                            : "所属：なし"}
+                          {membershipDescription}
                         </Text>
                       </>
                     )}
@@ -534,13 +544,18 @@ export function ShopStaffMembershipDialogError({
   );
 }
 
-function createSession(shopId: string, data: ShopStaffMembershipData): MembershipSession {
-  const people = data.people.map((person) => ({
+function createSession(
+  shopId: string,
+  data: ShopStaffMembershipData,
+  isShopAdditionEnabled: boolean,
+): MembershipSession {
+  const people = getVisibleShopStaffMembershipPeople(data.people, isShopAdditionEnabled).map((person) => ({
     ...person,
     otherShopNames: [...person.otherShopNames],
   }));
   return {
     shopId,
+    isShopAdditionEnabled,
     people,
     preservedStaffs: data.preservedStaffs.map((staff) => ({ ...staff })),
     initialSelectedPersonIds: people.flatMap((person) => (person.isSelected ? [person.personId] : [])),

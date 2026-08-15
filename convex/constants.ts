@@ -53,6 +53,12 @@ export const DASHBOARD_RESPONSE_COUNT_LIMIT = 1000;
 export const DASHBOARD_CURRENT_RECRUITMENT_SCAN_LIMIT = 500;
 export const DASHBOARD_OPEN_RECRUITMENT_SCAN_LIMIT = 500;
 export const DASHBOARD_RECRUITMENT_CANDIDATE_GROUP_LIMIT = 100;
+// 組織横断シフト一覧は一店舗でも募集・staff・legacy提出を合わせて多数読むため、
+// 店舗cursorを一件ずつ進めて単一queryのworkを固定上限内に保つ。
+export const APP_ORGANIZATION_RECRUITMENT_SHOP_PAGE_SIZE = 1;
+// recruitmentStats欠損時は正確な提出数ではなく、安全に確認できた下限値を返す。
+// 一募集あたり1件とoverflow検知用1件に絞り、最悪時も単一queryのdocument read上限内に収める。
+export const APP_ORGANIZATION_RECRUITMENT_LEGACY_SUBMISSION_COUNT_LIMIT = 1;
 // ユーザー詳細で過去・停止中を含む店舗所属を安全に走査する上限。
 export const ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT = 100;
 // ユーザー詳細へ返す同一組織店舗を安全に走査する上限。

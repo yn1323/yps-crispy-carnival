@@ -1,6 +1,7 @@
 import type { GenericDatabaseReader } from "convex/server";
 import { v } from "convex/values";
 import type { DataModel, Doc } from "../_generated/dataModel";
+import { isReleaseFeatureEnabled } from "../_lib/releaseFeatures";
 import { normalizeEmail } from "../_lib/validation";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import { getOrganizationInvitationPurpose } from "../organizationInvitation/purpose";
@@ -44,6 +45,7 @@ export async function resolvePersonManagerInvitationState(
     activePendingInvitations: readonly Doc<"organizationInvitations">[];
   },
 ): Promise<ManagerInvitationState> {
+  if (!isReleaseFeatureEnabled("managerInvitation")) return { kind: "hidden" };
   const { organization, actorMember, person, personMembers, usage } = args;
   if (
     !organization ||

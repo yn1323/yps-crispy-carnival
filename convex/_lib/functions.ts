@@ -3,6 +3,7 @@ import { ConvexError, v } from "convex/values";
 import { customMutation, customQuery } from "convex-helpers/server/customFunctions";
 import type { Doc, Id } from "../_generated/dataModel";
 import { type MutationCtx, mutation, type QueryCtx, query } from "../_generated/server";
+import { requireOrganizationReadActor } from "../organization/access";
 import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import { requireOrganizationBusinessWrite } from "../organizationBilling/service";
 import { isShiftTargetStaff } from "../staff/service";
@@ -188,6 +189,20 @@ type AuthenticatedMutationCtx = {
   user: Doc<"users"> | null;
 };
 
+type OrganizationQueryCtx = {
+  user: Doc<"users">;
+  organization: Doc<"organizations">;
+  organizationPerson: Doc<"organizationPeople">;
+  organizationMember: Doc<"organizationMembers">;
+};
+
+type OrganizationMutationCtx = {
+  user: Doc<"users">;
+  organization: Doc<"organizations">;
+  organizationPerson: Doc<"organizationPeople">;
+  organizationMember: Doc<"organizationMembers">;
+};
+
 type ManagerMutationCtx = {
   user: Doc<"users">;
   shop: Doc<"shops">;
@@ -225,14 +240,76 @@ export const authenticatedMutation = customMutation(mutation, {
 });
 
 /**
+ * organizationQuery
+ * - Clerk identityからcanonicalな組織所属を直接検証する
+ * - active / readOnlyの通常readだけを許可し、店舗やshopMembersへfallbackしない
+ */
+export const organizationQuery = customQuery(query, {
+  args: { organizationId: v.id("organizations") },
+  input: async (ctx, { organizationId }): Promise<{ ctx: OrganizationQueryCtx; args: Record<string, never> }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new ConvexError("Not found");
+
+    const user = await getUserByIdentity(ctx, identity, "query");
+    if (!user || user.isDeleted) throw new ConvexError("Not found");
+
+    const actor = await requireOrganizationReadActor(ctx, { user, organizationId });
+    return {
+      ctx: {
+        user,
+        organization: actor.organization,
+        organizationPerson: actor.person,
+        organizationMember: actor.member,
+      },
+      args: {},
+    };
+  },
+});
+
+/**
+ * organizationMutation
+ * - canonicalなactive組織所属を直接検証する
+ * - 通常の組織業務writeだけを許可し、店舗やshopMembersへfallbackしない
+ */
+export const organizationMutation = customMutation(mutation, {
+  args: { organizationId: v.id("organizations") },
+  input: async (ctx, { organizationId }): Promise<{ ctx: OrganizationMutationCtx; args: Record<string, never> }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new ConvexError("Unauthenticated");
+
+    const user = await getUserByIdentity(ctx, identity, "mutation");
+    if (!user || user.isDeleted) throw new ConvexError("Not found");
+
+    const actor = await requireOrganizationReadActor(ctx, { user, organizationId });
+    if (actor.member.status !== "active") throw new ConvexError("Not found");
+    await requireOrganizationBusinessWrite(ctx, actor.organization._id);
+    return {
+      ctx: {
+        user,
+        organization: actor.organization,
+        organizationPerson: actor.person,
+        organizationMember: actor.member,
+      },
+      args: {},
+    };
+  },
+});
+
+/**
  * managerQuery / managerMutation
  * - Clerk認証 + users + shops 全て必須
  * - 用途: createRecruitment, addStaffs 等の shop スコープ操作
  */
 export const managerQuery = customQuery(query, {
   // optional は旧フロントとの段階リリース互換。現行フロントは必ず shopId を指定する。
-  args: { shopId: v.optional(v.id("shops")) },
-  input: async (ctx, { shopId }): Promise<{ ctx: ManagerQueryCtx; args: Record<string, never> }> => {
+  args: {
+    shopId: v.optional(v.id("shops")),
+    expectedOrganizationId: v.optional(v.id("organizations")),
+  },
+  input: async (
+    ctx,
+    { shopId, expectedOrganizationId },
+  ): Promise<{ ctx: ManagerQueryCtx; args: Record<string, never> }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return { ctx: { user: null, shop: null, organization: null, organizationMember: null }, args: {} };
@@ -242,14 +319,26 @@ export const managerQuery = customQuery(query, {
     if (!user || user.isDeleted || !access) {
       return { ctx: { user: null, shop: null, organization: null, organizationMember: null }, args: {} };
     }
+    if (
+      expectedOrganizationId &&
+      (access.organization?._id !== expectedOrganizationId || access.organizationMember === null)
+    ) {
+      return { ctx: { user: null, shop: null, organization: null, organizationMember: null }, args: {} };
+    }
     return { ctx: { user, ...access }, args: {} };
   },
 });
 
 export const managerMutation = customMutation(mutation, {
   // optional は旧フロントとの段階リリース互換。現行フロントは必ず shopId を指定する。
-  args: { shopId: v.optional(v.id("shops")) },
-  input: async (ctx, { shopId }): Promise<{ ctx: ManagerMutationCtx; args: Record<string, never> }> => {
+  args: {
+    shopId: v.optional(v.id("shops")),
+    expectedOrganizationId: v.optional(v.id("organizations")),
+  },
+  input: async (
+    ctx,
+    { shopId, expectedOrganizationId },
+  ): Promise<{ ctx: ManagerMutationCtx; args: Record<string, never> }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new ConvexError("Unauthenticated");
@@ -257,6 +346,12 @@ export const managerMutation = customMutation(mutation, {
     const user = await getUserByIdentity(ctx, identity, "mutation");
     const access = user && !user.isDeleted ? await resolveShopForUser(ctx, user, shopId, "mutation") : null;
     if (!user || user.isDeleted || !access) {
+      throw new ConvexError("Not found");
+    }
+    if (
+      expectedOrganizationId &&
+      (access.organization?._id !== expectedOrganizationId || access.organizationMember === null)
+    ) {
       throw new ConvexError("Not found");
     }
     if (access.organization) {

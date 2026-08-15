@@ -4,24 +4,22 @@ import type { ManagerSettingsScenarioSeed } from "../helpers/managerSettingsScen
 
 const MANAGER_SETTINGS_TIMEOUT = 20_000;
 
-type ManagerCandidateSeed = Pick<ManagerSettingsScenarioSeed, "shopId" | "candidateName" | "candidateEmail">;
+type ManagerCandidateSeed = Pick<ManagerSettingsScenarioSeed, "organizationId" | "candidateName" | "candidateEmail">;
 
 export class ManagerSettingsPage {
   constructor(private page: Page) {}
 
   async openFromOrganizationSettings(seed: ManagerCandidateSeed) {
-    await this.page.goto(`/settings?shop=${encodeURIComponent(seed.shopId)}`, {
+    await this.page.goto(`/app/manage?org=${encodeURIComponent(seed.organizationId)}`, {
       waitUntil: "domcontentloaded",
     });
     await expectAppHydrated(this.page);
-    await expect(this.page.getByRole("tab", { name: "スタッフ", exact: true })).toHaveAttribute(
-      "aria-selected",
-      "true",
-      { timeout: MANAGER_SETTINGS_TIMEOUT },
-    );
+    await expect(this.page.getByRole("heading", { name: "管理", exact: true })).toBeVisible({
+      timeout: MANAGER_SETTINGS_TIMEOUT,
+    });
 
-    await this.page.getByRole("button", { name: "管理者を変更", exact: true }).click();
-    await this.expectMainPage(seed.shopId);
+    await this.page.getByRole("button", { name: "管理者と権限を開く", exact: true }).click();
+    await this.expectMainPage(seed.organizationId);
   }
 
   async inviteExistingStaff(seed: ManagerCandidateSeed) {
@@ -32,7 +30,8 @@ export class ManagerSettingsPage {
       })
       .click();
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === "/settings/managers/invite-staff" && url.searchParams.get("shop") === seed.shopId,
+      (url) =>
+        url.pathname === "/app/manage/managers/invite-staff" && url.searchParams.get("org") === seed.organizationId,
       { timeout: MANAGER_SETTINGS_TIMEOUT },
     );
 
@@ -56,16 +55,16 @@ export class ManagerSettingsPage {
     await expect(this.page.getByText("送信を受け付けました", { exact: true })).toBeVisible({
       timeout: MANAGER_SETTINGS_TIMEOUT,
     });
-    await this.expectMainPage(seed.shopId);
+    await this.expectMainPage(seed.organizationId);
     await this.expectInvitationPending(seed);
   }
 
-  async openDirectly(shopId: string) {
-    await this.page.goto(`/settings/managers?shop=${encodeURIComponent(shopId)}`, {
+  async openDirectly(organizationId: string) {
+    await this.page.goto(`/app/manage/managers?org=${encodeURIComponent(organizationId)}`, {
       waitUntil: "domcontentloaded",
     });
     await expectAppHydrated(this.page);
-    await this.expectMainPage(shopId);
+    await this.expectMainPage(organizationId);
   }
 
   async expectActiveManager(seed: ManagerCandidateSeed) {
@@ -78,7 +77,7 @@ export class ManagerSettingsPage {
   async reloadAndExpectActiveManager(seed: ManagerCandidateSeed) {
     await this.page.reload({ waitUntil: "domcontentloaded" });
     await expectAppHydrated(this.page);
-    await this.expectMainPage(seed.shopId);
+    await this.expectMainPage(seed.organizationId);
     await this.expectActiveManager(seed);
   }
 
@@ -103,16 +102,16 @@ export class ManagerSettingsPage {
     await expect(this.managerRow(seed)).toHaveCount(0, { timeout: MANAGER_SETTINGS_TIMEOUT });
   }
 
-  async expectAccessRevoked(shopId: string) {
-    await this.page.goto(`/settings/managers?shop=${encodeURIComponent(shopId)}`, {
+  async expectAccessRevoked(organizationId: string) {
+    await this.page.goto(`/app/manage/managers?org=${encodeURIComponent(organizationId)}`, {
       waitUntil: "domcontentloaded",
     });
     await expectAppHydrated(this.page);
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === "/settings/managers" && url.searchParams.get("shop") === shopId,
+      (url) => url.pathname === "/app/manage/managers" && url.searchParams.get("org") === organizationId,
       { timeout: MANAGER_SETTINGS_TIMEOUT },
     );
-    await expect(this.page.getByRole("heading", { name: "この店舗を開けません", exact: true })).toBeVisible({
+    await expect(this.page.getByRole("heading", { name: "この組織を開けません", exact: true })).toBeVisible({
       timeout: MANAGER_SETTINGS_TIMEOUT,
     });
     await expect(this.page.getByText("管理者設定", { exact: true })).toHaveCount(0);
@@ -121,7 +120,7 @@ export class ManagerSettingsPage {
   async reloadAndExpectInvitationPending(seed: ManagerCandidateSeed) {
     await this.page.reload({ waitUntil: "domcontentloaded" });
     await expectAppHydrated(this.page);
-    await this.expectMainPage(seed.shopId);
+    await this.expectMainPage(seed.organizationId);
     await this.expectInvitationPending(seed);
   }
 
@@ -144,31 +143,27 @@ export class ManagerSettingsPage {
     await expect(this.invitationRow(seed)).toHaveCount(0, { timeout: MANAGER_SETTINGS_TIMEOUT });
   }
 
-  async returnToOrganizationStaff(seed: ManagerCandidateSeed) {
-    await this.page.getByRole("button", { name: "組織設定へ戻る", exact: true }).click();
+  async returnToManagement(seed: ManagerCandidateSeed) {
+    await this.page
+      .getByRole("navigation", { name: "メインメニュー" })
+      .getByRole("link", { name: "管理", exact: true })
+      .click();
     await expect(this.page).toHaveURL(
-      (url) =>
-        url.pathname === "/settings" &&
-        url.searchParams.get("shop") === seed.shopId &&
-        url.searchParams.get("tab") === null,
+      (url) => url.pathname === "/app/manage" && url.searchParams.get("org") === seed.organizationId,
       { timeout: MANAGER_SETTINGS_TIMEOUT },
     );
-    await expect(this.page.getByRole("tab", { name: "スタッフ", exact: true })).toHaveAttribute(
-      "aria-selected",
-      "true",
-      { timeout: MANAGER_SETTINGS_TIMEOUT },
-    );
+    await expect(this.page.getByRole("heading", { name: "管理", exact: true })).toBeVisible({
+      timeout: MANAGER_SETTINGS_TIMEOUT,
+    });
   }
 
-  private async expectMainPage(shopId: string) {
+  private async expectMainPage(organizationId: string) {
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === "/settings/managers" && url.searchParams.get("shop") === shopId,
+      (url) => url.pathname === "/app/manage/managers" && url.searchParams.get("org") === organizationId,
       { timeout: MANAGER_SETTINGS_TIMEOUT },
     );
     await expect(
-      this.page.getByRole("button", { name: "組織設定へ戻る", exact: true }).getByText("管理者設定", {
-        exact: true,
-      }),
+      this.page.getByRole("heading", { level: 1 }).filter({ has: this.page.getByText("管理者設定", { exact: true }) }),
     ).toBeVisible({ timeout: MANAGER_SETTINGS_TIMEOUT });
   }
 

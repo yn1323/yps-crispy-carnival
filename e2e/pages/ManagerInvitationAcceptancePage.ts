@@ -14,7 +14,10 @@ export class ManagerInvitationAcceptancePage {
     await expectAppHydrated(this.page);
 
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === "/dashboard" && url.searchParams.get("shop") === seed.shopId,
+      (url) =>
+        url.pathname === "/dashboard" &&
+        url.searchParams.get("org") === seed.organizationId &&
+        url.searchParams.get("shop") === seed.shopId,
       { timeout: MANAGER_INVITATION_TIMEOUT },
     );
     await expect(this.page.getByRole("heading", { name: seed.shopName, exact: true })).toBeVisible({

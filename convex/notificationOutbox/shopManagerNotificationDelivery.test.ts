@@ -12,7 +12,10 @@ import {
 
 describe("店舗管理通知の配送直前検証", () => {
   beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
 
   it.each([
     STAFF_REGISTRATION_OWNER_DIGEST_CONTEXT,
@@ -165,6 +168,7 @@ describe("店舗管理通知の配送直前検証", () => {
   });
 
   it("組織・課金メールは店舗staff所属を必須にしない", async () => {
+    vi.stubEnv("FEATURE_BILLING", "true");
     const t = createConvexTestWithMigrations();
     const ids = await t.run(
       async (ctx) =>

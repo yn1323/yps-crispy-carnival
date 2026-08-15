@@ -1,7 +1,8 @@
-import { Field, Flex, Input, Stack, Text } from "@chakra-ui/react";
+import { Alert, Field, Flex, Input, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
+import type { Id } from "@/convex/_generated/dataModel";
 import { createExternalOrganizationManagerInvitationSchema } from "@/convex/organizationInvitation/schemas";
 import { Button } from "@/src/components/ui/Button";
 import { ManagerIssueConfirmationDialog } from "./ManagerIssueConfirmationDialog";
@@ -16,17 +17,19 @@ type FormValues = z.infer<typeof managerExternalInviteFormSchema>;
 
 export function ManagerExternalInviteForm({
   overview,
-  shopId,
+  organizationId,
 }: {
   overview: ReadyManagerSettingsOverview;
-  shopId: string;
+  organizationId: Id<"organizations">;
 }) {
-  const controller = useManagerIssueController({ overview, shopId });
+  const controller = useManagerIssueController({ overview, organizationId });
 
   return (
     <>
       <ManagerExternalInviteFormView
         isSubmitting={controller.isRunning}
+        isReadOnly={!overview.actions.canInviteExternal}
+        disabledReason={overview.actions.externalDisabledReason}
         onRequestInvite={controller.onRequestExternal}
       />
       <ManagerIssueConfirmationDialog
@@ -41,9 +44,13 @@ export function ManagerExternalInviteForm({
 
 export function ManagerExternalInviteFormView({
   isSubmitting,
+  isReadOnly = false,
+  disabledReason,
   onRequestInvite,
 }: {
   isSubmitting: boolean;
+  isReadOnly?: boolean;
+  disabledReason?: string;
   onRequestInvite: (invitedName: string, email: string) => void;
 }) {
   const {
@@ -66,14 +73,23 @@ export function ManagerExternalInviteFormView({
             経営者や本部担当者など、組織に未登録の方をメールで招待します。
           </Text>
         </Stack>
+        {isReadOnly && disabledReason && (
+          <Alert.Root status="warning" borderRadius="lg" alignItems="flex-start">
+            <Alert.Indicator mt={1} />
+            <Alert.Content>
+              <Alert.Title>新しい管理者を招待できません</Alert.Title>
+              <Alert.Description>{disabledReason}</Alert.Description>
+            </Alert.Content>
+          </Alert.Root>
+        )}
         <Field.Root required invalid={Boolean(errors.name)}>
           <Field.Label>氏名</Field.Label>
-          <Input autoComplete="name" disabled={isSubmitting} {...register("name")} />
+          <Input autoComplete="name" disabled={isSubmitting || isReadOnly} {...register("name")} />
           <Field.ErrorText>{errors.name?.message}</Field.ErrorText>
         </Field.Root>
         <Field.Root required invalid={Boolean(errors.email)}>
           <Field.Label>メールアドレス</Field.Label>
-          <Input type="email" autoComplete="email" disabled={isSubmitting} {...register("email")} />
+          <Input type="email" autoComplete="email" disabled={isSubmitting || isReadOnly} {...register("email")} />
           <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
         </Field.Root>
         <Flex justify="flex-end">
@@ -84,6 +100,7 @@ export function ManagerExternalInviteFormView({
             w={{ base: "full", md: "auto" }}
             minW={{ md: "208px" }}
             loading={isSubmitting}
+            disabled={isReadOnly}
           >
             招待内容を確認する
           </Button>

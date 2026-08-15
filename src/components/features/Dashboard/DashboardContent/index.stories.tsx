@@ -4,6 +4,8 @@ import dayjs from "dayjs";
 import { createStore, Provider } from "jotai";
 import { type ComponentProps, type ReactNode, useState } from "react";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
+import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedAppShell";
+import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
 import { Button } from "@/src/components/ui/Button";
 import { userAtom } from "@/src/stores/user";
@@ -11,10 +13,24 @@ import type { DashboardNotificationFailure } from "../NotificationFailureDialog"
 import type { OperationContextData } from "../OperationContext";
 import { buildDashboardRecruitmentGroups } from "../script";
 import { mockCurrentRecruitments, mockRecruitments, mockStaffs } from "../stories/fixtures";
-import type { DashboardAnnouncement, Recruitment, Staff, StaffRegistrationRequest } from "../types";
+import type {
+  DashboardAnnouncement,
+  DashboardNavigation,
+  Recruitment,
+  Staff,
+  StaffRegistrationRequest,
+} from "../types";
 import { DashboardContent, DashboardContentSkeleton } from "./index";
 
 const noop = () => {};
+const dashboardNavigation = {
+  onOpenBillingSettings: noop,
+  onOpenOrganizationSettings: noop,
+  onOpenShopDetail: noop,
+  onOpenShiftBoard: noop,
+  onOpenStaffDetail: noop,
+  onManageManagers: noop,
+} satisfies DashboardNavigation;
 
 const shop = {
   name: "居酒屋たなか",
@@ -93,12 +109,16 @@ const pendingStaffRequests = [
     name: "田中 花子",
     email: "hanako@example.com",
     createdAt: Date.now(),
+    canApprove: true,
+    approveDisabledReason: null,
   },
   {
     _id: "staff-registration-request-2",
     name: "佐藤 太郎",
     email: "taro@example.com",
     createdAt: Date.now(),
+    canApprove: true,
+    approveDisabledReason: null,
   },
 ] as unknown as StaffRegistrationRequest[];
 
@@ -250,6 +270,16 @@ function DashboardPagePreview({ children }: { children: ReactNode }) {
   );
 }
 
+function DashboardAppShellPreview({ children }: { children: ReactNode }) {
+  return (
+    <Provider store={singleShopStoryStore}>
+      <AuthenticatedAppShell activeKey="home" activeOrganizationId="organization-1">
+        <AuthenticatedPageContent includeMobileNavigation>{children}</AuthenticatedPageContent>
+      </AuthenticatedAppShell>
+    </Provider>
+  );
+}
+
 const meta = {
   title: "Features/Dashboard/DashboardContent",
   component: DashboardContent,
@@ -304,6 +334,47 @@ export const SingleShopMobile: Story = {
   globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
+export const SingleShopWithoutOrganizationContext: Story = {
+  name: "ホーム・組織とプラン非表示・デスクトップ",
+  args: {
+    ...singleShopDashboardArgs,
+    showOrganizationContext: false,
+  },
+  render: (args) => (
+    <DashboardPagePreview>
+      <DashboardContent {...args} />
+    </DashboardPagePreview>
+  ),
+};
+
+export const SingleShopWithoutOrganizationContextMobile: Story = {
+  ...SingleShopWithoutOrganizationContext,
+  name: "ホーム・組織とプラン非表示・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
+export const HomeAppCompositionDesktop: Story = {
+  name: "ホーム・新shell・デスクトップ",
+  args: {
+    ...singleShopDashboardArgs,
+    showOrganizationContext: false,
+  },
+  parameters: { vrt: { releaseFixedHeader: true } },
+  render: (args) => (
+    <DashboardAppShellPreview>
+      <DashboardContent {...args} />
+    </DashboardAppShellPreview>
+  ),
+};
+
+export const HomeAppCompositionMobile: Story = {
+  ...HomeAppCompositionDesktop,
+  name: "ホーム・新shell・モバイル414px",
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
 export const SingleShopWithPlanStatus: Story = {
   name: "1店舗・組織とプラン展開・デスクトップ",
   args: {
@@ -322,7 +393,7 @@ export const SingleShopWithPlanStatus: Story = {
     await expect(canvas.getByRole("button", { name: /たなかグループ/ })).toHaveAttribute("aria-expanded", "true");
     await expect(canvas.getByRole("region", { name: "Proプランの詳細" })).toBeVisible();
     await expect(canvas.getByText("次回更新日：2026/9/1")).toBeVisible();
-    await expect(canvas.getByRole("heading", { name: "TODO", level: 2 })).toBeVisible();
+    await expect(canvas.getByRole("heading", { name: "要対応", level: 2 })).toBeVisible();
   },
 };
 
@@ -392,6 +463,7 @@ function PlanStatusCompositionStory() {
       </Button>
       <DashboardContent
         {...singleShopDashboardArgs}
+        navigation={dashboardNavigation}
         billingSettingsShopId="shop-1"
         isBillingFeatureVisible={isBillingVisible}
         trialEndingNotice={{
@@ -699,11 +771,11 @@ export const DismissedOnboardingShowsNextAction: Story = {
     const canvas = within(canvasElement);
 
     await expect(canvas.getByRole("region", { name: "シフトリへようこそ！" })).toBeVisible();
-    await expect(canvas.queryByRole("heading", { name: "TODO" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("heading", { name: "要対応" })).not.toBeInTheDocument();
 
     await userEvent.click(canvas.getByRole("button", { name: "シフトリへようこそを閉じる" }));
 
-    await expect(await canvas.findByRole("heading", { name: "TODO" })).toBeVisible();
+    await expect(await canvas.findByRole("heading", { name: "要対応" })).toBeVisible();
     await expect(canvas.queryByRole("region", { name: "シフトリへようこそ！" })).not.toBeInTheDocument();
   },
 };
@@ -817,6 +889,24 @@ export const SetupMobile: Story = {
   },
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
+export const SetupAppCompositionDesktop: Story = {
+  name: "初回Setup・新shell・デスクトップ",
+  args: Setup.args,
+  parameters: { vrt: { releaseFixedHeader: true } },
+  render: (args) => (
+    <DashboardAppShellPreview>
+      <DashboardContent {...args} />
+    </DashboardAppShellPreview>
+  ),
+};
+
+export const SetupAppCompositionMobile: Story = {
+  ...SetupAppCompositionDesktop,
+  name: "初回Setup・新shell・モバイル414px",
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
 export const SetupDialogBehavior: Story = {

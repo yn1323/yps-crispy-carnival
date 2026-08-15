@@ -1,6 +1,7 @@
 import { resetCurrentManagerScenarioData, seedManagerScenario } from "./scenarioSeeds";
 
 export type ManagerSettingsScenarioSeed = {
+  organizationId: string;
   shopId: string;
   organizationName: string;
   currentManagerName: string;

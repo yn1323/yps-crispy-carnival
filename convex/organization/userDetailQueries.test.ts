@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
@@ -7,6 +7,8 @@ import { seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const NOW = Date.UTC(2026, 6, 19, 3);
+
+afterEach(() => vi.unstubAllEnvs());
 
 async function seedPerson(
   ctx: MutationCtx,
@@ -58,6 +60,7 @@ async function seedStaff(
 
 describe("organization/userDetailQueries.getUserDetail", () => {
   it("組織人物と有効店舗所属を最小DTOで返し、招待状態を同じ契約で更新する", async () => {
+    vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -516,6 +519,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
   });
 
   it("店舗未所属の組織管理者もユーザー詳細として返す", async () => {
+    vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {

@@ -3,6 +3,7 @@ import type { DashboardPlanStatusSource, PaidPlanName, PlanName, PlanStatusCardD
 const JST_TIME_ZONE = "Asia/Tokyo";
 const DAY_IN_MS = 24 * 60 * 60 * 1_000;
 const JST_OFFSET_MS = 9 * 60 * 60 * 1_000;
+const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"] as const;
 export const MAX_PLAN_STATUS_TIMER_DELAY_MS = 2_147_483_647;
 
 export function buildPlanStatusCardData(
@@ -19,7 +20,7 @@ export function buildPlanStatusCardData(
         kind: "trial",
         remainingDays: remainingJstDays(source.trialEndsAt, now),
         // trialEndsAt は最終利用日の翌日 0:00 JST という排他的境界。
-        trialEndsOnLabel: formatJstDate(source.trialEndsAt - 1),
+        trialEndsOnLabel: formatJstDateWithWeekday(source.trialEndsAt - 1),
         continuationPlanName,
         description: continuationPlanName
           ? `トライアル終了後は${continuationPlanName}プランへ移行します。`
@@ -117,6 +118,12 @@ export function buildPlanStatusCardData(
 export function formatJstDate(timestamp: number): string {
   const parts = jstDateParts(timestamp);
   return `${parts.year}/${parts.month}/${parts.day}`;
+}
+
+export function formatJstDateWithWeekday(timestamp: number): string {
+  const parts = jstDateParts(timestamp);
+  const weekday = WEEKDAY_LABELS[new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay()];
+  return `${parts.month}/${parts.day}(${weekday})`;
 }
 
 export function remainingJstDays(targetTimestamp: number, nowTimestamp: number): number {

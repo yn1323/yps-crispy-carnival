@@ -1,6 +1,6 @@
-import { Box, Flex, Heading, HStack, Stack } from "@chakra-ui/react";
+import { Badge, Box, Flex, Heading, HStack, Skeleton, Stack } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
-import { LuChevronDown, LuShieldCheck, LuUsers } from "react-icons/lu";
+import { LuChevronDown, LuPlus, LuShieldCheck, LuUsers } from "react-icons/lu";
 import { StaffListRow } from "@/src/components/shared/StaffListRow";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
@@ -16,7 +16,16 @@ type Props = {
   onOpenUser: (personId: string, visibleUserCount: number) => void;
   initialVisibleUserCount?: number;
   focusedPersonId?: string;
+  peopleUsageHasOverflow?: boolean;
+  filterResultCount?: number;
+  filterResultCountHasOverflow?: boolean;
   onVisibleUserCountChange?: (count: number) => void;
+  canLoadMorePeople?: boolean;
+  isLoadingMorePeople?: boolean;
+  onLoadMorePeople?: () => void;
+  onAddStaff?: () => void;
+  canAddStaff?: boolean;
+  addStaffDisabledReason?: string;
 };
 
 export const PeopleSection = ({
@@ -27,11 +36,21 @@ export const PeopleSection = ({
   onOpenUser,
   initialVisibleUserCount = DEFAULT_USER_LIST_COUNT,
   focusedPersonId,
+  peopleUsageHasOverflow = false,
+  filterResultCount,
+  filterResultCountHasOverflow = false,
   onVisibleUserCountChange,
+  canLoadMorePeople = false,
+  isLoadingMorePeople = false,
+  onLoadMorePeople,
+  onAddStaff,
+  canAddStaff = true,
+  addStaffDisabledReason,
 }: Props) => {
   const [visibleUserCount, setVisibleUserCount] = useState(initialVisibleUserCount);
   const visiblePeople = people.slice(0, visibleUserCount);
-  const canLoadMore = people.length > visibleUserCount;
+  const hasLocallyHiddenPeople = people.length > visibleUserCount;
+  const canLoadMore = hasLocallyHiddenPeople || canLoadMorePeople;
 
   useEffect(() => {
     setVisibleUserCount(initialVisibleUserCount);
@@ -47,6 +66,7 @@ export const PeopleSection = ({
     const nextVisibleUserCount = visibleUserCount + USER_LIST_PAGE_SIZE;
     setVisibleUserCount(nextVisibleUserCount);
     onVisibleUserCountChange?.(nextVisibleUserCount);
+    if (!hasLocallyHiddenPeople) onLoadMorePeople?.();
   };
 
   return (
@@ -55,22 +75,49 @@ export const PeopleSection = ({
         <HStack gap={2}>
           <LuUsers aria-hidden />
           <Heading id="organization-people-heading" as="h2" fontSize="lg">
-            全スタッフ{peopleUsage.max > 0 ? ` (${peopleUsage.current}/${peopleUsage.max})` : ""}
+            全スタッフ
+            {peopleUsage.max > 0
+              ? peopleUsageHasOverflow
+                ? ` (${peopleUsage.current}人以上 / 上限${peopleUsage.max}人)`
+                : ` (${peopleUsage.current}/${peopleUsage.max})`
+              : ""}
           </Heading>
+          {filterResultCount !== undefined && (
+            <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2.5} py={1}>
+              表示 {filterResultCount}人{filterResultCountHasOverflow ? "以上" : ""}
+            </Badge>
+          )}
         </HStack>
-        {showManagerInvitation && (
-          <Button
-            variant="ghost"
-            size="sm"
-            colorPalette="teal"
-            gap={1.5}
-            fontWeight="semibold"
-            onClick={onManageManagers}
-          >
-            <LuShieldCheck aria-hidden />
-            管理者を変更
-          </Button>
-        )}
+        <Flex gap={2} wrap="wrap" justify="flex-end">
+          {onAddStaff && (
+            <Button
+              variant="ghost"
+              size="sm"
+              colorPalette="teal"
+              gap={1.5}
+              fontWeight="semibold"
+              onClick={onAddStaff}
+              disabled={!canAddStaff}
+              title={!canAddStaff ? addStaffDisabledReason : undefined}
+            >
+              <LuPlus aria-hidden />
+              スタッフを追加
+            </Button>
+          )}
+          {showManagerInvitation && (
+            <Button
+              variant="ghost"
+              size="sm"
+              colorPalette="teal"
+              gap={1.5}
+              fontWeight="semibold"
+              onClick={onManageManagers}
+            >
+              <LuShieldCheck aria-hidden />
+              管理者を設定
+            </Button>
+          )}
+        </Flex>
       </Flex>
 
       {visiblePeople.length === 0 ? (
@@ -100,7 +147,14 @@ export const PeopleSection = ({
 
       {canLoadMore && (
         <Flex justify="center">
-          <Button variant="ghost" colorPalette="teal" size="sm" gap={1} onClick={handleLoadMore}>
+          <Button
+            variant="ghost"
+            colorPalette="teal"
+            size="sm"
+            gap={1}
+            onClick={handleLoadMore}
+            loading={isLoadingMorePeople}
+          >
             <LuChevronDown aria-hidden />
             もっと見る
           </Button>
@@ -109,3 +163,66 @@ export const PeopleSection = ({
     </Stack>
   );
 };
+
+type PeopleSectionSkeletonProps = {
+  showAddStaff?: boolean;
+  showManagerInvitation?: boolean;
+  rowCount?: number;
+};
+
+export function PeopleSectionSkeleton({
+  showAddStaff = false,
+  showManagerInvitation = false,
+  rowCount = 3,
+}: PeopleSectionSkeletonProps) {
+  return (
+    <Stack as="section" gap={4} aria-hidden>
+      <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={3} wrap="wrap">
+        <HStack gap={2}>
+          <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
+          <Skeleton h="28px" w="184px" maxW="70vw" />
+        </HStack>
+        {(showAddStaff || showManagerInvitation) && (
+          <Flex gap={2} wrap="wrap" justify="flex-end">
+            {showAddStaff && <Skeleton h="36px" w="120px" borderRadius="md" />}
+            {showManagerInvitation && <Skeleton h="36px" w="136px" borderRadius="md" />}
+          </Flex>
+        )}
+      </Flex>
+
+      <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
+        <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
+          {Array.from({ length: rowCount }, (_, index) => (
+            <Flex
+              key={index}
+              gap={3}
+              align="center"
+              px={{ base: 3, md: 4 }}
+              py={3.5}
+              bg={index === 0 ? "teal.50/50" : "transparent"}
+            >
+              <Skeleton boxSize="40px" borderRadius="full" flexShrink={0} />
+
+              <Flex gap={2} align="center" wrap="wrap" flex={1} minW={0}>
+                <Stack gap={1} flex="1 1 10rem" minW={0}>
+                  <Skeleton h="20px" w={index === 1 ? "152px" : "112px"} maxW="full" />
+                  <HStack display={{ base: "none", md: "flex" }} gap={1.5}>
+                    <Skeleton boxSize={4} borderRadius="sm" flexShrink={0} />
+                    <Skeleton h="18px" w={index === 2 ? "96px" : "152px"} maxW="75%" />
+                  </HStack>
+                </Stack>
+
+                <Flex gap={1.5} ms="auto" w={{ base: "full", sm: "auto" }} maxW="full" justify="flex-end" wrap="wrap">
+                  <Skeleton h="20px" w={index === 0 ? "64px" : "56px"} borderRadius="full" />
+                  <Skeleton h="20px" w={index === 2 ? "80px" : "96px"} borderRadius="full" />
+                </Flex>
+              </Flex>
+
+              <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
+            </Flex>
+          ))}
+        </Stack>
+      </Box>
+    </Stack>
+  );
+}

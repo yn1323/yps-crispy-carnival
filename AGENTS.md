@@ -44,6 +44,7 @@
 
 ## Skillの発動条件
 
+- 複数語・複数階層の関連ファイル探索、定義・call site・test・文書の対応表、大規模棚卸し、大きなlog・diffの事実抽出、指定test・lint・buildの実行とログ整理では `delegate-bounded-repo-work` を使う。
 - UI/UX、画面構造、レイアウト、状態、マイクロコピーを変更する場合は `ui-architect` を使う。
 - テスト層、配置、新しい検証契約を判断する場合は `test-strategy` を使う。
 - 認証、認可、IDOR、token、Capability、Webhook、外部副作用、billing、個人情報、retention、redactionに触れる相談・計画・設計・実装・レビューでは、プラン確定前に `shiftori-security-review` を使う。

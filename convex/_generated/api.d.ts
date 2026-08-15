@@ -26,6 +26,7 @@ import type * as _lib_notificationDelivery from "../_lib/notificationDelivery.js
 import type * as _lib_notificationDeliveryQueries from "../_lib/notificationDeliveryQueries.js";
 import type * as _lib_previousWeeklyPattern from "../_lib/previousWeeklyPattern.js";
 import type * as _lib_rateLimits from "../_lib/rateLimits.js";
+import type * as _lib_releaseFeatures from "../_lib/releaseFeatures.js";
 import type * as _lib_resend from "../_lib/resend.js";
 import type * as _lib_resendWebhookSignature from "../_lib/resendWebhookSignature.js";
 import type * as _lib_sha256 from "../_lib/sha256.js";
@@ -39,6 +40,7 @@ import type * as _lib_time from "../_lib/time.js";
 import type * as _lib_turnstile from "../_lib/turnstile.js";
 import type * as _lib_uuid from "../_lib/uuid.js";
 import type * as _lib_validation from "../_lib/validation.js";
+import type * as _test_actionInboxFixtures from "../_test/actionInboxFixtures.js";
 import type * as _test_scenarioBuilders from "../_test/scenarioBuilders.js";
 import type * as _test_scenarioFixtures from "../_test/scenarioFixtures.js";
 import type * as _test_seed from "../_test/seed.js";
@@ -75,6 +77,10 @@ import type * as analyticsDashboard_rateLimit from "../analyticsDashboard/rateLi
 import type * as analyticsDashboard_refs from "../analyticsDashboard/refs.js";
 import type * as analyticsDashboard_schemas from "../analyticsDashboard/schemas.js";
 import type * as analyticsDashboard_validators from "../analyticsDashboard/validators.js";
+import type * as appOrganization_actionInboxQueries from "../appOrganization/actionInboxQueries.js";
+import type * as appOrganization_detailQueries from "../appOrganization/detailQueries.js";
+import type * as appOrganization_manageQueries from "../appOrganization/manageQueries.js";
+import type * as appOrganization_queries from "../appOrganization/queries.js";
 import type * as constants from "../constants.js";
 import type * as contact_actions from "../contact/actions.js";
 import type * as contact_httpActions from "../contact/httpActions.js";
@@ -254,6 +260,7 @@ import type * as staffRegistration_mutations from "../staffRegistration/mutation
 import type * as staffRegistration_notificationQueries from "../staffRegistration/notificationQueries.js";
 import type * as staffRegistration_queries from "../staffRegistration/queries.js";
 import type * as staffRegistration_schemas from "../staffRegistration/schemas.js";
+import type * as staffRegistration_service from "../staffRegistration/service.js";
 import type * as testing from "../testing.js";
 
 import type {
@@ -281,6 +288,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/notificationDeliveryQueries": typeof _lib_notificationDeliveryQueries;
   "_lib/previousWeeklyPattern": typeof _lib_previousWeeklyPattern;
   "_lib/rateLimits": typeof _lib_rateLimits;
+  "_lib/releaseFeatures": typeof _lib_releaseFeatures;
   "_lib/resend": typeof _lib_resend;
   "_lib/resendWebhookSignature": typeof _lib_resendWebhookSignature;
   "_lib/sha256": typeof _lib_sha256;
@@ -294,6 +302,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/turnstile": typeof _lib_turnstile;
   "_lib/uuid": typeof _lib_uuid;
   "_lib/validation": typeof _lib_validation;
+  "_test/actionInboxFixtures": typeof _test_actionInboxFixtures;
   "_test/scenarioBuilders": typeof _test_scenarioBuilders;
   "_test/scenarioFixtures": typeof _test_scenarioFixtures;
   "_test/seed": typeof _test_seed;
@@ -330,6 +339,10 @@ declare const fullApi: ApiFromModules<{
   "analyticsDashboard/refs": typeof analyticsDashboard_refs;
   "analyticsDashboard/schemas": typeof analyticsDashboard_schemas;
   "analyticsDashboard/validators": typeof analyticsDashboard_validators;
+  "appOrganization/actionInboxQueries": typeof appOrganization_actionInboxQueries;
+  "appOrganization/detailQueries": typeof appOrganization_detailQueries;
+  "appOrganization/manageQueries": typeof appOrganization_manageQueries;
+  "appOrganization/queries": typeof appOrganization_queries;
   constants: typeof constants;
   "contact/actions": typeof contact_actions;
   "contact/httpActions": typeof contact_httpActions;
@@ -509,6 +522,7 @@ declare const fullApi: ApiFromModules<{
   "staffRegistration/notificationQueries": typeof staffRegistration_notificationQueries;
   "staffRegistration/queries": typeof staffRegistration_queries;
   "staffRegistration/schemas": typeof staffRegistration_schemas;
+  "staffRegistration/service": typeof staffRegistration_service;
   testing: typeof testing;
 }>;
 

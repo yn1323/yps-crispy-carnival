@@ -6,6 +6,7 @@ import { STAFF_REGISTRATION_PENDING_LIMIT } from "../constants";
 import { getLegalDocumentsForAudience } from "../legal/documents";
 import { staffLegalDocumentsValidator } from "../legal/validators";
 import { resolveStaffRegistrationCapability } from "./capability";
+import { resolveStaffRegistrationApprovalAvailability } from "./service";
 
 const registrationPageDataValidator = v.union(
   v.object({ status: v.literal("expired"), documents: staffLegalDocumentsValidator }),
@@ -42,6 +43,8 @@ export const getPendingRequests = managerQuery({
       name: v.string(),
       email: v.string(),
       createdAt: v.number(),
+      canApprove: v.boolean(),
+      approveDisabledReason: v.union(v.string(), v.null()),
     }),
   ),
   handler: async (ctx) => {
@@ -53,12 +56,38 @@ export const getPendingRequests = managerQuery({
       .order("asc")
       .take(STAFF_REGISTRATION_PENDING_LIMIT);
 
-    return requests.map((request) => ({
-      _id: request._id,
-      name: request.name,
-      email: request.email,
-      createdAt: request.createdAt,
-    }));
+    const approvalAvailabilityByEmail = new Map<
+      string,
+      Awaited<ReturnType<typeof resolveStaffRegistrationApprovalAvailability>>
+    >();
+    if (ctx.organization) {
+      for (const request of requests) {
+        const cached = approvalAvailabilityByEmail.get(request.emailNormalized);
+        if (cached) continue;
+        approvalAvailabilityByEmail.set(
+          request.emailNormalized,
+          await resolveStaffRegistrationApprovalAvailability(ctx, {
+            organizationId: ctx.organization._id,
+            targetShopId: shop._id,
+            emailNormalized: request.emailNormalized,
+          }),
+        );
+      }
+    }
+
+    return requests.map((request) => {
+      const approvalAvailability = approvalAvailabilityByEmail.get(request.emailNormalized) ?? {
+        canApprove: true,
+        approveDisabledReason: null,
+      };
+      return {
+        _id: request._id,
+        name: request.name,
+        email: request.email,
+        createdAt: request.createdAt,
+        ...approvalAvailability,
+      };
+    });
   },
 });
 

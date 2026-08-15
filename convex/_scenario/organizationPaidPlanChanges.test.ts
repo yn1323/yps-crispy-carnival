@@ -568,6 +568,10 @@ describe("有料プラン変更シナリオ", () => {
     vi.stubEnv("STRIPE_PRO_PRICE_ID", PRO_PRICE_ID);
     vi.stubEnv("STRIPE_BUSINESS_PRICE_ID", BUSINESS_PRICE_ID);
     vi.stubEnv("APP_URL", "https://app.example.test");
+    vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "true");
+    vi.stubEnv("FEATURE_SHOP_ADDITION", "true");
+    vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
+    vi.stubEnv("FEATURE_BILLING", "true");
   });
 
   afterEach(() => {
