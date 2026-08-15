@@ -121,8 +121,7 @@ export function OrganizationRecruitmentManagement({
         if (activeInteractionScopeKeyRef.current !== requestedInteractionScopeKey) return;
         createDialog.close();
         showSuccessToast({
-          title: "募集をつくり、スタッフに通知しました",
-          description: "LINE連携済みのスタッフには通常LINEで、それ以外のスタッフにはメールで送ります。",
+          title: "シフト提出依頼をスタッフに送りました",
         });
       } catch (error) {
         if (activeInteractionScopeKeyRef.current !== requestedInteractionScopeKey) return;

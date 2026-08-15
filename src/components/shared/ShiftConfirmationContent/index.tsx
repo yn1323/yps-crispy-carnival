@@ -24,7 +24,7 @@ export const ConfirmShiftContent = ({
   periodLabel,
   warnings = [],
   isResend = false,
-  notificationDescription = "LINE連携済みのスタッフには通常LINEで、それ以外のスタッフにはメールで送ります。",
+  notificationDescription = "メール・LINEで通知します",
 }: Props) => {
   const warningSummary = summarizeAssignmentWarnings(warnings);
 
