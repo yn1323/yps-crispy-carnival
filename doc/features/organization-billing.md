@@ -71,7 +71,7 @@ Playwright用のE2E deploymentだけは、四つの設定を明示的に有効�
 | 店舗（`shops`） | 日常業務で選択する操作対象。必ず一つの組織に属する |
 | 人物（`organizationPeople`） | 組織内の利用人数を数える正本。スタッフ兼管理者でも重複計上しない |
 | 管理者所属（`organizationMembers`） | 管理画面の権限。`active`、復旧専用の`readOnly`、失効済みの`removed`を持つ |
-| 課金状態（`organizationBillingStates`） | Trial、Pro、Business、契約制限中、grandfathered Free、支払い不要Businessと遷移中の状態を保持する |
+| 課金状態（`organizationBillingStates`） | Trial、Pro、Business、Free、契約制限中、支払い不要Businessと遷移中の状態を保持する |
 | Stripe対応表とoperation | 有料契約のCustomer、Subscription、非同期処理を組織単位で追跡する |
 | 管理者招待（`organizationInvitations`） | メールの受取人へ、管理者アカウントを一回だけ連携できる権限を渡す |
 
@@ -109,15 +109,15 @@ Playwright用のE2E deploymentだけは、四つの設定を明示的に有効�
 | 表示・利用権限 | 利用人数 | 稼働店舗 | 有効管理者 | Stripe契約 |
 |---|---:|---:|---:|---|
 | Trial | 20 | 5 | 5 | 継続予約がある場合だけ作成処理を持つ |
-| 既存Free | 5 | 1 | 2 | なし |
+| Free | 5 | 1 | 2 | なし |
 | Pro | 20 | 5 | 5 | あり |
 | Business | 40 | 5 | 5 | あり |
 | 支払い不要Business | 40 | 5 | 5 | 作成しない |
 
 Trialの利用権限はProと同じである。
-Freeは既存の`active.free`、そのFreeをfallbackとする`pendingActivation`、deployment前に保存済みの旧Free変更予約を収束させるためだけに維持する。
-以下で既存Freeの管理者操作を説明するときは、`active.free`とFreeをfallbackとする`pendingActivation`を対象にする。
-通常の初回Setupは支払い不要Businessで作る。  明示的に公開した追加組織だけはTrialで始め、Trial終了や有料契約の利用停止からFreeを作らない。
+Freeは追加組織の初期状態と、既存の`active.free`、そのFreeをfallbackとする`pendingActivation`、deployment前に保存済みの旧Free変更予約を収束させるために維持する。
+以下でFreeの管理者操作を説明するときは、`active.free`とFreeをfallbackとする`pendingActivation`を対象にする。
+通常の初回Setupは支払い不要Businessで作る。  明示的に公開した追加組織はFreeで始める。  Trial終了や有料契約の利用停止からFreeを作らない。
 利用人数は組織内の人物を一度だけ数え、複数店舗所属やスタッフ兼管理者で重複させない。
 店舗追加、人物追加、管理者招待、プラン変更は、開始時と確定時に最新の上限と予約枠を再確認する。
 
@@ -140,14 +140,14 @@ Freeは既存の`active.free`、そのFreeをfallbackとする`pendingActivation
 | 入口 | 対象 | 開始プラン |
 |---|---|---|
 | 初回セットアップ（`/dashboard`） | 所属がまだない利用者 | `complimentary.business` |
-| 将来用の組織作成 | 公開設定を明示的に有効化した環境の既存管理者 | 2ヶ月の`trial` |
+| 将来用の組織作成 | 公開設定を明示的に有効化した環境の既存管理者 | `active.free` |
 
 初回Setupは本人のactiveな組織所属が0件であることをserver-sideで確認する。
 最初の組織、店舗、人物、管理者、店舗スタッフと`complimentary.business`を一度だけ作り、Trial期限、Stripe object、課金deadlineを作らない。
 
 追加組織の実装は将来用に保持する。
 公開設定が閉じている通常環境では、画面入口を表示せず、mutationもrate limitやwriteより前に拒否する。
-明示的に有効化した場合のTrial、作成上限、冪等性の契約は既存テストで維持する。
+明示的に有効化した場合のFree枠、作成上限、冪等性の契約は既存テストで維持する。
 
 自分で作成して保持できる組織は3件までとする。
 招待されて所属している組織はこの上限に数えない。
@@ -301,7 +301,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | パス | 責務 |
 |---|---|
 | `convex/setup/mutations.ts` | 所属0件の初回セットアップと、公開設定で閉じた将来用の追加組織作成を受け付ける |
-| `convex/setup/service.ts` | 組織、最初の管理者、店舗、初期課金状態を作る。初回Setupは`complimentary.business`、明示的に有効化した追加組織はTrialを使う |
+| `convex/setup/service.ts` | 組織、最初の管理者、店舗、初期課金状態を作る。初回Setupは`complimentary.business`、明示的に有効化した追加組織は`active.free`を使う |
 | `convex/_lib/config.ts`、`convex/_lib/releaseFeatures.ts` | 四つの公開設定をfail-closedで解決し、public操作を副作用前に拒否する |
 | `convex/_lib/functions.ts` | 認証、組織所属、選択店舗、課金状態を検証するAPI wrapper |
 | `convex/dashboard/queries.ts` | 選択店舗の認可境界で、Dashboard用の現在プランと対応状態を投影し、カード展開中だけ組織の利用状況を最小DTOで返す |
@@ -340,7 +340,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | 入口 | 用途 |
 |---|---|
 | `api.setup.mutations.setupShopAndManager` | 所属0件の初期設定と、1組織、1店舗、管理者本人、`complimentary.business`の作成。Trial deadlineとStripe objectは作らない |
-| `api.setup.mutations.createOrganization` | 将来用の追加組織作成。通常環境では公開設定により副作用前に拒否し、明示的に有効化した場合だけ2ヶ月Trialを作る |
+| `api.setup.mutations.createOrganization` | 将来用の追加組織作成。通常環境では公開設定により副作用前に拒否し、明示的に有効化した場合だけ`active.free`を作る |
 | `api.dashboard.queries.getMyShops` | 利用可能な店舗、組織、所属状態の取得 |
 | `api.dashboard.queries.getDashboardShop` | 選択店舗を認可し、Dashboard用の`planStatus`とrolling deploy用の旧`trialEndingNotice`を取得 |
 | `api.dashboard.queries.getDashboardPlanUsage` | 選択店舗を認可し、明示された時刻を基準にスタッフ・店舗・管理者の現在値と上限を取得 |
@@ -385,7 +385,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 - `convex/_scenario/organizationBillingLifecycle.test.ts`と`organizationPaidPlanChanges.test.ts`：時間と複数APIをまたぐ課金ライフサイクルを検証する。
 - `convex/_scenario/staffManagerInvitation.test.ts`と`organizationManagerExchange.test.ts`：既存人物の通常招待と、既発行のFree管理者交代招待の互換処理を検証する。
 - `convex/setup/mutations.test.ts`：初回Setupが所属0件だけに許可され、`complimentary.business`を作り、Trial deadlineを作らないことと、追加組織が公開設定なしでは副作用前に拒否されることを検証する。
-- `convex/_scenario/organizationCreation.test.ts`：公開設定を明示した将来用の追加組織について、上限、冪等性、rate limit、Trial開始、既存組織への非混入を検証する。
+- `convex/_scenario/organizationCreation.test.ts`：公開設定を明示した将来用の追加組織について、Free枠、冪等性、rate limit、初期Free状態、既存組織への非混入を検証する。
 - `src/pages/dashboard/index.stories.tsx`、`src/components/features/Dashboard/DashboardContent/index.stories.tsx`、`src/components/features/OrganizationSettings/OrganizationCreation/OrganizationCreationDialog.stories.tsx`、`src/components/features/OrganizationSettings/controllers.test.tsx`：初回Setupと将来用の追加組織作成について、代表状態、フォーム操作、失敗後も同じ`requestId`を保つ再試行、mutation引数、作成後の遷移を検証する。
 - `src/components/features/OrganizationSettings/PlanAndPaymentSection.stories.tsx`と`BillingSettings/`配下のStory・Logic Test：Free、Pro、Businessの代表状態と主要変更操作を検証する。
 - `src/components/features/Dashboard/PlanStatusCard/`のFrontend Unit・Story・Logic Test：折りたたみ中のquery停止、利用状況の局所Loading、全課金状態の表示変換、開閉、CTA、モバイル表示を検証する。
