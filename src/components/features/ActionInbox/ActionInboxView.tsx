@@ -181,14 +181,14 @@ export function ActionInboxView({ items, completedItemId }: Props) {
       {visibleItems.length === 0 ? (
         <Empty
           icon={LuCircleCheck}
-          title="対応が必要な項目はありません"
+          title="要対応の項目はありません"
           description="現在、確認や操作が必要な項目はありません。"
           tone="success"
           variant="section"
           minH="240px"
         />
       ) : (
-        <Stack as="section" aria-label="対応が必要な項目" gap={0}>
+        <Stack as="section" aria-label="要対応の項目" gap={0}>
           {visibleItems.map((item) => (
             <Box
               key={item.id}

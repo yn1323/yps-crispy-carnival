@@ -44,7 +44,7 @@ describe("pickNextAction", () => {
     if (result.kind === "past-deadline") expect(result.recruitment._id).toBe(id("past"));
   });
 
-  it("期間が終了した未確定シフトはTODOの対象にしない", () => {
+  it("期間が終了した未確定シフトは要対応の対象にしない", () => {
     const ended = make({ periodStart: "2026-04-01", periodEnd: "2026-04-17", deadline: "2026-04-10" });
 
     expect(pickNextAction([ended], NOW)).toEqual({ kind: "idle" });

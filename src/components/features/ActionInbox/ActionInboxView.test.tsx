@@ -67,7 +67,7 @@ describe("ActionInboxView", () => {
 
     act(() => vi.advanceTimersByTime(1));
     expect(screen.queryByRole("article")).toBeNull();
-    expect(screen.getByText("対応が必要な項目はありません")).not.toBeNull();
+    expect(screen.getByText("要対応の項目はありません")).not.toBeNull();
   });
 
   it("確認Dialogの完了通知と同時にserver itemが消えても同じexitを通す", () => {

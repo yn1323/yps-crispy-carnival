@@ -7,8 +7,8 @@
 ### フロントエンド（`src/`）
 
 - `src/components/features/Dashboard/DashboardContent/index.tsx` — オンボーディング機能とDashboard各セクションを合成する
-- `src/components/features/Dashboard/HeroSummary/` — オンボーディング中に通常の「TODO」セクションを隠す表示制御
-- `src/components/features/Dashboard/DashboardOnboarding/` — オンボーディング状態、Callout UI、進捗判定、通常の「TODO」との表示切り替え、モーダル/画面遷移との接続、Storybook、ロジックテストを所有する
+- `src/components/features/Dashboard/HeroSummary/` — オンボーディング中に通常の「要対応」セクションを隠す表示制御
+- `src/components/features/Dashboard/DashboardOnboarding/` — オンボーディング状態、Callout UI、進捗判定、通常の「要対応」との表示切り替え、モーダル/画面遷移との接続、Storybook、ロジックテストを所有する
 - `src/components/features/Dashboard/dashboardTourTargets.ts` — Dashboard内Tourターゲットの共有定数
 - `src/components/features/Dashboard/RecruitmentBoard/` — 募集作成ボタンと最新募集カードのTourターゲット
 - `src/components/features/Dashboard/StaffRoster/` — スタッフ追加ボタンのTourターゲット
@@ -54,8 +54,8 @@
 ## 表示ルール
 
 - 管理ユーザーの法務再同意が必要な間は、再同意バナーを優先して表示しない
-- 表示中は通常の「TODO」セクションを出さず、「はじめの確認」セクションを同列に表示する
-- オンボーディング表示可否が未確定の間は通常の「TODO」セクションを出さず、リフレッシュ時の一瞬の表示切り替わりを避ける
+- 表示中は通常の「要対応」セクションを出さず、「はじめの確認」セクションを同列に表示する
+- オンボーディング表示可否が未確定の間は通常の「要対応」セクションを出さず、リフレッシュ時の一瞬の表示切り替わりを避ける
 - 手動で閉じた場合はDBに終了状態を保存し、同じ管理ユーザーでは別端末でも再表示しない
 - Callout内の「ガイド」ボタンはショートカットではなく、次に触る場所を説明なしのTourで表示するだけにする
 - 2/4はメールを開く案内なので、Dashboard上のガイドボタンは表示しない

@@ -153,7 +153,7 @@ export function AppActionsPageView({
           <HStack gap={2.5} minW={0} flexShrink={0}>
             <Icon as={LuMessageCircle} boxSize={{ base: 5, lg: 6 }} flexShrink={0} aria-hidden />
             <Heading as="h1" textStyle="sectionTitle" color="gray.900">
-              対応が必要なこと
+              要対応
             </Heading>
           </HStack>
           {headingAction && (
@@ -164,14 +164,14 @@ export function AppActionsPageView({
         </Flex>
 
         {state.kind === "loading" ? (
-          <Stack aria-label="対応一覧を読み込み中" gap={3}>
+          <Stack aria-label="要対応一覧を読み込み中" gap={3}>
             {[0, 1, 2].map((index) => (
               <Skeleton key={index} h={{ base: "168px", md: "112px" }} borderRadius="xl" />
             ))}
           </Stack>
         ) : state.kind === "error" ? (
           <Stack align="center" py={16} gap={4} textAlign="center">
-            <Text fontWeight="bold">対応一覧を読み込めませんでした</Text>
+            <Text fontWeight="bold">要対応一覧を読み込めませんでした</Text>
             <Text color="fg.muted">通信状態を確認して、もう一度お試しください。</Text>
             {onReload && (
               <Button type="button" variant="outline" minH="44px" onClick={onReload}>

@@ -393,7 +393,7 @@ export const SingleShopWithPlanStatus: Story = {
     await expect(canvas.getByRole("button", { name: /たなかグループ/ })).toHaveAttribute("aria-expanded", "true");
     await expect(canvas.getByRole("region", { name: "Proプランの詳細" })).toBeVisible();
     await expect(canvas.getByText("次回更新日：2026/9/1")).toBeVisible();
-    await expect(canvas.getByRole("heading", { name: "TODO", level: 2 })).toBeVisible();
+    await expect(canvas.getByRole("heading", { name: "要対応", level: 2 })).toBeVisible();
   },
 };
 
@@ -771,11 +771,11 @@ export const DismissedOnboardingShowsNextAction: Story = {
     const canvas = within(canvasElement);
 
     await expect(canvas.getByRole("region", { name: "シフトリへようこそ！" })).toBeVisible();
-    await expect(canvas.queryByRole("heading", { name: "TODO" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("heading", { name: "要対応" })).not.toBeInTheDocument();
 
     await userEvent.click(canvas.getByRole("button", { name: "シフトリへようこそを閉じる" }));
 
-    await expect(await canvas.findByRole("heading", { name: "TODO" })).toBeVisible();
+    await expect(await canvas.findByRole("heading", { name: "要対応" })).toBeVisible();
     await expect(canvas.queryByRole("region", { name: "シフトリへようこそ！" })).not.toBeInTheDocument();
   },
 };

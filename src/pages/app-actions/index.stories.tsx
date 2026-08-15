@@ -158,6 +158,6 @@ export const QueryRetryBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "再読み込み" }));
-    await expect(await canvas.findByText("対応が必要な項目はありません")).toBeVisible();
+    await expect(await canvas.findByText("要対応の項目はありません")).toBeVisible();
   },
 };

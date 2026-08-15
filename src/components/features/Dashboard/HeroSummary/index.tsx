@@ -65,7 +65,7 @@ export const HeroSummary = ({
               <LuCircleCheck />
             </Box>
             <Heading as="h2" textStyle="sectionTitle" color="gray.900">
-              TODO
+              要対応
             </Heading>
           </HStack>
 
@@ -87,9 +87,9 @@ export const HeroSummary = ({
               <Alert.Indicator />
               <Alert.Content gap={3}>
                 <Stack gap={1}>
-                  <Alert.Title>一部のTODOを読み込めませんでした</Alert.Title>
+                  <Alert.Title>一部の要対応項目を読み込めませんでした</Alert.Title>
                   <Alert.Description>
-                    取得できたTODOだけを表示しています。時間をおいて再試行してください。解消しない場合は、
+                    取得できた要対応項目だけを表示しています。時間をおいて再試行してください。解消しない場合は、
                     <Link asChild color="teal.800" textDecoration="underline">
                       <MeasurementBoundaryLink href="/contact">お問い合わせフォーム</MeasurementBoundaryLink>
                     </Link>
