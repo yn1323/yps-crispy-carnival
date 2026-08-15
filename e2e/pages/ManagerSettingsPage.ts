@@ -24,18 +24,23 @@ export class ManagerSettingsPage {
 
   async inviteExistingStaff(seed: ManagerCandidateSeed) {
     await this.page
-      .getByRole("link", {
+      .getByRole("button", {
         name: "既存スタッフを管理者として招待",
         exact: true,
       })
       .click();
     await expect(this.page).toHaveURL(
-      (url) =>
-        url.pathname === "/app/manage/managers/invite-staff" && url.searchParams.get("org") === seed.organizationId,
+      (url) => url.pathname === "/app/manage/managers" && url.searchParams.get("org") === seed.organizationId,
       { timeout: MANAGER_SETTINGS_TIMEOUT },
     );
 
-    const candidate = this.page.getByRole("radio", {
+    const dialog = this.page.getByRole("dialog", {
+      name: "既存スタッフを管理者として招待",
+      exact: true,
+    });
+    await expect(dialog).toBeVisible({ timeout: MANAGER_SETTINGS_TIMEOUT });
+
+    const candidate = dialog.getByRole("radio", {
       name: `${seed.candidateName}を選択`,
       exact: true,
     });
@@ -43,7 +48,7 @@ export class ManagerSettingsPage {
     await candidate.locator("..").click();
     await expect(candidate).toBeChecked();
 
-    await this.page.getByRole("button", { name: "管理者として招待する", exact: true }).click();
+    await dialog.getByRole("button", { name: "管理者として招待する", exact: true }).click();
     const confirmation = this.page.getByRole("alertdialog", {
       name: `${seed.candidateName}さんを招待しますか？`,
       exact: true,

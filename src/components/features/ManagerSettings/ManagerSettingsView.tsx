@@ -1,9 +1,7 @@
 import { Badge, Box, Flex, Grid, Heading, HStack, Icon, Stack, Text } from "@chakra-ui/react";
-import { Link as RouterLink } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import type { IconType } from "react-icons";
 import { LuChevronRight, LuMailPlus, LuShieldCheck, LuUserMinus, LuUserPlus, LuUsers } from "react-icons/lu";
-import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/src/components/ui/Button";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import { Empty } from "@/src/components/ui/Empty";
@@ -17,12 +15,12 @@ import {
 
 type Props = {
   overview: ReadyManagerSettingsOverview;
-  organizationId: Id<"organizations">;
   title?: string;
   titleIcon?: IconType;
   backLabel?: string;
   mutationDisabledReason?: string;
   onBack: () => void;
+  onOpenInvitation: (destination: "existingStaff" | "external") => void;
   onRequestResend: (invitation: ManagerSettingsInvitation) => void;
   onRequestRevoke: (invitation: ManagerSettingsInvitation) => void;
   onRequestRemoveRole: (manager: ManagerSettingsManager) => void;
@@ -30,12 +28,12 @@ type Props = {
 
 export function ManagerSettingsView({
   overview,
-  organizationId,
   title = "管理者設定",
   titleIcon,
   backLabel = "前の画面へ戻る",
   mutationDisabledReason,
   onBack,
+  onOpenInvitation,
   onRequestResend,
   onRequestRevoke,
   onRequestRemoveRole,
@@ -66,8 +64,8 @@ export function ManagerSettingsView({
             description="組織に登録済みのスタッフから選択"
             icon={LuUsers}
             destination="existingStaff"
-            organizationId={organizationId}
             enabled={canIssueManagerAddition && overview.actions.canInviteExistingStaff}
+            onClick={() => onOpenInvitation("existingStaff")}
             disabledReason={
               canIssueManagerAddition ? overview.actions.existingStaffDisabledReason : legacyModeDisabledReason
             }
@@ -77,8 +75,8 @@ export function ManagerSettingsView({
             description="経営者・本部担当者などをメールで招待"
             icon={LuMailPlus}
             destination="external"
-            organizationId={organizationId}
             enabled={canIssueManagerAddition && overview.actions.canInviteExternal}
+            onClick={() => onOpenInvitation("external")}
             disabledReason={
               canIssueManagerAddition ? overview.actions.externalDisabledReason : legacyModeDisabledReason
             }
@@ -154,8 +152,8 @@ type ActionCardProps = {
   description: string;
   icon: typeof LuUsers;
   destination: "existingStaff" | "external";
-  organizationId: Id<"organizations">;
   enabled: boolean;
+  onClick: () => void;
   disabledReason?: string;
 };
 
@@ -164,8 +162,8 @@ function ManagerActionCard({
   description,
   icon,
   destination,
-  organizationId,
   enabled,
+  onClick,
   disabledReason,
 }: ActionCardProps) {
   const titleId = `${destination === "existingStaff" ? "existing" : "external"}-manager-action-title`;
@@ -228,39 +226,18 @@ function ManagerActionCard({
     );
   }
 
-  const link =
-    destination === "existingStaff" ? (
-      <RouterLink
-        to="/app/manage/managers/invite-staff"
-        search={{ org: organizationId }}
-        preload="intent"
-        aria-labelledby={titleId}
-        aria-describedby={descriptionId}
-      >
-        {content}
-      </RouterLink>
-    ) : (
-      <RouterLink
-        to="/app/manage/managers/invite-new"
-        search={{ org: organizationId }}
-        preload="intent"
-        aria-labelledby={titleId}
-        aria-describedby={descriptionId}
-      >
-        {content}
-      </RouterLink>
-    );
-
   return (
     <Button
-      asChild
       variant="outline"
       {...cardProps}
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+      onClick={onClick}
       transition="background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease"
       _hover={{ bg: "gray.50", borderColor: "gray.300", boxShadow: "sm" }}
       _active={{ bg: "gray.100" }}
     >
-      {link}
+      {content}
     </Button>
   );
 }

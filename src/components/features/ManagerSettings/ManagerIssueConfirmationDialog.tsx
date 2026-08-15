@@ -13,10 +13,13 @@ type Props = {
 export function ManagerIssueConfirmationDialog({ confirmation, isRunning, onClose, onConfirm }: Props) {
   if (!confirmation) return null;
 
-  const isExistingStaff = confirmation.kind === "existingStaff";
   return (
     <Dialog
-      title={isExistingStaff ? `${confirmation.candidate.name}さんを招待しますか？` : "新しい管理者を招待しますか？"}
+      title={
+        confirmation.kind === "existingStaff"
+          ? `${confirmation.candidate.name}さんを招待しますか？`
+          : "新しい管理者を招待しますか？"
+      }
       role="alertdialog"
       isOpen
       onOpenChange={({ open }) => {
@@ -31,25 +34,37 @@ export function ManagerIssueConfirmationDialog({ confirmation, isRunning, onClos
       mobileActionLayout="stacked"
       maxW={{ base: "calc(100vw - 24px)", md: "560px" }}
     >
-      {isExistingStaff ? (
-        <ManagerAssignmentConfirmation
-          personName={confirmation.candidate.name}
-          personEmail={confirmation.candidate.contactEmail}
-          mode={confirmation.mode === "freeManagerExchange" ? "freeManagerExchange" : "addition"}
-        />
-      ) : (
-        <Stack gap={2} fontSize="sm" color="fg.muted" lineHeight="tall">
-          <Text fontWeight="semibold" color="gray.900">
-            {confirmation.invitedName}さんへ管理者招待を送ります。
-          </Text>
-          <Text>{confirmation.email}</Text>
-          <Text>
-            本人が有効な招待URLからログインまたは登録し、招待を承認すると管理者になります。
-            <br />
-            承認されるまでは、組織の人物として登録されません。
-          </Text>
-        </Stack>
-      )}
+      <ManagerIssueConfirmationContent confirmation={confirmation} />
     </Dialog>
+  );
+}
+
+export function ManagerIssueConfirmationContent({
+  confirmation,
+}: {
+  confirmation: Exclude<ManagerInvitationIssueConfirmation, null>;
+}) {
+  if (confirmation.kind === "existingStaff") {
+    return (
+      <ManagerAssignmentConfirmation
+        personName={confirmation.candidate.name}
+        personEmail={confirmation.candidate.contactEmail}
+        mode={confirmation.mode === "freeManagerExchange" ? "freeManagerExchange" : "addition"}
+      />
+    );
+  }
+
+  return (
+    <Stack gap={2} fontSize="sm" color="fg.muted" lineHeight="tall">
+      <Text fontWeight="semibold" color="gray.900">
+        {confirmation.invitedName}さんへ管理者招待を送ります。
+      </Text>
+      <Text>{confirmation.email}</Text>
+      <Text>
+        本人が有効な招待URLからログインまたは登録し、招待を承認すると管理者になります。
+        <br />
+        承認されるまでは、組織の人物として登録されません。
+      </Text>
+    </Stack>
   );
 }

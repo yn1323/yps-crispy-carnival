@@ -14,6 +14,7 @@ const managerExternalInviteFormSchema = createExternalOrganizationManagerInvitat
   email: true,
 });
 type FormValues = z.infer<typeof managerExternalInviteFormSchema>;
+const EMPTY_DEFAULT_VALUES: FormValues = { name: "", email: "" };
 
 export function ManagerExternalInviteForm({
   overview,
@@ -46,11 +47,17 @@ export function ManagerExternalInviteFormView({
   isSubmitting,
   isReadOnly = false,
   disabledReason,
+  defaultValues = EMPTY_DEFAULT_VALUES,
+  formId,
+  showSubmitAction = true,
   onRequestInvite,
 }: {
   isSubmitting: boolean;
   isReadOnly?: boolean;
   disabledReason?: string;
+  defaultValues?: FormValues;
+  formId?: string;
+  showSubmitAction?: boolean;
   onRequestInvite: (invitedName: string, email: string) => void;
 }) {
   const {
@@ -59,11 +66,15 @@ export function ManagerExternalInviteFormView({
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(managerExternalInviteFormSchema),
-    defaultValues: { name: "", email: "" },
+    defaultValues,
   });
 
   return (
-    <form noValidate onSubmit={handleSubmit((values) => onRequestInvite(values.name.trim(), values.email.trim()))}>
+    <form
+      id={formId}
+      noValidate
+      onSubmit={handleSubmit((values) => onRequestInvite(values.name.trim(), values.email.trim()))}
+    >
       <Stack gap={5} maxW="640px" w="full">
         <Stack gap={1}>
           <Text as="h2" fontSize="lg" fontWeight="semibold" color="gray.900">
@@ -92,19 +103,21 @@ export function ManagerExternalInviteFormView({
           <Input type="email" autoComplete="email" disabled={isSubmitting || isReadOnly} {...register("email")} />
           <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
         </Field.Root>
-        <Flex justify="flex-end">
-          <Button
-            type="submit"
-            colorPalette="teal"
-            minH="44px"
-            w={{ base: "full", md: "auto" }}
-            minW={{ md: "208px" }}
-            loading={isSubmitting}
-            disabled={isReadOnly}
-          >
-            招待内容を確認する
-          </Button>
-        </Flex>
+        {showSubmitAction && (
+          <Flex justify="flex-end">
+            <Button
+              type="submit"
+              colorPalette="teal"
+              minH="44px"
+              w={{ base: "full", md: "auto" }}
+              minW={{ md: "208px" }}
+              loading={isSubmitting}
+              disabled={isReadOnly}
+            >
+              招待内容を確認する
+            </Button>
+          </Flex>
+        )}
       </Stack>
     </form>
   );

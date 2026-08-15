@@ -172,6 +172,7 @@ export type DialogProps = {
   contentProps?: ComponentProps<typeof ChakraDialog.Content>;
   bodyProps?: ComponentProps<typeof ChakraDialog.Body>;
   preventClose?: boolean;
+  unmountOnExit?: boolean;
   actionLayout?: DialogActionAreaLayout;
   mobileActionLayout?: DialogMobileActionLayout;
   mobileFullScreen?: boolean;
@@ -202,6 +203,7 @@ export const Dialog = ({
   contentProps,
   bodyProps,
   preventClose = false,
+  unmountOnExit = false,
   actionLayout = "standard",
   mobileActionLayout = "inline",
   mobileFullScreen = false,
@@ -261,6 +263,7 @@ export const Dialog = ({
     <ChakraDialog.Root
       open={isOpen}
       lazyMount
+      unmountOnExit={unmountOnExit}
       onOpenChange={handleOpenChange}
       role={role}
       placement="center"

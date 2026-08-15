@@ -9,6 +9,7 @@ type Props = {
   selectedPersonId: string;
   isSubmitting: boolean;
   isReadOnly?: boolean;
+  showSubmitAction?: boolean;
   onSelect: (personId: string) => void;
   onSubmit: () => void;
 };
@@ -18,6 +19,7 @@ export function ManagerCandidateListView({
   selectedPersonId,
   isSubmitting,
   isReadOnly = false,
+  showSubmitAction = true,
   onSelect,
   onSubmit,
 }: Props) {
@@ -126,19 +128,21 @@ export function ManagerCandidateListView({
         </Stack>
       </RadioCard.Root>
 
-      <Flex justify="flex-end">
-        <Button
-          colorPalette="teal"
-          minH="44px"
-          w={{ base: "full", md: "auto" }}
-          minW={{ md: "208px" }}
-          loading={isSubmitting}
-          disabled={!selectedPersonId || isSubmitting || isReadOnly}
-          onClick={onSubmit}
-        >
-          管理者として招待する
-        </Button>
-      </Flex>
+      {showSubmitAction && (
+        <Flex justify="flex-end">
+          <Button
+            colorPalette="teal"
+            minH="44px"
+            w={{ base: "full", md: "auto" }}
+            minW={{ md: "208px" }}
+            loading={isSubmitting}
+            disabled={!selectedPersonId || isSubmitting || isReadOnly}
+            onClick={onSubmit}
+          >
+            管理者として招待する
+          </Button>
+        </Flex>
+      )}
     </Stack>
   );
 }

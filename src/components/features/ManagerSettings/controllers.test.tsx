@@ -302,6 +302,17 @@ describe("useManagerIssueController", () => {
     });
   });
 
+  it("モーダル経由の招待成功では完了callbackを呼び、ページ遷移しない", async () => {
+    const onCompleted = vi.fn();
+    const { result } = renderHook(() => useManagerIssueController({ overview, organizationId, onCompleted }));
+
+    act(() => result.current.onRequestExistingStaff(candidate));
+    act(() => result.current.onConfirm());
+
+    await waitFor(() => expect(onCompleted).toHaveBeenCalledOnce());
+    expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+
   it("旧backendのFree交代modeではaction capabilityがtrueでも新しい招待を開始しない", () => {
     const legacyOverview: ReadyManagerSettingsOverview = {
       ...overview,
