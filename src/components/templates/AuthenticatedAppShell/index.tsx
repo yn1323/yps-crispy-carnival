@@ -23,6 +23,7 @@ const UserMenu = lazy(() =>
 type Props = {
   activeKey: AppNavigationKey | null;
   activeOrganizationId?: string | null;
+  showPrimaryNavigation?: boolean;
   organizationSwitcher?: ReactNode;
   featureRequest?: {
     expectedOrganizationId: Id<"organizations">;
@@ -34,6 +35,7 @@ type Props = {
 export function AuthenticatedAppShell({
   activeKey,
   activeOrganizationId,
+  showPrimaryNavigation = true,
   organizationSwitcher,
   featureRequest,
   children,
@@ -45,7 +47,9 @@ export function AuthenticatedAppShell({
         brandSearch={activeOrganizationId ? { org: activeOrganizationId } : undefined}
         brandAriaLabel="ホームへ"
         primaryNavigation={
-          <DesktopAppPrimaryNavigation activeKey={activeKey} activeOrganizationId={activeOrganizationId} />
+          showPrimaryNavigation ? (
+            <DesktopAppPrimaryNavigation activeKey={activeKey} activeOrganizationId={activeOrganizationId} />
+          ) : undefined
         }
         userActions={
           <>
@@ -59,12 +63,18 @@ export function AuthenticatedAppShell({
       />
       <Box
         pt={HEADER_HEIGHT}
-        pb={{ base: `calc(${MOBILE_APP_NAVIGATION_HEIGHT} + env(safe-area-inset-bottom))`, lg: 0 }}
+        pb={
+          showPrimaryNavigation
+            ? { base: `calc(${MOBILE_APP_NAVIGATION_HEIGHT} + env(safe-area-inset-bottom))`, lg: 0 }
+            : 0
+        }
         minH="100dvh"
       >
         {children}
       </Box>
-      <MobileAppPrimaryNavigation activeKey={activeKey} activeOrganizationId={activeOrganizationId} />
+      {showPrimaryNavigation && (
+        <MobileAppPrimaryNavigation activeKey={activeKey} activeOrganizationId={activeOrganizationId} />
+      )}
     </Box>
   );
 }

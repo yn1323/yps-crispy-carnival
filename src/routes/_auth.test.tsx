@@ -113,12 +113,17 @@ vi.mock("@/src/components/templates/AuthenticatedAppShell", () => ({
     children,
     organizationSwitcher,
     featureRequest,
+    showPrimaryNavigation,
   }: {
     children: ReactNode;
     organizationSwitcher?: ReactNode;
     featureRequest?: { expectedOrganizationId: string; scope: { kind: "organization" } };
+    showPrimaryNavigation?: boolean;
   }) => {
-    mocks.authenticatedAppShellProps({ featureRequest });
+    mocks.authenticatedAppShellProps({
+      featureRequest,
+      ...(showPrimaryNavigation === undefined ? {} : { showPrimaryNavigation }),
+    });
     return (
       <div data-testid="app-shell">
         {organizationSwitcher}
@@ -265,6 +270,10 @@ describe("認証済み親route", () => {
     expect(screen.getByTestId("app-shell")).toBeTruthy();
     expect(screen.getByTestId("dashboard-setup")).toBeTruthy();
     expect(screen.queryByTestId("organization-state")).toBeNull();
+    expect(mocks.authenticatedAppShellProps).toHaveBeenCalledWith({
+      featureRequest: undefined,
+      showPrimaryNavigation: false,
+    });
   });
 
   it("詳細画面で組織を変更すると旧entityを持ち越さず同じ主タブへ移動する", () => {

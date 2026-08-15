@@ -202,7 +202,7 @@ export function DashboardSetupPage() {
   const currentUser = useQuery(api.dashboard.queries.getCurrentUser, {});
 
   return (
-    <AuthenticatedPageContent includeMobileNavigation>
+    <AuthenticatedPageContent>
       <Animation>
         {currentUser === undefined ? (
           <DashboardPageStateView state={{ kind: "loading" }} />

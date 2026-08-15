@@ -204,6 +204,7 @@ function AppOrganizationRouteState({
   onChooseAvailableOrganization: () => void;
   emptyContent?: ReactNode;
 }) {
+  const isDashboardSetup = state.kind === "empty" && emptyContent !== undefined;
   const content =
     state.kind === "empty" && emptyContent ? (
       emptyContent
@@ -214,6 +215,7 @@ function AppOrganizationRouteState({
   return (
     <AppLayoutFrame
       appShell={appShell}
+      showPrimaryNavigation={!isDashboardSetup}
       organizationSwitcher={
         state.kind === "loading" && appShell.mode === "navigation" ? <OrganizationSwitcherPlaceholder /> : undefined
       }
@@ -257,12 +259,14 @@ type FeatureRequestTarget = {
 
 function AppLayoutFrame({
   appShell,
+  showPrimaryNavigation = true,
   activeOrganizationId,
   organizationSwitcher,
   featureRequest,
   children,
 }: {
   appShell: AppShellData;
+  showPrimaryNavigation?: boolean;
   activeOrganizationId?: string;
   organizationSwitcher?: ReactNode;
   featureRequest?: FeatureRequestTarget;
@@ -273,6 +277,7 @@ function AppLayoutFrame({
       <AuthenticatedAppShell
         activeKey={appShell.activeKey}
         activeOrganizationId={activeOrganizationId}
+        {...(showPrimaryNavigation ? {} : { showPrimaryNavigation: false })}
         organizationSwitcher={organizationSwitcher}
         featureRequest={featureRequest}
       >

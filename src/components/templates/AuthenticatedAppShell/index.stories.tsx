@@ -76,6 +76,27 @@ export const AccountWithoutOrganizationAction: Story = {
   },
 };
 
+export const InitialSetupWithoutPrimaryNavigation: Story = {
+  args: {
+    activeKey: null,
+    activeOrganizationId: undefined,
+    organizationSwitcher: undefined,
+    featureRequest: undefined,
+    showPrimaryNavigation: false,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("navigation", { name: "メインメニュー" })).not.toBeInTheDocument();
+    await expect(canvas.getByRole("link", { name: "ホームへ" })).toBeVisible();
+  },
+};
+
+export const InitialSetupWithoutPrimaryNavigationMobile: Story = {
+  ...InitialSetupWithoutPrimaryNavigation,
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
 export const Mobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
