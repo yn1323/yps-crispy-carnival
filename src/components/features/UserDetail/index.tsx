@@ -126,9 +126,6 @@ export function UserDetail({ data, organizationId }: Props) {
             handleClosePanel();
           }
         },
-        onManageManagers: () => {
-          void navigate({ to: "/app/manage/managers", search: { org: organizationId } });
-        },
         onRequestRemovePerson: removal.onRequestRemovePerson,
         onConfirmRemovePerson: async () => {
           await removal.onConfirmRemoval();

@@ -35,6 +35,7 @@ export const globalCss = defineGlobalStyles({
     bg: "bg",
     lineHeight: "1.5",
     colorPalette: "gray",
+    scrollbarGutter: "stable",
   },
   "*::placeholder, *[data-placeholder]": {
     color: "fg.muted/80",

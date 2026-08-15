@@ -77,11 +77,8 @@ export function ManagerExternalInviteFormView({
     >
       <Stack gap={5} maxW="640px" w="full">
         <Stack gap={1}>
-          <Text as="h2" fontSize="lg" fontWeight="semibold" color="gray.900">
-            招待する方の情報
-          </Text>
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            経営者や本部担当者など、組織に未登録の方をメールで招待します。
+            組織、店舗にいないユーザーを招待します。
           </Text>
         </Stack>
         {isReadOnly && disabledReason && (
@@ -94,13 +91,24 @@ export function ManagerExternalInviteFormView({
           </Alert.Root>
         )}
         <Field.Root required invalid={Boolean(errors.name)}>
-          <Field.Label>氏名</Field.Label>
-          <Input autoComplete="name" disabled={isSubmitting || isReadOnly} {...register("name")} />
+          <Field.Label>名前</Field.Label>
+          <Input
+            autoComplete="name"
+            placeholder="例：山田 太郎"
+            disabled={isSubmitting || isReadOnly}
+            {...register("name")}
+          />
           <Field.ErrorText>{errors.name?.message}</Field.ErrorText>
         </Field.Root>
         <Field.Root required invalid={Boolean(errors.email)}>
           <Field.Label>メールアドレス</Field.Label>
-          <Input type="email" autoComplete="email" disabled={isSubmitting || isReadOnly} {...register("email")} />
+          <Input
+            type="email"
+            autoComplete="email"
+            placeholder="例：yamada@example.com"
+            disabled={isSubmitting || isReadOnly}
+            {...register("email")}
+          />
           <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
         </Field.Root>
         {showSubmitAction && (

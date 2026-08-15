@@ -1,50 +1,7 @@
-import { Heading, Stack, Text } from "@chakra-ui/react";
-import { LuShieldCheck } from "react-icons/lu";
+import { Stack, Text } from "@chakra-ui/react";
 import { DeletionActionSection } from "@/src/components/shared/DeletionActionSection";
-import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
-import type { UserDetailData, UserDetailRemovalPreview } from "./types";
-
-export function UserManagerSettings({
-  data,
-  onManageManagers,
-  disabledReason,
-}: {
-  data: UserDetailData;
-  onManageManagers: () => void;
-  disabledReason?: string;
-}) {
-  if (data.managerInvitationState.kind === "hidden") return null;
-
-  return (
-    <Stack gap={4}>
-      <Stack gap={1}>
-        <Heading as="h3" fontSize="md" fontWeight="semibold" color="gray.900">
-          管理者権限
-        </Heading>
-        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          {getManagerRoleDescription(data)}
-        </Text>
-      </Stack>
-      <Button
-        variant="outline"
-        alignSelf="flex-end"
-        gap={1.5}
-        disabled={Boolean(disabledReason)}
-        aria-describedby={disabledReason ? "user-manager-settings-disabled-reason" : undefined}
-        onClick={onManageManagers}
-      >
-        <LuShieldCheck aria-hidden />
-        管理者設定で変更
-      </Button>
-      {disabledReason && (
-        <Text id="user-manager-settings-disabled-reason" fontSize="xs" color="orange.700" textAlign="right">
-          {disabledReason}
-        </Text>
-      )}
-    </Stack>
-  );
-}
+import type { UserDetailRemovalPreview } from "./types";
 
 export function UserGroupRemovalSection({
   personName,
@@ -123,13 +80,6 @@ export function UserGroupRemovalSection({
       )}
     </>
   );
-}
-
-function getManagerRoleDescription(data: UserDetailData): string {
-  if (data.managerRole === "active") return "現在の管理者です。権限の変更は管理者設定から行えます。";
-  if (data.managerRole === "readOnly") return "閲覧のみの管理者です。契約状態の復旧後に権限を変更できます。";
-  if (data.hasManagerInvitation) return "管理者招待を送信済みです。再送や取り消しは管理者設定から行えます。";
-  return "現在は管理者ではありません。招待は管理者設定から行えます。";
 }
 
 function getAssignmentRemovalWarning(preview: Extract<UserDetailRemovalPreview, { kind: "tooMany" }>) {

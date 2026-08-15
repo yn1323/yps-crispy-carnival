@@ -16,7 +16,6 @@ import { UserSummary } from "./UserSummary";
 export type UserDetailViewProps = {
   data: UserDetailData;
   showShopMembershipAddition: boolean;
-  managerSettingsDisabledReason?: string;
   nonNavigationActionsDisabled?: boolean;
   activePanel?: UserDetailPanel;
   state: {
@@ -48,7 +47,6 @@ export type UserDetailViewProps = {
     onSendLineInvite: () => Promise<unknown>;
     onDisconnectLine: (requestId: string) => Promise<boolean | undefined>;
     onChangeMemberships: (input: UserMembershipChangeInput) => void | Promise<void>;
-    onManageManagers: () => void;
     onRequestRemovePerson: () => void;
     onConfirmRemovePerson: () => void | Promise<void>;
     onCloseRemovalDialog: () => void;
@@ -58,7 +56,6 @@ export type UserDetailViewProps = {
 export function UserDetailView({
   data,
   showShopMembershipAddition,
-  managerSettingsDisabledReason,
   nonNavigationActionsDisabled = false,
   activePanel,
   state,
@@ -157,8 +154,6 @@ export function UserDetailView({
         onOpenChange={handleDialogOpenChange}
         onClose={actions.onClosePanel}
         onUpdateProfile={actions.onUpdateProfile}
-        onManageManagers={actions.onManageManagers}
-        managerSettingsDisabledReason={managerSettingsDisabledReason}
       />
 
       <UserLineConnectionDialog

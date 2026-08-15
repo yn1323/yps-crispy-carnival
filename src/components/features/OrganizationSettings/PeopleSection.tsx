@@ -84,11 +84,11 @@ export const PeopleSection = ({
           </Heading>
           {filterResultCount !== undefined && (
             <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2.5} py={1}>
-              表示 {filterResultCount}人{filterResultCountHasOverflow ? "以上" : ""}
+              店舗所属スタッフ {filterResultCount}人{filterResultCountHasOverflow ? "以上" : ""}
             </Badge>
           )}
         </HStack>
-        <Flex gap={2} wrap="wrap" justify="flex-end">
+        <Flex gap={2} wrap="wrap" justify="flex-end" ms="auto">
           {onAddStaff && (
             <Button
               variant="ghost"
@@ -183,7 +183,7 @@ export function PeopleSectionSkeleton({
           <Skeleton h="28px" w="184px" maxW="70vw" />
         </HStack>
         {(showAddStaff || showManagerInvitation) && (
-          <Flex gap={2} wrap="wrap" justify="flex-end">
+          <Flex gap={2} wrap="wrap" justify="flex-end" ms="auto">
             {showAddStaff && <Skeleton h="36px" w="120px" borderRadius="md" />}
             {showManagerInvitation && <Skeleton h="36px" w="136px" borderRadius="md" />}
           </Flex>

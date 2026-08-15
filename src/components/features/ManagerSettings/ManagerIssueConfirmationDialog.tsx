@@ -27,7 +27,7 @@ export function ManagerIssueConfirmationDialog({ confirmation, isRunning, onClos
       }}
       onClose={onClose}
       onSubmit={onConfirm}
-      closeLabel="やめる"
+      closeLabel="戻る"
       submitLabel="招待する"
       isLoading={isRunning}
       preventClose={isRunning}
@@ -60,11 +60,7 @@ export function ManagerIssueConfirmationContent({
         {confirmation.invitedName}さんへ管理者招待を送ります。
       </Text>
       <Text>{confirmation.email}</Text>
-      <Text>
-        本人が有効な招待URLからログインまたは登録し、招待を承認すると管理者になります。
-        <br />
-        承認されるまでは、組織の人物として登録されません。
-      </Text>
+      <Text>シフトリに登録後、招待URLをクリックすることで管理者として追加します。</Text>
     </Stack>
   );
 }

@@ -50,7 +50,7 @@ const openDateOnlyManagerStep = async (canvasElement: HTMLElement) => {
   await expect(pricingLink).toHaveAttribute("href", "/pricing");
   await expect(pricingLink).toHaveAttribute("target", "_blank");
   await expect(pricingLink).toHaveAttribute("rel", "noreferrer");
-  await expect(dialog.getByRole("textbox", { name: "シフト連絡先メールアドレス" })).toBeInTheDocument();
+  await expect(dialog.getByRole("textbox", { name: "シフト通知先メールアドレス" })).toBeInTheDocument();
 };
 
 export const DateOnlySkipsSettings: Story = {

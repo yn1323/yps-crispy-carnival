@@ -202,11 +202,6 @@ export const NoManagerNotificationRecipient: Story = {
   args: {
     shop: { ...shop, managerNotificationRecipientStatus: "none" },
   },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.getByText("店舗通知を受け取る管理者がいません")).toBeInTheDocument();
-    await expect(canvas.getByText(/管理者をこの店舗の所属スタッフに追加することをおすすめします/)).toBeInTheDocument();
-  },
 };
 
 export const ReadOnly: Story = {

@@ -42,7 +42,7 @@
 
 ## 初回セットアップとの境界
 
-- 初回セットアップの「シフト連絡先メールアドレス」は、本人のシフト通知と管理者向け連絡に使う連絡先であり、Clerkのログイン方法ではない。
+- 初回セットアップの「シフト通知先メールアドレス」は、本人のシフト通知と管理者向け連絡に使う連絡先であり、Clerkのログイン方法ではない。
 - 初回セットアップは`/dashboard`で組織所属が0件のときだけ表示し、同じ本人が二つ目の組織、店舗、管理者を作る入口として使わない。
 - 作成する課金状態は支払い不要Business（`complimentary.business`）である。  Trial期限、Stripe Customer、Checkout Session、Subscription、課金deadlineは作成しない。
 - 登録した氏名とシフト連絡先は、最初の`organizationPeople`と`staffs`へ保存する。

@@ -51,9 +51,10 @@ export function UserShopNotificationSection({
           {membership.excludedFromShift && (
             <Box borderWidth="1px" borderColor="blackAlpha.100" bg="blackAlpha.50" borderRadius="md" p={3}>
               <Stack gap={1}>
-                <Text fontWeight="semibold">この店舗ではシフト対象外です</Text>
-                <Text fontSize="sm" color="fg.muted">
-                  シフト表、提出依頼、確定シフト通知の対象から外れています。
+                <Text fontWeight="semibold">シフト募集、確定を通知しません</Text>
+                <Text fontSize="xs" color="fg.muted">
+                  シフト表表示、提出依頼、確定シフト通知の対象から外れています。
+                  <br />
                 </Text>
               </Stack>
             </Box>

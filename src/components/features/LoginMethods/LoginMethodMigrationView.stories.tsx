@@ -90,7 +90,7 @@ function EmailPasswordPreview({
     setCompleted(true);
     showSuccessToast({
       title: "メインのメールアドレスとパスワードを設定しました",
-      description: "Google認証とシフト連絡先メールアドレスは変わりません。",
+      description: "Google認証とシフト通知先メールアドレスは変わりません。",
     });
   });
 
@@ -372,7 +372,7 @@ export const AddEmailPasswordBehavior: Story = {
     await waitFor(() => expect(body.queryByRole("dialog", { name: "パスワード設定" })).not.toBeInTheDocument());
     const toastTitle = await body.findByText("メインのメールアドレスとパスワードを設定しました");
     await waitFor(() => expect(toastTitle).toBeVisible());
-    await expect(await body.findByText("Google認証とシフト連絡先メールアドレスは変わりません。")).toBeVisible();
+    await expect(await body.findByText("Google認証とシフト通知先メールアドレスは変わりません。")).toBeVisible();
     await waitFor(() => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
   },
 };

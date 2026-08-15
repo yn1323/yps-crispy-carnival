@@ -49,7 +49,6 @@ vi.mock("./UserDetailView", () => ({
       onClosePanel: () => void;
       onUpdateProfile: (data: { name: string; email: string }) => void | Promise<void>;
       onChangeMemberships: (input: UserMembershipChangeInput) => void;
-      onManageManagers: () => void;
     };
   }) => (
     <div>
@@ -77,9 +76,6 @@ vi.mock("./UserDetailView", () => ({
       </button>
       <button type="button" onClick={() => actions.onChangeMemberships(membershipChangeInput)}>
         所属店舗を変更する
-      </button>
-      <button type="button" onClick={actions.onManageManagers}>
-        管理者設定を開く
       </button>
     </div>
   ),
@@ -150,7 +146,7 @@ beforeEach(() => {
 });
 
 describe("UserDetail", () => {
-  it("panelをlocal stateで開き、canonical組織scopeの詳細と管理へ遷移する", () => {
+  it("panelをlocal stateで開き、canonical組織scopeの店舗別設定へ遷移する", () => {
     render(<UserDetail data={data} organizationId={organizationId} />);
 
     fireEvent.click(screen.getByRole("button", { name: "スタッフ情報を開く" }));
@@ -161,11 +157,6 @@ describe("UserDetail", () => {
     expect(mocks.navigate).toHaveBeenNthCalledWith(1, {
       to: "/app/staff/$personId/shops/$shopId",
       params: { personId: "person-1", shopId: "shop-b" },
-      search: { org: organizationId },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "管理者設定を開く" }));
-    expect(mocks.navigate).toHaveBeenNthCalledWith(2, {
-      to: "/app/manage/managers",
       search: { org: organizationId },
     });
   });

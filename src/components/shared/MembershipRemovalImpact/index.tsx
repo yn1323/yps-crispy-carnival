@@ -28,8 +28,8 @@ export function MembershipRemovalImpact({ id, heading, description, badgeLabel, 
       <Box id={id}>
         {id && <VisuallyHidden>{badgeLabel}。</VisuallyHidden>}
         <List.Root as="ul" gap={1} ps={5} color="red.700" fontSize="sm" lineHeight="tall">
-          <List.Item>今日以降のシフト割り当てから削除します。</List.Item>
-          <List.Item>この店舗へのシフト通知は送られなくなります。組織のLINE連携は残ります。</List.Item>
+          <List.Item>シフト割り当てから削除</List.Item>
+          <List.Item>以降シフト通知は送りません</List.Item>
         </List.Root>
       </Box>
       {statusMessage && (

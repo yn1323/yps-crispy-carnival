@@ -120,7 +120,7 @@ function CurrentUserLoginMethods({
       if (flow === "add-email-password") {
         showSuccessToast({
           title: "メインのメールアドレスとパスワードを設定しました",
-          description: "Google認証とシフト連絡先メールアドレスは変わりません。",
+          description: "Google認証とシフト通知先メールアドレスは変わりません。",
         });
       } else {
         showSuccessToast({

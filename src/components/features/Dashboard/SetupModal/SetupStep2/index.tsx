@@ -40,7 +40,7 @@ export const SetupStep2 = ({ onSubmit, defaultValues, formId = "setup-step2" }: 
           {errors.name && <Field.ErrorText>{errors.name.message}</Field.ErrorText>}
         </Field.Root>
         <Field.Root invalid={!!errors.email}>
-          <Field.Label>シフト連絡先メールアドレス</Field.Label>
+          <Field.Label>シフト通知先メールアドレス</Field.Label>
           <Input
             type="email"
             {...register("email")}
