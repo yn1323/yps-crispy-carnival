@@ -62,6 +62,7 @@ describe("組織の対応一覧シナリオ", () => {
           applicantName: "登録申請スタッフ",
           createdAt: NOW - 2_000,
           canApprove: true,
+          approveDisabledReason: null,
           canReject: true,
           occurredAt: NOW - 2_000,
         },
