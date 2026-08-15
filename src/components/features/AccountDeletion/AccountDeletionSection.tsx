@@ -102,7 +102,7 @@ function getReadyDescription(preview: AccountDeletionReadyPreview): string {
     case "leaveOrganization":
       return `「${preview.organization.name}」から退出し、ログインアカウントを削除します。組織と店舗は、ほかの管理者が引き続き利用できます。`;
     case "deleteOrganization":
-      return `あなたが唯一の管理者であるため、「${preview.organization.name}」と全${preview.organization.shopCount}店舗の利用を終了し、ログインアカウントを削除します。`;
+      return `「${preview.organization.name}」と全${preview.organization.shopCount}店舗の利用を終了し、ログインアカウントを削除します。`;
   }
 }
 
