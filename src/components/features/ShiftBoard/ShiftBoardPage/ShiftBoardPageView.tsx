@@ -10,7 +10,7 @@ import { RemindUnsubmittedContent } from "../RemindUnsubmittedContent";
 import { UnsavedChangesDialog } from "../UnsavedChangesDialog";
 import type { ShiftBoardPageViewProps } from "./types";
 
-export const ShiftBoardPageView = ({ viewModel, intents, layout = "legacy" }: ShiftBoardPageViewProps) => {
+export const ShiftBoardPageView = ({ viewModel, intents, layout = "legacy", header }: ShiftBoardPageViewProps) => {
   const { shiftForm, confirmDialog, unsubmittedDialog, unsavedChangesDialog } = viewModel;
 
   return (
@@ -134,6 +134,7 @@ export const ShiftBoardPageView = ({ viewModel, intents, layout = "legacy" }: Sh
           validationIssues={shiftForm.validationIssues}
           validationWarnings={shiftForm.validationWarnings}
           onDismissValidationIssues={intents.onDismissValidationIssues}
+          header={layout === "app" ? header : undefined}
         />
       </Box>
 

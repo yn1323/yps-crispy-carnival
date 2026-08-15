@@ -7,7 +7,6 @@ import {
   AUTHENTICATED_APP_CONTENT_HEIGHT,
   AuthenticatedAppShell,
 } from "@/src/components/templates/AuthenticatedAppShell";
-import { FocusedFlowHeader } from "@/src/components/templates/FocusedFlowHeader";
 import { Button } from "@/src/components/ui/Button";
 import { Toaster, toaster } from "@/src/components/ui/toaster";
 import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
@@ -233,10 +232,18 @@ const APP_ORGANIZATION_ID = "organization-1";
 const renderAppShiftBoard = (args: ComponentProps<typeof ShiftBoardPage>) => (
   <AuthenticatedAppShell activeKey="shifts" activeOrganizationId={APP_ORGANIZATION_ID}>
     <Flex direction="column" h={AUTHENTICATED_APP_CONTENT_HEIGHT} minH={0}>
-      <FocusedFlowHeader title="シフトを調整" backLabel="シフト一覧へ戻る" backAriaLabel="シフト一覧へ戻る" compact />
       <Box flex={1} minH={0}>
         <ManagerShopScopeProvider shopId="shop-1" expectedOrganizationId={APP_ORGANIZATION_ID}>
-          <ShiftBoardPage {...args} layout="app" />
+          <ShiftBoardPage
+            {...args}
+            layout="app"
+            header={{
+              desktopTitle: "yn1323店舗：1/20 〜 1/26",
+              mobileTitle: "1/20 〜 1/26",
+              backLabel: "シフト一覧へ戻る",
+              backAriaLabel: "シフト一覧へ戻る",
+            }}
+          />
         </ManagerShopScopeProvider>
       </Box>
     </Flex>

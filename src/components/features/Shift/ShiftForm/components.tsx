@@ -157,7 +157,15 @@ export const Avatar = ({ staff, size = 28 }: { staff: StaffType; size?: number }
   </Box>
 );
 
-export const ViewTabs = ({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) => {
+export const ViewTabs = ({
+  value,
+  onChange,
+  compactSpacing = false,
+}: {
+  value: ViewMode;
+  onChange: (v: ViewMode) => void;
+  compactSpacing?: boolean;
+}) => {
   const tabs: { k: ViewMode; label: string }[] = [
     { k: "daily", label: "日別" },
     { k: "overview", label: "一覧" },
@@ -175,7 +183,7 @@ export const ViewTabs = ({ value, onChange }: { value: ViewMode; onChange: (v: V
             onClick={() => onChange(t.k)}
             cursor="pointer"
             py="10px"
-            px={{ base: "14px", lg: "18px" }}
+            px={compactSpacing ? "6px" : { base: "14px", lg: "18px" }}
             textStyle="sm"
             fontWeight={active ? 700 : 500}
             color={active ? "teal.700" : "gray.500"}

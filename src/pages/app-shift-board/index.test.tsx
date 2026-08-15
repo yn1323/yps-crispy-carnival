@@ -27,10 +27,21 @@ vi.mock("@/convex/_generated/api", () => ({
   },
 }));
 vi.mock("@/src/components/features/ShiftBoard", () => ({
-  ShiftBoardPage: ({ data, layout }: { data: { shopId: string }; layout?: string }) => (
-    <output data-testid="shop-id" data-layout={layout}>
-      {data.shopId}
-    </output>
+  ShiftBoardPage: ({
+    data,
+    layout,
+    header,
+  }: {
+    data: { shopId: string };
+    layout?: string;
+    header?: { desktopTitle: string };
+  }) => (
+    <>
+      <output data-testid="shop-id" data-layout={layout}>
+        {data.shopId}
+      </output>
+      {header && <h1>{header.desktopTitle}</h1>}
+    </>
   ),
 }));
 vi.mock("@/src/components/templates/Animation", () => ({
@@ -38,9 +49,6 @@ vi.mock("@/src/components/templates/Animation", () => ({
 }));
 vi.mock("@/src/components/templates/AuthenticatedAppShell", () => ({
   AUTHENTICATED_APP_CONTENT_HEIGHT: "100dvh",
-}));
-vi.mock("@/src/components/templates/FocusedFlowHeader", () => ({
-  FocusedFlowHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }));
 vi.mock("@/src/components/ui/Button", () => ({
   Button: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (

@@ -1,6 +1,6 @@
 import type { AssignmentIssue } from "@/convex/shiftBoard/validation";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
-import type { ReminderStatus } from "@/src/components/features/Shift/ShiftForm";
+import type { ReminderStatus, ShiftFormHeader } from "@/src/components/features/Shift/ShiftForm";
 import type { DisplayIssue } from "@/src/domains/shift/assignmentIssues";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
@@ -65,4 +65,5 @@ export type ShiftBoardPageViewProps = {
   viewModel: ShiftBoardPageViewModel;
   intents: ShiftBoardPageIntents;
   layout?: "legacy" | "app";
+  header?: ShiftFormHeader;
 };
