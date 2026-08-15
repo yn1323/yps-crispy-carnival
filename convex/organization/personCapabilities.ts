@@ -39,7 +39,7 @@ export function deriveOrganizationPersonCapabilities(input: OrganizationPersonCa
       : input.managerRole === "readOnly"
         ? "契約状態を復旧してから変更できます。"
         : input.activeManagerCount <= 1
-          ? "最後の有効管理者の管理者権限は外せません。"
+          ? "最後の管理者の権限は外せません。"
           : !input.isActiveActor
             ? "閲覧のみの管理者は、管理者権限を変更できません。"
             : input.isRestricted

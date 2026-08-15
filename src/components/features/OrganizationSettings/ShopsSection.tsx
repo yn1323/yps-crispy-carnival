@@ -1,4 +1,4 @@
-import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Stack } from "@chakra-ui/react";
 import { LuPlus, LuStore } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { DrilldownRow } from "@/src/components/ui/DrilldownRow";
@@ -50,12 +50,6 @@ export const ShopsSection = ({
         </Button>
       )}
     </Flex>
-
-    {showAddShop && !canAddShop && addShopDisabledReason && (
-      <Text id="organization-shop-add-disabled-reason" fontSize="sm" color="orange.700">
-        {addShopDisabledReason}
-      </Text>
-    )}
 
     {shops.length === 0 ? (
       <Empty icon={LuStore} title="登録されている店舗はありません。" titleAs="h3" variant="section" py={6} />

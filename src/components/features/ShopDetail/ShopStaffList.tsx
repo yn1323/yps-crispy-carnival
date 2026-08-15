@@ -58,7 +58,9 @@ export function ShopStaffList({
           <Alert.Content>
             <Alert.Title>店舗通知を受け取る管理者がいません</Alert.Title>
             <Alert.Description>
-              スタッフ申請、シフト確定、通知エラーなど、この店舗に関する管理者向け通知は送信されません。通知が必要な場合は、管理者をこの店舗の所属スタッフに追加することをおすすめします。
+              スタッフ申請、シフト確定、通知エラーなど、この店舗に関する管理者向け通知は送信されません。
+              <br />
+              管理者を所属させることをおすすめします。
             </Alert.Description>
           </Alert.Content>
         </Alert.Root>

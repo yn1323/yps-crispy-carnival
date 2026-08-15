@@ -350,9 +350,6 @@ export const ManagerStaff: Story = {
   play: async () => {
     const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
     await userEvent.click(within(dialog).getByRole("tab", { name: "設定" }));
-    await expect(
-      await within(dialog).findByText("現在の管理者です。権限の変更は管理者設定から行えます。"),
-    ).toBeInTheDocument();
     await expect(within(dialog).getByRole("button", { name: "管理者設定で変更" })).toBeEnabled();
     await expect(await within(dialog).findByRole("button", { name: "スタッフを削除" })).toBeDisabled();
   },

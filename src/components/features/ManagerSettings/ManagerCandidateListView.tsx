@@ -75,21 +75,21 @@ export function ManagerCandidateListView({
                 borderRadius={0}
                 borderTopWidth={index === 0 ? 0 : "1px"}
                 borderTopColor="blackAlpha.100"
-                bg={isSelected ? "teal.600" : "white"}
+                bg={isSelected ? "teal.500" : "white"}
                 color={isSelected ? "white" : "gray.900"}
                 opacity={candidate.canSelect ? 1 : 0.7}
                 cursor={candidate.canSelect && !isReadOnly ? "pointer" : "not-allowed"}
                 _hover={candidate.canSelect && !isReadOnly && !isSelected ? { bg: "gray.50" } : undefined}
-                _checked={{ bg: "teal.600", color: "white" }}
+                _checked={{ bg: "teal.500", color: "white" }}
               >
                 <RadioCard.ItemHiddenInput />
-                <RadioCard.ItemControl px={{ base: 3, md: 4 }} py={3.5} minH="72px">
+                <RadioCard.ItemControl px={{ base: 3, md: 4 }} py={3.5} minH="72px" alignItems="center">
                   <RadioCard.ItemIndicator flexShrink={0} />
                   <Flex
                     boxSize="40px"
                     borderRadius="full"
-                    bg={isSelected ? "teal.700" : "teal.100"}
-                    color={isSelected ? "white" : "teal.700"}
+                    bg="teal.100"
+                    color="teal.700"
                     align="center"
                     justify="center"
                     fontWeight="semibold"

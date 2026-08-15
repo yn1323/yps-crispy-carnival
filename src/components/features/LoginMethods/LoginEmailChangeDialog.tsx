@@ -183,7 +183,7 @@ function EmailInputStep({
         <br />
         変更が完了すると、以前のログイン用メールアドレスは削除されます。
         <br />
-        シフト連絡先メールアドレスやGoogle連携は変わりません。
+        シフト通知先メールアドレスやGoogle連携は変わりません。
       </Text>
       <StepMessage status={status} message={message} />
       <Field.Root invalid={Boolean(errors.email)}>

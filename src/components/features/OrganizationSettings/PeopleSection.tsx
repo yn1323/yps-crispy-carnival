@@ -84,7 +84,7 @@ export const PeopleSection = ({
           </Heading>
           {filterResultCount !== undefined && (
             <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2.5} py={1}>
-              表示 {filterResultCount}人{filterResultCountHasOverflow ? "以上" : ""}
+              店舗所属スタッフ {filterResultCount}人{filterResultCountHasOverflow ? "以上" : ""}
             </Badge>
           )}
         </HStack>

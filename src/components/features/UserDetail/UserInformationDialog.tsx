@@ -3,7 +3,6 @@ import type { PersonProfileFormData } from "@/src/components/shared/PersonProfil
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { UserDetailData } from "./types";
 import { UserInformationTab } from "./UserInformationTab";
-import { UserManagerSettings } from "./UserSettingsTab";
 
 type Props = {
   data: UserDetailData;
@@ -12,8 +11,6 @@ type Props = {
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;
   onUpdateProfile: (data: PersonProfileFormData) => void | Promise<void>;
-  onManageManagers: () => void;
-  managerSettingsDisabledReason?: string;
 };
 
 export function UserInformationDialog({
@@ -23,8 +20,6 @@ export function UserInformationDialog({
   onOpenChange,
   onClose,
   onUpdateProfile,
-  onManageManagers,
-  managerSettingsDisabledReason,
 }: Props) {
   const formId = `user-profile-${data.person.id}`;
 
@@ -48,21 +43,7 @@ export function UserInformationDialog({
       bodyProps={{ px: { base: 4, lg: 6 }, pt: 2, pb: { base: 6, lg: 6 } }}
     >
       <Stack>
-        <UserInformationTab
-          data={data}
-          formId={formId}
-          isReadOnly={!data.canWrite}
-          managerSettings={
-            data.managerInvitationState.kind === "hidden" ? null : (
-              <UserManagerSettings
-                data={data}
-                onManageManagers={onManageManagers}
-                disabledReason={managerSettingsDisabledReason}
-              />
-            )
-          }
-          onUpdate={onUpdateProfile}
-        />
+        <UserInformationTab data={data} formId={formId} isReadOnly={!data.canWrite} onUpdate={onUpdateProfile} />
       </Stack>
     </Dialog>
   );

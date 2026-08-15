@@ -60,7 +60,7 @@ function getPresentation(
 
 const getContactPresentation = (resolution: Pick<PeopleCapacityResolution, "current" | "max">) => ({
   kind: "contact" as const,
-  title: "利用人数の上限に達しています",
+  title: "プランの利用人数の上限に達しています",
   description: `現在の利用人数は${resolution.current}名（上限${resolution.max}名）です。\nこれ以上利用者を追加する場合はお問い合わせください。`,
   actionLabel: "利用上限について問い合わせる",
   href: "/contact",

@@ -89,8 +89,6 @@ export function UserShopMembershipDialog({
     const membership = membershipByShopId.get(shop.shopId);
     return membership ? [membership] : [];
   });
-  const removesActiveManagerFromShop =
-    data.managerRole === "active" && data.person.email.trim().length > 0 && removedShops.length > 0;
   const readyRemovalAssignmentCount = removedMemberships.reduce(
     (total, membership) =>
       membership.removalPreview.kind === "ready" ? total + membership.removalPreview.assignmentCount : total,
@@ -289,17 +287,6 @@ export function UserShopMembershipDialog({
             </Text>
             <Text mt={1} fontSize="sm" color="orange.800">
               先にシフトを整理してから、もう一度お試しください。
-            </Text>
-          </Box>
-        )}
-
-        {removesActiveManagerFromShop && (
-          <Box bg="orange.50" borderWidth="1px" borderColor="orange.200" borderRadius="lg" px={3} py={2.5}>
-            <Text fontSize="sm" color="orange.800" fontWeight="semibold">
-              店舗通知を受け取る管理者を、各店舗に1名以上所属させることをおすすめします。
-            </Text>
-            <Text mt={1} fontSize="sm" color="orange.800" lineHeight="tall">
-              外す店舗に所属する別の管理者がいない場合、その店舗のスタッフ参加申請・シフト確定の催促・通知エラーなどは送信されません。
             </Text>
           </Box>
         )}

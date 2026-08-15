@@ -64,7 +64,7 @@ export class StaffLifecyclePage {
 
     const nameInput = dialog.getByRole("textbox", { name: "名前", exact: true });
     const emailInput = dialog.getByRole("textbox", {
-      name: "シフト連絡先メールアドレス",
+      name: "シフト通知先メールアドレス",
       exact: true,
     });
     await expect(nameInput).toHaveValue(current.name);

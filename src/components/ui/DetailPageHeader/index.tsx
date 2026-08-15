@@ -32,6 +32,8 @@ export function DetailPageHeader({ title, onBack, backLabel = "前の画面に�
           h="auto"
           px={0}
           gap={2}
+          minW={0}
+          w="full"
           color="gray.900"
           textStyle={{ base: "sectionTitle", md: "pageTitle" }}
           justifyContent="flex-start"
@@ -42,7 +44,7 @@ export function DetailPageHeader({ title, onBack, backLabel = "前の画面に�
         >
           <LuChevronLeft aria-hidden />
           {icon && <Icon as={icon} boxSize={5} flexShrink={0} aria-hidden />}
-          <Text as="span" truncate minW={0}>
+          <Text as="span" flex={1} truncate minW={0} textAlign="left">
             {title}
           </Text>
         </Button>

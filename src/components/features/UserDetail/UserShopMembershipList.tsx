@@ -11,22 +11,9 @@ type Props = {
   onOpenShop: (shopId: string) => void;
 };
 
-export function UserShopMembershipList({ data, showShopMembershipAddition, onOpenShop }: Props) {
+export function UserShopMembershipList({ data, onOpenShop }: Props) {
   if (data.memberships.length === 0) {
-    return (
-      <Empty
-        icon={LuStore}
-        title="所属店舗はありません"
-        titleAs="h4"
-        description={
-          showShopMembershipAddition && data.canWrite
-            ? "「所属店舗を変更する」から、このユーザーの所属を変更できます。"
-            : "所属している店舗はありません。"
-        }
-        variant="section"
-        py={8}
-      />
-    );
+    return <Empty icon={LuStore} title="所属店舗はありません" titleAs="h4" variant="section" py={8} />;
   }
 
   return (

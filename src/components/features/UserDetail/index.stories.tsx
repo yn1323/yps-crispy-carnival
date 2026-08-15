@@ -176,12 +176,6 @@ const lineWithoutMembershipData: UserDetailData = {
   },
 };
 
-const managerInvitationHiddenData: UserDetailData = {
-  ...multipleStoresData,
-  hasManagerInvitation: true,
-  managerInvitationState: { kind: "hidden" },
-};
-
 const unlinkedData: UserDetailData = {
   ...multipleStoresData,
   person: { ...multipleStoresData.person, hasLinkedAccount: false },
@@ -240,7 +234,6 @@ const baseActions: UserDetailViewProps["actions"] = {
   onSendLineInvite: asyncNoop,
   onDisconnectLine: async () => false,
   onChangeMemberships: asyncNoop,
-  onManageManagers: noop,
   onRequestRemovePerson: noop,
   onConfirmRemovePerson: asyncNoop,
   onCloseRemovalDialog: noop,
@@ -304,12 +297,22 @@ export const BasicInformationDialog: Story = {
   play: settleBasicInformationDialogFocus,
 };
 
+export const ManagerSettingsRemoved: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: { activePanel: "basic" },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
+    await expect(within(dialog).queryByRole("heading", { name: "管理者権限" })).not.toBeInTheDocument();
+    await expect(within(dialog).queryByText(/権限の変更は管理者設定から行えます/)).not.toBeInTheDocument();
+  },
+};
+
 export const LinkedStaffContactEditable: Story = {
   args: { activePanel: "basic", data: multipleStoresData },
   parameters: { screenshot: { skip: true } },
   play: async () => {
     const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
-    await expect(within(dialog).getByRole("textbox", { name: "シフト連絡先メールアドレス" })).toHaveValue(
+    await expect(within(dialog).getByRole("textbox", { name: "シフト通知先メールアドレス" })).toHaveValue(
       "hanako.tanaka@example.com",
     );
   },
@@ -320,7 +323,7 @@ export const UnlinkedStaffContactEditable: Story = {
   parameters: { screenshot: { skip: true } },
   play: async () => {
     const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
-    await expect(within(dialog).getByRole("textbox", { name: "シフト連絡先メールアドレス" })).toHaveValue(
+    await expect(within(dialog).getByRole("textbox", { name: "シフト通知先メールアドレス" })).toHaveValue(
       "hanako.tanaka@example.com",
     );
   },
@@ -331,7 +334,7 @@ export const SelfContactGuidance: Story = {
   play: async () => {
     const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
 
-    await expect(await within(dialog).findByText(/シフト通知用先のメールアドレスです。/)).toBeInTheDocument();
+    await expect(await within(dialog).findByText(/シフト通知先のメールアドレスです。/)).toBeInTheDocument();
     await expect(within(dialog).findByRole("link", { name: "アカウント設定" })).resolves.toHaveAttribute(
       "href",
       "/account",
@@ -353,19 +356,8 @@ export const SelfStaffContactWithoutLoginGuidance: Story = {
   play: async () => {
     const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
 
-    await expect(within(dialog).queryByText("シフト通知用先のメールアドレスです。")).not.toBeInTheDocument();
+    await expect(within(dialog).queryByText("シフト通知先のメールアドレスです。")).not.toBeInTheDocument();
     await expect(within(dialog).queryByRole("link", { name: "アカウント設定" })).not.toBeInTheDocument();
-  },
-};
-
-export const ManagerInvitationDarkLaunchBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  args: { activePanel: "basic", data: managerInvitationHiddenData },
-  play: async () => {
-    const dialog = await screen.findByRole("dialog", { name: "スタッフ情報" });
-    await expect(within(dialog).getByRole("textbox", { name: "名前" })).toBeInTheDocument();
-    await expect(within(dialog).queryByRole("heading", { name: "管理者権限" })).not.toBeInTheDocument();
-    await expect(screen.queryByText("管理者招待中")).not.toBeInTheDocument();
   },
 };
 
@@ -697,10 +689,10 @@ export const BasicInformationFlowBehavior: Story = {
     const dialog = await page.findByRole("dialog", { name: "スタッフ情報" });
     const basicDialog = within(dialog);
     await expect(basicDialog.getByRole("textbox", { name: "名前" })).toHaveValue("田中 花子");
-    await expect(basicDialog.getByRole("textbox", { name: "シフト連絡先メールアドレス" })).toHaveValue(
+    await expect(basicDialog.getByRole("textbox", { name: "シフト通知先メールアドレス" })).toHaveValue(
       "hanako.tanaka@example.com",
     );
-    await expect(basicDialog.getByRole("heading", { name: "管理者権限" })).toBeInTheDocument();
+    await expect(basicDialog.queryByRole("heading", { name: "管理者権限" })).not.toBeInTheDocument();
     await userEvent.click(basicDialog.getByRole("button", { name: "キャンセル" }));
     await waitFor(() => expect(page.queryByRole("dialog", { name: "スタッフ情報" })).not.toBeInTheDocument());
   },

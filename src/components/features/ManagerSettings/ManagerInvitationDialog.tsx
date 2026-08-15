@@ -173,7 +173,7 @@ export function ManagerInvitationDialogView({
       isSubmitDisabled={isSubmitDisabled}
       preventClose={isRunning}
       unmountOnExit
-      mobileActionLayout="stacked"
+      mobileActionLayout="inline"
       mobileFullScreen
       maxW={{ base: "calc(100vw - 24px)", md: "640px" }}
       maxH={{ base: "calc(100dvh - 24px)", md: "80dvh" }}
@@ -286,5 +286,5 @@ function getDialogTitle(mode: ManagerInvitationDialogMode, confirmation: Manager
 
 function getSubmitLabel(mode: ManagerInvitationDialogMode, confirmation: ManagerInvitationIssueConfirmation) {
   if (confirmation) return "招待する";
-  return mode === "existingStaff" ? "管理者として招待する" : "招待内容を確認する";
+  return mode === "existingStaff" ? "管理者として招待する" : "確認する";
 }

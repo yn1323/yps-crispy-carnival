@@ -42,7 +42,7 @@ const baseSteps: StepperDialogStep<Step>[] = [
     label: "あなた",
     icon: LuUserRound,
     title: "あなたの情報",
-    description: "管理者として表示する名前と、シフト連絡先メールアドレスを登録します。",
+    description: "管理者として表示する名前と、シフト通知先メールアドレスを登録します。",
   },
 ];
 
