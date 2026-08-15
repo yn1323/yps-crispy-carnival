@@ -44,6 +44,10 @@ describe("app organization manage mutations", () => {
     const created = await t.run(async (ctx) => ({
       organization: await ctx.db.get(result.organizationId),
       shop: await ctx.db.get(result.shopId),
+      billingState: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", result.organizationId))
+        .unique(),
       members: await ctx.db
         .query("organizationMembers")
         .withIndex("by_userId_and_organizationId", (q) =>
@@ -59,6 +63,11 @@ describe("app organization manage mutations", () => {
     });
     expect(created.members).toHaveLength(1);
     expect(created.members[0]).toMatchObject({ status: "active" });
+    expect(created.billingState).toMatchObject({
+      state: { kind: "active", plan: "free" },
+      freeManagerPersonId: created.members[0]?.personId,
+      freeShopId: result.shopId,
+    });
   });
 
   it("org Aのactorはorg Bの管理writeと課金contextを副作用なしで利用できない", async () => {
