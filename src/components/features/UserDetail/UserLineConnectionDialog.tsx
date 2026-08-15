@@ -148,8 +148,8 @@ export function UserLineConnectionDialog({
                   <Stack gap={3} w="full">
                     <Stack gap={1} fontSize="sm" color="fg.muted" lineHeight="tall">
                       <Text>{data.person.name}さん専用のURL（QRコード）です。</Text>
-                      <Text>本人へ直接共有してください。ほかのスタッフには共有しないでください。</Text>
-                      <Text>この組織で現在および今後所属する店舗に共通で使われます。</Text>
+                      <Text>本人へ直接共有してください。</Text>
+                      <Text>ほかのスタッフには共有しないでください。</Text>
                     </Stack>
                     <LineLinkQrDialog authorizeUrl={authorizeUrl} isLoading={isQrLoading} />
                   </Stack>
