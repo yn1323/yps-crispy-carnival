@@ -513,7 +513,6 @@ describe("OrganizationSettings controllers", () => {
 
     act(() => result.current.open());
     expect(result.current.dialog.dialog).toEqual({
-      intentKey: "request-1",
       organizationName: "さくらダイニング",
     });
     act(() => {

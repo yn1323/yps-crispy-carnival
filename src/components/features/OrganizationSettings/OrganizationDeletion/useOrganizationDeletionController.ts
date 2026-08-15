@@ -95,9 +95,7 @@ export function useOrganizationDeletionController(
     });
   };
 
-  const dialog: OrganizationDeletionDialogState | null = intent
-    ? { intentKey: intent.requestId, organizationName: intent.organizationName }
-    : null;
+  const dialog: OrganizationDeletionDialogState | null = intent ? { organizationName: intent.organizationName } : null;
   return {
     open,
     dialog: {
