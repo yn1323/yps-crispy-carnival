@@ -22,6 +22,10 @@ force push、rebase、mergeは行わない。
 PRタイトルと本文を書く前に、`$japanese-tech-writing` を使う。
 本スキルには文章規範を複製せず、日本語表現の判断は `japanese-tech-writing` に従う。
 
+デフォルトブランチとの大きなdiff・commit logの事実抽出と、親Agentが選んだtest・lint・buildの実行・log整理では、`$delegate-bounded-repo-work`を併用する。
+対象判定、固定model、委譲契約は同Skillを正本とする。
+base・head、PRタイトルと本文、push、Pull Request作成は本Skillの親Agentが判断・実行する。
+
 ## ワークフロー
 
 ### 1. 対象を確定する
