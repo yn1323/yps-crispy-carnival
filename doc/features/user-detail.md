@@ -106,9 +106,13 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 
 同じ組織、人物、操作主体、`requestId`と同じ変更意図の再実行は、最初に確定した結果を返し、staff、通知予約、監査記録を重複させない。  同じscopeの`requestId`を異なる所属集合、fingerprintまたはpreviewへ再利用した要求は拒否する。membershipまたは解除previewが取得後に変わった場合も変更全体を拒否し、最新状態を再取得して選択し直す。
 
-解除する店舗では、本日以降の`shiftAssignments`を削除し、対象staffを論理削除してstaff用session、magic link、LINE token、互換用の店舗LINE投影、未送信のstaff向け通知を失効させる。  組織人物の共通LINE連携は保持する。通知履歴は画面から対象外にした後、予約したcleanupで非同期に物理削除する。過去のシフト割当と提出、組織の人物、管理者権限、ほかの店舗所属は保持する。
+組織人物をactiveのまま店舗所属だけ解除する場合は、本日以降の`shiftAssignments`を削除し、対象staffを論理削除してstaff用session、magic link、LINE token、互換用の店舗LINE投影、未送信のstaff向け通知を失効させる。  組織人物のcanonical LINE連携は保持され得る。通知履歴は画面から対象外にした後、予約したcleanupで非同期に物理削除する。過去のシフト割当と提出、組織の人物、管理者権限、ほかの店舗所属は保持する。
 
 解除後に同じ店舗へ再追加した場合は、論理削除したstaffを復活させず、新しいstaff IDで開始する。  旧staffのcredential、本日以降のシフト割当を復元せず、旧staffの提出は履歴として保持して新しいstaffへ継承しない。  組織人物がLINE連携済みなら、共通連携は新しい店舗所属でも利用する。新しいstaffは各募集に未提出の状態から開始する。  所属の解除または追加で影響するopen募集では、回答数を変更後のactiveかつシフト対象のstaffによる提出だけから再計算し、旧staffの提出を履歴に残したまま現在の回答数から除外する。
+
+組織から人物を削除した後に同じ正規化メールアドレスを管理者が手入力する場合と、本人のQR申請を管理者が承認する場合は、どちらも削除履歴の特別確認を表示せず、通常のスタッフ追加として完了する。  内部では同じ`organizationPeople`をactiveへ戻して新しいstaff IDを作り、旧staff、旧staffのシフト提出と割当、管理者権限、ほかの店舗所属、session、magic link、LINE token、canonical LINE linkを復元しない。組織人物削除時に失効したcanonical LINE連携も復元しないため、本人による新しいLINE連携を必要とする。
+
+人物とstaffの対応が安全に一意解決できない不整合、account deletion受付済み、利用人数上限では、削除履歴や存在状態を示さない汎用的な追加・承認不可結果を返し、person、staff、scheduler、Outboxを部分的に変更しない。  この再追加は既存の人物状態、staff ID、正規化メールアドレスindexで表現できるため、schema変更とbackfillを必要としない。
 
 mutationの成功は、DB transactionと必要な通知・cleanupの予約が確定したことを表す。  外部サービスへの通知到達、予約処理の実行、通知履歴の物理削除完了までは保証しない。
 
@@ -122,6 +126,7 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 - プロフィール更新APIは、actorの組織権限、personの所属、各staffの組織・店舗・personの対応、組織内の重複をサーバーで確認し、同じ組織のpersonと未削除staffだけを一transactionで更新する。不整合な所属が1件でもあれば全体をfail-closedにし、`users.email`、Clerk、別組織、請求先は更新しない。
 - 所属店舗変更APIは、actorの組織権限と書込可否、personの同一組織・有効状態、指定した全店舗の同一組織・削除状態・店舗状態、active staffの一意性をサーバー側で再検証する。clientが渡すperson、店舗集合、staff、fingerprint、previewを認可根拠にせず、非active所属をdesired-setから脱落させたり、別組織へ所属を作ったりしない。
 - 所属店舗変更APIは`membershipFingerprint`と解除対象ごとのpreviewを再計算し、stale、権限不足、契約制限、不正な組合せ、件数超過のいずれでもDB、scheduler、Outbox、監査記録を増やさない。
+- 管理者手入力とQR承認による再追加は、actorの管理権限、対象店舗と組織、正規化メールアドレス、人物とstaffの一意性、account deletion状態、利用人数上限をserver-sideで再検証する。いずれかを安全に満たせない場合は汎用的に拒否し、削除履歴を応答へ出さない。
 - Clerkのメール、`users.email`、シフト連絡先が異なる状態を正常として扱い、認証後アプリをブロックしたり自動上書きしたりしない。
 - 通知とLINE案内は既存のrate limit、再送quota、Outboxの冪等性と配送直前の再検証を維持する。確定シフトの個別再送は対象募集を受付時に固定したdurable fanoutとして処理し、中断後も同じoperationとdedupe keyで再開する。Outboxへの投入後は現在の割当を通知snapshotへ記録し、後続の差分再通知で同じ内容を重複送信しない。
 - メールアドレス、LINE token、連携URL、通知本文を新しいログへ出力しない。
@@ -138,6 +143,7 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 - `convex/organization/personProfile.ts`：組織共通プロフィールと有効な店舗スタッフ行の同期。
 - `convex/organization/personRemoval.ts`：解除preview、本日以降のシフト割当削除、staff用accessとLINE連携の失効。
 - `convex/organization/mutations.ts`：プロフィール更新、管理者権限解除、店舗所属解除、組織からの人物削除。
+- `convex/staffRegistration/queries.ts`と`convex/staffRegistration/mutations.ts`：QR申請の承認可否、削除済み人物の通常承認、正式スタッフ作成。
 - `convex/recruitment/stats.ts`：所属の解除または追加で影響を受けるopen募集について、現在のシフト対象staffから回答数を再計算する。
 - `convex/staff/mutations.ts`：既存人物の所属店舗desired-set変更、店舗追加、店舗別のシフト対象設定と通知再送。
 - `convex/line/`：組織人物単位のLINE連携、LINE利用者単位の友だち状態、連携リンク、個別連携依頼、明示解除。
@@ -171,6 +177,9 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 | `api.organization.mutations.removeManagerRole` | `authenticatedMutation` | 人物とシフト記録を維持し、組織の管理者権限だけを外す。店舗所属がなければ管理アクセスを終了する |
 | `api.organization.mutations.removePersonFromShop` | `authenticatedMutation` | `targetShopId`で指定した店舗のスタッフ所属とスタッフアクセスだけを終了する。active/readOnly managerも実行でき、管理者権限と組織人物は維持する |
 | `api.organization.mutations.removePersonFromOrganization` | `authenticatedMutation` | 組織内の全所属とアクセスを終了する。対象がactive/readOnly managerなら先に権限解除を要求する |
+| `api.staff.mutations.addStaffs` | `managerMutation` | 管理者手入力でスタッフを追加する。同じ正規化メールアドレスの削除済み人物は同じ組織人物をactiveへ戻し、削除履歴の特別確認なしで新しいstaff IDを作る |
+| `api.staffRegistration.queries.getPendingRequests` | `managerQuery` | QR申請と承認可否を取得する。安全でない人物不整合、account deletion受付済み、利用人数上限は汎用的な承認不可状態へ寄せる |
+| `api.staffRegistration.mutations.approveRequest` | `managerMutation` | QR申請を承認する。同じ正規化メールアドレスの削除済み人物は同じ組織人物をactiveへ戻し、削除履歴の特別確認なしで新しいstaff IDを作る |
 | `api.staff.mutations.changeOrganizationPersonShopMemberships` | `managerMutation` | 同じ組織の既存人物について、active店舗のdesired-set、`membershipFingerprint`、解除preview、安定した`requestId`を再検証し、店舗所属の追加と解除を一transactionで反映する。active/readOnly managerのスタッフ所属も同じ契約で解除できる |
 | `api.staff.mutations.setShiftExclusion` | `managerMutation` | `targetShopId`で指定した店舗のスタッフをシフト対象または対象外に切り替える |
 | `api.line.mutations.generateLinkToken` | `managerMutation` | 発行元staffを再検証し、同じ組織人物の全店舗で使うLINE連携リンクを発行する |
@@ -187,9 +196,11 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 | 組織人物をプラン上限より多くても全page取得でき、同一組織店舗のfilterをpagination前に適用し、別組織filterを拒否する | Convex Function Test | `convex/appOrganization/queries.test.ts` |
 | filter変更でquery identityを切り替え、追加page、全店舗表示時の対象店舗選択、明示店舗とexpected orgの既存スタッフ追加Dialogへ接続する | Frontend Unit Test | `src/pages/app-staff/index.test.tsx` |
 | Loading・QueryError、組織人物一覧、追加page操作を表示する | Storybook Behavior / VRT | `src/pages/app-staff/index.stories.tsx` |
-| 全店舗表示から対象店舗を選び、実frontendとConvexを通してスタッフの追加・更新・削除を完了し、再読込後も表示と不在を維持する | E2E | `e2e/pages/AppStaffPage.ts`、`e2e/pages/StaffLifecyclePage.ts`、`e2e/scenarios/staff-lifecycle.test.ts`（`E2E-STAFF-01`） |
+| 全店舗表示から対象店舗を選び、実frontendとConvexを通してスタッフを削除した後、同じメールアドレスを管理者手入力で削除履歴の特別確認なしに再追加し、再読込後も新しいスタッフを表示する | E2E | `e2e/pages/AppStaffPage.ts`、`e2e/pages/StaffLifecyclePage.ts`、`e2e/scenarios/staff-lifecycle.test.ts`（`E2E-STAFF-01`） |
 | 詳細Queryがactive・非active所属、行ごとの変更可否、解除preview、`membershipFingerprint`を完全なDTOで返す | Convex Function Test | `convex/organization/userDetailQueries.test.ts` |
 | desired-setの追加だけ、解除だけ、混在、全解除を一transactionで反映し、非active所属を保持する。解除後の再追加を新しいstaffとして扱い、認可、店舗境界、件数上限、stale、request replay、異なるintentでのrequest ID再利用、open募集の回答数再計算をfail-closedにする | Convex Function Test | `convex/staff/mutations.test.ts` |
+| 管理者手入力とQR承認で削除済み人物を通常追加し、同じ組織人物のactive化と新しいstaff IDだけを作る。安全でない人物不整合、account deletion受付済み、利用人数上限は汎用的に拒否し、旧staff、権限、credential、LINE連携を復元しない | Convex Function Test | `convex/staff/mutations.test.ts`、`convex/staffRegistration/queries.test.ts`、`convex/staffRegistration/mutations.test.ts` |
 | active/readOnly managerの個別・全店舗のスタッフ所属を解除しても、管理者権限と組織人物を維持し、個別解除ではほかの店舗所属も維持する。管理者人物の組織削除と最後のactive管理者の権限解除は拒否する | Convex Function Test、Convex Scenario Test | `convex/organization/mutations.test.ts`、`convex/staff/mutations.test.ts`、`convex/organization/userDetailQueries.test.ts`、`convex/_scenario/organizationPersonRemoval.test.ts` |
 | 共通の店舗所属解除処理が旧credential・LINE・通知・将来シフトを失効させ、過去履歴を保持し、削除済みstaffから提出・閲覧・通知へ進めない状態遷移を守る | Convex Scenario Test | `convex/_scenario/staffManagement.test.ts`、`convex/_scenario/securityBoundaries.test.ts`、`convex/_scenario/organizationPersonRemoval.test.ts`、`convex/_scenario/notificationHistory.test.ts` |
+| 組織人物削除後の手入力・QR承認が同じ人物をactiveへ戻して新しいstaffだけを作り、旧staff、シフト提出と割当、管理者権限、ほかの店舗所属、session、magic link、LINE token、canonical LINE linkを復元しない。店舗所属だけの解除ではcanonical LINE連携を保持し得る境界も守る | Convex Scenario Test | `convex/_scenario/organizationPersonRemoval.test.ts`、`convex/_scenario/staffRegistration.test.ts`、`convex/_scenario/securityBoundaries.test.ts` |
 | チェック操作だけでは送信せず、差分なしを無効にし、解除を含む変更を正しい店舗のpreview付きで1回の確定操作から送信し、二重確認Dialogを開かず、`tooMany`、stale、二重送信を安全に扱う | Frontend Unit Test、Behavior Test | `src/components/features/UserDetail/useUserMembershipActions.test.ts`、`src/components/features/UserDetail/index.stories.tsx` |
