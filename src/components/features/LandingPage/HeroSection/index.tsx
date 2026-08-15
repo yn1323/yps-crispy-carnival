@@ -1,14 +1,6 @@
 import { Box, Container, Flex, Grid, Heading, Icon, Image, SimpleGrid, Stack, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import {
-  LuBell,
-  LuCalendarCheck,
-  LuChevronRight,
-  LuClipboardCheck,
-  LuMail,
-  LuMousePointerClick,
-  LuSmartphone,
-} from "react-icons/lu";
+import { LuBell, LuCalendarCheck, LuChevronRight, LuMail, LuMousePointerClick, LuSmartphone } from "react-icons/lu";
 import { SiLine } from "react-icons/si";
 import heroPcImage from "@/src/assets/hero-pc.webp";
 import heroSpImage from "@/src/assets/hero-sp.webp";
@@ -39,7 +31,6 @@ export const HeroSection = () => (
           textAlign={{ base: "center", lg: "start" }}
         >
           <VStack align={{ base: "center", lg: "start" }} gap={{ base: 4, md: 5 }}>
-
             <Heading
               as="h1"
               fontSize={{ base: "3xl", sm: "2xl", md: "3xl", xl: "4xl" }}

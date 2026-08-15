@@ -26,7 +26,7 @@ describe("組織追加作成シナリオ", () => {
     vi.unstubAllEnvs();
   });
 
-  it("初回は支払い不要Business、追加組織は独立Trialで始まり、互いの権限とデータへ混入しない", async () => {
+  it("初回は支払い不要Business、追加組織は独立Freeで始まり、互いの権限とデータへ混入しない", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager({
@@ -71,7 +71,7 @@ describe("組織追加作成シナリオ", () => {
         expect.objectContaining({
           shopId: created.shopId,
           shopName: SECOND_SHOP_NAME,
-          organizationPlan: "trial",
+          organizationPlan: "free",
           memberStatus: "active",
         }),
       ]),
@@ -88,14 +88,14 @@ describe("組織追加作成シナリオ", () => {
       expect.objectContaining({ name: "山田 太郎", email: "manager@example.com", managerRole: "active" }),
     ]);
     expect(secondSettings?.shops).toEqual([expect.objectContaining({ name: SECOND_SHOP_NAME })]);
-    expect(secondSettings?.billing.currentPlan).toBe("trial");
+    expect(secondSettings?.billing.currentPlan).toBe("free");
     expect(secondSettings?.billing.isComplimentary).toBe(false);
 
-    // Assert: Trialは現行のPro相当entitlementを持つ。
-    expect(secondSettings?.canAddShop).toBe(true);
-    expect(secondSettings?.billing.peopleUsage).toMatchObject({ current: 1, max: 20 });
-    expect(secondSettings?.billing.shopUsage).toMatchObject({ current: 1, max: 5 });
-    expect(secondSettings?.billing.managerUsage).toMatchObject({ current: 1, max: 5 });
+    // Assert: FreeはFree枠のentitlementを持つ。
+    expect(secondSettings?.canAddShop).toBe(false);
+    expect(secondSettings?.billing.peopleUsage).toMatchObject({ current: 1, max: 5 });
+    expect(secondSettings?.billing.shopUsage).toMatchObject({ current: 1, max: 1 });
+    expect(secondSettings?.billing.managerUsage).toMatchObject({ current: 1, max: 2 });
 
     // Assert: 一つ目の店舗にある募集は、新しい組織の初期データへ複製しない。
     const recruitmentsByShop = await t.run(async (ctx) => ({
@@ -230,7 +230,7 @@ describe("組織追加作成シナリオ", () => {
           shopStatus: "active",
           organizationId: organizationIds.second,
           organizationName: `${SECOND_SHOP_NAME}グループ`,
-          organizationPlan: "trial",
+          organizationPlan: "free",
           memberStatus: "active",
         },
         {
@@ -239,7 +239,7 @@ describe("組織追加作成シナリオ", () => {
           shopStatus: "active",
           organizationId: organizationIds.third,
           organizationName: "三つ目の店舗グループ",
-          organizationPlan: "trial",
+          organizationPlan: "free",
           memberStatus: "active",
         },
       ]),

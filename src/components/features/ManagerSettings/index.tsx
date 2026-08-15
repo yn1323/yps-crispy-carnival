@@ -1,4 +1,6 @@
+import { useCallback, useState } from "react";
 import type { Id } from "@/convex/_generated/dataModel";
+import { ManagerInvitationDialog, type ManagerInvitationDialogMode } from "./ManagerInvitationDialog";
 import { ManagerSettingsConfirmationDialog } from "./ManagerSettingsConfirmationDialog";
 import { ManagerSettingsView } from "./ManagerSettingsView";
 import type { ReadyManagerSettingsOverview } from "./types";
@@ -12,15 +14,24 @@ export function ManagerSettings({
   organizationId: Id<"organizations">;
 }) {
   const controller = useManagerSettingsController({ overview, organizationId });
+  const [invitationMode, setInvitationMode] = useState<ManagerInvitationDialogMode | null>(null);
+  const closeInvitation = useCallback(() => setInvitationMode(null), []);
+
   return (
     <>
       <ManagerSettingsView
         overview={overview}
-        organizationId={organizationId}
         onBack={controller.onBack}
+        onOpenInvitation={setInvitationMode}
         onRequestResend={controller.onRequestResend}
         onRequestRevoke={controller.onRequestRevoke}
         onRequestRemoveRole={controller.onRequestRemoveRole}
+      />
+      <ManagerInvitationDialog
+        mode={invitationMode}
+        overview={overview}
+        organizationId={organizationId}
+        onClose={closeInvitation}
       />
       <ManagerSettingsConfirmationDialog
         confirmation={controller.confirmation}

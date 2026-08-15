@@ -1,9 +1,7 @@
-import { Alert, Link } from "@chakra-ui/react";
 import { useQuery } from "convex/react";
 import { Component, type ReactNode } from "react";
 import { api } from "@/convex/_generated/api";
 import { DeletionActionSection, DeletionActionSectionSkeleton } from "@/src/components/shared/DeletionActionSection";
-import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
 import { todayJST } from "@/src/domains/shift/date";
 import { AccountDeletionDialog } from "./AccountDeletionDialog";
 import type { AccountDeletionBlockedPreview, AccountDeletionPreview, AccountDeletionReadyPreview } from "./types";
@@ -49,9 +47,7 @@ export function AccountDeletionSectionView({ preview, onOpen }: ViewProps) {
         canDelete={false}
         disabledReason={guidance.message}
         onDelete={onOpen}
-      >
-        {guidance.showContactLink ? <ContactGuidance /> : null}
-      </DeletionActionSection>
+      ></DeletionActionSection>
     );
   }
 
@@ -75,23 +71,7 @@ function AccountDeletionSectionError() {
       canDelete={false}
       disabledReason="ページを再読み込みして、もう一度お試しください。"
       onDelete={() => undefined}
-    >
-      <ContactGuidance />
-    </DeletionActionSection>
-  );
-}
-
-function ContactGuidance() {
-  return (
-    <Alert.Root status="warning" borderRadius="lg" alignItems="flex-start">
-      <Alert.Indicator mt={0.5} />
-      <Alert.Content gap={1}>
-        <Alert.Description>解決しない場合は、お問い合わせからご連絡ください。</Alert.Description>
-        <Link asChild color="orange.800" fontSize="sm" fontWeight="semibold" alignSelf="flex-start">
-          <MeasurementBoundaryLink href="/contact">お問い合わせへ</MeasurementBoundaryLink>
-        </Link>
-      </Alert.Content>
-    </Alert.Root>
+    />
   );
 }
 
@@ -116,7 +96,7 @@ function getBlockedGuidance(preview: AccountDeletionBlockedPreview): {
     case "multipleOrganizations":
       return {
         message:
-          "複数の組織に所属しているため、この画面からは削除できません。組織設定で組織を一つずつ利用終了するか、別の管理者へ所属解除を依頼し、所属を1つ以下にしてください。",
+          "複数の組織に所属しているため、この画面からは削除できません。\n組織設定で組織を一つずつ削除するか、別の管理者へ引き継ぎ、組織の所属を1つ以下にしてください。",
         showContactLink: true,
       };
     case "billingContactTransferRequired":

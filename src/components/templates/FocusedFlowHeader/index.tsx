@@ -13,6 +13,40 @@ type Props = {
   compact?: boolean;
 };
 
+type FocusedFlowBackButtonProps = {
+  backLabel?: string;
+  backAriaLabel?: string;
+};
+
+export function FocusedFlowBackButton({ backLabel = "戻る", backAriaLabel = backLabel }: FocusedFlowBackButtonProps) {
+  const router = useRouter();
+
+  return (
+    <Button
+      type="button"
+      variant="plain"
+      justifySelf="start"
+      display="inline-flex"
+      alignItems="center"
+      gap={1}
+      minH="44px"
+      px={1}
+      color="gray.800"
+      fontSize="sm"
+      fontWeight="semibold"
+      _hover={{ color: "teal.800", textDecoration: "none" }}
+      _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "2px" }}
+      aria-label={backAriaLabel}
+      onClick={() => router.history.back()}
+    >
+      <LuChevronLeft aria-hidden />
+      <Text as="span" display={{ base: "none", sm: "inline" }}>
+        戻る
+      </Text>
+    </Button>
+  );
+}
+
 export function FocusedFlowHeader({
   title,
   backLabel = "戻る",
@@ -20,8 +54,6 @@ export function FocusedFlowHeader({
   action,
   compact = false,
 }: Props) {
-  const router = useRouter();
-
   return (
     <Box
       as="header"
@@ -46,28 +78,7 @@ export function FocusedFlowHeader({
           alignItems="center"
           gap={2}
         >
-          <Button
-            type="button"
-            variant="plain"
-            justifySelf="start"
-            display="inline-flex"
-            alignItems="center"
-            gap={1}
-            minH="44px"
-            px={1}
-            color="gray.800"
-            fontSize="sm"
-            fontWeight="semibold"
-            _hover={{ color: "teal.800", textDecoration: "none" }}
-            _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "2px" }}
-            aria-label={backAriaLabel}
-            onClick={() => router.history.back()}
-          >
-            <LuChevronLeft aria-hidden />
-            <Text as="span" display={{ base: "none", sm: "inline" }}>
-              戻る
-            </Text>
-          </Button>
+          <FocusedFlowBackButton backLabel={backLabel} backAriaLabel={backAriaLabel} />
           <Heading as="h1" minW={0} color="gray.950" fontSize={{ base: "md", md: "lg" }} textAlign="center" truncate>
             {title}
           </Heading>

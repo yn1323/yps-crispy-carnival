@@ -21,7 +21,7 @@ const hasManualDisclosure = [...Object.values(MANUAL_BUSINESS_DETAILS), ...Objec
   (value) => value.startsWith("【手動入力："),
 );
 
-const trialLimits = ORGANIZATION_PLAN_LIMITS.trial;
+const freeLimits = ORGANIZATION_PLAN_LIMITS.free;
 const proLimits = ORGANIZATION_PLAN_LIMITS.pro;
 const businessLimits = ORGANIZATION_PLAN_LIMITS.business;
 
@@ -90,12 +90,12 @@ const disclosureRows: DisclosureRow[] = [
   {
     label: "支払時期",
     content:
-      "追加組織の無料体験中に有料プランの継続を登録した場合は、無料体験の終了時に初回料金を請求します。契約制限中などから有料プランを開始する場合は、契約開始時に初回料金を請求します。以後は1か月ごとの更新日に請求します。",
+      "追加組織のFreeプランから有料プランの契約を開始した場合は、契約開始時に初回料金を請求します。契約制限中などから有料プランを開始する場合も、契約開始時に初回料金を請求します。以後は1か月ごとの更新日に請求します。",
   },
   {
     label: "役務の提供時期",
     content:
-      "初回登録で作る最初の組織は、組織の作成完了後から利用できます。追加組織作成機能を提供している場合、追加組織の無料体験も組織の作成完了後から利用できます。有料プランは、Stripeで契約状態を確認した後に提供を開始します。追加組織の無料体験中に継続を登録した場合は、無料体験の終了時から有料プランへ移行します。",
+      "初回登録で作る最初の組織は、組織の作成完了後から利用できます。追加組織作成機能を提供している場合、追加組織のFreeプランも組織の作成完了後から利用できます。有料プランは、Stripeで契約状態を確認した後に提供を開始します。",
   },
   {
     label: "申込期間",
@@ -112,9 +112,9 @@ const disclosureRows: DisclosureRow[] = [
       "初回登録で作成する最初の組織には、支払い不要のBusinessを適用します。無料体験の終了日は設定せず、支払い方法の登録を求めません。現在利用できるのは、1組織、1店舗、1管理ユーザーです。",
   },
   {
-    label: "追加組織の無料体験",
+    label: "追加組織のFreeプラン",
     content:
-      "追加組織作成機能を提供している場合、二つ目以降の組織には作成日から2ヶ月の無料体験を適用します。有料プランと支払い方法を登録しない限り、自動で有料契約には移行しません。未契約のまま無料体験が終了した場合は、データを保持したまま組織の業務操作を制限します。",
+      "追加組織作成機能を提供している場合、二つ目以降の組織にはFreeプランを適用します。Freeプランから有料プランへ変更する場合は、契約画面で支払い方法を登録します。",
   },
   {
     label: "利用停止と返金",
@@ -123,7 +123,7 @@ const disclosureRows: DisclosureRow[] = [
   },
   {
     label: "利用上限",
-    content: `初回登録で作る最初の組織は、利用人数${businessLimits.maxPeople}名、稼働店舗1件、有効な管理ユーザー1名までです。追加組織作成機能と有料プランを提供している場合、追加組織の無料体験は利用人数${trialLimits.maxPeople}名、稼働店舗${trialLimits.maxActiveShops}件、有効な管理ユーザー${trialLimits.maxActiveManagers}名まで、Proは利用人数${proLimits.maxPeople}名、稼働店舗${proLimits.maxActiveShops}件、有効な管理ユーザー${proLimits.maxActiveManagers}名まで、Businessは利用人数${businessLimits.maxPeople}名、稼働店舗${businessLimits.maxActiveShops}件、有効な管理ユーザー${businessLimits.maxActiveManagers}名まで利用できます。`,
+    content: `初回登録で作る最初の組織は、利用人数${businessLimits.maxPeople}名、稼働店舗1件、有効な管理ユーザー1名までです。追加組織作成機能と有料プランを提供している場合、追加組織のFreeプランは利用人数${freeLimits.maxPeople}名、稼働店舗${freeLimits.maxActiveShops}件、有効な管理ユーザー${freeLimits.maxActiveManagers}名まで、Proは利用人数${proLimits.maxPeople}名、稼働店舗${proLimits.maxActiveShops}件、有効な管理ユーザー${proLimits.maxActiveManagers}名まで、Businessは利用人数${businessLimits.maxPeople}名、稼働店舗${businessLimits.maxActiveShops}件、有効な管理ユーザー${businessLimits.maxActiveManagers}名まで利用できます。`,
   },
   {
     label: "動作環境",

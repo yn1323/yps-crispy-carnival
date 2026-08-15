@@ -54,17 +54,11 @@ export const SubmissionBehavior: Story = {
     const dialog = await screen.findByRole("dialog", { name: "新しい組織を作る" });
     const form = within(dialog);
 
-    await expect(form.getByText(/新しい組織は2ヶ月のトライアルで始まります/)).toBeInTheDocument();
-    const pricingLink = form.getByRole("link", { name: "料金とプランを確認する（新しいタブ）" });
-    await expect(pricingLink).toHaveAttribute("href", "/pricing");
-    await expect(pricingLink).toHaveAttribute("target", "_blank");
-    await expect(pricingLink).toHaveAttribute("rel", "noreferrer");
-
     await userEvent.type(form.getByRole("textbox", { name: "お店の名前" }), "新宿店");
     await userEvent.click(form.getByRole("button", { name: "次へ" }));
     await userEvent.click(await form.findByRole("button", { name: /^日ごと 日ごと/ }));
     await userEvent.click(form.getByRole("button", { name: "次へ" }));
-    await userEvent.click(await form.findByRole("button", { name: "組織を作ってトライアルを開始" }));
+    await userEvent.click(await form.findByRole("button", { name: "作成する" }));
 
     const result = await screen.findByLabelText("組織作成の送信結果");
     await expect(result).toHaveTextContent(

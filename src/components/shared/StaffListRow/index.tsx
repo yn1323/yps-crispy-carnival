@@ -27,7 +27,7 @@ export function StaffListRow({ id, name, role, detail, badges = [], onOpen, onOp
   const initial = name.trim().charAt(0) || "?";
   const isManager = role === "manager";
   const roleLabel = isManager ? "管理者" : "スタッフ";
-  const shopNames = detail?.kind === "shopNames" ? (detail.names.length > 0 ? detail.names.join("、") : "なし") : null;
+  const shopNames = detail?.kind === "shopNames" ? (detail.names.length > 0 ? detail.names.join(" / ") : "なし") : null;
   const hasNoShopMembership = detail?.kind === "shopNames" && detail.names.length === 0;
   const lineBadge = badges.find((badge) => badge.kind === "line");
   const linePresentation = lineBadge?.kind === "line" ? getLinePresentation(lineBadge.status) : null;

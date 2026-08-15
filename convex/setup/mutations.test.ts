@@ -878,7 +878,7 @@ describe("setup/mutations", () => {
       expect(state.audits).toEqual([]);
     });
 
-    it("二つ目の組織も2ヶ月Trialで作り、既存組織の支払い不要Businessを変えない", async () => {
+    it("二つ目の組織をFreeで作り、既存組織の支払い不要Businessを変えない", async () => {
       const t = convexTest(schema, modules);
       const now = new Date("2026-07-25T10:00:00+09:00");
       vi.setSystemTime(now);
@@ -926,33 +926,24 @@ describe("setup/mutations", () => {
       const existingBillingState = state.billingStates.find(
         (billing) => billing.organizationId === seed.organizationId,
       );
-      expect(newBillingState?.state).toEqual({
-        kind: "trial",
-        trialEndsAt: Date.parse("2026-09-24T15:00:00.000Z"),
-      });
+      expect(newBillingState?.state).toEqual({ kind: "active", plan: "free" });
       expect(newBillingState?.version).toBe(1);
       expect(existingBillingState?.state).toEqual({ kind: "complimentary", plan: "business" });
       expect(state.people).toHaveLength(1);
       expect(state.members).toHaveLength(1);
       expect(state.staffs).toHaveLength(1);
+      expect(newBillingState?.freeManagerPersonId).toBe(state.people[0]?._id);
+      expect(newBillingState?.freeShopId).toBe(result.shopId);
       expect(state.audits).toHaveLength(1);
       expect(state.audits[0]).toMatchObject({
         action: "organization.created",
         targetKind: "organization",
         actorUserId: seed.userId,
         fromState: "managerProfile.omittedSourceUserSnapshot",
-        toState: "trial",
+        toState: "active.free",
       });
-      expect(state.scheduled).toHaveLength(3);
-      expect(
-        state.scheduled.some(
-          (job) =>
-            job.name === "organizationBilling/mutations:processDeadline" &&
-            job.scheduledTime === Date.parse("2026-09-24T15:00:00.000Z") &&
-            job.args[0]?.organizationId === newBillingState?.organizationId &&
-            job.args[0]?.expectedVersion === 1,
-        ),
-      ).toBe(true);
+      expect(state.scheduled).toHaveLength(2);
+      expect(state.scheduled.some((job) => job.name === "organizationBilling/mutations:processDeadline")).toBe(false);
       expect(state.stripeCustomers).toEqual([]);
       expect(state.billingNotifications).toEqual([]);
     });
@@ -1272,7 +1263,7 @@ describe("setup/mutations", () => {
       }));
       expect(state.organizations).toHaveLength(2);
       expect(state.shops).toHaveLength(2);
-      expect(state.scheduled).toHaveLength(3);
+      expect(state.scheduled).toHaveLength(2);
     });
 
     it.each([
@@ -1439,7 +1430,7 @@ describe("setup/mutations", () => {
       }));
       expect(state.organizations).toHaveLength(2);
       expect(state.shops).toHaveLength(2);
-      expect(state.scheduled).toHaveLength(3);
+      expect(state.scheduled).toHaveLength(2);
     });
 
     it("日次budgetを10回使うと11回目を拒否し、副作用を増やさない", async () => {

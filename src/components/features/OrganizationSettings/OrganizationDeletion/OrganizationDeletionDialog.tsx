@@ -1,9 +1,7 @@
-import { Field, Input, Stack, Text } from "@chakra-ui/react";
-import { useEffect, useState } from "react";
+import { Stack, Text } from "@chakra-ui/react";
 import { Dialog } from "@/src/components/ui/Dialog";
 
 export type OrganizationDeletionDialogState = {
-  intentKey: string;
   organizationName: string;
 };
 
@@ -16,14 +14,7 @@ type Props = {
 };
 
 export function OrganizationDeletionDialog({ dialog, isRunning, onClose, onBackGuardRemoved, onSubmit }: Props) {
-  const [confirmationName, setConfirmationName] = useState("");
-  const intentKey = dialog?.intentKey;
-  useEffect(() => {
-    if (intentKey) setConfirmationName("");
-  }, [intentKey]);
-
   if (!dialog) return null;
-  const isConfirmed = confirmationName === dialog.organizationName;
 
   return (
     <Dialog
@@ -34,41 +25,24 @@ export function OrganizationDeletionDialog({ dialog, isRunning, onClose, onBackG
       }}
       onClose={onClose}
       onBackGuardRemoved={onBackGuardRemoved}
-      formId="organization-deletion-form"
+      onSubmit={onSubmit}
       submitLabel="この組織を削除"
       submitColorPalette="red"
       isLoading={isRunning}
-      isSubmitDisabled={!isConfirmed || isRunning}
       role="alertdialog"
-      mobileActionLayout="stacked"
+      mobileActionLayout="inline"
       mobileFullScreen
       maxW={{ base: "calc(100vw - 24px)", md: "600px" }}
     >
-      <form
-        id="organization-deletion-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (isConfirmed && !isRunning) onSubmit();
-        }}
-      >
-        <Stack gap={4}>
-          <Text fontWeight="bold">この操作は元に戻せません。</Text>
-          <Stack gap={2} fontSize="sm" color="fg" lineHeight="tall">
-            <Text>組織とすべての店舗の利用を停止し、管理権限、LINE連携、提出・閲覧用リンクを無効にします。</Text>
-            <Text>ほかの組織への所属と、シフトリへのログインに使うアカウントは削除しません。</Text>
-            <Text>ほかの組織に所属していない場合は、削除後に新しい店舗を登録できます。</Text>
-          </Stack>
-          <Field.Root required>
-            <Field.Label>確認のため「{dialog.organizationName}」と入力してください</Field.Label>
-            <Input
-              value={confirmationName}
-              autoFocus
-              autoComplete="off"
-              onChange={(event) => setConfirmationName(event.currentTarget.value)}
-            />
-          </Field.Root>
+      <Stack gap={4}>
+        <Text fontWeight="bold">この操作は元に戻せません。</Text>
+        <Text fontWeight="semibold">対象: {dialog.organizationName}</Text>
+        <Stack gap={2} fontSize="sm" color="fg" lineHeight="tall">
+          <Text>組織とすべての店舗の利用を停止し、管理権限、LINE連携、提出・閲覧用リンクを無効にします。</Text>
+          <Text>ほかの組織への所属と、シフトリへのログインに使うアカウントは削除しません。</Text>
+          <Text>ほかの組織に所属していない場合は、削除後に新しい店舗を登録できます。</Text>
         </Stack>
-      </form>
+      </Stack>
     </Dialog>
   );
 }

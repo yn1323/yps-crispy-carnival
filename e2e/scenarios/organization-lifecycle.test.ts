@@ -52,7 +52,7 @@ test.describe("組織ライフサイクル", { tag: ["@e2e-core"] }, () => {
 
     await organization.gotoOrganization(seed.targetOrganizationId);
     await organization.expectCurrentOrganization(seed.targetOrganizationId, seed.targetOrganizationName);
-    await organization.deleteCurrentOrganization(seed.targetOrganizationName);
+    await organization.deleteCurrentOrganization();
 
     await expect(page).toHaveURL(
       (url) =>

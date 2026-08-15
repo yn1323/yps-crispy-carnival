@@ -95,13 +95,10 @@ export class OrganizationLifecyclePage {
     await this.expectCurrentOrganization(expectedOrganizationId, organizationName);
   }
 
-  async deleteCurrentOrganization(organizationName: string) {
+  async deleteCurrentOrganization() {
     await this.page.getByRole("button", { name: "削除する", exact: true }).click();
     const dialog = this.page.getByRole("alertdialog", { name: "組織を削除", exact: true });
     await expect(dialog).toBeVisible({ timeout: ORGANIZATION_DATA_TIMEOUT });
-    await dialog
-      .getByRole("textbox", { name: `確認のため「${organizationName}」と入力してください`, exact: true })
-      .fill(organizationName);
     await dialog.getByRole("button", { name: "この組織を削除", exact: true }).click();
     await expect(dialog).toHaveCount(0, { timeout: ORGANIZATION_DATA_TIMEOUT });
   }

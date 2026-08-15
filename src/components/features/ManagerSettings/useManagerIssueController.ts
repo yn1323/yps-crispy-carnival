@@ -14,9 +14,11 @@ import type {
 export function useManagerIssueController({
   overview,
   organizationId,
+  onCompleted,
 }: {
   overview: ReadyManagerSettingsOverview;
   organizationId: Id<"organizations">;
+  onCompleted?: () => void;
 }) {
   const navigate = useNavigate();
   const issueForOrganization = useMutation(api.organizationInvitation.mutations.issueForOrganization);
@@ -52,7 +54,11 @@ export function useManagerIssueController({
         showSuccessToast({
           title: result.status === "alreadyPending" ? "この管理者招待は送信済みです" : "送信を受け付けました",
         });
-        void navigate({ to: "/app/manage/managers", search: { org: organizationId }, replace: true });
+        if (onCompleted) {
+          onCompleted();
+        } else {
+          void navigate({ to: "/app/manage/managers", search: { org: organizationId }, replace: true });
+        }
         return true;
       } catch (error) {
         showErrorToast(error);

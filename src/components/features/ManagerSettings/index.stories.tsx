@@ -7,6 +7,7 @@ import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import { ManagerCandidateListView } from "./ManagerCandidateListView";
 import { ManagerCandidatePageContent } from "./ManagerCandidatePageContent";
 import { ManagerExternalInviteFormView } from "./ManagerExternalInviteForm";
+import { type ManagerInvitationDialogMode, ManagerInvitationDialogView } from "./ManagerInvitationDialog";
 import { ManagerIssueConfirmationDialog } from "./ManagerIssueConfirmationDialog";
 import { ManagerSettingsConfirmationDialog } from "./ManagerSettingsConfirmationDialog";
 import {
@@ -110,8 +111,8 @@ const meta = {
   ],
   args: {
     overview,
-    organizationId,
     onBack: noop,
+    onOpenInvitation: noop,
     onRequestResend: noop,
     onRequestRevoke: noop,
     onRequestRemoveRole: noop,
@@ -122,6 +123,38 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
+
+export const InvitationCardsOpenDialogBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <ManagerInvitationDialogHarness />,
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(page.getByRole("button", { name: "既存スタッフを管理者として招待" }));
+
+    const existingDialog = await page.findByRole("dialog", {
+      name: "既存スタッフを管理者として招待",
+    });
+    const radio = within(existingDialog).getByRole("radio", { name: "山田 一郎を選択" });
+    await userEvent.click(radio);
+    await userEvent.click(within(existingDialog).getByRole("button", { name: "管理者として招待する" }));
+
+    const confirmation = await page.findByRole("alertdialog", { name: "山田 一郎さんを招待しますか？" });
+    await expect(page.queryByRole("dialog", { name: "既存スタッフを管理者として招待" })).not.toBeInTheDocument();
+    await userEvent.click(within(confirmation).getByRole("button", { name: "やめる" }));
+    await expect(existingDialog).toBeVisible();
+    await expect(radio).toBeChecked();
+    await userEvent.click(within(existingDialog).getByRole("button", { name: "キャンセル" }));
+    await waitFor(() => expect(existingDialog).not.toBeVisible());
+
+    await userEvent.click(page.getByRole("button", { name: "新しいユーザーを管理者として招待" }));
+    const externalDialog = await page.findByRole("dialog", {
+      name: "新しいユーザーを管理者として招待",
+    });
+    await waitFor(() => expect(externalDialog).toBeVisible());
+    await expect(within(externalDialog).getByRole("textbox", { name: "氏名" })).toBeVisible();
+    await expect(within(externalDialog).getByRole("button", { name: "招待内容を確認する" })).toBeVisible();
+  },
+};
 
 export const DefaultMobile: Story = {
   tags: ["vrt-mobile1"],
@@ -209,8 +242,8 @@ export const LegacyBackendFreeExchangeMode: Story = {
   },
   play: async () => {
     await expect(screen.getByRole("heading", { name: "管理者を追加" })).toBeInTheDocument();
-    await expect(screen.queryByRole("link", { name: /既存スタッフを管理者として招待/ })).not.toBeInTheDocument();
-    await expect(screen.queryByRole("link", { name: /新しいユーザーを管理者として招待/ })).not.toBeInTheDocument();
+    await expect(screen.queryByRole("button", { name: /既存スタッフを管理者として招待/ })).not.toBeInTheDocument();
+    await expect(screen.queryByRole("button", { name: /新しいユーザーを管理者として招待/ })).not.toBeInTheDocument();
     await expect(
       screen.getAllByText(
         "以前の管理者交代機能は終了しました。送信済みの交代招待を取り消すか、有効期限が切れてから画面を更新してください。",
@@ -543,8 +576,8 @@ function ManagerSettingsConfirmationHarness() {
       </output>
       <ManagerSettingsView
         overview={overview}
-        organizationId={organizationId}
         onBack={noop}
+        onOpenInvitation={noop}
         onRequestResend={(invitation) => setConfirmation({ kind: "resend", invitation, requestId })}
         onRequestRevoke={(invitation) => setConfirmation({ kind: "revoke", invitation, requestId })}
         onRequestRemoveRole={(manager) => setConfirmation({ kind: "removeRole", manager, requestId })}
@@ -557,6 +590,54 @@ function ManagerSettingsConfirmationHarness() {
           setConfirmationCount((count) => count + 1);
           setConfirmation(null);
         }}
+      />
+    </>
+  );
+}
+
+function ManagerInvitationDialogHarness() {
+  const [mode, setMode] = useState<ManagerInvitationDialogMode | null>(null);
+  const [confirmation, setConfirmation] = useState<ManagerInvitationIssueConfirmation>(null);
+  const [selectedPersonId, setSelectedPersonId] = useState("");
+  const [externalDraft, setExternalDraft] = useState({ name: "", email: "" });
+
+  return (
+    <>
+      <ManagerSettingsView
+        overview={overview}
+        onBack={noop}
+        onOpenInvitation={(nextMode) => {
+          setConfirmation(null);
+          setSelectedPersonId("");
+          setExternalDraft({ name: "", email: "" });
+          setMode(nextMode);
+        }}
+        onRequestResend={noop}
+        onRequestRevoke={noop}
+        onRequestRemoveRole={noop}
+      />
+      <ManagerInvitationDialogView
+        mode={mode}
+        overview={overview}
+        candidateResult={{ kind: "ready", candidates }}
+        confirmation={confirmation}
+        isRunning={false}
+        selectedPersonId={selectedPersonId}
+        externalDraft={externalDraft}
+        onSelectCandidate={setSelectedPersonId}
+        onRequestExistingStaff={(candidate) =>
+          setConfirmation({ kind: "existingStaff", candidate, mode: overview.mode, requestId })
+        }
+        onRequestExternal={(invitedName, email) => {
+          setExternalDraft({ name: invitedName, email });
+          setConfirmation({ kind: "external", invitedName, email, requestId });
+        }}
+        onClose={() => {
+          setMode(null);
+          setConfirmation(null);
+        }}
+        onCloseConfirmation={() => setConfirmation(null)}
+        onConfirm={() => setConfirmation(null)}
       />
     </>
   );
