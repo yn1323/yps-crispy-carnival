@@ -61,6 +61,7 @@ Playwright用のE2E deploymentだけは、四つの設定を明示的に有効�
 - 店舗一覧は`listOrganizationShops`をcursor paginationし、activeだけでなくarchivedも表示する。  プラン上限の5件を保存済み店舗の取得上限に流用せず、過去店舗を欠落させない。
 - 組織名、現在店舗、組織削除は既存Dialogとcontrollerを再利用する。  組織作成、店舗追加、管理者招待、請求先変更、Stripe操作は対応する公開設定が有効な環境だけで入口を表示する。
 - 課金を明示的に有効化した環境でCheckoutとCustomer Portalを開始した場合、復帰先は`/app/manage/billing?org=<organizationId>`にする。  復帰URLだけで支払い成功とは判断せず、Webhookまたはprovider再取得結果を正本とする。
+- Checkoutから`stripe=cancelled`で戻った場合は、サーバーが対象Sessionを組織、operation、Customer、Price、modeに照合する。  Sessionが`open`ならStripeで`expired`へ確定してから、支払い失敗時のfallbackへ戻す。  `complete`やprovider取得失敗では状態を変更せず、Webhookまたは再試行を待つ。
 - query errorはページ内で再試行でき、readOnly所属は内容を閲覧できるが変更入口を無効にする。  契約制限中の復旧操作は課金policyが返すcapabilityに従う。
 
 ## 機能の地図

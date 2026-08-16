@@ -232,7 +232,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 
 ## Public Convex surface inventory
 
-2026-08-15時点のpublic query、mutation、actionは144個である。
+2026-08-17時点のpublic query、mutation、actionは145個である。
 同じ業務境界のAPIは一行へまとめるが、公開export名は省略しない。
 
 | Module | Public exports | 対応契約 / 状態 |
@@ -261,7 +261,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 | `organizationInvitation/acceptanceActions` | `accept` | `RELEASE-FEATURES-01`、`MANAGER-INVITATION-01`。通常環境は拒否し、enabled時だけ確認済みemailまたは接続済みaccountを検証する |
 | `organizationInvitation/mutations` | `issue`、`issueForOrganization`、`accept`、`create`、`createExternal`、`createForPerson`、`createForStaff`、`linkAccount`、`resend`、`resendForOrganization`、`revoke`、`revokeForOrganization` | `RELEASE-FEATURES-01`、`MANAGER-INVITATION-01`。`ForOrganization`は新app用のcanonical組織境界である。通常環境は発行・再送・受諾を拒否し、残存招待を減らす取消は維持する |
 | `organizationInvitation/queries` | `getPreview` | `RELEASE-FEATURES-01`、`MANAGER-INVITATION-01`。通常環境はtoken情報を返さない |
-| `organizationStripe/actions` | `cancelScheduledFree`、`cancelScheduledPlanChange`、`cancelScheduledPlanChangeForOrganization`、`cancelTrialContinuation`、`cancelTrialContinuationForOrganization`、`changePaidPlanNow`、`changePaidPlanNowForOrganization`、`getCurrentSubscriptionPrice`、`getPlanPrice`、`getPlanPriceForOrganization`、`getProPrice`、`openCustomerPortal`、`openCustomerPortalForOrganization`、`previewPaidPlanChange`、`previewPaidPlanChangeForOrganization`、`scheduleFreeAtPeriodEnd`、`schedulePaidPlanChange`、`schedulePaidPlanChangeForOrganization`、`scheduleServiceStopAtPeriodEnd`、`scheduleServiceStopAtPeriodEndForOrganization`、`startPaidCheckout`、`startPaidCheckoutForOrganization`、`startProCheckout` | `RELEASE-FEATURES-01`、`BILLING-CHECKOUT-01`、`BILLING-PLAN-CHANGE-01`、`BILLING-TRIAL-CANCEL-01`。`ForOrganization`は新app用のcanonical組織境界である。通常環境は取消を含む全public課金操作とprovider到達を拒否し、Webhookとinternal workerの収束を維持する |
+| `organizationStripe/actions` | `cancelPendingCheckoutForOrganization`、`cancelScheduledFree`、`cancelScheduledPlanChange`、`cancelScheduledPlanChangeForOrganization`、`cancelTrialContinuation`、`cancelTrialContinuationForOrganization`、`changePaidPlanNow`、`changePaidPlanNowForOrganization`、`getCurrentSubscriptionPrice`、`getPlanPrice`、`getPlanPriceForOrganization`、`getProPrice`、`openCustomerPortal`、`openCustomerPortalForOrganization`、`previewPaidPlanChange`、`previewPaidPlanChangeForOrganization`、`scheduleFreeAtPeriodEnd`、`schedulePaidPlanChange`、`schedulePaidPlanChangeForOrganization`、`scheduleServiceStopAtPeriodEnd`、`scheduleServiceStopAtPeriodEndForOrganization`、`startPaidCheckout`、`startPaidCheckoutForOrganization`、`startProCheckout` | `RELEASE-FEATURES-01`、`BILLING-CHECKOUT-01`、`BILLING-PLAN-CHANGE-01`、`BILLING-TRIAL-CANCEL-01`。`ForOrganization`は新app用のcanonical組織境界である。通常環境は取消を含む全public課金操作とprovider到達を拒否し、Webhookとinternal workerの収束を維持する |
 | `recruitment/mutations` | `createRecruitment`、`deleteRecruitment` | `RECRUITMENT-01` |
 | `setup/mutations` | `createOrganization`、`createOrganizationForApp`、`setupShopAndManager` | `RELEASE-FEATURES-01`、`ORG-CREATE-01`、`SETUP-ORGANIZATION-01`。初回Setupは公開設定の対象外で、`createOrganizationForApp`を含む追加組織だけを閉じる |
 | `shiftBoard/mutations` | `confirmRecruitment`、`saveShiftAssignments` | `SHIFT-BOARD-DRAFT-01`、`SHIFT-CONFIRM-01` |
