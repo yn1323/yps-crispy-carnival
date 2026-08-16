@@ -167,7 +167,8 @@ frontendの閲覧専用表示は認可根拠ではなく、mutationが毎回組�
 
 ## 9. ログ・応答に含めない情報
 
-secret、token、magic link URL、メールアドレス、LINE user ID、通知本文、provider raw error／Webhook body、カード情報、パスワード、Clerk確認コードは、ログ・監査・通知履歴・client応答へ出さない。  
+secret、token、magic link URL、メールアドレス、LINE user ID、通知本文、provider raw error／Webhook body、カード情報、パスワード、Clerk確認コードは、ログ・監査・通知履歴・無関係な応答へ出さない。  
+例外は認証成功時のCapability受け渡しで、`verifyToken`はmagic linkの検証に成功した本人の応答へ新しいsession tokenを意図的に返す（これがスタッフ認証の仕組みそのもの）。この場合もtokenをログ・監査・通知履歴へは残さない。  
 永続化するエラーは固定taxonomy（`line_rate_limited`等）だけとする。
 
 ## 10. テスト観点への変換メモ
