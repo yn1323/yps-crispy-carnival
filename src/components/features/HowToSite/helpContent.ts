@@ -15,6 +15,7 @@ export const HELP_CATEGORIES = [
   { id: "staff-management", label: "スタッフを管理する", navigationGroup: "task", order: 30 },
   { id: "shift-collection", label: "シフトを募集して回収する", navigationGroup: "task", order: 40 },
   { id: "shift-building", label: "シフトを作成して確定する", navigationGroup: "task", order: 50 },
+  { id: "account-organization", label: "アカウントと組織を管理する", navigationGroup: "task", order: 55 },
   { id: "shift-operation-trouble", label: "募集や作成で困ったとき", navigationGroup: "trouble", order: 60 },
   { id: "staff-trouble", label: "スタッフが操作できないとき", navigationGroup: "trouble", order: 70 },
   { id: "notification-trouble", label: "通知の困りごと", navigationGroup: "trouble", order: 80 },
