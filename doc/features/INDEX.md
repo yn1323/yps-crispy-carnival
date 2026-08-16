@@ -10,6 +10,8 @@
 - [募集・提出・シフト表・確定](behavior-shift.md)：日時境界、状態遷移、提出可否、validation、差分再通知
 - [通知マトリクス](behavior-notification.md)：全通知種別のトリガー・宛先・チャネル・送らない条件・失敗時
 - [認可・制限の横断規則](behavior-authorization.md)：拒否パターン、存在秘匿、token失効、レート制限、冪等性
+
+上記サマリーと条件別仕様をブラウザで通読する場合は[behavior-spec.html](behavior-spec.html)を開いてください（Markdownから生成した閲覧用で、正本は各Markdownです）。
 実環境で利用できるかは、[リリース状態](../manual/release-status.md)に証跡がある項目だけを確認済みとして扱います。
 画面、API、関連ファイル、保証範囲の詳細は各機能文書を参照してください。
 
