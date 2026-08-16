@@ -72,7 +72,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <div class="layout">
 <nav>
 <p class="site-title">シフトリ 機能仕様まとめ</p>
-<p class="site-meta">生成日 2026/08/16 ／ 基準commit <code>92c0117</code></p>
+<p class="site-meta">生成日 2026/08/17 ／ 基準commit <code>b318dc8</code></p>
 <div class="nav-group"><a class="nav-doc" href="#doc-overview">全体サマリー</a><ul><li><a href="#overview-s2">1. システムで解決できること</a></li><li><a href="#overview-s3">2. 現在の公開範囲</a></li><li><a href="#overview-s4">3. 機能一覧</a></li><li><a href="#overview-s12">4. 制限一覧</a></li><li><a href="#overview-s18">5. ロール別にできること</a></li><li><a href="#overview-s21">6. 状況別の挙動</a></li><li><a href="#overview-s26">7. 文書とコードの突き合わせで確認した注意点</a></li><li><a href="#overview-s27">8. マニュアル・テストケースへの展開</a></li></ul></div>
 <div class="nav-group"><a class="nav-doc" href="#doc-staff">スタッフ管理</a><ul><li><a href="#staff-s2">1. 共通の前提</a></li><li><a href="#staff-s3">2. スタッフ追加</a></li><li><a href="#staff-s8">3. プロフィール変更（氏名・シフト連絡先）</a></li><li><a href="#staff-s9">4. シフト対象外の切替（setShiftExclusion）</a></li><li><a href="#staff-s10">5. 店舗所属の変更（desired-set一括変更）</a></li><li><a href="#staff-s14">6. 組織からの削除（removePersonFromOrganization）</a></li><li><a href="#staff-s17">7. イベント別のデータ残存マトリクス（○×早見表）</a></li><li><a href="#staff-s18">8. テスト観点への変換メモ</a></li></ul></div>
 <div class="nav-group"><a class="nav-doc" href="#doc-organization">組織・店舗・管理者・アカウント</a><ul><li><a href="#organization-s2">1. 組織の作成</a></li><li><a href="#organization-s3">2. 組織名の変更・組織削除</a></li><li><a href="#organization-s4">3. 店舗の設定・追加・アーカイブ・削除</a></li><li><a href="#organization-s9">4. 管理者の追加（招待）・権限解除</a></li><li><a href="#organization-s13">5. アカウント（ログイン方法）の変更</a></li><li><a href="#organization-s15">6. アカウント削除</a></li><li><a href="#organization-s16">7. 課金・契約の状態遷移（FEATURE_BILLING）</a></li><li><a href="#organization-s20">8. テスト観点への変換メモ</a></li></ul></div>
@@ -785,7 +785,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <tr>
 <td>自分のスタッフ所属の解除</td>
 <td>○（管理者権限と組織人物は維持）</td>
-<td>○</td>
+<td>×（操作はactive管理者のみ）</td>
 <td>-</td>
 <td>-（本人操作なし。管理者が実施）</td>
 <td>×</td>
@@ -841,6 +841,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tbody></table></div>
 <p>補足:</p>
 <ul>
+<li>スタッフ所属の解除は「解除される対象」がactive/readOnlyの管理者人物でも実行できる（管理者権限と組織人物は維持される）。一方で「操作する側」はactiveな管理者に限られ、readOnlyの操作者は拒否される。</li>
 <li>元管理者がスタッフを兼ねる場合、スタッフとしての提出・閲覧・通知は継続する。管理者だった事実を根拠にした閲覧は一切許可しない。</li>
 <li>シフト対象外スタッフは提出・閲覧・再発行の全スタッフ導線を失効し、シフト関連通知から外れる。LINE連携依頼や規約同意などシフト以外の通知は届く。</li>
 <li>URL・localStorage・クライアントが渡すIDは認可根拠にせず、全APIがサーバー側で所属・店舗境界・課金状態を再検証する。存在と権限不足は区別して漏らさない。</li>
@@ -871,7 +872,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 <tr>
 <td>確定後（<code>confirmed</code>）</td>
-<td>シフト終了日までは再編集・再確定できる。再確定時は前回通知との差分があるスタッフへだけ再通知。個別再送も可能</td>
+<td>シフト終了日までは再編集・再確定できる。再確定時は前回通知との差分があるスタッフと、前回の確定通知が未配送のスタッフへ再通知。個別再送も可能</td>
 <td>確定通知の閲覧リンクから確定シフトを閲覧。リンクを失った場合は再発行画面（登録メール一致で新リンク送付）。提出画面は「提出受付終了」</td>
 </tr>
 <tr>
@@ -920,7 +921,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <li>店舗からの所属解除（本日以降の割当も削除。過去の提出・割当は履歴として保持）</li>
 <li>組織からの人物削除（全店舗の所属とLINE連携を終了）</li>
 <li>店舗削除・組織削除</li>
-<li>募集の削除、提出期限・token期限の到来</li>
+<li>募集の削除、シフト開始日0:00 JSTの到来（提出リンクが開けるのはここまで。提出締切ではリンク自体は失効しない）、リンク・sessionの有効期限切れ</li>
 </ul>
 <p>解除後に同じ人物を再追加した場合は、旧staffのsession・magic link・提出・割当を復元せず、新しいstaffとして未提出から開始する。<br>店舗所属の解除だけでは組織共通のLINE連携を保持し得るが、組織から削除した後の再追加では本人による新しいLINE連携が必要になる。</p>
 <h3 id="overview-s25">6.4 自動通知の一覧（時刻はJST）</h3>
@@ -944,7 +945,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 <tr>
 <td>確定シフト</td>
-<td>確定時（前回通知と差分のあるスタッフのみ）</td>
+<td>確定時（前回通知と差分のあるスタッフ＋前回の確定通知が未配送のスタッフ）</td>
 <td>対象スタッフ</td>
 </tr>
 <tr>
@@ -1351,7 +1352,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tbody></table></div>
 <ul>
 <li><strong>全店舗のチェックを外すことは許可</strong>する。「無所属としてスタッフは残り続けます」と表示し、利用人数は減らない（人数枠を空けるにはユーザー削除）。</li>
-<li>active/readOnlyの<strong>管理者も</strong>個別・全店舗のスタッフ所属を解除できる。管理者権限と組織人物は維持する。</li>
+<li><strong>解除の対象</strong>はactive/readOnlyの管理者人物でもよい（先に管理者権限を外す必要はなく、管理者権限と組織人物は維持する）。ただし<strong>操作できるのは対象組織のactiveな管理者だけ</strong>で、readOnlyの操作者は拒否される（<code>removePersonFromShop</code>は<code>allowReadOnly</code>なしの権限確認＋業務書き込み確認を行う）。</li>
 <li>変更後にその店舗のactive管理者所属が0人になる場合は、店舗管理通知（参加申請digest・確定催促・不達digest等）が送信されなくなる警告をDialog内に表示する。警告は変更を<strong>拒否しない</strong>。</li>
 <li>解除・追加で影響するopen募集は、回答数を変更後のactiveかつシフト対象のstaffの提出だけで再計算する（旧staffの提出は履歴に残すが現在の回答数から除外）。</li>
 </ul>
@@ -2247,7 +2248,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
     [*] --&gt; open : 募集作成（募集通知＋催促を予約）
     open --&gt; open : 下書き保存（全置換）
     open --&gt; confirmed : 確定（差分のあるスタッフへ通知）
-    confirmed --&gt; confirmed : 再編集＋再送（差分のあるスタッフだけ再通知）
+    confirmed --&gt; confirmed : 再編集＋再送（差分あり＋前回未配送のスタッフへ再通知）
     open --&gt; deleted : 削除
     confirmed --&gt; deleted : 削除（確認あり）
     deleted --&gt; [*]
@@ -2267,7 +2268,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
     [*] --&gt; open : 募集作成（募集通知＋催促を予約）
     open --&gt; open : 下書き保存（全置換）
     open --&gt; confirmed : 確定（差分のあるスタッフへ通知）
-    confirmed --&gt; confirmed : 再編集＋再送（差分のあるスタッフだけ再通知）
+    confirmed --&gt; confirmed : 再編集＋再送（差分あり＋前回未配送のスタッフへ再通知）
     open --&gt; deleted : 削除
     confirmed --&gt; deleted : 削除（確認あり）
     deleted --&gt; [*]
@@ -2306,7 +2307,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <tr>
 <td>confirmed（終了日前）</td>
 <td>管理者が再編集→再確定</td>
-<td>前回通知snapshotとの<strong>差分があるスタッフだけ</strong>再通知</td>
+<td>前回通知snapshotとの<strong>差分があるスタッフ</strong>と、<strong>前回の確定通知が未配送のスタッフ</strong>へ再通知</td>
 </tr>
 <tr>
 <td>open/confirmed</td>
@@ -2428,7 +2429,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <td>管理者: 再送（再確定通知）</td>
 <td align="center">×</td>
 <td align="center">×</td>
-<td align="center">○（差分のみ）</td>
+<td align="center">○（差分＋前回未配送分）</td>
 <td align="center">×</td>
 <td align="center">×</td>
 </tr>
@@ -2596,7 +2597,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <ul>
 <li>確定操作は「検証済み内容を<code>saveShiftAssignments</code>で保存→<code>confirmRecruitment</code>」の2段で行う。</li>
 <li><code>confirmRecruitment</code>自身が再確認するのは<strong>募集の存在・終了日・状態・保存済み割当の休業日だけ</strong>であり、共通validation全体を単独で再実行しない（既知の差分として記録済み。直接API呼び出しの保証は現行この範囲）。</li>
-<li>確定通知の対象は「前回の確定通知snapshotと現在の割当を比較して<strong>変更があるスタッフだけ</strong>」。<ul>
+<li>確定通知の対象は「前回の確定通知snapshotと現在の割当を比較して<strong>変更があるスタッフ</strong>」に加えて、「<strong>前回の確定通知がまだ配送されていないスタッフ</strong>」（<code>undeliveredStaffIds</code>。割当が変わっていなくても最新内容で通知する）。<ul>
 <li>時間入力方式では、区間の分割・統合だけの表現差は再通知しない。snapshotのsignatureが壊れている場合は安全側で再通知する。</li>
 <li>snapshotがない既存募集は、導入後の初回再通知だけ全員が対象。</li>
 </ul>
@@ -2663,7 +2664,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <li>1章の各時刻は境界値テストの中心。<strong>23:59:59／0:00:00、前日17:00の前後、終了日当日／翌日</strong>を最低ペアで検証する。</li>
 <li>3章の表は8行×リンク失効条件の直積が提出系の主要ケース。#8は「応答が区別できないこと」まで確認する。</li>
 <li>4.3は「違反→保存拒否」「確認事項→確定は通る」を対で検証する。<code>confirmRecruitment</code>直接呼び出しの保証範囲（4.4）は現行仕様として扱い、強化するならまず文書と差分調査を更新する。</li>
-<li>再確定の差分通知は「変更なし→通知0件」「1名だけ変更→1名だけ」「分割⇔統合のみ→0件」の3点セット。</li>
+<li>再確定の差分通知は「変更なし・全員配送済み→通知0件」「1名だけ変更→1名だけ」「分割⇔統合のみ→0件」「変更なしでも前回未配送の1名→その1名だけ」の4点セット。</li>
 </ul>
 
 </section>
@@ -2919,8 +2920,8 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <tr>
 <td>確定シフト</td>
 <td>確定・再確定時</td>
-<td>前回確定通知との<strong>差分があるスタッフのみ</strong></td>
-<td>差分なし／分割⇔統合の表現差のみ／シフト対象外／旧世代（superseded）</td>
+<td>前回確定通知との<strong>差分があるスタッフ</strong>＋<strong>前回の確定通知が未配送のスタッフ</strong></td>
+<td>差分がなく前回通知も配送済み／分割⇔統合の表現差のみ／シフト対象外／旧世代（superseded）</td>
 <td>載る</td>
 </tr>
 <tr>
@@ -3789,7 +3790,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 </tbody></table></div>
 <h2 id="authorization-s13">9. ログ・応答に含めない情報</h2>
-<p>secret、token、magic link URL、メールアドレス、LINE user ID、通知本文、provider raw error／Webhook body、カード情報、パスワード、Clerk確認コードは、ログ・監査・通知履歴・client応答へ出さない。<br>永続化するエラーは固定taxonomy（<code>line_rate_limited</code>等）だけとする。</p>
+<p>secret、token、magic link URL、メールアドレス、LINE user ID、通知本文、provider raw error／Webhook body、カード情報、パスワード、Clerk確認コードは、ログ・監査・通知履歴・無関係な応答へ出さない。<br>例外は認証成功時のCapability受け渡しで、<code>verifyToken</code>はmagic linkの検証に成功した本人の応答へ新しいsession tokenを意図的に返す（これがスタッフ認証の仕組みそのもの）。この場合もtokenをログ・監査・通知履歴へは残さない。<br>永続化するエラーは固定taxonomy（<code>line_rate_limited</code>等）だけとする。</p>
 <h2 id="authorization-s14">10. テスト観点への変換メモ</h2>
 <ul>
 <li>2章の各行は「正当な要求」と「不正な要求」の応答を突き合わせ、<strong>status・bodyが同一</strong>であることを検証する。</li>
@@ -3800,7 +3801,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </ul>
 
 </section>
-<footer>生成元: doc/features/OVERVIEW.md, behavior-staff.md, behavior-organization.md, behavior-shift.md, behavior-notification.md, behavior-authorization.md（基準commit 92c0117）</footer>
+<footer>生成元: doc/features/OVERVIEW.md, behavior-staff.md, behavior-organization.md, behavior-shift.md, behavior-notification.md, behavior-authorization.md（基準commit b318dc8）</footer>
 </main>
 </div>
 <script type="module">
