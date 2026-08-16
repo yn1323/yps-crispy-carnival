@@ -43,6 +43,13 @@ const availableUrlResultValidator = v.union(
   v.object({ status: v.literal("unavailable"), reason: unavailableReasonValidator }),
 );
 
+const checkoutCancellationResultValidator = v.union(
+  v.object({ status: v.literal("cancelled") }),
+  v.object({ status: v.literal("pending") }),
+  v.object({ status: v.literal("unchanged") }),
+  v.object({ status: v.literal("unavailable"), reason: unavailableReasonValidator }),
+);
+
 const prorationPreviewResultValidator = v.union(
   v.object({ status: v.literal("unavailable"), reason: unavailableReasonValidator }),
   v.object({
@@ -82,6 +89,7 @@ type ActionPurpose =
   | "price"
   | "currentSubscriptionPrice"
   | "startCheckout"
+  | "cancelCheckout"
   | "portal"
   | "scheduleFree"
   | "cancelFreeSchedule"
@@ -333,6 +341,106 @@ export const startPaidCheckoutForOrganization = action({
   returns: availableUrlResultValidator,
   handler: async (ctx, args): Promise<AvailableUrlResult> =>
     await startPaidCheckoutForPlan(ctx, { ...args, scope: { organizationId: args.organizationId } }),
+});
+
+/**
+ * Checkoutのキャンセル戻りを、Stripe側のSessionがexpiredになったことを確認してからfallbackへ収束させる。
+ * 戻りURLやclientのstateだけでは支払い結果を確定しない。
+ */
+export const cancelPendingCheckoutForOrganization = action({
+  args: {
+    organizationId: v.id("organizations"),
+  },
+  returns: checkoutCancellationResultValidator,
+  handler: async (ctx, args) => {
+    if (!isReleaseFeatureEnabled("billing")) return { status: "unavailable" as const, reason: "not_allowed" as const };
+    const configuration = getStripeBillingConfiguration();
+    if (configuration.status !== "ready") {
+      return { status: "unavailable" as const, reason: "configuration_pending" as const };
+    }
+    const context = await getAuthorizedContext(ctx, { organizationId: args.organizationId }, "cancelCheckout");
+    if (!context) return { status: "unavailable" as const, reason: "not_allowed" as const };
+    if (context.billingState.state.kind !== "pendingActivation") {
+      return { status: "unchanged" as const };
+    }
+    if (!context.stripeCustomerId || context.stripeCustomerLivemode !== configuration.livemode) {
+      return { status: "unavailable" as const, reason: "configuration_pending" as const };
+    }
+
+    const operation = await ctx.runQuery(
+      internal.organizationStripe.queries.getPendingCheckoutOperationForOrganization,
+      {
+        organizationId: context.organizationId,
+        providerGeneration: context.providerGeneration + 1,
+        livemode: configuration.livemode,
+      },
+    );
+    if (!operation) return { status: "unchanged" as const };
+
+    const stripe = createStripeClient(configuration.secretKey);
+    try {
+      let session = await stripe.checkout.sessions.retrieve(operation.stripeSessionId);
+      assertCheckoutSession(session, {
+        organizationId: context.organizationId,
+        operationId: operation.operationId,
+        stripeSessionId: operation.stripeSessionId,
+        providerGeneration: operation.providerGeneration,
+        livemode: configuration.livemode,
+        customerId: context.stripeCustomerId,
+        priceId: operation.stripePriceIdSnapshot,
+        mode: "subscription",
+      });
+
+      if (session.status === "complete") return { status: "pending" as const };
+      if (session.status === "open") {
+        session = await expireOpenCheckoutSession(stripe, session);
+        assertCheckoutSession(session, {
+          organizationId: context.organizationId,
+          operationId: operation.operationId,
+          stripeSessionId: operation.stripeSessionId,
+          providerGeneration: operation.providerGeneration,
+          livemode: configuration.livemode,
+          customerId: context.stripeCustomerId,
+          priceId: operation.stripePriceIdSnapshot,
+          mode: "subscription",
+        });
+      }
+      if (session.status !== "expired") return { status: "pending" as const };
+
+      const changed = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
+        organizationId: context.organizationId,
+        expectedVersion: context.billingState.version,
+        state: { kind: "paymentFailed" },
+        correlationId: `stripe:${operation.operationId}:checkout-cancelled`,
+      });
+      const fallback = context.billingState.state.fallback;
+      const converged = await billingMutationConverged(ctx, context.organizationId, changed.changed, (state) =>
+        fallback === "pro"
+          ? state.kind === "active" && state.plan === "pro"
+          : fallback === "free"
+            ? (state.kind === "active" && state.plan === "free") || state.kind === "restricted"
+            : state.kind === "restricted",
+      );
+      if (!converged) return { status: "pending" as const };
+
+      const released = await ctx.runMutation(internal.organizationStripe.mutations.releaseExpiredCheckoutOperation, {
+        operationId: operation.operationId,
+        stripeSessionId: operation.stripeSessionId,
+        reason: "checkout_session_cancelled",
+      });
+      if (!released.changed) {
+        const latestOperation = await ctx.runQuery(internal.organizationStripe.queries.getCheckoutOperationBySession, {
+          organizationId: context.organizationId,
+          stripeSessionId: operation.stripeSessionId,
+          livemode: configuration.livemode,
+        });
+        if (latestOperation?.status !== "cancelled") return { status: "pending" as const };
+      }
+      return { status: "cancelled" as const };
+    } catch {
+      return { status: "unavailable" as const, reason: "provider_unavailable" as const };
+    }
+  },
 });
 
 /**
@@ -2798,8 +2906,14 @@ async function processCheckoutEvent(
     livemode: event.livemode,
   });
   if (!operation) return { kind: "actionRequired" as const, errorCode: "checkout_operation_missing" };
+  const isCancelledExpiredCheckoutOperation =
+    event.type === "checkout.session.expired" &&
+    operation.status === "cancelled" &&
+    (operation.lastErrorCode === "checkout_session_cancelled" ||
+      operation.lastErrorCode === "checkout_session_expired_webhook" ||
+      operation.lastErrorCode === "checkout_session_expired");
   if (
-    operation.status !== "succeeded" ||
+    (operation.status !== "succeeded" && !isCancelledExpiredCheckoutOperation) ||
     (operation.kind !== "trialSetupCheckout" &&
       operation.kind !== "immediateProCheckout" &&
       operation.kind !== "immediatePaidCheckout") ||
@@ -2826,6 +2940,13 @@ async function processCheckoutEvent(
   if (event.type === "checkout.session.expired") {
     if (session.status !== "expired") {
       return { kind: "retry" as const, errorCode: "checkout_expiration_not_confirmed" };
+    }
+    if (isCancelledExpiredCheckoutOperation) {
+      return {
+        kind: "processed" as const,
+        organizationId: organization.organizationId,
+        providerGeneration: operation.providerGeneration,
+      };
     }
     if (
       (operation.kind === "immediateProCheckout" || operation.kind === "immediatePaidCheckout") &&
@@ -6353,6 +6474,7 @@ function assertCheckoutSession(
     livemode: boolean;
     customerId?: string;
     priceId: string;
+    mode?: "setup" | "subscription";
   },
 ) {
   if (
@@ -6363,9 +6485,21 @@ function assertCheckoutSession(
     session.metadata?.shiftori_operation_id !== String(expected.operationId) ||
     session.metadata?.shiftori_provider_generation !== String(expected.providerGeneration) ||
     session.metadata?.shiftori_price_id !== expected.priceId ||
+    (expected.mode !== undefined && session.mode !== expected.mode) ||
     (expected.customerId !== undefined && stripeObjectId(session.customer) !== expected.customerId)
   ) {
     throw new Error("checkout_session_relationship_invalid");
+  }
+}
+
+async function expireOpenCheckoutSession(stripe: Stripe, session: Stripe.Checkout.Session) {
+  try {
+    return await stripe.checkout.sessions.expire(session.id);
+  } catch (error) {
+    // 完了との競合ではexpireが拒否されるため、providerの現在値を再取得して成功扱いを誤らせない。
+    const latest = await stripe.checkout.sessions.retrieve(session.id);
+    if (latest.status === "complete" || latest.status === "expired") return latest;
+    throw error;
   }
 }
 

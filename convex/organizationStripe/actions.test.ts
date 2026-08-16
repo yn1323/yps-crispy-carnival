@@ -42,6 +42,7 @@ vi.mock("stripe", () => {
       sessions: {
         retrieve: async () => await providerRequest("checkout.sessions.retrieve"),
         create: async (...args: unknown[]) => await providerRequest("checkout.sessions.create", args),
+        expire: async (...args: unknown[]) => await providerRequest("checkout.sessions.expire", args),
       },
     };
     customers = {
@@ -328,6 +329,45 @@ describe("organizationStripe/actions", () => {
       ).toEqual(["rejected", "rejected", "rejected"]);
       await expectNoStripeSideEffects(t);
     }
+  });
+
+  it("Checkoutキャンセル復旧は別組織actorとreadOnly actorをprovider通信前に拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      await seedOrganizationManagerShop(ctx, { subject: "stripe_cancel_actor_other_org", plan: "free" });
+      const target = await seedOrganizationManagerShop(ctx, { subject: "stripe_cancel_actor_target", plan: "free" });
+      const billing = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", target.organizationId))
+        .unique();
+      if (!billing) throw new Error("billing state missing");
+      await ctx.db.patch(billing._id, {
+        state: { kind: "pendingActivation", plan: "pro", fallback: "free", startedAt: NOW },
+        version: 2,
+        updatedAt: NOW,
+      });
+      return target;
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_cancel_actor_other_org" })
+        .action(api.organizationStripe.actions.cancelPendingCheckoutForOrganization, {
+          organizationId: ids.organizationId,
+        }),
+    ).rejects.toThrow("Not found");
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.memberId, { status: "readOnly" });
+    });
+    await expect(
+      t
+        .withIdentity({ subject: "stripe_cancel_actor_target" })
+        .action(api.organizationStripe.actions.cancelPendingCheckoutForOrganization, {
+          organizationId: ids.organizationId,
+        }),
+    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+    expect(providerFetchMock).not.toHaveBeenCalled();
   });
 
   it("必須設定不足では3 Actionともprovider通信しない", async () => {
@@ -3130,6 +3170,202 @@ describe("organizationStripe/actions", () => {
     }
   });
 
+  it("カード入力前にCheckoutをキャンセルしたらStripeのexpired確認後にfallbackへ戻し、再実行しても副作用を増やさない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(
+      async (ctx) =>
+        await seedOrganizationManagerShop(ctx, { subject: "stripe_cancelled_checkout_recovery", plan: "free" }),
+    );
+    const providerResources: string[] = [];
+    let checkoutOperationId: Id<"organizationStripeOperations"> | undefined;
+    let checkoutStatus: "open" | "expired" = "open";
+    const session = () => ({
+      id: "cs_cancelled_checkout_recovery",
+      customer: "cus_cancelled_checkout_recovery",
+      livemode: false,
+      mode: "subscription",
+      status: checkoutStatus,
+      client_reference_id: String(ids.organizationId),
+      metadata: {
+        shiftori_organization_id: String(ids.organizationId),
+        shiftori_operation_id: String(checkoutOperationId),
+        shiftori_provider_generation: "1",
+        shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+      },
+    });
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerResources.push(resource);
+      const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+      if (resource === "prices.retrieve") return providerResponse(priceFixtureFor(String(args[0])));
+      if (resource === "customers.create") {
+        return providerResponse({ id: "cus_cancelled_checkout_recovery", livemode: false });
+      }
+      if (resource === "checkout.sessions.create") {
+        return providerResponse({
+          id: "cs_cancelled_checkout_recovery",
+          url: "https://checkout.stripe.test/cancelled-checkout-recovery",
+          livemode: false,
+        });
+      }
+      if (resource === "checkout.sessions.retrieve") return providerResponse(session());
+      if (resource === "checkout.sessions.expire") {
+        checkoutStatus = "expired";
+        return providerResponse(session());
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    const actor = t.withIdentity({ subject: "stripe_cancelled_checkout_recovery" });
+    await expect(
+      actor.action(api.organizationStripe.actions.startPaidCheckoutForOrganization, {
+        organizationId: ids.organizationId,
+        targetPlan: "pro",
+        requestId: "cancelled-checkout-recovery",
+      }),
+    ).resolves.toEqual({ status: "available", url: "https://checkout.stripe.test/cancelled-checkout-recovery" });
+    checkoutOperationId = await t.run(async (ctx) => {
+      const operation = await ctx.db
+        .query("organizationStripeOperations")
+        .withIndex("by_organizationId_and_kind_and_status", (q) =>
+          q.eq("organizationId", ids.organizationId).eq("kind", "immediatePaidCheckout").eq("status", "succeeded"),
+        )
+        .unique();
+      if (!operation) throw new Error("checkout operation missing");
+      return operation._id;
+    });
+
+    await expect(
+      actor.action(api.organizationStripe.actions.cancelPendingCheckoutForOrganization, {
+        organizationId: ids.organizationId,
+      }),
+    ).resolves.toEqual({ status: "cancelled" });
+    expect(providerResources).toEqual([
+      "prices.retrieve",
+      "customers.create",
+      "checkout.sessions.create",
+      "checkout.sessions.retrieve",
+      "checkout.sessions.expire",
+    ]);
+    await expect(
+      t.run(async (ctx) => ({
+        billing: await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+          .unique(),
+        operation: await ctx.db.get(checkoutOperationId as Id<"organizationStripeOperations">),
+      })),
+    ).resolves.toMatchObject({
+      billing: { state: { kind: "active", plan: "free" } },
+      operation: { status: "cancelled", lastErrorCode: "checkout_session_cancelled" },
+    });
+
+    await expect(
+      actor.action(api.organizationStripe.actions.cancelPendingCheckoutForOrganization, {
+        organizationId: ids.organizationId,
+      }),
+    ).resolves.toEqual({ status: "unchanged" });
+    expect(providerResources).toHaveLength(5);
+  });
+
+  it.each([
+    { name: "complete", providerFailure: false },
+    { name: "provider取得失敗", providerFailure: true },
+  ])("Checkoutが$nameならpendingActivationを解除せず安全に保留する", async (testCase) => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: `stripe_cancelled_checkout_${testCase.providerFailure ? "provider_failure" : "complete"}`,
+        plan: "free",
+      });
+      const billing = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billing) throw new Error("billing state missing");
+      await ctx.db.patch(billing._id, {
+        state: { kind: "pendingActivation", plan: "pro", fallback: "free", startedAt: NOW },
+        version: 2,
+        updatedAt: NOW,
+      });
+      await ctx.db.insert("organizationStripeCustomers", {
+        organizationId: seeded.organizationId,
+        stripeCustomerId: `cus_cancelled_checkout_${testCase.providerFailure ? "provider_failure" : "complete"}`,
+        livemode: false,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      const operationId = await ctx.db.insert("organizationStripeOperations", {
+        organizationId: seeded.organizationId,
+        kind: "immediatePaidCheckout",
+        requestKey: `cancelled_checkout_${testCase.providerFailure ? "provider_failure" : "complete"}`,
+        stripeIdempotencyKey: `test:cancelled_checkout:${testCase.providerFailure ? "provider_failure" : "complete"}`,
+        livemode: false,
+        expectedBillingVersion: 2,
+        providerGeneration: 1,
+        targetPlan: "pro",
+        changeMode: "checkout",
+        stripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+        targetStripePriceIdSnapshot: READY_TEST_CONFIGURATION.proPriceId,
+        stripeObjectId: `cs_cancelled_checkout_${testCase.providerFailure ? "provider_failure" : "complete"}`,
+        status: "succeeded",
+        attemptCount: 1,
+        completedAt: NOW,
+        expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      return { ...seeded, operationId };
+    });
+    const providerResources: string[] = [];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerResources.push(resource);
+      if (resource === "checkout.sessions.retrieve") {
+        if (testCase.providerFailure) throw new Error("Stripe unavailable");
+        return providerResponse({
+          id: `cs_cancelled_checkout_complete`,
+          customer: `cus_cancelled_checkout_complete`,
+          livemode: false,
+          mode: "subscription",
+          status: "complete",
+          client_reference_id: String(ids.organizationId),
+          metadata: {
+            shiftori_organization_id: String(ids.organizationId),
+            shiftori_operation_id: String(ids.operationId),
+            shiftori_provider_generation: "1",
+            shiftori_price_id: READY_TEST_CONFIGURATION.proPriceId,
+          },
+        });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    const subject = `stripe_cancelled_checkout_${testCase.providerFailure ? "provider_failure" : "complete"}`;
+    await expect(
+      t.withIdentity({ subject }).action(api.organizationStripe.actions.cancelPendingCheckoutForOrganization, {
+        organizationId: ids.organizationId,
+      }),
+    ).resolves.toEqual(
+      testCase.providerFailure ? { status: "unavailable", reason: "provider_unavailable" } : { status: "pending" },
+    );
+    expect(providerResources).toEqual(["checkout.sessions.retrieve"]);
+    await expect(
+      t.run(async (ctx) => ({
+        billing: await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+          .unique(),
+        operation: await ctx.db.get(ids.operationId),
+      })),
+    ).resolves.toMatchObject({
+      billing: {
+        state: { kind: "pendingActivation", plan: "pro", fallback: "free" },
+      },
+      operation: { status: "succeeded" },
+    });
+  });
+
   it.each([
     { name: "SetupIntent status", setupPatch: { status: "requires_action" }, errorCode: "setup_intent_invalid" },
     { name: "SetupIntent usage", setupPatch: { usage: "on_session" }, errorCode: "setup_intent_invalid" },
@@ -5334,6 +5570,12 @@ describe("organizationStripe/actions", () => {
       status: "cancelled",
       lastErrorCode: "checkout_session_expired",
     });
+    await expect(
+      t.mutation(internal.organizationStripe.mutations.releaseExpiredCheckoutOperation, {
+        operationId: operation.operationId,
+        stripeSessionId: "cs_business_expired",
+      }),
+    ).resolves.toEqual({ changed: true });
   });
 
   it("Trial Subscription createのpayload snapshotが変わったoperationは再利用しない", async () => {

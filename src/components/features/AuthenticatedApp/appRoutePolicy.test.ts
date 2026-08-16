@@ -4,6 +4,7 @@ import {
   isAppPath,
   normalizeAppRouteSearch,
   resolveAppShellRouteData,
+  validateAppBillingRouteSearch,
   validateAppFilteredListRouteSearch,
   validateAppOrganizationRouteSearch,
   validateDashboardRouteSearch,
@@ -41,12 +42,21 @@ describe("app route search policy", () => {
     });
   });
 
+  it("課金画面だけStripeの戻り結果を許可し、未知の値は除去する", () => {
+    expect(getCanonicalAppHref("/app/manage/billing", "?org=org-a&stripe=cancelled")).toBeNull();
+    expect(getCanonicalAppHref("/app/manage/billing", "?org=org-a&stripe=success")).toBe(
+      "/app/manage/billing?org=org-a",
+    );
+  });
+
   it("route file向けvalidatorも同じallowlistへ収束する", () => {
-    const source = { org: " org-a ", shop: "shop-a", shopFilter: "shop-b", token: "secret" };
+    const source = { org: " org-a ", shop: "shop-a", shopFilter: "shop-b", stripe: "cancelled", token: "secret" };
 
     expect(validateDashboardRouteSearch(source)).toEqual({ org: "org-a", shop: "shop-a" });
     expect(validateAppFilteredListRouteSearch(source)).toEqual({ org: "org-a", shopFilter: "shop-b" });
     expect(validateAppOrganizationRouteSearch(source)).toEqual({ org: "org-a" });
+    expect(validateAppBillingRouteSearch(source)).toEqual({ org: "org-a", stripe: "cancelled" });
+    expect(validateAppBillingRouteSearch({ ...source, stripe: "success" })).toEqual({ org: "org-a" });
   });
 
   it("すでにcanonicalなsearchとapp外routeは遷移させない", () => {

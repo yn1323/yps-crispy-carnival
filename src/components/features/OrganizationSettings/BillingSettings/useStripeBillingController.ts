@@ -26,6 +26,8 @@ type Input = {
   organizationId: Id<"organizations">;
   organizationName: string;
   billing: OrganizationBillingView;
+  stripeResult?: "returned" | "cancelled";
+  onStripeResultHandled?: () => void;
 };
 
 type PortalIntent = { kind: "plan" } | { kind: "paymentMethod" } | { kind: "billingDocuments" };
@@ -38,6 +40,9 @@ const INITIAL_PRICES: BillingPlanPrices = {
 export function useStripeBillingController(input: Input) {
   const getPlanPriceForOrganization = useAction(api.organizationStripe.actions.getPlanPriceForOrganization);
   const startPaidCheckoutForOrganization = useAction(api.organizationStripe.actions.startPaidCheckoutForOrganization);
+  const cancelPendingCheckoutForOrganization = useAction(
+    api.organizationStripe.actions.cancelPendingCheckoutForOrganization,
+  );
   const previewPaidPlanChangeForOrganization = useAction(
     api.organizationStripe.actions.previewPaidPlanChangeForOrganization,
   );
@@ -59,8 +64,11 @@ export function useStripeBillingController(input: Input) {
   const [dialog, setDialog] = useState<BillingActionDialogState | null>(null);
   const latestRef = useRef(input);
   const activeScopeId = input.organizationId;
+  const stripeResult = input.stripeResult;
+  const onStripeResultHandled = input.onStripeResultHandled;
   const activeScopeIdRef = useRef(activeScopeId);
   const dialogRef = useRef(dialog);
+  const handledStripeResultRef = useRef<string | null>(null);
   const priceRequestRef = useRef<Partial<Record<PaidBillingPlan, string>>>({});
   const previewRequestKeysRef = useRef(new Set<string>());
   latestRef.current = input;
@@ -126,6 +134,51 @@ export function useStripeBillingController(input: Input) {
       return expected?.kind === current.kind ? current : null;
     });
   }, [activeScopeId, input.billing]);
+
+  useEffect(() => {
+    if (!stripeResult) {
+      handledStripeResultRef.current = null;
+      return;
+    }
+
+    const resultKey = `${activeScopeId}:${stripeResult}`;
+    if (handledStripeResultRef.current === resultKey) return;
+    handledStripeResultRef.current = resultKey;
+
+    if (stripeResult === "returned") {
+      onStripeResultHandled?.();
+      return;
+    }
+
+    let disposed = false;
+    void cancelPendingCheckoutForOrganization({ organizationId: input.organizationId })
+      .then((result) => {
+        if (disposed) return;
+        if (result.status === "unavailable") {
+          showUnavailable(result.reason);
+          return;
+        }
+        if (result.status === "cancelled") {
+          showSuccessToast({
+            title: "支払いをキャンセルしました",
+            description: "元のプランに戻しました。",
+          });
+        } else if (result.status === "pending") {
+          showSuccessToast({
+            title: "支払い結果を確認中です",
+            description: "Stripeの状態が確定すると、プランが更新されます。",
+          });
+        }
+        onStripeResultHandled?.();
+      })
+      .catch((error) => {
+        if (!disposed) showErrorToast(error);
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, [activeScopeId, cancelPendingCheckoutForOrganization, input.organizationId, onStripeResultHandled, stripeResult]);
 
   const prepareProrationPreview = useCallback(
     async (intent: { intentKey: string; shopId: string; targetPlan: "business" }) => {

@@ -23,9 +23,15 @@ export type AppRouteSearch = {
   shopFilter?: string;
   flow?: string;
   oauth?: string;
+  stripe?: string;
 };
 
 export type AppOrganizationRouteSearch = Pick<AppRouteSearch, "org">;
+export type StripeCheckoutReturn = "returned" | "cancelled";
+export type AppBillingRouteSearch = {
+  org?: string;
+  stripe?: StripeCheckoutReturn;
+};
 export type DashboardRouteSearch = Pick<AppRouteSearch, "org" | "shop">;
 export type AppFilteredListRouteSearch = Pick<AppRouteSearch, "org" | "shopFilter">;
 
@@ -33,6 +39,7 @@ type AppRouteSearchKey = keyof AppRouteSearch;
 
 const NO_APP_SEARCH_KEYS: readonly AppRouteSearchKey[] = [];
 const ORGANIZATION_SEARCH_KEYS = ["org"] as const satisfies readonly AppRouteSearchKey[];
+const BILLING_SEARCH_KEYS = ["org", "stripe"] as const satisfies readonly AppRouteSearchKey[];
 const DASHBOARD_SEARCH_KEYS = ["org", "shop"] as const satisfies readonly AppRouteSearchKey[];
 const FILTERED_LIST_SEARCH_KEYS = ["org", "shopFilter"] as const satisfies readonly AppRouteSearchKey[];
 
@@ -83,12 +90,30 @@ export function normalizeAppRouteSearch(pathname: string, search: Readonly<Recor
     if (trimmed !== "") normalized[key] = trimmed;
   }
 
+  if (
+    pathname === "/app/manage/billing" &&
+    normalized.stripe !== undefined &&
+    !isStripeCheckoutReturn(normalized.stripe)
+  ) {
+    delete normalized.stripe;
+  }
+
   return normalized;
 }
 
 export function validateAppOrganizationRouteSearch(search: Record<string, unknown>): AppOrganizationRouteSearch {
   const { org } = normalizeAppRouteSearch("/app/manage", search);
   return org ? { org } : {};
+}
+
+export function validateAppBillingRouteSearch(search: Record<string, unknown>): AppBillingRouteSearch {
+  const { org, stripe } = normalizeAppRouteSearch("/app/manage/billing", search);
+  const stripeResult: StripeCheckoutReturn | undefined =
+    stripe === "returned" || stripe === "cancelled" ? stripe : undefined;
+  return {
+    ...(org ? { org } : {}),
+    ...(stripeResult ? { stripe: stripeResult } : {}),
+  };
 }
 
 export function validateDashboardRouteSearch(search: Record<string, unknown>): DashboardRouteSearch {
@@ -118,6 +143,7 @@ function getAllowedAppRouteSearchKeys(pathname: string): readonly AppRouteSearch
   if (pathname === "/app/shifts" || pathname === "/app/staff" || pathname === "/app/actions") {
     return FILTERED_LIST_SEARCH_KEYS;
   }
+  if (pathname === "/app/manage/billing") return BILLING_SEARCH_KEYS;
   if (
     pathname.startsWith("/app/shifts/") ||
     pathname.startsWith("/app/staff/") ||
@@ -146,4 +172,8 @@ function buildAppRouteSearchString(pathname: string, search: Readonly<Record<str
 function normalizeSearchString(searchStr: string): string {
   if (searchStr === "") return "";
   return searchStr.startsWith("?") ? searchStr : `?${searchStr}`;
+}
+
+function isStripeCheckoutReturn(value: string): value is StripeCheckoutReturn {
+  return value === "returned" || value === "cancelled";
 }

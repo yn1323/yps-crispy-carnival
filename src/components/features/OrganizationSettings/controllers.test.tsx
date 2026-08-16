@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   actions: {
     getProPrice: vi.fn(),
     startProCheckout: vi.fn(),
+    cancelPendingCheckout: vi.fn(),
     previewPaidPlanChange: vi.fn(),
     changePaidPlanNow: vi.fn(),
     schedulePaidPlanChange: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock("convex/react", async () => {
       const name = getFunctionName(reference).replace("ForOrganization", "");
       if (name === "organizationStripe/actions:getPlanPrice") return mocks.actions.getProPrice;
       if (name === "organizationStripe/actions:startPaidCheckout") return mocks.actions.startProCheckout;
+      if (name === "organizationStripe/actions:cancelPendingCheckout") return mocks.actions.cancelPendingCheckout;
       if (name === "organizationStripe/actions:previewPaidPlanChange") return mocks.actions.previewPaidPlanChange;
       if (name === "organizationStripe/actions:changePaidPlanNow") return mocks.actions.changePaidPlanNow;
       if (name === "organizationStripe/actions:schedulePaidPlanChange") return mocks.actions.schedulePaidPlanChange;
@@ -821,6 +823,55 @@ describe("OrganizationSettings controllers", () => {
     );
     expect(mocks.openBillingUrl).not.toHaveBeenCalled();
     expect(result.current.dialog.dialog?.intentKey).toBe("request-1");
+  });
+
+  it("Stripeのキャンセル戻りは組織を明示して一度だけ復旧Actionを呼び、完了後に戻り値を消費する", async () => {
+    mocks.actions.getProPrice.mockResolvedValue({
+      status: "available",
+      currency: "jpy",
+      unitAmount: 3000,
+      interval: "month",
+      intervalCount: 1,
+      taxBehavior: "inclusive",
+    });
+    mocks.actions.cancelPendingCheckout.mockResolvedValue({ status: "cancelled" });
+    const onStripeResultHandled = vi.fn();
+    const freeBilling: OrganizationBillingView = {
+      ...billing,
+      state: "free",
+      currentPlan: "free",
+      canUpdatePaymentMethod: false,
+      canScheduleFree: false,
+    };
+    const { rerender } = renderHook((input) => useStripeBillingController(input), {
+      initialProps: {
+        organizationId,
+        organizationName: "さくらダイニング",
+        billing: freeBilling,
+        stripeResult: "cancelled" as const,
+        onStripeResultHandled,
+      },
+    });
+
+    await waitFor(() =>
+      expect(mocks.actions.cancelPendingCheckout).toHaveBeenCalledExactlyOnceWith({
+        organizationId: "organization-app",
+      }),
+    );
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
+      title: "支払いをキャンセルしました",
+      description: "元のプランに戻しました。",
+    });
+    expect(onStripeResultHandled).toHaveBeenCalledTimes(1);
+
+    rerender({
+      organizationId,
+      organizationName: "さくらダイニング",
+      billing: freeBilling,
+      stripeResult: "cancelled",
+      onStripeResultHandled,
+    });
+    expect(mocks.actions.cancelPendingCheckout).toHaveBeenCalledTimes(1);
   });
 
   it("価格を取得できない場合はDialog内で案内し、再読み込みできる", async () => {

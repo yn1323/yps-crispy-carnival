@@ -6,6 +6,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { LuBuilding2, LuCreditCard, LuPencil, LuPlus, LuRefreshCw, LuSettings, LuShieldCheck } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import type { StripeCheckoutReturn } from "@/src/components/features/AuthenticatedApp";
 import {
   ManagerCandidatePageContent,
   ManagerCandidatePageSkeleton,
@@ -523,7 +524,12 @@ function ConnectedInviteNewPage({ organizationId }: { organizationId: Id<"organi
   return <ManagerExternalInviteForm overview={overview} organizationId={organizationId} />;
 }
 
-export function AppManageBillingRoutePage(props: OrganizationScopeProps) {
+type BillingRouteProps = OrganizationScopeProps & {
+  stripeResult?: StripeCheckoutReturn;
+  onStripeResultHandled?: () => void;
+};
+
+export function AppManageBillingRoutePage(props: BillingRouteProps) {
   return (
     <ManageErrorBoundary>
       {() => (
@@ -564,18 +570,33 @@ function ManageFeatureBoundary({
   return children;
 }
 
-function ConnectedBillingPage({ organizationId, memberStatus }: OrganizationScopeProps) {
+function ConnectedBillingPage({
+  organizationId,
+  memberStatus,
+  stripeResult,
+  onStripeResultHandled,
+}: BillingRouteProps) {
   const overview = useQuery(api.appOrganization.manageQueries.getBillingOverview, { organizationId });
   if (overview === undefined) return <AppManageBillingPageSkeleton />;
 
-  return <ReadyBillingPage organizationId={organizationId} memberStatus={memberStatus} overview={overview} />;
+  return (
+    <ReadyBillingPage
+      organizationId={organizationId}
+      memberStatus={memberStatus}
+      overview={overview}
+      stripeResult={stripeResult}
+      onStripeResultHandled={onStripeResultHandled}
+    />
+  );
 }
 
 function ReadyBillingPage({
   organizationId,
   memberStatus,
   overview,
-}: OrganizationScopeProps & {
+  stripeResult,
+  onStripeResultHandled,
+}: BillingRouteProps & {
   overview: FunctionReturnType<typeof api.appOrganization.manageQueries.getBillingOverview>;
 }) {
   const router = useRouter();
@@ -585,6 +606,8 @@ function ReadyBillingPage({
     organizationId,
     organizationName: overview.organizationName,
     billing: overview.billing,
+    stripeResult,
+    onStripeResultHandled,
   });
   return (
     <Animation>
