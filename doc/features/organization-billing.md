@@ -128,6 +128,7 @@ Freeは追加組織の初期状態と、既存の`active.free`、そのFreeをfa
 - 有料プランの状態変更は、署名済みWebhookまたはStripe APIから再取得した結果だけを`setStateFromVerifiedBilling`へ渡す。
   CheckoutやPortalの戻り先を支払い成功の根拠にしない。
 - Secret keyの接頭辞、Stripe objectの`livemode`、Price、Customer、Subscription、Invoiceの対応を検証する。
+- ProとBusinessの金額、通貨、請求周期はStripe Priceを正本とし、コード、環境変数、DBへ周期を複製しない。  新規販売ではactiveなrecurring Priceと正の`interval_count`を要求し、両プランの通貨と請求周期が一致する場合だけBusinessの価格表示、Checkout、プラン間変更を許可する。
 - Stripe Event ID、request ID、operationのidempotency keyで重複実行を収束させる。
 - ProからBusinessへの即時変更は、支払い成功を確認するまでProの利用権限を維持する。
 - BusinessからProへの変更と、有料プランの利用停止は期間末に予約し、providerで確認できた結果だけを反映する。
@@ -286,6 +287,7 @@ frontendだけの状態やCSSを認可境界にしない。
 Dashboardは現在のプランと利用状況を最小DTOから表示する。
 支払いの公開設定が閉じている通常環境では、料金、課金Callout、「プランと支払い」への導線を表示せず、CheckoutやPortalのActionも実行できない。
 料金と販売中プランの比較は、公開設定を明示的に有効化した`/app/manage/billing?org=<organizationId>`だけで扱う。
+表示する金額と`day`、`week`、`month`、`year`の請求周期はStripe Priceから取得し、開発用の短縮周期も同じ経路で表示する。
 「プランと支払い」で表示する税区分はActionが明示した場合だけ表示し、不明な場合は税込・税抜を推測しない。
 
 rolling deploy中は、`planStatus`が`undefined`の場合だけ、旧backendの応答として`trialEndingNotice`によるCalloutへfallbackする。
