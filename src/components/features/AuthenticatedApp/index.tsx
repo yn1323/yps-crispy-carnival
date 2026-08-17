@@ -12,18 +12,21 @@ export type { AppNavigationTarget } from "./appNavigationTargetResolver";
 export { resolveAppNavigationTarget } from "./appNavigationTargetResolver";
 export { resolveAppOrganizationSwitchTarget } from "./appOrganizationSwitchTarget";
 export type {
+  AppBillingRouteSearch,
   AppFilteredListRouteSearch,
   AppNavigationPath,
   AppOrganizationRouteSearch,
   AppOrganizationScopedNavigationPath,
   AppRouteSearch,
   DashboardRouteSearch,
+  StripeCheckoutReturn,
 } from "./appRoutePolicy";
 export {
   getCanonicalAppHref,
   isAppPath,
   normalizeAppRouteSearch,
   resolveAppShellRouteData,
+  validateAppBillingRouteSearch,
   validateAppFilteredListRouteSearch,
   validateAppOrganizationRouteSearch,
   validateDashboardRouteSearch,

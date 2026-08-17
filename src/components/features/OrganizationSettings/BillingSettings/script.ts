@@ -140,10 +140,11 @@ export function formatCurrencyAmount(currencyValue: string, amountInMinorUnit: n
   const formatter = new Intl.NumberFormat("ja-JP", {
     style: "currency",
     currency,
-    currencyDisplay: "code",
+    currencyDisplay: currency === "JPY" ? "symbol" : "code",
   });
   const fractionDigits = formatter.resolvedOptions().maximumFractionDigits ?? 0;
-  return formatter.format(amountInMinorUnit / 10 ** fractionDigits);
+  const formatted = formatter.format(amountInMinorUnit / 10 ** fractionDigits);
+  return currency === "JPY" ? formatted.replace("￥", "¥") : formatted;
 }
 
 export function formatBillingBoundaryDate(timestamp: number): string {

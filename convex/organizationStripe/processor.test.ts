@@ -294,6 +294,63 @@ describe("organizationStripe/processWebhookEvent", () => {
     }
   });
 
+  it("ユーザーのキャンセル処理後に届くexpired webhookはactionRequiredへ戻さず冪等に処理する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedExpiredCheckout(t, "immediateProCheckout");
+    await t.mutation(internal.organizationStripe.mutations.releaseExpiredCheckoutOperation, {
+      operationId: ids.operationId,
+      stripeSessionId: "cs_expired_immediateProCheckout",
+      reason: "checkout_session_cancelled",
+    });
+    await t.run(async (ctx) => {
+      await patchBillingState(ctx, ids.organizationId, { kind: "active", plan: "free" });
+    });
+
+    const eventId = "evt_cancelled_checkout_expired_webhook";
+    provider.retrieveEvent.mockResolvedValue({
+      id: eventId,
+      type: "checkout.session.expired",
+      livemode: false,
+      api_version: STRIPE_WEBHOOK_API_VERSION,
+      created: Math.floor(NOW / 1000),
+      data: { object: { id: "cs_expired_immediateProCheckout" } },
+    });
+    provider.retrieveCheckout.mockResolvedValue({
+      id: "cs_expired_immediateProCheckout",
+      customer: CUSTOMER_ID,
+      livemode: false,
+      mode: "subscription",
+      status: "expired",
+      client_reference_id: String(ids.organizationId),
+      metadata: {
+        shiftori_organization_id: String(ids.organizationId),
+        shiftori_operation_id: String(ids.operationId),
+        shiftori_provider_generation: "1",
+        shiftori_price_id: PRICE_ID,
+      },
+    });
+    await insertReceipt(t, eventId, "checkout.session.expired", "cs_expired_immediateProCheckout", NOW);
+
+    await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: eventId });
+
+    await expect(receiptById(t, eventId)).resolves.toMatchObject({ status: "processed" });
+    await expect(t.run((ctx) => ctx.db.get(ids.operationId))).resolves.toMatchObject({
+      status: "cancelled",
+      lastErrorCode: "checkout_session_cancelled",
+    });
+    await expect(
+      t.run(
+        async (ctx) =>
+          (
+            await ctx.db
+              .query("organizationBillingStates")
+              .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+              .unique()
+          )?.state,
+      ),
+    ).resolves.toEqual({ kind: "active", plan: "free" });
+  });
+
   it("expired Checkoutの競合が未収束ならprocessedにせずretryする", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedExpiredCheckout(t, "immediateProCheckout");

@@ -1496,6 +1496,18 @@ export const releaseExpiredCheckoutOperation = internalMutation({
   handler: async (ctx, args) => {
     const operation = await ctx.db.get(args.operationId);
     if (
+      operation?.status === "cancelled" &&
+      (operation.kind === "trialSetupCheckout" ||
+        operation.kind === "immediateProCheckout" ||
+        operation.kind === "immediatePaidCheckout") &&
+      operation.stripeObjectId === args.stripeSessionId &&
+      (operation.lastErrorCode === "checkout_session_cancelled" ||
+        operation.lastErrorCode === "checkout_session_expired_webhook" ||
+        operation.lastErrorCode === "checkout_session_expired")
+    ) {
+      return { changed: true };
+    }
+    if (
       operation?.status !== "succeeded" ||
       operation.stripeObjectId !== args.stripeSessionId ||
       (operation.kind !== "trialSetupCheckout" &&

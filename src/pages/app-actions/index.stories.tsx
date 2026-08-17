@@ -53,7 +53,7 @@ const items: readonly ActionInboxItem[] = [
     id: "management:preview",
     category: "management",
     statusLabel: "招待エラー",
-    title: "鈴木さんへの管理者招待を確認してください",
+    title: "鈴木さんへの管理者招待が送れませんでした",
     metadata: [
       { label: "suzuki@example.com", icon: "mail" },
       { label: "8/14 08:45", icon: "clock" },
@@ -65,7 +65,15 @@ const items: readonly ActionInboxItem[] = [
   },
 ];
 
-function ReadyPreview({ readOnly = false, empty = false }: { readOnly?: boolean; empty?: boolean }) {
+function ReadyPreview({
+  readOnly = false,
+  empty = false,
+  singleShop = false,
+}: {
+  readOnly?: boolean;
+  empty?: boolean;
+  singleShop?: boolean;
+}) {
   const [shopFilter, setShopFilter] = useState<string | null>(null);
   return (
     <AppActionsPageView
@@ -74,10 +82,14 @@ function ReadyPreview({ readOnly = false, empty = false }: { readOnly?: boolean;
         <ShopFilterMenu
           prefix="対象"
           value={shopFilter}
-          options={[
-            { value: "shop-1", label: "yn1323店舗" },
-            { value: "shop-2", label: "もて" },
-          ]}
+          options={
+            singleShop
+              ? [{ value: "shop-1", label: "yn1323店舗" }]
+              : [
+                  { value: "shop-1", label: "yn1323店舗" },
+                  { value: "shop-2", label: "もて" },
+                ]
+          }
           onChange={setShopFilter}
         />
       }
@@ -110,6 +122,10 @@ export const Loading: Story = {};
 
 export const Ready: Story = {
   render: () => <ReadyPreview />,
+};
+
+export const SingleShop: Story = {
+  render: () => <ReadyPreview singleShop />,
 };
 
 export const Empty: Story = {

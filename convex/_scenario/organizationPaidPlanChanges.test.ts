@@ -252,7 +252,15 @@ function priceIdForPlan(plan: "pro" | "business") {
   return plan === "business" ? BUSINESS_PRICE_ID : PRO_PRICE_ID;
 }
 
-function priceFixture(plan: "pro" | "business") {
+type TestBillingCadence = {
+  interval: "day" | "week" | "month" | "year";
+  interval_count: number;
+};
+
+function priceFixture(
+  plan: "pro" | "business",
+  recurring: TestBillingCadence = { interval: "month", interval_count: 1 },
+) {
   const id = priceIdForPlan(plan);
   return {
     id,
@@ -261,7 +269,7 @@ function priceFixture(plan: "pro" | "business") {
     currency: "jpy",
     unit_amount: plan === "business" ? 2_980 : 1_480,
     tax_behavior: "inclusive",
-    recurring: { interval: "month", interval_count: 1 },
+    recurring,
   };
 }
 
@@ -287,6 +295,7 @@ function subscriptionFixture(
     periodStartsAt?: number;
     periodEndsAt?: number;
     invoiceEffectiveAt?: number;
+    priceRecurring?: TestBillingCadence;
   },
 ) {
   const status = args.status ?? "active";
@@ -349,7 +358,7 @@ function subscriptionFixture(
           quantity: 1,
           current_period_start: Math.floor(periodStartsAt / 1000),
           current_period_end: Math.floor(periodEndsAt / 1000),
-          price: priceFixture(args.plan),
+          price: priceFixture(args.plan, args.priceRecurring),
         },
       ],
     },
@@ -458,7 +467,10 @@ function providerResponse(value: unknown) {
   return value as Response;
 }
 
-function installBusinessToProProvider(ids: PaidStripeContext, options: { failFirstScheduleCreate?: boolean } = {}) {
+function installBusinessToProProvider(
+  ids: PaidStripeContext,
+  options: { failFirstScheduleCreate?: boolean; priceRecurring?: TestBillingCadence } = {},
+) {
   let mode: "business" | "proFailed" | "proPaid" = "business";
   let scheduled = false;
   let released = false;
@@ -471,6 +483,7 @@ function installBusinessToProProvider(ids: PaidStripeContext, options: { failFir
     if (mode === "business") {
       return subscriptionFixture(ids, {
         plan: "business",
+        ...(options.priceRecurring ? { priceRecurring: options.priceRecurring } : {}),
         ...(scheduled && !released ? { scheduleId: ids.stripeSubscriptionScheduleId } : {}),
       });
     }
@@ -482,13 +495,14 @@ function installBusinessToProProvider(ids: PaidStripeContext, options: { failFir
       periodStartsAt: ids.periodEndsAt,
       periodEndsAt: ids.periodEndsAt + 30 * 24 * 60 * 60_000,
       invoiceEffectiveAt: ids.periodEndsAt,
+      ...(options.priceRecurring ? { priceRecurring: options.priceRecurring } : {}),
     });
   };
 
   stripeProviderMock.mockImplementation(async (input, init) => {
     const resource = String(input).split("/").pop() ?? "";
     const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
-    if (resource === "prices.retrieve") return providerResponse(priceFixture("pro"));
+    if (resource === "prices.retrieve") return providerResponse(priceFixture("pro", options.priceRecurring));
     if (resource === "subscriptions.retrieve") return providerResponse(currentSubscription());
     if (resource === "invoices.retrieve") return providerResponse(currentSubscription().latest_invoice);
     if (resource === "subscriptionSchedules.create") {
@@ -548,6 +562,9 @@ function installBusinessToProProvider(ids: PaidStripeContext, options: { failFir
     },
     get scheduleReleaseAttempts() {
       return scheduleReleaseAttempts;
+    },
+    get scheduledPhases() {
+      return scheduledPhases;
     },
   };
 }
@@ -1293,7 +1310,10 @@ describe("有料プラン変更シナリオ", () => {
   it("BusinessからProのSchedule作成一時失敗は30秒後のprovider再取得で同じoperationから復旧する", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedPaidStripeContext(t, { subject: "business_pro_schedule_retry", plan: "business" });
-    const provider = installBusinessToProProvider(ids, { failFirstScheduleCreate: true });
+    const provider = installBusinessToProProvider(ids, {
+      failFirstScheduleCreate: true,
+      priceRecurring: { interval: "day", interval_count: 2 },
+    });
     const actor = t.withIdentity({ subject: "business_pro_schedule_retry" });
 
     await expect(
@@ -1330,6 +1350,14 @@ describe("有料プラン変更シナリオ", () => {
     });
     expect(snapshot.operations[0]).toMatchObject({ status: "succeeded", attemptCount: 2 });
     expect(provider.scheduleCreateAttempts).toBe(2);
+    expect(provider.scheduledPhases).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          duration: { interval: "day", interval_count: 2 },
+          items: [{ price: PRO_PRICE_ID, quantity: 1 }],
+        }),
+      ]),
+    );
   });
 
   it("BusinessからProは期間末の失敗でBusiness graceとなり、後続paid receipt後にProへ回復する", async () => {

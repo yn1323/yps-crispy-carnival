@@ -182,6 +182,24 @@ describe("AppShiftsRoutePage", () => {
     });
   });
 
+  it("利用中の店舗が1つのとき店舗filterを表示しない", () => {
+    mocks.usePaginatedQuery.mockReturnValue({
+      results: [firstSection],
+      status: "Exhausted",
+      loadMore: mocks.loadMore,
+    });
+
+    renderPage(
+      <AppShiftsRoutePage
+        organizationId={"organization-1" as never}
+        memberStatus="active"
+        activeShops={activeShops.slice(0, 1)}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "店舗で絞り込む（現在：すべて）" })).toBeNull();
+  });
+
   it("店舗filterは一覧だけへ適用し、募集作成候補には全店舗を残す", () => {
     mocks.usePaginatedQuery.mockReturnValue({
       results: [firstSection, secondSection],

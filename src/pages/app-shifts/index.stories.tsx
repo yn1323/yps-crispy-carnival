@@ -166,14 +166,22 @@ export const ReadOnlyMobile: Story = {
   render: () => <ReadyPreview isReadOnly />,
 };
 
-function FilterPreview() {
+function FilterPreview({ singleShop = false }: { singleShop?: boolean }) {
   const [filter, setFilter] = useState<string | null>(null);
   return (
-    <AppShiftsOverviewView filterValue={filter} filterOptions={filterOptions} onFilterChange={setFilter}>
+    <AppShiftsOverviewView
+      filterValue={filter}
+      filterOptions={singleShop ? filterOptions.slice(0, 1) : filterOptions}
+      onFilterChange={setFilter}
+    >
       <output>選択中：{filter ?? "すべて"}</output>
     </AppShiftsOverviewView>
   );
 }
+
+export const SingleShop: Story = {
+  render: () => <FilterPreview singleShop />,
+};
 
 export const ShopFilterBehavior: Story = {
   parameters: { screenshot: { skip: true } },

@@ -89,8 +89,8 @@ pnpm exec convex env remove --deployment <fully-qualified-deployment> FEATURE_SH
 | `ORGANIZATION_INVITATION_SIGNING_SECRET` | 管理者招待tokenのHMAC導出に使う32文字以上の秘密値 | 既配信tokenの失効手段には使わない。rotation時は未送信・再試行中の招待を確認し、再発行する |
 | `STRIPE_SECRET_KEY` | Stripe APIへ接続するSecret key | `sk_test_`または`sk_live_`以外なら課金操作を開始しない |
 | `STRIPE_WEBHOOK_SECRET` | `POST /stripe/webhook`の署名検証 | `whsec_`形式でなければWebhookを受理せず、利用者起点の課金操作も開始しない |
-| `STRIPE_PRO_PRICE_ID` | Proの月額Price | 未設定または不正なら利用者起点の課金操作を開始しない |
-| `STRIPE_BUSINESS_PRICE_ID` | Businessの月額Price | 未設定、不正、Proと同一ならBusiness操作だけを停止する |
+| `STRIPE_PRO_PRICE_ID` | Proのrecurring Priceを選ぶallowlist | 未設定または不正なら利用者起点の課金操作を開始しない |
+| `STRIPE_BUSINESS_PRICE_ID` | Businessのrecurring Priceを選ぶallowlist | 未設定、不正、Proと同一ならBusiness操作だけを停止する |
 | `STRIPE_PORTAL_CONFIGURATION_ID` | 支払い方法更新と請求履歴に限定したPortal設定 | 未設定または不正なら利用者起点の課金操作を開始しない |
 | `APP_URL` | CheckoutとPortalの戻り先 | サーバー側で戻り先を構築できない場合は開始しない |
 
@@ -130,14 +130,15 @@ pnpm exec convex env list --names-only \
 ### Product、Price、Portal
 
 1. ProとBusinessに別々のrecurring Priceを用意する。
-2. どちらも月次、`interval_count: 1`とし、BusinessとProの通貨を一致させる。
+2. BusinessとProの通貨、`recurring.interval`、`recurring.interval_count`を一致させる。  本番は月次、開発用Sandboxでは必要に応じて日次や週次を選べる。
 3. 対象modeとPriceの`livemode`が一致することを確認する。
 4. Priceをactiveにし、対象IDを対応する環境変数へ設定する。
 5. Customer Portalは支払い方法更新と請求履歴だけを許可する設定を使う。
-6. `getPlanPrice`で、active、月次、通貨、金額をサーバーが取得できることを確認する。
+6. `getPlanPrice`で、active、請求周期、通貨、金額をサーバーが取得できることを確認する。
 
 アプリはPrice IDをクライアントから受け取らず、サーバー側allowlistから選ぶ。
-金額はコードへ固定せず、Stripe Priceから取得する。
+金額と請求周期はコードや別の環境変数へ固定せず、Stripe Priceから取得する。
+開発用に請求周期を短縮するときは、同じ周期のPro PriceとBusiness PriceをStripe Sandboxで用意し、二つのPrice IDを切り替える。
 
 ### Webhook destination
 
@@ -413,18 +414,19 @@ Priceのアーカイブは新規販売を止めるが、既存Subscriptionを終
 
 1. 変更対象の旧Priceをアーカイブし、open Checkout Sessionをすべて失効させる。
 2. probeの`safetyOperations.priceRotationBlocking`、取消、請求停止、`actionRequired`を確認する。
-3. Stripeで新しい月額Priceを作る。
-   BusinessではProと同じ通貨にする。
+3. Stripeで新しいrecurring Priceを作る。
+   BusinessではProと同じ通貨、`recurring.interval`、`recurring.interval_count`にする。
 4. `STRIPE_PRO_PRICE_ID`または`STRIPE_BUSINESS_PRICE_ID`の対象側だけを新Priceへ変更する。
 5. 現在のConvex設定が対象deploymentを指すことと、`.env`にある同期対象キーを確認する。
 6. 対象キーだけを、完全修飾deployment名を指定した`convex env set`で更新する。続けて`env list --names-only`でキーの存在だけを確認する。
-7. 新Priceの`livemode`、active、月次、通貨、金額を`getPlanPrice`とStripe Dashboardで確認する。
+7. 新Priceの`livemode`、active、請求周期、通貨、金額を`getPlanPrice`とStripe Dashboardで確認する。
 8. 対象modeでCheckout、Subscription、Webhook、Invoiceをcanary確認する。
 9. 旧Priceを使う進行中のTrial・契約作成operationが0件までdrainしたことを確認する。
 10. 既存Subscriptionが保存済みの旧Priceで継続していることを確認する。
 
 新規operationは開始時のPrice snapshotを保持する。
 既存Subscriptionは保存済みPrice IDで照合するため、ローカルSubscriptionのPrice IDを一括書換えしない。
+請求周期を変更するrotationではProとBusinessの両Priceを同じ周期で用意し、二つのPrice IDを一つの作業として切り替える。  周期が一致しない間はBusinessの価格表示、Checkout、ProとBusiness間の変更を再開しない。
 
 ### rollback
 

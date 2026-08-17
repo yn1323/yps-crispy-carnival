@@ -150,7 +150,7 @@ UIを隠すだけでは認可とせず、実行時にも組織、管理者権限
 grandfathered Freeをfallbackとする`pendingActivation`にも、Freeの5名、1店舗、管理者2名の上限を適用する。
 以下でgrandfathered Freeの管理者操作を説明するときは、`active.free`とgrandfathered Freeをfallbackとする`pendingActivation`を対象にする。
 
-Localと開発用Convex deploymentはそれぞれ専用のStripe Sandboxへ接続し、通常ProとBusinessの月額Priceを登録する。
+Localと開発用Convex deploymentはそれぞれ専用のStripe Sandboxへ接続する。  ProとBusinessは同じ通貨と請求周期のrecurring Priceを登録し、期間末処理の確認では必要に応じて日次や週次へ短縮できる。
 両環境では`sk_test_`で始まるSecret keyを使用する。
 
 本番deploymentは本番Stripeアカウントへ`sk_live_`で始まるSecret keyを使って接続する。
@@ -1225,9 +1225,13 @@ deployment前の旧Free変更予約も互換処理として同じ期間末終了
 
 BusinessからProへの変更予約はStripe Subscription Scheduleを使い、期間末に同じSubscriptionのPriceを変更する。
 
+請求周期はStripe Priceの`recurring.interval`と`recurring.interval_count`を正本とし、コード、環境変数、DBへ複製しない。
+
+ProとBusinessは同じ通貨と請求周期を要求し、Subscription Scheduleの変更後phaseも対象Priceの請求周期から構築する。
+
 請求周期の基準日は組織ごとのStripe Subscriptionが保持し、月初へ揃えない。
 
-画面の次回更新日はStripeが返した期間終了日時を表示し、ローカルで一か月後を計算しない。
+画面の次回更新日はStripeが返した期間終了日時を表示し、ローカルで次の請求日を計算しない。
 
 ### 25.3 支払い再試行
 
@@ -1255,7 +1259,7 @@ Localと開発用Convex deploymentは別々のStripe Sandboxへ接続し、本�
 
 Secret keyの接頭辞が不明な場合や、Price、Customer、Subscription、Invoiceの`livemode`が接続環境と一致しない場合は課金操作を拒否する。
 
-新しいProまたはBusiness契約に使うCheckoutと無料体験の継続登録は、対象プランのPriceがactiveな場合だけ開始する。
+新しいProまたはBusiness契約に使うCheckoutと無料体験の継続登録は、対象プランのPriceがactiveなrecurring Priceで、`interval_count`が正の整数である場合だけ開始する。
 
 特定プランの新規販売を停止するときは、対象Priceをアーカイブする。
 Priceのアーカイブ前に発行したopen状態のCheckout Sessionは別途失効させる。

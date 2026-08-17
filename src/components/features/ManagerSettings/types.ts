@@ -45,18 +45,3 @@ export type ManagerSettingsConfirmation =
       requestId: string;
     }
   | null;
-
-export type ManagerInvitationIssueConfirmation =
-  | {
-      kind: "existingStaff";
-      candidate: ManagerSettingsCandidate;
-      mode: ReadyManagerSettingsOverview["mode"];
-      requestId: string;
-    }
-  | {
-      kind: "external";
-      invitedName: string;
-      email: string;
-      requestId: string;
-    }
-  | null;

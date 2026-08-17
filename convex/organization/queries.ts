@@ -37,6 +37,10 @@ import {
 } from "./service";
 import { organizationShopOperatingStatus } from "./shopMembershipChange";
 
+function hasManagerInvitationDeliveryFailure(outbox: Doc<"notificationOutbox"> | null | undefined) {
+  return outbox?.status === "failed" || (outbox?.status === "sent" && outbox.resendDeliveryStatus !== undefined);
+}
+
 const organizationPersonViewValidator = v.object({
   id: v.string(),
   name: v.string(),
@@ -570,7 +574,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
           : null;
       const isSendFailed = Boolean(
         lifecycleStatus === "issued" &&
-          (currentVersionOutbox?.status === "failed" ||
+          (hasManagerInvitationDeliveryFailure(currentVersionOutbox) ||
             (currentVersionEnqueueFailure && !hasSuccessfulCurrentVersionEnqueue)),
       );
       const purpose = getOrganizationInvitationPurpose(invitation);
@@ -1484,23 +1488,20 @@ export async function getCanonicalManagerSettingsOverview(
       .filter((q) => q.eq(q.field("organizationInvitationVersion"), invitation.version))
       .order("desc")
       .first();
-    const deliveryFailure =
-      outbox?.status === "failed"
-        ? true
-        : Boolean(
-            await ctx.db
-              .query("notificationDeliveryEvents")
-              .withIndex("by_organizationInvitationId_createdAt", (q) =>
-                q.eq("organizationInvitationId", invitation._id),
-              )
-              .filter((q) =>
-                q.and(
-                  q.eq(q.field("eventType"), "enqueue_failed"),
-                  q.eq(q.field("organizationInvitationVersion"), invitation.version),
-                ),
-              )
-              .first(),
-          );
+    const deliveryFailure = hasManagerInvitationDeliveryFailure(outbox)
+      ? true
+      : Boolean(
+          await ctx.db
+            .query("notificationDeliveryEvents")
+            .withIndex("by_organizationInvitationId_createdAt", (q) => q.eq("organizationInvitationId", invitation._id))
+            .filter((q) =>
+              q.and(
+                q.eq(q.field("eventType"), "enqueue_failed"),
+                q.eq(q.field("organizationInvitationVersion"), invitation.version),
+              ),
+            )
+            .first(),
+        );
     const limitReached = purpose === "managerAddition" && projectedManagers > limits.maxActiveManagers;
     const status =
       targetConflict || !eligibility

@@ -20,6 +20,7 @@ import {
 } from "./BillingSettings/script";
 import type {
   BillingDisplayState,
+  BillingPendingCheckoutStatus,
   BillingPlanPrices,
   BillingProductPlan,
   OrganizationBillingView,
@@ -34,6 +35,13 @@ type Props = {
   onUpdatePaymentMethod: () => void;
   onUpdateBillingEmail: () => void;
   onOpenBillingDocuments: () => void;
+  pendingCheckout: {
+    status: BillingPendingCheckoutStatus;
+    isCancelling: boolean;
+    onContinue: () => void;
+    onCancel: () => void;
+    onRetry: () => void;
+  };
 };
 
 function formatPlanLimitsDescription(plan: keyof typeof ORGANIZATION_PLAN_LIMITS, suffix: string): string {
@@ -111,6 +119,7 @@ export const PlanAndPaymentSection = ({
   onUpdatePaymentMethod,
   onUpdateBillingEmail,
   onOpenBillingDocuments,
+  pendingCheckout,
 }: Props) => {
   const presentation =
     billing.state === "scheduledChange" && billing.restrictAtPeriodEnd
@@ -184,6 +193,7 @@ export const PlanAndPaymentSection = ({
             billing={billing}
             presentation={presentation}
             onUpdatePaymentMethod={onUpdatePaymentMethod}
+            pendingCheckout={pendingCheckout}
           />
         )}
 
@@ -521,12 +531,15 @@ function BillingStateAlert({
   billing,
   presentation,
   onUpdatePaymentMethod,
+  pendingCheckout,
 }: {
   billing: OrganizationBillingView;
   presentation: (typeof STATE_PRESENTATION)[BillingDisplayState];
   onUpdatePaymentMethod: () => void;
+  pendingCheckout: Props["pendingCheckout"];
 }) {
   const showPaymentRecovery = billing.state === "grace";
+  const showPendingCheckoutRecovery = billing.state === "pendingActivation" && !billing.isComplimentary;
   const reductions = getRequiredReductions(billing);
   const showReductions =
     ((billing.state === "restricted" && billing.limitPlan !== undefined) ||
@@ -570,11 +583,14 @@ function BillingStateAlert({
                   {billing.paymentMethodDisabledReason}
                 </Text>
               )}
+              {showPendingCheckoutRecovery && <PendingCheckoutGuidance status={pendingCheckout.status} />}
             </Stack>
           </Alert.Description>
         </Alert.Content>
 
-        {showPaymentRecovery && !billing.isComplimentary && (
+        {showPendingCheckoutRecovery ? (
+          <PendingCheckoutActions pendingCheckout={pendingCheckout} />
+        ) : showPaymentRecovery && !billing.isComplimentary ? (
           <Button
             size="sm"
             variant="outline"
@@ -593,10 +609,71 @@ function BillingStateAlert({
           >
             支払い方法を見る
           </Button>
-        )}
+        ) : null}
       </Flex>
     </Alert.Root>
   );
+}
+
+function PendingCheckoutGuidance({ status }: { status: BillingPendingCheckoutStatus }) {
+  if (status === "checking") return <Text>Stripeの支払い状況を確認しています。</Text>;
+  if (status === "open") {
+    return <Text>支払い手続きはまだ完了していません。続けるか、支払いをやめるか選んでください。</Text>;
+  }
+  if (status === "pending") return <Text>支払い完了後の反映を待っています。この画面でお待ちください。</Text>;
+  if (status === "unavailable") {
+    return <Text>支払い状況を確認できませんでした。通信状態を確認して、もう一度お試しください。</Text>;
+  }
+  return null;
+}
+
+function PendingCheckoutActions({ pendingCheckout }: { pendingCheckout: Props["pendingCheckout"] }) {
+  if (pendingCheckout.status === "open") {
+    return (
+      <Flex
+        gap={2}
+        direction={{ base: "column", sm: "row" }}
+        align={{ sm: "center" }}
+        flexShrink={0}
+        w={{ base: "full", md: "auto" }}
+      >
+        <Button
+          size="sm"
+          variant="outline"
+          minH={{ base: "44px", md: "36px" }}
+          onClick={pendingCheckout.onCancel}
+          loading={pendingCheckout.isCancelling}
+          loadingText="支払いをやめる"
+        >
+          支払いをやめる
+        </Button>
+        <Button
+          size="sm"
+          colorPalette="teal"
+          minH={{ base: "44px", md: "36px" }}
+          onClick={pendingCheckout.onContinue}
+          disabled={pendingCheckout.isCancelling}
+        >
+          支払いを続ける
+        </Button>
+      </Flex>
+    );
+  }
+  if (pendingCheckout.status === "unavailable") {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        flexShrink={0}
+        w={{ base: "full", md: "auto" }}
+        minH={{ base: "44px", md: "36px" }}
+        onClick={pendingCheckout.onRetry}
+      >
+        もう一度確認
+      </Button>
+    );
+  }
+  return null;
 }
 
 function ReductionGuidance({ reductions }: { reductions: ReturnType<typeof getRequiredReductions> }) {

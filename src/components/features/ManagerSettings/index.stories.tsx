@@ -1,6 +1,6 @@
 import { Box, Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
@@ -8,7 +8,6 @@ import { ManagerCandidateListView } from "./ManagerCandidateListView";
 import { ManagerCandidatePageContent } from "./ManagerCandidatePageContent";
 import { ManagerExternalInviteFormView } from "./ManagerExternalInviteForm";
 import { type ManagerInvitationDialogMode, ManagerInvitationDialogView } from "./ManagerInvitationDialog";
-import { ManagerIssueConfirmationDialog } from "./ManagerIssueConfirmationDialog";
 import { ManagerSettingsConfirmationDialog } from "./ManagerSettingsConfirmationDialog";
 import {
   ManagerCandidatePageSkeleton,
@@ -16,12 +15,7 @@ import {
   ManagerSettingsSkeleton,
 } from "./ManagerSettingsSkeleton";
 import { ManagerSettingsView } from "./ManagerSettingsView";
-import type {
-  ManagerInvitationIssueConfirmation,
-  ManagerSettingsCandidate,
-  ManagerSettingsConfirmation,
-  ReadyManagerSettingsOverview,
-} from "./types";
+import type { ManagerSettingsCandidate, ManagerSettingsConfirmation, ReadyManagerSettingsOverview } from "./types";
 
 const personId = "person-manager" as Id<"organizationPeople">;
 const secondPersonId = "person-manager-second" as Id<"organizationPeople">;
@@ -138,13 +132,10 @@ export const InvitationCardsOpenDialogBehavior: Story = {
     await userEvent.click(radio);
     await userEvent.click(within(existingDialog).getByRole("button", { name: "管理者として招待する" }));
 
-    const confirmation = await page.findByRole("alertdialog", { name: "山田 一郎さんを招待しますか？" });
-    await expect(page.queryByRole("dialog", { name: "既存スタッフを管理者として招待" })).not.toBeInTheDocument();
-    await userEvent.click(within(confirmation).getByRole("button", { name: "やめる" }));
-    await expect(existingDialog).toBeVisible();
-    await expect(radio).toBeChecked();
-    await userEvent.click(within(existingDialog).getByRole("button", { name: "キャンセル" }));
-    await waitFor(() => expect(existingDialog).not.toBeVisible());
+    await expect(page.queryByRole("alertdialog")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(page.queryByRole("dialog", { name: "既存スタッフを管理者として招待" })).not.toBeInTheDocument(),
+    );
 
     await userEvent.click(page.getByRole("button", { name: "新しいユーザーを管理者として招待" }));
     const externalDialog = await page.findByRole("dialog", {
@@ -152,7 +143,7 @@ export const InvitationCardsOpenDialogBehavior: Story = {
     });
     await waitFor(() => expect(externalDialog).toBeVisible());
     await expect(within(externalDialog).getByRole("textbox", { name: "氏名" })).toBeVisible();
-    await expect(within(externalDialog).getByRole("button", { name: "招待内容を確認する" })).toBeVisible();
+    await expect(within(externalDialog).getByRole("button", { name: "招待する" })).toBeVisible();
   },
 };
 
@@ -401,15 +392,7 @@ export const RemoveRoleConfirmationBehavior: Story = {
 
 export const CandidateSelectionBehavior: Story = {
   parameters: { screenshot: { skip: true } },
-  render: () => (
-    <SubpageFrame title="既存スタッフを管理者として招待">
-      <ManagerCandidatePageContent
-        overview={overview}
-        result={{ kind: "ready", candidates }}
-        organizationId={organizationId}
-      />
-    </SubpageFrame>
-  ),
+  render: () => <CandidateDirectInviteHarness />,
   play: async ({ canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body);
     const radio = page.getByRole("radio", { name: "山田 一郎を選択" });
@@ -418,34 +401,20 @@ export const CandidateSelectionBehavior: Story = {
     await userEvent.click(radio);
     await expect(radio).toBeChecked();
     await userEvent.click(page.getByRole("button", { name: "管理者として招待する" }));
-    const confirmation = await page.findByRole("alertdialog", { name: "山田 一郎さんを招待しますか？" });
-    await expect(within(confirmation).getByText(/管理者になります/)).toBeInTheDocument();
+    await expect(page.getByTestId("existing-staff-invite-count")).toHaveTextContent("1");
+    await expect(page.queryByRole("alertdialog")).not.toBeInTheDocument();
   },
 };
 
 export const FreeCandidateAdditionBehavior: Story = {
   parameters: { screenshot: { skip: true } },
-  render: () => (
-    <SubpageFrame title="既存スタッフを管理者として招待">
-      <ManagerCandidatePageContent
-        overview={{
-          ...overview,
-          mode: "managerAddition",
-          usage: { ...overview.usage, activeManagers: 1, projectedManagers: 1, maxManagers: 2 },
-          actions: { canInviteExistingStaff: true, canInviteExternal: true },
-        }}
-        result={{ kind: "ready", candidates }}
-        organizationId={organizationId}
-      />
-    </SubpageFrame>
-  ),
+  render: () => <CandidateDirectInviteHarness />,
   play: async ({ canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body);
     await userEvent.click(page.getByRole("radio", { name: "山田 一郎を選択" }));
     await userEvent.click(page.getByRole("button", { name: "管理者として招待する" }));
-    const confirmation = await page.findByRole("alertdialog", { name: "山田 一郎さんを招待しますか？" });
-    await expect(within(confirmation).getByText(/招待を受け入れると管理者になります/)).toBeInTheDocument();
-    await expect(within(confirmation).queryByText(/あなたはこの組織の管理者ではなくなり/)).not.toBeInTheDocument();
+    await expect(page.getByTestId("existing-staff-invite-count")).toHaveTextContent("1");
+    await expect(page.queryByRole("alertdialog")).not.toBeInTheDocument();
   },
 };
 
@@ -491,10 +460,8 @@ export const ExternalInvitationBehavior: Story = {
     const page = within(canvasElement.ownerDocument.body);
     await userEvent.type(page.getByRole("textbox", { name: "氏名" }), "伊藤 真理");
     await userEvent.type(page.getByRole("textbox", { name: "メールアドレス" }), "ito@example.com");
-    await userEvent.click(page.getByRole("button", { name: "招待内容を確認する" }));
-    const confirmation = await screen.findByRole("alertdialog", { name: "新しい管理者を招待しますか？" });
-    await expect(within(confirmation).getByText("ito@example.com")).toBeInTheDocument();
-    await userEvent.click(within(confirmation).getByRole("button", { name: "招待する" }));
+    await userEvent.click(page.getByRole("button", { name: "招待する" }));
+    await expect(page.queryByRole("alertdialog", { name: "新しい管理者を招待しますか？" })).not.toBeInTheDocument();
     await expect(page.getByTestId("external-invite-count")).toHaveTextContent("1");
   },
 };
@@ -508,7 +475,7 @@ export const ExternalInvitationValidationBehavior: Story = {
   ),
   play: async ({ canvasElement }) => {
     const page = within(canvasElement);
-    await userEvent.click(page.getByRole("button", { name: "招待内容を確認する" }));
+    await userEvent.click(page.getByRole("button", { name: "招待する" }));
     await expect(await page.findByText("名前を入力してください")).toBeInTheDocument();
     await expect(await page.findByText("メールアドレスを入力してください")).toBeInTheDocument();
     await expect(page.queryByRole("alertdialog", { name: "新しい管理者を招待しますか？" })).not.toBeInTheDocument();
@@ -542,7 +509,7 @@ export const ExternalInvitationUnavailable: Story = {
     await expect(page.getByText("閲覧のみの管理者は、管理者を招待できません。")).toBeInTheDocument();
     await expect(page.getByRole("textbox", { name: "氏名" })).toBeDisabled();
     await expect(page.getByRole("textbox", { name: "メールアドレス" })).toBeDisabled();
-    await expect(page.getByRole("button", { name: "招待内容を確認する" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "招待する" })).toBeDisabled();
   },
 };
 
@@ -597,7 +564,6 @@ function ManagerSettingsConfirmationHarness() {
 
 function ManagerInvitationDialogHarness() {
   const [mode, setMode] = useState<ManagerInvitationDialogMode | null>(null);
-  const [confirmation, setConfirmation] = useState<ManagerInvitationIssueConfirmation>(null);
   const [selectedPersonId, setSelectedPersonId] = useState("");
   const [externalDraft, setExternalDraft] = useState({ name: "", email: "" });
 
@@ -607,7 +573,6 @@ function ManagerInvitationDialogHarness() {
         overview={overview}
         onBack={noop}
         onOpenInvitation={(nextMode) => {
-          setConfirmation(null);
           setSelectedPersonId("");
           setExternalDraft({ name: "", email: "" });
           setMode(nextMode);
@@ -620,31 +585,23 @@ function ManagerInvitationDialogHarness() {
         mode={mode}
         overview={overview}
         candidateResult={{ kind: "ready", candidates }}
-        confirmation={confirmation}
         isRunning={false}
         selectedPersonId={selectedPersonId}
         externalDraft={externalDraft}
         onSelectCandidate={setSelectedPersonId}
-        onRequestExistingStaff={(candidate) =>
-          setConfirmation({ kind: "existingStaff", candidate, mode: overview.mode, requestId })
-        }
+        onRequestExistingStaff={() => setMode(null)}
         onRequestExternal={(invitedName, email) => {
           setExternalDraft({ name: invitedName, email });
-          setConfirmation({ kind: "external", invitedName, email, requestId });
         }}
         onClose={() => {
           setMode(null);
-          setConfirmation(null);
         }}
-        onCloseConfirmation={() => setConfirmation(null)}
-        onConfirm={() => setConfirmation(null)}
       />
     </>
   );
 }
 
 function ManagerExternalInviteHarness() {
-  const [confirmation, setConfirmation] = useState<ManagerInvitationIssueConfirmation>(null);
   const [inviteCount, setInviteCount] = useState(0);
   return (
     <SubpageFrame title="新しいユーザーを管理者として招待">
@@ -653,16 +610,26 @@ function ManagerExternalInviteHarness() {
       </output>
       <ManagerExternalInviteFormView
         isSubmitting={false}
-        onRequestInvite={(invitedName, email) => setConfirmation({ kind: "external", invitedName, email, requestId })}
+        onRequestInvite={() => setInviteCount((count) => count + 1)}
       />
-      <ManagerIssueConfirmationDialog
-        confirmation={confirmation}
-        isRunning={false}
-        onClose={() => setConfirmation(null)}
-        onConfirm={() => {
-          setInviteCount((count) => count + 1);
-          setConfirmation(null);
-        }}
+    </SubpageFrame>
+  );
+}
+
+function CandidateDirectInviteHarness() {
+  const [selectedPersonId, setSelectedPersonId] = useState("");
+  const [inviteCount, setInviteCount] = useState(0);
+  return (
+    <SubpageFrame title="既存スタッフを管理者として招待">
+      <output hidden data-testid="existing-staff-invite-count">
+        {inviteCount}
+      </output>
+      <ManagerCandidateListView
+        candidates={candidates}
+        selectedPersonId={selectedPersonId}
+        isSubmitting={false}
+        onSelect={setSelectedPersonId}
+        onSubmit={() => setInviteCount((count) => count + 1)}
       />
     </SubpageFrame>
   );
@@ -670,6 +637,14 @@ function ManagerExternalInviteHarness() {
 
 function CandidateDriftHarness() {
   const [availableCandidates, setAvailableCandidates] = useState(candidates);
+  const [selectedPersonId, setSelectedPersonId] = useState("");
+  const [inviteCount, setInviteCount] = useState(0);
+  useEffect(() => {
+    setSelectedPersonId((current) =>
+      availableCandidates.some((candidate) => candidate.personId === current && candidate.canSelect) ? current : "",
+    );
+  }, [availableCandidates]);
+
   return (
     <SubpageFrame title="既存スタッフを管理者として招待">
       <button
@@ -686,10 +661,15 @@ function CandidateDriftHarness() {
       >
         候補を利用不可にする
       </button>
-      <ManagerCandidatePageContent
-        overview={overview}
-        result={{ kind: "ready", candidates: availableCandidates }}
-        organizationId={organizationId}
+      <output hidden data-testid="existing-staff-invite-count">
+        {inviteCount}
+      </output>
+      <ManagerCandidateListView
+        candidates={availableCandidates}
+        selectedPersonId={selectedPersonId}
+        isSubmitting={false}
+        onSelect={setSelectedPersonId}
+        onSubmit={() => setInviteCount((count) => count + 1)}
       />
     </SubpageFrame>
   );
@@ -702,16 +682,10 @@ export const CandidateDriftBehavior: Story = {
     const page = within(canvasElement.ownerDocument.body);
     const driftButton = page.getByRole("button", { name: "候補を利用不可にする" });
     await userEvent.click(page.getByRole("radio", { name: "山田 一郎を選択" }));
-    await userEvent.click(page.getByRole("button", { name: "管理者として招待する" }));
-    await expect(await page.findByRole("alertdialog", { name: "山田 一郎さんを招待しますか？" })).toBeInTheDocument();
-
-    // queryの更新を模したharness操作。Dialog表示中は背景がinertのためprogrammaticに状態だけ進める。
-    driftButton.click();
-
-    await waitFor(() =>
-      expect(page.queryByRole("alertdialog", { name: "山田 一郎さんを招待しますか？" })).not.toBeInTheDocument(),
-    );
+    await userEvent.click(driftButton);
     await expect(page.getByRole("radio", { name: "山田 一郎を選択" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "管理者として招待する" })).toBeDisabled();
+    await expect(page.getByTestId("existing-staff-invite-count")).toHaveTextContent("0");
   },
 };
 

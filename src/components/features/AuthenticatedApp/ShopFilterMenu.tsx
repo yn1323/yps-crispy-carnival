@@ -20,6 +20,8 @@ export function ShopFilterMenu({
   prefix?: string;
   allLabel?: string;
 }) {
+  if (options.length < 2) return null;
+
   const selectedLabel = options.find((option) => option.value === value)?.label ?? allLabel;
 
   return (

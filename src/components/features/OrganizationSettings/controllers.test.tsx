@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   actions: {
     getProPrice: vi.fn(),
     startProCheckout: vi.fn(),
+    inspectPendingCheckout: vi.fn(),
+    cancelPendingCheckout: vi.fn(),
     previewPaidPlanChange: vi.fn(),
     changePaidPlanNow: vi.fn(),
     schedulePaidPlanChange: vi.fn(),
@@ -33,6 +35,8 @@ vi.mock("convex/react", async () => {
       const name = getFunctionName(reference).replace("ForOrganization", "");
       if (name === "organizationStripe/actions:getPlanPrice") return mocks.actions.getProPrice;
       if (name === "organizationStripe/actions:startPaidCheckout") return mocks.actions.startProCheckout;
+      if (name === "organizationStripe/actions:inspectPendingCheckout") return mocks.actions.inspectPendingCheckout;
+      if (name === "organizationStripe/actions:cancelPendingCheckout") return mocks.actions.cancelPendingCheckout;
       if (name === "organizationStripe/actions:previewPaidPlanChange") return mocks.actions.previewPaidPlanChange;
       if (name === "organizationStripe/actions:changePaidPlanNow") return mocks.actions.changePaidPlanNow;
       if (name === "organizationStripe/actions:schedulePaidPlanChange") return mocks.actions.schedulePaidPlanChange;
@@ -821,6 +825,149 @@ describe("OrganizationSettings controllers", () => {
     );
     expect(mocks.openBillingUrl).not.toHaveBeenCalled();
     expect(result.current.dialog.dialog?.intentKey).toBe("request-1");
+  });
+
+  it("Stripeのキャンセル戻りは組織を明示して一度だけ復旧Actionを呼び、完了後に戻り値を消費する", async () => {
+    mocks.actions.getProPrice.mockResolvedValue({
+      status: "available",
+      currency: "jpy",
+      unitAmount: 3000,
+      interval: "month",
+      intervalCount: 1,
+      taxBehavior: "inclusive",
+    });
+    mocks.actions.cancelPendingCheckout.mockResolvedValue({ status: "cancelled" });
+    const onStripeResultHandled = vi.fn();
+    const freeBilling: OrganizationBillingView = {
+      ...billing,
+      state: "free",
+      currentPlan: "free",
+      canUpdatePaymentMethod: false,
+      canScheduleFree: false,
+    };
+    const { rerender } = renderHook((input) => useStripeBillingController(input), {
+      initialProps: {
+        organizationId,
+        organizationName: "さくらダイニング",
+        billing: freeBilling,
+        stripeResult: "cancelled" as const,
+        onStripeResultHandled,
+      },
+    });
+
+    await waitFor(() =>
+      expect(mocks.actions.cancelPendingCheckout).toHaveBeenCalledExactlyOnceWith({
+        organizationId: "organization-app",
+      }),
+    );
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
+      title: "支払いをキャンセルしました",
+      description: "元のプランに戻しました。",
+    });
+    expect(onStripeResultHandled).toHaveBeenCalledTimes(1);
+
+    rerender({
+      organizationId,
+      organizationName: "さくらダイニング",
+      billing: freeBilling,
+      stripeResult: "cancelled",
+      onStripeResultHandled,
+    });
+    expect(mocks.actions.cancelPendingCheckout).toHaveBeenCalledTimes(1);
+  });
+
+  it("ブラウザバックで戻り値がなくてもopen Checkoutを照合し、支払いの継続または明示キャンセルを選べる", async () => {
+    mocks.actions.getProPrice.mockResolvedValue({
+      status: "available",
+      currency: "jpy",
+      unitAmount: 3000,
+      interval: "month",
+      intervalCount: 1,
+      taxBehavior: "inclusive",
+    });
+    mocks.actions.inspectPendingCheckout.mockResolvedValue({
+      status: "open",
+      url: "https://checkout.stripe.example/pending-session",
+    });
+    mocks.actions.cancelPendingCheckout.mockResolvedValue({ status: "cancelled" });
+    const pendingBilling: OrganizationBillingView = {
+      ...billing,
+      state: "pendingActivation",
+      currentPlan: "free",
+      targetPlan: "pro",
+      canManagePlan: false,
+      canUpdatePaymentMethod: false,
+      canScheduleFree: false,
+    };
+    const { result } = renderHook(() =>
+      useStripeBillingController({
+        organizationId,
+        organizationName: "さくらダイニング",
+        billing: pendingBilling,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.actions.inspectPendingCheckout).toHaveBeenCalledExactlyOnceWith({
+        organizationId: "organization-app",
+      }),
+    );
+    await waitFor(() => expect(result.current.pendingCheckout.status).toBe("open"));
+    expect(mocks.actions.cancelPendingCheckout).not.toHaveBeenCalled();
+
+    act(() => {
+      const pageShow = new Event("pageshow");
+      Object.defineProperty(pageShow, "persisted", { value: true });
+      window.dispatchEvent(pageShow);
+    });
+    await waitFor(() => expect(mocks.actions.inspectPendingCheckout).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.pendingCheckout.status).toBe("open"));
+
+    act(() => result.current.pendingCheckout.onContinue());
+    expect(mocks.openBillingUrl).toHaveBeenCalledExactlyOnceWith("https://checkout.stripe.example/pending-session");
+
+    act(() => result.current.pendingCheckout.onCancel());
+    await waitFor(() =>
+      expect(mocks.actions.cancelPendingCheckout).toHaveBeenCalledExactlyOnceWith({
+        organizationId: "organization-app",
+      }),
+    );
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
+      title: "支払いをキャンセルしました",
+      description: "元のプランに戻しました。",
+    });
+  });
+
+  it("閲覧のみのメンバーはpending CheckoutをStripeへ照合しない", async () => {
+    mocks.actions.getProPrice.mockResolvedValue({
+      status: "available",
+      currency: "jpy",
+      unitAmount: 3000,
+      interval: "month",
+      intervalCount: 1,
+      taxBehavior: "inclusive",
+    });
+    const pendingBilling: OrganizationBillingView = {
+      ...billing,
+      state: "pendingActivation",
+      currentPlan: "free",
+      targetPlan: "pro",
+      canManagePlan: false,
+      canUpdatePaymentMethod: false,
+      canScheduleFree: false,
+    };
+    const { result } = renderHook(() =>
+      useStripeBillingController({
+        organizationId,
+        organizationName: "さくらダイニング",
+        billing: pendingBilling,
+        canManagePendingCheckout: false,
+      }),
+    );
+
+    await waitFor(() => expect(mocks.actions.getProPrice).toHaveBeenCalled());
+    expect(mocks.actions.inspectPendingCheckout).not.toHaveBeenCalled();
+    expect(result.current.pendingCheckout.status).toBe("idle");
   });
 
   it("価格を取得できない場合はDialog内で案内し、再読み込みできる", async () => {

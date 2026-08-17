@@ -43,6 +43,21 @@ const availableUrlResultValidator = v.union(
   v.object({ status: v.literal("unavailable"), reason: unavailableReasonValidator }),
 );
 
+const checkoutCancellationResultValidator = v.union(
+  v.object({ status: v.literal("cancelled") }),
+  v.object({ status: v.literal("pending") }),
+  v.object({ status: v.literal("unchanged") }),
+  v.object({ status: v.literal("unavailable"), reason: unavailableReasonValidator }),
+);
+
+const pendingCheckoutInspectionResultValidator = v.union(
+  v.object({ status: v.literal("open"), url: v.string() }),
+  v.object({ status: v.literal("cancelled") }),
+  v.object({ status: v.literal("pending") }),
+  v.object({ status: v.literal("unchanged") }),
+  v.object({ status: v.literal("unavailable"), reason: unavailableReasonValidator }),
+);
+
 const prorationPreviewResultValidator = v.union(
   v.object({ status: v.literal("unavailable"), reason: unavailableReasonValidator }),
   v.object({
@@ -82,6 +97,7 @@ type ActionPurpose =
   | "price"
   | "currentSubscriptionPrice"
   | "startCheckout"
+  | "cancelCheckout"
   | "portal"
   | "scheduleFree"
   | "cancelFreeSchedule"
@@ -99,6 +115,12 @@ type UnavailableResult = { status: "unavailable"; reason: UnavailableReason };
 type RedirectResult = { status: "redirect"; url: string } | UnavailableResult;
 type ChangeResult = { status: "accepted" } | UnavailableResult;
 type AvailableUrlResult = { status: "available"; url: string } | UnavailableResult;
+type PendingCheckoutInspectionResult =
+  | { status: "open"; url: string }
+  | { status: "cancelled" }
+  | { status: "pending" }
+  | { status: "unchanged" }
+  | UnavailableResult;
 type ProrationPreviewResult =
   | UnavailableResult
   | {
@@ -128,6 +150,10 @@ type CurrentSubscriptionPriceResult =
       intervalCount: number;
       taxBehavior?: "inclusive" | "exclusive";
     };
+type StripeBillingCadence = {
+  interval: "day" | "week" | "month" | "year";
+  intervalCount: number;
+};
 type BillingStateSnapshot = { state: Doc<"organizationBillingStates">["state"]; version: number };
 type BillingActionScope = { shopId: Id<"shops"> } | { organizationId: Id<"organizations"> };
 
@@ -201,7 +227,7 @@ type StripeSafetyContext = {
   };
 };
 
-/** 認証済みactorへ、サーバー側allowlistから選んだ月額Priceだけを返す。 */
+/** 認証済みactorへ、サーバー側allowlistから選んだrecurring Priceだけを返す。 */
 export const getPlanPrice = action({
   args: {
     shopId: v.id("shops"),
@@ -241,7 +267,9 @@ async function getPlanPriceForScope(
     if (!price) return unavailable("price_unavailable");
     if (targetPlan === "business") {
       const proPrice = await retrieveAllowedPrice(stripe, configuration.proPriceId, configuration.livemode);
-      if (!proPrice || proPrice.currency !== price.currency) return unavailable("price_unavailable");
+      if (!proPrice || proPrice.currency !== price.currency || !hasSameBillingCadence(proPrice, price)) {
+        return unavailable("price_unavailable");
+      }
     }
     return { status: "available", ...price };
   } catch {
@@ -275,11 +303,7 @@ export const getCurrentSubscriptionPrice = action({
 
     try {
       const stripe = createStripeClient(configuration.secretKey);
-      const price = await retrieveCurrentSubscriptionPrice(
-        stripe,
-        context.currentStripePriceId,
-        configuration.livemode,
-      );
+      const price = await retrieveExistingRecurringPrice(stripe, context.currentStripePriceId, configuration.livemode);
       return price ? { status: "available", ...price } : unavailable("price_unavailable");
     } catch {
       return unavailable("provider_unavailable");
@@ -333,6 +357,151 @@ export const startPaidCheckoutForOrganization = action({
   returns: availableUrlResultValidator,
   handler: async (ctx, args): Promise<AvailableUrlResult> =>
     await startPaidCheckoutForPlan(ctx, { ...args, scope: { organizationId: args.organizationId } }),
+});
+
+/**
+ * pendingActivationに対応するCheckoutをproviderで照合し、画面復帰後に利用者が選べる安全な状態だけを返す。
+ * Sessionがopenでも、この確認だけでは支払いを取り消さない。
+ */
+export const inspectPendingCheckoutForOrganization = action({
+  args: {
+    organizationId: v.id("organizations"),
+  },
+  returns: pendingCheckoutInspectionResultValidator,
+  handler: async (ctx, args): Promise<PendingCheckoutInspectionResult> => {
+    if (!isReleaseFeatureEnabled("billing")) return unavailable("not_allowed");
+    const configuration = getStripeBillingConfiguration();
+    if (configuration.status !== "ready") return unavailable("configuration_pending");
+    const context = await getAuthorizedContext(ctx, { organizationId: args.organizationId }, "cancelCheckout");
+    if (!context) return unavailable("not_allowed");
+    if (context.billingState.state.kind !== "pendingActivation") return { status: "unchanged" };
+    if (!context.stripeCustomerId || context.stripeCustomerLivemode !== configuration.livemode) {
+      return unavailable("configuration_pending");
+    }
+
+    const operation = await ctx.runQuery(
+      internal.organizationStripe.queries.getPendingCheckoutOperationForOrganization,
+      {
+        organizationId: context.organizationId,
+        providerGeneration: context.providerGeneration + 1,
+        livemode: configuration.livemode,
+      },
+    );
+    if (!operation) return { status: "unchanged" };
+
+    const stripe = createStripeClient(configuration.secretKey);
+    try {
+      const session = await stripe.checkout.sessions.retrieve(operation.stripeSessionId);
+      assertCheckoutSession(session, {
+        organizationId: context.organizationId,
+        operationId: operation.operationId,
+        stripeSessionId: operation.stripeSessionId,
+        providerGeneration: operation.providerGeneration,
+        livemode: configuration.livemode,
+        customerId: context.stripeCustomerId,
+        priceId: operation.stripePriceIdSnapshot,
+        mode: "subscription",
+      });
+
+      if (session.status === "open") {
+        return session.url ? { status: "open", url: session.url } : unavailable("provider_unavailable");
+      }
+      if (session.status !== "expired") return { status: "pending" };
+
+      return await convergeExpiredPendingCheckout(ctx, {
+        organizationId: context.organizationId,
+        billingVersion: context.billingState.version,
+        fallback: context.billingState.state.fallback,
+        operationId: operation.operationId,
+        stripeSessionId: operation.stripeSessionId,
+        livemode: configuration.livemode,
+        correlationSuffix: "checkout-expired",
+        releaseReason: "checkout_session_expired",
+      });
+    } catch {
+      return unavailable("provider_unavailable");
+    }
+  },
+});
+
+/**
+ * Checkoutのキャンセル戻りを、Stripe側のSessionがexpiredになったことを確認してからfallbackへ収束させる。
+ * 戻りURLやclientのstateだけでは支払い結果を確定しない。
+ */
+export const cancelPendingCheckoutForOrganization = action({
+  args: {
+    organizationId: v.id("organizations"),
+  },
+  returns: checkoutCancellationResultValidator,
+  handler: async (ctx, args) => {
+    if (!isReleaseFeatureEnabled("billing")) return { status: "unavailable" as const, reason: "not_allowed" as const };
+    const configuration = getStripeBillingConfiguration();
+    if (configuration.status !== "ready") {
+      return { status: "unavailable" as const, reason: "configuration_pending" as const };
+    }
+    const context = await getAuthorizedContext(ctx, { organizationId: args.organizationId }, "cancelCheckout");
+    if (!context) return { status: "unavailable" as const, reason: "not_allowed" as const };
+    if (context.billingState.state.kind !== "pendingActivation") {
+      return { status: "unchanged" as const };
+    }
+    if (!context.stripeCustomerId || context.stripeCustomerLivemode !== configuration.livemode) {
+      return { status: "unavailable" as const, reason: "configuration_pending" as const };
+    }
+
+    const operation = await ctx.runQuery(
+      internal.organizationStripe.queries.getPendingCheckoutOperationForOrganization,
+      {
+        organizationId: context.organizationId,
+        providerGeneration: context.providerGeneration + 1,
+        livemode: configuration.livemode,
+      },
+    );
+    if (!operation) return { status: "unchanged" as const };
+
+    const stripe = createStripeClient(configuration.secretKey);
+    try {
+      let session = await stripe.checkout.sessions.retrieve(operation.stripeSessionId);
+      assertCheckoutSession(session, {
+        organizationId: context.organizationId,
+        operationId: operation.operationId,
+        stripeSessionId: operation.stripeSessionId,
+        providerGeneration: operation.providerGeneration,
+        livemode: configuration.livemode,
+        customerId: context.stripeCustomerId,
+        priceId: operation.stripePriceIdSnapshot,
+        mode: "subscription",
+      });
+
+      if (session.status === "complete") return { status: "pending" as const };
+      if (session.status === "open") {
+        session = await expireOpenCheckoutSession(stripe, session);
+        assertCheckoutSession(session, {
+          organizationId: context.organizationId,
+          operationId: operation.operationId,
+          stripeSessionId: operation.stripeSessionId,
+          providerGeneration: operation.providerGeneration,
+          livemode: configuration.livemode,
+          customerId: context.stripeCustomerId,
+          priceId: operation.stripePriceIdSnapshot,
+          mode: "subscription",
+        });
+      }
+      if (session.status !== "expired") return { status: "pending" as const };
+
+      return await convergeExpiredPendingCheckout(ctx, {
+        organizationId: context.organizationId,
+        billingVersion: context.billingState.version,
+        fallback: context.billingState.state.fallback,
+        operationId: operation.operationId,
+        stripeSessionId: operation.stripeSessionId,
+        livemode: configuration.livemode,
+        correlationSuffix: "checkout-cancelled",
+        releaseReason: "checkout_session_cancelled",
+      });
+    } catch {
+      return { status: "unavailable" as const, reason: "provider_unavailable" as const };
+    }
+  },
 });
 
 /**
@@ -600,14 +769,14 @@ async function startPaidCheckoutForPlan(
     }
     if (args.targetPlan === "business") {
       const proPrice = await retrieveAllowedPrice(stripe, configuration.proPriceId, livemode);
-      if (!proPrice || proPrice.currency !== price.currency) {
+      if (!proPrice || proPrice.currency !== price.currency || !hasSameBillingCadence(proPrice, price)) {
         await finishOperation(
           ctx,
           operation.operationId,
           operationLease,
           "failed",
           undefined,
-          "price_currency_invalid",
+          "price_compatibility_invalid",
         );
         return unavailable("price_unavailable");
       }
@@ -2798,8 +2967,14 @@ async function processCheckoutEvent(
     livemode: event.livemode,
   });
   if (!operation) return { kind: "actionRequired" as const, errorCode: "checkout_operation_missing" };
+  const isCancelledExpiredCheckoutOperation =
+    event.type === "checkout.session.expired" &&
+    operation.status === "cancelled" &&
+    (operation.lastErrorCode === "checkout_session_cancelled" ||
+      operation.lastErrorCode === "checkout_session_expired_webhook" ||
+      operation.lastErrorCode === "checkout_session_expired");
   if (
-    operation.status !== "succeeded" ||
+    (operation.status !== "succeeded" && !isCancelledExpiredCheckoutOperation) ||
     (operation.kind !== "trialSetupCheckout" &&
       operation.kind !== "immediateProCheckout" &&
       operation.kind !== "immediatePaidCheckout") ||
@@ -2826,6 +3001,13 @@ async function processCheckoutEvent(
   if (event.type === "checkout.session.expired") {
     if (session.status !== "expired") {
       return { kind: "retry" as const, errorCode: "checkout_expiration_not_confirmed" };
+    }
+    if (isCancelledExpiredCheckoutOperation) {
+      return {
+        kind: "processed" as const,
+        organizationId: organization.organizationId,
+        providerGeneration: operation.providerGeneration,
+      };
     }
     if (
       (operation.kind === "immediateProCheckout" || operation.kind === "immediatePaidCheckout") &&
@@ -3187,7 +3369,7 @@ async function synchronizeSubscription(
     subscription.items.data.length !== 1 ||
     !item ||
     item.price.livemode !== event.livemode ||
-    !item.price.recurring
+    !getStripeBillingCadence(item.price)
   ) {
     return { ok: false, result: { kind: "actionRequired", errorCode: "subscription_price_invalid" } };
   }
@@ -3848,6 +4030,15 @@ async function recoverScheduledPaidPlanChange(
     if (currentItem.price.id !== persisted.sourceStripePriceIdSnapshot) {
       throw new Error("subscription_schedule_not_confirmed");
     }
+    const currentCadence = getStripeBillingCadence(currentItem.price);
+    const targetPrice = await retrieveExistingRecurringPrice(
+      stripe,
+      persisted.targetStripePriceIdSnapshot,
+      context.livemode,
+    );
+    if (!currentCadence || !targetPrice || !hasSameBillingCadence(currentCadence, targetPrice)) {
+      throw new Error("paid_plan_change_target_price_invalid");
+    }
     const phaseStart = schedule.current_phase?.start_date ?? currentItem.current_period_start;
     schedule = await stripe.subscriptionSchedules.update(
       schedule.id,
@@ -3869,7 +4060,7 @@ async function recoverScheduledPaidPlanChange(
           },
           {
             start_date: Math.floor(persisted.effectiveAt / 1000),
-            duration: { interval: "month", interval_count: 1 },
+            duration: subscriptionScheduleDuration(targetPrice),
             items: [{ price: persisted.targetStripePriceIdSnapshot, quantity: 1 }],
             proration_behavior: "none",
           },
@@ -4119,8 +4310,11 @@ async function previewImmediatePaidPlanChange(
       livemode: configuration.livemode,
     });
     const item = requireSingleLicensedSubscriptionItem(subscription);
+    const currentCadence = getStripeBillingCadence(item.price);
     if (
+      !currentCadence ||
       item.price.currency !== targetPrice.currency ||
+      !hasSameBillingCadence(currentCadence, targetPrice) ||
       item.price.id === targetPriceId ||
       subscription.pending_update ||
       stripeObjectId(subscription.schedule)
@@ -4227,8 +4421,11 @@ async function applyImmediatePaidPlanChange(
       livemode: configuration.livemode,
     });
     const currentItem = requireSingleLicensedSubscriptionItem(current);
+    const currentCadence = getStripeBillingCadence(currentItem.price);
     if (
+      !currentCadence ||
       currentItem.price.currency !== targetPrice.currency ||
+      !hasSameBillingCadence(currentCadence, targetPrice) ||
       args.prorationDate < currentItem.current_period_start ||
       args.prorationDate > currentItem.current_period_end ||
       current.pending_update ||
@@ -4383,7 +4580,15 @@ async function scheduleBusinessToPro(
       livemode: configuration.livemode,
     });
     const currentItem = requireSingleLicensedSubscriptionItem(current);
-    if (currentItem.price.currency !== proPrice.currency || current.pending_update) return unavailable("not_allowed");
+    const currentCadence = getStripeBillingCadence(currentItem.price);
+    if (
+      !currentCadence ||
+      currentItem.price.currency !== proPrice.currency ||
+      !hasSameBillingCadence(currentCadence, proPrice) ||
+      current.pending_update
+    ) {
+      return unavailable("not_allowed");
+    }
     const effectiveAt = currentItem.current_period_end * 1000;
     operation = await ctx.runMutation(internal.organizationStripe.mutations.beginOperation, {
       organizationId: context.organizationId,
@@ -4461,7 +4666,7 @@ async function scheduleBusinessToPro(
           },
           {
             start_date: currentItem.current_period_end,
-            duration: { interval: "month", interval_count: 1 },
+            duration: subscriptionScheduleDuration(proPrice),
             items: [{ price: configuration.proPriceId, quantity: 1 }],
             proration_behavior: "none",
           },
@@ -5895,9 +6100,7 @@ function requireSingleLicensedSubscriptionItem(subscription: Stripe.Subscription
     subscription.items.data.length !== 1 ||
     !item ||
     (item.quantity ?? 1) !== 1 ||
-    !item.price.recurring ||
-    item.price.recurring.interval !== "month" ||
-    item.price.recurring.interval_count !== 1
+    !getStripeBillingCadence(item.price)
   ) {
     throw new Error("subscription_item_invalid");
   }
@@ -6353,6 +6556,7 @@ function assertCheckoutSession(
     livemode: boolean;
     customerId?: string;
     priceId: string;
+    mode?: "setup" | "subscription";
   },
 ) {
   if (
@@ -6363,10 +6567,66 @@ function assertCheckoutSession(
     session.metadata?.shiftori_operation_id !== String(expected.operationId) ||
     session.metadata?.shiftori_provider_generation !== String(expected.providerGeneration) ||
     session.metadata?.shiftori_price_id !== expected.priceId ||
+    (expected.mode !== undefined && session.mode !== expected.mode) ||
     (expected.customerId !== undefined && stripeObjectId(session.customer) !== expected.customerId)
   ) {
     throw new Error("checkout_session_relationship_invalid");
   }
+}
+
+async function expireOpenCheckoutSession(stripe: Stripe, session: Stripe.Checkout.Session) {
+  try {
+    return await stripe.checkout.sessions.expire(session.id);
+  } catch (error) {
+    // 完了との競合ではexpireが拒否されるため、providerの現在値を再取得して成功扱いを誤らせない。
+    const latest = await stripe.checkout.sessions.retrieve(session.id);
+    if (latest.status === "complete" || latest.status === "expired") return latest;
+    throw error;
+  }
+}
+
+async function convergeExpiredPendingCheckout(
+  ctx: ActionCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    billingVersion: number;
+    fallback: "free" | "pro" | "restricted";
+    operationId: Id<"organizationStripeOperations">;
+    stripeSessionId: string;
+    livemode: boolean;
+    correlationSuffix: "checkout-cancelled" | "checkout-expired";
+    releaseReason: "checkout_session_cancelled" | "checkout_session_expired";
+  },
+): Promise<{ status: "cancelled" } | { status: "pending" }> {
+  const changed = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
+    organizationId: args.organizationId,
+    expectedVersion: args.billingVersion,
+    state: { kind: "paymentFailed" },
+    correlationId: `stripe:${args.operationId}:${args.correlationSuffix}`,
+  });
+  const converged = await billingMutationConverged(ctx, args.organizationId, changed.changed, (state) =>
+    args.fallback === "pro"
+      ? state.kind === "active" && state.plan === "pro"
+      : args.fallback === "free"
+        ? (state.kind === "active" && state.plan === "free") || state.kind === "restricted"
+        : state.kind === "restricted",
+  );
+  if (!converged) return { status: "pending" };
+
+  const released = await ctx.runMutation(internal.organizationStripe.mutations.releaseExpiredCheckoutOperation, {
+    operationId: args.operationId,
+    stripeSessionId: args.stripeSessionId,
+    reason: args.releaseReason,
+  });
+  if (!released.changed) {
+    const latestOperation = await ctx.runQuery(internal.organizationStripe.queries.getCheckoutOperationBySession, {
+      organizationId: args.organizationId,
+      stripeSessionId: args.stripeSessionId,
+      livemode: args.livemode,
+    });
+    if (latestOperation?.status !== "cancelled") return { status: "pending" };
+  }
+  return { status: "cancelled" };
 }
 
 async function retrieveAllowedPrice(stripe: Stripe, priceId: string, livemode: boolean) {
@@ -6404,19 +6664,13 @@ function getDisplayedPaidPlanForCurrentSubscriptionPrice(
 }
 
 /**
- * 既存契約が参照するPriceは販売終了後も金額表示に必要なため、activeは要求しない。
- * Price IDは認可済みsubscription snapshotからのみ受け取る。
+ * 既存契約または開始済みoperationが参照するPriceは、販売終了後も照合に必要なためactiveを要求しない。
+ * Price IDは認可済みのsubscriptionまたはoperation snapshotからのみ受け取る。
  */
-async function retrieveCurrentSubscriptionPrice(stripe: Stripe, priceId: string, livemode: boolean) {
+async function retrieveExistingRecurringPrice(stripe: Stripe, priceId: string, livemode: boolean) {
   const price = await stripe.prices.retrieve(priceId);
-  if (
-    price.id !== priceId ||
-    price.livemode !== livemode ||
-    !price.recurring ||
-    price.recurring.interval !== "month" ||
-    price.recurring.interval_count !== 1 ||
-    price.unit_amount === null
-  ) {
+  const cadence = getStripeBillingCadence(price);
+  if (price.id !== priceId || price.livemode !== livemode || !cadence || price.unit_amount === null) {
     return null;
   }
   const taxBehavior =
@@ -6424,20 +6678,18 @@ async function retrieveCurrentSubscriptionPrice(stripe: Stripe, priceId: string,
   return {
     currency: price.currency,
     unitAmount: price.unit_amount,
-    interval: price.recurring.interval,
-    intervalCount: price.recurring.interval_count,
+    ...cadence,
     ...(taxBehavior ? { taxBehavior } : {}),
   };
 }
 
 async function retrieveConfiguredPrice(stripe: Stripe, priceId: string, livemode: boolean) {
   const price = await stripe.prices.retrieve(priceId);
+  const cadence = getStripeBillingCadence(price);
   if (
     price.id !== priceId ||
     price.livemode !== livemode ||
-    !price.recurring ||
-    price.recurring.interval !== "month" ||
-    price.recurring.interval_count !== 1 ||
+    !cadence ||
     price.unit_amount === null ||
     (price.tax_behavior !== "inclusive" && price.tax_behavior !== "exclusive")
   ) {
@@ -6449,11 +6701,35 @@ async function retrieveConfiguredPrice(stripe: Stripe, priceId: string, livemode
     price: {
       currency: price.currency,
       unitAmount: price.unit_amount,
-      interval: price.recurring.interval,
-      intervalCount: price.recurring.interval_count,
+      ...cadence,
       taxBehavior: price.tax_behavior,
     },
   };
+}
+
+function getStripeBillingCadence(price: Stripe.Price): StripeBillingCadence | null {
+  const recurring = price.recurring;
+  if (
+    !recurring ||
+    !isStripeBillingInterval(recurring.interval) ||
+    !Number.isSafeInteger(recurring.interval_count) ||
+    recurring.interval_count < 1
+  ) {
+    return null;
+  }
+  return { interval: recurring.interval, intervalCount: recurring.interval_count };
+}
+
+function isStripeBillingInterval(value: unknown): value is StripeBillingCadence["interval"] {
+  return value === "day" || value === "week" || value === "month" || value === "year";
+}
+
+function hasSameBillingCadence(left: StripeBillingCadence, right: StripeBillingCadence) {
+  return left.interval === right.interval && left.intervalCount === right.intervalCount;
+}
+
+function subscriptionScheduleDuration(cadence: StripeBillingCadence) {
+  return { interval: cadence.interval, interval_count: cadence.intervalCount };
 }
 
 function createStripeClient(secretKey: string) {

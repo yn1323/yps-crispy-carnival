@@ -19,6 +19,7 @@ const actionPurposeValidator = v.union(
   v.literal("price"),
   v.literal("currentSubscriptionPrice"),
   v.literal("startCheckout"),
+  v.literal("cancelCheckout"),
   v.literal("portal"),
   v.literal("scheduleFree"),
   v.literal("cancelFreeSchedule"),
@@ -54,6 +55,13 @@ const actionContextValidator = v.union(
     stripeSubscriptionScheduleId: v.optional(v.string()),
   }),
 );
+
+const paidCheckoutOperationKindValidator = v.union(
+  v.literal("immediateProCheckout"),
+  v.literal("immediatePaidCheckout"),
+);
+
+const PAID_CHECKOUT_OPERATION_KINDS = ["immediateProCheckout", "immediatePaidCheckout"] as const;
 
 export const getActionContext = internalQuery({
   args: {
@@ -695,6 +703,7 @@ export const getCheckoutOperationBySession = internalQuery({
       stripePriceIdSnapshot: v.optional(v.string()),
       targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
       stripeIdempotencyKey: v.string(),
+      lastErrorCode: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -717,6 +726,77 @@ export const getCheckoutOperationBySession = internalQuery({
       ...(operation.stripePriceIdSnapshot ? { stripePriceIdSnapshot: operation.stripePriceIdSnapshot } : {}),
       ...(operation.targetPlan ? { targetPlan: operation.targetPlan } : {}),
       stripeIdempotencyKey: operation.stripeIdempotencyKey,
+      ...(operation.lastErrorCode ? { lastErrorCode: operation.lastErrorCode } : {}),
+    };
+  },
+});
+
+/** 現在のpendingActivationに対応する未完了Checkoutだけを、組織・世代・modeへ束縛して返す。 */
+export const getPendingCheckoutOperationForOrganization = internalQuery({
+  args: {
+    organizationId: v.id("organizations"),
+    providerGeneration: v.number(),
+    livemode: v.boolean(),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      operationId: v.id("organizationStripeOperations"),
+      kind: paidCheckoutOperationKindValidator,
+      providerGeneration: v.number(),
+      expectedBillingVersion: v.optional(v.number()),
+      targetPlan: v.union(v.literal("pro"), v.literal("business")),
+      stripePriceIdSnapshot: v.string(),
+      stripeSessionId: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const operations = (
+      await Promise.all(
+        PAID_CHECKOUT_OPERATION_KINDS.map((kind) =>
+          ctx.db
+            .query("organizationStripeOperations")
+            .withIndex("by_organizationId_and_providerGeneration_and_kind_and_status", (q) =>
+              q
+                .eq("organizationId", args.organizationId)
+                .eq("providerGeneration", args.providerGeneration)
+                .eq("kind", kind)
+                .eq("status", "succeeded"),
+            )
+            .take(2),
+        ),
+      )
+    ).flat();
+    const candidates = operations.filter(
+      (operation) =>
+        operation.livemode === args.livemode &&
+        operation.providerGeneration === args.providerGeneration &&
+        operation.targetPlan !== undefined &&
+        operation.targetPlan !== "free" &&
+        operation.stripePriceIdSnapshot !== undefined &&
+        operation.stripeObjectId !== undefined,
+    );
+    if (candidates.length !== 1) return null;
+    const operation = candidates[0];
+    if (
+      (operation.kind !== "immediateProCheckout" && operation.kind !== "immediatePaidCheckout") ||
+      (operation.targetPlan !== "pro" && operation.targetPlan !== "business") ||
+      !operation.stripePriceIdSnapshot ||
+      !operation.stripeObjectId ||
+      operation.providerGeneration === undefined
+    ) {
+      return null;
+    }
+    return {
+      operationId: operation._id,
+      kind: operation.kind,
+      providerGeneration: operation.providerGeneration,
+      ...(operation.expectedBillingVersion !== undefined
+        ? { expectedBillingVersion: operation.expectedBillingVersion }
+        : {}),
+      targetPlan: operation.targetPlan,
+      stripePriceIdSnapshot: operation.stripePriceIdSnapshot,
+      stripeSessionId: operation.stripeObjectId,
     };
   },
 });
@@ -1072,6 +1152,7 @@ function isPurposeAllowed(
     | "price"
     | "currentSubscriptionPrice"
     | "startCheckout"
+    | "cancelCheckout"
     | "portal"
     | "scheduleFree"
     | "cancelFreeSchedule"
@@ -1104,6 +1185,12 @@ function isPurposeAllowed(
         return state.fallback === "restricted" ? isRecoveryManager : isActiveManager;
       }
       return isActiveManager && (state.kind === "trial" || (state.kind === "active" && state.plan === "free"));
+    case "cancelCheckout":
+      if (state.kind === "restricted") return isRecoveryManager;
+      if (state.kind === "pendingActivation") {
+        return state.fallback === "restricted" ? isRecoveryManager : isActiveManager;
+      }
+      return isActiveManager;
     case "portal":
       if (state.kind === "restricted") return isRecoveryManager;
       if (state.kind === "pendingActivation" && state.fallback === "restricted") return isRecoveryManager;
