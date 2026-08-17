@@ -50,6 +50,14 @@ const checkoutCancellationResultValidator = v.union(
   v.object({ status: v.literal("unavailable"), reason: unavailableReasonValidator }),
 );
 
+const pendingCheckoutInspectionResultValidator = v.union(
+  v.object({ status: v.literal("open"), url: v.string() }),
+  v.object({ status: v.literal("cancelled") }),
+  v.object({ status: v.literal("pending") }),
+  v.object({ status: v.literal("unchanged") }),
+  v.object({ status: v.literal("unavailable"), reason: unavailableReasonValidator }),
+);
+
 const prorationPreviewResultValidator = v.union(
   v.object({ status: v.literal("unavailable"), reason: unavailableReasonValidator }),
   v.object({
@@ -107,6 +115,12 @@ type UnavailableResult = { status: "unavailable"; reason: UnavailableReason };
 type RedirectResult = { status: "redirect"; url: string } | UnavailableResult;
 type ChangeResult = { status: "accepted" } | UnavailableResult;
 type AvailableUrlResult = { status: "available"; url: string } | UnavailableResult;
+type PendingCheckoutInspectionResult =
+  | { status: "open"; url: string }
+  | { status: "cancelled" }
+  | { status: "pending" }
+  | { status: "unchanged" }
+  | UnavailableResult;
 type ProrationPreviewResult =
   | UnavailableResult
   | {
@@ -344,6 +358,71 @@ export const startPaidCheckoutForOrganization = action({
 });
 
 /**
+ * pendingActivationに対応するCheckoutをproviderで照合し、画面復帰後に利用者が選べる安全な状態だけを返す。
+ * Sessionがopenでも、この確認だけでは支払いを取り消さない。
+ */
+export const inspectPendingCheckoutForOrganization = action({
+  args: {
+    organizationId: v.id("organizations"),
+  },
+  returns: pendingCheckoutInspectionResultValidator,
+  handler: async (ctx, args): Promise<PendingCheckoutInspectionResult> => {
+    if (!isReleaseFeatureEnabled("billing")) return unavailable("not_allowed");
+    const configuration = getStripeBillingConfiguration();
+    if (configuration.status !== "ready") return unavailable("configuration_pending");
+    const context = await getAuthorizedContext(ctx, { organizationId: args.organizationId }, "cancelCheckout");
+    if (!context) return unavailable("not_allowed");
+    if (context.billingState.state.kind !== "pendingActivation") return { status: "unchanged" };
+    if (!context.stripeCustomerId || context.stripeCustomerLivemode !== configuration.livemode) {
+      return unavailable("configuration_pending");
+    }
+
+    const operation = await ctx.runQuery(
+      internal.organizationStripe.queries.getPendingCheckoutOperationForOrganization,
+      {
+        organizationId: context.organizationId,
+        providerGeneration: context.providerGeneration + 1,
+        livemode: configuration.livemode,
+      },
+    );
+    if (!operation) return { status: "unchanged" };
+
+    const stripe = createStripeClient(configuration.secretKey);
+    try {
+      const session = await stripe.checkout.sessions.retrieve(operation.stripeSessionId);
+      assertCheckoutSession(session, {
+        organizationId: context.organizationId,
+        operationId: operation.operationId,
+        stripeSessionId: operation.stripeSessionId,
+        providerGeneration: operation.providerGeneration,
+        livemode: configuration.livemode,
+        customerId: context.stripeCustomerId,
+        priceId: operation.stripePriceIdSnapshot,
+        mode: "subscription",
+      });
+
+      if (session.status === "open") {
+        return session.url ? { status: "open", url: session.url } : unavailable("provider_unavailable");
+      }
+      if (session.status !== "expired") return { status: "pending" };
+
+      return await convergeExpiredPendingCheckout(ctx, {
+        organizationId: context.organizationId,
+        billingVersion: context.billingState.version,
+        fallback: context.billingState.state.fallback,
+        operationId: operation.operationId,
+        stripeSessionId: operation.stripeSessionId,
+        livemode: configuration.livemode,
+        correlationSuffix: "checkout-expired",
+        releaseReason: "checkout_session_expired",
+      });
+    } catch {
+      return unavailable("provider_unavailable");
+    }
+  },
+});
+
+/**
  * Checkoutのキャンセル戻りを、Stripe側のSessionがexpiredになったことを確認してからfallbackへ収束させる。
  * 戻りURLやclientのstateだけでは支払い結果を確定しない。
  */
@@ -407,36 +486,16 @@ export const cancelPendingCheckoutForOrganization = action({
       }
       if (session.status !== "expired") return { status: "pending" as const };
 
-      const changed = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
+      return await convergeExpiredPendingCheckout(ctx, {
         organizationId: context.organizationId,
-        expectedVersion: context.billingState.version,
-        state: { kind: "paymentFailed" },
-        correlationId: `stripe:${operation.operationId}:checkout-cancelled`,
-      });
-      const fallback = context.billingState.state.fallback;
-      const converged = await billingMutationConverged(ctx, context.organizationId, changed.changed, (state) =>
-        fallback === "pro"
-          ? state.kind === "active" && state.plan === "pro"
-          : fallback === "free"
-            ? (state.kind === "active" && state.plan === "free") || state.kind === "restricted"
-            : state.kind === "restricted",
-      );
-      if (!converged) return { status: "pending" as const };
-
-      const released = await ctx.runMutation(internal.organizationStripe.mutations.releaseExpiredCheckoutOperation, {
+        billingVersion: context.billingState.version,
+        fallback: context.billingState.state.fallback,
         operationId: operation.operationId,
         stripeSessionId: operation.stripeSessionId,
-        reason: "checkout_session_cancelled",
+        livemode: configuration.livemode,
+        correlationSuffix: "checkout-cancelled",
+        releaseReason: "checkout_session_cancelled",
       });
-      if (!released.changed) {
-        const latestOperation = await ctx.runQuery(internal.organizationStripe.queries.getCheckoutOperationBySession, {
-          organizationId: context.organizationId,
-          stripeSessionId: operation.stripeSessionId,
-          livemode: configuration.livemode,
-        });
-        if (latestOperation?.status !== "cancelled") return { status: "pending" as const };
-      }
-      return { status: "cancelled" as const };
     } catch {
       return { status: "unavailable" as const, reason: "provider_unavailable" as const };
     }
@@ -6501,6 +6560,50 @@ async function expireOpenCheckoutSession(stripe: Stripe, session: Stripe.Checkou
     if (latest.status === "complete" || latest.status === "expired") return latest;
     throw error;
   }
+}
+
+async function convergeExpiredPendingCheckout(
+  ctx: ActionCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    billingVersion: number;
+    fallback: "free" | "pro" | "restricted";
+    operationId: Id<"organizationStripeOperations">;
+    stripeSessionId: string;
+    livemode: boolean;
+    correlationSuffix: "checkout-cancelled" | "checkout-expired";
+    releaseReason: "checkout_session_cancelled" | "checkout_session_expired";
+  },
+): Promise<{ status: "cancelled" } | { status: "pending" }> {
+  const changed = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
+    organizationId: args.organizationId,
+    expectedVersion: args.billingVersion,
+    state: { kind: "paymentFailed" },
+    correlationId: `stripe:${args.operationId}:${args.correlationSuffix}`,
+  });
+  const converged = await billingMutationConverged(ctx, args.organizationId, changed.changed, (state) =>
+    args.fallback === "pro"
+      ? state.kind === "active" && state.plan === "pro"
+      : args.fallback === "free"
+        ? (state.kind === "active" && state.plan === "free") || state.kind === "restricted"
+        : state.kind === "restricted",
+  );
+  if (!converged) return { status: "pending" };
+
+  const released = await ctx.runMutation(internal.organizationStripe.mutations.releaseExpiredCheckoutOperation, {
+    operationId: args.operationId,
+    stripeSessionId: args.stripeSessionId,
+    reason: args.releaseReason,
+  });
+  if (!released.changed) {
+    const latestOperation = await ctx.runQuery(internal.organizationStripe.queries.getCheckoutOperationBySession, {
+      organizationId: args.organizationId,
+      stripeSessionId: args.stripeSessionId,
+      livemode: args.livemode,
+    });
+    if (latestOperation?.status !== "cancelled") return { status: "pending" };
+  }
+  return { status: "cancelled" };
 }
 
 async function retrieveAllowedPrice(stripe: Stripe, priceId: string, livemode: boolean) {

@@ -331,7 +331,7 @@ describe("organizationStripe/actions", () => {
     }
   });
 
-  it("Checkoutキャンセル復旧は別組織actorとreadOnly actorをprovider通信前に拒否する", async () => {
+  it("Checkout照合とキャンセル復旧は別組織actorとreadOnly actorをprovider通信前に拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       await seedOrganizationManagerShop(ctx, { subject: "stripe_cancel_actor_other_org", plan: "free" });
@@ -349,23 +349,31 @@ describe("organizationStripe/actions", () => {
       return target;
     });
 
+    const otherOrganizationActor = t.withIdentity({ subject: "stripe_cancel_actor_other_org" });
     await expect(
-      t
-        .withIdentity({ subject: "stripe_cancel_actor_other_org" })
-        .action(api.organizationStripe.actions.cancelPendingCheckoutForOrganization, {
-          organizationId: ids.organizationId,
-        }),
+      otherOrganizationActor.action(api.organizationStripe.actions.inspectPendingCheckoutForOrganization, {
+        organizationId: ids.organizationId,
+      }),
+    ).rejects.toThrow("Not found");
+    await expect(
+      otherOrganizationActor.action(api.organizationStripe.actions.cancelPendingCheckoutForOrganization, {
+        organizationId: ids.organizationId,
+      }),
     ).rejects.toThrow("Not found");
 
     await t.run(async (ctx) => {
       await ctx.db.patch(ids.memberId, { status: "readOnly" });
     });
+    const readOnlyActor = t.withIdentity({ subject: "stripe_cancel_actor_target" });
     await expect(
-      t
-        .withIdentity({ subject: "stripe_cancel_actor_target" })
-        .action(api.organizationStripe.actions.cancelPendingCheckoutForOrganization, {
-          organizationId: ids.organizationId,
-        }),
+      readOnlyActor.action(api.organizationStripe.actions.inspectPendingCheckoutForOrganization, {
+        organizationId: ids.organizationId,
+      }),
+    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+    await expect(
+      readOnlyActor.action(api.organizationStripe.actions.cancelPendingCheckoutForOrganization, {
+        organizationId: ids.organizationId,
+      }),
     ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
     expect(providerFetchMock).not.toHaveBeenCalled();
   });
@@ -3170,7 +3178,7 @@ describe("organizationStripe/actions", () => {
     }
   });
 
-  it("カード入力前にCheckoutをキャンセルしたらStripeのexpired確認後にfallbackへ戻し、再実行しても副作用を増やさない", async () => {
+  it("ブラウザバック後のopen Checkoutは照合だけでは維持し、明示キャンセル後にfallbackへ戻す", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(
       async (ctx) =>
@@ -3181,6 +3189,7 @@ describe("organizationStripe/actions", () => {
     let checkoutStatus: "open" | "expired" = "open";
     const session = () => ({
       id: "cs_cancelled_checkout_recovery",
+      url: "https://checkout.stripe.test/cancelled-checkout-recovery",
       customer: "cus_cancelled_checkout_recovery",
       livemode: false,
       mode: "subscription",
@@ -3236,6 +3245,33 @@ describe("organizationStripe/actions", () => {
     });
 
     await expect(
+      actor.action(api.organizationStripe.actions.inspectPendingCheckoutForOrganization, {
+        organizationId: ids.organizationId,
+      }),
+    ).resolves.toEqual({
+      status: "open",
+      url: "https://checkout.stripe.test/cancelled-checkout-recovery",
+    });
+    expect(providerResources).toEqual([
+      "prices.retrieve",
+      "customers.create",
+      "checkout.sessions.create",
+      "checkout.sessions.retrieve",
+    ]);
+    await expect(
+      t.run(async (ctx) => ({
+        billing: await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+          .unique(),
+        operation: await ctx.db.get(checkoutOperationId as Id<"organizationStripeOperations">),
+      })),
+    ).resolves.toMatchObject({
+      billing: { state: { kind: "pendingActivation", plan: "pro", fallback: "free" } },
+      operation: { status: "succeeded" },
+    });
+
+    await expect(
       actor.action(api.organizationStripe.actions.cancelPendingCheckoutForOrganization, {
         organizationId: ids.organizationId,
       }),
@@ -3244,6 +3280,7 @@ describe("organizationStripe/actions", () => {
       "prices.retrieve",
       "customers.create",
       "checkout.sessions.create",
+      "checkout.sessions.retrieve",
       "checkout.sessions.retrieve",
       "checkout.sessions.expire",
     ]);
@@ -3265,7 +3302,7 @@ describe("organizationStripe/actions", () => {
         organizationId: ids.organizationId,
       }),
     ).resolves.toEqual({ status: "unchanged" });
-    expect(providerResources).toHaveLength(5);
+    expect(providerResources).toHaveLength(6);
   });
 
   it.each([

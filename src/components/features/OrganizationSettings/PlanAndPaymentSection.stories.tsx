@@ -45,6 +45,13 @@ const meta = {
     onUpdatePaymentMethod: fn(),
     onUpdateBillingEmail: fn(),
     onOpenBillingDocuments: fn(),
+    pendingCheckout: {
+      status: "idle",
+      isCancelling: false,
+      onContinue: fn(),
+      onCancel: fn(),
+      onRetry: fn(),
+    },
   },
 } satisfies Meta<typeof PlanAndPaymentSection>;
 
@@ -207,6 +214,31 @@ export const RestrictedAfterTrial: Story = {
   },
 };
 
+export const PendingCheckoutOpen: Story = {
+  name: "支払い手続きが未完了",
+  args: {
+    billing: {
+      ...billing,
+      state: "pendingActivation",
+      currentPlan: "free",
+      targetPlan: "pro",
+      nextEvent: undefined,
+      hasStripeCustomer: true,
+      canManagePlan: false,
+      canUpdatePaymentMethod: false,
+      canScheduleFree: false,
+      blockedReason: "有料プランの支払い結果を確認中です。無料の基本機能は引き続き利用できます。",
+    },
+    pendingCheckout: {
+      status: "open",
+      isCancelling: false,
+      onContinue: fn(),
+      onCancel: fn(),
+      onRetry: fn(),
+    },
+  },
+};
+
 export const PriceLoading: Story = {
   name: "料金を読み込み中",
   args: { planPrices: { pro: { status: "loading" }, business: { status: "loading" } } },
@@ -290,6 +322,19 @@ export const StripePortalActionsBehavior: Story = {
   },
 };
 
+export const PendingCheckoutActionsBehavior: Story = {
+  name: "未完了の支払いを続ける・やめる（操作確認）",
+  parameters: { screenshot: { skip: true } },
+  args: PendingCheckoutOpen.args,
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "支払いをやめる" }));
+    await userEvent.click(canvas.getByRole("button", { name: "支払いを続ける" }));
+    await expect(args.pendingCheckout?.onCancel).toHaveBeenCalledTimes(1);
+    await expect(args.pendingCheckout?.onContinue).toHaveBeenCalledTimes(1);
+  },
+};
+
 export const MobileFree: Story = {
   name: "Free・モバイル",
   tags: ["vrt-mobile1"],
@@ -309,4 +354,11 @@ export const MobileRestricted: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: RestrictedForPro.args,
+};
+
+export const MobilePendingCheckoutOpen: Story = {
+  name: "支払い手続きが未完了・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: PendingCheckoutOpen.args,
 };

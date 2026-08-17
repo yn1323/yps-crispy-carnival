@@ -606,6 +606,7 @@ function ReadyBillingPage({
     organizationId,
     organizationName: overview.organizationName,
     billing: overview.billing,
+    canManagePendingCheckout: memberStatus === "active",
     stripeResult,
     onStripeResultHandled,
   });
@@ -629,6 +630,7 @@ function ReadyBillingPage({
           onUpdatePaymentMethod={stripe.updatePaymentMethod}
           onUpdateBillingEmail={billingEmail.updateBillingEmail}
           onOpenBillingDocuments={stripe.openBillingDocuments}
+          pendingCheckout={stripe.pendingCheckout}
         />
       </Stack>
       <BillingEmailDialog {...billingEmail.dialog} />
