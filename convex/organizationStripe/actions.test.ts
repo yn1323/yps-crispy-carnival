@@ -399,7 +399,7 @@ describe("organizationStripe/actions", () => {
     await expectNoStripeSideEffects(t);
   });
 
-  it("Business価格はserver-side allowlistのPriceだけをProと同じ通貨で公開する", async () => {
+  it("Business価格はserver-side allowlistのPriceだけをProと同じ通貨・請求周期で公開する", async () => {
     configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
     const t = convexTest(schema, modules);
     const ids = await t.run(
@@ -411,7 +411,10 @@ describe("organizationStripe/actions", () => {
       if (resource !== "prices.retrieve") throw new Error(`Unexpected Stripe provider call: ${resource}`);
       const [priceId] = JSON.parse(String(init?.body ?? "[]")) as [string];
       requestedPriceIds.push(priceId);
-      return providerResponse(priceFixtureFor(priceId));
+      return providerResponse({
+        ...priceFixtureFor(priceId),
+        recurring: { interval: "day", interval_count: 2 },
+      });
     });
 
     await expect(
@@ -423,8 +426,8 @@ describe("organizationStripe/actions", () => {
       status: "available",
       currency: "jpy",
       unitAmount: 2980,
-      interval: "month",
-      intervalCount: 1,
+      interval: "day",
+      intervalCount: 2,
       taxBehavior: "inclusive",
     });
     expect(requestedPriceIds).toEqual([BUSINESS_PRICE_ID, READY_TEST_CONFIGURATION.proPriceId]);
@@ -467,6 +470,28 @@ describe("organizationStripe/actions", () => {
     ).resolves.toEqual({ status: "unavailable", reason: "price_unavailable" });
     expect(requestedPriceIds).toEqual([BUSINESS_PRICE_ID, READY_TEST_CONFIGURATION.proPriceId]);
 
+    requestedPriceIds.length = 0;
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource !== "prices.retrieve") throw new Error(`Unexpected Stripe provider call: ${resource}`);
+      const [priceId] = JSON.parse(String(init?.body ?? "[]")) as [string];
+      requestedPriceIds.push(priceId);
+      return providerResponse({
+        ...priceFixtureFor(priceId),
+        recurring:
+          priceId === BUSINESS_PRICE_ID
+            ? { interval: "day", interval_count: 1 }
+            : { interval: "month", interval_count: 1 },
+      });
+    });
+    await expect(
+      t.withIdentity({ subject: "stripe_business_price" }).action(api.organizationStripe.actions.getPlanPrice, {
+        shopId: ids.shopId,
+        targetPlan: "business",
+      }),
+    ).resolves.toEqual({ status: "unavailable", reason: "price_unavailable" });
+    expect(requestedPriceIds).toEqual([BUSINESS_PRICE_ID, READY_TEST_CONFIGURATION.proPriceId]);
+
     configurationMock.mockReturnValue(READY_TEST_CONFIGURATION);
     providerFetchMock.mockClear();
     await expect(
@@ -496,6 +521,7 @@ describe("organizationStripe/actions", () => {
         active: false,
         unit_amount: 1680,
         tax_behavior: requestedPriceIds.length === 1 ? "exclusive" : "unspecified",
+        recurring: { interval: "week", interval_count: 2 },
       });
     });
     const actor = t.withIdentity({ subject: "stripe_current_subscription_price" });
@@ -506,8 +532,8 @@ describe("organizationStripe/actions", () => {
       status: "available",
       currency: "jpy",
       unitAmount: 1680,
-      interval: "month",
-      intervalCount: 1,
+      interval: "week",
+      intervalCount: 2,
       taxBehavior: "exclusive",
     });
     await expect(
@@ -516,10 +542,36 @@ describe("organizationStripe/actions", () => {
       status: "available",
       currency: "jpy",
       unitAmount: 1680,
-      interval: "month",
-      intervalCount: 1,
+      interval: "week",
+      intervalCount: 2,
     });
     expect(requestedPriceIds).toEqual([persistedPriceId, persistedPriceId]);
+  });
+
+  it.each([
+    { caseName: "one-time", subjectSuffix: "one_time", recurring: null },
+    {
+      caseName: "interval_count不正",
+      subjectSuffix: "invalid_interval_count",
+      recurring: { interval: "day", interval_count: 0 },
+    },
+  ])("$caseName Priceは新規販売用として公開しない", async ({ subjectSuffix, recurring }) => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: `stripe_invalid_recurring_${subjectSuffix}`, plan: "free" }),
+    );
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      if (resource !== "prices.retrieve") throw new Error(`Unexpected Stripe provider call: ${resource}`);
+      const [priceId] = JSON.parse(String(init?.body ?? "[]")) as [string];
+      return providerResponse({ ...priceFixtureFor(priceId), recurring });
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: `stripe_invalid_recurring_${subjectSuffix}` })
+        .action(api.organizationStripe.actions.getPlanPrice, { shopId: ids.shopId, targetPlan: "pro" }),
+    ).resolves.toEqual({ status: "unavailable", reason: "price_unavailable" });
   });
 
   it("別organizationのactorは対象shopの契約Priceを取得できずprovider通信しない", async () => {
@@ -726,7 +778,7 @@ describe("organizationStripe/actions", () => {
     expect(providerFetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("FreeからBusiness Checkoutを開始しても支払確認前はpendingActivationを維持する", async () => {
+  it("Freeから日次Business Checkoutを開始しても支払確認前はpendingActivationを維持する", async () => {
     configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
     const t = convexTest(schema, modules);
     const ids = await t.run(
@@ -736,7 +788,9 @@ describe("organizationStripe/actions", () => {
     providerFetchMock.mockImplementation(async (input, init) => {
       const resource = String(input).split("/").pop() ?? "";
       const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
-      if (resource === "prices.retrieve") return providerResponse(priceFixtureFor(String(args[0])));
+      if (resource === "prices.retrieve") {
+        return providerResponse(priceFixtureFor(String(args[0]), { interval: "day", interval_count: 1 }));
+      }
       if (resource === "customers.create") return providerResponse({ id: "cus_free_to_business", livemode: false });
       if (resource === "checkout.sessions.create") {
         checkoutCalls.push(args);
@@ -1881,6 +1935,7 @@ describe("organizationStripe/actions", () => {
 
   it("BusinessからProを現在の期間末へScheduleし、取消時はprovider確認後にBusinessへ戻す", async () => {
     configurationMock.mockReturnValue(READY_BUSINESS_TEST_CONFIGURATION);
+    const dailyCadence = { interval: "day", interval_count: 1 } as const;
     const t = convexTest(schema, modules);
     const ids = await seedPaidPlanStripeContext(t, {
       subject: "stripe_business_to_pro_schedule",
@@ -1894,13 +1949,16 @@ describe("organizationStripe/actions", () => {
     providerFetchMock.mockImplementation(async (input, init) => {
       const resource = String(input).split("/").pop() ?? "";
       const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
-      if (resource === "prices.retrieve") return providerResponse(priceFixtureFor(String(args[0])));
+      if (resource === "prices.retrieve") {
+        return providerResponse(priceFixtureFor(String(args[0]), dailyCadence));
+      }
       if (resource === "subscriptions.retrieve") {
         return providerResponse(
           paidPlanSubscriptionFixture(ids, {
             plan: "business",
             invoiceStatus: "paid",
             scheduleId: scheduled ? ids.stripeSubscriptionScheduleId : undefined,
+            priceRecurring: dailyCadence,
           }),
         );
       }
@@ -1972,7 +2030,7 @@ describe("organizationStripe/actions", () => {
         },
         {
           start_date: Math.floor(ids.periodEndsAt / 1000),
-          duration: { interval: "month", interval_count: 1 },
+          duration: { interval: "day", interval_count: 1 },
           items: [{ price: READY_TEST_CONFIGURATION.proPriceId, quantity: 1 }],
           proration_behavior: "none",
         },
@@ -8916,7 +8974,13 @@ async function seedCurrentSubscriptionPriceContext(
   });
 }
 
-function priceFixtureFor(priceId: string) {
+function priceFixtureFor(
+  priceId: string,
+  recurring: { interval: "day" | "week" | "month" | "year"; interval_count: number } = {
+    interval: "month",
+    interval_count: 1,
+  },
+) {
   return {
     id: priceId,
     active: true,
@@ -8924,7 +8988,7 @@ function priceFixtureFor(priceId: string) {
     currency: "jpy",
     unit_amount: priceId === BUSINESS_PRICE_ID ? 2980 : 1480,
     tax_behavior: "inclusive",
-    recurring: { interval: "month", interval_count: 1 },
+    recurring,
   };
 }
 
@@ -8940,6 +9004,7 @@ function paidPlanSubscriptionFixture(
     invoiceEffectiveAt?: number;
     invoicePriceId?: string;
     invoiceBillingReason?: string;
+    priceRecurring?: { interval: "day" | "week" | "month" | "year"; interval_count: number };
   },
 ) {
   const priceId =
@@ -8996,7 +9061,7 @@ function paidPlanSubscriptionFixture(
           quantity: 1,
           current_period_start: Math.floor(ids.periodStartsAt / 1000),
           current_period_end: Math.floor(ids.periodEndsAt / 1000),
-          price: priceFixtureFor(priceId),
+          price: priceFixtureFor(priceId, args.priceRecurring),
         },
       ],
     },

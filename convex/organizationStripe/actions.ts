@@ -150,6 +150,10 @@ type CurrentSubscriptionPriceResult =
       intervalCount: number;
       taxBehavior?: "inclusive" | "exclusive";
     };
+type StripeBillingCadence = {
+  interval: "day" | "week" | "month" | "year";
+  intervalCount: number;
+};
 type BillingStateSnapshot = { state: Doc<"organizationBillingStates">["state"]; version: number };
 type BillingActionScope = { shopId: Id<"shops"> } | { organizationId: Id<"organizations"> };
 
@@ -223,7 +227,7 @@ type StripeSafetyContext = {
   };
 };
 
-/** 認証済みactorへ、サーバー側allowlistから選んだ月額Priceだけを返す。 */
+/** 認証済みactorへ、サーバー側allowlistから選んだrecurring Priceだけを返す。 */
 export const getPlanPrice = action({
   args: {
     shopId: v.id("shops"),
@@ -263,7 +267,9 @@ async function getPlanPriceForScope(
     if (!price) return unavailable("price_unavailable");
     if (targetPlan === "business") {
       const proPrice = await retrieveAllowedPrice(stripe, configuration.proPriceId, configuration.livemode);
-      if (!proPrice || proPrice.currency !== price.currency) return unavailable("price_unavailable");
+      if (!proPrice || proPrice.currency !== price.currency || !hasSameBillingCadence(proPrice, price)) {
+        return unavailable("price_unavailable");
+      }
     }
     return { status: "available", ...price };
   } catch {
@@ -297,11 +303,7 @@ export const getCurrentSubscriptionPrice = action({
 
     try {
       const stripe = createStripeClient(configuration.secretKey);
-      const price = await retrieveCurrentSubscriptionPrice(
-        stripe,
-        context.currentStripePriceId,
-        configuration.livemode,
-      );
+      const price = await retrieveExistingRecurringPrice(stripe, context.currentStripePriceId, configuration.livemode);
       return price ? { status: "available", ...price } : unavailable("price_unavailable");
     } catch {
       return unavailable("provider_unavailable");
@@ -767,14 +769,14 @@ async function startPaidCheckoutForPlan(
     }
     if (args.targetPlan === "business") {
       const proPrice = await retrieveAllowedPrice(stripe, configuration.proPriceId, livemode);
-      if (!proPrice || proPrice.currency !== price.currency) {
+      if (!proPrice || proPrice.currency !== price.currency || !hasSameBillingCadence(proPrice, price)) {
         await finishOperation(
           ctx,
           operation.operationId,
           operationLease,
           "failed",
           undefined,
-          "price_currency_invalid",
+          "price_compatibility_invalid",
         );
         return unavailable("price_unavailable");
       }
@@ -3367,7 +3369,7 @@ async function synchronizeSubscription(
     subscription.items.data.length !== 1 ||
     !item ||
     item.price.livemode !== event.livemode ||
-    !item.price.recurring
+    !getStripeBillingCadence(item.price)
   ) {
     return { ok: false, result: { kind: "actionRequired", errorCode: "subscription_price_invalid" } };
   }
@@ -4028,6 +4030,15 @@ async function recoverScheduledPaidPlanChange(
     if (currentItem.price.id !== persisted.sourceStripePriceIdSnapshot) {
       throw new Error("subscription_schedule_not_confirmed");
     }
+    const currentCadence = getStripeBillingCadence(currentItem.price);
+    const targetPrice = await retrieveExistingRecurringPrice(
+      stripe,
+      persisted.targetStripePriceIdSnapshot,
+      context.livemode,
+    );
+    if (!currentCadence || !targetPrice || !hasSameBillingCadence(currentCadence, targetPrice)) {
+      throw new Error("paid_plan_change_target_price_invalid");
+    }
     const phaseStart = schedule.current_phase?.start_date ?? currentItem.current_period_start;
     schedule = await stripe.subscriptionSchedules.update(
       schedule.id,
@@ -4049,7 +4060,7 @@ async function recoverScheduledPaidPlanChange(
           },
           {
             start_date: Math.floor(persisted.effectiveAt / 1000),
-            duration: { interval: "month", interval_count: 1 },
+            duration: subscriptionScheduleDuration(targetPrice),
             items: [{ price: persisted.targetStripePriceIdSnapshot, quantity: 1 }],
             proration_behavior: "none",
           },
@@ -4299,8 +4310,11 @@ async function previewImmediatePaidPlanChange(
       livemode: configuration.livemode,
     });
     const item = requireSingleLicensedSubscriptionItem(subscription);
+    const currentCadence = getStripeBillingCadence(item.price);
     if (
+      !currentCadence ||
       item.price.currency !== targetPrice.currency ||
+      !hasSameBillingCadence(currentCadence, targetPrice) ||
       item.price.id === targetPriceId ||
       subscription.pending_update ||
       stripeObjectId(subscription.schedule)
@@ -4407,8 +4421,11 @@ async function applyImmediatePaidPlanChange(
       livemode: configuration.livemode,
     });
     const currentItem = requireSingleLicensedSubscriptionItem(current);
+    const currentCadence = getStripeBillingCadence(currentItem.price);
     if (
+      !currentCadence ||
       currentItem.price.currency !== targetPrice.currency ||
+      !hasSameBillingCadence(currentCadence, targetPrice) ||
       args.prorationDate < currentItem.current_period_start ||
       args.prorationDate > currentItem.current_period_end ||
       current.pending_update ||
@@ -4563,7 +4580,15 @@ async function scheduleBusinessToPro(
       livemode: configuration.livemode,
     });
     const currentItem = requireSingleLicensedSubscriptionItem(current);
-    if (currentItem.price.currency !== proPrice.currency || current.pending_update) return unavailable("not_allowed");
+    const currentCadence = getStripeBillingCadence(currentItem.price);
+    if (
+      !currentCadence ||
+      currentItem.price.currency !== proPrice.currency ||
+      !hasSameBillingCadence(currentCadence, proPrice) ||
+      current.pending_update
+    ) {
+      return unavailable("not_allowed");
+    }
     const effectiveAt = currentItem.current_period_end * 1000;
     operation = await ctx.runMutation(internal.organizationStripe.mutations.beginOperation, {
       organizationId: context.organizationId,
@@ -4641,7 +4666,7 @@ async function scheduleBusinessToPro(
           },
           {
             start_date: currentItem.current_period_end,
-            duration: { interval: "month", interval_count: 1 },
+            duration: subscriptionScheduleDuration(proPrice),
             items: [{ price: configuration.proPriceId, quantity: 1 }],
             proration_behavior: "none",
           },
@@ -6075,9 +6100,7 @@ function requireSingleLicensedSubscriptionItem(subscription: Stripe.Subscription
     subscription.items.data.length !== 1 ||
     !item ||
     (item.quantity ?? 1) !== 1 ||
-    !item.price.recurring ||
-    item.price.recurring.interval !== "month" ||
-    item.price.recurring.interval_count !== 1
+    !getStripeBillingCadence(item.price)
   ) {
     throw new Error("subscription_item_invalid");
   }
@@ -6641,19 +6664,13 @@ function getDisplayedPaidPlanForCurrentSubscriptionPrice(
 }
 
 /**
- * 既存契約が参照するPriceは販売終了後も金額表示に必要なため、activeは要求しない。
- * Price IDは認可済みsubscription snapshotからのみ受け取る。
+ * 既存契約または開始済みoperationが参照するPriceは、販売終了後も照合に必要なためactiveを要求しない。
+ * Price IDは認可済みのsubscriptionまたはoperation snapshotからのみ受け取る。
  */
-async function retrieveCurrentSubscriptionPrice(stripe: Stripe, priceId: string, livemode: boolean) {
+async function retrieveExistingRecurringPrice(stripe: Stripe, priceId: string, livemode: boolean) {
   const price = await stripe.prices.retrieve(priceId);
-  if (
-    price.id !== priceId ||
-    price.livemode !== livemode ||
-    !price.recurring ||
-    price.recurring.interval !== "month" ||
-    price.recurring.interval_count !== 1 ||
-    price.unit_amount === null
-  ) {
+  const cadence = getStripeBillingCadence(price);
+  if (price.id !== priceId || price.livemode !== livemode || !cadence || price.unit_amount === null) {
     return null;
   }
   const taxBehavior =
@@ -6661,20 +6678,18 @@ async function retrieveCurrentSubscriptionPrice(stripe: Stripe, priceId: string,
   return {
     currency: price.currency,
     unitAmount: price.unit_amount,
-    interval: price.recurring.interval,
-    intervalCount: price.recurring.interval_count,
+    ...cadence,
     ...(taxBehavior ? { taxBehavior } : {}),
   };
 }
 
 async function retrieveConfiguredPrice(stripe: Stripe, priceId: string, livemode: boolean) {
   const price = await stripe.prices.retrieve(priceId);
+  const cadence = getStripeBillingCadence(price);
   if (
     price.id !== priceId ||
     price.livemode !== livemode ||
-    !price.recurring ||
-    price.recurring.interval !== "month" ||
-    price.recurring.interval_count !== 1 ||
+    !cadence ||
     price.unit_amount === null ||
     (price.tax_behavior !== "inclusive" && price.tax_behavior !== "exclusive")
   ) {
@@ -6686,11 +6701,35 @@ async function retrieveConfiguredPrice(stripe: Stripe, priceId: string, livemode
     price: {
       currency: price.currency,
       unitAmount: price.unit_amount,
-      interval: price.recurring.interval,
-      intervalCount: price.recurring.interval_count,
+      ...cadence,
       taxBehavior: price.tax_behavior,
     },
   };
+}
+
+function getStripeBillingCadence(price: Stripe.Price): StripeBillingCadence | null {
+  const recurring = price.recurring;
+  if (
+    !recurring ||
+    !isStripeBillingInterval(recurring.interval) ||
+    !Number.isSafeInteger(recurring.interval_count) ||
+    recurring.interval_count < 1
+  ) {
+    return null;
+  }
+  return { interval: recurring.interval, intervalCount: recurring.interval_count };
+}
+
+function isStripeBillingInterval(value: unknown): value is StripeBillingCadence["interval"] {
+  return value === "day" || value === "week" || value === "month" || value === "year";
+}
+
+function hasSameBillingCadence(left: StripeBillingCadence, right: StripeBillingCadence) {
+  return left.interval === right.interval && left.intervalCount === right.intervalCount;
+}
+
+function subscriptionScheduleDuration(cadence: StripeBillingCadence) {
+  return { interval: cadence.interval, interval_count: cadence.intervalCount };
 }
 
 function createStripeClient(secretKey: string) {
