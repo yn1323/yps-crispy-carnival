@@ -66,7 +66,7 @@ describe("OrganizationSettings BillingSettings", () => {
     expect(formatBillingBoundaryDate(Date.parse("2026-09-01T00:00:00+09:00"))).toBe("2026年9月1日");
   });
 
-  it("Stripeの最小単位を通貨コード付きの料金と請求間隔へ整形する", () => {
+  it("Stripeの最小単位を通貨記号付きの料金と請求間隔へ整形する", () => {
     const yen = formatPlanPrice({
       currency: "jpy",
       unitAmount: 3000,
@@ -82,8 +82,7 @@ describe("OrganizationSettings BillingSettings", () => {
       taxBehavior: "exclusive",
     });
 
-    expect(yen.amount).toContain("JPY");
-    expect(yen.amount).toContain("3,000");
+    expect(yen.amount).toBe("¥3,000");
     expect(yen.interval).toBe("1か月ごと");
     expect(yen.tax).toBe("税込");
     expect(dollars.amount).toContain("USD");
