@@ -305,24 +305,31 @@ function ActionCard({
           </Badge>
         </HStack>
 
-        <Text
-          as="h2"
-          gridColumn="2"
-          gridRow="2"
-          minW={0}
-          fontSize={{ base: "md", md: "lg" }}
-          fontWeight="bold"
-          color="gray.900"
-          lineHeight="short"
-        >
-          {item.title}
-        </Text>
+        <Stack gridColumn="2" gridRow="2" gap={1} minW={0}>
+          <Text
+            as="h2"
+            minW={0}
+            fontSize={{ base: "md", md: "lg" }}
+            fontWeight="bold"
+            color="gray.900"
+            lineHeight="short"
+          >
+            {item.title}
+          </Text>
+          {shouldShowRetryGuidance && <RetryGuidance />}
+        </Stack>
 
         <Metadata gridColumn="2" gridRow="3" values={item.metadata} />
 
-        <Stack gridColumn={{ base: "2", md: "2 / span 2" }} gridRow="4" gap={1} minW={0} w="full">
+        <Stack
+          gridColumn={{ base: "2", md: "3" }}
+          gridRow={{ base: "4", md: "1 / span 3" }}
+          alignSelf={{ base: "stretch", md: "center" }}
+          gap={1}
+          minW={0}
+          w="full"
+        >
           <Flex gap={{ base: 2, md: 4 }} align="center" justify="space-between" w="full" minW={0}>
-            {shouldShowRetryGuidance && <RetryGuidance />}
             <Flex gap={2} justify="flex-end" align="flex-start" ms="auto" flexShrink={0}>
               <ActionButton
                 action={visibleAction}

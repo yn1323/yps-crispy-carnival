@@ -1,9 +1,10 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import { getDeadlineCutoff } from "../_lib/dateFormat";
 import { seedActionInboxSources } from "../_test/actionInboxFixtures";
 import { readScheduledFunctions } from "../_test/scenarioBuilders";
+import { seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const NOW = Date.parse("2026-08-14T00:00:00Z");
@@ -172,5 +173,110 @@ describe("組織の対応一覧シナリオ", () => {
       },
     ]);
     expect(await readScheduledFunctions(t)).toEqual([]);
+  });
+
+  it("管理者招待のResend失敗を表示し、より新しい配信成功で解消する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "action_inbox_manager_provider_failure",
+        plan: "business",
+      });
+      const invitationId = await ctx.db.insert("organizationInvitations", {
+        organizationId: base.organizationId,
+        email: "provider-failure@example.com",
+        emailNormalized: "provider-failure@example.com",
+        invitedName: "配信失敗の招待対象者",
+        tokenDigest: "action-inbox-manager-provider-failure",
+        status: "issued",
+        purpose: "managerAddition",
+        inviterMemberId: base.memberId,
+        reservedSeat: true,
+        version: 1,
+        expiresAt: NOW + 7 * 24 * 60 * 60 * 1_000,
+        createdAt: NOW - 3_000,
+        updatedAt: NOW - 3_000,
+      });
+      const outboxId = await ctx.db.insert("notificationOutbox", {
+        channel: "email",
+        status: "sent",
+        dedupeKey: "organization-manager-invitation:provider-failure:1",
+        organizationId: base.organizationId,
+        organizationInvitationId: invitationId,
+        organizationInvitationVersion: 1,
+        purpose: "business",
+        payload: {
+          kind: "organizationManagerInvitationEmail",
+          from: "noreply@example.com",
+          to: "provider-failure@example.com",
+          context: "organizationInvitation.managerInvite",
+        },
+        attemptCount: 1,
+        nextRunAt: NOW,
+        sentAt: NOW,
+        resendEmailId: "email_manager_provider_failure",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      return { ...base, invitationId, outboxId };
+    });
+    const manager = t.withIdentity({ subject: "action_inbox_manager_provider_failure" });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+        providerEventId: "svix_manager_provider_failure",
+        providerEventType: "email.bounced",
+        providerEmailId: "email_manager_provider_failure",
+        outboxIdTag: ids.outboxId,
+        occurredAt: NOW + 1_000,
+        errorMessage: "email_delivery_bounced",
+      }),
+    ).resolves.toEqual({ recorded: true, inboxed: false, reason: "suppressed" });
+
+    const afterFailure = await manager.query(api.appOrganization.actionInboxQueries.getActionInbox, {
+      organizationId: ids.organizationId,
+      shopFilter: "all",
+      refreshBucket: 0,
+    });
+    expect(afterFailure).toEqual({
+      items: [
+        {
+          id: `managerInvitation:${ids.invitationId}`,
+          kind: "managerInvitation",
+          scope: { kind: "organization", organizationId: ids.organizationId },
+          invitationId: ids.invitationId,
+          inviteeName: "配信失敗の招待対象者",
+          invitedEmail: "provider-failure@example.com",
+          status: "sendFailed",
+          expiresAt: NOW + 7 * 24 * 60 * 60 * 1_000,
+          canResend: true,
+          canRevoke: true,
+          occurredAt: NOW + 7 * 24 * 60 * 60 * 1_000,
+        },
+      ],
+      continuationByKind: {},
+      hasMoreByKind: {},
+    });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.recordResendProviderDeliveryUpdate, {
+        providerEventId: "svix_manager_provider_delivered",
+        providerEventType: "email.delivered",
+        providerEmailId: "email_manager_provider_failure",
+        outboxIdTag: ids.outboxId,
+        occurredAt: NOW + 2_000,
+      }),
+    ).resolves.toEqual({ recorded: true, historyUpdated: false });
+
+    const afterDelivery = await manager.query(api.appOrganization.actionInboxQueries.getActionInbox, {
+      organizationId: ids.organizationId,
+      shopFilter: "all",
+      refreshBucket: 1,
+    });
+    expect(afterDelivery).toEqual({
+      items: [],
+      continuationByKind: {},
+      hasMoreByKind: {},
+    });
   });
 });

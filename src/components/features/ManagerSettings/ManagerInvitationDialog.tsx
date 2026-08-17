@@ -6,13 +6,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { ManagerCandidateListView } from "./ManagerCandidateListView";
 import { ManagerExternalInviteFormView } from "./ManagerExternalInviteForm";
-import { ManagerIssueConfirmationContent } from "./ManagerIssueConfirmationDialog";
-import type {
-  ManagerInvitationIssueConfirmation,
-  ManagerSettingsCandidate,
-  ManagerSettingsCandidateResult,
-  ReadyManagerSettingsOverview,
-} from "./types";
+import type { ManagerSettingsCandidate, ManagerSettingsCandidateResult, ReadyManagerSettingsOverview } from "./types";
 import { useManagerIssueController } from "./useManagerIssueController";
 
 export type ManagerInvitationDialogMode = "existingStaff" | "external";
@@ -47,32 +41,19 @@ export function ManagerInvitationDialog({ mode, overview, organizationId, onClos
     }
     setExternalDraft({ name: "", email: "" });
     setSelectedPersonId((current) =>
-      candidateResult.candidates.some((candidate) => candidate.personId === current && candidate.canSelect)
+      candidateResult.candidates.some(
+        (candidate: ManagerSettingsCandidate) => candidate.personId === current && candidate.canSelect,
+      )
         ? current
         : "",
     );
   }, [candidateResult, mode]);
-
-  useEffect(() => {
-    const confirmation = controller.confirmation;
-    if (confirmation?.kind !== "existingStaff") return;
-    if (
-      mode !== "existingStaff" ||
-      candidateResult?.kind !== "ready" ||
-      !candidateResult.candidates.some(
-        (candidate) => candidate.personId === confirmation.candidate.personId && candidate.canSelect,
-      )
-    ) {
-      controller.onCloseConfirmation();
-    }
-  }, [candidateResult, controller.confirmation, controller.onCloseConfirmation, mode]);
 
   return (
     <ManagerInvitationDialogView
       mode={mode}
       overview={overview}
       candidateResult={candidateResult}
-      confirmation={controller.confirmation}
       isRunning={controller.isRunning}
       selectedPersonId={selectedPersonId}
       externalDraft={externalDraft}
@@ -83,8 +64,6 @@ export function ManagerInvitationDialog({ mode, overview, organizationId, onClos
         controller.onRequestExternal(name, email);
       }}
       onClose={onClose}
-      onCloseConfirmation={controller.onCloseConfirmation}
-      onConfirm={controller.onConfirm}
     />
   );
 }
@@ -93,7 +72,6 @@ export type ManagerInvitationDialogViewProps = {
   mode: ManagerInvitationDialogMode | null;
   overview: ReadyManagerSettingsOverview;
   candidateResult?: ManagerSettingsCandidateResult;
-  confirmation: ManagerInvitationIssueConfirmation;
   isRunning: boolean;
   selectedPersonId: string;
   externalDraft: ExternalInviteDraft;
@@ -101,15 +79,12 @@ export type ManagerInvitationDialogViewProps = {
   onRequestExistingStaff: (candidate: ManagerSettingsCandidate) => void;
   onRequestExternal: (invitedName: string, email: string) => void;
   onClose: () => void;
-  onCloseConfirmation: () => void;
-  onConfirm: () => void | Promise<void>;
 };
 
 export function ManagerInvitationDialogView({
   mode,
   overview,
   candidateResult,
-  confirmation,
   isRunning,
   selectedPersonId,
   externalDraft,
@@ -117,58 +92,43 @@ export function ManagerInvitationDialogView({
   onRequestExistingStaff,
   onRequestExternal,
   onClose,
-  onCloseConfirmation,
-  onConfirm,
 }: ManagerInvitationDialogViewProps) {
   const isOpen = mode !== null;
   const resolvedMode = mode ?? "external";
-  const isConfirmation = isOpen && confirmation !== null;
   const isExistingStaff = resolvedMode === "existingStaff";
   const selectedCandidate =
     candidateResult?.kind === "ready"
-      ? candidateResult.candidates.find((candidate) => candidate.personId === selectedPersonId && candidate.canSelect)
+      ? candidateResult.candidates.find(
+          (candidate: ManagerSettingsCandidate) => candidate.personId === selectedPersonId && candidate.canSelect,
+        )
       : undefined;
   const canInviteExistingStaff =
     isOpen && overview.mode === "managerAddition" && overview.actions.canInviteExistingStaff;
   const canInviteExternal = isOpen && overview.mode === "managerAddition" && overview.actions.canInviteExternal;
   const externalFormId = "manager-external-invitation-form";
-  const isSubmitDisabled = isConfirmation
-    ? false
-    : !isOpen
-      ? true
-      : isExistingStaff
-        ? !canInviteExistingStaff || !selectedCandidate || candidateResult?.kind !== "ready"
-        : !canInviteExternal;
-
-  const handleClose = () => {
-    if (isConfirmation) {
-      onCloseConfirmation();
-      return;
-    }
-    onClose();
-  };
+  const isSubmitDisabled =
+    !isOpen ||
+    (isExistingStaff
+      ? !canInviteExistingStaff || !selectedCandidate || candidateResult?.kind !== "ready"
+      : !canInviteExternal);
 
   const handleSubmit = () => {
-    if (isConfirmation) {
-      onConfirm();
-      return;
-    }
     if (selectedCandidate) onRequestExistingStaff(selectedCandidate);
   };
 
   return (
     <Dialog
-      title={getDialogTitle(resolvedMode, confirmation)}
-      role={isConfirmation ? "alertdialog" : "dialog"}
+      title={getDialogTitle(resolvedMode)}
+      role="dialog"
       isOpen={isOpen}
       onOpenChange={({ open }) => {
-        if (!open && isOpen && !isRunning) handleClose();
+        if (!open && isOpen && !isRunning) onClose();
       }}
-      onClose={handleClose}
-      onSubmit={isOpen && (isExistingStaff || isConfirmation) ? handleSubmit : undefined}
-      formId={isOpen && !isExistingStaff && !isConfirmation ? externalFormId : undefined}
-      closeLabel={isConfirmation ? "やめる" : "キャンセル"}
-      submitLabel={getSubmitLabel(resolvedMode, confirmation)}
+      onClose={onClose}
+      onSubmit={isOpen && isExistingStaff ? handleSubmit : undefined}
+      formId={isOpen && !isExistingStaff ? externalFormId : undefined}
+      closeLabel="キャンセル"
+      submitLabel={getSubmitLabel(resolvedMode)}
       isLoading={isRunning}
       isSubmitDisabled={isSubmitDisabled}
       preventClose={isRunning}
@@ -178,9 +138,7 @@ export function ManagerInvitationDialogView({
       maxW={{ base: "calc(100vw - 24px)", md: "640px" }}
       maxH={{ base: "calc(100dvh - 24px)", md: "80dvh" }}
     >
-      {isConfirmation ? (
-        <ManagerIssueConfirmationContent confirmation={confirmation} />
-      ) : !isOpen ? null : isExistingStaff ? (
+      {!isOpen ? null : isExistingStaff ? (
         <ExistingStaffInvitationContent
           overview={overview}
           result={candidateResult}
@@ -275,16 +233,10 @@ function ExistingStaffInvitationContent({
   );
 }
 
-function getDialogTitle(mode: ManagerInvitationDialogMode, confirmation: ManagerInvitationIssueConfirmation) {
-  if (confirmation) {
-    return confirmation.kind === "existingStaff"
-      ? `${confirmation.candidate.name}さんを招待しますか？`
-      : "新しい管理者を招待しますか？";
-  }
+function getDialogTitle(mode: ManagerInvitationDialogMode) {
   return mode === "existingStaff" ? "既存スタッフを管理者として招待" : "新しいユーザーを管理者として招待";
 }
 
-function getSubmitLabel(mode: ManagerInvitationDialogMode, confirmation: ManagerInvitationIssueConfirmation) {
-  if (confirmation) return "招待する";
-  return mode === "existingStaff" ? "管理者として招待する" : "確認する";
+function getSubmitLabel(mode: ManagerInvitationDialogMode) {
+  return mode === "existingStaff" ? "管理者として招待する" : "招待する";
 }

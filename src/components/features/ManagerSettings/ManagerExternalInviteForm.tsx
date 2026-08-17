@@ -5,7 +5,6 @@ import type { z } from "zod";
 import type { Id } from "@/convex/_generated/dataModel";
 import { createExternalOrganizationManagerInvitationSchema } from "@/convex/organizationInvitation/schemas";
 import { Button } from "@/src/components/ui/Button";
-import { ManagerIssueConfirmationDialog } from "./ManagerIssueConfirmationDialog";
 import type { ReadyManagerSettingsOverview } from "./types";
 import { useManagerIssueController } from "./useManagerIssueController";
 
@@ -26,20 +25,12 @@ export function ManagerExternalInviteForm({
   const controller = useManagerIssueController({ overview, organizationId });
 
   return (
-    <>
-      <ManagerExternalInviteFormView
-        isSubmitting={controller.isRunning}
-        isReadOnly={!overview.actions.canInviteExternal}
-        disabledReason={overview.actions.externalDisabledReason}
-        onRequestInvite={controller.onRequestExternal}
-      />
-      <ManagerIssueConfirmationDialog
-        confirmation={controller.confirmation}
-        isRunning={controller.isRunning}
-        onClose={controller.onCloseConfirmation}
-        onConfirm={controller.onConfirm}
-      />
-    </>
+    <ManagerExternalInviteFormView
+      isSubmitting={controller.isRunning}
+      isReadOnly={!overview.actions.canInviteExternal}
+      disabledReason={overview.actions.externalDisabledReason}
+      onRequestInvite={controller.onRequestExternal}
+    />
   );
 }
 
@@ -122,7 +113,7 @@ export function ManagerExternalInviteFormView({
               loading={isSubmitting}
               disabled={isReadOnly}
             >
-              招待内容を確認する
+              招待する
             </Button>
           </Flex>
         )}

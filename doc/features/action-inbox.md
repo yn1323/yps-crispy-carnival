@@ -23,6 +23,8 @@
 
 通常の送信済み通知、承認済み・却下済み申請、解決済み通知、単なる招待中は表示しない。  source tableを正本とし、Action Inbox専用tableへ複製保存しない。
 
+管理者招待の`sendFailed`には、Outboxの最終失敗とenqueue失敗に加え、Resendの`email.delivery_delayed`、`email.failed`、`email.bounced`、`email.suppressed`を含める。  その失敗より新しい`email.delivered`を受信した場合は解消し、単なる招待中として要対応から外す。
+
 ## 読み取りと追加取得
 
 - `api.appOrganization.actionInboxQueries.getActionInbox`が4種類を最小DTOへ投影する。

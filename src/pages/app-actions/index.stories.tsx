@@ -53,7 +53,7 @@ const items: readonly ActionInboxItem[] = [
     id: "management:preview",
     category: "management",
     statusLabel: "招待エラー",
-    title: "鈴木さんへの管理者招待を確認してください",
+    title: "鈴木さんへの管理者招待が送れませんでした",
     metadata: [
       { label: "suzuki@example.com", icon: "mail" },
       { label: "8/14 08:45", icon: "clock" },

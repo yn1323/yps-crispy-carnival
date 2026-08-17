@@ -282,11 +282,10 @@ describe("useManagerSettingsController", () => {
 });
 
 describe("useManagerIssueController", () => {
-  it("app管理者招待は明示organizationIdを送り、成功後もorgを保持する", async () => {
+  it("既存スタッフの管理者招待はSubmit直後に明示organizationIdを送り、成功後もorgを保持する", async () => {
     const { result } = renderHook(() => useManagerIssueController({ overview, organizationId }));
 
     act(() => result.current.onRequestExistingStaff(candidate));
-    act(() => result.current.onConfirm());
 
     await waitFor(() =>
       expect(mocks.issue).toHaveBeenCalledExactlyOnceWith({
@@ -302,15 +301,30 @@ describe("useManagerIssueController", () => {
     });
   });
 
-  it("モーダル経由の招待成功では完了callbackを呼び、ページ遷移しない", async () => {
+  it("既存スタッフ招待の成功では完了callbackを呼び、ページ遷移しない", async () => {
     const onCompleted = vi.fn();
     const { result } = renderHook(() => useManagerIssueController({ overview, organizationId, onCompleted }));
 
     act(() => result.current.onRequestExistingStaff(candidate));
-    act(() => result.current.onConfirm());
 
     await waitFor(() => expect(onCompleted).toHaveBeenCalledOnce());
     expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+
+  it("外部管理者招待は確認画面を挟まずSubmit直後にmutationを呼ぶ", async () => {
+    const onCompleted = vi.fn();
+    const { result } = renderHook(() => useManagerIssueController({ overview, organizationId, onCompleted }));
+
+    act(() => result.current.onRequestExternal("本部 担当", "office@example.com"));
+
+    await waitFor(() =>
+      expect(mocks.issue).toHaveBeenCalledExactlyOnceWith({
+        organizationId,
+        recipient: { kind: "external", invitedName: "本部 担当", email: "office@example.com" },
+        requestId: requestIds[0],
+      }),
+    );
+    await waitFor(() => expect(onCompleted).toHaveBeenCalledOnce());
   });
 
   it("旧backendのFree交代modeではaction capabilityがtrueでも新しい招待を開始しない", () => {
@@ -322,24 +336,20 @@ describe("useManagerIssueController", () => {
     const { result } = renderHook(() => useManagerIssueController({ overview: legacyOverview, organizationId }));
 
     act(() => result.current.onRequestExistingStaff(candidate));
-    expect(result.current.confirmation).toBeNull();
     act(() => result.current.onRequestExternal("旧方式候補", "legacy@example.com"));
-    expect(result.current.confirmation).toBeNull();
     expect(mocks.issue).not.toHaveBeenCalled();
   });
 
-  it("招待は通信失敗後も同じrequestIdで再試行し、別の招待意図では更新する", async () => {
+  it("既存スタッフ招待は通信失敗後も同じrequestIdで再試行する", async () => {
     const error = new ConvexError("操作結果を確認できませんでした。");
-    mocks.randomUUID.mockReturnValueOnce(requestIds[0]).mockReturnValueOnce(requestIds[1]);
+    mocks.randomUUID.mockReturnValueOnce(requestIds[0]);
     mocks.issue.mockRejectedValueOnce(error).mockResolvedValueOnce({ status: "issued", invitationId });
     const { result } = renderHook(() => useManagerIssueController({ overview, organizationId }));
 
     act(() => result.current.onRequestExistingStaff(candidate));
-    expect(result.current.confirmation).toMatchObject({ kind: "existingStaff", requestId: requestIds[0] });
-    act(() => result.current.onConfirm());
     await waitFor(() => expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error));
 
-    act(() => result.current.onConfirm());
+    act(() => result.current.onRequestExistingStaff(candidate));
     await waitFor(() => expect(mocks.issue).toHaveBeenCalledTimes(2));
     expect(mocks.issue.mock.calls).toEqual([
       [
@@ -357,17 +367,37 @@ describe("useManagerIssueController", () => {
         },
       ],
     ]);
-
-    act(() => result.current.onRequestExternal("本部 担当", "office@example.com"));
-    expect(result.current.confirmation).toMatchObject({
-      kind: "external",
-      invitedName: "本部 担当",
-      email: "office@example.com",
-      requestId: requestIds[1],
-    });
   });
 
-  it("招待確定の連打ではmutationを一度だけ開始する", async () => {
+  it("外部管理者招待は通信失敗後も同じ内容なら同じrequestIdで再試行する", async () => {
+    const error = new ConvexError("操作結果を確認できませんでした。");
+    mocks.issue.mockRejectedValueOnce(error).mockResolvedValueOnce({ status: "issued", invitationId });
+    const { result } = renderHook(() => useManagerIssueController({ overview, organizationId }));
+
+    act(() => result.current.onRequestExternal("本部 担当", "office@example.com"));
+    await waitFor(() => expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error));
+
+    act(() => result.current.onRequestExternal("本部 担当", "office@example.com"));
+    await waitFor(() => expect(mocks.issue).toHaveBeenCalledTimes(2));
+    expect(mocks.issue.mock.calls).toEqual([
+      [
+        {
+          organizationId,
+          recipient: { kind: "external", invitedName: "本部 担当", email: "office@example.com" },
+          requestId: requestIds[0],
+        },
+      ],
+      [
+        {
+          organizationId,
+          recipient: { kind: "external", invitedName: "本部 担当", email: "office@example.com" },
+          requestId: requestIds[0],
+        },
+      ],
+    ]);
+  });
+
+  it("既存スタッフ招待の連打ではmutationを一度だけ開始する", async () => {
     let resolveMutation: (() => void) | undefined;
     mocks.issue.mockImplementation(
       () =>
@@ -377,10 +407,9 @@ describe("useManagerIssueController", () => {
     );
     const { result } = renderHook(() => useManagerIssueController({ overview, organizationId }));
 
-    act(() => result.current.onRequestExistingStaff(candidate));
     act(() => {
-      result.current.onConfirm();
-      result.current.onConfirm();
+      result.current.onRequestExistingStaff(candidate);
+      result.current.onRequestExistingStaff(candidate);
     });
 
     await waitFor(() =>
@@ -391,17 +420,15 @@ describe("useManagerIssueController", () => {
       }),
     );
     await act(async () => resolveMutation?.());
-    await waitFor(() => expect(result.current.confirmation).toBeNull());
   });
 
-  it("既存スタッフの確認後に招待権限を失った古いcallbackではmutationを呼ばない", async () => {
+  it("既存スタッフ招待は権限を失ったSubmitでmutationを呼ばない", async () => {
     const { result, rerender } = renderHook(
       ({ value }: { value: ReadyManagerSettingsOverview }) =>
         useManagerIssueController({ overview: value, organizationId }),
       { initialProps: { value: overview } },
     );
-    act(() => result.current.onRequestExistingStaff(candidate));
-    const staleConfirm = result.current.onConfirm;
+    const submit = result.current.onRequestExistingStaff;
 
     rerender({
       value: {
@@ -409,36 +436,31 @@ describe("useManagerIssueController", () => {
         actions: { ...overview.actions, canInviteExistingStaff: false },
       },
     });
-    await waitFor(() => expect(result.current.confirmation).toBeNull());
-    act(() => staleConfirm());
+    act(() => submit(candidate));
 
     await waitFor(() => expect(mocks.issue).not.toHaveBeenCalled());
   });
 
-  it("既存スタッフの確認後に追加方式が変わった古いcallbackではmutationを呼ばない", async () => {
+  it("既存スタッフ招待は追加方式が変わったSubmitでmutationを呼ばない", async () => {
     const { result, rerender } = renderHook(
       ({ value }: { value: ReadyManagerSettingsOverview }) =>
         useManagerIssueController({ overview: value, organizationId }),
       { initialProps: { value: overview } },
     );
-    act(() => result.current.onRequestExistingStaff(candidate));
-    const staleConfirm = result.current.onConfirm;
+    const submit = result.current.onRequestExistingStaff;
 
     rerender({ value: { ...overview, mode: "freeManagerExchange" } });
-    await waitFor(() => expect(result.current.confirmation).toBeNull());
-    act(() => staleConfirm());
+    act(() => submit(candidate));
 
     await waitFor(() => expect(mocks.issue).not.toHaveBeenCalled());
   });
 
-  it("外部管理者の確認後に招待権限を失った古いcallbackではmutationを呼ばない", async () => {
+  it("外部管理者招待は権限を失ったSubmitでmutationを呼ばない", async () => {
     const { result, rerender } = renderHook(
       ({ value }: { value: ReadyManagerSettingsOverview }) =>
         useManagerIssueController({ overview: value, organizationId }),
       { initialProps: { value: overview } },
     );
-    act(() => result.current.onRequestExternal("本部 担当", "office@example.com"));
-    const staleConfirm = result.current.onConfirm;
 
     rerender({
       value: {
@@ -446,8 +468,7 @@ describe("useManagerIssueController", () => {
         actions: { ...overview.actions, canInviteExternal: false },
       },
     });
-    await waitFor(() => expect(result.current.confirmation).toBeNull());
-    act(() => staleConfirm());
+    act(() => result.current.onRequestExternal("本部 担当", "office@example.com"));
 
     await waitFor(() => expect(mocks.issue).not.toHaveBeenCalled());
   });

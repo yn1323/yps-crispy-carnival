@@ -2389,7 +2389,9 @@ async function patchOutboxResendProviderEventAt(
 ) {
   await ctx.db.patch(outbox._id, {
     ...(outbox.resendEmailId ? {} : { resendEmailId: args.providerEmailId }),
+    resendLastEventType: undefined,
     resendLastEventAt: args.occurredAt,
+    resendDeliveryStatus: undefined,
     updatedAt: Date.now(),
   });
 }

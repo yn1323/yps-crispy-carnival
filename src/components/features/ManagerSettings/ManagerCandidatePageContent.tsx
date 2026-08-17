@@ -2,8 +2,7 @@ import { Alert, Stack } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ManagerCandidateListView } from "./ManagerCandidateListView";
-import { ManagerIssueConfirmationDialog } from "./ManagerIssueConfirmationDialog";
-import type { ManagerSettingsCandidateResult, ReadyManagerSettingsOverview } from "./types";
+import type { ManagerSettingsCandidate, ManagerSettingsCandidateResult, ReadyManagerSettingsOverview } from "./types";
 import { useManagerIssueController } from "./useManagerIssueController";
 
 type Props = {
@@ -19,17 +18,11 @@ export function ManagerCandidatePageContent({ overview, result, organizationId }
   const candidates = result.kind === "ready" ? result.candidates : [];
   useEffect(() => {
     setSelectedPersonId((current) =>
-      candidates.some((candidate) => candidate.personId === current && candidate.canSelect) ? current : "",
+      candidates.some((candidate: ManagerSettingsCandidate) => candidate.personId === current && candidate.canSelect)
+        ? current
+        : "",
     );
   }, [candidates]);
-
-  useEffect(() => {
-    if (controller.confirmation?.kind !== "existingStaff") return;
-    const candidatePersonId = controller.confirmation.candidate.personId;
-    if (!candidates.some((candidate) => candidate.personId === candidatePersonId && candidate.canSelect)) {
-      controller.onCloseConfirmation();
-    }
-  }, [candidates, controller.confirmation, controller.onCloseConfirmation]);
 
   if (result.kind !== "ready") {
     return (
@@ -59,7 +52,9 @@ export function ManagerCandidatePageContent({ overview, result, organizationId }
     );
   }
 
-  const selected = candidates.find((candidate) => candidate.personId === selectedPersonId && candidate.canSelect);
+  const selected = candidates.find(
+    (candidate: ManagerSettingsCandidate) => candidate.personId === selectedPersonId && candidate.canSelect,
+  );
   return (
     <Stack gap={5}>
       <ManagerCandidateListView
@@ -70,12 +65,6 @@ export function ManagerCandidatePageContent({ overview, result, organizationId }
         onSubmit={() => {
           if (selected) controller.onRequestExistingStaff(selected);
         }}
-      />
-      <ManagerIssueConfirmationDialog
-        confirmation={controller.confirmation}
-        isRunning={controller.isRunning}
-        onClose={controller.onCloseConfirmation}
-        onConfirm={controller.onConfirm}
       />
     </Stack>
   );

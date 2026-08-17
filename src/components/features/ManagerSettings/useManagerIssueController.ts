@@ -1,15 +1,25 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
-import type {
-  ManagerInvitationIssueConfirmation,
-  ManagerSettingsCandidate,
-  ReadyManagerSettingsOverview,
-} from "./types";
+import type { ManagerSettingsCandidate, ReadyManagerSettingsOverview } from "./types";
+
+type ManagerInvitationIssueRequest =
+  | {
+      kind: "existingStaff";
+      candidate: ManagerSettingsCandidate;
+      mode: ReadyManagerSettingsOverview["mode"];
+      requestId: string;
+    }
+  | {
+      kind: "external";
+      invitedName: string;
+      email: string;
+      requestId: string;
+    };
 
 export function useManagerIssueController({
   overview,
@@ -22,53 +32,43 @@ export function useManagerIssueController({
 }) {
   const navigate = useNavigate();
   const issueForOrganization = useMutation(api.organizationInvitation.mutations.issueForOrganization);
-  const [confirmation, setConfirmation] = useState<ManagerInvitationIssueConfirmation>(null);
   const latestOverviewRef = useRef(overview);
+  const lastExistingStaffRequestRef = useRef<{ personId: Id<"organizationPeople">; requestId: string } | null>(null);
+  const lastExternalRequestRef = useRef<{ invitedName: string; email: string; requestId: string } | null>(null);
   latestOverviewRef.current = overview;
 
-  useEffect(() => {
-    setConfirmation((current) => (current && isIssueConfirmationAllowed(current, overview) ? current : null));
-  }, [overview]);
+  const { run, isRunning } = useSingleFlight(async (current: ManagerInvitationIssueRequest): Promise<boolean> => {
+    const latest = latestOverviewRef.current;
+    if (!isIssueRequestAllowed(current, latest)) return false;
 
-  const { run, isRunning } = useSingleFlight(
-    async (current: Exclude<ManagerInvitationIssueConfirmation, null>): Promise<boolean> => {
-      const latest = latestOverviewRef.current;
-      if (!isIssueConfirmationAllowed(current, latest)) {
-        setConfirmation(null);
-        return false;
+    try {
+      const recipient:
+        | { kind: "existingStaff"; personId: Id<"organizationPeople"> }
+        | { kind: "external"; invitedName: string; email: string } =
+        current.kind === "existingStaff"
+          ? { kind: "existingStaff", personId: current.candidate.personId }
+          : { kind: "external", invitedName: current.invitedName, email: current.email };
+      const args = {
+        recipient,
+        requestId: current.requestId,
+      };
+      const result = await issueForOrganization({ organizationId, ...args });
+      showSuccessToast({
+        title: result.status === "alreadyPending" ? "この管理者招待は送信済みです" : "送信を受け付けました",
+      });
+      if (onCompleted) {
+        onCompleted();
+      } else {
+        void navigate({ to: "/app/manage/managers", search: { org: organizationId }, replace: true });
       }
-
-      try {
-        const recipient:
-          | { kind: "existingStaff"; personId: Id<"organizationPeople"> }
-          | { kind: "external"; invitedName: string; email: string } =
-          current.kind === "existingStaff"
-            ? { kind: "existingStaff", personId: current.candidate.personId }
-            : { kind: "external", invitedName: current.invitedName, email: current.email };
-        const args = {
-          recipient,
-          requestId: current.requestId,
-        };
-        const result = await issueForOrganization({ organizationId, ...args });
-        setConfirmation(null);
-        showSuccessToast({
-          title: result.status === "alreadyPending" ? "この管理者招待は送信済みです" : "送信を受け付けました",
-        });
-        if (onCompleted) {
-          onCompleted();
-        } else {
-          void navigate({ to: "/app/manage/managers", search: { org: organizationId }, replace: true });
-        }
-        return true;
-      } catch (error) {
-        showErrorToast(error);
-        return false;
-      }
-    },
-  );
+      return true;
+    } catch (error) {
+      showErrorToast(error);
+      return false;
+    }
+  });
 
   return {
-    confirmation,
     isRunning,
     onRequestExistingStaff: (candidate: ManagerSettingsCandidate) => {
       if (
@@ -78,11 +78,19 @@ export function useManagerIssueController({
       ) {
         return;
       }
-      setConfirmation({
+      const previous = lastExistingStaffRequestRef.current;
+      const requestId = previous && previous.personId === candidate.personId ? previous.requestId : crypto.randomUUID();
+      const request = {
         kind: "existingStaff",
         candidate,
         mode: latestOverviewRef.current.mode,
-        requestId: crypto.randomUUID(),
+        requestId,
+      } as const;
+      lastExistingStaffRequestRef.current = { personId: candidate.personId, requestId };
+      void run(request).then((succeeded) => {
+        if (succeeded && lastExistingStaffRequestRef.current?.requestId === requestId) {
+          lastExistingStaffRequestRef.current = null;
+        }
       });
     },
     onRequestExternal: (invitedName: string, email: string) => {
@@ -92,26 +100,24 @@ export function useManagerIssueController({
       ) {
         return;
       }
-      setConfirmation({ kind: "external", invitedName, email, requestId: crypto.randomUUID() });
-    },
-    onCloseConfirmation: () => {
-      if (!isRunning) setConfirmation(null);
-    },
-    onConfirm: () => {
-      if (confirmation) void run(confirmation);
+      const previous = lastExternalRequestRef.current;
+      const requestId =
+        previous?.invitedName === invitedName && previous.email === email ? previous.requestId : crypto.randomUUID();
+      const request = { kind: "external" as const, invitedName, email, requestId };
+      lastExternalRequestRef.current = request;
+      void run(request).then((succeeded) => {
+        if (succeeded && lastExternalRequestRef.current?.requestId === requestId) {
+          lastExternalRequestRef.current = null;
+        }
+      });
     },
   };
 }
 
-function isIssueConfirmationAllowed(
-  confirmation: Exclude<ManagerInvitationIssueConfirmation, null>,
-  overview: ReadyManagerSettingsOverview,
-) {
-  if (confirmation.kind === "existingStaff") {
+function isIssueRequestAllowed(request: ManagerInvitationIssueRequest, overview: ReadyManagerSettingsOverview) {
+  if (request.kind === "existingStaff") {
     return (
-      overview.mode === "managerAddition" &&
-      overview.actions.canInviteExistingStaff &&
-      confirmation.mode === overview.mode
+      overview.mode === "managerAddition" && overview.actions.canInviteExistingStaff && request.mode === overview.mode
     );
   }
   return overview.mode === "managerAddition" && overview.actions.canInviteExternal;

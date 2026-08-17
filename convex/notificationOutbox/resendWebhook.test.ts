@@ -219,6 +219,7 @@ describe("notificationOutbox/resendWebhook", () => {
     const afterOlder = await t.run(async (ctx) => ({
       history: ids.historyId ? await ctx.db.get(ids.historyId) : null,
       failures: await ctx.db.query("notificationFailureInbox").collect(),
+      outbox: await ctx.db.get(ids.outboxId),
     }));
     expect(afterOlder.history).toMatchObject({
       deliveryStatus: "delayed",
@@ -226,6 +227,11 @@ describe("notificationOutbox/resendWebhook", () => {
     });
     expect(afterOlder.failures).toHaveLength(1);
     expect(afterOlder.failures[0].status).toBe("open");
+    expect(afterOlder.outbox).toMatchObject({
+      resendLastEventType: "email.delivery_delayed",
+      resendLastEventAt: Date.parse("2026-06-22T05:24:00.000Z"),
+      resendDeliveryStatus: "delivery_delayed",
+    });
 
     await postProviderEvent(
       t,
@@ -236,12 +242,16 @@ describe("notificationOutbox/resendWebhook", () => {
     const afterNewer = await t.run(async (ctx) => ({
       history: ids.historyId ? await ctx.db.get(ids.historyId) : null,
       failures: await ctx.db.query("notificationFailureInbox").collect(),
+      outbox: await ctx.db.get(ids.outboxId),
     }));
     expect(afterNewer.history).toMatchObject({
       deliveryStatus: "delivered",
       deliveredAt: Date.parse("2026-06-22T05:25:00.000Z"),
     });
     expect(afterNewer.failures[0]).toMatchObject({ status: "resolved", resolutionKind: "sent" });
+    expect(afterNewer.outbox).not.toHaveProperty("resendLastEventType");
+    expect(afterNewer.outbox).not.toHaveProperty("resendDeliveryStatus");
+    expect(afterNewer.outbox?.resendLastEventAt).toBe(Date.parse("2026-06-22T05:25:00.000Z"));
   });
 
   it("履歴のない既存Outboxでも新しいdeliveredはprovider由来の警告を解消する", async () => {
