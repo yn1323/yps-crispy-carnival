@@ -65,18 +65,20 @@ function StaffReadyPreview({
   readOnly = false,
   empty = false,
   managerInvitationEnabled = true,
+  singleShop = false,
 }: {
   withNextPage?: boolean;
   readOnly?: boolean;
   empty?: boolean;
   managerInvitationEnabled?: boolean;
+  singleShop?: boolean;
 }) {
   const [visiblePeople, setVisiblePeople] = useState(empty ? [] : people);
   const [canLoadMore, setCanLoadMore] = useState(withNextPage);
 
   return (
     <Stack gap={{ base: 6, lg: 8 }}>
-      <AppStaffHeader value={null} options={shopOptions} onChange={() => {}} />
+      <AppStaffHeader value={null} options={singleShop ? shopOptions.slice(0, 1) : shopOptions} onChange={() => {}} />
       {readOnly && <AppStaffReadOnlyNotice />}
       <PeopleSection
         people={visiblePeople}
@@ -130,6 +132,10 @@ export const QueryError: Story = {
 
 export const ReadyDesktop: Story = {
   render: () => <StaffReadyPreview />,
+};
+
+export const SingleShop: Story = {
+  render: () => <StaffReadyPreview singleShop />,
 };
 
 export const ReadyMobile: Story = {

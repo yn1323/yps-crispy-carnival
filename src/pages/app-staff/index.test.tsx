@@ -33,11 +33,12 @@ vi.mock("@/convex/_generated/api", () => ({
   },
 }));
 vi.mock("@/src/components/features/AuthenticatedApp/ShopFilterMenu", () => ({
-  ShopFilterMenu: ({ onChange }: { onChange: (value: string | null) => void }) => (
-    <button type="button" onClick={() => onChange("shop-1")}>
-      店舗を選択
-    </button>
-  ),
+  ShopFilterMenu: ({ options, onChange }: { options: readonly unknown[]; onChange: (value: string | null) => void }) =>
+    options.length < 2 ? null : (
+      <button type="button" onClick={() => onChange("shop-1")}>
+        店舗を選択
+      </button>
+    ),
 }));
 vi.mock("@/src/components/features/OrganizationSettings", () => ({
   PeopleSectionSkeleton: () => <section aria-hidden />,
@@ -181,7 +182,11 @@ beforeEach(() => {
 describe("AppStaffRoutePage", () => {
   it("filterをserver query argsへ渡し、filter変更時は別query identityへ切り替えて旧pageを残さない", () => {
     const { rerender } = renderPage(
-      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,
+      <AppStaffRoutePage
+        organizationId={"organization-1" as never}
+        memberStatus="active"
+        activeShops={multipleShops}
+      />,
     );
 
     expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(
@@ -201,7 +206,7 @@ describe("AppStaffRoutePage", () => {
         <AppStaffRoutePage
           organizationId={"organization-1" as never}
           memberStatus="active"
-          activeShops={shops}
+          activeShops={multipleShops}
           requestedShopFilter="shop-1"
         />
       </ChakraProvider>,
@@ -213,6 +218,14 @@ describe("AppStaffRoutePage", () => {
     );
     expect(screen.queryByText("全体の人物")).toBeNull();
     expect(screen.getByText("店舗の人物")).not.toBeNull();
+  });
+
+  it("利用中の店舗が1つのとき店舗filterを表示しない", () => {
+    renderPage(
+      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,
+    );
+
+    expect(screen.queryByRole("button", { name: "店舗を選択" })).toBeNull();
   });
 
   it("利用中の店舗にないshopFilterはqueryへ渡さず、すべてへreplaceする", () => {
