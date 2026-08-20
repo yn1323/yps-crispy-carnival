@@ -37,7 +37,7 @@ test.describe("組織ライフサイクル", { tag: ["@e2e-core"] }, () => {
     await organization.gotoOrganization(created.organizationId);
     await organization.expectCurrentOrganization(created.organizationId, createdOrganizationName);
     await organization.renameCurrentOrganization(renamedOrganizationName);
-    await page.reload({ waitUntil: "commit" });
+    await page.reload({ waitUntil: "commit", timeout: 30_000 });
     await expectAppHydrated(page);
     await organization.expectCurrentOrganization(created.organizationId, renamedOrganizationName);
 
