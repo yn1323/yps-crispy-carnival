@@ -144,6 +144,12 @@ Outboxに入った後でも、provider呼び出しの**直前**に次を再確�
 | キャンセル | 削除・対象外化などによる配送中止 |
 
 - 再試行は最大5回（1分〜1時間のbackoff）。LINEの429/5xxは再試行、恒久4xxは失敗。
+- Resendの配送遅延は履歴へ即時反映する。
+  最初の遅延から30分間は要対応へ出さず、同じOutboxの遅延eventを再受信しても期限を延長しない。
+  1分間隔の期限切れ回収後も配信成功していなければ、既存の失敗経路へ移す。
+- 配送遅延の猶予中により新しい配信成功を受信した場合は失敗扱いを取り消す。
+  Resendの失敗・bounce・抑止は猶予を待たず即時に失敗扱いとする。
+  猶予期限を持たない導入前の配送遅延状態は、既存データ互換のため失敗として読む。
 - LINEからメールへfallbackした場合は、LINEとメールが**別の履歴**として残る。
 - 通知履歴・要対応Inboxには宛先・本文・リンクURL・provider生エラーを保存しない（固定taxonomyのみ）。
 
@@ -151,7 +157,7 @@ Outboxに入った後でも、provider呼び出しの**直前**に次を再確�
 
 | # | 規則 |
 |---|---|
-| 1 | 最終失敗・enqueue失敗が`open`として載る。Resendの遅延・失敗・bounce・抑止イベントも既存Outboxへ照合できた場合だけ載る |
+| 1 | 最終失敗・enqueue失敗、Resendの失敗・bounce・抑止が`open`として載る。Resendの遅延は30分の猶予期限を過ぎた場合だけ載る。いずれも既存Outboxへ照合できた場合に限る |
 | 2 | 同じ通知種別×募集×スタッフの失敗は**最新1件だけ**が`open`（古い行は`resolved/superseded`） |
 | 3 | 確定催促・不達digest・本番募集リマインダーは抑止contextによりInboxに**記録自体を作らない**（配送イベントログには残る）。種別を判定できない`other` contextはInboxに記録されるが、一覧・要対応カード・日次digestには**表示されない** |
 | 4 | 募集に紐づく不達は、募集が**非削除かつ`open`**の場合だけ表示・再通知対象（募集終了後の行は記録のみ） |
@@ -182,7 +188,12 @@ flowchart TD
     F -->|LINE quota超過| I[LINEジョブはfailed + fallbackメールをenqueue]
     I --> B
     F -->|恒久エラー・再試行上限| J[failed]
+    G -->|Resend: delivery_delayed| Q[履歴は遅延・30分猶予]
+    Q -->|delivered| R[配信済み・期限削除]
+    Q -->|failed / bounced / suppressed| S[provider由来の失敗]
+    Q -->|期限切れを1分cronで回収| K
     J --> K{要対応Inboxへ?}
+    S --> K
     K -->|抑止context: 確定催促・不達digest・本番募集案内| L[記録しない・配送イベントログのみ]
     K -->|other種別: 同意依頼・申請digest等| M[記録するが表示しない]
     K -->|actionable種別: 募集・催促・確定・LINE案内| N[open: Dashboard要対応に表示]

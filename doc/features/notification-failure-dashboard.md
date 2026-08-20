@@ -16,7 +16,8 @@
 
 - `convex/notificationOutbox/queries.ts` — `notificationFailureInbox` の open 件をUI向けDTOで返す
 - `convex/notificationOutbox/mutations.ts` — 個別/一斉再通知を受け付けて対象 failure を `retrying` にするほか、無視操作を `resolved/dismissed` として記録する
-- `convex/notificationOutbox/resendWebhook.ts` — Resend provider の配送遅延・失敗を `notificationFailureInbox` に反映する
+- `convex/notificationOutbox/resendWebhook.ts` — Resend provider の配送遅延・失敗を履歴と現在状態へ反映する
+- `convex/notificationOutbox/resendDelayedFailure.ts` — 最初の配送遅延から30分の猶予期限をOutboxごとに保持する
 - `convex/notification/actions.ts` / `convex/notification/reminderActions.ts` — enqueue/preparation 失敗の再通知を1スタッフ・1募集単位でOutboxに載せる
 - `convex/notificationOutbox/failureReminderActions.ts` / `failureReminderQueries.ts` — open 不達通知がある店舗のmanagerへ日次リマインダーを送る（cron `notification-failure-reminder-digest`）
 - `convex/_lib/shopManagerRecipients.ts` — 組織人物を正本に店舗の有効管理者とLINE連携を解決する共通ヘルパー（承認依頼ダイジェストと共有）
@@ -48,7 +49,8 @@
 | `api.notificationOutbox.mutations.resendFailure` | mutation | 1件の不達通知を再通知受付し、`retrying` にする |
 | `api.notificationOutbox.mutations.resendOpenFailures` | mutation | 現在店舗の open 不達通知をまとめて再通知受付する |
 | `api.notificationOutbox.mutations.resolveFailure` | mutation | 現在店舗の open かつDashboard表示対象の通知を `resolved/dismissed` にする |
-| `POST /resend/webhook` | HTTP action | Resendの`email.delivery_delayed` / `email.failed` / `email.bounced` / `email.suppressed`を受信し、open不達通知に反映する |
+| `POST /resend/webhook` | HTTP action | Resendの`email.delivery_delayed` / `email.failed` / `email.bounced` / `email.suppressed`を受信する。遅延は30分猶予、その他はopen不達通知へ即時反映する |
+| `internal.notificationOutbox.mutations.recoverOverdueResendDelayedFailures` | internalMutation | 1分間隔cronから期限切れの配送遅延をbounded batchでopen不達通知へ昇格する |
 | `internal.notificationOutbox.failureReminderActions.sendFailureReminderDigest` | internalAction | 毎日17:00 JSTに open 不達通知がある店舗のmanagerへリマインダーを送る |
 | `internal.notificationOutbox.failureReminderQueries.listShopIdsWithRecentOpenFailuresPage` | internalQuery | 直近24時間以内に失敗した open 不達通知がある店舗IDをページングで返す |
 | `internal.notificationOutbox.failureReminderQueries.getFailureReminderTargetForShop` | internalQuery | 店舗名、ダッシュボードURL、対象店舗にスタッフ所属するactive管理者のシフト連絡先とLINE連携状態を返す |
@@ -61,7 +63,11 @@
 - エラー理由、スタッフID、解決済み操作は表示しない。
 - 不達理由を画面では断定せず、何度も失敗する場合はスタッフの通知先やLINE連携状態を確認し、問題が見つからなければ時間をおいて再送するよう案内する。
 - メール channel の不達には、スタッフ詳細で登録メールアドレスを確認すること、問題が見つからなければ時間をおいて再送すること、メールを利用できない場合は対象店舗のLINE連携リンクを案内できることを補足する。
-- Resend provider 由来の遅延・失敗・拒否・抑止は、既存行と同じ `送れなかった通知` として表示する。細かい provider 状態ラベルは出さない。
+- Resend provider由来の失敗・拒否・抑止は、既存行と同じ`送れなかった通知`として即時表示する。
+  配送遅延は通知履歴へすぐ表示するが、最初の遅延から30分間は要対応へ表示せず、期限切れ回収後に同じ`送れなかった通知`として表示する。
+  細かいprovider状態ラベルは出さない。
+- 同じOutboxの配送遅延を再受信しても30分の期限は延長しない。
+  猶予中により新しい配信成功を受信した場合は要対応へ出さず、hard failureを受信した場合は猶予を打ち切って即時表示する。
 - 再通知受付に成功した行は、開いているDialog内では `再通知済み` として押せなくする。
 - 「無視する」は確認Dialogを経て実行し、成功後は対象行を一覧から即時に外す。確認文は「無視すると一覧から削除され、再送されません。」とする。
 - 無視した行は物理削除せず、`resolved/dismissed` と解決した担当者・日時を記録する。一覧・要対応有無・日次リマインダー・再通知対象からは外す。

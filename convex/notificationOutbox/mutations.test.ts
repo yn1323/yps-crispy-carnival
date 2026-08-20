@@ -19,6 +19,8 @@ import {
   NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
   NOTIFICATION_OUTBOX_TERMINAL_PAYLOAD_RETENTION_MS,
   NOTIFICATION_OUTBOX_TERMINAL_REDACTION_BATCH_SIZE,
+  RESEND_DELAYED_FAILURE_GRACE_MS,
+  RESEND_DELAYED_FAILURE_RECOVERY_BATCH_SIZE,
 } from "../constants";
 import { resolveStaffLineRecipient } from "../line/service";
 import { buildConfirmationSnapshotSignature } from "../notification/confirmationSnapshots";
@@ -56,6 +58,10 @@ async function setupShop() {
 
 async function collectFailureInbox(t: Awaited<ReturnType<typeof setupShop>>["t"]) {
   return await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
+}
+
+async function collectResendDelayedFailureDeadlines(t: Awaited<ReturnType<typeof setupShop>>["t"]) {
+  return await t.run(async (ctx) => await ctx.db.query("notificationResendDelayedFailureDeadlines").collect());
 }
 
 async function reopenOutboxWithTestLease(
@@ -2250,12 +2256,11 @@ describe("notificationOutbox", () => {
   });
 
   it.each([
-    ["email.delivery_delayed", "delivery_delayed", "email_delivery_delayed"],
     ["email.failed", "failed", "email_delivery_failed"],
     ["email.bounced", "bounced", "email_delivery_bounced"],
     ["email.suppressed", "suppressed", "email_delivery_suppressed"],
   ] as const)(
-    "recordResendProviderIssueは%sをprovider失敗として要対応Inbox化する",
+    "recordResendProviderIssueはhard failureの%sを即時にprovider失敗として要対応Inbox化する",
     async (eventType, deliveryStatus, errorCode) => {
       const { t, shopId, staffId } = await setupShop();
       const recruitmentId = await insertRecruitment(t, shopId);
@@ -2315,8 +2320,429 @@ describe("notificationOutbox", () => {
         resendLastEventType: eventType,
         resendDeliveryStatus: deliveryStatus,
       });
+      expect(await collectResendDelayedFailureDeadlines(t)).toEqual([]);
     },
   );
+
+  it("recordResendProviderIssueは最初のdelivery_delayedを30分状態にし、重複eventで期限を延長しない", async () => {
+    vi.setSystemTime(new Date("2026-06-22T05:23:00.000Z"));
+    const { t, shopId, staffId } = await setupShop();
+    const recruitmentId = await insertRecruitment(t, shopId);
+    const outboxId = await insertSentEmailOutbox(t, {
+      shopId,
+      staffId,
+      recruitmentId,
+      dedupeKey: `email:recruitment:${recruitmentId}:${staffId}`,
+      context: "notification.sendRecruitmentNotificationEmails",
+      resendEmailId: "email_delayed_grace",
+    });
+    const firstOccurredAt = Date.now();
+
+    const first = await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+      providerEventId: "svix_delayed_grace_first",
+      providerEventType: "email.delivery_delayed",
+      providerEmailId: "email_delayed_grace",
+      occurredAt: firstOccurredAt,
+      errorMessage: "保存しないprovider message",
+    });
+    vi.setSystemTime(firstOccurredAt + 60_000);
+    const repeated = await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+      providerEventId: "svix_delayed_grace_repeated",
+      providerEventType: "email.delivery_delayed",
+      providerEmailId: "email_delayed_grace",
+      occurredAt: Date.now(),
+      errorMessage: "保存しないprovider message",
+    });
+
+    expect(first).toEqual({ recorded: true, inboxed: false, reason: "delayedGrace" });
+    expect(repeated).toEqual({ recorded: true, inboxed: false, reason: "delayedGrace" });
+    expect(await collectFailureInbox(t)).toEqual([]);
+    const deadlines = await collectResendDelayedFailureDeadlines(t);
+    expect(deadlines).toHaveLength(1);
+    expect(deadlines[0]).toMatchObject({
+      outboxId,
+      dueAt: firstOccurredAt + RESEND_DELAYED_FAILURE_GRACE_MS,
+      createdAt: firstOccurredAt,
+    });
+    const outbox = await t.run(async (ctx) => await ctx.db.get(outboxId));
+    expect(outbox).toMatchObject({
+      resendLastEventType: "email.delivery_delayed",
+      resendLastEventAt: firstOccurredAt + 60_000,
+      resendDeliveryStatus: "delivery_delayed",
+    });
+  });
+
+  it("delivery_delayedの猶予中にhard failureを受けると期限を消して即時に要対応化する", async () => {
+    vi.setSystemTime(new Date("2026-06-22T05:23:00.000Z"));
+    const { t, shopId, staffId } = await setupShop();
+    const outboxId = await insertSentEmailOutbox(t, {
+      shopId,
+      staffId,
+      resendEmailId: "email_delayed_then_failed",
+    });
+    const delayedAt = Date.now();
+    await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+      providerEventId: "svix_delayed_then_failed_delayed",
+      providerEventType: "email.delivery_delayed",
+      providerEmailId: "email_delayed_then_failed",
+      occurredAt: delayedAt,
+      errorMessage: "delayed",
+    });
+
+    vi.setSystemTime(delayedAt + 60_000);
+    await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+      providerEventId: "svix_delayed_then_failed_failed",
+      providerEventType: "email.failed",
+      providerEmailId: "email_delayed_then_failed",
+      occurredAt: Date.now(),
+      errorMessage: "failed",
+    });
+
+    expect(await collectResendDelayedFailureDeadlines(t)).toEqual([]);
+    expect(await collectFailureInbox(t)).toEqual([
+      expect.objectContaining({
+        sourceType: "provider",
+        status: "open",
+        outboxId,
+        lastError: "email_delivery_failed",
+        lastFailedAt: delayedAt + 60_000,
+      }),
+    ]);
+  });
+
+  it("delivery_delayedの猶予中にdeliveredを受けると期限を消し、期限後も要対応化しない", async () => {
+    vi.setSystemTime(new Date("2026-06-22T05:23:00.000Z"));
+    const { t, shopId, staffId } = await setupShop();
+    const outboxId = await insertSentEmailOutbox(t, {
+      shopId,
+      staffId,
+      resendEmailId: "email_delayed_then_delivered",
+    });
+    const delayedAt = Date.now();
+    await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+      providerEventId: "svix_delayed_then_delivered_delayed",
+      providerEventType: "email.delivery_delayed",
+      providerEmailId: "email_delayed_then_delivered",
+      occurredAt: delayedAt,
+      errorMessage: "delayed",
+    });
+    vi.setSystemTime(delayedAt + 60_000);
+    await t.mutation(internal.notificationOutbox.mutations.recordResendProviderDeliveryUpdate, {
+      providerEventId: "svix_delayed_then_delivered_delivered",
+      providerEventType: "email.delivered",
+      providerEmailId: "email_delayed_then_delivered",
+      occurredAt: Date.now(),
+    });
+
+    vi.setSystemTime(delayedAt + RESEND_DELAYED_FAILURE_GRACE_MS + 1);
+    await t.mutation(internal.notificationOutbox.mutations.recoverOverdueResendDelayedFailures, {});
+
+    expect(await collectResendDelayedFailureDeadlines(t)).toEqual([]);
+    expect(await collectFailureInbox(t)).toEqual([]);
+    expect(await t.run(async (ctx) => await ctx.db.get(outboxId))).toMatchObject({
+      status: "sent",
+      resendLastEventAt: delayedAt + 60_000,
+    });
+    expect(await t.run(async (ctx) => await ctx.db.get(outboxId))).not.toHaveProperty("resendDeliveryStatus");
+  });
+
+  it("recoverOverdueResendDelayedFailuresは30分ちょうどで一度だけFailureInboxへ昇格する", async () => {
+    vi.setSystemTime(new Date("2026-06-22T05:23:00.000Z"));
+    const { t, shopId, staffId } = await setupShop();
+    const outboxId = await insertSentEmailOutbox(t, {
+      shopId,
+      staffId,
+      resendEmailId: "email_delayed_exact_boundary",
+    });
+    const delayedAt = Date.now();
+    await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+      providerEventId: "svix_delayed_exact_boundary",
+      providerEventType: "email.delivery_delayed",
+      providerEmailId: "email_delayed_exact_boundary",
+      occurredAt: delayedAt,
+      errorMessage: "delayed",
+    });
+
+    vi.setSystemTime(delayedAt + RESEND_DELAYED_FAILURE_GRACE_MS - 1);
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.recoverOverdueResendDelayedFailures, {}),
+    ).resolves.toEqual({ processedCount: 0, promotedCount: 0 });
+    expect(await collectFailureInbox(t)).toEqual([]);
+    expect(await collectResendDelayedFailureDeadlines(t)).toHaveLength(1);
+
+    vi.setSystemTime(delayedAt + RESEND_DELAYED_FAILURE_GRACE_MS);
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.recoverOverdueResendDelayedFailures, {}),
+    ).resolves.toEqual({ processedCount: 1, promotedCount: 1 });
+    expect(await collectResendDelayedFailureDeadlines(t)).toEqual([]);
+    expect(await collectFailureInbox(t)).toEqual([
+      expect.objectContaining({
+        sourceType: "provider",
+        status: "open",
+        outboxId,
+        lastFailedAt: delayedAt + RESEND_DELAYED_FAILURE_GRACE_MS,
+        lastError: "email_delivery_delayed",
+      }),
+    ]);
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.recoverOverdueResendDelayedFailures, {}),
+    ).resolves.toEqual({ processedCount: 0, promotedCount: 0 });
+    expect(await collectFailureInbox(t)).toHaveLength(1);
+  });
+
+  it("期限回収後に遅れて到着した新しいdeliveredはprovider発生時刻が回収前でもFailureInboxを解消する", async () => {
+    vi.setSystemTime(new Date("2026-06-22T05:23:00.000Z"));
+    const { t, shopId, staffId } = await setupShop();
+    const outboxId = await insertSentEmailOutbox(t, {
+      shopId,
+      staffId,
+      resendEmailId: "email_delayed_recovered_then_delivered",
+    });
+    const delayedAt = Date.now();
+    await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+      providerEventId: "svix_delayed_recovered_then_delivered_delayed",
+      providerEventType: "email.delivery_delayed",
+      providerEmailId: "email_delayed_recovered_then_delivered",
+      occurredAt: delayedAt,
+      errorMessage: "delayed",
+    });
+
+    const recoveredAt = delayedAt + RESEND_DELAYED_FAILURE_GRACE_MS;
+    vi.setSystemTime(recoveredAt);
+    await t.mutation(internal.notificationOutbox.mutations.recoverOverdueResendDelayedFailures, {});
+    expect(await collectFailureInbox(t)).toEqual([
+      expect.objectContaining({ sourceType: "provider", status: "open", lastFailedAt: recoveredAt }),
+    ]);
+
+    // providerでは期限前にdelivered済みだが、Webhookが期限回収後に到着した順序逆転を再現する。
+    vi.setSystemTime(recoveredAt + 60_000);
+    await t.mutation(internal.notificationOutbox.mutations.recordResendProviderDeliveryUpdate, {
+      providerEventId: "svix_delayed_recovered_then_delivered_delivered",
+      providerEventType: "email.delivered",
+      providerEmailId: "email_delayed_recovered_then_delivered",
+      occurredAt: recoveredAt - 60_000,
+    });
+
+    expect(await collectFailureInbox(t)).toEqual([
+      expect.objectContaining({
+        sourceType: "provider",
+        status: "resolved",
+        resolutionKind: "sent",
+        outboxId,
+      }),
+    ]);
+    expect(await t.run(async (ctx) => await ctx.db.get(outboxId))).not.toHaveProperty("resendDeliveryStatus");
+  });
+
+  it("recoverOverdueResendDelayedFailuresは新しいprovider状態でstaleになった期限を破棄する", async () => {
+    vi.setSystemTime(new Date("2026-06-22T05:23:00.000Z"));
+    const { t, shopId, staffId } = await setupShop();
+    const outboxId = await insertSentEmailOutbox(t, {
+      shopId,
+      staffId,
+      resendEmailId: "email_delayed_stale_recovery",
+    });
+    const delayedAt = Date.now();
+    await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+      providerEventId: "svix_delayed_stale_recovery",
+      providerEventType: "email.delivery_delayed",
+      providerEmailId: "email_delayed_stale_recovery",
+      occurredAt: delayedAt,
+      errorMessage: "delayed",
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(outboxId, {
+        resendLastEventType: undefined,
+        resendDeliveryStatus: undefined,
+        resendLastEventAt: delayedAt + 1,
+      });
+    });
+
+    vi.setSystemTime(delayedAt + RESEND_DELAYED_FAILURE_GRACE_MS);
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.recoverOverdueResendDelayedFailures, {}),
+    ).resolves.toEqual({ processedCount: 1, promotedCount: 0 });
+    expect(await collectResendDelayedFailureDeadlines(t)).toEqual([]);
+    expect(await collectFailureInbox(t)).toEqual([]);
+  });
+
+  it.each([
+    ["suppressFailureInbox", true],
+    ["shopless", false],
+  ] as const)(
+    "recoverOverdueResendDelayedFailuresは%sのdelayed期限を消すがFailureInboxへ出さない",
+    async (kind, suppressFailureInbox) => {
+      vi.setSystemTime(new Date("2026-06-22T05:23:00.000Z"));
+      const { t, shopId, staffId } = await setupShop();
+      const delayedAt = Date.now();
+      const outboxId = await t.run(async (ctx) => {
+        if (kind === "suppressFailureInbox") {
+          return await ctx.db.insert("notificationOutbox", {
+            channel: "email",
+            status: "sent",
+            dedupeKey: "email:test:delayed-suppressed-recovery",
+            shopId,
+            staffId,
+            payload: { ...emailPayload, suppressFailureInbox },
+            attemptCount: 1,
+            nextRunAt: delayedAt,
+            sentAt: delayedAt,
+            resendEmailId: "email_delayed_suppressed_recovery",
+            createdAt: delayedAt,
+            updatedAt: delayedAt,
+          });
+        }
+        return await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "sent",
+          dedupeKey: "email:test:delayed-shopless-recovery",
+          payload: {
+            kind: "organizationManagerInvitationEmail",
+            from: "シフトリ <noreply@example.com>",
+            to: "manager@example.com",
+            context: "organizationInvitation.managerInvite",
+          },
+          attemptCount: 1,
+          nextRunAt: delayedAt,
+          sentAt: delayedAt,
+          resendEmailId: "email_delayed_shopless_recovery",
+          createdAt: delayedAt,
+          updatedAt: delayedAt,
+        });
+      });
+      await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+        providerEventId: `svix_delayed_${kind}_recovery`,
+        providerEventType: "email.delivery_delayed",
+        providerEmailId:
+          kind === "suppressFailureInbox" ? "email_delayed_suppressed_recovery" : "email_delayed_shopless_recovery",
+        occurredAt: delayedAt,
+        errorMessage: "delayed",
+      });
+      expect(await collectResendDelayedFailureDeadlines(t)).toEqual([expect.objectContaining({ outboxId })]);
+
+      vi.setSystemTime(delayedAt + RESEND_DELAYED_FAILURE_GRACE_MS);
+      await expect(
+        t.mutation(internal.notificationOutbox.mutations.recoverOverdueResendDelayedFailures, {}),
+      ).resolves.toEqual({ processedCount: 1, promotedCount: 0 });
+      expect(await collectResendDelayedFailureDeadlines(t)).toEqual([]);
+      expect(await collectFailureInbox(t)).toEqual([]);
+    },
+  );
+
+  it.each(["shop", "staff"] as const)(
+    "recoverOverdueResendDelayedFailuresは猶予中に%sが削除された通知を要対応へ復活させない",
+    async (deletedScope) => {
+      vi.setSystemTime(new Date("2026-06-22T05:23:00.000Z"));
+      const { t, shopId, staffId } = await setupShop();
+      const outboxId = await insertSentEmailOutbox(t, {
+        shopId,
+        staffId,
+        resendEmailId: `email_delayed_deleted_${deletedScope}`,
+      });
+      const delayedAt = Date.now();
+      await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+        providerEventId: `svix_delayed_deleted_${deletedScope}`,
+        providerEventType: "email.delivery_delayed",
+        providerEmailId: `email_delayed_deleted_${deletedScope}`,
+        occurredAt: delayedAt,
+        errorMessage: "delayed",
+      });
+      await t.run(async (ctx) => {
+        await ctx.db.patch(deletedScope === "shop" ? shopId : staffId, { isDeleted: true });
+      });
+
+      vi.setSystemTime(delayedAt + RESEND_DELAYED_FAILURE_GRACE_MS);
+      await expect(
+        t.mutation(internal.notificationOutbox.mutations.recoverOverdueResendDelayedFailures, {}),
+      ).resolves.toEqual({ processedCount: 1, promotedCount: 0 });
+      expect(await collectResendDelayedFailureDeadlines(t)).toEqual([]);
+      expect(await collectFailureInbox(t)).toEqual([]);
+      expect(await t.run(async (ctx) => await ctx.db.get(outboxId))).toMatchObject({
+        resendDeliveryStatus: "delivery_delayed",
+      });
+    },
+  );
+
+  it("recoverOverdueResendDelayedFailuresはbatch上限の100件ずつ処理し、継続を予約する", async () => {
+    vi.setSystemTime(new Date("2026-06-22T05:23:00.000Z"));
+    const { t, shopId, staffId } = await setupShop();
+    const now = Date.now();
+    await t.run(async (ctx) => {
+      for (let index = 0; index < RESEND_DELAYED_FAILURE_RECOVERY_BATCH_SIZE + 1; index++) {
+        const outboxId = await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "sent",
+          dedupeKey: `email:test:delayed-recovery-batch:${index}`,
+          shopId,
+          staffId,
+          payload: emailPayload,
+          attemptCount: 1,
+          nextRunAt: now,
+          sentAt: now,
+          resendEmailId: `email_delayed_recovery_batch_${index}`,
+          resendLastEventType: "email.delivery_delayed",
+          resendLastEventAt: now - RESEND_DELAYED_FAILURE_GRACE_MS,
+          resendDeliveryStatus: "delivery_delayed",
+          createdAt: now - RESEND_DELAYED_FAILURE_GRACE_MS,
+          updatedAt: now,
+        });
+        await ctx.db.insert("notificationResendDelayedFailureDeadlines", {
+          outboxId,
+          dueAt: now,
+          createdAt: now - RESEND_DELAYED_FAILURE_GRACE_MS,
+        });
+      }
+    });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.recoverOverdueResendDelayedFailures, {}),
+    ).resolves.toEqual({
+      processedCount: RESEND_DELAYED_FAILURE_RECOVERY_BATCH_SIZE,
+      promotedCount: RESEND_DELAYED_FAILURE_RECOVERY_BATCH_SIZE,
+    });
+    const state = await t.run(async (ctx) => ({
+      deadlines: await ctx.db.query("notificationResendDelayedFailureDeadlines").collect(),
+      failures: await ctx.db.query("notificationFailureInbox").collect(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.deadlines).toHaveLength(1);
+    expect(state.failures).toHaveLength(RESEND_DELAYED_FAILURE_RECOVERY_BATCH_SIZE);
+    expect(
+      state.scheduled.some((job) => job.name === "notificationOutbox/mutations:recoverOverdueResendDelayedFailures"),
+    ).toBe(true);
+  });
+
+  it("deadlineがないlegacy delivery_delayedは次のdelayed eventで即時に要対応のままとする", async () => {
+    vi.setSystemTime(new Date("2026-06-22T05:23:00.000Z"));
+    const { t, shopId, staffId } = await setupShop();
+    const outboxId = await insertSentEmailOutbox(t, {
+      shopId,
+      staffId,
+      resendEmailId: "email_legacy_delayed",
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(outboxId, {
+        resendLastEventType: "email.delivery_delayed",
+        resendLastEventAt: Date.now() - 60_000,
+        resendDeliveryStatus: "delivery_delayed",
+      });
+    });
+
+    const result = await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+      providerEventId: "svix_legacy_delayed_repeated",
+      providerEventType: "email.delivery_delayed",
+      providerEmailId: "email_legacy_delayed",
+      occurredAt: Date.now(),
+      errorMessage: "delayed",
+    });
+
+    expect(result).toMatchObject({ recorded: true, inboxed: true });
+    expect(await collectResendDelayedFailureDeadlines(t)).toEqual([]);
+    expect(await collectFailureInbox(t)).toEqual([
+      expect.objectContaining({ sourceType: "provider", status: "open", outboxId }),
+    ]);
+  });
 
   it("recordResendProviderIssueは同じsvix-idを二重作成しない", async () => {
     const { t, shopId, staffId } = await setupShop();
@@ -2336,13 +2762,15 @@ describe("notificationOutbox", () => {
     await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, args);
     await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, args);
 
-    const [events, failures] = await Promise.all([
+    const [events, failures, deadlines] = await Promise.all([
       t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect()),
       collectFailureInbox(t),
+      collectResendDelayedFailureDeadlines(t),
     ]);
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ providerEventId: "svix_duplicate", outboxId });
-    expect(failures).toHaveLength(1);
+    expect(failures).toEqual([]);
+    expect(deadlines).toEqual([expect.objectContaining({ outboxId })]);
   });
 
   it("recordResendProviderIssueはoutbox照合できないイベントをFailureInboxに出さない", async () => {

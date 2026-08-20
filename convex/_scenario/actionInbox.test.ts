@@ -6,6 +6,7 @@ import { seedActionInboxSources } from "../_test/actionInboxFixtures";
 import { readScheduledFunctions } from "../_test/scenarioBuilders";
 import { seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { RESEND_DELAYED_FAILURE_GRACE_MS } from "../constants";
 
 const NOW = Date.parse("2026-08-14T00:00:00Z");
 
@@ -173,6 +174,126 @@ describe("組織の対応一覧シナリオ", () => {
       },
     ]);
     expect(await readScheduledFunctions(t)).toEqual([]);
+  });
+
+  it("管理者招待のResend遅延は猶予中に表示せず期限切れ後だけsendFailedとして表示する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "action_inbox_manager_provider_delayed",
+        plan: "business",
+      });
+      const invitationId = await ctx.db.insert("organizationInvitations", {
+        organizationId: base.organizationId,
+        email: "provider-delayed@example.com",
+        emailNormalized: "provider-delayed@example.com",
+        invitedName: "配信遅延の招待対象者",
+        tokenDigest: "action-inbox-manager-provider-delayed",
+        status: "issued",
+        purpose: "managerAddition",
+        inviterMemberId: base.memberId,
+        reservedSeat: true,
+        version: 1,
+        expiresAt: NOW + 7 * 24 * 60 * 60 * 1_000,
+        createdAt: NOW - 3_000,
+        updatedAt: NOW - 3_000,
+      });
+      const outboxId = await ctx.db.insert("notificationOutbox", {
+        channel: "email",
+        status: "sent",
+        dedupeKey: "organization-manager-invitation:provider-delayed:1",
+        organizationId: base.organizationId,
+        organizationInvitationId: invitationId,
+        organizationInvitationVersion: 1,
+        purpose: "business",
+        payload: {
+          kind: "organizationManagerInvitationEmail",
+          from: "noreply@example.com",
+          to: "provider-delayed@example.com",
+          context: "organizationInvitation.managerInvite",
+        },
+        attemptCount: 1,
+        nextRunAt: NOW,
+        sentAt: NOW,
+        resendEmailId: "email_manager_provider_delayed",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      return { ...base, invitationId, outboxId };
+    });
+    const manager = t.withIdentity({ subject: "action_inbox_manager_provider_delayed" });
+    const firstDelayedAt = NOW + 1_000;
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+        providerEventId: "svix_manager_provider_delayed",
+        providerEventType: "email.delivery_delayed",
+        providerEmailId: "email_manager_provider_delayed",
+        outboxIdTag: ids.outboxId,
+        occurredAt: firstDelayedAt,
+        errorMessage: "email_delivery_delayed",
+      }),
+    ).resolves.toEqual({ recorded: true, inboxed: false, reason: "delayedGrace" });
+
+    const duringGrace = await manager.query(api.appOrganization.actionInboxQueries.getActionInbox, {
+      organizationId: ids.organizationId,
+      shopFilter: "all",
+      refreshBucket: 0,
+    });
+    expect(duringGrace).toEqual({
+      items: [],
+      continuationByKind: {},
+      hasMoreByKind: {},
+    });
+
+    vi.setSystemTime(firstDelayedAt + RESEND_DELAYED_FAILURE_GRACE_MS + 60_000);
+    await t.mutation(internal.notificationOutbox.mutations.recoverOverdueResendDelayedFailures, {});
+
+    const afterGrace = await manager.query(api.appOrganization.actionInboxQueries.getActionInbox, {
+      organizationId: ids.organizationId,
+      shopFilter: "all",
+      refreshBucket: 1,
+    });
+    expect(afterGrace).toEqual({
+      items: [
+        {
+          id: `managerInvitation:${ids.invitationId}`,
+          kind: "managerInvitation",
+          scope: { kind: "organization", organizationId: ids.organizationId },
+          invitationId: ids.invitationId,
+          inviteeName: "配信遅延の招待対象者",
+          invitedEmail: "provider-delayed@example.com",
+          status: "sendFailed",
+          expiresAt: NOW + 7 * 24 * 60 * 60 * 1_000,
+          canResend: true,
+          canRevoke: true,
+          occurredAt: NOW + 7 * 24 * 60 * 60 * 1_000,
+        },
+      ],
+      continuationByKind: {},
+      hasMoreByKind: {},
+    });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.recordResendProviderDeliveryUpdate, {
+        providerEventId: "svix_manager_provider_delayed_then_delivered",
+        providerEventType: "email.delivered",
+        providerEmailId: "email_manager_provider_delayed",
+        outboxIdTag: ids.outboxId,
+        occurredAt: Date.now() + 1_000,
+      }),
+    ).resolves.toEqual({ recorded: true, historyUpdated: false });
+
+    const afterDelivery = await manager.query(api.appOrganization.actionInboxQueries.getActionInbox, {
+      organizationId: ids.organizationId,
+      shopFilter: "all",
+      refreshBucket: 2,
+    });
+    expect(afterDelivery).toEqual({
+      items: [],
+      continuationByKind: {},
+      hasMoreByKind: {},
+    });
   });
 
   it("管理者招待のResend失敗を表示し、より新しい配信成功で解消する", async () => {

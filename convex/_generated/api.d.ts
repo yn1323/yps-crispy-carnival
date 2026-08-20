@@ -177,6 +177,7 @@ import type * as notificationOutbox_mutations from "../notificationOutbox/mutati
 import type * as notificationOutbox_origin from "../notificationOutbox/origin.js";
 import type * as notificationOutbox_queries from "../notificationOutbox/queries.js";
 import type * as notificationOutbox_redaction from "../notificationOutbox/redaction.js";
+import type * as notificationOutbox_resendDelayedFailure from "../notificationOutbox/resendDelayedFailure.js";
 import type * as notificationOutbox_resendProviderEvents from "../notificationOutbox/resendProviderEvents.js";
 import type * as notificationOutbox_resendWebhook from "../notificationOutbox/resendWebhook.js";
 import type * as notificationOutbox_safeError from "../notificationOutbox/safeError.js";
@@ -440,6 +441,7 @@ declare const fullApi: ApiFromModules<{
   "notificationOutbox/origin": typeof notificationOutbox_origin;
   "notificationOutbox/queries": typeof notificationOutbox_queries;
   "notificationOutbox/redaction": typeof notificationOutbox_redaction;
+  "notificationOutbox/resendDelayedFailure": typeof notificationOutbox_resendDelayedFailure;
   "notificationOutbox/resendProviderEvents": typeof notificationOutbox_resendProviderEvents;
   "notificationOutbox/resendWebhook": typeof notificationOutbox_resendWebhook;
   "notificationOutbox/safeError": typeof notificationOutbox_safeError;

@@ -1044,6 +1044,16 @@ const schema = defineSchema({
     .index("by_recruitmentId_and_status_and_sentAt", ["recruitmentId", "status", "sentAt"])
     .index("by_recruitmentId_and_status_and_failedAt", ["recruitmentId", "status", "failedAt"]),
 
+  // Resendの一時的なdelivery_delayedを、即時失敗へ昇格させず猶予するための運用状態。
+  // 既存Outboxへ新規indexを追加せず、新規の空tableで期限順のbounded recoveryを成立させる。
+  notificationResendDelayedFailureDeadlines: defineTable({
+    outboxId: v.id("notificationOutbox"),
+    dueAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_outboxId", ["outboxId"])
+    .index("by_dueAt", ["dueAt"]),
+
   notificationHistory: defineTable({
     outboxId: v.id("notificationOutbox"),
     shopId: v.id("shops"),

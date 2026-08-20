@@ -14,6 +14,7 @@ import {
   NOTIFICATION_FANOUT_PROCESSING_LEASE_MS,
   NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
   NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
+  RESEND_DELAYED_FAILURE_GRACE_MS,
   RESEND_EMAIL_SEND_INTERVAL_MS,
 } from "../constants";
 import { buildConfirmationSnapshotSignature } from "../notification/confirmationSnapshots";
@@ -694,7 +695,7 @@ describe("通知配送outboxシナリオ", () => {
     expect(job?.leaseExpiresAt).toBeUndefined();
   });
 
-  it("Resend provider delayedは既存の不達通知一覧にメール失敗として表示される", async () => {
+  it("Resend provider delayedは履歴へ即時反映し30分猶予後だけ不達通知に昇格する", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
@@ -732,20 +733,49 @@ describe("通知配送outboxシナリオ", () => {
       resendEmailId: "email_provider_delayed",
     });
 
-    await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
-      providerEventId: "svix_provider_delayed",
-      providerEventType: "email.delivery_delayed",
-      providerEmailId: "email_provider_delayed",
-      occurredAt: SCENARIO_NOW + 1000,
-      errorMessage: "Resend reported email delivery delayed",
-    });
+    const firstDelayedAt = SCENARIO_NOW + 1_000;
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+        providerEventId: "svix_provider_delayed_first",
+        providerEventType: "email.delivery_delayed",
+        providerEmailId: "email_provider_delayed",
+        occurredAt: firstDelayedAt,
+        errorMessage: "Resend reported email delivery delayed",
+      }),
+    ).resolves.toEqual({ recorded: true, inboxed: false, reason: "delayedGrace" });
 
-    const openPage = await t
-      .withIdentity({ subject: MANAGER_SUBJECT })
-      .query(api.notificationOutbox.queries.listOpenFailures, {
+    const manager = t.withIdentity({ subject: MANAGER_SUBJECT });
+    const [historyDuringGrace, failuresDuringGrace] = await Promise.all([
+      manager.query(api.notificationOutbox.queries.listStaffNotificationHistory, {
+        shopId: ids.shopId,
+        staffId: ids.staffId,
+        paginationOpts: { numItems: 10, cursor: null },
+      }),
+      manager.query(api.notificationOutbox.queries.listOpenFailures, {
         paginationOpts: { numItems: 10, cursor: null },
         shopId: ids.shopId,
-      });
+      }),
+    ]);
+    expect(historyDuringGrace.page.map(({ displayStatus }) => displayStatus)).toEqual(["delayed"]);
+    expect(failuresDuringGrace.page).toEqual([]);
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+        providerEventId: "svix_provider_delayed_repeat",
+        providerEventType: "email.delivery_delayed",
+        providerEmailId: "email_provider_delayed",
+        occurredAt: firstDelayedAt + 10 * 60 * 1_000,
+        errorMessage: "Resend reported email delivery delayed again",
+      }),
+    ).resolves.toEqual({ recorded: true, inboxed: false, reason: "delayedGrace" });
+
+    vi.setSystemTime(firstDelayedAt + RESEND_DELAYED_FAILURE_GRACE_MS + 60_000);
+    await t.mutation(internal.notificationOutbox.mutations.recoverOverdueResendDelayedFailures, {});
+
+    const openPage = await manager.query(api.notificationOutbox.queries.listOpenFailures, {
+      paginationOpts: { numItems: 10, cursor: null },
+      shopId: ids.shopId,
+    });
     expect(openPage.page).toHaveLength(1);
     expect(openPage.page[0]).toMatchObject({
       sourceType: "provider",

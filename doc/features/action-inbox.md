@@ -23,7 +23,13 @@
 
 通常の送信済み通知、承認済み・却下済み申請、解決済み通知、単なる招待中は表示しない。  source tableを正本とし、Action Inbox専用tableへ複製保存しない。
 
-管理者招待の`sendFailed`には、Outboxの最終失敗とenqueue失敗に加え、Resendの`email.delivery_delayed`、`email.failed`、`email.bounced`、`email.suppressed`を含める。  その失敗より新しい`email.delivered`を受信した場合は解消し、単なる招待中として要対応から外す。
+管理者招待の`sendFailed`には、Outboxの最終失敗とenqueue失敗に加え、Resendの`email.failed`、`email.bounced`、`email.suppressed`を含める。
+`email.delivery_delayed`は配送状態へ即時反映するが、最初の遅延から30分間は招待中のままにし、1分間隔の期限切れ回収後に`sendFailed`として要対応へ出す。
+同じOutboxの遅延を再受信しても期限は延長しない。
+
+猶予中により新しい`email.delivered`を受信した場合は期限を削除し、要対応へ出さない。
+`email.failed`、`email.bounced`、`email.suppressed`を受信した場合は猶予を打ち切って即時に`sendFailed`へ移る。
+専用期限がない導入前の`email.delivery_delayed`状態は、既存データ互換のため`sendFailed`として読む。
 
 ## 読み取りと追加取得
 

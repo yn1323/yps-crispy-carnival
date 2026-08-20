@@ -9,6 +9,7 @@ import { submissionPatternValidator } from "../_lib/submissionPattern";
 import { normalizeEmail, requiredEmailSchema } from "../_lib/validation";
 import { NOTIFICATION_DRY_RUN_MANAGER_SCAN_LIMIT } from "../constants";
 import { getOrganizationPersonLineState } from "../line/service";
+import { getResendDelayedFailureDeadline } from "../notificationOutbox/resendDelayedFailure";
 import {
   deriveOrganizationBillingPolicy,
   getEffectiveRestrictedBillingState,
@@ -37,8 +38,19 @@ import {
 } from "./service";
 import { organizationShopOperatingStatus } from "./shopMembershipChange";
 
-function hasManagerInvitationDeliveryFailure(outbox: Doc<"notificationOutbox"> | null | undefined) {
-  return outbox?.status === "failed" || (outbox?.status === "sent" && outbox.resendDeliveryStatus !== undefined);
+async function hasManagerInvitationDeliveryFailure(
+  ctx: QueryCtx,
+  outbox: Doc<"notificationOutbox"> | null | undefined,
+) {
+  if (!outbox) return false;
+  if (outbox.status === "failed") return true;
+  if (outbox.status !== "sent") return false;
+  if (outbox.resendLastEventType === undefined && outbox.resendDeliveryStatus === undefined) return false;
+  if (outbox.resendLastEventType !== "email.delivery_delayed" || outbox.resendDeliveryStatus !== "delivery_delayed")
+    return true;
+
+  // Deadlineがあるdelayedだけが猶予中。欠損した旧rowと期限昇格済みrowは従来どおり失敗扱いにする。
+  return (await getResendDelayedFailureDeadline(ctx, outbox._id)) === null;
 }
 
 const organizationPersonViewValidator = v.object({
@@ -574,7 +586,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
           : null;
       const isSendFailed = Boolean(
         lifecycleStatus === "issued" &&
-          (hasManagerInvitationDeliveryFailure(currentVersionOutbox) ||
+          ((await hasManagerInvitationDeliveryFailure(ctx, currentVersionOutbox)) ||
             (currentVersionEnqueueFailure && !hasSuccessfulCurrentVersionEnqueue)),
       );
       const purpose = getOrganizationInvitationPurpose(invitation);
@@ -1488,7 +1500,7 @@ export async function getCanonicalManagerSettingsOverview(
       .filter((q) => q.eq(q.field("organizationInvitationVersion"), invitation.version))
       .order("desc")
       .first();
-    const deliveryFailure = hasManagerInvitationDeliveryFailure(outbox)
+    const deliveryFailure = (await hasManagerInvitationDeliveryFailure(ctx, outbox))
       ? true
       : Boolean(
           await ctx.db

@@ -171,6 +171,91 @@ describe("E2E testing helpers", () => {
     expect(state.ownerBShop?.isDeleted).toBe(false);
   });
 
+  it("resetは店舗scopeと組織scopeのOutboxを消す前にdelivery_delayed期限も回収する", async () => {
+    const t = convexTest(schema, modules);
+    const ownerA = await t.mutation(internal.testing.seedNotificationSubmitScenario, {
+      managerAuthTokenIdentifier: "issuer|delayed-reset-owner-a",
+      managerEmail: "delayed-reset-owner-a@example.com",
+      dates: DATES,
+    });
+    const ownerB = await t.mutation(internal.testing.seedNotificationSubmitScenario, {
+      managerAuthTokenIdentifier: "issuer|delayed-reset-owner-b",
+      managerEmail: "delayed-reset-owner-b@example.com",
+      dates: DATES,
+    });
+    const ids = await t.run(async (ctx) => {
+      const ownerAShop = await ctx.db.get(ownerA.shopId);
+      const ownerBShop = await ctx.db.get(ownerB.shopId);
+      if (!ownerAShop?.organizationId || !ownerBShop?.organizationId) {
+        throw new Error("reset scenario organization is missing");
+      }
+      const now = Date.now();
+      const insertDelayedOutbox = async (
+        scope: { shopId?: Id<"shops">; organizationId?: Id<"organizations"> },
+        key: string,
+      ) => {
+        const outboxId = await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "sent",
+          dedupeKey: `email:e2e-delayed-reset:${key}`,
+          ...scope,
+          payload: {
+            kind: "email",
+            from: "シフトリ <noreply@example.com>",
+            to: `${key}@example.com`,
+            subject: "reset test",
+            html: "<p>reset test</p>",
+            context: "testing.delayedReset",
+            suppressDelivery: true,
+          },
+          attemptCount: 1,
+          nextRunAt: now,
+          sentAt: now,
+          resendEmailId: `email_delayed_reset_${key}`,
+          resendLastEventType: "email.delivery_delayed",
+          resendLastEventAt: now,
+          resendDeliveryStatus: "delivery_delayed",
+          createdAt: now,
+          updatedAt: now,
+        });
+        const deadlineId = await ctx.db.insert("notificationResendDelayedFailureDeadlines", {
+          outboxId,
+          dueAt: now + 30 * 60_000,
+          createdAt: now,
+        });
+        return { outboxId, deadlineId };
+      };
+      const ownerAShopScoped = await insertDelayedOutbox({ shopId: ownerA.shopId }, "owner-a-shop");
+      const ownerAOrganizationScoped = await insertDelayedOutbox(
+        { organizationId: ownerAShop.organizationId },
+        "owner-a-organization",
+      );
+      const ownerBShopScoped = await insertDelayedOutbox({ shopId: ownerB.shopId }, "owner-b-shop");
+      return { ownerAShopScoped, ownerAOrganizationScoped, ownerBShopScoped };
+    });
+
+    await t.mutation(internal.testing.resetManagerScenarioData, {
+      managerAuthTokenIdentifier: "issuer|delayed-reset-owner-a",
+    });
+
+    const state = await t.run(async (ctx) => ({
+      ownerAShopOutbox: await ctx.db.get(ids.ownerAShopScoped.outboxId),
+      ownerAOrganizationOutbox: await ctx.db.get(ids.ownerAOrganizationScoped.outboxId),
+      ownerAShopDeadline: await ctx.db.get(ids.ownerAShopScoped.deadlineId),
+      ownerAOrganizationDeadline: await ctx.db.get(ids.ownerAOrganizationScoped.deadlineId),
+      ownerBShopOutbox: await ctx.db.get(ids.ownerBShopScoped.outboxId),
+      ownerBShopDeadline: await ctx.db.get(ids.ownerBShopScoped.deadlineId),
+    }));
+    expect(state).toEqual({
+      ownerAShopOutbox: null,
+      ownerAOrganizationOutbox: null,
+      ownerAShopDeadline: null,
+      ownerAOrganizationDeadline: null,
+      ownerBShopOutbox: expect.objectContaining({ shopId: ownerB.shopId }),
+      ownerBShopDeadline: expect.objectContaining({ outboxId: ids.ownerBShopScoped.outboxId }),
+    });
+  });
+
   it("single actor tenant seedは2組織を再実行可能に作る", async () => {
     const t = convexTest(schema, modules);
     const args = {

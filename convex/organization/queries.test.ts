@@ -886,6 +886,85 @@ describe("organization/queries.getSettings", () => {
     });
   });
 
+  it.each([
+    ["完全なdelayed pair + 期限あり", "pending", "email.delivery_delayed", "delivery_delayed", true],
+    ["完全なdelayed pair + 期限なし", "sendFailed", "email.delivery_delayed", "delivery_delayed", false],
+    ["delayed eventだけ", "sendFailed", "email.delivery_delayed", undefined, true],
+    ["delayed statusだけ", "sendFailed", undefined, "delivery_delayed", true],
+    ["delayed event + hard status", "sendFailed", "email.delivery_delayed", "failed", true],
+    ["hard event + delayed status", "sendFailed", "email.failed", "delivery_delayed", true],
+  ] as const)(
+    "getSettingsはprovider状態が%sのとき管理者招待を%sへ投影する",
+    async (_providerState, expectedStatus, providerEventType, deliveryStatus, withDeadline) => {
+      const t = convexTest(schema, modules);
+      const caseKey = `${providerEventType ?? "none"}-${deliveryStatus ?? "none"}-${withDeadline}`;
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: `settings_provider_pair_${caseKey}`,
+          plan: "pro",
+        });
+        const now = Date.now();
+        const invitationId = await ctx.db.insert("organizationInvitations", {
+          organizationId: base.organizationId,
+          email: `settings-provider-pair-${caseKey}@example.com`,
+          emailNormalized: `settings-provider-pair-${caseKey}@example.com`,
+          invitedName: "配送遅延中の招待対象者",
+          tokenDigest: `settings-provider-pair-${caseKey}-digest`,
+          status: "issued",
+          purpose: "managerAddition",
+          inviterMemberId: base.memberId,
+          reservedSeat: true,
+          version: 1,
+          expiresAt: now + 86_400_000,
+          createdAt: now,
+          updatedAt: now,
+        });
+        const outboxId = await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "sent",
+          dedupeKey: `organization-manager-invitation:settings-provider-pair-${caseKey}:1`,
+          organizationId: base.organizationId,
+          organizationInvitationId: invitationId,
+          organizationInvitationVersion: 1,
+          purpose: "business",
+          payload: {
+            kind: "organizationManagerInvitationEmail",
+            from: "シフトリ <noreply@example.com>",
+            to: `settings-provider-pair-${caseKey}@example.com`,
+            context: "organizationInvitation.managerInvite",
+          },
+          attemptCount: 1,
+          nextRunAt: now,
+          sentAt: now,
+          resendEmailId: `settings-provider-pair-${caseKey}`,
+          ...(providerEventType ? { resendLastEventType: providerEventType } : {}),
+          resendLastEventAt: now,
+          ...(deliveryStatus ? { resendDeliveryStatus: deliveryStatus } : {}),
+          createdAt: now,
+          updatedAt: now,
+        });
+        if (withDeadline) {
+          await ctx.db.insert("notificationResendDelayedFailureDeadlines", {
+            outboxId,
+            dueAt: now + 30 * 60_000,
+            createdAt: now,
+          });
+        }
+        return { ...base, invitationId };
+      });
+
+      const result = await t
+        .withIdentity({ subject: `settings_provider_pair_${caseKey}` })
+        .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+      expect(result?.managerInvitations.find((invitation) => invitation.id === ids.invitationId)).toMatchObject({
+        status: expectedStatus,
+        canResend: true,
+        canRevoke: true,
+      });
+    },
+  );
+
   it("無償BusinessをBusiness権限と料金なしの最小DTOへ投影する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {

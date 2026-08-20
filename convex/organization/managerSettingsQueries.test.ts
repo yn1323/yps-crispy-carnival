@@ -223,68 +223,144 @@ describe("organization manager settings queries", () => {
   });
 
   it.each([
-    ["email.delivery_delayed", "delivery_delayed"],
     ["email.failed", "failed"],
     ["email.bounced", "bounced"],
     ["email.suppressed", "suppressed"],
-  ] as const)("Resendの%sを管理者招待のsendFailedへ投影する", async (providerEventType, deliveryStatus) => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, {
-        subject: `manager_query_${deliveryStatus}`,
-        plan: "business",
+  ] as const)(
+    "Resendのhard failure %sを管理者招待のsendFailedへ投影する",
+    async (providerEventType, deliveryStatus) => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: `manager_query_${deliveryStatus}`,
+          plan: "business",
+        });
+        const invitationId = await seedInvitation(ctx, {
+          organizationId: base.organizationId,
+          inviterMemberId: base.memberId,
+          email: `${deliveryStatus}@example.com`,
+          invitedName: "招待対象者",
+        });
+        await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "sent",
+          dedupeKey: `manager-query-provider-${deliveryStatus}`,
+          organizationId: base.organizationId,
+          organizationInvitationId: invitationId,
+          organizationInvitationVersion: 1,
+          purpose: "business",
+          payload: {
+            kind: "organizationManagerInvitationEmail",
+            from: "noreply@example.com",
+            to: `${deliveryStatus}@example.com`,
+            context: "organizationInvitation.managerInvite",
+          },
+          attemptCount: 1,
+          nextRunAt: NOW,
+          sentAt: NOW,
+          resendEmailId: `manager-query-provider-${deliveryStatus}`,
+          resendLastEventType: providerEventType,
+          resendLastEventAt: NOW + 1_000,
+          resendDeliveryStatus: deliveryStatus,
+          createdAt: NOW,
+          updatedAt: NOW + 1_000,
+        });
+        return { ...base, invitationId };
       });
-      const invitationId = await seedInvitation(ctx, {
-        organizationId: base.organizationId,
-        inviterMemberId: base.memberId,
-        email: `${deliveryStatus}@example.com`,
-        invitedName: "招待対象者",
-      });
-      await ctx.db.insert("notificationOutbox", {
-        channel: "email",
-        status: "sent",
-        dedupeKey: `manager-query-provider-${deliveryStatus}`,
-        organizationId: base.organizationId,
-        organizationInvitationId: invitationId,
-        organizationInvitationVersion: 1,
-        purpose: "business",
-        payload: {
-          kind: "organizationManagerInvitationEmail",
-          from: "noreply@example.com",
-          to: `${deliveryStatus}@example.com`,
-          context: "organizationInvitation.managerInvite",
+
+      const result = await t
+        .withIdentity({ subject: `manager_query_${deliveryStatus}` })
+        .query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.shopId, now: NOW });
+
+      if (result.kind !== "ready") throw new Error("overview not ready");
+      expect(result.invitations).toEqual([
+        {
+          invitationId: ids.invitationId,
+          name: "招待対象者",
+          invitedEmail: `${deliveryStatus}@example.com`,
+          purpose: "managerAddition",
+          status: "sendFailed",
+          expiresAt: NOW + 86_400_000,
+          canResend: true,
+          canRevoke: true,
         },
-        attemptCount: 1,
-        nextRunAt: NOW,
-        sentAt: NOW,
-        resendEmailId: `manager-query-provider-${deliveryStatus}`,
-        resendLastEventType: providerEventType,
-        resendLastEventAt: NOW + 1_000,
-        resendDeliveryStatus: deliveryStatus,
-        createdAt: NOW,
-        updatedAt: NOW + 1_000,
+      ]);
+    },
+  );
+
+  it.each([
+    ["完全なdelayed pair + 期限あり", "pending", "email.delivery_delayed", "delivery_delayed", true],
+    ["完全なdelayed pair + 期限なし", "sendFailed", "email.delivery_delayed", "delivery_delayed", false],
+    ["delayed eventだけ", "sendFailed", "email.delivery_delayed", undefined, true],
+    ["delayed statusだけ", "sendFailed", undefined, "delivery_delayed", true],
+    ["delayed event + hard status", "sendFailed", "email.delivery_delayed", "failed", true],
+    ["hard event + delayed status", "sendFailed", "email.failed", "delivery_delayed", true],
+  ] as const)(
+    "provider状態が%sのとき管理者招待を%sへ投影する",
+    async (_providerState, expectedStatus, providerEventType, deliveryStatus, withDeadline) => {
+      const t = convexTest(schema, modules);
+      const caseKey = `${providerEventType ?? "none"}-${deliveryStatus ?? "none"}-${withDeadline}`;
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: `manager_query_provider_pair_${caseKey}`,
+          plan: "business",
+        });
+        const invitationId = await seedInvitation(ctx, {
+          organizationId: base.organizationId,
+          inviterMemberId: base.memberId,
+          email: `provider-pair-${caseKey}@example.com`,
+          invitedName: "配送遅延中の招待対象者",
+        });
+        const outboxId = await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "sent",
+          dedupeKey: `manager-query-provider-pair-${caseKey}`,
+          organizationId: base.organizationId,
+          organizationInvitationId: invitationId,
+          organizationInvitationVersion: 1,
+          purpose: "business",
+          payload: {
+            kind: "organizationManagerInvitationEmail",
+            from: "noreply@example.com",
+            to: `provider-pair-${caseKey}@example.com`,
+            context: "organizationInvitation.managerInvite",
+          },
+          attemptCount: 1,
+          nextRunAt: NOW,
+          sentAt: NOW,
+          resendEmailId: `manager-query-provider-pair-${caseKey}`,
+          ...(providerEventType ? { resendLastEventType: providerEventType } : {}),
+          resendLastEventAt: NOW + 1_000,
+          ...(deliveryStatus ? { resendDeliveryStatus: deliveryStatus } : {}),
+          createdAt: NOW,
+          updatedAt: NOW + 1_000,
+        });
+        if (withDeadline) {
+          await ctx.db.insert("notificationResendDelayedFailureDeadlines", {
+            outboxId,
+            dueAt: NOW + 30 * 60_000,
+            createdAt: NOW,
+          });
+        }
+        return { ...base, invitationId };
       });
-      return { ...base, invitationId };
-    });
 
-    const result = await t
-      .withIdentity({ subject: `manager_query_${deliveryStatus}` })
-      .query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.shopId, now: NOW });
+      const result = await t
+        .withIdentity({ subject: `manager_query_provider_pair_${caseKey}` })
+        .query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.shopId, now: NOW });
 
-    if (result.kind !== "ready") throw new Error("overview not ready");
-    expect(result.invitations).toEqual([
-      {
-        invitationId: ids.invitationId,
-        name: "招待対象者",
-        invitedEmail: `${deliveryStatus}@example.com`,
-        purpose: "managerAddition",
-        status: "sendFailed",
-        expiresAt: NOW + 86_400_000,
-        canResend: true,
-        canRevoke: true,
-      },
-    ]);
-  });
+      if (result.kind !== "ready") throw new Error("overview not ready");
+      expect(result.invitations).toEqual([
+        expect.objectContaining({
+          invitationId: ids.invitationId,
+          name: "配送遅延中の招待対象者",
+          status: expectedStatus,
+          canResend: true,
+          canRevoke: true,
+        }),
+      ]);
+    },
+  );
 
   it("旧Free管理者交代が残る間は通常追加の新規招待と再送を止める", async () => {
     const t = convexTest(schema, modules);

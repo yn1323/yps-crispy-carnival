@@ -15,6 +15,7 @@ import { generateUUID } from "./_lib/uuid";
 import { MAGIC_LINK_DEFAULT_TTL_MS, ORGANIZATION_NAME_SUFFIX } from "./constants";
 import { getLegalConsentVersions, type LegalAudience } from "./legal/documents";
 import { upsertStaffLineAccount } from "./line/service";
+import { clearResendDelayedFailureDeadline } from "./notificationOutbox/resendDelayedFailure";
 import { isOrganizationInvitationIssued } from "./organizationInvitation/lifecycle";
 import { getOrganizationInvitationPurpose } from "./organizationInvitation/purpose";
 import { deriveInvitationToken, digestInvitationToken, invitationRateLimitKey } from "./organizationInvitation/token";
@@ -288,7 +289,9 @@ async function deleteShopNotificationGraph(ctx: MutationCtx, shopId: Id<"shops">
       .collect(),
   ]);
 
-  for (const doc of [...failuresByStatus.flat(), ...deliveryEvents, ...outboxByStatus.flat(), ...usage]) {
+  const outbox = outboxByStatus.flat();
+  for (const job of outbox) await clearResendDelayedFailureDeadline(ctx, job._id);
+  for (const doc of [...failuresByStatus.flat(), ...deliveryEvents, ...outbox, ...usage]) {
     await ctx.db.delete(doc._id);
   }
 }
@@ -500,8 +503,10 @@ async function deleteOrganizationNotificationGraph(ctx: MutationCtx, organizatio
       .collect(),
   ]);
 
+  const outbox = outboxPages.flat();
+  for (const job of outbox) await clearResendDelayedFailureDeadline(ctx, job._id);
   for (const event of deliveryEvents) await ctx.db.delete(event._id);
-  for (const job of outboxPages.flat()) await ctx.db.delete(job._id);
+  for (const job of outbox) await ctx.db.delete(job._id);
 }
 
 async function deleteOrganizationGraph(
