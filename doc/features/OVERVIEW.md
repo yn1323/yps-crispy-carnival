@@ -60,23 +60,23 @@
 | [認証画面とアカウント設定](auth-pages.md) | Clerkを基盤に、Google認証とメール・パスワードのログイン、新規登録、パスワード再設定、別端末ログイン時のメール確認コード、ログイン方法の追加・変更・解除を提供する。LINEアプリ内ブラウザではGoogle OAuthを外部ブラウザへ逃がす | `/login`、`/signup`、`/forgot-password`、`/account` |
 | [法務同意フロー](legal-consent.md) | 管理ユーザーとスタッフ別に利用規約・プライバシーポリシーの同意を版数管理する。軽微な文書更新では再同意を求めない。スタッフは未同意でも通知を受け取れ、提出時に同意を回収する | `/terms`、`/privacy`（`/manager`・`/staff`別あり）、`/legal/staff/consent`、Dashboard再同意バナー |
 | [ログイン後オンボーディング](dashboard-onboarding.md) | 初回セットアップ（店舗名・提出方法・氏名・シフト連絡先）と、募集作成→通知確認→希望提出→シフト表確認→スタッフ追加の4ステップ体験ガイド | `/dashboard` |
-| [スタッフ参加QR・承認導線](staff-registration.md) | 店舗専用QR/URLからスタッフ本人が名前・連絡先・同意を申請し、管理者が承認・却下する。Turnstileとレート制限でbotを抑止し、承認待ちがある店舗へ日次digestを送る | `/staff/register`、Dashboard、`/app/actions` |
+| [スタッフ参加QR・承認導線](staff-registration.md) | 店舗専用QR/URLからスタッフ本人が名前・連絡先・同意を申請し、管理者が承認・却下する。Turnstileとレート制限でbotを抑止し、承認待ちがある店舗へ日次digestを送る | `/staff/register`、Dashboard、`/actions` |
 
 ### 3.2 組織・店舗・人物・権限
 
 | 機能 | 概要 | 主な画面 |
 |---|---|---|
-| [組織課金、複数店舗、複数管理者](organization-billing.md) | 組織単位の契約・利用上限・課金状態の管理。組織名変更、組織削除、管理者招待（未公開）、プランと支払い（未公開） | `/app/manage`、`/app/manage/organization`、`/app/manage/billing`（未公開）、`/app/manage/managers`（未公開） |
+| [組織課金、複数店舗、複数管理者](organization-billing.md) | 組織単位の契約・利用上限・課金状態の管理。組織名変更、組織削除、管理者招待（未公開）、プランと支払い（未公開） | `/manage`、`/manage/organization`、`/manage/billing`（未公開）、`/manage/managers`（未公開） |
 | [店舗単位管理者所属の移行互換](manager-shop-membership.md) | 旧`shopMembers`から`organizationMembers`への移行互換と、店舗コンテキスト解決（URL`?shop=`の検証・fallback規則） | `/dashboard` |
-| [店舗設定](shop-settings.md) | 店舗名、希望シフトの提出方法（時間指定・日ごと・勤務区分）、定休日、所属スタッフの一括変更、店舗削除 | `/app/manage/shops/<shopId>` |
-| [スタッフ詳細](user-detail.md) | 組織人物（`organizationPeople`）を正本に、氏名・シフト連絡先、所属店舗、LINE連携、管理者権限バッジ、組織からの削除を扱う。店舗別設定で通知・通知履歴・シフト対象設定を扱う | `/app/staff`、`/app/staff/<personId>`、`/app/staff/<personId>/shops/<shopId>` |
+| [店舗設定](shop-settings.md) | 店舗名、希望シフトの提出方法（時間指定・日ごと・勤務区分）、定休日、所属スタッフの一括変更、店舗削除 | `/manage/shops/<shopId>` |
+| [スタッフ詳細](user-detail.md) | 組織人物（`organizationPeople`）を正本に、氏名・シフト連絡先、所属店舗、LINE連携、管理者権限バッジ、組織からの削除を扱う。店舗別設定で通知・通知履歴・シフト対象設定を扱う | `/staff`、`/staff/<personId>`、`/staff/<personId>/shops/<shopId>` |
 
 ### 3.3 募集・希望提出・シフト編集・確定
 
 | 機能 | 概要 | 主な画面 |
 |---|---|---|
-| [シフト募集管理](shift-recruitment-management.md) | 募集の作成、状態別一覧（現在・要調整・募集中・確定済み・過去）、論理削除。作成時に募集通知・提出催促・確定催促を予約する | `/dashboard`、`/app/shifts` |
-| [シフト表](shift-board.md) | 提出方式に対応した割当編集（PC週表・SP日別）、未保存変更の確認、確定前validation、希望との食い違い表示、下書き保存、確定と差分再通知 | `/app/shifts/<recruitmentId>/board` |
+| [シフト募集管理](shift-recruitment-management.md) | 募集の作成、状態別一覧（現在・要調整・募集中・確定済み・過去）、論理削除。作成時に募集通知・提出催促・確定催促を予約する | `/dashboard`、`/shifts` |
+| [シフト表](shift-board.md) | 提出方式に対応した割当編集（PC週表・SP日別）、未保存変更の確認、確定前validation、希望との食い違い表示、下書き保存、確定と差分再通知 | `/shifts/<recruitmentId>/board` |
 | [希望シフト提出](shift-submission.md) | スタッフがリンクから希望を提出・再提出する。前回パターンのワンクリック適用、提出完了画面、確定シフト閲覧、閲覧リンク再発行 | `/shifts/submit`、`/shifts/submit/completed`、`/shifts/view`、`/shifts/reissue` |
 | [シフト対象外スタッフ](shift-exclusion.md) | シフトを出さないスタッフを店舗ごとにシフト表示・シフト関連通知・提出率母数から外す。対象外化で提出用セッション・リンクを失効させる | スタッフ店舗別設定 |
 | [シフト確定催促リマインダー](shift-confirmation-reminder.md) | 締切翌日17:00 JSTに未確定募集の管理者へ確定を催促する（画面なし・自動通知） | メール・LINE |
@@ -86,7 +86,7 @@
 
 | 機能 | 概要 | 主な画面 |
 |---|---|---|
-| [要対応](action-inbox.md) | 締切超過の未確定募集、承認待ち申請、不達通知、招待エラーを組織横断で一覧化し、承認・再送・解決の操作を受け付ける | `/app/actions` |
+| [要対応](action-inbox.md) | 締切超過の未確定募集、承認待ち申請、不達通知、招待エラーを組織横断で一覧化し、承認・再送・解決の操作を受け付ける | `/actions` |
 | [LINE通知連携](line-notification.md) | LINE Loginで組織人物へLINEを連携し、連携済み・友だち状態ならLINE、それ以外はメールへ自動振り分けする。連携URL発行、依頼メール、明示解除 | スタッフ詳細、`/line/callback` |
 | [通知配送outbox](notification-outbox.md) | 全メール・LINE通知を`pending`ジョブ化してworkerが非同期配送する基盤。重複排除、再試行、LINE quota超過時のメールfallback、送信直前の宛先・権限再確認、30日後のpayload redaction | なし（基盤） |
 | [スタッフ通知履歴](notification-history.md) | スタッフごとの通知の日時・チャネル・タイトル・送信/配信状況を表示する（本文・宛先は保存しない） | スタッフ店舗別設定 |
@@ -258,7 +258,7 @@
 | 状況 | 管理者ができること | スタッフができること |
 |---|---|---|
 | 募集作成〜締切前（`open`） | シフト表で割当編集・下書き保存。確定も日付・状態条件を満たせば可能（締切前の確定を禁止する条件はない） | 提出リンクから提出・再提出（締切日23:59 JSTまで）。提出済み内容の確認 |
-| **締切後〜確定前（`open`のまま）** | 編集・保存・確定が可能。Dashboardで「要シフト調整」、`/app/actions`に表示。締切翌日17:00に確定催促が届く | **提出リンクは引き続き開ける（シフト開始日0:00 JSTまで）。提出済みなら閲覧のみ、未提出なら確認ダイアログ後に初回提出だけ可能** |
+| **締切後〜確定前（`open`のまま）** | 編集・保存・確定が可能。Dashboardで「要シフト調整」、`/actions`に表示。締切翌日17:00に確定催促が届く | **提出リンクは引き続き開ける（シフト開始日0:00 JSTまで）。提出済みなら閲覧のみ、未提出なら確認ダイアログ後に初回提出だけ可能** |
 | 確定後（`confirmed`） | シフト終了日までは再編集・再確定できる。再確定時は前回通知との差分があるスタッフと、前回の確定通知が未配送のスタッフへ再通知。個別再送も可能 | 確定通知の閲覧リンクから確定シフトを閲覧。リンクを失った場合は再発行画面（登録メール一致で新リンク送付）。提出画面は「提出受付終了」 |
 | シフト終了日の翌日以降 | 保存・確定・再通知は不可。過去のシフトとして閲覧のみ（Dashboardでは店舗filter時に遅延取得） | 確定シフトの個別再送対象外（再送は終了日が今日以降の募集のみ） |
 | 削除済み | 一覧から消える。進行中の通知fanoutは同一transactionで停止 | 提出・閲覧リンクは「募集削除済み」の利用不可状態になる |

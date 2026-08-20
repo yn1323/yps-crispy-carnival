@@ -64,7 +64,7 @@ export function DashboardRoutePage({
       {resolution.kind === "empty" ? (
         <DashboardPageStateView
           state={{ kind: "empty" }}
-          onOpenManagement={() => void navigate({ to: "/app/manage", search: { org: organizationId } })}
+          onOpenManagement={() => void navigate({ to: "/manage", search: { org: organizationId } })}
         />
       ) : (
         <Animation>
@@ -126,28 +126,27 @@ function ConnectedDashboard({
   const selectedShop = shopContexts.find((candidate) => candidate.shopId === selectedShopId);
   const navigation = useMemo<DashboardNavigation>(
     () => ({
-      onOpenBillingSettings: () => void navigate({ to: "/app/manage/billing", search: { org: organizationId } }),
-      onOpenOrganizationSettings: () =>
-        void navigate({ to: "/app/manage/organization", search: { org: organizationId } }),
+      onOpenBillingSettings: () => void navigate({ to: "/manage/billing", search: { org: organizationId } }),
+      onOpenOrganizationSettings: () => void navigate({ to: "/manage/organization", search: { org: organizationId } }),
       onOpenShopDetail: (shopId) =>
         void navigate({
-          to: "/app/manage/shops/$shopId",
+          to: "/manage/shops/$shopId",
           params: { shopId },
           search: { org: organizationId },
         }),
       onOpenShiftBoard: (recruitmentId) =>
         void navigate({
-          to: "/app/shifts/$recruitmentId/board",
+          to: "/shifts/$recruitmentId/board",
           params: { recruitmentId },
           search: { org: organizationId },
         }),
       onOpenStaffDetail: (personId) =>
         void navigate({
-          to: "/app/staff/$personId",
+          to: "/staff/$personId",
           params: { personId },
           search: { org: organizationId },
         }),
-      onManageManagers: () => void navigate({ to: "/app/manage/managers", search: { org: organizationId } }),
+      onManageManagers: () => void navigate({ to: "/manage/managers", search: { org: organizationId } }),
     }),
     [navigate, organizationId],
   );
@@ -250,7 +249,7 @@ export function DashboardReadOnlyNotice({
               : "契約制限中です。\n既存データは引き続き確認できます。"}
         </Alert.Description>
         <Button asChild size="sm" variant="outline" mt={3} alignSelf="flex-start">
-          <RouterLink to="/app/manage" search={{ org: organizationId }}>
+          <RouterLink to="/manage" search={{ org: organizationId }}>
             管理を開く
           </RouterLink>
         </Button>

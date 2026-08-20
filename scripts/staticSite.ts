@@ -41,6 +41,7 @@ export const NOINDEX_PUBLIC_ROUTES = new Set<string>([
 /** Queryを含めず、指定されたpathだけをCSR shellへ渡す。 */
 export const CSR_SHELL_STATIC_ROUTES = [
   "/account",
+  "/actions",
   "/app",
   "/app/actions",
   "/app/manage",
@@ -56,23 +57,37 @@ export const CSR_SHELL_STATIC_ROUTES = [
   "/legal/staff/consent",
   "/line/callback",
   "/login",
+  "/manage",
+  "/manage/billing",
+  "/manage/managers",
+  "/manage/managers/invite-new",
+  "/manage/managers/invite-staff",
+  "/manage/organization",
   "/manager-invite",
+  "/shifts",
   "/shifts/reissue",
   "/shifts/submit",
   "/shifts/submit/completed",
   "/shifts/view",
   "/signup",
   "/sso-callback",
+  "/staff",
   "/staff/register",
 ] as const;
 
 /** Cloudflare Pagesのnamed placeholder。長いpathを先に評価する。 */
 export const CSR_SHELL_DYNAMIC_ROUTES = [
+  "/staff/:personId/shops/:shopId",
+  "/manage/shops/:shopId",
+  "/shifts/:recruitmentId/board",
+  "/staff/:personId",
   "/app/staff/:personId/shops/:shopId",
   "/app/manage/shops/:shopId",
   "/app/shifts/:recruitmentId/board",
   "/app/staff/:personId",
 ] as const;
+
+const CSR_SHELL_HEADER_PREFIX_ROUTES = ["/app", "/manage", "/shifts", "/staff"] as const;
 
 const ARTICLE_CONTENT_DIR = join("src", "components", "features", "ArticleSite", "content");
 const LOOPBACK_URL_PATTERN = /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|\[::1\])(?::\d+)?(?:\/[^\s"'<>]*)?/i;
@@ -192,10 +207,13 @@ export function createCloudflareHeaders(publicRoutes: readonly string[]): string
   }
 
   const explicitShellHeaderRoutes = [...CSR_SHELL_STATIC_ROUTES, ...CSR_SHELL_DYNAMIC_ROUTES]
-    .filter((route) => route !== "/app" && !route.startsWith("/app/"))
+    .filter(
+      (route) => !CSR_SHELL_HEADER_PREFIX_ROUTES.some((prefix) => route === prefix || route.startsWith(`${prefix}/`)),
+    )
     .flatMap(withOptionalTrailingSlash);
-  // `/app`だけはrootと配下を2ルールへ集約し、Cloudflare Pagesの100 header rules制限を守る。
-  for (const route of ["/app", "/app/*", ...explicitShellHeaderRoutes]) {
+  const prefixShellHeaderRoutes = CSR_SHELL_HEADER_PREFIX_ROUTES.flatMap((prefix) => [prefix, `${prefix}/*`]);
+  // 同じprefix配下のshellは2ルールへ集約し、Cloudflare Pagesの100 header rules制限を守る。
+  for (const route of [...prefixShellHeaderRoutes, ...explicitShellHeaderRoutes]) {
     blocks.push([route, ...SHELL_HEADERS]);
   }
 

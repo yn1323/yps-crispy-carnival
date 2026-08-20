@@ -48,7 +48,7 @@ function ConnectedUserShopDetailPage({ personId, targetShopId, appOrganizationId
   const membership = data?.memberships.find((candidate) => candidate.shopId === targetShopId);
   const navigateToUserDetail = () => {
     void navigate({
-      to: "/app/staff/$personId",
+      to: "/staff/$personId",
       params: { personId },
       search: { org: appOrganizationId },
       replace: true,

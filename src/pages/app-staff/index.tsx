@@ -46,7 +46,7 @@ export function AppStaffRoutePage(props: Props) {
   useEffect(() => {
     if (filterKind !== "ready" || !shouldReplaceSearch) return;
     void navigate({
-      to: "/app/staff",
+      to: "/staff",
       search: { org: props.organizationId },
       replace: true,
     });
@@ -133,7 +133,7 @@ function ConnectedAppStaff({
           options={filterOptions}
           onChange={(nextFilter) =>
             void navigate({
-              to: "/app/staff",
+              to: "/staff",
               search: { org: organizationId, ...(nextFilter ? { shopFilter: nextFilter } : {}) },
             })
           }
@@ -149,10 +149,10 @@ function ConnectedAppStaff({
           filterResultCount={shopFilter === "all" ? undefined : summary.visibleCount}
           filterResultCountHasOverflow={shopFilter === "all" ? false : summary.visibleCountHasOverflow}
           showManagerInvitation={summary.features?.managerInvitation === true}
-          onManageManagers={() => void navigate({ to: "/app/manage/managers", search: { org: organizationId } })}
+          onManageManagers={() => void navigate({ to: "/manage/managers", search: { org: organizationId } })}
           onOpenUser={(personId) =>
             void navigate({
-              to: "/app/staff/$personId",
+              to: "/staff/$personId",
               params: { personId },
               search: { org: organizationId },
             })

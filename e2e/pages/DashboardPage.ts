@@ -100,7 +100,7 @@ export class DashboardPage {
     const navigation = this.page.getByRole("navigation", { name: "メインメニュー" });
     await navigation.getByRole("link", { name: "管理", exact: true }).click();
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === "/app/manage" && url.searchParams.get("org") === organizationId,
+      (url) => url.pathname === "/manage" && url.searchParams.get("org") === organizationId,
       { timeout: DASHBOARD_DATA_TIMEOUT },
     );
     const billingRow = this.page.getByRole("button", { name: "プランと支払いを開く", exact: true });
@@ -182,7 +182,7 @@ export class DashboardPage {
   async openCurrentShopDetail(organizationId: string, shopId: string) {
     await this.page.getByRole("button", { name: "店舗詳細を開く" }).click();
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === `/app/manage/shops/${shopId}` && url.searchParams.get("org") === organizationId,
+      (url) => url.pathname === `/manage/shops/${shopId}` && url.searchParams.get("org") === organizationId,
       { timeout: DASHBOARD_DATA_TIMEOUT },
     );
   }

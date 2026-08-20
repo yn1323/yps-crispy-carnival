@@ -3,7 +3,7 @@
 ## 機能説明
 
 組織内の人物を表す`organizationPeople`を正本として、共通プロフィールとLINE連携状態はスタッフ詳細ページ、管理者の変更操作は管理者設定ページ、店舗ごとのシフト設定と通知は店舗別設定ページで扱う。
-Dashboardのスタッフ一覧、組織設定のユーザー一覧、`/app/staff`の組織人物一覧は、同じスタッフ詳細ページへ遷移する。
+Dashboardのスタッフ一覧、組織設定のユーザー一覧、`/staff`の組織人物一覧は、同じスタッフ詳細ページへ遷移する。
 
 ## 情報のスコープ
 
@@ -33,9 +33,9 @@ Dialog下部には「キャンセル」と主操作の「変更を保存」を�
 ## URLと遷移
 
 ```text
-/app/staff?org=<organizationId>&shopFilter=<shopId>
-/app/staff/<personId>?org=<organizationId>
-/app/staff/<personId>/shops/<shopId>?org=<organizationId>
+/staff?org=<organizationId>&shopFilter=<shopId>
+/staff/<personId>?org=<organizationId>
+/staff/<personId>/shops/<shopId>?org=<organizationId>
 ```
 
 詳細URLは`org`だけを検索パラメータとして受け取り、Dialogの開閉はページ内の状態として管理する。
@@ -56,16 +56,16 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 
 | 画面 | 役割 |
 |---|---|
-| `/app/staff?org=<organizationId>&shopFilter=<shopId>` | canonicalな組織の全人物をページングし、任意の同一組織店舗でserver-sideに絞り込む。人物詳細、管理者設定、既存スタッフ追加Dialogへの入口を表示する |
-| `/app/staff/<personId>?org=<organizationId>` | スタッフタブから組織人物の共通プロフィール、所属店舗、削除操作を表示する |
-| `/app/staff/<personId>/shops/<shopId>?org=<organizationId>` | 同じ組織の対象店舗における通知、通知履歴、シフト対象設定を表示する |
+| `/staff?org=<organizationId>&shopFilter=<shopId>` | canonicalな組織の全人物をページングし、任意の同一組織店舗でserver-sideに絞り込む。人物詳細、管理者設定、既存スタッフ追加Dialogへの入口を表示する |
+| `/staff/<personId>?org=<organizationId>` | スタッフタブから組織人物の共通プロフィール、所属店舗、削除操作を表示する |
+| `/staff/<personId>/shops/<shopId>?org=<organizationId>` | 同じ組織の対象店舗における通知、通知履歴、シフト対象設定を表示する |
 
 ## 表示状態
 
 - 読み込み中はページ見出しと本文のSkeletonを表示する。
-- `/app/staff`は`getSettings`を一覧データ源にせず、組織人物をcursor paginationで取得する。店舗filterはpagination前にserver-sideで適用し、filter変更時は旧cursorと旧pageを破棄する。プラン上限をread上限にせず、追加pageから上限超過人物にも到達できる。
-- `/app/staff`の取得失敗は空一覧と区別したQueryErrorを表示し、同じ組織とfilterで再試行できる。閲覧専用または契約制限中は一覧を維持し、スタッフ追加だけをサーバー由来の理由とともに無効にする。
-- `/app/staff`を全店舗表示している状態からスタッフを追加する場合は、店舗一覧と同じdrilldown listで対象店舗を1店舗選び、既存のスタッフ追加Dialogへ進む。対象店舗選択DialogはSPで全画面表示する。店舗filterで1店舗に絞り込み済みの場合は選択を省略する。
+- `/staff`は`getSettings`を一覧データ源にせず、組織人物をcursor paginationで取得する。店舗filterはpagination前にserver-sideで適用し、filter変更時は旧cursorと旧pageを破棄する。プラン上限をread上限にせず、追加pageから上限超過人物にも到達できる。
+- `/staff`の取得失敗は空一覧と区別したQueryErrorを表示し、同じ組織とfilterで再試行できる。閲覧専用または契約制限中は一覧を維持し、スタッフ追加だけをサーバー由来の理由とともに無効にする。
+- `/staff`を全店舗表示している状態からスタッフを追加する場合は、店舗一覧と同じdrilldown listで対象店舗を1店舗選び、既存のスタッフ追加Dialogへ進む。対象店舗選択DialogはSPで全画面表示する。店舗filterで1店舗に絞り込み済みの場合は選択を省略する。
 - 存在しない人物、削除済み人物、別組織の人物には同じ「ユーザーを表示できません」を表示し、存在や所属を区別して漏らさない。
 - 対象店舗への管理アクセスがない、人物と店舗所属が一致しない、所属または店舗が削除済みの場合も、存在を区別しない最小情報のEmpty状態へ寄せる。
 - スタッフ情報Dialogと所属店舗変更Dialogは、PCではモーダル、SPではフルスクリーンで表示する。
@@ -91,7 +91,7 @@ Widen期間中に`organizationPersonId`が未設定のスタッフだけは、�
 - 明示解除は確認表示を経て、その組織の全所属店舗だけを停止する。別組織の連携には影響せず、再利用には本人による新しい連携を必要とする。
 - 通知対象の募集と確定シフトは、Dashboardと同じ色・状態表現で期間、締切または確定日、提出人数を表示する。確定シフトは終了日が今日以降の現在分と将来分を表示して再送でき、過去分は表示しない。
 - 確定シフトの個別再送は1回につき40件までを対象とする。対象が40件を超える場合は一部だけ送らず、再送を開始できないことを表示する。
-- 管理者の招待・交代・権限解除は、公開設定を明示的に有効化した環境では`/app/manage/managers?org=<organizationId>`へ集約する。  通常環境のスタッフ詳細は管理者設定への導線を表示しない。
+- 管理者の招待・交代・権限解除は、公開設定を明示的に有効化した環境では`/manage/managers?org=<organizationId>`へ集約する。  通常環境のスタッフ詳細は管理者設定への導線を表示しない。
 - backendは複数管理者の公開設定が閉じているとき`managerInvitationState.kind = "hidden"`を返し、招待、再送、受諾、権限追加をserver-sideでも拒否する。
 - `active`または`readOnly`の管理者も、人物側または店舗側の所属変更から個別店舗・全店舗のスタッフ所属を解除できる。
   個別解除ではほかの店舗所属を維持し、全店舗解除でも管理者権限と組織人物を維持する。
@@ -122,7 +122,7 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 - 店舗別APIは、対象スタッフと`targetShopId`の所属関係、人物との対応、削除状態、店舗状態をサーバー側で再検証する。
 - 権限のない店舗、不正な人物・店舗・スタッフの組み合わせ、削除済み対象は拒否するか、存在を区別できない最小情報のEmpty状態へ寄せる。
 - 所属店舗一覧から選ばれたことや、フロントエンドが保持する`selectedShopAtom`は認可根拠にしない。
-- `/app`の詳細QueryはURLの`org`に対するcanonicalな`organizationMembers`を必須とし、人物と対象店舗が同じ組織に属することをサーバーで再検証する。新しい詳細画面では先頭店舗や旧`shopMembers` fallbackを組織authorityに使わない。画面上で有効にする更新操作も同じ`expectedOrganizationId`を渡し、不一致なら存在を区別せずfail closedにする。
+- スタッフ詳細QueryはURLの`org`に対するcanonicalな`organizationMembers`を必須とし、人物と対象店舗が同じ組織に属することをサーバーで再検証する。新しい詳細画面では先頭店舗や旧`shopMembers` fallbackを組織authorityに使わない。画面上で有効にする更新操作も同じ`expectedOrganizationId`を渡し、不一致なら存在を区別せずfail closedにする。
 - プロフィール更新APIは、actorの組織権限、personの所属、各staffの組織・店舗・personの対応、組織内の重複をサーバーで確認し、同じ組織のpersonと未削除staffだけを一transactionで更新する。不整合な所属が1件でもあれば全体をfail-closedにし、`users.email`、Clerk、別組織、請求先は更新しない。
 - 所属店舗変更APIは、actorの組織権限と書込可否、personの同一組織・有効状態、指定した全店舗の同一組織・削除状態・店舗状態、active staffの一意性をサーバー側で再検証する。clientが渡すperson、店舗集合、staff、fingerprint、previewを認可根拠にせず、非active所属をdesired-setから脱落させたり、別組織へ所属を作ったりしない。
 - 所属店舗変更APIは`membershipFingerprint`と解除対象ごとのpreviewを再計算し、stale、権限不足、契約制限、不正な組合せ、件数超過のいずれでもDB、scheduler、Outbox、監査記録を増やさない。
@@ -137,8 +137,8 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 
 - `convex/schema.ts`：`organizationPeople`、`organizationMembers`、`staffs`、`lineProviderUsers`、`organizationPersonLineLinks`の定義。
 - `convex/organization/userDetailQueries.ts`：人物、管理者権限、操作可否、組織内店舗、店舗別所属を返す詳細Query。
-- `convex/appOrganization/detailQueries.ts`：`/app`のURL組織scopeをcanonical membershipで検証してから、人物詳細DTOを返すQuery。
-- `convex/appOrganization/queries.ts`：`/app/staff`向けに組織人物一覧、店舗filter、boundedな利用人数とスタッフ追加可否を返すQuery。
+- `convex/appOrganization/detailQueries.ts`：URLの組織scopeをcanonical membershipで検証してから、人物詳細DTOを返すQuery。
+- `convex/appOrganization/queries.ts`：`/staff`向けに組織人物一覧、店舗filter、boundedな利用人数とスタッフ追加可否を返すQuery。
 - `convex/organization/shopMembershipChange.ts`：店舗所属snapshotの正規化、`membershipFingerprint`、stale時の共通契約。
 - `convex/organization/personProfile.ts`：組織共通プロフィールと有効な店舗スタッフ行の同期。
 - `convex/organization/personRemoval.ts`：解除preview、本日以降のシフト割当削除、staff用accessとLINE連携の失効。
@@ -152,8 +152,8 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 
 ### フロントエンド
 
-- `src/routes/_auth/app_.staff_.$personId.tsx`と`src/routes/_auth/app_.staff_.$personId_.shops.$shopId.tsx`：`org`、人物ID、対象店舗IDを受け取る新しいスタッフタブのURL境界。
-- `src/routes/_auth/app_.staff.tsx`と`src/pages/app-staff/`：組織人物のcursor一覧、店舗filter、Loading・QueryError、スタッフ追加店舗の明示選択を扱うスタッフトップの境界。
+- `src/routes/_auth/staff_.$personId.tsx`と`src/routes/_auth/staff_.$personId_.shops.$shopId.tsx`：`org`、人物ID、対象店舗IDを受け取るスタッフタブのURL境界。
+- `src/routes/_auth/staff.tsx`と`src/pages/app-staff/`：組織人物のcursor一覧、店舗filter、Loading・QueryError、スタッフ追加店舗の明示選択を扱うスタッフトップの境界。
 - `src/pages/user-detail/`：詳細QueryとLoading、Not Found、正常表示の分岐。
 - `src/pages/user-shop-detail/`：pathの`shopId`を明示した詳細QueryとLoading、Empty、正常表示の分岐。
 - `src/components/features/UserDetail/`：スタッフ情報の入口、所属店舗一覧、所属店舗変更チェックリスト、スタッフ情報Dialog、URL同期、編集と確認操作。

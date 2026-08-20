@@ -36,7 +36,7 @@ export function AppActionsRoutePage({
   useEffect(() => {
     if (filterKind !== "ready" || !shouldReplaceSearch) return;
     void navigate({
-      to: "/app/actions",
+      to: "/actions",
       search: {
         org: organizationId,
         ...(resolvedShopFilter === "all" ? {} : { shopFilter: resolvedShopFilter }),
@@ -62,7 +62,7 @@ export function AppActionsRoutePage({
         shopFilter={resolvedShopFilter}
         onShopFilterChange={(nextFilter) =>
           void navigate({
-            to: "/app/actions",
+            to: "/actions",
             search: { org: organizationId, ...(nextFilter ? { shopFilter: nextFilter } : {}) },
           })
         }

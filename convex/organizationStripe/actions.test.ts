@@ -3164,7 +3164,7 @@ describe("organizationStripe/actions", () => {
       [payload.cancel_url, "cancelled"],
     ] as const) {
       const url = new URL(String(urlValue));
-      expect(`${url.origin}${url.pathname}`).toBe("https://app.example.test/app/manage/billing");
+      expect(`${url.origin}${url.pathname}`).toBe("https://app.example.test/manage/billing");
       expect(url.searchParams.get("org")).toBe(ids.organizationId);
       expect(url.searchParams.get("stripe")).toBe(result);
     }
@@ -3230,7 +3230,7 @@ describe("organizationStripe/actions", () => {
       [payload.cancel_url, "cancelled"],
     ] as const) {
       const url = new URL(String(urlValue));
-      expect(`${url.origin}${url.pathname}`).toBe("https://app.example.test/app/manage/billing");
+      expect(`${url.origin}${url.pathname}`).toBe("https://app.example.test/manage/billing");
       expect(url.searchParams.get("org")).toBe(ids.organizationId);
       expect(url.searchParams.get("stripe")).toBe(result);
     }
@@ -8149,7 +8149,7 @@ describe("organizationStripe/actions", () => {
     ).resolves.toEqual({ status: "redirect", url: "https://billing.stripe.test/session" });
     expect(portalCreateCalls).toHaveLength(1);
     const returnUrl = new URL(String((portalCreateCalls[0][0] as { return_url: string }).return_url));
-    expect(`${returnUrl.origin}${returnUrl.pathname}`).toBe("https://app.example.test/app/manage/billing");
+    expect(`${returnUrl.origin}${returnUrl.pathname}`).toBe("https://app.example.test/manage/billing");
     expect(returnUrl.searchParams.get("org")).toBe(ids.organizationId);
     const portalOperation = await t.run(
       async (ctx) =>

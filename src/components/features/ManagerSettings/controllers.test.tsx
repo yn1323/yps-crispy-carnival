@@ -295,7 +295,7 @@ describe("useManagerIssueController", () => {
       }),
     );
     expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/app/manage/managers",
+      to: "/manage/managers",
       search: { org: organizationId },
       replace: true,
     });

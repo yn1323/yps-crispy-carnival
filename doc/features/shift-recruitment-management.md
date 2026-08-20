@@ -22,8 +22,8 @@
 | 画面 | 利用者ができること |
 |---|---|
 | `/dashboard?org=<organizationId>&shop=<shopId>` | 明示した組織と店舗を再検証し、募集作成、状態別一覧、削除確認を扱う |
-| `/app/shifts?org=<organizationId>` | canonicalな組織にあるactive店舗の募集を状態別にまとめ、店舗filter、募集作成、削除確認、シフト表への遷移を扱う |
-| `/app/shifts/<recruitmentId>/board?org=<organizationId>` | 組織と募集の店舗関係を再検証し、共通アプリヘッダー配下で割当編集と確定を扱う |
+| `/shifts?org=<organizationId>` | canonicalな組織にあるactive店舗の募集を状態別にまとめ、店舗filter、募集作成、削除確認、シフト表への遷移を扱う |
+| `/shifts/<recruitmentId>/board?org=<organizationId>` | 組織と募集の店舗関係を再検証し、共通アプリヘッダー配下で割当編集と確定を扱う |
 
 Dashboardは募集を次の順で表示し、空の分類は表示しない。
 
@@ -36,7 +36,7 @@ Dashboardは募集を次の順で表示し、空の分類は表示しない。
 現在、調整待ち、募集中、未来の確定済み募集は初期表示する。
 過去の募集は存在だけを先に確認し、利用者が「過去のシフトを見る」を選んだ後にページングして取得する。
 
-`/app/shifts`は店舗数分のqueryを購読せず、組織内のactive店舗を一つのcursor familyで最後までページングしてから、募集を全店舗横断で状態別にまとめる。
+`/shifts`は店舗数分のqueryを購読せず、組織内のactive店舗を一つのcursor familyで最後までページングしてから、募集を全店舗横断で状態別にまとめる。
 店舗filterの初期値は「すべて」であり、特定店舗へ絞っても募集作成時の候補には利用可能な全店舗を残す。
 一覧カードでは店舗名を表示するが、対象店舗が固定されているDashboardでは表示しない。
 
@@ -48,7 +48,7 @@ Dashboardは募集を次の順で表示し、空の分類は表示しない。
 提出率のスタッフscanが安全上限へ達した場合は分母を確定値として表示せず、下限件数とoverflowを明示する。
 `recruitmentStats`が未作成の募集は提出記録の読取件数を制限し、上限へ達した提出数を下限件数として表示する。
 
-`/app/shifts`から募集を作る場合は、フォームの最初に対象店舗を1店舗だけ選択する。
+`/shifts`から募集を作る場合は、フォームの最初に対象店舗を1店舗だけ選択する。
 選んだ店舗は確認Stepにも表示し、店舗IDとURLの組織IDを募集mutationへ明示してサーバーで再検証する。
 `/dashboard`では対象店舗がすでに決まっているため店舗選択Stepを省略するが、確認Stepには店舗名を表示する。
 
@@ -86,7 +86,7 @@ lease、cursor、dedupe、再開、保持期限は[Notification Outbox](notifica
 
 | 責務 | 主な入口 |
 |---|---|
-| RouteとPage | `src/routes/_auth/dashboard.tsx`, `src/pages/dashboard/`, `src/routes/_auth/app_.shifts.tsx`, `src/pages/app-shifts/`, `src/routes/_auth/app_.shifts_.$recruitmentId_.board.tsx`, `src/pages/app-shift-board/` |
+| RouteとPage | `src/routes/_auth/dashboard.tsx`, `src/pages/dashboard/`, `src/routes/_auth/shifts.tsx`, `src/pages/app-shifts/`, `src/routes/_auth/shifts_.$recruitmentId_.board.tsx`, `src/pages/app-shift-board/` |
 | 募集の作成 | `src/components/features/CreateRecruitmentForm/`, `src/components/features/Dashboard/RecruitmentManagement/`, `src/components/features/OrganizationRecruitmentManagement/` |
 | 募集の一覧 | `src/components/features/Dashboard/RecruitmentBoard/` |
 | 募集API | `convex/recruitment/mutations.ts`, `convex/recruitment/service.ts` |
@@ -100,9 +100,9 @@ lease、cursor、dedupe、再開、保持期限は[Notification Outbox](notifica
 | 未認証、他組織、removed所属、削除済み組織を拒否し、active店舗を固定page上限のcursorで取得でき、legacy集計とスタッフscanの上限到達を黙って正確な値にしない | Convex Function Test | `convex/appOrganization/queries.test.ts` |
 | 一つの組織query familyを最後まで取得し、全店舗の募集を状態別に統合し、filterとシフト表遷移を接続する | Frontend Unit Test | `src/pages/app-shifts/index.test.tsx` |
 | 選択した店舗IDと組織IDを作成・削除mutationへ渡し、店舗filter時だけ過去募集を遅延取得し、組織またはfilter変更前の完了結果を現在のDialogへ反映しない | Frontend Unit Test | `src/components/features/OrganizationRecruitmentManagement/index.test.tsx` |
-| `/app/shifts`では店舗選択Stepを表示し、Dashboardでは省略する一方、どちらの確認Stepにも店舗名を表示する | Storybook Behavior / VRT | `src/components/features/CreateRecruitmentForm/index.stories.tsx` |
+| `/shifts`では店舗選択Stepを表示し、Dashboardでは省略する一方、どちらの確認Stepにも店舗名を表示する | Storybook Behavior / VRT | `src/components/features/CreateRecruitmentForm/index.stories.tsx` |
 | 全店舗カードのPC・SP配置、店舗filter、Loading・Empty・QueryErrorを表示する | Storybook Behavior / VRT | `src/pages/app-shifts/index.stories.tsx`, `src/components/features/Dashboard/RecruitmentBoard/index.stories.tsx` |
-| `/app/shifts`の初期filterが「すべて」で、対象店舗の選択から実募集作成、店舗名付きカード、共通ヘッダー付きシフト表まで実frontendとConvexを接続する | E2E | `e2e/pages/AppShiftsPage.ts`, `e2e/scenarios/first-shift-delivery.test.ts`（`E2E-SHIFT-01`） |
+| `/shifts`の初期filterが「すべて」で、対象店舗の選択から実募集作成、店舗名付きカード、共通ヘッダー付きシフト表まで実frontendとConvexを接続する | E2E | `e2e/pages/AppShiftsPage.ts`, `e2e/scenarios/first-shift-delivery.test.ts`（`E2E-SHIFT-01`） |
 
 ## 関連文書
 

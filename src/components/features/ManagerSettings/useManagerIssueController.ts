@@ -59,7 +59,7 @@ export function useManagerIssueController({
       if (onCompleted) {
         onCompleted();
       } else {
-        void navigate({ to: "/app/manage/managers", search: { org: organizationId }, replace: true });
+        void navigate({ to: "/manage/managers", search: { org: organizationId }, replace: true });
       }
       return true;
     } catch (error) {

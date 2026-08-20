@@ -1,12 +1,12 @@
 type AppOrganizationSwitchPath =
   | "/dashboard"
-  | "/app/shifts"
-  | "/app/staff"
-  | "/app/actions"
-  | "/app/manage"
-  | "/app/manage/organization"
-  | "/app/manage/managers"
-  | "/app/manage/billing";
+  | "/shifts"
+  | "/staff"
+  | "/actions"
+  | "/manage"
+  | "/manage/organization"
+  | "/manage/managers"
+  | "/manage/billing";
 
 type AppOrganizationSwitchTarget = {
   to: AppOrganizationSwitchPath;
@@ -15,13 +15,13 @@ type AppOrganizationSwitchTarget = {
 
 const PRESERVED_ORGANIZATION_PATHS = new Set<AppOrganizationSwitchPath>([
   "/dashboard",
-  "/app/shifts",
-  "/app/staff",
-  "/app/actions",
-  "/app/manage",
-  "/app/manage/organization",
-  "/app/manage/managers",
-  "/app/manage/billing",
+  "/shifts",
+  "/staff",
+  "/actions",
+  "/manage",
+  "/manage/organization",
+  "/manage/managers",
+  "/manage/billing",
 ]);
 
 /**
@@ -42,16 +42,20 @@ export function resolveAppOrganizationSwitchTarget(
 }
 
 function resolveAppOrganizationSwitchPath(pathname: string): AppOrganizationSwitchPath | null {
-  if (PRESERVED_ORGANIZATION_PATHS.has(pathname as AppOrganizationSwitchPath)) {
-    return pathname as AppOrganizationSwitchPath;
+  const routePathname = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  const staticPathname = routePathname.toLowerCase();
+
+  if (PRESERVED_ORGANIZATION_PATHS.has(staticPathname as AppOrganizationSwitchPath)) {
+    return staticPathname as AppOrganizationSwitchPath;
   }
 
-  if (pathname.startsWith("/app/shifts/")) return "/app/shifts";
-  if (pathname.startsWith("/app/staff/")) return "/app/staff";
-  if (pathname === "/app/manage/managers/invite-staff" || pathname === "/app/manage/managers/invite-new") {
-    return "/app/manage/managers";
+  if (/^\/shifts\/[^/]+\/board$/i.test(routePathname)) return "/shifts";
+  if (/^\/staff\/[^/]+$/i.test(routePathname) && staticPathname !== "/staff/register") return "/staff";
+  if (/^\/staff\/[^/]+\/shops\/[^/]+$/i.test(routePathname)) return "/staff";
+  if (staticPathname === "/manage/managers/invite-staff" || staticPathname === "/manage/managers/invite-new") {
+    return "/manage/managers";
   }
-  if (pathname.startsWith("/app/manage/shops/")) return "/app/manage";
+  if (/^\/manage\/shops\/[^/]+$/i.test(routePathname)) return "/manage";
 
   return null;
 }

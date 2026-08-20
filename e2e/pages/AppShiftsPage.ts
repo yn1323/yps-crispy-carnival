@@ -19,11 +19,11 @@ export class AppShiftsPage {
 
   async goto(organizationId?: string) {
     const search = organizationId ? `?org=${encodeURIComponent(organizationId)}` : "";
-    await this.page.goto(`/app/shifts${search}`, { waitUntil: "domcontentloaded" });
+    await this.page.goto(`/shifts${search}`, { waitUntil: "domcontentloaded" });
     await expectAppHydrated(this.page);
     await expect(this.page).toHaveURL(
       (url) =>
-        url.pathname === "/app/shifts" &&
+        url.pathname === "/shifts" &&
         Boolean(url.searchParams.get("org")) &&
         (!organizationId || url.searchParams.get("org") === organizationId) &&
         url.searchParams.get("shopFilter") === null,
@@ -51,7 +51,7 @@ export class AppShiftsPage {
     await this.page.getByRole("menuitemradio", { name: shopName, exact: true }).click();
     await expect(this.page).toHaveURL(
       (url) =>
-        url.pathname === "/app/shifts" &&
+        url.pathname === "/shifts" &&
         url.searchParams.get("org") === this.activeOrganizationId &&
         url.searchParams.get("shopFilter") === shopId,
       { timeout: APP_SHIFTS_DATA_TIMEOUT },
@@ -116,7 +116,7 @@ export class AppShiftsPage {
 
     await expect(this.page).toHaveURL(
       (url) =>
-        /^\/app\/shifts\/[^/]+\/board$/.test(url.pathname) &&
+        /^\/shifts\/[^/]+\/board$/.test(url.pathname) &&
         url.searchParams.get("org") === this.activeOrganizationId &&
         url.searchParams.get("shopFilter") === null,
       { timeout: APP_SHIFTS_DATA_TIMEOUT },

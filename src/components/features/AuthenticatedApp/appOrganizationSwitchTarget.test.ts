@@ -4,13 +4,15 @@ import { resolveAppOrganizationSwitchTarget } from "./appOrganizationSwitchTarge
 describe("resolveAppOrganizationSwitchTarget", () => {
   it.each([
     ["/dashboard", "/dashboard"],
-    ["/app/shifts", "/app/shifts"],
-    ["/app/staff", "/app/staff"],
-    ["/app/actions", "/app/actions"],
-    ["/app/manage", "/app/manage"],
-    ["/app/manage/organization", "/app/manage/organization"],
-    ["/app/manage/managers", "/app/manage/managers"],
-    ["/app/manage/billing", "/app/manage/billing"],
+    ["/shifts", "/shifts"],
+    ["/staff", "/staff"],
+    ["/actions", "/actions"],
+    ["/manage", "/manage"],
+    ["/manage/organization", "/manage/organization"],
+    ["/manage/managers", "/manage/managers"],
+    ["/manage/billing", "/manage/billing"],
+    ["/staff/", "/staff"],
+    ["/Staff/", "/staff"],
   ] as const)("%sでは同じ組織単位の画面を維持する", (pathname, to) => {
     expect(resolveAppOrganizationSwitchTarget(pathname, "organization-b")).toEqual({
       to,
@@ -19,12 +21,17 @@ describe("resolveAppOrganizationSwitchTarget", () => {
   });
 
   it.each([
-    ["/app/shifts/recruitment-a/board", "/app/shifts"],
-    ["/app/staff/person-a", "/app/staff"],
-    ["/app/staff/person-a/shops/shop-a", "/app/staff"],
-    ["/app/manage/shops/shop-a", "/app/manage"],
-    ["/app/manage/managers/invite-staff", "/app/manage/managers"],
-    ["/app/manage/managers/invite-new", "/app/manage/managers"],
+    ["/shifts/recruitment-a/board", "/shifts"],
+    ["/staff/person-a", "/staff"],
+    ["/staff/person-a/shops/shop-a", "/staff"],
+    ["/manage/shops/shop-a", "/manage"],
+    ["/manage/managers/invite-staff", "/manage/managers"],
+    ["/manage/managers/invite-new", "/manage/managers"],
+    ["/shifts/recruitment-a/board/", "/shifts"],
+    ["/staff/person-a/shops/shop-a/", "/staff"],
+    ["/manage/shops/shop-a/", "/manage"],
+    ["/Staff/person-a/", "/staff"],
+    ["/Manage/Shops/shop-a/", "/manage"],
   ] as const)("%sでは旧組織のentityや入力フローを親画面へ退避する", (pathname, to) => {
     expect(resolveAppOrganizationSwitchTarget(pathname, "organization-b")).toEqual({
       to,
@@ -32,9 +39,15 @@ describe("resolveAppOrganizationSwitchTarget", () => {
     });
   });
 
-  it("account・未定義route・空の組織IDには遷移先を作らない", () => {
+  it("account・公開route・未定義route・空の組織IDには遷移先を作らない", () => {
     expect(resolveAppOrganizationSwitchTarget("/account", "organization-b")).toBeNull();
-    expect(resolveAppOrganizationSwitchTarget("/app/unknown", "organization-b")).toBeNull();
+    expect(resolveAppOrganizationSwitchTarget("/staff/register", "organization-b")).toBeNull();
+    expect(resolveAppOrganizationSwitchTarget("/staff/register/", "organization-b")).toBeNull();
+    expect(resolveAppOrganizationSwitchTarget("/Staff/Register/", "organization-b")).toBeNull();
+    expect(resolveAppOrganizationSwitchTarget("/shifts/submit", "organization-b")).toBeNull();
+    expect(resolveAppOrganizationSwitchTarget("/shifts/submit/", "organization-b")).toBeNull();
+    expect(resolveAppOrganizationSwitchTarget("/Shifts/Submit/", "organization-b")).toBeNull();
+    expect(resolveAppOrganizationSwitchTarget("/unknown", "organization-b")).toBeNull();
     expect(resolveAppOrganizationSwitchTarget("/dashboard", "  ")).toBeNull();
   });
 });

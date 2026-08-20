@@ -1,6 +1,6 @@
 # 要対応
 
-`/app/actions`は、組織内で管理ユーザーの判断や操作が必要な現在状態を、一つの一覧へ投影する。  通知履歴や招待履歴を集める画面ではなく、未解決のsource documentだけを表示する。
+`/actions`は、組織内で管理ユーザーの判断や操作が必要な現在状態を、一つの一覧へ投影する。  通知履歴や招待履歴を集める画面ではなく、未解決のsource documentだけを表示する。
 
 Dashboardの「要対応」も同じスタッフ申請・通知失敗カードを使う。  Dashboardでは現在店舗のqueryを維持し、スタッフ申請と通知失敗を独立して開閉できる。両方を同時に開くこともできる。
 
@@ -60,7 +60,7 @@ Dashboardの「要対応」も同じスタッフ申請・通知失敗カード�
 - `src/pages/app-actions/` — route container、店舗filter、clock invalidation、追加取得、4種類のmutation dispatch、状態別StoryとUnit Test
 - `src/components/features/ActionInbox/` — Dashboardと専用画面で共有するitem builder、確認Dialog、カードのpending・failure・退場animation、Storybook Behavior/VRT
 - `src/components/features/Dashboard/StaffRegistrationRequestManagement/` / `NotificationFailureRecovery/` — 現在店舗のquery、Mutation、一括操作、人数上限案内を共有カードへ接続する
-- `src/routes/_auth/app_.actions.tsx` — route searchとcanonical組織scopeの接続
+- `src/routes/_auth/actions.tsx` — route searchとcanonical組織scopeの接続
 
 ### バックエンド
 

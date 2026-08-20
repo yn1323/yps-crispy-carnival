@@ -19,7 +19,7 @@
 - `shops.organizationId`が店舗の組織を表し、管理者APIは認証済み利用者の組織所属と選択店舗をサーバー側で検証する。
 - `getMyShops`は利用可能な店舗を組織名、店舗状態、所属状態付きで返し、`removed`になった人物へ当該組織の店舗を返さない。
 - `/dashboard`は`org`で検証した一つの組織だけを表示し、`shop`はその組織のactive店舗から選ぶ。  URLで有効な店舗、現在組織の保存済みhint、active店舗の先頭の順に解決し、名称や人物情報はbrowser storageへ保存しない。
-- `/app/manage`と`/app/manage/organization`は、検証済みの`org`を組織authorityとして使う。  組織全体のread/writeに先頭店舗やHome店舗を要求せず、canonicalな組織所属がない利用者を旧`shopMembers`だけで通さない。
+- `/manage`と`/manage/organization`は、検証済みの`org`を組織authorityとして使う。  組織全体のread/writeに先頭店舗やHome店舗を要求せず、canonicalな組織所属がない利用者を旧`shopMembers`だけで通さない。
 - 管理者一覧、管理者招待、課金画面は未公開である。  direct accessでは情報を描画せず管理画面へ戻し、招待と課金のpublic mutation/actionも副作用前に公開設定を再確認する。
 - `/dashboard`の店舗query・mutationは、画面で解決した`shopId`と`expectedOrganizationId`を同時に渡す。  URLと保存済み店舗を認可根拠にせず、管理者APIが店舗所属と組織所属の一致を再検証する。
 - `/dashboard`でactive店舗がない場合は、店舗作成を自動開始せず管理画面への回復導線を表示する。組織または店舗の切替中は、旧店舗のquery結果と開いていたDialogを次のscopeへ持ち越さない。

@@ -127,9 +127,11 @@ describe("static site manifest", () => {
     expect(disallowRules).toEqual([
       "/app",
       "/account",
+      "/actions",
       "/dashboard",
+      "/manage",
       "/shifts",
-      "/staff/register",
+      "/staff",
       "/line/callback",
       "/legal/staff/consent",
       "/sso-callback",
@@ -177,14 +179,15 @@ describe("static site manifest", () => {
       '/articles/line-shift-collection-guide/\n  Link: <https://shiftori.app/articles/shiftori-line-workflow>; rel="canonical"',
     );
 
-    for (const route of ["/app", "/app/*"]) {
+    for (const route of ["/app", "/app/*", "/manage", "/manage/*", "/shifts", "/shifts/*", "/staff", "/staff/*"]) {
       expect(headers).toContain(
         `${route}\n  Cache-Control: no-store\n  X-Robots-Tag: noindex, nofollow\n  Referrer-Policy: no-referrer`,
       );
     }
 
     for (const route of [...CSR_SHELL_STATIC_ROUTES, ...CSR_SHELL_DYNAMIC_ROUTES].filter(
-      (path) => path !== "/app" && !path.startsWith("/app/"),
+      (path) =>
+        !["/app", "/manage", "/shifts", "/staff"].some((prefix) => path === prefix || path.startsWith(`${prefix}/`)),
     )) {
       for (const source of [route, `${route}/`]) {
         expect(headers).toContain(
@@ -192,6 +195,11 @@ describe("static site manifest", () => {
         );
       }
     }
+
+    const headerRuleCount = createCloudflareHeaders(collectPublicRoutes())
+      .split(/\r?\n/)
+      .filter((line) => line !== "" && !line.startsWith("#") && !/^\s/.test(line)).length;
+    expect(headerRuleCount).toBeLessThanOrEqual(100);
   });
 
   it("repository外やrepository rootをbuild出力として受け付けない", () => {

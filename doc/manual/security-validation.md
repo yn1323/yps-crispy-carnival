@@ -53,8 +53,9 @@ GitHub Actionsの権限、trigger、Environment gate、artifactの信頼境界�
 認証済みroute切替では、次の安全契約を同じrevisionで確認する。
 
 - `/dashboard`は`org`と`shop`、`/account`は`flow`と`oauth`だけをsearchへ残し、未知key、空値、`token`、`code`、`state`を認証復帰前に除去する。
+- `/actions`、`/manage*`、`/shifts*`、`/staff*`はrouteごとの許可済みsearchだけを認証復帰前に残し、旧`/app/*`からの互換redirectも同じ正規化済みsearchだけを引き継ぐ。
 - URLの組織、店舗、人物、募集IDを認可根拠にせず、Convex public functionがactorのcanonical所属と対象の一致を再検証する。
-- `/app/home`、`/app/account`、旧`/settings*`、`/users/*`、`/shops/*`、`/shiftboard/*`を互換redirectなしで削除する。
+- `/app`は`/dashboard`へ収束させる。旧`/app/actions`、`/app/manage*`、`/app/shifts*`、`/app/staff*`はcanonical routeへreplaceし、`/app/home`、`/app/account`、旧`/settings*`、`/users/*`、`/shops/*`、`/shiftboard/*`は互換redirectなしで削除する。
 - 複数組織、複数店舗、複数管理者、支払いは未設定を閉状態とし、画面非表示だけでなくpublic mutation/actionを副作用前に拒否する。
 - 初回Setupは所属0件の本人だけに1組織、1店舗、管理者本人、`complimentary.business`を作り、二重実行、Trial deadline、Stripe objectを許可しない。
 
@@ -72,7 +73,7 @@ Playwright用Previewで将来機能を明示的に有効化しても、Productio
 | `ENV-BI-05` | Analytics容量 | 最大想定店舗数でread document数とbytes、write document数とbytes、実行時間をphase別に記録し、Analytics一覧が初期50件・最大100件、`/requests`が最大50件、trendが最大366点、responseが512 KiB未満であることを確認する |
 | `ENV-CI-01` | GitHub Actions公開境界 | 対象branch、trigger、fork制約、最小permissions、Environment gate、同じworkflowで検証したartifactだけを公開する契約が実行履歴と一致する |
 | `ENV-REL-01` | Production release | canary head、merge SHA、tree SHA、tag、Convex、Cloudflare metadataが同じreleaseを示す |
-| `ENV-ROUTES-01` | 認証済みroute | `/dashboard`と`/account`が新shellで表示され、`/app`が`/dashboard`へ収束し、削除した旧routeが互換redirectなしで404になる |
+| `ENV-ROUTES-01` | 認証済みroute | canonicalな`/dashboard`、`/account`、`/actions`、`/manage*`、`/shifts*`、`/staff*`が表示され、`/app`と互換対象の旧`/app/*`が正規化済みsearchで所定のcanonical routeへ収束し、削除した旧routeが404になる |
 | `ENV-FEATURES-01` | 未リリース機能 | Productionの四つの公開設定が閉じ、direct routeとpublic APIから組織、店舗、管理者、Stripeの副作用を作れない |
 | `ENV-SETUP-01` | 初回Setup | 専用の新規actorが1組織、1店舗、1管理者、`complimentary.business`だけを作り、再実行が拒否され、Trial deadlineとStripe objectがない |
 | `ENV-STRIPE-01` | Stripe sandbox | 支払い機能の公開準備時に、通常、3DS成功、3DS失敗、高risk、Trial SetupIntent、Portal、実Webhookをtest値で確認する。通常の閉状態ではproviderへ到達しないことを先に確認する |

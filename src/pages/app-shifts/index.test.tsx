@@ -176,7 +176,7 @@ describe("AppShiftsRoutePage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "シフト表を開く" }));
     expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/app/shifts/$recruitmentId/board",
+      to: "/shifts/$recruitmentId/board",
       params: { recruitmentId: "recruitment-sooner" },
       search: { org: "organization-1" },
     });
@@ -269,7 +269,7 @@ describe("AppShiftsRoutePage", () => {
     );
 
     expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/app/shifts",
+      to: "/shifts",
       search: { org: "organization-1" },
       replace: true,
     });

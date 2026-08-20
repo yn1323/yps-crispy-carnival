@@ -197,7 +197,7 @@ describe("AppStaffRoutePage", () => {
     expect(screen.getByText("全体の人物")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "店舗を選択" }));
     expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/app/staff",
+      to: "/staff",
       search: { org: "organization-1", shopFilter: "shop-1" },
     });
 
@@ -244,7 +244,7 @@ describe("AppStaffRoutePage", () => {
       { initialNumItems: 10 },
     );
     expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/app/staff",
+      to: "/staff",
       search: { org: "organization-1" },
       replace: true,
     });

@@ -50,7 +50,7 @@ function ConnectedAppShopDetailPage({
         minH={AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT}
         action={
           <Button asChild colorPalette="teal">
-            <RouterLink to="/app/manage" search={{ org: organizationId }}>
+            <RouterLink to="/manage" search={{ org: organizationId }}>
               管理へ戻る
             </RouterLink>
           </Button>

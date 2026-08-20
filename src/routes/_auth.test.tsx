@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   focusedFlowHeaderProps: vi.fn(),
   featureRequestActionProps: vi.fn(),
   fullPageSpinnerProps: vi.fn(),
+  getCanonicalAppHref: vi.fn(),
   appShell: null as
     | null
     | {
@@ -80,11 +81,25 @@ vi.mock("@/src/components/features/AuthenticatedApp", () => ({
     mocks.authGuardProps();
     return children;
   },
-  getCanonicalAppHref: () => null,
-  isAppPath: (pathname: string) => pathname === "/app" || pathname.startsWith("/app/"),
+  getCanonicalAppHref: mocks.getCanonicalAppHref,
+  isAppOrganizationScopedPath: (pathname: string) => {
+    const normalized = (pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname).toLowerCase();
+    return (
+      normalized === "/dashboard" ||
+      normalized === "/actions" ||
+      normalized === "/shifts" ||
+      normalized.startsWith("/shifts/") ||
+      normalized === "/staff" ||
+      (normalized.startsWith("/staff/") && normalized !== "/staff/register") ||
+      normalized === "/manage" ||
+      normalized.startsWith("/manage/") ||
+      normalized === "/app" ||
+      normalized.startsWith("/app/")
+    );
+  },
   resolveAppFeatureRequestScope: () => ({ kind: "organization" }),
   resolveAppOrganizationSwitchTarget: (pathname: string, organizationId: string) => {
-    const parentPath = pathname.startsWith("/app/staff/") ? "/app/staff" : pathname;
+    const parentPath = pathname.startsWith("/staff/") ? "/staff" : pathname;
     return { to: parentPath, search: { org: organizationId } };
   },
   resolveAppShellRouteData: () => mocks.appShell,
@@ -175,6 +190,7 @@ beforeEach(() => {
   mocks.focusedFlowHeaderProps.mockReset();
   mocks.featureRequestActionProps.mockReset();
   mocks.fullPageSpinnerProps.mockReset();
+  mocks.getCanonicalAppHref.mockReset();
   mocks.appShell = null;
   mocks.pathname = "/dashboard";
   mocks.organizationState = null;
@@ -183,6 +199,7 @@ beforeEach(() => {
   mocks.usePathlessRouteNavigate.mockReturnValue(mocks.pathlessRouteNavigate);
   mocks.useSearch.mockReturnValue({});
   mocks.redirect.mockImplementation(() => new Error("redirect"));
+  mocks.getCanonicalAppHref.mockReturnValue(null);
 });
 
 function callBeforeLoad(pathname: string, searchStr: string) {
@@ -192,19 +209,49 @@ function callBeforeLoad(pathname: string, searchStr: string) {
 }
 
 describe("認証済み親route", () => {
-  it("未認証判定前にaccountの未知値とcredential・PII候補を復帰先から除去する", () => {
-    expect(() =>
-      callBeforeLoad(
-        "/account",
-        "?flow=connect-google&oauth=google&token=secret&code=oauth-code&email=manager%40example.com&unknown=value",
-      ),
-    ).toThrow("redirect");
+  it("未認証判定前にcanonical protected routeのcredential・PII候補を復帰先から除去する", () => {
+    mocks.getCanonicalAppHref.mockReturnValue("/staff/person-a?org=org-a");
 
+    expect(() => callBeforeLoad("/staff/person-a", "?org=org-a&token=secret&email=manager%40example.com")).toThrow(
+      "redirect",
+    );
+
+    expect(mocks.getCanonicalAppHref).toHaveBeenCalledWith(
+      "/staff/person-a",
+      "?org=org-a&token=secret&email=manager%40example.com",
+    );
     expect(mocks.redirect).toHaveBeenCalledWith({
-      href: "/account?flow=connect-google&oauth=google",
+      href: "/staff/person-a?org=org-a",
       replace: true,
     });
+    expect(mocks.authGuardProps).not.toHaveBeenCalled();
   });
+
+  it.each(["/staff/register", "/shifts/submit"])(
+    "公開route %s は認証routeのcanonicalization対象にしない",
+    (pathname) => {
+      expect(() => callBeforeLoad(pathname, "?token=public-capability")).not.toThrow();
+      expect(mocks.getCanonicalAppHref).toHaveBeenLastCalledWith(pathname, "?token=public-capability");
+      expect(mocks.redirect).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["/account", "/Account", "/account/"])(
+    "未認証判定前に%sの未知値とcredential・PII候補を復帰先から除去する",
+    (pathname) => {
+      expect(() =>
+        callBeforeLoad(
+          pathname,
+          "?flow=connect-google&oauth=google&token=secret&code=oauth-code&email=manager%40example.com&unknown=value",
+        ),
+      ).toThrow("redirect");
+
+      expect(mocks.redirect).toHaveBeenCalledWith({
+        href: "/account?flow=connect-google&oauth=google",
+        replace: true,
+      });
+    },
+  );
 
   it("accountの許可済みflowとOAuth markerだけならbeforeLoadで置換しない", () => {
     expect(() => callBeforeLoad("/account", "?flow=connect-google&oauth=google")).not.toThrow();
@@ -224,7 +271,7 @@ describe("認証済み親route", () => {
   });
 
   it("アカウント設定は本文を組織scopeに依存させず、canonical組織の要望送信を表示する", () => {
-    mocks.pathname = "/account";
+    mocks.pathname = "/Account/";
     mocks.appShell = { mode: "navigation", activeKey: null };
     mocks.useSearch.mockReturnValue({ org: "organization-a", flow: "connect-google", oauth: "google" });
     const RouteComponent = Route.options.component;
@@ -259,7 +306,7 @@ describe("認証済み親route", () => {
   });
 
   it("Dashboardのorg・shopを新しい組織scopeとapp shellへ接続する", () => {
-    mocks.pathname = "/dashboard";
+    mocks.pathname = "/Dashboard/";
     mocks.appShell = { mode: "navigation", activeKey: "home" };
     mocks.useSearch.mockReturnValue({ org: "organization-a", shop: "home-shop" });
     const RouteComponent = Route.options.component;
@@ -278,7 +325,7 @@ describe("認証済み親route", () => {
   });
 
   it("組織が未作成ならDashboardの初回Setupを新shell内に表示する", () => {
-    mocks.pathname = "/dashboard";
+    mocks.pathname = "/Dashboard/";
     mocks.appShell = { mode: "navigation", activeKey: "home" };
     mocks.organizationState = { kind: "empty" };
     const RouteComponent = Route.options.component;
@@ -296,7 +343,7 @@ describe("認証済み親route", () => {
   });
 
   it("詳細画面で組織を変更すると旧entityを持ち越さず同じ主タブへ移動する", () => {
-    mocks.pathname = "/app/staff/person-a";
+    mocks.pathname = "/staff/person-a";
     mocks.appShell = { mode: "navigation", activeKey: "staff" };
     mocks.useSearch.mockReturnValue({ org: "organization-a" });
     const RouteComponent = Route.options.component;
@@ -306,13 +353,13 @@ describe("認証済み親route", () => {
     fireEvent.click(screen.getByRole("button", { name: "B組織へ切り替える" }));
 
     expect(mocks.currentNavigate).toHaveBeenCalledWith({
-      to: "/app/staff",
+      to: "/staff",
       search: { org: "organization-b" },
     });
   });
 
   it("シフト調整画面は共通appヘッダーと組織切替を表示する", () => {
-    mocks.pathname = "/app/shifts/recruitment-a/board";
+    mocks.pathname = "/shifts/recruitment-a/board";
     mocks.appShell = { mode: "navigation", activeKey: "shifts" };
     mocks.useSearch.mockReturnValue({ org: "organization-a" });
     const RouteComponent = Route.options.component;
@@ -332,7 +379,7 @@ describe("認証済み親route", () => {
   });
 
   it("管理者招待の集中フローでは組織切替を表示しない", () => {
-    mocks.pathname = "/app/manage/managers/invite-staff";
+    mocks.pathname = "/manage/managers/invite-staff";
     mocks.appShell = {
       mode: "focused",
       title: "既存スタッフを招待",

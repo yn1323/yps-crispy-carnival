@@ -36,7 +36,7 @@ export const enqueueBillingNotification = internalAction({
     if (!data) return { enqueuedCount: 0 };
 
     const copy = organizationBillingNotificationCopy(args.event, data.trialEnding, args.notificationDetails);
-    const settingsUrl = new URL("/app/manage/billing", getAppUrl());
+    const settingsUrl = new URL("/manage/billing", getAppUrl());
     settingsUrl.searchParams.set("org", data.organizationId);
     let enqueuedCount = 0;
     for (const recipient of data.recipients) {

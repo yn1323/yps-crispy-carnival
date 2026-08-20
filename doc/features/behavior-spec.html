@@ -180,7 +180,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <tr>
 <td><a href="staff-registration.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">スタッフ参加QR・承認導線</a></td>
 <td>店舗専用QR/URLからスタッフ本人が名前・連絡先・同意を申請し、管理者が承認・却下する。Turnstileとレート制限でbotを抑止し、承認待ちがある店舗へ日次digestを送る</td>
-<td><code>/staff/register</code>、Dashboard、<code>/app/actions</code></td>
+<td><code>/staff/register</code>、Dashboard、<code>/actions</code></td>
 </tr>
 </tbody></table></div>
 <h3 id="overview-s6">3.2 組織・店舗・人物・権限</h3>
@@ -195,7 +195,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <tbody><tr>
 <td><a href="organization-billing.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">組織課金、複数店舗、複数管理者</a></td>
 <td>組織単位の契約・利用上限・課金状態の管理。組織名変更、組織削除、管理者招待（未公開）、プランと支払い（未公開）</td>
-<td><code>/app/manage</code>、<code>/app/manage/organization</code>、<code>/app/manage/billing</code>（未公開）、<code>/app/manage/managers</code>（未公開）</td>
+<td><code>/manage</code>、<code>/manage/organization</code>、<code>/manage/billing</code>（未公開）、<code>/manage/managers</code>（未公開）</td>
 </tr>
 <tr>
 <td><a href="manager-shop-membership.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">店舗単位管理者所属の移行互換</a></td>
@@ -205,12 +205,12 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <tr>
 <td><a href="shop-settings.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">店舗設定</a></td>
 <td>店舗名、希望シフトの提出方法（時間指定・日ごと・勤務区分）、定休日、所属スタッフの一括変更、店舗削除</td>
-<td><code>/app/manage/shops/&lt;shopId&gt;</code></td>
+<td><code>/manage/shops/&lt;shopId&gt;</code></td>
 </tr>
 <tr>
 <td><a href="user-detail.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">スタッフ詳細</a></td>
 <td>組織人物（<code>organizationPeople</code>）を正本に、氏名・シフト連絡先、所属店舗、LINE連携、管理者権限バッジ、組織からの削除を扱う。店舗別設定で通知・通知履歴・シフト対象設定を扱う</td>
-<td><code>/app/staff</code>、<code>/app/staff/&lt;personId&gt;</code>、<code>/app/staff/&lt;personId&gt;/shops/&lt;shopId&gt;</code></td>
+<td><code>/staff</code>、<code>/staff/&lt;personId&gt;</code>、<code>/staff/&lt;personId&gt;/shops/&lt;shopId&gt;</code></td>
 </tr>
 </tbody></table></div>
 <h3 id="overview-s7">3.3 募集・希望提出・シフト編集・確定</h3>
@@ -225,12 +225,12 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <tbody><tr>
 <td><a href="shift-recruitment-management.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">シフト募集管理</a></td>
 <td>募集の作成、状態別一覧（現在・要調整・募集中・確定済み・過去）、論理削除。作成時に募集通知・提出催促・確定催促を予約する</td>
-<td><code>/dashboard</code>、<code>/app/shifts</code></td>
+<td><code>/dashboard</code>、<code>/shifts</code></td>
 </tr>
 <tr>
 <td><a href="shift-board.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">シフト表</a></td>
 <td>提出方式に対応した割当編集（PC週表・SP日別）、未保存変更の確認、確定前validation、希望との食い違い表示、下書き保存、確定と差分再通知</td>
-<td><code>/app/shifts/&lt;recruitmentId&gt;/board</code></td>
+<td><code>/shifts/&lt;recruitmentId&gt;/board</code></td>
 </tr>
 <tr>
 <td><a href="shift-submission.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">希望シフト提出</a></td>
@@ -265,7 +265,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <tbody><tr>
 <td><a href="action-inbox.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">要対応</a></td>
 <td>締切超過の未確定募集、承認待ち申請、不達通知、招待エラーを組織横断で一覧化し、承認・再送・解決の操作を受け付ける</td>
-<td><code>/app/actions</code></td>
+<td><code>/actions</code></td>
 </tr>
 <tr>
 <td><a href="line-notification.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">LINE通知連携</a></td>
@@ -867,7 +867,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 <tr>
 <td><strong>締切後〜確定前（<code>open</code>のまま）</strong></td>
-<td>編集・保存・確定が可能。Dashboardで「要シフト調整」、<code>/app/actions</code>に表示。締切翌日17:00に確定催促が届く</td>
+<td>編集・保存・確定が可能。Dashboardで「要シフト調整」、<code>/actions</code>に表示。締切翌日17:00に確定催促が届く</td>
 <td><strong>提出リンクは引き続き開ける（シフト開始日0:00 JSTまで）。提出済みなら閲覧のみ、未提出なら確認ダイアログ後に初回提出だけ可能</strong></td>
 </tr>
 <tr>
@@ -2345,7 +2345,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <li>確定済みの募集へ「確定」意図で<code>confirmRecruitment</code>を呼んでもエラーにならず<strong>no-op（<code>null</code>を返す）</strong>。再通知は「再送」意図（<code>intent: &quot;resend&quot;</code>）で行い、未確定の募集への再送意図はエラーになる。</li>
 <li>募集作成時、催促は<strong>予定時刻が作成時点より未来の場合だけ</strong>予約する（締切が近すぎる募集には催促が付かない）。機能デプロイ前から存在する募集にも予約はない。</li>
 <li>Dashboardの分類は「現在のシフト」（今日が期間内の確定済み）→「要シフト調整」（締切超過のopen）→「募集中」→「確定済み（未来）」→「過去のシフト」の順で、空の分類は表示しない。</li>
-<li>締切を過ぎてもopenの募集は<code>/app/actions</code>（要対応）にも表示される。締切判定はserver時刻が正本で、画面を開いたまま締切が到来しても再評価される。</li>
+<li>締切を過ぎてもopenの募集は<code>/actions</code>（要対応）にも表示される。締切判定はserver時刻が正本で、画面を開いたまま締切が到来しても再評価される。</li>
 <li>募集の削除に日付条件はない（存在・店舗一致だけを確認するため、過去の募集も削除できる）。</li>
 </ul>
 <h3 id="shift-s5">2.2 時期×操作の可否マトリクス（○×早見表）</h3>
@@ -3300,7 +3300,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <tr>
 <td><code>organizationQuery/Mutation</code></td>
 <td>認証＋URLの<code>organizationId</code>に対するcanonicalな<code>organizationMembers</code></td>
-<td><code>/app/*</code>の組織スコープ画面</td>
+<td>認証済みappの組織スコープ画面</td>
 </tr>
 <tr>
 <td><code>managerQuery/Mutation</code></td>
@@ -3344,7 +3344,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 </thead>
 <tbody><tr>
-<td>スタッフ詳細（<code>/app/staff/&lt;personId&gt;</code>）</td>
+<td>スタッフ詳細（<code>/staff/&lt;personId&gt;</code>）</td>
 <td>存在しない人物／削除済み人物／別組織の人物 → 同じ「ユーザーを表示できません」</td>
 </tr>
 <tr>

@@ -3,7 +3,7 @@ import { LuCalendarDays, LuHouse, LuMessageCircle, LuSettings, LuUsersRound } fr
 
 export type AppNavigationKey = "home" | "shifts" | "staff" | "actions" | "manage";
 
-export type AppNavigationHref = "/dashboard" | "/app/shifts" | "/app/staff" | "/app/actions" | "/app/manage";
+export type AppNavigationHref = "/dashboard" | "/shifts" | "/staff" | "/actions" | "/manage";
 
 export type AppPrimaryNavigationItem = {
   key: AppNavigationKey;
@@ -18,8 +18,8 @@ export type AppPrimaryNavigationItem = {
 
 export const APP_PRIMARY_NAVIGATION_ITEMS: readonly AppPrimaryNavigationItem[] = [
   { key: "home", label: "ホーム", href: "/dashboard", icon: LuHouse },
-  { key: "shifts", label: "シフト", href: "/app/shifts", icon: LuCalendarDays },
-  { key: "staff", label: "スタッフ", href: "/app/staff", icon: LuUsersRound },
-  { key: "actions", label: "要対応", href: "/app/actions", icon: LuMessageCircle },
-  { key: "manage", label: "管理", href: "/app/manage", icon: LuSettings },
+  { key: "shifts", label: "シフト", href: "/shifts", icon: LuCalendarDays },
+  { key: "staff", label: "スタッフ", href: "/staff", icon: LuUsersRound },
+  { key: "actions", label: "要対応", href: "/actions", icon: LuMessageCircle },
+  { key: "manage", label: "管理", href: "/manage", icon: LuSettings },
 ];

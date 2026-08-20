@@ -17,7 +17,7 @@ export function ShopDetail({ shop, people, organizationId, isShopAdditionEnabled
   const navigate = useNavigate();
   const router = useRouter();
   const navigateBack = () => {
-    void navigate({ to: "/app/manage", search: { org: organizationId }, replace: true });
+    void navigate({ to: "/manage", search: { org: organizationId }, replace: true });
   };
   const returnToPreviousScreen = () => router.history.back();
   const deletion = useShopDeletionController({
@@ -39,7 +39,7 @@ export function ShopDetail({ shop, people, organizationId, isShopAdditionEnabled
       onBack={returnToPreviousScreen}
       onOpenUser={(personId) =>
         void navigate({
-          to: "/app/staff/$personId",
+          to: "/staff/$personId",
           params: { personId },
           search: { org: organizationId },
         })

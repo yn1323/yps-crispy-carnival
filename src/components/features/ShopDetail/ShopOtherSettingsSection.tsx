@@ -37,7 +37,7 @@ export function ShopOtherSettingsSection({ shop, organizationId, onRequestDelete
             登録情報をすべて削除したい場合は
             <Link asChild color="teal.700" fontWeight="semibold" textDecoration="underline" textUnderlineOffset="3px">
               <RouterLink
-                to="/app/manage/organization"
+                to="/manage/organization"
                 search={{ org: organizationId }}
                 aria-label="こちら（組織情報を開く）"
               >

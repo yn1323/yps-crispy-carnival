@@ -46,7 +46,7 @@ export function AppShiftsRoutePage(props: Props) {
   useEffect(() => {
     if (!shouldReplaceSearch) return;
     void navigate({
-      to: "/app/shifts",
+      to: "/shifts",
       search: { org: props.organizationId },
       replace: true,
     });
@@ -122,7 +122,7 @@ function ConnectedAppShifts({
         isReadOnly={isReadOnly}
         onFilterChange={(nextFilter) =>
           void navigate({
-            to: "/app/shifts",
+            to: "/shifts",
             search: { org: organizationId, ...(nextFilter ? { shopFilter: nextFilter } : {}) },
           })
         }
@@ -136,7 +136,7 @@ function ConnectedAppShifts({
           getRecruitmentShop={(recruitment) => overview.recruitmentShops.get(recruitment._id)}
           onOpenShiftBoard={(recruitmentId) =>
             void navigate({
-              to: "/app/shifts/$recruitmentId/board",
+              to: "/shifts/$recruitmentId/board",
               params: { recruitmentId },
               search: { org: organizationId },
             })

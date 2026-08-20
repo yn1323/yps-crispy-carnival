@@ -81,7 +81,7 @@ const NAVIGATION_CALLSITE_ALLOWLIST = [
   // toを省略した各navigateは現在のclosed routeを保ち、searchだけを正規化・更新する。
   "src/routes/_auth/account.tsx :: AccountSecurityRoute :: call:navigate :: dynamic:{ replace: true, search: () => buildCanonicalAccountSecuritySearch(validatedSearch), }",
   "src/routes/_auth/account.tsx :: handleStartFlow :: call:navigate :: dynamic:{ search: () => ({ org, flow: nextFlow, oauth: undefined, shop: undefined }) }",
-  "src/routes/_auth/app_.manage_.billing.tsx :: handleStripeResult :: call:navigate :: dynamic:{ search: (previous) => ({ ...previous, stripe: undefined }), replace: true, }",
+  "src/routes/_auth/manage_.billing.tsx :: handleStripeResult :: call:navigate :: dynamic:{ search: (previous) => ({ ...previous, stripe: undefined }), replace: true, }",
   "src/routes/_auth.tsx :: handleOrganizationSelect :: call:navigate :: dynamic:{ to: target.to, search: target.search }",
   "src/routes/_auth/account.tsx :: handleBackToOverview :: call:navigate :: dynamic:{ replace: true, search: clearAccountSecurityFlowSearch }",
   "src/routes/_auth/account.tsx :: handleGoogleOAuthReturn :: call:navigate :: dynamic:{ replace: true, search: clearAccountSecurityOAuthSearch, }",

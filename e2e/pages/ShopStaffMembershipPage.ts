@@ -8,7 +8,7 @@ export class ShopStaffMembershipPage {
   constructor(private page: Page) {}
 
   async openTargetShopFromManagement(seed: ShopStaffMembershipScenarioSeed) {
-    await this.page.goto(`/app/manage?org=${encodeURIComponent(seed.organizationId)}`, {
+    await this.page.goto(`/manage?org=${encodeURIComponent(seed.organizationId)}`, {
       waitUntil: "domcontentloaded",
     });
     await expectAppHydrated(this.page);
@@ -56,7 +56,7 @@ export class ShopStaffMembershipPage {
   async openCandidateStaffDetailAndReturn(seed: ShopStaffMembershipScenarioSeed) {
     await this.staffRow(seed.additionCandidateName).click();
     await expect(this.page).toHaveURL(
-      (url) => /^\/app\/staff\/[^/]+$/.test(url.pathname) && url.searchParams.get("org") === seed.organizationId,
+      (url) => /^\/staff\/[^/]+$/.test(url.pathname) && url.searchParams.get("org") === seed.organizationId,
       { timeout: SHOP_STAFF_MEMBERSHIP_TIMEOUT },
     );
     await expect(this.page.getByRole("heading", { name: "スタッフ詳細", exact: true })).toBeVisible({
@@ -114,8 +114,7 @@ export class ShopStaffMembershipPage {
   private async expectTargetShopWithContext(seed: ShopStaffMembershipScenarioSeed) {
     await expect(this.page).toHaveURL(
       (url) =>
-        url.pathname === `/app/manage/shops/${seed.targetShopId}` &&
-        url.searchParams.get("org") === seed.organizationId,
+        url.pathname === `/manage/shops/${seed.targetShopId}` && url.searchParams.get("org") === seed.organizationId,
       { timeout: SHOP_STAFF_MEMBERSHIP_TIMEOUT },
     );
     await expect(this.page.getByRole("heading", { name: seed.targetShopName, exact: true })).toBeVisible({

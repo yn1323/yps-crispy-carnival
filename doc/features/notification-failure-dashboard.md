@@ -10,7 +10,7 @@
 
 - `src/components/features/Dashboard/HeroSummary/index.tsx` — 「要対応」に不達通知の件数と開閉パネルを表示する
 - `src/components/features/Dashboard/NotificationFailureRecovery/` — open 不達通知query、個別/一斉再通知、再送せず破棄するmutation、受付済み状態を所有する
-- `src/components/features/ActionInbox/` — Dashboardと`/app/actions`で共有する不達通知カード、退場animation、確認Dialog
+- `src/components/features/ActionInbox/` — Dashboardと`/actions`で共有する不達通知カード、退場animation、確認Dialog
 
 ### バックエンド（`convex/`）
 
@@ -39,7 +39,7 @@
 | 画面 | 役割 |
 |---|---|
 | シフト担当者ダッシュボード | open 不達通知がある場合に「送れなかった通知がN件あります」を表示する。行を開くと共通カードを表示し、個別/一斉の再通知または確認後の破棄を受け付ける |
-| `/app/actions` | 組織または店舗scopeの不達通知をDashboardと同じカードで表示し、個別の再通知または確認後の破棄を受け付ける |
+| `/actions` | 組織または店舗scopeの不達通知をDashboardと同じカードで表示し、個別の再通知または確認後の破棄を受け付ける |
 
 ## API 一覧
 

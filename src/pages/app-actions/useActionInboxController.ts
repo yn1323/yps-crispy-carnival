@@ -77,7 +77,7 @@ export function useActionInboxController({
     () => ({
       openShift: (item) =>
         void navigate({
-          to: "/app/shifts/$recruitmentId/board",
+          to: "/shifts/$recruitmentId/board",
           params: { recruitmentId: item.recruitmentId },
           search: { org: organizationId },
         }),

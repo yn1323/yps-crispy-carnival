@@ -15,6 +15,12 @@ describe("resolveAppFeatureRequestScope", () => {
         shop: shops[1],
       },
     );
+    expect(
+      resolveAppFeatureRequestScope({ pathname: "/dashboard/", homeShopId: "shop-b", activeShops: shops }),
+    ).toEqual({
+      kind: "shop",
+      shop: shops[1],
+    });
   });
 
   it("組織外または無効なHome店舗を既定にせず、組織scopeへ戻す", () => {
@@ -24,20 +30,28 @@ describe("resolveAppFeatureRequestScope", () => {
   });
 
   it("店舗詳細はroute paramとactive店舗の一致を内部送信先にする", () => {
-    expect(resolveAppFeatureRequestScope({ pathname: "/app/manage/shops/shop-a", activeShops: shops })).toEqual({
+    expect(resolveAppFeatureRequestScope({ pathname: "/manage/shops/shop-a", activeShops: shops })).toEqual({
+      kind: "shop",
+      shop: shops[0],
+    });
+    expect(resolveAppFeatureRequestScope({ pathname: "/manage/shops/shop-a/", activeShops: shops })).toEqual({
+      kind: "shop",
+      shop: shops[0],
+    });
+    expect(resolveAppFeatureRequestScope({ pathname: "/Manage/Shops/shop-a/", activeShops: shops })).toEqual({
       kind: "shop",
       shop: shops[0],
     });
     expect(
       resolveAppFeatureRequestScope({
-        pathname: "/app/staff/person-a/shops/shop-b",
+        pathname: "/staff/person-a/shops/shop-b",
         activeShops: shops,
       }),
     ).toEqual({
       kind: "shop",
       shop: shops[1],
     });
-    expect(resolveAppFeatureRequestScope({ pathname: "/app/shifts", activeShops: shops })).toEqual({
+    expect(resolveAppFeatureRequestScope({ pathname: "/shifts", activeShops: shops })).toEqual({
       kind: "organization",
     });
   });
@@ -45,9 +59,20 @@ describe("resolveAppFeatureRequestScope", () => {
   it("店舗詳細でもroute paramがactive組織店舗でなければ組織scopeへ戻す", () => {
     expect(
       resolveAppFeatureRequestScope({
-        pathname: "/app/staff/person-a/shops/foreign-shop",
+        pathname: "/staff/person-a/shops/foreign-shop",
         activeShops: shops,
       }),
     ).toEqual({ kind: "organization" });
   });
+
+  it.each(["/staff/register", "/shifts/submit"])("公開route %s は店舗scopeとして扱わない", (pathname) => {
+    expect(resolveAppFeatureRequestScope({ pathname, activeShops: shops })).toEqual({ kind: "organization" });
+  });
+
+  it.each(["/staff/register/", "/Staff/Register/", "/shifts/submit/", "/Shifts/Submit/"])(
+    "公開route %s のslash URLも店舗scopeとして扱わない",
+    (pathname) => {
+      expect(resolveAppFeatureRequestScope({ pathname, activeShops: shops })).toEqual({ kind: "organization" });
+    },
+  );
 });

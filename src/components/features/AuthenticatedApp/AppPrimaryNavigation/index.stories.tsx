@@ -24,12 +24,23 @@ export const Desktop: Story = {
       "href",
       `/dashboard?org=${ORGANIZATION_ID}`,
     );
+    await expect(within(navigation).getByRole("link", { name: "スタッフ" })).toHaveAttribute(
+      "href",
+      `/staff?org=${ORGANIZATION_ID}`,
+    );
     await expect(within(navigation).getByRole("link", { name: "スタッフ" })).toHaveAttribute("aria-current", "page");
     await expect(within(navigation).getByRole("link", { name: "シフト" })).toHaveAttribute(
       "href",
-      `/app/shifts?org=${ORGANIZATION_ID}`,
+      `/shifts?org=${ORGANIZATION_ID}`,
     );
-    await expect(within(navigation).getByRole("link", { name: "要対応" })).toBeVisible();
+    await expect(within(navigation).getByRole("link", { name: "要対応" })).toHaveAttribute(
+      "href",
+      `/actions?org=${ORGANIZATION_ID}`,
+    );
+    await expect(within(navigation).getByRole("link", { name: "管理" })).toHaveAttribute(
+      "href",
+      `/manage?org=${ORGANIZATION_ID}`,
+    );
     await expect(within(navigation).queryByText("4")).not.toBeInTheDocument();
   },
 };

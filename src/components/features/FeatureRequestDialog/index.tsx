@@ -140,7 +140,7 @@ type AppFeatureRequestDialogProps = {
   onSubmit: (data: { shopId?: Id<"shops">; comment: string; requestId: string }) => Promise<void>;
 };
 
-/** /appの画面scopeは内部送信だけに使い、利用者には要望本文だけを入力してもらう。 */
+/** 認証済みappの画面scopeは内部送信だけに使い、利用者には要望本文だけを入力してもらう。 */
 export function AppFeatureRequestDialog({ scope, onSubmit }: AppFeatureRequestDialogProps) {
   const shopId = resolveAppFeatureRequestShopId(scope);
 

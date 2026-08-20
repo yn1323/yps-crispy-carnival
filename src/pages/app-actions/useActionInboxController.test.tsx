@@ -92,7 +92,7 @@ describe("useActionInboxController", () => {
     const shift = findItem(result.current.items, "shift");
     await runEnabledAction(getAction(shift.actions, "シフトを組む"));
     expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
-      to: "/app/shifts/$recruitmentId/board",
+      to: "/shifts/$recruitmentId/board",
       params: { recruitmentId: "recruitment-1" },
       search: { org: organizationId },
     });

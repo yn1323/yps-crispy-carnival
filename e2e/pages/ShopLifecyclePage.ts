@@ -7,12 +7,12 @@ export class ShopLifecyclePage {
   constructor(private page: Page) {}
 
   async gotoManagement(organizationId: string) {
-    await this.page.goto(`/app/manage?org=${encodeURIComponent(organizationId)}`, {
+    await this.page.goto(`/manage?org=${encodeURIComponent(organizationId)}`, {
       waitUntil: "domcontentloaded",
     });
     await expectAppHydrated(this.page);
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === "/app/manage" && url.searchParams.get("org") === organizationId,
+      (url) => url.pathname === "/manage" && url.searchParams.get("org") === organizationId,
       { timeout: SHOP_DATA_TIMEOUT },
     );
     await expect(this.page.getByRole("heading", { name: "管理", exact: true })).toBeVisible({
@@ -107,7 +107,7 @@ export class ShopLifecyclePage {
 
   async expectManagementReady(organizationId: string) {
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === "/app/manage" && url.searchParams.get("org") === organizationId,
+      (url) => url.pathname === "/manage" && url.searchParams.get("org") === organizationId,
       { timeout: SHOP_DATA_TIMEOUT },
     );
     await expect(this.page.getByRole("heading", { name: "管理", exact: true })).toBeVisible({

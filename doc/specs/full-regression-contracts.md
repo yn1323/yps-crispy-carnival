@@ -194,10 +194,10 @@ E2Eは代表CTAとのbrowser接続だけを守り、対象集合、channel、件
 | `E2E-AUTH-02` | logout後に同じ保護routeへ再アクセスしてもsessionを再利用しない | Desktop Chrome / 専用actor | 実装済み | `e2e/scenarios/auth-logout.test.ts` |
 | `E2E-SETUP-01` | Clerk認証、frontend、Convexを接続し、`/dashboard`から1組織、1店舗、管理者本人、`complimentary.business`を作る | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/manager-setup.test.ts` |
 | `E2E-STAFF-01` | 新appの全店舗表示から対象店舗を選んでスタッフを削除し、同じメールアドレスを管理者手入力で削除履歴の特別確認なしに再追加して、reload後も新しいスタッフを表示する | Desktop Chrome / core E2E。個人情報を含むartifactは保存しない | 実装済み。Preview実行未確認 | `e2e/pages/AppStaffPage.ts`、`e2e/pages/StaffLifecyclePage.ts`、`e2e/scenarios/staff-lifecycle.test.ts` |
-| `E2E-SHIFT-01` | `/app/shifts`の「すべて」表示から対象店舗を選んで募集し、店舗名付きカードと共通ヘッダー付きシフト表を経て、匿名staff提出、管理者確定、別匿名context閲覧を実接続する | Desktop Chrome / core E2E。Dashboard固定店舗のStep省略と確認表示はStorybook Behaviorが主担当 | 実装済み。Preview実行未確認 | `e2e/pages/AppShiftsPage.ts`、`e2e/scenarios/first-shift-delivery.test.ts`、`src/components/features/CreateRecruitmentForm/index.stories.tsx` |
+| `E2E-SHIFT-01` | `/shifts`の「すべて」表示から対象店舗を選んで募集し、店舗名付きカードと共通ヘッダー付きシフト表を経て、匿名staff提出、管理者確定、別匿名context閲覧を実接続する | Desktop Chrome / core E2E。Dashboard固定店舗のStep省略と確認表示はStorybook Behaviorが主担当 | 実装済み。Preview実行未確認 | `e2e/pages/AppShiftsPage.ts`、`e2e/scenarios/first-shift-delivery.test.ts`、`src/components/features/CreateRecruitmentForm/index.stories.tsx` |
 | `E2E-TENANT-01` | 同じmanagerが二組織を往復し、選択店舗の表示を混ぜない | Desktop Chrome / 四つの公開設定を明示したE2E deployment | 実装済み | `e2e/scenarios/tenant-switching.test.ts` |
 | `E2E-MEMBERSHIP-01` | UIから対象店舗の所属を追加・解除し、reload後も元店舗の所属を維持する | Desktop Chrome / 四つの公開設定を明示したE2E deployment | 実装済み | `e2e/scenarios/shop-staff-membership.test.ts` |
-| `E2E-SHOP-01` | UIから2店舗目を追加し、`/app/shifts`の全店舗filterへの反映、切替、更新、削除、安全な店舗への復帰を実接続する | Desktop Chrome / 四つの公開設定を明示したE2E deployment | 実装済み。Preview実行未確認 | `e2e/scenarios/shop-lifecycle.test.ts` |
+| `E2E-SHOP-01` | UIから2店舗目を追加し、`/shifts`の全店舗filterへの反映、切替、更新、削除、安全な店舗への復帰を実接続する | Desktop Chrome / 四つの公開設定を明示したE2E deployment | 実装済み。Preview実行未確認 | `e2e/scenarios/shop-lifecycle.test.ts` |
 | `E2E-ORGANIZATION-01` | UIから2組織目を作成・改名し、reloadと往復切替後も組織contextを混ぜない | Desktop Chrome / 四つの公開設定を明示したE2E deployment | 実装済み。Preview実行未確認 | `e2e/scenarios/organization-lifecycle.test.ts` |
 | `E2E-ORGANIZATION-02` | UIから追加組織を削除し、残存組織へ復帰してreload後も削除組織を表示しない | Desktop Chrome / 四つの公開設定を明示したE2E deployment | 実装済み。Preview実行未確認 | `e2e/scenarios/organization-lifecycle.test.ts` |
 | `E2E-MANAGER-01` | 管理画面から管理者設定を開き、既存スタッフへの招待を発行し、reload後の招待中を確認して取り消し、スタッフタブへ戻る | Desktop Chrome / 四つの公開設定を明示したE2E deployment、通知配送dry-run、trace・screenshot・video off | 実装済み。Preview実行未確認 | `e2e/scenarios/manager-settings.test.ts` |
@@ -219,15 +219,15 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 |---|---|---|
 | 公開コンテンツ | `/`、`/features`、`/pricing`、`/commercial-transactions`、`/faq`、`/howto`、`/articles`、`/articles/:slug`、`/articles/categories/:categorySlug`、`/demo/flow`、`/demo/shiftboard`、`/terms*`、`/privacy*`、`/contact` | `PUBLIC-STATIC-01`、`PUBLIC-DEMO-01`、`HTTP-CONTACT-01`。build、Behavior、VRT、Deployed Smoke |
 | 認証 | `/login`、`/signup`、`/forgot-password`、`/sso-callback`、`/account` | `AUTH-MANAGER-01`、`AUTH-ACCOUNT-METHODS-01`、`DELETE-ACCOUNT-01`。Frontend Unit、Behavior、Function、Scenario、E2E |
-| 認証済みアプリ | `/dashboard`、`/app/shifts*`、`/app/staff*`、`/app/actions`、`/app/manage`、`/app/manage/organization`、`/app/manage/shops/:shopId` | `AUTH-TENANT-01`、`ORG-CONTEXT-01`、`RELEASE-FEATURES-01`、`SHOP-LIFECYCLE-01`、`PERSON-MEMBERSHIP-01`、`SHIFT-BOARD-DRAFT-01`。Function、Scenario、代表E2E |
-| 未リリース管理画面 | `/app/manage/managers*`、`/app/manage/billing` | `RELEASE-FEATURES-01`、`MANAGER-INVITATION-01`、`BILLING-CHECKOUT-01`。通常は閉状態、明示的に有効化したE2E deploymentでenabled pathを検証 |
+| 認証済みアプリ | `/dashboard`、`/shifts*`、`/staff*`、`/actions`、`/manage`、`/manage/organization`、`/manage/shops/:shopId` | `AUTH-TENANT-01`、`ORG-CONTEXT-01`、`RELEASE-FEATURES-01`、`SHOP-LIFECYCLE-01`、`PERSON-MEMBERSHIP-01`、`SHIFT-BOARD-DRAFT-01`。Function、Scenario、代表E2E |
+| 未リリース管理画面 | `/manage/managers*`、`/manage/billing` | `RELEASE-FEATURES-01`、`MANAGER-INVITATION-01`、`BILLING-CHECKOUT-01`。通常は閉状態、明示的に有効化したE2E deploymentでenabled pathを検証 |
 | staff / Capability | `/shifts/submit`、`/shifts/submit/completed`、`/shifts/view`、`/shifts/reissue`、`/staff/register`、`/legal/staff/consent`、`/line/callback` | `CAP-SHIFT-SESSION-01`、`SHIFT-SUBMISSION-01`、`SHIFT-VIEW-REISSUE-01`、`STAFF-REGISTRATION-01`、`CAP-LEGAL-01`、`CAP-LINE-LINK-01`。Function、Scenario、代表E2E |
 | 招待 | `/manager-invite` | `RELEASE-FEATURES-01`、`MANAGER-INVITATION-01`。通常はpreviewと受諾を閉じ、明示的に有効化した環境で本人確認とtoken lifecycleを検証する |
 | 回復・終端 | `/account-deletion-accepted`、`/cache-reset`、未知route | `DELETE-ACCOUNT-01`、`PUBLIC-STATIC-01`。Frontend Unit、build、Deployed Smoke |
 | 内部BI | `/`、`/organizations*`、`/shops*`、`/requests`（`apps/analytics-dashboard/`） | `ANALYTICS-DASHBOARD-01`。本体UI suite対象外、専用lint / type-check / build |
 
 認証済みHomeのcanonical URLは`/dashboard`、本人用Accountのcanonical URLは`/account`である。
-`/app`は`/dashboard`へreplaceする。
+`/app`は`/dashboard`へreplaceし、旧`/app/shifts*`、`/app/staff*`、`/app/actions`、`/app/manage*`は対応する正規URLへreplaceする。
 削除した`/app/home`、`/app/account`、旧`/settings*`、`/users/*`、`/shops/*`、`/shiftboard/*`には互換redirectを設けず、static artifactとDeployed Smokeで404を確認する。
 
 ## Public Convex surface inventory

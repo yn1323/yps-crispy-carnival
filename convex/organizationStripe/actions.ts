@@ -6747,7 +6747,7 @@ function createStripeClient(secretKey: string) {
 }
 
 function billingSettingsUrl(organizationId: Id<"organizations">) {
-  const url = new URL("/app/manage/billing", getAppUrl());
+  const url = new URL("/manage/billing", getAppUrl());
   url.searchParams.set("org", organizationId);
   return url.toString();
 }
