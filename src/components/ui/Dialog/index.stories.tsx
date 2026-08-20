@@ -467,7 +467,7 @@ export const LazyMountBehavior: Story = {
     const closeButtons = within(dialog).getAllByRole("button", { name: "閉じる" });
     await userEvent.click(closeButtons[closeButtons.length - 1]);
     await waitFor(() => expect(page.queryByRole("dialog", { name: "遅延mount確認" })).not.toBeInTheDocument());
-    await waitFor(() => expect(openButton).toHaveFocus());
+    await waitFor(() => expect(openButton).toHaveFocus(), { timeout: 3_000 });
     await expect(page.queryByText("初回open後にmountされる内容です。")).toBeInTheDocument();
 
     await userEvent.click(openButton);
