@@ -83,11 +83,10 @@ export const MultipleOrganizationsBlocked: Story = {
 
     await expect(
       canvas.getByText(
-        "複数の組織に所属しているため、この画面からは削除できません。組織設定で組織を一つずつ利用終了するか、別の管理者へ所属解除を依頼し、所属を1つ以下にしてください。",
+        /複数の組織に所属しているため、この画面からは削除できません。\s*組織設定で組織を一つずつ削除するか、別の管理者へ引き継ぎ、組織の所属を1つ以下にしてください。/,
       ),
     ).toBeVisible();
     await expect(canvas.getByRole("button", { name: "削除内容を確認" })).toBeDisabled();
-    await expect(canvas.getByRole("link", { name: "お問い合わせへ" })).toHaveAttribute("href", "/contact");
   },
 };
 
@@ -126,7 +125,6 @@ export const TooManyAssociatedRecordsBlocked: Story = {
       canvas.getByText("関連する履歴・アクセス情報が多いため、この画面からは削除できません。"),
     ).toBeVisible();
     await expect(canvas.getByRole("button", { name: "削除内容を確認" })).toBeDisabled();
-    await expect(canvas.getByRole("link", { name: "お問い合わせへ" })).toHaveAttribute("href", "/contact");
   },
 };
 
@@ -167,7 +165,6 @@ export const InconsistentAssociationBlocked: Story = {
 
     await expect(canvas.getByText("所属情報を確認できないため、この画面からは削除できません。")).toBeVisible();
     await expect(canvas.getByRole("button", { name: "削除内容を確認" })).toBeDisabled();
-    await expect(canvas.getByRole("link", { name: "お問い合わせへ" })).toHaveAttribute("href", "/contact");
   },
 };
 

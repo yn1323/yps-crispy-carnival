@@ -47,7 +47,7 @@ export class OrganizationLifecyclePage {
     await dialog.getByRole("button", { name: /^日ごと(?:\s|$)/ }).click();
     await dialog.getByRole("button", { name: "次へ", exact: true }).click();
     await expect(dialog.getByText("毎週休みにする曜日", { exact: true })).toBeVisible();
-    await dialog.getByRole("button", { name: /組織を作/ }).click();
+    await dialog.getByRole("button", { name: "作成する", exact: true }).click();
 
     await expect(dialog).toHaveCount(0, { timeout: ORGANIZATION_DATA_TIMEOUT });
     await expect(this.page).toHaveURL(

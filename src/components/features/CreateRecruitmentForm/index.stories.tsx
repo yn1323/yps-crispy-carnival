@@ -63,6 +63,7 @@ const DoubleSubmitGuardHarness = () => {
   const [closeCount, setCloseCount] = useState(0);
   const [isOpen, setIsOpen] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sessionRevision, setSessionRevision] = useState(0);
   const pendingSubmission = useRef<ReturnType<typeof createDeferred> | null>(null);
 
   return (
@@ -78,6 +79,7 @@ const DoubleSubmitGuardHarness = () => {
         preventClose={isSubmitting}
       >
         <CreateRecruitmentForm
+          key={sessionRevision}
           today={STORY_TODAY}
           onSubmit={async () => {
             setSubmitCount((current) => current + 1);
@@ -108,7 +110,15 @@ const DoubleSubmitGuardHarness = () => {
       >
         募集作成処理を完了する
       </button>
-      <button type="button" hidden data-testid="reopen-recruitment-dialog" onClick={() => setIsOpen(true)}>
+      <button
+        type="button"
+        hidden
+        data-testid="reopen-recruitment-dialog"
+        onClick={() => {
+          setSessionRevision((revision) => revision + 1);
+          setIsOpen(true);
+        }}
+      >
         募集作成を再度開く
       </button>
     </>
@@ -298,7 +308,7 @@ export const InteractiveBasicFlow: Story = {
     expect(canvas.getByText("なし")).toBeTruthy();
     expect(canvas.getAllByText("提出締切").length).toBeGreaterThan(0);
     expect(canvas.getByText("通知")).toBeTruthy();
-    expect(await canvas.findByText("スタッフにシフト提出案内を送ります")).toBeTruthy();
+    expect(await canvas.findByText("メール・LINEで通知します")).toBeTruthy();
   },
 };
 

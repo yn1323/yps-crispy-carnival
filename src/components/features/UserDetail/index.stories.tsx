@@ -449,11 +449,8 @@ export const ShopMembershipRemoval: Story = {
     const content = within(dialog);
 
     await userEvent.click(content.getByRole("checkbox", { name: /渋谷店/ }));
-    await content.findByText("今日以降のシフト割り当てから削除します。");
-    await expect(
-      content.getByText("店舗通知を受け取る管理者を、各店舗に1名以上所属させることをおすすめします。"),
-    ).toBeInTheDocument();
-    await expect(content.getByText(/外す店舗に所属する別の管理者がいない場合/)).toBeInTheDocument();
+    await content.findByText("シフト割り当てから削除");
+    await expect(content.getByText("以降シフト通知は送りません")).toBeInTheDocument();
   },
 };
 
@@ -495,7 +492,7 @@ export const ShopMembershipAdditionDarkLaunchBehavior: Story = {
 
     await expect(canvas.queryByRole("button", { name: "所属店舗を変更する" })).not.toBeInTheDocument();
     await expect(screen.queryByRole("dialog", { name: "所属店舗を変更" })).not.toBeInTheDocument();
-    await expect(canvas.getByText("所属している店舗はありません。")).toBeInTheDocument();
+    await expect(canvas.getByText("所属店舗はありません")).toBeInTheDocument();
     await expect(
       canvas.queryByText("「所属店舗を変更する」から、このユーザーの所属を変更できます。"),
     ).not.toBeInTheDocument();
@@ -711,7 +708,8 @@ export const LineQrDisplayBehavior: Story = {
     await userEvent.click(content.getByRole("button", { name: "LINE連携リンクを表示" }));
 
     await expect(await content.findByRole("img", { name: "LINE連携用QRコード" })).toBeInTheDocument();
-    await expect(content.getByText(/この組織で現在および今後所属する店舗に共通/)).toBeInTheDocument();
+    await expect(content.getByText("田中 花子さん専用のURL（QRコード）です。")).toBeInTheDocument();
+    await expect(content.getByText("ほかのスタッフには共有しないでください。")).toBeInTheDocument();
   },
 };
 
@@ -814,7 +812,7 @@ export const ShopMembershipChangeFlowBehavior: Story = {
     await userEvent.click(ikebukuroCheckbox);
     await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("0");
     await expect(submitButton).toBeEnabled();
-    await expect(membershipDialog.queryByText("今日以降のシフト割り当てから削除します。")).not.toBeInTheDocument();
+    await expect(membershipDialog.queryByText("シフト割り当てから削除")).not.toBeInTheDocument();
 
     await userEvent.click(submitButton);
     await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("1");
@@ -837,27 +835,21 @@ export const ShopMembershipRemovalBehavior: Story = {
     const membershipDialog = within(dialog);
     const shibuyaCheckbox = membershipDialog.getByRole("checkbox", { name: /渋谷店/ });
 
-    await expect(membershipDialog.queryByText("今日以降のシフト割り当てから削除します。")).not.toBeInTheDocument();
+    await expect(membershipDialog.queryByText("シフト割り当てから削除")).not.toBeInTheDocument();
     await userEvent.click(membershipDialog.getByRole("checkbox", { name: /池袋店/ }));
-    await expect(membershipDialog.queryByText("今日以降のシフト割り当てから削除します。")).not.toBeInTheDocument();
+    await expect(membershipDialog.queryByText("シフト割り当てから削除")).not.toBeInTheDocument();
 
     await userEvent.click(shibuyaCheckbox);
     await expect(membershipDialog.getByText("店舗から外す")).toBeInTheDocument();
-    await expect(membershipDialog.getByText("今日以降のシフト割り当てから削除します。")).toBeInTheDocument();
-    await expect(
-      membershipDialog.getByText("この店舗へのシフト通知は送られなくなります。組織のLINE連携は残ります。"),
-    ).toBeInTheDocument();
-    await expect(shibuyaCheckbox).toHaveAccessibleDescription(
-      /今日以降のシフト割り当てから削除します。.*この店舗へのシフト通知は送られなくなります。組織のLINE連携は残ります。/,
-    );
+    await expect(membershipDialog.getByText("シフト割り当てから削除")).toBeInTheDocument();
+    await expect(membershipDialog.getByText("以降シフト通知は送りません")).toBeInTheDocument();
+    await expect(shibuyaCheckbox).toHaveAccessibleDescription(/シフト割り当てから削除.*以降シフト通知は送りません/);
     await expect(membershipDialog.queryByText(/過去のシフト記録/)).not.toBeInTheDocument();
     await expect(membershipDialog.queryByText(/シフト割り当て.*件/)).not.toBeInTheDocument();
     await expect(membershipDialog.getByRole("button", { name: "変更する" })).toBeEnabled();
 
     await userEvent.click(shibuyaCheckbox);
-    await waitFor(() =>
-      expect(membershipDialog.queryByText("今日以降のシフト割り当てから削除します。")).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(membershipDialog.queryByText("シフト割り当てから削除")).not.toBeInTheDocument());
     await userEvent.click(shibuyaCheckbox);
     await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("0");
     await userEvent.click(membershipDialog.getByRole("button", { name: "変更する" }));

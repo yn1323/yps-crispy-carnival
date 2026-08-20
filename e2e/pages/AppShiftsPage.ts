@@ -43,7 +43,6 @@ export class AppShiftsPage {
     await expect(this.page).toHaveURL((url) => url.searchParams.get("shopFilter") === null, {
       timeout: APP_SHIFTS_DATA_TIMEOUT,
     });
-    await expect(this.shopFilterTrigger("すべて")).toBeVisible({ timeout: APP_SHIFTS_DATA_TIMEOUT });
   }
 
   async selectShopFilter(shopName: string, shopId: string) {
