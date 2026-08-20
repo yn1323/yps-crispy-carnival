@@ -1,3 +1,4 @@
+import { setupClerkTestingToken } from "@clerk/testing/playwright";
 import { expect, test } from "../fixtures/e2eTest";
 import { expectAppHydrated } from "../helpers/appReadiness";
 import {
@@ -5,6 +6,7 @@ import {
   seedOrganizationCreationScenario,
   seedOrganizationDeletionScenario,
 } from "../helpers/organizationLifecycleScenario";
+import { runWithE2ERuntimeSignalMonitoring } from "../helpers/runtimeSignals";
 import { DashboardPage } from "../pages/DashboardPage";
 import { OrganizationLifecyclePage } from "../pages/OrganizationLifecyclePage";
 
@@ -18,7 +20,10 @@ test.describe("組織ライフサイクル", { tag: ["@e2e-core"] }, () => {
     await resetOrganizationLifecycleScenario();
   });
 
-  test("[E2E-ORGANIZATION-01] 2つ目の組織を作成し、改名後も組織を切り替えて管理できる", async ({ page }) => {
+  test("[E2E-ORGANIZATION-01] 2つ目の組織を作成し、改名後も組織を切り替えて管理できる", async ({
+    baseURL,
+    page,
+  }, testInfo) => {
     const seed = seedOrganizationCreationScenario();
     const createdShopName = "E2E 新組織店舗";
     const createdOrganizationName = `${createdShopName}グループ`;
@@ -38,13 +43,20 @@ test.describe("組織ライフサイクル", { tag: ["@e2e-core"] }, () => {
     await organization.expectCurrentOrganization(created.organizationId, createdOrganizationName);
     await organization.renameCurrentOrganization(renamedOrganizationName);
     const persistedPage = await page.context().newPage();
-    try {
-      const persistedOrganization = new OrganizationLifecyclePage(persistedPage);
-      await persistedOrganization.gotoOrganization(created.organizationId);
-      await persistedOrganization.expectCurrentOrganization(created.organizationId, renamedOrganizationName);
-    } finally {
-      await persistedPage.close();
-    }
+    await runWithE2ERuntimeSignalMonitoring({
+      page: persistedPage,
+      testInfo,
+      baseURL,
+      attachmentName: "e2e-safe-browser-signals-organization-persistence",
+      action: async () => {
+        // primary pageと同じcontextでは既存routeを再利用し、新しいpageにもClerk testing契約を明示する。
+        await setupClerkTestingToken({ page: persistedPage });
+        const persistedOrganization = new OrganizationLifecyclePage(persistedPage);
+        await persistedOrganization.gotoOrganization(created.organizationId);
+        await persistedOrganization.expectCurrentOrganization(created.organizationId, renamedOrganizationName);
+      },
+      cleanup: () => persistedPage.close(),
+    });
 
     await organization.switchOrganization(seed.organizationName, seed.organizationId);
     await organization.switchOrganization(renamedOrganizationName, created.organizationId);
