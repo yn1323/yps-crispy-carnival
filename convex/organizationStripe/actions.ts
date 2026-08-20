@@ -115,6 +115,11 @@ type UnavailableResult = { status: "unavailable"; reason: UnavailableReason };
 type RedirectResult = { status: "redirect"; url: string } | UnavailableResult;
 type ChangeResult = { status: "accepted" } | UnavailableResult;
 type AvailableUrlResult = { status: "available"; url: string } | UnavailableResult;
+type CheckoutCancellationResult =
+  | { status: "cancelled" }
+  | { status: "pending" }
+  | { status: "unchanged" }
+  | UnavailableResult;
 type PendingCheckoutInspectionResult =
   | { status: "open"; url: string }
   | { status: "cancelled" }
@@ -433,7 +438,7 @@ export const cancelPendingCheckoutForOrganization = action({
     organizationId: v.id("organizations"),
   },
   returns: checkoutCancellationResultValidator,
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<CheckoutCancellationResult> => {
     if (!isReleaseFeatureEnabled("billing")) return { status: "unavailable" as const, reason: "not_allowed" as const };
     const configuration = getStripeBillingConfiguration();
     if (configuration.status !== "ready") {
