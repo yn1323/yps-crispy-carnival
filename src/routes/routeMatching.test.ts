@@ -20,6 +20,7 @@ describe("app route matching", () => {
     ["/shifts", "/_auth/shifts"],
     ["/shifts/recruitment-a/board", "/_auth/shifts_/$recruitmentId_/board"],
     ["/staff", "/_auth/staff"],
+    ["/staff/order", "/_auth/staff_/order"],
     ["/staff/person-a", "/_auth/staff_/$personId"],
     ["/staff/person-a/shops/shop-a", "/_auth/staff_/$personId_/shops/$shopId"],
   ])("canonical URL %s を認証routeへ接続する", (pathname, expectedRouteId) => {
@@ -39,6 +40,7 @@ describe("app route matching", () => {
     ["/app/shifts", "/_auth/app_/shifts"],
     ["/app/shifts/recruitment-a/board", "/_auth/app_/shifts_/$recruitmentId_/board"],
     ["/app/staff", "/_auth/app_/staff"],
+    ["/app/staff/order", "/_auth/app_/staff_/order"],
     ["/app/staff/person-a", "/_auth/app_/staff_/$personId"],
     ["/app/staff/person-a/shops/shop-a", "/_auth/app_/staff_/$personId_/shops/$shopId"],
   ])("legacy URL %s をredirect専用routeへ接続する", (pathname, expectedRouteId) => {
@@ -57,6 +59,7 @@ describe("app route matching", () => {
 
   it.each([
     ["/Staff/person-a", "/_auth/staff_/$personId"],
+    ["/Staff/Order", "/_auth/staff_/order"],
     ["/Manage/Billing", "/_auth/manage_/billing"],
     ["/Staff/Register", "/_unregistered/staff/register"],
     ["/Shifts/Submit", "/_unregistered/shifts/submit"],

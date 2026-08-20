@@ -82,6 +82,8 @@ import type * as appOrganization_actionInboxQueries from "../appOrganization/act
 import type * as appOrganization_detailQueries from "../appOrganization/detailQueries.js";
 import type * as appOrganization_manageQueries from "../appOrganization/manageQueries.js";
 import type * as appOrganization_queries from "../appOrganization/queries.js";
+import type * as appOrganization_staffOrderMutations from "../appOrganization/staffOrderMutations.js";
+import type * as appOrganization_staffOrderQueries from "../appOrganization/staffOrderQueries.js";
 import type * as constants from "../constants.js";
 import type * as contact_actions from "../contact/actions.js";
 import type * as contact_httpActions from "../contact/httpActions.js";
@@ -198,6 +200,7 @@ import type * as organization_queries from "../organization/queries.js";
 import type * as organization_schemas from "../organization/schemas.js";
 import type * as organization_service from "../organization/service.js";
 import type * as organization_shopMembershipChange from "../organization/shopMembershipChange.js";
+import type * as organization_staffOrder from "../organization/staffOrder.js";
 import type * as organization_userDetailQueries from "../organization/userDetailQueries.js";
 import type * as organization_validators from "../organization/validators.js";
 import type * as organizationBilling_actions from "../organizationBilling/actions.js";
@@ -346,6 +349,8 @@ declare const fullApi: ApiFromModules<{
   "appOrganization/detailQueries": typeof appOrganization_detailQueries;
   "appOrganization/manageQueries": typeof appOrganization_manageQueries;
   "appOrganization/queries": typeof appOrganization_queries;
+  "appOrganization/staffOrderMutations": typeof appOrganization_staffOrderMutations;
+  "appOrganization/staffOrderQueries": typeof appOrganization_staffOrderQueries;
   constants: typeof constants;
   "contact/actions": typeof contact_actions;
   "contact/httpActions": typeof contact_httpActions;
@@ -462,6 +467,7 @@ declare const fullApi: ApiFromModules<{
   "organization/schemas": typeof organization_schemas;
   "organization/service": typeof organization_service;
   "organization/shopMembershipChange": typeof organization_shopMembershipChange;
+  "organization/staffOrder": typeof organization_staffOrder;
   "organization/userDetailQueries": typeof organization_userDetailQueries;
   "organization/validators": typeof organization_validators;
   "organizationBilling/actions": typeof organizationBilling_actions;

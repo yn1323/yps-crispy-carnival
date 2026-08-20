@@ -9,6 +9,7 @@ import {
   cancelNotificationForInactiveOrganization,
   cancelNotificationForInactiveShop,
 } from "../notificationOutbox/mutations";
+import { safelyDeactivateOrganizationStaffOrder } from "../organization/staffOrder";
 import { type DeletionCleanupTarget, getDeletionCleanupJobForTarget } from "./service";
 import { deletedLineUserId } from "./tombstone";
 import { deletionCleanupTargetValidator } from "./validators";
@@ -21,6 +22,7 @@ const RECOVERY_PER_STATUS_BATCH_SIZE = Math.floor(RECOVERY_BATCH_SIZE / 3);
 
 const SHOP_PHASES = [
   "shopCore",
+  "shopStaffOrderEntries",
   "shopOutboxPending",
   "shopOutboxProcessing",
   "shopNotificationHistory",
@@ -36,6 +38,7 @@ const SHOP_PHASES = [
 ] as const;
 
 const ORGANIZATION_SHOP_PHASES = [
+  "organizationShopStaffOrderEntries",
   "organizationShopOutboxPending",
   "organizationShopOutboxProcessing",
   "organizationShopNotificationHistory",
@@ -52,6 +55,9 @@ const ORGANIZATION_SHOP_PHASES = [
 
 const ORGANIZATION_PHASES = [
   "organizationCore",
+  "organizationStaffOrderState",
+  "organizationStaffOrderEntries",
+  "organizationStaffOrderShopEntries",
   "organizationOutboxPending",
   "organizationOutboxProcessing",
   "organizationShops",
@@ -66,6 +72,7 @@ const ORGANIZATION_PHASES = [
 
 const SHOP_VERIFICATION_RESOURCES = [
   "core",
+  "staffOrderEntries",
   "outboxPending",
   "outboxProcessing",
   "notificationHistory",
@@ -81,9 +88,13 @@ const SHOP_VERIFICATION_RESOURCES = [
 
 const ORGANIZATION_VERIFICATION_RESOURCES = [
   "organizationCore",
+  "organizationStaffOrderState",
+  "organizationStaffOrderEntries",
+  "organizationStaffOrderShopEntries",
   "organizationOutboxPending",
   "organizationOutboxProcessing",
   "organizationShopsCore",
+  "organizationShopStaffOrderEntries",
   "organizationShopOutboxPending",
   "organizationShopOutboxProcessing",
   "organizationShopNotificationHistory",
@@ -109,6 +120,7 @@ type OrganizationShopPhase = (typeof ORGANIZATION_SHOP_PHASES)[number];
 type ShopVerificationResource = (typeof SHOP_VERIFICATION_RESOURCES)[number];
 type OrganizationVerificationResource = (typeof ORGANIZATION_VERIFICATION_RESOURCES)[number];
 type ShopResource =
+  | "staffOrderEntries"
   | "outboxPending"
   | "outboxProcessing"
   | "notificationHistory"
@@ -347,7 +359,7 @@ async function runStandaloneShopStep(
   if (job.phase === "shopCore") {
     const shop = await ctx.db.get(shopId);
     if (shop && !shop.isDeleted) await ctx.db.patch(shopId, { isDeleted: true });
-    return { phase: "shopOutboxPending" };
+    return { phase: "shopStaffOrderEntries" };
   }
   if (job.phase === "shopVerification") {
     return await verifyShopCleanup(ctx, job, shopId);
@@ -389,7 +401,36 @@ async function runOrganizationStep(
           });
         }
       }
-      return { phase: "organizationOutboxPending" };
+      await safelyDeactivateOrganizationStaffOrder(ctx, { organizationId });
+      return { phase: "organizationStaffOrderState" };
+    }
+    case "organizationStaffOrderState": {
+      const states = await ctx.db
+        .query("organizationStaffOrderStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+        .take(CLEANUP_BATCH_SIZE);
+      for (const state of states) await ctx.db.delete(state._id);
+      return states.length < CLEANUP_BATCH_SIZE ? { phase: "organizationStaffOrderEntries" } : { phase: job.phase };
+    }
+    case "organizationStaffOrderEntries": {
+      const entries = await ctx.db
+        .query("organizationStaffOrderEntries")
+        .withIndex("by_organizationId_and_displayOrder", (q) => q.eq("organizationId", organizationId))
+        .take(CLEANUP_BATCH_SIZE);
+      for (const entry of entries) await ctx.db.delete(entry._id);
+      return entries.length < CLEANUP_BATCH_SIZE
+        ? { phase: "organizationStaffOrderShopEntries" }
+        : { phase: job.phase };
+    }
+    case "organizationStaffOrderShopEntries": {
+      // shopIdがdanglingまたは別組織を指す不整合rowも、組織IDを正にして回収する。
+      // 後続の店舗単位phaseは、逆向きの不整合（別organizationId + 当該shopId）を引き続き回収する。
+      const entries = await ctx.db
+        .query("shopStaffOrderEntries")
+        .withIndex("by_organizationId_and_shopId", (q) => q.eq("organizationId", organizationId))
+        .take(CLEANUP_BATCH_SIZE);
+      for (const entry of entries) await ctx.db.delete(entry._id);
+      return entries.length < CLEANUP_BATCH_SIZE ? { phase: "organizationOutboxPending" } : { phase: job.phase };
     }
     case "organizationOutboxPending": {
       const result = await cancelOrganizationOutbox(ctx, organizationId, "pending");
@@ -536,6 +577,14 @@ async function runShopResource(
   cursor: string | null,
 ): Promise<ResourceResult> {
   switch (resource) {
+    case "staffOrderEntries": {
+      const entries = await ctx.db
+        .query("shopStaffOrderEntries")
+        .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", shopId))
+        .take(CLEANUP_BATCH_SIZE);
+      for (const entry of entries) await ctx.db.delete(entry._id);
+      return { done: entries.length < CLEANUP_BATCH_SIZE };
+    }
     case "outboxPending": {
       const jobs = await ctx.db
         .query("notificationOutbox")
@@ -716,6 +765,27 @@ async function verifyOrganizationCleanup(
       if (organization && !organization.isDeleted) return { phase: "organizationCore" };
       return nextOrganizationVerificationStep(resource);
     }
+    case "organizationStaffOrderState": {
+      const state = await ctx.db
+        .query("organizationStaffOrderStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+        .first();
+      return state ? { phase: "organizationStaffOrderState" } : nextOrganizationVerificationStep(resource);
+    }
+    case "organizationStaffOrderEntries": {
+      const entry = await ctx.db
+        .query("organizationStaffOrderEntries")
+        .withIndex("by_organizationId_and_displayOrder", (q) => q.eq("organizationId", organizationId))
+        .first();
+      return entry ? { phase: "organizationStaffOrderEntries" } : nextOrganizationVerificationStep(resource);
+    }
+    case "organizationStaffOrderShopEntries": {
+      const entry = await ctx.db
+        .query("shopStaffOrderEntries")
+        .withIndex("by_organizationId_and_shopId", (q) => q.eq("organizationId", organizationId))
+        .first();
+      return entry ? { phase: "organizationStaffOrderShopEntries" } : nextOrganizationVerificationStep(resource);
+    }
     case "organizationOutboxPending": {
       const active = await ctx.db
         .query("notificationOutbox")
@@ -859,6 +929,13 @@ async function verifyShopResource(
         done: true,
         ...(shop && !shop.isDeleted ? { violated: true } : {}),
       };
+    }
+    case "staffOrderEntries": {
+      const entry = await ctx.db
+        .query("shopStaffOrderEntries")
+        .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", shopId))
+        .first();
+      return { done: true, ...(entry ? { violated: true } : {}) };
     }
     case "outboxPending": {
       const active = await ctx.db

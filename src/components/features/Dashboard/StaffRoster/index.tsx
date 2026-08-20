@@ -34,10 +34,9 @@ export const StaffRoster = ({
   focusedPersonId,
 }: Props) => {
   const showLoadMore = canLoadMore && status !== "LoadingFirstPage";
-  const sorted = [...staffs].sort((a, b) => Number(b.isManager) - Number(a.isManager));
   const focusedItemId = focusedPersonId ? `dashboard-user-${focusedPersonId}` : undefined;
   const isFocusedItemRendered = Boolean(
-    focusedPersonId && sorted.some((staff) => staff.organizationPersonId === focusedPersonId),
+    focusedPersonId && staffs.some((staff) => staff.organizationPersonId === focusedPersonId),
   );
   useScrollToListItem(focusedItemId, isFocusedItemRendered);
 
@@ -82,7 +81,7 @@ export const StaffRoster = ({
         </Flex>
       </Flex>
 
-      {sorted.length === 0 ? (
+      {staffs.length === 0 ? (
         <Empty
           icon={LuUsers}
           title="スタッフはいません"
@@ -114,7 +113,7 @@ export const StaffRoster = ({
           overflow="hidden"
         >
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.50">
-            {sorted.map((staff) => {
+            {staffs.map((staff) => {
               const badges: StaffListRowBadge[] = [];
               if (staff.isManager) badges.push({ kind: "role" });
               if (staff.isLineLinked && staff.isLineFollowing) {

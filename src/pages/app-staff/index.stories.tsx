@@ -66,14 +66,17 @@ function StaffReadyPreview({
   empty = false,
   managerInvitationEnabled = true,
   singleShop = false,
+  singlePerson = false,
 }: {
   withNextPage?: boolean;
   readOnly?: boolean;
   empty?: boolean;
   managerInvitationEnabled?: boolean;
   singleShop?: boolean;
+  singlePerson?: boolean;
 }) {
-  const [visiblePeople, setVisiblePeople] = useState(empty ? [] : people);
+  const initialPeople = empty ? [] : singlePerson ? people.slice(0, 1) : people;
+  const [visiblePeople, setVisiblePeople] = useState(initialPeople);
   const [canLoadMore, setCanLoadMore] = useState(withNextPage);
 
   return (
@@ -82,10 +85,19 @@ function StaffReadyPreview({
       {readOnly && <AppStaffReadOnlyNotice />}
       <PeopleSection
         people={visiblePeople}
-        peopleUsage={{ current: empty ? 0 : 12, max: 40 }}
+        peopleUsage={{ current: empty ? 0 : singlePerson ? 1 : 12, max: 40 }}
         showManagerInvitation={managerInvitationEnabled}
         onManageManagers={() => {}}
         onOpenUser={() => {}}
+        onChangeStaffOrder={() => {}}
+        canChangeStaffOrder={!readOnly && !singlePerson}
+        changeStaffOrderDisabledReason={
+          readOnly
+            ? "閲覧のみの管理者は、スタッフの並び順を変更できません。"
+            : singlePerson
+              ? "2名以上のスタッフがいると並び替えできます。"
+              : undefined
+        }
         onAddStaff={() => {}}
         canAddStaff={!readOnly}
         addStaffDisabledReason={readOnly ? "閲覧のみの管理者は、スタッフを追加できません。" : undefined}
@@ -167,6 +179,16 @@ export const EmptyMobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   render: () => <StaffReadyPreview empty />,
+};
+
+export const SinglePersonOrderUnavailable: Story = {
+  render: () => <StaffReadyPreview singlePerson />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const orderButton = canvas.getByRole("button", { name: "並び順を変更" });
+    await expect(orderButton).toBeDisabled();
+    await expect(orderButton).toHaveAccessibleDescription("2名以上のスタッフがいると並び替えできます。");
+  },
 };
 
 export const ClosedFeaturesBehavior: Story = {

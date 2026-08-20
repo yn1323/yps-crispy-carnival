@@ -21,6 +21,7 @@ import {
   removeLegacyOrganizationManagerAccess,
 } from "../organization/service";
 import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
+import { syncActivatedOrganizationStaffOrder } from "../organization/staffOrder";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import { requireOrganizationBusinessWrite, requireOrganizationCapacity } from "../organizationBilling/service";
 import { getActiveStaffInShop } from "../staff/service";
@@ -1496,6 +1497,10 @@ async function linkAccountWithToken(
     });
   } else if (member.status !== "active") {
     await ctx.db.patch(member._id, { status: "active", invitedByMemberId: inviter._id, updatedAt: now });
+  }
+
+  if (!people[0]) {
+    await syncActivatedOrganizationStaffOrder(ctx, { organizationId: invitation.organizationId });
   }
 
   if (purpose === "freeManagerExchange") {

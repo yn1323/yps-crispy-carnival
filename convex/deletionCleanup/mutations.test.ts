@@ -69,7 +69,7 @@ describe("deletionCleanup worker", () => {
     expect(detected.job).toMatchObject({
       status: "queued",
       phase: "shopVerification",
-      resource: "outboxPending",
+      resource: "staffOrderEntries",
     });
     expect(detected.job?.completedAt).toBeUndefined();
     expect(detected.staff).toMatchObject({ isDeleted: false, name: "残存スタッフ" });
@@ -175,6 +175,195 @@ describe("deletionCleanup worker", () => {
         }))
         .sort((a, b) => a._id.localeCompare(b._id)),
     );
+  });
+
+  it("店舗の並び順projectionを1回100件まで削除し、残りを継続してから完了する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const organizationId = await seedOrganization(ctx, "並び順削除グループ", undefined, false);
+      const shopId = await seedShop(ctx, { organizationId, name: "並び順削除店舗", isDeleted: true });
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId,
+        name: "並び順スタッフ",
+        email: "ordered@example.com",
+        emailNormalized: "ordered@example.com",
+        status: "active",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        organizationId,
+        organizationPersonId: personId,
+        shopId,
+        name: "並び順スタッフ",
+        email: "ordered@example.com",
+        emailNormalized: "ordered@example.com",
+        excludedFromShift: false,
+        isDeleted: true,
+      });
+      for (let displayOrder = 0; displayOrder < 101; displayOrder += 1) {
+        await ctx.db.insert("shopStaffOrderEntries", {
+          organizationId,
+          shopId,
+          staffId,
+          organizationPersonId: personId,
+          displayOrder,
+        });
+      }
+      const jobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "shop",
+        shopId,
+        organizationId,
+        requestId: "staff-order-entries-bounded",
+        status: "processing",
+        phase: "shopStaffOrderEntries",
+        version: 1,
+        attemptCount: 0,
+        nextRunAt: NOW,
+        leaseId: "staff-order-entries-lease",
+        leaseExpiresAt: NOW + 60_000,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      return { shopId, jobId };
+    });
+
+    await t.mutation(internal.deletionCleanup.mutations.process, {
+      jobId: ids.jobId,
+      leaseId: "staff-order-entries-lease",
+      expectedVersion: 1,
+    });
+
+    const firstBatch = await t.run(async (ctx) => ({
+      entries: await ctx.db
+        .query("shopStaffOrderEntries")
+        .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", ids.shopId))
+        .collect(),
+      job: await ctx.db.get(ids.jobId),
+    }));
+    expect(firstBatch.entries).toHaveLength(1);
+    expect(firstBatch.job).toMatchObject({ status: "queued", phase: "shopStaffOrderEntries" });
+
+    await finishDeletionCleanup(t);
+
+    await expect(
+      t.run(async (ctx) =>
+        ctx.db
+          .query("shopStaffOrderEntries")
+          .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", ids.shopId))
+          .collect(),
+      ),
+    ).resolves.toEqual([]);
+    await expect(t.run(async (ctx) => ctx.db.get(ids.jobId))).resolves.toMatchObject({
+      status: "completed",
+      phase: "shopVerification",
+    });
+  });
+
+  it("組織cleanupは並び順state・人物順・全店舗projectionを削除してから完了する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const organizationId = await seedOrganization(ctx, "並び順組織cleanupグループ", undefined, true);
+      const shopId = await seedShop(ctx, {
+        organizationId,
+        name: "並び順組織cleanup店舗",
+        isDeleted: true,
+      });
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId,
+        name: "並び順組織cleanupスタッフ",
+        email: "organization-order-cleanup@example.com",
+        emailNormalized: "organization-order-cleanup@example.com",
+        status: "active",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        organizationId,
+        organizationPersonId: personId,
+        shopId,
+        name: "並び順組織cleanupスタッフ",
+        email: "organization-order-cleanup@example.com",
+        emailNormalized: "organization-order-cleanup@example.com",
+        excludedFromShift: false,
+        isDeleted: true,
+      });
+      await ctx.db.insert("organizationStaffOrderStates", {
+        organizationId,
+        revision: 1,
+        activatedAt: NOW,
+        updatedAt: NOW,
+      });
+      await ctx.db.insert("organizationStaffOrderEntries", {
+        organizationId,
+        organizationPersonId: personId,
+        displayOrder: 0,
+      });
+      await ctx.db.insert("shopStaffOrderEntries", {
+        organizationId,
+        shopId,
+        staffId,
+        organizationPersonId: personId,
+        displayOrder: 0,
+      });
+      const danglingShopId = await seedShop(ctx, {
+        organizationId,
+        name: "物理削除済みの参照先店舗",
+        isDeleted: true,
+      });
+      await ctx.db.delete(danglingShopId);
+      await ctx.db.insert("shopStaffOrderEntries", {
+        organizationId,
+        shopId: danglingShopId,
+        staffId,
+        organizationPersonId: personId,
+        displayOrder: 1,
+      });
+      const jobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "organization",
+        organizationId,
+        requestId: "organization-staff-order-cleanup",
+        status: "processing",
+        phase: "organizationCore",
+        version: 1,
+        attemptCount: 0,
+        nextRunAt: NOW,
+        leaseId: "organization-staff-order-cleanup-lease",
+        leaseExpiresAt: NOW + 60_000,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      return { organizationId, personId, shopId, jobId };
+    });
+
+    await t.mutation(internal.deletionCleanup.mutations.process, {
+      jobId: ids.jobId,
+      leaseId: "organization-staff-order-cleanup-lease",
+      expectedVersion: 1,
+    });
+    await finishDeletionCleanup(t);
+
+    const completed = await t.run(async (ctx) => ({
+      job: await ctx.db.get(ids.jobId),
+      person: await ctx.db.get(ids.personId),
+      states: await ctx.db
+        .query("organizationStaffOrderStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .collect(),
+      peopleOrder: await ctx.db
+        .query("organizationStaffOrderEntries")
+        .withIndex("by_organizationId_and_displayOrder", (q) => q.eq("organizationId", ids.organizationId))
+        .collect(),
+      shopOrder: await ctx.db
+        .query("shopStaffOrderEntries")
+        .withIndex("by_organizationId_and_shopId", (q) => q.eq("organizationId", ids.organizationId))
+        .collect(),
+    }));
+    expect(completed.job).toMatchObject({ status: "completed", phase: "organizationVerification" });
+    expect(completed.person).toMatchObject({ status: "removed" });
+    expect(completed.states).toEqual([]);
+    expect(completed.peopleOrder).toEqual([]);
+    expect(completed.shopOrder).toEqual([]);
   });
 
   it("店舗の通知履歴を1回100件まで削除し、残りを継続してから完了する", async () => {
@@ -931,7 +1120,7 @@ describe("deletionCleanup worker", () => {
     await expect(t.run(async (ctx) => ctx.db.get(ids.jobId))).resolves.toMatchObject({
       status: "queued",
       phase: "organizationVerification",
-      resource: "organizationOutboxPending",
+      resource: "organizationStaffOrderState",
     });
 
     await finishDeletionCleanup(t);

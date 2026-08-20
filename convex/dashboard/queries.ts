@@ -1,6 +1,6 @@
-import type { GenericDatabaseReader } from "convex/server";
+import type { GenericDatabaseReader, PaginationResult } from "convex/server";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
 import { getFeatureVisibility } from "../_lib/config";
 import { todayJST } from "../_lib/dateFormat";
@@ -19,6 +19,7 @@ import {
   resolvePersonManagerInvitationState,
 } from "../organization/managerInvitationState";
 import { getOrganizationBillingState, getOrganizationUsageSnapshot } from "../organization/service";
+import { getOrganizationStaffOrderScope } from "../organization/staffOrder";
 import {
   organizationMemberStatusValidator,
   organizationShopOperatingStatusValidator,
@@ -913,8 +914,30 @@ export const getDashboardCurrentRecruitments = managerQuery({
   },
 });
 
+const staffOrderScopeValidator = v.union(
+  v.object({ mode: v.literal("legacy") }),
+  v.object({ mode: v.literal("ordered"), revision: v.number() }),
+);
+
+export const getDashboardStaffOrderScope = managerQuery({
+  args: {},
+  returns: staffOrderScopeValidator,
+  handler: async (ctx) => {
+    const shop = ctx.shop;
+    const organization = ctx.organization;
+    if (!shop || !organization || shop.organizationId !== organization._id) return { mode: "legacy" as const };
+    return await getOrganizationStaffOrderScope(ctx, {
+      organizationId: organization._id,
+      shopId: shop._id,
+    });
+  },
+});
+
 export const getDashboardStaffs = managerQuery({
-  args: { paginationOpts: paginationOptsValidator },
+  args: {
+    paginationOpts: paginationOptsValidator,
+    orderRevision: v.optional(v.union(v.number(), v.null())),
+  },
   returns: paginationResultValidator(dashboardStaffValidator),
   handler: async (ctx, args) => {
     const shop = ctx.shop;
@@ -931,11 +954,49 @@ export const getDashboardStaffs = managerQuery({
         ])
       : [null, null, []];
     const activePendingInvitations = pendingInvitations.filter((invitation) => invitation.expiresAt > now);
+    const useOrderedIndex = args.orderRevision !== undefined && args.orderRevision !== null;
+    if (useOrderedIndex && (!Number.isSafeInteger(args.orderRevision) || (args.orderRevision as number) < 1)) {
+      throw new ConvexError("orderRevision must be a positive safe integer");
+    }
 
-    const paginatedResult = await ctx.db
-      .query("staffs")
-      .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
-      .paginate(args.paginationOpts);
+    let paginatedResult: PaginationResult<Doc<"staffs">>;
+    if (useOrderedIndex) {
+      if (!organization || shop.organizationId !== organization._id) return EMPTY_PAGE;
+      const scope = await getOrganizationStaffOrderScope(ctx, {
+        organizationId: organization._id,
+        shopId: shop._id,
+      });
+      if (scope.mode !== "ordered" || scope.revision !== args.orderRevision) return EMPTY_PAGE;
+      const entries = await ctx.db
+        .query("shopStaffOrderEntries")
+        .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", shop._id))
+        .paginate(args.paginationOpts);
+      const staffs = (
+        await Promise.all(
+          entries.page.map(async (entry) => {
+            if (entry.organizationId !== organization._id || entry.shopId !== shop._id) return null;
+            const staff = await ctx.db.get(entry.staffId);
+            if (
+              !staff ||
+              staff.isDeleted ||
+              staff.shopId !== shop._id ||
+              staff.organizationId !== organization._id ||
+              staff.organizationPersonId !== entry.organizationPersonId
+            ) {
+              return null;
+            }
+            const person = await ctx.db.get(entry.organizationPersonId);
+            return person?.organizationId === organization._id && person.status === "active" ? staff : null;
+          }),
+        )
+      ).filter((staff): staff is Doc<"staffs"> => staff !== null);
+      paginatedResult = { ...entries, page: staffs };
+    } else {
+      paginatedResult = await ctx.db
+        .query("staffs")
+        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+        .paginate(args.paginationOpts);
+    }
 
     const page = await Promise.all(
       paginatedResult.page.map(async (s) => {

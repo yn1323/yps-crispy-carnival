@@ -48,6 +48,7 @@ import {
   STALE_SHOP_MEMBERSHIP_CHANGE_ERROR,
   sortShopIds,
 } from "../organization/shopMembershipChange";
+import { syncActivatedOrganizationStaffOrder } from "../organization/staffOrder";
 import { requireOrganizationCapacity } from "../organizationBilling/service";
 import { recalculateOpenRecruitmentStatsForShops } from "../recruitment/stats";
 import { addStaffsSchema, editStaffSchema } from "./schemas";
@@ -274,6 +275,8 @@ type AddStaffEntriesArgs = {
     addsPersonToUsage: boolean;
   }>;
   requestId: string;
+  /** 複数店舗所属の一括変更だけ、全source更新後の1回へorder同期をまとめる。 */
+  deferStaffOrderSync?: boolean;
 };
 
 async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntriesArgs) {
@@ -448,6 +451,9 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
       isDeleted: false,
     });
     inserted.push(id);
+  }
+  if (organizationId && !args.deferStaffOrderSync) {
+    await syncActivatedOrganizationStaffOrder(ctx, { organizationId });
   }
   const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
   for (const [index, staffId] of inserted.entries()) {
@@ -983,6 +989,7 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
         {
           entries: [{ name: person.name, email: person.email }],
           requestId: derivedRequestId,
+          deferStaffOrderSync: true,
         },
       );
       if (addition.status !== "added" || addition.staffIds.length !== 1) {
@@ -999,6 +1006,8 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
         throw new ConvexError("スタッフの追加結果を確認できません。\n画面を更新して、もう一度お試しください。");
       }
     }
+
+    await syncActivatedOrganizationStaffOrder(ctx, { organizationId });
 
     await recalculateOpenRecruitmentStatsForShops(ctx, [...removedShopIds, ...addedShopIds], now);
 
@@ -1404,6 +1413,7 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
           addsPersonToUsage: entry.addsPersonToUsageOnAddition,
         })),
         requestId: derivedRequestId,
+        deferStaffOrderSync: true,
       });
       if (addition.status !== "added" || addition.staffIds.length !== additions.length) {
         throw new ConvexError("スタッフの追加結果を確認できません。\n画面を更新して、もう一度お試しください。");
@@ -1423,6 +1433,8 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
         }
       }
     }
+
+    await syncActivatedOrganizationStaffOrder(ctx, { organizationId });
 
     await recalculateOpenRecruitmentStatsForShops(ctx, [ctx.shop._id], now, {
       workLimit: BULK_SHOP_STAFF_MEMBERSHIP_STATS_WORK_LIMIT,

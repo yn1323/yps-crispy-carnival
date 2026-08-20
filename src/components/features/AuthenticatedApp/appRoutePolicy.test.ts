@@ -17,6 +17,7 @@ describe("app route search policy", () => {
     ["/shifts", "?org=org-a&shopFilter=shop-a"],
     ["/shifts/recruitment-a/board", "?org=org-a"],
     ["/staff", "?org=org-a&shopFilter=shop-a"],
+    ["/staff/order", "?org=org-a&shopFilter=shop-a"],
     ["/staff/person-a", "?org=org-a"],
     ["/staff/person-a/shops/shop-a", "?org=org-a"],
     ["/actions", "?org=org-a&shopFilter=shop-a"],
@@ -30,6 +31,7 @@ describe("app route search policy", () => {
     ["/app/shifts", "?org=org-a&shopFilter=shop-a"],
     ["/app/shifts/recruitment-a/board", "?org=org-a"],
     ["/app/staff", "?org=org-a&shopFilter=shop-a"],
+    ["/app/staff/order", "?org=org-a&shopFilter=shop-a"],
     ["/app/staff/person-a", "?org=org-a"],
     ["/app/staff/person-a/shops/shop-a", "?org=org-a"],
     ["/app/actions", "?org=org-a&shopFilter=shop-a"],
@@ -101,10 +103,12 @@ describe("app route search policy", () => {
   it.each([
     "/dashboard",
     "/staff/person-a",
+    "/staff/order",
     "/staff/person-a/shops/shop-a",
     "/shifts/recruitment-a/board",
     "/manage/shops/shop-a",
     "/app/staff/person-a",
+    "/app/staff/order",
     "/Staff/person-a",
     "/Manage/Billing",
   ])("organization scoped route %s をstrictに識別する", (pathname) => {

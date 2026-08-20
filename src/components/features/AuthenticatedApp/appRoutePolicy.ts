@@ -5,6 +5,7 @@ export type AppOrganizationScopedNavigationPath =
   | "/shifts"
   | `/shifts/${string}/board`
   | "/staff"
+  | "/staff/order"
   | `/staff/${string}`
   | "/actions"
   | "/manage"
@@ -45,8 +46,8 @@ const FILTERED_LIST_SEARCH_KEYS = ["org", "shopFilter"] as const satisfies reado
 
 type AppRouteSearchPolicy = "organization" | "billing" | "dashboard" | "filteredList";
 
-const CANONICAL_FILTERED_LIST_PATHS = new Set(["/actions", "/shifts", "/staff"]);
-const LEGACY_FILTERED_LIST_PATHS = new Set(["/app/actions", "/app/shifts", "/app/staff"]);
+const CANONICAL_FILTERED_LIST_PATHS = new Set(["/actions", "/shifts", "/staff", "/staff/order"]);
+const LEGACY_FILTERED_LIST_PATHS = new Set(["/app/actions", "/app/shifts", "/app/staff", "/app/staff/order"]);
 const CANONICAL_ORGANIZATION_PATHS = new Set([
   "/manage",
   "/manage/organization",

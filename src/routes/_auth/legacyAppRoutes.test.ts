@@ -14,6 +14,7 @@ import { Route as ShiftBoardRoute } from "./app_.shifts_.$recruitmentId_.board";
 import { Route as StaffRoute } from "./app_.staff";
 import { Route as StaffDetailRoute } from "./app_.staff_.$personId";
 import { Route as StaffShopDetailRoute } from "./app_.staff_.$personId_.shops.$shopId";
+import { Route as StaffOrderRoute } from "./app_.staff_.order";
 
 type LegacyRoute = {
   options: {
@@ -61,6 +62,7 @@ describe("legacy /app redirect routes", () => {
     [ActionsRoute, "/actions"],
     [ShiftsRoute, "/shifts"],
     [StaffRoute, "/staff"],
+    [StaffOrderRoute, "/staff/order"],
   ] as const)("一覧routeは許可した組織・店舗filterだけをcanonical URLへ渡す", (route, to) => {
     expect(getRedirectOptions(route as LegacyRoute, unsafeSearch)).toMatchObject({
       to,

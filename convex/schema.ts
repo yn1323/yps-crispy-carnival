@@ -144,6 +144,35 @@ const schema = defineSchema({
     .index("by_organizationId_and_userId", ["organizationId", "userId"])
     .index("by_userId_and_status", ["userId", "status"]),
 
+  // スタッフ並び順は既存の人物・スタッフtableへindex backfillを要求しないよう、
+  // 空で追加できる派生tableへ保持する。stateがない組織は従来順を正とする。
+  organizationStaffOrderStates: defineTable({
+    organizationId: v.id("organizations"),
+    revision: v.number(),
+    activatedAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_organizationId", ["organizationId"]),
+
+  organizationStaffOrderEntries: defineTable({
+    organizationId: v.id("organizations"),
+    organizationPersonId: v.id("organizationPeople"),
+    displayOrder: v.number(),
+  })
+    .index("by_organizationId_and_displayOrder", ["organizationId", "displayOrder"])
+    .index("by_organizationId_and_organizationPersonId", ["organizationId", "organizationPersonId"]),
+
+  shopStaffOrderEntries: defineTable({
+    organizationId: v.id("organizations"),
+    shopId: v.id("shops"),
+    staffId: v.id("staffs"),
+    organizationPersonId: v.id("organizationPeople"),
+    displayOrder: v.number(),
+  })
+    .index("by_shopId_and_displayOrder", ["shopId", "displayOrder"])
+    .index("by_shopId_and_staffId", ["shopId", "staffId"])
+    .index("by_organizationId_and_organizationPersonId", ["organizationId", "organizationPersonId"])
+    .index("by_organizationId_and_shopId", ["organizationId", "shopId"]),
+
   organizationMembers: defineTable({
     organizationId: v.id("organizations"),
     personId: v.id("organizationPeople"),

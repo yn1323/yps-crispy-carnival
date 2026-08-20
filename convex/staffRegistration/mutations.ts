@@ -14,6 +14,7 @@ import { recordStaffLegalConsentSnapshot } from "../legal/service";
 import { getOrganizationPersonLineState, resolveOrganizationPersonLineInheritanceRecipient } from "../line/service";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { recordOrganizationAuditEvent } from "../organization/audit";
+import { syncActivatedOrganizationStaffOrder } from "../organization/staffOrder";
 import { requireOrganizationCapacity } from "../organizationBilling/service";
 import {
   findActiveStaffByEmail,
@@ -334,6 +335,9 @@ export const approveRequest = managerMutation({
       excludedFromShift: false,
       isDeleted: false,
     });
+    if (organizationId) {
+      await syncActivatedOrganizationStaffOrder(ctx, { organizationId });
+    }
     await recordStaffLegalConsentSnapshot(ctx, {
       staffId,
       shopId: ctx.shop._id,

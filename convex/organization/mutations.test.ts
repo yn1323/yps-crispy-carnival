@@ -284,6 +284,104 @@ const managerRoleRemovalAccessCases = [
   { actorCase: "crossTenant", actorLabel: "別事業者の人物" },
 ] as const;
 
+describe("organization shop staff order lifecycle", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it("店舗のアーカイブ中はprojectionを参照せず、再稼働時に組織共通順から再構築する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, { subject: "shop_order_lifecycle_manager", plan: "pro" });
+      const target = await seedTargetPerson(ctx, {
+        base,
+        subject: "shop_order_lifecycle_staff",
+        shopIds: [base.shopId],
+      });
+      await ctx.db.insert("organizationStaffOrderStates", {
+        organizationId: base.organizationId,
+        revision: 1,
+        activatedAt: NOW,
+        updatedAt: NOW,
+      });
+      await ctx.db.insert("organizationStaffOrderEntries", {
+        organizationId: base.organizationId,
+        organizationPersonId: base.personId,
+        displayOrder: 0,
+      });
+      await ctx.db.insert("organizationStaffOrderEntries", {
+        organizationId: base.organizationId,
+        organizationPersonId: target.personId,
+        displayOrder: 1,
+      });
+      await ctx.db.insert("shopStaffOrderEntries", {
+        organizationId: base.organizationId,
+        shopId: base.shopId,
+        staffId: target.staffIds[0],
+        organizationPersonId: target.personId,
+        displayOrder: 1,
+      });
+      return { ...base, staffId: target.staffIds[0], targetPersonId: target.personId };
+    });
+
+    const actor = t.withIdentity({ subject: "shop_order_lifecycle_manager" });
+    await expect(
+      actor.mutation(api.organization.mutations.archiveShop, {
+        shopId: ids.shopId,
+        requestId: "archive-staff-order-shop",
+      }),
+    ).resolves.toMatchObject({ shopId: ids.shopId, shopStatus: "archived", changed: true });
+
+    const archived = await t.run(async (ctx) => ({
+      state: (
+        await ctx.db
+          .query("organizationStaffOrderStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+          .unique()
+      )?.revision,
+      entries: await ctx.db
+        .query("shopStaffOrderEntries")
+        .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", ids.shopId))
+        .collect(),
+    }));
+    expect(archived.state).toBe(2);
+    expect(archived.entries).toHaveLength(1);
+
+    await expect(
+      actor.mutation(api.organization.mutations.reactivateShop, {
+        shopId: ids.shopId,
+        requestId: "reactivate-staff-order-shop",
+      }),
+    ).resolves.toMatchObject({ shopId: ids.shopId, shopStatus: "active", changed: true });
+
+    const reactivated = await t.run(async (ctx) => ({
+      state: (
+        await ctx.db
+          .query("organizationStaffOrderStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+          .unique()
+      )?.revision,
+      entries: await ctx.db
+        .query("shopStaffOrderEntries")
+        .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", ids.shopId))
+        .collect(),
+    }));
+    expect(reactivated.state).toBe(3);
+    expect(reactivated.entries).toEqual([
+      expect.objectContaining({
+        organizationId: ids.organizationId,
+        shopId: ids.shopId,
+        staffId: ids.staffId,
+        organizationPersonId: ids.targetPersonId,
+        displayOrder: 1,
+      }),
+    ]);
+  });
+});
+
 describe("organization person removal", () => {
   beforeEach(() => {
     vi.useFakeTimers();

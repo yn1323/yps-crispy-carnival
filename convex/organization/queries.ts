@@ -37,6 +37,7 @@ import {
   organizationPersonCountsTowardPeopleLimit,
 } from "./service";
 import { organizationShopOperatingStatus } from "./shopMembershipChange";
+import { getOrganizationStaffOrderScope, ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT } from "./staffOrder";
 
 async function hasManagerInvitationDeliveryFailure(
   ctx: QueryCtx,
@@ -407,6 +408,23 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
       .first(),
   ]);
   const people = peopleDocs.filter((person) => person.status === "active");
+  const staffOrderScope = await getOrganizationStaffOrderScope(ctx, { organizationId: organization._id });
+  let organizationStaffOrderRank: Map<string, number> | null = null;
+  if (staffOrderScope.mode === "ordered") {
+    const orderEntries = await ctx.db
+      .query("organizationStaffOrderEntries")
+      .withIndex("by_organizationId_and_displayOrder", (q) => q.eq("organizationId", organization._id))
+      .take(ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT + 1);
+    const activePersonIds = new Set(people.map((person) => person._id));
+    if (
+      orderEntries.length === people.length &&
+      orderEntries.every((entry) => activePersonIds.has(entry.organizationPersonId))
+    ) {
+      organizationStaffOrderRank = new Map(
+        orderEntries.map((entry) => [entry.organizationPersonId, entry.displayOrder] as const),
+      );
+    }
+  }
   const historicalInvitations = [...acceptedInvitations, ...revokedInvitations, ...expiredInvitations]
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, 100);
@@ -742,12 +760,19 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
         ...capabilities,
       };
     })
-    .sort(
-      (a, b) =>
+    .sort((a, b) => {
+      if (organizationStaffOrderRank) {
+        return (
+          (organizationStaffOrderRank.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+          (organizationStaffOrderRank.get(b.id) ?? Number.MAX_SAFE_INTEGER)
+        );
+      }
+      return (
         Number(b.managerRole === "active") - Number(a.managerRole === "active") ||
         Number(b.managerRole === "readOnly") - Number(a.managerRole === "readOnly") ||
-        a.name.localeCompare(b.name, "ja"),
-    );
+        a.name.localeCompare(b.name, "ja")
+      );
+    });
 
   const staffCountByShopId = new Map<Id<"shops">, number>();
   for (const staff of staffDocs) {

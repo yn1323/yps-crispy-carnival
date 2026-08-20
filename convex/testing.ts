@@ -370,6 +370,12 @@ async function deleteShopGraph(
   await deleteShopNotificationGraph(ctx, shopId);
   await deleteShopCleanupJobs(ctx, shopId);
 
+  const staffOrderEntries = await ctx.db
+    .query("shopStaffOrderEntries")
+    .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", shopId))
+    .collect();
+  for (const entry of staffOrderEntries) await ctx.db.delete(entry._id);
+
   const [
     featureRequests,
     registrationLinks,
@@ -517,6 +523,24 @@ async function deleteOrganizationGraph(
   if (auditBeforeReset) await assertOrganizationNotificationAuditBeforeReset(ctx, organizationId);
   await deleteOrganizationNotificationGraph(ctx, organizationId);
   await deleteOrganizationCleanupJobs(ctx, organizationId);
+
+  const [staffOrderStates, staffOrderEntries, shopStaffOrderEntries] = await Promise.all([
+    ctx.db
+      .query("organizationStaffOrderStates")
+      .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+      .collect(),
+    ctx.db
+      .query("organizationStaffOrderEntries")
+      .withIndex("by_organizationId_and_displayOrder", (q) => q.eq("organizationId", organizationId))
+      .collect(),
+    ctx.db
+      .query("shopStaffOrderEntries")
+      .withIndex("by_organizationId_and_shopId", (q) => q.eq("organizationId", organizationId))
+      .collect(),
+  ]);
+  for (const state of staffOrderStates) await ctx.db.delete(state._id);
+  for (const entry of staffOrderEntries) await ctx.db.delete(entry._id);
+  for (const entry of shopStaffOrderEntries) await ctx.db.delete(entry._id);
 
   const organizationFeatureRequests = await ctx.db
     .query("featureRequests")

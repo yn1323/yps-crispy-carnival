@@ -786,6 +786,7 @@ describe("appOrganization organization context queries", () => {
       visibleCountHasOverflow: false,
       maxPeople: 5,
       canAddStaff: true,
+      canChangeStaffOrder: true,
       features: { managerInvitation: false },
     });
 
@@ -798,6 +799,8 @@ describe("appOrganization organization context queries", () => {
     ).resolves.toMatchObject({
       canAddStaff: false,
       addStaffDisabledReason: "閲覧のみの管理者は、スタッフを追加できません。",
+      canChangeStaffOrder: false,
+      changeStaffOrderDisabledReason: "閲覧のみの管理者は、スタッフの並び順を変更できません。",
     });
   });
 });

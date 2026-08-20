@@ -23,6 +23,7 @@ import {
   getOrganizationUsageSnapshot,
   removeLegacyOrganizationManagerAccess,
 } from "../organization/service";
+import { syncActivatedOrganizationStaffOrder } from "../organization/staffOrder";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 import { scheduleOrganizationBillingStateDeadline } from "./deadline";
 import {
@@ -409,6 +410,9 @@ async function applyVerifiedPaidRestoration(
       statusDeltas.push({ kind: "shop", shopId: shop._id, status: targetStatus });
     }
   }
+  if (statusDeltas.some((delta) => delta.kind === "shop")) {
+    await syncActivatedOrganizationStaffOrder(ctx, { organizationId: args.organizationId });
+  }
   return statusDeltas;
 }
 
@@ -519,6 +523,9 @@ async function applyFreeOrRestricted(
         analyticsStatusDeltas.push({ kind: "shop", shopId: shop._id, status: targetStatus });
       }
     }
+  }
+  if (analyticsStatusDeltas.some((delta) => delta.kind === "shop")) {
+    await syncActivatedOrganizationStaffOrder(ctx, { organizationId });
   }
 
   if (selectedManagerIsValid && selectedManagerId) {

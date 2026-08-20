@@ -4,6 +4,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { StaffNotificationHistory } from "@/src/components/features/StaffNotificationHistory";
 import { useShopPaginatedQuery } from "@/src/hooks/useShopPaginatedQuery";
+import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { DEFAULT_USER_LIST_COUNT, USER_LIST_PAGE_SIZE } from "@/src/lib/userListSearch";
 import { useManagerShopScope } from "@/src/providers/ManagerShopScopeProvider";
 import { selectedShopAtom } from "@/src/stores/shop";
@@ -61,15 +62,23 @@ export function StaffManagement({
   const managerShopScope = useManagerShopScope();
   const featureVisibility = useAtomValue(featureVisibilityAtom);
   const [visibleStaffCount, setVisibleStaffCount] = useState(initialVisibleUserCount);
-  const staffQuery = useShopPaginatedQuery(api.dashboard.queries.getDashboardStaffs, data ? "skip" : {}, {
-    initialNumItems: initialVisibleUserCount + 1,
-  });
+  const staffOrderScope = useShopQuery(api.dashboard.queries.getDashboardStaffOrderScope, data ? "skip" : {});
+  const orderRevision = staffOrderScope?.mode === "ordered" ? staffOrderScope.revision : null;
+  const staffQuery = useShopPaginatedQuery(
+    api.dashboard.queries.getDashboardStaffs,
+    data || staffOrderScope === undefined ? "skip" : { orderRevision },
+    {
+      initialNumItems: initialVisibleUserCount + 1,
+    },
+  );
 
   useEffect(() => {
     setVisibleStaffCount(initialVisibleUserCount);
   }, [initialVisibleUserCount]);
 
-  const staffs = data?.staffs ?? staffQuery.results.slice(0, visibleStaffCount);
+  const queryStaffs = staffQuery.results.slice(0, visibleStaffCount);
+  const staffs =
+    data?.staffs ?? (staffOrderScope?.mode === "legacy" ? sortManagersFirstStable(queryStaffs) : queryStaffs);
   const status = data?.status ?? staffQuery.status;
   const canLoadMore =
     data?.canLoadMore ??
@@ -154,4 +163,11 @@ export function StaffManagement({
     staffs,
     content,
   });
+}
+
+function sortManagersFirstStable(staffs: Staff[]): Staff[] {
+  return staffs
+    .map((staff, index) => ({ staff, index }))
+    .sort((left, right) => Number(right.staff.isManager) - Number(left.staff.isManager) || left.index - right.index)
+    .map(({ staff }) => staff);
 }

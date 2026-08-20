@@ -52,6 +52,7 @@ import { Route as AuthManageBillingRouteImport } from './routes/_auth/manage_.bi
 import { Route as AuthManageManagersRouteImport } from './routes/_auth/manage_.managers'
 import { Route as AuthManageOrganizationRouteImport } from './routes/_auth/manage_.organization'
 import { Route as AuthStaffPersonIdRouteImport } from './routes/_auth/staff_.$personId'
+import { Route as AuthStaffOrderRouteImport } from './routes/_auth/staff_.order'
 import { Route as UnregisteredLineCallbackRouteImport } from './routes/_unregistered/line.callback'
 import { Route as UnregisteredShiftsReissueRouteImport } from './routes/_unregistered/shifts.reissue'
 import { Route as UnregisteredShiftsSubmitRouteImport } from './routes/_unregistered/shifts.submit'
@@ -62,6 +63,7 @@ import { Route as AuthAppManageBillingRouteImport } from './routes/_auth/app_.ma
 import { Route as AuthAppManageManagersRouteImport } from './routes/_auth/app_.manage_.managers'
 import { Route as AuthAppManageOrganizationRouteImport } from './routes/_auth/app_.manage_.organization'
 import { Route as AuthAppStaffPersonIdRouteImport } from './routes/_auth/app_.staff_.$personId'
+import { Route as AuthAppStaffOrderRouteImport } from './routes/_auth/app_.staff_.order'
 import { Route as AuthManageManagersInviteNewRouteImport } from './routes/_auth/manage_.managers_.invite-new'
 import { Route as AuthManageManagersInviteStaffRouteImport } from './routes/_auth/manage_.managers_.invite-staff'
 import { Route as AuthManageShopsShopIdRouteImport } from './routes/_auth/manage_.shops.$shopId'
@@ -288,6 +290,11 @@ const AuthStaffPersonIdRoute = AuthStaffPersonIdRouteImport.update({
   path: '/staff/$personId',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthStaffOrderRoute = AuthStaffOrderRouteImport.update({
+  id: '/staff_/order',
+  path: '/staff/order',
+  getParentRoute: () => AuthRoute,
+} as any)
 const UnregisteredLineCallbackRoute =
   UnregisteredLineCallbackRouteImport.update({
     id: '/line/callback',
@@ -342,6 +349,11 @@ const AuthAppManageOrganizationRoute =
 const AuthAppStaffPersonIdRoute = AuthAppStaffPersonIdRouteImport.update({
   id: '/app_/staff_/$personId',
   path: '/app/staff/$personId',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthAppStaffOrderRoute = AuthAppStaffOrderRouteImport.update({
+  id: '/app_/staff_/order',
+  path: '/app/staff/order',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthManageManagersInviteNewRoute =
@@ -458,6 +470,7 @@ export interface FileRoutesByFullPath {
   '/manage/managers': typeof AuthManageManagersRoute
   '/manage/organization': typeof AuthManageOrganizationRoute
   '/staff/$personId': typeof AuthStaffPersonIdRoute
+  '/staff/order': typeof AuthStaffOrderRoute
   '/line/callback': typeof UnregisteredLineCallbackRoute
   '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
   '/shifts/submit': typeof UnregisteredShiftsSubmitRoute
@@ -468,6 +481,7 @@ export interface FileRoutesByFullPath {
   '/app/manage/managers': typeof AuthAppManageManagersRoute
   '/app/manage/organization': typeof AuthAppManageOrganizationRoute
   '/app/staff/$personId': typeof AuthAppStaffPersonIdRoute
+  '/app/staff/order': typeof AuthAppStaffOrderRoute
   '/manage/managers/invite-new': typeof AuthManageManagersInviteNewRoute
   '/manage/managers/invite-staff': typeof AuthManageManagersInviteStaffRoute
   '/manage/shops/$shopId': typeof AuthManageShopsShopIdRoute
@@ -522,6 +536,7 @@ export interface FileRoutesByTo {
   '/manage/managers': typeof AuthManageManagersRoute
   '/manage/organization': typeof AuthManageOrganizationRoute
   '/staff/$personId': typeof AuthStaffPersonIdRoute
+  '/staff/order': typeof AuthStaffOrderRoute
   '/line/callback': typeof UnregisteredLineCallbackRoute
   '/shifts/reissue': typeof UnregisteredShiftsReissueRoute
   '/shifts/submit': typeof UnregisteredShiftsSubmitRoute
@@ -532,6 +547,7 @@ export interface FileRoutesByTo {
   '/app/manage/managers': typeof AuthAppManageManagersRoute
   '/app/manage/organization': typeof AuthAppManageOrganizationRoute
   '/app/staff/$personId': typeof AuthAppStaffPersonIdRoute
+  '/app/staff/order': typeof AuthAppStaffOrderRoute
   '/manage/managers/invite-new': typeof AuthManageManagersInviteNewRoute
   '/manage/managers/invite-staff': typeof AuthManageManagersInviteStaffRoute
   '/manage/shops/$shopId': typeof AuthManageShopsShopIdRoute
@@ -590,6 +606,7 @@ export interface FileRoutesById {
   '/_auth/manage_/managers': typeof AuthManageManagersRoute
   '/_auth/manage_/organization': typeof AuthManageOrganizationRoute
   '/_auth/staff_/$personId': typeof AuthStaffPersonIdRoute
+  '/_auth/staff_/order': typeof AuthStaffOrderRoute
   '/_unregistered/line/callback': typeof UnregisteredLineCallbackRoute
   '/_unregistered/shifts/reissue': typeof UnregisteredShiftsReissueRoute
   '/_unregistered/shifts/submit': typeof UnregisteredShiftsSubmitRoute
@@ -600,6 +617,7 @@ export interface FileRoutesById {
   '/_auth/app_/manage_/managers': typeof AuthAppManageManagersRoute
   '/_auth/app_/manage_/organization': typeof AuthAppManageOrganizationRoute
   '/_auth/app_/staff_/$personId': typeof AuthAppStaffPersonIdRoute
+  '/_auth/app_/staff_/order': typeof AuthAppStaffOrderRoute
   '/_auth/manage_/managers_/invite-new': typeof AuthManageManagersInviteNewRoute
   '/_auth/manage_/managers_/invite-staff': typeof AuthManageManagersInviteStaffRoute
   '/_auth/manage_/shops/$shopId': typeof AuthManageShopsShopIdRoute
@@ -657,6 +675,7 @@ export interface FileRouteTypes {
     | '/manage/managers'
     | '/manage/organization'
     | '/staff/$personId'
+    | '/staff/order'
     | '/line/callback'
     | '/shifts/reissue'
     | '/shifts/submit'
@@ -667,6 +686,7 @@ export interface FileRouteTypes {
     | '/app/manage/managers'
     | '/app/manage/organization'
     | '/app/staff/$personId'
+    | '/app/staff/order'
     | '/manage/managers/invite-new'
     | '/manage/managers/invite-staff'
     | '/manage/shops/$shopId'
@@ -721,6 +741,7 @@ export interface FileRouteTypes {
     | '/manage/managers'
     | '/manage/organization'
     | '/staff/$personId'
+    | '/staff/order'
     | '/line/callback'
     | '/shifts/reissue'
     | '/shifts/submit'
@@ -731,6 +752,7 @@ export interface FileRouteTypes {
     | '/app/manage/managers'
     | '/app/manage/organization'
     | '/app/staff/$personId'
+    | '/app/staff/order'
     | '/manage/managers/invite-new'
     | '/manage/managers/invite-staff'
     | '/manage/shops/$shopId'
@@ -788,6 +810,7 @@ export interface FileRouteTypes {
     | '/_auth/manage_/managers'
     | '/_auth/manage_/organization'
     | '/_auth/staff_/$personId'
+    | '/_auth/staff_/order'
     | '/_unregistered/line/callback'
     | '/_unregistered/shifts/reissue'
     | '/_unregistered/shifts/submit'
@@ -798,6 +821,7 @@ export interface FileRouteTypes {
     | '/_auth/app_/manage_/managers'
     | '/_auth/app_/manage_/organization'
     | '/_auth/app_/staff_/$personId'
+    | '/_auth/app_/staff_/order'
     | '/_auth/manage_/managers_/invite-new'
     | '/_auth/manage_/managers_/invite-staff'
     | '/_auth/manage_/shops/$shopId'
@@ -1144,6 +1168,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthStaffPersonIdRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/staff_/order': {
+      id: '/_auth/staff_/order'
+      path: '/staff/order'
+      fullPath: '/staff/order'
+      preLoaderRoute: typeof AuthStaffOrderRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_unregistered/line/callback': {
       id: '/_unregistered/line/callback'
       path: '/line/callback'
@@ -1212,6 +1243,13 @@ declare module '@tanstack/react-router' {
       path: '/app/staff/$personId'
       fullPath: '/app/staff/$personId'
       preLoaderRoute: typeof AuthAppStaffPersonIdRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/app_/staff_/order': {
+      id: '/_auth/app_/staff_/order'
+      path: '/app/staff/order'
+      fullPath: '/app/staff/order'
+      preLoaderRoute: typeof AuthAppStaffOrderRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_auth/manage_/managers_/invite-new': {
@@ -1317,10 +1355,12 @@ interface AuthRouteChildren {
   AuthManageManagersRoute: typeof AuthManageManagersRoute
   AuthManageOrganizationRoute: typeof AuthManageOrganizationRoute
   AuthStaffPersonIdRoute: typeof AuthStaffPersonIdRoute
+  AuthStaffOrderRoute: typeof AuthStaffOrderRoute
   AuthAppManageBillingRoute: typeof AuthAppManageBillingRoute
   AuthAppManageManagersRoute: typeof AuthAppManageManagersRoute
   AuthAppManageOrganizationRoute: typeof AuthAppManageOrganizationRoute
   AuthAppStaffPersonIdRoute: typeof AuthAppStaffPersonIdRoute
+  AuthAppStaffOrderRoute: typeof AuthAppStaffOrderRoute
   AuthManageManagersInviteNewRoute: typeof AuthManageManagersInviteNewRoute
   AuthManageManagersInviteStaffRoute: typeof AuthManageManagersInviteStaffRoute
   AuthManageShopsShopIdRoute: typeof AuthManageShopsShopIdRoute
@@ -1349,10 +1389,12 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthManageManagersRoute: AuthManageManagersRoute,
   AuthManageOrganizationRoute: AuthManageOrganizationRoute,
   AuthStaffPersonIdRoute: AuthStaffPersonIdRoute,
+  AuthStaffOrderRoute: AuthStaffOrderRoute,
   AuthAppManageBillingRoute: AuthAppManageBillingRoute,
   AuthAppManageManagersRoute: AuthAppManageManagersRoute,
   AuthAppManageOrganizationRoute: AuthAppManageOrganizationRoute,
   AuthAppStaffPersonIdRoute: AuthAppStaffPersonIdRoute,
+  AuthAppStaffOrderRoute: AuthAppStaffOrderRoute,
   AuthManageManagersInviteNewRoute: AuthManageManagersInviteNewRoute,
   AuthManageManagersInviteStaffRoute: AuthManageManagersInviteStaffRoute,
   AuthManageShopsShopIdRoute: AuthManageShopsShopIdRoute,

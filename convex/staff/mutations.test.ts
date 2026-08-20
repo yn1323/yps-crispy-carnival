@@ -202,16 +202,33 @@ describe("staff/mutations", () => {
       expect(staffs.every((s) => !s.isDeleted)).toBe(true);
     });
 
-    it("事業者配下では人物を作成してstaffsへ事業者・人物IDをdual-writeする", async () => {
+    it("事業者配下では人物とstaffをdual-writeし、有効な組織共通順の末尾へ追加する", async () => {
       vi.stubEnv("FEATURE_SHOP_ADDITION", "");
       const t = convexTest(schema, modules);
-      const { shopId, organizationId } = await t.run(
+      const {
+        shopId,
+        organizationId,
+        personId: managerPersonId,
+      } = await t.run(
         async (ctx) =>
           await seedOrganizationManagerShop(ctx, {
             subject: "organization_manager",
             email: "organization-manager@example.com",
           }),
       );
+      await t.run(async (ctx) => {
+        await ctx.db.insert("organizationStaffOrderStates", {
+          organizationId,
+          revision: 1,
+          activatedAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+        await ctx.db.insert("organizationStaffOrderEntries", {
+          organizationId,
+          organizationPersonId: managerPersonId,
+          displayOrder: 0,
+        });
+      });
 
       const [staffId] = addedStaffIds(
         await t.withIdentity({ subject: "organization_manager" }).mutation(api.staff.mutations.addStaffs, {
@@ -224,7 +241,17 @@ describe("staff/mutations", () => {
       const state = await t.run(async (ctx) => {
         const staff = await ctx.db.get(staffId);
         const person = staff?.organizationPersonId ? await ctx.db.get(staff.organizationPersonId) : null;
-        return { staff, person };
+        const [organizationOrder, shopOrder] = await Promise.all([
+          ctx.db
+            .query("organizationStaffOrderEntries")
+            .withIndex("by_organizationId_and_displayOrder", (q) => q.eq("organizationId", organizationId))
+            .collect(),
+          ctx.db
+            .query("shopStaffOrderEntries")
+            .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", shopId))
+            .collect(),
+        ]);
+        return { staff, person, organizationOrder, shopOrder };
       });
       expect(state.staff).toMatchObject({
         shopId,
@@ -241,6 +268,87 @@ describe("staff/mutations", () => {
         emailNormalized: "staff@example.com",
         status: "active",
       });
+      expect(state.organizationOrder.map(({ organizationPersonId }) => organizationPersonId)).toEqual([
+        managerPersonId,
+        state.person?._id,
+      ]);
+      expect(state.shopOrder).toEqual([
+        expect.objectContaining({
+          organizationId,
+          shopId,
+          staffId,
+          organizationPersonId: state.person?._id,
+          displayOrder: 1,
+        }),
+      ]);
+    });
+
+    it("order entryが安全上限を超えてもスタッフ追加を完了し、並び順だけをlegacyへ戻す", async () => {
+      vi.stubEnv("FEATURE_SHOP_ADDITION", "");
+      const t = convexTest(schema, modules);
+      const subject = "staff_order_fail_safe_addition";
+      const base = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject,
+          email: "staff-order-fail-safe-manager@example.com",
+        });
+        const now = Date.now();
+        await ctx.db.insert("organizationStaffOrderStates", {
+          organizationId: seeded.organizationId,
+          revision: 1,
+          activatedAt: now,
+          updatedAt: now,
+        });
+        for (let displayOrder = 0; displayOrder <= 40; displayOrder += 1) {
+          await ctx.db.insert("organizationStaffOrderEntries", {
+            organizationId: seeded.organizationId,
+            organizationPersonId: seeded.personId,
+            displayOrder,
+          });
+        }
+        return seeded;
+      });
+      const actor = t.withIdentity({ subject });
+
+      const [staffId] = addedStaffIds(
+        await actor.mutation(api.staff.mutations.addStaffs, {
+          shopId: base.shopId,
+          requestId: nextStaffAddRequestId(),
+          entries: [{ name: "追加できるスタッフ", email: "staff-order-fail-safe-added@example.com" }],
+        }),
+      );
+
+      const state = await t.run(async (ctx) => {
+        const staff = await ctx.db.get(staffId);
+        return {
+          staff,
+          person: staff?.organizationPersonId ? await ctx.db.get(staff.organizationPersonId) : null,
+          orderStates: await ctx.db
+            .query("organizationStaffOrderStates")
+            .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
+            .collect(),
+        };
+      });
+      expect(state.staff).toMatchObject({
+        organizationId: base.organizationId,
+        shopId: base.shopId,
+        name: "追加できるスタッフ",
+        emailNormalized: "staff-order-fail-safe-added@example.com",
+        isDeleted: false,
+      });
+      expect(state.person).toMatchObject({
+        organizationId: base.organizationId,
+        name: "追加できるスタッフ",
+        emailNormalized: "staff-order-fail-safe-added@example.com",
+        status: "active",
+      });
+      expect(state.orderStates).toEqual([]);
+      await expect(
+        actor.query(api.appOrganization.staffOrderQueries.getOrganizationStaffOrderScope, {
+          organizationId: base.organizationId,
+          shopFilter: "all",
+        }),
+      ).resolves.toEqual({ mode: "legacy" });
     });
 
     it("未リリース中は既存人物を別active店舗へemail再利用する追加を副作用なしで拒否する", async () => {
