@@ -30,16 +30,21 @@ test.describe("組織ライフサイクル", { tag: ["@e2e-core"] }, () => {
     const created = await organization.createOrganization(createdShopName);
     await dashboard.expectSelectedShop(createdShopName, created.organizationId, created.shopId);
 
-    await page.goto(page.url(), { waitUntil: "domcontentloaded" });
+    await page.reload({ waitUntil: "domcontentloaded" });
     await expectAppHydrated(page);
     await dashboard.expectSelectedShop(createdShopName, created.organizationId, created.shopId);
 
     await organization.gotoOrganization(created.organizationId);
     await organization.expectCurrentOrganization(created.organizationId, createdOrganizationName);
     await organization.renameCurrentOrganization(renamedOrganizationName);
-    await page.goto(page.url(), { waitUntil: "domcontentloaded" });
-    await expectAppHydrated(page);
-    await organization.expectCurrentOrganization(created.organizationId, renamedOrganizationName);
+    const persistedPage = await page.context().newPage();
+    try {
+      const persistedOrganization = new OrganizationLifecyclePage(persistedPage);
+      await persistedOrganization.gotoOrganization(created.organizationId);
+      await persistedOrganization.expectCurrentOrganization(created.organizationId, renamedOrganizationName);
+    } finally {
+      await persistedPage.close();
+    }
 
     await organization.switchOrganization(seed.organizationName, seed.organizationId);
     await organization.switchOrganization(renamedOrganizationName, created.organizationId);
@@ -64,7 +69,7 @@ test.describe("組織ライフサイクル", { tag: ["@e2e-core"] }, () => {
     await expectAppHydrated(page);
     await dashboard.expectSelectedShop(seed.alternateShopName, seed.alternateOrganizationId, seed.alternateShopId);
 
-    await page.goto(page.url(), { waitUntil: "domcontentloaded" });
+    await page.reload({ waitUntil: "domcontentloaded" });
     await expectAppHydrated(page);
     await dashboard.expectSelectedShop(seed.alternateShopName, seed.alternateOrganizationId, seed.alternateShopId);
 
