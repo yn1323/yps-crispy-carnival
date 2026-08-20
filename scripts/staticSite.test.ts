@@ -35,6 +35,8 @@ describe("static site manifest", () => {
       ...FIXED_PUBLIC_ROUTES,
       "/articles/$slug",
       "/articles/categories/$categorySlug",
+      "/app/staff/order",
+      "/staff/order",
       ...csrPatterns,
       "/$",
     ]);
