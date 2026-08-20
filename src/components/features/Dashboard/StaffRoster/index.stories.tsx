@@ -52,6 +52,22 @@ export const WithExcluded: Story = {
   },
 };
 
+export const InputOrderBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: {
+    staffs: [
+      { ...mockStaffs[1], name: "先に表示する一般スタッフ", isManager: false },
+      { ...mockStaffs[0], name: "後に表示する管理者", isManager: true },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const rows = canvas.getAllByRole("button", { name: /スタッフ詳細を開く/ });
+    await expect(rows[0]).toHaveAccessibleName(/先に表示する一般スタッフ/);
+    await expect(rows[1]).toHaveAccessibleName(/後に表示する管理者/);
+  },
+};
+
 export const DialogIntentBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   args: {

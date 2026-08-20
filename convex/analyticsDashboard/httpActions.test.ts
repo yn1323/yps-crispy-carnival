@@ -1,5 +1,6 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CONVEX_FUNCTION_ERROR_MARKER } from "../_lib/errorObservability";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
@@ -392,7 +393,7 @@ describe("analyticsDashboard/httpActions", () => {
     await expectJsonResponse(response, 502, { error: "response_too_large" });
   });
 
-  it("query例外を503へ変換し、logには安全なrequest metadataだけを残す", async () => {
+  it("query例外を503へ変換し、functionとHTTP境界へ安全なlogだけを残す", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const t = convexTest(schema, modules);
     const privateCursor = "private-person@example.com";
@@ -404,8 +405,14 @@ describe("analyticsDashboard/httpActions", () => {
     );
 
     await expectJsonResponse(response, 503, { error: "service_unavailable" });
-    expect(errorSpy).toHaveBeenCalledTimes(1);
-    expect(errorSpy).toHaveBeenCalledWith("analytics_dashboard_request_failed", {
+    expect(errorSpy).toHaveBeenCalledTimes(2);
+    expect(errorSpy).toHaveBeenNthCalledWith(1, CONVEX_FUNCTION_ERROR_MARKER, {
+      schemaVersion: 1,
+      functionKind: "query",
+      failureKind: "unexpected",
+      errorCode: "unexpected_error",
+    });
+    expect(errorSpy).toHaveBeenNthCalledWith(2, "analytics_dashboard_request_failed", {
       endpoint: "requests",
       requestId: "analytics-request-1",
       status: "internal_error",

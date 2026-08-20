@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-import { query } from "../_generated/server";
 import { isShopParentActive } from "../_lib/activeShop";
+import { observedQuery as query } from "../_lib/errorObservability";
 
 /**
  * 募集情報の公開データ取得（認証不要）

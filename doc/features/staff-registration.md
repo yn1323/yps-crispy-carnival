@@ -17,7 +17,8 @@
 - `convex/organization/personProfile.ts` — 組織人物と同じ人物に紐づく有効なスタッフの氏名・シフト連絡先を更新する
 - `convex/_lib/shopManagerRecipients.ts` — 店舗の有効管理者について、組織人物を正本に通知先とLINE連携を解決する
 - `src/components/features/Dashboard/StaffManagement/StaffInvitationDialog.tsx` / `OrganizationPeopleCandidateList.tsx` / `useStaffInvitation.ts` / `StaffRegistrationLinkPanel/` — 追加方法のカード選択と詳細表示、別店舗スタッフ候補、店舗専用登録リンクの取得、QR/URL表示
-- `src/components/features/Dashboard/StaffRegistrationRequestManagement/` — スタッフ参加申請の取得、モーダル、承認/却下
+- `src/components/features/Dashboard/StaffRegistrationRequestManagement/` — スタッフ参加申請の取得、Dashboardの要対応カード、承認/却下、利用人数上限案内
+- `src/components/features/ActionInbox/` — Dashboardと`/actions`で共有する申請カードと確認Dialog
 - `convex/appOrganization/actionInboxQueries.ts` / `src/pages/app-actions/useActionInboxController.ts` — Action Inboxの承認待ち申請とDashboard共通の承認可否
 - `src/components/features/UserDetail/UserInformationTab.tsx` / `UserInformationDialog.tsx` / `useUserProfileUpdate.ts` — 氏名・シフト連絡先の編集とログイン方法との境界説明
 
@@ -25,8 +26,8 @@
 
 | 画面 | 役割 |
 |---|---|
-| ダッシュボード | 「スタッフを追加する」から追加方法を選ぶダイアログを開く。届いた参加申請は、別の「申請を確認」から申請確認ダイアログを開いて承認/却下する |
-| `/app/actions` | Action Inboxで承認待ち申請を確認し、Dashboardと同じ承認可否で承認/却下する |
+| ダッシュボード | 「スタッフを追加する」から追加方法を選ぶダイアログを開く。届いた参加申請は「要対応」の件数行を開き、共通カードから承認または確認後に却下する |
+| `/actions` | Dashboardと同じカード・承認可否で、組織または店舗scopeの承認待ち申請を承認/却下する |
 | `/staff/register` | スタッフが名前・シフト通知先メールアドレス・利用規約/プライバシーポリシー同意を入力して申請する |
 | 「スタッフを追加」ダイアログ | 最初に表示されるカードから「スタッフ本人に登録してもらう」「管理者が情報を入力して追加する」「別店舗のスタッフを追加する」を選ぶ。別店舗スタッフのカードは利用可能な場合だけ表示する。各方法の詳細から追加方法へ戻ることができ、同じ開閉セッション中は手入力の下書きを保持し、閉じて開き直したときは初期状態へ戻す。手入力が削除済み人物と同じ正規化メールアドレスに一致しても削除履歴の確認へ分岐せず、通常のスタッフ追加として完了する。本人登録は申請後の管理者承認で完了し、削除済み人物に一致する申請も同じ承認操作で通常追加する。別店舗スタッフは対象店舗へ直接追加する |
 

@@ -3,12 +3,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useMemo } from "react";
 import { LuMessageCircle, LuRefreshCw } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
-import { ActionInboxView } from "@/src/components/features/ActionInbox";
+import { ActionInboxConfirmationDialog, ActionInboxView } from "@/src/components/features/ActionInbox";
 import { ShopFilterMenu } from "@/src/components/features/AuthenticatedApp/ShopFilterMenu";
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 import { Button } from "@/src/components/ui/Button";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
-import { ActionInboxConfirmationDialog } from "./ActionInboxConfirmationDialog";
 import { useActionInboxController } from "./useActionInboxController";
 import { useActionInboxData } from "./useActionInboxData";
 
@@ -37,7 +36,7 @@ export function AppActionsRoutePage({
   useEffect(() => {
     if (filterKind !== "ready" || !shouldReplaceSearch) return;
     void navigate({
-      to: "/app/actions",
+      to: "/actions",
       search: {
         org: organizationId,
         ...(resolvedShopFilter === "all" ? {} : { shopFilter: resolvedShopFilter }),
@@ -63,7 +62,7 @@ export function AppActionsRoutePage({
         shopFilter={resolvedShopFilter}
         onShopFilterChange={(nextFilter) =>
           void navigate({
-            to: "/app/actions",
+            to: "/actions",
             search: { org: organizationId, ...(nextFilter ? { shopFilter: nextFilter } : {}) },
           })
         }

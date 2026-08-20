@@ -901,7 +901,7 @@ describe("organizationInvitation/mutations", () => {
     for (const job of acceptanceJobs) {
       if (job.payload.kind !== "email") throw new Error("email payload expected");
       const actionUrl = extractManagerSettingsActionUrl(job.payload.html);
-      expect(actionUrl.pathname).toBe("/app/manage/managers");
+      expect(actionUrl.pathname).toBe("/manage/managers");
       expect([...actionUrl.searchParams.entries()]).toEqual([["org", manager.organizationId]]);
     }
   });
@@ -1047,7 +1047,7 @@ describe("organizationInvitation/mutations", () => {
     expect(acceptanceHtml).toHaveLength(2);
     for (const html of acceptanceHtml) {
       const actionUrl = extractManagerSettingsActionUrl(html);
-      expect(actionUrl.pathname).toBe("/app/manage/managers");
+      expect(actionUrl.pathname).toBe("/manage/managers");
       expect([...actionUrl.searchParams.entries()]).toEqual([["org", manager.organizationId]]);
     }
   });

@@ -20,6 +20,6 @@ export class ShiftBoardPage {
   }
 
   async expectConfirmedStatus() {
-    await expect(this.page.getByText(/確定済み/).first()).toBeVisible();
+    await expect(this.page.getByRole("button", { name: /もう一度通知|再送/ })).toBeVisible();
   }
 }

@@ -2,9 +2,9 @@
 
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
-import { internalAction } from "../_generated/server";
 import { getAppUrl, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
+import { observedInternalAction as internalAction } from "../_lib/errorObservability";
 import { isReleaseFeatureEnabled } from "../_lib/releaseFeatures";
 import { buildOrganizationBillingEmailHtml } from "../notification/templates";
 import { emailPayload, enqueueEmail } from "../notificationOutbox/enqueue";
@@ -36,7 +36,7 @@ export const enqueueBillingNotification = internalAction({
     if (!data) return { enqueuedCount: 0 };
 
     const copy = organizationBillingNotificationCopy(args.event, data.trialEnding, args.notificationDetails);
-    const settingsUrl = new URL("/app/manage/billing", getAppUrl());
+    const settingsUrl = new URL("/manage/billing", getAppUrl());
     settingsUrl.searchParams.set("org", data.organizationId);
     let enqueuedCount = 0;
     for (const recipient of data.recipients) {

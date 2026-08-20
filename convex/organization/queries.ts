@@ -9,6 +9,7 @@ import { submissionPatternValidator } from "../_lib/submissionPattern";
 import { normalizeEmail, requiredEmailSchema } from "../_lib/validation";
 import { NOTIFICATION_DRY_RUN_MANAGER_SCAN_LIMIT } from "../constants";
 import { getOrganizationPersonLineState } from "../line/service";
+import { getResendDelayedFailureDeadline } from "../notificationOutbox/resendDelayedFailure";
 import {
   deriveOrganizationBillingPolicy,
   getEffectiveRestrictedBillingState,
@@ -36,9 +37,21 @@ import {
   organizationPersonCountsTowardPeopleLimit,
 } from "./service";
 import { organizationShopOperatingStatus } from "./shopMembershipChange";
+import { getOrganizationStaffOrderScope, ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT } from "./staffOrder";
 
-function hasManagerInvitationDeliveryFailure(outbox: Doc<"notificationOutbox"> | null | undefined) {
-  return outbox?.status === "failed" || (outbox?.status === "sent" && outbox.resendDeliveryStatus !== undefined);
+async function hasManagerInvitationDeliveryFailure(
+  ctx: QueryCtx,
+  outbox: Doc<"notificationOutbox"> | null | undefined,
+) {
+  if (!outbox) return false;
+  if (outbox.status === "failed") return true;
+  if (outbox.status !== "sent") return false;
+  if (outbox.resendLastEventType === undefined && outbox.resendDeliveryStatus === undefined) return false;
+  if (outbox.resendLastEventType !== "email.delivery_delayed" || outbox.resendDeliveryStatus !== "delivery_delayed")
+    return true;
+
+  // Deadlineがあるdelayedだけが猶予中。欠損した旧rowと期限昇格済みrowは従来どおり失敗扱いにする。
+  return (await getResendDelayedFailureDeadline(ctx, outbox._id)) === null;
 }
 
 const organizationPersonViewValidator = v.object({
@@ -395,6 +408,23 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
       .first(),
   ]);
   const people = peopleDocs.filter((person) => person.status === "active");
+  const staffOrderScope = await getOrganizationStaffOrderScope(ctx, { organizationId: organization._id });
+  let organizationStaffOrderRank: Map<string, number> | null = null;
+  if (staffOrderScope.mode === "ordered") {
+    const orderEntries = await ctx.db
+      .query("organizationStaffOrderEntries")
+      .withIndex("by_organizationId_and_displayOrder", (q) => q.eq("organizationId", organization._id))
+      .take(ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT + 1);
+    const activePersonIds = new Set(people.map((person) => person._id));
+    if (
+      orderEntries.length === people.length &&
+      orderEntries.every((entry) => activePersonIds.has(entry.organizationPersonId))
+    ) {
+      organizationStaffOrderRank = new Map(
+        orderEntries.map((entry) => [entry.organizationPersonId, entry.displayOrder] as const),
+      );
+    }
+  }
   const historicalInvitations = [...acceptedInvitations, ...revokedInvitations, ...expiredInvitations]
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, 100);
@@ -574,7 +604,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
           : null;
       const isSendFailed = Boolean(
         lifecycleStatus === "issued" &&
-          (hasManagerInvitationDeliveryFailure(currentVersionOutbox) ||
+          ((await hasManagerInvitationDeliveryFailure(ctx, currentVersionOutbox)) ||
             (currentVersionEnqueueFailure && !hasSuccessfulCurrentVersionEnqueue)),
       );
       const purpose = getOrganizationInvitationPurpose(invitation);
@@ -730,12 +760,19 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
         ...capabilities,
       };
     })
-    .sort(
-      (a, b) =>
+    .sort((a, b) => {
+      if (organizationStaffOrderRank) {
+        return (
+          (organizationStaffOrderRank.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+          (organizationStaffOrderRank.get(b.id) ?? Number.MAX_SAFE_INTEGER)
+        );
+      }
+      return (
         Number(b.managerRole === "active") - Number(a.managerRole === "active") ||
         Number(b.managerRole === "readOnly") - Number(a.managerRole === "readOnly") ||
-        a.name.localeCompare(b.name, "ja"),
-    );
+        a.name.localeCompare(b.name, "ja")
+      );
+    });
 
   const staffCountByShopId = new Map<Id<"shops">, number>();
   for (const staff of staffDocs) {
@@ -1488,7 +1525,7 @@ export async function getCanonicalManagerSettingsOverview(
       .filter((q) => q.eq(q.field("organizationInvitationVersion"), invitation.version))
       .order("desc")
       .first();
-    const deliveryFailure = hasManagerInvitationDeliveryFailure(outbox)
+    const deliveryFailure = (await hasManagerInvitationDeliveryFailure(ctx, outbox))
       ? true
       : Boolean(
           await ctx.db

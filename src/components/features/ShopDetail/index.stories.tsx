@@ -247,7 +247,7 @@ export const OrganizationSettingsLinkBehavior: Story = {
     const organizationSettingsLink = within(canvasElement).getByRole("link", {
       name: "こちら（組織情報を開く）",
     });
-    await expect(organizationSettingsLink).toHaveAttribute("href", "/app/manage/organization?org=organization-1");
+    await expect(organizationSettingsLink).toHaveAttribute("href", "/manage/organization?org=organization-1");
   },
 };
 

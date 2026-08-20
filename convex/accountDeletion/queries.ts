@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalQuery } from "../_generated/server";
+import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { authenticatedQuery } from "../_lib/functions";
 import { isValidIsoDateString } from "../_lib/validation";
 import { getActiveUserAssociationStatus } from "../deletionCleanup/service";

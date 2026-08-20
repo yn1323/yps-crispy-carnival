@@ -131,7 +131,6 @@ export const ShiftEditSheet = ({
       onSubmit={onSubmit}
       submitLabel="シフトを変更"
       isSubmitDisabled={hasMultipleWorkPositions}
-      mobileActionLayout="inline"
     >
       <VStack gap={4} align="stretch">
         <Flex align="center" gap={2}>

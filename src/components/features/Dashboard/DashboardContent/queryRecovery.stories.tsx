@@ -5,8 +5,7 @@ import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
 import { userAtom } from "@/src/stores/user";
-import type { DashboardNotificationFailure } from "../NotificationFailureDialog";
-import { NotificationFailureRecovery } from "../NotificationFailureRecovery";
+import { type DashboardNotificationFailure, NotificationFailureRecovery } from "../NotificationFailureRecovery";
 import type { OperationContextData } from "../OperationContext";
 import { RecruitmentManagement, type RecruitmentManagementData } from "../RecruitmentManagement";
 import { StaffManagement, type StaffManagementData } from "../StaffManagement";
@@ -130,11 +129,12 @@ function DashboardQueryRecoveryPreview({ initialFailures }: Props) {
                 recruitmentDataStatus={isRecruitmentAvailable ? "ready" : "unavailable"}
               >
                 {(staff) => (
-                  <StaffRegistrationRequestManagement requests={pendingStaffRequests}>
+                  <StaffRegistrationRequestManagement shopName={shop.name} requests={pendingStaffRequests}>
                     {(registrationRequests) => (
-                      <NotificationFailureRecovery failures={notificationFailures}>
+                      <NotificationFailureRecovery shopName={shop.name} failures={notificationFailures}>
                         {(notificationFailure) => (
                           <DashboardContentView
+                            taskScopeKey={operationShop.shopId}
                             isReadOnly={false}
                             managerLegalConsentStatus={managerLegalConsentReady}
                             isDashboardOnboardingDismissed
@@ -234,7 +234,7 @@ export const OperationalTodoQueryRecoveryBehavior: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "通知を再試行" }));
 
     await expect(canvas.queryByText("一部の要対応項目を読み込めませんでした")).not.toBeInTheDocument();
-    await expect(canvas.getByRole("button", { name: "申請を確認" })).toBeEnabled();
-    await expect(canvas.getByRole("button", { name: "通知を確認する" })).toBeEnabled();
+    await expect(canvas.getByRole("button", { name: /スタッフ登録申請が1件/ })).toBeEnabled();
+    await expect(canvas.getByRole("button", { name: /送れなかった通知が1件/ })).toBeEnabled();
   },
 };

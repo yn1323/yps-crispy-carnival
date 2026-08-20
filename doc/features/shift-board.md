@@ -21,7 +21,7 @@
 
 | 画面 | 利用者ができること |
 |---|---|
-| `/app/shifts/<recruitmentId>/board?org=<organizationId>` | canonicalな組織所属と募集の店舗を照合したうえで、同じシフト表を操作する |
+| `/shifts/<recruitmentId>/board?org=<organizationId>` | canonicalな組織所属と募集の店舗を照合したうえで、同じシフト表を操作する |
 
 シフト表は共通アプリヘッダーとメインナビゲーションを維持し、その下に一覧へ戻る操作と「シフトを調整」の見出しを表示する。  募集状態、提出人数、店舗名は一覧カードで確認し、シフト表ではフォーム直上へ重複表示しない。
 
@@ -86,7 +86,7 @@ fanoutのcursor、lease、対象上限、再開、provider呼出し前の再確�
 
 | 責務 | 主な入口 |
 |---|---|
-| RouteとPage | `src/routes/_auth/app_.shifts_.$recruitmentId_.board.tsx`, `src/pages/app-shift-board/` |
+| RouteとPage | `src/routes/_auth/shifts_.$recruitmentId_.board.tsx`, `src/pages/app-shift-board/` |
 | 画面の状態遷移 | `src/components/features/ShiftBoard/` |
 | 割当UI | `src/components/features/Shift/ShiftForm/` |
 | 画面非依存の割当処理 | `src/domains/shift/` |

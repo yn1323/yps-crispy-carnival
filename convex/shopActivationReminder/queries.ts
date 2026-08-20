@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-import { internalQuery } from "../_generated/server";
 import { buildShopDashboardUrl } from "../_lib/dashboardUrl";
+import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { loadShopManagerRecipientResolution } from "../_lib/shopManagerRecipients";
 import { SHIFT_BOARD_STAFF_LIMIT, SHOP_ACTIVATION_REMINDER_MANAGER_LIMIT } from "../constants";
 import { isShiftTargetStaff } from "../staff/service";

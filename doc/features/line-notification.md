@@ -28,8 +28,8 @@ LINE APIの429はquota fallbackとは別に再試行し、通常のLINE通知で
 
 | 画面 | 利用者ができること |
 |---|---|
-| `/app/staff/<personId>?org=<organizationId>` | 組織共通のLINE連携状態を確認し、連携URLの表示、依頼メールの送信、明示解除を行う |
-| `/app/staff/<personId>/shops/<shopId>?org=<organizationId>` | pathの`shopId`で指定した店舗の送信可否、通知履歴、個別の通知再送を確認する。LINE連携の変更はスタッフ詳細で行う |
+| `/staff/<personId>?org=<organizationId>` | 組織共通のLINE連携状態を確認し、連携URLの表示、依頼メールの送信、明示解除を行う |
+| `/staff/<personId>/shops/<shopId>?org=<organizationId>` | pathの`shopId`で指定した店舗の送信可否、通知履歴、個別の通知再送を確認する。LINE連携の変更はスタッフ詳細で行う |
 | `/line/callback` | LINE Loginの成功、期限切れ、試行上限、エラーを確認する |
 | LINE公式アカウントのトーク画面 | 受信メッセージに対する定型応答を受け取る |
 

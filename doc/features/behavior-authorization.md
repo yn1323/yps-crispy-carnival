@@ -14,7 +14,7 @@
 | wrapper／入口 | 検証内容 | 主な利用者 |
 |---|---|---|
 | `authenticatedQuery/Mutation` | Clerk認証と削除済みアカウント判定 | 本人操作（アカウント設定・組織横断操作） |
-| `organizationQuery/Mutation` | 認証＋URLの`organizationId`に対するcanonicalな`organizationMembers` | `/app/*`の組織スコープ画面 |
+| `organizationQuery/Mutation` | 認証＋URLの`organizationId`に対するcanonicalな`organizationMembers` | `/actions`、`/manage*`、`/shifts*`、`/staff*`の組織スコープ画面 |
 | `managerQuery/Mutation` | 認証＋選択店舗への管理アクセス（店舗と組織の一致を毎回確認） | Dashboard・店舗スコープ操作 |
 | `staffSessionQuery/Mutation` | sessionToken＋アクセス用途（`accessKind`）＋シフト対象性 | スタッフの提出・閲覧 |
 | 公開HTTP action | Origin・body上限・Turnstile・レート制限 | 参加申請・問い合わせ・アカウント削除 |
@@ -33,7 +33,7 @@
 
 | 場面 | 同一応答になる組 |
 |---|---|
-| スタッフ詳細（`/app/staff/<personId>`） | 存在しない人物／削除済み人物／別組織の人物 → 同じ「ユーザーを表示できません」 |
+| スタッフ詳細（`/staff/<personId>`） | 存在しない人物／削除済み人物／別組織の人物 → 同じ「ユーザーを表示できません」 |
 | 店舗別設定 | 管理アクセスなし／人物と店舗所属の不一致／所属・店舗が削除済み → 同じ最小Empty |
 | スタッフの提出・閲覧リンク | 存在しないtoken／用途違い／使用済みviewリンク／スタッフ削除済み → 一律「リンク無効」 |
 | QR参加申請（公開HTTP） | 新規申請／登録済み／申請済み／承認待ち上限到達 → 同じ受付結果（登録済みメールの有無を公開しない） |
@@ -170,6 +170,11 @@ frontendの閲覧専用表示は認可根拠ではなく、mutationが毎回組�
 secret、token、magic link URL、メールアドレス、LINE user ID、通知本文、provider raw error／Webhook body、カード情報、パスワード、Clerk確認コードは、ログ・監査・通知履歴・無関係な応答へ出さない。  
 例外は認証成功時のCapability受け渡しで、`verifyToken`はmagic linkの検証に成功した本人の応答へ新しいsession tokenを意図的に返す（これがスタッフ認証の仕組みそのもの）。この場合もtokenをログ・監査・通知履歴へは残さない。  
 永続化するエラーは固定taxonomy（`line_rate_limited`等）だけとする。
+
+Convex functionのhandler失敗時は、標準の`function_execution`とは別に、固定markerと安全なcontextを持つconsole eventを
+出力する。  contextはserverで解決した内部IDと明示的な許可fieldに限定し、引数・戻り値・生error・stackは含めない。
+両eventはLog Streamが付与する同じrequest IDで突き合わせる。運用手順は
+[`doc/manual/convex-error-observability.md`](../manual/convex-error-observability.md)を参照する。
 
 ## 10. テスト観点への変換メモ
 

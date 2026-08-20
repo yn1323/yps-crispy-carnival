@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
-import { internalMutation, mutation } from "../_generated/server";
 import { isShopParentActive } from "../_lib/activeShop";
+import { observedInternalMutation as internalMutation, observedMutation as mutation } from "../_lib/errorObservability";
 import { managerMutation } from "../_lib/functions";
 import { generateUUID } from "../_lib/uuid";
 import { LEGAL_CONSENT_TOKEN_TTL_MS } from "../constants";

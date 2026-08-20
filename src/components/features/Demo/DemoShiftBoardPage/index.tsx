@@ -197,7 +197,6 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, heading, height = "1
           onSubmit={handleConfirm}
           submitLabel={isConfirmed ? "再通知後の画面を見る" : "確定後の画面を見る"}
           onClose={confirmModal.close}
-          mobileActionLayout="stacked"
         >
           <ConfirmShiftContent
             staffCount={mockStaffs.length}

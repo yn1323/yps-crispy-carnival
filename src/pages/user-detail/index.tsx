@@ -57,7 +57,7 @@ function ConnectedAppUserDetailPage({
         minH={AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT}
         action={
           <Button asChild colorPalette="teal">
-            <RouterLink to="/app/staff" search={{ org: organizationId }}>
+            <RouterLink to="/staff" search={{ org: organizationId }}>
               スタッフへ戻る
             </RouterLink>
           </Button>

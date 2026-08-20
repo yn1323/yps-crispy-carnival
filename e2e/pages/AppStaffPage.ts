@@ -9,11 +9,11 @@ export class AppStaffPage {
   async goto(organizationId: string, shopFilter?: string) {
     const search = new URLSearchParams({ org: organizationId });
     if (shopFilter) search.set("shopFilter", shopFilter);
-    await this.page.goto(`/app/staff?${search.toString()}`, { waitUntil: "domcontentloaded" });
+    await this.page.goto(`/staff?${search.toString()}`, { waitUntil: "domcontentloaded" });
     await expectAppHydrated(this.page);
     await expect(this.page).toHaveURL(
       (url) =>
-        url.pathname === "/app/staff" &&
+        url.pathname === "/staff" &&
         url.searchParams.get("org") === organizationId &&
         (shopFilter ? url.searchParams.get("shopFilter") === shopFilter : !url.searchParams.has("shopFilter")),
       { timeout: APP_STAFF_DATA_TIMEOUT },
@@ -33,7 +33,7 @@ export class AppStaffPage {
     shopName: string;
   }) {
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === "/app/staff" && url.searchParams.get("org") === organizationId,
+      (url) => url.pathname === "/staff" && url.searchParams.get("org") === organizationId,
       { timeout: APP_STAFF_DATA_TIMEOUT },
     );
     await expect(this.page.getByRole("heading", { name: "スタッフ", exact: true })).toBeVisible({

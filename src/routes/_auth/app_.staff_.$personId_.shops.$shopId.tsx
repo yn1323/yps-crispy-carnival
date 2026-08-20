@@ -1,21 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
-import {
-  useAppOrganizationScope,
-  validateAppOrganizationRouteSearch,
-} from "@/src/components/features/AuthenticatedApp";
-import { UserShopDetailPage } from "@/src/pages/user-shop-detail";
-import { buildUserShopDetailPageHead } from "@/src/pages/user-shop-detail/meta";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { validateAppOrganizationRouteSearch } from "@/src/components/features/AuthenticatedApp";
 
 export const Route = createFileRoute("/_auth/app_/staff_/$personId_/shops/$shopId")({
   validateSearch: validateAppOrganizationRouteSearch,
-  head: buildUserShopDetailPageHead,
-  staticData: { appShell: { mode: "navigation", activeKey: "staff" } },
-  component: StaffShopDetailRoutePage,
+  beforeLoad: ({ params, search }) => {
+    throw redirect({
+      to: "/staff/$personId/shops/$shopId",
+      params: { personId: params.personId, shopId: params.shopId },
+      search,
+      replace: true,
+    });
+  },
 });
-
-function StaffShopDetailRoutePage() {
-  const { personId, shopId } = Route.useParams();
-  const { organizationId } = useAppOrganizationScope();
-
-  return <UserShopDetailPage personId={personId} targetShopId={shopId} appOrganizationId={organizationId} />;
-}

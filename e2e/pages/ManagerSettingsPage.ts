@@ -10,7 +10,7 @@ export class ManagerSettingsPage {
   constructor(private page: Page) {}
 
   async openFromOrganizationSettings(seed: ManagerCandidateSeed) {
-    await this.page.goto(`/app/manage?org=${encodeURIComponent(seed.organizationId)}`, {
+    await this.page.goto(`/manage?org=${encodeURIComponent(seed.organizationId)}`, {
       waitUntil: "domcontentloaded",
     });
     await expectAppHydrated(this.page);
@@ -30,7 +30,7 @@ export class ManagerSettingsPage {
       })
       .click();
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === "/app/manage/managers" && url.searchParams.get("org") === seed.organizationId,
+      (url) => url.pathname === "/manage/managers" && url.searchParams.get("org") === seed.organizationId,
       { timeout: MANAGER_SETTINGS_TIMEOUT },
     );
 
@@ -59,7 +59,7 @@ export class ManagerSettingsPage {
   }
 
   async openDirectly(organizationId: string) {
-    await this.page.goto(`/app/manage/managers?org=${encodeURIComponent(organizationId)}`, {
+    await this.page.goto(`/manage/managers?org=${encodeURIComponent(organizationId)}`, {
       waitUntil: "domcontentloaded",
     });
     await expectAppHydrated(this.page);
@@ -102,12 +102,12 @@ export class ManagerSettingsPage {
   }
 
   async expectAccessRevoked(organizationId: string) {
-    await this.page.goto(`/app/manage/managers?org=${encodeURIComponent(organizationId)}`, {
+    await this.page.goto(`/manage/managers?org=${encodeURIComponent(organizationId)}`, {
       waitUntil: "domcontentloaded",
     });
     await expectAppHydrated(this.page);
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === "/app/manage/managers" && url.searchParams.get("org") === organizationId,
+      (url) => url.pathname === "/manage/managers" && url.searchParams.get("org") === organizationId,
       { timeout: MANAGER_SETTINGS_TIMEOUT },
     );
     await expect(this.page.getByRole("heading", { name: "この組織を開けません", exact: true })).toBeVisible({
@@ -148,7 +148,7 @@ export class ManagerSettingsPage {
       .getByRole("link", { name: "管理", exact: true })
       .click();
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === "/app/manage" && url.searchParams.get("org") === seed.organizationId,
+      (url) => url.pathname === "/manage" && url.searchParams.get("org") === seed.organizationId,
       { timeout: MANAGER_SETTINGS_TIMEOUT },
     );
     await expect(this.page.getByRole("heading", { name: "管理", exact: true })).toBeVisible({
@@ -158,7 +158,7 @@ export class ManagerSettingsPage {
 
   private async expectMainPage(organizationId: string) {
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === "/app/manage/managers" && url.searchParams.get("org") === organizationId,
+      (url) => url.pathname === "/manage/managers" && url.searchParams.get("org") === organizationId,
       { timeout: MANAGER_SETTINGS_TIMEOUT },
     );
     await expect(

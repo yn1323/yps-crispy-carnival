@@ -1,4 +1,5 @@
-import { Badge, Box, Flex, HStack, Stack, Text } from "@chakra-ui/react";
+import { Accordion, Badge, Box, Flex, HStack, Stack, Text } from "@chakra-ui/react";
+import type { ReactNode } from "react";
 import type { IconType } from "react-icons";
 import {
   LuArrowRight,
@@ -21,11 +22,16 @@ type Props = {
   onCreateRecruitment: () => void;
   isCreateRecruitmentActionDisabled?: boolean;
   createRecruitmentDisabledReason?: string;
-  notificationTask: { onClick: () => void; isDisabled?: boolean } | null;
+  notificationTask: DisclosureTask | null;
   staffRegistrationRequest?: {
     count: number;
-    onClick: () => void;
+    content: ReactNode;
   };
+};
+
+type DisclosureTask = {
+  count: number;
+  content: ReactNode;
 };
 
 export const ActionTaskList = ({
@@ -37,25 +43,23 @@ export const ActionTaskList = ({
   notificationTask,
   staffRegistrationRequest,
 }: Props) => {
-  const tasks = [
-    action
-      ? createShiftActionTask(
-          action,
-          onOpenShiftBoard,
-          onCreateRecruitment,
-          isCreateRecruitmentActionDisabled,
-          createRecruitmentDisabledReason,
-        )
-      : null,
-    notificationTask
-      ? createNotificationFailureTask(notificationTask.onClick, notificationTask.isDisabled ?? false)
-      : null,
+  const shiftTask = action
+    ? createShiftActionTask(
+        action,
+        onOpenShiftBoard,
+        onCreateRecruitment,
+        isCreateRecruitmentActionDisabled,
+        createRecruitmentDisabledReason,
+      )
+    : null;
+  const disclosureTasks = [
+    notificationTask ? createNotificationFailureTask(notificationTask.count, notificationTask.content) : null,
     staffRegistrationRequest
-      ? createStaffRegistrationRequestTask(staffRegistrationRequest.count, staffRegistrationRequest.onClick)
+      ? createStaffRegistrationRequestTask(staffRegistrationRequest.count, staffRegistrationRequest.content)
       : null,
-  ].filter((task): task is ActionTask => task !== null);
+  ].filter((task): task is ActionDisclosureTask => task !== null);
 
-  if (tasks.length === 0) return null;
+  if (!shiftTask && disclosureTasks.length === 0) return null;
 
   return (
     <Stack
@@ -67,9 +71,14 @@ export const ActionTaskList = ({
       boxShadow="xs"
       overflow="hidden"
     >
-      {tasks.map((task, index) => (
-        <ActionTaskRow key={task.key} task={task} isFirst={index === 0} />
-      ))}
+      {shiftTask && <ActionTaskRow task={shiftTask} isFirst />}
+      {disclosureTasks.length > 0 && (
+        <Accordion.Root collapsible multiple variant="plain">
+          {disclosureTasks.map((task, index) => (
+            <ActionDisclosureRow key={task.key} task={task} isFirst={!shiftTask && index === 0} />
+          ))}
+        </Accordion.Root>
+      )}
     </Stack>
   );
 };
@@ -118,26 +127,37 @@ const createShiftActionTask = (
   };
 };
 
-const createNotificationFailureTask = (onClick: () => void, isDisabled: boolean): ActionTask => ({
+const createNotificationFailureTask = (count: number, content: ReactNode): ActionDisclosureTask => ({
   key: "notification-failure",
   icon: LuTriangleAlert,
   iconBg: "orange.100",
   iconFg: "orange.600",
-  title: "送れなかった通知があります",
+  title: `送れなかった通知が${count}件あります`,
   titleColor: "orange.800",
-  rowBg: "orange.50/30",
-  cta: { label: "通知を確認する", palette: "orange", variant: "outline", onClick, isDisabled },
+  description: "通知先を確認して再送、または再送せず破棄できます",
+  content,
 });
 
-const createStaffRegistrationRequestTask = (count: number, onClick: () => void): ActionTask => ({
+const createStaffRegistrationRequestTask = (count: number, content: ReactNode): ActionDisclosureTask => ({
   key: "staff-registration-request",
   icon: LuUserCheck,
   iconBg: "teal.50",
   iconFg: "teal.700",
   title: `スタッフ登録申請が${count}件あります`,
   description: "内容を確認して承認・却下できます",
-  cta: { label: "申請を確認", palette: "teal", variant: "outline", onClick },
+  content,
 });
+
+type ActionDisclosureTask = {
+  key: "notification-failure" | "staff-registration-request";
+  icon: IconType;
+  iconBg: string;
+  iconFg: string;
+  title: string;
+  titleColor?: string;
+  description: string;
+  content: ReactNode;
+};
 
 type ActionTask = {
   key: string;
@@ -238,6 +258,59 @@ const ActionTaskRow = ({ task, isFirst }: { task: ActionTask; isFirst: boolean }
         {!CtaIcon && <LuArrowRight />}
       </Button>
     </Flex>
+  );
+};
+
+const ActionDisclosureRow = ({ task, isFirst }: { task: ActionDisclosureTask; isFirst: boolean }) => {
+  const Icon = task.icon;
+
+  return (
+    <Accordion.Item value={task.key} borderTopWidth={isFirst ? 0 : "1px"} borderColor="gray.100">
+      <Accordion.ItemTrigger
+        px={{ base: 4, md: 6, lg: 7 }}
+        py={{ base: 4, md: 5 }}
+        gap={{ base: 3, md: 4 }}
+        minH="72px"
+        cursor="pointer"
+        textAlign="left"
+        bg="white"
+        _hover={{ bg: "gray.50" }}
+        _expanded={{ bg: "gray.50" }}
+      >
+        <Flex
+          boxSize={{ base: "48px", md: "56px" }}
+          borderRadius="full"
+          bg={task.iconBg}
+          color={task.iconFg}
+          align="center"
+          justify="center"
+          flexShrink={0}
+          borderWidth={task.key === "staff-registration-request" ? "1px" : 0}
+          borderColor={task.key === "staff-registration-request" ? "border.default" : undefined}
+        >
+          <Icon size={28} />
+        </Flex>
+        <Stack gap={1.5} minW={0} flex={1}>
+          <Text
+            fontSize={{ base: "md", md: "lg" }}
+            fontWeight="bold"
+            color={task.titleColor ?? "gray.900"}
+            lineHeight="short"
+          >
+            {task.title}
+          </Text>
+          <Text fontSize="sm" color="gray.700" lineHeight="tall">
+            {task.description}
+          </Text>
+        </Stack>
+        <Accordion.ItemIndicator color="fg.muted" flexShrink={0} />
+      </Accordion.ItemTrigger>
+      <Accordion.ItemContent bg="gray.50">
+        <Accordion.ItemBody px={{ base: 3, md: 5, lg: 6 }} pt={3} pb={{ base: 4, md: 5 }}>
+          {task.content}
+        </Accordion.ItemBody>
+      </Accordion.ItemContent>
+    </Accordion.Item>
   );
 };
 

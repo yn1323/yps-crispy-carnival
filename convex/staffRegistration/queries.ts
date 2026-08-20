@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-import { query } from "../_generated/server";
 import { APP_URL } from "../_lib/config";
+import { observedQuery as query } from "../_lib/errorObservability";
 import { managerQuery } from "../_lib/functions";
 import { STAFF_REGISTRATION_PENDING_LIMIT } from "../constants";
 import { getLegalDocumentsForAudience } from "../legal/documents";

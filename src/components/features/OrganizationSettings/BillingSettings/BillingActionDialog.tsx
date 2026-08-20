@@ -40,7 +40,6 @@ export function BillingActionDialog({ dialog, isRunning, onClose, onRetryPrice, 
       isLoading={isRunning}
       isSubmitDisabled={isRunning || !isDataReady}
       role="alertdialog"
-      mobileActionLayout="stacked"
       mobileFullScreen
       maxW={{ base: "calc(100vw - 24px)", md: "560px" }}
     >

@@ -22,6 +22,7 @@ import { type OrganizationReadActor, resolveOrganizationReadActor } from "../org
 import { isOrganizationBillingContact } from "../organization/billingContact";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "../organization/personCapabilities";
 import { getOrganizationBillingState } from "../organization/service";
+import { getOrganizationStaffOrderScope } from "../organization/staffOrder";
 import {
   deriveOrganizationBillingPolicy,
   getEffectiveRestrictedBillingState,
@@ -108,6 +109,8 @@ const organizationPeopleSummaryValidator = v.object({
   maxPeople: v.number(),
   canAddStaff: v.boolean(),
   addStaffDisabledReason: v.optional(v.string()),
+  canChangeStaffOrder: v.boolean(),
+  changeStaffOrderDisabledReason: v.optional(v.string()),
   features: v.object({ managerInvitation: v.boolean() }),
 });
 
@@ -301,6 +304,27 @@ function resolveStaffAdditionCapability(args: {
       args.businessWriteBlockReason === "paymentResultPending"
         ? "支払い結果を確認中のため、スタッフを追加できません。"
         : "契約状態を復旧してからスタッフを追加できます。",
+  };
+}
+
+function resolveStaffOrderChangeCapability(args: {
+  memberStatus: "active" | "readOnly";
+  canWriteBusinessData: boolean;
+  businessWriteBlockReason: "paymentResultPending" | "restricted" | null;
+}) {
+  if (args.memberStatus === "readOnly") {
+    return {
+      canChangeStaffOrder: false,
+      changeStaffOrderDisabledReason: "閲覧のみの管理者は、スタッフの並び順を変更できません。",
+    };
+  }
+  if (args.canWriteBusinessData) return { canChangeStaffOrder: true };
+  return {
+    canChangeStaffOrder: false,
+    changeStaffOrderDisabledReason:
+      args.businessWriteBlockReason === "paymentResultPending"
+        ? "支払い結果を確認中のため、スタッフの並び順を変更できません。"
+        : "契約状態を復旧してからスタッフの並び順を変更できます。",
   };
 }
 
@@ -502,14 +526,56 @@ async function getOrganizationPeopleProjectionContext(ctx: AppOrganizationQueryC
 
 /** 組織人物を、店舗filterをpaginationより前に適用して返す。 */
 export const listOrganizationPeople = organizationQuery({
-  args: { shopFilter: shopFilterValidator, paginationOpts: paginationOptsValidator },
+  args: {
+    shopFilter: shopFilterValidator,
+    paginationOpts: paginationOptsValidator,
+    orderRevision: v.optional(v.union(v.number(), v.null())),
+  },
   returns: paginationResultValidator(organizationPersonListItemValidator),
-  handler: async (ctx, { shopFilter, paginationOpts }) => {
+  handler: async (ctx, { shopFilter, paginationOpts, orderRevision }) => {
     const filterShop = await requireOrganizationFilterShop(ctx, shopFilter);
     const projectionContext = await getOrganizationPeopleProjectionContext(ctx);
     const boundedPagination = boundedPaginationOptions(paginationOpts);
+    const useOrderedIndex = orderRevision !== undefined && orderRevision !== null;
+    if (useOrderedIndex && (!Number.isSafeInteger(orderRevision) || orderRevision < 1)) {
+      throw new ConvexError("orderRevision must be a positive safe integer");
+    }
+    if (useOrderedIndex) {
+      const scope = await getOrganizationStaffOrderScope(ctx, {
+        organizationId: ctx.organization._id,
+        ...(filterShop ? { shopId: filterShop._id } : {}),
+      });
+      if (scope.mode !== "ordered" || scope.revision !== orderRevision) {
+        return {
+          page: [] as Array<Awaited<ReturnType<typeof projectOrganizationPerson>>>,
+          isDone: true,
+          continueCursor: "",
+        };
+      }
+    }
 
     if (!filterShop) {
+      if (useOrderedIndex) {
+        const entries = await ctx.db
+          .query("organizationStaffOrderEntries")
+          .withIndex("by_organizationId_and_displayOrder", (q) => q.eq("organizationId", ctx.organization._id))
+          .paginate(boundedPagination);
+        const people = (
+          await Promise.all(
+            entries.page.map(async (entry) => {
+              if (entry.organizationId !== ctx.organization._id) return null;
+              const person = await ctx.db.get(entry.organizationPersonId);
+              return person?.organizationId === ctx.organization._id && person.status === "active" ? person : null;
+            }),
+          )
+        ).filter((person): person is Doc<"organizationPeople"> => person !== null);
+        return {
+          ...entries,
+          page: await Promise.all(
+            people.map(async (person) => await projectOrganizationPerson(ctx, { person, ...projectionContext })),
+          ),
+        };
+      }
       const people = await ctx.db
         .query("organizationPeople")
         .withIndex("by_organizationId_and_status", (q) =>
@@ -520,6 +586,39 @@ export const listOrganizationPeople = organizationQuery({
         ...people,
         page: await Promise.all(
           people.page.map(async (person) => await projectOrganizationPerson(ctx, { person, ...projectionContext })),
+        ),
+      };
+    }
+
+    if (useOrderedIndex) {
+      const entries = await ctx.db
+        .query("shopStaffOrderEntries")
+        .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", filterShop._id))
+        .paginate(boundedPagination);
+      const people = (
+        await Promise.all(
+          entries.page.map(async (entry) => {
+            if (entry.organizationId !== ctx.organization._id || entry.shopId !== filterShop._id) return null;
+            const [staff, person] = await Promise.all([
+              ctx.db.get(entry.staffId),
+              ctx.db.get(entry.organizationPersonId),
+            ]);
+            return staff &&
+              !staff.isDeleted &&
+              staff.shopId === filterShop._id &&
+              staff.organizationId === ctx.organization._id &&
+              staff.organizationPersonId === entry.organizationPersonId &&
+              person?.organizationId === ctx.organization._id &&
+              person.status === "active"
+              ? person
+              : null;
+          }),
+        )
+      ).filter((person): person is Doc<"organizationPeople"> => person !== null);
+      return {
+        ...entries,
+        page: await Promise.all(
+          people.map(async (person) => await projectOrganizationPerson(ctx, { person, ...projectionContext })),
         ),
       };
     }
@@ -611,6 +710,11 @@ export const getOrganizationPeopleSummary = organizationQuery({
       canWriteBusinessData: policy?.canWriteBusinessData ?? true,
       businessWriteBlockReason: policy?.businessWriteBlockReason ?? null,
     });
+    const staffOrderCapability = resolveStaffOrderChangeCapability({
+      memberStatus,
+      canWriteBusinessData: policy?.canWriteBusinessData ?? true,
+      businessWriteBlockReason: policy?.businessWriteBlockReason ?? null,
+    });
     return {
       totalCount: total.count,
       totalCountHasOverflow: total.hasOverflow,
@@ -619,6 +723,7 @@ export const getOrganizationPeopleSummary = organizationQuery({
       maxPeople: limits?.maxPeople ?? 0,
       features: { managerInvitation: getReleaseFeatureVisibility().managerInvitation },
       ...capability,
+      ...staffOrderCapability,
     };
   },
 });

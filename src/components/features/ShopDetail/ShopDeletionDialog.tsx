@@ -29,7 +29,6 @@ export function ShopDeletionDialog({ shop, isOpen, isDeleting, onClose, onDelete
       }}
       submitLabel="店舗を削除"
       isLoading={isDeleting}
-      mobileActionLayout="stacked"
       maxW={{ base: "calc(100vw - 24px)", md: "560px" }}
     >
       <Stack gap={3} fontSize="sm" color="fg.muted" lineHeight="tall">

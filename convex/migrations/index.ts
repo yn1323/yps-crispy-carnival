@@ -1,7 +1,7 @@
 import { Migrations } from "@convex-dev/migrations";
 import { components, internal } from "../_generated/api";
 import type { DataModel } from "../_generated/dataModel";
-import { internalMutation } from "../_generated/server";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 
 export const migrations = new Migrations<DataModel>(components.migrations, {
   internalMutation,

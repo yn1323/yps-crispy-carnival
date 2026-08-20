@@ -2,8 +2,8 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { internalMutation } from "../_generated/server";
 import { monthJST } from "../_lib/dateFormat";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { managerMutation } from "../_lib/functions";
 import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
 import { rateLimit } from "../_lib/rateLimits";
@@ -20,6 +20,8 @@ import {
   NOTIFICATION_OUTBOX_TERMINAL_PAYLOAD_RETENTION_MS,
   NOTIFICATION_OUTBOX_TERMINAL_REDACTION_BATCH_SIZE,
   NOTIFICATION_OUTBOX_WORKER_BATCH_SIZE,
+  RESEND_DELAYED_FAILURE_GRACE_MS,
+  RESEND_DELAYED_FAILURE_RECOVERY_BATCH_SIZE,
 } from "../constants";
 import { getOrganizationPersonLineState, resolveStaffLineRecipient } from "../line/service";
 import {
@@ -57,6 +59,11 @@ import {
   notificationDeliverySuppressedForPayload,
   redactNotificationPayload,
 } from "./redaction";
+import {
+  clearResendDelayedFailureDeadline,
+  ensureResendDelayedFailureDeadline,
+  getResendDelayedFailureDeadline,
+} from "./resendDelayedFailure";
 import {
   type ResendProviderEventType,
   type ResendProviderIssueEventType,
@@ -504,9 +511,53 @@ export const recordResendProviderIssue = internalMutation({
       return { recorded: true as const, inboxed: false as const, reason: "stale" as const };
     }
 
+    const now = Date.now();
+    const isDelayed = safeArgs.providerEventType === "email.delivery_delayed";
+    let delayedGraceActive = false;
+    if (isDelayed) {
+      const existingDeadline = await getResendDelayedFailureDeadline(ctx, outbox._id);
+      if (existingDeadline) {
+        if (
+          outbox.status === "sent" &&
+          outbox.resendLastEventType === "email.delivery_delayed" &&
+          outbox.resendDeliveryStatus === "delivery_delayed" &&
+          existingDeadline.dueAt > now
+        ) {
+          delayedGraceActive = true;
+        } else {
+          await clearResendDelayedFailureDeadline(ctx, outbox._id);
+        }
+      } else if (
+        outbox.status === "sent" &&
+        outbox.resendLastEventType === undefined &&
+        outbox.resendDeliveryStatus === undefined
+      ) {
+        const dueAt = safeArgs.occurredAt + RESEND_DELAYED_FAILURE_GRACE_MS;
+        if (dueAt > now) {
+          await ensureResendDelayedFailureDeadline(ctx, {
+            outboxId: outbox._id,
+            dueAt,
+            createdAt: now,
+          });
+          delayedGraceActive = true;
+        }
+      }
+    } else {
+      // hard failureは猶予を打ち切り、既存FailureInboxへ直ちに流す。
+      await clearResendDelayedFailureDeadline(ctx, outbox._id);
+    }
+
     await patchOutboxResendProviderState(ctx, outbox, safeArgs);
 
-    const inboxInput = resendProviderFailureInboxInput(outbox, safeArgs, eventId);
+    if (delayedGraceActive) {
+      return { recorded: true as const, inboxed: false as const, reason: "delayedGrace" as const };
+    }
+
+    const inboxInput = resendProviderFailureInboxInput(outbox, {
+      lastFailedAt: safeArgs.occurredAt,
+      lastEventId: eventId,
+      lastError: safeArgs.errorMessage,
+    });
     if (!inboxInput) {
       return { recorded: true as const, inboxed: false as const, reason: "suppressed" as const };
     }
@@ -552,9 +603,69 @@ export const recordResendProviderDeliveryUpdate = internalMutation({
       return { recorded: true as const, historyUpdated: false as const, reason: "stale" as const };
     }
 
+    await clearResendDelayedFailureDeadline(ctx, outbox._id);
     await patchOutboxResendProviderEventAt(ctx, outbox, args);
-    await resolveProviderFailureInboxByOutbox(ctx, outbox._id, args.occurredAt);
+    await resolveProviderFailureInboxByOutbox(ctx, outbox._id);
     return { recorded: true as const, historyUpdated: historyUpdate === "updated" };
+  },
+});
+
+export const recoverOverdueResendDelayedFailures = internalMutation({
+  args: {},
+  returns: v.object({
+    processedCount: v.number(),
+    promotedCount: v.number(),
+  }),
+  handler: async (ctx) => {
+    const now = Date.now();
+    const deadlines = await ctx.db
+      .query("notificationResendDelayedFailureDeadlines")
+      .withIndex("by_dueAt", (q) => q.lte("dueAt", now))
+      .order("asc")
+      .take(RESEND_DELAYED_FAILURE_RECOVERY_BATCH_SIZE);
+    let promotedCount = 0;
+
+    for (const deadline of deadlines) {
+      const outbox = await ctx.db.get(deadline.outboxId);
+      if (
+        !isEmailNotificationOutbox(outbox) ||
+        outbox.status !== "sent" ||
+        outbox.resendLastEventType !== "email.delivery_delayed" ||
+        outbox.resendDeliveryStatus !== "delivery_delayed"
+      ) {
+        await ctx.db.delete(deadline._id);
+        continue;
+      }
+
+      const [shop, staff] = await Promise.all([
+        outbox.shopId ? ctx.db.get(outbox.shopId) : null,
+        outbox.staffId ? ctx.db.get(outbox.staffId) : null,
+      ]);
+      if (
+        (outbox.shopId && (!shop || shop.isDeleted)) ||
+        (outbox.staffId && (!staff || staff.isDeleted || staff.shopId !== outbox.shopId))
+      ) {
+        // 猶予中に店舗・スタッフが削除された通知を、新しい要対応として復活させない。
+        await ctx.db.delete(deadline._id);
+        continue;
+      }
+
+      const inboxInput = resendProviderFailureInboxInput(outbox, {
+        lastFailedAt: now,
+        lastError: resendProviderIssueErrorCode("email.delivery_delayed"),
+      });
+      await ctx.db.delete(deadline._id);
+      if (!inboxInput) continue;
+
+      await upsertFailureInbox(ctx, inboxInput);
+      promotedCount += 1;
+    }
+
+    if (deadlines.length === RESEND_DELAYED_FAILURE_RECOVERY_BATCH_SIZE) {
+      await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.recoverOverdueResendDelayedFailures, {});
+    }
+
+    return { processedCount: deadlines.length, promotedCount };
   },
 });
 
@@ -2398,8 +2509,11 @@ async function patchOutboxResendProviderEventAt(
 
 function resendProviderFailureInboxInput(
   outbox: EmailNotificationOutbox,
-  args: RecordResendProviderIssueArgs,
-  eventId: Id<"notificationDeliveryEvents">,
+  input: {
+    lastFailedAt: number;
+    lastEventId?: Id<"notificationDeliveryEvents">;
+    lastError: string;
+  },
 ): FailureInboxUpsertInput | null {
   const notificationContext = notificationContextForJob(outbox);
   if (
@@ -2430,9 +2544,9 @@ function resendProviderFailureInboxInput(
     dedupeKey: outbox.dedupeKey,
     notificationContext,
     attemptCount: outbox.attemptCount,
-    lastFailedAt: args.occurredAt,
-    lastEventId: eventId,
-    lastError: args.errorMessage,
+    lastFailedAt: input.lastFailedAt,
+    lastEventId: input.lastEventId,
+    lastError: input.lastError,
   };
 }
 
@@ -2541,18 +2655,16 @@ async function resolveFailureInboxByOutbox(
   }
 }
 
-async function resolveProviderFailureInboxByOutbox(
-  ctx: MutationCtx,
-  outboxId: Id<"notificationOutbox">,
-  deliveredAt: number,
-) {
+async function resolveProviderFailureInboxByOutbox(ctx: MutationCtx, outboxId: Id<"notificationOutbox">) {
   const failures = await ctx.db
     .query("notificationFailureInbox")
     .withIndex("by_outboxId", (q) => q.eq("outboxId", outboxId))
     .take(FAILURE_DUPLICATE_SCAN_LIMIT);
 
   for (const failure of failures) {
-    if (failure.sourceType !== "provider" || failure.status !== "open" || failure.lastFailedAt > deliveredAt) continue;
+    // provider event順序は呼び出し元がOutbox/Historyで検証済み。recovery時刻はprovider時刻より後になり得るため、
+    // accepted deliveredは同じOutboxのopen provider failureをすべて解消する。
+    if (failure.sourceType !== "provider" || failure.status !== "open") continue;
     await resolveFailureInbox(ctx, failure._id, { resolutionKind: "sent" });
   }
 }

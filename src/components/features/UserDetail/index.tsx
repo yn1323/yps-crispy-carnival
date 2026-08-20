@@ -54,7 +54,7 @@ export function UserDetail({ data, organizationId }: Props) {
         void navigate({ to: "/dashboard", search: {}, replace: true });
         return;
       }
-      void navigate({ to: "/app/staff", search: { org: organizationId }, replace: true });
+      void navigate({ to: "/staff", search: { org: organizationId }, replace: true });
     },
   });
 
@@ -103,7 +103,7 @@ export function UserDetail({ data, organizationId }: Props) {
         },
         onOpenShop: (targetShopId) => {
           void navigate({
-            to: "/app/staff/$personId/shops/$shopId",
+            to: "/staff/$personId/shops/$shopId",
             params: { personId: data.person.id, shopId: targetShopId },
             search: { org: organizationId },
           });

@@ -1,10 +1,11 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
-import { internalMutation, type MutationCtx } from "../_generated/server";
+import type { MutationCtx } from "../_generated/server";
 import { isShopParentActive } from "../_lib/activeShop";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { APP_URL } from "../_lib/config";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { authenticatedMutation, managerMutation } from "../_lib/functions";
 import { buildLineAuthorizeUrl } from "../_lib/lineClient";
 import { rateLimit } from "../_lib/rateLimits";

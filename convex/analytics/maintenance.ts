@@ -1,7 +1,8 @@
 import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
-import { internalMutation, type MutationCtx } from "../_generated/server";
+import type { MutationCtx } from "../_generated/server";
 import { addDays, dateJST, jstDayRangeMs, subtractCalendarMonths } from "../_lib/dateFormat";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { DAY_MS } from "../constants";
 import { getAnalyticsNightlyCronEnabled } from "./config";
 import {

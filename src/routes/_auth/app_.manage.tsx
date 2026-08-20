@@ -1,19 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import {
-  useAppOrganizationScope,
-  validateAppOrganizationRouteSearch,
-} from "@/src/components/features/AuthenticatedApp";
-import { AppManageRoutePage } from "@/src/pages/app-manage";
-import { buildAppManagePageHead } from "@/src/pages/app-manage/meta";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { validateAppOrganizationRouteSearch } from "@/src/components/features/AuthenticatedApp";
 
 export const Route = createFileRoute("/_auth/app_/manage")({
   validateSearch: validateAppOrganizationRouteSearch,
-  head: () => buildAppManagePageHead(),
-  staticData: { appShell: { mode: "navigation", activeKey: "manage" } },
-  component: AppManageRoute,
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/manage", search, replace: true });
+  },
 });
-
-function AppManageRoute() {
-  const organization = useAppOrganizationScope();
-  return <AppManageRoutePage organizationId={organization.organizationId} memberStatus={organization.memberStatus} />;
-}

@@ -106,7 +106,6 @@ export function FeatureRequestDialog({ onSubmit }: FeatureRequestDialogProps) {
         formId="feature-request-form"
         submitLabel="要望を送る"
         isLoading={isRunning}
-        mobileActionLayout="inline"
         maxW={{ base: "calc(100vw - 32px)", md: "448px" }}
         keyboardAwareViewport
       >
@@ -141,7 +140,7 @@ type AppFeatureRequestDialogProps = {
   onSubmit: (data: { shopId?: Id<"shops">; comment: string; requestId: string }) => Promise<void>;
 };
 
-/** /appの画面scopeは内部送信だけに使い、利用者には要望本文だけを入力してもらう。 */
+/** 認証済みappの画面scopeは内部送信だけに使い、利用者には要望本文だけを入力してもらう。 */
 export function AppFeatureRequestDialog({ scope, onSubmit }: AppFeatureRequestDialogProps) {
   const shopId = resolveAppFeatureRequestShopId(scope);
 

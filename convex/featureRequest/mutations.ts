@@ -66,7 +66,7 @@ export const submit = managerMutation({
 });
 
 /**
- * /app 配下から、URLで確定した組織をcanonicalな認可境界にして要望を送信する。
+ * 認証済みappから、URLで確定した組織をcanonicalな認可境界にして要望を送信する。
  * 現在店舗が確定していれば店舗scope、未確定なら組織scopeとして保存する。
  */
 export const submitForOrganization = authenticatedMutation({

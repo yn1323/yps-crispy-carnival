@@ -3,7 +3,8 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { type ActionCtx, internalAction } from "../_generated/server";
+import type { ActionCtx } from "../_generated/server";
+import { observedInternalAction as internalAction } from "../_lib/errorObservability";
 import { getAccountDeletionConfiguration, hasRequiredAccountDeletionConfiguration } from "./config";
 import {
   type AccountDeletionProvider,

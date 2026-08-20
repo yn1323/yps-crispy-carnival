@@ -53,8 +53,9 @@ GitHub Actionsの権限、trigger、Environment gate、artifactの信頼境界�
 認証済みroute切替では、次の安全契約を同じrevisionで確認する。
 
 - `/dashboard`は`org`と`shop`、`/account`は`flow`と`oauth`だけをsearchへ残し、未知key、空値、`token`、`code`、`state`を認証復帰前に除去する。
+- `/actions`、`/manage*`、`/shifts*`、`/staff*`はrouteごとの許可済みsearchだけを認証復帰前に残し、旧`/app/*`からの互換redirectも同じ正規化済みsearchだけを引き継ぐ。
 - URLの組織、店舗、人物、募集IDを認可根拠にせず、Convex public functionがactorのcanonical所属と対象の一致を再検証する。
-- `/app/home`、`/app/account`、旧`/settings*`、`/users/*`、`/shops/*`、`/shiftboard/*`を互換redirectなしで削除する。
+- `/app`は`/dashboard`へ収束させる。旧`/app/actions`、`/app/manage*`、`/app/shifts*`、`/app/staff*`はcanonical routeへreplaceし、`/app/home`、`/app/account`、旧`/settings*`、`/users/*`、`/shops/*`、`/shiftboard/*`は互換redirectなしで削除する。
 - 複数組織、複数店舗、複数管理者、支払いは未設定を閉状態とし、画面非表示だけでなくpublic mutation/actionを副作用前に拒否する。
 - 初回Setupは所属0件の本人だけに1組織、1店舗、管理者本人、`complimentary.business`を作り、二重実行、Trial deadline、Stripe objectを許可しない。
 
@@ -72,7 +73,7 @@ Playwright用Previewで将来機能を明示的に有効化しても、Productio
 | `ENV-BI-05` | Analytics容量 | 最大想定店舗数でread document数とbytes、write document数とbytes、実行時間をphase別に記録し、Analytics一覧が初期50件・最大100件、`/requests`が最大50件、trendが最大366点、responseが512 KiB未満であることを確認する |
 | `ENV-CI-01` | GitHub Actions公開境界 | 対象branch、trigger、fork制約、最小permissions、Environment gate、同じworkflowで検証したartifactだけを公開する契約が実行履歴と一致する |
 | `ENV-REL-01` | Production release | canary head、merge SHA、tree SHA、tag、Convex、Cloudflare metadataが同じreleaseを示す |
-| `ENV-ROUTES-01` | 認証済みroute | `/dashboard`と`/account`が新shellで表示され、`/app`が`/dashboard`へ収束し、削除した旧routeが互換redirectなしで404になる |
+| `ENV-ROUTES-01` | 認証済みroute | canonicalな`/dashboard`、`/account`、`/actions`、`/manage*`、`/shifts*`、`/staff*`が表示され、`/app`と互換対象の旧`/app/*`が正規化済みsearchで所定のcanonical routeへ収束し、削除した旧routeが404になる |
 | `ENV-FEATURES-01` | 未リリース機能 | Productionの四つの公開設定が閉じ、direct routeとpublic APIから組織、店舗、管理者、Stripeの副作用を作れない |
 | `ENV-SETUP-01` | 初回Setup | 専用の新規actorが1組織、1店舗、1管理者、`complimentary.business`だけを作り、再実行が拒否され、Trial deadlineとStripe objectがない |
 | `ENV-STRIPE-01` | Stripe sandbox | 支払い機能の公開準備時に、通常、3DS成功、3DS失敗、高risk、Trial SetupIntent、Portal、実Webhookをtest値で確認する。通常の閉状態ではproviderへ到達しないことを先に確認する |
@@ -80,6 +81,7 @@ Playwright用Previewで将来機能を明示的に有効化しても、Productio
 | `ENV-REG-01` | 公開スタッフ登録 | 本番Turnstile、許可Origin、8 KiB超過拒否をdeployed canaryで確認する |
 | `ENV-CLERK-01` | Clerk | MFA、lockout、server throttle、loginまたはaccount変更通知を負の試験で確認する |
 | `ENV-CLERK-02` | Clerk Developmentのログイン方法 | 4状態を使い分け、入力した確認済みメールのPrimary化、メール・パスワード追加、Google追加、同一メールと異なるメールの条件付き解除が同じClerk Userの契約どおりに完了し、失敗時も既存方法を維持する。両方のログイン方法が同じUserへ戻り、Google再ログイン後もPrimaryが戻らないことと、Productionを変更していないことも記録する |
+| `ENV-CLERK-03` | Googleログインの中断と継続 | Google画面から戻る、取消、即時再試行、正常完了、Client Trustを確認し、Clerk既製画面やAccount Portalを表示せず、Clerkが作成したsessionで保持したredirectへ完了する |
 | `ENV-OPS-01` | 端末と診断 | EDR、signature更新、full scan、隔離、credential rotation、DASTまたは第三者診断を記録する |
 
 IP由来の制限を有効にする場合は、ingressが利用者指定headerを破棄し、信頼できる値へ上書きする証跡を先に確認する。
@@ -98,6 +100,8 @@ Developmentの結果からProductionでの成立や公開済み状態を推測�
 
 最初に、DevelopmentでGoogle social connection、email/password sign-in、EmailAddressの`email_code`確認、account linking、reverification、利用者によるメール識別子の変更が有効であることを確認する。
 Account linkingのredirectは`/account?flow=connect-google&oauth=google`専用とし、削除した`/app/account`、sign-in用`/sso-callback`、任意originへ流さない。
+
+GoogleログインとGoogle新規登録は、`/sso-callback`を認証継続先として確認する。  Clerkの許可redirect URL、Google social connection、Client Trust、必須sign-up fieldのDevelopment設定を記録し、Account Portalの設定に依存せずシフトリの`/login`、`/signup`、`/sso-callback`へ戻ることを確認する。
 
 テスト利用者は、次の4状態をそれぞれ用意する。
 
@@ -128,6 +132,7 @@ Account linkingのredirectは`/account?flow=connect-google&oauth=google`専用�
 11. GoogleのみのUserでは解除操作へ到達できず、直接操作を試みても拒否されることを確認する。
 12. ケースC1でGoogleを解除し、対象ExternalAccountだけが不在になり、Primary EmailAddress、パスワード、無関係なsecondary EmailAddressが維持されることを確認する。  ログアウト後に同じGoogleでログインした場合は、account linkingによって同じClerk `user.id`へ再連携され得ることを期待結果として記録する。
 13. ケースC2では確認画面にGoogle由来の非Primary EmailAddressや削除対象を表示せず、「このGoogleアカウントではログインできなくなります」「メールアドレスとパスワードは残ります」と案内することを確認してからGoogleを解除する。  対象ExternalAccountと、そのGoogleへexactにlinkedした一意の確認済み非Primary EmailAddressが不在になり、Primary EmailAddress、パスワード、無関係なsecondary EmailAddressが維持されることを確認する。  Primaryとパスワードでのログインは元のClerk `user.id`へ戻り、解除したGoogleでのログインは元の`user.id`へ戻らないことも確認する。
+
 14. ケースC2相当でGoogleへlinkedしたEmailAddressを一意に特定できない場合、cleanup対象がPrimaryである場合、またはPrimaryとパスワードのfallbackが操作直前に変わった場合は、ExternalAccountとEmailAddressのどちらも変更せず解除を拒否することを確認する。
 15. Google解除の応答が失われた場合は、reloadで期待する全resourceの不在とfallbackの保持を確認できた場合だけ成功を表示することを確認する。  ケースC2でExternalAccountだけが不在になりEmailAddressが残った場合は成功を表示せず、同じ確認ダイアログを閉じずに最新状態からEmailAddressのcleanupを再試行できることを確認する。  cleanup未完了中はキャンセルや閉じる操作が表示されないことも確認する。
 16. メール変更のPrimary切替または旧Primary処理で応答を失った場合はreloadし、入力した確認済みメールがPrimaryで、`linkedTo`に`oauth_google`を含む旧Primaryがsecondaryとして残り、Google ExternalAccountとパスワードが維持されていれば成功へ収束することを確認する。  `oauth_google`を含まない旧Primaryの削除が必要な場合は、その不在も確認する。  完了条件を満たさない場合は成功を表示せず、確認済みの変更先を重複作成せずに再利用し、旧Primaryへ戻せる状態ではrollbackしてから再試行することを確認する。
@@ -135,6 +140,18 @@ Account linkingのredirectは`/account?flow=connect-google&oauth=google`専用�
 18. 同じtab内の連打はsingle-flightで抑止され、確認コード送信とGoogle OAuth開始は画面遷移やOAuth往復後も30秒の絶対期限まで再送されないことを確認する。  2つのtabから同じ操作を開始した場合は、各操作直前のreloadとClerk serverの拒否により、少なくとも一つのログイン方法が残ることを確認する。
 19. 任意のEmailAddress削除、パスワード削除、専用のGoogle置換操作が画面とURL状態に存在しないことを確認する。  EmailAddressの自動削除は、Primary変更時に`linkedTo`へ`oauth_google`を含まない直前の旧Primaryと、Google解除時にexactに特定した非Primaryだけに限られ、Primary変更後の`oauth_google`を含む旧Primaryはsecondaryとして残ることを確認する。
 20. Gmail以外のメールアドレスと通常buildでも、状態に応じたGoogle追加または解除へ到達できることを確認する。
+
+### Googleログインの中断・再試行
+
+`ENV-CLERK-03`は、Googleログイン用の既存利用者とGoogle新規登録用の未登録利用者を分け、対象revisionを固定して行う。  token、確認コード、完全なメールアドレス、OAuth responseは検証記録、URL、browser logへ残さない。
+
+1. `/login?redirect=/dashboard`からGoogle認証を開始し、Google画面でブラウザバックする。シフトリのログイン画面へ戻り、Clerk既製画面とAccount Portalが表示されないことを確認する。
+2. 待機や手動再読み込みをせずGoogleボタンを再度押し、新しいGoogle認証画面を一回だけ開けることを確認する。Chrome、Safari、モバイルのうち利用対象のbrowserで、BFCacheから復帰した場合も同じ結果になることを記録する。
+3. provider側の取消またはcallbackの未対応状態では、sessionを作らずシフトリの回復画面で停止することを確認する。「最初からやり直す」を押した場合だけ認証画面へ戻り、ブラウザバックで消費済みcallbackへ戻らないことを確認する。
+4. 既存Google利用者の正常完了では同じClerk Userのsessionが有効になり、queryやhashを含む許可済みの`redirect`が保持されることを確認する。外部URL、protocol-relative URL、認証route自身は`/dashboard`へ収束することを確認する。
+5. 新規Google利用者でtransferまたは追加要件が発生した場合は、対応済み状態だけをシフトリUIで継続し、未対応field、メール以外のMFA、新しいパスワード、Protect、未知状態ではsessionを作らないことを確認する。
+6. Client Trustで`email_code`が返る場合は、シフトリの本人確認画面から送信、再送、検証を行い、`complete`とsession IDを確認した場合だけ保持redirectへ進むことを確認する。
+7. LINE内ブラウザでは既存どおりGoogleボタンが外部ブラウザで同じURLを開き直し、その操作だけではClerk attemptをresetしないことを確認する。
 
 ### 分離契約とPIIの確認
 

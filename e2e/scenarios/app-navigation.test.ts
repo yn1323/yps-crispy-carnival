@@ -1,4 +1,5 @@
 import { expect, test } from "../fixtures/e2eTest";
+import { expectAppHydrated } from "../helpers/appReadiness";
 import { resetCurrentManagerScenarioData, seedManagerScenario } from "../helpers/scenarioSeeds";
 import { AppStaffPage } from "../pages/AppStaffPage";
 import { DashboardPage } from "../pages/DashboardPage";
@@ -20,13 +21,14 @@ test.describe("新appのメインナビゲーション", { tag: ["@e2e-core"] },
     await resetCurrentManagerScenarioData();
   });
 
-  test("[E2E-NAV-01] 組織scopeを保ってスタッフへ移動し実人物rowを表示する", async ({ page }) => {
+  test("[E2E-NAV-01] canonical URLで移動し旧URLを履歴に残さず置き換える", async ({ page }) => {
     const seed = seedManagerScenario<AppNavigationScenarioSeed>("testing:seedShopLifecycleScenario", {
       organizationName: "E2E ナビゲーション組織",
       shopName: "E2E ナビゲーション店舗",
     });
 
-    await new DashboardPage(page).goto({ organizationId: seed.organizationId, shopId: seed.shopId });
+    const dashboardPage = new DashboardPage(page);
+    await dashboardPage.goto({ organizationId: seed.organizationId, shopId: seed.shopId });
     const staffPage = new AppStaffPage(page);
 
     const navigation = page.getByRole("navigation", { name: "メインメニュー" });
@@ -39,5 +41,28 @@ test.describe("新appのメインナビゲーション", { tag: ["@e2e-core"] },
       shopName: seed.shopName,
     });
     await expect(staffLink).toHaveAttribute("aria-current", "page");
+
+    await test.step("旧URLのdirect loadをcanonical URLへreplaceする", async () => {
+      await dashboardPage.goto({ organizationId: seed.organizationId, shopId: seed.shopId });
+      await page.goto(`/app/staff?org=${encodeURIComponent(seed.organizationId)}`, {
+        waitUntil: "domcontentloaded",
+      });
+      await expectAppHydrated(page);
+      await staffPage.expectReady({
+        organizationId: seed.organizationId,
+        personName: seed.managerName,
+        shopName: seed.shopName,
+      });
+
+      await page.goBack({ waitUntil: "domcontentloaded" });
+      await expectAppHydrated(page);
+      await expect(page).toHaveURL(
+        (url) =>
+          url.pathname === "/dashboard" &&
+          url.searchParams.get("org") === seed.organizationId &&
+          url.searchParams.get("shop") === seed.shopId,
+      );
+      await expect(page.getByRole("button", { name: "新しい募集をつくる" })).toBeVisible();
+    });
   });
 });

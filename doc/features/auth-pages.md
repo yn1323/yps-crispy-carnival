@@ -35,13 +35,19 @@ Clerk UserのEmailAddress、パスワード、ExternalAccountは「シフトリ�
 
 パスワード再設定は、Clerkにログイン方法として登録済みのメールアドレスを対象にする。
 
+Clerkが認証継続先を選ぶ場合も、`ClerkProvider`に設定したシフトリの`/login`と`/signup`を使う。  flow固有の遷移先を失った場合のfallbackは`/dashboard`とし、個別の`redirect`を上書きするforce redirectは使わない。
+
+Google認証の開始は、利用者がGoogleボタンを押した時だけ、ローカルに残るsign-inとsign-upのattemptを両方resetしてから行う。  resetとOAuth開始は一つのsingle-flightに含め、どちらかのresetに失敗した場合はOAuthを開始しない。callbackのmount、BFCacheからの復帰、URL queryだけを契機にattemptをresetしない。ブラウザバックでOAuth開始のUI latchだけが残った場合は、attemptには触れずlatchを解放し、次の明示操作で再開始できるようにする。
+
+`/sso-callback`はClerk既製の`SignIn`または`SignUp`を表示しない。  `complete`かつ作成済みsession IDを確認できる場合だけsessionを有効にし、transferと既存sessionはClerk resourceの状態に従って処理する。Client Trustでメールコードfactorを確認できる場合は、シフトリの本人確認画面で同じattemptを継続する。メールコード以外のMFA、新しいパスワード、Protect、未対応の追加必須項目、未知の状態はsession化せず、シフトリの回復画面で停止する。回復画面から利用者が明示的にやり直す場合だけ両attemptをresetし、保持した安全な`redirect`を付けて`/login`または`/signup`へ履歴を置換する。
+
 ## LINEアプリ内ブラウザ対応
 
 LINEアプリ内ブラウザではGoogle OAuthがprovider側で拒否される場合がある。  ログイン・新規登録画面ではLINE内ブラウザを検出して注意を表示し、Googleボタン押下時は`openExternalBrowser=1`付きURLへ遷移して外部ブラウザで開き直す。メールアドレス・パスワード認証はLINE内ブラウザでもそのまま利用できる。
 
 ## 別端末ログインの本人確認
 
-パスワードログインの結果がClient Trustの追加確認を示し、Clerkが`email_code`を提供した場合は、`prepareSecondFactor()`で確認コードを送る。  利用者がコードを入力したら`attemptSecondFactor()`で照合し、Clerkが`complete`とsession IDを返した場合だけsessionを有効にする。
+パスワードログインまたはGoogle callbackの結果がClient Trustの追加確認を示し、Clerkが`email_code`を提供した場合は、`mfa.sendEmailCode()`で確認コードを送る。  利用者がコードを入力したら`mfa.verifyEmailCode()`で照合し、Clerkが`complete`とsession IDを返した場合だけsessionを有効にする。
 
 現在のClerk SDKが返し得る`needs_second_factor`と`needs_client_trust`の両方を、`email_code`が利用できる場合に同じ本人確認フローとして扱う。
 
@@ -178,9 +184,9 @@ ClerkのEmailAddress: 1件または複数件
 ## 主なAPI
 
 - Clerk `useSignIn()`：メール・パスワードログイン、Googleログイン、パスワード再設定
-- Clerk `SignIn.prepareSecondFactor()` / `attemptSecondFactor()`：別端末ログインのメール確認
+- Clerk `SignIn.mfa.sendEmailCode()` / `mfa.verifyEmailCode()`：別端末ログインのメール確認
 - Clerk `useSignUp()`：メール・パスワード登録、Google登録、メール確認
-- Clerk `useClerk().handleRedirectCallback()`：サインイン・サインアップのOAuth callback
+- Clerk `SignIn.sso()` / `SignUp.sso()`：Google認証の開始とCore 3 resourceによるcallback継続
 - Clerk `useUser()`：本人のログイン方法resource取得
 - Clerk `User.createEmailAddress()`、`EmailAddress.prepareVerification()`、`EmailAddress.attemptVerification()`：招待先などのメール所有確認
 - Clerk `User.update()`：確認済みEmailAddressへのPrimary切替

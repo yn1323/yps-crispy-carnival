@@ -660,16 +660,33 @@ describe("staffRegistration/mutations", () => {
     expect(afterAction).toEqual({ lineLinkTokens: [], outbox: [] });
   });
 
-  it("事業者配下の承認は人物とstaffsをdual-writeし、同じ申請の再承認でも重複保存しない", async () => {
+  it("事業者配下の承認は人物とstaffをdual-writeして組織共通順の末尾へ追加し、再承認で重複保存しない", async () => {
     vi.stubEnv("FEATURE_SHOP_ADDITION", "");
     const t = convexTest(schema, modules);
-    const { shopId, organizationId } = await t.run(
+    const {
+      shopId,
+      organizationId,
+      personId: managerPersonId,
+    } = await t.run(
       async (ctx) =>
         await seedOrganizationManagerShop(ctx, {
           subject: "organization_approve_manager",
           email: "organization-approve-manager@example.com",
         }),
     );
+    await t.run(async (ctx) => {
+      await ctx.db.insert("organizationStaffOrderStates", {
+        organizationId,
+        revision: 1,
+        activatedAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      await ctx.db.insert("organizationStaffOrderEntries", {
+        organizationId,
+        organizationPersonId: managerPersonId,
+        displayOrder: 0,
+      });
+    });
     const asManager = t.withIdentity({ subject: "organization_approve_manager" });
     const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
     const submitResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
@@ -705,7 +722,15 @@ describe("staffRegistration/mutations", () => {
         .collect();
       const scheduled = await ctx.db.system.query("_scheduled_functions").collect();
       const audits = await ctx.db.query("organizationAuditEvents").collect();
-      return { staff, person, staffs, people, scheduled, audits };
+      const organizationOrder = await ctx.db
+        .query("organizationStaffOrderEntries")
+        .withIndex("by_organizationId_and_displayOrder", (q) => q.eq("organizationId", organizationId))
+        .collect();
+      const shopOrder = await ctx.db
+        .query("shopStaffOrderEntries")
+        .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", shopId))
+        .collect();
+      return { staff, person, staffs, people, scheduled, audits, organizationOrder, shopOrder };
     });
     expect(state.staff).toMatchObject({
       shopId,
@@ -721,6 +746,19 @@ describe("staffRegistration/mutations", () => {
     });
     expect(state.staffs).toHaveLength(1);
     expect(state.people).toHaveLength(2);
+    expect(state.organizationOrder.map(({ organizationPersonId }) => organizationPersonId)).toEqual([
+      managerPersonId,
+      state.person?._id,
+    ]);
+    expect(state.shopOrder).toEqual([
+      expect.objectContaining({
+        organizationId,
+        shopId,
+        staffId,
+        organizationPersonId: state.person?._id,
+        displayOrder: 1,
+      }),
+    ]);
     expect(state.scheduled.filter((job) => job.name === "line/actions:sendInviteEmail")).toHaveLength(1);
     expect(
       state.scheduled.filter(

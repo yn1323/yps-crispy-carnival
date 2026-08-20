@@ -240,7 +240,7 @@ export const getShiftBoardData = managerQuery({
   },
 });
 
-/** `/app` の必須orgから募集→店舗→組織を再検証し、既存ShiftBoard queryへ渡す明示scopeを返す。 */
+/** 認証済みappの必須orgから募集→店舗→組織を再検証し、既存ShiftBoard queryへ渡す明示scopeを返す。 */
 export const getShiftBoardShopScopeForOrganization = organizationQuery({
   args: { recruitmentId: v.id("recruitments") },
   returns: v.union(v.object({ shopId: v.id("shops"), shopName: v.string() }), v.null()),

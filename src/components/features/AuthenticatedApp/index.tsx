@@ -23,7 +23,7 @@ export type {
 } from "./appRoutePolicy";
 export {
   getCanonicalAppHref,
-  isAppPath,
+  isAppOrganizationScopedPath,
   normalizeAppRouteSearch,
   resolveAppShellRouteData,
   validateAppBillingRouteSearch,

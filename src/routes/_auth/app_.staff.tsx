@@ -1,28 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import {
-  useAppOrganizationScope,
-  validateAppFilteredListRouteSearch,
-} from "@/src/components/features/AuthenticatedApp";
-import { AppStaffRoutePage } from "@/src/pages/app-staff";
-import { buildAppStaffPageHead } from "@/src/pages/app-staff/meta";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { validateAppFilteredListRouteSearch } from "@/src/components/features/AuthenticatedApp";
 
 export const Route = createFileRoute("/_auth/app_/staff")({
   validateSearch: validateAppFilteredListRouteSearch,
-  head: buildAppStaffPageHead,
-  staticData: { appShell: { mode: "navigation", activeKey: "staff" } },
-  component: AppStaffRoute,
+  beforeLoad: ({ search }) => {
+    throw redirect({ to: "/staff", search, replace: true });
+  },
 });
-
-function AppStaffRoute() {
-  const { shopFilter } = Route.useSearch();
-  const organization = useAppOrganizationScope();
-
-  return (
-    <AppStaffRoutePage
-      organizationId={organization.organizationId}
-      memberStatus={organization.memberStatus}
-      activeShops={organization.activeShops}
-      requestedShopFilter={shopFilter}
-    />
-  );
-}

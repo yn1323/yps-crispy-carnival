@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-import { internalQuery } from "../_generated/server";
 import { formatPeriodLabel, getDeadlineCutoff } from "../_lib/dateFormat";
+import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { resolveStaffLineRecipient } from "../line/service";
 import { toNotificationLineRecipient } from "../notificationOutbox/types";
 import { isShiftTargetStaff } from "../staff/service";

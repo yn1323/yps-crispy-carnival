@@ -1,9 +1,9 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { internalAction } from "../_generated/server";
 import { getAppUrl, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
+import { observedInternalAction as internalAction } from "../_lib/errorObservability";
 import { isDryRunManagerEmail } from "../_lib/notificationDelivery";
 import { isReleaseFeatureEnabled } from "../_lib/releaseFeatures";
 import { buildOrganizationBillingEmailHtml } from "../notification/templates";
@@ -70,7 +70,7 @@ export const enqueueAcceptanceNotifications = internalAction({
     });
     if (!data) return { enqueuedCount: 0 };
 
-    const settingsUrl = new URL("/app/manage/managers", getAppUrl());
+    const settingsUrl = new URL("/manage/managers", getAppUrl());
     settingsUrl.searchParams.set("org", data.organizationId);
     let enqueuedCount = 0;
     for (const recipient of data.recipients) {

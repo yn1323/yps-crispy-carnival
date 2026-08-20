@@ -2,18 +2,19 @@ import type { AppNavigationKey } from "./AppPrimaryNavigation";
 
 export type AppOrganizationScopedNavigationPath =
   | "/dashboard"
-  | "/app/shifts"
-  | `/app/shifts/${string}/board`
-  | "/app/staff"
-  | `/app/staff/${string}`
-  | "/app/actions"
-  | "/app/manage"
-  | "/app/manage/organization"
-  | "/app/manage/managers"
-  | "/app/manage/managers/invite-staff"
-  | "/app/manage/managers/invite-new"
-  | "/app/manage/billing"
-  | `/app/manage/shops/${string}`;
+  | "/shifts"
+  | `/shifts/${string}/board`
+  | "/staff"
+  | "/staff/order"
+  | `/staff/${string}`
+  | "/actions"
+  | "/manage"
+  | "/manage/organization"
+  | "/manage/managers"
+  | "/manage/managers/invite-staff"
+  | "/manage/managers/invite-new"
+  | "/manage/billing"
+  | `/manage/shops/${string}`;
 
 export type AppNavigationPath = AppOrganizationScopedNavigationPath | "/account";
 
@@ -42,6 +43,33 @@ const ORGANIZATION_SEARCH_KEYS = ["org"] as const satisfies readonly AppRouteSea
 const BILLING_SEARCH_KEYS = ["org", "stripe"] as const satisfies readonly AppRouteSearchKey[];
 const DASHBOARD_SEARCH_KEYS = ["org", "shop"] as const satisfies readonly AppRouteSearchKey[];
 const FILTERED_LIST_SEARCH_KEYS = ["org", "shopFilter"] as const satisfies readonly AppRouteSearchKey[];
+
+type AppRouteSearchPolicy = "organization" | "billing" | "dashboard" | "filteredList";
+
+const CANONICAL_FILTERED_LIST_PATHS = new Set(["/actions", "/shifts", "/staff", "/staff/order"]);
+const LEGACY_FILTERED_LIST_PATHS = new Set(["/app/actions", "/app/shifts", "/app/staff", "/app/staff/order"]);
+const CANONICAL_ORGANIZATION_PATHS = new Set([
+  "/manage",
+  "/manage/organization",
+  "/manage/managers",
+  "/manage/managers/invite-staff",
+  "/manage/managers/invite-new",
+]);
+const LEGACY_ORGANIZATION_PATHS = new Set([
+  "/app",
+  "/app/manage",
+  "/app/manage/organization",
+  "/app/manage/managers",
+  "/app/manage/managers/invite-staff",
+  "/app/manage/managers/invite-new",
+]);
+const PUBLIC_CANONICAL_PATHS = new Set([
+  "/staff/register",
+  "/shifts/submit",
+  "/shifts/submit/completed",
+  "/shifts/view",
+  "/shifts/reissue",
+]);
 
 export type AppShellRouteData =
   | {
@@ -75,8 +103,9 @@ export function resolveAppShellRouteData(matches: ReadonlyArray<MatchWithStaticD
   return null;
 }
 
-export function isAppPath(pathname: string): boolean {
-  return pathname === "/app" || pathname.startsWith("/app/");
+/** organization scopeを必要とする既知のcanonical/legacy routeだけを識別する。 */
+export function isAppOrganizationScopedPath(pathname: string): boolean {
+  return resolveAppRouteSearchPolicy(pathname) !== null;
 }
 
 export function normalizeAppRouteSearch(pathname: string, search: Readonly<Record<string, unknown>>): AppRouteSearch {
@@ -90,11 +119,7 @@ export function normalizeAppRouteSearch(pathname: string, search: Readonly<Recor
     if (trimmed !== "") normalized[key] = trimmed;
   }
 
-  if (
-    pathname === "/app/manage/billing" &&
-    normalized.stripe !== undefined &&
-    !isStripeCheckoutReturn(normalized.stripe)
-  ) {
+  if (resolveAppRouteSearchPolicy(pathname) === "billing" && !isStripeCheckoutReturn(normalized.stripe)) {
     delete normalized.stripe;
   }
 
@@ -102,12 +127,12 @@ export function normalizeAppRouteSearch(pathname: string, search: Readonly<Recor
 }
 
 export function validateAppOrganizationRouteSearch(search: Record<string, unknown>): AppOrganizationRouteSearch {
-  const { org } = normalizeAppRouteSearch("/app/manage", search);
+  const { org } = normalizeAppRouteSearch("/manage", search);
   return org ? { org } : {};
 }
 
 export function validateAppBillingRouteSearch(search: Record<string, unknown>): AppBillingRouteSearch {
-  const { org, stripe } = normalizeAppRouteSearch("/app/manage/billing", search);
+  const { org, stripe } = normalizeAppRouteSearch("/manage/billing", search);
   const stripeResult: StripeCheckoutReturn | undefined =
     stripe === "returned" || stripe === "cancelled" ? stripe : undefined;
   return {
@@ -122,13 +147,13 @@ export function validateDashboardRouteSearch(search: Record<string, unknown>): D
 }
 
 export function validateAppFilteredListRouteSearch(search: Record<string, unknown>): AppFilteredListRouteSearch {
-  const { org, shopFilter } = normalizeAppRouteSearch("/app/staff", search);
+  const { org, shopFilter } = normalizeAppRouteSearch("/staff", search);
   return { ...(org ? { org } : {}), ...(shopFilter ? { shopFilter } : {}) };
 }
 
 /** 認証復帰前にroute別allowlist外と空値を除去し、一意なsearchへ収束させる。 */
 export function getCanonicalAppHref(pathname: string, searchStr: string): string | null {
-  if (pathname !== "/dashboard" && !isAppPath(pathname)) return null;
+  if (!isAppOrganizationScopedPath(pathname)) return null;
 
   const currentSearch = normalizeSearchString(searchStr);
   const rawSearch = Object.fromEntries(new URLSearchParams(currentSearch));
@@ -138,22 +163,47 @@ export function getCanonicalAppHref(pathname: string, searchStr: string): string
 }
 
 function getAllowedAppRouteSearchKeys(pathname: string): readonly AppRouteSearchKey[] {
-  if (pathname === "/app") return ORGANIZATION_SEARCH_KEYS;
-  if (pathname === "/dashboard") return DASHBOARD_SEARCH_KEYS;
-  if (pathname === "/app/shifts" || pathname === "/app/staff" || pathname === "/app/actions") {
-    return FILTERED_LIST_SEARCH_KEYS;
+  switch (resolveAppRouteSearchPolicy(pathname)) {
+    case "organization":
+      return ORGANIZATION_SEARCH_KEYS;
+    case "billing":
+      return BILLING_SEARCH_KEYS;
+    case "dashboard":
+      return DASHBOARD_SEARCH_KEYS;
+    case "filteredList":
+      return FILTERED_LIST_SEARCH_KEYS;
+    default:
+      return NO_APP_SEARCH_KEYS;
   }
-  if (pathname === "/app/manage/billing") return BILLING_SEARCH_KEYS;
+}
+
+function resolveAppRouteSearchPolicy(pathname: string): AppRouteSearchPolicy | null {
+  const routePathname = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  const staticPathname = routePathname.toLowerCase();
+
+  if (PUBLIC_CANONICAL_PATHS.has(staticPathname)) return null;
+  if (staticPathname === "/dashboard") return "dashboard";
+  if (staticPathname === "/manage/billing" || staticPathname === "/app/manage/billing") return "billing";
+  if (CANONICAL_FILTERED_LIST_PATHS.has(staticPathname) || LEGACY_FILTERED_LIST_PATHS.has(staticPathname)) {
+    return "filteredList";
+  }
+  if (CANONICAL_ORGANIZATION_PATHS.has(staticPathname) || LEGACY_ORGANIZATION_PATHS.has(staticPathname)) {
+    return "organization";
+  }
   if (
-    pathname.startsWith("/app/shifts/") ||
-    pathname.startsWith("/app/staff/") ||
-    pathname === "/app/manage" ||
-    pathname.startsWith("/app/manage/")
+    /^\/shifts\/[^/]+\/board$/i.test(routePathname) ||
+    /^\/staff\/[^/]+$/i.test(routePathname) ||
+    /^\/staff\/[^/]+\/shops\/[^/]+$/i.test(routePathname) ||
+    /^\/manage\/shops\/[^/]+$/i.test(routePathname) ||
+    /^\/app\/shifts\/[^/]+\/board$/i.test(routePathname) ||
+    /^\/app\/staff\/[^/]+$/i.test(routePathname) ||
+    /^\/app\/staff\/[^/]+\/shops\/[^/]+$/i.test(routePathname) ||
+    /^\/app\/manage\/shops\/[^/]+$/i.test(routePathname)
   ) {
-    return ORGANIZATION_SEARCH_KEYS;
+    return "organization";
   }
 
-  return NO_APP_SEARCH_KEYS;
+  return null;
 }
 
 function buildAppRouteSearchString(pathname: string, search: Readonly<Record<string, unknown>>): string {
@@ -174,6 +224,6 @@ function normalizeSearchString(searchStr: string): string {
   return searchStr.startsWith("?") ? searchStr : `?${searchStr}`;
 }
 
-function isStripeCheckoutReturn(value: string): value is StripeCheckoutReturn {
+function isStripeCheckoutReturn(value: string | undefined): value is StripeCheckoutReturn {
   return value === "returned" || value === "cancelled";
 }

@@ -201,7 +201,7 @@ describe("AppManage release boundary", () => {
     expect(screen.getByText("この機能は現在利用できません。管理画面へ戻ります。")).not.toBeNull();
     await waitFor(() => {
       expect(mocks.navigate).toHaveBeenCalledWith({
-        to: "/app/manage",
+        to: "/manage",
         search: { org: organizationId },
         replace: true,
       });
@@ -219,7 +219,7 @@ describe("AppManage release boundary", () => {
     expect(screen.getByText("この機能は現在利用できません。管理画面へ戻ります。")).not.toBeNull();
     await waitFor(() => {
       expect(mocks.navigate).toHaveBeenCalledWith({
-        to: "/app/manage",
+        to: "/manage",
         search: { org: organizationId },
         replace: true,
       });

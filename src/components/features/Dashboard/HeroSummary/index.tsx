@@ -21,11 +21,12 @@ type Props = {
   announcementBanner?: ReactNode;
   staffRegistrationRequest?: {
     count: number;
-    onClick: () => void;
+    content: ReactNode;
   };
-  hasNotificationFailures?: boolean;
-  isNotificationFailuresActionDisabled?: boolean;
-  onNotificationFailuresClick?: () => void;
+  notificationFailures?: {
+    count: number;
+    content: ReactNode;
+  };
   hideActionSection?: boolean;
   isRecruitmentTaskAvailable?: boolean;
   unavailableTaskSources?: {
@@ -43,9 +44,7 @@ export const HeroSummary = ({
   createRecruitmentDisabledReason,
   announcementBanner,
   staffRegistrationRequest,
-  hasNotificationFailures = false,
-  isNotificationFailuresActionDisabled = false,
-  onNotificationFailuresClick,
+  notificationFailures,
   hideActionSection = false,
   isRecruitmentTaskAvailable = true,
   unavailableTaskSources = [],
@@ -75,11 +74,7 @@ export const HeroSummary = ({
             onCreateRecruitment={onCreateRecruitment}
             isCreateRecruitmentActionDisabled={isCreateRecruitmentActionDisabled}
             createRecruitmentDisabledReason={createRecruitmentDisabledReason}
-            notificationTask={
-              hasNotificationFailures && onNotificationFailuresClick
-                ? { onClick: onNotificationFailuresClick, isDisabled: isNotificationFailuresActionDisabled }
-                : null
-            }
+            notificationTask={notificationFailures ?? null}
             staffRegistrationRequest={staffRegistrationRequest}
           />
           {unavailableTaskSources.length > 0 && (

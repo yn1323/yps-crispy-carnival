@@ -155,7 +155,7 @@ describe("UserDetail", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "店舗別設定を開く" }));
     expect(mocks.navigate).toHaveBeenNthCalledWith(1, {
-      to: "/app/staff/$personId/shops/$shopId",
+      to: "/staff/$personId/shops/$shopId",
       params: { personId: "person-1", shopId: "shop-b" },
       search: { org: organizationId },
     });
@@ -229,7 +229,7 @@ describe("UserDetail", () => {
     mocks.removalOptions?.onPersonRemoved("person-1");
 
     expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/app/staff",
+      to: "/staff",
       search: { org: organizationId },
       replace: true,
     });

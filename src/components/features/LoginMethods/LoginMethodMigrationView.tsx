@@ -79,7 +79,6 @@ function MigrationActions({ props, isBusy }: { props: LoginMethodMigrationViewPr
       return (
         <DialogActionArea
           layout="standard"
-          mobileLayout="inline"
           endAction={
             <Button type="button" variant="outline" onClick={props.onBackToOverview}>
               閉じる
@@ -92,7 +91,6 @@ function MigrationActions({ props, isBusy }: { props: LoginMethodMigrationViewPr
     return (
       <DialogActionArea
         layout="flow"
-        mobileLayout={props.controller.state.phase === "readyToConnect" || isStarting ? "stacked" : "inline"}
         startAction={
           <Button type="button" variant="outline" disabled={isBusy} onClick={props.onBackToOverview}>
             キャンセル
@@ -120,7 +118,6 @@ function MigrationActions({ props, isBusy }: { props: LoginMethodMigrationViewPr
       return (
         <DialogActionArea
           layout="standard"
-          mobileLayout="inline"
           endAction={
             <Button type="button" variant="outline" onClick={props.onBackToOverview}>
               閉じる
@@ -132,7 +129,6 @@ function MigrationActions({ props, isBusy }: { props: LoginMethodMigrationViewPr
       return (
         <DialogActionArea
           layout="flow"
-          mobileLayout="inline"
           startAction={
             <Button type="button" variant="outline" disabled={isBusy} onClick={props.onBackToOverview}>
               キャンセル
@@ -155,7 +151,6 @@ function MigrationActions({ props, isBusy }: { props: LoginMethodMigrationViewPr
       return (
         <DialogActionArea
           layout="flow"
-          mobileLayout="inline"
           startAction={
             <Button type="button" variant="outline" disabled={isBusy} onClick={props.controller.reset}>
               入力し直す
@@ -178,7 +173,6 @@ function MigrationActions({ props, isBusy }: { props: LoginMethodMigrationViewPr
       return (
         <DialogActionArea
           layout="flow"
-          mobileLayout="inline"
           startAction={
             <Button type="button" variant="outline" disabled={isBusy} onClick={props.controller.reset}>
               戻る
@@ -201,7 +195,6 @@ function MigrationActions({ props, isBusy }: { props: LoginMethodMigrationViewPr
       return (
         <DialogActionArea
           layout="flow"
-          mobileLayout="inline"
           startAction={
             <Button type="button" variant="outline" disabled={isBusy} onClick={props.onBackToOverview}>
               戻る
@@ -226,7 +219,6 @@ function MigrationActions({ props, isBusy }: { props: LoginMethodMigrationViewPr
       return (
         <DialogActionArea
           layout="standard"
-          mobileLayout="inline"
           endAction={
             <Button type="button" variant="outline" onClick={props.onBackToOverview}>
               閉じる

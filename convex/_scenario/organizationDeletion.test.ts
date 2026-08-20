@@ -151,7 +151,7 @@ describe("組織削除シナリオ", () => {
       return job._id;
     });
     await expect(t.mutation(internal.deletionCleanup.mutations.recover, {})).resolves.toEqual({ scheduled: 1 });
-    for (let iteration = 0; iteration < 250; iteration += 1) {
+    for (let iteration = 0; iteration < 300; iteration += 1) {
       vi.advanceTimersByTime(0);
       await t.finishInProgressScheduledFunctions();
       const completed = await t.run(async (ctx) => (await ctx.db.get(interruptedJobId))?.status === "completed");

@@ -133,7 +133,6 @@ export function ManagerInvitationDialogView({
       isSubmitDisabled={isSubmitDisabled}
       preventClose={isRunning}
       unmountOnExit
-      mobileActionLayout="inline"
       mobileFullScreen
       maxW={{ base: "calc(100vw - 24px)", md: "640px" }}
       maxH={{ base: "calc(100dvh - 24px)", md: "80dvh" }}

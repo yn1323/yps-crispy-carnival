@@ -130,7 +130,6 @@ export function RecruitmentManagementView({
         submitColorPalette="red"
         isLoading={isDeleting}
         isSubmitDisabled={isReadOnly || isDeleting}
-        mobileActionLayout="stacked"
       >
         <Text>この募集を削除すると元に戻せません。</Text>
       </Dialog>

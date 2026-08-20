@@ -53,7 +53,7 @@ export const OrganizationScoped: Story = {
     );
     await expect(canvas.getByRole("link", { name: "スタッフ" })).toHaveAttribute(
       "href",
-      `/app/staff?org=${ORGANIZATION_ID}`,
+      `/staff?org=${ORGANIZATION_ID}`,
     );
     await expect(canvas.getByText("LINEで使えるシフト管理")).toBeVisible();
     await expect(canvas.getByRole("button", { name: "組織を切り替える（現在：すーぱーかんぱにー）" })).toBeVisible();

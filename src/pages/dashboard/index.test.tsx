@@ -355,14 +355,14 @@ describe("DashboardRoutePage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "シフトを開く" }));
     expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/app/shifts/$recruitmentId/board",
+      to: "/shifts/$recruitmentId/board",
       params: { recruitmentId: "recruitment-1" },
       search: { org: "organization-a" },
     });
 
     fireEvent.click(screen.getByRole("button", { name: "スタッフを開く" }));
     expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/app/staff/$personId",
+      to: "/staff/$personId",
       params: { personId: "person-1" },
       search: { org: "organization-a" },
     });
@@ -391,7 +391,7 @@ describe("DashboardRoutePage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "管理を開く" }));
     expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/app/manage",
+      to: "/manage",
       search: { org: "organization-a" },
     });
     expect(mocks.useShopQuery).not.toHaveBeenCalled();

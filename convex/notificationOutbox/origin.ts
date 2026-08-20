@@ -1,7 +1,7 @@
 import type { GenericDatabaseReader } from "convex/server";
 import { v } from "convex/values";
 import type { DataModel, Id } from "../_generated/dataModel";
-import { internalQuery } from "../_generated/server";
+import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { getOrganizationBillingState } from "../organization/service";
 
 type DbCtx = {

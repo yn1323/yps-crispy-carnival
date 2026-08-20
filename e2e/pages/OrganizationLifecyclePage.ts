@@ -7,12 +7,12 @@ export class OrganizationLifecyclePage {
   constructor(private page: Page) {}
 
   async gotoManagement(organizationId: string) {
-    await this.page.goto(`/app/manage?org=${encodeURIComponent(organizationId)}`, {
+    await this.page.goto(`/manage?org=${encodeURIComponent(organizationId)}`, {
       waitUntil: "domcontentloaded",
     });
     await expectAppHydrated(this.page);
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === "/app/manage" && url.searchParams.get("org") === organizationId,
+      (url) => url.pathname === "/manage" && url.searchParams.get("org") === organizationId,
       { timeout: ORGANIZATION_DATA_TIMEOUT },
     );
     await expect(this.page.getByRole("heading", { name: "管理", exact: true })).toBeVisible({
@@ -21,12 +21,12 @@ export class OrganizationLifecyclePage {
   }
 
   async gotoOrganization(organizationId: string) {
-    await this.page.goto(`/app/manage/organization?org=${encodeURIComponent(organizationId)}`, {
+    await this.page.goto(`/manage/organization?org=${encodeURIComponent(organizationId)}`, {
       waitUntil: "domcontentloaded",
     });
     await expectAppHydrated(this.page);
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === "/app/manage/organization" && url.searchParams.get("org") === organizationId,
+      (url) => url.pathname === "/manage/organization" && url.searchParams.get("org") === organizationId,
       { timeout: ORGANIZATION_DATA_TIMEOUT },
     );
     await expect(
@@ -66,7 +66,7 @@ export class OrganizationLifecyclePage {
 
   async expectCurrentOrganization(organizationId: string, organizationName: string) {
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === "/app/manage/organization" && url.searchParams.get("org") === organizationId,
+      (url) => url.pathname === "/manage/organization" && url.searchParams.get("org") === organizationId,
       { timeout: ORGANIZATION_DATA_TIMEOUT },
     );
     const basicInformation = this.page.getByRole("region", { name: "基本情報", exact: true });
@@ -89,7 +89,7 @@ export class OrganizationLifecyclePage {
     await this.page.getByRole("button", { name: /^組織を切り替える/ }).click();
     await this.page.getByRole("menuitemradio", { name: organizationName, exact: true }).click();
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === "/app/manage/organization" && url.searchParams.get("org") === expectedOrganizationId,
+      (url) => url.pathname === "/manage/organization" && url.searchParams.get("org") === expectedOrganizationId,
       { timeout: ORGANIZATION_DATA_TIMEOUT },
     );
     await this.expectCurrentOrganization(expectedOrganizationId, organizationName);

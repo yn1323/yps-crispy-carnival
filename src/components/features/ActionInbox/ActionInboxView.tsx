@@ -1,5 +1,5 @@
 import { Badge, Box, Flex, HStack, Icon, Menu, Portal, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type SyntheticEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { IconType } from "react-icons";
 import {
   LuBellOff,
@@ -18,6 +18,7 @@ import { Button, type ButtonProps, IconButton } from "@/src/components/ui/Button
 import { Empty } from "@/src/components/ui/Empty";
 import type {
   ActionInboxAction,
+  ActionInboxActionContext,
   ActionInboxCategory,
   ActionInboxItem,
   ActionInboxItemCategory,
@@ -27,6 +28,10 @@ import type {
 type Props = {
   items: readonly ActionInboxItem[];
   completedItemId?: string | null;
+  completedItemIds?: readonly string[];
+  ariaLabel?: string;
+  hideEmpty?: boolean;
+  onVisibleItemCountChange?: (count: number) => void;
   /** @deprecated 少量の対応項目を一つの一覧で扱うため、種類フィルターは表示しません。 */
   activeCategory?: ActionInboxCategory;
   /** @deprecated 少量の対応項目を一つの一覧で扱うため、種類フィルターは表示しません。 */
@@ -58,8 +63,20 @@ const CATEGORY_PRESENTATION: Record<ActionInboxItemCategory, CategoryPresentatio
 };
 
 const EXIT_DURATION_MS = 240;
+const EMPTY_COMPLETED_ITEM_IDS: readonly string[] = [];
+const preventInteraction = (event: SyntheticEvent) => {
+  event.preventDefault();
+  event.stopPropagation();
+};
 
-export function ActionInboxView({ items, completedItemId }: Props) {
+export function ActionInboxView({
+  items,
+  completedItemId,
+  completedItemIds = EMPTY_COMPLETED_ITEM_IDS,
+  ariaLabel = "要対応の項目",
+  hideEmpty = false,
+  onVisibleItemCountChange,
+}: Props) {
   const [exitingItemIds, setExitingItemIds] = useState<ReadonlySet<string>>(() => new Set());
   const [dismissedItemIds, setDismissedItemIds] = useState<ReadonlySet<string>>(() => new Set());
   const [retainedItems, setRetainedItems] = useState<ReadonlyMap<string, { item: ActionInboxItem; index: number }>>(
@@ -72,10 +89,32 @@ export function ActionInboxView({ items, completedItemId }: Props) {
   const runningActionKeyRef = useRef<string | null>(null);
   const currentItemIdsRef = useRef<ReadonlySet<string>>(new Set());
   const itemSnapshotsRef = useRef(new Map<string, { item: ActionInboxItem; index: number }>());
+  const requestedCompletionCountsRef = useRef<ReadonlyMap<string, number>>(new Map());
+  const requestedCompletionCounts = useMemo(
+    () => countCompletionRequests(completedItemId, completedItemIds),
+    [completedItemId, completedItemIds],
+  );
   currentItemIdsRef.current = new Set(items.map((item) => item.id));
   for (const [index, item] of items.entries()) itemSnapshotsRef.current.set(item.id, { item, index });
-  const renderedItems = mergeRetainedItems(items, retainedItems);
+  const completionRetainedItems = new Map(retainedItems);
+  for (const [itemId, count] of requestedCompletionCounts) {
+    if (count <= (requestedCompletionCountsRef.current.get(itemId) ?? 0)) continue;
+    const snapshot = itemSnapshotsRef.current.get(itemId);
+    if (snapshot) completionRetainedItems.set(itemId, snapshot);
+  }
+  const renderedItems = mergeRetainedItems(items, completionRetainedItems);
   const visibleItems = renderedItems.filter((item) => !dismissedItemIds.has(item.id));
+  const reportedVisibleItemIds = new Set(visibleItems.map((item) => item.id));
+  for (const [itemId, count] of requestedCompletionCounts) {
+    if (
+      count > (requestedCompletionCountsRef.current.get(itemId) ?? 0) &&
+      itemSnapshotsRef.current.has(itemId) &&
+      !dismissedItemIds.has(itemId)
+    ) {
+      reportedVisibleItemIds.add(itemId);
+    }
+  }
+  const reportedVisibleItemCount = reportedVisibleItemIds.size;
 
   const beginExit = useCallback((snapshot: { item: ActionInboxItem; index: number }, announcement: string) => {
     const { item, index } = snapshot;
@@ -113,10 +152,17 @@ export function ActionInboxView({ items, completedItemId }: Props) {
   }, []);
 
   useLayoutEffect(() => {
-    if (!completedItemId) return;
-    const snapshot = itemSnapshotsRef.current.get(completedItemId);
-    if (snapshot) beginExit(snapshot, "対応を完了しました。");
-  }, [beginExit, completedItemId]);
+    for (const [itemId, count] of requestedCompletionCounts) {
+      if (count <= (requestedCompletionCountsRef.current.get(itemId) ?? 0)) continue;
+      const snapshot = itemSnapshotsRef.current.get(itemId);
+      if (snapshot) beginExit(snapshot, "対応を完了しました。");
+    }
+    requestedCompletionCountsRef.current = requestedCompletionCounts;
+  }, [beginExit, requestedCompletionCounts]);
+
+  useEffect(() => {
+    onVisibleItemCountChange?.(reportedVisibleItemCount);
+  }, [onVisibleItemCountChange, reportedVisibleItemCount]);
 
   useEffect(
     () => () => {
@@ -139,7 +185,11 @@ export function ActionInboxView({ items, completedItemId }: Props) {
     }
   }, [items, retainedItems]);
 
-  const runAction = async (item: ActionInboxItem, action: ActionInboxAction) => {
+  const runAction = async (
+    item: ActionInboxItem,
+    action: ActionInboxAction,
+    triggerElement?: ActionInboxActionContext["triggerElement"],
+  ) => {
     if (action.disabled) return;
 
     const actionKey = `${item.id}:${action.label}`;
@@ -155,7 +205,7 @@ export function ActionInboxView({ items, completedItemId }: Props) {
       setRetainedItems((current) => new Map(current).set(item.id, snapshot));
     }
     try {
-      await action.onClick();
+      await action.onClick(triggerElement ? { triggerElement } : undefined);
       if (!action.removesItemOnSuccess) return;
 
       const snapshot = itemSnapshotsRef.current.get(item.id);
@@ -179,16 +229,18 @@ export function ActionInboxView({ items, completedItemId }: Props) {
     <Stack gap={0}>
       <VisuallyHidden aria-live="polite">{completionAnnouncement}</VisuallyHidden>
       {visibleItems.length === 0 ? (
-        <Empty
-          icon={LuCircleCheck}
-          title="要対応の項目はありません"
-          description="現在、確認や操作が必要な項目はありません。"
-          tone="success"
-          variant="section"
-          minH="240px"
-        />
+        hideEmpty ? null : (
+          <Empty
+            icon={LuCircleCheck}
+            title="要対応の項目はありません"
+            description="現在、確認や操作が必要な項目はありません。"
+            tone="success"
+            variant="section"
+            minH="240px"
+          />
+        )
       ) : (
-        <Stack as="section" aria-label="要対応の項目" gap={0}>
+        <Stack as="section" aria-label={ariaLabel} gap={0}>
           {visibleItems.map((item) => (
             <Box
               key={item.id}
@@ -204,7 +256,7 @@ export function ActionInboxView({ items, completedItemId }: Props) {
                   isExiting={exitingItemIds.has(item.id)}
                   runningActionKey={runningActionKey}
                   actionError={actionError}
-                  onRunAction={(action) => void runAction(item, action)}
+                  onRunAction={(action, triggerElement) => void runAction(item, action, triggerElement)}
                 />
               </Box>
             </Box>
@@ -230,6 +282,13 @@ function mergeRetainedItems(
   return merged;
 }
 
+function countCompletionRequests(completedItemId: string | null | undefined, completedItemIds: readonly string[]) {
+  const counts = new Map<string, number>();
+  for (const itemId of completedItemIds) counts.set(itemId, (counts.get(itemId) ?? 0) + 1);
+  if (completedItemId && !counts.has(completedItemId)) counts.set(completedItemId, 1);
+  return counts;
+}
+
 function ActionCard({
   item,
   isExiting,
@@ -241,7 +300,7 @@ function ActionCard({
   isExiting: boolean;
   runningActionKey: string | null;
   actionError: { key: string; message: string } | null;
-  onRunAction: (action: ActionInboxAction) => void;
+  onRunAction: (action: ActionInboxAction, triggerElement?: HTMLElement) => void;
 }) {
   const presentation = CATEGORY_PRESENTATION[item.category];
   const shouldShowRetryGuidance = item.category === "notification" || item.category === "management";
@@ -260,6 +319,7 @@ function ActionCard({
   return (
     <Box
       as="article"
+      data-state={isExiting ? "exiting" : "active"}
       position="relative"
       overflow="hidden"
       bg="white"
@@ -339,12 +399,13 @@ function ActionCard({
                 errorMessage={
                   actionError?.key === `${item.id}:${visibleAction.label}` ? actionError.message : undefined
                 }
-                onRun={() => onRunAction(visibleAction)}
+                onRun={(triggerElement) => onRunAction(visibleAction, triggerElement)}
               />
               {overflowActions.length > 0 && (
                 <ActionMenu
                   itemTitle={item.title}
                   actions={overflowActions}
+                  isExiting={isExiting}
                   isInteractionDisabled={isExiting || runningActionKey !== null}
                   onRunAction={onRunAction}
                 />
@@ -428,7 +489,7 @@ function ActionButton({
   isRunning: boolean;
   isInteractionDisabled: boolean;
   errorMessage?: string;
-  onRun: () => void;
+  onRun: (triggerElement: HTMLElement) => void;
 }) {
   const style = getActionButtonStyle(action.emphasis ?? "secondary", category);
 
@@ -445,7 +506,7 @@ function ActionButton({
         disabled={action.disabled || (isInteractionDisabled && !isRunning)}
         loading={isRunning}
         loadingText={action.label}
-        onClick={action.disabled ? undefined : onRun}
+        onClick={action.disabled ? undefined : (event) => onRun(event.currentTarget)}
       >
         {action.label}
       </Button>
@@ -466,24 +527,34 @@ function ActionButton({
 function ActionMenu({
   itemTitle,
   actions,
+  isExiting,
   isInteractionDisabled,
   onRunAction,
 }: {
   itemTitle: string;
   actions: readonly ActionInboxAction[];
+  isExiting: boolean;
   isInteractionDisabled: boolean;
-  onRunAction: (action: ActionInboxAction) => void;
+  onRunAction: (action: ActionInboxAction, triggerElement?: HTMLElement) => void;
 }) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+
   return (
     <Menu.Root positioning={{ placement: "bottom-end" }}>
       <Menu.Trigger asChild>
         <IconButton
+          ref={triggerRef}
           aria-label={`${itemTitle}のその他の操作`}
           variant="outline"
           minW="44px"
           minH="44px"
           color="fg.muted"
-          disabled={isInteractionDisabled}
+          disabled={isInteractionDisabled && !isExiting}
+          aria-disabled={isInteractionDisabled || undefined}
+          pointerEvents={isExiting ? "none" : undefined}
+          tabIndex={isExiting ? -1 : undefined}
+          onClickCapture={isExiting ? preventInteraction : undefined}
+          onKeyDownCapture={isExiting ? preventInteraction : undefined}
         >
           <LuEllipsis size={20} aria-hidden />
         </IconButton>
@@ -500,7 +571,15 @@ function ActionMenu({
                   color={action.emphasis === "danger" ? "red.600" : undefined}
                   cursor={isDisabled ? "not-allowed" : "pointer"}
                   disabled={isDisabled}
-                  onSelect={isDisabled ? undefined : () => onRunAction(action)}
+                  onSelect={
+                    isDisabled
+                      ? undefined
+                      : () => {
+                          const triggerElement = triggerRef.current;
+                          triggerElement?.focus();
+                          onRunAction(action, triggerElement ?? undefined);
+                        }
+                  }
                 >
                   <Stack gap={0.5} minW={0}>
                     <Box>{action.label}</Box>

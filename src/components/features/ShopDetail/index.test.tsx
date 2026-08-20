@@ -82,7 +82,7 @@ describe("店舗詳細のapp navigation", () => {
     fireEvent.click(screen.getByRole("button", { name: "スタッフ詳細を開く" }));
 
     expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
-      to: "/app/staff/$personId",
+      to: "/staff/$personId",
       params: { personId: "person-a" },
       search: { org: organizationId },
     });
@@ -97,7 +97,7 @@ describe("店舗詳細のapp navigation", () => {
     mocks.onDeleted?.();
 
     expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
-      to: "/app/manage",
+      to: "/manage",
       search: { org: organizationId },
       replace: true,
     });

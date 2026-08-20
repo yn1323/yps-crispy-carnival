@@ -8,8 +8,8 @@
 |---|---|---|
 | `Button` / `IconButton` | Chakra Buttonの薄いプロジェクト入口 | `<Button colorPalette="teal" />` / `<IconButton aria-label="..." />` |
 | `Select` | カスタムSelect | `<Select items={[...] as SelectItemType[]} value={...} onChange={...} usePortal={false} />` |
-| `Dialog` | モーダルダイアログ | `useDialog()` + `<Dialog ... actionLayout mobileActionLayout mobileFullScreen />` |
-| `DialogActionArea` | custom footerのDOM順とPC/SP配置 | `<DialogActionArea layout="flow" mobileLayout="stacked" startAction={...} endAction={...} />` |
+| `Dialog` | モーダルダイアログ | `useDialog()` + `<Dialog ... actionLayout mobileFullScreen />` |
+| `DialogActionArea` | custom footerのDOM順とPC/SP配置 | `<DialogActionArea layout="flow" startAction={...} endAction={...} />` |
 | `StepperDialog` | 多段フロー用Dialog | `<StepperDialog><StepperDialogContent ... /></StepperDialog>` |
 | `Empty` | 空状態 | `<Empty icon title description action minH />` |
 | `ShiftoriLoading` | ロゴ付きローディング | `<ShiftoriLoading variant="section" />` |
@@ -254,7 +254,6 @@ custom footerが必要な場合も、配置用の`Flex`をfeatureで組まず`Di
   footer={
     <DialogActionArea
       layout="flow"
-      mobileLayout="stacked"
       startAction={
         <Button variant="outline" onClick={onBack}>
           戻る
@@ -317,7 +316,7 @@ custom footerが必要な場合も、配置用の`Flex`をfeatureで組まず`Di
 ```
 
 `actions`はSecondary、PrimaryまたはDestructiveのDOM順で渡す。
-短い二操作は既定の`mobileActionLayout="inline"`、320px幅で一行に収まらない長い二操作は`mobileActionLayout="stacked"`を`StepperDialogContent`へ指定する。
+モバイルの二操作はラベルの長さにかかわらず同幅の横並びになり、320px幅で一行に収まらないラベルは省略せずに複数行へ折り返す。
 `StepperDialog`がモバイル全画面、本文scroll、action bar、safe areaを所有するため、featureで同じレイアウトを重ねない。
 
 ### Empty

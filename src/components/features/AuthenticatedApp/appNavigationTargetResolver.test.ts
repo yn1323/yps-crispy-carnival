@@ -4,13 +4,13 @@ import { resolveAppNavigationTarget } from "./appNavigationTargetResolver";
 describe("resolveAppNavigationTarget", () => {
   it.each([
     "/dashboard",
-    "/app/shifts",
-    "/app/staff",
-    "/app/actions",
-    "/app/manage",
-    "/app/manage/managers",
-    "/app/shifts/recruitment-a/board",
-    "/app/staff/person-a",
+    "/shifts",
+    "/staff",
+    "/actions",
+    "/manage",
+    "/manage/managers",
+    "/shifts/recruitment-a/board",
+    "/staff/person-a",
   ] as const)("%sへ現在の組織を引き継ぐ", (to) => {
     expect(resolveAppNavigationTarget(to, "org-a")).toEqual({
       to,

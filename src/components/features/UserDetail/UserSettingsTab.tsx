@@ -52,7 +52,6 @@ export function UserGroupRemovalSection({
           closeLabel="やめる"
           isLoading={isRemoving}
           isSubmitDisabled={removalPreview.kind === "tooMany" || isRemoving}
-          mobileActionLayout="inline"
           onOpenChange={({ open }) => {
             if (!open && !isRemoving) onCancelRemovePerson();
           }}

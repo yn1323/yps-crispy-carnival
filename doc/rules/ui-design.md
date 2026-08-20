@@ -133,11 +133,11 @@ Secondaryを先、PrimaryまたはDestructiveを最後に置く。
 | 状況 | デスクトップ | モバイル |
 |---|---|---|
 | 単一アクション | 最終アクション位置へ右寄せ | footer幅いっぱい |
-| 標準の二アクション | 右側へまとめ、Secondary、最終アクションの順 | ラベルが一行で収まる場合は同幅の横並び |
-| Stepper | 「戻る」または「キャンセル」を左端、`次へ`、`確認へ`、完了操作を右端 | 原則として同幅の横並び |
-| 長いラベルの二アクション | 右側へまとめ、Secondary、最終アクションの順 | 縦積みにし、最終アクションをDOM上も最下段にする |
+| 標準の二アクション | 右側へまとめ、Secondary、最終アクションの順 | ラベルの長さにかかわらず同幅の横並び |
+| Stepper | 「戻る」または「キャンセル」を左端、`次へ`、`確認へ`、完了操作を右端 | ラベルの長さにかかわらず同幅の横並び |
 
-ボタンの文言を省略またはtruncateして横並びを維持しない。
+モバイルの二アクションは縦積みに切り替えず、ラベルを省略またはtruncateせずに複数行へ折り返す。
+片方のラベルだけが長い場合も、二つのボタンを同じ幅と高さに揃え、必要な分だけfooterの高さを広げる。
 モバイルの操作領域は高さ44px以上を確保する。
 
 ### Footerとscroll
@@ -148,6 +148,7 @@ Dialogを完了、終了、または前の段階へ移動するボタンはfoote
 短い標準Dialogではfooterをcontent flowに置く。
 本文がviewportを超えるDialog、モバイル全画面Dialog、StepperDialogでは、headerとfooterを残して本文だけをscrollさせる。
 このfooterはDialog内の下端に留め、モバイルでは`safe-area-inset-bottom`を一度だけ含める。
+折り返したaction labelでfooterが高くなった場合も、safe areaを維持し、本文だけをscrollさせる。
 viewport基準の独自なfixed footerを各featureへ追加しない。
 ソフトウェアキーボード表示中も、本文をscrollして現在の入力とaction areaへ到達できるようにする。
 

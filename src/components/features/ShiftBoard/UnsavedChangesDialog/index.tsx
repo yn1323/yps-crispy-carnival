@@ -29,7 +29,6 @@ export const UnsavedChangesDialog = ({
     footer={
       <DialogActionArea
         layout="standard"
-        mobileLayout="inline"
         startAction={
           <Button colorPalette="red" variant="outline" onClick={onLeaveWithoutSaving} disabled={isSaving}>
             保存せず戻る

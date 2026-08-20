@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children }: { children: ReactNode }) => <a href="/app/staff">{children}</a>,
+  Link: ({ children }: { children: ReactNode }) => <a href="/staff">{children}</a>,
 }));
 vi.mock("convex/react", () => ({ useQuery: mocks.useQuery }));
 vi.mock("@/convex/_generated/api", () => ({

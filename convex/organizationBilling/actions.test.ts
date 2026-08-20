@@ -73,9 +73,10 @@ describe("organizationBilling/actions", () => {
     expect(jobs[0]?.payload.kind === "email" ? jobs[0].payload.subject : "").toContain("Businessを開始しました");
     expect(jobs[0]?.payload.kind === "email" ? jobs[0].payload.html : "").toContain("1,200");
     expect(jobs[0]?.payload.kind === "email" ? jobs[0].payload.html : "").not.toContain("9,999");
-    expect(jobs[0]?.payload.kind === "email" ? jobs[0].payload.html : "").toContain(
-      `/app/manage/billing?org=${ids.organizationId}`,
-    );
+    if (jobs[0]?.payload.kind !== "email") throw new Error("email payload not found");
+    const actionUrl = extractBillingSettingsActionUrl(jobs[0].payload.html);
+    expect(actionUrl.pathname).toBe("/manage/billing");
+    expect([...actionUrl.searchParams.entries()]).toEqual([["org", ids.organizationId]]);
     expect(jobs.some((job) => job.channel === "line")).toBe(false);
   });
 
@@ -353,3 +354,9 @@ describe("organizationBilling/actions", () => {
     expect(jobs[0].payload.html).not.toContain("円");
   });
 });
+
+function extractBillingSettingsActionUrl(html: string) {
+  const href = html.match(/<a href="([^"]+)"[^>]*>組織設定を確認する<\/a>/)?.[1];
+  if (!href) throw new Error("billing settings action URL not found");
+  return new URL(href);
+}

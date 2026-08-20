@@ -3,23 +3,32 @@ import { useMutation } from "convex/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import type { ActionInboxAction, ActionInboxItem } from "@/src/components/features/ActionInbox";
+import {
+  type ActionInboxAction,
+  type ActionInboxConfirmation,
+  type ActionInboxItem,
+  buildNotificationFailureActionInboxItem,
+  buildStaffRegistrationActionInboxItem,
+} from "@/src/components/features/ActionInbox";
 import { formatDateShort, formatDateTime } from "@/src/domains/shift/date";
 import type { ActionInboxSourceItem } from "./useActionInboxData";
 
-export type ActionInboxConfirmation =
+type PendingActionInboxConfirmation =
   | {
       kind: "rejectRegistration";
       item: Extract<ActionInboxSourceItem, { kind: "staffRegistration" }>;
+      dialog: Extract<ActionInboxConfirmation, { kind: "rejectRegistration" }>;
     }
   | {
       kind: "resolveNotification";
       item: Extract<ActionInboxSourceItem, { kind: "notificationFailure" }>;
+      dialog: Extract<ActionInboxConfirmation, { kind: "resolveNotification" }>;
     }
   | {
       kind: "revokeInvitation";
       item: Extract<ActionInboxSourceItem, { kind: "managerInvitation" }>;
       requestId: string;
+      dialog: Extract<ActionInboxConfirmation, { kind: "revokeInvitation" }>;
     }
   | null;
 
@@ -49,7 +58,7 @@ export function useActionInboxController({
   const resolveFailure = useMutation(api.notificationOutbox.mutations.resolveFailure);
   const resendInvitation = useMutation(api.organizationInvitation.mutations.resendForOrganization);
   const revokeInvitation = useMutation(api.organizationInvitation.mutations.revokeForOrganization);
-  const [confirmation, setConfirmation] = useState<ActionInboxConfirmation>(null);
+  const [pendingConfirmation, setPendingConfirmation] = useState<PendingActionInboxConfirmation>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [confirmationError, setConfirmationError] = useState<string | null>(null);
   const [completedItemId, setCompletedItemId] = useState<string | null>(null);
@@ -57,18 +66,18 @@ export function useActionInboxController({
   const confirmingRef = useRef(false);
 
   useEffect(() => {
-    if (!confirmation) return;
-    if (!sourceItems.some((item) => item.id === confirmation.item.id)) {
-      setConfirmation(null);
+    if (!pendingConfirmation) return;
+    if (!sourceItems.some((item) => item.id === pendingConfirmation.item.id)) {
+      setPendingConfirmation(null);
       setConfirmationError(null);
     }
-  }, [confirmation, sourceItems]);
+  }, [pendingConfirmation, sourceItems]);
 
   const commands = useMemo<ActionInboxCommands>(
     () => ({
       openShift: (item) =>
         void navigate({
-          to: "/app/shifts/$recruitmentId/board",
+          to: "/shifts/$recruitmentId/board",
           params: { recruitmentId: item.recruitmentId },
           search: { org: organizationId },
         }),
@@ -82,7 +91,15 @@ export function useActionInboxController({
       },
       requestRejectRegistration: (item) => {
         setConfirmationError(null);
-        setConfirmation({ kind: "rejectRegistration", item });
+        setPendingConfirmation({
+          kind: "rejectRegistration",
+          item,
+          dialog: {
+            kind: "rejectRegistration",
+            itemId: item.id,
+            applicantName: item.applicantName,
+          },
+        });
       },
       resendNotification: async (item) => {
         const result = await resendFailure({
@@ -101,7 +118,16 @@ export function useActionInboxController({
       },
       requestResolveNotification: (item) => {
         setConfirmationError(null);
-        setConfirmation({ kind: "resolveNotification", item });
+        setPendingConfirmation({
+          kind: "resolveNotification",
+          item,
+          dialog: {
+            kind: "resolveNotification",
+            itemId: item.id,
+            staffName: item.staffName,
+            notificationKindLabel: item.notificationKindLabel,
+          },
+        });
       },
       resendInvitation: async (item) => {
         const key = `resend:${item.invitationId}`;
@@ -113,7 +139,16 @@ export function useActionInboxController({
       },
       requestRevokeInvitation: (item) => {
         setConfirmationError(null);
-        setConfirmation({ kind: "revokeInvitation", item, requestId: crypto.randomUUID() });
+        setPendingConfirmation({
+          kind: "revokeInvitation",
+          item,
+          requestId: crypto.randomUUID(),
+          dialog: {
+            kind: "revokeInvitation",
+            itemId: item.id,
+            inviteeName: item.inviteeName,
+          },
+        });
       },
     }),
     [approveRequest, navigate, onRefresh, organizationId, resendFailure, resendInvitation],
@@ -122,21 +157,21 @@ export function useActionInboxController({
   const items = useMemo(() => buildActionInboxItems(sourceItems, commands), [commands, sourceItems]);
 
   const confirm = async () => {
-    if (!confirmation || confirmingRef.current) return;
+    if (!pendingConfirmation || confirmingRef.current) return;
     confirmingRef.current = true;
     setIsConfirming(true);
     setConfirmationError(null);
     try {
-      const completedId = confirmation.item.id;
-      if (confirmation.kind === "rejectRegistration") {
-        const { item } = confirmation;
+      const completedId = pendingConfirmation.item.id;
+      if (pendingConfirmation.kind === "rejectRegistration") {
+        const { item } = pendingConfirmation;
         await rejectRequest({
           shopId: item.scope.kind === "shop" ? item.scope.shopId : undefined,
           expectedOrganizationId: organizationId,
           requestId: item.requestId,
         });
-      } else if (confirmation.kind === "resolveNotification") {
-        const { item } = confirmation;
+      } else if (pendingConfirmation.kind === "resolveNotification") {
+        const { item } = pendingConfirmation;
         await resolveFailure({
           shopId: item.scope.kind === "shop" ? item.scope.shopId : undefined,
           expectedOrganizationId: organizationId,
@@ -145,13 +180,13 @@ export function useActionInboxController({
       } else {
         await revokeInvitation({
           organizationId,
-          invitationId: confirmation.item.invitationId,
-          requestId: confirmation.requestId,
+          invitationId: pendingConfirmation.item.invitationId,
+          requestId: pendingConfirmation.requestId,
         });
       }
       setCompletedItemId(completedId);
       onRefresh();
-      setConfirmation(null);
+      setPendingConfirmation(null);
     } catch (error) {
       setConfirmationError(resolveErrorMessage(error));
     } finally {
@@ -163,12 +198,12 @@ export function useActionInboxController({
   return {
     items,
     completedItemId,
-    confirmation,
+    confirmation: pendingConfirmation?.dialog ?? null,
     confirmationError,
     isConfirming,
     closeConfirmation: () => {
       if (!isConfirming) {
-        setConfirmation(null);
+        setPendingConfirmation(null);
         setConfirmationError(null);
       }
     },
@@ -203,75 +238,17 @@ export function buildActionInboxItems(
     }
 
     if (item.kind === "staffRegistration") {
-      return {
-        id: item.id,
-        category: "staff",
-        statusLabel: "承認待ち",
-        title: `${item.applicantName}さんからスタッフ登録申請があります`,
-        metadata: [
-          { label: item.shopName, icon: "shop" },
-          { label: `申請 ${formatDateTime(new Date(item.createdAt))}`, icon: "clock" },
-        ],
-        actions: [
-          actionOrDisabled({
-            enabled: item.canReject,
-            label: "却下する",
-            emphasis: "danger",
-            disabledReason: "閲覧のみ、または契約制限中のため却下できません。",
-            onClick: () => commands.requestRejectRegistration(item),
-          }),
-          actionOrDisabled({
-            enabled: item.canApprove,
-            label: "承認する",
-            emphasis: "primary",
-            disabledReason: item.approveDisabledReason ?? "この申請は現在承認できません。",
-            onClick: () => commands.approveRegistration(item),
-            removesItemOnSuccess: true,
-            successMessage: `${item.applicantName}さんのスタッフ登録申請を承認しました。`,
-            failureMessage: "スタッフ登録申請を承認できませんでした。申請の状態を確認して、もう一度お試しください。",
-          }),
-        ],
-      };
+      return buildStaffRegistrationActionInboxItem(item, {
+        reject: () => commands.requestRejectRegistration(item),
+        approve: () => commands.approveRegistration(item),
+      });
     }
 
     if (item.kind === "notificationFailure") {
-      return {
-        id: item.id,
-        category: "notification",
-        statusLabel: "送信失敗",
-        title: `${item.staffName}さんへ${item.notificationKindLabel}を送れませんでした`,
-        metadata: [
-          { label: item.shopName, icon: "shop" },
-          ...(item.channel
-            ? [
-                {
-                  label: item.channel === "email" ? "メール" : "LINE",
-                  ...(item.channel === "email" ? { icon: "mail" as const } : {}),
-                },
-              ]
-            : []),
-          { label: formatDateTime(new Date(item.lastFailedAt)), icon: "clock" },
-        ],
-        actions: [
-          actionOrDisabled({
-            enabled: item.canResolve,
-            label: "再送せず破棄する",
-            emphasis: "danger",
-            disabledReason: "閲覧のみ、または契約制限中のため変更できません。",
-            onClick: () => commands.requestResolveNotification(item),
-          }),
-          actionOrDisabled({
-            enabled: item.canRetry,
-            label: "再送する",
-            emphasis: "primary",
-            disabledReason: "連絡先または対象の状態を確認してください。",
-            onClick: () => commands.resendNotification(item),
-            removesItemOnSuccess: true,
-            successMessage: `${item.staffName}さんへの${item.notificationKindLabel}の再送を受け付けました。`,
-            failureMessage: `${item.notificationKindLabel}を再送できませんでした。`,
-          }),
-        ],
-      };
+      return buildNotificationFailureActionInboxItem(item, {
+        resolve: () => commands.requestResolveNotification(item),
+        retry: () => commands.resendNotification(item),
+      });
     }
 
     return {

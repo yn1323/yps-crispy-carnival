@@ -1,6 +1,8 @@
 # 要対応
 
-`/app/actions`は、組織内で管理ユーザーの判断や操作が必要な現在状態を、一つの一覧へ投影する。  通知履歴や招待履歴を集める画面ではなく、未解決のsource documentだけを表示する。
+`/actions`は、組織内で管理ユーザーの判断や操作が必要な現在状態を、一つの一覧へ投影する。  通知履歴や招待履歴を集める画面ではなく、未解決のsource documentだけを表示する。
+
+Dashboardの「要対応」も同じスタッフ申請・通知失敗カードを使う。  Dashboardでは現在店舗のqueryを維持し、スタッフ申請と通知失敗を独立して開閉できる。両方を同時に開くこともできる。
 
 ## 画面とscope
 
@@ -23,7 +25,13 @@
 
 通常の送信済み通知、承認済み・却下済み申請、解決済み通知、単なる招待中は表示しない。  source tableを正本とし、Action Inbox専用tableへ複製保存しない。
 
-管理者招待の`sendFailed`には、Outboxの最終失敗とenqueue失敗に加え、Resendの`email.delivery_delayed`、`email.failed`、`email.bounced`、`email.suppressed`を含める。  その失敗より新しい`email.delivered`を受信した場合は解消し、単なる招待中として要対応から外す。
+管理者招待の`sendFailed`には、Outboxの最終失敗とenqueue失敗に加え、Resendの`email.failed`、`email.bounced`、`email.suppressed`を含める。
+`email.delivery_delayed`は配送状態へ即時反映するが、最初の遅延から30分間は招待中のままにし、1分間隔の期限切れ回収後に`sendFailed`として要対応へ出す。
+同じOutboxの遅延を再受信しても期限は延長しない。
+
+猶予中により新しい`email.delivered`を受信した場合は期限を削除し、要対応へ出さない。
+`email.failed`、`email.bounced`、`email.suppressed`を受信した場合は猶予を打ち切って即時に`sendFailed`へ移る。
+専用期限がない導入前の`email.delivery_delayed`状態は、既存データ互換のため`sendFailed`として読む。
 
 ## 読み取りと追加取得
 
@@ -39,17 +47,20 @@
 
 - 再送は配送完了ではなく、既存Outboxまたは招待送信処理が受付済みになった時点を成功とする。
 - 成功したカードは右へ退場し、後続カードを繰り上げる。  sourceが再び未解決状態になれば、同じIDでも再表示できる。
+- Dashboardでは最後のカードの退場animationが終わるまで種類ごとの要対応行を残し、終了後に行を外す。
 - 却下、対応済み、招待取消は既存`Dialog`の確認を経て実行する。
 - 操作失敗時はカードまたは確認Dialogを保持し、再試行できるエラーを表示する。
 - UIのsingle-flightに加え、mutation側でstatus、rate limit、request ID、Outbox dedupeなど既存の重複防止契約を維持する。
+- Dashboardで店舗scopeが変わった場合は、開閉状態、退場中のsnapshot、確認対象、人数上限案内を新しい店舗へ持ち越さない。
 
 ## 関連ファイル
 
 ### フロントエンド
 
-- `src/pages/app-actions/` — route container、店舗filter、clock invalidation、追加取得、4種類のmutation dispatch、確認Dialog、状態別StoryとUnit Test
-- `src/components/features/ActionInbox/` — 純粋View、カードの表示、pending・failure・退場animation、Storybook Behavior/VRT
-- `src/routes/_auth/app_.actions.tsx` — route searchとcanonical組織scopeの接続
+- `src/pages/app-actions/` — route container、店舗filter、clock invalidation、追加取得、4種類のmutation dispatch、状態別StoryとUnit Test
+- `src/components/features/ActionInbox/` — Dashboardと専用画面で共有するitem builder、確認Dialog、カードのpending・failure・退場animation、Storybook Behavior/VRT
+- `src/components/features/Dashboard/StaffRegistrationRequestManagement/` / `NotificationFailureRecovery/` — 現在店舗のquery、Mutation、一括操作、人数上限案内を共有カードへ接続する
+- `src/routes/_auth/actions.tsx` — route searchとcanonical組織scopeの接続
 
 ### バックエンド
 
@@ -62,8 +73,8 @@
 
 | 層 | 主に守る契約 |
 |---|---|
-| Frontend Unit | DTOの4種類へのdispatch、明示org・shop・target ID、filter正規化、clock invalidation、cursor破棄、single-flight |
-| Storybook Behavior/VRT | Ready、Loading、Empty、QueryError、readOnly、操作失敗、確認Dialog、SPのカード配置と退場animation |
+| Frontend Unit | DTOの4種類へのdispatch、共通builder、明示org・shop・target ID、Dashboardの一括再送・人数上限・確認操作、filter正規化、clock invalidation、cursor破棄、single-flight |
+| Storybook Behavior/VRT | Ready、Loading、Empty、QueryError、readOnly、独立した複数開閉、操作失敗、確認Dialog、SPのカード配置と退場animation |
 | Convex Function | canonical所属、別org/shop拒否、filter、readOnly capability、種類別continuation、締切境界、最小DTO |
 | Convex Scenario | 4種類のexact set、既存mutation成功後の消失、二重操作時の副作用集合 |
 

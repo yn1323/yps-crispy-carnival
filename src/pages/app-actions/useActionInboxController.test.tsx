@@ -92,7 +92,7 @@ describe("useActionInboxController", () => {
     const shift = findItem(result.current.items, "shift");
     await runEnabledAction(getAction(shift.actions, "シフトを組む"));
     expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
-      to: "/app/shifts/$recruitmentId/board",
+      to: "/shifts/$recruitmentId/board",
       params: { recruitmentId: "recruitment-1" },
       search: { org: organizationId },
     });
@@ -135,7 +135,11 @@ describe("useActionInboxController", () => {
     act(() => {
       void runEnabledAction(getAction(staff.actions, "却下する"));
     });
-    expect(result.current.confirmation?.kind).toBe("rejectRegistration");
+    expect(result.current.confirmation).toEqual({
+      kind: "rejectRegistration",
+      itemId: "staffRegistration:registration-1",
+      applicantName: "山田花子",
+    });
 
     const confirm = result.current.confirm;
     await act(async () => Promise.all([confirm(), confirm()]));
@@ -163,7 +167,12 @@ describe("useActionInboxController", () => {
     });
     await act(async () => result.current.confirm());
 
-    expect(result.current.confirmation?.kind).toBe("resolveNotification");
+    expect(result.current.confirmation).toEqual({
+      kind: "resolveNotification",
+      itemId: "notificationFailure:failure-1",
+      staffName: "田中",
+      notificationKindLabel: "シフト募集通知",
+    });
     expect(result.current.confirmationError).toBe("failure remained open");
     expect(mocks.refresh).not.toHaveBeenCalled();
     expect(result.current.completedItemId).toBeNull();

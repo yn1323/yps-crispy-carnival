@@ -1,8 +1,12 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { getOrganizationInvitationSigningSecret } from "./_lib/config";
 import { getReminderScheduledAt, getSubmitLinkCutoff } from "./_lib/dateFormat";
+import {
+  observedInternalMutation as internalMutation,
+  observedInternalQuery as internalQuery,
+} from "./_lib/errorObservability";
 import { isDryRunManagerEmail, isNotificationDeliverySuppressed } from "./_lib/notificationDelivery";
 import { resetRateLimit } from "./_lib/rateLimits";
 import { loadShopManagerContacts } from "./_lib/shopManagerRecipients";
@@ -11,6 +15,7 @@ import { generateUUID } from "./_lib/uuid";
 import { MAGIC_LINK_DEFAULT_TTL_MS, ORGANIZATION_NAME_SUFFIX } from "./constants";
 import { getLegalConsentVersions, type LegalAudience } from "./legal/documents";
 import { upsertStaffLineAccount } from "./line/service";
+import { clearResendDelayedFailureDeadline } from "./notificationOutbox/resendDelayedFailure";
 import { isOrganizationInvitationIssued } from "./organizationInvitation/lifecycle";
 import { getOrganizationInvitationPurpose } from "./organizationInvitation/purpose";
 import { deriveInvitationToken, digestInvitationToken, invitationRateLimitKey } from "./organizationInvitation/token";
@@ -284,7 +289,9 @@ async function deleteShopNotificationGraph(ctx: MutationCtx, shopId: Id<"shops">
       .collect(),
   ]);
 
-  for (const doc of [...failuresByStatus.flat(), ...deliveryEvents, ...outboxByStatus.flat(), ...usage]) {
+  const outbox = outboxByStatus.flat();
+  for (const job of outbox) await clearResendDelayedFailureDeadline(ctx, job._id);
+  for (const doc of [...failuresByStatus.flat(), ...deliveryEvents, ...outbox, ...usage]) {
     await ctx.db.delete(doc._id);
   }
 }
@@ -362,6 +369,12 @@ async function deleteShopGraph(
   // 監査済みの通知状態は、次シナリオへ混入しないよう店舗graphと一緒に破棄する。
   await deleteShopNotificationGraph(ctx, shopId);
   await deleteShopCleanupJobs(ctx, shopId);
+
+  const staffOrderEntries = await ctx.db
+    .query("shopStaffOrderEntries")
+    .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", shopId))
+    .collect();
+  for (const entry of staffOrderEntries) await ctx.db.delete(entry._id);
 
   const [
     featureRequests,
@@ -496,8 +509,10 @@ async function deleteOrganizationNotificationGraph(ctx: MutationCtx, organizatio
       .collect(),
   ]);
 
+  const outbox = outboxPages.flat();
+  for (const job of outbox) await clearResendDelayedFailureDeadline(ctx, job._id);
   for (const event of deliveryEvents) await ctx.db.delete(event._id);
-  for (const job of outboxPages.flat()) await ctx.db.delete(job._id);
+  for (const job of outbox) await ctx.db.delete(job._id);
 }
 
 async function deleteOrganizationGraph(
@@ -508,6 +523,24 @@ async function deleteOrganizationGraph(
   if (auditBeforeReset) await assertOrganizationNotificationAuditBeforeReset(ctx, organizationId);
   await deleteOrganizationNotificationGraph(ctx, organizationId);
   await deleteOrganizationCleanupJobs(ctx, organizationId);
+
+  const [staffOrderStates, staffOrderEntries, shopStaffOrderEntries] = await Promise.all([
+    ctx.db
+      .query("organizationStaffOrderStates")
+      .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+      .collect(),
+    ctx.db
+      .query("organizationStaffOrderEntries")
+      .withIndex("by_organizationId_and_displayOrder", (q) => q.eq("organizationId", organizationId))
+      .collect(),
+    ctx.db
+      .query("shopStaffOrderEntries")
+      .withIndex("by_organizationId_and_shopId", (q) => q.eq("organizationId", organizationId))
+      .collect(),
+  ]);
+  for (const state of staffOrderStates) await ctx.db.delete(state._id);
+  for (const entry of staffOrderEntries) await ctx.db.delete(entry._id);
+  for (const entry of shopStaffOrderEntries) await ctx.db.delete(entry._id);
 
   const organizationFeatureRequests = await ctx.db
     .query("featureRequests")

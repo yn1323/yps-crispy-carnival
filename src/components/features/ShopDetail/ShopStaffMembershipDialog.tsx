@@ -314,7 +314,6 @@ export function ShopStaffMembershipDialog({
       submitLabel="変更する"
       isLoading={controller.isChanging}
       isSubmitDisabled={isSubmitDisabled}
-      mobileActionLayout="inline"
       mobileFullScreen
       bodyProps={{ px: { base: 4, lg: 6 }, pt: 2, pb: { base: 4, lg: 5 } }}
     >
@@ -522,7 +521,6 @@ export function ShopStaffMembershipDialogError({
       footer={
         <DialogActionArea
           layout="standard"
-          mobileLayout="stacked"
           startAction={
             <Button variant="outline" onClick={onClose}>
               閉じる

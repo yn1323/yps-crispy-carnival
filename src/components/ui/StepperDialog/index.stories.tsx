@@ -4,7 +4,6 @@ import { useState } from "react";
 import { LuCalendarDays, LuChevronLeft, LuStore, LuTimer } from "react-icons/lu";
 import { expect, userEvent, within } from "storybook/test";
 import { Button } from "@/src/components/ui/Button";
-import type { DialogMobileActionLayout } from "@/src/components/ui/Dialog";
 import { StepperDialog, StepperDialogContent, type StepperDialogStep } from "./index";
 
 type DemoStep = "shop" | "rule" | "confirm";
@@ -61,12 +60,10 @@ const StepperDialogDemo = ({
   initialStep = "shop",
   longContent = false,
   longActions = false,
-  mobileActionLayout = "inline",
 }: {
   initialStep?: DemoStep;
   longContent?: boolean;
   longActions?: boolean;
-  mobileActionLayout?: DialogMobileActionLayout;
 }) => {
   const [currentStep, setCurrentStep] = useState<DemoStep>(initialStep);
 
@@ -104,12 +101,7 @@ const StepperDialogDemo = ({
 
   return (
     <StepperDialog title="店舗設定" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
-      <StepperDialogContent
-        steps={steps}
-        currentStep={currentStep}
-        actions={actions}
-        mobileActionLayout={mobileActionLayout}
-      >
+      <StepperDialogContent steps={steps} currentStep={currentStep} actions={actions}>
         {currentStep === "shop" && (
           <Stack gap={5}>
             <Field.Root>
@@ -172,12 +164,12 @@ export const MobileFullScreen: Story = {
   render: () => <StepperDialogDemo longContent />,
 };
 
-export const MobileStackedLong: Story = {
+export const MobileInlineLong: Story = {
   tags: ["vrt-mobile1"],
   globals: {
     viewport: { value: "mobile1", isRotated: false },
   },
-  render: () => <StepperDialogDemo longContent longActions mobileActionLayout="stacked" />,
+  render: () => <StepperDialogDemo longContent longActions />,
 };
 
 export const StepTransitionsAndActionOrderBehavior: Story = {

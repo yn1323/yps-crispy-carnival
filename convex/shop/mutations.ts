@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
-import { internalMutation } from "../_generated/server";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { managerMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
 import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";

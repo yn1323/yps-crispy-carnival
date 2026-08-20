@@ -50,6 +50,127 @@ describe("organization/queries.getSettings", () => {
     });
   });
 
+  it("保存済みの組織共通順をsettings.peopleへ反映し、店舗所属の部分列と不整合時の既存順を維持する", async () => {
+    const t = convexTest(schema, modules);
+    const subject = "settings_staff_order";
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, { subject, complimentary: true });
+      const secondShopId = await ctx.db.insert("shops", {
+        organizationId: base.organizationId,
+        operatingStatus: "active",
+        name: "別店舗",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        isDeleted: false,
+      });
+      const now = Date.now();
+      const insertStaffPerson = async (args: { name: string; email: string; shopIds: Id<"shops">[] }) => {
+        const personId = await ctx.db.insert("organizationPeople", {
+          organizationId: base.organizationId,
+          name: args.name,
+          email: args.email,
+          emailNormalized: args.email,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        const staffIds: Id<"staffs">[] = [];
+        for (const shopId of args.shopIds) {
+          staffIds.push(
+            await ctx.db.insert("staffs", {
+              organizationId: base.organizationId,
+              organizationPersonId: personId,
+              shopId,
+              name: args.name,
+              email: args.email,
+              emailNormalized: args.email,
+              isDeleted: false,
+            }),
+          );
+        }
+        return { personId, staffIds };
+      };
+      const akari = await insertStaffPerson({
+        name: "あかり",
+        email: "akari-settings-order@example.com",
+        shopIds: [base.shopId, secondShopId],
+      });
+      const ibuki = await insertStaffPerson({
+        name: "いぶき",
+        email: "ibuki-settings-order@example.com",
+        shopIds: [base.shopId],
+      });
+      const umi = await insertStaffPerson({
+        name: "うみ",
+        email: "umi-settings-order@example.com",
+        shopIds: [secondShopId],
+      });
+      const orderedPersonIds = [umi.personId, ibuki.personId, base.personId, akari.personId];
+      await ctx.db.insert("organizationStaffOrderStates", {
+        organizationId: base.organizationId,
+        revision: 1,
+        activatedAt: now,
+        updatedAt: now,
+      });
+      for (const [displayOrder, organizationPersonId] of orderedPersonIds.entries()) {
+        await ctx.db.insert("organizationStaffOrderEntries", {
+          organizationId: base.organizationId,
+          organizationPersonId,
+          displayOrder,
+        });
+      }
+      const globalRank = new Map(orderedPersonIds.map((personId, index) => [personId, index] as const));
+      for (const [shopId, staffRows] of [
+        [base.shopId, [akari.staffIds[0], ibuki.staffIds[0]]],
+        [secondShopId, [akari.staffIds[1], umi.staffIds[0]]],
+      ] as const) {
+        for (const staffId of staffRows) {
+          if (!staffId) throw new Error("staff not found");
+          const staff = await ctx.db.get(staffId);
+          if (!staff?.organizationPersonId) throw new Error("organization person not found");
+          await ctx.db.insert("shopStaffOrderEntries", {
+            organizationId: base.organizationId,
+            shopId,
+            staffId,
+            organizationPersonId: staff.organizationPersonId,
+            displayOrder: globalRank.get(staff.organizationPersonId) ?? Number.MAX_SAFE_INTEGER,
+          });
+        }
+      }
+      return { base, akari, ibuki, umi, orderedPersonIds };
+    });
+    const actor = t.withIdentity({ subject });
+
+    const ordered = await actor.query(api.organization.queries.getSettings, { shopId: ids.base.shopId });
+    if (!ordered) throw new Error("settings not found");
+    expect(ordered.people.map((person) => person.id)).toEqual(ids.orderedPersonIds);
+    expect(
+      ordered.people
+        .filter((person) => person.shopIds.map(String).includes(String(ids.base.shopId)))
+        .map((person) => person.id),
+    ).toEqual([ids.ibuki.personId, ids.akari.personId]);
+
+    await t.run(async (ctx) => {
+      const entry = await ctx.db
+        .query("organizationStaffOrderEntries")
+        .withIndex("by_organizationId_and_organizationPersonId", (q) =>
+          q.eq("organizationId", ids.base.organizationId).eq("organizationPersonId", ids.ibuki.personId),
+        )
+        .unique();
+      if (!entry) throw new Error("organization staff order entry not found");
+      await ctx.db.delete(entry._id);
+    });
+
+    const legacy = await actor.query(api.organization.queries.getSettings, { shopId: ids.base.shopId });
+    if (!legacy) throw new Error("settings not found");
+    expect(legacy.people.map((person) => person.id)).toEqual([
+      ids.base.personId,
+      ids.akari.personId,
+      ids.ibuki.personId,
+      ids.umi.personId,
+    ]);
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
   });
@@ -885,6 +1006,85 @@ describe("organization/queries.getSettings", () => {
       canRevoke: true,
     });
   });
+
+  it.each([
+    ["完全なdelayed pair + 期限あり", "pending", "email.delivery_delayed", "delivery_delayed", true],
+    ["完全なdelayed pair + 期限なし", "sendFailed", "email.delivery_delayed", "delivery_delayed", false],
+    ["delayed eventだけ", "sendFailed", "email.delivery_delayed", undefined, true],
+    ["delayed statusだけ", "sendFailed", undefined, "delivery_delayed", true],
+    ["delayed event + hard status", "sendFailed", "email.delivery_delayed", "failed", true],
+    ["hard event + delayed status", "sendFailed", "email.failed", "delivery_delayed", true],
+  ] as const)(
+    "getSettingsはprovider状態が%sのとき管理者招待を%sへ投影する",
+    async (_providerState, expectedStatus, providerEventType, deliveryStatus, withDeadline) => {
+      const t = convexTest(schema, modules);
+      const caseKey = `${providerEventType ?? "none"}-${deliveryStatus ?? "none"}-${withDeadline}`;
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: `settings_provider_pair_${caseKey}`,
+          plan: "pro",
+        });
+        const now = Date.now();
+        const invitationId = await ctx.db.insert("organizationInvitations", {
+          organizationId: base.organizationId,
+          email: `settings-provider-pair-${caseKey}@example.com`,
+          emailNormalized: `settings-provider-pair-${caseKey}@example.com`,
+          invitedName: "配送遅延中の招待対象者",
+          tokenDigest: `settings-provider-pair-${caseKey}-digest`,
+          status: "issued",
+          purpose: "managerAddition",
+          inviterMemberId: base.memberId,
+          reservedSeat: true,
+          version: 1,
+          expiresAt: now + 86_400_000,
+          createdAt: now,
+          updatedAt: now,
+        });
+        const outboxId = await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "sent",
+          dedupeKey: `organization-manager-invitation:settings-provider-pair-${caseKey}:1`,
+          organizationId: base.organizationId,
+          organizationInvitationId: invitationId,
+          organizationInvitationVersion: 1,
+          purpose: "business",
+          payload: {
+            kind: "organizationManagerInvitationEmail",
+            from: "シフトリ <noreply@example.com>",
+            to: `settings-provider-pair-${caseKey}@example.com`,
+            context: "organizationInvitation.managerInvite",
+          },
+          attemptCount: 1,
+          nextRunAt: now,
+          sentAt: now,
+          resendEmailId: `settings-provider-pair-${caseKey}`,
+          ...(providerEventType ? { resendLastEventType: providerEventType } : {}),
+          resendLastEventAt: now,
+          ...(deliveryStatus ? { resendDeliveryStatus: deliveryStatus } : {}),
+          createdAt: now,
+          updatedAt: now,
+        });
+        if (withDeadline) {
+          await ctx.db.insert("notificationResendDelayedFailureDeadlines", {
+            outboxId,
+            dueAt: now + 30 * 60_000,
+            createdAt: now,
+          });
+        }
+        return { ...base, invitationId };
+      });
+
+      const result = await t
+        .withIdentity({ subject: `settings_provider_pair_${caseKey}` })
+        .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+      expect(result?.managerInvitations.find((invitation) => invitation.id === ids.invitationId)).toMatchObject({
+        status: expectedStatus,
+        canResend: true,
+        canRevoke: true,
+      });
+    },
+  );
 
   it("無償BusinessをBusiness権限と料金なしの最小DTOへ投影する", async () => {
     const t = convexTest(schema, modules);

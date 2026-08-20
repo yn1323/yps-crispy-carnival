@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-import { internalQuery } from "../_generated/server";
 import { isShopParentActive } from "../_lib/activeShop";
+import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { managerQuery } from "../_lib/functions";
 import {
   findStaffLineAccountByLineUserId,

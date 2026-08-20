@@ -10,6 +10,14 @@ crons.cron("line-quota-refresh", "0 17 * * *", internal.line.actions.refreshQuot
 // 通知outboxを1分ごとに回収する。enqueue側ではworker予約を読まず、cronを配送開始の主導線にする。
 crons.interval("notification-outbox-drain", { minutes: 1 }, internal.notificationOutbox.actions.processPending, {});
 
+// Resendのdelivery_delayed猶予が期限切れになった通知を、既存FailureInboxへ昇格する。
+crons.interval(
+  "notification-resend-delayed-failure-recover",
+  { minutes: 1 },
+  internal.notificationOutbox.mutations.recoverOverdueResendDelayedFailures,
+  {},
+);
+
 // fanout actionの予約漏れと期限切れleaseを1分ごとに回収する。
 crons.interval(
   "notification-fanout-recover",

@@ -1,6 +1,6 @@
-import { Badge, Box, Flex, Heading, HStack, Skeleton, Stack } from "@chakra-ui/react";
+import { Badge, Box, Flex, Heading, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
-import { LuChevronDown, LuPlus, LuShieldCheck, LuUsers } from "react-icons/lu";
+import { LuArrowUpDown, LuChevronDown, LuPlus, LuShieldCheck, LuUsers } from "react-icons/lu";
 import { StaffListRow } from "@/src/components/shared/StaffListRow";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
@@ -26,6 +26,9 @@ type Props = {
   onAddStaff?: () => void;
   canAddStaff?: boolean;
   addStaffDisabledReason?: string;
+  onChangeStaffOrder?: () => void;
+  canChangeStaffOrder?: boolean;
+  changeStaffOrderDisabledReason?: string;
 };
 
 export const PeopleSection = ({
@@ -46,11 +49,15 @@ export const PeopleSection = ({
   onAddStaff,
   canAddStaff = true,
   addStaffDisabledReason,
+  onChangeStaffOrder,
+  canChangeStaffOrder = true,
+  changeStaffOrderDisabledReason,
 }: Props) => {
   const [visibleUserCount, setVisibleUserCount] = useState(initialVisibleUserCount);
   const visiblePeople = people.slice(0, visibleUserCount);
   const hasLocallyHiddenPeople = people.length > visibleUserCount;
   const canLoadMore = hasLocallyHiddenPeople || canLoadMorePeople;
+  const changeStaffOrderDisabledReasonId = "organization-people-staff-order-disabled-reason";
 
   useEffect(() => {
     setVisibleUserCount(initialVisibleUserCount);
@@ -89,6 +96,23 @@ export const PeopleSection = ({
           )}
         </HStack>
         <Flex gap={2} wrap="wrap" justify="flex-end" ms="auto">
+          {onChangeStaffOrder && (
+            <Button
+              variant="outline"
+              size="sm"
+              colorPalette="gray"
+              gap={1.5}
+              fontWeight="semibold"
+              onClick={onChangeStaffOrder}
+              disabled={!canChangeStaffOrder}
+              aria-describedby={
+                !canChangeStaffOrder && changeStaffOrderDisabledReason ? changeStaffOrderDisabledReasonId : undefined
+              }
+            >
+              <LuArrowUpDown aria-hidden />
+              並び順を変更
+            </Button>
+          )}
           {onAddStaff && (
             <Button
               variant="ghost"
@@ -119,6 +143,12 @@ export const PeopleSection = ({
           )}
         </Flex>
       </Flex>
+
+      {onChangeStaffOrder && !canChangeStaffOrder && changeStaffOrderDisabledReason && (
+        <Text id={changeStaffOrderDisabledReasonId} textStyle="bodySm" color="orange.700">
+          {changeStaffOrderDisabledReason}
+        </Text>
+      )}
 
       {visiblePeople.length === 0 ? (
         <Empty icon={LuUsers} title="この組織にスタッフはいません。" titleAs="h3" variant="section" py={6} />
@@ -166,12 +196,14 @@ export const PeopleSection = ({
 
 type PeopleSectionSkeletonProps = {
   showAddStaff?: boolean;
+  showChangeStaffOrder?: boolean;
   showManagerInvitation?: boolean;
   rowCount?: number;
 };
 
 export function PeopleSectionSkeleton({
   showAddStaff = false,
+  showChangeStaffOrder = false,
   showManagerInvitation = false,
   rowCount = 3,
 }: PeopleSectionSkeletonProps) {
@@ -182,8 +214,9 @@ export function PeopleSectionSkeleton({
           <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
           <Skeleton h="28px" w="184px" maxW="70vw" />
         </HStack>
-        {(showAddStaff || showManagerInvitation) && (
+        {(showAddStaff || showChangeStaffOrder || showManagerInvitation) && (
           <Flex gap={2} wrap="wrap" justify="flex-end" ms="auto">
+            {showChangeStaffOrder && <Skeleton h="36px" w="136px" borderRadius="md" />}
             {showAddStaff && <Skeleton h="36px" w="120px" borderRadius="md" />}
             {showManagerInvitation && <Skeleton h="36px" w="136px" borderRadius="md" />}
           </Flex>

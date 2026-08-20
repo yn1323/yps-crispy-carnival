@@ -10,7 +10,7 @@ import {
   type AppRouteSearch,
   AuthGuard,
   getCanonicalAppHref,
-  isAppPath,
+  isAppOrganizationScopedPath,
   resolveAppFeatureRequestScope,
   resolveAppOrganizationSwitchTarget,
   resolveAppShellRouteData,
@@ -56,13 +56,19 @@ export const Route = createFileRoute("/_auth")({
 });
 
 function getCanonicalAccountHref(pathname: string, searchStr: string): string | null {
-  if (pathname !== "/account") return null;
+  if (normalizeAuthenticatedPathname(pathname) !== "/account") return null;
 
   const normalizedSearch = searchStr === "" || searchStr.startsWith("?") ? searchStr : `?${searchStr}`;
   const validatedSearch = validateAccountSecuritySearch(Object.fromEntries(new URLSearchParams(normalizedSearch)));
-  if (!needsAccountSecuritySearchCanonicalization(normalizedSearch, validatedSearch)) return null;
+  if (pathname === "/account" && !needsAccountSecuritySearchCanonicalization(normalizedSearch, validatedSearch)) {
+    return null;
+  }
 
-  return `${pathname}${buildCanonicalAccountSecuritySearchString(validatedSearch)}`;
+  return `/account${buildCanonicalAccountSecuritySearchString(validatedSearch)}`;
+}
+
+function normalizeAuthenticatedPathname(pathname: string): string {
+  return (pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname).toLowerCase();
 }
 
 function AuthenticatedRoutePending() {
@@ -92,6 +98,7 @@ function AuthenticatedLayout() {
   const matches = useMatches();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const normalizedPathname = normalizeAuthenticatedPathname(pathname);
   const { org, shop } = Route.useSearch();
   const appShell = resolveAppShellRouteData(matches);
 
@@ -109,7 +116,7 @@ function AuthenticatedLayout() {
     void navigate({ to: "/dashboard", search: {}, replace: true });
   }, [navigate]);
 
-  if (pathname === "/account" && appShell) {
+  if (normalizedPathname === "/account" && appShell) {
     return (
       <AppOrganizationScopeProvider
         requestedOrganizationId={org}
@@ -125,7 +132,7 @@ function AuthenticatedLayout() {
     );
   }
 
-  if ((pathname === "/dashboard" || isAppPath(pathname)) && appShell) {
+  if (isAppOrganizationScopedPath(pathname) && appShell) {
     return (
       <AppOrganizationScopeProvider
         requestedOrganizationId={org}
@@ -135,7 +142,7 @@ function AuthenticatedLayout() {
             appShell={appShell}
             state={state}
             onChooseAvailableOrganization={openAvailableOrganization}
-            emptyContent={pathname === "/dashboard" ? <DashboardSetupPage /> : undefined}
+            emptyContent={normalizedPathname === "/dashboard" ? <DashboardSetupPage /> : undefined}
           />
         )}
       >

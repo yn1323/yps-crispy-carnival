@@ -46,7 +46,7 @@ export class StaffLifecyclePage {
   async openStaffDetail(name: string, organizationId: string) {
     await this.appStaff.personRow(name).click();
     await expect(this.page).toHaveURL(
-      (url) => /^\/app\/staff\/[^/]+$/.test(url.pathname) && url.searchParams.get("org") === organizationId,
+      (url) => /^\/staff\/[^/]+$/.test(url.pathname) && url.searchParams.get("org") === organizationId,
       { timeout: STAFF_LIFECYCLE_TIMEOUT },
     );
     await expect(this.page.getByRole("heading", { name: "スタッフ詳細", exact: true })).toBeVisible({
@@ -91,7 +91,7 @@ export class StaffLifecyclePage {
     await confirmation.getByRole("button", { name: "削除する", exact: true }).click();
 
     await expect(this.page).toHaveURL(
-      (url) => url.pathname === "/app/staff" && url.searchParams.get("org") === organizationId,
+      (url) => url.pathname === "/staff" && url.searchParams.get("org") === organizationId,
       { timeout: STAFF_LIFECYCLE_TIMEOUT },
     );
     await this.appStaff.expectPersonAbsent(name);

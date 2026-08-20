@@ -1,7 +1,11 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
-import { internalAction, internalMutation, type MutationCtx } from "../_generated/server";
+import type { MutationCtx } from "../_generated/server";
 import { dateJST } from "../_lib/dateFormat";
+import {
+  observedInternalAction as internalAction,
+  observedInternalMutation as internalMutation,
+} from "../_lib/errorObservability";
 import {
   aggregateDailyNotificationPage,
   aggregateDailyOrganizationPage,

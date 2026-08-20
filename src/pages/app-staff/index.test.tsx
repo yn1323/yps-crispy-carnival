@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   invitationOpen: vi.fn(),
   peopleQueryRef: Symbol("listOrganizationPeople"),
   summaryQueryRef: Symbol("getOrganizationPeopleSummary"),
+  orderScopeQueryRef: Symbol("getOrganizationStaffOrderScope"),
 }));
 
 vi.mock("convex/react", () => ({
@@ -28,6 +29,9 @@ vi.mock("@/convex/_generated/api", () => ({
       queries: {
         listOrganizationPeople: mocks.peopleQueryRef,
         getOrganizationPeopleSummary: mocks.summaryQueryRef,
+      },
+      staffOrderQueries: {
+        getOrganizationStaffOrderScope: mocks.orderScopeQueryRef,
       },
     },
   },
@@ -49,6 +53,9 @@ vi.mock("@/src/components/features/OrganizationSettings", () => ({
     filterResultCount,
     filterResultCountHasOverflow,
     onLoadMorePeople,
+    onChangeStaffOrder,
+    canChangeStaffOrder,
+    changeStaffOrderDisabledReason,
     onAddStaff,
     canAddStaff,
     addStaffDisabledReason,
@@ -61,6 +68,9 @@ vi.mock("@/src/components/features/OrganizationSettings", () => ({
     filterResultCount?: number;
     filterResultCountHasOverflow?: boolean;
     onLoadMorePeople: () => void;
+    onChangeStaffOrder: () => void;
+    canChangeStaffOrder: boolean;
+    changeStaffOrderDisabledReason?: string;
     onAddStaff: () => void;
     canAddStaff: boolean;
     addStaffDisabledReason?: string;
@@ -79,6 +89,14 @@ vi.mock("@/src/components/features/OrganizationSettings", () => ({
       ))}
       <button type="button" onClick={onLoadMorePeople}>
         もっと見る
+      </button>
+      <button
+        type="button"
+        onClick={onChangeStaffOrder}
+        disabled={!canChangeStaffOrder}
+        title={changeStaffOrderDisabledReason}
+      >
+        並び順を変更
       </button>
       <button type="button" onClick={onAddStaff} disabled={!canAddStaff} title={addStaffDisabledReason}>
         スタッフを追加
@@ -136,6 +154,9 @@ const multipleShops = [
   { id: "shop-2", name: "駅前店" },
 ] as never;
 
+let orderScopeResult: { mode: "legacy" } | { mode: "ordered"; revision: number } | undefined;
+let summaryResult: Record<string, unknown>;
+
 beforeEach(() => {
   vi.stubGlobal(
     "ResizeObserver",
@@ -168,15 +189,20 @@ beforeEach(() => {
     status: "CanLoadMore",
     loadMore: mocks.loadMore,
   }));
-  mocks.useQuery.mockReturnValue({
+  orderScopeResult = { mode: "legacy" };
+  summaryResult = {
     totalCount: 12,
     totalCountHasOverflow: false,
     visibleCount: 1,
     visibleCountHasOverflow: false,
     maxPeople: 5,
     canAddStaff: true,
+    canChangeStaffOrder: true,
     features: { managerInvitation: true },
-  });
+  };
+  mocks.useQuery.mockImplementation((reference) =>
+    reference === mocks.orderScopeQueryRef ? orderScopeResult : summaryResult,
+  );
 });
 
 describe("AppStaffRoutePage", () => {
@@ -191,13 +217,13 @@ describe("AppStaffRoutePage", () => {
 
     expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(
       mocks.peopleQueryRef,
-      { organizationId: "organization-1", shopFilter: "all" },
+      { organizationId: "organization-1", shopFilter: "all", orderRevision: null },
       { initialNumItems: 10 },
     );
     expect(screen.getByText("全体の人物")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "店舗を選択" }));
     expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/app/staff",
+      to: "/staff",
       search: { org: "organization-1", shopFilter: "shop-1" },
     });
 
@@ -213,7 +239,7 @@ describe("AppStaffRoutePage", () => {
     );
     expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(
       mocks.peopleQueryRef,
-      { organizationId: "organization-1", shopFilter: "shop-1" },
+      { organizationId: "organization-1", shopFilter: "shop-1", orderRevision: null },
       { initialNumItems: 10 },
     );
     expect(screen.queryByText("全体の人物")).toBeNull();
@@ -240,11 +266,11 @@ describe("AppStaffRoutePage", () => {
 
     expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(
       mocks.peopleQueryRef,
-      { organizationId: "organization-1", shopFilter: "all" },
+      { organizationId: "organization-1", shopFilter: "all", orderRevision: null },
       { initialNumItems: 10 },
     );
     expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/app/staff",
+      to: "/staff",
       search: { org: "organization-1" },
       replace: true,
     });
@@ -267,14 +293,15 @@ describe("AppStaffRoutePage", () => {
   });
 
   it("bounded summaryのoverflowを正確な件数として表示しない", () => {
-    mocks.useQuery.mockReturnValue({
+    summaryResult = {
       totalCount: 1000,
       totalCountHasOverflow: true,
       visibleCount: 1000,
       visibleCountHasOverflow: true,
       maxPeople: 40,
       canAddStaff: false,
-    });
+      canChangeStaffOrder: true,
+    };
 
     renderPage(
       <AppStaffRoutePage
@@ -306,6 +333,45 @@ describe("AppStaffRoutePage", () => {
     expect(scope.getAttribute("data-organization-id")).toBe("organization-1");
     expect(screen.getByText("既存スタッフ追加Dialog")).not.toBeNull();
     expect(mocks.invitationOpen).toHaveBeenCalledOnce();
+  });
+
+  it("並び順scopeの取得完了まで人物paginationを開始せず、ordered revisionでcursor identityを分ける", () => {
+    orderScopeResult = undefined;
+    const { rerender } = renderPage(
+      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,
+    );
+
+    expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(mocks.peopleQueryRef, "skip", { initialNumItems: 10 });
+
+    orderScopeResult = { mode: "ordered", revision: 7 };
+    rerender(
+      <ChakraProvider>
+        <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />
+      </ChakraProvider>,
+    );
+
+    expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(
+      mocks.peopleQueryRef,
+      { organizationId: "organization-1", shopFilter: "all", orderRevision: 7 },
+      { initialNumItems: 10 },
+    );
+  });
+
+  it("並び替え画面へ組織と現在の店舗filterを渡す", () => {
+    renderPage(
+      <AppStaffRoutePage
+        organizationId={"organization-1" as never}
+        memberStatus="active"
+        activeShops={shops}
+        requestedShopFilter="shop-1"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "並び順を変更" }));
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/staff/order",
+      search: { org: "organization-1", shopFilter: "shop-1" },
+    });
   });
 
   it("すべて表示では対象店舗を1件選び、shopIdとexpected organizationを既存追加Dialogへ渡す", async () => {
@@ -346,18 +412,87 @@ describe("AppStaffRoutePage", () => {
     const addButton = screen.getByRole("button", { name: "スタッフを追加" }) as HTMLButtonElement;
     expect(addButton.disabled).toBe(true);
     expect(addButton.title).toBe("閲覧のみの管理者は、スタッフを追加できません。");
+    const orderButton = screen.getByRole("button", { name: "並び順を変更" }) as HTMLButtonElement;
+    expect(orderButton.disabled).toBe(true);
+    expect(orderButton.title).toBe("閲覧のみの管理者は、スタッフの並び順を変更できません。");
+  });
+
+  it("スタッフが1名なら並び替え入口を無効にする", () => {
+    summaryResult = {
+      ...summaryResult,
+      totalCount: 1,
+      canChangeStaffOrder: true,
+    };
+
+    renderPage(
+      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,
+    );
+
+    const orderButton = screen.getByRole("button", { name: "並び順を変更" }) as HTMLButtonElement;
+    expect(orderButton.disabled).toBe(true);
+    expect(orderButton.title).toBe("2名以上のスタッフがいると並び替えできます。");
+  });
+
+  it("business write制限時は人数よりserver capabilityの理由を優先する", () => {
+    summaryResult = {
+      ...summaryResult,
+      totalCount: 1,
+      canChangeStaffOrder: false,
+      changeStaffOrderDisabledReason: "契約状態を復旧してから並び順を変更できます。",
+    };
+
+    renderPage(
+      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,
+    );
+
+    const orderButton = screen.getByRole("button", { name: "並び順を変更" }) as HTMLButtonElement;
+    expect(orderButton.disabled).toBe(true);
+    expect(orderButton.title).toBe("契約状態を復旧してから並び順を変更できます。");
+  });
+
+  it("40名超過または件数overflowでは並び替え入口を無効にする", () => {
+    summaryResult = {
+      ...summaryResult,
+      totalCount: 41,
+      totalCountHasOverflow: true,
+      canChangeStaffOrder: true,
+    };
+
+    renderPage(
+      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,
+    );
+
+    const orderButton = screen.getByRole("button", { name: "並び順を変更" }) as HTMLButtonElement;
+    expect(orderButton.disabled).toBe(true);
+    expect(orderButton.title).toBe("利用人数が40名を超えているため、並び順を変更できません。");
+  });
+
+  it("稼働中の店舗が5店舗を超えると並び替え入口を無効にする", () => {
+    const sixShops = Array.from({ length: 6 }, (_, index) => ({
+      id: `shop-${index + 1}`,
+      name: `店舗${index + 1}`,
+    })) as never;
+
+    renderPage(
+      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={sixShops} />,
+    );
+
+    const orderButton = screen.getByRole("button", { name: "並び順を変更" }) as HTMLButtonElement;
+    expect(orderButton.disabled).toBe(true);
+    expect(orderButton.title).toBe("稼働中の店舗が5店舗を超えているため、並び順を変更できません。");
   });
 
   it("管理者招待が未公開なら管理者設定の入口を描画しない", () => {
-    mocks.useQuery.mockReturnValue({
+    summaryResult = {
       totalCount: 12,
       totalCountHasOverflow: false,
       visibleCount: 1,
       visibleCountHasOverflow: false,
       maxPeople: 5,
       canAddStaff: true,
+      canChangeStaffOrder: true,
       features: { managerInvitation: false },
-    });
+    };
 
     renderPage(
       <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,

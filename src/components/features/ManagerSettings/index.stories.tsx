@@ -133,6 +133,7 @@ export const InvitationCardsOpenDialogBehavior: Story = {
     await userEvent.click(within(existingDialog).getByRole("button", { name: "管理者として招待する" }));
 
     await expect(page.queryByRole("alertdialog")).not.toBeInTheDocument();
+    await expect(page.getByTestId("existing-staff-dialog-invite-count")).toHaveTextContent("1");
     await waitFor(() =>
       expect(page.queryByRole("dialog", { name: "既存スタッフを管理者として招待" })).not.toBeInTheDocument(),
     );
@@ -142,8 +143,15 @@ export const InvitationCardsOpenDialogBehavior: Story = {
       name: "新しいユーザーを管理者として招待",
     });
     await waitFor(() => expect(externalDialog).toBeVisible());
-    await expect(within(externalDialog).getByRole("textbox", { name: "名前" })).toBeVisible();
-    await expect(within(externalDialog).getByRole("button", { name: "招待する" })).toBeVisible();
+    await userEvent.type(within(externalDialog).getByRole("textbox", { name: "名前" }), "伊藤 真理");
+    await userEvent.type(within(externalDialog).getByRole("textbox", { name: "メールアドレス" }), "ito@example.com");
+    await userEvent.click(within(externalDialog).getByRole("button", { name: "招待する" }));
+
+    await expect(page.queryByRole("alertdialog")).not.toBeInTheDocument();
+    await expect(page.getByTestId("external-dialog-invite-count")).toHaveTextContent("1");
+    await waitFor(() =>
+      expect(page.queryByRole("dialog", { name: "新しいユーザーを管理者として招待" })).not.toBeInTheDocument(),
+    );
   },
 };
 
@@ -566,9 +574,17 @@ function ManagerInvitationDialogHarness() {
   const [mode, setMode] = useState<ManagerInvitationDialogMode | null>(null);
   const [selectedPersonId, setSelectedPersonId] = useState("");
   const [externalDraft, setExternalDraft] = useState({ name: "", email: "" });
+  const [existingStaffInviteCount, setExistingStaffInviteCount] = useState(0);
+  const [externalInviteCount, setExternalInviteCount] = useState(0);
 
   return (
     <>
+      <output hidden data-testid="existing-staff-dialog-invite-count">
+        {existingStaffInviteCount}
+      </output>
+      <output hidden data-testid="external-dialog-invite-count">
+        {externalInviteCount}
+      </output>
       <ManagerSettingsView
         overview={overview}
         onBack={noop}
@@ -589,9 +605,14 @@ function ManagerInvitationDialogHarness() {
         selectedPersonId={selectedPersonId}
         externalDraft={externalDraft}
         onSelectCandidate={setSelectedPersonId}
-        onRequestExistingStaff={() => setMode(null)}
+        onRequestExistingStaff={() => {
+          setExistingStaffInviteCount((count) => count + 1);
+          setMode(null);
+        }}
         onRequestExternal={(invitedName, email) => {
           setExternalDraft({ name: invitedName, email });
+          setExternalInviteCount((count) => count + 1);
+          setMode(null);
         }}
         onClose={() => {
           setMode(null);

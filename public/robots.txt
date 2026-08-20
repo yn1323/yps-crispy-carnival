@@ -1,9 +1,11 @@
 User-agent: *
 Disallow: /app
 Disallow: /account
+Disallow: /actions
 Disallow: /dashboard
+Disallow: /manage
 Disallow: /shifts
-Disallow: /staff/register
+Disallow: /staff
 Disallow: /line/callback
 Disallow: /legal/staff/consent
 Disallow: /sso-callback

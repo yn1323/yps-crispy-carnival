@@ -36,7 +36,6 @@ export function UserInformationDialog({
       submitLabel="変更を保存"
       isLoading={isUpdatingProfile}
       isSubmitDisabled={!data.canWrite || isUpdatingProfile}
-      mobileActionLayout="inline"
       mobileFullScreen
       maxW={{ lg: "720px" }}
       maxH={{ lg: "86dvh" }}

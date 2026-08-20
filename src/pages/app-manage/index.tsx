@@ -98,7 +98,7 @@ function ConnectedManagePage({ organizationId, memberStatus }: OrganizationScope
           onLoadMore={() => shops.loadMore(SHOP_PAGE_SIZE)}
           onOpenShop={(shopId) =>
             void navigate({
-              to: "/app/manage/shops/$shopId",
+              to: "/manage/shops/$shopId",
               params: { shopId },
               search: { org: organizationId },
             })
@@ -190,14 +190,14 @@ export function OrganizationManagementSection({
               icon={LuBuilding2}
               title="組織情報"
               description={organizationName}
-              onClick={() => void navigate({ to: "/app/manage/organization", search: { org: organizationId } })}
+              onClick={() => void navigate({ to: "/manage/organization", search: { org: organizationId } })}
             />
             {features.managerInvitation && (
               <ManagementRouteRow
                 icon={LuShieldCheck}
                 title="管理者と権限"
                 description={`管理者 ${managerCount}人 ・ 招待中 ${pendingManagerCount}件`}
-                onClick={() => void navigate({ to: "/app/manage/managers", search: { org: organizationId } })}
+                onClick={() => void navigate({ to: "/manage/managers", search: { org: organizationId } })}
               />
             )}
             {features.billing && (
@@ -205,7 +205,7 @@ export function OrganizationManagementSection({
                 icon={LuCreditCard}
                 title="プランと支払い"
                 description={billingStateLabel(billingState)}
-                onClick={() => void navigate({ to: "/app/manage/billing", search: { org: organizationId } })}
+                onClick={() => void navigate({ to: "/manage/billing", search: { org: organizationId } })}
               />
             )}
           </Stack>
@@ -562,7 +562,7 @@ function ManageFeatureBoundary({
     if (enabled !== false || didRedirect.current) return;
     didRedirect.current = true;
     showErrorToast(new Error("この機能は現在利用できません。"));
-    void navigate({ to: "/app/manage", search: { org: organizationId }, replace: true });
+    void navigate({ to: "/manage", search: { org: organizationId }, replace: true });
   }, [enabled, navigate, organizationId]);
 
   if (overview === undefined) return <ManagePageSkeleton />;

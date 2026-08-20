@@ -2,8 +2,8 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { internalMutation } from "../_generated/server";
 import { APP_URL } from "../_lib/config";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { managerMutation } from "../_lib/functions";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { generateUUID } from "../_lib/uuid";
@@ -14,6 +14,7 @@ import { recordStaffLegalConsentSnapshot } from "../legal/service";
 import { getOrganizationPersonLineState, resolveOrganizationPersonLineInheritanceRecipient } from "../line/service";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { recordOrganizationAuditEvent } from "../organization/audit";
+import { syncActivatedOrganizationStaffOrder } from "../organization/staffOrder";
 import { requireOrganizationCapacity } from "../organizationBilling/service";
 import {
   findActiveStaffByEmail,
@@ -334,6 +335,9 @@ export const approveRequest = managerMutation({
       excludedFromShift: false,
       isDeleted: false,
     });
+    if (organizationId) {
+      await syncActivatedOrganizationStaffOrder(ctx, { organizationId });
+    }
     await recordStaffLegalConsentSnapshot(ctx, {
       staffId,
       shopId: ctx.shop._id,

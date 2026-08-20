@@ -32,7 +32,7 @@
 
 | 画面 | 表示内容 |
 |---|---|
-| `/app/staff/<personId>/shops/<shopId>?org=<organizationId>` | 店舗別設定ページの通知セクションで、`shopId`のスタッフへの通知履歴を最新順に表示する。初回3件を取得し、「もっと見る」で10件ずつ続きを取得する |
+| `/staff/<personId>/shops/<shopId>?org=<organizationId>` | 店舗別設定ページの通知セクションで、`shopId`のスタッフへの通知履歴を最新順に表示する。初回3件を取得し、「もっと見る」で10件ずつ続きを取得する |
 | Dashboard > スタッフ一覧 > 旧スタッフ詳細 > 通知 | `organizationPersonId`が未移行のスタッフに限り、同じ通知履歴を暫定表示する |
 
 ## API一覧

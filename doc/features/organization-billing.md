@@ -52,15 +52,15 @@ Playwright用のE2E deploymentだけは、四つの設定を明示的に有効�
 | Stripe Webhookと内部worker | 既存の支払い結果、期間末変更、取消、再試行を検証して課金状態へ反映する | 署名、接続mode、provider objectの対応、version、冪等性を検証する |
 | 運用担当者 | Stripe設定、probe、Narrow deploy前確認、販売停止、Price rotation、復旧を行う | 実環境を一意に特定し、[運用手順](../manual/organization-billing.md)に従って証跡を残す |
 
-`/app/manage*`はURLで検証済みの`org`を操作対象の正本とし、先頭店舗、Home店舗、browser storageの店舗IDを組織操作や課金の認可anchorにしない。
+`/manage*`はURLで検証済みの`org`を操作対象の正本とし、先頭店舗、Home店舗、browser storageの店舗IDを組織操作や課金の認可anchorにしない。
 クライアントが渡す組織ID、店舗ID、人物IDは対象の指定であり、認可根拠には使わない。  サーバーは認証identityからcanonicalな`organizationMembers`と`organizationPeople`を毎回解決し、readOnlyとBusiness write capabilityを再検証する。
 
-### `/app/manage`の管理導線
+### `/manage`の管理導線
 
-- `/app/manage?org=<organizationId>`は`getManageOverview`で組織名、課金状態、利用数、店舗状態別件数、操作可否だけを購読し、店舗実体をoverviewへ埋め込まない。
+- `/manage?org=<organizationId>`は`getManageOverview`で組織名、課金状態、利用数、店舗状態別件数、操作可否だけを購読し、店舗実体をoverviewへ埋め込まない。
 - 店舗一覧は`listOrganizationShops`をcursor paginationし、activeだけでなくarchivedも表示する。  プラン上限の5件を保存済み店舗の取得上限に流用せず、過去店舗を欠落させない。
 - 組織名、現在店舗、組織削除は既存Dialogとcontrollerを再利用する。  組織作成、店舗追加、管理者招待、請求先変更、Stripe操作は対応する公開設定が有効な環境だけで入口を表示する。
-- 課金を明示的に有効化した環境でCheckoutとCustomer Portalを開始した場合、復帰先は`/app/manage/billing?org=<organizationId>`にする。  復帰URLだけで支払い成功とは判断せず、Webhookまたはprovider再取得結果を正本とする。
+- 課金を明示的に有効化した環境でCheckoutとCustomer Portalを開始した場合、復帰先は`/manage/billing?org=<organizationId>`にする。  復帰URLだけで支払い成功とは判断せず、Webhookまたはprovider再取得結果を正本とする。
 - `pendingActivation`で課金ページを表示した場合は、戻りqueryの有無にかかわらず、サーバーが対象Sessionを組織、operation、Customer、Price、modeに照合する。  Sessionが`open`なら自動で取り消さず、「支払いを続ける」と「支払いをやめる」を表示する。  明示的に支払いをやめた場合だけStripeで`expired`へ確定してから、支払い失敗時のfallbackへ戻す。
 - Checkoutから`stripe=cancelled`で戻った場合も同じサーバー照合を行い、`open`なら明示キャンセルとして`expired`へ収束させる。  `complete`やprovider取得失敗では状態を変更せず、Webhookまたは再試行を待つ。  ブラウザバックは`cancel_url`を通らず、bfcache復元ではReactが再マウントされない場合もあるため、戻りqueryだけでなく課金ページの初回表示と`pageshow`復元を再照合の起点にする。
 - query errorはページ内で再試行でき、readOnly所属は内容を閲覧できるが変更入口を無効にする。  契約制限中の復旧操作は課金policyが返すcapabilityに従う。
@@ -204,7 +204,7 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 Notification Outboxは外部送信直前にも招待、所属、受取人を再確認し、無効になった招待の投入済み通知をproviderへ送らず取消する。
 
 - 招待はメールで送り、発行から7日間有効な一回限りのtokenを使う。
-- `/app/manage/managers`と対応一覧からの発行・再送・取消は、`issueForOrganization`、`resendForOrganization`、`revokeForOrganization`を使う。  これらは店舗を受け取らず、指定組織のcanonical active管理者とBusiness writeをサーバーで再検証する。
+- `/manage/managers`と対応一覧からの発行・再送・取消は、`issueForOrganization`、`resendForOrganization`、`revokeForOrganization`を使う。  これらは店舗を受け取らず、指定組織のcanonical active管理者とBusiness writeをサーバーで再検証する。
 - 招待対象の組織人物が未接続、またはまだ存在しない場合は、受取人の確認済みメールを正規化し、招待先メールとの完全一致を連携時に確認する。
 - 招待対象の組織人物が既に`userId`へ接続済みなら、その利用者本人だけが承認でき、メール照合をアカウント同一性の代わりにしない。
 - 招待対象の組織人物が未接続、またはまだ存在しない場合は、Node actionがClerk Backend APIから取得した確認済みメール一覧に招待先メールが含まれる場合だけ承認する。
@@ -255,12 +255,12 @@ deployment前から保存済みで`targetPlan: "free"`かつ`restrictAtPeriodEnd
 | 画面 | 役割 |
 |---|---|
 | `/dashboard?org=<organizationId>&shop=<shopId>` | 明示した組織とactive店舗を再検証し、現在店舗の業務と利用状況を表示する |
-| `/app/manage?org=<organizationId>` | 現在の組織と店舗の概要を表示する。通常環境では組織作成、店舗追加、管理者、課金の入口を表示しない |
-| `/app/manage/organization?org=<organizationId>` | 現在の組織名と削除を扱う |
-| `/app/manage/shops/<shopId>?org=<organizationId>` | 同じ組織の現在店舗の情報、所属、稼働状態を管理する |
-| `/app/staff/<personId>?org=<organizationId>` | 組織人物、店舗所属、管理者状態を確認する。管理者の変更導線は公開設定が有効な場合だけ表示する |
-| `/app/manage/managers*?org=<organizationId>` | 将来用の管理者一覧と招待。閉状態のdirect accessでは情報を描画せず`/app/manage`へ戻す |
-| `/app/manage/billing?org=<organizationId>` | 将来用の課金画面。閉状態のdirect accessでは情報を描画せず`/app/manage`へ戻す |
+| `/manage?org=<organizationId>` | 現在の組織と店舗の概要を表示する。通常環境では組織作成、店舗追加、管理者、課金の入口を表示しない |
+| `/manage/organization?org=<organizationId>` | 現在の組織名と削除を扱う |
+| `/manage/shops/<shopId>?org=<organizationId>` | 同じ組織の現在店舗の情報、所属、稼働状態を管理する |
+| `/staff/<personId>?org=<organizationId>` | 組織人物、店舗所属、管理者状態を確認する。管理者の変更導線は公開設定が有効な場合だけ表示する |
+| `/manage/managers*?org=<organizationId>` | 将来用の管理者一覧と招待。閉状態のdirect accessでは情報を描画せず`/manage`へ戻す |
+| `/manage/billing?org=<organizationId>` | 将来用の課金画面。閉状態のdirect accessでは情報を描画せず`/manage`へ戻す |
 | `/manager-invite?token=...` | 将来用の招待受諾。閉状態ではpreviewと受諾をserver-sideで拒否する |
 
 ### Dashboardの組織・プラン表示
@@ -286,7 +286,7 @@ frontendだけの状態やCSSを認可境界にしない。
 
 Dashboardは現在のプランと利用状況を最小DTOから表示する。
 支払いの公開設定が閉じている通常環境では、料金、課金Callout、「プランと支払い」への導線を表示せず、CheckoutやPortalのActionも実行できない。
-料金と販売中プランの比較は、公開設定を明示的に有効化した`/app/manage/billing?org=<organizationId>`だけで扱う。
+料金と販売中プランの比較は、公開設定を明示的に有効化した`/manage/billing?org=<organizationId>`だけで扱う。
 表示する金額と`day`、`week`、`month`、`year`の請求周期はStripe Priceから取得し、開発用の短縮周期も同じ経路で表示する。
 「プランと支払い」で表示する税区分はActionが明示した場合だけ表示し、不明な場合は税込・税抜を推測しない。
 

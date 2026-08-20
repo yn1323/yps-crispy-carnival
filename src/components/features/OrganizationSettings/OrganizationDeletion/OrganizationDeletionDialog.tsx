@@ -30,7 +30,6 @@ export function OrganizationDeletionDialog({ dialog, isRunning, onClose, onBackG
       submitColorPalette="red"
       isLoading={isRunning}
       role="alertdialog"
-      mobileActionLayout="inline"
       mobileFullScreen
       maxW={{ base: "calc(100vw - 24px)", md: "600px" }}
     >

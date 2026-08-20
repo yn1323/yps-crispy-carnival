@@ -1,7 +1,14 @@
 import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
+import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
+import {
+  ActionInboxView,
+  buildNotificationFailureActionInboxItem,
+  buildStaffRegistrationActionInboxItem,
+} from "@/src/components/features/ActionInbox";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
 import { HeroSummary, HeroSummarySkeleton, WelcomeHero } from ".";
 
@@ -52,7 +59,6 @@ const confirmed = make({ _id: id("conf"), status: "confirmed", deadline: inDays(
 const NOOP = {
   onOpenShiftBoard: () => {},
   onCreateRecruitment: () => {},
-  onNotificationFailuresClick: () => {},
 };
 
 const baseArgs = {
@@ -61,8 +67,50 @@ const baseArgs = {
 const allTasksArgs = {
   ...baseArgs,
   recruitments: [past, confirmed],
-  hasNotificationFailures: true,
-  staffRegistrationRequest: { count: 1, onClick: () => {} },
+  notificationFailures: {
+    count: 1,
+    content: (
+      <ActionInboxView
+        hideEmpty
+        items={[
+          buildNotificationFailureActionInboxItem(
+            {
+              id: "notificationFailure:story",
+              staffName: "佐藤 真由美",
+              shopName: "渋谷店",
+              notificationKindLabel: "シフト募集通知",
+              channel: "email",
+              lastFailedAt: new Date("2026-08-20T09:00:00+09:00").getTime(),
+              canRetry: true,
+              canResolve: true,
+            },
+            { retry: () => {}, resolve: () => {} },
+          ),
+        ]}
+      />
+    ),
+  },
+  staffRegistrationRequest: {
+    count: 1,
+    content: (
+      <ActionInboxView
+        hideEmpty
+        items={[
+          buildStaffRegistrationActionInboxItem(
+            {
+              id: "staffRegistration:story",
+              applicantName: "鈴木 花子",
+              shopName: "渋谷店",
+              createdAt: new Date("2026-08-20T08:30:00+09:00").getTime(),
+              canApprove: true,
+              canReject: true,
+            },
+            { approve: () => {}, reject: () => {} },
+          ),
+        ]}
+      />
+    ),
+  },
 };
 
 export const AfterDeadline: Story = {
@@ -95,9 +143,9 @@ export const WaitingForSubmission: Story = {
 
 export const WithNotificationFailures: Story = {
   args: {
-    ...baseArgs,
+    ...allTasksArgs,
     recruitments: [calm, confirmed],
-    hasNotificationFailures: true,
+    staffRegistrationRequest: undefined,
   },
 };
 
@@ -116,6 +164,69 @@ export const AllTasksMobile: Story = {
     ),
   ],
 };
+
+export const LastActionItemExitBehavior: Story = {
+  args: {
+    ...baseArgs,
+    recruitments: [],
+  },
+  parameters: { screenshot: { skip: true } },
+  render: () => <LastActionItemExitPreview />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const summaryTrigger = canvas.getByRole("button", { name: /スタッフ登録申請が1件/ });
+    await userEvent.click(summaryTrigger);
+    const items = await canvas.findByRole("region", { name: "スタッフ登録申請" });
+    await userEvent.click(within(items).getByRole("button", { name: "承認する" }));
+
+    const exitingItem = within(items).getByRole("article");
+    await waitFor(() => expect(exitingItem).toHaveAttribute("data-state", "exiting"));
+    await expect(canvas.getByRole("button", { name: /スタッフ登録申請が1件/ })).toBeVisible();
+    await expect(exitingItem).toBeInTheDocument();
+    await waitFor(() =>
+      expect(canvas.queryByRole("button", { name: /スタッフ登録申請が1件/ })).not.toBeInTheDocument(),
+    );
+  },
+};
+
+function LastActionItemExitPreview() {
+  const [isPresent, setIsPresent] = useState(true);
+  const [visibleItemCount, setVisibleItemCount] = useState(1);
+  const item = buildStaffRegistrationActionInboxItem(
+    {
+      id: "staffRegistration:last-story-item",
+      applicantName: "鈴木 花子",
+      shopName: "渋谷店",
+      createdAt: new Date("2026-08-20T08:30:00+09:00").getTime(),
+      canApprove: true,
+      canReject: true,
+    },
+    { approve: () => setIsPresent(false), reject: () => undefined },
+  );
+
+  return (
+    <HeroSummary
+      {...NOOP}
+      recruitments={[]}
+      isRecruitmentTaskAvailable={false}
+      staffRegistrationRequest={
+        visibleItemCount > 0
+          ? {
+              count: visibleItemCount,
+              content: (
+                <ActionInboxView
+                  items={isPresent ? [item] : []}
+                  ariaLabel="スタッフ登録申請"
+                  hideEmpty
+                  onVisibleItemCountChange={setVisibleItemCount}
+                />
+              ),
+            }
+          : undefined
+      }
+    />
+  );
+}
 
 export const NoStaffRegistered: Story = {
   args: {

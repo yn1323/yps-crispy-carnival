@@ -78,7 +78,6 @@ export function LoginEmailChangeDialog({
   ) : step === "verification" ? (
     <DialogActionArea
       layout="flow"
-      mobileLayout="inline"
       startAction={
         <Button type="button" variant="outline" onClick={handleBackToInput} disabled={isBusy}>
           入力し直す
@@ -106,7 +105,6 @@ export function LoginEmailChangeDialog({
       formId={!isReverifying && step === "input" ? LOGIN_EMAIL_INPUT_FORM_ID : undefined}
       submitLabel="次へ"
       footer={footer}
-      mobileActionLayout="inline"
       mobileFullScreen
       maxW={{ md: "560px" }}
       maxH={{ md: "86dvh" }}

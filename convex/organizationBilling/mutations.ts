@@ -1,8 +1,9 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
-import { internalMutation, type MutationCtx } from "../_generated/server";
+import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { authenticatedMutation } from "../_lib/functions";
 import { requireReleaseFeature } from "../_lib/releaseFeatures";
 import { normalizeEmail } from "../_lib/validation";
@@ -22,6 +23,7 @@ import {
   getOrganizationUsageSnapshot,
   removeLegacyOrganizationManagerAccess,
 } from "../organization/service";
+import { syncActivatedOrganizationStaffOrder } from "../organization/staffOrder";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 import { scheduleOrganizationBillingStateDeadline } from "./deadline";
 import {
@@ -408,6 +410,9 @@ async function applyVerifiedPaidRestoration(
       statusDeltas.push({ kind: "shop", shopId: shop._id, status: targetStatus });
     }
   }
+  if (statusDeltas.some((delta) => delta.kind === "shop")) {
+    await syncActivatedOrganizationStaffOrder(ctx, { organizationId: args.organizationId });
+  }
   return statusDeltas;
 }
 
@@ -518,6 +523,9 @@ async function applyFreeOrRestricted(
         analyticsStatusDeltas.push({ kind: "shop", shopId: shop._id, status: targetStatus });
       }
     }
+  }
+  if (analyticsStatusDeltas.some((delta) => delta.kind === "shop")) {
+    await syncActivatedOrganizationStaffOrder(ctx, { organizationId });
   }
 
   if (selectedManagerIsValid && selectedManagerId) {

@@ -52,6 +52,7 @@ import {
   requireOrganizationBillingState,
   requireOrganizationPersonWithoutManagerRole,
 } from "./service";
+import { safelyDeactivateOrganizationStaffOrder, syncActivatedOrganizationStaffOrder } from "./staffOrder";
 import { organizationShopOperatingStatusValidator } from "./validators";
 
 const shopMutationResultValidator = v.object({
@@ -383,6 +384,7 @@ async function addShopForActor(
     isDeleted: false,
   });
   await ensureDefaultPosition(ctx, shopId);
+  await syncActivatedOrganizationStaffOrder(ctx, { organizationId: organization._id });
   await recordOrganizationAuditEvent(ctx, {
     organizationId: organization._id,
     actorUserId: actor.member.userId,
@@ -525,6 +527,7 @@ export const archiveShop = authenticatedMutation({
     if (fromState === "archived") return shopMutationResult(actor.shop._id, "archived", false);
     const now = Date.now();
     await ctx.db.patch(actor.shop._id, { operatingStatus: "archived" });
+    await syncActivatedOrganizationStaffOrder(ctx, { organizationId: actor.organization._id });
     await recordShopStateChange(ctx, {
       actorUserId: actor.member.userId,
       actorPersonId: actor.person._id,
@@ -569,6 +572,7 @@ export const reactivateShop = authenticatedMutation({
     });
     const now = Date.now();
     await ctx.db.patch(actor.shop._id, { operatingStatus: "active" });
+    await syncActivatedOrganizationStaffOrder(ctx, { organizationId: actor.organization._id });
     await recordShopStateChange(ctx, {
       actorUserId: actor.member.userId,
       actorPersonId: actor.person._id,
@@ -666,6 +670,7 @@ export const deleteShop = authenticatedMutation({
 
     const now = Date.now();
     await ctx.db.patch(actor.shop._id, { isDeleted: true });
+    await syncActivatedOrganizationStaffOrder(ctx, { organizationId: actor.organization._id });
     if (billingState.freeShopId === actor.shop._id) {
       const updatedBillingState = {
         ...billingState,
@@ -878,6 +883,7 @@ async function beginOrganizationDeletion(
     isDeleted: true,
     updatedAt: args.now,
   });
+  await safelyDeactivateOrganizationStaffOrder(ctx, { organizationId: args.actor.organization._id });
   await ctx.db.patch(billingState._id, {
     businessNotificationCutoffAt: args.now,
     businessNotificationCutoffVersion: billingState.version + 1,
@@ -1486,6 +1492,7 @@ async function applyFullOrganizationPersonRemoval(
       staffId: staff._id,
     });
   }
+  await syncActivatedOrganizationStaffOrder(ctx, { organizationId: args.actor.organization._id });
   await revokePendingInvitations(ctx, args.plan.invitations, args.now);
   if (args.plan.targetUserId) {
     await deactivateLegacyPersonMemberships(ctx, args.actor.organization._id, args.plan.targetUserId);
@@ -1713,6 +1720,7 @@ export const removePersonFromShop = authenticatedMutation({
     const now = Date.now();
     await deletePersonRemovalAssignments(ctx, assignmentIds);
     await ctx.db.patch(staff._id, { isDeleted: true });
+    await syncActivatedOrganizationStaffOrder(ctx, { organizationId: actor.organization._id });
     await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.deleteStaffNotificationHistoryBatch, {
       shopId: staff.shopId,
       staffId: staff._id,

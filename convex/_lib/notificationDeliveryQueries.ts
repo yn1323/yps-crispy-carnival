@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-import { internalQuery } from "../_generated/server";
 import { NOTIFICATION_DRY_RUN_MANAGER_SCAN_LIMIT } from "../constants";
+import { observedInternalQuery as internalQuery } from "./errorObservability";
 import { isDryRunManagerEmail } from "./notificationDelivery";
 import { loadShopManagerNotificationRecipientContacts } from "./shopManagerRecipients";
 

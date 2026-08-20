@@ -109,7 +109,8 @@ Pull RequestのPreviewでは、まず自動テストで次を確認する。
 - 公開URLのslashあり・なしが`200`で、`Location`を返さない。
 - canonicalは両方とも本番originのno-slash URLである。
 - 認証routeとCapability routeは`no-store`、`noindex`、`no-referrer`のCSR shellを返す。
-- 認証済みHomeとAccountのCSR shellはcanonicalな`/dashboard`と`/account`で返し、`/app`は`/dashboard`へreplaceされる。
+- 認証済み画面のCSR shellはcanonicalな`/dashboard`、`/account`、`/actions`、`/manage*`、`/shifts*`、`/staff*`で返す。公開の`/shifts/submit*`、`/shifts/view`、`/shifts/reissue`、`/staff/register`も同じ安全なshell headerを維持する。
+- `/app`は`/dashboard`へreplaceし、旧`/app/actions`、`/app/manage*`、`/app/shifts*`、`/app/staff*`は許可済みsearchだけを保って対応するcanonical routeへreplaceする。
 - 削除した`/app/home`、`/app/account`、旧`/settings*`、`/users/*`、`/shops/*`、`/shiftboard/*`は互換redirectを返さず`404`になる。
 - 未知URLと未知の記事slugは`404`である。
 - `/cache-reset`は`Clear-Site-Data: "cache"`だけを返し、cookieとstorageを消さない。

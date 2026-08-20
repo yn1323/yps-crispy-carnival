@@ -51,7 +51,6 @@ export function StaffInvitationDialogShell({ invitation, isReadOnly = false, chi
       footer={
         <DialogActionArea
           layout={selectedMethod === null ? "standard" : "flow"}
-          mobileLayout={isManualMethod ? "stacked" : "inline"}
           startAction={selectedMethod !== null ? backAction : undefined}
           endAction={
             selectedMethod === null || selectedMethod === "link"

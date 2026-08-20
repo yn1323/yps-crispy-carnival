@@ -30,7 +30,6 @@ const DesktopStandardExample = () => {
       onSubmit={close}
       submitLabel="変更する"
       actionLayout="standard"
-      mobileActionLayout="inline"
     >
       <Text>選択したスタッフの所属を変更します。</Text>
     </Dialog>
@@ -54,7 +53,6 @@ const DesktopFlowExample = () => {
       closeLabel="戻る"
       submitLabel="次へ"
       actionLayout="flow"
-      mobileActionLayout="inline"
     >
       <Text>前の手順へ戻るか、確認を終えて次へ進みます。</Text>
     </Dialog>
@@ -77,7 +75,6 @@ const DesktopFlowStartOnlyExample = () => {
       footer={
         <DialogActionArea
           layout="flow"
-          mobileLayout="inline"
           startAction={
             <Button type="button" variant="outline" onClick={close}>
               戻る
@@ -109,7 +106,6 @@ const DestructiveExample = () => {
       role="alertdialog"
       submitColorPalette="red"
       actionLayout="standard"
-      mobileActionLayout="inline"
     >
       <Text mb={2}>本当にこのアイテムを削除しますか？</Text>
       <Text fontSize="sm" color="gray.600">
@@ -127,7 +123,7 @@ const ReadOnlyCloseExample = () => {
   const { isOpen, close, onOpenChange } = useDialog(true);
 
   return (
-    <Dialog title="変更内容" isOpen={isOpen} onOpenChange={onOpenChange} onClose={close} mobileActionLayout="inline">
+    <Dialog title="変更内容" isOpen={isOpen} onOpenChange={onOpenChange} onClose={close}>
       <Text>追加 0名・外す 2名</Text>
       <Text fontSize="sm" color="gray.600" mt={2}>
         送信操作がないため、右端にはsecondary配色の「閉じる」だけを表示します。
@@ -140,13 +136,7 @@ export const ReadOnlyClose: Story = {
   render: () => <ReadOnlyCloseExample />,
 };
 
-const MobileActionExample = ({
-  mobileLayout,
-  longLabels = false,
-}: {
-  mobileLayout: "inline" | "stacked";
-  longLabels?: boolean;
-}) => {
+const MobileActionExample = ({ longLabels = false }: { longLabels?: boolean }) => {
   const { isOpen, close, onOpenChange } = useDialog(true);
 
   return (
@@ -158,12 +148,11 @@ const MobileActionExample = ({
       onSubmit={close}
       closeLabel={longLabels ? "変更せずにキャンセルする" : "キャンセル"}
       submitLabel={longLabels ? "選択した内容で変更を確定する" : "保存"}
-      mobileActionLayout={mobileLayout}
     >
       <Text>
         {longLabels
-          ? "ラベルが長い場合は、320px幅でも読み切れて誤操作しにくい縦積みにします。"
-          : "短いラベルは横並びにできます。"}
+          ? "ラベルが長い場合も、320px幅で省略せず折り返し、二つの操作を同幅の横並びに保ちます。"
+          : "短いラベルも二つの操作を同幅の横並びにします。"}
       </Text>
     </Dialog>
   );
@@ -172,13 +161,13 @@ const MobileActionExample = ({
 export const MobileInlineShort: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
-  render: () => <MobileActionExample mobileLayout="inline" />,
+  render: () => <MobileActionExample />,
 };
 
-export const MobileStackedLong: Story = {
+export const MobileInlineLong: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
-  render: () => <MobileActionExample mobileLayout="stacked" longLabels />,
+  render: () => <MobileActionExample longLabels />,
 };
 
 export const MobileReadOnlyClose: Story = {
@@ -198,7 +187,6 @@ const MobileFullScreenScrollingExample = () => {
       onClose={close}
       onSubmit={close}
       submitLabel="変更する"
-      mobileActionLayout="stacked"
       mobileFullScreen
     >
       <Stack gap={4}>
@@ -233,9 +221,8 @@ const ActionOrderAndFocusExample = () => {
       onClose={close}
       onSubmit={() => {}}
       submitLabel="保存する"
-      mobileActionLayout="stacked"
     >
-      <Text>DOMとTab順は、表示方向にかかわらずsecondaryからprimaryの順です。</Text>
+      <Text>DOMとTab順は、secondaryからprimaryの順です。</Text>
     </Dialog>
   );
 };

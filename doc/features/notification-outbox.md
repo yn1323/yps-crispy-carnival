@@ -8,7 +8,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 
 ### バックエンド（`convex/`）
 
-- `convex/schema.ts` — `notificationOutbox` / `notificationHistory` / `notificationDeliveryEvents` / `notificationFailureInbox` / `notificationUsage` テーブル定義
+- `convex/schema.ts` — `notificationOutbox` / `notificationHistory` / `notificationDeliveryEvents` / `notificationFailureInbox` / `notificationResendDelayedFailureDeadlines` / `notificationUsage` テーブル定義
 - `convex/notificationOutbox/schemas.ts` — outbox payload / status / channel validator
 - `convex/notificationOutbox/types.ts` — enqueue helper 用の型
 - `convex/notificationOutbox/enqueue.ts` — email / LINE ジョブ作成 helper
@@ -18,8 +18,9 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - `convex/notificationOutbox/safeError.ts` — LINE / Resend / 内部失敗を固定taxonomyへ変換
 - `convex/notificationOutbox/redaction.ts` — terminal payloadから宛先・本文・capability URLを除去
 - `convex/notificationOutbox/maintenance.ts` — migration / retentionの残件をPIIなしのbounded queryで確認
-- `convex/notificationOutbox/resendWebhook.ts` — Resend provider webhook を署名検証し、配信完了を履歴、配送遅延・失敗を履歴と要対応Inboxへ反映
-- `convex/crons.ts` — 1分ごとの outbox / fanout 回収、古い配送イベントログ削除、古いFailureInboxの期限切れ化
+- `convex/notificationOutbox/resendDelayedFailure.ts` — Resend配送遅延の猶予期限を作成・取得・削除する
+- `convex/notificationOutbox/resendWebhook.ts` — Resend provider webhook を署名検証し、配信完了・配送遅延・失敗を履歴と現在状態へ反映
+- `convex/crons.ts` — 1分ごとの outbox / fanout / 配送遅延期限回収、古い配送イベントログ削除、古いFailureInboxの期限切れ化
 - `convex/_lib/resend.ts` — Resend 送信間隔・retry header 対応・idempotency key 指定
 - `convex/_lib/resendWebhookSignature.ts` — Resend / Svix webhook 署名検証
 - `convex/_lib/lineClient.ts` — LINE Push message送信、`X-Line-Retry-Key` 付与、エラー分類
@@ -51,8 +52,9 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 | `internal.notificationOutbox.mutations.markRetry` | internalMutation | 一時エラーのジョブを `pending` に戻し、次回実行時刻を設定する |
 | `internal.notificationOutbox.mutations.markFailed` | internalMutation | 恒久エラーまたは上限到達ジョブを `failed` にする |
 | `internal.notificationOutbox.mutations.recordDeliveryEvent` | internalMutation | enqueue失敗・enqueue準備失敗・retry・最終失敗・fallback等の配送イベントを内部調査用に記録 |
-| `internal.notificationOutbox.mutations.recordResendProviderIssue` | internalMutation | Resend provider の配送遅延・失敗イベントを既存outboxに照合し、必要なら要対応Inboxへ反映する |
+| `internal.notificationOutbox.mutations.recordResendProviderIssue` | internalMutation | Resend provider の配送遅延・失敗イベントを既存outboxに照合する。初回遅延は猶予期限を作り、hard failureは要対応Inboxへ即時反映する |
 | `internal.notificationOutbox.mutations.recordResendProviderDeliveryUpdate` | internalMutation | Resend provider の配信完了イベントを既存outboxに照合し、通知履歴へ反映する |
+| `internal.notificationOutbox.mutations.recoverOverdueResendDelayedFailures` | internalMutation | 30分の猶予期限を過ぎた配送遅延をbounded batchで既存の失敗経路へ昇格する |
 | `internal.notificationOutbox.mutations.deleteStaffNotificationHistoryBatch` | internalMutation | 削除済みスタッフの通知履歴を100件ずつ削除する |
 | `internal.notificationOutbox.mutations.pruneExpiredEvents` | internalMutation | 保存期限を過ぎた配送イベントを少量ずつ削除 |
 | `internal.notificationOutbox.mutations.redactExpiredTerminalData` | internalMutation | terminal化から30日を過ぎたOutboxの宛先・本文・capability URL・生errorを少量ずつredact |
@@ -77,7 +79,16 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - Resend 送信成功時に返る `email_id` は `notificationOutbox.resendEmailId` に保存し、provider webhook の照合キーにする。
 - Resend の一時エラーや retry header 対応は `convex/_lib/resend.ts` に集約する。
 - Resend provider webhook はparameter付きの`application/json`を受け付け、raw bodyを64 KiBまでに制限する。`Content-Length`は早期拒否にだけ使い、request streamの実byte数も検査する。
-- `RESEND_WEBHOOK_SECRET` と `svix-*` headersで上限内のraw bodyを変更せずに署名検証し、検証後だけJSON objectをparseしてDBへ反映する。`email.delivered`はメールサーバー到達として履歴へ反映し、遅延・失敗・拒否・抑止は履歴と要対応Inboxへ反映する。
+- `RESEND_WEBHOOK_SECRET` と `svix-*` headersで上限内のraw bodyを変更せずに署名検証し、検証後だけJSON objectをparseしてDBへ反映する。
+  `email.delivered`はメールサーバー到達として履歴へ反映する。
+  `email.failed` / `email.bounced` / `email.suppressed`は要対応Inboxへ即時反映し、`email.delivery_delayed`は対応する履歴へ即時反映したうえで30分の猶予を開始する。
+- 配送遅延の猶予期限は最初の`email.delivery_delayed`の`occurredAt`から30分後で固定し、同じOutboxの遅延eventを再受信しても延長しない。
+  猶予中はFailureInboxや管理者招待の`sendFailed`を作らず、1分間隔cronが期限切れを回収した時点で既存の失敗経路へ昇格する。
+- 猶予中により新しい`email.delivered`を受信した場合は期限を削除して失敗扱いにしない。
+  hard failureは期限を削除して即時失敗へ移る。
+  専用期限行がない旧`email.delivery_delayed`状態は、導入前から失敗扱いだった既存データとの互換のため失敗として読む。
+- 猶予期限は新しい空の`notificationResendDelayedFailureDeadlines`テーブルへ保存し、Outboxごとの一意性と期限順のbounded回収をindexで守る。
+  既存の増加済みOutboxへ同一deployで新しい検索indexを追加しないための配置であり、利用者向けの30分猶予という契約は変わらない。
 - provider eventは`occurredAt`で順序を判定し、古いeventで新しい履歴状態やFailureInboxを上書きしない。
 - provider payload の店舗・スタッフ情報は信用しない。`resendEmailId` または `shiftori_outbox_id` tag から保存済み outbox を引き、`shopId` / `staffId` / `recruitmentId` / `notificationContext` を復元する。
 - `line` は `payload.message` があればそのmessageを、なければ既存 `payload.text` からtext messageを作って LINE Push API に配送する。どちらも `X-Line-Retry-Key` を付ける。
@@ -140,7 +151,9 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 
 - `markFailed` が最終失敗した通知を `open` として upsert する。通知種別・募集・スタッフが同じ失敗はチャネルや再送runが違っても最新1件に寄せ、古いopen行は `resolved/superseded` にする。
 - `recordDeliveryEvent` は `enqueue_failed` / `enqueue_preparation_failed` かつ `shopId` と `dedupeKey` が分かる場合だけ `open` として upsert する。通知種別・募集・スタッフが分かる場合は配送最終失敗と同じFailureInbox行へまとまる。`retry_scheduled` / `fallback_enqueued` / `worker_failed` は要対応扱いにしない。
-- `recordResendProviderIssue` は `email.delivery_delayed` / `email.failed` / `email.bounced` / `email.suppressed` を `sourceType: "provider"` として `open` にする。outbox照合できない event はユーザー向けInboxに出さない。
+- `recordResendProviderIssue` は `email.failed` / `email.bounced` / `email.suppressed` を `sourceType: "provider"` として即時に `open` にする。
+  `email.delivery_delayed`は猶予期限が切れた後だけ同じ形で`open`へ昇格する。
+  outbox照合できないeventはユーザー向けInboxに出さない。
 - `enqueue_preparation_failed` は magic link 作成、LINE CTA 作成、メール/LINE payload 構築など、Outbox ジョブ作成前に落ちた失敗を表す。募集作成通知、現在募集中シフト通知、催促通知、確定シフト通知で staff ごとに記録する。
 - `markSent` は同じ outbox のInbox行を `resolved/sent` にする。
 - `retryFailure` は manager mutation として同一店舗の `open` な outbox 失敗だけを `retrying` にし、配送ジョブを `pending` に戻す。再失敗すれば `markFailed` が `open` に戻す。

@@ -24,7 +24,8 @@ type ResendEmailEventData = {
 /**
  * Resend provider webhook 受信エンドポイント（V8 ランタイム）
  * - svix headers + raw body 署名検証が通るまで JSON parse / DB 更新しない
- * - delivered は表示用履歴へ、遅延・失敗・拒否・抑止は履歴と FailureInbox へ流す
+ * - delivered は表示用履歴へ、hard failure は履歴と FailureInbox へ流す
+ * - delivery_delayed は履歴へ即時反映し、期限回収後に FailureInbox へ昇格する
  */
 export const webhookHandler = httpAction(async (ctx, request) => {
   const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;

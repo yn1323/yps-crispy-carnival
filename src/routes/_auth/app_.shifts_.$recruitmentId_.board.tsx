@@ -1,26 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
-import {
-  useAppOrganizationScope,
-  validateAppOrganizationRouteSearch,
-} from "@/src/components/features/AuthenticatedApp";
-import { AppShiftBoardRoutePage } from "@/src/pages/app-shift-board";
-import { buildAppShiftBoardPageHead } from "@/src/pages/app-shift-board/meta";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { validateAppOrganizationRouteSearch } from "@/src/components/features/AuthenticatedApp";
 
 export const Route = createFileRoute("/_auth/app_/shifts_/$recruitmentId_/board")({
   validateSearch: validateAppOrganizationRouteSearch,
-  head: buildAppShiftBoardPageHead,
-  staticData: {
-    appShell: {
-      mode: "navigation",
-      activeKey: "shifts",
-    },
+  beforeLoad: ({ params, search }) => {
+    throw redirect({
+      to: "/shifts/$recruitmentId/board",
+      params: { recruitmentId: params.recruitmentId },
+      search,
+      replace: true,
+    });
   },
-  component: RouteComponent,
 });
-
-function RouteComponent() {
-  const { recruitmentId } = Route.useParams();
-  const { organizationId } = useAppOrganizationScope();
-
-  return <AppShiftBoardRoutePage organizationId={organizationId} recruitmentId={recruitmentId} />;
-}

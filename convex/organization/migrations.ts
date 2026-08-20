@@ -1,7 +1,8 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
-import { internalMutation, type MutationCtx } from "../_generated/server";
+import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { cancelOrganizationRecipientBusinessNotifications } from "../notificationOutbox/mutations";
 import { getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
 import { collectIssuedInvitationsByInviter } from "../organizationInvitation/lifecycle";

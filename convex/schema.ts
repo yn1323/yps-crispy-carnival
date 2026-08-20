@@ -144,6 +144,35 @@ const schema = defineSchema({
     .index("by_organizationId_and_userId", ["organizationId", "userId"])
     .index("by_userId_and_status", ["userId", "status"]),
 
+  // スタッフ並び順は既存の人物・スタッフtableへindex backfillを要求しないよう、
+  // 空で追加できる派生tableへ保持する。stateがない組織は従来順を正とする。
+  organizationStaffOrderStates: defineTable({
+    organizationId: v.id("organizations"),
+    revision: v.number(),
+    activatedAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_organizationId", ["organizationId"]),
+
+  organizationStaffOrderEntries: defineTable({
+    organizationId: v.id("organizations"),
+    organizationPersonId: v.id("organizationPeople"),
+    displayOrder: v.number(),
+  })
+    .index("by_organizationId_and_displayOrder", ["organizationId", "displayOrder"])
+    .index("by_organizationId_and_organizationPersonId", ["organizationId", "organizationPersonId"]),
+
+  shopStaffOrderEntries: defineTable({
+    organizationId: v.id("organizations"),
+    shopId: v.id("shops"),
+    staffId: v.id("staffs"),
+    organizationPersonId: v.id("organizationPeople"),
+    displayOrder: v.number(),
+  })
+    .index("by_shopId_and_displayOrder", ["shopId", "displayOrder"])
+    .index("by_shopId_and_staffId", ["shopId", "staffId"])
+    .index("by_organizationId_and_organizationPersonId", ["organizationId", "organizationPersonId"])
+    .index("by_organizationId_and_shopId", ["organizationId", "shopId"]),
+
   organizationMembers: defineTable({
     organizationId: v.id("organizations"),
     personId: v.id("organizationPeople"),
@@ -1043,6 +1072,16 @@ const schema = defineSchema({
     .index("by_status_failedAt", ["status", "failedAt"])
     .index("by_recruitmentId_and_status_and_sentAt", ["recruitmentId", "status", "sentAt"])
     .index("by_recruitmentId_and_status_and_failedAt", ["recruitmentId", "status", "failedAt"]),
+
+  // Resendの一時的なdelivery_delayedを、即時失敗へ昇格させず猶予するための運用状態。
+  // 既存Outboxへ新規indexを追加せず、新規の空tableで期限順のbounded recoveryを成立させる。
+  notificationResendDelayedFailureDeadlines: defineTable({
+    outboxId: v.id("notificationOutbox"),
+    dueAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_outboxId", ["outboxId"])
+    .index("by_dueAt", ["dueAt"]),
 
   notificationHistory: defineTable({
     outboxId: v.id("notificationOutbox"),
