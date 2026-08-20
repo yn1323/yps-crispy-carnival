@@ -74,4 +74,42 @@ describe("useSingleFlight", () => {
     expect(firstHandler).not.toHaveBeenCalled();
     expect(latestHandler).toHaveBeenCalledOnce();
   });
+
+  it("release後に始めた新しい実行を古いPromiseの完了で解除しない", async () => {
+    const firstGate = deferred<void>();
+    const secondGate = deferred<void>();
+    const handler = vi.fn(async (value: string) => {
+      await (value === "first" ? firstGate.promise : secondGate.promise);
+      return value;
+    });
+    const { result } = renderHook(() => useSingleFlight(handler));
+
+    let first!: Promise<string | undefined>;
+    act(() => {
+      first = result.current.run("first");
+    });
+    await waitFor(() => expect(result.current.isRunning).toBe(true));
+
+    act(() => result.current.release());
+    await waitFor(() => expect(result.current.isRunning).toBe(false));
+
+    let second!: Promise<string | undefined>;
+    act(() => {
+      second = result.current.run("second");
+    });
+    await waitFor(() => expect(result.current.isRunning).toBe(true));
+
+    await act(async () => {
+      firstGate.resolve();
+      await expect(first).resolves.toBe("first");
+    });
+    expect(result.current.isRunning).toBe(true);
+
+    await act(async () => {
+      secondGate.resolve();
+      await expect(second).resolves.toBe("second");
+    });
+    await waitFor(() => expect(result.current.isRunning).toBe(false));
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
 });

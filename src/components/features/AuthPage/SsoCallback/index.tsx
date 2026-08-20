@@ -1,18 +1,48 @@
-import { SignIn, SignUp } from "@clerk/react";
 import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
-import { LoginFlow } from "../LoginFlow";
+import { ClerkCaptcha } from "../AuthFormControls";
+import { SsoClientTrustView, SsoRecoveryView } from "./SsoCallbackView";
 import { useSsoCallbackController } from "./useSsoCallbackController";
 
 export function SsoCallbackPage({ redirectTo }: { redirectTo: string }) {
-  const { continuation, errorMessage, isProcessing } = useSsoCallbackController({ redirectTo });
+  const {
+    errorMessage,
+    isProcessing,
+    isSubmitting,
+    resendCooldownSeconds,
+    safeIdentifier,
+    verificationInfoMessage,
+    viewState,
+    onResendClientTrustCode,
+    onRestart,
+    onVerifyClientTrust,
+  } = useSsoCallbackController({ redirectTo });
 
   return (
     <>
-      <div id="clerk-captcha" />
-      {isProcessing && !errorMessage && <FullPageSpinner />}
-      {continuation === "sign-in" && <SignIn routing="hash" forceRedirectUrl={redirectTo} />}
-      {continuation === "sign-up" && <SignUp routing="hash" forceRedirectUrl={redirectTo} />}
-      {errorMessage && <LoginFlow redirectTo={redirectTo} initialErrorMessage={errorMessage} />}
+      <ClerkCaptcha />
+      {isProcessing && <FullPageSpinner />}
+      {viewState.kind === "client-trust" && (
+        <SsoClientTrustView
+          errorMessage={errorMessage}
+          infoMessage={verificationInfoMessage}
+          isSubmitting={isSubmitting}
+          resendCooldownSeconds={resendCooldownSeconds}
+          safeIdentifier={safeIdentifier}
+          onBack={() => onRestart("login")}
+          onResend={onResendClientTrustCode}
+          onSubmit={onVerifyClientTrust}
+        />
+      )}
+      {viewState.kind === "recovery" && (
+        <SsoRecoveryView
+          errorMessage={errorMessage}
+          isSubmitting={isSubmitting}
+          target={viewState.target}
+          onRestart={() => onRestart(viewState.target)}
+        />
+      )}
     </>
   );
 }
+
+export { SsoClientTrustView, SsoRecoveryView } from "./SsoCallbackView";
