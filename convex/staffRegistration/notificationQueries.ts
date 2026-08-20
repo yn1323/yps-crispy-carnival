@@ -1,8 +1,8 @@
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
-import { internalQuery } from "../_generated/server";
 import { isShopParentActive } from "../_lib/activeShop";
 import { buildShopDashboardUrl } from "../_lib/dashboardUrl";
+import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { loadShopManagerRecipients } from "../_lib/shopManagerRecipients";
 import { STAFF_REGISTRATION_DAILY_DIGEST_MANAGER_LIMIT, STAFF_REGISTRATION_DIGEST_WINDOW_MS } from "../constants";
 

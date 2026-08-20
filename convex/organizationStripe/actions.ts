@@ -5,8 +5,9 @@ import { ConvexError, v } from "convex/values";
 import Stripe from "stripe";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
-import { type ActionCtx, action, internalAction } from "../_generated/server";
+import type { ActionCtx } from "../_generated/server";
 import { getAppUrl } from "../_lib/config";
+import { observedAction as action, observedInternalAction as internalAction } from "../_lib/errorObservability";
 import { isReleaseFeatureEnabled } from "../_lib/releaseFeatures";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import {

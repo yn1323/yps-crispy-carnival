@@ -1,9 +1,9 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { internalMutation, mutation } from "../_generated/server";
 import { isShopParentActive } from "../_lib/activeShop";
 import { getSubmitLinkCutoff } from "../_lib/dateFormat";
+import { observedInternalMutation as internalMutation, observedMutation as mutation } from "../_lib/errorObservability";
 import { rateLimit } from "../_lib/rateLimits";
 import { recruitmentMatchesAccessKind, sessionMatchesAccessKind, staffAccessKindValidator } from "../_lib/staffAccess";
 import { generateUUID } from "../_lib/uuid";

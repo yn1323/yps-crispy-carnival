@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
-import { internalQuery } from "../_generated/server";
 import { isShopParentActive } from "../_lib/activeShop";
 import {
   formatDateLabel,
@@ -11,6 +10,7 @@ import {
   getSubmitLinkCutoff,
   todayJST,
 } from "../_lib/dateFormat";
+import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
 import { buildShiftTimeLabel } from "../_lib/time";
 import { normalizeEmail } from "../_lib/validation";

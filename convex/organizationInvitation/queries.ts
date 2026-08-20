@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalQuery, query } from "../_generated/server";
+import { observedInternalQuery as internalQuery, observedQuery as query } from "../_lib/errorObservability";
 import { isReleaseFeatureEnabled } from "../_lib/releaseFeatures";
 import { isOrganizationInvitationIssued, isOrganizationInvitationLinked } from "./lifecycle";
 import { resolveOrganizationInvitationEligibility } from "./service";

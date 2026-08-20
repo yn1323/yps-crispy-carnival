@@ -2,7 +2,11 @@ import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
-import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "../_generated/server";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
+import {
+  observedInternalMutation as internalMutation,
+  observedInternalQuery as internalQuery,
+} from "../_lib/errorObservability";
 import { STRIPE_OPERATION_MAX_ATTEMPTS, STRIPE_OPERATION_RETENTION_MS } from "../constants";
 import { hasLegacyBusinessBillingState } from "../organizationBilling/policy";
 import { hasUniqueTerminalSubscriptionEvidence } from "./subscriptionEvidence";

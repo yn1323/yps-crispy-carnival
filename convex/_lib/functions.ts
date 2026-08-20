@@ -2,11 +2,16 @@ import type { UserIdentity } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { customMutation, customQuery } from "convex-helpers/server/customFunctions";
 import type { Doc, Id } from "../_generated/dataModel";
-import { type MutationCtx, mutation, type QueryCtx, query } from "../_generated/server";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { requireOrganizationReadActor } from "../organization/access";
 import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import { requireOrganizationBusinessWrite } from "../organizationBilling/service";
 import { isShiftTargetStaff } from "../staff/service";
+import {
+  observedMutation as mutation,
+  observedQuery as query,
+  registerConvexFunctionErrorContext,
+} from "./errorObservability";
 import { type StaffAccessKind, sessionMatchesAccessKind, staffAccessKindValidator } from "./staffAccess";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
@@ -223,6 +228,9 @@ export const authenticatedQuery = customQuery(query, {
       return { ctx: { identity: null, user: null }, args: {} };
     }
     const user = await getUserByIdentity(ctx, identity, "query");
+    if (user) {
+      registerConvexFunctionErrorContext(ctx, { actorKind: "authenticated", actorUserId: user._id });
+    }
     return { ctx: { identity, user }, args: {} };
   },
 });
@@ -235,6 +243,10 @@ export const authenticatedMutation = customMutation(mutation, {
       throw new ConvexError("Unauthenticated");
     }
     const user = await getUserByIdentity(ctx, identity, "mutation");
+    registerConvexFunctionErrorContext(ctx, {
+      actorKind: "authenticated",
+      ...(user ? { actorUserId: user._id } : {}),
+    });
     return { ctx: { identity, user }, args: {} };
   },
 });
@@ -247,13 +259,19 @@ export const authenticatedMutation = customMutation(mutation, {
 export const organizationQuery = customQuery(query, {
   args: { organizationId: v.id("organizations") },
   input: async (ctx, { organizationId }): Promise<{ ctx: OrganizationQueryCtx; args: Record<string, never> }> => {
+    registerConvexFunctionErrorContext(ctx, { requestedOrganizationId: organizationId });
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new ConvexError("Not found");
 
     const user = await getUserByIdentity(ctx, identity, "query");
     if (!user || user.isDeleted) throw new ConvexError("Not found");
+    registerConvexFunctionErrorContext(ctx, { actorKind: "manager", actorUserId: user._id });
 
     const actor = await requireOrganizationReadActor(ctx, { user, organizationId });
+    registerConvexFunctionErrorContext(ctx, {
+      actorPersonId: actor.person._id,
+      organizationId: actor.organization._id,
+    });
     return {
       ctx: {
         user,
@@ -274,13 +292,19 @@ export const organizationQuery = customQuery(query, {
 export const organizationMutation = customMutation(mutation, {
   args: { organizationId: v.id("organizations") },
   input: async (ctx, { organizationId }): Promise<{ ctx: OrganizationMutationCtx; args: Record<string, never> }> => {
+    registerConvexFunctionErrorContext(ctx, { requestedOrganizationId: organizationId });
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new ConvexError("Unauthenticated");
 
     const user = await getUserByIdentity(ctx, identity, "mutation");
     if (!user || user.isDeleted) throw new ConvexError("Not found");
+    registerConvexFunctionErrorContext(ctx, { actorKind: "manager", actorUserId: user._id });
 
     const actor = await requireOrganizationReadActor(ctx, { user, organizationId });
+    registerConvexFunctionErrorContext(ctx, {
+      actorPersonId: actor.person._id,
+      organizationId: actor.organization._id,
+    });
     if (actor.member.status !== "active") throw new ConvexError("Not found");
     await requireOrganizationBusinessWrite(ctx, actor.organization._id);
     return {
@@ -310,11 +334,16 @@ export const managerQuery = customQuery(query, {
     ctx,
     { shopId, expectedOrganizationId },
   ): Promise<{ ctx: ManagerQueryCtx; args: Record<string, never> }> => {
+    registerConvexFunctionErrorContext(ctx, {
+      ...(shopId ? { requestedShopId: shopId } : {}),
+      ...(expectedOrganizationId ? { requestedExpectedOrganizationId: expectedOrganizationId } : {}),
+    });
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return { ctx: { user: null, shop: null, organization: null, organizationMember: null }, args: {} };
     }
     const user = await getUserByIdentity(ctx, identity, "query");
+    if (user) registerConvexFunctionErrorContext(ctx, { actorKind: "manager", actorUserId: user._id });
     const access = user && !user.isDeleted ? await resolveShopForUser(ctx, user, shopId, "query") : null;
     if (!user || user.isDeleted || !access) {
       return { ctx: { user: null, shop: null, organization: null, organizationMember: null }, args: {} };
@@ -325,6 +354,11 @@ export const managerQuery = customQuery(query, {
     ) {
       return { ctx: { user: null, shop: null, organization: null, organizationMember: null }, args: {} };
     }
+    registerConvexFunctionErrorContext(ctx, {
+      shopId: access.shop._id,
+      ...(access.organization ? { organizationId: access.organization._id } : {}),
+      ...(access.organizationMember ? { actorPersonId: access.organizationMember.personId } : {}),
+    });
     return { ctx: { user, ...access }, args: {} };
   },
 });
@@ -339,11 +373,16 @@ export const managerMutation = customMutation(mutation, {
     ctx,
     { shopId, expectedOrganizationId },
   ): Promise<{ ctx: ManagerMutationCtx; args: Record<string, never> }> => {
+    registerConvexFunctionErrorContext(ctx, {
+      ...(shopId ? { requestedShopId: shopId } : {}),
+      ...(expectedOrganizationId ? { requestedExpectedOrganizationId: expectedOrganizationId } : {}),
+    });
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new ConvexError("Unauthenticated");
     }
     const user = await getUserByIdentity(ctx, identity, "mutation");
+    if (user) registerConvexFunctionErrorContext(ctx, { actorKind: "manager", actorUserId: user._id });
     const access = user && !user.isDeleted ? await resolveShopForUser(ctx, user, shopId, "mutation") : null;
     if (!user || user.isDeleted || !access) {
       throw new ConvexError("Not found");
@@ -357,6 +396,11 @@ export const managerMutation = customMutation(mutation, {
     if (access.organization) {
       await requireOrganizationBusinessWrite(ctx, access.organization._id);
     }
+    registerConvexFunctionErrorContext(ctx, {
+      shopId: access.shop._id,
+      ...(access.organization ? { organizationId: access.organization._id } : {}),
+      ...(access.organizationMember ? { actorPersonId: access.organizationMember.personId } : {}),
+    });
     return { ctx: { user, ...access }, args: {} };
   },
 });
@@ -457,6 +501,13 @@ export const staffSessionQuery = customQuery(query, {
     if (result.status !== "ok") {
       return { ctx: { staff: null, shop: null, session: null }, args: {} };
     }
+    registerConvexFunctionErrorContext(ctx, {
+      actorKind: "staff",
+      staffId: result.ctx.staff._id,
+      shopId: result.ctx.shop._id,
+      ...(result.ctx.staff.organizationId ? { organizationId: result.ctx.staff.organizationId } : {}),
+      ...(result.ctx.staff.organizationPersonId ? { actorPersonId: result.ctx.staff.organizationPersonId } : {}),
+    });
     return { ctx: result.ctx, args: {} };
   },
 });
@@ -476,6 +527,13 @@ export const staffSessionMutation = customMutation(mutation, {
     if (result.status === "notFound") {
       throw new ConvexError("Not found");
     }
+    registerConvexFunctionErrorContext(ctx, {
+      actorKind: "staff",
+      staffId: result.ctx.staff._id,
+      shopId: result.ctx.shop._id,
+      ...(result.ctx.staff.organizationId ? { organizationId: result.ctx.staff.organizationId } : {}),
+      ...(result.ctx.staff.organizationPersonId ? { actorPersonId: result.ctx.staff.organizationPersonId } : {}),
+    });
     return { ctx: result.ctx, args: {} };
   },
 });

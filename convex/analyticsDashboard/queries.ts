@@ -1,8 +1,8 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
-import { internalQuery } from "../_generated/server";
 import { monthJST } from "../_lib/dateFormat";
+import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { FEATURE_REQUEST_LIST_LIMIT } from "../constants";
 import type {
   AnalyticsCompleteness,

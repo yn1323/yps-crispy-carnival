@@ -1,8 +1,12 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { getOrganizationInvitationSigningSecret } from "./_lib/config";
 import { getReminderScheduledAt, getSubmitLinkCutoff } from "./_lib/dateFormat";
+import {
+  observedInternalMutation as internalMutation,
+  observedInternalQuery as internalQuery,
+} from "./_lib/errorObservability";
 import { isDryRunManagerEmail, isNotificationDeliverySuppressed } from "./_lib/notificationDelivery";
 import { resetRateLimit } from "./_lib/rateLimits";
 import { loadShopManagerContacts } from "./_lib/shopManagerRecipients";

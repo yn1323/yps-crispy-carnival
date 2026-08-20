@@ -171,6 +171,11 @@ secret、token、magic link URL、メールアドレス、LINE user ID、通知�
 例外は認証成功時のCapability受け渡しで、`verifyToken`はmagic linkの検証に成功した本人の応答へ新しいsession tokenを意図的に返す（これがスタッフ認証の仕組みそのもの）。この場合もtokenをログ・監査・通知履歴へは残さない。  
 永続化するエラーは固定taxonomy（`line_rate_limited`等）だけとする。
 
+Convex functionのhandler失敗時は、標準の`function_execution`とは別に、固定markerと安全なcontextを持つconsole eventを
+出力する。  contextはserverで解決した内部IDと明示的な許可fieldに限定し、引数・戻り値・生error・stackは含めない。
+両eventはLog Streamが付与する同じrequest IDで突き合わせる。運用手順は
+[`doc/manual/convex-error-observability.md`](../manual/convex-error-observability.md)を参照する。
+
 ## 10. テスト観点への変換メモ
 
 - 2章の各行は「正当な要求」と「不正な要求」の応答を突き合わせ、**status・bodyが同一**であることを検証する。

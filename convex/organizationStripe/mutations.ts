@@ -1,8 +1,9 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
-import { internalMutation, type MutationCtx } from "../_generated/server";
+import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { sha256Hex } from "../_lib/sha256";
 import {
   STRIPE_OPERATION_MAX_ATTEMPTS,

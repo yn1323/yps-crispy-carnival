@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { action } from "../_generated/server";
+import { observedAction as action } from "../_lib/errorObservability";
 
 const syncResultValidator = v.union(
   v.object({ status: v.literal("synced"), changed: v.boolean() }),

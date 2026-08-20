@@ -1,8 +1,9 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
-import { internalMutation, type MutationCtx } from "../_generated/server";
+import type { MutationCtx } from "../_generated/server";
 import { todayJST } from "../_lib/dateFormat";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { rateLimit } from "../_lib/rateLimits";
 import { retryActionRequiredDeletionCleanup } from "../deletionCleanup/mutations";
 import { getActiveUserAssociationStatus } from "../deletionCleanup/service";

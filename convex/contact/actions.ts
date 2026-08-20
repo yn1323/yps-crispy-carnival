@@ -1,8 +1,8 @@
 "use node";
 
 import { v } from "convex/values";
-import { internalAction } from "../_generated/server";
 import { getContactRecipientEmail, getContactSlackWebhookUrl, RESEND_FROM_EMAIL } from "../_lib/config";
+import { observedInternalAction as internalAction } from "../_lib/errorObservability";
 import { isNotificationDeliverySuppressed, logSuppressedNotification } from "../_lib/notificationDelivery";
 import { getResendClient, sendResendEmail } from "../_lib/resend";
 import { type ContactDeliveryInput, getContactTypeLabel } from "./schemas";

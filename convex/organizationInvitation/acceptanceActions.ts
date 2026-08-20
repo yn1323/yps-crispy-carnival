@@ -3,12 +3,13 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { type ActionCtx, action } from "../_generated/server";
+import type { ActionCtx } from "../_generated/server";
 import {
   type ClerkVerifiedEmailProvider,
   classifyClerkVerifiedEmailProviderError,
   createClerkVerifiedEmailProvider,
 } from "../_lib/clerkVerifiedEmailProvider";
+import { observedAction as action } from "../_lib/errorObservability";
 import { isReleaseFeatureEnabled } from "../_lib/releaseFeatures";
 import { getAccountDeletionConfiguration, normalizeIssuer } from "../accountDeletion/config";
 

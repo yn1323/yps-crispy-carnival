@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalQuery } from "../_generated/server";
+import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { organizationBillingNotificationEventValidator } from "./notification";
 import { getEffectiveRestrictedBillingState, getOrganizationBillingStateDeadline } from "./policy";
 

@@ -1,7 +1,8 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
-import { internalMutation, type MutationCtx } from "../_generated/server";
+import type { MutationCtx } from "../_generated/server";
 import { addDays, dateJST, getDeadlineCutoff, getSubmitLinkCutoff, jstDayRangeMs } from "../_lib/dateFormat";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { resolveStaffLineRecipient } from "../line/service";
 import { getAnalyticsResetConfiguration, parseAnalyticsSourceCaptureStartAt } from "./config";
 import { inspectCanonicalFactsPage } from "./invariants";

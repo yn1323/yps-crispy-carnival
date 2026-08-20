@@ -1,7 +1,7 @@
 import { v } from "convex/values";
-import { internalQuery } from "../_generated/server";
 import { buildShopDashboardUrl } from "../_lib/dashboardUrl";
 import { formatDeadlineLabel, formatPeriodLabel } from "../_lib/dateFormat";
+import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { loadShopManagerRecipients } from "../_lib/shopManagerRecipients";
 import { SHIFT_CONFIRMATION_REMINDER_MANAGER_LIMIT } from "../constants";
 

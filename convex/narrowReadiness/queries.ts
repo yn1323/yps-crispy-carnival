@@ -1,7 +1,7 @@
 import type { PaginationOptions } from "convex/server";
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
-import { internalQuery } from "../_generated/server";
+import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { normalizeEmail } from "../_lib/validation";
 import { LINE_ORGANIZATION_PERSON_STAFF_HISTORY_SCAN_LIMIT } from "../constants";
 import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";

@@ -1,5 +1,5 @@
 import type { QueryCtx } from "../_generated/server";
-import { internalQuery } from "../_generated/server";
+import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import {
   NOTIFICATION_FAILURE_INBOX_RETENTION_MS,
   NOTIFICATION_OUTBOX_TERMINAL_PAYLOAD_RETENTION_MS,

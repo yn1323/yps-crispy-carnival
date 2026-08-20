@@ -1,7 +1,8 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
-import { internalMutation, type MutationCtx } from "../_generated/server";
+import type { MutationCtx } from "../_generated/server";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS } from "../constants";
 import { tombstoneLineProviderUserIfUnreferenced } from "../line/service";
 import {

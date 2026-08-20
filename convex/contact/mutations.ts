@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation } from "../_generated/server";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { rateLimit } from "../_lib/rateLimits";
 
 /** Siteverifyへの外部callより先に、固定global budgetを消費する。 */

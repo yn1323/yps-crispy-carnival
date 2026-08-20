@@ -1,7 +1,11 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
-import { internalMutation, internalQuery, type MutationCtx, type QueryCtx } from "../_generated/server";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { addDays, dateJST, getMondayWeekStart, jstDayRangeMs } from "../_lib/dateFormat";
+import {
+  observedInternalMutation as internalMutation,
+  observedInternalQuery as internalQuery,
+} from "../_lib/errorObservability";
 import { HOUR_MS } from "../constants";
 import { ANALYTICS_CALCULATION_VERSION } from "./model";
 import { formatAnalyticsLog, safeAnalyticsErrorCode } from "./observability";

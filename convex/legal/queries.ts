@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-import { internalQuery, query } from "../_generated/server";
 import { isShopParentActive } from "../_lib/activeShop";
+import { observedInternalQuery as internalQuery, observedQuery as query } from "../_lib/errorObservability";
 import { authenticatedQuery } from "../_lib/functions";
 import { resolveStaffLineRecipient } from "../line/service";
 import { toNotificationLineRecipient } from "../notificationOutbox/types";

@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
-import { internalQuery, type QueryCtx } from "../_generated/server";
+import type { QueryCtx } from "../_generated/server";
+import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import {
   type OrganizationReadActor,
   requireOrganizationActorForShop,
