@@ -14,7 +14,6 @@ export const CONVEX_FUNCTION_ERROR_MARKER = "convex_function_error_context";
 const ERROR_SCHEMA_VERSION = 1;
 const MAX_CONTEXT_FIELDS = 12;
 const MAX_ID_LENGTH = 128;
-const MAX_ENUM_LENGTH = 48;
 
 type FunctionKind = "query" | "mutation" | "action";
 type ErrorContextPrimitive = string | number | boolean;
@@ -52,7 +51,7 @@ type ErrorPayload = {
 const resolvedContexts = new WeakMap<object, Record<string, ErrorContextPrimitive>>();
 
 const safeContextFields = {
-  actorKind: { kind: "enum", maxLength: MAX_ENUM_LENGTH },
+  actorKind: { kind: "enum", values: ["authenticated", "manager", "staff", "system"] },
   actorUserId: { kind: "id", maxLength: MAX_ID_LENGTH },
   actorPersonId: { kind: "id", maxLength: MAX_ID_LENGTH },
   organizationId: { kind: "id", maxLength: MAX_ID_LENGTH },
@@ -68,7 +67,7 @@ const safeContextFields = {
   requestedPersonId: { kind: "id", maxLength: MAX_ID_LENGTH },
   requestedInvitationId: { kind: "id", maxLength: MAX_ID_LENGTH },
   requestedNotificationOutboxId: { kind: "id", maxLength: MAX_ID_LENGTH },
-  operation: { kind: "enum", maxLength: MAX_ENUM_LENGTH },
+  operation: { kind: "enum", values: ["read", "create", "update", "delete", "recover"] },
   affectedCount: { kind: "number" },
   retryable: { kind: "boolean" },
 } as const;
@@ -87,13 +86,18 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const sanitizePrimitive = (
   value: unknown,
-  rule: { kind: "id" | "enum"; maxLength: number } | { kind: "number" } | { kind: "boolean" },
+  rule:
+    | { kind: "id"; maxLength: number }
+    | { kind: "enum"; values: readonly string[] }
+    | { kind: "number" }
+    | { kind: "boolean" },
 ): ErrorContextPrimitive | undefined => {
   if (rule.kind === "number") {
     return typeof value === "number" && Number.isFinite(value) ? value : undefined;
   }
   if (rule.kind === "boolean") return typeof value === "boolean" ? value : undefined;
   if (typeof value !== "string" || value.length === 0) return undefined;
+  if (rule.kind === "enum") return rule.values.includes(value) ? value : undefined;
   return value.slice(0, rule.maxLength);
 };
 

@@ -70,6 +70,20 @@ describe("buildConvexFunctionErrorPayload", () => {
     expect(JSON.stringify(unknown)).not.toContain("secret@example.com");
   });
 
+  it("型を迂回した未許可enumも実行時に破棄する", () => {
+    const ctx = {};
+    registerConvexFunctionErrorContext(ctx, {
+      actorKind: "secret@example.com",
+      operation: "token-value",
+    } as unknown as Parameters<typeof registerConvexFunctionErrorContext>[1]);
+
+    const payload = buildConvexFunctionErrorPayload("query", new Error("failed"), ctx, {});
+
+    expect(payload).not.toHaveProperty("context");
+    expect(JSON.stringify(payload)).not.toContain("secret@example.com");
+    expect(JSON.stringify(payload)).not.toContain("token-value");
+  });
+
   it("IDとenumを上限長で切り詰め、context field数を固定上限へ抑える", () => {
     const longId = "x".repeat(200);
     const ctx = {};
