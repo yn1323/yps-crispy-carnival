@@ -84,6 +84,7 @@ export function RecruitmentManagement({
   const selectedShop = useAtomValue(selectedShopAtom);
   const createDialog = useDialog();
   const deleteDialog = useDialog();
+  const [createSessionRevision, setCreateSessionRevision] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<Recruitment | null>(null);
   const [isPastRecruitmentsVisible, setIsPastRecruitmentsVisible] = useState(data?.isPastRecruitmentsVisible ?? false);
   const recruitments = useShopPaginatedQuery(api.dashboard.queries.getDashboardRecruitments, data ? "skip" : {}, {
@@ -176,6 +177,7 @@ export function RecruitmentManagement({
 
   const handleOpenCreate = () => {
     if (isReadOnly) return;
+    setCreateSessionRevision((revision) => revision + 1);
     createDialog.open();
   };
 
@@ -199,6 +201,7 @@ export function RecruitmentManagement({
       isPastRecruitmentsVisible={data?.isPastRecruitmentsVisible ?? isPastRecruitmentsVisible}
       canLoadMorePastRecruitments={resolvedCanLoadMorePastRecruitments}
       tourRecruitmentId={knownRecruitments[0]?._id}
+      createSessionKey={String(createSessionRevision)}
       createDialog={createDialog}
       deleteDialog={deleteDialog}
       deleteTarget={deleteTarget}
