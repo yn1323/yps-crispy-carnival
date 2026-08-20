@@ -92,7 +92,6 @@ export const StaffRegistrationRequestDialog = ({
       submitColorPalette="red"
       isLoading={isRejecting}
       isSubmitDisabled={isReadOnly || rejectTarget === null}
-      mobileActionLayout={isConfirmingReject ? "stacked" : "inline"}
       mobileFullScreen
       maxW={isConfirmingReject ? "480px" : { lg: "960px" }}
       maxH={isConfirmingReject ? undefined : { lg: "82dvh" }}

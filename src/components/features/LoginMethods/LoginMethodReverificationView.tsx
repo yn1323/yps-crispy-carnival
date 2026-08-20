@@ -20,7 +20,6 @@ export function LoginMethodReverificationActions({ controller }: { controller: L
     return (
       <DialogActionArea
         layout="standard"
-        mobileLayout="inline"
         endAction={
           <Button type="button" variant="outline" onClick={controller.cancel}>
             閉じる
@@ -35,7 +34,6 @@ export function LoginMethodReverificationActions({ controller }: { controller: L
     return (
       <DialogActionArea
         layout="standard"
-        mobileLayout="inline"
         startAction={
           isSubmittingFactor ? (
             <Button type="button" variant="outline" disabled>
@@ -62,7 +60,6 @@ export function LoginMethodReverificationActions({ controller }: { controller: L
     return (
       <DialogActionArea
         layout="standard"
-        mobileLayout="inline"
         startAction={
           <Button type="button" variant="outline" onClick={controller.cancel}>
             キャンセル
@@ -80,7 +77,6 @@ export function LoginMethodReverificationActions({ controller }: { controller: L
   return (
     <DialogActionArea
       layout="standard"
-      mobileLayout="inline"
       endAction={
         <Button type="button" variant="outline" onClick={controller.cancel}>
           キャンセル

@@ -28,7 +28,6 @@ const preventCloseWhenInteractingWithToaster: NonNullable<
 };
 
 export type DialogActionAreaLayout = "standard" | "flow";
-export type DialogMobileActionLayout = "inline" | "stacked";
 
 type DialogActionAreaActions =
   | { startAction: ReactNode; endAction?: ReactNode }
@@ -36,7 +35,6 @@ type DialogActionAreaActions =
 
 export type DialogActionAreaProps = DialogActionAreaActions & {
   layout: DialogActionAreaLayout;
-  mobileLayout: DialogMobileActionLayout;
 };
 
 const mergeMobileFullScreenSize = (value: unknown, mobileValue: string, desktopFallback: string) => {
@@ -55,20 +53,12 @@ const mergeMobileFullScreenSize = (value: unknown, mobileValue: string, desktopF
   return { base: mobileValue, lg: value ?? desktopFallback };
 };
 
-const DialogActionSlot = ({
-  children,
-  mobileLayout,
-  position,
-}: {
-  children: ReactNode;
-  mobileLayout: DialogMobileActionLayout;
-  position: "start" | "end";
-}) => (
+const DialogActionSlot = ({ children, position }: { children: ReactNode; position: "start" | "end" }) => (
   <Box
     data-dialog-action={position}
     display="grid"
-    flex={{ base: mobileLayout === "inline" ? 1 : "none", md: "none" }}
-    w={{ base: mobileLayout === "inline" ? "auto" : "full", md: "auto" }}
+    flex={{ base: 1, md: "none" }}
+    w={{ base: "auto", md: "auto" }}
     minW={0}
     minH={{ base: 11, md: "auto" }}
     css={{
@@ -81,6 +71,7 @@ const DialogActionSlot = ({
           height: "auto",
           paddingBlock: "0.5rem",
           whiteSpace: "normal",
+          overflowWrap: "anywhere",
         },
       },
     }}
@@ -90,7 +81,7 @@ const DialogActionSlot = ({
 );
 
 /** Buttonの意味や配色とは独立して、Dialog内のaction配置とDOM順を揃える。 */
-export const DialogActionArea = ({ startAction, endAction, layout, mobileLayout }: DialogActionAreaProps) => {
+export const DialogActionArea = ({ startAction, endAction, layout }: DialogActionAreaProps) => {
   const desktopJustify =
     layout === "standard"
       ? "flex-end"
@@ -104,23 +95,15 @@ export const DialogActionArea = ({ startAction, endAction, layout, mobileLayout 
     <Flex
       data-dialog-action-area
       data-layout={layout}
-      data-mobile-layout={mobileLayout}
       w="full"
-      direction={{ base: mobileLayout === "stacked" ? "column" : "row", md: "row" }}
+      direction="row"
       align={{ base: "stretch", md: "center" }}
       justify={{ base: "flex-start", md: desktopJustify }}
       gap={3}
+      flexWrap="nowrap"
     >
-      {startAction && (
-        <DialogActionSlot position="start" mobileLayout={mobileLayout}>
-          {startAction}
-        </DialogActionSlot>
-      )}
-      {endAction && (
-        <DialogActionSlot position="end" mobileLayout={mobileLayout}>
-          {endAction}
-        </DialogActionSlot>
-      )}
+      {startAction && <DialogActionSlot position="start">{startAction}</DialogActionSlot>}
+      {endAction && <DialogActionSlot position="end">{endAction}</DialogActionSlot>}
     </Flex>
   );
 };
@@ -174,7 +157,6 @@ export type DialogProps = {
   preventClose?: boolean;
   unmountOnExit?: boolean;
   actionLayout?: DialogActionAreaLayout;
-  mobileActionLayout?: DialogMobileActionLayout;
   mobileFullScreen?: boolean;
 };
 
@@ -205,7 +187,6 @@ export const Dialog = ({
   preventClose = false,
   unmountOnExit = false,
   actionLayout = "standard",
-  mobileActionLayout = "inline",
   mobileFullScreen = false,
 }: DialogProps) => {
   const isBusy = preventClose || isLoading;
@@ -326,7 +307,6 @@ export const Dialog = ({
                 {footer ?? (
                   <DialogActionArea
                     layout={actionLayout}
-                    mobileLayout={mobileActionLayout}
                     startAction={submitAction ? closeAction : undefined}
                     endAction={submitAction ?? closeAction}
                   />

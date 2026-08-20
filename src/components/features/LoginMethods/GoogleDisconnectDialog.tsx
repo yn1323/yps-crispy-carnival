@@ -46,7 +46,6 @@ export function GoogleDisconnectDialog({
   ) : isCleanupPending ? (
     <DialogActionArea
       layout="standard"
-      mobileLayout="inline"
       endAction={
         <Button type="button" colorPalette="red" loading={isBusy} loadingText="もう一度試す" onClick={submit}>
           もう一度試す
@@ -71,7 +70,6 @@ export function GoogleDisconnectDialog({
       submitLabel="解除する"
       submitColorPalette="red"
       footer={footer}
-      mobileActionLayout="inline"
       mobileFullScreen={isReverifying}
       maxW={{ md: "560px" }}
       maxH={isReverifying ? { md: "86dvh" } : undefined}

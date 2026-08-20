@@ -147,7 +147,6 @@ export const ShiftBoardPageView = ({ viewModel, intents, layout = "legacy", head
         onClose={intents.onCloseConfirmDialog}
         isLoading={shiftForm.isConfirming}
         isSubmitDisabled={viewModel.isReadOnly || shiftForm.isConfirming}
-        mobileActionLayout="inline"
       >
         <ConfirmShiftContent
           staffCount={confirmDialog.staffCount}

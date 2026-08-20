@@ -330,7 +330,6 @@ const ShareStep = ({ shifts, onReplay }: { shifts: ShiftData[]; onReplay: () => 
         footer={
           <DialogActionArea
             layout="standard"
-            mobileLayout="inline"
             startAction={
               <Button variant="outline" onClick={handleReplay}>
                 もう1回試す

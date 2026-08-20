@@ -192,7 +192,6 @@ export function UserShopMembershipDialog({
         isChanging
       }
       preventClose={isChanging}
-      mobileActionLayout="inline"
       mobileFullScreen
       bodyProps={{ px: { base: 4, lg: 6 }, pt: 2, pb: { base: 4, lg: 5 } }}
     >

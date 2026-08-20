@@ -72,7 +72,6 @@ export function UserLineConnectionDialog({
   const footer = isConfirmingDisconnect ? (
     <DialogActionArea
       layout="standard"
-      mobileLayout="stacked"
       startAction={
         <Button
           ref={cancelDisconnectRef}
@@ -98,7 +97,6 @@ export function UserLineConnectionDialog({
   ) : (
     <DialogActionArea
       layout="standard"
-      mobileLayout="inline"
       endAction={
         <Button variant="outline" disabled={isBusy} onClick={handleCloseRequest}>
           閉じる

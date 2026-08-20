@@ -49,7 +49,6 @@ export function PasswordChangeDialog({
       formId={!isReverifying ? PASSWORD_CHANGE_FORM_ID : undefined}
       submitLabel="変更する"
       footer={isReverifying ? <LoginMethodReverificationActions controller={reverification} /> : undefined}
-      mobileActionLayout="inline"
       mobileFullScreen
       maxW={{ md: "560px" }}
       maxH={{ md: "86dvh" }}

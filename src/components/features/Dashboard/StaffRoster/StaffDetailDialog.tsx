@@ -180,7 +180,6 @@ export const StaffDetailDialog = ({
       }
       submitColorPalette={activePendingAction === "delete" ? "red" : "teal"}
       isLoading={isConfirmationRunning}
-      mobileActionLayout={activePendingAction ? "stacked" : "inline"}
       mobileFullScreen
       maxW={{ lg: "960px" }}
       maxH={{ lg: "86dvh" }}

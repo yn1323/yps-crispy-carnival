@@ -32,7 +32,6 @@ export function BillingEmailDialog({ isOpen, billingEmail, isRunning, onClose, o
       submitLabel="変更する"
       isLoading={isRunning}
       isSubmitDisabled={!isEmail(normalized) || normalized.toLowerCase() === billingEmail.trim().toLowerCase()}
-      mobileActionLayout="inline"
       maxW={{ base: "calc(100vw - 24px)", md: "520px" }}
     >
       <form

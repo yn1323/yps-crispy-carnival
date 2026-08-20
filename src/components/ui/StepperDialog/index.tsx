@@ -1,6 +1,6 @@
 import { Box, Flex, HStack, Icon, Text } from "@chakra-ui/react";
 import { type ComponentProps, type ElementType, Fragment, type ReactNode } from "react";
-import { Dialog, type DialogMobileActionLayout } from "@/src/components/ui/Dialog";
+import { Dialog } from "@/src/components/ui/Dialog";
 import { DIALOG_VISUAL_VIEWPORT_HEIGHT } from "@/src/hooks/useDialogVisualViewportStyle";
 
 export type StepperDialogStep<TStep extends string = string> = {
@@ -13,14 +13,7 @@ export type StepperDialogStep<TStep extends string = string> = {
 
 type StepperDialogProps = Omit<
   ComponentProps<typeof Dialog>,
-  | "hideFooter"
-  | "maxW"
-  | "maxH"
-  | "contentProps"
-  | "bodyProps"
-  | "actionLayout"
-  | "mobileActionLayout"
-  | "mobileFullScreen"
+  "hideFooter" | "maxW" | "maxH" | "contentProps" | "bodyProps" | "actionLayout" | "mobileFullScreen"
 > & {
   maxW?: ComponentProps<typeof Dialog>["maxW"];
   maxH?: ComponentProps<typeof Dialog>["maxH"];
@@ -38,7 +31,6 @@ type StepperDialogContentProps<TStep extends string> = StepperDialogStepsProps<T
   children: ReactNode;
   actions?: ReactNode;
   showSteps?: boolean;
-  mobileActionLayout?: DialogMobileActionLayout;
 };
 
 type StepperDialogStepTitleProps = {
@@ -178,13 +170,7 @@ export const StepperDialogStepTitle = ({ icon, title, description }: StepperDial
   </HStack>
 );
 
-export const StepperDialogActionBar = ({
-  children,
-  mobileLayout = "inline",
-}: {
-  children: ReactNode;
-  mobileLayout?: DialogMobileActionLayout;
-}) => (
+export const StepperDialogActionBar = ({ children }: { children: ReactNode }) => (
   <Box
     position={{ base: "sticky", md: "static" }}
     bottom={0}
@@ -198,9 +184,8 @@ export const StepperDialogActionBar = ({
     borderColor="border.default"
   >
     <Flex
-      data-mobile-layout={mobileLayout}
-      direction={{ base: mobileLayout === "stacked" ? "column" : "row", md: "row" }}
-      justify={{ base: mobileLayout === "stacked" ? "flex-start" : "space-between", md: "space-between" }}
+      direction="row"
+      justify="space-between"
       align="stretch"
       gap={3}
       flexWrap="nowrap"
@@ -210,12 +195,13 @@ export const StepperDialogActionBar = ({
         },
         "@media screen and (max-width: 47.997rem)": {
           "& > button": {
-            flex: mobileLayout === "inline" ? "1 1 0" : "0 0 auto",
-            width: mobileLayout === "stacked" ? "100%" : "auto",
+            flex: "1 1 0",
+            width: "auto",
             minHeight: "44px",
             height: "auto",
             paddingBlock: "0.5rem",
             whiteSpace: "normal",
+            overflowWrap: "anywhere",
           },
         },
       }}
@@ -231,7 +217,6 @@ export const StepperDialogContent = <TStep extends string>({
   children,
   actions,
   showSteps = true,
-  mobileActionLayout = "inline",
 }: StepperDialogContentProps<TStep>) => {
   const currentStepDetail = steps.find((step) => step.value === currentStep);
   const shouldShowStepTitle = Boolean(
@@ -266,11 +251,7 @@ export const StepperDialogContent = <TStep extends string>({
         </Flex>
       </Box>
 
-      {actions && (
-        <StepperDialogActionBar key={currentStep} mobileLayout={mobileActionLayout}>
-          {actions}
-        </StepperDialogActionBar>
-      )}
+      {actions && <StepperDialogActionBar key={currentStep}>{actions}</StepperDialogActionBar>}
     </Flex>
   );
 };

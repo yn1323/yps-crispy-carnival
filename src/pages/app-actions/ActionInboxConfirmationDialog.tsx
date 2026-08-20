@@ -33,7 +33,6 @@ export function ActionInboxConfirmationDialog({
       submitColorPalette="red"
       isLoading={isRunning}
       preventClose={isRunning}
-      mobileActionLayout="stacked"
       maxW={{ base: "calc(100vw - 24px)", md: "520px" }}
     >
       <Stack gap={2} fontSize="sm" color="fg.muted" lineHeight="tall">

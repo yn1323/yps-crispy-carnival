@@ -82,7 +82,6 @@ export function NotificationFailureRecoveryView({
       submitColorPalette="red"
       isLoading={isDismissing}
       isSubmitDisabled={isReadOnly || dismissTarget === null}
-      mobileActionLayout={isConfirmingDismiss ? "stacked" : "inline"}
       mobileFullScreen
       maxW={isConfirmingDismiss ? "480px" : { lg: "960px" }}
       maxH={isConfirmingDismiss ? undefined : { lg: "82dvh" }}

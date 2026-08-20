@@ -106,7 +106,6 @@ export function FeatureRequestDialog({ onSubmit }: FeatureRequestDialogProps) {
         formId="feature-request-form"
         submitLabel="要望を送る"
         isLoading={isRunning}
-        mobileActionLayout="inline"
         maxW={{ base: "calc(100vw - 32px)", md: "448px" }}
         keyboardAwareViewport
       >

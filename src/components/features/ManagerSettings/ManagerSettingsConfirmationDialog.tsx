@@ -28,7 +28,6 @@ export function ManagerSettingsConfirmationDialog({ confirmation, isRunning, onC
       submitColorPalette={confirmation.kind === "resend" ? "teal" : "red"}
       isLoading={isRunning}
       preventClose={isRunning}
-      mobileActionLayout="stacked"
       maxW={{ base: "calc(100vw - 24px)", md: "560px" }}
     >
       <Stack gap={2} fontSize="sm" color="fg.muted" lineHeight="tall">
