@@ -26,6 +26,7 @@ type ManagerLegalConsentStatus = {
 };
 
 export type DashboardContentViewProps = {
+  taskScopeKey: string;
   isReadOnly: boolean;
   managerLegalConsentStatus?: ManagerLegalConsentStatus;
   isDashboardOnboardingDismissed: boolean;
@@ -44,6 +45,7 @@ export type DashboardContentViewProps = {
 };
 
 export function DashboardContentView({
+  taskScopeKey,
   isReadOnly,
   managerLegalConsentStatus,
   isDashboardOnboardingDismissed,
@@ -116,6 +118,7 @@ export function DashboardContentView({
                 ) : null}
               </Stack>
               <HeroSummary
+                key={taskScopeKey}
                 recruitments={recruitmentData?.recruitments ?? []}
                 isRecruitmentTaskAvailable={recruitmentData !== null}
                 onOpenShiftBoard={(recruitmentId) =>
@@ -125,14 +128,20 @@ export function DashboardContentView({
                   )
                 }
                 onCreateRecruitment={() => recruitmentData?.openCreateRecruitment()}
-                hasNotificationFailures={(notificationFailureData?.failures.length ?? 0) > 0}
-                onNotificationFailuresClick={notificationFailureData?.openNotificationFailures}
+                notificationFailures={
+                  notificationFailureData && notificationFailureData.actionItemCount > 0
+                    ? {
+                        count: notificationFailureData.actionItemCount,
+                        content: notificationFailureData.content,
+                      }
+                    : undefined
+                }
                 announcementBanner={announcementContent}
                 staffRegistrationRequest={
-                  registrationRequestData && registrationRequestData.requests.length > 0
+                  registrationRequestData && registrationRequestData.actionItemCount > 0
                     ? {
-                        count: registrationRequestData.requests.length,
-                        onClick: registrationRequestData.openStaffRegistrationRequests,
+                        count: registrationRequestData.actionItemCount,
+                        content: registrationRequestData.content,
                       }
                     : undefined
                 }
@@ -140,7 +149,7 @@ export function DashboardContentView({
                 hideActionSection={
                   isReadOnly ||
                   (onboarding.isVisible &&
-                    (notificationFailureData?.failures.length ?? 0) === 0 &&
+                    (notificationFailureData?.actionItemCount ?? 0) === 0 &&
                     !readiness.hasUnavailableTasks) ||
                   !managerLegalConsentStatus
                 }
@@ -160,8 +169,6 @@ export function DashboardContentView({
               <DashboardSectionUnavailable title="スタッフ一覧を読み込めませんでした" onRetry={staff.onRetry} />
             )}
           </ContentWrapper>
-          {registrationRequestData?.content}
-          {notificationFailureData?.content}
         </>
       )}
     </DashboardOnboardingGate>

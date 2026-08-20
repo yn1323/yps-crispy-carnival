@@ -8,8 +8,9 @@ import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedA
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
 import { Button } from "@/src/components/ui/Button";
+import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
 import { userAtom } from "@/src/stores/user";
-import type { DashboardNotificationFailure } from "../NotificationFailureDialog";
+import type { DashboardNotificationFailure } from "../NotificationFailureRecovery";
 import type { OperationContextData } from "../OperationContext";
 import { buildDashboardRecruitmentGroups } from "../script";
 import { mockCurrentRecruitments, mockRecruitments, mockStaffs } from "../stories/fixtures";
@@ -523,13 +524,19 @@ export const ReadOnlyTransitionBehavior: Story = {
     await body.findByRole("dialog", { name: "スタッフを追加" });
     await expectDialogClosedByReadOnly("スタッフを追加");
 
-    await userEvent.click(await canvas.findByRole("button", { name: "申請を確認" }));
-    await body.findByRole("dialog", { name: "スタッフ登録申請" });
-    await expectDialogClosedByReadOnly("スタッフ登録申請");
+    await userEvent.click(await canvas.findByRole("button", { name: /スタッフ登録申請が2件/ }));
+    await canvas.findByRole("region", { name: "スタッフ登録申請" });
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle).toHaveAttribute("aria-pressed", "true"));
+    await waitFor(() => expect(canvas.queryByRole("region", { name: "スタッフ登録申請" })).not.toBeInTheDocument());
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle).toHaveAttribute("aria-pressed", "false"));
 
-    await userEvent.click(await canvas.findByRole("button", { name: "通知を確認する" }));
-    await body.findByRole("dialog", { name: "送れなかった通知" });
-    await expectDialogClosedByReadOnly("送れなかった通知");
+    await userEvent.click(await canvas.findByRole("button", { name: /送れなかった通知が2件/ }));
+    await canvas.findByRole("region", { name: "送れなかった通知" });
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle).toHaveAttribute("aria-pressed", "true"));
+    await waitFor(() => expect(canvas.queryByRole("region", { name: "送れなかった通知" })).not.toBeInTheDocument());
   },
 };
 
@@ -602,23 +609,187 @@ export const WithNotificationFailures: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const body = within(document.body);
 
-    await expect(body.queryByRole("dialog", { name: "送れなかった通知" })).not.toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("button", { name: "通知を確認する" }));
+    const trigger = canvas.getByRole("button", { name: /送れなかった通知が2件/ });
+    await expect(canvas.queryByRole("region", { name: "送れなかった通知" })).not.toBeInTheDocument();
+    await userEvent.click(trigger);
 
-    const dialog = await body.findByRole("dialog", { name: "送れなかった通知" });
-    const dialogView = within(dialog);
-    await expect(dialogView.getAllByText("佐藤 真由美").length).toBeGreaterThan(0);
+    const notificationItems = await canvas.findByRole("region", { name: "送れなかった通知" });
+    await waitFor(() => expect(within(notificationItems).getByText(/佐藤 真由美さんへシフト募集通知/)).toBeVisible());
+    await expect(within(notificationItems).getAllByRole("button", { name: "再送する" }).length).toBeGreaterThan(0);
 
-    await userEvent.click(dialogView.getAllByRole("button", { name: "メール通知について" })[0]);
-    await dialogView.findByText(/登録メールアドレスに誤りがないか/);
-
-    const closeButtons = dialogView.getAllByRole("button", { name: "閉じる" });
-    await userEvent.click(closeButtons[closeButtons.length - 1]);
-    await waitFor(() => expect(body.queryByRole("dialog", { name: "送れなかった通知" })).not.toBeInTheDocument());
+    await userEvent.click(trigger);
+    await waitFor(() => expect(canvas.queryByRole("region", { name: "送れなかった通知" })).not.toBeInTheDocument());
   },
 };
+
+export const MultipleOperationalTodoPanelsBehavior: Story = {
+  args: {
+    ...Normal.args,
+    pendingStaffRequests,
+    notificationFailures,
+    isDashboardOnboardingDismissed: true,
+  },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const notificationTrigger = canvas.getByRole("button", { name: /送れなかった通知が2件/ });
+    const registrationTrigger = canvas.getByRole("button", { name: /スタッフ登録申請が2件/ });
+
+    await expect(canvas.queryByRole("region", { name: "送れなかった通知" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("region", { name: "スタッフ登録申請" })).not.toBeInTheDocument();
+
+    await userEvent.click(notificationTrigger);
+    await userEvent.click(registrationTrigger);
+
+    const notificationItems = await canvas.findByRole("region", { name: "送れなかった通知" });
+    const registrationItems = await canvas.findByRole("region", { name: "スタッフ登録申請" });
+    await waitFor(() =>
+      expect(within(notificationItems).getAllByRole("button", { name: "再送する" })[0]).toBeVisible(),
+    );
+    await waitFor(() =>
+      expect(within(registrationItems).getAllByRole("button", { name: "承認する" })[0]).toBeVisible(),
+    );
+
+    await userEvent.click(notificationTrigger);
+    await waitFor(() => expect(canvas.queryByRole("region", { name: "送れなかった通知" })).not.toBeInTheDocument());
+    await expect(canvas.getByRole("region", { name: "スタッフ登録申請" })).toBeVisible();
+  },
+};
+
+const expandedOperationalTodoPanelsArgs = {
+  ...Normal.args,
+  pendingStaffRequests,
+  notificationFailures,
+  isDashboardOnboardingDismissed: true,
+};
+
+const expandOperationalTodoPanels = async (canvasElement: HTMLElement) => {
+  const canvas = within(canvasElement);
+  await userEvent.click(canvas.getByRole("button", { name: /送れなかった通知が2件/ }));
+  await userEvent.click(canvas.getByRole("button", { name: /スタッフ登録申請が2件/ }));
+  await canvas.findByRole("region", { name: "送れなかった通知" });
+  await canvas.findByRole("region", { name: "スタッフ登録申請" });
+};
+
+export const ExpandedOperationalTodoPanelsDesktop: Story = {
+  args: expandedOperationalTodoPanelsArgs,
+  play: async ({ canvasElement }) => expandOperationalTodoPanels(canvasElement),
+};
+
+export const ExpandedOperationalTodoPanelsMobile: Story = {
+  args: expandedOperationalTodoPanelsArgs,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  play: async ({ canvasElement }) => expandOperationalTodoPanels(canvasElement),
+};
+
+export const OperationalTodoConfirmationFocusBehavior: Story = {
+  args: expandedOperationalTodoPanelsArgs,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: /スタッフ登録申請が2件/ }));
+    const registrationItems = await canvas.findByRole("region", { name: "スタッフ登録申請" });
+    const trigger = within(registrationItems).getAllByRole("button", { name: /その他の操作$/ })[0];
+    await userEvent.click(trigger);
+    await userEvent.click(await body.findByRole("menuitem", { name: "却下する" }));
+
+    const dialog = await body.findByRole("alertdialog", { name: "スタッフ登録申請を却下しますか？" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "やめる" }));
+    await waitFor(() => expect(trigger).toHaveFocus());
+  },
+};
+
+export const OperationalTodoConfirmationSuccessFocusBehavior: Story = {
+  args: {
+    ...Normal.args,
+    pendingStaffRequests: pendingStaffRequests.slice(0, 1),
+    isDashboardOnboardingDismissed: true,
+  },
+  parameters: { screenshot: { skip: true } },
+  render: (args) => (
+    <ManagerShopScopeProvider shopId="shop-1" expectedOrganizationId="organization-1">
+      <DashboardContent {...args} />
+    </ManagerShopScopeProvider>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: /スタッフ登録申請が1件/ }));
+    const registrationItems = await canvas.findByRole("region", { name: "スタッフ登録申請" });
+    const originalCard = within(registrationItems).getByRole("article");
+    const originalTrigger = within(originalCard).getByRole("button", { name: /その他の操作$/ });
+    await userEvent.click(originalTrigger);
+    await userEvent.click(await body.findByRole("menuitem", { name: "却下する" }));
+
+    const dialog = await body.findByRole("alertdialog", { name: "スタッフ登録申請を却下しますか？" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "この申請を却下" }));
+
+    await waitFor(() => expect(originalCard).toHaveAttribute("data-state", "exiting"));
+    await expect(originalTrigger.isConnected).toBe(true);
+    const exitingItems = canvas.getByRole("region", { name: "スタッフ登録申請" });
+    await expect(within(exitingItems).getByRole("article")).toBe(originalCard);
+    await expect(within(exitingItems).getByRole("button", { name: /その他の操作$/ })).toBe(originalTrigger);
+    await waitFor(() => expect(originalTrigger).toHaveFocus());
+  },
+};
+
+export const OperationalTodoScopeResetBehavior: Story = {
+  args: Normal.args,
+  parameters: { screenshot: { skip: true } },
+  render: () => <OperationalTodoScopeResetStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(canvas.getByRole("button", { name: /送れなかった通知が2件/ }));
+    await userEvent.click(canvas.getByRole("button", { name: /スタッフ登録申請が2件/ }));
+    await canvas.findByRole("region", { name: "送れなかった通知" });
+    await canvas.findByRole("region", { name: "スタッフ登録申請" });
+
+    await userEvent.click(canvas.getByRole("button", { name: "操作店舗を切り替える" }));
+
+    await waitFor(() => expect(canvas.queryByRole("region", { name: "送れなかった通知" })).not.toBeInTheDocument());
+    await expect(canvas.queryByRole("region", { name: "スタッフ登録申請" })).not.toBeInTheDocument();
+    await expect(canvas.getByRole("heading", { name: "カフェたなか", level: 1 })).toBeVisible();
+  },
+};
+
+function OperationalTodoScopeResetStory() {
+  const [selectedShopIndex, setSelectedShopIndex] = useState(0);
+  const selectedShop = operationContextData.shops[selectedShopIndex] ?? operationShop;
+  const selectedOperationContext = {
+    ...operationContextData,
+    selectedShop,
+  } satisfies OperationContextData;
+
+  return (
+    <>
+      <Button
+        position="fixed"
+        top={2}
+        left={2}
+        zIndex="tooltip"
+        onClick={() => setSelectedShopIndex((current) => (current === 0 ? 1 : 0))}
+      >
+        操作店舗を切り替える
+      </Button>
+      <DashboardContent
+        {...dashboardBaseArgs}
+        operationContextData={selectedOperationContext}
+        recruitments={dashboardRecruitments}
+        currentRecruitments={mockCurrentRecruitments}
+        staffs={mockStaffs}
+        pendingStaffRequests={pendingStaffRequests}
+        notificationFailures={notificationFailures}
+        isDashboardOnboardingDismissed
+      />
+    </>
+  );
+}
 
 export const LegalReconsentRequired: Story = {
   args: {
@@ -839,24 +1010,17 @@ export const PendingRequestsShowNextActionDuringOnboarding: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const body = within(document.body);
-    const reviewButton = await canvas.findByRole("button", { name: "申請を確認" });
+    const reviewButton = await canvas.findByRole("button", { name: /スタッフ登録申請が2件/ });
 
-    await expect(body.queryByRole("dialog", { name: "スタッフ登録申請" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("region", { name: "スタッフ登録申請" })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("region", { name: "シフトリへようこそ！" })).not.toBeInTheDocument();
 
     await userEvent.click(reviewButton);
 
-    const dialog = await body.findByRole("dialog", { name: "スタッフ登録申請" });
-    const dialogView = within(dialog);
-    await expect((await dialogView.findAllByText("田中 花子")).length).toBeGreaterThan(0);
-    await expect((await dialogView.findAllByText("hanako@example.com")).length).toBeGreaterThan(0);
-    await expect(dialogView.getAllByRole("button", { name: "田中 花子を承認" }).length).toBeGreaterThan(0);
-    await expect(dialogView.getAllByRole("button", { name: "田中 花子を却下" }).length).toBeGreaterThan(0);
-
-    const closeButtons = dialogView.getAllByRole("button", { name: "閉じる" });
-    await userEvent.click(closeButtons[closeButtons.length - 1]);
-    await waitFor(() => expect(body.queryByRole("dialog", { name: "スタッフ登録申請" })).not.toBeInTheDocument());
+    const requestItems = await canvas.findByRole("region", { name: "スタッフ登録申請" });
+    await waitFor(() => expect(within(requestItems).getByText(/田中 花子さんからスタッフ登録申請/)).toBeVisible());
+    await expect(within(requestItems).queryByText("hanako@example.com")).not.toBeInTheDocument();
+    await expect(within(requestItems).getAllByRole("button", { name: "承認する" }).length).toBeGreaterThan(0);
   },
 };
 

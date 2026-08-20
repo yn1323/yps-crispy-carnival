@@ -12,12 +12,16 @@ type ActionInboxActionBase = {
   emphasis?: "primary" | "secondary" | "danger";
 };
 
+export type ActionInboxActionContext = {
+  triggerElement: HTMLElement;
+};
+
 export type ActionInboxAction =
   | (ActionInboxActionBase & {
       disabled?: false;
       disabledReason?: never;
       failureMessage?: string;
-      onClick: () => void | Promise<void>;
+      onClick: (context?: ActionInboxActionContext) => void | Promise<void>;
     } & (
         | {
             removesItemOnSuccess: true;

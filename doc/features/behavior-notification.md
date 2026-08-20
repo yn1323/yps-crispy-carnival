@@ -162,7 +162,7 @@ Outboxに入った後でも、provider呼び出しの**直前**に次を再確�
 | 3 | 確定催促・不達digest・本番募集リマインダーは抑止contextによりInboxに**記録自体を作らない**（配送イベントログには残る）。種別を判定できない`other` contextはInboxに記録されるが、一覧・要対応カード・日次digestには**表示されない** |
 | 4 | 募集に紐づく不達は、募集が**非削除かつ`open`**の場合だけ表示・再通知対象（募集終了後の行は記録のみ） |
 | 5 | 再通知は「受付済み」で成功扱い（配送完了ではない）。再失敗すれば同じ行が`open`へ戻る |
-| 6 | 「無視する」は確認Dialogを経て`resolved/dismissed`（物理削除しない）。再失敗すれば再表示される |
+| 6 | 「再送せず破棄する」は確認Dialogを経て`resolved/dismissed`（物理削除しない）。再失敗すれば再表示される |
 | 7 | 最終失敗から**30日**で`resolved/expired`になり、表示・再通知対象から外れる |
 | 8 | LINE連携案内の再通知は毎回**新しい連携トークン**を発行する（古いトークンの使い回しをしない） |
 
@@ -198,7 +198,7 @@ flowchart TD
     K -->|other種別: 同意依頼・申請digest等| M[記録するが表示しない]
     K -->|actionable種別: 募集・催促・確定・LINE案内| N[open: Dashboard要対応に表示]
     N -->|管理者が再通知| B
-    N -->|無視する| O[resolved/dismissed]
+    N -->|再送せず破棄する| O[resolved/dismissed]
     N -->|最終失敗から30日| P[resolved/expired]
 ```
 

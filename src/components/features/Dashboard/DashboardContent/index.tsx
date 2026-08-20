@@ -1,7 +1,10 @@
 import { type ComponentProps, memo, useCallback, useLayoutEffect, useMemo, useState } from "react";
 import { DashboardAnnouncement } from "../DashboardAnnouncement";
-import type { DashboardNotificationFailure } from "../NotificationFailureDialog";
-import { NotificationFailureRecovery, type NotificationFailureRecoveryState } from "../NotificationFailureRecovery";
+import {
+  type DashboardNotificationFailure,
+  NotificationFailureRecovery,
+  type NotificationFailureRecoveryState,
+} from "../NotificationFailureRecovery";
 import type { OperationContextData } from "../OperationContext";
 import type { PlanStatusCardProps } from "../PlanStatusCard";
 import {
@@ -170,6 +173,7 @@ export const DashboardContent = ({
   );
   const operationSelectedShopId = operationContextData?.selectedShop.shopId;
   const operationSelectedShopName = operationContextData?.selectedShop.shopName;
+  const actionInboxShopName = operationSelectedShopName ?? shop?.name ?? "店舗";
   const recruitmentShopTarget = useMemo(
     () =>
       operationSelectedShopId
@@ -278,6 +282,7 @@ export const DashboardContent = ({
             <RegistrationRequestQuerySource
               key={`registration-requests:${sourceIdentity}`}
               onStageChange={reportRegistrationRequestStage}
+              shopName={actionInboxShopName}
               requests={usesInjectedData ? (pendingStaffRequests ?? EMPTY_STAFF_REGISTRATION_REQUESTS) : undefined}
               isReadOnly={isReadOnly}
               onOpenBillingSettings={navigation?.onOpenBillingSettings}
@@ -285,10 +290,12 @@ export const DashboardContent = ({
             <NotificationFailureQuerySource
               key={`notification-failures:${sourceIdentity}`}
               onStageChange={reportNotificationFailureStage}
+              shopName={actionInboxShopName}
               failures={usesInjectedData ? (notificationFailures ?? EMPTY_NOTIFICATION_FAILURES) : undefined}
               isReadOnly={isReadOnly}
             />
             <DashboardContentView
+              taskScopeKey={sourceIdentity}
               isReadOnly={isReadOnly}
               managerLegalConsentStatus={managerLegalConsentStatus}
               isDashboardOnboardingDismissed={isDashboardOnboardingDismissed}

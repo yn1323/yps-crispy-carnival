@@ -90,7 +90,7 @@
 | [LINE通知連携](line-notification.md) | LINE Loginで組織人物へLINEを連携し、連携済み・友だち状態ならLINE、それ以外はメールへ自動振り分けする。連携URL発行、依頼メール、明示解除 | スタッフ詳細、`/line/callback` |
 | [通知配送outbox](notification-outbox.md) | 全メール・LINE通知を`pending`ジョブ化してworkerが非同期配送する基盤。重複排除、再試行、LINE quota超過時のメールfallback、送信直前の宛先・権限再確認、30日後のpayload redaction | なし（基盤） |
 | [スタッフ通知履歴](notification-history.md) | スタッフごとの通知の日時・チャネル・タイトル・送信/配信状況を表示する（本文・宛先は保存しない） | スタッフ店舗別設定 |
-| [通知不達Dashboard](notification-failure-dashboard.md) | 不達通知の一覧、個別・一斉再通知、「無視する」、open不達がある店舗への日次リマインダー | Dashboard「要対応」 |
+| [通知不達Dashboard](notification-failure-dashboard.md) | 不達通知カード、個別・一斉再通知、「再送せず破棄する」、open不達がある店舗への日次リマインダー | Dashboard「要対応」 |
 | [Dashboardお知らせ](dashboard-announcements.md) | 全体・組織・店舗・プラン単位を対象にお知らせを1件表示する。管理UIはなくConvex Dashboardから登録する | Dashboard |
 
 ### 3.5 課金・利用停止・削除

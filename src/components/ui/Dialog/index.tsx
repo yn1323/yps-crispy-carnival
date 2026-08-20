@@ -156,6 +156,7 @@ export type DialogProps = {
   bodyProps?: ComponentProps<typeof ChakraDialog.Body>;
   preventClose?: boolean;
   unmountOnExit?: boolean;
+  finalFocusEl?: () => HTMLElement | null;
   actionLayout?: DialogActionAreaLayout;
   mobileFullScreen?: boolean;
 };
@@ -186,6 +187,7 @@ export const Dialog = ({
   bodyProps,
   preventClose = false,
   unmountOnExit = false,
+  finalFocusEl,
   actionLayout = "standard",
   mobileFullScreen = false,
 }: DialogProps) => {
@@ -251,6 +253,7 @@ export const Dialog = ({
       modal={modal}
       closeOnEscape={!isBusy}
       closeOnInteractOutside={!isBusy}
+      finalFocusEl={finalFocusEl}
       onInteractOutside={preventCloseWhenInteractingWithToaster}
       {...(role === "alertdialog"
         ? { initialFocusEl: () => closeTriggerRef.current ?? contentRef.current }
