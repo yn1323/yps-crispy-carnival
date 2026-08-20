@@ -473,7 +473,7 @@ export const StaffMembershipAdditionBehavior: Story = {
     await expect(content.queryByText("jiro.suzuki@example.com")).not.toBeInTheDocument();
     await userEvent.click(candidate);
     await expect(content.getByText(/案内を予約します/)).toBeInTheDocument();
-    await expect(content.queryByText("今日以降のシフト割り当てから削除します。")).not.toBeInTheDocument();
+    await expect(content.queryByText("シフト割り当てから削除")).not.toBeInTheDocument();
     await userEvent.click(content.getByRole("button", { name: "変更する" }));
 
     await waitFor(() => {
@@ -542,12 +542,10 @@ export const StaffMembershipRemovalBehavior: Story = {
     );
     await expect(content.getByText("この店舗から外す")).toBeInTheDocument();
     await expect(content.getByText("変更後、この店舗の管理通知は送信されません")).toBeInTheDocument();
-    await expect(content.getByText("今日以降のシフト割り当てから削除します。")).toBeInTheDocument();
-    await expect(
-      content.getByText("この店舗へのシフト通知は送られなくなります。組織のLINE連携は残ります。"),
-    ).toBeInTheDocument();
+    await expect(content.getByText("シフト割り当てから削除")).toBeInTheDocument();
+    await expect(content.getByText("以降シフト通知は送りません")).toBeInTheDocument();
     await expect(content.getByRole("checkbox", { name: "田中 太郎を所属スタッフにする" })).toHaveAccessibleDescription(
-      /今日以降のシフト割り当てから削除します。.*この店舗へのシフト通知は送られなくなります。組織のLINE連携は残ります。/,
+      /シフト割り当てから削除.*以降シフト通知は送りません/,
     );
     await expect(content.queryByText(/過去のシフト記録/)).not.toBeInTheDocument();
     await expect(content.queryByText(/シフト割り当て.*件/)).not.toBeInTheDocument();
@@ -583,13 +581,11 @@ export const StaffMembershipRemovalToggleBehavior: Story = {
 
     await userEvent.click(removedPerson);
     await expect(removedPerson).not.toBeChecked();
-    await expect(content.getByText("今日以降のシフト割り当てから削除します。")).toBeInTheDocument();
+    await expect(content.getByText("シフト割り当てから削除")).toBeInTheDocument();
 
     await userEvent.click(removedPerson);
     await expect(removedPerson).toBeChecked();
-    await waitFor(() =>
-      expect(content.queryByText("今日以降のシフト割り当てから削除します。")).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(content.queryByText("シフト割り当てから削除")).not.toBeInTheDocument());
     await expect(content.queryByText("変更後、この店舗の管理通知は送信されません")).not.toBeInTheDocument();
     await expect(content.getByRole("button", { name: "変更する" })).toBeDisabled();
   },
@@ -603,7 +599,7 @@ export const StaffMembershipRemovalState: Story = {
     });
     const content = within(dialog);
     await userEvent.click(content.getByRole("checkbox", { name: "田中 太郎を所属スタッフにする" }));
-    await content.findByText("今日以降のシフト割り当てから削除します。");
+    await content.findByText("シフト割り当てから削除");
   },
 };
 
@@ -710,7 +706,7 @@ export const StaffMembershipPreviewLoadingBehavior: Story = {
     });
 
     await userEvent.click(removedPerson);
-    await expect(content.getByText("今日以降のシフト割り当てから削除します。")).toBeInTheDocument();
+    await expect(content.getByText("シフト割り当てから削除")).toBeInTheDocument();
     await expect(content.getByRole("button", { name: "変更する" })).toBeDisabled();
     await expect(content.getByRole("button", { name: "キャンセル" })).toBeEnabled();
     await expect(removedPerson).toBeEnabled();

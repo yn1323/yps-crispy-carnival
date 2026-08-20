@@ -79,7 +79,9 @@ export const LateInitialInteractive: Story = {
     await waitFor(() => expect(lateInitialSubmitCount).toBe(1));
     // 提出後はダイアログが閉じ切るまで待つ。非同期の submit→close を待たずに play を終えると
     // VRT 撮影時にダイアログの開/閉状態がブレてフレーキーな差分になるため。
-    await waitFor(() => expect(screen.queryByText("提出締切を過ぎています")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "提出締切を過ぎています" })).not.toBeInTheDocument(),
+    );
   },
 };
 

@@ -202,7 +202,7 @@ describe("organization manager settings queries", () => {
         role: "active",
         name: "管理者",
         canRemoveRole: false,
-        removeRoleDisabledReason: "最後の有効管理者の管理者権限は外せません。",
+        removeRoleDisabledReason: "最後の管理者の権限は外せません。",
       },
       {
         role: "readOnly",

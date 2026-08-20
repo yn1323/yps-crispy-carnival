@@ -29,7 +29,7 @@ export const Desktop: Story = {
       "href",
       `/app/shifts?org=${ORGANIZATION_ID}`,
     );
-    await expect(within(navigation).getByRole("link", { name: "対応" })).toBeVisible();
+    await expect(within(navigation).getByRole("link", { name: "要対応" })).toBeVisible();
     await expect(within(navigation).queryByText("4")).not.toBeInTheDocument();
   },
 };

@@ -3,7 +3,7 @@ import { expectAppHydrated } from "../helpers/appReadiness";
 
 const APP_SHIFTS_DATA_TIMEOUT = 20_000;
 const JAPANESE_WEEKDAYS = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"] as const;
-const RECRUITMENT_CREATED_TOAST_TITLE = /募集をつくりました|募集をつくり、スタッフに通知しました/;
+const RECRUITMENT_CREATED_TOAST_TITLE = "シフト提出依頼をスタッフに送りました";
 
 type RecruitmentInput = {
   periodStart: string;
@@ -43,7 +43,6 @@ export class AppShiftsPage {
     await expect(this.page).toHaveURL((url) => url.searchParams.get("shopFilter") === null, {
       timeout: APP_SHIFTS_DATA_TIMEOUT,
     });
-    await expect(this.shopFilterTrigger("すべて")).toBeVisible({ timeout: APP_SHIFTS_DATA_TIMEOUT });
   }
 
   async selectShopFilter(shopName: string, shopId: string) {

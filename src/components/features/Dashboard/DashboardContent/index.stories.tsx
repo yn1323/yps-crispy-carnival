@@ -604,7 +604,7 @@ export const WithNotificationFailures: Story = {
     const canvas = within(canvasElement);
     const body = within(document.body);
 
-    await expect(canvas.queryByText("佐藤 真由美")).not.toBeInTheDocument();
+    await expect(body.queryByRole("dialog", { name: "送れなかった通知" })).not.toBeInTheDocument();
     await userEvent.click(canvas.getByRole("button", { name: "通知を確認する" }));
 
     const dialog = await body.findByRole("dialog", { name: "送れなかった通知" });
@@ -617,7 +617,6 @@ export const WithNotificationFailures: Story = {
     const closeButtons = dialogView.getAllByRole("button", { name: "閉じる" });
     await userEvent.click(closeButtons[closeButtons.length - 1]);
     await waitFor(() => expect(body.queryByRole("dialog", { name: "送れなかった通知" })).not.toBeInTheDocument());
-    await expect(body.queryByText("佐藤 真由美")).not.toBeInTheDocument();
   },
 };
 
@@ -702,6 +701,43 @@ export const Empty: Story = {
     const dialog = await body.findByRole("dialog", { name: "新しい募集をつくる" });
     await userEvent.click(within(dialog).getByRole("button", { name: "閉じる" }));
     await waitFor(() => expect(body.queryByRole("dialog", { name: "新しい募集をつくる" })).not.toBeInTheDocument());
+  },
+};
+
+export const RecruitmentCreateReopenResetsBehavior: Story = {
+  args: Empty.args,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+    const periodStart = dayjs().add(2, "day");
+    const periodEnd = dayjs().add(4, "day");
+
+    await userEvent.click(canvas.getByRole("button", { name: "新しい募集をつくる" }));
+    const dialog = await body.findByRole("dialog", { name: "新しい募集をつくる" });
+    const dialogView = within(dialog);
+
+    for (const date of [periodStart, periodEnd]) {
+      const iso = date.format("YYYY-MM-DD");
+      const dateButton = Array.from(
+        dialog.querySelectorAll<HTMLButtonElement>('[data-part="table-cell-trigger"]'),
+      ).find((button) => Array.from(button.attributes).some((attribute) => attribute.value.includes(iso)));
+      expect(dateButton, `${iso} の日付ボタン`).toBeDefined();
+      await userEvent.click(dateButton as HTMLButtonElement);
+    }
+
+    await userEvent.click(dialogView.getByRole("button", { name: "次へ" }));
+    await dialogView.findByText("お店のお休みを選択");
+    await userEvent.click(dialogView.getByRole("button", { name: "閉じる" }));
+    await waitFor(() => expect(body.queryByRole("dialog", { name: "新しい募集をつくる" })).not.toBeInTheDocument());
+
+    await userEvent.click(canvas.getByRole("button", { name: "新しい募集をつくる" }));
+    const reopenedDialog = await body.findByRole("dialog", { name: "新しい募集をつくる" });
+    const reopenedView = within(reopenedDialog);
+    await expect(reopenedView.getByText("シフト期間を選択")).toBeInTheDocument();
+    await expect(reopenedDialog.querySelector('input[name="periodStart"]')).toHaveValue("");
+    await expect(reopenedDialog.querySelector('input[name="periodEnd"]')).toHaveValue("");
+    await expect(reopenedDialog.querySelector("[data-selected]")).not.toBeInTheDocument();
   },
 };
 
@@ -806,8 +842,7 @@ export const PendingRequestsShowNextActionDuringOnboarding: Story = {
     const body = within(document.body);
     const reviewButton = await canvas.findByRole("button", { name: "申請を確認" });
 
-    await expect(canvas.queryByText("田中 花子")).not.toBeInTheDocument();
-    await expect(canvas.queryByText("hanako@example.com")).not.toBeInTheDocument();
+    await expect(body.queryByRole("dialog", { name: "スタッフ登録申請" })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("region", { name: "シフトリへようこそ！" })).not.toBeInTheDocument();
 
     await userEvent.click(reviewButton);
@@ -822,8 +857,6 @@ export const PendingRequestsShowNextActionDuringOnboarding: Story = {
     const closeButtons = dialogView.getAllByRole("button", { name: "閉じる" });
     await userEvent.click(closeButtons[closeButtons.length - 1]);
     await waitFor(() => expect(body.queryByRole("dialog", { name: "スタッフ登録申請" })).not.toBeInTheDocument());
-    await expect(body.queryByText("田中 花子")).not.toBeInTheDocument();
-    await expect(body.queryByText("hanako@example.com")).not.toBeInTheDocument();
   },
 };
 

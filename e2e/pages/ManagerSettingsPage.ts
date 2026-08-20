@@ -47,15 +47,9 @@ export class ManagerSettingsPage {
     await expect(candidate).not.toBeChecked({ timeout: MANAGER_SETTINGS_TIMEOUT });
     await candidate.locator("..").click();
     await expect(candidate).toBeChecked();
+    await expect(dialog.getByText(seed.candidateEmail, { exact: true })).toBeVisible();
 
     await dialog.getByRole("button", { name: "管理者として招待する", exact: true }).click();
-    const confirmation = this.page.getByRole("alertdialog", {
-      name: `${seed.candidateName}さんを招待しますか？`,
-      exact: true,
-    });
-    await expect(confirmation).toBeVisible({ timeout: MANAGER_SETTINGS_TIMEOUT });
-    await expect(confirmation.getByText(seed.candidateEmail, { exact: false })).toBeVisible();
-    await confirmation.getByRole("button", { name: "招待する", exact: true }).click();
 
     await expect(this.page.getByText("送信を受け付けました", { exact: true })).toBeVisible({
       timeout: MANAGER_SETTINGS_TIMEOUT,

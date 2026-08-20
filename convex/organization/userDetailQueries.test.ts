@@ -712,7 +712,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     expect(result).toMatchObject({
       isSelf: true,
       canRemoveManagerRole: false,
-      managerRoleRemovalDisabledReason: "最後の有効管理者の管理者権限は外せません。",
+      managerRoleRemovalDisabledReason: "最後の管理者の権限は外せません。",
       canRemove: false,
       removeDisabledReason: "先に管理者権限を外してください。",
     });

@@ -27,6 +27,7 @@ type Props = {
   isPastRecruitmentsVisible: boolean;
   canLoadMorePastRecruitments: boolean;
   tourRecruitmentId?: Recruitment["_id"];
+  createSessionKey: string;
   createDialog: {
     isOpen: boolean;
     onOpenChange: (details: { open: boolean }) => void;
@@ -62,6 +63,7 @@ export function RecruitmentManagementView({
   isPastRecruitmentsVisible,
   canLoadMorePastRecruitments,
   tourRecruitmentId,
+  createSessionKey,
   createDialog,
   deleteDialog,
   deleteTarget,
@@ -108,6 +110,7 @@ export function RecruitmentManagementView({
         preventClose={isCreateSubmitting}
       >
         <CreateRecruitmentForm
+          key={createSessionKey}
           regularClosedDays={regularClosedDays}
           shopTarget={shopTarget}
           onSubmit={onCreate}

@@ -45,11 +45,6 @@ const openDateOnlyManagerStep = async (canvasElement: HTMLElement) => {
   await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
 
   await expect(await dialog.findByText("あなたの情報")).toBeInTheDocument();
-  await expect(dialog.getByText(/最初の組織に支払い不要のBusinessが適用されます/)).toBeInTheDocument();
-  const pricingLink = dialog.getByRole("link", { name: "料金とプランを確認する（新しいタブ）" });
-  await expect(pricingLink).toHaveAttribute("href", "/pricing");
-  await expect(pricingLink).toHaveAttribute("target", "_blank");
-  await expect(pricingLink).toHaveAttribute("rel", "noreferrer");
   await expect(dialog.getByRole("textbox", { name: "シフト通知先メールアドレス" })).toBeInTheDocument();
 };
 

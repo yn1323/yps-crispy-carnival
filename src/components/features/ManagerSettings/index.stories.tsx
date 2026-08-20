@@ -142,7 +142,7 @@ export const InvitationCardsOpenDialogBehavior: Story = {
       name: "新しいユーザーを管理者として招待",
     });
     await waitFor(() => expect(externalDialog).toBeVisible());
-    await expect(within(externalDialog).getByRole("textbox", { name: "氏名" })).toBeVisible();
+    await expect(within(externalDialog).getByRole("textbox", { name: "名前" })).toBeVisible();
     await expect(within(externalDialog).getByRole("button", { name: "招待する" })).toBeVisible();
   },
 };
@@ -173,7 +173,7 @@ export const FreeAvailable: Story = {
         {
           ...overview.managers[0],
           canRemoveRole: false,
-          removeRoleDisabledReason: "最後の有効管理者の管理者権限は外せません。",
+          removeRoleDisabledReason: "最後の管理者の権限は外せません。",
         },
       ],
       invitations: [],
@@ -458,7 +458,7 @@ export const ExternalInvitationBehavior: Story = {
   render: () => <ManagerExternalInviteHarness />,
   play: async ({ canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body);
-    await userEvent.type(page.getByRole("textbox", { name: "氏名" }), "伊藤 真理");
+    await userEvent.type(page.getByRole("textbox", { name: "名前" }), "伊藤 真理");
     await userEvent.type(page.getByRole("textbox", { name: "メールアドレス" }), "ito@example.com");
     await userEvent.click(page.getByRole("button", { name: "招待する" }));
     await expect(page.queryByRole("alertdialog", { name: "新しい管理者を招待しますか？" })).not.toBeInTheDocument();
@@ -507,7 +507,7 @@ export const ExternalInvitationUnavailable: Story = {
   play: async ({ canvasElement }) => {
     const page = within(canvasElement);
     await expect(page.getByText("閲覧のみの管理者は、管理者を招待できません。")).toBeInTheDocument();
-    await expect(page.getByRole("textbox", { name: "氏名" })).toBeDisabled();
+    await expect(page.getByRole("textbox", { name: "名前" })).toBeDisabled();
     await expect(page.getByRole("textbox", { name: "メールアドレス" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "招待する" })).toBeDisabled();
   },
