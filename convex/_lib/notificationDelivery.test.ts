@@ -51,11 +51,14 @@ describe("isNotificationDeliverySuppressed", () => {
     expect(isNotificationDeliverySuppressed()).toBe(false);
   });
 
-  it.each(["dry-run", "disabled", "mock"])("suppresses delivery when NOTIFICATION_DELIVERY_MODE=%s", (mode) => {
-    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", mode);
+  it.each(["dry-run", "disabled", "mock", " DRY-RUN ", "MOCK"])(
+    "suppresses delivery when NOTIFICATION_DELIVERY_MODE=%s",
+    (mode) => {
+      vi.stubEnv("NOTIFICATION_DELIVERY_MODE", mode);
 
-    expect(isNotificationDeliverySuppressed()).toBe(true);
-  });
+      expect(isNotificationDeliverySuppressed()).toBe(true);
+    },
+  );
 
   it("allows delivery when suppression envs are not set", () => {
     vi.stubEnv("E2E_TESTING_ENABLED", "");

@@ -47,6 +47,48 @@ function normalizeDeploymentUrl(value: string | undefined): string {
   return value?.trim().replace(/\/+$/, "") ?? "";
 }
 
+export function getNotificationDeliveryMode(): string {
+  return (process.env.NOTIFICATION_DELIVERY_MODE ?? "").trim().toLowerCase();
+}
+
+export type DevelopmentSeedConfiguration = {
+  enabled: boolean;
+  currentDeploymentUrl: string;
+  targetDeploymentUrl: string;
+  notificationDeliveryMode: string;
+};
+
+/**
+ * 全tableを置換する開発用seedのserver-side gate。
+ * internal functionも誤ったdeploymentから実行され得るため、各entrypointで毎回再確認する。
+ */
+export function getDevelopmentSeedConfiguration(): DevelopmentSeedConfiguration {
+  return {
+    enabled: process.env.DEVELOPMENT_SEED_ENABLED === "true",
+    currentDeploymentUrl: normalizeDeploymentUrl(process.env.CONVEX_CLOUD_URL),
+    targetDeploymentUrl: normalizeDeploymentUrl(process.env.DEVELOPMENT_SEED_DEPLOYMENT_URL),
+    notificationDeliveryMode: getNotificationDeliveryMode(),
+  };
+}
+
+export function assertDevelopmentSeedEnabled(): DevelopmentSeedConfiguration {
+  const configuration = getDevelopmentSeedConfiguration();
+  if (!configuration.enabled) {
+    throw new Error("Development seed is disabled");
+  }
+  if (
+    !configuration.currentDeploymentUrl ||
+    !configuration.targetDeploymentUrl ||
+    configuration.currentDeploymentUrl !== configuration.targetDeploymentUrl
+  ) {
+    throw new Error("Development seed deployment does not match");
+  }
+  if (configuration.notificationDeliveryMode !== "dry-run") {
+    throw new Error("Development seed requires notification dry-run mode");
+  }
+  return configuration;
+}
+
 /**
  * 対象deploymentへ明示的に結び付けた、開発用Trial期間だけを返す。
  * URL不一致では日数を解釈せず、通常のTrial期間へ戻す。

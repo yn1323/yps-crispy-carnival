@@ -35,10 +35,13 @@ type Env = {
   readonly CLERK_SECRET_KEY: string | undefined;
   readonly DEBUG_TRIAL_DURATION_DAYS: string | undefined;
   readonly DEBUG_TRIAL_DURATION_DEPLOYMENT_URL: string | undefined;
+  readonly DEVELOPMENT_SEED_DEPLOYMENT_URL: string | undefined;
+  readonly DEVELOPMENT_SEED_ENABLED: string | undefined;
   readonly FEATURE_BILLING: string | undefined;
   readonly FEATURE_MANAGER_INVITATION: string | undefined;
   readonly FEATURE_ORGANIZATION_CREATION: string | undefined;
   readonly FEATURE_SHOP_ADDITION: string | undefined;
+  readonly NOTIFICATION_DELIVERY_MODE: string | undefined;
   readonly STRIPE_BUSINESS_PRICE_ID: string | undefined;
   readonly STRIPE_PORTAL_CONFIGURATION_ID: string | undefined;
   readonly STRIPE_PRO_PRICE_ID: string | undefined;
