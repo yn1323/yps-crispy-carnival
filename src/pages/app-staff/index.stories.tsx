@@ -187,7 +187,7 @@ export const SinglePersonOrderUnavailable: Story = {
     const canvas = within(canvasElement);
     const orderButton = canvas.getByRole("button", { name: "並び順を変更" });
     await expect(orderButton).toBeDisabled();
-    await expect(orderButton).toHaveAccessibleDescription("2名以上のスタッフがいると並び替えできます。");
+    await expect(orderButton).toHaveAttribute("title", "2名以上のスタッフがいると並び替えできます。");
   },
 };
 

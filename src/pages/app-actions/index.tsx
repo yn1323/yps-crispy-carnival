@@ -108,7 +108,7 @@ function ConnectedAppActions({
       {memberStatus === "readOnly" && <AppActionsReadOnlyNotice />}
       <ActionInboxView items={controller.items} completedItemId={controller.completedItemId} />
       {data.canLoadMore && (
-        <Flex justify="center">
+        <Flex justify="center" mt={{ base: -4, lg: -5 }}>
           <Button
             type="button"
             variant="ghost"

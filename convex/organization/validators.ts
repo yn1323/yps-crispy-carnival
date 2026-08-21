@@ -95,7 +95,7 @@ export const organizationBillingStateValidator = v.union(
       currentPlan: v.literal("pro"),
       targetPlan: v.literal("free"),
       effectiveAt: v.number(),
-      // 既存のFree変更予約は未設定のまま互換維持し、新しい利用停止予約だけtrueを保存する。
+      // 既存のFree変更予約は未設定のまま互換維持し、新しい解約予約だけtrueを保存する。
       restrictAtPeriodEnd: v.optional(v.literal(true)),
     }),
     v.object({
@@ -109,7 +109,7 @@ export const organizationBillingStateValidator = v.union(
       currentPlan: v.literal("business"),
       targetPlan: v.literal("free"),
       effectiveAt: v.number(),
-      // 既存のFree変更予約は未設定のまま互換維持し、新しい利用停止予約だけtrueを保存する。
+      // 既存のFree変更予約は未設定のまま互換維持し、新しい解約予約だけtrueを保存する。
       restrictAtPeriodEnd: v.optional(v.literal(true)),
     }),
   ),

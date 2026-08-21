@@ -479,9 +479,10 @@ export function ShopStaffMembershipDialog({
           <Alert.Root status="warning" borderRadius="lg">
             <Alert.Indicator />
             <Alert.Content>
-              <Alert.Title>変更後、この店舗の管理通知は送信されません</Alert.Title>
+              <Alert.Title>変更後、この店舗の管理者は0名になります</Alert.Title>
               <Alert.Description>
-                通知が必要な場合は、有効な管理者を1名以上、この店舗の所属スタッフに残してください。管理者権限自体は変更されません。
+                管理通知が必要な場合は、有効な管理者を1名以上、この店舗の所属スタッフに残してください。
+                管理者権限自体は変更されません。
               </Alert.Description>
             </Alert.Content>
           </Alert.Root>

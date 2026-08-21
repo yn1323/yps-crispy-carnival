@@ -1,4 +1,4 @@
-import { Flex, Stack, Text } from "@chakra-ui/react";
+import { Flex, Stack } from "@chakra-ui/react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { LuRefreshCw } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
@@ -204,9 +204,6 @@ export function NotificationFailureRecovery({
         gap={3}
         direction={{ base: "column", md: "row" }}
       >
-        <Text fontSize="sm" color="fg.muted" whiteSpace="pre-line">
-          {"送れなかった通知は再送できます。何度も失敗する場合は、スタッフの通知先やLINE連携状態を確認してください。"}
-        </Text>
         <Button
           size="sm"
           colorPalette="teal"

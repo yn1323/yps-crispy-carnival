@@ -29,7 +29,7 @@ export function MembershipRemovalImpact({ id, heading, description, badgeLabel, 
         {id && <VisuallyHidden>{badgeLabel}。</VisuallyHidden>}
         <List.Root as="ul" gap={1} ps={5} color="red.700" fontSize="sm" lineHeight="tall">
           <List.Item>シフト割り当てから削除</List.Item>
-          <List.Item>以降シフト通知は送りません</List.Item>
+          <List.Item>シフト通知は届かなくなります</List.Item>
         </List.Root>
       </Box>
       {statusMessage && (

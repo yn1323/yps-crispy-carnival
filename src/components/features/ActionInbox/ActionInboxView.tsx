@@ -236,8 +236,7 @@ export function ActionInboxView({
         hideEmpty ? null : (
           <Empty
             icon={LuCircleCheck}
-            title="要対応の項目はありません"
-            description="現在、確認や操作が必要な項目はありません。"
+            title="対応が必要な項目はありません"
             tone="success"
             variant="section"
             minH="240px"

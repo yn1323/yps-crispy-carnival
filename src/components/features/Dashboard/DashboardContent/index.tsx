@@ -272,6 +272,7 @@ export const DashboardContent = ({
               }
               recruitmentDataStatus={recruitmentStage.status}
               isReadOnly={isReadOnly}
+              organizationShopCount={operationContextData?.shops.length}
               initialVisibleUserCount={visibleUserCount}
               focusedPersonId={focusedPersonId}
               onVisibleUserCountChange={onVisibleUserCountChange}

@@ -126,7 +126,6 @@ const createNotificationFailureTask = (count: number, content: ReactNode): Actio
   iconFg: "orange.600",
   title: `送れなかった通知が${count}件あります`,
   titleColor: "orange.800",
-  description: "通知先を確認して再送、または再送せず破棄できます",
   content,
 });
 
@@ -136,7 +135,6 @@ const createStaffRegistrationRequestTask = (count: number, content: ReactNode): 
   iconBg: "teal.50",
   iconFg: "teal.700",
   title: `スタッフ登録申請が${count}件あります`,
-  description: "内容を確認して承認・却下できます",
   content,
 });
 
@@ -147,7 +145,7 @@ type ActionDisclosureTask = {
   iconFg: string;
   title: string;
   titleColor?: string;
-  description: string;
+  description?: string;
   content: ReactNode;
 };
 
@@ -280,7 +278,7 @@ const ActionDisclosureCard = ({ task }: { task: ActionDisclosureTask }) => {
           textAlign="left"
           bg="white"
           _hover={{ bg: "gray.50" }}
-          _expanded={{ bg: "gray.50" }}
+          _expanded={{ bg: "white" }}
         >
           <Flex
             boxSize={{ base: "48px", md: "56px" }}
@@ -304,13 +302,15 @@ const ActionDisclosureCard = ({ task }: { task: ActionDisclosureTask }) => {
             >
               {task.title}
             </Text>
-            <Text fontSize="sm" color="gray.700" lineHeight="tall">
-              {task.description}
-            </Text>
+            {task.description && (
+              <Text fontSize="sm" color="gray.700" lineHeight="tall">
+                {task.description}
+              </Text>
+            )}
           </Stack>
           <Accordion.ItemIndicator color="fg.muted" flexShrink={0} />
         </Accordion.ItemTrigger>
-        <Accordion.ItemContent bg="gray.50">
+        <Accordion.ItemContent bg="white">
           <Accordion.ItemBody px={{ base: 3, md: 5, lg: 6 }} pt={3} pb={{ base: 4, md: 5 }}>
             {task.content}
           </Accordion.ItemBody>

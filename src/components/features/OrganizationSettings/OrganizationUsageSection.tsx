@@ -1,5 +1,6 @@
 import { Box, Flex, Grid, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { LuStore, LuUserRoundCog, LuUsers } from "react-icons/lu";
+import { planLabel } from "./BillingSettings/script";
 import type { OrganizationBillingView } from "./types";
 
 export type OrganizationUsageSummary = Pick<
@@ -7,7 +8,13 @@ export type OrganizationUsageSummary = Pick<
   "state" | "currentPlan" | "limitPlan" | "peopleUsage" | "shopUsage" | "managerUsage"
 >;
 
-export function OrganizationUsageSection({ billing }: { billing: OrganizationUsageSummary }) {
+export function OrganizationUsageSection({
+  billing,
+  showCurrentPlan = false,
+}: {
+  billing: OrganizationUsageSummary;
+  showCurrentPlan?: boolean;
+}) {
   if (billing.state === "migrationPending") return null;
 
   if (billing.state === "restricted" && billing.limitPlan === undefined) {
@@ -34,8 +41,7 @@ export function OrganizationUsageSection({ billing }: { billing: OrganizationUsa
 
   const appliedLimitLabel = getAppliedLimitLabel(billing);
   const notes = [appliedLimitLabel].filter((note): note is string => Boolean(note));
-
-  return (
+  const usageSection = (
     <Box
       as="section"
       aria-label="組織の利用状況"
@@ -83,10 +89,19 @@ export function OrganizationUsageSection({ billing }: { billing: OrganizationUsa
       )}
     </Box>
   );
+
+  if (!showCurrentPlan) return usageSection;
+
+  return (
+    <Stack gap={3}>
+      <CurrentPlanSummary billing={billing} />
+      {usageSection}
+    </Stack>
+  );
 }
 
-export function OrganizationUsageSectionSkeleton() {
-  return (
+export function OrganizationUsageSectionSkeleton({ showCurrentPlan = false }: { showCurrentPlan?: boolean }) {
+  const usageSkeleton = (
     <Box
       as="section"
       aria-label="組織の利用状況を読み込み中"
@@ -124,6 +139,58 @@ export function OrganizationUsageSectionSkeleton() {
           </Box>
         ))}
       </Grid>
+    </Box>
+  );
+
+  if (!showCurrentPlan) return usageSkeleton;
+
+  return (
+    <Stack gap={3}>
+      <Box
+        as="section"
+        aria-label="現在のプランを読み込み中"
+        borderWidth="1px"
+        borderColor="blackAlpha.100"
+        borderRadius="xl"
+        bg="white"
+        px={{ base: 4, md: 5 }}
+        py={{ base: 4, md: 5 }}
+      >
+        <Skeleton h="16px" w="112px" />
+        <Skeleton mt={2} h="28px" w="96px" />
+      </Box>
+      {usageSkeleton}
+    </Stack>
+  );
+}
+
+function CurrentPlanSummary({ billing }: { billing: OrganizationUsageSummary }) {
+  const currentPlan = billing.currentPlan ?? (isPlanState(billing.state) ? billing.state : null);
+  const label = currentPlan
+    ? planLabel(currentPlan)
+    : billing.state === "restricted"
+      ? "利用停止中"
+      : billing.state === "migrationPending"
+        ? "設定移行中"
+        : "確認中";
+
+  return (
+    <Box
+      as="section"
+      aria-label="現在のプラン"
+      borderWidth="1px"
+      borderColor="blackAlpha.100"
+      borderRadius="xl"
+      bg="white"
+      px={{ base: 4, md: 5 }}
+      py={{ base: 4, md: 5 }}
+    >
+      <Text textStyle="label" fontWeight="semibold" color="fg.muted">
+        現在のプラン
+      </Text>
+      <Text mt={1} fontSize={{ base: "xl", md: "2xl" }} fontWeight="bold" lineHeight="shorter">
+        {label}
+      </Text>
     </Box>
   );
 }
@@ -193,4 +260,8 @@ function getAppliedLimitLabel(billing: OrganizationUsageSummary) {
   return billing.state === "pendingActivation" && billing.currentPlan === null
     ? "現在はFreeの上限が適用されています"
     : undefined;
+}
+
+function isPlanState(state: OrganizationBillingView["state"]): state is "trial" | "free" | "pro" | "business" {
+  return state === "trial" || state === "free" || state === "pro" || state === "business";
 }

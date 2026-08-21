@@ -325,6 +325,25 @@ describe("OrganizationSettings controllers", () => {
     expect(result.current.dialog.dialog).toBeNull();
   });
 
+  it("組織作成上限では入口を押せて上限理由をsnackbarへ表示する", () => {
+    const reason = "作成できる組織は3つまでです";
+    const { result } = renderHook(() =>
+      useOrganizationCreationController({
+        organizationId,
+        canCreateOrganization: false,
+        createOrganizationDisabledReason: reason,
+        onCreated: vi.fn(),
+      }),
+    );
+
+    act(() => result.current.createOrganization());
+
+    expect(mocks.mutation).not.toHaveBeenCalled();
+    expect(mocks.showErrorToast).toHaveBeenCalledOnce();
+    expect(mocks.showErrorToast.mock.calls[0]?.[0]).toMatchObject({ message: reason });
+    expect(result.current.dialog.dialog).toBeNull();
+  });
+
   it("組織作成は作成したorganizationIdを完了先へ渡す", async () => {
     mocks.mutation.mockResolvedValue({
       organizationId: "organization-created",
@@ -1139,7 +1158,7 @@ describe("OrganizationSettings controllers", () => {
     );
   });
 
-  it("active Proの利用停止予約と予約済み状態の取消を対応するActionへ接続する", async () => {
+  it("active Proの解約予約と予約済み状態の取消を対応するActionへ接続する", async () => {
     mocks.actions.scheduleServiceStopAtPeriodEnd.mockResolvedValue({ status: "accepted" });
     mocks.actions.cancelScheduledFree.mockResolvedValue({ status: "accepted" });
     const { result, rerender } = renderHook((input) => useStripeBillingController(input), {
@@ -1155,6 +1174,11 @@ describe("OrganizationSettings controllers", () => {
         requestId: "request-1",
       }),
     );
+    await waitFor(() =>
+      expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
+        title: "解約を受け付けました",
+      }),
+    );
 
     rerender({
       organizationId,
@@ -1165,7 +1189,7 @@ describe("OrganizationSettings controllers", () => {
         currentPlan: "pro",
         targetPlan: "free",
         restrictAtPeriodEnd: true,
-        nextEvent: { label: "利用停止予定日", date: "2026年8月31日" },
+        nextEvent: { label: "契約終了日", date: "2026年8月31日" },
         canScheduleFree: false,
       },
     });
@@ -1178,6 +1202,10 @@ describe("OrganizationSettings controllers", () => {
         requestId: "request-1",
       }),
     );
+    await waitFor(() => expect(mocks.showSuccessToast).toHaveBeenCalledTimes(2));
+    expect(mocks.showSuccessToast).toHaveBeenNthCalledWith(2, {
+      title: "解約予約の取り消しを受け付けました",
+    });
   });
 
   it("旧scheduledFree DTOでも引数なしの操作から予約取消を開く", async () => {

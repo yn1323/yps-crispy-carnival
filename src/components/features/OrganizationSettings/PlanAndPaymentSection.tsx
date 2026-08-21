@@ -7,7 +7,6 @@ import {
   LuClock3,
   LuCreditCard,
   LuMail,
-  LuReceiptText,
 } from "react-icons/lu";
 import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
 import { Button } from "@/src/components/ui/Button";
@@ -34,7 +33,6 @@ type Props = {
   onRetryPlanPrice: (targetPlan: PaidBillingPlan) => void;
   onUpdatePaymentMethod: () => void;
   onUpdateBillingEmail: () => void;
-  onOpenBillingDocuments: () => void;
   pendingCheckout: {
     status: BillingPendingCheckoutStatus;
     isCancelling: boolean;
@@ -118,36 +116,35 @@ export const PlanAndPaymentSection = ({
   onRetryPlanPrice,
   onUpdatePaymentMethod,
   onUpdateBillingEmail,
-  onOpenBillingDocuments,
   pendingCheckout,
 }: Props) => {
-  const presentation =
-    billing.state === "scheduledChange" && billing.restrictAtPeriodEnd
+  const isServiceStopScheduled = isServiceStopScheduledState(billing);
+  const presentation = isServiceStopScheduled
+    ? {
+        ...STATE_PRESENTATION.scheduledChange,
+        label: "解約予定",
+        description:
+          "現在の支払い済み期間が終わるまでは、現在のプランを利用できます。\n解約後は契約制限中になります。データは削除されません。",
+      }
+    : billing.state === "restricted" && billing.limitPlan
       ? {
-          ...STATE_PRESENTATION.scheduledChange,
-          label: "利用停止予定",
-          description:
-            "現在の支払い済み期間が終わるまでは、現在のプランを利用できます。\n利用停止後もデータは削除されません。",
+          ...STATE_PRESENTATION.restricted,
+          description: `${planLabel(billing.limitPlan)}の上限に収まるよう、利用人数・店舗数・管理者数を整理してください。`,
         }
-      : billing.state === "restricted" && billing.limitPlan
+      : billing.state === "restricted"
         ? {
             ...STATE_PRESENTATION.restricted,
-            description: `${planLabel(billing.limitPlan)}の上限に収まるよう、利用人数・店舗数・管理者数を整理してください。`,
+            label: "利用停止中",
+            description:
+              "店舗・ユーザー・過去のシフトは削除されていません。\nProまたはBusinessを契約すると利用を再開できます。",
           }
-        : billing.state === "restricted"
+        : billing.state === "pendingActivation" && billing.currentPlan === "free"
           ? {
-              ...STATE_PRESENTATION.restricted,
-              label: "利用停止中",
+              ...STATE_PRESENTATION.pendingActivation,
               description:
-                "店舗・ユーザー・過去のシフトは削除されていません。\nProまたはBusinessを契約すると利用を再開できます。",
+                "支払いの成功を確認するまで、有料プランは開始されません。\n確認中も、無料の基本機能は利用できます。",
             }
-          : billing.state === "pendingActivation" && billing.currentPlan === "free"
-            ? {
-                ...STATE_PRESENTATION.pendingActivation,
-                description:
-                  "支払いの成功を確認するまで、有料プランは開始されません。\n確認中も、無料の基本機能は利用できます。",
-              }
-            : STATE_PRESENTATION[billing.state];
+          : STATE_PRESENTATION[billing.state];
   const currentPlan =
     billing.currentPlan ??
     (billing.state === "restricted"
@@ -186,9 +183,10 @@ export const PlanAndPaymentSection = ({
           currentPlanLabel={planSummaryLabel}
           currentPlanDescription={isPlanState(billing.state) ? currentPlanPresentation?.description : undefined}
           presentation={presentation}
+          isServiceStopScheduled={isServiceStopScheduled}
         />
 
-        {isExceptionalState(billing.state) && (
+        {isExceptionalState(billing.state) && !isServiceStopScheduled && (
           <BillingStateAlert
             billing={billing}
             presentation={presentation}
@@ -222,7 +220,6 @@ export const PlanAndPaymentSection = ({
         billing={billing}
         onUpdatePaymentMethod={onUpdatePaymentMethod}
         onUpdateBillingEmail={onUpdateBillingEmail}
-        onOpenBillingDocuments={onOpenBillingDocuments}
       />
     </Stack>
   );
@@ -234,12 +231,14 @@ function PlanSummary({
   currentPlanLabel,
   currentPlanDescription,
   presentation,
+  isServiceStopScheduled,
 }: {
   billing: OrganizationBillingView;
   currentPlanHeading: string;
   currentPlanLabel: string;
   currentPlanDescription?: string;
   presentation: (typeof STATE_PRESENTATION)[BillingDisplayState];
+  isServiceStopScheduled: boolean;
 }) {
   return (
     <Box minW={0} borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
@@ -301,6 +300,11 @@ function PlanSummary({
             状態
           </Text>
           <BillingStatus state={billing.state} status={presentation.status} label={billingStatusLabel(billing.state)} />
+          {isScheduledPlanTransition(billing.state) && billing.currentPlan && billing.targetPlan && (
+            <Text ps={5} fontSize="sm" color="fg.muted">
+              {planLabel(billing.currentPlan)} → {planLabel(billing.targetPlan)}
+            </Text>
+          )}
         </Stack>
 
         <Stack
@@ -326,6 +330,11 @@ function PlanSummary({
           {billing.state === "trial" && (
             <Text textStyle="bodySm" color="fg.muted">
               {trialContinuationDescription(billing)}
+            </Text>
+          )}
+          {isServiceStopScheduled && (
+            <Text fontSize="12px" color="fg.muted">
+              解約後もデータを閲覧できます。
             </Text>
           )}
         </Stack>
@@ -488,10 +497,10 @@ function PlanPrice({
 
 function planChangeLabel(action: BillingPlanAction, plan: BillingProductPlan) {
   if (action.kind === "cancelScheduledPlanChange") {
-    return action.isServiceStop ? "利用停止予約を取り消す" : "変更予約を取り消す";
+    return action.isServiceStop ? "解約予約を取り消す" : "変更予約を取り消す";
   }
   if (action.kind === "cancelTrialContinuation") return "有料継続を取り消す";
-  if (action.kind === "scheduleServiceStop") return "期間末に利用を停止";
+  if (action.kind === "scheduleServiceStop") return "期間末で解約";
   return `${planLabel(plan)}へ変更`;
 }
 
@@ -696,12 +705,10 @@ function PaymentInformation({
   billing,
   onUpdatePaymentMethod,
   onUpdateBillingEmail,
-  onOpenBillingDocuments,
 }: {
   billing: OrganizationBillingView;
   onUpdatePaymentMethod: () => void;
   onUpdateBillingEmail: () => void;
-  onOpenBillingDocuments: () => void;
 }) {
   return (
     <Stack as="section" gap={3} aria-labelledby="payment-heading">
@@ -717,22 +724,12 @@ function PaymentInformation({
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
             <BillingInformationRow
               icon={LuCreditCard}
-              label="支払い方法"
-              actionLabel="支払い方法を見る"
+              label="支払い方法・請求書・領収書"
+              actionLabel="支払い方法・請求書・領収書を見る"
               onAction={onUpdatePaymentMethod}
               disabled={!billing.canUpdatePaymentMethod}
               disabledReason={billing.paymentMethodDisabledReason}
               disabledReasonId="organization-billing-payment-method-disabled-reason"
-              showDisabledReason={false}
-            />
-            <BillingInformationRow
-              icon={LuReceiptText}
-              label="請求書・領収書"
-              actionLabel="請求書・領収書を見る"
-              onAction={onOpenBillingDocuments}
-              disabled={!billing.canUpdatePaymentMethod}
-              disabledReason={billing.paymentMethodDisabledReason}
-              disabledReasonId="organization-billing-documents-disabled-reason"
               showDisabledReason={false}
             />
             <BillingInformationRow
@@ -866,6 +863,14 @@ function isPlanState(state: BillingDisplayState): state is "trial" | "free" | "p
 
 function isExceptionalState(state: BillingDisplayState): boolean {
   return !isPlanState(state);
+}
+
+function isServiceStopScheduledState(billing: Pick<OrganizationBillingView, "state" | "restrictAtPeriodEnd">): boolean {
+  return billing.state === "scheduledChange" && billing.restrictAtPeriodEnd === true;
+}
+
+function isScheduledPlanTransition(state: BillingDisplayState): boolean {
+  return state === "scheduledChange" || state === "scheduledFree";
 }
 
 function shouldShowPlanComparison(billing: OrganizationBillingView) {

@@ -67,7 +67,7 @@ localでは、現在の`convex/`を読み込んだlocal Convex serverが動作�
 | `trial-ending` | Trial終了間近、募集承認を実行できる状態 |
 | `pro-operations` | Pro、複数店舗、三つの希望提出方式、全募集状態、スタッフのカスタム並び順 |
 | `business-notifications` | Business、通知失敗、LINE連携、確定後の差分 |
-| `pro-scheduled-change` | Proの利用停止予約 |
+| `pro-scheduled-change` | Proの解約予約 |
 | `payment-pending` | 課金の`pendingActivation` |
 | `payment-grace` | 支払猶予中 |
 | `payment-restricted` | `paymentGraceExpired`による利用制限 |

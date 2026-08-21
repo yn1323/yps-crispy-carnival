@@ -119,7 +119,7 @@ Playwright用のE2E deploymentだけは、四つの設定を明示的に有効�
 Trialの利用権限はProと同じである。
 Freeは追加組織の初期状態と、既存の`active.free`、そのFreeをfallbackとする`pendingActivation`、deployment前に保存済みの旧Free変更予約を収束させるために維持する。
 以下でFreeの管理者操作を説明するときは、`active.free`とFreeをfallbackとする`pendingActivation`を対象にする。
-通常の初回Setupは支払い不要Businessで作る。  明示的に公開した追加組織はFreeで始める。  Trial終了や有料契約の利用停止からFreeを作らない。
+通常の初回Setupは支払い不要Businessで作る。  明示的に公開した追加組織はFreeで始める。  Trial終了や有料契約の解約からFreeを作らない。
 利用人数は組織内の人物を一度だけ数え、複数店舗所属やスタッフ兼管理者で重複させない。
 店舗追加、人物追加、管理者招待、プラン変更は、開始時と確定時に最新の上限と予約枠を再確認する。
 
@@ -131,8 +131,8 @@ Freeは追加組織の初期状態と、既存の`active.free`、そのFreeをfa
 - ProとBusinessの金額、通貨、請求周期はStripe Priceを正本とし、コード、環境変数、DBへ周期を複製しない。  新規販売ではactiveなrecurring Priceと正の`interval_count`を要求し、両プランの通貨と請求周期が一致する場合だけBusinessの価格表示、Checkout、プラン間変更を許可する。
 - Stripe Event ID、request ID、operationのidempotency keyで重複実行を収束させる。
 - ProからBusinessへの即時変更は、支払い成功を確認するまでProの利用権限を維持する。
-- BusinessからProへの変更と、有料プランの利用停止は期間末に予約し、providerで確認できた結果だけを反映する。
-- 利用停止の予約には新契約を示すmarkerを保存し、同じ`targetPlan: "free"`を使うdeployment前の旧Free予約と区別する。
+- BusinessからProへの変更と、有料プランの解約は期間末に予約し、providerで確認できた結果だけを反映する。
+- 解約の予約には新契約を示すmarkerを保存し、同じ`targetPlan: "free"`を使うdeployment前の旧Free予約と区別する。
 - カード番号、CVC、有効期限をアプリの引数、DB、ログへ保存しない。
 - 課金・招待通知はNotification Outboxへ積み、外部送信直前に組織、所属、課金version、現在の宛先を再確認する。
 
@@ -236,13 +236,13 @@ Notification Outboxは外部送信直前にも招待、所属、受取人を再�
 | `active.pro` | Proを利用中 | 20名、5店舗、管理者5名を許可する |
 | `active.business` | Businessを利用中 | 40名、5店舗、管理者5名を許可する |
 | `complimentary.business` | 支払い不要Businessを利用中 | Business権限を許可し、Stripe処理を拒否する |
-| `scheduledChange` | 期間末のプラン変更または利用停止を予約済み | 期間末までは現在の有料プランを維持する。利用停止予約は`restrictAtPeriodEnd: true`で識別する |
+| `scheduledChange` | 期間末のプラン変更または解約を予約済み | 期間末までは現在の有料プランを維持する。解約予約は`restrictAtPeriodEnd: true`で識別する |
 | `grace` | 最初に検証された支払い失敗から14日間の猶予中 | 現在の有料権限と復旧操作を維持する |
-| `restricted` | Trial終了、利用停止、上限超過または課金復旧待ち | データを保持し、閲覧と許可された復旧操作だけを認める |
+| `restricted` | Trial終了、解約、上限超過または課金復旧待ち | データを保持し、閲覧と許可された復旧操作だけを認める |
 
 状態遷移の前提、通知、期限、上限超過時の分岐は[業務仕様](../specs/organization-billing-business-flow.md)を参照する。
 
-有料プランの新しい終了操作は「Freeプランに変更」ではなく「利用停止」と表示する。
+有料プランの新しい終了操作は「Freeプランに変更」ではなく「解約」と表示する。
 期間末までは現在の有料機能を利用でき、期間末前なら予約を取り消せる。
 Stripeで期間末終了を確認した後は`scheduledCancellation`を理由とする契約制限中へ移し、データと直前の管理者・稼働店舗を保持する。
 
@@ -310,7 +310,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `convex/_lib/functions.ts` | 認証、組織所属、選択店舗、課金状態を検証するAPI wrapper |
 | `convex/dashboard/queries.ts` | 選択店舗の認可境界で、Dashboard用の現在プランと対応状態を投影し、カード展開中だけ組織の利用状況を最小DTOで返す |
 | `convex/organization/` | 組織、店舗、人物、管理者、利用状況、削除可否を扱う |
-| `convex/organizationBilling/` | プラン上限、課金policy、期限、利用停止、旧Free選択、請求先メール、通知を扱う |
+| `convex/organizationBilling/` | プラン上限、課金policy、期限、解約、旧Free選択、請求先メール、通知を扱う |
 | `convex/organizationStripe/` | Stripe API、現在Subscriptionの保存済みPriceのread-only取得、Checkout、Portal、Webhook、再照合、probeを扱う |
 | `convex/organizationInvitation/mutations.ts` | 管理者招待の発行、再送、取消、承認準備、proof付き確定、旧mutation互換を扱う |
 | `convex/organizationInvitation/acceptanceActions.ts` / `convex/_lib/clerkVerifiedEmailProvider.ts` | 未接続人物のClerk確認済みメールをNode runtimeで照合し、provider失敗時は招待を消費せず返す |
@@ -357,14 +357,14 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `api.organizationInvitation.mutations.createExternal` / `createForPerson` / `createForStaff` | rolling deploy中の旧client向けに、外部人物または既存人物へ管理者招待を発行する互換入口 |
 | `api.organizationInvitation.mutations.resend` / `revoke` | 招待の再送と取消 |
 | `api.organizationInvitation.acceptanceActions.accept` | 接続済み人物のアカウント一致、または未接続人物のClerk確認済みメールを検証して招待を承認 |
-| `api.organizationBilling.mutations.setFreeSelection` | markerなしの旧Free予約、または旧Free条件未達の制限状態で残す管理者と店舗の選択。Trialと新しい利用停止には使用しない |
+| `api.organizationBilling.mutations.setFreeSelection` | markerなしの旧Free予約、または旧Free条件未達の制限状態で残す管理者と店舗の選択。Trialと新しい解約には使用しない |
 | `api.organizationBilling.mutations.updateBillingEmail` | 将来用の請求先メール更新。通常環境では公開設定により副作用前に拒否する |
 | `api.organizationStripe.actions.getPlanPrice` / `startPaidCheckout` | 将来用の価格確認と契約開始。通常環境ではprovider到達前に拒否する |
 | `api.organizationStripe.actions.inspectPendingCheckoutForOrganization` / `cancelPendingCheckoutForOrganization` | `pendingActivation`に対応するCheckout Sessionの照合と、利用者が明示した未完了Checkoutの取消。URLやclient stateだけで課金状態を変更しない |
 | `api.organizationStripe.actions.getCurrentSubscriptionPrice` | 選択店舗を認可し、現在の非terminal Subscriptionに保存したPriceから金額、通貨、周期、明示された税区分だけを取得 |
 | `api.organizationStripe.actions.previewPaidPlanChange` / `changePaidPlanNow` | ProからBusinessへの日割りpreviewと即時変更 |
 | `api.organizationStripe.actions.schedulePaidPlanChange` | BusinessからProへの期間末変更。`targetPlan: "free"`は受け付けない |
-| `api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd` / `cancelScheduledPlanChange` | 有料契約の期間末利用停止と、その予約取消 |
+| `api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd` / `cancelScheduledPlanChange` | 有料契約の期間末解約と、その予約取消 |
 | `api.organizationStripe.actions.openCustomerPortal` | 支払い方法と請求履歴を扱う一時Portal URLの作成 |
 | `api.organizationStripe.actions.cancelTrialContinuation` | Trial後の継続予約取消 |
 | `POST /stripe/webhook` | 署名済みStripeイベントの受信 |
@@ -382,9 +382,9 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 
 ## 検証の入口
 
-- `convex/organizationBilling/*.test.ts`：プラン上限、Trial終了と利用停止の契約制限、markerなし旧Free予約、期限、通知とm021の旧shape移行fixtureを検証する。
+- `convex/organizationBilling/*.test.ts`：プラン上限、Trial終了と解約の契約制限、markerなし旧Free予約、期限、通知とm021の旧shape移行fixtureを検証する。
 - `convex/dashboard/queries.test.ts`：選択店舗の認可境界、全課金状態の`planStatus`投影、利用状況の現在値・上限、不要な識別子の非露出を検証する。
-- `convex/organizationStripe/*.test.ts`：新規販売用Price、現在Subscriptionの保存済みPrice、Checkout、期間末利用停止と取消、Webhook、再照合、支払い不要BusinessのStripe隔離、probeを検証する。
+- `convex/organizationStripe/*.test.ts`：新規販売用Price、現在Subscriptionの保存済みPrice、Checkout、期間末解約と取消、Webhook、再照合、支払い不要BusinessのStripe隔離、probeを検証する。
 - `convex/organizationInvitation/*.test.ts`：token、期限、接続済み人物のアカウント一致、未接続人物のClerk確認済みメール、provider失敗時の非消費、予約枠、再送、連携を検証する。
 - `convex/organization/managerSettingsQueries.test.ts`：管理者設定のbounded read、currentとprojectedの分離、`integrityError` / `ready`、候補の選択不可理由を検証する。
 - `convex/_scenario/organizationBillingLifecycle.test.ts`と`organizationPaidPlanChanges.test.ts`：時間と複数APIをまたぐ課金ライフサイクルを検証する。

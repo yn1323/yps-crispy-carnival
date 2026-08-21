@@ -50,14 +50,14 @@ export function buildPlanStatusCardData(
         badgeLabel: source.isComplimentary
           ? "支払い不要"
           : isServiceStopScheduled
-            ? "利用停止予定"
+            ? "解約予定"
             : scheduledChange
               ? "変更予定"
               : "利用中",
         description: source.isComplimentary
           ? "早期登録特典によりBusinessプラン相当の機能をずっと無料で利用できます。"
           : isServiceStopScheduled && scheduledChange
-            ? `${formatJstDate(scheduledChange.effectiveAt)}に利用を停止します。データは削除されません。`
+            ? `${formatJstDate(scheduledChange.effectiveAt)}をもって解約します。解約後は契約制限中になります。データは削除されません。`
             : scheduledChange && targetPlanName
               ? `${formatJstDate(scheduledChange.effectiveAt)}に${targetPlanName}プランへ変更します。`
               : undefined,

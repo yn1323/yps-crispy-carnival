@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   useQuery: vi.fn(),
   usePaginatedQuery: vi.fn(),
   showErrorToast: vi.fn(),
+  createOrganization: vi.fn(),
   features: {
     organizationCreation: false,
     shopAddition: false,
@@ -73,7 +74,7 @@ vi.mock(
   "@/src/components/features/OrganizationSettings/OrganizationCreation/useOrganizationCreationController",
   () => ({
     useOrganizationCreationController: () => ({
-      createOrganization: vi.fn(),
+      createOrganization: mocks.createOrganization,
       dialog: { dialog: null, isRunning: false, onClose: vi.fn(), onSubmit: vi.fn() },
     }),
   }),
@@ -134,6 +135,7 @@ beforeEach(() => {
   mocks.useQuery.mockReset();
   mocks.usePaginatedQuery.mockReset();
   mocks.showErrorToast.mockReset();
+  mocks.createOrganization.mockReset();
   Object.assign(mocks.features, {
     organizationCreation: false,
     shopAddition: false,
@@ -178,6 +180,26 @@ describe("AppManage release boundary", () => {
     expect(screen.getByRole("button", { name: "管理者と権限を開く" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "プランと支払いを開く" })).not.toBeNull();
     expect(screen.getByTestId("show-add-shop").textContent).toBe("true");
+  });
+
+  it("組織作成上限では入口をdisabledにせず、クリックをcontrollerへ渡す", () => {
+    Object.assign(mocks.features, { organizationCreation: true });
+    const currentOverview = overview();
+    mocks.useQuery.mockReturnValue({
+      ...currentOverview,
+      capabilities: {
+        ...currentOverview.capabilities,
+        canCreateOrganization: false,
+        createOrganizationDisabledReason: "作成できる組織は3つまでです。",
+      },
+    });
+
+    renderPage(<AppManageRoutePage organizationId={organizationId} memberStatus="active" />);
+
+    const button = screen.getByRole("button", { name: "新しい組織を作る" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    button.click();
+    expect(mocks.createOrganization).toHaveBeenCalledOnce();
   });
 
   it("旧backendのDTOにfeaturesがない場合も将来機能をfail-closedにする", () => {

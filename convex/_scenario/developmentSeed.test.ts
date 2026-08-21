@@ -286,7 +286,7 @@ describe("development seed rebuild", () => {
         businessShopId,
         freeShopId: findShop("[SEED] Free・上限確認"),
         policyRestrictedShopId: findShop("[SEED] 利用条件制限"),
-        scheduledStopShopId: findShop("[SEED] Pro・利用停止予約"),
+        scheduledStopShopId: findShop("[SEED] Pro・解約予約"),
         trialShopId: findShop("[SEED] Trial・終了間近"),
         lineStatuses: lineStates.map((state) => state?.status).sort(),
         lineRecipientFollowing: lineRecipients.map((recipient) => recipient?.following).sort(),
@@ -372,7 +372,7 @@ describe("development seed rebuild", () => {
       currentPlan: "pro",
       targetPlan: "free",
       restrictAtPeriodEnd: true,
-      nextEvent: { label: "利用停止予定日" },
+      nextEvent: { label: "契約終了日" },
     });
     expect(policyRestrictedSettings?.billing).toMatchObject({
       state: "restricted",

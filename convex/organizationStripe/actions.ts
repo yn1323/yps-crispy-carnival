@@ -954,7 +954,7 @@ export const schedulePaidPlanChangeForOrganization = action({
   },
 });
 
-/** 現在の支払い済み期間の終了時に契約を終了し、データ保持の利用停止状態へ移す。 */
+/** 現在の支払い済み期間の終了時に解約し、データを保持した契約制限状態へ移す。 */
 export const scheduleServiceStopAtPeriodEnd = action({
   args: { shopId: v.id("shops"), requestId: v.string() },
   returns: changeResultValidator,

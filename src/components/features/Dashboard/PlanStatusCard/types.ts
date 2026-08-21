@@ -53,7 +53,7 @@ export type PlanStatusCardData =
   | {
       kind: "paidPlan";
       planName: PaidPlanName;
-      badgeLabel: "利用中" | "支払い不要" | "変更予定" | "利用停止予定";
+      badgeLabel: "利用中" | "支払い不要" | "変更予定" | "解約予定";
       description?: string;
       nextEventLabel?: string;
     }

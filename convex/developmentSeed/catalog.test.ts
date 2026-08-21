@@ -45,7 +45,7 @@ describe("development seed catalog", () => {
     expect(new Set(DEVELOPMENT_SEED_SCENARIO_KEYS).size).toBe(9);
   });
 
-  it("利用停止予約とBusinessからProへの利用条件制限を現行billing stateで表す", () => {
+  it("解約予約とBusinessからProへの利用条件制限を現行billing stateで表す", () => {
     const now = Date.parse("2026-08-20T00:00:00.000Z");
     const scheduled = DEVELOPMENT_SEED_SCENARIOS.find((scenario) => scenario.key === "pro-scheduled-change");
     const restricted = DEVELOPMENT_SEED_SCENARIOS.find((scenario) => scenario.key === "policy-restricted");

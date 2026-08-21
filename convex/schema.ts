@@ -296,7 +296,7 @@ const schema = defineSchema({
     providerGeneration: v.optional(v.number()),
     sourcePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
     targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
-    // targetPlan=freeの旧予約と、新しい「期間末に利用停止」をrolling互換で識別する。
+    // targetPlan=freeの旧予約と、新しい「期間末解約」をrolling互換で識別する。
     restrictAtPeriodEnd: v.optional(v.literal(true)),
     changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
     stripeSubscriptionIdSnapshot: v.optional(v.string()),

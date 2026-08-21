@@ -253,9 +253,7 @@ describe("組織追加作成シナリオ", () => {
     asManager.selectShop(firstShopId);
     const firstSettings = await asManager.getOrganizationSettings();
     expect(firstSettings?.canCreateOrganization).toBe(false);
-    expect(firstSettings?.createOrganizationDisabledReason).toBe(
-      "作成できる組織は3つまでです。\n使っていない組織を削除すると、また作成できます。",
-    );
+    expect(firstSettings?.createOrganizationDisabledReason).toBe("作成できる組織は3つまでです");
 
     asManager.selectShop(third.shopId);
     const thirdSettings = await asManager.getOrganizationSettings();

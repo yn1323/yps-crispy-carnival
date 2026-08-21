@@ -65,7 +65,7 @@ function StatusBadge({ badge }: { badge: { label: string; background: string; co
 }
 
 function PaidPlanDetails({ data }: { data: Extract<PlanStatusCardData, { kind: "paidPlan" }> }) {
-  const isScheduledChange = data.badgeLabel === "変更予定" || data.badgeLabel === "利用停止予定";
+  const isScheduledChange = data.badgeLabel === "変更予定" || data.badgeLabel === "解約予定";
   const hasDescription = isScheduledChange && Boolean(data.description);
 
   if (!data.nextEventLabel && !hasDescription) return null;
@@ -262,7 +262,7 @@ export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusP
   if (data.kind === "paidPlan" || data.kind === "freePlan") {
     const planName = data.kind === "paidPlan" ? data.planName : "Free";
     const badgeLabel = data.kind === "paidPlan" ? data.badgeLabel : "利用中";
-    const isScheduledChange = badgeLabel === "変更予定" || badgeLabel === "利用停止予定";
+    const isScheduledChange = badgeLabel === "変更予定" || badgeLabel === "解約予定";
     const badge = isScheduledChange
       ? { label: badgeLabel, background: "orange.100", color: "orange.700" }
       : { label: badgeLabel, background: "teal.100", color: "teal.700" };

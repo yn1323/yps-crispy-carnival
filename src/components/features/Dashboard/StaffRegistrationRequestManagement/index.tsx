@@ -179,8 +179,8 @@ export function StaffRegistrationRequestManagement({
           onOpenBillingSettings={onOpenBillingSettings}
         />
       )}
-      <Text fontSize="sm" color="fg.muted">
-        承認するとスタッフとして登録されます。LINE未連携の場合は案内を送り、募集中のシフトがあれば提出リンクも送ります。
+      <Text fontSize="sm" color="fg.muted" whiteSpace="pre-line">
+        {"承認するとスタッフとして登録します。\nLINE案内と募集中シフトを送ります。"}
       </Text>
       <ActionInboxView
         items={actionItems}

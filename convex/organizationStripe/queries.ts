@@ -427,7 +427,7 @@ export const getFreePlanChangeOperationByRequest = internalQuery({
   },
 });
 
-/** providerの期間末解約を、旧Free予約と新しい利用停止予約のどちらへ収束させるか判定する。 */
+/** providerの期間末解約を、旧Free予約と新しい解約予約のどちらへ収束させるか判定する。 */
 export const getCancelAtPeriodEndRestrictionIntent = internalQuery({
   args: {
     organizationId: v.id("organizations"),

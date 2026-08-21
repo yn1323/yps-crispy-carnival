@@ -216,7 +216,7 @@ describe("legal/mutations", () => {
     expect(shopId).toBeDefined();
     expect(state?.termsConsentVersion).toBe("manager-terms-consent-2026-08-15");
     expect(state?.privacyConsentVersion).toBe("manager-privacy-consent-2026-08-13");
-    expect(state?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-15");
+    expect(state?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-22");
     expect(state?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-08-13");
     expect(state?.method).toBe("manager_reconsent");
     expect(events).toHaveLength(1);

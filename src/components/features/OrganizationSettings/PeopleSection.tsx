@@ -1,4 +1,4 @@
-import { Badge, Box, Flex, Heading, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Badge, Box, Flex, Heading, HStack, Skeleton, Stack } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import { LuArrowUpDown, LuChevronDown, LuPlus, LuShieldCheck, LuUsers } from "react-icons/lu";
 import { StaffListRow } from "@/src/components/shared/StaffListRow";
@@ -57,7 +57,6 @@ export const PeopleSection = ({
   const visiblePeople = people.slice(0, visibleUserCount);
   const hasLocallyHiddenPeople = people.length > visibleUserCount;
   const canLoadMore = hasLocallyHiddenPeople || canLoadMorePeople;
-  const changeStaffOrderDisabledReasonId = "organization-people-staff-order-disabled-reason";
 
   useEffect(() => {
     setVisibleUserCount(initialVisibleUserCount);
@@ -79,7 +78,7 @@ export const PeopleSection = ({
   return (
     <Stack as="section" gap={4} aria-labelledby="organization-people-heading">
       <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={3} wrap="wrap">
-        <HStack gap={2}>
+        <HStack gap={2} flex={{ base: "1 1 auto", md: "0 0 auto" }} minW={0}>
           <LuUsers aria-hidden />
           <Heading id="organization-people-heading" as="h2" fontSize="lg">
             全スタッフ
@@ -95,7 +94,7 @@ export const PeopleSection = ({
             </Badge>
           )}
         </HStack>
-        <Flex gap={2} wrap="wrap" justify="flex-end" ms="auto">
+        <Flex display={{ base: "contents", md: "flex" }} gap={2} align="center" ms={{ md: "auto" }}>
           {onChangeStaffOrder && (
             <Button
               variant="outline"
@@ -105,50 +104,50 @@ export const PeopleSection = ({
               fontWeight="semibold"
               onClick={onChangeStaffOrder}
               disabled={!canChangeStaffOrder}
-              aria-describedby={
-                !canChangeStaffOrder && changeStaffOrderDisabledReason ? changeStaffOrderDisabledReasonId : undefined
-              }
+              title={!canChangeStaffOrder ? changeStaffOrderDisabledReason : undefined}
             >
               <LuArrowUpDown aria-hidden />
               並び順を変更
             </Button>
           )}
-          {onAddStaff && (
-            <Button
-              variant="ghost"
-              size="sm"
-              colorPalette="teal"
-              gap={1.5}
-              fontWeight="semibold"
-              onClick={onAddStaff}
-              disabled={!canAddStaff}
-              title={!canAddStaff ? addStaffDisabledReason : undefined}
-            >
-              <LuPlus aria-hidden />
-              スタッフを追加
-            </Button>
-          )}
-          {showManagerInvitation && (
-            <Button
-              variant="ghost"
-              size="sm"
-              colorPalette="teal"
-              gap={1.5}
-              fontWeight="semibold"
-              onClick={onManageManagers}
-            >
-              <LuShieldCheck aria-hidden />
-              管理者を設定
-            </Button>
-          )}
+          <Flex direction={{ base: "column", md: "row" }} gap={2} w={{ base: "full", md: "auto" }}>
+            {onAddStaff && (
+              <Button
+                variant="ghost"
+                size="sm"
+                colorPalette="teal"
+                gap={1.5}
+                fontWeight="semibold"
+                onClick={onAddStaff}
+                disabled={!canAddStaff}
+                title={!canAddStaff ? addStaffDisabledReason : undefined}
+                w={{ base: "full", md: "auto" }}
+                bg={{ base: "white", md: "transparent" }}
+                borderColor={{ base: "border.emphasized", md: "transparent" }}
+              >
+                <LuPlus aria-hidden />
+                スタッフを追加
+              </Button>
+            )}
+            {showManagerInvitation && (
+              <Button
+                variant="ghost"
+                size="sm"
+                colorPalette="teal"
+                gap={1.5}
+                fontWeight="semibold"
+                onClick={onManageManagers}
+                w={{ base: "full", md: "auto" }}
+                bg={{ base: "white", md: "transparent" }}
+                borderColor={{ base: "border.emphasized", md: "transparent" }}
+              >
+                <LuShieldCheck aria-hidden />
+                管理者を設定
+              </Button>
+            )}
+          </Flex>
         </Flex>
       </Flex>
-
-      {onChangeStaffOrder && !canChangeStaffOrder && changeStaffOrderDisabledReason && (
-        <Text id={changeStaffOrderDisabledReasonId} textStyle="bodySm" color="orange.700">
-          {changeStaffOrderDisabledReason}
-        </Text>
-      )}
 
       {visiblePeople.length === 0 ? (
         <Empty icon={LuUsers} title="この組織にスタッフはいません。" titleAs="h3" variant="section" py={6} />
@@ -210,15 +209,17 @@ export function PeopleSectionSkeleton({
   return (
     <Stack as="section" gap={4} aria-hidden>
       <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={3} wrap="wrap">
-        <HStack gap={2}>
+        <HStack gap={2} flex={{ base: "1 1 auto", md: "0 0 auto" }} minW={0}>
           <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
           <Skeleton h="28px" w="184px" maxW="70vw" />
         </HStack>
         {(showAddStaff || showChangeStaffOrder || showManagerInvitation) && (
-          <Flex gap={2} wrap="wrap" justify="flex-end" ms="auto">
-            {showChangeStaffOrder && <Skeleton h="36px" w="136px" borderRadius="md" />}
-            {showAddStaff && <Skeleton h="36px" w="120px" borderRadius="md" />}
-            {showManagerInvitation && <Skeleton h="36px" w="136px" borderRadius="md" />}
+          <Flex display={{ base: "contents", md: "flex" }} gap={2} align="center" ms={{ md: "auto" }}>
+            {showChangeStaffOrder && <Skeleton h="36px" w={{ base: "136px", md: "136px" }} borderRadius="md" />}
+            <Flex direction={{ base: "column", md: "row" }} gap={2} w={{ base: "full", md: "auto" }}>
+              {showAddStaff && <Skeleton h="36px" w={{ base: "full", md: "120px" }} borderRadius="md" />}
+              {showManagerInvitation && <Skeleton h="36px" w={{ base: "full", md: "136px" }} borderRadius="md" />}
+            </Flex>
           </Flex>
         )}
       </Flex>

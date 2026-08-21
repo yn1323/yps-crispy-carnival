@@ -156,8 +156,8 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
   },
   {
     key: "pro-scheduled-change",
-    organizationName: "[SEED] Pro・利用停止予約",
-    shopNames: ["[SEED] 利用停止予約店舗"],
+    organizationName: "[SEED] Pro・解約予約",
+    shopNames: ["[SEED] 解約予約店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
     billingState: (now) => ({
       kind: "scheduledChange",
