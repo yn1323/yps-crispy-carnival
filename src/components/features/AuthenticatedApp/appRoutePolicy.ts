@@ -46,9 +46,10 @@ const FILTERED_LIST_SEARCH_KEYS = ["org", "shopFilter"] as const satisfies reado
 
 type AppRouteSearchPolicy = "organization" | "billing" | "dashboard" | "filteredList";
 
-const CANONICAL_FILTERED_LIST_PATHS = new Set(["/actions", "/shifts", "/staff", "/staff/order"]);
-const LEGACY_FILTERED_LIST_PATHS = new Set(["/app/actions", "/app/shifts", "/app/staff", "/app/staff/order"]);
+const CANONICAL_FILTERED_LIST_PATHS = new Set(["/actions", "/shifts", "/staff"]);
+const LEGACY_FILTERED_LIST_PATHS = new Set(["/app/actions", "/app/shifts", "/app/staff"]);
 const CANONICAL_ORGANIZATION_PATHS = new Set([
+  "/staff/order",
   "/manage",
   "/manage/organization",
   "/manage/managers",
@@ -57,6 +58,7 @@ const CANONICAL_ORGANIZATION_PATHS = new Set([
 ]);
 const LEGACY_ORGANIZATION_PATHS = new Set([
   "/app",
+  "/app/staff/order",
   "/app/manage",
   "/app/manage/organization",
   "/app/manage/managers",

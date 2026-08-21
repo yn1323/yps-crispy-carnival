@@ -17,3 +17,5 @@ export type {
   OrganizationShopView,
   PaidBillingPlan,
 } from "./types";
+export type { StaffOrderReorderSource } from "./useStaffOrderReorder";
+export { useStaffOrderReorder } from "./useStaffOrderReorder";

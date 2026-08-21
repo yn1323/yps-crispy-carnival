@@ -8,7 +8,12 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { ShopFilterMenu } from "@/src/components/features/AuthenticatedApp/ShopFilterMenu";
 import { StaffInvitationDialog } from "@/src/components/features/Dashboard/StaffManagement/StaffInvitationDialog";
 import { useStaffInvitation } from "@/src/components/features/Dashboard/StaffManagement/useStaffInvitation";
-import { PeopleSection, PeopleSectionSkeleton } from "@/src/components/features/OrganizationSettings";
+import {
+  PeopleSection,
+  PeopleSectionSkeleton,
+  type StaffOrderReorderSource,
+  useStaffOrderReorder,
+} from "@/src/components/features/OrganizationSettings";
 import { Animation } from "@/src/components/templates/Animation";
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 import { Button } from "@/src/components/ui/Button";
@@ -19,6 +24,7 @@ import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
 
 const PEOPLE_PAGE_SIZE = 10;
+const STAFF_ORDER_PEOPLE_LIMIT = 40;
 
 export type ShopOption = {
   id: Id<"shops">;
@@ -55,7 +61,10 @@ export function AppStaffRoutePage(props: Props) {
   if (resolvedFilter.kind === "loading") {
     return (
       <AuthenticatedPageContent includeMobileNavigation>
-        <AppStaffPageStateView state={{ kind: "loading" }} />
+        <AppStaffPageStateView
+          state={{ kind: "loading" }}
+          showStaffOrderHandle={props.requestedShopFilter === undefined}
+        />
       </AuthenticatedPageContent>
     );
   }
@@ -98,11 +107,15 @@ function ConnectedAppStaff({
     organizationId,
     shopFilter,
   });
-  const orderRevision = orderScope?.mode === "ordered" ? orderScope.revision : null;
+  const orderRevision = shopFilter !== "all" && orderScope?.mode === "ordered" ? orderScope.revision : null;
+  const staffOrderEditor = useQuery(
+    api.appOrganization.staffOrderQueries.getOrganizationStaffOrderEditor,
+    shopFilter === "all" ? { organizationId } : "skip",
+  );
   const people = usePaginatedQuery(
     api.appOrganization.queries.listOrganizationPeople,
     orderScope === undefined ? "skip" : { organizationId, shopFilter, orderRevision },
-    { initialNumItems: PEOPLE_PAGE_SIZE },
+    { initialNumItems: shopFilter === "all" ? STAFF_ORDER_PEOPLE_LIMIT : PEOPLE_PAGE_SIZE },
   );
   const summary = useQuery(api.appOrganization.queries.getOrganizationPeopleSummary, {
     organizationId,
@@ -118,23 +131,53 @@ function ConnectedAppStaff({
   const hasEnoughPeopleToReorder = (summary?.totalCount ?? 0) >= 2;
   const hasTooManyPeopleToReorder = summary?.totalCountHasOverflow === true || (summary?.totalCount ?? 0) > 40;
   const hasTooManyActiveShopsToReorder = activeShops.length > 5;
+  const orderedEditorPersonIds =
+    staffOrderEditor?.availability === "ready"
+      ? staffOrderEditor.people.map((person) => person.personId)
+      : people.results.map((person) => person.id);
+  const visiblePersonIds = new Set(people.results.map((person) => person.id));
+  const hasCompleteStaffOrder =
+    staffOrderEditor?.availability === "ready" &&
+    summary !== undefined &&
+    !summary.totalCountHasOverflow &&
+    people.results.length === summary.totalCount &&
+    orderedEditorPersonIds.length === people.results.length &&
+    orderedEditorPersonIds.every((personId) => visiblePersonIds.has(personId));
   const canChangeStaffOrder =
     !isReadOnly &&
     summary?.canChangeStaffOrder === true &&
+    staffOrderEditor?.availability === "ready" &&
+    staffOrderEditor.canWrite &&
     hasEnoughPeopleToReorder &&
     !hasTooManyPeopleToReorder &&
-    !hasTooManyActiveShopsToReorder;
+    !hasTooManyActiveShopsToReorder &&
+    hasCompleteStaffOrder;
   const changeStaffOrderDisabledReason = isReadOnly
     ? "閲覧のみの管理者は、スタッフの並び順を変更できません。"
     : summary?.canChangeStaffOrder !== true
       ? (summary?.changeStaffOrderDisabledReason ?? "現在、スタッフの並び順を変更できません。")
-      : !hasEnoughPeopleToReorder
-        ? "2名以上のスタッフがいると並び替えできます。"
-        : hasTooManyPeopleToReorder
-          ? "利用人数が40名を超えているため、並び順を変更できません。"
-          : hasTooManyActiveShopsToReorder
-            ? "稼働中の店舗が5店舗を超えているため、並び順を変更できません。"
-            : undefined;
+      : staffOrderEditor?.availability !== "ready" || !staffOrderEditor.canWrite
+        ? (staffOrderEditor?.writeDisabledReason ?? "現在、スタッフの並び順を変更できません。")
+        : !hasEnoughPeopleToReorder
+          ? "2名以上のスタッフがいると並び替えできます。"
+          : hasTooManyPeopleToReorder
+            ? "利用人数が40名を超えているため、並び順を変更できません。"
+            : hasTooManyActiveShopsToReorder
+              ? "稼働中の店舗が5店舗を超えているため、並び順を変更できません。"
+              : !hasCompleteStaffOrder
+                ? "スタッフ一覧の読み込み完了後に並び替えできます。"
+                : undefined;
+  const staffOrderSource: StaffOrderReorderSource | undefined =
+    shopFilter === "all" && staffOrderEditor
+      ? {
+          organizationId,
+          orderedPersonIds: orderedEditorPersonIds,
+          orderFingerprint: staffOrderEditor.orderFingerprint,
+          canReorder: canChangeStaffOrder,
+          disabledReason: changeStaffOrderDisabledReason,
+        }
+      : undefined;
+  const staffOrder = useStaffOrderReorder(people.results, staffOrderSource);
   const closeInvitation = useCallback(() => setInvitationShopId(null), []);
 
   const handleAddStaff = () => {
@@ -146,8 +189,13 @@ function ConnectedAppStaff({
     shopSelectionDialog.open();
   };
 
-  if (orderScope === undefined || people.status === "LoadingFirstPage" || summary === undefined) {
-    return <AppStaffPageStateView state={{ kind: "loading" }} />;
+  if (
+    orderScope === undefined ||
+    people.status === "LoadingFirstPage" ||
+    summary === undefined ||
+    (shopFilter === "all" && staffOrderEditor === undefined)
+  ) {
+    return <AppStaffPageStateView state={{ kind: "loading" }} showStaffOrderHandle={shopFilter === "all"} />;
   }
 
   return (
@@ -168,7 +216,7 @@ function ConnectedAppStaff({
 
         <PeopleSection
           key={shopFilter}
-          people={people.results}
+          people={staffOrder.people}
           peopleUsage={{ current: summary.totalCount, max: summary.maxPeople }}
           peopleUsageHasOverflow={summary.totalCountHasOverflow}
           filterResultCount={shopFilter === "all" ? undefined : summary.visibleCount}
@@ -182,21 +230,11 @@ function ConnectedAppStaff({
               search: { org: organizationId },
             })
           }
-          initialVisibleUserCount={PEOPLE_PAGE_SIZE}
+          initialVisibleUserCount={staffOrderSource ? STAFF_ORDER_PEOPLE_LIMIT : PEOPLE_PAGE_SIZE}
           canLoadMorePeople={people.status === "CanLoadMore" || people.status === "LoadingMore"}
           isLoadingMorePeople={people.status === "LoadingMore"}
           onLoadMorePeople={() => people.loadMore(PEOPLE_PAGE_SIZE)}
-          onChangeStaffOrder={() =>
-            void navigate({
-              to: "/staff/order",
-              search: {
-                org: organizationId,
-                ...(shopFilter === "all" ? {} : { shopFilter }),
-              },
-            })
-          }
-          canChangeStaffOrder={canChangeStaffOrder}
-          changeStaffOrderDisabledReason={changeStaffOrderDisabledReason}
+          staffOrder={staffOrder.staffOrder}
           onAddStaff={handleAddStaff}
           canAddStaff={canAddStaff}
           addStaffDisabledReason={
@@ -349,7 +387,15 @@ function OrganizationStaffInvitationDialog({ onDismiss }: { onDismiss: () => voi
 
 export type AppStaffPageState = { kind: "loading" } | { kind: "error" };
 
-export function AppStaffPageStateView({ state, onRetry }: { state: AppStaffPageState; onRetry?: () => void }) {
+export function AppStaffPageStateView({
+  state,
+  onRetry,
+  showStaffOrderHandle = true,
+}: {
+  state: AppStaffPageState;
+  onRetry?: () => void;
+  showStaffOrderHandle?: boolean;
+}) {
   if (state.kind === "loading") {
     return (
       <Stack as="main" aria-label="スタッフ一覧を読み込み中" aria-busy="true" gap={{ base: 6, lg: 8 }}>
@@ -360,7 +406,7 @@ export function AppStaffPageStateView({ state, onRetry }: { state: AppStaffPageS
           </HStack>
           <Skeleton h="44px" w={{ base: "150px", sm: "180px" }} maxW="52vw" />
         </Flex>
-        <PeopleSectionSkeleton showAddStaff showChangeStaffOrder />
+        <PeopleSectionSkeleton showAddStaff showStaffOrderHandle={showStaffOrderHandle} />
       </Stack>
     );
   }

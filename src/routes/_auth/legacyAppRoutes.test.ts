@@ -14,7 +14,8 @@ import { Route as ShiftBoardRoute } from "./app_.shifts_.$recruitmentId_.board";
 import { Route as StaffRoute } from "./app_.staff";
 import { Route as StaffDetailRoute } from "./app_.staff_.$personId";
 import { Route as StaffShopDetailRoute } from "./app_.staff_.$personId_.shops.$shopId";
-import { Route as StaffOrderRoute } from "./app_.staff_.order";
+import { Route as LegacyStaffOrderRoute } from "./app_.staff_.order";
+import { Route as StaffOrderRoute } from "./staff_.order";
 
 type LegacyRoute = {
   options: {
@@ -38,7 +39,7 @@ function getRedirectOptions(
     return error.options;
   }
 
-  throw new Error("legacy route must redirect");
+  throw new Error("compatibility route must redirect");
 }
 
 const unsafeSearch = {
@@ -49,7 +50,7 @@ const unsafeSearch = {
   unknown: "value",
 };
 
-describe("legacy /app redirect routes", () => {
+describe("互換redirect routes", () => {
   it("/app rootはorgだけを保ってDashboardへreplaceする", () => {
     expect(getRedirectOptions(AppRootRoute as LegacyRoute, unsafeSearch)).toMatchObject({
       to: "/dashboard",
@@ -62,7 +63,6 @@ describe("legacy /app redirect routes", () => {
     [ActionsRoute, "/actions"],
     [ShiftsRoute, "/shifts"],
     [StaffRoute, "/staff"],
-    [StaffOrderRoute, "/staff/order"],
   ] as const)("一覧routeは許可した組織・店舗filterだけをcanonical URLへ渡す", (route, to) => {
     expect(getRedirectOptions(route as LegacyRoute, unsafeSearch)).toMatchObject({
       to,
@@ -70,6 +70,17 @@ describe("legacy /app redirect routes", () => {
       replace: true,
     });
   });
+
+  it.each([StaffOrderRoute, LegacyStaffOrderRoute])(
+    "旧スタッフ並び替えrouteは店舗filterを落としてスタッフ一覧へreplaceする",
+    (route) => {
+      expect(getRedirectOptions(route as LegacyRoute, unsafeSearch)).toMatchObject({
+        to: "/staff",
+        search: { org: "organization-a" },
+        replace: true,
+      });
+    },
+  );
 
   it.each([
     [ManageRoute, "/manage"],
