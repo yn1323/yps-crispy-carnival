@@ -64,8 +64,8 @@ export function DrilldownRow({
     >
       {leading}
 
-      <Flex gap={2} align="center" wrap="wrap" flex={1} minW={0}>
-        <Stack gap={secondary ? 1 : 0} flex="1 1 10rem" minW={0}>
+      <Flex gap={2} align="center" flex={1} minW={0}>
+        <Stack gap={secondary ? 1 : 0} flex="1 1 10rem" minW={0} overflow="hidden">
           <Text fontWeight="semibold" color="gray.900" truncate minW={0}>
             {title}
           </Text>

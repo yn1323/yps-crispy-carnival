@@ -63,10 +63,11 @@ export function StaffListRow({ id, name, role, detail, badges = [], onOpen, onOp
           <Flex
             gap={1.5}
             ms="auto"
-            w={{ base: "full", sm: "auto" }}
-            maxW="full"
-            flexShrink={{ base: 1, sm: 0 }}
+            maxW={{ base: "60%", sm: "full" }}
+            minW={0}
+            flexShrink={0}
             alignItems="center"
+            alignSelf="center"
             justify="flex-end"
             wrap="wrap"
           >
@@ -130,7 +131,16 @@ function StatusBadge({
   children: string;
 }) {
   return (
-    <Badge colorPalette={colorPalette} variant="subtle" bg={bg} borderRadius="full" px={2} textStyle="2xs">
+    <Badge
+      colorPalette={colorPalette}
+      variant="subtle"
+      bg={bg}
+      borderRadius="full"
+      px={2}
+      textStyle="2xs"
+      display="inline-flex"
+      alignItems="center"
+    >
       {children}
     </Badge>
   );

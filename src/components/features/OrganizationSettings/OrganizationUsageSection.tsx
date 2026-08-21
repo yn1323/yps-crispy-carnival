@@ -33,14 +33,7 @@ export function OrganizationUsageSection({ billing }: { billing: OrganizationUsa
   }
 
   const appliedLimitLabel = getAppliedLimitLabel(billing);
-  const pendingInvitations = [
-    invitationLabel("利用人数", billing.peopleUsage.pendingInvitations),
-    invitationLabel("管理者", billing.managerUsage.pendingInvitations),
-  ].filter((label): label is string => Boolean(label));
-  const notes = [
-    pendingInvitations.length > 0 ? `招待中：${pendingInvitations.join("・")}` : undefined,
-    appliedLimitLabel,
-  ].filter((note): note is string => Boolean(note));
+  const notes = [appliedLimitLabel].filter((note): note is string => Boolean(note));
 
   return (
     <Box
@@ -200,8 +193,4 @@ function getAppliedLimitLabel(billing: OrganizationUsageSummary) {
   return billing.state === "pendingActivation" && billing.currentPlan === null
     ? "現在はFreeの上限が適用されています"
     : undefined;
-}
-
-function invitationLabel(label: string, pendingInvitations: number | undefined) {
-  return pendingInvitations && pendingInvitations > 0 ? `${label}${pendingInvitations}名` : undefined;
 }
