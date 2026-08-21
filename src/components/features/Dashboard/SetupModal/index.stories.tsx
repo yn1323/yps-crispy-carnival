@@ -106,7 +106,7 @@ export const InteractiveDoubleSubmitGuard: Story = {
 
     await dialog.findByRole("textbox", { name: "あなたの名前" });
     await userEvent.click(dialog.getByRole("checkbox", { name: /利用規約.*プライバシーポリシー.*同意/ }));
-    const submit = dialog.getByRole("button", { name: "お店を登録して利用を開始" });
+    const submit = dialog.getByRole("button", { name: "利用開始" });
     fireEvent.click(submit);
     fireEvent.click(submit);
 
