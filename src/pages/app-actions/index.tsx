@@ -1,7 +1,7 @@
 import { Alert, Box, Flex, Heading, HStack, Icon, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useMemo } from "react";
-import { LuMessageCircle, LuRefreshCw } from "react-icons/lu";
+import { LuChevronDown, LuMessageCircle, LuRefreshCw } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ActionInboxConfirmationDialog, ActionInboxView } from "@/src/components/features/ActionInbox";
 import { ShopFilterMenu } from "@/src/components/features/AuthenticatedApp/ShopFilterMenu";
@@ -111,13 +111,16 @@ function ConnectedAppActions({
         <Flex justify="center">
           <Button
             type="button"
-            variant="outline"
-            minH="44px"
+            variant="ghost"
+            colorPalette="teal"
+            size="sm"
             loading={data.isLoadingMore}
             loadingText="読み込み中"
             onClick={data.loadMore}
+            gap={1}
           >
-            さらに表示
+            <LuChevronDown aria-hidden />
+            もっと見る
           </Button>
         </Flex>
       )}

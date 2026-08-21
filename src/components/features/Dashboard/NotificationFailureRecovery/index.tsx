@@ -227,6 +227,7 @@ export function NotificationFailureRecovery({
         completedItemIds={completedItemIds}
         ariaLabel="送れなかった通知"
         hideEmpty
+        itemVariant="list"
         onVisibleItemCountChange={setVisibleItemCount}
       />
       <ActionInboxConfirmationDialog

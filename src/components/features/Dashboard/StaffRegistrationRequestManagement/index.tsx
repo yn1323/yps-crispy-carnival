@@ -187,6 +187,7 @@ export function StaffRegistrationRequestManagement({
         completedItemIds={completedItemIds}
         ariaLabel="スタッフ登録申請"
         hideEmpty
+        itemVariant="list"
         onVisibleItemCountChange={setVisibleItemCount}
       />
       <ActionInboxConfirmationDialog
