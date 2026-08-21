@@ -11,9 +11,10 @@ description: ユーザーが`$commit`を明示したとき、今回の依頼に�
 
 ## 併用スキル
 
-複数fileにまたがる大きなdiffの事実抽出と、親Agentが選んだtest・lint・buildの実行・log整理では、`$delegate-bounded-repo-work`を併用する。
+複数fileにまたがる大規模なdiffを、commit判断から独立した事実へ圧縮できる場合だけ、`$delegate-bounded-repo-work`を併用する。
 対象判定、固定model、委譲契約は同Skillを正本とする。
-変更範囲、論理group、commit message、stage、commitは本Skillの親Agentが判断・実行する。
+通常の差分確認、対象test、変更範囲、論理group、commit message、stage、commitは本Skillの親Agentが判断・実行する。
+最後の関連変更より後に同じworkspace状態で成功した検証は再利用し、commit段階へ進んだという理由だけで再実行しない。
 
 ## ワークフロー
 
