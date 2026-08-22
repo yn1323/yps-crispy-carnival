@@ -148,8 +148,8 @@ Google account linkingのOAuth帰還先は`/account`専用とし、サインイ�
 ## 管理者招待のメール所有確認
 
 管理者招待の受諾は、招待先をClerk primary emailとみなさない。
-この受諾フローは複数管理者の将来用実装であり、通常環境では招待previewと受諾を公開設定で閉じる。
-次の本人確認契約は、公開設定を明示した検証環境で維持する。
+この受諾フローは複数管理者の通常経路である。
+次の本人確認契約は、Function Test、Scenario Test、専用Preview deploymentのE2Eで維持する。
 
 - すでにpersonとClerk Userが接続済みの場合は、現在の内部`userId`との一致で本人を確認する。
 - 未接続personまたは外部招待の場合は、招待先が現在のClerk Userのverified EmailAddressに含まれることをConvex Node actionからClerk Backend APIで確認する。
@@ -179,7 +179,7 @@ ClerkのEmailAddress: 1件または複数件
 - `/forgot-password`：パスワード再設定
 - `/sso-callback`：サインイン・サインアップ用Google OAuth callback
 - `/account`：認証済みアプリshellで表示する、本文は店舗・組織非依存の本人用アカウント設定。所属組織がある場合は、ヘッダーから組織scopeの要望を送信できる
-- `/manager-invite`：将来用の管理者招待受諾。通常環境ではpreviewと受諾を閉じる
+- `/manager-invite`：管理者招待のpreviewと受諾
 
 ## 主なAPI
 

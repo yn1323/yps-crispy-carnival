@@ -99,7 +99,7 @@ Outboxに入った後でも、provider呼び出しの**直前**に次を再確�
 - CTAは通知元店舗を`shop`クエリで指定したDashboard URL。
 - 「要対応Inboxへ」の区別は2段階ある。確定催促・不達digest・本番募集リマインダーは**抑止context**によりInboxへの記録自体を作らない（配送イベントログには残る）。参加申請digestや法務同意依頼は抑止contextを持たず記録は作られるが、種別が`other`（「通知」）のため一覧・要対応カード・日次リマインダーには表示されない（`isManagerActionableNotificationFailure`）。
 
-### 4.3 組織向け（課金・招待。`FEATURE_BILLING`／`FEATURE_MANAGER_INVITATION`有効時。すべてメールのみ）
+### 4.3 組織向け（課金・招待。すべてメールのみ）
 
 | 通知 | トリガー | 宛先 |
 |---|---|---|
@@ -117,7 +117,6 @@ Outboxに入った後でも、provider呼び出しの**直前**に次を再確�
 
 - 課金通知はLINE連携の有無にかかわらずメールで送り、LINE配送を1件も作らない。複数宛先はメールアドレスを相互に見せないよう個別送信する。
 - 支払い不要Businessでは課金通知を一切発生させない。
-- `FEATURE_BILLING`が閉じたdeploymentでは新しい課金メールを生成しない（署名済みWebhookによる状態収束は継続）。
 
 ## 5. 送らない共通条件（全通知に適用）
 

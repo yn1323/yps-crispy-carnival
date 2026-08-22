@@ -14,26 +14,13 @@ Stripe設定、migration確認、障害対応は[組織課金の運用](../manua
 
 ## 公開範囲
 
-通常の公開範囲は1組織、1店舗、1管理者、支払い不要Businessである。
-複数組織、複数店舗、複数管理者、支払いの実装は将来の公開に備えて保持するが、次の公開設定は未設定を閉状態として扱う。
+repository artifactでは、追加組織、複数店舗、複数管理者、Stripe課金を常時利用できる。
+機能ごとの公開環境変数は使わず、画面の導線を常時表示する。  操作できない場合は、認証・所属状態、契約状態、プラン上限、Stripe設定など、実際の理由を画面へ示す。
 
-- `FEATURE_ORGANIZATION_CREATION`
-- `FEATURE_SHOP_ADDITION`
-- `FEATURE_MANAGER_INVITATION`
-- `FEATURE_BILLING`
-
-値の前後の空白を除き、大文字と小文字を区別せず文字列`true`と一致する場合だけ有効にする。
-未設定、空文字、`false`、その他の値はすべて閉状態である。
-
-閉状態では、frontendが組織作成、店舗追加、管理者、課金の行やボタンを描画しない。
-direct routeとpublic mutation/actionも同じ公開設定をserver-sideで確認し、DB write、scheduler、Outbox、audit、Stripe到達より前に拒否する。
-既存の招待、課金状態、Webhookを安全に減らすcleanupと、`complimentary.business`のentitlement readは閉じない。
-
-Playwright用のE2E deploymentだけは、四つの設定を明示的に有効化して将来機能の既存contractを実走する。
-認証、所属、店舗境界、課金状態、利用上限は、公開設定や画面表示から独立してサーバー側で確認する。
+direct routeとpublic mutation/actionは、画面表示とは独立して認証、所属、店舗境界、課金状態、利用上限をサーバー側で確認する。  招待token、通知、Stripe operation、Webhookのrate limit、冪等性、dedupe、再送安全性も維持する。
 
 実deploymentへの反映状況はこの文書から推定せず、[リリース状態](../manual/release-status.md)の証跡で確認する。
-`/dashboard`は現在の1組織と1店舗を表示し、管理タブから組織名と現在店舗の設定を開ける。
+`/dashboard`は選択中の組織と店舗を表示し、管理画面から組織、店舗、管理者、プランと支払いを開ける。
 
 組織削除は閉じない。
 所属があるとアカウント削除を依頼できないため、閉じると管理ユーザーが退会できなくなる。
@@ -46,9 +33,9 @@ Playwright用のE2E deploymentだけは、四つの設定を明示的に有効�
 
 | 利用者・処理主体 | 完了できること | 主な条件 |
 |---|---|---|
-| 有効な管理者 | 現在の1組織、1店舗、人物を管理する | 認証済み利用者、`active`所属、対象組織と店舗の一致をサーバーで再確認する |
+| 有効な管理者 | 組織、店舗、人物、管理者、契約を管理する | 認証済み利用者、`active`所属、対象組織と店舗の一致、契約状態、プラン上限をサーバーで再確認する |
 | 組織所属がない認証済み利用者 | `/dashboard`のSetupから最初の1組織、1店舗、管理者本人を作る | 所属0件をserver-sideで再確認し、`complimentary.business`で作成する |
-| 将来機能を検証するE2E actor | 組織作成、店舗追加、管理者招待、課金画面の契約を実行する | 専用deploymentで対応する公開設定を明示的に有効化する |
+| 組織所属がある認証済み利用者 | 上限内で追加のFree組織を作る | 作成者本人、組織数上限、rate limit、`requestId`、参照元店舗の所属をサーバーで再確認する |
 | Stripe Webhookと内部worker | 既存の支払い結果、期間末変更、取消、再試行を検証して課金状態へ反映する | 署名、接続mode、provider objectの対応、version、冪等性を検証する |
 | 運用担当者 | Stripe設定、probe、Narrow deploy前確認、販売停止、Price rotation、復旧を行う | 実環境を一意に特定し、[運用手順](../manual/organization-billing.md)に従って証跡を残す |
 
@@ -59,8 +46,8 @@ Playwright用のE2E deploymentだけは、四つの設定を明示的に有効�
 
 - `/manage?org=<organizationId>`は`getManageOverview`で組織名、課金状態、利用数、店舗状態別件数、操作可否だけを購読し、店舗実体をoverviewへ埋め込まない。
 - 店舗一覧は`listOrganizationShops`をcursor paginationし、activeだけでなくarchivedも表示する。  プラン上限の5件を保存済み店舗の取得上限に流用せず、過去店舗を欠落させない。
-- 組織名、現在店舗、組織削除は既存Dialogとcontrollerを再利用する。  組織作成、店舗追加、管理者招待、請求先変更、Stripe操作は対応する公開設定が有効な環境だけで入口を表示する。
-- 課金を明示的に有効化した環境でCheckoutとCustomer Portalを開始した場合、復帰先は`/manage/billing?org=<organizationId>`にする。  復帰URLだけで支払い成功とは判断せず、Webhookまたはprovider再取得結果を正本とする。
+- 組織名、現在店舗、組織削除は既存Dialogとcontrollerを再利用する。  組織作成、店舗追加、管理者招待、請求先変更、Stripe操作の入口は常時表示し、操作可否はサーバーが返すcapabilityに従う。
+- CheckoutとCustomer Portalを開始した場合、復帰先は`/manage/billing?org=<organizationId>`にする。  復帰URLだけで支払い成功とは判断せず、Webhookまたはprovider再取得結果を正本とする。
 - `pendingActivation`で課金ページを表示した場合は、戻りqueryの有無にかかわらず、サーバーが対象Sessionを組織、operation、Customer、Price、modeに照合する。  Sessionが`open`なら自動で取り消さず、「支払いを続ける」と「支払いをやめる」を表示する。  明示的に支払いをやめた場合だけStripeで`expired`へ確定してから、支払い失敗時のfallbackへ戻す。
 - Checkoutから`stripe=cancelled`で戻った場合も同じサーバー照合を行い、`open`なら明示キャンセルとして`expired`へ収束させる。  `complete`やprovider取得失敗では状態を変更せず、Webhookまたは再試行を待つ。  ブラウザバックは`cancel_url`を通らず、bfcache復元ではReactが再マウントされない場合もあるため、戻りqueryだけでなく課金ページの初回表示と`pageshow`復元を再照合の起点にする。
 - query errorはページ内で再試行でき、readOnly所属は内容を閲覧できるが変更入口を無効にする。  契約制限中の復旧操作は課金policyが返すcapabilityに従う。
@@ -138,19 +125,17 @@ Freeは追加組織の初期状態と、既存の`active.free`、そのFreeをfa
 
 ## 組織の作成
 
-通常環境で利用できる組織作成は、組織所属0件の本人による初回Setupだけである。
+組織作成は、組織所属0件の本人による初回Setupと、既存管理者による追加作成の二つを提供する。
 
 | 入口 | 対象 | 開始プラン |
 |---|---|---|
 | 初回セットアップ（`/dashboard`） | 所属がまだない利用者 | `complimentary.business` |
-| 将来用の組織作成 | 公開設定を明示的に有効化した環境の既存管理者 | `active.free` |
+| 追加組織作成 | 既存組織のactive管理者 | `active.free` |
 
 初回Setupは本人のactiveな組織所属が0件であることをserver-sideで確認する。
 最初の組織、店舗、人物、管理者、店舗スタッフと`complimentary.business`を一度だけ作り、Trial期限、Stripe object、課金deadlineを作らない。
 
-追加組織の実装は将来用に保持する。
-公開設定が閉じている通常環境では、画面入口を表示せず、mutationもrate limitやwriteより前に拒否する。
-明示的に有効化した場合のFree枠、作成上限、冪等性の契約は既存テストで維持する。
+追加組織は管理画面から作成できる。  serverは認証、作成元組織の管理者状態、Free枠、作成上限、rate limit、冪等性をwriteより前に確認する。
 
 自分で作成して保持できる組織は3件までとする。
 招待されて所属している組織はこの上限に数えない。
@@ -165,7 +150,7 @@ Freeは追加組織の初期状態と、既存の`active.free`、そのFreeをfa
 初回セットアップで入力したシフト連絡先は、最初の組織人物、最初の店舗スタッフ、組織の初期請求先へsnapshotする。
 `users.email`にも初回値を保存するが、以後のシフト連絡先とログイン方法の正本にはしない。
 
-将来用の二つ目以降の組織作成では、画面が選択中の店舗を`sourceShopId`として渡す。
+二つ目以降の組織作成では、画面が選択中の店舗を`sourceShopId`として渡す。
 サーバーは、その店舗の組織で操作本人が有効な管理者であることを確認し、同じuserのactive personを一意に解決できれば、その氏名とシフト連絡先だけを新しい組織人物、最初の店舗スタッフ、初期請求先へsnapshotする。
 別人物の情報、既存スタッフ所属、店舗、シフトは引き継がない。
 旧frontendが`sourceShopId`を送らない場合、またはsourceに一意な旧`shopMembers`だけがありcanonical personがまだない移行途中の場合は、`users`のsnapshotへfallbackする。canonical personやmembershipが重複・不整合な場合はfallbackせず拒否する。
@@ -195,10 +180,8 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 
 ## 管理者招待の安全契約
 
-管理者招待は未公開である。
-通常環境では入口と状態表示を隠し、発行、再送、preview、受諾、配送、権限追加を公開設定のserver-side判定で副作用前に拒否する。
-取消、期限切れ処理、残存招待を減らすcleanupは維持する。
-次の契約は、公開設定を明示的に有効化したE2E deploymentとFunction Testで維持する。
+管理者招待は管理画面から利用できる。
+取消、期限切れ処理、残存招待を減らすcleanupを含め、次の契約を専用Preview deploymentのE2EとFunction Testで維持する。
 発行・再送・preview・`linkAccount`・legacy `accept`・招待通知と管理者連携完了通知は、認証、所属、token、version、上限をサーバー側で確認する。
 取消済み、期限切れ、再送前versionの招待は受諾できない。
 Notification Outboxは外部送信直前にも招待、所属、受取人を再確認し、無効になった招待の投入済み通知をproviderへ送らず取消する。
@@ -215,7 +198,7 @@ Notification Outboxは外部送信直前にも招待、所属、受取人を再�
 - 新規発行は、同じ対象の期限内招待を暗黙に再送しない。管理者設定の招待中一覧から明示的に再送し、以前の招待URLが使えなくなることを確認する。
 - 生tokenをNotification Outboxへ保存せず、送信直前にサーバー側秘密値から導出する。
 - 外部人物は招待発行時に人物や所属を作らず、アカウント連携が成功したtransaction内で初めて作る。
-- grandfathered Freeは、既存スタッフと外部人物のどちらにも通常の管理者追加招待（`purpose: "managerAddition"`）を発行できる。
+- Freeは、既存スタッフと外部人物のどちらにも通常の管理者追加招待（`purpose: "managerAddition"`）を発行できる。
   有効管理者と期限内の追加招待は合計2名までとし、外部人物の招待では利用人数の空きも確認する。
 - 旧`freeManagerExchange`招待は新規発行と再送を行わない。
   既発行の期限内tokenだけは旧意味のまま承認または取消でき、承認時は後任の有効化と旧管理者の権限失効を同じtransactionで確定する。
@@ -232,7 +215,7 @@ Notification Outboxは外部送信直前にも招待、所属、受取人を再�
 | `trial` | 無料体験中。Pro相当を利用する | 継続先としてProまたはBusinessを選べる |
 | `initialPaymentPending` | Trial終了時の初回支払い結果を確認中 | Pro相当を維持し、検証済み結果を待つ |
 | `pendingActivation` | 既存Free、Pro、制限状態から有料プランを有効化中 | 保存したfallbackの権限を維持する。Free fallbackは5名、1店舗、管理者2名を使う |
-| `active.free` | grandfathered Freeを利用中 | 5名、1店舗、管理者2名に限定する。新しく作成しない |
+| `active.free` | Freeを利用中 | 5名、1店舗、管理者2名に限定する。二つ目以降の組織はこの状態で開始する |
 | `active.pro` | Proを利用中 | 20名、5店舗、管理者5名を許可する |
 | `active.business` | Businessを利用中 | 40名、5店舗、管理者5名を許可する |
 | `complimentary.business` | 支払い不要Businessを利用中 | Business権限を許可し、Stripe処理を拒否する |
@@ -246,7 +229,7 @@ Notification Outboxは外部送信直前にも招待、所属、受取人を再�
 期間末までは現在の有料機能を利用でき、期間末前なら予約を取り消せる。
 Stripeで期間末終了を確認した後は`scheduledCancellation`を理由とする契約制限中へ移し、データと直前の管理者・稼働店舗を保持する。
 
-既存の`active.free`と支払い不要Businessはgrandfathered契約として維持する。
+`active.free`は追加組織と既存のFree組織へ適用し、支払い不要Businessは既存組織と初回Setupの特別な契約として維持する。
 deployment前から保存済みで`targetPlan: "free"`かつ`restrictAtPeriodEnd`を持たない変更予約は、期間末に従来どおりFreeまたは旧Free条件未達の契約制限中へ収束させる。
 `setFreeSelection`は、このmarkerなし予約と、`trialFreeConditionsNotMet`または`freeConditionsNotMet`で残る旧制限状態にだけ許可する。
 
@@ -255,18 +238,18 @@ deployment前から保存済みで`targetPlan: "free"`かつ`restrictAtPeriodEnd
 | 画面 | 役割 |
 |---|---|
 | `/dashboard?org=<organizationId>&shop=<shopId>` | 明示した組織とactive店舗を再検証し、現在店舗の業務と利用状況を表示する |
-| `/manage?org=<organizationId>` | 現在の組織と店舗の概要を表示する。通常環境では組織作成、店舗追加、管理者、課金の入口を表示しない |
+| `/manage?org=<organizationId>` | 現在の組織と店舗の概要と、組織作成、店舗追加、管理者、課金の入口を表示する |
 | `/manage/organization?org=<organizationId>` | 現在の組織名と削除を扱う |
 | `/manage/shops/<shopId>?org=<organizationId>` | 同じ組織の現在店舗の情報、所属、稼働状態を管理する |
-| `/staff/<personId>?org=<organizationId>` | 組織人物、店舗所属、管理者状態を確認する。管理者の変更導線は公開設定が有効な場合だけ表示する |
-| `/manage/managers*?org=<organizationId>` | 将来用の管理者一覧と招待。閉状態のdirect accessでは情報を描画せず`/manage`へ戻す |
-| `/manage/billing?org=<organizationId>` | 将来用の課金画面。閉状態のdirect accessでは情報を描画せず`/manage`へ戻す |
-| `/manager-invite?token=...` | 将来用の招待受諾。閉状態ではpreviewと受諾をserver-sideで拒否する |
+| `/staff/<personId>?org=<organizationId>` | 組織人物、店舗所属、管理者状態を確認する |
+| `/manage/managers*?org=<organizationId>` | 管理者一覧、招待、再送、取消、権限解除を扱う |
+| `/manage/billing?org=<organizationId>` | 現在プラン、価格、契約変更、Portal、請求先メールを扱う |
+| `/manager-invite?token=...` | 管理者招待のpreviewと受諾を扱う |
 
 ### Dashboardの組織・プラン表示
 
 Dashboardは組織を親、現在の店舗を作業対象として順に表示する。
-通常の公開範囲は1組織と1店舗であり、別組織の作成、組織切替、店舗追加の操作は表示しない。
+別組織の作成、組織切替、店舗追加は、管理者状態と契約状態に応じて表示する。
 
 `getDashboardShop`が選択店舗と組織所属を検証して返す`planStatus`を、プラン表示の正本にする。
 `planStatus`は`trial`、`initialPaymentPending`、`pendingActivation`、Free・Pro・Businessの利用中、支払い不要Business、変更予約、支払い猶予、契約制限中を、利用者向けの最小DTOへ投影する。
@@ -284,9 +267,8 @@ frontendの閲覧専用表示だけを認可根拠にせず、mutationも実行�
 管理者数はserverのDTOに`managerUsage`があるとき3列目へ表示する。
 frontendだけの状態やCSSを認可境界にしない。
 
-Dashboardは現在のプランと利用状況を最小DTOから表示する。
-支払いの公開設定が閉じている通常環境では、料金、課金Callout、「プランと支払い」への導線を表示せず、CheckoutやPortalのActionも実行できない。
-料金と販売中プランの比較は、公開設定を明示的に有効化した`/manage/billing?org=<organizationId>`だけで扱う。
+Dashboardは現在のプランと利用状況を最小DTOから表示し、必要な課金Calloutと「プランと支払い」への導線を提供する。
+料金と販売中プランの比較は`/manage/billing?org=<organizationId>`で扱い、CheckoutやPortalのActionは認証、組織境界、管理者状態、契約状態、Stripe設定をserver-sideで確認する。
 表示する金額と`day`、`week`、`month`、`year`の請求周期はStripe Priceから取得し、開発用の短縮周期も同じ経路で表示する。
 「プランと支払い」で表示する税区分はActionが明示した場合だけ表示し、不明な場合は税込・税抜を推測しない。
 
@@ -304,9 +286,8 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 
 | パス | 責務 |
 |---|---|
-| `convex/setup/mutations.ts` | 所属0件の初回セットアップと、公開設定で閉じた将来用の追加組織作成を受け付ける |
-| `convex/setup/service.ts` | 組織、最初の管理者、店舗、初期課金状態を作る。初回Setupは`complimentary.business`、明示的に有効化した追加組織は`active.free`を使う |
-| `convex/_lib/config.ts`、`convex/_lib/releaseFeatures.ts` | 四つの公開設定をfail-closedで解決し、public操作を副作用前に拒否する |
+| `convex/setup/mutations.ts` | 所属0件の初回セットアップと、既存管理者による追加組織作成を受け付ける |
+| `convex/setup/service.ts` | 組織、最初の管理者、店舗、初期課金状態を作る。初回Setupは`complimentary.business`、追加組織は`active.free`を使う |
 | `convex/_lib/functions.ts` | 認証、組織所属、選択店舗、課金状態を検証するAPI wrapper |
 | `convex/dashboard/queries.ts` | 選択店舗の認可境界で、Dashboard用の現在プランと対応状態を投影し、カード展開中だけ組織の利用状況を最小DTOで返す |
 | `convex/organization/` | 組織、店舗、人物、管理者、利用状況、削除可否を扱う |
@@ -326,9 +307,9 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 
 | パス | 責務 |
 |---|---|
-| `src/pages/app-manage/` | 現在組織と店舗の管理画面、公開設定に応じた将来機能の非表示、direct routeの閉状態 |
-| `src/components/features/ManagerSettings/` | 将来用の管理者設定、既存スタッフ招待、新しい人物の招待に必要な画面状態 |
-| `src/components/features/OrganizationSettings/` | 現在組織と店舗の共有設定UI、将来用の組織作成・店舗追加・課金UI |
+| `src/pages/app-manage/` | 現在組織と店舗の管理画面、組織作成、店舗追加、管理者、課金への導線 |
+| `src/components/features/ManagerSettings/` | 管理者設定、既存スタッフ招待、新しい人物の招待に必要な画面状態 |
+| `src/components/features/OrganizationSettings/` | 現在組織と店舗の共有設定UI、組織作成・店舗追加・課金UI |
 | `src/components/features/OrganizationSettings/BillingSettings/` | 価格表示、プラン変更、Portal、請求先メールのcontrollerとdialog |
 | `src/components/features/ManagerInvitationAcceptance/` | 招待preview、認証導線、連携結果 |
 | `src/pages/account-security/` / `src/components/features/LoginMethods/` | シフト連絡先と独立したアカウント設定の画面境界、Clerk状態からの表示判定と操作可否 |
@@ -344,7 +325,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | 入口 | 用途 |
 |---|---|
 | `api.setup.mutations.setupShopAndManager` | 所属0件の初期設定と、1組織、1店舗、管理者本人、`complimentary.business`の作成。Trial deadlineとStripe objectは作らない |
-| `api.setup.mutations.createOrganization` | 将来用の追加組織作成。通常環境では公開設定により副作用前に拒否し、明示的に有効化した場合だけ`active.free`を作る |
+| `api.setup.mutations.createOrganization` | 既存管理者による追加組織作成。認証、作成上限、rate limit、冪等性を確認し`active.free`を作る |
 | `api.dashboard.queries.getMyShops` | 利用可能な店舗、組織、所属状態の取得 |
 | `api.dashboard.queries.getDashboardShop` | 選択店舗を認可し、Dashboard用の`planStatus`とrolling deploy用の旧`trialEndingNotice`を取得 |
 | `api.dashboard.queries.getDashboardPlanUsage` | 選択店舗を認可し、明示された時刻を基準にスタッフ・店舗・管理者の現在値と上限を取得 |
@@ -352,14 +333,14 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `api.organization.queries.getManagerSettingsOverview` | `{ shopId, now }`で選択店舗を認可し、管理者数、招待中件数、現在の管理者、期限内の招待、操作可否を`integrityError` / `ready` unionで取得 |
 | `api.organization.queries.getManagerCandidates` | `{ shopId, now }`で選択店舗を認可し、既存スタッフの単一選択候補と選択不可理由を`integrityError` / `ready` unionで取得。候補サブページを開いた間だけ購読する |
 | `api.organization.mutations.*` | 組織名、店舗、人物、管理者、削除の更新 |
-| `api.organizationInvitation.queries.getPreview` | 将来用の招待preview。公開設定が閉じている通常環境では情報を返さない |
-| `api.organizationInvitation.mutations.issue` | 将来用の管理者招待。通常環境では公開設定により副作用前に拒否する |
+| `api.organizationInvitation.queries.getPreview` | tokenのdigest、version、期限、取消状態を確認して招待previewを返す |
+| `api.organizationInvitation.mutations.issue` | 組織管理者が人物上限、管理者上限、予約枠を確認して管理者招待を発行する |
 | `api.organizationInvitation.mutations.createExternal` / `createForPerson` / `createForStaff` | rolling deploy中の旧client向けに、外部人物または既存人物へ管理者招待を発行する互換入口 |
 | `api.organizationInvitation.mutations.resend` / `revoke` | 招待の再送と取消 |
 | `api.organizationInvitation.acceptanceActions.accept` | 接続済み人物のアカウント一致、または未接続人物のClerk確認済みメールを検証して招待を承認 |
 | `api.organizationBilling.mutations.setFreeSelection` | markerなしの旧Free予約、または旧Free条件未達の制限状態で残す管理者と店舗の選択。Trialと新しい解約には使用しない |
-| `api.organizationBilling.mutations.updateBillingEmail` | 将来用の請求先メール更新。通常環境では公開設定により副作用前に拒否する |
-| `api.organizationStripe.actions.getPlanPrice` / `startPaidCheckout` | 将来用の価格確認と契約開始。通常環境ではprovider到達前に拒否する |
+| `api.organizationBilling.mutations.updateBillingEmail` | 認証、組織境界、管理者状態を確認して請求先メールを更新する |
+| `api.organizationStripe.actions.getPlanPrice` / `startPaidCheckout` | Stripe設定と販売Priceを検証して価格を取得し、契約を開始する |
 | `api.organizationStripe.actions.inspectPendingCheckoutForOrganization` / `cancelPendingCheckoutForOrganization` | `pendingActivation`に対応するCheckout Sessionの照合と、利用者が明示した未完了Checkoutの取消。URLやclient stateだけで課金状態を変更しない |
 | `api.organizationStripe.actions.getCurrentSubscriptionPrice` | 選択店舗を認可し、現在の非terminal Subscriptionに保存したPriceから金額、通貨、周期、明示された税区分だけを取得 |
 | `api.organizationStripe.actions.previewPaidPlanChange` / `changePaidPlanNow` | ProからBusinessへの日割りpreviewと即時変更 |
@@ -389,14 +370,14 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 - `convex/organization/managerSettingsQueries.test.ts`：管理者設定のbounded read、currentとprojectedの分離、`integrityError` / `ready`、候補の選択不可理由を検証する。
 - `convex/_scenario/organizationBillingLifecycle.test.ts`と`organizationPaidPlanChanges.test.ts`：時間と複数APIをまたぐ課金ライフサイクルを検証する。
 - `convex/_scenario/staffManagerInvitation.test.ts`と`organizationManagerExchange.test.ts`：既存人物の通常招待と、既発行のFree管理者交代招待の互換処理を検証する。
-- `convex/setup/mutations.test.ts`：初回Setupが所属0件だけに許可され、`complimentary.business`を作り、Trial deadlineを作らないことと、追加組織が公開設定なしでは副作用前に拒否されることを検証する。
-- `convex/_scenario/organizationCreation.test.ts`：公開設定を明示した将来用の追加組織について、Free枠、冪等性、rate limit、初期Free状態、既存組織への非混入を検証する。
-- `src/pages/dashboard/index.stories.tsx`、`src/components/features/Dashboard/DashboardContent/index.stories.tsx`、`src/components/features/OrganizationSettings/OrganizationCreation/OrganizationCreationDialog.stories.tsx`、`src/components/features/OrganizationSettings/controllers.test.tsx`：初回Setupと将来用の追加組織作成について、代表状態、フォーム操作、失敗後も同じ`requestId`を保つ再試行、mutation引数、作成後の遷移を検証する。
+- `convex/setup/mutations.test.ts`：初回Setupが所属0件だけに許可され、`complimentary.business`を作り、Trial deadlineを作らないことと、追加組織が認証、上限、rate limitを再確認することを検証する。
+- `convex/_scenario/organizationCreation.test.ts`：追加組織について、Free枠、冪等性、rate limit、初期Free状態、既存組織への非混入を検証する。
+- `src/pages/dashboard/index.stories.tsx`、`src/components/features/Dashboard/DashboardContent/index.stories.tsx`、`src/components/features/OrganizationSettings/OrganizationCreation/OrganizationCreationDialog.stories.tsx`、`src/components/features/OrganizationSettings/controllers.test.tsx`：初回Setupと追加組織作成について、代表状態、フォーム操作、失敗後も同じ`requestId`を保つ再試行、mutation引数、作成後の遷移を検証する。
 - `src/components/features/OrganizationSettings/PlanAndPaymentSection.stories.tsx`と`BillingSettings/`配下のStory・Logic Test：Free、Pro、Business、未完了Checkoutの代表状態と主要変更操作を検証する。
 - `src/components/features/Dashboard/PlanStatusCard/`のFrontend Unit・Story・Logic Test：折りたたみ中のquery停止、利用状況の局所Loading、全課金状態の表示変換、開閉、CTA、モバイル表示を検証する。
 - `src/components/features/Dashboard/DashboardContent/index.stories.tsx`：`undefined`と`null`のfallback差、新旧表示の優先順位を検証する。
 - `src/components/features/ManagerSettings/`のStoryとFrontend Unit Test：専用ページ、既存スタッフの単一選択、新しい人物の入力、Freeの2名上限、再送、取消、旧Free交代の互換表示、Loading、Empty、Error、閲覧専用の代表状態を検証する。
-- `e2e/scenarios/organization-lifecycle.test.ts`：四つの公開設定を明示的に有効化したE2E deploymentで、2組織目の作成、改名、切り替えと、組織削除後の残存組織への復帰を検証する。
+- `e2e/scenarios/organization-lifecycle.test.ts`：専用Preview deploymentで、2組織目の作成、改名、切り替えと、組織削除後の残存組織への復帰を検証する。
 - `e2e/scenarios/manager-settings.test.ts`：同じE2E deploymentで`E2E-MANAGER-01`として、既存スタッフへの招待発行、再読込、取消、スタッフタブへの復帰を検証する。招待受諾は成功条件にしない。
 - `e2e/scenarios/manager-lifecycle.test.ts`：同じE2E deploymentで`E2E-MANAGER-02`として、別のClerk actorによる招待受諾、管理者権限の取得と解除、解除後の管理画面へのアクセス拒否、スタッフ所属の維持を検証する。
 - 管理者E2Eは招待capability、Clerk session、氏名、メールアドレスを扱うためtrace、screenshot、videoを無効にする。メールproviderへの実配送は成功条件にしない。
