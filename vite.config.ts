@@ -1,5 +1,6 @@
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
+import { configDotenv } from "dotenv";
 import { defineConfig, loadEnv } from "vite";
 import pkg from "./package.json" with { type: "json" };
 import { loadStripePublicPlanPrices } from "./scripts/loadStripePublicPlanPrices";
@@ -74,13 +75,35 @@ export default defineConfig(async ({ mode }) => {
 });
 
 async function resolvePublicPlanPrices(appEnvironment: string): Promise<PublicPlanPriceCatalog> {
-  if (appEnvironment === "local" || appEnvironment === "preview") {
+  if (appEnvironment === "storybook" || appEnvironment === "test") {
     return PUBLIC_PLAN_PRICE_FIXTURE;
   }
-  if (appEnvironment === "develop" || appEnvironment === "production") {
+  if (appEnvironment === "local") {
+    return await loadStripePublicPlanPrices({
+      environment: appEnvironment,
+      env: loadLocalStripeBuildEnvironment(),
+    });
+  }
+  if (appEnvironment === "preview" || appEnvironment === "develop" || appEnvironment === "production") {
     return await loadStripePublicPlanPrices({
       environment: appEnvironment,
     });
   }
   throw new Error(`Unsupported VITE_APP_ENVIRONMENT for public price build: ${appEnvironment}`);
+}
+
+function loadLocalStripeBuildEnvironment(): Readonly<Record<string, string | undefined>> {
+  const dotenvEnvironment: Record<string, string | undefined> = {};
+  // ViteのloadEnvはdebug時に値を出すため、秘密値はログを出さないdotenvでlocal優先に読む。
+  configDotenv({
+    path: [".env.local", ".env"],
+    processEnv: dotenvEnvironment,
+    quiet: true,
+  });
+
+  return {
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? dotenvEnvironment.STRIPE_SECRET_KEY,
+    STRIPE_PRO_PRICE_ID: process.env.STRIPE_PRO_PRICE_ID ?? dotenvEnvironment.STRIPE_PRO_PRICE_ID,
+    STRIPE_BUSINESS_PRICE_ID: process.env.STRIPE_BUSINESS_PRICE_ID ?? dotenvEnvironment.STRIPE_BUSINESS_PRICE_ID,
+  };
 }

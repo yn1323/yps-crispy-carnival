@@ -91,6 +91,9 @@ jobs:
       - name: Build
         run: pnpm build
         env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PRO_PRICE_ID: ${{ secrets.STRIPE_PRO_PRICE_ID }}
+          STRIPE_BUSINESS_PRICE_ID: ${{ secrets.STRIPE_BUSINESS_PRICE_ID }}
           VITE_APP_ENVIRONMENT: preview
           VITE_CONVEX_URL: ${{ steps.convex.outputs.PREVIEW_URL }}
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
@@ -137,6 +140,9 @@ jobs:
       - name: Build measurement-enabled browser contract
         run: pnpm build
         env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PRO_PRICE_ID: ${{ secrets.STRIPE_PRO_PRICE_ID }}
+          STRIPE_BUSINESS_PRICE_ID: ${{ secrets.STRIPE_BUSINESS_PRICE_ID }}
           VITE_APP_ENVIRONMENT: preview
           VITE_CONVEX_URL: ${{ steps.convex.outputs.PREVIEW_URL }}
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
@@ -198,9 +204,9 @@ jobs:
       - name: Build
         run: pnpm build
         env:
-          STRIPE_PRICE_READ_KEY: ${{ secrets.STRIPE_PRICE_READ_KEY }}
-          STRIPE_PRO_PRICE_ID: ${{ vars.STRIPE_PRO_PRICE_ID }}
-          STRIPE_BUSINESS_PRICE_ID: ${{ vars.STRIPE_BUSINESS_PRICE_ID }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PRO_PRICE_ID: ${{ secrets.STRIPE_PRO_PRICE_ID }}
+          STRIPE_BUSINESS_PRICE_ID: ${{ secrets.STRIPE_BUSINESS_PRICE_ID }}
           VITE_APP_ENVIRONMENT: develop
           VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}

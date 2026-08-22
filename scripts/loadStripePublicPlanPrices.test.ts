@@ -7,7 +7,7 @@ import {
 } from "./loadStripePublicPlanPrices";
 
 const testEnvironment = {
-  STRIPE_PRICE_READ_KEY: "rk_test_public_prices_secret_value",
+  STRIPE_SECRET_KEY: "sk_test_public_prices_secret_value",
   STRIPE_PRO_PRICE_ID: "price_pro_private_identifier",
   STRIPE_BUSINESS_PRICE_ID: "price_business_private_identifier",
 } as const;
@@ -58,7 +58,7 @@ async function expectLoadError(
   options: {
     env?: Record<string, string | undefined>;
     retrievePrice?: (priceId: string) => Promise<RetrievedStripePrice>;
-    environment?: "develop" | "production";
+    environment?: "local" | "preview" | "develop" | "production";
   } = {},
 ) {
   const promise = loadStripePublicPlanPrices({
@@ -101,23 +101,26 @@ describe("loadStripePublicPlanPrices", () => {
     expect(Object.keys(catalog.pro)).toEqual(["currency", "unitAmount", "interval", "intervalCount", "taxBehavior"]);
 
     const serialized = JSON.stringify(catalog);
-    expect(serialized).not.toContain(testEnvironment.STRIPE_PRICE_READ_KEY);
+    expect(serialized).not.toContain(testEnvironment.STRIPE_SECRET_KEY);
     expect(serialized).not.toContain(testEnvironment.STRIPE_PRO_PRICE_ID);
     expect(serialized).not.toContain(testEnvironment.STRIPE_BUSINESS_PRICE_ID);
   });
 
-  it("環境に対応するrestricted keyだけを受け付ける", async () => {
-    await expectLoadError("invalid_restricted_key", {
-      env: { ...testEnvironment, STRIPE_PRICE_READ_KEY: "sk_test_not_restricted" },
+  it("環境に対応するsecret keyだけを受け付ける", async () => {
+    await expectLoadError("invalid_secret_key", {
+      env: { ...testEnvironment, STRIPE_SECRET_KEY: "rk_test_not_secret" },
     });
-    await expectLoadError("invalid_restricted_key", {
+    await expectLoadError("invalid_secret_key", {
+      env: { ...testEnvironment, STRIPE_SECRET_KEY: "sk_live_wrong_mode" },
+    });
+    await expectLoadError("invalid_secret_key", {
       environment: "production",
-      env: { ...testEnvironment, STRIPE_PRICE_READ_KEY: "rk_test_wrong_mode" },
+      env: { ...testEnvironment, STRIPE_SECRET_KEY: "sk_test_wrong_mode" },
     });
     await expect(
       loadStripePublicPlanPrices({
         environment: "production",
-        env: { ...testEnvironment, STRIPE_PRICE_READ_KEY: "rk_live_public_prices_secret_value" },
+        env: { ...testEnvironment, STRIPE_SECRET_KEY: "sk_live_public_prices_secret_value" },
         retrievePrice: async (priceId) =>
           stripePrice({
             id: priceId,
@@ -128,11 +131,21 @@ describe("loadStripePublicPlanPrices", () => {
     ).resolves.toMatchObject({ pro: { unitAmount: 3_000 }, business: { unitAmount: 6_000 } });
   });
 
+  it.each(["local", "preview"] as const)("%sはSandboxのsecret keyから料金を取得する", async (environment) => {
+    await expect(
+      loadStripePublicPlanPrices({
+        environment,
+        env: testEnvironment,
+        retrievePrice: retrieveValidPrices(),
+      }),
+    ).resolves.toMatchObject({ pro: { unitAmount: 3_000 }, business: { unitAmount: 6_000 } });
+  });
+
   it("欠落設定、不正ID、ProとBusinessの同一IDを取得前に拒否する", async () => {
     const retrievePrice = retrieveValidPrices();
 
     await expectLoadError("missing_configuration", {
-      env: { ...testEnvironment, STRIPE_PRICE_READ_KEY: "" },
+      env: { ...testEnvironment, STRIPE_SECRET_KEY: "" },
       retrievePrice,
     });
     await expectLoadError("invalid_price_id", {
@@ -153,7 +166,7 @@ describe("loadStripePublicPlanPrices", () => {
         environment: "develop",
         env: testEnvironment,
         retrievePrice: async () => {
-          throw new Error(`provider response included ${testEnvironment.STRIPE_PRICE_READ_KEY}`);
+          throw new Error(`provider response included ${testEnvironment.STRIPE_SECRET_KEY}`);
         },
       });
     } catch (error) {
@@ -162,7 +175,7 @@ describe("loadStripePublicPlanPrices", () => {
 
     expect(caught).toBeInstanceOf(StripePublicPriceLoadError);
     expect(caught).toMatchObject({ code: "retrieve_failed", plan: "pro" });
-    expect(String(caught)).not.toContain(testEnvironment.STRIPE_PRICE_READ_KEY);
+    expect(String(caught)).not.toContain(testEnvironment.STRIPE_SECRET_KEY);
     expect(String(caught)).not.toContain(testEnvironment.STRIPE_PRO_PRICE_ID);
   });
 
@@ -218,7 +231,7 @@ describe("loadStripePublicPlanPrices", () => {
   it("Productionでは両プランが同じ周期でも月1回以外を拒否する", async () => {
     await expectLoadError("unsupported_billing_cadence", {
       environment: "production",
-      env: { ...testEnvironment, STRIPE_PRICE_READ_KEY: "rk_live_public_prices_secret_value" },
+      env: { ...testEnvironment, STRIPE_SECRET_KEY: "sk_live_public_prices_secret_value" },
       retrievePrice: async (priceId) =>
         stripePrice({
           id: priceId,

@@ -11,7 +11,7 @@
 
 | パス | 役割 | 主な実装 |
 |---|---|---|
-| `/` | 価値、利用の流れ、提出方法、利用例、ヘルプと記事への入口、登録導線をまとめるTOP | `src/pages/home/`、`src/components/features/LandingPage/` |
+| `/` | 価値、利用の流れ、提出方法、利用例、料金プラン、ヘルプと記事への入口、登録導線をまとめるTOP | `src/pages/home/`、`src/components/features/LandingPage/` |
 | `/features` | 希望回収、未提出確認、シフト作成、確定通知など、できることを詳しく示す | `src/pages/features/`、`FeatureSection`、`BenefitsSection` |
 | `/commercial-transactions` | 有料プランの販売条件と、特定商取引法に基づく事業者情報を示す | `src/pages/commercial-transactions/`、`CommercialTransactions` |
 | `/help` | FAQと使い方を、やりたいことと共通検索から探せるようにする | `src/pages/help/`、`src/components/features/HelpCenter/` |
@@ -23,7 +23,7 @@
 | `/demo/shiftboard` | PC向けシフト表の入力と調整を、登録なしで試せるようにする | `src/pages/demo-shift-board/`、`Demo/DemoShiftBoardPage/` |
 
 TOPは`src/routes/index.tsx`から`HomePage`を呼び、`HomePage`が`LandingPage`を構成する。
-`LandingPage`は`PublicPageLayout`の中に、Hero、課題の軽減、利用の流れ、提出方法、比較、利用例、複数店舗・複数担当者での運用、ヘルプと記事、CTAの各sectionを並べる。
+`LandingPage`は`PublicPageLayout`の中に、Hero、課題の軽減、利用の流れ、提出方法、比較、利用例、複数店舗・複数担当者での運用、料金プラン、CTA、ヘルプと記事の各sectionを並べる。
 
 ヘルプ、記事、デモは同じ公開サイトに属するが、内容の置き場所は分かれている。
 FAQと使い方は共通のMDX基盤を含む`HelpCenter`、記事は`ArticleSite`、操作できるデモは`Demo`が所有する。
@@ -71,7 +71,7 @@ src/routes/index.tsx
 
 無料トライアルではProと同じ利用人数20名、稼働店舗5件、有効管理ユーザー5名まで利用できる。
 
-トライアル終了後も利用を継続する場合はProまたはBusinessを選ぶ。  有料プランを選ばない場合はデータを保持したまま業務操作を制限する。
+トライアル終了後も有料枠で利用を継続する場合はProまたはBusinessを選ぶ。  有料プランを選ばない場合はデータを保持したままFreeへ移行し、Free上限内なら基本機能を継続できる。  上限を超えている場合は、上限内へ整理するか有料プランを契約するまで業務操作を制限する。
 
 二つ目以降の組織はFreeで開始し、Free、Pro、Businessの利用人数、店舗数、管理ユーザー数を共有上限定数から案内する。  ProとBusinessの金額、通貨、税区分、請求周期は、公開サイトのbuild時にStripeから取得して検証した販売条件を表示する。  契約画面は公開サイトのsnapshotへ依存せず、Stripeから現在の販売条件を取得して契約確定前に表示する。
 
@@ -82,7 +82,7 @@ src/routes/index.tsx
 
 ### 無料トライアル表現の公開前提
 
-2か月無料・クレジットカード登録不要の公開文言は、初回Setupが2か月のTrialを作成するbackend artifactと同時に公開する。  初回Setupが支払い不要Businessを作るartifactや、対象deploymentの反映が未確認の状態では公開しない。
+2か月無料・クレジットカード登録不要の公開文言は、初回Setupが2か月のTrialを作成するbackend artifactと同時に公開する。  Repository上の契約だけで対象deploymentへの反映を推測せず、初回SetupのTrial、期限処理、Stripeオブジェクト非作成を実環境で確認するまで利用可能とは判定しない。
 
 公開可否は[リリース状態](../manual/release-status.md)に実環境証跡を記録して判定し、LPとヘルプの静的生成に成功したことだけでTrialの利用可能性を推測しない。
 
@@ -94,7 +94,7 @@ src/routes/index.tsx
 
 販売条件として、役務提供事業者、運営責任者、所在地、電話番号、問い合わせ先、Pro・Businessそれぞれの販売価格、支払方法と時期、提供時期、契約期間、自動更新、追加組織のFreeプラン、解約、返金、利用上限、動作環境を表示する。
 
-Pro・Businessの販売価格は、Production buildがStripeの設定済みPriceから取得した確定額、通貨、請求周期、税区分を表示する。  取得失敗、inactive、test/live不一致、固定額として扱えない課金方式、金額または税区分の不足、Pro・Business間の通貨または請求周期の不一致ではbuildを失敗させる。  Productionは月1回を要求し、DevelopはStripe Sandboxで両プランに設定した同一の短周期も検証用に表示できる。  Preview、ローカル、Storybook、testはStripe credentialを使わず決定的なfixtureを表示する。
+Pro・Businessの販売価格は、Production buildがStripeの設定済みPriceから取得した確定額、通貨、請求周期、税区分を表示する。  取得失敗、inactive、test/live不一致、固定額として扱えない課金方式、金額または税区分の不足、Pro・Business間の通貨または請求周期の不一致ではbuildを失敗させる。  ローカルとPreviewは同じStripe Sandbox、Developは別のStripe Sandboxから取得し、両プランに設定した同一の短周期も検証用に表示できる。  StorybookとtestはStripe credentialを使わず決定的なfixtureを表示する。
 
 役務提供事業者、運営責任者、所在地、電話番号は、Production公開前に`src/components/features/CommercialTransactions/content/index.mdx`の仮入力を実在する情報へ手動で置き換える。  Pro・Businessの販売価格は、同MDXの`PlanPrice`を介してbuild時料金カタログを参照する。  利用上限の数値は、同MDXの`PlanLimit`を介してbrowser-safeな`ORGANIZATION_PLAN_LIMITS`を参照する。
 仮入力が一つでも残る間はページ内に注意を表示し、Production公開の停止条件として[リリース状態](../manual/release-status.md)にも記録する。
@@ -109,7 +109,7 @@ Pro・Businessの販売価格は、Production buildがStripeの設定済みPrice
 |---|---|---|
 | TOP | 自分の店舗で何が楽になるか | 価値と利用の流れを短く示し、詳しい入口を選べるようにする |
 | 機能紹介 | どの作業を支援できるか | 主な機能と利用場面を比較できるようにする |
-| 将来の料金・プランsectionまたはページ | 初回登録でどこまで利用でき、支払い情報が必要か | 2か月の無料トライアル、利用上限、Free・Pro・Business、店舗・管理ユーザーの範囲、支払い情報の要否を示す。金額を表示する場合は特定商取引法ページと同じbuild時料金カタログを使う |
+| TOPの料金プランsection | 人数と店舗数に合うプランと料金を比較したい | シフト管理の基本機能が共通であることと、Free・Pro・Businessの料金と利用上限を示す。Pro・Businessの金額は特定商取引法ページと同じbuild時料金カタログを使う |
 | ヘルプのFAQ | 料金、通知、導入、運用について結論を知りたい | 質問ごとに結論と必要な注意点を示す |
 | ヘルプの使い方 | 画面でどう操作し、失敗時にどう戻るか | 操作場所、手順、結果、回復方法を示す |
 | 記事 | シフト運営の課題をどう判断するか | 課題の整理、選択肢、関連する製品導線を示す |
@@ -172,6 +172,7 @@ route inventory testは各`Disallow`が実在するCSR routeのprefixである�
 ## 関連ファイル
 
 - `src/routes/index.tsx`、`src/pages/home/`、`src/components/features/LandingPage/`：公開TOP
+- `src/components/features/LandingPage/PricingSection/`：TOPの料金プラン比較
 - `src/routes/features.tsx`、`src/pages/features/`：機能紹介
 - `src/routes/commercial-transactions.tsx`、`src/pages/commercial-transactions/`、`src/components/features/CommercialTransactions/`：特定商取引法に基づく表記
 - `src/routes/help.tsx`、`src/routes/help.*.tsx`、`src/pages/help/`：ヘルプ一覧と使い方詳細のURL境界

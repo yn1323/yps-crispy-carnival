@@ -29,7 +29,7 @@ export function formatPublicPlanPrice(price: PublicPlanPrice): FormattedPublicPl
 /** 特商法ページやLPで共通利用する、金額・請求単位・税区分を含む一行表示。 */
 export function formatPublicPlanPriceLine(price: PublicPlanPrice): string {
   const formatted = formatPublicPlanPrice(price);
-  return `${formatted.amount}／${billingUnit(price.interval, price.intervalCount)}（${formatted.tax}）`;
+  return `${formatted.amount}/${billingUnit(price.interval, price.intervalCount)}（${formatted.tax}）`;
 }
 
 function formatCurrencyAmount(currencyValue: string, amountInMinorUnit: number): string {

@@ -1,6 +1,6 @@
 import type { PublicPlanPriceCatalog } from ".";
 
-/** Preview、local、Story、testで外部サービスへ接続せず表示契約を確認するための決定的な料金。 */
+/** Storybookとtestで外部サービスへ接続せず表示契約を確認するための決定的な料金。 */
 export const PUBLIC_PLAN_PRICE_FIXTURE: PublicPlanPriceCatalog = Object.freeze({
   pro: Object.freeze({
     currency: "jpy",

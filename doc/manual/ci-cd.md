@@ -12,6 +12,7 @@
 workflowの一覧と起動条件は `.github/workflows/` を確認する。
 
 workflowの対象条件を満たす同一リポジトリからのPull Requestでは、`.github/workflows/deploy.yml` がConvex PreviewとCloudflare Pagesのプレビューを作成し、URLをPull Requestへ通知する。
+Preview buildは、Preview GitHub Environmentに設定した`STRIPE_SECRET_KEY`とPro・BusinessのPrice IDを使い、ローカルと同じStripe Sandboxから販売条件を取得する。  外部forkにはこのcredentialを渡さず、Previewを作成しない。
 `pnpm build`はTanStack Startで公開HTMLとCSR shellを生成し、`dist/client/`だけをCloudflare Pagesへdeployする。
 deploy後は`pnpm smoke-test:deployed`が実URLの代表公開route、末尾スラッシュ、CSR shell、Capability shell、404、代表ページのhydrationを確認する。
 全公開route、静的metadata、sitemap、Cloudflare配信ルールの生成物は`pnpm build`が検証し、FAQやデモの状態操作はBehaviorまたは通常E2Eが検証する。
@@ -25,7 +26,7 @@ Pull Requestを閉じると、同workflowがプレビューの後処理を行う
 
 - `E2E-AUTH-01`：匿名利用者の保護route redirect。
 - `E2E-AUTH-02`：専用actorのlogout後に、同じ保護routeへ再アクセスしたときのredirect。
-- `E2E-SETUP-01`：`/dashboard`から1組織、1店舗、管理者本人、`complimentary.business`を作る初期設定。
+- `E2E-SETUP-01`：`/dashboard`から1組織、1店舗、管理者本人、2か月のPro相当Trialを作る初期設定。
 - `E2E-STAFF-01`：スタッフの追加、情報変更、再読み込み、組織からの削除。
 - `E2E-SHIFT-01`：募集、匿名提出、確定、匿名閲覧の代表導線。
 - `E2E-TENANT-01`：同じ管理者による2組織の切り替え。
@@ -71,7 +72,7 @@ VRTの差分とレポート公開は `.github/workflows/vrt.yml` が管理する
 
 ## `develop` への反映
 
-`develop` へのpushでは、`.github/workflows/deploy.yml` がDevelop環境のTanStack Start build、Convex deploy、migration、Cloudflare Pages deployを順に実行する。  buildはSandboxのPrice読取専用credentialでPro・Businessの販売条件を取得し、失敗した場合はdeploymentを変更しない。
+`develop` へのpushでは、`.github/workflows/deploy.yml` がDevelop環境のTanStack Start build、Convex deploy、migration、Cloudflare Pages deployを順に実行する。  buildはDevelopのConvex deploymentと同じSandbox用`STRIPE_SECRET_KEY`でPro・Businessの販売条件を取得し、失敗した場合はdeploymentを変更しない。
 ビルド単体の確認は `.github/workflows/build.yml` も実行する。
 
 失敗した場合は、失敗したjobとstepを特定し、同じcommit SHAに対する結果かを確認する。
@@ -87,7 +88,7 @@ merge前に次を確認する。
 - 変更に対応する必須checkが成功している。
 - 選択したrelease labelが意図するsemantic versioningの区分と一致する。
 - Production環境のapprovalと必要なsecretが設定されている。
-- Production EnvironmentにPrice読取専用の`STRIPE_PRICE_READ_KEY`と、Convex deploymentと一致するPro・BusinessのPrice ID変数が設定されている。
+- Production Environmentに、ProductionのConvex deploymentと同じ`STRIPE_SECRET_KEY`と、同deploymentと一致するPro・BusinessのPrice IDが、3つともEnvironment Secretとして設定されている。
 - schemaまたは保存済みデータ形式を変更した場合は、migration計画と復旧手順がある。
 
 リリース後は、GitHub Release、production deployment、migration結果、主要導線を確認する。

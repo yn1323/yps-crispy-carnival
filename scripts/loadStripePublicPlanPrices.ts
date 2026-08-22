@@ -9,7 +9,7 @@ import {
 // 認証済み課金と同じStripe API契約を使うが、BuildロジックからConvex runtimeへは依存させない。
 const STRIPE_API_VERSION = "2026-06-24.dahlia" satisfies Stripe.LatestApiVersion;
 
-export type StripePublicPriceBuildEnvironment = "develop" | "production";
+export type StripePublicPriceBuildEnvironment = "local" | "preview" | "develop" | "production";
 
 type StripeBuildEnvironmentVariables = Readonly<Record<string, string | undefined>>;
 
@@ -34,7 +34,7 @@ export type RetrieveStripePrice = (priceId: string) => Promise<RetrievedStripePr
 
 export type StripePublicPriceLoadErrorCode =
   | "missing_configuration"
-  | "invalid_restricted_key"
+  | "invalid_secret_key"
   | "invalid_price_id"
   | "duplicate_price_id"
   | "retrieve_failed"
@@ -110,7 +110,7 @@ function getBuildConfiguration(
   businessPriceId: string;
   livemode: boolean;
 } {
-  const secretKey = env.STRIPE_PRICE_READ_KEY?.trim() ?? "";
+  const secretKey = env.STRIPE_SECRET_KEY?.trim() ?? "";
   const proPriceId = env.STRIPE_PRO_PRICE_ID?.trim() ?? "";
   const businessPriceId = env.STRIPE_BUSINESS_PRICE_ID?.trim() ?? "";
 
@@ -119,9 +119,9 @@ function getBuildConfiguration(
   }
 
   const livemode = environment === "production";
-  const expectedKeyPrefix = livemode ? "rk_live_" : "rk_test_";
+  const expectedKeyPrefix = livemode ? "sk_live_" : "sk_test_";
   if (!secretKey.startsWith(expectedKeyPrefix)) {
-    throw new StripePublicPriceLoadError("invalid_restricted_key");
+    throw new StripePublicPriceLoadError("invalid_secret_key");
   }
   if (!isPriceId(proPriceId) || !isPriceId(businessPriceId)) {
     throw new StripePublicPriceLoadError("invalid_price_id");

@@ -28,7 +28,7 @@ describe("publicPricing", () => {
       interval: "1か月ごと",
       tax: "税込",
     });
-    expect(formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.pro)).toBe("¥3,000／1か月（税込）");
+    expect(formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.pro)).toBe("¥3,000/1か月（税込）");
   });
 
   it("小数単位のある通貨と複数年周期、税別を整形する", () => {
@@ -45,6 +45,6 @@ describe("publicPricing", () => {
       interval: "2年ごと",
       tax: "税別",
     });
-    expect(formatPublicPlanPriceLine(price)).toMatch(/^USD.*12\.34／2年（税別）$/);
+    expect(formatPublicPlanPriceLine(price)).toMatch(/^USD.*12\.34\/2年（税別）$/);
   });
 });

@@ -50,7 +50,7 @@ function createPriceMarkup({
   const intervalLabel = { day: "日", week: "週間", month: "か月", year: "年" }[interval] ?? interval;
   const visibleText =
     text ??
-    `${plan === "business" ? "¥6,000" : "¥3,000"}／${intervalCount}${intervalLabel}（${taxBehavior === "inclusive" ? "税込" : "税別"}）`;
+    `${plan === "business" ? "¥6,000" : "¥3,000"}/${intervalCount}${intervalLabel}（${taxBehavior === "inclusive" ? "税込" : "税別"}）`;
   return `<span data-public-plan-price="${plan}" data-currency="${currency}" data-unit-amount="${unitAmount}" data-interval="${interval}" data-interval-count="${intervalCount}" data-tax-behavior="${taxBehavior}">${visibleText}</span>`;
 }
 
@@ -98,8 +98,8 @@ describe("static build measurement boundary", () => {
 });
 
 describe("static build public plan price boundary", () => {
-  it("ProとBusinessの公開料金を完全一致で受け入れる", () => {
-    expect(() => assertPublicPlanPriceMarkup("/commercial-transactions", createValidPublicPriceHtml())).not.toThrow();
+  it.each(["/", "/commercial-transactions"])("%sのProとBusiness公開料金を完全一致で受け入れる", (route) => {
+    expect(() => assertPublicPlanPriceMarkup(route, createValidPublicPriceHtml())).not.toThrow();
   });
 
   it("Develop用の同じ短周期を完全一致で受け入れる", () => {
@@ -112,14 +112,14 @@ describe("static build public plan price boundary", () => {
     ["重複", `${createPriceMarkup({ plan: "pro" })}${createPriceMarkup({ plan: "pro" })}`],
     [
       "対象外plan",
-      `${createPriceMarkup({ plan: "pro" })}${createPriceMarkup({ plan: "enterprise", text: "¥6,000／月（税込）" })}`,
+      `${createPriceMarkup({ plan: "pro" })}${createPriceMarkup({ plan: "enterprise", text: "¥6,000/月（税込）" })}`,
     ],
   ])("公開料金のplanが%sしていれば拒否する", (_caseName, html) => {
     expect(() => assertPublicPlanPriceMarkup("/commercial-transactions", html)).toThrow();
   });
 
   it.each([
-    ["正でない金額", createPriceMarkup({ plan: "pro", unitAmount: "0", text: "¥0／月（税込）" })],
+    ["正でない金額", createPriceMarkup({ plan: "pro", unitAmount: "0", text: "¥0/月（税込）" })],
     ["未対応の周期", createPriceMarkup({ plan: "pro", interval: "quarter" })],
     ["正でない周期数", createPriceMarkup({ plan: "pro", intervalCount: "0" })],
     ["不明な税区分", createPriceMarkup({ plan: "pro", taxBehavior: "unspecified" })],
@@ -133,7 +133,7 @@ describe("static build public plan price boundary", () => {
     const html = `${createPriceMarkup({ plan: "pro" })}${createPriceMarkup({
       plan: "business",
       currency: "usd",
-      text: "USD 60.00／月（税込）",
+      text: "USD 60.00/月（税込）",
     })}`;
     expect(() => assertPublicPlanPriceMarkup("/commercial-transactions", html)).toThrow(
       "public plan prices must use one currency",
@@ -151,10 +151,10 @@ describe("static build public plan price boundary", () => {
   });
 
   it.each([
-    ["金額", createPriceMarkup({ plan: "pro", text: "¥4,000／1か月（税込）" })],
-    ["請求周期", createPriceMarkup({ plan: "pro", text: "¥3,000／1年（税込）" })],
-    ["税区分", createPriceMarkup({ plan: "pro", text: "¥3,000／1か月（税別）" })],
-    ["余分な料金", createPriceMarkup({ plan: "pro", text: "¥3,000／1か月（税込）＋¥500" })],
+    ["金額", createPriceMarkup({ plan: "pro", text: "¥4,000/1か月（税込）" })],
+    ["請求周期", createPriceMarkup({ plan: "pro", text: "¥3,000/1年（税込）" })],
+    ["税区分", createPriceMarkup({ plan: "pro", text: "¥3,000/1か月（税別）" })],
+    ["余分な料金", createPriceMarkup({ plan: "pro", text: "¥3,000/1か月（税込）＋¥500" })],
   ])("属性と一致しない表示%sを拒否する", (_caseName, invalidProMarkup) => {
     const html = `${invalidProMarkup}${createPriceMarkup({ plan: "business" })}`;
     expect(() => assertPublicPlanPriceMarkup("/commercial-transactions", html)).toThrow();
@@ -175,14 +175,18 @@ describe("static build Stripe value boundary", () => {
     expect(() => assertNoStripeBuildValues("assets/app.js", 'reason: "price_unavailable"')).not.toThrow();
   });
 
-  it.each(["STRIPE_PRICE_READ_KEY", "rk_live_secret", "rk_test_secret", "sk_live_secret", "sk_test_secret"])(
-    "HTMLまたはJS内のStripe secret %sを拒否する",
-    (secret) => {
-      expect(() => assertNoStripeBuildValues("assets/app.js", `const leaked = "${secret}"`)).toThrow(
-        "contains a Stripe secret",
-      );
-    },
-  );
+  it.each([
+    "STRIPE_SECRET_KEY",
+    "STRIPE_PRICE_READ_KEY",
+    "rk_live_secret",
+    "rk_test_secret",
+    "sk_live_secret",
+    "sk_test_secret",
+  ])("HTMLまたはJS内のStripe secret %sを拒否する", (secret) => {
+    expect(() => assertNoStripeBuildValues("assets/app.js", `const leaked = "${secret}"`)).toThrow(
+      "contains a Stripe secret",
+    );
+  });
 
   it("HTMLまたはJS内のStripe Price IDを拒否する", () => {
     expect(() => assertNoStripeBuildValues("assets/app.js", 'const leaked = "price_1Public123456789"')).toThrow(

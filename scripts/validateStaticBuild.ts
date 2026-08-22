@@ -20,10 +20,11 @@ import {
 const SITE_URL = "https://shiftori.app";
 const ARTICLE_ROUTE_PREFIX = "/articles/";
 const COMMERCIAL_TRANSACTIONS_ROUTE = "/commercial-transactions";
+const PUBLIC_PLAN_PRICE_ROUTES = new Set(["/", COMMERCIAL_TRANSACTIONS_ROUTE]);
 const MAX_STATIC_OUTPUT_ENTRIES = 10_000;
 const BAKED_MEASUREMENT_SCRIPT_PATTERN =
   /\b(?:[a-z0-9-]+\.)*(?:googletagmanager\.com|google-analytics\.com|clarity\.ms)\b/i;
-const PUBLIC_PRICE_SECRET_PATTERN = /STRIPE_PRICE_READ_KEY|\b(?:rk|sk)_(?:live|test)_/i;
+const PUBLIC_PRICE_SECRET_PATTERN = /STRIPE_(?:SECRET_KEY|PRICE_READ_KEY)|\b(?:rk|sk)_(?:live|test)_/i;
 const STRIPE_PRICE_ID_PATTERN = /\bprice_(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{8,}\b/;
 const HELP_INDEX_BUNDLE_PATTERN = /\/assets\/(?:help\.index|helpIndexData)-[^"'\s]+\.js/;
 const PUBLIC_PRICE_PLACEHOLDERS = [
@@ -269,7 +270,7 @@ export function assertPublicPlanPriceMarkup(label: string, html: string): void {
   for (const price of parsedPrices) {
     const amount = formatPublicPriceAmount(price.currency, price.unitAmount);
     const taxLabel = price.taxBehavior === "inclusive" ? "税込" : "税別";
-    const expectedText = `${amount}／${formatPublicBillingUnit(price.interval, price.intervalCount)}（${taxLabel}）`;
+    const expectedText = `${amount}/${formatPublicBillingUnit(price.interval, price.intervalCount)}（${taxLabel}）`;
     assert(price.visibleText === expectedText, `${label} ${price.plan} visible price must equal ${expectedText}`);
   }
 }
@@ -418,7 +419,7 @@ export async function validateStaticBuild(
     const html = await readFile(htmlPath, "utf8");
     assertPublicHtml(route, html);
     assertHelpIndexBundleBoundary(route, html);
-    if (route === COMMERCIAL_TRANSACTIONS_ROUTE) {
+    if (PUBLIC_PLAN_PRICE_ROUTES.has(route)) {
       assertPublicPlanPriceMarkup(route, html);
     }
   }
