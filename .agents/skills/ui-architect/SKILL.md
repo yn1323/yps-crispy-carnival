@@ -1,6 +1,6 @@
 ---
 name: ui-architect
-description: シフトリのUI/UXを設計、実装、レビューするとき、利用者のタスクから画面構造、コンポーネント、状態、マイクロコピー、検証までを一貫して決める。新規画面、フォーム、ダイアログ、一覧、Dashboard、空状態、エラー、通知、既存UIの改善、UI文言の変更で使う。記事、HowTo、技術文書だけの作業には使わない。
+description: シフトリのUI/UXを設計、実装、レビューするとき、利用者のタスクから画面構造、コンポーネント、状態、マイクロコピー、検証までを一貫して決める。新規画面、フォーム、ダイアログ、一覧、Dashboard、空状態、エラー、通知、既存UIの改善、UI文言の変更で使う。記事、ヘルプ本文、技術文書だけの作業には使わない。
 ---
 
 # シフトリのUIを設計する
@@ -60,7 +60,7 @@ UI作業を、利用者のタスクから検証まで順に進める。
 - ボタン、ラベル、Toast、表見出しは短くする。
 - 複数文の説明に推敲が必要なら`$japanese-tech-writing`を使う。
 - 読み物としての緩急が必要な長い説明だけに`$cognitive-rhythm-writing`を併用する。
-- HowTo記事は`$write-help-content`、ArticleSiteの記事は`$seo-article-writer`へ分ける。
+- HelpCenterのFAQ・使い方は`$write-help-content`、ArticleSiteの記事は`$seo-article-writer`へ分ける。
 
 ## 5. 実装する
 
