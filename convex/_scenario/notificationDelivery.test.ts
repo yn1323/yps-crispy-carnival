@@ -860,6 +860,7 @@ describe("通知配送outboxシナリオ", () => {
   it("自動送信で作られた募集通知・LINE案内履歴が直後の手動再送を拒否する", async () => {
     vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "");
     vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "");
+    vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-line-channel");
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
