@@ -22,6 +22,7 @@ const hasManualDisclosure = [...Object.values(MANUAL_BUSINESS_DETAILS), ...Objec
 );
 
 const freeLimits = ORGANIZATION_PLAN_LIMITS.free;
+const trialLimits = ORGANIZATION_PLAN_LIMITS.trial;
 const proLimits = ORGANIZATION_PLAN_LIMITS.pro;
 const businessLimits = ORGANIZATION_PLAN_LIMITS.business;
 
@@ -90,12 +91,12 @@ const disclosureRows: DisclosureRow[] = [
   {
     label: "支払時期",
     content:
-      "追加組織のFreeプランから有料プランの契約を開始した場合は、契約開始時に初回料金を請求します。契約制限中などから有料プランを開始する場合も、契約開始時に初回料金を請求します。以後は1か月ごとの更新日に請求します。",
+      "無料トライアル中に継続する有料プランを選んだ場合は、無料トライアルの終了後に初回料金を請求します。追加組織のFreeプランまたは契約制限中から有料プランを開始した場合は、契約開始時に初回料金を請求します。以後は1か月ごとの更新日に請求します。",
   },
   {
     label: "役務の提供時期",
     content:
-      "初回登録で作る最初の組織と、二つ目以降の組織のFreeプランは、組織の作成完了後から利用できます。有料プランは、Stripeで契約状態を確認した後に提供を開始します。",
+      "初回登録の無料トライアルと、二つ目以降の組織のFreeプランは、組織の作成完了後から利用できます。有料プランは、Stripeで契約状態を確認した後に提供を開始します。",
   },
   {
     label: "申込期間",
@@ -107,8 +108,8 @@ const disclosureRows: DisclosureRow[] = [
       "有料プランの契約期間は1か月です。解約手続きが完了するまで、1か月ごとに自動更新します。次回更新日はサービス画面に表示します。",
   },
   {
-    label: "初回登録",
-    content: `初回登録で作成する最初の組織には、支払い不要のBusinessを適用します。無料体験の終了日は設定せず、支払い方法の登録を求めません。この組織では、利用人数${businessLimits.maxPeople}名、稼働店舗${businessLimits.maxActiveShops}件、有効な管理ユーザー${businessLimits.maxActiveManagers}名まで利用できます。`,
+    label: "無料トライアル",
+    content: `初回登録から2か月は、クレジットカードを登録せず無料で利用できます。無料トライアル中は、利用人数${trialLimits.maxPeople}名、稼働店舗${trialLimits.maxActiveShops}件、有効な管理ユーザー${trialLimits.maxActiveManagers}名まで利用できます。`,
   },
   {
     label: "追加組織のFreeプラン",
@@ -122,7 +123,7 @@ const disclosureRows: DisclosureRow[] = [
   },
   {
     label: "利用上限",
-    content: `初回登録で作る最初の組織は、利用人数${businessLimits.maxPeople}名、稼働店舗${businessLimits.maxActiveShops}件、有効な管理ユーザー${businessLimits.maxActiveManagers}名までです。追加組織のFreeプランは利用人数${freeLimits.maxPeople}名、稼働店舗${freeLimits.maxActiveShops}件、有効な管理ユーザー${freeLimits.maxActiveManagers}名まで、Proは利用人数${proLimits.maxPeople}名、稼働店舗${proLimits.maxActiveShops}件、有効な管理ユーザー${proLimits.maxActiveManagers}名まで、Businessは利用人数${businessLimits.maxPeople}名、稼働店舗${businessLimits.maxActiveShops}件、有効な管理ユーザー${businessLimits.maxActiveManagers}名まで利用できます。`,
+    content: `無料トライアルは利用人数${trialLimits.maxPeople}名、稼働店舗${trialLimits.maxActiveShops}件、有効な管理ユーザー${trialLimits.maxActiveManagers}名までです。追加組織のFreeプランは利用人数${freeLimits.maxPeople}名、稼働店舗${freeLimits.maxActiveShops}件、有効な管理ユーザー${freeLimits.maxActiveManagers}名まで、Proは利用人数${proLimits.maxPeople}名、稼働店舗${proLimits.maxActiveShops}件、有効な管理ユーザー${proLimits.maxActiveManagers}名まで、Businessは利用人数${businessLimits.maxPeople}名、稼働店舗${businessLimits.maxActiveShops}件、有効な管理ユーザー${businessLimits.maxActiveManagers}名まで利用できます。`,
   },
   {
     label: "動作環境",
@@ -136,7 +137,7 @@ export function CommercialTransactions(): ReactNode {
     <LegalPage title="特定商取引法に基づく表記" lastUpdated="2026年8月22日">
       <Stack gap={6}>
         <Text textStyle="bodySm" color="fg.muted" lineHeight={1.8}>
-          初回登録と追加組織の利用条件、有料プランに関する販売条件を表示します。
+          無料トライアルと追加組織の利用条件、有料プランに関する販売条件を表示します。
         </Text>
 
         {hasManualDisclosure ? (
