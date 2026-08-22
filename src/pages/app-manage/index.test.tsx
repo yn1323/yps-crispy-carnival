@@ -190,7 +190,7 @@ describe("AppManage release boundary", () => {
       capabilities: {
         ...currentOverview.capabilities,
         canCreateOrganization: false,
-        createOrganizationDisabledReason: "作成できる組織は3つまでです。",
+        createOrganizationDisabledReason: "作成できる組織は3つまでです",
       },
     });
 

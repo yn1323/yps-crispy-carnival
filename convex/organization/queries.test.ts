@@ -668,9 +668,7 @@ describe("organization/queries.getSettings", () => {
       .query(api.organization.queries.getSettings, { shopId: ids.shopId });
 
     expect(result?.canCreateOrganization).toBe(false);
-    expect(result?.createOrganizationDisabledReason).toBe(
-      "作成できる組織は3つまでです。\n使っていない組織を削除すると、また作成できます。",
-    );
+    expect(result?.createOrganizationDisabledReason).toBe("作成できる組織は3つまでです");
   });
 
   it("契約制限中でも新しい組織の作成可否は下げない", async () => {

@@ -247,7 +247,7 @@ describe("組織追加作成シナリオ", () => {
 
     await expect(
       asManager.createOrganization({ shopName: "四つ目の店舗", submissionPattern: { kind: "dateOnly" } }),
-    ).rejects.toThrow("作成できる組織は3つまでです。");
+    ).rejects.toThrow("作成できる組織は3つまでです");
     expect(await asManager.getMyShops()).toEqual(beforeRejected);
 
     asManager.selectShop(firstShopId);
