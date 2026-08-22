@@ -14,9 +14,8 @@ export const FIXED_PUBLIC_ROUTES = [
   "/contact",
   "/demo/flow",
   "/demo/shiftboard",
-  "/faq",
   "/features",
-  "/howto",
+  "/help",
   "/privacy",
   "/privacy/manager",
   "/privacy/staff",
@@ -89,6 +88,7 @@ export const CSR_SHELL_DYNAMIC_ROUTES = [
 const CSR_SHELL_HEADER_PREFIX_ROUTES = ["/app", "/manage", "/shifts", "/staff"] as const;
 
 const ARTICLE_CONTENT_DIR = join("src", "components", "features", "ArticleSite", "content");
+const HELP_GUIDE_CONTENT_DIR = join("src", "components", "features", "HelpCenter", "content", "guides");
 const LOOPBACK_URL_PATTERN = /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|\[::1\])(?::\d+)?(?:\/[^\s"'<>]*)?/i;
 
 export function assertNoLoopbackUrls(route: string, html: string): void {
@@ -100,6 +100,17 @@ export function assertNoLoopbackUrls(route: string, html: string): void {
 
 function listPublishedContentSlugs(repoRoot: string, kind: "articles" | "categories"): string[] {
   const directory = resolve(repoRoot, ARTICLE_CONTENT_DIR, kind);
+  return readdirSync(directory, { withFileTypes: true })
+    .filter(
+      (entry) =>
+        entry.isDirectory() && !entry.name.startsWith("_") && existsSync(join(directory, entry.name, "index.mdx")),
+    )
+    .map((entry) => entry.name)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function listPublishedHelpGuideSlugs(repoRoot: string): string[] {
+  const directory = resolve(repoRoot, HELP_GUIDE_CONTENT_DIR);
   return readdirSync(directory, { withFileTypes: true })
     .filter(
       (entry) =>
@@ -125,9 +136,10 @@ export function collectPublicRoutes(repoRoot = process.cwd()): string[] {
   const categoryRoutes = listPublishedContentSlugs(repoRoot, "categories").map(
     (slug) => `/articles/categories/${slug}`,
   );
+  const helpGuideRoutes = listPublishedHelpGuideSlugs(repoRoot).map((slug) => `/help/${slug}`);
 
-  return Array.from(new Set([...FIXED_PUBLIC_ROUTES, ...articleRoutes, ...categoryRoutes])).sort((left, right) =>
-    left.localeCompare(right),
+  return Array.from(new Set([...FIXED_PUBLIC_ROUTES, ...articleRoutes, ...categoryRoutes, ...helpGuideRoutes])).sort(
+    (left, right) => left.localeCompare(right),
   );
 }
 

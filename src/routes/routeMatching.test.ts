@@ -9,6 +9,13 @@ function getLeafRouteId(pathname: string): string | undefined {
 
 describe("app route matching", () => {
   it.each([
+    ["/help", "/help/"],
+    ["/help/start-shift-management", "/help/$slug"],
+  ])("公開ヘルプURL %s をHelpCenter routeへ接続する", (pathname, expectedRouteId) => {
+    expect(getLeafRouteId(pathname)).toBe(expectedRouteId);
+  });
+
+  it.each([
     ["/actions", "/_auth/actions"],
     ["/manage", "/_auth/manage"],
     ["/manage/billing", "/_auth/manage_/billing"],

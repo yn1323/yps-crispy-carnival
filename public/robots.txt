@@ -10,7 +10,7 @@ Disallow: /line/callback
 Disallow: /legal/staff/consent
 Disallow: /sso-callback
 
-Allow: /howto
+Allow: /help
 Allow: /
 
 Sitemap: https://shiftori.app/sitemap.xml

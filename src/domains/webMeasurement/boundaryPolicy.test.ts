@@ -25,9 +25,8 @@ const MEASURED_PUBLIC_SOURCE_PREFIXES = [
   "src/components/features/ArticleSite/",
   "src/components/features/ContactForm/",
   "src/components/features/Demo/",
-  "src/components/features/FaqSite/",
   "src/components/features/FeatureSection/",
-  "src/components/features/HowToSite/",
+  "src/components/features/HelpCenter/",
   "src/components/features/LandingPage/",
   "src/components/templates/PublicFooter/",
   "src/components/templates/PublicPageLayout/",
@@ -35,18 +34,17 @@ const MEASURED_PUBLIC_SOURCE_PREFIXES = [
   "src/pages/contact/",
   "src/pages/demo-flow/",
   "src/pages/demo-shift-board/",
-  "src/pages/faq/",
   "src/pages/features/",
+  "src/pages/help/",
   "src/pages/home/",
-  "src/pages/howto/",
   "src/routes/articles.",
   "src/routes/articles/",
   "src/routes/contact.tsx",
   "src/routes/demo.flow.tsx",
   "src/routes/demo.shiftboard.tsx",
-  "src/routes/faq.tsx",
   "src/routes/features.tsx",
-  "src/routes/howto.tsx",
+  "src/routes/help.tsx",
+  "src/routes/help.",
   "src/routes/index.tsx",
 ] as const;
 
@@ -406,7 +404,7 @@ describe("Web計測document境界のAST抽出", () => {
   it("navigate(options)とobject spreadを漏らさず、解決不能な引数全体をdynamicとして残す", () => {
     const source = `
       const CLOSED_OPTIONS = { to: "/dashboard", replace: true } as const;
-      const PUBLIC_OPTIONS = { to: "/faq" } as const;
+      const PUBLIC_OPTIONS = { to: "/help" } as const;
       navigate(CLOSED_OPTIONS);
       router.navigate({ ...PUBLIC_OPTIONS, replace: true });
       navigate(getDestination());
@@ -425,7 +423,7 @@ describe("Web計測document境界のAST抽出", () => {
       { kind: "call:navigate", target: "/dashboard", targetExpression: "CLOSED_OPTIONS" },
       {
         kind: "call:router.navigate",
-        target: "/faq",
+        target: "/help",
         targetExpression: "{ ...PUBLIC_OPTIONS, replace: true }",
       },
       { kind: "call:navigate", target: null, targetExpression: "getDestination()" },

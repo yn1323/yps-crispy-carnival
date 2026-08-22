@@ -25,6 +25,7 @@ const BAKED_MEASUREMENT_SCRIPT_PATTERN =
   /\b(?:[a-z0-9-]+\.)*(?:googletagmanager\.com|google-analytics\.com|clarity\.ms)\b/i;
 const PUBLIC_PRICE_SECRET_PATTERN = /STRIPE_PRICE_READ_KEY|\b(?:rk|sk)_(?:live|test)_/i;
 const STRIPE_PRICE_ID_PATTERN = /\bprice_(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{8,}\b/;
+const HELP_INDEX_BUNDLE_PATTERN = /\/assets\/(?:help\.index|helpIndexData)-[^"'\s]+\.js/;
 const PUBLIC_PRICE_PLACEHOLDERS = [
   "【手動入力：Proの月額料金と税込・税別】",
   "【手動入力：Businessの月額料金と税込・税別】",
@@ -74,6 +75,13 @@ export function assertNoBakedMeasurementScripts(label: string, html: string): vo
 export function assertNoStripeBuildValues(label: string, contents: string): void {
   assert(!PUBLIC_PRICE_SECRET_PATTERN.test(contents), `${label} contains a Stripe secret or secret environment name`);
   assert(!STRIPE_PRICE_ID_PATTERN.test(contents), `${label} contains a Stripe Price ID`);
+}
+
+export function assertHelpIndexBundleBoundary(route: string, html: string): void {
+  assert(
+    route === "/help" || !HELP_INDEX_BUNDLE_PATTERN.test(html),
+    `${route} must not preload the /help full-text search bundle`,
+  );
 }
 
 async function collectStaticCodeArtifacts(outputDirectory: string): Promise<string[]> {
@@ -409,6 +417,7 @@ export async function validateStaticBuild(
     }
     const html = await readFile(htmlPath, "utf8");
     assertPublicHtml(route, html);
+    assertHelpIndexBundleBoundary(route, html);
     if (route === COMMERCIAL_TRANSACTIONS_ROUTE) {
       assertPublicPlanPriceMarkup(route, html);
     }

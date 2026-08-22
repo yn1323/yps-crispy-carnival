@@ -5,8 +5,8 @@ describe("Web計測route policy", () => {
   it.each([
     ["/", "home"],
     ["/features/", "features"],
-    ["/faq?from=top", "faq"],
-    ["/howto#answer", "howto"],
+    ["/help?from=top", "help_index"],
+    ["/help/add-staff/#answer", "help_guide"],
     ["/contact", "contact"],
     ["/articles", "articles_index"],
     ["/articles/shiftori-line-workflow", "article_detail"],
@@ -45,6 +45,9 @@ describe("Web計測route policy", () => {
     "/users/internal-id",
     "/shiftboard/internal-id",
     "/pricing",
+    "/faq",
+    "/howto",
+    "/help/a/b",
     "/unknown",
     "/articles/categories/a/b",
   ])("%sはdefault closedにする", (pathname) => {

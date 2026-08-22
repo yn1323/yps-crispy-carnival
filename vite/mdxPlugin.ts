@@ -9,27 +9,33 @@ import { extractFrontmatterSource, extractMdxToc } from "../src/lib/mdx/index.ts
 
 /**
  * `*.mdx` をクエリ付きインポートで変換する共有 Vite プラグイン。
- * FaqSite / HowToSite / ArticleSite / 法務文書（Terms, PrivacyPolicy）が利用する。
+ * HelpCenter / ArticleSite / 法務文書（Terms, PrivacyPolicy）が利用する。
  *
  * - `?mdx-component`  : MDX本文をReactコンポーネントにコンパイルして返す
  * - `?mdx-source`     : 生ソース文字列を返す（検索テキスト用）
  * - `?mdx-text`       : frontmatterとMDX componentを除いた表示テキストの配列を返す
+ * - `?mdx-summary`    : 最初の表示テキストだけを返す（軽量メタデータ用）
  * - `?mdx-frontmatter`: frontmatterをYAMLとしてパースしたオブジェクトを返す
  *                       （本文をバンドルに含めないため、メタデータ専用モジュールから使う）
  * - `?mdx-toc`        : H2見出しの目次 `{ id, text }[]` を返す（本文をバンドルに含めない）
+ * - `?mdx-marker`     : pathの存在確認だけに使う空のmarker（下書き本文・metadataを含めない）
  */
 const MDX_COMPONENT_PREFIX = "\0mdx-component:";
 const MDX_SOURCE_PREFIX = "\0mdx-source:";
 const MDX_TEXT_PREFIX = "\0mdx-text:";
+const MDX_SUMMARY_PREFIX = "\0mdx-summary:";
 const MDX_FRONTMATTER_PREFIX = "\0mdx-frontmatter:";
 const MDX_TOC_PREFIX = "\0mdx-toc:";
+const MDX_MARKER_PREFIX = "\0mdx-marker:";
 
 const QUERY_PREFIXES = {
   "mdx-component": MDX_COMPONENT_PREFIX,
   "mdx-source": MDX_SOURCE_PREFIX,
   "mdx-text": MDX_TEXT_PREFIX,
+  "mdx-summary": MDX_SUMMARY_PREFIX,
   "mdx-frontmatter": MDX_FRONTMATTER_PREFIX,
   "mdx-toc": MDX_TOC_PREFIX,
+  "mdx-marker": MDX_MARKER_PREFIX,
 } as const;
 
 export function mdxPlugin(): Plugin {
@@ -68,6 +74,11 @@ export function mdxPlugin(): Plugin {
         return `export default ${JSON.stringify(await extractMdxTextBlocks(source))};`;
       }
 
+      if (prefix === MDX_SUMMARY_PREFIX) {
+        const summary = (await extractMdxTextBlocks(source))[0] ?? "";
+        return `export default ${JSON.stringify(summary)};`;
+      }
+
       if (prefix === MDX_FRONTMATTER_PREFIX) {
         const frontmatterSource = extractFrontmatterSource(source);
         const frontmatter = frontmatterSource ? parse(frontmatterSource) : undefined;
@@ -76,6 +87,10 @@ export function mdxPlugin(): Plugin {
 
       if (prefix === MDX_TOC_PREFIX) {
         return `export default ${JSON.stringify(extractMdxToc(source))};`;
+      }
+
+      if (prefix === MDX_MARKER_PREFIX) {
+        return "export default true;";
       }
 
       const compiled = await compile(
@@ -95,7 +110,7 @@ type MdxAstNode = {
 };
 
 /**
- * FAQの検索と構造化データで使う、画面に表示される文章だけを段落・リスト項目単位で取り出す。
+ * ヘルプの検索と構造化データで使う、画面に表示される文章だけを段落・リスト項目単位で取り出す。
  * JSX componentは図や補助UIなので、属性名や内部実装語を検索・JSON-LDへ混ぜない。
  */
 export async function extractMdxTextBlocks(source: string): Promise<string[]> {

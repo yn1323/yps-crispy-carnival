@@ -1,3 +1,4 @@
+import { createMdxImageSrcResolver, resolveMdxImageSrc } from "@/src/lib/mdx";
 import { SITE_URL } from "@/src/lib/seo";
 import { resolveArticleSlug } from "./articleAliases";
 import {
@@ -210,36 +211,9 @@ export function createCategoryBreadcrumbJsonLd(meta: CategoryMetadata): Breadcru
 }
 
 export function createImageSrcResolver(documentPath?: string): (src: string) => string {
-  return (src) => resolveMarkdownImageSrc(src, documentPath);
+  return createMdxImageSrcResolver(documentPath, imageModules);
 }
 
 export function resolveMarkdownImageSrc(src: string, documentPath?: string): string {
-  if (/^(https?:)?\/\//.test(src) || /^(data|blob):/.test(src) || src.startsWith("/")) {
-    return src;
-  }
-
-  if (!documentPath) {
-    return src;
-  }
-
-  const documentDirectory = documentPath.replace(/\/[^/]*$/, "");
-  const normalizedPath = normalizeContentPath(`${documentDirectory}/${src}`);
-  return imageModules[normalizedPath] ?? src;
-}
-
-function normalizeContentPath(path: string): string {
-  const segments: string[] = [];
-
-  for (const segment of path.split("/")) {
-    if (!segment || segment === ".") {
-      continue;
-    }
-    if (segment === "..") {
-      segments.pop();
-      continue;
-    }
-    segments.push(segment);
-  }
-
-  return `./${segments.join("/")}`;
+  return resolveMdxImageSrc(src, documentPath, imageModules);
 }

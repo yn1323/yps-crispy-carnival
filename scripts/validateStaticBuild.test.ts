@@ -1,9 +1,32 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertHelpIndexBundleBoundary,
   assertNoBakedMeasurementScripts,
   assertNoStripeBuildValues,
   assertPublicPlanPriceMarkup,
 } from "./validateStaticBuild";
+
+describe("static build help bundle boundary", () => {
+  const helpIndexPreloads = [
+    '<link rel="modulepreload" href="/assets/help.index-AbCd1234.js">',
+    '<link rel="modulepreload" href="/assets/helpIndexData-AbCd1234.js">',
+  ];
+
+  it("/helpだけが全文検索bundleを読み込む", () => {
+    for (const preload of helpIndexPreloads) {
+      expect(() => assertHelpIndexBundleBoundary("/help", preload)).not.toThrow();
+    }
+    expect(() => assertHelpIndexBundleBoundary("/help/add-staff", "<html></html>")).not.toThrow();
+  });
+
+  it.each(["/", "/help/add-staff", "/articles"])("%sで全文検索bundleの先読みを拒否する", (route) => {
+    for (const preload of helpIndexPreloads) {
+      expect(() => assertHelpIndexBundleBoundary(route, preload)).toThrow(
+        "must not preload the /help full-text search bundle",
+      );
+    }
+  });
+});
 
 type PriceMarkupOptions = {
   plan: string;

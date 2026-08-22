@@ -4,7 +4,7 @@ import type { IconType } from "react-icons";
 import { LuArrowRight, LuBookOpen, LuFileSpreadsheet, LuMessageCircle, LuMonitorCheck } from "react-icons/lu";
 import type { ArticleMetadata } from "@/src/components/features/ArticleSite/articleMeta";
 import { articleMetas } from "@/src/components/features/ArticleSite/articleMeta";
-import { landingFaqs } from "@/src/components/features/FaqSite/landingFaqContent";
+import { landingFaqs } from "@/src/components/features/HelpCenter/helpMeta";
 import { LANDING_HEADER_SCROLL_MARGIN_TOP } from "../constants";
 import { SectionHeading } from "../SectionHeading";
 import { splitLandingFaqAnswerSentences } from "./script";
@@ -46,6 +46,19 @@ export const FaqArticlesSection = () => (
                           </Fragment>
                         ))}
                       </Text>
+                      <Link
+                        href={faq.href}
+                        mt={3}
+                        color="teal.700"
+                        fontSize="sm"
+                        fontWeight="bold"
+                        display="inline-flex"
+                        alignItems="center"
+                        gap={2}
+                      >
+                        この回答をヘルプで見る
+                        <Icon as={LuArrowRight} boxSize={4} />
+                      </Link>
                     </Accordion.ItemBody>
                   </Accordion.ItemContent>
                 </Accordion.Item>
@@ -54,7 +67,7 @@ export const FaqArticlesSection = () => (
           </Accordion.Root>
           <Flex justify="flex-end" mt={4}>
             <Link
-              href="/faq"
+              href="/help"
               color="teal.700"
               fontSize="sm"
               fontWeight="bold"
@@ -63,7 +76,7 @@ export const FaqArticlesSection = () => (
               gap={2}
               _hover={{ textDecoration: "none", color: "teal.900" }}
             >
-              すべての質問を見る
+              ヘルプを見る
               <Icon as={LuArrowRight} boxSize={4} />
             </Link>
           </Flex>

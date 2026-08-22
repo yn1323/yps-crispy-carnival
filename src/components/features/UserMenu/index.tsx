@@ -79,10 +79,10 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
                 アカウント設定
               </RouterLink>
             </Menu.Item>
-            <Menu.Item asChild value="howto" cursor="pointer">
-              <a href="/howto" target="_blank" rel="noreferrer">
+            <Menu.Item asChild value="help" cursor="pointer">
+              <a href="/help" target="_blank" rel="noreferrer">
                 <LuBookOpen />
-                使い方・ヘルプ
+                ヘルプ
               </a>
             </Menu.Item>
             <Menu.Item asChild value="contact" cursor="pointer">

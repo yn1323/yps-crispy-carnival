@@ -86,7 +86,9 @@ describe("UserMenu", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "ユーザーメニュー" }));
 
-    expect((await screen.findByRole("menuitem", { name: "使い方・ヘルプ" })).getAttribute("target")).toBe("_blank");
+    const helpLink = await screen.findByRole("menuitem", { name: "ヘルプ" });
+    expect(helpLink.getAttribute("href")).toBe("/help");
+    expect(helpLink.getAttribute("target")).toBe("_blank");
     expect(screen.getByRole("menuitem", { name: "お問い合わせ" }).getAttribute("target")).toBe("_blank");
   });
 });

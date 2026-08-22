@@ -8,7 +8,7 @@
 - 実装・レビュー前に `doc/rules/frontend-architecture.md` を読む。
 - UI/UXや文言を扱う場合は `doc/rules/ui-design.md` を読み、`ui-architect` を使う。
 - テスト層、配置、新しい検証契約を判断する場合は `doc/rules/testing-strategy.md` を読み、`test-strategy` を使う。
-- ArticleSiteとHowToSiteでは、各ディレクトリの `AGENTS.md` も読む。
+- ArticleSiteとHelpCenterでは、各ディレクトリの `AGENTS.md` も読む。
 
 ## 常時制約
 
