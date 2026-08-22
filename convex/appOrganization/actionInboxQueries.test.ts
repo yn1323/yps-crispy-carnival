@@ -200,8 +200,7 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
     );
   });
 
-  it("管理者招待が未公開でも残存招待の取消は維持し、再送だけを閉じる", async () => {
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "false");
+  it("残存招待の再送と取消の操作可否を返す", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(
       async (ctx) => await seedActionInboxSources(ctx, { subject: "action_manager_invitation_closed", now: NOW }),
@@ -219,7 +218,7 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
       result.items
         .filter((item) => item.kind === "managerInvitation")
         .map(({ invitationId, canResend, canRevoke }) => ({ invitationId, canResend, canRevoke })),
-    ).toEqual([{ invitationId: ids.invitationId, canResend: false, canRevoke: true }]);
+    ).toEqual([{ invitationId: ids.invitationId, canResend: true, canRevoke: true }]);
   });
 
   it("source上限を超える登録申請へ、拒否されないcontinuationだけで重複なく到達する", async () => {

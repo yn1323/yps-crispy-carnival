@@ -11,7 +11,7 @@ const MANUAL_BUSINESS_DETAILS = {
   phoneNumber: "【手動入力：確実に連絡できる電話番号】",
 } as const;
 
-// Stripe Priceはコードへ固定しない契約のため、販売開始前に確定した表示額を入力する。
+// Stripe Priceはコードへ固定しない契約のため、Production公開前に確定した表示額を入力する。
 const MANUAL_SALES_PRICES = {
   pro: "【手動入力：Proの月額料金と税込・税別】",
   business: "【手動入力：Businessの月額料金と税込・税別】",
@@ -69,7 +69,7 @@ const disclosureRows: DisclosureRow[] = [
         <Text>Pro：{MANUAL_SALES_PRICES.pro}</Text>
         <Text>Business：{MANUAL_SALES_PRICES.business}</Text>
         <Text>
-          販売開始後は、契約画面でも契約を確定する前に金額、通貨、税込・税別、請求周期を表示します。初回登録で利用できる範囲は
+          契約画面でも、契約を確定する前に金額、通貨、税込・税別、請求周期を表示します。初回登録で利用できる範囲は
           <Link href="/pricing" color="teal.700" fontWeight="semibold">
             料金・プラン
           </Link>
@@ -95,7 +95,7 @@ const disclosureRows: DisclosureRow[] = [
   {
     label: "役務の提供時期",
     content:
-      "初回登録で作る最初の組織は、組織の作成完了後から利用できます。追加組織作成機能を提供している場合、追加組織のFreeプランも組織の作成完了後から利用できます。有料プランは、Stripeで契約状態を確認した後に提供を開始します。",
+      "初回登録で作る最初の組織と、二つ目以降の組織のFreeプランは、組織の作成完了後から利用できます。有料プランは、Stripeで契約状態を確認した後に提供を開始します。",
   },
   {
     label: "申込期間",
@@ -108,13 +108,12 @@ const disclosureRows: DisclosureRow[] = [
   },
   {
     label: "初回登録",
-    content:
-      "初回登録で作成する最初の組織には、支払い不要のBusinessを適用します。無料体験の終了日は設定せず、支払い方法の登録を求めません。現在利用できるのは、1組織、1店舗、1管理ユーザーです。",
+    content: `初回登録で作成する最初の組織には、支払い不要のBusinessを適用します。無料体験の終了日は設定せず、支払い方法の登録を求めません。この組織では、利用人数${businessLimits.maxPeople}名、稼働店舗${businessLimits.maxActiveShops}件、有効な管理ユーザー${businessLimits.maxActiveManagers}名まで利用できます。`,
   },
   {
     label: "追加組織のFreeプラン",
     content:
-      "追加組織作成機能を提供している場合、二つ目以降の組織にはFreeプランを適用します。Freeプランから有料プランへ変更する場合は、契約画面で支払い方法を登録します。",
+      "二つ目以降の組織にはFreeプランを適用します。Freeプランから有料プランへ変更する場合は、契約画面で支払い方法を登録します。",
   },
   {
     label: "解約と返金",
@@ -123,7 +122,7 @@ const disclosureRows: DisclosureRow[] = [
   },
   {
     label: "利用上限",
-    content: `初回登録で作る最初の組織は、利用人数${businessLimits.maxPeople}名、稼働店舗1件、有効な管理ユーザー1名までです。追加組織作成機能と有料プランを提供している場合、追加組織のFreeプランは利用人数${freeLimits.maxPeople}名、稼働店舗${freeLimits.maxActiveShops}件、有効な管理ユーザー${freeLimits.maxActiveManagers}名まで、Proは利用人数${proLimits.maxPeople}名、稼働店舗${proLimits.maxActiveShops}件、有効な管理ユーザー${proLimits.maxActiveManagers}名まで、Businessは利用人数${businessLimits.maxPeople}名、稼働店舗${businessLimits.maxActiveShops}件、有効な管理ユーザー${businessLimits.maxActiveManagers}名まで利用できます。`,
+    content: `初回登録で作る最初の組織は、利用人数${businessLimits.maxPeople}名、稼働店舗${businessLimits.maxActiveShops}件、有効な管理ユーザー${businessLimits.maxActiveManagers}名までです。追加組織のFreeプランは利用人数${freeLimits.maxPeople}名、稼働店舗${freeLimits.maxActiveShops}件、有効な管理ユーザー${freeLimits.maxActiveManagers}名まで、Proは利用人数${proLimits.maxPeople}名、稼働店舗${proLimits.maxActiveShops}件、有効な管理ユーザー${proLimits.maxActiveManagers}名まで、Businessは利用人数${businessLimits.maxPeople}名、稼働店舗${businessLimits.maxActiveShops}件、有効な管理ユーザー${businessLimits.maxActiveManagers}名まで利用できます。`,
   },
   {
     label: "動作環境",
@@ -137,7 +136,7 @@ export function CommercialTransactions(): ReactNode {
     <LegalPage title="特定商取引法に基づく表記" lastUpdated="2026年8月22日">
       <Stack gap={6}>
         <Text textStyle="bodySm" color="fg.muted" lineHeight={1.8}>
-          初回登録の利用条件と、将来提供予定の有料プランに関する販売条件を表示します。有料プランの申込機能は現在公開していません。
+          初回登録と追加組織の利用条件、有料プランに関する販売条件を表示します。
         </Text>
 
         {hasManualDisclosure ? (

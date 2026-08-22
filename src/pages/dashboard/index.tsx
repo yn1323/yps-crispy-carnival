@@ -1,7 +1,6 @@
 import { Alert, Stack } from "@chakra-ui/react";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
-import { useAtomValue } from "jotai";
 import { useEffect, useMemo } from "react";
 import { LuRefreshCw, LuStore, LuTriangleAlert } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
@@ -14,7 +13,6 @@ import { Empty } from "@/src/components/ui/Empty";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
-import { featureVisibilityAtom } from "@/src/stores/user";
 import {
   buildDashboardShopContexts,
   type DashboardShopOption,
@@ -110,7 +108,6 @@ function ConnectedDashboard({
   selectedShopId: string;
 }) {
   const navigate = useNavigate();
-  const featureVisibility = useAtomValue(featureVisibilityAtom);
   const shop = useShopQuery(api.dashboard.queries.getDashboardShop, {});
   const currentUser = useQuery(api.dashboard.queries.getCurrentUser, {});
   const managerLegalConsentStatus = useQuery(api.legal.queries.getManagerConsentStatus, {});
@@ -178,7 +175,6 @@ function ConnectedDashboard({
         trialEndingNotice={shop.trialEndingNotice}
         planStatus={shop.planStatus}
         billingSettingsShopId={selectedShopId}
-        isBillingFeatureVisible={featureVisibility.billing}
         expectedOrganizationId={organizationId}
         navigation={navigation}
         showOrganizationContext={false}

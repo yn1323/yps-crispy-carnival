@@ -10,33 +10,56 @@ const planCards = [
   {
     id: "complimentary-business",
     name: "Business",
-    eyebrow: "初回登録",
+    eyebrow: "最初の組織",
     description: "初回登録で作る最初の組織には、支払い不要のBusinessが適用されます。",
     priceLabel: "支払い情報の登録なし",
-    limits: {
-      maxPeople: ORGANIZATION_PLAN_LIMITS.business.maxPeople,
-      maxActiveShops: 1,
-      maxActiveManagers: 1,
-    },
+    limits: ORGANIZATION_PLAN_LIMITS.business,
     featured: true,
+  },
+  {
+    id: "additional-free",
+    name: "Free",
+    eyebrow: "二つ目以降の組織",
+    description: "追加した組織はFreeから始まり、支払い情報を登録せずに利用できます。",
+    priceLabel: "無料",
+    limits: ORGANIZATION_PLAN_LIMITS.free,
+    featured: false,
+  },
+  {
+    id: "additional-pro",
+    name: "Pro",
+    eyebrow: "追加組織の有料プラン",
+    description: "追加組織の利用人数や稼働店舗数を増やしたい場合に選べます。",
+    priceLabel: "料金は契約画面で確認",
+    limits: ORGANIZATION_PLAN_LIMITS.pro,
+    featured: false,
+  },
+  {
+    id: "additional-business",
+    name: "Business",
+    eyebrow: "追加組織の有料プラン",
+    description: "追加組織でより多くの利用者を管理したい場合に選べます。",
+    priceLabel: "料金は契約画面で確認",
+    limits: ORGANIZATION_PLAN_LIMITS.business,
+    featured: false,
   },
 ] as const;
 
 const billingFacts: Array<{ icon: IconType; title: string; body: string }> = [
   {
     icon: LuBuilding2,
-    title: "初回登録で一つの組織",
-    body: "最初の組織と店舗を初回登録で一度だけ作ります。現在、二つ目の組織を追加する機能は公開していません。",
+    title: "複数の組織を作成",
+    body: "最初の組織には支払い不要のBusiness、二つ目以降の組織にはFreeが適用されます。",
   },
   {
     icon: LuStore,
-    title: "一店舗を本人が管理",
-    body: "現在の公開範囲は一店舗と管理者本人一名です。スタッフの希望回収から確定通知までを同じ店舗で進めます。",
+    title: "店舗と管理者を追加",
+    body: "各プランの上限まで稼働店舗と有効な管理者を追加できます。上限は組織ごとに適用されます。",
   },
   {
     icon: LuCreditCard,
-    title: "支払い情報の登録は不要",
-    body: "初回登録ではカード情報や支払い方法の入力を求めません。支払い不要のBusinessで利用を始められます。",
+    title: "有料プランは契約前に確認",
+    body: "ProとBusinessの料金、通貨、税込・税別、請求周期は、Stripeで確認した値を契約画面に表示します。",
   },
 ];
 
@@ -91,13 +114,13 @@ export function PricingSite() {
           <Box as="section" aria-labelledby="plan-comparison-heading">
             <Stack gap={3} maxW="760px" mb={7}>
               <Heading id="plan-comparison-heading" as="h2" color="gray.950" fontSize={{ base: "2xl", md: "3xl" }}>
-                初回登録で利用できるプラン
+                組織ごとに利用できるプラン
               </Heading>
               <Text color="gray.700" lineHeight="1.8">
-                現在の公開範囲は、1組織・1店舗・1管理者です。利用人数はBusinessの上限まで登録できます。
+                最初の組織は支払い不要のBusinessで始まります。二つ目以降の組織はFreeで作成され、必要に応じてProまたはBusinessを選べます。
               </Text>
             </Stack>
-            <SimpleGrid columns={1} gap={5} maxW="640px">
+            <SimpleGrid columns={{ base: 1, md: 2, xl: 4 }} gap={5}>
               {planCards.map((plan) => (
                 <PlanCard key={plan.id} {...plan} />
               ))}
@@ -152,13 +175,13 @@ export function PricingSite() {
                   color="gray.950"
                   fontSize={{ base: "xl", md: "2xl" }}
                 >
-                  初回登録はトライアルではありません
+                  組織ごとにプランを管理できます
                 </Heading>
                 <Text color="gray.800" lineHeight="1.85">
                   初回登録で作る最初の組織には、2ヶ月のトライアル終了日を設定しません。支払い情報を登録せず、支払い不要のBusinessで利用を始めます。
                 </Text>
                 <Text color="gray.800" lineHeight="1.85">
-                  複数組織、複数店舗、複数管理者、有料プランの契約と支払いは、現在の公開範囲に含まれません。
+                  二つ目以降の組織はFreeから始まり、有料のProまたはBusinessへ変更できます。有料プランの契約を確定する前に、契約画面で料金と請求条件を確認できます。
                 </Text>
               </Stack>
             </Flex>

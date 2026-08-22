@@ -158,11 +158,25 @@ describe("FAQコンテンツ", () => {
     );
   });
 
+  it("組織・店舗・管理者・有料プランを通常の利用条件として案内する", () => {
+    const entriesById = new Map(faqEntries.map((entry) => [entry.id, entry]));
+
+    expect(entriesById.get("organization-and-shop")?.answerText).toContain("二つ目以降の組織");
+    expect(entriesById.get("switch-shop")?.answerText).toContain("組織を変更");
+    expect(entriesById.get("manager-invitation")?.answerText).toContain("メールで招待");
+    expect(entriesById.get("pricing")?.answerText).toContain("ProまたはBusiness");
+    expect(
+      ["organization-and-shop", "switch-shop", "manager-invitation", "pricing"].some((id) =>
+        entriesById.get(id)?.answerText.includes("公開していません"),
+      ),
+    ).toBe(false);
+  });
+
   it.each([
     ["LINE 届かない", ["line-not-delivered", "confirmed-link-unavailable"]],
     ["下書き 再提出", ["draft-after-resubmission"]],
     ["時間指定 日ごと 勤務区分", ["submission-patterns"]],
-    ["スタッフ 別店舗", []],
+    ["スタッフ 別店舗", ["switch-shop"]],
     [
       "グループ",
       ["staff-membership-differences", "organization-and-shop", "switch-shop", "delete-shop-or-organization"],

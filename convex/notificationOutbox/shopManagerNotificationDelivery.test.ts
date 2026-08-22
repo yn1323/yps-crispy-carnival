@@ -168,7 +168,6 @@ describe("店舗管理通知の配送直前検証", () => {
   });
 
   it("組織・課金メールは店舗staff所属を必須にしない", async () => {
-    vi.stubEnv("FEATURE_BILLING", "true");
     const t = createConvexTestWithMigrations();
     const ids = await t.run(
       async (ctx) =>

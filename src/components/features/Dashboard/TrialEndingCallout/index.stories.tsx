@@ -7,7 +7,6 @@ const meta = {
   component: TrialEndingCalloutView,
   args: {
     finalDateLabel: "8月31日",
-    isBillingVisible: true,
     onOpenBillingSettings: () => {},
   },
   parameters: {
@@ -32,17 +31,4 @@ export const Desktop: Story = {
 export const Mobile: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
-};
-
-export const BillingHidden: Story = {
-  args: {
-    isBillingVisible: false,
-  },
-  parameters: {
-    screenshot: { skip: true },
-  },
-  play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).queryByRole("button", { name: "プランと支払いを見る" })).toBeNull();
-    await expect(within(canvasElement).queryByRole("status")).toBeNull();
-  },
 };

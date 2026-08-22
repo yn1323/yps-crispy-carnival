@@ -16,7 +16,7 @@ export function buildPricingPageHead() {
       ...buildMeta({
         title: "料金・プラン｜支払い登録なしで始めるBusiness",
         description:
-          "シフトリの初回登録は、1組織・1店舗・1管理者の支払い不要Businessです。支払い情報を登録せずに始められる範囲を確認できます。",
+          "シフトリの最初の組織は支払い不要のBusiness、追加組織はFreeで始まります。複数店舗・複数管理者とPro・Businessの利用条件を確認できます。",
         canonical: "/pricing",
       }),
       ...jsonLdMeta(pricingBreadcrumbJsonLd),

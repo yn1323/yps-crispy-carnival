@@ -4,7 +4,6 @@ import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { authenticatedMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
-import { requireReleaseFeature } from "../_lib/releaseFeatures";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
 import { normalizeEmail } from "../_lib/validation";
 import { recordUserLegalConsent } from "../legal/service";
@@ -251,8 +250,6 @@ async function createAdditionalOrganization(
     source: "canonicalPerson";
   },
 ) {
-  requireReleaseFeature("organizationCreation");
-
   if (user.isDeleted || user.accountDeletionRequestedAt !== undefined) {
     throw new ConvexError(ORGANIZATION_CREATE_UNAVAILABLE_MESSAGE);
   }

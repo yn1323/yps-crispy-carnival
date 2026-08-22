@@ -40,14 +40,6 @@ vi.mock("@/convex/_generated/api", () => ({
   },
 }));
 
-vi.mock("jotai", () => ({
-  useAtomValue: () => ({ billing: true }),
-}));
-
-vi.mock("@/src/stores/user", () => ({
-  featureVisibilityAtom: Symbol("featureVisibilityAtom"),
-}));
-
 vi.mock("@/src/hooks/useShopQuery", () => ({ useShopQuery: mocks.useShopQuery }));
 
 vi.mock("@/src/components/features/Dashboard", () => ({

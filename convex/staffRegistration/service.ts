@@ -1,9 +1,7 @@
 import type { GenericDatabaseReader } from "convex/server";
 import type { DataModel, Id } from "../_generated/dataModel";
-import { isReleaseFeatureEnabled } from "../_lib/releaseFeatures";
 import { normalizeEmail } from "../_lib/validation";
 import { ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT } from "../constants";
-import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 
 type DbCtx = {
   db: GenericDatabaseReader<DataModel>;
@@ -102,12 +100,6 @@ export async function resolveStaffRegistrationApprovalAvailability(
   ];
   const otherShops = await Promise.all(otherActiveStaffShopIds.map(async (shopId) => await ctx.db.get(shopId)));
   if (otherShops.some((shop) => !shop || shop.organizationId !== args.organizationId)) {
-    return STAFF_REGISTRATION_APPROVAL_UNAVAILABLE;
-  }
-  const activeOtherShopCount = otherShops.filter(
-    (shop) => shop && !shop.isDeleted && organizationShopOperatingStatus(shop.operatingStatus) === "active",
-  ).length;
-  if (activeOtherShopCount > 0 && !isReleaseFeatureEnabled("shopAddition")) {
     return STAFF_REGISTRATION_APPROVAL_UNAVAILABLE;
   }
   return STAFF_REGISTRATION_APPROVAL_AVAILABLE;

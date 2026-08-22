@@ -254,11 +254,6 @@ singleShopStoryStore.set(userAtom, {
   authId: "dashboard-story-user",
   name: "田中太郎",
   email: "tanaka@example.com",
-  featureVisibility: {
-    organizationSettingsNavigation: true,
-    billing: false,
-    shopMembershipAddition: false,
-  },
 });
 
 function DashboardPagePreview({ children }: { children: ReactNode }) {
@@ -381,7 +376,6 @@ export const SingleShopWithPlanStatus: Story = {
   args: {
     ...singleShopDashboardArgs,
     planStatusCard: proPlanStatusCard,
-    isBillingFeatureVisible: true,
   },
   render: (args) => (
     <DashboardPagePreview>
@@ -406,7 +400,7 @@ export const SingleShopWithPlanStatusMobile: Story = {
 };
 
 export const PlanStatusCompositionBehavior: Story = {
-  name: "プラン詳細・公開条件とTrial案内の置換",
+  name: "プラン詳細とTrial案内の置換",
   args: singleShopDashboardArgs,
   parameters: {
     screenshot: { skip: true },
@@ -416,9 +410,6 @@ export const PlanStatusCompositionBehavior: Story = {
     const canvas = within(canvasElement);
 
     await expect(canvas.queryByRole("region", { name: "Proプランの詳細" })).not.toBeInTheDocument();
-    await expect(canvas.queryByRole("region", { name: "トライアル終了前の支払い案内" })).not.toBeInTheDocument();
-
-    await userEvent.click(canvas.getByRole("button", { name: "課金表示を切り替える" }));
     await expect(await canvas.findByRole("region", { name: "トライアル終了前の支払い案内" })).toBeVisible();
 
     await userEvent.click(canvas.getByRole("button", { name: "新Backendの非表示状態を表示する" }));
@@ -428,26 +419,14 @@ export const PlanStatusCompositionBehavior: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "プラン詳細を表示する" }));
     await waitFor(() => expect(canvas.getByRole("region", { name: "Proプランの詳細" })).toBeVisible());
     await expect(canvas.queryByRole("region", { name: "トライアル終了前の支払い案内" })).not.toBeInTheDocument();
-
-    await userEvent.click(canvas.getByRole("button", { name: "課金表示を切り替える" }));
-    await expect(canvas.queryByRole("region", { name: "Proプランの詳細" })).not.toBeInTheDocument();
-    await expect(canvas.queryByRole("region", { name: "トライアル終了前の支払い案内" })).not.toBeInTheDocument();
   },
 };
 
 function PlanStatusCompositionStory() {
-  const [isBillingVisible, setIsBillingVisible] = useState(false);
   const [planStatusMode, setPlanStatusMode] = useState<"legacy" | "none" | "card">("legacy");
 
   return (
     <DashboardPagePreview>
-      <Button
-        aria-label="課金表示を切り替える"
-        aria-pressed={isBillingVisible}
-        onClick={() => setIsBillingVisible((current) => !current)}
-      >
-        課金表示を切り替える
-      </Button>
       <Button
         aria-label="新Backendの非表示状態を表示する"
         aria-pressed={planStatusMode === "none"}
@@ -466,7 +445,6 @@ function PlanStatusCompositionStory() {
         {...singleShopDashboardArgs}
         navigation={dashboardNavigation}
         billingSettingsShopId="shop-1"
-        isBillingFeatureVisible={isBillingVisible}
         trialEndingNotice={{
           visibleFrom: Date.now() - 86_400_000,
           trialEndsAt: Date.now() + 86_400_000,

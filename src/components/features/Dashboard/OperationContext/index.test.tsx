@@ -9,12 +9,6 @@ import type { PlanStatusCardProps } from "../PlanStatusCard";
 const mocks = vi.hoisted(() => ({
   getMyShops: Symbol("getMyShops"),
   selectedShopAtom: Symbol("selectedShopAtom"),
-  featureVisibilityAtom: Symbol("featureVisibilityAtom"),
-  featureVisibility: {
-    organizationSettingsNavigation: true,
-    billing: true,
-    shopMembershipAddition: true,
-  },
   useQuery: vi.fn(),
   useAtomValue: vi.fn(),
 }));
@@ -35,10 +29,6 @@ vi.mock("@/convex/_generated/api", () => ({
 vi.mock("@/src/stores/shop", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/src/stores/shop")>()),
   selectedShopAtom: mocks.selectedShopAtom,
-}));
-
-vi.mock("@/src/stores/user", () => ({
-  featureVisibilityAtom: mocks.featureVisibilityAtom,
 }));
 
 import { OperationContext, type OperationContextOrganizationOption } from ".";
@@ -93,14 +83,7 @@ beforeEach(() => {
     dispatchEvent: vi.fn(),
   }));
   mocks.useQuery.mockReturnValue(shops);
-  Object.assign(mocks.featureVisibility, {
-    organizationSettingsNavigation: true,
-    billing: true,
-    shopMembershipAddition: true,
-  });
-  mocks.useAtomValue.mockImplementation((target) =>
-    target === mocks.featureVisibilityAtom ? mocks.featureVisibility : shops[0],
-  );
+  mocks.useAtomValue.mockReturnValue(shops[0]);
 });
 
 const renderContext = (

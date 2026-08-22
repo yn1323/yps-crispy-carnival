@@ -50,28 +50,26 @@ export const StaffDetailSettingsTab = ({
       </Text>
     </Stack>
 
-    {managerInvitationState.kind !== "hidden" && (
-      <Stack gap={3}>
-        <Stack gap={1}>
-          <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
-            管理者権限
-          </Heading>
-          <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            {isManager
-              ? "現在の管理者です。権限の変更は管理者設定から行えます。"
-              : managerInvitationState.kind === "pending"
-                ? "管理者招待を送信済みです。再送や取り消しは管理者設定から行えます。"
-                : "招待や権限の変更は管理者設定から行えます。"}
-          </Text>
-        </Stack>
-        <Flex justify="flex-end">
-          <Button variant="outline" gap={1.5} onClick={onManageManagers}>
-            <LuShieldCheck aria-hidden />
-            管理者設定で変更
-          </Button>
-        </Flex>
+    <Stack gap={3}>
+      <Stack gap={1}>
+        <Heading as="h3" fontSize="sm" fontWeight="semibold" color="gray.900">
+          管理者権限
+        </Heading>
+        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+          {isManager
+            ? "現在の管理者です。権限の変更は管理者設定から行えます。"
+            : managerInvitationState.kind === "pending"
+              ? "管理者招待を送信済みです。再送や取り消しは管理者設定から行えます。"
+              : "招待や権限の変更は管理者設定から行えます。"}
+        </Text>
       </Stack>
-    )}
+      <Flex justify="flex-end">
+        <Button variant="outline" gap={1.5} onClick={onManageManagers}>
+          <LuShieldCheck aria-hidden />
+          管理者設定で変更
+        </Button>
+      </Flex>
+    </Stack>
 
     <Stack gap={3}>
       <Flex justify="flex-end">

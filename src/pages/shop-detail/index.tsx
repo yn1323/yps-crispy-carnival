@@ -59,12 +59,5 @@ function ConnectedAppShopDetailPage({
     );
   }
 
-  return (
-    <ShopDetail
-      shop={shop}
-      people={settings.people}
-      organizationId={organizationId}
-      isShopAdditionEnabled={settings.features?.shopAddition === true}
-    />
-  );
+  return <ShopDetail shop={shop} people={settings.people} organizationId={organizationId} />;
 }

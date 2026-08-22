@@ -5,7 +5,6 @@ import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedMutation, organizationMutation } from "../_lib/functions";
-import { isReleaseFeatureEnabled, requireReleaseFeature } from "../_lib/releaseFeatures";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
 import { ensureDeletionCleanupJob } from "../deletionCleanup/service";
 import { disconnectOrganizationPersonLine } from "../line/service";
@@ -102,27 +101,6 @@ export function classifyAccountDeletionOrganizationDepartureError(error: unknown
 function shopStatus(shop: Doc<"shops">) {
   // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
   return shop.operatingStatus ?? ("active" as const);
-}
-
-async function hasActiveOrganizationShop(ctx: MutationCtx, organizationId: Id<"organizations">) {
-  // TODO[narrow]: m025完走まではoperatingStatus欠損も現行runtimeと同じactiveとして扱う。
-  const [explicitActiveShop, legacyActiveShop] = await Promise.all([
-    ctx.db
-      .query("shops")
-      .withIndex("by_organizationId_and_operatingStatus", (q) =>
-        q.eq("organizationId", organizationId).eq("operatingStatus", "active"),
-      )
-      .filter((q) => q.eq(q.field("isDeleted"), false))
-      .first(),
-    ctx.db
-      .query("shops")
-      .withIndex("by_organizationId_and_operatingStatus", (q) =>
-        q.eq("organizationId", organizationId).eq("operatingStatus", undefined),
-      )
-      .filter((q) => q.eq(q.field("isDeleted"), false))
-      .first(),
-  ]);
-  return Boolean(explicitActiveShop || legacyActiveShop);
 }
 
 function shopMutationResult(
@@ -351,7 +329,6 @@ async function addShopForActor(
   args: AddShopArgs,
   actor: Pick<OrganizationActor, "organization" | "member" | "person">,
 ) {
-  requireReleaseFeature("shopAddition");
   await requireOrganizationBusinessWrite(ctx, actor.organization._id);
   const parsed = updateShopSettingsSchema.safeParse({
     shopName: args.shopName,
@@ -563,9 +540,6 @@ export const reactivateShop = authenticatedMutation({
 
     const fromState = shopStatus(actor.shop);
     if (fromState === "active") return shopMutationResult(actor.shop._id, "active", false);
-    if (!isReleaseFeatureEnabled("shopAddition") && (await hasActiveOrganizationShop(ctx, actor.organization._id))) {
-      requireReleaseFeature("shopAddition");
-    }
     await requireOrganizationCapacity(ctx, {
       organizationId: actor.organization._id,
       additionalActiveShops: 1,

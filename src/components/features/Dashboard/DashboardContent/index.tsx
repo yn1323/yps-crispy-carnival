@@ -88,7 +88,6 @@ type Props = {
   planStatusCard?: PlanStatusCardProps | null;
   trialEndingNotice?: TrialEndingNoticeData | null;
   billingSettingsShopId?: string;
-  isBillingFeatureVisible?: boolean;
   navigation?: DashboardNavigation;
 };
 
@@ -124,7 +123,6 @@ export const DashboardContent = ({
   planStatusCard,
   trialEndingNotice,
   billingSettingsShopId,
-  isBillingFeatureVisible = false,
   navigation,
 }: Props) => {
   // Storyはqueryに依存せず募集・スタッフの代表状態を固定する。本番の募集・スタッフは各子featureが購読する。
@@ -306,7 +304,6 @@ export const DashboardContent = ({
               planStatusCard={planStatusCard}
               trialEndingNotice={trialEndingNotice}
               billingSettingsShopId={billingSettingsShopId}
-              isBillingFeatureVisible={isBillingFeatureVisible}
               navigation={navigation}
               recruitment={recruitmentStage}
               staff={staffStage}

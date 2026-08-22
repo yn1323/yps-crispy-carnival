@@ -1,8 +1,6 @@
 import { Alert } from "@chakra-ui/react";
-import { useAtomValue } from "jotai";
 import { Button } from "@/src/components/ui/Button";
 import type { PeopleCapacityResolution } from "@/src/domains/organizationBilling/peopleCapacity";
-import { featureVisibilityAtom } from "@/src/stores/user";
 
 type Props = {
   resolution: PeopleCapacityResolution;
@@ -11,12 +9,7 @@ type Props = {
 };
 
 export function PeopleCapacityResolutionAlert({ resolution, retryActionLabel, onOpenBillingSettings }: Props) {
-  const featureVisibility = useAtomValue(featureVisibilityAtom);
-  const presentation = getPresentation(
-    resolution,
-    retryActionLabel,
-    featureVisibility.billing && onOpenBillingSettings !== undefined,
-  );
+  const presentation = getPresentation(resolution, retryActionLabel, onOpenBillingSettings !== undefined);
 
   return (
     <Alert.Root status="warning" alignItems="flex-start">

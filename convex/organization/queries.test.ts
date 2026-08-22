@@ -17,37 +17,6 @@ describe("organization/queries.getSettings", () => {
     vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_settings_query");
     vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_settings_query");
     vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "bpc_settings_query");
-    vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "true");
-    vi.stubEnv("FEATURE_SHOP_ADDITION", "true");
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
-    vi.stubEnv("FEATURE_BILLING", "true");
-  });
-
-  it("未リリースflagが閉じている場合は表示と操作可否をfail closedにする", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run((ctx) =>
-      seedOrganizationManagerShop(ctx, { subject: "settings_features_closed", complimentary: true }),
-    );
-    vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "");
-    vi.stubEnv("FEATURE_SHOP_ADDITION", "");
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
-    vi.stubEnv("FEATURE_BILLING", "");
-
-    const result = await t
-      .withIdentity({ subject: "settings_features_closed" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
-
-    expect(result).toMatchObject({
-      canInviteManager: false,
-      canAddShop: false,
-      canCreateOrganization: false,
-      features: {
-        organizationCreation: false,
-        shopAddition: false,
-        managerInvitation: false,
-        billing: false,
-      },
-    });
   });
 
   it("保存済みの組織共通順をsettings.peopleへ反映し、店舗所属の部分列と不整合時の既存順を維持する", async () => {
@@ -352,7 +321,6 @@ describe("organization/queries.getSettings", () => {
       "canInviteManager",
       "canUpdateOrganizationName",
       "deleteOrganizationDisabledReason",
-      "features",
       "freeManagerExchangeCandidates",
       "managerInvitationMode",
       "managerInvitations",
@@ -369,8 +337,6 @@ describe("organization/queries.getSettings", () => {
       canAddShop: true,
       canCreateOrganization: true,
       canInviteManager: true,
-      // 明示的に有効化した公開状態は、上限由来の操作可否と独立して返す。
-      features: { organizationCreation: true, shopAddition: true, billing: true, managerInvitation: true },
       managerInvitationMode: "addition",
       freeManagerExchangeCandidates: [],
       managerInvitations: [

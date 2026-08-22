@@ -21,14 +21,6 @@ const firstPageArgs = (shopId: Id<"shops">) => ({ ...PAGINATION_FIRST_PAGE, shop
 const TRIAL_ENDS_AT = Date.parse("2026-09-01T00:00:00+09:00");
 
 describe("dashboard/queries", () => {
-  beforeEach(() => {
-    vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "true");
-    vi.stubEnv("FEATURE_SHOP_ADDITION", "true");
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
-    vi.stubEnv("FEATURE_BILLING", "true");
-  });
-  afterEach(() => vi.unstubAllEnvs());
-
   describe("getDashboardShop", () => {
     beforeEach(() => {
       vi.stubEnv("STRIPE_SECRET_KEY", "");
@@ -2443,24 +2435,6 @@ describe("dashboard/queries", () => {
   });
 
   describe("getCurrentUser", () => {
-    it("未リリースflagが未設定なら表示DTOをfail closedにする", async () => {
-      vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "");
-      vi.stubEnv("FEATURE_SHOP_ADDITION", "");
-      vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
-      vi.stubEnv("FEATURE_BILLING", "");
-      const t = convexTest(schema, modules);
-
-      const result = await t
-        .withIdentity({ subject: "closed_features", name: "Closed", email: "closed@example.test" })
-        .query(api.dashboard.queries.getCurrentUser, {});
-
-      expect(result?.featureVisibility).toEqual({
-        organizationSettingsNavigation: false,
-        billing: false,
-        shopMembershipAddition: false,
-      });
-    });
-
     it("未認証の場合 null を返す", async () => {
       const t = convexTest(schema, modules);
       const result = await t.query(api.dashboard.queries.getCurrentUser, {});
@@ -2476,11 +2450,6 @@ describe("dashboard/queries", () => {
         isNewUser: true,
         name: "New User",
         email: "new@example.com",
-        featureVisibility: {
-          organizationSettingsNavigation: true,
-          billing: true,
-          shopMembershipAddition: true,
-        },
       });
     });
 
@@ -2500,11 +2469,6 @@ describe("dashboard/queries", () => {
         isNewUser: false,
         name: "既存ユーザー",
         email: "existing@example.com",
-        featureVisibility: {
-          organizationSettingsNavigation: true,
-          billing: true,
-          shopMembershipAddition: true,
-        },
       });
     });
 

@@ -5,7 +5,6 @@ import { getAppUrl, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { observedInternalAction as internalAction } from "../_lib/errorObservability";
 import { isDryRunManagerEmail } from "../_lib/notificationDelivery";
-import { isReleaseFeatureEnabled } from "../_lib/releaseFeatures";
 import { buildOrganizationBillingEmailHtml } from "../notification/templates";
 import { emailPayload, enqueueEmail, organizationManagerInvitationEmailPayload } from "../notificationOutbox/enqueue";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
@@ -25,7 +24,6 @@ export const enqueueManagerInvitation = internalAction({
   },
   returns: v.object({ enqueued: v.boolean() }),
   handler: async (ctx, args): Promise<{ enqueued: boolean }> => {
-    if (!isReleaseFeatureEnabled("managerInvitation")) return { enqueued: false };
     const data: ManagerInvitationEnqueueData | null = await ctx.runQuery(
       internal.organizationInvitation.queries.getEnqueueData,
       {
@@ -63,7 +61,6 @@ export const enqueueAcceptanceNotifications = internalAction({
   },
   returns: v.object({ enqueuedCount: v.number() }),
   handler: async (ctx, args) => {
-    if (!isReleaseFeatureEnabled("managerInvitation")) return { enqueuedCount: 0 };
     const data = await ctx.runQuery(internal.organizationInvitation.queries.getAcceptanceNotificationData, {
       invitationId: args.invitationId,
       expectedVersion: args.expectedVersion,

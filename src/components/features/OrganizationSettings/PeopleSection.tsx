@@ -31,7 +31,6 @@ import type { BillingUsageView, OrganizationPersonView } from "./types";
 type Props = {
   people: OrganizationPersonView[];
   peopleUsage: BillingUsageView;
-  showManagerInvitation: boolean;
   onManageManagers: () => void;
   onOpenUser: (personId: string, visibleUserCount: number) => void;
   initialVisibleUserCount?: number;
@@ -64,7 +63,6 @@ const screenReaderInstructions = {
 export const PeopleSection = ({
   people,
   peopleUsage,
-  showManagerInvitation,
   onManageManagers,
   onOpenUser,
   initialVisibleUserCount = DEFAULT_USER_LIST_COUNT,
@@ -182,22 +180,20 @@ export const PeopleSection = ({
                 スタッフを追加
               </Button>
             )}
-            {showManagerInvitation && (
-              <Button
-                variant="ghost"
-                size="sm"
-                colorPalette="teal"
-                gap={1.5}
-                fontWeight="semibold"
-                onClick={onManageManagers}
-                w={{ base: "full", md: "auto" }}
-                bg={{ base: "white", md: "transparent" }}
-                borderColor={{ base: "border.emphasized", md: "transparent" }}
-              >
-                <LuShieldCheck aria-hidden />
-                管理者を設定
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              colorPalette="teal"
+              gap={1.5}
+              fontWeight="semibold"
+              onClick={onManageManagers}
+              w={{ base: "full", md: "auto" }}
+              bg={{ base: "white", md: "transparent" }}
+              borderColor={{ base: "border.emphasized", md: "transparent" }}
+            >
+              <LuShieldCheck aria-hidden />
+              管理者を設定
+            </Button>
           </Flex>
         </Flex>
       </Flex>
@@ -382,14 +378,12 @@ function PersonRow({
 type PeopleSectionSkeletonProps = {
   showAddStaff?: boolean;
   showStaffOrderHandle?: boolean;
-  showManagerInvitation?: boolean;
   rowCount?: number;
 };
 
 export function PeopleSectionSkeleton({
   showAddStaff = false,
   showStaffOrderHandle = false,
-  showManagerInvitation = false,
   rowCount = 3,
 }: PeopleSectionSkeletonProps) {
   return (
@@ -399,14 +393,12 @@ export function PeopleSectionSkeleton({
           <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
           <Skeleton h="28px" w="184px" maxW="70vw" />
         </HStack>
-        {(showAddStaff || showManagerInvitation) && (
-          <Flex display={{ base: "contents", md: "flex" }} gap={2} align="center" ms={{ md: "auto" }}>
-            <Flex direction={{ base: "column", md: "row" }} gap={2} w={{ base: "full", md: "auto" }}>
-              {showAddStaff && <Skeleton h="36px" w={{ base: "full", md: "120px" }} borderRadius="md" />}
-              {showManagerInvitation && <Skeleton h="36px" w={{ base: "full", md: "136px" }} borderRadius="md" />}
-            </Flex>
+        <Flex display={{ base: "contents", md: "flex" }} gap={2} align="center" ms={{ md: "auto" }}>
+          <Flex direction={{ base: "column", md: "row" }} gap={2} w={{ base: "full", md: "auto" }}>
+            {showAddStaff && <Skeleton h="36px" w={{ base: "full", md: "120px" }} borderRadius="md" />}
+            <Skeleton h="36px" w={{ base: "full", md: "136px" }} borderRadius="md" />
           </Flex>
-        )}
+        </Flex>
       </Flex>
 
       <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">

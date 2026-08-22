@@ -11,12 +11,6 @@ const mocks = vi.hoisted(() => ({
   changeMemberships: vi.fn(),
   updateProfile: vi.fn(),
   useLineActions: vi.fn(),
-  featureVisibilityAtom: Symbol("featureVisibilityAtom"),
-  featureVisibility: {
-    organizationSettingsNavigation: false,
-    billing: false,
-    shopMembershipAddition: true,
-  },
   removalOptions: undefined as undefined | { onPersonRemoved: (personId: string) => void },
 }));
 
@@ -24,15 +18,6 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mocks.navigate,
   useRouter: () => ({ history: { back: mocks.historyBack } }),
 }));
-
-vi.mock("jotai", () => ({
-  useAtomValue: (target: unknown) => {
-    if (target === mocks.featureVisibilityAtom) return mocks.featureVisibility;
-    throw new Error("Unexpected atom");
-  },
-}));
-
-vi.mock("@/src/stores/user", () => ({ featureVisibilityAtom: mocks.featureVisibilityAtom }));
 
 vi.mock("./UserDetailView", () => ({
   UserDetailView: ({
@@ -141,7 +126,6 @@ beforeEach(() => {
     onSendInvite: vi.fn(),
     onDisconnect: vi.fn(),
   });
-  mocks.featureVisibility.shopMembershipAddition = true;
   mocks.removalOptions = undefined;
 });
 
@@ -179,9 +163,8 @@ describe("UserDetail", () => {
     expect(screen.getByTestId("active-panel").textContent).toBe("basic");
   });
 
-  it("未公開の店舗追加機能はpanelを開かずmutationも呼ばない", () => {
-    mocks.featureVisibility.shopMembershipAddition = false;
-    render(<UserDetail data={data} organizationId={organizationId} />);
+  it("書き込みCapabilityがない場合は所属変更panelを開かずmutationも呼ばない", () => {
+    render(<UserDetail data={{ ...data, canWrite: false }} organizationId={organizationId} />);
 
     fireEvent.click(screen.getByRole("button", { name: "店舗追加を開く" }));
     fireEvent.click(screen.getByRole("button", { name: "所属店舗を変更する" }));

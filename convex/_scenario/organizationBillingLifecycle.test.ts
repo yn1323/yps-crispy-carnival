@@ -89,10 +89,6 @@ describe("事業者課金ライフサイクル", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
-    vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "true");
-    vi.stubEnv("FEATURE_SHOP_ADDITION", "true");
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
-    vi.stubEnv("FEATURE_BILLING", "true");
   });
   afterEach(() => {
     vi.useRealTimers();

@@ -137,8 +137,6 @@ async function insertSentEmailOutbox(
 describe("notificationOutbox", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.stubEnv("FEATURE_BILLING", "true");
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
   });
   afterEach(() => {
     vi.unstubAllEnvs();

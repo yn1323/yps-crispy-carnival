@@ -7,7 +7,6 @@ import { observedInternalMutation as internalMutation } from "../_lib/errorObser
 import { managerMutation } from "../_lib/functions";
 import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
 import { rateLimit } from "../_lib/rateLimits";
-import { isReleaseFeatureEnabled } from "../_lib/releaseFeatures";
 import { loadShopManagerStaffForContact, type ShopManagerContact } from "../_lib/shopManagerRecipients";
 import { normalizeEmail } from "../_lib/validation";
 import {
@@ -1324,12 +1323,6 @@ async function getNotificationEligibility(
   const isInvitationPayload =
     notification.payload.kind === "organizationManagerInvitationEmail" ||
     notification.payload.kind === "organizationManagerInvitationLine";
-  const isManagerInvitationNotification =
-    isInvitationPayload ||
-    (notification.payload.kind === "email" && notification.payload.context === "organizationInvitation.linked");
-  const isBillingPayload =
-    purpose === "billing" ||
-    (notification.payload.kind === "email" && notification.payload.context.startsWith("organizationBilling."));
   const hasInvitationId = notification.organizationInvitationId !== undefined;
   const hasInvitationVersion = notification.organizationInvitationVersion !== undefined;
   if (purpose === "billing" && notification.channel !== "email") {
@@ -1341,12 +1334,6 @@ async function getNotificationEligibility(
     (isInvitationPayload && (purpose !== "business" || notification.organizationId === undefined))
   ) {
     return { cancelReason: "invalid_scope" };
-  }
-  if (isBillingPayload && !isReleaseFeatureEnabled("billing")) {
-    return { organizationId: notification.organizationId, cancelReason: "organization_billing_changed" };
-  }
-  if (isManagerInvitationNotification && !isReleaseFeatureEnabled("managerInvitation")) {
-    return { organizationId: notification.organizationId, cancelReason: "invitation_inactive" };
   }
   if (!notification.shopId && !notification.organizationId) {
     return { cancelReason: "invalid_scope" };

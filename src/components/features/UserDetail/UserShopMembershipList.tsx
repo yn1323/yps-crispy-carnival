@@ -7,7 +7,6 @@ import type { UserDetailData } from "./types";
 
 type Props = {
   data: UserDetailData;
-  showShopMembershipAddition: boolean;
   onOpenShop: (shopId: string) => void;
 };
 

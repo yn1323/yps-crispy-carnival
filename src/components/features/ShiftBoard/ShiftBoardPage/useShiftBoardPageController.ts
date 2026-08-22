@@ -1,5 +1,4 @@
 import { useBlocker } from "@tanstack/react-router";
-import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -27,7 +26,6 @@ import { isAssignmentsEqual } from "@/src/domains/shift/isAssignmentsEqual";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
-import { featureVisibilityAtom } from "@/src/stores/user";
 import type { ShiftBoardData } from "../types";
 import { buildShiftData } from "./buildShiftData";
 import type { ShiftBoardPageViewProps } from "./types";
@@ -36,22 +34,18 @@ import { visibleAssignmentWarnings } from "./warningVisibility";
 const PAST_SHIFT_SAVE_ERROR = "過去のシフトは保存できません";
 const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知できません";
 
-function getReadOnlyReason(reason: ShiftBoardData["businessWriteBlockReason"], showGroupSettings: boolean): string {
+function getReadOnlyReason(reason: ShiftBoardData["businessWriteBlockReason"]): string {
   switch (reason) {
     case "memberReadOnly":
       return "管理者権限が閲覧のみに制限されているため、シフトを変更できません。";
     case "shopArchived":
       return "アーカイブ済みの店舗のため、シフトを変更できません。";
     case "shopPlanSuspended":
-      return showGroupSettings
-        ? "現在のプランでは、この店舗のシフトを変更できません。\n組織設定で利用店舗を確認してください。"
-        : "現在のプランでは、この店舗のシフトを変更できません。";
+      return "現在のプランでは、この店舗のシフトを変更できません。\n組織設定で利用店舗を確認してください。";
     case "paymentResultPending":
       return "支払い結果を確認中のため、シフトを変更できません。";
     case "restricted":
-      return showGroupSettings
-        ? "契約状態を確認できるまで、シフトを変更できません。\n組織設定で契約状態を確認してください。"
-        : "契約状態を確認できるまで、シフトを変更できません。";
+      return "契約状態を確認できるまで、シフトを変更できません。\n組織設定で契約状態を確認してください。";
     case null:
       return "現在、このシフトは変更できません。";
   }
@@ -66,16 +60,13 @@ export const useShiftBoardPageController = (
   data: ShiftBoardData,
   recruitmentId: Id<"recruitments">,
 ): ShiftBoardPageViewProps => {
-  const featureVisibility = useAtomValue(featureVisibilityAtom);
   const saveShiftAssignments = useShopMutation(api.shiftBoard.mutations.saveShiftAssignments);
   const confirmRecruitmentMutation = useShopMutation(api.shiftBoard.mutations.confirmRecruitment);
 
   const confirmedAt = data.recruitment.confirmedAt ? new Date(data.recruitment.confirmedAt) : null;
   const isConfirmed = data.recruitment.status === "confirmed";
   const isReadOnly = !data.canWriteBusinessData;
-  const readOnlyReason = isReadOnly
-    ? getReadOnlyReason(data.businessWriteBlockReason, featureVisibility.organizationSettingsNavigation)
-    : null;
+  const readOnlyReason = isReadOnly ? getReadOnlyReason(data.businessWriteBlockReason) : null;
   const isPastShiftNow = useCallback(() => isPastShiftPeriod(data.recruitment.periodEnd), [data.recruitment.periodEnd]);
 
   const dates = useMemo(

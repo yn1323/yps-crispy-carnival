@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import {
   seedManagerShop,
@@ -10,10 +10,6 @@ import {
 } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { getLegalDocumentsForAudience } from "../legal/documents";
-
-afterEach(() => {
-  vi.unstubAllEnvs();
-});
 
 describe("staffRegistration/queries", () => {
   describe("getRegistrationPageData", () => {
@@ -247,10 +243,9 @@ describe("staffRegistration/queries", () => {
       });
     });
 
-    it("店舗追加が閉じている間は対象店舗の重複と同じ人物の別稼働店舗所属を承認不可にする", async () => {
-      vi.stubEnv("FEATURE_SHOP_ADDITION", "");
+    it("対象店舗の重複だけを承認不可にし、同じ人物の別稼働店舗所属は承認可能にする", async () => {
       const t = convexTest(schema, modules);
-      const { targetShopId, blockedRequestId } = await t.run(async (ctx) => {
+      const { targetShopId, activeOtherRequestId } = await t.run(async (ctx) => {
         const seeded = await seedOrganizationManagerShop(ctx, {
           subject: "registration_approval_visibility_manager",
           email: "registration-approval-visibility-manager@example.com",
@@ -287,7 +282,7 @@ describe("staffRegistration/queries", () => {
           });
         await createPerson("no-membership@example.com");
         const targetOnlyPersonId = await createPerson("target-only@example.com");
-        const blockedPersonId = await createPerson("other-active@example.com");
+        const activeOtherPersonId = await createPerson("other-active@example.com");
         const archivedPersonId = await createPerson("other-archived@example.com");
 
         await ctx.db.insert("staffs", {
@@ -303,7 +298,7 @@ describe("staffRegistration/queries", () => {
         await ctx.db.insert("staffs", {
           shopId: activeOtherShopId,
           organizationId: seeded.organizationId,
-          organizationPersonId: blockedPersonId,
+          organizationPersonId: activeOtherPersonId,
           name: "別の稼働店舗スタッフ",
           email: "other-active@example.com",
           emailNormalized: "other-active@example.com",
@@ -374,9 +369,9 @@ describe("staffRegistration/queries", () => {
           });
           requestIds.set(request.name, requestId);
         }
-        const blockedRequestId = requestIds.get("別の稼働店舗");
-        if (!blockedRequestId) throw new Error("blocked request fixture was not created");
-        return { targetShopId: seeded.shopId, blockedRequestId };
+        const activeOtherRequestId = requestIds.get("別の稼働店舗");
+        if (!activeOtherRequestId) throw new Error("active other shop request fixture was not created");
+        return { targetShopId: seeded.shopId, activeOtherRequestId };
       });
 
       const result = await t
@@ -400,95 +395,21 @@ describe("staffRegistration/queries", () => {
           approveDisabledReason: "この申請は現在承認できません。不要な申請は却下できます。",
         },
         {
-          _id: blockedRequestId,
+          _id: activeOtherRequestId,
           name: "別の稼働店舗",
-          canApprove: false,
-          approveDisabledReason: "この申請は現在承認できません。不要な申請は却下できます。",
+          canApprove: true,
+          approveDisabledReason: null,
         },
         { _id: expect.any(String), name: "別の終了店舗", canApprove: true, approveDisabledReason: null },
         { _id: expect.any(String), name: "別組織だけ", canApprove: true, approveDisabledReason: null },
       ]);
     });
 
-    it("店舗追加を明示的に公開した環境では別の稼働店舗に所属する人物も承認可能と返す", async () => {
-      vi.stubEnv("FEATURE_SHOP_ADDITION", "true");
-      const t = convexTest(schema, modules);
-      const targetShopId = await t.run(async (ctx) => {
-        const seeded = await seedOrganizationManagerShop(ctx, {
-          subject: "registration_approval_open_manager",
-          email: "registration-approval-open-manager@example.com",
-          shopName: "公開時申請店舗",
-          complimentary: true,
-        });
-        const now = Date.now();
-        const otherShopId = await ctx.db.insert("shops", {
-          organizationId: seeded.organizationId,
-          operatingStatus: "active",
-          name: "公開時の別店舗",
-          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-          regularClosedDays: [],
-          isDeleted: false,
-        });
-        const personId = await ctx.db.insert("organizationPeople", {
-          organizationId: seeded.organizationId,
-          name: "公開時スタッフ",
-          email: "open-feature@example.com",
-          emailNormalized: "open-feature@example.com",
-          status: "active",
-          createdAt: now,
-          updatedAt: now,
-        });
-        await ctx.db.insert("staffs", {
-          shopId: otherShopId,
-          organizationId: seeded.organizationId,
-          organizationPersonId: personId,
-          name: "公開時スタッフ",
-          email: "open-feature@example.com",
-          emailNormalized: "open-feature@example.com",
-          excludedFromShift: false,
-          isDeleted: false,
-        });
-        await ctx.db.insert("staffRegistrationRequests", {
-          shopId: seeded.shopId,
-          name: "公開時スタッフ",
-          email: "open-feature@example.com",
-          emailNormalized: "open-feature@example.com",
-          status: "pending",
-          termsConsentVersion: "terms-consent",
-          privacyConsentVersion: "privacy-consent",
-          termsDocumentVersion: "terms-document",
-          privacyDocumentVersion: "privacy-document",
-          consentedAt: now,
-          createdAt: now,
-        });
-        return seeded.shopId;
-      });
-
-      const result = await t
-        .withIdentity({ subject: "registration_approval_open_manager" })
-        .query(api.staffRegistration.queries.getPendingRequests, { shopId: targetShopId });
-
-      expect(result).toEqual([
-        {
-          _id: expect.any(String),
-          name: "公開時スタッフ",
-          email: "open-feature@example.com",
-          createdAt: expect.any(Number),
-          canApprove: true,
-          approveDisabledReason: null,
-        },
-      ]);
-    });
-
-    it.each([
-      ["閉状態", ""],
-      ["公開状態", "true"],
-    ])("店舗追加が%sでも安全な削除済み人物と同じemailの申請は承認可能にする", async (_label, featureValue) => {
-      vi.stubEnv("FEATURE_SHOP_ADDITION", featureValue);
+    it("安全な削除済み人物と同じemailの申請は承認可能にする", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
         const seeded = await seedOrganizationManagerShop(ctx, {
-          subject: `removed_registration_person_${featureValue || "closed"}`,
+          subject: "removed_registration_person",
           complimentary: true,
         });
         const now = Date.now();
@@ -518,7 +439,7 @@ describe("staffRegistration/queries", () => {
       });
 
       const result = await t
-        .withIdentity({ subject: `removed_registration_person_${featureValue || "closed"}` })
+        .withIdentity({ subject: "removed_registration_person" })
         .query(api.staffRegistration.queries.getPendingRequests, { shopId });
 
       expect(result).toEqual([
@@ -618,7 +539,6 @@ describe("staffRegistration/queries", () => {
       ["canonical", true],
       ["legacy", false],
     ])("対象店舗に同emailの%s staffがいる申請は承認不可にする", async (_label, canonical) => {
-      vi.stubEnv("FEATURE_SHOP_ADDITION", "true");
       const t = convexTest(schema, modules);
       const { subject, shopId } = await t.run(async (ctx) => {
         const subject = `existing_registration_staff_${canonical ? "canonical" : "legacy"}`;

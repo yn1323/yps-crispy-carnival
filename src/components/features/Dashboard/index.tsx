@@ -29,7 +29,6 @@ type Props = {
   planStatus?: DashboardPlanStatusSource | null;
   trialEndingNotice?: DashboardContentProps["trialEndingNotice"];
   billingSettingsShopId?: DashboardContentProps["billingSettingsShopId"];
-  isBillingFeatureVisible?: DashboardContentProps["isBillingFeatureVisible"];
   expectedOrganizationId?: Id<"organizations">;
   navigation?: DashboardNavigation;
 };
@@ -49,7 +48,6 @@ export function Dashboard({
   planStatus,
   trialEndingNotice,
   billingSettingsShopId,
-  isBillingFeatureVisible,
   expectedOrganizationId,
   navigation,
 }: Props) {
@@ -57,7 +55,6 @@ export function Dashboard({
     planStatus,
     shopId: billingSettingsShopId,
     expectedOrganizationId,
-    enabled: Boolean(isBillingFeatureVisible),
     onOpenBillingSettings: navigation?.onOpenBillingSettings ?? NOOP_NAVIGATION,
   });
 
@@ -73,7 +70,6 @@ export function Dashboard({
       planStatusCard={planStatusCard}
       trialEndingNotice={trialEndingNotice}
       billingSettingsShopId={billingSettingsShopId}
-      isBillingFeatureVisible={isBillingFeatureVisible}
       navigation={navigation}
       isDashboardOnboardingDismissed={Boolean(
         currentUser && !currentUser.isNewUser && currentUser.dashboardOnboardingDismissedAt,

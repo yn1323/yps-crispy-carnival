@@ -8,23 +8,13 @@ import type { BillingUsageView, OrganizationShopView } from "./types";
 type Props = {
   shops: OrganizationShopView[];
   shopUsage: BillingUsageView;
-  /** 旧応答との型互換用。現行契約では常にtrue。 */
-  showAddShop: boolean;
   canAddShop: boolean;
   addShopDisabledReason?: string;
   onAddShop: () => void;
   onOpenShop: (shopId: string) => void;
 };
 
-export const ShopsSection = ({
-  shops,
-  shopUsage,
-  showAddShop,
-  canAddShop,
-  addShopDisabledReason,
-  onAddShop,
-  onOpenShop,
-}: Props) => (
+export const ShopsSection = ({ shops, shopUsage, canAddShop, addShopDisabledReason, onAddShop, onOpenShop }: Props) => (
   <Stack as="section" gap={4} aria-labelledby="organization-shops-heading">
     <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={3} wrap="wrap">
       <HStack gap={2}>
@@ -33,22 +23,20 @@ export const ShopsSection = ({
           全店舗{shopUsage.max > 0 ? ` (${shopUsage.current}/${shopUsage.max})` : ""}
         </Heading>
       </HStack>
-      {showAddShop && (
-        <Button
-          variant="ghost"
-          size="sm"
-          colorPalette="teal"
-          onClick={onAddShop}
-          disabled={!canAddShop}
-          title={!canAddShop ? addShopDisabledReason : undefined}
-          aria-describedby={!canAddShop && addShopDisabledReason ? "organization-shop-add-disabled-reason" : undefined}
-          gap={1.5}
-          fontWeight="semibold"
-        >
-          <LuPlus aria-hidden />
-          店舗を追加する
-        </Button>
-      )}
+      <Button
+        variant="ghost"
+        size="sm"
+        colorPalette="teal"
+        onClick={onAddShop}
+        disabled={!canAddShop}
+        title={!canAddShop ? addShopDisabledReason : undefined}
+        aria-describedby={!canAddShop && addShopDisabledReason ? "organization-shop-add-disabled-reason" : undefined}
+        gap={1.5}
+        fontWeight="semibold"
+      >
+        <LuPlus aria-hidden />
+        店舗を追加する
+      </Button>
     </Flex>
 
     {shops.length === 0 ? (

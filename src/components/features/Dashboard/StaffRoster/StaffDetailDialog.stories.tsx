@@ -46,10 +46,6 @@ const unavailableManagerInvitationStaff = {
       "管理者と招待中の管理者は、組織全体で5名までです。\n管理者権限を外すか招待を取り消してから、もう一度お試しください。",
   },
 } as Staff;
-const hiddenManagerInvitationStaff = {
-  ...mockStaffs[1],
-  managerInvitationState: { kind: "hidden" },
-} as Staff;
 const freeManagerAdditionStaff = {
   ...mockStaffs[1],
   managerInvitationState: { kind: "available", mode: "addition", replacesStaleInvitation: false },
@@ -389,20 +385,6 @@ export const ManagerInvitationUnavailableAtCapacity: Story = {
   args: {
     staff: unavailableManagerInvitationStaff,
     defaultTab: "settings",
-  },
-};
-
-export const ManagerInvitationDarkLaunchBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  args: {
-    staff: hiddenManagerInvitationStaff,
-    defaultTab: "settings",
-  },
-  play: async () => {
-    const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
-    await expect(within(dialog).queryByRole("heading", { name: "管理者権限" })).not.toBeInTheDocument();
-    await expect(within(dialog).queryByRole("button", { name: "管理者設定で変更" })).not.toBeInTheDocument();
-    await expect(within(dialog).getByRole("button", { name: "スタッフを削除" })).toBeInTheDocument();
   },
 };
 

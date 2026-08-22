@@ -36,7 +36,6 @@ export type DashboardContentViewProps = {
   planStatusCard?: PlanStatusCardProps | null;
   trialEndingNotice?: TrialEndingNoticeData | null;
   billingSettingsShopId?: string;
-  isBillingFeatureVisible: boolean;
   recruitment: DashboardQueryStage<RecruitmentManagementState>;
   staff: DashboardQueryStage<StaffManagementState>;
   registrationRequests: DashboardQueryStage<StaffRegistrationRequestManagementState>;
@@ -55,7 +54,6 @@ export function DashboardContentView({
   planStatusCard,
   trialEndingNotice,
   billingSettingsShopId,
-  isBillingFeatureVisible,
   recruitment,
   staff,
   registrationRequests,
@@ -100,19 +98,15 @@ export function DashboardContentView({
                 <OperationContext
                   data={operationContextData}
                   showOrganizationContext={showOrganizationContext}
-                  planStatusCard={isBillingFeatureVisible ? planStatusCard : null}
-                  billingSettingsShopId={isBillingFeatureVisible ? billingSettingsShopId : undefined}
+                  planStatusCard={planStatusCard}
+                  billingSettingsShopId={billingSettingsShopId}
                   onOpenOrganizationSettings={navigation?.onOpenOrganizationSettings}
                   onOpenShopDetail={navigation?.onOpenShopDetail}
                 />
                 <LegalReconsent status={managerLegalConsentStatus} />
-                {isBillingFeatureVisible &&
-                planStatusCard === undefined &&
-                billingSettingsShopId &&
-                navigation?.onOpenBillingSettings ? (
+                {planStatusCard === undefined && billingSettingsShopId && navigation?.onOpenBillingSettings ? (
                   <TrialEndingCallout
                     notice={trialEndingNotice ?? null}
-                    isBillingVisible={isBillingFeatureVisible}
                     onOpenBillingSettings={navigation.onOpenBillingSettings}
                   />
                 ) : null}

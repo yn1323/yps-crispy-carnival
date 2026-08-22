@@ -3,7 +3,6 @@ import { paginationOptsValidator, paginationResultValidator } from "convex/serve
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
-import { getReleaseFeatureVisibility } from "../_lib/config";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedQuery, organizationQuery } from "../_lib/functions";
 import {
@@ -111,7 +110,6 @@ const organizationPeopleSummaryValidator = v.object({
   addStaffDisabledReason: v.optional(v.string()),
   canChangeStaffOrder: v.boolean(),
   changeStaffOrderDisabledReason: v.optional(v.string()),
-  features: v.object({ managerInvitation: v.boolean() }),
 });
 
 const shopFilterValidator = v.union(v.literal("all"), v.id("shops"));
@@ -721,7 +719,6 @@ export const getOrganizationPeopleSummary = organizationQuery({
       visibleCount: visible.count,
       visibleCountHasOverflow: visible.hasOverflow,
       maxPeople: limits?.maxPeople ?? 0,
-      features: { managerInvitation: getReleaseFeatureVisibility().managerInvitation },
       ...capability,
       ...staffOrderCapability,
     };

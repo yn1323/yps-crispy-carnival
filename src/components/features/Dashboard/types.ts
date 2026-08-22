@@ -33,9 +33,6 @@ export type DashboardRecruitmentGroupsResult = {
 
 export type StaffManagerInvitationState =
   | {
-      kind: "hidden";
-    }
-  | {
       kind: "available";
       mode: "addition" | "freeManagerExchange";
       replacesStaleInvitation: boolean;

@@ -357,7 +357,7 @@ describe("useStaffInvitation", () => {
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
   });
 
-  it("他店舗スタッフ追加が非公開なら方法選択と古い追加handlerを無効化する", async () => {
+  it("他店舗スタッフ追加が表示対象から外れたら方法選択と古い追加handlerを無効化する", async () => {
     const { result, rerender } = renderHook(
       ({ showOrganizationPeopleAddition }) => useStaffInvitation(false, showOrganizationPeopleAddition),
       { initialProps: { showOrganizationPeopleAddition: true } },
@@ -382,7 +382,7 @@ describe("useStaffInvitation", () => {
     expect(mocks.addOrganizationPersonToShop).not.toHaveBeenCalled();
   });
 
-  it("他店舗スタッフ追加の処理中に非公開へ切り替わった場合はDialogを閉じずtoastを表示しない", async () => {
+  it("他店舗スタッフ追加の処理中に表示対象から外れた場合はDialogを閉じずtoastを表示しない", async () => {
     let resolveAddition: ((value: { staffId: string }) => void) | undefined;
     mocks.addOrganizationPersonToShop.mockImplementation(
       () =>

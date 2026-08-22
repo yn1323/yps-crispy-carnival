@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { api, internal } from "../_generated/api";
 import { seedOrganizationManagerShop, testAuthTokenIdentifier } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
@@ -17,9 +17,6 @@ async function manageWriteState(t: ReturnType<typeof convexTest>) {
 }
 
 describe("app organization manage mutations", () => {
-  beforeEach(() => vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "true"));
-  afterEach(() => vi.unstubAllEnvs());
-
   it("current orgのcanonical active所属から新しい組織を作り、organizationIdを返す", async () => {
     const t = convexTest(schema, modules);
     const actorIds = await t.run((ctx) =>

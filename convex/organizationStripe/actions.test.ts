@@ -118,25 +118,6 @@ describe("organizationStripe/actions", () => {
     vi.stubEnv("STRIPE_PRO_PRICE_ID", READY_TEST_CONFIGURATION.proPriceId);
     vi.stubEnv("STRIPE_BUSINESS_PRICE_ID", BUSINESS_PRICE_ID);
     vi.stubEnv("APP_URL", "https://app.example.test");
-    vi.stubEnv("FEATURE_BILLING", "true");
-  });
-
-  it("未リリースflagが閉じている場合は公開Actionをprovider・DB副作用なしで拒否する", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run((ctx) =>
-      seedOrganizationManagerShop(ctx, { subject: "stripe_feature_closed", plan: "pro" }),
-    );
-    vi.stubEnv("FEATURE_BILLING", "");
-
-    await expect(
-      invokeBillingActions(t.withIdentity({ subject: "stripe_feature_closed" }), ids.shopId),
-    ).resolves.toEqual([
-      { status: "unavailable", reason: "not_allowed" },
-      { status: "unavailable", reason: "not_allowed" },
-      { status: "unavailable", reason: "not_allowed" },
-    ]);
-    expect(providerFetchMock).not.toHaveBeenCalled();
-    await expectNoStripeSideEffects(t);
   });
 
   afterEach(() => {

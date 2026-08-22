@@ -40,13 +40,11 @@ export function UserSummary({ data }: Props) {
                   閲覧のみの管理者
                 </Badge>
               )}
-              {data.managerInvitationState.kind !== "hidden" &&
-                data.managerRole === "none" &&
-                data.hasManagerInvitation && (
-                  <Badge colorPalette="orange" variant="subtle" borderRadius="full" px={2.5}>
-                    管理者招待中
-                  </Badge>
-                )}
+              {data.managerRole === "none" && data.hasManagerInvitation && (
+                <Badge colorPalette="orange" variant="subtle" borderRadius="full" px={2.5}>
+                  管理者招待中
+                </Badge>
+              )}
             </HStack>
             <Text fontSize="sm" color="fg.muted" truncate>
               {data.person.email || "メールアドレス未登録"}

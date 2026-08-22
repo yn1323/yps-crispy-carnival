@@ -21,7 +21,6 @@ describe("管理者セットアップシナリオ", () => {
     vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_manager_setup_pro");
     vi.stubEnv("STRIPE_BUSINESS_PRICE_ID", "price_manager_setup_business");
     vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "bpc_manager_setup");
-    vi.stubEnv("FEATURE_BILLING", "true");
   });
   afterEach(() => {
     vi.useRealTimers();

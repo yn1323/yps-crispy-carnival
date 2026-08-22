@@ -77,7 +77,7 @@ export const QueryError: Story = {
 
 const organizationId = "organization-preview" as never;
 
-function ReadyClosedPreview({ readOnly = false }: { readOnly?: boolean }) {
+function ReadyPreview({ readOnly = false }: { readOnly?: boolean }) {
   return (
     <Stack gap={6}>
       <AppManageHeader />
@@ -90,7 +90,6 @@ function ReadyClosedPreview({ readOnly = false }: { readOnly?: boolean }) {
           managerCount={1}
           pendingManagerCount={0}
           billingState={billing.state}
-          features={{ organizationCreation: false, managerInvitation: false, billing: false }}
           canCreateOrganization={false}
         />
       </Stack>
@@ -98,7 +97,6 @@ function ReadyClosedPreview({ readOnly = false }: { readOnly?: boolean }) {
         organizationId={organizationId}
         shops={shops}
         shopUsage={billing.shopUsage}
-        showAddShop={false}
         canAddShop={false}
         canLoadMore={false}
         isLoadingMore={false}
@@ -113,49 +111,33 @@ function AppCompositionPreview() {
   return (
     <AuthenticatedAppShell activeKey="manage" activeOrganizationId="organization-preview">
       <AuthenticatedPageContent includeMobileNavigation>
-        <ReadyClosedPreview />
+        <ReadyPreview />
       </AuthenticatedPageContent>
     </AuthenticatedAppShell>
   );
 }
 
 export const AppCompositionDesktop: Story = {
-  name: "管理・未リリース機能は非表示・新shell・デスクトップ",
+  name: "管理・新shell・デスクトップ",
   parameters: { layout: "fullscreen", vrt: { releaseFixedHeader: true } },
   render: () => <AppCompositionPreview />,
 };
 
 export const AppCompositionMobile: Story = {
   ...AppCompositionDesktop,
-  name: "管理・未リリース機能は非表示・新shell・モバイル414px",
+  name: "管理・新shell・モバイル414px",
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
 export const ReadyReadOnly: Story = {
-  render: () => <ReadyClosedPreview readOnly />,
+  render: () => <ReadyPreview readOnly />,
 };
 
 export const ReadyReadOnlyMobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
-  render: () => <ReadyClosedPreview readOnly />,
-};
-
-export const ReleasedFeaturesHiddenBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  render: () => <ReadyClosedPreview />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await expect(canvas.getByRole("region", { name: "現在のプラン" })).toHaveTextContent("Business");
-    await expect(canvas.getByRole("button", { name: "組織情報を開く" })).toBeInTheDocument();
-    await expect(canvas.getByRole("heading", { name: "全店舗 (6/5)" })).toBeInTheDocument();
-    await expect(canvas.queryByRole("button", { name: "新しい組織を作る" })).not.toBeInTheDocument();
-    await expect(canvas.queryByRole("button", { name: "管理者と権限を開く" })).not.toBeInTheDocument();
-    await expect(canvas.queryByRole("button", { name: "プランと支払いを開く" })).not.toBeInTheDocument();
-    await expect(canvas.queryByRole("button", { name: "店舗を追加する" })).not.toBeInTheDocument();
-  },
+  render: () => <ReadyPreview readOnly />,
 };
 
 function RetryPreview() {

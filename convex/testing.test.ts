@@ -19,10 +19,6 @@ describe("E2E testing helpers", () => {
     vi.stubEnv("E2E_TESTING_DEPLOYMENT_URL", "https://e2e-test.convex.cloud");
     vi.stubEnv("E2E_TESTING_ENABLED", "true");
     vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "dry-run");
-    vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "true");
-    vi.stubEnv("FEATURE_SHOP_ADDITION", "true");
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
-    vi.stubEnv("FEATURE_BILLING", "true");
   });
 
   afterEach(() => {

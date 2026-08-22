@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { seedOrganizationManagerShop, seedUser } from "../_test/seed";
@@ -54,9 +54,6 @@ async function insertCanonicalStaff(
 
 describe("staff/queries", () => {
   describe("listOrganizationPeopleAvailableForShop", () => {
-    beforeEach(() => vi.stubEnv("FEATURE_SHOP_ADDITION", "true"));
-    afterEach(() => vi.unstubAllEnvs());
-
     it("未認証では候補を返さない", async () => {
       const t = convexTest(schema, modules);
       const { shopId } = await t.run(
@@ -198,7 +195,7 @@ describe("staff/queries", () => {
       ]);
     });
 
-    it("未リリース中は別active店舗所属の人物を除外し、所属0件の初回追加候補は残す", async () => {
+    it("別active店舗所属と所属0件の人物をどちらも追加候補に含める", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
@@ -231,9 +228,8 @@ describe("staff/queries", () => {
           name: "初回追加候補",
           email: "candidate-first-shop@example.com",
         });
-        return { ...base, firstShopPersonId };
+        return { ...base, firstShopPersonId, otherShopPersonId };
       });
-      vi.stubEnv("FEATURE_SHOP_ADDITION", "");
 
       await expect(
         t
@@ -252,6 +248,13 @@ describe("staff/queries", () => {
           name: "初回追加候補",
           email: "candidate-first-shop@example.com",
           shopNames: [],
+          isManager: false,
+        },
+        {
+          personId: ids.otherShopPersonId,
+          name: "別店舗所属候補",
+          email: "candidate-other-shop@example.com",
+          shopNames: ["既存所属店舗"],
           isManager: false,
         },
       ]);

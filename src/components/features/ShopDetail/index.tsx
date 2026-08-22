@@ -10,10 +10,9 @@ type Props = {
   shop: ShopDetailData;
   people: ShopDetailPerson[];
   organizationId: Id<"organizations">;
-  isShopAdditionEnabled: boolean;
 };
 
-export function ShopDetail({ shop, people, organizationId, isShopAdditionEnabled }: Props) {
+export function ShopDetail({ shop, people, organizationId }: Props) {
   const navigate = useNavigate();
   const router = useRouter();
   const navigateBack = () => {
@@ -47,7 +46,6 @@ export function ShopDetail({ shop, people, organizationId, isShopAdditionEnabled
       onUpdateSettings={settings.updateSettings}
       onDelete={deletion.deleteShop}
       expectedOrganizationId={organizationId}
-      isShopAdditionEnabled={isShopAdditionEnabled}
     />
   );
 }

@@ -2,7 +2,6 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import { dateJST } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
-import { isReleaseFeatureEnabled } from "../_lib/releaseFeatures";
 import { normalizeEmail } from "../_lib/validation";
 import { ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT } from "../constants";
 import { collectPersonRemovalPreview } from "../organization/personRemoval";
@@ -351,15 +350,12 @@ export const listOrganizationPeopleAvailableForShop = managerQuery({
         shopNamesByPersonId.set(staff.organizationPersonId, current);
       }
     }
-    const canAddMultiShopMembership = isReleaseFeatureEnabled("shopAddition");
-
     return people
       .filter(
         (person) =>
           !currentPersonIds.has(person._id) &&
           !currentEmails.has(person.emailNormalized) &&
-          !pendingEmails.has(person.emailNormalized) &&
-          (canAddMultiShopMembership || !shopNamesByPersonId.has(person._id)),
+          !pendingEmails.has(person.emailNormalized),
       )
       .map((person) => {
         const membersForPerson = membershipsByPersonId.get(person._id) ?? [];

@@ -5,18 +5,18 @@ import { LuBuilding2, LuCreditCard, LuStore, LuUserRoundPlus } from "react-icons
 const managementCapabilities: Array<{ icon: IconType; title: string; body: string }> = [
   {
     icon: LuBuilding2,
-    title: "一つの組織で管理",
-    body: "初回登録で、店舗とスタッフをまとめる組織を一つ作ります。日々のシフト運用を同じ場所で進められます。",
+    title: "複数の組織を切り替え",
+    body: "最初の組織に加えて、用途ごとの組織を作成できます。組織ごとに店舗、スタッフ、プランを分けて管理します。",
   },
   {
     icon: LuStore,
-    title: "一店舗から始める",
-    body: "初回登録で店舗を一つ作り、その店舗の希望回収、シフト作成、確定通知を管理します。",
+    title: "一店舗から複数店舗へ",
+    body: "初回登録では店舗を一つ作り、プラン上限まで店舗を追加できます。操作する店舗はダッシュボードから切り替えます。",
   },
   {
     icon: LuUserRoundPlus,
-    title: "本人が管理者として開始",
-    body: "初回登録した本人が管理者になります。スタッフは専用アカウントを作らず、届いたリンクから希望を提出できます。",
+    title: "管理者をメールで招待",
+    body: "初回登録した本人から始め、別の管理者を招待できます。スタッフは専用アカウントを作らず、届いたリンクから希望を提出できます。",
   },
   {
     icon: LuCreditCard,
@@ -35,10 +35,10 @@ export function OrganizationManagementSection() {
               1組織・1店舗・1管理者から
             </Text>
             <Heading as="h2" color="gray.950" fontSize={{ base: "2xl", md: "4xl" }} lineHeight="1.35" letterSpacing="0">
-              一つの店舗のシフト運用を、同じ場所で管理
+              組織と店舗を切り替えて、シフト運用を同じ場所で管理
             </Heading>
             <Text color="gray.700" lineHeight="1.8">
-              希望回収、スタッフ管理、シフト作成、確定通知までを、初回登録で作る組織と店舗にまとめます。
+              希望回収、スタッフ管理、シフト作成、確定通知までを組織と店舗ごとにまとめ、必要な管理者と分担できます。
             </Text>
           </VStack>
 
@@ -57,7 +57,7 @@ export function OrganizationManagementSection() {
             gap={2}
             _hover={{ textDecoration: "none", color: "teal.900" }}
           >
-            初回登録の利用条件を見る
+            料金・プランを見る
             <Box as="span" aria-hidden>
               →
             </Box>

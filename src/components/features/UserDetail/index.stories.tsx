@@ -257,7 +257,6 @@ const meta = {
   ],
   args: {
     data: multipleStoresData,
-    showShopMembershipAddition: true,
     state: baseState,
     actions: baseActions,
   },
@@ -480,25 +479,6 @@ export const ShopMembershipChangeUnavailable: Story = {
   },
 };
 
-export const ShopMembershipAdditionDarkLaunchBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  args: {
-    activePanel: "addShop",
-    data: { ...multipleStoresData, memberships: [] },
-    showShopMembershipAddition: false,
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await expect(canvas.queryByRole("button", { name: "所属店舗を変更する" })).not.toBeInTheDocument();
-    await expect(screen.queryByRole("dialog", { name: "所属店舗を変更" })).not.toBeInTheDocument();
-    await expect(canvas.getByText("所属店舗はありません")).toBeInTheDocument();
-    await expect(
-      canvas.queryByText("「所属店舗を変更する」から、このユーザーの所属を変更できます。"),
-    ).not.toBeInTheDocument();
-  },
-};
-
 export const PersonRemovalZeroAssignments: Story = createPersonRemovalStory(0);
 export const PersonRemovalOneAssignment: Story = createPersonRemovalStory(1);
 export const PersonRemovalMultipleAssignments: Story = createPersonRemovalStory(3);
@@ -604,7 +584,6 @@ function PanelNavigationHarness({
       </output>
       <UserDetailView
         data={data}
-        showShopMembershipAddition
         activePanel={activePanel}
         state={{
           ...baseState,
@@ -648,7 +627,6 @@ function LinePanelHarness({ data = lineUnlinkedData }: { data?: UserDetailData }
       </output>
       <UserDetailView
         data={data}
-        showShopMembershipAddition
         activePanel={activePanel}
         state={{
           ...baseState,
@@ -963,7 +941,6 @@ function MembershipChangeRetryHarness() {
       </output>
       <UserDetailView
         data={data}
-        showShopMembershipAddition
         activePanel="addShop"
         state={baseState}
         actions={{

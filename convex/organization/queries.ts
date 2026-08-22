@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
-import { getReleaseFeatureVisibility } from "../_lib/config";
 import { formatDateJa, formatDateTimeJa } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
 import { loadShopManagerNotificationRecipientStatus } from "../_lib/shopManagerRecipients";
@@ -173,16 +172,6 @@ export const organizationSettingsValidator = v.object({
   deleteOrganizationDisabledReason: v.optional(v.string()),
   canCreateOrganization: v.boolean(),
   createOrganizationDisabledReason: v.optional(v.string()),
-  // 導線の表示判定は可否（can*）とは別に持ち、rolling deploy中の旧frontendとの互換を保つ。
-  // TODO[narrow]: featuresを返すbackendが全deploymentへ反映され、旧frontend互換期間が終わった後にrequired化する。
-  features: v.optional(
-    v.object({
-      organizationCreation: v.boolean(),
-      shopAddition: v.boolean(),
-      billing: v.boolean(),
-      managerInvitation: v.boolean(),
-    }),
-  ),
 });
 
 type BillingPlan = "trial" | "free" | "pro" | "business";
@@ -226,7 +215,6 @@ function legacyMigrationPendingSettings(
   shop: Doc<"shops">,
   creationAvailability: OrganizationCreationAvailability,
 ) {
-  const features = getOrganizationSettingsFeatures();
   const migrationReason = "組織単位の設定を移行しています。\n完了するまで、既存データを閲覧できます。";
   return {
     organizationName: shop.name,
@@ -297,19 +285,9 @@ function legacyMigrationPendingSettings(
     canDeleteOrganization: false,
     deleteOrganizationDisabledReason: migrationReason,
     // 組織作成は選択中組織の移行状態と独立しているため、移行待ちでも利用者単位で判定する。
-    canCreateOrganization: features.organizationCreation && creationAvailability.canCreate,
-    ...(!features.organizationCreation
-      ? { createOrganizationDisabledReason: "この機能は現在利用できません。" }
-      : creationAvailability.canCreate
-        ? {}
-        : { createOrganizationDisabledReason: creationAvailability.reason }),
-    features,
+    canCreateOrganization: creationAvailability.canCreate,
+    ...(creationAvailability.canCreate ? {} : { createOrganizationDisabledReason: creationAvailability.reason }),
   };
-}
-
-/** 公開状態を画面の描画判定へ渡す。認可根拠には使わない。 */
-function getOrganizationSettingsFeatures() {
-  return getReleaseFeatureVisibility();
 }
 
 function restrictedBlockedReason(state: Extract<Doc<"organizationBillingStates">["state"], { kind: "restricted" }>) {
@@ -344,7 +322,6 @@ type CanonicalOrganizationSettingsCtx = QueryCtx & {
 export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizationSettingsCtx) {
   // 新しい組織を作れるかは選択中組織の課金状態や所属状態と独立しており、利用者単位で決まる。
   const creationAvailability = await getOrganizationCreationAvailability(ctx, ctx.user);
-  const features = getOrganizationSettingsFeatures();
   const organization = ctx.organization;
   const now = Date.now();
   const [
@@ -567,7 +544,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     ),
   );
   const managerInvitationMode = "addition" as const;
-  const canInviteManager = features.managerInvitation && canInviteManagerAddition;
+  const canInviteManager = canInviteManagerAddition;
   const canRevokeInvitation = Boolean(isActiveActor && policy?.canWriteBusinessData);
   const managerInvitations = await Promise.all(
     invitationDocs.map(async (invitation) => {
@@ -1086,41 +1063,33 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
 
   const inviteManagerDisabledReason = canInviteManager
     ? undefined
-    : !features.managerInvitation
-      ? "この機能は現在利用できません。"
-      : !billingState
-        ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
-        : !isActiveActor
-          ? "閲覧のみの管理者は、管理者を招待できません。"
-          : restrictedState
-            ? "契約制限中は、管理者を招待できません。"
-            : hasActiveFreeManagerExchangeInvitation
-              ? "以前の管理者交代招待が残っています。\n取り消すか有効期限が切れてから、管理者を追加してください。"
-              : policy?.paidFeatureBlockReason === "paymentResultPending"
-                ? "支払い結果が確定してから、管理者を招待できます。"
-                : `管理者と招待中の管理者は、組織全体で${policy?.limits?.maxActiveManagers ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveManagers}名までです。`;
+    : !billingState
+      ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
+      : !isActiveActor
+        ? "閲覧のみの管理者は、管理者を招待できません。"
+        : restrictedState
+          ? "契約制限中は、管理者を招待できません。"
+          : hasActiveFreeManagerExchangeInvitation
+            ? "以前の管理者交代招待が残っています。\n取り消すか有効期限が切れてから、管理者を追加してください。"
+            : policy?.paidFeatureBlockReason === "paymentResultPending"
+              ? "支払い結果が確定してから、管理者を招待できます。"
+              : `管理者と招待中の管理者は、組織全体で${policy?.limits?.maxActiveManagers ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveManagers}名までです。`;
   const canAddShop = Boolean(
-    features.shopAddition &&
-      isActiveActor &&
-      policy?.canUsePaidFeatures &&
-      policy.limits &&
-      activeShopCount < policy.limits.maxActiveShops,
+    isActiveActor && policy?.canUsePaidFeatures && policy.limits && activeShopCount < policy.limits.maxActiveShops,
   );
   const addShopDisabledReason = canAddShop
     ? undefined
-    : !features.shopAddition
-      ? "この機能は現在利用できません。"
-      : !billingState
-        ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
-        : !isActiveActor
-          ? "閲覧のみの管理者は、店舗を追加できません。"
-          : restrictedState
-            ? "契約制限中は、店舗を追加できません。"
-            : policy?.paidFeatureBlockReason === "freePlan"
-              ? "無料プランでは、店舗を追加できません。\n有料プランを選択してください。"
-              : policy?.paidFeatureBlockReason === "paymentResultPending"
-                ? "支払い結果が確定してから、店舗を追加できます。"
-                : `店舗は、組織ごとに${policy?.limits?.maxActiveShops ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveShops}件まで登録できます。`;
+    : !billingState
+      ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
+      : !isActiveActor
+        ? "閲覧のみの管理者は、店舗を追加できません。"
+        : restrictedState
+          ? "契約制限中は、店舗を追加できません。"
+          : policy?.paidFeatureBlockReason === "freePlan"
+            ? "無料プランでは、店舗を追加できません。\n有料プランを選択してください。"
+            : policy?.paidFeatureBlockReason === "paymentResultPending"
+              ? "支払い結果が確定してから、店舗を追加できます。"
+              : `店舗は、組織ごとに${policy?.limits?.maxActiveShops ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveShops}件まで登録できます。`;
   const canUpdateOrganizationName = isActiveActor;
   const updateOrganizationNameDisabledReason = canUpdateOrganizationName
     ? undefined
@@ -1157,13 +1126,8 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     ...(addShopDisabledReason ? { addShopDisabledReason } : {}),
     canDeleteOrganization: deletionEligibility.canDelete,
     ...(!deletionEligibility.canDelete ? { deleteOrganizationDisabledReason: deletionEligibility.reason } : {}),
-    canCreateOrganization: features.organizationCreation && creationAvailability.canCreate,
-    ...(!features.organizationCreation
-      ? { createOrganizationDisabledReason: "この機能は現在利用できません。" }
-      : creationAvailability.canCreate
-        ? {}
-        : { createOrganizationDisabledReason: creationAvailability.reason }),
-    features,
+    canCreateOrganization: creationAvailability.canCreate,
+    ...(creationAvailability.canCreate ? {} : { createOrganizationDisabledReason: creationAvailability.reason }),
   };
 }
 
@@ -1186,7 +1150,6 @@ export const getSettings = managerQuery({
 });
 
 export const managerSettingsOverviewValidator = v.union(
-  v.object({ kind: v.literal("hidden") }),
   v.object({ kind: v.literal("integrityError"), message: v.string() }),
   v.object({
     kind: v.literal("ready"),
@@ -1238,7 +1201,6 @@ export const managerSettingsOverviewValidator = v.union(
 );
 
 export const managerCandidatesValidator = v.union(
-  v.object({ kind: v.literal("hidden") }),
   v.object({ kind: v.literal("integrityError"), message: v.string() }),
   v.object({
     kind: v.literal("ready"),

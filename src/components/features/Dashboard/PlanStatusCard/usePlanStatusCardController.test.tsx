@@ -33,7 +33,6 @@ const paidPlan = {
 } satisfies DashboardPlanStatusSource;
 
 type ControllerProps = {
-  enabled: boolean;
   planStatus: DashboardPlanStatusSource | null | undefined;
   shopId: string | undefined;
 };
@@ -53,29 +52,25 @@ afterEach(() => {
 });
 
 describe("usePlanStatusCardController", () => {
-  it("feature非公開・店舗未確定・旧backend・新backend非表示では利用状況を購読しない", () => {
+  it("店舗未確定・旧backend・新backend非表示では利用状況を購読しない", () => {
     const onOpenBillingSettings = vi.fn();
     const { result, rerender } = renderHook(
-      ({ enabled, planStatus, shopId }: ControllerProps) =>
-        usePlanStatusCardController({ planStatus, shopId, enabled, onOpenBillingSettings }),
+      ({ planStatus, shopId }: ControllerProps) =>
+        usePlanStatusCardController({ planStatus, shopId, onOpenBillingSettings }),
       {
         initialProps: {
-          enabled: false,
           planStatus: paidPlan,
-          shopId: "shop-1",
+          shopId: undefined,
         } as ControllerProps,
       },
     );
 
-    expect(result.current).toBeNull();
-    expect(mocks.query).toHaveBeenLastCalledWith(mocks.getDashboardPlanUsage, "skip");
-    rerender({ enabled: true, planStatus: paidPlan, shopId: undefined });
     expect(currentCard(result.current).usage).toBeUndefined();
     expect(mocks.query).toHaveBeenLastCalledWith(mocks.getDashboardPlanUsage, "skip");
-    rerender({ enabled: true, planStatus: undefined, shopId: "shop-1" });
+    rerender({ planStatus: undefined, shopId: "shop-1" });
     expect(result.current).toBeUndefined();
     expect(mocks.query).toHaveBeenLastCalledWith(mocks.getDashboardPlanUsage, "skip");
-    rerender({ enabled: true, planStatus: null, shopId: "shop-1" });
+    rerender({ planStatus: null, shopId: "shop-1" });
     expect(result.current).toBeNull();
     expect(mocks.query).toHaveBeenLastCalledWith(mocks.getDashboardPlanUsage, "skip");
   });
@@ -90,7 +85,6 @@ describe("usePlanStatusCardController", () => {
       usePlanStatusCardController({
         planStatus: paidPlan,
         shopId: "shop-1",
-        enabled: true,
         onOpenBillingSettings: vi.fn(),
       }),
     );
@@ -126,7 +120,6 @@ describe("usePlanStatusCardController", () => {
         planStatus: paidPlan,
         shopId: "shop-1",
         expectedOrganizationId: "organization-1" as never,
-        enabled: true,
         onOpenBillingSettings: vi.fn(),
       }),
     );
@@ -177,7 +170,6 @@ describe("usePlanStatusCardController", () => {
       usePlanStatusCardController({
         planStatus: source,
         shopId: "shop-1",
-        enabled: true,
         onOpenBillingSettings: vi.fn(),
       }),
     );
@@ -209,7 +201,6 @@ describe("usePlanStatusCardController", () => {
         usePlanStatusCardController({
           planStatus: paymentIssue,
           shopId,
-          enabled: true,
           onOpenBillingSettings: vi.fn(),
         }),
       { initialProps: { shopId: "shop-a" } },
@@ -239,7 +230,6 @@ describe("usePlanStatusCardController", () => {
       usePlanStatusCardController({
         planStatus: paymentIssue,
         shopId: "shop-1",
-        enabled: true,
         onOpenBillingSettings: vi.fn(),
       }),
     );
@@ -259,7 +249,6 @@ describe("usePlanStatusCardController", () => {
       usePlanStatusCardController({
         planStatus: paidPlan,
         shopId: "shop-1",
-        enabled: true,
         onOpenBillingSettings,
       }),
     );
@@ -282,7 +271,6 @@ describe("usePlanStatusCardController", () => {
           canUpdatePaymentMethod: true,
         },
         shopId: "shop-1",
-        enabled: true,
         onOpenBillingSettings: vi.fn(),
       }),
     );
@@ -295,7 +283,6 @@ describe("usePlanStatusCardController", () => {
           canUpdatePaymentMethod: false,
         },
         shopId: "shop-1",
-        enabled: true,
         onOpenBillingSettings: vi.fn(),
       }),
     );
@@ -308,7 +295,6 @@ describe("usePlanStatusCardController", () => {
           canUpdatePaymentMethod: false,
         },
         shopId: "shop-1",
-        enabled: true,
         onOpenBillingSettings: vi.fn(),
       }),
     );
@@ -322,7 +308,6 @@ describe("usePlanStatusCardController", () => {
           canUpdatePaymentMethod: true,
         },
         shopId: "shop-1",
-        enabled: true,
         onOpenBillingSettings: vi.fn(),
       }),
     );
@@ -346,7 +331,6 @@ describe("usePlanStatusCardController", () => {
           canUpdatePaymentMethod: false,
         },
         shopId: "shop-1",
-        enabled: true,
         onOpenBillingSettings: vi.fn(),
       }),
     );

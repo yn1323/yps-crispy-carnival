@@ -26,7 +26,6 @@ const setupArgs = {
 describe("setup/mutations", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "true");
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -276,11 +275,10 @@ describe("setup/mutations", () => {
       ).rejects.toThrow("メールアドレスの形式で入力してください");
     });
 
-    it("組織作成flagに依存せず、店舗・ユーザー・スタッフ・支払い不要Business状態・同意履歴を作成する", async () => {
+    it("店舗・ユーザー・スタッフ・支払い不要Business状態・同意履歴を作成する", async () => {
       const t = convexTest(schema, modules);
       const now = new Date("2026-07-05T10:00:00+09:00");
       vi.setSystemTime(now);
-      vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "");
       const asUser = t.withIdentity({
         subject: "user_new",
         name: "新規ユーザー",
@@ -690,32 +688,6 @@ describe("setup/mutations", () => {
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
       await expect(t.mutation(api.setup.mutations.createOrganization, createArgs)).rejects.toThrow();
-    });
-
-    it("未リリースflagが閉じている場合は副作用なしで拒否する", async () => {
-      const t = convexTest(schema, modules);
-      const seed = await seedExistingManager(t, "create_org_feature_closed");
-      const readProtectedState = () =>
-        t.run(async (ctx) => ({
-          organizations: await ctx.db.query("organizations").collect(),
-          shops: await ctx.db.query("shops").collect(),
-          billingStates: await ctx.db.query("organizationBillingStates").collect(),
-          auditEvents: await ctx.db.query("organizationAuditEvents").collect(),
-          rateLimits: await ctx.db.query("rateLimits").collect(),
-          scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-        }));
-      const before = await readProtectedState();
-      vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "");
-
-      await expect(
-        t.withIdentity({ subject: "create_org_feature_closed" }).mutation(api.setup.mutations.createOrganization, {
-          ...createArgs,
-          sourceShopId: seed.shopId,
-          requestId: "create-organization-feature-closed",
-        }),
-      ).rejects.toThrow("この機能は現在利用できません。");
-
-      expect(await readProtectedState()).toEqual(before);
     });
 
     it("users未登録の認証主体は組織を作成しない", async () => {

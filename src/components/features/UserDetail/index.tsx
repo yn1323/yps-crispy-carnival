@@ -1,8 +1,6 @@
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import type { Id } from "@/convex/_generated/dataModel";
-import { featureVisibilityAtom } from "@/src/stores/user";
 import type { UserDetailData, UserDetailPanel } from "./types";
 import { UserDetailView } from "./UserDetailView";
 import { useUserLineActions } from "./useUserLineActions";
@@ -24,10 +22,8 @@ export function UserDetail({ data, organizationId }: Props) {
   useEffect(() => {
     if (appDetailScope) setAppPanel(undefined);
   }, [appDetailScope]);
-  const featureVisibility = useAtomValue(featureVisibilityAtom);
-  const showShopMembershipAddition = featureVisibility.shopMembershipAddition;
-  const showShopMembershipAdditionRef = useRef(showShopMembershipAddition);
-  showShopMembershipAdditionRef.current = showShopMembershipAddition;
+  const canChangeMembershipRef = useRef(data.canWrite);
+  canChangeMembershipRef.current = data.canWrite;
   const activePanelRef = useRef(resolvedActivePanel);
   activePanelRef.current = resolvedActivePanel;
   const visiblePersonIdRef = useRef(data.person.id);
@@ -41,7 +37,7 @@ export function UserDetail({ data, organizationId }: Props) {
   });
   const line = useUserLineActions({ data, expectedOrganizationId: organizationId });
   const membership = useUserMembershipActions({
-    canChangeMembership: data.canWrite && showShopMembershipAddition,
+    canChangeMembership: data.canWrite,
     expectedOrganizationId: organizationId,
   });
   const removal = useUserRemovalActions({
@@ -74,7 +70,6 @@ export function UserDetail({ data, organizationId }: Props) {
   return (
     <UserDetailView
       data={data}
-      showShopMembershipAddition={showShopMembershipAddition}
       activePanel={resolvedActivePanel}
       state={{
         isUpdatingProfile: profile.isUpdating,
@@ -98,7 +93,7 @@ export function UserDetail({ data, organizationId }: Props) {
         onOpenBasic: () => updateSearch({ panel: "basic" }),
         onOpenLine: () => updateSearch({ panel: "line" }),
         onOpenAddShop: () => {
-          if (!showShopMembershipAdditionRef.current) return;
+          if (!canChangeMembershipRef.current) return;
           updateSearch({ panel: "addShop" });
         },
         onOpenShop: (targetShopId) => {
@@ -119,7 +114,7 @@ export function UserDetail({ data, organizationId }: Props) {
         onSendLineInvite: line.onSendInvite,
         onDisconnectLine: line.onDisconnect,
         onChangeMemberships: async (input) => {
-          if (!showShopMembershipAdditionRef.current) return;
+          if (!canChangeMembershipRef.current) return;
           const personId = data.person.id;
           const changed = await membership.onChangeMemberships(personId, input);
           if (changed && activePanelRef.current === "addShop" && visiblePersonIdRef.current === personId) {

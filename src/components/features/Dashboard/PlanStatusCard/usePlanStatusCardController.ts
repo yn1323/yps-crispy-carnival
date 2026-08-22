@@ -9,7 +9,6 @@ type Props = {
   planStatus: DashboardPlanStatusSource | null | undefined;
   shopId?: string;
   expectedOrganizationId?: Id<"organizations">;
-  enabled: boolean;
   onOpenBillingSettings: () => void;
 };
 
@@ -28,7 +27,6 @@ export function usePlanStatusCardController({
   planStatus,
   shopId,
   expectedOrganizationId,
-  enabled,
   onOpenBillingSettings,
 }: Props): PlanStatusCardProps | null | undefined {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
@@ -62,7 +60,7 @@ export function usePlanStatusCardController({
         data?.kind === "trial" &&
         data.remainingDays <= 7),
   );
-  const canSubscribeToUsage = Boolean(enabled && data && shopId);
+  const canSubscribeToUsage = Boolean(data && shopId);
   const expansionState = useRef<ExpansionState>({
     shopId,
     expanded: defaultExpanded,
@@ -131,7 +129,7 @@ export function usePlanStatusCardController({
     [onOpenBillingSettings],
   );
 
-  if (!enabled || planStatus === null) return null;
+  if (planStatus === null) return null;
   if (planStatus === undefined) return undefined;
   if (!data) return null;
 

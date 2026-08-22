@@ -2,7 +2,6 @@ import type { GenericDatabaseReader, PaginationResult } from "convex/server";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
-import { getFeatureVisibility } from "../_lib/config";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedQuery, managerQuery } from "../_lib/functions";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
@@ -84,12 +83,6 @@ const dashboardAnnouncementValidator = v.object({
   displayDate: v.string(),
 });
 
-const featureVisibilityValidator = v.object({
-  organizationSettingsNavigation: v.boolean(),
-  billing: v.boolean(),
-  shopMembershipAddition: v.boolean(),
-});
-
 const currentUserValidator = v.union(
   v.object({
     accountDeleted: v.literal(true),
@@ -99,16 +92,12 @@ const currentUserValidator = v.union(
     isNewUser: v.literal(true),
     name: v.string(),
     email: v.string(),
-    // TODO[narrow]: feature visibilityを返すbackendが全deploymentへ反映され、旧client互換期間が終わった後にrequired化する。
-    featureVisibility: v.optional(featureVisibilityValidator),
   }),
   v.object({
     isNewUser: v.literal(false),
     name: v.string(),
     email: v.string(),
     dashboardOnboardingDismissedAt: v.optional(v.number()),
-    // TODO[narrow]: feature visibilityを返すbackendが全deploymentへ反映され、旧client互換期間が終わった後にrequired化する。
-    featureVisibility: v.optional(featureVisibilityValidator),
   }),
 );
 
@@ -552,21 +541,19 @@ export const getDashboardShop = managerQuery({
     if (!shop) return null;
     const organizationId = ctx.organization?._id;
     const billingState = organizationId ? await getOrganizationBillingState(ctx, organizationId) : null;
-    const billingFeatureVisible = getFeatureVisibility().billing;
-    const [stripeCustomer, latestStripeSubscription] =
-      billingFeatureVisible && organizationId
-        ? await Promise.all([
-            ctx.db
-              .query("organizationStripeCustomers")
-              .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
-              .unique(),
-            ctx.db
-              .query("organizationStripeSubscriptions")
-              .withIndex("by_organizationId_and_providerGeneration", (q) => q.eq("organizationId", organizationId))
-              .order("desc")
-              .first(),
-          ])
-        : [null, null];
+    const [stripeCustomer, latestStripeSubscription] = organizationId
+      ? await Promise.all([
+          ctx.db
+            .query("organizationStripeCustomers")
+            .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+            .unique(),
+          ctx.db
+            .query("organizationStripeSubscriptions")
+            .withIndex("by_organizationId_and_providerGeneration", (q) => q.eq("organizationId", organizationId))
+            .order("desc")
+            .first(),
+        ])
+      : [null, null];
     const billingPolicy = billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
     const trialEndingNotice =
       billingState?.state.kind === "trial" && billingState.state.selectedPaidPlan === undefined
@@ -586,15 +573,14 @@ export const getDashboardShop = managerQuery({
       // 課金state未作成の移行中orgは、managerMutationの旧導線互換と同じく許可扱いにする。
       canWriteBusinessData: billingPolicy?.canWriteBusinessData ?? true,
       businessWriteBlockReason: billingPolicy?.businessWriteBlockReason ?? null,
-      planStatus:
-        billingFeatureVisible && billingState
-          ? toDashboardPlanStatus({
-              billingState: billingState.state,
-              organizationMember: ctx.organizationMember,
-              stripeCustomer,
-              latestStripeSubscription,
-            })
-          : null,
+      planStatus: billingState
+        ? toDashboardPlanStatus({
+            billingState: billingState.state,
+            organizationMember: ctx.organizationMember,
+            stripeCustomer,
+            latestStripeSubscription,
+          })
+        : null,
       trialEndingNotice,
     };
   },
@@ -605,7 +591,7 @@ export const getDashboardPlanUsage = managerQuery({
   returns: v.union(dashboardPlanUsageValidator, v.null()),
   handler: async (ctx, args) => {
     const organization = ctx.organization;
-    if (!organization || !getFeatureVisibility().billing) return null;
+    if (!organization) return null;
 
     const billingState = await getOrganizationBillingState(ctx, organization._id);
     if (!billingState) return null;
@@ -1064,13 +1050,11 @@ export const getCurrentUser = authenticatedQuery({
         accountDeletionRequested: user.accountDeletionRequestedAt !== undefined,
       };
     }
-    const featureVisibility = getFeatureVisibility();
     if (!user) {
       return {
         isNewUser: true as const,
         name: identity.name ?? "",
         email: identity.email ?? "",
-        featureVisibility,
       };
     }
     return {
@@ -1078,7 +1062,6 @@ export const getCurrentUser = authenticatedQuery({
       name: user.name,
       email: user.email,
       dashboardOnboardingDismissedAt: user.dashboardOnboardingDismissedAt,
-      featureVisibility,
     };
   },
 });

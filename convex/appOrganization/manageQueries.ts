@@ -2,7 +2,6 @@ import type { PaginationOptions } from "convex/server";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
-import { getReleaseFeatureVisibility } from "../_lib/config";
 import { organizationQuery } from "../_lib/functions";
 import { getOrganizationDeletionEligibility } from "../organization/deletion";
 import {
@@ -67,12 +66,6 @@ const manageOverviewValidator = v.object({
     archived: v.number(),
     planSuspended: v.number(),
     hasOverflow: v.boolean(),
-  }),
-  features: v.object({
-    organizationCreation: v.boolean(),
-    shopAddition: v.boolean(),
-    managerInvitation: v.boolean(),
-    billing: v.boolean(),
   }),
   capabilities: v.object({
     canUpdateOrganizationName: v.boolean(),
@@ -147,13 +140,8 @@ export const getManageOverview = organizationQuery({
     const limitPlan = restrictedState ? resolveRestrictedLimitPlan(restrictedState) : null;
     const limits = limitPlan ? ORGANIZATION_PLAN_LIMITS[limitPlan] : policy?.limits;
     const isActiveActor = memberStatus === "active";
-    const features = getReleaseFeatureVisibility();
     const canAddShop = Boolean(
-      features.shopAddition &&
-        isActiveActor &&
-        policy?.canUsePaidFeatures &&
-        limits &&
-        usage.activeShopCount < limits.maxActiveShops,
+      isActiveActor && policy?.canUsePaidFeatures && limits && usage.activeShopCount < limits.maxActiveShops,
     );
     const deletionEligibility = await getOrganizationDeletionEligibility(ctx, {
       organizationId: ctx.organization._id,
@@ -177,7 +165,6 @@ export const getManageOverview = organizationQuery({
           archivedShops.length > SHOP_COUNT_LIMIT ||
           planSuspendedShops.length > SHOP_COUNT_LIMIT,
       },
-      features,
       capabilities: {
         canUpdateOrganizationName: isActiveActor,
         ...(!isActiveActor
@@ -188,17 +175,15 @@ export const getManageOverview = organizationQuery({
           ? {
               addShopDisabledReason: !isActiveActor
                 ? "閲覧のみの管理者は、店舗を追加できません。"
-                : !features.shopAddition
-                  ? "この機能は現在利用できません。"
-                  : !billingState
-                    ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
-                    : restrictedState
-                      ? "契約制限中は、店舗を追加できません。"
-                      : policy?.paidFeatureBlockReason === "freePlan"
-                        ? "無料プランでは、店舗を追加できません。\n有料プランを選択してください。"
-                        : policy?.paidFeatureBlockReason === "paymentResultPending"
-                          ? "支払い結果が確定してから、店舗を追加できます。"
-                          : `店舗は、組織ごとに${limits?.maxActiveShops ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveShops}件まで登録できます。`,
+                : !billingState
+                  ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
+                  : restrictedState
+                    ? "契約制限中は、店舗を追加できません。"
+                    : policy?.paidFeatureBlockReason === "freePlan"
+                      ? "無料プランでは、店舗を追加できません。\n有料プランを選択してください。"
+                      : policy?.paidFeatureBlockReason === "paymentResultPending"
+                        ? "支払い結果が確定してから、店舗を追加できます。"
+                        : `店舗は、組織ごとに${limits?.maxActiveShops ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveShops}件まで登録できます。`,
             }
           : {}),
         canDeleteOrganization: isActiveActor && deletionEligibility.canDelete,
@@ -211,14 +196,12 @@ export const getManageOverview = organizationQuery({
                   : deletionEligibility.reason,
             }
           : {}),
-        canCreateOrganization: features.organizationCreation && isActiveActor && creationAvailability.canCreate,
-        ...(!features.organizationCreation
-          ? { createOrganizationDisabledReason: "この機能は現在利用できません。" }
-          : !isActiveActor
-            ? { createOrganizationDisabledReason: "閲覧のみの権限では、別の組織を作成できません。" }
-            : !creationAvailability.canCreate
-              ? { createOrganizationDisabledReason: creationAvailability.reason }
-              : {}),
+        canCreateOrganization: isActiveActor && creationAvailability.canCreate,
+        ...(!isActiveActor
+          ? { createOrganizationDisabledReason: "閲覧のみの権限では、別の組織を作成できません。" }
+          : !creationAvailability.canCreate
+            ? { createOrganizationDisabledReason: creationAvailability.reason }
+            : {}),
       },
     };
   },

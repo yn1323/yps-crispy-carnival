@@ -8,7 +8,6 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { getAppUrl } from "../_lib/config";
 import { observedAction as action, observedInternalAction as internalAction } from "../_lib/errorObservability";
-import { isReleaseFeatureEnabled } from "../_lib/releaseFeatures";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import {
   getConfiguredStripePriceId,
@@ -259,7 +258,6 @@ async function getPlanPriceForScope(
   scope: BillingActionScope,
   targetPlan: StripePaidPlan,
 ): Promise<PriceResult> {
-  if (!isReleaseFeatureEnabled("billing")) return unavailable("not_allowed");
   const configuration = getStripeBillingConfiguration();
   if (configuration.status !== "ready") return unavailable("configuration_pending");
   const context = await getAuthorizedContext(ctx, scope, "price");
@@ -288,7 +286,6 @@ export const getCurrentSubscriptionPrice = action({
   args: { shopId: v.id("shops") },
   returns: currentSubscriptionPriceResultValidator,
   handler: async (ctx, args): Promise<CurrentSubscriptionPriceResult> => {
-    if (!isReleaseFeatureEnabled("billing")) return unavailable("not_allowed");
     const configuration = getStripeProviderSafetyConfiguration();
     if (!configuration) return unavailable("configuration_pending");
 
@@ -322,7 +319,6 @@ export const getProPrice = action({
   args: { shopId: v.id("shops") },
   returns: priceResultValidator,
   handler: async (ctx, args): Promise<PriceResult> => {
-    if (!isReleaseFeatureEnabled("billing")) return unavailable("not_allowed");
     const configuration = getStripeBillingConfiguration();
     if (configuration.status !== "ready") return unavailable("configuration_pending");
 
@@ -375,7 +371,6 @@ export const inspectPendingCheckoutForOrganization = action({
   },
   returns: pendingCheckoutInspectionResultValidator,
   handler: async (ctx, args): Promise<PendingCheckoutInspectionResult> => {
-    if (!isReleaseFeatureEnabled("billing")) return unavailable("not_allowed");
     const configuration = getStripeBillingConfiguration();
     if (configuration.status !== "ready") return unavailable("configuration_pending");
     const context = await getAuthorizedContext(ctx, { organizationId: args.organizationId }, "cancelCheckout");
@@ -440,7 +435,6 @@ export const cancelPendingCheckoutForOrganization = action({
   },
   returns: checkoutCancellationResultValidator,
   handler: async (ctx, args): Promise<CheckoutCancellationResult> => {
-    if (!isReleaseFeatureEnabled("billing")) return { status: "unavailable" as const, reason: "not_allowed" as const };
     const configuration = getStripeBillingConfiguration();
     if (configuration.status !== "ready") {
       return { status: "unavailable" as const, reason: "configuration_pending" as const };
@@ -518,7 +512,6 @@ export const startProCheckout = action({
   args: { shopId: v.id("shops"), requestId: v.string() },
   returns: redirectResultValidator,
   handler: async (ctx, args): Promise<RedirectResult> => {
-    if (!isReleaseFeatureEnabled("billing")) return unavailable("not_allowed");
     const configuration = getStripeBillingConfiguration();
     if (configuration.status !== "ready") return unavailable("configuration_pending");
 
@@ -690,7 +683,6 @@ async function startPaidCheckoutForPlan(
   ctx: ActionCtx,
   args: { scope: BillingActionScope; targetPlan: StripePaidPlan; requestId: string },
 ): Promise<AvailableUrlResult> {
-  if (!isReleaseFeatureEnabled("billing")) return unavailable("not_allowed");
   const configuration = getStripeBillingConfiguration();
   if (configuration.status !== "ready") return unavailable("configuration_pending");
   const targetPriceId = getConfiguredStripePriceId(configuration, args.targetPlan);
@@ -1016,7 +1008,6 @@ async function openCustomerPortalForScope(
   ctx: ActionCtx,
   args: { scope: BillingActionScope; requestId: string },
 ): Promise<RedirectResult> {
-  if (!isReleaseFeatureEnabled("billing")) return unavailable("not_allowed");
   const configuration = getStripeBillingConfiguration();
   if (configuration.status !== "ready") return unavailable("configuration_pending");
   const context = await getAuthorizedContext(ctx, args.scope, "portal");
@@ -1293,7 +1284,6 @@ async function cancelTrialContinuationForScope(
   ctx: ActionCtx,
   args: { scope: BillingActionScope; requestId: string },
 ): Promise<ChangeResult> {
-  if (!isReleaseFeatureEnabled("billing")) return unavailable("not_allowed");
   const configuration = getStripeBillingConfiguration();
   if (configuration.status !== "ready") return unavailable("configuration_pending");
   const context = await getAuthorizedContext(ctx, args.scope, "portal");
@@ -4280,7 +4270,6 @@ async function previewImmediatePaidPlanChange(
   ctx: ActionCtx,
   args: { scope: BillingActionScope; targetPlan: "business"; requestId: string },
 ): Promise<ProrationPreviewResult> {
-  if (!isReleaseFeatureEnabled("billing")) return unavailable("not_allowed");
   const configuration = getStripeBillingConfiguration();
   if (configuration.status !== "ready") return unavailable("configuration_pending");
   const targetPriceId = getConfiguredStripePriceId(configuration, args.targetPlan);
@@ -4385,7 +4374,6 @@ async function applyImmediatePaidPlanChange(
   ctx: ActionCtx,
   args: { scope: BillingActionScope; targetPlan: "business"; requestId: string; prorationDate: number },
 ): Promise<ChangeResult> {
-  if (!isReleaseFeatureEnabled("billing")) return unavailable("not_allowed");
   if (!Number.isSafeInteger(args.prorationDate) || args.prorationDate < 0) return unavailable("not_allowed");
   const configuration = getStripeBillingConfiguration();
   if (configuration.status !== "ready") return unavailable("configuration_pending");
@@ -4550,7 +4538,6 @@ async function scheduleBusinessToPro(
   ctx: ActionCtx,
   args: { scope: BillingActionScope; targetPlan: "pro"; requestId: string },
 ): Promise<ChangeResult> {
-  if (!isReleaseFeatureEnabled("billing")) return unavailable("not_allowed");
   const configuration = getStripeBillingConfiguration();
   if (configuration.status !== "ready") return unavailable("configuration_pending");
   const context = await getAuthorizedContext(ctx, args.scope, "schedulePaidPlanChange");
@@ -4723,7 +4710,6 @@ async function cancelAnyScheduledPlanChange(
   ctx: ActionCtx,
   args: { scope: BillingActionScope; requestId: string },
 ): Promise<ChangeResult> {
-  if (!isReleaseFeatureEnabled("billing")) return unavailable("not_allowed");
   const preliminary = await getAuthorizedContext(ctx, args.scope, "portal");
   if (preliminary?.billingState.state.kind !== "scheduledChange") {
     return unavailable("not_allowed");
@@ -4871,7 +4857,6 @@ async function updateCancelAtPeriodEnd(
     restrictAtPeriodEnd?: true;
   },
 ): Promise<ChangeResult> {
-  if (!isReleaseFeatureEnabled("billing")) return unavailable("not_allowed");
   const configuration = getStripeBillingConfiguration();
   if (configuration.status !== "ready") return unavailable("configuration_pending");
   const context = await getAuthorizedContext(ctx, args.scope, args.purpose);

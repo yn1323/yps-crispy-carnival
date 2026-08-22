@@ -52,11 +52,6 @@ describe("UserMenu", () => {
       authId: "user_actor",
       name: "管理者",
       email: "convex@example.com",
-      featureVisibility: {
-        organizationSettingsNavigation: false,
-        billing: false,
-        shopMembershipAddition: false,
-      },
     });
     render(
       <Provider store={store}>
@@ -80,11 +75,6 @@ describe("UserMenu", () => {
       authId: "user_actor",
       name: "管理者",
       email: "convex@example.com",
-      featureVisibility: {
-        organizationSettingsNavigation: true,
-        billing: false,
-        shopMembershipAddition: false,
-      },
     });
     render(
       <Provider store={store}>
