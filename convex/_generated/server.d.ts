@@ -22,9 +22,14 @@ import {
 import type { DataModel } from "./dataModel.js";
 
 /**
- * Typesafe environment variables declared in `convex.config.ts`.
+ * Typesafe environment variables.
+ *
+ * This includes platform-provided env vars and any variables declared in
+ * `convex.config.ts`.
  */
 type Env = {
+  readonly CONVEX_CLOUD_URL: string;
+  readonly CONVEX_SITE_URL: string;
   readonly ANALYTICS_DEPLOYMENT_LABEL: string | undefined;
   readonly ANALYTICS_EXPECTED_REVISION: string | undefined;
   readonly ANALYTICS_NIGHTLY_CRON_ENABLED: string | undefined;
@@ -37,10 +42,6 @@ type Env = {
   readonly DEBUG_TRIAL_DURATION_DEPLOYMENT_URL: string | undefined;
   readonly DEVELOPMENT_SEED_DEPLOYMENT_URL: string | undefined;
   readonly DEVELOPMENT_SEED_ENABLED: string | undefined;
-  readonly FEATURE_BILLING: string | undefined;
-  readonly FEATURE_MANAGER_INVITATION: string | undefined;
-  readonly FEATURE_ORGANIZATION_CREATION: string | undefined;
-  readonly FEATURE_SHOP_ADDITION: string | undefined;
   readonly NOTIFICATION_DELIVERY_MODE: string | undefined;
   readonly STRIPE_BUSINESS_PRICE_ID: string | undefined;
   readonly STRIPE_PORTAL_CONFIGURATION_ID: string | undefined;
@@ -125,7 +126,10 @@ export declare const internalAction: ActionBuilder<DataModel, "internal">;
 export declare const httpAction: HttpActionBuilder;
 
 /**
- * Typesafe environment variables declared in `convex.config.ts`.
+ * Typesafe environment variables.
+ *
+ * This includes platform-provided env vars and any variables declared in
+ * `convex.config.ts`.
  */
 export declare const env: Env;
 
