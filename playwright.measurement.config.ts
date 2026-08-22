@@ -38,6 +38,10 @@ export default defineConfig({
     ? {
         // CIのsynthetic measurement buildだけを起動する。通常のlocal作業では既存serverを利用する。
         command: "pnpm exec vite preview --host 127.0.0.1 --port 4174 --strictPort",
+        // previewは既存distを配信するだけなので、config再読込時の料金取得は決定的なfixtureへ固定する。
+        env: {
+          VITE_APP_ENVIRONMENT: "test",
+        },
         url: baseURL,
         reuseExistingServer: false,
         timeout: 30_000,
