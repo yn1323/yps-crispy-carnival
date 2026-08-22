@@ -6,6 +6,7 @@ import heroPcImage from "@/src/assets/hero-pc.webp";
 import heroSpImage from "@/src/assets/hero-sp.webp";
 import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
 import { Button } from "@/src/components/ui/Button";
+import { TrialReassurance } from "../TrialReassurance";
 
 const heroBenefits: Array<{ icon: IconType; label: string }> = [
   { icon: SiLine, label: "LINEで希望シフト回収" },
@@ -61,16 +62,24 @@ export const HeroSection = () => (
             </Text>
           </VStack>
 
-          <Stack
-            direction={{ base: "column", md: "row" }}
-            align={{ base: "stretch", md: "center", lg: "flex-start" }}
-            justify={{ base: "center", lg: "flex-start" }}
-            gap={4}
-            w={{ base: "full", md: "auto" }}
-          >
-            <HeroButton href="/signup" label="シフトリを始める" tone="primary" measurementCtaId="hero_signup" />
-            <HeroButton href="/demo/flow" label="登録不要でデモを見る" tone="secondary" measurementCtaId="hero_demo" />
-          </Stack>
+          <VStack align={{ base: "center", lg: "start" }} gap={3} w={{ base: "full", md: "auto" }}>
+            <Stack
+              direction={{ base: "column", md: "row" }}
+              align={{ base: "stretch", md: "center", lg: "flex-start" }}
+              justify={{ base: "center", lg: "flex-start" }}
+              gap={4}
+              w={{ base: "full", md: "auto" }}
+            >
+              <HeroButton href="/signup" label="シフトリを始める" tone="primary" measurementCtaId="hero_signup" />
+              <HeroButton
+                href="/demo/flow"
+                label="登録不要でデモを見る"
+                tone="secondary"
+                measurementCtaId="hero_demo"
+              />
+            </Stack>
+            <TrialReassurance />
+          </VStack>
         </VStack>
 
         <HeroVisual />

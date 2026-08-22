@@ -34,6 +34,12 @@ const usageWithoutManager = {
 const usageWithManager = {
   ...usageWithoutManager,
   managerUsage: { current: 2, max: 5 },
+  pendingManagerInvitations: 0,
+} satisfies PlanStatusCardUsage;
+
+const usageWithPendingManagerInvitation = {
+  ...usageWithManager,
+  pendingManagerInvitations: 1,
 } satisfies PlanStatusCardUsage;
 
 const proPlan = {
@@ -75,7 +81,7 @@ const trial = {
   remainingDays: 7,
   trialEndsOnLabel: "8/16(日)",
   description:
-    "未選択のまま終了すると利用停止になります。データは削除されないため、継続して利用するにはプランを選んでください。",
+    "未選択のまま終了するとFreeプランへ移行します。Freeプランの上限を超えている場合は、上限内に減らすまで業務操作が制限されます。",
   primaryAction: { action: "choosePlan", label: "プランを選ぶ" },
   showRemindLater: true,
 } satisfies PlanStatusCardData;
@@ -175,6 +181,11 @@ export const ProExpanded: Story = {
 export const ProWithManagerExpanded: Story = {
   name: "Pro・展開・利用状況3列",
   args: { usage: usageWithManager, defaultExpanded: true },
+};
+
+export const ProWithPendingManagerInvitationExpanded: Story = {
+  name: "Pro・展開・管理者招待中",
+  args: { usage: usageWithPendingManagerInvitation, defaultExpanded: true },
 };
 
 export const ProUsageLoading: Story = {
@@ -295,7 +306,7 @@ export const PaidExpansionBehavior: Story = {
     const details = await canvas.findByRole("region", { name: "Proプランの詳細" });
     const usage = await within(details).findByRole("group", { name: "プランの利用状況" });
     const peopleUsage = within(usage).getByText("12 / 20人");
-    await expect(peopleUsage).toHaveAccessibleName("スタッフ 現在12人 / 上限20人");
+    await expect(peopleUsage).toHaveAccessibleName("利用人数 現在12人 / 上限20人");
 
     await userEvent.click(toggle);
     await expect(toggle).toHaveAttribute("aria-expanded", "false");

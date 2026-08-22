@@ -90,6 +90,56 @@ async function seedInvitation(
 }
 
 describe("organization manager settings queries", () => {
+  it("active.freeの管理者上限超過中は追加・再送を閉じ、権限解除と招待取消を許可する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "manager_query_usage_over_limit",
+        plan: "free",
+      });
+      const removable = await seedPerson(ctx, {
+        organizationId: base.organizationId,
+        key: "manager_query_usage_over_limit_removable",
+        name: "整理対象管理者",
+        memberStatus: "active",
+      });
+      await seedPerson(ctx, {
+        organizationId: base.organizationId,
+        key: "manager_query_usage_over_limit_other",
+        name: "別の管理者",
+        memberStatus: "active",
+      });
+      const invitationId = await seedInvitation(ctx, {
+        organizationId: base.organizationId,
+        inviterMemberId: base.memberId,
+        email: "manager-query-over-limit-pending@example.com",
+      });
+      return { ...base, removablePersonId: removable.personId, invitationId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "manager_query_usage_over_limit" })
+      .query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.shopId, now: NOW });
+
+    expect(result).toMatchObject({
+      kind: "ready",
+      mode: "restricted",
+      actions: {
+        canInviteExistingStaff: false,
+        existingStaffDisabledReason: expect.stringContaining("プラン上限を超過"),
+        canInviteExternal: false,
+      },
+    });
+    if (result.kind !== "ready") throw new Error("manager settings must be ready");
+    expect(result.managers.find((manager) => manager.personId === ids.removablePersonId)).toMatchObject({
+      canRemoveRole: true,
+    });
+    expect(result.invitations.find((invitation) => invitation.invitationId === ids.invitationId)).toMatchObject({
+      canResend: false,
+      canRevoke: true,
+    });
+  });
+
   it("未認証・別tenant shopはPIIを返さずintegrityErrorへ閉じる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -550,7 +600,7 @@ describe("organization manager settings queries", () => {
     ).resolves.toMatchObject({ kind: "integrityError" });
   });
 
-  it("active managerのabsolute bounded read超過は部分一覧を返さずintegrityErrorにする", async () => {
+  it("active managerの上限超過中は全bounded行と権限解除を返し、追加候補だけを閉じる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -568,9 +618,18 @@ describe("organization manager settings queries", () => {
       return base;
     });
     const actor = t.withIdentity({ subject: "manager_query_manager_overflow" });
-    await expect(
-      actor.query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.shopId, now: NOW }),
-    ).resolves.toMatchObject({ kind: "integrityError" });
+    const overview = await actor.query(api.organization.queries.getManagerSettingsOverview, {
+      shopId: ids.shopId,
+      now: NOW,
+    });
+    expect(overview).toMatchObject({
+      kind: "ready",
+      usage: { activeManagers: 6 },
+      actions: { canInviteExistingStaff: false, canInviteExternal: false },
+    });
+    if (overview.kind !== "ready") throw new Error("manager overview was not ready");
+    expect(overview.managers).toHaveLength(6);
+    expect(overview.managers.filter((manager) => !manager.isSelf).every((manager) => manager.canRemoveRole)).toBe(true);
     await expect(
       actor.query(api.organization.queries.getManagerCandidates, { shopId: ids.shopId, now: NOW }),
     ).resolves.toMatchObject({ kind: "integrityError" });

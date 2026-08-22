@@ -1,4 +1,4 @@
-import { Flex, Stack } from "@chakra-ui/react";
+import { Flex, Separator, Stack } from "@chakra-ui/react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { LuRefreshCw } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
@@ -199,8 +199,8 @@ export function NotificationFailureRecovery({
   const content = (
     <Stack gap={4}>
       <Flex
-        align={{ base: "stretch", md: "center" }}
-        justify="space-between"
+        align={{ base: "flex-end", md: "center" }}
+        justify="flex-end"
         gap={3}
         direction={{ base: "column", md: "row" }}
       >
@@ -208,7 +208,6 @@ export function NotificationFailureRecovery({
           size="sm"
           colorPalette="teal"
           variant="solid"
-          alignSelf={{ base: "stretch", md: "center" }}
           loading={isResendingAll}
           disabled={isResendingAll || !hasRetryableFailures}
           onClick={handleResendAll}
@@ -216,9 +215,10 @@ export function NotificationFailureRecovery({
           flexShrink={0}
         >
           <LuRefreshCw />
-          すべて再送
+          すべて再送する
         </Button>
       </Flex>
+      <Separator />
       <ActionInboxView
         items={actionItems}
         completedItemIds={completedItemIds}

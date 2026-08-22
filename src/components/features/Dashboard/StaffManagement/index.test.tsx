@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   getDashboardStaffOrderScopeRef: Symbol("getDashboardStaffOrderScope"),
   getDashboardStaffsRef: Symbol("getDashboardStaffs"),
   selectedShopAtomRef: Symbol("selectedShopAtom"),
-  featureVisibilityAtomRef: Symbol("featureVisibilityAtom"),
   useStaffInvitation: vi.fn(),
 }));
 
@@ -31,7 +30,6 @@ vi.mock("@/src/providers/ManagerShopScopeProvider", () => ({
   useManagerShopScope: () => ({ shopId: "shop-1", expectedOrganizationId: "organization-1" }),
 }));
 vi.mock("@/src/stores/shop", () => ({ selectedShopAtom: mocks.selectedShopAtomRef }));
-vi.mock("@/src/stores/user", () => ({ featureVisibilityAtom: mocks.featureVisibilityAtomRef }));
 vi.mock("@/src/components/features/StaffNotificationHistory", () => ({ StaffNotificationHistory: () => null }));
 vi.mock("./StaffManagementView", () => ({
   StaffManagementView: ({ staffs }: { staffs: Array<{ name: string }> }) => (
@@ -105,9 +103,7 @@ beforeEach(() => {
   mocks.useShopQuery.mockReset();
   mocks.useShopPaginatedQuery.mockReset();
   mocks.useStaffInvitation.mockReset();
-  mocks.useAtomValue.mockImplementation((atom) =>
-    atom === mocks.featureVisibilityAtomRef ? { shopMembershipAddition: true } : null,
-  );
+  mocks.useAtomValue.mockReturnValue(null);
   mocks.useShopQuery.mockReturnValue({ mode: "legacy" });
   mocks.useShopPaginatedQuery.mockReturnValue(queryResult);
   mocks.useStaffInvitation.mockReturnValue({});

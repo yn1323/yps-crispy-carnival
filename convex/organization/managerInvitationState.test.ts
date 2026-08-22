@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { Doc, Id } from "../_generated/dataModel";
 import { resolvePersonManagerInvitationState } from "./managerInvitationState";
 
@@ -43,14 +43,6 @@ function resolve(activePendingInvitations: Doc<"organizationInvitations">[]) {
 }
 
 describe("resolvePersonManagerInvitationState", () => {
-  beforeEach(() => vi.stubEnv("FEATURE_MANAGER_INVITATION", "true"));
-  afterEach(() => vi.unstubAllEnvs());
-
-  it("未リリースflagが閉じている場合は操作導線を隠す", async () => {
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
-    await expect(resolve([])).resolves.toEqual({ kind: "hidden" });
-  });
-
   it("Freeでも2人目を通常の管理者追加として招待できる", async () => {
     await expect(resolve([])).resolves.toEqual({
       kind: "available",

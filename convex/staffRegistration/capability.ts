@@ -1,6 +1,6 @@
 import type { GenericDatabaseReader } from "convex/server";
 import type { DataModel, Doc } from "../_generated/dataModel";
-import { getOrganizationBillingPolicy } from "../organizationBilling/service";
+import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 
 type StaffRegistrationCapabilityCtx = {
   db: GenericDatabaseReader<DataModel>;
@@ -24,15 +24,15 @@ export async function resolveStaffRegistrationCapability(
   if (!shop || shop.isDeleted) return null;
 
   if (shop.organizationId) {
-    const [organization, billingPolicy] = await Promise.all([
+    const [organization, accessPolicy] = await Promise.all([
       ctx.db.get(shop.organizationId),
-      getOrganizationBillingPolicy(ctx, shop.organizationId),
+      getOrganizationAccessPolicy(ctx, shop.organizationId),
     ]);
     if (
       !organization ||
       organization.isDeleted ||
       shop.operatingStatus !== "active" ||
-      (billingPolicy !== null && !billingPolicy.canWriteBusinessData)
+      (accessPolicy !== null && accessPolicy.accessMode !== "normal")
     ) {
       return null;
     }

@@ -1,6 +1,6 @@
 import type { RegularClosedDay, ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { formatShiftClockTimeRange } from "@/src/domains/shift/time";
-import type { ShopDetailData, ShopDetailPerson, ShopStaffMembershipData } from "./types";
+import type { ShopDetailData, ShopDetailPerson } from "./types";
 
 export const WEEKDAYS: Array<{ value: RegularClosedDay; label: string }> = [
   { value: "mon", label: "月" },
@@ -25,14 +25,6 @@ export type ShopBasicInformationRow = {
 
 export function getShopStaffs(people: readonly ShopDetailPerson[], shopId: string) {
   return people.filter((person) => person.shopIds.includes(shopId));
-}
-
-export function getVisibleShopStaffMembershipPeople(
-  people: readonly ShopStaffMembershipData["people"][number][],
-  isShopAdditionEnabled: boolean,
-) {
-  if (isShopAdditionEnabled) return [...people];
-  return people.filter((person) => person.isSelected || person.otherShopNames.length === 0);
 }
 
 export function getShopBasicInformationRows(

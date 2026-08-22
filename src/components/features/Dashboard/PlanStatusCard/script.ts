@@ -24,9 +24,7 @@ export function buildPlanStatusCardData(
         continuationPlanName,
         description: continuationPlanName
           ? `トライアル終了後は${continuationPlanName}プランへ移行します。`
-          : source.canManagePlan
-            ? "未選択のまま終了すると利用停止になります。データは削除されないため、継続して利用するにはプランを選んでください。"
-            : "未選択のまま終了すると利用停止になります。データは削除されません。プランの選択は、契約を管理できる管理者が行えます。",
+          : "未選択のまま終了するとFreeプランへ移行します。Freeプランの上限を超えている場合は、上限内に減らすまで業務操作が制限されます。",
         ...(canChoosePlan ? { primaryAction: { action: "choosePlan" as const, label: "プランを選ぶ" } } : {}),
         showRemindLater: canChoosePlan,
       };

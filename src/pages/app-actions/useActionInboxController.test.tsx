@@ -196,7 +196,7 @@ describe("useActionInboxController", () => {
     expect(shift.metadata.map((metadata) => metadata.label)).toContain("提出 999人 / 対象 1000人以上");
   });
 
-  it("未公開の管理者招待は再送を無効にし、残存招待の取消は維持する", () => {
+  it("再送できない管理者招待でも、残存招待の取消は維持する", () => {
     const closedItems = sourceItems.map((item) =>
       item.kind === "managerInvitation" ? { ...item, canResend: false } : item,
     );

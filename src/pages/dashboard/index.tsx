@@ -1,7 +1,6 @@
 import { Alert, Stack } from "@chakra-ui/react";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
-import { useAtomValue } from "jotai";
 import { useEffect, useMemo } from "react";
 import { LuRefreshCw, LuStore, LuTriangleAlert } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
@@ -14,7 +13,6 @@ import { Empty } from "@/src/components/ui/Empty";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
-import { featureVisibilityAtom } from "@/src/stores/user";
 import {
   buildDashboardShopContexts,
   type DashboardShopOption,
@@ -110,7 +108,6 @@ function ConnectedDashboard({
   selectedShopId: string;
 }) {
   const navigate = useNavigate();
-  const featureVisibility = useAtomValue(featureVisibilityAtom);
   const shop = useShopQuery(api.dashboard.queries.getDashboardShop, {});
   const currentUser = useQuery(api.dashboard.queries.getCurrentUser, {});
   const managerLegalConsentStatus = useQuery(api.legal.queries.getManagerConsentStatus, {});
@@ -178,7 +175,6 @@ function ConnectedDashboard({
         trialEndingNotice={shop.trialEndingNotice}
         planStatus={shop.planStatus}
         billingSettingsShopId={selectedShopId}
-        isBillingFeatureVisible={featureVisibility.billing}
         expectedOrganizationId={organizationId}
         navigation={navigation}
         showOrganizationContext={false}
@@ -234,19 +230,33 @@ export function DashboardReadOnlyNotice({
 }: {
   organizationId: Id<"organizations">;
   memberStatus: "active" | "readOnly";
-  businessWriteBlockReason: "paymentResultPending" | "restricted" | null;
+  businessWriteBlockReason:
+    | "paymentResultPending"
+    | "restricted"
+    | "usageLimitExceeded"
+    | "usageLimitEvaluationUnavailable"
+    | null;
 }) {
+  const usageLimitEvaluationUnavailable =
+    memberStatus === "active" && businessWriteBlockReason === "usageLimitEvaluationUnavailable";
+
   return (
     <Alert.Root status="warning" borderRadius="xl" alignItems="flex-start">
       <Alert.Indicator mt={1} />
       <Alert.Content>
-        <Alert.Title>この店舗は閲覧のみです</Alert.Title>
+        <Alert.Title>
+          {usageLimitEvaluationUnavailable ? "利用状況を確認してください" : "この店舗は閲覧のみです"}
+        </Alert.Title>
         <Alert.Description whiteSpace="pre-line">
           {memberStatus === "readOnly"
             ? "閲覧のみの管理者は、既存データを確認できますが、変更や通知送信はできません。"
             : businessWriteBlockReason === "paymentResultPending"
               ? "支払い結果を確認中です。\n確認が完了するまで、既存データの閲覧はできますが、変更や通知送信はできません。"
-              : "契約制限中です。\n既存データは引き続き確認できます。"}
+              : usageLimitEvaluationUnavailable
+                ? "現在の利用人数・店舗・管理者数がプラン上限内か安全に確認できないため、通常の業務操作を一時的に制限しています。\n管理画面で利用状況を確認・整理し、解消しない場合はサポートへお問い合わせください。"
+                : businessWriteBlockReason === "usageLimitExceeded"
+                  ? "プラン上限を超過しているため、業務操作を一時的に制限しています。\n利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。"
+                  : "契約制限中です。\n既存データは引き続き確認できます。"}
         </Alert.Description>
         <Button asChild size="sm" variant="outline" mt={3} alignSelf="flex-start">
           <RouterLink to="/manage" search={{ org: organizationId }}>

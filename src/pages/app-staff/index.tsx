@@ -221,7 +221,6 @@ function ConnectedAppStaff({
           peopleUsageHasOverflow={summary.totalCountHasOverflow}
           filterResultCount={shopFilter === "all" ? undefined : summary.visibleCount}
           filterResultCountHasOverflow={shopFilter === "all" ? false : summary.visibleCountHasOverflow}
-          showManagerInvitation={summary.features?.managerInvitation === true}
           onManageManagers={() => void navigate({ to: "/manage/managers", search: { org: organizationId } })}
           onOpenUser={(personId) =>
             void navigate({

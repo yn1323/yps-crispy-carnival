@@ -97,7 +97,8 @@ const schema = defineSchema({
   })
     .index("by_organizationId", ["organizationId"])
     .index("by_organizationId_and_isDeleted", ["organizationId", "isDeleted"])
-    .index("by_organizationId_and_operatingStatus", ["organizationId", "operatingStatus"]),
+    .index("by_organizationId_and_operatingStatus", ["organizationId", "operatingStatus"])
+    .index("by_organizationId_and_operatingStatus_and_isDeleted", ["organizationId", "operatingStatus", "isDeleted"]),
 
   // ========================================
   // 事業者・人物・管理者所属

@@ -5,15 +5,9 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type CurrentUser =
-  | { name: string; email: string; featureVisibility?: unknown }
+  | { name: string; email: string }
   | { accountDeleted: true; accountDeletionRequested?: boolean }
   | undefined;
-
-const closedVisibility = {
-  organizationSettingsNavigation: false,
-  billing: false,
-  shopMembershipAddition: false,
-};
 
 const mocks = vi.hoisted(() => ({
   currentUserQuery: Symbol("getCurrentUser"),
@@ -31,31 +25,16 @@ const mocks = vi.hoisted(() => ({
     authId: "",
     name: "",
     email: "",
-    featureVisibility: {
-      organizationSettingsNavigation: false,
-      billing: false,
-      shopMembershipAddition: false,
-    },
   },
   currentUser: {
     name: "管理者",
     email: "manager@example.com",
-    featureVisibility: {
-      organizationSettingsNavigation: false,
-      billing: false,
-      shopMembershipAddition: false,
-    },
   } as CurrentUser,
   matches: [] as Array<{ staticData: { appShell?: { mode: "navigation" | "focused" } } }>,
   user: {
     authId: "manager-user",
     name: "管理者",
     email: "manager@example.com",
-    featureVisibility: {
-      organizationSettingsNavigation: false,
-      billing: false,
-      shopMembershipAddition: false,
-    },
   },
 }));
 
@@ -164,13 +143,11 @@ beforeEach(() => {
   mocks.currentUser = {
     name: "管理者",
     email: "manager@example.com",
-    featureVisibility: closedVisibility,
   };
   mocks.user = {
     authId: "manager-user",
     name: "管理者",
     email: "manager@example.com",
-    featureVisibility: { ...closedVisibility },
   };
   mocks.useAuth.mockReturnValue({ isLoaded: true, isSignedIn: true, userId: "manager-user" });
   mocks.useRouterState.mockReturnValue({ pathname: "/dashboard", searchStr: "" });
@@ -262,41 +239,6 @@ describe("AuthGuard", () => {
     } finally {
       removeItem.mockRestore();
     }
-  });
-
-  it("欠損した公開状態をfail closedへ正規化し、atomが追従するまで描画を待つ", async () => {
-    mocks.currentUser = { name: "管理者", email: "manager@example.com" };
-    mocks.user.featureVisibility = {
-      organizationSettingsNavigation: true,
-      billing: true,
-      shopMembershipAddition: true,
-    };
-
-    const { rerender } = render(
-      <AuthGuard>
-        <ManagerChild />
-      </AuthGuard>,
-    );
-
-    expect(screen.queryByTestId("manager-child")).toBeNull();
-    expect(screen.getByTestId("full-page-spinner")).not.toBeNull();
-    await waitFor(() => {
-      expect(mocks.setUser).toHaveBeenCalledWith({
-        authId: "manager-user",
-        name: "管理者",
-        email: "manager@example.com",
-        featureVisibility: closedVisibility,
-      });
-    });
-
-    mocks.user.featureVisibility = { ...closedVisibility };
-    rerender(
-      <AuthGuard>
-        <ManagerChild />
-      </AuthGuard>,
-    );
-
-    expect(screen.getByTestId("manager-child")).not.toBeNull();
   });
 
   it("current userの取得中は子画面を描画しない", () => {

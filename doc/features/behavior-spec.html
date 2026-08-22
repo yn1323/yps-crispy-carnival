@@ -75,7 +75,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <p class="site-meta">生成日 2026/08/17 ／ 基準commit <code>b318dc8</code></p>
 <div class="nav-group"><a class="nav-doc" href="#doc-overview">全体サマリー</a><ul><li><a href="#overview-s2">1. システムで解決できること</a></li><li><a href="#overview-s3">2. 現在の公開範囲</a></li><li><a href="#overview-s4">3. 機能一覧</a></li><li><a href="#overview-s12">4. 制限一覧</a></li><li><a href="#overview-s18">5. ロール別にできること</a></li><li><a href="#overview-s21">6. 状況別の挙動</a></li><li><a href="#overview-s26">7. 文書とコードの突き合わせで確認した注意点</a></li><li><a href="#overview-s27">8. マニュアル・テストケースへの展開</a></li></ul></div>
 <div class="nav-group"><a class="nav-doc" href="#doc-staff">スタッフ管理</a><ul><li><a href="#staff-s2">1. 共通の前提</a></li><li><a href="#staff-s3">2. スタッフ追加</a></li><li><a href="#staff-s8">3. プロフィール変更（氏名・シフト連絡先）</a></li><li><a href="#staff-s9">4. シフト対象外の切替（setShiftExclusion）</a></li><li><a href="#staff-s10">5. 店舗所属の変更（desired-set一括変更）</a></li><li><a href="#staff-s14">6. 組織からの削除（removePersonFromOrganization）</a></li><li><a href="#staff-s17">7. イベント別のデータ残存マトリクス（○×早見表）</a></li><li><a href="#staff-s18">8. テスト観点への変換メモ</a></li></ul></div>
-<div class="nav-group"><a class="nav-doc" href="#doc-organization">組織・店舗・管理者・アカウント</a><ul><li><a href="#organization-s2">1. 組織の作成</a></li><li><a href="#organization-s3">2. 組織名の変更・組織削除</a></li><li><a href="#organization-s4">3. 店舗の設定・追加・アーカイブ・削除</a></li><li><a href="#organization-s9">4. 管理者の追加（招待）・権限解除</a></li><li><a href="#organization-s13">5. アカウント（ログイン方法）の変更</a></li><li><a href="#organization-s15">6. アカウント削除</a></li><li><a href="#organization-s16">7. 課金・契約の状態遷移（FEATURE_BILLING）</a></li><li><a href="#organization-s20">8. テスト観点への変換メモ</a></li></ul></div>
+<div class="nav-group"><a class="nav-doc" href="#doc-organization">組織・店舗・管理者・アカウント</a><ul><li><a href="#organization-s2">1. 組織の作成</a></li><li><a href="#organization-s3">2. 組織名の変更・組織削除</a></li><li><a href="#organization-s4">3. 店舗の設定・追加・アーカイブ・削除</a></li><li><a href="#organization-s9">4. 管理者の追加（招待）・権限解除</a></li><li><a href="#organization-s13">5. アカウント（ログイン方法）の変更</a></li><li><a href="#organization-s15">6. アカウント削除</a></li><li><a href="#organization-s16">7. 課金・契約の状態遷移</a></li><li><a href="#organization-s20">8. テスト観点への変換メモ</a></li></ul></div>
 <div class="nav-group"><a class="nav-doc" href="#doc-shift">募集・提出・シフト表・確定</a><ul><li><a href="#shift-s2">1. 日時の定義（すべてJST）</a></li><li><a href="#shift-s3">2. 募集の状態遷移</a></li><li><a href="#shift-s6">3. スタッフの提出可否（デシジョンテーブル）</a></li><li><a href="#shift-s9">4. シフト表（管理者の編集）</a></li><li><a href="#shift-s14">5. 確定シフトの閲覧・再発行</a></li><li><a href="#shift-s15">6. 提出率・件数表示の規則</a></li><li><a href="#shift-s16">7. テスト観点への変換メモ</a></li></ul></div>
 <div class="nav-group"><a class="nav-doc" href="#doc-notification">通知マトリクス</a><ul><li><a href="#notification-s2">1. チャネル選択の共通規則</a></li><li><a href="#notification-s3">2. 宛先解決の共通規則</a></li><li><a href="#notification-s4">3. 送信直前の再確認（provider gate）</a></li><li><a href="#notification-s5">4. 通知マトリクス</a></li><li><a href="#notification-s9">5. 送らない共通条件（全通知に適用）</a></li><li><a href="#notification-s10">6. 配送の状態と再試行</a></li><li><a href="#notification-s11">7. 不達（要対応Inbox）の扱い</a></li><li><a href="#notification-s12">8. 使用量カウント</a></li><li><a href="#notification-s13">9. 付録: 配送パイプライン図</a></li><li><a href="#notification-s14">10. テスト観点への変換メモ</a></li></ul></div>
 <div class="nav-group"><a class="nav-doc" href="#doc-authorization">認可・制限の横断規則</a><ul><li><a href="#authorization-s2">1. 認可境界の種類</a></li><li><a href="#authorization-s3">2. 存在秘匿の応答契約</a></li><li><a href="#authorization-s4">3. ロール・状態による書き込み拒否</a></li><li><a href="#authorization-s8">4. token・sessionの失効マトリクス</a></li><li><a href="#authorization-s9">5. プラン上限と超過時の挙動</a></li><li><a href="#authorization-s10">6. レート制限・quota一覧</a></li><li><a href="#authorization-s11">7. 冪等性・二重実行の契約</a></li><li><a href="#authorization-s12">8. 外部サービス障害時の挙動</a></li><li><a href="#authorization-s13">9. ログ・応答に含めない情報</a></li><li><a href="#authorization-s14">10. テスト観点への変換メモ</a></li></ul></div>
@@ -142,15 +142,8 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tbody></table></div>
 <p>スタッフはアカウント登録不要で、メール・LINEに届くリンク（magic link）だけで提出・閲覧できる。</p>
 <h2 id="overview-s3">2. 現在の公開範囲</h2>
-<p>通常の公開範囲は<strong>1組織、1店舗、1管理ユーザー、支払い不要Business</strong>である。<br>初回登録で作る組織は<code>complimentary.business</code>（期限・料金なしでBusiness相当、利用人数40名まで）になり、カード登録やTrial期限は発生しない。</p>
-<p>複数組織、複数店舗、複数管理者（招待）、Stripe課金は実装済みだが、次の公開設定が未設定の環境では閉状態であり、画面にもAPIにも現れない。</p>
-<ul>
-<li><code>FEATURE_ORGANIZATION_CREATION</code>（追加組織作成）</li>
-<li><code>FEATURE_SHOP_ADDITION</code>（店舗追加）</li>
-<li><code>FEATURE_MANAGER_INVITATION</code>（管理者招待）</li>
-<li><code>FEATURE_BILLING</code>（課金・プラン変更）</li>
-</ul>
-<p>閉状態はfrontendの非表示だけでなく、public mutation/actionも副作用前にserver-sideで拒否する。<br>マニュアルは公開範囲だけを対象にし、テストケースは閉状態の拒否契約と、公開設定を有効化したE2E deploymentでの将来機能契約を分けて扱う。</p>
+<p>repository artifactでは、複数組織、複数店舗、複数管理者（招待）、Stripe課金を常時利用できる。<br>初回登録で作る組織は<code>complimentary.business</code>（期限・料金なしでBusiness相当、利用人数40名まで）になり、カード登録やTrial期限は発生しない。追加組織はFreeで開始する。</p>
+<p>機能ごとの公開環境変数は使わない。画面は組織作成、店舗追加、管理者、プランと支払いの導線を常時表示し、操作可否は認証・認可、所属状態、契約状態、プラン上限、Stripe設定などのサーバー判定に従う。実deploymentへのartifact反映とcanaryはリリース状態の証跡で確認する。</p>
 <p>なお、業務仕様（<code>doc/specs/organization-billing-business-flow.md</code>）に有料機能として挙がる「AIシフトたたき台作成」は、現時点でコード実装がない（仕様先行）。</p>
 <h2 id="overview-s4">3. 機能一覧</h2>
 <h3 id="overview-s5">3.1 利用開始・認証・法務同意</h3>
@@ -194,8 +187,8 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </thead>
 <tbody><tr>
 <td><a href="organization-billing.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">組織課金、複数店舗、複数管理者</a></td>
-<td>組織単位の契約・利用上限・課金状態の管理。組織名変更、組織削除、管理者招待（未公開）、プランと支払い（未公開）</td>
-<td><code>/manage</code>、<code>/manage/organization</code>、<code>/manage/billing</code>（未公開）、<code>/manage/managers</code>（未公開）</td>
+<td>組織単位の契約・利用上限・課金状態の管理。組織名変更、組織削除、管理者招待、プランと支払い</td>
+<td><code>/manage</code>、<code>/manage/organization</code>、<code>/manage/billing</code>、<code>/manage/managers</code></td>
 </tr>
 <tr>
 <td><a href="manager-shop-membership.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">店舗単位管理者所属の移行互換</a></td>
@@ -304,7 +297,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </thead>
 <tbody><tr>
 <td><a href="trial-ending-dashboard-callout.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">トライアル終了前Dashboard案内</a></td>
-<td><code>FEATURE_BILLING</code>有効時のみ、プラン状態表示とTrial終了7日前Callout（rolling deploy互換）を表示する</td>
+<td>プラン状態表示とTrial終了7日前Callout（rolling deploy互換）を表示する</td>
 <td>Dashboard</td>
 </tr>
 <tr>
@@ -387,7 +380,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <td align="right">40名</td>
 <td align="right">5店舗</td>
 <td align="right">5名</td>
-<td>期限・料金・Stripeオブジェクトなし。現公開範囲では店舗1・管理者1のみ利用</td>
+<td>期限・料金・Stripeオブジェクトなし</td>
 </tr>
 <tr>
 <td>無料体験（Trial、既存組織のみ）</td>
@@ -397,25 +390,25 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <td>Pro相当。期間は開始から2ヶ月（終了は該当日0:00 JST）</td>
 </tr>
 <tr>
-<td>grandfathered Free（既存組織のみ）</td>
+<td>Free（追加組織）</td>
 <td align="right">5名</td>
 <td align="right">1店舗</td>
 <td align="right">2名</td>
-<td>有料機能不可。新規作成しない（追加組織作成が有効な環境の2組織目以降のみFree開始）</td>
+<td>二つ目以降の組織はこの状態で開始する</td>
 </tr>
 <tr>
 <td>Pro</td>
 <td align="right">20名</td>
 <td align="right">5店舗</td>
 <td align="right">5名</td>
-<td>Stripe契約あり（未公開）</td>
+<td>Stripe契約あり</td>
 </tr>
 <tr>
 <td>Business</td>
 <td align="right">40名</td>
 <td align="right">5店舗</td>
 <td align="right">5名</td>
-<td>Stripe契約あり（未公開）</td>
+<td>Stripe契約あり</td>
 </tr>
 </tbody></table></div>
 <ul>
@@ -616,7 +609,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </thead>
 <tbody><tr>
 <td>有効管理者（<code>active</code>）</td>
-<td><code>organizationMembers.active</code>。組織内の全店舗を管理し、契約操作も行える。現公開範囲では組織に1名で、シフト担当者と同一</td>
+<td><code>organizationMembers.active</code>。組織内の全店舗を管理し、契約操作も行える。プラン上限まで複数人を招待できる</td>
 <td>Clerkログイン</td>
 </tr>
 <tr>
@@ -768,7 +761,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 <tr>
 <td>契約操作（開始・変更・停止予約）</td>
-<td>○（<code>FEATURE_BILLING</code>有効時）</td>
+<td>○</td>
 <td>△（再契約・支払い方法更新・請求先変更のみ）</td>
 <td>×</td>
 <td>×</td>
@@ -776,7 +769,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 <tr>
 <td>管理者招待・権限解除</td>
-<td>○（<code>FEATURE_MANAGER_INVITATION</code>有効時。最後の1名の解除は不可）</td>
+<td>○（最後の1名の解除は不可）</td>
 <td>×</td>
 <td>×</td>
 <td>×</td>
@@ -975,7 +968,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 <tr>
 <td>課金通知（Trial終了予告・支払い失敗等）</td>
-<td>各イベント時（<code>FEATURE_BILLING</code>有効時）</td>
+<td>各イベント時</td>
 <td>有効管理者・復旧担当者（メールのみ。LINEへは送らない）</td>
 </tr>
 </tbody></table></div>
@@ -1501,7 +1494,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <p>作成日: 2026-08-16 ／ 基準commit: <code>37c908f</code></p>
 <p>正本: <a href="organization-billing.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">組織課金、複数店舗、複数管理者</a>、<a href="../specs/organization-billing-business-flow.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">業務仕様</a>、<a href="shop-settings.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">店舗設定</a>、<a href="data-deletion.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">店舗・組織削除</a>、<a href="account-deletion.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">アカウント削除</a>、<a href="auth-pages.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">認証画面とアカウント設定</a></p>
 </blockquote>
-<p>組織・店舗・管理者・ログインアカウントの操作について、条件の組み合わせごとの結果を定める。<br>複数組織・複数店舗・管理者招待・課金は公開設定（<code>FEATURE_*</code>）が閉じた通常環境では画面にもAPIにも現れず、副作用前にserver-sideで拒否される。以下の契約は公開設定を有効化した環境（E2E deployment等）と将来公開時のものを含む。</p>
+<p>組織・店舗・管理者・ログインアカウントの操作について、条件の組み合わせごとの結果を定める。<br>複数組織・複数店舗・管理者招待・課金は通常の画面とAPIから利用できる。以下の契約は、認証、組織境界、管理者状態、契約状態、上限、token lifecycleをserver-sideで再確認する。</p>
 <h2 id="organization-s2">1. 組織の作成</h2>
 <div class="tbl"><table>
 <thead>
@@ -1519,7 +1512,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <td>server-sideで拒否（初回Setupは所属0件のみ）</td>
 </tr>
 <tr>
-<td>追加組織作成（<code>FEATURE_ORGANIZATION_CREATION</code>有効時）</td>
+<td>追加組織作成</td>
 <td><strong><code>active.free</code></strong>（5名・1店舗・2管理者）で開始</td>
 </tr>
 <tr>
@@ -1603,7 +1596,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <li><strong>提出方法を変更しても既存募集には影響しない</strong>。募集は作成時点の提出方法をsnapshotしている。</li>
 <li>閲覧専用（readOnly）・契約制限中は編集導線が無効になり、mutationも拒否する。</li>
 </ul>
-<h3 id="organization-s6">3.2 店舗の追加・再稼働（<code>FEATURE_SHOP_ADDITION</code>有効時）</h3>
+<h3 id="organization-s6">3.2 店舗の追加・再稼働</h3>
 <div class="tbl"><table>
 <thead>
 <tr>
@@ -1657,7 +1650,6 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tbody></table></div>
 <p>効果: 対象店舗のstaff・店舗LINE投影を論理削除、店舗用session・magic link・LINE連携token・法務同意token・登録リンクを失効、未送信通知を停止。<br><code>users</code>・<code>organizationPeople</code>・<code>organizationMembers</code>は変更せず、対象店舗のユーザーは組織人物として残る。<br>削除成功後は、削除対象と異なる現在の店舗、なければ同組織の先頭の未削除店舗へ復帰する。</p>
 <h2 id="organization-s9">4. 管理者の追加（招待）・権限解除</h2>
-<p><code>FEATURE_MANAGER_INVITATION</code>が閉じた通常環境では、発行・再送・preview・受諾・権限追加をすべて副作用前に拒否する（取消と期限切れ処理・cleanupは維持）。</p>
 <h3 id="organization-s10">4.1 招待の発行</h3>
 <div class="tbl"><table>
 <thead>
@@ -1674,7 +1666,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 <tr>
 <td>2</td>
-<td>管理者上限超過（有効管理者＋期限内の未承認招待の合計が、通常5名／grandfathered Free 2名を超える）</td>
+<td>管理者上限超過（有効管理者＋期限内の未承認招待の合計が、通常5名／Free 2名を超える）</td>
 <td><strong>発行時に拒否</strong></td>
 </tr>
 <tr>
@@ -1699,7 +1691,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 <tr>
 <td>7</td>
-<td>旧<code>freeManagerExchange</code>招待が期限内に残っている（grandfathered Free）</td>
+<td>旧<code>freeManagerExchange</code>招待が期限内に残っている（旧Free互換）</td>
 <td>新しい追加招待を発行しない</td>
 </tr>
 <tr>
@@ -1781,7 +1773,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <td><strong>拒否</strong></td>
 </tr>
 <tr>
-<td>grandfathered Freeで2名→1名</td>
+<td>Freeで2名→1名</td>
 <td>可</td>
 </tr>
 <tr>
@@ -1946,7 +1938,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <li>Clerkの代理操作session（<code>actor</code>/<code>act</code> claim）は本人同意として扱わずfail-closedで拒否する。</li>
 </ul>
 <p>削除後: <code>getCurrentUser</code>は<code>accountDeleted</code>のbooleanだけを返し、保持している氏名・メールを画面へ返さない。再登録した新しいClerkユーザーを過去の履歴へ自動関連付けしない。</p>
-<h2 id="organization-s16">7. 課金・契約の状態遷移（<code>FEATURE_BILLING</code>）</h2>
+<h2 id="organization-s16">7. 課金・契約の状態遷移</h2>
 <p>上限は<a href="#doc-authorization">認可・制限</a>のプラン表、通知は<a href="#doc-notification">通知マトリクス</a>を参照。ここでは遷移と操作条件だけを定める。</p>
 <h3 id="organization-s17">7.1 状態遷移表（業務仕様22章の要約）</h3>
 <div class="tbl"><table>
@@ -3019,7 +3011,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <li>CTAは通知元店舗を<code>shop</code>クエリで指定したDashboard URL。</li>
 <li>「要対応Inboxへ」の区別は2段階ある。確定催促・不達digest・本番募集リマインダーは<strong>抑止context</strong>によりInboxへの記録自体を作らない（配送イベントログには残る）。参加申請digestや法務同意依頼は抑止contextを持たず記録は作られるが、種別が<code>other</code>（「通知」）のため一覧・要対応カード・日次リマインダーには表示されない（<code>isManagerActionableNotificationFailure</code>）。</li>
 </ul>
-<h3 id="notification-s8">4.3 組織向け（課金・招待。<code>FEATURE_BILLING</code>／<code>FEATURE_MANAGER_INVITATION</code>有効時。すべてメールのみ）</h3>
+<h3 id="notification-s8">4.3 組織向け（課金・招待。すべてメールのみ）</h3>
 <div class="tbl"><table>
 <thead>
 <tr>
@@ -3087,7 +3079,6 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <ul>
 <li>課金通知はLINE連携の有無にかかわらずメールで送り、LINE配送を1件も作らない。複数宛先はメールアドレスを相互に見せないよう個別送信する。</li>
 <li>支払い不要Businessでは課金通知を一切発生させない。</li>
-<li><code>FEATURE_BILLING</code>が閉じたdeploymentでは新しい課金メールを生成しない（署名済みWebhookによる状態収束は継続）。</li>
 </ul>
 <h2 id="notification-s9">5. 送らない共通条件（全通知に適用）</h2>
 <div class="tbl"><table>
@@ -3332,7 +3323,6 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <ul>
 <li><strong>URL・localStorage・クライアントが渡すID（組織・店舗・人物・staff・募集）は対象の指定であって認可根拠ではない</strong>。サーバーが認証identityから所属を毎回解決し、対象との対応を再検証する。</li>
 <li>URLの<code>?shop=</code>は利用可能な店舗一覧と照合してから採用する。候補外の店舗が明示された場合は<strong>別店舗へ自動fallbackせず</strong>、店舗スコープのデータを表示しない汎用エラーにする。</li>
-<li>公開設定（<code>FEATURE_*</code>）が閉じた操作は、DB write・scheduler・Outbox・監査・Stripe到達より<strong>前に</strong>拒否する。</li>
 </ul>
 <h2 id="authorization-s3">2. 存在秘匿の応答契約</h2>
 <p>次の場合は「存在しない」と「権限がない」を<strong>同じ応答</strong>にし、存在・所属・削除履歴を漏らさない。テストでは応答の同一性まで検証する。</p>
@@ -3615,7 +3605,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <td align="right">5</td>
 </tr>
 <tr>
-<td>grandfathered Free</td>
+<td>Free</td>
 <td align="right">5</td>
 <td align="right">1</td>
 <td align="right">2</td>

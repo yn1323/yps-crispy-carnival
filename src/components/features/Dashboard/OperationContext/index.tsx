@@ -9,7 +9,6 @@ import {
   type ShopContextOption,
 } from "@/src/domains/shop/context";
 import { selectedShopAtom } from "@/src/stores/shop";
-import { featureVisibilityAtom } from "@/src/stores/user";
 import type { PlanStatusCardProps } from "../PlanStatusCard";
 import { buildOperationContextModel } from "./script";
 import { OperationContextSkeleton, OperationContextView } from "./View";
@@ -50,8 +49,6 @@ export const OperationContext = ({
 }: Props) => {
   const rawShops = useQuery(api.dashboard.queries.getMyShops, data ? "skip" : {});
   const storedSelectedShop = useAtomValue(selectedShopAtom);
-  const featureVisibility = useAtomValue(featureVisibilityAtom);
-  const showOrganizationSettings = featureVisibility.organizationSettingsNavigation;
   const shops = useMemo(
     () => data?.shops ?? normalizeShopContextOptions(rawShops ?? []).filter(isSelectableShop),
     [data?.shops, rawShops],
@@ -95,7 +92,7 @@ export const OperationContext = ({
       model={model}
       onShopSelect={handleShopSelect}
       onOpenShopDetail={handleOpenShopDetail}
-      onOpenOrganizationSettings={showOrganizationSettings ? onOpenOrganizationSettings : undefined}
+      onOpenOrganizationSettings={onOpenOrganizationSettings}
       organizationChangeOptions={organizationChangeOptions}
       onOrganizationChange={
         data?.onOrganizationSelect

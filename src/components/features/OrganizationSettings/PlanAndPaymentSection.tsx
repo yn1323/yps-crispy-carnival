@@ -119,32 +119,39 @@ export const PlanAndPaymentSection = ({
   pendingCheckout,
 }: Props) => {
   const isServiceStopScheduled = isServiceStopScheduledState(billing);
+  const isUsageLimitExceeded = isActivePlanUsageLimitExceeded(billing);
   const presentation = isServiceStopScheduled
     ? {
         ...STATE_PRESENTATION.scheduledChange,
         label: "解約予定",
         description:
-          "現在の支払い済み期間が終わるまでは、現在のプランを利用できます。\n解約後は契約制限中になります。データは削除されません。",
+          "現在の支払い済み期間が終わるまでは、現在のプランを利用できます。\n解約後は無料プランへ変更されます。データは削除されません。",
       }
-    : billing.state === "restricted" && billing.limitPlan
+    : isUsageLimitExceeded
       ? {
-          ...STATE_PRESENTATION.restricted,
-          description: `${planLabel(billing.limitPlan)}の上限に収まるよう、利用人数・店舗数・管理者数を整理してください。`,
+          ...STATE_PRESENTATION[billing.state],
+          status: "warning" as const,
+          description: "現在のプランの利用上限を超えています。\n上限内まで減らすと、業務操作は自動的に再開されます。",
         }
-      : billing.state === "restricted"
+      : billing.state === "restricted" && billing.limitPlan
         ? {
             ...STATE_PRESENTATION.restricted,
-            label: "利用停止中",
-            description:
-              "店舗・ユーザー・過去のシフトは削除されていません。\nProまたはBusinessを契約すると利用を再開できます。",
+            description: `${planLabel(billing.limitPlan)}の上限に収まるよう、利用人数・店舗数・管理者数を整理してください。`,
           }
-        : billing.state === "pendingActivation" && billing.currentPlan === "free"
+        : billing.state === "restricted"
           ? {
-              ...STATE_PRESENTATION.pendingActivation,
+              ...STATE_PRESENTATION.restricted,
+              label: "利用停止中",
               description:
-                "支払いの成功を確認するまで、有料プランは開始されません。\n確認中も、無料の基本機能は利用できます。",
+                "店舗・ユーザー・過去のシフトは削除されていません。\nProまたはBusinessを契約すると利用を再開できます。",
             }
-          : STATE_PRESENTATION[billing.state];
+          : billing.state === "pendingActivation" && billing.currentPlan === "free"
+            ? {
+                ...STATE_PRESENTATION.pendingActivation,
+                description:
+                  "支払いの成功を確認するまで、有料プランは開始されません。\n確認中も、無料の基本機能は利用できます。",
+              }
+            : STATE_PRESENTATION[billing.state];
   const currentPlan =
     billing.currentPlan ??
     (billing.state === "restricted"
@@ -198,7 +205,7 @@ export const PlanAndPaymentSection = ({
         {!isExceptionalState(billing.state) && billing.blockedReason && (
           <Box borderWidth="1px" borderColor="orange.200" bg="orange.50" borderRadius="lg" p={3}>
             <Text fontSize="sm" fontWeight="semibold" color="orange.900">
-              操作できない理由
+              {isUsageLimitExceeded ? "上限超過のため利用を制限しています" : "操作できない理由"}
             </Text>
             <Text mt={1} fontSize="sm" color="orange.800">
               {billing.blockedReason}
@@ -299,7 +306,11 @@ function PlanSummary({
           <Text textStyle="label" fontWeight="semibold" color="fg.muted">
             状態
           </Text>
-          <BillingStatus state={billing.state} status={presentation.status} label={billingStatusLabel(billing.state)} />
+          <BillingStatus
+            state={billing.state}
+            status={presentation.status}
+            label={isActivePlanUsageLimitExceeded(billing) ? "上限超過" : billingStatusLabel(billing.state)}
+          />
           {isScheduledPlanTransition(billing.state) && billing.currentPlan && billing.targetPlan && (
             <Text ps={5} fontSize="sm" color="fg.muted">
               {planLabel(billing.currentPlan)} → {planLabel(billing.targetPlan)}
@@ -698,7 +709,7 @@ function ReductionGuidance({ reductions }: { reductions: ReturnType<typeof getRe
 function trialContinuationDescription(billing: OrganizationBillingView) {
   if (billing.targetPlan === "business") return "終了後はBusinessへ継続する予定です。";
   if (billing.targetPlan === "pro") return "終了後はProへ継続する予定です。";
-  return "継続登録がない場合、トライアル終了後は利用停止になります。データは削除されません。";
+  return "継続登録がない場合、トライアル終了後は無料プランへ変更されます。データは削除されません。";
 }
 
 function PaymentInformation({
@@ -848,6 +859,12 @@ function billingStatusLabel(state: BillingDisplayState): string {
   if (state === "trial") return "トライアル中";
   if (isPlanState(state)) return "利用中";
   return STATE_PRESENTATION[state].label;
+}
+
+function isActivePlanUsageLimitExceeded(billing: OrganizationBillingView): boolean {
+  if (!isPlanState(billing.state)) return false;
+  const reductions = getRequiredReductions(billing);
+  return reductions.people > 0 || reductions.shops > 0 || reductions.managers > 0;
 }
 
 function statusColor(status: (typeof STATE_PRESENTATION)[BillingDisplayState]["status"]): string {

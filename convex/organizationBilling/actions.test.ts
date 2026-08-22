@@ -1,35 +1,10 @@
 import { convexTest } from "convex-test";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import { seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("organizationBilling/actions", () => {
-  beforeEach(() => vi.stubEnv("FEATURE_BILLING", "true"));
-
-  it("課金機能が閉じているときは内部通知actionもOutboxを作らない", async () => {
-    vi.stubEnv("FEATURE_BILLING", "");
-    const t = convexTest(schema, modules);
-    const ids = await t.run((ctx) =>
-      seedOrganizationManagerShop(ctx, { subject: "closed_billing_notice", plan: "business" }),
-    );
-
-    await expect(
-      t.action(internal.organizationBilling.actions.enqueueBillingNotification, {
-        organizationId: ids.organizationId,
-        event: "planActivated",
-        eventKey: "closed-plan-activated",
-        notificationDetails: {
-          targetPlan: "business",
-          amountDue: 1_200,
-          currency: "jpy",
-          effectiveAt: Date.parse("2026-09-01T00:00:00+09:00"),
-        },
-      }),
-    ).resolves.toEqual({ enqueuedCount: 0 });
-    await expect(t.run((ctx) => ctx.db.query("notificationOutbox").collect())).resolves.toEqual([]);
-  });
-
   it("課金通知を管理者ごとのemailだけでOutboxへ積み、同じeventKeyを重複させない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run((ctx) => seedOrganizationManagerShop(ctx, { subject: "billing_notice", plan: "business" }));
@@ -350,7 +325,8 @@ describe("organizationBilling/actions", () => {
     expect(jobs[0].payload.html).toContain("選択済みの契約プランはBusinessです。");
     expect(jobs[0].payload.html).toContain("初回請求は9/1(火) 00:00を予定しています。");
     expect(jobs[0].payload.html).toContain("継続を取り消す場合の期限は9/1(火) 00:00です。");
-    expect(jobs[0].payload.html).toContain("取り消すと、トライアル終了後は利用停止になります。");
+    expect(jobs[0].payload.html).toContain("取り消すと、トライアル終了後は無料プランへ変更されます。");
+    expect(jobs[0].payload.html).toContain("無料プランの利用上限を超えている場合は");
     expect(jobs[0].payload.html).not.toContain("円");
   });
 });

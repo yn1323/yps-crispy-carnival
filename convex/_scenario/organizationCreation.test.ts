@@ -16,10 +16,6 @@ describe("組織追加作成シナリオ", () => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
     vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", SIGNING_SECRET);
-    vi.stubEnv("FEATURE_ORGANIZATION_CREATION", "true");
-    vi.stubEnv("FEATURE_SHOP_ADDITION", "true");
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
-    vi.stubEnv("FEATURE_BILLING", "true");
   });
   afterEach(() => {
     vi.useRealTimers();

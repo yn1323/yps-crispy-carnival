@@ -19,9 +19,8 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("./ShopDetailView", () => ({
-  ShopDetailView: ({ onBack, onOpenUser, isShopAdditionEnabled }: ComponentProps<typeof ShopDetailView>) => (
+  ShopDetailView: ({ onBack, onOpenUser }: ComponentProps<typeof ShopDetailView>) => (
     <>
-      <output data-testid="shop-addition-enabled">{String(isShopAdditionEnabled)}</output>
       <button type="button" onClick={onBack}>
         前の画面に戻る
       </button>
@@ -68,7 +67,7 @@ beforeEach(() => {
 
 describe("店舗詳細のapp navigation", () => {
   it("タイトルの戻る操作はブラウザ履歴へ戻る", () => {
-    render(<ShopDetail shop={shop} people={[]} organizationId={organizationId} isShopAdditionEnabled />);
+    render(<ShopDetail shop={shop} people={[]} organizationId={organizationId} />);
 
     fireEvent.click(screen.getByRole("button", { name: "前の画面に戻る" }));
 
@@ -77,7 +76,7 @@ describe("店舗詳細のapp navigation", () => {
   });
 
   it("スタッフ詳細を同じcanonical組織scopeで開く", () => {
-    render(<ShopDetail shop={shop} people={[]} organizationId={organizationId} isShopAdditionEnabled />);
+    render(<ShopDetail shop={shop} people={[]} organizationId={organizationId} />);
 
     fireEvent.click(screen.getByRole("button", { name: "スタッフ詳細を開く" }));
 
@@ -89,7 +88,7 @@ describe("店舗詳細のapp navigation", () => {
   });
 
   it("削除後はlegacy店舗contextを使わず同じ組織の管理へ戻る", () => {
-    render(<ShopDetail shop={shop} people={[]} organizationId={organizationId} isShopAdditionEnabled={false} />);
+    render(<ShopDetail shop={shop} people={[]} organizationId={organizationId} />);
 
     expect(mocks.deletionInput).toHaveBeenCalledWith(
       expect.objectContaining({ expectedOrganizationId: organizationId, clearLegacySelectedShop: false }),
@@ -101,6 +100,5 @@ describe("店舗詳細のapp navigation", () => {
       search: { org: organizationId },
       replace: true,
     });
-    expect(screen.getByTestId("shop-addition-enabled").textContent).toBe("false");
   });
 });

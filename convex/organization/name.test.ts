@@ -1,9 +1,63 @@
+import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT } from "./service";
+
+async function addCountedOrganizationPeople(
+  t: TestConvex<typeof schema>,
+  args: { organizationId: Id<"organizations">; shopId: Id<"shops">; count: number; suffix: string },
+) {
+  await t.run(async (ctx) => {
+    const now = Date.now();
+    for (let index = 0; index < args.count; index += 1) {
+      const email = `${args.suffix}-${String(index)}@example.com`;
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId: args.organizationId,
+        name: `利用者${String(index)}`,
+        email,
+        emailNormalized: email,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("staffs", {
+        shopId: args.shopId,
+        organizationId: args.organizationId,
+        organizationPersonId: personId,
+        name: `利用者${String(index)}`,
+        email,
+        emailNormalized: email,
+        isDeleted: false,
+      });
+    }
+  });
+}
+
+async function overflowOrganizationPeopleProbe(
+  t: TestConvex<typeof schema>,
+  args: { organizationId: Id<"organizations">; suffix: string },
+) {
+  await t.run(async (ctx) => {
+    const now = Date.now();
+    for (let index = 0; index < ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT + 1; index += 1) {
+      const email = `${args.suffix}-${String(index)}@example.com`;
+      await ctx.db.insert("organizationPeople", {
+        organizationId: args.organizationId,
+        name: `未集計利用者${String(index)}`,
+        email,
+        emailNormalized: email,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  });
+}
 
 describe("organization.mutations.updateOrganizationName", () => {
   it("非稼働店舗を選択中でも事業者名を変更し、同じrequestIdを冪等に扱う", async () => {
@@ -96,6 +150,74 @@ describe("organization.mutations.updateOrganizationName", () => {
           requestId: "organization-name-readonly",
         }),
     ).rejects.toThrowError("Not found");
+  });
+
+  it("active Freeの利用上限超過中はlegacy入口からの組織名変更を拒否し、副作用を残さない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(
+      async (ctx) =>
+        await seedOrganizationManagerShop(ctx, {
+          subject: "organization_name_over_limit",
+          shopName: "上限超過前店舗",
+          plan: "free",
+        }),
+    );
+    await addCountedOrganizationPeople(t, {
+      organizationId: ids.organizationId,
+      shopId: ids.shopId,
+      count: 5,
+      suffix: "organization-name-over-limit",
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "organization_name_over_limit" })
+        .mutation(api.organization.mutations.updateOrganizationName, {
+          shopId: ids.shopId,
+          name: "変更されない組織名",
+          requestId: "organization-name-over-limit",
+        }),
+    ).rejects.toThrowError("現在のプラン上限を超えているため");
+
+    const state = await t.run(async (ctx) => ({
+      organization: await ctx.db.get(ids.organizationId),
+      audits: await ctx.db.query("organizationAuditEvents").collect(),
+    }));
+    expect(state.organization?.name).toBe("上限超過前店舗事業者");
+    expect(state.audits).toEqual([]);
+  });
+
+  it("active Proの利用数を安全に確定できない場合はlegacy入口からの組織名変更を拒否し、副作用を残さない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(
+      async (ctx) =>
+        await seedOrganizationManagerShop(ctx, {
+          subject: "organization_name_usage_unknown",
+          shopName: "利用数確認前店舗",
+          plan: "pro",
+        }),
+    );
+    await overflowOrganizationPeopleProbe(t, {
+      organizationId: ids.organizationId,
+      suffix: "organization-name-usage-unknown",
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "organization_name_usage_unknown" })
+        .mutation(api.organization.mutations.updateOrganizationName, {
+          shopId: ids.shopId,
+          name: "変更されない組織名",
+          requestId: "organization-name-usage-unknown",
+        }),
+    ).rejects.toThrowError("現在の利用数を安全に確認できないため");
+
+    const state = await t.run(async (ctx) => ({
+      organization: await ctx.db.get(ids.organizationId),
+      audits: await ctx.db.query("organizationAuditEvents").collect(),
+    }));
+    expect(state.organization?.name).toBe("利用数確認前店舗事業者");
+    expect(state.audits).toEqual([]);
   });
 
   it("契約制限中でもactive管理者は組織名を変更できる", async () => {

@@ -4,8 +4,10 @@ import {
   calculateTrialEndsAt,
   createPaymentGraceState,
   decideScheduledTransition,
+  deriveOrganizationAccessPolicy,
   deriveOrganizationBillingPolicy,
   evaluateFreeEligibility,
+  evaluateOrganizationUsageLimits,
   evaluatePlanLimits,
   getOrganizationBillingStateDeadline,
   isVerifiedBillingTransitionAllowed,
@@ -16,6 +18,7 @@ import {
   projectFreeUsage,
   projectOrganizationUsage,
   RESTRICTED_RECOVERY_CAPABILITIES,
+  resolveUsageLimitPlan,
 } from "./policy";
 
 describe("organizationBilling/policy plan limits", () => {
@@ -59,6 +62,232 @@ describe("organizationBilling/policy plan limits", () => {
         effectiveAt: 200,
       }),
     ).toEqual({ kind: "active", plan: "pro" });
+  });
+});
+
+describe("organizationBilling/policy usage limit plan", () => {
+  it.each<{ name: string; state: OrganizationBillingState; expected: "free" | "pro" | "business" | null }>([
+    {
+      name: "Trial",
+      state: { kind: "trial", trialEndsAt: 100 },
+      expected: "pro",
+    },
+    {
+      name: "初回請求結果待ち",
+      state: { kind: "initialPaymentPending", plan: "business", startedAt: 10 },
+      expected: "pro",
+    },
+    {
+      name: "Freeからの有効化待ち",
+      state: { kind: "pendingActivation", plan: "business", fallback: "free", startedAt: 10 },
+      expected: "free",
+    },
+    {
+      name: "Proからの有効化待ち",
+      state: { kind: "pendingActivation", plan: "business", fallback: "pro", startedAt: 10 },
+      expected: "pro",
+    },
+    {
+      name: "legacy契約制限からの有効化待ち",
+      state: {
+        kind: "pendingActivation",
+        plan: "business",
+        fallback: "restricted",
+        restrictedFallbackState: {
+          kind: "restricted",
+          reason: "planLimitExceeded",
+          limitPlan: "pro",
+          recoveryManagerPersonIds: [],
+          previousActiveShopIds: [],
+          restrictedAt: 5,
+        },
+        startedAt: 10,
+      },
+      expected: "pro",
+    },
+    {
+      name: "fallback詳細がないlegacy契約制限からの有効化待ち",
+      state: { kind: "pendingActivation", plan: "pro", fallback: "restricted", startedAt: 10 },
+      expected: null,
+    },
+    {
+      name: "Active Free",
+      state: { kind: "active", plan: "free" },
+      expected: "free",
+    },
+    {
+      name: "Active Pro",
+      state: { kind: "active", plan: "pro" },
+      expected: "pro",
+    },
+    {
+      name: "Active Business",
+      state: { kind: "active", plan: "business" },
+      expected: "business",
+    },
+    {
+      name: "無償Business",
+      state: { kind: "complimentary", plan: "business" },
+      expected: "business",
+    },
+    {
+      name: "BusinessからProへの変更予定",
+      state: { kind: "scheduledChange", currentPlan: "business", targetPlan: "pro", effectiveAt: 20 },
+      expected: "business",
+    },
+    {
+      name: "ProからFreeへの変更予定",
+      state: { kind: "scheduledChange", currentPlan: "pro", targetPlan: "free", effectiveAt: 20 },
+      expected: "pro",
+    },
+    {
+      name: "支払い猶予中",
+      state: { kind: "grace", plan: "pro", targetPlan: "business", startedAt: 10, endsAt: 20 },
+      expected: "pro",
+    },
+    {
+      name: "limitPlanを持つlegacy契約制限",
+      state: {
+        kind: "restricted",
+        reason: "planLimitExceeded",
+        limitPlan: "free",
+        recoveryManagerPersonIds: [],
+        previousActiveShopIds: [],
+        restrictedAt: 10,
+      },
+      expected: "free",
+    },
+    {
+      name: "reasonだけが残るlegacy Free契約制限",
+      state: {
+        kind: "restricted",
+        reason: "freeConditionsNotMet",
+        recoveryManagerPersonIds: [],
+        previousActiveShopIds: [],
+        restrictedAt: 10,
+      },
+      expected: "free",
+    },
+    {
+      name: "適用プランを確定できないlegacy契約制限",
+      state: {
+        kind: "restricted",
+        reason: "paymentGraceExpired",
+        previousPlan: "business",
+        recoveryManagerPersonIds: [],
+        previousActiveShopIds: [],
+        restrictedAt: 10,
+      },
+      expected: null,
+    },
+  ])("$nameの利用上限プランを$expectedとして解決する", ({ state, expected }) => {
+    expect(resolveUsageLimitPlan(state)).toBe(expected);
+  });
+});
+
+describe("organizationBilling/policy usage limit status", () => {
+  it("上限ちょうどは利用数・上限とともに上限内として返す", () => {
+    const usage = { peopleCount: 5, activeShopCount: 1, activeManagerCount: 2 };
+
+    expect(evaluateOrganizationUsageLimits({ plan: "free", usage })).toEqual({
+      kind: "withinLimits",
+      evaluatedPlan: "free",
+      usage,
+      limits: ORGANIZATION_PLAN_LIMITS.free,
+    });
+  });
+
+  it("複数の超過をkind・現在値・上限・超過数で正確に返す", () => {
+    const usage = { peopleCount: 23, activeShopCount: 7, activeManagerCount: 8 };
+
+    expect(evaluateOrganizationUsageLimits({ plan: "pro", usage })).toEqual({
+      kind: "overLimit",
+      evaluatedPlan: "pro",
+      usage,
+      limits: ORGANIZATION_PLAN_LIMITS.pro,
+      violations: [
+        { kind: "people", current: 23, max: 20, excess: 3 },
+        { kind: "activeShops", current: 7, max: 5, excess: 2 },
+        { kind: "activeManagers", current: 8, max: 5, excess: 3 },
+      ],
+    });
+  });
+});
+
+describe("organizationBilling/policy access policy", () => {
+  it("課金利用可能かつ上限内なら通常利用にする", () => {
+    const billingPolicy = deriveOrganizationBillingPolicy({ kind: "active", plan: "free" });
+    const usageLimitStatus = evaluateOrganizationUsageLimits({
+      plan: "free",
+      usage: { peopleCount: 5, activeShopCount: 1, activeManagerCount: 2 },
+    });
+
+    expect(deriveOrganizationAccessPolicy({ billingPolicy, usageLimitStatus })).toEqual({
+      billingPolicy,
+      usageLimitStatus,
+      accessMode: "normal",
+      canWriteBusinessData: true,
+      businessWriteBlockReason: null,
+    });
+  });
+
+  it("課金利用可能でも上限超過なら整理操作専用にする", () => {
+    const billingPolicy = deriveOrganizationBillingPolicy({ kind: "active", plan: "pro" });
+    const usageLimitStatus = evaluateOrganizationUsageLimits({
+      plan: "pro",
+      usage: { peopleCount: 21, activeShopCount: 5, activeManagerCount: 5 },
+    });
+
+    expect(deriveOrganizationAccessPolicy({ billingPolicy, usageLimitStatus })).toEqual({
+      billingPolicy,
+      usageLimitStatus,
+      accessMode: "limitRecoveryOnly",
+      canWriteBusinessData: false,
+      businessWriteBlockReason: "usageLimitExceeded",
+    });
+  });
+
+  it("boundedな利用数判定が確定できない場合もfail closedで整理操作専用にする", () => {
+    const billingPolicy = deriveOrganizationBillingPolicy({ kind: "active", plan: "free" });
+    const usageLimitStatus = {
+      kind: "unknown" as const,
+      evaluatedPlan: "free" as const,
+      observedUsage: { peopleCount: 1, activeShopCount: 1, activeManagerCount: 1 },
+      limits: ORGANIZATION_PLAN_LIMITS.free,
+      unknownDimensions: ["people" as const],
+      knownViolations: [],
+    };
+
+    expect(deriveOrganizationAccessPolicy({ billingPolicy, usageLimitStatus })).toEqual({
+      billingPolicy,
+      usageLimitStatus,
+      accessMode: "limitRecoveryOnly",
+      canWriteBusinessData: false,
+      businessWriteBlockReason: "usageLimitExceeded",
+    });
+  });
+
+  it("課金制限と上限超過が重なれば既存の課金復旧制限を優先する", () => {
+    const billingPolicy = deriveOrganizationBillingPolicy({
+      kind: "restricted",
+      reason: "planLimitExceeded",
+      limitPlan: "free",
+      recoveryManagerPersonIds: [],
+      previousActiveShopIds: [],
+      restrictedAt: 10,
+    });
+    const usageLimitStatus = evaluateOrganizationUsageLimits({
+      plan: "free",
+      usage: { peopleCount: 6, activeShopCount: 2, activeManagerCount: 3 },
+    });
+
+    expect(deriveOrganizationAccessPolicy({ billingPolicy, usageLimitStatus })).toEqual({
+      billingPolicy,
+      usageLimitStatus,
+      accessMode: "billingRecoveryOnly",
+      canWriteBusinessData: false,
+      businessWriteBlockReason: "restricted",
+    });
   });
 });
 

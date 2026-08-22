@@ -58,6 +58,26 @@ describe("buildConvexFunctionErrorPayload", () => {
 
   it("既知のConvexErrorだけを固定codeへ変換し、生messageを出力しない", () => {
     const known = buildConvexFunctionErrorPayload("query", new ConvexError("Not found"), {}, {});
+    const structuredKnown = buildConvexFunctionErrorPayload(
+      "mutation",
+      new ConvexError({
+        code: "USAGE_LIMIT_EXCEEDED",
+        message: "利用人数を減らしてください",
+        plan: "free",
+      }),
+      {},
+      {},
+    );
+    const unavailableUsageEvaluation = buildConvexFunctionErrorPayload(
+      "mutation",
+      new ConvexError({
+        code: "USAGE_LIMIT_EVALUATION_UNAVAILABLE",
+        message: "利用数を確認できません",
+        unknownDimensions: ["people"],
+      }),
+      {},
+      {},
+    );
     const unknown = buildConvexFunctionErrorPayload(
       "query",
       new ConvexError("secret@example.com を確認してください"),
@@ -66,6 +86,13 @@ describe("buildConvexFunctionErrorPayload", () => {
     );
 
     expect(known).toMatchObject({ failureKind: "domain", errorCode: "not_found" });
+    expect(structuredKnown).toMatchObject({ failureKind: "domain", errorCode: "usage_limit_exceeded" });
+    expect(unavailableUsageEvaluation).toMatchObject({
+      failureKind: "domain",
+      errorCode: "usage_limit_evaluation_unavailable",
+    });
+    expect(JSON.stringify(structuredKnown)).not.toContain("利用人数を減らしてください");
+    expect(JSON.stringify(unavailableUsageEvaluation)).not.toContain("利用数を確認できません");
     expect(unknown).toMatchObject({ failureKind: "domain", errorCode: "convex_error" });
     expect(JSON.stringify(unknown)).not.toContain("secret@example.com");
   });

@@ -7,19 +7,12 @@ import { Button } from "@/src/components/ui/Button";
 import { userAtom } from "@/src/stores/user";
 import { Header, type HeaderProps } from "./index";
 
-const createStoreWithUser = (
-  featureVisibility = {
-    organizationSettingsNavigation: true,
-    billing: true,
-    shopMembershipAddition: true,
-  },
-) => {
+const createStoreWithUser = () => {
   const store = createStore();
   store.set(userAtom, {
     authId: "test",
     name: "田中太郎",
     email: "tanaka@example.com",
-    featureVisibility,
   });
   return store;
 };
@@ -73,36 +66,6 @@ export const UserWithoutShopDeletionEntry: Story = {
     await expect(screen.queryByText("login@example.com")).toBeNull();
     await expect(screen.queryByText("tanaka@example.com")).toBeNull();
     await expect(screen.queryByRole("menuitem", { name: "店舗削除" })).toBeNull();
-    await userEvent.keyboard("{Escape}");
-  },
-};
-
-export const UserWithClosedFeatureState: Story = {
-  args: {
-    userActions: <UserMenu tone="light" />,
-  },
-  render: (args: HeaderProps) => (
-    <Provider
-      store={createStoreWithUser({
-        organizationSettingsNavigation: false,
-        billing: false,
-        shopMembershipAddition: false,
-      })}
-    >
-      <Header {...args} />
-    </Provider>
-  ),
-  parameters: {
-    screenshot: { skip: true },
-  },
-  play: async () => {
-    const screen = within(document.body);
-    const trigger = await screen.findByRole("button", { name: "ユーザーメニュー" });
-    await userEvent.click(trigger);
-
-    await expect(screen.queryByRole("menuitem", { name: "組織設定" })).toBeNull();
-    await screen.findByRole("menuitem", { name: "お問い合わせ" });
-    await screen.findByRole("menuitem", { name: "ログアウト" });
     await userEvent.keyboard("{Escape}");
   },
 };

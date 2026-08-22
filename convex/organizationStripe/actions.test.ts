@@ -118,25 +118,6 @@ describe("organizationStripe/actions", () => {
     vi.stubEnv("STRIPE_PRO_PRICE_ID", READY_TEST_CONFIGURATION.proPriceId);
     vi.stubEnv("STRIPE_BUSINESS_PRICE_ID", BUSINESS_PRICE_ID);
     vi.stubEnv("APP_URL", "https://app.example.test");
-    vi.stubEnv("FEATURE_BILLING", "true");
-  });
-
-  it("未リリースflagが閉じている場合は公開Actionをprovider・DB副作用なしで拒否する", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run((ctx) =>
-      seedOrganizationManagerShop(ctx, { subject: "stripe_feature_closed", plan: "pro" }),
-    );
-    vi.stubEnv("FEATURE_BILLING", "");
-
-    await expect(
-      invokeBillingActions(t.withIdentity({ subject: "stripe_feature_closed" }), ids.shopId),
-    ).resolves.toEqual([
-      { status: "unavailable", reason: "not_allowed" },
-      { status: "unavailable", reason: "not_allowed" },
-      { status: "unavailable", reason: "not_allowed" },
-    ]);
-    expect(providerFetchMock).not.toHaveBeenCalled();
-    await expectNoStripeSideEffects(t);
   });
 
   afterEach(() => {
@@ -2366,7 +2347,7 @@ describe("organizationStripe/actions", () => {
 
   it.each([
     { result: "paid", overProLimit: false, expectedKind: "active" },
-    { result: "paid", overProLimit: true, expectedKind: "restricted" },
+    { result: "paid", overProLimit: true, expectedKind: "active" },
     { result: "failed", overProLimit: false, expectedKind: "grace" },
   ] as const)(
     "Business→Pro期限時にprovider結果=$result・Pro超過=$overProLimitを検証して$expectedKindへ確定する",
@@ -2422,7 +2403,7 @@ describe("organizationStripe/actions", () => {
 
       const state = await paidPlanStripeState(t, ids.organizationId);
       expect(state.billing?.state.kind).toBe(expectedKind);
-      if (result === "paid" && !overProLimit) {
+      if (result === "paid") {
         expect(state.billing?.state).toEqual({ kind: "active", plan: "pro" });
         const notification = await t.run(async (ctx) =>
           (await ctx.db.system.query("_scheduled_functions").collect()).find(
@@ -2436,28 +2417,25 @@ describe("organizationStripe/actions", () => {
           amountDue: 1_480,
           currency: "jpy",
           effectiveAt: NOW,
+          ...(overProLimit ? { usageLimitExceeded: true } : {}),
         });
-      } else if (result === "paid") {
-        expect(state.billing?.state).toMatchObject({
-          kind: "restricted",
-          reason: "planLimitExceeded",
-          previousPlan: "business",
-          targetPlan: "pro",
-          limitPlan: "pro",
-        });
-        const notification = await t.run(async (ctx) =>
-          (await ctx.db.system.query("_scheduled_functions").collect()).find(
-            (job) =>
-              job.name === "organizationBilling/actions:enqueueBillingNotification" &&
-              job.args[0]?.event === "restrictedStarted",
-          ),
-        );
-        expect(notification?.args[0]?.notificationDetails).toEqual({
-          targetPlan: "pro",
-          amountDue: 1_480,
-          currency: "jpy",
-          effectiveAt: NOW,
-        });
+        if (overProLimit) {
+          expect(state.billing).toMatchObject({
+            businessNotificationCutoffVersion: 3,
+            version: 3,
+          });
+          const cancellation = await t.run(async (ctx) =>
+            (await ctx.db.system.query("_scheduled_functions").collect()).find(
+              (job) =>
+                job.name === "notificationOutbox/mutations:cancelOrganizationBusinessNotifications" &&
+                job.args[0]?.cutoffVersion === 3,
+            ),
+          );
+          expect(cancellation).toBeDefined();
+        } else {
+          expect(state.billing?.businessNotificationCutoffAt).toBeUndefined();
+          expect(state.billing?.businessNotificationCutoffVersion).toBeUndefined();
+        }
       } else {
         expect(state.billing?.state).toEqual({
           kind: "grace",
@@ -7669,7 +7647,7 @@ describe("organizationStripe/actions", () => {
     );
     expect(confirmed).toMatchObject({
       version: 4,
-      state: { kind: "restricted", previousPlan: "pro", reason: "scheduledCancellation" },
+      state: { kind: "active", plan: "free" },
     });
   });
 
@@ -7723,6 +7701,13 @@ describe("organizationStripe/actions", () => {
       terminalAt: NOW,
       latestInvoiceId: "in_open",
     });
+    const billing = await t.run((ctx) =>
+      ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+    );
+    expect(billing).toMatchObject({ version: 3, state: { kind: "active", plan: "free" } });
     expect(state.scheduled).toEqual([]);
 
     const updateCalls = providerCalls
@@ -7734,6 +7719,67 @@ describe("organizationStripe/actions", () => {
       ["in_draft", { auto_advance: false }, { idempotencyKey: `${invoiceOperation?.stripeIdempotencyKey}:in_draft` }],
       ["in_open", { auto_advance: false }, { idempotencyKey: `${invoiceOperation?.stripeIdempotencyKey}:in_open` }],
     ]);
+  });
+
+  it("猶予終了処理の取消直前に支払いを確認した場合は元の有料プランへ復旧する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedExpiredGraceStripeContext(t, "stripe_grace_late_paid");
+    await t.run(async (ctx) => {
+      await ctx.db.insert("organizationStripeOperations", {
+        organizationId: ids.organizationId,
+        kind: "reconcileSubscription",
+        requestKey: "grace-late-paid",
+        stripeIdempotencyKey: "test:grace-late-paid:reconcile",
+        livemode: false,
+        expectedBillingVersion: 2,
+        providerGeneration: 1,
+        status: "succeeded",
+        attemptCount: 1,
+        stripeObjectId: "sub_grace",
+        completedAt: NOW,
+        expiresAt: NOW + 60_000,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+    });
+    const providerCalls: string[] = [];
+    providerFetchMock.mockImplementation(async (input) => {
+      const resource = String(input).split("/").pop() ?? "";
+      providerCalls.push(resource);
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse({
+          ...stripeSubscription("past_due"),
+          status: "active",
+          latest_invoice: { ...stripeInvoice("in_paid"), status: "paid", amount_remaining: 0 },
+        });
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await expect(
+      t.action(internal.organizationStripe.actions.stopExpiredGraceCollection, {
+        organizationId: ids.organizationId,
+        expectedBillingVersion: 2,
+        requestId: "grace-late-paid",
+      }),
+    ).resolves.toBeNull();
+
+    const result = await t.run(async (ctx) => ({
+      billing: await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique(),
+      operations: await ctx.db
+        .query("organizationStripeOperations")
+        .withIndex("by_organizationId_and_status")
+        .collect(),
+    }));
+    expect(result.billing).toMatchObject({ version: 3, state: { kind: "active", plan: "pro" } });
+    expect(result.operations.map((operation) => [operation.kind, operation.status])).toEqual([
+      ["reconcileSubscription", "succeeded"],
+      ["cancelSubscription", "succeeded"],
+    ]);
+    expect(providerCalls).toEqual(["subscriptions.retrieve"]);
   });
 
   it("Stripe secretが猶予期限時に欠けてもoperationを再試行し、復旧後に回収停止する", async () => {

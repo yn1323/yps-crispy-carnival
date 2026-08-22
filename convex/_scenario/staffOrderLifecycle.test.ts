@@ -51,12 +51,10 @@ describe("スタッフ並び順のライフサイクルシナリオ", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
-    vi.stubEnv("FEATURE_SHOP_ADDITION", "true");
   });
 
   afterEach(() => {
     vi.useRealTimers();
-    vi.unstubAllEnvs();
   });
 
   it("組織順の有効化後も店舗所属の追加・解除と人物削除を同じ順位projectionへ反映する", async () => {

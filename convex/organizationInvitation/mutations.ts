@@ -8,12 +8,11 @@ import { getOrganizationInvitationSigningSecret } from "../_lib/config";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { authenticatedMutation, organizationMutation } from "../_lib/functions";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
-import { isReleaseFeatureEnabled, requireReleaseFeature } from "../_lib/releaseFeatures";
 import { generateUUID } from "../_lib/uuid";
 import { normalizeEmail, requiredEmailSchema } from "../_lib/validation";
 import { ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT } from "../constants";
 import { cancelOrganizationRecipientBusinessNotifications } from "../notificationOutbox/mutations";
-import { requireOrganizationActorForShop } from "../organization/access";
+import { requireOrganizationActorForShop, requireOrganizationReadActor } from "../organization/access";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import {
   getOrganizationBillingState,
@@ -23,7 +22,11 @@ import {
 import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import { syncActivatedOrganizationStaffOrder } from "../organization/staffOrder";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
-import { requireOrganizationBusinessWrite, requireOrganizationCapacity } from "../organizationBilling/service";
+import {
+  requireOrganizationBusinessWrite,
+  requireOrganizationBusinessWriteOrLimitRecoveryCapability,
+  requireOrganizationCapacity,
+} from "../organizationBilling/service";
 import { getActiveStaffInShop } from "../staff/service";
 import { getOrganizationInvitationExpiresAt } from "./constants";
 import {
@@ -311,7 +314,6 @@ async function createManagerInvitation(
     patchExistingTarget?: boolean;
   },
 ) {
-  requireReleaseFeature("managerInvitation");
   // 発行入口が増えても、public handlerと同じ組織の書き込み権限を共通処理で再確認する。
   const { organization, inviterMember } = args;
   let targetPerson = args.targetPerson;
@@ -862,7 +864,12 @@ async function revokeInvitationForActor(
   args: { invitationId: Id<"organizationInvitations">; requestId: string },
   actor: InvitationManagerActor,
 ) {
-  await requireOrganizationBusinessWrite(ctx, actor.organization._id);
+  if (actor.member.status !== "active") throw new ConvexError("Not found");
+  await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
+    organizationId: actor.organization._id,
+    personId: actor.person._id,
+    capability: "cancelManagerInvitation",
+  });
   const parsed = organizationInvitationRequestSchema.safeParse({ requestId: args.requestId });
   if (!parsed.success) throw new ConvexError("入力内容を確認してください。");
   const requestKey = await toAuditRequestKey(parsed.data.requestId);
@@ -937,15 +944,21 @@ export const revoke = authenticatedMutation({
   },
 });
 
-export const revokeForOrganization = organizationMutation({
-  args: { invitationId: v.id("organizationInvitations"), requestId: v.string() },
+export const revokeForOrganization = authenticatedMutation({
+  args: {
+    organizationId: v.id("organizations"),
+    invitationId: v.id("organizationInvitations"),
+    requestId: v.string(),
+  },
   returns: invitationMutationResultValidator,
-  handler: async (ctx, args) =>
-    await revokeInvitationForActor(ctx, args, {
-      organization: ctx.organization,
-      member: ctx.organizationMember,
-      person: ctx.organizationPerson,
-    }),
+  handler: async (ctx, args) => {
+    if (!ctx.user || ctx.user.isDeleted) throw new ConvexError("Not found");
+    const actor = await requireOrganizationReadActor(ctx, {
+      user: ctx.user,
+      organizationId: args.organizationId,
+    });
+    return await revokeInvitationForActor(ctx, args, actor);
+  },
 });
 
 async function resendInvitationForActor(
@@ -953,7 +966,6 @@ async function resendInvitationForActor(
   args: { invitationId: Id<"organizationInvitations">; requestId: string },
   actor: InvitationManagerActor,
 ) {
-  requireReleaseFeature("managerInvitation");
   const organization = actor.organization;
   const organizationMember = actor.member;
   await requireOrganizationBusinessWrite(ctx, organization._id);
@@ -1230,7 +1242,6 @@ export const prepareAcceptance = internalMutation({
   args: { token: v.string() },
   returns: prepareAcceptanceResultValidator,
   handler: async (ctx, { token }) => {
-    if (!isReleaseFeatureEnabled("managerInvitation")) return { status: "unavailable" as const };
     if (token.length !== 43) return { status: "invalid" as const };
 
     const actor = await resolveInvitationActor(ctx);
@@ -1320,7 +1331,6 @@ async function linkAccountWithToken(
     proof?: OrganizationInvitationAcceptanceProof;
   },
 ) {
-  if (!isReleaseFeatureEnabled("managerInvitation")) return { status: "unavailable" as const };
   if (args.token.length !== 43) return { status: "invalid" as const };
   const tokenDigest = await digestInvitationToken(args.token);
   if (options?.proof) {

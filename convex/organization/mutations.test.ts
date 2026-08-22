@@ -14,6 +14,7 @@ import {
   seedUser,
 } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { requireOrganizationBusinessWrite } from "../organizationBilling/service";
 import {
   applyAccountDeletionOrganizationDeparture,
   beginAccountDeletionOrganizationDeletion,
@@ -1528,6 +1529,111 @@ describe("organization person removal", () => {
     expect(state.member?.status).toBe("removed");
     expect(state.person?.status).toBe("active");
     expect(state.staff?.isDeleted).toBe(false);
+  });
+
+  it("Free上限超過は縮小操作ごとに自動解除され、課金stateを変更しない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "free_limit_recovery_actor",
+        plan: "free",
+      });
+      const excessShopId = await seedOrganizationShop(ctx, base.organizationId, "上限超過店舗");
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      return {
+        ...base,
+        excessShopId,
+        billingContract: { state: billingState.state, version: billingState.version },
+      };
+    });
+    const actor = t.withIdentity({ subject: "free_limit_recovery_actor" });
+    const readBillingContract = async () =>
+      await t.run(async (ctx) => {
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+          .unique();
+        if (!billingState) throw new Error("billing state not found");
+        return { state: billingState.state, version: billingState.version };
+      });
+    const requireBusinessWrite = async () =>
+      await t.run(async (ctx) => await requireOrganizationBusinessWrite(ctx, ids.organizationId));
+
+    await expect(requireBusinessWrite()).rejects.toMatchObject({
+      data: {
+        code: "USAGE_LIMIT_EXCEEDED",
+        violations: [{ kind: "activeShops", current: 2, max: 1, excess: 1 }],
+      },
+    });
+    await expect(
+      actor.mutation(api.organization.mutations.archiveShop, {
+        shopId: ids.excessShopId,
+        requestId: "free-limit-recovery-archive",
+      }),
+    ).resolves.toEqual({ shopId: ids.excessShopId, shopStatus: "archived", changed: true });
+    await expect(requireBusinessWrite()).resolves.toMatchObject({ entitlementPlan: "free" });
+    await expect(readBillingContract()).resolves.toEqual(ids.billingContract);
+
+    const people = await t.run(async (ctx) => {
+      const seeded = [];
+      for (let index = 1; index <= 5; index += 1) {
+        seeded.push(
+          await seedTargetPerson(ctx, {
+            base: ids,
+            subject: `free_limit_recovery_staff_${index}`,
+            shopIds: [ids.shopId],
+          }),
+        );
+      }
+      return seeded;
+    });
+    await expect(requireBusinessWrite()).rejects.toMatchObject({
+      data: {
+        code: "USAGE_LIMIT_EXCEEDED",
+        violations: [{ kind: "people", current: 6, max: 5, excess: 1 }],
+      },
+    });
+    await expect(
+      actor.mutation(api.organization.mutations.removePersonFromOrganization, {
+        shopId: ids.shopId,
+        personId: people[0].personId,
+        requestId: "free-limit-recovery-person",
+      }),
+    ).resolves.toEqual({ changed: true });
+    await expect(requireBusinessWrite()).resolves.toMatchObject({ entitlementPlan: "free" });
+    await expect(readBillingContract()).resolves.toEqual(ids.billingContract);
+
+    await t.run(async (ctx) => {
+      for (const person of people.slice(1, 3)) {
+        await ctx.db.insert("organizationMembers", {
+          organizationId: ids.organizationId,
+          personId: person.personId,
+          userId: person.userId,
+          status: "active",
+          createdAt: NOW,
+          updatedAt: NOW,
+        });
+      }
+    });
+    await expect(requireBusinessWrite()).rejects.toMatchObject({
+      data: {
+        code: "USAGE_LIMIT_EXCEEDED",
+        violations: [{ kind: "activeManagers", current: 3, max: 2, excess: 1 }],
+      },
+    });
+    await expect(
+      actor.mutation(api.organization.mutations.removeManagerRole, {
+        shopId: ids.shopId,
+        personId: people[1].personId,
+        requestId: "free-limit-recovery-manager",
+      }),
+    ).resolves.toEqual({ changed: true });
+    await expect(requireBusinessWrite()).resolves.toMatchObject({ entitlementPlan: "free" });
+    await expect(readBillingContract()).resolves.toEqual(ids.billingContract);
   });
 
   it("2人の管理者が互いの権限を同時に外してもOCCで必ず1人を残す", async () => {

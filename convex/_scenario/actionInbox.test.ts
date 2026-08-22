@@ -14,7 +14,6 @@ describe("組織の対応一覧シナリオ", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
   });
 
   afterEach(() => {

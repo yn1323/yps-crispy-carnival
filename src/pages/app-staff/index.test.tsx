@@ -62,7 +62,6 @@ vi.mock("@/src/components/features/OrganizationSettings", () => ({
     onAddStaff,
     canAddStaff,
     addStaffDisabledReason,
-    showManagerInvitation,
     onManageManagers,
   }: {
     people: Array<{ id: string; name: string }>;
@@ -81,7 +80,6 @@ vi.mock("@/src/components/features/OrganizationSettings", () => ({
     onAddStaff: () => void;
     canAddStaff: boolean;
     addStaffDisabledReason?: string;
-    showManagerInvitation: boolean;
     onManageManagers: () => void;
   }) => (
     <section>
@@ -113,11 +111,9 @@ vi.mock("@/src/components/features/OrganizationSettings", () => ({
       <button type="button" onClick={onAddStaff} disabled={!canAddStaff} title={addStaffDisabledReason}>
         スタッフを追加
       </button>
-      {showManagerInvitation && (
-        <button type="button" onClick={onManageManagers}>
-          管理者を設定
-        </button>
-      )}
+      <button type="button" onClick={onManageManagers}>
+        管理者を設定
+      </button>
     </section>
   ),
   useStaffOrderReorder: mocks.useStaffOrderReorder,
@@ -229,7 +225,6 @@ beforeEach(() => {
     maxPeople: 5,
     canAddStaff: true,
     canChangeStaffOrder: true,
-    features: { managerInvitation: true },
   };
   mocks.useQuery.mockImplementation((reference, args) => {
     if (reference === mocks.orderScopeQueryRef) return orderScopeResult;
@@ -565,24 +560,5 @@ describe("AppStaffRoutePage", () => {
     const orderHandle = screen.getByRole("button", { name: "全体の人物1の並び替え" }) as HTMLButtonElement;
     expect(orderHandle.disabled).toBe(true);
     expect(orderHandle.title).toBe("稼働中の店舗が5店舗を超えているため、並び順を変更できません。");
-  });
-
-  it("管理者招待が未公開なら管理者設定の入口を描画しない", () => {
-    summaryResult = {
-      totalCount: 12,
-      totalCountHasOverflow: false,
-      visibleCount: 1,
-      visibleCountHasOverflow: false,
-      maxPeople: 5,
-      canAddStaff: true,
-      canChangeStaffOrder: true,
-      features: { managerInvitation: false },
-    };
-
-    renderPage(
-      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,
-    );
-
-    expect(screen.queryByRole("button", { name: "管理者を設定" })).toBeNull();
   });
 });

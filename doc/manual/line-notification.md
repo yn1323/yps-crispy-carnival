@@ -54,12 +54,12 @@ LINE Login設定がない場合、通知メール内のLINE連携CTAは省略さ
 Messaging API設定がないまま既存連携先へのLINE送信を受け付けるとworkerが失敗し得るため、LINE機能を使うdeploymentでは4変数を一組で設定する。
 
 現在のrepository artifactは、通知、画面、Outboxで組織人物単位のcanonicalなLINE正本を常に読む。
-店舗追加と既存人物の複数店舗所属は`FEATURE_SHOP_ADDITION`で公開を制御し、未設定を含む`true`以外ではserver-sideで閉じる。
+店舗追加と既存人物の複数店舗所属も常時利用でき、組織境界、契約状態、プラン上限、OCCをserver-sideで確認する。
 
 ## 組織共通LINE連携artifactの反映
 
 既存の`staffLineAccounts`があるdeploymentへ、常時canonical readを含むartifactを反映するときは、次の順序を固定する。
-LINEのread authorityはruntime環境変数で旧readへ戻せないため、migration、readiness、旧非同期処理のdrainを反映前の停止条件として扱う。店舗追加と複数店舗所属の公開状態は別境界であり、`FEATURE_SHOP_ADDITION`を明示的に`true`へ設定したdeploymentだけでcanary対象に含める。
+LINEのread authorityはruntime環境変数で旧readへ戻せないため、migration、readiness、旧非同期処理のdrainを反映前の停止条件として扱う。店舗追加と複数店舗所属も、artifact反映後のcanary対象に含める。
 
 1. 対象artifactのSHAと完全修飾deployment名を記録し、変更前のexportまたはbackupを取得する。
 2. exportへ`pnpm convex:verify-line-common-readiness -- --path <export.zip>`を実行する。`ok: false`または`rolloutPath: blocked`なら停止する。
@@ -68,7 +68,7 @@ LINEのread authorityはruntime環境変数で旧readへ戻せないため、mig
 5. 実変換後はmigration componentのstatusと、export verifier、全ページのbounded readiness queryを別々に確認する。
 6. 旧token、旧scheduled caller、世代snapshotのない処理中LINE Outboxが0件になるまで、互換readとdual-writeを維持する。
 7. canonical不整合、`actionRequired` fan-out、旧非同期caller、互換Outboxがすべて0件であることを再確認する。1件でも残る場合はartifactを反映しない。
-8. 常時canonical readを含むartifactを反映し、通知、Webhook fan-out、Analytics、人物詳細、店舗詳細のcanary結果を記録する。`FEATURE_SHOP_ADDITION=true`のdeploymentでは、店舗追加と複数店舗所属も別途canaryし、公開フラグの状態と結果を記録する。
+8. 常時canonical readを含むartifactを反映し、通知、Webhook fan-out、Analytics、人物詳細、店舗詳細、店舗追加、複数店舗所属のcanary結果を記録する。
 
 専用backfillは固定migration seriesへ含まれない。
 対象deploymentを完全修飾し、次のrunnerだけを使う。

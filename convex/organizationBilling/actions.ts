@@ -5,7 +5,6 @@ import { internal } from "../_generated/api";
 import { getAppUrl, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { observedInternalAction as internalAction } from "../_lib/errorObservability";
-import { isReleaseFeatureEnabled } from "../_lib/releaseFeatures";
 import { buildOrganizationBillingEmailHtml } from "../notification/templates";
 import { emailPayload, enqueueEmail } from "../notificationOutbox/enqueue";
 import {
@@ -25,8 +24,6 @@ export const enqueueBillingNotification = internalAction({
   },
   returns: v.object({ enqueuedCount: v.number() }),
   handler: async (ctx, args) => {
-    if (!isReleaseFeatureEnabled("billing")) return { enqueuedCount: 0 };
-
     const data = await ctx.runQuery(internal.organizationBilling.queries.getNotificationData, {
       organizationId: args.organizationId,
       event: args.event,

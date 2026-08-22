@@ -68,12 +68,42 @@ export const Free: Story = {
       currentPlan: "free",
       peopleUsage: { current: 5, max: 5 },
       shopUsage: { current: 1, max: 1 },
-      managerUsage: { current: 1, max: 1 },
+      managerUsage: { current: 1, max: 2 },
       nextEvent: undefined,
       hasStripeCustomer: false,
       canUpdatePaymentMethod: false,
       canScheduleFree: false,
     },
+  },
+};
+
+export const FreeOverLimit: Story = {
+  name: "Free・上限超過",
+  args: {
+    billing: {
+      ...(Free.args?.billing as OrganizationBillingView),
+      peopleUsage: { current: 7, max: 5, pendingInvitations: 0 },
+      shopUsage: { current: 2, max: 1, pendingInvitations: 0 },
+      managerUsage: { current: 3, max: 2, pendingInvitations: 1 },
+      requiredReductions: { people: 2, shops: 1, managers: 1 },
+      blockedReason:
+        "現在のプランの利用上限を超えています。\n利用人数・稼働店舗・有効管理者を上限内まで減らすと、業務操作は自動的に再開されます。",
+      canManagePlan: true,
+    },
+  },
+};
+
+export const FreeOverLimitBehavior: Story = {
+  name: "Free・上限超過の表示と契約導線（操作確認）",
+  parameters: { screenshot: { skip: true } },
+  args: { ...FreeOverLimit.args, onManagePlan: fn() },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("heading", { name: "無料" })).toBeVisible();
+    await expect(canvas.getAllByText("上限超過").length).toBeGreaterThanOrEqual(1);
+    await expect(canvas.getByText("上限超過のため利用を制限しています")).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Proへ変更" }));
+    await expect(args.onManagePlan).toHaveBeenCalledWith("pro");
   },
 };
 
@@ -379,6 +409,13 @@ export const MobileRestricted: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: RestrictedForPro.args,
+};
+
+export const MobileFreeOverLimit: Story = {
+  name: "Free・上限超過・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: FreeOverLimit.args,
 };
 
 export const MobilePendingCheckoutOpen: Story = {

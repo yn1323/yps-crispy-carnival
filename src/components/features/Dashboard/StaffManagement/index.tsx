@@ -8,7 +8,6 @@ import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { DEFAULT_USER_LIST_COUNT, USER_LIST_PAGE_SIZE } from "@/src/lib/userListSearch";
 import { useManagerShopScope } from "@/src/providers/ManagerShopScopeProvider";
 import { selectedShopAtom } from "@/src/stores/shop";
-import { featureVisibilityAtom } from "@/src/stores/user";
 import type { PaginationStatus, Recruitment, Staff } from "../types";
 import { StaffManagementView } from "./StaffManagementView";
 import { useStaffInvitation } from "./useStaffInvitation";
@@ -62,7 +61,6 @@ export function StaffManagement({
 }: Props) {
   const selectedShop = useAtomValue(selectedShopAtom);
   const managerShopScope = useManagerShopScope();
-  const featureVisibility = useAtomValue(featureVisibilityAtom);
   const [visibleStaffCount, setVisibleStaffCount] = useState(initialVisibleUserCount);
   const staffOrderScope = useShopQuery(api.dashboard.queries.getDashboardStaffOrderScope, data ? "skip" : {});
   const orderRevision = staffOrderScope?.mode === "ordered" ? staffOrderScope.revision : null;
@@ -99,8 +97,7 @@ export function StaffManagement({
       }
     });
 
-  const showOrganizationPeopleAddition =
-    featureVisibility.shopMembershipAddition && (organizationShopCount === undefined || organizationShopCount > 1);
+  const showOrganizationPeopleAddition = organizationShopCount === undefined || organizationShopCount > 1;
   const invitation = useStaffInvitation(isReadOnly, showOrganizationPeopleAddition, onOpenBillingSettings);
   const lineConnection = useStaffLineConnection(isReadOnly);
   const profile = useStaffProfileManagement(staffs, { onResetDetail: lineConnection.reset, isReadOnly });

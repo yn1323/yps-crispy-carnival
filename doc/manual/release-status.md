@@ -12,9 +12,8 @@
 2026-08-15時点で、この文書へ必要な実環境証跡は登録されていません。
 次の状態はすべて**未確認**です。
 
-現在のrepository artifactは、通常の公開範囲を1組織、1店舗、1管理者、支払い不要Businessとし、複数組織、複数店舗、複数管理者、支払いを未設定時に閉じます。
-Playwright用Previewだけは対応する公開設定を明示的に有効化します。
-このrepository上の方針から、Productionのartifact、環境変数、migration、既存データの状態を確認済みとは判定しません。
+現在のrepository artifactは、追加組織、複数店舗、複数管理者、支払いを機能ごとの環境変数なしで提供します。
+このrepository上の方針から、Productionのartifact、migration、外部設定、既存データの状態を確認済みとは判定しません。
 
 | 確認対象 | 状態 | 最終確認日時 | 対象環境・deployment | 証跡 |
 |---|---|---|---|---|
@@ -26,9 +25,10 @@ Playwright用Previewだけは対応する公開設定を明示的に有効化し
 | LINE共通化のProduction export判定、m041の実行要否と完了、全ページreadiness | 未確認 | 未確認 | 未確認 | 未登録 |
 | LINE共通化の旧token・Outbox・scheduled callerのdrainと、常時canonical read artifactのProduction反映 | 未確認 | 未確認 | 未確認 | 未登録 |
 | `/dashboard`と`/account`の新shell、旧route削除を含むartifactのProduction反映とcanary | 未確認 | 未確認 | 未確認 | 未登録 |
-| `FEATURE_ORGANIZATION_CREATION`、`FEATURE_SHOP_ADDITION`、`FEATURE_MANAGER_INVITATION`、`FEATURE_BILLING`がProductionで閉じていること | 未確認 | 未確認 | 未確認 | 未登録 |
+| 追加組織、店舗追加、管理者招待、課金を常時公開するartifactのProduction反映と、各導線・server capabilityのcanary | 未確認 | 未確認 | 未確認 | 未登録 |
 | 新規Setupが1組織、1店舗、1管理者、`complimentary.business`を作り、Trial deadlineとStripe objectを作らないこと | 未確認 | 未確認 | 未確認 | 未登録 |
-| StripeのPro・Business公開設定、Price、明示された税区分、Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
+| 2か月無料・カード登録不要の公開文言と、初回Setupが2か月のTrialを作るbackend・利用規約契約の一致 | **要対応（backend・規約未整合）** | 2026-08-22 | Repository | 公開文言は更新済み。`convex/setup/mutations.ts`と対応する契約・テストは引き続き`complimentary.business`を作り、管理ユーザー向け利用規約と同意要求版も現行契約のまま |
+| StripeのPro・Business販売設定、Price、明示された税区分、Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | `/commercial-transactions`の事業者名、運営責任者、所在地、電話番号、Pro・Business販売価格の確定情報への置換 | **要対応（仮入力）** | 2026-08-13 | Repository | `src/components/features/CommercialTransactions/index.tsx`の`MANUAL_BUSINESS_DETAILS`と`MANUAL_SALES_PRICES` |
 | Resendの`email.delivered` Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Clerk、Cloudflare、Stripeのセキュリティ設定とprovider canary | 未確認 | 未確認 | 未確認 | 未登録 |
@@ -41,6 +41,8 @@ Playwright用Previewだけは対応する公開設定を明示的に有効化し
 
 `/commercial-transactions`は、仮入力を含む現状のままProductionへ公開しません。
 事業者名、運営責任者、番地まで含む所在地、確実に連絡できる電話番号、Pro・Businessの月額料金と税込・税別へ置換し、表示、連絡可能性、Stripe Priceとの一致を確認してから状態を更新します。
+
+2か月無料・カード登録不要の公開文言を含むartifactは、初回Setupが同じ2か月Trialを作るbackend契約と検証へ切り替わり、管理ユーザー向け利用規約の本文・文書版・同意要求版が同じ契約へ更新されるまでProductionへ公開しません。  静的UI、FAQ、metadata、料金ページの検証成功だけでは、この停止条件を解除しません。
 
 ## 記録に必要な情報
 
@@ -63,7 +65,7 @@ Playwright用Previewだけは対応する公開設定を明示的に有効化し
 常時canonical readを含むartifactをProductionへ反映する前は、対象Production exportの`convex:verify-line-common-readiness`結果、`migrations/index:runLineCommonLinkBackfill`の実行またはskip根拠、LINE共通化readiness全ページ、旧非同期callerのdrainを別々に記録します。
 artifactのProduction反映と反映後canaryも別の証跡とし、ローカルテストやrepository実装から完了を推測しません。
 
-認証済み新routeを公開する前は、対象artifactのSHA、`/dashboard`と`/account`のcanary、旧routeが互換redirectなしで404になること、四つの公開設定の実値を別々に記録します。
+認証済みrouteをProductionへ反映する前は、対象artifactのSHA、`/dashboard`と`/account`のcanary、旧routeが互換redirectなしで404になることを別々に記録します。  組織作成、店舗追加、管理者招待、課金は同じartifactの通常経路として確認し、環境変数による公開状態とは分けません。
 初回Setupの確認は新規作成documentだけを対象とし、既存データのmigration完了証跡には流用しません。
 
 ## 確認記録の様式

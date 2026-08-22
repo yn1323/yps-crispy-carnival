@@ -11,9 +11,15 @@ import {
 import { getLegalDocumentsForAudience } from "../legal/documents";
 import { hasCurrentStaffLegalConsent } from "../legal/service";
 import { staffLegalDocumentsValidator } from "../legal/validators";
+import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 
 type ExistingRequest = { date: string; startTime: string; endTime: string; optionId?: string };
-type SubmissionUnavailableReason = "invalid_link" | "recruitment_deleted" | "submission_closed";
+type SubmissionUnavailableReason =
+  | "invalid_link"
+  | "recruitment_deleted"
+  | "submission_closed"
+  | "usage_limit_exceeded"
+  | "usage_limit_evaluation_unavailable";
 
 const existingRequestValidator = v.object({
   date: v.string(),
@@ -106,7 +112,13 @@ export const getSubmissionPageData = staffSessionQuery({
   returns: v.union(
     v.object({
       status: v.literal("unavailable"),
-      reason: v.union(v.literal("invalid_link"), v.literal("recruitment_deleted"), v.literal("submission_closed")),
+      reason: v.union(
+        v.literal("invalid_link"),
+        v.literal("recruitment_deleted"),
+        v.literal("submission_closed"),
+        v.literal("usage_limit_exceeded"),
+        v.literal("usage_limit_evaluation_unavailable"),
+      ),
     }),
     v.object({ status: v.literal("ok"), data: submissionPageDataValidator }),
   ),
@@ -127,6 +139,15 @@ export const getSubmissionPageData = staffSessionQuery({
     const now = Date.now();
     if (now >= getSubmitLinkCutoff(recruitment.periodStart)) {
       return unavailable("submission_closed");
+    }
+    const organizationAccess = ctx.shop.organizationId
+      ? await getOrganizationAccessPolicy(ctx, ctx.shop.organizationId)
+      : null;
+    if (organizationAccess?.usageLimitStatus?.kind === "overLimit") {
+      return unavailable("usage_limit_exceeded");
+    }
+    if (organizationAccess?.usageLimitStatus?.kind === "unknown") {
+      return unavailable("usage_limit_evaluation_unavailable");
     }
 
     const isBeforeDeadline = now < getDeadlineCutoff(recruitment.deadline);

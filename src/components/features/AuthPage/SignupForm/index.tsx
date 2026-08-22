@@ -68,7 +68,7 @@ export function SignupForm({
     <Stack as="form" gap={5} onSubmit={handleSubmit(onSubmit)}>
       <Stack gap={2} bg="gray.50" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={4} py={3}>
         <Text color="gray.800" textStyle="sm" lineHeight="1.8">
-          初回登録で作る最初の組織には、支払い不要のBusinessが適用されます。2ヶ月のトライアル期限や支払い情報の登録はありません。
+          初回登録から2か月は、クレジットカードを登録せず無料で試せます。
         </Text>
         <Link
           href="/pricing"

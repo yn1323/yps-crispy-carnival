@@ -8,7 +8,7 @@ export function buildHomePageHead() {
       ...buildMeta({
         title: "LINEでシフト希望を集めるシフト管理｜シフトリ",
         description:
-          "LINEやメールのリンクから、スタッフはアプリ登録なしでシフト希望を提出できます。\n初回登録は1組織・1店舗・1管理者の支払い不要Businessで、支払い情報を登録せずに始められます。",
+          "LINEやメールのリンクから、スタッフはアプリ登録なしでシフト希望を提出できます。\n複数店舗・複数担当者に対応し、2か月無料・クレジットカード登録不要で始められます。",
         canonical: "/",
       }),
       ...jsonLdMeta(createLandingFaqPageJsonLd()),

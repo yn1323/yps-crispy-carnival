@@ -40,14 +40,6 @@ vi.mock("@/convex/_generated/api", () => ({
   },
 }));
 
-vi.mock("jotai", () => ({
-  useAtomValue: () => ({ billing: true }),
-}));
-
-vi.mock("@/src/stores/user", () => ({
-  featureVisibilityAtom: Symbol("featureVisibilityAtom"),
-}));
-
 vi.mock("@/src/hooks/useShopQuery", () => ({ useShopQuery: mocks.useShopQuery }));
 
 vi.mock("@/src/components/features/Dashboard", () => ({
@@ -348,6 +340,46 @@ describe("DashboardRoutePage", () => {
 
     expect(screen.getByText("この店舗は閲覧のみです")).not.toBeNull();
     expect(screen.getByRole("region", { name: "接続済みホーム" }).getAttribute("data-read-only")).toBe("true");
+  });
+
+  it("プラン上限超過中はDashboardの業務操作を無効化して整理またはプラン変更を案内する", () => {
+    mocks.useShopQuery.mockReturnValue({
+      ...shop,
+      canWriteBusinessData: false,
+      businessWriteBlockReason: "usageLimitExceeded",
+      usageLimitStatus: {
+        kind: "overLimit",
+        evaluatedPlan: "free",
+        violations: [{ kind: "people", current: 6, max: 5, excess: 1 }],
+      },
+    });
+
+    renderPage();
+
+    expect(screen.getByRole("region", { name: "接続済みホーム" }).getAttribute("data-read-only")).toBe("true");
+    expect(screen.getByText(/プラン上限を超過しているため、業務操作を一時的に制限しています。/)).not.toBeNull();
+    expect(screen.getByText(/利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。/)).not.toBeNull();
+  });
+
+  it("利用上限を評価できない場合は上限超過と断定せず、整理操作と問い合わせを案内する", () => {
+    mocks.useShopQuery.mockReturnValue({
+      ...shop,
+      canWriteBusinessData: false,
+      businessWriteBlockReason: "usageLimitEvaluationUnavailable",
+      usageLimitStatus: {
+        kind: "unknown",
+        evaluatedPlan: "pro",
+      },
+    });
+
+    renderPage();
+
+    expect(screen.getByRole("region", { name: "接続済みホーム" }).getAttribute("data-read-only")).toBe("true");
+    expect(screen.getByText("利用状況を確認してください")).not.toBeNull();
+    expect(screen.getByText(/現在の利用人数・店舗・管理者数がプラン上限内か安全に確認できないため/)).not.toBeNull();
+    expect(screen.queryByText(/プラン上限を超過/)).toBeNull();
+    expect(screen.getByRole("link", { name: "管理を開く" })).not.toBeNull();
+    expect(screen.getByText(/サポートへお問い合わせください。/)).not.toBeNull();
   });
 
   it("Dashboardからの主要遷移へorganization scopeを引き継ぐ", () => {

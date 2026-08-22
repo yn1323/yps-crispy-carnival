@@ -2,7 +2,6 @@ import type { PaginationOptions } from "convex/server";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
-import { getReleaseFeatureVisibility } from "../_lib/config";
 import { organizationQuery } from "../_lib/functions";
 import { getOrganizationDeletionEligibility } from "../organization/deletion";
 import {
@@ -13,7 +12,7 @@ import {
   managerCandidatesValidator,
   managerSettingsOverviewValidator,
 } from "../organization/queries";
-import { getOrganizationBillingState, getOrganizationUsageSnapshot } from "../organization/service";
+import { getOrganizationUsageSnapshot } from "../organization/service";
 import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import {
   deriveOrganizationBillingPolicy,
@@ -21,6 +20,7 @@ import {
   ORGANIZATION_PLAN_LIMITS,
   resolveRestrictedLimitPlan,
 } from "../organizationBilling/policy";
+import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { getOrganizationCreationAvailability } from "../setup/service";
 
 const MAX_PAGE_SIZE = 50;
@@ -68,12 +68,6 @@ const manageOverviewValidator = v.object({
     planSuspended: v.number(),
     hasOverflow: v.boolean(),
   }),
-  features: v.object({
-    organizationCreation: v.boolean(),
-    shopAddition: v.boolean(),
-    managerInvitation: v.boolean(),
-    billing: v.boolean(),
-  }),
   capabilities: v.object({
     canUpdateOrganizationName: v.boolean(),
     updateOrganizationNameDisabledReason: v.optional(v.string()),
@@ -115,42 +109,43 @@ export const getManageOverview = organizationQuery({
   handler: async (ctx) => {
     const memberStatus = ctx.organizationMember.status;
     if (memberStatus !== "active" && memberStatus !== "readOnly") throw new ConvexError("Not found");
-    const [billingState, usage, creationAvailability, activeShops, archivedShops, planSuspendedShops] =
-      await Promise.all([
-        getOrganizationBillingState(ctx, ctx.organization._id),
-        getOrganizationUsageSnapshot(ctx, ctx.organization._id),
-        getOrganizationCreationAvailability(ctx, ctx.user),
-        ctx.db
-          .query("shops")
-          .withIndex("by_organizationId_and_operatingStatus", (q) =>
-            q.eq("organizationId", ctx.organization._id).eq("operatingStatus", "active"),
-          )
-          .filter((q) => q.eq(q.field("isDeleted"), false))
-          .take(SHOP_COUNT_LIMIT + 1),
-        ctx.db
-          .query("shops")
-          .withIndex("by_organizationId_and_operatingStatus", (q) =>
-            q.eq("organizationId", ctx.organization._id).eq("operatingStatus", "archived"),
-          )
-          .filter((q) => q.eq(q.field("isDeleted"), false))
-          .take(SHOP_COUNT_LIMIT + 1),
-        ctx.db
-          .query("shops")
-          .withIndex("by_organizationId_and_operatingStatus", (q) =>
-            q.eq("organizationId", ctx.organization._id).eq("operatingStatus", "planSuspended"),
-          )
-          .filter((q) => q.eq(q.field("isDeleted"), false))
-          .take(SHOP_COUNT_LIMIT + 1),
-      ]);
+    const [access, usage, creationAvailability, activeShops, archivedShops, planSuspendedShops] = await Promise.all([
+      getOrganizationAccessPolicy(ctx, ctx.organization._id),
+      getOrganizationUsageSnapshot(ctx, ctx.organization._id),
+      getOrganizationCreationAvailability(ctx, ctx.user),
+      ctx.db
+        .query("shops")
+        .withIndex("by_organizationId_and_operatingStatus", (q) =>
+          q.eq("organizationId", ctx.organization._id).eq("operatingStatus", "active"),
+        )
+        .filter((q) => q.eq(q.field("isDeleted"), false))
+        .take(SHOP_COUNT_LIMIT + 1),
+      ctx.db
+        .query("shops")
+        .withIndex("by_organizationId_and_operatingStatus", (q) =>
+          q.eq("organizationId", ctx.organization._id).eq("operatingStatus", "archived"),
+        )
+        .filter((q) => q.eq(q.field("isDeleted"), false))
+        .take(SHOP_COUNT_LIMIT + 1),
+      ctx.db
+        .query("shops")
+        .withIndex("by_organizationId_and_operatingStatus", (q) =>
+          q.eq("organizationId", ctx.organization._id).eq("operatingStatus", "planSuspended"),
+        )
+        .filter((q) => q.eq(q.field("isDeleted"), false))
+        .take(SHOP_COUNT_LIMIT + 1),
+    ]);
+    const billingState = access?.billingState ?? null;
     const policy = billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
     const restrictedState = billingState ? getEffectiveRestrictedBillingState(billingState.state) : null;
     const limitPlan = restrictedState ? resolveRestrictedLimitPlan(restrictedState) : null;
     const limits = limitPlan ? ORGANIZATION_PLAN_LIMITS[limitPlan] : policy?.limits;
     const isActiveActor = memberStatus === "active";
-    const features = getReleaseFeatureVisibility();
+    // billing state欠損中はm025 rolling migration互換としてserver guardと同じくfail-openにする。
+    const canWriteBusinessData = access?.canWriteBusinessData ?? true;
     const canAddShop = Boolean(
-      features.shopAddition &&
-        isActiveActor &&
+      isActiveActor &&
+        canWriteBusinessData &&
         policy?.canUsePaidFeatures &&
         limits &&
         usage.activeShopCount < limits.maxActiveShops,
@@ -177,21 +172,26 @@ export const getManageOverview = organizationQuery({
           archivedShops.length > SHOP_COUNT_LIMIT ||
           planSuspendedShops.length > SHOP_COUNT_LIMIT,
       },
-      features,
       capabilities: {
-        canUpdateOrganizationName: isActiveActor,
-        ...(!isActiveActor
-          ? { updateOrganizationNameDisabledReason: "閲覧のみの管理者は、組織名を変更できません。" }
+        canUpdateOrganizationName: isActiveActor && canWriteBusinessData,
+        ...(!(isActiveActor && canWriteBusinessData)
+          ? {
+              updateOrganizationNameDisabledReason: !isActiveActor
+                ? "閲覧のみの管理者は、組織名を変更できません。"
+                : access?.businessWriteBlockReason === "usageLimitExceeded"
+                  ? "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。"
+                  : "現在の契約状態では、組織名を変更できません。",
+            }
           : {}),
         canAddShop,
         ...(!canAddShop
           ? {
               addShopDisabledReason: !isActiveActor
                 ? "閲覧のみの管理者は、店舗を追加できません。"
-                : !features.shopAddition
-                  ? "この機能は現在利用できません。"
-                  : !billingState
-                    ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
+                : !billingState
+                  ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
+                  : access?.businessWriteBlockReason === "usageLimitExceeded"
+                    ? "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。"
                     : restrictedState
                       ? "契約制限中は、店舗を追加できません。"
                       : policy?.paidFeatureBlockReason === "freePlan"
@@ -211,14 +211,12 @@ export const getManageOverview = organizationQuery({
                   : deletionEligibility.reason,
             }
           : {}),
-        canCreateOrganization: features.organizationCreation && isActiveActor && creationAvailability.canCreate,
-        ...(!features.organizationCreation
-          ? { createOrganizationDisabledReason: "この機能は現在利用できません。" }
-          : !isActiveActor
-            ? { createOrganizationDisabledReason: "閲覧のみの権限では、別の組織を作成できません。" }
-            : !creationAvailability.canCreate
-              ? { createOrganizationDisabledReason: creationAvailability.reason }
-              : {}),
+        canCreateOrganization: isActiveActor && creationAvailability.canCreate,
+        ...(!isActiveActor
+          ? { createOrganizationDisabledReason: "閲覧のみの権限では、別の組織を作成できません。" }
+          : !creationAvailability.canCreate
+            ? { createOrganizationDisabledReason: creationAvailability.reason }
+            : {}),
       },
     };
   },
@@ -237,7 +235,7 @@ function projectManageUsage(
     currentPlan: manageCurrentPlan(billingState),
     ...(limitPlan ? { limitPlan } : {}),
     peopleUsage: {
-      current: usage.projectedPersonCount,
+      current: usage.personCount,
       max: limits?.maxPeople ?? 0,
       pendingInvitations: usage.reservedSeatCount,
     },
@@ -247,7 +245,7 @@ function projectManageUsage(
       pendingInvitations: 0,
     },
     managerUsage: {
-      current: usage.projectedActiveManagerCount,
+      current: usage.activeManagerCount,
       max: limits?.maxActiveManagers ?? 0,
       pendingInvitations: usage.pendingManagerInvitationCount,
     },

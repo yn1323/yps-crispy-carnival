@@ -7,7 +7,6 @@ import {
   createOrganizationShopStaffMembershipFingerprint,
   ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT,
   organizationShopOperatingStatus,
-  requireReleasedMultiShopMembershipAddition,
 } from "../organization/shopMembershipChange";
 import { requireOrganizationCapacity } from "../organizationBilling/service";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
@@ -464,13 +463,6 @@ export async function prepareOrganizationPeopleForStaffAddition(
       if (otherMembershipShops.some((shop) => !shop || shop.organizationId !== args.organizationId)) {
         throw new ConvexError("ユーザーの店舗所属を確認できません。\n画面を更新して、もう一度お試しください。");
       }
-      const activeOtherShopCount = otherMembershipShops.filter(
-        (shop) => shop && !shop.isDeleted && organizationShopOperatingStatus(shop.operatingStatus) === "active",
-      ).length;
-      requireReleasedMultiShopMembershipAddition({
-        addedActiveMembershipCount: 1,
-        finalActiveMembershipCount: activeOtherShopCount + 1,
-      });
       addsPersonToUsage =
         person.status === "removed" ||
         (staffRows.length === 0 && !managerMemberships.some((membership) => membership.status === "active"));

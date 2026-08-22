@@ -15,7 +15,6 @@ import { UserSummary } from "./UserSummary";
 
 export type UserDetailViewProps = {
   data: UserDetailData;
-  showShopMembershipAddition: boolean;
   nonNavigationActionsDisabled?: boolean;
   activePanel?: UserDetailPanel;
   state: {
@@ -55,7 +54,6 @@ export type UserDetailViewProps = {
 
 export function UserDetailView({
   data,
-  showShopMembershipAddition,
   nonNavigationActionsDisabled = false,
   activePanel,
   state,
@@ -104,28 +102,22 @@ export function UserDetailView({
           <Text as="h2" fontSize="md" fontWeight="semibold" color="gray.900">
             {data.person.name}の所属店舗
           </Text>
-          {showShopMembershipAddition && (
-            <Button
-              type="button"
-              variant="ghost"
-              colorPalette="teal"
-              size="sm"
-              gap={1.5}
-              fontWeight="semibold"
-              disabled={!data.canWrite || state.membership.isChanging || nonNavigationActionsDisabled}
-              onClick={actions.onOpenAddShop}
-            >
-              <LuPencil aria-hidden />
-              所属店舗を変更する
-            </Button>
-          )}
+          <Button
+            type="button"
+            variant="ghost"
+            colorPalette="teal"
+            size="sm"
+            gap={1.5}
+            fontWeight="semibold"
+            disabled={!data.canWrite || state.membership.isChanging || nonNavigationActionsDisabled}
+            onClick={actions.onOpenAddShop}
+          >
+            <LuPencil aria-hidden />
+            所属店舗を変更する
+          </Button>
         </Flex>
         <Box p={{ base: 3, md: 4 }}>
-          <UserShopMembershipList
-            data={data}
-            showShopMembershipAddition={showShopMembershipAddition}
-            onOpenShop={actions.onOpenShop}
-          />
+          <UserShopMembershipList data={data} onOpenShop={actions.onOpenShop} />
         </Box>
       </Box>
 
@@ -170,16 +162,14 @@ export function UserDetailView({
         onDisconnect={actions.onDisconnectLine}
       />
 
-      {showShopMembershipAddition && (
-        <UserShopMembershipDialog
-          data={data}
-          isOpen={activePanel === "addShop"}
-          isChanging={state.membership.isChanging}
-          onOpenChange={handleDialogOpenChange}
-          onClose={actions.onClosePanel}
-          onChangeMemberships={actions.onChangeMemberships}
-        />
-      )}
+      <UserShopMembershipDialog
+        data={data}
+        isOpen={activePanel === "addShop"}
+        isChanging={state.membership.isChanging}
+        onOpenChange={handleDialogOpenChange}
+        onClose={actions.onClosePanel}
+        onChangeMemberships={actions.onChangeMemberships}
+      />
     </Stack>
   );
 }

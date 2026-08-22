@@ -5,7 +5,11 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { requireOrganizationReadActor } from "../organization/access";
 import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
-import { requireOrganizationBusinessWrite } from "../organizationBilling/service";
+import {
+  type LimitRecoveryCapability,
+  requireOrganizationBusinessWrite,
+  requireOrganizationBusinessWriteOrLimitRecoveryCapability,
+} from "../organizationBilling/service";
 import { isShiftTargetStaff } from "../staff/service";
 import {
   observedMutation as mutation,
@@ -363,47 +367,77 @@ export const managerQuery = customQuery(query, {
   },
 });
 
+type ManagerMutationScope = {
+  shopId?: Id<"shops">;
+  expectedOrganizationId?: Id<"organizations">;
+};
+
+async function resolveManagerMutationInput(
+  ctx: MutationCtx,
+  { shopId, expectedOrganizationId }: ManagerMutationScope,
+  limitRecoveryCapability?: LimitRecoveryCapability,
+): Promise<{ ctx: ManagerMutationCtx; args: Record<string, never> }> {
+  registerConvexFunctionErrorContext(ctx, {
+    ...(shopId ? { requestedShopId: shopId } : {}),
+    ...(expectedOrganizationId ? { requestedExpectedOrganizationId: expectedOrganizationId } : {}),
+  });
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    throw new ConvexError("Unauthenticated");
+  }
+  const user = await getUserByIdentity(ctx, identity, "mutation");
+  if (user) registerConvexFunctionErrorContext(ctx, { actorKind: "manager", actorUserId: user._id });
+  const access = user && !user.isDeleted ? await resolveShopForUser(ctx, user, shopId, "mutation") : null;
+  if (!user || user.isDeleted || !access) {
+    throw new ConvexError("Not found");
+  }
+  if (
+    expectedOrganizationId &&
+    (access.organization?._id !== expectedOrganizationId || access.organizationMember === null)
+  ) {
+    throw new ConvexError("Not found");
+  }
+  if (access.organization) {
+    if (limitRecoveryCapability && access.organizationMember) {
+      await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
+        organizationId: access.organization._id,
+        personId: access.organizationMember.personId,
+        capability: limitRecoveryCapability,
+      });
+    } else {
+      await requireOrganizationBusinessWrite(ctx, access.organization._id);
+    }
+  }
+  registerConvexFunctionErrorContext(ctx, {
+    shopId: access.shop._id,
+    ...(access.organization ? { organizationId: access.organization._id } : {}),
+    ...(access.organizationMember ? { actorPersonId: access.organizationMember.personId } : {}),
+  });
+  return { ctx: { user, ...access }, args: {} };
+}
+
 export const managerMutation = customMutation(mutation, {
   // optional は旧フロントとの段階リリース互換。現行フロントは必ず shopId を指定する。
   args: {
     shopId: v.optional(v.id("shops")),
     expectedOrganizationId: v.optional(v.id("organizations")),
   },
-  input: async (
-    ctx,
-    { shopId, expectedOrganizationId },
-  ): Promise<{ ctx: ManagerMutationCtx; args: Record<string, never> }> => {
-    registerConvexFunctionErrorContext(ctx, {
-      ...(shopId ? { requestedShopId: shopId } : {}),
-      ...(expectedOrganizationId ? { requestedExpectedOrganizationId: expectedOrganizationId } : {}),
-    });
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new ConvexError("Unauthenticated");
-    }
-    const user = await getUserByIdentity(ctx, identity, "mutation");
-    if (user) registerConvexFunctionErrorContext(ctx, { actorKind: "manager", actorUserId: user._id });
-    const access = user && !user.isDeleted ? await resolveShopForUser(ctx, user, shopId, "mutation") : null;
-    if (!user || user.isDeleted || !access) {
-      throw new ConvexError("Not found");
-    }
-    if (
-      expectedOrganizationId &&
-      (access.organization?._id !== expectedOrganizationId || access.organizationMember === null)
-    ) {
-      throw new ConvexError("Not found");
-    }
-    if (access.organization) {
-      await requireOrganizationBusinessWrite(ctx, access.organization._id);
-    }
-    registerConvexFunctionErrorContext(ctx, {
-      shopId: access.shop._id,
-      ...(access.organization ? { organizationId: access.organization._id } : {}),
-      ...(access.organizationMember ? { actorPersonId: access.organizationMember.personId } : {}),
-    });
-    return { ctx: { user, ...access }, args: {} };
-  },
+  input: async (ctx, scope) => await resolveManagerMutationInput(ctx, scope),
 });
+
+/**
+ * 利用上限の超過・評価不能中でも、利用量を増やさない指定済みの整理操作だけを許可する。
+ * canonical organization memberを解決できない旧shopMembership経路は、通常writeの互換判定へ閉じる。
+ */
+export function managerLimitRecoveryMutation(capability: LimitRecoveryCapability) {
+  return customMutation(mutation, {
+    args: {
+      shopId: v.optional(v.id("shops")),
+      expectedOrganizationId: v.optional(v.id("organizations")),
+    },
+    input: async (ctx, scope) => await resolveManagerMutationInput(ctx, scope, capability),
+  });
+}
 
 // ========================================
 // スタッフセッション認証（マジックリンク経由）

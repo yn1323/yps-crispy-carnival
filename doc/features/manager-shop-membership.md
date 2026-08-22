@@ -3,9 +3,8 @@
 この文書名は既存リンクを維持するために残している。
 現在の組織所属と店舗選択は[組織課金、複数店舗、複数管理者](organization-billing.md)を参照する。
 
-通常の公開範囲は1組織、1店舗、1管理者である。
-複数組織、複数店舗、複数管理者の実装と移行互換は将来の再公開に備えて保持するが、公開設定は未設定時に閉じ、通常の画面とpublic mutationから利用できない。
-既存E2E契約は、専用deploymentで公開設定を明示的に有効化して検証する。
+複数組織、複数店舗、複数管理者は通常の画面とpublic mutationから利用できる。
+既存E2E契約は、専用Preview deploymentで認証、組織境界、上限、招待token lifecycleを検証する。
 
 ## 現行仕様
 
@@ -20,7 +19,7 @@
 - `getMyShops`は利用可能な店舗を組織名、店舗状態、所属状態付きで返し、`removed`になった人物へ当該組織の店舗を返さない。
 - `/dashboard`は`org`で検証した一つの組織だけを表示し、`shop`はその組織のactive店舗から選ぶ。  URLで有効な店舗、現在組織の保存済みhint、active店舗の先頭の順に解決し、名称や人物情報はbrowser storageへ保存しない。
 - `/manage`と`/manage/organization`は、検証済みの`org`を組織authorityとして使う。  組織全体のread/writeに先頭店舗やHome店舗を要求せず、canonicalな組織所属がない利用者を旧`shopMembers`だけで通さない。
-- 管理者一覧、管理者招待、課金画面は未公開である。  direct accessでは情報を描画せず管理画面へ戻し、招待と課金のpublic mutation/actionも副作用前に公開設定を再確認する。
+- 管理者一覧、管理者招待、課金画面は認証済み管理者へ公開する。  direct accessとpublic mutation/actionは同じ認証、組織境界、管理者状態、契約状態をserver-sideで確認する。
 - `/dashboard`の店舗query・mutationは、画面で解決した`shopId`と`expectedOrganizationId`を同時に渡す。  URLと保存済み店舗を認可根拠にせず、管理者APIが店舗所属と組織所属の一致を再検証する。
 - `/dashboard`でactive店舗がない場合は、店舗作成を自動開始せず管理画面への回復導線を表示する。組織または店舗の切替中は、旧店舗のquery結果と開いていたDialogを次のscopeへ持ち越さない。
 - URL指定がない場合は、有効な保存済み店舗、`getMyShops`の先頭候補の順で自動決定し、URLを正規化する。

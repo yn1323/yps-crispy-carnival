@@ -120,83 +120,6 @@ describe("organizationInvitation/mutations", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-16T12:00:00+09:00"));
     vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", SIGNING_SECRET);
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
-  });
-
-  it("未リリースflagが閉じている場合は発行を副作用なしで拒否する", async () => {
-    const t = convexTest(schema, modules);
-    const manager = await t.run((ctx) =>
-      seedOrganizationManagerShop(ctx, { subject: "invitation_feature_closed", plan: "business" }),
-    );
-    const readProtectedState = () =>
-      t.run(async (ctx) => ({
-        invitations: await ctx.db.query("organizationInvitations").collect(),
-        audits: await ctx.db.query("organizationAuditEvents").collect(),
-        rateLimits: await ctx.db.query("rateLimits").collect(),
-        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-      }));
-    const before = await readProtectedState();
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
-
-    await expect(
-      t.withIdentity({ subject: "invitation_feature_closed" }).mutation(api.organizationInvitation.mutations.issue, {
-        shopId: manager.shopId,
-        recipient: { kind: "external", invitedName: "閉鎖中の招待", email: "closed@example.test" },
-        requestId: "invitation-feature-closed",
-      }),
-    ).rejects.toThrow("この機能は現在利用できません。");
-    const token = "x".repeat(43);
-    await expect(t.query(api.organizationInvitation.queries.getPreview, { token })).resolves.toEqual({
-      status: "unavailable",
-    });
-    await expect(
-      t
-        .withIdentity({ subject: "invitation_feature_closed" })
-        .mutation(api.organizationInvitation.mutations.linkAccount, {
-          token,
-        }),
-    ).resolves.toEqual({ status: "unavailable" });
-    await expect(t.action(api.organizationInvitation.acceptanceActions.accept, { token })).resolves.toEqual({
-      status: "unavailable",
-      retryable: false,
-    });
-
-    expect(await readProtectedState()).toEqual(before);
-  });
-
-  it("flagを閉じた後は発行済み招待の配送ActionもOutboxを作らない", async () => {
-    const t = convexTest(schema, modules);
-    const manager = await t.run((ctx) =>
-      seedOrganizationManagerShop(ctx, { subject: "invitation_delivery_feature_closed", plan: "business" }),
-    );
-    const issued = await t
-      .withIdentity({ subject: "invitation_delivery_feature_closed" })
-      .mutation(api.organizationInvitation.mutations.issue, {
-        shopId: manager.shopId,
-        recipient: { kind: "external", invitedName: "配送停止対象", email: "delivery-closed@example.test" },
-        requestId: "invitation-delivery-before-close",
-      });
-    const invitation = await t.run((ctx) => ctx.db.get(issued.invitationId));
-    if (!invitation) throw new Error("invitation not found");
-    const before = await t.run(async (ctx) => ({
-      outbox: await ctx.db.query("notificationOutbox").collect(),
-      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-    }));
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
-
-    await expect(
-      t.action(internal.organizationInvitation.actions.enqueueManagerInvitation, {
-        invitationId: invitation._id,
-        expectedVersion: invitation.version,
-      }),
-    ).resolves.toEqual({ enqueued: false });
-
-    expect(
-      await t.run(async (ctx) => ({
-        outbox: await ctx.db.query("notificationOutbox").collect(),
-        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-      })),
-    ).toEqual(before);
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -229,6 +152,56 @@ describe("organizationInvitation/mutations", () => {
         requestId: "app-manager-revoke",
       }),
     ).resolves.toMatchObject({ invitationId: resent.invitationId, status: "revoked" });
+  });
+
+  it("active.freeの実利用人数超過中も未承認の管理者招待を取り消せる", async () => {
+    const t = convexTest(schema, modules);
+    const manager = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "over_limit_invitation_revoke_owner", plan: "free" }),
+    );
+    const owner = t.withIdentity({ subject: "over_limit_invitation_revoke_owner" });
+    const invitation = await owner.mutation(api.organizationInvitation.mutations.issueForOrganization, {
+      organizationId: manager.organizationId,
+      recipient: { kind: "external", invitedName: "招待中の管理者", email: "over-limit-invite@example.com" },
+      requestId: "over-limit-invite-seed",
+    });
+    const billingStateBefore = await t.run((ctx) =>
+      ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", manager.organizationId))
+        .unique(),
+    );
+
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 5; index += 1) {
+        await seedActiveOrganizationStaff(ctx, {
+          organizationId: manager.organizationId,
+          shopId: manager.shopId,
+          subject: `over_limit_invitation_staff_${index}`,
+        });
+      }
+    });
+
+    await expect(
+      owner.mutation(api.organizationInvitation.mutations.revokeForOrganization, {
+        organizationId: manager.organizationId,
+        invitationId: invitation.invitationId,
+        requestId: "over-limit-invite-revoke",
+      }),
+    ).resolves.toMatchObject({ invitationId: invitation.invitationId, status: "revoked" });
+
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", manager.organizationId))
+          .unique(),
+      ),
+    ).toEqual(billingStateBefore);
+    expect(await t.run((ctx) => ctx.db.get(invitation.invitationId))).toMatchObject({
+      status: "revoked",
+      reservedSeat: false,
+    });
   });
 
   it.each(["issue", "resend", "revoke"] as const)(

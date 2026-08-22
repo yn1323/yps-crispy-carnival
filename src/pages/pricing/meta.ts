@@ -14,9 +14,9 @@ export function buildPricingPageHead() {
     links: buildLinks({ canonical: "/pricing" }),
     meta: [
       ...buildMeta({
-        title: "料金・プラン｜支払い登録なしで始めるBusiness",
+        title: "料金・プラン｜2か月無料・カード登録不要",
         description:
-          "シフトリの初回登録は、1組織・1店舗・1管理者の支払い不要Businessです。支払い情報を登録せずに始められる範囲を確認できます。",
+          "シフトリは2か月無料・クレジットカード登録不要で始められます。無料トライアル、複数店舗・複数管理者、Free・Pro・Businessの利用条件を確認できます。",
         canonical: "/pricing",
       }),
       ...jsonLdMeta(pricingBreadcrumbJsonLd),

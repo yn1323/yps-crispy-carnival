@@ -45,6 +45,18 @@ export const MobileReadOnly: Story = {
   ),
 };
 
+export const MobileUsageEvaluationUnavailable: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  render: () => (
+    <DashboardReadOnlyNotice
+      organizationId={"organization-preview" as never}
+      memberStatus="active"
+      businessWriteBlockReason="usageLimitEvaluationUnavailable"
+    />
+  ),
+};
+
 function EmptyManagementBehaviorPreview() {
   const [opened, setOpened] = useState(false);
 

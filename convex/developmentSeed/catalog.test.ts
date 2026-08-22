@@ -26,7 +26,7 @@ describe("development seed catalog", () => {
 
   it("CLIとdeployment backendを削除前に照合する固定契約を持つ", () => {
     expect(DEVELOPMENT_SEED_CONTRACT_VERSION).toBe("development-seed-v1");
-    expect(DEVELOPMENT_SEED_CONTRACT_FINGERPRINT).toBe("40f3c160");
+    expect(DEVELOPMENT_SEED_CONTRACT_FINGERPRINT).toBe("b005d0bb");
     expect(DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT).toBe(66);
   });
 
@@ -45,10 +45,10 @@ describe("development seed catalog", () => {
     expect(new Set(DEVELOPMENT_SEED_SCENARIO_KEYS).size).toBe(9);
   });
 
-  it("解約予約とBusinessからProへの利用条件制限を現行billing stateで表す", () => {
+  it("解約予約とBusinessからPro適用後の上限超過を現行billing stateで表す", () => {
     const now = Date.parse("2026-08-20T00:00:00.000Z");
     const scheduled = DEVELOPMENT_SEED_SCENARIOS.find((scenario) => scenario.key === "pro-scheduled-change");
-    const restricted = DEVELOPMENT_SEED_SCENARIOS.find((scenario) => scenario.key === "policy-restricted");
+    const overLimit = DEVELOPMENT_SEED_SCENARIOS.find((scenario) => scenario.key === "policy-restricted");
 
     expect(scheduled?.billingState(now)).toEqual({
       kind: "scheduledChange",
@@ -57,16 +57,7 @@ describe("development seed catalog", () => {
       effectiveAt: now + 14 * 24 * 60 * 60 * 1000,
       restrictAtPeriodEnd: true,
     });
-    expect(restricted?.billingState(now)).toEqual({
-      kind: "restricted",
-      reason: "planLimitExceeded",
-      previousPlan: "business",
-      targetPlan: "pro",
-      limitPlan: "pro",
-      recoveryManagerPersonIds: [],
-      previousActiveShopIds: [],
-      restrictedAt: now - 24 * 60 * 60 * 1000,
-    });
+    expect(overLimit?.billingState()).toEqual({ kind: "active", plan: "pro" });
   });
 
   it("主要unionの全値をseedまたは理由付き対象外へ分類する", () => {

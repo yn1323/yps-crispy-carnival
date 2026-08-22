@@ -6,7 +6,6 @@ import { MembershipRemovalImpact } from "@/src/components/shared/MembershipRemov
 import { Button } from "@/src/components/ui/Button";
 import { CheckboxListCard, CheckboxListCardItem } from "@/src/components/ui/CheckboxListCard";
 import { Dialog, DialogActionArea } from "@/src/components/ui/Dialog";
-import { getVisibleShopStaffMembershipPeople } from "./script";
 import type { ShopDetailData, ShopStaffMembershipChangeInput, ShopStaffMembershipData } from "./types";
 import {
   buildShopStaffRemovalPreviewKey,
@@ -20,7 +19,6 @@ type ShopId = NonNullable<ShopStaffMembershipChangeInput["shopId"]>;
 
 type MembershipSession = {
   shopId: string;
-  isShopAdditionEnabled: boolean;
   people: ShopStaffMembershipData["people"];
   preservedStaffs: ShopStaffMembershipData["preservedStaffs"];
   initialSelectedPersonIds: MembershipPerson["personId"][];
@@ -48,7 +46,6 @@ type DialogProps = {
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;
   controller: ShopStaffMembershipDialogController;
-  isShopAdditionEnabled: boolean;
 };
 
 export function ConnectedShopStaffMembershipDialog({
@@ -57,14 +54,12 @@ export function ConnectedShopStaffMembershipDialog({
   isOpen,
   onOpenChange,
   onClose,
-  isShopAdditionEnabled,
 }: {
   shop: ShopDetailData;
   expectedOrganizationId?: Id<"organizations">;
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;
-  isShopAdditionEnabled: boolean;
 }) {
   const controller = useShopStaffMembershipController({
     shopId: shop.id as ShopId,
@@ -81,7 +76,6 @@ export function ConnectedShopStaffMembershipDialog({
       onOpenChange={onOpenChange}
       onClose={onClose}
       controller={controller}
-      isShopAdditionEnabled={isShopAdditionEnabled}
     />
   );
 }
@@ -93,7 +87,6 @@ export function ShopStaffMembershipDialog({
   onOpenChange,
   onClose,
   controller,
-  isShopAdditionEnabled,
 }: DialogProps) {
   const [session, setSession] = useState<MembershipSession | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -104,10 +97,10 @@ export function ShopStaffMembershipDialog({
       setSession(null);
       return;
     }
-    if (controller.data && (session?.shopId !== shopId || session?.isShopAdditionEnabled !== isShopAdditionEnabled)) {
-      setSession(createSession(shopId, controller.data, isShopAdditionEnabled));
+    if (controller.data && session?.shopId !== shopId) {
+      setSession(createSession(shopId, controller.data));
     }
-  }, [controller.data, isOpen, isShopAdditionEnabled, session?.isShopAdditionEnabled, session?.shopId, shopId]);
+  }, [controller.data, isOpen, session?.shopId, shopId]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -543,18 +536,13 @@ export function ShopStaffMembershipDialogError({
   );
 }
 
-function createSession(
-  shopId: string,
-  data: ShopStaffMembershipData,
-  isShopAdditionEnabled: boolean,
-): MembershipSession {
-  const people = getVisibleShopStaffMembershipPeople(data.people, isShopAdditionEnabled).map((person) => ({
+function createSession(shopId: string, data: ShopStaffMembershipData): MembershipSession {
+  const people = data.people.map((person) => ({
     ...person,
     otherShopNames: [...person.otherShopNames],
   }));
   return {
     shopId,
-    isShopAdditionEnabled,
     people,
     preservedStaffs: data.preservedStaffs.map((staff) => ({ ...staff })),
     initialSelectedPersonIds: people.flatMap((person) => (person.isSelected ? [person.personId] : [])),

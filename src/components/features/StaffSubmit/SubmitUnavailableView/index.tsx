@@ -26,6 +26,20 @@ const PRESENTATION = {
     description: "変更したい日がある場合は、シフト作成担当者に連絡してください。",
     tone: "neutral" as const,
   },
+  usage_limit_exceeded: {
+    icon: LuTriangleAlert,
+    title: "現在のプランでは提出できません",
+    description:
+      "利用人数・店舗・管理者がプランの上限を超えています。管理者に、利用状況の整理またはプラン変更を依頼してください。",
+    tone: "warning" as const,
+  },
+  usage_limit_evaluation_unavailable: {
+    icon: LuTriangleAlert,
+    title: "現在、希望シフトを提出できません",
+    description:
+      "利用数を安全に確認できないため、提出を一時的に制限しています。管理者に、利用人数・店舗・管理者の確認を依頼してください。",
+    tone: "warning" as const,
+  },
 } satisfies Record<
   StaffLinkUnavailableReason,
   {

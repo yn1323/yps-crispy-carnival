@@ -27,6 +27,7 @@ export const organizationBillingNotificationDetailsValidator = v.object({
   currency: v.optional(v.string()),
   effectiveAt: v.optional(v.number()),
   restrictAtPeriodEnd: v.optional(v.literal(true)),
+  usageLimitExceeded: v.optional(v.literal(true)),
   restrictionReason: v.optional(
     v.union(
       v.literal("trialEndedWithoutSubscription"),
@@ -69,6 +70,7 @@ export type OrganizationBillingNotificationDetails = {
   currency?: string;
   effectiveAt?: number;
   restrictAtPeriodEnd?: true;
+  usageLimitExceeded?: true;
   restrictionReason?:
     | "trialEndedWithoutSubscription"
     | "scheduledCancellation"
@@ -101,12 +103,13 @@ export function organizationBillingNotificationCopy(
           ? [
               `トライアルは${trialEndsAtLabel}に終了します。`,
               `選択済みの契約プランは${selectedPlanLabel}です。\n初回請求は${trialEndsAtLabel}を予定しています。`,
-              `継続を取り消す場合の期限は${trialEndsAtLabel}です。\n取り消すと、トライアル終了後は利用停止になります。`,
+              `継続を取り消す場合の期限は${trialEndsAtLabel}です。\n取り消すと、トライアル終了後は無料プランへ変更されます。`,
+              "無料プランの利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。",
             ]
           : [
               `トライアルは${trialEndsAtLabel}に終了します。\n有料プランはまだ契約されていません。`,
-              "有料プランを契約しない場合、トライアル終了後は利用停止になります。\n店舗・ユーザー・過去のシフトは削除されません。",
-              "利用を再開するには、組織設定からProまたはBusinessを契約してください。",
+              "有料プランを契約しない場合、トライアル終了後は無料プランへ変更されます。\n店舗・ユーザー・過去のシフトは削除されません。",
+              "無料プランの利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。\nProまたはBusinessへ変更することもできます。",
             ],
       };
     }
@@ -119,15 +122,19 @@ export function organizationBillingNotificationCopy(
           "支払い結果が確定すると、組織設定に反映されます。",
         ],
       };
-    case "freeApplied":
+    case "freeApplied": {
+      const paragraphs = [
+        "無料プランへ変更しました。\n店舗・ユーザー・過去のシフトは削除されません。",
+        details?.usageLimitExceeded
+          ? overLimitParagraph("無料")
+          : "無料プランの範囲内で引き続き利用できます。\n現在の利用状況は組織設定で確認できます。",
+      ];
       return {
-        subject: "無料へ変更しました",
-        heading: "無料へ変更しました",
-        paragraphs: [
-          "選択した管理者と店舗を残して、無料プランへ変更しました。\n店舗・ユーザー・過去のシフトは削除されません。",
-          "閲覧のみになった管理者と利用停止中の店舗は、組織設定から確認できます。",
-        ],
+        subject: "無料プランへ変更しました",
+        heading: "無料プランへ変更しました",
+        paragraphs,
       };
+    }
     case "scheduledChange": {
       if (details?.restrictAtPeriodEnd) {
         const effectiveAtLabel = details.effectiveAt
@@ -138,7 +145,8 @@ export function organizationBillingNotificationCopy(
           heading: "解約を受け付けました",
           paragraphs: [
             `${effectiveAtLabel}をもって解約します。\nそれまでは現在の有料プランを利用できます。`,
-            "解約後は契約制限中になります。\n店舗・ユーザー・過去のシフトは削除されません。\n再開するには有料プランを契約してください。",
+            "解約後は無料プランへ変更されます。\n店舗・ユーザー・過去のシフトは削除されません。",
+            "無料プランの利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。",
           ],
         };
       }
@@ -151,7 +159,7 @@ export function organizationBillingNotificationCopy(
         heading: `${targetPlanLabel}への変更を予約しました`,
         paragraphs: [
           `${effectiveAtLabel}に${targetPlanLabel}へ変更します。\nそれまでは現在の有料プランを利用できます。`,
-          "適用時に、利用人数・店舗数・管理者数をもう一度確認します。",
+          `変更後に${targetPlanLabel}の利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。`,
         ],
       };
     }
@@ -184,7 +192,9 @@ export function organizationBillingNotificationCopy(
           billingSummary
             ? `支払い結果を確認し、${targetPlanLabel}を開始しました。\n${billingSummary}`
             : `支払い結果を確認し、${targetPlanLabel}を開始しました。`,
-          "現在の利用状況は組織設定で確認できます。",
+          details?.usageLimitExceeded
+            ? overLimitParagraph(targetPlanLabel)
+            : "現在の利用状況は組織設定で確認できます。",
         ],
       };
     }
@@ -204,6 +214,7 @@ export function organizationBillingNotificationCopy(
         paragraphs: [
           "支払いを確認できなかったため、有料プランを開始できませんでした。",
           "無料プランを継続しています。\n支払い方法を確認してから、もう一度手続きしてください。",
+          ...(details?.usageLimitExceeded ? [overLimitParagraph("無料")] : []),
         ],
       };
     case "paidActivationFailedProContinued":
@@ -238,7 +249,8 @@ export function organizationBillingNotificationCopy(
         subject: "支払い猶予の終了まで3日です",
         heading: "支払い猶予の終了まで3日です",
         paragraphs: [
-          "未払いのまま猶予期間が終了すると、業務操作が停止され、契約制限中になります。",
+          "未払いのまま猶予期間が終了すると、無料プランへ変更されます。",
+          "無料プランの利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。",
           "組織設定から支払い方法を確認してください。",
         ],
       };
@@ -287,7 +299,7 @@ export function organizationBillingNotificationCopy(
         targetPlanLabel
           ? `支払い結果を確認し、${targetPlanLabel}の契約を復旧しました。`
           : "支払い結果を確認し、確認済みの管理者と店舗で業務を再開しました。",
-        targetPlanLabel ? "確認済みの管理者と店舗で業務を再開しました。" : "",
+        targetPlanLabel && !details?.usageLimitExceeded ? "確認済みの管理者と店舗で業務を再開しました。" : "",
         billingSummary,
       ]
         .filter(Boolean)
@@ -295,7 +307,11 @@ export function organizationBillingNotificationCopy(
       return {
         subject: "契約を復旧しました",
         heading: "契約を復旧しました",
-        paragraphs: [recoverySummary, "契約制限中に送信されなかった通知は、自動では再送されません。"],
+        paragraphs: [
+          recoverySummary,
+          ...(details?.usageLimitExceeded && targetPlanLabel ? [overLimitParagraph(targetPlanLabel)] : []),
+          "契約制限中に送信されなかった通知は、自動では再送されません。",
+        ],
       };
     }
     case "billingEmailChanged":
@@ -313,6 +329,10 @@ function planLabel(plan: "free" | "pro" | "business") {
   if (plan === "free") return "無料";
   if (plan === "pro") return "Pro";
   return "Business";
+}
+
+function overLimitParagraph(plan: string) {
+  return `${plan}プランの利用上限を超えているため、現在は利用人数・稼働店舗・有効管理者を減らす操作と、契約・利用終了に必要な操作だけ利用できます。\n上限内になると、業務操作は自動的に再開されます。`;
 }
 
 function formatBillingSummary(details?: OrganizationBillingNotificationDetails) {

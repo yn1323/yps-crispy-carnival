@@ -16,10 +16,10 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 | 作業 | 参照する節 |
 |---|---|
 | 実環境での完了条件と作業前確認 | [完了の判定](#完了の判定)、[作業前の共通確認](#作業前の共通確認) |
-| 未リリース機能の公開制御 | [公開状態](#公開状態) |
+| repository artifactとProduction反映の境界 | [公開状態](#公開状態) |
 | Stripeの環境変数、Price、Portal、Webhook設定 | [Stripeの設定](#stripeの設定) |
 | Trial期限を開発用に短縮 | [Trial期限の開発用設定](#trial期限の開発用設定) |
-| 解約と旧Free予約の境界確認 | [解約とgrandfathered契約](#解約とgrandfathered契約) |
+| 下位プランへの移行と旧shapeの互換確認 | [下位active planへの移行とrolling互換](#下位active-planへの移行とrolling互換) |
 | Webhook、operation、対応不整合の日常確認 | [日常probe](#日常probe) |
 | m021の履歴確認とNarrow deploy前ゲート | [m021の履歴とNarrow deploy前確認](#m021の履歴とnarrow-deploy前確認) |
 | 新規販売の停止と支払い不要プランのP0 | [販売停止](#販売停止) |
@@ -54,31 +54,11 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 
 ## 公開状態
 
-現在のrepository artifactは、複数組織、複数店舗、複数管理者、支払いを未リリース機能として扱う。
-Frontendの非表示だけでなく、Convex public mutationとactionも次の公開フラグをserver-sideで確認し、未設定を含む`true`以外の値では副作用前に拒否する。
+現在のrepository artifactは、複数組織、複数店舗、複数管理者、支払いを機能ごとの環境変数なしで提供する。  初回Setupは所属0件の本人だけが1組織、1店舗、1管理者を作成し、追加組織はFreeで開始する。
 
-- `FEATURE_ORGANIZATION_CREATION`
-- `FEATURE_BILLING`
-- `FEATURE_MANAGER_INVITATION`
-- `FEATURE_SHOP_ADDITION`
+公開判断はFeature Flagではなく、対象artifactの反映とcanaryで行う。  操作可否は認証・所属、契約状態、プラン上限、Stripe設定、rate limit、冪等性をサーバー側で判定する。  Productionへの反映状況はrepositoryから推測せず、[リリース状態](release-status.md)で証跡がある項目だけを確認済みとする。
 
-値は前後の空白と大小文字を正規化したうえで、`true`だけを有効として扱う。
-初回Setupは追加組織の公開フラグに依存せず、所属0件の本人だけが1組織、1店舗、1管理者を作成できる。
-
-Playwright用Previewでは既存E2E契約を実行するため4フラグを明示的に`true`へ設定する。
-Productionの現在値はrepositoryから推測せず、[リリース状態](release-status.md)で証跡がある項目だけを確認済みとする。
-
-未リリース状態へ閉じる場合は、対象projectと完全修飾deployment名を確認してから各キーを削除する。
-
-```bash
-pnpm exec convex env remove --deployment <fully-qualified-deployment> FEATURE_ORGANIZATION_CREATION
-pnpm exec convex env remove --deployment <fully-qualified-deployment> FEATURE_BILLING
-pnpm exec convex env remove --deployment <fully-qualified-deployment> FEATURE_MANAGER_INVITATION
-pnpm exec convex env remove --deployment <fully-qualified-deployment> FEATURE_SHOP_ADDITION
-```
-
-作業後は`env list --names-only`でキーの不存在だけを確認し、対象deployment、commit、確認日時、結果を[リリース状態](release-status.md)へ記録する。
-値そのものをログや証跡へ残さない。
+旧Feature Flagがdeploymentに残っていても現在のartifactは参照しない。  環境変数の整理を行う場合も、対象projectと完全修飾deployment名を確認し、値そのものをログや証跡へ残さない。
 
 ## Stripeの設定
 
@@ -170,7 +150,7 @@ canaryの成功を確認するまで販売可能と判定しない。
 
 ## Trial期限の開発用設定
 
-開発deploymentでは、公開設定を明示した追加組織作成で`calculateTrialEndsAt`が決める期限を、次の環境変数で短縮できる。所属0件からの初回Setupは支払い不要Businessを作るため、この設定の対象外である。
+開発deploymentでは、追加組織作成で`calculateTrialEndsAt`が決める期限を、次の環境変数で短縮できる。  所属0件からの初回Setupは支払い不要Businessを作るため、この設定の対象外である。
 
 | 変数 | 用途 |
 |---|---|
@@ -202,30 +182,42 @@ pnpm exec convex env remove --deployment <fully-qualified-deployment> DEBUG_TRIA
 対象を引数で固定できない`pnpm convex:env:setup`では設定せず、Dashboardまたは完全修飾deployment名を指定したCLIを使う。
 作業後は`env list --names-only`でキーの有無だけを確認し、値をログや証跡へ残さない。
 
-## 解約とgrandfathered契約
+## 下位active planへの移行とrolling互換
 
-新しい有料契約の終了は、Free変更ではなく期間末の解約として扱う。
-アプリで予約を受け付けた時点では契約を終了せず、Stripeの`cancel_at_period_end`とローカルの変更予約が対応していることを確認する。
+未契約または継続予約取消済みのTrialが終了した場合は、管理者、店舗、人物、スタッフ所属、シフトを維持したまま`active.free`へ移行する。
+有料契約の解約確定、支払い猶予終了、Stripe上の想定外解約でも、Stripe上の契約終了を確認した後に`active.free`へ移行する。
+BusinessからProへの期間末変更では、Stripe上のphase移行と支払い結果を確認した後に`active.pro`へ移行する。
+`pendingActivation`で有料化しない結果が確定した場合は、`fallback`が示す`active.free`または`active.pro`へ移行する。
+Stripe上の結果確認が必要な遷移を、ローカルの期限だけで確定しない。
+Trial、解約、支払い猶予、想定外解約から`active.free`へ移行するときは、契約終了時点の未承認招待を失効させる。
 
-解約予約には`restrictAtPeriodEnd: true`を保存する。
-期間末のprovider確認後は`scheduledCancellation`を理由とする契約制限中へ移り、組織、店舗、人物、スタッフ所属、シフトを保持する。
+新しい解約予約には`restrictAtPeriodEnd: true`を保存する。
+予約を受け付けた時点では契約を終了せず、Stripeの`cancel_at_period_end`とローカルの変更予約が対応していることを確認する。
 期間末前の取消では、Stripeの`cancel_at_period_end`が解除されたことと、ローカル状態が元の有料プランへ戻ったことを照合する。
 
 次の保存状態は経過措置として維持する。
 
 | 保存状態 | 運用上の扱い |
 |---|---|
-| `active.free` | grandfathered Freeとして継続し、一括変更しない |
+| `active.free` | Freeとして継続し、一括変更しない |
 | `complimentary.business` | 支払い不要Businessとして継続し、Stripe objectを作らない |
-| `scheduledChange.targetPlan: "free"`かつ`restrictAtPeriodEnd`なし | deployment前の旧Free変更予約として、従来のFree判定へ収束させる |
-| `scheduledChange.targetPlan: "free"`かつ`restrictAtPeriodEnd: true` | 新しい解約予約として、provider確認後に契約制限中へ移す |
+| `scheduledChange.targetPlan: "free"`かつ`restrictAtPeriodEnd`なし | deployment前の旧Free変更予約として、Stripe上の期間末終了確認後に`active.free`へ収束させる |
+| `scheduledChange.targetPlan: "free"`かつ`restrictAtPeriodEnd: true` | 新しい解約予約として、Stripe上の期間末終了確認後に`active.free`へ収束させる |
 
-markerなしの旧予約へ`restrictAtPeriodEnd`を後付けしない。
-後付けすると、利用者が予約したFree移行を契約制限へ変更してしまう。
-逆に、新しい解約予約からmarkerを除かない。
+markerなしの旧予約へ`restrictAtPeriodEnd`を後付けせず、新しい解約予約からmarkerを除かない。
+どちらの予約でも、保存済みの管理者や店舗を自動で削減せず、Free成立の事前条件にも使わない。
 
-`setFreeSelection`はmarkerなしの旧Free予約と、`trialFreeConditionsNotMet`または`freeConditionsNotMet`を理由とする旧制限状態だけで使う。
-Trial終了、`trialEndedWithoutSubscription`、新しい解約、`scheduledCancellation`へFree選択を適用しない。
+上限状態は、未承認の管理者招待を除く実際の利用人数、稼働店舗数、有効管理者数と、保存済みの現在プランから導出する。
+上限超過と利用上限評価不能は課金状態として保存しない。
+上限超過または利用上限評価不能の間は、閲覧、人物削除、管理者権限解除、店舗のアーカイブと削除、招待取消、課金と請求先変更、組織とアカウントの終了に必要な操作だけを許可する。
+通常業務、スタッフの希望シフト提出、業務メール、LINE、provider連携を含む外部通知は停止する。
+業務通知は、Outbox投入後もprovider送信直前に現在の利用上限状態を再評価する。
+実利用数が上限内へ戻ると、課金状態や上限フラグの更新なしで通常利用へ戻る。
+
+Productionには旧`restricted`と`pendingActivation.fallback: "restricted"`の保存データがないため、この契約変更にmigration、backfill、migration readiness gateは不要である。
+旧shapeは、新旧versionが共存するrolling deploy中のschemaとread互換だけに残し、新しい状態遷移から作成しない。
+`setFreeSelection`はdeployment前の旧Free変更予約に対するrolling API互換だけに残し、新しいTrial、解約、プラン変更からは呼び出さない。
+共存期間の終了後に、旧shapeと専用分岐をNarrowで削除する。
 
 状態を手動patchして収束させない。
 不一致がある場合は、対象組織、billing version、変更予約のmarker、Stripe Subscriptionの`cancel_at_period_end`と期間終了日時、関連operationとWebhookを読み取りで照合し、provider再照合またはforward repairを選ぶ。

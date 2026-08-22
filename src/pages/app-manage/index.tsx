@@ -2,7 +2,7 @@ import { Alert, Box, Flex, Grid, Heading, HStack, Icon, Skeleton, Stack, Text } 
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { usePaginatedQuery, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { LuBuilding2, LuCreditCard, LuPencil, LuPlus, LuRefreshCw, LuSettings, LuShieldCheck } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -36,7 +36,6 @@ import { OrganizationUsageSectionSkeleton } from "@/src/components/features/Orga
 import { ShopManagementDialog } from "@/src/components/features/OrganizationSettings/ShopManagement/ShopManagementDialog";
 import { useShopManagementController } from "@/src/components/features/OrganizationSettings/ShopManagement/useShopManagementController";
 import { DeletionActionSectionSkeleton } from "@/src/components/shared/DeletionActionSection";
-import { showErrorToast } from "@/src/components/shared/feedback";
 import { Animation } from "@/src/components/templates/Animation";
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 import { Button } from "@/src/components/ui/Button";
@@ -44,7 +43,6 @@ import { DetailPageHeader, DetailPageHeaderSkeleton } from "@/src/components/ui/
 import { DrilldownRow } from "@/src/components/ui/DrilldownRow";
 import { Empty } from "@/src/components/ui/Empty";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
-import { normalizeOrganizationSettingsFeatures } from "@/src/domains/featureVisibility";
 
 const SHOP_PAGE_SIZE = 20;
 
@@ -69,7 +67,6 @@ function ConnectedManagePage({ organizationId, memberStatus }: OrganizationScope
   if (overview === undefined || shops.status === "LoadingFirstPage") return <ManagePageSkeleton />;
 
   const shopRows = toOrganizationShopViews(shops.results);
-  const features = normalizeOrganizationSettingsFeatures(overview.features);
   return (
     <Animation>
       <Stack as="main" gap={{ base: 6, lg: 8 }}>
@@ -83,7 +80,6 @@ function ConnectedManagePage({ organizationId, memberStatus }: OrganizationScope
             managerCount={overview.usage.managerUsage.current}
             pendingManagerCount={overview.usage.managerUsage.pendingInvitations}
             billingState={overview.usage.state}
-            features={features}
             canCreateOrganization={overview.capabilities.canCreateOrganization}
             createOrganizationDisabledReason={overview.capabilities.createOrganizationDisabledReason}
           />
@@ -92,7 +88,6 @@ function ConnectedManagePage({ organizationId, memberStatus }: OrganizationScope
           organizationId={organizationId}
           shops={shopRows}
           shopUsage={overview.usage.shopUsage}
-          showAddShop={features.shopAddition}
           canAddShop={overview.capabilities.canAddShop}
           addShopDisabledReason={overview.capabilities.addShopDisabledReason}
           canLoadMore={shops.status === "CanLoadMore" || shops.status === "LoadingMore"}
@@ -130,7 +125,6 @@ export function OrganizationManagementSection({
   managerCount,
   pendingManagerCount,
   billingState,
-  features,
   canCreateOrganization,
   createOrganizationDisabledReason,
 }: {
@@ -139,11 +133,6 @@ export function OrganizationManagementSection({
   managerCount: number;
   pendingManagerCount: number;
   billingState: string;
-  features: {
-    organizationCreation: boolean;
-    managerInvitation: boolean;
-    billing: boolean;
-  };
   canCreateOrganization: boolean;
   createOrganizationDisabledReason?: string;
 }) {
@@ -170,22 +159,20 @@ export function OrganizationManagementSection({
               組織全体
             </Heading>
           </HStack>
-          {features.organizationCreation && (
-            <Button
-              type="button"
-              variant="ghost"
-              colorPalette="teal"
-              size="sm"
-              gap={1.5}
-              fontWeight="semibold"
-              onClick={creation.createOrganization}
-              disabled={!canCreateOrganization && !isOrganizationCreationLimitReached(createOrganizationDisabledReason)}
-              title={!canCreateOrganization ? createOrganizationDisabledReason : undefined}
-            >
-              <LuPlus aria-hidden />
-              新しい組織を作る
-            </Button>
-          )}
+          <Button
+            type="button"
+            variant="ghost"
+            colorPalette="teal"
+            size="sm"
+            gap={1.5}
+            fontWeight="semibold"
+            onClick={creation.createOrganization}
+            disabled={!canCreateOrganization && !isOrganizationCreationLimitReached(createOrganizationDisabledReason)}
+            title={!canCreateOrganization ? createOrganizationDisabledReason : undefined}
+          >
+            <LuPlus aria-hidden />
+            新しい組織を作る
+          </Button>
         </Flex>
         <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
@@ -195,26 +182,22 @@ export function OrganizationManagementSection({
               description={organizationName}
               onClick={() => void navigate({ to: "/manage/organization", search: { org: organizationId } })}
             />
-            {features.managerInvitation && (
-              <ManagementRouteRow
-                icon={LuShieldCheck}
-                title="管理者と権限"
-                description={`管理者 ${managerCount}人 ・ 招待中 ${pendingManagerCount}件`}
-                onClick={() => void navigate({ to: "/manage/managers", search: { org: organizationId } })}
-              />
-            )}
-            {features.billing && (
-              <ManagementRouteRow
-                icon={LuCreditCard}
-                title="プランと支払い"
-                description={billingStateLabel(billingState)}
-                onClick={() => void navigate({ to: "/manage/billing", search: { org: organizationId } })}
-              />
-            )}
+            <ManagementRouteRow
+              icon={LuShieldCheck}
+              title="管理者と権限"
+              description={`管理者 ${managerCount}人 ・ 招待中 ${pendingManagerCount}件`}
+              onClick={() => void navigate({ to: "/manage/managers", search: { org: organizationId } })}
+            />
+            <ManagementRouteRow
+              icon={LuCreditCard}
+              title="プランと支払い"
+              description={billingStateLabel(billingState)}
+              onClick={() => void navigate({ to: "/manage/billing", search: { org: organizationId } })}
+            />
           </Stack>
         </Box>
       </Stack>
-      {features.organizationCreation && <OrganizationCreationDialog {...creation.dialog} />}
+      <OrganizationCreationDialog {...creation.dialog} />
     </>
   );
 }
@@ -257,7 +240,6 @@ export function ManageShopsSection({
   organizationId,
   shops,
   shopUsage,
-  showAddShop,
   canAddShop,
   addShopDisabledReason,
   canLoadMore,
@@ -268,7 +250,6 @@ export function ManageShopsSection({
   organizationId: Id<"organizations">;
   shops: OrganizationShopView[];
   shopUsage: { current: number; max: number };
-  showAddShop: boolean;
   canAddShop: boolean;
   addShopDisabledReason?: string;
   canLoadMore: boolean;
@@ -282,7 +263,6 @@ export function ManageShopsSection({
       <ShopsSection
         shops={shops}
         shopUsage={shopUsage}
-        showAddShop={showAddShop}
         canAddShop={canAddShop}
         addShopDisabledReason={addShopDisabledReason}
         onAddShop={shopManagement.addShop}
@@ -295,7 +275,7 @@ export function ManageShopsSection({
           </Button>
         </Flex>
       )}
-      {showAddShop && <ShopManagementDialog {...shopManagement.dialog} />}
+      <ShopManagementDialog {...shopManagement.dialog} />
     </>
   );
 }
@@ -465,12 +445,10 @@ export function AppManageManagersRoutePage({ organizationId, memberStatus }: Org
   return (
     <ManageErrorBoundary>
       {() => (
-        <ManageFeatureBoundary organizationId={organizationId} feature="managerInvitation">
-          <Stack gap={5}>
-            <AppManageReadOnlyNotice memberStatus={memberStatus} />
-            <ConnectedManagersPage organizationId={organizationId} />
-          </Stack>
-        </ManageFeatureBoundary>
+        <Stack gap={5}>
+          <AppManageReadOnlyNotice memberStatus={memberStatus} />
+          <ConnectedManagersPage organizationId={organizationId} />
+        </Stack>
       )}
     </ManageErrorBoundary>
   );
@@ -488,12 +466,10 @@ export function AppManageInviteStaffRoutePage({ organizationId, memberStatus }: 
   return (
     <ManageErrorBoundary maxW="760px" includeMobileNavigation={false}>
       {() => (
-        <ManageFeatureBoundary organizationId={organizationId} feature="managerInvitation">
-          <Stack gap={5}>
-            <AppManageReadOnlyNotice memberStatus={memberStatus} />
-            <ConnectedInviteStaffPage organizationId={organizationId} />
-          </Stack>
-        </ManageFeatureBoundary>
+        <Stack gap={5}>
+          <AppManageReadOnlyNotice memberStatus={memberStatus} />
+          <ConnectedInviteStaffPage organizationId={organizationId} />
+        </Stack>
       )}
     </ManageErrorBoundary>
   );
@@ -512,12 +488,10 @@ export function AppManageInviteNewRoutePage({ organizationId, memberStatus }: Or
   return (
     <ManageErrorBoundary maxW="760px" includeMobileNavigation={false}>
       {() => (
-        <ManageFeatureBoundary organizationId={organizationId} feature="managerInvitation">
-          <Stack gap={5}>
-            <AppManageReadOnlyNotice memberStatus={memberStatus} />
-            <ConnectedInviteNewPage organizationId={organizationId} />
-          </Stack>
-        </ManageFeatureBoundary>
+        <Stack gap={5}>
+          <AppManageReadOnlyNotice memberStatus={memberStatus} />
+          <ConnectedInviteNewPage organizationId={organizationId} />
+        </Stack>
       )}
     </ManageErrorBoundary>
   );
@@ -537,44 +511,7 @@ type BillingRouteProps = OrganizationScopeProps & {
 };
 
 export function AppManageBillingRoutePage(props: BillingRouteProps) {
-  return (
-    <ManageErrorBoundary>
-      {() => (
-        <ManageFeatureBoundary organizationId={props.organizationId} feature="billing">
-          <ConnectedBillingPage {...props} />
-        </ManageFeatureBoundary>
-      )}
-    </ManageErrorBoundary>
-  );
-}
-
-type ManageFeature = "managerInvitation" | "billing";
-
-function ManageFeatureBoundary({
-  organizationId,
-  feature,
-  children,
-}: {
-  organizationId: Id<"organizations">;
-  feature: ManageFeature;
-  children: ReactNode;
-}) {
-  const navigate = useNavigate();
-  const didRedirect = useRef(false);
-  const overview = useQuery(api.appOrganization.manageQueries.getManageOverview, { organizationId });
-  const enabled =
-    overview === undefined ? undefined : normalizeOrganizationSettingsFeatures(overview.features)[feature];
-
-  useEffect(() => {
-    if (enabled !== false || didRedirect.current) return;
-    didRedirect.current = true;
-    showErrorToast(new Error("この機能は現在利用できません。"));
-    void navigate({ to: "/manage", search: { org: organizationId }, replace: true });
-  }, [enabled, navigate, organizationId]);
-
-  if (overview === undefined) return <ManagePageSkeleton />;
-  if (!enabled) return <ManageQueryState message="この機能は現在利用できません。管理画面へ戻ります。" />;
-  return children;
+  return <ManageErrorBoundary>{() => <ConnectedBillingPage {...props} />}</ManageErrorBoundary>;
 }
 
 function ConnectedBillingPage({

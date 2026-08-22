@@ -24,7 +24,7 @@
 |---|---|
 | ダッシュボード 店舗詳細導線 | 現在店舗の店舗詳細ページへ進む |
 | 初回セットアップ | 店舗名、希望シフトの提出方法を登録する |
-| `/manage?org=<organizationId>` | 現在の1店舗から専用の店舗詳細ページへ進む。店舗追加は公開しない |
+| `/manage?org=<organizationId>` | 組織の店舗一覧を表示し、専用の店舗詳細ページまたは店舗追加へ進む |
 | `/manage/shops/<shopId>?org=<organizationId>` | 管理タブで選択した組織の店舗詳細を表示し、戻る操作は管理タブ、スタッフ行は同じ組織のスタッフ詳細へ進む |
 
 ## API一覧
@@ -35,7 +35,7 @@
 | `api.organization.queries.getSettings` | query | 同じ組織に属する店舗、所属店舗ID付きユーザー、店舗管理通知の受信可否、各操作の可否を取得する。`/manage`ではURLの`org`を`expectedOrganizationId`として渡し、店舗との一致をサーバーで再検証する |
 | `api.appOrganization.manageQueries.getManageOverview` | query | `/manage`向けに組織名、利用状況、店舗状態別件数、操作可否を返す。店舗実体は含めない |
 | `api.appOrganization.manageQueries.listOrganizationShops` | paginated query | URLで検証した組織のactive・archived店舗をcursor paginationし、プラン上限件数でtruncateしない |
-| `api.organization.mutations.addShopForOrganization` | mutation | 将来公開用の店舗追加API。公開設定が閉じている通常環境ではwrite、通知、監査より前に拒否する |
+| `api.organization.mutations.addShopForOrganization` | mutation | 店舗追加API。認証、組織境界、管理者状態、契約状態、店舗上限をwrite、通知、監査より前に確認する |
 | `api.staff.queries.getOrganizationShopStaffMembershipChange` | query | 表示中の店舗IDを明示し、所属候補、現在の選択状態、変更可否、競合検知用fingerprintを取得する |
 | `api.staff.queries.previewOrganizationShopStaffMembershipRemovals` | query | 店舗から外す人物とsnapshotを指定し、今日以降のシフト割り当てへの影響を取得する。snapshotが更新済みなら`stale`を返す |
 | `api.staff.mutations.changeOrganizationShopStaffMemberships` | mutation | 希望する人物ID一覧、fingerprint、解除preview、request IDを検証し、1店舗の所属スタッフを一括変更する |
@@ -80,4 +80,4 @@
 - 店舗削除では`users`、`organizationPeople`、`organizationMembers`を変更しない。対象店舗のユーザーは組織人物として残る。
 - 店舗名、スタッフの氏名とメールアドレス、rate limit、自由入力欄、送信済みメール、LINEはDBに残るため、この導線を個人データの消去や匿名化とは扱わない。詳細は`doc/features/data-deletion.md`を参照する。
 - 保持契約はConvex Function TestとScenario Testで検証する。E2Eはworker専用scenario上でUI追加した2店舗目だけを削除し、実browserの復帰導線を検証する。Clerk userや組織全体を破壊するE2Eは追加しない。
-- 複数店舗と既存人物の複数店舗所属は未公開である。  通常の画面は店舗追加や所属追加の操作を描画せず、public mutationも未設定を閉状態として拒否する。  将来機能のE2Eは公開設定を明示的に有効化した専用deploymentで実行する。
+- 複数店舗と既存人物の複数店舗所属は通常の画面から利用できる。  public mutationは認証、組織境界、管理者状態、契約状態、プラン上限を再確認し、E2Eは専用Preview deploymentでこの契約を検証する。

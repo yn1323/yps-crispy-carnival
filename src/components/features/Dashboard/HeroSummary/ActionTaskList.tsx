@@ -135,6 +135,7 @@ const createStaffRegistrationRequestTask = (count: number, content: ReactNode): 
   iconBg: "teal.50",
   iconFg: "teal.700",
   title: `スタッフ登録申請が${count}件あります`,
+  description: "承認してシフトが届く状態にしましょう",
   content,
 });
 

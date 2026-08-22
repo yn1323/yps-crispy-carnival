@@ -769,4 +769,46 @@ describe("organization staff order", () => {
       changeStaffOrderDisabledReason: "契約状態を復旧してからスタッフの並び順を変更できます。",
     });
   });
+
+  it("active.freeの実数上限超過中は事業者共通の並び順を保存しない", async () => {
+    const t = convexTest(schema, modules);
+    const subject = "staff_order_usage_limit";
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, { subject, plan: "free" });
+      const people = [];
+      for (let index = 1; index <= 5; index += 1) {
+        people.push(
+          await insertPerson(ctx, {
+            organizationId: base.organizationId,
+            name: `上限超過人物${index}`,
+            index: 100 + index,
+            shopIds: [base.shopId],
+          }),
+        );
+      }
+      return { ...base, people };
+    });
+    const actor = t.withIdentity({ subject });
+    const editor = await actor.query(api.appOrganization.staffOrderQueries.getOrganizationStaffOrderEditor, {
+      organizationId: ids.organizationId,
+    });
+    const before = await t.run(async (ctx) => ({
+      states: await ctx.db.query("organizationStaffOrderStates").collect(),
+      entries: await ctx.db.query("organizationStaffOrderEntries").collect(),
+    }));
+
+    await expect(
+      actor.mutation(api.appOrganization.staffOrderMutations.saveOrganizationStaffOrder, {
+        organizationId: ids.organizationId,
+        orderedPersonIds: [ids.personId, ...ids.people.map((person) => person.personId)],
+        expectedOrderFingerprint: editor.orderFingerprint,
+      }),
+    ).rejects.toMatchObject({ data: { code: "USAGE_LIMIT_EXCEEDED", plan: "free" } });
+
+    const after = await t.run(async (ctx) => ({
+      states: await ctx.db.query("organizationStaffOrderStates").collect(),
+      entries: await ctx.db.query("organizationStaffOrderEntries").collect(),
+    }));
+    expect(after).toEqual(before);
+  });
 });

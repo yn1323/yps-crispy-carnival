@@ -5,7 +5,6 @@ import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedMutation, organizationMutation } from "../_lib/functions";
-import { isReleaseFeatureEnabled, requireReleaseFeature } from "../_lib/releaseFeatures";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
 import { ensureDeletionCleanupJob } from "../deletionCleanup/service";
 import { disconnectOrganizationPersonLine } from "../line/service";
@@ -16,7 +15,9 @@ import {
 import { scheduleOrganizationBillingStateDeadline } from "../organizationBilling/deadline";
 import { getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
 import {
+  getOrganizationAccessPolicy,
   requireOrganizationBusinessWrite,
+  requireOrganizationBusinessWriteOrLimitRecoveryCapability,
   requireOrganizationCapacity,
   requireOrganizationPaidFeature,
   requireRestrictedRecoveryCapability,
@@ -102,27 +103,6 @@ export function classifyAccountDeletionOrganizationDepartureError(error: unknown
 function shopStatus(shop: Doc<"shops">) {
   // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
   return shop.operatingStatus ?? ("active" as const);
-}
-
-async function hasActiveOrganizationShop(ctx: MutationCtx, organizationId: Id<"organizations">) {
-  // TODO[narrow]: m025完走まではoperatingStatus欠損も現行runtimeと同じactiveとして扱う。
-  const [explicitActiveShop, legacyActiveShop] = await Promise.all([
-    ctx.db
-      .query("shops")
-      .withIndex("by_organizationId_and_operatingStatus", (q) =>
-        q.eq("organizationId", organizationId).eq("operatingStatus", "active"),
-      )
-      .filter((q) => q.eq(q.field("isDeleted"), false))
-      .first(),
-    ctx.db
-      .query("shops")
-      .withIndex("by_organizationId_and_operatingStatus", (q) =>
-        q.eq("organizationId", organizationId).eq("operatingStatus", undefined),
-      )
-      .filter((q) => q.eq(q.field("isDeleted"), false))
-      .first(),
-  ]);
-  return Boolean(explicitActiveShop || legacyActiveShop);
 }
 
 function shopMutationResult(
@@ -218,6 +198,10 @@ async function updateOrganizationNameForActor(
   args: { name: string; requestId: string },
   actor: Pick<OrganizationActor, "organization" | "member" | "person">,
 ) {
+  const access = await getOrganizationAccessPolicy(ctx, actor.organization._id);
+  if (access?.accessMode === "limitRecoveryOnly") {
+    await requireOrganizationBusinessWrite(ctx, actor.organization._id);
+  }
   const parsed = organizationNameSchema.safeParse(args.name);
   if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
   const requestKey = await toAuditRequestKey(args.requestId);
@@ -351,7 +335,6 @@ async function addShopForActor(
   args: AddShopArgs,
   actor: Pick<OrganizationActor, "organization" | "member" | "person">,
 ) {
-  requireReleaseFeature("shopAddition");
   await requireOrganizationBusinessWrite(ctx, actor.organization._id);
   const parsed = updateShopSettingsSchema.safeParse({
     shopName: args.shopName,
@@ -472,7 +455,15 @@ async function authorizeShopStateChange(
     });
   } else {
     if (actor.member.status !== "active") throw new ConvexError("Not found");
-    await requireOrganizationBusinessWrite(ctx, actor.organization._id);
+    if (args.operation === "archive") {
+      await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
+        organizationId: actor.organization._id,
+        personId: actor.person._id,
+        capability: "archiveShop",
+      });
+    } else {
+      await requireOrganizationBusinessWrite(ctx, actor.organization._id);
+    }
   }
   return { actor, billingState };
 }
@@ -563,9 +554,6 @@ export const reactivateShop = authenticatedMutation({
 
     const fromState = shopStatus(actor.shop);
     if (fromState === "active") return shopMutationResult(actor.shop._id, "active", false);
-    if (!isReleaseFeatureEnabled("shopAddition") && (await hasActiveOrganizationShop(ctx, actor.organization._id))) {
-      requireReleaseFeature("shopAddition");
-    }
     await requireOrganizationCapacity(ctx, {
       organizationId: actor.organization._id,
       additionalActiveShops: 1,
@@ -641,7 +629,11 @@ export const deleteShop = authenticatedMutation({
         capability: "archiveShop",
       });
     } else {
-      await requireOrganizationBusinessWrite(ctx, actor.organization._id);
+      await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
+        organizationId: actor.organization._id,
+        personId: actor.person._id,
+        capability: "deleteShop",
+      });
     }
     const correlationId = shopDeletionCorrelationId(actor.organization._id, actor.shop._id, requestId);
     const priorAudit = await findShopDeletionAudit(ctx, correlationId);
@@ -1110,7 +1102,11 @@ async function authorizeOrganizationPersonRemoval(ctx: MutationCtx, actor: Organ
     });
   } else {
     if (actor.member.status !== "active") throw new ConvexError("この操作を行う権限がありません");
-    await requireOrganizationBusinessWrite(ctx, actor.organization._id);
+    await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
+      organizationId: actor.organization._id,
+      personId: actor.person._id,
+      capability: "removeOrganizationPerson",
+    });
   }
   return billingState;
 }
@@ -1869,7 +1865,11 @@ async function removeManagerRoleForActor(
     throw new ConvexError("契約制限中は管理権限を外せません");
   }
   if (actor.member.status !== "active") throw new ConvexError("この操作を行う権限がありません");
-  const policy = await requireOrganizationBusinessWrite(ctx, actor.organization._id);
+  const policy = await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
+    organizationId: actor.organization._id,
+    personId: actor.person._id,
+    capability: "removeManagerRole",
+  });
   if (!policy?.canManageManagers) {
     throw new ConvexError("現在の契約状態では、管理者権限を変更できません。");
   }

@@ -2,7 +2,6 @@ import type { GenericDatabaseReader, PaginationResult } from "convex/server";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
-import { getFeatureVisibility } from "../_lib/config";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedQuery, managerQuery } from "../_lib/functions";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
@@ -32,7 +31,7 @@ import {
   type OrganizationBillingState,
   resolveRestrictedLimitPlan,
 } from "../organizationBilling/policy";
-import { getOrganizationBillingPolicy } from "../organizationBilling/service";
+import { getOrganizationAccessPolicy, getOrganizationBillingPolicy } from "../organizationBilling/service";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 import { getStripeBillingConfiguration } from "../organizationStripe/config";
 
@@ -84,12 +83,6 @@ const dashboardAnnouncementValidator = v.object({
   displayDate: v.string(),
 });
 
-const featureVisibilityValidator = v.object({
-  organizationSettingsNavigation: v.boolean(),
-  billing: v.boolean(),
-  shopMembershipAddition: v.boolean(),
-});
-
 const currentUserValidator = v.union(
   v.object({
     accountDeleted: v.literal(true),
@@ -99,16 +92,12 @@ const currentUserValidator = v.union(
     isNewUser: v.literal(true),
     name: v.string(),
     email: v.string(),
-    // TODO[narrow]: feature visibilityを返すbackendが全deploymentへ反映され、旧client互換期間が終わった後にrequired化する。
-    featureVisibility: v.optional(featureVisibilityValidator),
   }),
   v.object({
     isNewUser: v.literal(false),
     name: v.string(),
     email: v.string(),
     dashboardOnboardingDismissedAt: v.optional(v.number()),
-    // TODO[narrow]: feature visibilityを返すbackendが全deploymentへ反映され、旧client互換期間が終わった後にrequired化する。
-    featureVisibility: v.optional(featureVisibilityValidator),
   }),
 );
 
@@ -168,7 +157,28 @@ const dashboardPlanUsageValidator = v.object({
   peopleUsage: dashboardPlanUsageItemValidator,
   shopUsage: dashboardPlanUsageItemValidator,
   managerUsage: v.optional(dashboardPlanUsageItemValidator),
+  pendingManagerInvitations: v.number(),
 });
+
+const dashboardUsageLimitViolationValidator = v.object({
+  kind: v.union(v.literal("people"), v.literal("activeShops"), v.literal("activeManagers")),
+  current: v.number(),
+  max: v.number(),
+  excess: v.number(),
+  isLowerBound: v.optional(v.literal(true)),
+});
+
+const dashboardUsageLimitStatusValidator = v.union(
+  v.object({
+    kind: v.literal("overLimit"),
+    evaluatedPlan: v.union(v.literal("free"), v.literal("pro"), v.literal("business")),
+    violations: v.array(dashboardUsageLimitViolationValidator),
+  }),
+  v.object({
+    kind: v.literal("unknown"),
+    evaluatedPlan: v.union(v.literal("free"), v.literal("pro"), v.literal("business")),
+  }),
+);
 
 const dashboardShopValidator = v.object({
   name: v.string(),
@@ -185,7 +195,15 @@ const dashboardShopValidator = v.object({
   ),
   submissionPattern: submissionPatternValidator,
   canWriteBusinessData: v.boolean(),
-  businessWriteBlockReason: v.union(v.literal("paymentResultPending"), v.literal("restricted"), v.null()),
+  businessWriteBlockReason: v.union(
+    v.literal("paymentResultPending"),
+    v.literal("restricted"),
+    v.literal("usageLimitExceeded"),
+    v.literal("usageLimitEvaluationUnavailable"),
+    v.null(),
+  ),
+  // rolling deploy中の旧frontendは未知の任意fieldを無視できる。
+  usageLimitStatus: v.optional(dashboardUsageLimitStatusValidator),
   // TODO[narrow]: planStatusを返すbackendが全deploymentへ反映され、旧frontend互換期間が終わった後にrequired化する。
   planStatus: v.optional(v.union(dashboardPlanStatusValidator, v.null())),
   trialEndingNotice: v.union(
@@ -551,23 +569,21 @@ export const getDashboardShop = managerQuery({
     const shop = ctx.shop;
     if (!shop) return null;
     const organizationId = ctx.organization?._id;
-    const billingState = organizationId ? await getOrganizationBillingState(ctx, organizationId) : null;
-    const billingFeatureVisible = getFeatureVisibility().billing;
-    const [stripeCustomer, latestStripeSubscription] =
-      billingFeatureVisible && organizationId
-        ? await Promise.all([
-            ctx.db
-              .query("organizationStripeCustomers")
-              .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
-              .unique(),
-            ctx.db
-              .query("organizationStripeSubscriptions")
-              .withIndex("by_organizationId_and_providerGeneration", (q) => q.eq("organizationId", organizationId))
-              .order("desc")
-              .first(),
-          ])
-        : [null, null];
-    const billingPolicy = billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
+    const accessPolicy = organizationId ? await getOrganizationAccessPolicy(ctx, organizationId) : null;
+    const billingState = accessPolicy?.billingState ?? null;
+    const [stripeCustomer, latestStripeSubscription] = organizationId
+      ? await Promise.all([
+          ctx.db
+            .query("organizationStripeCustomers")
+            .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+            .unique(),
+          ctx.db
+            .query("organizationStripeSubscriptions")
+            .withIndex("by_organizationId_and_providerGeneration", (q) => q.eq("organizationId", organizationId))
+            .order("desc")
+            .first(),
+        ])
+      : [null, null];
     const trialEndingNotice =
       billingState?.state.kind === "trial" && billingState.state.selectedPaidPlan === undefined
         ? {
@@ -584,17 +600,35 @@ export const getDashboardShop = managerQuery({
       submissionPattern: shop.submissionPattern,
       // TODO[narrow]: 全deploymentでm025完走・verifyOrganizationsのbilling state残件0確認後にfallbackを外す。
       // 課金state未作成の移行中orgは、managerMutationの旧導線互換と同じく許可扱いにする。
-      canWriteBusinessData: billingPolicy?.canWriteBusinessData ?? true,
-      businessWriteBlockReason: billingPolicy?.businessWriteBlockReason ?? null,
-      planStatus:
-        billingFeatureVisible && billingState
-          ? toDashboardPlanStatus({
-              billingState: billingState.state,
-              organizationMember: ctx.organizationMember,
-              stripeCustomer,
-              latestStripeSubscription,
-            })
-          : null,
+      canWriteBusinessData: accessPolicy?.canWriteBusinessData ?? true,
+      businessWriteBlockReason:
+        accessPolicy?.usageLimitStatus?.kind === "unknown"
+          ? ("usageLimitEvaluationUnavailable" as const)
+          : (accessPolicy?.businessWriteBlockReason ?? null),
+      ...(accessPolicy?.usageLimitStatus?.kind === "overLimit"
+        ? {
+            usageLimitStatus: {
+              kind: "overLimit" as const,
+              evaluatedPlan: accessPolicy.usageLimitStatus.evaluatedPlan,
+              violations: accessPolicy.usageLimitStatus.violations,
+            },
+          }
+        : accessPolicy?.usageLimitStatus?.kind === "unknown"
+          ? {
+              usageLimitStatus: {
+                kind: "unknown" as const,
+                evaluatedPlan: accessPolicy.usageLimitStatus.evaluatedPlan,
+              },
+            }
+          : {}),
+      planStatus: billingState
+        ? toDashboardPlanStatus({
+            billingState: billingState.state,
+            organizationMember: ctx.organizationMember,
+            stripeCustomer,
+            latestStripeSubscription,
+          })
+        : null,
       trialEndingNotice,
     };
   },
@@ -605,7 +639,7 @@ export const getDashboardPlanUsage = managerQuery({
   returns: v.union(dashboardPlanUsageValidator, v.null()),
   handler: async (ctx, args) => {
     const organization = ctx.organization;
-    if (!organization || !getFeatureVisibility().billing) return null;
+    if (!organization) return null;
 
     const billingState = await getOrganizationBillingState(ctx, organization._id);
     if (!billingState) return null;
@@ -619,7 +653,7 @@ export const getDashboardPlanUsage = managerQuery({
     const usage = await getOrganizationUsageSnapshot(ctx, organization._id, args.now);
     return {
       peopleUsage: {
-        current: usage.projectedPersonCount,
+        current: usage.personCount,
         max: limits.maxPeople,
       },
       shopUsage: {
@@ -627,9 +661,10 @@ export const getDashboardPlanUsage = managerQuery({
         max: limits.maxActiveShops,
       },
       managerUsage: {
-        current: usage.projectedActiveManagerCount,
+        current: usage.activeManagerCount,
         max: limits.maxActiveManagers,
       },
+      pendingManagerInvitations: usage.pendingManagerInvitationCount,
     };
   },
 });
@@ -1064,13 +1099,11 @@ export const getCurrentUser = authenticatedQuery({
         accountDeletionRequested: user.accountDeletionRequestedAt !== undefined,
       };
     }
-    const featureVisibility = getFeatureVisibility();
     if (!user) {
       return {
         isNewUser: true as const,
         name: identity.name ?? "",
         email: identity.email ?? "",
-        featureVisibility,
       };
     }
     return {
@@ -1078,7 +1111,6 @@ export const getCurrentUser = authenticatedQuery({
       name: user.name,
       email: user.email,
       dashboardOnboardingDismissedAt: user.dashboardOnboardingDismissedAt,
-      featureVisibility,
     };
   },
 });

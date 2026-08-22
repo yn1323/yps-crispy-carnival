@@ -27,7 +27,6 @@ import type * as _lib_notificationDelivery from "../_lib/notificationDelivery.js
 import type * as _lib_notificationDeliveryQueries from "../_lib/notificationDeliveryQueries.js";
 import type * as _lib_previousWeeklyPattern from "../_lib/previousWeeklyPattern.js";
 import type * as _lib_rateLimits from "../_lib/rateLimits.js";
-import type * as _lib_releaseFeatures from "../_lib/releaseFeatures.js";
 import type * as _lib_resend from "../_lib/resend.js";
 import type * as _lib_resendWebhookSignature from "../_lib/resendWebhookSignature.js";
 import type * as _lib_sha256 from "../_lib/sha256.js";
@@ -299,7 +298,6 @@ declare const fullApi: ApiFromModules<{
   "_lib/notificationDeliveryQueries": typeof _lib_notificationDeliveryQueries;
   "_lib/previousWeeklyPattern": typeof _lib_previousWeeklyPattern;
   "_lib/rateLimits": typeof _lib_rateLimits;
-  "_lib/releaseFeatures": typeof _lib_releaseFeatures;
   "_lib/resend": typeof _lib_resend;
   "_lib/resendWebhookSignature": typeof _lib_resendWebhookSignature;
   "_lib/sha256": typeof _lib_sha256;

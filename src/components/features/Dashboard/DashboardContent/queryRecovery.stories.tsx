@@ -93,11 +93,6 @@ storyStore.set(userAtom, {
   authId: "dashboard-recovery-story-user",
   name: "田中太郎",
   email: "tanaka@example.com",
-  featureVisibility: {
-    organizationSettingsNavigation: true,
-    billing: false,
-    shopMembershipAddition: false,
-  },
 });
 
 function DashboardQueryRecoveryPreview({ initialFailures }: Props) {
@@ -139,7 +134,6 @@ function DashboardQueryRecoveryPreview({ initialFailures }: Props) {
                             managerLegalConsentStatus={managerLegalConsentReady}
                             isDashboardOnboardingDismissed
                             operationContextData={operationContextData}
-                            isBillingFeatureVisible={false}
                             recruitment={stage("recruitment", recruitment)}
                             staff={stage("staff", staff)}
                             registrationRequests={stage("registrationRequests", registrationRequests)}

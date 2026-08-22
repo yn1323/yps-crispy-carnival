@@ -2,7 +2,7 @@
 
 > 文書種別: feature
 >
-> 最終コード照合: 2026-08-15（この変更を含む）
+> 最終コード照合: 2026-08-22（この変更を含む）
 
 公開サイトは、登録前の製品理解と、利用中の疑問解消をつなぐ認証不要のページ群である。
 ルート`/`を入口に、機能紹介、FAQ、HowTo、記事、操作デモへ利用者を案内する。
@@ -13,7 +13,7 @@
 |---|---|---|
 | `/` | 価値、利用の流れ、提出方法、利用例、FAQと記事への入口、登録導線をまとめるTOP | `src/pages/home/`、`src/components/features/LandingPage/` |
 | `/features` | 希望回収、未提出確認、シフト作成、確定通知など、できることを詳しく示す | `src/pages/features/`、`FeatureSection`、`BenefitsSection` |
-| `/pricing` | 初回登録で利用できる支払い不要Businessと、現在公開している組織・店舗・管理ユーザー・利用人数の範囲を示す | `src/pages/pricing/`、`PricingSite` |
+| `/pricing` | 2か月の無料トライアルと、Free・Pro・Businessで利用できる店舗・管理ユーザー・利用人数の範囲を示す | `src/pages/pricing/`、`PricingSite` |
 | `/commercial-transactions` | 有料プランの販売条件と、特定商取引法に基づく事業者情報を示す | `src/pages/commercial-transactions/`、`CommercialTransactions` |
 | `/faq` | 導入前から利用中までの質問を、カテゴリと検索から探せるようにする | `src/pages/faq/`、`src/components/features/FaqSite/` |
 | `/howto` | 画面上の場所、操作、結果、失敗時の対処を、利用場面から探せるようにする | `src/pages/howto/`、`src/components/features/HowToSite/` |
@@ -24,7 +24,7 @@
 | `/demo/shiftboard` | PC向けシフト表の入力と調整を、登録なしで試せるようにする | `src/pages/demo-shift-board/`、`Demo/DemoShiftBoardPage/` |
 
 TOPは`src/routes/index.tsx`から`HomePage`を呼び、`HomePage`が`LandingPage`を構成する。
-`LandingPage`は`PublicPageLayout`の中に、Hero、課題の軽減、利用の流れ、提出方法、比較、利用例、初回登録の組織・店舗・管理ユーザーと利用条件、FAQと記事、CTAの各sectionを並べる。
+`LandingPage`は`PublicPageLayout`の中に、Hero、課題の軽減、利用の流れ、提出方法、比較、利用例、複数店舗・複数担当者での運用、FAQと記事、CTAの各sectionを並べる。
 
 FAQ、HowTo、記事、デモは同じ公開サイトに属するが、内容の置き場所は分かれている。
 FAQはMDXを含む`FaqSite`、HowToはMDXを含む`HowToSite`、記事は`ArticleSite`、操作できるデモは`Demo`が所有する。
@@ -64,45 +64,41 @@ src/routes/index.tsx
 FAQ、HowTo、記事、デモを表示するためのConvex APIもない。
 問い合わせなど、公開サイトから遷移する別機能のAPIは、その機能文書を参照する。
 
-`PricingSite`が表示する利用人数は、backend enforcementと同じbrowser-safeな`ORGANIZATION_PLAN_LIMITS.business.maxPeople`を参照する。
-
-現在公開している店舗数と管理ユーザー数は、公開範囲に合わせてそれぞれ1件と1名を表示する。
+`PricingSite`が表示する無料トライアル、追加組織のFree、Pro、Businessの利用人数、店舗数、管理ユーザー数は、backend enforcementと同じbrowser-safeな`ORGANIZATION_PLAN_LIMITS`を参照する。
 公開ページからStripeやConvexへ問い合わせず、build時とbrowserで同じ静的内容を表示する。
 
 ## 公開する利用条件
 
-初回登録で作る最初の組織には、支払い不要のBusinessを適用する。
+初回登録から2か月は無料トライアルを適用する。
 
-初回登録時には無料体験の終了日を設定せず、支払い方法の登録を求めない。
+無料トライアルの開始時にはクレジットカードの登録を求めない。
 
-現在の公開範囲は、1組織、1店舗、1管理ユーザーである。
+無料トライアルではProと同じ利用人数20名、稼働店舗5件、有効管理ユーザー5名まで利用できる。
 
-利用人数はBusinessの上限である40名までとする。
+トライアル終了後も利用を継続する場合はProまたはBusinessを選ぶ。  有料プランを選ばない場合はデータを保持したまま業務操作を制限する。
 
-複数組織、複数店舗、複数管理ユーザー、有料プランの契約と支払いは、現在の公開範囲に含めない。
-
-追加組織作成機能が明示的に有効な場合の二つ目以降の組織に対するFreeプランと、有料プランの条件は、将来機能の内部契約として保持する。
-
-公開ページでは、これらを現在利用できる条件として案内しない。
+二つ目以降の組織はFreeで開始し、Free、Pro、Businessの利用人数、店舗数、管理ユーザー数を共有上限定数から案内する。  ProとBusinessの金額、通貨、税区分、請求周期は公開ページで推測せず、契約画面がStripeから取得して検証した販売条件を契約確定前に表示する。
 
 追加組織と有料プランの詳細は、[`organization-billing.md`](organization-billing.md)を参照する。
 
 公開ページへ固定の金額を複製しない。
-有料プランを公開していない間は、契約画面で契約できるように案内しない。
+公開サイトは数値を推測せず、確定した販売条件だけを案内する。  契約画面ではStripeから取得して検証した販売条件を契約確定前に表示する。
 
-販売開始後も公開サイトは数値を推測せず、確定した販売条件だけを案内する。
+### 無料トライアル表現の公開前提
+
+2か月無料・クレジットカード登録不要の公開文言は、初回Setupが2か月のTrialを作成するbackend artifactと同時に公開する。  初回Setupが支払い不要Businessを作るartifactや、対象deploymentの反映が未確認の状態では公開しない。
+
+公開可否は[リリース状態](../manual/release-status.md)に実環境証跡を記録して判定し、LP、FAQ、料金ページの静的生成に成功したことだけでTrialの利用可能性を推測しない。
 
 ## 特定商取引法に基づく表記
 
-`/commercial-transactions`は、初回登録の利用条件と、将来提供予定の有料プランに関する販売条件を表示する。
+`/commercial-transactions`は、初回登録の利用条件と、有料プランに関する販売条件を表示する。
 
-追加組織のFreeプランは、追加組織作成機能を提供している場合の条件として表示し、初回登録の条件とは分ける。
+追加組織のFreeプランは初回登録の条件と分けて表示する。
 
-有料プランの申込機能が未公開であることも表示する。
+販売条件として、役務提供事業者、運営責任者、所在地、電話番号、問い合わせ先、Pro・Businessそれぞれの販売価格、支払方法と時期、提供時期、契約期間、自動更新、追加組織のFreeプラン、解約、返金、利用上限、動作環境を表示する。
 
-将来の販売条件として、役務提供事業者、運営責任者、所在地、電話番号、問い合わせ先、Pro・Businessそれぞれの販売価格、支払方法と時期、提供時期、契約期間、自動更新、追加組織のFreeプラン、解約、返金、利用上限、動作環境を表示する。
-
-Pro・Businessの販売価格は、Production公開前にStripeへ設定する確定額と税区分を記載し、販売開始後の契約画面にも契約確定前に同じ条件を表示する。
+Pro・Businessの販売価格は、Production公開前にStripeへ設定する確定額と税区分を記載し、契約画面にも契約確定前に同じ条件を表示する。
 
 役務提供事業者、運営責任者、所在地、電話番号は、Production公開前に`src/components/features/CommercialTransactions/index.tsx`冒頭の`MANUAL_BUSINESS_DETAILS`を実在する情報へ手動で置き換える。Pro・Businessの月額料金と税込・税別は、同じファイルの`MANUAL_SALES_PRICES`を確定した販売条件へ置き換える。
 仮入力が一つでも残る間はページ内に注意を表示し、Production公開の停止条件として[リリース状態](../manual/release-status.md)にも記録する。
@@ -117,7 +113,7 @@ Pro・Businessの販売価格は、Production公開前にStripeへ設定する�
 |---|---|---|
 | TOP | 自分の店舗で何が楽になるか | 価値と利用の流れを短く示し、詳しい入口を選べるようにする |
 | 機能紹介 | どの作業を支援できるか | 主な機能と利用場面を比較できるようにする |
-| 料金・プラン | 初回登録でどこまで利用でき、支払い情報が必要か | 支払い不要Business、利用上限、現在の組織・店舗・管理ユーザーの範囲、支払い情報の要否を示す |
+| 料金・プラン | 初回登録でどこまで利用でき、支払い情報が必要か | 2か月の無料トライアル、利用上限、Free・Pro・Business、店舗・管理ユーザーの範囲、支払い情報の要否を示す |
 | FAQ | 料金、通知、導入、運用について結論を知りたい | 質問ごとに結論と必要な注意点を示す |
 | HowTo | 画面でどう操作し、失敗時にどう戻るか | 操作場所、手順、結果、回復方法を示す |
 | 記事 | シフト運営の課題をどう判断するか | 課題の整理、選択肢、関連する製品導線を示す |

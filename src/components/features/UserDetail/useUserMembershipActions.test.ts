@@ -101,7 +101,7 @@ describe("useUserMembershipActions", () => {
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "所属店舗を変更しました" });
   });
 
-  it("店舗所属変更が非公開へ切り替わると古いhandlerからもmutationを開始しない", async () => {
+  it("書き込み不可へ切り替わると古いhandlerからもmutationを開始しない", async () => {
     const { result, rerender } = renderHook(
       ({ canChangeMembership }) => useUserMembershipActions({ canChangeMembership }),
       { initialProps: { canChangeMembership: true } },
@@ -117,7 +117,7 @@ describe("useUserMembershipActions", () => {
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
   });
 
-  it("所属変更の処理中に非公開へ切り替わった場合は結果toastを表示しない", async () => {
+  it("所属変更の処理中に書き込み不可へ切り替わった場合は結果toastを表示しない", async () => {
     const error = new Error("変更できませんでした");
     let rejectMutation: ((error: Error) => void) | undefined;
     mocks.changeMemberships.mockReturnValue(

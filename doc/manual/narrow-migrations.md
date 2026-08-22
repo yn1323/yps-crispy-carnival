@@ -129,7 +129,7 @@ pnpm exec convex run migrations/index:runLineCommonLinkBackfill \
 
 実行後はmigration statusとLINE共通化readinessを全ページ再確認します。
 canonical counterpart欠損、未完了fan-out、snapshotが不完全なtoken・Outbox・scheduled callerを0件にしてから、常時canonical readを含むartifactを対象deploymentへ反映します。
-このartifactはruntime環境変数で旧readへ切り替えられないため、残件がある間は反映しません。店舗追加と複数店舗所属の公開状態は別境界であり、`FEATURE_SHOP_ADDITION`を明示的に`true`へ設定したdeploymentだけで有効になります。
+このartifactはruntime環境変数で旧readへ切り替えられないため、残件がある間は反映しません。店舗追加と複数店舗所属はartifact反映後に常時利用できるため、readiness確認後のcanary対象に含めます。
 反映後のreadinessとcanaryは別々に確認し、Productionでの完了状態を[リリース状態](release-status.md)へ記録します。
 
 ## Conflict修復後の限定再実行

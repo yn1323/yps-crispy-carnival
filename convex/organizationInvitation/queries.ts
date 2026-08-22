@@ -1,6 +1,5 @@
 import { v } from "convex/values";
 import { observedInternalQuery as internalQuery, observedQuery as query } from "../_lib/errorObservability";
-import { isReleaseFeatureEnabled } from "../_lib/releaseFeatures";
 import { isOrganizationInvitationIssued, isOrganizationInvitationLinked } from "./lifecycle";
 import { resolveOrganizationInvitationEligibility } from "./service";
 import { digestInvitationToken } from "./token";
@@ -18,7 +17,6 @@ export const getPreview = query({
   args: { token: v.string() },
   returns: invitationPreviewValidator,
   handler: async (ctx, args) => {
-    if (!isReleaseFeatureEnabled("managerInvitation")) return { status: "unavailable" as const };
     if (args.token.length !== 43) return { status: "invalid" as const };
     const tokenDigest = await digestInvitationToken(args.token);
     const invitations = await ctx.db

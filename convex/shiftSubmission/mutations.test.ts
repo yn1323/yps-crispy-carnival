@@ -270,6 +270,88 @@ describe("shiftSubmission/mutations", () => {
       expect(await t.run((ctx) => ctx.db.query("shiftSubmissions").collect())).toEqual([]);
     });
 
+    it("active.freeの実利用人数が上限を超えると未リンクの移行中staffも提出できない", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, recruitmentId, sessionToken } = await setupTestData(t);
+      await migrateShopWithoutMigratingStaff(t, {
+        shopId,
+        operatingStatus: "active",
+        billingState: "active",
+      });
+
+      const baseline = await t.run(async (ctx) => {
+        const shop = await ctx.db.get(shopId);
+        if (!shop?.organizationId) throw new Error("移行済み組織が見つかりません");
+        const organizationId = shop.organizationId;
+        const billingState = await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+          .unique();
+        if (!billingState) throw new Error("課金stateが見つかりません");
+        await ctx.db.patch(billingState._id, {
+          state: { kind: "active", plan: "free" },
+          updatedAt: Date.now(),
+        });
+
+        for (let index = 0; index < 6; index += 1) {
+          const email = `over-limit-staff-${index + 1}@example.com`;
+          const personId = await ctx.db.insert("organizationPeople", {
+            organizationId,
+            name: `上限超過スタッフ${index + 1}`,
+            email,
+            emailNormalized: email,
+            status: "active",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          });
+          await ctx.db.insert("staffs", {
+            organizationId,
+            organizationPersonId: personId,
+            shopId,
+            name: `上限超過スタッフ${index + 1}`,
+            email,
+            emailNormalized: email,
+            isDeleted: false,
+          });
+        }
+
+        const recruitmentStatsId = await ctx.db.insert("recruitmentStats", {
+          recruitmentId,
+          shopId,
+          submittedCount: 0,
+          activeStaffCountSnapshot: 7,
+          updatedAt: Date.now(),
+        });
+        const persistedBillingState = await ctx.db.get(billingState._id);
+        const recruitmentStats = await ctx.db.get(recruitmentStatsId);
+        return { billingStateId: billingState._id, persistedBillingState, recruitmentStatsId, recruitmentStats };
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          requests: validRequests,
+        }),
+      ).rejects.toMatchObject({ data: { code: "USAGE_LIMIT_EXCEEDED", plan: "free" } });
+
+      const after = await t.run(async (ctx) => ({
+        submissions: await ctx.db.query("shiftSubmissions").collect(),
+        slots: await ctx.db.query("shiftSubmissionSlots").collect(),
+        dates: await ctx.db.query("shiftSubmissionDates").collect(),
+        recruitmentStats: await ctx.db.get(baseline.recruitmentStatsId),
+        billingState: await ctx.db.get(baseline.billingStateId),
+      }));
+      expect(after).toEqual({
+        submissions: [],
+        slots: [],
+        dates: [],
+        recruitmentStats: baseline.recruitmentStats,
+        billingState: baseline.persistedBillingState,
+      });
+    });
+
     it("recruitmentId不一致でエラー", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, shopId } = await setupTestData(t);

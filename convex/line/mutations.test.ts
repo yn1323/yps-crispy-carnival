@@ -12,6 +12,7 @@ import {
 } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { LINE_LINK_REDEEM_GLOBAL_LIMIT, LINE_WEBHOOK_MESSAGE_REQUEST_LIMIT } from "../constants";
+import { ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT } from "../organization/service";
 import { resolveStaffLineRecipient } from "./service";
 
 async function setupShop(t: TestConvex<typeof schema>) {
@@ -31,13 +32,17 @@ async function setupShop(t: TestConvex<typeof schema>) {
   });
 }
 
-async function setupOrganizationShop(t: TestConvex<typeof schema>, subject: string) {
+async function setupOrganizationShop(
+  t: TestConvex<typeof schema>,
+  subject: string,
+  plan: "free" | "pro" | "business" = "pro",
+) {
   return await t.run(async (ctx) => {
     const seeded = await seedOrganizationManagerShop(ctx, {
       subject,
       email: `${subject}@example.com`,
       shopName: "事業者店舗",
-      plan: "pro",
+      plan,
     });
     const staffPersonId = await ctx.db.insert("organizationPeople", {
       organizationId: seeded.organizationId,
@@ -161,6 +166,74 @@ async function seedLineLinkToken(
     return await ctx.db.insert("lineLinkTokens", tokenDoc);
   });
   return { token, tokenDocId };
+}
+
+async function issueOrganizationLineLinkToken(t: TestConvex<typeof schema>, subject: string) {
+  const target = await setupOrganizationShop(t, subject, "free");
+  const { token } = await t.withIdentity({ subject }).mutation(api.line.mutations.generateLinkToken, {
+    shopId: target.shopId,
+    staffId: target.staffId,
+  });
+  const tokenDocId = await t.run(async (ctx) => {
+    const tokenDoc = await ctx.db
+      .query("lineLinkTokens")
+      .withIndex("by_token", (q) => q.eq("token", token))
+      .unique();
+    if (!tokenDoc) throw new Error("LINE token was not persisted");
+    return tokenDoc._id;
+  });
+  return { ...target, token, tokenDocId };
+}
+
+async function blockOrganizationBusinessWritesByUsage(
+  t: TestConvex<typeof schema>,
+  args: {
+    organizationId: Id<"organizations">;
+    shopId: Id<"shops">;
+    suffix: string;
+    state: "overLimit" | "unknown";
+  },
+) {
+  await t.run(async (ctx) => {
+    const now = Date.now();
+    const count = args.state === "overLimit" ? 4 : ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT + 1;
+    for (let index = 0; index < count; index += 1) {
+      const email = `${args.suffix}-${String(index)}@example.com`;
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId: args.organizationId,
+        name: `利用状態変更${String(index)}`,
+        email,
+        emailNormalized: email,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      if (args.state === "overLimit") {
+        await ctx.db.insert("staffs", {
+          shopId: args.shopId,
+          organizationId: args.organizationId,
+          organizationPersonId: personId,
+          name: `利用状態変更${String(index)}`,
+          email,
+          emailNormalized: email,
+          isDeleted: false,
+        });
+      }
+    }
+  });
+}
+
+async function readLineLinkingBusinessState(t: TestConvex<typeof schema>, tokenDocId: Id<"lineLinkTokens">) {
+  return await t.run(async (ctx) => ({
+    token: await ctx.db.get(tokenDocId),
+    accounts: await ctx.db.query("staffLineAccounts").collect(),
+    providers: await ctx.db.query("lineProviderUsers").collect(),
+    links: await ctx.db.query("organizationPersonLineLinks").collect(),
+    fanoutJobs: await ctx.db.query("lineFriendshipFanoutJobs").collect(),
+    analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+    notificationOutbox: await ctx.db.query("notificationOutbox").collect(),
+    scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+  }));
 }
 
 async function seedFriendshipFanoutJob(
@@ -480,6 +553,27 @@ describe("line/mutations", () => {
       expect(result.shopId).toBe(shopId);
       expect(result.tokenDocId).toBe(tokenDocId);
     });
+
+    it.each(["overLimit", "unknown"] as const)(
+      "token発行後に組織の利用状態が%sへ変わった場合はexpiredを返し、LINE連携の副作用を残さない",
+      async (state) => {
+        const t = convexTest(schema, modules);
+        const target = await issueOrganizationLineLinkToken(t, `validate_after_issue_${state}`);
+        await blockOrganizationBusinessWritesByUsage(t, {
+          organizationId: target.organizationId,
+          shopId: target.shopId,
+          suffix: `validate-after-issue-${state}`,
+          state,
+        });
+        const before = await readLineLinkingBusinessState(t, target.tokenDocId);
+
+        await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: target.token })).resolves.toEqual({
+          status: "expired",
+        });
+
+        expect(await readLineLinkingBusinessState(t, target.tokenDocId)).toEqual(before);
+      },
+    );
 
     it("使用済みトークンは expired を返す", async () => {
       const t = convexTest(schema, modules);
@@ -823,6 +917,35 @@ describe("line/mutations", () => {
         scheduled.some((job) => job.name === "legal/actions:sendStaffConsentLine" && job.args[0]?.staffId === staffId),
       ).toBe(true);
     });
+
+    it.each(["overLimit", "unknown"] as const)(
+      "token検証後に組織の利用状態が%sへ変わった場合は永続化直前に拒否し、LINE連携の副作用を残さない",
+      async (state) => {
+        const t = convexTest(schema, modules);
+        const target = await issueOrganizationLineLinkToken(t, `finalize_after_validate_${state}`);
+        await expect(
+          t.mutation(internal.line.mutations.validateLinkToken, { state: target.token }),
+        ).resolves.toMatchObject({ status: "ok" });
+        await blockOrganizationBusinessWritesByUsage(t, {
+          organizationId: target.organizationId,
+          shopId: target.shopId,
+          suffix: `finalize-after-validate-${state}`,
+          state,
+        });
+        const before = await readLineLinkingBusinessState(t, target.tokenDocId);
+
+        await expect(
+          t.mutation(internal.line.mutations.finalizeLinking, {
+            staffId: target.staffId,
+            tokenDocId: target.tokenDocId,
+            lineUserId: `U_finalize_after_validate_${state}`,
+            lineFollowing: true,
+          }),
+        ).resolves.toEqual({ status: "expired" });
+
+        expect(await readLineLinkingBusinessState(t, target.tokenDocId)).toEqual(before);
+      },
+    );
 
     it("事業者移行中で課金状態が未作成でもactive店舗ならvalidateと連携を継続できる", async () => {
       const t = convexTest(schema, modules);

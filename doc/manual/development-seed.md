@@ -46,16 +46,7 @@ localでは、現在の`convex/`を読み込んだlocal Convex serverが動作�
 
 `NOTIFICATION_DELIVERY_MODE=dry-run`は、シードデータを利用している間も維持します。  `DEVELOPMENT_SEED_ENABLED`の無効化と一緒に配送modeを戻しません。
 
-### 画面確認用のfeature flag
-
-次の画面を確認する場合は、対象deploymentで対応するflagを明示的に`true`へ設定します。  シードはfeature flagを変更しません。
-
-- `FEATURE_ORGANIZATION_CREATION`
-- `FEATURE_SHOP_ADDITION`
-- `FEATURE_MANAGER_INVITATION`
-- `FEATURE_BILLING`
-
-通知は`dry-run`のまま確認します。  実際のメールやLINEを送るために配送modeを変えると、シード用functionのguardが失敗します。
+追加組織、店舗追加、管理者招待、課金画面の確認に、機能ごとの環境変数は不要です。  通知は`dry-run`のまま確認します。  実際のメールやLINEを送るために配送modeを変えると、シード用functionのguardが失敗します。
 
 ## 作成する九つのシナリオ
 

@@ -2,10 +2,9 @@ import { useAuth } from "@clerk/react";
 import { Navigate, useMatches, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { useAtom, useSetAtom } from "jotai";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { api } from "@/convex/_generated/api";
 import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
-import { normalizeFeatureVisibility } from "@/src/domains/featureVisibility";
 import { normalizeAuthRedirect } from "@/src/lib/auth/redirect";
 import { selectedShopAtom } from "@/src/stores/shop";
 import { EMPTY_USER, userAtom } from "@/src/stores/user";
@@ -33,14 +32,6 @@ export const AuthGuard = ({ children }: Props) => {
       "accountDeletionRequested" in currentUser &&
       currentUser.accountDeletionRequested === true,
   );
-  const currentFeatureVisibility = useMemo(
-    () =>
-      normalizeFeatureVisibility(
-        currentUser && !("accountDeleted" in currentUser) ? currentUser.featureVisibility : undefined,
-      ),
-    [currentUser],
-  );
-
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
 
@@ -57,10 +48,9 @@ export const AuthGuard = ({ children }: Props) => {
         authId: userId,
         name: currentUser.name ?? "",
         email: currentUser.email ?? "",
-        featureVisibility: currentFeatureVisibility,
       });
     }
-  }, [userId, currentUser, currentFeatureVisibility, setUser]);
+  }, [userId, currentUser, setUser]);
 
   useEffect(() => {
     if (!isAccountDeleted) return;
@@ -68,14 +58,7 @@ export const AuthGuard = ({ children }: Props) => {
     setSelectedShop(null);
   }, [isAccountDeleted, setSelectedShop, setUser]);
 
-  // queryとatomの機能DTOを同期し、古い永続値が残る間の描画を避ける。
-  const isUserContextReady =
-    Boolean(userId && currentUser && !isAccountDeleted) &&
-    user.authId === userId &&
-    user.featureVisibility?.organizationSettingsNavigation ===
-      currentFeatureVisibility.organizationSettingsNavigation &&
-    user.featureVisibility?.billing === currentFeatureVisibility.billing &&
-    user.featureVisibility?.shopMembershipAddition === currentFeatureVisibility.shopMembershipAddition;
+  const isUserContextReady = Boolean(userId && currentUser && !isAccountDeleted) && user.authId === userId;
 
   // ログアウト・セッション失効時は userAtom が残っていても必ずログインへ戻す。
   // （queryは未認証時にthrowせず空を返すため、エラー経由のリダイレクトは発生しない）

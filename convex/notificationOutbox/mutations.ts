@@ -4,10 +4,9 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { monthJST } from "../_lib/dateFormat";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
-import { managerMutation } from "../_lib/functions";
+import { managerLimitRecoveryMutation, managerMutation } from "../_lib/functions";
 import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
 import { rateLimit } from "../_lib/rateLimits";
-import { isReleaseFeatureEnabled } from "../_lib/releaseFeatures";
 import { loadShopManagerStaffForContact, type ShopManagerContact } from "../_lib/shopManagerRecipients";
 import { normalizeEmail } from "../_lib/validation";
 import {
@@ -30,11 +29,8 @@ import {
   upsertConfirmationSnapshotRecord,
 } from "../notification/confirmationSnapshots";
 import { buildNotificationFanoutTargetKey, isSupplementalConfirmationFanoutStale } from "../notification/fanout";
-import {
-  billingStateReferencesBusinessPlan,
-  deriveOrganizationBillingPolicy,
-  getEffectiveRestrictedBillingState,
-} from "../organizationBilling/policy";
+import { billingStateReferencesBusinessPlan, getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
+import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { isOrganizationInvitationIssued } from "../organizationInvitation/lifecycle";
 import { resolveOrganizationInvitationEligibility } from "../organizationInvitation/service";
 import { isShiftTargetStaff } from "../staff/service";
@@ -1324,12 +1320,6 @@ async function getNotificationEligibility(
   const isInvitationPayload =
     notification.payload.kind === "organizationManagerInvitationEmail" ||
     notification.payload.kind === "organizationManagerInvitationLine";
-  const isManagerInvitationNotification =
-    isInvitationPayload ||
-    (notification.payload.kind === "email" && notification.payload.context === "organizationInvitation.linked");
-  const isBillingPayload =
-    purpose === "billing" ||
-    (notification.payload.kind === "email" && notification.payload.context.startsWith("organizationBilling."));
   const hasInvitationId = notification.organizationInvitationId !== undefined;
   const hasInvitationVersion = notification.organizationInvitationVersion !== undefined;
   if (purpose === "billing" && notification.channel !== "email") {
@@ -1341,12 +1331,6 @@ async function getNotificationEligibility(
     (isInvitationPayload && (purpose !== "business" || notification.organizationId === undefined))
   ) {
     return { cancelReason: "invalid_scope" };
-  }
-  if (isBillingPayload && !isReleaseFeatureEnabled("billing")) {
-    return { organizationId: notification.organizationId, cancelReason: "organization_billing_changed" };
-  }
-  if (isManagerInvitationNotification && !isReleaseFeatureEnabled("managerInvitation")) {
-    return { organizationId: notification.organizationId, cancelReason: "invitation_inactive" };
   }
   if (!notification.shopId && !notification.organizationId) {
     return { cancelReason: "invalid_scope" };
@@ -1395,12 +1379,19 @@ async function getNotificationEligibility(
     return { organizationId, cancelReason: "invalid_scope" };
   }
   const billingState = billingStates[0] ?? null;
-  if (
-    purpose === "business" &&
-    billingState &&
-    deriveOrganizationBillingPolicy(billingState.state).businessWriteBlockReason === "restricted"
-  ) {
-    return { organizationId, cancelReason: "organization_restricted" };
+  if (purpose === "business" && billingState) {
+    const access = await getOrganizationAccessPolicy(ctx, organizationId);
+    if (!access) {
+      return { organizationId, cancelReason: "invalid_scope" };
+    }
+    if (access.accessMode !== "normal") {
+      const isUsageLimitBlocked =
+        access.usageLimitStatus?.kind === "overLimit" || access.usageLimitStatus?.kind === "unknown";
+      return {
+        organizationId,
+        cancelReason: isUsageLimitBlocked ? "organization_usage_limit_exceeded" : "organization_restricted",
+      };
+    }
   }
   const billingContext: NotificationEligibility = billingState
     ? {
@@ -2205,7 +2196,7 @@ async function markFailureRetrying(
   });
 }
 
-export const resolveFailure = managerMutation({
+export const resolveFailure = managerLimitRecoveryMutation("resolveNotificationFailure")({
   args: { failureId: v.id("notificationFailureInbox") },
   returns: v.object({ resolved: v.literal(true) }),
   handler: async (ctx, { failureId }) => {

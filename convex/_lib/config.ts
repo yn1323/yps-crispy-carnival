@@ -113,44 +113,6 @@ export function getDebugTrialDurationDays(): number | undefined {
   return durationDays;
 }
 
-export type FeatureVisibility = {
-  organizationSettingsNavigation: boolean;
-  billing: boolean;
-  shopMembershipAddition: boolean;
-};
-
-export type ReleaseFeatureVisibility = {
-  organizationCreation: boolean;
-  shopAddition: boolean;
-  managerInvitation: boolean;
-  billing: boolean;
-};
-
-function isExplicitlyEnabled(value: string | undefined): boolean {
-  return value?.trim().toLowerCase() === "true";
-}
-
-/** 未設定を含むすべての値を閉じる、未リリース機能のserver-side正本。 */
-export function getReleaseFeatureVisibility(): ReleaseFeatureVisibility {
-  return {
-    organizationCreation: isExplicitlyEnabled(process.env.FEATURE_ORGANIZATION_CREATION),
-    shopAddition: isExplicitlyEnabled(process.env.FEATURE_SHOP_ADDITION),
-    managerInvitation: isExplicitlyEnabled(process.env.FEATURE_MANAGER_INVITATION),
-    billing: isExplicitlyEnabled(process.env.FEATURE_BILLING),
-  };
-}
-
-/** 旧frontend互換の表示DTO。操作の許可判定には使わない。 */
-export function getFeatureVisibility(): FeatureVisibility {
-  const features = getReleaseFeatureVisibility();
-  return {
-    organizationSettingsNavigation:
-      features.organizationCreation || features.shopAddition || features.managerInvitation || features.billing,
-    billing: features.billing,
-    shopMembershipAddition: features.shopAddition,
-  };
-}
-
 export function getOrganizationInvitationSigningSecret(): string {
   const secret = (process.env.ORGANIZATION_INVITATION_SIGNING_SECRET ?? "").trim();
   if (secret.length < 32) {

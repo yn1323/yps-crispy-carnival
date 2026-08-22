@@ -65,7 +65,6 @@ function StaffReadyPreview({
   withNextPage = false,
   readOnly = false,
   empty = false,
-  managerInvitationEnabled = true,
   singleShop = false,
   singlePerson = false,
   filteredByShop = false,
@@ -73,7 +72,6 @@ function StaffReadyPreview({
   withNextPage?: boolean;
   readOnly?: boolean;
   empty?: boolean;
-  managerInvitationEnabled?: boolean;
   singleShop?: boolean;
   singlePerson?: boolean;
   filteredByShop?: boolean;
@@ -93,7 +91,6 @@ function StaffReadyPreview({
       <PeopleSection
         people={visiblePeople}
         peopleUsage={{ current: empty ? 0 : singlePerson ? 1 : 12, max: 40 }}
-        showManagerInvitation={managerInvitationEnabled}
         onManageManagers={() => {}}
         onOpenUser={() => {}}
         staffOrder={
@@ -226,15 +223,6 @@ export const KeyboardDragBehavior: Story = {
     const rows = canvas.getAllByRole("listitem");
     await expect(rows[0]).toHaveTextContent("佐藤 太郎");
     await expect(rows[1]).toHaveTextContent("山田 花子");
-  },
-};
-
-export const ClosedFeaturesBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  render: () => <StaffReadyPreview managerInvitationEnabled={false} />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.queryByRole("button", { name: "管理者を設定" })).not.toBeInTheDocument();
   },
 };
 

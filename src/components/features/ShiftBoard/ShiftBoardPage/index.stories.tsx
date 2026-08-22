@@ -323,6 +323,23 @@ export const ReadOnly: Story = {
   },
 };
 
+export const UsageLimitEvaluationUnavailable: Story = {
+  args: {
+    data: {
+      ...mockData,
+      canWriteBusinessData: false,
+      businessWriteBlockReason: "usageLimitEvaluationUnavailable",
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByText(/現在の利用数を安全に確認できないため/)).toBeInTheDocument();
+    await expect(canvas.queryByText(/プラン上限を超えているため/)).not.toBeInTheDocument();
+    await expect(canvas.queryByLabelText("下書き保存")).not.toBeInTheDocument();
+  },
+};
+
 const dynamicCapabilityData: ShiftBoardData = {
   ...mockData,
   recruitment: {

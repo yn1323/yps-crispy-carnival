@@ -112,7 +112,7 @@ describe("development seed internal mutations", () => {
 
     await expect(t.mutation(preflightRef, {})).resolves.toEqual({
       contractVersion: "development-seed-v1",
-      contractFingerprint: "40f3c160",
+      contractFingerprint: "b005d0bb",
       deploymentUrl: "https://seed-development.convex.cloud",
       today: "2026-08-20",
       scenarioKeys: [

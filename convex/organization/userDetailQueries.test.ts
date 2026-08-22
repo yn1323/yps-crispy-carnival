@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
@@ -7,8 +7,6 @@ import { seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const NOW = Date.UTC(2026, 6, 19, 3);
-
-afterEach(() => vi.unstubAllEnvs());
 
 async function seedPerson(
   ctx: MutationCtx,
@@ -59,8 +57,51 @@ async function seedStaff(
 }
 
 describe("organization/userDetailQueries.getUserDetail", () => {
+  it("active.freeの利用人数超過中は人物削除だけを許可し、通常編集と店舗所属変更を閉じる", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "user_detail_usage_over_limit",
+        plan: "free",
+      });
+      const personIds = [];
+      for (let index = 0; index < 5; index += 1) {
+        const personId = await seedPerson(ctx, {
+          organizationId: base.organizationId,
+          name: `上限超過スタッフ${index}`,
+          email: `user-detail-over-limit-${index}@example.com`,
+        });
+        await seedStaff(ctx, {
+          organizationId: base.organizationId,
+          personId,
+          shopId: base.shopId,
+          name: `上限超過スタッフ${index}`,
+          email: `user-detail-over-limit-${index}@example.com`,
+        });
+        personIds.push(personId);
+      }
+      return { ...base, targetPersonId: personIds[0] };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "user_detail_usage_over_limit" })
+      .query(api.organization.userDetailQueries.getUserDetail, {
+        shopId: ids.shopId,
+        personId: ids.targetPersonId,
+        now: NOW,
+      });
+
+    expect(result).toMatchObject({
+      canWrite: false,
+      writeDisabledReason: expect.stringContaining("プラン上限を超過"),
+      canRemove: true,
+      canRemoveManagerRole: false,
+      shops: [{ shopId: ids.shopId, canChangeMembership: false }],
+      memberships: [{ shopId: ids.shopId, canRemove: false }],
+    });
+  });
+
   it("組織人物と有効店舗所属を最小DTOで返し、招待状態を同じ契約で更新する", async () => {
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -519,7 +560,6 @@ describe("organization/userDetailQueries.getUserDetail", () => {
   });
 
   it("店舗未所属の組織管理者もユーザー詳細として返す", async () => {
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "true");
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
