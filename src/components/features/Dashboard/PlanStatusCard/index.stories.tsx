@@ -81,7 +81,7 @@ const trial = {
   remainingDays: 7,
   trialEndsOnLabel: "8/16(日)",
   description:
-    "未選択のまま終了すると利用停止になります。データは削除されないため、継続して利用するにはプランを選んでください。",
+    "未選択のまま終了するとFreeプランへ移行します。Freeプランの上限を超えている場合は、上限内に減らすまで業務操作が制限されます。",
   primaryAction: { action: "choosePlan", label: "プランを選ぶ" },
   showRemindLater: true,
 } satisfies PlanStatusCardData;

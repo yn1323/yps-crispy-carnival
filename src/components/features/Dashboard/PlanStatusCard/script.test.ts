@@ -21,7 +21,7 @@ describe("buildPlanStatusCardData", () => {
       trialEndsOnLabel: "8/16(日)",
       continuationPlanName: undefined,
       description:
-        "未選択のまま終了すると利用停止になります。データは削除されないため、継続して利用するにはプランを選んでください。",
+        "未選択のまま終了するとFreeプランへ移行します。Freeプランの上限を超えている場合は、上限内に減らすまで業務操作が制限されます。",
       primaryAction: { action: "choosePlan", label: "プランを選ぶ" },
       showRemindLater: true,
     });
@@ -45,7 +45,7 @@ describe("buildPlanStatusCardData", () => {
     );
     expect(readOnlyTrial).toMatchObject({
       description:
-        "未選択のまま終了すると利用停止になります。データは削除されません。プランの選択は、契約を管理できる管理者が行えます。",
+        "未選択のまま終了するとFreeプランへ移行します。Freeプランの上限を超えている場合は、上限内に減らすまで業務操作が制限されます。",
       showRemindLater: false,
     });
     expect(readOnlyTrial).not.toHaveProperty("primaryAction");
