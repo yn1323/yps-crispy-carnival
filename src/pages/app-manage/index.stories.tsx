@@ -82,16 +82,18 @@ function ReadyClosedPreview({ readOnly = false }: { readOnly?: boolean }) {
     <Stack gap={6}>
       <AppManageHeader />
       <AppManageReadOnlyNotice memberStatus={readOnly ? "readOnly" : "active"} />
-      <OrganizationUsageSection billing={billing} />
-      <OrganizationManagementSection
-        organizationId={organizationId}
-        organizationName="ハイパーカンパニーグループ"
-        managerCount={1}
-        pendingManagerCount={0}
-        billingState={billing.state}
-        features={{ organizationCreation: false, managerInvitation: false, billing: false }}
-        canCreateOrganization={false}
-      />
+      <Stack gap={4}>
+        <OrganizationUsageSection billing={billing} showCurrentPlan />
+        <OrganizationManagementSection
+          organizationId={organizationId}
+          organizationName="ハイパーカンパニーグループ"
+          managerCount={1}
+          pendingManagerCount={0}
+          billingState={billing.state}
+          features={{ organizationCreation: false, managerInvitation: false, billing: false }}
+          canCreateOrganization={false}
+        />
+      </Stack>
       <ManageShopsSection
         organizationId={organizationId}
         shops={shops}
@@ -146,6 +148,7 @@ export const ReleasedFeaturesHiddenBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
+    await expect(canvas.getByRole("region", { name: "現在のプラン" })).toHaveTextContent("Business");
     await expect(canvas.getByRole("button", { name: "組織情報を開く" })).toBeInTheDocument();
     await expect(canvas.getByRole("heading", { name: "全店舗 (6/5)" })).toBeInTheDocument();
     await expect(canvas.queryByRole("button", { name: "新しい組織を作る" })).not.toBeInTheDocument();

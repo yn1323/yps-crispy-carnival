@@ -75,17 +75,19 @@ function ConnectedManagePage({ organizationId, memberStatus }: OrganizationScope
       <Stack as="main" gap={{ base: 6, lg: 8 }}>
         <AppManageHeader />
         <AppManageReadOnlyNotice memberStatus={memberStatus} />
-        <OrganizationUsageSection billing={overview.usage} />
-        <OrganizationManagementSection
-          organizationId={organizationId}
-          organizationName={overview.organizationName}
-          managerCount={overview.usage.managerUsage.current}
-          pendingManagerCount={overview.usage.managerUsage.pendingInvitations}
-          billingState={overview.usage.state}
-          features={features}
-          canCreateOrganization={overview.capabilities.canCreateOrganization}
-          createOrganizationDisabledReason={overview.capabilities.createOrganizationDisabledReason}
-        />
+        <Stack gap={4}>
+          <OrganizationUsageSection billing={overview.usage} showCurrentPlan />
+          <OrganizationManagementSection
+            organizationId={organizationId}
+            organizationName={overview.organizationName}
+            managerCount={overview.usage.managerUsage.current}
+            pendingManagerCount={overview.usage.managerUsage.pendingInvitations}
+            billingState={overview.usage.state}
+            features={features}
+            canCreateOrganization={overview.capabilities.canCreateOrganization}
+            createOrganizationDisabledReason={overview.capabilities.createOrganizationDisabledReason}
+          />
+        </Stack>
         <ManageShopsSection
           organizationId={organizationId}
           shops={shopRows}
@@ -148,6 +150,7 @@ export function OrganizationManagementSection({
   const navigate = useNavigate();
   const creation = useOrganizationCreationController({
     canCreateOrganization,
+    createOrganizationDisabledReason,
     organizationId,
     onCreated: (shopId, createdOrganizationId) =>
       void navigate({
@@ -176,7 +179,7 @@ export function OrganizationManagementSection({
               gap={1.5}
               fontWeight="semibold"
               onClick={creation.createOrganization}
-              disabled={!canCreateOrganization}
+              disabled={!canCreateOrganization && !isOrganizationCreationLimitReached(createOrganizationDisabledReason)}
               title={!canCreateOrganization ? createOrganizationDisabledReason : undefined}
             >
               <LuPlus aria-hidden />
@@ -214,6 +217,10 @@ export function OrganizationManagementSection({
       {features.organizationCreation && <OrganizationCreationDialog {...creation.dialog} />}
     </>
   );
+}
+
+function isOrganizationCreationLimitReached(reason?: string) {
+  return reason?.startsWith("作成できる組織は") === true;
 }
 
 function ManagementRouteRow({
@@ -629,7 +636,6 @@ function ReadyBillingPage({
           onRetryPlanPrice={stripe.retryPlanPrice}
           onUpdatePaymentMethod={stripe.updatePaymentMethod}
           onUpdateBillingEmail={billingEmail.updateBillingEmail}
-          onOpenBillingDocuments={stripe.openBillingDocuments}
           pendingCheckout={stripe.pendingCheckout}
         />
       </Stack>
@@ -712,23 +718,25 @@ function ManagePageSkeleton() {
         <Skeleton boxSize={{ base: 5, lg: 6 }} borderRadius="full" />
         <Skeleton h="28px" w="80px" />
       </HStack>
-      <OrganizationUsageSectionSkeleton />
+      <Stack gap={4}>
+        <OrganizationUsageSectionSkeleton showCurrentPlan />
 
-      <Stack as="section" gap={4} aria-hidden>
-        <Flex justify="space-between" align="center" gap={3} wrap="wrap">
-          <HStack gap={2}>
-            <Skeleton boxSize={5} borderRadius="sm" />
-            <Skeleton h="28px" w="96px" />
-          </HStack>
-          <Skeleton h="36px" w="144px" borderRadius="md" />
-        </Flex>
-        <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
-          <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
-            <ManageRouteRowSkeleton titleWidth="80px" descriptionWidth="224px" />
-            <ManageRouteRowSkeleton titleWidth="112px" descriptionWidth="168px" />
-            <ManageRouteRowSkeleton titleWidth="128px" descriptionWidth="144px" />
-          </Stack>
-        </Box>
+        <Stack as="section" gap={4} aria-hidden>
+          <Flex justify="space-between" align="center" gap={3} wrap="wrap">
+            <HStack gap={2}>
+              <Skeleton boxSize={5} borderRadius="sm" />
+              <Skeleton h="28px" w="96px" />
+            </HStack>
+            <Skeleton h="36px" w="144px" borderRadius="md" />
+          </Flex>
+          <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
+            <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
+              <ManageRouteRowSkeleton titleWidth="80px" descriptionWidth="224px" />
+              <ManageRouteRowSkeleton titleWidth="112px" descriptionWidth="168px" />
+              <ManageRouteRowSkeleton titleWidth="128px" descriptionWidth="144px" />
+            </Stack>
+          </Box>
+        </Stack>
       </Stack>
 
       <Stack as="section" gap={4} aria-hidden>

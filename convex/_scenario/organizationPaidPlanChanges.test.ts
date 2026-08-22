@@ -838,7 +838,7 @@ describe("有料プラン変更シナリオ", () => {
     ]);
   });
 
-  it("Proの利用停止は公開Actionで期間末に予約し、deadline jobとprovider解約確認後にrestrictedになる", async () => {
+  it("Proの解約は公開Actionで期間末に予約し、deadline jobとprovider解約確認後にrestrictedになる", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedPaidStripeContext(t, {
       subject: "scenario_pro_to_free",

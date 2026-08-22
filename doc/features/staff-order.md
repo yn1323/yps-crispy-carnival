@@ -2,28 +2,31 @@
 
 ## 目的
 
-組織の管理ユーザーが、スタッフ一覧でよく使う順に人物を並べ替え、その順序を組織内の店舗で共有できるようにする。  並び替えはスタッフ一覧とは分けた専用画面で行い、保存するまでは表示中の一覧だけを変更する。
+組織の管理ユーザーが、スタッフページで一覧を見ながら人物を並べ替え、その順序を組織内の店舗で共有できるようにする。
+並び替えは店舗filterが「すべて」のときだけ提供し、専用画面と明示的な保存操作は設けない。
 
-この並び順はスタッフ管理画面、Dashboardのスタッフ一覧、店舗詳細の所属スタッフ一覧に適用する。  シフト表と希望シフト入力は、勤務開始時刻を基準にする既存の表示順を維持し、任意順の影響を受けない。
+この並び順はスタッフ管理画面、Dashboardのスタッフ一覧、店舗詳細の所属スタッフ一覧に適用する。
+シフト表と希望シフト入力は、勤務開始時刻を基準にする既存の表示順を維持し、任意順の影響を受けない。
 
 ## 画面と操作
 
-`/staff?org=<organizationId>`の「並び順を変更」から`/staff/order?org=<organizationId>`を開く。  店舗filterから入った場合も、並び替える対象はその店舗だけではなく組織の全人物であることを画面上で説明する。
+`/staff?org=<organizationId>`で店舗filterが「すべて」のとき、各スタッフ行の左側にドラッグハンドルを表示する。
+ドラッグまたはキーボード操作で行を移動し、ドロップした時点で組織共通の並び順を保存する。
 
-専用画面では次の操作を提供する。
+店舗filterで個別店舗を選んだときはドラッグハンドルを表示せず、並べ替えを提供しない。
+店舗別一覧は組織共通順の部分列であり、一部の人物だけを並べ替える操作にはしない。
 
-- ドラッグ操作、キーボード操作、各行のメニューから並び順を変更できる。
-- 行には氏名、メールアドレス、所属店舗を表示し、同名の人物を区別できるようにする。
-- 変更は「並び順を保存」で一括保存する。差分がない場合は保存できない。
-- 未保存のまま戻る、別URLへ移動する、ブラウザを閉じる操作では、破棄確認を表示する。
-- 保存中の二重送信を防ぎ、失敗した場合は編集中の順序を保持して再試行できるようにする。
-- 編集中にスタッフ情報や並び順が更新された場合は、編集中の順序を保持したまま競合を表示して保存を止める。「最新の内容を読み込む」を明示的に選ぶと、編集中の順序を破棄して最新状態へ切り替える。
+ドロップ直後は画面上の順序を先に変更するoptimistic updateを行い、保存中は別の並べ替えを受け付けない。
+保存に成功した場合は通知を表示しない。
+保存に失敗した場合はドロップ前の順序へ戻し、タイトルだけのエラーToast「並び順を保存できませんでした」を表示する。
 
-旧URLの`/app/staff/order`は、`org`と`shopFilter`を維持して正規URLへ置換遷移する。
+旧URLの`/staff/order`と`/app/staff/order`は、`org`だけを維持して`/staff`へ置換遷移する。
+`shopFilter`は引き継がず、店舗filterが「すべて」のスタッフページへ戻す。
 
 ## 並び順の単位とライフサイクル
 
-並び順は店舗ごとではなく、`organizationPeople`を対象とした組織共通の1列である。  店舗別一覧は、その組織共通順から対象店舗に所属する人物だけを取り出した部分列として表示する。
+並び順は店舗ごとではなく、`organizationPeople`を対象とした組織共通の1列である。
+店舗別一覧は、その組織共通順から対象店舗に所属する人物だけを取り出した部分列として表示する。
 
 | 状態変化 | 並び順の結果 |
 |---|---|
@@ -39,11 +42,18 @@
 
 ## 保存と読み取り
 
-保存APIは、認証中の組織管理ユーザーをサーバー側で確認し、通常の事業操作が可能な課金状態でだけ更新を受け付ける。  clientから渡された人物IDは、対象組織の有効人物集合と完全一致し、重複がなく、画面を開いた後に一覧が変わっていない場合だけ保存する。
+保存APIは、認証中の組織管理ユーザーをサーバー側で確認し、通常の事業操作が可能な課金状態でだけ更新を受け付ける。
+clientから渡された人物IDは、対象組織の有効人物集合と完全一致し、重複がなく、一覧を取得した後に人物集合や並び順が変わっていない場合だけ保存する。
+`/staff`は店舗filterが「すべて」のときに保存対象となる全人物とorder fingerprintを取得し、ドロップ後に全人物IDを保存APIへ渡す。
 
-既存のページングを維持するため、並び順は新しい空のorder tableへ保存する。  既存tableに新しいindexを追加せず、初回保存前の組織には保存用documentを作らない。並び順が未設定、対象集合が上限を超えた、または既知の整合性不成立を検出した場合はorder stateを無効化し、部分的な並び順を返さず既存indexによる一覧へ安全に戻す。予期しないDB errorまで握りつぶさず、同じtransactionのsource更新とともに失敗させる。
+既存のページングを維持するため、並び順は専用のorder tableへ保存する。
+既存tableに新しいindexを追加せず、初回保存前の組織には保存用documentを作らない。
+並び順が未設定、対象集合が上限を超えた、または既知の整合性不成立を検出した場合はorder stateを無効化し、部分的な並び順を返さず既存indexによる一覧へ安全に戻す。
+予期しないDB errorまで握りつぶさず、同じtransactionのsource更新とともに失敗させる。
 
-Dashboardは店舗用のorder projectionをページングし、スタッフ管理の全店舗表示は組織人物用のorder projectionをページングする。  店舗filterと店舗詳細の所属スタッフ一覧では、同じ組織共通順位から対象店舗の部分列を返す。削除済み人物、削除済みstaff、非active店舗、別組織のIDをorder dataから表示へ混入させない。
+スタッフ管理の「すべて」は、boundedに取得した全人物をeditor snapshotの人物ID順へclientで整列し、保存後も同じ一覧を維持する。
+Dashboardは店舗用のorder projectionをページングし、店舗filterと店舗詳細の所属スタッフ一覧では、同じ組織共通順位から対象店舗の部分列を返す。
+削除済み人物、削除済みstaff、非active店舗、別組織のIDをorder dataから表示へ混入させない。
 
 ## 認可と安全性
 
@@ -59,7 +69,7 @@ Dashboardは店舗用のorder projectionをページングし、スタッフ管�
 
 - `convex/schema.ts`：並び順の有効状態、組織人物順、店舗スタッフ順のtableとindex。
 - `convex/organization/staffOrder.ts`：初回保存、revision検証、sourceとの同期、整合性不成立時の既存順fallback。
-- `convex/appOrganization/queries.ts`：スタッフ管理の全店舗表示と店舗filterのorder-aware pagination。
+- `convex/appOrganization/queries.ts`：スタッフ管理の人物一覧と、店舗filterのorder-aware pagination。
 - `convex/dashboard/queries.ts`：Dashboard店舗スタッフ一覧のorder-aware pagination。
 - `convex/organization/queries.ts`：組織設定と店舗詳細が共有する人物一覧へ、整合する組織共通順を反映する。
 - `convex/staff/`、`convex/staffRegistration/`、`convex/organization/`：人物・店舗所属・店舗状態の変更後にorder projectionを同期する書き込み経路。
@@ -67,11 +77,10 @@ Dashboardは店舗用のorder projectionをページングし、スタッフ管�
 
 ### フロントエンド
 
-- `src/routes/_auth/staff_.order.tsx`：正規URLと組織scopeを扱うroute境界。
-- `src/routes/_auth/app_.staff_.order.tsx`：旧URLから正規URLへの互換redirect。
-- `src/pages/app-staff-order/`：route query、初回loading・error、feature構成を所有するページ境界。
-- `src/components/features/StaffOrderEditor/`：編集中順序、競合検知、保存、未保存離脱と、ドラッグ・キーボード・行メニューを所有するfeature。
-- `src/components/features/OrganizationSettings/PeopleSection.tsx`：スタッフ一覧から並び替え画面への入口。
+- `src/routes/_auth/staff_.order.tsx`、`src/routes/_auth/app_.staff_.order.tsx`：旧URLから店舗filterが「すべて」のスタッフページへ戻す互換redirect。
+- `src/pages/app-staff/`：店舗filterに応じた並び替え用queryとスタッフ一覧の構成を所有するページ境界。
+- `src/components/features/OrganizationSettings/PeopleSection.tsx`：スタッフ行のドラッグハンドルと並び替え操作を表示する一覧。
+- `src/components/features/OrganizationSettings/staffOrder.ts`、`useStaffOrderReorder.ts`：並び替え、optimistic update、保存、失敗時のrollbackを所有する。
 - `src/components/features/Dashboard/StaffRoster/`：APIが返す店舗スタッフ順をそのまま表示する一覧。
 - `src/components/features/ShopDetail/script.ts`：APIが返す組織共通順を保ったまま、対象店舗の所属スタッフだけを取り出す。
 
@@ -82,7 +91,7 @@ Dashboardは店舗用のorder projectionをページングし、スタッフ管�
 | `api.appOrganization.queries.listOrganizationPeople` | `organizationQuery` | order stateが有効で整合する場合は組織共通順または店舗部分列で人物をページングし、それ以外は既存順を返す |
 | `api.dashboard.queries.getDashboardStaffs` | `managerQuery` | active店舗のorder projectionが整合する場合は保存済み順でstaffをページングし、それ以外は既存順を返す |
 | `api.organization.queries.getSettings` | `managerQuery` | order stateと組織人物順が整合する場合は組織共通順で人物を返し、店舗詳細はその入力順を保った部分列を表示する。不整合時は既存の管理者権限・氏名順へ戻す |
-| `api.appOrganization.staffOrderQueries.getOrganizationStaffOrderEditor` | `organizationQuery` | 並び替え画面用に、組織の全active人物、所属店舗、保存可否、order fingerprintをboundedに返す |
+| `api.appOrganization.staffOrderQueries.getOrganizationStaffOrderEditor` | `organizationQuery` | 「すべて」のスタッフ一覧で並び替える全active人物、保存可否、order fingerprintをboundedに返す |
 | `api.appOrganization.staffOrderQueries.getOrganizationStaffOrderScope` | `organizationQuery` | 全店舗または同一組織店舗filterについて、完全性を確認できたordered paginationと既存順fallbackのどちらを使うか返す |
 | `api.appOrganization.staffOrderMutations.saveOrganizationStaffOrder` | `organizationMutation` | actor、課金状態、人物集合、order fingerprintを再検証し、組織共通順とactive店舗用projectionを一transactionで保存する |
 
@@ -92,5 +101,6 @@ Dashboardは店舗用のorder projectionをページングし、スタッフ管�
 |---|---|---|
 | 初回保存、保存順のページング、店舗部分列、Dashboard・組織設定・店舗詳細への反映、stale fingerprint、別組織ID、重複・欠落ID、readOnly・契約制限を検証する | Convex Function Test | `convex/appOrganization/staffOrder.test.ts`、`convex/appOrganization/queries.test.ts`、`convex/dashboard/queries.test.ts`、`convex/organization/queries.test.ts` |
 | 新規・再追加を末尾へ置き、店舗所属変更、人物削除、店舗停止・再稼働、組織削除でも安全に同期または既存順へ戻す | Convex Function / Scenario Test | `convex/staff/mutations.test.ts`、`convex/staffRegistration/mutations.test.ts`、`convex/organization/mutations.test.ts`、`convex/deletionCleanup/mutations.test.ts`、`convex/_scenario/staffOrderLifecycle.test.ts` |
-| ドラッグ、キーボード、行メニュー、保存、失敗時保持、未保存離脱確認を検証する | Frontend Unit / Storybook Behavior Test | `src/components/features/StaffOrderEditor/`、`src/pages/app-staff-order/` |
-| PCと320px幅で行、操作handle、複数行文言、保存操作が欠けないことを検証する | Storybook VRT | `src/components/features/StaffOrderEditor/index.stories.tsx` |
+| 全人物IDの並び替え、optimistic update、保存成功、失敗時rollbackとタイトルだけのToastを検証する | Logic / Frontend Unit Test | `src/components/features/OrganizationSettings/staffOrder.test.ts`、`src/components/features/OrganizationSettings/useStaffOrderReorder.test.tsx` |
+| 「すべて」では行の左側にhandleを表示し、個別店舗ではhandleを表示しないことと、ドラッグ・キーボード操作を検証する | Frontend Unit / Storybook Behavior Test | `src/pages/app-staff/index.test.tsx`、`src/pages/app-staff/index.stories.tsx` |
+| PCとモバイルでhandleを含む行のレイアウトが崩れないことを検証する | Storybook VRT | `src/pages/app-staff/index.stories.tsx` |

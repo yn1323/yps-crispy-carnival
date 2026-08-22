@@ -7215,7 +7215,7 @@ describe("organizationStripe/actions", () => {
     expect(providerCalls).toEqual(["subscriptions.retrieve"]);
   });
 
-  it("利用停止予約はmarkerをoperationへ保存し、取消で有料プランへ戻す", async () => {
+  it("解約予約はmarkerをoperationへ保存し、取消で有料プランへ戻す", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedPaidPlanStripeContext(t, { subject: "stripe_service_stop", plan: "pro" });
     let cancelAtPeriodEnd = false;
@@ -7267,7 +7267,7 @@ describe("organizationStripe/actions", () => {
     });
   });
 
-  it("利用停止予約は未認証・readOnly・別organizationから開始できない", async () => {
+  it("解約予約は未認証・readOnly・別organizationから開始できない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       await seedOrganizationManagerShop(ctx, { subject: "stripe_service_stop_other", plan: "pro" });
@@ -7452,7 +7452,7 @@ describe("organizationStripe/actions", () => {
     },
   );
 
-  it("利用停止予約の再試行でもmarkerと同じStripe idempotency keyを保持する", async () => {
+  it("解約予約の再試行でもmarkerと同じStripe idempotency keyを保持する", async () => {
     const t = convexTest(schema, modules);
     const periodEndsAt = NOW + 30 * 24 * 60 * 60_000;
     const ids = await seedCancelAtPeriodEndRecoveryContext(t, {
@@ -7608,7 +7608,7 @@ describe("organizationStripe/actions", () => {
     expect(result.subscription).toMatchObject({ status: "canceled", terminalAt: NOW });
   });
 
-  it("利用停止予約はproviderの期間変更後もmarkerを保持し、取消確定時にrestrictedへ移す", async () => {
+  it("解約予約はproviderの期間変更後もmarkerを保持し、取消確定時にrestrictedへ移す", async () => {
     const t = convexTest(schema, modules);
     const rescheduledEndsAt = NOW + 24 * 60 * 60_000;
     const ids = await seedScheduledFreeStripeContext(t, "stripe_scheduled_restriction_rescheduled", "pro", {

@@ -72,6 +72,7 @@ const allTasksArgs = {
     content: (
       <ActionInboxView
         hideEmpty
+        itemVariant="list"
         items={[
           buildNotificationFailureActionInboxItem(
             {
@@ -95,6 +96,7 @@ const allTasksArgs = {
     content: (
       <ActionInboxView
         hideEmpty
+        itemVariant="list"
         items={[
           buildStaffRegistrationActionInboxItem(
             {
@@ -218,6 +220,7 @@ function LastActionItemExitPreview() {
                   items={isPresent ? [item] : []}
                   ariaLabel="スタッフ登録申請"
                   hideEmpty
+                  itemVariant="list"
                   onVisibleItemCountChange={setVisibleItemCount}
                 />
               ),

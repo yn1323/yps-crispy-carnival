@@ -167,7 +167,7 @@ export const ScheduleBusinessToPro: Story = {
 };
 
 export const ScheduleServiceStop: Story = {
-  name: "期間末の利用停止予約",
+  name: "期間末の解約予約",
   args: {
     dialog: {
       kind: "scheduleServiceStop",
@@ -187,6 +187,21 @@ export const CancelScheduledPro: Story = {
       kind: "cancelScheduledPlanChange",
       targetPlan: "pro",
       intentKey: "cancel-scheduled-pro",
+      shopId: "shop-shibuya",
+      organizationName: "株式会社さくらダイニング",
+      effectiveOn: "2026年8月31日",
+    },
+  },
+};
+
+export const CancelScheduledServiceStop: Story = {
+  name: "解約予約取消",
+  args: {
+    dialog: {
+      kind: "cancelScheduledPlanChange",
+      targetPlan: "free",
+      isServiceStop: true,
+      intentKey: "cancel-scheduled-service-stop",
       shopId: "shop-shibuya",
       organizationName: "株式会社さくらダイニング",
       effectiveOn: "2026年8月31日",

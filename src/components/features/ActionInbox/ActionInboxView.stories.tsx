@@ -166,7 +166,7 @@ export const SuccessfulRemoval: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "承認する" }));
     await waitFor(() => expect(canvas.queryByRole("article")).toBeNull());
-    await expect(canvas.findByText("要対応の項目はありません")).resolves.toBeVisible();
+    await expect(canvas.findByText("対応が必要な項目はありません")).resolves.toBeVisible();
   },
 };
 
@@ -195,7 +195,7 @@ export const ServerRefreshDuringRemoval: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "承認する" }));
     await expect(canvas.getByRole("article")).toBeInTheDocument();
     await waitFor(() => expect(canvas.queryByRole("article")).toBeNull());
-    await expect(canvas.findByText("要対応の項目はありません")).resolves.toBeVisible();
+    await expect(canvas.findByText("対応が必要な項目はありません")).resolves.toBeVisible();
   },
 };
 

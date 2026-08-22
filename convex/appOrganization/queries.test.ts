@@ -1,6 +1,6 @@
 import type { FunctionReturnType, PaginationOptions, PaginationResult } from "convex/server";
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
@@ -79,6 +79,15 @@ function firstPage(numItems = 20): PaginationOptions {
 }
 
 describe("appOrganization organization context queries", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("未認証・未登録・削除済みuserには所属組織を返さない", async () => {
     const t = convexTest(schema, modules);
     const organizationId = await t.run(async (ctx) => {

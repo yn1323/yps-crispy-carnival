@@ -19,7 +19,7 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 | 未リリース機能の公開制御 | [公開状態](#公開状態) |
 | Stripeの環境変数、Price、Portal、Webhook設定 | [Stripeの設定](#stripeの設定) |
 | Trial期限を開発用に短縮 | [Trial期限の開発用設定](#trial期限の開発用設定) |
-| 利用停止と旧Free予約の境界確認 | [利用停止とgrandfathered契約](#利用停止とgrandfathered契約) |
+| 解約と旧Free予約の境界確認 | [解約とgrandfathered契約](#解約とgrandfathered契約) |
 | Webhook、operation、対応不整合の日常確認 | [日常probe](#日常probe) |
 | m021の履歴確認とNarrow deploy前ゲート | [m021の履歴とNarrow deploy前確認](#m021の履歴とnarrow-deploy前確認) |
 | 新規販売の停止と支払い不要プランのP0 | [販売停止](#販売停止) |
@@ -202,12 +202,12 @@ pnpm exec convex env remove --deployment <fully-qualified-deployment> DEBUG_TRIA
 対象を引数で固定できない`pnpm convex:env:setup`では設定せず、Dashboardまたは完全修飾deployment名を指定したCLIを使う。
 作業後は`env list --names-only`でキーの有無だけを確認し、値をログや証跡へ残さない。
 
-## 利用停止とgrandfathered契約
+## 解約とgrandfathered契約
 
-新しい有料契約の終了は、Free変更ではなく期間末の利用停止として扱う。
+新しい有料契約の終了は、Free変更ではなく期間末の解約として扱う。
 アプリで予約を受け付けた時点では契約を終了せず、Stripeの`cancel_at_period_end`とローカルの変更予約が対応していることを確認する。
 
-利用停止予約には`restrictAtPeriodEnd: true`を保存する。
+解約予約には`restrictAtPeriodEnd: true`を保存する。
 期間末のprovider確認後は`scheduledCancellation`を理由とする契約制限中へ移り、組織、店舗、人物、スタッフ所属、シフトを保持する。
 期間末前の取消では、Stripeの`cancel_at_period_end`が解除されたことと、ローカル状態が元の有料プランへ戻ったことを照合する。
 
@@ -218,14 +218,14 @@ pnpm exec convex env remove --deployment <fully-qualified-deployment> DEBUG_TRIA
 | `active.free` | grandfathered Freeとして継続し、一括変更しない |
 | `complimentary.business` | 支払い不要Businessとして継続し、Stripe objectを作らない |
 | `scheduledChange.targetPlan: "free"`かつ`restrictAtPeriodEnd`なし | deployment前の旧Free変更予約として、従来のFree判定へ収束させる |
-| `scheduledChange.targetPlan: "free"`かつ`restrictAtPeriodEnd: true` | 新しい利用停止予約として、provider確認後に契約制限中へ移す |
+| `scheduledChange.targetPlan: "free"`かつ`restrictAtPeriodEnd: true` | 新しい解約予約として、provider確認後に契約制限中へ移す |
 
 markerなしの旧予約へ`restrictAtPeriodEnd`を後付けしない。
 後付けすると、利用者が予約したFree移行を契約制限へ変更してしまう。
-逆に、新しい利用停止予約からmarkerを除かない。
+逆に、新しい解約予約からmarkerを除かない。
 
 `setFreeSelection`はmarkerなしの旧Free予約と、`trialFreeConditionsNotMet`または`freeConditionsNotMet`を理由とする旧制限状態だけで使う。
-Trial終了、`trialEndedWithoutSubscription`、新しい利用停止、`scheduledCancellation`へFree選択を適用しない。
+Trial終了、`trialEndedWithoutSubscription`、新しい解約、`scheduledCancellation`へFree選択を適用しない。
 
 状態を手動patchして収束させない。
 不一致がある場合は、対象組織、billing version、変更予約のmarker、Stripe Subscriptionの`cancel_at_period_end`と期間終了日時、関連operationとWebhookを読み取りで照合し、provider再照合またはforward repairを選ぶ。

@@ -128,7 +128,7 @@ function resolveNotificationDetails(
     throw new ConvexError("通知の請求額と通貨を確認できません");
   }
   if (supplied?.restrictAtPeriodEnd === true && !stateRestrictAtPeriodEnd) {
-    throw new ConvexError("通知の利用停止予定が、現在の契約状態と一致しません");
+    throw new ConvexError("通知の解約予定が、現在の契約状態と一致しません");
   }
   if (
     supplied?.restrictionReason !== undefined &&
@@ -1489,7 +1489,7 @@ export const processDeadline = internalMutation({
   },
 });
 
-/** Stripeで期間末解約を確認した場合だけ、互換Free移行または利用停止を確定する。 */
+/** Stripeで期間末解約を確認した場合だけ、互換Free移行または解約を確定する。 */
 export const confirmScheduledFreeDeadline = internalMutation({
   args: {
     organizationId: v.id("organizations"),

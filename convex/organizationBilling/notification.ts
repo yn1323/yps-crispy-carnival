@@ -134,11 +134,11 @@ export function organizationBillingNotificationCopy(
           ? formatDateTimeLabel(details.effectiveAt)
           : "現在の支払い済み期間の終了時";
         return {
-          subject: "利用停止を予約しました",
-          heading: "利用停止を予約しました",
+          subject: "解約を受け付けました",
+          heading: "解約を受け付けました",
           paragraphs: [
-            `${effectiveAtLabel}に利用を停止します。\nそれまでは現在の有料プランを利用できます。`,
-            "利用停止後も、店舗・ユーザー・過去のシフトは削除されません。\n再開するには有料プランを契約してください。",
+            `${effectiveAtLabel}をもって解約します。\nそれまでは現在の有料プランを利用できます。`,
+            "解約後は契約制限中になります。\n店舗・ユーザー・過去のシフトは削除されません。\n再開するには有料プランを契約してください。",
           ],
         };
       }
@@ -158,10 +158,10 @@ export function organizationBillingNotificationCopy(
     case "scheduledChangeCanceled":
       if (details?.restrictAtPeriodEnd) {
         return {
-          subject: "利用停止予約を取り消しました",
-          heading: "利用停止予約を取り消しました",
+          subject: "解約予約を取り消しました",
+          heading: "解約予約を取り消しました",
           paragraphs: [
-            "期間末に予定していた利用停止を取り消しました。",
+            "期間末に予定していた解約を取り消しました。",
             "現在の有料プランを継続します。\n現在の契約状態は組織設定で確認できます。",
           ],
         };

@@ -10,9 +10,10 @@ description: ユーザーが`$babysit-pr`を明示したとき、現在のchecko
 
 ## 併用スキル
 
-複数fileにまたがる大きなlocal diff、取得済みの大きなGHA logからの事実抽出、親Agentが選んだlocalのtest・lint・buildの実行・log整理では、`$delegate-bounded-repo-work`を併用する。
+複数fileにまたがる大規模なlocal diff、取得済みの巨大なGHA logを、原因判断から独立した事実へ圧縮できる場合だけ、`$delegate-bounded-repo-work`を併用する。
 対象判定、固定model、委譲契約は同Skillを正本とする。
-GitHub・GHAへの接続と監視、失敗原因と修正要否の判断、修正、rerun、stage、commit、push、Pull Request作成は本Skillの親Agentが判断・実行する。
+GitHub・GHAへの接続と監視、失敗原因と修正要否の判断、修正、対象test、rerun、stage、commit、push、Pull Request作成は本Skillの親Agentが判断・実行する。
+最後の関連変更より後に同じworkspace状態で成功した検証は再利用し、監視段階へ進んだという理由だけで再実行しない。
 
 ## ゴールを設定する
 

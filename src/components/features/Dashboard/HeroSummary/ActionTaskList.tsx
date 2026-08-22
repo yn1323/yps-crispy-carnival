@@ -62,23 +62,15 @@ export const ActionTaskList = ({
   if (!shiftTask && disclosureTasks.length === 0) return null;
 
   return (
-    <Stack
-      gap={0}
-      bg="white"
-      borderRadius="xl"
-      borderWidth="1px"
-      borderColor="blackAlpha.50"
-      boxShadow="xs"
-      overflow="hidden"
-    >
-      {shiftTask && <ActionTaskRow task={shiftTask} isFirst />}
-      {disclosureTasks.length > 0 && (
-        <Accordion.Root collapsible multiple variant="plain">
-          {disclosureTasks.map((task, index) => (
-            <ActionDisclosureRow key={task.key} task={task} isFirst={!shiftTask && index === 0} />
-          ))}
-        </Accordion.Root>
+    <Stack gap={{ base: 3, md: 4 }}>
+      {shiftTask && (
+        <ActionTaskCard>
+          <ActionTaskRow task={shiftTask} />
+        </ActionTaskCard>
       )}
+      {disclosureTasks.map((task) => (
+        <ActionDisclosureCard key={task.key} task={task} />
+      ))}
     </Stack>
   );
 };
@@ -134,7 +126,6 @@ const createNotificationFailureTask = (count: number, content: ReactNode): Actio
   iconFg: "orange.600",
   title: `送れなかった通知が${count}件あります`,
   titleColor: "orange.800",
-  description: "通知先を確認して再送、または再送せず破棄できます",
   content,
 });
 
@@ -144,7 +135,6 @@ const createStaffRegistrationRequestTask = (count: number, content: ReactNode): 
   iconBg: "teal.50",
   iconFg: "teal.700",
   title: `スタッフ登録申請が${count}件あります`,
-  description: "内容を確認して承認・却下できます",
   content,
 });
 
@@ -155,7 +145,7 @@ type ActionDisclosureTask = {
   iconFg: string;
   title: string;
   titleColor?: string;
-  description: string;
+  description?: string;
   content: ReactNode;
 };
 
@@ -186,7 +176,13 @@ type MetaItem = {
   emphasis?: boolean;
 };
 
-const ActionTaskRow = ({ task, isFirst }: { task: ActionTask; isFirst: boolean }) => {
+const ActionTaskCard = ({ children }: { children: ReactNode }) => (
+  <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.50" boxShadow="xs" overflow="hidden">
+    {children}
+  </Box>
+);
+
+const ActionTaskRow = ({ task }: { task: ActionTask }) => {
   const Icon = task.icon;
   const CtaIcon = task.cta.icon;
 
@@ -198,8 +194,6 @@ const ActionTaskRow = ({ task, isFirst }: { task: ActionTask; isFirst: boolean }
       gap={{ base: 4, md: 5 }}
       align={{ base: "stretch", md: "center" }}
       direction={{ base: "column", md: "row" }}
-      borderTopWidth={isFirst ? 0 : "1px"}
-      borderColor="gray.100"
     >
       <HStack gap={{ base: 3, md: 4 }} align={{ base: "flex-start", md: "center" }} flex={1} minW={0}>
         <Flex
@@ -261,56 +255,68 @@ const ActionTaskRow = ({ task, isFirst }: { task: ActionTask; isFirst: boolean }
   );
 };
 
-const ActionDisclosureRow = ({ task, isFirst }: { task: ActionDisclosureTask; isFirst: boolean }) => {
+const ActionDisclosureCard = ({ task }: { task: ActionDisclosureTask }) => {
   const Icon = task.icon;
 
   return (
-    <Accordion.Item value={task.key} borderTopWidth={isFirst ? 0 : "1px"} borderColor="gray.100">
-      <Accordion.ItemTrigger
-        px={{ base: 4, md: 6, lg: 7 }}
-        py={{ base: 4, md: 5 }}
-        gap={{ base: 3, md: 4 }}
-        minH="72px"
-        cursor="pointer"
-        textAlign="left"
+    <Accordion.Root collapsible variant="plain">
+      <Accordion.Item
+        value={task.key}
         bg="white"
-        _hover={{ bg: "gray.50" }}
-        _expanded={{ bg: "gray.50" }}
+        borderRadius="xl"
+        borderWidth="1px"
+        borderColor="blackAlpha.50"
+        boxShadow="xs"
+        overflow="hidden"
       >
-        <Flex
-          boxSize={{ base: "48px", md: "56px" }}
-          borderRadius="full"
-          bg={task.iconBg}
-          color={task.iconFg}
-          align="center"
-          justify="center"
-          flexShrink={0}
-          borderWidth={task.key === "staff-registration-request" ? "1px" : 0}
-          borderColor={task.key === "staff-registration-request" ? "border.default" : undefined}
+        <Accordion.ItemTrigger
+          px={{ base: 4, md: 6, lg: 7 }}
+          py={{ base: 4, md: 5 }}
+          gap={{ base: 3, md: 4 }}
+          minH="72px"
+          cursor="pointer"
+          textAlign="left"
+          bg="white"
+          _hover={{ bg: "gray.50" }}
+          _expanded={{ bg: "white" }}
         >
-          <Icon size={28} />
-        </Flex>
-        <Stack gap={1.5} minW={0} flex={1}>
-          <Text
-            fontSize={{ base: "md", md: "lg" }}
-            fontWeight="bold"
-            color={task.titleColor ?? "gray.900"}
-            lineHeight="short"
+          <Flex
+            boxSize={{ base: "48px", md: "56px" }}
+            borderRadius="full"
+            bg={task.iconBg}
+            color={task.iconFg}
+            align="center"
+            justify="center"
+            flexShrink={0}
+            borderWidth={task.key === "staff-registration-request" ? "1px" : 0}
+            borderColor={task.key === "staff-registration-request" ? "border.default" : undefined}
           >
-            {task.title}
-          </Text>
-          <Text fontSize="sm" color="gray.700" lineHeight="tall">
-            {task.description}
-          </Text>
-        </Stack>
-        <Accordion.ItemIndicator color="fg.muted" flexShrink={0} />
-      </Accordion.ItemTrigger>
-      <Accordion.ItemContent bg="gray.50">
-        <Accordion.ItemBody px={{ base: 3, md: 5, lg: 6 }} pt={3} pb={{ base: 4, md: 5 }}>
-          {task.content}
-        </Accordion.ItemBody>
-      </Accordion.ItemContent>
-    </Accordion.Item>
+            <Icon size={28} />
+          </Flex>
+          <Stack gap={1.5} minW={0} flex={1}>
+            <Text
+              fontSize={{ base: "md", md: "lg" }}
+              fontWeight="bold"
+              color={task.titleColor ?? "gray.900"}
+              lineHeight="short"
+            >
+              {task.title}
+            </Text>
+            {task.description && (
+              <Text fontSize="sm" color="gray.700" lineHeight="tall">
+                {task.description}
+              </Text>
+            )}
+          </Stack>
+          <Accordion.ItemIndicator color="fg.muted" flexShrink={0} />
+        </Accordion.ItemTrigger>
+        <Accordion.ItemContent bg="white">
+          <Accordion.ItemBody px={{ base: 3, md: 5, lg: 6 }} pt={3} pb={{ base: 4, md: 5 }}>
+            {task.content}
+          </Accordion.ItemBody>
+        </Accordion.ItemContent>
+      </Accordion.Item>
+    </Accordion.Root>
   );
 };
 

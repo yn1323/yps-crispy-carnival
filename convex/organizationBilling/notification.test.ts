@@ -28,7 +28,7 @@ describe("organizationBilling/notification", () => {
     ]);
   });
 
-  it("新しい期間末解約はFree変更ではなく利用停止として通知する", () => {
+  it("新しい期間末解約はFree変更ではなく解約として通知する", () => {
     expect(
       organizationBillingNotificationCopy("scheduledChange", undefined, {
         targetPlan: "free",
@@ -36,11 +36,11 @@ describe("organizationBilling/notification", () => {
         restrictAtPeriodEnd: true,
       }),
     ).toEqual({
-      subject: "利用停止を予約しました",
-      heading: "利用停止を予約しました",
+      subject: "解約を受け付けました",
+      heading: "解約を受け付けました",
       paragraphs: [
-        "9/1(火) 00:00に利用を停止します。\nそれまでは現在の有料プランを利用できます。",
-        "利用停止後も、店舗・ユーザー・過去のシフトは削除されません。\n再開するには有料プランを契約してください。",
+        "9/1(火) 00:00をもって解約します。\nそれまでは現在の有料プランを利用できます。",
+        "解約後は契約制限中になります。\n店舗・ユーザー・過去のシフトは削除されません。\n再開するには有料プランを契約してください。",
       ],
     });
   });
@@ -56,7 +56,7 @@ describe("organizationBilling/notification", () => {
     });
   });
 
-  it("期間末変更の取消は現在の有料プラン継続を明示する", () => {
+  it("期間末変更または解約の取消は現在の有料プラン継続を明示する", () => {
     expect(organizationBillingNotificationCopy("scheduledChangeCanceled")).toEqual({
       subject: "プラン変更予約を取り消しました",
       heading: "プラン変更予約を取り消しました",
@@ -68,10 +68,10 @@ describe("organizationBilling/notification", () => {
     expect(
       organizationBillingNotificationCopy("scheduledChangeCanceled", undefined, { restrictAtPeriodEnd: true }),
     ).toEqual({
-      subject: "利用停止予約を取り消しました",
-      heading: "利用停止予約を取り消しました",
+      subject: "解約予約を取り消しました",
+      heading: "解約予約を取り消しました",
       paragraphs: [
-        "期間末に予定していた利用停止を取り消しました。",
+        "期間末に予定していた解約を取り消しました。",
         "現在の有料プランを継続します。\n現在の契約状態は組織設定で確認できます。",
       ],
     });

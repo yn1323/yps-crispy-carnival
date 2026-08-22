@@ -581,6 +581,6 @@ function showUnavailable(reason: Parameters<typeof billingUnavailableMessage>[0]
 function acceptedMessage(dialog: Exclude<BillingActionDialogState, { kind: "startPaidPlan" | "changePaidPlanNow" }>) {
   if (dialog.kind === "cancelTrialContinuation") return `${planLabel(dialog.targetPlan)}継続の取り消しを受け付けました`;
   if (dialog.kind === "schedulePlanChange") return `${planLabel(dialog.targetPlan)}への変更予約を受け付けました`;
-  if (dialog.kind === "scheduleServiceStop") return "利用停止の予約を受け付けました";
-  return dialog.isServiceStop ? "利用停止予約の取り消しを受け付けました" : "プラン変更予約の取り消しを受け付けました";
+  if (dialog.kind === "scheduleServiceStop") return "解約を受け付けました";
+  return dialog.isServiceStop ? "解約予約の取り消しを受け付けました" : "プラン変更予約の取り消しを受け付けました";
 }

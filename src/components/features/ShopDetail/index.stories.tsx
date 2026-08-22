@@ -541,11 +541,11 @@ export const StaffMembershipRemovalBehavior: Story = {
       }),
     );
     await expect(content.getByText("この店舗から外す")).toBeInTheDocument();
-    await expect(content.getByText("変更後、この店舗の管理通知は送信されません")).toBeInTheDocument();
+    await expect(content.getByText("変更後、この店舗の管理者は0名になります")).toBeInTheDocument();
     await expect(content.getByText("シフト割り当てから削除")).toBeInTheDocument();
-    await expect(content.getByText("以降シフト通知は送りません")).toBeInTheDocument();
+    await expect(content.getByText("シフト通知は届かなくなります")).toBeInTheDocument();
     await expect(content.getByRole("checkbox", { name: "田中 太郎を所属スタッフにする" })).toHaveAccessibleDescription(
-      /シフト割り当てから削除.*以降シフト通知は送りません/,
+      /シフト割り当てから削除.*シフト通知は届かなくなります/,
     );
     await expect(content.queryByText(/過去のシフト記録/)).not.toBeInTheDocument();
     await expect(content.queryByText(/シフト割り当て.*件/)).not.toBeInTheDocument();
@@ -586,7 +586,7 @@ export const StaffMembershipRemovalToggleBehavior: Story = {
     await userEvent.click(removedPerson);
     await expect(removedPerson).toBeChecked();
     await waitFor(() => expect(content.queryByText("シフト割り当てから削除")).not.toBeInTheDocument());
-    await expect(content.queryByText("変更後、この店舗の管理通知は送信されません")).not.toBeInTheDocument();
+    await expect(content.queryByText("変更後、この店舗の管理者は0名になります")).not.toBeInTheDocument();
     await expect(content.getByRole("button", { name: "変更する" })).toBeDisabled();
   },
 };

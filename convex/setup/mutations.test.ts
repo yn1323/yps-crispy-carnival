@@ -385,7 +385,7 @@ describe("setup/mutations", () => {
       );
       expect(consentState?.termsConsentVersion).toBe("manager-terms-consent-2026-08-15");
       expect(consentState?.privacyConsentVersion).toBe("manager-privacy-consent-2026-08-13");
-      expect(consentState?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-15");
+      expect(consentState?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-22");
       expect(consentState?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-08-13");
       expect(consentState?.method).toBe("manager_setup");
 
@@ -1328,7 +1328,7 @@ describe("setup/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "create_org_limit" }).mutation(api.setup.mutations.createOrganization, createArgs),
-      ).rejects.toThrow("作成できる組織は3つまでです。");
+      ).rejects.toThrow("作成できる組織は3つまでです");
 
       const state = await t.run(async (ctx) => ({
         organizations: await ctx.db.query("organizations").collect(),
@@ -1406,7 +1406,7 @@ describe("setup/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "create_org_legacy" }).mutation(api.setup.mutations.createOrganization, createArgs),
-      ).rejects.toThrow("作成できる組織は3つまでです。");
+      ).rejects.toThrow("作成できる組織は3つまでです");
     });
 
     it("連続作成はrate limitで拒否し、副作用を増やさない", async () => {

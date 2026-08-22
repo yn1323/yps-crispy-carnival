@@ -212,9 +212,6 @@ function StaffInvitationMethodMenu({
 
   return (
     <Stack gap={4}>
-      <Text color="fg.muted" fontSize="sm">
-        追加方法を選んでください
-      </Text>
       <Stack gap={3}>
         {options.map(({ method, title, description, icon: MethodIcon }) => {
           const titleId = `staff-addition-method-${method}-title`;

@@ -64,17 +64,17 @@ export function BillingActionDialog({ dialog, isRunning, onClose, onRetryPrice, 
           {dialog.kind === "scheduleServiceStop" && (
             <>
               <SummaryRow label="現在のプラン" value="支払い済み期間まで継続" />
-              <SummaryRow label="利用停止予定日" value={dialog.effectiveOn ?? "現在の契約状態に従います"} />
+              <SummaryRow label="契約終了日" value={dialog.effectiveOn ?? "現在の契約状態に従います"} />
             </>
           )}
           {dialog.kind === "cancelScheduledPlanChange" && (
             <>
               <SummaryRow
                 label="取り消す変更"
-                value={dialog.isServiceStop ? "利用停止" : `${planLabel(dialog.targetPlan)}への変更`}
+                value={dialog.isServiceStop ? "解約" : `${planLabel(dialog.targetPlan)}への変更`}
               />
               <SummaryRow
-                label={dialog.isServiceStop ? "利用停止予定日" : "変更予定日"}
+                label={dialog.isServiceStop ? "契約終了日" : "変更予定日"}
                 value={dialog.effectiveOn ?? "現在の契約状態に従います"}
               />
             </>
@@ -240,18 +240,18 @@ function dialogContent(dialog: BillingActionDialogState): {
       };
     case "scheduleServiceStop":
       return {
-        title: "期間末に利用を停止しますか？",
-        description: "現在の支払い済み期間が終わるまでは、現在のプランを利用します。",
-        submitLabel: "利用停止を予約",
+        title: "期間末で解約しますか？",
+        description: "現在の支払い済み期間が終わるまでは、このプランを利用します。",
+        submitLabel: "解約する",
         submitColorPalette: "red",
-        note: "利用停止後も、店舗・ユーザー・過去のシフトは削除されません。再開するにはProまたはBusinessを契約してください。",
+        note: "解約後は契約制限中になります。店舗・ユーザー・過去のシフトは削除されず、そのまま閲覧できます。",
       };
     case "cancelScheduledPlanChange":
       return dialog.isServiceStop
         ? {
-            title: "利用停止の予約を取り消しますか？",
+            title: "解約予約を取り消しますか？",
             description: "予約を取り消し、次回更新後も現在のプランを継続します。",
-            submitLabel: "利用停止予約を取り消す",
+            submitLabel: "解約予約を取り消す",
             submitColorPalette: "teal",
           }
         : {

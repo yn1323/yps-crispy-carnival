@@ -25,12 +25,15 @@ import type {
   ActionInboxMetadataItem,
 } from "./types";
 
+type ActionInboxItemVariant = "card" | "list";
+
 type Props = {
   items: readonly ActionInboxItem[];
   completedItemId?: string | null;
   completedItemIds?: readonly string[];
   ariaLabel?: string;
   hideEmpty?: boolean;
+  itemVariant?: ActionInboxItemVariant;
   onVisibleItemCountChange?: (count: number) => void;
   /** @deprecated 少量の対応項目を一つの一覧で扱うため、種類フィルターは表示しません。 */
   activeCategory?: ActionInboxCategory;
@@ -75,6 +78,7 @@ export function ActionInboxView({
   completedItemIds = EMPTY_COMPLETED_ITEM_IDS,
   ariaLabel = "要対応の項目",
   hideEmpty = false,
+  itemVariant = "card",
   onVisibleItemCountChange,
 }: Props) {
   const [exitingItemIds, setExitingItemIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -232,8 +236,7 @@ export function ActionInboxView({
         hideEmpty ? null : (
           <Empty
             icon={LuCircleCheck}
-            title="要対応の項目はありません"
-            description="現在、確認や操作が必要な項目はありません。"
+            title="対応が必要な項目はありません"
             tone="success"
             variant="section"
             minH="240px"
@@ -241,18 +244,20 @@ export function ActionInboxView({
         )
       ) : (
         <Stack as="section" aria-label={ariaLabel} gap={0}>
-          {visibleItems.map((item) => (
+          {visibleItems.map((item, index) => (
             <Box
               key={item.id}
               display="grid"
               gridTemplateRows={exitingItemIds.has(item.id) ? "0fr" : "1fr"}
-              pb={exitingItemIds.has(item.id) ? 0 : { base: 2, md: 3 }}
+              pb={exitingItemIds.has(item.id) || itemVariant === "list" ? 0 : { base: 2, md: 3 }}
               transition={`grid-template-rows ${EXIT_DURATION_MS}ms ease, padding-bottom ${EXIT_DURATION_MS}ms ease`}
               _motionReduce={{ transition: "none" }}
             >
               <Box minH={0} overflow="hidden">
                 <ActionCard
                   item={item}
+                  itemVariant={itemVariant}
+                  isFirst={index === 0}
                   isExiting={exitingItemIds.has(item.id)}
                   runningActionKey={runningActionKey}
                   actionError={actionError}
@@ -291,18 +296,23 @@ function countCompletionRequests(completedItemId: string | null | undefined, com
 
 function ActionCard({
   item,
+  itemVariant,
+  isFirst,
   isExiting,
   runningActionKey,
   actionError,
   onRunAction,
 }: {
   item: ActionInboxItem;
+  itemVariant: ActionInboxItemVariant;
+  isFirst: boolean;
   isExiting: boolean;
   runningActionKey: string | null;
   actionError: { key: string; message: string } | null;
   onRunAction: (action: ActionInboxAction, triggerElement?: HTMLElement) => void;
 }) {
   const presentation = CATEGORY_PRESENTATION[item.category];
+  const isList = itemVariant === "list";
   const shouldShowRetryGuidance = item.category === "notification" || item.category === "management";
   const visibleActionIndex = Math.max(
     0,
@@ -322,11 +332,12 @@ function ActionCard({
       data-state={isExiting ? "exiting" : "active"}
       position="relative"
       overflow="hidden"
-      bg="white"
-      borderWidth="1px"
-      borderColor="gray.200"
-      borderRadius="xl"
-      boxShadow="sm"
+      bg={isList ? "transparent" : "white"}
+      borderWidth={isList ? 0 : "1px"}
+      borderTopWidth={isList && !isFirst ? "1px" : 0}
+      borderColor={isList ? "blackAlpha.100" : "gray.200"}
+      borderRadius={isList ? 0 : "xl"}
+      boxShadow={isList ? "none" : "sm"}
       transform={isExiting ? "translateX(105%)" : "translateX(0)"}
       opacity={isExiting ? 0 : 1}
       transition={`transform ${EXIT_DURATION_MS}ms ease-in, opacity ${EXIT_DURATION_MS}ms ease-in`}

@@ -9,6 +9,7 @@ import type { OrganizationCreationDialogState } from "./types";
 
 type Input = {
   canCreateOrganization: boolean;
+  createOrganizationDisabledReason?: string;
   onCreated: (shopId: string, organizationId: Id<"organizations">) => void;
   organizationId: Id<"organizations">;
 };
@@ -54,9 +55,13 @@ export function useOrganizationCreationController(input: Input) {
 
   return {
     createOrganization: () => {
-      if (latestRef.current.canCreateOrganization) {
-        setDialog({ kind: "createOrganization", requestId: crypto.randomUUID() });
+      if (!latestRef.current.canCreateOrganization) {
+        if (latestRef.current.createOrganizationDisabledReason) {
+          showErrorToast(new Error(latestRef.current.createOrganizationDisabledReason));
+        }
+        return;
       }
+      setDialog({ kind: "createOrganization", requestId: crypto.randomUUID() });
     },
     dialog: {
       dialog,

@@ -247,15 +247,13 @@ describe("組織追加作成シナリオ", () => {
 
     await expect(
       asManager.createOrganization({ shopName: "四つ目の店舗", submissionPattern: { kind: "dateOnly" } }),
-    ).rejects.toThrow("作成できる組織は3つまでです。");
+    ).rejects.toThrow("作成できる組織は3つまでです");
     expect(await asManager.getMyShops()).toEqual(beforeRejected);
 
     asManager.selectShop(firstShopId);
     const firstSettings = await asManager.getOrganizationSettings();
     expect(firstSettings?.canCreateOrganization).toBe(false);
-    expect(firstSettings?.createOrganizationDisabledReason).toBe(
-      "作成できる組織は3つまでです。\n使っていない組織を削除すると、また作成できます。",
-    );
+    expect(firstSettings?.createOrganizationDisabledReason).toBe("作成できる組織は3つまでです");
 
     asManager.selectShop(third.shopId);
     const thirdSettings = await asManager.getOrganizationSettings();

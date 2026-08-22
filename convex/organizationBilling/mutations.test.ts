@@ -1774,7 +1774,7 @@ describe("organizationBilling/mutations first trial invoice", () => {
     ).toHaveLength(1);
   });
 
-  it("新しい利用停止予約はprovider確定後にrestrictedへ移す", async () => {
+  it("新しい解約予約はprovider確定後にrestrictedへ移す", async () => {
     const deadlineAt = Date.parse("2026-08-31T15:00:00.000Z");
     vi.setSystemTime(deadlineAt);
     const t = convexTest(schema, modules);

@@ -693,7 +693,7 @@ describe("事業者課金ライフサイクル", () => {
     expect(stripeProviderMock.retrieveSubscription).toHaveBeenCalledTimes(1);
   });
 
-  it("新しい利用停止予約は利用数にかかわらずデータを残したrestrictedへ移す", async () => {
+  it("新しい解約予約は利用数にかかわらずデータを残したrestrictedへ移す", async () => {
     const t = convexTest(schema, modules);
     const effectiveAt = Date.parse("2026-11-01T00:00:00+09:00");
     vi.setSystemTime(effectiveAt - 24 * 60 * 60 * 1000);
@@ -947,7 +947,7 @@ describe("事業者課金ライフサイクル", () => {
     expect(result.billingNotifications).toEqual([]);
   });
 
-  it("既存active.freeはgrandfatheringされ、新しい利用停止Actionから変更されない", async () => {
+  it("既存active.freeはgrandfatheringされ、新しい解約Actionから変更されない", async () => {
     vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_billing_scenario");
     vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_billing_scenario");
     vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_billing_scenario_pro");

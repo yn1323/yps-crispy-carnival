@@ -450,7 +450,7 @@ export const ShopMembershipRemoval: Story = {
 
     await userEvent.click(content.getByRole("checkbox", { name: /渋谷店/ }));
     await content.findByText("シフト割り当てから削除");
-    await expect(content.getByText("以降シフト通知は送りません")).toBeInTheDocument();
+    await expect(content.getByText("シフト通知は届かなくなります")).toBeInTheDocument();
   },
 };
 
@@ -842,8 +842,8 @@ export const ShopMembershipRemovalBehavior: Story = {
     await userEvent.click(shibuyaCheckbox);
     await expect(membershipDialog.getByText("店舗から外す")).toBeInTheDocument();
     await expect(membershipDialog.getByText("シフト割り当てから削除")).toBeInTheDocument();
-    await expect(membershipDialog.getByText("以降シフト通知は送りません")).toBeInTheDocument();
-    await expect(shibuyaCheckbox).toHaveAccessibleDescription(/シフト割り当てから削除.*以降シフト通知は送りません/);
+    await expect(membershipDialog.getByText("シフト通知は届かなくなります")).toBeInTheDocument();
+    await expect(shibuyaCheckbox).toHaveAccessibleDescription(/シフト割り当てから削除.*シフト通知は届かなくなります/);
     await expect(membershipDialog.queryByText(/過去のシフト記録/)).not.toBeInTheDocument();
     await expect(membershipDialog.queryByText(/シフト割り当て.*件/)).not.toBeInTheDocument();
     await expect(membershipDialog.getByRole("button", { name: "変更する" })).toBeEnabled();

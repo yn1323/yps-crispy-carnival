@@ -115,7 +115,7 @@ describe("buildPlanStatusCardData", () => {
     });
   });
 
-  it("新しい期間末解約はFree変更ではなく利用停止予定とデータ保持を表示する", () => {
+  it("新しい期間末解約はFree変更ではなく解約予定とデータ保持を表示する", () => {
     expect(
       buildPlanStatusCardData({
         kind: "paidPlan",
@@ -129,8 +129,8 @@ describe("buildPlanStatusCardData", () => {
         ...actions,
       }),
     ).toMatchObject({
-      badgeLabel: "利用停止予定",
-      description: "2026/9/1に利用を停止します。データは削除されません。",
+      badgeLabel: "解約予定",
+      description: "2026/9/1をもって解約します。解約後は契約制限中になります。データは削除されません。",
       nextEventLabel: undefined,
     });
   });

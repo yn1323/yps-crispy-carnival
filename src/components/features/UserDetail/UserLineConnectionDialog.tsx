@@ -226,7 +226,11 @@ function LineStatus({ status }: { status: UserDetailData["line"]["status"] }) {
     <Alert.Root status={presentation.alertStatus} borderRadius="md" alignItems="center" p={3}>
       <Alert.Indicator />
       <Alert.Content>
-        <Alert.Title>{presentation.label}</Alert.Title>
+        {status === "unlinked" ? (
+          <Alert.Description>下記いずれかの方法でLINE連携ができます。</Alert.Description>
+        ) : (
+          <Alert.Title>{presentation.label}</Alert.Title>
+        )}
       </Alert.Content>
     </Alert.Root>
   );

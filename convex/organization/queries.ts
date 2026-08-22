@@ -317,7 +317,7 @@ function restrictedBlockedReason(state: Extract<Doc<"organizationBillingStates">
     case "trialEndedWithoutSubscription":
       return "トライアルが終了しました。\n利用を再開するには、ProまたはBusinessを契約してください。";
     case "scheduledCancellation":
-      return "予約した利用停止が適用されました。\n利用を再開するには、ProまたはBusinessを契約してください。";
+      return "予約した解約が適用されました。\n利用を再開するには、ProまたはBusinessを契約してください。";
     case "trialFreeConditionsNotMet":
     case "freeConditionsNotMet":
       return "無料プランの利用人数または店舗数の上限を超えています。\nユーザーまたは店舗を削除してから、再確認してください。";
@@ -1052,7 +1052,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
             label:
               state.targetPlan === "free"
                 ? state.restrictAtPeriodEnd === true
-                  ? "利用停止予定日"
+                  ? "契約終了日"
                   : "無料適用予定日"
                 : "Pro適用予定日",
             date: formatDateJa(state.effectiveAt),

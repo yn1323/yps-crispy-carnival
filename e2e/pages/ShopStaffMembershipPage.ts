@@ -89,7 +89,7 @@ export class ShopStaffMembershipPage {
     await dialog.getByText(seed.additionCandidateName, { exact: true }).click();
     await expect(addition).not.toBeChecked();
     await expect(dialog.getByText("この店舗から外す", { exact: true })).toBeVisible();
-    await expect(addition).toHaveAccessibleDescription(/シフト割り当てから削除.*以降シフト通知は送りません/);
+    await expect(addition).toHaveAccessibleDescription(/シフト割り当てから削除.*シフト通知は届かなくなります/);
     const submit = dialog.getByRole("button", { name: "変更する", exact: true });
     await expect(submit).toBeEnabled({ timeout: SHOP_STAFF_MEMBERSHIP_TIMEOUT });
     await submit.click();

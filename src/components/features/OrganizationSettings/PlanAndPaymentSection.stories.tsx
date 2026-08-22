@@ -44,7 +44,6 @@ const meta = {
     onRetryPlanPrice: fn(),
     onUpdatePaymentMethod: fn(),
     onUpdateBillingEmail: fn(),
-    onOpenBillingDocuments: fn(),
     pendingCheckout: {
       status: "idle",
       isCancelling: false,
@@ -149,6 +148,34 @@ export const ScheduledBusinessToPro: Story = {
       nextEvent: { label: "Pro適用予定日", date: "2026年8月31日" },
       canScheduleFree: false,
     } as OrganizationBillingView,
+  },
+};
+
+export const ServiceStopScheduled: Story = {
+  name: "解約予定",
+  args: {
+    billing: {
+      ...Business.args?.billing,
+      state: "scheduledChange",
+      currentPlan: "pro",
+      targetPlan: "free",
+      restrictAtPeriodEnd: true,
+      requiredReductions: { people: 0, shops: 0, managers: 0 },
+      nextEvent: { label: "契約終了日", date: "2026年9月17日" },
+      canScheduleFree: false,
+    } as OrganizationBillingView,
+  },
+};
+
+export const ServiceStopScheduledBehavior: Story = {
+  name: "解約予定の表示（操作確認）",
+  parameters: { screenshot: { skip: true } },
+  args: ServiceStopScheduled.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+    await expect(canvas.getByText("Pro → Free")).toBeVisible();
+    await expect(canvas.getByText("解約後もデータを閲覧できます。")).toBeVisible();
   },
 };
 
@@ -302,7 +329,7 @@ export const ComplimentaryBusinessHasNoBillingActionsBehavior: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("button", { name: /へ変更|変更予約を取り消す/ })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("button", { name: "料金を再読み込み" })).not.toBeInTheDocument();
-    await expect(canvas.queryByRole("button", { name: "支払い方法を見る" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "支払い方法・請求書・領収書を見る" })).not.toBeInTheDocument();
     await expect(canvas.getByText("次の支払日")).toBeVisible();
     await expect(canvas.getByText("なし")).toBeVisible();
     await expect(canvas.getByText("早期登録特典により利用料金はかかりません。")).toBeVisible();
@@ -312,13 +339,11 @@ export const ComplimentaryBusinessHasNoBillingActionsBehavior: Story = {
 export const StripePortalActionsBehavior: Story = {
   name: "Stripe Portal導線（操作確認）",
   parameters: { screenshot: { skip: true } },
-  args: { onUpdatePaymentMethod: fn(), onOpenBillingDocuments: fn() },
+  args: { onUpdatePaymentMethod: fn() },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "支払い方法を見る" }));
-    await userEvent.click(canvas.getByRole("button", { name: "請求書・領収書を見る" }));
+    await userEvent.click(canvas.getByRole("button", { name: "支払い方法・請求書・領収書を見る" }));
     await expect(args.onUpdatePaymentMethod).toHaveBeenCalledTimes(1);
-    await expect(args.onOpenBillingDocuments).toHaveBeenCalledTimes(1);
   },
 };
 

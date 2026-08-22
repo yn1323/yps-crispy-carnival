@@ -35,6 +35,7 @@ type Props = {
   currentRecruitments: Recruitment[];
   recruitmentDataStatus?: "ready" | "loading" | "unavailable";
   isReadOnly?: boolean;
+  organizationShopCount?: number;
   initialVisibleUserCount?: number;
   focusedPersonId?: string;
   onVisibleUserCountChange?: (count: number) => void;
@@ -50,6 +51,7 @@ export function StaffManagement({
   currentRecruitments,
   recruitmentDataStatus = "ready",
   isReadOnly = false,
+  organizationShopCount,
   initialVisibleUserCount = DEFAULT_USER_LIST_COUNT,
   focusedPersonId,
   onVisibleUserCountChange,
@@ -97,7 +99,9 @@ export function StaffManagement({
       }
     });
 
-  const invitation = useStaffInvitation(isReadOnly, featureVisibility.shopMembershipAddition, onOpenBillingSettings);
+  const showOrganizationPeopleAddition =
+    featureVisibility.shopMembershipAddition && (organizationShopCount === undefined || organizationShopCount > 1);
+  const invitation = useStaffInvitation(isReadOnly, showOrganizationPeopleAddition, onOpenBillingSettings);
   const lineConnection = useStaffLineConnection(isReadOnly);
   const profile = useStaffProfileManagement(staffs, { onResetDetail: lineConnection.reset, isReadOnly });
   const notifications = useStaffNotificationDelivery(isReadOnly);

@@ -21,7 +21,7 @@ import { sendReminderRef } from "../shopActivationReminder/refs";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
-export const ORGANIZATION_CREATE_LIMIT_REACHED_MESSAGE = `作成できる組織は${ORGANIZATION_SELF_CREATED_LIMIT}つまでです。\n使っていない組織を削除すると、また作成できます。`;
+export const ORGANIZATION_CREATE_LIMIT_REACHED_MESSAGE = `作成できる組織は${ORGANIZATION_SELF_CREATED_LIMIT}つまでです`;
 export const ORGANIZATION_CREATE_UNAVAILABLE_MESSAGE = "無効になったアカウントでは、組織を作成できません。";
 
 export type OrganizationCreationAvailability = { canCreate: true } | { canCreate: false; reason: string };

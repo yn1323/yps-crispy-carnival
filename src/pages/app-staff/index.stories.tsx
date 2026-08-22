@@ -1,4 +1,5 @@
 import { Stack } from "@chakra-ui/react";
+import { arrayMove } from "@dnd-kit/sortable";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
@@ -67,6 +68,7 @@ function StaffReadyPreview({
   managerInvitationEnabled = true,
   singleShop = false,
   singlePerson = false,
+  filteredByShop = false,
 }: {
   withNextPage?: boolean;
   readOnly?: boolean;
@@ -74,6 +76,7 @@ function StaffReadyPreview({
   managerInvitationEnabled?: boolean;
   singleShop?: boolean;
   singlePerson?: boolean;
+  filteredByShop?: boolean;
 }) {
   const initialPeople = empty ? [] : singlePerson ? people.slice(0, 1) : people;
   const [visiblePeople, setVisiblePeople] = useState(initialPeople);
@@ -81,7 +84,11 @@ function StaffReadyPreview({
 
   return (
     <Stack gap={{ base: 6, lg: 8 }}>
-      <AppStaffHeader value={null} options={singleShop ? shopOptions.slice(0, 1) : shopOptions} onChange={() => {}} />
+      <AppStaffHeader
+        value={filteredByShop ? (shopOptions[0]?.value ?? null) : null}
+        options={singleShop ? shopOptions.slice(0, 1) : shopOptions}
+        onChange={() => {}}
+      />
       {readOnly && <AppStaffReadOnlyNotice />}
       <PeopleSection
         people={visiblePeople}
@@ -89,14 +96,26 @@ function StaffReadyPreview({
         showManagerInvitation={managerInvitationEnabled}
         onManageManagers={() => {}}
         onOpenUser={() => {}}
-        onChangeStaffOrder={() => {}}
-        canChangeStaffOrder={!readOnly && !singlePerson}
-        changeStaffOrderDisabledReason={
-          readOnly
-            ? "閲覧のみの管理者は、スタッフの並び順を変更できません。"
-            : singlePerson
-              ? "2名以上のスタッフがいると並び替えできます。"
-              : undefined
+        staffOrder={
+          filteredByShop
+            ? undefined
+            : {
+                disabled: readOnly || singlePerson,
+                disabledReason: readOnly
+                  ? "閲覧のみの管理者は、スタッフの並び順を変更できません。"
+                  : singlePerson
+                    ? "2名以上のスタッフがいると並び替えできます。"
+                    : undefined,
+                isSaving: false,
+                onReorder: (activePersonId, overPersonId) => {
+                  setVisiblePeople((current) => {
+                    const activeIndex = current.findIndex((person) => person.id === activePersonId);
+                    const overIndex = current.findIndex((person) => person.id === overPersonId);
+                    if (activeIndex < 0 || overIndex < 0) return current;
+                    return arrayMove(current, activeIndex, overIndex);
+                  });
+                },
+              }
         }
         onAddStaff={() => {}}
         canAddStaff={!readOnly}
@@ -150,6 +169,10 @@ export const SingleShop: Story = {
   render: () => <StaffReadyPreview singleShop />,
 };
 
+export const FilteredByShop: Story = {
+  render: () => <StaffReadyPreview filteredByShop />,
+};
+
 export const ReadyMobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
@@ -185,9 +208,24 @@ export const SinglePersonOrderUnavailable: Story = {
   render: () => <StaffReadyPreview singlePerson />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const orderButton = canvas.getByRole("button", { name: "並び順を変更" });
-    await expect(orderButton).toBeDisabled();
-    await expect(orderButton).toHaveAccessibleDescription("2名以上のスタッフがいると並び替えできます。");
+    const dragHandle = canvas.getByRole("button", { name: /山田 花子をドラッグして並べ替え/ });
+    await expect(dragHandle).toHaveAttribute("aria-disabled", "true");
+    await expect(dragHandle).toHaveAttribute("title", "2名以上のスタッフがいると並び替えできます。");
+  },
+};
+
+export const KeyboardDragBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <StaffReadyPreview />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const dragHandle = canvas.getByRole("button", { name: /佐藤 太郎をドラッグして並べ替え/ });
+    dragHandle.focus();
+    await userEvent.keyboard("[Space][ArrowUp][Space]");
+
+    const rows = canvas.getAllByRole("listitem");
+    await expect(rows[0]).toHaveTextContent("佐藤 太郎");
+    await expect(rows[1]).toHaveTextContent("山田 花子");
   },
 };
 

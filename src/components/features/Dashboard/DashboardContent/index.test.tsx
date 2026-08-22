@@ -34,6 +34,7 @@ const probes = vi.hoisted(() => ({
       }
     | undefined
   >,
+  staffOrganizationShopCounts: [] as Array<number | undefined>,
   viewSnapshots: [] as Array<{
     selectedShopId: string;
     stages: Record<SourceKind, { status: QueryStage["status"]; valueVersion?: number }>;
@@ -67,8 +68,15 @@ vi.mock("../RecruitmentManagement", () => ({
 }));
 
 vi.mock("../StaffManagement", () => ({
-  StaffManagement: ({ children }: { children: (state: Record<string, unknown>) => ReactNode }) => {
+  StaffManagement: ({
+    children,
+    organizationShopCount,
+  }: {
+    children: (state: Record<string, unknown>) => ReactNode;
+    organizationShopCount?: number;
+  }) => {
     const [probeMountId] = useState(() => ++probes.mounts.staff);
+    probes.staffOrganizationShopCounts.push(organizationShopCount);
     if (probes.shouldThrow.staff) throw new Error("staff query failed");
     return children({
       isInitialLoading: false,
@@ -222,6 +230,7 @@ beforeEach(() => {
   probes.valueVersion = 1;
   probes.viewThrows = false;
   probes.recruitmentShopTargets = [];
+  probes.staffOrganizationShopCounts = [];
   probes.viewSnapshots = [];
   vi.spyOn(console, "error").mockImplementation(() => undefined);
 });
@@ -240,6 +249,7 @@ describe("DashboardContent production composition", () => {
       mode: "fixed",
       shop: { shopId: "app-home-shop", shopName: "店舗app-home-shop" },
     });
+    expect(probes.staffOrganizationShopCounts).toContain(1);
   });
 
   it("OperationContextを注入しない旧Dashboardでは店舗指定を省略してatom fallbackを維持する", async () => {
