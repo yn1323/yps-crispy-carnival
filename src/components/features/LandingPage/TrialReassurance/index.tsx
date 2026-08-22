@@ -1,7 +1,7 @@
 import { Flex, Icon, Text } from "@chakra-ui/react";
 import { LuCheck } from "react-icons/lu";
 
-const trialConditions = ["2か月無料", "クレジットカード登録不要"];
+const trialConditions = ["2ヶ月無料トライアル", "トライアル中クレジットカード登録不要"];
 
 export function TrialReassurance() {
   return (

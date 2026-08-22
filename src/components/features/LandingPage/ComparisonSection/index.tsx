@@ -71,7 +71,7 @@ export const ComparisonSection = () => (
   <Box as="section" bg="white" py={14}>
     <Container maxW="7xl">
       <VStack gap={7}>
-        <SectionHeading phrases={["紙・Excel・LINEグループの", "シフト管理を統一"]} textAlign="center" />
+        <SectionHeading phrases={["紙・Excel・LINEチャットの", "シフト管理を統一"]} textAlign="center" />
 
         <ComparisonGrid />
       </VStack>
@@ -195,7 +195,7 @@ const ComparisonPanel = ({
       borderStartRadius={{ md: isAfter ? "xl" : 0 }}
       overflow="hidden"
       role="group"
-      aria-label={isAfter ? "シフトリ" : "これまで"}
+      aria-label={isAfter ? "シフトリ" : "導入前"}
     >
       <ComparisonHeader tone={tone} compact />
       <Flex
@@ -241,18 +241,7 @@ const ComparisonHeader = ({ tone, compact = false }: { tone: ComparisonTone; com
       aria-hidden={compact || undefined}
     >
       <Text fontSize={compact ? "sm" : "lg"} fontWeight="black" lineHeight="1.4">
-        {isAfter ? (
-          "シフトリ"
-        ) : compact ? (
-          "これまで"
-        ) : (
-          <>
-            これまで
-            <Box as="span" display="block">
-              （紙・Excel・LINEグループ）
-            </Box>
-          </>
-        )}
+        {isAfter ? "シフトリ" : "導入前"}
       </Text>
     </Flex>
   );

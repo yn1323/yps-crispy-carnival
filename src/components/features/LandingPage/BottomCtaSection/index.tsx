@@ -7,7 +7,7 @@ import { TrialReassurance } from "../TrialReassurance";
 export const BottomCtaSection = () => (
   <Box as="section" bg="#eaf8f6" py={14} overflow="hidden">
     <Container maxW="7xl">
-      <VStack align="start" gap={6}>
+      <VStack align="center" gap={6} textAlign="center">
         <Heading as="h2" fontSize={{ base: "xl", sm: "2xl", md: "3xl" }} lineHeight="1.35" letterSpacing="0">
           シフトのやり取りを
           <Box as="span" display="block" color="teal.700">
@@ -19,7 +19,7 @@ export const BottomCtaSection = () => (
           <br />
           まずは2か月、実際の店舗とスタッフで試してみませんか。
         </Text>
-        <VStack align="start" gap={3} w={{ base: "full", md: "auto" }}>
+        <VStack align="center" gap={3} w={{ base: "full", md: "auto" }}>
           <Stack direction={{ base: "column", md: "row" }} gap={4} w={{ base: "full", md: "auto" }}>
             <BottomButton href="/signup" label="シフトリを始める" primary />
             <BottomButton href="/demo/flow" label="登録不要でデモを見る" />
@@ -45,8 +45,17 @@ const BottomButton = ({ href, label, primary = false }: { href: string; label: s
     fontWeight="bold"
   >
     <MeasurementBoundaryLink href={href} measurementCtaId={primary ? "bottom_signup" : "bottom_demo"}>
-      {primary ? <Icon as={LuChevronRight} boxSize={5} /> : <Icon as={LuMousePointerClick} boxSize={5} />}
-      {label}
+      {primary ? (
+        <>
+          {label}
+          <Icon as={LuChevronRight} boxSize={5} />
+        </>
+      ) : (
+        <>
+          <Icon as={LuMousePointerClick} boxSize={5} />
+          {label}
+        </>
+      )}
     </MeasurementBoundaryLink>
   </Button>
 );

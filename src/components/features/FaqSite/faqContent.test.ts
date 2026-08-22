@@ -164,7 +164,8 @@ describe("FAQコンテンツ", () => {
     expect(entriesById.get("organization-and-shop")?.answerText).toContain("二つ目以降の組織");
     expect(entriesById.get("switch-shop")?.answerText).toContain("組織を変更");
     expect(entriesById.get("manager-invitation")?.answerText).toContain("メールで招待");
-    expect(entriesById.get("pricing")?.answerText).toContain("ProまたはBusiness");
+    expect(entriesById.get("pricing")?.answerText).toContain("有料プランと同じ機能");
+    expect(entriesById.get("pricing")?.answerText).toContain("フリープランで継続利用");
     expect(
       ["organization-and-shop", "switch-shop", "manager-invitation", "pricing"].some((id) =>
         entriesById.get(id)?.answerText.includes("公開していません"),
