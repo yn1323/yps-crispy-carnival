@@ -13,7 +13,6 @@
 |---|---|---|
 | `/` | 価値、利用の流れ、提出方法、利用例、FAQと記事への入口、登録導線をまとめるTOP | `src/pages/home/`、`src/components/features/LandingPage/` |
 | `/features` | 希望回収、未提出確認、シフト作成、確定通知など、できることを詳しく示す | `src/pages/features/`、`FeatureSection`、`BenefitsSection` |
-| `/pricing` | 2か月の無料トライアルと、Free・Pro・Businessで利用できる店舗・管理ユーザー・利用人数の範囲を示す | `src/pages/pricing/`、`PricingSite` |
 | `/commercial-transactions` | 有料プランの販売条件と、特定商取引法に基づく事業者情報を示す | `src/pages/commercial-transactions/`、`CommercialTransactions` |
 | `/faq` | 導入前から利用中までの質問を、カテゴリと検索から探せるようにする | `src/pages/faq/`、`src/components/features/FaqSite/` |
 | `/howto` | 画面上の場所、操作、結果、失敗時の対処を、利用場面から探せるようにする | `src/pages/howto/`、`src/components/features/HowToSite/` |
@@ -64,9 +63,6 @@ src/routes/index.tsx
 FAQ、HowTo、記事、デモを表示するためのConvex APIもない。
 問い合わせなど、公開サイトから遷移する別機能のAPIは、その機能文書を参照する。
 
-`PricingSite`が表示する無料トライアル、追加組織のFree、Pro、Businessの利用人数、店舗数、管理ユーザー数は、backend enforcementと同じbrowser-safeな`ORGANIZATION_PLAN_LIMITS`を参照する。
-公開ページからStripeやConvexへ問い合わせず、build時とbrowserで同じ静的内容を表示する。
-
 ## 公開する利用条件
 
 初回登録から2か月は無料トライアルを適用する。
@@ -88,7 +84,7 @@ FAQ、HowTo、記事、デモを表示するためのConvex APIもない。
 
 2か月無料・クレジットカード登録不要の公開文言は、初回Setupが2か月のTrialを作成するbackend artifactと同時に公開する。  初回Setupが支払い不要Businessを作るartifactや、対象deploymentの反映が未確認の状態では公開しない。
 
-公開可否は[リリース状態](../manual/release-status.md)に実環境証跡を記録して判定し、LP、FAQ、料金ページの静的生成に成功したことだけでTrialの利用可能性を推測しない。
+公開可否は[リリース状態](../manual/release-status.md)に実環境証跡を記録して判定し、LPとFAQの静的生成に成功したことだけでTrialの利用可能性を推測しない。
 
 ## 特定商取引法に基づく表記
 
@@ -100,10 +96,10 @@ FAQ、HowTo、記事、デモを表示するためのConvex APIもない。
 
 Pro・Businessの販売価格は、Production公開前にStripeへ設定する確定額と税区分を記載し、契約画面にも契約確定前に同じ条件を表示する。
 
-役務提供事業者、運営責任者、所在地、電話番号は、Production公開前に`src/components/features/CommercialTransactions/index.tsx`冒頭の`MANUAL_BUSINESS_DETAILS`を実在する情報へ手動で置き換える。Pro・Businessの月額料金と税込・税別は、同じファイルの`MANUAL_SALES_PRICES`を確定した販売条件へ置き換える。
+役務提供事業者、運営責任者、所在地、電話番号、Pro・Businessの月額料金と税込・税別は、Production公開前に`src/components/features/CommercialTransactions/content/index.mdx`の仮入力を実在する情報と確定した販売条件へ手動で置き換える。  利用上限の数値は、同MDXの`PlanLimit`を介してbrowser-safeな`ORGANIZATION_PLAN_LIMITS`を参照する。
 仮入力が一つでも残る間はページ内に注意を表示し、Production公開の停止条件として[リリース状態](../manual/release-status.md)にも記録する。
 
-このページはfooterと料金ページ共通の公開layoutから到達できる一方、`noindex, nofollow`とし、sitemapと`llms.txt`には含めない。
+このページはfooterから到達できる一方、`noindex, nofollow`とし、sitemapと`llms.txt`には含めない。
 `robots.txt`でDisallowにはせず、crawlerがrobots metaを取得できる状態を維持する。
 利用規約・プライバシーポリシーと同じ`public_unmeasured`面に分類し、GTM・GA4のpage viewを送らない。
 
@@ -177,7 +173,6 @@ route inventory testは各`Disallow`が実在するCSR routeのprefixである�
 
 - `src/routes/index.tsx`、`src/pages/home/`、`src/components/features/LandingPage/`：公開TOP
 - `src/routes/features.tsx`、`src/pages/features/`：機能紹介
-- `src/routes/pricing.tsx`、`src/pages/pricing/`、`src/components/features/PricingSite/`：料金・プラン
 - `src/routes/commercial-transactions.tsx`、`src/pages/commercial-transactions/`、`src/components/features/CommercialTransactions/`：特定商取引法に基づく表記
 - `src/routes/faq.tsx`、`src/pages/faq/`、`src/components/features/FaqSite/`：総合FAQとTOP向けFAQ抜粋
 - `src/components/features/FaqSite/content/**/*.mdx`：質問、回答、検索用メタデータ、表示順

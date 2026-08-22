@@ -146,7 +146,6 @@ describe("static site manifest", () => {
   it.each([
     ["/", "index.html"],
     ["/features", "features.html"],
-    ["/pricing", "pricing.html"],
     ["/articles/example", "articles/example.html"],
   ])("%sを末尾slashなしのHTML pathへ変換する", (route, expected) => {
     expect(routeToHtmlPath(route)).toBe(expected);

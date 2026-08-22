@@ -17,7 +17,6 @@ export const FIXED_PUBLIC_ROUTES = [
   "/faq",
   "/features",
   "/howto",
-  "/pricing",
   "/privacy",
   "/privacy/manager",
   "/privacy/staff",

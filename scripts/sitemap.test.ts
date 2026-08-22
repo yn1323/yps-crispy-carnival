@@ -31,7 +31,7 @@ describe("sitemap generator", () => {
     expect(paths).toEqual(getIndexableCanonicalRoutes(publicRoutes));
     expect(new Set(paths).size).toBe(paths.length);
     expect(paths).not.toContain("/articles/line-shift-collection-guide");
-    expect(paths).toContain("/pricing");
+    expect(paths).not.toContain("/pricing");
     expect(paths).not.toContain("/commercial-transactions");
     expect(paths).not.toContain(CSR_SHELL_STATIC_ROUTES[0]);
     for (const route of NOINDEX_PUBLIC_ROUTES) {

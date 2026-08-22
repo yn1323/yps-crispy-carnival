@@ -70,17 +70,6 @@ export function SignupForm({
         <Text color="gray.800" textStyle="sm" lineHeight="1.8">
           初回登録から2か月は、クレジットカードを登録せず無料で試せます。
         </Text>
-        <Link
-          href="/pricing"
-          target="_blank"
-          rel="noreferrer"
-          color="teal.700"
-          fontWeight="bold"
-          textStyle="sm"
-          alignSelf="flex-start"
-        >
-          料金・プランを見る（新しいタブ）
-        </Link>
       </Stack>
       <OAuthSection isLineBrowser={isLineBrowser} isSubmitting={isSubmitting} onClick={onGoogle} label="Googleで登録" />
       <AuthError message={errorMessage} />

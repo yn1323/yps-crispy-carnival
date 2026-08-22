@@ -221,7 +221,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 
 | Route群 | 現行入口 | 契約ID / 主担当 |
 |---|---|---|
-| 公開コンテンツ | `/`、`/features`、`/pricing`、`/commercial-transactions`、`/faq`、`/howto`、`/articles`、`/articles/:slug`、`/articles/categories/:categorySlug`、`/demo/flow`、`/demo/shiftboard`、`/terms*`、`/privacy*`、`/contact` | `PUBLIC-STATIC-01`、`PUBLIC-DEMO-01`、`HTTP-CONTACT-01`。build、Behavior、VRT、Deployed Smoke |
+| 公開コンテンツ | `/`、`/features`、`/commercial-transactions`、`/faq`、`/howto`、`/articles`、`/articles/:slug`、`/articles/categories/:categorySlug`、`/demo/flow`、`/demo/shiftboard`、`/terms*`、`/privacy*`、`/contact` | `PUBLIC-STATIC-01`、`PUBLIC-DEMO-01`、`HTTP-CONTACT-01`。build、Behavior、VRT、Deployed Smoke |
 | 認証 | `/login`、`/signup`、`/forgot-password`、`/sso-callback`、`/account` | `AUTH-MANAGER-01`、`AUTH-ACCOUNT-METHODS-01`、`DELETE-ACCOUNT-01`。Frontend Unit、Behavior、Function、Scenario、E2E |
 | 認証済みアプリ | `/dashboard`、`/shifts*`、`/staff*`、`/actions`、`/manage`、`/manage/organization`、`/manage/shops/:shopId`、`/manage/managers*`、`/manage/billing` | `AUTH-TENANT-01`、`ORG-CONTEXT-01`、`SHOP-LIFECYCLE-01`、`PERSON-MEMBERSHIP-01`、`MANAGER-INVITATION-01`、`BILLING-CHECKOUT-01`、`SHIFT-BOARD-DRAFT-01`。Function、Scenario、代表E2E |
 | staff / Capability | `/shifts/submit`、`/shifts/submit/completed`、`/shifts/view`、`/shifts/reissue`、`/staff/register`、`/legal/staff/consent`、`/line/callback` | `CAP-SHIFT-SESSION-01`、`SHIFT-SUBMISSION-01`、`SHIFT-VIEW-REISSUE-01`、`STAFF-REGISTRATION-01`、`CAP-LEGAL-01`、`CAP-LINE-LINK-01`。Function、Scenario、代表E2E |

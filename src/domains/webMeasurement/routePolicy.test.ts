@@ -5,7 +5,6 @@ describe("Web計測route policy", () => {
   it.each([
     ["/", "home"],
     ["/features/", "features"],
-    ["/pricing", "pricing"],
     ["/faq?from=top", "faq"],
     ["/howto#answer", "howto"],
     ["/contact", "contact"],
@@ -45,6 +44,7 @@ describe("Web計測route policy", () => {
     "/shops/internal-id",
     "/users/internal-id",
     "/shiftboard/internal-id",
+    "/pricing",
     "/unknown",
     "/articles/categories/a/b",
   ])("%sはdefault closedにする", (pathname) => {

@@ -24,7 +24,6 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as HowtoRouteImport } from './routes/howto'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ManagerInviteRouteImport } from './routes/manager-invite'
-import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
@@ -148,11 +147,6 @@ const LoginRoute = LoginRouteImport.update({
 const ManagerInviteRoute = ManagerInviteRouteImport.update({
   id: '/manager-invite',
   path: '/manager-invite',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PricingRoute = PricingRouteImport.update({
-  id: '/pricing',
-  path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -442,7 +436,6 @@ export interface FileRoutesByFullPath {
   '/howto': typeof HowtoRoute
   '/login': typeof LoginRoute
   '/manager-invite': typeof ManagerInviteRoute
-  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
   '/sso-callback': typeof SsoCallbackRoute
@@ -508,7 +501,6 @@ export interface FileRoutesByTo {
   '/howto': typeof HowtoRoute
   '/login': typeof LoginRoute
   '/manager-invite': typeof ManagerInviteRoute
-  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
   '/sso-callback': typeof SsoCallbackRoute
@@ -578,7 +570,6 @@ export interface FileRoutesById {
   '/howto': typeof HowtoRoute
   '/login': typeof LoginRoute
   '/manager-invite': typeof ManagerInviteRoute
-  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
   '/sso-callback': typeof SsoCallbackRoute
@@ -647,7 +638,6 @@ export interface FileRouteTypes {
     | '/howto'
     | '/login'
     | '/manager-invite'
-    | '/pricing'
     | '/privacy'
     | '/signup'
     | '/sso-callback'
@@ -713,7 +703,6 @@ export interface FileRouteTypes {
     | '/howto'
     | '/login'
     | '/manager-invite'
-    | '/pricing'
     | '/privacy'
     | '/signup'
     | '/sso-callback'
@@ -782,7 +771,6 @@ export interface FileRouteTypes {
     | '/howto'
     | '/login'
     | '/manager-invite'
-    | '/pricing'
     | '/privacy'
     | '/signup'
     | '/sso-callback'
@@ -852,7 +840,6 @@ export interface RootRouteChildren {
   HowtoRoute: typeof HowtoRoute
   LoginRoute: typeof LoginRoute
   ManagerInviteRoute: typeof ManagerInviteRoute
-  PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
   SignupRoute: typeof SignupRoute
   SsoCallbackRoute: typeof SsoCallbackRoute
@@ -970,13 +957,6 @@ declare module '@tanstack/react-router' {
       path: '/manager-invite'
       fullPath: '/manager-invite'
       preLoaderRoute: typeof ManagerInviteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pricing': {
-      id: '/pricing'
-      path: '/pricing'
-      fullPath: '/pricing'
-      preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -1466,7 +1446,6 @@ const rootRouteChildren: RootRouteChildren = {
   HowtoRoute: HowtoRoute,
   LoginRoute: LoginRoute,
   ManagerInviteRoute: ManagerInviteRoute,
-  PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
   SignupRoute: SignupRoute,
   SsoCallbackRoute: SsoCallbackRoute,

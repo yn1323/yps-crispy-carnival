@@ -81,7 +81,6 @@
 
 - [サービスサイト](https://shiftori.app/)
 - [できること](https://shiftori.app/features)
-- [料金・プラン](https://shiftori.app/pricing): 2か月の無料トライアルと、Free・Pro・Businessで利用できる店舗・管理ユーザー・利用人数の範囲
 - [使い方・ヘルプ](https://shiftori.app/howto): 操作方法、通知の仕組み、困ったときの確認事項を短くまとめたヘルプ
 - [よくある質問](https://shiftori.app/faq): 導入、スタッフ登録、シフト運用、通知、料金、トラブル対応をカテゴリと検索で探せる総合FAQ
 - [お問い合わせ](https://shiftori.app/contact): 利用開始、機能や使い方、不具合やトラブルの相談窓口

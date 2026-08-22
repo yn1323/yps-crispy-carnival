@@ -12,10 +12,7 @@ export const publicCtaIds = [
   "bottom_signup",
   "bottom_demo",
   "feature_demo",
-  "pricing_signup",
-  "pricing_demo",
   "demo_complete_signup",
-  "demo_complete_pricing",
 ] as const;
 export type PublicCtaId = (typeof publicCtaIds)[number];
 

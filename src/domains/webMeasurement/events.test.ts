@@ -39,19 +39,6 @@ describe("Web計測event serializer", () => {
     });
   });
 
-  it("料金ページのCTAも有限のIDとroute familyだけを送る", () => {
-    expect(
-      serializeWebMeasurementEvent({ kind: "public_cta", ctaId: "pricing_signup", routeFamily: "pricing" }, context),
-    ).toEqual({
-      event: "select_content",
-      app_environment: "preview",
-      content_id: "pricing_signup",
-      content_type: "public_cta",
-      release_id: "abc123",
-      route_family: "pricing",
-    });
-  });
-
   it("Web Vitalsはdocument routeと低cardinality値だけを送る", () => {
     const event = buildWebVitalEvent(
       { name: "LCP", value: 1234.5, rating: "good", navigationType: "navigate" },

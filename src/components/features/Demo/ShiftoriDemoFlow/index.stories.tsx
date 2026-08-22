@@ -56,7 +56,6 @@ export const ShareCompleteCtaBehavior: Story = {
     await userEvent.click(emailLink);
 
     await expect(await screen.findByRole("link", { name: "シフトリを始める" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "料金・プランを見る" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "もう1回試す" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "デモを閉じる" })).toBeInTheDocument();
   },

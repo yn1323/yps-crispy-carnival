@@ -1,7 +1,6 @@
 export const measuredPublicRouteFamilies = [
   "home",
   "features",
-  "pricing",
   "faq",
   "howto",
   "contact",
@@ -28,7 +27,6 @@ const fixedMeasuredRoutes = new Map<string, MeasuredPublicRouteFamily>([
   ["/faq", "faq"],
   ["/features", "features"],
   ["/howto", "howto"],
-  ["/pricing", "pricing"],
 ]);
 
 const publicUnmeasuredRoutes = new Set([
