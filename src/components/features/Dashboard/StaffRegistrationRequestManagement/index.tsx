@@ -1,4 +1,4 @@
-import { Stack, Text } from "@chakra-ui/react";
+import { Separator, Stack } from "@chakra-ui/react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -179,9 +179,7 @@ export function StaffRegistrationRequestManagement({
           onOpenBillingSettings={onOpenBillingSettings}
         />
       )}
-      <Text fontSize="sm" color="fg.muted" whiteSpace="pre-line">
-        {"承認するとスタッフとして登録します。\nLINE案内と募集中シフトを送ります。"}
-      </Text>
+      <Separator />
       <ActionInboxView
         items={actionItems}
         completedItemIds={completedItemIds}

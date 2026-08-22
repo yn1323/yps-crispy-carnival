@@ -158,7 +158,7 @@ describe("NotificationFailureRecovery", () => {
     expect(mocks.latestViewProps?.items).toHaveLength(2);
   });
 
-  it("すべて再送では受付済みIDだけを完了扱いにする", async () => {
+  it("「すべて再送する」は受付済みIDだけを完了扱いにする", async () => {
     mocks.resendOpenFailures
       .mockResolvedValueOnce({
         scheduled: true,
@@ -176,7 +176,7 @@ describe("NotificationFailureRecovery", () => {
       });
     renderRecovery();
 
-    fireEvent.click(screen.getByRole("button", { name: "すべて再送" }));
+    fireEvent.click(screen.getByRole("button", { name: "すべて再送する" }));
 
     await waitFor(() => expect(mocks.latestViewProps?.completedItemIds).toContain("notificationFailure:failure-1"));
     expect(mocks.latestViewProps?.completedItemIds).not.toContain("notificationFailure:failure-2");
