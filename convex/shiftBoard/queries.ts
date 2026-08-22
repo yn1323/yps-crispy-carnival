@@ -12,7 +12,7 @@ import {
   SHIFT_BOARD_STAFF_LIMIT,
   SHIFT_BOARD_TIME_UNIT_MINUTES,
 } from "../constants";
-import { getOrganizationBillingPolicy } from "../organizationBilling/service";
+import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
 import { isShiftTargetStaff } from "../staff/service";
 
@@ -22,6 +22,8 @@ const shiftBoardWriteBlockReasonValidator = v.union(
   v.literal("shopPlanSuspended"),
   v.literal("paymentResultPending"),
   v.literal("restricted"),
+  v.literal("usageLimitExceeded"),
+  v.literal("usageLimitEvaluationUnavailable"),
   v.null(),
 );
 
@@ -152,7 +154,7 @@ export const getShiftBoardData = managerQuery({
     const endHour = Math.ceil(editableEndMinutes / 60);
     // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
     const shopStatus = shop.operatingStatus ?? "active";
-    const billingPolicy = ctx.organization ? await getOrganizationBillingPolicy(ctx, ctx.organization._id) : null;
+    const organizationAccess = ctx.organization ? await getOrganizationAccessPolicy(ctx, ctx.organization._id) : null;
     const businessWriteBlockReason =
       shopStatus === "archived"
         ? ("shopArchived" as const)
@@ -160,7 +162,9 @@ export const getShiftBoardData = managerQuery({
           ? ("shopPlanSuspended" as const)
           : ctx.organizationMember?.status === "readOnly"
             ? ("memberReadOnly" as const)
-            : (billingPolicy?.businessWriteBlockReason ?? null);
+            : organizationAccess?.usageLimitStatus?.kind === "unknown"
+              ? ("usageLimitEvaluationUnavailable" as const)
+              : (organizationAccess?.businessWriteBlockReason ?? null);
 
     return {
       shopId: shop._id,

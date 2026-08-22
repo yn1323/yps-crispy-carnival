@@ -11,6 +11,8 @@ export type ShiftBoardData = {
     | "shopPlanSuspended"
     | "paymentResultPending"
     | "restricted"
+    | "usageLimitExceeded"
+    | "usageLimitEvaluationUnavailable"
     | null;
   recruitment: {
     _id: Id<"recruitments">;

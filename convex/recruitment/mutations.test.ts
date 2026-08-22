@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { getManagerConfirmationReminderAt, todayJST } from "../_lib/dateFormat";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { NOTIFICATION_FANOUT_SCOPE_LIMIT, RECRUITMENT_PERIOD_DAYS_MAX } from "../constants";
@@ -85,6 +86,39 @@ describe("recruitment/mutations", () => {
       expect(recruitment?.submissionPattern).toEqual({ kind: "time", startTime: "09:00", endTime: "22:00" });
     });
 
+    it("active.freeの実数上限超過中は募集を作らず、副作用も残さない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "recruitment_usage_limit",
+          plan: "free",
+        });
+        for (let index = 0; index < 5; index += 1) {
+          await seedStaff(ctx, {
+            shopId: seeded.shopId,
+            name: `上限超過スタッフ${index + 1}`,
+            email: `recruitment-usage-limit-${index + 1}@example.com`,
+          });
+        }
+        return seeded;
+      });
+
+      await expect(
+        t.withIdentity({ subject: "recruitment_usage_limit" }).mutation(api.recruitment.mutations.createRecruitment, {
+          ...validArgs(),
+          shopId: ids.shopId,
+        }),
+      ).rejects.toMatchObject({ data: { code: "USAGE_LIMIT_EXCEEDED", plan: "free" } });
+
+      const state = await t.run(async (ctx) => ({
+        recruitments: await ctx.db.query("recruitments").collect(),
+        stats: await ctx.db.query("recruitmentStats").collect(),
+        operations: await ctx.db.query("notificationFanoutOperations").collect(),
+        jobs: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(state).toEqual({ recruitments: [], stats: [], operations: [], jobs: [] });
+    });
+
     it("募集通知対象が上限を超える場合は無言で切り捨てず作成全体をfail-closedにする", async () => {
       const { t, shopId } = await setupShop();
       await t.run(async (ctx) => {
@@ -114,7 +148,7 @@ describe("recruitment/mutations", () => {
       expect(state).toEqual({ recruitments: [], stats: [], operations: [], jobs: [] });
     });
 
-    it("募集作成後のaction実行前にTrial終了で利用停止した場合は旧versionの通知を積まない", async () => {
+    it("募集作成後のaction実行前にTrial終了してもFree上限内なら通知を継続し、再実行を重複させない", async () => {
       const now = new Date("2026-01-01T00:00:00+09:00");
       vi.setSystemTime(now);
       const t = convexTest(schema, modules);
@@ -170,21 +204,21 @@ describe("recruitment/mutations", () => {
           expectedVersion: 1,
           expectedDeadlineAt: now.getTime(),
         }),
-      ).resolves.toEqual({ changed: true, stateKind: "restricted" });
+      ).resolves.toEqual({ changed: true, stateKind: "free" });
 
       await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, {
         recruitmentId,
         organizationBillingVersionAtOrigin: scheduledOrigin,
       });
-      expect(await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect())).toHaveLength(0);
+      expect(await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect())).toHaveLength(1);
 
       await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, {
         recruitmentId,
         organizationBillingVersionAtOrigin: 2,
       });
       const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
-      // 同じ募集の旧jobと再実行は一つのpersisted operationへ収束し、originを書き換えて復活させない。
-      expect(jobs).toEqual([]);
+      // 上限内のFreeでは予約済み通知を維持し、同じ募集の再実行は一つのpersisted operationへ収束する。
+      expect(jobs).toHaveLength(1);
     });
 
     it("同一内容の募集作成はエラーにし、統計と通知予約を増やさない", async () => {

@@ -160,7 +160,7 @@ async function insertStaffPeople(
   organizationId: Id<"organizations">,
   now: number,
 ): Promise<Array<{ personId: Id<"organizationPeople">; name: string; email: string; excludedFromShift: boolean }>> {
-  const count = scenario.key === "free-capacity" ? 4 : 3;
+  const count = scenario.key === "free-capacity" || scenario.key === "payment-restricted" ? 4 : 3;
   const people = [];
   for (let index = 0; index < count; index += 1) {
     const email = seedEmail(`${scenario.key}-staff-${index + 1}`);
@@ -769,21 +769,10 @@ export async function seedDevelopmentScenarioGraph(
   const staffPeople =
     scenario.dataProfile === "billingOnly" ? [] : await insertStaffPeople(writer, scenario, organizationId, now);
   const shops = await insertShopGraph(writer, scenario, organizationId, staffPeople);
-  const billingState = scenario.billingState(now);
-  const canonicalBillingState =
-    billingState.kind === "restricted"
-      ? {
-          ...billingState,
-          recoveryManagerPersonIds: managerPersonIds,
-          previousActiveShopIds: shops.map((shop) => shop.shopId),
-        }
-      : billingState;
+  const canonicalBillingState = scenario.billingState(now);
   await writer.insert("organizationBillingStates", {
     organizationId,
     state: canonicalBillingState,
-    ...(canonicalBillingState.kind === "active" && canonicalBillingState.plan === "free"
-      ? { freeManagerPersonId: primaryMembership.personId, freeShopId: shops[0].shopId }
-      : {}),
     version: 1,
     createdAt: now,
     updatedAt: now,

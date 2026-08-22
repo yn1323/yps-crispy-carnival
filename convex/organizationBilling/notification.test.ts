@@ -4,7 +4,7 @@ import { organizationBillingNotificationCopy } from "./notification";
 describe("organizationBilling/notification", () => {
   const trialEndsAt = Date.parse("2026-09-01T00:00:00+09:00");
 
-  it("Pro選択済みのトライアル終了通知へ初回請求予定と継続取消後の利用停止を載せる", () => {
+  it("Pro選択済みのトライアル終了通知へ初回請求予定と取消後の無料移行を載せる", () => {
     const copy = organizationBillingNotificationCopy("trialEnding", {
       trialEndsAt,
       selectedPaidPlan: "pro",
@@ -13,22 +13,23 @@ describe("organizationBilling/notification", () => {
     expect(copy.paragraphs).toEqual([
       "トライアルは9/1(火) 00:00に終了します。",
       "選択済みの契約プランはProです。\n初回請求は9/1(火) 00:00を予定しています。",
-      "継続を取り消す場合の期限は9/1(火) 00:00です。\n取り消すと、トライアル終了後は利用停止になります。",
+      "継続を取り消す場合の期限は9/1(火) 00:00です。\n取り消すと、トライアル終了後は無料プランへ変更されます。",
+      "無料プランの利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。",
     ]);
     expect(copy.paragraphs.join("\n")).not.toContain("円");
   });
 
-  it("未契約のトライアル終了通知へ利用停止とデータ保持を載せる", () => {
+  it("未契約のトライアル終了通知へ無料移行とデータ保持を載せる", () => {
     const copy = organizationBillingNotificationCopy("trialEnding", { trialEndsAt });
 
     expect(copy.paragraphs).toEqual([
       "トライアルは9/1(火) 00:00に終了します。\n有料プランはまだ契約されていません。",
-      "有料プランを契約しない場合、トライアル終了後は利用停止になります。\n店舗・ユーザー・過去のシフトは削除されません。",
-      "利用を再開するには、組織設定からProまたはBusinessを契約してください。",
+      "有料プランを契約しない場合、トライアル終了後は無料プランへ変更されます。\n店舗・ユーザー・過去のシフトは削除されません。",
+      "無料プランの利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。\nProまたはBusinessへ変更することもできます。",
     ]);
   });
 
-  it("新しい期間末解約はFree変更ではなく解約として通知する", () => {
+  it("新しい期間末解約は解約後の無料移行として通知する", () => {
     expect(
       organizationBillingNotificationCopy("scheduledChange", undefined, {
         targetPlan: "free",
@@ -40,7 +41,8 @@ describe("organizationBilling/notification", () => {
       heading: "解約を受け付けました",
       paragraphs: [
         "9/1(火) 00:00をもって解約します。\nそれまでは現在の有料プランを利用できます。",
-        "解約後は契約制限中になります。\n店舗・ユーザー・過去のシフトは削除されません。\n再開するには有料プランを契約してください。",
+        "解約後は無料プランへ変更されます。\n店舗・ユーザー・過去のシフトは削除されません。",
+        "無料プランの利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。",
       ],
     });
   });
@@ -125,6 +127,17 @@ describe("organizationBilling/notification", () => {
     expect(paragraphs).toContain("9/1(火) 00:00");
     expect(copy.paragraphs[0]).toContain("Businessを開始しました。\n今回の請求額");
     expect(copy.paragraphs[0]).toContain("です。\n適用日時は");
+  });
+
+  it("下位プラン適用後の上限超過は契約成立と自動解除条件を案内する", () => {
+    const copy = organizationBillingNotificationCopy("planActivated", undefined, {
+      targetPlan: "pro",
+      usageLimitExceeded: true,
+    });
+
+    expect(copy.heading).toBe("Proを開始しました");
+    expect(copy.paragraphs.join("\n")).toContain("Proプランの利用上限を超えている");
+    expect(copy.paragraphs.join("\n")).toContain("上限内になると、業務操作は自動的に再開");
   });
 
   it("契約復旧通知へ復旧プラン・請求額・適用日時を載せ、detailsなしの既存文面も維持する", () => {

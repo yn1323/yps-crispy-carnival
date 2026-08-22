@@ -29,7 +29,7 @@ import { type BusinessNotificationOrigin, getBusinessNotificationOrigin } from "
 import { requireOrganizationActorForShop } from "../organization/access";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
-import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
+import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { getActiveStaffInShop } from "../staff/service";
 import {
   collectOrganizationPersonActiveLineTokens,
@@ -79,7 +79,10 @@ async function canRedeemLineLinkTokenForShop(ctx: Pick<MutationCtx, "db">, shop:
   if (!organization || organization.isDeleted || billingStates.length > 1) return false;
 
   const billingState = billingStates[0];
-  return billingState === undefined || deriveOrganizationBillingPolicy(billingState.state).canWriteBusinessData;
+  if (billingState === undefined) return true;
+
+  const access = await getOrganizationAccessPolicy(ctx, organizationId);
+  return access?.accessMode === "normal";
 }
 
 async function issueLinkToken(ctx: MutationCtx, args: { staffId: Id<"staffs">; shopId: Id<"shops"> }) {

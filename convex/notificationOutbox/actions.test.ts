@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import { resetResendEmailQueueForTest } from "../_lib/resend";
+import { seedStaff } from "../_test/scenarioBuilders";
 import {
   seedCanonicalStaffLineRecipient,
   seedLegacyManagerShop,
@@ -913,6 +914,71 @@ describe("notificationOutbox/actions", () => {
     expect(stateById.get(ids.billingId)).toMatchObject({
       status: "sent",
       resendEmailId: "email_billing_123",
+    });
+  });
+
+  it("利用上限超過後は既存の業務メールをproviderへ送らず、課金メールだけを送る", async () => {
+    vi.stubEnv("RESEND_API_KEY", "resend-token");
+    const fetchMock = vi.fn<typeof globalThis.fetch>(
+      async () => new Response(JSON.stringify({ id: "email_usage_limit_billing_123" }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "usage_limit_provider_manager",
+        email: "usage-limit-provider-manager@example.com",
+        plan: "free",
+      });
+      for (let index = 0; index < 5; index += 1) {
+        await seedStaff(ctx, {
+          shopId: seeded.shopId,
+          name: `上限超過スタッフ${index + 1}`,
+          email: `usage-limit-provider-staff-${index + 1}@example.com`,
+        });
+      }
+      const insertEmail = async (purpose: "business" | "billing") => {
+        const now = Date.now();
+        return await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "pending",
+          dedupeKey: `email:test:usage-limit-provider-${purpose}`,
+          organizationId: seeded.organizationId,
+          purpose,
+          userId: seeded.userId,
+          payload: {
+            kind: "email",
+            from: "シフトリ <noreply@example.com>",
+            to: "usage-limit-provider-manager@example.com",
+            subject: purpose,
+            html: `<p>${purpose}</p>`,
+            context: `test.usageLimitProvider.${purpose}`,
+          },
+          attemptCount: 0,
+          nextRunAt: now,
+          createdAt: now,
+          updatedAt: now,
+        });
+      };
+      return {
+        businessId: await insertEmail("business"),
+        billingId: await insertEmail("billing"),
+      };
+    });
+
+    await t.action(internal.notificationOutbox.actions.processPending, {});
+
+    const resendCalls = fetchMock.mock.calls.filter(([input]) => String(input).includes("api.resend.com/emails"));
+    expect(resendCalls).toHaveLength(1);
+    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
+    const stateById = new Map(jobs.map((job) => [job._id, job]));
+    expect(stateById.get(ids.businessId)).toMatchObject({
+      status: "cancelled",
+      cancelReason: "organization_usage_limit_exceeded",
+    });
+    expect(stateById.get(ids.billingId)).toMatchObject({
+      status: "sent",
+      resendEmailId: "email_usage_limit_billing_123",
     });
   });
 

@@ -228,7 +228,7 @@ function dialogContent(dialog: BillingActionDialogState): {
         description: "トライアルは最終日までそのまま利用できます。",
         submitLabel: "有料継続を取り消す",
         submitColorPalette: "red",
-        note: "取り消すとトライアル終了後は利用停止になります。店舗・ユーザー・過去のシフトは削除されず、有料プランを契約すると再開できます。",
+        note: "取り消すとトライアル終了後は無料プランへ変更されます。店舗・ユーザー・過去のシフトは削除されません。無料プランの上限を超える場合は、上限内へ整理するまで業務操作が制限されます。",
       };
     case "schedulePlanChange":
       return {
@@ -236,7 +236,7 @@ function dialogContent(dialog: BillingActionDialogState): {
         description: "現在の支払い済み期間が終わるまでは、現在のプランを利用します。",
         submitLabel: "プラン変更を予約",
         submitColorPalette: "orange",
-        note: "変更予定日までに、利用人数・店舗数・管理者数を変更先プランの上限以内に整理してください。\n上限を超えるユーザーは自動では削除されません。",
+        note: "変更予定日にプランは切り替わります。変更先プランの上限を超える場合は、上限内へ整理するまで業務操作が制限されます。\nユーザーや店舗は自動では削除されません。",
       };
     case "scheduleServiceStop":
       return {
@@ -244,7 +244,7 @@ function dialogContent(dialog: BillingActionDialogState): {
         description: "現在の支払い済み期間が終わるまでは、このプランを利用します。",
         submitLabel: "解約する",
         submitColorPalette: "red",
-        note: "解約後は契約制限中になります。店舗・ユーザー・過去のシフトは削除されず、そのまま閲覧できます。",
+        note: "解約後は無料プランへ変更されます。店舗・ユーザー・過去のシフトは削除されません。無料プランの上限を超える場合は、上限内へ整理するまで業務操作が制限されます。",
       };
     case "cancelScheduledPlanChange":
       return dialog.isServiceStop

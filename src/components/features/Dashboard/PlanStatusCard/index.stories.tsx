@@ -34,6 +34,12 @@ const usageWithoutManager = {
 const usageWithManager = {
   ...usageWithoutManager,
   managerUsage: { current: 2, max: 5 },
+  pendingManagerInvitations: 0,
+} satisfies PlanStatusCardUsage;
+
+const usageWithPendingManagerInvitation = {
+  ...usageWithManager,
+  pendingManagerInvitations: 1,
 } satisfies PlanStatusCardUsage;
 
 const proPlan = {
@@ -177,6 +183,11 @@ export const ProWithManagerExpanded: Story = {
   args: { usage: usageWithManager, defaultExpanded: true },
 };
 
+export const ProWithPendingManagerInvitationExpanded: Story = {
+  name: "Pro・展開・管理者招待中",
+  args: { usage: usageWithPendingManagerInvitation, defaultExpanded: true },
+};
+
 export const ProUsageLoading: Story = {
   name: "Pro・利用状況読み込み中",
   args: { usage: undefined, defaultExpanded: true },
@@ -295,7 +306,7 @@ export const PaidExpansionBehavior: Story = {
     const details = await canvas.findByRole("region", { name: "Proプランの詳細" });
     const usage = await within(details).findByRole("group", { name: "プランの利用状況" });
     const peopleUsage = within(usage).getByText("12 / 20人");
-    await expect(peopleUsage).toHaveAccessibleName("スタッフ 現在12人 / 上限20人");
+    await expect(peopleUsage).toHaveAccessibleName("利用人数 現在12人 / 上限20人");
 
     await userEvent.click(toggle);
     await expect(toggle).toHaveAttribute("aria-expanded", "false");

@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop, seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { SHIFT_ASSIGNMENT_LIMIT } from "../constants";
@@ -293,6 +294,108 @@ describe("shiftBoard/queries", () => {
       canWriteBusinessData: false,
       businessWriteBlockReason: "memberReadOnly",
       recruitment: { _id: recruitmentId },
+    });
+  });
+
+  it.each([
+    { kind: "overLimit" as const, subject: "over_limit_shift_board" },
+    { kind: "unknown" as const, subject: "unknown_usage_shift_board" },
+  ])("利用上限が$kindならシフトデータを返しつつ通常操作を有効表示しない", async ({ kind, subject }) => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject,
+        shopName: "利用上限シフト店舗",
+        plan: "free",
+      });
+      if (kind === "overLimit") {
+        for (let index = 0; index < 5; index += 1) {
+          await seedStaff(ctx, {
+            shopId: seeded.shopId,
+            name: `上限超過スタッフ${index + 1}`,
+            email: `shift-board-over-limit-${index + 1}@example.com`,
+          });
+        }
+      } else {
+        const now = Date.now();
+        for (let index = 0; index < 100; index += 1) {
+          const email = `shift-board-unknown-${index + 1}@example.com`;
+          await ctx.db.insert("organizationPeople", {
+            organizationId: seeded.organizationId,
+            name: `判定不能人物${index + 1}`,
+            email,
+            emailNormalized: email,
+            status: "active",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+      }
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId: seeded.shopId,
+        periodStart: "2026-08-01",
+        periodEnd: "2026-08-07",
+        deadline: "2026-07-28",
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      return { ...seeded, recruitmentId };
+    });
+
+    const result = await t.withIdentity({ subject }).query(api.shiftBoard.queries.getShiftBoardData, {
+      shopId: ids.shopId,
+      recruitmentId: ids.recruitmentId,
+      refreshDayKey: QUERY_REFRESH_DAY_KEY,
+    });
+
+    expect(result).toMatchObject({
+      canWriteBusinessData: false,
+      businessWriteBlockReason: kind === "unknown" ? "usageLimitEvaluationUnavailable" : "usageLimitExceeded",
+      recruitment: { _id: ids.recruitmentId },
+    });
+  });
+
+  it("billing state未移行中は従来どおりシフト操作を有効表示する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "missing_billing_shift_board",
+        shopName: "billing移行中店舗",
+        plan: "free",
+      });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billingState) throw new Error("テスト用billing stateが見つかりません");
+      await ctx.db.delete(billingState._id);
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId: seeded.shopId,
+        periodStart: "2026-08-01",
+        periodEnd: "2026-08-07",
+        deadline: "2026-07-28",
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      return { ...seeded, recruitmentId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "missing_billing_shift_board" })
+      .query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId: ids.shopId,
+        recruitmentId: ids.recruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      });
+
+    expect(result).toMatchObject({
+      canWriteBusinessData: true,
+      businessWriteBlockReason: null,
+      recruitment: { _id: ids.recruitmentId },
     });
   });
 

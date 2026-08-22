@@ -111,6 +111,7 @@ export type PlanStatusCardUsage = {
   peopleUsage: PlanStatusCardUsageItem;
   shopUsage: PlanStatusCardUsageItem;
   managerUsage?: PlanStatusCardUsageItem;
+  pendingManagerInvitations?: number;
 };
 
 export type PlanStatusCardProps = {

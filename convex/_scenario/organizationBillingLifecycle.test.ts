@@ -95,7 +95,7 @@ describe("事業者課金ライフサイクル", () => {
     vi.unstubAllEnvs();
   });
 
-  it("継続プラン未選択のTrialはデータを保持したrestrictedへ一度だけ移行する", async () => {
+  it("継続プラン未選択のTrialはデータを保持し、未承認招待を失効させてactive.freeへ一度だけ移行する", async () => {
     const t = convexTest(schema, modules);
     const now = new Date("2026-09-01T00:00:00+09:00");
     vi.setSystemTime(now);
@@ -111,7 +111,22 @@ describe("事業者課金ライフサイクル", () => {
         version: 4,
         updatedAt: now.getTime() - 1,
       });
-      return { ...seeded, billingStateId: billingState._id };
+      const invitationId = await ctx.db.insert("organizationInvitations", {
+        organizationId: seeded.organizationId,
+        email: "trial-free-pending@example.com",
+        emailNormalized: "trial-free-pending@example.com",
+        invitedName: "招待中の管理者",
+        tokenDigest: "trial-free-pending-invitation",
+        status: "issued",
+        purpose: "managerAddition",
+        inviterMemberId: seeded.memberId,
+        reservedSeat: true,
+        version: 1,
+        expiresAt: now.getTime() + 7 * 24 * 60 * 60_000,
+        createdAt: now.getTime() - 1,
+        updatedAt: now.getTime() - 1,
+      });
+      return { ...seeded, billingStateId: billingState._id, invitationId };
     });
 
     await expect(
@@ -120,35 +135,36 @@ describe("事業者課金ライフサイクル", () => {
         expectedVersion: 4,
         expectedDeadlineAt: now.getTime(),
       }),
-    ).resolves.toEqual({ changed: true, stateKind: "restricted" });
+    ).resolves.toEqual({ changed: true, stateKind: "free" });
     await expect(
       t.mutation(internal.organizationBilling.mutations.processDeadline, {
         organizationId: ids.organizationId,
         expectedVersion: 4,
         expectedDeadlineAt: now.getTime(),
       }),
-    ).resolves.toEqual({ changed: false, stateKind: "restricted" });
+    ).resolves.toEqual({ changed: false, stateKind: "active" });
 
     const result = await t.run(async (ctx) => ({
       billingState: await ctx.db.get(ids.billingStateId),
+      invitation: await ctx.db.get(ids.invitationId),
       audits: await ctx.db
         .query("organizationAuditEvents")
         .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
         .collect(),
     }));
-    expect(result.billingState?.state).toEqual({
-      kind: "restricted",
-      reason: "trialEndedWithoutSubscription",
-      recoveryManagerPersonIds: [ids.personId],
-      previousActiveShopIds: [ids.shopId],
-      restrictedAt: now.getTime(),
+    expect(result.billingState?.state).toEqual({ kind: "active", plan: "free" });
+    expect(result.billingState?.version).toBe(5);
+    expect(result.billingState?.businessNotificationCutoffAt).toBeUndefined();
+    expect(result.billingState?.businessNotificationCutoffVersion).toBeUndefined();
+    expect(result.invitation).toMatchObject({
+      status: "revoked",
+      reservedSeat: false,
+      revokedAt: now.getTime(),
+      version: 2,
     });
-    expect(result.billingState).toMatchObject({
-      version: 5,
-      businessNotificationCutoffAt: now.getTime(),
-      businessNotificationCutoffVersion: 5,
-    });
-    expect(result.audits.filter((event) => event.action === "organization.billing_state_changed")).toHaveLength(1);
+    expect(result.audits.filter((event) => event.action === "organization.billing_state_changed")).toEqual([
+      expect.objectContaining({ fromState: "trial", toState: "free" }),
+    ]);
   });
 
   it("Pro継続を選択したTrialは初回請求確認中へ一度だけ移行する", async () => {
@@ -204,13 +220,14 @@ describe("事業者課金ライフサイクル", () => {
     ]);
   });
 
-  it("継続プラン未選択のTrialは複数管理者を含むデータを残して制限する", async () => {
+  it("継続プラン未選択のTrialは複数管理者を残してactive.freeの上限超過として制限する", async () => {
     const t = convexTest(schema, modules);
     const now = new Date("2026-09-01T00:00:00+09:00");
     vi.setSystemTime(now);
     const ids = await t.run(async (ctx) => {
-      const seeded = await seedOrganizationManagerShop(ctx, { subject: "trial_restricted", plan: "pro" });
-      const second = await addManager(ctx, seeded.organizationId, "trial_restricted_second");
+      const seeded = await seedOrganizationManagerShop(ctx, { subject: "trial_free_over_limits", plan: "pro" });
+      await addManager(ctx, seeded.organizationId, "trial_free_over_limits_second");
+      await addManager(ctx, seeded.organizationId, "trial_free_over_limits_third");
       const billingState = await ctx.db
         .query("organizationBillingStates")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
@@ -222,7 +239,7 @@ describe("事業者課金ライフサイクル", () => {
         version: 2,
         updatedAt: now.getTime() - 1,
       });
-      return { ...seeded, ...second, billingStateId: billingState._id };
+      return { ...seeded, billingStateId: billingState._id };
     });
 
     await t.mutation(internal.organizationBilling.mutations.processDeadline, {
@@ -231,28 +248,43 @@ describe("事業者課金ライフサイクル", () => {
       expectedDeadlineAt: now.getTime(),
     });
 
-    const result = await t.run(async (ctx) => ({
-      billingState: await ctx.db.get(ids.billingStateId),
-      members: await ctx.db
-        .query("organizationMembers")
-        .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", ids.organizationId))
-        .collect(),
-      shop: await ctx.db.get(ids.shopId),
-    }));
-    expect(result.billingState?.state).toMatchObject({
-      kind: "restricted",
-      reason: "trialEndedWithoutSubscription",
-    });
+    const [settings, result] = await Promise.all([
+      t
+        .withIdentity({ subject: "trial_free_over_limits" })
+        .query(api.organization.queries.getSettings, { shopId: ids.shopId }),
+      t.run(async (ctx) => ({
+        billingState: await ctx.db.get(ids.billingStateId),
+        members: await ctx.db
+          .query("organizationMembers")
+          .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", ids.organizationId))
+          .collect(),
+        shop: await ctx.db.get(ids.shopId),
+      })),
+    ]);
+    expect(result.billingState?.state).toEqual({ kind: "active", plan: "free" });
     expect(result.billingState).toMatchObject({
       version: 3,
       businessNotificationCutoffAt: now.getTime(),
       businessNotificationCutoffVersion: 3,
     });
-    expect(result.members.filter((member) => member.status === "active")).toHaveLength(2);
+    expect(result.members.filter((member) => member.status === "active")).toHaveLength(3);
     expect(result.shop?.operatingStatus).toBe("active");
+    expect(settings?.billing).toMatchObject({
+      state: "free",
+      currentPlan: "free",
+      peopleUsage: { current: 3, max: 5 },
+      shopUsage: { current: 1, max: 1 },
+      managerUsage: { current: 3, max: 2 },
+      requiredReductions: { people: 0, shops: 0, managers: 1 },
+    });
+    expect(settings).toMatchObject({
+      canUpdateOrganizationName: false,
+      canAddShop: false,
+      canInviteManager: false,
+    });
   });
 
-  it("Proの再請求失敗から14日後にStripeの未払いを確認して制限し、確認済みの対象だけを復旧する", async () => {
+  it("Proの再請求失敗から14日後にStripeの未払いを確認してFreeへ移し、上限削減で自動復旧する", async () => {
     const t = convexTest(schema, modules);
     const graceEndsAt = Date.parse("2026-10-15T12:00:00+09:00");
     const firstFailureAt = graceEndsAt - PAYMENT_GRACE_PERIOD_MS;
@@ -297,9 +329,7 @@ describe("事業者課金ライフサイクル", () => {
       });
       return {
         ...seeded,
-        firstPersonId: seeded.personId,
         firstMemberId: seeded.memberId,
-        secondPersonId: second.personId,
         secondMemberId: second.memberId,
         secondShopId,
         billingStateId: billingState._id,
@@ -400,85 +430,85 @@ describe("事業者課金ライフサイクル", () => {
     ).resolves.toBeNull();
     await expect(t.mutation(internal.organizationBilling.mutations.processDeadline, deadlineArgs)).resolves.toEqual({
       changed: false,
-      stateKind: "restricted",
+      stateKind: "active",
     });
 
-    const restricted = await t.run(async (ctx) => ({
-      billingState: await ctx.db.get(ids.billingStateId),
-      operations: await ctx.db
-        .query("organizationStripeOperations")
-        .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", ids.organizationId))
-        .collect(),
-    }));
-    expect(restricted.billingState?.state).toEqual({
-      kind: "restricted",
-      reason: "paymentGraceExpired",
-      previousPlan: "pro",
-      recoveryManagerPersonIds: [ids.firstPersonId, ids.secondPersonId],
-      previousActiveShopIds: [ids.shopId, ids.secondShopId],
-      restrictedAt: graceEndsAt,
+    const actor = t.withIdentity({ subject: "grace_recovery" });
+    const [overLimitSettings, freeOverLimit] = await Promise.all([
+      actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }),
+      t.run(async (ctx) => ({
+        billingState: await ctx.db.get(ids.billingStateId),
+        firstMember: await ctx.db.get(ids.firstMemberId),
+        secondMember: await ctx.db.get(ids.secondMemberId),
+        firstShop: await ctx.db.get(ids.shopId),
+        secondShop: await ctx.db.get(ids.secondShopId),
+        operations: await ctx.db
+          .query("organizationStripeOperations")
+          .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", ids.organizationId))
+          .collect(),
+      })),
+    ]);
+    expect(freeOverLimit.billingState?.state).toEqual({ kind: "active", plan: "free" });
+    expect(freeOverLimit.billingState).toMatchObject({
+      version: 3,
+      businessNotificationCutoffAt: graceEndsAt,
+      businessNotificationCutoffVersion: 3,
     });
-    expect(restricted.operations).toEqual(
+    expect(freeOverLimit.firstMember?.status).toBe("active");
+    expect(freeOverLimit.secondMember?.status).toBe("active");
+    expect(freeOverLimit.firstShop?.operatingStatus).toBe("active");
+    expect(freeOverLimit.secondShop?.operatingStatus).toBe("active");
+    expect(freeOverLimit.operations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: "reconcileSubscription", status: "succeeded" }),
         expect.objectContaining({ kind: "cancelSubscription", status: "succeeded" }),
         expect.objectContaining({ kind: "stopInvoiceCollection", status: "succeeded" }),
       ]),
     );
-
-    await t.run(async (ctx) => {
-      await ctx.db.patch(ids.secondMemberId, { status: "readOnly", updatedAt: graceEndsAt });
-      await ctx.db.patch(ids.secondShopId, { operatingStatus: "planSuspended" });
+    expect(overLimitSettings?.billing).toMatchObject({
+      state: "free",
+      currentPlan: "free",
+      peopleUsage: { current: 2, max: 5 },
+      shopUsage: { current: 2, max: 1 },
+      managerUsage: { current: 2, max: 2 },
+      requiredReductions: { people: 0, shops: 1, managers: 0 },
     });
+    expect(overLimitSettings?.canUpdateOrganizationName).toBe(false);
 
     await expect(
-      t.mutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
-        organizationId: ids.organizationId,
-        expectedVersion: 3,
-        state: { kind: "active", plan: "pro" },
-        correlationId: "verified-recovery-1",
+      actor.mutation(api.organization.mutations.archiveShop, {
+        shopId: ids.secondShopId,
+        requestId: "grace-limit-recovery-archive",
       }),
-    ).rejects.toThrow("再開する管理者と店舗を確認してください");
+    ).resolves.toEqual({ shopId: ids.secondShopId, shopStatus: "archived", changed: true });
 
-    await expect(
-      t.mutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
-        organizationId: ids.organizationId,
-        expectedVersion: 3,
-        state: { kind: "active", plan: "pro" },
-        restoreManagerPersonIds: [ids.firstPersonId, ids.firstPersonId],
-        restoreShopIds: [ids.shopId],
-        correlationId: "verified-recovery-duplicate",
-      }),
-    ).rejects.toThrow("復旧対象が重複しています");
-
-    await expect(
-      t.mutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
-        organizationId: ids.organizationId,
-        expectedVersion: 3,
-        state: { kind: "active", plan: "pro" },
-        restoreManagerPersonIds: [ids.firstPersonId],
-        restoreShopIds: [ids.shopId],
-        correlationId: "verified-recovery-2",
-      }),
-    ).resolves.toEqual({ changed: true, stateKind: "pro" });
-
-    const result = await t.run(async (ctx) => ({
-      billingState: await ctx.db.get(ids.billingStateId),
-      firstMember: await ctx.db.get(ids.firstMemberId),
-      secondMember: await ctx.db.get(ids.secondMemberId),
-      firstShop: await ctx.db.get(ids.shopId),
-      secondShop: await ctx.db.get(ids.secondShopId),
-    }));
-    expect(result.billingState?.state).toEqual({ kind: "active", plan: "pro" });
+    const [recoveredSettings, result] = await Promise.all([
+      actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }),
+      t.run(async (ctx) => ({
+        billingState: await ctx.db.get(ids.billingStateId),
+        firstMember: await ctx.db.get(ids.firstMemberId),
+        secondMember: await ctx.db.get(ids.secondMemberId),
+        firstShop: await ctx.db.get(ids.shopId),
+        secondShop: await ctx.db.get(ids.secondShopId),
+      })),
+    ]);
+    expect(result.billingState?.state).toEqual({ kind: "active", plan: "free" });
     expect(result.billingState).toMatchObject({
-      version: 4,
+      version: 3,
       businessNotificationCutoffAt: graceEndsAt,
       businessNotificationCutoffVersion: 3,
     });
     expect(result.firstMember?.status).toBe("active");
-    expect(result.secondMember?.status).toBe("readOnly");
+    expect(result.secondMember?.status).toBe("active");
     expect(result.firstShop?.operatingStatus).toBe("active");
-    expect(result.secondShop?.operatingStatus).toBe("planSuspended");
+    expect(result.secondShop?.operatingStatus).toBe("archived");
+    expect(recoveredSettings?.billing).toMatchObject({
+      state: "free",
+      currentPlan: "free",
+      shopUsage: { current: 1, max: 1 },
+      requiredReductions: { people: 0, shops: 0, managers: 0 },
+    });
+    expect(recoveredSettings?.canUpdateOrganizationName).toBe(true);
   });
 
   it("Proの最初の支払い失敗から14日間だけ猶予し、再試行で期限を延長しない", async () => {
@@ -662,11 +692,9 @@ describe("事業者課金ライフサイクル", () => {
         .collect(),
     }));
     expect(result.billingState?.state).toEqual({ kind: "active", plan: "free" });
-    expect(result.billingState).toMatchObject({
-      version: 3,
-      businessNotificationCutoffAt: effectiveAt,
-      businessNotificationCutoffVersion: 3,
-    });
+    expect(result.billingState?.version).toBe(3);
+    expect(result.billingState?.businessNotificationCutoffAt).toBeUndefined();
+    expect(result.billingState?.businessNotificationCutoffVersion).toBeUndefined();
     expect(
       result.audits.filter(
         (audit) => audit.action === "organization.billing_state_changed" && audit.toState === "free",
@@ -689,7 +717,7 @@ describe("事業者課金ライフサイクル", () => {
     expect(stripeProviderMock.retrieveSubscription).toHaveBeenCalledTimes(1);
   });
 
-  it("新しい解約予約は利用数にかかわらずデータを残したrestrictedへ移す", async () => {
+  it("新しい解約予約は利用数にかかわらずデータを残したactive.freeへ移す", async () => {
     const t = convexTest(schema, modules);
     const effectiveAt = Date.parse("2026-11-01T00:00:00+09:00");
     vi.setSystemTime(effectiveAt - 24 * 60 * 60 * 1000);
@@ -828,20 +856,13 @@ describe("事業者課金ライフサイクル", () => {
           .collect(),
       })),
     ]);
-    expect(result.billingState?.state).toEqual({
-      kind: "restricted",
-      reason: "scheduledCancellation",
-      previousPlan: "pro",
-      recoveryManagerPersonIds: [ids.personId],
-      previousActiveShopIds: [ids.shopId, ids.secondShopId],
-      restrictedAt: effectiveAt,
-    });
+    expect(result.billingState?.state).toEqual({ kind: "active", plan: "free" });
     expect(result.billingState).toMatchObject({
-      freeManagerPersonId: ids.personId,
       version: 3,
       businessNotificationCutoffAt: effectiveAt,
       businessNotificationCutoffVersion: 3,
     });
+    expect(result.billingState?.freeManagerPersonId).toBeUndefined();
     expect(result.billingState?.freeShopId).toBeUndefined();
     expect(result.people.filter((person) => person.status === "active")).toHaveLength(6);
     expect(result.members).toEqual([expect.objectContaining({ personId: ids.personId, status: "active" })]);
@@ -869,13 +890,18 @@ describe("事業者課金ライフサイクル", () => {
       },
     ]);
     expect(settings?.billing).toMatchObject({
-      state: "restricted",
-      currentPlan: null,
-      previousPlan: "pro",
-      peopleUsage: { current: 6, max: 0 },
-      shopUsage: { current: 2, max: 0 },
+      state: "free",
+      currentPlan: "free",
+      peopleUsage: { current: 6, max: 5 },
+      shopUsage: { current: 2, max: 1 },
+      managerUsage: { current: 1, max: 2 },
+      requiredReductions: { people: 1, shops: 1, managers: 0 },
     });
-    expect(settings?.canAddShop).toBe(false);
+    expect(settings).toMatchObject({
+      canUpdateOrganizationName: false,
+      canAddShop: false,
+      canInviteManager: false,
+    });
   });
 
   it("料金なしのBusinessは40人5店舗まで利用でき、Stripeデータと課金通知を作らない", async () => {

@@ -31,7 +31,7 @@ import {
   type OrganizationBillingState,
   resolveRestrictedLimitPlan,
 } from "../organizationBilling/policy";
-import { getOrganizationBillingPolicy } from "../organizationBilling/service";
+import { getOrganizationAccessPolicy, getOrganizationBillingPolicy } from "../organizationBilling/service";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 import { getStripeBillingConfiguration } from "../organizationStripe/config";
 
@@ -157,7 +157,28 @@ const dashboardPlanUsageValidator = v.object({
   peopleUsage: dashboardPlanUsageItemValidator,
   shopUsage: dashboardPlanUsageItemValidator,
   managerUsage: v.optional(dashboardPlanUsageItemValidator),
+  pendingManagerInvitations: v.number(),
 });
+
+const dashboardUsageLimitViolationValidator = v.object({
+  kind: v.union(v.literal("people"), v.literal("activeShops"), v.literal("activeManagers")),
+  current: v.number(),
+  max: v.number(),
+  excess: v.number(),
+  isLowerBound: v.optional(v.literal(true)),
+});
+
+const dashboardUsageLimitStatusValidator = v.union(
+  v.object({
+    kind: v.literal("overLimit"),
+    evaluatedPlan: v.union(v.literal("free"), v.literal("pro"), v.literal("business")),
+    violations: v.array(dashboardUsageLimitViolationValidator),
+  }),
+  v.object({
+    kind: v.literal("unknown"),
+    evaluatedPlan: v.union(v.literal("free"), v.literal("pro"), v.literal("business")),
+  }),
+);
 
 const dashboardShopValidator = v.object({
   name: v.string(),
@@ -174,7 +195,15 @@ const dashboardShopValidator = v.object({
   ),
   submissionPattern: submissionPatternValidator,
   canWriteBusinessData: v.boolean(),
-  businessWriteBlockReason: v.union(v.literal("paymentResultPending"), v.literal("restricted"), v.null()),
+  businessWriteBlockReason: v.union(
+    v.literal("paymentResultPending"),
+    v.literal("restricted"),
+    v.literal("usageLimitExceeded"),
+    v.literal("usageLimitEvaluationUnavailable"),
+    v.null(),
+  ),
+  // rolling deploy中の旧frontendは未知の任意fieldを無視できる。
+  usageLimitStatus: v.optional(dashboardUsageLimitStatusValidator),
   // TODO[narrow]: planStatusを返すbackendが全deploymentへ反映され、旧frontend互換期間が終わった後にrequired化する。
   planStatus: v.optional(v.union(dashboardPlanStatusValidator, v.null())),
   trialEndingNotice: v.union(
@@ -540,7 +569,8 @@ export const getDashboardShop = managerQuery({
     const shop = ctx.shop;
     if (!shop) return null;
     const organizationId = ctx.organization?._id;
-    const billingState = organizationId ? await getOrganizationBillingState(ctx, organizationId) : null;
+    const accessPolicy = organizationId ? await getOrganizationAccessPolicy(ctx, organizationId) : null;
+    const billingState = accessPolicy?.billingState ?? null;
     const [stripeCustomer, latestStripeSubscription] = organizationId
       ? await Promise.all([
           ctx.db
@@ -554,7 +584,6 @@ export const getDashboardShop = managerQuery({
             .first(),
         ])
       : [null, null];
-    const billingPolicy = billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
     const trialEndingNotice =
       billingState?.state.kind === "trial" && billingState.state.selectedPaidPlan === undefined
         ? {
@@ -571,8 +600,27 @@ export const getDashboardShop = managerQuery({
       submissionPattern: shop.submissionPattern,
       // TODO[narrow]: 全deploymentでm025完走・verifyOrganizationsのbilling state残件0確認後にfallbackを外す。
       // 課金state未作成の移行中orgは、managerMutationの旧導線互換と同じく許可扱いにする。
-      canWriteBusinessData: billingPolicy?.canWriteBusinessData ?? true,
-      businessWriteBlockReason: billingPolicy?.businessWriteBlockReason ?? null,
+      canWriteBusinessData: accessPolicy?.canWriteBusinessData ?? true,
+      businessWriteBlockReason:
+        accessPolicy?.usageLimitStatus?.kind === "unknown"
+          ? ("usageLimitEvaluationUnavailable" as const)
+          : (accessPolicy?.businessWriteBlockReason ?? null),
+      ...(accessPolicy?.usageLimitStatus?.kind === "overLimit"
+        ? {
+            usageLimitStatus: {
+              kind: "overLimit" as const,
+              evaluatedPlan: accessPolicy.usageLimitStatus.evaluatedPlan,
+              violations: accessPolicy.usageLimitStatus.violations,
+            },
+          }
+        : accessPolicy?.usageLimitStatus?.kind === "unknown"
+          ? {
+              usageLimitStatus: {
+                kind: "unknown" as const,
+                evaluatedPlan: accessPolicy.usageLimitStatus.evaluatedPlan,
+              },
+            }
+          : {}),
       planStatus: billingState
         ? toDashboardPlanStatus({
             billingState: billingState.state,
@@ -605,7 +653,7 @@ export const getDashboardPlanUsage = managerQuery({
     const usage = await getOrganizationUsageSnapshot(ctx, organization._id, args.now);
     return {
       peopleUsage: {
-        current: usage.projectedPersonCount,
+        current: usage.personCount,
         max: limits.maxPeople,
       },
       shopUsage: {
@@ -613,9 +661,10 @@ export const getDashboardPlanUsage = managerQuery({
         max: limits.maxActiveShops,
       },
       managerUsage: {
-        current: usage.projectedActiveManagerCount,
+        current: usage.activeManagerCount,
         max: limits.maxActiveManagers,
       },
+      pendingManagerInvitations: usage.pendingManagerInvitationCount,
     };
   },
 });

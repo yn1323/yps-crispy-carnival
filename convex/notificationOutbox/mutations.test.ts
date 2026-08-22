@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import type { MutationCtx } from "../_generated/server";
 import { createConvexTestWithMigrations } from "../_test/migrations.test-helper";
+import { seedStaff } from "../_test/scenarioBuilders";
 import {
   seedCanonicalStaffLineRecipient,
   seedLegacyShopMembership,
@@ -96,6 +98,19 @@ async function insertRecruitment(t: Awaited<ReturnType<typeof setupShop>>["t"], 
       submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     });
   });
+}
+
+async function seedCountedStaffForUsageLimit(
+  ctx: MutationCtx,
+  args: { shopId: Id<"shops">; prefix: string; count?: number },
+) {
+  for (let index = 0; index < (args.count ?? 5); index += 1) {
+    await seedStaff(ctx, {
+      shopId: args.shopId,
+      name: `${args.prefix}${index + 1}`,
+      email: `${args.prefix}${index + 1}@example.com`,
+    });
+  }
 }
 
 async function insertSentEmailOutbox(
@@ -554,6 +569,135 @@ describe("notificationOutbox", () => {
         cancelReason: "organization_inactive",
       })),
     );
+  });
+
+  it("active.freeの実利用人数が上限超過中は新しい業務通知をenqueueしない", async () => {
+    const t = createConvexTestWithMigrations();
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "outbox_usage_limit_enqueue",
+        email: "outbox-usage-limit-enqueue@example.com",
+        plan: "free",
+      });
+      await seedCountedStaffForUsageLimit(ctx, {
+        shopId: seeded.shopId,
+        prefix: "outbox-usage-limit-enqueue-staff-",
+      });
+      return seeded;
+    });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.enqueue, {
+        channel: "email",
+        shopId: ids.shopId,
+        organizationId: ids.organizationId,
+        userId: ids.userId,
+        purpose: "business",
+        dedupeKey: "email:test:usage-limit-enqueue",
+        payload: {
+          ...emailPayload,
+          to: "outbox-usage-limit-enqueue@example.com",
+          context: "test.usageLimitEnqueue",
+        },
+      }),
+    ).resolves.toBeNull();
+    await expect(t.run((ctx) => ctx.db.query("notificationOutbox").collect())).resolves.toEqual([]);
+  });
+
+  it("enqueue後に実利用人数が上限を超えた業務通知はprovider直前にcancelする", async () => {
+    const t = createConvexTestWithMigrations();
+    const ids = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, {
+        subject: "outbox_usage_limit_prepare",
+        email: "outbox-usage-limit-prepare@example.com",
+        plan: "free",
+      }),
+    );
+    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      shopId: ids.shopId,
+      organizationId: ids.organizationId,
+      userId: ids.userId,
+      purpose: "business",
+      dedupeKey: "email:test:usage-limit-prepare",
+      payload: {
+        ...emailPayload,
+        to: "outbox-usage-limit-prepare@example.com",
+        context: "test.usageLimitPrepare",
+      },
+    });
+    if (!enqueued) throw new Error("business notification was not enqueued");
+
+    vi.advanceTimersByTime(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    const claimed = await t.mutation(internal.notificationOutbox.mutations.claimDue, { now: Date.now() });
+    expect(claimed.map(({ _id, status }) => ({ _id, status }))).toEqual([
+      { _id: enqueued.outboxId, status: "processing" },
+    ]);
+    await t.run(async (ctx) => {
+      await seedCountedStaffForUsageLimit(ctx, {
+        shopId: ids.shopId,
+        prefix: "outbox-usage-limit-prepare-staff-",
+      });
+    });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+        outboxId: enqueued.outboxId,
+        leaseToken: claimed[0]?.leaseToken,
+        now: Date.now(),
+      }),
+    ).resolves.toBeNull();
+    await expect(t.run((ctx) => ctx.db.get(enqueued.outboxId))).resolves.toMatchObject({
+      status: "cancelled",
+      cancelReason: "organization_usage_limit_exceeded",
+    });
+  });
+
+  it("active.freeの実利用人数が上限超過中でもbilling通知は配送直前検証を通す", async () => {
+    const t = createConvexTestWithMigrations();
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "outbox_usage_limit_billing",
+        email: "outbox-usage-limit-billing@example.com",
+        plan: "free",
+      });
+      await seedCountedStaffForUsageLimit(ctx, {
+        shopId: seeded.shopId,
+        prefix: "outbox-usage-limit-billing-staff-",
+      });
+      return seeded;
+    });
+    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
+      channel: "email",
+      organizationId: ids.organizationId,
+      userId: ids.userId,
+      purpose: "billing",
+      dedupeKey: "email:test:usage-limit-billing",
+      payload: {
+        ...emailPayload,
+        to: "outbox-usage-limit-billing@example.com",
+        subject: "契約のお知らせ",
+        context: "organizationBilling.billingEmailChanged",
+      },
+    });
+    if (!enqueued) throw new Error("billing notification was not enqueued");
+
+    vi.advanceTimersByTime(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
+    const claimed = await t.mutation(internal.notificationOutbox.mutations.claimDue, { now: Date.now() });
+    expect(claimed.map(({ _id, status }) => ({ _id, status }))).toEqual([
+      { _id: enqueued.outboxId, status: "processing" },
+    ]);
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+        outboxId: enqueued.outboxId,
+        leaseToken: claimed[0]?.leaseToken,
+        now: Date.now(),
+      }),
+    ).resolves.toMatchObject({
+      _id: enqueued.outboxId,
+      status: "processing",
+      purpose: "billing",
+    });
   });
 
   it.each([
@@ -2936,6 +3080,80 @@ describe("notificationOutbox", () => {
     });
     expect(failures[0].resolvedAt).toBeUndefined();
     expect(failures[0].resolutionKind).toBeUndefined();
+  });
+
+  it.each(["overLimit", "unknown"] as const)("利用状態が%sでも通知失敗の解決だけは実行できる", async (usageState) => {
+    const t = createConvexTestWithMigrations();
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: `resolve_failure_${usageState}`,
+        plan: "free",
+      });
+      const now = Date.now();
+      const staffId = await seedStaff(ctx, {
+        shopId: base.shopId,
+        name: "通知失敗の整理対象",
+        email: `resolve-failure-${usageState}@example.com`,
+      });
+      const failureId = await ctx.db.insert("notificationFailureInbox", {
+        failureKey: `resolve-failure-${usageState}`,
+        sourceType: "enqueue",
+        status: "open",
+        shopId: base.shopId,
+        staffId,
+        channel: "email",
+        dedupeKey: `resolve-failure-${usageState}`,
+        notificationContext: "line.sendInviteEmail",
+        firstFailedAt: now,
+        lastFailedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+      if (usageState === "overLimit") {
+        await seedCountedStaffForUsageLimit(ctx, {
+          shopId: base.shopId,
+          prefix: "resolve-failure-over-limit-",
+          count: 4,
+        });
+      } else {
+        for (let index = 0; index < 99; index += 1) {
+          const email = `resolve-failure-unknown-${index}@example.com`;
+          await ctx.db.insert("organizationPeople", {
+            organizationId: base.organizationId,
+            name: `利用状態未確定人物${index}`,
+            email,
+            emailNormalized: email,
+            status: "active",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+      }
+      return { ...base, failureId };
+    });
+    const asManager = t.withIdentity({ subject: `resolve_failure_${usageState}` });
+
+    await expect(
+      asManager.mutation(api.notificationOutbox.mutations.retryFailure, {
+        shopId: ids.shopId,
+        failureId: ids.failureId,
+      }),
+    ).rejects.toMatchObject({
+      data: {
+        code: usageState === "unknown" ? "USAGE_LIMIT_EVALUATION_UNAVAILABLE" : "USAGE_LIMIT_EXCEEDED",
+      },
+    });
+    expect(await t.run(async (ctx) => await ctx.db.get(ids.failureId))).toMatchObject({ status: "open" });
+
+    await expect(
+      asManager.mutation(api.notificationOutbox.mutations.resolveFailure, {
+        shopId: ids.shopId,
+        failureId: ids.failureId,
+      }),
+    ).resolves.toEqual({ resolved: true });
+
+    const failure = await t.run(async (ctx) => await ctx.db.get(ids.failureId));
+    expect(failure).toMatchObject({ status: "resolved", resolutionKind: "dismissed" });
   });
 
   it("retryFailureは他店舗の失敗をNot foundにし、対象outboxをpendingに戻す", async () => {

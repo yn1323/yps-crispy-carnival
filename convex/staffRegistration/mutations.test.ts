@@ -2,6 +2,7 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import type { MutationCtx } from "../_generated/server";
 import {
   seedLegacyShopMembership,
   seedManagerShop,
@@ -31,6 +32,41 @@ async function getPendingRequestId(
   );
   if (!request) throw new Error(`pending registration request not found: ${emailNormalized}`);
   return request._id;
+}
+
+async function seedBlockedAnonymousRegistrationUsage(
+  ctx: MutationCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    shopId: Id<"shops">;
+    usageState: "overLimit" | "unknown";
+  },
+) {
+  const now = Date.now();
+  const count = args.usageState === "overLimit" ? 5 : 100;
+  for (let index = 0; index < count; index += 1) {
+    const email = `${args.usageState}-anonymous-registration-${index}@example.com`;
+    const personId = await ctx.db.insert("organizationPeople", {
+      organizationId: args.organizationId,
+      name: `${args.usageState}登録対象外${index}`,
+      email,
+      emailNormalized: email,
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+    if (args.usageState === "overLimit") {
+      await ctx.db.insert("staffs", {
+        shopId: args.shopId,
+        organizationId: args.organizationId,
+        organizationPersonId: personId,
+        name: `上限超過スタッフ${index}`,
+        email,
+        emailNormalized: email,
+        isDeleted: false,
+      });
+    }
+  }
 }
 
 describe("staffRegistration/mutations", () => {
@@ -290,6 +326,79 @@ describe("staffRegistration/mutations", () => {
 
     await expect(t.run(async (ctx) => await ctx.db.query("staffRegistrationRequests").collect())).resolves.toEqual([]);
   });
+
+  it.each(["overLimit", "unknown"] as const)(
+    "active.freeの利用数が%sになった場合、発行済みlinkの事前確認と最終writeを拒否する",
+    async (usageState) => {
+      const t = convexTest(schema, modules);
+      const seeded = await t.run(
+        async (ctx) =>
+          await seedOrganizationManagerShop(ctx, {
+            subject: `registration_${usageState}_submit_manager`,
+            plan: "free",
+          }),
+      );
+      const link = await t
+        .withIdentity({ subject: `registration_${usageState}_submit_manager` })
+        .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId: seeded.shopId });
+
+      await expect(
+        t.mutation(internal.staffRegistration.mutations.checkSubmissionRateLimit, {
+          token: link.token,
+          emailKey: `${usageState}-before-email`,
+          linkKey: `${usageState}-before-link`,
+        }),
+      ).resolves.toEqual({ status: "allowed" });
+
+      await t.run(async (ctx) => {
+        await seedBlockedAnonymousRegistrationUsage(ctx, {
+          organizationId: seeded.organizationId,
+          shopId: seeded.shopId,
+          usageState,
+        });
+      });
+
+      await expect(
+        t.mutation(internal.staffRegistration.mutations.checkSubmissionRateLimit, {
+          token: link.token,
+          emailKey: `${usageState}-after-email`,
+          linkKey: `${usageState}-after-link`,
+        }),
+      ).resolves.toEqual({ status: "unavailable" });
+      await expect(
+        t.mutation(internal.staffRegistration.mutations.submitRegistrationRequestFromHttp, {
+          token: link.token,
+          name: "上限超過後の申請者",
+          email: `${usageState}-blocked-request@example.com`,
+          acceptedLegal: true,
+        }),
+      ).resolves.toEqual({ status: "unavailable" });
+
+      const state = await t.run(async (ctx) => ({
+        requests: await ctx.db.query("staffRegistrationRequests").collect(),
+        audits: await ctx.db.query("organizationAuditEvents").collect(),
+        outbox: await ctx.db.query("notificationOutbox").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        rateLimitRows: await ctx.db.query("rateLimits").collect(),
+        billingState: await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+          .unique(),
+      }));
+      expect(state.requests).toEqual([]);
+      expect(state.audits).toEqual([]);
+      expect(state.outbox).toEqual([]);
+      expect(state.scheduled).toEqual([]);
+      expect(state.rateLimitRows).toMatchObject([
+        { name: "staffRegistrationEmailShort", key: `${usageState}-before-email` },
+        { name: "staffRegistrationEmailDaily", key: `${usageState}-before-email` },
+        { name: "staffRegistrationLinkShort", key: `${usageState}-before-link` },
+        { name: "staffRegistrationLinkDaily", key: `${usageState}-before-link` },
+      ]);
+      expect(state.rateLimitRows).toHaveLength(4);
+      expect(state.billingState?.state).toEqual({ kind: "active", plan: "free" });
+    },
+  );
 
   it("新規・申請済み・登録済みの公開応答を統一し、重複時は副作用を作らない", async () => {
     const t = convexTest(schema, modules);
@@ -1848,5 +1957,68 @@ describe("staffRegistration/mutations", () => {
     expect(state.request).toMatchObject({ status: "rejected" });
     expect(state.staffs).toHaveLength(0);
     expect(state.scheduled).toHaveLength(0);
+  });
+
+  it.each(["overLimit", "unknown"] as const)("利用状態が%sでも登録申請の却下だけは実行できる", async (usageState) => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: `manager_reject_${usageState}`,
+        plan: "free",
+      });
+      const now = Date.now();
+      const requestId = await ctx.db.insert("staffRegistrationRequests", {
+        shopId: base.shopId,
+        name: "整理対象の登録申請",
+        email: `reject-${usageState}@example.com`,
+        emailNormalized: `reject-${usageState}@example.com`,
+        status: "pending",
+        termsConsentVersion: "terms-v1",
+        privacyConsentVersion: "privacy-v1",
+        termsDocumentVersion: "terms-doc-v1",
+        privacyDocumentVersion: "privacy-doc-v1",
+        consentedAt: now,
+        createdAt: now,
+      });
+      await seedBlockedAnonymousRegistrationUsage(ctx, {
+        organizationId: base.organizationId,
+        shopId: base.shopId,
+        usageState,
+      });
+      return { ...base, requestId };
+    });
+    const asManager = t.withIdentity({ subject: `manager_reject_${usageState}` });
+
+    await expect(
+      asManager.mutation(api.staffRegistration.mutations.approveRequest, {
+        shopId: ids.shopId,
+        requestId: ids.requestId,
+      }),
+    ).rejects.toMatchObject({
+      data: {
+        code: usageState === "unknown" ? "USAGE_LIMIT_EVALUATION_UNAVAILABLE" : "USAGE_LIMIT_EXCEEDED",
+      },
+    });
+
+    await expect(
+      asManager.mutation(api.staffRegistration.mutations.rejectRequest, {
+        shopId: ids.shopId,
+        requestId: ids.requestId,
+      }),
+    ).resolves.toBeNull();
+
+    const state = await t.run(async (ctx) => ({
+      request: await ctx.db.get(ids.requestId),
+      applicantStaff: await ctx.db
+        .query("staffs")
+        .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
+          q.eq("shopId", ids.shopId).eq("emailNormalized", `reject-${usageState}@example.com`).eq("isDeleted", false),
+        )
+        .first(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.request).toMatchObject({ status: "rejected", reviewedByUserId: ids.userId });
+    expect(state.applicantStaff).toBeNull();
+    expect(state.scheduled).toEqual([]);
   });
 });

@@ -6,6 +6,7 @@ import { managerQuery } from "../_lib/functions";
 import { ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT, ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT } from "../constants";
 import { getOrganizationPersonLineState } from "../line/service";
 import { deriveOrganizationBillingPolicy, getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
+import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 import { isOrganizationBillingContact } from "./billingContact";
 import { managerInvitationStateValidator, resolvePersonManagerInvitationState } from "./managerInvitationState";
@@ -16,7 +17,6 @@ import {
   toPublicPersonRemovalPreview,
 } from "./personRemoval";
 import {
-  getOrganizationBillingState,
   getOrganizationUsageSnapshot,
   getValidActiveOrganizationManagerPersonIds,
   isValidOrganizationRecoveryManager,
@@ -128,7 +128,7 @@ export async function getOrganizationUserDetail(
   const person = await ctx.db.get(personId);
   if (!person || person.organizationId !== organization._id || person.status !== "active") return null;
 
-  const [personMembers, staffDocs, shopDocs, billingState, usage, validActiveManagerPersonIds, invitationDocs] =
+  const [personMembers, staffDocs, shopDocs, access, usage, validActiveManagerPersonIds, invitationDocs] =
     await Promise.all([
       ctx.db
         .query("organizationMembers")
@@ -148,11 +148,15 @@ export async function getOrganizationUserDetail(
           q.eq("organizationId", organization._id).eq("isDeleted", false),
         )
         .take(ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT + 1),
-      getOrganizationBillingState(ctx, organization._id),
+      getOrganizationAccessPolicy(ctx, organization._id),
       getOrganizationUsageSnapshot(ctx, organization._id, args.now),
       getValidActiveOrganizationManagerPersonIds(ctx, organization._id),
       collectIssuedInvitationsByOrganization(ctx, organization._id),
     ]);
+  const billingState = access?.billingState ?? null;
+  const isActiveActor = organizationMember.status === "active";
+  const canWriteNormally = isActiveActor && access?.canWriteBusinessData === true;
+  const canRecoverUsageLimits = isActiveActor && access?.accessMode === "limitRecoveryOnly";
   if (
     personMembers.length > 1 ||
     staffDocs.length > ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT ||
@@ -208,10 +212,12 @@ export async function getOrganizationUserDetail(
             shopStatus: targetShopStatus,
             // TODO[narrow]: 全deploymentでm027完走・missingExcludedFromShift=0確認後にfallbackを外す。
             excludedFromShift: staff.excludedFromShift ?? false,
-            canRemove: targetShopStatus === "active",
-            ...(targetShopStatus === "active"
-              ? {}
-              : { removeDisabledReason: INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON }),
+            canRemove: targetShopStatus === "active" && canWriteNormally,
+            ...(targetShopStatus !== "active"
+              ? { removeDisabledReason: INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON }
+              : !canWriteNormally
+                ? { removeDisabledReason: "現在の利用状態では、店舗所属を変更できません。" }
+                : {}),
             removalPreview: toPublicPersonRemovalPreview(membershipRemovalPreview),
           },
         };
@@ -249,10 +255,12 @@ export async function getOrganizationUserDetail(
         shopId: targetShop._id,
         shopName: targetShop.name,
         shopStatus: targetShopStatus,
-        canChangeMembership: targetShopStatus === "active",
-        ...(targetShopStatus === "active"
-          ? {}
-          : { membershipChangeDisabledReason: INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON }),
+        canChangeMembership: targetShopStatus === "active" && canWriteNormally,
+        ...(targetShopStatus !== "active"
+          ? { membershipChangeDisabledReason: INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON }
+          : !canWriteNormally
+            ? { membershipChangeDisabledReason: "現在の利用状態では、店舗所属を変更できません。" }
+            : {}),
       };
     })
     .sort((a, b) => a.shopName.localeCompare(b.shopName, "ja") || a.shopId.localeCompare(b.shopId));
@@ -280,14 +288,13 @@ export async function getOrganizationUserDetail(
       )
     : [];
   const recoveryPersonIds = recoveryManagerValidity.flatMap(([candidateId, isValid]) => (isValid ? [candidateId] : []));
-  const isActiveActor = organizationMember.status === "active";
   const isRestrictedRecovery = recoveryPersonIds.includes(organizationMember.personId);
   const isRecoveryManager = recoveryPersonIds.includes(person._id);
-  const canWriteNormally = Boolean(isActiveActor && policy?.canWriteBusinessData);
   const personCapabilities = deriveOrganizationPersonCapabilities({
     managerRole,
     activeManagerCount: validActiveManagerPersonIds.length,
     canWriteNormally,
+    canRecoverUsageLimits,
     policy,
     isStaff: memberships.length > 0,
     isBillingContact: isOrganizationBillingContact(organization, person),
@@ -303,9 +310,11 @@ export async function getOrganizationUserDetail(
       ? "閲覧のみの管理者は、ユーザー情報を変更できません。"
       : !billingState
         ? "組織の契約情報を確認中のため、ユーザー情報を変更できません。"
-        : policy?.businessWriteBlockReason === "paymentResultPending"
+        : access?.businessWriteBlockReason === "paymentResultPending"
           ? "支払い結果が確定してから、ユーザー情報を変更できます。"
-          : "契約状態を確認できるまで、ユーザー情報を変更できません。";
+          : access?.businessWriteBlockReason === "usageLimitExceeded"
+            ? "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。"
+            : "契約状態を確認できるまで、ユーザー情報を変更できません。";
   const lineSourceMembership = memberships.find((membership) => membership.shopStatus === "active") ?? null;
   const actionShopId =
     args.actionShopId ??

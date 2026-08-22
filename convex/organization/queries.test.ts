@@ -357,9 +357,9 @@ describe("organization/queries.getSettings", () => {
         isComplimentary: false,
         hasTrialContinuation: false,
         hasStripeCustomer: true,
-        peopleUsage: { current: 2, max: 20, pendingInvitations: 1 },
+        peopleUsage: { current: 1, max: 20, pendingInvitations: 1 },
         shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
-        managerUsage: { current: 2, max: 5, pendingInvitations: 1 },
+        managerUsage: { current: 1, max: 5, pendingInvitations: 1 },
         requiredReductions: { people: 0, shops: 0, managers: 0 },
         stripeBillingAvailable: true,
         canUpdatePaymentMethod: true,
@@ -424,6 +424,148 @@ describe("organization/queries.getSettings", () => {
     expect(result?.billing).not.toHaveProperty("invoices");
     expect(result).not.toHaveProperty("freeSelection");
     expect(result).not.toHaveProperty("currentShopName");
+  });
+
+  it("active.freeの上限超過はFree表示を維持し、縮小・契約操作だけを許可する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, { subject: "settings_free_over_limit", plan: "free" });
+      const now = Date.now();
+      const addManager = async (suffix: string) => {
+        const userId = await seedUser(ctx, `settings_free_over_limit_${suffix}`);
+        const personId = await ctx.db.insert("organizationPeople", {
+          organizationId: base.organizationId,
+          userId,
+          name: `追加管理者${suffix}`,
+          email: `${suffix}@example.com`,
+          emailNormalized: `${suffix}@example.com`,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        await ctx.db.insert("organizationMembers", {
+          organizationId: base.organizationId,
+          personId,
+          userId,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        return personId;
+      };
+      const secondManagerPersonId = await addManager("second");
+      await addManager("third");
+      await ctx.db.insert("shops", {
+        organizationId: base.organizationId,
+        operatingStatus: "active",
+        name: "上限超過店舗",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        isDeleted: false,
+      });
+      await ctx.db.insert("organizationInvitations", {
+        organizationId: base.organizationId,
+        email: "pending-over-limit@example.com",
+        emailNormalized: "pending-over-limit@example.com",
+        tokenDigest: "settings-free-over-limit-pending",
+        status: "issued",
+        purpose: "managerAddition",
+        inviterMemberId: base.memberId,
+        reservedSeat: true,
+        version: 1,
+        expiresAt: now + 60_000,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { ...base, secondManagerPersonId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "settings_free_over_limit" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result?.billing).toMatchObject({
+      state: "free",
+      currentPlan: "free",
+      peopleUsage: { current: 3, max: 5, pendingInvitations: 1 },
+      shopUsage: { current: 2, max: 1 },
+      managerUsage: { current: 3, max: 2, pendingInvitations: 1 },
+      requiredReductions: { people: 0, shops: 1, managers: 1 },
+      blockedReason: expect.stringContaining("利用上限を超えています"),
+      canManagePlan: true,
+    });
+    expect(result).toMatchObject({
+      canUpdateOrganizationName: false,
+      canAddShop: false,
+      canInviteManager: false,
+    });
+    expect(result?.managerInvitations[0]).toMatchObject({ canRevoke: true });
+    expect(result?.people.find((person) => person.id === ids.secondManagerPersonId)).toMatchObject({
+      canRemoveManagerRole: true,
+    });
+    expect(result?.shops.every((shop) => !shop.canUpdateSettings && shop.canDelete)).toBe(true);
+  });
+
+  it("利用数を安全に確定できない場合は通常操作を閉じ、縮小操作だけを維持する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "settings_usage_unknown",
+        plan: "business",
+      });
+      const now = Date.now();
+      let recoveryPersonId: Id<"organizationPeople"> | null = null;
+      for (let index = 0; index < 100; index += 1) {
+        const email = `settings-usage-unknown-${index}@example.com`;
+        const personId = await ctx.db.insert("organizationPeople", {
+          organizationId: base.organizationId,
+          name: `利用状態未確定人物${index}`,
+          email,
+          emailNormalized: email,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        recoveryPersonId ??= personId;
+      }
+      if (!recoveryPersonId) throw new Error("整理対象人物を作成できませんでした");
+      const secondShopId = await ctx.db.insert("shops", {
+        organizationId: base.organizationId,
+        operatingStatus: "active",
+        name: "整理可能店舗",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        isDeleted: false,
+      });
+      return { ...base, recoveryPersonId, secondShopId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "settings_usage_unknown" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+
+    expect(result?.billing).toMatchObject({
+      state: "business",
+      blockedReason: expect.stringContaining("利用数を安全に確認できない"),
+      canManagePlan: true,
+    });
+    expect(result).toMatchObject({
+      canUpdateOrganizationName: false,
+      canAddShop: false,
+      canInviteManager: false,
+    });
+    expect(result?.shops).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: ids.shopId, canUpdateSettings: false, canDelete: true }),
+        expect.objectContaining({ id: ids.secondShopId, canUpdateSettings: false, canDelete: true }),
+      ]),
+    );
+    expect(result?.shops[0]?.settingsDisabledReason).toContain("利用数を安全に確認できない");
+    expect(result?.people.find((person) => person.id === ids.recoveryPersonId)).toMatchObject({
+      managerRole: "none",
+      isStaff: false,
+      canRemove: true,
+    });
   });
 
   it("対象店舗に所属するactive管理者がいれば店舗通知の受信者ありを返す", async () => {
@@ -566,33 +708,44 @@ describe("organization/queries.getSettings", () => {
     });
   });
 
-  it("アーカイブ済み・プラン停止中の店舗を店舗上限へ数えない", async () => {
+  it("旧形式のstatus未設定店舗は稼働中として数え、アーカイブ済み・プラン停止中は数えない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_active_shop_usage",
         plan: "pro",
       });
-      for (const [index, operatingStatus] of ["active", "active", "active", "archived", "planSuspended"].entries()) {
-        await ctx.db.insert("shops", {
+      let legacyActiveShopId: Id<"shops"> | null = null;
+      for (const [index, operatingStatus] of [
+        "active",
+        "active",
+        "active",
+        undefined,
+        "archived",
+        "planSuspended",
+      ].entries()) {
+        const shopId = await ctx.db.insert("shops", {
           organizationId: base.organizationId,
-          operatingStatus: operatingStatus as "active" | "archived" | "planSuspended",
+          ...(operatingStatus ? { operatingStatus: operatingStatus as "active" | "archived" | "planSuspended" } : {}),
           name: `店舗${index}`,
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           regularClosedDays: [],
           isDeleted: false,
         });
+        if (operatingStatus === undefined) legacyActiveShopId = shopId;
       }
-      return base;
+      if (!legacyActiveShopId) throw new Error("legacy active shop fixture was not created");
+      return { ...base, legacyActiveShopId };
     });
 
     const result = await t
       .withIdentity({ subject: "settings_active_shop_usage" })
       .query(api.organization.queries.getSettings, { shopId: ids.shopId });
 
-    expect(result?.billing.shopUsage).toEqual({ current: 4, max: 5, pendingInvitations: 0 });
-    expect(result?.shops).toHaveLength(6);
-    expect(result?.canAddShop).toBe(true);
+    expect(result?.billing.shopUsage).toEqual({ current: 5, max: 5, pendingInvitations: 0 });
+    expect(result?.shops).toHaveLength(7);
+    expect(result?.shops.find((shop) => shop.id === ids.legacyActiveShopId)?.canUpdateSettings).toBe(true);
+    expect(result?.canAddShop).toBe(false);
   });
 
   it("組織移行前のDTOでは所属店舗IDを空配列で返す", async () => {

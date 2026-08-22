@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedLegacyManagerShop, seedLegacyShopMembership, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
@@ -86,6 +87,61 @@ describe("appOrganization organization context queries", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("active.freeの実利用人数超過中は通常操作を閉じ、利用者削除だけを許可する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "app_organization_over_limit",
+        plan: "free",
+      });
+      const staffIds = [];
+      for (let index = 0; index < 5; index += 1) {
+        staffIds.push(
+          await seedStaff(ctx, {
+            shopId: base.shopId,
+            name: `上限超過スタッフ${index}`,
+            email: `app-organization-over-limit-${index}@example.com`,
+          }),
+        );
+      }
+      const targetStaff = await ctx.db.get(staffIds[0]);
+      if (!targetStaff?.organizationPersonId) throw new Error("organization person missing");
+      return { ...base, targetPersonId: targetStaff.organizationPersonId };
+    });
+    const actor = t.withIdentity({ subject: "app_organization_over_limit" });
+
+    const [summary, recruitments, people] = await Promise.all([
+      actor.query(api.appOrganization.queries.getOrganizationPeopleSummary, {
+        organizationId: ids.organizationId,
+        shopFilter: "all",
+      }),
+      actor.query(api.appOrganization.queries.listOrganizationRecruitments, {
+        organizationId: ids.organizationId,
+        paginationOpts: firstPage(1),
+      }),
+      actor.query(api.appOrganization.queries.listOrganizationPeople, {
+        organizationId: ids.organizationId,
+        shopFilter: "all",
+        paginationOpts: firstPage(),
+      }),
+    ]);
+
+    expect(summary).toMatchObject({
+      canAddStaff: false,
+      addStaffDisabledReason: expect.stringContaining("プラン上限を超過"),
+      canChangeStaffOrder: false,
+      changeStaffOrderDisabledReason: expect.stringContaining("プラン上限を超過"),
+    });
+    expect(recruitments.page[0]?.actions).toMatchObject({
+      canCreate: false,
+      createDisabledReason: expect.stringContaining("プラン上限を超過"),
+    });
+    expect(people.page.find((person) => person.id === ids.targetPersonId)).toMatchObject({
+      canRemove: true,
+      canRemoveManagerRole: false,
+    });
   });
 
   it("未認証・未登録・削除済みuserには所属組織を返さない", async () => {
@@ -558,7 +614,10 @@ describe("appOrganization organization context queries", () => {
     expect(pageSizes.every((size) => size <= 1)).toBe(true);
     expect(sections[0]).toMatchObject({
       shop: { shopName: "店舗A", operatingStatus: "active", regularClosedDays: [] },
-      actions: { canCreate: true },
+      actions: {
+        canCreate: false,
+        createDisabledReason: expect.stringContaining("プラン上限を超過"),
+      },
       hasPastRecruitments: false,
     });
     const recruitments = sections.flatMap((section) => section.currentGroups.flatMap((group) => group.recruitments));
@@ -794,8 +853,12 @@ describe("appOrganization organization context queries", () => {
       visibleCount: 2,
       visibleCountHasOverflow: false,
       maxPeople: 5,
-      canAddStaff: true,
-      canChangeStaffOrder: true,
+      canAddStaff: false,
+      addStaffDisabledReason:
+        "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。",
+      canChangeStaffOrder: false,
+      changeStaffOrderDisabledReason:
+        "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。",
     });
 
     await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "readOnly" }));

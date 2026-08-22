@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
+import { seedStaff } from "../_test/scenarioBuilders";
 import {
   seedLegacyManagerShop,
   seedLegacyShop,
@@ -14,6 +15,7 @@ import {
   testAuthTokenIdentifier,
 } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT } from "../organization/service";
 import { TRIAL_ENDING_REMINDER_LEAD_MS } from "../organizationBilling/notification";
 
 const PAGINATION_FIRST_PAGE = { paginationOpts: { numItems: 10, cursor: null } };
@@ -333,6 +335,77 @@ describe("dashboard/queries", () => {
       expect(result).toMatchObject({ canWriteBusinessData: true, businessWriteBlockReason: null });
     });
 
+    it("active.freeの利用人数が上限を超えた場合もFree表示を維持して業務操作を閲覧専用にする", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId } = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "dashboard_active_free_over_limit",
+          plan: "free",
+        });
+        for (let index = 0; index < 5; index += 1) {
+          await seedStaff(ctx, {
+            shopId: seeded.shopId,
+            name: `追加スタッフ${index + 1}`,
+            email: `dashboard-over-limit-${index + 1}@example.com`,
+          });
+        }
+        return seeded;
+      });
+
+      const result = await t
+        .withIdentity({ subject: "dashboard_active_free_over_limit" })
+        .query(api.dashboard.queries.getDashboardShop, { shopId });
+
+      expect(result).toMatchObject({
+        canWriteBusinessData: false,
+        businessWriteBlockReason: "usageLimitExceeded",
+        planStatus: {
+          kind: "freePlan",
+          canManagePlan: false,
+          canUpdatePaymentMethod: false,
+        },
+        usageLimitStatus: {
+          kind: "overLimit",
+          evaluatedPlan: "free",
+          violations: [{ kind: "people", current: 6, max: 5, excess: 1 }],
+        },
+      });
+    });
+
+    it("利用人数のbounded評価を確定できない場合は上限超過と断定せず、評価不能として業務操作を制限する", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId } = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "dashboard_usage_limit_unknown",
+          plan: "pro",
+        });
+        const now = Date.now();
+        for (let index = 0; index < ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT + 1; index += 1) {
+          const email = `dashboard-usage-unknown-${String(index)}@example.com`;
+          await ctx.db.insert("organizationPeople", {
+            organizationId: seeded.organizationId,
+            name: `利用数未確定${String(index)}`,
+            email,
+            emailNormalized: email,
+            status: "active",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        return seeded;
+      });
+
+      const result = await t
+        .withIdentity({ subject: "dashboard_usage_limit_unknown" })
+        .query(api.dashboard.queries.getDashboardShop, { shopId });
+
+      expect(result).toMatchObject({
+        canWriteBusinessData: false,
+        businessWriteBlockReason: "usageLimitEvaluationUnavailable",
+        usageLimitStatus: { kind: "unknown", evaluatedPlan: "pro" },
+      });
+    });
+
     it.each([
       {
         state: {
@@ -623,10 +696,11 @@ describe("dashboard/queries", () => {
         peopleUsage: { current: 2, max: 20 },
         shopUsage: { current: 2, max: 5 },
         managerUsage: { current: 1, max: 5 },
+        pendingManagerInvitations: 0,
       });
     });
 
-    it("明示された時刻を基準に、期限内の予約枠だけを利用人数へ含める", async () => {
+    it("明示された時刻を基準に、期限内の管理者招待を実利用数と分けて返す", async () => {
       const t = convexTest(schema, modules);
       const now = TRIAL_ENDS_AT;
       const { shopId } = await t.run(async (ctx) => {
@@ -653,15 +727,17 @@ describe("dashboard/queries", () => {
       const actor = t.withIdentity({ subject: "dashboard_usage_reservation_expiry" });
 
       await expect(actor.query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now })).resolves.toEqual({
-        peopleUsage: { current: 2, max: 20 },
+        peopleUsage: { current: 1, max: 20 },
         shopUsage: { current: 1, max: 5 },
-        managerUsage: { current: 2, max: 5 },
+        managerUsage: { current: 1, max: 5 },
+        pendingManagerInvitations: 1,
       });
       await expect(actor.query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now: now + 1 })).resolves.toEqual(
         {
           peopleUsage: { current: 1, max: 20 },
           shopUsage: { current: 1, max: 5 },
           managerUsage: { current: 1, max: 5 },
+          pendingManagerInvitations: 0,
         },
       );
     });
@@ -681,6 +757,7 @@ describe("dashboard/queries", () => {
           peopleUsage: { current: 1, max: 5 },
           shopUsage: { current: 1, max: 1 },
           managerUsage: { current: 1, max: 2 },
+          pendingManagerInvitations: 0,
         },
       },
       {
@@ -699,6 +776,7 @@ describe("dashboard/queries", () => {
           peopleUsage: { current: 1, max: 20 },
           shopUsage: { current: 1, max: 5 },
           managerUsage: { current: 1, max: 5 },
+          pendingManagerInvitations: 0,
         },
       },
     ] satisfies ReadonlyArray<{

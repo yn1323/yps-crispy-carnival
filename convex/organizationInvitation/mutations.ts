@@ -12,7 +12,7 @@ import { generateUUID } from "../_lib/uuid";
 import { normalizeEmail, requiredEmailSchema } from "../_lib/validation";
 import { ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT } from "../constants";
 import { cancelOrganizationRecipientBusinessNotifications } from "../notificationOutbox/mutations";
-import { requireOrganizationActorForShop } from "../organization/access";
+import { requireOrganizationActorForShop, requireOrganizationReadActor } from "../organization/access";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import {
   getOrganizationBillingState,
@@ -22,7 +22,11 @@ import {
 import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import { syncActivatedOrganizationStaffOrder } from "../organization/staffOrder";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
-import { requireOrganizationBusinessWrite, requireOrganizationCapacity } from "../organizationBilling/service";
+import {
+  requireOrganizationBusinessWrite,
+  requireOrganizationBusinessWriteOrLimitRecoveryCapability,
+  requireOrganizationCapacity,
+} from "../organizationBilling/service";
 import { getActiveStaffInShop } from "../staff/service";
 import { getOrganizationInvitationExpiresAt } from "./constants";
 import {
@@ -860,7 +864,12 @@ async function revokeInvitationForActor(
   args: { invitationId: Id<"organizationInvitations">; requestId: string },
   actor: InvitationManagerActor,
 ) {
-  await requireOrganizationBusinessWrite(ctx, actor.organization._id);
+  if (actor.member.status !== "active") throw new ConvexError("Not found");
+  await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
+    organizationId: actor.organization._id,
+    personId: actor.person._id,
+    capability: "cancelManagerInvitation",
+  });
   const parsed = organizationInvitationRequestSchema.safeParse({ requestId: args.requestId });
   if (!parsed.success) throw new ConvexError("入力内容を確認してください。");
   const requestKey = await toAuditRequestKey(parsed.data.requestId);
@@ -935,15 +944,21 @@ export const revoke = authenticatedMutation({
   },
 });
 
-export const revokeForOrganization = organizationMutation({
-  args: { invitationId: v.id("organizationInvitations"), requestId: v.string() },
+export const revokeForOrganization = authenticatedMutation({
+  args: {
+    organizationId: v.id("organizations"),
+    invitationId: v.id("organizationInvitations"),
+    requestId: v.string(),
+  },
   returns: invitationMutationResultValidator,
-  handler: async (ctx, args) =>
-    await revokeInvitationForActor(ctx, args, {
-      organization: ctx.organization,
-      member: ctx.organizationMember,
-      person: ctx.organizationPerson,
-    }),
+  handler: async (ctx, args) => {
+    if (!ctx.user || ctx.user.isDeleted) throw new ConvexError("Not found");
+    const actor = await requireOrganizationReadActor(ctx, {
+      user: ctx.user,
+      organizationId: args.organizationId,
+    });
+    return await revokeInvitationForActor(ctx, args, actor);
+  },
 });
 
 async function resendInvitationForActor(

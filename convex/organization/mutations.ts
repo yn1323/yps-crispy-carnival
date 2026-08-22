@@ -15,7 +15,9 @@ import {
 import { scheduleOrganizationBillingStateDeadline } from "../organizationBilling/deadline";
 import { getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
 import {
+  getOrganizationAccessPolicy,
   requireOrganizationBusinessWrite,
+  requireOrganizationBusinessWriteOrLimitRecoveryCapability,
   requireOrganizationCapacity,
   requireOrganizationPaidFeature,
   requireRestrictedRecoveryCapability,
@@ -196,6 +198,10 @@ async function updateOrganizationNameForActor(
   args: { name: string; requestId: string },
   actor: Pick<OrganizationActor, "organization" | "member" | "person">,
 ) {
+  const access = await getOrganizationAccessPolicy(ctx, actor.organization._id);
+  if (access?.accessMode === "limitRecoveryOnly") {
+    await requireOrganizationBusinessWrite(ctx, actor.organization._id);
+  }
   const parsed = organizationNameSchema.safeParse(args.name);
   if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
   const requestKey = await toAuditRequestKey(args.requestId);
@@ -449,7 +455,15 @@ async function authorizeShopStateChange(
     });
   } else {
     if (actor.member.status !== "active") throw new ConvexError("Not found");
-    await requireOrganizationBusinessWrite(ctx, actor.organization._id);
+    if (args.operation === "archive") {
+      await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
+        organizationId: actor.organization._id,
+        personId: actor.person._id,
+        capability: "archiveShop",
+      });
+    } else {
+      await requireOrganizationBusinessWrite(ctx, actor.organization._id);
+    }
   }
   return { actor, billingState };
 }
@@ -615,7 +629,11 @@ export const deleteShop = authenticatedMutation({
         capability: "archiveShop",
       });
     } else {
-      await requireOrganizationBusinessWrite(ctx, actor.organization._id);
+      await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
+        organizationId: actor.organization._id,
+        personId: actor.person._id,
+        capability: "deleteShop",
+      });
     }
     const correlationId = shopDeletionCorrelationId(actor.organization._id, actor.shop._id, requestId);
     const priorAudit = await findShopDeletionAudit(ctx, correlationId);
@@ -1084,7 +1102,11 @@ async function authorizeOrganizationPersonRemoval(ctx: MutationCtx, actor: Organ
     });
   } else {
     if (actor.member.status !== "active") throw new ConvexError("この操作を行う権限がありません");
-    await requireOrganizationBusinessWrite(ctx, actor.organization._id);
+    await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
+      organizationId: actor.organization._id,
+      personId: actor.person._id,
+      capability: "removeOrganizationPerson",
+    });
   }
   return billingState;
 }
@@ -1843,7 +1865,11 @@ async function removeManagerRoleForActor(
     throw new ConvexError("契約制限中は管理権限を外せません");
   }
   if (actor.member.status !== "active") throw new ConvexError("この操作を行う権限がありません");
-  const policy = await requireOrganizationBusinessWrite(ctx, actor.organization._id);
+  const policy = await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
+    organizationId: actor.organization._id,
+    personId: actor.person._id,
+    capability: "removeManagerRole",
+  });
   if (!policy?.canManageManagers) {
     throw new ConvexError("現在の契約状態では、管理者権限を変更できません。");
   }

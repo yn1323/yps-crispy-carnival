@@ -34,7 +34,7 @@ import { visibleAssignmentWarnings } from "./warningVisibility";
 const PAST_SHIFT_SAVE_ERROR = "過去のシフトは保存できません";
 const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知できません";
 
-function getReadOnlyReason(reason: ShiftBoardData["businessWriteBlockReason"]): string {
+export function getShiftBoardReadOnlyReason(reason: ShiftBoardData["businessWriteBlockReason"]): string {
   switch (reason) {
     case "memberReadOnly":
       return "管理者権限が閲覧のみに制限されているため、シフトを変更できません。";
@@ -46,6 +46,10 @@ function getReadOnlyReason(reason: ShiftBoardData["businessWriteBlockReason"]): 
       return "支払い結果を確認中のため、シフトを変更できません。";
     case "restricted":
       return "契約状態を確認できるまで、シフトを変更できません。\n組織設定で契約状態を確認してください。";
+    case "usageLimitExceeded":
+      return "現在のプラン上限を超えているため、シフトを変更できません。\n組織設定で利用人数・店舗・管理者を整理するか、プランを変更してください。";
+    case "usageLimitEvaluationUnavailable":
+      return "現在の利用数を安全に確認できないため、シフトを変更できません。\n組織設定で利用人数・店舗・管理者を確認してください。";
     case null:
       return "現在、このシフトは変更できません。";
   }
@@ -66,7 +70,7 @@ export const useShiftBoardPageController = (
   const confirmedAt = data.recruitment.confirmedAt ? new Date(data.recruitment.confirmedAt) : null;
   const isConfirmed = data.recruitment.status === "confirmed";
   const isReadOnly = !data.canWriteBusinessData;
-  const readOnlyReason = isReadOnly ? getReadOnlyReason(data.businessWriteBlockReason) : null;
+  const readOnlyReason = isReadOnly ? getShiftBoardReadOnlyReason(data.businessWriteBlockReason) : null;
   const isPastShiftNow = useCallback(() => isPastShiftPeriod(data.recruitment.periodEnd), [data.recruitment.periodEnd]);
 
   const dates = useMemo(

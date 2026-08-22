@@ -4,7 +4,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { APP_URL } from "../_lib/config";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
-import { managerMutation } from "../_lib/functions";
+import { managerLimitRecoveryMutation, managerMutation } from "../_lib/functions";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { generateUUID } from "../_lib/uuid";
 import { normalizeEmail } from "../_lib/validation";
@@ -101,6 +101,12 @@ async function submitRegistrationRequestImpl(
     return acceptedResult;
   }
 
+  // HTTP Actionの事前確認後に課金状態や利用数が変わっていても、PIIを書き込む直前の正本で閉じる。
+  const writableShop = await resolveStaffRegistrationCapability(ctx, args.token);
+  if (!writableShop || writableShop._id !== shop._id) {
+    throw registrationLinkUnavailableError();
+  }
+
   const versions = getLegalConsentVersions("staff");
   const now = Date.now();
   await ctx.db.insert("staffRegistrationRequests", {
@@ -176,13 +182,9 @@ export const checkSubmissionRateLimit = internalMutation({
   },
   returns: v.object({ status: v.union(v.literal("allowed"), v.literal("rate_limited"), v.literal("unavailable")) }),
   handler: async (ctx, args) => {
-    const links = await ctx.db
-      .query("shopRegistrationLinks")
-      .withIndex("by_token", (q) => q.eq("token", args.token))
-      .take(2);
-    const hasActiveUniqueLink = links.length === 1 && !links[0]?.revokedAt;
-    // 無効tokenごとにrate-limit stateを作らせない。link固有budgetはDBで有効性を確認できたtokenにだけ使う。
-    if (!hasActiveUniqueLink) return { status: "unavailable" as const };
+    const shop = await resolveStaffRegistrationCapability(ctx, args.token);
+    // 利用不能なcapabilityごとにrate-limit stateを作らせず、link固有budgetは申請可能な店舗だけに使う。
+    if (!shop) return { status: "unavailable" as const };
     const budgets = [
       { name: "staffRegistrationEmailShort" as const, key: args.emailKey },
       { name: "staffRegistrationEmailDaily" as const, key: args.emailKey },
@@ -429,7 +431,7 @@ export const approveRequest = managerMutation({
   },
 });
 
-export const rejectRequest = managerMutation({
+export const rejectRequest = managerLimitRecoveryMutation("rejectStaffRegistrationRequest")({
   args: { requestId: v.id("staffRegistrationRequests") },
   returns: v.null(),
   handler: async (ctx, { requestId }) => {

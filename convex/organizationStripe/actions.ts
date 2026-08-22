@@ -2164,7 +2164,7 @@ function billingEmailSyncRequestKey(context: {
     .digest("base64url");
 }
 
-/** 猶予終了時に最新請求を再照合し、未払い確認後だけ制限・取消・請求停止へ進める。 */
+/** 猶予終了時に最新請求を再照合し、未払い確認後だけ取消・請求停止・Free確定へ進める。 */
 export const stopExpiredGraceCollection = internalAction({
   args: {
     organizationId: v.id("organizations"),
@@ -2173,7 +2173,7 @@ export const stopExpiredGraceCollection = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    let context = await ctx.runQuery(internal.organizationStripe.queries.getSafetyContextByOrganization, {
+    const context = await ctx.runQuery(internal.organizationStripe.queries.getSafetyContextByOrganization, {
       organizationId: args.organizationId,
     });
     if (
@@ -2201,67 +2201,58 @@ export const stopExpiredGraceCollection = internalAction({
         expectedBillingVersion: effectiveArgs.expectedBillingVersion,
         providerGeneration: context.subscription.providerGeneration,
       });
-      if (!reconcileOperation.created) return null;
-      const leaseToken = requireOperationLease(reconcileOperation);
-      if (!stripe) {
-        await retryExpiredGraceSafetyOperation(
-          ctx,
-          effectiveArgs,
-          reconcileOperation.operationId,
-          leaseToken,
-          configuration ? "stripe_livemode_mismatch" : "stripe_configuration_unavailable",
-          "expiredGrace",
-        );
-        return null;
-      }
-      try {
-        const subscription = await stripe.subscriptions.retrieve(context.subscription.stripeSubscriptionId, {
-          expand: ["latest_invoice"],
-        });
-        assertSafetySubscription(subscription, context);
-        const invoice = await retrieveLatestSubscriptionInvoice(stripe, subscription, context);
-        if (invoice.status === "paid" && subscription.status === "active") {
-          const targetPlan = context.billingState.targetPlan ?? context.billingState.plan;
-          const recovered = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
-            organizationId: args.organizationId,
-            expectedVersion: effectiveArgs.expectedBillingVersion,
-            state: { kind: "active", plan: targetPlan },
-            correlationId: `stripe:${reconcileOperation.operationId}:grace-paid`,
-          });
-          if (!recovered.changed) throw new Error("billing_version_conflict");
-          await saveSubscriptionFromSafetyAction(ctx, context, subscription, { plan: targetPlan });
-          await finishOperation(ctx, reconcileOperation.operationId, leaseToken, "succeeded", subscription.id);
+      if (reconcileOperation.status !== "succeeded") {
+        if (!reconcileOperation.created) return null;
+        const leaseToken = requireOperationLease(reconcileOperation);
+        if (!stripe) {
+          await retryExpiredGraceSafetyOperation(
+            ctx,
+            effectiveArgs,
+            reconcileOperation.operationId,
+            leaseToken,
+            configuration ? "stripe_livemode_mismatch" : "stripe_configuration_unavailable",
+            "expiredGrace",
+          );
           return null;
         }
-        if (!isConfirmedUnpaid(subscription, invoice)) throw new Error("billing_reconciliation_pending");
-        const expired = await ctx.runMutation(internal.organizationBilling.mutations.expireVerifiedPaymentGrace, {
-          organizationId: args.organizationId,
-          expectedVersion: effectiveArgs.expectedBillingVersion,
-          expectedEndsAt: context.billingState.endsAt,
-          correlationId: `stripe:${reconcileOperation.operationId}:grace-expired`,
-        });
-        if (!expired.changed || expired.billingVersion === undefined) throw new Error("billing_version_conflict");
-        await finishOperation(ctx, reconcileOperation.operationId, leaseToken, "succeeded", subscription.id);
-        context = await ctx.runQuery(internal.organizationStripe.queries.getSafetyContextByOrganization, {
-          organizationId: args.organizationId,
-          expectedBillingVersion: expired.billingVersion,
-        });
-        if (!context) return null;
-      } catch (error) {
-        await retryExpiredGraceSafetyOperation(
-          ctx,
-          effectiveArgs,
-          reconcileOperation.operationId,
-          leaseToken,
-          safeStripeErrorCode(error),
-          "expiredGrace",
-        );
-        return null;
+        try {
+          const subscription = await stripe.subscriptions.retrieve(context.subscription.stripeSubscriptionId, {
+            expand: ["latest_invoice"],
+          });
+          assertSafetySubscription(subscription, context);
+          const invoice = await retrieveLatestSubscriptionInvoice(stripe, subscription, context);
+          if (invoice.status === "paid" && subscription.status === "active") {
+            const targetPlan = context.billingState.targetPlan ?? context.billingState.plan;
+            const recovered = await ctx.runMutation(
+              internal.organizationBilling.mutations.setStateFromVerifiedBilling,
+              {
+                organizationId: args.organizationId,
+                expectedVersion: effectiveArgs.expectedBillingVersion,
+                state: { kind: "active", plan: targetPlan },
+                correlationId: `stripe:${reconcileOperation.operationId}:grace-paid`,
+              },
+            );
+            if (!recovered.changed) throw new Error("billing_version_conflict");
+            await saveSubscriptionFromSafetyAction(ctx, context, subscription, { plan: targetPlan });
+            await finishOperation(ctx, reconcileOperation.operationId, leaseToken, "succeeded", subscription.id);
+            return null;
+          }
+          if (!isConfirmedUnpaid(subscription, invoice)) throw new Error("billing_reconciliation_pending");
+          await finishOperation(ctx, reconcileOperation.operationId, leaseToken, "succeeded", subscription.id);
+        } catch (error) {
+          await retryExpiredGraceSafetyOperation(
+            ctx,
+            effectiveArgs,
+            reconcileOperation.operationId,
+            leaseToken,
+            safeStripeErrorCode(error),
+            "expiredGrace",
+          );
+          return null;
+        }
       }
     }
-    if (context.billingState.kind !== "restricted" || context.billingState.reason !== "paymentGraceExpired")
-      return null;
-    await stopRestrictedStripeCollection(ctx, stripe, context, {
+    await stopExpiredGraceStripeCollection(ctx, stripe, context, {
       ...args,
       expectedBillingVersion: context.billingVersion,
     });
@@ -2685,6 +2676,10 @@ function paidPlanAfterVerifiedPayment(state: Doc<"organizationBillingStates">["s
   }
 }
 
+function billingStateNeedsExplicitRestoration(state: Doc<"organizationBillingStates">["state"]) {
+  return state.kind === "restricted" || (state.kind === "pendingActivation" && state.fallback === "restricted");
+}
+
 async function applyVerifiedPaidEntitlement(
   ctx: ActionCtx,
   event: { stripeEventId: string; eventCreatedAt: number },
@@ -2697,9 +2692,7 @@ async function applyVerifiedPaidEntitlement(
   }
   const targetPlan = paidPlanAfterVerifiedPayment(billing.state);
   if (!targetPlan) return null;
-  const needsRestoration =
-    billing.state.kind === "restricted" ||
-    (billing.state.kind === "pendingActivation" && billing.state.fallback !== "pro");
+  const needsRestoration = billingStateNeedsExplicitRestoration(billing.state);
   if (
     needsRestoration &&
     (!synchronized.organization.restoreManagerPersonIds || !synchronized.organization.restoreShopIds)
@@ -3252,12 +3245,17 @@ async function processCheckoutEvent(
           subscription: { stripeSubscriptionId: subscription.id },
         });
         if (invoice.status === "paid") {
+          const needsRestoration = billingStateNeedsExplicitRestoration(organization.billingState.state);
           const activated = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
             organizationId: organization.organizationId,
             expectedVersion: organization.billingState.version,
             state: { kind: "active", plan: targetPlan },
-            restoreManagerPersonIds: organization.restoreManagerPersonIds,
-            restoreShopIds: organization.restoreShopIds,
+            ...(needsRestoration
+              ? {
+                  restoreManagerPersonIds: organization.restoreManagerPersonIds,
+                  restoreShopIds: organization.restoreShopIds,
+                }
+              : {}),
             correlationId: `stripe:${event.stripeEventId}:late-setup-paid`,
           });
           if (!activated.changed) return { kind: "retry" as const, errorCode: "billing_version_conflict" };
@@ -5037,7 +5035,7 @@ function assertSafetySubscription(
   }
 }
 
-async function stopRestrictedStripeCollection(
+async function stopExpiredGraceStripeCollection(
   ctx: ActionCtx,
   stripe: Stripe | null,
   context: StripeSafetyContext,
@@ -5074,16 +5072,24 @@ async function stopRestrictedStripeCollection(
       assertSafetySubscription(current, context);
       const latestInvoice = await retrieveLatestSubscriptionInvoice(stripe, current, context);
       if (latestInvoice.status === "paid" && current.status === "active") {
+        const grace = context.billingState.kind === "grace" ? context.billingState : null;
         const restricted = context.billingState.kind === "restricted" ? context.billingState : null;
-        if (!restricted) throw new Error("billing_version_conflict");
-        const targetPlan = paidPlanAfterVerifiedPayment(restricted);
+        const targetPlan = grace
+          ? (grace.targetPlan ?? grace.plan)
+          : restricted
+            ? paidPlanAfterVerifiedPayment(restricted)
+            : null;
         if (!targetPlan) throw new Error("billing_recovery_plan_missing");
         const recovered = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
           organizationId: args.organizationId,
           expectedVersion: args.expectedBillingVersion,
           state: { kind: "active", plan: targetPlan },
-          restoreManagerPersonIds: restricted.recoveryManagerPersonIds,
-          restoreShopIds: restricted.previousActiveShopIds,
+          ...(restricted
+            ? {
+                restoreManagerPersonIds: restricted.recoveryManagerPersonIds,
+                restoreShopIds: restricted.previousActiveShopIds,
+              }
+            : {}),
           correlationId: `stripe:${cancelOperation.operationId}:late-payment-recovered`,
         });
         if (!recovered.changed) throw new Error("billing_version_conflict");
@@ -5122,59 +5128,76 @@ async function stopRestrictedStripeCollection(
     expectedBillingVersion: args.expectedBillingVersion,
     providerGeneration: context.subscription.providerGeneration,
   });
-  if (invoiceOperation.status === "succeeded" || invoiceOperation.status === "actionRequired") return;
-  if (!invoiceOperation.created) return;
-  const invoiceLease = requireOperationLease(invoiceOperation);
-  if (!stripe) {
-    await retryExpiredGraceSafetyOperation(
-      ctx,
-      args,
-      invoiceOperation.operationId,
-      invoiceLease,
-      "stripe_configuration_unavailable",
-      "expiredGrace",
-    );
-    return;
-  }
-  try {
-    const [openInvoices, draftInvoices] = await Promise.all([
-      stripe.invoices.list({ customer: context.stripeCustomerId, status: "open", limit: 100 }),
-      stripe.invoices.list({ customer: context.stripeCustomerId, status: "draft", limit: 100 }),
-    ]);
-    if (openInvoices.has_more || draftInvoices.has_more) throw new Error("invoice_collection_unbounded");
-    const invoices = [...openInvoices.data, ...draftInvoices.data].filter(
-      (invoice) => invoiceSubscriptionId(invoice) === context.subscription.stripeSubscriptionId,
-    );
-    for (const candidate of invoices) {
-      if (candidate.livemode !== context.livemode || stripeObjectId(candidate.customer) !== context.stripeCustomerId) {
-        throw new Error("invoice_relationship_invalid");
-      }
-      const invoice =
-        candidate.auto_advance === false
-          ? candidate
-          : await stripe.invoices.update(
-              candidate.id,
-              { auto_advance: false },
-              { idempotencyKey: `${invoiceOperation.stripeIdempotencyKey}:${candidate.id}` },
-            );
-      if (invoice.auto_advance !== false) throw new Error("invoice_collection_not_stopped");
+  if (invoiceOperation.status === "actionRequired") return;
+  if (invoiceOperation.status !== "succeeded") {
+    if (!invoiceOperation.created) return;
+    const invoiceLease = requireOperationLease(invoiceOperation);
+    if (!stripe) {
+      await retryExpiredGraceSafetyOperation(
+        ctx,
+        args,
+        invoiceOperation.operationId,
+        invoiceLease,
+        "stripe_configuration_unavailable",
+        "expiredGrace",
+      );
+      return;
     }
-    await finishOperation(
-      ctx,
-      invoiceOperation.operationId,
-      invoiceLease,
-      "succeeded",
-      latestInvoiceId ?? invoices[0]?.id,
-    );
-  } catch (error) {
-    await retryExpiredGraceSafetyOperation(
-      ctx,
-      args,
-      invoiceOperation.operationId,
-      invoiceLease,
-      safeStripeErrorCode(error),
-      "expiredGrace",
-    );
+    try {
+      const [openInvoices, draftInvoices] = await Promise.all([
+        stripe.invoices.list({ customer: context.stripeCustomerId, status: "open", limit: 100 }),
+        stripe.invoices.list({ customer: context.stripeCustomerId, status: "draft", limit: 100 }),
+      ]);
+      if (openInvoices.has_more || draftInvoices.has_more) throw new Error("invoice_collection_unbounded");
+      const invoices = [...openInvoices.data, ...draftInvoices.data].filter(
+        (invoice) => invoiceSubscriptionId(invoice) === context.subscription.stripeSubscriptionId,
+      );
+      for (const candidate of invoices) {
+        if (
+          candidate.livemode !== context.livemode ||
+          stripeObjectId(candidate.customer) !== context.stripeCustomerId
+        ) {
+          throw new Error("invoice_relationship_invalid");
+        }
+        const invoice =
+          candidate.auto_advance === false
+            ? candidate
+            : await stripe.invoices.update(
+                candidate.id,
+                { auto_advance: false },
+                { idempotencyKey: `${invoiceOperation.stripeIdempotencyKey}:${candidate.id}` },
+              );
+        if (invoice.auto_advance !== false) throw new Error("invoice_collection_not_stopped");
+      }
+      await finishOperation(
+        ctx,
+        invoiceOperation.operationId,
+        invoiceLease,
+        "succeeded",
+        latestInvoiceId ?? invoices[0]?.id,
+      );
+    } catch (error) {
+      await retryExpiredGraceSafetyOperation(
+        ctx,
+        args,
+        invoiceOperation.operationId,
+        invoiceLease,
+        safeStripeErrorCode(error),
+        "expiredGrace",
+      );
+      return;
+    }
+  }
+
+  if (context.billingState.kind === "grace") {
+    await ctx.runMutation(internal.organizationBilling.mutations.expireVerifiedPaymentGrace, {
+      organizationId: args.organizationId,
+      expectedVersion: args.expectedBillingVersion,
+      expectedEndsAt: context.billingState.endsAt,
+      cancelOperationId: cancelOperation.operationId,
+      stopInvoiceCollectionOperationId: invoiceOperation.operationId,
+      correlationId: `stripe:${invoiceOperation.operationId}:grace-expired`,
+    });
   }
 }
 
@@ -5547,12 +5570,17 @@ async function recoverTrialCreationAfterInactivePrice(
     ) {
       return { kind: "actionRequired", errorCode: "subscription_billing_state_invalid" };
     }
+    const needsRestoration = billingStateNeedsExplicitRestoration(latestOrganization.billingState.state);
     const activated = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
       organizationId: organization.organizationId,
       expectedVersion: latestOrganization.billingState.version,
       state: { kind: "active", plan: targetPlan },
-      restoreManagerPersonIds: latestOrganization.restoreManagerPersonIds,
-      restoreShopIds: latestOrganization.restoreShopIds,
+      ...(needsRestoration
+        ? {
+            restoreManagerPersonIds: latestOrganization.restoreManagerPersonIds,
+            restoreShopIds: latestOrganization.restoreShopIds,
+          }
+        : {}),
       correlationId: `stripe:${event.stripeEventId}:inactive-price-late-setup-paid`,
     });
     if (!activated.changed) return { kind: "retry", errorCode: "billing_version_conflict" };

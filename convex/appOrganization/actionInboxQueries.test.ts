@@ -70,6 +70,45 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
     expect(filtered.items.every(({ scope }) => scope.kind === "shop" && scope.shopId === ids.actor.shopId)).toBe(true);
   });
 
+  it("旧形式のstatus未設定店舗を稼働中として扱い、削除済みactive履歴を走査上限へ含めない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedActionInboxSources(ctx, { subject: "action_legacy_active_shop", now: NOW });
+      await ctx.db.patch(base.shopId, { operatingStatus: undefined });
+      for (let index = 0; index < 51; index += 1) {
+        await ctx.db.insert("shops", {
+          organizationId: base.organizationId,
+          operatingStatus: "active",
+          name: `削除済み店舗履歴${index}`,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: true,
+        });
+      }
+      return base;
+    });
+    const actor = t.withIdentity({ subject: "action_legacy_active_shop" });
+
+    const all = await actor.query(api.appOrganization.actionInboxQueries.getActionInbox, {
+      organizationId: ids.organizationId,
+      shopFilter: "all",
+      refreshBucket: 0,
+    });
+    const filtered = await actor.query(api.appOrganization.actionInboxQueries.getActionInbox, {
+      organizationId: ids.organizationId,
+      shopFilter: ids.shopId,
+      refreshBucket: 0,
+    });
+
+    expect(all.items.map(({ kind }) => kind)).toEqual([
+      "shift",
+      "staffRegistration",
+      "notificationFailure",
+      "managerInvitation",
+    ]);
+    expect(filtered.items.map(({ kind }) => kind)).toEqual(["shift", "staffRegistration", "notificationFailure"]);
+  });
+
   it("readOnly actorには一覧を返すが、write capabilityをすべて閉じる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -99,7 +138,7 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
     ]);
     expect(result.items.find((item) => item.kind === "staffRegistration")).toMatchObject({
       canApprove: false,
-      approveDisabledReason: "閲覧のみ、または契約制限中のため承認できません。",
+      approveDisabledReason: "現在の利用状態では承認できません。",
       canReject: false,
     });
     expect(result.items.find((item) => item.kind === "notificationFailure")).toMatchObject({
@@ -109,6 +148,123 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
     expect(result.items.find((item) => item.kind === "managerInvitation")).toMatchObject({
       canResend: false,
       canRevoke: false,
+    });
+  });
+
+  it("上限超過では通常操作を閉じ、管理者招待の取消だけを維持する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedActionInboxSources(ctx, { subject: "action_over_limit", now: NOW });
+      for (let index = 0; index < 5; index += 1) {
+        await seedAdditionalActiveManager(ctx, {
+          organizationId: base.organizationId,
+          subject: `action_over_limit_manager_${index}`,
+          now: NOW,
+        });
+      }
+      return base;
+    });
+
+    const result = await t
+      .withIdentity({ subject: "action_over_limit" })
+      .query(api.appOrganization.actionInboxQueries.getActionInbox, {
+        organizationId: ids.organizationId,
+        shopFilter: "all",
+        refreshBucket: 0,
+      });
+
+    expect(result.items.find((item) => item.kind === "staffRegistration")).toMatchObject({
+      canApprove: false,
+      approveDisabledReason: "現在の利用状態では承認できません。",
+      canReject: true,
+    });
+    expect(result.items.find((item) => item.kind === "notificationFailure")).toMatchObject({
+      canRetry: false,
+      canResolve: true,
+    });
+    expect(result.items.find((item) => item.kind === "managerInvitation")).toMatchObject({
+      canResend: false,
+      canRevoke: true,
+    });
+  });
+
+  it("101件の人物で利用数を安全に確定できなくてもall一覧と整理操作を維持する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedActionInboxSources(ctx, { subject: "action_usage_unknown", now: NOW });
+      for (let index = 0; index < 100; index += 1) {
+        const email = `action-usage-unknown-${index}@example.com`;
+        await ctx.db.insert("organizationPeople", {
+          organizationId: base.organizationId,
+          name: `利用状態未確定人物${index}`,
+          email,
+          emailNormalized: email,
+          status: "active",
+          createdAt: NOW,
+          updatedAt: NOW,
+        });
+      }
+      return base;
+    });
+
+    const result = await t
+      .withIdentity({ subject: "action_usage_unknown" })
+      .query(api.appOrganization.actionInboxQueries.getActionInbox, {
+        organizationId: ids.organizationId,
+        shopFilter: "all",
+        refreshBucket: 0,
+      });
+
+    expect(result.items.map(({ kind }) => kind)).toEqual([
+      "shift",
+      "staffRegistration",
+      "notificationFailure",
+      "managerInvitation",
+    ]);
+    expect(result.items.find((item) => item.kind === "staffRegistration")).toMatchObject({
+      canApprove: false,
+      approveDisabledReason: "現在の利用状態では承認できません。",
+      canReject: true,
+    });
+    expect(result.items.find((item) => item.kind === "notificationFailure")).toMatchObject({
+      canRetry: false,
+      canResolve: true,
+    });
+    expect(result.items.find((item) => item.kind === "managerInvitation")).toMatchObject({
+      canResend: false,
+      canRevoke: true,
+    });
+  });
+
+  it("billing rowがない移行中組織は従来どおり通常操作を表示する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedActionInboxSources(ctx, { subject: "action_missing_billing", now: NOW });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state fixture was not found");
+      await ctx.db.delete(billingState._id);
+      return base;
+    });
+
+    const result = await t
+      .withIdentity({ subject: "action_missing_billing" })
+      .query(api.appOrganization.actionInboxQueries.getActionInbox, {
+        organizationId: ids.organizationId,
+        shopFilter: ids.shopId,
+        refreshBucket: 0,
+      });
+
+    expect(result.items.find((item) => item.kind === "staffRegistration")).toMatchObject({
+      canApprove: true,
+      approveDisabledReason: null,
+      canReject: true,
+    });
+    expect(result.items.find((item) => item.kind === "notificationFailure")).toMatchObject({
+      canRetry: true,
+      canResolve: true,
     });
   });
 

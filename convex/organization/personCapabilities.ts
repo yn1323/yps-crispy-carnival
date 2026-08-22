@@ -8,6 +8,7 @@ type OrganizationPersonCapabilityInput = {
   managerRole: ManagerRole;
   activeManagerCount: number;
   canWriteNormally: boolean;
+  canRecoverUsageLimits?: boolean;
   policy: OrganizationBillingPolicy | null;
   isStaff: boolean;
   isBillingContact: boolean;
@@ -21,7 +22,7 @@ export function deriveOrganizationPersonCapabilities(input: OrganizationPersonCa
   const isLastActiveManager = input.managerRole === "active" && input.activeManagerCount <= 1;
   const isManager = input.managerRole === "active" || input.managerRole === "readOnly";
   const canRemove =
-    (input.canWriteNormally || input.isRestrictedRecovery) &&
+    (input.canWriteNormally || input.canRecoverUsageLimits || input.isRestrictedRecovery) &&
     !isManager &&
     !isLastActiveManager &&
     !input.isLastRecoveryManager &&
@@ -29,7 +30,7 @@ export function deriveOrganizationPersonCapabilities(input: OrganizationPersonCa
   const canRemoveManagerRole = Boolean(
     input.managerRole === "active" &&
       input.activeManagerCount > 1 &&
-      input.canWriteNormally &&
+      (input.canWriteNormally || input.canRecoverUsageLimits) &&
       input.policy?.canManageManagers &&
       (input.isStaff || !input.isBillingContact),
   );

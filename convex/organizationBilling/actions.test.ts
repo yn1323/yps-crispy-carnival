@@ -325,7 +325,8 @@ describe("organizationBilling/actions", () => {
     expect(jobs[0].payload.html).toContain("選択済みの契約プランはBusinessです。");
     expect(jobs[0].payload.html).toContain("初回請求は9/1(火) 00:00を予定しています。");
     expect(jobs[0].payload.html).toContain("継続を取り消す場合の期限は9/1(火) 00:00です。");
-    expect(jobs[0].payload.html).toContain("取り消すと、トライアル終了後は利用停止になります。");
+    expect(jobs[0].payload.html).toContain("取り消すと、トライアル終了後は無料プランへ変更されます。");
+    expect(jobs[0].payload.html).toContain("無料プランの利用上限を超えている場合は");
     expect(jobs[0].payload.html).not.toContain("円");
   });
 });

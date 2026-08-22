@@ -1122,11 +1122,11 @@ describe("organizationStripe/processWebhookEvent", () => {
       lastStripeEventId: "evt_aa_same_second_deleted",
       terminalAt: expect.any(Number),
     });
-    expect(result.billing?.state).toMatchObject({ kind: "restricted", reason: "unexpectedCancellation" });
+    expect(result.billing?.state).toEqual({ kind: "active", plan: "free" });
     expect(result.deletedEvent).toMatchObject({ status: "processed" });
   });
 
-  it("pausedはprovider取消を確認してから世代を終端化し、再契約可能な制限状態へ収束する", async () => {
+  it("pausedはprovider取消を確認してから世代を終端化し、Freeへ収束する", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedStripeOrganization(t, "stripe_processor_paused_cancel", {
       kind: "active",
@@ -1171,12 +1171,7 @@ describe("organizationStripe/processWebhookEvent", () => {
       expect.objectContaining({ idempotencyKey: expect.stringMatching(/^shiftori:test:paused-cancel:/) }),
     );
     expect(result.subscription).toMatchObject({ status: "canceled", terminalAt: NOW });
-    expect(result.billing?.state).toMatchObject({
-      kind: "restricted",
-      reason: "unexpectedCancellation",
-      recoveryManagerPersonIds: [ids.personId],
-      previousActiveShopIds: [ids.shopId],
-    });
+    expect(result.billing?.state).toEqual({ kind: "active", plan: "free" });
     expect(result.organization?.isDeleted).toBe(false);
     await expect(receiptById(t, "evt_paused_cancel")).resolves.toMatchObject({ status: "processed" });
   });
@@ -1303,7 +1298,7 @@ describe("organizationStripe/processWebhookEvent", () => {
         .unique(),
     }));
     expect(result.subscription).toMatchObject({ status: "canceled", terminalAt: expect.any(Number) });
-    expect(result.billing?.state).toMatchObject({ kind: "restricted", reason: "unexpectedCancellation" });
+    expect(result.billing?.state).toEqual({ kind: "active", plan: "free" });
     expect(result.event).toMatchObject({ status: "processed" });
   });
 

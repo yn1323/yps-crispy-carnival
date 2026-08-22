@@ -154,6 +154,56 @@ describe("organizationInvitation/mutations", () => {
     ).resolves.toMatchObject({ invitationId: resent.invitationId, status: "revoked" });
   });
 
+  it("active.freeの実利用人数超過中も未承認の管理者招待を取り消せる", async () => {
+    const t = convexTest(schema, modules);
+    const manager = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, { subject: "over_limit_invitation_revoke_owner", plan: "free" }),
+    );
+    const owner = t.withIdentity({ subject: "over_limit_invitation_revoke_owner" });
+    const invitation = await owner.mutation(api.organizationInvitation.mutations.issueForOrganization, {
+      organizationId: manager.organizationId,
+      recipient: { kind: "external", invitedName: "招待中の管理者", email: "over-limit-invite@example.com" },
+      requestId: "over-limit-invite-seed",
+    });
+    const billingStateBefore = await t.run((ctx) =>
+      ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", manager.organizationId))
+        .unique(),
+    );
+
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 5; index += 1) {
+        await seedActiveOrganizationStaff(ctx, {
+          organizationId: manager.organizationId,
+          shopId: manager.shopId,
+          subject: `over_limit_invitation_staff_${index}`,
+        });
+      }
+    });
+
+    await expect(
+      owner.mutation(api.organizationInvitation.mutations.revokeForOrganization, {
+        organizationId: manager.organizationId,
+        invitationId: invitation.invitationId,
+        requestId: "over-limit-invite-revoke",
+      }),
+    ).resolves.toMatchObject({ invitationId: invitation.invitationId, status: "revoked" });
+
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", manager.organizationId))
+          .unique(),
+      ),
+    ).toEqual(billingStateBefore);
+    expect(await t.run((ctx) => ctx.db.get(invitation.invitationId))).toMatchObject({
+      status: "revoked",
+      reservedSeat: false,
+    });
+  });
+
   it.each(["issue", "resend", "revoke"] as const)(
     "organization-scoped %sはorg Aからorg Bのinvitationを副作用なしで拒否する",
     async (operation) => {

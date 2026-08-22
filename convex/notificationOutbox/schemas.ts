@@ -24,6 +24,7 @@ export const notificationPurposeValidator = v.union(v.literal("business"), v.lit
 export const notificationCancelReasonValidator = v.union(
   v.literal("organization_billing_changed"),
   v.literal("organization_restricted"),
+  v.literal("organization_usage_limit_exceeded"),
   v.literal("organization_inactive"),
   v.literal("shop_inactive"),
   v.literal("recruitment_inactive"),

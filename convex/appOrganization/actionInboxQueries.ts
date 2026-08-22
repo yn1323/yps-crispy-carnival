@@ -12,8 +12,8 @@ import {
   isLineInviteResendContext,
 } from "../notificationOutbox/failureResend";
 import { getCanonicalManagerSettingsOverview } from "../organization/queries";
-import { getOrganizationBillingState } from "../organization/service";
-import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
+import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
+import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { resolveStaffRegistrationApprovalAvailability } from "../staffRegistration/service";
 
 const SOURCE_PAGE_SIZE = 8;
@@ -167,16 +167,16 @@ export const getActionInbox = organizationQuery({
     }
 
     const now = Date.now();
-    const canWrite = await resolveCanWrite(ctx);
+    const capabilities = await resolveActionCapabilities(ctx);
     const pages = await Promise.all(
       requestedKinds.map(async (kind) => {
         const cursor = cursors.get(kind) ?? createInitialCursor(shops);
         if (kind === "shift") return await readShiftActions(ctx, shops, now, cursor);
         if (kind === "staffRegistration") {
-          return await readStaffRegistrationActions(ctx, shops, canWrite, cursor);
+          return await readStaffRegistrationActions(ctx, shops, capabilities, cursor);
         }
         if (kind === "notificationFailure") {
-          return await readNotificationFailureActions(ctx, shops, canWrite, cursor);
+          return await readNotificationFailureActions(ctx, shops, capabilities, cursor);
         }
         return args.shopFilter === "all"
           ? await readManagerInvitationActions(ctx, now, cursor)
@@ -222,29 +222,54 @@ async function resolveActionShops(
 ): Promise<Doc<"shops">[]> {
   if (shopFilter !== "all") {
     const shop = await ctx.db.get(shopFilter);
-    if (!shop || shop.isDeleted || shop.organizationId !== ctx.organization._id || shop.operatingStatus !== "active") {
+    if (
+      !shop ||
+      shop.isDeleted ||
+      shop.organizationId !== ctx.organization._id ||
+      organizationShopOperatingStatus(shop.operatingStatus) !== "active"
+    ) {
       throw new ConvexError("Not found");
     }
     return [shop];
   }
 
-  const shopRows = await ctx.db
-    .query("shops")
-    .withIndex("by_organizationId_and_operatingStatus", (q) =>
-      q.eq("organizationId", ctx.organization._id).eq("operatingStatus", "active"),
-    )
-    .take(MAX_ACTIVE_SHOPS + 1);
+  const [explicitActiveShops, legacyActiveShops] = await Promise.all([
+    ctx.db
+      .query("shops")
+      .withIndex("by_organizationId_and_operatingStatus_and_isDeleted", (q) =>
+        q.eq("organizationId", ctx.organization._id).eq("operatingStatus", "active").eq("isDeleted", false),
+      )
+      .take(MAX_ACTIVE_SHOPS + 1),
+    // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後に削除する。
+    ctx.db
+      .query("shops")
+      .withIndex("by_organizationId_and_operatingStatus_and_isDeleted", (q) =>
+        q.eq("organizationId", ctx.organization._id).eq("operatingStatus", undefined).eq("isDeleted", false),
+      )
+      .take(MAX_ACTIVE_SHOPS + 1),
+  ]);
+  const shopRows = [...explicitActiveShops, ...legacyActiveShops];
   if (shopRows.length > MAX_ACTIVE_SHOPS) {
     throw new ConvexError("店舗数が安全な取得上限を超えています。管理画面で店舗状態を確認してください。");
   }
-  return shopRows.filter((shop) => !shop.isDeleted);
+  return shopRows;
 }
 
-async function resolveCanWrite(ctx: OrganizationActionQueryCtx) {
-  if (ctx.organizationMember.status !== "active") return false;
-  const billingState = await getOrganizationBillingState(ctx, ctx.organization._id);
+type ActionCapabilities = {
+  canWriteNormally: boolean;
+  canRecoverUsageLimits: boolean;
+};
+
+async function resolveActionCapabilities(ctx: OrganizationActionQueryCtx): Promise<ActionCapabilities> {
+  if (ctx.organizationMember.status !== "active") {
+    return { canWriteNormally: false, canRecoverUsageLimits: false };
+  }
+  const access = await getOrganizationAccessPolicy(ctx, ctx.organization._id);
   // billing rowがない移行中組織は既存managerMutationと同じ互換動作を維持する。
-  return billingState ? deriveOrganizationBillingPolicy(billingState.state).canWriteBusinessData : true;
+  return {
+    canWriteNormally: access?.canWriteBusinessData ?? true,
+    canRecoverUsageLimits: access?.accessMode === "limitRecoveryOnly",
+  };
 }
 
 type SourcePage<T extends ActionItem> = {
@@ -614,7 +639,7 @@ async function getBoundedTotalStaffCount(ctx: OrganizationActionQueryCtx, shopId
 async function readStaffRegistrationActions(
   ctx: OrganizationActionQueryCtx,
   shops: readonly Doc<"shops">[],
-  canWrite: boolean,
+  capabilities: ActionCapabilities,
   cursor: ShopSourceCursor,
 ): Promise<SourcePage<Extract<ActionItem, { kind: "staffRegistration" }>>> {
   const pageRows: Array<{ shop: Doc<"shops">; request: Doc<"staffRegistrationRequests"> }> = [];
@@ -646,7 +671,7 @@ async function readStaffRegistrationActions(
   }
   const items = await Promise.all(
     pageRows.map(async ({ shop, request }) => {
-      const approvalAvailability = canWrite
+      const approvalAvailability = capabilities.canWriteNormally
         ? await resolveStaffRegistrationApprovalAvailability(ctx, {
             organizationId: ctx.organization._id,
             targetShopId: shop._id,
@@ -654,7 +679,7 @@ async function readStaffRegistrationActions(
           })
         : {
             canApprove: false,
-            approveDisabledReason: "閲覧のみ、または契約制限中のため承認できません。",
+            approveDisabledReason: "現在の利用状態では承認できません。",
           };
       return {
         id: `staffRegistration:${request._id}`,
@@ -665,7 +690,7 @@ async function readStaffRegistrationActions(
         applicantName: request.name,
         createdAt: request.createdAt,
         ...approvalAvailability,
-        canReject: canWrite,
+        canReject: capabilities.canWriteNormally || capabilities.canRecoverUsageLimits,
         occurredAt: request.createdAt,
       };
     }),
@@ -679,7 +704,7 @@ async function readStaffRegistrationActions(
 async function readNotificationFailureActions(
   ctx: OrganizationActionQueryCtx,
   shops: readonly Doc<"shops">[],
-  canWrite: boolean,
+  capabilities: ActionCapabilities,
   cursor: ShopSourceCursor,
 ): Promise<SourcePage<Extract<ActionItem, { kind: "notificationFailure" }>>> {
   const pageRows: Array<{ shop: Doc<"shops">; failure: Doc<"notificationFailureInbox"> }> = [];
@@ -733,8 +758,8 @@ async function readNotificationFailureActions(
         notificationKindLabel: context.label,
         ...(failure.channel ? { channel: failure.channel } : {}),
         lastFailedAt: failure.lastFailedAt,
-        canRetry: canWrite && retryable,
-        canResolve: canWrite,
+        canRetry: capabilities.canWriteNormally && retryable,
+        canResolve: capabilities.canWriteNormally || capabilities.canRecoverUsageLimits,
         occurredAt: failure.lastFailedAt,
       };
     }),
@@ -747,8 +772,8 @@ async function readManagerInvitationActions(
   now: number,
   cursor: ShopSourceCursor,
 ): Promise<SourcePage<Extract<ActionItem, { kind: "managerInvitation" }>>> {
-  // 管理者招待は全plan共通のcanonical helperが最大5件でoverflowを明示errorにする。
-  // 返却上限8件を超える正常状態はないため、未発行のcontinuationは受け付けない。
+  // 通常時は最大5件、上限整理中は取消用にbounded overflow 1件までをcanonical helperが返す。
+  // どちらも返却上限8件を超えないため、未発行のcontinuationは受け付けない。
   if (cursor.sourceCursor) throw new ConvexError("Invalid continuation cursor");
   const overview = await getCanonicalManagerSettingsOverview(ctx, { now });
   if (overview.kind !== "ready") throw new ConvexError(overview.message);

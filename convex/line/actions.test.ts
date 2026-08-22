@@ -2,9 +2,11 @@ import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import { seedManagerShop, seedOrganizationManagerShop, seedOrganizationPersonLineLink } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { LINE_LINK_REDEEM_GLOBAL_LIMIT } from "../constants";
+import { ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT } from "../organization/service";
 
 async function seedRedeemableToken(t: TestConvex<typeof schema>, token: string) {
   return await t.run(async (ctx) => {
@@ -27,6 +29,98 @@ async function seedRedeemableToken(t: TestConvex<typeof schema>, token: string) 
     });
     return { shopId, staffId, tokenDocId };
   });
+}
+
+async function seedOrganizationRedeemableToken(t: TestConvex<typeof schema>, token: string) {
+  return await t.run(async (ctx) => {
+    const seeded = await seedOrganizationManagerShop(ctx, {
+      subject: `manager_${token}`,
+      email: `${token}@example.com`,
+      shopName: "LINE連携事業者店舗",
+      plan: "free",
+    });
+    const now = Date.now();
+    const email = `${token}-staff@example.com`;
+    const organizationPersonId = await ctx.db.insert("organizationPeople", {
+      organizationId: seeded.organizationId,
+      name: "LINE連携スタッフ",
+      email,
+      emailNormalized: email,
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+    const staffId = await ctx.db.insert("staffs", {
+      shopId: seeded.shopId,
+      organizationId: seeded.organizationId,
+      organizationPersonId,
+      name: "LINE連携スタッフ",
+      email,
+      emailNormalized: email,
+      isDeleted: false,
+    });
+    const tokenDocId = await ctx.db.insert("lineLinkTokens", {
+      staffId,
+      shopId: seeded.shopId,
+      organizationId: seeded.organizationId,
+      organizationPersonId,
+      lineLinkGenerationAtIssue: 0,
+      token,
+      expiresAt: now + 72 * 60 * 60 * 1000,
+    });
+    return { ...seeded, staffId, tokenDocId };
+  });
+}
+
+async function blockOrganizationBusinessWritesByUsage(
+  t: TestConvex<typeof schema>,
+  args: {
+    organizationId: Id<"organizations">;
+    shopId: Id<"shops">;
+    suffix: string;
+    state: "overLimit" | "unknown";
+  },
+) {
+  await t.run(async (ctx) => {
+    const now = Date.now();
+    const count = args.state === "overLimit" ? 4 : ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT + 1;
+    for (let index = 0; index < count; index += 1) {
+      const email = `${args.suffix}-${String(index)}@example.com`;
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId: args.organizationId,
+        name: `利用状態変更${String(index)}`,
+        email,
+        emailNormalized: email,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      if (args.state === "overLimit") {
+        await ctx.db.insert("staffs", {
+          shopId: args.shopId,
+          organizationId: args.organizationId,
+          organizationPersonId: personId,
+          name: `利用状態変更${String(index)}`,
+          email,
+          emailNormalized: email,
+          isDeleted: false,
+        });
+      }
+    }
+  });
+}
+
+async function readLineLinkingBusinessState(t: TestConvex<typeof schema>, tokenDocId: Id<"lineLinkTokens">) {
+  return await t.run(async (ctx) => ({
+    token: await ctx.db.get(tokenDocId),
+    accounts: await ctx.db.query("staffLineAccounts").collect(),
+    providers: await ctx.db.query("lineProviderUsers").collect(),
+    links: await ctx.db.query("organizationPersonLineLinks").collect(),
+    fanoutJobs: await ctx.db.query("lineFriendshipFanoutJobs").collect(),
+    analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+    notificationOutbox: await ctx.db.query("notificationOutbox").collect(),
+    scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+  }));
 }
 
 function mockLineOAuth(friendFlag: boolean) {
@@ -84,6 +178,33 @@ describe("line/actions", () => {
       expect(result).toEqual({ status: "expired" });
       expect(fetchMock).not.toHaveBeenCalled();
     });
+
+    it.each(["overLimit", "unknown"] as const)(
+      "token発行後に組織の利用状態が%sへ変わった場合はprovider交換前に拒否し、業務副作用を残さない",
+      async (state) => {
+        const t = convexTest(schema, modules);
+        const token = `redeem-usage-${state}`;
+        const target = await seedOrganizationRedeemableToken(t, token);
+        await blockOrganizationBusinessWritesByUsage(t, {
+          organizationId: target.organizationId,
+          shopId: target.shopId,
+          suffix: `redeem-usage-${state}`,
+          state,
+        });
+        const before = await readLineLinkingBusinessState(t, target.tokenDocId);
+        const fetchMock = mockLineOAuth(true);
+
+        await expect(
+          t.action(api.line.actions.redeemLineToken, {
+            state: token,
+            code: "unused-authorization-code",
+          }),
+        ).resolves.toEqual({ status: "expired" });
+
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(await readLineLinkingBusinessState(t, target.tokenDocId)).toEqual(before);
+      },
+    );
 
     it("follow済みならOAuth完了後に連携を保存し、同じstateの再利用を拒否する", async () => {
       const t = convexTest(schema, modules);

@@ -79,6 +79,8 @@ const safeConvexErrorCodes = new Map<string, string>([
   ["analytics_source_capture_start_invalid", "analytics_source_capture_start_invalid"],
   ["analytics_reset_guard_rejected", "analytics_reset_guard_rejected"],
   ["RATE_LIMITED", "rate_limited"],
+  ["USAGE_LIMIT_EXCEEDED", "usage_limit_exceeded"],
+  ["USAGE_LIMIT_EVALUATION_UNAVAILABLE", "usage_limit_evaluation_unavailable"],
 ]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

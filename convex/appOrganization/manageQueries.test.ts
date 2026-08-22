@@ -2,6 +2,7 @@ import type { PaginationOptions } from "convex/server";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
@@ -74,6 +75,81 @@ describe("appOrganization/manageQueries", () => {
       canAddShop: false,
       canDeleteOrganization: false,
       canCreateOrganization: false,
+    });
+  });
+
+  it("未承認の管理者招待は実利用数へ加えず、招待中件数として分離する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const actor = await seedOrganizationManagerShop(ctx, {
+        subject: "manage_usage_pending_invitation",
+        plan: "free",
+      });
+      const now = Date.now();
+      await ctx.db.insert("organizationInvitations", {
+        organizationId: actor.organizationId,
+        email: "pending-manager@example.com",
+        emailNormalized: "pending-manager@example.com",
+        invitedName: "招待中の管理者",
+        tokenDigest: "manage-usage-pending-invitation",
+        status: "issued",
+        purpose: "managerAddition",
+        inviterMemberId: actor.memberId,
+        reservedSeat: true,
+        version: 1,
+        expiresAt: now + 60_000,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return actor;
+    });
+
+    const overview = await t
+      .withIdentity({ subject: "manage_usage_pending_invitation" })
+      .query(api.appOrganization.manageQueries.getManageOverview, {
+        organizationId: ids.organizationId,
+      });
+
+    expect(overview.usage).toMatchObject({
+      peopleUsage: { current: 1, max: 5, pendingInvitations: 1 },
+      managerUsage: { current: 1, max: 2, pendingInvitations: 1 },
+    });
+  });
+
+  it("上限超過中は実プランを維持したまま通常の管理操作を閉じる", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const actor = await seedOrganizationManagerShop(ctx, {
+        subject: "manage_usage_over_limit",
+        plan: "free",
+      });
+      for (let index = 0; index < 5; index += 1) {
+        await seedStaff(ctx, {
+          shopId: actor.shopId,
+          name: `上限超過スタッフ${index}`,
+          email: `manage-over-limit-${index}@example.com`,
+        });
+      }
+      return actor;
+    });
+
+    const overview = await t
+      .withIdentity({ subject: "manage_usage_over_limit" })
+      .query(api.appOrganization.manageQueries.getManageOverview, {
+        organizationId: ids.organizationId,
+      });
+
+    expect(overview.usage).toMatchObject({
+      state: "free",
+      currentPlan: "free",
+      peopleUsage: { current: 6, max: 5 },
+    });
+    expect(overview.capabilities).toMatchObject({
+      canUpdateOrganizationName: false,
+      canAddShop: false,
+      updateOrganizationNameDisabledReason: expect.stringContaining("プラン上限を超過"),
+      addShopDisabledReason: expect.stringContaining("プラン上限を超過"),
+      canDeleteOrganization: true,
     });
   });
 

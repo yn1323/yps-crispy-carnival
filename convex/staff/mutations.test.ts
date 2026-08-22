@@ -2757,7 +2757,8 @@ describe("staff/mutations", () => {
         });
         const targetShopIds: Id<"shops">[] = [];
         const activeStaffsPerShopBeforeAdd = 39;
-        const shopCount = 5;
+        // 操作用のbase店舗と合わせてPro上限の5店舗以内に収め、stats work上限だけを検証する。
+        const shopCount = 4;
         for (let shopIndex = 0; shopIndex < shopCount; shopIndex += 1) {
           const targetShopId = await seedMembershipChangeShop(ctx, base.organizationId, `集計上限店舗${shopIndex}`);
           targetShopIds.push(targetShopId);

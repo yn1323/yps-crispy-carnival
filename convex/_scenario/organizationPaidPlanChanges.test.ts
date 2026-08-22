@@ -834,7 +834,7 @@ describe("有料プラン変更シナリオ", () => {
     ]);
   });
 
-  it("Proの解約は公開Actionで期間末に予約し、deadline jobとprovider解約確認後にrestrictedになる", async () => {
+  it("Proの解約は公開Actionで期間末に予約し、deadline jobとprovider解約確認後にFreeになる", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedPaidStripeContext(t, {
       subject: "scenario_pro_to_free",
@@ -879,24 +879,15 @@ describe("有料プラン変更シナリオ", () => {
     await finishZeroDelayJobs(t);
 
     expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
-      state: "restricted",
-      currentPlan: null,
-      previousPlan: "pro",
-      peopleUsage: { current: 1, max: 0, pendingInvitations: 0 },
-      shopUsage: { current: 1, max: 0, pendingInvitations: 0 },
-      managerUsage: { current: 1, max: 0, pendingInvitations: 0 },
+      state: "free",
+      currentPlan: "free",
+      peopleUsage: { current: 1, max: 5, pendingInvitations: 0 },
+      shopUsage: { current: 1, max: 1, pendingInvitations: 0 },
+      managerUsage: { current: 1, max: 2, pendingInvitations: 0 },
+      requiredReductions: { people: 0, shops: 0, managers: 0 },
     });
     const snapshot = await getBillingSnapshot(t, ids.organizationId);
-    expect(snapshot.billing?.state).toMatchObject({
-      kind: "restricted",
-      reason: "scheduledCancellation",
-      previousPlan: "pro",
-      recoveryManagerPersonIds: [ids.personId],
-      previousActiveShopIds: [ids.shopId],
-    });
-    expect(
-      snapshot.billing?.state.kind === "restricted" ? snapshot.billing.state.restrictedAt : 0,
-    ).toBeGreaterThanOrEqual(ids.periodEndsAt);
+    expect(snapshot.billing?.state).toEqual({ kind: "active", plan: "free" });
     expect(snapshot.subscription).toMatchObject({ status: "canceled" });
     expect(snapshot.subscription?.terminalAt).toBeGreaterThanOrEqual(ids.periodEndsAt);
     expect(
@@ -1469,7 +1460,7 @@ describe("有料プラン変更シナリオ", () => {
     expect(provider.scheduleReleaseAttempts).toBe(1);
   });
 
-  it("BusinessからProは期間末までBusinessを維持し、21人ならprovider確定後のrestrictedを経て人物削除でProへ復旧する", async () => {
+  it("BusinessからProは期間末までBusinessを維持し、21人ならPro確定後に上限超過となり人物削除で自動解除する", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedPaidStripeContext(t, {
       subject: "business_pro_over_limit",
@@ -1514,23 +1505,23 @@ describe("有料プラン変更シナリオ", () => {
     await t.finishInProgressScheduledFunctions();
     await finishZeroDelayJobs(t);
 
-    const restrictedSettings = await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId });
-    expect(restrictedSettings?.billing).toMatchObject({
-      state: "restricted",
-      previousPlan: "business",
-      targetPlan: "pro",
-      limitPlan: "pro",
+    const overLimitSettings = await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId });
+    expect(overLimitSettings?.billing).toMatchObject({
+      state: "pro",
+      currentPlan: "pro",
       peopleUsage: { current: 21, max: 20, pendingInvitations: 0 },
       requiredReductions: { people: 1, shops: 0, managers: 0 },
+      blockedReason: expect.stringContaining("上限"),
     });
-    const restrictedState = await t.run((ctx) => ctx.db.get(seeded.billingStateId));
-    expect(restrictedState?.state).toMatchObject({
-      kind: "restricted",
-      reason: "planLimitExceeded",
-      previousPlan: "business",
-      targetPlan: "pro",
-      limitPlan: "pro",
-    });
+    const overLimitState = await t.run((ctx) => ctx.db.get(seeded.billingStateId));
+    expect(overLimitState?.state).toEqual({ kind: "active", plan: "pro" });
+    await expect(
+      actor.mutation(api.organization.mutations.updateOrganizationName, {
+        shopId: ids.shopId,
+        name: "上限超過中の更新",
+        requestId: "business-pro-over-limit-name",
+      }),
+    ).rejects.toMatchObject({ data: { code: "USAGE_LIMIT_EXCEEDED" } });
 
     await expect(
       actor.mutation(api.organization.mutations.removePersonFromOrganization, {
@@ -1549,6 +1540,7 @@ describe("有料プラン変更シナリオ", () => {
       peopleUsage: { current: 20, max: 20, pendingInvitations: 0 },
       requiredReductions: { people: 0, shops: 0, managers: 0 },
     });
+    expect(restoredSettings?.billing).not.toHaveProperty("blockedReason");
     const restored = await t.run(async (ctx) => ({
       billingState: await ctx.db.get(seeded.billingStateId),
       person: await ctx.db.get(removalTarget.personId),

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
@@ -124,6 +125,48 @@ async function seedRecruitment(
   );
 }
 
+async function seedSubmissionUsageRestriction(
+  t: TestConvex<typeof schema>,
+  shopId: Id<"shops">,
+  kind: "overLimit" | "unknown",
+) {
+  await t.run(async (ctx) => {
+    const shop = await ctx.db.get(shopId);
+    if (!shop?.organizationId) throw new Error("テスト用organizationが見つかりません");
+    const now = Date.now();
+    await ctx.db.insert("organizationBillingStates", {
+      organizationId: shop.organizationId,
+      state: { kind: "active", plan: "free" },
+      freeShopId: shopId,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    if (kind === "overLimit") {
+      for (let index = 0; index < 6; index += 1) {
+        await seedStaff(ctx, {
+          shopId,
+          name: `上限超過スタッフ${index + 1}`,
+          email: `submission-over-limit-${index + 1}@example.com`,
+        });
+      }
+      return;
+    }
+    for (let index = 0; index <= 100; index += 1) {
+      const email = `submission-unknown-${index + 1}@example.com`;
+      await ctx.db.insert("organizationPeople", {
+        organizationId: shop.organizationId,
+        name: `判定不能人物${index + 1}`,
+        email,
+        emailNormalized: email,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  });
+}
+
 describe("shiftSubmission/queries", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -132,6 +175,36 @@ describe("shiftSubmission/queries", () => {
   afterEach(() => vi.useRealTimers());
 
   describe("getSubmissionPageData", () => {
+    it("billing state未移行中は従来どおり提出画面データを返す", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+
+      const result = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+      });
+
+      expect(result.status).toBe("ok");
+    });
+
+    it.each([
+      ["overLimit", "usage_limit_exceeded"],
+      ["unknown", "usage_limit_evaluation_unavailable"],
+    ] as const)("利用上限が%sなら受付終了と区別できる理由を返す", async (kind, reason) => {
+      const t = convexTest(schema, modules);
+      const { shopId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+      await seedSubmissionUsageRestriction(t, shopId, kind);
+
+      const result = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+      });
+
+      expect(result).toEqual({ status: "unavailable", reason });
+    });
+
     it("スタッフ所属店舗と異なる店舗を指すsessionは無効として扱う", async () => {
       const t = convexTest(schema, modules);
       const { staffId, sessionToken } = await setupSubmissionPageData(t);

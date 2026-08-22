@@ -171,9 +171,19 @@ function PlanUsageFooter({ usage }: { usage: PlanStatusCardUsage | null | undefi
   }
 
   const items = [
-    { icon: LuUsers, label: "スタッフ", suffix: "人", usage: usage.peopleUsage },
-    { icon: LuStore, label: "店舗", suffix: "店舗", usage: usage.shopUsage },
-    ...(usage.managerUsage ? [{ icon: LuUserRoundCog, label: "管理者", suffix: "人", usage: usage.managerUsage }] : []),
+    { icon: LuUsers, label: "利用人数", suffix: "人", usage: usage.peopleUsage, pendingInvitations: 0 },
+    { icon: LuStore, label: "店舗", suffix: "店舗", usage: usage.shopUsage, pendingInvitations: 0 },
+    ...(usage.managerUsage
+      ? [
+          {
+            icon: LuUserRoundCog,
+            label: "管理者",
+            suffix: "人",
+            usage: usage.managerUsage,
+            pendingInvitations: usage.pendingManagerInvitations ?? 0,
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -214,6 +224,11 @@ function PlanUsageFooter({ usage }: { usage: PlanStatusCardUsage | null | undefi
                   {item.suffix}
                 </Text>
               </HStack>
+              {item.pendingInvitations > 0 && (
+                <Text fontSize="xs" lineHeight="short" color="fg.muted" fontWeight="medium" whiteSpace="nowrap">
+                  招待中 {item.pendingInvitations}人
+                </Text>
+              )}
             </Stack>
           );
         })}

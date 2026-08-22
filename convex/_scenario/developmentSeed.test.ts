@@ -161,13 +161,13 @@ describe("development seed rebuild", () => {
     expect(preflight.scenarioKeys).toEqual(DEVELOPMENT_SEED_SCENARIO_KEYS);
     expect(verification).toEqual({
       contractVersion: "development-seed-v1",
-      contractFingerprint: "40f3c160",
+      contractFingerprint: "b005d0bb",
       scenarioCount: 9,
       tableCount: 66,
       organizationCount: 9,
       shopCount: 11,
-      staffCount: 19,
-      recruitmentCount: 11,
+      staffCount: 23,
+      recruitmentCount: 12,
       openFailureCount: 1,
       activeOutboxCount: 0,
       activeFanoutCount: 0,
@@ -285,7 +285,7 @@ describe("development seed rebuild", () => {
       return {
         businessShopId,
         freeShopId: findShop("[SEED] Free・上限確認"),
-        policyRestrictedShopId: findShop("[SEED] 利用条件制限"),
+        policyOverLimitShopId: findShop("[SEED] Pro・上限超過"),
         scheduledStopShopId: findShop("[SEED] Pro・解約予約"),
         trialShopId: findShop("[SEED] Trial・終了間近"),
         lineStatuses: lineStates.map((state) => state?.status).sort(),
@@ -363,9 +363,9 @@ describe("development seed rebuild", () => {
     await expect(primaryManager.query(api.legal.queries.getManagerConsentStatus, {})).resolves.toEqual(
       expect.objectContaining({ required: false }),
     );
-    const [scheduledStopSettings, policyRestrictedSettings] = await Promise.all([
+    const [scheduledStopSettings, policyOverLimitSettings] = await Promise.all([
       primaryManager.query(api.organization.queries.getSettings, { shopId: productScopes.scheduledStopShopId }),
-      primaryManager.query(api.organization.queries.getSettings, { shopId: productScopes.policyRestrictedShopId }),
+      primaryManager.query(api.organization.queries.getSettings, { shopId: productScopes.policyOverLimitShopId }),
     ]);
     expect(scheduledStopSettings?.billing).toMatchObject({
       state: "scheduledChange",
@@ -374,16 +374,18 @@ describe("development seed rebuild", () => {
       restrictAtPeriodEnd: true,
       nextEvent: { label: "契約終了日" },
     });
-    expect(policyRestrictedSettings?.billing).toMatchObject({
-      state: "restricted",
-      currentPlan: null,
-      previousPlan: "business",
-      targetPlan: "pro",
-      limitPlan: "pro",
+    expect(policyOverLimitSettings?.billing).toMatchObject({
+      state: "pro",
+      currentPlan: "pro",
       peopleUsage: { current: 6, max: 20, pendingInvitations: 0 },
       shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
       managerUsage: { current: 6, max: 5, pendingInvitations: 0 },
       requiredReductions: { people: 0, shops: 0, managers: 1 },
+    });
+    expect(policyOverLimitSettings).toMatchObject({
+      canUpdateOrganizationName: false,
+      canAddShop: false,
+      canInviteManager: false,
     });
   });
 
