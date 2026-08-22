@@ -62,6 +62,7 @@ export type HelpIndexProps = {
 export function HelpIndex({ metas = helpIndexMetas, faqContents = faqEntries, tasks = HELP_TASKS }: HelpIndexProps) {
   const [query, setQuery] = useState("");
   const [openItems, setOpenItems] = useState<string[]>([]);
+  const [selectedTaskId, setSelectedTaskId] = useState<HelpTaskId | null>(null);
   const hasQuery = query.trim().length > 0;
   const results = useMemo(() => searchHelpMetas(metas, query), [metas, query]);
   const faqContentById = useMemo(() => new Map(faqContents.map((entry) => [entry.meta.id, entry])), [faqContents]);
@@ -75,9 +76,11 @@ export function HelpIndex({ metas = helpIndexMetas, faqContents = faqEntries, ta
       } catch {
         return;
       }
-      if (!faqContentById.has(id)) return;
+      const faqEntry = faqContentById.get(id);
+      if (!faqEntry) return;
 
       setQuery("");
+      setSelectedTaskId(faqEntry.meta.task);
       setOpenItems((current) => (current.includes(id) ? current : [...current, id]));
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -97,10 +100,26 @@ export function HelpIndex({ metas = helpIndexMetas, faqContents = faqEntries, ta
     requestAnimationFrame(() => document.getElementById("help-search")?.focus());
   };
 
+  const selectTask = (taskId: HelpTaskId) => {
+    clearLocationHash();
+    setSelectedTaskId((current) => (current === taskId ? null : taskId));
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => document.getElementById("help-browse-content")?.scrollIntoView({ block: "start" }));
+    });
+  };
+
+  const showRecommendations = () => {
+    clearLocationHash();
+    setSelectedTaskId(null);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => document.getElementById("help-browse-content")?.scrollIntoView({ block: "start" }));
+    });
+  };
+
   return (
     <PublicPageLayout headerProps={{ showLinks: false, showLogin: false }}>
-      <HelpHero query={query} onQueryChange={setQuery} />
-      <Container maxW="6xl" px={{ base: 4, lg: 8 }} py={{ base: 8, lg: 14 }}>
+      <Container maxW="6xl" px={{ base: 4, lg: 8 }} py={{ base: 6, lg: 10 }}>
+        <HelpHeader query={query} onQueryChange={setQuery} />
         <Accordion.Root
           collapsible
           multiple
@@ -122,6 +141,9 @@ export function HelpIndex({ metas = helpIndexMetas, faqContents = faqEntries, ta
               metas={metas}
               faqContentById={faqContentById}
               metadataById={metadataById}
+              selectedTaskId={selectedTaskId}
+              onSelectTask={selectTask}
+              onShowRecommendations={showRecommendations}
             />
           )}
         </Accordion.Root>
@@ -131,46 +153,49 @@ export function HelpIndex({ metas = helpIndexMetas, faqContents = faqEntries, ta
   );
 }
 
-function HelpHero({ query, onQueryChange }: { query: string; onQueryChange: (value: string) => void }) {
+function clearLocationHash() {
+  if (!window.location.hash) return;
+  window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+}
+
+function HelpHeader({ query, onQueryChange }: { query: string; onQueryChange: (value: string) => void }) {
   return (
-    <Box borderBottomWidth="1px" borderColor="gray.200" bg="gray.50/60">
-      <Container maxW="6xl" px={{ base: 4, lg: 8 }} py={{ base: 7, lg: 11 }}>
-        <Stack gap={4} maxW="720px">
-          <Heading as="h1" color="gray.950" fontSize={{ base: "3xl", lg: "4xl" }} letterSpacing="0">
-            ヘルプ
-          </Heading>
-          <Text color="gray.700" lineHeight="1.8">
-            やりたいことから使い方を確認したり、困っていることをFAQから探したりできます。
-          </Text>
-          <Box position="relative">
-            <Icon
-              as={LuSearch}
-              position="absolute"
-              insetStart={3.5}
-              top="50%"
-              transform="translateY(-50%)"
-              boxSize={4.5}
-              color="gray.500"
-              pointerEvents="none"
-            />
-            <Input
-              id="help-search"
-              type="search"
-              value={query}
-              onChange={(event) => onQueryChange(event.currentTarget.value)}
-              aria-label="ヘルプを検索"
-              placeholder="例：スタッフを追加したい、通知が届かない"
-              ps={10}
-              pe={4}
-              bg="white"
-              borderColor="gray.300"
-              borderRadius="md"
-              _focusVisible={{ borderColor: "teal.600", boxShadow: "0 0 0 1px var(--chakra-colors-teal-600)" }}
-            />
-          </Box>
-        </Stack>
-      </Container>
-    </Box>
+    <Stack gap={3} maxW="760px" mb={{ base: 8, lg: 10 }}>
+      <Heading as="h1" color="gray.950" fontSize={{ base: "2xl", lg: "3xl" }} letterSpacing="0">
+        ヘルプ
+      </Heading>
+      <Text color="gray.700" lineHeight="1.7">
+        やりたいことを選ぶか、キーワードでFAQと使い方を検索できます。
+      </Text>
+      <Box position="relative" mt={1}>
+        <Icon
+          as={LuSearch}
+          position="absolute"
+          insetStart={4}
+          top="50%"
+          transform="translateY(-50%)"
+          boxSize={5}
+          color="gray.500"
+          pointerEvents="none"
+        />
+        <Input
+          id="help-search"
+          type="search"
+          value={query}
+          onChange={(event) => onQueryChange(event.currentTarget.value)}
+          aria-label="ヘルプを検索"
+          placeholder="例：スタッフを追加したい、通知が届かない"
+          h={{ base: 12, md: 14 }}
+          ps={12}
+          pe={4}
+          bg="white"
+          borderColor="gray.300"
+          borderRadius="lg"
+          fontSize={{ md: "md" }}
+          _focusVisible={{ borderColor: "teal.600", boxShadow: "0 0 0 1px var(--chakra-colors-teal-600)" }}
+        />
+      </Box>
+    </Stack>
   );
 }
 
@@ -179,19 +204,51 @@ function DefaultHelpContent({
   metas,
   faqContentById,
   metadataById,
+  selectedTaskId,
+  onSelectTask,
+  onShowRecommendations,
 }: {
   tasks: readonly HelpTask[];
   metas: readonly HelpMetadata[];
   faqContentById: ReadonlyMap<string, HelpFaqContent>;
   metadataById: ReadonlyMap<string, HelpMetadata>;
+  selectedTaskId: HelpTaskId | null;
+  onSelectTask: (taskId: HelpTaskId) => void;
+  onShowRecommendations: () => void;
 }) {
+  const selectedTask = tasks.find((task) => task.id === selectedTaskId);
+  const selectedTaskMetas = selectedTask ? metas.filter((meta) => meta.task === selectedTask.id) : [];
+  const selectedTaskFaqs = selectedTaskMetas
+    .filter((meta) => meta.kind === "faq")
+    .map((meta) => faqContentById.get(meta.id))
+    .filter((entry): entry is HelpFaqContent => Boolean(entry));
+  const selectedTaskGuides = selectedTaskMetas.filter((meta): meta is GuideMetadata => meta.kind === "guide");
+  const featuredFaqs = metas
+    .filter((meta) => meta.kind === "faq" && meta.homeFeatured)
+    .slice(0, 6)
+    .map((meta) => faqContentById.get(meta.id))
+    .filter((entry): entry is HelpFaqContent => Boolean(entry));
+  const featuredGuideIds = new Set(
+    featuredFaqs
+      .map((entry) => entry.meta.primaryGuide)
+      .filter((primaryGuide): primaryGuide is string => Boolean(primaryGuide)),
+  );
+  const featuredGuides = [...featuredGuideIds]
+    .map((id) => metadataById.get(id))
+    .filter((meta): meta is GuideMetadata => meta?.kind === "guide");
+
   return (
-    <Stack gap={{ base: 14, lg: 20 }}>
+    <Stack gap={{ base: 10, lg: 14 }}>
       <Box as="section" aria-labelledby="help-tasks-title">
-        <Heading id="help-tasks-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }} mb={5}>
-          やりたいことから探す
-        </Heading>
-        <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} gap={3}>
+        <Stack gap={1} mb={5}>
+          <Heading id="help-tasks-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }}>
+            やりたいことから探す
+          </Heading>
+          <Text color="gray.600" fontSize="sm">
+            選ぶと、関連する質問と手順だけを表示します。
+          </Text>
+        </Stack>
+        <SimpleGrid columns={{ base: 2, lg: 3 }} gap={{ base: 2.5, md: 3 }}>
           {tasks.map((task) => {
             const taskMetas = metas.filter((meta) => meta.task === task.id);
             return (
@@ -200,65 +257,143 @@ function DefaultHelpContent({
                 task={task}
                 faqCount={taskMetas.filter((meta) => meta.kind === "faq").length}
                 guideCount={taskMetas.filter((meta) => meta.kind === "guide").length}
+                selected={task.id === selectedTaskId}
+                onSelect={() => onSelectTask(task.id)}
               />
             );
           })}
         </SimpleGrid>
       </Box>
 
-      <Stack gap={{ base: 14, lg: 18 }}>
-        {tasks.map((task) => {
-          const taskMetas = metas.filter((meta) => meta.task === task.id);
-          const taskFaqs = taskMetas
-            .filter((meta) => meta.kind === "faq")
-            .map((meta) => faqContentById.get(meta.id))
-            .filter((entry): entry is HelpFaqContent => Boolean(entry));
-          const taskGuides = taskMetas.filter((meta): meta is GuideMetadata => meta.kind === "guide");
-
-          if (taskFaqs.length === 0 && taskGuides.length === 0) return null;
-          return (
-            <TaskSection key={task.id} task={task} faqs={taskFaqs} guides={taskGuides} metadataById={metadataById} />
-          );
-        })}
-      </Stack>
+      <Box id="help-browse-content" scrollMarginTop={`calc(${HEADER_HEIGHT.md} + 24px)`}>
+        {selectedTask ? (
+          <TaskSection
+            task={selectedTask}
+            faqs={selectedTaskFaqs}
+            guides={selectedTaskGuides}
+            metadataById={metadataById}
+            onShowRecommendations={onShowRecommendations}
+          />
+        ) : (
+          <RecommendedHelp faqs={featuredFaqs} guides={featuredGuides} metadataById={metadataById} />
+        )}
+      </Box>
     </Stack>
   );
 }
 
-function TaskCard({ task, faqCount, guideCount }: { task: HelpTask; faqCount: number; guideCount: number }) {
+function TaskCard({
+  task,
+  faqCount,
+  guideCount,
+  selected,
+  onSelect,
+}: {
+  task: HelpTask;
+  faqCount: number;
+  guideCount: number;
+  selected: boolean;
+  onSelect: () => void;
+}) {
   const TaskIcon = TASK_ICONS[task.id];
 
   return (
-    <Link
-      href={`#task-${task.id}`}
+    <Button
+      type="button"
+      variant="outline"
+      colorPalette="gray"
+      aria-label={task.title}
+      aria-pressed={selected}
+      aria-controls="help-browse-content"
+      onClick={onSelect}
       display="flex"
       alignItems="flex-start"
+      justifyContent="flex-start"
       gap={3}
-      minH="120px"
-      p={4}
+      h="auto"
+      minH={{ base: "112px", md: "148px" }}
+      p={{ base: 3, md: 4 }}
       borderWidth="1px"
-      borderColor="gray.200"
+      borderColor={selected ? "teal.600" : "gray.200"}
       borderRadius="lg"
-      color="gray.950"
-      bg="white"
-      _hover={{ borderColor: "gray.400", boxShadow: "sm", textDecoration: "none" }}
+      color={selected ? "white" : "gray.950"}
+      bg={selected ? "teal.600" : "white"}
+      whiteSpace="normal"
+      textAlign="left"
+      _hover={
+        selected
+          ? { borderColor: "teal.700", bg: "teal.700" }
+          : { borderColor: "gray.400", bg: "gray.50", boxShadow: "sm" }
+      }
     >
-      <Flex align="center" justify="center" boxSize={10} flexShrink={0} borderRadius="lg" bg="teal.100">
-        <TaskIcon aria-hidden color="var(--chakra-colors-teal-800)" />
+      <Flex
+        align="center"
+        justify="center"
+        boxSize={{ base: 9, md: 10 }}
+        flexShrink={0}
+        borderRadius="lg"
+        bg={selected ? "whiteAlpha.300" : "teal.100"}
+      >
+        <TaskIcon aria-hidden color={selected ? "white" : "var(--chakra-colors-teal-800)"} />
       </Flex>
       <Stack gap={1} minW={0}>
         <HelpAudienceBadge audience={task.audience} />
-        <Text fontWeight="bold" lineHeight="1.6">
+        <Text fontWeight="bold" lineHeight="1.5" fontSize={{ base: "sm", md: "md" }}>
           {task.title}
         </Text>
-        <Text color="gray.600" fontSize="sm" lineHeight="1.7">
+        <Text
+          hideBelow="md"
+          color={selected ? "whiteAlpha.900" : "gray.600"}
+          fontSize="sm"
+          lineHeight="1.6"
+          lineClamp={2}
+        >
           {task.description}
         </Text>
-        <Text color="gray.500" fontSize="xs" fontWeight="semibold">
+        <Text hideBelow="md" color={selected ? "whiteAlpha.800" : "gray.500"} fontSize="xs" fontWeight="semibold">
           関連ヘルプ {faqCount + guideCount}件
         </Text>
       </Stack>
-    </Link>
+    </Button>
+  );
+}
+
+function RecommendedHelp({
+  faqs,
+  guides,
+  metadataById,
+}: {
+  faqs: HelpFaqContent[];
+  guides: GuideMetadata[];
+  metadataById: ReadonlyMap<string, HelpMetadata>;
+}) {
+  return (
+    <Grid templateColumns={{ base: "1fr", lg: "1fr 1fr" }} gap={{ base: 9, lg: 8 }}>
+      {faqs.length > 0 && (
+        <Box as="section" aria-labelledby="featured-faqs-title">
+          <Heading id="featured-faqs-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }} mb={4}>
+            よく見られる質問
+          </Heading>
+          <Stack gap={0} borderWidth="1px" borderColor="gray.200" borderRadius="lg" overflow="hidden">
+            {faqs.map((entry) => (
+              <FaqItem key={entry.meta.id} entry={entry} metadataById={metadataById} />
+            ))}
+          </Stack>
+        </Box>
+      )}
+      {guides.length > 0 && (
+        <Box as="section" aria-labelledby="featured-guides-title">
+          <Heading id="featured-guides-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }} mb={4}>
+            よく使う手順
+          </Heading>
+          <Stack gap={0} borderWidth="1px" borderColor="gray.200" borderRadius="lg" overflow="hidden">
+            {guides.map((guide) => (
+              <GuideCard key={guide.id} guide={guide} />
+            ))}
+          </Stack>
+        </Box>
+      )}
+    </Grid>
   );
 }
 
@@ -267,11 +402,13 @@ function TaskSection({
   faqs,
   guides,
   metadataById,
+  onShowRecommendations,
 }: {
   task: HelpTask;
   faqs: HelpFaqContent[];
   guides: GuideMetadata[];
   metadataById: ReadonlyMap<string, HelpMetadata>;
+  onShowRecommendations: () => void;
 }) {
   return (
     <Box
@@ -280,12 +417,22 @@ function TaskSection({
       scrollMarginTop={`calc(${HEADER_HEIGHT.md} + 24px)`}
       aria-labelledby={`task-${task.id}-title`}
     >
-      <Stack gap={2} mb={5}>
-        <Flex align="center" gap={2.5}>
-          <HelpAudienceBadge audience={task.audience} />
-          <Heading id={`task-${task.id}-title`} as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }}>
-            {task.title}
-          </Heading>
+      <Stack gap={3} mb={5}>
+        <Flex
+          align={{ base: "flex-start", sm: "center" }}
+          justify="space-between"
+          gap={3}
+          direction={{ base: "column", sm: "row" }}
+        >
+          <Flex align="center" gap={2.5}>
+            <HelpAudienceBadge audience={task.audience} />
+            <Heading id={`task-${task.id}-title`} as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }}>
+              {task.title}
+            </Heading>
+          </Flex>
+          <Button type="button" variant="outline" colorPalette="gray" size="sm" onClick={onShowRecommendations}>
+            おすすめへ戻る
+          </Button>
         </Flex>
         <Text color="gray.600" lineHeight="1.7">
           {task.description}
@@ -298,9 +445,11 @@ function TaskSection({
             <Text color="gray.700" fontSize="sm" fontWeight="bold">
               よくある質問
             </Text>
-            {faqs.map((entry) => (
-              <FaqItem key={entry.meta.id} entry={entry} metadataById={metadataById} />
-            ))}
+            <Stack gap={0} borderWidth="1px" borderColor="gray.200" borderRadius="lg" overflow="hidden">
+              {faqs.map((entry) => (
+                <FaqItem key={entry.meta.id} entry={entry} metadataById={metadataById} />
+              ))}
+            </Stack>
           </Stack>
         )}
         {guides.length > 0 && (
@@ -308,9 +457,11 @@ function TaskSection({
             <Text color="gray.700" fontSize="sm" fontWeight="bold">
               詳しい使い方
             </Text>
-            {guides.map((guide) => (
-              <GuideCard key={guide.id} guide={guide} />
-            ))}
+            <Stack gap={0} borderWidth="1px" borderColor="gray.200" borderRadius="lg" overflow="hidden">
+              {guides.map((guide) => (
+                <GuideCard key={guide.id} guide={guide} />
+              ))}
+            </Stack>
           </Stack>
         )}
       </Grid>
@@ -373,9 +524,11 @@ function SearchResults({
               <Heading as="h2" color="gray.950" fontSize="xl">
                 よくある質問（{faqs.length}件）
               </Heading>
-              {faqs.map((entry) => (
-                <FaqItem key={entry.meta.id} entry={entry} metadataById={metadataById} />
-              ))}
+              <Stack gap={0} borderWidth="1px" borderColor="gray.200" borderRadius="lg" overflow="hidden">
+                {faqs.map((entry) => (
+                  <FaqItem key={entry.meta.id} entry={entry} metadataById={metadataById} />
+                ))}
+              </Stack>
             </Stack>
           )}
           {guides.length > 0 && (
@@ -383,9 +536,11 @@ function SearchResults({
               <Heading as="h2" color="gray.950" fontSize="xl">
                 詳しい使い方（{guides.length}件）
               </Heading>
-              {guides.map((guide) => (
-                <GuideCard key={guide.id} guide={guide} />
-              ))}
+              <Stack gap={0} borderWidth="1px" borderColor="gray.200" borderRadius="lg" overflow="hidden">
+                {guides.map((guide) => (
+                  <GuideCard key={guide.id} guide={guide} />
+                ))}
+              </Stack>
             </Stack>
           )}
         </Grid>
@@ -405,11 +560,11 @@ function FaqItem({ entry, metadataById }: { entry: HelpFaqContent; metadataById:
       id={meta.id}
       value={meta.id}
       scrollMarginTop={`calc(${HEADER_HEIGHT.md} + 24px)`}
-      borderWidth="1px"
+      borderBottomWidth="1px"
       borderColor="gray.200"
-      borderRadius="lg"
       bg="white"
       overflow="hidden"
+      _last={{ borderBottomWidth: 0 }}
     >
       <Heading as="h3" fontSize="inherit" fontWeight="normal">
         <Accordion.ItemTrigger
@@ -417,7 +572,7 @@ function FaqItem({ entry, metadataById }: { entry: HelpFaqContent; metadataById:
           alignItems="center"
           gap={3}
           px={{ base: 4, md: 5 }}
-          py={4}
+          py={3.5}
           cursor="pointer"
           textAlign="left"
           _hover={{ bg: "gray.50" }}
@@ -489,19 +644,19 @@ function GuideCard({ guide }: { guide: GuideMetadata }) {
       gap={4}
       minH="92px"
       p={4}
-      borderWidth="1px"
+      borderBottomWidth="1px"
       borderColor="gray.200"
-      borderRadius="lg"
       color="gray.950"
       bg="white"
-      _hover={{ bg: "gray.50", borderColor: "gray.300", textDecoration: "none" }}
+      _hover={{ bg: "gray.50", textDecoration: "none" }}
+      _last={{ borderBottomWidth: 0 }}
     >
       <Stack gap={2} minW={0}>
         <HelpAudienceBadge audience={guide.audience} />
         <Text fontWeight="bold" lineHeight="1.6">
           {guide.title}
         </Text>
-        <Text color="gray.600" fontSize="sm" lineHeight="1.7" lineClamp={2}>
+        <Text color="gray.600" fontSize="sm" lineHeight="1.7" lineClamp={1}>
           {guide.summary}
         </Text>
       </Stack>

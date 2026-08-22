@@ -9,6 +9,7 @@ export function HelpAudienceBadge({ audience }: { audience: HelpAudience }) {
     <Badge
       colorPalette={colorPalette}
       variant="subtle"
+      alignSelf="flex-start"
       bg={audience === "manager" ? "teal.100" : undefined}
       borderRadius="full"
       px={2.5}
