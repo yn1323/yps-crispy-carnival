@@ -2,6 +2,7 @@ import { Box, Container, Heading, Icon, Stack, Text, VStack } from "@chakra-ui/r
 import { LuChevronRight, LuMousePointerClick } from "react-icons/lu";
 import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
 import { Button } from "@/src/components/ui/Button";
+import { TrialReassurance } from "../TrialReassurance";
 
 export const BottomCtaSection = () => (
   <Box as="section" bg="#eaf8f6" py={14} overflow="hidden">
@@ -16,12 +17,15 @@ export const BottomCtaSection = () => (
         <Text color="gray.800" fontSize="md" lineHeight="1.9" fontWeight="semibold" maxW="620px">
           希望シフトを集めるところから、確定を知らせるところまで。
           <br />
-          支払い情報を登録せず、実際のシフト運用を始めてみませんか。
+          まずは2か月、実際の店舗とスタッフで試してみませんか。
         </Text>
-        <Stack direction={{ base: "column", md: "row" }} gap={4} w={{ base: "full", md: "auto" }}>
-          <BottomButton href="/signup" label="シフトリを始める" primary />
-          <BottomButton href="/demo/flow" label="登録不要でデモを見る" />
-        </Stack>
+        <VStack align="start" gap={3} w={{ base: "full", md: "auto" }}>
+          <Stack direction={{ base: "column", md: "row" }} gap={4} w={{ base: "full", md: "auto" }}>
+            <BottomButton href="/signup" label="シフトリを始める" primary />
+            <BottomButton href="/demo/flow" label="登録不要でデモを見る" />
+          </Stack>
+          <TrialReassurance />
+        </VStack>
       </VStack>
     </Container>
   </Box>

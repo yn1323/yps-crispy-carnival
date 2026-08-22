@@ -8,12 +8,12 @@ import { Button } from "@/src/components/ui/Button";
 
 const planCards = [
   {
-    id: "complimentary-business",
-    name: "Business",
-    eyebrow: "最初の組織",
-    description: "初回登録で作る最初の組織には、支払い不要のBusinessが適用されます。",
-    priceLabel: "支払い情報の登録なし",
-    limits: ORGANIZATION_PLAN_LIMITS.business,
+    id: "trial",
+    name: "無料トライアル",
+    eyebrow: "初回登録から2か月",
+    description: "クレジットカードを登録せず、Proと同じ機能と利用上限で実際のシフト運用を試せます。",
+    priceLabel: "2か月無料",
+    limits: ORGANIZATION_PLAN_LIMITS.trial,
     featured: true,
   },
   {
@@ -47,9 +47,9 @@ const planCards = [
 
 const billingFacts: Array<{ icon: IconType; title: string; body: string }> = [
   {
-    icon: LuBuilding2,
-    title: "複数の組織を作成",
-    body: "最初の組織には支払い不要のBusiness、二つ目以降の組織にはFreeが適用されます。",
+    icon: LuCalendarDays,
+    title: "2か月の無料トライアル",
+    body: "初回登録ではクレジットカードを求めず、Proと同じ機能と利用上限を2か月間試せます。",
   },
   {
     icon: LuStore,
@@ -83,13 +83,13 @@ export function PricingSite() {
                 lineHeight="1.25"
                 letterSpacing="0"
               >
-                支払い情報を登録せず、
+                2か月無料、カード登録なしで
                 <Box as="span" display="block" color="teal.700">
-                  実際のシフト運用を始められます
+                  実際のシフト運用を試せます
                 </Box>
               </Heading>
               <Text color="gray.700" fontSize={{ base: "md", md: "lg" }} lineHeight="1.9" maxW="760px">
-                初回登録で作る最初の組織には、支払い不要のBusinessが適用されます。2ヶ月のトライアル期限や支払い方法の登録はありません。
+                無料トライアル中も、実際の店舗とスタッフを登録して、希望回収からシフト確定まで進められます。複数店舗と複数の管理者にも対応しています。
               </Text>
             </Stack>
             <Stack direction={{ base: "column", sm: "row" }} gap={3} align={{ base: "stretch", sm: "center" }}>
@@ -114,10 +114,10 @@ export function PricingSite() {
           <Box as="section" aria-labelledby="plan-comparison-heading">
             <Stack gap={3} maxW="760px" mb={7}>
               <Heading id="plan-comparison-heading" as="h2" color="gray.950" fontSize={{ base: "2xl", md: "3xl" }}>
-                組織ごとに利用できるプラン
+                無料トライアルと利用プラン
               </Heading>
               <Text color="gray.700" lineHeight="1.8">
-                最初の組織は支払い不要のBusinessで始まります。二つ目以降の組織はFreeで作成され、必要に応じてProまたはBusinessを選べます。
+                初回登録から2か月は無料トライアルです。トライアル終了後も継続する場合はProまたはBusinessを選び、二つ目以降の組織はFreeから始められます。
               </Text>
             </Stack>
             <SimpleGrid columns={{ base: 1, md: 2, xl: 4 }} gap={5}>
@@ -175,13 +175,13 @@ export function PricingSite() {
                   color="gray.950"
                   fontSize={{ base: "xl", md: "2xl" }}
                 >
-                  組織ごとにプランを管理できます
+                  無料トライアル後は、利用プランを選べます
                 </Heading>
                 <Text color="gray.800" lineHeight="1.85">
-                  初回登録で作る最初の組織には、2ヶ月のトライアル終了日を設定しません。支払い情報を登録せず、支払い不要のBusinessで利用を始めます。
+                  無料トライアル中はクレジットカードの登録なしで、利用人数20名、稼働店舗5件、有効な管理者5名まで利用できます。
                 </Text>
                 <Text color="gray.800" lineHeight="1.85">
-                  二つ目以降の組織はFreeから始まり、有料のProまたはBusinessへ変更できます。有料プランの契約を確定する前に、契約画面で料金と請求条件を確認できます。
+                  トライアル終了後も継続する場合はProまたはBusinessを選びます。有料プランを選ばない場合は、登録したデータを保持したまま業務操作が制限されます。料金と請求条件は、契約を確定する前に契約画面で確認できます。
                 </Text>
               </Stack>
             </Flex>

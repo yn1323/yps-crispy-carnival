@@ -39,19 +39,28 @@ export const PublishedPlanContract: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvas.getByText("複数の組織を作成")).toBeInTheDocument();
-    await expect(canvas.getByText("店舗と管理者を追加")).toBeInTheDocument();
-    await expect(canvas.getByRole("heading", { name: "組織ごとに利用できるプラン" })).toBeInTheDocument();
+    await expect(canvas.getByRole("heading", { name: "無料トライアルと利用プラン" })).toBeInTheDocument();
+    await expect(canvas.getByText("2か月の無料トライアル")).toBeInTheDocument();
+    await expect(
+      canvas.getByText("クレジットカードを登録せず、Proと同じ機能と利用上限で実際のシフト運用を試せます。"),
+    ).toBeInTheDocument();
+    await expect(canvas.getByText("2か月無料")).toBeInTheDocument();
+    await expect(canvas.getByText("無料トライアル")).toBeInTheDocument();
     await expect(canvas.getByText("Free")).toBeInTheDocument();
     await expect(canvas.getByText("Pro")).toBeInTheDocument();
-    await expect(canvas.getAllByText("Business")).toHaveLength(2);
+    await expect(canvas.getByText("Business")).toBeInTheDocument();
     await expect(canvas.getAllByText("料金は契約画面で確認")).toHaveLength(2);
 
+    await expectPlanLimits(
+      canvas.getByRole("heading", { name: "無料トライアル" }).parentElement,
+      ORGANIZATION_PLAN_LIMITS.trial,
+    );
     await expectPlanLimits(canvas.getByRole("heading", { name: "Free" }).parentElement, ORGANIZATION_PLAN_LIMITS.free);
     await expectPlanLimits(canvas.getByRole("heading", { name: "Pro" }).parentElement, ORGANIZATION_PLAN_LIMITS.pro);
-    const businessHeadings = canvas.getAllByRole("heading", { name: "Business" });
-    await expectPlanLimits(businessHeadings[0]?.parentElement ?? null, ORGANIZATION_PLAN_LIMITS.business);
-    await expectPlanLimits(businessHeadings[1]?.parentElement ?? null, ORGANIZATION_PLAN_LIMITS.business);
+    await expectPlanLimits(
+      canvas.getByRole("heading", { name: "Business" }).parentElement,
+      ORGANIZATION_PLAN_LIMITS.business,
+    );
     await expect(canvas.queryByText(/未公開|公開範囲/)).not.toBeInTheDocument();
   },
 };
