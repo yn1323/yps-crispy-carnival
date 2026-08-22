@@ -11,6 +11,10 @@ import { observedInternalAction as internalAction } from "../_lib/errorObservabi
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
+import {
+  SHIFT_CONFIRMATION_NOTIFICATION_KIND,
+  SHIFT_RECRUITMENT_NOTIFICATION_KIND,
+} from "../notificationOutbox/historyKinds";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
 import {
   lineRecipientOutboxSnapshot,
@@ -33,9 +37,7 @@ import {
   buildShiftConfirmationLineText,
 } from "./templates";
 
-const SHIFT_CONFIRMATION_NOTIFICATION_KIND = "shift.confirmation";
 const SHIFT_REISSUE_NOTIFICATION_KIND = "shift.reissue";
-const SHIFT_RECRUITMENT_NOTIFICATION_KIND = "shift.recruitment";
 
 function selectLineRecipient(
   recipient: NotificationLineRecipient | null,

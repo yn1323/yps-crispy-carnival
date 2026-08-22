@@ -3,6 +3,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { seedNotificationHistory } from "../_test/notificationHistory";
 import {
   seedLegacyShopMembership,
   seedManagerShop,
@@ -11,7 +12,12 @@ import {
   seedStaffLineAccount,
 } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { LINE_LINK_REDEEM_GLOBAL_LIMIT, LINE_WEBHOOK_MESSAGE_REQUEST_LIMIT } from "../constants";
+import {
+  LINE_LINK_REDEEM_GLOBAL_LIMIT,
+  LINE_WEBHOOK_MESSAGE_REQUEST_LIMIT,
+  NOTIFICATION_RESEND_COOLDOWN_MS,
+} from "../constants";
+import { LINE_INVITE_NOTIFICATION_KIND } from "../notificationOutbox/historyKinds";
 import { ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT } from "../organization/service";
 import { resolveStaffLineRecipient } from "./service";
 
@@ -2351,7 +2357,7 @@ describe("line/mutations", () => {
       const { shopId, staffId } = await setupShop(t);
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.sendInvite, { shopId, staffId }),
-      ).resolves.not.toThrow();
+      ).resolves.toEqual({ scheduled: true });
     });
 
     it("同じスタッフへの短時間連打では送信予約を増やさない", async () => {
@@ -2359,11 +2365,73 @@ describe("line/mutations", () => {
       const { shopId, staffId } = await setupShop(t);
       const asManager = t.withIdentity({ subject: "user_mgr" });
 
-      await asManager.mutation(api.line.mutations.sendInvite, { shopId, staffId });
-      await asManager.mutation(api.line.mutations.sendInvite, { shopId, staffId });
+      await expect(asManager.mutation(api.line.mutations.sendInvite, { shopId, staffId })).resolves.toEqual({
+        scheduled: true,
+      });
+      await expect(asManager.mutation(api.line.mutations.sendInvite, { shopId, staffId })).resolves.toEqual({
+        scheduled: false,
+        reason: "rateLimited",
+      });
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
       expect(scheduled.filter((job) => job.name === "line/actions:sendInviteEmail")).toHaveLength(1);
+    });
+
+    it("有効な送信履歴から10分間は副作用とquota消費なしで拒否し、10分ちょうどで許可する", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, staffId } = await setupShop(t);
+      await t.run(
+        async (ctx) =>
+          await seedNotificationHistory(ctx, {
+            shopId,
+            staffId,
+            notificationKind: LINE_INVITE_NOTIFICATION_KIND,
+            requestedAt: Date.now(),
+          }),
+      );
+      const beforeRejection = await t.run(async (ctx) => ({
+        outbox: await ctx.db.query("notificationOutbox").collect(),
+        rateLimits: await ctx.db.query("rateLimits").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      const asManager = t.withIdentity({ subject: "user_mgr" });
+
+      await expect(asManager.mutation(api.line.mutations.sendInvite, { shopId, staffId })).resolves.toEqual({
+        scheduled: false,
+        reason: "recentlySent",
+      });
+      await expect(
+        t.run(async (ctx) => ({
+          outbox: await ctx.db.query("notificationOutbox").collect(),
+          rateLimits: await ctx.db.query("rateLimits").collect(),
+          scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        })),
+      ).resolves.toEqual(beforeRejection);
+
+      vi.advanceTimersByTime(NOTIFICATION_RESEND_COOLDOWN_MS);
+      await expect(asManager.mutation(api.line.mutations.sendInvite, { shopId, staffId })).resolves.toEqual({
+        scheduled: true,
+      });
+    });
+
+    it("同一組織人物の別店舗所属にLINE案内履歴があれば再送を拒否する", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupOrganizationPersonTwoShops(t, "line_invite_cooldown_person");
+      await t.run(
+        async (ctx) =>
+          await seedNotificationHistory(ctx, {
+            shopId: ids.shopBId,
+            staffId: ids.staffBId,
+            notificationKind: LINE_INVITE_NOTIFICATION_KIND,
+            requestedAt: Date.now(),
+          }),
+      );
+
+      await expect(
+        t
+          .withIdentity({ subject: "line_invite_cooldown_person" })
+          .mutation(api.line.mutations.sendInvite, { shopId: ids.shopId, staffId: ids.staffAId }),
+      ).resolves.toEqual({ scheduled: false, reason: "recentlySent" });
     });
 
     it("1店舗で31人へ連続してLINE招待を予約できる", async () => {

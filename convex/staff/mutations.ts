@@ -28,6 +28,10 @@ import {
   cancelOrganizationRecipientBusinessNotifications,
 } from "../notificationOutbox/mutations";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
+import {
+  collectNotificationResendCooldowns,
+  isNotificationResendCooldownActive,
+} from "../notificationOutbox/resendCooldown";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import { updateOrganizationPersonProfile } from "../organization/personProfile";
 import {
@@ -1567,7 +1571,7 @@ export const sendOpenRecruitmentNotifications = managerMutation({
     v.object({ scheduled: v.literal(true) }),
     v.object({
       scheduled: v.literal(false),
-      reason: v.union(v.literal("noEligibleRecruitments"), v.literal("rateLimited")),
+      reason: v.union(v.literal("noEligibleRecruitments"), v.literal("recentlySent"), v.literal("rateLimited")),
     }),
   ),
   handler: async (ctx, args) => {
@@ -1581,6 +1585,11 @@ export const sendOpenRecruitmentNotifications = managerMutation({
     );
     if (!notificationData || notificationData.shopId !== ctx.shop._id || notificationData.recruitments.length === 0) {
       return { scheduled: false, reason: "noEligibleRecruitments" as const };
+    }
+
+    const cooldowns = await collectNotificationResendCooldowns(ctx, [{ shopId: staff.shopId, staffId: staff._id }]);
+    if (isNotificationResendCooldownActive(cooldowns.openRecruitmentsUntil, Date.now())) {
+      return { scheduled: false, reason: "recentlySent" as const };
     }
 
     const allowed = await allowStaffNotificationResend(
@@ -1613,6 +1622,7 @@ export const sendCurrentShiftNotification = managerMutation({
         v.literal("noCurrentShift"),
         v.literal("tooManyCurrentShifts"),
         v.literal("unconfirmedChanges"),
+        v.literal("recentlySent"),
         v.literal("rateLimited"),
       ),
     }),
@@ -1625,6 +1635,11 @@ export const sendCurrentShiftNotification = managerMutation({
     }
     const scope = await getCurrentShiftNotificationScope(ctx, ctx.shop._id);
     if ("reason" in scope) return { scheduled: false, reason: scope.reason };
+
+    const cooldowns = await collectNotificationResendCooldowns(ctx, [{ shopId: staff.shopId, staffId: staff._id }]);
+    if (isNotificationResendCooldownActive(cooldowns.currentShiftUntil, Date.now())) {
+      return { scheduled: false, reason: "recentlySent" as const };
+    }
 
     const allowed = await allowStaffNotificationResend(ctx, staff._id, "currentShift", scope.recruitments.length);
     if (!allowed) return { scheduled: false, reason: "rateLimited" as const };

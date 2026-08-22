@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { LuMail, LuQrCode, LuUnlink } from "react-icons/lu";
 import { LineLinkQrDialog } from "@/src/components/features/Line";
+import { NotificationResendCooldownNotice } from "@/src/components/shared/NotificationResendCooldownNotice";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog, DialogActionArea } from "@/src/components/ui/Dialog";
 import type { UserDetailData } from "./types";
@@ -14,6 +15,8 @@ type Props = {
   showQr: boolean;
   isQrLoading: boolean;
   isSendingInvite: boolean;
+  isLineInviteCooldownActive: boolean;
+  isLineInviteCooldownLoading: boolean;
   isDisconnecting: boolean;
   onClose: () => void;
   onShowQr: () => Promise<unknown>;
@@ -28,6 +31,8 @@ export function UserLineConnectionDialog({
   showQr,
   isQrLoading,
   isSendingInvite,
+  isLineInviteCooldownActive,
+  isLineInviteCooldownLoading,
   isDisconnecting,
   onClose,
   onShowQr,
@@ -158,17 +163,27 @@ export function UserLineConnectionDialog({
                 number="2"
                 title={data.line.status === "unlinked" ? "LINE連携リンクをメールで送る" : "再連携リンクをメールで送る"}
               >
-                <Button
-                  alignSelf="flex-end"
-                  colorPalette="teal"
-                  gap={1.5}
-                  disabled={data.person.email.length === 0 || isSendingInvite || isQrLoading || isDisconnecting}
-                  loading={isSendingInvite}
-                  onClick={onSendInvite}
-                >
-                  <LuMail aria-hidden />
-                  メールで{data.line.status === "unlinked" ? "LINE連携" : "再連携"}リンクを送る
-                </Button>
+                <Stack align={{ base: "flex-start", sm: "flex-end" }} gap={1.5} w="full">
+                  <Button
+                    colorPalette="teal"
+                    gap={1.5}
+                    disabled={
+                      data.person.email.length === 0 ||
+                      isSendingInvite ||
+                      isQrLoading ||
+                      isDisconnecting ||
+                      isLineInviteCooldownLoading ||
+                      isLineInviteCooldownActive
+                    }
+                    loading={isSendingInvite}
+                    onClick={onSendInvite}
+                    variant="outline"
+                  >
+                    <LuMail aria-hidden />
+                    メールで{data.line.status === "unlinked" ? "LINE連携" : "再連携"}リンクを送る
+                  </Button>
+                  {isLineInviteCooldownActive && data.person.email.length > 0 && <NotificationResendCooldownNotice />}
+                </Stack>
                 {data.person.email.length === 0 && (
                   <Text fontSize="xs" color="fg.muted" lineHeight="tall">
                     メールアドレスが未登録のため、メールでは送れません。リンクを本人へ直接共有してください。

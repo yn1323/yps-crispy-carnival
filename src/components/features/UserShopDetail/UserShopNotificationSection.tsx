@@ -2,6 +2,7 @@ import { Badge, Box, Flex, HStack, Skeleton, Stack, Text } from "@chakra-ui/reac
 import dayjs from "dayjs";
 import type { ReactNode } from "react";
 import { LuBell, LuCalendarCheck, LuCalendarClock, LuSend } from "react-icons/lu";
+import { NotificationResendCooldownNotice } from "@/src/components/shared/NotificationResendCooldownNotice";
 import { Button } from "@/src/components/ui/Button";
 import { formatDateShort } from "@/src/domains/shift/date";
 import { getRecruitmentDeadlineDays, getRecruitmentLifecycleStatus } from "@/src/domains/shift/recruitmentLifecycle";
@@ -9,6 +10,7 @@ import type { UserShopDetailData, UserShopDetailMembership, UserShopDetailRecrui
 
 type NotificationAction = {
   isDisabled: boolean;
+  isCooldownActive: boolean;
   isLoading: boolean;
   onAction: () => void | Promise<void>;
 };
@@ -84,8 +86,17 @@ export function UserShopNotificationSection({
                 action={{
                   ...sendRecruitmentsAction,
                   isDisabled:
-                    sendRecruitmentsAction.isDisabled || !canSendNotification || openRecruitments.length === 0,
+                    sendRecruitmentsAction.isDisabled ||
+                    sendRecruitmentsAction.isCooldownActive ||
+                    !canSendNotification ||
+                    openRecruitments.length === 0,
                 }}
+                showCooldownNotice={
+                  sendRecruitmentsAction.isCooldownActive &&
+                  !sendRecruitmentsAction.isDisabled &&
+                  canSendNotification &&
+                  openRecruitments.length > 0
+                }
               />
               <NotificationSection
                 title="確定シフト"
@@ -96,8 +107,17 @@ export function UserShopNotificationSection({
                 action={{
                   ...sendCurrentShiftAction,
                   isDisabled:
-                    sendCurrentShiftAction.isDisabled || !canSendNotification || currentRecruitments.length === 0,
+                    sendCurrentShiftAction.isDisabled ||
+                    sendCurrentShiftAction.isCooldownActive ||
+                    !canSendNotification ||
+                    currentRecruitments.length === 0,
                 }}
+                showCooldownNotice={
+                  sendCurrentShiftAction.isCooldownActive &&
+                  !sendCurrentShiftAction.isDisabled &&
+                  canSendNotification &&
+                  currentRecruitments.length > 0
+                }
               />
             </>
           )}
@@ -116,6 +136,7 @@ function NotificationSection({
   emptyText,
   actionLabel,
   action,
+  showCooldownNotice,
 }: {
   title: string;
   icon: ReactNode;
@@ -123,28 +144,38 @@ function NotificationSection({
   emptyText: string;
   actionLabel: string;
   action: NotificationAction;
+  showCooldownNotice: boolean;
 }) {
   return (
     <Stack gap={3}>
-      <Flex align={{ base: "flex-start", sm: "center" }} gap={3} justify="space-between">
+      <Flex
+        align={{ base: "flex-start", sm: "center" }}
+        direction={{ base: "column", sm: "row" }}
+        gap={3}
+        justify="space-between"
+      >
         <HStack gap={2} color="gray.900" minW={0}>
           {icon}
           <Text as="h3" fontSize="sm" fontWeight="semibold">
             {title}
           </Text>
         </HStack>
-        <Button
-          colorPalette="teal"
-          flexShrink={0}
-          gap={1.5}
-          disabled={action.isDisabled || action.isLoading}
-          loading={action.isLoading}
-          onClick={action.onAction}
-          size="sm"
-        >
-          <LuBell aria-hidden />
-          {actionLabel}
-        </Button>
+        <Stack align={{ base: "flex-start", sm: "flex-end" }} gap={1.5}>
+          <Button
+            colorPalette="teal"
+            flexShrink={0}
+            gap={1.5}
+            disabled={action.isDisabled || action.isLoading}
+            loading={action.isLoading}
+            onClick={action.onAction}
+            size="sm"
+            variant="outline"
+          >
+            <LuBell aria-hidden />
+            {actionLabel}
+          </Button>
+          {showCooldownNotice && <NotificationResendCooldownNotice />}
+        </Stack>
       </Flex>
       {recruitments.length > 0 ? (
         <Stack gap={2}>

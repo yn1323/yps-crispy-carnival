@@ -1,5 +1,9 @@
 import { api } from "@/convex/_generated/api";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
+import {
+  NOTIFICATION_RESEND_COOLDOWN_DESCRIPTION,
+  NOTIFICATION_RESEND_COOLDOWN_TITLE,
+} from "@/src/components/shared/NotificationResendCooldownNotice";
 import { toaster } from "@/src/components/ui/toaster";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
@@ -15,6 +19,14 @@ export function useStaffNotificationDelivery(isReadOnly = false) {
       const result = await sendOpenRecruitmentNotifications({ staffId: staff._id });
       if (result.scheduled) {
         showSuccessToast({ title: "シフト募集通知を再送しました" });
+        return;
+      }
+      if (result.reason === "recentlySent") {
+        toaster.create({
+          title: NOTIFICATION_RESEND_COOLDOWN_TITLE,
+          description: NOTIFICATION_RESEND_COOLDOWN_DESCRIPTION,
+          type: "info",
+        });
         return;
       }
       toaster.create({
@@ -33,6 +45,14 @@ export function useStaffNotificationDelivery(isReadOnly = false) {
       const result = await sendCurrentShiftNotification({ staffId: staff._id });
       if (result.scheduled) {
         showSuccessToast({ title: "確定シフト通知を再送しました" });
+        return;
+      }
+      if (result.reason === "recentlySent") {
+        toaster.create({
+          title: NOTIFICATION_RESEND_COOLDOWN_TITLE,
+          description: NOTIFICATION_RESEND_COOLDOWN_DESCRIPTION,
+          type: "info",
+        });
         return;
       }
       toaster.create({

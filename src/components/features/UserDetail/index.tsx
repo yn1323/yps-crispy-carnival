@@ -35,7 +35,11 @@ export function UserDetail({ data, organizationId }: Props) {
     selectedShopId: operationShopId,
     expectedOrganizationId: organizationId,
   });
-  const line = useUserLineActions({ data, expectedOrganizationId: organizationId });
+  const line = useUserLineActions({
+    data,
+    enabled: resolvedActivePanel === "line",
+    expectedOrganizationId: organizationId,
+  });
   const membership = useUserMembershipActions({
     canChangeMembership: data.canWrite,
     expectedOrganizationId: organizationId,
@@ -78,6 +82,8 @@ export function UserDetail({ data, organizationId }: Props) {
           showQr: line.showQr,
           isQrLoading: line.isQrLoading,
           isSendingInvite: line.isSendingInvite,
+          isLineInviteCooldownActive: line.isLineInviteCooldownActive,
+          isLineInviteCooldownLoading: line.isLineInviteCooldownLoading,
           isDisconnecting: line.isDisconnecting,
         },
         membership: {

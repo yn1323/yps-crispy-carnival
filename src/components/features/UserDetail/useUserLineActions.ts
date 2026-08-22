@@ -1,16 +1,24 @@
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
+import {
+  NOTIFICATION_RESEND_COOLDOWN_DESCRIPTION,
+  NOTIFICATION_RESEND_COOLDOWN_TITLE,
+} from "@/src/components/shared/NotificationResendCooldownNotice";
+import { toaster } from "@/src/components/ui/toaster";
+import { useDeadlineActive } from "@/src/hooks/useDeadlineActive";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import type { UserDetailData } from "./types";
 
 export function useUserLineActions({
   data,
+  enabled,
   expectedOrganizationId,
 }: {
   data: UserDetailData;
+  enabled: boolean;
   expectedOrganizationId?: Id<"organizations">;
 }) {
   const [authorizeUrl, setAuthorizeUrl] = useState<string | null>(null);
@@ -22,6 +30,22 @@ export function useUserLineActions({
   const sendLineInvite = useMutation(api.line.mutations.sendInvite);
   const disconnectOrganizationPersonLine = useMutation(api.line.mutations.disconnectOrganizationPersonLine);
   const lineSourceKey = toLineSourceKey(data);
+  const cooldowns = useQuery(
+    api.staff.queries.getNotificationResendCooldowns,
+    enabled && data.line.canLink && data.line.sourceShopId && data.line.sourceStaffId
+      ? {
+          shopId: data.line.sourceShopId,
+          staffId: data.line.sourceStaffId,
+          ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+        }
+      : "skip",
+  );
+  const isLineInviteCooldownActive = useDeadlineActive(cooldowns?.lineInviteUntil);
+  const isLineInviteCooldownLoading =
+    enabled &&
+    data.line.canLink &&
+    Boolean(data.line.sourceShopId && data.line.sourceStaffId) &&
+    cooldowns === undefined;
 
   useEffect(() => {
     if (data.line.canLink && lineSourceKey && qrTargetKey === lineSourceKey) return;
@@ -55,14 +79,34 @@ export function useUserLineActions({
 
   const { run: sendInvite, isRunning: isSendingInvite } = useSingleFlight(async () => {
     const target = currentTargetRef.current;
-    if (!target.canLink || !target.sourceShopId || !target.sourceStaffId) return false;
+    if (
+      !target.canLink ||
+      !target.sourceShopId ||
+      !target.sourceStaffId ||
+      isLineInviteCooldownLoading ||
+      isLineInviteCooldownActive
+    ) {
+      return false;
+    }
     try {
-      await sendLineInvite({
+      const result = await sendLineInvite({
         shopId: target.sourceShopId,
         staffId: target.sourceStaffId,
         ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
       });
       if (isSameLineLinkTarget(currentTargetRef.current, target)) {
+        if (!result.scheduled) {
+          toaster.create(
+            result.reason === "recentlySent"
+              ? {
+                  title: NOTIFICATION_RESEND_COOLDOWN_TITLE,
+                  description: NOTIFICATION_RESEND_COOLDOWN_DESCRIPTION,
+                  type: "info",
+                }
+              : { title: "少し時間をおいて再送してください", type: "error" },
+          );
+          return false;
+        }
         showSuccessToast({ title: "LINE連携リンクをメールで送りました" });
         return true;
       }
@@ -99,6 +143,8 @@ export function useUserLineActions({
     showQr: qrTargetKey !== null && qrTargetKey === lineSourceKey,
     isQrLoading,
     isSendingInvite,
+    isLineInviteCooldownActive,
+    isLineInviteCooldownLoading,
     isDisconnecting,
     onShowQr: showQr,
     onSendInvite: sendInvite,

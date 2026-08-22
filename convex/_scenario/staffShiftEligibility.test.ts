@@ -5,6 +5,7 @@ import { MANAGER_SUBJECT, SCENARIO_NOW, scenarioDate, seedStaff } from "../_test
 import { createScenario } from "../_test/scenarioFixtures";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { NOTIFICATION_RESEND_COOLDOWN_MS } from "../constants";
 
 describe("シフト対象スタッフの状態遷移シナリオ", () => {
   beforeEach(() => {
@@ -106,6 +107,7 @@ describe("シフト対象スタッフの状態遷移シナリオ", () => {
     const boardAfterRestore = await asManager.getShiftBoardData(recruitmentId);
     expect(boardAfterRestore?.staffs.map((entry) => entry._id)).toEqual([staffId]);
     expect(boardAfterRestore?.shiftAssignments).toEqual(boardWhileExcluded?.shiftAssignments);
+    vi.advanceTimersByTime(NOTIFICATION_RESEND_COOLDOWN_MS);
     await expect(asManager.sendOpenRecruitmentNotifications(staffId)).resolves.toEqual({ scheduled: true });
     vi.advanceTimersByTime(0);
     await t.finishInProgressScheduledFunctions();

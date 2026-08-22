@@ -45,10 +45,14 @@ type StaffDetailViewModel = {
   };
   onSendLineInvite: (staff: Staff) => void | Promise<void>;
   isSendingLineInvite: boolean;
+  isLineInviteCooldownActive: boolean;
   onSendRecruitments: (staff: Staff) => void | Promise<void>;
   isSendingRecruitments: boolean;
+  isRecruitmentCooldownActive: boolean;
   onSendCurrentShift: (staff: Staff) => void | Promise<void>;
   isSendingCurrentShift: boolean;
+  isCurrentShiftCooldownActive: boolean;
+  isNotificationCooldownLoading: boolean;
   notificationHistory: ReactNode;
   onChangeShiftTarget: (staff: Staff, isShiftTarget: boolean) => void | Promise<void>;
   isChangingShiftTarget: boolean;
@@ -134,10 +138,14 @@ export function StaffManagementView({
             lineQrState={detail.lineQrState}
             onSendLineInvite={detail.onSendLineInvite}
             isSendingLineInvite={detail.isSendingLineInvite}
+            isLineInviteCooldownActive={detail.isLineInviteCooldownActive}
             onSendRecruitments={detail.onSendRecruitments}
             isSendingRecruitments={detail.isSendingRecruitments}
+            isRecruitmentCooldownActive={detail.isRecruitmentCooldownActive}
             onSendCurrentShift={detail.onSendCurrentShift}
             isSendingCurrentShift={detail.isSendingCurrentShift}
+            isCurrentShiftCooldownActive={detail.isCurrentShiftCooldownActive}
+            isNotificationCooldownLoading={detail.isNotificationCooldownLoading}
             notificationHistory={detail.notificationHistory}
             onChangeShiftTarget={detail.onChangeShiftTarget}
             isChangingShiftTarget={detail.isChangingShiftTarget}

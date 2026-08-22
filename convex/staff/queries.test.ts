@@ -2,9 +2,15 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { seedNotificationHistory } from "../_test/notificationHistory";
 import { seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT } from "../constants";
+import { NOTIFICATION_RESEND_COOLDOWN_MS, ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT } from "../constants";
+import {
+  LINE_INVITE_NOTIFICATION_KIND,
+  SHIFT_CONFIRMATION_NOTIFICATION_KIND,
+  SHIFT_RECRUITMENT_NOTIFICATION_KIND,
+} from "../notificationOutbox/historyKinds";
 
 type TestMutationCtx = Parameters<typeof seedOrganizationManagerShop>[0];
 
@@ -53,6 +59,181 @@ async function insertCanonicalStaff(
 }
 
 describe("staff/queries", () => {
+  describe("getNotificationResendCooldowns", () => {
+    it("シフト通知は対象店舗、LINE案内は同一組織人物の有効所属から最新deadlineを返す", async () => {
+      const t = convexTest(schema, modules);
+      const now = 1_000_000;
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "notification_cooldown_manager",
+          email: "notification-cooldown-manager@example.com",
+          plan: "pro",
+        });
+        const personId = await insertOrganizationPerson(ctx, {
+          organizationId: base.organizationId,
+          name: "通知対象",
+          email: "notification-target@example.com",
+        });
+        const currentStaffId = await insertCanonicalStaff(ctx, {
+          organizationId: base.organizationId,
+          personId,
+          shopId: base.shopId,
+          name: "通知対象",
+          email: "notification-target@example.com",
+        });
+        const otherShopId = await ctx.db.insert("shops", {
+          organizationId: base.organizationId,
+          operatingStatus: "active",
+          name: "別店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        });
+        const otherStaffId = await insertCanonicalStaff(ctx, {
+          organizationId: base.organizationId,
+          personId,
+          shopId: otherShopId,
+          name: "通知対象",
+          email: "notification-target@example.com",
+        });
+        return { ...base, currentStaffId, otherShopId, otherStaffId };
+      });
+      await t.run(async (ctx) => {
+        await seedNotificationHistory(ctx, {
+          shopId: ids.shopId,
+          staffId: ids.currentStaffId,
+          notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
+          requestedAt: now - 4_000,
+        });
+        await seedNotificationHistory(ctx, {
+          shopId: ids.shopId,
+          staffId: ids.currentStaffId,
+          notificationKind: SHIFT_CONFIRMATION_NOTIFICATION_KIND,
+          requestedAt: now - 3_000,
+        });
+        await seedNotificationHistory(ctx, {
+          shopId: ids.shopId,
+          staffId: ids.currentStaffId,
+          notificationKind: LINE_INVITE_NOTIFICATION_KIND,
+          requestedAt: now - 5_000,
+        });
+        await seedNotificationHistory(ctx, {
+          shopId: ids.otherShopId,
+          staffId: ids.otherStaffId,
+          notificationKind: LINE_INVITE_NOTIFICATION_KIND,
+          requestedAt: now - 1_000,
+        });
+        await seedNotificationHistory(ctx, {
+          shopId: ids.otherShopId,
+          staffId: ids.otherStaffId,
+          notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
+          requestedAt: now,
+        });
+      });
+
+      await expect(
+        t
+          .withIdentity({ subject: "notification_cooldown_manager" })
+          .query(api.staff.queries.getNotificationResendCooldowns, {
+            shopId: ids.shopId,
+            staffId: ids.currentStaffId,
+          }),
+      ).resolves.toEqual({
+        openRecruitmentsUntil: now - 4_000 + NOTIFICATION_RESEND_COOLDOWN_MS,
+        currentShiftUntil: now - 3_000 + NOTIFICATION_RESEND_COOLDOWN_MS,
+        lineInviteUntil: now - 1_000 + NOTIFICATION_RESEND_COOLDOWN_MS,
+      });
+    });
+
+    it("legacy staffは現在店舗の3種類だけを返す", async () => {
+      const t = convexTest(schema, modules);
+      const requestedAt = 2_000_000;
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "legacy_notification_cooldown_manager",
+          email: "legacy-notification-cooldown-manager@example.com",
+        });
+        const staffId = await ctx.db.insert("staffs", {
+          shopId: base.shopId,
+          name: "legacyスタッフ",
+          email: "legacy-notification-target@example.com",
+          isDeleted: false,
+        });
+        return { ...base, staffId };
+      });
+      await t.run(
+        async (ctx) =>
+          await seedNotificationHistory(ctx, {
+            shopId: ids.shopId,
+            staffId: ids.staffId,
+            notificationKind: LINE_INVITE_NOTIFICATION_KIND,
+            requestedAt,
+          }),
+      );
+
+      await expect(
+        t
+          .withIdentity({ subject: "legacy_notification_cooldown_manager" })
+          .query(api.staff.queries.getNotificationResendCooldowns, {
+            shopId: ids.shopId,
+            staffId: ids.staffId,
+          }),
+      ).resolves.toEqual({
+        openRecruitmentsUntil: null,
+        currentShiftUntil: null,
+        lineInviteUntil: requestedAt + NOTIFICATION_RESEND_COOLDOWN_MS,
+      });
+    });
+
+    it("未認証・他店舗・削除済みスタッフには履歴を返さない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "notification_cooldown_scope_manager",
+          email: "notification-cooldown-scope-manager@example.com",
+        });
+        const activeStaffId = await ctx.db.insert("staffs", {
+          shopId: base.shopId,
+          name: "有効スタッフ",
+          email: "active-cooldown@example.com",
+          isDeleted: false,
+        });
+        const deletedStaffId = await ctx.db.insert("staffs", {
+          shopId: base.shopId,
+          name: "削除済みスタッフ",
+          email: "deleted-cooldown@example.com",
+          isDeleted: true,
+        });
+        const otherShopId = await ctx.db.insert("shops", {
+          name: "他店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        });
+        const otherStaffId = await ctx.db.insert("staffs", {
+          shopId: otherShopId,
+          name: "他店舗スタッフ",
+          email: "other-cooldown@example.com",
+          isDeleted: false,
+        });
+        return { ...base, activeStaffId, deletedStaffId, otherStaffId };
+      });
+      const query = (staffId: Id<"staffs">) =>
+        t
+          .withIdentity({ subject: "notification_cooldown_scope_manager" })
+          .query(api.staff.queries.getNotificationResendCooldowns, { shopId: ids.shopId, staffId });
+
+      await expect(
+        t.query(api.staff.queries.getNotificationResendCooldowns, {
+          shopId: ids.shopId,
+          staffId: ids.activeStaffId,
+        }),
+      ).resolves.toBeNull();
+      await expect(query(ids.otherStaffId)).resolves.toBeNull();
+      await expect(query(ids.deletedStaffId)).resolves.toBeNull();
+    });
+  });
+
   describe("listOrganizationPeopleAvailableForShop", () => {
     it("未認証では候補を返さない", async () => {
       const t = convexTest(schema, modules);

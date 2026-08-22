@@ -1,12 +1,14 @@
 import { Alert, Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { LuBell, LuCalendarCheck, LuSend } from "react-icons/lu";
+import { NotificationResendCooldownNotice } from "@/src/components/shared/NotificationResendCooldownNotice";
 import { Button } from "@/src/components/ui/Button";
 import { RecruitmentSummaryRow } from "../RecruitmentBoard/RecruitmentSummaryRow";
 import type { Recruitment } from "../types";
 
 type NotificationAction = {
   isDisabled: boolean;
+  isCooldownActive: boolean;
   isLoading: boolean;
   onAction: () => void | Promise<void>;
 };
@@ -100,6 +102,7 @@ const NotificationSection = ({
   emptyText,
   actionLabel,
   isDisabled,
+  isCooldownActive,
   isLoading,
   onAction,
 }: {
@@ -109,29 +112,39 @@ const NotificationSection = ({
   emptyText: string;
   actionLabel: string;
   isDisabled: boolean;
+  isCooldownActive: boolean;
   isLoading: boolean;
   onAction: () => void | Promise<void>;
 }) => (
   <Stack gap={3}>
-    <Flex align="center" gap={3} justify="space-between">
+    <Flex
+      align={{ base: "flex-start", sm: "center" }}
+      direction={{ base: "column", sm: "row" }}
+      gap={3}
+      justify="space-between"
+    >
       <HStack gap={2} color="gray.900" minW={0}>
         {icon}
         <Heading as="h4" fontSize="sm" fontWeight="semibold">
           {title}
         </Heading>
       </HStack>
-      <Button
-        colorPalette="teal"
-        flexShrink={0}
-        gap={1.5}
-        disabled={isDisabled || isLoading}
-        loading={isLoading}
-        onClick={onAction}
-        size="sm"
-      >
-        <LuBell />
-        {actionLabel}
-      </Button>
+      <Stack align={{ base: "flex-start", sm: "flex-end" }} gap={1.5}>
+        <Button
+          colorPalette="teal"
+          flexShrink={0}
+          gap={1.5}
+          disabled={isDisabled || isCooldownActive || isLoading}
+          loading={isLoading}
+          onClick={onAction}
+          size="sm"
+          variant="outline"
+        >
+          <LuBell />
+          {actionLabel}
+        </Button>
+        {isCooldownActive && !isDisabled && <NotificationResendCooldownNotice />}
+      </Stack>
     </Flex>
     {recruitments.length > 0 ? (
       <Stack gap={2}>

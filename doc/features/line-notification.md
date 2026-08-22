@@ -37,6 +37,8 @@ LINE APIの429はquota fallbackとは別に再試行し、通常のLINE通知で
 操作後の画面は「送りました」と案内し、配送済みとは表現しない。
 店舗別設定ではpathの`shopId`とURLで検証済みの`organizationId`を各queryとmutationへ明示して渡し、browser storageの店舗IDを送信対象に使わない。
 
+LINE連携案内メールは、同じ組織人物への送信受付から10分間だけoutlineの再送ボタンを無効にする。  期限中は「送信済みです。」と「送信から10分後に再送できるようになります。」だけを表示し、正確な時刻や送信履歴の詳細は表示しない。QRコードとURLの表示はメール送信ではないため、このクールダウン対象外とする。
+
 ## 連携token
 
 連携URLは72時間有効で、同じ組織人物に再発行すると、発行元店舗にかかわらず以前の未使用tokenを失効させる。
@@ -87,6 +89,7 @@ LINE公式アカウント上の友だち状態はLINE利用者単位で管理す
 |---|---|
 | `api.line.mutations.generateLinkToken` | 連携用URLを発行する |
 | `api.line.mutations.sendInvite` | 個別スタッフへ連携依頼メールを予約する |
+| `api.staff.queries.getNotificationResendCooldowns` | 募集、確定、LINE連携案内の再送可能期限を最小DTOで返す |
 | `api.line.mutations.disconnectOrganizationPersonLine` | 対象組織人物の共通LINE連携を明示解除する |
 | `api.line.queries.getLinkStatusByShop` | 店舗のスタッフごとの連携状態を返す |
 | `api.line.queries.getQuotaStatus` | 保存済みのLINE Push quota状態を返す |
@@ -102,6 +105,7 @@ LINE公式アカウント上の友だち状態はLINE利用者単位で管理す
 Convexは認証identityから管理アクセスを解決し、対象店舗への権限、スタッフと店舗・人物の対応、削除状態、店舗状態を各操作で再検証する。
 権限のない店舗、不正な組み合わせ、削除済み対象は拒否するか、存在を区別できない最小情報の状態へ寄せる。
 連携URL発行は既存tokenの失効を維持し、メール送信は既存のrate limitとOutboxの再検証を維持する。
+送信受付から10分未満の`sendInvite`は`recentlySent`を返し、rate limit、Scheduler、Outboxを増やさない。
 メールアドレス、LINE token、連携URL、通知本文を新しいログへ出力しない。
 
 ## コードの入口

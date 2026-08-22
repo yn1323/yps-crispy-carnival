@@ -23,6 +23,9 @@ export type UserShopDetailViewProps = {
       currentRecruitments: UserShopDetailRecruitment[];
       isSendingRecruitments: boolean;
       isSendingCurrentShift: boolean;
+      isCooldownLoading: boolean;
+      isRecruitmentCooldownActive: boolean;
+      isCurrentShiftCooldownActive: boolean;
     };
     membership: {
       isChangingShiftTarget: boolean;
@@ -71,12 +74,14 @@ export function UserShopDetailView({
           currentRecruitments={state.notifications.currentRecruitments}
           notificationHistory={notificationHistory}
           sendRecruitmentsAction={{
-            isDisabled: isStoreReadOnly,
+            isDisabled: isStoreReadOnly || state.notifications.isCooldownLoading,
+            isCooldownActive: state.notifications.isRecruitmentCooldownActive,
             isLoading: state.notifications.isSendingRecruitments,
             onAction: actions.onSendRecruitments,
           }}
           sendCurrentShiftAction={{
-            isDisabled: isStoreReadOnly,
+            isDisabled: isStoreReadOnly || state.notifications.isCooldownLoading,
+            isCooldownActive: state.notifications.isCurrentShiftCooldownActive,
             isLoading: state.notifications.isSendingCurrentShift,
             onAction: actions.onSendCurrentShift,
           }}

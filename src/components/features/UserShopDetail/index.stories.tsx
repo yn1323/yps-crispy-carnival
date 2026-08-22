@@ -118,6 +118,9 @@ const baseState: UserShopDetailViewProps["state"] = {
     ],
     isSendingRecruitments: false,
     isSendingCurrentShift: false,
+    isCooldownLoading: false,
+    isRecruitmentCooldownActive: false,
+    isCurrentShiftCooldownActive: false,
   },
   membership: {
     isChangingShiftTarget: false,
@@ -203,6 +206,32 @@ export const Mobile: Story = {
     },
     notificationHistory: notificationHistory("linked"),
   },
+};
+
+export const NotificationCooldown: Story = {
+  args: {
+    state: {
+      ...baseState,
+      notifications: {
+        ...baseState.notifications,
+        isRecruitmentCooldownActive: true,
+        isCurrentShiftCooldownActive: true,
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const resendButtons = canvas.getAllByRole("button", { name: "再送する" });
+
+    await expect(resendButtons).toHaveLength(2);
+    for (const button of resendButtons) await expect(button).toBeDisabled();
+  },
+};
+
+export const NotificationCooldownMobile: Story = {
+  ...NotificationCooldown,
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
 const readOnlyMembership: UserShopDetailMembership = {

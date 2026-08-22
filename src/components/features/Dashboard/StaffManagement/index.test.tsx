@@ -9,8 +9,10 @@ const mocks = vi.hoisted(() => ({
   useShopPaginatedQuery: vi.fn(),
   getDashboardStaffOrderScopeRef: Symbol("getDashboardStaffOrderScope"),
   getDashboardStaffsRef: Symbol("getDashboardStaffs"),
+  getNotificationResendCooldownsRef: Symbol("getNotificationResendCooldowns"),
   selectedShopAtomRef: Symbol("selectedShopAtom"),
   useStaffInvitation: vi.fn(),
+  useStaffProfileManagement: vi.fn(),
 }));
 
 vi.mock("jotai", () => ({ useAtomValue: mocks.useAtomValue }));
@@ -20,6 +22,11 @@ vi.mock("@/convex/_generated/api", () => ({
       queries: {
         getDashboardStaffOrderScope: mocks.getDashboardStaffOrderScopeRef,
         getDashboardStaffs: mocks.getDashboardStaffsRef,
+      },
+    },
+    staff: {
+      queries: {
+        getNotificationResendCooldowns: mocks.getNotificationResendCooldownsRef,
       },
     },
   },
@@ -47,19 +54,7 @@ vi.mock("./useStaffLineConnection", () => ({
   }),
 }));
 vi.mock("./useStaffProfileManagement", () => ({
-  useStaffProfileManagement: () => ({
-    staff: null,
-    dialog: { isOpen: false },
-    onOpen: vi.fn(),
-    onOpenChange: vi.fn(),
-    onClose: vi.fn(),
-    onEdit: vi.fn(),
-    isEditing: false,
-    onDelete: vi.fn(),
-    isDeleting: false,
-    onChangeShiftTarget: vi.fn(),
-    isChangingShiftTarget: false,
-  }),
+  useStaffProfileManagement: mocks.useStaffProfileManagement,
 }));
 vi.mock("./useStaffNotificationDelivery", () => ({
   useStaffNotificationDelivery: () => ({
@@ -103,10 +98,24 @@ beforeEach(() => {
   mocks.useShopQuery.mockReset();
   mocks.useShopPaginatedQuery.mockReset();
   mocks.useStaffInvitation.mockReset();
+  mocks.useStaffProfileManagement.mockReset();
   mocks.useAtomValue.mockReturnValue(null);
   mocks.useShopQuery.mockReturnValue({ mode: "legacy" });
   mocks.useShopPaginatedQuery.mockReturnValue(queryResult);
   mocks.useStaffInvitation.mockReturnValue({});
+  mocks.useStaffProfileManagement.mockReturnValue({
+    staff: null,
+    dialog: { isOpen: false },
+    onOpen: vi.fn(),
+    onOpenChange: vi.fn(),
+    onClose: vi.fn(),
+    onEdit: vi.fn(),
+    isEditing: false,
+    onDelete: vi.fn(),
+    isDeleting: false,
+    onChangeShiftTarget: vi.fn(),
+    isChangingShiftTarget: false,
+  });
 });
 
 describe("StaffManagement staff order scope", () => {
@@ -189,5 +198,30 @@ describe("StaffManagement staff order scope", () => {
     );
 
     expect(mocks.useStaffInvitation).toHaveBeenLastCalledWith(false, true, undefined);
+  });
+
+  it("通知クールダウンはスタッフ詳細Dialogを開いた間だけ取得する", () => {
+    const { rerender } = render(<TestView />);
+
+    expect(mocks.useShopQuery).toHaveBeenCalledWith(mocks.getNotificationResendCooldownsRef, "skip");
+
+    mocks.useStaffProfileManagement.mockReturnValue({
+      staff: { _id: "staff-1" },
+      dialog: { isOpen: true },
+      onOpen: vi.fn(),
+      onOpenChange: vi.fn(),
+      onClose: vi.fn(),
+      onEdit: vi.fn(),
+      isEditing: false,
+      onDelete: vi.fn(),
+      isDeleting: false,
+      onChangeShiftTarget: vi.fn(),
+      isChangingShiftTarget: false,
+    });
+    rerender(<TestView />);
+
+    expect(mocks.useShopQuery).toHaveBeenCalledWith(mocks.getNotificationResendCooldownsRef, {
+      staffId: "staff-1",
+    });
   });
 });

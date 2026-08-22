@@ -26,6 +26,10 @@ import {
   LINE_WEBHOOK_MESSAGE_RECEIPT_RETENTION_MS,
 } from "../constants";
 import { type BusinessNotificationOrigin, getBusinessNotificationOrigin } from "../notificationOutbox/origin";
+import {
+  collectNotificationResendCooldowns,
+  isNotificationResendCooldownActive,
+} from "../notificationOutbox/resendCooldown";
 import { requireOrganizationActorForShop } from "../organization/access";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
@@ -1159,7 +1163,13 @@ export const disconnectOrganizationPersonLine = authenticatedMutation({
  */
 export const sendInvite = managerMutation({
   args: { staffId: v.id("staffs") },
-  returns: v.null(),
+  returns: v.union(
+    v.object({ scheduled: v.literal(true) }),
+    v.object({
+      scheduled: v.literal(false),
+      reason: v.union(v.literal("recentlySent"), v.literal("rateLimited")),
+    }),
+  ),
   handler: async (ctx, args) => {
     const staff = await getActiveStaffInShop(ctx, ctx.shop._id, args.staffId);
     if (!staff) {
@@ -1169,17 +1179,33 @@ export const sendInvite = managerMutation({
       throw new ConvexError("メールアドレスが未登録です");
     }
 
-    const shortLimit = await rateLimit(ctx, {
-      name: "lineInviteShort",
-      key: `${ctx.shop._id}:${staff._id}`,
-    });
-    if (!shortLimit.ok) return null;
-    const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
-
     const canonicalScope = await resolveCanonicalStaffScope(ctx, {
       staffId: staff._id,
       shopId: ctx.shop._id,
     });
+    const cooldownStaffs = canonicalScope
+      ? await listActiveStaffsForOrganizationPerson(ctx, {
+          organizationId: canonicalScope.organization._id,
+          organizationPersonId: canonicalScope.person._id,
+        })
+      : [staff];
+    const cooldowns = await collectNotificationResendCooldowns(
+      ctx,
+      cooldownStaffs.map((cooldownStaff) => ({
+        shopId: cooldownStaff.shopId,
+        staffId: cooldownStaff._id,
+      })),
+    );
+    if (isNotificationResendCooldownActive(cooldowns.lineInviteUntil, Date.now())) {
+      return { scheduled: false, reason: "recentlySent" as const };
+    }
+
+    const shortLimit = await rateLimit(ctx, {
+      name: "lineInviteShort",
+      key: `${ctx.shop._id}:${staff._id}`,
+    });
+    if (!shortLimit.ok) return { scheduled: false, reason: "rateLimited" as const };
+    const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
 
     await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
       staffId: staff._id,
@@ -1191,6 +1217,6 @@ export const sendInvite = managerMutation({
         : {}),
       ...notificationOrigin,
     });
-    return null;
+    return { scheduled: true as const };
   },
 });

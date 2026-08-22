@@ -1,0 +1,11 @@
+export const SHIFT_RECRUITMENT_NOTIFICATION_KIND = "shift.recruitment";
+export const SHIFT_CONFIRMATION_NOTIFICATION_KIND = "shift.confirmation";
+export const LINE_INVITE_NOTIFICATION_KIND = "line.invite";
+
+export const NOTIFICATION_RESEND_COOLDOWN_KINDS = [
+  SHIFT_RECRUITMENT_NOTIFICATION_KIND,
+  SHIFT_CONFIRMATION_NOTIFICATION_KIND,
+  LINE_INVITE_NOTIFICATION_KIND,
+] as const;
+
+export type NotificationResendCooldownKind = (typeof NOTIFICATION_RESEND_COOLDOWN_KINDS)[number];

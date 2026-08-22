@@ -7,6 +7,7 @@ import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { todayJST } from "../_lib/dateFormat";
 import { rateLimit } from "../_lib/rateLimits";
+import { seedNotificationHistory } from "../_test/notificationHistory";
 import {
   seedManagerShop,
   seedOrganizationManagerShop,
@@ -17,6 +18,7 @@ import {
 import { modules, schema } from "../_test/setup.test-helper";
 import {
   CURRENT_SHIFT_NOTIFICATION_LIMIT,
+  NOTIFICATION_RESEND_COOLDOWN_MS,
   PERSON_NAME_MAX_LENGTH,
   SHOP_MEMBERSHIP_STATS_OPEN_RECRUITMENT_LIMIT,
   SHOP_MEMBERSHIP_STATS_RECALCULATION_WORK_LIMIT,
@@ -26,6 +28,10 @@ import {
   STAFF_NOTIFICATION_RESEND_SCOPE_TARGET_SHORT_LIMIT,
 } from "../constants";
 import { getLegalConsentVersions } from "../legal/documents";
+import {
+  SHIFT_CONFIRMATION_NOTIFICATION_KIND,
+  SHIFT_RECRUITMENT_NOTIFICATION_KIND,
+} from "../notificationOutbox/historyKinds";
 import { ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT } from "../organization/shopMembershipChange";
 import { ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/policy";
 
@@ -5106,6 +5112,65 @@ describe("staff/mutations", () => {
       vi.unstubAllGlobals();
       vi.useRealTimers();
     });
+
+    it("有効な送信履歴から10分間は副作用とquota消費なしで拒否し、10分ちょうどで許可する", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupNotificationQuotaTest(t);
+      await t.run(
+        async (ctx) =>
+          await seedNotificationHistory(ctx, {
+            shopId: ids.shopId,
+            staffId: ids.staffId,
+            notificationKind:
+              kind === "openRecruitments" ? SHIFT_RECRUITMENT_NOTIFICATION_KIND : SHIFT_CONFIRMATION_NOTIFICATION_KIND,
+            requestedAt: Date.now(),
+          }),
+      );
+      const beforeRejection = await getNotificationSideEffects(t);
+
+      await expect(sendNotification(t, ids, 0)).resolves.toEqual({
+        scheduled: false,
+        reason: "recentlySent",
+      });
+      expect(await getNotificationSideEffects(t)).toEqual(beforeRejection);
+
+      vi.advanceTimersByTime(NOTIFICATION_RESEND_COOLDOWN_MS);
+      await expect(sendNotification(t, ids, 1)).resolves.toEqual({ scheduled: true });
+    });
+
+    it.each(["failed", "cancelled"] as const)("%sの送信履歴は再送を止めない", async (sendStatus) => {
+      const t = convexTest(schema, modules);
+      const ids = await setupNotificationQuotaTest(t);
+      await t.run(
+        async (ctx) =>
+          await seedNotificationHistory(ctx, {
+            shopId: ids.shopId,
+            staffId: ids.staffId,
+            notificationKind:
+              kind === "openRecruitments" ? SHIFT_RECRUITMENT_NOTIFICATION_KIND : SHIFT_CONFIRMATION_NOTIFICATION_KIND,
+            requestedAt: Date.now(),
+            sendStatus,
+          }),
+      );
+
+      await expect(sendNotification(t, ids, 0)).resolves.toEqual({ scheduled: true });
+    });
+
+    async function sendNotification(
+      t: TestConvex<typeof schema>,
+      ids: { shopId: Id<"shops">; staffId: Id<"staffs"> },
+      requestSequence: number,
+    ) {
+      const actor = t.withIdentity({ subject: "staff_resend_manager_1" });
+      const args = {
+        shopId: ids.shopId,
+        staffId: ids.staffId,
+        requestId: `staff-resend-cooldown-${kind}-${requestSequence}`,
+      };
+      return kind === "openRecruitments"
+        ? await actor.mutation(api.staff.mutations.sendOpenRecruitmentNotifications, args)
+        : await actor.mutation(api.staff.mutations.sendCurrentShiftNotification, args);
+    }
 
     it("fresh request IDでもactor短期・日次と組織日次を迂回できず、拒否時の副作用は0になる", async () => {
       const t = convexTest(schema, modules);
