@@ -175,7 +175,7 @@ export const setupShopAndManager = authenticatedMutation({
       shopName: input.shopName,
       regularClosedDays: [],
       submissionPattern: input.submissionPattern,
-      billingMode: "complimentaryBusiness",
+      billingMode: "trial",
       now,
     });
 

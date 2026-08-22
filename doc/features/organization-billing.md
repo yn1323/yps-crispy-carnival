@@ -107,7 +107,7 @@ direct routeとpublic mutation/actionは、画面表示とは独立して認証�
 Trialの利用権限はProと同じである。
 Freeは追加組織の初期状態、既存の`active.free`、そのFreeをfallbackとする`pendingActivation`、Trial未契約終了、有料契約終了後の受け皿として維持する。
 以下でFreeの管理者操作を説明するときは、`active.free`とFreeをfallbackとする`pendingActivation`を対象にする。
-通常の初回Setupは支払い不要Businessで作る。
+通常の初回Setupは2か月のTrialで作る。
 明示的に公開した追加組織はFreeで始める。
 Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側の想定外終了では、provider側の終了を確認した後にFreeへ移す。
 このFree移行では契約終了時点の未承認招待を失効させるが、管理者、店舗、人物、スタッフ所属、シフトは変更しない。
@@ -142,11 +142,11 @@ Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側
 
 | 入口 | 対象 | 開始プラン |
 |---|---|---|
-| 初回セットアップ（`/dashboard`） | 所属がまだない利用者 | `complimentary.business` |
+| 初回セットアップ（`/dashboard`） | 所属がまだない利用者 | `trial` |
 | 追加組織作成 | 既存組織のactive管理者 | `active.free` |
 
 初回Setupは本人のactiveな組織所属が0件であることをserver-sideで確認する。
-最初の組織、店舗、人物、管理者、店舗スタッフと`complimentary.business`を一度だけ作り、Trial期限、Stripe object、課金deadlineを作らない。
+最初の組織、店舗、人物、管理者、店舗スタッフと、Pro相当の2か月Trialを一度だけ作る。Trial期限と課金deadlineは作るが、Stripe objectは作らない。
 
 追加組織は管理画面から作成できる。  serverは認証、作成元組織の管理者状態、Free枠、作成上限、rate limit、冪等性をwriteより前に確認する。
 
@@ -171,7 +171,7 @@ Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側
 
 ## 支払い不要Business
 
-既存の支払い不要Business組織と初回Setupで作る組織は`complimentary.business`を維持する。
+既存の支払い不要Business組織は`complimentary.business`を維持する。
 期限と利用料金はなく、Businessの40名、5店舗、管理者5名を利用できる。
 
 支払い不要Businessでは、Stripe Customer、Subscription、Checkout Session、Portal Session、Invoice、Subscription Schedule、課金operation、課金通知を作らない。
@@ -184,7 +184,7 @@ Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側
 Migration Testの旧shape fixture以外で、`complimentary.pro`を現行契約として作成しない。
 
 `m022_organization_billing_to_complimentary_business`は、全組織を支払い不要Businessへ寄せるために実装された履歴migrationである。
-現行の初回Setupはmigrationを呼ばず、作成時から同じ正規形を保存する。
+現行の初回Setupはこのmigrationを呼ばず、新規組織をTrialで作成する。
 repositoryにmigrationがあることから、対象deploymentでの実行完了を推測しない。
 
 対象deploymentのmigration statusとexport検証状況は、[リリース状態](../manual/release-status.md)を正とする。
@@ -243,7 +243,7 @@ Notification Outboxは外部送信直前にも招待、所属、受取人を再�
 Stripeで期間末終了を確認した後は`active.free`へ移し、管理者、店舗、人物、スタッフ所属、シフトを変更しない。
 Free上限を超えていれば、保存状態を増やさず整理操作だけを許可する。
 
-`active.free`は追加組織と既存のFree組織へ適用し、支払い不要Businessは既存組織と初回Setupの特別な契約として維持する。
+`active.free`は追加組織と既存のFree組織へ適用し、支払い不要Businessは既存組織だけの契約として維持する。
 deployment前から保存済みで`targetPlan: "free"`かつ`restrictAtPeriodEnd`を持たない変更予約も、providerで期間末終了を確認した後は`active.free`へ収束させる。
 `setFreeSelection`はrolling互換用に残すが、Productionに対象データがないためMigrationは追加しない。
 旧callerのdrainと全deploymentでの不在を別途確認した後に、旧shapeと同時にNarrowする。
@@ -303,7 +303,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | パス | 責務 |
 |---|---|
 | `convex/setup/mutations.ts` | 所属0件の初回セットアップと、既存管理者による追加組織作成を受け付ける |
-| `convex/setup/service.ts` | 組織、最初の管理者、店舗、初期課金状態を作る。初回Setupは`complimentary.business`、追加組織は`active.free`を使う |
+| `convex/setup/service.ts` | 組織、最初の管理者、店舗、初期課金状態を作る。初回Setupは`trial`、追加組織は`active.free`を使う |
 | `convex/_lib/functions.ts` | 認証、組織所属、選択店舗、課金状態を検証するAPI wrapper |
 | `convex/dashboard/queries.ts` | 選択店舗の認可境界で、Dashboard用の現在プランと対応状態を投影し、カード展開中だけ組織の利用状況を最小DTOで返す |
 | `convex/organization/` | 組織、店舗、人物、管理者、利用状況、削除可否を扱う |
@@ -340,7 +340,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 
 | 入口 | 用途 |
 |---|---|
-| `api.setup.mutations.setupShopAndManager` | 所属0件の初期設定と、1組織、1店舗、管理者本人、`complimentary.business`の作成。Trial deadlineとStripe objectは作らない |
+| `api.setup.mutations.setupShopAndManager` | 所属0件の初期設定と、1組織、1店舗、管理者本人、Pro相当の2か月Trialを作成する。Trial deadlineは作るがStripe objectは作らない |
 | `api.setup.mutations.createOrganization` | 既存管理者による追加組織作成。認証、作成上限、rate limit、冪等性を確認し`active.free`を作る |
 | `api.dashboard.queries.getMyShops` | 利用可能な店舗、組織、所属状態の取得 |
 | `api.dashboard.queries.getDashboardShop` | 選択店舗を認可し、Dashboard用の`planStatus`とrolling deploy用の旧`trialEndingNotice`を取得 |
@@ -386,7 +386,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 - `convex/organization/managerSettingsQueries.test.ts`：管理者設定のbounded read、currentとprojectedの分離、`integrityError` / `ready`、候補の選択不可理由を検証する。
 - `convex/_scenario/organizationBillingLifecycle.test.ts`と`organizationPaidPlanChanges.test.ts`：時間と複数APIをまたぐ課金ライフサイクルを検証する。
 - `convex/_scenario/staffManagerInvitation.test.ts`と`organizationManagerExchange.test.ts`：既存人物の通常招待と、既発行のFree管理者交代招待の互換処理を検証する。
-- `convex/setup/mutations.test.ts`：初回Setupが所属0件だけに許可され、`complimentary.business`を作り、Trial deadlineを作らないことと、追加組織が認証、上限、rate limitを再確認することを検証する。
+- `convex/setup/mutations.test.ts`：初回Setupが所属0件だけに許可され、Pro相当の2か月Trialとdeadlineを作り、Stripe objectを作らないことと、追加組織が認証、上限、rate limitを再確認することを検証する。
 - `convex/_scenario/organizationCreation.test.ts`：追加組織について、Free枠、冪等性、rate limit、初期Free状態、既存組織への非混入を検証する。
 - `src/pages/dashboard/index.stories.tsx`、`src/components/features/Dashboard/DashboardContent/index.stories.tsx`、`src/components/features/OrganizationSettings/OrganizationCreation/OrganizationCreationDialog.stories.tsx`、`src/components/features/OrganizationSettings/controllers.test.tsx`：初回Setupと追加組織作成について、代表状態、フォーム操作、失敗後も同じ`requestId`を保つ再試行、mutation引数、作成後の遷移を検証する。
 - `src/components/features/OrganizationSettings/PlanAndPaymentSection.stories.tsx`と`BillingSettings/`配下のStory・Logic Test：Free、Pro、Business、未完了Checkoutの代表状態と主要変更操作を検証する。

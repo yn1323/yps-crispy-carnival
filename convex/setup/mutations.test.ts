@@ -275,10 +275,13 @@ describe("setup/mutations", () => {
       ).rejects.toThrow("メールアドレスの形式で入力してください");
     });
 
-    it("店舗・ユーザー・スタッフ・支払い不要Business状態・同意履歴を作成する", async () => {
+    it("店舗・ユーザー・スタッフ・2か月Trial・同意履歴を作成する", async () => {
       const t = convexTest(schema, modules);
       const now = new Date("2026-07-05T10:00:00+09:00");
       vi.setSystemTime(now);
+      vi.stubEnv("CONVEX_CLOUD_URL", "");
+      vi.stubEnv("DEBUG_TRIAL_DURATION_DEPLOYMENT_URL", "");
+      vi.stubEnv("DEBUG_TRIAL_DURATION_DAYS", "");
       const asUser = t.withIdentity({
         subject: "user_new",
         name: "新規ユーザー",
@@ -320,7 +323,7 @@ describe("setup/mutations", () => {
         version: organizationBillingState.version,
       }).toEqual({
         organizationId,
-        state: { kind: "complimentary", plan: "business" },
+        state: { kind: "trial", trialEndsAt: Date.parse("2026-09-04T15:00:00.000Z") },
         freeManagerPersonId: undefined,
         freeShopId: undefined,
         version: 1,
@@ -381,9 +384,9 @@ describe("setup/mutations", () => {
           .withIndex("by_userId", (q) => q.eq("userId", user._id))
           .first(),
       );
-      expect(consentState?.termsConsentVersion).toBe("manager-terms-consent-2026-08-15");
+      expect(consentState?.termsConsentVersion).toBe("manager-terms-consent-2026-08-23");
       expect(consentState?.privacyConsentVersion).toBe("manager-privacy-consent-2026-08-13");
-      expect(consentState?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-22");
+      expect(consentState?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-23");
       expect(consentState?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-08-13");
       expect(consentState?.method).toBe("manager_setup");
 
@@ -430,14 +433,19 @@ describe("setup/mutations", () => {
         ),
       ).toBe(true);
       expect(
-        scheduled.some(
-          (job) =>
-            job.name === "organizationBilling/mutations:processDeadline" &&
-            job.scheduledTime === Date.parse("2026-09-04T15:00:00.000Z") &&
-            job.args[0]?.organizationId === organizationId &&
-            job.args[0]?.expectedVersion === 1,
-        ),
-      ).toBe(false);
+        scheduled
+          .filter((job) => job.name === "organizationBilling/mutations:processDeadline")
+          .map((job) => ({ scheduledTime: job.scheduledTime, args: job.args[0] })),
+      ).toEqual([
+        {
+          scheduledTime: Date.parse("2026-09-04T15:00:00.000Z"),
+          args: {
+            organizationId,
+            expectedVersion: 1,
+            expectedDeadlineAt: Date.parse("2026-09-04T15:00:00.000Z"),
+          },
+        },
+      ]);
 
       const organizationAudits = await t.run(async (ctx) =>
         ctx.db
@@ -457,7 +465,7 @@ describe("setup/mutations", () => {
           action: "organization.created",
           targetKind: "organization",
           targetId: organizationId,
-          toState: "complimentary.business",
+          toState: "trial",
         },
       ]);
 
