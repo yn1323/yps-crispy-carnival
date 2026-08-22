@@ -322,13 +322,13 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </thead>
 <tbody><tr>
 <td><a href="public-pages.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">公開サイト</a></td>
-<td>TOP、機能紹介、無料トライアル条件、FAQ、記事、登録不要の操作デモ、特定商取引法表記。認証・Convex不要の静的生成</td>
-<td><code>/</code>、<code>/features</code>、<code>/faq</code>、<code>/articles</code>、<code>/demo/flow</code>、<code>/demo/shiftboard</code>、<code>/commercial-transactions</code></td>
+<td>TOP、機能紹介、無料トライアル条件、記事、登録不要の操作デモ、特定商取引法表記。認証・Convex不要の静的生成</td>
+<td><code>/</code>、<code>/features</code>、<code>/articles</code>、<code>/demo/flow</code>、<code>/demo/shiftboard</code>、<code>/commercial-transactions</code></td>
 </tr>
 <tr>
-<td><a href="howto.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">使い方・ヘルプ</a></td>
-<td>操作手順・トラブル対処のHowToをMDXで管理し1ページに集約する</td>
-<td><code>/howto</code></td>
+<td><a href="help-center.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">ヘルプセンター</a></td>
+<td>FAQと使い方を共通のMDX形式で管理し、やりたいことと検索から探せるようにする</td>
+<td><code>/help</code>、<code>/help/:slug</code></td>
 </tr>
 <tr>
 <td><a href="contact.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">問い合わせ</a></td>
@@ -986,7 +986,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </ul>
 <h2 id="overview-s27">8. マニュアル・テストケースへの展開</h2>
 <ul>
-<li><strong>マニュアル</strong>: 1章（解決する課題）と3章（機能一覧）を目次の骨格にし、公開範囲（2章）で対象機能を絞る。操作手順の本文は既存の<code>/howto</code>（<code>src/components/features/HowToSite/content/</code>）と重複させず、<code>write-help-content</code>の規約に従って追加する。</li>
+<li><strong>マニュアル</strong>: 1章（解決する課題）と3章（機能一覧）を目次の骨格にし、公開範囲（2章）で対象機能を絞る。操作手順の本文は<code>/help</code>と<code>/help/:slug</code>（<code>src/components/features/HelpCenter/content/</code>）に集約し、<code>write-help-content</code>の規約に従って追加する。</li>
 <li><strong>テストケース</strong>: 4章の各制限値は境界値テストの入力（上限ちょうど・上限+1）にそのまま使える。5章のマトリクスの×セルは認可拒否テスト、6.1の状態×ロール表の各セルは状態遷移テストの観点になる。既存の主担当テスト層と重複させないため、各機能文書の「テスト契約」節と<code>doc/specs/full-regression-contracts.md</code>を先に確認する。</li>
 <li>通知系のテストは「送信の受付」と「providerへの到達」を区別する（アプリは受付までを保証し、配送はOutboxが非同期に行う）。</li>
 </ul>

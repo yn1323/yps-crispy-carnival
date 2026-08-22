@@ -81,8 +81,7 @@
 
 - [サービスサイト](https://shiftori.app/)
 - [できること](https://shiftori.app/features)
-- [使い方・ヘルプ](https://shiftori.app/howto): 操作方法、通知の仕組み、困ったときの確認事項を短くまとめたヘルプ
-- [よくある質問](https://shiftori.app/faq): 導入、スタッフ登録、シフト運用、通知、料金、トラブル対応をカテゴリと検索で探せる総合FAQ
+- [ヘルプ](https://shiftori.app/help): やりたいことからFAQと詳しい使い方をまとめて探せるヘルプ
 - [お問い合わせ](https://shiftori.app/contact): 利用開始、機能や使い方、不具合やトラブルの相談窓口
 - [シフト作成ガイド記事一覧](https://shiftori.app/articles)
 - [シフト作成フローのデモ](https://shiftori.app/demo/flow)
@@ -90,38 +89,33 @@
 - [利用規約](https://shiftori.app/terms)
 - [プライバシーポリシー](https://shiftori.app/privacy)
 
-## 使い方・ヘルプ
+## ヘルプ
 
-シフトリを利用中に確認したい操作方法や通知の仕組みを、1ページで短く探せるヘルプです。各項目はハッシュ付きURLで直接参照できます。
+シフトリを利用中に確認したいFAQと詳しい操作手順を、同じタスク分類と検索から探せるヘルプです。FAQはハッシュ付きURL、使い方は個別ページで直接参照できます。
 
-- [シフト作成はどのように進みますか](https://shiftori.app/howto#shift-workflow): 店舗設定、募集、希望回収、シフト作成、確定通知までの流れ
-- [スタッフはどのように希望シフトを提出しますか](https://shiftori.app/howto#staff-submission-workflow): 提出リンクを開いてから確定シフトを確認するまでの流れ
-- [時間指定、日ごと、勤務区分は何が違いますか](https://shiftori.app/howto#submission-pattern-differences): 3つの提出方法の違い
-- [提出方法を変更すると募集中のシフトはどうなりますか](https://shiftori.app/howto#submission-pattern-changes): 変更が反映される募集の範囲
-- [スタッフを追加する](https://shiftori.app/howto#add-staff): QRコード、招待リンク、手入力でスタッフを追加する方法
-- [募集中にスタッフを追加するとどうなりますか](https://shiftori.app/howto#add-staff-during-recruitment): 募集中に追加したスタッフへ送られる案内
-- [スタッフをシフト対象外にするとどうなりますか](https://shiftori.app/howto#exclude-staff-from-shifts): 表示、提出依頼、催促、確定通知の扱い
-- [シフト募集を作成すると何が起きますか](https://shiftori.app/howto#create-recruitment-effects): 募集作成後の提出依頼と自動催促
-- [希望シフトの提出状況を確認する](https://shiftori.app/howto#check-submission-status): 提出済み人数と未提出スタッフの確認方法
-- [提出した希望シフトを変更する](https://shiftori.app/howto#edit-submitted-request): 締切前に希望を提出し直す方法
-- [提出締切を過ぎるとどうなりますか](https://shiftori.app/howto#after-submission-deadline): 締切後の確認、変更、初回提出の扱い
-- [自動催促はいつ送られますか](https://shiftori.app/howto#automatic-reminder): 未提出スタッフへ自動催促が送られる時間と条件
-- [集まった希望からシフトを作る](https://shiftori.app/howto#build-shift-from-requests): 希望を確認しながらシフト表を調整する方法
-- [勤務時間の入力方法がわからない](https://shiftori.app/howto#input-work-time): PCのシフト表で勤務時間を追加、変更する方法
-- [作成途中のシフトを保存する](https://shiftori.app/howto#save-shift-draft): スタッフへ通知せず下書き保存する方法
-- [シフト表の確認事項とエラーは何が違いますか](https://shiftori.app/howto#assignment-warnings-and-errors): オレンジの確認事項と赤いエラーの違い
-- [シフトを確定できないとき](https://shiftori.app/howto#cannot-confirm-shift): 確定を止めているエラーの確認方法
-- [シフトを確定するとどうなりますか](https://shiftori.app/howto#confirm-shift-effects): 確定後の表示とスタッフへの通知
-- [確定したシフトを修正する](https://shiftori.app/howto#edit-confirmed-shift): 確定後のシフトを変更して知らせる方法
-- [確定後の変更は誰に通知されますか](https://shiftori.app/howto#notify-confirmed-shift-changes): 確定シフトを変更したときの再通知対象
-- [募集期間や提出締切を間違えたとき](https://shiftori.app/howto#fix-recruitment-mistake): 募集内容を間違えた場合の対応
-- [シフト募集を削除するとどうなりますか](https://shiftori.app/howto#delete-recruitment): 募集削除後の表示とリンクの扱い
-- [過去のシフトを変更できないとき](https://shiftori.app/howto#edit-past-shift): シフト期間終了後に保存や通知ができない理由
-- [希望シフトの提出リンクを開けないとき](https://shiftori.app/howto#submission-link-unavailable): 提出できないと表示された場合の確認事項
-- [確定シフトのリンクを開けないとき](https://shiftori.app/howto#confirmed-shift-link-unavailable): 確定シフトの閲覧リンクを再発行する方法
-- [LINE通知が届かないとき](https://shiftori.app/howto#line-notification-not-delivered): LINEの連携状態と送れなかった通知の確認方法
-- [送れなかった通知を確認して再送する](https://shiftori.app/howto#resend-failed-notifications): 送信に失敗した通知の確認と再送方法
-- [LINE通知とメール通知の使い分け](https://shiftori.app/howto#notification-channel): スタッフのLINE連携状態に応じた通知先の違い
+### よくある質問
+
+- [利用を始めるとき、最初に何をしますか？](https://shiftori.app/help#first-steps): 管理者自身で募集、提出、シフト表確認を試してからスタッフを追加する順序
+- [店舗設定を変更すると、作成済みの募集も変わりますか？](https://shiftori.app/help#existing-recruitment-after-shop-change): 設定変更が反映される募集の範囲
+- [スタッフを追加する方法は？](https://shiftori.app/help#add-staff-methods): 本人による参加申請、管理者の手入力、別店舗からの追加
+- [募集を作成すると、すぐにスタッフへ届きますか？](https://shiftori.app/help#recruitment-notification-timing): 募集作成と通知到達の違い
+- [提出した希望シフトを変更できますか？](https://shiftori.app/help#edit-submitted-request): 締切前の再提出と締切後の扱い
+- [希望シフトが全員分そろう前でも作成できますか？](https://shiftori.app/help#build-before-submissions-complete): 未提出者がいる状態での下書き作成
+- [通知履歴の「送信済み」は、スタッフに届いた意味ですか？](https://shiftori.app/help#sent-status-meaning): 送信済み、配信済み、開封の違い
+- [現在のプランと利用人数はどこで確認できますか？](https://shiftori.app/help#plan-and-usage-location): プランと組織の利用状況の確認場所
+- [パスワードを忘れた場合は？](https://shiftori.app/help#forgot-password): ログイン方法に応じたパスワード再設定
+
+### 詳しい使い方
+
+- [最初のシフト募集を始める](https://shiftori.app/help/start-shift-management): 店舗設定後、管理者自身で募集、提出、シフト表確認を試してスタッフを追加する流れ
+- [店舗設定を変更する](https://shiftori.app/help/update-shop-settings): 店舗名、希望シフトの集め方、勤務時間、定休日の変更
+- [スタッフを追加する](https://shiftori.app/help/add-staff): 参加申請、手入力、別店舗からスタッフを追加する方法
+- [シフト募集を作成する](https://shiftori.app/help/create-shift-recruitment): 対象期間と提出締切を決めて募集する方法
+- [希望シフトを提出する](https://shiftori.app/help/submit-shift-request): 提出リンクから希望を入力し、必要に応じて提出し直す方法
+- [シフトを作成して確定する](https://shiftori.app/help/build-and-confirm-shift): 希望を見ながら割り当て、下書き保存し、確定する方法
+- [スタッフへの通知履歴を確認する](https://shiftori.app/help/check-notification-history): 通知日時、チャネル、目的、送信状況の確認方法
+- [現在のプランと利用状況を確認する](https://shiftori.app/help/check-plan-and-usage): 組織のプラン、利用数、支払い状態の確認方法
+- [パスワードを再設定する](https://shiftori.app/help/reset-password): メールの確認コードを使う再設定手順
 
 ## シフト作成ガイド記事
 
