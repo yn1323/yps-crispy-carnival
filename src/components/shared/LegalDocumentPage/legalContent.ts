@@ -15,6 +15,27 @@ export type LegalDocumentContent = {
   Content: LegalMdxComponent;
 };
 
+/**
+ * コロケーションされた単一の法務MDXを、frontmatterを検証した表示用contentへ変換する。
+ */
+export function buildLegalDocument(
+  componentModules: Record<string, LegalMdxComponent>,
+  frontmatterModules: Record<string, unknown>,
+  filename: string,
+): LegalDocumentContent {
+  const path = Object.keys(componentModules).find((candidate) => candidate.endsWith(`/${filename}`));
+  if (!path) {
+    throw new Error(`法務文書 "content/${filename}" が見つかりません`);
+  }
+
+  const parsed = legalFrontmatterSchema.safeParse(frontmatterModules[path]);
+  if (!parsed.success) {
+    throw new Error(`法務文書 "${path}" の frontmatter が正しくありません: ${parsed.error.message}`);
+  }
+
+  return { ...parsed.data, Content: componentModules[path] };
+}
+
 const LEGAL_AUDIENCES = ["manager", "staff"] as const;
 type LegalDocumentAudience = (typeof LEGAL_AUDIENCES)[number];
 
@@ -28,18 +49,13 @@ export function buildLegalDocuments(
 ): Record<LegalDocumentAudience, LegalDocumentContent> {
   const documents: Partial<Record<LegalDocumentAudience, LegalDocumentContent>> = {};
 
-  for (const [path, Content] of Object.entries(componentModules)) {
+  for (const path of Object.keys(componentModules)) {
     const audience = LEGAL_AUDIENCES.find((candidate) => path.endsWith(`/${candidate}.mdx`));
     if (!audience) {
       continue;
     }
 
-    const parsed = legalFrontmatterSchema.safeParse(frontmatterModules[path]);
-    if (!parsed.success) {
-      throw new Error(`法務文書 "${path}" の frontmatter が正しくありません: ${parsed.error.message}`);
-    }
-
-    documents[audience] = { ...parsed.data, Content };
+    documents[audience] = buildLegalDocument(componentModules, frontmatterModules, `${audience}.mdx`);
   }
 
   for (const audience of LEGAL_AUDIENCES) {

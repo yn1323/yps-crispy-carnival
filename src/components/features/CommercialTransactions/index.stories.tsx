@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
+import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
 import { CommercialTransactions } from ".";
 
 const meta = {
@@ -21,9 +22,12 @@ export const PC: Story = {
     await expect(canvas.getByText("役務提供事業者")).toBeVisible();
     await expect(canvas.getByText("販売価格")).toBeVisible();
     await expect(canvas.getByText("Pro：", { exact: false })).toHaveTextContent("手動入力：Proの月額料金と税込・税別");
+    await expect(
+      canvas.getByText(`無料トライアルは利用人数${ORGANIZATION_PLAN_LIMITS.trial.maxPeople}名`, { exact: false }),
+    ).toBeVisible();
+    await expect(canvas.getByRole("link", { name: "お問い合わせフォーム" })).toHaveAttribute("href", "/contact");
+    await expect(canvas.getByText("事業者名、運営責任者、所在地、電話番号", { exact: false })).toBeVisible();
     await expect(canvas.getByText("動作環境")).toBeVisible();
-    const salesPriceRow = canvas.getByText("販売価格").parentElement as HTMLElement;
-    await expect(within(salesPriceRow).getByRole("link", { name: "料金・プラン" })).toHaveAttribute("href", "/pricing");
   },
 };
 

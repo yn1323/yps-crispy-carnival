@@ -29,7 +29,7 @@
 | 新規Setupが1組織、1店舗、1管理者、`complimentary.business`を作り、Trial deadlineとStripe objectを作らないこと | 未確認 | 未確認 | 未確認 | 未登録 |
 | 2か月無料・カード登録不要の公開文言と、初回Setupが2か月のTrialを作るbackend・利用規約契約の一致 | **要対応（backend・規約未整合）** | 2026-08-22 | Repository | 公開文言は更新済み。`convex/setup/mutations.ts`と対応する契約・テストは引き続き`complimentary.business`を作り、管理ユーザー向け利用規約と同意要求版も現行契約のまま |
 | StripeのPro・Business販売設定、Price、明示された税区分、Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
-| `/commercial-transactions`の事業者名、運営責任者、所在地、電話番号、Pro・Business販売価格の確定情報への置換 | **要対応（仮入力）** | 2026-08-13 | Repository | `src/components/features/CommercialTransactions/index.tsx`の`MANUAL_BUSINESS_DETAILS`と`MANUAL_SALES_PRICES` |
+| `/commercial-transactions`の事業者名、運営責任者、所在地、電話番号、Pro・Business販売価格の確定情報への置換 | **要対応（仮入力）** | 2026-08-13 | Repository | `src/components/features/CommercialTransactions/content/index.mdx`の仮入力 |
 | Resendの`email.delivered` Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Clerk、Cloudflare、Stripeのセキュリティ設定とprovider canary | 未確認 | 未確認 | 未確認 | 未登録 |
 | 公開Web計測のGTM container、GA4 property、Clarity、Consent、Production request | 未確認 | 未確認 | 未確認 | 未登録 |

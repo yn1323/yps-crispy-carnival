@@ -16,8 +16,8 @@ export function LegalPage({ title, lastUpdated, children }: LegalPageProps): Rea
       <VStack
         mx="auto"
         w="full"
-        maxW="768px"
-        px={{ base: 4, lg: 12 }}
+        maxW="7xl"
+        px={{ base: 4, md: 6, lg: 8 }}
         pt={{ base: `calc(${HEADER_HEIGHT.base} + 32px)`, lg: `calc(${HEADER_HEIGHT.md} + 48px)` }}
         pb={{ base: 12, lg: 24 }}
         gap={{ base: 6, lg: 8 }}
@@ -36,6 +36,29 @@ export function LegalPage({ title, lastUpdated, children }: LegalPageProps): Rea
   );
 }
 
+type LegalMarkdownPageProps = {
+  content: LegalDocumentContent;
+  components?: LegalMdxComponents;
+  contentGap?: ComponentProps<typeof VStack>["gap"];
+  children?: ReactNode;
+};
+
+export function LegalMarkdownPage({
+  content,
+  components,
+  contentGap = 3,
+  children,
+}: LegalMarkdownPageProps): ReactNode {
+  return (
+    <LegalPage title={content.title} lastUpdated={content.lastUpdated}>
+      <VStack gap={contentGap} align="stretch">
+        <content.Content components={{ ...legalMdxComponents, ...components }} />
+        {children}
+      </VStack>
+    </LegalPage>
+  );
+}
+
 type LegalDocumentPageProps = {
   content: LegalDocumentContent;
   info: {
@@ -45,12 +68,9 @@ type LegalDocumentPageProps = {
 
 export function LegalDocumentPage({ content, info }: LegalDocumentPageProps): ReactNode {
   return (
-    <LegalPage title={content.title} lastUpdated={content.lastUpdated}>
-      <VStack gap={3} align="stretch">
-        <content.Content components={legalMdxComponents} />
-        <Body>文書バージョン：{info.documentVersion}</Body>
-      </VStack>
-    </LegalPage>
+    <LegalMarkdownPage content={content}>
+      <Body>文書バージョン：{info.documentVersion}</Body>
+    </LegalMarkdownPage>
   );
 }
 
