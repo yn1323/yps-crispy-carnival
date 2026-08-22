@@ -9,10 +9,7 @@ test.use({ trace: "off", screenshot: "off", video: "off" });
 test.describe("管理者の初期設定", { tag: ["@e2e-core"] }, () => {
   test.setTimeout(45_000);
 
-  test("[E2E-SETUP-01] 新規管理者が1組織1店舗のTrial利用状態でDashboardへ到達する", async ({
-    e2eClerkUser,
-    page,
-  }) => {
+  test("[E2E-SETUP-01] 新規管理者が1組織1店舗のTrial利用状態でDashboardへ到達する", async ({ e2eClerkUser, page }) => {
     await resetCurrentManagerScenarioData();
     const dashboard = new DashboardPage(page);
     const shopName = "E2E初期設定店舗";
