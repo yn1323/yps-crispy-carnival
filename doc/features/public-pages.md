@@ -73,12 +73,12 @@ FAQ、HowTo、記事、デモを表示するためのConvex APIもない。
 
 トライアル終了後も利用を継続する場合はProまたはBusinessを選ぶ。  有料プランを選ばない場合はデータを保持したまま業務操作を制限する。
 
-二つ目以降の組織はFreeで開始し、Free、Pro、Businessの利用人数、店舗数、管理ユーザー数を共有上限定数から案内する。  ProとBusinessの金額、通貨、税区分、請求周期は公開ページで推測せず、契約画面がStripeから取得して検証した販売条件を契約確定前に表示する。
+二つ目以降の組織はFreeで開始し、Free、Pro、Businessの利用人数、店舗数、管理ユーザー数を共有上限定数から案内する。  ProとBusinessの金額、通貨、税区分、請求周期は、公開サイトのbuild時にStripeから取得して検証した販売条件を表示する。  契約画面は公開サイトのsnapshotへ依存せず、Stripeから現在の販売条件を取得して契約確定前に表示する。
 
 追加組織と有料プランの詳細は、[`organization-billing.md`](organization-billing.md)を参照する。
 
-公開ページへ固定の金額を複製しない。
-公開サイトは数値を推測せず、確定した販売条件だけを案内する。  契約画面ではStripeから取得して検証した販売条件を契約確定前に表示する。
+公開ページのMDXやcomponentへ固定の金額を複製しない。
+公開サイトは一つのbuild時料金カタログを共有し、数値を推測せず、確定した販売条件だけを案内する。  契約画面ではStripeから取得して検証した現在の販売条件を契約確定前に表示する。
 
 ### 無料トライアル表現の公開前提
 
@@ -94,9 +94,9 @@ FAQ、HowTo、記事、デモを表示するためのConvex APIもない。
 
 販売条件として、役務提供事業者、運営責任者、所在地、電話番号、問い合わせ先、Pro・Businessそれぞれの販売価格、支払方法と時期、提供時期、契約期間、自動更新、追加組織のFreeプラン、解約、返金、利用上限、動作環境を表示する。
 
-Pro・Businessの販売価格は、Production公開前にStripeへ設定する確定額と税区分を記載し、契約画面にも契約確定前に同じ条件を表示する。
+Pro・Businessの販売価格は、Production buildがStripeの設定済みPriceから取得した確定額、通貨、請求周期、税区分を表示する。  取得失敗、inactive、test/live不一致、固定額として扱えない課金方式、金額または税区分の不足、Pro・Business間の通貨または請求周期の不一致ではbuildを失敗させる。  Productionは月1回を要求し、DevelopはStripe Sandboxで両プランに設定した同一の短周期も検証用に表示できる。  Preview、ローカル、Storybook、testはStripe credentialを使わず決定的なfixtureを表示する。
 
-役務提供事業者、運営責任者、所在地、電話番号、Pro・Businessの月額料金と税込・税別は、Production公開前に`src/components/features/CommercialTransactions/content/index.mdx`の仮入力を実在する情報と確定した販売条件へ手動で置き換える。  利用上限の数値は、同MDXの`PlanLimit`を介してbrowser-safeな`ORGANIZATION_PLAN_LIMITS`を参照する。
+役務提供事業者、運営責任者、所在地、電話番号は、Production公開前に`src/components/features/CommercialTransactions/content/index.mdx`の仮入力を実在する情報へ手動で置き換える。  Pro・Businessの販売価格は、同MDXの`PlanPrice`を介してbuild時料金カタログを参照する。  利用上限の数値は、同MDXの`PlanLimit`を介してbrowser-safeな`ORGANIZATION_PLAN_LIMITS`を参照する。
 仮入力が一つでも残る間はページ内に注意を表示し、Production公開の停止条件として[リリース状態](../manual/release-status.md)にも記録する。
 
 このページはfooterから到達できる一方、`noindex, nofollow`とし、sitemapと`llms.txt`には含めない。
@@ -109,7 +109,7 @@ Pro・Businessの販売価格は、Production公開前にStripeへ設定する�
 |---|---|---|
 | TOP | 自分の店舗で何が楽になるか | 価値と利用の流れを短く示し、詳しい入口を選べるようにする |
 | 機能紹介 | どの作業を支援できるか | 主な機能と利用場面を比較できるようにする |
-| 料金・プラン | 初回登録でどこまで利用でき、支払い情報が必要か | 2か月の無料トライアル、利用上限、Free・Pro・Business、店舗・管理ユーザーの範囲、支払い情報の要否を示す |
+| 将来の料金・プランsectionまたはページ | 初回登録でどこまで利用でき、支払い情報が必要か | 2か月の無料トライアル、利用上限、Free・Pro・Business、店舗・管理ユーザーの範囲、支払い情報の要否を示す。金額を表示する場合は特定商取引法ページと同じbuild時料金カタログを使う |
 | FAQ | 料金、通知、導入、運用について結論を知りたい | 質問ごとに結論と必要な注意点を示す |
 | HowTo | 画面でどう操作し、失敗時にどう戻るか | 操作場所、手順、結果、回復方法を示す |
 | 記事 | シフト運営の課題をどう判断するか | 課題の整理、選択肢、関連する製品導線を示す |
@@ -129,7 +129,7 @@ HowToの追加と更新には`write-help-content`、デモの設計には`demo-u
 
 ## 静的生成とメタデータ
 
-`scripts/staticSite.ts`はTOP、機能紹介、料金・プラン、FAQ、HowTo、問い合わせ、記事一覧、汎用の法務文書、特定商取引法に基づく表記、二つのデモなどを固定の公開routeとして持つ。
+`scripts/staticSite.ts`はTOP、機能紹介、FAQ、HowTo、問い合わせ、記事一覧、汎用の法務文書、特定商取引法に基づく表記、二つのデモなどを固定の公開routeとして持つ。  現在、独立した`/pricing` routeはない。
 記事詳細とカテゴリは`ArticleSite/content/`の公開済みslugから対象routeを組み立てる。
 TanStack StartはこのallowlistだけをStatic Prerenderingし、認証routeやCapability routeを自動探索しない。
 
@@ -145,7 +145,7 @@ FAQ、BlogPosting、BreadcrumbListなどの構造化データは、画面に表�
 
 `pnpm build`はStatic Prerendering、Cloudflare用ルール生成、生成物検証、型検査を行う。
 Cloudflare Pagesへ配信するのは`dist/client/`だけであり、`dist/server/`はbuild時のrenderにだけ使う。
-`scripts/validateStaticBuild.ts`は公開HTMLのcanonical、metadata、H1一件、Emotion style、hydration payload、記事OGP、metadataから再生成したsitemapとの一致、CSR shell、404、Cloudflareルールを検証する。
+`scripts/validateStaticBuild.ts`は公開HTMLのcanonical、metadata、H1一件、Emotion style、hydration payload、特定商取引法ページのPro・Business料金snapshot、記事OGP、metadataから再生成したsitemapとの一致、CSR shell、404、Cloudflareルールを検証する。
 通常の`pnpm build`は`public/sitemap.xml`を書き換えず、sourceまたは配信artifactが生成期待値と異なる場合に失敗する。
 実際のdeployment状態はこの機能文書から推測せず、CI/CDの手順と実行結果で確認する。
 

@@ -71,7 +71,7 @@ VRTの差分とレポート公開は `.github/workflows/vrt.yml` が管理する
 
 ## `develop` への反映
 
-`develop` へのpushでは、`.github/workflows/deploy.yml` がDevelop環境のConvex deploy、migration、TanStack Start build、Cloudflare Pages deployを順に実行する。
+`develop` へのpushでは、`.github/workflows/deploy.yml` がDevelop環境のTanStack Start build、Convex deploy、migration、Cloudflare Pages deployを順に実行する。  buildはSandboxのPrice読取専用credentialでPro・Businessの販売条件を取得し、失敗した場合はdeploymentを変更しない。
 ビルド単体の確認は `.github/workflows/build.yml` も実行する。
 
 失敗した場合は、失敗したjobとstepを特定し、同じcommit SHAに対する結果かを確認する。
@@ -80,13 +80,14 @@ VRTの差分とレポート公開は `.github/workflows/vrt.yml` が管理する
 ## Productionリリース
 
 Productionリリースは、`main` 向けPull Requestをmergeしたときに `.github/workflows/release.yml` が判定する。
-release label、version更新、tag、Convex deploy、migration、TanStack Start build、Cloudflare Pages deploy、GitHub Releaseの順序はworkflowを正とする。
+release label、version更新、ローカルrelease commit、TanStack Start build、tagとpush、Convex deploy、migration、Cloudflare Pages deploy、GitHub Releaseの順序はworkflowを正とする。  buildがStripeの販売条件を取得または検証できない場合、release commitとtagをremoteへpushせず、ConvexとCloudflareも変更しない。
 
 merge前に次を確認する。
 
 - 変更に対応する必須checkが成功している。
 - 選択したrelease labelが意図するsemantic versioningの区分と一致する。
 - Production環境のapprovalと必要なsecretが設定されている。
+- Production EnvironmentにPrice読取専用の`STRIPE_PRICE_READ_KEY`と、Convex deploymentと一致するPro・BusinessのPrice ID変数が設定されている。
 - schemaまたは保存済みデータ形式を変更した場合は、migration計画と復旧手順がある。
 
 リリース後は、GitHub Release、production deployment、migration結果、主要導線を確認する。

@@ -1,6 +1,6 @@
 # リリース状態
 
-> 最終更新: 2026-08-15
+> 最終更新: 2026-08-23
 >
 > 実環境確認: 未確認
 
@@ -28,8 +28,8 @@
 | 追加組織、店舗追加、管理者招待、課金を常時公開するartifactのProduction反映と、各導線・server capabilityのcanary | 未確認 | 未確認 | 未確認 | 未登録 |
 | 新規Setupが1組織、1店舗、1管理者、`complimentary.business`を作り、Trial deadlineとStripe objectを作らないこと | 未確認 | 未確認 | 未確認 | 未登録 |
 | 2か月無料・カード登録不要の公開文言と、初回Setupが2か月のTrialを作るbackend・利用規約契約の一致 | **要対応（backend・規約未整合）** | 2026-08-22 | Repository | 公開文言は更新済み。`convex/setup/mutations.ts`と対応する契約・テストは引き続き`complimentary.business`を作り、管理ユーザー向け利用規約と同意要求版も現行契約のまま |
-| StripeのPro・Business販売設定、Price、明示された税区分、Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
-| `/commercial-transactions`の事業者名、運営責任者、所在地、電話番号、Pro・Business販売価格の確定情報への置換 | **要対応（仮入力）** | 2026-08-13 | Repository | `src/components/features/CommercialTransactions/content/index.mdx`の仮入力 |
+| StripeのPro・Business販売設定、Price、明示された税区分、Webhook、公開サイトBuild用の読取credentialとPrice ID | 未確認 | 未確認 | 未確認 | 未登録 |
+| `/commercial-transactions`の事業者名、運営責任者、所在地、電話番号の確定情報への置換 | **要対応（仮入力）** | 2026-08-23 | Repository | `src/components/features/CommercialTransactions/content/index.mdx`の仮入力。Pro・Business販売価格はbuild時にStripeから取得する |
 | Resendの`email.delivered` Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Clerk、Cloudflare、Stripeのセキュリティ設定とprovider canary | 未確認 | 未確認 | 未確認 | 未登録 |
 | 公開Web計測のGTM container、GA4 property、Clarity、Consent、Production request | 未確認 | 未確認 | 未確認 | 未登録 |
@@ -40,7 +40,7 @@
 この文書に、対象と時刻を特定できる証跡がまだないことを表します。
 
 `/commercial-transactions`は、仮入力を含む現状のままProductionへ公開しません。
-事業者名、運営責任者、番地まで含む所在地、確実に連絡できる電話番号、Pro・Businessの月額料金と税込・税別へ置換し、表示、連絡可能性、Stripe Priceとの一致を確認してから状態を更新します。
+事業者名、運営責任者、番地まで含む所在地、確実に連絡できる電話番号を実在する情報へ置換します。  Pro・Businessの月額料金、通貨、請求周期、税込・税別はProduction buildがStripeから取得するため、Build用credentialとPrice IDを設定し、表示、連絡可能性、契約画面との一致を確認してから状態を更新します。
 
 2か月無料・カード登録不要の公開文言を含むartifactは、初回Setupが同じ2か月Trialを作るbackend契約と検証へ切り替わり、管理ユーザー向け利用規約の本文・文書版・同意要求版が同じ契約へ更新されるまでProductionへ公開しません。  静的UI、LP、FAQ、metadataの検証成功だけでは、この停止条件を解除しません。
 
