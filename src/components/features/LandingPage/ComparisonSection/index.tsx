@@ -1,36 +1,25 @@
-import { Box, Container, Flex, Grid, Icon, Text, VStack } from "@chakra-ui/react";
+import { Box, Container, Flex, Grid, Icon, Image, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import {
-  LuArrowRight,
-  LuBell,
-  LuBellRing,
-  LuCalendarRange,
-  LuCheck,
-  LuCircleUserRound,
-  LuClipboardPenLine,
-  LuEllipsis,
-  LuFileSpreadsheet,
-  LuFileText,
-  LuLink2,
-  LuMail,
-  LuMailCheck,
-  LuMessageCircleMore,
-  LuMonitorCog,
-  LuRefreshCw,
-  LuSendHorizontal,
-  LuSmartphone,
-} from "react-icons/lu";
+import { LuArrowRight, LuBell, LuCalendarRange, LuClipboardPenLine, LuSendHorizontal } from "react-icons/lu";
 import { SectionHeading } from "../SectionHeading";
+import adjustmentAfterImage from "./adjustment-after.webp";
+import adjustmentBeforeImage from "./adjustment-before.webp";
+import collectionAfterImage from "./collection-after.webp";
+import collectionBeforeImage from "./collection-before.webp";
+import reminderAfterImage from "./reminder-after.webp";
+import reminderBeforeImage from "./reminder-before.webp";
+import sharingAfterImage from "./sharing-after.webp";
+import sharingBeforeImage from "./sharing-before.webp";
 
-type ComparisonKind = "collection" | "reminder" | "adjustment" | "sharing";
 type ComparisonTone = "before" | "after";
 
 type ComparisonItem = {
   title: string;
   before: string;
   after: string;
+  beforeImageSrc: string;
+  afterImageSrc: string;
   categoryIcon: IconType;
-  kind: ComparisonKind;
 };
 
 const comparisonItems: ComparisonItem[] = [
@@ -38,29 +27,33 @@ const comparisonItems: ComparisonItem[] = [
     title: "希望シフト回収",
     before: "紙・口頭・LINEでバラバラ",
     after: "LINE・メールでひとつに回収",
+    beforeImageSrc: collectionBeforeImage,
+    afterImageSrc: collectionAfterImage,
     categoryIcon: LuClipboardPenLine,
-    kind: "collection",
   },
   {
     title: "催促",
     before: "個別に連絡が必要",
     after: "未提出者へ自動リマインド",
+    beforeImageSrc: reminderBeforeImage,
+    afterImageSrc: reminderAfterImage,
     categoryIcon: LuBell,
-    kind: "reminder",
   },
   {
     title: "調整",
     before: "Excelへ転記して作成",
     after: "画面上でシフトを調整",
+    beforeImageSrc: adjustmentBeforeImage,
+    afterImageSrc: adjustmentAfterImage,
     categoryIcon: LuCalendarRange,
-    kind: "adjustment",
   },
   {
     title: "共有",
     before: "確定後に個別送信・投稿",
     after: "確定後にLINE・メールで自動共有",
+    beforeImageSrc: sharingBeforeImage,
+    afterImageSrc: sharingAfterImage,
     categoryIcon: LuSendHorizontal,
-    kind: "sharing",
   },
 ];
 
@@ -108,9 +101,9 @@ const ComparisonRow = ({ item, number }: { item: ComparisonItem; number: number 
     alignItems="stretch"
   >
     <CategoryCell icon={item.categoryIcon} number={number} title={item.title} />
-    <ComparisonPanel gridArea="before" tone="before" kind={item.kind} description={item.before} />
+    <ComparisonPanel gridArea="before" tone="before" imageSrc={item.beforeImageSrc} description={item.before} />
     <ComparisonArrow />
-    <ComparisonPanel gridArea="after" tone="after" kind={item.kind} description={item.after} />
+    <ComparisonPanel gridArea="after" tone="after" imageSrc={item.afterImageSrc} description={item.after} />
   </Grid>
 );
 
@@ -171,12 +164,12 @@ const CategoryCell = ({ icon, number, title }: { icon: IconType; number: number;
 const ComparisonPanel = ({
   gridArea,
   tone,
-  kind,
+  imageSrc,
   description,
 }: {
   gridArea: "before" | "after";
   tone: ComparisonTone;
-  kind: ComparisonKind;
+  imageSrc: string;
   description: string;
 }) => {
   const isAfter = tone === "after";
@@ -199,7 +192,6 @@ const ComparisonPanel = ({
     >
       <ComparisonHeader tone={tone} compact />
       <Flex
-        position="relative"
         flex="1"
         direction="column"
         align="center"
@@ -209,8 +201,7 @@ const ComparisonPanel = ({
         py={{ base: 4, md: 5 }}
         textAlign="center"
       >
-        {isAfter && <SuccessMark />}
-        <ComparisonVisual kind={kind} tone={tone} />
+        <ComparisonVisual imageSrc={imageSrc} />
         <Text
           color={isAfter ? "teal.700" : "gray.900"}
           fontSize={{ base: "sm", md: "sm", lg: "md" }}
@@ -253,102 +244,8 @@ const ComparisonArrow = () => (
   </Flex>
 );
 
-const SuccessMark = () => (
-  <Flex
-    position="absolute"
-    insetBlockStart={{ base: 2.5, md: 3 }}
-    insetInlineEnd={{ base: 2.5, md: 3 }}
-    align="center"
-    justify="center"
-    boxSize={{ base: 7, md: 8, lg: 9 }}
-    bg="teal.600"
-    color="white"
-    borderRadius="full"
-  >
-    <Icon as={LuCheck} boxSize={{ base: 4, lg: 5 }} strokeWidth={3} aria-hidden />
+const ComparisonVisual = ({ imageSrc }: { imageSrc: string }) => (
+  <Flex align="center" justify="center" w="full" h={{ base: "104px", sm: "116px", md: "112px", lg: "132px" }}>
+    <Image src={imageSrc} alt="" w="full" h="full" objectFit="contain" loading="lazy" decoding="async" />
   </Flex>
-);
-
-const ComparisonVisual = ({ kind, tone }: { kind: ComparisonKind; tone: ComparisonTone }) => {
-  if (tone === "after") {
-    if (kind === "collection") {
-      return <PhoneChannelVisual innerIcon={LuLink2} mailIcon={LuMail} />;
-    }
-
-    if (kind === "reminder") {
-      return <AutomaticReminderVisual />;
-    }
-
-    if (kind === "adjustment") {
-      return <Icon as={LuMonitorCog} boxSize={{ base: 12, sm: 14, lg: 16 }} color="teal.700" aria-hidden />;
-    }
-
-    return <PhoneChannelVisual innerIcon={LuBell} mailIcon={LuMailCheck} />;
-  }
-
-  if (kind === "collection") {
-    return <IconSequence icons={[LuFileText, LuMessageCircleMore, LuFileSpreadsheet]} separator="ellipsis" />;
-  }
-
-  if (kind === "reminder") {
-    return <IconSequence icons={[LuCircleUserRound, LuCircleUserRound, LuCircleUserRound]} separator="ellipsis" />;
-  }
-
-  if (kind === "adjustment") {
-    return <IconSequence icons={[LuFileSpreadsheet, LuMonitorCog]} separator="arrow" />;
-  }
-
-  return <IconSequence icons={[LuCircleUserRound, LuMessageCircleMore, LuSendHorizontal]} separator="ellipsis" />;
-};
-
-const IconSequence = ({ icons, separator }: { icons: IconType[]; separator: "ellipsis" | "arrow" }) => (
-  <Flex align="center" justify="center" gap={{ base: 0.5, md: 2, lg: 3 }} color="gray.800" aria-hidden>
-    {icons.map((VisualIcon, index) => (
-      <Box key={`${VisualIcon.name}-${index}`} display="contents">
-        {index > 0 &&
-          (separator === "ellipsis" ? (
-            <Icon as={LuEllipsis} boxSize={{ base: "clamp(10px, 3vw, 16px)", lg: 5 }} color="gray.500" />
-          ) : (
-            <Icon as={LuArrowRight} boxSize={{ base: 4, lg: 6 }} color="gray.600" />
-          ))}
-        <Icon as={VisualIcon} boxSize={{ base: "clamp(24px, 8vw, 36px)", md: 10, lg: 12, xl: 14 }} strokeWidth={1.7} />
-      </Box>
-    ))}
-  </Flex>
-);
-
-const PhoneChannelVisual = ({ innerIcon, mailIcon }: { innerIcon: IconType; mailIcon: IconType }) => (
-  <Flex align="center" justify="center" gap={{ base: 3, md: 4, lg: 6 }} color="teal.700" aria-hidden>
-    <Box position="relative" boxSize={{ base: 10, sm: 12, lg: 14 }}>
-      <Icon as={LuSmartphone} boxSize="full" strokeWidth={1.8} />
-      <Icon
-        as={innerIcon}
-        position="absolute"
-        inset={0}
-        m="auto"
-        boxSize={{ base: 4, sm: 5, lg: 6 }}
-        strokeWidth={2.2}
-      />
-    </Box>
-    <Icon as={mailIcon} boxSize={{ base: 10, sm: 12, lg: 14 }} flexShrink={0} strokeWidth={1.8} />
-  </Flex>
-);
-
-const AutomaticReminderVisual = () => (
-  <Box position="relative" color="teal.700" aria-hidden>
-    <Icon as={LuBellRing} boxSize={{ base: 12, sm: 14, lg: 16 }} strokeWidth={1.8} />
-    <Flex
-      position="absolute"
-      insetInlineEnd={-2}
-      insetBlockEnd={-1}
-      align="center"
-      justify="center"
-      boxSize={{ base: 6, lg: 7 }}
-      bg="teal.600"
-      color="white"
-      borderRadius="full"
-    >
-      <Icon as={LuRefreshCw} boxSize={{ base: 3.5, lg: 4 }} strokeWidth={2.5} />
-    </Flex>
-  </Box>
 );
