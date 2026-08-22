@@ -20,3 +20,10 @@ export const Mobile: Story = {
     viewport: { value: "mobile2", isRotated: false },
   },
 };
+
+export const MobileNarrow: Story = {
+  tags: ["vrt-mobile1"],
+  globals: {
+    viewport: { value: "mobile1", isRotated: false },
+  },
+};
