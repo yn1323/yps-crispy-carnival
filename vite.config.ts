@@ -2,7 +2,10 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 import pkg from "./package.json" with { type: "json" };
+import { loadStripePublicPlanPrices } from "./scripts/loadStripePublicPlanPrices";
 import { collectPublicRoutes, STATIC_404_BUILD_PATH } from "./scripts/staticSite";
+import type { PublicPlanPriceCatalog } from "./src/domains/publicPricing";
+import { PUBLIC_PLAN_PRICE_FIXTURE } from "./src/domains/publicPricing/fixture";
 import { mdxPlugin } from "./vite/mdxPlugin";
 
 const buildDateJst = new Intl.DateTimeFormat("sv-SE", {
@@ -12,10 +15,11 @@ const buildDateJst = new Intl.DateTimeFormat("sv-SE", {
   day: "2-digit",
 }).format(new Date());
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(async ({ mode }) => {
   const buildEnvironment = loadEnv(mode, process.cwd(), "VITE_");
   const appEnvironment = buildEnvironment.VITE_APP_ENVIRONMENT || "local";
   const releaseId = buildEnvironment.VITE_RELEASE_ID || process.env.GITHUB_SHA || "local";
+  const publicPlanPrices = await resolvePublicPlanPrices(appEnvironment);
 
   return {
     plugins: [
@@ -63,7 +67,20 @@ export default defineConfig(({ mode }) => {
       __APP_VERSION__: JSON.stringify(pkg.version),
       // SSG HTMLとhydration初回で、日付依存のデモ表示を同じ値に固定する。
       __BUILD_DATE_JST__: JSON.stringify(buildDateJst),
+      __PUBLIC_PLAN_PRICES__: JSON.stringify(publicPlanPrices),
       __RELEASE_ID__: JSON.stringify(releaseId),
     },
   };
 });
+
+async function resolvePublicPlanPrices(appEnvironment: string): Promise<PublicPlanPriceCatalog> {
+  if (appEnvironment === "local" || appEnvironment === "preview") {
+    return PUBLIC_PLAN_PRICE_FIXTURE;
+  }
+  if (appEnvironment === "develop" || appEnvironment === "production") {
+    return await loadStripePublicPlanPrices({
+      environment: appEnvironment,
+    });
+  }
+  throw new Error(`Unsupported VITE_APP_ENVIRONMENT for public price build: ${appEnvironment}`);
+}

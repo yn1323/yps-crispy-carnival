@@ -194,17 +194,13 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Setup
         uses: ./.github/actions/setup
-      - name: Deploy Convex
-        run: npx convex deploy
-        env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-      - name: Run Convex migrations
-        run: npx convex run migrations/index:run
-        env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+      # Stripeを含む公開artifactのBuildを先に完了し、失敗時はdeploymentを変更しない。
       - name: Build
         run: pnpm build
         env:
+          STRIPE_PRICE_READ_KEY: ${{ secrets.STRIPE_PRICE_READ_KEY }}
+          STRIPE_PRO_PRICE_ID: ${{ vars.STRIPE_PRO_PRICE_ID }}
+          STRIPE_BUSINESS_PRICE_ID: ${{ vars.STRIPE_BUSINESS_PRICE_ID }}
           VITE_APP_ENVIRONMENT: develop
           VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
@@ -213,6 +209,14 @@ jobs:
           VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
           VITE_WEB_MEASUREMENT_ENABLED: ${{ vars.VITE_WEB_MEASUREMENT_ENABLED }}
           VITE_WEB_VITALS_SAMPLE_RATE: ${{ vars.VITE_WEB_VITALS_SAMPLE_RATE }}
+      - name: Deploy Convex
+        run: npx convex deploy
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+      - name: Run Convex migrations
+        run: npx convex run migrations/index:run
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       - name: Deploy to Cloudflare Pages
         run: |
           npx wrangler pages deploy dist/client \

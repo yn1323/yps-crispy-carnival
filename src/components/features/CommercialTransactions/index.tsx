@@ -7,6 +7,7 @@ import {
 } from "@/convex/organizationBilling/planLimits";
 import { LegalMarkdownPage } from "@/src/components/shared/LegalDocumentPage";
 import { buildLegalDocument, type LegalMdxComponent } from "@/src/components/shared/LegalDocumentPage/legalContent";
+import { formatPublicPlanPriceLine, type PublicPlanPriceCatalog } from "@/src/domains/publicPricing";
 import type { MdxComponents } from "@/src/lib/mdx";
 
 const CONTENT_FILENAME = "index.mdx";
@@ -38,8 +39,32 @@ if (!contentSource) {
 
 const hasManualDisclosure = contentSource.includes("【手動入力：");
 
-export function CommercialTransactions(): ReactNode {
-  return <LegalMarkdownPage content={content} components={commercialTransactionsMdxComponents} contentGap={6} />;
+type CommercialTransactionsProps = {
+  prices: PublicPlanPriceCatalog;
+};
+
+export function CommercialTransactions({ prices }: CommercialTransactionsProps): ReactNode {
+  const components = {
+    ...commercialTransactionsMdxComponents,
+    PlanPrice: ({ plan }: PlanPriceProps) => {
+      const price = prices[plan];
+
+      return (
+        <span
+          data-public-plan-price={plan}
+          data-currency={price.currency}
+          data-unit-amount={price.unitAmount}
+          data-interval={price.interval}
+          data-interval-count={price.intervalCount}
+          data-tax-behavior={price.taxBehavior}
+        >
+          {formatPublicPlanPriceLine(price)}
+        </span>
+      );
+    },
+  } satisfies MdxComponents;
+
+  return <LegalMarkdownPage content={content} components={components} contentGap={6} />;
 }
 
 const commercialTransactionsMdxComponents = {
@@ -123,11 +148,15 @@ function ManualDisclosureNotice(): ReactNode {
   return (
     <Box bg="orange.50" borderWidth="1px" borderColor="orange.200" borderRadius="lg" px={4} py={3}>
       <Text textStyle="bodySm" color="orange.900" lineHeight={1.8} fontWeight="semibold">
-        事業者名、運営責任者、所在地、電話番号、Pro・Businessの販売価格は仮入力です。Production公開前に実在する情報と確定した価格へ置き換えてください。
+        事業者名、運営責任者、所在地、電話番号は仮入力です。Production公開前に実在する情報へ置き換えてください。
       </Text>
     </Box>
   );
 }
+
+type PlanPriceProps = {
+  plan: keyof PublicPlanPriceCatalog;
+};
 
 type PlanLimitProps = {
   plan: OrganizationPlan;
