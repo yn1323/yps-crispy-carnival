@@ -196,8 +196,10 @@ export const FaqRelatedHelp: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const entry = faqEntries.find(({ meta: entryMeta }) => entryMeta.id === "recruitment-notification-timing");
+    if (!entry) throw new Error("関連ヘルプStoryにはrecruitment-notification-timing FAQが必要です");
     const trigger = await canvas.findByRole("button", {
-      name: /募集を作成すると、すぐにスタッフへ届きますか？/,
+      name: (accessibleName) => accessibleName.includes(entry.meta.title),
     });
 
     await userEvent.click(trigger);

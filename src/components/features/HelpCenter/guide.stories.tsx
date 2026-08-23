@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { HelpGuide } from "./HelpGuide";
+import { faqMetas } from "./helpMeta";
 
 const meta = {
   title: "Features/HelpCenter/Guide",
@@ -44,14 +45,13 @@ type Story = StoryObj<typeof meta>;
 export const Desktop: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const firstStepsFaq = faqMetas.find(({ id }) => id === "first-steps");
+    if (!firstStepsFaq) throw new Error("Guide Storyにはfirst-steps FAQが必要です");
 
     await expect(await canvas.findByRole("heading", { level: 1, name: "最初のシフト募集を始める" })).toBeVisible();
     await expect(canvas.getAllByRole("link", { name: "ヘルプ" })[0]).toHaveAttribute("href", "/help");
     await expect(canvas.getAllByRole("navigation", { name: "この使い方の目次" }).length).toBeGreaterThan(0);
-    await expect(canvas.getByRole("link", { name: /利用を始めるとき、最初に何をしますか？/ })).toHaveAttribute(
-      "href",
-      "/help#first-steps",
-    );
+    await expect(canvas.getByRole("link", { name: firstStepsFaq.title })).toHaveAttribute("href", firstStepsFaq.href);
     await expect(canvas.getByRole("link", { name: /スタッフを追加する/ })).toHaveAttribute("href", "/help/add-staff");
   },
 };
@@ -90,9 +90,14 @@ export const RelatedFromIncomingRelation: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const recruitmentNotificationFaq = faqMetas.find(({ id }) => id === "recruitment-notification-timing");
+    if (!recruitmentNotificationFaq) {
+      throw new Error("Guide Storyにはrecruitment-notification-timing FAQが必要です");
+    }
 
-    await expect(
-      await canvas.findByRole("link", { name: /募集を作成すると、すぐにスタッフへ届きますか？/ }),
-    ).toHaveAttribute("href", "/help#recruitment-notification-timing");
+    await expect(await canvas.findByRole("link", { name: recruitmentNotificationFaq.title })).toHaveAttribute(
+      "href",
+      recruitmentNotificationFaq.href,
+    );
   },
 };
