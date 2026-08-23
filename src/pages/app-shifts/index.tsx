@@ -17,6 +17,7 @@ import { AuthenticatedPageContent } from "@/src/components/templates/Authenticat
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
+import { resolveShopFilter } from "@/src/domains/shop/filter";
 
 export type RecruitmentSection = FunctionReturnType<
   typeof api.appOrganization.queries.listOrganizationRecruitments
@@ -38,7 +39,7 @@ export function AppShiftsRoutePage(props: Props) {
   const navigate = useNavigate();
   const [retryRevision, setRetryRevision] = useState(0);
   const resolvedFilter = useMemo(
-    () => resolveShiftsShopFilter(props.activeShops, props.requestedShopFilter),
+    () => resolveShopFilter(props.activeShops, props.requestedShopFilter),
     [props.activeShops, props.requestedShopFilter],
   );
   const shouldReplaceSearch = resolvedFilter.kind === "ready" && resolvedFilter.shouldReplaceSearch;
@@ -213,17 +214,6 @@ export function buildAppShiftsOverview(
     })),
     recruitmentShops,
   };
-}
-
-export function resolveShiftsShopFilter(
-  activeShops: readonly ShopOption[] | null,
-  requestedShopFilter?: string,
-): { kind: "loading" } | { kind: "ready"; shopFilter: "all" | Id<"shops">; shouldReplaceSearch: boolean } {
-  if (activeShops === null) return { kind: "loading" };
-  if (!requestedShopFilter) return { kind: "ready", shopFilter: "all", shouldReplaceSearch: false };
-  const shop = activeShops.find((candidate) => candidate.id === requestedShopFilter);
-  if (!shop) return { kind: "ready", shopFilter: "all", shouldReplaceSearch: true };
-  return { kind: "ready", shopFilter: shop.id, shouldReplaceSearch: false };
 }
 
 export function AppShiftsHeader({

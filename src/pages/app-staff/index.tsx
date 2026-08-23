@@ -21,6 +21,7 @@ import { Dialog, useDialog } from "@/src/components/ui/Dialog";
 import { DrilldownRow } from "@/src/components/ui/DrilldownRow";
 import { Empty } from "@/src/components/ui/Empty";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
+import { resolveShopFilter } from "@/src/domains/shop/filter";
 import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
 
 const PEOPLE_PAGE_SIZE = 10;
@@ -42,7 +43,7 @@ export function AppStaffRoutePage(props: Props) {
   const navigate = useNavigate();
   const [retryRevision, setRetryRevision] = useState(0);
   const resolvedFilter = useMemo(
-    () => resolveStaffShopFilter(props.activeShops, props.requestedShopFilter),
+    () => resolveShopFilter(props.activeShops, props.requestedShopFilter),
     [props.activeShops, props.requestedShopFilter],
   );
   const filterKind = resolvedFilter.kind;
@@ -315,17 +316,6 @@ export function StaffInvitationShopSelectionDialog({
       </Box>
     </Dialog>
   );
-}
-
-export function resolveStaffShopFilter(
-  activeShops: readonly ShopOption[] | null,
-  requestedShopFilter?: string,
-): { kind: "loading" } | { kind: "ready"; shopFilter: "all" | Id<"shops">; shouldReplaceSearch: boolean } {
-  if (activeShops === null) return { kind: "loading" };
-  if (!requestedShopFilter) return { kind: "ready", shopFilter: "all", shouldReplaceSearch: false };
-  const shop = activeShops.find((candidate) => candidate.id === requestedShopFilter);
-  if (!shop) return { kind: "ready", shopFilter: "all", shouldReplaceSearch: true };
-  return { kind: "ready", shopFilter: shop.id, shouldReplaceSearch: false };
 }
 
 export function AppStaffReadOnlyNotice() {
