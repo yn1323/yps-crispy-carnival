@@ -10,6 +10,7 @@ export type {
   StaffRegistrationActionInboxData,
 } from "./builders";
 export {
+  buildActionInboxAction,
   buildNotificationFailureActionInboxItem,
   buildStaffRegistrationActionInboxItem,
 } from "./builders";
