@@ -133,7 +133,7 @@ jobs:
     permissions:
       contents: read
       issues: write
-      pull-requests: read
+      pull-requests: write
     outputs:
       has_diff: ${{ steps.diff_check.outputs.has_diff }}
       publish_status: ${{ steps.publish.outputs.status }}
@@ -290,9 +290,11 @@ jobs:
               buildBody(`[差分レポートを見る](${reportUrl}?v=${process.env.RUN_ID}-${process.env.RUN_ATTEMPT})`),
             );
           NODE
+          cat vrt-comment-final.md >> "$GITHUB_STEP_SUMMARY"
       - name: Comment PR while VRT report is deploying
         id: report_comment
         if: ${{ !cancelled() && hashFiles('vrt-comment-pending.md') != '' }}
+        continue-on-error: true
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           PULL_NUMBER: ${{ needs.prepare.outputs.pull_number }}
@@ -325,7 +327,7 @@ jobs:
             core.setOutput('comment_id', String(comment.id));
       - name: Wait for hosted VRT report
         id: wait_deploy
-        if: ${{ !cancelled() && steps.report_comment.outputs.comment_id != '' }}
+        if: ${{ !cancelled() && (steps.publish.outputs.status == 'published' || steps.publish.outputs.status == 'noop') }}
         env:
           MARKER_NAME: ${{ steps.publish.outputs.marker_name }}
           REPORT_URL: ${{ needs.prepare.outputs.report_url }}
@@ -346,6 +348,7 @@ jobs:
           echo "deploy_status=timeout" >> "$GITHUB_OUTPUT"
       - name: Update PR comment with VRT report
         if: ${{ always() && steps.report_comment.outputs.comment_id != '' }}
+        continue-on-error: true
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           COMMENT_ID: ${{ steps.report_comment.outputs.comment_id }}
@@ -364,7 +367,7 @@ jobs:
               body,
             });
       - name: Fail when VRT report is unavailable
-        if: ${{ always() && steps.report_comment.outputs.comment_id != '' && steps.wait_deploy.outputs.deploy_status != 'success' }}
+        if: ${{ always() && (steps.publish.outputs.status == 'published' || steps.publish.outputs.status == 'noop') && steps.wait_deploy.outputs.deploy_status != 'success' }}
         run: |
           echo "::error::hosting-pages deploy could not be confirmed within 15 minutes"
           exit 1

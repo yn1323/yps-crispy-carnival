@@ -17,7 +17,7 @@ jobs:
     permissions:
       contents: read
       issues: write
-      pull-requests: read
+      pull-requests: write
     timeout-minutes: 75
     runs-on: ubuntu-latest
     environment: Preview
@@ -124,6 +124,7 @@ jobs:
       - name: Comment PR while report is deploying
         id: report_comment
         if: ${{ !cancelled() && (steps.publish.outputs.status == 'published' || steps.publish.outputs.status == 'noop') }}
+        continue-on-error: true
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           TEST_RESULT: ${{ steps.playwright.outcome }}
@@ -230,7 +231,7 @@ jobs:
             core.setOutput('comment_id', String(comment.id));
       - name: Wait for hosted Playwright report
         id: wait_deploy
-        if: ${{ !cancelled() && steps.report_comment.outputs.comment_id != '' }}
+        if: ${{ !cancelled() && (steps.publish.outputs.status == 'published' || steps.publish.outputs.status == 'noop') }}
         env:
           MARKER_NAME: ${{ steps.publish.outputs.marker_name }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
@@ -250,6 +251,7 @@ jobs:
           echo "deploy_status=timeout" >> "$GITHUB_OUTPUT"
       - name: Update PR comment with Playwright report
         if: ${{ always() && steps.report_comment.outputs.comment_id != '' }}
+        continue-on-error: true
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           COMMENT_ID: ${{ steps.report_comment.outputs.comment_id }}
@@ -268,7 +270,7 @@ jobs:
               body,
             });
       - name: Fail when Playwright report is unavailable
-        if: ${{ always() && steps.report_comment.outputs.comment_id != '' && steps.wait_deploy.outputs.deploy_status != 'success' }}
+        if: ${{ always() && (steps.publish.outputs.status == 'published' || steps.publish.outputs.status == 'noop') && steps.wait_deploy.outputs.deploy_status != 'success' }}
         run: |
           echo "::error::hosting-pages deploy could not be confirmed within 15 minutes"
           exit 1
