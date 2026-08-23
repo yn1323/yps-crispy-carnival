@@ -22,11 +22,18 @@ const INJECTED_PRICE_CATALOG = {
   },
 } as const satisfies PublicPlanPriceCatalog;
 
+const DISCLOSURE_FIXTURE = {
+  name: "山田 太郎",
+  address: "〒150-0000\n東京都渋谷区テスト1-2-3",
+  phoneNumber: "03-1234-5678",
+} as const;
+
 const meta = {
   title: "Features/CommercialTransactions",
   component: CommercialTransactions,
   args: {
     prices: PUBLIC_PLAN_PRICE_FIXTURE,
+    disclosure: DISCLOSURE_FIXTURE,
   },
   parameters: {
     layout: "fullscreen",
@@ -55,7 +62,9 @@ export const PC: Story = {
       canvas.getByText(`無料トライアル：利用人数${ORGANIZATION_PLAN_LIMITS.trial.maxPeople}名`, { exact: false }),
     ).toBeVisible();
     await expect(canvas.getByRole("link", { name: "お問い合わせフォーム" })).toHaveAttribute("href", "/contact");
-    await expect(canvas.getByText("事業者名、運営責任者、所在地、電話番号", { exact: false })).toBeVisible();
+    await expect(canvas.getAllByText(DISCLOSURE_FIXTURE.name)).toHaveLength(2);
+    await expect(canvas.getByText(DISCLOSURE_FIXTURE.address.replace("\n", " "))).toBeVisible();
+    await expect(canvas.getByText(DISCLOSURE_FIXTURE.phoneNumber)).toBeVisible();
     await expect(canvas.getByText("動作環境")).toBeVisible();
   },
 };

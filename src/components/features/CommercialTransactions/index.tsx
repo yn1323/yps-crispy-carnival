@@ -1,4 +1,4 @@
-import { Box, Text } from "@chakra-ui/react";
+import { Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import {
   ORGANIZATION_PLAN_LIMITS,
@@ -24,28 +24,23 @@ const frontmatterModules = import.meta.glob<unknown>("./content/*.mdx", {
   import: "default",
 });
 
-const sourceModules = import.meta.glob<string>("./content/*.mdx", {
-  eager: true,
-  query: "?mdx-source",
-  import: "default",
-});
-
 const content = buildLegalDocument(componentModules, frontmatterModules, CONTENT_FILENAME);
-const contentSource = Object.entries(sourceModules).find(([path]) => path.endsWith(`/${CONTENT_FILENAME}`))?.[1];
-
-if (!contentSource) {
-  throw new Error(`法務文書 "content/${CONTENT_FILENAME}" のsourceが見つかりません`);
-}
-
-const hasManualDisclosure = contentSource.includes("【手動入力：");
 
 type CommercialTransactionsProps = {
   prices: PublicPlanPriceCatalog;
+  disclosure: {
+    name: string;
+    address: string;
+    phoneNumber: string;
+  };
 };
 
-export function CommercialTransactions({ prices }: CommercialTransactionsProps): ReactNode {
+export function CommercialTransactions({ prices, disclosure }: CommercialTransactionsProps): ReactNode {
   const components = {
     ...commercialTransactionsMdxComponents,
+    CommercialTransactionsName: () => <DisclosureValue value={disclosure.name} />,
+    CommercialTransactionsAddress: () => <DisclosureValue value={disclosure.address} />,
+    CommercialTransactionsPhoneNumber: () => <DisclosureValue value={disclosure.phoneNumber} />,
     PlanPrice: ({ plan }: PlanPriceProps) => {
       const price = prices[plan];
 
@@ -68,21 +63,14 @@ export function CommercialTransactions({ prices }: CommercialTransactionsProps):
 }
 
 const commercialTransactionsMdxComponents = {
-  ManualDisclosureNotice,
   PlanLimit,
 } satisfies MdxComponents;
 
-function ManualDisclosureNotice(): ReactNode {
-  if (!hasManualDisclosure) {
-    return null;
-  }
-
+function DisclosureValue({ value }: { value: string }): ReactNode {
   return (
-    <Box bg="orange.50" borderWidth="1px" borderColor="orange.200" borderRadius="lg" px={4} py={3}>
-      <Text textStyle="bodySm" color="orange.900" lineHeight={1.8} fontWeight="semibold">
-        事業者名、運営責任者、所在地、電話番号は仮入力です。Production公開前に実在する情報へ置き換えてください。
-      </Text>
-    </Box>
+    <Text as="p" textStyle="bodySm" color="fg.muted" lineHeight={1.8} whiteSpace="pre-line">
+      {value}
+    </Text>
   );
 }
 
