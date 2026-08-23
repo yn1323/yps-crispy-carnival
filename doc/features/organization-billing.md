@@ -98,13 +98,13 @@ direct routeとpublic mutation/actionは、画面表示とは独立して認証�
 
 | 表示・利用権限 | 利用人数 | 稼働店舗 | 有効管理者 | Stripe契約 |
 |---|---:|---:|---:|---|
-| Trial | 20 | 5 | 5 | 継続予約がある場合だけ作成処理を持つ |
+| Trial | 40 | 5 | 5 | 継続予約がある場合だけ作成処理を持つ |
 | Free | 5 | 1 | 2 | なし |
 | Pro | 20 | 5 | 5 | あり |
 | Business | 40 | 5 | 5 | あり |
 | 支払い不要Business | 40 | 5 | 5 | 作成しない |
 
-Trialの利用権限はProと同じである。
+Trialの利用権限はBusinessと同じである。
 Freeは追加組織の初期状態、既存の`active.free`、そのFreeをfallbackとする`pendingActivation`、Trial未契約終了、有料契約終了後の受け皿として維持する。
 以下でFreeの管理者操作を説明するときは、`active.free`とFreeをfallbackとする`pendingActivation`を対象にする。
 通常の初回Setupは3か月のTrialで作る。
@@ -146,7 +146,7 @@ Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側
 | 追加組織作成 | 既存組織のactive管理者 | `active.free` |
 
 初回Setupは本人のactiveな組織所属が0件であることをserver-sideで確認する。
-最初の組織、店舗、人物、管理者、店舗スタッフと、Pro相当の3か月Trialを一度だけ作る。Trial期限と課金deadlineは作るが、Stripe objectは作らない。
+最初の組織、店舗、人物、管理者、店舗スタッフと、Business相当の3か月Trialを一度だけ作る。Trial期限と課金deadlineは作るが、Stripe objectは作らない。
 
 追加組織は管理画面から作成できる。  serverは認証、作成元組織の管理者状態、Free枠、作成上限、rate limit、冪等性をwriteより前に確認する。
 
@@ -225,7 +225,7 @@ Notification Outboxは外部送信直前にも招待、所属、受取人を再�
 
 | 状態 | 利用者から見た意味 | 書込・復旧の扱い |
 |---|---|---|
-| `trial` | 無料体験中。Pro相当を利用する | 継続先としてProまたはBusinessを選べる |
+| `trial` | 無料体験中。Business相当を利用する | 継続先としてProまたはBusinessを選べる |
 | `initialPaymentPending` | Trial終了時の初回支払い結果を確認中 | Pro相当を維持し、検証済み結果を待つ |
 | `pendingActivation` | 既存FreeまたはProから有料プランを有効化中 | 保存したfallbackの権限を維持する。Free fallbackは5名、1店舗、管理者2名を使う |
 | `active.free` | Freeを利用中 | 5名、1店舗、管理者2名に限定する。二つ目以降の組織はこの状態で開始する |
@@ -340,7 +340,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 
 | 入口 | 用途 |
 |---|---|
-| `api.setup.mutations.setupShopAndManager` | 所属0件の初期設定と、1組織、1店舗、管理者本人、Pro相当の3か月Trialを作成する。Trial deadlineは作るがStripe objectは作らない |
+| `api.setup.mutations.setupShopAndManager` | 所属0件の初期設定と、1組織、1店舗、管理者本人、Business相当の3か月Trialを作成する。Trial deadlineは作るがStripe objectは作らない |
 | `api.setup.mutations.createOrganization` | 既存管理者による追加組織作成。認証、作成上限、rate limit、冪等性を確認し`active.free`を作る |
 | `api.dashboard.queries.getMyShops` | 利用可能な店舗、組織、所属状態の取得 |
 | `api.dashboard.queries.getDashboardShop` | 選択店舗を認可し、Dashboard用の`planStatus`とrolling deploy用の旧`trialEndingNotice`を取得 |
@@ -386,7 +386,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 - `convex/organization/managerSettingsQueries.test.ts`：管理者設定のbounded read、currentとprojectedの分離、`integrityError` / `ready`、候補の選択不可理由を検証する。
 - `convex/_scenario/organizationBillingLifecycle.test.ts`と`organizationPaidPlanChanges.test.ts`：時間と複数APIをまたぐ課金ライフサイクルを検証する。
 - `convex/_scenario/staffManagerInvitation.test.ts`と`organizationManagerExchange.test.ts`：既存人物の通常招待と、既発行のFree管理者交代招待の互換処理を検証する。
-- `convex/setup/mutations.test.ts`：初回Setupが所属0件だけに許可され、Pro相当の3か月Trialとdeadlineを作り、Stripe objectを作らないことと、追加組織が認証、上限、rate limitを再確認することを検証する。
+- `convex/setup/mutations.test.ts`：初回Setupが所属0件だけに許可され、Business相当の3か月Trialとdeadlineを作り、Stripe objectを作らないことと、追加組織が認証、上限、rate limitを再確認することを検証する。
 - `convex/_scenario/organizationCreation.test.ts`：追加組織について、Free枠、冪等性、rate limit、初期Free状態、既存組織への非混入を検証する。
 - `src/pages/dashboard/index.stories.tsx`、`src/components/features/Dashboard/DashboardContent/index.stories.tsx`、`src/components/features/OrganizationSettings/OrganizationCreation/OrganizationCreationDialog.stories.tsx`、`src/components/features/OrganizationSettings/controllers.test.tsx`：初回Setupと追加組織作成について、代表状態、フォーム操作、失敗後も同じ`requestId`を保つ再試行、mutation引数、作成後の遷移を検証する。
 - `src/components/features/OrganizationSettings/PlanAndPaymentSection.stories.tsx`と`BillingSettings/`配下のStory・Logic Test：Free、Pro、Business、未完了Checkoutの代表状態と主要変更操作を検証する。

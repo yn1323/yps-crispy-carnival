@@ -663,7 +663,7 @@ describe("organization/queries.getSettings", () => {
     expect(result?.billing).toMatchObject({
       state: "trial",
       currentPlan: "trial",
-      peopleUsage: { current: 1, max: 20, pendingInvitations: 0 },
+      peopleUsage: { current: 1, max: 40, pendingInvitations: 0 },
       shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
       managerUsage: { current: 1, max: 5, pendingInvitations: 0 },
       stripeBillingAvailable: false,

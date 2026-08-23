@@ -997,10 +997,20 @@ describe("有料プラン変更シナリオ", () => {
     ]);
   });
 
-  it("TrialからBusinessは初回支払い確認中までPro相当を維持し、支払い成功後だけBusinessになる", async () => {
+  it("TrialはBusiness相当で、初回支払い確認中はPro相当を維持し、支払い成功後にBusinessになる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run((ctx) => seedTrialBusiness(ctx, "trial_business_paid", SCENARIO_NOW));
     const actor = t.withIdentity({ subject: "trial_business_paid" });
+
+    const trialSettings = await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId });
+    expect(trialSettings?.billing).toMatchObject({
+      state: "trial",
+      currentPlan: "trial",
+      targetPlan: "business",
+      peopleUsage: { current: 1, max: 40, pendingInvitations: 0 },
+      shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
+      managerUsage: { current: 1, max: 5, pendingInvitations: 0 },
+    });
 
     await expect(
       t.mutation(internal.organizationBilling.mutations.processDeadline, {

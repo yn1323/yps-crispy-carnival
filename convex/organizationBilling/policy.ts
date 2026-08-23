@@ -110,7 +110,7 @@ export function resolveOrganizationBillingPlans(state: OrganizationBillingState)
     case "trial":
       return {
         paidPlan: state.selectedPaidPlan ?? null,
-        entitlementPlan: "pro",
+        entitlementPlan: "business",
         displayPlan: "trial",
         targetingPlan: "trial",
       };
@@ -195,6 +195,7 @@ export function resolveRestrictedLimitPlan(state: RestrictedOrganizationBillingS
 export function resolveUsageLimitPlan(state: OrganizationBillingState): OrganizationEntitlementPlan | null {
   switch (state.kind) {
     case "trial":
+      return "business";
     case "initialPaymentPending":
       return "pro";
     case "pendingActivation":

@@ -115,7 +115,7 @@ export const Trial: Story = {
       state: "trial",
       currentPlan: "trial",
       hasStripeCustomer: false,
-      peopleUsage: { current: 12, max: 20 },
+      peopleUsage: { current: 12, max: 40 },
       nextEvent: { label: "トライアル最終日", date: "2026年8月31日" },
       canScheduleFree: false,
     },

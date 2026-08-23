@@ -24,7 +24,7 @@ import {
 describe("organizationBilling/policy plan limits", () => {
   it("Trial、Free、Pro、Businessの人数・店舗・管理者上限を定義する", () => {
     expect(ORGANIZATION_PLAN_LIMITS).toEqual({
-      trial: { maxPeople: 20, maxActiveShops: 5, maxActiveManagers: 5 },
+      trial: { maxPeople: 40, maxActiveShops: 5, maxActiveManagers: 5 },
       free: { maxPeople: 5, maxActiveShops: 1, maxActiveManagers: 2 },
       pro: { maxPeople: 20, maxActiveShops: 5, maxActiveManagers: 5 },
       business: { maxPeople: 40, maxActiveShops: 5, maxActiveManagers: 5 },
@@ -43,7 +43,7 @@ describe("organizationBilling/policy plan limits", () => {
     expect(
       evaluatePlanLimits("business", { peopleCount: 40, activeShopCount: 5, activeManagerCount: 5 }),
     ).toMatchObject({ withinLimits: true });
-    expect(evaluatePlanLimits("trial", { peopleCount: 20, activeShopCount: 5, activeManagerCount: 6 })).toMatchObject({
+    expect(evaluatePlanLimits("trial", { peopleCount: 40, activeShopCount: 5, activeManagerCount: 6 })).toMatchObject({
       withinLimits: false,
       violations: ["activeManagers"],
     });
@@ -70,7 +70,7 @@ describe("organizationBilling/policy usage limit plan", () => {
     {
       name: "Trial",
       state: { kind: "trial", trialEndsAt: 100 },
-      expected: "pro",
+      expected: "business",
     },
     {
       name: "初回請求結果待ち",
@@ -349,10 +349,10 @@ describe("organizationBilling/policy capabilities", () => {
 
     expect(trial).toMatchObject({
       paidPlan: null,
-      entitlementPlan: "pro",
+      entitlementPlan: "business",
       displayPlan: "trial",
       targetingPlan: "trial",
-      limits: ORGANIZATION_PLAN_LIMITS.pro,
+      limits: ORGANIZATION_PLAN_LIMITS.business,
       canWriteBusinessData: true,
       canManageManagers: true,
       canUsePaidFeatures: true,
@@ -410,7 +410,7 @@ describe("organizationBilling/policy capabilities", () => {
     });
   });
 
-  it("初回請求処理中は選択した有料プランの上限と機能を継続する", () => {
+  it("初回請求処理中は選択先にかかわらずPro相当の上限と機能を継続する", () => {
     expect(
       deriveOrganizationBillingPolicy({ kind: "initialPaymentPending", plan: "pro", startedAt: 10 }),
     ).toMatchObject({
