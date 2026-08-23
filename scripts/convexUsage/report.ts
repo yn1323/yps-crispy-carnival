@@ -184,6 +184,12 @@ export function compareFunctionExecutionReports(
   baseline: FunctionExecutionSummaryReport,
   current: FunctionExecutionSummaryReport,
 ): FunctionExecutionComparisonReport {
+  const baselinePeriodMs = Date.parse(baseline.metadata.periodEnd) - Date.parse(baseline.metadata.periodStart);
+  const currentPeriodMs = Date.parse(current.metadata.periodEnd) - Date.parse(current.metadata.periodStart);
+  if (baselinePeriodMs !== currentPeriodMs) {
+    throw new Error("compareではbaselineとcurrentの計測期間を同じ長さにしてください。");
+  }
+
   const baselineByKey = new Map(baseline.functions.map((entry) => [functionIdentityKey(entry), entry]));
   const currentByKey = new Map(current.functions.map((entry) => [functionIdentityKey(entry), entry]));
   const keys = [...new Set([...baselineByKey.keys(), ...currentByKey.keys()])].sort(compareStrings);

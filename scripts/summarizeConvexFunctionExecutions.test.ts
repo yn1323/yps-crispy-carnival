@@ -223,6 +223,19 @@ describe("summarizeFunctionExecutionInput", () => {
 });
 
 describe("compareFunctionExecutionReports", () => {
+  it("期間の長さが異なるrelease同士は比較しない", () => {
+    const baseline = summarizeFunctionExecutionInput("[]", metadata("baseline-sha"));
+    const current = summarizeFunctionExecutionInput("[]", {
+      releaseId: "current-sha",
+      periodStart: PERIOD_START,
+      periodEnd: "2026-08-03T00:00:00.000Z",
+    });
+
+    expect(() => compareFunctionExecutionReports(baseline, current)).toThrow(
+      "compareではbaselineとcurrentの計測期間を同じ長さにしてください。",
+    );
+  });
+
   it("継続・追加・削除functionをstable sortし、totalとper-callの差分を分ける", () => {
     const baseline = summarizeFunctionExecutionInput(
       JSON.stringify([

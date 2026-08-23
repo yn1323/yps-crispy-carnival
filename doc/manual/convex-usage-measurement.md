@@ -54,7 +54,7 @@ pnpm exec tsx scripts/summarizeConvexFunctionExecutions.ts summary \
 
 ## release間の比較
 
-同じ曜日構成、同じ長さ、近い季節性の期間を使います。  call総数だけでなくper-callを併記し、利用者数や操作構成が大きく異なる期間を性能回帰として直接比較しません。
+同じ曜日構成、同じ長さ、近い季節性の期間を使います。  toolはbaselineとcurrentの期間長が一致しない比較を拒否します。  call総数だけでなくper-callを併記し、利用者数や操作構成が大きく異なる期間を性能回帰として直接比較しません。
 
 ```bash
 pnpm exec tsx scripts/summarizeConvexFunctionExecutions.ts compare \
