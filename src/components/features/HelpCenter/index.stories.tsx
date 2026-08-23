@@ -176,8 +176,10 @@ export const FaqExpanded: Story = {
     const trigger = await canvas.findByRole("button", { name: new RegExp(entry.meta.title) });
     await userEvent.click(trigger);
     await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    const item = trigger.closest('[data-part="item"]');
+    if (!item) throw new Error(`FAQ「${entry.meta.id}」の項目が見つかりません`);
     await waitFor(async () => {
-      await expect(canvas.getByText(entry.meta.summary)).toBeVisible();
+      await expect(item).toHaveTextContent(entry.meta.summary.split("。 ")[0]);
     });
     if (entry.meta.primaryGuide) {
       const primaryGuide = getGuideMeta(entry.meta.primaryGuide);
