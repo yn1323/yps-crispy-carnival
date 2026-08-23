@@ -60,15 +60,15 @@ describe("static site manifest", () => {
       ]) {
         mkdirSync(join(contentRoot, path), { recursive: true });
       }
+      mkdirSync(helpRoot, { recursive: true });
+      mkdirSync(join(helpRoot, "legacy-help"), { recursive: true });
       writeFileSync(join(contentRoot, "articles/published/index.mdx"), "# Published");
       writeFileSync(join(contentRoot, "articles/shiftori-line-workflow/index.mdx"), "# Current article");
       writeFileSync(join(contentRoot, "articles/_draft/index.mdx"), "# Draft");
       writeFileSync(join(contentRoot, "categories/operations/index.mdx"), "# Operations");
-      for (const path of ["add-staff", "missing-entry", "_draft"]) {
-        mkdirSync(join(helpRoot, path), { recursive: true });
-      }
-      writeFileSync(join(helpRoot, "add-staff/index.mdx"), "# Add staff");
-      writeFileSync(join(helpRoot, "_draft/index.mdx"), "# Draft help");
+      writeFileSync(join(helpRoot, "add-staff.mdx"), "# Add staff");
+      writeFileSync(join(helpRoot, "_draft.mdx"), "# Draft help");
+      writeFileSync(join(helpRoot, "legacy-help/index.mdx"), "# Legacy help");
 
       const routes = collectPublicRoutes(repoRoot);
 
@@ -80,6 +80,7 @@ describe("static site manifest", () => {
       expect(routes).not.toContain("/articles/_draft");
       expect(routes).not.toContain("/help/missing-entry");
       expect(routes).not.toContain("/help/_draft");
+      expect(routes).not.toContain("/help/legacy-help");
     } finally {
       rmSync(repoRoot, { recursive: true, force: true });
     }

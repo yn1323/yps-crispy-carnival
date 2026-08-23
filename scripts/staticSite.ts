@@ -112,11 +112,8 @@ function listPublishedContentSlugs(repoRoot: string, kind: "articles" | "categor
 function listPublishedHelpGuideSlugs(repoRoot: string): string[] {
   const directory = resolve(repoRoot, HELP_GUIDE_CONTENT_DIR);
   return readdirSync(directory, { withFileTypes: true })
-    .filter(
-      (entry) =>
-        entry.isDirectory() && !entry.name.startsWith("_") && existsSync(join(directory, entry.name, "index.mdx")),
-    )
-    .map((entry) => entry.name)
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".mdx") && !entry.name.startsWith("_"))
+    .map((entry) => entry.name.slice(0, -".mdx".length))
     .sort((left, right) => left.localeCompare(right));
 }
 

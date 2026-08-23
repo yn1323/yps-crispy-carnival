@@ -57,10 +57,10 @@ HelpCenterでは、利用者が現在の画面で疑問を解消し、必要な�
 ## MDXを作成・更新する
 
 1. 既存記事と重複する場合は、新規作成より改稿を優先する。
-2. `content/faqs/<id>/index.mdx`または`content/guides/<id>/index.mdx`へ置き、taskと対象者を指定する。
+2. `content/faqs/<id>.mdx`または`content/guides/<id>.mdx`へ1記事1ファイルで置き、taskと対象者を指定する。記事ごとのdirectoryと`index.mdx`は作らない。
 3. 前提条件、操作手順、完了状態、失敗時の対処を必要な範囲で書く。
 4. ボタン名やラベルは実装と同じ表記にする。
-5. 画像は操作対象の特定に役立つ場合だけ使い、装飾目的では追加しない。
+5. 画像は操作対象の特定に役立つ場合だけ`content/images/<guide-id>/`へ置き、装飾目的では追加しない。
 6. 同じ説明をFAQと使い方へ複製せず、`primaryGuide`と`related`で関連付ける。
 7. frontmatter、slug、公開状態は既存schemaに従う。
 

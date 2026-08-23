@@ -12,7 +12,7 @@ export type HelpGuideContent = {
 type AsyncLoader<T> = () => Promise<T>;
 
 const guideComponentLoaders: Record<string, AsyncLoader<MdxComponent>> = import.meta.glob<MdxComponent>(
-  ["./content/guides/*/index.mdx", "!./content/guides/_*/index.mdx"],
+  ["./content/guides/*.mdx", "!./content/guides/_*.mdx"],
   {
     query: "?mdx-component",
     import: "default",
@@ -20,7 +20,7 @@ const guideComponentLoaders: Record<string, AsyncLoader<MdxComponent>> = import.
 );
 
 const guideTocLoaders: Record<string, AsyncLoader<MdxTocItem[]>> = import.meta.glob<MdxTocItem[]>(
-  ["./content/guides/*/index.mdx", "!./content/guides/_*/index.mdx"],
+  ["./content/guides/*.mdx", "!./content/guides/_*.mdx"],
   {
     query: "?mdx-toc",
     import: "default",
@@ -28,7 +28,7 @@ const guideTocLoaders: Record<string, AsyncLoader<MdxTocItem[]>> = import.meta.g
 );
 
 const guideImageLoaders: Record<string, AsyncLoader<string>> = import.meta.glob<string>(
-  ["./content/guides/**/*.{avif,gif,jpeg,jpg,png,svg,webp}", "!./content/guides/_*/**"],
+  ["./content/images/**/*.{avif,gif,jpeg,jpg,png,svg,webp}", "!./content/images/_*/**"],
   {
     query: "?url",
     import: "default",
@@ -89,11 +89,11 @@ async function loadGuideImages(
   guideId: string,
   imageLoaders: Readonly<Record<string, AsyncLoader<string>>>,
 ): Promise<Record<string, string>> {
-  const directoryPrefix = `./content/guides/${guideId}/`;
+  const directoryPrefix = `./content/images/${guideId}/`;
   const entries = Object.entries(imageLoaders).filter(([path]) => path.startsWith(directoryPrefix));
   return Object.fromEntries(await Promise.all(entries.map(async ([path, loader]) => [path, await loader()])));
 }
 
 function guideDocumentPath(id: string): string {
-  return `./content/guides/${id}/index.mdx`;
+  return `./content/guides/${id}.mdx`;
 }

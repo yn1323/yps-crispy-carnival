@@ -10,14 +10,11 @@ export type HelpFaqContent = {
   Content: MdxComponent;
 };
 
-const faqComponentModules = import.meta.glob<MdxComponent>(
-  ["./content/faqs/*/index.mdx", "!./content/faqs/_*/index.mdx"],
-  {
-    eager: true,
-    query: "?mdx-component",
-    import: "default",
-  },
-);
+const faqComponentModules = import.meta.glob<MdxComponent>(["./content/faqs/*.mdx", "!./content/faqs/_*.mdx"], {
+  eager: true,
+  query: "?mdx-component",
+  import: "default",
+});
 
 export const faqEntries = buildFaqEntries(faqComponentModules, faqMetas);
 
