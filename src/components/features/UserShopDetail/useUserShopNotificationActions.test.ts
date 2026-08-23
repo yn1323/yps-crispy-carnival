@@ -8,6 +8,7 @@ import type { UserShopDetailMembership } from "./types";
 const mocks = vi.hoisted(() => ({
   recruitmentsRef: Symbol("recruitments"),
   currentRecruitmentsRef: Symbol("currentRecruitments"),
+  cooldownsRef: Symbol("cooldowns"),
   sendOpenRef: Symbol("sendOpenRecruitments"),
   sendCurrentRef: Symbol("sendCurrentShift"),
   usePaginatedQuery: vi.fn(),
@@ -29,6 +30,9 @@ vi.mock("@/convex/_generated/api", () => ({
       },
     },
     staff: {
+      queries: {
+        getNotificationResendCooldowns: mocks.cooldownsRef,
+      },
       mutations: {
         sendOpenRecruitmentNotifications: mocks.sendOpenRef,
         sendCurrentShiftNotification: mocks.sendCurrentRef,
@@ -75,7 +79,13 @@ beforeEach(() => {
     results: [openRecruitment, closedRecruitment],
     status: "Exhausted",
   });
-  mocks.useQuery.mockReturnValue([currentRecruitment]);
+  mocks.useQuery.mockImplementation((reference: unknown) => {
+    if (reference === mocks.currentRecruitmentsRef) return [currentRecruitment];
+    if (reference === mocks.cooldownsRef) {
+      return { openRecruitmentsUntil: null, currentShiftUntil: null, lineInviteUntil: null };
+    }
+    throw new Error("Unexpected query reference");
+  });
   mocks.useMutation.mockImplementation((reference: unknown) => {
     if (reference === mocks.sendOpenRef) return mocks.sendOpen;
     if (reference === mocks.sendCurrentRef) return mocks.sendCurrent;
@@ -97,6 +107,10 @@ describe("useUserShopNotificationActions", () => {
       { initialNumItems: 100 },
     );
     expect(mocks.useQuery).toHaveBeenCalledWith(mocks.currentRecruitmentsRef, { shopId: targetShopId });
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.cooldownsRef, {
+      shopId: targetShopId,
+      staffId,
+    });
     expect(result.current.openRecruitments).toEqual([openRecruitment]);
     expect(result.current.currentRecruitments).toEqual([currentRecruitment]);
 
@@ -169,6 +183,71 @@ describe("useUserShopNotificationActions", () => {
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
   });
 
+  it("クールダウン中の種別だけをブラウザから再送しない", async () => {
+    mocks.useQuery.mockImplementation((reference: unknown) => {
+      if (reference === mocks.currentRecruitmentsRef) return [currentRecruitment];
+      if (reference === mocks.cooldownsRef) {
+        return {
+          openRecruitmentsUntil: Date.now() + 60_000,
+          currentShiftUntil: null,
+          lineInviteUntil: null,
+        };
+      }
+      throw new Error("Unexpected query reference");
+    });
+    const { result } = renderHook(() =>
+      useUserShopNotificationActions({ targetShopId, membership, isReadOnly: false, enabled: true }),
+    );
+
+    await act(async () => {
+      await result.current.sendRecruitments();
+      await result.current.sendCurrentShift();
+    });
+
+    expect(result.current.isRecruitmentCooldownActive).toBe(true);
+    expect(result.current.isCurrentShiftCooldownActive).toBe(false);
+    expect(mocks.sendOpen).not.toHaveBeenCalled();
+    expect(mocks.sendCurrent).toHaveBeenCalledExactlyOnceWith({ shopId: targetShopId, staffId });
+  });
+
+  it("クールダウン取得中は2種類とも再送しない", async () => {
+    mocks.useQuery.mockImplementation((reference: unknown) => {
+      if (reference === mocks.currentRecruitmentsRef) return [currentRecruitment];
+      if (reference === mocks.cooldownsRef) return undefined;
+      throw new Error("Unexpected query reference");
+    });
+    const { result } = renderHook(() =>
+      useUserShopNotificationActions({ targetShopId, membership, isReadOnly: false, enabled: true }),
+    );
+
+    await act(async () => {
+      await result.current.sendRecruitments();
+      await result.current.sendCurrentShift();
+    });
+
+    expect(result.current.isCooldownLoading).toBe(true);
+    expect(mocks.sendOpen).not.toHaveBeenCalled();
+    expect(mocks.sendCurrent).not.toHaveBeenCalled();
+  });
+
+  it("送信直前の競合でrecentlySentになった場合は成功扱いしない", async () => {
+    mocks.sendOpen.mockResolvedValue({ scheduled: false, reason: "recentlySent" });
+    const { result } = renderHook(() =>
+      useUserShopNotificationActions({ targetShopId, membership, isReadOnly: false, enabled: true }),
+    );
+
+    await act(async () => {
+      await result.current.sendRecruitments();
+    });
+
+    expect(mocks.createToast).toHaveBeenCalledExactlyOnceWith({
+      title: "送信済みです",
+      description: "送信から10分後に再送できるようになります。",
+      type: "info",
+    });
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+  });
+
   it("非表示中はqueryをskipし、再表示時だけ購読を開始する", () => {
     const { result, rerender } = renderHook(
       ({ enabled }) => useUserShopNotificationActions({ targetShopId, membership, isReadOnly: false, enabled }),
@@ -178,7 +257,8 @@ describe("useUserShopNotificationActions", () => {
     expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(mocks.recruitmentsRef, "skip", {
       initialNumItems: 100,
     });
-    expect(mocks.useQuery).toHaveBeenLastCalledWith(mocks.currentRecruitmentsRef, "skip");
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.currentRecruitmentsRef, "skip");
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.cooldownsRef, "skip");
     expect(result.current.openRecruitments).toEqual([]);
     expect(result.current.currentRecruitments).toEqual([]);
 
@@ -188,12 +268,17 @@ describe("useUserShopNotificationActions", () => {
       { shopId: targetShopId },
       { initialNumItems: 100 },
     );
-    expect(mocks.useQuery).toHaveBeenLastCalledWith(mocks.currentRecruitmentsRef, { shopId: targetShopId });
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.currentRecruitmentsRef, { shopId: targetShopId });
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.cooldownsRef, {
+      shopId: targetShopId,
+      staffId,
+    });
 
     rerender({ enabled: false });
     expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(mocks.recruitmentsRef, "skip", {
       initialNumItems: 100,
     });
-    expect(mocks.useQuery).toHaveBeenLastCalledWith(mocks.currentRecruitmentsRef, "skip");
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.currentRecruitmentsRef, "skip");
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.cooldownsRef, "skip");
   });
 });

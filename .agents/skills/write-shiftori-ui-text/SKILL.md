@@ -13,7 +13,7 @@ When a task asks for シフトリ UI text, error messages, Toasts, empty states,
 2. Read `.agents/skills/ui-architect/references/ui-writing.md` completely.
 3. Read `.agents/skills/cognitive-rhythm-writing/SKILL.md` and follow its `併用する規範` requirement.
 4. Use `ui-architect` and `ui-writing.md` to determine product facts, state, privacy, terminology, and the user's next action.
-5. Apply `cognitive-rhythm-writing` only when the copy is long enough to have explanatory flow, such as landing sections, onboarding, staff guides, FAQ and HowTo explanations, multi-sentence dialogs or alerts, and notification bodies.
+5. Apply `cognitive-rhythm-writing` only when the copy is long enough to have explanatory flow, such as landing sections, onboarding, staff guides, HelpCenter FAQ and guide explanations, multi-sentence dialogs or alerts, and notification bodies.
 6. Keep buttons, labels, Toast titles, table headers, validation messages, and other atomic microcopy short and task-oriented. Do not add hesitation, ornamental transitions, or artificial rhythm to them.
 7. If the rules conflict, product truth, security, privacy, and the next action defined by `ui-writing.md` take priority over prose rhythm.
 8. Do not add new wording rules here.

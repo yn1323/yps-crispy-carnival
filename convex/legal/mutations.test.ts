@@ -214,9 +214,9 @@ describe("legal/mutations", () => {
     });
 
     expect(shopId).toBeDefined();
-    expect(state?.termsConsentVersion).toBe("manager-terms-consent-2026-08-15");
+    expect(state?.termsConsentVersion).toBe("manager-terms-consent-2026-08-23");
     expect(state?.privacyConsentVersion).toBe("manager-privacy-consent-2026-08-13");
-    expect(state?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-22");
+    expect(state?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-23");
     expect(state?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-08-13");
     expect(state?.method).toBe("manager_reconsent");
     expect(events).toHaveLength(1);
@@ -236,7 +236,7 @@ describe("legal/mutations", () => {
         subjectType: "user",
         userId,
         shopId,
-        termsConsentVersion: "manager-terms-consent-2026-08-15",
+        termsConsentVersion: "manager-terms-consent-2026-08-23",
         privacyConsentVersion: "manager-privacy-consent-2026-08-13",
         termsDocumentVersion: "manager-terms-doc-old",
         privacyDocumentVersion: "manager-privacy-doc-old",

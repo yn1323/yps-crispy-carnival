@@ -4,6 +4,8 @@ import { dateJST } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
 import { normalizeEmail } from "../_lib/validation";
 import { ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT } from "../constants";
+import { listActiveStaffsForOrganizationPerson, resolveCanonicalStaffScope } from "../line/service";
+import { collectNotificationResendCooldowns } from "../notificationOutbox/resendCooldown";
 import { collectPersonRemovalPreview } from "../organization/personRemoval";
 import {
   INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON,
@@ -24,6 +26,19 @@ const availableOrganizationPersonValidator = v.object({
 });
 
 const nullableStringValidator = v.union(v.null(), v.string());
+const nullableNumberValidator = v.union(v.null(), v.number());
+
+const notificationResendCooldownsValidator = v.object({
+  openRecruitmentsUntil: nullableNumberValidator,
+  currentShiftUntil: nullableNumberValidator,
+  lineInviteUntil: nullableNumberValidator,
+});
+
+function latestNullableNumber(left: number | null, right: number | null) {
+  if (left === null) return right;
+  if (right === null) return left;
+  return Math.max(left, right);
+}
 
 const organizationShopStaffMembershipChangeValidator = v.object({
   membershipFingerprint: v.string(),
@@ -169,6 +184,39 @@ export const getOrganizationShopStaffMembershipChange = managerQuery({
         email: staff.email,
         changeDisabledReason,
       })),
+    };
+  },
+});
+
+export const getNotificationResendCooldowns = managerQuery({
+  args: { staffId: v.id("staffs") },
+  returns: v.union(v.null(), notificationResendCooldownsValidator),
+  handler: async (ctx, args) => {
+    if (!ctx.user || !ctx.shop) return null;
+    const staff = await ctx.db.get(args.staffId);
+    if (!staff || staff.isDeleted || staff.shopId !== ctx.shop._id) return null;
+
+    const currentTarget = { shopId: staff.shopId, staffId: staff._id };
+    const currentStaffCooldowns = await collectNotificationResendCooldowns(ctx, [currentTarget]);
+    const canonicalScope = await resolveCanonicalStaffScope(ctx, {
+      staffId: staff._id,
+      shopId: ctx.shop._id,
+    });
+    if (!canonicalScope) return currentStaffCooldowns;
+
+    const activeStaffs = await listActiveStaffsForOrganizationPerson(ctx, {
+      organizationId: canonicalScope.organization._id,
+      organizationPersonId: canonicalScope.person._id,
+    });
+    const otherStaffCooldowns = await collectNotificationResendCooldowns(
+      ctx,
+      activeStaffs
+        .filter((activeStaff) => activeStaff._id !== staff._id)
+        .map((activeStaff) => ({ shopId: activeStaff.shopId, staffId: activeStaff._id })),
+    );
+    return {
+      ...currentStaffCooldowns,
+      lineInviteUntil: latestNullableNumber(currentStaffCooldowns.lineInviteUntil, otherStaffCooldowns.lineInviteUntil),
     };
   },
 });

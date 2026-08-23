@@ -857,6 +857,80 @@ describe("通知配送outboxシナリオ", () => {
     ).toBe(true);
   });
 
+  it("自動送信で作られた募集通知・LINE案内履歴が直後の手動再送を拒否する", async () => {
+    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "");
+    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "");
+    vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-line-channel");
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "cooldown-manager@example.com",
+        shopName: "クールダウン通知店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId,
+        name: "クールダウン対象スタッフ",
+        email: "cooldown-staff@example.com",
+      });
+      const staff = await ctx.db.get(staffId);
+      if (!staff?.organizationPersonId) throw new Error("canonical staff was not created");
+      const person = await ctx.db.get(staff.organizationPersonId);
+      if (!person) throw new Error("organization person was not created");
+      return {
+        shopId,
+        staffId,
+        organizationPersonId: person._id,
+        lineLinkGeneration: person.lineLinkGeneration ?? 0,
+      };
+    });
+    const recruitmentId = await asManager.createRecruitment({
+      periodStart: scenarioDate(7),
+      periodEnd: scenarioDate(13),
+      deadline: scenarioDate(3),
+    });
+
+    await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, { recruitmentId });
+    await t.action(internal.line.actions.sendInviteEmail, {
+      staffId: ids.staffId,
+      organizationPersonId: ids.organizationPersonId,
+      lineLinkGenerationAtSchedule: ids.lineLinkGeneration,
+    });
+
+    const beforeRejection = await t.run(async (ctx) => ({
+      fanoutOperations: await ctx.db.query("notificationFanoutOperations").collect(),
+      magicLinks: await ctx.db.query("magicLinks").collect(),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+      rateLimits: await ctx.db.query("rateLimits").collect(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    const manager = t.withIdentity({ subject: MANAGER_SUBJECT });
+
+    await expect(
+      manager.mutation(api.staff.mutations.sendOpenRecruitmentNotifications, {
+        shopId: ids.shopId,
+        staffId: ids.staffId,
+      }),
+    ).resolves.toEqual({ scheduled: false, reason: "recentlySent" });
+    await expect(
+      manager.mutation(api.line.mutations.sendInvite, {
+        shopId: ids.shopId,
+        staffId: ids.staffId,
+      }),
+    ).resolves.toEqual({ scheduled: false, reason: "recentlySent" });
+    await expect(
+      t.run(async (ctx) => ({
+        fanoutOperations: await ctx.db.query("notificationFanoutOperations").collect(),
+        magicLinks: await ctx.db.query("magicLinks").collect(),
+        outbox: await ctx.db.query("notificationOutbox").collect(),
+        rateLimits: await ctx.db.query("rateLimits").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      })),
+    ).resolves.toEqual(beforeRejection);
+  });
+
   it("自動催促actionは未提出者だけに通常submitリンクを再利用して通知する", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);

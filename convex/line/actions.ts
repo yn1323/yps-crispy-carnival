@@ -16,6 +16,7 @@ import {
 } from "../_lib/lineClient";
 import { buildLineDefaultReplyText, buildLineInviteEmailHtml } from "../notification/templates";
 import { emailPayload, enqueueEmail } from "../notificationOutbox/enqueue";
+import { LINE_INVITE_NOTIFICATION_KIND } from "../notificationOutbox/historyKinds";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
 
 function getLoginChannelId(): string {
@@ -34,8 +35,6 @@ const PLAN_BY_QUOTA: Record<number, "communication" | "light" | "standard"> = {
   5000: "light",
   30000: "standard",
 };
-
-const LINE_INVITE_NOTIFICATION_KIND = "line.invite";
 
 /**
  * LINE OAuth コールバックから呼ばれる公開 action

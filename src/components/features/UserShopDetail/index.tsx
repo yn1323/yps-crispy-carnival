@@ -56,6 +56,9 @@ export function UserShopDetail({ data, membership, targetShopId, expectedOrganiz
           currentRecruitments: notifications.currentRecruitments,
           isSendingRecruitments: notifications.isSendingRecruitments,
           isSendingCurrentShift: notifications.isSendingCurrentShift,
+          isCooldownLoading: notifications.isCooldownLoading,
+          isRecruitmentCooldownActive: notifications.isRecruitmentCooldownActive,
+          isCurrentShiftCooldownActive: notifications.isCurrentShiftCooldownActive,
         },
         membership: {
           isChangingShiftTarget: membershipActions.isChangingShiftTarget,

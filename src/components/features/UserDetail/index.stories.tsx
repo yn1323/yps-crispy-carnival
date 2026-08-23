@@ -199,6 +199,8 @@ const baseState: UserDetailViewProps["state"] = {
     showQr: false,
     isQrLoading: false,
     isSendingInvite: false,
+    isLineInviteCooldownActive: false,
+    isLineInviteCooldownLoading: false,
     isDisconnecting: false,
   },
   membership: {
@@ -373,6 +375,33 @@ export const LineLinkedDialog: Story = {
 
 export const LineUnlinkedDialog: Story = {
   args: { activePanel: "line", data: lineUnlinkedData },
+};
+
+export const LineInviteCooldownDialog: Story = {
+  args: {
+    activePanel: "line",
+    data: lineUnlinkedData,
+    state: {
+      ...baseState,
+      line: {
+        ...baseState.line,
+        isLineInviteCooldownActive: true,
+      },
+    },
+  },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "LINE連携" });
+    const content = within(dialog);
+
+    await expect(content.getByRole("button", { name: "メールでLINE連携リンクを送る" })).toBeDisabled();
+    await expect(content.getByRole("button", { name: "LINE連携リンクを表示" })).toBeEnabled();
+  },
+};
+
+export const LineInviteCooldownDialogMobile: Story = {
+  ...LineInviteCooldownDialog,
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
 export const LineUnfollowedDialog: Story = {

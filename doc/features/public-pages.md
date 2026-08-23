@@ -2,21 +2,20 @@
 
 > 文書種別: feature
 >
-> 最終コード照合: 2026-08-22（この変更を含む）
+> 最終コード照合: 2026-08-23（この変更を含む）
 
 公開サイトは、登録前の製品理解と、利用中の疑問解消をつなぐ認証不要のページ群である。
-ルート`/`を入口に、機能紹介、FAQ、HowTo、記事、操作デモへ利用者を案内する。
+ルート`/`を入口に、機能紹介、ヘルプ、記事、操作デモへ利用者を案内する。
 
 ## ページの役割
 
 | パス | 役割 | 主な実装 |
 |---|---|---|
-| `/` | 価値、利用の流れ、提出方法、利用例、FAQと記事への入口、登録導線をまとめるTOP | `src/pages/home/`、`src/components/features/LandingPage/` |
+| `/` | 価値、利用の流れ、提出方法、利用例、料金プラン、ヘルプと記事への入口、登録導線をまとめるTOP | `src/pages/home/`、`src/components/features/LandingPage/` |
 | `/features` | 希望回収、未提出確認、シフト作成、確定通知など、できることを詳しく示す | `src/pages/features/`、`FeatureSection`、`BenefitsSection` |
-| `/pricing` | 2か月の無料トライアルと、Free・Pro・Businessで利用できる店舗・管理ユーザー・利用人数の範囲を示す | `src/pages/pricing/`、`PricingSite` |
 | `/commercial-transactions` | 有料プランの販売条件と、特定商取引法に基づく事業者情報を示す | `src/pages/commercial-transactions/`、`CommercialTransactions` |
-| `/faq` | 導入前から利用中までの質問を、カテゴリと検索から探せるようにする | `src/pages/faq/`、`src/components/features/FaqSite/` |
-| `/howto` | 画面上の場所、操作、結果、失敗時の対処を、利用場面から探せるようにする | `src/pages/howto/`、`src/components/features/HowToSite/` |
+| `/help` | FAQと使い方を、やりたいことと共通検索から探せるようにする | `src/pages/help/`、`src/components/features/HelpCenter/` |
+| `/help/:slug` | 一つの使い方を表示し、関連するFAQと使い方へつなぐ | `src/pages/help/`、`HelpCenter/content/guides/` |
 | `/articles` | シフト運営に関する記事とカテゴリへの入口を示す | `src/pages/articles/`、`ArticleListPage` |
 | `/articles/:slug` | 一つの記事を表示し、関連する製品情報へつなぐ | `ArticlePage`、`ArticleSite/content/articles/` |
 | `/articles/categories/:categorySlug` | 同じ課題領域の記事をまとめる | `ArticleCategoryPage`、`ArticleSite/content/categories/` |
@@ -24,11 +23,11 @@
 | `/demo/shiftboard` | PC向けシフト表の入力と調整を、登録なしで試せるようにする | `src/pages/demo-shift-board/`、`Demo/DemoShiftBoardPage/` |
 
 TOPは`src/routes/index.tsx`から`HomePage`を呼び、`HomePage`が`LandingPage`を構成する。
-`LandingPage`は`PublicPageLayout`の中に、Hero、課題の軽減、利用の流れ、提出方法、比較、利用例、複数店舗・複数担当者での運用、FAQと記事、CTAの各sectionを並べる。
+`LandingPage`は`PublicPageLayout`の中に、Hero、課題の軽減、利用の流れ、提出方法、比較、利用例、複数店舗・複数担当者での運用、料金プラン、CTA、ヘルプと記事の各sectionを並べる。
 
-FAQ、HowTo、記事、デモは同じ公開サイトに属するが、内容の置き場所は分かれている。
-FAQはMDXを含む`FaqSite`、HowToはMDXを含む`HowToSite`、記事は`ArticleSite`、操作できるデモは`Demo`が所有する。
-HowToの詳細な編集規則は [`howto.md`](howto.md) を参照する。
+ヘルプ、記事、デモは同じ公開サイトに属するが、内容の置き場所は分かれている。
+FAQと使い方は共通のMDX基盤を含む`HelpCenter`、記事は`ArticleSite`、操作できるデモは`Demo`が所有する。
+ヘルプの管理形式と公開契約は[ヘルプセンター](help-center.md)を参照する。
 
 ## 公開サイトから接続する機能
 
@@ -61,11 +60,8 @@ src/routes/index.tsx
 公開HTMLはbuild時に生成し、ブラウザでは同じReact treeをhydrateする。
 認証、店舗、スタッフ用Capabilityのrouteは`ssr: false`とし、利用者固有の情報を静的HTMLへ含めずCSRで表示する。
 
-FAQ、HowTo、記事、デモを表示するためのConvex APIもない。
+ヘルプ、記事、デモを表示するためのConvex APIもない。
 問い合わせなど、公開サイトから遷移する別機能のAPIは、その機能文書を参照する。
-
-`PricingSite`が表示する無料トライアル、追加組織のFree、Pro、Businessの利用人数、店舗数、管理ユーザー数は、backend enforcementと同じbrowser-safeな`ORGANIZATION_PLAN_LIMITS`を参照する。
-公開ページからStripeやConvexへ問い合わせず、build時とbrowserで同じ静的内容を表示する。
 
 ## 公開する利用条件
 
@@ -75,20 +71,20 @@ FAQ、HowTo、記事、デモを表示するためのConvex APIもない。
 
 無料トライアルではProと同じ利用人数20名、稼働店舗5件、有効管理ユーザー5名まで利用できる。
 
-トライアル終了後も利用を継続する場合はProまたはBusinessを選ぶ。  有料プランを選ばない場合はデータを保持したまま業務操作を制限する。
+トライアル終了後も有料枠で利用を継続する場合はProまたはBusinessを選ぶ。  有料プランを選ばない場合はデータを保持したままFreeへ移行し、Free上限内なら基本機能を継続できる。  上限を超えている場合は、上限内へ整理するか有料プランを契約するまで業務操作を制限する。
 
-二つ目以降の組織はFreeで開始し、Free、Pro、Businessの利用人数、店舗数、管理ユーザー数を共有上限定数から案内する。  ProとBusinessの金額、通貨、税区分、請求周期は公開ページで推測せず、契約画面がStripeから取得して検証した販売条件を契約確定前に表示する。
+二つ目以降の組織はFreeで開始し、Free、Pro、Businessの利用人数、店舗数、管理ユーザー数を共有上限定数から案内する。  ProとBusinessの金額、通貨、税区分、請求周期は、公開サイトのbuild時にStripeから取得して検証した販売条件を表示する。  契約画面は公開サイトのsnapshotへ依存せず、Stripeから現在の販売条件を取得して契約確定前に表示する。
 
 追加組織と有料プランの詳細は、[`organization-billing.md`](organization-billing.md)を参照する。
 
-公開ページへ固定の金額を複製しない。
-公開サイトは数値を推測せず、確定した販売条件だけを案内する。  契約画面ではStripeから取得して検証した販売条件を契約確定前に表示する。
+公開ページのMDXやcomponentへ固定の金額を複製しない。
+公開サイトは一つのbuild時料金カタログを共有し、数値を推測せず、確定した販売条件だけを案内する。  契約画面ではStripeから取得して検証した現在の販売条件を契約確定前に表示する。
 
 ### 無料トライアル表現の公開前提
 
-2か月無料・クレジットカード登録不要の公開文言は、初回Setupが2か月のTrialを作成するbackend artifactと同時に公開する。  初回Setupが支払い不要Businessを作るartifactや、対象deploymentの反映が未確認の状態では公開しない。
+2か月無料・クレジットカード登録不要の公開文言は、初回Setupが2か月のTrialを作成するbackend artifactと同時に公開する。  Repository上の契約だけで対象deploymentへの反映を推測せず、初回SetupのTrial、期限処理、Stripeオブジェクト非作成を実環境で確認するまで利用可能とは判定しない。
 
-公開可否は[リリース状態](../manual/release-status.md)に実環境証跡を記録して判定し、LP、FAQ、料金ページの静的生成に成功したことだけでTrialの利用可能性を推測しない。
+公開可否は[リリース状態](../manual/release-status.md)に実環境証跡を記録して判定し、LPとヘルプの静的生成に成功したことだけでTrialの利用可能性を推測しない。
 
 ## 特定商取引法に基づく表記
 
@@ -98,12 +94,12 @@ FAQ、HowTo、記事、デモを表示するためのConvex APIもない。
 
 販売条件として、役務提供事業者、運営責任者、所在地、電話番号、問い合わせ先、Pro・Businessそれぞれの販売価格、支払方法と時期、提供時期、契約期間、自動更新、追加組織のFreeプラン、解約、返金、利用上限、動作環境を表示する。
 
-Pro・Businessの販売価格は、Production公開前にStripeへ設定する確定額と税区分を記載し、契約画面にも契約確定前に同じ条件を表示する。
+Pro・Businessの販売価格は、Production buildがStripeの設定済みPriceから取得した確定額、通貨、請求周期、税区分を表示する。  取得失敗、inactive、test/live不一致、固定額として扱えない課金方式、金額または税区分の不足、Pro・Business間の通貨または請求周期の不一致ではbuildを失敗させる。  ローカルとPreviewは同じStripe Sandbox、Developは別のStripe Sandboxから取得し、両プランに設定した同一の短周期も検証用に表示できる。  StorybookとtestはStripe credentialを使わず決定的なfixtureを表示する。
 
-役務提供事業者、運営責任者、所在地、電話番号は、Production公開前に`src/components/features/CommercialTransactions/index.tsx`冒頭の`MANUAL_BUSINESS_DETAILS`を実在する情報へ手動で置き換える。Pro・Businessの月額料金と税込・税別は、同じファイルの`MANUAL_SALES_PRICES`を確定した販売条件へ置き換える。
+役務提供事業者、運営責任者、所在地、電話番号は、Production公開前に`src/components/features/CommercialTransactions/content/index.mdx`の仮入力を実在する情報へ手動で置き換える。  Pro・Businessの販売価格は、同MDXの`PlanPrice`を介してbuild時料金カタログを参照する。  利用上限の数値は、同MDXの`PlanLimit`を介してbrowser-safeな`ORGANIZATION_PLAN_LIMITS`を参照する。
 仮入力が一つでも残る間はページ内に注意を表示し、Production公開の停止条件として[リリース状態](../manual/release-status.md)にも記録する。
 
-このページはfooterと料金ページ共通の公開layoutから到達できる一方、`noindex, nofollow`とし、sitemapと`llms.txt`には含めない。
+このページはfooterから到達できる一方、`noindex, nofollow`とし、sitemapと`llms.txt`には含めない。
 `robots.txt`でDisallowにはせず、crawlerがrobots metaを取得できる状態を維持する。
 利用規約・プライバシーポリシーと同じ`public_unmeasured`面に分類し、GTM・GA4のpage viewを送らない。
 
@@ -113,28 +109,28 @@ Pro・Businessの販売価格は、Production公開前にStripeへ設定する�
 |---|---|---|
 | TOP | 自分の店舗で何が楽になるか | 価値と利用の流れを短く示し、詳しい入口を選べるようにする |
 | 機能紹介 | どの作業を支援できるか | 主な機能と利用場面を比較できるようにする |
-| 料金・プラン | 初回登録でどこまで利用でき、支払い情報が必要か | 2か月の無料トライアル、利用上限、Free・Pro・Business、店舗・管理ユーザーの範囲、支払い情報の要否を示す |
-| FAQ | 料金、通知、導入、運用について結論を知りたい | 質問ごとに結論と必要な注意点を示す |
-| HowTo | 画面でどう操作し、失敗時にどう戻るか | 操作場所、手順、結果、回復方法を示す |
+| TOPの料金プランsection | 人数と店舗数に合うプランと料金を比較したい | シフト管理の基本機能が共通であることと、Free・Pro・Businessの料金と利用上限を示す。Pro・Businessの金額は特定商取引法ページと同じbuild時料金カタログを使う |
+| ヘルプのFAQ | 料金、通知、導入、運用について結論を知りたい | 質問ごとに結論と必要な注意点を示す |
+| ヘルプの使い方 | 画面でどう操作し、失敗時にどう戻るか | 操作場所、手順、結果、回復方法を示す |
 | 記事 | シフト運営の課題をどう判断するか | 課題の整理、選択肢、関連する製品導線を示す |
 | デモ | 登録前に操作と結果を確かめたい | 実データを保存せず、主要な操作の流れを体験できるようにする |
 
-FAQは一つの質問を一つのMDXで管理し、ファイル名を`/faq#id`のアンカーに使う。
-TOPへ掲載する質問は`content/featured/`に置き、`landingFaqContent.ts`はその質問だけから表示と構造化データを生成する。
-総合FAQは同じMDX群から本文、検索対象、構造化データを生成する。
-frontmatterの項目と許可値は`faqMetadata.ts`、本文で利用できる表示部品は`mdxComponents.tsx`を正本とする。
+ヘルプはFAQと使い方を一つのMDX形式で管理し、利用者が完了したい仕事ごとに分類する。
+FAQは`/help#<faq-id>`で展開・共有し、使い方は`/help/:slug`の個別ページで表示する。
+TOPに掲載するFAQは`homeFeatured`、FAQから案内する主な使い方は`primaryGuide`で指定する。
+frontmatter、検索、関連付け、本文の表示規則は[ヘルプセンター](help-center.md)を正本とする。
 
-FAQ、HowTo、記事のいずれも、`_`始まりのMDX（記事とカテゴリは`_`始まりのディレクトリ）は下書きとして読み込まない。
+ヘルプと記事は、`_`始まりのディレクトリを下書きとして読み込まない。
 下書きは一覧、検索、構造化データ、SSG、記事別OGPのどれにも現れず、bundleにも含めない。
-HowToを下書きにした場合は、公開中のHowToからの関連記事参照とFAQからの詳細リンクも自動的に外す。
+ヘルプは公開コンテンツから下書きへの関連リンクを表示せず、公開にも下書きにも存在しない参照は入力誤りとして検出する。
 
-HowToの追加と更新には`write-help-content`、デモの設計には`demo-ux`を使う。
+ヘルプの追加と更新には`write-help-content`、デモの設計には`demo-ux`を使う。
 記事の構造とメタデータは`src/components/features/ArticleSite/AGENTS.md`に従う。
 
 ## 静的生成とメタデータ
 
-`scripts/staticSite.ts`はTOP、機能紹介、料金・プラン、FAQ、HowTo、問い合わせ、記事一覧、汎用の法務文書、特定商取引法に基づく表記、二つのデモなどを固定の公開routeとして持つ。
-記事詳細とカテゴリは`ArticleSite/content/`の公開済みslugから対象routeを組み立てる。
+`scripts/staticSite.ts`はTOP、機能紹介、ヘルプ一覧、問い合わせ、記事一覧、汎用の法務文書、特定商取引法に基づく表記、二つのデモなどを固定の公開routeとして持つ。  現在、独立した`/pricing` routeはない。
+ヘルプの使い方は`HelpCenter/content/guides/`、記事詳細とカテゴリは`ArticleSite/content/`の公開済みslugから対象routeを組み立てる。
 TanStack StartはこのallowlistだけをStatic Prerenderingし、認証routeやCapability routeを自動探索しない。
 
 `scripts/sitemap.ts`は公開route manifestと記事frontmatterから`public/sitemap.xml`を生成する。
@@ -145,11 +141,11 @@ TanStack StartはこのallowlistだけをStatic Prerenderingし、認証routeや
 記事別OGPは`scripts/generateArticleOgp.ts`と`public/ogp/articles/`が所有し、生成物検証時に不足を検出する。
 
 全ページのfallback metadataは`src/routes/__root.tsx`、route別metadataとJSON-LDは対応する`src/pages/*/meta.ts`とコンテンツfeatureが所有する。
-FAQ、BlogPosting、BreadcrumbListなどの構造化データは、画面に表示する現在内容と一致させる。
+FAQPage、BlogPosting、BreadcrumbListなどの構造化データは、画面に表示する現在内容と一致させる。
 
 `pnpm build`はStatic Prerendering、Cloudflare用ルール生成、生成物検証、型検査を行う。
 Cloudflare Pagesへ配信するのは`dist/client/`だけであり、`dist/server/`はbuild時のrenderにだけ使う。
-`scripts/validateStaticBuild.ts`は公開HTMLのcanonical、metadata、H1一件、Emotion style、hydration payload、記事OGP、metadataから再生成したsitemapとの一致、CSR shell、404、Cloudflareルールを検証する。
+`scripts/validateStaticBuild.ts`は公開HTMLのcanonical、metadata、H1一件、Emotion style、hydration payload、特定商取引法ページのPro・Business料金snapshot、記事OGP、metadataから再生成したsitemapとの一致、CSR shell、404、Cloudflareルールを検証する。
 通常の`pnpm build`は`public/sitemap.xml`を書き換えず、sourceまたは配信artifactが生成期待値と異なる場合に失敗する。
 実際のdeployment状態はこの機能文書から推測せず、CI/CDの手順と実行結果で確認する。
 
@@ -176,13 +172,12 @@ route inventory testは各`Disallow`が実在するCSR routeのprefixである�
 ## 関連ファイル
 
 - `src/routes/index.tsx`、`src/pages/home/`、`src/components/features/LandingPage/`：公開TOP
+- `src/components/features/LandingPage/PricingSection/`：TOPの料金プラン比較
 - `src/routes/features.tsx`、`src/pages/features/`：機能紹介
-- `src/routes/pricing.tsx`、`src/pages/pricing/`、`src/components/features/PricingSite/`：料金・プラン
 - `src/routes/commercial-transactions.tsx`、`src/pages/commercial-transactions/`、`src/components/features/CommercialTransactions/`：特定商取引法に基づく表記
-- `src/routes/faq.tsx`、`src/pages/faq/`、`src/components/features/FaqSite/`：総合FAQとTOP向けFAQ抜粋
-- `src/components/features/FaqSite/content/**/*.mdx`：質問、回答、検索用メタデータ、表示順
-- `src/components/features/FaqSite/faqMetadata.ts`、`faqContent.ts`、`landingFaqContent.ts`：frontmatter検証、検索、構造化データ
-- `src/routes/howto.tsx`、`src/pages/howto/`、`src/components/features/HowToSite/`：使い方とヘルプ
+- `src/routes/help.tsx`、`src/routes/help.*.tsx`、`src/pages/help/`：ヘルプ一覧と使い方詳細のURL境界
+- `src/components/features/HelpCenter/`：FAQ、使い方、検索、構造化データ
+- `src/components/features/HelpCenter/content/**/*.mdx`：ヘルプ本文、検索用メタデータ、関連付け、表示順
 - `src/routes/articles*.tsx`、`src/pages/articles/`、`src/components/features/ArticleSite/`：記事一覧、記事詳細、カテゴリ
 - `src/routes/demo.*.tsx`、`src/pages/demo-*/`、`src/components/features/Demo/`：公開デモ
 - `src/components/templates/PublicPageLayout/`：公開ページ共通layout

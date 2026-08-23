@@ -87,6 +87,11 @@ export const STAFF_NOTIFICATION_RESEND_ORGANIZATION_DAILY_LIMIT = 20;
 // 宛先を替えた回避も、organization（legacy店舗ではshop）×通知種別の配送対象数で抑止する。
 export const STAFF_NOTIFICATION_RESEND_SCOPE_TARGET_SHORT_LIMIT = 200;
 export const STAFF_NOTIFICATION_RESEND_SCOPE_TARGET_DAILY_LIMIT = 1000;
+export const NOTIFICATION_RESEND_COOLDOWN_MS = 10 * MINUTE_MS;
+// canonical人物の最大20所属と所属履歴の照合を含めてread上限内に収める、
+// 1staffあたりの有限走査上限。
+// 上限まで到達した場合は、未走査履歴を取りこぼさないよう安全側のcooldownを返す。
+export const NOTIFICATION_RESEND_COOLDOWN_HISTORY_SCAN_LIMIT = 180;
 export const RECRUITMENT_DUPLICATE_SCAN_LIMIT = 500;
 export const OPEN_RECRUITMENT_NOTIFICATION_LIMIT = 50;
 // スタッフ個別の確定シフト再送で、一度の操作に固定できる募集数。

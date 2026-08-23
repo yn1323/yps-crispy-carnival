@@ -35,6 +35,7 @@ describe("static site manifest", () => {
       ...FIXED_PUBLIC_ROUTES,
       "/articles/$slug",
       "/articles/categories/$categorySlug",
+      "/help/$slug",
       "/app/staff/order",
       "/staff/order",
       ...csrPatterns,
@@ -44,9 +45,10 @@ describe("static site manifest", () => {
     expect([...actual].sort()).toEqual([...expected].sort());
   });
 
-  it("公開済みの記事とカテゴリだけをSSG対象へ追加する", () => {
+  it("公開済みの記事・カテゴリ・使い方だけをSSG対象へ追加する", () => {
     const repoRoot = mkdtempSync(join(tmpdir(), "shiftori-static-site-"));
     const contentRoot = join(repoRoot, "src/components/features/ArticleSite/content");
+    const helpRoot = join(repoRoot, "src/components/features/HelpCenter/content/guides");
 
     try {
       for (const path of [
@@ -62,14 +64,22 @@ describe("static site manifest", () => {
       writeFileSync(join(contentRoot, "articles/shiftori-line-workflow/index.mdx"), "# Current article");
       writeFileSync(join(contentRoot, "articles/_draft/index.mdx"), "# Draft");
       writeFileSync(join(contentRoot, "categories/operations/index.mdx"), "# Operations");
+      for (const path of ["add-staff", "missing-entry", "_draft"]) {
+        mkdirSync(join(helpRoot, path), { recursive: true });
+      }
+      writeFileSync(join(helpRoot, "add-staff/index.mdx"), "# Add staff");
+      writeFileSync(join(helpRoot, "_draft/index.mdx"), "# Draft help");
 
       const routes = collectPublicRoutes(repoRoot);
 
       expect(routes).toContain("/articles/published");
       expect(routes).toContain("/articles/line-shift-collection-guide");
       expect(routes).toContain("/articles/categories/operations");
+      expect(routes).toContain("/help/add-staff");
       expect(routes).not.toContain("/articles/missing-entry");
       expect(routes).not.toContain("/articles/_draft");
+      expect(routes).not.toContain("/help/missing-entry");
+      expect(routes).not.toContain("/help/_draft");
     } finally {
       rmSync(repoRoot, { recursive: true, force: true });
     }
@@ -83,6 +93,7 @@ describe("static site manifest", () => {
       for (const repoRoot of [missingTargetRoot, conflictRoot]) {
         mkdirSync(join(repoRoot, "src/components/features/ArticleSite/content/articles"), { recursive: true });
         mkdirSync(join(repoRoot, "src/components/features/ArticleSite/content/categories"), { recursive: true });
+        mkdirSync(join(repoRoot, "src/components/features/HelpCenter/content/guides"), { recursive: true });
       }
       for (const slug of ["shiftori-line-workflow", "line-shift-collection-guide"]) {
         const directory = join(conflictRoot, "src/components/features/ArticleSite/content/articles", slug);
@@ -105,6 +116,9 @@ describe("static site manifest", () => {
   });
 
   it("sitemap対象をindex可能なcanonical URLへ重複なく畳み込む", () => {
+    expect(FIXED_PUBLIC_ROUTES).toContain("/help");
+    expect(FIXED_PUBLIC_ROUTES).not.toContain("/faq");
+    expect(FIXED_PUBLIC_ROUTES).not.toContain("/howto");
     expect(FIXED_PUBLIC_ROUTES).toContain("/commercial-transactions");
     expect(NOINDEX_PUBLIC_ROUTES.has("/commercial-transactions")).toBe(true);
     expect(
@@ -146,7 +160,6 @@ describe("static site manifest", () => {
   it.each([
     ["/", "index.html"],
     ["/features", "features.html"],
-    ["/pricing", "pricing.html"],
     ["/articles/example", "articles/example.html"],
   ])("%sを末尾slashなしのHTML pathへ変換する", (route, expected) => {
     expect(routeToHtmlPath(route)).toBe(expected);

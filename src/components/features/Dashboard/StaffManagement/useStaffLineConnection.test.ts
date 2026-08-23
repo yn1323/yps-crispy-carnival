@@ -7,6 +7,7 @@ import type { Staff } from "../types";
 const mocks = vi.hoisted(() => ({
   generateLineLinkToken: vi.fn(),
   sendLineInvite: vi.fn(),
+  createToast: vi.fn(),
   shopMutationCallCount: 0,
 }));
 
@@ -24,6 +25,10 @@ vi.mock("@/src/components/shared/feedback", () => ({
   showSuccessToast: vi.fn(),
 }));
 
+vi.mock("@/src/components/ui/toaster", () => ({
+  toaster: { create: mocks.createToast },
+}));
+
 import { useStaffLineConnection } from "./useStaffLineConnection";
 
 const staff = {
@@ -35,6 +40,7 @@ const staff = {
 beforeEach(() => {
   mocks.generateLineLinkToken.mockReset();
   mocks.sendLineInvite.mockReset();
+  mocks.createToast.mockReset();
   mocks.shopMutationCallCount = 0;
 });
 
@@ -86,5 +92,34 @@ describe("useStaffLineConnection", () => {
     });
 
     expect(result.current.qrState.authorizeUrl).toBeNull();
+  });
+
+  it("案内メールの送信直前にクールダウンへ入った場合は送信済みと案内する", async () => {
+    mocks.sendLineInvite.mockResolvedValue({ scheduled: false, reason: "recentlySent" });
+    const { result } = renderHook(() => useStaffLineConnection());
+
+    await act(async () => {
+      await result.current.onSendInvite(staff);
+    });
+
+    expect(mocks.createToast).toHaveBeenCalledExactlyOnceWith({
+      title: "送信済みです",
+      description: "送信から10分後に再送できるようになります。",
+      type: "info",
+    });
+  });
+
+  it("案内メールの日次上限に達した場合は時間をおいた再送を案内する", async () => {
+    mocks.sendLineInvite.mockResolvedValue({ scheduled: false, reason: "rateLimited" });
+    const { result } = renderHook(() => useStaffLineConnection());
+
+    await act(async () => {
+      await result.current.onSendInvite(staff);
+    });
+
+    expect(mocks.createToast).toHaveBeenCalledExactlyOnceWith({
+      title: "少し時間をおいて再送してください",
+      type: "error",
+    });
   });
 });

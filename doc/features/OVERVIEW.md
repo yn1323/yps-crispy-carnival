@@ -37,7 +37,7 @@
 ## 2. 現在の公開範囲
 
 repository artifactでは、複数組織、複数店舗、複数管理者（招待）、Stripe課金を常時利用できる。
-初回登録で作る組織は`complimentary.business`（期限・料金なしでBusiness相当、利用人数40名まで）になり、カード登録やTrial期限は発生しない。  追加組織はFreeで開始する。
+初回登録で作る組織は、カード登録なしでPro相当の2か月Trialを開始する。  追加組織はFreeで開始する。
 
 機能ごとの公開環境変数は使わない。  画面は組織作成、店舗追加、管理者、プランと支払いの導線を常時表示し、操作可否は認証・認可、所属状態、契約状態、プラン上限、Stripe設定などのサーバー判定に従う。  実deploymentへのartifact反映とcanaryは[リリース状態](../manual/release-status.md)の証跡で確認する。
 
@@ -97,8 +97,8 @@ repository artifactでは、複数組織、複数店舗、複数管理者（招�
 
 | 機能 | 概要 | 主な画面 |
 |---|---|---|
-| [公開サイト](public-pages.md) | TOP、機能紹介、料金（2か月の無料トライアルと各プランの案内）、FAQ、記事、登録不要の操作デモ、特定商取引法表記。認証・Convex不要の静的生成 | `/`、`/features`、`/pricing`、`/faq`、`/articles`、`/demo/flow`、`/demo/shiftboard`、`/commercial-transactions` |
-| [使い方・ヘルプ](howto.md) | 操作手順・トラブル対処のHowToをMDXで管理し1ページに集約する | `/howto` |
+| [公開サイト](public-pages.md) | TOP、機能紹介、無料トライアル条件、記事、登録不要の操作デモ、特定商取引法表記。認証・Convex不要の静的生成 | `/`、`/features`、`/articles`、`/demo/flow`、`/demo/shiftboard`、`/commercial-transactions` |
+| [ヘルプセンター](help-center.md) | FAQと使い方を共通のMDX形式で管理し、やりたいことと検索から探せるようにする | `/help`、`/help/:slug` |
 | [問い合わせ](contact.md) | 未ログイン可の問い合わせフォーム。Turnstile・レート制限後にResendでメール送信し、Slackへ社内通知する | `/contact` |
 | [公開サイトのWeb計測](web-measurement.md) | 同意した端末に限り、公開ページの導線・Web VitalsをGTM/GA4へ低cardinalityで送る | 公開ページ |
 | [要望受付](feature-requests.md) | 管理ユーザーと提出中スタッフがヘッダーから200文字以内の要望を送る | 認証済みヘッダー、提出画面ヘッダー |
@@ -116,8 +116,8 @@ repository artifactでは、複数組織、複数店舗、複数管理者（招�
 
 | プラン・状態 | 利用人数 | 稼働店舗 | 有効管理者 | 備考 |
 |---|---:|---:|---:|---|
-| 支払い不要Business（現行の初回登録） | 40名 | 5店舗 | 5名 | 期限・料金・Stripeオブジェクトなし |
-| 無料体験（Trial、既存組織のみ） | 20名 | 5店舗 | 5名 | Pro相当。期間は開始から2ヶ月（終了は該当日0:00 JST） |
+| 支払い不要Business（既存組織のみ） | 40名 | 5店舗 | 5名 | 期限・料金・Stripeオブジェクトなし |
+| 無料体験（Trial、初回登録） | 20名 | 5店舗 | 5名 | Pro相当。期間は開始から2か月（終了は該当日0:00 JST） |
 | Free（追加組織） | 5名 | 1店舗 | 2名 | 二つ目以降の組織はこの状態で開始する |
 | Pro | 20名 | 5店舗 | 5名 | Stripe契約あり |
 | Business | 40名 | 5店舗 | 5名 | Stripe契約あり |
@@ -317,6 +317,6 @@ Trial未契約終了、解約の期間末適用、支払い失敗14日経過な�
 
 ## 8. マニュアル・テストケースへの展開
 
-- **マニュアル**: 1章（解決する課題）と3章（機能一覧）を目次の骨格にし、公開範囲（2章）で対象機能を絞る。操作手順の本文は既存の`/howto`（`src/components/features/HowToSite/content/`）と重複させず、`write-help-content`の規約に従って追加する。
+- **マニュアル**: 1章（解決する課題）と3章（機能一覧）を目次の骨格にし、公開範囲（2章）で対象機能を絞る。操作手順の本文は`/help`と`/help/:slug`（`src/components/features/HelpCenter/content/`）に集約し、`write-help-content`の規約に従って追加する。
 - **テストケース**: 4章の各制限値は境界値テストの入力（上限ちょうど・上限+1）にそのまま使える。5章のマトリクスの×セルは認可拒否テスト、6.1の状態×ロール表の各セルは状態遷移テストの観点になる。既存の主担当テスト層と重複させないため、各機能文書の「テスト契約」節と`doc/specs/full-regression-contracts.md`を先に確認する。
 - 通知系のテストは「送信の受付」と「providerへの到達」を区別する（アプリは受付までを保証し、配送はOutboxが非同期に行う）。

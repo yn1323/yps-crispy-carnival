@@ -82,7 +82,7 @@ export type CreateOrganizationWithFirstShopArgs = {
   regularClosedDays: RegularClosedDay[];
   submissionPattern: ShiftSubmissionPattern;
   correlationId?: string;
-  billingMode: "complimentaryBusiness" | "free" | "trial";
+  billingMode: "free" | "trial";
   now: number;
 };
 
@@ -106,11 +106,9 @@ export async function createOrganizationWithFirstShop(
   const { userId, now } = args;
   const managerEmailNormalized = normalizeEmail(args.managerEmail);
   const billingState =
-    args.billingMode === "complimentaryBusiness"
-      ? ({ kind: "complimentary", plan: "business" } as const)
-      : args.billingMode === "free"
-        ? ({ kind: "active", plan: "free" } as const)
-        : ({ kind: "trial", trialEndsAt: calculateTrialEndsAt(now) } as const);
+    args.billingMode === "free"
+      ? ({ kind: "active", plan: "free" } as const)
+      : ({ kind: "trial", trialEndsAt: calculateTrialEndsAt(now) } as const);
 
   const organizationId = await ctx.db.insert("organizations", {
     createdByUserId: userId,
@@ -197,12 +195,7 @@ export async function createOrganizationWithFirstShop(
     targetKind: "organization",
     targetId: organizationId,
     ...(args.managerProfileSource ? { fromState: `managerProfile.${args.managerProfileSource}` } : {}),
-    toState:
-      billingState.kind === "complimentary"
-        ? "complimentary.business"
-        : billingState.kind === "active"
-          ? `active.${billingState.plan}`
-          : "trial",
+    toState: billingState.kind === "active" ? `active.${billingState.plan}` : "trial",
     correlationId: args.correlationId,
     occurredAt: now,
     analyticsEvent: {

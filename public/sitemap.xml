@@ -76,15 +76,36 @@
     <loc>https://shiftori.app/demo/shiftboard</loc>
   </url>
   <url>
-    <loc>https://shiftori.app/faq</loc>
-  </url>
-  <url>
     <loc>https://shiftori.app/features</loc>
   </url>
   <url>
-    <loc>https://shiftori.app/howto</loc>
+    <loc>https://shiftori.app/help</loc>
   </url>
   <url>
-    <loc>https://shiftori.app/pricing</loc>
+    <loc>https://shiftori.app/help/add-staff</loc>
+  </url>
+  <url>
+    <loc>https://shiftori.app/help/build-and-confirm-shift</loc>
+  </url>
+  <url>
+    <loc>https://shiftori.app/help/check-notification-history</loc>
+  </url>
+  <url>
+    <loc>https://shiftori.app/help/check-plan-and-usage</loc>
+  </url>
+  <url>
+    <loc>https://shiftori.app/help/create-shift-recruitment</loc>
+  </url>
+  <url>
+    <loc>https://shiftori.app/help/reset-password</loc>
+  </url>
+  <url>
+    <loc>https://shiftori.app/help/start-shift-management</loc>
+  </url>
+  <url>
+    <loc>https://shiftori.app/help/submit-shift-request</loc>
+  </url>
+  <url>
+    <loc>https://shiftori.app/help/update-shop-settings</loc>
   </url>
 </urlset>

@@ -576,7 +576,7 @@ describe("organizationBilling/policy trial deadline", () => {
     vi.unstubAllEnvs();
   });
 
-  it("JSTの事業者作成日から2ヶ月後の同日00:00を返す", () => {
+  it("JSTの事業者作成日から2か月後の同日00:00を返す", () => {
     const createdAt = Date.parse("2026-07-14T01:30:00.000Z");
     expect(calculateTrialEndsAt(createdAt)).toBe(Date.parse("2026-09-13T15:00:00.000Z"));
     expect(calculateTrialEndsAt(Date.parse("2026-07-14T14:59:59.000Z"))).toBe(Date.parse("2026-09-13T15:00:00.000Z"));
@@ -617,7 +617,7 @@ describe("organizationBilling/policy trial deadline", () => {
       durationDays: "   ",
     },
   ])(
-    "対象URLまたは日数が有効でなければ2ヶ月を維持する: current=$currentDeploymentUrl, debug=$debugDeploymentUrl, days=$durationDays",
+    "対象URLまたは日数が有効でなければ2か月を維持する: current=$currentDeploymentUrl, debug=$debugDeploymentUrl, days=$durationDays",
     ({ currentDeploymentUrl, debugDeploymentUrl, durationDays }) => {
       vi.stubEnv("CONVEX_CLOUD_URL", currentDeploymentUrl);
       vi.stubEnv("DEBUG_TRIAL_DURATION_DEPLOYMENT_URL", debugDeploymentUrl);
@@ -627,7 +627,7 @@ describe("organizationBilling/policy trial deadline", () => {
     },
   );
 
-  it("対象deploymentが一致しなければ不正な日数も無視して2ヶ月を維持する", () => {
+  it("対象deploymentが一致しなければ不正な日数も無視して2か月を維持する", () => {
     vi.stubEnv("CONVEX_CLOUD_URL", "https://current.convex.cloud");
     vi.stubEnv("DEBUG_TRIAL_DURATION_DEPLOYMENT_URL", "https://another.convex.cloud");
     vi.stubEnv("DEBUG_TRIAL_DURATION_DAYS", "not-an-integer");

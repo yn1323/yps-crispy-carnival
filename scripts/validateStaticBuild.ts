@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createExpectedSitemap } from "./sitemap";
@@ -19,8 +19,18 @@ import {
 
 const SITE_URL = "https://shiftori.app";
 const ARTICLE_ROUTE_PREFIX = "/articles/";
+const COMMERCIAL_TRANSACTIONS_ROUTE = "/commercial-transactions";
+const PUBLIC_PLAN_PRICE_ROUTES = new Set(["/", COMMERCIAL_TRANSACTIONS_ROUTE]);
+const MAX_STATIC_OUTPUT_ENTRIES = 10_000;
 const BAKED_MEASUREMENT_SCRIPT_PATTERN =
   /\b(?:[a-z0-9-]+\.)*(?:googletagmanager\.com|google-analytics\.com|clarity\.ms)\b/i;
+const PUBLIC_PRICE_SECRET_PATTERN = /STRIPE_(?:SECRET_KEY|PRICE_READ_KEY)|\b(?:rk|sk)_(?:live|test)_/i;
+const STRIPE_PRICE_ID_PATTERN = /\bprice_(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{8,}\b/;
+const HELP_INDEX_BUNDLE_PATTERN = /\/assets\/(?:help\.index|helpIndexData)-[^"'\s]+\.js/;
+const PUBLIC_PRICE_PLACEHOLDERS = [
+  "【手動入力：Proの月額料金と税込・税別】",
+  "【手動入力：Businessの月額料金と税込・税別】",
+] as const;
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -61,6 +71,208 @@ export function assertNoBakedMeasurementScripts(label: string, html: string): vo
     transportTags.every((transportTag) => !BAKED_MEASUREMENT_SCRIPT_PATTERN.test(transportTag)),
     `${label} contains baked GTM, Google Analytics, or Clarity markup`,
   );
+}
+
+export function assertNoStripeBuildValues(label: string, contents: string): void {
+  assert(!PUBLIC_PRICE_SECRET_PATTERN.test(contents), `${label} contains a Stripe secret or secret environment name`);
+  assert(!STRIPE_PRICE_ID_PATTERN.test(contents), `${label} contains a Stripe Price ID`);
+}
+
+export function assertHelpIndexBundleBoundary(route: string, html: string): void {
+  assert(
+    route === "/help" || !HELP_INDEX_BUNDLE_PATTERN.test(html),
+    `${route} must not preload the /help full-text search bundle`,
+  );
+}
+
+async function collectStaticCodeArtifacts(outputDirectory: string): Promise<string[]> {
+  const directories = [outputDirectory];
+  const artifacts: string[] = [];
+  let traversedEntries = 0;
+
+  while (directories.length > 0) {
+    const directory = directories.pop();
+    assert(directory, "static artifact traversal lost its directory");
+
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      traversedEntries += 1;
+      assert(
+        traversedEntries <= MAX_STATIC_OUTPUT_ENTRIES,
+        `static output has more than ${MAX_STATIC_OUTPUT_ENTRIES} entries`,
+      );
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        directories.push(path);
+      } else if (entry.isFile() && (entry.name.endsWith(".html") || entry.name.endsWith(".js"))) {
+        artifacts.push(path);
+      }
+    }
+  }
+
+  return artifacts.sort();
+}
+
+async function assertNoStripeValuesInStaticArtifacts(outputDirectory: string): Promise<void> {
+  for (const artifactPath of await collectStaticCodeArtifacts(outputDirectory)) {
+    const label = artifactPath.slice(outputDirectory.length + 1);
+    assertNoStripeBuildValues(label, await readFile(artifactPath, "utf8"));
+  }
+}
+
+type PublicPriceMarkup = {
+  openingTag: string;
+  innerHtml: string;
+};
+
+type PublicPriceInterval = "day" | "week" | "month" | "year";
+
+function collectPublicPriceMarkup(html: string): PublicPriceMarkup[] {
+  const matches: PublicPriceMarkup[] = [];
+  const openingTagPattern = /<([a-z][\w:-]*)\b(?=[^>]*\bdata-public-plan-price=["'][^"']+["'])[^>]*>/gi;
+
+  for (const openingMatch of html.matchAll(openingTagPattern)) {
+    const openingTag = openingMatch[0];
+    const tagName = openingMatch[1];
+    const openingIndex = openingMatch.index;
+    assert(tagName && openingIndex !== undefined, "public plan price markup could not be parsed");
+
+    const sameTagPattern = new RegExp(`<\\/?${escapeRegExp(tagName)}\\b[^>]*>`, "gi");
+    sameTagPattern.lastIndex = openingIndex + openingTag.length;
+    let depth = 1;
+    let closingIndex: number | undefined;
+
+    for (const tagMatch of html.matchAll(sameTagPattern)) {
+      const tag = tagMatch[0];
+      if (tag.startsWith("</")) {
+        depth -= 1;
+      } else if (!tag.endsWith("/>")) {
+        depth += 1;
+      }
+      if (depth === 0) {
+        closingIndex = tagMatch.index;
+        break;
+      }
+    }
+
+    assert(closingIndex !== undefined, "public plan price element must have a closing tag");
+    matches.push({
+      openingTag,
+      innerHtml: html.slice(openingIndex + openingTag.length, closingIndex),
+    });
+  }
+
+  return matches;
+}
+
+function decodeVisibleText(innerHtml: string): string {
+  return innerHtml
+    .replace(/<[^>]*>/g, "")
+    .replace(/&#x([0-9a-f]+);/gi, (_, code: string) => String.fromCodePoint(Number.parseInt(code, 16)))
+    .replace(/&#([0-9]+);/g, (_, code: string) => String.fromCodePoint(Number.parseInt(code, 10)))
+    .replace(/&yen;/gi, "¥")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatPublicPriceAmount(currencyValue: string, unitAmount: number): string {
+  const currency = currencyValue.toUpperCase();
+  const formatter = new Intl.NumberFormat("ja-JP", {
+    style: "currency",
+    currency,
+    currencyDisplay: currency === "JPY" ? "symbol" : "code",
+  });
+  const fractionDigits = formatter.resolvedOptions().maximumFractionDigits ?? 0;
+  const formatted = formatter.format(unitAmount / 10 ** fractionDigits);
+  return (currency === "JPY" ? formatted.replace("￥", "¥") : formatted).replace(/\s+/g, " ");
+}
+
+function isPublicPriceInterval(value: string | undefined): value is PublicPriceInterval {
+  return value === "day" || value === "week" || value === "month" || value === "year";
+}
+
+function formatPublicBillingUnit(interval: PublicPriceInterval, intervalCount: number): string {
+  const unit = { day: "日", week: "週間", month: "か月", year: "年" }[interval];
+  return `${intervalCount}${unit}`;
+}
+
+export function assertPublicPlanPriceMarkup(label: string, html: string): void {
+  for (const placeholder of PUBLIC_PRICE_PLACEHOLDERS) {
+    assert(
+      !html.includes(placeholder),
+      `${label} contains the manual ${placeholder.includes("Pro") ? "Pro" : "Business"} price placeholder`,
+    );
+  }
+  assertNoStripeBuildValues(label, html);
+
+  const priceMarkup = collectPublicPriceMarkup(html);
+  assert(priceMarkup.length === 2, `${label} must contain exactly two public plan price elements`);
+
+  const plans = priceMarkup.map(({ openingTag }) => getAttribute(openingTag, "data-public-plan-price") ?? "").sort();
+  assert(
+    plans.length === 2 && plans[0] === "business" && plans[1] === "pro",
+    `${label} must contain exactly one Pro and one Business public plan price`,
+  );
+
+  const parsedPrices = priceMarkup.map(({ openingTag, innerHtml }) => {
+    const plan = getAttribute(openingTag, "data-public-plan-price");
+    const currency = getAttribute(openingTag, "data-currency");
+    const unitAmountValue = getAttribute(openingTag, "data-unit-amount");
+    const interval = getAttribute(openingTag, "data-interval");
+    const intervalCountValue = getAttribute(openingTag, "data-interval-count");
+    const taxBehavior = getAttribute(openingTag, "data-tax-behavior");
+
+    assert(currency && /^[a-z]{3}$/i.test(currency), `${label} ${plan} price must have a three-letter currency`);
+    assert(unitAmountValue && /^\d+$/.test(unitAmountValue), `${label} ${plan} price must have an integer unit amount`);
+    const unitAmount = Number(unitAmountValue);
+    assert(
+      Number.isSafeInteger(unitAmount) && unitAmount > 0,
+      `${label} ${plan} price must have a positive unit amount`,
+    );
+    assert(isPublicPriceInterval(interval), `${label} ${plan} price must have a supported interval`);
+    assert(
+      intervalCountValue && /^\d+$/.test(intervalCountValue),
+      `${label} ${plan} price must have an integer interval count`,
+    );
+    const intervalCount = Number(intervalCountValue);
+    assert(
+      Number.isSafeInteger(intervalCount) && intervalCount > 0,
+      `${label} ${plan} price must have a positive interval count`,
+    );
+    assert(
+      taxBehavior === "inclusive" || taxBehavior === "exclusive",
+      `${label} ${plan} price must have an explicit tax behavior`,
+    );
+
+    return {
+      plan,
+      currency: currency.toLowerCase(),
+      unitAmount,
+      interval,
+      intervalCount,
+      taxBehavior,
+      visibleText: decodeVisibleText(innerHtml),
+    };
+  });
+
+  assert(parsedPrices[0]?.currency === parsedPrices[1]?.currency, `${label} public plan prices must use one currency`);
+  assert(
+    parsedPrices[0]?.interval === parsedPrices[1]?.interval &&
+      parsedPrices[0]?.intervalCount === parsedPrices[1]?.intervalCount,
+    `${label} public plan prices must use one billing interval`,
+  );
+
+  for (const price of parsedPrices) {
+    const amount = formatPublicPriceAmount(price.currency, price.unitAmount);
+    const taxLabel = price.taxBehavior === "inclusive" ? "税込" : "税別";
+    const expectedText = `${amount}/${formatPublicBillingUnit(price.interval, price.intervalCount)}（${taxLabel}）`;
+    assert(price.visibleText === expectedText, `${label} ${price.plan} visible price must equal ${expectedText}`);
+  }
 }
 
 function assertPublicHtml(route: string, html: string): void {
@@ -196,13 +408,20 @@ export async function validateStaticBuild(
   const resolvedOutput = assertOutputDirectory(outputDirectory, repoRoot);
   const publicRoutes = collectPublicRoutes(repoRoot);
 
+  await assertNoStripeValuesInStaticArtifacts(resolvedOutput);
+
   for (const route of publicRoutes) {
     const htmlPath = join(resolvedOutput, routeToHtmlPath(route));
     assert(existsSync(htmlPath), `${route} is missing ${routeToHtmlPath(route)}`);
     if (route !== "/") {
       assert(!existsSync(join(resolvedOutput, route.slice(1), "index.html")), `${route} was emitted as a slash URL`);
     }
-    assertPublicHtml(route, await readFile(htmlPath, "utf8"));
+    const html = await readFile(htmlPath, "utf8");
+    assertPublicHtml(route, html);
+    assertHelpIndexBundleBoundary(route, html);
+    if (PUBLIC_PLAN_PRICE_ROUTES.has(route)) {
+      assertPublicPlanPriceMarkup(route, html);
+    }
   }
 
   for (const route of CSR_SHELL_STATIC_ROUTES) {

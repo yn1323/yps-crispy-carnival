@@ -2,6 +2,7 @@ import { Box, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { LuMail, LuMessageCircle, LuQrCode } from "react-icons/lu";
 import { LineLinkQrDialog } from "@/src/components/features/Line";
+import { NotificationResendCooldownNotice } from "@/src/components/shared/NotificationResendCooldownNotice";
 import { Button } from "@/src/components/ui/Button";
 import type { StaffLineStatus } from "./staffDetailPresentation";
 
@@ -15,6 +16,7 @@ type Props = {
   onShowLineQr: () => void | Promise<void>;
   sendLineInviteAction: {
     isDisabled: boolean;
+    isCooldownActive: boolean;
     isLoading: boolean;
     onAction: () => void | Promise<void>;
   };
@@ -76,13 +78,17 @@ export const StaffDetailLineTab = ({
           <Button
             colorPalette="teal"
             gap={1.5}
-            disabled={sendLineInviteAction.isDisabled}
+            disabled={sendLineInviteAction.isDisabled || sendLineInviteAction.isCooldownActive}
             loading={sendLineInviteAction.isLoading}
             onClick={sendLineInviteAction.onAction}
+            variant="outline"
           >
             <LuMail />
             メールでLINE連携リンクを送る
           </Button>
+          {sendLineInviteAction.isCooldownActive && !sendLineInviteAction.isDisabled && hasEmail && (
+            <NotificationResendCooldownNotice />
+          )}
           {!hasEmail && (
             <Text fontSize="xs" color="fg.muted">
               メールアドレスが未登録のため、メールでは送れません。

@@ -395,11 +395,6 @@ const DemoCompleteCta = () => (
           <Icon as={LuChevronRight} boxSize={5} />
         </MeasurementBoundaryLink>
       </Button>
-      <Button asChild variant="outline" colorPalette="teal" bg="white" w="full" h="44px" fontWeight="bold">
-        <MeasurementBoundaryLink href="/pricing" measurementCtaId="demo_complete_pricing">
-          料金・プランを見る
-        </MeasurementBoundaryLink>
-      </Button>
     </Stack>
   </Box>
 );

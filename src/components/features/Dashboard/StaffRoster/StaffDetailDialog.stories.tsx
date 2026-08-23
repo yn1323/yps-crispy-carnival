@@ -159,10 +159,14 @@ const meta = {
     lineQrState: { staffId: null, authorizeUrl: null, isLoading: false },
     onSendLineInvite: noop,
     isSendingLineInvite: false,
+    isLineInviteCooldownActive: false,
     onSendRecruitments: noop,
     isSendingRecruitments: false,
+    isRecruitmentCooldownActive: false,
     onSendCurrentShift: noop,
     isSendingCurrentShift: false,
+    isCurrentShiftCooldownActive: false,
+    isNotificationCooldownLoading: false,
     notificationHistory: <StaffNotificationHistoryView items={[]} />,
     onChangeShiftTarget: noop,
     isChangingShiftTarget: false,
@@ -203,6 +207,38 @@ export const NotificationHistory: Story = {
   args: {
     defaultTab: "notification",
     notificationHistory: <StaffNotificationHistoryView items={notificationHistoryItems} />,
+  },
+};
+
+export const NotificationResendCooldown: Story = {
+  args: {
+    defaultTab: "notification",
+    isRecruitmentCooldownActive: true,
+    isCurrentShiftCooldownActive: true,
+  },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
+    const view = within(dialog);
+
+    await expect(view.getByRole("button", { name: "募集中のシフトを再送する" })).toBeDisabled();
+    await expect(view.getByRole("button", { name: "確定シフトを再送する" })).toBeDisabled();
+    await expect(view.getAllByText("送信済みです。")).toHaveLength(2);
+    await expect(view.getAllByText("送信から10分後に再送できるようになります。")).toHaveLength(2);
+  },
+};
+
+export const LineInviteResendCooldown: Story = {
+  args: {
+    defaultTab: "line",
+    isLineInviteCooldownActive: true,
+  },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "スタッフ詳細" });
+    const view = within(dialog);
+
+    await expect(view.getByRole("button", { name: "メールでLINE連携リンクを送る" })).toBeDisabled();
+    await expect(view.getByText("送信済みです。")).toBeInTheDocument();
+    await expect(view.getByText("送信から10分後に再送できるようになります。")).toBeInTheDocument();
   },
 };
 

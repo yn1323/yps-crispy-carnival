@@ -104,6 +104,10 @@ export const Public: Story = {
   args: {
     variant: "public",
   },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("link", { name: "料金" })).toHaveAttribute("href", "#pricing");
+  },
 };
 
 export const PublicBrandOnly: Story = {

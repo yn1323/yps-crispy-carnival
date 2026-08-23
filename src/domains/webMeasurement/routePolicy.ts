@@ -1,9 +1,8 @@
 export const measuredPublicRouteFamilies = [
   "home",
   "features",
-  "pricing",
-  "faq",
-  "howto",
+  "help_index",
+  "help_guide",
   "contact",
   "articles_index",
   "article_detail",
@@ -25,10 +24,8 @@ const fixedMeasuredRoutes = new Map<string, MeasuredPublicRouteFamily>([
   ["/contact", "contact"],
   ["/demo/flow", "demo_flow"],
   ["/demo/shiftboard", "demo_shiftboard"],
-  ["/faq", "faq"],
   ["/features", "features"],
-  ["/howto", "howto"],
-  ["/pricing", "pricing"],
+  ["/help", "help_index"],
 ]);
 
 const publicUnmeasuredRoutes = new Set([
@@ -61,6 +58,9 @@ export function classifyWebMeasurementRoute(value: string): WebMeasurementRoute 
   }
   if (/^\/articles\/[^/]+$/.test(pathname)) {
     return { surface: "measured_public", routeFamily: "article_detail" };
+  }
+  if (/^\/help\/[^/]+$/.test(pathname)) {
+    return { surface: "measured_public", routeFamily: "help_guide" };
   }
 
   return { surface: "closed" };

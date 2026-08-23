@@ -39,10 +39,14 @@ type Props = {
   };
   onSendLineInvite: (staff: Staff) => void | Promise<void>;
   isSendingLineInvite: boolean;
+  isLineInviteCooldownActive: boolean;
   onSendRecruitments: (staff: Staff) => void | Promise<void>;
   isSendingRecruitments: boolean;
+  isRecruitmentCooldownActive: boolean;
   onSendCurrentShift: (staff: Staff) => void | Promise<void>;
   isSendingCurrentShift: boolean;
+  isCurrentShiftCooldownActive: boolean;
+  isNotificationCooldownLoading: boolean;
   notificationHistory: ReactNode;
   onChangeShiftTarget: (staff: Staff, isShiftTarget: boolean) => void | Promise<void>;
   isChangingShiftTarget: boolean;
@@ -67,10 +71,14 @@ export const StaffDetailDialog = ({
   lineQrState,
   onSendLineInvite,
   isSendingLineInvite,
+  isLineInviteCooldownActive,
   onSendRecruitments,
   isSendingRecruitments,
+  isRecruitmentCooldownActive,
   onSendCurrentShift,
   isSendingCurrentShift,
+  isCurrentShiftCooldownActive,
+  isNotificationCooldownLoading,
   notificationHistory,
   onChangeShiftTarget,
   isChangingShiftTarget,
@@ -244,12 +252,14 @@ export const StaffDetailDialog = ({
                 recruitmentDataStatus={recruitmentDataStatus}
                 notificationHistory={activeTab === "notification" ? notificationHistory : null}
                 sendRecruitmentsAction={{
-                  isDisabled: !canSendRecruitments || isDirectActionRunning,
+                  isDisabled: !canSendRecruitments || isDirectActionRunning || isNotificationCooldownLoading,
+                  isCooldownActive: isRecruitmentCooldownActive,
                   isLoading: isSendingRecruitments || directAction === "sendRecruitments",
                   onAction: () => runDirectAction("sendRecruitments", () => onSendRecruitments(staff)),
                 }}
                 sendCurrentShiftAction={{
-                  isDisabled: !canSendCurrentShift || isDirectActionRunning,
+                  isDisabled: !canSendCurrentShift || isDirectActionRunning || isNotificationCooldownLoading,
+                  isCooldownActive: isCurrentShiftCooldownActive,
                   isLoading: isSendingCurrentShift || directAction === "sendCurrentShift",
                   onAction: () => runDirectAction("sendCurrentShift", () => onSendCurrentShift(staff)),
                 }}
@@ -267,7 +277,13 @@ export const StaffDetailDialog = ({
                   isLineQrLoading={lineQrState.isLoading}
                   onShowLineQr={() => onShowLineQr(staff)}
                   sendLineInviteAction={{
-                    isDisabled: !hasEmail || isLineActive || isSendingLineInvite || isDirectActionRunning,
+                    isDisabled:
+                      !hasEmail ||
+                      isLineActive ||
+                      isSendingLineInvite ||
+                      isDirectActionRunning ||
+                      isNotificationCooldownLoading,
+                    isCooldownActive: isLineInviteCooldownActive,
                     isLoading: isSendingLineInvite || directAction === "sendLineInvite",
                     onAction: () => runDirectAction("sendLineInvite", () => onSendLineInvite(staff)),
                   }}

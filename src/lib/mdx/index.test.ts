@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createMdxImageSrcResolver,
   extractFrontmatterSource,
   extractMdxToc,
   getUnderscorePrefixedMdxSlugs,
@@ -11,6 +12,11 @@ import {
 const textModules = import.meta.glob<string[]>("./test-content/*.mdx", {
   eager: true,
   query: "?mdx-text",
+  import: "default",
+});
+const summaryModules = import.meta.glob<string>("./test-content/plain-text.mdx", {
+  eager: true,
+  query: "?mdx-summary",
   import: "default",
 });
 
@@ -86,6 +92,10 @@ describe("mdx-text", () => {
       "二つ目",
     ]);
   });
+
+  it("最初の表示テキストだけをsummaryとして取り出す", () => {
+    expect(summaryModules["./test-content/plain-text.mdx"]).toBe("最初の回答とリンクの文言です。");
+  });
 });
 
 describe("下書きMDXの除外", () => {
@@ -97,5 +107,32 @@ describe("下書きMDXの除外", () => {
 
   it("MDX pathからファイル名由来のslugを取得する", () => {
     expect(mdxSlugFromPath("./content/example-help.mdx")).toBe("example-help");
+  });
+});
+
+describe("MDX相対画像", () => {
+  it("文書からの相対pathをbundled URLへ解決する", () => {
+    const resolveImageSrc = createMdxImageSrcResolver("./content/guides/example/index.mdx", {
+      "./content/guides/example/figure.webp": "/assets/figure.hash.webp",
+    });
+
+    expect(resolveImageSrc("./figure.webp")).toBe("/assets/figure.hash.webp");
+  });
+
+  it.each(["/images/figure.webp", "https://example.com/figure.webp", "data:image/png;base64,abc"])(
+    "absolute URL %sは変更しない",
+    (src) => {
+      const resolveImageSrc = createMdxImageSrcResolver("./content/guides/example/index.mdx", {});
+
+      expect(resolveImageSrc(src)).toBe(src);
+    },
+  );
+
+  it("存在しない相対画像pathを拒否する", () => {
+    const resolveImageSrc = createMdxImageSrcResolver("./content/guides/example/index.mdx", {});
+
+    expect(() => resolveImageSrc("./missing.webp")).toThrow(
+      "MDX「./content/guides/example/index.mdx」の画像「./missing.webp」が見つかりません",
+    );
   });
 });

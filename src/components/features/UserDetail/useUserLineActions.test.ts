@@ -9,12 +9,15 @@ const mocks = vi.hoisted(() => ({
   generateLinkTokenRef: Symbol("generateLinkToken"),
   sendInviteRef: Symbol("sendInvite"),
   disconnectRef: Symbol("disconnectOrganizationPersonLine"),
+  cooldownsRef: Symbol("getNotificationResendCooldowns"),
   useMutation: vi.fn(),
+  useQuery: vi.fn(),
   generateLinkToken: vi.fn(),
   sendInvite: vi.fn(),
   disconnect: vi.fn(),
   showErrorToast: vi.fn(),
   showSuccessToast: vi.fn(),
+  createToast: vi.fn(),
 }));
 
 vi.mock("@/convex/_generated/api", () => ({
@@ -26,14 +29,20 @@ vi.mock("@/convex/_generated/api", () => ({
         disconnectOrganizationPersonLine: mocks.disconnectRef,
       },
     },
+    staff: {
+      queries: {
+        getNotificationResendCooldowns: mocks.cooldownsRef,
+      },
+    },
   },
 }));
 
-vi.mock("convex/react", () => ({ useMutation: mocks.useMutation }));
+vi.mock("convex/react", () => ({ useMutation: mocks.useMutation, useQuery: mocks.useQuery }));
 vi.mock("@/src/components/shared/feedback", () => ({
   showErrorToast: mocks.showErrorToast,
   showSuccessToast: mocks.showSuccessToast,
 }));
+vi.mock("@/src/components/ui/toaster", () => ({ toaster: { create: mocks.createToast } }));
 
 import { useUserLineActions } from "./useUserLineActions";
 
@@ -57,11 +66,13 @@ const data = {
 
 beforeEach(() => {
   mocks.useMutation.mockReset();
+  mocks.useQuery.mockReset();
   mocks.generateLinkToken.mockReset();
   mocks.sendInvite.mockReset();
   mocks.disconnect.mockReset();
   mocks.showErrorToast.mockReset();
   mocks.showSuccessToast.mockReset();
+  mocks.createToast.mockReset();
   mocks.useMutation.mockImplementation((reference: unknown) => {
     if (reference === mocks.generateLinkTokenRef) return mocks.generateLinkToken;
     if (reference === mocks.sendInviteRef) return mocks.sendInvite;
@@ -71,11 +82,24 @@ beforeEach(() => {
   mocks.generateLinkToken.mockResolvedValue({ authorizeUrl: "https://line.example/authorize" });
   mocks.sendInvite.mockResolvedValue({ scheduled: true });
   mocks.disconnect.mockResolvedValue(null);
+  mocks.useQuery.mockReturnValue({
+    openRecruitmentsUntil: null,
+    currentShiftUntil: null,
+    lineInviteUntil: null,
+  });
 });
 
 describe("useUserLineActions", () => {
   it("app導線では全mutationにexpected organizationを渡す", async () => {
-    const { result } = renderHook(() => useUserLineActions({ data, expectedOrganizationId: organizationId }));
+    const { result } = renderHook(() =>
+      useUserLineActions({ data, enabled: true, expectedOrganizationId: organizationId }),
+    );
+
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.cooldownsRef, {
+      shopId: sourceShopId,
+      staffId: sourceStaffId,
+      expectedOrganizationId: organizationId,
+    });
 
     await act(async () => {
       await result.current.onShowQr();
@@ -102,7 +126,7 @@ describe("useUserLineActions", () => {
   });
 
   it("連携元membershipをtokenとメールへ渡し、明示解除は組織人物単位で実行する", async () => {
-    const { result } = renderHook(() => useUserLineActions({ data }));
+    const { result } = renderHook(() => useUserLineActions({ data, enabled: true }));
 
     await act(async () => {
       await result.current.onShowQr();
@@ -136,7 +160,7 @@ describe("useUserLineActions", () => {
         canDisconnect: false,
       },
     } as UserDetailData;
-    const { result } = renderHook(() => useUserLineActions({ data: unavailableData }));
+    const { result } = renderHook(() => useUserLineActions({ data: unavailableData, enabled: true }));
 
     await act(async () => {
       await result.current.onShowQr();
@@ -150,14 +174,14 @@ describe("useUserLineActions", () => {
   });
 
   it("同じ操作を連続実行してもmutationは1回だけ開始する", async () => {
-    let resolveInvite: (() => void) | undefined;
+    let resolveInvite: ((value: { scheduled: true }) => void) | undefined;
     mocks.sendInvite.mockImplementation(
       () =>
-        new Promise<void>((resolve) => {
+        new Promise<{ scheduled: true }>((resolve) => {
           resolveInvite = resolve;
         }),
     );
-    const { result } = renderHook(() => useUserLineActions({ data }));
+    const { result } = renderHook(() => useUserLineActions({ data, enabled: true }));
 
     let first: Promise<unknown> = Promise.resolve();
     let second: Promise<unknown> = Promise.resolve();
@@ -168,7 +192,7 @@ describe("useUserLineActions", () => {
 
     expect(mocks.sendInvite).toHaveBeenCalledExactlyOnceWith({ shopId: sourceShopId, staffId: sourceStaffId });
     await act(async () => {
-      resolveInvite?.();
+      resolveInvite?.({ scheduled: true });
       await Promise.all([first, second]);
     });
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
@@ -183,7 +207,7 @@ describe("useUserLineActions", () => {
     mocks.generateLinkToken.mockRejectedValueOnce(tokenError);
     mocks.sendInvite.mockRejectedValueOnce(inviteError);
     mocks.disconnect.mockRejectedValueOnce(disconnectError);
-    const { result } = renderHook(() => useUserLineActions({ data }));
+    const { result } = renderHook(() => useUserLineActions({ data, enabled: true }));
 
     await act(async () => {
       await result.current.onShowQr();
@@ -207,9 +231,12 @@ describe("useUserLineActions", () => {
           resolveToken = resolve;
         }),
     );
-    const { result, rerender } = renderHook(({ currentData }) => useUserLineActions({ data: currentData }), {
-      initialProps: { currentData: data },
-    });
+    const { result, rerender } = renderHook(
+      ({ currentData }) => useUserLineActions({ data: currentData, enabled: true }),
+      {
+        initialProps: { currentData: data },
+      },
+    );
 
     let pending: Promise<unknown> = Promise.resolve();
     act(() => {
@@ -228,6 +255,62 @@ describe("useUserLineActions", () => {
 
     expect(result.current.authorizeUrl).toBeNull();
     expect(result.current.showQr).toBe(false);
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+  });
+
+  it("パネル非表示中はクールダウンQueryをskipする", () => {
+    renderHook(() => useUserLineActions({ data, enabled: false }));
+
+    expect(mocks.useQuery).toHaveBeenCalledExactlyOnceWith(mocks.cooldownsRef, "skip");
+  });
+
+  it("クールダウン中はメール再送を止めるがQRコードは表示できる", async () => {
+    mocks.useQuery.mockReturnValue({
+      openRecruitmentsUntil: null,
+      currentShiftUntil: null,
+      lineInviteUntil: Date.now() + 60_000,
+    });
+    const { result } = renderHook(() => useUserLineActions({ data, enabled: true }));
+
+    await act(async () => {
+      await result.current.onSendInvite();
+      await result.current.onShowQr();
+    });
+
+    expect(result.current.isLineInviteCooldownActive).toBe(true);
+    expect(mocks.sendInvite).not.toHaveBeenCalled();
+    expect(mocks.generateLinkToken).toHaveBeenCalledExactlyOnceWith({
+      shopId: sourceShopId,
+      staffId: sourceStaffId,
+    });
+    expect(result.current.showQr).toBe(true);
+  });
+
+  it("クールダウン取得中はメール再送を開始しない", async () => {
+    mocks.useQuery.mockReturnValue(undefined);
+    const { result } = renderHook(() => useUserLineActions({ data, enabled: true }));
+
+    await act(async () => {
+      await result.current.onSendInvite();
+    });
+
+    expect(result.current.isLineInviteCooldownLoading).toBe(true);
+    expect(mocks.sendInvite).not.toHaveBeenCalled();
+  });
+
+  it("送信直前の競合でrecentlySentになった場合は成功扱いしない", async () => {
+    mocks.sendInvite.mockResolvedValue({ scheduled: false, reason: "recentlySent" });
+    const { result } = renderHook(() => useUserLineActions({ data, enabled: true }));
+
+    await act(async () => {
+      await result.current.onSendInvite();
+    });
+
+    expect(mocks.createToast).toHaveBeenCalledExactlyOnceWith({
+      title: "送信済みです",
+      description: "送信から10分後に再送できるようになります。",
+      type: "info",
+    });
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
   });
 });

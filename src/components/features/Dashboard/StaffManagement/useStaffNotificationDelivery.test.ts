@@ -90,4 +90,40 @@ describe("useStaffNotificationDelivery", () => {
       type: "error",
     });
   });
+
+  it("募集中シフトの送信直前にクールダウンへ入った場合は送信済みと案内する", async () => {
+    mocks.sendOpenRecruitmentNotifications.mockResolvedValue({
+      scheduled: false,
+      reason: "recentlySent",
+    });
+    const { result } = renderHook(() => useStaffNotificationDelivery());
+
+    await act(async () => {
+      await result.current.onSendRecruitments(staff);
+    });
+
+    expect(mocks.createToast).toHaveBeenCalledExactlyOnceWith({
+      title: "送信済みです",
+      description: "送信から10分後に再送できるようになります。",
+      type: "info",
+    });
+  });
+
+  it("確定シフトの送信直前にクールダウンへ入った場合は送信済みと案内する", async () => {
+    mocks.sendCurrentShiftNotification.mockResolvedValue({
+      scheduled: false,
+      reason: "recentlySent",
+    });
+    const { result } = renderHook(() => useStaffNotificationDelivery());
+
+    await act(async () => {
+      await result.current.onSendCurrentShift(staff);
+    });
+
+    expect(mocks.createToast).toHaveBeenCalledExactlyOnceWith({
+      title: "送信済みです",
+      description: "送信から10分後に再送できるようになります。",
+      type: "info",
+    });
+  });
 });

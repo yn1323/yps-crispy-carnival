@@ -96,7 +96,7 @@ export class DashboardPage {
     return { organizationId, shopId };
   }
 
-  async expectInitialBusinessScopeInManagement(organizationId: string, shopName: string) {
+  async expectInitialTrialScopeInManagement(organizationId: string, shopName: string) {
     const navigation = this.page.getByRole("navigation", { name: "メインメニュー" });
     await navigation.getByRole("link", { name: "管理", exact: true }).click();
     await expect(this.page).toHaveURL(
@@ -105,7 +105,7 @@ export class DashboardPage {
     );
     const billingRow = this.page.getByRole("button", { name: "プランと支払いを開く", exact: true });
     await expect(billingRow).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
-    await expect(billingRow).toContainText("Businessプラン");
+    await expect(billingRow).toContainText("トライアル");
     await expect(this.page.getByRole("button", { name: `${shopName}の店舗詳細を開く`, exact: true })).toBeVisible({
       timeout: DASHBOARD_DATA_TIMEOUT,
     });

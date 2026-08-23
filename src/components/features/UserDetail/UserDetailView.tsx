@@ -24,6 +24,8 @@ export type UserDetailViewProps = {
       showQr: boolean;
       isQrLoading: boolean;
       isSendingInvite: boolean;
+      isLineInviteCooldownActive: boolean;
+      isLineInviteCooldownLoading: boolean;
       isDisconnecting: boolean;
     };
     membership: {
@@ -155,6 +157,8 @@ export function UserDetailView({
         showQr={state.line.showQr}
         isQrLoading={state.line.isQrLoading}
         isSendingInvite={state.line.isSendingInvite}
+        isLineInviteCooldownActive={state.line.isLineInviteCooldownActive}
+        isLineInviteCooldownLoading={state.line.isLineInviteCooldownLoading}
         isDisconnecting={state.line.isDisconnecting}
         onClose={actions.onClosePanel}
         onShowQr={actions.onShowLineQr}

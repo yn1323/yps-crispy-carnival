@@ -105,6 +105,9 @@ export default defineConfig({
 
   webServer: {
     command: "pnpm dev",
+    env: {
+      VITE_APP_ENVIRONMENT: "test",
+    },
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
   },

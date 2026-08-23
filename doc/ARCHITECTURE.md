@@ -38,7 +38,7 @@ URLから業務処理へ向かう依存は、`route -> page -> feature -> domain
 route groupも責務を分けている。
 pathless route groupの`_auth`は`AuthProviders`、認証guard、店舗searchの正規化、認証済みheaderをまとめる。
 `_unregistered`はClerkアカウントを持たないスタッフ画面にもConvex接続を提供する。
-一方、TOP、FAQ、HowTo、記事、デモなどの公開サイトはこのgroupに入らず、初期表示でClerkとConvexのbundleを必要としない。
+一方、TOP、ヘルプ、記事、デモなどの公開サイトはこのgroupに入らず、初期表示でClerkとConvexのbundleを必要としない。
 
 pageはroute全体のデータを取得し、featureへ準備済みの値を渡す。
 たとえば`DashboardPage`は現在店舗、ユーザー、法務同意状態を購読し、`ShiftBoardRoutePage`は募集単位のシフト表データを取得する。

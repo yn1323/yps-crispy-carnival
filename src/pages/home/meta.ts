@@ -1,4 +1,4 @@
-import { createLandingFaqPageJsonLd } from "@/src/components/features/FaqSite/landingFaqContent";
+import { createLandingFaqPageJsonLd } from "@/src/components/features/HelpCenter/helpMeta";
 import { buildLinks, buildMeta, jsonLdMeta } from "@/src/lib/seo";
 
 export function buildHomePageHead() {

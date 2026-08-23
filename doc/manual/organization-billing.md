@@ -54,7 +54,7 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 
 ## 公開状態
 
-現在のrepository artifactは、複数組織、複数店舗、複数管理者、支払いを機能ごとの環境変数なしで提供する。  初回Setupは所属0件の本人だけが1組織、1店舗、1管理者を作成し、追加組織はFreeで開始する。
+現在のrepository artifactは、複数組織、複数店舗、複数管理者、支払いを機能ごとの環境変数なしで提供する。  初回Setupは所属0件の本人だけが1組織、1店舗、1管理者、2か月のTrialを作成し、追加組織はFreeで開始する。
 
 公開判断はFeature Flagではなく、対象artifactの反映とcanaryで行う。  操作可否は認証・所属、契約状態、プラン上限、Stripe設定、rate limit、冪等性をサーバー側で判定する。  Productionへの反映状況はrepositoryから推測せず、[リリース状態](release-status.md)で証跡がある項目だけを確認済みとする。
 
@@ -77,11 +77,30 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 値はブラウザへ公開しない。
 Stripe.jsをブラウザで直接使わないため、`VITE_STRIPE_PUBLISHABLE_KEY`は使わない。
 
+### 公開サイトBuild環境変数
+
+公開サイトは、ローカル、Preview、Develop、Productionの起動またはbuild時にStripeからPro・Businessの販売条件を取得し、公開可能な料金カタログだけを画面、SSG HTML、client bundleへ渡す。  ローカルとPreviewは同じStripe Sandboxを使い、Developは別のSandbox、Productionはliveを使う。
+
+| 変数 | 用途 | 保管先と不備時の扱い |
+|---|---|---|
+| `STRIPE_SECRET_KEY` | 公開するPriceを取得するStripe Secret key | ローカルは`.env.local`を`.env`より優先して読む。Preview、Develop、Productionは対応するGitHub Environment Secretから読み、未設定またはmode不一致なら起動・buildを失敗させる |
+| `STRIPE_PRO_PRICE_ID` | 公開するProのrecurring Price | ローカルは`.env.local`または`.env`、Preview、Develop、Productionは対応するGitHub Environment Secretから読む |
+| `STRIPE_BUSINESS_PRICE_ID` | 公開するBusinessのrecurring Price | ローカルは`.env.local`または`.env`、Preview、Develop、Productionは対応するGitHub Environment Secretから読む |
+
+ローカルで`.env.local`のSecret keyと`.env`のPrice IDを組み合わせる場合も、3値は必ず同じStripe Sandboxに属するものを使う。  別SandboxのPrice IDやactiveなPriceがない状態では、固定料金へ切り替えず起動・buildを失敗させる。
+
+`STRIPE_SECRET_KEY`へ`VITE_`prefixを付けず、ローカルのVite設定と、同一repositoryのPull Requestだけに限定したPreview、Develop、Productionのbuild stepだけへ渡す。  Viteへ渡すのは金額、通貨、請求周期、税区分だけであり、credential、Price ID、Stripeのraw responseは公開artifactへ含めない。  Build後はclient HTMLとJavaScriptに環境変数名、`sk_test_`、`sk_live_`、Price IDが含まれないことを検査する。
+
+`STRIPE_SECRET_KEY`をrotationした場合は、対象のConvex deployment、対応するGitHub Environment Secret、ローカルとPreviewの共通Sandboxであればローカル設定も同時に更新する。
+
+Storybookとtestは決定的なfixtureを使い、Stripe credentialを受け取らない。  ローカルとPreviewは同じSandboxの販売条件を確認できるが、DevelopまたはProductionへの反映済み証跡には使わない。
+Production buildは月1回のlicensed、per-unit Priceだけを受け付ける。  ローカル、Preview、DevelopはSandbox運用に合わせ、ProとBusinessで一致する日次または週次の検証用Priceも受け付ける。
+
 招待は発行時にtokenのdigestを保存するため、secretを変更しても既に配信したtokenは失効しない。
 一方、変更前に作成した招待を変更後のOutboxが初めて送信または再試行すると、現在のsecretで再導出したtokenと保存済みdigestが一致しない。
 rotationを失効操作として使わず、変更前の未送信・再試行jobを確認し、未連携招待を新しいsecretで再発行する。
 
-ローカルと開発用deploymentは、それぞれ専用のStripe Sandboxへ接続する。
+ローカルとPreviewは同じStripe Sandboxへ接続し、開発用deploymentは別のStripe Sandboxへ接続する。
 production deploymentへSandboxの実値を流用しない。
 実際にどの環境へ何が設定済みかは[リリース状態](release-status.md)で確認する。
 
@@ -150,7 +169,7 @@ canaryの成功を確認するまで販売可能と判定しない。
 
 ## Trial期限の開発用設定
 
-開発deploymentでは、追加組織作成で`calculateTrialEndsAt`が決める期限を、次の環境変数で短縮できる。  所属0件からの初回Setupは支払い不要Businessを作るため、この設定の対象外である。
+開発deploymentでは、所属0件からの初回Setupで`calculateTrialEndsAt`が決める期限を、次の環境変数で短縮できる。  二つ目以降の追加組織はFreeで開始するため、この設定の対象外である。
 
 | 変数 | 用途 |
 |---|---|
@@ -158,7 +177,7 @@ canaryの成功を確認するまで販売可能と判定しない。
 | `DEBUG_TRIAL_DURATION_DAYS` | 登録日の何暦日後を期限にするか。`1`から`30`までの整数 |
 
 両方のURLは前後の空白と末尾の`/`を除いて比較する。
-URLが未設定または一致しない場合と、日数が未設定または空白の場合は、通常どおり2ヶ月後のJST 00:00を期限にする。
+URLが未設定または一致しない場合と、日数が未設定または空白の場合は、通常どおり2か月後のJST 00:00を期限にする。
 対象URLが一致している状態で日数が不正な場合は、通常期間へ戻さず設定エラーにする。
 `1`は登録から24時間後ではなく、登録日の翌日00:00 JSTを表す。
 環境変数の変更は将来作成するTrialの計算にだけ反映し、保存済みの期限は更新しない。
@@ -408,13 +427,15 @@ Priceのアーカイブは新規販売を止めるが、既存Subscriptionを終
 2. probeの`safetyOperations.priceRotationBlocking`、取消、請求停止、`actionRequired`を確認する。
 3. Stripeで新しいrecurring Priceを作る。
    BusinessではProと同じ通貨、`recurring.interval`、`recurring.interval_count`にする。
-4. `STRIPE_PRO_PRICE_ID`または`STRIPE_BUSINESS_PRICE_ID`の対象側だけを新Priceへ変更する。
-5. 現在のConvex設定が対象deploymentを指すことと、`.env`にある同期対象キーを確認する。
-6. 対象キーだけを、完全修飾deployment名を指定した`convex env set`で更新する。続けて`env list --names-only`でキーの存在だけを確認する。
-7. 新Priceの`livemode`、active、請求周期、通貨、金額を`getPlanPrice`とStripe Dashboardで確認する。
-8. 対象modeでCheckout、Subscription、Webhook、Invoiceをcanary確認する。
-9. 旧Priceを使う進行中のTrial・契約作成operationが0件までdrainしたことを確認する。
-10. 既存Subscriptionが保存済みの旧Priceで継続していることを確認する。
+4. 新Priceの`livemode`、active、licensed、per-unit、請求周期、通貨、金額、税区分をStripe Dashboardで確認する。
+5. 対応するGitHub Environment SecretのPrice IDを新Priceへ変更する。値をworkflow、log、文書へ書かない。
+6. 対象environmentで公開サイトをbuild・deployし、特定商取引法ページの金額、通貨、請求周期、税区分を確認する。ここまでは旧Priceをアーカイブしたままにし、新規販売を再開しない。
+7. 現在のConvex設定が対象deploymentを指すことと、`.env`にある同期対象キーを確認する。
+8. `STRIPE_PRO_PRICE_ID`または`STRIPE_BUSINESS_PRICE_ID`の対象キーだけを、完全修飾deployment名を指定した`convex env set`で新Priceへ更新する。続けて`env list --names-only`でキーの存在だけを確認する。この切替後に新規販売を再開する。
+9. 新Priceの`livemode`、active、請求周期、通貨、金額を`getPlanPrice`とStripe Dashboardで照合する。
+10. 対象modeでCheckout、Subscription、Webhook、Invoiceをcanary確認する。
+11. 旧Priceを使う進行中のTrial・契約作成operationが0件までdrainしたことを確認する。
+12. 既存Subscriptionが保存済みの旧Priceで継続していることを確認する。
 
 新規operationは開始時のPrice snapshotを保持する。
 既存Subscriptionは保存済みPrice IDで照合するため、ローカルSubscriptionのPrice IDを一括書換えしない。
@@ -424,9 +445,10 @@ Priceのアーカイブは新規販売を止めるが、既存Subscriptionを終
 
 1. 新Priceをアーカイブする。
 2. 新Priceで発行済みのopen Checkout Sessionをすべて失効させる。
-3. 旧Priceを再有効化できる場合だけ、対象の環境変数を旧Price IDへ戻す。
-4. 環境変数を同期し、probeとprovider canaryを再実行する。
-5. 旧Priceを再有効化できない場合は、新Priceのまま原因を修復する。
+3. 旧Priceを再有効化できる場合だけ再有効化し、GitHub Environment Secretの対象Price IDを旧Priceへ戻す。
+4. 公開サイトを再build・deployし、特定商取引法ページが旧Priceへ戻ったことを確認する。ここまでは新規販売を停止したままにする。
+5. Convex deploymentの対象Price IDを旧Priceへ戻し、probeとprovider canaryを再実行してから販売を再開する。
+6. 旧Priceを再有効化できない場合は、新Priceのまま原因を修復する。
 
 どちらの場合も、安全確認前に販売を再開しない。
 

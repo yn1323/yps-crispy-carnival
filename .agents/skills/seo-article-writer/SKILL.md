@@ -1,6 +1,6 @@
 ---
 name: seo-article-writer
-description: シフトリのArticleSite向け日本語SEO記事を、検索意図と現在の実装に基づいて作成または改稿する。ユーザーが`$seo-article-writer`を明示した場合だけ使う。HowToSiteのヘルプ記事、通常の技術文書、UI文言、機能実装には使わない。
+description: シフトリのArticleSite向け日本語SEO記事を、検索意図と現在の実装に基づいて作成または改稿する。ユーザーが`$seo-article-writer`を明示した場合だけ使う。HelpCenterのFAQ・使い方、通常の技術文書、UI文言、機能実装には使わない。
 ---
 
 # SEO Article Writer
@@ -10,7 +10,7 @@ description: シフトリのArticleSite向け日本語SEO記事を、検索意�
 このスキルは、ユーザーが `$seo-article-writer` を明示したときだけ使う。
 通常の「記事を書いて」「SEOを見て」だけでは使わない。
 
-HowToSiteの記事には `$write-help-content` を使う。
+HelpCenterのFAQ・使い方には `$write-help-content` を使う。
 
 ## 必ず読むもの
 

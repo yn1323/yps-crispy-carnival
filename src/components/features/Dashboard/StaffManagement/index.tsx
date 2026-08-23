@@ -3,6 +3,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { StaffNotificationHistory } from "@/src/components/features/StaffNotificationHistory";
+import { useDeadlineActive } from "@/src/hooks/useDeadlineActive";
 import { useShopPaginatedQuery } from "@/src/hooks/useShopPaginatedQuery";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { DEFAULT_USER_LIST_COUNT, USER_LIST_PAGE_SIZE } from "@/src/lib/userListSearch";
@@ -102,6 +103,15 @@ export function StaffManagement({
   const lineConnection = useStaffLineConnection(isReadOnly);
   const profile = useStaffProfileManagement(staffs, { onResetDetail: lineConnection.reset, isReadOnly });
   const notifications = useStaffNotificationDelivery(isReadOnly);
+  const notificationCooldowns = useShopQuery(
+    api.staff.queries.getNotificationResendCooldowns,
+    profile.staff && profile.dialog.isOpen ? { staffId: profile.staff._id } : "skip",
+  );
+  const isNotificationCooldownLoading =
+    profile.staff !== null && profile.dialog.isOpen && notificationCooldowns === undefined;
+  const isRecruitmentCooldownActive = useDeadlineActive(notificationCooldowns?.openRecruitmentsUntil);
+  const isCurrentShiftCooldownActive = useDeadlineActive(notificationCooldowns?.currentShiftUntil);
+  const isLineInviteCooldownActive = useDeadlineActive(notificationCooldowns?.lineInviteUntil);
   const handleOpenDetail = (staff: Staff) => {
     if (!staff.organizationPersonId) {
       profile.onOpen(staff);
@@ -139,12 +149,25 @@ export function StaffManagement({
         },
         onShowLineQr: lineConnection.onShowQr,
         lineQrState: lineConnection.qrState,
-        onSendLineInvite: lineConnection.onSendInvite,
+        onSendLineInvite: (staff) => {
+          if (isNotificationCooldownLoading || isLineInviteCooldownActive) return;
+          return lineConnection.onSendInvite(staff);
+        },
         isSendingLineInvite: lineConnection.isSendingInvite,
-        onSendRecruitments: notifications.onSendRecruitments,
+        isLineInviteCooldownActive,
+        onSendRecruitments: (staff) => {
+          if (isNotificationCooldownLoading || isRecruitmentCooldownActive) return;
+          return notifications.onSendRecruitments(staff);
+        },
         isSendingRecruitments: notifications.isSendingRecruitments,
-        onSendCurrentShift: notifications.onSendCurrentShift,
+        isRecruitmentCooldownActive,
+        onSendCurrentShift: (staff) => {
+          if (isNotificationCooldownLoading || isCurrentShiftCooldownActive) return;
+          return notifications.onSendCurrentShift(staff);
+        },
         isSendingCurrentShift: notifications.isSendingCurrentShift,
+        isCurrentShiftCooldownActive,
+        isNotificationCooldownLoading,
         notificationHistory:
           profile.staff && (managerShopScope?.shopId || selectedShop?.shopId) ? (
             <StaffNotificationHistory
