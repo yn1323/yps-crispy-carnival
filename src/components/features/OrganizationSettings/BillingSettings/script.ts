@@ -1,4 +1,5 @@
 import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
+import { formatPricePresentation } from "@/src/domains/organizationBilling/pricePresentation";
 import type {
   BillingPlanPrice,
   BillingPlanPriceState,
@@ -128,24 +129,10 @@ export function resolveBillingPlanAction(
 }
 
 export function formatPlanPrice(price: BillingPlanPrice): { amount: string; interval: string; tax: string } {
-  return {
-    amount: formatCurrencyAmount(price.currency, price.unitAmount),
-    interval: `${price.intervalCount}${intervalUnit(price.interval)}ごと`,
-    tax: price.taxBehavior === "inclusive" ? "税込" : "税別",
-  };
+  return formatPricePresentation(price);
 }
 
-export function formatCurrencyAmount(currencyValue: string, amountInMinorUnit: number): string {
-  const currency = currencyValue.toUpperCase();
-  const formatter = new Intl.NumberFormat("ja-JP", {
-    style: "currency",
-    currency,
-    currencyDisplay: currency === "JPY" ? "symbol" : "code",
-  });
-  const fractionDigits = formatter.resolvedOptions().maximumFractionDigits ?? 0;
-  const formatted = formatter.format(amountInMinorUnit / 10 ** fractionDigits);
-  return currency === "JPY" ? formatted.replace("￥", "¥") : formatted;
-}
+export { formatCurrencyAmount } from "@/src/domains/organizationBilling/pricePresentation";
 
 export function formatBillingBoundaryDate(timestamp: number): string {
   const parts = new Intl.DateTimeFormat("ja-JP", {
@@ -220,11 +207,4 @@ export function getRequiredReductions(
 
 function isPaidPlan(plan: BillingProductPlan): plan is PaidBillingPlan {
   return plan === "pro" || plan === "business";
-}
-
-function intervalUnit(interval: BillingPlanPrice["interval"]): string {
-  if (interval === "day") return "日";
-  if (interval === "week") return "週間";
-  if (interval === "month") return "か月";
-  return "年";
 }
