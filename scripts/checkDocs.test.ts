@@ -13,6 +13,7 @@ import {
   findCurrentDocPathIssues,
   findMarkdownLinkIssues,
   findPlanIndexIssues,
+  findPublicConvexInventoryIssues,
   findReachabilityIssues,
 } from "./checkDocs";
 
@@ -240,6 +241,56 @@ describe("Convex API参照", () => {
         },
       }).map((issue) => issue.code),
     ).toEqual(["missing-convex-api-reference", "missing-convex-colon-reference"]);
+  });
+});
+
+describe("Public Convex surface inventory", () => {
+  const document = (countLine: string, rows: string[]) =>
+    [
+      "# Full Regression",
+      "## Public Convex surface inventory",
+      "",
+      countLine,
+      "",
+      "| Module | Public exports | 対応契約 / 状態 |",
+      "|---|---|---|",
+      ...rows,
+      "",
+      "## Public HTTP surface inventory",
+    ].join("\n");
+
+  it("記載件数と全公開exportが生成surfaceに一致する文書を受理する", () => {
+    const documents = {
+      "doc/specs/full-regression-contracts.md": document("public query、mutation、actionは2個である。", [
+        "| `dashboard/queries` | `getCurrentUser`、`getMyShops` | `AUTH-TENANT-01` |",
+      ]),
+    };
+
+    expect(
+      findPublicConvexInventoryIssues({
+        documents,
+        publicConvexSurface: new Set(["dashboard/queries#getCurrentUser", "dashboard/queries#getMyShops"]),
+      }),
+    ).toEqual([]);
+  });
+
+  it("未記載、廃止済みexport、件数ずれを別々に報告する", () => {
+    const documents = {
+      "doc/specs/full-regression-contracts.md": document("public query、mutation、actionは1個である。", [
+        "| `dashboard/queries` | `getCurrentUser`、`removedQuery` | `AUTH-TENANT-01` |",
+      ]),
+    };
+
+    expect(
+      findPublicConvexInventoryIssues({
+        documents,
+        publicConvexSurface: new Set(["dashboard/queries#getCurrentUser", "dashboard/queries#getMyShops"]),
+      }).map((issue) => issue.code),
+    ).toEqual([
+      "missing-public-convex-inventory-export",
+      "stale-public-convex-inventory-export",
+      "incorrect-public-convex-inventory-count",
+    ]);
   });
 });
 

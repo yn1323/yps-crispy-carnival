@@ -54,6 +54,9 @@ export type DocIssueCode =
   | "missing-convex-http-route-reference"
   | "missing-convex-cron-reference"
   | "missing-convex-migration-reference"
+  | "missing-public-convex-inventory-export"
+  | "stale-public-convex-inventory-export"
+  | "incorrect-public-convex-inventory-count"
   | "unreachable-current-doc"
   | "missing-plan-category"
   | "missing-plan-index-entry"
@@ -78,6 +81,7 @@ export type DocsWorkspace = {
   existingPaths?: ReadonlySet<string>;
   convexReferences?: ConvexReferenceRegistry;
   convexOperationalReferences?: ConvexOperationalReferenceRegistry;
+  publicConvexSurface?: ReadonlySet<string>;
 };
 
 export type ConvexReferenceRegistry = {
@@ -857,6 +861,93 @@ export const findArchiveIssues = (documents: Readonly<Record<string, string>>): 
   return issues;
 };
 
+const FULL_REGRESSION_CONTRACTS_PATH = "doc/specs/full-regression-contracts.md";
+const PUBLIC_CONVEX_INVENTORY_HEADING = "## Public Convex surface inventory";
+
+const formatPublicConvexSurfaceEntry = (entry: string) => {
+  const separatorIndex = entry.lastIndexOf("#");
+  if (separatorIndex < 0) return entry;
+  return `${entry.slice(0, separatorIndex)}.${entry.slice(separatorIndex + 1)}`;
+};
+
+export const findPublicConvexInventoryIssues = (
+  workspace: Pick<DocsWorkspace, "documents" | "publicConvexSurface">,
+): DocIssue[] => {
+  const source = workspace.documents[FULL_REGRESSION_CONTRACTS_PATH];
+  const publicConvexSurface = workspace.publicConvexSurface;
+  if (source === undefined || publicConvexSurface === undefined) return [];
+
+  const lines = source.split("\n");
+  const headingIndex = lines.findIndex((line) => line.trim() === PUBLIC_CONVEX_INVENTORY_HEADING);
+  const sectionStart = headingIndex >= 0 ? headingIndex + 1 : 0;
+  const nextHeadingOffset = lines.slice(sectionStart).findIndex((line) => line.startsWith("## "));
+  const sectionEnd = nextHeadingOffset >= 0 ? sectionStart + nextHeadingOffset : lines.length;
+  const documentedEntries = new Set<string>();
+  const documentedEntryLines = new Map<string, number>();
+  let statedCount: number | undefined;
+  let countLine = Math.max(headingIndex + 1, 1);
+
+  for (let index = sectionStart; index < sectionEnd; index += 1) {
+    const line = lines[index];
+    const countMatch = line.match(/public query、mutation、actionは(\d+)個/);
+    if (countMatch) {
+      statedCount = Number(countMatch[1]);
+      countLine = index + 1;
+    }
+
+    if (!line.trimStart().startsWith("|")) continue;
+    const cells = line
+      .split("|")
+      .slice(1, -1)
+      .map((cell) => cell.trim());
+    if (cells.length < 2) continue;
+    const moduleMatch = cells[0].match(/^`([^`]+)`$/);
+    if (!moduleMatch) continue;
+
+    for (const exportMatch of cells[1].matchAll(/`([^`]+)`/g)) {
+      const entry = `${moduleMatch[1]}#${exportMatch[1]}`;
+      documentedEntries.add(entry);
+      documentedEntryLines.set(entry, index + 1);
+    }
+  }
+
+  const issues: DocIssue[] = [];
+  const missingEntries = [...publicConvexSurface].filter((entry) => !documentedEntries.has(entry)).sort();
+  const staleEntries = [...documentedEntries].filter((entry) => !publicConvexSurface.has(entry)).sort();
+
+  for (const entry of missingEntries) {
+    issues.push({
+      code: "missing-public-convex-inventory-export",
+      filePath: FULL_REGRESSION_CONTRACTS_PATH,
+      line: Math.max(headingIndex + 1, 1),
+      message: `Public Convex surface inventoryに公開exportがありません: ${formatPublicConvexSurfaceEntry(entry)}`,
+    });
+  }
+
+  for (const entry of staleEntries) {
+    issues.push({
+      code: "stale-public-convex-inventory-export",
+      filePath: FULL_REGRESSION_CONTRACTS_PATH,
+      line: documentedEntryLines.get(entry) ?? Math.max(headingIndex + 1, 1),
+      message: `Public Convex surface inventoryに存在しない公開exportがあります: ${formatPublicConvexSurfaceEntry(entry)}`,
+    });
+  }
+
+  if (statedCount !== publicConvexSurface.size) {
+    issues.push({
+      code: "incorrect-public-convex-inventory-count",
+      filePath: FULL_REGRESSION_CONTRACTS_PATH,
+      line: countLine,
+      message:
+        statedCount === undefined
+          ? `Public Convex surface inventoryの件数がありません（実際は${publicConvexSurface.size}個）`
+          : `Public Convex surface inventoryの件数が一致しません: 文書=${statedCount}、実際=${publicConvexSurface.size}`,
+    });
+  }
+
+  return issues;
+};
+
 const sortIssues = (issues: DocIssue[]) =>
   issues.sort(
     (a, b) =>
@@ -872,6 +963,7 @@ export const checkDocs = (workspace: DocsWorkspace) =>
     ...findCurrentDocPathIssues(workspace),
     ...findConvexReferenceIssues(workspace),
     ...findConvexOperationalReferenceIssues(workspace),
+    ...findPublicConvexInventoryIssues(workspace),
     ...findReachabilityIssues(workspace.documents),
     ...findPlanIndexIssues(workspace.documents),
     ...findArchiveIssues(workspace.documents),
@@ -997,6 +1089,22 @@ const isRegisteredConvexFunction = (
 
   const visibilityType = getSymbolType(apiTypes, visibilityProperty);
   return visibilityType.isStringLiteral() && visibilityType.value === visibility;
+};
+
+const collectPublicConvexSurface = (apiTypes: ConvexApiTypes) => {
+  const entries = new Set<string>();
+
+  for (const [modulePath, moduleTypeNode] of apiTypes.moduleTypeNodes) {
+    const moduleType = apiTypes.checker.getTypeAtLocation(moduleTypeNode);
+    for (const exportSymbol of apiTypes.checker.getPropertiesOfType(moduleType)) {
+      const exportType = getSymbolType(apiTypes, exportSymbol);
+      if (isRegisteredConvexFunction(apiTypes, exportType, "public")) {
+        entries.add(`${modulePath}#${exportSymbol.name}`);
+      }
+    }
+  }
+
+  return entries;
 };
 
 const isValidDottedConvexReference = (apiTypes: ConvexApiTypes, reference: string) => {
@@ -1240,6 +1348,7 @@ const isValidColonConvexReference = async (
 const buildConvexReferenceRegistry = async (
   rootDir: string,
   documents: Readonly<Record<string, string>>,
+  loadedApiTypes?: ConvexApiTypes,
 ): Promise<ConvexReferenceRegistry> => {
   const references = Object.entries(documents)
     .filter(([filePath]) => isCurrentDoc(filePath))
@@ -1254,7 +1363,7 @@ const buildConvexReferenceRegistry = async (
   const validColonReferences = new Set<string>();
 
   if (dottedReferences.length > 0) {
-    const apiTypes = loadConvexApiTypes(rootDir);
+    const apiTypes = loadedApiTypes ?? loadConvexApiTypes(rootDir);
     for (const reference of dottedReferences) {
       if (isValidDottedConvexReference(apiTypes, reference)) validDottedReferences.add(reference);
     }
@@ -1280,12 +1389,20 @@ export const runDocsCheck = async (rootDir = process.cwd()) => {
   for (const filePath of collectPathsToCheck(documents)) {
     if (await isExistingRepoPath(rootDir, filePath)) existingPaths.add(filePath);
   }
-  const convexReferences = await buildConvexReferenceRegistry(rootDir, documents);
+  const apiTypes = loadConvexApiTypes(rootDir);
+  const convexReferences = await buildConvexReferenceRegistry(rootDir, documents, apiTypes);
   const convexOperationalReferences = await buildConvexOperationalReferenceRegistry(rootDir);
+  const publicConvexSurface = collectPublicConvexSurface(apiTypes);
 
   return {
     checkedMarkdownFiles: markdownFiles.length,
-    issues: checkDocs({ documents, existingPaths, convexReferences, convexOperationalReferences }),
+    issues: checkDocs({
+      documents,
+      existingPaths,
+      convexReferences,
+      convexOperationalReferences,
+      publicConvexSurface,
+    }),
   };
 };
 
