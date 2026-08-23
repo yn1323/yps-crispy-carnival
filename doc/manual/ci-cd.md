@@ -26,7 +26,7 @@ Pull Requestを閉じると、同workflowがプレビューの後処理を行う
 
 - `E2E-AUTH-01`：匿名利用者の保護route redirect。
 - `E2E-AUTH-02`：専用actorのlogout後に、同じ保護routeへ再アクセスしたときのredirect。
-- `E2E-SETUP-01`：`/dashboard`から1組織、1店舗、管理者本人、2か月のPro相当Trialを作る初期設定。
+- `E2E-SETUP-01`：`/dashboard`から1組織、1店舗、管理者本人、3か月のPro相当Trialを作る初期設定。
 - `E2E-STAFF-01`：スタッフの追加、情報変更、再読み込み、組織からの削除。
 - `E2E-SHIFT-01`：募集、匿名提出、確定、匿名閲覧の代表導線。
 - `E2E-TENANT-01`：同じ管理者による2組織の切り替え。
