@@ -96,8 +96,8 @@ src/routes/index.tsx
 
 Pro・Businessの販売価格は、Production buildがStripeの設定済みPriceから取得した確定額、通貨、請求周期、税区分を表示する。  取得失敗、inactive、test/live不一致、固定額として扱えない課金方式、金額または税区分の不足、Pro・Business間の通貨または請求周期の不一致ではbuildを失敗させる。  ローカルとPreviewは同じStripe Sandbox、Developは別のStripe Sandboxから取得し、両プランに設定した同一の短周期も検証用に表示できる。  StorybookとtestはStripe credentialを使わず決定的なfixtureを表示する。
 
-役務提供事業者、運営責任者、所在地、電話番号は、Production公開前に`src/components/features/CommercialTransactions/content/index.mdx`の仮入力を実在する情報へ手動で置き換える。  Pro・Businessの販売価格は、同MDXの`PlanPrice`を介してbuild時料金カタログを参照する。  利用上限の数値は、同MDXの`PlanLimit`を介してbrowser-safeな`ORGANIZATION_PLAN_LIMITS`を参照する。
-仮入力が一つでも残る間はページ内に注意を表示し、Production公開の停止条件として[リリース状態](../manual/release-status.md)にも記録する。
+役務提供事業者と運営責任者の名称、所在地、電話番号は、Production GitHub Environment Variablesの`VITE_COMMERCIAL_TRANSACTIONS_NAME`、`VITE_COMMERCIAL_TRANSACTIONS_ADDRESS`、`VITE_COMMERCIAL_TRANSACTIONS_PHONE_NUMBER`をrelease buildで取り込む。  3項目のいずれかが空ならProduction buildを失敗させ、Production以外では未設定項目をplaceholderで明示する。  所在地を改行する場合は値に`\n`を含める。  Pro・Businessの販売価格は、同MDXの`PlanPrice`を介してbuild時料金カタログを参照する。  利用上限の数値は、同MDXの`PlanLimit`を介してbrowser-safeな`ORGANIZATION_PLAN_LIMITS`を参照する。
+Productionの設定値と公開表示の確認状況は、[リリース状態](../manual/release-status.md)に記録する。
 
 このページはfooterから到達できる一方、`noindex, nofollow`とし、sitemapと`llms.txt`には含めない。
 `robots.txt`でDisallowにはせず、crawlerがrobots metaを取得できる状態を維持する。

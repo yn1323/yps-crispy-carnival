@@ -29,7 +29,7 @@
 | 新規Setupが1組織、1店舗、1管理者、2か月のTrialを作り、Trial期限処理を一度だけ予約し、Stripe Customer、Subscription、課金operationを作らないこと | 未確認 | 未確認 | 未確認 | 未登録 |
 | 2か月無料・カード登録不要の公開文言と、初回Setupが2か月のTrialを作るbackend・利用規約契約の一致 | **Repository整合・Production未確認** | 2026-08-23 | Repository | `convex/setup/mutations.ts`、Function / Scenario / E2E契約、管理ユーザー向け利用規約本文、文書版、同意要求版を更新。対象deploymentへの反映と実環境canaryは未確認 |
 | StripeのPro・Business販売設定、Price、明示された税区分、Webhook、公開サイトBuild用にGitHub Environmentへ設定した`STRIPE_SECRET_KEY`とPrice ID | 未確認 | 未確認 | 未確認 | 未登録 |
-| `/commercial-transactions`の事業者名、運営責任者、所在地、電話番号の確定情報への置換 | **要対応（仮入力）** | 2026-08-23 | Repository | `src/components/features/CommercialTransactions/content/index.mdx`の仮入力。Pro・Business販売価格はbuild時にStripeから取得する |
+| `/commercial-transactions`の事業者名、運営責任者、所在地、電話番号 | **要対応（Production設定・公開未確認）** | 2026-08-23 | Repository | release buildはProduction GitHub Environment Variablesから3項目を取得し、欠落時に失敗する。実値とProduction表示は未確認 |
 | Resendの`email.delivered` Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Clerk、Cloudflare、Stripeのセキュリティ設定とprovider canary | 未確認 | 未確認 | 未確認 | 未登録 |
 | 公開Web計測のGTM container、GA4 property、Clarity、Consent、Production request | 未確認 | 未確認 | 未確認 | 未登録 |
@@ -39,8 +39,8 @@
 「未確認」は未実施を意味しません。
 この文書に、対象と時刻を特定できる証跡がまだないことを表します。
 
-`/commercial-transactions`は、仮入力を含む現状のままProductionへ公開しません。
-事業者名、運営責任者、番地まで含む所在地、確実に連絡できる電話番号を実在する情報へ置換します。  Pro・Businessの月額料金、通貨、請求周期、税込・税別はProduction buildがStripeから取得するため、ProductionのConvex deploymentと同じ`STRIPE_SECRET_KEY`とPrice IDをGitHub Environmentへ設定し、表示、連絡可能性、契約画面との一致を確認してから状態を更新します。
+`/commercial-transactions`は、Production GitHub Environment Variablesの`VITE_COMMERCIAL_TRANSACTIONS_NAME`、`VITE_COMMERCIAL_TRANSACTIONS_ADDRESS`、`VITE_COMMERCIAL_TRANSACTIONS_PHONE_NUMBER`を実在する情報へ設定するまでProductionへ公開しません。
+Production buildは3項目が空なら失敗します。  設定後も、事業者名と運営責任者、番地まで含む所在地、電話番号の表示と連絡可能性を確認してから状態を更新します。  Pro・Businessの月額料金、通貨、請求周期、税込・税別はProduction buildがStripeから取得するため、ProductionのConvex deploymentと同じ`STRIPE_SECRET_KEY`とPrice IDをGitHub Environmentへ設定し、契約画面との一致も確認します。
 
 2か月無料・カード登録不要の公開文言、初回Setupの2か月Trial、管理ユーザー向け利用規約の本文・文書版・同意要求版はrepository上で同じ契約へ更新済みです。  対象artifactとConvex revisionのProduction反映、利用規約の再同意、初回Setupの実環境canaryを確認するまでは、Productionで利用可能とは判定しません。  静的UI、LP、FAQ、metadataの検証成功だけでは、この停止条件を解除しません。
 

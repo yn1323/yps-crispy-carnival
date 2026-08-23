@@ -96,6 +96,7 @@ merge前に次を確認する。
 - 変更に対応する必須checkが成功している。
 - 選択したrelease labelが意図するsemantic versioningの区分と一致する。
 - Production環境のapprovalと必要なsecretが設定されている。
+- Production Environment Variablesに、特定商取引法表記の`VITE_COMMERCIAL_TRANSACTIONS_NAME`、`VITE_COMMERCIAL_TRANSACTIONS_ADDRESS`、`VITE_COMMERCIAL_TRANSACTIONS_PHONE_NUMBER`が設定されている。所在地を改行する場合は値に`\n`を含める。
 - Production Environmentに、ProductionのConvex deploymentと同じ`STRIPE_SECRET_KEY`と、同deploymentと一致するPro・BusinessのPrice IDが、3つともEnvironment Secretとして設定されている。
 - schemaまたは保存済みデータ形式を変更した場合は、migration計画と復旧手順がある。
 
