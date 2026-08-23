@@ -14,10 +14,10 @@ export function HelpSupport() {
       <Stack gap={1} align={{ base: "flex-start", md: "flex-end" }} textAlign={{ md: "right" }}>
         <Flex align="center" gap={2} color="gray.950" fontWeight="bold" justify={{ md: "flex-end" }}>
           <LuCircleHelp aria-hidden />
-          ヘルプで解決しない場合
+          解決しない場合
         </Flex>
         <Text color="gray.600" fontSize="sm">
-          画面名、行った操作、表示された文言を添えてご連絡ください。
+          画面、操作、エラーメッセージなどを添えてご連絡ください。
         </Text>
       </Stack>
       <Link href="/contact" color="teal.700" fontWeight="bold" display="inline-flex" alignItems="center" gap={2}>

@@ -45,8 +45,8 @@ export const Desktop: Story = {
     for (const task of HELP_TASKS) {
       await expect(canvas.getByRole("button", { name: task.title })).toHaveAttribute("aria-pressed", "false");
     }
-    await expect(canvas.getByRole("heading", { level: 2, name: "よく見られる質問" })).toBeVisible();
-    await expect(canvas.getByRole("heading", { level: 2, name: "よく使う手順" })).toBeVisible();
+    await expect(canvas.getByRole("heading", { level: 2, name: "よくある質問" })).toBeVisible();
+    await expect(canvas.getByRole("heading", { level: 2, name: "手順から探す" })).toBeVisible();
   },
 };
 
@@ -85,6 +85,7 @@ export const TaskSelection: Story = {
     const taskButton = await canvas.findByRole("button", { name: task.title });
     await userEvent.click(taskButton);
     await expect(taskButton).toHaveAttribute("aria-pressed", "true");
+    await expect(canvas.getByText("選択中")).toBeVisible();
 
     const taskSection = await canvas.findByRole("region", { name: task.title });
     const taskCanvas = within(taskSection);
@@ -96,9 +97,10 @@ export const TaskSelection: Story = {
       await expect(taskCanvas.getByRole("link", { name: new RegExp(guide.title) })).toHaveAttribute("href", guide.href);
     }
 
-    await userEvent.click(taskCanvas.getByRole("button", { name: "おすすめへ戻る" }));
+    await userEvent.click(taskButton);
     await expect(taskButton).toHaveAttribute("aria-pressed", "false");
-    await expect(await canvas.findByRole("heading", { level: 2, name: "よく見られる質問" })).toBeVisible();
+    await expect(canvas.queryByText("選択中")).not.toBeInTheDocument();
+    await expect(await canvas.findByRole("heading", { level: 2, name: "よくある質問" })).toBeVisible();
   },
 };
 
