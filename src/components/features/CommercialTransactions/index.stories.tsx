@@ -61,7 +61,11 @@ export const PC: Story = {
     await expect(
       canvas.getByText(`無料トライアル：利用人数${ORGANIZATION_PLAN_LIMITS.trial.maxPeople}名`, { exact: false }),
     ).toBeVisible();
-    await expect(canvas.getByRole("link", { name: "お問い合わせフォーム" })).toHaveAttribute("href", "/contact");
+    const contactLinks = canvas.getAllByRole("link", { name: "お問い合わせフォーム" });
+    await expect(contactLinks).toHaveLength(2);
+    for (const contactLink of contactLinks) {
+      await expect(contactLink).toHaveAttribute("href", "/contact");
+    }
     await expect(canvas.getAllByText(DISCLOSURE_FIXTURE.name)).toHaveLength(2);
     await expect(canvas.getByText(DISCLOSURE_FIXTURE.address.replace("\n", " "))).toBeVisible();
     await expect(canvas.getByText(DISCLOSURE_FIXTURE.phoneNumber)).toBeVisible();
