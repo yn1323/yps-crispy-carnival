@@ -66,16 +66,28 @@ export function HelpIndex({ metas = helpIndexMetas, faqContents = faqEntries, ta
   const hasQuery = query.trim().length > 0;
   const results = useMemo(() => searchHelpMetas(metas, query), [metas, query]);
   const faqContentById = useMemo(() => new Map(faqContents.map((entry) => [entry.meta.id, entry])), [faqContents]);
+  const taskByHashId = useMemo(() => new Map(tasks.map((task) => [`task-${task.id}`, task])), [tasks]);
   const metadataById = useMemo(() => new Map(metas.map((meta) => [meta.id, meta])), [metas]);
 
   useEffect(() => {
-    const openHashFaq = () => {
+    const openHashTarget = () => {
       let id: string;
       try {
         id = decodeURIComponent(window.location.hash.slice(1));
       } catch {
         return;
       }
+
+      const task = taskByHashId.get(id);
+      if (task) {
+        setQuery("");
+        setSelectedTaskId(task.id);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "start" }));
+        });
+        return;
+      }
+
       const faqEntry = faqContentById.get(id);
       if (!faqEntry) return;
 
@@ -90,10 +102,10 @@ export function HelpIndex({ metas = helpIndexMetas, faqContents = faqEntries, ta
       });
     };
 
-    openHashFaq();
-    window.addEventListener("hashchange", openHashFaq);
-    return () => window.removeEventListener("hashchange", openHashFaq);
-  }, [faqContentById]);
+    openHashTarget();
+    window.addEventListener("hashchange", openHashTarget);
+    return () => window.removeEventListener("hashchange", openHashTarget);
+  }, [faqContentById, taskByHashId]);
 
   const clearSearch = () => {
     setQuery("");

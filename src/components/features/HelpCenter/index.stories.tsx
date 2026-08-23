@@ -144,6 +144,27 @@ export const FaqHashOpen: Story = {
   },
 };
 
+export const TaskHashOpen: Story = {
+  parameters: {
+    screenshot: { skip: true },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const task = HELP_TASKS.find(({ id }) => id === "staff-management");
+    if (!task) throw new Error("task hash storyにはstaff-managementが必要です");
+
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#task-${task.id}`);
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+
+    const taskButton = await canvas.findByRole("button", { name: task.title });
+    await waitFor(async () => {
+      await expect(taskButton).toHaveAttribute("aria-pressed", "true");
+      await expect(canvas.getByRole("region", { name: task.title })).toBeVisible();
+    });
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+  },
+};
+
 export const FaqExpanded: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
