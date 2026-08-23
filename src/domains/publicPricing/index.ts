@@ -1,7 +1,4 @@
-import {
-  formatPricePresentation,
-  formatPricePresentationLine,
-} from "../organizationBilling/pricePresentation";
+import { formatPricePresentation, formatPricePresentationLine } from "../organizationBilling/pricePresentation";
 
 export const PUBLIC_PAID_PLANS = ["pro", "business"] as const;
 
