@@ -20,6 +20,8 @@ function step(job: WorkflowJob, name: string) {
   return value as WorkflowStep;
 }
 
+const expression = (value: string) => ["$", "{{ ", value, " }}"].join("");
+
 describe("hosting report workflow contract", () => {
   it.each([
     {
@@ -54,5 +56,25 @@ describe("hosting report workflow contract", () => {
     expect(failCondition).toContain("steps.publish.outputs.status");
     expect(failCondition).toContain("steps.wait_deploy.outputs.deploy_status != 'success'");
     expect(failCondition).not.toContain("report_comment");
+  });
+
+  it("保持Workflowはsource tokenでPRを読みhosting tokenでsnapshotを更新する", () => {
+    const target = readWorkflow("maintain-hosted-reports.yml").jobs.prune;
+    expect(target.permissions?.contents).toBe("read");
+    expect(target.permissions?.["pull-requests"]).toBe("read");
+
+    const checkoutSteps = target.steps.filter(
+      (candidate) => candidate.uses === "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+    );
+    expect(checkoutSteps).toHaveLength(2);
+    for (const checkout of checkoutSteps) {
+      expect((checkout.with as Record<string, unknown>).repository).toBe("yn1323/hosting-pages");
+      expect((checkout.with as Record<string, unknown>).token).toBe(expression("secrets.HOSTING_PAGES_TOKEN"));
+    }
+
+    const prune = step(target, "Prune expired reports with compare-and-swap");
+    const environment = prune.env as Record<string, unknown>;
+    expect(environment.SOURCE_REPOSITORY_TOKEN).toBe(expression("github.token"));
+    expect(environment.GIT_AUTH_TOKEN).toBe(expression("secrets.HOSTING_PAGES_TOKEN"));
   });
 });
