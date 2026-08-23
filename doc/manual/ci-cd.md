@@ -81,7 +81,15 @@ VRTの差分とレポート公開は `.github/workflows/vrt.yml` が管理する
 ## Productionリリース
 
 Productionリリースは、`main` 向けPull Requestをmergeしたときに `.github/workflows/release.yml` が判定する。
-release label、version更新、ローカルrelease commit、TanStack Start build、tagとpush、Convex deploy、migration、Cloudflare Pages deploy、GitHub Releaseの順序はworkflowを正とする。  buildがStripeの販売条件を取得または検証できない場合、release commitとtagをremoteへpushせず、ConvexとCloudflareも変更しない。
+release label、version更新、ローカルrelease commit、TanStack Start build、Convex deploy、migration、Cloudflare Pages deploy、tagとpush、GitHub Releaseの順序はworkflowを正とする。  release commitとtagはすべてのdeploymentが成功した後に同時にremoteへpushする。
+
+buildがStripeの販売条件を取得または検証できない場合、release commitとtagをremoteへpushせず、ConvexとCloudflareも変更しない。  Convex deploy以降で失敗した場合、それ以前に完了したProduction変更は自動では戻らないが、`Tag and push`が始まるまではrelease commitとtagをremoteへ公開しない。
+
+再実行前は、Productionとremote refの現在状態を確認する。
+
+- `Tag and push`より前で失敗し、remoteの`main`とrelease元のlabelが変わっていない場合は、同じversionを再試行できる。  migration失敗時は完全修飾deploymentを指定して`lib:getStatus`の完了状態とcursorを確認し、series全体をresetしない。
+- `Tag and push`で失敗した場合は、remoteの`main`と対象tagが両方更新済みか両方未更新かを確認する。  両方未更新で`main`も変わっていない場合だけworkflow全体を再実行する。
+- `Create GitHub Release`で失敗した場合はdeploymentとrefが確定済みである。  workflow全体を再実行せず、既存tagからGitHub Releaseだけを復旧し、`Merge Main into Develop`を手動実行する。
 
 merge前に次を確認する。
 

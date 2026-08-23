@@ -73,11 +73,6 @@ jobs:
           VITE_WEB_MEASUREMENT_ENABLED: ${{ vars.VITE_WEB_MEASUREMENT_ENABLED }}
           VITE_WEB_VITALS_SAMPLE_RATE: ${{ vars.VITE_WEB_VITALS_SAMPLE_RATE }}
 
-      - name: Tag and push
-        run: |
-          git tag ${{ steps.bump.outputs.tag }}
-          git push origin main --follow-tags
-
       - name: Deploy Convex
         run: npx convex deploy
         env:
@@ -96,6 +91,14 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # すべてのProduction deployment成功後に、release commitとtagを同時に公開する。
+      - name: Tag and push
+        env:
+          RELEASE_TAG: ${{ steps.bump.outputs.tag }}
+        run: |
+          git tag "$RELEASE_TAG"
+          git push --atomic origin "HEAD:refs/heads/main" "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
