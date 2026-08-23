@@ -6,8 +6,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
-  pull-requests: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -16,7 +14,11 @@ concurrency:
 jobs:
   test:
     if: github.event.pull_request.head.repo.full_name == github.repository
-    timeout-minutes: 60
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    timeout-minutes: 75
     runs-on: ubuntu-latest
     environment: Preview
     env:
@@ -88,37 +90,40 @@ jobs:
           if-no-files-found: warn
           overwrite: true
           retention-days: 30
-      - name: Deploy Report to GitHub Pages
+      - name: Checkout hosted report snapshot
+        if: ${{ !cancelled() && steps.privacy.outcome == 'success' && hashFiles('playwright-report/index.html') != '' }}
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: yn1323/hosting-pages
+          ref: yps-reports
+          path: hosting-pages
+          token: ${{ secrets.HOSTING_PAGES_TOKEN }}
+          persist-credentials: true
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout: ${{ env.REPORT_DIR }}/${{ env.PR_NUMBER }}
+      - name: Publish Playwright report snapshot
+        id: publish
         if: ${{ !cancelled() && steps.privacy.outcome == 'success' && hashFiles('playwright-report/index.html') != '' }}
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           HOSTING_PAGES_TOKEN: ${{ secrets.HOSTING_PAGES_TOKEN }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_ID: ${{ github.run_id }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          REPORT_KEY="${PR_NUMBER}"
-          LOCAL_REPORT_DIR="playwright-report"
-          REPORT_COMMIT_MESSAGE="Playwright report for PR #${PR_NUMBER}"
-
-          git clone --depth 1 --single-branch "https://x-access-token:${HOSTING_PAGES_TOKEN}@github.com/yn1323/hosting-pages.git" hosting-pages
-          rm -rf "hosting-pages/${REPORT_DIR}/${REPORT_KEY}"
-          mkdir -p "hosting-pages/${REPORT_DIR}/${REPORT_KEY}"
-          cp -R "${LOCAL_REPORT_DIR}/." "hosting-pages/${REPORT_DIR}/${REPORT_KEY}/"
-          cd hosting-pages
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          git commit -m "${REPORT_COMMIT_MESSAGE}" || exit 0
-          for attempt in 1 2 3 4 5; do
-            git pull --rebase origin main
-            if git push origin HEAD:main; then
-              exit 0
-            fi
-            if [ "${attempt}" -eq 5 ]; then
-              echo "::error::hosting-pages push failed after ${attempt} attempts"
-              exit 1
-            fi
-            sleep "$((attempt * 2))"
-          done
-      - name: Comment PR with Report Link
-        if: ${{ !cancelled() && steps.privacy.outcome == 'success' }}
+          node scripts/publishHostingReport.mjs \
+            --repository hosting-pages \
+            --source playwright-report \
+            --target "${REPORT_DIR}/${PR_NUMBER}" \
+            --report-type playwright \
+            --pull-request "${PR_NUMBER}" \
+            --source-sha "${SOURCE_SHA}" \
+            --run-id "${RUN_ID}" \
+            --run-attempt "${RUN_ATTEMPT}"
+      - name: Comment PR while report is deploying
+        id: report_comment
+        if: ${{ !cancelled() && (steps.publish.outputs.status == 'published' || steps.publish.outputs.status == 'noop') }}
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           TEST_RESULT: ${{ steps.playwright.outcome }}
@@ -182,7 +187,7 @@ jobs:
               testDetails = '\n\n⚠️ テスト結果JSONの読み込みに失敗しました';
             }
 
-            const body = [
+            const buildBody = (reportCell) => [
               '## Playwright Test Report',
               '',
               `Status: ${statusText}`,
@@ -192,11 +197,14 @@ jobs:
               '',
               '| Action | Link |',
               '|---|---|',
-              `| レポート確認 | [Playwrightレポートを見る](${reportUrl}) |`,
+              `| レポート確認 | ${reportCell} |`,
               `| Actions | [実行ログを見る](${actionsUrl}) |`,
             ].join('\n') + testDetails;
 
-            await core.summary.addRaw(body).write();
+            const pendingBody = buildBody('レポートをデプロイ中です…');
+            const finalBody = buildBody(`[Playwrightレポートを見る](${reportUrl}?v=${process.env.RUN_ID}-${process.env.RUN_ATTEMPT})`);
+            fs.writeFileSync('playwright-comment-final.md', finalBody);
+            await core.summary.addRaw(finalBody).write();
 
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
@@ -213,9 +221,54 @@ jobs:
                 });
               }
             }
-            await github.rest.issues.createComment({
+            const { data: comment } = await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
+              body: pendingBody,
+            });
+            core.setOutput('comment_id', String(comment.id));
+      - name: Wait for hosted Playwright report
+        id: wait_deploy
+        if: ${{ !cancelled() && steps.report_comment.outputs.comment_id != '' }}
+        env:
+          MARKER_NAME: ${{ steps.publish.outputs.marker_name }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          MARKER_URL="https://yn1323.github.io/hosting-pages/${REPORT_DIR}/${PR_NUMBER}/${MARKER_NAME}"
+          EXPECTED="${RUN_ID}-${RUN_ATTEMPT}"
+          for i in $(seq 1 90); do
+            VALUE="$(curl -fsSL "${MARKER_URL}?t=$(date +%s)" || true)"
+            if [ "${VALUE}" = "${EXPECTED}" ]; then
+              echo "deploy_status=success" >> "$GITHUB_OUTPUT"
+              echo "Deploy confirmed after $((i * 10))s"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "deploy_status=timeout" >> "$GITHUB_OUTPUT"
+      - name: Update PR comment with Playwright report
+        if: ${{ always() && steps.report_comment.outputs.comment_id != '' }}
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          COMMENT_ID: ${{ steps.report_comment.outputs.comment_id }}
+          DEPLOY_STATUS: ${{ steps.wait_deploy.outputs.deploy_status }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            let body = fs.readFileSync('playwright-comment-final.md', 'utf8');
+            if (process.env.DEPLOY_STATUS !== 'success') {
+              body += '\n\n> ⚠️ レポートのデプロイに失敗しました。Actionsログを確認してください。';
+            }
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: Number(process.env.COMMENT_ID),
               body,
             });
+      - name: Fail when Playwright report is unavailable
+        if: ${{ always() && steps.report_comment.outputs.comment_id != '' && steps.wait_deploy.outputs.deploy_status != 'success' }}
+        run: |
+          echo "::error::hosting-pages deploy could not be confirmed within 15 minutes"
+          exit 1
