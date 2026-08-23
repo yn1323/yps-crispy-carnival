@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
-import {
-  NOTIFICATION_RESEND_COOLDOWN_DESCRIPTION,
-  NOTIFICATION_RESEND_COOLDOWN_TITLE,
-} from "@/src/components/shared/NotificationResendCooldownNotice";
+import { showNotificationResendCooldownToast } from "@/src/components/shared/NotificationResendCooldownNotice";
 import { toaster } from "@/src/components/ui/toaster";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
@@ -52,15 +49,11 @@ export function useStaffLineConnection(isReadOnly = false) {
     try {
       const result = await sendLineInvite({ staffId: staff._id });
       if (!result.scheduled) {
-        toaster.create(
-          result.reason === "recentlySent"
-            ? {
-                title: NOTIFICATION_RESEND_COOLDOWN_TITLE,
-                description: NOTIFICATION_RESEND_COOLDOWN_DESCRIPTION,
-                type: "info",
-              }
-            : { title: "少し時間をおいて再送してください", type: "error" },
-        );
+        if (result.reason === "recentlySent") {
+          showNotificationResendCooldownToast();
+        } else {
+          toaster.create({ title: "少し時間をおいて再送してください", type: "error" });
+        }
         return;
       }
       showSuccessToast({ title: "LINE連携リンクをメールで送りました" });

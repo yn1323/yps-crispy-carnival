@@ -3,10 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
-import {
-  NOTIFICATION_RESEND_COOLDOWN_DESCRIPTION,
-  NOTIFICATION_RESEND_COOLDOWN_TITLE,
-} from "@/src/components/shared/NotificationResendCooldownNotice";
+import { showNotificationResendCooldownToast } from "@/src/components/shared/NotificationResendCooldownNotice";
 import { toaster } from "@/src/components/ui/toaster";
 import { useDeadlineActive } from "@/src/hooks/useDeadlineActive";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
@@ -96,15 +93,11 @@ export function useUserLineActions({
       });
       if (isSameLineLinkTarget(currentTargetRef.current, target)) {
         if (!result.scheduled) {
-          toaster.create(
-            result.reason === "recentlySent"
-              ? {
-                  title: NOTIFICATION_RESEND_COOLDOWN_TITLE,
-                  description: NOTIFICATION_RESEND_COOLDOWN_DESCRIPTION,
-                  type: "info",
-                }
-              : { title: "少し時間をおいて再送してください", type: "error" },
-          );
+          if (result.reason === "recentlySent") {
+            showNotificationResendCooldownToast();
+          } else {
+            toaster.create({ title: "少し時間をおいて再送してください", type: "error" });
+          }
           return false;
         }
         showSuccessToast({ title: "LINE連携リンクをメールで送りました" });

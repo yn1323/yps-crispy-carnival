@@ -1,9 +1,6 @@
 import { api } from "@/convex/_generated/api";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
-import {
-  NOTIFICATION_RESEND_COOLDOWN_DESCRIPTION,
-  NOTIFICATION_RESEND_COOLDOWN_TITLE,
-} from "@/src/components/shared/NotificationResendCooldownNotice";
+import { showNotificationResendCooldownToast } from "@/src/components/shared/NotificationResendCooldownNotice";
 import { toaster } from "@/src/components/ui/toaster";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
@@ -22,11 +19,7 @@ export function useStaffNotificationDelivery(isReadOnly = false) {
         return;
       }
       if (result.reason === "recentlySent") {
-        toaster.create({
-          title: NOTIFICATION_RESEND_COOLDOWN_TITLE,
-          description: NOTIFICATION_RESEND_COOLDOWN_DESCRIPTION,
-          type: "info",
-        });
+        showNotificationResendCooldownToast();
         return;
       }
       toaster.create({
@@ -48,11 +41,7 @@ export function useStaffNotificationDelivery(isReadOnly = false) {
         return;
       }
       if (result.reason === "recentlySent") {
-        toaster.create({
-          title: NOTIFICATION_RESEND_COOLDOWN_TITLE,
-          description: NOTIFICATION_RESEND_COOLDOWN_DESCRIPTION,
-          type: "info",
-        });
+        showNotificationResendCooldownToast();
         return;
       }
       toaster.create({
