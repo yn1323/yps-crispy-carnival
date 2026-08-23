@@ -102,6 +102,85 @@ describe("スタッフ参加QRシナリオ", () => {
     ).resolves.toBeNull();
   });
 
+  it("登録リンクを再発行しても既存の承認待ち申請を承認でき、旧linkだけを無効化する", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(
+      async (ctx) =>
+        await seedManagerShop(ctx, {
+          subject: MANAGER_SUBJECT,
+          email: "qr-rotation-manager@example.com",
+          shopName: "QR再発行店舗",
+        }),
+    );
+    const manager = t.withIdentity({ subject: MANAGER_SUBJECT });
+    const original = await manager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      shopId: seeded.shopId,
+    });
+    await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
+      token: original.token,
+      name: "再発行前の申請者",
+      email: "before-rotation@example.com",
+      acceptedLegal: true,
+    });
+
+    const rotated = await manager.mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
+      shopId: seeded.shopId,
+      expectedLinkId: original.linkId,
+    });
+    const currentToken = await t.run(async (ctx) => (await ctx.db.get(rotated.linkId))?.token);
+    if (!currentToken) throw new Error("rotated registration link not found");
+
+    await expect(
+      t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
+        token: original.token,
+        name: "旧リンクからの申請者",
+        email: "old-link-after-rotation@example.com",
+        acceptedLegal: true,
+      }),
+    ).rejects.toThrow("登録リンクの有効期限が切れています");
+    await expect(
+      t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
+        token: currentToken,
+        name: "再発行後の申請者",
+        email: "after-rotation@example.com",
+        acceptedLegal: true,
+      }),
+    ).resolves.toEqual({ status: "accepted" });
+
+    const pending = await manager.query(api.staffRegistration.queries.getPendingRequests, {
+      shopId: seeded.shopId,
+    });
+    const beforeRotationRequest = pending.find((request) => request.email === "before-rotation@example.com");
+    if (!beforeRotationRequest) throw new Error("pending request created before rotation not found");
+    await expect(
+      manager.mutation(api.staffRegistration.mutations.approveRequest, {
+        shopId: seeded.shopId,
+        requestId: beforeRotationRequest._id,
+      }),
+    ).resolves.toMatchObject({ staffId: expect.any(String) });
+
+    const requests = await t.run(async (ctx) =>
+      (
+        await Promise.all(
+          (["pending", "approved"] as const).map(
+            async (status) =>
+              await ctx.db
+                .query("staffRegistrationRequests")
+                .withIndex("by_shopId_status", (q) => q.eq("shopId", seeded.shopId).eq("status", status))
+                .collect(),
+          ),
+        )
+      ).flat(),
+    );
+    expect(requests).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ email: "before-rotation@example.com", status: "approved" }),
+        expect.objectContaining({ email: "after-rotation@example.com", status: "pending" }),
+      ]),
+    );
+    expect(requests.some((request) => request.email === "old-link-after-rotation@example.com")).toBe(false);
+  });
+
   it("組織から削除済みの人物も通常のQR承認で新しいstaffだけを作り、旧履歴・認証・LINE連携を戻さない", async () => {
     const t = convexTest(schema, modules);
     const seeded = await t.run(async (ctx) => {

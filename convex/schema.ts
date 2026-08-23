@@ -720,7 +720,8 @@ const schema = defineSchema({
     revokedAt: v.optional(v.number()),
   })
     .index("by_token", ["token"])
-    .index("by_shopId", ["shopId"]),
+    .index("by_shopId", ["shopId"])
+    .index("by_shopId_and_revokedAt", ["shopId", "revokedAt"]),
 
   staffRegistrationRequests: defineTable({
     shopId: v.id("shops"),

@@ -1,8 +1,8 @@
 import { Alert, Box, Code, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
 import QRCode from "qrcode";
-import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
-import { LuCheck, LuCopy } from "react-icons/lu";
+import type { ReactNode, Ref } from "react";
+import { useEffect, useRef, useState } from "react";
+import { LuCheck, LuCopy, LuRefreshCw } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
 
@@ -11,6 +11,8 @@ type Props = {
   isLoading?: boolean;
   hasError?: boolean;
   onRetry?: () => void | Promise<void>;
+  onRequestRegistrationLinkRotation?: () => void;
+  rotationTriggerRef?: Ref<HTMLButtonElement>;
 };
 
 function InviteSection({ title, children }: { title: string; children: ReactNode }) {
@@ -27,9 +29,18 @@ function InviteSection({ title, children }: { title: string; children: ReactNode
   );
 }
 
-export function StaffRegistrationLinkPanel({ registrationUrl, isLoading, hasError = false, onRetry }: Props) {
+export function StaffRegistrationLinkPanel({
+  registrationUrl,
+  isLoading,
+  hasError = false,
+  onRetry,
+  onRequestRegistrationLinkRotation,
+  rotationTriggerRef,
+}: Props) {
   const [qrSvg, setQrSvg] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copied = registrationUrl !== null && copiedUrl === registrationUrl;
 
   useEffect(() => {
     if (!registrationUrl) {
@@ -49,12 +60,23 @@ export function StaffRegistrationLinkPanel({ registrationUrl, isLoading, hasErro
     };
   }, [registrationUrl]);
 
+  useEffect(
+    () => () => {
+      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
+    },
+    [],
+  );
+
   const handleCopy = async () => {
     if (!registrationUrl) return;
     try {
       await navigator.clipboard.writeText(registrationUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setCopiedUrl(registrationUrl);
+      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
+      copyResetTimerRef.current = setTimeout(() => {
+        setCopiedUrl((current) => (current === registrationUrl ? null : current));
+        copyResetTimerRef.current = null;
+      }, 1500);
     } catch {
       // コピーできない環境ではURL表示を見てもらう。
     }
@@ -144,6 +166,26 @@ export function StaffRegistrationLinkPanel({ registrationUrl, isLoading, hasErro
           </Tooltip>
         </HStack>
       </InviteSection>
+
+      {onRequestRegistrationLinkRotation && (
+        <InviteSection title="登録リンクの管理">
+          <Stack gap={3} align="flex-start">
+            <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+              共有済みのリンクを使えなくして、新しいリンクへ切り替えます。
+            </Text>
+            <Button
+              ref={rotationTriggerRef}
+              type="button"
+              variant="outline"
+              colorPalette="red"
+              onClick={onRequestRegistrationLinkRotation}
+            >
+              <LuRefreshCw aria-hidden />
+              登録リンクを再発行
+            </Button>
+          </Stack>
+        </InviteSection>
+      )}
     </Stack>
   );
 }

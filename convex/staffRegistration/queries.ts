@@ -13,7 +13,11 @@ const registrationPageDataValidator = v.union(
   v.object({ status: v.literal("ok"), shopName: v.string(), documents: staffLegalDocumentsValidator }),
 );
 
-const registrationLinkValidator = v.object({ token: v.string(), registrationUrl: v.string() });
+const registrationLinkValidator = v.object({
+  linkId: v.id("shopRegistrationLinks"),
+  token: v.string(),
+  registrationUrl: v.string(),
+});
 
 function buildRegistrationUrl(token: string) {
   return `${APP_URL}/staff/register?token=${token}`;
@@ -99,11 +103,13 @@ export const getActiveRegistrationLink = managerQuery({
     const shop = ctx.shop;
     const links = await ctx.db
       .query("shopRegistrationLinks")
-      .withIndex("by_shopId", (q) => q.eq("shopId", shop._id))
-      .take(10);
-    const link = links.find((candidate) => !candidate.revokedAt);
+      .withIndex("by_shopId_and_revokedAt", (q) => q.eq("shopId", shop._id).eq("revokedAt", undefined))
+      .take(2);
+    if (links.length > 1) throw new Error("登録リンクの状態を確認できません");
+    const link = links[0];
     if (!link) return null;
     return {
+      linkId: link._id,
       token: link.token,
       registrationUrl: buildRegistrationUrl(link.token),
     };

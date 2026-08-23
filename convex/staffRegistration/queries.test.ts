@@ -136,7 +136,7 @@ describe("staffRegistration/queries", () => {
   describe("manager query", () => {
     it("自店舗の有効な登録linkだけを返し、未認証では返さない", async () => {
       const t = convexTest(schema, modules);
-      const { ownShopId, otherShopId } = await t.run(async (ctx) => {
+      const { ownShopId, ownLinkId, otherShopId } = await t.run(async (ctx) => {
         const own = await seedManagerShop(ctx, {
           subject: "registration_manager",
           email: "registration-manager@example.com",
@@ -153,7 +153,7 @@ describe("staffRegistration/queries", () => {
           createdAt: Date.now() - 1,
           revokedAt: Date.now(),
         });
-        await ctx.db.insert("shopRegistrationLinks", {
+        const ownLinkId = await ctx.db.insert("shopRegistrationLinks", {
           shopId: own.shopId,
           token: "active-own-token",
           createdAt: Date.now(),
@@ -163,7 +163,7 @@ describe("staffRegistration/queries", () => {
           token: "active-other-token",
           createdAt: Date.now(),
         });
-        return { ownShopId: own.shopId, otherShopId: other.shopId };
+        return { ownShopId: own.shopId, ownLinkId, otherShopId: other.shopId };
       });
 
       await expect(
@@ -174,6 +174,7 @@ describe("staffRegistration/queries", () => {
           .withIdentity({ subject: "registration_manager" })
           .query(api.staffRegistration.queries.getActiveRegistrationLink, { shopId: ownShopId }),
       ).resolves.toEqual({
+        linkId: ownLinkId,
         token: "active-own-token",
         registrationUrl: expect.stringContaining("/staff/register?token=active-own-token"),
       });
@@ -182,6 +183,47 @@ describe("staffRegistration/queries", () => {
           .withIdentity({ subject: "registration_manager" })
           .query(api.staffRegistration.queries.getActiveRegistrationLink, { shopId: otherShopId }),
       ).resolves.toBeNull();
+    });
+
+    it("10件を超える失効履歴からactiveだけを返し、active重複時は情報を返さない", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, activeLinkId } = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: "registration_query_history_manager",
+          email: "registration-query-history@example.com",
+        });
+        for (let index = 0; index < 12; index += 1) {
+          await ctx.db.insert("shopRegistrationLinks", {
+            shopId: seeded.shopId,
+            token: `revoked-registration-query-link-${index}`,
+            createdAt: index,
+            revokedAt: index + 1,
+          });
+        }
+        const activeLinkId = await ctx.db.insert("shopRegistrationLinks", {
+          shopId: seeded.shopId,
+          token: "active-registration-query-link",
+          createdAt: Date.now(),
+        });
+        return { shopId: seeded.shopId, activeLinkId };
+      });
+      const asManager = t.withIdentity({ subject: "registration_query_history_manager" });
+
+      await expect(
+        asManager.query(api.staffRegistration.queries.getActiveRegistrationLink, { shopId }),
+      ).resolves.toMatchObject({ linkId: activeLinkId, token: "active-registration-query-link" });
+
+      await t.run(
+        async (ctx) =>
+          await ctx.db.insert("shopRegistrationLinks", {
+            shopId,
+            token: "duplicate-active-registration-query-link",
+            createdAt: Date.now() + 1,
+          }),
+      );
+      await expect(
+        asManager.query(api.staffRegistration.queries.getActiveRegistrationLink, { shopId }),
+      ).rejects.toThrow("登録リンクの状態を確認できません");
     });
 
     it("承認待ち申請は自店舗のpendingだけを最小DTOで返す", async () => {

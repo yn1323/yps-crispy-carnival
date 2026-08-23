@@ -93,7 +93,227 @@ describe("staffRegistration/mutations", () => {
       .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
 
     expect(first.token).toBe(second.token);
+    expect(first.linkId).toBe(second.linkId);
     expect(first.registrationUrl).toContain(`/staff/register?token=${first.token}`);
+  });
+
+  it("登録リンクを同一transactionで失効・再発行し、同じexpectedLinkIdの再試行では現在リンクを返す", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(
+      async (ctx) =>
+        await seedOrganizationManagerShop(ctx, {
+          subject: "registration_link_rotation_manager",
+          plan: "pro",
+        }),
+    );
+    const asManager = t.withIdentity({ subject: "registration_link_rotation_manager" });
+    const original = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      shopId: seeded.shopId,
+    });
+
+    const rotated = await asManager.mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
+      shopId: seeded.shopId,
+      expectedLinkId: original.linkId,
+    });
+
+    expect(rotated).toMatchObject({
+      status: "rotated",
+      linkId: expect.any(String),
+      registrationUrl: expect.stringContaining("/staff/register?token="),
+    });
+    expect(rotated.linkId).not.toBe(original.linkId);
+    expect(rotated.registrationUrl).not.toBe(original.registrationUrl);
+
+    const afterRotation = await t.run(async (ctx) => ({
+      original: await ctx.db.get(original.linkId),
+      current: await ctx.db.get(rotated.linkId),
+      links: await ctx.db
+        .query("shopRegistrationLinks")
+        .withIndex("by_shopId", (q) => q.eq("shopId", seeded.shopId))
+        .collect(),
+      audits: await ctx.db.query("organizationAuditEvents").collect(),
+      analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+    }));
+    expect(afterRotation.original?.revokedAt).toEqual(expect.any(Number));
+    expect(afterRotation.current?.revokedAt).toBeUndefined();
+    expect(afterRotation.current?.token).not.toBe(original.token);
+    expect(afterRotation.links).toHaveLength(2);
+    expect(afterRotation.audits).toEqual([
+      expect.objectContaining({
+        organizationId: seeded.organizationId,
+        actorUserId: seeded.userId,
+        actorPersonId: seeded.personId,
+        action: "organization.staff_registration_link_rotated",
+        targetKind: "shop",
+        targetId: seeded.shopId,
+        fromState: original.linkId,
+        toState: rotated.linkId,
+      }),
+    ]);
+    expect(JSON.stringify(afterRotation.audits)).not.toContain(original.token);
+    expect(JSON.stringify(afterRotation.audits)).not.toContain(afterRotation.current?.token);
+    expect(afterRotation.analytics).toEqual([]);
+
+    await expect(
+      t.query(api.staffRegistration.queries.getRegistrationPageData, { token: original.token }),
+    ).resolves.toMatchObject({ status: "expired" });
+    await expect(
+      t.query(api.staffRegistration.queries.getRegistrationPageData, { token: afterRotation.current?.token ?? "" }),
+    ).resolves.toMatchObject({ status: "ok" });
+
+    const retried = await asManager.mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
+      shopId: seeded.shopId,
+      expectedLinkId: original.linkId,
+    });
+    expect(retried).toEqual({
+      status: "current",
+      linkId: rotated.linkId,
+      registrationUrl: rotated.registrationUrl,
+    });
+    const afterRetry = await t.run(async (ctx) => ({
+      links: await ctx.db
+        .query("shopRegistrationLinks")
+        .withIndex("by_shopId", (q) => q.eq("shopId", seeded.shopId))
+        .collect(),
+      audits: await ctx.db.query("organizationAuditEvents").collect(),
+    }));
+    expect(afterRetry.links).toHaveLength(2);
+    expect(afterRetry.audits).toHaveLength(1);
+  });
+
+  it("登録リンク再発行は未認証・readOnly・契約制限・他店舗expectedLinkIdを副作用なしで拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(
+      async (ctx) =>
+        await seedOrganizationManagerShop(ctx, {
+          subject: "registration_link_rotation_denied_manager",
+          plan: "pro",
+        }),
+    );
+    const asManager = t.withIdentity({ subject: "registration_link_rotation_denied_manager" });
+    const original = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      shopId: seeded.shopId,
+    });
+    const otherLinkId = await t.run(async (ctx) => {
+      const otherShopId = await seedShop(ctx, "登録リンク再発行の別店舗");
+      return await ctx.db.insert("shopRegistrationLinks", {
+        shopId: otherShopId,
+        token: "other-shop-registration-link",
+        createdAt: Date.now(),
+      });
+    });
+
+    await expect(
+      t.mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
+        shopId: seeded.shopId,
+        expectedLinkId: original.linkId,
+      }),
+    ).rejects.toThrow("Unauthenticated");
+    await expect(
+      asManager.mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
+        shopId: seeded.shopId,
+        expectedLinkId: otherLinkId,
+      }),
+    ).rejects.toThrow("Not found");
+
+    await t.run(async (ctx) => await ctx.db.patch(seeded.memberId, { status: "readOnly", updatedAt: Date.now() }));
+    await expect(
+      asManager.mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
+        shopId: seeded.shopId,
+        expectedLinkId: original.linkId,
+      }),
+    ).rejects.toThrow();
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(seeded.memberId, { status: "active", updatedAt: Date.now() });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, {
+        state: {
+          kind: "restricted",
+          reason: "freeConditionsNotMet",
+          previousPlan: "pro",
+          recoveryManagerPersonIds: [seeded.personId],
+          previousActiveShopIds: [seeded.shopId],
+          restrictedAt: Date.now(),
+        },
+      });
+    });
+    await expect(
+      asManager.mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
+        shopId: seeded.shopId,
+        expectedLinkId: original.linkId,
+      }),
+    ).rejects.toThrow();
+
+    const state = await t.run(async (ctx) => ({
+      original: await ctx.db.get(original.linkId),
+      links: await ctx.db.query("shopRegistrationLinks").collect(),
+      audits: await ctx.db.query("organizationAuditEvents").collect(),
+      analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+    }));
+    expect(state.original?.revokedAt).toBeUndefined();
+    expect(state.links).toHaveLength(2);
+    expect(state.audits).toEqual([]);
+    expect(state.analytics).toEqual([]);
+  });
+
+  it("10件を超える失効履歴があっても現在リンクを返し、active重複時はfail closedする", async () => {
+    const t = convexTest(schema, modules);
+    const { shopId, activeLinkId } = await t.run(async (ctx) => {
+      const seeded = await seedManagerShop(ctx, {
+        subject: "registration_link_history_manager",
+        email: "registration-link-history@example.com",
+      });
+      for (let index = 0; index < 12; index += 1) {
+        await ctx.db.insert("shopRegistrationLinks", {
+          shopId: seeded.shopId,
+          token: `revoked-registration-link-${index}`,
+          createdAt: index,
+          revokedAt: index + 1,
+        });
+      }
+      const activeLinkId = await ctx.db.insert("shopRegistrationLinks", {
+        shopId: seeded.shopId,
+        token: "active-registration-link-after-history",
+        createdAt: Date.now(),
+      });
+      return { shopId: seeded.shopId, activeLinkId };
+    });
+    const asManager = t.withIdentity({ subject: "registration_link_history_manager" });
+
+    await expect(
+      asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId }),
+    ).resolves.toMatchObject({ linkId: activeLinkId, token: "active-registration-link-after-history" });
+
+    const duplicateLinkId = await t.run(
+      async (ctx) =>
+        await ctx.db.insert("shopRegistrationLinks", {
+          shopId,
+          token: "duplicate-active-registration-link",
+          createdAt: Date.now() + 1,
+        }),
+    );
+    await expect(
+      asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId }),
+    ).rejects.toThrow("登録リンクの状態を確認できません");
+    await expect(
+      asManager.mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
+        shopId,
+        expectedLinkId: activeLinkId,
+      }),
+    ).rejects.toThrow("登録リンクの状態を確認できません");
+    const state = await t.run(async (ctx) => ({
+      active: await ctx.db.get(activeLinkId),
+      duplicate: await ctx.db.get(duplicateLinkId),
+      audits: await ctx.db.query("organizationAuditEvents").collect(),
+    }));
+    expect(state.active?.revokedAt).toBeUndefined();
+    expect(state.duplicate?.revokedAt).toBeUndefined();
+    expect(state.audits).toEqual([]);
   });
 
   it("スタッフが登録リンクから参加申請できる", async () => {

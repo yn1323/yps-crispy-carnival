@@ -42,7 +42,7 @@ function turnstileSuccess() {
 async function createRegistrationLink(
   t: TestConvex<typeof schema>,
   suffix: string,
-): Promise<{ shopId: Id<"shops">; token: string }> {
+): Promise<{ linkId: Id<"shopRegistrationLinks">; shopId: Id<"shops">; subject: string; token: string }> {
   const subject = `staff_registration_http_${suffix}`;
   const shopId = await t.run(async (ctx) => {
     const seeded = await seedManagerShop(ctx, { subject, email: `${suffix}@example.com` });
@@ -51,7 +51,7 @@ async function createRegistrationLink(
   const link = await t
     .withIdentity({ subject })
     .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
-  return { shopId, token: link.token };
+  return { linkId: link.linkId, shopId, subject, token: link.token };
 }
 
 async function businessSideEffects(t: TestConvex<typeof schema>) {
@@ -107,6 +107,26 @@ describe("staffRegistration/httpActions", () => {
     expect(requests).toMatchObject([
       { shopId, name: "申請スタッフ1", email: "staff-1@example.com", status: "pending" },
     ]);
+  });
+
+  it("再発行前の登録tokenは即時に期限切れとして扱い、申請を作成しない", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => turnstileSuccess()),
+    );
+    const t = convexTest(schema, modules);
+    const { linkId, shopId, subject, token } = await createRegistrationLink(t, "rotated_link");
+    await t.withIdentity({ subject }).mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
+      shopId,
+      expectedLinkId: linkId,
+    });
+
+    const response = await post(t, validBody(token));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "登録リンクの有効期限が切れています。" });
+    const requests = await t.run(async (ctx) => await ctx.db.query("staffRegistrationRequests").collect());
+    expect(requests).toEqual([]);
   });
 
   it.each(["GET", "PUT", "PATCH", "DELETE"])("%sではrouteを公開せず副作用を作らない", async (method) => {

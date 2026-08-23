@@ -28,6 +28,7 @@ export type OrganizationAuditAction =
   | "organization.manager_invitation_revoked"
   | "organization.manager_invitation_accepted"
   | "organization.manager_invitation_linked"
+  | "organization.staff_registration_link_rotated"
   | "organization.free_selection_changed"
   | "organization.billing_grace_shortened"
   | "organization.billing_state_changed";

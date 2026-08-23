@@ -23,30 +23,39 @@ export function useStaffInvitation(
   const invitationMutationInFlightRef = useRef(false);
   const dialogSessionRef = useRef(0);
   const isDialogOpenRef = useRef(false);
+  const registrationLinkIdRef = useRef<Id<"shopRegistrationLinks"> | null>(null);
   const registrationUrlRef = useRef<string | null>(null);
   const registrationUrlLoadSessionRef = useRef<number | null>(null);
+  const isConfirmingRegistrationLinkRotationRef = useRef(false);
   isReadOnlyRef.current = isReadOnly;
   showOrganizationPeopleAdditionRef.current = showOrganizationPeopleAddition;
   const dialog = useDialog();
   const [selectedMethod, setSelectedMethod] = useState<StaffInvitationMethod | null>(null);
+  const [registrationLinkId, setRegistrationLinkId] = useState<Id<"shopRegistrationLinks"> | null>(null);
   const [registrationUrl, setRegistrationUrl] = useState<string | null>(null);
   const [registrationUrlError, setRegistrationUrlError] = useState(false);
   const [isRegistrationUrlLoading, setIsRegistrationUrlLoading] = useState(false);
+  const [isConfirmingRegistrationLinkRotation, setIsConfirmingRegistrationLinkRotation] = useState(false);
   const [peopleCapacityResolution, setPeopleCapacityResolution] = useState<PeopleCapacityResolution | null>(null);
   const [addingOrganizationPersonId, setAddingOrganizationPersonId] = useState<Id<"organizationPeople"> | null>(null);
   const addStaffs = useShopMutation(api.staff.mutations.addStaffs);
   const addOrganizationPersonToShop = useShopMutation(api.staff.mutations.addOrganizationPersonToShop);
   const ensureShopRegistrationLink = useShopMutation(api.staffRegistration.mutations.ensureShopRegistrationLink);
+  const rotateShopRegistrationLink = useShopMutation(api.staffRegistration.mutations.rotateShopRegistrationLink);
 
   const closeDialogSession = useCallback(() => {
     dialogSessionRef.current += 1;
     isDialogOpenRef.current = false;
     registrationUrlLoadSessionRef.current = null;
+    registrationLinkIdRef.current = null;
     registrationUrlRef.current = null;
     setSelectedMethod(null);
+    setRegistrationLinkId(null);
     setRegistrationUrl(null);
     setRegistrationUrlError(false);
     setIsRegistrationUrlLoading(false);
+    isConfirmingRegistrationLinkRotationRef.current = false;
+    setIsConfirmingRegistrationLinkRotation(false);
     dialog.close();
   }, [dialog.close]);
 
@@ -96,7 +105,7 @@ export function useStaffInvitation(
         isReadOnlyRef.current ||
         !isDialogOpenRef.current ||
         dialogSessionRef.current !== sessionId ||
-        registrationUrlRef.current ||
+        (registrationLinkIdRef.current && registrationUrlRef.current) ||
         registrationUrlLoadSessionRef.current === sessionId
       ) {
         return;
@@ -112,12 +121,16 @@ export function useStaffInvitation(
       try {
         const result = await ensureShopRegistrationLink({});
         if (!isCurrentSession()) return;
+        registrationLinkIdRef.current = result.linkId;
         registrationUrlRef.current = result.registrationUrl;
+        setRegistrationLinkId(result.linkId);
         setRegistrationUrl(result.registrationUrl);
         setRegistrationUrlError(false);
       } catch {
         if (!isCurrentSession()) return;
+        registrationLinkIdRef.current = null;
         registrationUrlRef.current = null;
+        setRegistrationLinkId(null);
         setRegistrationUrl(null);
         setRegistrationUrlError(true);
       } finally {
@@ -131,18 +144,32 @@ export function useStaffInvitation(
   );
 
   const handleSelectMethod = (method: StaffInvitationMethod) => {
-    if (isReadOnlyRef.current || !isDialogOpenRef.current || invitationMutationInFlightRef.current) return;
+    if (
+      isReadOnlyRef.current ||
+      !isDialogOpenRef.current ||
+      isConfirmingRegistrationLinkRotationRef.current ||
+      invitationMutationInFlightRef.current
+    ) {
+      return;
+    }
     if (method === "organization" && !showOrganizationPeopleAdditionRef.current) return;
 
     setPeopleCapacityResolution(null);
     setSelectedMethod(method);
-    if (method === "link" && !registrationUrlRef.current) {
+    if (method === "link" && (!registrationLinkIdRef.current || !registrationUrlRef.current)) {
       void loadRegistrationUrlForSession(dialogSessionRef.current);
     }
   };
 
   const handleBackToMethods = () => {
-    if (isReadOnlyRef.current || !isDialogOpenRef.current || invitationMutationInFlightRef.current) return;
+    if (
+      isReadOnlyRef.current ||
+      !isDialogOpenRef.current ||
+      isConfirmingRegistrationLinkRotationRef.current ||
+      invitationMutationInFlightRef.current
+    ) {
+      return;
+    }
     setPeopleCapacityResolution(null);
     setSelectedMethod(null);
   };
@@ -152,12 +179,73 @@ export function useStaffInvitation(
       isReadOnlyRef.current ||
       !isDialogOpenRef.current ||
       selectedMethod !== "link" ||
+      isConfirmingRegistrationLinkRotationRef.current ||
       invitationMutationInFlightRef.current
     ) {
       return;
     }
     void loadRegistrationUrlForSession(dialogSessionRef.current);
   };
+
+  const handleRequestRegistrationLinkRotation = () => {
+    if (
+      isReadOnlyRef.current ||
+      !isDialogOpenRef.current ||
+      selectedMethod !== "link" ||
+      !registrationLinkIdRef.current ||
+      invitationMutationInFlightRef.current
+    ) {
+      return;
+    }
+    isConfirmingRegistrationLinkRotationRef.current = true;
+    setIsConfirmingRegistrationLinkRotation(true);
+  };
+
+  const handleCancelRegistrationLinkRotation = () => {
+    if (invitationMutationInFlightRef.current) return;
+    isConfirmingRegistrationLinkRotationRef.current = false;
+    setIsConfirmingRegistrationLinkRotation(false);
+  };
+
+  const { run: handleRotateRegistrationLink, isRunning: isRotatingRegistrationLink } = useSingleFlight(async () => {
+    const expectedLinkId = registrationLinkIdRef.current;
+    if (
+      isReadOnlyRef.current ||
+      !isDialogOpenRef.current ||
+      selectedMethod !== "link" ||
+      !isConfirmingRegistrationLinkRotationRef.current ||
+      !expectedLinkId ||
+      invitationMutationInFlightRef.current
+    ) {
+      return;
+    }
+
+    const sessionId = dialogSessionRef.current;
+    invitationMutationInFlightRef.current = true;
+    const isCurrentSession = () =>
+      !isReadOnlyRef.current && isDialogOpenRef.current && dialogSessionRef.current === sessionId;
+
+    try {
+      const result = await rotateShopRegistrationLink({ expectedLinkId });
+      if (!isCurrentSession()) return;
+
+      registrationLinkIdRef.current = result.linkId;
+      registrationUrlRef.current = result.registrationUrl;
+      setRegistrationLinkId(result.linkId);
+      setRegistrationUrl(result.registrationUrl);
+      setRegistrationUrlError(false);
+      isConfirmingRegistrationLinkRotationRef.current = false;
+      setIsConfirmingRegistrationLinkRotation(false);
+
+      if (result.status === "rotated") {
+        showSuccessToast({ title: "登録リンクを再発行しました" });
+      }
+    } catch (error) {
+      if (isCurrentSession()) showErrorToast(error);
+    } finally {
+      invitationMutationInFlightRef.current = false;
+    }
+  });
 
   const { run: handleAddOrganizationPerson, isRunning: isAddingOrganizationPerson } = useSingleFlight(
     async (personId: Id<"organizationPeople">) => {
@@ -188,11 +276,15 @@ export function useStaffInvitation(
     dialogSessionRef.current += 1;
     isDialogOpenRef.current = true;
     registrationUrlLoadSessionRef.current = null;
+    registrationLinkIdRef.current = null;
     registrationUrlRef.current = null;
     setSelectedMethod(null);
+    setRegistrationLinkId(null);
     setRegistrationUrl(null);
     setRegistrationUrlError(false);
     setIsRegistrationUrlLoading(false);
+    isConfirmingRegistrationLinkRotationRef.current = false;
+    setIsConfirmingRegistrationLinkRotation(false);
     setPeopleCapacityResolution(null);
     setAddingOrganizationPersonId(null);
     dialog.open();
@@ -216,10 +308,13 @@ export function useStaffInvitation(
     },
     selectedMethod,
     showOrganizationPeopleAddition,
+    registrationLinkId,
     registrationUrl,
     registrationUrlError,
     peopleCapacityResolution,
     isRegistrationUrlLoading,
+    isConfirmingRegistrationLinkRotation,
+    isRotatingRegistrationLink,
     isAddingStaffs,
     addingOrganizationPersonId,
     isAddingOrganizationPerson,
@@ -228,6 +323,9 @@ export function useStaffInvitation(
     onSelectMethod: handleSelectMethod,
     onBackToMethods: handleBackToMethods,
     onRetryRegistrationUrl: handleRetryRegistrationUrl,
+    onRequestRegistrationLinkRotation: handleRequestRegistrationLinkRotation,
+    onCancelRegistrationLinkRotation: handleCancelRegistrationLinkRotation,
+    onRotateRegistrationLink: handleRotateRegistrationLink,
     onAddStaffs: handleAddStaffs,
     onAddOrganizationPerson: handleAddOrganizationPerson,
     onOpenBillingSettings,
