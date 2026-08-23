@@ -1,6 +1,7 @@
 import type { Infer } from "convex/values";
 import { getDebugTrialDurationDays } from "../_lib/config";
 import { jstMonthStartMs } from "../_lib/dateFormat";
+import { DAY_MS } from "../constants";
 import type { organizationBillingStateValidator } from "../organization/validators";
 import {
   ORGANIZATION_PLAN_LIMITS,
@@ -21,9 +22,8 @@ export type {
 export { ORGANIZATION_PLAN_LIMITS } from "./planLimits";
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-export const PAYMENT_GRACE_PERIOD_MS = 14 * MS_PER_DAY;
+export const PAYMENT_GRACE_PERIOD_MS = 14 * DAY_MS;
 export type OrganizationBillingState = Infer<typeof organizationBillingStateValidator>;
 type PersistedRestrictedOrganizationBillingState = Extract<OrganizationBillingState, { kind: "restricted" }>;
 export type RestrictedOrganizationBillingState = PersistedRestrictedOrganizationBillingState;
@@ -749,16 +749,16 @@ export function calculateTrialEndsAt(organizationCreatedAt: number): number {
   const createdMonth = createdAtJst.getUTCMonth();
   const debugDurationDays = getDebugTrialDurationDays();
   if (debugDurationDays !== undefined) {
-    const createdDayStartAt = jstMonthStartMs(createdYear, createdMonth) + (createdAtJst.getUTCDate() - 1) * MS_PER_DAY;
-    return createdDayStartAt + debugDurationDays * MS_PER_DAY;
+    const createdDayStartAt = jstMonthStartMs(createdYear, createdMonth) + (createdAtJst.getUTCDate() - 1) * DAY_MS;
+    return createdDayStartAt + debugDurationDays * DAY_MS;
   }
 
   const targetMonthStartAt = jstMonthStartMs(createdYear, createdMonth + 2);
   const nextMonthStartAt = jstMonthStartMs(createdYear, createdMonth + 3);
-  const lastDayOfTargetMonth = (nextMonthStartAt - targetMonthStartAt) / MS_PER_DAY;
+  const lastDayOfTargetMonth = (nextMonthStartAt - targetMonthStartAt) / DAY_MS;
   const targetDay = Math.min(createdAtJst.getUTCDate(), lastDayOfTargetMonth);
 
-  return targetMonthStartAt + (targetDay - 1) * MS_PER_DAY;
+  return targetMonthStartAt + (targetDay - 1) * DAY_MS;
 }
 
 export function getOrganizationBillingStateDeadline(state: OrganizationBillingState): number | null {

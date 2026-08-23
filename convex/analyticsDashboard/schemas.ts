@@ -1,4 +1,5 @@
 import { dateToUtcMs, formatUtcDate } from "../_lib/dateFormat";
+import { DAY_MS } from "../constants";
 import type {
   AnalyticsCompleteness,
   AnalyticsDirection,
@@ -12,7 +13,6 @@ import type {
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const OPAQUE_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const COHORT_PATTERN = /^\d{4}-(?:0[1-9]|1[0-2])$/;
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export const ANALYTICS_DASHBOARD_MAX_BODY_BYTES = 16 * 1024;
 export const ANALYTICS_DASHBOARD_MAX_RESPONSE_BYTES = 512 * 1024;
@@ -223,7 +223,7 @@ function readDateRange(input: Record<string, unknown>, series: boolean): ParseRe
   if (!from.ok) return from;
   const to = parseDate(input.to, "to");
   if (!to.ok) return to;
-  const dayCount = Math.floor((to.value.utcMs - from.value.utcMs) / MS_PER_DAY) + 1;
+  const dayCount = Math.floor((to.value.utcMs - from.value.utcMs) / DAY_MS) + 1;
   if (dayCount < 1) return { ok: false, message: "fromはto以前にしてください" };
   if (dayCount > ANALYTICS_DASHBOARD_MAX_RANGE_DAYS) {
     return { ok: false, message: "取得期間は5年以内にしてください" };
@@ -252,7 +252,7 @@ function readNullableDateRange(
   if (!from.ok) return from;
   const to = parseDate(toValue, toKey);
   if (!to.ok) return to;
-  const dayCount = Math.floor((to.value.utcMs - from.value.utcMs) / MS_PER_DAY) + 1;
+  const dayCount = Math.floor((to.value.utcMs - from.value.utcMs) / DAY_MS) + 1;
   if (dayCount < 1) return { ok: false, message: `${fromKey}は${toKey}以前にしてください` };
   if (dayCount > ANALYTICS_DASHBOARD_MAX_RANGE_DAYS) {
     return { ok: false, message: "比較期間は5年以内にしてください" };
@@ -374,9 +374,9 @@ export function parseAnalyticsDashboardRequest(inputValue: unknown): ParseResult
     const comparison = readNullableDateRange(input, "compareFrom", "compareTo");
     if (!comparison.ok) return comparison;
     if (comparison.value.from && comparison.value.to) {
-      const currentDays = Math.floor((dateToUtcMs(range.value.to) - dateToUtcMs(range.value.from)) / MS_PER_DAY) + 1;
+      const currentDays = Math.floor((dateToUtcMs(range.value.to) - dateToUtcMs(range.value.from)) / DAY_MS) + 1;
       const comparisonDays =
-        Math.floor((dateToUtcMs(comparison.value.to) - dateToUtcMs(comparison.value.from)) / MS_PER_DAY) + 1;
+        Math.floor((dateToUtcMs(comparison.value.to) - dateToUtcMs(comparison.value.from)) / DAY_MS) + 1;
       if (currentDays + comparisonDays > ANALYTICS_DASHBOARD_MAX_RANGE_DAYS) {
         return { ok: false, message: "表示期間と比較期間の合計は5年以内にしてください" };
       }
