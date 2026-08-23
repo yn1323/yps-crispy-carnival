@@ -40,8 +40,9 @@ ID、表示名、説明、対象者、表示順は`helpTasks.ts`を正本とす�
 
 ```text
 src/components/features/HelpCenter/content/
-├─ faqs/<id>/index.mdx
-└─ guides/<id>/index.mdx
+├─ faqs/<id>.mdx
+├─ guides/<id>.mdx
+└─ images/<guide-id>/<filename>
 ```
 
 FAQと使い方は、共通のfrontmatterを使う。
@@ -59,10 +60,10 @@ FAQと使い方は、共通のfrontmatterを使う。
 | `order` | 同じtask・kind内の表示順 |
 | `homeFeatured` | TOPと`/help`の初期表示へ掲載するFAQ |
 
-slugとhrefはdirectory名とkindから生成する。  
+slugとhrefはMDXのファイル名とkindから生成する。
 検索結果の概要、SEO description、FAQ構造化データには、本文の最初の表示段落を使う。
 
-`_`で始まるdirectoryは下書きである。  
+`_`で始まるMDXファイルは下書きである。
 下書きの本文とfrontmatterは公開バンドル、検索、静的生成、sitemapへ含めない。公開ヘルプからの参照を検証するため、下書きIDの存在だけをbuild時に使う。  
 公開コンテンツから下書きへの`related`と`primaryGuide`は表示しないが、公開にも下書きにも存在しない参照は入力誤りとして拒否する。
 
@@ -93,7 +94,7 @@ FAQはアコーディオンでその場に表示し、使い方は個別ペー�
 検索中はタスクカードと通常の一覧を隠し、検索結果のFAQと使い方だけを種類別に表示する。
 
 使い方ページは、パンくず、対象者、本文、H2が3件以上ある場合の目次、関連FAQ、関連する使い方、問い合わせ導線を表示する。  
-画像は使い方と同じdirectoryへ置き、相対pathをバンドルURLへ解決する。  
+画像はMDXとコロケーションせず、`content/images/<guide-id>/`へ置く。  MDXでは`../images/<guide-id>/<filename>`の相対pathで参照し、バンドルURLへ解決する。
 操作場所や状態差を文章だけで特定しにくい場合だけ画像を使い、意味のあるaltを設定する。
 
 ## 検証
@@ -103,7 +104,7 @@ build前に、frontmatter、kindと配置、task、feature ID、ID・タイト�
 
 `/help`だけが全文検索用の本文テキストを読み込む。使い方ページでは対象slugのMDX本文・目次・画像だけを遅延読込し、他の使い方や全文検索データを先読みしない。  
 
-`scripts/staticSite.ts`は公開中のguide directoryを走査し、`/help/<guide-id>`だけを静的生成する。  
+`scripts/staticSite.ts`は公開中のguide MDXファイルを走査し、`/help/<guide-id>`だけを静的生成する。
 sitemapは同じ公開route一覧から生成し、ヘルプには`lastmod`を付けない。
 
 ## 関連ファイル

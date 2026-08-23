@@ -28,8 +28,8 @@ const extractedMdxTextModules = import.meta.glob<string[]>("../../../lib/mdx/tes
   import: "default",
 });
 
-const FAQ_PATH = "./content/faqs/example-faq/index.mdx";
-const GUIDE_PATH = "./content/guides/example-guide/index.mdx";
+const FAQ_PATH = "./content/faqs/example-faq.mdx";
+const GUIDE_PATH = "./content/guides/example-guide.mdx";
 
 function faqFrontmatter(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -160,16 +160,17 @@ describe("HelpCenter frontmatterとpath", () => {
     ).toThrow("frontmatter");
   });
 
-  it("kebab-caseの親directoryをIDとして使い、本文やfrontmatterの欠落を拒否する", () => {
+  it("kebab-caseのファイル名をIDとして使い、旧階層と本文・frontmatterの欠落を拒否する", () => {
     expect(helpIdFromPath(FAQ_PATH, "faq")).toBe("example-faq");
-    expect(() => helpIdFromPath("./content/faqs/Bad_Id/index.mdx")).toThrow("kebab-case");
+    expect(() => helpIdFromPath("./content/faqs/Bad_Id.mdx")).toThrow("kebab-case");
+    expect(() => helpIdFromPath("./content/faqs/example-faq/index.mdx")).toThrow("<id>.mdx");
     expect(() => buildSingleFaq(faqFrontmatter(), [])).toThrow("表示本文が見つかりません");
     expect(() => buildHelpMetas({ [FAQ_PATH]: faqFrontmatter() }, {})).toThrow("表示本文が見つかりません");
     expect(() => buildHelpMetas({}, { [FAQ_PATH]: ["回答です。"] })).toThrow("frontmatterが見つかりません");
   });
 
   it("FAQと使い方を通したID・titleと、task・kind内のorder重複を拒否する", () => {
-    const duplicateGuidePath = "./content/guides/example-faq/index.mdx";
+    const duplicateGuidePath = "./content/guides/example-faq.mdx";
     expect(() =>
       buildHelpMetas(
         { [FAQ_PATH]: faqFrontmatter(), [duplicateGuidePath]: guideFrontmatter() },
@@ -177,7 +178,7 @@ describe("HelpCenter frontmatterとpath", () => {
       ),
     ).toThrow("ID「example-faq」が重複しています");
 
-    const secondFaqPath = "./content/faqs/second-faq/index.mdx";
+    const secondFaqPath = "./content/faqs/second-faq.mdx";
     expect(() =>
       buildHelpMetas(
         {
@@ -234,7 +235,7 @@ describe("HelpCenter relation", () => {
   });
 
   it("primaryGuideは公開中の使い方だけを参照する", () => {
-    const otherFaqPath = "./content/faqs/other-faq/index.mdx";
+    const otherFaqPath = "./content/faqs/other-faq.mdx";
     expect(() =>
       buildHelpMetas(
         {
@@ -257,7 +258,7 @@ describe("HelpCenter relation", () => {
     const frontmatterByPath: Record<string, unknown> = {};
     const textByPath: Record<string, string[]> = {};
     for (let index = 1; index <= 7; index += 1) {
-      const path = `./content/faqs/featured-${index}/index.mdx`;
+      const path = `./content/faqs/featured-${index}.mdx`;
       frontmatterByPath[path] = faqFrontmatter({
         title: `掲載質問${index}ですか？`,
         order: index,

@@ -1,5 +1,5 @@
-import { Box, Link, Table, Text } from "@chakra-ui/react";
-import type { ComponentProps, ReactNode } from "react";
+import { Box, Text } from "@chakra-ui/react";
+import type { ReactNode } from "react";
 import {
   ORGANIZATION_PLAN_LIMITS,
   type OrganizationPlan,
@@ -64,78 +64,10 @@ export function CommercialTransactions({ prices }: CommercialTransactionsProps):
     },
   } satisfies MdxComponents;
 
-  return <LegalMarkdownPage content={content} components={components} contentGap={6} />;
+  return <LegalMarkdownPage content={content} components={components} />;
 }
 
 const commercialTransactionsMdxComponents = {
-  table: (props: ComponentProps<"table">) => (
-    <Box borderWidth="1px" borderColor="gray.200" borderRadius="xl" overflow="hidden">
-      <Table.Root
-        size="sm"
-        w="full"
-        style={{ borderCollapse: "separate", borderSpacing: 0, tableLayout: "fixed" }}
-        {...props}
-      />
-    </Box>
-  ),
-  thead: (props: ComponentProps<"thead">) => (
-    <Table.Header
-      position="absolute"
-      w="1px"
-      h="1px"
-      p={0}
-      m="-1px"
-      overflow="hidden"
-      clip="rect(0, 0, 0, 0)"
-      whiteSpace="nowrap"
-      border={0}
-      {...props}
-    />
-  ),
-  tbody: (props: ComponentProps<"tbody">) => <Table.Body {...props} />,
-  tr: (props: ComponentProps<"tr">) => (
-    <Table.Row
-      display={{ base: "grid", md: "table-row" }}
-      gridTemplateColumns="minmax(0, 1fr)"
-      borderTopWidth={{ base: "1px", md: "0" }}
-      borderColor="gray.200"
-      css={{
-        "&:first-of-type": {
-          borderTopWidth: "0",
-        },
-        "&:not(:first-of-type) > td": {
-          borderTopWidth: { md: "1px" },
-        },
-        "& > td:first-of-type": {
-          width: { md: "212px" },
-          color: "fg",
-          fontWeight: "bold",
-          paddingBottom: { base: "1", md: "5" },
-          paddingRight: { md: "3" },
-        },
-        "& > td:last-of-type": {
-          paddingTop: { base: "1", md: "5" },
-          paddingLeft: { md: "3" },
-        },
-      }}
-      {...props}
-    />
-  ),
-  th: (props: ComponentProps<"th">) => <Table.ColumnHeader {...props} />,
-  td: (props: ComponentProps<"td">) => (
-    <Table.Cell
-      display={{ base: "block", md: "table-cell" }}
-      px={{ base: 4, md: 5 }}
-      py={{ base: 4, md: 5 }}
-      borderColor="gray.200"
-      color="fg.muted"
-      textStyle="bodySm"
-      lineHeight={1.8}
-      verticalAlign="top"
-      {...props}
-    />
-  ),
-  a: (props: ComponentProps<"a">) => <Link color="teal.700" fontWeight="semibold" {...props} />,
   ManualDisclosureNotice,
   PlanLimit,
 } satisfies MdxComponents;

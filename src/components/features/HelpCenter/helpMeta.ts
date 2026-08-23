@@ -36,26 +36,16 @@ export type HelpMetadata = FaqMetadata | GuideMetadata;
 type HelpDraftVisibility = ReadonlySet<string>;
 
 const publicFrontmatterModules = import.meta.glob<unknown>(
-  [
-    "./content/faqs/*/index.mdx",
-    "./content/guides/*/index.mdx",
-    "!./content/faqs/_*/index.mdx",
-    "!./content/guides/_*/index.mdx",
-  ],
+  ["./content/faqs/*.mdx", "./content/guides/*.mdx", "!./content/faqs/_*.mdx", "!./content/guides/_*.mdx"],
   { eager: true, query: "?mdx-frontmatter", import: "default" },
 );
 
 const publicSummaryModules = import.meta.glob<string>(
-  [
-    "./content/faqs/*/index.mdx",
-    "./content/guides/*/index.mdx",
-    "!./content/faqs/_*/index.mdx",
-    "!./content/guides/_*/index.mdx",
-  ],
+  ["./content/faqs/*.mdx", "./content/guides/*.mdx", "!./content/faqs/_*.mdx", "!./content/guides/_*.mdx"],
   { eager: true, query: "?mdx-summary", import: "default" },
 );
 
-const draftMarkerModules = import.meta.glob<true>(["./content/faqs/_*/index.mdx", "./content/guides/_*/index.mdx"], {
+const draftMarkerModules = import.meta.glob<true>(["./content/faqs/_*.mdx", "./content/guides/_*.mdx"], {
   eager: true,
   query: "?mdx-marker",
   import: "default",
@@ -143,14 +133,14 @@ export function buildHelpMetas(
 }
 
 export function helpIdFromPath(path: string, expectedKind?: HelpContentKind): string {
-  const match = path.match(/(?:^|\/)content\/(faqs|guides)\/([^/]+)\/index\.mdx$/);
+  const match = path.match(/(?:^|\/)content\/(faqs|guides)\/([^/]+)\.mdx$/);
   if (!match) {
-    throw new Error(`ヘルプのpath「${path}」はcontent/{faqs|guides}/<id>/index.mdx形式にしてください`);
+    throw new Error(`ヘルプのpath「${path}」はcontent/{faqs|guides}/<id>.mdx形式にしてください`);
   }
 
   const [, location, id] = match;
   if (!id || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) {
-    throw new Error(`ヘルプのディレクトリ名「${id ?? path}」はkebab-caseのIDにしてください`);
+    throw new Error(`ヘルプのファイル名「${id ?? path}」はkebab-caseのIDにしてください`);
   }
 
   const actualKind: HelpContentKind = location === "faqs" ? "faq" : "guide";
@@ -193,10 +183,10 @@ export function createLandingFaqPageJsonLd(): Record<string, unknown> {
 }
 
 function draftHelpIdFromPath(path: string): string {
-  const match = path.match(/(?:^|\/)content\/(?:faqs|guides)\/_+([^/]+)\/index\.mdx$/);
+  const match = path.match(/(?:^|\/)content\/(?:faqs|guides)\/_+([^/]+)\.mdx$/);
   const id = match?.[1];
   if (!id || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) {
-    throw new Error(`下書きヘルプのディレクトリ名「${path}」は_<kebab-case ID>にしてください`);
+    throw new Error(`下書きヘルプのファイル名「${path}」は_<kebab-case ID>.mdxにしてください`);
   }
   return id;
 }

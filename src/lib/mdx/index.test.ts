@@ -112,27 +112,27 @@ describe("下書きMDXの除外", () => {
 
 describe("MDX相対画像", () => {
   it("文書からの相対pathをbundled URLへ解決する", () => {
-    const resolveImageSrc = createMdxImageSrcResolver("./content/guides/example/index.mdx", {
-      "./content/guides/example/figure.webp": "/assets/figure.hash.webp",
+    const resolveImageSrc = createMdxImageSrcResolver("./content/guides/example.mdx", {
+      "./content/images/example/figure.webp": "/assets/figure.hash.webp",
     });
 
-    expect(resolveImageSrc("./figure.webp")).toBe("/assets/figure.hash.webp");
+    expect(resolveImageSrc("../images/example/figure.webp")).toBe("/assets/figure.hash.webp");
   });
 
   it.each(["/images/figure.webp", "https://example.com/figure.webp", "data:image/png;base64,abc"])(
     "absolute URL %sは変更しない",
     (src) => {
-      const resolveImageSrc = createMdxImageSrcResolver("./content/guides/example/index.mdx", {});
+      const resolveImageSrc = createMdxImageSrcResolver("./content/guides/example.mdx", {});
 
       expect(resolveImageSrc(src)).toBe(src);
     },
   );
 
   it("存在しない相対画像pathを拒否する", () => {
-    const resolveImageSrc = createMdxImageSrcResolver("./content/guides/example/index.mdx", {});
+    const resolveImageSrc = createMdxImageSrcResolver("./content/guides/example.mdx", {});
 
-    expect(() => resolveImageSrc("./missing.webp")).toThrow(
-      "MDX「./content/guides/example/index.mdx」の画像「./missing.webp」が見つかりません",
+    expect(() => resolveImageSrc("../images/example/missing.webp")).toThrow(
+      "MDX「./content/guides/example.mdx」の画像「../images/example/missing.webp」が見つかりません",
     );
   });
 });

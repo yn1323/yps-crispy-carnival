@@ -13,12 +13,7 @@ export type HelpIndexMetadata = FaqIndexMetadata | GuideIndexMetadata;
 
 /** `/help` の全文検索とFAQ回答だけが使う本文テキスト層。guide詳細ルートからはimportしない。 */
 const publicTextModules = import.meta.glob<string[]>(
-  [
-    "./content/faqs/*/index.mdx",
-    "./content/guides/*/index.mdx",
-    "!./content/faqs/_*/index.mdx",
-    "!./content/guides/_*/index.mdx",
-  ],
+  ["./content/faqs/*.mdx", "./content/guides/*.mdx", "!./content/faqs/_*.mdx", "!./content/guides/_*.mdx"],
   { eager: true, query: "?mdx-text", import: "default" },
 );
 

@@ -43,14 +43,16 @@ export const PC: Story = {
     await expect(canvas.getByRole("heading", { name: "特定商取引法に基づく表記" })).toBeVisible();
     await expect(canvas.getByText("役務提供事業者")).toBeVisible();
     await expect(canvas.getByText("販売価格")).toBeVisible();
-    await expect(canvas.getByText("Pro：", { exact: false })).toHaveTextContent(
-      formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.pro),
+    const proPrice = canvas.getByText(formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.pro));
+    const businessPrice = canvas.getByText(formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.business));
+    await expect(proPrice.parentElement).toHaveTextContent(
+      `Pro：${formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.pro)}`,
     );
-    await expect(canvas.getByText("Business：", { exact: false })).toHaveTextContent(
-      formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.business),
+    await expect(businessPrice.parentElement).toHaveTextContent(
+      `Business：${formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.business)}`,
     );
     await expect(
-      canvas.getByText(`無料トライアルは利用人数${ORGANIZATION_PLAN_LIMITS.trial.maxPeople}名`, { exact: false }),
+      canvas.getByText(`無料トライアル：利用人数${ORGANIZATION_PLAN_LIMITS.trial.maxPeople}名`, { exact: false }),
     ).toBeVisible();
     await expect(canvas.getByRole("link", { name: "お問い合わせフォーム" })).toHaveAttribute("href", "/contact");
     await expect(canvas.getByText("事業者名、運営責任者、所在地、電話番号", { exact: false })).toBeVisible();
