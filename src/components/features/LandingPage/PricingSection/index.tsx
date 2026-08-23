@@ -98,7 +98,7 @@ function ProTrialNotice() {
         fontWeight="bold"
       >
         <Icon as={LuStar} boxSize={4} aria-hidden />
-        登録から2か月間
+        登録から3か月間
       </Badge>
       <Text
         color="teal.700"

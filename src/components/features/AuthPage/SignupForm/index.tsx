@@ -68,7 +68,7 @@ export function SignupForm({
     <Stack as="form" gap={5} onSubmit={handleSubmit(onSubmit)}>
       <Stack gap={2} bg="gray.50" borderWidth="1px" borderColor="gray.200" borderRadius="md" px={4} py={3}>
         <Text color="gray.800" textStyle="sm" lineHeight="1.8">
-          初回登録から2か月は、クレジットカードを登録せず無料で試せます。
+          初回登録から3か月は、クレジットカードを登録せず無料で試せます。
         </Text>
       </Stack>
       <OAuthSection isLineBrowser={isLineBrowser} isSubmitting={isSubmitting} onClick={onGoogle} label="Googleで登録" />

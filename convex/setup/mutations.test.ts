@@ -275,7 +275,7 @@ describe("setup/mutations", () => {
       ).rejects.toThrow("メールアドレスの形式で入力してください");
     });
 
-    it("店舗・ユーザー・スタッフ・2か月Trial・同意履歴を作成する", async () => {
+    it("店舗・ユーザー・スタッフ・3か月Trial・同意履歴を作成する", async () => {
       const t = convexTest(schema, modules);
       const now = new Date("2026-07-05T10:00:00+09:00");
       vi.setSystemTime(now);
@@ -323,7 +323,7 @@ describe("setup/mutations", () => {
         version: organizationBillingState.version,
       }).toEqual({
         organizationId,
-        state: { kind: "trial", trialEndsAt: Date.parse("2026-09-04T15:00:00.000Z") },
+        state: { kind: "trial", trialEndsAt: Date.parse("2026-10-04T15:00:00.000Z") },
         freeManagerPersonId: undefined,
         freeShopId: undefined,
         version: 1,
@@ -384,9 +384,9 @@ describe("setup/mutations", () => {
           .withIndex("by_userId", (q) => q.eq("userId", user._id))
           .first(),
       );
-      expect(consentState?.termsConsentVersion).toBe("manager-terms-consent-2026-08-23");
+      expect(consentState?.termsConsentVersion).toBe("manager-terms-consent-2026-08-24");
       expect(consentState?.privacyConsentVersion).toBe("manager-privacy-consent-2026-08-13");
-      expect(consentState?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-23");
+      expect(consentState?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-24");
       expect(consentState?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-08-13");
       expect(consentState?.method).toBe("manager_setup");
 
@@ -438,11 +438,11 @@ describe("setup/mutations", () => {
           .map((job) => ({ scheduledTime: job.scheduledTime, args: job.args[0] })),
       ).toEqual([
         {
-          scheduledTime: Date.parse("2026-09-04T15:00:00.000Z"),
+          scheduledTime: Date.parse("2026-10-04T15:00:00.000Z"),
           args: {
             organizationId,
             expectedVersion: 1,
-            expectedDeadlineAt: Date.parse("2026-09-04T15:00:00.000Z"),
+            expectedDeadlineAt: Date.parse("2026-10-04T15:00:00.000Z"),
           },
         },
       ]);

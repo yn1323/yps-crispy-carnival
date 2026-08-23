@@ -45,7 +45,7 @@ describe("sitemap generator", () => {
     const freeToolArticle = entries.find(({ loc }) => new URL(loc).pathname === "/articles/free-shift-tool-selection");
     expect(freeToolArticle).toEqual({
       loc: "https://shiftori.app/articles/free-shift-tool-selection",
-      lastmod: "2026-08-22",
+      lastmod: "2026-08-24",
     });
     expect(entries.find(({ loc }) => new URL(loc).pathname === "/articles")?.lastmod).toBeUndefined();
     expect(
