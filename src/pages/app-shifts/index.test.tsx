@@ -56,7 +56,7 @@ vi.mock("@/src/components/ui/ErrorBoundary", () => ({
 import { APP_ORGANIZATION_RECRUITMENT_SHOP_PAGE_SIZE } from "@/convex/constants";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
 import { ChakraProvider } from "@/src/providers/ChakraProvider";
-import { AppShiftsRoutePage, buildAppShiftsOverview, type RecruitmentSection, resolveShiftsShopFilter } from ".";
+import { AppShiftsRoutePage, buildAppShiftsOverview, type RecruitmentSection } from ".";
 
 const renderPage = (children: ReactNode) => render(<ChakraProvider>{children}</ChakraProvider>);
 
@@ -277,25 +277,6 @@ describe("AppShiftsRoutePage", () => {
 });
 
 describe("app shifts presentation helpers", () => {
-  it("filter未指定をすべてとして扱い、候補外IDはcanonical allへ戻す", () => {
-    expect(resolveShiftsShopFilter(activeShops)).toEqual({
-      kind: "ready",
-      shopFilter: "all",
-      shouldReplaceSearch: false,
-    });
-    expect(resolveShiftsShopFilter(activeShops, "shop-2")).toEqual({
-      kind: "ready",
-      shopFilter: "shop-2",
-      shouldReplaceSearch: false,
-    });
-    expect(resolveShiftsShopFilter(activeShops, "foreign-shop")).toEqual({
-      kind: "ready",
-      shopFilter: "all",
-      shouldReplaceSearch: true,
-    });
-    expect(resolveShiftsShopFilter(null, "shop-2")).toEqual({ kind: "loading" });
-  });
-
   it("元sectionを変更せず、表示対象だけを状態別一覧へまとめる", () => {
     const source = [firstSection, secondSection];
     const snapshot = structuredClone(source);

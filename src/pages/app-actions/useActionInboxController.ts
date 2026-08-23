@@ -4,9 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
-  type ActionInboxAction,
   type ActionInboxConfirmation,
   type ActionInboxItem,
+  buildActionInboxAction,
   buildNotificationFailureActionInboxItem,
   buildStaffRegistrationActionInboxItem,
 } from "@/src/components/features/ActionInbox";
@@ -264,14 +264,14 @@ export function buildActionInboxItems(
         { label: formatDateTime(new Date(item.occurredAt)), icon: "clock" },
       ],
       actions: [
-        actionOrDisabled({
+        buildActionInboxAction({
           enabled: item.canRevoke,
           label: "取り消す",
           emphasis: "danger",
           disabledReason: "閲覧のみ、または契約制限中のため取り消せません。",
           onClick: () => commands.requestRevokeInvitation(item),
         }),
-        actionOrDisabled({
+        buildActionInboxAction({
           enabled: item.canResend,
           label: "再送する",
           emphasis: "primary",
@@ -284,37 +284,6 @@ export function buildActionInboxItems(
       ],
     };
   });
-}
-
-function actionOrDisabled(args: {
-  enabled: boolean;
-  label: string;
-  emphasis?: "primary" | "secondary" | "danger";
-  disabledReason: string;
-  onClick: () => void | Promise<void>;
-  removesItemOnSuccess?: true;
-  successMessage?: string;
-  failureMessage?: string;
-}): ActionInboxAction {
-  if (!args.enabled) {
-    return {
-      label: args.label,
-      emphasis: args.emphasis,
-      disabled: true,
-      disabledReason: args.disabledReason,
-    };
-  }
-  if (args.removesItemOnSuccess) {
-    return {
-      label: args.label,
-      emphasis: args.emphasis,
-      onClick: args.onClick,
-      removesItemOnSuccess: true,
-      successMessage: args.successMessage ?? `${args.label}を受け付けました。`,
-      ...(args.failureMessage ? { failureMessage: args.failureMessage } : {}),
-    };
-  }
-  return { label: args.label, emphasis: args.emphasis, onClick: args.onClick };
 }
 
 function resolveErrorMessage(error: unknown) {

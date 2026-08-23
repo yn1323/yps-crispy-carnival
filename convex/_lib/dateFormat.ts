@@ -3,8 +3,9 @@
  * dayjsが使えない環境向け（文字列ベース）
  */
 
+import { DAY_MS } from "../constants";
+
 const DAY_NAMES = ["日", "月", "火", "水", "木", "金", "土"];
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 export function dateToUtcMs(date: string): number {
@@ -26,7 +27,7 @@ export function formatUtcDate(ms: number): string {
 }
 
 export function addDays(date: string, days: number): string {
-  return formatUtcDate(dateToUtcMs(date) + days * MS_PER_DAY);
+  return formatUtcDate(dateToUtcMs(date) + days * DAY_MS);
 }
 
 /** 月末を超える場合は移動先の月末へ丸めて、暦月単位で日付を戻す。 */
@@ -70,7 +71,7 @@ export function formatDeadlineLabel(deadline: string): string {
 
 /** deadline の翌日 0:00 JST の Unix ms を返す（締切日当日はまだ有効） */
 export function getDeadlineCutoff(deadline: string): number {
-  return dateToUtcMs(deadline) + MS_PER_DAY - JST_OFFSET_MS;
+  return dateToUtcMs(deadline) + DAY_MS - JST_OFFSET_MS;
 }
 
 /** 提出リンクの閲覧期限。シフト開始日の 0:00 JST 以降は提出リンクを閉じる。 */
@@ -108,7 +109,7 @@ export function dateJST(ms: number): string {
 /** JST日付 "YYYY-MM-DD" の1日分を [開始, 終了) の半開区間（Unix ms）で返す */
 export function jstDayRangeMs(date: string): { startMs: number; endMs: number } {
   const startMs = dateToUtcMs(date) - JST_OFFSET_MS;
-  return { startMs, endMs: startMs + MS_PER_DAY };
+  return { startMs, endMs: startMs + DAY_MS };
 }
 
 /** シフト終了日の翌日 0:00 JST 以降は過去シフトとして扱う。 */
@@ -151,7 +152,7 @@ export function formatDateTimeJa(ms: number): string {
 /** "2026-01-20", "2026-01-26" → ["2026-01-20", "2026-01-21", ...] */
 export function generateDateRange(start: string, end: string): string[] {
   const dates: string[] = [];
-  for (let current = dateToUtcMs(start), endMs = dateToUtcMs(end); current <= endMs; current += MS_PER_DAY) {
+  for (let current = dateToUtcMs(start), endMs = dateToUtcMs(end); current <= endMs; current += DAY_MS) {
     dates.push(formatUtcDate(current));
   }
   return dates;

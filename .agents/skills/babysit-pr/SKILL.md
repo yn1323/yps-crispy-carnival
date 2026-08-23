@@ -3,7 +3,7 @@ name: babysit-pr
 description: ユーザーが`$babysit-pr`を明示したとき、現在のcheckoutの依頼範囲にある未push変更をまとめてcommit・pushし、Pull Requestを作成してGHAを監視する。初回push前のローカル全体テストは行わず、GHA失敗時だけ原因に応じたローカル修正・確認を行う。E2E失敗は該当テスト単体で再現確認し、Flakyの可能性を評価して必要な場合だけ修正する。通常の実装、テスト実行、commit、PR相談では自動的に使わない。
 ---
 
-# PRをオールグリーンまで完遂する
+# PRチェックをVRT compare開始まで完遂する
 
 このSkillの明示的な呼び出しを、依頼範囲の修正、テスト更新、commit、push、Pull Request作成、CI再実行の許可として扱う。
 新しいbranchやworktreeの作成、依頼外の変更、secretの変更、VRT差分の承認は許可に含めない。

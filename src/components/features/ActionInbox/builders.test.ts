@@ -1,10 +1,70 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildActionInboxAction,
   buildNotificationFailureActionInboxItem,
   buildStaffRegistrationActionInboxItem,
   type NotificationFailureActionInboxData,
 } from "./builders";
-import type { ActionInboxAction } from "./types";
+import type { ActionInboxAction, ActionInboxActionContext } from "./types";
+
+describe("buildActionInboxAction", () => {
+  it("操作不可なら実行関数と成功・失敗時の契約を公開しない", () => {
+    const action = buildActionInboxAction({
+      enabled: false,
+      label: "再送する",
+      emphasis: "primary",
+      disabledReason: "現在は再送できません。",
+      onClick: vi.fn(),
+      removesItemOnSuccess: true,
+      successMessage: "再送しました。",
+      failureMessage: "再送できませんでした。",
+    });
+
+    expect(action).toEqual({
+      label: "再送する",
+      emphasis: "primary",
+      disabled: true,
+      disabledReason: "現在は再送できません。",
+    });
+  });
+
+  it("通常操作へ任意の操作元contextをそのまま渡す", async () => {
+    const onClick = vi.fn();
+    const action = buildActionInboxAction({
+      enabled: true,
+      label: "取り消す",
+      emphasis: "danger",
+      disabledReason: "現在は取り消せません。",
+      onClick,
+    });
+    const context = { triggerElement: {} as HTMLElement } satisfies ActionInboxActionContext;
+
+    expect(action).toEqual({ label: "取り消す", emphasis: "danger", onClick });
+    if (action.disabled) throw new Error("Action should be enabled");
+    await action.onClick(context);
+    expect(onClick).toHaveBeenCalledExactlyOnceWith(context);
+  });
+
+  it("成功時に項目を削除する操作へ既定成功文と任意の失敗文を設定する", () => {
+    const action = buildActionInboxAction({
+      enabled: true,
+      label: "承認する",
+      disabledReason: "現在は承認できません。",
+      onClick: vi.fn(),
+      removesItemOnSuccess: true,
+      failureMessage: "承認できませんでした。",
+    });
+
+    expect(action).toEqual({
+      label: "承認する",
+      emphasis: undefined,
+      onClick: expect.any(Function),
+      removesItemOnSuccess: true,
+      successMessage: "承認するを受け付けました。",
+      failureMessage: "承認できませんでした。",
+    });
+  });
+});
 
 describe("ActionInbox builders", () => {
   it("スタッフ登録申請を対応ページと同じ表示・操作契約へ変換する", async () => {

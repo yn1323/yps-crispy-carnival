@@ -16,6 +16,7 @@ Archiveには、廃止、置換、棄却された資料と特定時点の監査�
 |---|---|---|---|---|
 | [2026-07-21 セキュリティ再検証台帳](audits/2026/security-validation-2026-07-21.md) | `doc/manual/security-validation-2026-07-21.md` | `point-in-time-audit` | 2026-07-23 | [セキュリティ再検証](../manual/security-validation.md)、[リリース状態](../manual/release-status.md) |
 | [2026-08-12 PRレビューコメント現況監査](audits/2026/pr-review-comments-audit-2026-08-12.md) | `doc/plans/2026-08-12_PRレビューコメント現況監査.md` | `point-in-time-audit` | 2026-08-12 | [テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md)、[リリース状態](../manual/release-status.md) |
+| [2026-08-24 Convex公開面の静的監査](audits/2026-08-24_convex-public-surface.md) | — | `point-in-time-audit` | 2026-08-24 | [セキュリティ方針](../rules/security-strategy.md)、[Convex設計方針](../rules/convex-design-strategy.md)、[テスト方針](../rules/testing-strategy.md) |
 
 ## 理由の種類
 

@@ -13,6 +13,7 @@ import {
 } from "./StaffInvitationDialog";
 
 const personId = (value: string) => value as Id<"organizationPeople">;
+const registrationLinkId = (value: string) => value as Id<"shopRegistrationLinks">;
 
 const candidates: OrganizationPersonCandidate[] = [
   {
@@ -41,10 +42,13 @@ function createInvitation(
     dialog: { isOpen: true, onOpenChange: noop },
     selectedMethod,
     showOrganizationPeopleAddition: true,
+    registrationLinkId: registrationLinkId("registration-link-1"),
     registrationUrl: "https://shiftori.example.com/staff/register/shop_123",
     registrationUrlError: false,
     peopleCapacityResolution: null,
     isRegistrationUrlLoading: false,
+    isConfirmingRegistrationLinkRotation: false,
+    isRotatingRegistrationLink: false,
     isAddingStaffs: false,
     addingOrganizationPersonId: null,
     isAddingOrganizationPerson: false,
@@ -53,6 +57,9 @@ function createInvitation(
     onSelectMethod: noop,
     onBackToMethods: noop,
     onRetryRegistrationUrl: noop,
+    onRequestRegistrationLinkRotation: noop,
+    onCancelRegistrationLinkRotation: noop,
+    onRotateRegistrationLink: noop,
     onAddStaffs: noop,
     onAddOrganizationPerson: noop,
     ...overrides,
@@ -105,6 +112,53 @@ export const LinkInvitationError: Story = {
       registrationUrl: null,
       registrationUrlError: true,
     }),
+  },
+};
+
+export const LinkRotationConfirmation: Story = {
+  args: {
+    invitation: createInvitation("link", {
+      isConfirmingRegistrationLinkRotation: true,
+    }),
+  },
+};
+
+export const LinkRotationConfirmationMobile: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: {
+    invitation: createInvitation("link", {
+      isConfirmingRegistrationLinkRotation: true,
+    }),
+  },
+};
+
+export const LinkRotationConfirmationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <RegistrationLinkRotationDialogHarness />,
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+
+    const trigger = await page.findByRole("button", { name: "登録リンクを再発行" });
+    await userEvent.click(trigger);
+
+    const confirmation = await page.findByRole("alertdialog", { name: "登録リンクを再発行" });
+    await expect(confirmation).toHaveTextContent(
+      "現在のQRコード・送付済みリンク・開いている登録画面から、新しい申請はできなくなります。申請済みのスタッフには影響しません。",
+    );
+    await userEvent.click(within(confirmation).getByRole("button", { name: "キャンセル" }));
+
+    const restoredTrigger = await page.findByRole("button", { name: "登録リンクを再発行" });
+    await waitFor(() => expect(restoredTrigger).toHaveFocus());
+
+    await userEvent.click(restoredTrigger);
+    await userEvent.click(
+      within(await page.findByRole("alertdialog", { name: "登録リンクを再発行" })).getByRole("button", {
+        name: "再発行する",
+      }),
+    );
+    const dialog = await page.findByRole("dialog", { name: "スタッフを追加" });
+    await expect(within(dialog).getByText("https://shiftori.example.com/staff/register/shop_456")).toBeInTheDocument();
   },
 };
 
@@ -272,4 +326,21 @@ function CandidateDialogHarness({ onAdd }: { onAdd: (personId: Id<"organizationP
       />
     )
   );
+}
+
+function RegistrationLinkRotationDialogHarness() {
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [url, setUrl] = useState("https://shiftori.example.com/staff/register/shop_123");
+  const invitation = createInvitation("link", {
+    registrationUrl: url,
+    isConfirmingRegistrationLinkRotation: isConfirming,
+    onRequestRegistrationLinkRotation: () => setIsConfirming(true),
+    onCancelRegistrationLinkRotation: () => setIsConfirming(false),
+    onRotateRegistrationLink: () => {
+      setUrl("https://shiftori.example.com/staff/register/shop_456");
+      setIsConfirming(false);
+    },
+  });
+
+  return <StaffInvitationDialogView invitation={invitation} organizationPeopleContent={candidateList} />;
 }

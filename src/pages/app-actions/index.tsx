@@ -8,10 +8,11 @@ import { ShopFilterMenu } from "@/src/components/features/AuthenticatedApp/ShopF
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 import { Button } from "@/src/components/ui/Button";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
+import { resolveShopFilter } from "@/src/domains/shop/filter";
 import { useActionInboxController } from "./useActionInboxController";
 import { useActionInboxData } from "./useActionInboxData";
 
-type ShopOption = { id: string; name: string };
+type ShopOption = { id: Id<"shops">; name: string };
 
 export function AppActionsRoutePage({
   organizationId,
@@ -26,7 +27,7 @@ export function AppActionsRoutePage({
 }) {
   const navigate = useNavigate();
   const resolvedFilter = useMemo(
-    () => resolveActionShopFilter(activeShops, requestedShopFilter),
+    () => resolveShopFilter(activeShops, requestedShopFilter),
     [activeShops, requestedShopFilter],
   );
   const filterKind = resolvedFilter.kind;
@@ -200,15 +201,4 @@ export function AppActionsReadOnlyNotice() {
       </Alert.Content>
     </Alert.Root>
   );
-}
-
-export function resolveActionShopFilter(
-  activeShops: readonly ShopOption[] | null,
-  requestedShopFilter?: string,
-): { kind: "loading" } | { kind: "ready"; shopFilter: "all" | Id<"shops">; shouldReplaceSearch: boolean } {
-  if (activeShops === null) return { kind: "loading" };
-  if (!requestedShopFilter) return { kind: "ready", shopFilter: "all", shouldReplaceSearch: false };
-  const shop = activeShops.find((candidate) => candidate.id === requestedShopFilter);
-  if (!shop) return { kind: "ready", shopFilter: "all", shouldReplaceSearch: true };
-  return { kind: "ready", shopFilter: shop.id as Id<"shops">, shouldReplaceSearch: false };
 }

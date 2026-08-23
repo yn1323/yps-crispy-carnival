@@ -35,14 +35,14 @@ export function buildStaffRegistrationActionInboxItem(
       { label: `申請 ${formatDateTime(new Date(data.createdAt))}`, icon: "clock" },
     ],
     actions: [
-      actionOrDisabled({
+      buildActionInboxAction({
         enabled: data.canReject,
         label: "却下する",
         emphasis: "danger",
         disabledReason: "閲覧のみ、または契約制限中のため却下できません。",
         onClick: commands.reject,
       }),
-      actionOrDisabled({
+      buildActionInboxAction({
         enabled: data.canApprove,
         label: "承認する",
         emphasis: "primary",
@@ -94,14 +94,14 @@ export function buildNotificationFailureActionInboxItem(
       { label: formatDateTime(new Date(data.lastFailedAt)), icon: "clock" },
     ],
     actions: [
-      actionOrDisabled({
+      buildActionInboxAction({
         enabled: data.canResolve,
         label: "再送せず破棄する",
         emphasis: "danger",
         disabledReason: "閲覧のみ、または契約制限中のため変更できません。",
         onClick: commands.resolve,
       }),
-      actionOrDisabled({
+      buildActionInboxAction({
         enabled: data.canRetry,
         label: "再送する",
         emphasis: "primary",
@@ -115,7 +115,7 @@ export function buildNotificationFailureActionInboxItem(
   };
 }
 
-function actionOrDisabled(args: {
+export function buildActionInboxAction(args: {
   enabled: boolean;
   label: string;
   emphasis?: "primary" | "secondary" | "danger";

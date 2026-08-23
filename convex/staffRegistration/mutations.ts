@@ -30,8 +30,18 @@ const registrationRequestResultValidator = v.object({ status: v.literal("accepte
 const registrationRequestHttpResultValidator = v.object({
   status: v.union(v.literal("accepted"), v.literal("unavailable")),
 });
-const registrationLinkResultValidator = v.object({ token: v.string(), registrationUrl: v.string() });
+const registrationLinkResultValidator = v.object({
+  linkId: v.id("shopRegistrationLinks"),
+  token: v.string(),
+  registrationUrl: v.string(),
+});
+const rotateRegistrationLinkResultValidator = v.object({
+  status: v.union(v.literal("rotated"), v.literal("current")),
+  linkId: v.id("shopRegistrationLinks"),
+  registrationUrl: v.string(),
+});
 const REGISTRATION_LINK_UNAVAILABLE_MESSAGE = "登録リンクの有効期限が切れています";
+const REGISTRATION_LINK_INCONSISTENT_MESSAGE = "登録リンクの状態を確認できません";
 
 type SubmitRegistrationRequestArgs = {
   token: string;
@@ -51,9 +61,10 @@ function buildRegistrationUrl(token: string) {
 async function findActiveRegistrationLink(ctx: { db: MutationCtx["db"]; shop: Doc<"shops"> }) {
   const links = await ctx.db
     .query("shopRegistrationLinks")
-    .withIndex("by_shopId", (q) => q.eq("shopId", ctx.shop._id))
-    .take(10);
-  return links.find((candidate) => !candidate.revokedAt) ?? null;
+    .withIndex("by_shopId_and_revokedAt", (q) => q.eq("shopId", ctx.shop._id).eq("revokedAt", undefined))
+    .take(2);
+  if (links.length > 1) throw new Error(REGISTRATION_LINK_INCONSISTENT_MESSAGE);
+  return links[0] ?? null;
 }
 
 async function submitRegistrationRequestImpl(
@@ -129,19 +140,74 @@ export const ensureShopRegistrationLink = managerMutation({
     const existing = await findActiveRegistrationLink(ctx);
     if (existing) {
       return {
+        linkId: existing._id,
         token: existing.token,
         registrationUrl: buildRegistrationUrl(existing.token),
       };
     }
 
     const token = generateUUID();
-    await ctx.db.insert("shopRegistrationLinks", {
+    const linkId = await ctx.db.insert("shopRegistrationLinks", {
       shopId: ctx.shop._id,
       token,
       createdAt: Date.now(),
     });
     return {
+      linkId,
       token,
+      registrationUrl: buildRegistrationUrl(token),
+    };
+  },
+});
+
+export const rotateShopRegistrationLink = managerMutation({
+  args: { expectedLinkId: v.id("shopRegistrationLinks") },
+  returns: rotateRegistrationLinkResultValidator,
+  handler: async (ctx, { expectedLinkId }) => {
+    const expected = await ctx.db.get(expectedLinkId);
+    if (!expected || expected.shopId !== ctx.shop._id) throw new ConvexError("Not found");
+
+    const active = await findActiveRegistrationLink(ctx);
+    if (expected.revokedAt) {
+      if (!active) throw new Error(REGISTRATION_LINK_INCONSISTENT_MESSAGE);
+      return {
+        status: "current" as const,
+        linkId: active._id,
+        registrationUrl: buildRegistrationUrl(active.token),
+      };
+    }
+    if (!active || active._id !== expected._id) {
+      throw new Error(REGISTRATION_LINK_INCONSISTENT_MESSAGE);
+    }
+
+    const rotatedAt = Date.now();
+    const token = generateUUID();
+    await ctx.db.patch(expected._id, { revokedAt: rotatedAt });
+    const linkId = await ctx.db.insert("shopRegistrationLinks", {
+      shopId: ctx.shop._id,
+      token,
+      createdAt: rotatedAt,
+    });
+
+    if (ctx.organization) {
+      await recordOrganizationAuditEvent(ctx, {
+        organizationId: ctx.organization._id,
+        actorUserId: ctx.user._id,
+        actorPersonId: ctx.organizationMember?.personId,
+        action: "organization.staff_registration_link_rotated",
+        targetKind: "shop",
+        targetId: ctx.shop._id,
+        fromState: expected._id,
+        toState: linkId,
+        correlationId: `${ctx.organization._id}:staff-registration-link:${expected._id}:${linkId}`,
+        occurredAt: rotatedAt,
+        suppressAnalyticsEvent: true,
+      });
+    }
+
+    return {
+      status: "rotated" as const,
+      linkId,
       registrationUrl: buildRegistrationUrl(token),
     };
   },

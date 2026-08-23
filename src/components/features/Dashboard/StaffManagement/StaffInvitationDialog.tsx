@@ -23,10 +23,13 @@ export type StaffInvitationViewModel = {
   dialog: DialogState;
   selectedMethod: StaffInvitationMethod | null;
   showOrganizationPeopleAddition: boolean;
+  registrationLinkId: Id<"shopRegistrationLinks"> | null;
   registrationUrl: string | null;
   registrationUrlError: boolean;
   peopleCapacityResolution: PeopleCapacityResolution | null;
   isRegistrationUrlLoading: boolean;
+  isConfirmingRegistrationLinkRotation: boolean;
+  isRotatingRegistrationLink: boolean;
   isAddingStaffs: boolean;
   addingOrganizationPersonId: Id<"organizationPeople"> | null;
   isAddingOrganizationPerson: boolean;
@@ -35,6 +38,9 @@ export type StaffInvitationViewModel = {
   onSelectMethod: (method: StaffInvitationMethod) => void;
   onBackToMethods: () => void;
   onRetryRegistrationUrl: () => void | Promise<void>;
+  onRequestRegistrationLinkRotation: () => void;
+  onCancelRegistrationLinkRotation: () => void;
+  onRotateRegistrationLink: () => void | Promise<void>;
   onAddStaffs: (data: AddStaffFormData) => void | Promise<void>;
   onAddOrganizationPerson: (personId: Id<"organizationPeople">) => void | Promise<void>;
   onOpenBillingSettings?: () => void;
@@ -101,10 +107,13 @@ export function StaffInvitationDialogView({ invitation, isReadOnly = false, orga
 
 function StaffInvitationDialogBody({ invitation, organizationPeopleContent }: BodyProps) {
   const selectedMethod = getStaffInvitationSelectedMethod(invitation);
-  const isBusy = invitation.isAddingStaffs || invitation.isAddingOrganizationPerson;
+  const isBusy =
+    invitation.isAddingStaffs || invitation.isAddingOrganizationPerson || invitation.isRotatingRegistrationLink;
   const methodButtonRefs = useRef<Partial<Record<StaffInvitationMethod, HTMLButtonElement | null>>>({});
   const detailHeadingRef = useRef<HTMLHeadingElement>(null);
+  const rotationTriggerRef = useRef<HTMLButtonElement>(null);
   const lastSelectedMethodRef = useRef<StaffInvitationMethod>("link");
+  const wasConfirmingRegistrationLinkRotationRef = useRef(false);
 
   useEffect(() => {
     if (!invitation.dialog.isOpen) return;
@@ -118,10 +127,24 @@ function StaffInvitationDialogBody({ invitation, organizationPeopleContent }: Bo
     (previousButton ?? methodButtonRefs.current.link)?.focus();
   }, [invitation.dialog.isOpen, selectedMethod]);
 
+  useEffect(() => {
+    const wasConfirming = wasConfirmingRegistrationLinkRotationRef.current;
+    wasConfirmingRegistrationLinkRotationRef.current = invitation.isConfirmingRegistrationLinkRotation;
+    if (!invitation.dialog.isOpen || !wasConfirming || invitation.isConfirmingRegistrationLinkRotation) return;
+
+    const restoreFocus = () => rotationTriggerRef.current?.focus();
+    if (typeof window.requestAnimationFrame === "function") window.requestAnimationFrame(restoreFocus);
+    else restoreFocus();
+  }, [invitation.dialog.isOpen, invitation.isConfirmingRegistrationLinkRotation]);
+
   const handleSelectMethod = (method: StaffInvitationMethod) => {
     lastSelectedMethodRef.current = method;
     invitation.onSelectMethod(method);
   };
+
+  if (invitation.isConfirmingRegistrationLinkRotation) {
+    return <RegistrationLinkRotationConfirmation />;
+  }
 
   return (
     <Stack gap={5} pt={2} minH={0}>
@@ -143,6 +166,10 @@ function StaffInvitationDialogBody({ invitation, organizationPeopleContent }: Bo
             isLoading={invitation.isRegistrationUrlLoading}
             hasError={invitation.registrationUrlError}
             onRetry={invitation.onRetryRegistrationUrl}
+            onRequestRegistrationLinkRotation={
+              invitation.registrationLinkId ? invitation.onRequestRegistrationLinkRotation : undefined
+            }
+            rotationTriggerRef={rotationTriggerRef}
           />
         </Stack>
       )}
@@ -163,6 +190,16 @@ function StaffInvitationDialogBody({ invitation, organizationPeopleContent }: Bo
       {selectedMethod === "organization" && invitation.showOrganizationPeopleAddition && (
         <Box>{organizationPeopleContent}</Box>
       )}
+    </Stack>
+  );
+}
+
+function RegistrationLinkRotationConfirmation() {
+  return (
+    <Stack gap={3} pt={2} color="gray.800">
+      <Text lineHeight="tall">
+        現在のQRコード・送付済みリンク・開いている登録画面から、新しい申請はできなくなります。申請済みのスタッフには影響しません。
+      </Text>
     </Stack>
   );
 }

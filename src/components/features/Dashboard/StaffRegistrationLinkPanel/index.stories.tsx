@@ -5,6 +5,8 @@ import { expect, userEvent, within } from "storybook/test";
 import { StaffRegistrationLinkPanel } from "./index";
 
 const registrationUrl = "https://shiftori.app/staff/register?token=preview-token";
+const rotatedRegistrationUrl = "https://shiftori.app/staff/register?token=rotated-preview-token";
+const noop = () => {};
 
 const meta = {
   title: "Features/Dashboard/StaffRegistrationLinkPanel",
@@ -25,6 +27,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   args: {
     registrationUrl,
+    onRequestRegistrationLinkRotation: noop,
   },
 };
 
@@ -58,6 +61,34 @@ export const RetryBehavior: Story = {
   },
 };
 
+export const RotationClearsCopiedStateBehavior: Story = {
+  args: {
+    registrationUrl,
+  },
+  parameters: { screenshot: { skip: true } },
+  render: () => <RotationFixture />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async () => {} },
+    });
+
+    try {
+      await userEvent.click(await canvas.findByRole("button", { name: "リンクをコピー" }));
+      await expect(await canvas.findByRole("button", { name: "コピーしました" })).toBeInTheDocument();
+
+      await userEvent.click(await canvas.findByRole("button", { name: "登録リンクを再発行" }));
+      await expect(await canvas.findByText(rotatedRegistrationUrl)).toBeInTheDocument();
+      await expect(await canvas.findByRole("button", { name: "リンクをコピー" })).toBeInTheDocument();
+    } finally {
+      if (clipboardDescriptor) Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
+      else Reflect.deleteProperty(navigator, "clipboard");
+    }
+  },
+};
+
 function RetryFixture() {
   const [hasError, setHasError] = useState(true);
 
@@ -66,6 +97,17 @@ function RetryFixture() {
       registrationUrl={hasError ? null : registrationUrl}
       hasError={hasError}
       onRetry={() => setHasError(false)}
+    />
+  );
+}
+
+function RotationFixture() {
+  const [url, setUrl] = useState(registrationUrl);
+
+  return (
+    <StaffRegistrationLinkPanel
+      registrationUrl={url}
+      onRequestRegistrationLinkRotation={() => setUrl(rotatedRegistrationUrl)}
     />
   );
 }

@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
+import type { Id } from "@/convex/_generated/dataModel";
 import type { StaffInvitationMethod, StaffInvitationViewModel } from "./StaffInvitationDialog";
 import { StaffManagementView } from "./StaffManagementView";
 
@@ -168,10 +169,13 @@ function ProductionStaffInvitationHarness() {
     },
     selectedMethod,
     showOrganizationPeopleAddition: true,
+    registrationLinkId: "registration-link-1" as Id<"shopRegistrationLinks">,
     registrationUrl: "https://shiftori.example.com/staff/register/shop_123",
     registrationUrlError: false,
     peopleCapacityResolution: null,
     isRegistrationUrlLoading: false,
+    isConfirmingRegistrationLinkRotation: false,
+    isRotatingRegistrationLink: false,
     isAddingStaffs: false,
     addingOrganizationPersonId: null,
     isAddingOrganizationPerson: false,
@@ -180,6 +184,9 @@ function ProductionStaffInvitationHarness() {
     onSelectMethod: setSelectedMethod,
     onBackToMethods: () => setSelectedMethod(null),
     onRetryRegistrationUrl: noop,
+    onRequestRegistrationLinkRotation: noop,
+    onCancelRegistrationLinkRotation: noop,
+    onRotateRegistrationLink: noop,
     onAddStaffs: noop,
     onAddOrganizationPerson: noop,
   };

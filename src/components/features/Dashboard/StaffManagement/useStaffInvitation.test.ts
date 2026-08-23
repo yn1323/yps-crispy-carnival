@@ -5,11 +5,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Id } from "@/convex/_generated/dataModel";
 
 const personId = (value: string) => value as Id<"organizationPeople">;
+const registrationLinkId = (value: string) => value as Id<"shopRegistrationLinks">;
 
 const mocks = vi.hoisted(() => ({
   addStaffs: vi.fn(),
   addOrganizationPersonToShop: vi.fn(),
   ensureShopRegistrationLink: vi.fn(),
+  rotateShopRegistrationLink: vi.fn(),
   showErrorToast: vi.fn(),
   showSuccessToast: vi.fn(),
   shopMutationCallCount: 0,
@@ -17,11 +19,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/src/hooks/useShopMutation", () => ({
   useShopMutation: () => {
-    const mutationIndex = mocks.shopMutationCallCount % 3;
+    const mutationIndex = mocks.shopMutationCallCount % 4;
     mocks.shopMutationCallCount += 1;
     if (mutationIndex === 0) return mocks.addStaffs;
     if (mutationIndex === 1) return mocks.addOrganizationPersonToShop;
-    return mocks.ensureShopRegistrationLink;
+    if (mutationIndex === 2) return mocks.ensureShopRegistrationLink;
+    return mocks.rotateShopRegistrationLink;
   },
 }));
 
@@ -36,6 +39,7 @@ beforeEach(() => {
   mocks.addStaffs.mockReset();
   mocks.addOrganizationPersonToShop.mockReset();
   mocks.ensureShopRegistrationLink.mockReset();
+  mocks.rotateShopRegistrationLink.mockReset();
   mocks.showErrorToast.mockReset();
   mocks.showSuccessToast.mockReset();
   mocks.shopMutationCallCount = 0;
@@ -122,7 +126,10 @@ describe("useStaffInvitation", () => {
   });
 
   it("開いただけでは登録リンクを取得せず、リンク選択後は同じopen内で成功結果を再利用する", async () => {
-    mocks.ensureShopRegistrationLink.mockResolvedValue({ registrationUrl: "https://example.com/register" });
+    mocks.ensureShopRegistrationLink.mockResolvedValue({
+      linkId: registrationLinkId("link-1"),
+      registrationUrl: "https://example.com/register",
+    });
     const { result } = renderHook(() => useStaffInvitation());
 
     act(() => result.current.onOpen());
@@ -157,9 +164,10 @@ describe("useStaffInvitation", () => {
 
   it("登録リンク取得失敗は局所エラーにし、raw errorをtoastへ出さず再試行できる", async () => {
     const error = new Error("token=raw-secret を含む内部エラー");
-    mocks.ensureShopRegistrationLink
-      .mockRejectedValueOnce(error)
-      .mockResolvedValueOnce({ registrationUrl: "https://example.com/register-after-retry" });
+    mocks.ensureShopRegistrationLink.mockRejectedValueOnce(error).mockResolvedValueOnce({
+      linkId: registrationLinkId("link-after-retry"),
+      registrationUrl: "https://example.com/register-after-retry",
+    });
     const { result } = renderHook(() => useStaffInvitation());
 
     act(() => result.current.onOpen());
@@ -185,8 +193,8 @@ describe("useStaffInvitation", () => {
   });
 
   it("閉じたdialog sessionの登録リンク取得結果を再open後へ反映しない", async () => {
-    let resolveFirst: ((value: { registrationUrl: string }) => void) | undefined;
-    let resolveSecond: ((value: { registrationUrl: string }) => void) | undefined;
+    let resolveFirst: ((value: { linkId: Id<"shopRegistrationLinks">; registrationUrl: string }) => void) | undefined;
+    let resolveSecond: ((value: { linkId: Id<"shopRegistrationLinks">; registrationUrl: string }) => void) | undefined;
     mocks.ensureShopRegistrationLink
       .mockImplementationOnce(
         () =>
@@ -216,13 +224,19 @@ describe("useStaffInvitation", () => {
     expect(mocks.ensureShopRegistrationLink).toHaveBeenCalledTimes(2);
 
     await act(async () => {
-      resolveSecond?.({ registrationUrl: "https://example.com/current-session" });
+      resolveSecond?.({
+        linkId: registrationLinkId("current-link"),
+        registrationUrl: "https://example.com/current-session",
+      });
       await Promise.resolve();
     });
     expect(result.current.registrationUrl).toBe("https://example.com/current-session");
 
     await act(async () => {
-      resolveFirst?.({ registrationUrl: "https://example.com/stale-session" });
+      resolveFirst?.({
+        linkId: registrationLinkId("stale-link"),
+        registrationUrl: "https://example.com/stale-session",
+      });
       await Promise.resolve();
     });
     expect(result.current.registrationUrl).toBe("https://example.com/current-session");
@@ -259,6 +273,176 @@ describe("useStaffInvitation", () => {
     expect(result.current.registrationUrl).toBeNull();
     expect(result.current.registrationUrlError).toBe(false);
     expect(result.current.isRegistrationUrlLoading).toBe(false);
+    expect(mocks.showErrorToast).not.toHaveBeenCalled();
+  });
+
+  it("登録リンク再発行をsingle-flightで実行し、処理中はDialogと経路を固定して新しいリンクへ更新する", async () => {
+    mocks.ensureShopRegistrationLink.mockResolvedValue({
+      linkId: registrationLinkId("link-before-rotation"),
+      registrationUrl: "https://example.com/register-before-rotation",
+    });
+    let resolveRotation:
+      | ((value: { status: "rotated"; linkId: Id<"shopRegistrationLinks">; registrationUrl: string }) => void)
+      | undefined;
+    mocks.rotateShopRegistrationLink.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRotation = resolve;
+        }),
+    );
+    const { result } = renderHook(() => useStaffInvitation());
+
+    act(() => result.current.onOpen());
+    await act(async () => {
+      result.current.onSelectMethod("link");
+      await Promise.resolve();
+    });
+    act(() => result.current.onRequestRegistrationLinkRotation());
+    expect(result.current.isConfirmingRegistrationLinkRotation).toBe(true);
+
+    let firstRotation: Promise<unknown> | undefined;
+    let secondRotation: Promise<unknown> | undefined;
+    act(() => {
+      firstRotation = result.current.onRotateRegistrationLink();
+      secondRotation = result.current.onRotateRegistrationLink();
+      result.current.onBackToMethods();
+      result.current.onClose();
+    });
+
+    expect(mocks.rotateShopRegistrationLink).toHaveBeenCalledExactlyOnceWith({
+      expectedLinkId: "link-before-rotation",
+    });
+    expect(result.current.dialog.isOpen).toBe(true);
+    expect(result.current.selectedMethod).toBe("link");
+    expect(result.current.isConfirmingRegistrationLinkRotation).toBe(true);
+    expect(result.current.isRotatingRegistrationLink).toBe(true);
+
+    await act(async () => {
+      resolveRotation?.({
+        status: "rotated",
+        linkId: registrationLinkId("link-after-rotation"),
+        registrationUrl: "https://example.com/register-after-rotation",
+      });
+      await Promise.all([firstRotation, secondRotation]);
+    });
+
+    expect(result.current.registrationLinkId).toBe("link-after-rotation");
+    expect(result.current.registrationUrl).toBe("https://example.com/register-after-rotation");
+    expect(result.current.isConfirmingRegistrationLinkRotation).toBe(false);
+    expect(result.current.isRotatingRegistrationLink).toBe(false);
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "登録リンクを再発行しました" });
+  });
+
+  it("再発行済みresponseは現在のリンクへ同期し、再発行成功を重ねて通知しない", async () => {
+    mocks.ensureShopRegistrationLink.mockResolvedValue({
+      linkId: registrationLinkId("stale-expected-link"),
+      registrationUrl: "https://example.com/stale-expected-link",
+    });
+    mocks.rotateShopRegistrationLink.mockResolvedValue({
+      status: "current",
+      linkId: registrationLinkId("current-link"),
+      registrationUrl: "https://example.com/current-link",
+    });
+    const { result } = renderHook(() => useStaffInvitation());
+
+    act(() => result.current.onOpen());
+    await act(async () => {
+      result.current.onSelectMethod("link");
+      await Promise.resolve();
+    });
+    act(() => result.current.onRequestRegistrationLinkRotation());
+    await act(async () => {
+      await result.current.onRotateRegistrationLink();
+    });
+
+    expect(result.current.registrationLinkId).toBe("current-link");
+    expect(result.current.registrationUrl).toBe("https://example.com/current-link");
+    expect(result.current.isConfirmingRegistrationLinkRotation).toBe(false);
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+  });
+
+  it("再発行失敗後は確認画面を維持し、busy解除後に同じリンクから再試行できる", async () => {
+    const error = new Error("登録リンクを再発行できませんでした");
+    mocks.ensureShopRegistrationLink.mockResolvedValue({
+      linkId: registrationLinkId("retry-source-link"),
+      registrationUrl: "https://example.com/retry-source-link",
+    });
+    mocks.rotateShopRegistrationLink.mockRejectedValueOnce(error).mockResolvedValueOnce({
+      status: "rotated",
+      linkId: registrationLinkId("retry-result-link"),
+      registrationUrl: "https://example.com/retry-result-link",
+    });
+    const { result } = renderHook(() => useStaffInvitation());
+
+    act(() => result.current.onOpen());
+    await act(async () => {
+      result.current.onSelectMethod("link");
+      await Promise.resolve();
+    });
+    act(() => result.current.onRequestRegistrationLinkRotation());
+    await act(async () => {
+      await result.current.onRotateRegistrationLink();
+    });
+
+    expect(result.current.isConfirmingRegistrationLinkRotation).toBe(true);
+    expect(result.current.isRotatingRegistrationLink).toBe(false);
+    expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.onRotateRegistrationLink();
+    });
+
+    expect(mocks.rotateShopRegistrationLink).toHaveBeenCalledTimes(2);
+    expect(result.current.registrationLinkId).toBe("retry-result-link");
+    expect(result.current.isConfirmingRegistrationLinkRotation).toBe(false);
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "登録リンクを再発行しました" });
+  });
+
+  it("閉じたdialog sessionの再発行responseを状態やtoastへ反映しない", async () => {
+    mocks.ensureShopRegistrationLink.mockResolvedValue({
+      linkId: registrationLinkId("link-before-read-only"),
+      registrationUrl: "https://example.com/register-before-read-only",
+    });
+    let resolveRotation:
+      | ((value: { status: "rotated"; linkId: Id<"shopRegistrationLinks">; registrationUrl: string }) => void)
+      | undefined;
+    mocks.rotateShopRegistrationLink.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRotation = resolve;
+        }),
+    );
+    const { result, rerender } = renderHook(({ isReadOnly }) => useStaffInvitation(isReadOnly), {
+      initialProps: { isReadOnly: false },
+    });
+
+    act(() => result.current.onOpen());
+    await act(async () => {
+      result.current.onSelectMethod("link");
+      await Promise.resolve();
+    });
+    act(() => result.current.onRequestRegistrationLinkRotation());
+    let rotation: Promise<unknown> | undefined;
+    act(() => {
+      rotation = result.current.onRotateRegistrationLink();
+    });
+
+    rerender({ isReadOnly: true });
+    expect(result.current.dialog.isOpen).toBe(false);
+
+    await act(async () => {
+      resolveRotation?.({
+        status: "rotated",
+        linkId: registrationLinkId("stale-rotated-link"),
+        registrationUrl: "https://example.com/stale-rotated-link",
+      });
+      await rotation;
+    });
+
+    expect(result.current.registrationLinkId).toBeNull();
+    expect(result.current.registrationUrl).toBeNull();
+    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
     expect(mocks.showErrorToast).not.toHaveBeenCalled();
   });
 

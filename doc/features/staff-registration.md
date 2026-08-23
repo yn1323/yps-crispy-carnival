@@ -6,6 +6,7 @@
 
 - `convex/staffRegistration/httpActions.ts` / `convex/http.ts` — 公開申請のOrigin、body、Turnstile、送信頻度を検証するHTTP入口
 - `convex/staffRegistration/queries.ts` / `convex/staffRegistration/mutations.ts` / `convex/staffRegistration/schemas.ts` — 登録リンク、内部申請作成、承認/却下
+- `convex/organization/audit.ts` — 登録リンク再発行の組織監査action。tokenとURLは記録しない
 - `convex/staffRegistration/service.ts` — DashboardとAction Inboxで共有する承認可否判定
 - `convex/staffRegistration/notificationQueries.ts` / `convex/staffRegistration/actions.ts` / `convex/crons.ts` — 承認待ち申請のシフト担当者向け日次通知
 - `convex/schema.ts` — `shopRegistrationLinks` / `staffRegistrationRequests` と dashboard onboarding dismissal、通知用index
@@ -29,7 +30,7 @@
 | ダッシュボード | 「スタッフを追加する」から追加方法を選ぶダイアログを開く。届いた参加申請は「要対応」の件数行を開き、共通カードから承認または確認後に却下する |
 | `/actions` | Dashboardと同じカード・承認可否で、組織または店舗scopeの承認待ち申請を承認/却下する |
 | `/staff/register` | スタッフが名前・シフト通知先メールアドレス・利用規約/プライバシーポリシー同意を入力して申請する |
-| 「スタッフを追加」ダイアログ | 最初に表示されるカードから「スタッフ本人に登録してもらう」「管理者が情報を入力して追加する」「別店舗のスタッフを追加する」を選ぶ。別店舗スタッフのカードは利用可能な場合だけ表示する。各方法の詳細から追加方法へ戻ることができ、同じ開閉セッション中は手入力の下書きを保持し、閉じて開き直したときは初期状態へ戻す。手入力が削除済み人物と同じ正規化メールアドレスに一致しても削除履歴の確認へ分岐せず、通常のスタッフ追加として完了する。本人登録は申請後の管理者承認で完了し、削除済み人物に一致する申請も同じ承認操作で通常追加する。別店舗スタッフは対象店舗へ直接追加する |
+| 「スタッフを追加」ダイアログ | 最初に表示されるカードから「スタッフ本人に登録してもらう」「管理者が情報を入力して追加する」「別店舗のスタッフを追加する」を選ぶ。別店舗スタッフのカードは利用可能な場合だけ表示する。各方法の詳細から追加方法へ戻ることができ、同じ開閉セッション中は手入力の下書きを保持し、閉じて開き直したときは初期状態へ戻す。本人登録では現在のQR/URLを表示し、明示確認後に登録リンクを再発行できる。再発行すると旧QR、送付済みURL、開いている旧登録画面から新しい申請はできなくなるが、申請済みのスタッフには影響しない。手入力が削除済み人物と同じ正規化メールアドレスに一致しても削除履歴の確認へ分岐せず、通常のスタッフ追加として完了する。本人登録は申請後の管理者承認で完了し、削除済み人物に一致する申請も同じ承認操作で通常追加する。別店舗スタッフは対象店舗へ直接追加する |
 
 ## API一覧
 
@@ -44,7 +45,9 @@
 | `api.appOrganization.actionInboxQueries.getActionInbox` | query | Action Inboxへ承認待ち申請を投影し、Dashboardと同じ承認可否を返す |
 | `api.staffRegistration.mutations.approveRequest` | mutation | 申請を承認し、正式スタッフ作成・同意コピー・通知予約を行う。同じ正規化メールアドレスの削除済み人物は同じ組織人物をactiveへ戻し、新しいstaff IDで通常追加する |
 | `api.staffRegistration.mutations.rejectRequest` | mutation | 申請を却下する |
-| `api.staffRegistration.mutations.ensureShopRegistrationLink` | mutation | 店舗固定の登録リンクを作成/取得 |
+| `api.staffRegistration.queries.getActiveRegistrationLink` | query | 店舗の現在有効な登録リンクIDとURLを取得する |
+| `api.staffRegistration.mutations.ensureShopRegistrationLink` | mutation | 有効な登録リンクがなければ作成し、現在のリンクIDとURLを返す |
+| `api.staffRegistration.mutations.rotateShopRegistrationLink` | mutation | 画面が確認したリンクIDを再検証し、旧リンクの失効と新リンクの発行を同じtransactionで行う。同じ再発行要求のretryでは新しいリンクを増やさず現在値を返す |
 | `api.staff.mutations.addStaffs` | mutation | 管理者手入力でスタッフを追加する。同じ正規化メールアドレスの削除済み人物は同じ組織人物をactiveへ戻し、新しいstaff IDで通常追加する |
 | `api.staff.queries.listOrganizationPeopleAvailableForShop` | query | 同じ組織の有効人物から、対象店舗に所属していない候補を取得 |
 | `api.staff.mutations.addOrganizationPersonToShop` | mutation | 選択した組織人物を人物IDで再検証し、対象店舗のスタッフとして追加 |
@@ -72,6 +75,8 @@
 - 本人が自分の情報を変更した場合も、`users`へ同期するのは表示名だけであり、`users.email`、Clerkのログイン方法、組織の請求先メールアドレスは変更しない。
 - 参加申請を承認すると、同じ組織人物がLINE未連携の場合だけ承認済みスタッフへLINE連携案内を送り、募集中シフトがある場合は提出リンクも送る。Dashboardの完了表示は、個別の通知手段を断定せず、必要な案内通知の送信を受け付けたことを示す。
 - 公開HTTP APIは、新規申請、登録済み、申請済み、承認待ち上限到達のすべてで同じ受付結果を返す。登録済みメールアドレスの有無は公開しない。
+- 登録リンクは再発行されるまで再利用できる。再発行では店舗ごとの有効リンクを1件に保ち、旧リンクを即時に利用不能にする。再発行前に保存された承認待ち申請は維持し、通常どおり承認または却下できる。
+- 登録リンク再発行の監査では、リンク情報として店舗IDと旧・新link IDを記録し、tokenと登録URLを含めない。別店舗link、重複active link、古い権限状態では副作用を作らない。
 - 公開HTTP APIは、許可Origin、`application/json`、8 KiB以下のbody、server-side schema、Turnstileの`staff_registration` actionとhostnameを検証してから内部mutationを呼ぶ。旧public mutationは公開しない。
 - 受付頻度は、生値を保存せずSHA-256化した登録link scope、登録linkと正規化メールの組み合わせ、globalで制限する。`STAFF_REGISTRATION_TRUSTED_IP_HEADER=cf-connecting-ip`を設定し、ingressが同headerを上書きする環境ではIP hashも併用する。未設定時や不正なheaderでは、クライアント指定の`X-Forwarded-For`を信頼せずIP制限を省略する。
 - 1店舗の承認待ち申請は最大20件とし、上限到達後は受付結果だけを返して新しい申請を保存しない。Turnstileと頻度制限は自動・大量投入を抑える境界であり、登録linkを知る人による少数の手動虚偽申請はシフト担当者の承認で終端させる。

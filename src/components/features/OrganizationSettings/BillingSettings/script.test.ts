@@ -3,7 +3,6 @@ import type { BillingProductPlan, OrganizationBillingView } from "../types";
 import {
   billingUnavailableMessage,
   formatBillingBoundaryDate,
-  formatPlanPrice,
   getRequiredReductions,
   resolveBillingPlanAction,
 } from "./script";
@@ -64,31 +63,6 @@ describe("OrganizationSettings BillingSettings", () => {
 
   it("トライアル終了境界をJSTの請求開始日へ整形する", () => {
     expect(formatBillingBoundaryDate(Date.parse("2026-09-01T00:00:00+09:00"))).toBe("2026年9月1日");
-  });
-
-  it("Stripeの最小単位を通貨記号付きの料金と請求間隔へ整形する", () => {
-    const yen = formatPlanPrice({
-      currency: "jpy",
-      unitAmount: 3000,
-      interval: "month",
-      intervalCount: 1,
-      taxBehavior: "inclusive",
-    });
-    const dollars = formatPlanPrice({
-      currency: "usd",
-      unitAmount: 1234,
-      interval: "year",
-      intervalCount: 2,
-      taxBehavior: "exclusive",
-    });
-
-    expect(yen.amount).toBe("¥3,000");
-    expect(yen.interval).toBe("1か月ごと");
-    expect(yen.tax).toBe("税込");
-    expect(dollars.amount).toContain("USD");
-    expect(dollars.amount).toContain("12.34");
-    expect(dollars.interval).toBe("2年ごと");
-    expect(dollars.tax).toBe("税別");
   });
 
   it("serverの削減数がなければ利用数と現在上限から安全側に導出する", () => {
