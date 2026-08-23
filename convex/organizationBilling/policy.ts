@@ -736,7 +736,7 @@ function requireNonNegativeInteger(value: number, fieldName: string): void {
 }
 
 /**
- * 通常は事業者作成日の2か月後にあたる日付の00:00 JSTを返す。
+ * 通常は事業者作成日の3か月後にあたる日付の00:00 JSTを返す。
  * 対象deploymentへ開発用日数が設定されていれば、N暦日後の00:00 JSTを返す。
  */
 export function calculateTrialEndsAt(organizationCreatedAt: number): number {
@@ -753,8 +753,8 @@ export function calculateTrialEndsAt(organizationCreatedAt: number): number {
     return createdDayStartAt + debugDurationDays * DAY_MS;
   }
 
-  const targetMonthStartAt = jstMonthStartMs(createdYear, createdMonth + 2);
-  const nextMonthStartAt = jstMonthStartMs(createdYear, createdMonth + 3);
+  const targetMonthStartAt = jstMonthStartMs(createdYear, createdMonth + 3);
+  const nextMonthStartAt = jstMonthStartMs(createdYear, createdMonth + 4);
   const lastDayOfTargetMonth = (nextMonthStartAt - targetMonthStartAt) / DAY_MS;
   const targetDay = Math.min(createdAtJst.getUTCDate(), lastDayOfTargetMonth);
 
