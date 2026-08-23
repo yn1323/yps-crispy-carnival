@@ -1,6 +1,6 @@
 interface:
-  display_name: "PRをオールグリーンまで完遂"
-  short_description: "GHA監視からPRチェック収束まで完遂する手順"
-  default_prompt: "Use $babysit-pr to commit and push the scoped changes, open a PR, monitor GHA, and fix failures with targeted local verification until all checks except VRTApprove pass."
+  display_name: "PRチェックをVRT比較開始まで完遂"
+  short_description: "GHA監視と修正を行いVRT比較開始までPRチェックを収束する"
+  default_prompt: "Use $babysit-pr to commit and push the scoped changes, open a PR, and resolve the latest-head checks through successful VRT captures and the start of compare without waiting for or approving later VRT gates."
 policy:
   allow_implicit_invocation: false
