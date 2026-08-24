@@ -163,6 +163,9 @@ GHA checkだけではレビュー完了を判定できない。現在のreposito
 
 review threadの`isResolved`や`isOutdated`が必要な場合はGraphQLの`reviewThreads`も取得する。`outdated`は行位置が古いことしか示さないため、指摘内容が最新headにも成立するかをコードで確認する。
 reviewが遅い間にGHAが完了しても待機を続ける。固定timeoutは設けず、経過時間だけを理由にレビュー完了、指摘なし、失敗とは判断しない。同じSHAへ再依頼を連打せず、poll間隔を維持して状態を共有する。
+ただし、marker付きの明示依頼後10分を超えても👀、review、Codex comment、reactionのいずれも新しく現れない場合は、完了待ちではなく依頼未受付として扱う。
+repositoryのCode review接続、Automatic reviews設定、正確な`@codex review` trigger、GitHub API取得権限を一度確認する。
+確認後も受付signalがなく、再依頼以外に安全な回復手段がなければ、空のpollを続けず外部integration blockerとして未完了条件と必要な人手確認を報告する。
 GitHubが明示的な失敗を返す、PRが閉じる、headが第三者により変わる、または認証・権限不足で結果を取得できない場合は、事実を確認してから監視をやり直すかユーザーへ必要な対応を求める。
 botが応答したのに既存reactionと区別できないなど、最新SHAへ結び付く完了証拠をGitHub APIから得られない場合は、推測で完了にせず、観測できない証拠と必要な人手確認を示す。
 
