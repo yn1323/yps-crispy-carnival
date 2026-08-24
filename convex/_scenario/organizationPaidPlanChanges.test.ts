@@ -92,8 +92,8 @@ const READY_STRIPE_CONFIGURATION = {
   portalConfigurationId: "bpc_scenario",
 } satisfies StripeBillingConfiguration;
 const FREE_PAID_CHECKOUT_CASES = [
-  { targetPlan: "pro", peopleMax: 20, duplicateWebhook: false },
-  { targetPlan: "business", peopleMax: 40, duplicateWebhook: true },
+  { targetPlan: "pro", peopleMax: 25, duplicateWebhook: false },
+  { targetPlan: "business", peopleMax: 50, duplicateWebhook: true },
 ] as const;
 const stripeProviderMock = vi.fn<typeof globalThis.fetch>(async () => {
   throw new Error("Unexpected Stripe provider call");
@@ -188,7 +188,7 @@ async function seedComplimentaryAtLimits(ctx: MutationCtx, subject: string) {
     await addShop(ctx, seeded.organizationId, `${subject} 第${index + 1}店舗`);
   }
   const staffPeople = [];
-  for (let index = 1; index <= 35; index += 1) {
+  for (let index = 1; index <= 45; index += 1) {
     staffPeople.push(await addStaffPerson(ctx, seeded.organizationId, seeded.shopId, `${subject}_staff_${index}`));
   }
   return { ...seeded, staffPeople };
@@ -783,7 +783,7 @@ describe("有料プラン変更シナリオ", () => {
       state: "pendingActivation",
       currentPlan: "pro",
       targetPlan: "business",
-      peopleUsage: { current: 1, max: 20, pendingInvitations: 0 },
+      peopleUsage: { current: 1, max: 25, pendingInvitations: 0 },
     });
 
     stripeConfigurationMock.mockReturnValue({
@@ -802,7 +802,7 @@ describe("有料プラン変更シナリオ", () => {
     expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
       state: "business",
       currentPlan: "business",
-      peopleUsage: { current: 1, max: 40, pendingInvitations: 0 },
+      peopleUsage: { current: 1, max: 50, pendingInvitations: 0 },
     });
 
     await receiveWebhook(t, {
@@ -972,7 +972,7 @@ describe("有料プラン変更シナリオ", () => {
       state: "scheduledChange",
       currentPlan: "business",
       targetPlan: "pro",
-      peopleUsage: { current: 1, max: 40, pendingInvitations: 0 },
+      peopleUsage: { current: 1, max: 50, pendingInvitations: 0 },
     });
 
     atDeadline = true;
@@ -983,7 +983,7 @@ describe("有料プラン変更シナリオ", () => {
     expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
       state: "pro",
       currentPlan: "pro",
-      peopleUsage: { current: 1, max: 20, pendingInvitations: 0 },
+      peopleUsage: { current: 1, max: 25, pendingInvitations: 0 },
       shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
       managerUsage: { current: 1, max: 5, pendingInvitations: 0 },
     });
@@ -997,7 +997,7 @@ describe("有料プラン変更シナリオ", () => {
     ]);
   });
 
-  it("TrialはBusiness相当で、初回支払い確認中はPro相当を維持し、支払い成功後にBusinessになる", async () => {
+  it("TrialはPro相当で、初回支払い確認中はStandard相当を維持し、支払い成功後にProになる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run((ctx) => seedTrialBusiness(ctx, "trial_business_paid", SCENARIO_NOW));
     const actor = t.withIdentity({ subject: "trial_business_paid" });
@@ -1007,7 +1007,7 @@ describe("有料プラン変更シナリオ", () => {
       state: "trial",
       currentPlan: "trial",
       targetPlan: "business",
-      peopleUsage: { current: 1, max: 40, pendingInvitations: 0 },
+      peopleUsage: { current: 1, max: 50, pendingInvitations: 0 },
       shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
       managerUsage: { current: 1, max: 5, pendingInvitations: 0 },
     });
@@ -1025,7 +1025,7 @@ describe("有料プラン変更シナリオ", () => {
       state: "initialPaymentPending",
       currentPlan: "pro",
       targetPlan: "business",
-      peopleUsage: { current: 1, max: 20, pendingInvitations: 0 },
+      peopleUsage: { current: 1, max: 25, pendingInvitations: 0 },
       shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
       managerUsage: { current: 1, max: 5, pendingInvitations: 0 },
     });
@@ -1044,7 +1044,7 @@ describe("有料プラン変更シナリオ", () => {
     expect(activeSettings?.billing).toMatchObject({
       state: "business",
       currentPlan: "business",
-      peopleUsage: { current: 1, max: 40, pendingInvitations: 0 },
+      peopleUsage: { current: 1, max: 50, pendingInvitations: 0 },
       shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
       managerUsage: { current: 1, max: 5, pendingInvitations: 0 },
     });
@@ -1079,7 +1079,7 @@ describe("有料プラン変更シナリオ", () => {
       state: "grace",
       currentPlan: "pro",
       targetPlan: "business",
-      peopleUsage: { current: 1, max: 20, pendingInvitations: 0 },
+      peopleUsage: { current: 1, max: 25, pendingInvitations: 0 },
       shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
       managerUsage: { current: 1, max: 5, pendingInvitations: 0 },
     });
@@ -1103,7 +1103,7 @@ describe("有料プラン変更シナリオ", () => {
     expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
       state: "business",
       currentPlan: "business",
-      peopleUsage: { current: 1, max: 40, pendingInvitations: 0 },
+      peopleUsage: { current: 1, max: 50, pendingInvitations: 0 },
     });
   });
 
@@ -1171,7 +1171,7 @@ describe("有料プラン変更シナリオ", () => {
     expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
       state: "business",
       currentPlan: "business",
-      peopleUsage: { current: 1, max: 40, pendingInvitations: 0 },
+      peopleUsage: { current: 1, max: 50, pendingInvitations: 0 },
     });
     snapshot = await getBillingSnapshot(t, ids.organizationId);
     expect(snapshot.subscription).toMatchObject({ plan: "business", stripePriceId: BUSINESS_PRICE_ID });
@@ -1265,7 +1265,7 @@ describe("有料プラン変更シナリオ", () => {
       state: "pendingActivation",
       currentPlan: "pro",
       targetPlan: "business",
-      peopleUsage: { current: 1, max: 20, pendingInvitations: 0 },
+      peopleUsage: { current: 1, max: 25, pendingInvitations: 0 },
     });
 
     phase = "expired";
@@ -1284,7 +1284,7 @@ describe("有料プラン変更シナリオ", () => {
     expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
       state: "pro",
       currentPlan: "pro",
-      peopleUsage: { current: 1, max: 20, pendingInvitations: 0 },
+      peopleUsage: { current: 1, max: 25, pendingInvitations: 0 },
     });
     const snapshot = await getBillingSnapshot(t, ids.organizationId);
     expect(snapshot.billing?.state).toEqual({ kind: "active", plan: "pro" });
@@ -1383,7 +1383,7 @@ describe("有料プラン変更シナリオ", () => {
       state: "grace",
       currentPlan: "business",
       targetPlan: "pro",
-      peopleUsage: { current: 1, max: 40, pendingInvitations: 0 },
+      peopleUsage: { current: 1, max: 50, pendingInvitations: 0 },
     });
     const graceSnapshot = await getBillingSnapshot(t, ids.organizationId);
     expect(graceSnapshot.billing?.state).toMatchObject({ kind: "grace", plan: "business", targetPlan: "pro" });
@@ -1412,7 +1412,7 @@ describe("有料プラン変更シナリオ", () => {
     expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
       state: "pro",
       currentPlan: "pro",
-      peopleUsage: { current: 1, max: 20, pendingInvitations: 0 },
+      peopleUsage: { current: 1, max: 25, pendingInvitations: 0 },
     });
     const recovered = await getBillingSnapshot(t, ids.organizationId);
     expect(recovered.billing?.state).toEqual({ kind: "active", plan: "pro" });
@@ -1448,7 +1448,7 @@ describe("有料プラン変更シナリオ", () => {
     expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
       state: "business",
       currentPlan: "business",
-      peopleUsage: { current: 1, max: 40, pendingInvitations: 0 },
+      peopleUsage: { current: 1, max: 50, pendingInvitations: 0 },
     });
     const snapshot = await getBillingSnapshot(t, ids.organizationId);
     expect(snapshot.billing?.state).toEqual({ kind: "active", plan: "business" });
@@ -1470,7 +1470,7 @@ describe("有料プラン変更シナリオ", () => {
     expect(provider.scheduleReleaseAttempts).toBe(1);
   });
 
-  it("BusinessからProは期間末までBusinessを維持し、21人ならPro確定後に上限超過となり人物削除で自動解除する", async () => {
+  it("ProからStandardは期間末までProを維持し、26人ならStandard確定後に上限超過となり人物削除で自動解除する", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedPaidStripeContext(t, {
       subject: "business_pro_over_limit",
@@ -1479,7 +1479,7 @@ describe("有料プラン変更シナリオ", () => {
     });
     const seeded = await t.run(async (ctx) => {
       const extraPeople = [];
-      for (let index = 1; index <= 20; index += 1) {
+      for (let index = 1; index <= 25; index += 1) {
         extraPeople.push(
           await addStaffPerson(ctx, ids.organizationId, ids.shopId, `business_pro_over_limit_staff_${index}`),
         );
@@ -1507,7 +1507,7 @@ describe("有料プラン変更シナリオ", () => {
       state: "scheduledChange",
       currentPlan: "business",
       targetPlan: "pro",
-      peopleUsage: { current: 21, max: 40, pendingInvitations: 0 },
+      peopleUsage: { current: 26, max: 50, pendingInvitations: 0 },
     });
 
     provider.setMode("proPaid");
@@ -1519,7 +1519,7 @@ describe("有料プラン変更シナリオ", () => {
     expect(overLimitSettings?.billing).toMatchObject({
       state: "pro",
       currentPlan: "pro",
-      peopleUsage: { current: 21, max: 20, pendingInvitations: 0 },
+      peopleUsage: { current: 26, max: 25, pendingInvitations: 0 },
       requiredReductions: { people: 1, shops: 0, managers: 0 },
       blockedReason: expect.stringContaining("上限"),
     });
@@ -1547,7 +1547,7 @@ describe("有料プラン変更シナリオ", () => {
     expect(restoredSettings?.billing).toMatchObject({
       state: "pro",
       currentPlan: "pro",
-      peopleUsage: { current: 20, max: 20, pendingInvitations: 0 },
+      peopleUsage: { current: 25, max: 25, pendingInvitations: 0 },
       requiredReductions: { people: 0, shops: 0, managers: 0 },
     });
     expect(restoredSettings?.billing).not.toHaveProperty("blockedReason");
@@ -1561,7 +1561,7 @@ describe("有料プラン変更シナリオ", () => {
     expect(restored.staff?.isDeleted).toBe(true);
   });
 
-  it("complimentary.businessはBusiness上限を使い、Stripe行と課金通知を作らない", async () => {
+  it("complimentary.businessはPro上限を使い、Stripe行と課金通知を作らない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run((ctx) => seedComplimentaryAtLimits(ctx, "complimentary_business"));
 
@@ -1572,7 +1572,7 @@ describe("有料プラン変更シナリオ", () => {
       state: "business",
       currentPlan: "business",
       isComplimentary: true,
-      peopleUsage: { current: 40, max: 40, pendingInvitations: 0 },
+      peopleUsage: { current: 50, max: 50, pendingInvitations: 0 },
       shopUsage: { current: 5, max: 5, pendingInvitations: 0 },
       managerUsage: { current: 5, max: 5, pendingInvitations: 0 },
       requiredReductions: { people: 0, shops: 0, managers: 0 },

@@ -290,12 +290,12 @@ function legacyMigrationPendingSettings(
 function restrictedBlockedReason(state: Extract<Doc<"organizationBillingStates">["state"], { kind: "restricted" }>) {
   switch (state.reason) {
     case "trialEndedWithoutSubscription":
-      return "トライアルが終了しました。\n利用を再開するには、ProまたはBusinessを契約してください。";
+      return "トライアルが終了しました。\n利用を再開するには、StandardまたはProを契約してください。";
     case "scheduledCancellation":
-      return "予約した解約が適用されました。\n利用を再開するには、ProまたはBusinessを契約してください。";
+      return "予約した解約が適用されました。\n利用を再開するには、StandardまたはProを契約してください。";
     case "trialFreeConditionsNotMet":
     case "freeConditionsNotMet":
-      return "無料プランの利用人数または店舗数の上限を超えています。\nユーザーまたは店舗を削除してから、再確認してください。";
+      return "Freeプランの利用人数または店舗数の上限を超えています。\nユーザーまたは店舗を削除してから、再確認してください。";
     case "paymentGraceExpired":
       return "支払い猶予が終了しています。\n支払い方法を更新するか、有料プランを再開してください。";
     case "paymentActivationFailed":
@@ -304,8 +304,8 @@ function restrictedBlockedReason(state: Extract<Doc<"organizationBillingStates">
       return "契約状態を確認できません。\n有料プランを再契約してください。";
     case "planLimitExceeded":
       return state.limitPlan === "pro"
-        ? "Proの利用人数上限を超えています。\n利用人数を上限以内に整理すると、Proを利用できます。"
-        : "無料プランの利用上限を超えています。\n利用人数・店舗数・管理者数を上限以内に整理してください。";
+        ? "Standardの利用人数上限を超えています。\n利用人数を上限以内に整理すると、Standardを利用できます。"
+        : "Freeプランの利用上限を超えています。\n利用人数・店舗数・管理者数を上限以内に整理してください。";
   }
 }
 
@@ -914,7 +914,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     billingCapabilities.canManagePlan || isComplimentary
       ? undefined
       : !stripeBillingAvailable
-        ? "Proの料金は準備中です。"
+        ? "有料プランの料金は準備中です。"
         : !billingState
           ? "設定の移行が完了するまでお待ちください。"
           : (accessDisabledReason ??
@@ -927,17 +927,17 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     billingCapabilities.canUpdatePaymentMethod || isComplimentary
       ? undefined
       : !stripeBillingAvailable
-        ? "Proの料金は準備中です。"
+        ? "有料プランの料金は準備中です。"
         : !billingState
           ? "設定の移行が完了するまでお待ちください。"
           : (accessDisabledReason ??
             (!canAccessCustomerPortal
               ? billingState.state.kind === "trial" && !billingState.state.selectedPaidPlan
-                ? "トライアル終了後のPro継続を登録すると、Stripeで支払い情報を管理できます。"
+                ? "トライアル終了後の有料プラン継続を登録すると、Stripeで支払い情報を管理できます。"
                 : billingState.state.kind === "initialPaymentPending"
                   ? "初回支払いの結果を確認中です。\n確定後に、Stripeで支払い情報を管理できます。"
                   : billingState.state.kind === "active" && billingState.state.plan === "free"
-                    ? "無料プランでは、支払い情報の管理は不要です。\n有料プランを契約するときに、Stripeで登録します。"
+                    ? "Freeプランでは、支払い情報の管理は不要です。\n有料プランを契約するときに、Stripeで登録します。"
                     : billingState.state.kind === "pendingActivation"
                       ? "支払い結果を確認中です。\n確定後に、Stripeで支払い情報を管理できます。"
                       : "現在の契約状態では、Stripeの支払い情報を管理できません。"
@@ -1054,7 +1054,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
                 ? state.restrictAtPeriodEnd === true
                   ? "契約終了日"
                   : "無料適用予定日"
-                : "Pro適用予定日",
+                : "Standard適用予定日",
             date: formatDateJa(state.effectiveAt),
           },
         };
@@ -1067,7 +1067,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
           currentPlan: state.plan,
           ...(state.targetPlan ? { targetPlan: state.targetPlan } : {}),
           blockedReason:
-            "期限までに支払い方法を更新しない場合は無料プランへ変更されます。\n無料プランの利用上限を超えているときは、上限内へ整理するまで業務操作が制限されます。",
+            "期限までに支払い方法を更新しない場合はFreeプランへ変更されます。\nFreeプランの利用上限を超えているときは、上限内へ整理するまで業務操作が制限されます。",
           nextEvent: { label: "支払い猶予期限", date: formatDateTimeJa(state.endsAt) },
         };
         break;
@@ -1118,7 +1118,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
           : restrictedState
             ? "契約制限中は、店舗を追加できません。"
             : policy?.paidFeatureBlockReason === "freePlan"
-              ? "無料プランでは、店舗を追加できません。\n有料プランを選択してください。"
+              ? "Freeプランでは、店舗を追加できません。\n有料プランを選択してください。"
               : policy?.paidFeatureBlockReason === "paymentResultPending"
                 ? "支払い結果が確定してから、店舗を追加できます。"
                 : `店舗は、組織ごとに${policy?.limits?.maxActiveShops ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveShops}件まで登録できます。`;

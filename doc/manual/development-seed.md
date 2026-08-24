@@ -7,7 +7,7 @@
 >
 > 対象: local Convex deployment、または固定したDevelopment deployment
 
-このシードは、開発画面でFree、Trial、Pro、Business、通知失敗、課金制限などを確認するためのデータセットです。  Snapshotの復元やE2E fixtureの初期化には使いません。
+このシードは、開発画面でFree、Trial、Standard、Pro、通知失敗、課金制限などを確認するためのデータセットです。  Snapshotの復元やE2E fixtureの初期化には使いません。
 
 ## 実行できる対象
 
@@ -56,13 +56,13 @@ localでは、現在の`convex/`を読み込んだlocal Convex serverが動作�
 |---|---|
 | `free-capacity` | Free上限、募集承認を実行できない状態 |
 | `trial-ending` | Trial終了間近、募集承認を実行できる状態 |
-| `pro-operations` | Pro、複数店舗、三つの希望提出方式、全募集状態、スタッフのカスタム並び順 |
-| `business-notifications` | Business、通知失敗、LINE連携、確定後の差分 |
-| `pro-scheduled-change` | Proの解約予約 |
+| `pro-operations` | Standard（内部`pro`）、複数店舗、三つの希望提出方式、全募集状態、スタッフのカスタム並び順 |
+| `business-notifications` | Pro（内部`business`）、通知失敗、LINE連携、確定後の差分 |
+| `pro-scheduled-change` | Standard（内部`pro`）の解約予約 |
 | `payment-pending` | 課金の`pendingActivation` |
 | `payment-grace` | 支払猶予中 |
 | `payment-restricted` | `paymentGraceExpired`による利用制限 |
-| `policy-restricted` | `planLimitExceeded`による利用制限 |
+| `policy-restricted` | Standard（内部`pro`）の`planLimitExceeded`による利用制限 |
 
 メールアドレスは`example.test`、LINE識別子は架空値を使います。  通知Outbox、fan-out、遅延deadline、cleanup、Stripe処理、scheduled functionは、実行可能な状態で残しません。
 

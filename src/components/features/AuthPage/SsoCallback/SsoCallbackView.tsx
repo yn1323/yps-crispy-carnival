@@ -1,10 +1,27 @@
-import { Stack, Text } from "@chakra-ui/react";
+import { Box, Spinner, Stack, Text } from "@chakra-ui/react";
+import type { ReactNode } from "react";
 import { Button } from "@/src/components/ui/Button";
 import { AuthError } from "../AuthFormControls";
 import { AuthShell } from "../AuthShell";
 import type { EmailVerificationValues } from "../EmailCodeVerificationForm";
 import { LoginVerificationForm } from "../LoginVerificationForm";
 import type { SsoCallbackRecoveryTarget } from "./useSsoCallbackController";
+
+export function SsoProcessingView({ captcha }: { captcha: ReactNode }) {
+  return (
+    <Stack as="main" minH="100dvh" align="center" justify="center" gap={6} px={{ base: 4, md: 6 }} py={8} bg="gray.50">
+      <Stack role="status" aria-label="認証情報を確認中" align="center" gap={3} textAlign="center">
+        <Spinner size="xl" color="teal.600" borderWidth="3px" />
+        <Text color="gray.700" textStyle="bodySm">
+          認証情報を確認しています
+        </Text>
+      </Stack>
+      <Box w="full" maxW="md">
+        {captcha}
+      </Box>
+    </Stack>
+  );
+}
 
 type SsoClientTrustViewProps = {
   errorMessage?: string;

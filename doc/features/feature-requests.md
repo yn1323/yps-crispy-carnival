@@ -43,7 +43,7 @@ SPの要望Dialogは入力が1項目だけなので、フルスクリーンに�
 
 `/dashboard`や認証済みの組織スコープ画面では、Homeや店舗詳細など画面からactive店舗を一意に特定できる場合だけ、内部で`shopId`を付ける。  店舗を特定できない場合は先頭店舗へfallbackせず、`organizationId`を付ける。  どちらの場合もDialogに対象選択UIは出さない。
 
-`submitForOrganization`はclientから渡された`expectedOrganizationId`とoptionalな`shopId`を信用しない。  送信者のcanonicalな組織所属を必ず検証し、店舗付きの場合は店舗の組織一致とactive状態もserverで再検証する。  Business write policyも送信時に再確認する。
+`submitForOrganization`はclientから渡された`expectedOrganizationId`とoptionalな`shopId`を信用しない。  送信者のcanonicalな組織所属を必ず検証し、店舗付きの場合は店舗の組織一致とactive状態もserverで再検証する。  有料機能のwrite policyも送信時に再確認する。
 
 旧client用の`submit`は選択中店舗をクライアントから受け取り、`managerMutation`でactiveな店舗所属を検証する互換APIとして維持する。  `/dashboard`と認証済みの組織スコープ画面はbrowser storageの店舗IDを組織や店舗の認可根拠に使わない。
 

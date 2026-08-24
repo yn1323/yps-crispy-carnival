@@ -237,13 +237,13 @@ const singleShopDashboardArgs = {
 const proPlanStatusCard = {
   data: {
     kind: "paidPlan",
-    planName: "Pro",
+    planName: "Standard",
     badgeLabel: "利用中",
     nextEventLabel: "次回更新日：2026/9/1",
   },
   defaultExpanded: true,
   usage: {
-    peopleUsage: { current: 12, max: 20 },
+    peopleUsage: { current: 12, max: 25 },
     shopUsage: { current: 2, max: 5 },
   },
   onAction: noop,
@@ -386,7 +386,7 @@ export const SingleShopWithPlanStatus: Story = {
     const canvas = within(canvasElement);
 
     await expect(canvas.getByRole("button", { name: /たなかグループ/ })).toHaveAttribute("aria-expanded", "true");
-    await expect(canvas.getByRole("region", { name: "Proプランの詳細" })).toBeVisible();
+    await expect(canvas.getByRole("region", { name: "Standardプランの詳細" })).toBeVisible();
     await expect(canvas.getByText("次回更新日：2026/9/1")).toBeVisible();
     await expect(canvas.getByRole("heading", { name: "要対応", level: 2 })).toBeVisible();
   },
@@ -409,15 +409,15 @@ export const PlanStatusCompositionBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvas.queryByRole("region", { name: "Proプランの詳細" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("region", { name: "Standardプランの詳細" })).not.toBeInTheDocument();
     await expect(await canvas.findByRole("region", { name: "トライアル終了前の支払い案内" })).toBeVisible();
 
     await userEvent.click(canvas.getByRole("button", { name: "新Backendの非表示状態を表示する" }));
-    await expect(canvas.queryByRole("region", { name: "Proプランの詳細" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("region", { name: "Standardプランの詳細" })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("region", { name: "トライアル終了前の支払い案内" })).not.toBeInTheDocument();
 
     await userEvent.click(canvas.getByRole("button", { name: "プラン詳細を表示する" }));
-    await waitFor(() => expect(canvas.getByRole("region", { name: "Proプランの詳細" })).toBeVisible());
+    await waitFor(() => expect(canvas.getByRole("region", { name: "Standardプランの詳細" })).toBeVisible());
     await expect(canvas.queryByRole("region", { name: "トライアル終了前の支払い案内" })).not.toBeInTheDocument();
   },
 };

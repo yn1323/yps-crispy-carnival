@@ -2,6 +2,7 @@ import { Badge, Box, Container, Flex, Grid, Heading, HStack, Icon, Stack, Text, 
 import type { IconType } from "react-icons";
 import { LuCheck, LuStar, LuStore, LuUserRoundCog, LuUsers } from "react-icons/lu";
 import { ORGANIZATION_PLAN_LIMITS, type OrganizationPlanLimits } from "@/convex/organizationBilling/planLimits";
+import { organizationPlanLabel } from "@/convex/organizationBilling/planPresentation";
 import {
   formatPublicPlanPrice,
   formatPublicPlanPriceLine,
@@ -14,18 +15,18 @@ import { SectionHeading } from "../SectionHeading";
 const planCards = [
   {
     id: "free",
-    name: "Free",
+    name: organizationPlanLabel("free"),
     limits: ORGANIZATION_PLAN_LIMITS.free,
   },
   {
     id: "pro",
-    name: "Pro",
+    name: organizationPlanLabel("pro"),
     limits: ORGANIZATION_PLAN_LIMITS.pro,
     featured: true,
   },
   {
     id: "business",
-    name: "Business",
+    name: organizationPlanLabel("business"),
     limits: ORGANIZATION_PLAN_LIMITS.business,
   },
 ] as const;
@@ -54,7 +55,7 @@ export function PricingSection({ prices }: PricingSectionProps) {
             </Text>
           </VStack>
 
-          <BusinessTrialNotice />
+          <ProTrialNotice />
 
           <Grid templateColumns={{ base: "1fr", lg: "1fr 1.08fr 1fr" }} gap={{ base: 6, lg: 8 }} w="full" maxW="1040px">
             {planCards.map((plan) => (
@@ -67,13 +68,13 @@ export function PricingSection({ prices }: PricingSectionProps) {
   );
 }
 
-function BusinessTrialNotice() {
+function ProTrialNotice() {
   const limits = ORGANIZATION_PLAN_LIMITS.trial;
 
   return (
     <Stack
       as="aside"
-      aria-label="Businessプランの無料トライアル"
+      aria-label="Proプランの無料トライアル"
       align="center"
       gap={{ base: 3, md: 4 }}
       w="full"
@@ -107,7 +108,7 @@ function BusinessTrialNotice() {
         lineHeight="1.4"
         textWrap="balance"
       >
-        Businessプランを無料でお試し
+        Proプランを無料でお試し
       </Text>
       <Flex
         align="center"

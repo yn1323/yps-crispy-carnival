@@ -693,7 +693,7 @@ describe("dashboard/queries", () => {
         .query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now: TRIAL_ENDS_AT });
 
       expect(result).toEqual({
-        peopleUsage: { current: 2, max: 20 },
+        peopleUsage: { current: 2, max: 25 },
         shopUsage: { current: 2, max: 5 },
         managerUsage: { current: 1, max: 5 },
         pendingManagerInvitations: 0,
@@ -727,14 +727,14 @@ describe("dashboard/queries", () => {
       const actor = t.withIdentity({ subject: "dashboard_usage_reservation_expiry" });
 
       await expect(actor.query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now })).resolves.toEqual({
-        peopleUsage: { current: 1, max: 20 },
+        peopleUsage: { current: 1, max: 25 },
         shopUsage: { current: 1, max: 5 },
         managerUsage: { current: 1, max: 5 },
         pendingManagerInvitations: 1,
       });
       await expect(actor.query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now: now + 1 })).resolves.toEqual(
         {
-          peopleUsage: { current: 1, max: 20 },
+          peopleUsage: { current: 1, max: 25 },
           shopUsage: { current: 1, max: 5 },
           managerUsage: { current: 1, max: 5 },
           pendingManagerInvitations: 0,
@@ -773,7 +773,7 @@ describe("dashboard/queries", () => {
           restrictedAt: TRIAL_ENDS_AT,
         },
         expected: {
-          peopleUsage: { current: 1, max: 20 },
+          peopleUsage: { current: 1, max: 25 },
           shopUsage: { current: 1, max: 5 },
           managerUsage: { current: 1, max: 5 },
           pendingManagerInvitations: 0,

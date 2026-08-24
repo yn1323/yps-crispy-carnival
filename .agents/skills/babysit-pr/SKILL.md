@@ -1,11 +1,11 @@
 ---
 name: babysit-pr
-description: ユーザーが`$babysit-pr`を明示したとき、現在のcheckoutの依頼範囲にある未push変更をまとめてcommit・pushし、Pull Requestを作成してGHAを監視する。初回push前のローカル全体テストは行わず、GHA失敗時だけ原因に応じたローカル修正・確認を行う。E2E失敗は該当テスト単体で再現確認し、Flakyの可能性を評価して必要な場合だけ修正する。通常の実装、テスト実行、commit、PR相談では自動的に使わない。
+description: ユーザーが`$babysit-pr`を明示したとき、現在のcheckoutの依頼範囲にある未push変更をcommit・pushしてPull Requestを作成し、GHAと自動レビューを最新headまで監視する。自動レビューの全指摘を優先度にかかわらず検証し、有効なら修正・対象確認・再commit・pushして監視をやり直す。通常の実装、テスト実行、commit、PR相談では自動的に使わない。
 ---
 
-# PRチェックをVRT compare開始まで完遂する
+# PRチェックと自動レビューを最新headで完遂する
 
-このSkillの明示的な呼び出しを、依頼範囲の修正、テスト更新、commit、push、Pull Request作成、CI再実行の許可として扱う。
+このSkillの明示的な呼び出しを、依頼範囲の修正、テスト更新、commit、push、Pull Request作成、自動レビューの再依頼と指摘への返信、CI再実行の許可として扱う。
 新しいbranchやworktreeの作成、依頼外の変更、secretの変更、VRT差分の承認は許可に含めない。
 
 ## 併用スキル
@@ -19,7 +19,7 @@ GitHub・GHAへの接続と監視、失敗原因と修正要否の判断、修�
 
 goal追跡機能を利用でき、未完了のgoalがない場合は、次の内容を一つのgoalとして設定する。
 
-> 依頼範囲の未push変更をcommit、pushしてPull Requestを作成し、GHAを監視する。失敗時は原因に応じてローカルで修正・対象確認を行い、最新head SHAのVRT compare以降を除くcheckをすべて成功させる。
+> 依頼範囲の未push変更をcommit、pushしてPull Requestを作成し、GHAと自動レビューを監視する。失敗または有効な指摘があればローカルで修正・対象確認を行い、最新head SHAのVRT compare以降を除くcheckをすべて成功させ、自動レビューの全指摘を判断済みにする。
 
 未完了のgoalがある場合は勝手に置き換えず、今回の完了条件を作業基準として扱う。
 長い処理ではplanを更新し、進捗、失敗原因、次の対応を簡潔に共有する。
@@ -58,6 +58,9 @@ git diff "$base_ref"...HEAD --stat
 - 依頼範囲に属する既存の未push commitは、現在branchからまとめてpushする。依頼外のcommitが混在する場合は安全に分離できるまでpushしない。
 - stage済みの依頼外変更を安全に分離できない場合はcommit前に停止する。
 - `.env*`、credential、secret、個人情報をcommit、PR本文、logへ含めない。
+
+同じhead branchのopen Pull Requestがある場合は、commitやpushより前に既存の自動レビューinline commentを取得し、最新コードでも成立する指摘を今回の修正へ含める。
+解消すると分かっている指摘を残したまま、まもなく置き換えるhead SHAへ再レビューを依頼しない。
 
 ## 2. 実装とテスト契約を整える
 
@@ -109,7 +112,20 @@ push直前に上記のfetchとremote base refの解決をもう一度行い、`o
 なければ、変更の目的、利用者に見える差分、実施した確認を日本語で記載し、非draftのPull Requestを作成する。
 PR URL、number、base、head branch、head SHAを記録する。
 
-## 6. 最新SHAのcheckを監視する
+自動レビューは新しい非draft Pull Requestの作成時に開始されるため、直後に重複依頼しない。GHAとVRT compare開始まで到達しても最新SHAのレビュー完了を確認できない場合は、そのSHAへ一度だけ明示的に依頼する。
+既存Pull Requestへのpushと、自動レビューまたはGHAの指摘を直した後のpushでは、pushだけを再レビュー開始の証拠にせず、最新head SHAにつき一度だけ`@codex review`をコメントして再レビューを依頼する。
+commentには`<!-- babysit-pr:review-head=<full-head-sha> -->`を含める。再開時はこのmarkerを検索してから依頼し、同じSHAのmarkerがあれば重複投稿しない。
+依頼時のhead SHA、comment ID、作成時刻と、依頼前から存在するCodexのreview・reaction IDを記録する。同じSHAへ待ち時間を理由に再依頼を重ねない。
+
+```bash
+gh api repos/<owner>/<repo>/issues/<pr>/comments \
+  --raw-field body="@codex review
+
+<!-- babysit-pr:review-head=${head_sha} -->" \
+  --jq '{id,created_at,html_url}'
+```
+
+## 6. 最新SHAのcheckと自動レビューを並行監視する
 
 60秒を超えて無言で待たず、30から60秒間隔の短いpollで状態変化を確認する。
 
@@ -117,6 +133,11 @@ PR URL、number、base、head branch、head SHAを記録する。
 gh pr view <pr> --json headRefOid,url
 gh pr checks <pr> --json name,workflow,bucket,state,link
 gh run list --workflow=vrt.yml --commit <head-sha> --event pull_request --json attempt,conclusion,databaseId,headSha,status,url --limit 10
+gh api --paginate repos/<owner>/<repo>/pulls/<pr>/reviews
+gh api --paginate repos/<owner>/<repo>/pulls/<pr>/comments
+gh api --paginate repos/<owner>/<repo>/issues/<pr>/comments
+gh api --paginate repos/<owner>/<repo>/issues/<pr>/reactions
+gh api --paginate repos/<owner>/<repo>/issues/comments/<review-request-comment-id>/reactions
 ```
 
 - PRの`headRefOid`がpushしたcommit SHAと一致することを確認する。
@@ -126,9 +147,43 @@ gh run list --workflow=vrt.yml --commit <head-sha> --event pull_request --json a
 - 一時的なrunnerまたは外部service障害だとlogで確認できた場合だけfailed jobを再実行する。コード失敗をrerunで通そうとしない。
 - flaky testは成功するまで無制限に再実行せず、共有状態、時刻、待機、selector、fixture、runnerの原因を切り分ける。再実行で成功しただけの場合は、修正済みとも失敗原因解消とも扱わない。
 - workflowやテストを無効化し、必須checkを減らして成功させない。
-- 新しいpush後は古いrunを捨て、最新head SHAのcheckを最初から確認する。
+- 新しいpush後は古いrunと古い自動レビュー完了を捨て、最新head SHAのcheckと自動レビューを最初から確認する。
 - VRT workflowは最新head SHAに一致するrunを確認し、`prepare`、`build`、全`capture`が成功して`compare`が開始されるまで待つ。
 - `compare`が開始された後は、`compare`の完了、VRT Reportの公開、VRT Reportコメント、`VRTApprove`を待たない。
+
+### 自動レビューの完了を最新SHAへ結び付ける
+
+GHA checkだけではレビュー完了を判定できない。現在のrepositoryではCodex reviewのactorを`chatgpt-codex-connector[bot]`として確認し、RESTとGraphQLで表記が異なる場合は`chatgpt-codex-connector`のprefixを同一actorとして扱う。
+
+自動レビューの完了は、head SHAが監視開始時から変わっておらず、次のいずれかを確認できた場合だけ成立する。明示的な依頼commentへのCodexの👀は受付または開始のsignalであり、完了ではない。
+
+1. **指摘あり:** Codexのsubmitted reviewの`commit_id`が最新head SHAと一致する。review本体だけで終えず、そのreviewに属するinline commentをすべて取得する。
+2. **SHA付きの指摘なし:** Codexのissue commentが`Reviewed commit`、`headSha`、または同等のfieldで最新head SHAを示し、`Codex Review: Didn't find any major issues`や`<!-- codex-pull-request-review-summary -->`の成功statusなどで指摘なしを明示する。
+3. **reactionによる指摘なし:** 新規Pull Requestでは、作成後にCodexの新しい👍 reactionが作られ、その間headが変わっていない。既存Pull Requestへのpush後は、最新SHAのmarker付き`@codex review`依頼より後に、依頼前のsnapshotにはなかったCodexの👍 reactionが作られている。PR本体と再レビュー依頼commentの両方のreactionを確認する。既存Pull Requestで依頼前からあるreactionは、作成時刻にかかわらず最新SHAの証拠に使わない。
+
+review threadの`isResolved`や`isOutdated`が必要な場合はGraphQLの`reviewThreads`も取得する。`outdated`は行位置が古いことしか示さないため、指摘内容が最新headにも成立するかをコードで確認する。
+reviewが遅い間にGHAが完了しても待機を続ける。固定timeoutは設けず、経過時間だけを理由にレビュー完了、指摘なし、失敗とは判断しない。同じSHAへ再依頼を連打せず、poll間隔を維持して状態を共有する。
+ただし、marker付きの明示依頼後10分を超えても👀、review、Codex comment、reactionのいずれも新しく現れない場合は、完了待ちではなく依頼未受付として扱う。
+repositoryのCode review接続、Automatic reviews設定、正確な`@codex review` trigger、GitHub API取得権限を一度確認する。
+確認後も受付signalがなく、再依頼以外に安全な回復手段がなければ、空のpollを続けず外部integration blockerとして未完了条件と必要な人手確認を報告する。
+GitHubが明示的な失敗を返す、PRが閉じる、headが第三者により変わる、または認証・権限不足で結果を取得できない場合は、事実を確認してから監視をやり直すかユーザーへ必要な対応を求める。
+botが応答したのに既存reactionと区別できないなど、最新SHAへ結び付く完了証拠をGitHub APIから得られない場合は、推測で完了にせず、観測できない証拠と必要な人手確認を示す。
+
+### 自動レビューの全指摘を判断する
+
+最新reviewだけでなく、以前のheadに付いた未判断の自動レビュー指摘も列挙する。古い指摘は、最新headですでに直ったか、まだ成立するかを確認する。
+
+| 判定 | 対応 |
+|---|---|
+| 最新headでも成立する | 優先度にかかわらず修正し、変更契約に対応する対象限定のローカル確認を行う |
+| すでに修正済み | 修正されたコードと必要なテストを確認し、追加変更が不要な根拠を記録する |
+| false positive、重複、またはPR変更と無関係 | コード、テスト、仕様の具体的な根拠を確認し、簡潔に返信する |
+| 正当だが新しい権限や独立した製品判断が必要 | 自分で先送りして完了にせず、未達条件と必要な判断をユーザーへ示す |
+
+P0からP3などのpriorityは影響度の情報であり、修正不要の理由ではない。PRの変更で生じる、または変更契約に含まれる有効な指摘は、P2やP3でも修正する。
+「軽微」「今回は見送る」「別PRで対応する」だけで不要判定にしない。修正しない判断には、誤検知、最新headで解消済み、重複、PRと無関係、または新しい権限・製品判断が必要であることの具体的な根拠を要求する。
+
+有効な指摘を修正した場合は、自己レビューと対象限定のローカル確認を通し、意味のある単位でcommit、pushする。その時点で前のCIとレビュー完了は無効となるため、新しいhead SHAへ一度だけ`@codex review`を依頼し、GHAと自動レビューを両方最初から監視する。
 
 ### VRT compare以降の例外
 
@@ -151,10 +206,12 @@ cancelled、failure、pending、想定外のskippedまたはmissingをオール�
 - 依頼範囲の変更がcommit、push済みで、Pull Requestのhead SHAと一致する。
 - 最新head SHAのVRT `prepare`、`build`、全`capture`が成功し、`compare`が開始された。
 - 最新head SHAのVRT `compare`以降を除く全checkが成功した。
+- 最新head SHAに結び付くCodex review、指摘なしcomment・summary、またはPull Request作成・レビュー依頼後の新しい👍を確認している。
+- 新旧headの自動レビューinline commentをすべて列挙し、有効な指摘は修正済み、それ以外は具体的な根拠を記録済みで、未判断の指摘がない。
 - 依頼外の既存変更を編集、stage、commitしていない。
 
 goal追跡を開始していた場合は、この時点でだけcompleteにする。
-PR URL、最新SHA、ローカル検証結果、PR check結果、VRTが`compare`へ到達したこと、残した依頼外変更を報告する。
+PR URL、最新SHA、ローカル検証結果、PR check結果、VRTが`compare`へ到達したこと、自動レビューの完了根拠と各指摘の判断、残した依頼外変更を報告する。
 
 現在branchの履歴が安全にPR化できない、必要なserverやcredentialがない、`VRTApprove`以外の人手承認が必要、または外部障害が続く場合は、勝手にbranch作成、secret変更、check回避を行わない。
 確認済みの事実と必要な対応を示し、完了条件を未達のまま報告する。

@@ -1,4 +1,4 @@
-export type PaidPlanName = "Pro" | "Business";
+export type PaidPlanName = "Standard" | "Pro";
 export type PlanName = "Free" | PaidPlanName;
 
 export type DashboardPlanStatusSource =

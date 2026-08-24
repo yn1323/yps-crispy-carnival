@@ -1,6 +1,5 @@
-import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
 import { ClerkCaptcha } from "../AuthFormControls";
-import { SsoClientTrustView, SsoRecoveryView } from "./SsoCallbackView";
+import { SsoClientTrustView, SsoProcessingView, SsoRecoveryView } from "./SsoCallbackView";
 import { useSsoCallbackController } from "./useSsoCallbackController";
 
 export function SsoCallbackPage({ redirectTo }: { redirectTo: string }) {
@@ -19,8 +18,7 @@ export function SsoCallbackPage({ redirectTo }: { redirectTo: string }) {
 
   return (
     <>
-      <ClerkCaptcha />
-      {isProcessing && <FullPageSpinner />}
+      {isProcessing && <SsoProcessingView captcha={<ClerkCaptcha />} />}
       {viewState.kind === "client-trust" && (
         <SsoClientTrustView
           errorMessage={errorMessage}
@@ -45,4 +43,4 @@ export function SsoCallbackPage({ redirectTo }: { redirectTo: string }) {
   );
 }
 
-export { SsoClientTrustView, SsoRecoveryView } from "./SsoCallbackView";
+export { SsoClientTrustView, SsoProcessingView, SsoRecoveryView } from "./SsoCallbackView";

@@ -43,12 +43,12 @@ const canonicalOrganizationOptions = [
 const paidPlanStatusCard = {
   data: {
     kind: "paidPlan",
-    planName: "Pro",
+    planName: "Standard",
     badgeLabel: "利用中",
     nextEventLabel: "次回更新日：2026/9/1",
   },
   usage: {
-    peopleUsage: { current: 12, max: 20 },
+    peopleUsage: { current: 12, max: 25 },
     shopUsage: { current: 2, max: 5 },
   },
   defaultExpanded: true,

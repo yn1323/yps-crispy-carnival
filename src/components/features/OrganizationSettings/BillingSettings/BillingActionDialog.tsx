@@ -1,4 +1,5 @@
 import { Box, Grid, Stack, Text } from "@chakra-ui/react";
+import { organizationPlanSentenceLabel } from "@/convex/organizationBilling/planPresentation";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
 import {
@@ -8,6 +9,8 @@ import {
   formatPlanPrice,
   planLabel,
 } from "./script";
+
+const FREE_PLAN_SENTENCE_LABEL = organizationPlanSentenceLabel("free");
 
 type Props = {
   dialog: BillingActionDialogState | null;
@@ -114,7 +117,10 @@ function StartPaidPlanSummary({
               : "取得できませんでした"
         }
       />
-      <SummaryRow label="請求開始" value={dialog.billingStartsOn} />
+      {dialog.source === "trial" && (
+        <SummaryRow label="トライアル最終日" value={dialog.trialEndsOn ?? "現在の契約状態に従います"} />
+      )}
+      <SummaryRow label="請求開始日" value={dialog.billingStartsOn} />
       {(dialog.price.status === "unavailable" || dialog.price.status === "error") && (
         <RetryButton label="料金を再読み込みする" onRetry={onRetry} />
       )}
@@ -132,7 +138,7 @@ function PaidPlanChangeSummary({
   const preview = dialog.preview.status === "available" ? dialog.preview.value : null;
   return (
     <>
-      <SummaryRow label="変更先" value="Business" />
+      <SummaryRow label="変更先" value={planLabel(dialog.targetPlan)} />
       <SummaryRow
         label="今すぐの請求額"
         value={
@@ -203,7 +209,7 @@ function dialogContent(dialog: BillingActionDialogState): {
       return dialog.source === "trial"
         ? {
             title: `トライアル終了後も${planLabel(dialog.targetPlan)}を継続しますか？`,
-            description: "トライアル最終日までは請求されません。",
+            description: "トライアル最終日までは料金がかからず、その翌日から請求が始まります。",
             submitLabel: "支払い情報の登録へ進む",
             submitColorPalette: "teal",
           }
@@ -216,11 +222,11 @@ function dialogContent(dialog: BillingActionDialogState): {
           };
     case "changePaidPlanNow":
       return {
-        title: "Businessへ変更しますか？",
+        title: "Proへ変更しますか？",
         description: "残りの契約期間に応じた差額を日割りで直ちに請求します。\n次回更新日は変わりません。",
-        submitLabel: "Businessへ変更",
+        submitLabel: "Proへ変更",
         submitColorPalette: "teal",
-        note: "支払いの成功を確認するまでは、Proを利用します。",
+        note: "支払いの成功を確認するまでは、Standardを利用します。",
       };
     case "cancelTrialContinuation":
       return {
@@ -228,7 +234,7 @@ function dialogContent(dialog: BillingActionDialogState): {
         description: "トライアルは最終日までそのまま利用できます。",
         submitLabel: "有料継続を取り消す",
         submitColorPalette: "red",
-        note: "取り消すとトライアル終了後は無料プランへ変更されます。店舗・ユーザー・過去のシフトは削除されません。無料プランの上限を超える場合は、上限内へ整理するまで業務操作が制限されます。",
+        note: `取り消すとトライアル終了後は${FREE_PLAN_SENTENCE_LABEL}へ変更されます。店舗・ユーザー・過去のシフトは削除されません。${FREE_PLAN_SENTENCE_LABEL}の上限を超える場合は、上限内へ整理するまで業務操作が制限されます。`,
       };
     case "schedulePlanChange":
       return {
@@ -244,7 +250,7 @@ function dialogContent(dialog: BillingActionDialogState): {
         description: "現在の支払い済み期間が終わるまでは、このプランを利用します。",
         submitLabel: "解約する",
         submitColorPalette: "red",
-        note: "解約後は無料プランへ変更されます。店舗・ユーザー・過去のシフトは削除されません。無料プランの上限を超える場合は、上限内へ整理するまで業務操作が制限されます。",
+        note: `解約後は${FREE_PLAN_SENTENCE_LABEL}へ変更されます。店舗・ユーザー・過去のシフトは削除されません。${FREE_PLAN_SENTENCE_LABEL}の上限を超える場合は、上限内へ整理するまで業務操作が制限されます。`,
       };
     case "cancelScheduledPlanChange":
       return dialog.isServiceStop

@@ -104,30 +104,35 @@ async function derivePlanForExistingUser(
   user: Doc<"users">,
   asOfDate: string,
 ): Promise<AccountDeletionPlan> {
-  const [activeMembers, readOnlyMembers, activePeople, activeStaffs, activeShopMembers] = await Promise.all([
-    ctx.db
-      .query("organizationMembers")
-      .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", "active"))
-      .take(ASSOCIATION_SCAN_LIMIT + 1),
-    ctx.db
-      .query("organizationMembers")
-      .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", "readOnly"))
-      .take(ASSOCIATION_SCAN_LIMIT + 1),
-    ctx.db
-      .query("organizationPeople")
-      .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", "active"))
-      .take(ASSOCIATION_SCAN_LIMIT + 1),
-    ctx.db
-      .query("staffs")
-      .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
-      .take(ASSOCIATION_SCAN_LIMIT + 1),
-    ctx.db
-      .query("shopMembers")
-      .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
-      .take(ASSOCIATION_SCAN_LIMIT + 1),
-  ]);
+  const [activeMembers, readOnlyMembers, removedMembers, activePeople, activeStaffs, activeShopMembers] =
+    await Promise.all([
+      ctx.db
+        .query("organizationMembers")
+        .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", "active"))
+        .take(ASSOCIATION_SCAN_LIMIT + 1),
+      ctx.db
+        .query("organizationMembers")
+        .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", "readOnly"))
+        .take(ASSOCIATION_SCAN_LIMIT + 1),
+      ctx.db
+        .query("organizationMembers")
+        .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", "removed"))
+        .take(ASSOCIATION_SCAN_LIMIT + 1),
+      ctx.db
+        .query("organizationPeople")
+        .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", "active"))
+        .take(ASSOCIATION_SCAN_LIMIT + 1),
+      ctx.db
+        .query("staffs")
+        .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
+        .take(ASSOCIATION_SCAN_LIMIT + 1),
+      ctx.db
+        .query("shopMembers")
+        .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
+        .take(ASSOCIATION_SCAN_LIMIT + 1),
+    ]);
   if (
-    [activeMembers, readOnlyMembers, activePeople, activeStaffs, activeShopMembers].some(
+    [activeMembers, readOnlyMembers, removedMembers, activePeople, activeStaffs, activeShopMembers].some(
       (rows) => rows.length > ASSOCIATION_SCAN_LIMIT,
     )
   ) {
@@ -199,19 +204,31 @@ async function derivePlanForExistingUser(
     };
   }
   if (organizationIds.size > 1) return { status: "blocked", reason: "multipleOrganizations" };
-  if (activeMembers.length !== 1 || readOnlyMembers.length !== 0 || activePeople.length !== 1) {
+  if (readOnlyMembers.length !== 0 || activePeople.length !== 1 || activeMembers.length > 1) {
     return { status: "blocked", reason: "inconsistentAssociation" };
   }
 
   const organizationId = [...organizationIds][0];
   if (!organizationId) return { status: "blocked", reason: "inconsistentAssociation" };
-  const [organization, person] = await Promise.all([ctx.db.get(organizationId), ctx.db.get(activeMembers[0].personId)]);
-  const member = activeMembers[0];
+  const activePerson = activePeople[0];
+  const matchingRemovedMembers = removedMembers.filter(
+    (candidate) => candidate.organizationId === organizationId && candidate.personId === activePerson._id,
+  );
+  const member = activeMembers[0] ?? (matchingRemovedMembers.length === 1 ? matchingRemovedMembers[0] : null);
+  if (!member) return { status: "blocked", reason: "inconsistentAssociation" };
+  const associationKind = member.status === "active" ? "activeManager" : "formerManager";
+  if (
+    (associationKind === "activeManager" && activeMembers.length !== 1) ||
+    (associationKind === "formerManager" && (activeMembers.length !== 0 || matchingRemovedMembers.length !== 1))
+  ) {
+    return { status: "blocked", reason: "inconsistentAssociation" };
+  }
+  const [organization, person] = await Promise.all([ctx.db.get(organizationId), ctx.db.get(member.personId)]);
   if (
     !organization ||
     organization.isDeleted ||
     !person ||
-    activePeople[0]._id !== person._id ||
+    activePerson._id !== person._id ||
     member.organizationId !== organization._id ||
     member.userId !== user._id ||
     member.personId !== person._id ||
@@ -235,7 +252,12 @@ async function derivePlanForExistingUser(
       )
       .take(ASSOCIATION_SCAN_LIMIT + 1),
   ]);
-  if (!billingState || !validManagerPersonIds.includes(person._id) || shops.length > ASSOCIATION_SCAN_LIMIT) {
+  if (
+    !billingState ||
+    shops.length > ASSOCIATION_SCAN_LIMIT ||
+    (associationKind === "activeManager" && !validManagerPersonIds.includes(person._id)) ||
+    (associationKind === "formerManager" && validManagerPersonIds.includes(person._id))
+  ) {
     return { status: "blocked", reason: "inconsistentAssociation" };
   }
 
@@ -263,12 +285,14 @@ async function derivePlanForExistingUser(
     const previewFingerprint = await fingerprint({
       version: 1,
       action: "leaveOrganization",
+      associationKind,
       userId: user._id,
       organizationId: organization._id,
       organizationUpdatedAt: organization.updatedAt,
       personId: person._id,
       personUpdatedAt: person.updatedAt,
       memberId: member._id,
+      memberStatus: member.status,
       memberUpdatedAt: member.updatedAt,
       billingStateId: billingState._id,
       billingVersion: billingState.version,
@@ -287,6 +311,10 @@ async function derivePlanForExistingUser(
       futureAssignmentCount: departurePlan.removalPreview.assignmentCount,
       previewFingerprint,
     };
+  }
+
+  if (associationKind === "formerManager") {
+    return { status: "blocked", reason: "inconsistentAssociation" };
   }
 
   const eligibility = await getOrganizationDeletionEligibility(ctx, {
@@ -309,6 +337,7 @@ async function derivePlanForExistingUser(
       personId: person._id,
       personUpdatedAt: person.updatedAt,
       memberId: member._id,
+      memberStatus: member.status,
       memberUpdatedAt: member.updatedAt,
       billingStateId: billingState._id,
       billingVersion: billingState.version,

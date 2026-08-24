@@ -172,12 +172,12 @@ describe("organization/queries.getSettings", () => {
     expect(result.billing.hasTrialContinuation).toBe(false);
     expect(result.billing.canUpdatePaymentMethod).toBe(false);
     expect(result.billing.paymentMethodDisabledReason).toBe(
-      "トライアル終了後のPro継続を登録すると、Stripeで支払い情報を管理できます。",
+      "トライアル終了後の有料プラン継続を登録すると、Stripeで支払い情報を管理できます。",
     );
     expect(result.billing.canScheduleFree).toBe(false);
   });
 
-  it("トライアル終了後のPro継続登録済み状態を画面用DTOへ返す", async () => {
+  it("トライアル終了後の有料プラン継続登録済み状態を画面用DTOへ返す", async () => {
     const t = convexTest(schema, modules);
     const trialEndsAt = Date.parse("2026-09-01T00:00:00+09:00");
     const ids = await t.run(async (ctx) => {
@@ -357,7 +357,7 @@ describe("organization/queries.getSettings", () => {
         isComplimentary: false,
         hasTrialContinuation: false,
         hasStripeCustomer: true,
-        peopleUsage: { current: 1, max: 20, pendingInvitations: 1 },
+        peopleUsage: { current: 1, max: 25, pendingInvitations: 1 },
         shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
         managerUsage: { current: 1, max: 5, pendingInvitations: 1 },
         requiredReductions: { people: 0, shops: 0, managers: 0 },
@@ -663,7 +663,7 @@ describe("organization/queries.getSettings", () => {
     expect(result?.billing).toMatchObject({
       state: "trial",
       currentPlan: "trial",
-      peopleUsage: { current: 1, max: 40, pendingInvitations: 0 },
+      peopleUsage: { current: 1, max: 50, pendingInvitations: 0 },
       shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
       managerUsage: { current: 1, max: 5, pendingInvitations: 0 },
       stripeBillingAvailable: false,
@@ -671,8 +671,8 @@ describe("organization/queries.getSettings", () => {
       canUpdatePaymentMethod: false,
       canUpdateBillingEmail: true,
       canScheduleFree: false,
-      managePlanDisabledReason: "Proの料金は準備中です。",
-      paymentMethodDisabledReason: "Proの料金は準備中です。",
+      managePlanDisabledReason: "有料プランの料金は準備中です。",
+      paymentMethodDisabledReason: "有料プランの料金は準備中です。",
     });
   });
 
@@ -704,7 +704,7 @@ describe("organization/queries.getSettings", () => {
       stripeBillingAvailable: false,
       hasStripeCustomer: true,
       canUpdatePaymentMethod: false,
-      paymentMethodDisabledReason: "Proの料金は準備中です。",
+      paymentMethodDisabledReason: "有料プランの料金は準備中です。",
     });
   });
 
@@ -880,7 +880,7 @@ describe("organization/queries.getSettings", () => {
       .withIdentity({ subject: "settings_unassigned_staff" })
       .query(api.organization.queries.getSettings, { shopId: ids.shopId });
 
-    expect(result?.billing.peopleUsage).toEqual({ current: 2, max: 40, pendingInvitations: 0 });
+    expect(result?.billing.peopleUsage).toEqual({ current: 2, max: 50, pendingInvitations: 0 });
     expect(
       result?.people.map(({ id, isStaff, managerRole, shopNames, shopIds }) => ({
         id,
@@ -1229,7 +1229,7 @@ describe("organization/queries.getSettings", () => {
         currentPlan: "business",
         isComplimentary: true,
         hasTrialContinuation: false,
-        peopleUsage: { current: 1, max: 40, pendingInvitations: 0 },
+        peopleUsage: { current: 1, max: 50, pendingInvitations: 0 },
         shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
         managerUsage: { current: 1, max: 5, pendingInvitations: 0 },
         canManagePlan: false,

@@ -47,7 +47,7 @@ async function seedActiveOrganizationStaff(
 
 async function seedFullProWithReadOnlyNonStaff(ctx: MutationCtx, subject: string) {
   const manager = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
-  for (let index = 0; index < 19; index += 1) {
+  for (let index = 0; index < 24; index += 1) {
     await seedActiveOrganizationStaff(ctx, {
       organizationId: manager.organizationId,
       shopId: manager.shopId,
@@ -1965,7 +1965,7 @@ describe("organizationInvitation/mutations", () => {
         email: ids.targetEmail,
         requestId: "readonly-invite-create",
       }),
-    ).rejects.toThrow("利用人数が現在のプラン上限を超えます。\n現在20名、上限20名です。");
+    ).rejects.toThrow("利用人数が現在のプラン上限を超えます。\n現在25名、上限25名です。");
 
     const invitations = await t.run((ctx) =>
       ctx.db
@@ -2063,7 +2063,7 @@ describe("organizationInvitation/mutations", () => {
         subject: "invitation_email_drift_staff",
         email: "before-change@example.com",
       });
-      for (let index = 0; index < 18; index += 1) {
+      for (let index = 0; index < 23; index += 1) {
         await seedActiveOrganizationStaff(ctx, {
           organizationId: manager.organizationId,
           shopId: manager.shopId,
@@ -2128,7 +2128,7 @@ describe("organizationInvitation/mutations", () => {
         subject: "parallel_accept_owner",
         plan: "pro",
       });
-      for (let index = 0; index < 18; index += 1) {
+      for (let index = 0; index < 23; index += 1) {
         await seedActiveOrganizationStaff(ctx, {
           organizationId: manager.organizationId,
           shopId: manager.shopId,
@@ -2187,7 +2187,7 @@ describe("organizationInvitation/mutations", () => {
         )
         .collect(),
     }));
-    expect(state.people).toHaveLength(20);
+    expect(state.people).toHaveLength(25);
     expect(state.targetMembers).toHaveLength(2);
     expect(state.competingStaff).toEqual([]);
   });

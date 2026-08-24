@@ -215,6 +215,7 @@ import type * as organizationBilling_deadline from "../organizationBilling/deadl
 import type * as organizationBilling_mutations from "../organizationBilling/mutations.js";
 import type * as organizationBilling_notification from "../organizationBilling/notification.js";
 import type * as organizationBilling_planLimits from "../organizationBilling/planLimits.js";
+import type * as organizationBilling_planPresentation from "../organizationBilling/planPresentation.js";
 import type * as organizationBilling_policy from "../organizationBilling/policy.js";
 import type * as organizationBilling_queries from "../organizationBilling/queries.js";
 import type * as organizationBilling_service from "../organizationBilling/service.js";
@@ -489,6 +490,7 @@ declare const fullApi: ApiFromModules<{
   "organizationBilling/mutations": typeof organizationBilling_mutations;
   "organizationBilling/notification": typeof organizationBilling_notification;
   "organizationBilling/planLimits": typeof organizationBilling_planLimits;
+  "organizationBilling/planPresentation": typeof organizationBilling_planPresentation;
   "organizationBilling/policy": typeof organizationBilling_policy;
   "organizationBilling/queries": typeof organizationBilling_queries;
   "organizationBilling/service": typeof organizationBilling_service;

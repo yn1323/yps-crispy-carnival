@@ -47,14 +47,14 @@ async function seedActiveOrphanPeople(
 }
 
 describe("organizationBilling/service access policy", () => {
-  it("TrialはPro上限を超える21名でもBusiness上限として通常writeを許可する", async () => {
+  it("Trialは50名まで通常writeを許可し、51人目の追加を拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "usage_limit_trial_business",
         plan: "free",
       });
-      await seedCountedStaff(ctx, { shopId: base.shopId, count: 20, prefix: "trial-business-staff-" });
+      await seedCountedStaff(ctx, { shopId: base.shopId, count: 49, prefix: "trial-business-staff-" });
       const billingState = await ctx.db
         .query("organizationBillingStates")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
@@ -78,8 +78,8 @@ describe("organizationBilling/service access policy", () => {
       usageLimitStatus: {
         kind: "withinLimits",
         evaluatedPlan: "business",
-        usage: { peopleCount: 21, activeShopCount: 1, activeManagerCount: 1 },
-        limits: { maxPeople: 40, maxActiveShops: 5, maxActiveManagers: 5 },
+        usage: { peopleCount: 50, activeShopCount: 1, activeManagerCount: 1 },
+        limits: { maxPeople: 50, maxActiveShops: 5, maxActiveManagers: 5 },
       },
     });
     await expect(
@@ -89,6 +89,60 @@ describe("organizationBilling/service access policy", () => {
       displayPlan: "trial",
       targetingPlan: "trial",
     });
+    await expect(
+      t.run(async (ctx) =>
+        requireOrganizationCapacity(ctx, {
+          organizationId: ids.organizationId,
+          additionalPeople: 1,
+        }),
+      ),
+    ).rejects.toThrow("利用人数が現在のプラン上限を超えます。\n現在50名、上限50名です。");
+  });
+
+  it.each([
+    { label: "Standard", seed: { plan: "pro" as const }, maxPeople: 25 },
+    { label: "Pro", seed: { plan: "business" as const }, maxPeople: 50 },
+    { label: "支払い不要Pro相当", seed: { complimentary: true as const }, maxPeople: 50 },
+  ])("$labelは上限の1人前から1人追加でき、上限到達後の追加を拒否する", async ({ seed, maxPeople }) => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: `usage_limit_people_boundary_${maxPeople}_${"complimentary" in seed ? "complimentary" : seed.plan}`,
+        ...seed,
+      });
+      await seedCountedStaff(ctx, {
+        shopId: base.shopId,
+        count: maxPeople - 2,
+        prefix: `usage-limit-boundary-${maxPeople}-`,
+      });
+      return base;
+    });
+
+    await expect(
+      t.run(async (ctx) =>
+        requireOrganizationCapacity(ctx, {
+          organizationId: ids.organizationId,
+          additionalPeople: 1,
+        }),
+      ),
+    ).resolves.toBeDefined();
+
+    await t.run(async (ctx) => {
+      await seedCountedStaff(ctx, {
+        shopId: ids.shopId,
+        count: 1,
+        prefix: `usage-limit-at-boundary-${maxPeople}-`,
+      });
+    });
+
+    await expect(
+      t.run(async (ctx) =>
+        requireOrganizationCapacity(ctx, {
+          organizationId: ids.organizationId,
+          additionalPeople: 1,
+        }),
+      ),
+    ).rejects.toThrow(`利用人数が現在のプラン上限を超えます。\n現在${maxPeople}名、上限${maxPeople}名です。`);
   });
 
   it("bounded probeで利用人数を確定できない場合は通常writeを閉じ、整理操作を許可する", async () => {

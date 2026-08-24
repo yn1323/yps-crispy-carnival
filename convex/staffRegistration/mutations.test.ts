@@ -1479,7 +1479,7 @@ describe("staffRegistration/mutations", () => {
         plan: "pro",
       });
       const now = Date.now();
-      for (let index = 0; index < 19; index += 1) {
+      for (let index = 0; index < 24; index += 1) {
         const email = `registration-rollback-filler-${index}@example.com`;
         const personId = await ctx.db.insert("organizationPeople", {
           organizationId: organization.organizationId,
@@ -1534,7 +1534,7 @@ describe("staffRegistration/mutations", () => {
         requestId,
         shopId: seeded.shopId,
       }),
-    ).rejects.toThrow("利用人数が現在のプラン上限を超えます。\n現在20名、上限20名です。");
+    ).rejects.toThrow("利用人数が現在のプラン上限を超えます。\n現在25名、上限25名です。");
 
     const state = await t.run(async (ctx) => ({
       request: await ctx.db.get(requestId),
@@ -1549,8 +1549,8 @@ describe("staffRegistration/mutations", () => {
     }));
     expect(state.request?.status).toBe("pending");
     expect(state.invitation).toMatchObject({ status: "pending", reservedSeat: true, version: 1 });
-    expect(state.people).toHaveLength(20);
-    expect(state.staffs).toHaveLength(19);
+    expect(state.people).toHaveLength(25);
+    expect(state.staffs).toHaveLength(24);
     expect(state.audits).toEqual([]);
     expect(state.scheduled).toEqual([]);
   });

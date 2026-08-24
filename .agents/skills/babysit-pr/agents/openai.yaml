@@ -1,6 +1,6 @@
 interface:
-  display_name: "PRチェックをVRT比較開始まで完遂"
-  short_description: "GHA監視と修正を行いVRT比較開始までPRチェックを収束する"
-  default_prompt: "Use $babysit-pr to commit and push the scoped changes, open a PR, and resolve the latest-head checks through successful VRT captures and the start of compare without waiting for or approving later VRT gates."
+  display_name: "PRチェックと自動レビューを完遂"
+  short_description: "GHAと自動レビューを修正込みで最新HEADへ収束する"
+  default_prompt: "Use $babysit-pr to commit and push the scoped changes, open or update the PR, address every valid automated-review comment regardless of priority, and resolve the latest-head checks through successful VRT captures and the start of compare without approving later VRT gates."
 policy:
   allow_implicit_invocation: false

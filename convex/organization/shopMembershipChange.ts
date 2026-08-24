@@ -1,5 +1,6 @@
 import type { Id } from "../_generated/dataModel";
 import { sha256Hex } from "../_lib/sha256";
+import { ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/planLimits";
 
 export type OrganizationShopOperatingStatus = "active" | "archived" | "planSuspended";
 
@@ -12,7 +13,7 @@ export type OrganizationPersonShopMembershipSnapshotEntry = {
 /** 店舗軸の所属変更で一度に表示する人物数。 */
 export const ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT = 100;
 /** 店舗軸の所属変更で一度に追加・解除できる人物数。 */
-export const ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT = 40;
+export const ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT = ORGANIZATION_PLAN_LIMITS.business.maxPeople;
 
 export type OrganizationShopStaffMembershipFingerprintInput = {
   shopId: Id<"shops">;

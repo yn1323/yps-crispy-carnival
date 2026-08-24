@@ -142,7 +142,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tbody></table></div>
 <p>スタッフはアカウント登録不要で、メール・LINEに届くリンク（magic link）だけで提出・閲覧できる。</p>
 <h2 id="overview-s3">2. 現在の公開範囲</h2>
-<p>repository artifactでは、複数組織、複数店舗、複数管理者（招待）、Stripe課金を常時利用できる。<br>初回登録で作る組織は、カード登録なしでBusiness相当の3か月Trialを開始する。追加組織はFreeで開始する。</p>
+<p>repository artifactでは、複数組織、複数店舗、複数管理者（招待）、Stripe課金を常時利用できる。<br>初回登録で作る組織は、カード登録なしでPro相当・利用人数上限50名の3か月Trialを開始する。追加組織はFreeで開始する。</p>
 <p>機能ごとの公開環境変数は使わない。画面は組織作成、店舗追加、管理者、プランと支払いの導線を常時表示し、操作可否は認証・認可、所属状態、契約状態、プラン上限、Stripe設定などのサーバー判定に従う。実deploymentへのartifact反映とcanaryはリリース状態の証跡で確認する。</p>
 <p>なお、業務仕様（<code>doc/specs/organization-billing-business-flow.md</code>）に有料機能として挙がる「AIシフトたたき台作成」は、現時点でコード実装がない（仕様先行）。</p>
 <h2 id="overview-s4">3. 機能一覧</h2>
@@ -376,18 +376,18 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 </thead>
 <tbody><tr>
-<td>支払い不要Business（既存組織のみ）</td>
-<td align="right">40名</td>
+<td>支払い不要Pro相当（既存組織のみ）</td>
+<td align="right">50名</td>
 <td align="right">5店舗</td>
 <td align="right">5名</td>
 <td>期限・料金・Stripeオブジェクトなし</td>
 </tr>
 <tr>
 <td>無料体験（Trial、初回登録）</td>
-<td align="right">40名</td>
+<td align="right">50名</td>
 <td align="right">5店舗</td>
 <td align="right">5名</td>
-<td>Business相当。期間は開始から3か月（終了は該当日0:00 JST）</td>
+<td>Pro相当。期間は開始から3か月（終了は該当日0:00 JST）</td>
 </tr>
 <tr>
 <td>Free（追加組織）</td>
@@ -397,15 +397,15 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <td>二つ目以降の組織はこの状態で開始する</td>
 </tr>
 <tr>
-<td>Pro</td>
-<td align="right">20名</td>
+<td>Standard</td>
+<td align="right">25名</td>
 <td align="right">5店舗</td>
 <td align="right">5名</td>
 <td>Stripe契約あり</td>
 </tr>
 <tr>
-<td>Business</td>
-<td align="right">40名</td>
+<td>Pro</td>
+<td align="right">50名</td>
 <td align="right">5店舗</td>
 <td align="right">5名</td>
 <td>Stripe契約あり</td>
@@ -413,7 +413,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tbody></table></div>
 <ul>
 <li>利用人数は組織内の人物単位で重複なく数える。管理者兼スタッフ・複数店舗所属・シフト対象外・アーカイブ店舗のみ所属も1名。元管理者はスタッフでもある場合のみ1名。未承認招待は数えない。</li>
-<li>上限を超える追加操作（21人目・41人目・6店舗目・6人目の管理者）は確定前に止め、問い合わせへ誘導する。一部だけの保存はしない。</li>
+<li>上限を超える追加操作（Standardの26人目・Proの51人目・6店舗目・6人目の管理者）は確定前に止め、一部だけの保存はしない。利用人数は上位の標準プランがある場合だけプラン変更を案内し、Pro上限では現在値と上限だけを表示する。</li>
 <li>人数が減っても自動でプランを下げない。</li>
 <li>自分で作成して保持できる組織は3つまで、組織作成は1日10回まで（招待所属・削除済みは数えない）。</li>
 </ul>
@@ -545,7 +545,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 <tr>
 <td>募集・確定通知fanout</td>
-<td>対象スタッフ最大40名、10名ずつ処理</td>
+<td>対象スタッフ最大50名、10名ずつ処理</td>
 </tr>
 <tr>
 <td>通知の再試行</td>
@@ -1093,8 +1093,8 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <tr>
 <td>2</td>
 <td>なし</td>
-<td>利用人数が上限（Business 41人目等）</td>
-<td><strong>確定前に拒否</strong>。一部だけ保存しない。問い合わせ導線を表示</td>
+<td>利用人数が上限（Standardの26人目、Proの51人目等）</td>
+<td><strong>確定前に拒否</strong>。一部だけ保存しない。上位の標準プランがある場合だけプラン変更を案内し、Pro上限では現在値と上限だけを表示</td>
 </tr>
 <tr>
 <td>3</td>
@@ -1505,7 +1505,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </thead>
 <tbody><tr>
 <td>組織所属0件の認証済み利用者が<code>/dashboard</code>の初回Setupを実行</td>
-<td>最初の組織・店舗・人物・管理者本人・店舗スタッフを一度に作成。課金状態は<strong>Business相当の3か月Trial</strong>。Trial期限・課金deadlineを作り、Stripeオブジェクトは作らない</td>
+<td>最初の組織・店舗・人物・管理者本人・店舗スタッフを一度に作成。課金状態は<strong>Pro相当・利用人数上限50名の3か月Trial</strong>。Trial期限・課金deadlineを作り、Stripeオブジェクトは作らない</td>
 </tr>
 <tr>
 <td>所属がある利用者が初回Setupを試行</td>
@@ -1571,7 +1571,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 <tr>
 <td>2</td>
-<td>課金状態が許可外。許可は「有料プラン未選択のTrial」「Free」「支払い不要Business」のみ</td>
+<td>課金状態が許可外。許可は「有料プラン未選択のTrial」「Free」「支払い不要Pro相当」のみ</td>
 </tr>
 <tr>
 <td>3</td>
@@ -1962,7 +1962,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <tr>
 <td>Trial</td>
 <td>継続予約して終了</td>
-<td>初回請求処理中（Pro相当を継続）</td>
+<td>初回請求処理中（Standard相当を継続）</td>
 </tr>
 <tr>
 <td>初回請求処理中</td>
@@ -1975,17 +1975,17 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <td>契約制限中（<code>trialEndedWithoutSubscription</code>）</td>
 </tr>
 <tr>
+<td>Standard</td>
+<td>Pro即時変更を開始</td>
+<td>支払い結果待ち（確定までStandard維持）</td>
+</tr>
+<tr>
 <td>Pro</td>
-<td>Business即時変更を開始</td>
-<td>支払い結果待ち（確定までPro維持）</td>
+<td>Standard変更予約</td>
+<td>期間末変更予定（期間末までPro）</td>
 </tr>
 <tr>
-<td>Business</td>
-<td>Pro変更予約</td>
-<td>期間末変更予定（期間末までBusiness）</td>
-</tr>
-<tr>
-<td>Pro/Business</td>
+<td>Standard／Pro</td>
 <td>解約予約</td>
 <td>解約予定（<code>restrictAtPeriodEnd: true</code>。期間末まで現行プラン）</td>
 </tr>
@@ -1996,8 +1996,8 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 <tr>
 <td>期間末変更予定</td>
-<td>phase移行成功＋Pro条件内／条件外</td>
-<td>Pro／Pro向け契約制限中（削減のみ許可）</td>
+<td>phase移行成功＋Standard条件内／条件外</td>
+<td>Standard／Standard向け契約制限中（削減のみ許可）</td>
 </tr>
 <tr>
 <td>解約予定</td>
@@ -2005,7 +2005,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <td>契約制限中（<code>scheduledCancellation</code>）</td>
 </tr>
 <tr>
-<td>Pro/Business</td>
+<td>Standard／Pro</td>
 <td>更新支払い失敗</td>
 <td>支払い猶予（14日、全機能継続）</td>
 </tr>
@@ -2017,19 +2017,19 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <tr>
 <td>契約制限中</td>
 <td>再契約成功</td>
-<td>Pro/Business（復元対象を確認後）</td>
+<td>Standard／Pro（復元対象を確認後）</td>
 </tr>
 <tr>
-<td>Pro向け契約制限中</td>
-<td>人物削除で20名以内</td>
-<td>Pro（自動再評価）</td>
+<td>Standard向け契約制限中</td>
+<td>人物削除で25名以内</td>
+<td>Standard（自動再評価）</td>
 </tr>
 </tbody></table></div>
 <p>主要経路の図示（旧Free互換・移行系は表を正本とする）:</p>
 <div class="mermaid-block"><p class="mermaid-offline-note">図の描画にはインターネット接続が必要です（オフラインでは下のソースを参照）。</p><pre class="mermaid">stateDiagram-v2
     [*] --&gt; Trial : 所属0件の初回Setup
     [*] --&gt; Free : 追加組織作成（公開時）
-    state 支払い不要Business
+    state 支払い不要Pro相当
 
     Trial --&gt; 初回請求処理中 : 継続予約して終了
     Trial --&gt; 契約制限中 : 未契約/予約取消のまま終了
@@ -2048,7 +2048,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 
     契約制限中 --&gt; 有料プラン : 再契約成功（復元対象を確認後）
 
-    note right of 支払い不要Business
+    note right of 支払い不要Pro相当
         期限・料金なし
         どの処理からも他状態へ変更しない
     end note
@@ -2062,7 +2062,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
     end note</pre><details class="mermaid-src"><summary>図のソース</summary><pre><code>stateDiagram-v2
     [*] --&gt; Trial : 所属0件の初回Setup
     [*] --&gt; Free : 追加組織作成（公開時）
-    state 支払い不要Business
+    state 支払い不要Pro相当
 
     Trial --&gt; 初回請求処理中 : 継続予約して終了
     Trial --&gt; 契約制限中 : 未契約/予約取消のまま終了
@@ -2081,7 +2081,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 
     契約制限中 --&gt; 有料プラン : 再契約成功（復元対象を確認後）
 
-    note right of 支払い不要Business
+    note right of 支払い不要Pro相当
         期限・料金なし
         どの処理からも他状態へ変更しない
     end note
@@ -2101,7 +2101,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <li>どの終了・制限でも店舗・利用者・シフトは削除せず、直前の管理者・稼働店舗を復旧候補として保持する。</li>
 <li>支払い成功画面・復帰URLだけでは有料機能を開放しない（署名済みWebhookまたはprovider再取得が正本）。重複・順不同のWebhookで状態を過去へ戻さない。</li>
 <li>Customer Portalは支払い方法更新と請求書確認に限定し、Portalでのプラン変更・契約取消は無効。URLは都度発行の一時URL。</li>
-<li>支払い不要Businessには、Stripeオブジェクト・課金操作・課金通知を一切作らず、どの処理からも別の課金状態へ変更しない。</li>
+<li>支払い不要Pro相当には、Stripeオブジェクト・課金操作・課金通知を一切作らず、どの処理からも別の課金状態へ変更しない。</li>
 <li>契約制限中に許可される操作と停止される操作は<a href="#doc-authorization">認可・制限</a>の表を正本とする。</li>
 </ul>
 <h3 id="organization-s19">7.3 課金状態×操作の可否（○×早見表）</h3>
@@ -2110,7 +2110,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <thead>
 <tr>
 <th>操作</th>
-<th align="center">active（Trial/Pro/Business/複利/Free）</th>
+<th align="center">active（Trial／Standard／Pro／支払い不要Pro相当／Free）</th>
 <th align="center">支払い結果待ち</th>
 <th align="center">支払い猶予</th>
 <th align="center">契約制限中</th>
@@ -2898,7 +2898,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 <tbody><tr>
 <td>募集開始</td>
 <td>募集作成時</td>
-<td>対象店舗のシフト対象スタッフ（最大40名、10名ずつ）</td>
+<td>対象店舗のシフト対象スタッフ（最大50名、10名ずつ）</td>
 <td>シフト対象外／削除済みスタッフ／募集が削除済み（gate）</td>
 <td><strong>載る</strong></td>
 </tr>
@@ -3078,7 +3078,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tbody></table></div>
 <ul>
 <li>課金通知はLINE連携の有無にかかわらずメールで送り、LINE配送を1件も作らない。複数宛先はメールアドレスを相互に見せないよう個別送信する。</li>
-<li>支払い不要Businessでは課金通知を一切発生させない。</li>
+<li>支払い不要Pro相当では課金通知を一切発生させない。</li>
 </ul>
 <h2 id="notification-s9">5. 送らない共通条件（全通知に適用）</h2>
 <div class="tbl"><table>
@@ -3395,7 +3395,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 </thead>
 <tbody><tr>
-<td>Trial／Pro／Business／支払い不要Business／Free</td>
+<td>Trial／Standard／Pro／支払い不要Pro相当／Free</td>
 <td>可</td>
 <td>プラン上限内で</td>
 </tr>
@@ -3593,14 +3593,14 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 </thead>
 <tbody><tr>
-<td>Trial／支払い不要Business／Business</td>
-<td align="right">40</td>
+<td>Trial／支払い不要Pro相当／Pro</td>
+<td align="right">50</td>
 <td align="right">5</td>
 <td align="right">5</td>
 </tr>
 <tr>
-<td>Pro</td>
-<td align="right">20</td>
+<td>Standard</td>
+<td align="right">25</td>
 <td align="right">5</td>
 <td align="right">5</td>
 </tr>
@@ -3612,7 +3612,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 </tbody></table></div>
 <ul>
-<li>超過する操作（21人目・41人目・6人目管理者・6店舗目）は<strong>確定前に拒否</strong>し、問い合わせ導線と現在の利用状況を表示する。一部だけの保存はしない。</li>
+<li>超過する操作（Standardの26人目・Proの51人目・6人目管理者・6店舗目）は<strong>確定前に拒否</strong>し、現在の利用状況を表示する。一部だけの保存はしない。利用人数は上位の標準プランがある場合だけプラン変更を案内し、Pro上限では問い合わせ導線を表示しない。</li>
 <li>管理者上限は「有効管理者＋期限内の未承認招待」の見込み合計で判定する。</li>
 <li>プラン上限を<strong>読み取りの上限に流用しない</strong>。上限超過の既存データ（人物・店舗）も一覧の追加ページから全件到達できる。</li>
 <li>人数が減っても自動でプランを変更しない。</li>
@@ -3638,12 +3638,12 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 <tr>
 <td>確定シフト個別再送の対象募集</td>
-<td>1回40件</td>
+<td>1回50件</td>
 <td><strong>超過時は1件も送らず</strong>開始不可を表示</td>
 </tr>
 <tr>
 <td>通知fanout</td>
-<td>対象スタッフ40名/操作、10名ずつ処理</td>
+<td>対象スタッフ50名/操作、10名ずつ処理</td>
 <td>上限で固定</td>
 </tr>
 <tr>

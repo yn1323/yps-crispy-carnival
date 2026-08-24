@@ -90,7 +90,7 @@ function StaffReadyPreview({
       {readOnly && <AppStaffReadOnlyNotice />}
       <PeopleSection
         people={visiblePeople}
-        peopleUsage={{ current: empty ? 0 : singlePerson ? 1 : 12, max: 40 }}
+        peopleUsage={{ current: empty ? 0 : singlePerson ? 1 : 12, max: 50 }}
         onManageManagers={() => {}}
         onOpenUser={() => {}}
         staffOrder={

@@ -34,7 +34,7 @@ Dashboardの現在プラン表示は、`getDashboardShop`が返す認可済み`p
 | 画面 | 役割 |
 |---|---|
 | シフト担当者ダッシュボード | `planStatus`から現在の課金状態を表示する。旧backendの場合だけトライアル終了前Calloutを表示し、`/manage/billing?org=<organizationId>`へ移動する |
-| 組織設定 > プランと支払い | Pro・Business継続の登録状態と利用可能な契約操作を表示する |
+| 組織設定 > プランと支払い | Standard・Pro継続の登録状態と利用可能な契約操作を表示する |
 
 ## API 一覧
 
@@ -44,7 +44,7 @@ Dashboardの現在プラン表示は、`getDashboardShop`が返す認可済み`p
 
 ## 旧Calloutの表示ルール
 
-- 課金stateが `trial` かつ `selectedPaidPlan` 未設定の場合だけ通知候補を返す。ProまたはBusinessの継続が登録済みなら表示しない。
+- 課金stateが `trial` かつ `selectedPaidPlan` 未設定の場合だけ通知候補を返す。StandardまたはProの継続が登録済みなら表示しない。
 - 表示期間は `[trialEndsAt - 7日, trialEndsAt)` の半開区間とする。
 - `trialEndsAt` は最終利用日の翌日0:00 JSTという排他的境界なので、画面には `trialEndsAt - 1ms` の月日を表示する。
 - Convex queryは現在時刻を読まず、ブラウザが開始・終了境界で表示を再評価する。

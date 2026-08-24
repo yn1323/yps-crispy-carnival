@@ -404,7 +404,7 @@ export function deriveOrganizationBillingPolicy(state: OrganizationBillingState)
           paidFeatureBlockReason: "paymentResultPending",
         };
       }
-      // ProからBusinessへの即時変更は支払い成功までPro権利を維持する。
+      // Standard（内部pro）からPro（内部business）への即時変更は支払い成功までStandard権利を維持する。
       if (state.fallback === "pro") return enabledPolicy(plans, null);
       // 契約制限中からの契約開始は、支払い成功まで制限と復旧権限を維持する。
       return restrictedPolicy(plans);

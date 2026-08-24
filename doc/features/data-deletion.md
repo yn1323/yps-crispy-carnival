@@ -32,7 +32,7 @@ LINE IDの置換値は`deleted:<documentId>`として行IDから決定的に作�
 | 条件 | 組織・店舗 | 本人の所属とアクセス | アカウントjob |
 | --- | --- | --- | --- |
 | 有効な組織所属なし | 変更なし | 対象なし | ローカル利用を停止し、Clerk削除へ進む |
-| 一つの組織に所属し、本人以外の有効な`active`管理者がいる | 維持 | personとmemberを`removed`、staffを論理削除し、session、token、LINE連携、未送信通知を終了。今日以降の割当を削除し、過去のシフト履歴は保持 | 同じ受付transactionでローカル利用を停止し、本人staffの通知履歴が残っていないことを確認してからClerk削除へ進む |
+| 一つの組織に所属し、本人以外の有効な`active`管理者がいる | 維持 | 現役管理者または対応する`removed`管理者所属を持つ元管理者について、personとmemberを`removed`、staffを論理削除し、session、token、LINE連携、未送信通知を終了。今日以降の割当を削除し、過去のシフト履歴は保持 | 同じ受付transactionでローカル利用を停止し、本人staffの通知履歴が残っていないことを確認してからClerk削除へ進む |
 | 一つの組織に所属し、本人が唯一の有効な`active`管理者 | 組織を論理削除し、全店舗のcleanupを実行 | 組織cleanupの範囲に従って終了 | cleanup jobの`completed`を確認するまでproviderを呼ばない |
 | 二つ以上の有効な組織または不整合な所属 | 変更なし | 変更なし | 受付しない |
 
@@ -54,8 +54,8 @@ LINE IDの置換値は`deleted:<documentId>`として行IDから決定的に作�
 
 - 店舗削除は対象組織の有効管理者だけが行え、最後の未削除店舗は削除できない。
 - 組織削除は対象組織で唯一の`active`管理者だけが行える。`readOnly`を含むほかの管理者がいる場合は先に整理する。
-- 組織削除を許可する課金状態は、有料プラン未選択のTrial、Free、支払い不要Businessである。
-  支払い不要Businessの保存状態は`complimentary.business`だけであり、旧`complimentary.pro`を現行の削除可否判定へ入力しない。
+- 組織削除を許可する課金状態は、有料プラン未選択のTrial、Free、支払い不要Pro相当である。
+  支払い不要Pro相当の保存状態は`complimentary.business`だけであり、旧`complimentary.pro`を現行の削除可否判定へ入力しない。
 - 有料プラン未選択のTrialでも、Stripe Subscription、進行中のTrial作成operation、または一意な終了証跡がない過去の作成operationがあれば削除しない。
   provider上の契約が終了済みであることを、保存済みSubscriptionとcleanup operationの対応から確認できる場合だけ受け付ける。
 - 組織削除は未完了の店舗削除jobがない場合だけ受け付ける。

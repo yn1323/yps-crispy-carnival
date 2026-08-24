@@ -397,10 +397,10 @@ export const verify = internalMutation({
       }
     }
 
-    const proOrganization = organizations.find((organization) => organization.name === "[SEED] Pro・複数店舗");
-    if (!proOrganization) throw new Error("Pro operation scenario is missing");
+    const proOrganization = organizations.find((organization) => organization.name === "[SEED] Standard・複数店舗");
+    if (!proOrganization) throw new Error("Standard operation scenario is missing");
     if (orderStates.filter((state) => state.organizationId === proOrganization._id).length !== 1) {
-      throw new Error("Pro custom staff order state is missing");
+      throw new Error("Standard custom staff order state is missing");
     }
     const proActivePeople = organizationPeople.filter(
       (person) => person.organizationId === proOrganization._id && person.status === "active",
@@ -408,10 +408,10 @@ export const verify = internalMutation({
     if (
       orderEntries.filter((entry) => entry.organizationId === proOrganization._id).length !== proActivePeople.length
     ) {
-      throw new Error("Pro organization staff order is incomplete");
+      throw new Error("Standard organization staff order is incomplete");
     }
     if (shopOrderEntries.filter((entry) => entry.organizationId === proOrganization._id).length !== 9) {
-      throw new Error("Pro shop staff order is incomplete");
+      throw new Error("Standard shop staff order is incomplete");
     }
     if (
       announcements.length !== 1 ||

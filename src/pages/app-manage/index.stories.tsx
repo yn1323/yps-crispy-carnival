@@ -22,7 +22,7 @@ const billing: OrganizationBillingView = {
   hasTrialContinuation: false,
   stripeBillingAvailable: true,
   hasStripeCustomer: true,
-  peopleUsage: { current: 18, max: 40 },
+  peopleUsage: { current: 18, max: 50 },
   shopUsage: { current: 6, max: 5 },
   managerUsage: { current: 3, max: 5, pendingInvitations: 1 },
   billingEmail: "billing@example.com",

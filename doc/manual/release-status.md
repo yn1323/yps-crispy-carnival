@@ -27,8 +27,8 @@
 | `/dashboard`と`/account`の新shell、旧route削除を含むartifactのProduction反映とcanary | 未確認 | 未確認 | 未確認 | 未登録 |
 | 追加組織、店舗追加、管理者招待、課金を常時公開するartifactのProduction反映と、各導線・server capabilityのcanary | 未確認 | 未確認 | 未確認 | 未登録 |
 | 新規Setupが1組織、1店舗、1管理者、3か月のTrialを作り、Trial期限処理を一度だけ予約し、Stripe Customer、Subscription、課金operationを作らないこと | 未確認 | 未確認 | 未確認 | 未登録 |
-| 3か月Business相当・カード登録不要の公開文言と、初回Setupが3か月のTrialを作るbackend・利用規約契約の一致 | **Repository整合・Production未確認** | 2026-08-24 | Repository | Trialの利用権限と上限をBusiness相当に更新。保存shapeを変更しないためmigrationは追加しない。Function / Scenario契約、管理ユーザー向け利用規約本文、文書版、同意要求版を更新。対象deploymentへの反映と実環境canaryは未確認 |
-| StripeのPro・Business販売設定、Price、明示された税区分、Webhook、公開サイトBuild用にGitHub Environmentへ設定した`STRIPE_SECRET_KEY`とPrice ID | 未確認 | 未確認 | 未確認 | 未登録 |
+| 3か月Pro相当・カード登録不要の公開文言と、初回Setupが3か月のTrialを作るbackend・利用規約契約の一致 | **Repository整合・Production未確認** | 2026-08-24 | Repository | Trialの利用権限と上限をPro相当・50名へ更新。保存shapeを変更しないためmigrationは追加しない。Function / Scenario契約、管理ユーザー向け利用規約本文、文書版、同意要求版を更新。対象deploymentへの反映と実環境canaryは未確認 |
+| StripeのStandard・Pro販売設定、Price、明示された税区分、Webhook、公開サイトBuild用にGitHub Environmentへ設定した`STRIPE_SECRET_KEY`とPrice ID | 未確認 | 未確認 | 未確認 | 内部のPrice ID環境変数名は`STRIPE_PRO_PRICE_ID`と`STRIPE_BUSINESS_PRICE_ID`を維持 |
 | `/commercial-transactions`の事業者名、運営責任者、所在地、電話番号 | **要対応（Production設定・公開未確認）** | 2026-08-23 | Repository | release buildはProduction GitHub Environment Variablesから3項目を取得し、欠落時に失敗する。実値とProduction表示は未確認 |
 | Resendの`email.delivered` Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Clerk、Cloudflare、Stripeのセキュリティ設定とprovider canary | 未確認 | 未確認 | 未確認 | 未登録 |
@@ -40,9 +40,9 @@
 この文書に、対象と時刻を特定できる証跡がまだないことを表します。
 
 `/commercial-transactions`は、Production GitHub Environment Variablesの`VITE_COMMERCIAL_TRANSACTIONS_NAME`、`VITE_COMMERCIAL_TRANSACTIONS_ADDRESS`、`VITE_COMMERCIAL_TRANSACTIONS_PHONE_NUMBER`を実在する情報へ設定するまでProductionへ公開しません。
-Production buildは3項目が空なら失敗します。  設定後も、事業者名と運営責任者、番地まで含む所在地、電話番号の表示と連絡可能性を確認してから状態を更新します。  Pro・Businessの月額料金、通貨、請求周期、税込・税別はProduction buildがStripeから取得するため、ProductionのConvex deploymentと同じ`STRIPE_SECRET_KEY`とPrice IDをGitHub Environmentへ設定し、契約画面との一致も確認します。
+Production buildは3項目が空なら失敗します。  設定後も、事業者名と運営責任者、番地まで含む所在地、電話番号の表示と連絡可能性を確認してから状態を更新します。  Standard・Proの月額料金、通貨、請求周期、税込・税別はProduction buildがStripeから取得するため、ProductionのConvex deploymentと同じ`STRIPE_SECRET_KEY`とPrice IDをGitHub Environmentへ設定し、契約画面との一致も確認します。
 
-3か月Business相当・カード登録不要の公開文言、初回Setupの3か月Trial、管理ユーザー向け利用規約の本文・文書版・同意要求版はrepository上で同じ契約へ更新済みです。  Trial状態の保存shapeは変えず、利用権限と上限をpolicyから導出するため、この変更にmigrationは追加しません。  対象artifactとConvex revisionのProduction反映、利用規約の再同意、初回Setupの実環境canaryを確認するまでは、Productionで利用可能とは判定しません。  静的UI、LP、FAQ、metadataの検証成功だけでは、この停止条件を解除しません。
+3か月Pro相当・カード登録不要の公開文言、初回Setupの3か月Trial、管理ユーザー向け利用規約の本文・文書版・同意要求版はrepository上で同じ契約へ更新済みです。  Trial状態の保存shapeは変えず、利用権限と上限をpolicyから導出するため、この変更にmigrationは追加しません。  対象artifactとConvex revisionのProduction反映、利用規約の再同意、初回Setupの実環境canaryを確認するまでは、Productionで利用可能とは判定しません。  静的UI、LP、FAQ、metadataの検証成功だけでは、この停止条件を解除しません。
 
 ## 記録に必要な情報
 

@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { organizationQuery } from "../_lib/functions";
 import {
   getOrganizationStaffOrderEditorSnapshot,
+  ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT,
   getOrganizationStaffOrderScope as resolveOrganizationStaffOrderScope,
 } from "../organization/staffOrder";
 import { getOrganizationBillingPolicy } from "../organizationBilling/service";
@@ -38,7 +39,7 @@ const organizationStaffOrderEditorValidator = v.object({
 function availabilityDisabledReason(availability: typeof availabilityValidator.type) {
   switch (availability) {
     case "tooManyPeople":
-      return "利用人数が40名を超えているため、並び順を変更できません。";
+      return `利用人数が${ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT}名を超えているため、並び順を変更できません。`;
     case "tooManyActiveShops":
       return "稼働中の店舗が5店舗を超えているため、並び順を変更できません。";
     case "legacyDataIncomplete":

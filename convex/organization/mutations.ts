@@ -814,9 +814,12 @@ async function requireCanonicalAccountDeletionOrganizationActor(
   args: {
     actor: AccountDeletionOrganizationActor;
     accountUserId: Id<"users">;
+    allowFormerManager?: boolean;
   },
 ) {
   const { actor } = args;
+  const hasAllowedMemberStatus =
+    actor.member.status === "active" || (args.allowFormerManager === true && actor.member.status === "removed");
   if (
     actor.organization.isDeleted ||
     actor.person.organizationId !== actor.organization._id ||
@@ -825,7 +828,7 @@ async function requireCanonicalAccountDeletionOrganizationActor(
     actor.member.organizationId !== actor.organization._id ||
     actor.member.personId !== actor.person._id ||
     actor.member.userId !== args.accountUserId ||
-    actor.member.status !== "active"
+    !hasAllowedMemberStatus
   ) {
     throw new ConvexError("管理者所属を確認できません");
   }
@@ -1570,7 +1573,7 @@ export async function prepareAccountDeletionOrganizationDeparture(
     asOfDate: string;
   },
 ): Promise<AccountDeletionOrganizationDeparturePlan> {
-  await requireCanonicalAccountDeletionOrganizationActor(ctx, args);
+  await requireCanonicalAccountDeletionOrganizationActor(ctx, { ...args, allowFormerManager: true });
   const billingState = await requireOrganizationBillingState(ctx, args.actor.organization._id);
   let baseRemovalPlan: FullOrganizationPersonRemovalPlan;
   try {

@@ -1,5 +1,9 @@
 import { v } from "convex/values";
 import { formatDateTimeLabel } from "../_lib/dateFormat";
+import { organizationPaidPlanLabel, organizationPlanLabel, organizationPlanSentenceLabel } from "./planPresentation";
+
+const FREE_PLAN_LABEL = `${organizationPlanLabel("free")}プラン`;
+const FREE_PLAN_SENTENCE_LABEL = organizationPlanSentenceLabel("free");
 
 export const TRIAL_ENDING_REMINDER_LEAD_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -90,12 +94,9 @@ export function organizationBillingNotificationCopy(
   switch (event) {
     case "trialEnding": {
       const trialEndsAtLabel = trialEnding ? formatDateTimeLabel(trialEnding.trialEndsAt) : "トライアル終了日時";
-      const selectedPlanLabel =
-        trialEnding?.selectedPaidPlan === "pro"
-          ? "Pro"
-          : trialEnding?.selectedPaidPlan === "business"
-            ? "Business"
-            : null;
+      const selectedPlanLabel = trialEnding?.selectedPaidPlan
+        ? organizationPaidPlanLabel(trialEnding.selectedPaidPlan)
+        : null;
       return {
         subject: "トライアル終了まで7日です",
         heading: "トライアル終了まで7日です",
@@ -103,13 +104,13 @@ export function organizationBillingNotificationCopy(
           ? [
               `トライアルは${trialEndsAtLabel}に終了します。`,
               `選択済みの契約プランは${selectedPlanLabel}です。\n初回請求は${trialEndsAtLabel}を予定しています。`,
-              `継続を取り消す場合の期限は${trialEndsAtLabel}です。\n取り消すと、トライアル終了後は無料プランへ変更されます。`,
-              "無料プランの利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。",
+              `継続を取り消す場合の期限は${trialEndsAtLabel}です。\n取り消すと、トライアル終了後は${FREE_PLAN_SENTENCE_LABEL}へ変更されます。`,
+              `${FREE_PLAN_SENTENCE_LABEL}の利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。`,
             ]
           : [
               `トライアルは${trialEndsAtLabel}に終了します。\n有料プランはまだ契約されていません。`,
-              "有料プランを契約しない場合、トライアル終了後は無料プランへ変更されます。\n店舗・ユーザー・過去のシフトは削除されません。",
-              "無料プランの利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。\nProまたはBusinessへ変更することもできます。",
+              `有料プランを契約しない場合、トライアル終了後は${FREE_PLAN_SENTENCE_LABEL}へ変更されます。\n店舗・ユーザー・過去のシフトは削除されません。`,
+              `${FREE_PLAN_SENTENCE_LABEL}の利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。\nStandardまたはProへ変更することもできます。`,
             ],
       };
     }
@@ -118,20 +119,20 @@ export function organizationBillingNotificationCopy(
         subject: "初回請求の結果を確認しています",
         heading: "初回請求の結果を確認しています",
         paragraphs: [
-          "支払い結果を確認しています。\n確認中も、Pro相当の機能を利用できます。",
+          "支払い結果を確認しています。\n確認中も、Standard相当の機能を利用できます。",
           "支払い結果が確定すると、組織設定に反映されます。",
         ],
       };
     case "freeApplied": {
       const paragraphs = [
-        "無料プランへ変更しました。\n店舗・ユーザー・過去のシフトは削除されません。",
+        `${FREE_PLAN_SENTENCE_LABEL}へ変更しました。\n店舗・ユーザー・過去のシフトは削除されません。`,
         details?.usageLimitExceeded
-          ? overLimitParagraph("無料")
-          : "無料プランの範囲内で引き続き利用できます。\n現在の利用状況は組織設定で確認できます。",
+          ? overLimitParagraph(FREE_PLAN_SENTENCE_LABEL)
+          : `${FREE_PLAN_SENTENCE_LABEL}の範囲内で引き続き利用できます。\n現在の利用状況は組織設定で確認できます。`,
       ];
       return {
-        subject: "無料プランへ変更しました",
-        heading: "無料プランへ変更しました",
+        subject: `${FREE_PLAN_LABEL}へ変更しました`,
+        heading: `${FREE_PLAN_LABEL}へ変更しました`,
         paragraphs,
       };
     }
@@ -145,12 +146,12 @@ export function organizationBillingNotificationCopy(
           heading: "解約を受け付けました",
           paragraphs: [
             `${effectiveAtLabel}をもって解約します。\nそれまでは現在の有料プランを利用できます。`,
-            "解約後は無料プランへ変更されます。\n店舗・ユーザー・過去のシフトは削除されません。",
-            "無料プランの利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。",
+            `解約後は${FREE_PLAN_SENTENCE_LABEL}へ変更されます。\n店舗・ユーザー・過去のシフトは削除されません。`,
+            `${FREE_PLAN_SENTENCE_LABEL}の利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。`,
           ],
         };
       }
-      const targetPlanLabel = details?.targetPlan ? planLabel(details.targetPlan) : "変更先プラン";
+      const targetPlanLabel = details?.targetPlan ? organizationPlanLabel(details.targetPlan) : "変更先プラン";
       const effectiveAtLabel = details?.effectiveAt
         ? formatDateTimeLabel(details.effectiveAt)
         : "現在の支払い済み期間の終了時";
@@ -183,7 +184,7 @@ export function organizationBillingNotificationCopy(
         ],
       };
     case "planActivated": {
-      const targetPlanLabel = details?.targetPlan ? planLabel(details.targetPlan) : "有料プラン";
+      const targetPlanLabel = details?.targetPlan ? organizationPlanLabel(details.targetPlan) : "有料プラン";
       const billingSummary = formatBillingSummary(details);
       return {
         subject: `${targetPlanLabel}を開始しました`,
@@ -193,37 +194,37 @@ export function organizationBillingNotificationCopy(
             ? `支払い結果を確認し、${targetPlanLabel}を開始しました。\n${billingSummary}`
             : `支払い結果を確認し、${targetPlanLabel}を開始しました。`,
           details?.usageLimitExceeded
-            ? overLimitParagraph(targetPlanLabel)
+            ? overLimitParagraph(`${targetPlanLabel}プラン`)
             : "現在の利用状況は組織設定で確認できます。",
         ],
       };
     }
     case "proDowngradeNotApplied":
       return {
-        subject: "Proへの変更を適用できませんでした",
-        heading: "Proを継続しています",
+        subject: "Standardへの変更を適用できませんでした",
+        heading: "Standardを継続しています",
         paragraphs: [
           "予約されていたプラン変更を適用できませんでした。",
-          "Proを継続しています。\n現在の利用状況は組織設定で確認できます。",
+          "Standardを継続しています。\n現在の利用状況は組織設定で確認できます。",
         ],
       };
     case "paidActivationFailedFreeContinued":
       return {
         subject: "有料プランを開始できませんでした",
-        heading: "無料を継続しています",
+        heading: "Freeを継続しています",
         paragraphs: [
           "支払いを確認できなかったため、有料プランを開始できませんでした。",
-          "無料プランを継続しています。\n支払い方法を確認してから、もう一度手続きしてください。",
-          ...(details?.usageLimitExceeded ? [overLimitParagraph("無料")] : []),
+          `${FREE_PLAN_SENTENCE_LABEL}を継続しています。\n支払い方法を確認してから、もう一度手続きしてください。`,
+          ...(details?.usageLimitExceeded ? [overLimitParagraph(FREE_PLAN_SENTENCE_LABEL)] : []),
         ],
       };
     case "paidActivationFailedProContinued":
       return {
-        subject: "Businessへの変更を完了できませんでした",
-        heading: "Proを継続しています",
+        subject: "Proへの変更を完了できませんでした",
+        heading: "Standardを継続しています",
         paragraphs: [
-          "支払いを確認できなかったため、Businessへの変更を適用できませんでした。",
-          "Proを継続しています。\n支払い方法を確認してから、もう一度手続きしてください。",
+          "支払いを確認できなかったため、Proへの変更を適用できませんでした。",
+          "Standardを継続しています。\n支払い方法を確認してから、もう一度手続きしてください。",
         ],
       };
     case "paidActivationFailedRestrictedContinued":
@@ -249,13 +250,13 @@ export function organizationBillingNotificationCopy(
         subject: "支払い猶予の終了まで3日です",
         heading: "支払い猶予の終了まで3日です",
         paragraphs: [
-          "未払いのまま猶予期間が終了すると、無料プランへ変更されます。",
-          "無料プランの利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。",
+          `未払いのまま猶予期間が終了すると、${FREE_PLAN_SENTENCE_LABEL}へ変更されます。`,
+          `${FREE_PLAN_SENTENCE_LABEL}の利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。`,
           "組織設定から支払い方法を確認してください。",
         ],
       };
     case "restrictedStarted": {
-      const targetPlanLabel = details?.targetPlan ? planLabel(details.targetPlan) : null;
+      const targetPlanLabel = details?.targetPlan ? organizationPlanLabel(details.targetPlan) : null;
       if (targetPlanLabel) {
         const billingSummary = formatBillingSummary(details);
         return {
@@ -279,7 +280,7 @@ export function organizationBillingNotificationCopy(
           heading: "利用停止中になりました",
           paragraphs: [
             "店舗・ユーザー・過去のシフトは削除されていませんが、シフト作成や通知などの業務操作は利用できません。",
-            "利用を再開するには、組織設定からProまたはBusinessを契約してください。",
+            "利用を再開するには、組織設定からStandardまたはProを契約してください。",
           ],
         };
       }
@@ -288,12 +289,12 @@ export function organizationBillingNotificationCopy(
         heading: "契約制限中になりました",
         paragraphs: [
           "既存データは引き続き閲覧できますが、シフト作成や通知などの業務操作は利用できません。",
-          "組織設定で有料プランを再開するか、無料プランで残す管理者と店舗を整理してください。",
+          `組織設定で有料プランを再開するか、${FREE_PLAN_SENTENCE_LABEL}で残す管理者と店舗を整理してください。`,
         ],
       };
     }
     case "recovered": {
-      const targetPlanLabel = details?.targetPlan ? planLabel(details.targetPlan) : null;
+      const targetPlanLabel = details?.targetPlan ? organizationPlanLabel(details.targetPlan) : null;
       const billingSummary = formatBillingSummary(details);
       const recoverySummary = [
         targetPlanLabel
@@ -309,7 +310,7 @@ export function organizationBillingNotificationCopy(
         heading: "契約を復旧しました",
         paragraphs: [
           recoverySummary,
-          ...(details?.usageLimitExceeded && targetPlanLabel ? [overLimitParagraph(targetPlanLabel)] : []),
+          ...(details?.usageLimitExceeded && targetPlanLabel ? [overLimitParagraph(`${targetPlanLabel}プラン`)] : []),
           "契約制限中に送信されなかった通知は、自動では再送されません。",
         ],
       };
@@ -325,14 +326,8 @@ export function organizationBillingNotificationCopy(
   }
 }
 
-function planLabel(plan: "free" | "pro" | "business") {
-  if (plan === "free") return "無料";
-  if (plan === "pro") return "Pro";
-  return "Business";
-}
-
-function overLimitParagraph(plan: string) {
-  return `${plan}プランの利用上限を超えているため、現在は利用人数・稼働店舗・有効管理者を減らす操作と、契約・利用終了に必要な操作だけ利用できます。\n上限内になると、業務操作は自動的に再開されます。`;
+function overLimitParagraph(planLabel: string) {
+  return `${planLabel}の利用上限を超えているため、現在は利用人数・稼働店舗・有効管理者を減らす操作と、契約・利用終了に必要な操作だけ利用できます。\n上限内になると、業務操作は自動的に再開されます。`;
 }
 
 function formatBillingSummary(details?: OrganizationBillingNotificationDetails) {

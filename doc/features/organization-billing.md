@@ -61,7 +61,7 @@ direct routeとpublic mutation/actionは、画面表示とは独立して認証�
 | 店舗（`shops`） | 日常業務で選択する操作対象。必ず一つの組織に属する |
 | 人物（`organizationPeople`） | 組織内の利用人数を数える正本。スタッフ兼管理者でも重複計上しない |
 | 管理者所属（`organizationMembers`） | 管理画面の権限。`active`、復旧専用の`readOnly`、失効済みの`removed`を持つ |
-| 課金状態（`organizationBillingStates`） | Trial、Pro、Business、Free、支払い不要Businessと遷移中の状態を保持する。旧`restricted`はrolling deployのread互換期間だけ受け付ける |
+| 課金状態（`organizationBillingStates`） | Trial、Standard（内部`pro`）、Pro（内部`business`）、Free、支払い不要Pro相当と遷移中の状態を保持する。旧`restricted`はrolling deployのread互換期間だけ受け付ける |
 | Stripe対応表とoperation | 有料契約のCustomer、Subscription、非同期処理を組織単位で追跡する |
 | 管理者招待（`organizationInvitations`） | メールの受取人へ、管理者アカウントを一回だけ連携できる権限を渡す |
 
@@ -98,13 +98,13 @@ direct routeとpublic mutation/actionは、画面表示とは独立して認証�
 
 | 表示・利用権限 | 利用人数 | 稼働店舗 | 有効管理者 | Stripe契約 |
 |---|---:|---:|---:|---|
-| Trial | 40 | 5 | 5 | 継続予約がある場合だけ作成処理を持つ |
+| Trial | 50 | 5 | 5 | 継続予約がある場合だけ作成処理を持つ |
 | Free | 5 | 1 | 2 | なし |
-| Pro | 20 | 5 | 5 | あり |
-| Business | 40 | 5 | 5 | あり |
-| 支払い不要Business | 40 | 5 | 5 | 作成しない |
+| Standard | 25 | 5 | 5 | あり |
+| Pro | 50 | 5 | 5 | あり |
+| 支払い不要Pro相当 | 50 | 5 | 5 | 作成しない |
 
-Trialの利用権限はBusinessと同じである。
+Trialの利用権限はProと同じである。
 Freeは追加組織の初期状態、既存の`active.free`、そのFreeをfallbackとする`pendingActivation`、Trial未契約終了、有料契約終了後の受け皿として維持する。
 以下でFreeの管理者操作を説明するときは、`active.free`とFreeをfallbackとする`pendingActivation`を対象にする。
 通常の初回Setupは3か月のTrialで作る。
@@ -126,11 +126,11 @@ Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側
 - 有料プランの状態変更は、署名済みWebhookまたはStripe APIから再取得した結果だけを`setStateFromVerifiedBilling`へ渡す。
   CheckoutやPortalの戻り先を支払い成功の根拠にしない。
 - Secret keyの接頭辞、Stripe objectの`livemode`、Price、Customer、Subscription、Invoiceの対応を検証する。
-- ProとBusinessの金額、通貨、請求周期はStripe Priceを正本とし、コード、環境変数、DBへ周期を複製しない。  新規販売ではactiveなrecurring Priceと正の`interval_count`を要求し、両プランの通貨と請求周期が一致する場合だけBusinessの価格表示、Checkout、プラン間変更を許可する。
+- Standard（内部`pro`）とPro（内部`business`）の金額、通貨、請求周期はStripe Priceを正本とし、コード、環境変数、DBへ周期を複製しない。  新規販売ではactiveなrecurring Priceと正の`interval_count`を要求し、両プランの通貨と請求周期が一致する場合だけProの価格表示、Checkout、プラン間変更を許可する。
 - Stripe Event ID、request ID、operationのidempotency keyで重複実行を収束させる。
-- ProからBusinessへの即時変更は、支払い成功を確認するまでProの利用権限を維持する。
-- BusinessからProへの変更と、有料プランの解約は期間末に予約し、providerで確認できた結果だけを反映する。
-- BusinessからProへの変更をproviderで確認した後は、Pro上限を超えていても`active.pro`を適用し、超過分の整理を求める。
+- StandardからProへの即時変更は、支払い成功を確認するまでStandardの利用権限を維持する。
+- ProからStandardへの変更と、有料プランの解約は期間末に予約し、providerで確認できた結果だけを反映する。
+- ProからStandardへの変更をproviderで確認した後は、Standard上限を超えていても`active.pro`を適用し、超過分の整理を求める。
 - 支払い猶予終了では、未払いとSubscription終了、請求回収停止を確認してから`active.free`へ移す。
 - 解約の予約には新契約を示すmarkerを保存し、同じ`targetPlan: "free"`を使うdeployment前の旧Free予約と区別する。
 - カード番号、CVC、有効期限をアプリの引数、DB、ログへ保存しない。
@@ -146,7 +146,7 @@ Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側
 | 追加組織作成 | 既存組織のactive管理者 | `active.free` |
 
 初回Setupは本人のactiveな組織所属が0件であることをserver-sideで確認する。
-最初の組織、店舗、人物、管理者、店舗スタッフと、Business相当の3か月Trialを一度だけ作る。Trial期限と課金deadlineは作るが、Stripe objectは作らない。
+最初の組織、店舗、人物、管理者、店舗スタッフと、Pro相当の3か月Trialを一度だけ作る。Trial期限と課金deadlineは作るが、Stripe objectは作らない。
 
 追加組織は管理画面から作成できる。  serverは認証、作成元組織の管理者状態、Free枠、作成上限、rate limit、冪等性をwriteより前に確認する。
 
@@ -169,12 +169,12 @@ Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側
 旧frontendが`sourceShopId`を送らない場合、またはsourceに一意な旧`shopMembers`だけがありcanonical personがまだない移行途中の場合は、`users`のsnapshotへfallbackする。canonical personやmembershipが重複・不整合な場合はfallbackせず拒否する。
 作成時の非PII auditには`managerProfile.canonicalPerson`、`managerProfile.legacySourceUserSnapshot`、`managerProfile.omittedSourceUserSnapshot`のいずれかを記録し、旧clientと移行fallbackの収束をメール値なしで確認できるようにする。互換期間終了後の`sourceShopId` required化とfallback削除は別変更で行う。
 
-## 支払い不要Business
+## 支払い不要Pro相当
 
-既存の支払い不要Business組織は`complimentary.business`を維持する。
-期限と利用料金はなく、Businessの40名、5店舗、管理者5名を利用できる。
+既存の支払い不要Pro相当の組織は、内部状態`complimentary.business`を維持する。
+期限と利用料金はなく、Proの50名、5店舗、管理者5名を利用できる。
 
-支払い不要Businessでは、Stripe Customer、Subscription、Checkout Session、Portal Session、Invoice、Subscription Schedule、課金operation、課金通知を作らない。
+支払い不要Pro相当では、Stripe Customer、Subscription、Checkout Session、Portal Session、Invoice、Subscription Schedule、課金operation、課金通知を作らない。
 公開API、管理処理、Stripeイベント、再同期処理から通常課金や別状態へ変更しない。
 
 現行コードの保存契約は`complimentary.business`だけを許可する。
@@ -183,7 +183,7 @@ Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側
 `m021_organization_billing_complimentary_pro_to_business`とexport verifierは、旧`complimentary.pro`を新形式へ移した履歴を検証するために残す。
 Migration Testの旧shape fixture以外で、`complimentary.pro`を現行契約として作成しない。
 
-`m022_organization_billing_to_complimentary_business`は、全組織を支払い不要Businessへ寄せるために実装された履歴migrationである。
+`m022_organization_billing_to_complimentary_business`は、全組織を現在の表示でいう支払い不要Pro相当へ寄せるために実装された履歴migrationである。
 現行の初回Setupはこのmigrationを呼ばず、新規組織をTrialで作成する。
 repositoryにmigrationがあることから、対象deploymentでの実行完了を推測しない。
 
@@ -225,13 +225,13 @@ Notification Outboxは外部送信直前にも招待、所属、受取人を再�
 
 | 状態 | 利用者から見た意味 | 書込・復旧の扱い |
 |---|---|---|
-| `trial` | 無料体験中。Business相当を利用する | 継続先としてProまたはBusinessを選べる |
-| `initialPaymentPending` | Trial終了時の初回支払い結果を確認中 | Pro相当を維持し、検証済み結果を待つ |
-| `pendingActivation` | 既存FreeまたはProから有料プランを有効化中 | 保存したfallbackの権限を維持する。Free fallbackは5名、1店舗、管理者2名を使う |
+| `trial` | 無料体験中。Pro相当を利用する | 継続先としてStandardまたはProを選べる |
+| `initialPaymentPending` | Trial終了時の初回支払い結果を確認中 | Standard相当を維持し、検証済み結果を待つ |
+| `pendingActivation` | 既存FreeまたはStandardから有料プランを有効化中 | 保存したfallbackの権限を維持する。Free fallbackは5名、1店舗、管理者2名を使う |
 | `active.free` | Freeを利用中 | 5名、1店舗、管理者2名に限定する。二つ目以降の組織はこの状態で開始する |
-| `active.pro` | Proを利用中 | 20名、5店舗、管理者5名を許可する |
-| `active.business` | Businessを利用中 | 40名、5店舗、管理者5名を許可する |
-| `complimentary.business` | 支払い不要Businessを利用中 | Business権限を許可し、Stripe処理を拒否する |
+| `active.pro` | Standardを利用中 | 25名、5店舗、管理者5名を許可する |
+| `active.business` | Proを利用中 | 50名、5店舗、管理者5名を許可する |
+| `complimentary.business` | 支払い不要Pro相当を利用中 | Pro権限を許可し、Stripe処理を拒否する |
 | `scheduledChange` | 期間末のプラン変更または解約を予約済み | 期間末までは現在の有料プランを維持する。解約予約は`restrictAtPeriodEnd: true`で識別する |
 | `grace` | 最初に検証された支払い失敗から14日間の猶予中 | 現在の有料権限と復旧操作を維持する |
 | `restricted` | 旧契約制限の互換shape | Productionの保存データには存在せず、新規作成もしない。rolling互換期間だけschema・validator・readerで受け付ける |
@@ -243,7 +243,7 @@ Notification Outboxは外部送信直前にも招待、所属、受取人を再�
 Stripeで期間末終了を確認した後は`active.free`へ移し、管理者、店舗、人物、スタッフ所属、シフトを変更しない。
 Free上限を超えていれば、保存状態を増やさず整理操作だけを許可する。
 
-`active.free`は追加組織と既存のFree組織へ適用し、支払い不要Businessは既存組織だけの契約として維持する。
+`active.free`は追加組織と既存のFree組織へ適用し、支払い不要Pro相当は既存組織だけの契約として維持する。
 deployment前から保存済みで`targetPlan: "free"`かつ`restrictAtPeriodEnd`を持たない変更予約も、providerで期間末終了を確認した後は`active.free`へ収束させる。
 `setFreeSelection`はrolling互換用に残すが、Productionに対象データがないためMigrationは追加しない。
 旧callerのdrainと全deploymentでの不在を別途確認した後に、旧shapeと同時にNarrowする。
@@ -267,7 +267,8 @@ Dashboardは組織を親、現在の店舗を作業対象として順に表示�
 別組織の作成、組織切替、店舗追加は、管理者状態と契約状態に応じて表示する。
 
 `getDashboardShop`が選択店舗と組織所属を検証して返す`planStatus`を、プラン表示の正本にする。
-`planStatus`は`trial`、`initialPaymentPending`、`pendingActivation`、Free・Pro・Businessの利用中、支払い不要Business、変更予約、支払い猶予、旧契約制限を、利用者向けの最小DTOへ投影する。
+`planStatus`は`trial`、`initialPaymentPending`、`pendingActivation`、Free・Standard・Proの利用中、支払い不要Pro相当、変更予約、支払い猶予、旧契約制限を、利用者向けの最小DTOへ投影する。
+Trialの契約操作ダイアログでは、保存された終了境界を排他的な課金開始日時として扱い、JSTでその前日を「無料体験の最終日」、境界日を「課金開始日」として表示する。
 利用数DTOは課金状態と分け、現在値、未承認の管理者招待数、評価プラン、`withinLimits`、`overLimit`、`unknown`を返す。
 別組織の課金state、StripeのCustomer・Subscription・Price ID、providerの生応答は返さない。
 
@@ -316,7 +317,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `convex/narrowReadiness/queries.ts` | 招待、請求先、Subscription、制限状態をPIIなしで全ページ確認する |
 | `convex/notificationOutbox/` | 外部送信前の宛先・所属・課金状態再確認と重複排除を行う |
 | `convex/migrations/m021_organization_billing_complimentary_pro_to_business.ts` | 旧`complimentary.pro`を変換した履歴migrationとMigration Testの契約 |
-| `convex/migrations/m022_organization_billing_to_complimentary_business.ts` | 段階リリース時に、全課金状態を支払い不要Businessへ寄せた履歴migration |
+| `convex/migrations/m022_organization_billing_to_complimentary_business.ts` | 段階リリース時に、全課金状態を現在の表示でいう支払い不要Pro相当へ寄せた履歴migration |
 | `scripts/verifyComplimentaryBusinessM021Export.ts` | Narrow deploy前にm021前後のexport証跡をfail-closedに検証する |
 
 ### フロントエンド
@@ -340,7 +341,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 
 | 入口 | 用途 |
 |---|---|
-| `api.setup.mutations.setupShopAndManager` | 所属0件の初期設定と、1組織、1店舗、管理者本人、Business相当の3か月Trialを作成する。Trial deadlineは作るがStripe objectは作らない |
+| `api.setup.mutations.setupShopAndManager` | 所属0件の初期設定と、1組織、1店舗、管理者本人、Pro相当の3か月Trialを作成する。Trial deadlineは作るがStripe objectは作らない |
 | `api.setup.mutations.createOrganization` | 既存管理者による追加組織作成。認証、作成上限、rate limit、冪等性を確認し`active.free`を作る |
 | `api.dashboard.queries.getMyShops` | 利用可能な店舗、組織、所属状態の取得 |
 | `api.dashboard.queries.getDashboardShop` | 選択店舗を認可し、Dashboard用の`planStatus`とrolling deploy用の旧`trialEndingNotice`を取得 |
@@ -359,8 +360,8 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `api.organizationStripe.actions.getPlanPrice` / `startPaidCheckout` | Stripe設定と販売Priceを検証して価格を取得し、契約を開始する |
 | `api.organizationStripe.actions.inspectPendingCheckoutForOrganization` / `cancelPendingCheckoutForOrganization` | `pendingActivation`に対応するCheckout Sessionの照合と、利用者が明示した未完了Checkoutの取消。URLやclient stateだけで課金状態を変更しない |
 | `api.organizationStripe.actions.getCurrentSubscriptionPrice` | 選択店舗を認可し、現在の非terminal Subscriptionに保存したPriceから金額、通貨、周期、明示された税区分だけを取得 |
-| `api.organizationStripe.actions.previewPaidPlanChange` / `changePaidPlanNow` | ProからBusinessへの日割りpreviewと即時変更 |
-| `api.organizationStripe.actions.schedulePaidPlanChange` | BusinessからProへの期間末変更。`targetPlan: "free"`は受け付けない |
+| `api.organizationStripe.actions.previewPaidPlanChange` / `changePaidPlanNow` | Standard（内部`pro`）からPro（内部`business`）への日割りpreviewと即時変更 |
+| `api.organizationStripe.actions.schedulePaidPlanChange` | Pro（内部`business`）からStandard（内部`pro`）への期間末変更。`targetPlan: "free"`は受け付けない |
 | `api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd` / `cancelScheduledPlanChange` | 有料契約の期間末解約と、その予約取消 |
 | `api.organizationStripe.actions.openCustomerPortal` | 支払い方法と請求履歴を扱う一時Portal URLの作成 |
 | `api.organizationStripe.actions.cancelTrialContinuation` | Trial後の継続予約取消 |
@@ -379,17 +380,17 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 
 ## 検証の入口
 
-- `convex/organizationBilling/*.test.ts`：プラン上限、利用実数からのaccess導出、Trial終了と解約後のFree移行、BusinessからProへの適用、旧shapeのread互換、期限、通知を検証する。
+- `convex/organizationBilling/*.test.ts`：プラン上限、利用実数からのaccess導出、Trial終了と解約後のFree移行、ProからStandardへの適用、旧shapeのread互換、期限、通知を検証する。
 - `convex/dashboard/queries.test.ts`：選択店舗の認可境界、全課金状態の`planStatus`投影、利用状況の現在値・上限、不要な識別子の非露出を検証する。
-- `convex/organizationStripe/*.test.ts`：新規販売用Price、現在Subscriptionの保存済みPrice、Checkout、期間末解約と取消、Webhook、再照合、支払い不要BusinessのStripe隔離、probeを検証する。
+- `convex/organizationStripe/*.test.ts`：新規販売用Price、現在Subscriptionの保存済みPrice、Checkout、期間末解約と取消、Webhook、再照合、支払い不要Pro相当のStripe隔離、probeを検証する。
 - `convex/organizationInvitation/*.test.ts`：token、期限、接続済み人物のアカウント一致、未接続人物のClerk確認済みメール、provider失敗時の非消費、予約枠、再送、連携を検証する。
 - `convex/organization/managerSettingsQueries.test.ts`：管理者設定のbounded read、currentとprojectedの分離、`integrityError` / `ready`、候補の選択不可理由を検証する。
 - `convex/_scenario/organizationBillingLifecycle.test.ts`と`organizationPaidPlanChanges.test.ts`：時間と複数APIをまたぐ課金ライフサイクルを検証する。
 - `convex/_scenario/staffManagerInvitation.test.ts`と`organizationManagerExchange.test.ts`：既存人物の通常招待と、既発行のFree管理者交代招待の互換処理を検証する。
-- `convex/setup/mutations.test.ts`：初回Setupが所属0件だけに許可され、Business相当の3か月Trialとdeadlineを作り、Stripe objectを作らないことと、追加組織が認証、上限、rate limitを再確認することを検証する。
+- `convex/setup/mutations.test.ts`：初回Setupが所属0件だけに許可され、Pro相当の3か月Trialとdeadlineを作り、Stripe objectを作らないことと、追加組織が認証、上限、rate limitを再確認することを検証する。
 - `convex/_scenario/organizationCreation.test.ts`：追加組織について、Free枠、冪等性、rate limit、初期Free状態、既存組織への非混入を検証する。
 - `src/pages/dashboard/index.stories.tsx`、`src/components/features/Dashboard/DashboardContent/index.stories.tsx`、`src/components/features/OrganizationSettings/OrganizationCreation/OrganizationCreationDialog.stories.tsx`、`src/components/features/OrganizationSettings/controllers.test.tsx`：初回Setupと追加組織作成について、代表状態、フォーム操作、失敗後も同じ`requestId`を保つ再試行、mutation引数、作成後の遷移を検証する。
-- `src/components/features/OrganizationSettings/PlanAndPaymentSection.stories.tsx`と`BillingSettings/`配下のStory・Logic Test：Free、Pro、Business、未完了Checkoutの代表状態と主要変更操作を検証する。
+- `src/components/features/OrganizationSettings/PlanAndPaymentSection.stories.tsx`と`BillingSettings/`配下のStory・Logic Test：Free、Standard、Pro、未完了Checkoutの代表状態と主要変更操作を検証する。
 - `src/components/features/Dashboard/PlanStatusCard/`のFrontend Unit・Story・Logic Test：折りたたみ中のquery停止、利用状況の局所Loading、全課金状態の表示変換、開閉、CTA、モバイル表示を検証する。
 - `src/components/features/Dashboard/DashboardContent/index.stories.tsx`：`undefined`と`null`のfallback差、新旧表示の優先順位を検証する。
 - `src/components/features/ManagerSettings/`のStoryとFrontend Unit Test：専用ページ、既存スタッフの単一選択、新しい人物の入力、Freeの2名上限、再送、取消、旧Free交代の互換表示、Loading、Empty、Error、閲覧専用の代表状態を検証する。

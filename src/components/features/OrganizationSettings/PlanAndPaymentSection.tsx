@@ -54,20 +54,20 @@ const STATE_PRESENTATION: Record<
   trial: {
     label: "トライアル",
     status: "info",
-    description: formatPlanLimitsDescription("trial", "、Businessと同じ機能を利用できます。"),
+    description: formatPlanLimitsDescription("trial", "、Proと同じ機能を利用できます。"),
   },
   free: {
-    label: "無料",
+    label: "Free",
     status: "info",
     description: formatPlanLimitsDescription("free", "、基本的なシフト運用を利用できます。"),
   },
   pro: {
-    label: "Pro",
+    label: "Standard",
     status: "success",
     description: formatPlanLimitsDescription("pro", "利用できます。"),
   },
   business: {
-    label: "Business",
+    label: "Pro",
     status: "success",
     description: formatPlanLimitsDescription("business", "利用できます。"),
   },
@@ -93,7 +93,7 @@ const STATE_PRESENTATION: Record<
       "プラン移行に伴い、機能を制限しています。\n支払いを確認するか、利用人数・店舗数を変更先プランの上限内に調整してください。",
   },
   scheduledFree: {
-    label: "無料へ変更予定",
+    label: "Freeへ変更予定",
     status: "warning",
     description: "現在の支払い済み期間が終わるまでは、現在の有料プランを利用できます。",
   },
@@ -125,7 +125,7 @@ export const PlanAndPaymentSection = ({
         ...STATE_PRESENTATION.scheduledChange,
         label: "解約予定",
         description:
-          "現在の支払い済み期間が終わるまでは、現在のプランを利用できます。\n解約後は無料プランへ変更されます。データは削除されません。",
+          "現在の支払い済み期間が終わるまでは、現在のプランを利用できます。\n解約後はFreeプランへ変更されます。データは削除されません。",
       }
     : isUsageLimitExceeded
       ? {
@@ -143,13 +143,13 @@ export const PlanAndPaymentSection = ({
               ...STATE_PRESENTATION.restricted,
               label: "利用停止中",
               description:
-                "店舗・ユーザー・過去のシフトは削除されていません。\nProまたはBusinessを契約すると利用を再開できます。",
+                "店舗・ユーザー・過去のシフトは削除されていません。\nStandardまたはProを契約すると利用を再開できます。",
             }
           : billing.state === "pendingActivation" && billing.currentPlan === "free"
             ? {
                 ...STATE_PRESENTATION.pendingActivation,
                 description:
-                  "支払いの成功を確認するまで、有料プランは開始されません。\n確認中も、無料の基本機能は利用できます。",
+                  "支払いの成功を確認するまで、有料プランは開始されません。\n確認中も、Freeの基本機能は利用できます。",
               }
             : STATE_PRESENTATION[billing.state];
   const currentPlan =
@@ -288,7 +288,7 @@ function PlanSummary({
           )}
           {billing.isComplimentary && (
             <Text textStyle="bodySm" color="fg.muted">
-              早期登録特典によりBusinessプラン相当の機能をずっと無料で利用できます。
+              早期登録特典によりProプラン相当の機能をずっと無料で利用できます。
             </Text>
           )}
         </Stack>
@@ -707,9 +707,9 @@ function ReductionGuidance({ reductions }: { reductions: ReturnType<typeof getRe
 }
 
 function trialContinuationDescription(billing: OrganizationBillingView) {
-  if (billing.targetPlan === "business") return "終了後はBusinessへ継続する予定です。";
-  if (billing.targetPlan === "pro") return "終了後はProへ継続する予定です。";
-  return "継続登録がない場合、トライアル終了後は無料プランへ変更されます。データは削除されません。";
+  if (billing.targetPlan === "business") return "終了後はProへ継続する予定です。";
+  if (billing.targetPlan === "pro") return "終了後はStandardへ継続する予定です。";
+  return "継続登録がない場合、トライアル終了後はFreeプランへ変更されます。データは削除されません。";
 }
 
 function PaymentInformation({

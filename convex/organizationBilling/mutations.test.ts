@@ -321,7 +321,7 @@ describe("organizationBilling/mutations Free管理者選択", () => {
           freeShopId: ids.shopId,
           requestId: "complimentary-free-selection",
         }),
-    ).rejects.toThrow("支払い不要Businessでは無料設定を変更できません");
+    ).rejects.toThrow("支払い不要の組織ではFree設定を変更できません");
 
     const result = await t.run(async (ctx) => ({
       audits: await ctx.db
@@ -738,7 +738,7 @@ describe("organizationBilling/mutations 請求先メール", () => {
           email: "must-not-change@example.com",
           requestId: "complimentary-billing-email",
         }),
-    ).rejects.toThrow("支払い不要Businessでは請求先メールアドレスを変更できません");
+    ).rejects.toThrow("支払い不要の組織では請求先メールアドレスを変更できません");
 
     const result = await t.run(async (ctx) => ({
       audits: await ctx.db

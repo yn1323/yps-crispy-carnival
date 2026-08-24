@@ -27,13 +27,13 @@ const storyModel = (() => {
 })();
 
 const usageWithoutManager = {
-  peopleUsage: { current: 12, max: 20 },
+  peopleUsage: { current: 12, max: 25 },
   shopUsage: { current: 2, max: 5 },
 } satisfies PlanStatusCardUsage;
 
 const trialUsageWithoutManager = {
   ...usageWithoutManager,
-  peopleUsage: { current: 12, max: 40 },
+  peopleUsage: { current: 12, max: 50 },
 } satisfies PlanStatusCardUsage;
 
 const usageWithManager = {
@@ -49,7 +49,7 @@ const usageWithPendingManagerInvitation = {
 
 const proPlan = {
   kind: "paidPlan",
-  planName: "Pro",
+  planName: "Standard",
   badgeLabel: "利用中",
   nextEventLabel: "次回更新日：2026/9/1",
 } satisfies PlanStatusCardData;
@@ -62,23 +62,23 @@ const freePlan = {
 
 const businessPlan = {
   kind: "paidPlan",
-  planName: "Business",
+  planName: "Pro",
   badgeLabel: "利用中",
   nextEventLabel: "次回更新日：2026/9/1",
 } satisfies PlanStatusCardData;
 
 const complimentaryBusiness = {
   kind: "paidPlan",
-  planName: "Business",
+  planName: "Pro",
   badgeLabel: "支払い不要",
-  description: "早期登録特典によりBusinessプラン相当の機能をずっと無料で利用できます。",
+  description: "早期登録特典によりProプラン相当の機能をずっと無料で利用できます。",
 } satisfies PlanStatusCardData;
 
 const scheduledPlanChange = {
   kind: "paidPlan",
-  planName: "Business",
+  planName: "Pro",
   badgeLabel: "変更予定",
-  description: "2026/9/1にProプランへ変更します。",
+  description: "2026/9/1にStandardプランへ変更します。",
 } satisfies PlanStatusCardData;
 
 const trial = {
@@ -109,13 +109,13 @@ const selectedTrial = {
 const paymentPending = {
   kind: "paymentPending",
   currentPlanName: "Free",
-  targetPlanName: "Pro",
-  description: "Proプランへの変更結果を確認しています。確認中はFreeプランが適用されます。",
+  targetPlanName: "Standard",
+  description: "Standardプランへの変更結果を確認しています。確認中はFreeプランが適用されます。",
 } satisfies PlanStatusCardData;
 
 const paymentIssue = {
   kind: "paymentIssue",
-  planName: "Pro",
+  planName: "Standard",
   phase: "grace",
   description: "サービスの停止を防ぐため、お支払い方法を更新してください。",
   recoveryDeadlineLabel: "支払い期限：2026/8/17",
@@ -124,7 +124,7 @@ const paymentIssue = {
 
 const paymentIssueWithoutPermission = {
   kind: "paymentIssue",
-  planName: "Pro",
+  planName: "Standard",
   phase: "grace",
   description: "支払い方法の更新は、契約を管理できる管理者が行えます。",
   recoveryDeadlineLabel: "支払い期限：2026/8/17",
@@ -132,9 +132,9 @@ const paymentIssueWithoutPermission = {
 
 const restrictedPaymentIssue = {
   kind: "paymentIssue",
-  planName: "Business",
+  planName: "Pro",
   phase: "restricted",
-  description: "データは削除されていません。利用を再開するには、ProまたはBusinessを契約してください。",
+  description: "データは削除されていません。利用を再開するには、StandardまたはProを契約してください。",
   primaryAction: { action: "choosePlan", label: "プランを選んで再開する" },
 } satisfies PlanStatusCardData;
 
@@ -175,26 +175,26 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const ProCollapsed: Story = {
-  name: "Pro・折りたたみ",
+  name: "Standard・折りたたみ",
 };
 
 export const ProExpanded: Story = {
-  name: "Pro・展開・利用状況2列",
+  name: "Standard・展開・利用状況2列",
   args: { defaultExpanded: true },
 };
 
 export const ProWithManagerExpanded: Story = {
-  name: "Pro・展開・利用状況3列",
+  name: "Standard・展開・利用状況3列",
   args: { usage: usageWithManager, defaultExpanded: true },
 };
 
 export const ProWithPendingManagerInvitationExpanded: Story = {
-  name: "Pro・展開・管理者招待中",
+  name: "Standard・展開・管理者招待中",
   args: { usage: usageWithPendingManagerInvitation, defaultExpanded: true },
 };
 
 export const ProUsageLoading: Story = {
-  name: "Pro・利用状況読み込み中",
+  name: "Standard・利用状況読み込み中",
   args: { usage: undefined, defaultExpanded: true },
   play: async ({ canvasElement }) => {
     const status = within(canvasElement).getByRole("status");
@@ -205,7 +205,7 @@ export const ProUsageLoading: Story = {
 };
 
 export const ProUsageUnavailable: Story = {
-  name: "Pro・利用状況なし",
+  name: "Standard・利用状況なし",
   args: { usage: null, defaultExpanded: true },
 };
 
@@ -215,17 +215,17 @@ export const FreeExpanded: Story = {
 };
 
 export const BusinessExpanded: Story = {
-  name: "Business・展開",
+  name: "Pro・展開",
   args: { data: businessPlan, defaultExpanded: true },
 };
 
 export const ComplimentaryBusinessExpanded: Story = {
-  name: "Business・支払い不要",
+  name: "Pro・支払い不要",
   args: { data: complimentaryBusiness, defaultExpanded: true },
 };
 
 export const ScheduledPlanChangeExpanded: Story = {
-  name: "Business・Proへ変更予定",
+  name: "Pro・Standardへ変更予定",
   args: { data: scheduledPlanChange, defaultExpanded: true },
 };
 
@@ -308,10 +308,10 @@ export const PaidExpansionBehavior: Story = {
     await userEvent.click(toggle);
 
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
-    const details = await canvas.findByRole("region", { name: "Proプランの詳細" });
+    const details = await canvas.findByRole("region", { name: "Standardプランの詳細" });
     const usage = await within(details).findByRole("group", { name: "プランの利用状況" });
-    const peopleUsage = within(usage).getByText("12 / 20人");
-    await expect(peopleUsage).toHaveAccessibleName("利用人数 現在12人 / 上限20人");
+    const peopleUsage = within(usage).getByText("12 / 25人");
+    await expect(peopleUsage).toHaveAccessibleName("利用人数 現在12人 / 上限25人");
 
     await userEvent.click(toggle);
     await expect(toggle).toHaveAttribute("aria-expanded", "false");

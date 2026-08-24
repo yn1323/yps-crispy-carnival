@@ -56,7 +56,7 @@ frontendの閲覧専用表示は認可根拠ではなく、mutationが毎回組�
 
 課金ライフサイクルと利用上限は別に判定する。
 Trial、`initialPaymentPending`、`active`、`complimentary`、`scheduledChange`、`grace`は、その時点の有効プランを持つ。
-`pendingActivation`は支払い成功までFreeまたはProのfallbackを維持し、有料機能だけを開放しない。
+`pendingActivation`は支払い成功までFreeまたはStandardのfallbackを維持し、有料機能だけを開放しない。
 旧`restricted`と`fallback: restricted`だけは、migration互換期間中の`billingRecoveryOnly`として扱う。
 
 | 利用上限の導出結果 | `accessMode` | 業務書き込み |
@@ -117,11 +117,11 @@ Trial、`initialPaymentPending`、`active`、`complimentary`、`scheduledChange`
 
 | プラン・状態 | 利用人数 | 稼働店舗 | 有効管理者 |
 |---|---:|---:|---:|
-| Trial／支払い不要Business／Business | 40 | 5 | 5 |
-| Pro | 20 | 5 | 5 |
+| Trial／支払い不要Pro相当／Pro | 50 | 5 | 5 |
+| Standard | 25 | 5 | 5 |
 | Free | 5 | 1 | 2 |
 
-- 超過する操作（21人目・41人目・6人目管理者・6店舗目）は**確定前に拒否**し、問い合わせ導線と現在の利用状況を表示する。一部だけの保存はしない。
+- 超過する操作（Standardの26人目・Proの51人目・6人目管理者・6店舗目）は**確定前に拒否**し、現在の利用状況を表示する。一部だけの保存はしない。利用人数は上位の標準プランがある場合だけプラン変更を案内し、Pro上限では問い合わせ導線を表示しない。
 - 管理者上限は「有効管理者＋期限内の未承認招待」の見込み合計で判定する。
 - プラン上限を**読み取りの上限に流用しない**。上限超過の既存データ（人物・店舗）も一覧の追加ページから全件到達できる。
 - 人数が減っても自動でプランを変更しない。
@@ -133,7 +133,7 @@ Trial、`initialPaymentPending`、`active`、`complimentary`、`scheduledChange`
 | スタッフ個別通知の再送 | 操作者10回/日、組織20回/日（募集・確定共通。actorを替えても組織quotaを共有） | 再送を受け付けない |
 | 再送の配送対象数 | organization×通知種別で200件/短時間、1000件/日 | 同上 |
 | 確定シフト個別再送の対象募集 | 1回40件 | **超過時は1件も送らず**開始不可を表示 |
-| 通知fanout | 対象スタッフ40名/操作、10名ずつ処理 | 上限で固定 |
+| 通知fanout | 対象スタッフ50名/操作、10名ずつ処理 | 上限で固定 |
 | QR参加申請 | メール3回/短時間・10回/日、リンク5回/短時間・40回/日、IP 10回/短時間・100回/日、global | 受付拒否（Turnstile通過後も適用） |
 | 承認待ち申請の保存 | 店舗20件 | 受付結果だけ返して保存しない |
 | 問い合わせ | Turnstile＋メール・IPハッシュ単位、global 100回/短時間 | 送信拒否 |

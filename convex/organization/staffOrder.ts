@@ -2,9 +2,10 @@ import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { DatabaseReader, DatabaseWriter } from "../_generated/server";
 import { sha256Hex } from "../_lib/sha256";
+import { ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/planLimits";
 import { organizationShopOperatingStatus } from "./shopMembershipChange";
 
-export const ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT = 40;
+export const ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT = ORGANIZATION_PLAN_LIMITS.business.maxPeople;
 export const ORGANIZATION_STAFF_ORDER_ACTIVE_SHOP_LIMIT = 5;
 const BOUNDED_PEOPLE_READ = ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT + 1;
 const BOUNDED_SHOP_CANDIDATE_READ = ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT + 1;

@@ -1694,7 +1694,7 @@ export const reconcileScheduledFreeDeadline = internalAction({
   },
 });
 
-/** Stripe Scheduleのphase移行と請求結果を再取得し、BusinessからProへの期間末変更を確定する。 */
+/** Stripe Scheduleのphase移行と請求結果を再取得し、Pro（内部business）からStandard（内部pro）への期間末変更を確定する。 */
 export const reconcileScheduledPaidPlanDeadline = internalAction({
   args: {
     organizationId: v.id("organizations"),

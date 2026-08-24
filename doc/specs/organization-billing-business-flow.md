@@ -2,7 +2,7 @@
 
 - 文書種別: spec
 - 更新日: 2026-08-24
-- 対象: Free、Trial、Pro、Business、支払い不要Business、複数店舗、複数管理者、Stripe課金
+- 対象: Free、Trial、Standard、Pro、支払い不要Pro相当、複数店舗、複数管理者、Stripe課金
 - 実環境の公開・設定・migration状況: [リリース状態](../manual/release-status.md)
 
 ## 読みたい内容から探す
@@ -48,7 +48,7 @@
 | Free | Freeプランを適用した`active.free`である。追加組織の作成、未契約のTrial終了、有料契約の解約確定、支払い猶予終了、Stripe上の想定外解約から移行する。 |
 | 解約 | 有料契約を現在の支払い済み期間の終了時に終え、データを保持したまま`active.free`へ移す操作である。 |
 | 旧Free変更予約 | `targetPlan: "free"`を持ち、`restrictAtPeriodEnd: true`を持たないdeployment前から保存済みの期間末変更である。 |
-| 支払い不要Business | 既存の対象組織または移行対象組織へ、期限と利用料金を設けずBusinessと同じ機能を提供する状態である。内部状態は`complimentary.business`である。新しい初回Setupと二つ目以降の追加組織には付与しない。 |
+| 支払い不要Pro相当 | 既存の対象組織または移行対象組織へ、期限と利用料金を設けずProと同じ機能を提供する状態である。内部状態は`complimentary.business`である。新しい初回Setupと二つ目以降の追加組織には付与しない。 |
 | 初回請求処理中 | 無料体験が終了し、Stripeから初回支払い結果が届くまでの状態である。 |
 | 稼働店舗 | 現在のシフト運用対象として有効な店舗である。 |
 | アーカイブ済み店舗 | 運用を終了したが、履歴閲覧のために残す店舗である。 |
@@ -64,7 +64,7 @@
 利用者向け表示は「組織」とし、コード、DB、APIなどの内部名は`Organization` / `organization`を維持する。
 画面では技術用語のOrganizationやOrgを原則として表示しない。
 
-支払い不要Businessの現行保存状態は`complimentary.business`だけとする。
+支払い不要Pro相当の現行保存状態は`complimentary.business`だけとする。
 旧`complimentary.pro`はm021のMigration Testと運用履歴だけに残し、通常の状態遷移や業務判定へ入力しない。
 
 現在のプランと決済ライフサイクルは課金状態として保存する。
@@ -78,19 +78,19 @@
 
 通常課金を利用する一つの組織には、一つのStripe Customerと、一つ以下の有効なStripe Subscriptionを対応させる。
 
-支払い不要Businessには、Stripe Customer、Subscription、Checkout Session、Portal Session、Invoice、Subscription Schedule、課金operation、課金通知を作成しない。
+支払い不要Pro相当には、Stripe Customer、Subscription、Checkout Session、Portal Session、Invoice、Subscription Schedule、課金operation、課金通知を作成しない。
 
 支払った個人を契約所有者として固定しない。
 
 ### 4.2 管理権限
 
-無料体験中、有料契約中、または支払い不要Businessの有効管理者は、全員が同じ管理権限を持つ。
+無料体験中、有料契約中、または支払い不要Pro相当の有効管理者は、全員が同じ管理権限を持つ。
 
 有効管理者は、組織内の現在の店舗と将来追加される店舗をすべて管理できる。
 
 有効管理者は、契約開始、プラン変更、解約予約、変更予約の取消、支払い方法の更新を実行できる。
 
-ただし、支払い不要Businessではこれらの課金操作を提供せず、通常の管理者操作やStripeイベントから状態を変更しない。
+ただし、支払い不要Pro相当ではこれらの課金操作を提供せず、通常の管理者操作やStripeイベントから状態を変更しない。
 
 BillingManagerや契約者専用ロールは設けない。
 
@@ -112,7 +112,7 @@ UIを隠すだけでは認可とせず、実行時にも組織、管理者権限
 
 課金通知をLINEへ送らない。
 
-支払い不要Businessでは課金通知を発生させない。
+支払い不要Pro相当では課金通知を発生させない。
 
 店舗単位の管理通知のうち、スタッフ参加申請digest、シフト確定催促、店舗登録後の本番募集案内、通知不達digestは、対象店舗にスタッフとして所属するactive管理者だけへ送る。
 対象者が0人なら送信しない。
@@ -142,22 +142,24 @@ UIを隠すだけでは認可とせず、実行時にも組織、管理者権限
 
 | 状態またはプラン | 利用人数 | 稼働店舗 | 有効管理者 | 有料機能 |
 |---|---:|---:|---:|---|
-| 無料体験 | 40名まで | 5店舗まで | 5名まで | Business相当 |
+| 無料体験 | 50名まで | 5店舗まで | 5名まで | Pro相当 |
 | Free | 5名まで | 1店舗まで | 2名まで | 利用不可 |
-| Pro | 20名まで | 5店舗まで | 5名まで | すべて利用可 |
-| Business | 40名まで | 5店舗まで | 5名まで | すべて利用可 |
-| 支払い不要Business | 40名まで | 5店舗まで | 5名まで | Business相当 |
+| Standard | 25名まで | 5店舗まで | 5名まで | すべて利用可 |
+| Pro | 50名まで | 5店舗まで | 5名まで | すべて利用可 |
+| 支払い不要Pro相当 | 50名まで | 5店舗まで | 5名まで | Pro相当 |
+
+利用者向けのStandardは内部IDの`pro`、利用者向けのProは内部IDの`business`に対応する。  内部ID、DB、API、Stripe Price用環境変数は変更せず、この表示名変更を理由としたmigrationやbackfillは実行しない。
 
 利用人数は管理者を含む人物の合計であり、有効管理者数はその人物へ付与できる管理者権限の上限である。
 
 現在の利用上限状態は、未承認の管理者招待を除く実際の利用人数、稼働店舗数、有効管理者数を、現在適用中のプラン上限と比較して導出する。
 未承認招待の予約枠は、新しい招待の発行と承認の可否には使うが、現在の実利用数と上限超過の導出には含めない。
 
-`pendingActivation`では、providerの結果が確定するまで`fallback`のFreeまたはProを適用する。
+`pendingActivation`では、providerの結果が確定するまで`fallback`のFreeまたはStandardを適用する。
 有料プランを有効にしない結果が確定した場合は、上限内かどうかにかかわらず`fallback`が示す`active.free`または`active.pro`へ移行する。
 ローカルの処理期限だけでは`pendingActivation`を終了せず、Stripe上の結果を確認してから保存状態を変更する。
 
-Localと開発用Convex deploymentはそれぞれ専用のStripe Sandboxへ接続する。  ProとBusinessは同じ通貨と請求周期のrecurring Priceを登録し、期間末処理の確認では必要に応じて日次や週次へ短縮できる。
+Localと開発用Convex deploymentはそれぞれ専用のStripe Sandboxへ接続する。  StandardとProは同じ通貨と請求周期のrecurring Priceを登録し、期間末処理の確認では必要に応じて日次や週次へ短縮できる。
 両環境では`sk_test_`で始まるSecret keyを使用する。
 
 本番deploymentは本番Stripeアカウントへ`sk_live_`で始まるSecret keyを使って接続する。
@@ -165,27 +167,27 @@ Localと開発用Convex deploymentはそれぞれ専用のStripe Sandboxへ接�
 税、返金、未払い請求の終端方針と本番用Stripe設定を確認するまでは対象Priceをアーカイブして新規販売を停止する。
 発行済みのopen Checkout Sessionは別途失効させ、既存契約のWebhook受信と安全処理は継続する。
 
-支払い不要Businessは、既にこの状態である組織と、課金証跡がないことを確認して移行した対象組織に限って維持する。
+支払い不要Pro相当は、既にこの状態である組織と、課金証跡がないことを確認して移行した対象組織に限って維持する。
 
-支払い不要Businessには利用期限、請求周期、支払い方法、請求書を設けない。
+支払い不要Pro相当には利用期限、請求周期、支払い方法、請求書を設けない。
 
-Freeの組織でも、有料機能を使うためにProまたはBusinessを契約できる。
+Freeの組織でも、有料機能を使うためにStandardまたはProを契約できる。
 
 利用人数が減っても、自動で下位プランへ変更しない。
 
 ### 5.2 上限を超える操作
 
-Proでは21人目、Businessでは41人目、Freeでは6人目を追加する操作を変更確定前に止める。
+Standardでは26人目、Proでは51人目、Freeでは6人目を追加する操作を変更確定前に止める。
 
 どのプランでも店舗上限を超える操作を変更確定前に止める。
 
 管理者招待の発行と承認では、期限内の未承認招待が予約している利用人数枠と管理者枠も含め、確定後に上限を超えないことを確認する。
 
-画面には、問い合わせ導線と現在の利用状況を表示する。
+画面には現在の利用状況を表示する。  上位の有料プランを選べる場合だけプラン変更導線を表示し、Proの上限到達時に問い合わせ導線は表示しない。
 
 上限を超える変更を一部だけ保存しない。
 
-一方、Trial終了、解約、猶予終了、想定外解約、BusinessからProへの変更、`pendingActivation`のfallback確定では、上限超過を理由にプラン適用を拒否しない。
+一方、Trial終了、解約、猶予終了、想定外解約、ProからStandardへの変更、`pendingActivation`のfallback確定では、上限超過を理由にプラン適用を拒否しない。
 変更先の`active.free`または`active.pro`を保存し、上限超過だけを現在の実利用数から導出する。
 
 上限超過または利用上限評価不能の間は、17章で定める整理、課金、終了操作だけを許可する。
@@ -370,7 +372,7 @@ activeな管理者でも、個別店舗または全店舗のスタッフ所属�
 上限超過では現在プランをそのまま表示し、超過した項目と上限内へ戻すための整理操作を案内する。
 利用上限評価不能では上限超過と断定せず、通常操作を一時的に停止していること、管理画面での確認・整理、問い合わせを案内する。
 
-支払い不要Businessでは「Business」と「支払い不要」を表示し、「Businessの機能を料金なしで利用できます」と案内する。
+支払い不要Pro相当では「Pro」と「支払い不要」を表示し、「Proの機能を料金なしで利用できます」と案内する。
 
 支払い方法、請求先メールアドレス、請求書、Portal、プラン変更などの課金操作は表示しない。
 
@@ -402,9 +404,9 @@ Dashboardでは、現在の組織と店舗を二枚のカードで表示する�
 
 所属0件からの初回Setupで作る組織は、3か月のTrialとして無料体験を開始する。  既存のTrial状態を持つ組織も無料体験を継続する。  二つ目以降の組織作成時には無料体験を開始しない。
 
-所属0件からの初回Setupは支払い方法を登録せず、Business相当のTrial状態とTrial期限を作成し、期限処理を予約する。  Stripe Customer、Subscription、課金operationは作らない。
+所属0件からの初回Setupは支払い方法を登録せず、Pro相当のTrial状態とTrial期限を作成し、期限処理を予約する。  Stripe Customer、Subscription、課金operationは作らない。
 
-無料体験中は、Businessと同じ40名、5店舗、5管理者の上限と有料機能を利用できる。
+無料体験中は、Proと同じ50名、5店舗、5管理者の上限と有料機能を利用できる。
 
 ### 10.2 期間
 
@@ -425,7 +427,7 @@ Trial状態の無料体験は、Trial開始日から3か月とする。
 
 ### 10.4 継続予約の取消
 
-無料体験中にProまたはBusinessの継続を予約した管理者は、無料体験終了時刻まで継続予約を取り消せる。
+無料体験中にStandardまたはProの継続を予約した管理者は、無料体験終了時刻まで継続予約を取り消せる。
 
 取消時点ではTrialを維持し、無料体験終了時刻を変更しない。
 
@@ -445,7 +447,7 @@ Trial状態の無料体験は、Trial開始日から3か月とする。
 
 無料体験終了によって、店舗、利用者、シフトを削除しない。
 
-初回請求処理中の利用権限はPro相当とし、画面には支払い結果の確認中であることを表示する。
+初回請求処理中の利用権限はStandard相当とし、画面には支払い結果の確認中であることを表示する。
 
 初回支払い成功を確認した場合は、選択した有料プランへ移行する。
 
@@ -461,7 +463,7 @@ Free上限を超える場合は上限超過を導出し、17章の操作制限�
 
 ### 11.1 無料体験中の契約
 
-無料体験中に契約する場合は、ProまたはBusinessの継続利用を選択してカードを登録する。
+無料体験中に契約する場合は、StandardまたはProの継続利用を選択してカードを登録する。
 
 対象プランのPriceをStripeから取得できない場合は、そのプランの契約操作だけを停止する。
 
@@ -477,7 +479,7 @@ Free上限を超える場合は上限超過を導出し、17章の操作制限�
 
 無料体験終了後に初めて契約する場合は、その場で初回請求する。
 
-支払い成功を確認した後に、選択したProまたはBusinessを有効にする。
+支払い成功を確認した後に、選択したStandardまたはProを有効にする。
 
 支払いに失敗した場合は、有料プランを有効にしない。
 
@@ -485,26 +487,26 @@ Freeの組織は既存Freeを維持する。
 
 ### 11.3 プラン選択
 
-現在の実利用数が選択プランの上限を超えていても、ProまたはBusinessを選択できる。
+現在の実利用数が選択プランの上限を超えていても、StandardまたはProを選択できる。
 画面には、選択プランの上限と、通常利用へ戻るために必要な削減数を表示する。
 
-利用人数が1名から5名の場合でも、有料機能を使うためにProまたはBusinessを選択できる。
+利用人数が1名から5名の場合でも、有料機能を使うためにStandardまたはProを選択できる。
 
-Business上限を超える場合も支払い成功後は`active.business`を適用し、上限超過中は整理、課金、終了操作だけを許可する。
+Pro上限を超える場合も支払い成功後は`active.business`を適用し、上限超過中は整理、課金、終了操作だけを許可する。
 
 ## 12. プラン変更
 
 ### 12.1 変更できる範囲
 
-Freeまたは無料体験からProまたはBusinessを利用する操作は、11章の契約開始として扱う。
+Freeまたは無料体験からStandardまたはProを利用する操作は、11章の契約開始として扱う。
 
-ProからBusinessへの変更は即時変更とし、Stripeが算出した残期間の差額を日割り請求する。
+StandardからProへの変更は即時変更とし、Stripeが算出した残期間の差額を日割り請求する。
 
-支払い成功と変更後Subscriptionを確認するまではProの利用権限を維持する。
+支払い成功と変更後Subscriptionを確認するまではStandardの利用権限を維持する。
 
-BusinessからProへの変更と、ProまたはBusinessの解約は、現在の支払い済み期間の終了時に適用する。
+ProからStandardへの変更と、StandardまたはProの解約は、現在の支払い済み期間の終了時に適用する。
 
-BusinessからProへの変更予約にはStripe Subscription Scheduleを使い、Stripe上のphase移行を確認してからアプリの状態を変更する。
+ProからStandardへの変更予約にはStripe Subscription Scheduleを使い、Stripe上のphase移行を確認してからアプリの状態を変更する。
 
 期間末変更の予約は適用前に取り消せる。
 
@@ -516,7 +518,7 @@ BusinessからProへの変更予約にはStripe Subscription Scheduleを使い�
 
 既存スタッフを管理者へ変更する操作では、プラン変更を求めない。
 
-既存スタッフを二人目以降の有効管理者へ変更できるのは、Free、無料体験、Pro、Business、支払い不要Businessとする。
+既存スタッフを二人目以降の有効管理者へ変更できるのは、Free、無料体験、Standard、Pro、支払い不要Pro相当とする。
 
 Freeでは、既存スタッフの管理者化を通常の管理者追加として扱い、有効管理者と期限内の追加招待を合計2名までに限定する。
 
@@ -604,7 +606,7 @@ Clerkの設定不足、一時障害、照会失敗では承認を完了せず、
 
 新しい管理者招待の発行と承認可否は、有効管理者と期限内かつ未承認の追加管理者招待を合計した見込み人数で判定する。
 
-無料体験、Pro、Business、支払い不要Businessでは、見込み管理者人数を五名までとする。
+無料体験、Standard、Pro、支払い不要Pro相当では、見込み管理者人数を五名までとする。
 
 Freeでは、有効管理者と期限内かつ未承認の追加管理者招待を合計2名までとする。
 
@@ -628,14 +630,14 @@ Freeの通常の追加招待では、現在の管理者権限を維持したま�
 承認完了を、承認者本人と他の全有効管理者へメールで通知する。
 
 Trial、解約、支払い猶予、想定外解約から`active.free`へ移行するときは、契約終了時点の未承認招待を失効させる。
-BusinessからProへの変更、通常の有料契約更新、上限超過の開始だけを理由に、未承認の追加管理者招待を自動で無効にしない。
+ProからStandardへの変更、通常の有料契約更新、上限超過の開始だけを理由に、未承認の追加管理者招待を自動で無効にしない。
 上限超過中は承認と再送を止め、管理者による取消を許可する。
 
 ## 14. 店舗の追加と停止
 
 ### 14.1 店舗追加
 
-無料体験、Pro、Business、支払い不要Businessでは、稼働店舗を5店舗まで追加できる。
+無料体験、Standard、Pro、支払い不要Pro相当では、稼働店舗を5店舗まで追加できる。
 
 6店舗目を追加する前に操作を止め、問い合わせへ誘導する。
 
@@ -736,22 +738,22 @@ BusinessからProへの変更、通常の有料契約更新、上限超過の開
 
 ## 16. プラン変更と解約
 
-### 16.1 BusinessからProへの変更
+### 16.1 ProからStandardへの変更
 
-BusinessからProへの変更は、現在の支払い済み期間の終了時に適用する。
+ProからStandardへの変更は、現在の支払い済み期間の終了時に適用する。
 
-予約時点で利用人数が20名を超えていても変更予約を妨げず、「あとN名削除してください」と必要な削減人数を表示する。
+予約時点で利用人数が25名を超えていても変更予約を妨げず、「あとN名削除してください」と必要な削減人数を表示する。
 
 利用人数、店舗数、管理者数は自動で削減しない。
 
-期間終了時にStripe上でProへのphase移行と請求結果を確認する。
+期間終了時にStripe上でStandardへのphase移行と請求結果を確認する。
 
-Pro上限内かどうかにかかわらず、phase移行と支払い成功を確認した後は`active.pro`へ移行する。
-上限を超えている場合はProを現在プランとして表示し、現在の実利用数から上限超過を導出する。
+Standard上限内かどうかにかかわらず、phase移行と支払い成功を確認した後は`active.pro`へ移行する。
+上限を超えている場合はStandardを現在プランとして表示し、現在の実利用数から上限超過を導出する。
 
-上限超過中に人物、管理者、店舗を整理してPro上限内になった場合は、課金状態を更新せず通常利用へ戻す。
+上限超過中に人物、管理者、店舗を整理してStandard上限内になった場合は、課金状態を更新せず通常利用へ戻す。
 
-Proの初回更新支払いに失敗した場合はBusinessの14日間の支払い猶予へ入り、支払い成功後は`active.pro`へ移行して上限状態を導出する。
+Standardの初回更新支払いに失敗した場合はProの14日間の支払い猶予へ入り、支払い成功後は`active.pro`へ移行して上限状態を導出する。
 
 ### 16.2 解約の名称と時期
 
@@ -841,8 +843,8 @@ bounded評価で上限内か確定できない場合は、上限超過と断定�
 ### 17.2 プラン適用とデータの維持
 
 未契約のTrial終了、解約確定、猶予終了、Stripe上の想定外解約では`active.free`を保存する。
-BusinessからProへの変更確定では`active.pro`を保存する。
-`pendingActivation`のfallbackがFreeまたはProで確定した場合は、それぞれ`active.free`または`active.pro`を保存する。
+ProからStandardへの変更確定では`active.pro`を保存する。
+`pendingActivation`のfallbackがFreeまたはStandardで確定した場合は、それぞれ`active.free`または`active.pro`を保存する。
 
 いずれも、変更先の上限を超えていることを理由にプラン適用を拒否しない。
 管理者所属、稼働店舗、人物、スタッフ所属、シフトを自動で削減、停止、削除しない。
@@ -923,11 +925,11 @@ Stripeによる再試行回数や再試行時刻が変わっても、猶予終�
 更新支払い失敗の猶予中は、失敗前の契約プランの全機能を通常どおり利用できる。
 ただし、現在プランに対する上限超過または利用上限評価不能が導出された場合は、17章の操作制限を適用する。
 
-TrialからBusinessを選んだ初回支払い失敗では、Pro相当の利用権限を維持し、支払い成功後の移行先をBusinessとして保持する。
+TrialからProを選んだ初回支払い失敗では、Standard相当の利用権限を維持し、支払い成功後の移行先をProとして保持する。
 
-BusinessからProへの期間末変更後にProの初回更新支払いが失敗した場合は、Businessの利用権限を猶予中だけ維持する。
+ProからStandardへの期間末変更後にStandardの初回更新支払いが失敗した場合は、Proの利用権限を猶予中だけ維持する。
 
-ProからBusinessへの即時変更が完了しなかった場合はBusinessを有効にせず、Proを継続する。
+StandardからProへの即時変更が完了しなかった場合はProを有効にせず、Standardを継続する。
 
 全有効管理者に、期限と支払い方法更新への導線を表示する。
 
@@ -964,9 +966,9 @@ Free上限超過または利用上限評価不能となった場合は、未送�
 
 通常更新の猶予中に対象請求の支払い成功を確認した場合は、元の契約プランへ戻す。
 
-TrialからBusinessを選んだ初回請求の支払い成功では`active.business`へ移行し、現在の実利用数からBusinessの上限状態を導出する。
+TrialからProを選んだ初回請求の支払い成功では`active.business`へ移行し、現在の実利用数からProの上限状態を導出する。
 
-BusinessからProへの期間末変更後の支払い成功では`active.pro`へ移行し、現在の実利用数からProの上限状態を導出する。
+ProからStandardへの期間末変更後の支払い成功では`active.pro`へ移行し、現在の実利用数からStandardの上限状態を導出する。
 
 支払い猶予への移行だけでは管理者権限と稼働店舗を停止しないため、支払い成功時にも権限と店舗状態を変更しない。
 
@@ -978,7 +980,7 @@ BusinessからProへの期間末変更後の支払い成功では`active.pro`へ
 
 ### 19.1 契約開始と再開
 
-追加組織、未契約のTrial終了後、期間末の解約後、支払い猶予終了後、Stripe上の想定外解約後は、いずれも`active.free`からProまたはBusinessを契約する。
+追加組織、未契約のTrial終了後、期間末の解約後、支払い猶予終了後、Stripe上の想定外解約後は、いずれも`active.free`からStandardまたはProを契約する。
 
 契約終了によって管理者権限と稼働店舗を変更しないため、新しい契約で復元対象を選ばせない。
 明示的に削除された人物、解除された管理者権限、アーカイブまたは削除された店舗を自動で復元しない。
@@ -1000,8 +1002,8 @@ BusinessからProへの期間末変更後の支払い成功では`active.pro`へ
 次の操作は、シフトリ側の画面と認可を通して行う。
 
 - 契約開始
-- ProからBusinessへの即時変更と日割り見積もり
-- BusinessからProへの期間末変更予約
+- StandardからProへの即時変更と日割り見積もり
+- ProからStandardへの期間末変更予約
 - 有料契約の期間末解約
 - 期間末変更予約の取消
 - deployment前の旧Free移行で残す管理者と店舗の選択（互換期間中だけ）
@@ -1091,7 +1093,7 @@ Stripeの支払い失敗メールも有効にし、請求先メールアドレ�
 
 ### 21.4 契約状態変更時の業務通知
 
-Trial終了、BusinessからProへの変更、解約、猶予終了、想定外解約、旧Free変更予約によるプラン移行だけを理由に、送信予定の業務通知を停止しない。
+Trial終了、ProからStandardへの変更、解約、猶予終了、想定外解約、旧Free変更予約によるプラン移行だけを理由に、送信予定の業務通知を停止しない。
 
 プラン移行後の実利用数が上限を超える場合、または上限評価が不能な場合は、適用時刻以降に送信予定だった業務通知を停止する。
 課金通知、請求処理、署名済みWebhook、監査記録は停止しない。
@@ -1106,47 +1108,47 @@ Freeで新しく行った操作から生じる業務通知は、Freeの利用範
 
 | 現在の状態 | きっかけ | 次の状態 | 機能 |
 |---|---|---|---|
-| 組織未作成 | 所属0件からの初回Setup | Trial | 3か月間、支払い方法の登録なしでBusiness相当の機能を利用可 |
+| 組織未作成 | 所属0件からの初回Setup | Trial | 3か月間、支払い方法の登録なしでPro相当の機能を利用可 |
 | 組織所属あり | 追加組織作成 | `active.free` | 5名、1店舗、2管理者のFree枠を利用可 |
-| 無料体験 | 終了前に契約し、無料体験終了 | 初回請求処理中 | Pro相当の機能を継続 |
-| 初回請求処理中 | 初回支払い成功 | 選択したProまたはBusiness | 選択プランの機能を継続 |
-| 初回請求処理中 | 初回支払い失敗 | 支払い猶予 | 14日間はPro相当を継続 |
+| 無料体験 | 終了前に契約し、無料体験終了 | 初回請求処理中 | Standard相当の機能を継続 |
+| 初回請求処理中 | 初回支払い成功 | 選択したStandardまたはPro | 選択プランの機能を継続 |
+| 初回請求処理中 | 初回支払い失敗 | 支払い猶予 | 14日間はStandard相当を継続 |
 | 無料体験 | 未契約または継続予約取消のまま終了 | `active.free` | Free上限状態を実利用数から導出 |
-| Free | 新規契約の支払い成功 | ProまたはBusiness | 選択プランの機能を開放 |
-| Pro | Businessへの即時変更を開始 | 支払い結果待ち | Businessが確定するまでProを継続 |
-| 支払い結果待ち | 支払いとSubscription変更を確認 | Business | Businessの機能を開放 |
+| Free | 新規契約の支払い成功 | StandardまたはPro | 選択プランの機能を開放 |
+| Standard | Proへの即時変更を開始 | 支払い結果待ち | Proが確定するまでStandardを継続 |
+| 支払い結果待ち | 支払いとSubscription変更を確認 | Pro | Proの機能を開放 |
 | `pendingActivation`、fallbackがFree | Stripeで有料化しない結果を確認 | `active.free` | Free上限状態を実利用数から導出 |
-| `pendingActivation`、fallbackがPro | Stripeで有料化しない結果を確認 | `active.pro` | Pro上限状態を実利用数から導出 |
-| Business | Pro変更予約 | 期間末変更予定 | 期間末までBusinessを継続 |
-| ProまたはBusiness | 解約予約 | 解約予定 | 期間末まで現在プランを継続 |
-| BusinessからPro変更予定 | 予約取消 | Business | Businessを継続 |
+| `pendingActivation`、fallbackがStandard | Stripeで有料化しない結果を確認 | `active.pro` | Standard上限状態を実利用数から導出 |
+| Pro | Standard変更予約 | 期間末変更予定 | 期間末までProを継続 |
+| StandardまたはPro | 解約予約 | 解約予定 | 期間末まで現在プランを継続 |
+| ProからStandard変更予定 | 予約取消 | Pro | Proを継続 |
 | 解約予定 | 予約取消をproviderで確認 | 元の有料プラン | 現プランを継続 |
-| BusinessからPro変更予定 | Stripeのphase移行と支払い成功 | `active.pro` | Pro上限状態を実利用数から導出 |
-| BusinessからPro変更予定 | Proの初回更新支払い失敗 | Businessの支払い猶予 | 14日間はBusinessを継続 |
+| ProからStandard変更予定 | Stripeのphase移行と支払い成功 | `active.pro` | Standard上限状態を実利用数から導出 |
+| ProからStandard変更予定 | Standardの初回更新支払い失敗 | Proの支払い猶予 | 14日間はProを継続 |
 | 解約予定 | Stripeで期間末終了を確認 | `active.free` | Free上限状態を実利用数から導出 |
 | deployment前の旧Free変更予定 | Stripeで期間末終了を確認 | `active.free` | Free上限状態を実利用数から導出 |
-| ProまたはBusiness | 更新支払い失敗 | 支払い猶予 | 14日間は元の有料プランを継続 |
+| StandardまたはPro | 更新支払い失敗 | 支払い猶予 | 14日間は元の有料プランを継続 |
 | 支払い猶予 | 支払い成功 | 元のプランまたは確認済みの変更先 | 変更先プランを適用し、上限状態を実利用数から導出 |
 | 支払い猶予 | 14日経過後、Stripeで契約終了を確認 | `active.free` | Free上限状態を実利用数から導出 |
-| ProまたはBusiness | Stripeで想定外解約を確認 | `active.free` | Free上限状態を実利用数から導出 |
+| StandardまたはPro | Stripeで想定外解約を確認 | `active.free` | Free上限状態を実利用数から導出 |
 | active状態のプラン | 実利用数が上限超過 | 同じactive状態 | 閲覧、整理、課金、終了操作だけを許可 |
 | 上限超過中のactive状態 | 実利用数が上限内 | 同じactive状態 | DB状態更新なしで通常利用へ復旧 |
 
-支払い不要Businessは、既存の`complimentary.business`と適格な既存組織の移行処理で維持し、その後は通常の管理者操作、課金API、管理用処理、Stripeイベント、再同期処理で解除または変更しない。
+支払い不要Pro相当は、既存の`complimentary.business`と適格な既存組織の移行処理で維持し、その後は通常の管理者操作、課金API、管理用処理、Stripeイベント、再同期処理で解除または変更しない。
 
 ## 23. 業務上の不変条件
 
 - 一つの組織に、複数の有効なStripe Subscriptionを作らない。
-- 支払い不要Businessの組織にStripe Customer、Subscription、Checkout Session、Portal Session、Invoice、Subscription Schedule、課金operation、課金通知を作らない。
-- 支払い不要Businessは既存の`complimentary.business`と適格な既存組織の移行処理で維持し、課金API、管理用処理、Stripeイベント、再同期処理で別の課金状態へ変更しない。
+- 支払い不要Pro相当の組織にStripe Customer、Subscription、Checkout Session、Portal Session、Invoice、Subscription Schedule、課金operation、課金通知を作らない。
+- 支払い不要Pro相当は既存の`complimentary.business`と適格な既存組織の移行処理で維持し、課金API、管理用処理、Stripeイベント、再同期処理で別の課金状態へ変更しない。
 - 所属0件からの初回Setupでは3か月のTrialと期限処理を一度だけ作成し、Stripe Customer、Subscription、課金operationを作らない。
 - 追加組織作成、未契約のTrial終了、解約確定、猶予終了、想定外解約では`active.free`を保存する。
-- BusinessからProへの変更確定では、Pro上限を超えていても`active.pro`を保存する。
-- `pendingActivation`のFreeまたはProのfallbackは、providerの結果を確認した後に対応するactive状態へ必ず移行する。
+- ProからStandardへの変更確定では、Standard上限を超えていても`active.pro`を保存する。
+- `pendingActivation`のFreeまたはStandardのfallbackは、providerの結果を確認した後に対応するactive状態へ必ず移行する。
 - 上限超過と利用上限評価不能を課金状態として保存しない。
 - 未承認の管理者招待を現在の実利用人数と有効管理者数へ含めない。
-- ProからBusinessへ変更するときは、支払いとprovider状態を確認するまでProの権利を維持する。
-- BusinessからProへ変更するときは、Stripe上の期間末変更を確認する前にローカル状態だけをProへ変更しない。
+- StandardからProへ変更するときは、支払いとprovider状態を確認するまでStandardの権利を維持する。
+- ProからStandardへ変更するときは、Stripe上の期間末変更を確認する前にローカル状態だけをStandardへ変更しない。
 - 契約操作ごとに、対象組織の有効管理者であることを確認する。
 - 複数組織に所属するユーザーの操作を、別組織の契約へ反映しない。
 - 支払い完了画面だけを根拠に有料機能を開放しない。
@@ -1226,11 +1228,11 @@ Stripeは、支払い済み期間の終了時に契約を終了する設定と�
 有料契約の解約は、この期間末終了を利用する。
 deployment前の旧Free変更予約も互換処理として同じ期間末終了を使う。
 
-BusinessからProへの変更予約はStripe Subscription Scheduleを使い、期間末に同じSubscriptionのPriceを変更する。
+ProからStandardへの変更予約はStripe Subscription Scheduleを使い、期間末に同じSubscriptionのPriceを変更する。
 
 請求周期はStripe Priceの`recurring.interval`と`recurring.interval_count`を正本とし、コード、環境変数、DBへ複製しない。
 
-ProとBusinessは同じ通貨と請求周期を要求し、Subscription Scheduleの変更後phaseも対象Priceの請求周期から構築する。
+StandardとProは同じ通貨と請求周期を要求し、Subscription Scheduleの変更後phaseも対象Priceの請求周期から構築する。
 
 請求周期の基準日は組織ごとのStripe Subscriptionが保持し、月初へ揃えない。
 
@@ -1262,7 +1264,7 @@ Localと開発用Convex deploymentは別々のStripe Sandboxへ接続し、本�
 
 Secret keyの接頭辞が不明な場合や、Price、Customer、Subscription、Invoiceの`livemode`が接続環境と一致しない場合は課金操作を拒否する。
 
-新しいProまたはBusiness契約に使うCheckoutと無料体験の継続登録は、対象プランのPriceがactiveなrecurring Priceで、`interval_count`が正の整数である場合だけ開始する。
+新しいStandardまたはPro契約に使うCheckoutと無料体験の継続登録は、対象プランのPriceがactiveなrecurring Priceで、`interval_count`が正の整数である場合だけ開始する。
 
 特定プランの新規販売を停止するときは、対象Priceをアーカイブする。
 Priceのアーカイブ前に発行したopen状態のCheckout Sessionは別途失効させる。
@@ -1274,9 +1276,9 @@ Priceのアーカイブ前に作成されローカル同期済みのSubscription
 
 Stripe連携には、`STRIPE_SECRET_KEY`、`STRIPE_WEBHOOK_SECRET`、`STRIPE_PRO_PRICE_ID`、`STRIPE_BUSINESS_PRICE_ID`、`STRIPE_PORTAL_CONFIGURATION_ID`、既存の`APP_URL`を使う。
 
-Business Priceだけが未設定または無効な場合は、Businessの価格表示と変更操作だけを停止する。
+Pro Priceだけが未設定または無効な場合は、Proの価格表示と変更操作だけを停止する。
 
-その場合もProの契約開始、Customer Portal、既存SubscriptionのWebhook処理と再照合を継続する。
+その場合もStandardの契約開始、Customer Portal、既存SubscriptionのWebhook処理と再照合を継続する。
 
 ブラウザでStripe.jsを直接使わないため、`VITE_STRIPE_PUBLISHABLE_KEY`は使わない。
 
@@ -1313,28 +1315,28 @@ Secret keyとWebhook署名シークレットを新規販売の停止手段とし
 ### 26.2 プランと店舗
 
 - Freeは5名、1店舗、2管理者まで利用できる。
-- Trialは40名、5店舗、5管理者まで利用できる。
-- Proは20名、5店舗、5管理者まで利用できる。
-- Businessと支払い不要Businessは40名、5店舗、5管理者まで利用できる。
-- Proの21人目とBusinessの41人目は追加しない。
+- Trialは50名、5店舗、5管理者まで利用できる。
+- Standardは25名、5店舗、5管理者まで利用できる。
+- Proと支払い不要Pro相当は50名、5店舗、5管理者まで利用できる。
+- Standardの26人目とProの51人目は追加しない。
 - 稼働店舗の5店舗目までは利用できる。
 - 6店舗目は追加せず、問い合わせへ誘導する。
 - 人数が減っても自動でプランを変更しない。
-- 支払い不要Businessの保存状態として`complimentary.business`だけを受け入れる。
+- 支払い不要Pro相当の保存状態として`complimentary.business`だけを受け入れる。
 - 所属0件からの初回Setupは3か月のTrialで開始し、二つ目以降の追加組織は`active.free`で開始する。
 - 自分で作成した有効な組織を三つまで保持でき、招待所属と削除済み組織はこの上限へ数えない。
 - 二つ目以降の組織作成では、選択中組織にある操作本人の氏名とシフト連絡先だけを初期値として引き継ぐ。
 - 所属していない店舗を引き継ぎ元に指定しても新しい組織を作成できず、同じ店舗にいる別人物の連絡先も引き継がない。
-- 支払い不要Businessで40名、5店舗、5管理者、Businessの機能を利用できる。
-- 無料体験、Pro、Business、支払い不要Businessで有効管理者と有効な追加招待を合わせて五名までに制限する。
+- 支払い不要Pro相当で50名、5店舗、5管理者、Proの機能を利用できる。
+- 無料体験、Standard、Pro、支払い不要Pro相当で有効管理者と有効な追加招待を合わせて五名までに制限する。
 - 六人目の管理者招待を発行時と承認時の両方で拒否する。
 - Freeで有効管理者と有効な追加招待を合わせて2名までに制限し、3人目の発行と承認を拒否する。
 - 取消、期限切れ、承認済みの招待を管理者上限へ含めない。
-- 支払い不要Businessの設定画面で「Business」、「支払い不要」の案内を確認でき、支払いとプラン変更の操作は表示されない。
-- 支払い不要BusinessにStripe Customer、Subscription、Checkout Session、Portal Session、Invoice、Subscription Schedule、課金operation、課金通知を作成しない。
-- BusinessからProへの変更前に、Pro上限までの必要削減人数を表示する。
-- 期間末にPro上限を超えていても、Stripeのphase移行と支払い成功を確認した後は`active.pro`へ移行する。
-- Pro上限超過中に人物削除などで上限内になった場合は、課金状態の更新なしで通常利用へ戻る。
+- 支払い不要Pro相当の設定画面で「Pro」、「支払い不要」の案内を確認でき、支払いとプラン変更の操作は表示されない。
+- 支払い不要Pro相当にStripe Customer、Subscription、Checkout Session、Portal Session、Invoice、Subscription Schedule、課金operation、課金通知を作成しない。
+- ProからStandardへの変更前に、Standard上限までの必要削減人数を表示する。
+- 期間末にStandard上限を超えていても、Stripeのphase移行と支払い成功を確認した後は`active.pro`へ移行する。
+- Standard上限超過中に人物削除などで上限内になった場合は、課金状態の更新なしで通常利用へ戻る。
 
 ### 26.3 無料体験、解約、旧Free移行
 
@@ -1369,10 +1371,10 @@ Secret keyとWebhook署名シークレットを新規販売の停止手段とし
 - 支払い成功画面だけでは有料機能を開放しない。
 - 重複または順不同のWebhookで、契約状態を過去へ戻さない。
 - `STRIPE_SECRET_KEY`から接続環境を自動判定し、testとliveのStripeオブジェクトを混在させない。
-- ProまたはBusinessの対象Priceが利用できない場合は、そのプランの新しい契約操作だけを開始できない。
-- FreeからProまたはBusinessを開始した日を、組織ごとの請求周期の基準にできる。
-- ProからBusinessへの変更では、同じ時刻を基準にしたStripeの日割り見積もりを表示し、支払い確認後にBusinessを開放する。
-- BusinessからProへの変更では、Stripe Subscription Scheduleによる期間末変更を確認してからProを開放する。
+- StandardまたはProの対象Priceが利用できない場合は、そのプランの新しい契約操作だけを開始できない。
+- FreeからStandardまたはProを開始した日を、組織ごとの請求周期の基準にできる。
+- StandardからProへの変更では、同じ時刻を基準にしたStripeの日割り見積もりを表示し、支払い確認後にProを開放する。
+- ProからStandardへの変更では、Stripe Subscription Scheduleによる期間末変更を確認してからStandardを開放する。
 - 次回更新日はStripeの期間終了日時を表示する。
 - 新規販売の停止中も既存契約の署名済みWebhookと安全処理を継続できる。
 
@@ -1385,7 +1387,7 @@ Secret keyとWebhook署名シークレットを新規販売の停止手段とし
 - 上限超過中の有効管理者が請求先メールアドレスを変更できる。
 - 上限超過または利用上限評価不能の開始後は、未送信の業務通知を停止する。
 - 無料体験から初回請求処理中または有料プランへ進む場合は、業務通知を停止しない。
-- FreeまたはProへの移行後も上限内なら、業務通知をプランの利用範囲内で継続する。
+- FreeまたはStandardへの移行後も上限内なら、業務通知をプランの利用範囲内で継続する。
 - 上限超過によって停止した業務通知を、上限内へ戻った後や再契約後に自動再送しない。
 - スタッフ参加申請digest、シフト確定催促、店舗登録後の本番募集案内、通知不達digestを、対象店舗にスタッフとして所属するactive管理者だけへ送る。
 - 店舗管理通知の対象者が0人の場合は送信せず、店舗詳細に管理者を店舗所属に置く推奨案内を表示する。
@@ -1419,8 +1421,8 @@ Secret keyとWebhook署名シークレットを新規販売の停止手段とし
 ### 26.7 上限超過と旧状態の互換
 
 - Trial未契約終了、解約確定、猶予終了、Stripe上の想定外解約で、上限超過の有無にかかわらず`active.free`を保存する。
-- BusinessからProへの変更確定で、上限超過の有無にかかわらず`active.pro`を保存する。
-- `pendingActivation`のFreeまたはProのfallbackを、Stripe上の結果確認後に対応するactive状態へ必ず移行する。
+- ProからStandardへの変更確定で、上限超過の有無にかかわらず`active.pro`を保存する。
+- `pendingActivation`のFreeまたはStandardのfallbackを、Stripe上の結果確認後に対応するactive状態へ必ず移行する。
 - 上限超過と利用上限評価不能をDBへ保存せず、現在プランと実利用数から導出する。
 - 上限超過または利用上限評価不能では、既存データの閲覧、人物削除、管理者権限解除、店舗のアーカイブと削除、招待取消、課金と請求先変更、組織とアカウントの終了に必要な操作だけを許可する。
 - 上限超過または利用上限評価不能では、通常業務、スタッフの希望シフト提出、業務メール、LINE、provider連携を含む外部通知を停止する。
@@ -1435,7 +1437,7 @@ Secret keyとWebhook署名シークレットを新規販売の停止手段とし
 
 次の項目は、別の仕様または実装計画で決める。
 
-- ProとBusinessの実価格
+- StandardとProの実価格
 - 税、インボイス制度、返金、クレジット、未払い請求の最終処理に関する法務と会計ルール
 - 年間契約と年払い
 - 41名以上または6店舗以上の個別契約

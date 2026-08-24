@@ -1,3 +1,5 @@
+import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
+
 export type PeopleCapacityResolution =
   | {
       kind: "choosePaidPlan";
@@ -5,7 +7,7 @@ export type PeopleCapacityResolution =
       max: number;
     }
   | {
-      kind: "contact";
+      kind: "limitReached";
       current: number;
       max: number;
     };
@@ -31,7 +33,14 @@ export function classifyPeopleCapacityError(message: string | undefined): People
 }
 
 export function resolvePeopleCapacityLimit(current: number, max: number): PeopleCapacityResolution {
-  // 旧Free上限のerrorが段階的なbackend更新中に返っても、BusinessではなくProへ案内する。
-  if (max === 4 || max === 5) return { kind: "choosePaidPlan", current, max };
-  return { kind: "contact", current, max };
+  // rolling更新中の旧Free・旧internal pro上限も、選択可能な有料プランへ案内する。
+  if (
+    max === 4 ||
+    max === ORGANIZATION_PLAN_LIMITS.free.maxPeople ||
+    max === 20 ||
+    max === ORGANIZATION_PLAN_LIMITS.pro.maxPeople
+  ) {
+    return { kind: "choosePaidPlan", current, max };
+  }
+  return { kind: "limitReached", current, max };
 }

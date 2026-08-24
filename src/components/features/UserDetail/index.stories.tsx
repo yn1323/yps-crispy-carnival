@@ -527,7 +527,8 @@ export const RestrictedRecoveryRemoval: Story = {
     data: {
       ...multipleStoresData,
       canWrite: false,
-      writeDisabledReason: "Proの利用上限を超えているため、契約制限中です。",
+      writeDisabledReason:
+        "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。",
       canRemove: true,
       removeDisabledReason: undefined,
     },

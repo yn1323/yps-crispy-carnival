@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LuRefreshCw, LuStore, LuUsers } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
 import { ShopFilterMenu } from "@/src/components/features/AuthenticatedApp/ShopFilterMenu";
 import { StaffInvitationDialog } from "@/src/components/features/Dashboard/StaffManagement/StaffInvitationDialog";
 import { useStaffInvitation } from "@/src/components/features/Dashboard/StaffManagement/useStaffInvitation";
@@ -25,7 +26,7 @@ import { resolveShopFilter } from "@/src/domains/shop/filter";
 import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
 
 const PEOPLE_PAGE_SIZE = 10;
-const STAFF_ORDER_PEOPLE_LIMIT = 40;
+const STAFF_ORDER_PEOPLE_LIMIT = ORGANIZATION_PLAN_LIMITS.business.maxPeople;
 
 export type ShopOption = {
   id: Id<"shops">;
@@ -130,7 +131,8 @@ function ConnectedAppStaff({
   const isReadOnly = memberStatus === "readOnly";
   const canAddStaff = !isReadOnly && summary?.canAddStaff === true && shops.length > 0;
   const hasEnoughPeopleToReorder = (summary?.totalCount ?? 0) >= 2;
-  const hasTooManyPeopleToReorder = summary?.totalCountHasOverflow === true || (summary?.totalCount ?? 0) > 40;
+  const hasTooManyPeopleToReorder =
+    summary?.totalCountHasOverflow === true || (summary?.totalCount ?? 0) > STAFF_ORDER_PEOPLE_LIMIT;
   const hasTooManyActiveShopsToReorder = activeShops.length > 5;
   const orderedEditorPersonIds =
     staffOrderEditor?.availability === "ready"
@@ -162,7 +164,7 @@ function ConnectedAppStaff({
         : !hasEnoughPeopleToReorder
           ? "2名以上のスタッフがいると並び替えできます。"
           : hasTooManyPeopleToReorder
-            ? "利用人数が40名を超えているため、並び順を変更できません。"
+            ? `利用人数が${STAFF_ORDER_PEOPLE_LIMIT}名を超えているため、並び順を変更できません。`
             : hasTooManyActiveShopsToReorder
               ? "稼働中の店舗が5店舗を超えているため、並び順を変更できません。"
               : !hasCompleteStaffOrder

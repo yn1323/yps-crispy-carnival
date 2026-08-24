@@ -23,7 +23,7 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 | Webhook、operation、対応不整合の日常確認 | [日常probe](#日常probe) |
 | m021の履歴確認とNarrow deploy前ゲート | [m021の履歴とNarrow deploy前確認](#m021の履歴とnarrow-deploy前確認) |
 | 新規販売の停止と支払い不要プランのP0 | [販売停止](#販売停止) |
-| ProまたはBusinessのPrice切替 | [Price rotation](#price-rotation) |
+| StandardまたはProのPrice切替 | [Price rotation](#price-rotation) |
 | Webhookと安全operationの再開 | [Webhookとoperationの復旧](#webhookとoperationの復旧) |
 | 作業証跡と引き継ぎ | [証跡と引き継ぎ](#証跡と引き継ぎ) |
 
@@ -69,8 +69,8 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 | `ORGANIZATION_INVITATION_SIGNING_SECRET` | 管理者招待tokenのHMAC導出に使う32文字以上の秘密値 | 既配信tokenの失効手段には使わない。rotation時は未送信・再試行中の招待を確認し、再発行する |
 | `STRIPE_SECRET_KEY` | Stripe APIへ接続するSecret key | `sk_test_`または`sk_live_`以外なら課金操作を開始しない |
 | `STRIPE_WEBHOOK_SECRET` | `POST /stripe/webhook`の署名検証 | `whsec_`形式でなければWebhookを受理せず、利用者起点の課金操作も開始しない |
-| `STRIPE_PRO_PRICE_ID` | Proのrecurring Priceを選ぶallowlist | 未設定または不正なら利用者起点の課金操作を開始しない |
-| `STRIPE_BUSINESS_PRICE_ID` | Businessのrecurring Priceを選ぶallowlist | 未設定、不正、Proと同一ならBusiness操作だけを停止する |
+| `STRIPE_PRO_PRICE_ID` | 内部`pro`、利用者向けStandardのrecurring Priceを選ぶallowlist | 未設定または不正なら利用者起点の課金操作を開始しない |
+| `STRIPE_BUSINESS_PRICE_ID` | 内部`business`、利用者向けProのrecurring Priceを選ぶallowlist | 未設定、不正、Standardと同一ならPro操作だけを停止する |
 | `STRIPE_PORTAL_CONFIGURATION_ID` | 支払い方法更新と請求履歴に限定したPortal設定 | 未設定または不正なら利用者起点の課金操作を開始しない |
 | `APP_URL` | CheckoutとPortalの戻り先 | サーバー側で戻り先を構築できない場合は開始しない |
 
@@ -79,13 +79,13 @@ Stripe.jsをブラウザで直接使わないため、`VITE_STRIPE_PUBLISHABLE_K
 
 ### 公開サイトBuild環境変数
 
-公開サイトは、ローカル、Preview、Develop、Productionの起動またはbuild時にStripeからPro・Businessの販売条件を取得し、公開可能な料金カタログだけを画面、SSG HTML、client bundleへ渡す。  ローカルとPreviewは同じStripe Sandboxを使い、Developは別のSandbox、Productionはliveを使う。
+公開サイトは、ローカル、Preview、Develop、Productionの起動またはbuild時にStripeからStandard・Proの販売条件を取得し、公開可能な料金カタログだけを画面、SSG HTML、client bundleへ渡す。  ローカルとPreviewは同じStripe Sandboxを使い、Developは別のSandbox、Productionはliveを使う。
 
 | 変数 | 用途 | 保管先と不備時の扱い |
 |---|---|---|
 | `STRIPE_SECRET_KEY` | 公開するPriceを取得するStripe Secret key | ローカルは`.env.local`を`.env`より優先して読む。Preview、Develop、Productionは対応するGitHub Environment Secretから読み、未設定またはmode不一致なら起動・buildを失敗させる |
-| `STRIPE_PRO_PRICE_ID` | 公開するProのrecurring Price | ローカルは`.env.local`または`.env`、Preview、Develop、Productionは対応するGitHub Environment Secretから読む |
-| `STRIPE_BUSINESS_PRICE_ID` | 公開するBusinessのrecurring Price | ローカルは`.env.local`または`.env`、Preview、Develop、Productionは対応するGitHub Environment Secretから読む |
+| `STRIPE_PRO_PRICE_ID` | 公開するStandard（内部`pro`）のrecurring Price | ローカルは`.env.local`または`.env`、Preview、Develop、Productionは対応するGitHub Environment Secretから読む |
+| `STRIPE_BUSINESS_PRICE_ID` | 公開するPro（内部`business`）のrecurring Price | ローカルは`.env.local`または`.env`、Preview、Develop、Productionは対応するGitHub Environment Secretから読む |
 
 ローカルで`.env.local`のSecret keyと`.env`のPrice IDを組み合わせる場合も、3値は必ず同じStripe Sandboxに属するものを使う。  別SandboxのPrice IDやactiveなPriceがない状態では、固定料金へ切り替えず起動・buildを失敗させる。
 
@@ -94,7 +94,7 @@ Stripe.jsをブラウザで直接使わないため、`VITE_STRIPE_PUBLISHABLE_K
 `STRIPE_SECRET_KEY`をrotationした場合は、対象のConvex deployment、対応するGitHub Environment Secret、ローカルとPreviewの共通Sandboxであればローカル設定も同時に更新する。
 
 Storybookとtestは決定的なfixtureを使い、Stripe credentialを受け取らない。  ローカルとPreviewは同じSandboxの販売条件を確認できるが、DevelopまたはProductionへの反映済み証跡には使わない。
-Production buildは月1回のlicensed、per-unit Priceだけを受け付ける。  ローカル、Preview、DevelopはSandbox運用に合わせ、ProとBusinessで一致する日次または週次の検証用Priceも受け付ける。
+Production buildは月1回のlicensed、per-unit Priceだけを受け付ける。  ローカル、Preview、DevelopはSandbox運用に合わせ、StandardとProで一致する日次または週次の検証用Priceも受け付ける。
 
 招待は発行時にtokenのdigestを保存するため、secretを変更しても既に配信したtokenは失効しない。
 一方、変更前に作成した招待を変更後のOutboxが初めて送信または再試行すると、現在のsecretで再導出したtokenと保存済みdigestが一致しない。
@@ -128,8 +128,8 @@ pnpm exec convex env list --names-only \
 
 ### Product、Price、Portal
 
-1. ProとBusinessに別々のrecurring Priceを用意する。
-2. BusinessとProの通貨、`recurring.interval`、`recurring.interval_count`を一致させる。  本番は月次、開発用Sandboxでは必要に応じて日次や週次を選べる。
+1. Standard（内部`pro`）とPro（内部`business`）に別々のrecurring Priceを用意する。
+2. StandardとProの通貨、`recurring.interval`、`recurring.interval_count`を一致させる。  本番は月次、開発用Sandboxでは必要に応じて日次や週次を選べる。
 3. 対象modeとPriceの`livemode`が一致することを確認する。
 4. Priceをactiveにし、対象IDを対応する環境変数へ設定する。
 5. Customer Portalは支払い方法更新と請求履歴だけを許可する設定を使う。
@@ -137,7 +137,7 @@ pnpm exec convex env list --names-only \
 
 アプリはPrice IDをクライアントから受け取らず、サーバー側allowlistから選ぶ。
 金額と請求周期はコードや別の環境変数へ固定せず、Stripe Priceから取得する。
-開発用に請求周期を短縮するときは、同じ周期のPro PriceとBusiness PriceをStripe Sandboxで用意し、二つのPrice IDを切り替える。
+開発用に請求周期を短縮するときは、同じ周期のStandard PriceとPro PriceをStripe Sandboxで用意し、二つのPrice IDを切り替える。
 
 ### Webhook destination
 
@@ -205,7 +205,7 @@ pnpm exec convex env remove --deployment <fully-qualified-deployment> DEBUG_TRIA
 
 未契約または継続予約取消済みのTrialが終了した場合は、管理者、店舗、人物、スタッフ所属、シフトを維持したまま`active.free`へ移行する。
 有料契約の解約確定、支払い猶予終了、Stripe上の想定外解約でも、Stripe上の契約終了を確認した後に`active.free`へ移行する。
-BusinessからProへの期間末変更では、Stripe上のphase移行と支払い結果を確認した後に`active.pro`へ移行する。
+Pro（内部`business`）からStandard（内部`pro`）への期間末変更では、Stripe上のphase移行と支払い結果を確認した後に`active.pro`へ移行する。
 `pendingActivation`で有料化しない結果が確定した場合は、`fallback`が示す`active.free`または`active.pro`へ移行する。
 Stripe上の結果確認が必要な遷移を、ローカルの期限だけで確定しない。
 Trial、解約、支払い猶予、想定外解約から`active.free`へ移行するときは、契約終了時点の未承認招待を失効させる。
@@ -219,7 +219,7 @@ Trial、解約、支払い猶予、想定外解約から`active.free`へ移行�
 | 保存状態 | 運用上の扱い |
 |---|---|
 | `active.free` | Freeとして継続し、一括変更しない |
-| `complimentary.business` | 支払い不要Businessとして継続し、Stripe objectを作らない |
+| `complimentary.business` | 支払い不要Pro相当として継続し、Stripe objectを作らない |
 | `scheduledChange.targetPlan: "free"`かつ`restrictAtPeriodEnd`なし | deployment前の旧Free変更予約として、Stripe上の期間末終了確認後に`active.free`へ収束させる |
 | `scheduledChange.targetPlan: "free"`かつ`restrictAtPeriodEnd: true` | 新しい解約予約として、Stripe上の期間末終了確認後に`active.free`へ収束させる |
 
@@ -389,13 +389,13 @@ exportはworkerの完走を証明しないため、component statusとpost verif
 - 修復が必要ならm022以降のforward migrationを作り、同じpre/status/postの証跡を設計する。
 
 失敗中も、既存契約の署名済みWebhook、取消、請求停止、再照合を止めない。
-支払い不要BusinessにStripe objectが対応した疑いがある場合は、次のP0手順へ進む。
+支払い不要Pro相当にStripe objectが対応した疑いがある場合は、次のP0手順へ進む。
 
 ## 販売停止
 
 ### 対象プランの新規販売を止める
 
-1. 対象deployment、Stripe account、mode、ProまたはBusinessのPriceを特定する。
+1. 対象deployment、Stripe account、mode、StandardまたはProのPriceを特定する。
 2. Stripe Dashboardで対象Priceをアーカイブする。
 3. アーカイブ前に発行済みのopen Checkout Sessionを列挙し、すべて失効させる。
 4. `STRIPE_SECRET_KEY`と`STRIPE_WEBHOOK_SECRET`は削除しない。
@@ -409,7 +409,7 @@ Priceのアーカイブは新規販売を止めるが、既存Subscriptionを終
 
 `anomalies.complimentaryStripeMappingP0.observedCount`が1件以上なら、次の順で対応する。
 
-1. 対象environmentのPro PriceとBusiness Priceをアーカイブする。
+1. 対象environmentのStandard PriceとPro Priceをアーカイブする。
 2. 発行済みのopen Checkout Sessionをすべて失効させる。
 3. Webhook、取消、Invoice回収停止、再照合は継続する。
 4. 対象組織、Customer、全Subscription世代、Invoiceを照合する。
@@ -426,7 +426,7 @@ Priceのアーカイブは新規販売を止めるが、既存Subscriptionを終
 1. 変更対象の旧Priceをアーカイブし、open Checkout Sessionをすべて失効させる。
 2. probeの`safetyOperations.priceRotationBlocking`、取消、請求停止、`actionRequired`を確認する。
 3. Stripeで新しいrecurring Priceを作る。
-   BusinessではProと同じ通貨、`recurring.interval`、`recurring.interval_count`にする。
+   ProではStandardと同じ通貨、`recurring.interval`、`recurring.interval_count`にする。
 4. 新Priceの`livemode`、active、licensed、per-unit、請求周期、通貨、金額、税区分をStripe Dashboardで確認する。
 5. 対応するGitHub Environment SecretのPrice IDを新Priceへ変更する。値をworkflow、log、文書へ書かない。
 6. 対象environmentで公開サイトをbuild・deployし、特定商取引法ページの金額、通貨、請求周期、税区分を確認する。ここまでは旧Priceをアーカイブしたままにし、新規販売を再開しない。
@@ -439,7 +439,7 @@ Priceのアーカイブは新規販売を止めるが、既存Subscriptionを終
 
 新規operationは開始時のPrice snapshotを保持する。
 既存Subscriptionは保存済みPrice IDで照合するため、ローカルSubscriptionのPrice IDを一括書換えしない。
-請求周期を変更するrotationではProとBusinessの両Priceを同じ周期で用意し、二つのPrice IDを一つの作業として切り替える。  周期が一致しない間はBusinessの価格表示、Checkout、ProとBusiness間の変更を再開しない。
+請求周期を変更するrotationではStandardとProの両Priceを同じ周期で用意し、二つのPrice IDを一つの作業として切り替える。  周期が一致しない間はProの価格表示、Checkout、StandardとPro間の変更を再開しない。
 
 ### rollback
 

@@ -77,7 +77,7 @@ describe("organizationStripe/webhook", () => {
     { type: "subscription_schedule.updated", objectId: "sub_sched_updated" },
     { type: "subscription_schedule.released", objectId: "sub_sched_released" },
     { type: "subscription_schedule.canceled", objectId: "sub_sched_canceled" },
-  ])("Businessプラン変更に必要な$typeをallowlistで受理する", async ({ type, objectId }) => {
+  ])("Proプラン変更に必要な$typeをallowlistで受理する", async ({ type, objectId }) => {
     const t = convexTest(schema, modules);
     const eventId = `evt_${type.replaceAll(".", "_")}`;
 
