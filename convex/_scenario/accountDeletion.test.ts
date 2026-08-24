@@ -101,6 +101,95 @@ describe("アカウント削除シナリオ", () => {
     expect(state.job).toMatchObject({ status: "completed" });
   }, 10_000);
 
+  it("管理者権限を外したpersonOnly本人も、共有組織を残してClerk削除まで完了する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const target = await seedOrganizationManagerShop(ctx, {
+        subject: "former_manager_scenario",
+        email: "former-manager-scenario@example.com",
+        shopName: "元管理者共有店舗",
+        complimentary: true,
+      });
+      const successorUserId = await seedUser(
+        ctx,
+        "former_manager_scenario_successor",
+        "former-manager-scenario-successor@example.com",
+      );
+      const successorPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: target.organizationId,
+        userId: successorUserId,
+        name: "後任管理者",
+        email: "former-manager-scenario-successor@example.com",
+        emailNormalized: "former-manager-scenario-successor@example.com",
+        status: "active",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      const successorMemberId = await ctx.db.insert("organizationMembers", {
+        organizationId: target.organizationId,
+        personId: successorPersonId,
+        userId: successorUserId,
+        status: "active",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      await ctx.db.patch(target.organizationId, {
+        billingEmail: "former-manager-scenario-successor@example.com",
+        billingEmailNormalized: "former-manager-scenario-successor@example.com",
+      });
+      await ctx.db.patch(target.memberId, { status: "removed", updatedAt: NOW + 1 });
+      return { ...target, successorPersonId, successorMemberId };
+    });
+    const actor = t.withIdentity({ subject: "former_manager_scenario" });
+    const preview = await actor.query(api.accountDeletion.queries.getDeletionPreview, { asOfDate: "2026-07-19" });
+    expect(preview).toMatchObject({ status: "ready", action: "leaveOrganization" });
+    if (preview.status !== "ready") throw new Error("former-manager preview was not ready");
+
+    await expect(
+      t.mutation(internal.accountDeletion.mutations.accept, {
+        issuer: "https://convex.test",
+        clerkUserId: "former_manager_scenario",
+        requestId: "7edaf97a-bca6-4a9d-abbd-5eb285dd718e",
+        scope: "accountAndAssociations",
+        previewFingerprint: preview.previewFingerprint,
+        rateLimitKey: "c".repeat(64),
+      }),
+    ).resolves.toEqual({ status: "accepted" });
+    const job = await t.run((ctx) => ctx.db.query("accountDeletionJobs").unique());
+    if (!job) throw new Error("account deletion job not found");
+    const provider: AccountDeletionProvider = {
+      assertReady: vi.fn(async () => undefined),
+      getUser: vi.fn(async () => "found" as const),
+      deleteUser: vi.fn(async () => "deleted" as const),
+    };
+
+    await runAccountDeletionJob(
+      { runMutation: t.mutation.bind(t) } as unknown as Parameters<typeof runAccountDeletionJob>[0],
+      provider,
+      job._id,
+    );
+
+    const state = await t.run(async (ctx) => ({
+      user: await ctx.db.get(ids.userId),
+      organization: await ctx.db.get(ids.organizationId),
+      shop: await ctx.db.get(ids.shopId),
+      person: await ctx.db.get(ids.personId),
+      member: await ctx.db.get(ids.memberId),
+      successorPerson: await ctx.db.get(ids.successorPersonId),
+      successorMember: await ctx.db.get(ids.successorMemberId),
+      job: await ctx.db.get(job._id),
+    }));
+    expect(state.user).toMatchObject({ isDeleted: true, accountDeletionRequestedAt: NOW });
+    expect(state.organization).toMatchObject({ isDeleted: false });
+    expect(state.shop).toMatchObject({ isDeleted: false });
+    expect(state.person).toMatchObject({ status: "removed" });
+    expect(state.member).toMatchObject({ status: "removed" });
+    expect(state.successorPerson).toMatchObject({ status: "active" });
+    expect(state.successorMember).toMatchObject({ status: "active" });
+    expect(state.job).toMatchObject({ status: "completed", phase: "complete" });
+    expect(provider.deleteUser).toHaveBeenCalledTimes(1);
+  });
+
   it("Clerk削除後のmark失敗をlease回復し、確認済み削除試行の404だけで完了する", async () => {
     const t = convexTest(schema, modules);
     await t.mutation(internal.accountDeletion.mutations.accept, {

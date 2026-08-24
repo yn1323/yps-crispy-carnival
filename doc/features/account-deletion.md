@@ -11,7 +11,7 @@
 | 本人の有効な組織所属 | 管理者構成 | 受付する処理 |
 | --- | --- | --- |
 | なし | 非該当 | ローカルアカウントの利用を停止し、Clerkユーザー削除を開始 |
-| 一つ | 本人以外に有効な`active`管理者がいる | 本人のmanager、person、staff、session、token、LINE連携、未送信通知を終了し、今日以降のシフト割り当てを削除。本人staffの通知履歴を物理削除してからClerkユーザー削除へ進み、組織、店舗、別管理者、過去のシフト履歴は維持 |
+| 一つ | 本人以外に有効な`active`管理者がいる | 現役管理者、または同じpersonを指す`removed`管理者所属が一件だけ残る元管理者について、本人のmanager、person、staff、session、token、LINE連携、未送信通知を終了し、今日以降のシフト割り当てを削除。本人staffの通知履歴を物理削除してからClerkユーザー削除へ進み、組織、店舗、別管理者、過去のシフト履歴は維持 |
 | 一つ | 本人が唯一の有効な`active`管理者 | 組織を論理削除して全店舗のcleanupを開始。cleanup完了後にだけClerkユーザー削除へ進行 |
 | 二つ以上または所属不整合 | 非該当 | 受付せず、所属を一つ以下へ整理するか問い合わせるよう案内 |
 
@@ -21,7 +21,7 @@
 ## 画面
 
 - アカウント設定画面: 現在の所属から削除範囲を取得し、実行可能な場合に削除入口を表示
-- 店舗登録画面: 過去に利用履歴があり、現在は所属がないユーザー向けの補助入口。初回セットアップでは表示しない
+- 店舗登録画面: 過去に利用履歴があり、現在は有効な管理者所属がないユーザー向けの補助入口。アカウント設定と同じ削除previewを取得し、元管理者に関連付けが残る場合も削除範囲とfingerprintを表示する。初回セットアップでは表示しない
 - 削除確認ダイアログ: アカウントだけ、共有組織からの退出、組織と全店舗の終了を区別して、不可逆性、削除対象、保持対象を確認
 - 削除受付完了画面: 公開routeで**受付済み**を案内。cleanupやClerk削除の完了とは表現しない
 - legacy削除済み画面: 明示要求の記録がない既存tombstone向けの補助導線
@@ -57,8 +57,8 @@
 - 旧payloadの公開入力はrequest IDだけとし、所属なしの削除に限定する。所属整理を伴う要求は`scope=accountAndAssociations`と最新preview fingerprintを必須にする。
 - Clerk user ID、ローカルuser ID、組織ID、店舗ID、roleをbrowserから受け取らず、認証identityとサーバー上の所属から削除範囲を決める。
 - Clerkの代理操作sessionは本人同意として扱わず、`actor`と`act` claimをfail closedで拒否する。
-- previewと受付の間に組織、管理者、店舗、課金状態、将来割当が変わった場合はstale fingerprintとして拒否し、user、所属、job、schedulerを変更しない。
-- 受付時と外部削除直前に所属を再検査し、判定不能を含めてfail closedにする。共有組織から退出する場合は、本人staffの通知履歴が残っていないことを確認するまでproviderへ触れず、残存していれば削除batchを再開する。
+- previewと受付の間に組織、管理者、店舗、課金状態、将来割当、または元管理者の関連付け種別・member状態が変わった場合はstale fingerprintとして拒否し、user、所属、job、schedulerを変更しない。
+- 受付時と外部削除直前に所属を再検査し、判定不能を含めてfail closedにする。元管理者として扱うのは、同じ組織・personを指す`removed` memberが一件だけあり、本人以外の有効な管理者が確認できる場合に限る。共有組織から退出する場合は、本人staffの通知履歴が残っていないことを確認するまでproviderへ触れず、残存していれば削除batchを再開する。
 - 組織削除を伴う場合は、対象組織と一致するcleanup jobの`completed`を確認するまでproviderへ触れない。関連付けたcleanup jobが`actionRequired`になった場合は親jobも`actionRequired`で停止し、運用retryでは対象とversionを再確認して子jobから再開する。
 - 同一ユーザーの既存jobは設定検証やrate limitより先に再利用し、Clerk再認証の自動再送を冪等に扱う。
 - 既存の`users`行は`name`、`email`、`emailNormalized`、`authTokenIdentifier`を上書きせず、`isDeleted`と`accountDeletionRequestedAt`で利用を停止する。
@@ -77,7 +77,7 @@
 
 Clerkユーザーを実際に削除するE2Eは追加しません。
 HTTP Function Test、Clerk adapterのfakeを使うConvex Function / Scenario Test、Frontend Logic / Behavior Testで自動検証し、各deploymentではユーザー取得・削除を行わないread-only readinessを実行します。
-`convex/accountDeletion/combined.test.ts`では、preview分岐、複数組織とstale previewの拒否、共有組織からの本人離脱、通知履歴の削除待機、単独管理者のcleanup待機、子jobの`actionRequired`と運用retry、重複受付を検証します。
+`convex/accountDeletion/combined.test.ts`では、preview分岐、複数組織とstale previewの拒否、現役管理者と元管理者の共有組織からの本人離脱、元管理者関連付けの不整合拒否、通知履歴の削除待機、単独管理者のcleanup待機、子jobの`actionRequired`と運用retry、重複受付を検証します。
 `convex/_scenario/accountDeletion.test.ts`では、子jobと親jobが要対応で停止した後に、対象とversionを照合してcleanupとprovider削除へ収束する復旧経路を検証します。
 
 既存jobと互換にするため、組織cleanupへの参照、共有退出の通知履歴cleanup対象、各待機phaseはoptional wideningで追加します。

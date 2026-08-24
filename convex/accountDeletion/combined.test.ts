@@ -97,6 +97,109 @@ describe("所属を含むアカウント削除", () => {
     });
   });
 
+  it.each(["personOnly", "staffOnly"] as const)(
+    "管理者権限を外した本人が%sで残る場合も、共有組織から退出してアカウントを削除できる",
+    async (associationKind) => {
+      const t = createAccountDeletionTest();
+      const ids = await t.run((ctx) =>
+        seedFormerManagerDepartureFixture(ctx, {
+          subject: `former_manager_${associationKind}`,
+          email: `former-manager-${associationKind.toLowerCase()}@example.com`,
+          hasStaff: associationKind === "staffOnly",
+        }),
+      );
+      const actor = t.withIdentity({ subject: `former_manager_${associationKind}` });
+      const preview = await actor.query(api.accountDeletion.queries.getDeletionPreview, { asOfDate: AS_OF_DATE });
+      expect(preview).toEqual({
+        status: "ready",
+        action: "leaveOrganization",
+        previewFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+        organization: { name: "元管理者店舗事業者", shopCount: 1 },
+        futureAssignmentCount: 0,
+      });
+      if (preview.status !== "ready") throw new Error("former-manager preview was not ready");
+
+      await expect(
+        t.mutation(internal.accountDeletion.mutations.accept, {
+          ...acceptArgs(`former_manager_${associationKind}`),
+          scope: "accountAndAssociations",
+          previewFingerprint: preview.previewFingerprint,
+        }),
+      ).resolves.toEqual({ status: "accepted" });
+
+      const state = await t.run(async (ctx) => ({
+        user: await ctx.db.get(ids.userId),
+        organization: await ctx.db.get(ids.organizationId),
+        person: await ctx.db.get(ids.personId),
+        member: await ctx.db.get(ids.memberId),
+        staff: ids.staffId ? await ctx.db.get(ids.staffId) : null,
+        successorMember: await ctx.db.get(ids.successorMemberId),
+      }));
+      expect(state.user).toMatchObject({ isDeleted: true, accountDeletionRequestedAt: NOW });
+      expect(state.organization).toMatchObject({ isDeleted: false });
+      expect(state.person).toMatchObject({ status: "removed" });
+      expect(state.member).toMatchObject({ status: "removed" });
+      if (associationKind === "staffOnly") expect(state.staff).toMatchObject({ isDeleted: true });
+      else expect(state.staff).toBeNull();
+      expect(state.successorMember).toMatchObject({ status: "active" });
+    },
+  );
+
+  it("元管理者の所属が重複・不一致、または後任不在なら削除範囲を推測しない", async () => {
+    const noSuccessor = createAccountDeletionTest();
+    await noSuccessor.run(async (ctx) => {
+      const target = await seedOrganizationManagerShop(ctx, {
+        subject: "former_without_successor",
+        email: "former-without-successor@example.com",
+        shopName: "後任不在店舗",
+        complimentary: true,
+      });
+      await ctx.db.patch(target.memberId, { status: "removed", updatedAt: NOW + 1 });
+    });
+    await expect(
+      noSuccessor
+        .withIdentity({ subject: "former_without_successor" })
+        .query(api.accountDeletion.queries.getDeletionPreview, { asOfDate: AS_OF_DATE }),
+    ).resolves.toEqual({ status: "blocked", reason: "inconsistentAssociation" });
+
+    const duplicate = createAccountDeletionTest();
+    await duplicate.run(async (ctx) => {
+      const target = await seedFormerManagerDepartureFixture(ctx, {
+        subject: "former_duplicate",
+        email: "former-duplicate@example.com",
+        hasStaff: false,
+      });
+      await ctx.db.insert("organizationMembers", {
+        organizationId: target.organizationId,
+        personId: target.personId,
+        userId: target.userId,
+        status: "removed",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+    });
+    await expect(
+      duplicate
+        .withIdentity({ subject: "former_duplicate" })
+        .query(api.accountDeletion.queries.getDeletionPreview, { asOfDate: AS_OF_DATE }),
+    ).resolves.toEqual({ status: "blocked", reason: "inconsistentAssociation" });
+
+    const mismatch = createAccountDeletionTest();
+    await mismatch.run(async (ctx) => {
+      const target = await seedFormerManagerDepartureFixture(ctx, {
+        subject: "former_mismatch",
+        email: "former-mismatch@example.com",
+        hasStaff: false,
+      });
+      await ctx.db.patch(target.memberId, { personId: target.successorPersonId, updatedAt: NOW + 2 });
+    });
+    await expect(
+      mismatch
+        .withIdentity({ subject: "former_mismatch" })
+        .query(api.accountDeletion.queries.getDeletionPreview, { asOfDate: AS_OF_DATE }),
+    ).resolves.toEqual({ status: "blocked", reason: "inconsistentAssociation" });
+  });
+
   it("二つ以上の有効組織に所属する場合は削除範囲を推測せず拒否する", async () => {
     const t = createAccountDeletionTest();
     await t.run(async (ctx) => {
@@ -810,6 +913,46 @@ async function addOtherManager(
     updatedAt: NOW,
   });
   return { userId, personId, memberId };
+}
+
+async function seedFormerManagerDepartureFixture(
+  ctx: MutationCtx,
+  args: { subject: string; email: string; hasStaff: boolean },
+) {
+  const target = await seedOrganizationManagerShop(ctx, {
+    subject: args.subject,
+    email: args.email,
+    shopName: "元管理者店舗",
+    complimentary: true,
+  });
+  const successor = await addOtherManager(ctx, {
+    organizationId: target.organizationId,
+    subject: `${args.subject}_successor`,
+    email: `${args.subject}-successor@example.com`,
+  });
+  await ctx.db.patch(target.organizationId, {
+    billingEmail: `${args.subject}-successor@example.com`,
+    billingEmailNormalized: `${args.subject}-successor@example.com`,
+  });
+  await ctx.db.patch(target.memberId, { status: "removed", updatedAt: NOW + 1 });
+  const staffId = args.hasStaff
+    ? await ctx.db.insert("staffs", {
+        organizationId: target.organizationId,
+        organizationPersonId: target.personId,
+        userId: target.userId,
+        shopId: target.shopId,
+        name: "元管理者スタッフ",
+        email: args.email,
+        emailNormalized: args.email,
+        isDeleted: false,
+      })
+    : null;
+  return {
+    ...target,
+    staffId,
+    successorPersonId: successor.personId,
+    successorMemberId: successor.memberId,
+  };
 }
 
 async function seedSharedDepartureFixture(ctx: MutationCtx) {
