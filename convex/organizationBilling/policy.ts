@@ -29,11 +29,20 @@ export const ORGANIZATION_PLAN_LIMITS = {
   },
 } as const;
 
+// 支払い不要Businessだけは、有料Businessとは別の人数上限を適用する。
+const COMPLIMENTARY_BUSINESS_LIMITS = {
+  maxPeople: 50,
+  maxActiveShops: 5,
+  maxActiveManagers: 5,
+} as const;
+
 export type OrganizationPlan = keyof typeof ORGANIZATION_PLAN_LIMITS;
 export type OrganizationPaidPlan = "pro" | "business";
 export type OrganizationEntitlementPlan = "free" | OrganizationPaidPlan;
 export type OrganizationDisplayPlan = "trial" | OrganizationEntitlementPlan;
-export type OrganizationPlanLimits = (typeof ORGANIZATION_PLAN_LIMITS)[OrganizationPlan];
+export type OrganizationPlanLimits =
+  | (typeof ORGANIZATION_PLAN_LIMITS)[OrganizationPlan]
+  | typeof COMPLIMENTARY_BUSINESS_LIMITS;
 export type OrganizationBillingState = Infer<typeof organizationBillingStateValidator>;
 type PersistedRestrictedOrganizationBillingState = Extract<OrganizationBillingState, { kind: "restricted" }>;
 export type RestrictedOrganizationBillingState = PersistedRestrictedOrganizationBillingState;
@@ -392,7 +401,7 @@ export function deriveOrganizationBillingPolicy(state: OrganizationBillingState)
     case "active":
       return state.plan === "free" ? freePolicy(null) : enabledPolicy(plans, null);
     case "complimentary":
-      return enabledPolicy(plans, null);
+      return enabledPolicy(plans, null, COMPLIMENTARY_BUSINESS_LIMITS);
     case "scheduledChange":
       // FreeまたはProへの変更予定は、期間終了まで現在の有料プランを維持する。
       return enabledPolicy(plans, state.effectiveAt);
@@ -419,11 +428,15 @@ function restrictedPolicy(plans: OrganizationBillingPlanResolution): Organizatio
   };
 }
 
-function enabledPolicy(plans: OrganizationBillingPlanResolution, deadlineAt: number | null): OrganizationBillingPolicy {
+function enabledPolicy(
+  plans: OrganizationBillingPlanResolution,
+  deadlineAt: number | null,
+  limits?: OrganizationPlanLimits,
+): OrganizationBillingPolicy {
   if (!plans.entitlementPlan) throw new Error("enabled_policy_requires_entitlement");
   return {
     ...plans,
-    limits: ORGANIZATION_PLAN_LIMITS[plans.entitlementPlan],
+    limits: limits ?? ORGANIZATION_PLAN_LIMITS[plans.entitlementPlan],
     canReadExistingData: true,
     canWriteBusinessData: true,
     businessWriteBlockReason: null,
@@ -555,9 +568,8 @@ export type OrganizationUsageSnapshot = {
 
 export type PlanLimitViolation = "people" | "activeShops" | "activeManagers";
 
-export function evaluatePlanLimits(plan: OrganizationPlan, usage: OrganizationUsageSnapshot) {
+export function evaluateOrganizationLimits(limits: OrganizationPlanLimits, usage: OrganizationUsageSnapshot) {
   validateUsageSnapshot(usage);
-  const limits = ORGANIZATION_PLAN_LIMITS[plan];
   const violations: PlanLimitViolation[] = [];
 
   if (usage.peopleCount > limits.maxPeople) violations.push("people");
@@ -569,6 +581,10 @@ export function evaluatePlanLimits(plan: OrganizationPlan, usage: OrganizationUs
     violations,
     limits,
   };
+}
+
+export function evaluatePlanLimits(plan: OrganizationPlan, usage: OrganizationUsageSnapshot) {
+  return evaluateOrganizationLimits(ORGANIZATION_PLAN_LIMITS[plan], usage);
 }
 
 export type FreeEligibilityFailure = "activeManagerCount" | "activeShopCount" | "peopleCount";

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
 import { seedManagerShop, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { NOTIFICATION_FANOUT_BATCH_SIZE, NOTIFICATION_FANOUT_SCOPE_LIMIT } from "../constants";
 
 describe("notification/actions", () => {
   beforeEach(() => {
@@ -11,15 +12,16 @@ describe("notification/actions", () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it("40人分の募集開始通知をoutboxにenqueueする", async () => {
+  it("50人分の募集開始通知をoutboxにenqueueする", async () => {
+    expect(NOTIFICATION_FANOUT_SCOPE_LIMIT).toBe(50);
     const t = convexTest(schema, modules);
     const recruitmentId = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: "user_mgr",
         email: "manager@notification.invalid",
-        shopName: "40人店舗",
+        shopName: "50人店舗",
       });
-      for (let i = 0; i < 40; i++) {
+      for (let i = 0; i < NOTIFICATION_FANOUT_SCOPE_LIMIT; i++) {
         await ctx.db.insert("staffs", {
           shopId,
           name: `スタッフ${i + 1}`,
@@ -40,7 +42,7 @@ describe("notification/actions", () => {
     });
 
     // 1 action = 1 bounded batch。通常schedulerと同じactionを繰り返し、永続cursorから再開する。
-    for (let batch = 0; batch < 4; batch++) {
+    for (let batch = 0; batch < Math.ceil(NOTIFICATION_FANOUT_SCOPE_LIMIT / NOTIFICATION_FANOUT_BATCH_SIZE); batch++) {
       await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, { recruitmentId });
     }
 
@@ -49,13 +51,13 @@ describe("notification/actions", () => {
       jobs: await ctx.db.query("notificationOutbox").collect(),
       operations: await ctx.db.query("notificationFanoutOperations").collect(),
     }));
-    expect(state.jobs).toHaveLength(40);
+    expect(state.jobs).toHaveLength(NOTIFICATION_FANOUT_SCOPE_LIMIT);
     expect(state.jobs.every((job) => job.channel === "email" && job.status === "pending")).toBe(true);
-    expect(state.histories).toHaveLength(40);
+    expect(state.histories).toHaveLength(NOTIFICATION_FANOUT_SCOPE_LIMIT);
     expect(state.operations).toEqual([
       expect.objectContaining({
         recruitmentId,
-        cursor: 40,
+        cursor: NOTIFICATION_FANOUT_SCOPE_LIMIT,
         status: "completed",
       }),
     ]);

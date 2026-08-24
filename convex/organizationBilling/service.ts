@@ -4,7 +4,7 @@ import type { DataModel, Id } from "../_generated/dataModel";
 import { getOrganizationBillingState, getOrganizationUsageSnapshot } from "../organization/service";
 import {
   deriveOrganizationBillingPolicy,
-  evaluatePlanLimits,
+  evaluateOrganizationLimits,
   getEffectiveRestrictedBillingState,
   type RecoveryCapability,
 } from "./policy";
@@ -74,7 +74,7 @@ export async function requireOrganizationCapacity(
     activeShopCount: usage.activeShopCount + (args.additionalActiveShops ?? 0),
     activeManagerCount: usage.projectedActiveManagerCount + (args.additionalActiveManagers ?? 0),
   };
-  const evaluation = evaluatePlanLimits(policy.entitlementPlan, projectedUsage);
+  const evaluation = evaluateOrganizationLimits(policy.limits, projectedUsage);
   if (!evaluation.withinLimits) {
     const message = evaluation.violations.includes("people")
       ? `利用人数が現在のプラン上限を超えます。\n現在${usage.projectedPersonCount}名、上限${policy.limits.maxPeople}名です。`

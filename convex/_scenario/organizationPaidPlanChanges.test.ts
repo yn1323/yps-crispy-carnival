@@ -188,7 +188,7 @@ async function seedComplimentaryAtLimits(ctx: MutationCtx, subject: string) {
     await addShop(ctx, seeded.organizationId, `${subject} 第${index + 1}店舗`);
   }
   const staffPeople = [];
-  for (let index = 1; index <= 35; index += 1) {
+  for (let index = 1; index <= 45; index += 1) {
     staffPeople.push(await addStaffPerson(ctx, seeded.organizationId, seeded.shopId, `${subject}_staff_${index}`));
   }
   return { ...seeded, staffPeople };
@@ -1516,7 +1516,7 @@ describe("有料プラン変更シナリオ", () => {
     expect(restored.staff?.isDeleted).toBe(true);
   });
 
-  it("complimentary.businessはBusiness上限を使い、Stripe行と課金通知を作らない", async () => {
+  it("complimentary.businessは50人上限を使い、Stripe行と課金通知を作らない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run((ctx) => seedComplimentaryAtLimits(ctx, "complimentary_business"));
 
@@ -1527,7 +1527,7 @@ describe("有料プラン変更シナリオ", () => {
       state: "business",
       currentPlan: "business",
       isComplimentary: true,
-      peopleUsage: { current: 40, max: 40, pendingInvitations: 0 },
+      peopleUsage: { current: 50, max: 50, pendingInvitations: 0 },
       shopUsage: { current: 5, max: 5, pendingInvitations: 0 },
       managerUsage: { current: 5, max: 5, pendingInvitations: 0 },
       requiredReductions: { people: 0, shops: 0, managers: 0 },

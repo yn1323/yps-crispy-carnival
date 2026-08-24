@@ -592,7 +592,7 @@ export const ComplimentaryBusiness: Story = {
       state: "business",
       currentPlan: "business",
       isComplimentary: true,
-      peopleUsage: { current: 22, max: 40 },
+      peopleUsage: { current: 22, max: 50 },
       shopUsage: { current: 3, max: 5 },
       nextEvent: undefined,
       hasStripeCustomer: false,
