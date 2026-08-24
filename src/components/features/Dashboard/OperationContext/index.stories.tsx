@@ -13,7 +13,7 @@ const shop = (overrides: Partial<ShopContextOption>): ShopContextOption => ({
   shopStatus: "active",
   organizationId: "org-a",
   organizationName: "東日本事業部",
-  organizationPlan: "pro",
+  organizationPlan: "standard",
   memberStatus: "active",
   ...overrides,
 });

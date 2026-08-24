@@ -45,8 +45,8 @@ const FILTERS = [
       ["", "すべて"],
       ["trial", "Trial"],
       ["free", "Free"],
+      ["standard", "Standard"],
       ["pro", "Pro"],
-      ["business", "Business"],
     ],
   },
   {

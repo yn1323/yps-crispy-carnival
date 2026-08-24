@@ -25,8 +25,8 @@ jobs:
         env:
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_STANDARD_PRICE_ID: ${{ secrets.STRIPE_STANDARD_PRICE_ID }}
           STRIPE_PRO_PRICE_ID: ${{ secrets.STRIPE_PRO_PRICE_ID }}
-          STRIPE_BUSINESS_PRICE_ID: ${{ secrets.STRIPE_BUSINESS_PRICE_ID }}
           VITE_APP_ENVIRONMENT: preview
           VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}

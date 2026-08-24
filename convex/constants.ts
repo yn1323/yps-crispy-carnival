@@ -44,7 +44,7 @@ export const NOTIFICATION_OUTBOX_TERMINAL_REDACTION_BATCH_SIZE = 100;
 export const NOTIFICATION_DRY_RUN_MANAGER_SCAN_LIMIT = 20;
 // 募集・確定通知は対象を永続化し、この件数ずつcursorを進める。
 export const NOTIFICATION_FANOUT_BATCH_SIZE = 10;
-export const NOTIFICATION_FANOUT_SCOPE_LIMIT = ORGANIZATION_PLAN_LIMITS.business.maxPeople;
+export const NOTIFICATION_FANOUT_SCOPE_LIMIT = ORGANIZATION_PLAN_LIMITS.pro.maxPeople;
 export const NOTIFICATION_FANOUT_CANCELLATION_BATCH_SIZE = 20;
 // cron一回で再予約するfanout operation上限。予約漏れと期限切れleaseをboundedに回収する。
 export const NOTIFICATION_FANOUT_RECOVERY_BATCH_SIZE = 20;

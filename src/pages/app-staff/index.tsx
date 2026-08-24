@@ -26,7 +26,7 @@ import { resolveShopFilter } from "@/src/domains/shop/filter";
 import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
 
 const PEOPLE_PAGE_SIZE = 10;
-const STAFF_ORDER_PEOPLE_LIMIT = ORGANIZATION_PLAN_LIMITS.business.maxPeople;
+const STAFF_ORDER_PEOPLE_LIMIT = ORGANIZATION_PLAN_LIMITS.pro.maxPeople;
 
 export type ShopOption = {
   id: Id<"shops">;

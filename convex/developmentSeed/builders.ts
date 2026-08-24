@@ -212,7 +212,7 @@ async function insertShopGraph(
           isDeleted: false,
         }),
       );
-      if (scenario.key === "pro-operations") {
+      if (scenario.key === "standard-operations") {
         positions.push(
           await writer.insert("positions", {
             shopId,
@@ -377,7 +377,7 @@ async function seedOperationalData(
 ) {
   const windows = buildDevelopmentSeedRecruitmentWindows(today);
   const recruitmentIds: Id<"recruitments">[] = [];
-  if (scenario.key === "pro-operations") {
+  if (scenario.key === "standard-operations") {
     const keys = Object.keys(windows) as DevelopmentSeedRecruitmentWindowKey[];
     for (const key of keys) {
       recruitmentIds.push(
@@ -394,7 +394,7 @@ async function seedOperationalData(
     );
   } else if (scenario.key === "free-capacity") {
     recruitmentIds.push(await insertRecruitment(writer, shops[0], windows.recruiting, now, { withAssignments: false }));
-  } else if (scenario.key === "business-notifications") {
+  } else if (scenario.key === "pro-notifications") {
     recruitmentIds.push(
       await insertRecruitment(writer, shops[0], windows.currentConfirmed, now, {
         withAssignments: true,
@@ -493,7 +493,7 @@ async function seedCustomStaffOrder(
   today: string,
   now: number,
 ) {
-  if (scenario.key !== "pro-operations") return;
+  if (scenario.key !== "standard-operations") return;
   await writer.insert("organizationStaffOrderStates", {
     organizationId,
     revision: 1,
@@ -539,7 +539,7 @@ async function seedLineAndNotificationData(
   openRecruitmentId: Id<"recruitments">,
   now: number,
 ) {
-  if (scenario.key !== "business-notifications") return;
+  if (scenario.key !== "pro-notifications") return;
   for (let index = 0; index < 2; index += 1) {
     const staff = firstShop.staffs[index];
     const following = index === 0;
@@ -753,7 +753,7 @@ export async function seedDevelopmentScenarioGraph(
   const managerPersonIds = [primaryMembership.personId, ownerMembership.personId].filter(
     (personId, index, values) => values.indexOf(personId) === index,
   );
-  if (key === "pro-operations") {
+  if (key === "standard-operations") {
     const readOnlyUser = await requireSeedUser(ctx, READ_ONLY_SEED_AUTH_TOKEN_IDENTIFIER);
     const readOnlyMembership = await insertPersonAndMember(writer, organizationId, readOnlyUser, "readOnly", now);
     managerPersonIds.push(readOnlyMembership.personId);
@@ -784,7 +784,7 @@ export async function seedDevelopmentScenarioGraph(
     await seedRegistrationData(writer, scenario, shops[0].shopId, shops[0].staffs[0].email, now);
     await seedConsentData(ctx, writer, scenario, shops[0].shopId, primaryUser._id, now);
     await seedCustomStaffOrder(writer, scenario, organizationId, managerPersonIds, staffPeople, shops, today, now);
-    if (scenario.key === "business-notifications") {
+    if (scenario.key === "pro-notifications") {
       await seedLineAndNotificationData(
         writer,
         scenario,

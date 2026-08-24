@@ -3,11 +3,11 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import { BillingActionDialog } from "./BillingActionDialog";
 import type { BillingActionDialogState } from "./script";
 
-const startProDialog: BillingActionDialogState = {
+const startStandardDialog: BillingActionDialogState = {
   kind: "startPaidPlan",
   source: "immediate",
-  targetPlan: "pro",
-  intentKey: "start-pro",
+  targetPlan: "standard",
+  intentKey: "start-standard",
   shopId: "shop-shibuya",
   organizationName: "株式会社さくらダイニング",
   billingStartsOn: "Stripeでの支払い完了日",
@@ -17,20 +17,20 @@ const startProDialog: BillingActionDialogState = {
   },
 };
 
-const startBusinessDialog: BillingActionDialogState = {
-  ...startProDialog,
-  targetPlan: "business",
-  intentKey: "start-business",
+const startProDialog: BillingActionDialogState = {
+  ...startStandardDialog,
+  targetPlan: "pro",
+  intentKey: "start-pro",
   price: {
     status: "available",
     value: { currency: "jpy", unitAmount: 6000, interval: "month", intervalCount: 1, taxBehavior: "exclusive" },
   },
 };
 
-const upgradeToBusinessLoadingDialog: BillingActionDialogState = {
+const upgradeToProLoadingDialog: BillingActionDialogState = {
   kind: "changePaidPlanNow",
-  targetPlan: "business",
-  intentKey: "upgrade-business",
+  targetPlan: "pro",
+  intentKey: "upgrade-pro",
   shopId: "shop-shibuya",
   organizationName: "株式会社さくらダイニング",
   preview: { status: "loading" },
@@ -42,7 +42,7 @@ const meta = {
   component: BillingActionDialog,
   parameters: { layout: "fullscreen" },
   args: {
-    dialog: startProDialog,
+    dialog: startStandardDialog,
     isRunning: false,
     onClose: () => {},
     onRetryPrice: () => {},
@@ -54,20 +54,20 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const StartPro: Story = { name: "Standard開始" };
+export const StartStandard: Story = { name: "Standard開始" };
 
-export const StartBusiness: Story = {
+export const StartPro: Story = {
   name: "Pro開始",
   args: {
-    dialog: startBusinessDialog,
+    dialog: startProDialog,
   },
 };
 
-export const RegisterTrialBusinessContinuation: Story = {
+export const RegisterTrialProContinuation: Story = {
   name: "トライアル終了後のPro継続登録",
   args: {
     dialog: {
-      ...startBusinessDialog,
+      ...startProDialog,
       kind: "startPaidPlan",
       source: "trial",
       trialEndsOn: "2026年8月31日",
@@ -76,25 +76,25 @@ export const RegisterTrialBusinessContinuation: Story = {
   },
 };
 
-export const LoadingBusinessPrice: Story = {
+export const LoadingProPrice: Story = {
   name: "Pro料金を読み込み中",
-  args: { dialog: { ...startBusinessDialog, price: { status: "loading" } } },
+  args: { dialog: { ...startProDialog, price: { status: "loading" } } },
 };
 
-export const BusinessPriceUnavailable: Story = {
+export const ProPriceUnavailable: Story = {
   name: "Pro料金を取得できない",
   args: {
     dialog: {
-      ...startBusinessDialog,
+      ...startProDialog,
       price: { status: "unavailable", reason: "price_unavailable" },
     },
   },
 };
 
-export const RetryBusinessPriceBehavior: Story = {
+export const RetryProPriceBehavior: Story = {
   name: "Pro料金を再読み込み（操作確認）",
   parameters: { screenshot: { skip: true } },
-  args: { ...BusinessPriceUnavailable.args, onRetryPrice: fn() },
+  args: { ...ProPriceUnavailable.args, onRetryPrice: fn() },
   play: async ({ args }) => {
     const dialog = await within(document.body).findByRole("alertdialog", { name: "Proを開始しますか？" });
     await userEvent.click(within(dialog).getByRole("button", { name: "料金を再読み込みする" }));
@@ -102,20 +102,20 @@ export const RetryBusinessPriceBehavior: Story = {
   },
 };
 
-export const UpgradeToBusinessPreviewLoading: Story = {
+export const UpgradeToProPreviewLoading: Story = {
   name: "StandardからPro・見積もり中",
   args: {
-    dialog: upgradeToBusinessLoadingDialog,
+    dialog: upgradeToProLoadingDialog,
   },
 };
 
-export const UpgradeToBusinessPreviewAvailable: Story = {
+export const UpgradeToProPreviewAvailable: Story = {
   name: "StandardからPro・見積もり成功",
   args: {
     dialog: {
-      ...upgradeToBusinessLoadingDialog,
+      ...upgradeToProLoadingDialog,
       kind: "changePaidPlanNow",
-      targetPlan: "business",
+      targetPlan: "pro",
       preview: {
         status: "available",
         value: {
@@ -129,22 +129,22 @@ export const UpgradeToBusinessPreviewAvailable: Story = {
   },
 };
 
-export const UpgradeToBusinessPreviewError: Story = {
+export const UpgradeToProPreviewError: Story = {
   name: "StandardからPro・見積もり失敗",
   args: {
     dialog: {
-      ...upgradeToBusinessLoadingDialog,
+      ...upgradeToProLoadingDialog,
       kind: "changePaidPlanNow",
-      targetPlan: "business",
+      targetPlan: "pro",
       preview: { status: "error" },
     },
   },
 };
 
-export const RetryBusinessPreviewBehavior: Story = {
+export const RetryProPreviewBehavior: Story = {
   name: "日割り見積もりを再読み込み（操作確認）",
   parameters: { screenshot: { skip: true } },
-  args: { ...UpgradeToBusinessPreviewError.args, onRetryPreview: fn() },
+  args: { ...UpgradeToProPreviewError.args, onRetryPreview: fn() },
   play: async ({ args }) => {
     const dialog = await within(document.body).findByRole("alertdialog", { name: "Proへ変更しますか？" });
     await userEvent.click(within(dialog).getByRole("button", { name: "見積もりを再読み込みする" }));
@@ -152,13 +152,13 @@ export const RetryBusinessPreviewBehavior: Story = {
   },
 };
 
-export const ScheduleBusinessToPro: Story = {
+export const ScheduleProToStandard: Story = {
   name: "ProからStandardへ変更予約",
   args: {
     dialog: {
       kind: "schedulePlanChange",
-      targetPlan: "pro",
-      intentKey: "schedule-pro",
+      targetPlan: "standard",
+      intentKey: "schedule-standard",
       shopId: "shop-shibuya",
       organizationName: "株式会社さくらダイニング",
       effectiveOn: "2026年8月31日",
@@ -181,13 +181,13 @@ export const ScheduleServiceStop: Story = {
   },
 };
 
-export const CancelScheduledPro: Story = {
+export const CancelScheduledStandard: Story = {
   name: "Standardへの変更予約取消",
   args: {
     dialog: {
       kind: "cancelScheduledPlanChange",
-      targetPlan: "pro",
-      intentKey: "cancel-scheduled-pro",
+      targetPlan: "standard",
+      intentKey: "cancel-scheduled-standard",
       shopId: "shop-shibuya",
       organizationName: "株式会社さくらダイニング",
       effectiveOn: "2026年8月31日",
@@ -214,5 +214,5 @@ export const Mobile: Story = {
   name: "StandardからPro・モバイル",
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
-  args: UpgradeToBusinessPreviewAvailable.args,
+  args: UpgradeToProPreviewAvailable.args,
 };

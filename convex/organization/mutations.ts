@@ -13,7 +13,10 @@ import {
   prepareOrganizationRecipientBusinessNotificationsForCancellation,
 } from "../notificationOutbox/mutations";
 import { scheduleOrganizationBillingStateDeadline } from "../organizationBilling/deadline";
-import { getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
+import {
+  canonicalizeOrganizationBillingState,
+  getEffectiveRestrictedBillingState,
+} from "../organizationBilling/policy";
 import {
   getOrganizationAccessPolicy,
   requireOrganizationBusinessWrite,
@@ -1320,19 +1323,27 @@ async function applyBillingReferenceUpdate(
   },
 ) {
   if (!args.update.recoveryManagersChanged && !args.update.clearFreeManager) return;
-  const restrictedState = getEffectiveRestrictedBillingState(args.billingState.state);
+  const canonicalState = canonicalizeOrganizationBillingState(args.billingState.state);
+  const restrictedState = getEffectiveRestrictedBillingState(canonicalState);
   const nextState =
     restrictedState && args.update.recoveryManagerPersonIds
-      ? args.billingState.state.kind === "pendingActivation"
-        ? {
-            ...args.billingState.state,
-            restrictedFallbackState: {
-              ...restrictedState,
-              recoveryManagerPersonIds: args.update.recoveryManagerPersonIds,
-            },
+      ? canonicalState.kind === "pendingActivation"
+        ? (() => {
+            const { planIdVersion: _planIdVersion, ...restrictedFallbackState } = restrictedState;
+            return {
+              ...canonicalState,
+              restrictedFallbackState: {
+                ...restrictedFallbackState,
+                recoveryManagerPersonIds: args.update.recoveryManagerPersonIds,
+              },
+            };
+          })()
+        : {
+            ...restrictedState,
+            planIdVersion: 2 as const,
+            recoveryManagerPersonIds: args.update.recoveryManagerPersonIds,
           }
-        : { ...restrictedState, recoveryManagerPersonIds: args.update.recoveryManagerPersonIds }
-      : args.billingState.state;
+      : canonicalState;
   const nextVersion = args.billingState.version + 1;
   await ctx.db.patch(args.billingState._id, {
     state: nextState,

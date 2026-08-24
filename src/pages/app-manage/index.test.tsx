@@ -95,8 +95,8 @@ const overview = () => ({
   organizationUpdatedAt: Date.parse("2026-08-15T00:00:00Z"),
   memberStatus: "active" as const,
   usage: {
-    state: "business",
-    currentPlan: "business",
+    state: "pro",
+    currentPlan: "pro",
     peopleUsage: { current: 2, max: 100 },
     shopUsage: { current: 1, max: 10 },
     managerUsage: { current: 1, max: 5, pendingInvitations: 0 },
@@ -142,6 +142,10 @@ describe("AppManage", () => {
   it("組織・店舗追加と管理者・支払いの導線を常に表示する", () => {
     renderPage(<AppManageRoutePage organizationId={organizationId} memberStatus="active" />);
 
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.getManageOverview, {
+      organizationId,
+      planIdVersion: 2,
+    });
     expect(screen.getByRole("button", { name: "組織情報を開く" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "新しい組織を作る" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "管理者と権限を開く" })).not.toBeNull();

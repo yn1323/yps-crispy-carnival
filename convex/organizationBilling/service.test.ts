@@ -51,17 +51,17 @@ describe("organizationBilling/service access policy", () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
-        subject: "usage_limit_trial_business",
+        subject: "usage_limit_trial_pro",
         plan: "free",
       });
-      await seedCountedStaff(ctx, { shopId: base.shopId, count: 49, prefix: "trial-business-staff-" });
+      await seedCountedStaff(ctx, { shopId: base.shopId, count: 49, prefix: "trial-pro-staff-" });
       const billingState = await ctx.db
         .query("organizationBillingStates")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
         .unique();
       if (!billingState) throw new Error("billing state not found");
       await ctx.db.patch(billingState._id, {
-        state: { kind: "trial", trialEndsAt: Date.now() + 60_000 },
+        state: { kind: "trial", planIdVersion: 2, trialEndsAt: Date.now() + 60_000 },
       });
       return base;
     });
@@ -71,13 +71,13 @@ describe("organizationBilling/service access policy", () => {
       accessMode: "normal",
       canWriteBusinessData: true,
       billingPolicy: {
-        entitlementPlan: "business",
+        entitlementPlan: "pro",
         displayPlan: "trial",
         targetingPlan: "trial",
       },
       usageLimitStatus: {
         kind: "withinLimits",
-        evaluatedPlan: "business",
+        evaluatedPlan: "pro",
         usage: { peopleCount: 50, activeShopCount: 1, activeManagerCount: 1 },
         limits: { maxPeople: 50, maxActiveShops: 5, maxActiveManagers: 5 },
       },
@@ -85,7 +85,7 @@ describe("organizationBilling/service access policy", () => {
     await expect(
       t.run(async (ctx) => await requireOrganizationBusinessWrite(ctx, ids.organizationId)),
     ).resolves.toMatchObject({
-      entitlementPlan: "business",
+      entitlementPlan: "pro",
       displayPlan: "trial",
       targetingPlan: "trial",
     });
@@ -100,9 +100,13 @@ describe("organizationBilling/service access policy", () => {
   });
 
   it.each([
-    { label: "Standard", seed: { plan: "pro" as const }, maxPeople: 25 },
-    { label: "Pro", seed: { plan: "business" as const }, maxPeople: 50 },
-    { label: "支払い不要Pro相当", seed: { complimentary: true as const }, maxPeople: 50 },
+    { label: "Standard", seed: { plan: "standard" as const, planIdVersion: 2 as const }, maxPeople: 25 },
+    { label: "Pro", seed: { plan: "pro" as const, planIdVersion: 2 as const }, maxPeople: 50 },
+    {
+      label: "支払い不要Pro相当",
+      seed: { complimentary: true as const, planIdVersion: 2 as const },
+      maxPeople: 50,
+    },
   ])("$labelは上限の1人前から1人追加でき、上限到達後の追加を拒否する", async ({ seed, maxPeople }) => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -269,7 +273,8 @@ describe("organizationBilling/service access policy", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "usage_limit_legacy_active_shop",
-        plan: "pro",
+        plan: "standard",
+        planIdVersion: 2,
       });
       for (let index = 0; index < 3; index += 1) {
         await ctx.db.insert("shops", {
@@ -324,7 +329,7 @@ describe("organizationBilling/service access policy", () => {
     ).rejects.toMatchObject({
       data: {
         code: "USAGE_LIMIT_EXCEEDED",
-        plan: "pro",
+        plan: "standard",
         violations: [{ kind: "activeShops", current: 6, max: 5, excess: 1 }],
       },
     });
@@ -335,7 +340,8 @@ describe("organizationBilling/service access policy", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "usage_limit_invalid_active_managers",
-        plan: "pro",
+        plan: "standard",
+        planIdVersion: 2,
       });
       for (let index = 0; index < 2; index += 1) {
         const userId = await seedUser(ctx, `usage_limit_valid_manager_${index + 1}`);
@@ -416,7 +422,7 @@ describe("organizationBilling/service access policy", () => {
       canWriteBusinessData: true,
       usageLimitStatus: {
         kind: "withinLimits",
-        evaluatedPlan: "pro",
+        evaluatedPlan: "standard",
         usage: { peopleCount: 3, activeShopCount: 1, activeManagerCount: 3 },
       },
       usageProbe: {
@@ -427,7 +433,7 @@ describe("organizationBilling/service access policy", () => {
     });
     await expect(
       t.run(async (ctx) => await requireOrganizationBusinessWrite(ctx, ids.organizationId)),
-    ).resolves.toMatchObject({ entitlementPlan: "pro" });
+    ).resolves.toMatchObject({ entitlementPlan: "standard" });
   });
 
   it("active.freeの実数超過を導出し、通常writeを件数だけのstructured errorで拒否する", async () => {

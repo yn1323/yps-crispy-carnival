@@ -1,6 +1,6 @@
 export type ShopStatus = "active" | "archived" | "planSuspended";
 export type OrganizationMemberStatus = "active" | "readOnly" | "removed";
-export type OrganizationPlan = "trial" | "free" | "pro" | "business";
+export type OrganizationPlan = "trial" | "free" | "standard" | "pro";
 
 export type ShopContextOption = {
   shopId: string;
@@ -108,5 +108,5 @@ function isOrganizationMemberStatus(value: unknown): value is OrganizationMember
 }
 
 function isOrganizationPlan(value: unknown): value is OrganizationPlan {
-  return value === "trial" || value === "free" || value === "pro" || value === "business";
+  return value === "trial" || value === "free" || value === "standard" || value === "pro";
 }

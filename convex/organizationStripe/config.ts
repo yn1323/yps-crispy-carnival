@@ -10,14 +10,15 @@ export type StripeBillingConfiguration =
       livemode: boolean;
       secretKey: string;
       webhookSecret: string;
+      standardPriceId: string;
       proPriceId: string;
-      businessPriceId?: string;
       portalConfigurationId: string;
     };
 
 type StripeConfigurationKey =
   | "STRIPE_SECRET_KEY"
   | "STRIPE_WEBHOOK_SECRET"
+  | "STRIPE_STANDARD_PRICE_ID"
   | "STRIPE_PRO_PRICE_ID"
   | "STRIPE_PORTAL_CONFIGURATION_ID";
 
@@ -25,14 +26,16 @@ type StripeConfigurationKey =
 export function getStripeBillingConfiguration(): StripeBillingConfiguration {
   const secretKey = (env.STRIPE_SECRET_KEY ?? "").trim();
   const webhookSecret = (env.STRIPE_WEBHOOK_SECRET ?? "").trim();
-  const proPriceId = (env.STRIPE_PRO_PRICE_ID ?? "").trim();
-  const businessPriceId = (env.STRIPE_BUSINESS_PRICE_ID ?? "").trim();
+  const { standardPriceId, proPriceId } = getConfiguredPriceIds();
   const portalConfigurationId = (env.STRIPE_PORTAL_CONFIGURATION_ID ?? "").trim();
   const livemode = stripeLivemodeFromSecretKey(secretKey);
   const missing: StripeConfigurationKey[] = [];
   if (livemode === null) missing.push("STRIPE_SECRET_KEY");
   if (!webhookSecret.startsWith("whsec_")) missing.push("STRIPE_WEBHOOK_SECRET");
-  if (!proPriceId.startsWith("price_")) missing.push("STRIPE_PRO_PRICE_ID");
+  if (!standardPriceId.startsWith("price_")) missing.push("STRIPE_STANDARD_PRICE_ID");
+  if (!proPriceId.startsWith("price_") || proPriceId === standardPriceId) {
+    missing.push("STRIPE_PRO_PRICE_ID");
+  }
   if (!portalConfigurationId.startsWith("bpc_")) missing.push("STRIPE_PORTAL_CONFIGURATION_ID");
   if (missing.length > 0 || livemode === null) return { status: "misconfigured", missing };
 
@@ -41,8 +44,8 @@ export function getStripeBillingConfiguration(): StripeBillingConfiguration {
     livemode,
     secretKey,
     webhookSecret,
+    standardPriceId,
     proPriceId,
-    ...(businessPriceId.startsWith("price_") && businessPriceId !== proPriceId ? { businessPriceId } : {}),
     portalConfigurationId,
   };
 }
@@ -55,13 +58,12 @@ export function getStripeSafetyConfiguration(): {
   secretKey: string;
   webhookSecret: string;
   livemode: boolean;
+  standardPriceId?: string;
   proPriceId?: string;
-  businessPriceId?: string;
 } | null {
   const secretKey = (env.STRIPE_SECRET_KEY ?? "").trim();
   const webhookSecret = (env.STRIPE_WEBHOOK_SECRET ?? "").trim();
-  const proPriceId = (env.STRIPE_PRO_PRICE_ID ?? "").trim();
-  const businessPriceId = (env.STRIPE_BUSINESS_PRICE_ID ?? "").trim();
+  const { standardPriceId, proPriceId } = getConfiguredPriceIds();
   const livemode = stripeLivemodeFromSecretKey(secretKey);
   if (livemode === null || !webhookSecret.startsWith("whsec_")) {
     return null;
@@ -70,8 +72,7 @@ export function getStripeSafetyConfiguration(): {
     secretKey,
     webhookSecret,
     livemode,
-    ...(proPriceId.startsWith("price_") ? { proPriceId } : {}),
-    ...(businessPriceId.startsWith("price_") && businessPriceId !== proPriceId ? { businessPriceId } : {}),
+    ...(hasDistinctPriceIds(standardPriceId, proPriceId) ? { standardPriceId, proPriceId } : {}),
   };
 }
 
@@ -79,30 +80,42 @@ export function getStripeSafetyConfiguration(): {
 export function getStripeProviderSafetyConfiguration(): {
   secretKey: string;
   livemode: boolean;
+  standardPriceId?: string;
   proPriceId?: string;
-  businessPriceId?: string;
 } | null {
   const secretKey = (env.STRIPE_SECRET_KEY ?? "").trim();
-  const proPriceId = (env.STRIPE_PRO_PRICE_ID ?? "").trim();
-  const businessPriceId = (env.STRIPE_BUSINESS_PRICE_ID ?? "").trim();
+  const { standardPriceId, proPriceId } = getConfiguredPriceIds();
   const livemode = stripeLivemodeFromSecretKey(secretKey);
   if (livemode === null) return null;
   return {
     secretKey,
     livemode,
-    ...(proPriceId.startsWith("price_") ? { proPriceId } : {}),
-    ...(businessPriceId.startsWith("price_") && businessPriceId !== proPriceId ? { businessPriceId } : {}),
+    ...(hasDistinctPriceIds(standardPriceId, proPriceId) ? { standardPriceId, proPriceId } : {}),
   };
 }
 
-export type StripePaidPlan = "pro" | "business";
+export type StripePaidPlan = "standard" | "pro";
 
 /** Price ID is selected only from the server-side allowlist. */
 export function getConfiguredStripePriceId(
-  configuration: { proPriceId?: string; businessPriceId?: string },
+  configuration: { standardPriceId?: string; proPriceId?: string },
   plan: StripePaidPlan,
 ) {
-  return plan === "pro" ? configuration.proPriceId : configuration.businessPriceId;
+  return plan === "standard" ? configuration.standardPriceId : configuration.proPriceId;
+}
+
+function getConfiguredPriceIds(): {
+  standardPriceId: string;
+  proPriceId: string;
+} {
+  return {
+    standardPriceId: (env.STRIPE_STANDARD_PRICE_ID ?? "").trim(),
+    proPriceId: (env.STRIPE_PRO_PRICE_ID ?? "").trim(),
+  };
+}
+
+function hasDistinctPriceIds(standardPriceId: string, proPriceId: string): boolean {
+  return standardPriceId.startsWith("price_") && proPriceId.startsWith("price_") && standardPriceId !== proPriceId;
 }
 
 function stripeLivemodeFromSecretKey(secretKey: string): boolean | null {

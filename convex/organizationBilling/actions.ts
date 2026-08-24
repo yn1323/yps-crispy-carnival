@@ -8,6 +8,7 @@ import { observedInternalAction as internalAction } from "../_lib/errorObservabi
 import { buildOrganizationBillingEmailHtml } from "../notification/templates";
 import { emailPayload, enqueueEmail } from "../notificationOutbox/enqueue";
 import {
+  canonicalizeOrganizationBillingNotificationDetails,
   organizationBillingNotificationCopy,
   organizationBillingNotificationDetailsValidator,
   organizationBillingNotificationEventValidator,
@@ -32,7 +33,11 @@ export const enqueueBillingNotification = internalAction({
     });
     if (!data) return { enqueuedCount: 0 };
 
-    const copy = organizationBillingNotificationCopy(args.event, data.trialEnding, args.notificationDetails);
+    const copy = organizationBillingNotificationCopy(
+      args.event,
+      data.trialEnding,
+      canonicalizeOrganizationBillingNotificationDetails(args.notificationDetails),
+    );
     const settingsUrl = new URL("/manage/billing", getAppUrl());
     settingsUrl.searchParams.set("org", data.organizationId);
     let enqueuedCount = 0;

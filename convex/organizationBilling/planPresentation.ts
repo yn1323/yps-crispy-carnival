@@ -5,8 +5,8 @@ export type OrganizationPlanPresentationKey = OrganizationDisplayPlan;
 export const ORGANIZATION_PLAN_PRESENTATION = {
   trial: { label: "トライアル", sentenceLabel: "トライアル" },
   free: { label: "Free", sentenceLabel: "無料プラン" },
-  pro: { label: "Standard", sentenceLabel: "Standard" },
-  business: { label: "Pro", sentenceLabel: "Pro" },
+  standard: { label: "Standard", sentenceLabel: "Standard" },
+  pro: { label: "Pro", sentenceLabel: "Pro" },
 } as const satisfies Record<OrganizationPlanPresentationKey, { label: string; sentenceLabel: string }>;
 
 export function organizationPlanLabel(plan: OrganizationPlanPresentationKey): string {

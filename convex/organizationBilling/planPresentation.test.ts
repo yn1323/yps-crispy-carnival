@@ -11,7 +11,7 @@ describe("organization plan presentation", () => {
     expect(organizationPlanLabel("trial")).toBe("トライアル");
     expect(organizationEntitlementPlanLabel("free")).toBe("Free");
     expect(organizationPlanSentenceLabel("free")).toBe("無料プラン");
-    expect(organizationPaidPlanLabel("pro")).toBe("Standard");
-    expect(organizationPaidPlanLabel("business")).toBe("Pro");
+    expect(organizationPaidPlanLabel("standard")).toBe("Standard");
+    expect(organizationPaidPlanLabel("pro")).toBe("Pro");
   });
 });

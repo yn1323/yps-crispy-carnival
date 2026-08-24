@@ -19,14 +19,14 @@ describe("shop context", () => {
     });
   });
 
-  it("現行の契約プランをBusinessを含めて保持する", () => {
+  it("canonicalな契約プランだけを保持する", () => {
     const shops = normalizeShopContextOptions([
-      { shopId: "1", shopName: "Pro店", organizationPlan: "pro" },
-      { shopId: "2", shopName: "旧Business店", organizationPlan: "business" },
+      { shopId: "1", shopName: "Standard店", organizationPlan: "standard" },
+      { shopId: "2", shopName: "Pro店", organizationPlan: "pro" },
       { shopId: "3", shopName: "未知店", organizationPlan: "enterprise" },
     ]);
 
-    expect(shops.map((shop) => shop.organizationPlan)).toEqual(["pro", "business", null]);
+    expect(shops.map((shop) => shop.organizationPlan)).toEqual(["standard", "pro", null]);
   });
 
   it("壊れた保存値と不正なquery行を除外する", () => {

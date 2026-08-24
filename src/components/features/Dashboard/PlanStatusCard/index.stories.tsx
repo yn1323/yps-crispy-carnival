@@ -16,7 +16,7 @@ const storyShop = {
   shopStatus: "active",
   organizationId: "organization-story",
   organizationName: "すーぱーかんぱにー",
-  organizationPlan: "pro",
+  organizationPlan: "standard",
   memberStatus: "active",
 } satisfies ShopContextOption;
 
@@ -47,7 +47,7 @@ const usageWithPendingManagerInvitation = {
   pendingManagerInvitations: 1,
 } satisfies PlanStatusCardUsage;
 
-const proPlan = {
+const standardPlan = {
   kind: "paidPlan",
   planName: "Standard",
   badgeLabel: "利用中",
@@ -60,14 +60,14 @@ const freePlan = {
   primaryAction: { action: "choosePlan", label: "プランを選ぶ" },
 } satisfies PlanStatusCardData;
 
-const businessPlan = {
+const proPlan = {
   kind: "paidPlan",
   planName: "Pro",
   badgeLabel: "利用中",
   nextEventLabel: "次回更新日：2026/9/1",
 } satisfies PlanStatusCardData;
 
-const complimentaryBusiness = {
+const complimentaryPro = {
   kind: "paidPlan",
   planName: "Pro",
   badgeLabel: "支払い不要",
@@ -148,7 +148,7 @@ const meta = {
   title: "Features/Dashboard/PlanStatusCard",
   component: PlanStatusCard,
   args: {
-    data: proPlan,
+    data: standardPlan,
     usage: usageWithoutManager,
     defaultExpanded: false,
     onAction: noop,
@@ -174,26 +174,26 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const ProCollapsed: Story = {
+export const StandardCollapsed: Story = {
   name: "Standard・折りたたみ",
 };
 
-export const ProExpanded: Story = {
+export const StandardExpanded: Story = {
   name: "Standard・展開・利用状況2列",
   args: { defaultExpanded: true },
 };
 
-export const ProWithManagerExpanded: Story = {
+export const StandardWithManagerExpanded: Story = {
   name: "Standard・展開・利用状況3列",
   args: { usage: usageWithManager, defaultExpanded: true },
 };
 
-export const ProWithPendingManagerInvitationExpanded: Story = {
+export const StandardWithPendingManagerInvitationExpanded: Story = {
   name: "Standard・展開・管理者招待中",
   args: { usage: usageWithPendingManagerInvitation, defaultExpanded: true },
 };
 
-export const ProUsageLoading: Story = {
+export const StandardUsageLoading: Story = {
   name: "Standard・利用状況読み込み中",
   args: { usage: undefined, defaultExpanded: true },
   play: async ({ canvasElement }) => {
@@ -204,7 +204,7 @@ export const ProUsageLoading: Story = {
   },
 };
 
-export const ProUsageUnavailable: Story = {
+export const StandardUsageUnavailable: Story = {
   name: "Standard・利用状況なし",
   args: { usage: null, defaultExpanded: true },
 };
@@ -214,14 +214,14 @@ export const FreeExpanded: Story = {
   args: { data: freePlan, defaultExpanded: true },
 };
 
-export const BusinessExpanded: Story = {
+export const ProExpanded: Story = {
   name: "Pro・展開",
-  args: { data: businessPlan, defaultExpanded: true },
+  args: { data: proPlan, defaultExpanded: true },
 };
 
-export const ComplimentaryBusinessExpanded: Story = {
+export const ComplimentaryProExpanded: Story = {
   name: "Pro・支払い不要",
-  args: { data: complimentaryBusiness, defaultExpanded: true },
+  args: { data: complimentaryPro, defaultExpanded: true },
 };
 
 export const ScheduledPlanChangeExpanded: Story = {
@@ -298,7 +298,7 @@ export const TrialToggleBehavior: Story = {
 
 export const PaidExpansionBehavior: Story = {
   name: "有料プラン・展開（操作確認）",
-  args: { data: proPlan },
+  args: { data: standardPlan },
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

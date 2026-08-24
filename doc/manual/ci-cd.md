@@ -12,7 +12,7 @@
 workflowの一覧と起動条件は `.github/workflows/` を確認する。
 
 workflowの対象条件を満たす同一リポジトリからのPull Requestでは、`.github/workflows/deploy.yml` がConvex PreviewとCloudflare Pagesのプレビューを作成し、URLをPull Requestへ通知する。
-Preview buildは、Preview GitHub Environmentに設定した`STRIPE_SECRET_KEY`とStandard・ProのPrice IDを使い、ローカルと同じStripe Sandboxから販売条件を取得する。  内部の環境変数名は`STRIPE_PRO_PRICE_ID`と`STRIPE_BUSINESS_PRICE_ID`を維持する。  外部forkにはこのcredentialを渡さず、Previewを作成しない。
+Preview buildは、Preview GitHub Environmentに設定した`STRIPE_SECRET_KEY`、`STRIPE_STANDARD_PRICE_ID`、`STRIPE_PRO_PRICE_ID`を使い、ローカルと同じStripe Sandboxから販売条件を取得する。  二つのPrice IDは明示設定を必須とし、欠損、不正、重複時はbuildを失敗させる。  外部forkにはこのcredentialを渡さず、Previewを作成しない。
 `pnpm build`はTanStack Startで公開HTMLとCSR shellを生成し、`dist/client/`だけをCloudflare Pagesへdeployする。
 deploy後は`pnpm smoke-test:deployed`が実URLの代表公開route、末尾スラッシュ、CSR shell、Capability shell、404、代表ページのhydrationを確認する。
 全公開route、静的metadata、sitemap、Cloudflare配信ルールの生成物は`pnpm build`が検証し、FAQやデモの状態操作はBehaviorまたは通常E2Eが検証する。
@@ -97,7 +97,7 @@ merge前に次を確認する。
 - 選択したrelease labelが意図するsemantic versioningの区分と一致する。
 - Production環境のapprovalと必要なsecretが設定されている。
 - Production Environment Variablesに、特定商取引法表記の`VITE_COMMERCIAL_TRANSACTIONS_NAME`、`VITE_COMMERCIAL_TRANSACTIONS_ADDRESS`、`VITE_COMMERCIAL_TRANSACTIONS_PHONE_NUMBER`が設定されている。所在地を改行する場合は値に`\n`を含める。
-- Production Environmentに、ProductionのConvex deploymentと同じ`STRIPE_SECRET_KEY`と、同deploymentと一致するStandard・ProのPrice IDが、3つともEnvironment Secretとして設定されている。内部の環境変数名は`STRIPE_PRO_PRICE_ID`と`STRIPE_BUSINESS_PRICE_ID`を使う。
+- Production Environmentに、ProductionのConvex deploymentと同じ`STRIPE_SECRET_KEY`、`STRIPE_STANDARD_PRICE_ID`、`STRIPE_PRO_PRICE_ID`がEnvironment Secretとして設定されている。二つのPrice IDは異なる値にする。
 - schemaまたは保存済みデータ形式を変更した場合は、migration計画と復旧手順がある。
 
 リリース後は、GitHub Release、production deployment、migration結果、主要導線を確認する。

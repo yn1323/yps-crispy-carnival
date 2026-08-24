@@ -470,13 +470,13 @@ describe("organization deletion", () => {
     });
   });
 
-  it("削除済み組織ではトライアルProを選択しない", async () => {
+  it("削除済み組織ではトライアル後の有料プランを選択しない", async () => {
     const now = Date.parse("2026-07-20T00:00:00.000Z");
     vi.setSystemTime(now);
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
-        subject: "deleted_trial_pro_selection",
+        subject: "deleted_trial_paid_plan_selection",
         plan: "pro",
       });
       const billingState = await ctx.db
@@ -492,10 +492,10 @@ describe("organization deletion", () => {
     });
 
     await expect(
-      t.mutation(internal.organizationBilling.mutations.selectTrialPro, {
+      t.mutation(internal.organizationBilling.mutations.selectTrialPaidPlan, {
         organizationId: ids.organizationId,
         expectedVersion: 1,
-        correlationId: "deleted-trial-pro-selected",
+        correlationId: "deleted-trial-paid-plan-selected",
       }),
     ).resolves.toEqual({ changed: false });
 
@@ -506,7 +506,7 @@ describe("organization deletion", () => {
         .unique(),
       audit: await ctx.db
         .query("organizationAuditEvents")
-        .withIndex("by_correlationId", (q) => q.eq("correlationId", "deleted-trial-pro-selected"))
+        .withIndex("by_correlationId", (q) => q.eq("correlationId", "deleted-trial-paid-plan-selected"))
         .first(),
     }));
     expect(state.billing).toMatchObject({ state: { kind: "trial" }, version: 1 });

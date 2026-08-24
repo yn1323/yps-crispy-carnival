@@ -7,7 +7,7 @@ describe("organizationBilling/notification", () => {
   it("Standard選択済みのトライアル終了通知へ初回請求予定と取消後のFree移行を載せる", () => {
     const copy = organizationBillingNotificationCopy("trialEnding", {
       trialEndsAt,
-      selectedPaidPlan: "pro",
+      selectedPaidPlan: "standard",
     });
 
     expect(copy.paragraphs).toEqual([
@@ -114,7 +114,7 @@ describe("organizationBilling/notification", () => {
 
   it("期間末変更通知へ変更先プランと適用日時を載せる", () => {
     const copy = organizationBillingNotificationCopy("scheduledChange", undefined, {
-      targetPlan: "pro",
+      targetPlan: "standard",
       effectiveAt: trialEndsAt,
     });
 
@@ -127,7 +127,7 @@ describe("organizationBilling/notification", () => {
 
   it("日割り変更完了通知へ変更先プラン・請求額・適用日時を載せる", () => {
     const copy = organizationBillingNotificationCopy("planActivated", undefined, {
-      targetPlan: "business",
+      targetPlan: "pro",
       amountDue: 1_200,
       currency: "jpy",
       effectiveAt: trialEndsAt,
@@ -144,7 +144,7 @@ describe("organizationBilling/notification", () => {
 
   it("下位プラン適用後の上限超過は契約成立と自動解除条件を案内する", () => {
     const copy = organizationBillingNotificationCopy("planActivated", undefined, {
-      targetPlan: "pro",
+      targetPlan: "standard",
       usageLimitExceeded: true,
     });
 
@@ -155,7 +155,7 @@ describe("organizationBilling/notification", () => {
 
   it("契約復旧通知へ復旧プラン・請求額・適用日時を載せ、detailsなしの既存文面も維持する", () => {
     const detailed = organizationBillingNotificationCopy("recovered", undefined, {
-      targetPlan: "business",
+      targetPlan: "pro",
       amountDue: 2_980,
       currency: "jpy",
       effectiveAt: trialEndsAt,

@@ -8,7 +8,10 @@ describe("selectedShopAtom storage", () => {
     vi.resetModules();
   });
 
-  it("URL未指定時のfallbackに使う前回店舗を初回読込から復元する", async () => {
+  it.each([
+    ["pro", "standard"],
+    ["business", "pro"],
+  ] as const)("旧%s保存値をcanonical %sとして初回読込から復元する", async (legacyPlan, canonicalPlan) => {
     localStorage.setItem(
       "selected-shop",
       JSON.stringify({
@@ -17,7 +20,7 @@ describe("selectedShopAtom storage", () => {
         shopStatus: "active",
         organizationId: "organization-previous",
         organizationName: "前回のグループ",
-        organizationPlan: "pro",
+        organizationPlan: legacyPlan,
         memberStatus: "active",
       }),
     );
@@ -30,8 +33,51 @@ describe("selectedShopAtom storage", () => {
       shopStatus: "active",
       organizationId: "organization-previous",
       organizationName: "前回のグループ",
-      organizationPlan: "pro",
+      organizationPlan: canonicalPlan,
       memberStatus: "active",
+    });
+  });
+
+  it("storage schema v2のcanonical Proを意味を変えずに復元する", async () => {
+    localStorage.setItem(
+      "selected-shop",
+      JSON.stringify({
+        schemaVersion: 2,
+        selectedShop: {
+          shopId: "shop-current",
+          shopName: "現在の店舗",
+          shopStatus: "active",
+          organizationId: "organization-current",
+          organizationName: "現在のグループ",
+          organizationPlan: "pro",
+          memberStatus: "active",
+        },
+      }),
+    );
+
+    const [{ createStore }, { selectedShopAtom }] = await Promise.all([import("jotai"), import(".")]);
+
+    expect(createStore().get(selectedShopAtom)?.organizationPlan).toBe("pro");
+  });
+
+  it("canonicalな選択店舗をstorage schema v2で保存する", async () => {
+    const [{ createStore }, { selectedShopAtom }] = await Promise.all([import("jotai"), import(".")]);
+    const store = createStore();
+    const selectedShop = {
+      shopId: "shop-standard",
+      shopName: "Standard店舗",
+      shopStatus: "active" as const,
+      organizationId: "organization-standard",
+      organizationName: "Standard組織",
+      organizationPlan: "standard" as const,
+      memberStatus: "active" as const,
+    };
+
+    store.set(selectedShopAtom, selectedShop);
+
+    expect(JSON.parse(localStorage.getItem("selected-shop") ?? "null")).toEqual({
+      schemaVersion: 2,
+      selectedShop,
     });
   });
 
@@ -50,7 +96,7 @@ describe("selectedShopAtom storage", () => {
       shopId: "shop-other-tab",
       shopName: "別タブの店舗",
     };
-    localStorage.setItem("selected-shop", JSON.stringify(currentShop));
+    localStorage.setItem("selected-shop", JSON.stringify({ schemaVersion: 2, selectedShop: currentShop }));
 
     const [{ createStore }, { selectedShopAtom }] = await Promise.all([import("jotai"), import(".")]);
     const store = createStore();

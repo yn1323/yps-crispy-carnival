@@ -38,14 +38,14 @@ export const Mobile: Story = {
 };
 
 const injectedPrices = {
-  pro: {
+  standard: {
     currency: "jpy",
     unitAmount: 12_345,
     interval: "week",
     intervalCount: 2,
     taxBehavior: "exclusive",
   },
-  business: {
+  pro: {
     currency: "jpy",
     unitAmount: 54_321,
     interval: "week",

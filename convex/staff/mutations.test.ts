@@ -1380,7 +1380,7 @@ describe("staff/mutations", () => {
         });
         return seeded.shopId;
       });
-      const remainingPeopleCapacity = ORGANIZATION_PLAN_LIMITS.business.maxPeople - 1;
+      const remainingPeopleCapacity = ORGANIZATION_PLAN_LIMITS.pro.maxPeople - 1;
       const entries = Array.from({ length: remainingPeopleCapacity }, (_, index) => ({
         name: `スタッフ${index + 1}`,
         email: `staff-${index + 1}@example.com`,
@@ -3791,7 +3791,7 @@ describe("staff/mutations", () => {
           plan: "business",
         });
         const personIds: Id<"organizationPeople">[] = [base.personId];
-        for (let index = 1; index < ORGANIZATION_PLAN_LIMITS.business.maxPeople; index += 1) {
+        for (let index = 1; index < ORGANIZATION_PLAN_LIMITS.pro.maxPeople; index += 1) {
           personIds.push(
             await seedMembershipChangePerson(ctx, {
               organizationId: base.organizationId,
@@ -3826,7 +3826,7 @@ describe("staff/mutations", () => {
             .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", ids.shopId).eq("isDeleted", false))
             .collect(),
       );
-      expect(staffs).toHaveLength(ORGANIZATION_PLAN_LIMITS.business.maxPeople);
+      expect(staffs).toHaveLength(ORGANIZATION_PLAN_LIMITS.pro.maxPeople);
     });
 
     it("最上位プランの利用人数上限を1名超える一括変更は全追加を拒否する", async () => {
@@ -3837,7 +3837,7 @@ describe("staff/mutations", () => {
           plan: "business",
         });
         const personIds: Id<"organizationPeople">[] = [base.personId];
-        for (let index = 0; index < ORGANIZATION_PLAN_LIMITS.business.maxPeople; index += 1) {
+        for (let index = 0; index < ORGANIZATION_PLAN_LIMITS.pro.maxPeople; index += 1) {
           personIds.push(
             await seedMembershipChangePerson(ctx, {
               organizationId: base.organizationId,

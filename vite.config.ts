@@ -103,7 +103,7 @@ function loadLocalStripeBuildEnvironment(): Readonly<Record<string, string | und
 
   return {
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? dotenvEnvironment.STRIPE_SECRET_KEY,
+    STRIPE_STANDARD_PRICE_ID: process.env.STRIPE_STANDARD_PRICE_ID ?? dotenvEnvironment.STRIPE_STANDARD_PRICE_ID,
     STRIPE_PRO_PRICE_ID: process.env.STRIPE_PRO_PRICE_ID ?? dotenvEnvironment.STRIPE_PRO_PRICE_ID,
-    STRIPE_BUSINESS_PRICE_ID: process.env.STRIPE_BUSINESS_PRICE_ID ?? dotenvEnvironment.STRIPE_BUSINESS_PRICE_ID,
   };
 }

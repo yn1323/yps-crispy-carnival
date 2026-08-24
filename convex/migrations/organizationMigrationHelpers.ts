@@ -16,7 +16,15 @@ export async function recordOrganizationMigrationConflict(
   ctx: MigrationCtx,
   args: {
     organizationId?: Id<"organizations">;
-    sourceType: "shop" | "shopMember" | "staff" | "organizationMember" | "organization" | "notificationOutbox";
+    sourceType:
+      | "shop"
+      | "shopMember"
+      | "staff"
+      | "organizationMember"
+      | "organization"
+      | "notificationOutbox"
+      | "analyticsSourceEvent"
+      | "dashboardAnnouncement";
     sourceId: string;
     code: string;
   },
@@ -50,7 +58,15 @@ export async function recordOrganizationMigrationConflict(
 export async function resolveOrganizationMigrationConflicts(
   ctx: MigrationCtx,
   args: {
-    sourceType: "shop" | "shopMember" | "staff" | "organizationMember" | "organization" | "notificationOutbox";
+    sourceType:
+      | "shop"
+      | "shopMember"
+      | "staff"
+      | "organizationMember"
+      | "organization"
+      | "notificationOutbox"
+      | "analyticsSourceEvent"
+      | "dashboardAnnouncement";
     sourceId: string;
     codes?: readonly string[];
     resolvedAt?: number;

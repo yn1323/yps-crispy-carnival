@@ -52,6 +52,7 @@ import {
   organizationMemberStatusValidator,
   organizationPersonStatusValidator,
   organizationShopOperatingStatusValidator,
+  planIdVersionValidator,
 } from "./organization/validators";
 import {
   organizationStripeOperationKindValidator,
@@ -261,7 +262,10 @@ const schema = defineSchema({
     stripePriceId: v.string(),
     // TODO[narrow]: verifyStripeSubscriptionsの全pageとprovider snapshotでPriceを照合し、必要なら新しい
     //   forward migrationでplanを補完してからrequired化する。現在のPriceやproを推測値として使わない。
-    plan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+    plan: v.optional(v.union(v.literal("standard"), v.literal("pro"), v.literal("business"))),
+    // TODO[narrow]: m042後の課金再開以降に作成されたsubscriptionがすべてcanonicalで、legacy Stripe行が
+    //   0件と確認できた後にbusinessと一時markerをvalidatorから削除する。
+    planIdVersion: v.optional(planIdVersionValidator),
     livemode: v.boolean(),
     status: organizationStripeSubscriptionStatusValidator,
     providerGeneration: v.number(),
@@ -295,8 +299,11 @@ const schema = defineSchema({
     livemode: v.boolean(),
     expectedBillingVersion: v.optional(v.number()),
     providerGeneration: v.optional(v.number()),
-    sourcePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
-    targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+    sourcePlan: v.optional(v.union(v.literal("standard"), v.literal("pro"), v.literal("business"))),
+    targetPlan: v.optional(v.union(v.literal("free"), v.literal("standard"), v.literal("pro"), v.literal("business"))),
+    // TODO[narrow]: m042後の課金再開以降に作成されたoperationがすべてcanonicalで、legacy operationが
+    //   0件と確認できた後にbusinessと一時markerをvalidatorから削除する。
+    planIdVersion: v.optional(planIdVersionValidator),
     // targetPlan=freeの旧予約と、新しい「期間末解約」をrolling互換で識別する。
     restrictAtPeriodEnd: v.optional(v.literal(true)),
     changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
@@ -569,8 +576,10 @@ const schema = defineSchema({
     // 単一IDまたは半角カンマ区切りの複数ID。表示制御用であり認可には使わない。
     organizationId: v.optional(v.string()),
     shopId: v.optional(v.string()),
-    // 半角カンマ区切りでtrial,free,pro,businessを指定する。支払い不要Pro相当も内部businessへ解決する。
+    // 半角カンマ区切りのplan ID。Widen中は未versioned legacyとv2 canonicalをreaderで判別する。
     organizationPlan: v.optional(v.string()),
+    // TODO[narrow]: m044完走とreadiness blocking=0確認後にmarkerを削除する。
+    planIdVersion: v.optional(planIdVersionValidator),
     title: v.string(),
     bodyHtml: v.string(),
     displayDate: v.string(), // "2026-06-17"

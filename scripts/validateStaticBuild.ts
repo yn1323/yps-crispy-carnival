@@ -213,7 +213,7 @@ export function assertPublicPlanPriceMarkup(label: string, html: string): void {
 
   const plans = priceMarkup.map(({ openingTag }) => getAttribute(openingTag, "data-public-plan-price") ?? "").sort();
   assert(
-    plans.length === 2 && plans[0] === "business" && plans[1] === "pro",
+    plans.length === 2 && plans[0] === "pro" && plans[1] === "standard",
     `${label} must contain exactly one Standard and one Pro public plan price`,
   );
 

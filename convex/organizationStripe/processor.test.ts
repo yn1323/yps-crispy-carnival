@@ -45,8 +45,8 @@ describe("organizationStripe/processWebhookEvent", () => {
     vi.setSystemTime(NOW);
     vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_processor");
     vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_processor");
-    vi.stubEnv("STRIPE_PRO_PRICE_ID", PRICE_ID);
-    vi.stubEnv("STRIPE_BUSINESS_PRICE_ID", BUSINESS_PRICE_ID);
+    vi.stubEnv("STRIPE_STANDARD_PRICE_ID", PRICE_ID);
+    vi.stubEnv("STRIPE_PRO_PRICE_ID", BUSINESS_PRICE_ID);
     provider.retrieveEvent.mockReset();
     provider.retrieveInvoice.mockReset();
     provider.retrieveSubscription.mockReset();
@@ -290,7 +290,9 @@ describe("organizationStripe/processWebhookEvent", () => {
         status: "cancelled",
         lastErrorCode: "checkout_session_expired_webhook",
       });
-      if (kind === "immediateProCheckout") expect(result.billing?.state).toEqual({ kind: "active", plan: "free" });
+      if (kind === "immediateProCheckout") {
+        expect(result.billing?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
+      }
     }
   });
 
@@ -421,7 +423,7 @@ describe("organizationStripe/processWebhookEvent", () => {
         .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", "evt_processor_paid"))
         .unique(),
     }));
-    expect(result.billing?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(result.billing?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "standard" });
     expect(result.subscriptions).toHaveLength(1);
     expect(result.subscriptions[0]).toMatchObject({
       organizationId: ids.organizationId,
@@ -498,13 +500,14 @@ describe("organizationStripe/processWebhookEvent", () => {
         .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", "evt_processor_business_paid"))
         .unique(),
     }));
-    expect(result.billing?.state).toEqual({ kind: "active", plan: "business" });
+    expect(result.billing?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "pro" });
     expect(result.subscriptions).toHaveLength(1);
     expect(result.subscriptions[0]).toMatchObject({
       organizationId: ids.organizationId,
       stripeSubscriptionId: SUBSCRIPTION_ID,
       stripePriceId: BUSINESS_PRICE_ID,
-      plan: "business",
+      plan: "pro",
+      planIdVersion: 2,
       status: "active",
       providerGeneration: 1,
     });
@@ -557,7 +560,7 @@ describe("organizationStripe/processWebhookEvent", () => {
         .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
         .unique(),
     );
-    expect(billing?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(billing?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "standard" });
     expect(await receiptById(t, "evt_processor_pending_update_expired")).toMatchObject({ status: "processed" });
   });
 
@@ -635,7 +638,7 @@ describe("organizationStripe/processWebhookEvent", () => {
         .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
         .unique(),
     );
-    expect(billing?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(billing?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "standard" });
   });
 
   it("payment_action_requiredではPro化もfallbackもせず、後続paidでだけactive.proへ収束する", async () => {
@@ -729,7 +732,7 @@ describe("organizationStripe/processWebhookEvent", () => {
         .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
         .unique(),
     );
-    expect(billing?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(billing?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "standard" });
     expect(await receiptById(t, "evt_processor_action_required_paid")).toMatchObject({ status: "processed" });
   });
 
@@ -778,7 +781,7 @@ describe("organizationStripe/processWebhookEvent", () => {
       member: await ctx.db.get(ids.memberId),
       shop: await ctx.db.get(ids.shopId),
     }));
-    expect(result.billing?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(result.billing?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "standard" });
     expect(result.member?.status).toBe("active");
     expect(result.shop?.operatingStatus).toBe("active");
   });
@@ -1043,7 +1046,8 @@ describe("organizationStripe/processWebhookEvent", () => {
     );
     expect(billing?.state).toEqual({
       kind: "grace",
-      plan: "pro",
+      planIdVersion: 2,
+      plan: "standard",
       startedAt: firstFailureAt,
       endsAt: firstFailureAt + 14 * 24 * 60 * 60_000,
     });
@@ -1122,7 +1126,7 @@ describe("organizationStripe/processWebhookEvent", () => {
       lastStripeEventId: "evt_aa_same_second_deleted",
       terminalAt: expect.any(Number),
     });
-    expect(result.billing?.state).toEqual({ kind: "active", plan: "free" });
+    expect(result.billing?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
     expect(result.deletedEvent).toMatchObject({ status: "processed" });
   });
 
@@ -1171,7 +1175,7 @@ describe("organizationStripe/processWebhookEvent", () => {
       expect.objectContaining({ idempotencyKey: expect.stringMatching(/^shiftori:test:paused-cancel:/) }),
     );
     expect(result.subscription).toMatchObject({ status: "canceled", terminalAt: NOW });
-    expect(result.billing?.state).toEqual({ kind: "active", plan: "free" });
+    expect(result.billing?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
     expect(result.organization?.isDeleted).toBe(false);
     await expect(receiptById(t, "evt_paused_cancel")).resolves.toMatchObject({ status: "processed" });
   });
@@ -1298,7 +1302,7 @@ describe("organizationStripe/processWebhookEvent", () => {
         .unique(),
     }));
     expect(result.subscription).toMatchObject({ status: "canceled", terminalAt: expect.any(Number) });
-    expect(result.billing?.state).toEqual({ kind: "active", plan: "free" });
+    expect(result.billing?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
     expect(result.event).toMatchObject({ status: "processed" });
   });
 
@@ -1348,7 +1352,7 @@ describe("organizationStripe/processWebhookEvent", () => {
         .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
         .unique(),
     );
-    expect(billing?.state).toEqual({ kind: "active", plan: "free" });
+    expect(billing?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
     await expect(receiptById(t, "evt_checkout_terminal")).resolves.toMatchObject({ status: "processed" });
   });
 
@@ -1404,7 +1408,7 @@ describe("organizationStripe/processWebhookEvent", () => {
         .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
         .unique(),
     );
-    expect(billing?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(billing?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "standard" });
   });
 
   it("subscription.updatedのcancel_at_period_endを予約と取消へ収束する", async () => {
@@ -1452,7 +1456,8 @@ describe("organizationStripe/processWebhookEvent", () => {
     );
     expect(billing?.state).toEqual({
       kind: "scheduledChange",
-      currentPlan: "pro",
+      planIdVersion: 2,
+      currentPlan: "standard",
       targetPlan: "free",
       effectiveAt: periodEndsAt,
       restrictAtPeriodEnd: true,
@@ -1488,7 +1493,7 @@ describe("organizationStripe/processWebhookEvent", () => {
         .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
         .unique(),
     );
-    expect(billing?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(billing?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "standard" });
 
     provider.retrieveEvent.mockResolvedValue({
       id: "evt_schedule_off",
@@ -1510,7 +1515,7 @@ describe("organizationStripe/processWebhookEvent", () => {
         .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
         .unique(),
     );
-    expect(billing?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(billing?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "standard" });
   });
 });
 

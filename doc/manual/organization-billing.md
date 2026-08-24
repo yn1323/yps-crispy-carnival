@@ -69,8 +69,8 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 | `ORGANIZATION_INVITATION_SIGNING_SECRET` | 管理者招待tokenのHMAC導出に使う32文字以上の秘密値 | 既配信tokenの失効手段には使わない。rotation時は未送信・再試行中の招待を確認し、再発行する |
 | `STRIPE_SECRET_KEY` | Stripe APIへ接続するSecret key | `sk_test_`または`sk_live_`以外なら課金操作を開始しない |
 | `STRIPE_WEBHOOK_SECRET` | `POST /stripe/webhook`の署名検証 | `whsec_`形式でなければWebhookを受理せず、利用者起点の課金操作も開始しない |
-| `STRIPE_PRO_PRICE_ID` | 内部`pro`、利用者向けStandardのrecurring Priceを選ぶallowlist | 未設定または不正なら利用者起点の課金操作を開始しない |
-| `STRIPE_BUSINESS_PRICE_ID` | 内部`business`、利用者向けProのrecurring Priceを選ぶallowlist | 未設定、不正、Standardと同一ならPro操作だけを停止する |
+| `STRIPE_STANDARD_PRICE_ID` | Standardのrecurring Priceを選ぶallowlist | 明示設定を必須とし、欠損、不正、Proと重複する場合は課金操作を開始しない |
+| `STRIPE_PRO_PRICE_ID` | Proのrecurring Priceを選ぶallowlist | 明示設定を必須とし、欠損、不正、Standardと重複する場合は課金操作を開始しない |
 | `STRIPE_PORTAL_CONFIGURATION_ID` | 支払い方法更新と請求履歴に限定したPortal設定 | 未設定または不正なら利用者起点の課金操作を開始しない |
 | `APP_URL` | CheckoutとPortalの戻り先 | サーバー側で戻り先を構築できない場合は開始しない |
 
@@ -83,11 +83,11 @@ Stripe.jsをブラウザで直接使わないため、`VITE_STRIPE_PUBLISHABLE_K
 
 | 変数 | 用途 | 保管先と不備時の扱い |
 |---|---|---|
-| `STRIPE_SECRET_KEY` | 公開するPriceを取得するStripe Secret key | ローカルは`.env.local`を`.env`より優先して読む。Preview、Develop、Productionは対応するGitHub Environment Secretから読み、未設定またはmode不一致なら起動・buildを失敗させる |
-| `STRIPE_PRO_PRICE_ID` | 公開するStandard（内部`pro`）のrecurring Price | ローカルは`.env.local`または`.env`、Preview、Develop、Productionは対応するGitHub Environment Secretから読む |
-| `STRIPE_BUSINESS_PRICE_ID` | 公開するPro（内部`business`）のrecurring Price | ローカルは`.env.local`または`.env`、Preview、Develop、Productionは対応するGitHub Environment Secretから読む |
+| `STRIPE_SECRET_KEY` | 公開するPriceを取得するStripe Secret key | ローカルは`.env.local`を`.env`より優先して読む。Preview、Develop、Productionは対応するGitHub Environment Secretから読み、未設定または環境不一致なら起動・buildを失敗させる |
+| `STRIPE_STANDARD_PRICE_ID` | 公開するStandardのrecurring Price | 対応するGitHub Environment Secretの明示値を必須とし、欠損、不正、Proと重複する場合は起動・buildを失敗させる |
+| `STRIPE_PRO_PRICE_ID` | 公開するProのrecurring Price | 対応するGitHub Environment Secretの明示値を必須とし、欠損、不正、Standardと重複する場合は起動・buildを失敗させる |
 
-ローカルで`.env.local`のSecret keyと`.env`のPrice IDを組み合わせる場合も、3値は必ず同じStripe Sandboxに属するものを使う。  別SandboxのPrice IDやactiveなPriceがない状態では、固定料金へ切り替えず起動・buildを失敗させる。
+ローカルで`.env.local`のSecret keyと`.env`のPrice IDを組み合わせる場合も、実際に選ばれるStandard・ProのPriceは必ず同じStripe Sandboxに属するものを使う。  別SandboxのPrice IDやactiveなPriceがない状態では、固定料金へ切り替えず起動・buildを失敗させる。
 
 `STRIPE_SECRET_KEY`へ`VITE_`prefixを付けず、ローカルのVite設定と、同一repositoryのPull Requestだけに限定したPreview、Develop、Productionのbuild stepだけへ渡す。  Viteへ渡すのは金額、通貨、請求周期、税区分だけであり、credential、Price ID、Stripeのraw responseは公開artifactへ含めない。  Build後はclient HTMLとJavaScriptに環境変数名、`sk_test_`、`sk_live_`、Price IDが含まれないことを検査する。
 
@@ -119,16 +119,108 @@ deploymentを引数で固定できないため、Productionやほかのproject�
 pnpm exec convex env set --deployment <fully-qualified-deployment> <KEY>
 ```
 
-実行後のキー確認では、値を表示ず名前だけを取得する。
+実行後のキー確認では、値を表示せず名前だけを取得する。
 
 ```bash
 pnpm exec convex env list --names-only \
   --deployment <fully-qualified-deployment>
 ```
 
+### plan IDとPrice keyの切替
+
+この切替は課金プランの公開前に行い、Preview、Develop、Productionを別作業として扱う。  対象deploymentとGitHub Environmentを固定し、切替完了まで課金プランを公開しない。  Price自体は作り直さず、変更前にStandardとして使っていたPrice値を`STRIPE_STANDARD_PRICE_ID`へ、Proとして使っていたPrice値を`STRIPE_PRO_PRICE_ID`へ移す。
+
+1. 対象環境で課金プランが未公開であり、Checkoutやplan変更を開始できないことを確認する。
+2. StandardとProに使っている既存PriceをStripe Dashboardで照合し、値をログへ出さず運用担当者の安全な入力経路へ引き継ぐ。
+3. Convex deploymentと対応するGitHub Environment Secretへ`STRIPE_STANDARD_PRICE_ID`と`STRIPE_PRO_PRICE_ID`を設定する。  二つが明示され、異なるPrice IDであることを確認する。
+4. 2キー契約のartifactをbuild・deployし、実行中revisionと公開料金のStandard / Pro対応を確認する。
+5. [plan ID migrationの実行順](#plan-id-migrationの実行順)に従い、m042、m043、Analytics reset、m044、全post readinessを順に完走させる。
+6. readinessのlegacy、blocking、未解消conflict、reset generationのblockingがすべて0件になった後、canonical requestで料金取得、Checkout、plan変更のprovider canaryを行う。
+
+値の移動はDashboardまたは対話入力で行い、command、log、運用記録へsecretやPrice IDの実値を書かない。  設定の欠損、不正、二つのPrice IDの重複時は、サーバーの課金操作と公開サイトBuildをfail closedにする。
+
+#### rollbackの分岐
+
+最初にm042のcomponent statusと対象billing rowを読み取りで確認し、m042の本実行開始前か、開始後かで手順を分ける。  開始済みか判定できない場合は安全側の「m042開始後」として扱う。
+
+##### m042開始前
+
+課金プランを未公開のまま保ち、移行を開始しない。  旧artifactへ戻す場合は、先にそのartifactが要求する環境変数構成を復元し、新frontendと旧backendが組み合わさらない専用手順を使う。  通常のrelease workflowでreverse commitを流さない。
+
+##### m042開始後
+
+m042が開始した後はcanonicalな保存shapeを旧backendが読めないため、旧backendへ戻さない。  課金プランを未公開のままWiden backendを維持し、DBのplan IDを逆変換したり課金状態を手動patchしたりせず、migration status、全ページreadiness、失敗行を読み取りで固定する。  専用のforward migrationまたはforward fixで収束させ、m042〜m044、Analytics reset、全post readinessが揃った後にprovider canaryを行う。
+
+#### plan ID migrationの実行順
+
+readiness queryは`paginationOpts.cursor`を最初は`null`、以後は直前の`continueCursor`に置き換え、`isDone: true`まで全ページ実行する。  m042のpreでは次のqueryをこの順に実行し、全件が想定した`complimentary.business`、各異常件数と`blocking`が0件であることを記録する。
+
+```bash
+pnpm exec convex run migrations/m042_organization_billing_plan_ids_v2_readiness:verifyOrganizations \
+  '{"phase":"pre","paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
+pnpm exec convex run migrations/m042_organization_billing_plan_ids_v2_readiness:verifyBillingRows \
+  '{"paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
+pnpm exec convex run migrations/m042_organization_billing_plan_ids_v2_readiness:verifyStripeRows \
+  '{"scope":"customers","paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
+```
+
+`verifyStripeRows`は`customers`、`subscriptions`、`operations`、`webhooks`の4 scopeを全ページ確認する。  続けて`verifyScheduledBillingJobs`と`verifyBillingNotificationOutbox`も同じ`paginationOpts`で全ページ確認し、`blocking: 0`を必須とする。
+
+```bash
+pnpm exec convex run migrations/index:runOrganizationBillingPlanIdsV2 \
+  '{"dryRun":true}' --deployment <fully-qualified-deployment>
+pnpm exec convex run migrations/index:runOrganizationBillingPlanIdsV2 \
+  --deployment <fully-qualified-deployment>
+pnpm exec convex run --component migrations lib:getStatus \
+  '{"names":["migrations/m042_organization_billing_plan_ids_v2:migration"]}' \
+  --watch --deployment <fully-qualified-deployment>
+```
+
+m042のstatus成功を記録したら、post readinessはまだ最終判定に使わず、次にm043を実行する。  三つのmigrationとAnalytics resetの間は課金プランを公開せず、provider canaryへ進まない。
+
+```bash
+pnpm exec convex run migrations/m043_analytics_plan_ids_v2_readiness:verifySourceEvents \
+  '{"phase":"pre","paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
+pnpm exec convex run migrations/index:runAnalyticsPlanIdsV2 \
+  '{"dryRun":true}' --deployment <fully-qualified-deployment>
+pnpm exec convex run migrations/index:runAnalyticsPlanIdsV2 \
+  --deployment <fully-qualified-deployment>
+pnpm exec convex run --component migrations lib:getStatus \
+  '{"names":["migrations/m043_analytics_plan_ids_v2:migration"]}' \
+  --watch --deployment <fully-qualified-deployment>
+```
+
+Widen writerはv2 source eventを並行して書けるため、Analytics writerは停止しない。  m043のstatus成功後、m044より先に`ANALYTICS_CALCULATION_VERSION=2`のresetを[Analytics rollout](analytics-rollout.md)どおり完走させる。  post readinessはreset後も保留し、m044完走後にまとめて行う。
+
+```bash
+pnpm exec convex run migrations/m044_dashboard_announcement_plan_ids_v2_readiness:verify \
+  '{"phase":"pre","paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
+pnpm exec convex run migrations/index:runDashboardAnnouncementPlanIdsV2 \
+  '{"dryRun":true}' --deployment <fully-qualified-deployment>
+pnpm exec convex run migrations/index:runDashboardAnnouncementPlanIdsV2 \
+  --deployment <fully-qualified-deployment>
+pnpm exec convex run --component migrations lib:getStatus \
+  '{"names":["migrations/m044_dashboard_announcement_plan_ids_v2:migration"]}' \
+  --watch --deployment <fully-qualified-deployment>
+```
+
+m044のstatus成功後、次のpost readinessをこの順で全ページ実行する。
+
+1. m042の`verifyOrganizations`を`phase: "post"`で実行し、`legacyTarget: 0`と`blocking: 0`を確認する。  billing、Stripeの4 scope、scheduled job、billing通知も全ページ再実行する。
+2. m043の`verifySourceEvents`、`verifyOrganizations`、`verifyShops`、`verifyDailyOrganizationKpis`を`phase: "post"`で全ページ実行し、`legacyVersion: 0`と各`blocking: 0`を確認する。
+3. m044の`verify`を`phase: "post"`で全ページ実行し、`legacy: 0`と`blocking: 0`を確認する。
+4. 最後に次のqueryが`completedReset: true`、`blocking: 0`を返すことを確認する。
+
+```bash
+pnpm exec convex run migrations/m043_analytics_plan_ids_v2_readiness:verifyResetGeneration \
+  '{}' --deployment <fully-qualified-deployment>
+```
+
+いずれかが0件以外、または全ページ未完了なら課金プランを公開しない。  provider canaryを行えるのは、m042 → m043 → Analytics reset → m044 → 全post readinessの証跡が揃った後だけである。
+
 ### Product、Price、Portal
 
-1. Standard（内部`pro`）とPro（内部`business`）に別々のrecurring Priceを用意する。
+1. StandardとProに別々のrecurring Priceを用意する。
 2. StandardとProの通貨、`recurring.interval`、`recurring.interval_count`を一致させる。  本番は月次、開発用Sandboxでは必要に応じて日次や週次を選べる。
 3. 対象modeとPriceの`livemode`が一致することを確認する。
 4. Priceをactiveにし、対象IDを対応する環境変数へ設定する。
@@ -205,8 +297,8 @@ pnpm exec convex env remove --deployment <fully-qualified-deployment> DEBUG_TRIA
 
 未契約または継続予約取消済みのTrialが終了した場合は、管理者、店舗、人物、スタッフ所属、シフトを維持したまま`active.free`へ移行する。
 有料契約の解約確定、支払い猶予終了、Stripe上の想定外解約でも、Stripe上の契約終了を確認した後に`active.free`へ移行する。
-Pro（内部`business`）からStandard（内部`pro`）への期間末変更では、Stripe上のphase移行と支払い結果を確認した後に`active.pro`へ移行する。
-`pendingActivation`で有料化しない結果が確定した場合は、`fallback`が示す`active.free`または`active.pro`へ移行する。
+ProからStandardへの期間末変更では、Stripe上のphase移行と支払い結果を確認した後にcanonicalな`active.standard`へ移行する。
+`pendingActivation`で有料化しない結果が確定した場合は、保存済みのcanonical `fallback`が示すFree / Standard / Proまたは契約制限状態へ収束させる。
 Stripe上の結果確認が必要な遷移を、ローカルの期限だけで確定しない。
 Trial、解約、支払い猶予、想定外解約から`active.free`へ移行するときは、契約終了時点の未承認招待を失効させる。
 
@@ -214,12 +306,14 @@ Trial、解約、支払い猶予、想定外解約から`active.free`へ移行�
 予約を受け付けた時点では契約を終了せず、Stripeの`cancel_at_period_end`とローカルの変更予約が対応していることを確認する。
 期間末前の取消では、Stripeの`cancel_at_period_end`が解除されたことと、ローカル状態が元の有料プランへ戻ったことを照合する。
 
-次の保存状態は経過措置として維持する。
+次のcanonical状態とWiden中のlegacy状態を区別する。
 
 | 保存状態 | 運用上の扱い |
 |---|---|
-| `active.free` | Freeとして継続し、一括変更しない |
-| `complimentary.business` | 支払い不要Pro相当として継続し、Stripe objectを作らない |
+| `planIdVersion: 2`付きの`active.free` / `active.standard` / `active.pro` | それぞれFree / Standard / Proとして扱う |
+| `planIdVersion: 2`付きの`complimentary.pro` | 支払い不要Pro・50人上限として継続し、Stripe objectを作らない |
+| markerなしの`complimentary.business` | Widen中だけ支払い不要旧Proとして読み、m042のcanonical化対象にする |
+| markerなしの`active.pro` / `active.business`など、`complimentary.business`以外のlegacy課金状態 | m042では変換せず、pre readinessのblockingとして停止する |
 | `scheduledChange.targetPlan: "free"`かつ`restrictAtPeriodEnd`なし | deployment前の旧Free変更予約として、Stripe上の期間末終了確認後に`active.free`へ収束させる |
 | `scheduledChange.targetPlan: "free"`かつ`restrictAtPeriodEnd: true` | 新しい解約予約として、Stripe上の期間末終了確認後に`active.free`へ収束させる |
 
@@ -233,10 +327,10 @@ markerなしの旧予約へ`restrictAtPeriodEnd`を後付けせず、新しい�
 業務通知は、Outbox投入後もprovider送信直前に現在の利用上限状態を再評価する。
 実利用数が上限内へ戻ると、課金状態や上限フラグの更新なしで通常利用へ戻る。
 
-Productionには旧`restricted`と`pendingActivation.fallback: "restricted"`の保存データがないため、この契約変更にmigration、backfill、migration readiness gateは不要である。
-旧shapeは、新旧versionが共存するrolling deploy中のschemaとread互換だけに残し、新しい状態遷移から作成しない。
+plan ID切替ではmigrationとreadiness gateが必要である。  m042が変更するのは、想定対象の課金状態`complimentary.business`を`planIdVersion: 2`付きの`complimentary.pro`へ変換するbilling rowだけである。  Stripe保存行、scheduled job、課金通知は変換せず、pre / post readinessで対象行が0件であることを要求する。  実環境の対象が想定どおりかは、すべてのpre readinessを全ページ実行して判定する。
+旧shapeは、新旧plan IDが共存するWiden deploy中のschemaとread互換だけに残し、新しい状態遷移から作成しない。  保存側の`planIdVersion: 2`は、同じ`pro`文字列のlegacy / canonicalの意味をWiden中に識別するための一時markerであり、永続的なDB契約にしない。
 `setFreeSelection`はdeployment前の旧Free変更予約に対するrolling API互換だけに残し、新しいTrial、解約、プラン変更からは呼び出さない。
-共存期間の終了後に、旧shapeと専用分岐をNarrowで削除する。
+共存期間の終了後に、旧shape、保存側のversion marker、専用分岐をNarrowで削除する。  request / responseの`planIdVersion: 2`は、旧clientとcanonical clientのAPI契約を分ける境界として別に扱う。
 
 状態を手動patchして収束させない。
 不一致がある場合は、対象組織、billing version、変更予約のmarker、Stripe Subscriptionの`cancel_at_period_end`と期間終了日時、関連operationとWebhookを読み取りで照合し、provider再照合またはforward repairを選ぶ。
@@ -284,12 +378,12 @@ probeにこの項目がないことはm021の完走や旧形式の残件0を証�
 
 ## m021の履歴とNarrow deploy前確認
 
-現行コードの保存契約は`complimentary.business`だけを許可する。
-`complimentary.pro`はm021のMigration Testとこの運用履歴だけに残し、通常runtimeでは読み書きしない。
+現在のcanonical保存先は`planIdVersion: 2`付きの`complimentary.pro`である。  Widen runtimeは、m042完走までmarkerなしの`complimentary.business`もlegacy Proとして読み、新規writeでは作成しない。
+同じ`complimentary.pro`でも、m021の履歴にあるmarkerなし値と、現在のcanonical値は異なる契約である。  Widen中は一時markerで識別し、m042で`complimentary.business`をcanonical `complimentary.pro`へ変換する。
 
-対象deploymentのm021 statusとexport検証状況は、[リリース状態](release-status.md)を正とする。
-対象revisionがNarrow済みでも、両方の証跡が未確認なら実環境の移行完了とは判定しない。
-完全修飾deployment名を固定したstatusとexport証跡が揃うまで、Narrow版をそのdeploymentへdeployしない。
+対象deploymentのm021 statusとexport検証状況は、過去の変換を説明する履歴証跡である。  今回の切替完了はm042 → m043 → Analytics reset → m044 → 全post readinessと、[リリース状態](release-status.md)の実環境証跡で判定する。  m021の完了だけで現在のplan ID cutover完了とは判定しない。
+
+以下はm021実行時の履歴手順であり、現在のm042〜m044実行手順には流用しない。
 
 ### 対象と停止条件
 
@@ -431,7 +525,7 @@ Priceのアーカイブは新規販売を止めるが、既存Subscriptionを終
 5. 対応するGitHub Environment SecretのPrice IDを新Priceへ変更する。値をworkflow、log、文書へ書かない。
 6. 対象environmentで公開サイトをbuild・deployし、特定商取引法ページの金額、通貨、請求周期、税区分を確認する。ここまでは旧Priceをアーカイブしたままにし、新規販売を再開しない。
 7. 現在のConvex設定が対象deploymentを指すことと、`.env`にある同期対象キーを確認する。
-8. `STRIPE_PRO_PRICE_ID`または`STRIPE_BUSINESS_PRICE_ID`の対象キーだけを、完全修飾deployment名を指定した`convex env set`で新Priceへ更新する。続けて`env list --names-only`でキーの存在だけを確認する。この切替後に新規販売を再開する。
+8. `STRIPE_STANDARD_PRICE_ID`または`STRIPE_PRO_PRICE_ID`の対象キーだけを、完全修飾deployment名を指定した`convex env set`で新Priceへ更新する。続けて`env list --names-only`でキーの存在だけを確認する。この切替後に新規販売を再開する。
 9. 新Priceの`livemode`、active、請求周期、通貨、金額を`getPlanPrice`とStripe Dashboardで照合する。
 10. 対象modeでCheckout、Subscription、Webhook、Invoiceをcanary確認する。
 11. 旧Priceを使う進行中のTrial・契約作成operationが0件までdrainしたことを確認する。

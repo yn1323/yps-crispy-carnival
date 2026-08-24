@@ -13,7 +13,7 @@ const shop = (
   shopStatus: "active",
   organizationId,
   organizationName,
-  organizationPlan: "pro",
+  organizationPlan: "standard",
   memberStatus: "active",
 });
 

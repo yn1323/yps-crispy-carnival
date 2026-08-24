@@ -36,7 +36,7 @@ export function ManagerInvitationAcceptance({ token }: Props) {
   const { isLoaded: isUserLoaded, user } = useUser();
   const { isAuthenticated, isLoading: isConvexAuthLoading } = useConvexAuth();
   const preview = useQuery(api.organizationInvitation.queries.getPreview, token ? { token } : "skip");
-  const rawShops = useQuery(api.dashboard.queries.getMyShops, isAuthenticated ? {} : "skip");
+  const rawShops = useQuery(api.dashboard.queries.getMyShops, isAuthenticated ? { planIdVersion: 2 } : "skip");
   const acceptInvitation = useAction(api.organizationInvitation.acceptanceActions.accept);
   const [acceptanceResult, setAcceptanceResult] = useState<AcceptanceResult | null>(null);
   const [linkedTarget, setLinkedTarget] = useState<LinkedTarget | null>(null);

@@ -25,7 +25,7 @@ import { usePlanStatusCardController } from "./usePlanStatusCardController";
 
 const paidPlan = {
   kind: "paidPlan",
-  plan: "pro",
+  plan: "standard",
   isComplimentary: false,
   currentPeriodEndsAt: Date.parse("2026-08-31T15:00:00.000Z"),
   canManagePlan: true,
@@ -303,7 +303,7 @@ describe("usePlanStatusCardController", () => {
         planStatus: {
           kind: "trial",
           trialEndsAt: Date.parse("2026-08-16T15:00:00.000Z"),
-          selectedPaidPlan: "pro",
+          selectedPaidPlan: "standard",
           canManagePlan: true,
           canUpdatePaymentMethod: true,
         },

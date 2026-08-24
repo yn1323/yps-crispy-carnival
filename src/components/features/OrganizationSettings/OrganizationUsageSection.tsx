@@ -267,6 +267,6 @@ function getPendingInvitationLabel(billing: OrganizationUsageSummary) {
   return parts.length > 0 ? `招待中: ${parts.join("・")}` : undefined;
 }
 
-function isPlanState(state: OrganizationBillingView["state"]): state is "trial" | "free" | "pro" | "business" {
-  return state === "trial" || state === "free" || state === "pro" || state === "business";
+function isPlanState(state: OrganizationBillingView["state"]): state is "trial" | "free" | "standard" | "pro" {
+  return state === "trial" || state === "free" || state === "standard" || state === "pro";
 }

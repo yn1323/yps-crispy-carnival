@@ -475,6 +475,7 @@ describe("Analytics夜間バッチシナリオ", () => {
         inputFromAt: SOURCE_CAPTURE_START_AT,
         cutoffAt: SOURCE_CAPTURE_START_AT,
         sourceCaptureStartAt: SOURCE_CAPTURE_START_AT,
+        resetWatermarkAt: SOURCE_CAPTURE_START_AT,
         stage: "resetVerify",
         stepVersion: 1,
         startedAt: d1RunAt - DAY_MS,

@@ -110,6 +110,23 @@ export const runNotificationTerminalRedaction = migrations.runner([
 // 完全ゼロ経路では実行しないため、fixed seriesには含めない。
 export const runLineCommonLinkBackfill = migrations.runner(internal.migrations.m041_line_common_links.migration);
 
+// plan ID cutover専用。Production exportの全readiness pageがblocking=0であり、
+// scheduled billing jobと未完了billing通知が0件であることを確認した後にだけ明示実行する。
+// fixed seriesには含めない。Narrow時はfresh replayでm012等がlegacy stateを生成した後にも走る
+// forward canonicalizerをdefault series末尾へ別途追加し、歴史migration本体は変更しない。
+export const runOrganizationBillingPlanIdsV2 = migrations.runner(
+  internal.migrations.m042_organization_billing_plan_ids_v2.migration,
+);
+
+// m042完了後、Widen writerと並行してv1 source payloadが0件になるまで冪等に再実行する。
+// 続けてcalculationVersion=2のanalytics resetを完走し、materialized tablesを再構築する。
+export const runAnalyticsPlanIdsV2 = migrations.runner(internal.migrations.m043_analytics_plan_ids_v2.migration);
+
+// dashboard announcementのcomma-separated targetをcanonicalへ揃える専用runner。
+export const runDashboardAnnouncementPlanIdsV2 = migrations.runner(
+  internal.migrations.m044_dashboard_announcement_plan_ids_v2.migration,
+);
+
 // conflict裁定後は、この範囲だけをresetして安全に再評価する。
 export const runFormerManagerAccessCleanup = migrations.runner([
   internal.migrations.m013_former_managers_remove_manager_access.migration,

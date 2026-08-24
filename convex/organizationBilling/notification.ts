@@ -26,7 +26,9 @@ export const organizationBillingNotificationEventValidator = v.union(
 );
 
 export const organizationBillingNotificationDetailsValidator = v.object({
-  targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+  // Widen中は旧scheduled actionのunversioned pro/businessも受理する。
+  targetPlan: v.optional(v.union(v.literal("free"), v.literal("standard"), v.literal("pro"), v.literal("business"))),
+  planIdVersion: v.optional(v.literal(2)),
   amountDue: v.optional(v.number()),
   currency: v.optional(v.string()),
   effectiveAt: v.optional(v.number()),
@@ -65,11 +67,11 @@ export type OrganizationBillingNotificationEvent =
 
 export type TrialEndingNotificationDetails = {
   trialEndsAt: number;
-  selectedPaidPlan?: "pro" | "business";
+  selectedPaidPlan?: "standard" | "pro";
 };
 
 export type OrganizationBillingNotificationDetails = {
-  targetPlan?: "free" | "pro" | "business";
+  targetPlan?: "free" | "standard" | "pro";
   amountDue?: number;
   currency?: string;
   effectiveAt?: number;
@@ -85,6 +87,29 @@ export type OrganizationBillingNotificationDetails = {
     | "unexpectedCancellation"
     | "planLimitExceeded";
 };
+
+export type PersistedOrganizationBillingNotificationDetails = Omit<
+  OrganizationBillingNotificationDetails,
+  "targetPlan"
+> & {
+  targetPlan?: "free" | "standard" | "pro" | "business";
+  planIdVersion?: 2;
+};
+
+/** 旧scheduled argsのpro/businessを意味で読み替え、copy生成前にcanonicalへ閉じる。 */
+export function canonicalizeOrganizationBillingNotificationDetails(
+  details?: PersistedOrganizationBillingNotificationDetails,
+): OrganizationBillingNotificationDetails | undefined {
+  if (!details) return undefined;
+  const { planIdVersion, targetPlan, ...rest } = details;
+  if (!targetPlan) return rest;
+  if (planIdVersion === 2) {
+    if (targetPlan === "business") throw new Error("billing_notification_plan_id_version_invalid");
+    return { ...rest, targetPlan };
+  }
+  if (targetPlan === "standard") throw new Error("billing_notification_plan_id_version_missing");
+  return { ...rest, targetPlan: targetPlan === "pro" ? "standard" : targetPlan === "business" ? "pro" : "free" };
+}
 
 export function organizationBillingNotificationCopy(
   event: OrganizationBillingNotificationEvent,

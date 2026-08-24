@@ -38,7 +38,7 @@ export function resolvePeopleCapacityLimit(current: number, max: number): People
     max === 4 ||
     max === ORGANIZATION_PLAN_LIMITS.free.maxPeople ||
     max === 20 ||
-    max === ORGANIZATION_PLAN_LIMITS.pro.maxPeople
+    max === ORGANIZATION_PLAN_LIMITS.standard.maxPeople
   ) {
     return { kind: "choosePaidPlan", current, max };
   }

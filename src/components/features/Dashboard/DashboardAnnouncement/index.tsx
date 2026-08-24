@@ -23,7 +23,7 @@ export const DashboardAnnouncement = ({ announcement, defaultOpen = false, conte
   const selectedShop = useAtomValue(selectedShopAtom);
   const queriedAnnouncements = useQuery(
     api.dashboard.queries.getActiveDashboardAnnouncementsV2,
-    announcement === undefined ? {} : "skip",
+    announcement === undefined ? { planIdVersion: 2 } : "skip",
   );
   const resolvedAnnouncement =
     announcement === undefined

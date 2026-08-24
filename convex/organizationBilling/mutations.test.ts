@@ -1037,22 +1037,23 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
     ).rejects.toThrow("現在の契約状態では、この変更を適用できません");
   });
 
-  it("Pro上限を超えていてもBusinessからの変更予約を保存し、適用時の整理対象にする", async () => {
+  it("Standard上限を超えていてもProからStandardへの変更予約を保存し、適用時の整理対象にする", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
-        subject: "business_to_pro_over_limit",
-        plan: "business",
+        subject: "pro_to_standard_over_limit",
+        plan: "pro",
+        planIdVersion: 2,
       });
       for (let index = 0; index < 14; index += 1) {
-        await addManager(ctx, seeded.organizationId, `business_to_pro_manager_${index}`);
+        await addManager(ctx, seeded.organizationId, `pro_to_standard_manager_${index}`);
       }
       const now = Date.now();
       await ctx.db.insert("organizationInvitations", {
         organizationId: seeded.organizationId,
-        email: "reserved-pro-seat@example.com",
-        emailNormalized: "reserved-pro-seat@example.com",
-        tokenDigest: "reserved-pro-seat-token-digest",
+        email: "reserved-standard-seat@example.com",
+        emailNormalized: "reserved-standard-seat@example.com",
+        tokenDigest: "reserved-standard-seat-token-digest",
         status: "pending",
         purpose: "managerAddition",
         inviterMemberId: seeded.memberId,
@@ -1069,20 +1070,21 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
       t.mutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: ids.organizationId,
         expectedVersion: 1,
+        planIdVersion: 2,
         state: {
           kind: "scheduledChange",
-          currentPlan: "business",
-          targetPlan: "pro",
+          currentPlan: "pro",
+          targetPlan: "standard",
           effectiveAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
         },
-        correlationId: "business-to-pro-over-limit",
+        correlationId: "pro-to-standard-over-limit",
       }),
     ).resolves.toEqual({ changed: true, stateKind: "scheduledChange" });
 
     const result = await t.run(async (ctx) => ({
       audits: await ctx.db
         .query("organizationAuditEvents")
-        .withIndex("by_correlationId", (q) => q.eq("correlationId", "business-to-pro-over-limit"))
+        .withIndex("by_correlationId", (q) => q.eq("correlationId", "pro-to-standard-over-limit"))
         .collect(),
       billingState: await ctx.db
         .query("organizationBillingStates")
@@ -1091,22 +1093,24 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
     }));
     expect(result.billingState?.state).toMatchObject({
       kind: "scheduledChange",
-      currentPlan: "business",
-      targetPlan: "pro",
+      planIdVersion: 2,
+      currentPlan: "pro",
+      targetPlan: "standard",
     });
     expect(result.billingState?.version).toBe(2);
     expect(result.audits).toHaveLength(1);
   });
 
   it.each([
-    { label: "ProからFree", currentPlan: "pro", targetPlan: "free" },
-    { label: "BusinessからPro", currentPlan: "business", targetPlan: "pro" },
+    { label: "StandardからFree", currentPlan: "standard", targetPlan: "free" },
+    { label: "ProからStandard", currentPlan: "pro", targetPlan: "standard" },
   ] as const)("$labelの期間末変更予約を明示eventで取り消し、全有効管理者へ通知する", async (plan) => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
         subject: `cancel_${plan.currentPlan}_${plan.targetPlan}`,
         plan: plan.currentPlan,
+        planIdVersion: 2,
       });
       const secondManager = await addManager(
         ctx,
@@ -1120,16 +1124,18 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
       if (!billingState) throw new Error("billing state not found");
       await ctx.db.patch(billingState._id, {
         state:
-          plan.currentPlan === "business"
+          plan.currentPlan === "pro"
             ? {
                 kind: "scheduledChange",
-                currentPlan: "business",
-                targetPlan: "pro",
+                planIdVersion: 2,
+                currentPlan: "pro",
+                targetPlan: "standard",
                 effectiveAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
               }
             : {
                 kind: "scheduledChange",
-                currentPlan: "pro",
+                planIdVersion: 2,
+                currentPlan: "standard",
                 targetPlan: "free",
                 effectiveAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
               },
@@ -1143,6 +1149,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
       t.mutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: ids.organizationId,
         expectedVersion: 1,
+        planIdVersion: 2,
         state: { kind: "scheduledChangeCanceled" },
         correlationId,
       }),
@@ -1151,6 +1158,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
       t.mutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: ids.organizationId,
         expectedVersion: 1,
+        planIdVersion: 2,
         state: { kind: "scheduledChangeCanceled" },
         correlationId,
       }),
@@ -1164,7 +1172,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
       billingState: await ctx.db.get(ids.billingStateId),
       scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
     }));
-    expect(result.billingState?.state).toEqual({ kind: "active", plan: expectedPlan });
+    expect(result.billingState?.state).toEqual({ kind: "active", planIdVersion: 2, plan: expectedPlan });
     expect(result.billingState?.version).toBe(2);
     expect(result.audit).toMatchObject({
       action: "organization.billing_state_changed",
@@ -1202,14 +1210,15 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
   it("Freeからの即時支払い失敗は有料プランを開放せずactive.freeへ戻す", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run((ctx) =>
-      seedOrganizationManagerShop(ctx, { subject: "pending_failure_free", plan: "free" }),
+      seedOrganizationManagerShop(ctx, { subject: "pending_failure_free", plan: "free", planIdVersion: 2 }),
     );
 
     await expect(
       t.mutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: ids.organizationId,
         expectedVersion: 1,
-        state: { kind: "pendingActivation", plan: "pro", fallback: "free" },
+        planIdVersion: 2,
+        state: { kind: "pendingActivation", plan: "standard", fallback: "free" },
         correlationId: "pending-free-start",
       }),
     ).resolves.toEqual({ changed: true, stateKind: "pendingActivation" });
@@ -1229,7 +1238,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
         .unique(),
       scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
     }));
-    expect(result.billingState?.state).toEqual({ kind: "active", plan: "free" });
+    expect(result.billingState?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
     expect(result.billingState?.version).toBe(3);
     expect(result.billingState?.businessNotificationCutoffAt).toBeUndefined();
     expect(result.billingState?.businessNotificationCutoffVersion).toBeUndefined();
@@ -1255,6 +1264,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
       const seeded = await seedOrganizationManagerShop(ctx, {
         subject: "pending_failure_free_over_limit",
         plan: "free",
+        planIdVersion: 2,
       });
       const secondManager = await addManager(ctx, seeded.organizationId, "pending_failure_free_second_manager");
       const thirdManager = await addManager(ctx, seeded.organizationId, "pending_failure_free_third_manager");
@@ -1265,7 +1275,8 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
       t.mutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: ids.organizationId,
         expectedVersion: 1,
-        state: { kind: "pendingActivation", plan: "pro", fallback: "free" },
+        planIdVersion: 2,
+        state: { kind: "pendingActivation", plan: "standard", fallback: "free" },
         correlationId: "pending-free-over-limit-start",
       }),
     ).resolves.toEqual({ changed: true, stateKind: "pendingActivation" });
@@ -1291,7 +1302,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
         .collect(),
       scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
     }));
-    expect(result.billingState?.state).toEqual({ kind: "active", plan: "free" });
+    expect(result.billingState?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
     expect(result.billingState).toMatchObject({
       version: 3,
       businessNotificationCutoffVersion: 3,
@@ -1320,7 +1331,11 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
     const t = convexTest(schema, modules);
     const now = Date.now();
     const ids = await t.run(async (ctx) => {
-      const seeded = await seedOrganizationManagerShop(ctx, { subject: "pending_failure_restricted", plan: "pro" });
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "pending_failure_restricted",
+        plan: "standard",
+        planIdVersion: 2,
+      });
       const billingState = await ctx.db
         .query("organizationBillingStates")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
@@ -1329,8 +1344,9 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
       await ctx.db.patch(billingState._id, {
         state: {
           kind: "restricted",
+          planIdVersion: 2,
           reason: "paymentGraceExpired",
-          previousPlan: "pro",
+          previousPlan: "standard",
           recoveryManagerPersonIds: [seeded.personId],
           previousActiveShopIds: [seeded.shopId],
           restrictedAt: now,
@@ -1345,7 +1361,8 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
       t.mutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: ids.organizationId,
         expectedVersion: 1,
-        state: { kind: "pendingActivation", plan: "pro", fallback: "restricted" },
+        planIdVersion: 2,
+        state: { kind: "pendingActivation", plan: "standard", fallback: "restricted" },
         correlationId: "pending-restricted-start",
       }),
     ).resolves.toEqual({ changed: true, stateKind: "pendingActivation" });
@@ -1357,12 +1374,13 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
     );
     expect(pendingState?.state).toEqual({
       kind: "pendingActivation",
-      plan: "pro",
+      planIdVersion: 2,
+      plan: "standard",
       fallback: "restricted",
       restrictedFallbackState: {
         kind: "restricted",
         reason: "paymentGraceExpired",
-        previousPlan: "pro",
+        previousPlan: "standard",
         recoveryManagerPersonIds: [ids.personId],
         previousActiveShopIds: [ids.shopId],
         restrictedAt: now,
@@ -1386,8 +1404,9 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
     }));
     expect(result.billingState?.state).toEqual({
       kind: "restricted",
+      planIdVersion: 2,
       reason: "paymentGraceExpired",
-      previousPlan: "pro",
+      previousPlan: "standard",
       recoveryManagerPersonIds: [ids.personId],
       previousActiveShopIds: [ids.shopId],
       restrictedAt: now,
@@ -1491,23 +1510,25 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
     ).rejects.toThrow("現在の契約状態では、この変更を適用できません");
   });
 
-  it("Freeからの有料契約開始は人物・店舗を変更せず、復旧対象の指定なしで確定する", async () => {
+  it("FreeからのStandard契約開始は人物・店舗を変更せず、復旧対象の指定なしで確定する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run((ctx) =>
-      seedOrganizationManagerShop(ctx, { subject: "restore_partial_selection", plan: "free" }),
+      seedOrganizationManagerShop(ctx, { subject: "restore_partial_selection", plan: "free", planIdVersion: 2 }),
     );
 
     await t.mutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
       organizationId: ids.organizationId,
       expectedVersion: 1,
-      state: { kind: "pendingActivation", plan: "pro", fallback: "free" },
+      planIdVersion: 2,
+      state: { kind: "pendingActivation", plan: "standard", fallback: "free" },
       correlationId: "restore-partial-start",
     });
     await expect(
       t.mutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: ids.organizationId,
         expectedVersion: 2,
-        state: { kind: "active", plan: "pro" },
+        planIdVersion: 2,
+        state: { kind: "active", plan: "standard" },
         restoreManagerPersonIds: [ids.personId],
         correlationId: "free-paid-restoration-selection-not-allowed",
       }),
@@ -1516,10 +1537,11 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
       t.mutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: ids.organizationId,
         expectedVersion: 2,
-        state: { kind: "active", plan: "pro" },
+        planIdVersion: 2,
+        state: { kind: "active", plan: "standard" },
         correlationId: "free-paid-activation-success",
       }),
-    ).resolves.toEqual({ changed: true, stateKind: "pro" });
+    ).resolves.toEqual({ changed: true, stateKind: "standard" });
 
     const result = await t.run(async (ctx) => ({
       billingState: await ctx.db
@@ -1529,7 +1551,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
       member: await ctx.db.get(ids.memberId),
       shop: await ctx.db.get(ids.shopId),
     }));
-    expect(result.billingState?.state).toEqual({ kind: "active", plan: "pro" });
+    expect(result.billingState?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "standard" });
     expect(result.billingState?.version).toBe(3);
     expect(result.member?.status).toBe("active");
     expect(result.shop?.operatingStatus).toBe("active");
@@ -1625,13 +1647,17 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
     expect(result.shop?.operatingStatus).toBe("planSuspended");
   });
 
-  it("支払い猶予の期限処理は回収停止の証跡を要求し、データを残したまま無料プランへ変更する", async () => {
+  it("Standardの支払い猶予の期限処理は回収停止の証跡を要求し、データを残したまま無料プランへ変更する", async () => {
     const now = new Date("2026-07-17T00:00:00.000Z").getTime();
     const deadlineAt = now + 1_000;
     vi.setSystemTime(now);
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const seeded = await seedOrganizationManagerShop(ctx, { subject: "grace_deleted_shop", plan: "pro" });
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "grace_deleted_shop",
+        plan: "standard",
+        planIdVersion: 2,
+      });
       const billingState = await ctx.db
         .query("organizationBillingStates")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
@@ -1646,7 +1672,13 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
         isDeleted: true,
       });
       await ctx.db.patch(billingState._id, {
-        state: { kind: "grace", plan: "pro", startedAt: now - 1_000, endsAt: deadlineAt },
+        state: {
+          kind: "grace",
+          planIdVersion: 2,
+          plan: "standard",
+          startedAt: now - 1_000,
+          endsAt: deadlineAt,
+        },
         updatedAt: now,
       });
       const operations = await addSucceededGraceCollectionOperations(ctx, seeded.organizationId, 1);
@@ -1690,7 +1722,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
       activeShop: await ctx.db.get(ids.shopId),
       deletedShop: await ctx.db.get(ids.deletedShopId),
     }));
-    expect(result.billingState?.state).toEqual({ kind: "active", plan: "free" });
+    expect(result.billingState?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
     expect(result.activeShop?.operatingStatus).toBe("active");
     expect(result.deletedShop?.isDeleted).toBe(true);
   });
@@ -1920,14 +1952,18 @@ describe("organizationBilling/mutations first trial invoice", () => {
     vi.setSystemTime(deadlineAt);
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const seeded = await seedOrganizationManagerShop(ctx, { subject: "trial_invoice_paid", plan: "pro" });
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "trial_invoice_paid",
+        plan: "standard",
+        planIdVersion: 2,
+      });
       const billingState = await ctx.db
         .query("organizationBillingStates")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
         .unique();
       if (!billingState) throw new Error("billing state not found");
       await ctx.db.patch(billingState._id, {
-        state: { kind: "trial", trialEndsAt: deadlineAt, selectedPaidPlan: "pro" },
+        state: { kind: "trial", planIdVersion: 2, trialEndsAt: deadlineAt, selectedPaidPlan: "standard" },
       });
       return seeded;
     });
@@ -1940,7 +1976,7 @@ describe("organizationBilling/mutations first trial invoice", () => {
         result: "paid",
         correlationId: "trial-invoice-paid",
       }),
-    ).resolves.toEqual({ changed: true, stateKind: "pro" });
+    ).resolves.toEqual({ changed: true, stateKind: "standard" });
     await expect(
       t.mutation(internal.organizationBilling.mutations.processDeadline, {
         organizationId: ids.organizationId,
@@ -1959,7 +1995,10 @@ describe("organizationBilling/mutations first trial invoice", () => {
         .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
         .collect(),
     }));
-    expect(snapshot.billingState).toMatchObject({ state: { kind: "active", plan: "pro" }, version: 3 });
+    expect(snapshot.billingState).toMatchObject({
+      state: { kind: "active", planIdVersion: 2, plan: "standard" },
+      version: 3,
+    });
     expect(snapshot.audits.map((audit) => audit.correlationId)).toEqual(
       expect.arrayContaining(["trial-invoice-paid:initial-payment-pending", "trial-invoice-paid"]),
     );
@@ -1970,14 +2009,18 @@ describe("organizationBilling/mutations first trial invoice", () => {
     vi.setSystemTime(deadlineAt);
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const seeded = await seedOrganizationManagerShop(ctx, { subject: "trial_invoice_failed", plan: "pro" });
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "trial_invoice_failed",
+        plan: "standard",
+        planIdVersion: 2,
+      });
       const billingState = await ctx.db
         .query("organizationBillingStates")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
         .unique();
       if (!billingState) throw new Error("billing state not found");
       await ctx.db.patch(billingState._id, {
-        state: { kind: "trial", trialEndsAt: deadlineAt, selectedPaidPlan: "pro" },
+        state: { kind: "trial", planIdVersion: 2, trialEndsAt: deadlineAt, selectedPaidPlan: "standard" },
       });
       return seeded;
     });
@@ -2005,7 +2048,7 @@ describe("organizationBilling/mutations first trial invoice", () => {
         .unique(),
     );
     expect(billingState).toMatchObject({
-      state: { kind: "grace", plan: "pro", startedAt: deadlineAt },
+      state: { kind: "grace", planIdVersion: 2, plan: "standard", startedAt: deadlineAt },
       version: 3,
     });
   });
@@ -2015,7 +2058,7 @@ describe("organizationBilling/mutations Stripe commands", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("stores and clears the Pro choice without ending the trial", async () => {
+  it("stores and clears the paid-plan choice without ending the trial", async () => {
     const now = Date.parse("2026-07-20T00:00:00.000Z");
     vi.setSystemTime(now);
     const t = convexTest(schema, modules);
@@ -2033,17 +2076,17 @@ describe("organizationBilling/mutations Stripe commands", () => {
     });
 
     await expect(
-      t.mutation(internal.organizationBilling.mutations.selectTrialPro, {
+      t.mutation(internal.organizationBilling.mutations.selectTrialPaidPlan, {
         organizationId: ids.organizationId,
         expectedVersion: 1,
-        correlationId: "trial-pro-selected",
+        correlationId: "trial-paid-plan-selected",
       }),
     ).resolves.toEqual({ changed: true, stateKind: "trial" });
     await expect(
-      t.mutation(internal.organizationBilling.mutations.clearTrialPro, {
+      t.mutation(internal.organizationBilling.mutations.clearTrialPaidPlan, {
         organizationId: ids.organizationId,
         expectedVersion: 2,
-        correlationId: "trial-pro-cleared",
+        correlationId: "trial-paid-plan-cleared",
       }),
     ).resolves.toEqual({ changed: true, stateKind: "trial" });
 
@@ -2063,7 +2106,7 @@ describe("organizationBilling/mutations Stripe commands", () => {
     });
     expect(snapshot.billingState?.state).not.toHaveProperty("selectedPaidPlan");
     expect(snapshot.audits.map((audit) => audit.correlationId)).toEqual(
-      expect.arrayContaining(["trial-pro-selected", "trial-pro-cleared"]),
+      expect.arrayContaining(["trial-paid-plan-selected", "trial-paid-plan-cleared"]),
     );
   });
 

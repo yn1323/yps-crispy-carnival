@@ -28,7 +28,7 @@ const operationShop = {
   shopStatus: "active" as const,
   organizationId: "organization-1",
   organizationName: "たなかグループ",
-  organizationPlan: "pro" as const,
+  organizationPlan: "standard" as const,
   memberStatus: "active" as const,
 };
 const operationContextData = {

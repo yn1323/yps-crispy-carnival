@@ -2,6 +2,10 @@ import type { GenericDatabaseReader } from "convex/server";
 import { ConvexError } from "convex/values";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import {
+  type CanonicalOrganizationBillingState,
+  canonicalizeOrganizationBillingState,
+} from "../organizationBilling/policy";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 import { getOrganizationInvitationPurpose } from "../organizationInvitation/purpose";
 import { MANAGER_PERSON_REMOVAL_DISABLED_REASON } from "./personCapabilities";
@@ -67,11 +71,24 @@ export function toOrganizationProjectedUsage(usage: OrganizationUsageSnapshot): 
   };
 }
 
-export async function getOrganizationBillingState(ctx: DbCtx, organizationId: Id<"organizations">) {
-  return await ctx.db
+export type CanonicalOrganizationBillingStateDocument = Omit<Doc<"organizationBillingStates">, "state"> & {
+  state: CanonicalOrganizationBillingState;
+};
+
+export async function getOrganizationBillingState(
+  ctx: DbCtx,
+  organizationId: Id<"organizations">,
+): Promise<CanonicalOrganizationBillingStateDocument | null> {
+  const billingState = await ctx.db
     .query("organizationBillingStates")
     .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
     .unique();
+  return billingState
+    ? {
+        ...billingState,
+        state: canonicalizeOrganizationBillingState(billingState.state),
+      }
+    : null;
 }
 
 export async function requireOrganizationBillingState(ctx: DbCtx, organizationId: Id<"organizations">) {

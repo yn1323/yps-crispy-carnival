@@ -8,11 +8,13 @@ import {
   AnalyticsPageLoading,
   analyticsErrorMessage,
 } from "@/features/analytics/PageState";
+import { useAnalyticsSearch } from "@/features/analytics/useAnalyticsSearch";
 
 export function CycleDetailPage({ recruitmentId, shopId }: { recruitmentId: string; shopId: string }) {
+  const { search } = useAnalyticsSearch();
   const query = useQuery({
-    queryFn: () => fetchCycle(shopId, recruitmentId),
-    queryKey: ["analytics", "cycle", shopId, recruitmentId],
+    queryFn: () => fetchCycle(shopId, recruitmentId, { planIdVersion: search.planIdVersion }),
+    queryKey: ["analytics", "cycle", shopId, recruitmentId, search.planIdVersion],
   });
   useReportAnalyticsEnvironment(query.data?.env.label);
   if (query.isLoading)

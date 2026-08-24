@@ -323,7 +323,7 @@ describe("setup/mutations", () => {
         version: organizationBillingState.version,
       }).toEqual({
         organizationId,
-        state: { kind: "trial", trialEndsAt: Date.parse("2026-10-04T15:00:00.000Z") },
+        state: { kind: "trial", planIdVersion: 2, trialEndsAt: Date.parse("2026-10-04T15:00:00.000Z") },
         freeManagerPersonId: undefined,
         freeShopId: undefined,
         version: 1,
@@ -906,7 +906,7 @@ describe("setup/mutations", () => {
       const existingBillingState = state.billingStates.find(
         (billing) => billing.organizationId === seed.organizationId,
       );
-      expect(newBillingState?.state).toEqual({ kind: "active", plan: "free" });
+      expect(newBillingState?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
       expect(newBillingState?.version).toBe(1);
       expect(existingBillingState?.state).toEqual({ kind: "complimentary", plan: "business" });
       expect(state.people).toHaveLength(1);

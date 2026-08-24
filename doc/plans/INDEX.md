@@ -3,7 +3,7 @@
 `doc/plans/`は、計画を作成した時点の判断、実装順序、受入条件を残す場所です。
 現在の機能や常設規約は、各表の「現在の正本」を参照してください。
 
-> 分類日: 2026-08-22
+> 分類日: 2026-08-25
 >
 > 分類基準: 既存計画は2026-07-23のworktree、2026-08-02以降の追加計画は作成時点のworktreeと各計画本文
 
@@ -43,7 +43,6 @@
 | [削除後の業務識別情報保持と認証切り離し](2026-07-19_削除後の業務識別情報保持と認証切り離し_実装計画.md) | `blocked` | 公開前に保持目的、保持期間、別途消去要求を扱う運用を決める | [店舗・グループ削除](../features/data-deletion.md)、[アカウント削除](../features/account-deletion.md) |
 | [スタッフ通知履歴](2026-07-19_スタッフ通知履歴_実装計画.md) | `rollout` | リリースとResendの`email.delivered` Webhook設定を証跡付きで確認する | [スタッフ通知履歴](../features/notification-history.md)、[リリース状態](../manual/release-status.md) |
 | [Stripeセキュリティ対策](2026-07-20_Stripeセキュリティ対策_テスト計画.md) | `blocked` | Stripe sandbox canary、Clerk・Cloudflare・端末保護などの実環境証跡 | [セキュリティ再検証](../manual/security-validation.md)、[リリース状態](../manual/release-status.md) |
-| [課金プラン改定・Business再導入](2026-07-21_課金プラン改定_Business再導入_実装計画.md) | `rollout` | Stripe外部設定、Convex deploy、snapshot、m021、公開判定の証跡 | [課金業務フロー](../specs/organization-billing-business-flow.md)、[グループ課金の運用](../manual/organization-billing.md)、[リリース状態](../manual/release-status.md) |
 | [doc現行コード差分調査](2026-07-23_doc現行コード差分調査.md) | `reviewing` | 10論点のProduct、Security、Backend、運用判断を確定し、必要な別計画へ引き渡す | [現行コード差分調査](2026-07-23_doc現行コード差分調査.md) |
 
 `frontend-test-vrt-refactor`は本文に実施結果がないため、完了済みと推測せず`Active`に残しています。
@@ -123,6 +122,7 @@ Historyの本文には、現在と異なる名称、パス、状態、上限、�
 | [店舗と組織の削除・個人情報匿名化](2026-07-18_店舗と組織の削除_個人情報匿名化_実装計画.md) | 識別情報の置換契約を後続計画で変更 | [識別情報保持計画](2026-07-19_削除後の業務識別情報保持と認証切り離し_実装計画.md)、[店舗・グループ削除](../features/data-deletion.md) |
 | [複数管理者・複数店舗 E2E](2026-07-18_複数管理者_複数店舗_E2E実装計画.md) | 完了を本文で確認 | [テスト方針](../rules/testing-strategy.md)、[E2E安定性改善・スコープ再設計](2026-08-03_E2E安定性改善_実行計画.md) |
 | [Stripe課金連携・4プラン化](2026-07-20_Stripe課金連携_実装計画.md) | プラン構成と上限をBusiness再導入計画で置換 | [Business再導入計画](2026-07-21_課金プラン改定_Business再導入_実装計画.md)、[グループ課金](../features/organization-billing.md) |
+| [課金プラン改定・Business再導入](2026-07-21_課金プラン改定_Business再導入_実装計画.md) | Issue #839のStandard / Pro内部ID統一、m042〜m044移行、2キーのStripe設定でプラン構成と外部ロールアウト手順を置換 | [課金業務フロー](../specs/organization-billing-business-flow.md)、[グループ課金の運用](../manual/organization-billing.md)、[リリース状態](../manual/release-status.md) |
 | [StripeとCodexセキュリティ調査](2026-07-21_StripeとCodexセキュリティ調査_不足テスト実装計画.md) | リポジトリ実装と自動検証を完了。外部証跡は運用文書へ移管 | [セキュリティ再検証](../manual/security-validation.md)、[リリース状態](../manual/release-status.md) |
 | [エージェント指示体系の再構成](2026-07-23_エージェント指示体系_再構成計画.md) | 指示体系を現行Ruleと`AGENTS.md`へ反映済み | [エージェント指示の配置方針](../rules/agent-instructions.md) |
 | [doc情報設計と現行コード整合の再構成](2026-07-23_doc情報設計と現行コード整合の再構成計画.md) | 目的別INDEX、Archive、明確な差分修正、長大文書の再構成、自動検査を完了。判断待ちは差分調査へ移管 | [ドキュメント入口](../INDEX.md)、[現行コード差分調査](2026-07-23_doc現行コード差分調査.md) |

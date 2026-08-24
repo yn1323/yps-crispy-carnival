@@ -167,6 +167,7 @@ describe("ManagerInvitationAcceptance controller", () => {
     expect(mocks.useAction).toHaveBeenCalledWith(mocks.acceptAction);
     expect(mocks.acceptInvitation).toHaveBeenCalledOnce();
     expect(mocks.acceptInvitation).toHaveBeenCalledWith({ token: "invitation-token" });
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.shopsQuery, { planIdVersion: 2 });
   });
 
   it("同じ未確認メールがClerk Userにあれば再作成せず、確認コード送信を再開する", async () => {
@@ -280,7 +281,7 @@ describe("ManagerInvitationAcceptance controller", () => {
         shopStatus: "active",
         organizationId: "organization-invited",
         organizationName: "招待先組織",
-        organizationPlan: "business",
+        organizationPlan: "pro",
         memberStatus: "active",
       },
     ];

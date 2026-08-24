@@ -16,8 +16,8 @@ import {
 } from ".";
 
 const billing: OrganizationBillingView = {
-  state: "business",
-  currentPlan: "business",
+  state: "pro",
+  currentPlan: "pro",
   isComplimentary: false,
   hasTrialContinuation: false,
   stripeBillingAvailable: true,

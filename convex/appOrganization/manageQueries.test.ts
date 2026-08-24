@@ -43,6 +43,31 @@ describe("appOrganization/manageQueries", () => {
     });
     await expect(
       actor.query(api.appOrganization.manageQueries.getManageOverview, {
+        organizationId: ids.actor.organizationId,
+        planIdVersion: 2,
+      }),
+    ).resolves.toMatchObject({
+      usage: {
+        state: "pro",
+        currentPlan: "pro",
+        peopleUsage: { max: 50 },
+      },
+    });
+    await expect(
+      actor.query(api.appOrganization.manageQueries.getBillingOverview, {
+        organizationId: ids.actor.organizationId,
+        planIdVersion: 2,
+      }),
+    ).resolves.toMatchObject({
+      billing: {
+        state: "pro",
+        currentPlan: "pro",
+        isComplimentary: false,
+        peopleUsage: { max: 50 },
+      },
+    });
+    await expect(
+      actor.query(api.appOrganization.manageQueries.getManageOverview, {
         organizationId: ids.foreign.organizationId,
       }),
     ).rejects.toThrow("Not found");

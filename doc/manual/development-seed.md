@@ -56,13 +56,13 @@ localでは、現在の`convex/`を読み込んだlocal Convex serverが動作�
 |---|---|
 | `free-capacity` | Free上限、募集承認を実行できない状態 |
 | `trial-ending` | Trial終了間近、募集承認を実行できる状態 |
-| `pro-operations` | Standard（内部`pro`）、複数店舗、三つの希望提出方式、全募集状態、スタッフのカスタム並び順 |
-| `business-notifications` | Pro（内部`business`）、通知失敗、LINE連携、確定後の差分 |
-| `pro-scheduled-change` | Standard（内部`pro`）の解約予約 |
+| `standard-operations` | Standard、複数店舗、三つの希望提出方式、全募集状態、スタッフのカスタム並び順 |
+| `pro-notifications` | Pro、通知失敗、LINE連携、確定後の差分 |
+| `standard-scheduled-change` | Standardの解約予約 |
 | `payment-pending` | 課金の`pendingActivation` |
 | `payment-grace` | 支払猶予中 |
 | `payment-restricted` | `paymentGraceExpired`による利用制限 |
-| `policy-restricted` | Standard（内部`pro`）の`planLimitExceeded`による利用制限 |
+| `policy-restricted` | Standardの`planLimitExceeded`による利用制限 |
 
 メールアドレスは`example.test`、LINE識別子は架空値を使います。  通知Outbox、fan-out、遅延deadline、cleanup、Stripe処理、scheduled functionは、実行可能な状態で残しません。
 

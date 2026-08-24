@@ -41,7 +41,7 @@ type PriceMarkupOptions = {
 function createPriceMarkup({
   plan,
   currency = "jpy",
-  unitAmount = plan === "business" ? "6000" : "3000",
+  unitAmount = plan === "pro" ? "6000" : "3000",
   interval = "month",
   intervalCount = "1",
   taxBehavior = "inclusive",
@@ -50,12 +50,12 @@ function createPriceMarkup({
   const intervalLabel = { day: "日", week: "週間", month: "か月", year: "年" }[interval] ?? interval;
   const visibleText =
     text ??
-    `${plan === "business" ? "¥6,000" : "¥3,000"}/${intervalCount}${intervalLabel}（${taxBehavior === "inclusive" ? "税込" : "税別"}）`;
+    `${plan === "pro" ? "¥6,000" : "¥3,000"}/${intervalCount}${intervalLabel}（${taxBehavior === "inclusive" ? "税込" : "税別"}）`;
   return `<span data-public-plan-price="${plan}" data-currency="${currency}" data-unit-amount="${unitAmount}" data-interval="${interval}" data-interval-count="${intervalCount}" data-tax-behavior="${taxBehavior}">${visibleText}</span>`;
 }
 
 function createValidPublicPriceHtml(): string {
-  return `<main>${createPriceMarkup({ plan: "pro" })}${createPriceMarkup({ plan: "business" })}</main>`;
+  return `<main>${createPriceMarkup({ plan: "standard" })}${createPriceMarkup({ plan: "pro" })}</main>`;
 }
 
 describe("static build measurement boundary", () => {
@@ -103,35 +103,35 @@ describe("static build public plan price boundary", () => {
   });
 
   it("Develop用の同じ短周期を完全一致で受け入れる", () => {
-    const html = `${createPriceMarkup({ plan: "pro", interval: "day", intervalCount: "2" })}${createPriceMarkup({ plan: "business", interval: "day", intervalCount: "2" })}`;
+    const html = `${createPriceMarkup({ plan: "standard", interval: "day", intervalCount: "2" })}${createPriceMarkup({ plan: "pro", interval: "day", intervalCount: "2" })}`;
     expect(() => assertPublicPlanPriceMarkup("/commercial-transactions", html)).not.toThrow();
   });
 
   it.each([
-    ["欠落", createPriceMarkup({ plan: "pro" })],
-    ["重複", `${createPriceMarkup({ plan: "pro" })}${createPriceMarkup({ plan: "pro" })}`],
+    ["欠落", createPriceMarkup({ plan: "standard" })],
+    ["重複", `${createPriceMarkup({ plan: "standard" })}${createPriceMarkup({ plan: "standard" })}`],
     [
       "対象外plan",
-      `${createPriceMarkup({ plan: "pro" })}${createPriceMarkup({ plan: "enterprise", text: "¥6,000/月（税込）" })}`,
+      `${createPriceMarkup({ plan: "standard" })}${createPriceMarkup({ plan: "enterprise", text: "¥6,000/月（税込）" })}`,
     ],
   ])("公開料金のplanが%sしていれば拒否する", (_caseName, html) => {
     expect(() => assertPublicPlanPriceMarkup("/commercial-transactions", html)).toThrow();
   });
 
   it.each([
-    ["正でない金額", createPriceMarkup({ plan: "pro", unitAmount: "0", text: "¥0/月（税込）" })],
-    ["未対応の周期", createPriceMarkup({ plan: "pro", interval: "quarter" })],
-    ["正でない周期数", createPriceMarkup({ plan: "pro", intervalCount: "0" })],
-    ["不明な税区分", createPriceMarkup({ plan: "pro", taxBehavior: "unspecified" })],
-    ["通貨属性なし", createPriceMarkup({ plan: "pro", currency: "" })],
-  ])("%sを拒否する", (_caseName, invalidProMarkup) => {
-    const html = `${invalidProMarkup}${createPriceMarkup({ plan: "business" })}`;
+    ["正でない金額", createPriceMarkup({ plan: "standard", unitAmount: "0", text: "¥0/月（税込）" })],
+    ["未対応の周期", createPriceMarkup({ plan: "standard", interval: "quarter" })],
+    ["正でない周期数", createPriceMarkup({ plan: "standard", intervalCount: "0" })],
+    ["不明な税区分", createPriceMarkup({ plan: "standard", taxBehavior: "unspecified" })],
+    ["通貨属性なし", createPriceMarkup({ plan: "standard", currency: "" })],
+  ])("%sを拒否する", (_caseName, invalidStandardMarkup) => {
+    const html = `${invalidStandardMarkup}${createPriceMarkup({ plan: "pro" })}`;
     expect(() => assertPublicPlanPriceMarkup("/commercial-transactions", html)).toThrow();
   });
 
   it("2プランで異なる通貨を拒否する", () => {
-    const html = `${createPriceMarkup({ plan: "pro" })}${createPriceMarkup({
-      plan: "business",
+    const html = `${createPriceMarkup({ plan: "standard" })}${createPriceMarkup({
+      plan: "pro",
       currency: "usd",
       text: "USD 60.00/月（税込）",
     })}`;
@@ -141,8 +141,8 @@ describe("static build public plan price boundary", () => {
   });
 
   it("2プランで異なる請求周期を拒否する", () => {
-    const html = `${createPriceMarkup({ plan: "pro" })}${createPriceMarkup({
-      plan: "business",
+    const html = `${createPriceMarkup({ plan: "standard" })}${createPriceMarkup({
+      plan: "pro",
       interval: "year",
     })}`;
     expect(() => assertPublicPlanPriceMarkup("/commercial-transactions", html)).toThrow(
@@ -151,12 +151,12 @@ describe("static build public plan price boundary", () => {
   });
 
   it.each([
-    ["金額", createPriceMarkup({ plan: "pro", text: "¥4,000/1か月（税込）" })],
-    ["請求周期", createPriceMarkup({ plan: "pro", text: "¥3,000/1年（税込）" })],
-    ["税区分", createPriceMarkup({ plan: "pro", text: "¥3,000/1か月（税別）" })],
-    ["余分な料金", createPriceMarkup({ plan: "pro", text: "¥3,000/1か月（税込）＋¥500" })],
-  ])("属性と一致しない表示%sを拒否する", (_caseName, invalidProMarkup) => {
-    const html = `${invalidProMarkup}${createPriceMarkup({ plan: "business" })}`;
+    ["金額", createPriceMarkup({ plan: "standard", text: "¥4,000/1か月（税込）" })],
+    ["請求周期", createPriceMarkup({ plan: "standard", text: "¥3,000/1年（税込）" })],
+    ["税区分", createPriceMarkup({ plan: "standard", text: "¥3,000/1か月（税別）" })],
+    ["余分な料金", createPriceMarkup({ plan: "standard", text: "¥3,000/1か月（税込）＋¥500" })],
+  ])("属性と一致しない表示%sを拒否する", (_caseName, invalidStandardMarkup) => {
+    const html = `${invalidStandardMarkup}${createPriceMarkup({ plan: "pro" })}`;
     expect(() => assertPublicPlanPriceMarkup("/commercial-transactions", html)).toThrow();
   });
 

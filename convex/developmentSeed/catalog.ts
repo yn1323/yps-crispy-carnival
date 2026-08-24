@@ -7,16 +7,16 @@ import type { OrganizationBillingState } from "../organizationBilling/policy";
 export const DEVELOPMENT_SEED_SCENARIO_KEYS = [
   "free-capacity",
   "trial-ending",
-  "pro-operations",
-  "business-notifications",
-  "pro-scheduled-change",
+  "standard-operations",
+  "pro-notifications",
+  "standard-scheduled-change",
   "payment-pending",
   "payment-grace",
   "payment-restricted",
   "policy-restricted",
 ] as const;
 
-export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v1";
+export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v2";
 export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 66;
 
 export type DevelopmentSeedScenarioKey = (typeof DEVELOPMENT_SEED_SCENARIO_KEYS)[number];
@@ -127,7 +127,7 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     organizationName: "[SEED] Free・上限確認",
     shopNames: ["[SEED] Free店舗"],
     shopPatterns: [DATE_ONLY_SUBMISSION_PATTERN],
-    billingState: () => ({ kind: "active", plan: "free" }),
+    billingState: () => ({ kind: "active", planIdVersion: 2, plan: "free" }),
     dataProfile: "capacity",
   },
   {
@@ -135,33 +135,39 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     organizationName: "[SEED] Trial・終了間近",
     shopNames: ["[SEED] Trial店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
-    billingState: (now) => ({ kind: "trial", selectedPaidPlan: "pro", trialEndsAt: now + 3 * DAY_MS }),
+    billingState: (now) => ({
+      kind: "trial",
+      planIdVersion: 2,
+      selectedPaidPlan: "standard",
+      trialEndsAt: now + 3 * DAY_MS,
+    }),
     dataProfile: "operations",
   },
   {
-    key: "pro-operations",
+    key: "standard-operations",
     organizationName: "[SEED] Standard・複数店舗",
     shopNames: ["[SEED] 本店", "[SEED] 駅前店", "[SEED] 商業施設店"],
     shopPatterns: [TIME_SUBMISSION_PATTERN, DATE_ONLY_SUBMISSION_PATTERN, SHIFT_TYPE_SUBMISSION_PATTERN],
-    billingState: () => ({ kind: "active", plan: "pro" }),
+    billingState: () => ({ kind: "active", planIdVersion: 2, plan: "standard" }),
     dataProfile: "operations",
   },
   {
-    key: "business-notifications",
+    key: "pro-notifications",
     organizationName: "[SEED] Pro・通知",
     shopNames: ["[SEED] 通知確認店舗"],
     shopPatterns: [SHIFT_TYPE_SUBMISSION_PATTERN],
-    billingState: () => ({ kind: "complimentary", plan: "business" }),
+    billingState: () => ({ kind: "complimentary", planIdVersion: 2, plan: "pro" }),
     dataProfile: "notifications",
   },
   {
-    key: "pro-scheduled-change",
+    key: "standard-scheduled-change",
     organizationName: "[SEED] Standard・解約予約",
     shopNames: ["[SEED] 解約予約店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
     billingState: (now) => ({
       kind: "scheduledChange",
-      currentPlan: "pro",
+      planIdVersion: 2,
+      currentPlan: "standard",
       targetPlan: "free",
       effectiveAt: now + 14 * DAY_MS,
       restrictAtPeriodEnd: true,
@@ -173,7 +179,13 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     organizationName: "[SEED] 支払反映待ち",
     shopNames: ["[SEED] 支払反映待ち店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
-    billingState: (now) => ({ kind: "pendingActivation", plan: "pro", fallback: "free", startedAt: now - DAY_MS }),
+    billingState: (now) => ({
+      kind: "pendingActivation",
+      planIdVersion: 2,
+      plan: "standard",
+      fallback: "free",
+      startedAt: now - DAY_MS,
+    }),
     dataProfile: "billingOnly",
   },
   {
@@ -181,7 +193,13 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     organizationName: "[SEED] 支払猶予中",
     shopNames: ["[SEED] 支払猶予店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
-    billingState: (now) => ({ kind: "grace", plan: "pro", startedAt: now - 7 * DAY_MS, endsAt: now + 7 * DAY_MS }),
+    billingState: (now) => ({
+      kind: "grace",
+      planIdVersion: 2,
+      plan: "standard",
+      startedAt: now - 7 * DAY_MS,
+      endsAt: now + 7 * DAY_MS,
+    }),
     dataProfile: "billingOnly",
   },
   {
@@ -189,7 +207,7 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     organizationName: "[SEED] Free・上限超過",
     shopNames: ["[SEED] Free上限超過店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
-    billingState: () => ({ kind: "active", plan: "free" }),
+    billingState: () => ({ kind: "active", planIdVersion: 2, plan: "free" }),
     dataProfile: "capacity",
   },
   {
@@ -197,7 +215,7 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     organizationName: "[SEED] Standard・上限超過",
     shopNames: ["[SEED] Standard上限超過店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
-    billingState: () => ({ kind: "active", plan: "pro" }),
+    billingState: () => ({ kind: "active", planIdVersion: 2, plan: "standard" }),
     dataProfile: "billingOnly",
   },
 ] as const satisfies readonly DevelopmentSeedScenario[];
@@ -216,9 +234,9 @@ type CoverageDisposition =
     };
 
 const ALL = DEVELOPMENT_SEED_SCENARIO_KEYS;
-const OPERATIONS = ["free-capacity", "trial-ending", "pro-operations", "business-notifications"] as const;
-const PRO = ["pro-operations"] as const;
-const BUSINESS = ["business-notifications"] as const;
+const OPERATIONS = ["free-capacity", "trial-ending", "standard-operations", "pro-notifications"] as const;
+const STANDARD_OPERATIONS = ["standard-operations"] as const;
+const PRO_NOTIFICATIONS = ["pro-notifications"] as const;
 const empty = (reason: string): CoverageDisposition => ({ kind: "intentionallyEmpty", reason });
 const seeded = (scenarioKeys: readonly DevelopmentSeedScenarioKey[]): CoverageDisposition => ({
   kind: "seeded",
@@ -233,9 +251,9 @@ export const DEVELOPMENT_SEED_TABLE_COVERAGE = {
   shops: seeded(ALL),
   organizations: seeded(ALL),
   organizationPeople: seeded(ALL),
-  organizationStaffOrderStates: seeded(PRO),
-  organizationStaffOrderEntries: seeded(PRO),
-  shopStaffOrderEntries: seeded(PRO),
+  organizationStaffOrderStates: seeded(STANDARD_OPERATIONS),
+  organizationStaffOrderEntries: seeded(STANDARD_OPERATIONS),
+  shopStaffOrderEntries: seeded(STANDARD_OPERATIONS),
   organizationMembers: seeded(ALL),
   organizationInvitations: empty("実credentialとなる招待tokenを作らない"),
   organizationBillingStates: seeded(ALL),
@@ -251,34 +269,34 @@ export const DEVELOPMENT_SEED_TABLE_COVERAGE = {
   users: seeded(ALL),
   shopMembers: empty("canonical organization memberを使用する"),
   featureRequests: empty("開発者の要望投稿を装わない"),
-  dashboardAnnouncements: seeded(PRO),
+  dashboardAnnouncements: seeded(STANDARD_OPERATIONS),
   staffs: seeded(OPERATIONS),
-  staffLineAccounts: seeded(BUSINESS),
-  lineProviderUsers: seeded(BUSINESS),
-  organizationPersonLineLinks: seeded(BUSINESS),
+  staffLineAccounts: seeded(PRO_NOTIFICATIONS),
+  lineProviderUsers: seeded(PRO_NOTIFICATIONS),
+  organizationPersonLineLinks: seeded(PRO_NOTIFICATIONS),
   lineFriendshipFanoutJobs: empty("active LINE workflowを作らない"),
   lineWebhookMessageReceipts: empty("provider Webhook receiptを作らない"),
   shopRegistrationLinks: seeded(["trial-ending"]),
   staffRegistrationRequests: seeded(["free-capacity", "trial-ending"]),
   legalConsentStates: seeded(OPERATIONS),
   recruitments: seeded(OPERATIONS),
-  shiftSubmissionSlots: seeded(["trial-ending", "pro-operations", "business-notifications"]),
-  shiftSubmissionDates: seeded(["free-capacity", "pro-operations"]),
+  shiftSubmissionSlots: seeded(["trial-ending", "standard-operations", "pro-notifications"]),
+  shiftSubmissionDates: seeded(["free-capacity", "standard-operations"]),
   shiftAssignments: seeded(OPERATIONS),
-  shiftConfirmationSnapshots: seeded(BUSINESS),
+  shiftConfirmationSnapshots: seeded(PRO_NOTIFICATIONS),
   shiftSubmissions: seeded(OPERATIONS),
   recruitmentStats: seeded(OPERATIONS),
   positions: seeded(OPERATIONS),
   magicLinks: empty("実credentialとなるmagic linkを作らない"),
   sessions: empty("実credentialとなるstaff sessionを作らない"),
   lineLinkTokens: empty("実credentialとなるLINE OAuth stateを作らない"),
-  lineQuotaStatus: seeded(BUSINESS),
+  lineQuotaStatus: seeded(PRO_NOTIFICATIONS),
   notificationFanoutOperations: empty("active fanoutを作らない"),
-  notificationOutbox: seeded(BUSINESS),
+  notificationOutbox: seeded(PRO_NOTIFICATIONS),
   notificationResendDelayedFailureDeadlines: empty("delayed recovery jobを作らない"),
-  notificationHistory: seeded(BUSINESS),
-  notificationDeliveryEvents: seeded(BUSINESS),
-  notificationFailureInbox: seeded(BUSINESS),
+  notificationHistory: seeded(PRO_NOTIFICATIONS),
+  notificationDeliveryEvents: seeded(PRO_NOTIFICATIONS),
+  notificationFailureInbox: seeded(PRO_NOTIFICATIONS),
   notificationUsage: empty("seed通知は実送信ではないため集計しない"),
   analyticsRuns: empty("nightly analytics workflowを作らない"),
   analyticsSourceEvents: empty("seed操作をproduct eventとして扱わない"),
@@ -314,9 +332,9 @@ type FailureStatus = Doc<"notificationFailureInbox">["status"];
 
 export const DEVELOPMENT_SEED_UNION_COVERAGE = {
   submissionKind: {
-    time: { kind: "seeded", scenarioKeys: ["trial-ending", "pro-operations"] },
-    dateOnly: { kind: "seeded", scenarioKeys: ["free-capacity", "pro-operations"] },
-    shiftType: { kind: "seeded", scenarioKeys: ["pro-operations", "business-notifications"] },
+    time: { kind: "seeded", scenarioKeys: ["trial-ending", "standard-operations"] },
+    dateOnly: { kind: "seeded", scenarioKeys: ["free-capacity", "standard-operations"] },
+    shiftType: { kind: "seeded", scenarioKeys: ["standard-operations", "pro-notifications"] },
   } satisfies Record<SubmissionKind, UnionCoverageDisposition>,
   billingKind: {
     trial: { kind: "seeded", scenarioKeys: ["trial-ending"] },
@@ -324,10 +342,10 @@ export const DEVELOPMENT_SEED_UNION_COVERAGE = {
     pendingActivation: { kind: "seeded", scenarioKeys: ["payment-pending"] },
     active: {
       kind: "seeded",
-      scenarioKeys: ["free-capacity", "pro-operations", "payment-restricted", "policy-restricted"],
+      scenarioKeys: ["free-capacity", "standard-operations", "payment-restricted", "policy-restricted"],
     },
-    complimentary: { kind: "seeded", scenarioKeys: ["business-notifications"] },
-    scheduledChange: { kind: "seeded", scenarioKeys: ["pro-scheduled-change"] },
+    complimentary: { kind: "seeded", scenarioKeys: ["pro-notifications"] },
+    scheduledChange: { kind: "seeded", scenarioKeys: ["standard-scheduled-change"] },
     grace: { kind: "seeded", scenarioKeys: ["payment-grace"] },
     restricted: { kind: "intentionallyEmpty", reason: "旧データmigration互換だけで、新しいseedからは作らない" },
   } satisfies Record<BillingKind, UnionCoverageDisposition>,
@@ -337,7 +355,7 @@ export const DEVELOPMENT_SEED_UNION_COVERAGE = {
   } satisfies Record<RecruitmentStatus, UnionCoverageDisposition>,
   memberStatus: {
     active: { kind: "seeded", scenarioKeys: ALL },
-    readOnly: { kind: "seeded", scenarioKeys: PRO },
+    readOnly: { kind: "seeded", scenarioKeys: STANDARD_OPERATIONS },
     removed: { kind: "intentionallyEmpty", reason: "現行画面ではactive/readOnlyを代表状態にする" },
   } satisfies Record<MemberStatus, UnionCoverageDisposition>,
   registrationStatus: {
@@ -348,14 +366,14 @@ export const DEVELOPMENT_SEED_UNION_COVERAGE = {
   outboxStatus: {
     pending: { kind: "intentionallyEmpty", reason: "active deliveryを禁止する" },
     processing: { kind: "intentionallyEmpty", reason: "active deliveryを禁止する" },
-    sent: { kind: "seeded", scenarioKeys: BUSINESS },
-    failed: { kind: "seeded", scenarioKeys: BUSINESS },
+    sent: { kind: "seeded", scenarioKeys: PRO_NOTIFICATIONS },
+    failed: { kind: "seeded", scenarioKeys: PRO_NOTIFICATIONS },
     cancelled: { kind: "intentionallyEmpty", reason: "sent/failedを代表terminal状態にする" },
   } satisfies Record<OutboxStatus, UnionCoverageDisposition>,
   failureStatus: {
-    open: { kind: "seeded", scenarioKeys: BUSINESS },
+    open: { kind: "seeded", scenarioKeys: PRO_NOTIFICATIONS },
     retrying: { kind: "intentionallyEmpty", reason: "active retryを禁止する" },
-    resolved: { kind: "seeded", scenarioKeys: BUSINESS },
+    resolved: { kind: "seeded", scenarioKeys: PRO_NOTIFICATIONS },
   } satisfies Record<FailureStatus, UnionCoverageDisposition>,
 };
 

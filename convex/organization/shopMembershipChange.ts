@@ -13,7 +13,7 @@ export type OrganizationPersonShopMembershipSnapshotEntry = {
 /** 店舗軸の所属変更で一度に表示する人物数。 */
 export const ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT = 100;
 /** 店舗軸の所属変更で一度に追加・解除できる人物数。 */
-export const ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT = ORGANIZATION_PLAN_LIMITS.business.maxPeople;
+export const ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT = ORGANIZATION_PLAN_LIMITS.pro.maxPeople;
 
 export type OrganizationShopStaffMembershipFingerprintInput = {
   shopId: Id<"shops">;

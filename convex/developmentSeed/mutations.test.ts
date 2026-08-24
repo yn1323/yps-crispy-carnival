@@ -2,6 +2,7 @@ import { type FunctionReference, makeFunctionReference } from "convex/server";
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { modules, schema } from "../_test/setup.test-helper";
+import { DEVELOPMENT_SEED_CONTRACT_FINGERPRINT } from "./catalog";
 
 type PreflightResult = {
   contractVersion: string;
@@ -111,16 +112,16 @@ describe("development seed internal mutations", () => {
     configureDevelopmentSeed();
 
     await expect(t.mutation(preflightRef, {})).resolves.toEqual({
-      contractVersion: "development-seed-v1",
-      contractFingerprint: "b005d0bb",
+      contractVersion: "development-seed-v2",
+      contractFingerprint: DEVELOPMENT_SEED_CONTRACT_FINGERPRINT,
       deploymentUrl: "https://seed-development.convex.cloud",
       today: "2026-08-20",
       scenarioKeys: [
         "free-capacity",
         "trial-ending",
-        "pro-operations",
-        "business-notifications",
-        "pro-scheduled-change",
+        "standard-operations",
+        "pro-notifications",
+        "standard-scheduled-change",
         "payment-pending",
         "payment-grace",
         "payment-restricted",

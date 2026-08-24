@@ -17,6 +17,7 @@ import {
   ManagerSettingsSkeleton,
 } from "@/src/components/features/ManagerSettings";
 import {
+  type OrganizationBillingView,
   OrganizationDeletionSection,
   type OrganizationShopView,
   OrganizationUsageSection,
@@ -33,7 +34,10 @@ import { OrganizationDeletionDialog } from "@/src/components/features/Organizati
 import { useOrganizationDeletionController } from "@/src/components/features/OrganizationSettings/OrganizationDeletion/useOrganizationDeletionController";
 import { OrganizationNameDialog } from "@/src/components/features/OrganizationSettings/OrganizationName/OrganizationNameDialog";
 import { useOrganizationNameController } from "@/src/components/features/OrganizationSettings/OrganizationName/useOrganizationNameController";
-import { OrganizationUsageSectionSkeleton } from "@/src/components/features/OrganizationSettings/OrganizationUsageSection";
+import {
+  OrganizationUsageSectionSkeleton,
+  type OrganizationUsageSummary,
+} from "@/src/components/features/OrganizationSettings/OrganizationUsageSection";
 import { ShopManagementDialog } from "@/src/components/features/OrganizationSettings/ShopManagement/ShopManagementDialog";
 import { useShopManagementController } from "@/src/components/features/OrganizationSettings/ShopManagement/useShopManagementController";
 import { DeletionActionSectionSkeleton } from "@/src/components/shared/DeletionActionSection";
@@ -47,6 +51,37 @@ import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 
 const SHOP_PAGE_SIZE = 20;
 
+type ManageOverview = FunctionReturnType<typeof api.appOrganization.manageQueries.getManageOverview>;
+type BillingOverview = FunctionReturnType<typeof api.appOrganization.manageQueries.getBillingOverview>;
+
+function assertNoLegacyBusinessPlan(view: {
+  state: string;
+  currentPlan: string | null;
+  targetPlan?: string;
+  limitPlan?: string;
+  previousPlan?: string;
+}) {
+  if (
+    view.state === "business" ||
+    view.currentPlan === "business" ||
+    view.targetPlan === "business" ||
+    view.limitPlan === "business" ||
+    view.previousPlan === "business"
+  ) {
+    throw new Error("canonical_plan_id_response_required");
+  }
+}
+
+function toCanonicalManageUsage(usage: ManageOverview["usage"]): OrganizationUsageSummary {
+  assertNoLegacyBusinessPlan(usage);
+  return usage as OrganizationUsageSummary;
+}
+
+function toCanonicalBillingView(billing: BillingOverview["billing"]): OrganizationBillingView {
+  assertNoLegacyBusinessPlan(billing);
+  return billing as OrganizationBillingView;
+}
+
 type OrganizationScopeProps = {
   organizationId: Id<"organizations">;
   memberStatus: "active" | "readOnly";
@@ -58,7 +93,7 @@ export function AppManageRoutePage(props: OrganizationScopeProps) {
 
 function ConnectedManagePage({ organizationId, memberStatus }: OrganizationScopeProps) {
   const navigate = useNavigate();
-  const overview = useQuery(api.appOrganization.manageQueries.getManageOverview, { organizationId });
+  const overview = useQuery(api.appOrganization.manageQueries.getManageOverview, { organizationId, planIdVersion: 2 });
   const shops = usePaginatedQuery(
     api.appOrganization.manageQueries.listOrganizationShops,
     { organizationId, status: "all" },
@@ -68,19 +103,20 @@ function ConnectedManagePage({ organizationId, memberStatus }: OrganizationScope
   if (overview === undefined || shops.status === "LoadingFirstPage") return <ManagePageSkeleton />;
 
   const shopRows = toOrganizationShopViews(shops.results);
+  const usage = toCanonicalManageUsage(overview.usage);
   return (
     <Animation>
       <Stack as="main" gap={{ base: 6, lg: 8 }}>
         <AppManageHeader />
         <AppManageReadOnlyNotice memberStatus={memberStatus} />
         <Stack gap={4}>
-          <OrganizationUsageSection billing={overview.usage} showCurrentPlan />
+          <OrganizationUsageSection billing={usage} showCurrentPlan />
           <OrganizationManagementSection
             organizationId={organizationId}
             organizationName={overview.organizationName}
-            managerCount={overview.usage.managerUsage.current}
-            pendingManagerCount={overview.usage.managerUsage.pendingInvitations}
-            billingState={overview.usage.state}
+            managerCount={usage.managerUsage.current}
+            pendingManagerCount={usage.managerUsage.pendingInvitations ?? 0}
+            billingState={usage.state}
             canCreateOrganization={overview.capabilities.canCreateOrganization}
             createOrganizationDisabledReason={overview.capabilities.createOrganizationDisabledReason}
           />
@@ -88,7 +124,7 @@ function ConnectedManagePage({ organizationId, memberStatus }: OrganizationScope
         <ManageShopsSection
           organizationId={organizationId}
           shops={shopRows}
-          shopUsage={overview.usage.shopUsage}
+          shopUsage={usage.shopUsage}
           canAddShop={overview.capabilities.canAddShop}
           addShopDisabledReason={overview.capabilities.addShopDisabledReason}
           canLoadMore={shops.status === "CanLoadMore" || shops.status === "LoadingMore"}
@@ -286,8 +322,11 @@ export function AppManageOrganizationRoutePage(props: OrganizationScopeProps) {
 }
 
 function ConnectedOrganizationPage({ organizationId, memberStatus }: OrganizationScopeProps) {
-  const overview = useQuery(api.appOrganization.manageQueries.getManageOverview, { organizationId });
-  const billingOverview = useQuery(api.appOrganization.manageQueries.getBillingOverview, { organizationId });
+  const overview = useQuery(api.appOrganization.manageQueries.getManageOverview, { organizationId, planIdVersion: 2 });
+  const billingOverview = useQuery(api.appOrganization.manageQueries.getBillingOverview, {
+    organizationId,
+    planIdVersion: 2,
+  });
   if (overview === undefined || billingOverview === undefined) return <OrganizationDetailSkeleton />;
 
   return (
@@ -295,7 +334,7 @@ function ConnectedOrganizationPage({ organizationId, memberStatus }: Organizatio
       organizationId={organizationId}
       memberStatus={memberStatus}
       overview={overview}
-      billing={billingOverview.billing}
+      billing={toCanonicalBillingView(billingOverview.billing)}
     />
   );
 }
@@ -307,7 +346,7 @@ function ReadyOrganizationPage({
   billing,
 }: OrganizationScopeProps & {
   overview: FunctionReturnType<typeof api.appOrganization.manageQueries.getManageOverview>;
-  billing: FunctionReturnType<typeof api.appOrganization.manageQueries.getBillingOverview>["billing"];
+  billing: OrganizationBillingView;
 }) {
   const router = useRouter();
 
@@ -521,7 +560,7 @@ function ConnectedBillingPage({
   stripeResult,
   onStripeResultHandled,
 }: BillingRouteProps) {
-  const overview = useQuery(api.appOrganization.manageQueries.getBillingOverview, { organizationId });
+  const overview = useQuery(api.appOrganization.manageQueries.getBillingOverview, { organizationId, planIdVersion: 2 });
   if (overview === undefined) return <AppManageBillingPageSkeleton />;
 
   return (
@@ -545,12 +584,13 @@ function ReadyBillingPage({
   overview: FunctionReturnType<typeof api.appOrganization.manageQueries.getBillingOverview>;
 }) {
   const router = useRouter();
+  const billing = toCanonicalBillingView(overview.billing);
 
-  const billingEmail = useBillingSettingsController({ organizationId, billing: overview.billing });
+  const billingEmail = useBillingSettingsController({ organizationId, billing });
   const stripe = useStripeBillingController({
     organizationId,
     organizationName: overview.organizationName,
-    billing: overview.billing,
+    billing,
     canManagePendingCheckout: memberStatus === "active",
     stripeResult,
     onStripeResultHandled,
@@ -566,9 +606,9 @@ function ReadyBillingPage({
           backAriaLabel="前の画面へ戻る"
         />
         <AppManageReadOnlyNotice memberStatus={memberStatus} />
-        <OrganizationUsageSection billing={overview.billing} />
+        <OrganizationUsageSection billing={billing} />
         <PlanAndPaymentSection
-          billing={overview.billing}
+          billing={billing}
           planPrices={stripe.planPrices}
           onManagePlan={stripe.managePlan}
           onRetryPlanPrice={stripe.retryPlanPrice}
@@ -913,8 +953,8 @@ function billingStateLabel(state: string) {
   const labels: Record<string, string> = {
     trial: organizationPlanLabel("trial"),
     free: `${organizationPlanLabel("free")}プラン`,
+    standard: `${organizationPlanLabel("standard")}プラン`,
     pro: `${organizationPlanLabel("pro")}プラン`,
-    business: `${organizationPlanLabel("business")}プラン`,
     grace: "支払い猶予中",
     restricted: "契約制限中",
     scheduledChange: "プラン変更予定",
