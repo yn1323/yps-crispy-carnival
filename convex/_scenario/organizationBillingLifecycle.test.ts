@@ -866,7 +866,7 @@ describe("事業者課金ライフサイクル", () => {
     expect(settings?.canAddShop).toBe(false);
   });
 
-  it("料金なしのBusinessは40人5店舗まで利用でき、Stripeデータと課金通知を作らない", async () => {
+  it("料金なしのBusinessは50人5店舗まで利用でき、Stripeデータと課金通知を作らない", async () => {
     // 検証対象は支払い不要Businessの上限であり、ダークローンチの公開状態ではない。
     vi.stubEnv("FEATURE_SHOP_ADDITION", "enabled");
     const t = convexTest(schema, modules);
@@ -875,7 +875,7 @@ describe("事業者課金ライフサイクル", () => {
         subject: "complimentary_business_limits",
         complimentary: true,
       });
-      for (let index = 1; index < 40; index += 1) {
+      for (let index = 1; index < 50; index += 1) {
         await addStaffPerson(ctx, seeded.organizationId, seeded.shopId, `complimentary_business_staff_${index}`);
       }
       const billingState = await ctx.db
@@ -906,7 +906,7 @@ describe("事業者課金ライフサイクル", () => {
         state: "business",
         currentPlan: "business",
         isComplimentary: true,
-        peopleUsage: { current: 40, max: 40 },
+        peopleUsage: { current: 50, max: 50 },
         shopUsage: { current: 5, max: 5 },
         canManagePlan: false,
         canUpdatePaymentMethod: false,

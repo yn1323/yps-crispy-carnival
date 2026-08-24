@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { classifyPeopleCapacityError, resolvePeopleCapacityLimit } from "./peopleCapacity";
 
 describe("classifyPeopleCapacityError", () => {
-  it("Proの30名上限は問い合わせとして現在の利用状況を保持する", () => {
-    expect(classifyPeopleCapacityError("利用人数が現在のプラン上限を超えます。\n現在30名、上限30名です。")).toEqual({
-      kind: "contact",
-      current: 30,
-      max: 30,
+  it("支払い不要Businessの50名上限は上限到達として現在の利用状況を保持する", () => {
+    expect(classifyPeopleCapacityError("利用人数が現在のプラン上限を超えます。\n現在50名、上限50名です。")).toEqual({
+      kind: "limitReached",
+      current: 50,
+      max: 50,
     });
   });
 

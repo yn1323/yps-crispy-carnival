@@ -49,15 +49,15 @@ export const ChoosePro: Story = {
 };
 
 export const ContactForIndividualPlan: Story = {
+  name: "Limit reached",
   args: {
-    resolution: { kind: "contact", current: 30, max: 30 },
+    resolution: { kind: "limitReached", current: 50, max: 50 },
     retryActionLabel: "申請を承認",
   },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByRole("link", { name: "利用上限について問い合わせる" })).toHaveAttribute(
-      "href",
-      "/contact",
-    );
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("このプランでは、これ以上利用者を追加できません。", { exact: false })).toBeVisible();
+    await expect(canvas.queryByRole("link")).not.toBeInTheDocument();
   },
 };
 

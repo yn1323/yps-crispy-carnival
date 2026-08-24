@@ -44,14 +44,14 @@ beforeEach(() => {
 
 describe("useStaffInvitation", () => {
   it("利用人数上限エラーを解決導線へ変換し、自動で再追加しない", async () => {
-    mocks.addStaffs.mockRejectedValue(new Error("利用人数が現在のプラン上限を超えます。\n現在30名、上限30名です。"));
+    mocks.addStaffs.mockRejectedValue(new Error("利用人数が現在のプラン上限を超えます。\n現在50名、上限50名です。"));
     const { result } = renderHook(() => useStaffInvitation(false, true));
 
     await act(async () => {
-      await result.current.onAddStaffs({ entries: [{ name: "31人目", email: "staff31@example.com" }] });
+      await result.current.onAddStaffs({ entries: [{ name: "51人目", email: "staff51@example.com" }] });
     });
 
-    expect(result.current.peopleCapacityResolution).toEqual({ kind: "contact", current: 30, max: 30 });
+    expect(result.current.peopleCapacityResolution).toEqual({ kind: "limitReached", current: 50, max: 50 });
     expect(mocks.addStaffs).toHaveBeenCalledOnce();
     expect(mocks.showErrorToast).not.toHaveBeenCalled();
   });

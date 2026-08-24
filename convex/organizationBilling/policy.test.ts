@@ -145,7 +145,7 @@ describe("organizationBilling/policy capabilities", () => {
     });
   });
 
-  it("無償BusinessはBusinessの上限と有料機能を期限なしで利用できる", () => {
+  it("無償Businessは50人の専用上限と有料機能を期限なしで利用できる", () => {
     const state = { kind: "complimentary", plan: "business" } as const;
 
     expect(deriveOrganizationBillingPolicy(state)).toEqual({
@@ -153,7 +153,7 @@ describe("organizationBilling/policy capabilities", () => {
       entitlementPlan: "business",
       displayPlan: "business",
       targetingPlan: "business",
-      limits: ORGANIZATION_PLAN_LIMITS.business,
+      limits: { maxPeople: 50, maxActiveShops: 5, maxActiveManagers: 5 },
       canReadExistingData: true,
       canWriteBusinessData: true,
       businessWriteBlockReason: null,

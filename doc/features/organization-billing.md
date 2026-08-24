@@ -103,7 +103,7 @@ Stripe設定、migration確認、障害対応は[グループ課金の運用](..
 | Free | 5 | 1 | 1 | なし |
 | Pro | 20 | 5 | 5 | あり |
 | Business | 40 | 5 | 5 | あり |
-| 支払い不要Business | 40 | 5 | 5 | 作成しない |
+| 支払い不要Business | 50 | 5 | 5 | 作成しない |
 
 Trialの利用権限はProと同じである。
 利用人数はグループ内の人物を一度だけ数え、複数店舗所属やスタッフ兼管理者で重複させない。
@@ -157,7 +157,7 @@ Trialの利用権限はProと同じである。
 ## 支払い不要Business
 
 初回セットアップで作るグループは`complimentary.business`として開始する。
-期限と利用料金はなく、Businessの40名、5店舗、管理者5名を利用できる。
+期限と利用料金はなく、利用人数50名、5店舗、管理者5名までBusinessの機能を利用できる。
 
 支払い不要Businessでは、Stripe Customer、Subscription、Checkout Session、Portal Session、Invoice、Subscription Schedule、課金operation、課金通知を作らない。
 公開API、管理処理、Stripeイベント、再同期処理から通常課金や別状態へ変更しない。

@@ -8,6 +8,11 @@ export type PeopleCapacityResolution =
       kind: "contact";
       current: number;
       max: number;
+    }
+  | {
+      kind: "limitReached";
+      current: number;
+      max: number;
     };
 
 const PEOPLE_CAPACITY_ERROR_PREFIX = "利用人数が現在のプラン上限を超えます";
@@ -33,5 +38,6 @@ export function classifyPeopleCapacityError(message: string | undefined): People
 export function resolvePeopleCapacityLimit(current: number, max: number): PeopleCapacityResolution {
   // 旧Free上限のerrorが段階的なbackend更新中に返っても、BusinessではなくProへ案内する。
   if (max === 4 || max === 5) return { kind: "choosePaidPlan", current, max };
+  if (max === 50) return { kind: "limitReached", current, max };
   return { kind: "contact", current, max };
 }

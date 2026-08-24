@@ -818,7 +818,7 @@ describe("organization/queries.getSettings", () => {
         currentPlan: "business",
         isComplimentary: true,
         hasTrialContinuation: false,
-        peopleUsage: { current: 1, max: 40, pendingInvitations: 0 },
+        peopleUsage: { current: 1, max: 50, pendingInvitations: 0 },
         shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
         managerUsage: { current: 1, max: 5, pendingInvitations: 0 },
         canManagePlan: false,
