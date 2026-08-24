@@ -33,6 +33,7 @@ import {
   SHIFT_RECRUITMENT_NOTIFICATION_KIND,
 } from "../notificationOutbox/historyKinds";
 import { ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT } from "../organization/shopMembershipChange";
+import { ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT } from "../organization/staffOrder";
 import { ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/policy";
 
 function dateFromToday(daysFromNow: number): string {
@@ -301,7 +302,7 @@ describe("staff/mutations", () => {
           activatedAt: now,
           updatedAt: now,
         });
-        for (let displayOrder = 0; displayOrder <= 40; displayOrder += 1) {
+        for (let displayOrder = 0; displayOrder <= ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT; displayOrder += 1) {
           await ctx.db.insert("organizationStaffOrderEntries", {
             organizationId: seeded.organizationId,
             organizationPersonId: seeded.personId,
@@ -3782,15 +3783,61 @@ describe("staff/mutations", () => {
       });
     });
 
-    it("一度に41名を変更しようとした場合は全追加を拒否する", async () => {
+    it("最上位プランの利用人数上限ちょうどまで一度に追加できる", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "shop_staff_membership_target_boundary_actor",
+          plan: "business",
+        });
+        const personIds: Id<"organizationPeople">[] = [base.personId];
+        for (let index = 1; index < ORGANIZATION_PLAN_LIMITS.business.maxPeople; index += 1) {
+          personIds.push(
+            await seedMembershipChangePerson(ctx, {
+              organizationId: base.organizationId,
+              name: `一括変更境界${index}`,
+              email: `shop-staff-membership-target-boundary-${index}@example.com`,
+            }),
+          );
+        }
+        return { ...base, personIds };
+      });
+      const subject = "shop_staff_membership_target_boundary_actor";
+      const snapshot = await getShopStaffMembershipChange(t, { subject, shopId: ids.shopId });
+
+      await expect(
+        t.withIdentity({ subject }).mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          shopId: ids.shopId,
+          desiredActivePersonIds: ids.personIds,
+          expectedMembershipFingerprint: snapshot.membershipFingerprint,
+          removalPreviews: [],
+          requestId: "shop-staff-membership-target-boundary-request",
+        }),
+      ).resolves.toEqual({
+        changed: true,
+        addedPersonIds: [...ids.personIds].sort((left, right) => left.localeCompare(right)),
+        removedPersonIds: [],
+      });
+
+      const staffs = await t.run(
+        async (ctx) =>
+          await ctx.db
+            .query("staffs")
+            .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", ids.shopId).eq("isDeleted", false))
+            .collect(),
+      );
+      expect(staffs).toHaveLength(ORGANIZATION_PLAN_LIMITS.business.maxPeople);
+    });
+
+    it("最上位プランの利用人数上限を1名超える一括変更は全追加を拒否する", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
           subject: "shop_staff_membership_target_limit_actor",
           plan: "business",
         });
-        const personIds: Id<"organizationPeople">[] = [];
-        for (let index = 0; index <= ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT; index += 1) {
+        const personIds: Id<"organizationPeople">[] = [base.personId];
+        for (let index = 0; index < ORGANIZATION_PLAN_LIMITS.business.maxPeople; index += 1) {
           personIds.push(
             await seedMembershipChangePerson(ctx, {
               organizationId: base.organizationId,

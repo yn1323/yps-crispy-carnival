@@ -530,10 +530,57 @@ describe("AppStaffRoutePage", () => {
     expect(orderHandle.title).toBe("契約状態を復旧してから並び順を変更できます。");
   });
 
-  it("50名超過または件数overflowでは並び替えハンドルを無効にする", () => {
+  it("50名ちょうどなら並び替えハンドルを有効にする", () => {
+    allPeopleResult = Array.from({ length: 50 }, (_, index) => ({
+      id: `person-all-${index + 1}`,
+      name: `全体の人物${index + 1}`,
+    }));
+    orderEditorResult = {
+      ...orderEditorResult,
+      people: allPeopleResult.map((person) => ({
+        personId: person.id,
+        name: person.name,
+        email: `${person.id}@example.com`,
+        shopNames: ["本店"],
+      })),
+    };
+    summaryResult = {
+      ...summaryResult,
+      totalCount: 50,
+      totalCountHasOverflow: false,
+      canChangeStaffOrder: true,
+    };
+
+    renderPage(
+      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,
+    );
+
+    const orderHandle = screen.getByRole("button", { name: "全体の人物1の並び替え" }) as HTMLButtonElement;
+    expect(orderHandle.disabled).toBe(false);
+    expect(orderHandle.title).toBe("");
+  });
+
+  it("51名では並び替えハンドルを無効にする", () => {
     summaryResult = {
       ...summaryResult,
       totalCount: 51,
+      totalCountHasOverflow: false,
+      canChangeStaffOrder: true,
+    };
+
+    renderPage(
+      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,
+    );
+
+    const orderHandle = screen.getByRole("button", { name: "全体の人物1の並び替え" }) as HTMLButtonElement;
+    expect(orderHandle.disabled).toBe(true);
+    expect(orderHandle.title).toBe("利用人数が50名を超えているため、並び順を変更できません。");
+  });
+
+  it("件数overflowでは並び替えハンドルを無効にする", () => {
+    summaryResult = {
+      ...summaryResult,
+      totalCount: 50,
       totalCountHasOverflow: true,
       canChangeStaffOrder: true,
     };

@@ -131,7 +131,8 @@ function ConnectedAppStaff({
   const isReadOnly = memberStatus === "readOnly";
   const canAddStaff = !isReadOnly && summary?.canAddStaff === true && shops.length > 0;
   const hasEnoughPeopleToReorder = (summary?.totalCount ?? 0) >= 2;
-  const hasTooManyPeopleToReorder = summary?.totalCountHasOverflow === true || (summary?.totalCount ?? 0) > 40;
+  const hasTooManyPeopleToReorder =
+    summary?.totalCountHasOverflow === true || (summary?.totalCount ?? 0) > STAFF_ORDER_PEOPLE_LIMIT;
   const hasTooManyActiveShopsToReorder = activeShops.length > 5;
   const orderedEditorPersonIds =
     staffOrderEditor?.availability === "ready"
