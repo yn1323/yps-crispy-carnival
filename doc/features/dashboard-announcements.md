@@ -29,7 +29,7 @@
 
 | API | 種別 | 用途 |
 |---|---|---|
-| `api.dashboard.queries.getActiveDashboardAnnouncementsV2` | query | `isPublished: true` かつ `isDeleted: false` の最新候補を最大100件返す |
+| `api.dashboard.queries.getActiveDashboardAnnouncementsV2` | query | `isPublished: true` かつ `isDeleted: false` の最新候補を最大100件返す。`planIdVersion: 2`ではcanonical ID、未指定では旧フロント向けIDを返す |
 | `api.dashboard.queries.getActiveDashboardAnnouncements` | query | deploy互換のため、プラン単独指定を除外して直前版フロントへ候補を返す |
 | `api.dashboard.queries.getActiveDashboardAnnouncement` | query | deploy互換のため、対象指定のない最新1件だけを旧フロントへ返す |
 

@@ -984,13 +984,13 @@ export const getActiveDashboardAnnouncements = authenticatedQuery({
 
 // 対象値は表示制御用であり、認可境界ではない。本文は全認証ユーザーへ返るため機密情報を登録しない。
 export const getActiveDashboardAnnouncementsV2 = authenticatedQuery({
-  args: {},
+  args: { planIdVersion: v.optional(planIdVersionValidator) },
   returns: v.array(dashboardAnnouncementValidator),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     if (!ctx.identity || ctx.user?.isDeleted) return [];
 
     const announcements = await getActiveDashboardAnnouncementCandidates(ctx.db);
-    return announcements.map((announcement) => toDashboardAnnouncement(announcement, 2));
+    return announcements.map((announcement) => toDashboardAnnouncement(announcement, args.planIdVersion));
   },
 });
 

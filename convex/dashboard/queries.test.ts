@@ -1399,7 +1399,7 @@ describe("dashboard/queries", () => {
       expect(result).toEqual([]);
     });
 
-    it("marker付きcanonical Pro対象はv2へPro、旧queryへBusinessとして返す", async () => {
+    it("marker付きcanonical Pro対象はv2 requestへPro、旧requestと旧queryへBusinessとして返す", async () => {
       const t = convexTest(schema, modules);
       const announcementId = await t.run(
         async (ctx) =>
@@ -1416,8 +1416,11 @@ describe("dashboard/queries", () => {
       );
       const actor = t.withIdentity({ subject: "announcement_canonical_plan_user" });
 
+      await expect(
+        actor.query(api.dashboard.queries.getActiveDashboardAnnouncementsV2, { planIdVersion: 2 }),
+      ).resolves.toEqual([expect.objectContaining({ _id: announcementId, organizationPlan: "pro" })]);
       await expect(actor.query(api.dashboard.queries.getActiveDashboardAnnouncementsV2, {})).resolves.toEqual([
-        expect.objectContaining({ _id: announcementId, organizationPlan: "pro" }),
+        expect.objectContaining({ _id: announcementId, organizationPlan: "business" }),
       ]);
       await expect(actor.query(api.dashboard.queries.getActiveDashboardAnnouncements, {})).resolves.toEqual([
         expect.objectContaining({ _id: announcementId, organizationPlan: "business" }),
@@ -1512,7 +1515,7 @@ describe("dashboard/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "announcement_user" })
-        .query(api.dashboard.queries.getActiveDashboardAnnouncementsV2, {});
+        .query(api.dashboard.queries.getActiveDashboardAnnouncementsV2, { planIdVersion: 2 });
 
       expect(result).toEqual([
         {
