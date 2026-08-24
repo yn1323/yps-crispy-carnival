@@ -117,8 +117,8 @@ Trial、`initialPaymentPending`、`active`、`complimentary`、`scheduledChange`
 
 | プラン・状態 | 利用人数 | 稼働店舗 | 有効管理者 |
 |---|---:|---:|---:|
-| 支払い不要Business／Business | 40 | 5 | 5 |
-| Trial／Pro | 20 | 5 | 5 |
+| Trial／支払い不要Business／Business | 40 | 5 | 5 |
+| Pro | 20 | 5 | 5 |
 | Free | 5 | 1 | 2 |
 
 - 超過する操作（21人目・41人目・6人目管理者・6店舗目）は**確定前に拒否**し、問い合わせ導線と現在の利用状況を表示する。一部だけの保存はしない。

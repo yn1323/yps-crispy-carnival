@@ -31,6 +31,11 @@ const usageWithoutManager = {
   shopUsage: { current: 2, max: 5 },
 } satisfies PlanStatusCardUsage;
 
+const trialUsageWithoutManager = {
+  ...usageWithoutManager,
+  peopleUsage: { current: 12, max: 40 },
+} satisfies PlanStatusCardUsage;
+
 const usageWithManager = {
   ...usageWithoutManager,
   managerUsage: { current: 2, max: 5 },
@@ -226,22 +231,22 @@ export const ScheduledPlanChangeExpanded: Story = {
 
 export const TrialCollapsed: Story = {
   name: "無料トライアル・折りたたみ",
-  args: { data: trial },
+  args: { data: trial, usage: trialUsageWithoutManager },
 };
 
 export const OngoingTrialExpanded: Story = {
   name: "無料トライアル・通常期間",
-  args: { data: ongoingTrial, defaultExpanded: true },
+  args: { data: ongoingTrial, usage: trialUsageWithoutManager, defaultExpanded: true },
 };
 
 export const TrialExpanded: Story = {
   name: "無料トライアル・プラン未選択",
-  args: { data: trial, defaultExpanded: true },
+  args: { data: trial, usage: trialUsageWithoutManager, defaultExpanded: true },
 };
 
 export const TrialWithSelectedPlanExpanded: Story = {
   name: "無料トライアル・Pro選択済み",
-  args: { data: selectedTrial, defaultExpanded: true },
+  args: { data: selectedTrial, usage: trialUsageWithoutManager, defaultExpanded: true },
 };
 
 export const PaymentPendingExpanded: Story = {
@@ -271,7 +276,7 @@ export const RestrictedExpanded: Story = {
 
 export const TrialToggleBehavior: Story = {
   name: "無料トライアル・開閉（操作確認）",
-  args: { data: trial },
+  args: { data: trial, usage: trialUsageWithoutManager },
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -315,7 +320,7 @@ export const PaidExpansionBehavior: Story = {
 
 export const UrgentStateAutoExpansionBehavior: Story = {
   name: "要対応状態への遷移で自動展開（操作確認）",
-  args: { data: trial },
+  args: { data: trial, usage: trialUsageWithoutManager },
   parameters: { screenshot: { skip: true } },
   render: () => <UrgentStateAutoExpansionStory />,
   play: async ({ canvasElement }) => {
@@ -362,7 +367,7 @@ function UrgentStateAutoExpansionStory() {
       </Button>
       <OrganizationPlanStory
         data={isUrgent ? trial : ongoingTrial}
-        usage={usageWithoutManager}
+        usage={trialUsageWithoutManager}
         defaultExpanded={isUrgent}
         onAction={noop}
       />

@@ -29,6 +29,17 @@ describe("organizationBilling/notification", () => {
     ]);
   });
 
+  it("初回請求結果待ちはトライアルとは切り離してPro相当の継続を案内する", () => {
+    expect(organizationBillingNotificationCopy("initialPaymentPending")).toEqual({
+      subject: "初回請求の結果を確認しています",
+      heading: "初回請求の結果を確認しています",
+      paragraphs: [
+        "支払い結果を確認しています。\n確認中も、Pro相当の機能を利用できます。",
+        "支払い結果が確定すると、組織設定に反映されます。",
+      ],
+    });
+  });
+
   it("新しい期間末解約は解約後の無料移行として通知する", () => {
     expect(
       organizationBillingNotificationCopy("scheduledChange", undefined, {

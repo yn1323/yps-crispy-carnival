@@ -142,7 +142,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tbody></table></div>
 <p>スタッフはアカウント登録不要で、メール・LINEに届くリンク（magic link）だけで提出・閲覧できる。</p>
 <h2 id="overview-s3">2. 現在の公開範囲</h2>
-<p>repository artifactでは、複数組織、複数店舗、複数管理者（招待）、Stripe課金を常時利用できる。<br>初回登録で作る組織は、カード登録なしでPro相当の3か月Trialを開始する。追加組織はFreeで開始する。</p>
+<p>repository artifactでは、複数組織、複数店舗、複数管理者（招待）、Stripe課金を常時利用できる。<br>初回登録で作る組織は、カード登録なしでBusiness相当の3か月Trialを開始する。追加組織はFreeで開始する。</p>
 <p>機能ごとの公開環境変数は使わない。画面は組織作成、店舗追加、管理者、プランと支払いの導線を常時表示し、操作可否は認証・認可、所属状態、契約状態、プラン上限、Stripe設定などのサーバー判定に従う。実deploymentへのartifact反映とcanaryはリリース状態の証跡で確認する。</p>
 <p>なお、業務仕様（<code>doc/specs/organization-billing-business-flow.md</code>）に有料機能として挙がる「AIシフトたたき台作成」は、現時点でコード実装がない（仕様先行）。</p>
 <h2 id="overview-s4">3. 機能一覧</h2>
@@ -384,10 +384,10 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 <tr>
 <td>無料体験（Trial、初回登録）</td>
-<td align="right">20名</td>
+<td align="right">40名</td>
 <td align="right">5店舗</td>
 <td align="right">5名</td>
-<td>Pro相当。期間は開始から3か月（終了は該当日0:00 JST）</td>
+<td>Business相当。期間は開始から3か月（終了は該当日0:00 JST）</td>
 </tr>
 <tr>
 <td>Free（追加組織）</td>
@@ -1505,7 +1505,7 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </thead>
 <tbody><tr>
 <td>組織所属0件の認証済み利用者が<code>/dashboard</code>の初回Setupを実行</td>
-<td>最初の組織・店舗・人物・管理者本人・店舗スタッフを一度に作成。課金状態は<strong>Pro相当の3か月Trial</strong>。Trial期限・課金deadlineを作り、Stripeオブジェクトは作らない</td>
+<td>最初の組織・店舗・人物・管理者本人・店舗スタッフを一度に作成。課金状態は<strong>Business相当の3か月Trial</strong>。Trial期限・課金deadlineを作り、Stripeオブジェクトは作らない</td>
 </tr>
 <tr>
 <td>所属がある利用者が初回Setupを試行</td>
@@ -3593,13 +3593,13 @@ footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px s
 </tr>
 </thead>
 <tbody><tr>
-<td>支払い不要Business／Business</td>
+<td>Trial／支払い不要Business／Business</td>
 <td align="right">40</td>
 <td align="right">5</td>
 <td align="right">5</td>
 </tr>
 <tr>
-<td>Trial／Pro</td>
+<td>Pro</td>
 <td align="right">20</td>
 <td align="right">5</td>
 <td align="right">5</td>

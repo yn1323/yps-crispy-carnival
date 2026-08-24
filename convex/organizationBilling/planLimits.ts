@@ -4,24 +4,26 @@ const PRO_PLAN_LIMITS = {
   maxActiveManagers: 5,
 } as const;
 
+const BUSINESS_PLAN_LIMITS = {
+  maxPeople: 40,
+  maxActiveShops: 5,
+  maxActiveManagers: 5,
+} as const;
+
 /**
  * Backend enforcementと画面表示が共有する、browser-safeなプラン上限契約。
  * 上限の適用可否と利用量の判定は、引き続きbackendのbilling policyを正本とする。
  */
 export const ORGANIZATION_PLAN_LIMITS = {
-  // Trialは表示上のライフサイクル名で、利用権限はProと同じ値を参照する。
-  trial: PRO_PLAN_LIMITS,
+  // Trialは表示上のライフサイクル名で、利用権限はBusinessと同じ値を参照する。
+  trial: BUSINESS_PLAN_LIMITS,
   free: {
     maxPeople: 5,
     maxActiveShops: 1,
     maxActiveManagers: 2,
   },
   pro: PRO_PLAN_LIMITS,
-  business: {
-    maxPeople: 40,
-    maxActiveShops: 5,
-    maxActiveManagers: 5,
-  },
+  business: BUSINESS_PLAN_LIMITS,
 } as const;
 
 export type OrganizationPlan = keyof typeof ORGANIZATION_PLAN_LIMITS;

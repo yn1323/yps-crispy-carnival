@@ -47,6 +47,50 @@ async function seedActiveOrphanPeople(
 }
 
 describe("organizationBilling/service access policy", () => {
+  it("TrialはPro上限を超える21名でもBusiness上限として通常writeを許可する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "usage_limit_trial_business",
+        plan: "free",
+      });
+      await seedCountedStaff(ctx, { shopId: base.shopId, count: 20, prefix: "trial-business-staff-" });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, {
+        state: { kind: "trial", trialEndsAt: Date.now() + 60_000 },
+      });
+      return base;
+    });
+
+    const access = await t.run(async (ctx) => await getOrganizationAccessPolicy(ctx, ids.organizationId));
+    expect(access).toMatchObject({
+      accessMode: "normal",
+      canWriteBusinessData: true,
+      billingPolicy: {
+        entitlementPlan: "business",
+        displayPlan: "trial",
+        targetingPlan: "trial",
+      },
+      usageLimitStatus: {
+        kind: "withinLimits",
+        evaluatedPlan: "business",
+        usage: { peopleCount: 21, activeShopCount: 1, activeManagerCount: 1 },
+        limits: { maxPeople: 40, maxActiveShops: 5, maxActiveManagers: 5 },
+      },
+    });
+    await expect(
+      t.run(async (ctx) => await requireOrganizationBusinessWrite(ctx, ids.organizationId)),
+    ).resolves.toMatchObject({
+      entitlementPlan: "business",
+      displayPlan: "trial",
+      targetingPlan: "trial",
+    });
+  });
+
   it("bounded probeで利用人数を確定できない場合は通常writeを閉じ、整理操作を許可する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {

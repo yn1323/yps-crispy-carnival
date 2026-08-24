@@ -54,7 +54,7 @@ export function PricingSection({ prices }: PricingSectionProps) {
             </Text>
           </VStack>
 
-          <ProTrialNotice />
+          <BusinessTrialNotice />
 
           <Grid templateColumns={{ base: "1fr", lg: "1fr 1.08fr 1fr" }} gap={{ base: 6, lg: 8 }} w="full" maxW="1040px">
             {planCards.map((plan) => (
@@ -67,13 +67,13 @@ export function PricingSection({ prices }: PricingSectionProps) {
   );
 }
 
-function ProTrialNotice() {
+function BusinessTrialNotice() {
   const limits = ORGANIZATION_PLAN_LIMITS.trial;
 
   return (
     <Stack
       as="aside"
-      aria-label="Proプランの無料トライアル"
+      aria-label="Businessプランの無料トライアル"
       align="center"
       gap={{ base: 3, md: 4 }}
       w="full"
@@ -107,7 +107,7 @@ function ProTrialNotice() {
         lineHeight="1.4"
         textWrap="balance"
       >
-        Proプランを無料でお試し
+        Businessプランを無料でお試し
       </Text>
       <Flex
         align="center"

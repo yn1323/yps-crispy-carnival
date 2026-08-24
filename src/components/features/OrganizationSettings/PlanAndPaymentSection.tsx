@@ -54,7 +54,7 @@ const STATE_PRESENTATION: Record<
   trial: {
     label: "トライアル",
     status: "info",
-    description: formatPlanLimitsDescription("trial", "、Proと同じ機能を利用できます。"),
+    description: formatPlanLimitsDescription("trial", "、Businessと同じ機能を利用できます。"),
   },
   free: {
     label: "無料",
