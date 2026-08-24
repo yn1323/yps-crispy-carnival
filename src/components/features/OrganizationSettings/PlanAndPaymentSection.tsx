@@ -160,6 +160,11 @@ export const PlanAndPaymentSection = ({
         ? billing.state
         : null);
   const currentPlanPresentation = currentPlan ? STATE_PRESENTATION[currentPlan] : null;
+  const currentPlanDescription = billing.isComplimentary
+    ? `利用人数${billing.peopleUsage.max}名・店舗${billing.shopUsage.max}件・管理者${billing.managerUsage.max}名まで利用できます。`
+    : isPlanState(billing.state)
+      ? currentPlanPresentation?.description
+      : undefined;
   const planSummaryHeading =
     billing.state === "migrationPending" || (billing.state === "pendingActivation" && billing.currentPlan === null)
       ? "現在の利用状態"
@@ -188,7 +193,7 @@ export const PlanAndPaymentSection = ({
           billing={billing}
           currentPlanHeading={planSummaryHeading}
           currentPlanLabel={planSummaryLabel}
-          currentPlanDescription={isPlanState(billing.state) ? currentPlanPresentation?.description : undefined}
+          currentPlanDescription={currentPlanDescription}
           presentation={presentation}
           isServiceStopScheduled={isServiceStopScheduled}
         />
