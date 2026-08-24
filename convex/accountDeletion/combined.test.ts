@@ -145,6 +145,53 @@ describe("所属を含むアカウント削除", () => {
     },
   );
 
+  it("別組織のremoved所属履歴があっても、現在の組織に対応する元管理者所属を選ぶ", async () => {
+    const t = createAccountDeletionTest();
+    await t.run(async (ctx) => {
+      const target = await seedFormerManagerDepartureFixture(ctx, {
+        subject: "former_manager_with_history",
+        email: "former-manager-with-history@example.com",
+        hasStaff: false,
+      });
+      const historicalOrganization = await seedOrganizationManagerShop(ctx, {
+        subject: "former_manager_history_owner",
+        email: "former-manager-history-owner@example.com",
+        shopName: "過去所属店舗",
+        complimentary: true,
+      });
+      const historicalPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: historicalOrganization.organizationId,
+        userId: target.userId,
+        name: "過去所属本人",
+        email: "former-manager-with-history@example.com",
+        emailNormalized: "former-manager-with-history@example.com",
+        status: "removed",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      await ctx.db.insert("organizationMembers", {
+        organizationId: historicalOrganization.organizationId,
+        personId: historicalPersonId,
+        userId: target.userId,
+        status: "removed",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "former_manager_with_history" })
+        .query(api.accountDeletion.queries.getDeletionPreview, { asOfDate: AS_OF_DATE }),
+    ).resolves.toEqual({
+      status: "ready",
+      action: "leaveOrganization",
+      previewFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+      organization: { name: "元管理者店舗事業者", shopCount: 1 },
+      futureAssignmentCount: 0,
+    });
+  });
+
   it("元管理者の所属が重複・不一致、または後任不在なら削除範囲を推測しない", async () => {
     const noSuccessor = createAccountDeletionTest();
     await noSuccessor.run(async (ctx) => {

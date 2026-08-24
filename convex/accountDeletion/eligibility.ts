@@ -211,12 +211,15 @@ async function derivePlanForExistingUser(
   const organizationId = [...organizationIds][0];
   if (!organizationId) return { status: "blocked", reason: "inconsistentAssociation" };
   const activePerson = activePeople[0];
-  const member = activeMembers[0] ?? (removedMembers.length === 1 ? removedMembers[0] : null);
+  const matchingRemovedMembers = removedMembers.filter(
+    (candidate) => candidate.organizationId === organizationId && candidate.personId === activePerson._id,
+  );
+  const member = activeMembers[0] ?? (matchingRemovedMembers.length === 1 ? matchingRemovedMembers[0] : null);
   if (!member) return { status: "blocked", reason: "inconsistentAssociation" };
   const associationKind = member.status === "active" ? "activeManager" : "formerManager";
   if (
     (associationKind === "activeManager" && activeMembers.length !== 1) ||
-    (associationKind === "formerManager" && (activeMembers.length !== 0 || removedMembers.length !== 1))
+    (associationKind === "formerManager" && (activeMembers.length !== 0 || matchingRemovedMembers.length !== 1))
   ) {
     return { status: "blocked", reason: "inconsistentAssociation" };
   }
