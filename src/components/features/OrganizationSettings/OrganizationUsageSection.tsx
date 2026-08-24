@@ -250,12 +250,8 @@ function UsageDivider() {
 }
 
 function getAppliedLimitLabel(billing: OrganizationUsageSummary) {
-  if (billing.state === "restricted") {
-    return billing.limitPlan === "pro"
-      ? "現在はProの上限が適用されています"
-      : billing.limitPlan === "free"
-        ? "現在はFreeの上限が適用されています"
-        : undefined;
+  if (billing.state === "restricted" && billing.limitPlan) {
+    return `現在は${planLabel(billing.limitPlan)}の上限が適用されています`;
   }
 
   return billing.state === "pendingActivation" && billing.currentPlan === null
