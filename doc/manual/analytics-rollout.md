@@ -166,7 +166,7 @@ reset終了後に無効化するのは`ANALYTICS_RESET_ENABLED_UNTIL`だけで�
 
 ```bash
 pnpm exec convex run analytics/reset:dryRun \
-  '{"confirmed":true,"deploymentLabel":"<fully-qualified-deployment>","revision":"<widen-revision>","sourceCaptureStartAt":"<source-capture-start-yyyymmddhhmmss>","calculationVersion":1}' \
+  '{"confirmed":true,"deploymentLabel":"<fully-qualified-deployment>","revision":"<widen-revision>","sourceCaptureStartAt":"<source-capture-start-yyyymmddhhmmss>","calculationVersion":2}' \
   --deployment <fully-qualified-deployment>
 ```
 
@@ -189,7 +189,7 @@ dry runと同じ引数を一字も変えずに`analytics/reset:start`へ渡し�
 
 ```bash
 pnpm exec convex run analytics/reset:start \
-  '{"confirmed":true,"deploymentLabel":"<fully-qualified-deployment>","revision":"<widen-revision>","sourceCaptureStartAt":"<source-capture-start-yyyymmddhhmmss>","calculationVersion":1}' \
+  '{"confirmed":true,"deploymentLabel":"<fully-qualified-deployment>","revision":"<widen-revision>","sourceCaptureStartAt":"<source-capture-start-yyyymmddhhmmss>","calculationVersion":2}' \
   --deployment <fully-qualified-deployment>
 ```
 

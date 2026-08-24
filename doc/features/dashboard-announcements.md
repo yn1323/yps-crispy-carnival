@@ -39,7 +39,8 @@
 {
   "organizationId": "対象組織ID1,対象組織ID2（任意）",
   "shopId": "対象店舗ID1,対象店舗ID2（任意）",
-  "organizationPlan": "business",
+  "organizationPlan": "pro",
+  "planIdVersion": 2,
   "title": "LINE通知の遅延について",
   "bodyHtml": "<p>現在、LINE通知の送信に遅延が発生しています。</p><p>復旧までメール通知をご確認ください。</p>",
   "displayDate": "2026-06-17",
@@ -53,9 +54,9 @@
 - 公開条件は `isPublished: true` と `isDeleted: false` のみ。終了時は `isPublished: false` にする。
 - `organizationId`、`shopId`、`organizationPlan` がすべて未設定なら全体向けとする。既存データも全体向けとして扱う。
 - 対象を複数指定するときは、各フィールドへ半角カンマ区切りで入力する。単一値もそのまま入力でき、値の前後の空白と空要素は無視する。
-- `organizationPlan`には`trial`、`free`、`pro`、`business`を指定できる。大文字と小文字は区別する。
-- 支払い不要Pro相当（`complimentary.business`）は内部`business`へ解決するため、`organizationPlan: "business"`の対象に含める。
-- 旧`complimentary.pro`はm021のMigration Testにだけ残る履歴fixtureであり、現行runtimeの告知対象判定へ渡さない。
+- `organizationPlan`には`trial`、`free`、`standard`、`pro`を指定できる。大文字と小文字は区別する。
+- 支払い不要Pro相当（`complimentary.pro`）は`organizationPlan: "pro"`の対象に含める。
+- plan IDのWiden期間だけ、version markerのない保存済み`pro`と`business`をそれぞれStandardとProとして読み取る。新規保存ではcanonical IDと一時markerを使う。
 - `organizationId`、`shopId`、`organizationPlan` のいずれか一つが選択中のコンテキストと一致すれば表示対象とする。複数フィールドを設定した場合もOR条件になる。
 - 契約プランは課金policyが用途別に導出する`targetingPlan`で判定する。Trialは`trial`、期間末変更予約中は変更前プラン、支払い猶予中は猶予中のプランとして扱う。Freeから有料プランへの支払い結果待ちはFree、StandardからProへの支払い結果待ちはStandardとして扱う。契約制限中で表示対象プランを安全に確定できない場合はプラン指定に一致しない。
 - フィールドを設定したのに有効な値がない場合は全体向けにせず、どの店舗にも表示しない。全体向けにする場合は3フィールド自体を未設定にする。

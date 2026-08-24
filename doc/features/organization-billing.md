@@ -34,7 +34,7 @@ direct routeとpublic mutation/actionは、画面表示とは独立して認証�
 | 利用者・処理主体 | 完了できること | 主な条件 |
 |---|---|---|
 | 有効な管理者 | 組織、店舗、人物、管理者、契約を管理する | 認証済み利用者、`active`所属、対象組織と店舗の一致、契約状態、プラン上限をサーバーで再確認する |
-| 組織所属がない認証済み利用者 | `/dashboard`のSetupから最初の1組織、1店舗、管理者本人を作る | 所属0件をserver-sideで再確認し、`complimentary.business`で作成する |
+| 組織所属がない認証済み利用者 | `/dashboard`のSetupから最初の1組織、1店舗、管理者本人を作る | 所属0件をserver-sideで再確認し、3か月のTrialで作成する |
 | 組織所属がある認証済み利用者 | 上限内で追加のFree組織を作る | 作成者本人、組織数上限、rate limit、`requestId`、参照元店舗の所属をサーバーで再確認する |
 | Stripe Webhookと内部worker | 既存の支払い結果、期間末変更、取消、再試行を検証して課金状態へ反映する | 署名、接続mode、provider objectの対応、version、冪等性を検証する |
 | 運用担当者 | Stripe設定、probe、Narrow deploy前確認、販売停止、Price rotation、復旧を行う | 実環境を一意に特定し、[運用手順](../manual/organization-billing.md)に従って証跡を残す |
@@ -61,7 +61,7 @@ direct routeとpublic mutation/actionは、画面表示とは独立して認証�
 | 店舗（`shops`） | 日常業務で選択する操作対象。必ず一つの組織に属する |
 | 人物（`organizationPeople`） | 組織内の利用人数を数える正本。スタッフ兼管理者でも重複計上しない |
 | 管理者所属（`organizationMembers`） | 管理画面の権限。`active`、復旧専用の`readOnly`、失効済みの`removed`を持つ |
-| 課金状態（`organizationBillingStates`） | Trial、Standard（内部`pro`）、Pro（内部`business`）、Free、支払い不要Pro相当と遷移中の状態を保持する。旧`restricted`はrolling deployのread互換期間だけ受け付ける |
+| 課金状態（`organizationBillingStates`） | Trial、Standard（`standard`）、Pro（`pro`）、Free、支払い不要Pro相当と遷移中の状態を保持する。旧plan IDと旧`restricted`はrolling deployのread互換期間だけ受け付ける |
 | Stripe対応表とoperation | 有料契約のCustomer、Subscription、非同期処理を組織単位で追跡する |
 | 管理者招待（`organizationInvitations`） | メールの受取人へ、管理者アカウントを一回だけ連携できる権限を渡す |
 
@@ -126,11 +126,11 @@ Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側
 - 有料プランの状態変更は、署名済みWebhookまたはStripe APIから再取得した結果だけを`setStateFromVerifiedBilling`へ渡す。
   CheckoutやPortalの戻り先を支払い成功の根拠にしない。
 - Secret keyの接頭辞、Stripe objectの`livemode`、Price、Customer、Subscription、Invoiceの対応を検証する。
-- Standard（内部`pro`）とPro（内部`business`）の金額、通貨、請求周期はStripe Priceを正本とし、コード、環境変数、DBへ周期を複製しない。  新規販売ではactiveなrecurring Priceと正の`interval_count`を要求し、両プランの通貨と請求周期が一致する場合だけProの価格表示、Checkout、プラン間変更を許可する。
+- StandardとProの金額、通貨、請求周期はStripe Priceを正本とし、コード、環境変数、DBへ周期を複製しない。  新規販売ではactiveなrecurring Priceと正の`interval_count`を要求し、両プランの通貨と請求周期が一致する場合だけProの価格表示、Checkout、プラン間変更を許可する。
 - Stripe Event ID、request ID、operationのidempotency keyで重複実行を収束させる。
 - StandardからProへの即時変更は、支払い成功を確認するまでStandardの利用権限を維持する。
 - ProからStandardへの変更と、有料プランの解約は期間末に予約し、providerで確認できた結果だけを反映する。
-- ProからStandardへの変更をproviderで確認した後は、Standard上限を超えていても`active.pro`を適用し、超過分の整理を求める。
+- ProからStandardへの変更をproviderで確認した後は、Standard上限を超えていても`active.standard`を適用し、超過分の整理を求める。
 - 支払い猶予終了では、未払いとSubscription終了、請求回収停止を確認してから`active.free`へ移す。
 - 解約の予約には新契約を示すmarkerを保存し、同じ`targetPlan: "free"`を使うdeployment前の旧Free予約と区別する。
 - カード番号、CVC、有効期限をアプリの引数、DB、ログへ保存しない。
@@ -171,24 +171,23 @@ Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側
 
 ## 支払い不要Pro相当
 
-既存の支払い不要Pro相当の組織は、内部状態`complimentary.business`を維持する。
+既存の支払い不要Pro相当の組織は、内部状態`complimentary.pro`へ移行して維持する。
 期限と利用料金はなく、Proの50名、5店舗、管理者5名を利用できる。
 
 支払い不要Pro相当では、Stripe Customer、Subscription、Checkout Session、Portal Session、Invoice、Subscription Schedule、課金operation、課金通知を作らない。
 公開API、管理処理、Stripeイベント、再同期処理から通常課金や別状態へ変更しない。
 
-現行コードの保存契約は`complimentary.business`だけを許可する。
-`complimentary.pro`は通常runtimeのreader、writer、画面、利用上限、targetingでは扱わない。
+現行コードのcanonicalな保存契約は`complimentary.pro`だけを許可する。
+Widen中は旧`complimentary.business`も読み取り、`planIdVersion: 2`を伴う`complimentary.pro`と区別する。  `planIdVersion`は移行中だけ保存する識別子であり、旧IDを作成するwriterと旧clientの共存が終わるNarrow時に旧ID互換とともに削除する。
 
-`m021_organization_billing_complimentary_pro_to_business`とexport verifierは、旧`complimentary.pro`を新形式へ移した履歴を検証するために残す。
-Migration Testの旧shape fixture以外で、`complimentary.pro`を現行契約として作成しない。
+`m021_organization_billing_complimentary_pro_to_business`とexport verifierは、当時の`complimentary.pro`を旧`complimentary.business`へ移した履歴を検証するために残す。  現行IDへの移行で履歴migrationを書き換えない。
 
 `m022_organization_billing_to_complimentary_business`は、全組織を現在の表示でいう支払い不要Pro相当へ寄せるために実装された履歴migrationである。
 現行の初回Setupはこのmigrationを呼ばず、新規組織をTrialで作成する。
 repositoryにmigrationがあることから、対象deploymentでの実行完了を推測しない。
 
 対象deploymentのmigration statusとexport検証状況は、[リリース状態](../manual/release-status.md)を正とする。
-Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を固定し、m021の完走、旧形式の残件0、未解消conflict 0を[運用手順](../manual/organization-billing.md)で確認して記録する。
+Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を固定し、`m042_organization_billing_plan_ids_v2`の完走、旧形式の残件0、未解消conflict 0を[運用手順](../manual/organization-billing.md)で確認して記録する。
 このコード契約やローカルテストから、実環境の移行完了を推測しない。
 
 ## 管理者招待の安全契約
@@ -229,9 +228,9 @@ Notification Outboxは外部送信直前にも招待、所属、受取人を再�
 | `initialPaymentPending` | Trial終了時の初回支払い結果を確認中 | Standard相当を維持し、検証済み結果を待つ |
 | `pendingActivation` | 既存FreeまたはStandardから有料プランを有効化中 | 保存したfallbackの権限を維持する。Free fallbackは5名、1店舗、管理者2名を使う |
 | `active.free` | Freeを利用中 | 5名、1店舗、管理者2名に限定する。二つ目以降の組織はこの状態で開始する |
-| `active.pro` | Standardを利用中 | 25名、5店舗、管理者5名を許可する |
-| `active.business` | Proを利用中 | 50名、5店舗、管理者5名を許可する |
-| `complimentary.business` | 支払い不要Pro相当を利用中 | Pro権限を許可し、Stripe処理を拒否する |
+| `active.standard` | Standardを利用中 | 25名、5店舗、管理者5名を許可する |
+| `active.pro` | Proを利用中 | 50名、5店舗、管理者5名を許可する |
+| `complimentary.pro` | 支払い不要Pro相当を利用中 | Pro権限を許可し、Stripe処理を拒否する |
 | `scheduledChange` | 期間末のプラン変更または解約を予約済み | 期間末までは現在の有料プランを維持する。解約予約は`restrictAtPeriodEnd: true`で識別する |
 | `grace` | 最初に検証された支払い失敗から14日間の猶予中 | 現在の有料権限と復旧操作を維持する |
 | `restricted` | 旧契約制限の互換shape | Productionの保存データには存在せず、新規作成もしない。rolling互換期間だけschema・validator・readerで受け付ける |
@@ -360,8 +359,8 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `api.organizationStripe.actions.getPlanPrice` / `startPaidCheckout` | Stripe設定と販売Priceを検証して価格を取得し、契約を開始する |
 | `api.organizationStripe.actions.inspectPendingCheckoutForOrganization` / `cancelPendingCheckoutForOrganization` | `pendingActivation`に対応するCheckout Sessionの照合と、利用者が明示した未完了Checkoutの取消。URLやclient stateだけで課金状態を変更しない |
 | `api.organizationStripe.actions.getCurrentSubscriptionPrice` | 選択店舗を認可し、現在の非terminal Subscriptionに保存したPriceから金額、通貨、周期、明示された税区分だけを取得 |
-| `api.organizationStripe.actions.previewPaidPlanChange` / `changePaidPlanNow` | Standard（内部`pro`）からPro（内部`business`）への日割りpreviewと即時変更 |
-| `api.organizationStripe.actions.schedulePaidPlanChange` | Pro（内部`business`）からStandard（内部`pro`）への期間末変更。`targetPlan: "free"`は受け付けない |
+| `api.organizationStripe.actions.previewPaidPlanChange` / `changePaidPlanNow` | StandardからProへの日割りpreviewと即時変更 |
+| `api.organizationStripe.actions.schedulePaidPlanChange` | ProからStandardへの期間末変更。`targetPlan: "free"`は受け付けない |
 | `api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd` / `cancelScheduledPlanChange` | 有料契約の期間末解約と、その予約取消 |
 | `api.organizationStripe.actions.openCustomerPortal` | 支払い方法と請求履歴を扱う一時Portal URLの作成 |
 | `api.organizationStripe.actions.cancelTrialContinuation` | Trial後の継続予約取消 |

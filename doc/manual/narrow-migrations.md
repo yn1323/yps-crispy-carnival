@@ -23,7 +23,7 @@ statusが`success`でも、その後に旧writerが旧形式を作ればreadines
 |---|---|---|
 | m023 | `organizationInvitations` | 旧status、`invitedName`、`purpose`、旧`accepted*` |
 | m024 | `notificationOutbox` | `purpose`、`notificationContext`、`deliverySuppressed` |
-| m025 | `shops` | `organizationId`、`operatingStatus`、後発移行組織の支払い不要Pro相当（内部`complimentary.business`）課金状態 |
+| m025 | `shops` | `organizationId`、`operatingStatus`、後発移行組織の支払い不要Pro相当（当時の内部IDは`complimentary.business`）課金状態 |
 | m026 | `shopMembers` | canonicalな人物と管理者所属 |
 | m027 | `staffs` | `organizationId`、`organizationPersonId`、`excludedFromShift` |
 | m028 | `shopBillingStates` | 旧rowを保持したまま、canonical課金状態との対応異常をconflictへ記録 |

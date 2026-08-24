@@ -49,7 +49,7 @@
 - 同じメールアドレスを組織の初期`billingEmail`にも設定するが、請求先は組織設定から独立して変更できる。
 - `users.email`にも初回値を保存するが、これは初期化と旧データ互換のための値であり、以後のログイン方法やシフト連絡先の正本にはしない。
 - 本文のDashboardオンボーディングは初回セットアップ完了後に始まり、ログイン方法の追加・削除・再接続は扱わない。
-- 既存データを支払い不要Pro相当（内部`complimentary.business`）へ揃えるmigrationは、この初回セットアップでは実行しない。  repositoryにmigrationがあることから、対象deploymentでの実行完了を推測しない。
+- 既存データを支払い不要Pro相当（`complimentary.pro`）へ揃えるmigrationは、この初回セットアップでは実行しない。  repositoryにmigrationがあることから、対象deploymentでの実行完了を推測しない。
 
 ## 表示ルール
 

@@ -23,6 +23,9 @@ stage別tabは使わず、分析対象ごとにrouteを分けます。
 期間、集計単位、filter、sort、cursorはURL query parameterへ保存します。  
 行を選ぶと詳細routeへ遷移し、戻る操作と共有URLで分析状態を再現できます。
 
+Analyticsの共有URLは`planIdVersion=2`を保持し、プランfilterでは`standard`と`pro`をcanonical IDとして扱います。
+`planIdVersion`がない旧URLは、`pro`を`standard`、`business`を`pro`へ変換してから、v2のURLへ置き換えます。
+
 店舗一覧の利用可能性filterは`usage`へ保存し、`candidate`、`high`、`possible`、`unknown`を受け付けます。
 
 未指定時は全店舗を表示し、不正な値は有効な条件として扱いません。
@@ -73,6 +76,7 @@ segment比較は「詳細分析」を開いた場合だけ取得し、一度に�
 途中pageの取得失敗、出力中のsnapshot更新、安全上限の超過時は、欠けたJSONLを保存せずerrorとして表示します。
 
 JSONLは先頭行をmanifest、以降を`recordType`付きの1行1recordとし、AIが行単位で分割して読める形にします。  
+manifestの`schemaVersion: 2`と`planIdVersion: 2`は、プラン値がcanonicalな`standard | pro`であることを示します。
 関連recordは`organizationId`、`shopId`、`recruitmentId`で結合します。  
 組織または店舗scopeでは、scope非対応のsegmentを混在させず、非出力理由をrecordに残します。
 組織と店舗は`organizationId`、`shopId`で識別し、組織名と店舗名は除外します。
