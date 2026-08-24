@@ -2435,7 +2435,7 @@ describe("organizationStripe/actions", () => {
         scheduleId: "sub_sched_business_to_pro",
       });
       const scheduleOperationId = await seedSucceededBusinessToProScheduleOperation(t, ids, NOW);
-      if (overProLimit) await seedAdditionalOrganizationStaff(t, ids, 20);
+      if (overProLimit) await seedAdditionalOrganizationStaff(t, ids, 25);
       providerFetchMock.mockImplementation(async (input) => {
         const resource = String(input).split("/").pop() ?? "";
         if (resource === "subscriptions.retrieve") {
