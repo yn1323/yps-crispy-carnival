@@ -98,7 +98,7 @@ describe("static build measurement boundary", () => {
 });
 
 describe("static build public plan price boundary", () => {
-  it.each(["/", "/commercial-transactions"])("%sのProとBusiness公開料金を完全一致で受け入れる", (route) => {
+  it.each(["/", "/commercial-transactions"])("%sのStandardとPro公開料金を完全一致で受け入れる", (route) => {
     expect(() => assertPublicPlanPriceMarkup(route, createValidPublicPriceHtml())).not.toThrow();
   });
 
@@ -160,14 +160,15 @@ describe("static build public plan price boundary", () => {
     expect(() => assertPublicPlanPriceMarkup("/commercial-transactions", html)).toThrow();
   });
 
-  it.each(["【手動入力：Proの月額料金と税込・税別】", "【手動入力：Businessの月額料金と税込・税別】"])(
-    "価格placeholder %sを拒否する",
-    (placeholder) => {
-      expect(() =>
-        assertPublicPlanPriceMarkup("/commercial-transactions", `${createValidPublicPriceHtml()}${placeholder}`),
-      ).toThrow("price placeholder");
-    },
-  );
+  it.each([
+    "【手動入力：Standardの月額料金と税込・税別】",
+    "【手動入力：Proの月額料金と税込・税別】",
+    "【手動入力：Businessの月額料金と税込・税別】",
+  ])("価格placeholder %sを拒否する", (placeholder) => {
+    expect(() =>
+      assertPublicPlanPriceMarkup("/commercial-transactions", `${createValidPublicPriceHtml()}${placeholder}`),
+    ).toThrow("price placeholder");
+  });
 });
 
 describe("static build Stripe value boundary", () => {

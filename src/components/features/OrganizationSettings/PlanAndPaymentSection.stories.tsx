@@ -21,7 +21,7 @@ const billing: OrganizationBillingView = {
   hasTrialContinuation: false,
   stripeBillingAvailable: true,
   hasStripeCustomer: true,
-  peopleUsage: { current: 12, max: 20, pendingInvitations: 1 },
+  peopleUsage: { current: 12, max: 25, pendingInvitations: 1 },
   shopUsage: { current: 3, max: 5 },
   managerUsage: { current: 2, max: 5, pendingInvitations: 1 },
   nextEvent: { label: "次回更新日", date: "2026年8月31日" },
@@ -57,7 +57,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Pro: Story = { name: "Pro" };
+export const Pro: Story = { name: "Standard" };
 
 export const Free: Story = {
   name: "Free",
@@ -99,10 +99,10 @@ export const FreeOverLimitBehavior: Story = {
   args: { ...FreeOverLimit.args, onManagePlan: fn() },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("heading", { name: "無料" })).toBeVisible();
+    await expect(canvas.getByRole("heading", { name: "Free" })).toBeVisible();
     await expect(canvas.getAllByText("上限超過").length).toBeGreaterThanOrEqual(1);
     await expect(canvas.getByText("上限超過のため利用を制限しています")).toBeVisible();
-    await userEvent.click(canvas.getByRole("button", { name: "Proへ変更" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Standardへ変更" }));
     await expect(args.onManagePlan).toHaveBeenCalledWith("pro");
   },
 };
@@ -115,7 +115,7 @@ export const Trial: Story = {
       state: "trial",
       currentPlan: "trial",
       hasStripeCustomer: false,
-      peopleUsage: { current: 12, max: 40 },
+      peopleUsage: { current: 12, max: 50 },
       nextEvent: { label: "トライアル最終日", date: "2026年8月31日" },
       canScheduleFree: false,
     },
@@ -123,7 +123,7 @@ export const Trial: Story = {
 };
 
 export const TrialWithBusinessContinuation: Story = {
-  name: "トライアル・Business継続登録済み",
+  name: "トライアル・Pro継続登録済み",
   args: {
     billing: {
       ...Trial.args?.billing,
@@ -135,26 +135,26 @@ export const TrialWithBusinessContinuation: Story = {
 };
 
 export const Business: Story = {
-  name: "Business",
+  name: "Pro",
   args: {
     billing: {
       ...billing,
       state: "business",
       currentPlan: "business",
-      peopleUsage: { current: 32, max: 40 },
+      peopleUsage: { current: 32, max: 50 },
     },
   },
 };
 
 export const ComplimentaryBusiness: Story = {
-  name: "支払い不要Business",
+  name: "支払い不要Pro",
   args: {
     billing: {
       ...billing,
       state: "business",
       currentPlan: "business",
       isComplimentary: true,
-      peopleUsage: { current: 32, max: 40 },
+      peopleUsage: { current: 32, max: 50 },
       nextEvent: undefined,
       hasStripeCustomer: false,
       canManagePlan: false,
@@ -166,7 +166,7 @@ export const ComplimentaryBusiness: Story = {
 };
 
 export const ScheduledBusinessToPro: Story = {
-  name: "BusinessからProへ変更予定",
+  name: "ProからStandardへ変更予定",
   args: {
     billing: {
       ...Business.args?.billing,
@@ -174,8 +174,8 @@ export const ScheduledBusinessToPro: Story = {
       currentPlan: "business",
       targetPlan: "pro",
       requiredReductions: { people: 1, shops: 0, managers: 0 },
-      peopleUsage: { current: 21, max: 20 },
-      nextEvent: { label: "Pro適用予定日", date: "2026年8月31日" },
+      peopleUsage: { current: 21, max: 25 },
+      nextEvent: { label: "Standard適用予定日", date: "2026年8月31日" },
       canScheduleFree: false,
     } as OrganizationBillingView,
   },
@@ -204,13 +204,13 @@ export const ServiceStopScheduledBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
-    await expect(canvas.getByText("Pro → Free")).toBeVisible();
+    await expect(canvas.getByText("Standard → Free")).toBeVisible();
     await expect(canvas.getByText("解約後もデータを閲覧できます。")).toBeVisible();
   },
 };
 
 export const RestrictedForPro: Story = {
-  name: "Pro上限の契約制限",
+  name: "Standard上限の契約制限",
   args: {
     billing: {
       ...billing,
@@ -220,8 +220,8 @@ export const RestrictedForPro: Story = {
       targetPlan: "pro",
       limitPlan: "pro",
       requiredReductions: { people: 1, shops: 0, managers: 0 },
-      peopleUsage: { current: 21, max: 20 },
-      blockedReason: "Proの利用人数を超えています。",
+      peopleUsage: { current: 21, max: 25 },
+      blockedReason: "Standardの利用人数を超えています。",
       nextEvent: undefined,
       canManagePlan: false,
       canScheduleFree: false,
@@ -302,7 +302,7 @@ export const PriceLoading: Story = {
 };
 
 export const BusinessPriceUnavailable: Story = {
-  name: "Business料金が未設定",
+  name: "Pro料金が未設定",
   args: {
     planPrices: {
       ...availablePrices,
@@ -317,7 +317,7 @@ export const PriceError: Story = {
 };
 
 export const RetryBusinessPriceBehavior: Story = {
-  name: "Business料金を再読み込み（操作確認）",
+  name: "Pro料金を再読み込み（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: { ...BusinessPriceUnavailable.args, onRetryPlanPrice: fn() },
   play: async ({ args, canvasElement }) => {
@@ -333,26 +333,26 @@ export const FreePlanSelectionBehavior: Story = {
   args: { ...Free.args, onManagePlan: fn() },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Standardへ変更" }));
     await userEvent.click(canvas.getByRole("button", { name: "Proへ変更" }));
-    await userEvent.click(canvas.getByRole("button", { name: "Businessへ変更" }));
     await expect(args.onManagePlan).toHaveBeenNthCalledWith(1, "pro");
     await expect(args.onManagePlan).toHaveBeenNthCalledWith(2, "business");
   },
 };
 
 export const ProUpgradeSelectionBehavior: Story = {
-  name: "ProからBusinessを選ぶ（操作確認）",
+  name: "StandardからProを選ぶ（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: { onManagePlan: fn() },
   play: async ({ args, canvasElement }) => {
-    await userEvent.click(within(canvasElement).getByRole("button", { name: "Businessへ変更" }));
+    await userEvent.click(within(canvasElement).getByRole("button", { name: "Proへ変更" }));
     await expect(args.onManagePlan).toHaveBeenCalledTimes(1);
     await expect(args.onManagePlan).toHaveBeenCalledWith("business");
   },
 };
 
 export const ComplimentaryBusinessHasNoBillingActionsBehavior: Story = {
-  name: "支払い不要Businessに課金操作を出さない（操作確認）",
+  name: "支払い不要Proに課金操作を出さない（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: ComplimentaryBusiness.args,
   play: async ({ canvasElement }) => {
@@ -398,14 +398,14 @@ export const MobileFree: Story = {
 };
 
 export const MobileBusiness: Story = {
-  name: "Business・モバイル",
+  name: "Pro・モバイル",
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: Business.args,
 };
 
 export const MobileRestricted: Story = {
-  name: "Pro上限の契約制限・モバイル",
+  name: "Standard上限の契約制限・モバイル",
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: RestrictedForPro.args,

@@ -53,10 +53,10 @@ export const PC: Story = {
     const proPrice = canvas.getByText(formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.pro));
     const businessPrice = canvas.getByText(formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.business));
     await expect(proPrice.parentElement).toHaveTextContent(
-      `Pro：${formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.pro)}`,
+      `Standard：${formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.pro)}`,
     );
     await expect(businessPrice.parentElement).toHaveTextContent(
-      `Business：${formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.business)}`,
+      `Pro：${formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.business)}`,
     );
     await expect(
       canvas.getByText(`無料トライアル：利用人数${ORGANIZATION_PLAN_LIMITS.trial.maxPeople}名`, { exact: false }),

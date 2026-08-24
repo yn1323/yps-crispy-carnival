@@ -206,10 +206,10 @@ describe("development seed rebuild", () => {
         if (!shop) throw new Error(`Missing product-query seed shop: ${organizationName}`);
         return shop._id;
       };
-      const businessOrganization = organizationByName.get("[SEED] Business・通知");
-      const proOrganization = organizationByName.get("[SEED] Pro・複数店舗");
+      const businessOrganization = organizationByName.get("[SEED] Pro・通知");
+      const proOrganization = organizationByName.get("[SEED] Standard・複数店舗");
       if (!businessOrganization || !proOrganization) throw new Error("Missing product-query seed organization");
-      const businessShopId = findShop("[SEED] Business・通知");
+      const businessShopId = findShop("[SEED] Pro・通知");
       const businessPeople = await ctx.db
         .query("organizationPeople")
         .withIndex("by_organizationId_and_status", (q) =>
@@ -285,8 +285,8 @@ describe("development seed rebuild", () => {
       return {
         businessShopId,
         freeShopId: findShop("[SEED] Free・上限確認"),
-        policyOverLimitShopId: findShop("[SEED] Pro・上限超過"),
-        scheduledStopShopId: findShop("[SEED] Pro・解約予約"),
+        policyOverLimitShopId: findShop("[SEED] Standard・上限超過"),
+        scheduledStopShopId: findShop("[SEED] Standard・解約予約"),
         trialShopId: findShop("[SEED] Trial・終了間近"),
         lineStatuses: lineStates.map((state) => state?.status).sort(),
         lineRecipientFollowing: lineRecipients.map((recipient) => recipient?.following).sort(),
@@ -377,7 +377,7 @@ describe("development seed rebuild", () => {
     expect(policyOverLimitSettings?.billing).toMatchObject({
       state: "pro",
       currentPlan: "pro",
-      peopleUsage: { current: 6, max: 20, pendingInvitations: 0 },
+      peopleUsage: { current: 6, max: 25, pendingInvitations: 0 },
       shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
       managerUsage: { current: 6, max: 5, pendingInvitations: 0 },
       requiredReductions: { people: 0, shops: 0, managers: 1 },

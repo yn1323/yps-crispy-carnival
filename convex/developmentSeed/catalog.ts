@@ -140,7 +140,7 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
   },
   {
     key: "pro-operations",
-    organizationName: "[SEED] Pro・複数店舗",
+    organizationName: "[SEED] Standard・複数店舗",
     shopNames: ["[SEED] 本店", "[SEED] 駅前店", "[SEED] 商業施設店"],
     shopPatterns: [TIME_SUBMISSION_PATTERN, DATE_ONLY_SUBMISSION_PATTERN, SHIFT_TYPE_SUBMISSION_PATTERN],
     billingState: () => ({ kind: "active", plan: "pro" }),
@@ -148,7 +148,7 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
   },
   {
     key: "business-notifications",
-    organizationName: "[SEED] Business・通知",
+    organizationName: "[SEED] Pro・通知",
     shopNames: ["[SEED] 通知確認店舗"],
     shopPatterns: [SHIFT_TYPE_SUBMISSION_PATTERN],
     billingState: () => ({ kind: "complimentary", plan: "business" }),
@@ -156,7 +156,7 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
   },
   {
     key: "pro-scheduled-change",
-    organizationName: "[SEED] Pro・解約予約",
+    organizationName: "[SEED] Standard・解約予約",
     shopNames: ["[SEED] 解約予約店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
     billingState: (now) => ({
@@ -194,8 +194,8 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
   },
   {
     key: "policy-restricted",
-    organizationName: "[SEED] Pro・上限超過",
-    shopNames: ["[SEED] Pro上限超過店舗"],
+    organizationName: "[SEED] Standard・上限超過",
+    shopNames: ["[SEED] Standard上限超過店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
     billingState: () => ({ kind: "active", plan: "pro" }),
     dataProfile: "billingOnly",

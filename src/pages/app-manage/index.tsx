@@ -6,6 +6,7 @@ import { type ReactNode, useState } from "react";
 import { LuBuilding2, LuCreditCard, LuPencil, LuPlus, LuRefreshCw, LuSettings, LuShieldCheck } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { organizationPlanLabel } from "@/convex/organizationBilling/planPresentation";
 import type { StripeCheckoutReturn } from "@/src/components/features/AuthenticatedApp";
 import {
   ManagerCandidatePageContent,
@@ -910,14 +911,14 @@ function toOrganizationShopViews(
 
 function billingStateLabel(state: string) {
   const labels: Record<string, string> = {
-    trial: "トライアル",
-    free: "無料プラン",
-    pro: "Proプラン",
-    business: "Businessプラン",
+    trial: organizationPlanLabel("trial"),
+    free: `${organizationPlanLabel("free")}プラン`,
+    pro: `${organizationPlanLabel("pro")}プラン`,
+    business: `${organizationPlanLabel("business")}プラン`,
     grace: "支払い猶予中",
     restricted: "契約制限中",
     scheduledChange: "プラン変更予定",
-    scheduledFree: "無料へ変更予定",
+    scheduledFree: "Freeへ変更予定",
     migrationPending: "設定移行中",
     initialPaymentPending: "初回請求を確認中",
     pendingActivation: "支払い結果を確認中",

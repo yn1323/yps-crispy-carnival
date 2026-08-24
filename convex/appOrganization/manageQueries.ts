@@ -195,7 +195,7 @@ export const getManageOverview = organizationQuery({
                     : restrictedState
                       ? "契約制限中は、店舗を追加できません。"
                       : policy?.paidFeatureBlockReason === "freePlan"
-                        ? "無料プランでは、店舗を追加できません。\n有料プランを選択してください。"
+                        ? "Freeプランでは、店舗を追加できません。\n有料プランを選択してください。"
                         : policy?.paidFeatureBlockReason === "paymentResultPending"
                           ? "支払い結果が確定してから、店舗を追加できます。"
                           : `店舗は、組織ごとに${limits?.maxActiveShops ?? ORGANIZATION_PLAN_LIMITS.pro.maxActiveShops}件まで登録できます。`,

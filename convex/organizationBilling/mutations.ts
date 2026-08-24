@@ -515,7 +515,7 @@ export const setFreeSelection = authenticatedMutation({
     const billingState = await getOrganizationBillingState(ctx, actor.organization._id);
     if (!billingState) throw new ConvexError("組織の契約情報を確認中です");
     if (billingState.state.kind === "complimentary") {
-      throw new ConvexError("支払い不要Businessでは無料設定を変更できません");
+      throw new ConvexError("支払い不要の組織ではFree設定を変更できません");
     }
     if (billingState.state.kind === "initialPaymentPending") {
       throw new ConvexError("支払い結果を確認中のため、無料設定を変更できません");
@@ -1595,7 +1595,7 @@ async function updateBillingEmailForActor(
     throw new ConvexError("組織の契約情報を確認中です");
   }
   if (billingState.state.kind === "complimentary") {
-    throw new ConvexError("支払い不要Businessでは請求先メールアドレスを変更できません");
+    throw new ConvexError("支払い不要の組織では請求先メールアドレスを変更できません");
   }
   const normalized = normalizeEmail(args.email);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) || normalized.length > 254) {

@@ -4,7 +4,7 @@ import { organizationBillingNotificationCopy } from "./notification";
 describe("organizationBilling/notification", () => {
   const trialEndsAt = Date.parse("2026-09-01T00:00:00+09:00");
 
-  it("Pro選択済みのトライアル終了通知へ初回請求予定と取消後の無料移行を載せる", () => {
+  it("Standard選択済みのトライアル終了通知へ初回請求予定と取消後のFree移行を載せる", () => {
     const copy = organizationBillingNotificationCopy("trialEnding", {
       trialEndsAt,
       selectedPaidPlan: "pro",
@@ -12,35 +12,35 @@ describe("organizationBilling/notification", () => {
 
     expect(copy.paragraphs).toEqual([
       "トライアルは9/1(火) 00:00に終了します。",
-      "選択済みの契約プランはProです。\n初回請求は9/1(火) 00:00を予定しています。",
+      "選択済みの契約プランはStandardです。\n初回請求は9/1(火) 00:00を予定しています。",
       "継続を取り消す場合の期限は9/1(火) 00:00です。\n取り消すと、トライアル終了後は無料プランへ変更されます。",
       "無料プランの利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。",
     ]);
     expect(copy.paragraphs.join("\n")).not.toContain("円");
   });
 
-  it("未契約のトライアル終了通知へ無料移行とデータ保持を載せる", () => {
+  it("未契約のトライアル終了通知へFree移行とデータ保持を載せる", () => {
     const copy = organizationBillingNotificationCopy("trialEnding", { trialEndsAt });
 
     expect(copy.paragraphs).toEqual([
       "トライアルは9/1(火) 00:00に終了します。\n有料プランはまだ契約されていません。",
       "有料プランを契約しない場合、トライアル終了後は無料プランへ変更されます。\n店舗・ユーザー・過去のシフトは削除されません。",
-      "無料プランの利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。\nProまたはBusinessへ変更することもできます。",
+      "無料プランの利用上限を超えている場合は、上限内へ整理するまで業務操作が制限されます。\nStandardまたはProへ変更することもできます。",
     ]);
   });
 
-  it("初回請求結果待ちはトライアルとは切り離してPro相当の継続を案内する", () => {
+  it("初回請求結果待ちはトライアルとは切り離してStandard相当の継続を案内する", () => {
     expect(organizationBillingNotificationCopy("initialPaymentPending")).toEqual({
       subject: "初回請求の結果を確認しています",
       heading: "初回請求の結果を確認しています",
       paragraphs: [
-        "支払い結果を確認しています。\n確認中も、Pro相当の機能を利用できます。",
+        "支払い結果を確認しています。\n確認中も、Standard相当の機能を利用できます。",
         "支払い結果が確定すると、組織設定に反映されます。",
       ],
     });
   });
 
-  it("新しい期間末解約は解約後の無料移行として通知する", () => {
+  it("新しい期間末解約は解約後のFree移行として通知する", () => {
     expect(
       organizationBillingNotificationCopy("scheduledChange", undefined, {
         targetPlan: "free",
@@ -58,13 +58,13 @@ describe("organizationBilling/notification", () => {
     });
   });
 
-  it("旧Pro変更不成立eventもPro継続として表示する", () => {
+  it("旧Pro変更不成立eventもStandard継続として表示する", () => {
     expect(organizationBillingNotificationCopy("proDowngradeNotApplied")).toEqual({
-      subject: "Proへの変更を適用できませんでした",
-      heading: "Proを継続しています",
+      subject: "Standardへの変更を適用できませんでした",
+      heading: "Standardを継続しています",
       paragraphs: [
         "予約されていたプラン変更を適用できませんでした。",
-        "Proを継続しています。\n現在の利用状況は組織設定で確認できます。",
+        "Standardを継続しています。\n現在の利用状況は組織設定で確認できます。",
       ],
     });
   });
@@ -98,7 +98,7 @@ describe("organizationBilling/notification", () => {
         heading: "利用停止中になりました",
         paragraphs: [
           "店舗・ユーザー・過去のシフトは削除されていませんが、シフト作成や通知などの業務操作は利用できません。",
-          "利用を再開するには、組織設定からProまたはBusinessを契約してください。",
+          "利用を再開するには、組織設定からStandardまたはProを契約してください。",
         ],
       });
     },
@@ -118,9 +118,11 @@ describe("organizationBilling/notification", () => {
       effectiveAt: trialEndsAt,
     });
 
-    expect(copy.subject).toBe("Proへの変更を予約しました");
-    expect(copy.paragraphs[0]).toBe("9/1(火) 00:00にProへ変更します。\nそれまでは現在の有料プランを利用できます。");
-    expect(copy.paragraphs.join("\n")).toContain("9/1(火) 00:00にProへ変更します");
+    expect(copy.subject).toBe("Standardへの変更を予約しました");
+    expect(copy.paragraphs[0]).toBe(
+      "9/1(火) 00:00にStandardへ変更します。\nそれまでは現在の有料プランを利用できます。",
+    );
+    expect(copy.paragraphs.join("\n")).toContain("9/1(火) 00:00にStandardへ変更します");
   });
 
   it("日割り変更完了通知へ変更先プラン・請求額・適用日時を載せる", () => {
@@ -132,11 +134,11 @@ describe("organizationBilling/notification", () => {
     });
     const paragraphs = copy.paragraphs.join("\n");
 
-    expect(copy.subject).toBe("Businessを開始しました");
+    expect(copy.subject).toBe("Proを開始しました");
     expect(paragraphs).toContain("JPY");
     expect(paragraphs).toContain("1,200");
     expect(paragraphs).toContain("9/1(火) 00:00");
-    expect(copy.paragraphs[0]).toContain("Businessを開始しました。\n今回の請求額");
+    expect(copy.paragraphs[0]).toContain("Proを開始しました。\n今回の請求額");
     expect(copy.paragraphs[0]).toContain("です。\n適用日時は");
   });
 
@@ -146,8 +148,8 @@ describe("organizationBilling/notification", () => {
       usageLimitExceeded: true,
     });
 
-    expect(copy.heading).toBe("Proを開始しました");
-    expect(copy.paragraphs.join("\n")).toContain("Proプランの利用上限を超えている");
+    expect(copy.heading).toBe("Standardを開始しました");
+    expect(copy.paragraphs.join("\n")).toContain("Standardプランの利用上限を超えている");
     expect(copy.paragraphs.join("\n")).toContain("上限内になると、業務操作は自動的に再開");
   });
 
@@ -160,12 +162,12 @@ describe("organizationBilling/notification", () => {
     });
     const paragraphs = detailed.paragraphs.join("\n");
 
-    expect(paragraphs).toContain("Businessの契約を復旧しました");
+    expect(paragraphs).toContain("Proの契約を復旧しました");
     expect(paragraphs).toContain("JPY");
     expect(paragraphs).toContain("2,980");
     expect(paragraphs).toContain("9/1(火) 00:00");
     expect(detailed.paragraphs[0]).toContain(
-      "Businessの契約を復旧しました。\n確認済みの管理者と店舗で業務を再開しました。\n今回の請求額",
+      "Proの契約を復旧しました。\n確認済みの管理者と店舗で業務を再開しました。\n今回の請求額",
     );
     expect(detailed.paragraphs[0]).toContain("です。\n適用日時は");
     expect(organizationBillingNotificationCopy("recovered").paragraphs[0]).toBe(
@@ -175,7 +177,7 @@ describe("organizationBilling/notification", () => {
 
   it("即時支払い失敗後の無料継続と契約制限継続を区別する", () => {
     expect(organizationBillingNotificationCopy("paidActivationFailedFreeContinued")).toMatchObject({
-      heading: "無料を継続しています",
+      heading: "Freeを継続しています",
       paragraphs: expect.arrayContaining([expect.stringContaining("有料プランを開始できませんでした")]),
     });
     expect(organizationBillingNotificationCopy("paidActivationFailedRestrictedContinued")).toMatchObject({

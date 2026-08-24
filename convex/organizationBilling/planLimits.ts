@@ -1,11 +1,13 @@
+// 内部proは利用者向けStandardに対応する。
 const PRO_PLAN_LIMITS = {
-  maxPeople: 20,
+  maxPeople: 25,
   maxActiveShops: 5,
   maxActiveManagers: 5,
 } as const;
 
+// 内部businessは利用者向けProに対応する。
 const BUSINESS_PLAN_LIMITS = {
-  maxPeople: 40,
+  maxPeople: 50,
   maxActiveShops: 5,
   maxActiveManagers: 5,
 } as const;
@@ -15,7 +17,7 @@ const BUSINESS_PLAN_LIMITS = {
  * 上限の適用可否と利用量の判定は、引き続きbackendのbilling policyを正本とする。
  */
 export const ORGANIZATION_PLAN_LIMITS = {
-  // Trialは表示上のライフサイクル名で、利用権限はBusinessと同じ値を参照する。
+  // Trialは表示上のライフサイクル名で、利用権限は内部business（表示名Pro）と同じ値を参照する。
   trial: BUSINESS_PLAN_LIMITS,
   free: {
     maxPeople: 5,

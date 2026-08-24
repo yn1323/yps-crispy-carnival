@@ -54,10 +54,10 @@
 - `organizationId`、`shopId`、`organizationPlan` がすべて未設定なら全体向けとする。既存データも全体向けとして扱う。
 - 対象を複数指定するときは、各フィールドへ半角カンマ区切りで入力する。単一値もそのまま入力でき、値の前後の空白と空要素は無視する。
 - `organizationPlan`には`trial`、`free`、`pro`、`business`を指定できる。大文字と小文字は区別する。
-- 支払い不要Business（`complimentary.business`）は`business`へ解決するため、`organizationPlan: "business"`の対象に含める。
+- 支払い不要Pro相当（`complimentary.business`）は内部`business`へ解決するため、`organizationPlan: "business"`の対象に含める。
 - 旧`complimentary.pro`はm021のMigration Testにだけ残る履歴fixtureであり、現行runtimeの告知対象判定へ渡さない。
 - `organizationId`、`shopId`、`organizationPlan` のいずれか一つが選択中のコンテキストと一致すれば表示対象とする。複数フィールドを設定した場合もOR条件になる。
-- 契約プランは課金policyが用途別に導出する`targetingPlan`で判定する。Trialは`trial`、期間末変更予約中は変更前プラン、支払い猶予中は猶予中のプランとして扱う。Freeから有料プランへの支払い結果待ちはFree、ProからBusinessへの支払い結果待ちはProとして扱う。契約制限中で表示対象プランを安全に確定できない場合はプラン指定に一致しない。
+- 契約プランは課金policyが用途別に導出する`targetingPlan`で判定する。Trialは`trial`、期間末変更予約中は変更前プラン、支払い猶予中は猶予中のプランとして扱う。Freeから有料プランへの支払い結果待ちはFree、StandardからProへの支払い結果待ちはStandardとして扱う。契約制限中で表示対象プランを安全に確定できない場合はプラン指定に一致しない。
 - フィールドを設定したのに有効な値がない場合は全体向けにせず、どの店舗にも表示しない。全体向けにする場合は3フィールド自体を未設定にする。
 - 店舗をまだ選択できない初回セットアップでは、全体向けだけを表示する。
 - 複数公開されている場合は、`displayDate` 降順、同日内は作成日時降順の候補から、最初に表示対象となる1件だけを表示する。対象範囲の狭さは優先度に使わない。

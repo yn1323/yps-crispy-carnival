@@ -119,12 +119,12 @@ const renderContext = (
 const paidPlanCard = (overrides: Partial<PlanStatusCardProps> = {}): PlanStatusCardProps => ({
   data: {
     kind: "paidPlan",
-    planName: "Pro",
+    planName: "Standard",
     badgeLabel: "利用中",
     nextEventLabel: "次回更新日：2026/9/1",
   },
   usage: {
-    peopleUsage: { current: 12, max: 20 },
+    peopleUsage: { current: 12, max: 25 },
     shopUsage: { current: 2, max: 5 },
   },
   defaultExpanded: false,
@@ -198,7 +198,7 @@ describe("OperationContext", () => {
     });
 
     await openOrganizationAccordion();
-    const planDetails = await screen.findByRole("region", { name: "Proプランの詳細" });
+    const planDetails = await screen.findByRole("region", { name: "Standardプランの詳細" });
     const organizationSettingsButton = await screen.findByRole("button", {
       name: "Aグループの組織設定を開く",
     });

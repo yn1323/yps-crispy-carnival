@@ -1,3 +1,7 @@
+import {
+  organizationEntitlementPlanLabel,
+  organizationPaidPlanLabel,
+} from "@/convex/organizationBilling/planPresentation";
 import type { DashboardPlanStatusSource, PaidPlanName, PlanName, PlanStatusCardData } from "./types";
 
 const JST_TIME_ZONE = "Asia/Tokyo";
@@ -53,7 +57,7 @@ export function buildPlanStatusCardData(
               ? "変更予定"
               : "利用中",
         description: source.isComplimentary
-          ? "早期登録特典によりBusinessプラン相当の機能をずっと無料で利用できます。"
+          ? "早期登録特典によりProプラン相当の機能をずっと無料で利用できます。"
           : isServiceStopScheduled && scheduledChange
             ? `${formatJstDate(scheduledChange.effectiveAt)}をもって解約します。解約後は契約制限中になります。データは削除されません。`
             : scheduledChange && targetPlanName
@@ -90,8 +94,8 @@ export function buildPlanStatusCardData(
               ? "サービスの停止を防ぐため、お支払い方法を更新してください。"
               : "支払い方法の更新は、契約を管理できる管理者が行えます。"
             : source.canManagePlan
-              ? "データは削除されていません。利用を再開するには、ProまたはBusinessを契約してください。"
-              : "データは削除されていません。ProまたはBusinessの契約は、契約を管理できる管理者が行えます。",
+              ? "データは削除されていません。利用を再開するには、StandardまたはProを契約してください。"
+              : "データは削除されていません。StandardまたはProの契約は、契約を管理できる管理者が行えます。",
         recoveryDeadlineLabel: source.recoveryDeadlineAt
           ? `支払い期限：${formatJstDate(source.recoveryDeadlineAt)}`
           : undefined,
@@ -145,11 +149,11 @@ export function getPlanStatusTimerDelay(boundary: number, now: number): number {
 }
 
 function paidPlanName(plan: "pro" | "business"): PaidPlanName {
-  return plan === "pro" ? "Pro" : "Business";
+  return organizationPaidPlanLabel(plan);
 }
 
 function planName(plan: "free" | "pro" | "business"): PlanName {
-  return plan === "free" ? "Free" : paidPlanName(plan);
+  return organizationEntitlementPlanLabel(plan);
 }
 
 function jstDateParts(timestamp: number): { year: number; month: number; day: number } {

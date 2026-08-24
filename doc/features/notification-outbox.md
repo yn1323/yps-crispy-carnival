@@ -1,6 +1,6 @@
 # 通知配送outbox
 
-LINE / メール通知を同期送信せず、Convex の `notificationOutbox` に `pending` ジョブとして予約し、worker が少量ずつ配送する仕組み。最大40人規模の通知を入口でエラーにせず、外部APIの一時制限は再試行で吸収する。
+LINE / メール通知を同期送信せず、Convex の `notificationOutbox` に `pending` ジョブとして予約し、worker が少量ずつ配送する仕組み。最大50人規模の通知を入口でエラーにせず、外部APIの一時制限は再試行で吸収する。
 
 `notificationOutbox`はactive中だけ宛先・本文を含む配送ジョブの正とし、terminal化から30日後に機密payloadと生errorをredactする。管理画面で長期表示する安全なmetadataは`notificationHistory`へ分離する。
 
@@ -98,7 +98,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - LINE quota が `exceeded` の場合、fallback email があれば email ジョブを enqueue して LINE ジョブは `failed` にする。
 - `DEBUG_NOTIFY_FAIL` に空でない値がある場合、メール/LINE送信は dry-run より優先して非リトライの失敗にする。FailureInbox の確認用デバッグスイッチとして扱い、実送信は行わない。
 - `dedupeKey` が同じ active ジョブ（`pending` / `processing`）は重複作成しない。
-- 募集・確定fanoutは対象スタッフを最大40人で固定し、10人ずつ処理する。確定通知の各batchは`targetStaffIds`ごとの`by_recruitmentId_staffId` indexだけを読み、募集全体のassignmentを毎回走査しない。
+- 募集・確定fanoutは対象スタッフを最大50人で固定し、10人ずつ処理する。確定通知の各batchは`targetStaffIds`ごとの`by_recruitmentId_staffId` indexだけを読み、募集全体のassignmentを毎回走査しない。
 - 時間入力方式の新しい確定通知は、同一スタッフ・同一日・同一ポジションの完全隣接assignmentだけをread-timeで一つの時間帯へ統合する。  正の空白、異なるポジション、option付き割当、overlap、不正値は自動統合しない。  この読み込みで既存`shiftAssignments`は書き換えない。
 - 募集・確定のdurable fanoutは `fanoutTargetKey`（semantic operation × staff）でchannelをまたいで同じOutboxを再利用する。`sent` / `failed` / `cancelled`後やemail/LINE選択の変更後にactionが再開しても、outbox ID由来のprovider idempotency keyを変えない。Widen前のrowはemail/LINE両方の旧dedupe keyを照合し、`fanoutTargetKey`と`fanoutOperationId`をlazy付与する。
 - 確定fanoutの新規Outbox作成は、その本文に対応する`shiftConfirmationSnapshots`更新と同じtransactionで行う。通常のdedupe時は現在のsnapshotを上書きせず、先に固定済みのOutbox Aへ再開時のBを誤対応させない。例外としてatomic導入前の現在canonical Outboxにsnapshotだけが欠落した場合は、rolling互換のevidence gateが現在の割当・operation・Outboxの一致を確認できたときだけ修復する。

@@ -569,7 +569,7 @@ const schema = defineSchema({
     // 単一IDまたは半角カンマ区切りの複数ID。表示制御用であり認可には使わない。
     organizationId: v.optional(v.string()),
     shopId: v.optional(v.string()),
-    // 半角カンマ区切りでtrial,free,pro,businessを指定する。支払い不要Businessもbusinessへ解決する。
+    // 半角カンマ区切りでtrial,free,pro,businessを指定する。支払い不要Pro相当も内部businessへ解決する。
     organizationPlan: v.optional(v.string()),
     title: v.string(),
     bodyHtml: v.string(),

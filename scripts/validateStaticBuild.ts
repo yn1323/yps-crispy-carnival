@@ -28,6 +28,7 @@ const PUBLIC_PRICE_SECRET_PATTERN = /STRIPE_(?:SECRET_KEY|PRICE_READ_KEY)|\b(?:r
 const STRIPE_PRICE_ID_PATTERN = /\bprice_(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{8,}\b/;
 const HELP_INDEX_BUNDLE_PATTERN = /\/assets\/(?:help\.index|helpIndexData)-[^"'\s]+\.js/;
 const PUBLIC_PRICE_PLACEHOLDERS = [
+  "【手動入力：Standardの月額料金と税込・税別】",
   "【手動入力：Proの月額料金と税込・税別】",
   "【手動入力：Businessの月額料金と税込・税別】",
 ] as const;
@@ -203,10 +204,7 @@ function formatPublicBillingUnit(interval: PublicPriceInterval, intervalCount: n
 
 export function assertPublicPlanPriceMarkup(label: string, html: string): void {
   for (const placeholder of PUBLIC_PRICE_PLACEHOLDERS) {
-    assert(
-      !html.includes(placeholder),
-      `${label} contains the manual ${placeholder.includes("Pro") ? "Pro" : "Business"} price placeholder`,
-    );
+    assert(!html.includes(placeholder), `${label} contains a manual public plan price placeholder`);
   }
   assertNoStripeBuildValues(label, html);
 
@@ -216,7 +214,7 @@ export function assertPublicPlanPriceMarkup(label: string, html: string): void {
   const plans = priceMarkup.map(({ openingTag }) => getAttribute(openingTag, "data-public-plan-price") ?? "").sort();
   assert(
     plans.length === 2 && plans[0] === "business" && plans[1] === "pro",
-    `${label} must contain exactly one Pro and one Business public plan price`,
+    `${label} must contain exactly one Standard and one Pro public plan price`,
   );
 
   const parsedPrices = priceMarkup.map(({ openingTag, innerHtml }) => {

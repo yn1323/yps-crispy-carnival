@@ -33,7 +33,7 @@ export function OrganizationUsageSection({
           利用停止中はプラン上限を適用していません
         </Text>
         <Text mt={1} fontSize="xs" color="fg.muted">
-          データは保持されています。ProまたはBusinessを契約すると利用を再開できます。
+          データは保持されています。StandardまたはProを契約すると利用を再開できます。
         </Text>
       </Box>
     );

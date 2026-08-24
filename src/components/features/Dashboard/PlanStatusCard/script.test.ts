@@ -33,8 +33,8 @@ describe("buildPlanStatusCardData", () => {
       now,
     );
     expect(selectedTrial).toMatchObject({
-      continuationPlanName: "Business",
-      description: "トライアル終了後はBusinessプランへ移行します。",
+      continuationPlanName: "Pro",
+      description: "トライアル終了後はProプランへ移行します。",
       showRemindLater: false,
     });
     expect(selectedTrial).not.toHaveProperty("primaryAction");
@@ -72,14 +72,14 @@ describe("buildPlanStatusCardData", () => {
       }),
     ).toEqual({
       kind: "paidPlan",
-      planName: "Pro",
+      planName: "Standard",
       badgeLabel: "利用中",
       description: undefined,
       nextEventLabel: "次回更新日：2026/9/1",
     });
   });
 
-  it("支払い不要Businessでは請求情報を表示しない", () => {
+  it("支払い不要Proでは請求情報を表示しない", () => {
     expect(
       buildPlanStatusCardData({
         kind: "paidPlan",
@@ -91,9 +91,9 @@ describe("buildPlanStatusCardData", () => {
       }),
     ).toEqual({
       kind: "paidPlan",
-      planName: "Business",
+      planName: "Pro",
       badgeLabel: "支払い不要",
-      description: "早期登録特典によりBusinessプラン相当の機能をずっと無料で利用できます。",
+      description: "早期登録特典によりProプラン相当の機能をずっと無料で利用できます。",
       nextEventLabel: undefined,
     });
   });
@@ -147,8 +147,8 @@ describe("buildPlanStatusCardData", () => {
     ).toMatchObject({
       kind: "paymentPending",
       currentPlanName: "Free",
-      targetPlanName: "Pro",
-      description: "Proプランへの変更結果を確認しています。確認中はFreeプランが適用されます。",
+      targetPlanName: "Standard",
+      description: "Standardプランへの変更結果を確認しています。確認中はFreeプランが適用されます。",
     });
     expect(
       buildPlanStatusCardData({
@@ -158,7 +158,7 @@ describe("buildPlanStatusCardData", () => {
         canManagePlan: false,
         canUpdatePaymentMethod: false,
       }),
-    ).toMatchObject({ currentPlanName: undefined, targetPlanName: "Business" });
+    ).toMatchObject({ currentPlanName: undefined, targetPlanName: "Pro" });
   });
 
   it("支払い問題をphase・支払い更新権限・期限に応じて変換する", () => {
@@ -171,7 +171,7 @@ describe("buildPlanStatusCardData", () => {
         ...actions,
       }),
     ).toMatchObject({
-      planName: "Pro",
+      planName: "Standard",
       phase: "grace",
       recoveryDeadlineLabel: "支払い期限：2026/8/17",
       primaryAction: { action: "updatePaymentMethod", label: "支払い方法を更新する" },
@@ -184,7 +184,7 @@ describe("buildPlanStatusCardData", () => {
     });
     expect(readOnlyIssue).toMatchObject({
       phase: "restricted",
-      description: "データは削除されていません。ProまたはBusinessの契約は、契約を管理できる管理者が行えます。",
+      description: "データは削除されていません。StandardまたはProの契約は、契約を管理できる管理者が行えます。",
     });
     expect(readOnlyIssue).not.toHaveProperty("primaryAction");
 
@@ -196,7 +196,7 @@ describe("buildPlanStatusCardData", () => {
         canUpdatePaymentMethod: false,
       }),
     ).toMatchObject({
-      description: "データは削除されていません。利用を再開するには、ProまたはBusinessを契約してください。",
+      description: "データは削除されていません。利用を再開するには、StandardまたはProを契約してください。",
       primaryAction: { action: "choosePlan", label: "プランを選んで再開する" },
     });
   });
@@ -211,7 +211,7 @@ describe("buildPlanStatusCardData", () => {
       }),
     ).toEqual({
       kind: "restricted",
-      planName: "Pro",
+      planName: "Standard",
       description: "契約を管理できる管理者に、利用状況または契約状態の確認を依頼してください。",
     });
   });

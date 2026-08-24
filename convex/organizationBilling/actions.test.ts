@@ -45,7 +45,7 @@ describe("organizationBilling/actions", () => {
       dedupeKey: `email:organizationBilling:plan-activated-1:${ids.userId}`,
       payload: { kind: "email", context: "organizationBilling.planActivated" },
     });
-    expect(jobs[0]?.payload.kind === "email" ? jobs[0].payload.subject : "").toContain("Businessを開始しました");
+    expect(jobs[0]?.payload.kind === "email" ? jobs[0].payload.subject : "").toContain("Proを開始しました");
     expect(jobs[0]?.payload.kind === "email" ? jobs[0].payload.html : "").toContain("1,200");
     expect(jobs[0]?.payload.kind === "email" ? jobs[0].payload.html : "").not.toContain("9,999");
     if (jobs[0]?.payload.kind !== "email") throw new Error("email payload not found");
@@ -55,7 +55,7 @@ describe("organizationBilling/actions", () => {
     expect(jobs.some((job) => job.channel === "line")).toBe(false);
   });
 
-  it("無償Businessでは内部通知actionを直接呼んでも課金通知を作成しない", async () => {
+  it("支払い不要Pro相当では内部通知actionを直接呼んでも課金通知を作成しない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run((ctx) =>
       seedOrganizationManagerShop(ctx, {
@@ -241,7 +241,7 @@ describe("organizationBilling/actions", () => {
     },
   );
 
-  it("Pro上限超過の契約制限通知へプラン・請求額・適用日時・整理案内を反映する", async () => {
+  it("Standard上限超過の契約制限通知へプラン・請求額・適用日時・整理案内を反映する", async () => {
     const t = convexTest(schema, modules);
     const effectiveAt = Date.parse("2026-07-20T09:00:00+09:00");
     const ids = await t.run(async (ctx) => {
@@ -286,7 +286,7 @@ describe("organizationBilling/actions", () => {
     const jobs = await t.run((ctx) => ctx.db.query("notificationOutbox").collect());
     expect(jobs).toHaveLength(1);
     if (jobs[0]?.payload.kind !== "email") throw new Error("email payload not found");
-    expect(jobs[0].payload.subject).toContain("Proへの変更には利用状況の整理が必要です");
+    expect(jobs[0].payload.subject).toContain("Standardへの変更には利用状況の整理が必要です");
     expect(jobs[0].payload.html).toContain("今回の請求額は");
     expect(jobs[0].payload.html).toContain("1,480");
     expect(jobs[0].payload.html).toContain("適用日時は7/20(月) 09:00です。");
@@ -322,7 +322,7 @@ describe("organizationBilling/actions", () => {
     expect(jobs).toHaveLength(1);
     expect(jobs[0]?.payload.kind).toBe("email");
     if (jobs[0]?.payload.kind !== "email") throw new Error("email payload not found");
-    expect(jobs[0].payload.html).toContain("選択済みの契約プランはBusinessです。");
+    expect(jobs[0].payload.html).toContain("選択済みの契約プランはProです。");
     expect(jobs[0].payload.html).toContain("初回請求は9/1(火) 00:00を予定しています。");
     expect(jobs[0].payload.html).toContain("継続を取り消す場合の期限は9/1(火) 00:00です。");
     expect(jobs[0].payload.html).toContain("取り消すと、トライアル終了後は無料プランへ変更されます。");

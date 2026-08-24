@@ -258,7 +258,7 @@ describe("AppStaffRoutePage", () => {
     expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(
       mocks.peopleQueryRef,
       { organizationId: "organization-1", shopFilter: "all", orderRevision: null },
-      { initialNumItems: 40 },
+      { initialNumItems: 50 },
     );
     expect(mocks.useStaffOrderReorder).toHaveBeenLastCalledWith(allPeopleResult, {
       organizationId: "organization-1",
@@ -267,7 +267,7 @@ describe("AppStaffRoutePage", () => {
       canReorder: true,
       disabledReason: undefined,
     });
-    expect(screen.getByTestId("initial-visible-user-count").textContent).toBe("40");
+    expect(screen.getByTestId("initial-visible-user-count").textContent).toBe("50");
     expect(screen.getAllByRole("button", { name: /の並び替え$/ })).toHaveLength(2);
   });
 
@@ -283,7 +283,7 @@ describe("AppStaffRoutePage", () => {
     expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(
       mocks.peopleQueryRef,
       { organizationId: "organization-1", shopFilter: "all", orderRevision: null },
-      { initialNumItems: 40 },
+      { initialNumItems: 50 },
     );
     expect(screen.getByText("全体の人物1")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "店舗を選択" }));
@@ -336,7 +336,7 @@ describe("AppStaffRoutePage", () => {
     expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(
       mocks.peopleQueryRef,
       { organizationId: "organization-1", shopFilter: "all", orderRevision: null },
-      { initialNumItems: 40 },
+      { initialNumItems: 50 },
     );
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/staff",
@@ -367,7 +367,7 @@ describe("AppStaffRoutePage", () => {
       totalCountHasOverflow: true,
       visibleCount: 1000,
       visibleCountHasOverflow: true,
-      maxPeople: 40,
+      maxPeople: 50,
       canAddStaff: false,
       canChangeStaffOrder: true,
     };
@@ -381,7 +381,7 @@ describe("AppStaffRoutePage", () => {
       />,
     );
 
-    expect(screen.getByTestId("people-counts").textContent).toBe("1000+/40:1000+");
+    expect(screen.getByTestId("people-counts").textContent).toBe("1000+/50:1000+");
   });
 
   it("追加pageと、選択済み店舗＋expected orgの既存スタッフ追加Dialogへ接続する", () => {
@@ -447,7 +447,7 @@ describe("AppStaffRoutePage", () => {
     expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(
       mocks.peopleQueryRef,
       { organizationId: "organization-1", shopFilter: "all", orderRevision: null },
-      { initialNumItems: 40 },
+      { initialNumItems: 50 },
     );
   });
 
@@ -530,10 +530,10 @@ describe("AppStaffRoutePage", () => {
     expect(orderHandle.title).toBe("契約状態を復旧してから並び順を変更できます。");
   });
 
-  it("40名超過または件数overflowでは並び替えハンドルを無効にする", () => {
+  it("50名超過または件数overflowでは並び替えハンドルを無効にする", () => {
     summaryResult = {
       ...summaryResult,
-      totalCount: 41,
+      totalCount: 51,
       totalCountHasOverflow: true,
       canChangeStaffOrder: true,
     };
@@ -544,7 +544,7 @@ describe("AppStaffRoutePage", () => {
 
     const orderHandle = screen.getByRole("button", { name: "全体の人物1の並び替え" }) as HTMLButtonElement;
     expect(orderHandle.disabled).toBe(true);
-    expect(orderHandle.title).toBe("利用人数が40名を超えているため、並び順を変更できません。");
+    expect(orderHandle.title).toBe("利用人数が50名を超えているため、並び順を変更できません。");
   });
 
   it("稼働中の店舗が5店舗を超えると並び替えハンドルを無効にする", () => {

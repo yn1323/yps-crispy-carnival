@@ -11,7 +11,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const ChoosePro: Story = {
+export const ChoosePaidPlan: Story = {
   args: {
     resolution: { kind: "choosePaidPlan", current: 5, max: 5 },
     retryActionLabel: "スタッフを追加",
@@ -19,20 +19,20 @@ export const ChoosePro: Story = {
   },
 };
 
-export const ContactForIndividualPlan: Story = {
+export const LimitReached: Story = {
   args: {
-    resolution: { kind: "contact", current: 30, max: 30 },
+    resolution: { kind: "limitReached", current: 50, max: 50 },
     retryActionLabel: "申請を承認",
   },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByRole("link", { name: "利用上限について問い合わせる" })).toHaveAttribute(
-      "href",
-      "/contact",
-    );
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("このプランでは、これ以上利用者を追加できません。", { exact: false })).toBeVisible();
+    await expect(canvas.queryByRole("button")).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("link")).not.toBeInTheDocument();
   },
 };
 
-export const ChooseProWithoutBillingNavigation: Story = {
+export const ChoosePaidPlanWithoutBillingNavigation: Story = {
   args: {
     resolution: { kind: "choosePaidPlan", current: 5, max: 5 },
     retryActionLabel: "スタッフを追加",
@@ -42,9 +42,8 @@ export const ChooseProWithoutBillingNavigation: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("link", { name: "利用上限について問い合わせる" })).toHaveAttribute(
-      "href",
-      "/contact",
-    );
+    await expect(canvas.getByText("このプランでは、これ以上利用者を追加できません。", { exact: false })).toBeVisible();
+    await expect(canvas.queryByRole("button")).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("link")).not.toBeInTheDocument();
   },
 };

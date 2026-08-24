@@ -9,6 +9,7 @@ import { modules, schema } from "../_test/setup.test-helper";
 import {
   getOrganizationStaffOrderEditorSnapshot,
   getOrganizationStaffOrderSourceSnapshot,
+  ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT,
   saveOrganizationStaffOrderSnapshot,
   syncActivatedOrganizationStaffOrder,
 } from "../organization/staffOrder";
@@ -515,7 +516,7 @@ describe("organization staff order", () => {
     ]);
   });
 
-  it("40人×5稼働店舗を一transactionで有効化し、最大241 documentを構築する", async () => {
+  it("50人×5稼働店舗を一transactionで有効化し、最大301 documentを構築する", async () => {
     const t = convexTest(schema, modules);
     const subject = "staff_order_maximum";
     const ids = await t.run(async (ctx) => {
@@ -534,7 +535,7 @@ describe("organization staff order", () => {
         );
       }
       const personIds = [base.personId];
-      for (let index = 1; index < 40; index += 1) {
+      for (let index = 1; index < ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT; index += 1) {
         personIds.push(
           (
             await insertPerson(ctx, {
@@ -546,7 +547,7 @@ describe("organization staff order", () => {
           ).personId,
         );
       }
-      // 管理者も全店舗のスタッフとしてcanonical linkし、40人×5店舗を満たす。
+      // 管理者も全店舗のスタッフとしてcanonical linkし、50人×5店舗を満たす。
       const actorPerson = await ctx.db.get(base.personId);
       if (!actorPerson) throw new Error("actor person not found");
       for (const shopId of shopIds) {
@@ -571,7 +572,7 @@ describe("organization staff order", () => {
         organizationEntries: (await ctx.db.query("organizationStaffOrderEntries").collect()).length,
         shopEntries: (await ctx.db.query("shopStaffOrderEntries").collect()).length,
       })),
-    ).resolves.toEqual({ states: 1, organizationEntries: 40, shopEntries: 200 });
+    ).resolves.toEqual({ states: 1, organizationEntries: 50, shopEntries: 250 });
   });
 
   it.each([
@@ -584,7 +585,7 @@ describe("organization staff order", () => {
       const subject = `staff_order_deleted_shop_scan_${label}`;
       const base = await t.run(async (ctx) => {
         const seeded = await seedOrganizationManagerShop(ctx, { subject, complimentary: true });
-        for (let index = 0; index <= 40; index += 1) {
+        for (let index = 0; index <= ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT; index += 1) {
           await ctx.db.insert("shops", {
             organizationId: seeded.organizationId,
             ...(operatingStatus ? { operatingStatus } : {}),
@@ -684,7 +685,7 @@ describe("organization staff order", () => {
     const base = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, { subject, complimentary: true });
       if (kind === "people") {
-        for (let index = 1; index <= 40; index += 1) {
+        for (let index = 1; index <= ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT; index += 1) {
           await insertPerson(ctx, { organizationId: seeded.organizationId, name: `人物${index}`, index });
         }
       } else if (kind === "shops") {

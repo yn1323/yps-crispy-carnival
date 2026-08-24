@@ -23,7 +23,7 @@ export const Desktop: Story = {
     await expect(
       canvas.getByText("未契約のまま終了すると利用停止になりますが、組織のデータは削除されません。"),
     ).toBeVisible();
-    await expect(canvas.getByText("継続して利用するには、ProまたはBusinessを選択してください。")).toBeVisible();
+    await expect(canvas.getByText("継続して利用するには、StandardまたはProを選択してください。")).toBeVisible();
     await expect(canvas.getByRole("button", { name: "プランと支払いを見る" })).toBeVisible();
   },
 };

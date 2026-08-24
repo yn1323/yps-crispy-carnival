@@ -38,7 +38,7 @@ type ControllerProps = {
 };
 
 const planUsage = {
-  peopleUsage: { current: 12, max: 20 },
+  peopleUsage: { current: 12, max: 25 },
   shopUsage: { current: 2, max: 5 },
 } satisfies PlanStatusCardUsage;
 

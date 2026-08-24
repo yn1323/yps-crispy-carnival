@@ -43,7 +43,7 @@ export function TrialEndingCalloutView({
           <Stack gap={1} flex={1}>
             <Text>{finalDateLabel}にトライアルが終了します。</Text>
             <Text>未契約のまま終了すると利用停止になりますが、組織のデータは削除されません。</Text>
-            <Text>継続して利用するには、ProまたはBusinessを選択してください。</Text>
+            <Text>継続して利用するには、StandardまたはProを選択してください。</Text>
           </Stack>
           <Button
             type="button"
