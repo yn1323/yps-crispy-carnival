@@ -87,7 +87,7 @@ const billing: OrganizationBillingView = {
   hasTrialContinuation: false,
   stripeBillingAvailable: true,
   hasStripeCustomer: true,
-  peopleUsage: { current: 4, max: 20 },
+  peopleUsage: { current: 4, max: 25 },
   shopUsage: { current: 1, max: 5 },
   managerUsage: { current: 1, max: 5 },
   billingEmail: "billing@example.com",
@@ -717,7 +717,7 @@ describe("OrganizationSettings controllers", () => {
     );
   });
 
-  it("トライアルのPro継続登録では終了境界日を請求開始として確認する", async () => {
+  it("トライアルのStandard継続登録では最終日と請求開始日を分けて確認する", async () => {
     mocks.actions.getProPrice.mockResolvedValue({
       status: "available",
       currency: "jpy",
@@ -750,12 +750,76 @@ describe("OrganizationSettings controllers", () => {
         kind: "startPaidPlan",
         targetPlan: "pro",
         source: "trial",
+        trialEndsOn: "2026年8月31日",
         billingStartsOn: "2026年9月1日",
       }),
     );
   });
 
-  it("FreeからBusinessはBusiness Priceを確認して対象plan付きCheckoutを開始する", async () => {
+  it("randomUUIDがないブラウザでも安全な乱数から課金Dialogを開く", async () => {
+    let sequence = 0;
+    vi.stubGlobal("crypto", {
+      getRandomValues: vi.fn((values: Uint8Array) => {
+        values.fill(0);
+        values[15] = ++sequence;
+        return values;
+      }),
+    });
+    mocks.actions.getProPrice.mockResolvedValue({
+      status: "available",
+      currency: "jpy",
+      unitAmount: 3000,
+      interval: "month",
+      intervalCount: 1,
+      taxBehavior: "inclusive",
+    });
+    const freeBilling: OrganizationBillingView = {
+      ...billing,
+      state: "free",
+      currentPlan: "free",
+      canUpdatePaymentMethod: false,
+      canScheduleFree: false,
+    };
+    const { result } = renderHook(() =>
+      useStripeBillingController({ organizationId, organizationName: "さくらダイニング", billing: freeBilling }),
+    );
+    await waitFor(() => expect(result.current.planPrices.pro.status).toBe("available"));
+
+    act(() => result.current.managePlan("pro"));
+
+    expect(result.current.dialog.dialog).toMatchObject({
+      kind: "startPaidPlan",
+      intentKey: expect.stringMatching(/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/),
+    });
+    expect(mocks.showErrorToast).not.toHaveBeenCalled();
+  });
+
+  it("Web Cryptoが利用できない場合は料金をerrorにし、クリック失敗を案内する", async () => {
+    vi.stubGlobal("crypto", {});
+    const freeBilling: OrganizationBillingView = {
+      ...billing,
+      state: "free",
+      currentPlan: "free",
+      canUpdatePaymentMethod: false,
+      canScheduleFree: false,
+    };
+    const { result } = renderHook(() =>
+      useStripeBillingController({ organizationId, organizationName: "さくらダイニング", billing: freeBilling }),
+    );
+    await waitFor(() => {
+      expect(result.current.planPrices.pro).toEqual({ status: "error" });
+      expect(result.current.planPrices.business).toEqual({ status: "error" });
+    });
+
+    act(() => result.current.managePlan("pro"));
+
+    expect(result.current.dialog.dialog).toBeNull();
+    expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ code: "browser_crypto_unavailable" }),
+    );
+  });
+
+  it("FreeからProは対応するPriceを確認して対象plan付きCheckoutを開始する", async () => {
     mocks.actions.getProPrice.mockImplementation(({ targetPlan }: { targetPlan: "pro" | "business" }) =>
       Promise.resolve({
         status: "available",
@@ -1113,7 +1177,7 @@ describe("OrganizationSettings controllers", () => {
     await waitFor(() => expect(result.current.dialog.dialog).toMatchObject({ price: { status: "available" } }));
   });
 
-  it("TrialのPro継続登録済み状態ではCheckoutを増やさず、取消を確認して一度だけ受け付ける", async () => {
+  it("TrialのStandard継続登録済み状態ではCheckoutを増やさず、取消を確認して一度だけ受け付ける", async () => {
     mocks.actions.cancelTrialContinuation.mockResolvedValue({ status: "accepted" });
     const trialBilling: OrganizationBillingView = {
       ...billing,
@@ -1153,12 +1217,12 @@ describe("OrganizationSettings controllers", () => {
     expect(mocks.actions.startProCheckout).not.toHaveBeenCalled();
     await waitFor(() =>
       expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
-        title: "Pro継続の取り消しを受け付けました",
+        title: "Standard継続の取り消しを受け付けました",
       }),
     );
   });
 
-  it("active Proの解約予約と予約済み状態の取消を対応するActionへ接続する", async () => {
+  it("active Standardの解約予約と予約済み状態の取消を対応するActionへ接続する", async () => {
     mocks.actions.scheduleServiceStopAtPeriodEnd.mockResolvedValue({ status: "accepted" });
     mocks.actions.cancelScheduledFree.mockResolvedValue({ status: "accepted" });
     const { result, rerender } = renderHook((input) => useStripeBillingController(input), {
@@ -1242,7 +1306,7 @@ describe("OrganizationSettings controllers", () => {
     );
   });
 
-  it("ProからBusinessは同じproration dateの見積もり確認後に一度だけ即時変更する", async () => {
+  it("StandardからProは同じproration dateの見積もり確認後に一度だけ即時変更する", async () => {
     mocks.actions.previewPaidPlanChange.mockResolvedValue({
       status: "available",
       currency: "jpy",
@@ -1285,7 +1349,7 @@ describe("OrganizationSettings controllers", () => {
       }),
     );
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
-      title: "Businessへの変更を受け付けました",
+      title: "Proへの変更を受け付けました",
     });
   });
 
@@ -1350,13 +1414,13 @@ describe("OrganizationSettings controllers", () => {
     );
   });
 
-  it("BusinessからProは期間末変更と必要削減人数を確認して予約する", async () => {
+  it("ProからStandardは期間末変更と必要削減人数を確認して予約する", async () => {
     mocks.actions.schedulePaidPlanChange.mockResolvedValue({ status: "accepted" });
     const businessBilling: OrganizationBillingView = {
       ...billing,
       state: "business",
       currentPlan: "business",
-      peopleUsage: { current: 23, max: 40 },
+      peopleUsage: { current: 28, max: 50 },
       requiredReductions: { people: 0, shops: 0, managers: 0 },
       nextEvent: { label: "次回更新日", date: "2026年8月31日" },
     };
@@ -1381,7 +1445,7 @@ describe("OrganizationSettings controllers", () => {
       }),
     );
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
-      title: "Proへの変更予約を受け付けました",
+      title: "Standardへの変更予約を受け付けました",
     });
   });
 
@@ -1454,7 +1518,7 @@ describe("OrganizationSettings controllers", () => {
     await waitFor(() => expect(mocks.actions.openCustomerPortal).not.toHaveBeenCalled());
   });
 
-  it("支払い不要Businessでは古い確定操作を含む全Stripe Actionを呼ばない", async () => {
+  it("支払い不要Proでは古い確定操作を含む全Stripe Actionを呼ばない", async () => {
     const { result, rerender } = renderHook((input) => useStripeBillingController(input), {
       initialProps: { organizationId, organizationName: "さくらダイニング", billing },
     });

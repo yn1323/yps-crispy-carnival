@@ -1,4 +1,5 @@
 import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
+import { organizationPlanLabel } from "@/convex/organizationBilling/planPresentation";
 import { formatPricePresentation } from "@/src/domains/organizationBilling/pricePresentation";
 import type {
   BillingPlanPrice,
@@ -51,6 +52,7 @@ export type BillingActionDialogState =
       source: "trial" | "immediate";
       targetPlan: PaidBillingPlan;
       price: BillingPlanPriceState;
+      trialEndsOn?: string;
       billingStartsOn: string;
     })
   | (BillingDialogBase & {
@@ -145,6 +147,13 @@ export function formatBillingBoundaryDate(timestamp: number): string {
   return `${value("year")}年${value("month")}月${value("day")}日`;
 }
 
+export function formatTrialBillingDates(trialEndsAt: number): { trialEndsOn: string; billingStartsOn: string } {
+  return {
+    trialEndsOn: formatBillingBoundaryDate(trialEndsAt - 1),
+    billingStartsOn: formatBillingBoundaryDate(trialEndsAt),
+  };
+}
+
 export function billingUnavailableMessage(reason: BillingUnavailableReason): {
   title: string;
   description: string;
@@ -185,12 +194,7 @@ export function billingUnavailableMessage(reason: BillingUnavailableReason): {
   }
 }
 
-export function planLabel(plan: BillingProductPlan | "trial"): string {
-  if (plan === "trial") return "トライアル";
-  if (plan === "free") return "Free";
-  if (plan === "pro") return "Pro";
-  return "Business";
-}
+export const planLabel = organizationPlanLabel;
 
 export function getRequiredReductions(
   billing: OrganizationBillingView,

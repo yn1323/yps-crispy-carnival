@@ -1,5 +1,6 @@
 import { type RouterHistory, useRouter } from "@tanstack/react-router";
 import { type MutableRefObject, useEffect, useRef } from "react";
+import { createBrowserUuid } from "@/src/lib/browserUuid";
 
 const DIALOG_BACK_GUARD_KEY = "__shiftoriDialogBackGuard";
 
@@ -91,7 +92,12 @@ export const registerDialogBackNavigation = (history: RouterHistory) => {
 const addBackGuard = (history: RouterHistory) => {
   if (backGuard?.history === history) return;
 
-  const id = crypto.randomUUID();
+  let id: string;
+  try {
+    id = createBrowserUuid();
+  } catch {
+    return;
+  }
   backGuard = { history, id };
   history.push(
     history.location.href,

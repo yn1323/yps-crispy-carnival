@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const clerkHooks = vi.hoisted(() => ({
@@ -13,15 +14,12 @@ const clerkHooks = vi.hoisted(() => ({
 
 vi.mock("@clerk/react", () => clerkHooks);
 
-vi.mock("@/src/components/templates/FullPageSpinner", () => ({
-  FullPageSpinner: () => <div data-testid="spinner" />,
-}));
-
 vi.mock("../AuthFormControls", () => ({
   ClerkCaptcha: () => <div id="clerk-captcha" />,
 }));
 
 vi.mock("./SsoCallbackView", () => ({
+  SsoProcessingView: ({ captcha }: { captcha: ReactNode }) => <div data-testid="spinner">{captcha}</div>,
   SsoClientTrustView: ({
     errorMessage,
     onBack,
@@ -470,7 +468,7 @@ describe("SSO callback", () => {
     expect(clerkHooks.SignIn).not.toHaveBeenCalled();
     expect(clerkHooks.SignUp).not.toHaveBeenCalled();
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "確認コードを再送" }).disabled).toBe(true);
-    expect(document.querySelector("#clerk-captcha")).not.toBeNull();
+    expect(document.querySelector("#clerk-captcha")).toBeNull();
   });
 
   it("同じattemptをremountしても開始済みのsecond factorへコードを自動再送しない", async () => {
@@ -645,7 +643,7 @@ describe("SSO callback", () => {
 
     render(<SsoCallbackPage redirectTo="/dashboard" />);
 
-    expect(document.querySelector("#clerk-captcha")).not.toBeNull();
+    expect(document.querySelectorAll("#clerk-captcha")).toHaveLength(1);
     expect(screen.getByTestId("spinner")).not.toBeNull();
   });
 });

@@ -54,34 +54,35 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const StartPro: Story = { name: "Pro開始" };
+export const StartPro: Story = { name: "Standard開始" };
 
 export const StartBusiness: Story = {
-  name: "Business開始",
+  name: "Pro開始",
   args: {
     dialog: startBusinessDialog,
   },
 };
 
 export const RegisterTrialBusinessContinuation: Story = {
-  name: "トライアル終了後のBusiness継続登録",
+  name: "トライアル終了後のPro継続登録",
   args: {
     dialog: {
       ...startBusinessDialog,
       kind: "startPaidPlan",
       source: "trial",
+      trialEndsOn: "2026年8月31日",
       billingStartsOn: "2026年9月1日",
     },
   },
 };
 
 export const LoadingBusinessPrice: Story = {
-  name: "Business料金を読み込み中",
+  name: "Pro料金を読み込み中",
   args: { dialog: { ...startBusinessDialog, price: { status: "loading" } } },
 };
 
 export const BusinessPriceUnavailable: Story = {
-  name: "Business料金を取得できない",
+  name: "Pro料金を取得できない",
   args: {
     dialog: {
       ...startBusinessDialog,
@@ -91,25 +92,25 @@ export const BusinessPriceUnavailable: Story = {
 };
 
 export const RetryBusinessPriceBehavior: Story = {
-  name: "Business料金を再読み込み（操作確認）",
+  name: "Pro料金を再読み込み（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: { ...BusinessPriceUnavailable.args, onRetryPrice: fn() },
   play: async ({ args }) => {
-    const dialog = await within(document.body).findByRole("alertdialog", { name: "Businessを開始しますか？" });
+    const dialog = await within(document.body).findByRole("alertdialog", { name: "Proを開始しますか？" });
     await userEvent.click(within(dialog).getByRole("button", { name: "料金を再読み込みする" }));
     await expect(args.onRetryPrice).toHaveBeenCalledTimes(1);
   },
 };
 
 export const UpgradeToBusinessPreviewLoading: Story = {
-  name: "ProからBusiness・見積もり中",
+  name: "StandardからPro・見積もり中",
   args: {
     dialog: upgradeToBusinessLoadingDialog,
   },
 };
 
 export const UpgradeToBusinessPreviewAvailable: Story = {
-  name: "ProからBusiness・見積もり成功",
+  name: "StandardからPro・見積もり成功",
   args: {
     dialog: {
       ...upgradeToBusinessLoadingDialog,
@@ -129,7 +130,7 @@ export const UpgradeToBusinessPreviewAvailable: Story = {
 };
 
 export const UpgradeToBusinessPreviewError: Story = {
-  name: "ProからBusiness・見積もり失敗",
+  name: "StandardからPro・見積もり失敗",
   args: {
     dialog: {
       ...upgradeToBusinessLoadingDialog,
@@ -145,14 +146,14 @@ export const RetryBusinessPreviewBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   args: { ...UpgradeToBusinessPreviewError.args, onRetryPreview: fn() },
   play: async ({ args }) => {
-    const dialog = await within(document.body).findByRole("alertdialog", { name: "Businessへ変更しますか？" });
+    const dialog = await within(document.body).findByRole("alertdialog", { name: "Proへ変更しますか？" });
     await userEvent.click(within(dialog).getByRole("button", { name: "見積もりを再読み込みする" }));
     await expect(args.onRetryPreview).toHaveBeenCalledTimes(1);
   },
 };
 
 export const ScheduleBusinessToPro: Story = {
-  name: "BusinessからProへ変更予約",
+  name: "ProからStandardへ変更予約",
   args: {
     dialog: {
       kind: "schedulePlanChange",
@@ -181,7 +182,7 @@ export const ScheduleServiceStop: Story = {
 };
 
 export const CancelScheduledPro: Story = {
-  name: "Proへの変更予約取消",
+  name: "Standardへの変更予約取消",
   args: {
     dialog: {
       kind: "cancelScheduledPlanChange",
@@ -210,7 +211,7 @@ export const CancelScheduledServiceStop: Story = {
 };
 
 export const Mobile: Story = {
-  name: "ProからBusiness・モバイル",
+  name: "StandardからPro・モバイル",
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: UpgradeToBusinessPreviewAvailable.args,

@@ -5,6 +5,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { toaster } from "@/src/components/ui/toaster";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { createBrowserUuid } from "@/src/lib/browserUuid";
 import type {
   BillingPendingCheckoutStatus,
   BillingPlanPrices,
@@ -22,7 +23,7 @@ import { openBillingUrl } from "./openBillingUrl";
 import {
   type BillingActionDialogState,
   billingUnavailableMessage,
-  formatBillingBoundaryDate,
+  formatTrialBillingDates,
   getRequiredReductions,
   planLabel,
   resolveBillingPlanAction,
@@ -98,7 +99,15 @@ export function useStripeBillingController(input: Input) {
 
   const loadPlanPrice = useCallback(
     async (targetPlan: PaidBillingPlan, scopeId: string) => {
-      const requestKey = crypto.randomUUID();
+      let requestKey: string;
+      try {
+        requestKey = createBrowserUuid();
+      } catch {
+        if (activeScopeIdRef.current === scopeId) {
+          setPlanPrices((current) => ({ ...current, [targetPlan]: { status: "error" } }));
+        }
+        return;
+      }
       priceRequestRef.current[targetPlan] = requestKey;
       setPlanPrices((current) => ({ ...current, [targetPlan]: { status: "loading" } }));
       try {
@@ -401,7 +410,7 @@ export function useStripeBillingController(input: Input) {
         if (!result) throw new Error("Unexpected billing response");
         if (result.status === "unavailable") return showUnavailable(result.reason);
         setDialog(null);
-        showSuccessToast({ title: "Businessへの変更を受け付けました" });
+        showSuccessToast({ title: "Proへの変更を受け付けました" });
         return;
       }
 
@@ -436,7 +445,7 @@ export function useStripeBillingController(input: Input) {
       const result = asBillingUrlActionResult(
         await openCustomerPortalForOrganization({
           organizationId: current.organizationId,
-          requestId: crypto.randomUUID(),
+          requestId: createBrowserUuid(),
         }),
       );
       if (!result) throw new Error("Unexpected billing response");
@@ -448,59 +457,67 @@ export function useStripeBillingController(input: Input) {
   });
 
   const managePlan = (targetPlan: BillingProductPlan = defaultTargetPlan(latestRef.current.billing)) => {
-    const current = latestRef.current;
-    const scopeId = activeScopeIdRef.current;
-    if (current.billing.isComplimentary || !scopeId) return;
-    const action = resolveBillingPlanAction(current.billing, targetPlan);
-    if (!action) return;
-    if (action.kind === "openPortal") {
-      void openPortal({ kind: "plan" });
-      return;
-    }
+    try {
+      const current = latestRef.current;
+      const scopeId = activeScopeIdRef.current;
+      if (current.billing.isComplimentary || !scopeId) return;
+      const action = resolveBillingPlanAction(current.billing, targetPlan);
+      if (!action) return;
+      if (action.kind === "openPortal") {
+        void openPortal({ kind: "plan" });
+        return;
+      }
 
-    const base = {
-      intentKey: crypto.randomUUID(),
-      shopId: scopeId,
-      organizationName: current.organizationName,
-    };
-    if (action.kind === "startPaidPlan") {
-      setDialog({
-        ...base,
-        ...action,
-        source: current.billing.state === "trial" ? "trial" : "immediate",
-        billingStartsOn:
-          current.billing.state === "trial"
-            ? current.billing.trialEndsAt
-              ? formatBillingBoundaryDate(current.billing.trialEndsAt)
-              : "トライアル終了後"
-            : "Stripeでの支払い完了日",
-        price: planPrices[action.targetPlan],
-      });
-      return;
-    }
-    if (action.kind === "changePaidPlanNow") {
-      setDialog({ ...base, ...action, preview: { status: "loading" } });
-      void prepareProrationPreview({ ...base, targetPlan: action.targetPlan });
-      return;
-    }
-    if (action.kind === "cancelTrialContinuation") {
-      setDialog({ ...base, ...action, trialEndsOn: current.billing.nextEvent?.date });
-      return;
-    }
-    if (action.kind === "schedulePlanChange") {
-      setDialog({
-        ...base,
-        ...action,
-        effectiveOn: current.billing.nextEvent?.date,
-        requiredReductions: getRequiredReductions(current.billing, action.targetPlan),
-      });
-      return;
-    }
-    if (action.kind === "scheduleServiceStop") {
+      const base = {
+        intentKey: createBrowserUuid(),
+        shopId: scopeId,
+        organizationName: current.organizationName,
+      };
+      if (action.kind === "startPaidPlan") {
+        const trialDates =
+          current.billing.state === "trial" && current.billing.trialEndsAt
+            ? formatTrialBillingDates(current.billing.trialEndsAt)
+            : null;
+        setDialog({
+          ...base,
+          ...action,
+          source: current.billing.state === "trial" ? "trial" : "immediate",
+          ...(current.billing.state === "trial"
+            ? {
+                trialEndsOn: trialDates?.trialEndsOn ?? current.billing.nextEvent?.date,
+                billingStartsOn: trialDates?.billingStartsOn ?? "トライアル終了後",
+              }
+            : { billingStartsOn: "Stripeでの支払い完了日" }),
+          price: planPrices[action.targetPlan],
+        });
+        return;
+      }
+      if (action.kind === "changePaidPlanNow") {
+        setDialog({ ...base, ...action, preview: { status: "loading" } });
+        void prepareProrationPreview({ ...base, targetPlan: action.targetPlan });
+        return;
+      }
+      if (action.kind === "cancelTrialContinuation") {
+        setDialog({ ...base, ...action, trialEndsOn: current.billing.nextEvent?.date });
+        return;
+      }
+      if (action.kind === "schedulePlanChange") {
+        setDialog({
+          ...base,
+          ...action,
+          effectiveOn: current.billing.nextEvent?.date,
+          requiredReductions: getRequiredReductions(current.billing, action.targetPlan),
+        });
+        return;
+      }
+      if (action.kind === "scheduleServiceStop") {
+        setDialog({ ...base, ...action, effectiveOn: current.billing.nextEvent?.date });
+        return;
+      }
       setDialog({ ...base, ...action, effectiveOn: current.billing.nextEvent?.date });
-      return;
+    } catch (error) {
+      showErrorToast(error);
     }
-    setDialog({ ...base, ...action, effectiveOn: current.billing.nextEvent?.date });
   };
 
   const retryPlanPrice = (targetPlan: PaidBillingPlan) => {
