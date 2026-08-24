@@ -43,8 +43,8 @@ type PortalIntent = { kind: "plan" } | { kind: "paymentMethod" } | { kind: "bill
 type PendingCheckoutState = { status: Exclude<BillingPendingCheckoutStatus, "open"> } | { status: "open"; url: string };
 
 const INITIAL_PRICES: BillingPlanPrices = {
+  standard: { status: "loading" },
   pro: { status: "loading" },
-  business: { status: "loading" },
 };
 
 export function useStripeBillingController(input: Input) {
@@ -113,6 +113,7 @@ export function useStripeBillingController(input: Input) {
       try {
         const result = await getPlanPriceForOrganization({
           organizationId: latestRef.current.organizationId,
+          planIdVersion: 2,
           targetPlan,
         });
         if (
@@ -140,8 +141,8 @@ export function useStripeBillingController(input: Input) {
       setPlanPrices(INITIAL_PRICES);
       return;
     }
+    void loadPlanPrice("standard", activeScopeId);
     void loadPlanPrice("pro", activeScopeId);
-    void loadPlanPrice("business", activeScopeId);
   }, [activeScopeId, input.billing.isComplimentary, loadPlanPrice]);
 
   useEffect(() => {
@@ -326,13 +327,14 @@ export function useStripeBillingController(input: Input) {
   });
 
   const prepareProrationPreview = useCallback(
-    async (intent: { intentKey: string; shopId: string; targetPlan: "business" }) => {
+    async (intent: { intentKey: string; shopId: string; targetPlan: "pro" }) => {
       if (previewRequestKeysRef.current.has(intent.intentKey) || activeScopeIdRef.current !== intent.shopId) return;
       previewRequestKeysRef.current.add(intent.intentKey);
       try {
         const request = { targetPlan: intent.targetPlan, requestId: intent.intentKey } as const;
         const result = await previewPaidPlanChangeForOrganization({
           organizationId: latestRef.current.organizationId,
+          planIdVersion: 2,
           ...request,
         });
         if (activeScopeIdRef.current !== intent.shopId) return;
@@ -385,6 +387,7 @@ export function useStripeBillingController(input: Input) {
         const result = asBillingUrlActionResult(
           await startPaidCheckoutForOrganization({
             organizationId,
+            planIdVersion: 2,
             requestId,
             targetPlan: currentDialog.targetPlan,
           }),
@@ -402,6 +405,7 @@ export function useStripeBillingController(input: Input) {
         const result = asBillingAcceptedActionResult(
           await changePaidPlanNowForOrganization({
             organizationId,
+            planIdVersion: 2,
             requestId,
             targetPlan: currentDialog.targetPlan,
             prorationDate,
@@ -420,6 +424,7 @@ export function useStripeBillingController(input: Input) {
           : currentDialog.kind === "schedulePlanChange"
             ? await schedulePaidPlanChangeForOrganization({
                 organizationId,
+                planIdVersion: 2,
                 requestId,
                 targetPlan: currentDialog.targetPlan,
               })
@@ -577,12 +582,12 @@ export function useStripeBillingController(input: Input) {
 }
 
 function defaultTargetPlan(billing: OrganizationBillingView): BillingProductPlan {
-  if (billing.state === "free" || billing.state === "trial" || billing.currentPlan === null) return "pro";
+  if (billing.state === "free" || billing.state === "trial" || billing.currentPlan === null) return "standard";
   if (billing.state === "scheduledChange" || billing.state === "scheduledFree") {
-    return billing.currentPlan === "trial" ? "pro" : billing.currentPlan;
+    return billing.currentPlan === "trial" ? "standard" : billing.currentPlan;
   }
-  if (billing.currentPlan === "business") return "pro";
-  return "business";
+  if (billing.currentPlan === "pro") return "standard";
+  return "pro";
 }
 
 function canOpenPortal(billing: OrganizationBillingView, intent: PortalIntent): boolean {

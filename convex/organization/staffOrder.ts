@@ -5,7 +5,7 @@ import { sha256Hex } from "../_lib/sha256";
 import { ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/planLimits";
 import { organizationShopOperatingStatus } from "./shopMembershipChange";
 
-export const ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT = ORGANIZATION_PLAN_LIMITS.business.maxPeople;
+export const ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT = ORGANIZATION_PLAN_LIMITS.pro.maxPeople;
 export const ORGANIZATION_STAFF_ORDER_ACTIVE_SHOP_LIMIT = 5;
 const BOUNDED_PEOPLE_READ = ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT + 1;
 const BOUNDED_SHOP_CANDIDATE_READ = ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT + 1;

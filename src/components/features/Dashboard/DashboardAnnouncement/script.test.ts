@@ -12,7 +12,7 @@ const globalAnnouncement: Announcement = { key: "global" };
 const currentContext = {
   organizationId: "organization-current",
   shopId: "shop-current",
-  organizationPlan: "pro" as const,
+  organizationPlan: "standard" as const,
 };
 
 describe("selectDashboardAnnouncementForContext", () => {

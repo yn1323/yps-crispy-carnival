@@ -47,7 +47,7 @@ export const OperationContext = ({
   onOpenOrganizationSettings,
   showOrganizationContext = true,
 }: Props) => {
-  const rawShops = useQuery(api.dashboard.queries.getMyShops, data ? "skip" : {});
+  const rawShops = useQuery(api.dashboard.queries.getMyShops, data ? "skip" : { planIdVersion: 2 });
   const storedSelectedShop = useAtomValue(selectedShopAtom);
   const shops = useMemo(
     () => data?.shops ?? normalizeShopContextOptions(rawShops ?? []).filter(isSelectableShop),

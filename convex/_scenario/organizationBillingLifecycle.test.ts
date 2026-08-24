@@ -152,7 +152,7 @@ describe("事業者課金ライフサイクル", () => {
         .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
         .collect(),
     }));
-    expect(result.billingState?.state).toEqual({ kind: "active", plan: "free" });
+    expect(result.billingState?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
     expect(result.billingState?.version).toBe(5);
     expect(result.billingState?.businessNotificationCutoffAt).toBeUndefined();
     expect(result.billingState?.businessNotificationCutoffVersion).toBeUndefined();
@@ -167,7 +167,7 @@ describe("事業者課金ライフサイクル", () => {
     ]);
   });
 
-  it("Pro継続を選択したTrialは初回請求確認中へ一度だけ移行する", async () => {
+  it("旧proでStandard継続を選択したTrialはcanonicalな初回請求確認中へ一度だけ移行する", async () => {
     const t = convexTest(schema, modules);
     const now = new Date("2026-09-01T00:00:00+09:00");
     vi.setSystemTime(now);
@@ -209,7 +209,8 @@ describe("事業者課金ライフサイクル", () => {
     }));
     expect(result.billingState?.state).toEqual({
       kind: "initialPaymentPending",
-      plan: "pro",
+      planIdVersion: 2,
+      plan: "standard",
       startedAt: now.getTime(),
     });
     expect(result.billingState?.version).toBe(5);
@@ -261,7 +262,7 @@ describe("事業者課金ライフサイクル", () => {
         shop: await ctx.db.get(ids.shopId),
       })),
     ]);
-    expect(result.billingState?.state).toEqual({ kind: "active", plan: "free" });
+    expect(result.billingState?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
     expect(result.billingState).toMatchObject({
       version: 3,
       businessNotificationCutoffAt: now.getTime(),
@@ -284,7 +285,7 @@ describe("事業者課金ライフサイクル", () => {
     });
   });
 
-  it("Proの再請求失敗から14日後にStripeの未払いを確認してFreeへ移し、上限削減で自動復旧する", async () => {
+  it("Standardの再請求失敗から14日後にStripeの未払いを確認してFreeへ移し、上限削減で自動復旧する", async () => {
     const t = convexTest(schema, modules);
     const graceEndsAt = Date.parse("2026-10-15T12:00:00+09:00");
     const firstFailureAt = graceEndsAt - PAYMENT_GRACE_PERIOD_MS;
@@ -366,7 +367,8 @@ describe("事業者課金ライフサイクル", () => {
     }));
     expect(pendingReconciliation.billingState?.state).toEqual({
       kind: "grace",
-      plan: "pro",
+      planIdVersion: 2,
+      plan: "standard",
       startedAt: firstFailureAt,
       endsAt: graceEndsAt,
     });
@@ -448,7 +450,7 @@ describe("事業者課金ライフサイクル", () => {
           .collect(),
       })),
     ]);
-    expect(freeOverLimit.billingState?.state).toEqual({ kind: "active", plan: "free" });
+    expect(freeOverLimit.billingState?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
     expect(freeOverLimit.billingState).toMatchObject({
       version: 3,
       businessNotificationCutoffAt: graceEndsAt,
@@ -492,7 +494,7 @@ describe("事業者課金ライフサイクル", () => {
         secondShop: await ctx.db.get(ids.secondShopId),
       })),
     ]);
-    expect(result.billingState?.state).toEqual({ kind: "active", plan: "free" });
+    expect(result.billingState?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
     expect(result.billingState).toMatchObject({
       version: 3,
       businessNotificationCutoffAt: graceEndsAt,
@@ -511,7 +513,7 @@ describe("事業者課金ライフサイクル", () => {
     expect(recoveredSettings?.canUpdateOrganizationName).toBe(true);
   });
 
-  it("Proの最初の支払い失敗から14日間だけ猶予し、再試行で期限を延長しない", async () => {
+  it("Standardの最初の支払い失敗から14日間だけ猶予し、再試行で期限を延長しない", async () => {
     const t = convexTest(schema, modules);
     const firstFailureAt = Date.parse("2026-10-01T12:00:00+09:00");
     vi.setSystemTime(firstFailureAt + 60 * 60 * 1000);
@@ -551,7 +553,8 @@ describe("事業者課金ライフサイクル", () => {
     }));
     expect(result.billingState?.state).toEqual({
       kind: "grace",
-      plan: "pro",
+      planIdVersion: 2,
+      plan: "standard",
       startedAt: firstFailureAt,
       endsAt: firstFailureAt + PAYMENT_GRACE_PERIOD_MS,
     });
@@ -627,7 +630,8 @@ describe("事業者課金ライフサイクル", () => {
     }));
     expect(pendingReconciliation.billingState?.state).toEqual({
       kind: "scheduledChange",
-      currentPlan: "pro",
+      planIdVersion: 2,
+      currentPlan: "standard",
       targetPlan: "free",
       effectiveAt,
     });
@@ -691,7 +695,7 @@ describe("事業者課金ライフサイクル", () => {
         .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", ids.organizationId))
         .collect(),
     }));
-    expect(result.billingState?.state).toEqual({ kind: "active", plan: "free" });
+    expect(result.billingState?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
     expect(result.billingState?.version).toBe(3);
     expect(result.billingState?.businessNotificationCutoffAt).toBeUndefined();
     expect(result.billingState?.businessNotificationCutoffVersion).toBeUndefined();
@@ -856,7 +860,7 @@ describe("事業者課金ライフサイクル", () => {
           .collect(),
       })),
     ]);
-    expect(result.billingState?.state).toEqual({ kind: "active", plan: "free" });
+    expect(result.billingState?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
     expect(result.billingState).toMatchObject({
       version: 3,
       businessNotificationCutoffAt: effectiveAt,
@@ -909,6 +913,7 @@ describe("事業者課金ライフサイクル", () => {
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
         subject: "complimentary_business_limits",
+        planIdVersion: 2,
         complimentary: true,
       });
       for (let index = 1; index < 50; index += 1) {
@@ -934,13 +939,16 @@ describe("事業者課金ライフサイクル", () => {
         }),
       ).resolves.toMatchObject({ changed: true, shopStatus: "active" });
     }
-    const settings = await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId });
+    const settings = await actor.query(api.organization.queries.getSettings, {
+      shopId: ids.shopId,
+      planIdVersion: 2,
+    });
 
     expect(settings).toMatchObject({
       canAddShop: false,
       billing: {
-        state: "business",
-        currentPlan: "business",
+        state: "pro",
+        currentPlan: "pro",
         isComplimentary: true,
         peopleUsage: { current: 50, max: 50 },
         shopUsage: { current: 5, max: 5 },
@@ -961,7 +969,7 @@ describe("事業者課金ライフサイクル", () => {
         (job) => job.payload.kind === "email" && job.payload.context.startsWith("organizationBilling."),
       ),
     }));
-    expect(result.billingState?.state).toEqual({ kind: "complimentary", plan: "business" });
+    expect(result.billingState?.state).toEqual({ kind: "complimentary", planIdVersion: 2, plan: "pro" });
     expect(result.stripeCustomers).toEqual([]);
     expect(result.stripeSubscriptions).toEqual([]);
     expect(result.stripeOperations).toEqual([]);
@@ -972,6 +980,7 @@ describe("事業者課金ライフサイクル", () => {
   it("既存active.freeはgrandfatheringされ、新しい解約Actionから変更されない", async () => {
     vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_billing_scenario");
     vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_billing_scenario");
+    vi.stubEnv("STRIPE_STANDARD_PRICE_ID", "price_billing_scenario_standard");
     vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_billing_scenario_pro");
     vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "bpc_billing_scenario");
     const t = convexTest(schema, modules);

@@ -10,7 +10,7 @@ vi.mock("dotenv", () => ({ config: dotenvConfigMock }));
 
 const SECRET_SENTINEL = "secret-sentinel-should-never-be-printed";
 const TEST_ENV_KEY = "STRIPE_SECRET_KEY";
-const BUSINESS_PRICE_ENV_KEY = "STRIPE_BUSINESS_PRICE_ID";
+const STANDARD_PRICE_ENV_KEY = "STRIPE_STANDARD_PRICE_ID";
 
 describe("setupEnv", () => {
   beforeEach(() => {
@@ -21,7 +21,7 @@ describe("setupEnv", () => {
 
   afterEach(() => {
     delete process.env[TEST_ENV_KEY];
-    delete process.env[BUSINESS_PRICE_ENV_KEY];
+    delete process.env[STANDARD_PRICE_ENV_KEY];
     vi.restoreAllMocks();
   });
 
@@ -65,19 +65,19 @@ describe("setupEnv", () => {
     expect(JSON.stringify(secretCall.slice(0, 2))).not.toContain(SECRET_SENTINEL);
   });
 
-  it("Business Price IDをargvへ含めずstdinでConvex環境変数へ同期する", async () => {
-    const businessPriceId = "price_business_setup_env";
-    process.env[BUSINESS_PRICE_ENV_KEY] = businessPriceId;
+  it("Standard Price IDをargvへ含めずstdinでConvex環境変数へ同期する", async () => {
+    const standardPriceId = "price_standard_setup_env";
+    process.env[STANDARD_PRICE_ENV_KEY] = standardPriceId;
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
 
     await import("./setupEnv");
 
-    const businessPriceCall = execFileSyncMock.mock.calls.find(([, args]) => args.at(-1) === BUSINESS_PRICE_ENV_KEY);
-    expect(businessPriceCall).toBeDefined();
-    if (!businessPriceCall) return;
-    const [command, argv, options] = businessPriceCall;
-    expect(JSON.stringify([command, argv])).not.toContain(businessPriceId);
-    expect(options).toMatchObject({ input: `${businessPriceId}\n`, stdio: ["pipe", "pipe", "pipe"] });
+    const standardPriceCall = execFileSyncMock.mock.calls.find(([, args]) => args.at(-1) === STANDARD_PRICE_ENV_KEY);
+    expect(standardPriceCall).toBeDefined();
+    if (!standardPriceCall) return;
+    const [command, argv, options] = standardPriceCall;
+    expect(JSON.stringify([command, argv])).not.toContain(standardPriceId);
+    expect(options).toMatchObject({ input: `${standardPriceId}\n`, stdio: ["pipe", "pipe", "pipe"] });
   });
 });

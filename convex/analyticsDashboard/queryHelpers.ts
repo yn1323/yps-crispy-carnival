@@ -1,6 +1,7 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { addDays, getMondayWeekStart, subtractCalendarMonths } from "../_lib/dateFormat";
+import { ANALYTICS_CALCULATION_VERSION } from "../analytics/model";
 import { ANALYTICS_POLICY } from "../analytics/registry";
 import { DAY_MS } from "../constants";
 import type {
@@ -19,6 +20,8 @@ import type {
   AnalyticsShopRowDto,
   AnalyticsShopUsageLikelihood,
   AnalyticsShopUsageReason,
+  CanonicalAnalyticsPlanKey,
+  LegacyAnalyticsPlanKey,
 } from "./dto";
 import type { AnalyticsShopUsageFilter } from "./schemas";
 
@@ -205,13 +208,14 @@ export function toOrganizationRowDto(
   doc: Doc<"analyticsOrganizations">,
   kpis: AnalyticsOrganizationKpiDto | null,
   dataStartAt: number,
+  planIdVersion?: 2,
 ): AnalyticsOrganizationRowDto {
   return {
     organizationId: doc.organizationId,
     displayName: doc.displayName,
     registeredAt: doc.registeredAt,
     deletedAt: doc.deletedAt ?? null,
-    currentPlan: doc.currentPlan ?? null,
+    currentPlan: projectAnalyticsPlan(doc.currentPlan, planIdVersion),
     firstShopAt: doc.firstShopAt ?? null,
     secondShopAt: doc.secondShopAt ?? null,
     secondShopFirstConfirmedAt:
@@ -226,6 +230,7 @@ export function toShopRowDto(
   doc: Doc<"analyticsShops">,
   organizationDisplayName: string,
   kpis: AnalyticsShopKpiDto | null,
+  planIdVersion?: 2,
 ): AnalyticsShopRowDto {
   const milestoneEligible = kpis?.kpiEligible === true;
   return {
@@ -235,7 +240,7 @@ export function toShopRowDto(
     displayName: doc.displayName,
     registeredAt: doc.registeredAt,
     deletedAt: doc.deletedAt ?? null,
-    currentPlan: doc.currentPlan ?? null,
+    currentPlan: projectAnalyticsPlan(doc.currentPlan, planIdVersion),
     milestoneDates: {
       registeredAt: doc.registeredAt,
       firstRecruitmentAt: milestoneEligible ? (doc.firstRecruitmentAt ?? null) : null,
@@ -248,6 +253,28 @@ export function toShopRowDto(
     cadence: kpis?.cadence ?? toDimensionCadenceDto(doc),
     kpis,
   };
+}
+
+function requireCanonicalAnalyticsPlan(plan: Doc<"analyticsOrganizations">["currentPlan"]): CanonicalAnalyticsPlanKey {
+  if (plan === undefined || plan === "business") throw new Error("analytics_plan_projection_not_canonical");
+  return plan;
+}
+
+export function projectCanonicalAnalyticsPlanForClient(
+  canonical: CanonicalAnalyticsPlanKey,
+  planIdVersion?: 2,
+): CanonicalAnalyticsPlanKey | LegacyAnalyticsPlanKey {
+  if (planIdVersion === 2) return canonical;
+  return canonical === "standard" ? "pro" : canonical === "pro" ? "business" : canonical;
+}
+
+function projectAnalyticsPlan(
+  plan: Doc<"analyticsOrganizations">["currentPlan"],
+  planIdVersion?: 2,
+): CanonicalAnalyticsPlanKey | LegacyAnalyticsPlanKey | null {
+  if (plan === undefined) return null;
+  const canonical = requireCanonicalAnalyticsPlan(plan);
+  return projectCanonicalAnalyticsPlanForClient(canonical, planIdVersion);
 }
 
 type AnalyticsShopUsageKpiEvidence = Pick<
@@ -379,9 +406,11 @@ export async function getAnalyticsReadState(ctx: QueryCtx): Promise<AnalyticsRea
   ]);
   const latestDaily = laterRun(laterRun(runningDaily, completeDaily), failedDaily);
   const latestReset = laterRun(laterRun(runningReset, completeReset), failedReset);
+  const resetReady =
+    completeReset?.calculationVersion === ANALYTICS_CALCULATION_VERSION && completeReset.resetWatermarkAt !== undefined;
   const latestDailyAfterReset = startedAfter(latestDaily, latestReset) ? latestDaily : null;
   const latestCompleteRun =
-    completeDaily?.targetDate !== undefined && startedAfter(completeDaily, latestReset)
+    resetReady && completeDaily?.targetDate !== undefined && startedAfter(completeDaily, latestReset)
       ? (completeDaily as CompleteDailyRun)
       : null;
   const warnings: string[] = [];
@@ -393,18 +422,21 @@ export async function getAnalyticsReadState(ctx: QueryCtx): Promise<AnalyticsRea
   } else if (latestReset?.status === "failed") {
     availability = "unavailable";
     warnings.push("分析データの再構築に失敗しています");
+  } else if (!resetReady) {
+    availability = "unavailable";
+    warnings.push("分析データのプラン定義を再構築してください");
   } else if (latestDailyAfterReset?.status === "running") {
     availability = "unavailable";
     warnings.push("日次集計を実行中です");
   } else if (latestDailyAfterReset?.status === "failed") {
     availability = "unavailable";
     warnings.push("最新の日次集計に失敗しています");
-  } else if (!latestCompleteRun) {
+  } else if (!latestCompleteRun || latestCompleteRun.calculationVersion !== ANALYTICS_CALCULATION_VERSION) {
     availability = "unavailable";
     warnings.push("利用可能な日次集計がありません");
   }
 
-  const controlRun = latestDailyAfterReset ?? latestReset ?? latestDaily;
+  const controlRun = resetReady ? (latestDailyAfterReset ?? latestReset) : latestReset;
   return {
     availability,
     asOf: latestCompleteRun?.cutoffAt ?? null,

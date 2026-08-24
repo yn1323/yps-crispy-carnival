@@ -20,8 +20,8 @@ describe("管理者セットアップシナリオ", () => {
     vi.setSystemTime(SCENARIO_NOW);
     vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_manager_setup");
     vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_manager_setup");
+    vi.stubEnv("STRIPE_STANDARD_PRICE_ID", "price_manager_setup_standard");
     vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_manager_setup_pro");
-    vi.stubEnv("STRIPE_BUSINESS_PRICE_ID", "price_manager_setup_business");
     vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "bpc_manager_setup");
     vi.stubEnv("CONVEX_CLOUD_URL", "");
     vi.stubEnv("DEBUG_TRIAL_DURATION_DEPLOYMENT_URL", "");

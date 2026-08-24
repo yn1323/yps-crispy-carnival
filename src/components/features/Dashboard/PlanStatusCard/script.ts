@@ -148,11 +148,11 @@ export function getPlanStatusTimerDelay(boundary: number, now: number): number {
   return Math.min(Math.max(boundary - now, 0), MAX_PLAN_STATUS_TIMER_DELAY_MS);
 }
 
-function paidPlanName(plan: "pro" | "business"): PaidPlanName {
+function paidPlanName(plan: "standard" | "pro"): PaidPlanName {
   return organizationPaidPlanLabel(plan);
 }
 
-function planName(plan: "free" | "pro" | "business"): PlanName {
+function planName(plan: "free" | "standard" | "pro"): PlanName {
   return organizationEntitlementPlanLabel(plan);
 }
 

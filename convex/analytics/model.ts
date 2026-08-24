@@ -1,14 +1,19 @@
 import { v } from "convex/values";
 
-export const ANALYTICS_SCHEMA_VERSION = 1;
-export const ANALYTICS_CALCULATION_VERSION = 1;
+// v2はplan IDをstandard | proへ揃えたsource payload / projection世代。
+export const ANALYTICS_SCHEMA_VERSION = 2;
+export const ANALYTICS_PAYLOAD_VERSION = 2;
+export const ANALYTICS_CALCULATION_VERSION = 2;
 
-export const analyticsPlanValidator = v.union(
+export const analyticsCanonicalPlanValidator = v.union(
   v.literal("trial"),
   v.literal("free"),
+  v.literal("standard"),
   v.literal("pro"),
-  v.literal("business"),
 );
+
+// Widen中の保存shape。m043+reset後のwriter/read APIはcanonical validatorだけを使う。
+export const analyticsPlanValidator = v.union(analyticsCanonicalPlanValidator, v.literal("business"));
 
 export const analyticsCompletenessValidator = v.union(
   v.literal("complete"),

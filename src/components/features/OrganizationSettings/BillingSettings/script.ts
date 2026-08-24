@@ -20,8 +20,8 @@ export type BillingUnavailableReason =
 
 export type BillingPlanAction =
   | { kind: "startPaidPlan"; targetPlan: PaidBillingPlan }
-  | { kind: "changePaidPlanNow"; targetPlan: "business" }
-  | { kind: "schedulePlanChange"; targetPlan: "pro" }
+  | { kind: "changePaidPlanNow"; targetPlan: "pro" }
+  | { kind: "schedulePlanChange"; targetPlan: "standard" }
   | { kind: "scheduleServiceStop"; targetPlan: "free" }
   | { kind: "cancelScheduledPlanChange"; targetPlan: BillingProductPlan; isServiceStop?: true }
   | { kind: "cancelTrialContinuation"; targetPlan: PaidBillingPlan }
@@ -57,7 +57,7 @@ export type BillingActionDialogState =
     })
   | (BillingDialogBase & {
       kind: "changePaidPlanNow";
-      targetPlan: "business";
+      targetPlan: "pro";
       preview: BillingProrationPreviewState;
     })
   | (BillingDialogBase & {
@@ -67,7 +67,7 @@ export type BillingActionDialogState =
     })
   | (BillingDialogBase & {
       kind: "schedulePlanChange";
-      targetPlan: "pro";
+      targetPlan: "standard";
       effectiveOn?: string;
       requiredReductions: BillingRequiredReductions;
     })
@@ -109,11 +109,11 @@ export function resolveBillingPlanAction(
       return isPaidPlan(targetPlan) ? { kind: "startPaidPlan", targetPlan } : null;
     case "free":
       return isPaidPlan(targetPlan) ? { kind: "startPaidPlan", targetPlan } : null;
-    case "pro":
-      if (targetPlan === "business") return { kind: "changePaidPlanNow", targetPlan };
+    case "standard":
+      if (targetPlan === "pro") return { kind: "changePaidPlanNow", targetPlan };
       return targetPlan === "free" ? { kind: "scheduleServiceStop", targetPlan } : null;
-    case "business":
-      if (targetPlan === "pro") return { kind: "schedulePlanChange", targetPlan };
+    case "pro":
+      if (targetPlan === "standard") return { kind: "schedulePlanChange", targetPlan };
       return targetPlan === "free" ? { kind: "scheduleServiceStop", targetPlan } : null;
     case "restricted":
       // 支払い開始に失敗した旧状態だけを復旧対象にする。上限超過中は整理操作に限定する。
@@ -210,5 +210,5 @@ export function getRequiredReductions(
 }
 
 function isPaidPlan(plan: BillingProductPlan): plan is PaidBillingPlan {
-  return plan === "pro" || plan === "business";
+  return plan === "standard" || plan === "pro";
 }

@@ -365,7 +365,8 @@ function manifestRecord(
   return {
     recordType: "manifest",
     format: "shiftori.analytics.ai-jsonl",
-    schemaVersion: 1,
+    schemaVersion: 2,
+    planIdVersion: 2,
     generatedAt: new Date().toISOString(),
     timezone: "Asia/Tokyo",
     environment: { label: anchor.environmentLabel },
@@ -423,6 +424,7 @@ function seriesParams(search: AnalyticsSearchState, to: string) {
     from: search.from,
     granularity: search.granularity,
     organizationId: search.organizationId,
+    planIdVersion: search.planIdVersion,
     shopId: search.shopId,
     to,
   };
@@ -440,6 +442,7 @@ export async function buildAnalyticsJsonlExport(
       compareTo: search.compareTo,
       from: search.from,
       organizationId: search.organizationId,
+      planIdVersion: search.planIdVersion,
       shopId: search.shopId,
       to: search.to,
     }),
@@ -527,6 +530,7 @@ export async function buildAnalyticsJsonlExport(
         from: search.from,
         granularity: search.granularity,
         limit: 1,
+        planIdVersion: search.planIdVersion,
         to: effectiveTo,
       }),
     );
@@ -550,6 +554,7 @@ export async function buildAnalyticsJsonlExport(
       fetchShop(shopId, {
         from: search.from,
         granularity: search.granularity,
+        planIdVersion: search.planIdVersion,
         to: effectiveTo,
       }),
     );
@@ -582,6 +587,7 @@ export async function buildAnalyticsJsonlExport(
           from: search.from,
           limit: EXPORT_PAGE_SIZE,
           organizationId: search.organizationId,
+          planIdVersion: search.planIdVersion,
           to: effectiveTo,
         }),
       gate,
@@ -594,7 +600,13 @@ export async function buildAnalyticsJsonlExport(
       anchor,
       dataset: "organization",
       fetchPage: (cursor) =>
-        fetchOrganizations({ cursor, from: search.from, limit: EXPORT_PAGE_SIZE, to: effectiveTo }),
+        fetchOrganizations({
+          cursor,
+          from: search.from,
+          limit: EXPORT_PAGE_SIZE,
+          planIdVersion: search.planIdVersion,
+          to: effectiveTo,
+        }),
       gate,
       onRow: appendOrganization,
       rowsFrom: (data) => data.rows,
@@ -603,7 +615,14 @@ export async function buildAnalyticsJsonlExport(
     await walkPages({
       anchor,
       dataset: "shop",
-      fetchPage: (cursor) => fetchShops({ cursor, from: search.from, limit: EXPORT_PAGE_SIZE, to: effectiveTo }),
+      fetchPage: (cursor) =>
+        fetchShops({
+          cursor,
+          from: search.from,
+          limit: EXPORT_PAGE_SIZE,
+          planIdVersion: search.planIdVersion,
+          to: effectiveTo,
+        }),
       gate,
       onRow: appendShop,
       rowsFrom: (data) => data.rows,
@@ -628,6 +647,7 @@ export async function buildAnalyticsJsonlExport(
           cursor,
           from: search.from,
           limit: EXPORT_PAGE_SIZE,
+          planIdVersion: search.planIdVersion,
           to: effectiveTo,
         }),
       gate,
@@ -661,6 +681,7 @@ export async function buildAnalyticsJsonlExport(
           direction: "asc",
           from: search.from,
           limit: EXPORT_PAGE_SIZE,
+          planIdVersion: search.planIdVersion,
           sort: "dimension",
           to: effectiveTo,
         }),
@@ -681,6 +702,7 @@ export async function buildAnalyticsJsonlExport(
       compareTo: search.compareTo,
       from: search.from,
       organizationId: search.organizationId,
+      planIdVersion: search.planIdVersion,
       shopId: search.shopId,
       to: search.to,
     }),

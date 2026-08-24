@@ -36,6 +36,7 @@ function ConnectedAppShopDetailPage({
   const settings = useQuery(api.organization.queries.getSettings, {
     shopId: typedShopId,
     expectedOrganizationId: organizationId,
+    planIdVersion: 2,
   });
   const shop = settings?.shops.find((candidate) => candidate.id === shopId) ?? null;
 

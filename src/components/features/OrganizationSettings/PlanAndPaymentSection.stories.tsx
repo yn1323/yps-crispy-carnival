@@ -4,19 +4,19 @@ import { PlanAndPaymentSection } from "./PlanAndPaymentSection";
 import type { BillingPlanPrices, OrganizationBillingView } from "./types";
 
 const availablePrices: BillingPlanPrices = {
-  pro: {
+  standard: {
     status: "available",
     value: { currency: "jpy", unitAmount: 3000, interval: "month", intervalCount: 1, taxBehavior: "inclusive" },
   },
-  business: {
+  pro: {
     status: "available",
     value: { currency: "jpy", unitAmount: 6000, interval: "month", intervalCount: 1, taxBehavior: "exclusive" },
   },
 };
 
 const billing: OrganizationBillingView = {
-  state: "pro",
-  currentPlan: "pro",
+  state: "standard",
+  currentPlan: "standard",
   isComplimentary: false,
   hasTrialContinuation: false,
   stripeBillingAvailable: true,
@@ -57,7 +57,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Pro: Story = { name: "Standard" };
+export const Standard: Story = { name: "Standard" };
 
 export const Free: Story = {
   name: "Free",
@@ -103,7 +103,7 @@ export const FreeOverLimitBehavior: Story = {
     await expect(canvas.getAllByText("上限超過").length).toBeGreaterThanOrEqual(1);
     await expect(canvas.getByText("上限超過のため利用を制限しています")).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Standardへ変更" }));
-    await expect(args.onManagePlan).toHaveBeenCalledWith("pro");
+    await expect(args.onManagePlan).toHaveBeenCalledWith("standard");
   },
 };
 
@@ -122,37 +122,37 @@ export const Trial: Story = {
   },
 };
 
-export const TrialWithBusinessContinuation: Story = {
+export const TrialWithProContinuation: Story = {
   name: "トライアル・Pro継続登録済み",
   args: {
     billing: {
       ...Trial.args?.billing,
       hasTrialContinuation: true,
-      targetPlan: "business",
+      targetPlan: "pro",
       hasStripeCustomer: true,
     } as OrganizationBillingView,
   },
 };
 
-export const Business: Story = {
+export const Pro: Story = {
   name: "Pro",
   args: {
     billing: {
       ...billing,
-      state: "business",
-      currentPlan: "business",
+      state: "pro",
+      currentPlan: "pro",
       peopleUsage: { current: 32, max: 50 },
     },
   },
 };
 
-export const ComplimentaryBusiness: Story = {
+export const ComplimentaryPro: Story = {
   name: "支払い不要Pro",
   args: {
     billing: {
       ...billing,
-      state: "business",
-      currentPlan: "business",
+      state: "pro",
+      currentPlan: "pro",
       isComplimentary: true,
       peopleUsage: { current: 32, max: 50 },
       nextEvent: undefined,
@@ -165,14 +165,14 @@ export const ComplimentaryBusiness: Story = {
   },
 };
 
-export const ScheduledBusinessToPro: Story = {
+export const ScheduledProToStandard: Story = {
   name: "ProからStandardへ変更予定",
   args: {
     billing: {
-      ...Business.args?.billing,
+      ...Pro.args?.billing,
       state: "scheduledChange",
-      currentPlan: "business",
-      targetPlan: "pro",
+      currentPlan: "pro",
+      targetPlan: "standard",
       requiredReductions: { people: 1, shops: 0, managers: 0 },
       peopleUsage: { current: 21, max: 25 },
       nextEvent: { label: "Standard適用予定日", date: "2026年8月31日" },
@@ -185,9 +185,9 @@ export const ServiceStopScheduled: Story = {
   name: "解約予定",
   args: {
     billing: {
-      ...Business.args?.billing,
+      ...Pro.args?.billing,
       state: "scheduledChange",
-      currentPlan: "pro",
+      currentPlan: "standard",
       targetPlan: "free",
       restrictAtPeriodEnd: true,
       requiredReductions: { people: 0, shops: 0, managers: 0 },
@@ -209,16 +209,16 @@ export const ServiceStopScheduledBehavior: Story = {
   },
 };
 
-export const RestrictedForPro: Story = {
+export const RestrictedForStandard: Story = {
   name: "Standard上限の契約制限",
   args: {
     billing: {
       ...billing,
       state: "restricted",
       currentPlan: null,
-      previousPlan: "business",
-      targetPlan: "pro",
-      limitPlan: "pro",
+      previousPlan: "pro",
+      targetPlan: "standard",
+      limitPlan: "standard",
       requiredReductions: { people: 1, shops: 0, managers: 0 },
       peopleUsage: { current: 21, max: 25 },
       blockedReason: "Standardの利用人数を超えています。",
@@ -236,7 +236,7 @@ export const RestrictedForFree: Story = {
       ...billing,
       state: "restricted",
       currentPlan: null,
-      previousPlan: "pro",
+      previousPlan: "standard",
       targetPlan: "free",
       limitPlan: "free",
       requiredReductions: { people: 2, shops: 1, managers: 1 },
@@ -278,7 +278,7 @@ export const PendingCheckoutOpen: Story = {
       ...billing,
       state: "pendingActivation",
       currentPlan: "free",
-      targetPlan: "pro",
+      targetPlan: "standard",
       nextEvent: undefined,
       hasStripeCustomer: true,
       canManagePlan: false,
@@ -298,32 +298,32 @@ export const PendingCheckoutOpen: Story = {
 
 export const PriceLoading: Story = {
   name: "料金を読み込み中",
-  args: { planPrices: { pro: { status: "loading" }, business: { status: "loading" } } },
+  args: { planPrices: { standard: { status: "loading" }, pro: { status: "loading" } } },
 };
 
-export const BusinessPriceUnavailable: Story = {
+export const ProPriceUnavailable: Story = {
   name: "Pro料金が未設定",
   args: {
     planPrices: {
       ...availablePrices,
-      business: { status: "unavailable", reason: "price_unavailable" },
+      pro: { status: "unavailable", reason: "price_unavailable" },
     },
   },
 };
 
 export const PriceError: Story = {
   name: "料金の取得に失敗",
-  args: { planPrices: { pro: { status: "error" }, business: { status: "error" } } },
+  args: { planPrices: { standard: { status: "error" }, pro: { status: "error" } } },
 };
 
-export const RetryBusinessPriceBehavior: Story = {
+export const RetryProPriceBehavior: Story = {
   name: "Pro料金を再読み込み（操作確認）",
   parameters: { screenshot: { skip: true } },
-  args: { ...BusinessPriceUnavailable.args, onRetryPlanPrice: fn() },
+  args: { ...ProPriceUnavailable.args, onRetryPlanPrice: fn() },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "料金を再読み込み" }));
-    await expect(args.onRetryPlanPrice).toHaveBeenCalledWith("business");
+    await expect(args.onRetryPlanPrice).toHaveBeenCalledWith("pro");
   },
 };
 
@@ -335,26 +335,26 @@ export const FreePlanSelectionBehavior: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Standardへ変更" }));
     await userEvent.click(canvas.getByRole("button", { name: "Proへ変更" }));
-    await expect(args.onManagePlan).toHaveBeenNthCalledWith(1, "pro");
-    await expect(args.onManagePlan).toHaveBeenNthCalledWith(2, "business");
+    await expect(args.onManagePlan).toHaveBeenNthCalledWith(1, "standard");
+    await expect(args.onManagePlan).toHaveBeenNthCalledWith(2, "pro");
   },
 };
 
-export const ProUpgradeSelectionBehavior: Story = {
+export const StandardUpgradeSelectionBehavior: Story = {
   name: "StandardからProを選ぶ（操作確認）",
   parameters: { screenshot: { skip: true } },
   args: { onManagePlan: fn() },
   play: async ({ args, canvasElement }) => {
     await userEvent.click(within(canvasElement).getByRole("button", { name: "Proへ変更" }));
     await expect(args.onManagePlan).toHaveBeenCalledTimes(1);
-    await expect(args.onManagePlan).toHaveBeenCalledWith("business");
+    await expect(args.onManagePlan).toHaveBeenCalledWith("pro");
   },
 };
 
-export const ComplimentaryBusinessHasNoBillingActionsBehavior: Story = {
+export const ComplimentaryProHasNoBillingActionsBehavior: Story = {
   name: "支払い不要Proに課金操作を出さない（操作確認）",
   parameters: { screenshot: { skip: true } },
-  args: ComplimentaryBusiness.args,
+  args: ComplimentaryPro.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("button", { name: /へ変更|変更予約を取り消す/ })).not.toBeInTheDocument();
@@ -397,18 +397,18 @@ export const MobileFree: Story = {
   args: Free.args,
 };
 
-export const MobileBusiness: Story = {
+export const MobilePro: Story = {
   name: "Pro・モバイル",
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
-  args: Business.args,
+  args: Pro.args,
 };
 
 export const MobileRestricted: Story = {
   name: "Standard上限の契約制限・モバイル",
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
-  args: RestrictedForPro.args,
+  args: RestrictedForStandard.args,
 };
 
 export const MobileFreeOverLimit: Story = {

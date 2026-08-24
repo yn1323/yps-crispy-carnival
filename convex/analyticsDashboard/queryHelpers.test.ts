@@ -112,6 +112,34 @@ describe("Analytics Dashboard organization projection", () => {
     expect(toOrganizationRowDto(organization, null, 3).secondShopFirstConfirmedAt).toBeNull();
     expect(toOrganizationRowDto(organization, null, 2).secondShopFirstConfirmedAt).toBe(4);
   });
+
+  it("canonical planをrequest versionに合わせて投影する", () => {
+    const standard = {
+      organizationId: "organizations:1",
+      displayName: "Standard組織",
+      registeredAt: 1,
+      currentPlan: "standard",
+      updatedAt: 4,
+    } as unknown as Doc<"analyticsOrganizations">;
+    const pro = { ...standard, currentPlan: "pro" } as unknown as Doc<"analyticsOrganizations">;
+
+    expect(toOrganizationRowDto(standard, null, 1).currentPlan).toBe("pro");
+    expect(toOrganizationRowDto(pro, null, 1).currentPlan).toBe("business");
+    expect(toOrganizationRowDto(standard, null, 1, 2).currentPlan).toBe("standard");
+    expect(toOrganizationRowDto(pro, null, 1, 2).currentPlan).toBe("pro");
+  });
+
+  it("reset前のlegacy materialized planをresponseへ流さない", () => {
+    const organization = {
+      organizationId: "organizations:1",
+      displayName: "旧組織",
+      registeredAt: 1,
+      currentPlan: "business",
+      updatedAt: 4,
+    } as unknown as Doc<"analyticsOrganizations">;
+
+    expect(() => toOrganizationRowDto(organization, null, 1, 2)).toThrow("analytics_plan_projection_not_canonical");
+  });
 });
 
 describe("Analytics Dashboard shop usage likelihood", () => {

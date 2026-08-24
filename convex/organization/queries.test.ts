@@ -15,7 +15,8 @@ describe("organization/queries.getSettings", () => {
   beforeEach(() => {
     vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_settings_query");
     vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_settings_query");
-    vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_settings_query");
+    vi.stubEnv("STRIPE_STANDARD_PRICE_ID", "price_settings_standard_query");
+    vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_settings_pro_query");
     vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "bpc_settings_query");
   });
 
@@ -1203,7 +1204,7 @@ describe("organization/queries.getSettings", () => {
     },
   );
 
-  it("無償BusinessをBusiness権限と料金なしの最小DTOへ投影する", async () => {
+  it("無償BusinessをlegacyではBusiness、v2ではProの料金なしDTOへ投影する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
@@ -1244,6 +1245,18 @@ describe("organization/queries.getSettings", () => {
     expect(result?.billing.billingEmailDisabledReason).toBeUndefined();
     expect(result?.billing).not.toHaveProperty("migrationSourceShopId");
     expect(result?.billing).not.toHaveProperty("kind");
+
+    const canonicalResult = await t
+      .withIdentity({ subject: "settings_complimentary_business" })
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId, planIdVersion: 2 });
+    expect(canonicalResult?.billing).toMatchObject({
+      state: "pro",
+      currentPlan: "pro",
+      isComplimentary: true,
+      peopleUsage: { max: 50 },
+      shopUsage: { max: 5 },
+      managerUsage: { max: 5 },
+    });
   });
 
   it("複数管理者のスタッフ兼任者には管理者権限だけを外すcapabilityを返す", async () => {

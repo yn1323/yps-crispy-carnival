@@ -121,6 +121,7 @@ async function insertRun(ctx: MutationCtx, args: RunFixture) {
     stepVersion: args.stepVersion ?? 1,
     startedAt: args.startedAt,
     ...(args.status === "running" ? {} : { terminalAt: args.startedAt + 1 }),
+    ...(args.kind === "reset" && args.status === "complete" ? { resetWatermarkAt: args.startedAt } : {}),
     updatedAt: args.startedAt + 1,
   });
 }
@@ -1490,6 +1491,27 @@ describe("Analytics availability and publication fence", () => {
     vi.useRealTimers();
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
+  });
+
+  it("calculationVersionが現行でもreset watermarkがなければDashboardを再開しない", async () => {
+    const t = convexTest(schema, modules);
+    const snapshotDate = "2026-05-06";
+    await t.run(async (ctx) => {
+      const completeRunId = await insertRun(ctx, {
+        kind: "daily",
+        status: "complete",
+        targetDate: snapshotDate,
+        startedAt: SCENARIO_NOW - 1_000,
+      });
+      await insertServiceKpi(ctx, { runId: completeRunId, snapshotDate, organizationCount: 1 });
+    });
+
+    const overview = await getOverview(t, snapshotDate);
+    expect(overview).toMatchObject({
+      metadata: { availability: "unavailable", asOf: null, latestCompleteSnapshotDate: null },
+      current: null,
+    });
+    expect(overview?.metadata.warnings).toContain("分析データのプラン定義を再構築してください");
   });
 
   it.each(["running", "failed"] as const)("最新resetが%sなら以前のcomplete snapshotを返さない", async (resetStatus) => {

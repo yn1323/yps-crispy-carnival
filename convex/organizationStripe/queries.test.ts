@@ -146,11 +146,11 @@ describe("organizationStripe/queries", () => {
     ).resolves.toBeNull();
   });
 
-  it("Business Subscriptionの課金期間・item・schedule snapshotを保存し、Actionと安全処理に同じ値を返す", async () => {
+  it("Pro Subscriptionの課金期間・item・schedule snapshotを保存し、Actionと安全処理に同じ値を返す", async () => {
     const t = convexTest(schema, modules);
     const subject = "stripe_business_subscription_snapshot";
     const ids = await t.run(async (ctx) => {
-      const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: "business" });
+      const seeded = await seedOrganizationManagerShop(ctx, { subject, planIdVersion: 2, plan: "pro" });
       await ctx.db.insert("organizationStripeCustomers", {
         organizationId: seeded.organizationId,
         stripeCustomerId: "cus_business_snapshot",
@@ -164,7 +164,7 @@ describe("organizationStripe/queries", () => {
       stripeSubscriptionId: "sub_business_snapshot",
       stripeSubscriptionItemId: "si_business_snapshot",
       stripePriceId: "price_business_snapshot",
-      plan: "business" as const,
+      plan: "pro" as const,
       currentPeriodStartsAt: NOW - 10 * 24 * 60 * 60_000,
       currentPeriodEndsAt: NOW + 20 * 24 * 60 * 60_000,
       billingCycleAnchor: NOW - 10 * 24 * 60 * 60_000,

@@ -71,9 +71,9 @@ export async function loadStripePublicPlanPrices(args: {
   const configuration = getBuildConfiguration(args.environment, args.env ?? process.env);
   const retrievePrice = args.retrievePrice ?? createStripePriceRetriever(configuration.secretKey);
 
-  const [pro, business] = await Promise.all(
+  const [standard, pro] = await Promise.all(
     PUBLIC_PAID_PLANS.map(async (plan) => {
-      const priceId = plan === "pro" ? configuration.proPriceId : configuration.businessPriceId;
+      const priceId = plan === "standard" ? configuration.standardPriceId : configuration.proPriceId;
       let retrieved: RetrievedStripePrice;
       try {
         retrieved = await retrievePrice(priceId);
@@ -88,17 +88,17 @@ export async function loadStripePublicPlanPrices(args: {
     }),
   );
 
-  if (pro.currency !== business.currency) {
+  if (standard.currency !== pro.currency) {
     throw new StripePublicPriceLoadError("catalog_currency_mismatch");
   }
-  if (pro.interval !== business.interval || pro.intervalCount !== business.intervalCount) {
+  if (standard.interval !== pro.interval || standard.intervalCount !== pro.intervalCount) {
     throw new StripePublicPriceLoadError("catalog_cadence_mismatch");
   }
   if (args.environment === "production" && (pro.interval !== "month" || pro.intervalCount !== 1)) {
     throw new StripePublicPriceLoadError("unsupported_billing_cadence");
   }
 
-  return Object.freeze({ pro, business });
+  return Object.freeze({ standard, pro });
 }
 
 function getBuildConfiguration(
@@ -106,15 +106,15 @@ function getBuildConfiguration(
   env: StripeBuildEnvironmentVariables,
 ): {
   secretKey: string;
+  standardPriceId: string;
   proPriceId: string;
-  businessPriceId: string;
   livemode: boolean;
 } {
   const secretKey = env.STRIPE_SECRET_KEY?.trim() ?? "";
-  const proPriceId = env.STRIPE_PRO_PRICE_ID?.trim() ?? "";
-  const businessPriceId = env.STRIPE_BUSINESS_PRICE_ID?.trim() ?? "";
+  const standardPriceId = env.STRIPE_STANDARD_PRICE_ID?.trim() || "";
+  const proPriceId = env.STRIPE_PRO_PRICE_ID?.trim() || "";
 
-  if (!secretKey || !proPriceId || !businessPriceId) {
+  if (!secretKey || !standardPriceId || !proPriceId) {
     throw new StripePublicPriceLoadError("missing_configuration");
   }
 
@@ -123,14 +123,14 @@ function getBuildConfiguration(
   if (!secretKey.startsWith(expectedKeyPrefix)) {
     throw new StripePublicPriceLoadError("invalid_secret_key");
   }
-  if (!isPriceId(proPriceId) || !isPriceId(businessPriceId)) {
+  if (!isPriceId(standardPriceId) || !isPriceId(proPriceId)) {
     throw new StripePublicPriceLoadError("invalid_price_id");
   }
-  if (proPriceId === businessPriceId) {
+  if (standardPriceId === proPriceId) {
     throw new StripePublicPriceLoadError("duplicate_price_id");
   }
 
-  return { secretKey, proPriceId, businessPriceId, livemode };
+  return { secretKey, standardPriceId, proPriceId, livemode };
 }
 
 function createStripePriceRetriever(secretKey: string): RetrieveStripePrice {

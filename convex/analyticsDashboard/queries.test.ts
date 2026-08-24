@@ -36,6 +36,29 @@ const baseRequest = {
 async function insertCompleteRun(ctx: MutationCtx, targetDate: string) {
   const day = jstDayRangeMs(targetDate);
   const startedAt = day.endMs + 10;
+  const reset = await ctx.db
+    .query("analyticsRuns")
+    .withIndex("by_kind_and_status_and_targetDate", (q) => q.eq("kind", "reset").eq("status", "complete"))
+    .first();
+  if (!reset) {
+    await ctx.db.insert("analyticsRuns", {
+      runKey: "reset:dashboard-function-test",
+      kind: "reset",
+      status: "complete",
+      calculationVersion: ANALYTICS_CALCULATION_VERSION,
+      dataStartDate: PAST_DATE,
+      dataStartAt: PAST_DAY.startMs,
+      inputFromAt: PAST_DAY.startMs - 1,
+      cutoffAt: PAST_DAY.startMs - 1,
+      sourceCaptureStartAt: PAST_DAY.startMs - 1,
+      resetWatermarkAt: PAST_DAY.startMs,
+      stage: "resetVerify",
+      stepVersion: 1,
+      startedAt: PAST_DAY.startMs - 2,
+      terminalAt: PAST_DAY.startMs - 1,
+      updatedAt: PAST_DAY.startMs - 1,
+    });
+  }
   return await ctx.db.insert("analyticsRuns", {
     runKey: `daily:${targetDate}:dashboard-function-test`,
     kind: "daily",
@@ -54,7 +77,10 @@ async function insertCompleteRun(ctx: MutationCtx, targetDate: string) {
   });
 }
 
-async function insertOrganization(ctx: MutationCtx) {
+async function insertOrganization(
+  ctx: MutationCtx,
+  currentPlan: "trial" | "free" | "standard" | "pro" | "business" = "free",
+) {
   const organizationId = await ctx.db.insert("organizations", {
     name: "利用候補テスト組織",
     isDeleted: false,
@@ -65,7 +91,7 @@ async function insertOrganization(ctx: MutationCtx) {
     organizationId,
     displayName: "利用候補テスト組織",
     registeredAt: PAST_DAY.startMs - 2_000,
-    currentPlan: "free",
+    currentPlan,
     updatedAt: LATEST_DAY.endMs,
   });
   return organizationId;
@@ -77,6 +103,7 @@ async function insertShop(
     organizationId: Id<"organizations">;
     displayName: string;
     registeredAt: number;
+    currentPlan?: "trial" | "free" | "standard" | "pro" | "business";
   },
 ) {
   const shopId = await ctx.db.insert("shops", {
@@ -92,7 +119,7 @@ async function insertShop(
     shopId,
     displayName: args.displayName,
     registeredAt: args.registeredAt,
-    currentPlan: "free",
+    currentPlan: args.currentPlan ?? "free",
     cadenceConfidence: "insufficientData",
     updatedAt: LATEST_DAY.endMs,
   });
@@ -204,6 +231,72 @@ async function seedUsageClasses(ctx: MutationCtx) {
 }
 
 describe("Analytics Dashboard店舗一覧の利用候補", () => {
+  it("request version別にplan filterとresponseを同じ意味へ投影する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const standardOrganizationId = await insertOrganization(ctx, "standard");
+      const proOrganizationId = await insertOrganization(ctx, "pro");
+      const standardShopId = await insertShop(ctx, {
+        organizationId: standardOrganizationId,
+        displayName: "Standard店舗",
+        registeredAt: PAST_DAY.startMs,
+        currentPlan: "standard",
+      });
+      const proShopId = await insertShop(ctx, {
+        organizationId: proOrganizationId,
+        displayName: "Pro店舗",
+        registeredAt: PAST_DAY.startMs + 1,
+        currentPlan: "pro",
+      });
+      await insertCompleteRun(ctx, PAST_DATE);
+      return { standardOrganizationId, proOrganizationId, standardShopId, proShopId };
+    });
+
+    const legacyStandardOrganizations = await t.query(internal.analyticsDashboard.queries.getOrganizations, {
+      from: PAST_DATE,
+      to: PAST_DATE,
+      cursor: null,
+      limit: 50,
+      sort: "currentPlan",
+      direction: "asc",
+      plan: "pro",
+      completeness: null,
+    });
+    const canonicalStandardOrganizations = await t.query(internal.analyticsDashboard.queries.getOrganizations, {
+      from: PAST_DATE,
+      to: PAST_DATE,
+      cursor: null,
+      limit: 50,
+      sort: "currentPlan",
+      direction: "asc",
+      planIdVersion: 2,
+      plan: "standard",
+      completeness: null,
+    });
+    expect(legacyStandardOrganizations.rows).toMatchObject([
+      { organizationId: ids.standardOrganizationId, currentPlan: "pro" },
+    ]);
+    expect(canonicalStandardOrganizations.rows).toMatchObject([
+      { organizationId: ids.standardOrganizationId, currentPlan: "standard" },
+    ]);
+
+    const legacyProShops = await t.query(internal.analyticsDashboard.queries.getShops, {
+      ...baseRequest,
+      sort: "currentPlan",
+      plan: "business",
+      usage: null,
+    });
+    const canonicalProShops = await t.query(internal.analyticsDashboard.queries.getShops, {
+      ...baseRequest,
+      sort: "currentPlan",
+      planIdVersion: 2,
+      plan: "pro",
+      usage: null,
+    });
+    expect(legacyProShops?.rows).toMatchObject([{ shopId: ids.proShopId, currentPlan: "business" }]);
+    expect(canonicalProShops?.rows).toMatchObject([{ shopId: ids.proShopId, currentPlan: "pro" }]);
+  });
+
   it("USAGE-QUERY-01 過去期間を表示しても利用候補は最新complete runで判定する", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
@@ -422,6 +515,68 @@ describe("Analytics Dashboard店舗一覧の利用候補", () => {
       "可能性あり店舗",
       "状態不明店舗",
     ]);
+  });
+});
+
+describe("Analytics Dashboard plan segment", () => {
+  it("request version別にcanonical bucketを同じ意味のplan IDへ投影する", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      const runId = await insertCompleteRun(ctx, LATEST_DATE);
+      const milestoneCounts = {
+        registered: 0,
+        firstRecruitment: 0,
+        firstSubmission: 0,
+        firstConfirmed: 0,
+        secondConfirmed: 0,
+      };
+      const healthSignalCounts = {
+        hasUpcomingCycle: 0,
+        nextCycleMissing: 0,
+        cadenceDelayed: 0,
+        notificationFailure: 0,
+        submissionDrop: 0,
+        confirmationDelay: 0,
+        longInactive: 0,
+        insufficientData: 0,
+      };
+      for (const bucket of ["standard", "pro"] as const) {
+        await ctx.db.insert("analyticsDailySegmentKpis", {
+          runId,
+          snapshotDate: LATEST_DATE,
+          dimension: "plan",
+          bucket,
+          shopCount: 1,
+          kpiEligibleShopCount: 1,
+          milestoneCounts,
+          healthSignalCounts,
+          northStar: { numerator: 0, denominator: 1 },
+          deadlineSubmission: { numerator: 0, denominator: 1 },
+          finalSubmission: { numerator: 0, denominator: 1 },
+          completeness: "complete",
+          computedAt: LATEST_KPI_COMPUTED_AT,
+        });
+      }
+    });
+
+    const args = {
+      from: LATEST_DATE,
+      to: LATEST_DATE,
+      cursor: null,
+      limit: 50,
+      sort: "dimension" as const,
+      direction: "asc" as const,
+      dimension: "plan" as const,
+      completeness: null,
+    };
+    const legacy = await t.query(internal.analyticsDashboard.queries.getSegments, args);
+    const canonical = await t.query(internal.analyticsDashboard.queries.getSegments, {
+      ...args,
+      planIdVersion: 2,
+    });
+
+    expect(legacy.rows.map((row) => row.bucket).sort()).toEqual(["business", "pro"]);
+    expect(canonical.rows.map((row) => row.bucket).sort()).toEqual(["pro", "standard"]);
   });
 });
 

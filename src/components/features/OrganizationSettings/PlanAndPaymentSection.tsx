@@ -61,15 +61,15 @@ const STATE_PRESENTATION: Record<
     status: "info",
     description: formatPlanLimitsDescription("free", "、基本的なシフト運用を利用できます。"),
   },
-  pro: {
+  standard: {
     label: "Standard",
     status: "success",
-    description: formatPlanLimitsDescription("pro", "利用できます。"),
+    description: formatPlanLimitsDescription("standard", "利用できます。"),
   },
-  business: {
+  pro: {
     label: "Pro",
     status: "success",
-    description: formatPlanLimitsDescription("business", "利用できます。"),
+    description: formatPlanLimitsDescription("pro", "利用できます。"),
   },
   initialPaymentPending: {
     label: "初回請求を確認中",
@@ -375,8 +375,8 @@ function PlanComparisonCards({
     ((billing.state === "scheduledChange" || billing.state === "scheduledFree") &&
       billing.targetPlan === "free" &&
       billing.restrictAtPeriodEnd !== true)
-      ? (["free", "pro", "business"] as const)
-      : (["pro", "business"] as const);
+      ? (["free", "standard", "pro"] as const)
+      : (["standard", "pro"] as const);
   const serviceStopAction = resolveBillingPlanAction(billing, "free");
   return (
     <Stack gap={3}>
@@ -409,7 +409,7 @@ function PlanComparisonCards({
               <PlanPrice
                 plan={plan}
                 price={plan === "free" ? null : prices[plan]}
-                isComplimentary={billing.isComplimentary && plan === "business"}
+                isComplimentary={billing.isComplimentary && plan === "pro"}
                 onRetry={plan === "free" ? undefined : () => onRetryPrice(plan)}
               />
 
@@ -712,8 +712,8 @@ function ReductionGuidance({ reductions }: { reductions: ReturnType<typeof getRe
 }
 
 function trialContinuationDescription(billing: OrganizationBillingView) {
-  if (billing.targetPlan === "business") return "終了後はProへ継続する予定です。";
-  if (billing.targetPlan === "pro") return "終了後はStandardへ継続する予定です。";
+  if (billing.targetPlan === "pro") return "終了後はProへ継続する予定です。";
+  if (billing.targetPlan === "standard") return "終了後はStandardへ継続する予定です。";
   return "継続登録がない場合、トライアル終了後はFreeプランへ変更されます。データは削除されません。";
 }
 
@@ -879,8 +879,8 @@ function statusColor(status: (typeof STATE_PRESENTATION)[BillingDisplayState]["s
   return "blue.700";
 }
 
-function isPlanState(state: BillingDisplayState): state is "trial" | "free" | "pro" | "business" {
-  return state === "trial" || state === "free" || state === "pro" || state === "business";
+function isPlanState(state: BillingDisplayState): state is "trial" | "free" | "standard" | "pro" {
+  return state === "trial" || state === "free" || state === "standard" || state === "pro";
 }
 
 function isExceptionalState(state: BillingDisplayState): boolean {

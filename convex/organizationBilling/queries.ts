@@ -1,7 +1,11 @@
 import { v } from "convex/values";
 import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { organizationBillingNotificationEventValidator } from "./notification";
-import { getEffectiveRestrictedBillingState, getOrganizationBillingStateDeadline } from "./policy";
+import {
+  canonicalizeOrganizationBillingState,
+  getEffectiveRestrictedBillingState,
+  getOrganizationBillingStateDeadline,
+} from "./policy";
 
 const historicalRecipientEvents = new Set(["freeApplied"]);
 
@@ -20,7 +24,7 @@ export const getNotificationData = internalQuery({
       trialEnding: v.optional(
         v.object({
           trialEndsAt: v.number(),
-          selectedPaidPlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+          selectedPaidPlan: v.optional(v.union(v.literal("standard"), v.literal("pro"))),
         }),
       ),
       recipients: v.array(
@@ -33,14 +37,18 @@ export const getNotificationData = internalQuery({
     }),
   ),
   handler: async (ctx, args) => {
-    const [organization, billingState] = await Promise.all([
+    const [organization, persistedBillingState] = await Promise.all([
       ctx.db.get(args.organizationId),
       ctx.db
         .query("organizationBillingStates")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", args.organizationId))
         .unique(),
     ]);
-    if (!organization || organization.isDeleted || !billingState) return null;
+    if (!organization || organization.isDeleted || !persistedBillingState) return null;
+    const billingState = {
+      ...persistedBillingState,
+      state: canonicalizeOrganizationBillingState(persistedBillingState.state),
+    };
     if (billingState.state.kind === "complimentary") return null;
     if (args.event === "trialEnding" && billingState.state.kind !== "trial") return null;
     if (

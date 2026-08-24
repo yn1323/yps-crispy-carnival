@@ -1,6 +1,6 @@
 import { formatPricePresentation, formatPricePresentationLine } from "../organizationBilling/pricePresentation";
 
-export const PUBLIC_PAID_PLANS = ["pro", "business"] as const;
+export const PUBLIC_PAID_PLANS = ["standard", "pro"] as const;
 
 export type PublicPaidPlan = (typeof PUBLIC_PAID_PLANS)[number];
 

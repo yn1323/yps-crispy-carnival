@@ -886,11 +886,11 @@ async function createScenarioShop(ctx: MutationCtx, args: { organizationId: Id<"
   return shopId;
 }
 
-async function createComplimentaryBusinessEntitlement(ctx: MutationCtx, organizationId: Id<"organizations">) {
+async function createComplimentaryProEntitlement(ctx: MutationCtx, organizationId: Id<"organizations">) {
   const now = Date.now();
   return await ctx.db.insert("organizationBillingStates", {
     organizationId,
-    state: { kind: "complimentary", plan: "business" },
+    state: { kind: "complimentary", planIdVersion: 2, plan: "pro" },
     version: 1,
     createdAt: now,
     updatedAt: now,
@@ -908,7 +908,7 @@ async function createActiveFreeEntitlement(
   const now = Date.now();
   return await ctx.db.insert("organizationBillingStates", {
     organizationId: args.organizationId,
-    state: { kind: "active", plan: "free" },
+    state: { kind: "active", planIdVersion: 2, plan: "free" },
     freeManagerPersonId: args.managerPersonId,
     freeShopId: args.shopId,
     version: 1,
@@ -984,7 +984,7 @@ async function createCanonicalOrganizationFixture(
     organizationId,
     name: args.shopName,
   });
-  await createComplimentaryBusinessEntitlement(ctx, organizationId);
+  await createComplimentaryProEntitlement(ctx, organizationId);
   return { organizationId, ownerMemberId, ownerPersonId, shopId, userId };
 }
 

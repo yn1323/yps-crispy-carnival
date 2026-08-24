@@ -6,14 +6,14 @@ import { PUBLIC_PLAN_PRICE_FIXTURE } from "@/src/domains/publicPricing/fixture";
 import { CommercialTransactions } from ".";
 
 const INJECTED_PRICE_CATALOG = {
-  pro: {
+  standard: {
     currency: "jpy",
     unitAmount: 12_345,
     interval: "week",
     intervalCount: 2,
     taxBehavior: "exclusive",
   },
-  business: {
+  pro: {
     currency: "jpy",
     unitAmount: 67_890,
     interval: "week",
@@ -50,13 +50,13 @@ export const PC: Story = {
     await expect(canvas.getByRole("heading", { name: "特定商取引法に基づく表記" })).toBeVisible();
     await expect(canvas.getByText("役務提供事業者")).toBeVisible();
     await expect(canvas.getByText("販売価格")).toBeVisible();
+    const standardPrice = canvas.getByText(formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.standard));
     const proPrice = canvas.getByText(formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.pro));
-    const businessPrice = canvas.getByText(formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.business));
-    await expect(proPrice.parentElement).toHaveTextContent(
-      `Standard：${formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.pro)}`,
+    await expect(standardPrice.parentElement).toHaveTextContent(
+      `Standard：${formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.standard)}`,
     );
-    await expect(businessPrice.parentElement).toHaveTextContent(
-      `Pro：${formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.business)}`,
+    await expect(proPrice.parentElement).toHaveTextContent(
+      `Pro：${formatPublicPlanPriceLine(PUBLIC_PLAN_PRICE_FIXTURE.pro)}`,
     );
     await expect(
       canvas.getByText(`無料トライアル：利用人数${ORGANIZATION_PLAN_LIMITS.trial.maxPeople}名`, { exact: false }),
@@ -81,7 +81,7 @@ export const InjectedCatalogContract: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    for (const plan of ["pro", "business"] as const) {
+    for (const plan of ["standard", "pro"] as const) {
       const price = INJECTED_PRICE_CATALOG[plan];
       const visiblePrice = canvas.getByText(formatPublicPlanPriceLine(price));
 

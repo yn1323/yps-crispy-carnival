@@ -159,6 +159,12 @@ import type * as migrations_m038_recruitments_draft_saved_at_narrow_prep from ".
 import type * as migrations_m039_shops_regular_closed_days_narrow_prep from "../migrations/m039_shops_regular_closed_days_narrow_prep.js";
 import type * as migrations_m040_recruitments_shop_closed_dates_narrow_prep from "../migrations/m040_recruitments_shop_closed_dates_narrow_prep.js";
 import type * as migrations_m041_line_common_links from "../migrations/m041_line_common_links.js";
+import type * as migrations_m042_organization_billing_plan_ids_v2 from "../migrations/m042_organization_billing_plan_ids_v2.js";
+import type * as migrations_m042_organization_billing_plan_ids_v2_readiness from "../migrations/m042_organization_billing_plan_ids_v2_readiness.js";
+import type * as migrations_m043_analytics_plan_ids_v2 from "../migrations/m043_analytics_plan_ids_v2.js";
+import type * as migrations_m043_analytics_plan_ids_v2_readiness from "../migrations/m043_analytics_plan_ids_v2_readiness.js";
+import type * as migrations_m044_dashboard_announcement_plan_ids_v2 from "../migrations/m044_dashboard_announcement_plan_ids_v2.js";
+import type * as migrations_m044_dashboard_announcement_plan_ids_v2_readiness from "../migrations/m044_dashboard_announcement_plan_ids_v2_readiness.js";
 import type * as migrations_organizationMigrationHelpers from "../migrations/organizationMigrationHelpers.js";
 import type * as narrowReadiness_queries from "../narrowReadiness/queries.js";
 import type * as notification_actions from "../notification/actions.js";
@@ -233,6 +239,7 @@ import type * as organizationStripe_actions from "../organizationStripe/actions.
 import type * as organizationStripe_config from "../organizationStripe/config.js";
 import type * as organizationStripe_maintenance from "../organizationStripe/maintenance.js";
 import type * as organizationStripe_mutations from "../organizationStripe/mutations.js";
+import type * as organizationStripe_planIds from "../organizationStripe/planIds.js";
 import type * as organizationStripe_queries from "../organizationStripe/queries.js";
 import type * as organizationStripe_subscriptionEvidence from "../organizationStripe/subscriptionEvidence.js";
 import type * as organizationStripe_validators from "../organizationStripe/validators.js";
@@ -434,6 +441,12 @@ declare const fullApi: ApiFromModules<{
   "migrations/m039_shops_regular_closed_days_narrow_prep": typeof migrations_m039_shops_regular_closed_days_narrow_prep;
   "migrations/m040_recruitments_shop_closed_dates_narrow_prep": typeof migrations_m040_recruitments_shop_closed_dates_narrow_prep;
   "migrations/m041_line_common_links": typeof migrations_m041_line_common_links;
+  "migrations/m042_organization_billing_plan_ids_v2": typeof migrations_m042_organization_billing_plan_ids_v2;
+  "migrations/m042_organization_billing_plan_ids_v2_readiness": typeof migrations_m042_organization_billing_plan_ids_v2_readiness;
+  "migrations/m043_analytics_plan_ids_v2": typeof migrations_m043_analytics_plan_ids_v2;
+  "migrations/m043_analytics_plan_ids_v2_readiness": typeof migrations_m043_analytics_plan_ids_v2_readiness;
+  "migrations/m044_dashboard_announcement_plan_ids_v2": typeof migrations_m044_dashboard_announcement_plan_ids_v2;
+  "migrations/m044_dashboard_announcement_plan_ids_v2_readiness": typeof migrations_m044_dashboard_announcement_plan_ids_v2_readiness;
   "migrations/organizationMigrationHelpers": typeof migrations_organizationMigrationHelpers;
   "narrowReadiness/queries": typeof narrowReadiness_queries;
   "notification/actions": typeof notification_actions;
@@ -508,6 +521,7 @@ declare const fullApi: ApiFromModules<{
   "organizationStripe/config": typeof organizationStripe_config;
   "organizationStripe/maintenance": typeof organizationStripe_maintenance;
   "organizationStripe/mutations": typeof organizationStripe_mutations;
+  "organizationStripe/planIds": typeof organizationStripe_planIds;
   "organizationStripe/queries": typeof organizationStripe_queries;
   "organizationStripe/subscriptionEvidence": typeof organizationStripe_subscriptionEvidence;
   "organizationStripe/validators": typeof organizationStripe_validators;

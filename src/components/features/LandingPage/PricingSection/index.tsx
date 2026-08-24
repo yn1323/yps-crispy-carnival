@@ -19,15 +19,15 @@ const planCards = [
     limits: ORGANIZATION_PLAN_LIMITS.free,
   },
   {
-    id: "pro",
-    name: organizationPlanLabel("pro"),
-    limits: ORGANIZATION_PLAN_LIMITS.pro,
+    id: "standard",
+    name: organizationPlanLabel("standard"),
+    limits: ORGANIZATION_PLAN_LIMITS.standard,
     featured: true,
   },
   {
-    id: "business",
-    name: organizationPlanLabel("business"),
-    limits: ORGANIZATION_PLAN_LIMITS.business,
+    id: "pro",
+    name: organizationPlanLabel("pro"),
+    limits: ORGANIZATION_PLAN_LIMITS.pro,
   },
 ] as const;
 

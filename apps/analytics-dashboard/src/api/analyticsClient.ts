@@ -1,3 +1,4 @@
+import type { AnalyticsPlanIdVersionParams } from "./analyticsPlanIds";
 import type {
   AnalyticsApiEnvelope,
   AnalyticsCadenceFilter,
@@ -8,13 +9,13 @@ import type {
   AnalyticsHealthSignalKey,
   AnalyticsLineUsageFilter,
   AnalyticsOrganizationSort,
-  AnalyticsPlanKey,
   AnalyticsSegmentDimension,
   AnalyticsSegmentSort,
   AnalyticsShopSizeFilter,
   AnalyticsShopSort,
   AnalyticsShopUsageFilter,
   AnalyticsTrendMetric,
+  CanonicalAnalyticsPlanKey,
   CycleDetailResponse,
   FeatureRequestsResponse,
   HealthResponse,
@@ -31,7 +32,7 @@ import type {
 
 type SearchValue = string | number | readonly string[] | null | undefined;
 
-export type AnalyticsDateRangeParams = { from: string; to: string };
+export type AnalyticsDateRangeParams = AnalyticsPlanIdVersionParams & { from: string; to: string };
 
 export type AnalyticsSeriesParams = AnalyticsDateRangeParams & {
   granularity?: AnalyticsGranularity;
@@ -64,7 +65,7 @@ export type OrganizationsParams = AnalyticsDateRangeParams &
   AnalyticsPaginationParams & {
     sort?: AnalyticsOrganizationSort;
     direction?: AnalyticsDirection;
-    plan?: AnalyticsPlanKey | null;
+    plan?: CanonicalAnalyticsPlanKey | null;
     completeness?: AnalyticsCompleteness | null;
   };
 
@@ -75,7 +76,7 @@ export type ShopsParams = AnalyticsDateRangeParams &
     sort?: AnalyticsShopSort;
     direction?: AnalyticsDirection;
     organizationId?: string | null;
-    plan?: AnalyticsPlanKey | null;
+    plan?: CanonicalAnalyticsPlanKey | null;
     shopSize?: AnalyticsShopSizeFilter | null;
     cohort?: string | null;
     cadence?: AnalyticsCadenceFilter | null;
@@ -197,10 +198,10 @@ export function fetchShopCycles(shopId: string, params: ShopCyclesParams) {
   return fetchEndpoint<ShopCyclesResponse>(`/api/analytics/shops/${encodeURIComponent(shopId)}/cycles`, params);
 }
 
-export function fetchCycle(shopId: string, recruitmentId: string) {
+export function fetchCycle(shopId: string, recruitmentId: string, params: AnalyticsPlanIdVersionParams) {
   return fetchEndpoint<CycleDetailResponse>(
     `/api/analytics/shops/${encodeURIComponent(shopId)}/cycles/${encodeURIComponent(recruitmentId)}`,
-    {},
+    params,
   );
 }
 

@@ -33,8 +33,8 @@ export type OrganizationShopView = {
 export type BillingDisplayState =
   | "trial"
   | "free"
+  | "standard"
   | "pro"
-  | "business"
   | "initialPaymentPending"
   | "pendingActivation"
   | "grace"
@@ -51,7 +51,7 @@ export type BillingUsageView = {
   pendingInvitations?: number;
 };
 
-export type BillingPlan = "trial" | "free" | "pro" | "business";
+export type BillingPlan = "trial" | "free" | "standard" | "pro";
 export type BillingProductPlan = Exclude<BillingPlan, "trial">;
 export type PaidBillingPlan = Exclude<BillingProductPlan, "free">;
 
@@ -89,7 +89,7 @@ export type OrganizationBillingView = {
   hasStripeCustomer: boolean;
   targetPlan?: BillingProductPlan;
   restrictAtPeriodEnd?: true;
-  limitPlan?: "free" | "pro";
+  limitPlan?: "free" | "standard" | "pro";
   // TODO[narrow]: billing viewの全deployment反映と旧frontendのdrain後にrequired化する。
   requiredReductions?: BillingRequiredReductions;
   peopleUsage: BillingUsageView;

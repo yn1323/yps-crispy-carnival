@@ -9,8 +9,8 @@ import {
 } from "./script";
 
 const baseBilling: OrganizationBillingView = {
-  state: "pro",
-  currentPlan: "pro",
+  state: "standard",
+  currentPlan: "standard",
   isComplimentary: false,
   hasTrialContinuation: false,
   stripeBillingAvailable: true,
@@ -27,15 +27,15 @@ const baseBilling: OrganizationBillingView = {
 
 describe("OrganizationSettings BillingSettings", () => {
   it.each([
+    [{ state: "free", currentPlan: "free" }, "standard", "startPaidPlan"],
     [{ state: "free", currentPlan: "free" }, "pro", "startPaidPlan"],
-    [{ state: "free", currentPlan: "free" }, "business", "startPaidPlan"],
-    [{ state: "trial", currentPlan: "trial" }, "business", "startPaidPlan"],
-    [{ state: "pro", currentPlan: "pro" }, "business", "changePaidPlanNow"],
+    [{ state: "trial", currentPlan: "trial" }, "pro", "startPaidPlan"],
+    [{ state: "standard", currentPlan: "standard" }, "pro", "changePaidPlanNow"],
+    [{ state: "standard", currentPlan: "standard" }, "free", "scheduleServiceStop"],
+    [{ state: "pro", currentPlan: "pro" }, "standard", "schedulePlanChange"],
     [{ state: "pro", currentPlan: "pro" }, "free", "scheduleServiceStop"],
-    [{ state: "business", currentPlan: "business" }, "pro", "schedulePlanChange"],
-    [{ state: "business", currentPlan: "business" }, "free", "scheduleServiceStop"],
-    [{ state: "scheduledChange", currentPlan: "business", targetPlan: "pro" }, "business", "cancelScheduledPlanChange"],
-    [{ state: "grace", currentPlan: "business", canScheduleFree: false }, "business", "openPortal"],
+    [{ state: "scheduledChange", currentPlan: "pro", targetPlan: "standard" }, "pro", "cancelScheduledPlanChange"],
+    [{ state: "grace", currentPlan: "pro", canScheduleFree: false }, "pro", "openPortal"],
   ] as const)("契約状態%oから%sへの操作を%sへ対応付ける", (overrides, targetPlan, expected) => {
     expect(
       resolveBillingPlanAction(
@@ -48,8 +48,8 @@ describe("OrganizationSettings BillingSettings", () => {
   it("上限超過によるrestrictedでは別の課金操作を開始しない", () => {
     expect(
       resolveBillingPlanAction(
-        { ...baseBilling, state: "restricted", currentPlan: null, limitPlan: "pro" },
-        "business",
+        { ...baseBilling, state: "restricted", currentPlan: null, limitPlan: "standard" },
+        "pro",
       ),
     ).toBeNull();
   });
@@ -59,7 +59,7 @@ describe("OrganizationSettings BillingSettings", () => {
   });
 
   it("Stripe課金が未準備なら課金操作を返さない", () => {
-    expect(resolveBillingPlanAction({ ...baseBilling, stripeBillingAvailable: false }, "business")).toBeNull();
+    expect(resolveBillingPlanAction({ ...baseBilling, stripeBillingAvailable: false }, "pro")).toBeNull();
   });
 
   it("トライアル終了境界をJSTの請求開始日へ整形する", () => {
@@ -86,12 +86,12 @@ describe("OrganizationSettings BillingSettings", () => {
       getRequiredReductions(
         {
           ...baseBilling,
-          state: "business",
-          currentPlan: "business",
+          state: "pro",
+          currentPlan: "pro",
           peopleUsage: { current: 26, max: 50 },
           requiredReductions: { people: 0, shops: 0, managers: 0 },
         },
-        "pro",
+        "standard",
       ),
     ).toEqual({ people: 1, shops: 0, managers: 0 });
   });

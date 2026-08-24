@@ -1,17 +1,19 @@
+import type { AnalyticsPlanKey, CanonicalAnalyticsPlanKey } from "@/api/analyticsTypes";
 import type { DataCompleteness } from "./DataStatus";
 
 const numberFormatter = new Intl.NumberFormat("ja-JP");
 const percentFormatter = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 1, style: "percent" });
-const PLAN_LABELS: Record<string, string> = {
-  business: "Business",
+const PLAN_LABELS: Record<CanonicalAnalyticsPlanKey, string> = {
   free: "Free",
   pro: "Pro",
+  standard: "Standard",
   trial: "Trial",
 };
 
-export function formatPlan(value: string | null | undefined) {
+export function formatPlan(value: AnalyticsPlanKey | null | undefined) {
   if (!value) return "未設定";
-  return PLAN_LABELS[value] ?? value;
+  if (value === "business") throw new Error("canonical_plan_id_response_required");
+  return PLAN_LABELS[value];
 }
 
 export function formatCount(value: number | null | undefined, completeness: DataCompleteness = "complete") {

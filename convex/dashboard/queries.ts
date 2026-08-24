@@ -17,18 +17,21 @@ import {
   managerInvitationStateValidator,
   resolvePersonManagerInvitationState,
 } from "../organization/managerInvitationState";
+import { projectCanonicalDisplayPlanForClient, projectCanonicalPaidPlanForClient } from "../organization/queries";
 import { getOrganizationBillingState, getOrganizationUsageSnapshot } from "../organization/service";
 import { getOrganizationStaffOrderScope } from "../organization/staffOrder";
 import {
   organizationMemberStatusValidator,
   organizationShopOperatingStatusValidator,
+  planIdVersionValidator,
 } from "../organization/validators";
 import { TRIAL_ENDING_REMINDER_LEAD_MS } from "../organizationBilling/notification";
 import {
+  type CanonicalOrganizationBillingState,
+  canonicalizeOrganizationPaidPlan,
   deriveOrganizationBillingPolicy,
   getEffectiveRestrictedBillingState,
   ORGANIZATION_PLAN_LIMITS,
-  type OrganizationBillingState,
   resolveRestrictedLimitPlan,
 } from "../organizationBilling/policy";
 import { getOrganizationAccessPolicy, getOrganizationBillingPolicy } from "../organizationBilling/service";
@@ -41,7 +44,14 @@ const myShopValidator = v.object({
   shopStatus: organizationShopOperatingStatusValidator,
   organizationId: v.union(v.id("organizations"), v.null()),
   organizationName: v.union(v.string(), v.null()),
-  organizationPlan: v.union(v.literal("trial"), v.literal("free"), v.literal("pro"), v.literal("business"), v.null()),
+  organizationPlan: v.union(
+    v.literal("trial"),
+    v.literal("free"),
+    v.literal("standard"),
+    v.literal("pro"),
+    v.literal("business"),
+    v.null(),
+  ),
   memberStatus: organizationMemberStatusValidator,
 });
 
@@ -110,19 +120,19 @@ const dashboardPlanStatusValidator = v.union(
   dashboardPlanStatusActionValidator.extend({
     kind: v.literal("trial"),
     trialEndsAt: v.number(),
-    selectedPaidPlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+    selectedPaidPlan: v.optional(v.union(v.literal("standard"), v.literal("pro"), v.literal("business"))),
   }),
   dashboardPlanStatusActionValidator.extend({
     kind: v.literal("freePlan"),
   }),
   dashboardPlanStatusActionValidator.extend({
     kind: v.literal("paidPlan"),
-    plan: v.union(v.literal("pro"), v.literal("business")),
+    plan: v.union(v.literal("standard"), v.literal("pro"), v.literal("business")),
     isComplimentary: v.boolean(),
     currentPeriodEndsAt: v.optional(v.number()),
     scheduledChange: v.optional(
       v.object({
-        targetPlan: v.union(v.literal("free"), v.literal("pro")),
+        targetPlan: v.union(v.literal("free"), v.literal("standard"), v.literal("pro"), v.literal("business")),
         effectiveAt: v.number(),
         restrictAtPeriodEnd: v.optional(v.literal(true)),
       }),
@@ -130,18 +140,18 @@ const dashboardPlanStatusValidator = v.union(
   }),
   dashboardPlanStatusActionValidator.extend({
     kind: v.literal("paymentIssue"),
-    plan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+    plan: v.optional(v.union(v.literal("standard"), v.literal("pro"), v.literal("business"))),
     phase: v.union(v.literal("grace"), v.literal("restricted")),
     recoveryDeadlineAt: v.optional(v.number()),
   }),
   dashboardPlanStatusActionValidator.extend({
     kind: v.literal("paymentPending"),
-    currentPlan: v.union(v.literal("free"), v.literal("pro"), v.null()),
-    targetPlan: v.union(v.literal("pro"), v.literal("business")),
+    currentPlan: v.union(v.literal("free"), v.literal("standard"), v.literal("pro"), v.literal("business"), v.null()),
+    targetPlan: v.union(v.literal("standard"), v.literal("pro"), v.literal("business")),
   }),
   dashboardPlanStatusActionValidator.extend({
     kind: v.literal("restricted"),
-    displayPlan: v.union(v.literal("free"), v.literal("pro"), v.literal("business"), v.null()),
+    displayPlan: v.union(v.literal("free"), v.literal("standard"), v.literal("pro"), v.literal("business"), v.null()),
   }),
 );
 
@@ -171,12 +181,12 @@ const dashboardUsageLimitViolationValidator = v.object({
 const dashboardUsageLimitStatusValidator = v.union(
   v.object({
     kind: v.literal("overLimit"),
-    evaluatedPlan: v.union(v.literal("free"), v.literal("pro"), v.literal("business")),
+    evaluatedPlan: v.union(v.literal("free"), v.literal("standard"), v.literal("pro"), v.literal("business")),
     violations: v.array(dashboardUsageLimitViolationValidator),
   }),
   v.object({
     kind: v.literal("unknown"),
-    evaluatedPlan: v.union(v.literal("free"), v.literal("pro"), v.literal("business")),
+    evaluatedPlan: v.union(v.literal("free"), v.literal("standard"), v.literal("pro"), v.literal("business")),
   }),
 );
 
@@ -216,7 +226,7 @@ const dashboardShopValidator = v.object({
 });
 
 function getDashboardPlanStatusActions(args: {
-  billingState: OrganizationBillingState;
+  billingState: CanonicalOrganizationBillingState;
   organizationMember: Doc<"organizationMembers"> | null;
   stripeCustomer: Doc<"organizationStripeCustomers"> | null;
 }): DashboardPlanStatusActions {
@@ -265,13 +275,21 @@ function getDashboardPlanStatusActions(args: {
 
 function getCurrentPeriodEndsAt(
   subscription: Doc<"organizationStripeSubscriptions"> | null,
-  expectedPlan: "pro" | "business",
+  expectedPlan: "standard" | "pro",
 ) {
+  let subscriptionPlan: "standard" | "pro" | null = null;
+  if (subscription?.plan) {
+    try {
+      subscriptionPlan = canonicalizeOrganizationPaidPlan(subscription.plan, subscription.planIdVersion);
+    } catch {
+      // 不整合なsnapshotは更新日の表示根拠にせず、課金state本体の表示は継続する。
+    }
+  }
   if (
     !subscription ||
     subscription.terminalAt !== undefined ||
     subscription.currentPeriodEndsAt === undefined ||
-    subscription.plan !== expectedPlan
+    subscriptionPlan !== expectedPlan
   ) {
     return undefined;
   }
@@ -279,7 +297,7 @@ function getCurrentPeriodEndsAt(
 }
 
 function toDashboardPlanStatus(args: {
-  billingState: OrganizationBillingState;
+  billingState: CanonicalOrganizationBillingState;
   organizationMember: Doc<"organizationMembers"> | null;
   stripeCustomer: Doc<"organizationStripeCustomers"> | null;
   latestStripeSubscription: Doc<"organizationStripeSubscriptions"> | null;
@@ -300,14 +318,17 @@ function toDashboardPlanStatus(args: {
       return {
         ...actions,
         kind: "paymentPending",
-        currentPlan: "pro",
+        currentPlan: "standard",
         targetPlan: state.plan,
       };
     case "pendingActivation":
       return {
         ...actions,
         kind: "paymentPending",
-        currentPlan: state.fallback === "free" ? "free" : state.fallback === "pro" ? "pro" : null,
+        currentPlan:
+          state.fallback === "free" || state.fallback === "standard" || state.fallback === "pro"
+            ? state.fallback
+            : null,
         targetPlan: state.plan,
       };
     case "active": {
@@ -325,7 +346,7 @@ function toDashboardPlanStatus(args: {
       return {
         ...actions,
         kind: "paidPlan",
-        plan: "business",
+        plan: "pro",
         isComplimentary: true,
       };
     case "scheduledChange": {
@@ -365,7 +386,7 @@ function toDashboardPlanStatus(args: {
         return {
           ...actions,
           kind: "paymentIssue",
-          ...(displayPlan === "pro" || displayPlan === "business" ? { plan: displayPlan } : {}),
+          ...(displayPlan === "standard" || displayPlan === "pro" ? { plan: displayPlan } : {}),
           phase: "restricted",
         };
       }
@@ -375,6 +396,77 @@ function toDashboardPlanStatus(args: {
         displayPlan,
       };
     }
+  }
+}
+
+function projectDashboardPlanStatusForClient(status: DashboardPlanStatus, planIdVersion?: 2): DashboardPlanStatus {
+  if (planIdVersion === 2) return status;
+
+  switch (status.kind) {
+    case "trial":
+      return {
+        ...status,
+        ...(status.selectedPaidPlan === undefined
+          ? {}
+          : {
+              selectedPaidPlan:
+                status.selectedPaidPlan === "business"
+                  ? status.selectedPaidPlan
+                  : projectCanonicalPaidPlanForClient(status.selectedPaidPlan, planIdVersion),
+            }),
+      };
+    case "freePlan":
+      return status;
+    case "paidPlan":
+      return {
+        ...status,
+        plan: status.plan === "business" ? status.plan : projectCanonicalPaidPlanForClient(status.plan, planIdVersion),
+        ...(status.scheduledChange === undefined
+          ? {}
+          : {
+              scheduledChange: {
+                ...status.scheduledChange,
+                targetPlan:
+                  status.scheduledChange.targetPlan === "business"
+                    ? status.scheduledChange.targetPlan
+                    : projectCanonicalDisplayPlanForClient(status.scheduledChange.targetPlan, planIdVersion),
+              },
+            }),
+      };
+    case "paymentIssue":
+      return {
+        ...status,
+        ...(status.plan === undefined
+          ? {}
+          : {
+              plan:
+                status.plan === "business"
+                  ? status.plan
+                  : projectCanonicalPaidPlanForClient(status.plan, planIdVersion),
+            }),
+      };
+    case "paymentPending":
+      return {
+        ...status,
+        currentPlan:
+          status.currentPlan === null
+            ? null
+            : status.currentPlan === "business"
+              ? status.currentPlan
+              : projectCanonicalDisplayPlanForClient(status.currentPlan, planIdVersion),
+        targetPlan:
+          status.targetPlan === "business"
+            ? status.targetPlan
+            : projectCanonicalPaidPlanForClient(status.targetPlan, planIdVersion),
+      };
+    case "restricted":
+      return {
+        ...status,
+        displayPlan:
+          status.displayPlan === null || status.displayPlan === "business"
+            ? status.displayPlan
+            : projectCanonicalDisplayPlanForClient(status.displayPlan, planIdVersion),
+      };
   }
 }
 
@@ -548,13 +640,35 @@ function normalizeDashboardAnnouncementPlanTargets(value: string) {
   ].join(",");
 }
 
-function toDashboardAnnouncement(announcement: Doc<"dashboardAnnouncements">) {
+function projectDashboardAnnouncementPlanTargets(args: {
+  value: string;
+  storedPlanIdVersion?: 2;
+  clientPlanIdVersion?: 2;
+}) {
+  const canonicalTargets = normalizeDashboardAnnouncementPlanTargets(args.value)
+    .split(",")
+    .map((target) =>
+      args.storedPlanIdVersion === 2 ? target : target === "pro" ? "standard" : target === "business" ? "pro" : target,
+    );
+  const clientTargets = canonicalTargets.map((target) =>
+    args.clientPlanIdVersion === 2 ? target : target === "standard" ? "pro" : target === "pro" ? "business" : target,
+  );
+  return [...new Set(clientTargets)].join(",");
+}
+
+function toDashboardAnnouncement(announcement: Doc<"dashboardAnnouncements">, planIdVersion?: 2) {
   return {
     _id: announcement._id,
     ...(announcement.organizationId !== undefined ? { organizationId: announcement.organizationId } : {}),
     ...(announcement.shopId !== undefined ? { shopId: announcement.shopId } : {}),
     ...(announcement.organizationPlan !== undefined
-      ? { organizationPlan: normalizeDashboardAnnouncementPlanTargets(announcement.organizationPlan) }
+      ? {
+          organizationPlan: projectDashboardAnnouncementPlanTargets({
+            value: announcement.organizationPlan,
+            storedPlanIdVersion: announcement.planIdVersion,
+            clientPlanIdVersion: planIdVersion,
+          }),
+        }
       : {}),
     title: announcement.title,
     bodyHtml: announcement.bodyHtml,
@@ -563,9 +677,9 @@ function toDashboardAnnouncement(announcement: Doc<"dashboardAnnouncements">) {
 }
 
 export const getDashboardShop = managerQuery({
-  args: {},
+  args: { planIdVersion: v.optional(planIdVersionValidator) },
   returns: v.union(dashboardShopValidator, v.null()),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     const shop = ctx.shop;
     if (!shop) return null;
     const organizationId = ctx.organization?._id;
@@ -609,7 +723,10 @@ export const getDashboardShop = managerQuery({
         ? {
             usageLimitStatus: {
               kind: "overLimit" as const,
-              evaluatedPlan: accessPolicy.usageLimitStatus.evaluatedPlan,
+              evaluatedPlan: projectCanonicalDisplayPlanForClient(
+                accessPolicy.usageLimitStatus.evaluatedPlan,
+                args.planIdVersion,
+              ),
               violations: accessPolicy.usageLimitStatus.violations,
             },
           }
@@ -617,17 +734,23 @@ export const getDashboardShop = managerQuery({
           ? {
               usageLimitStatus: {
                 kind: "unknown" as const,
-                evaluatedPlan: accessPolicy.usageLimitStatus.evaluatedPlan,
+                evaluatedPlan: projectCanonicalDisplayPlanForClient(
+                  accessPolicy.usageLimitStatus.evaluatedPlan,
+                  args.planIdVersion,
+                ),
               },
             }
           : {}),
       planStatus: billingState
-        ? toDashboardPlanStatus({
-            billingState: billingState.state,
-            organizationMember: ctx.organizationMember,
-            stripeCustomer,
-            latestStripeSubscription,
-          })
+        ? projectDashboardPlanStatusForClient(
+            toDashboardPlanStatus({
+              billingState: billingState.state,
+              organizationMember: ctx.organizationMember,
+              stripeCustomer,
+              latestStripeSubscription,
+            }),
+            args.planIdVersion,
+          )
         : null,
       trialEndingNotice,
     };
@@ -674,9 +797,9 @@ export const getDashboardPlanUsage = managerQuery({
  * 複数店舗マネージャーが操作対象店舗を選ぶための一覧（フロントの selectedShopAtom 初期化に使う）。
  */
 export const getMyShops = authenticatedQuery({
-  args: {},
+  args: { planIdVersion: v.optional(planIdVersionValidator) },
   returns: v.array(myShopValidator),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     if (!ctx.identity || !ctx.user || ctx.user.isDeleted) return [];
     const user = ctx.user;
     const result = new Map<
@@ -687,7 +810,7 @@ export const getMyShops = authenticatedQuery({
         shopStatus: "active" | "archived" | "planSuspended";
         organizationId: Doc<"organizations">["_id"] | null;
         organizationName: string | null;
-        organizationPlan: "trial" | "free" | "pro" | "business" | null;
+        organizationPlan: "trial" | "free" | "standard" | "pro" | null;
         memberStatus: "active" | "readOnly" | "removed";
       }
     >();
@@ -798,11 +921,19 @@ export const getMyShops = authenticatedQuery({
       });
     }
 
-    return [...result.values()].sort(
-      (a, b) =>
-        (a.organizationName ?? "").localeCompare(b.organizationName ?? "", "ja") ||
-        a.shopName.localeCompare(b.shopName, "ja"),
-    );
+    return [...result.values()]
+      .sort(
+        (a, b) =>
+          (a.organizationName ?? "").localeCompare(b.organizationName ?? "", "ja") ||
+          a.shopName.localeCompare(b.shopName, "ja"),
+      )
+      .map((shop) => ({
+        ...shop,
+        organizationPlan:
+          shop.organizationPlan === null
+            ? null
+            : projectCanonicalDisplayPlanForClient(shop.organizationPlan, args.planIdVersion),
+      }));
   },
 });
 
@@ -847,7 +978,7 @@ export const getActiveDashboardAnnouncements = authenticatedQuery({
           announcement.organizationId !== undefined ||
           announcement.shopId !== undefined,
       )
-      .map(toDashboardAnnouncement);
+      .map((announcement) => toDashboardAnnouncement(announcement));
   },
 });
 
@@ -859,7 +990,7 @@ export const getActiveDashboardAnnouncementsV2 = authenticatedQuery({
     if (!ctx.identity || ctx.user?.isDeleted) return [];
 
     const announcements = await getActiveDashboardAnnouncementCandidates(ctx.db);
-    return announcements.map(toDashboardAnnouncement);
+    return announcements.map((announcement) => toDashboardAnnouncement(announcement, 2));
   },
 });
 

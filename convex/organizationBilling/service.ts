@@ -169,7 +169,7 @@ export async function requireOrganizationPaidFeature(ctx: DbCtx, organizationId:
     throw new ConvexError(
       policy?.paidFeatureBlockReason === "paymentResultPending"
         ? "支払い結果が確定すると利用できます。"
-        : `この機能はトライアルまたは${organizationPaidPlanLabel("pro")}で利用できます。`,
+        : `この機能はトライアルまたは${organizationPaidPlanLabel("standard")}で利用できます。`,
     );
   }
   return policy;

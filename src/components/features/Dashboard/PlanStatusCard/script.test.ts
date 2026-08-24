@@ -29,7 +29,7 @@ describe("buildPlanStatusCardData", () => {
 
   it("選択済みトライアルと操作権限がないトライアルを変更操作として見せない", () => {
     const selectedTrial = buildPlanStatusCardData(
-      { kind: "trial", trialEndsAt, selectedPaidPlan: "business", ...actions },
+      { kind: "trial", trialEndsAt, selectedPaidPlan: "pro", ...actions },
       now,
     );
     expect(selectedTrial).toMatchObject({
@@ -65,7 +65,7 @@ describe("buildPlanStatusCardData", () => {
     expect(
       buildPlanStatusCardData({
         kind: "paidPlan",
-        plan: "pro",
+        plan: "standard",
         isComplimentary: false,
         currentPeriodEndsAt: Date.parse("2026-08-31T15:00:00.000Z"),
         ...actions,
@@ -83,7 +83,7 @@ describe("buildPlanStatusCardData", () => {
     expect(
       buildPlanStatusCardData({
         kind: "paidPlan",
-        plan: "business",
+        plan: "pro",
         isComplimentary: true,
         currentPeriodEndsAt: Date.parse("2026-08-31T15:00:00.000Z"),
         canManagePlan: false,
@@ -102,7 +102,7 @@ describe("buildPlanStatusCardData", () => {
     expect(
       buildPlanStatusCardData({
         kind: "paidPlan",
-        plan: "business",
+        plan: "pro",
         isComplimentary: false,
         currentPeriodEndsAt: Date.parse("2026-08-31T15:00:00.000Z"),
         scheduledChange: { targetPlan: "free", effectiveAt: Date.parse("2026-08-31T15:00:00.000Z") },
@@ -119,7 +119,7 @@ describe("buildPlanStatusCardData", () => {
     expect(
       buildPlanStatusCardData({
         kind: "paidPlan",
-        plan: "pro",
+        plan: "standard",
         isComplimentary: false,
         scheduledChange: {
           targetPlan: "free",
@@ -140,7 +140,7 @@ describe("buildPlanStatusCardData", () => {
       buildPlanStatusCardData({
         kind: "paymentPending",
         currentPlan: "free",
-        targetPlan: "pro",
+        targetPlan: "standard",
         canManagePlan: false,
         canUpdatePaymentMethod: false,
       }),
@@ -154,7 +154,7 @@ describe("buildPlanStatusCardData", () => {
       buildPlanStatusCardData({
         kind: "paymentPending",
         currentPlan: null,
-        targetPlan: "business",
+        targetPlan: "pro",
         canManagePlan: false,
         canUpdatePaymentMethod: false,
       }),
@@ -165,7 +165,7 @@ describe("buildPlanStatusCardData", () => {
     expect(
       buildPlanStatusCardData({
         kind: "paymentIssue",
-        plan: "pro",
+        plan: "standard",
         phase: "grace",
         recoveryDeadlineAt: trialEndsAt,
         ...actions,
@@ -205,7 +205,7 @@ describe("buildPlanStatusCardData", () => {
     expect(
       buildPlanStatusCardData({
         kind: "restricted",
-        displayPlan: "pro",
+        displayPlan: "standard",
         canManagePlan: false,
         canUpdatePaymentMethod: false,
       }),

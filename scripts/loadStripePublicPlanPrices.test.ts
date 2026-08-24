@@ -8,13 +8,13 @@ import {
 
 const testEnvironment = {
   STRIPE_SECRET_KEY: "sk_test_public_prices_secret_value",
+  STRIPE_STANDARD_PRICE_ID: "price_standard_private_identifier",
   STRIPE_PRO_PRICE_ID: "price_pro_private_identifier",
-  STRIPE_BUSINESS_PRICE_ID: "price_business_private_identifier",
 } as const;
 
 function stripePrice(overrides: Partial<RetrievedStripePrice> = {}): RetrievedStripePrice {
   return {
-    id: testEnvironment.STRIPE_PRO_PRICE_ID,
+    id: testEnvironment.STRIPE_STANDARD_PRICE_ID,
     active: true,
     livemode: false,
     type: "recurring",
@@ -30,9 +30,9 @@ function stripePrice(overrides: Partial<RetrievedStripePrice> = {}): RetrievedSt
 
 function retrieveValidPrices() {
   return vi.fn(async (priceId: string) =>
-    priceId === testEnvironment.STRIPE_PRO_PRICE_ID
+    priceId === testEnvironment.STRIPE_STANDARD_PRICE_ID
       ? stripePrice()
-      : stripePrice({ id: testEnvironment.STRIPE_BUSINESS_PRICE_ID, unit_amount: 6_000 }),
+      : stripePrice({ id: testEnvironment.STRIPE_PRO_PRICE_ID, unit_amount: 6_000 }),
   );
 }
 
@@ -80,17 +80,17 @@ describe("loadStripePublicPlanPrices", () => {
     });
 
     expect(retrievePrice).toHaveBeenCalledTimes(2);
-    expect(retrievePrice).toHaveBeenNthCalledWith(1, testEnvironment.STRIPE_PRO_PRICE_ID);
-    expect(retrievePrice).toHaveBeenNthCalledWith(2, testEnvironment.STRIPE_BUSINESS_PRICE_ID);
+    expect(retrievePrice).toHaveBeenNthCalledWith(1, testEnvironment.STRIPE_STANDARD_PRICE_ID);
+    expect(retrievePrice).toHaveBeenNthCalledWith(2, testEnvironment.STRIPE_PRO_PRICE_ID);
     expect(catalog).toEqual({
-      pro: {
+      standard: {
         currency: "jpy",
         unitAmount: 3_000,
         interval: "month",
         intervalCount: 1,
         taxBehavior: "inclusive",
       },
-      business: {
+      pro: {
         currency: "jpy",
         unitAmount: 6_000,
         interval: "month",
@@ -98,12 +98,42 @@ describe("loadStripePublicPlanPrices", () => {
         taxBehavior: "inclusive",
       },
     });
-    expect(Object.keys(catalog.pro)).toEqual(["currency", "unitAmount", "interval", "intervalCount", "taxBehavior"]);
+    expect(Object.keys(catalog.standard)).toEqual([
+      "currency",
+      "unitAmount",
+      "interval",
+      "intervalCount",
+      "taxBehavior",
+    ]);
 
     const serialized = JSON.stringify(catalog);
     expect(serialized).not.toContain(testEnvironment.STRIPE_SECRET_KEY);
+    expect(serialized).not.toContain(testEnvironment.STRIPE_STANDARD_PRICE_ID);
     expect(serialized).not.toContain(testEnvironment.STRIPE_PRO_PRICE_ID);
-    expect(serialized).not.toContain(testEnvironment.STRIPE_BUSINESS_PRICE_ID);
+  });
+
+  it("明示したStandardとProの2つのkeyだけを使う", async () => {
+    const environment = {
+      ...testEnvironment,
+      STRIPE_STANDARD_PRICE_ID: "price_explicit_standard",
+      STRIPE_PRO_PRICE_ID: "price_explicit_pro",
+    };
+    const retrievePrice = vi.fn(async (priceId: string) =>
+      stripePrice({
+        id: priceId,
+        unit_amount: priceId === environment.STRIPE_STANDARD_PRICE_ID ? 3_000 : 6_000,
+      }),
+    );
+
+    await expect(
+      loadStripePublicPlanPrices({
+        environment: "develop",
+        env: environment,
+        retrievePrice,
+      }),
+    ).resolves.toMatchObject({ standard: { unitAmount: 3_000 }, pro: { unitAmount: 6_000 } });
+    expect(retrievePrice).toHaveBeenNthCalledWith(1, environment.STRIPE_STANDARD_PRICE_ID);
+    expect(retrievePrice).toHaveBeenNthCalledWith(2, environment.STRIPE_PRO_PRICE_ID);
   });
 
   it("環境に対応するsecret keyだけを受け付ける", async () => {
@@ -125,10 +155,10 @@ describe("loadStripePublicPlanPrices", () => {
           stripePrice({
             id: priceId,
             livemode: true,
-            unit_amount: priceId === testEnvironment.STRIPE_PRO_PRICE_ID ? 3_000 : 6_000,
+            unit_amount: priceId === testEnvironment.STRIPE_STANDARD_PRICE_ID ? 3_000 : 6_000,
           }),
       }),
-    ).resolves.toMatchObject({ pro: { unitAmount: 3_000 }, business: { unitAmount: 6_000 } });
+    ).resolves.toMatchObject({ standard: { unitAmount: 3_000 }, pro: { unitAmount: 6_000 } });
   });
 
   it.each(["local", "preview"] as const)("%sはSandboxのsecret keyから料金を取得する", async (environment) => {
@@ -138,10 +168,10 @@ describe("loadStripePublicPlanPrices", () => {
         env: testEnvironment,
         retrievePrice: retrieveValidPrices(),
       }),
-    ).resolves.toMatchObject({ pro: { unitAmount: 3_000 }, business: { unitAmount: 6_000 } });
+    ).resolves.toMatchObject({ standard: { unitAmount: 3_000 }, pro: { unitAmount: 6_000 } });
   });
 
-  it("欠落設定、不正ID、ProとBusinessの同一IDを取得前に拒否する", async () => {
+  it("欠落設定、不正ID、StandardとProの同一IDを取得前に拒否する", async () => {
     const retrievePrice = retrieveValidPrices();
 
     await expectLoadError("missing_configuration", {
@@ -153,7 +183,30 @@ describe("loadStripePublicPlanPrices", () => {
       retrievePrice,
     });
     await expectLoadError("duplicate_price_id", {
-      env: { ...testEnvironment, STRIPE_BUSINESS_PRICE_ID: testEnvironment.STRIPE_PRO_PRICE_ID },
+      env: { ...testEnvironment, STRIPE_PRO_PRICE_ID: testEnvironment.STRIPE_STANDARD_PRICE_ID },
+      retrievePrice,
+    });
+    expect(retrievePrice).not.toHaveBeenCalled();
+  });
+
+  it("StandardとProの明示keyを要求し、欠損・重複を拒否する", async () => {
+    const retrievePrice = retrieveValidPrices();
+    const directEnvironment = {
+      ...testEnvironment,
+      STRIPE_STANDARD_PRICE_ID: "price_direct_standard",
+      STRIPE_PRO_PRICE_ID: "price_direct_pro",
+    };
+
+    await expectLoadError("missing_configuration", {
+      env: { ...directEnvironment, STRIPE_STANDARD_PRICE_ID: "" },
+      retrievePrice,
+    });
+    await expectLoadError("missing_configuration", {
+      env: { ...directEnvironment, STRIPE_PRO_PRICE_ID: "" },
+      retrievePrice,
+    });
+    await expectLoadError("duplicate_price_id", {
+      env: { ...directEnvironment, STRIPE_PRO_PRICE_ID: directEnvironment.STRIPE_STANDARD_PRICE_ID },
       retrievePrice,
     });
     expect(retrievePrice).not.toHaveBeenCalled();
@@ -174,7 +227,7 @@ describe("loadStripePublicPlanPrices", () => {
     }
 
     expect(caught).toBeInstanceOf(StripePublicPriceLoadError);
-    expect(caught).toMatchObject({ code: "retrieve_failed", plan: "pro" });
+    expect(caught).toMatchObject({ code: "retrieve_failed", plan: "standard" });
     expect(String(caught)).not.toContain(testEnvironment.STRIPE_SECRET_KEY);
     expect(String(caught)).not.toContain(testEnvironment.STRIPE_PRO_PRICE_ID);
   });
@@ -182,28 +235,28 @@ describe("loadStripePublicPlanPrices", () => {
   it.each(invalidPriceCases)("%sを拒否する", async (code, override) => {
     await expectLoadError(code, {
       retrievePrice: async (priceId) =>
-        priceId === testEnvironment.STRIPE_PRO_PRICE_ID
+        priceId === testEnvironment.STRIPE_STANDARD_PRICE_ID
           ? stripePrice(override)
-          : stripePrice({ id: testEnvironment.STRIPE_BUSINESS_PRICE_ID, unit_amount: 6_000 }),
+          : stripePrice({ id: testEnvironment.STRIPE_PRO_PRICE_ID, unit_amount: 6_000 }),
     });
   });
 
-  it("ProとBusinessの通貨不一致を拒否する", async () => {
+  it("StandardとProの通貨不一致を拒否する", async () => {
     await expectLoadError("catalog_currency_mismatch", {
       retrievePrice: async (priceId) =>
-        priceId === testEnvironment.STRIPE_PRO_PRICE_ID
+        priceId === testEnvironment.STRIPE_STANDARD_PRICE_ID
           ? stripePrice()
-          : stripePrice({ id: testEnvironment.STRIPE_BUSINESS_PRICE_ID, currency: "usd", unit_amount: 6_000 }),
+          : stripePrice({ id: testEnvironment.STRIPE_PRO_PRICE_ID, currency: "usd", unit_amount: 6_000 }),
     });
   });
 
-  it("ProとBusinessの請求周期不一致を拒否する", async () => {
+  it("StandardとProの請求周期不一致を拒否する", async () => {
     await expectLoadError("catalog_cadence_mismatch", {
       retrievePrice: async (priceId) =>
-        priceId === testEnvironment.STRIPE_PRO_PRICE_ID
+        priceId === testEnvironment.STRIPE_STANDARD_PRICE_ID
           ? stripePrice()
           : stripePrice({
-              id: testEnvironment.STRIPE_BUSINESS_PRICE_ID,
+              id: testEnvironment.STRIPE_PRO_PRICE_ID,
               unit_amount: 6_000,
               recurring: { interval: "year", interval_count: 1, usage_type: "licensed" },
             }),
@@ -217,14 +270,14 @@ describe("loadStripePublicPlanPrices", () => {
       retrievePrice: async (priceId) =>
         stripePrice({
           id: priceId,
-          unit_amount: priceId === testEnvironment.STRIPE_PRO_PRICE_ID ? 3_000 : 6_000,
+          unit_amount: priceId === testEnvironment.STRIPE_STANDARD_PRICE_ID ? 3_000 : 6_000,
           recurring: { interval: "day", interval_count: 2, usage_type: "licensed" },
         }),
     });
 
     expect(catalog).toMatchObject({
+      standard: { interval: "day", intervalCount: 2 },
       pro: { interval: "day", intervalCount: 2 },
-      business: { interval: "day", intervalCount: 2 },
     });
   });
 
@@ -236,7 +289,7 @@ describe("loadStripePublicPlanPrices", () => {
         stripePrice({
           id: priceId,
           livemode: true,
-          unit_amount: priceId === testEnvironment.STRIPE_PRO_PRICE_ID ? 3_000 : 6_000,
+          unit_amount: priceId === testEnvironment.STRIPE_STANDARD_PRICE_ID ? 3_000 : 6_000,
           recurring: { interval: "year", interval_count: 1, usage_type: "licensed" },
         }),
     });

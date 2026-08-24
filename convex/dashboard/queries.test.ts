@@ -27,8 +27,8 @@ describe("dashboard/queries", () => {
     beforeEach(() => {
       vi.stubEnv("STRIPE_SECRET_KEY", "");
       vi.stubEnv("STRIPE_WEBHOOK_SECRET", "");
+      vi.stubEnv("STRIPE_STANDARD_PRICE_ID", "");
       vi.stubEnv("STRIPE_PRO_PRICE_ID", "");
-      vi.stubEnv("STRIPE_BUSINESS_PRICE_ID", "");
       vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "");
     });
 
@@ -75,6 +75,15 @@ describe("dashboard/queries", () => {
           plan: "business",
         },
         trialEndingNotice: null,
+      });
+
+      const canonicalResult = await t
+        .withIdentity({ subject: "user_123" })
+        .query(api.dashboard.queries.getDashboardShop, { shopId, planIdVersion: 2 });
+      expect(canonicalResult?.planStatus).toMatchObject({
+        kind: "paidPlan",
+        plan: "pro",
+        isComplimentary: true,
       });
     });
 
@@ -404,6 +413,12 @@ describe("dashboard/queries", () => {
         businessWriteBlockReason: "usageLimitEvaluationUnavailable",
         usageLimitStatus: { kind: "unknown", evaluatedPlan: "pro" },
       });
+      const canonicalResult = await t
+        .withIdentity({ subject: "dashboard_usage_limit_unknown" })
+        .query(api.dashboard.queries.getDashboardShop, { shopId, planIdVersion: 2 });
+      expect(canonicalResult).toMatchObject({
+        usageLimitStatus: { kind: "unknown", evaluatedPlan: "standard" },
+      });
     });
 
     it.each([
@@ -445,31 +460,37 @@ describe("dashboard/queries", () => {
         label: "trial",
         state: { kind: "trial", trialEndsAt: TRIAL_ENDS_AT, selectedPaidPlan: "business" },
         expected: { kind: "trial", trialEndsAt: TRIAL_ENDS_AT, selectedPaidPlan: "business" },
+        canonicalExpected: { kind: "trial", trialEndsAt: TRIAL_ENDS_AT, selectedPaidPlan: "pro" },
       },
       {
         label: "initialPaymentPending",
         state: { kind: "initialPaymentPending", plan: "business", startedAt: 1 },
         expected: { kind: "paymentPending", currentPlan: "pro", targetPlan: "business" },
+        canonicalExpected: { kind: "paymentPending", currentPlan: "standard", targetPlan: "pro" },
       },
       {
         label: "pendingActivation",
         state: { kind: "pendingActivation", plan: "pro", fallback: "free", startedAt: 1 },
         expected: { kind: "paymentPending", currentPlan: "free", targetPlan: "pro" },
+        canonicalExpected: { kind: "paymentPending", currentPlan: "free", targetPlan: "standard" },
       },
       {
         label: "active.free",
         state: { kind: "active", plan: "free" },
         expected: { kind: "freePlan" },
+        canonicalExpected: { kind: "freePlan" },
       },
       {
         label: "active.pro",
         state: { kind: "active", plan: "pro" },
         expected: { kind: "paidPlan", plan: "pro", isComplimentary: false },
+        canonicalExpected: { kind: "paidPlan", plan: "standard", isComplimentary: false },
       },
       {
         label: "complimentary.business",
         state: { kind: "complimentary", plan: "business" },
         expected: { kind: "paidPlan", plan: "business", isComplimentary: true },
+        canonicalExpected: { kind: "paidPlan", plan: "pro", isComplimentary: true },
       },
       {
         label: "scheduledChange",
@@ -480,11 +501,18 @@ describe("dashboard/queries", () => {
           isComplimentary: false,
           scheduledChange: { targetPlan: "pro", effectiveAt: 2 },
         },
+        canonicalExpected: {
+          kind: "paidPlan",
+          plan: "pro",
+          isComplimentary: false,
+          scheduledChange: { targetPlan: "standard", effectiveAt: 2 },
+        },
       },
       {
         label: "grace",
         state: { kind: "grace", plan: "business", startedAt: 1, endsAt: 3 },
         expected: { kind: "paymentIssue", plan: "business", phase: "grace", recoveryDeadlineAt: 3 },
+        canonicalExpected: { kind: "paymentIssue", plan: "pro", phase: "grace", recoveryDeadlineAt: 3 },
       },
       {
         label: "restricted.payment",
@@ -497,6 +525,7 @@ describe("dashboard/queries", () => {
           restrictedAt: 4,
         },
         expected: { kind: "paymentIssue", plan: "pro", phase: "restricted" },
+        canonicalExpected: { kind: "paymentIssue", plan: "standard", phase: "restricted" },
       },
       {
         label: "restricted.limit",
@@ -510,12 +539,14 @@ describe("dashboard/queries", () => {
           restrictedAt: 5,
         },
         expected: { kind: "restricted", displayPlan: "pro" },
+        canonicalExpected: { kind: "restricted", displayPlan: "standard" },
       },
     ] satisfies ReadonlyArray<{
       label: string;
       state: Doc<"organizationBillingStates">["state"];
       expected: Record<string, unknown>;
-    }>)("$labelを表示専用planStatusへ変換する", async ({ label, state, expected }) => {
+      canonicalExpected: Record<string, unknown>;
+    }>)("$labelを表示専用planStatusへ変換する", async ({ label, state, expected, canonicalExpected }) => {
       const t = convexTest(schema, modules);
       const subject = `dashboard_plan_status_${label.replaceAll(".", "_")}`;
       const { shopId } = await t.run(async (ctx) => {
@@ -544,11 +575,20 @@ describe("dashboard/queries", () => {
         canManagePlan: false,
         canUpdatePaymentMethod: false,
       });
+      const canonicalResult = await t
+        .withIdentity({ subject })
+        .query(api.dashboard.queries.getDashboardShop, { shopId, planIdVersion: 2 });
+      expect(canonicalResult?.planStatus).toEqual({
+        ...canonicalExpected,
+        canManagePlan: false,
+        canUpdatePaymentMethod: false,
+      });
     });
 
     it("有料契約では保存済み期間と利用可能な操作だけを返す", async () => {
       vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_dashboard_plan_status");
       vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_dashboard_plan_status");
+      vi.stubEnv("STRIPE_STANDARD_PRICE_ID", "price_dashboard_standard");
       vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_dashboard_pro");
       vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "bpc_dashboard_plan_status");
       const t = convexTest(schema, modules);
@@ -1080,6 +1120,9 @@ describe("dashboard/queries", () => {
       });
 
       const result = await t.withIdentity({ subject }).query(api.dashboard.queries.getMyShops, {});
+      const canonicalResult = await t
+        .withIdentity({ subject })
+        .query(api.dashboard.queries.getMyShops, { planIdVersion: 2 });
 
       expect(
         result
@@ -1116,6 +1159,14 @@ describe("dashboard/queries", () => {
           shopName: "組織B店舗",
           shopStatus: "archived",
         },
+      ]);
+      expect(
+        canonicalResult
+          .map((shop) => ({ organizationName: shop.organizationName, organizationPlan: shop.organizationPlan }))
+          .sort((a, b) => (a.organizationName ?? "").localeCompare(b.organizationName ?? "", "ja")),
+      ).toEqual([
+        { organizationName: "組織A", organizationPlan: "standard" },
+        { organizationName: "組織B", organizationPlan: "pro" },
       ]);
     });
 
@@ -1348,7 +1399,32 @@ describe("dashboard/queries", () => {
       expect(result).toEqual([]);
     });
 
-    it("対象指定を必要なフィールドだけ返し、Business対象をBusinessのまま返す", async () => {
+    it("marker付きcanonical Pro対象はv2へPro、旧queryへBusinessとして返す", async () => {
+      const t = convexTest(schema, modules);
+      const announcementId = await t.run(
+        async (ctx) =>
+          await ctx.db.insert("dashboardAnnouncements", {
+            organizationId: "organization-target",
+            organizationPlan: "pro",
+            planIdVersion: 2,
+            title: "Pro対象のお知らせ",
+            bodyHtml: "<p>Pro対象です。</p>",
+            displayDate: "2026-06-17",
+            isPublished: true,
+            isDeleted: false,
+          }),
+      );
+      const actor = t.withIdentity({ subject: "announcement_canonical_plan_user" });
+
+      await expect(actor.query(api.dashboard.queries.getActiveDashboardAnnouncementsV2, {})).resolves.toEqual([
+        expect.objectContaining({ _id: announcementId, organizationPlan: "pro" }),
+      ]);
+      await expect(actor.query(api.dashboard.queries.getActiveDashboardAnnouncements, {})).resolves.toEqual([
+        expect.objectContaining({ _id: announcementId, organizationPlan: "business" }),
+      ]);
+    });
+
+    it("対象指定を必要なフィールドだけ返し、legacy Business対象をcanonical Proへ投影する", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const now = Date.now();
@@ -1441,7 +1517,7 @@ describe("dashboard/queries", () => {
       expect(result).toEqual([
         {
           _id: ids.organizationPlanAnnouncementId,
-          organizationPlan: "business",
+          organizationPlan: "pro",
           title: "契約プラン向けのお知らせ",
           bodyHtml: "<p>契約プラン向けです。</p>",
           displayDate: "2026-06-21",

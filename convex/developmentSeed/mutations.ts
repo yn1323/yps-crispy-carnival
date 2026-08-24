@@ -36,9 +36,9 @@ const DEVELOPMENT_SEED_TABLE_NAMES = Object.keys(schema.tables) as TableNames[];
 const scenarioKeyValidator = v.union(
   v.literal("free-capacity"),
   v.literal("trial-ending"),
-  v.literal("pro-operations"),
-  v.literal("business-notifications"),
-  v.literal("pro-scheduled-change"),
+  v.literal("standard-operations"),
+  v.literal("pro-notifications"),
+  v.literal("standard-scheduled-change"),
   v.literal("payment-pending"),
   v.literal("payment-grace"),
   v.literal("payment-restricted"),

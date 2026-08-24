@@ -40,7 +40,7 @@ const shops = [
     shopStatus: "active",
     organizationId: "organization-a",
     organizationName: "Aグループ",
-    organizationPlan: "pro",
+    organizationPlan: "standard",
     memberStatus: "active",
   },
   {
@@ -49,7 +49,7 @@ const shops = [
     shopStatus: "active",
     organizationId: "organization-a",
     organizationName: "Aグループ",
-    organizationPlan: "pro",
+    organizationPlan: "standard",
     memberStatus: "active",
   },
   {
@@ -58,7 +58,7 @@ const shops = [
     shopStatus: "active",
     organizationId: "organization-b",
     organizationName: "Bグループ",
-    organizationPlan: "pro",
+    organizationPlan: "standard",
     memberStatus: "active",
   },
 ] as const;
@@ -142,6 +142,16 @@ const openOrganizationAccordion = async () => {
 };
 
 describe("OperationContext", () => {
+  it("queryから店舗候補を読む場合はcanonical plan ID契約を指定する", () => {
+    render(
+      <ChakraProvider>
+        <OperationContext />
+      </ChakraProvider>,
+    );
+
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.getMyShops, { planIdVersion: 2 });
+  });
+
   it("店舗セレクトで選んだ店舗をcallbackへ返す", async () => {
     const onSelect = vi.fn();
     renderContext(shops, shops[0], { onSelect });

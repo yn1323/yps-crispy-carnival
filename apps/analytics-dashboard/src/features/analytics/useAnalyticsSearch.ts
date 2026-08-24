@@ -9,23 +9,25 @@ import type {
   ShopsParams,
   TrendsParams,
 } from "@/api/analyticsClient";
+import { ANALYTICS_PLAN_ID_VERSION, upgradeAnalyticsPlanSearchParams } from "@/api/analyticsPlanIds";
 import type {
   AnalyticsCadenceFilter,
   AnalyticsCompleteness,
   AnalyticsHealthSignalKey,
   AnalyticsLineUsageFilter,
   AnalyticsOrganizationSort,
-  AnalyticsPlanKey,
   AnalyticsSegmentDimension,
   AnalyticsShopSizeFilter,
   AnalyticsShopSort,
   AnalyticsShopUsageFilter,
+  CanonicalAnalyticsPlanKey,
 } from "@/api/analyticsTypes";
 
 export type AnalyticsGranularity = "day" | "week" | "month";
 export type SortDirection = "asc" | "desc";
 
 export type AnalyticsSearchState = {
+  planIdVersion: typeof ANALYTICS_PLAN_ID_VERSION;
   from: string;
   to: string;
   compareFrom?: string;
@@ -48,7 +50,7 @@ export type AnalyticsSearchState = {
   segmentCursor?: string;
 };
 
-const PLANS = ["trial", "free", "pro", "business"] as const;
+const PLANS = ["trial", "free", "standard", "pro"] as const satisfies readonly CanonicalAnalyticsPlanKey[];
 const COMPLETENESS = ["complete", "partial", "unavailable"] as const;
 const ORGANIZATION_SORTS = ["registeredAt", "currentPlan"] as const;
 const SHOP_SORTS = ["registeredAt", "currentPlan", "latestActivityAt"] as const;
@@ -142,7 +144,9 @@ function defaultRange() {
 }
 
 function parseSearch(search: string) {
+  const originalParams = new URLSearchParams(search);
   const params = new URLSearchParams(search);
+  upgradeAnalyticsPlanSearchParams(params);
   const defaults = defaultRange();
   const from = params.get("from") ?? defaults.from;
   const to = params.get("to") ?? defaults.to;
@@ -152,6 +156,7 @@ function parseSearch(search: string) {
     direction: direction === "asc" ? "asc" : "desc",
     from,
     granularity: granularity === "day" || granularity === "month" ? granularity : "week",
+    planIdVersion: ANALYTICS_PLAN_ID_VERSION,
     to,
   };
 
@@ -170,23 +175,25 @@ function parseSearch(search: string) {
   const usage = valueIn(rawUsage, SHOP_USAGE);
   if (usage) result.usage = usage;
   const hasInvalidUsage = params.has("usage") && usage === undefined;
-  if (hasInvalidUsage) delete result.cursor;
+  if (hasInvalidUsage) {
+    delete result.cursor;
+    params.delete("cursor");
+    params.delete("usage");
+  }
+  const normalizedSearch = params.toString();
   return {
     hasExplicitRange: params.has("from") && params.has("to"),
-    hasInvalidUsage,
+    needsUrlNormalization: normalizedSearch !== originalParams.toString(),
+    normalizedSearch,
     search: result,
   };
 }
 
-function removeInvalidUsageFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  params.delete("cursor");
-  params.delete("usage");
-  const serialized = params.toString();
+function replaceNormalizedSearchUrl(normalizedSearch: string) {
   window.history.replaceState(
     null,
     "",
-    serialized ? `${window.location.pathname}?${serialized}` : window.location.pathname,
+    normalizedSearch ? `${window.location.pathname}?${normalizedSearch}` : window.location.pathname,
   );
 }
 
@@ -196,13 +203,19 @@ export function overviewParams(search: AnalyticsSearchState): OverviewParams {
     compareTo: search.compareTo,
     from: search.from,
     organizationId: search.organizationId,
+    planIdVersion: search.planIdVersion,
     shopId: search.shopId,
     to: search.to,
   };
 }
 
 export function seriesParams(search: AnalyticsSearchState): OrganizationParams | ShopParams {
-  return { from: search.from, granularity: search.granularity, to: search.to };
+  return {
+    from: search.from,
+    granularity: search.granularity,
+    planIdVersion: search.planIdVersion,
+    to: search.to,
+  };
 }
 
 export function organizationDetailParams(search: AnalyticsSearchState): OrganizationParams {
@@ -211,6 +224,7 @@ export function organizationDetailParams(search: AnalyticsSearchState): Organiza
     from: search.from,
     granularity: search.granularity,
     limit: 50,
+    planIdVersion: search.planIdVersion,
     to: search.to,
   };
 }
@@ -220,6 +234,7 @@ export function trendsParams(search: AnalyticsSearchState): Omit<TrendsParams, "
     from: search.from,
     granularity: search.granularity,
     organizationId: search.organizationId,
+    planIdVersion: search.planIdVersion,
     shopId: search.shopId,
     to: search.to,
   };
@@ -231,7 +246,8 @@ export function organizationsParams(search: AnalyticsSearchState): Organizations
     direction: search.direction,
     from: search.from,
     limit: 50,
-    plan: valueIn(search.plan, PLANS) as AnalyticsPlanKey | undefined,
+    plan: valueIn(search.plan, PLANS),
+    planIdVersion: search.planIdVersion,
     sort: valueIn(search.sort, ORGANIZATION_SORTS) as AnalyticsOrganizationSort | undefined,
     to: search.to,
   };
@@ -247,7 +263,8 @@ export function shopsParams(search: AnalyticsSearchState): ShopsParams {
     limit: 50,
     lineUsage: valueIn(search.lineUsage, LINE_USAGE) as AnalyticsLineUsageFilter | undefined,
     organizationId: search.organizationId,
-    plan: valueIn(search.plan, PLANS) as AnalyticsPlanKey | undefined,
+    plan: valueIn(search.plan, PLANS),
+    planIdVersion: search.planIdVersion,
     shopSize: valueIn(search.shopSize, SHOP_SIZES) as AnalyticsShopSizeFilter | undefined,
     sort: valueIn(search.sort, SHOP_SORTS) as AnalyticsShopSort | undefined,
     to: search.to,
@@ -262,6 +279,7 @@ export function shopCyclesParams(search: AnalyticsSearchState): ShopCyclesParams
     direction: "desc",
     from: search.from,
     limit: 50,
+    planIdVersion: search.planIdVersion,
     sort: "periodStart",
     to: search.to,
   };
@@ -275,6 +293,7 @@ export function segmentsParams(search: AnalyticsSearchState): SegmentsParams {
     direction: "asc",
     from: search.from,
     limit: 50,
+    planIdVersion: search.planIdVersion,
     sort: "dimension",
     to: search.to,
   };
@@ -287,11 +306,13 @@ export function useAnalyticsSearch() {
   const hasExplicitRange = useRef(initial.current.hasExplicitRange);
 
   useEffect(() => {
-    if (initial.current?.hasInvalidUsage) removeInvalidUsageFromUrl();
+    if (initial.current?.needsUrlNormalization) {
+      replaceNormalizedSearchUrl(initial.current.normalizedSearch);
+    }
 
     const handlePopState = () => {
       const parsed = parseSearch(window.location.search);
-      if (parsed.hasInvalidUsage) removeInvalidUsageFromUrl();
+      if (parsed.needsUrlNormalization) replaceNormalizedSearchUrl(parsed.normalizedSearch);
       hasExplicitRange.current = parsed.hasExplicitRange;
       setSearch(parsed.search);
     };
@@ -302,6 +323,7 @@ export function useAnalyticsSearch() {
   const update = useCallback((patch: Partial<AnalyticsSearchState>, replace = false) => {
     if ("from" in patch || "to" in patch) hasExplicitRange.current = true;
     const params = new URLSearchParams(window.location.search);
+    upgradeAnalyticsPlanSearchParams(params);
     for (const [key, value] of Object.entries(patch)) {
       if (value === undefined || value === "") params.delete(key);
       else params.set(key, String(value));
@@ -344,6 +366,7 @@ export function useAnalyticsSearch() {
       }
 
       const params = new URLSearchParams(window.location.search);
+      upgradeAnalyticsPlanSearchParams(params);
       params.set("from", from);
       params.set("to", to);
       if (comparison) {

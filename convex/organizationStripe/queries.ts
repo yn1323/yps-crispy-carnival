@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import {
@@ -7,8 +7,12 @@ import {
   requireOrganizationActorForShop,
   requireOrganizationReadActor,
 } from "../organization/access";
-import { organizationBillingStateValidator } from "../organization/validators";
-import { getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
+import { organizationCanonicalBillingStateValidator } from "../organization/validators";
+import {
+  canonicalizeOrganizationBillingState,
+  getEffectiveRestrictedBillingState,
+} from "../organizationBilling/policy";
+import { canonicalizeStripePaidPlan, canonicalizeStripeTargetPlan } from "./planIds";
 import {
   organizationStripeOperationKindValidator,
   organizationStripeOperationStatusValidator,
@@ -39,7 +43,7 @@ const actionContextValidator = v.union(
     billingEmail: v.string(),
     personId: v.id("organizationPeople"),
     billingState: v.object({
-      state: organizationBillingStateValidator,
+      state: organizationCanonicalBillingStateValidator,
       version: v.number(),
     }),
     stripeCustomerId: v.optional(v.string()),
@@ -48,7 +52,7 @@ const actionContextValidator = v.union(
     currentStripeSubscriptionId: v.optional(v.string()),
     currentStripeSubscriptionLivemode: v.optional(v.boolean()),
     currentStripePriceId: v.optional(v.string()),
-    currentStripePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+    currentStripePlan: v.optional(v.union(v.literal("standard"), v.literal("pro"))),
     currentStripeSubscriptionItemId: v.optional(v.string()),
     currentPeriodStartsAt: v.optional(v.number()),
     currentPeriodEndsAt: v.optional(v.number()),
@@ -128,15 +132,16 @@ async function getActionContextForActor(ctx: QueryCtx, actor: OrganizationReadAc
   ]);
   if (!billingState) return null;
   if (purpose === "currentSubscriptionPrice" && latestSubscription?.terminalAt !== undefined) return null;
-  const restrictedState = getEffectiveRestrictedBillingState(billingState.state);
+  const canonicalBillingState = canonicalizeOrganizationBillingState(billingState.state);
+  const restrictedState = getEffectiveRestrictedBillingState(canonicalBillingState);
   const isRecoveryManager = restrictedState?.recoveryManagerPersonIds.includes(actor.person._id) === true;
   const isActiveManager = actor.member.status === "active";
   if (!isActiveManager && !isRecoveryManager) return null;
-  if (!isPurposeAllowed(purpose, billingState.state, isActiveManager, isRecoveryManager)) return null;
+  if (!isPurposeAllowed(purpose, canonicalBillingState, isActiveManager, isRecoveryManager)) return null;
   if (
     purpose === "startCheckout" &&
-    billingState.state.kind === "restricted" &&
-    billingState.state.reason === "paymentGraceExpired" &&
+    canonicalBillingState.kind === "restricted" &&
+    canonicalBillingState.reason === "paymentGraceExpired" &&
     latestSubscription?.terminalAt !== undefined
   ) {
     const collectionFinalized = (
@@ -163,7 +168,7 @@ async function getActionContextForActor(ctx: QueryCtx, actor: OrganizationReadAc
     organizationName: actor.organization.name,
     billingEmail: actor.organization.billingEmail ?? actor.person.email,
     personId: actor.person._id,
-    billingState: { state: billingState.state, version: billingState.version },
+    billingState: { state: canonicalBillingState, version: billingState.version },
     ...(customer ? { stripeCustomerId: customer.stripeCustomerId } : {}),
     ...(customer ? { stripeCustomerLivemode: customer.livemode } : {}),
     providerGeneration: latestSubscription?.providerGeneration ?? 0,
@@ -177,7 +182,9 @@ async function getActionContextForActor(ctx: QueryCtx, actor: OrganizationReadAc
       ? { currentStripePriceId: latestSubscription.stripePriceId }
       : {}),
     ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.plan
-      ? { currentStripePlan: latestSubscription.plan }
+      ? {
+          currentStripePlan: canonicalizeStripePaidPlan(latestSubscription.plan, latestSubscription.planIdVersion),
+        }
       : {}),
     ...(latestSubscription && !latestSubscription.terminalAt && latestSubscription.stripeSubscriptionItemId
       ? { currentStripeSubscriptionItemId: latestSubscription.stripeSubscriptionItemId }
@@ -210,8 +217,8 @@ export const getOperation = internalQuery({
       expectedBillingVersion: v.optional(v.number()),
       providerGeneration: v.optional(v.number()),
       stripePriceIdSnapshot: v.optional(v.string()),
-      sourcePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
-      targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+      sourcePlan: v.optional(v.union(v.literal("standard"), v.literal("pro"))),
+      targetPlan: v.optional(v.union(v.literal("free"), v.literal("standard"), v.literal("pro"))),
       restrictAtPeriodEnd: v.optional(v.literal(true)),
       changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
       stripeSubscriptionIdSnapshot: v.optional(v.string()),
@@ -239,8 +246,8 @@ export const getOperation = internalQuery({
         : {}),
       ...(operation.providerGeneration !== undefined ? { providerGeneration: operation.providerGeneration } : {}),
       ...(operation.stripePriceIdSnapshot ? { stripePriceIdSnapshot: operation.stripePriceIdSnapshot } : {}),
-      ...(operation.sourcePlan ? { sourcePlan: operation.sourcePlan } : {}),
-      ...(operation.targetPlan ? { targetPlan: operation.targetPlan } : {}),
+      ...(operation.sourcePlan ? { sourcePlan: canonicalOperationSourcePlan(operation) } : {}),
+      ...(operation.targetPlan ? { targetPlan: canonicalOperationTargetPlan(operation) } : {}),
       ...(operation.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
       ...(operation.changeMode ? { changeMode: operation.changeMode } : {}),
       ...(operation.stripeSubscriptionIdSnapshot
@@ -264,7 +271,7 @@ export const getOperation = internalQuery({
   },
 });
 
-/** Pro→Businessの実適用を、同じrequestIdで成功した見積もりの不変snapshotへ束縛する。 */
+/** Standard→Proの実適用を、同じrequestIdで成功した見積もりの不変snapshotへ束縛する。 */
 export const getSuccessfulPaidPlanChangePreview = internalQuery({
   args: {
     organizationId: v.id("organizations"),
@@ -294,8 +301,8 @@ export const getSuccessfulPaidPlanChangePreview = internalQuery({
       operation.livemode !== args.livemode ||
       operation.expectedBillingVersion !== args.expectedBillingVersion ||
       operation.providerGeneration !== args.providerGeneration ||
-      operation.sourcePlan !== "pro" ||
-      operation.targetPlan !== "business" ||
+      canonicalOperationSourcePlan(operation) !== "standard" ||
+      canonicalOperationTargetPlan(operation) !== "pro" ||
       operation.changeMode !== "immediate" ||
       operation.stripeSubscriptionIdSnapshot !== args.stripeSubscriptionId ||
       operation.stripeSubscriptionItemIdSnapshot !== args.stripeSubscriptionItemId ||
@@ -309,7 +316,7 @@ export const getSuccessfulPaidPlanChangePreview = internalQuery({
   },
 });
 
-/** pending_if_incomplete後のPrice rotationでも、成功済みPro→Business intentだけをprovider変更の根拠にする。 */
+/** pending_if_incomplete後のPrice rotationでも、成功済みStandard→Pro intentだけをprovider変更の根拠にする。 */
 export const getSuccessfulImmediatePaidPlanChangeOperation = internalQuery({
   args: {
     organizationId: v.id("organizations"),
@@ -336,8 +343,18 @@ export const getSuccessfulImmediatePaidPlanChangeOperation = internalQuery({
         q.and(
           q.eq(q.field("livemode"), args.livemode),
           q.eq(q.field("expectedBillingVersion"), args.sourceBillingVersion),
-          q.eq(q.field("sourcePlan"), "pro"),
-          q.eq(q.field("targetPlan"), "business"),
+          q.or(
+            q.and(
+              q.eq(q.field("planIdVersion"), 2),
+              q.eq(q.field("sourcePlan"), "standard"),
+              q.eq(q.field("targetPlan"), "pro"),
+            ),
+            q.and(
+              q.eq(q.field("planIdVersion"), undefined),
+              q.eq(q.field("sourcePlan"), "pro"),
+              q.eq(q.field("targetPlan"), "business"),
+            ),
+          ),
           q.eq(q.field("changeMode"), "immediate"),
           q.eq(q.field("stripeSubscriptionIdSnapshot"), args.stripeSubscriptionId),
           q.eq(q.field("stripeSubscriptionItemIdSnapshot"), args.stripeSubscriptionItemId),
@@ -377,8 +394,8 @@ export const getFreePlanChangeOperationByRequest = internalQuery({
       livemode: v.boolean(),
       expectedBillingVersion: v.optional(v.number()),
       providerGeneration: v.optional(v.number()),
-      sourcePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
-      targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+      sourcePlan: v.optional(v.union(v.literal("standard"), v.literal("pro"))),
+      targetPlan: v.optional(v.union(v.literal("free"), v.literal("standard"), v.literal("pro"))),
       restrictAtPeriodEnd: v.optional(v.literal(true)),
       changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
       stripeSubscriptionIdSnapshot: v.optional(v.string()),
@@ -405,8 +422,8 @@ export const getFreePlanChangeOperationByRequest = internalQuery({
         ? { expectedBillingVersion: operation.expectedBillingVersion }
         : {}),
       ...(operation.providerGeneration !== undefined ? { providerGeneration: operation.providerGeneration } : {}),
-      ...(operation.sourcePlan ? { sourcePlan: operation.sourcePlan } : {}),
-      ...(operation.targetPlan ? { targetPlan: operation.targetPlan } : {}),
+      ...(operation.sourcePlan ? { sourcePlan: canonicalOperationSourcePlan(operation) } : {}),
+      ...(operation.targetPlan ? { targetPlan: canonicalOperationTargetPlan(operation) } : {}),
       ...(operation.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
       ...(operation.changeMode ? { changeMode: operation.changeMode } : {}),
       ...(operation.stripeSubscriptionIdSnapshot
@@ -501,8 +518,8 @@ export const getScheduledPaidPlanChangeOperation = internalQuery({
       operation.status !== "succeeded" ||
       operation.livemode !== args.livemode ||
       operation.providerGeneration !== args.providerGeneration ||
-      operation.sourcePlan !== "business" ||
-      operation.targetPlan !== "pro" ||
+      canonicalOperationSourcePlan(operation) !== "pro" ||
+      canonicalOperationTargetPlan(operation) !== "standard" ||
       operation.changeMode !== "periodEnd" ||
       operation.stripeSubscriptionIdSnapshot !== args.stripeSubscriptionId ||
       operation.stripeSubscriptionItemIdSnapshot !== args.stripeSubscriptionItemId ||
@@ -539,7 +556,7 @@ export const getTrialCreationRecoveryContext = internalQuery({
       stripeObjectId: v.optional(v.string()),
       providerGeneration: v.optional(v.number()),
       stripePriceIdSnapshot: v.optional(v.string()),
-      targetPlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+      targetPlan: v.optional(v.union(v.literal("standard"), v.literal("pro"))),
       trialSubscriptionCreateSnapshot: v.optional(trialSubscriptionCreateSnapshotValidator),
       stripeIdempotencyKey: v.string(),
       livemode: v.boolean(),
@@ -592,8 +609,8 @@ export const getTrialCreationRecoveryContext = internalQuery({
       ...(operation.stripeObjectId ? { stripeObjectId: operation.stripeObjectId } : {}),
       ...(operation.providerGeneration !== undefined ? { providerGeneration: operation.providerGeneration } : {}),
       ...(operation.stripePriceIdSnapshot ? { stripePriceIdSnapshot: operation.stripePriceIdSnapshot } : {}),
-      ...(operation.targetPlan === "pro" || operation.targetPlan === "business"
-        ? { targetPlan: operation.targetPlan }
+      ...(operation.targetPlan && operation.targetPlan !== "free"
+        ? { targetPlan: canonicalOperationTargetPlan(operation) as "standard" | "pro" }
         : {}),
       ...(operation.trialSubscriptionCreateSnapshot
         ? { trialSubscriptionCreateSnapshot: operation.trialSubscriptionCreateSnapshot }
@@ -702,7 +719,7 @@ export const getCheckoutOperationBySession = internalQuery({
       expectedBillingVersion: v.optional(v.number()),
       providerGeneration: v.optional(v.number()),
       stripePriceIdSnapshot: v.optional(v.string()),
-      targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+      targetPlan: v.optional(v.union(v.literal("free"), v.literal("standard"), v.literal("pro"))),
       stripeIdempotencyKey: v.string(),
       lastErrorCode: v.optional(v.string()),
     }),
@@ -725,7 +742,7 @@ export const getCheckoutOperationBySession = internalQuery({
         : {}),
       ...(operation.providerGeneration !== undefined ? { providerGeneration: operation.providerGeneration } : {}),
       ...(operation.stripePriceIdSnapshot ? { stripePriceIdSnapshot: operation.stripePriceIdSnapshot } : {}),
-      ...(operation.targetPlan ? { targetPlan: operation.targetPlan } : {}),
+      ...(operation.targetPlan ? { targetPlan: canonicalOperationTargetPlan(operation) } : {}),
       stripeIdempotencyKey: operation.stripeIdempotencyKey,
       ...(operation.lastErrorCode ? { lastErrorCode: operation.lastErrorCode } : {}),
     };
@@ -746,7 +763,7 @@ export const getPendingCheckoutOperationForOrganization = internalQuery({
       kind: paidCheckoutOperationKindValidator,
       providerGeneration: v.number(),
       expectedBillingVersion: v.optional(v.number()),
-      targetPlan: v.union(v.literal("pro"), v.literal("business")),
+      targetPlan: v.union(v.literal("standard"), v.literal("pro")),
       stripePriceIdSnapshot: v.string(),
       stripeSessionId: v.string(),
     }),
@@ -781,7 +798,8 @@ export const getPendingCheckoutOperationForOrganization = internalQuery({
     const operation = candidates[0];
     if (
       (operation.kind !== "immediateProCheckout" && operation.kind !== "immediatePaidCheckout") ||
-      (operation.targetPlan !== "pro" && operation.targetPlan !== "business") ||
+      operation.targetPlan === undefined ||
+      operation.targetPlan === "free" ||
       !operation.stripePriceIdSnapshot ||
       !operation.stripeObjectId ||
       operation.providerGeneration === undefined
@@ -795,7 +813,7 @@ export const getPendingCheckoutOperationForOrganization = internalQuery({
       ...(operation.expectedBillingVersion !== undefined
         ? { expectedBillingVersion: operation.expectedBillingVersion }
         : {}),
-      targetPlan: operation.targetPlan,
+      targetPlan: canonicalOperationTargetPlan(operation) as "standard" | "pro",
       stripePriceIdSnapshot: operation.stripePriceIdSnapshot,
       stripeSessionId: operation.stripeObjectId,
     };
@@ -810,13 +828,13 @@ export const resolveOrganizationByCustomer = internalQuery({
       organizationId: v.id("organizations"),
       livemode: v.boolean(),
       billingState: v.object({
-        state: organizationBillingStateValidator,
+        state: organizationCanonicalBillingStateValidator,
         version: v.number(),
       }),
       providerGeneration: v.number(),
       latestStripeSubscriptionId: v.optional(v.string()),
       latestStripePriceId: v.optional(v.string()),
-      latestStripePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+      latestStripePlan: v.optional(v.union(v.literal("standard"), v.literal("pro"))),
       latestStripeSubscriptionItemId: v.optional(v.string()),
       latestStripeSubscriptionScheduleId: v.optional(v.string()),
       latestStripeSubscriptionTerminal: v.boolean(),
@@ -848,18 +866,23 @@ export const resolveOrganizationByCustomer = internalQuery({
     if (!organization || organization.isDeleted || !billingState || billingState.state.kind === "complimentary") {
       return null;
     }
+    const canonicalBillingState = canonicalizeOrganizationBillingState(billingState.state);
     const restorationSelection =
-      billingState.state.kind === "pendingActivation" || billingState.state.kind === "restricted"
-        ? await getPaidRestorationSelection(ctx, customer.organizationId, billingState.state)
+      canonicalBillingState.kind === "pendingActivation" || canonicalBillingState.kind === "restricted"
+        ? await getPaidRestorationSelection(ctx, customer.organizationId, canonicalBillingState)
         : undefined;
     return {
       organizationId: customer.organizationId,
       livemode: customer.livemode,
-      billingState: { state: billingState.state, version: billingState.version },
+      billingState: { state: canonicalBillingState, version: billingState.version },
       providerGeneration: latestSubscription?.providerGeneration ?? 0,
       ...(latestSubscription ? { latestStripeSubscriptionId: latestSubscription.stripeSubscriptionId } : {}),
       ...(latestSubscription ? { latestStripePriceId: latestSubscription.stripePriceId } : {}),
-      ...(latestSubscription?.plan ? { latestStripePlan: latestSubscription.plan } : {}),
+      ...(latestSubscription?.plan
+        ? {
+            latestStripePlan: canonicalizeStripePaidPlan(latestSubscription.plan, latestSubscription.planIdVersion),
+          }
+        : {}),
       ...(latestSubscription?.stripeSubscriptionItemId
         ? { latestStripeSubscriptionItemId: latestSubscription.stripeSubscriptionItemId }
         : {}),
@@ -883,7 +906,7 @@ export const resolveOrganizationByCustomer = internalQuery({
 async function getPaidRestorationSelection(
   ctx: QueryCtx,
   organizationId: Id<"organizations">,
-  state: Extract<typeof organizationBillingStateValidator.type, { kind: "pendingActivation" | "restricted" }>,
+  state: Extract<typeof organizationCanonicalBillingStateValidator.type, { kind: "pendingActivation" | "restricted" }>,
 ) {
   if (state.kind === "restricted") {
     return {
@@ -924,14 +947,14 @@ export const getSafetyContextByOrganization = internalQuery({
     v.null(),
     v.object({
       organizationId: v.id("organizations"),
-      billingState: organizationBillingStateValidator,
+      billingState: organizationCanonicalBillingStateValidator,
       billingVersion: v.number(),
       stripeCustomerId: v.string(),
       livemode: v.boolean(),
       subscription: v.object({
         stripeSubscriptionId: v.string(),
         stripePriceId: v.string(),
-        plan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+        plan: v.optional(v.union(v.literal("standard"), v.literal("pro"))),
         stripeSubscriptionItemId: v.optional(v.string()),
         currentPeriodStartsAt: v.optional(v.number()),
         currentPeriodEndsAt: v.optional(v.number()),
@@ -974,16 +997,21 @@ export const getSafetyContextByOrganization = internalQuery({
     ) {
       return null;
     }
+    const canonicalBillingState = canonicalizeOrganizationBillingState(billingState.state);
     return {
       organizationId: args.organizationId,
-      billingState: billingState.state,
+      billingState: canonicalBillingState,
       billingVersion: billingState.version,
       stripeCustomerId: customer.stripeCustomerId,
       livemode: customer.livemode,
       subscription: {
         stripeSubscriptionId: latestSubscription.stripeSubscriptionId,
         stripePriceId: latestSubscription.stripePriceId,
-        ...(latestSubscription.plan ? { plan: latestSubscription.plan } : {}),
+        ...(latestSubscription.plan
+          ? {
+              plan: canonicalizeStripePaidPlan(latestSubscription.plan, latestSubscription.planIdVersion),
+            }
+          : {}),
         ...(latestSubscription.stripeSubscriptionItemId
           ? { stripeSubscriptionItemId: latestSubscription.stripeSubscriptionItemId }
           : {}),
@@ -1014,7 +1042,7 @@ export const getBillingStateForConvergence = internalQuery({
   returns: v.union(
     v.null(),
     v.object({
-      state: organizationBillingStateValidator,
+      state: organizationCanonicalBillingStateValidator,
       version: v.number(),
     }),
   ),
@@ -1027,7 +1055,7 @@ export const getBillingStateForConvergence = internalQuery({
         .unique(),
     ]);
     if (!organization || organization.isDeleted || !billingState) return null;
-    return { state: billingState.state, version: billingState.version };
+    return { state: canonicalizeOrganizationBillingState(billingState.state), version: billingState.version };
   },
 });
 
@@ -1160,7 +1188,7 @@ function isPurposeAllowed(
     | "changePaidPlan"
     | "schedulePaidPlanChange"
     | "cancelScheduledPlanChange",
-  state: typeof organizationBillingStateValidator.type,
+  state: typeof organizationCanonicalBillingStateValidator.type,
   isActiveManager: boolean,
   isRecoveryManager: boolean,
 ) {
@@ -1203,28 +1231,40 @@ function isPurposeAllowed(
           (state.kind === "active" && state.plan !== "free"))
       );
     case "scheduleFree":
-      return isActiveManager && state.kind === "active" && (state.plan === "pro" || state.plan === "business");
+      return isActiveManager && state.kind === "active" && (state.plan === "standard" || state.plan === "pro");
     case "cancelFreeSchedule":
       return (
         isActiveManager &&
         state.kind === "scheduledChange" &&
-        (state.currentPlan === "pro" || state.currentPlan === "business") &&
+        (state.currentPlan === "standard" || state.currentPlan === "pro") &&
         state.targetPlan === "free"
       );
     case "changePaidPlan":
       return (
         isActiveManager &&
-        ((state.kind === "active" && state.plan === "pro") ||
-          (state.kind === "pendingActivation" && state.plan === "business" && state.fallback === "pro"))
+        ((state.kind === "active" && state.plan === "standard") ||
+          (state.kind === "pendingActivation" && state.plan === "pro" && state.fallback === "standard"))
       );
     case "schedulePaidPlanChange":
-      return isActiveManager && state.kind === "active" && state.plan === "business";
+      return isActiveManager && state.kind === "active" && state.plan === "pro";
     case "cancelScheduledPlanChange":
       return (
         isActiveManager &&
         state.kind === "scheduledChange" &&
-        state.currentPlan === "business" &&
-        state.targetPlan === "pro"
+        state.currentPlan === "pro" &&
+        state.targetPlan === "standard"
       );
   }
+}
+
+function canonicalOperationSourcePlan(
+  operation: Pick<Doc<"organizationStripeOperations">, "sourcePlan" | "planIdVersion">,
+) {
+  return operation.sourcePlan ? canonicalizeStripePaidPlan(operation.sourcePlan, operation.planIdVersion) : undefined;
+}
+
+function canonicalOperationTargetPlan(
+  operation: Pick<Doc<"organizationStripeOperations">, "targetPlan" | "planIdVersion">,
+) {
+  return operation.targetPlan ? canonicalizeStripeTargetPlan(operation.targetPlan, operation.planIdVersion) : undefined;
 }

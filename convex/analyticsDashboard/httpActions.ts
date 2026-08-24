@@ -120,6 +120,7 @@ async function dispatchQuery(
       });
     case "organizations":
       return await ctx.runQuery(getOrganizationsRef, {
+        ...(input.planIdVersion ? { planIdVersion: input.planIdVersion } : {}),
         from: input.from,
         to: input.to,
         cursor: input.cursor,
@@ -131,6 +132,7 @@ async function dispatchQuery(
       });
     case "organization":
       return await ctx.runQuery(getOrganizationRef, {
+        ...(input.planIdVersion ? { planIdVersion: input.planIdVersion } : {}),
         organizationId: input.organizationId,
         from: input.from,
         to: input.to,
@@ -140,6 +142,7 @@ async function dispatchQuery(
       });
     case "shops":
       return await ctx.runQuery(getShopsRef, {
+        ...(input.planIdVersion ? { planIdVersion: input.planIdVersion } : {}),
         from: input.from,
         to: input.to,
         cursor: input.cursor,
@@ -158,6 +161,7 @@ async function dispatchQuery(
       });
     case "shop":
       return await ctx.runQuery(getShopRef, {
+        ...(input.planIdVersion ? { planIdVersion: input.planIdVersion } : {}),
         shopId: input.shopId,
         from: input.from,
         to: input.to,
@@ -181,6 +185,7 @@ async function dispatchQuery(
       });
     case "segments":
       return await ctx.runQuery(getSegmentsRef, {
+        ...(input.planIdVersion ? { planIdVersion: input.planIdVersion } : {}),
         from: input.from,
         to: input.to,
         cursor: input.cursor,

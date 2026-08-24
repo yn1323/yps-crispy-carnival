@@ -23,11 +23,11 @@ afterEach(() => {
 });
 
 describe("OrganizationUsageSection", () => {
-  it("内部pro上限を利用者向けのStandardとして表示する", () => {
+  it("Standard上限をStandardとして表示する", () => {
     const billing = {
       state: "restricted",
       currentPlan: null,
-      limitPlan: "pro",
+      limitPlan: "standard",
       peopleUsage: { current: 20, max: 25 },
       shopUsage: { current: 2, max: 3 },
       managerUsage: { current: 2, max: 3 },

@@ -153,19 +153,31 @@ export async function seedLegacyManagerShop(
   return { userId, shopId };
 }
 
+function legacySeedPlan(plan: "free" | "standard" | "pro" | "business" | undefined) {
+  if (plan === "standard") throw new Error("standard requires planIdVersion=2");
+  return plan ?? "free";
+}
+
+function canonicalSeedPlan(plan: "free" | "standard" | "pro" | "business" | undefined) {
+  if (plan === "business") throw new Error("planIdVersion=2 does not accept business");
+  return plan ?? "free";
+}
+
 export async function seedOrganizationManagerShop(
   ctx: MutationCtx,
   args: {
     subject: string;
     email?: string;
     shopName?: string;
-    // Legacy `business` remains available to compatibility tests during m018.
-    plan?: "free" | "pro" | "business";
+    // markerなしはlegacy、planIdVersion=2はcanonical fixtureとして扱う。
+    plan?: "free" | "standard" | "pro" | "business";
+    planIdVersion?: 2;
     complimentary?: boolean;
     shopDeleted?: boolean;
     membershipDeleted?: boolean;
   },
 ) {
+  const paidPlan = args.planIdVersion === 2 ? canonicalSeedPlan(args.plan) : legacySeedPlan(args.plan);
   const email = (args.email ?? `${args.subject}@example.com`).trim().toLowerCase();
   const userId = await seedUser(ctx, args.subject, email);
   const now = Date.now();
@@ -207,8 +219,12 @@ export async function seedOrganizationManagerShop(
   await ctx.db.insert("organizationBillingStates", {
     organizationId,
     state: args.complimentary
-      ? { kind: "complimentary", plan: "business" }
-      : { kind: "active", plan: args.plan ?? "free" },
+      ? args.planIdVersion === 2
+        ? { kind: "complimentary", planIdVersion: 2, plan: "pro" }
+        : { kind: "complimentary", plan: "business" }
+      : args.planIdVersion === 2
+        ? { kind: "active", planIdVersion: 2, plan: paidPlan as "free" | "standard" | "pro" }
+        : { kind: "active", plan: paidPlan as "free" | "pro" | "business" },
     ...(args.complimentary ? {} : { freeManagerPersonId: personId, freeShopId: shopId }),
     version: 1,
     createdAt: now,

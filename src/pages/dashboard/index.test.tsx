@@ -292,7 +292,7 @@ describe("DashboardRoutePage", () => {
         replace: true,
       }),
     );
-    expect(mocks.useShopQuery).toHaveBeenCalledWith(mocks.dashboardShopQuery, {});
+    expect(mocks.useShopQuery).toHaveBeenCalledWith(mocks.dashboardShopQuery, { planIdVersion: 2 });
     const scope = screen.getByTestId("manager-scope");
     expect(scope.getAttribute("data-shop-id")).toBe("shop-a");
     expect(scope.getAttribute("data-organization-id")).toBe("organization-a");

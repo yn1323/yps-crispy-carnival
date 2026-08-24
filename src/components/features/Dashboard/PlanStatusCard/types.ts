@@ -5,7 +5,7 @@ export type DashboardPlanStatusSource =
   | {
       kind: "trial";
       trialEndsAt: number;
-      selectedPaidPlan?: "pro" | "business";
+      selectedPaidPlan?: "standard" | "pro";
       canManagePlan: boolean;
       canUpdatePaymentMethod: boolean;
     }
@@ -16,11 +16,11 @@ export type DashboardPlanStatusSource =
     }
   | {
       kind: "paidPlan";
-      plan: "pro" | "business";
+      plan: "standard" | "pro";
       isComplimentary: boolean;
       currentPeriodEndsAt?: number;
       scheduledChange?: {
-        targetPlan: "free" | "pro";
+        targetPlan: "free" | "standard";
         effectiveAt: number;
         restrictAtPeriodEnd?: true;
       };
@@ -29,7 +29,7 @@ export type DashboardPlanStatusSource =
     }
   | {
       kind: "paymentIssue";
-      plan?: "pro" | "business";
+      plan?: "standard" | "pro";
       phase: "grace" | "restricted";
       recoveryDeadlineAt?: number;
       canManagePlan: boolean;
@@ -37,14 +37,14 @@ export type DashboardPlanStatusSource =
     }
   | {
       kind: "paymentPending";
-      currentPlan: "free" | "pro" | null;
-      targetPlan: "pro" | "business";
+      currentPlan: "free" | "standard" | null;
+      targetPlan: "standard" | "pro";
       canManagePlan: boolean;
       canUpdatePaymentMethod: boolean;
     }
   | {
       kind: "restricted";
-      displayPlan: "free" | "pro" | "business" | null;
+      displayPlan: "free" | "standard" | "pro" | null;
       canManagePlan: boolean;
       canUpdatePaymentMethod: boolean;
     };
