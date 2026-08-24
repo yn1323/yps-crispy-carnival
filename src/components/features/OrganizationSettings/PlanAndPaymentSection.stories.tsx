@@ -99,7 +99,7 @@ export const FreeOverLimitBehavior: Story = {
   args: { ...FreeOverLimit.args, onManagePlan: fn() },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("heading", { name: "Free" })).toBeVisible();
+    await expect(canvas.getAllByRole("heading", { name: "Free" })).toHaveLength(2);
     await expect(canvas.getAllByText("上限超過").length).toBeGreaterThanOrEqual(1);
     await expect(canvas.getByText("上限超過のため利用を制限しています")).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Standardへ変更" }));
