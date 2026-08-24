@@ -1,6 +1,6 @@
 type BrowserCrypto = {
   randomUUID?: () => string;
-  getRandomValues?: (values: Uint8Array) => Uint8Array;
+  getRandomValues?: (values: Uint8Array<ArrayBuffer>) => unknown;
 };
 
 export class BrowserCryptoUnavailableError extends Error {
@@ -16,7 +16,8 @@ export function createBrowserUuid(cryptoApi: BrowserCrypto | null | undefined = 
   if (typeof cryptoApi?.randomUUID === "function") return cryptoApi.randomUUID();
   if (typeof cryptoApi?.getRandomValues !== "function") throw new BrowserCryptoUnavailableError();
 
-  const bytes = cryptoApi.getRandomValues(new Uint8Array(16));
+  const bytes = new Uint8Array(16);
+  cryptoApi.getRandomValues(bytes);
   bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40;
   bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
   const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0"));
