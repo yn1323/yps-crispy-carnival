@@ -53,7 +53,7 @@ describe("shopActivationReminder/actions", () => {
     });
     const payload = jobs[0].payload;
     if (payload.kind !== "email") throw new Error("email payload expected");
-    expect(payload.html).toContain("シフト募集をつくる");
+    expect(payload.html).toContain("シフトリでシフトを作成する");
   });
 
   it("manager staffがLINE連携済みならLINE outboxを作りemail fallbackを付ける", async () => {
@@ -92,7 +92,7 @@ describe("shopActivationReminder/actions", () => {
     const payload = jobs[0].payload;
     if (payload.kind !== "line") throw new Error("line payload expected");
     expect(payload.text).toContain("📅 シフト作成の続き");
-    expect(payload.text).toContain("シフト募集をつくる");
+    expect(payload.text).toContain("シフトリでシフトを作成する");
     expect(payload.message).toMatchObject({
       type: "flex",
       altText: expect.stringContaining("📅 シフト作成の続き"),

@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
   buildStaffLegalConsentEmailHtml,
   buildStaffLegalConsentLineFlexMessage,
+  STAFF_LEGAL_CONSENT_SUBJECT,
 } from "@/convex/notification/templates";
 import {
   EmailNotificationPreview,
@@ -25,7 +26,7 @@ export const Email: Story = {
     <NotificationPreviewStoryFrame>
       <EmailNotificationPreview
         label="スタッフ法務同意"
-        subject={subject("シフトリの使い方と利用規約・プライバシーポリシーの確認")}
+        subject={subject(STAFF_LEGAL_CONSENT_SUBJECT)}
         html={buildStaffLegalConsentEmailHtml({
           staffName: fixtures.staffName,
           shopName: fixtures.shopName,

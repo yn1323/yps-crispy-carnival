@@ -9,6 +9,7 @@ import {
   buildStaffLegalConsentEmailHtml,
   buildStaffLegalConsentLineFlexMessage,
   buildStaffLegalConsentLineText,
+  STAFF_LEGAL_CONSENT_SUBJECT,
 } from "../notification/templates";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
@@ -36,7 +37,7 @@ export const sendStaffConsentEmail = internalAction({
       method: "staff_email_link",
     });
     const consentUrl = `${APP_URL}/legal/staff/consent?token=${token}`;
-    const subject = formatResendSubject(data.shopName, "シフトリの使い方と利用規約・プライバシーポリシーの確認");
+    const subject = formatResendSubject(data.shopName, STAFF_LEGAL_CONSENT_SUBJECT);
 
     await enqueueEmail(ctx, {
       shopId: data.shopId,
@@ -84,7 +85,7 @@ export const sendStaffConsentLine = internalAction({
       method: "line_link_notice",
     });
     const consentUrl = `${APP_URL}/legal/staff/consent?token=${token}`;
-    const subject = formatResendSubject(data.shopName, "シフトリの使い方と利用規約・プライバシーポリシーの確認");
+    const subject = formatResendSubject(data.shopName, STAFF_LEGAL_CONSENT_SUBJECT);
 
     try {
       const lineParams = {
