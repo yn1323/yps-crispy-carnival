@@ -3,6 +3,7 @@ import {
   addDays,
   formatDateJa,
   formatDateLabel,
+  formatDateTimeJa,
   formatDateTimeLabel,
   formatDeadlineLabel,
   formatPeriodLabel,
@@ -43,6 +44,10 @@ describe("dateFormat", () => {
 
   it("Unix msをJSTの曜日付き日時に変換できる", () => {
     expect(formatDateTimeLabel(new Date("2026-06-01T15:30:00.000Z").getTime())).toBe("6/2(火) 00:30");
+  });
+
+  it("Unix msを実行環境に依存せずJST日時へ変換できる", () => {
+    expect(formatDateTimeJa(new Date("2026-05-31T03:00:00.000Z").getTime())).toBe("2026/5/31 12:00");
   });
 
   it("Unix msを時刻なしのJST日付に変換できる", () => {

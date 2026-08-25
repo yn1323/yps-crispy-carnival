@@ -141,6 +141,7 @@ export function formatDateJa(ms: number): string {
 
 export function formatDateTimeJa(ms: number): string {
   return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
     year: "numeric",
     month: "numeric",
     day: "numeric",

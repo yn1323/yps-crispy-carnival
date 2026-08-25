@@ -214,9 +214,7 @@ describe("notification/templates", () => {
     });
 
     const recipientIndex = html.indexOf("佐藤 店長さん");
-    const invitationSourceIndex = html.indexOf(
-      "さくらフードサービスの鈴木 花子さんから、管理者として招待されました。",
-    );
+    const invitationSourceIndex = html.indexOf("さくらフードサービスの鈴木 花子さんから、管理者として招待されました。");
     const serviceDescriptionIndex = html.indexOf(
       "スタッフの希望収集からシフト作成・共有までを支えるシフト管理サービスです。",
     );
