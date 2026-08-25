@@ -1,8 +1,8 @@
 import type { GenericDatabaseReader } from "convex/server";
 import type { DataModel, Id } from "../_generated/dataModel";
+import { resolveOrganizationPersonEmail } from "../_lib/personIdentity";
 import { normalizeEmail } from "../_lib/validation";
 import { ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT } from "../constants";
-import { resolveOrganizationPersonEmail } from "../organization/personIdentity";
 
 type DbCtx = {
   db: GenericDatabaseReader<DataModel>;

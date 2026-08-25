@@ -25,6 +25,7 @@ import type * as _lib_lineUrl from "../_lib/lineUrl.js";
 import type * as _lib_notification from "../_lib/notification.js";
 import type * as _lib_notificationDelivery from "../_lib/notificationDelivery.js";
 import type * as _lib_notificationDeliveryQueries from "../_lib/notificationDeliveryQueries.js";
+import type * as _lib_personIdentity from "../_lib/personIdentity.js";
 import type * as _lib_previousWeeklyPattern from "../_lib/previousWeeklyPattern.js";
 import type * as _lib_rateLimits from "../_lib/rateLimits.js";
 import type * as _lib_resend from "../_lib/resend.js";
@@ -207,7 +208,6 @@ import type * as organization_managerInvitationState from "../organization/manag
 import type * as organization_migrations from "../organization/migrations.js";
 import type * as organization_mutations from "../organization/mutations.js";
 import type * as organization_personCapabilities from "../organization/personCapabilities.js";
-import type * as organization_personIdentity from "../organization/personIdentity.js";
 import type * as organization_personProfile from "../organization/personProfile.js";
 import type * as organization_personRemoval from "../organization/personRemoval.js";
 import type * as organization_queries from "../organization/queries.js";
@@ -308,6 +308,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/notification": typeof _lib_notification;
   "_lib/notificationDelivery": typeof _lib_notificationDelivery;
   "_lib/notificationDeliveryQueries": typeof _lib_notificationDeliveryQueries;
+  "_lib/personIdentity": typeof _lib_personIdentity;
   "_lib/previousWeeklyPattern": typeof _lib_previousWeeklyPattern;
   "_lib/rateLimits": typeof _lib_rateLimits;
   "_lib/resend": typeof _lib_resend;
@@ -490,7 +491,6 @@ declare const fullApi: ApiFromModules<{
   "organization/migrations": typeof organization_migrations;
   "organization/mutations": typeof organization_mutations;
   "organization/personCapabilities": typeof organization_personCapabilities;
-  "organization/personIdentity": typeof organization_personIdentity;
   "organization/personProfile": typeof organization_personProfile;
   "organization/personRemoval": typeof organization_personRemoval;
   "organization/queries": typeof organization_queries;

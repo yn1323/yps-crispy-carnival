@@ -1,8 +1,8 @@
 import type { GenericDatabaseReader } from "convex/server";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
-import { normalizeEmail } from "../_lib/validation";
 import { ORGANIZATION_PERSON_EMAIL_HISTORY_SCAN_LIMIT } from "../constants";
 import { getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
+import { normalizeEmail } from "./validation";
 
 type OrganizationPersonIdentityCtx = {
   db: GenericDatabaseReader<DataModel>;

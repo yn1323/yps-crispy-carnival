@@ -1,7 +1,7 @@
 import type { GenericDatabaseReader } from "convex/server";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
+import { resolveOrganizationPersonEmailForManagerAddition } from "../_lib/personIdentity";
 import { isOrganizationBillingContact } from "../organization/billingContact";
-import { resolveOrganizationPersonEmailForManagerAddition } from "../organization/personIdentity";
 import { getOrganizationBillingState } from "../organization/service";
 import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";

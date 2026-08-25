@@ -3,6 +3,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { formatDateJa, formatDateTimeJa } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
+import { resolveOrganizationPersonEmailForManagerAddition } from "../_lib/personIdentity";
 import { loadShopManagerNotificationRecipientStatus } from "../_lib/shopManagerRecipients";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
 import { normalizeEmail, requiredEmailSchema } from "../_lib/validation";
@@ -32,7 +33,6 @@ import { getOrganizationCreationAvailability, type OrganizationCreationAvailabil
 import { isOrganizationBillingContact } from "./billingContact";
 import { getOrganizationDeletionEligibility } from "./deletion";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
-import { resolveOrganizationPersonEmailForManagerAddition } from "./personIdentity";
 import { isValidOrganizationRecoveryManager, organizationPersonCountsTowardPeopleLimit } from "./service";
 import { organizationShopOperatingStatus } from "./shopMembershipChange";
 import { getOrganizationStaffOrderScope, ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT } from "./staffOrder";

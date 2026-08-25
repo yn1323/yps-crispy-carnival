@@ -7,6 +7,7 @@ import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { getOrganizationInvitationSigningSecret } from "../_lib/config";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { authenticatedMutation, organizationMutation } from "../_lib/functions";
+import { resolveOrganizationPersonEmailForManagerAddition } from "../_lib/personIdentity";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { generateUUID } from "../_lib/uuid";
 import { normalizeEmail, requiredEmailSchema } from "../_lib/validation";
@@ -14,7 +15,6 @@ import { ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT } from "../constants";
 import { cancelOrganizationRecipientBusinessNotifications } from "../notificationOutbox/mutations";
 import { requireOrganizationActorForShop, requireOrganizationReadActor } from "../organization/access";
 import { recordOrganizationAuditEvent } from "../organization/audit";
-import { resolveOrganizationPersonEmailForManagerAddition } from "../organization/personIdentity";
 import {
   getOrganizationBillingState,
   organizationPersonCountsTowardPeopleLimit,
