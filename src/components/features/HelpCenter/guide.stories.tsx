@@ -65,7 +65,9 @@ export const Mobile: Story = {
     const canvas = within(canvasElement);
 
     await expect(await canvas.findByRole("heading", { level: 1, name: "最初のシフト募集を始める" })).toBeVisible();
-    await expect(canvas.getByText(/初回セットアップ後、管理者自身で募集作成から希望提出/)).toBeVisible();
+    await expect(
+      canvas.getByText(/初回セットアップ後、管理者自身でシフト募集の作成から希望シフトの提出/),
+    ).toBeVisible();
   },
 };
 

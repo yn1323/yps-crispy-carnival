@@ -1,15 +1,15 @@
 # シフト確定催促リマインダー
 
-シフト募集の提出締め切り日の翌日17:00 (JST) に、その募集がまだ確定（`status: "confirmed"`）になっていなければ、対象店舗にスタッフとして所属するactive管理者へ「スタッフの希望を確認してシフトを調整・確定しましょう」と催促する通知。
-締め切り後にシフト確定が放置されてスタッフに確定シフトが届かない事態を防ぐ。
+シフト募集の提出期限の翌日17:00 (JST) に、その募集がまだ確定（`status: "confirmed"`）になっていなければ、対象店舗にスタッフとして所属するactive管理者へ「スタッフの希望を確認してシフトを調整・確定しましょう」と催促する通知。
+提出期限後にシフト確定が放置されてスタッフに確定シフトが届かない事態を防ぐ。
 
 補助的な通知のため、**送信に失敗しても要対応Inbox（`notificationFailureInbox`）には載せない**。配送イベントログ（`notificationDeliveryEvents`）には従来どおり記録される。
 
 ## トリガー方式
 
-スタッフ向け提出催促（`reminderScheduledAt` / `sendReminderEmails`）と同じく、募集作成時に`ctx.scheduler.runAt`で締切翌日17:00に予約する。
+スタッフ向け提出催促（`reminderScheduledAt` / `sendReminderEmails`）と同じく、募集作成時に`ctx.scheduler.runAt`で提出期限の翌日17:00に予約する。
 予定時刻が募集作成時点より未来の場合だけ予約する。
-締切は作成後に編集できない（`recruitment/mutations.ts`は作成・削除のみ）ため再スケジュールは不要である。
+提出期限は作成後に編集できない（`recruitment/mutations.ts`は作成・削除のみ）ため再スケジュールは不要である。
 発火時に募集が削除済みまたは確定済みなら送信しない。
 
 - 既知の制限: 本機能のデプロイ前から存在する募集には予約が付かない（スタッフ催促と同じ割り切り）。
@@ -20,8 +20,8 @@
 
 - `convex/shiftConfirmationReminder/queries.ts` — 送信対象（店舗・募集情報・対象店舗所属のactive管理者一覧）を取得。削除済み/確定済みは `null`
 - `convex/shiftConfirmationReminder/actions.ts` — マネージャーへのリマインダーを LINE / メールで enqueue する worker
-- `convex/recruitment/mutations.ts` — `createRecruitment` で締切翌日17:00に `runAt` 予約
-- `convex/_lib/dateFormat.ts` — `getManagerConfirmationReminderAt`（締切翌日17:00 JSTのUnix ms）
+- `convex/recruitment/mutations.ts` — `createRecruitment` で提出期限の翌日17:00に `runAt` 予約
+- `convex/_lib/dateFormat.ts` — `getManagerConfirmationReminderAt`（提出期限の翌日17:00 JSTのUnix ms）
 - `convex/notification/templates.ts` — `buildShiftConfirmationReminderEmailHtml` / `buildShiftConfirmationReminderLineText` / `SHIFT_CONFIRMATION_REMINDER_SUBJECT`
 - `convex/notificationOutbox/failureSuppress.ts` — failureInbox抑止の context 定数・判定
 - `convex/notificationOutbox/mutations.ts` — `markFailed` / `recordDeliveryEvent` で抑止 context を failureInbox から除外
@@ -35,7 +35,7 @@
 
 | API | 種別 | 用途 |
 |---|---|---|
-| `internal.shiftConfirmationReminder.queries.getManagerConfirmationReminderTarget` | internalQuery | 募集が `open` のときだけ、店舗名・期間・締切ラベル・Dashboard URL・マネージャー受信者一覧を返す。削除済み/確定済み/対象不在は `null` |
+| `internal.shiftConfirmationReminder.queries.getManagerConfirmationReminderTarget` | internalQuery | 募集が `open` のときだけ、店舗名・期間・提出期限ラベル・Dashboard URL・マネージャー受信者一覧を返す。削除済み/確定済み/対象不在は `null` |
 | `internal.shiftConfirmationReminder.actions.sendManagerConfirmationReminder` | internalAction | マネージャーごとに LINE（Quota超過時のemailフォールバック付き）またはメールを enqueue する |
 
 送信対象は、activeな組織管理者と、同じ組織人物に紐づく対象店舗のactiveな正規staffを両方一意に解決できる人物だけとする。

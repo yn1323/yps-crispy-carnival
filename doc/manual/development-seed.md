@@ -56,7 +56,7 @@ localでは、現在の`convex/`を読み込んだlocal Convex serverが動作�
 |---|---|
 | `free-capacity` | Free上限、募集承認を実行できない状態 |
 | `trial-ending` | Trial終了間近、募集承認を実行できる状態 |
-| `standard-operations` | Standard、複数店舗、三つの希望提出方式、全募集状態、スタッフのカスタム並び順 |
+| `standard-operations` | Standard、複数店舗、三つの希望シフト提出方式、全募集状態、スタッフのカスタム並び順 |
 | `pro-notifications` | Pro、通知失敗、LINE連携、確定後の差分 |
 | `standard-scheduled-change` | Standardの解約予約 |
 | `payment-pending` | 課金の`pendingActivation` |
