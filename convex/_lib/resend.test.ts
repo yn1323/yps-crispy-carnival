@@ -10,7 +10,7 @@ import { type ResendEmailError, resetResendEmailQueueForTest, sendResendEmail } 
 const emailPayload = {
   from: "シフトリ <noreply@example.com>",
   to: "staff@example.com",
-  subject: "シフト希望の提出をお願いします",
+  subject: "希望シフトの提出をお願いします",
   html: "<p>test</p>",
 };
 

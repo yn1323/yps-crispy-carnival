@@ -1,5 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { buildReminderEmailHtml, buildReminderLineFlexMessage } from "@/convex/notification/templates";
+import {
+  buildReminderEmailHtml,
+  buildReminderEmailSubject,
+  buildReminderLineFlexMessage,
+} from "@/convex/notification/templates";
 import {
   EmailNotificationPreview,
   FlexLineNotificationPreview,
@@ -22,7 +26,7 @@ export const Email: Story = {
     <NotificationPreviewStoryFrame>
       <EmailNotificationPreview
         label="未提出リマインダー"
-        subject={subject(`${fixtures.periodLabel} シフト希望の提出をお待ちしています（${fixtures.deadline}まで）`)}
+        subject={subject(buildReminderEmailSubject(fixtures.periodLabel))}
         html={buildReminderEmailHtml({
           staffName: fixtures.staffName,
           periodLabel: fixtures.periodLabel,

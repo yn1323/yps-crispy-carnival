@@ -1,5 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { buildRecruitmentEmailHtml, buildRecruitmentLineFlexMessage } from "@/convex/notification/templates";
+import {
+  buildRecruitmentEmailHtml,
+  buildRecruitmentEmailSubject,
+  buildRecruitmentLineFlexMessage,
+} from "@/convex/notification/templates";
 import {
   EmailNotificationPreview,
   FlexLineNotificationPreview,
@@ -22,7 +26,7 @@ export const Email: Story = {
     <NotificationPreviewStoryFrame>
       <EmailNotificationPreview
         label="募集開始"
-        subject={subject(`${fixtures.periodLabel} シフト希望の提出をお願いします`)}
+        subject={subject(buildRecruitmentEmailSubject(fixtures.periodLabel))}
         html={buildRecruitmentEmailHtml({
           staffName: fixtures.staffName,
           periodLabel: fixtures.periodLabel,

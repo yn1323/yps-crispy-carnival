@@ -12,11 +12,13 @@ import {
   buildOrganizationBillingEmailHtml,
   buildOrganizationManagerInvitationEmailHtml,
   buildRecruitmentEmailHtml,
+  buildRecruitmentEmailSubject,
   buildRecruitmentLineFlexMessage,
   buildRecruitmentLineText,
   buildReissueEmailHtml,
   buildReissueLineFlexMessage,
   buildReminderEmailHtml,
+  buildReminderEmailSubject,
   buildReminderLineFlexMessage,
   buildReminderLineText,
   buildShiftConfirmationLineFlexMessage,
@@ -34,6 +36,7 @@ import {
   buildStaffRegistrationOwnerDigestLineText,
   type NotificationLineFlexMessage,
   ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA,
+  ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING,
   ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT,
   SHOP_ACTIVATION_REMINDER_SUBJECT,
   STAFF_LEGAL_CONSENT_SUBJECT,
@@ -110,10 +113,10 @@ describe("notification/templates", () => {
           deadline: dangerousText,
           magicLinkUrl: dangerousUrl,
         }),
-      staticMarkup: ["<strong>提出締切：</strong>"],
+      staticMarkup: ["<strong>提出期限：</strong>"],
     },
     {
-      name: "提出締切案内",
+      name: "提出期限案内",
       build: () =>
         buildReminderEmailHtml({
           staffName: dangerousText,
@@ -121,7 +124,7 @@ describe("notification/templates", () => {
           linkExpiresAtLabel: dangerousText,
           magicLinkUrl: dangerousUrl,
         }),
-      staticMarkup: ["<strong>提出締切：</strong>"],
+      staticMarkup: ["<strong>提出期限：</strong>"],
     },
     {
       name: "LINE連携",
@@ -169,7 +172,7 @@ describe("notification/templates", () => {
           deadlineLabel: dangerousText,
           dashboardUrl: dangerousUrl,
         }),
-      staticMarkup: ["<strong>提出締切：</strong>"],
+      staticMarkup: ["<strong>提出期限：</strong>"],
     },
     {
       name: "スタッフ法務同意",
@@ -205,6 +208,9 @@ describe("notification/templates", () => {
     expect(html).not.toContain("&amp;amp;next=");
     expect(html).toContain("店舗");
     expect(html).toContain("😀");
+    expect(html.match(/<!DOCTYPE html>/g)).toHaveLength(1);
+    expect(html.match(/max-width:480px/g)).toHaveLength(1);
+    expect(html.match(/background-color:#319795;padding:16px 24px/g)).toHaveLength(1);
     for (const markup of staticMarkup) {
       expect(html).toContain(markup);
     }
@@ -266,18 +272,26 @@ describe("notification/templates", () => {
     const html = buildOrganizationBillingEmailHtml({
       recipientName: "佐藤 店長",
       organizationName: "さくらフードサービス",
-      heading: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT,
+      heading: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING,
       headingSize: "normal",
       paragraphs: [],
       action: { label: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA, url: "https://shiftori.app/manage/managers" },
     });
 
     expect(html).toContain(
-      `font-size:15px;font-weight:700;color:#1a202c;">${ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT}</p>`,
+      `font-size:15px;font-weight:700;color:#1a202c;">${ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING}</p>`,
     );
     expect(html).not.toContain('font-size:18px;font-weight:700;color:#1a202c;">');
     expect(html).not.toContain("新しい管理者のアカウントが組織に連携されました。");
     expect(html).toContain(`>${ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA}</a>`);
+    expect(ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT).toBe("管理者アカウント連携が完了しました");
+  });
+
+  it("募集開始と未提出リマインダーの件名は本番とPreviewで共有できる文言を返す", () => {
+    expect(buildRecruitmentEmailSubject("7/2(木)〜7/30(木)")).toBe("7/2(木)〜7/30(木) 希望シフトの提出をお願いします");
+    expect(buildReminderEmailSubject("7/2(木)〜7/30(木)")).toBe(
+      "7/2(木)〜7/30(木) 希望シフトの提出期限が近づいています",
+    );
   });
 
   it("メール本文の文間改行はHTMLをescapeしたまま表示改行へ変換する", () => {
@@ -320,7 +334,7 @@ describe("notification/templates", () => {
       "シフトリ公式アカウントの友だち追加が解除されています。<br />もう一度友だち追加すると、同じ組織の所属店舗からシフトのお知らせをLINEで受け取れます。<br />LINEで送れない場合は、メールでお知らせすることがあります。",
     );
     expect(inviteHtml).not.toContain("LINE連携は同じ組織の所属店舗で共通です。");
-    expect(legalConsentHtml).toContain("詳細は下記リンクから確認ください。");
+    expect(legalConsentHtml).toContain("詳細はリンクから確認ください。");
     expect(reissueHtml).toContain("このリンクは24時間有効です。<br />全員分のシフトは14日間閲覧可能です。");
   });
 
@@ -341,7 +355,7 @@ describe("notification/templates", () => {
     expect(emailHtml).not.toContain("&lt;table");
   });
 
-  it("募集開始通知は締切前の訂正文をメールとLINEで共通表示する", () => {
+  it("募集開始通知は提出期限前の訂正文をメールとLINEで共通表示する", () => {
     const params = {
       staffName: "田中太郎",
       shopName: "テスト店舗",
@@ -354,15 +368,13 @@ describe("notification/templates", () => {
     const flex = buildRecruitmentLineFlexMessage(params);
     const copy = `${emailHtml}\n${lineText}\n${flex.altText}\n${flexTexts(flex).join("\n")}`;
 
-    expect(copy).toContain("提出後も締切まではリンクから訂正が可能です。");
-    expect(copy).not.toContain("提出後も締切までは上記リンクから訂正が可能です。");
-    expect(copy).toContain("シフト希望を提出する");
-    expect(copy).not.toContain("希望シフトを提出する");
-    expect(copy).not.toContain("提出・修正は締切までです。");
-    expect(copy).not.toContain("提出済みの内容は、締切後もシフト確定まで確認できます。");
+    expect(copy).toContain("提出後も提出期限まではリンクから訂正が可能です。");
+    expect(copy).toContain("希望シフトを提出する");
+    expect(copy).not.toContain("上記リンク");
+    expect(copy).not.toContain("提出済みの内容は、");
   });
 
-  it("提出締切リマインダーは指定文言とCTAをメールとLINEで共通表示する", () => {
+  it("提出期限リマインダーは指定文言とCTAをメールとLINEで共通表示する", () => {
     const params = {
       staffName: "田中太郎",
       shopName: "テスト店舗",
@@ -376,13 +388,10 @@ describe("notification/templates", () => {
     const copy = `${emailHtml}\n${lineText}\n${flex.altText}\n${flexTexts(flex).join("\n")}`;
 
     expect(copy).toContain("7/2(木)〜7/30(木)の希望シフトの提出期限が近づいています。");
-    expect(copy).toContain("締切までに提出をお願いします。");
+    expect(copy).toContain("提出期限までに提出をお願いします。");
     expect(copy).toContain("希望シフトを提出する");
-    expect(copy).toContain("提出後も締切まではリンクから訂正が可能です。");
-    expect(copy).not.toContain("提出後も締切までは上記リンクから訂正が可能です。");
-    expect(copy).not.toContain("シフト希望の提出締切が近づいています。");
-    expect(copy).not.toContain("まだ提出していない場合は、締切までにシフト希望を提出してください。");
-    expect(copy).not.toContain("提出・修正は締切までです。");
+    expect(copy).toContain("提出後も提出期限まではリンクから訂正が可能です。");
+    expect(copy).not.toContain("上記リンク");
   });
 
   it("シフト確定リマインダーは調整・確定の案内をメールとLINEで共通表示する", () => {
@@ -396,6 +405,8 @@ describe("notification/templates", () => {
     const flex = buildShiftConfirmationReminderLineFlexMessage({ shopName: "テスト店舗", ...params });
     const copy = `${emailHtml}\n${lineText}\n${flex.altText}\n${flexTexts(flex).join("\n")}`;
 
+    expect(copy).toContain("7/2(木)〜7/30(木)の希望シフトは提出期限を過ぎました。");
+    expect(emailHtml).toContain("<strong>提出期限：</strong> 6/30(火) 23:59（期限超過）");
     expect(copy).toContain("シフトの調整・確定してください。");
     expect(copy).not.toContain("スタッフの希望を確認し、");
   });
@@ -412,8 +423,7 @@ describe("notification/templates", () => {
 
     expect(emailHtml).toContain("正常に送信できなかった通知があります。<br />詳細はシフトリを確認してください。");
     expect(emailHtml).toContain(">シフトリで確認する</a>");
-    expect(emailHtml).toContain("このメールは送信専用です。</p>");
-    expect(emailHtml).not.toContain("返信しても届きません。");
+    expect(emailHtml).toContain("このメールは送信専用です。<br />返信しても届きません。");
     expect(flexTexts(flex)).toEqual(
       expect.arrayContaining([
         "テスト店舗\n⚠️ 一部通知に失敗",
@@ -422,6 +432,40 @@ describe("notification/templates", () => {
       ]),
     );
     expect(flexButtonLabels(flex)).toContain("シフトリで確認する");
+  });
+
+  it("メールフッターは受信者と通知用途に応じた案内だけを表示する", () => {
+    const staffQuestions = buildRecruitmentEmailHtml({
+      staffName: "田中太郎",
+      periodLabel: "7/2(木)〜7/30(木)",
+      deadline: "6/25(金) 23:59",
+      magicLinkUrl: "https://example.com/shifts/submit?token=test",
+    });
+    const staffQuestionsAndChanges = buildReissueEmailHtml({
+      staffName: "田中太郎",
+      periodLabel: "7/2(木)〜7/30(木)",
+      magicLinkUrl: "https://example.com/shifts/view?token=test",
+    });
+    const staffReplyOnly = buildStaffLegalConsentEmailHtml({
+      staffName: "田中太郎",
+      shopName: "テスト店舗",
+      consentUrl: "https://example.com/legal/consent?token=test",
+      expiresAt: new Date("2026-05-31T12:00:00+09:00").getTime(),
+      documents: LEGAL_DOCUMENTS.staff,
+    });
+    const lineInvite = buildLineInviteEmailHtml({
+      staffName: "田中太郎",
+      shopName: "テスト店舗",
+      authorizeUrl: "https://example.com/line/authorize",
+    });
+
+    expect(staffQuestions).toContain("シフトに関する質問は、シフト作成担当者に連絡してください。");
+    expect(staffQuestions).not.toContain("質問や変更希望");
+    expect(staffQuestionsAndChanges).toContain("シフトに関する質問や変更希望は、シフト作成担当者に連絡してください。");
+    expect(staffReplyOnly).not.toContain("シフトに関する質問");
+    expect(staffReplyOnly).toContain("このメールに返信しても、シフト作成担当者には届きません。");
+    expect(lineInvite).toContain("テスト店舗が利用しているシフト管理サービスです。");
+    expect(lineInvite).toContain("このメールに返信しても、シフト作成担当者には届きません。");
   });
 
   it("LINE連携案内は共通文言とメール受け取りの選択肢を表示する", () => {
@@ -451,7 +495,7 @@ describe("notification/templates", () => {
         "下記ボタンからLINEと連携してください。<br />メールで受け取りを希望される場合は、無視してください。",
       );
       expect(html).toContain("LINE連携リンクは72時間有効です。");
-      expect(html).toContain("期限が切れた場合は、ご連絡ください。");
+      expect(html).toContain("シフト作成担当者に連絡してください。");
       expect(html).not.toContain("LINE連携は同じ組織の所属店舗で共通です。");
     }
     expect(approvedInviteHtml).toContain("スタッフ登録が承認されました。<br />シフトのお知らせをLINEで受け取れます。");
@@ -482,7 +526,7 @@ describe("notification/templates", () => {
     const copy = `${emailHtml}\n${flex.altText}\n${flexTexts(flex).join("\n")}`;
 
     expect(copy).toContain("テスト店舗では、シフトの回収・共有に「シフトリ」を利用します。");
-    expect(copy).toContain("詳細は下記リンクから確認ください。");
+    expect(copy).toContain("詳細はリンクから確認ください。");
     expect(copy).toContain("このリンクは2026/5/31 12:00まで有効です。");
     expect(copy).not.toContain("シフトリでは、メール・LINEで届くリンクから");
     expect(emailHtml).toContain(">シフトリの使い方を確認する</a>");
@@ -684,8 +728,8 @@ describe("notification/templates", () => {
     });
 
     expect(recruitment.startsWith("📩 シフト提出のお願い\n")).toBe(true);
-    expect(reminder.startsWith("🔔 提出締切が近づいています\n")).toBe(true);
-    expect(confirmationReminder.startsWith("⏰ 提出締切を過ぎています\n")).toBe(true);
+    expect(reminder.startsWith("🔔 提出期限が近づいています\n")).toBe(true);
+    expect(confirmationReminder.startsWith("⏰ 提出期限を過ぎています\n")).toBe(true);
     expect(failure.startsWith("⚠️ 一部通知に失敗\n")).toBe(true);
     expect(shopActivation.startsWith("📅 シフト作成の続き\n")).toBe(true);
     // ⚠️ は対応必須の通知失敗のみ。他の種別には使わない
@@ -708,8 +752,8 @@ describe("notification/templates", () => {
           magicLinkUrl: submitUrl,
         }),
         title: "テスト店舗\n📩 シフト提出のお願い",
-        text: "提出締切：6/25(金) 23:59",
-        label: "シフト希望を提出する",
+        text: "提出期限：6/25(金) 23:59",
+        label: "希望シフトを提出する",
         uri: `${submitUrl}&openExternalBrowser=1`,
       },
       {
@@ -720,8 +764,8 @@ describe("notification/templates", () => {
           linkExpiresAtLabel: "6/25(金) 23:59",
           magicLinkUrl: submitUrl,
         }),
-        title: "テスト店舗\n🔔 提出締切が近づいています",
-        text: "締切までに提出をお願いします。",
+        title: "テスト店舗\n🔔 提出期限が近づいています",
+        text: "提出期限までに提出をお願いします。",
         label: "希望シフトを提出する",
         uri: `${submitUrl}&openExternalBrowser=1`,
       },
@@ -744,8 +788,8 @@ describe("notification/templates", () => {
           deadlineLabel: "6/30(火) 23:59",
           dashboardUrl,
         }),
-        title: "テスト店舗\n⏰ 提出締切を過ぎています",
-        text: "提出締切（6/30(火) 23:59）を過ぎています。",
+        title: "テスト店舗\n⏰ 提出期限を過ぎています",
+        text: "提出期限（6/30(火) 23:59）を過ぎています。",
         label: "シフトリで確認する",
         uri: `${dashboardUrl}&openExternalBrowser=1`,
       },
@@ -778,7 +822,7 @@ describe("notification/templates", () => {
           expiresAt: new Date("2026-05-31T12:00:00+09:00").getTime(),
         }),
         title: `テスト店舗\n📄 ${STAFF_LEGAL_CONSENT_SUBJECT}`,
-        text: "詳細は下記リンクから確認ください。",
+        text: "詳細はリンクから確認ください。",
         label: "シフトリの使い方を確認する",
         uri: "https://shiftori.app/legal/staff/consent?token=test&openExternalBrowser=1",
       },

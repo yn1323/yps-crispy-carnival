@@ -8,6 +8,7 @@ import { isDryRunManagerEmail } from "../_lib/notificationDelivery";
 import {
   buildOrganizationBillingEmailHtml,
   ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA,
+  ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING,
   ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT,
 } from "../notification/templates";
 import { emailPayload, enqueueEmail, organizationManagerInvitationEmailPayload } from "../notificationOutbox/enqueue";
@@ -88,7 +89,7 @@ export const enqueueAcceptanceNotifications = internalAction({
           html: buildOrganizationBillingEmailHtml({
             recipientName: recipient.name,
             organizationName: data.organizationName,
-            heading: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT,
+            heading: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING,
             headingSize: "normal",
             paragraphs: [],
             action: { label: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA, url: settingsUrl.toString() },

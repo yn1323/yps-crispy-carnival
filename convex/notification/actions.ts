@@ -28,6 +28,7 @@ import { buildNotificationFanoutTargetKey } from "./fanout";
 import {
   buildConfirmationEmailHtml,
   buildRecruitmentEmailHtml,
+  buildRecruitmentEmailSubject,
   buildRecruitmentLineFlexMessage,
   buildRecruitmentLineText,
   buildReissueEmailHtml,
@@ -699,7 +700,7 @@ async function buildRecruitmentEmail(opts: {
     appUrl: APP_URL,
   });
 
-  const subject = formatResendSubject(shopName, `${periodLabel} シフト希望の提出をお願いします`);
+  const subject = formatResendSubject(shopName, buildRecruitmentEmailSubject(periodLabel));
 
   return {
     dedupeKey: dedupeKey ?? `email:recruitment:${recruitmentId}:${staff.staffId}`,
@@ -857,7 +858,7 @@ export const sendRecruitmentNotificationForStaff = internalAction({
 });
 
 /**
- * スタッフ追加時: 追加された1スタッフへ、現在募集中の希望提出リンクをメールで送る。
+ * スタッフ追加時: 追加された1スタッフへ、現在募集中の希望シフト提出リンクをメールで送る。
  */
 export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
   args: { staffId: v.id("staffs"), ...businessNotificationOriginArgs },
@@ -929,7 +930,7 @@ export const sendOpenRecruitmentNotificationEmailsForStaff = internalAction({
 });
 
 /**
- * メール変更時: 変更後メールアドレスへ、現在募集中の希望提出リンクを送る。
+ * メール変更時: 変更後メールアドレスへ、現在募集中の希望シフト提出リンクを送る。
  */
 export const sendOpenRecruitmentNotificationEmailsForStaffEmailChange = internalAction({
   args: {
@@ -1137,7 +1138,7 @@ export const sendOpenRecruitmentNotificationsForStaff = internalAction({
 });
 
 /**
- * LINE連携・follow時: 1スタッフへ、現在募集中の希望提出リンクをLINEで送る。
+ * LINE連携・follow時: 1スタッフへ、現在募集中の希望シフト提出リンクをLINEで送る。
  */
 export const sendOpenRecruitmentNotificationLinesForStaff = internalAction({
   args: { staffId: v.id("staffs"), ...businessNotificationOriginArgs },

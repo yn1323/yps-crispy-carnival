@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
   buildOrganizationBillingEmailHtml,
   ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA,
+  ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING,
   ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT,
 } from "@/convex/notification/templates";
 import {
@@ -28,7 +29,7 @@ export const Email: Story = {
         html={buildOrganizationBillingEmailHtml({
           recipientName: fixtures.managerName,
           organizationName: fixtures.organizationName,
-          heading: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT,
+          heading: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING,
           headingSize: "normal",
           paragraphs: [],
           action: { label: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA, url: fixtures.managerSettingsUrl },

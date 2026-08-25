@@ -1964,7 +1964,7 @@ async function setupOrganizationInvitationAcceptanceNotificationJob() {
         kind: "email",
         from: "シフトリ <noreply@example.com>",
         to: "manager@example.com",
-        subject: "管理者アカウント連携が完了しました。",
+        subject: "管理者アカウント連携が完了しました",
         html: "<p>test</p>",
         context: "organizationInvitation.linked",
       },

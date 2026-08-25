@@ -946,7 +946,8 @@ describe("organizationInvitation/mutations", () => {
     expect(acceptanceJobs.every((job) => job.payload.suppressDelivery === true)).toBe(true);
     for (const job of acceptanceJobs) {
       if (job.payload.kind !== "email") throw new Error("email payload expected");
-      expect(job.payload.subject).toContain("管理者アカウント連携が完了しました。");
+      expect(job.payload.subject).toContain("管理者アカウント連携が完了しました");
+      expect(job.payload.subject.endsWith("。")).toBe(false);
       expect(job.payload.html).toContain(
         'font-size:15px;font-weight:700;color:#1a202c;">管理者アカウント連携が完了しました。</p>',
       );
