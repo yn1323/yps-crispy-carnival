@@ -13,7 +13,7 @@ describe("notification/queries", () => {
   afterEach(() => vi.useRealTimers());
 
   describe("getOpenRecruitmentNotificationDataForStaff", () => {
-    it("open募集は開始前かつ締切前の募集だけ通知対象にする", async () => {
+    it("open募集は開始前かつ提出期限前の募集だけ通知対象にする", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const shopId = await seedShop(ctx, "募集通知店舗");

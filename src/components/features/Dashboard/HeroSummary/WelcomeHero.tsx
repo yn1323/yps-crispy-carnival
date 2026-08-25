@@ -24,7 +24,7 @@ export const WelcomeHero = ({ onSetupClick }: Props) => (
             お店の情報を登録しましょう
           </Heading>
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            お店の名前とシフト希望の集め方を決めるだけで始められます。
+            お店の名前と希望シフトの集め方を決めるだけで始められます。
           </Text>
         </Stack>
         <WelcomeHeroImage display={{ base: "flex", md: "none" }} />

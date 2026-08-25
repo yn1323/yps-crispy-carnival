@@ -56,7 +56,7 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     capacity: 1,
   },
 
-  // シフト希望提出: staffId をキーに
+  // 希望シフト提出: staffId をキーに
   // 5回/分 — 連打防止
   submitShiftRequests: {
     kind: "token bucket",

@@ -10,13 +10,13 @@ const items: readonly ActionInboxItem[] = [
   {
     id: "shift:preview",
     category: "shift",
-    statusLabel: "締切済み",
+    statusLabel: "提出期限超過",
     title: "シフトを組んでスタッフに共有しましょう",
     metadata: [
       { label: "yn1323店舗", icon: "shop" },
       { label: "8/17〜8/24", icon: "calendar" },
       { label: "提出 2/3人", icon: "people" },
-      { label: "締切 8/14", icon: "clock" },
+      { label: "提出期限 8/14", icon: "clock" },
     ],
     actions: [{ label: "シフトを組む", emphasis: "primary", onClick: () => undefined }],
   },

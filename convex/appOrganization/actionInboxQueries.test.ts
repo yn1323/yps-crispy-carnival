@@ -729,7 +729,7 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
     expect(result.hasMoreByKind.managerInvitation).toBeUndefined();
   });
 
-  it("締切直前はnextRefreshAtを返し、同時刻にshiftを追加し、期間終了同時刻に除外する", async () => {
+  it("提出期限直前はnextRefreshAtを返し、同時刻にshiftを追加し、期間終了同時刻に除外する", async () => {
     const deadline = "2026-08-14";
     const periodEnd = "2026-08-16";
     const deadlineCutoff = getDeadlineCutoff(deadline);

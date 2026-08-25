@@ -64,12 +64,12 @@ export function formatPeriodLabel(start: string, end: string): string {
   return `${formatDateLabel(start)}〜${formatDateLabel(end)}`;
 }
 
-/** 提出締切の表示ラベル。締切日は 23:59 JST まで有効。 */
+/** 提出期限の表示ラベル。提出期限当日は 23:59 JST まで有効。 */
 export function formatDeadlineLabel(deadline: string): string {
   return `${formatDateLabel(deadline)} 23:59`;
 }
 
-/** deadline の翌日 0:00 JST の Unix ms を返す（締切日当日はまだ有効） */
+/** deadline の翌日 0:00 JST の Unix ms を返す（提出期限当日はまだ有効） */
 export function getDeadlineCutoff(deadline: string): number {
   return dateToUtcMs(deadline) + DAY_MS - JST_OFFSET_MS;
 }
@@ -79,12 +79,12 @@ export function getSubmitLinkCutoff(periodStart: string): number {
   return dateToUtcMs(periodStart) - JST_OFFSET_MS;
 }
 
-/** 提出締切日の前日 17:00 JST の Unix ms を返す。 */
+/** 提出期限の前日 17:00 JST の Unix ms を返す。 */
 export function getReminderScheduledAt(deadline: string): number {
   return getDeadlineCutoff(deadline) - 31 * 60 * 60 * 1000;
 }
 
-/** 提出締切日の翌日 17:00 JST の Unix ms を返す（マネージャーへのシフト確定催促用）。 */
+/** 提出期限の翌日 17:00 JST の Unix ms を返す（マネージャーへのシフト確定催促用）。 */
 export function getManagerConfirmationReminderAt(deadline: string): number {
   return getDeadlineCutoff(deadline) + 17 * 60 * 60 * 1000;
 }

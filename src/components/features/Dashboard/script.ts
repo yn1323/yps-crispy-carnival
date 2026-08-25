@@ -69,7 +69,7 @@ export function buildDashboardRecruitmentGroups({
 
 /**
  * サーバーでJST基準に分類済みの複数店舗groupを、分類をやり直さず一つの一覧へまとめる。
- * ブラウザのtimezoneで締切境界を再判定しないため、組織横断一覧はこちらを使う。
+ * ブラウザのtimezoneで提出期限の境界を再判定しないため、組織横断一覧はこちらを使う。
  */
 export function mergeDashboardRecruitmentGroups(
   sourceGroups: readonly DashboardRecruitmentGroup[],

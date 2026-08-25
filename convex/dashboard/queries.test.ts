@@ -1843,7 +1843,7 @@ describe("dashboard/queries", () => {
       expect(past.page.map((recruitment) => recruitment._id)).toEqual([recruitmentId]);
     });
 
-    it("終了済みの未確定シフトは締切日が未来でも初期取得で返さない", async () => {
+    it("終了済みの未確定シフトは提出期限が未来でも初期取得で返さない", async () => {
       vi.setSystemTime(new Date("2026-07-07T00:00:00+09:00"));
       const t = convexTest(schema, modules);
       const { recruitmentId, shopId } = await t.run(async (ctx) => {

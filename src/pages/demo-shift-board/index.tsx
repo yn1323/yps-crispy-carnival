@@ -40,7 +40,7 @@ export function DemoShiftBoardRoutePage() {
           </Alert.Root>
 
           <Text color="fg.muted" lineHeight={1.7}>
-            シフトリは、シフト希望の回収から確定共有までをひとつにまとめるシフト管理サービスです。
+            シフトリは、希望シフトの回収から確定シフトの共有までをひとつにまとめるシフト管理サービスです。
             <br />
             このデモでは、店長・シフト作成担当者の操作画面を会員登録なしで試せます。
           </Text>
@@ -50,10 +50,10 @@ export function DemoShiftBoardRoutePage() {
               シフトリでできること
             </Heading>
             <List.Root gap={2} color="fg.muted">
-              <List.Item>スタッフへのシフト希望募集をLINEやメールで完結</List.Item>
+              <List.Item>スタッフへのシフト募集をLINEやメールで完結</List.Item>
               <List.Item>スタッフはアプリのインストールもアカウント登録も不要</List.Item>
               <List.Item>集まった希望をガントチャートで一覧確認・調整</List.Item>
-              <List.Item>確定したシフトをワンクリックで全員に通知</List.Item>
+              <List.Item>確定シフトをワンクリックで全員に通知</List.Item>
               <List.Item>過去のシフトはすべて保存、いつでも参照可能</List.Item>
             </List.Root>
           </Box>

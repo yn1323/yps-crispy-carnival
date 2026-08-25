@@ -258,7 +258,7 @@ describe("recruitment/mutations", () => {
       ).toHaveLength(1);
     });
 
-    it("提出締切日前日17:00が未来なら自動催促を予約する", async () => {
+    it("提出期限前日17:00が未来なら自動催促を予約する", async () => {
       vi.setSystemTime(new Date("2026-01-01T00:00:00+09:00"));
       const { t, shopId } = await setupShop();
       const recruitmentId = await t
@@ -288,7 +288,7 @@ describe("recruitment/mutations", () => {
       ).toEqual([{ scheduledTime: getManagerConfirmationReminderAt("2026-01-05"), recruitmentId }]);
     });
 
-    it("提出締切日前日17:00を過ぎている募集では自動催促を予約しない", async () => {
+    it("提出期限前日17:00を過ぎている募集では自動催促を予約しない", async () => {
       vi.setSystemTime(new Date("2026-01-05T00:00:00+09:00"));
       const { t, shopId } = await setupShop();
       const recruitmentId = await t
@@ -486,7 +486,7 @@ describe("recruitment/mutations", () => {
       ).resolves.toBeDefined();
     });
 
-    it("締切日が過去の場合エラーをthrow", async () => {
+    it("提出期限が過去の場合エラーをthrow", async () => {
       const { t, shopId } = await setupShop();
 
       await expect(
@@ -495,10 +495,10 @@ describe("recruitment/mutations", () => {
           shopId,
           deadline: futureDate(-1),
         }),
-      ).rejects.toThrow("締切日は今日以降にしてください");
+      ).rejects.toThrow("提出期限は今日以降にしてください");
     });
 
-    it("開始日が今日以前で締切日も開始日以降の場合は日付関係エラーをthrow", async () => {
+    it("開始日が今日以前で提出期限も開始日以降の場合は日付関係エラーをthrow", async () => {
       const { t, shopId } = await setupShop();
 
       await expect(
@@ -509,7 +509,7 @@ describe("recruitment/mutations", () => {
           deadline: futureDate(3),
           shopClosedDates: [],
         }),
-      ).rejects.toThrow("締切日は開始日より前にしてください");
+      ).rejects.toThrow("提出期限はシフト開始日より前にしてください");
     });
   });
 

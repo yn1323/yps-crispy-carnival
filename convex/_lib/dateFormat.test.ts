@@ -54,11 +54,11 @@ describe("dateFormat", () => {
     expect(formatDateJa(new Date("2026-08-31T15:00:00.000Z").getTime())).toBe("2026年9月1日");
   });
 
-  it("締切日は翌日0時JSTをcutoffにする", () => {
+  it("提出期限は翌日0時JSTをcutoffにする", () => {
     expect(getDeadlineCutoff("2026-06-01")).toBe(Date.UTC(2026, 5, 1, 15));
   });
 
-  it("締切日は23:59 JSTまで有効で、翌日0:00 JSTから締切後になる", () => {
+  it("提出期限当日は23:59 JSTまで有効で、翌日0:00 JSTから提出期限後になる", () => {
     const cutoff = getDeadlineCutoff("2026-06-01");
 
     expect(new Date("2026-06-01T14:59:59.999Z").getTime()).toBeLessThan(cutoff);
@@ -76,16 +76,16 @@ describe("dateFormat", () => {
     expect(new Date("2026-06-07T15:00:00.000Z").getTime()).toBe(cutoff);
   });
 
-  it("提出締切ラベルは23:59を明示する", () => {
+  it("提出期限ラベルは23:59を明示する", () => {
     expect(formatDeadlineLabel("2026-06-07")).toBe("6/7(日) 23:59");
   });
 
-  it("催促通知は提出締切日の前日17:00 JSTに予約する", () => {
+  it("催促通知は提出期限の前日17:00 JSTに予約する", () => {
     expect(getReminderScheduledAt("2026-01-05")).toBe(new Date("2026-01-04T08:00:00.000Z").getTime());
   });
 
-  it("シフト確定催促は提出締切日の翌日17:00 JSTに予約する", () => {
-    // 2026-01-05 締切 → 翌日 2026-01-06 17:00 JST = 2026-01-06 08:00 UTC
+  it("シフト確定催促は提出期限の翌日17:00 JSTに予約する", () => {
+    // 2026-01-05 提出期限 → 翌日 2026-01-06 17:00 JST = 2026-01-06 08:00 UTC
     expect(getManagerConfirmationReminderAt("2026-01-05")).toBe(new Date("2026-01-06T08:00:00.000Z").getTime());
   });
 

@@ -49,7 +49,7 @@ describe("シフト募集削除シナリオ", () => {
     expect(submitAuth.status).toBe("ok");
     if (submitAuth.status !== "ok") throw new Error("submit link should authenticate before deletion");
 
-    // Act: 希望提出、下書き保存、確定、閲覧用リンクの発行まで進める。
+    // Act: 希望シフトの提出、下書き保存、確定、閲覧用リンクの発行まで進める。
     await staff.submitShiftRequests({
       sessionToken: submitAuth.sessionToken,
       recruitmentId,

@@ -19,7 +19,7 @@ type GuideItem = {
   body: string;
 };
 
-const shiftreeDescription = "勤務先の店舗が、シフト希望の受付と確定シフトの共有に使うサービスです。";
+const shiftreeDescription = "勤務先の店舗が、希望シフトの受付と確定シフトの共有に使うサービスです。";
 const staffGuideLead = "勤務先から案内が届いたら、リンクを開いて内容を確認してください。";
 
 const quickPoints: QuickPoint[] = [
@@ -31,7 +31,7 @@ const guideItems: GuideItem[] = [
   {
     icon: LuBell,
     title: "シフト募集のお知らせ",
-    body: "シフト希望の受付が始まると、提出依頼が届きます。\nまだ提出していない場合は、締切前にもお知らせします。",
+    body: "希望シフトの受付が始まると、提出依頼が届きます。\nまだ提出していない場合は、提出期限前にもお知らせします。",
   },
   {
     icon: LuCalendarCheck,
@@ -46,7 +46,7 @@ const guideItems: GuideItem[] = [
   {
     icon: LuSmartphone,
     title: "届いたリンクから操作できます",
-    body: "専用アプリをインストールしなくても、シフト希望の提出や確定シフトの確認ができます。",
+    body: "専用アプリをインストールしなくても、希望シフトの提出や確定シフトの確認ができます。",
   },
 ];
 

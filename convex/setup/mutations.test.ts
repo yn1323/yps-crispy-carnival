@@ -386,7 +386,7 @@ describe("setup/mutations", () => {
       );
       expect(consentState?.termsConsentVersion).toBe("manager-terms-consent-2026-08-24-3");
       expect(consentState?.privacyConsentVersion).toBe("manager-privacy-consent-2026-08-13");
-      expect(consentState?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-24-3");
+      expect(consentState?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-26");
       expect(consentState?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-08-13");
       expect(consentState?.method).toBe("manager_setup");
 
@@ -410,8 +410,8 @@ describe("setup/mutations", () => {
       );
       expect(staffConsentState?.termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
       expect(staffConsentState?.privacyConsentVersion).toBe("staff-privacy-consent-2026-08-13");
-      expect(staffConsentState?.termsDocumentVersion).toBe("staff-terms-doc-2026-05-09");
-      expect(staffConsentState?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-08-13");
+      expect(staffConsentState?.termsDocumentVersion).toBe("staff-terms-doc-2026-08-26");
+      expect(staffConsentState?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-08-26");
       expect(staffConsentState?.method).toBe("manager_setup");
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());

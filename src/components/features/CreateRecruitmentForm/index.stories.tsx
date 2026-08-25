@@ -297,7 +297,7 @@ export const InteractiveBasicFlow: Story = {
     await canvas.findByText("お店のお休みを選択");
     await clickButton(root, "次へ");
 
-    await canvas.findByText("提出締切日を選択");
+    await canvas.findByText("提出期限を選択");
     await clickDate(root, deadline);
     await clickButton(root, "確認へ");
 
@@ -306,7 +306,7 @@ export const InteractiveBasicFlow: Story = {
     expect(canvas.getByText("本店")).toBeTruthy();
     expect(canvas.getByText("お店のお休み")).toBeTruthy();
     expect(canvas.getByText("なし")).toBeTruthy();
-    expect(canvas.getAllByText("提出締切").length).toBeGreaterThan(0);
+    expect(canvas.getAllByText("提出期限").length).toBeGreaterThan(0);
     expect(canvas.getByText("通知")).toBeTruthy();
     expect(await canvas.findByText("メール・LINEで通知します")).toBeTruthy();
   },
@@ -355,7 +355,7 @@ export const InteractiveShopSelectionFlow: Story = {
     await expect(getDateButton(root, tuesday)).toHaveAttribute("data-selected");
     await clickButton(root, "次へ");
 
-    await canvas.findByText("提出締切日を選択");
+    await canvas.findByText("提出期限を選択");
     await clickDate(root, periodStart.subtract(1, "day"));
     await clickButton(root, "確認へ");
 
@@ -387,7 +387,7 @@ export const InteractiveSelectedShopInvalidation: Story = {
     await clickButton(root, "次へ");
     await canvas.findByText("お店のお休みを選択");
     await clickButton(root, "次へ");
-    await canvas.findByText("提出締切日を選択");
+    await canvas.findByText("提出期限を選択");
     await clickDate(root, periodStart.subtract(1, "day"));
     await clickButton(root, "確認へ");
     await canvas.findByText("内容を確認");
@@ -429,7 +429,7 @@ export const InteractiveHolidayEdgeCases: Story = {
     await clickDate(root, periodEnd, false);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("提出締切日を選択");
+    await canvas.findByText("提出期限を選択");
     await clickDate(root, periodStart.subtract(1, "day"));
     await clickButton(root, "確認へ");
 
@@ -462,7 +462,7 @@ export const InteractiveDefaultRegularClosedDays: Story = {
     await canvas.findByText("お店のお休みを選択");
     await clickButton(root, "次へ");
 
-    await canvas.findByText("提出締切日を選択");
+    await canvas.findByText("提出期限を選択");
     await clickDate(root, deadline);
     await clickButton(root, "確認へ");
 
@@ -490,10 +490,10 @@ export const InteractiveDeadlineRestriction: Story = {
     await canvas.findByText("お店のお休みを選択");
     await clickButton(root, "次へ");
 
-    await canvas.findByText("提出締切日を選択");
+    await canvas.findByText("提出期限を選択");
     expectDateDisabled(root, periodStart, "提出期限カレンダーで開始日当日は選択不可");
     await clickButton(root, "確認へ");
-    await canvas.findByText("提出締切日を選択してください");
+    await canvas.findByText("提出期限を選択してください");
 
     await clickDate(root, periodStart.subtract(1, "day"));
     await clickButton(root, "確認へ");
@@ -536,7 +536,7 @@ export const InteractiveNextMonthOnlyFlow: Story = {
     expect(getDesktopMonthLabels(getCalendarRoot(root))).toEqual([nextMonth.format("YYYY年M月")]);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("提出締切日を選択");
+    await canvas.findByText("提出期限を選択");
     await clickDate(root, deadline);
     await clickButton(root, "確認へ");
 
@@ -569,7 +569,7 @@ export const InteractiveMobileBasicFlow: Story = {
     await canvas.findByText("お店のお休みを選択");
     await clickButton(root, "次へ");
 
-    await canvas.findByText("提出締切日を選択");
+    await canvas.findByText("提出期限を選択");
     await clickDate(root, periodStart.subtract(1, "day"));
     await clickButton(root, "確認へ");
 
@@ -598,7 +598,7 @@ export const InteractiveDoubleSubmitGuard: Story = {
     await canvas.findByText("お店のお休みを選択");
     await clickButton(root, "次へ");
 
-    await canvas.findByText("提出締切日を選択");
+    await canvas.findByText("提出期限を選択");
     await clickDate(root, periodStart.subtract(1, "day"));
     await clickButton(root, "確認へ");
 
@@ -644,7 +644,7 @@ export const Submitting: Story = {
     await clickButton(root, "次へ");
     await canvas.findByText("お店のお休みを選択");
     await clickButton(root, "次へ");
-    await canvas.findByText("提出締切日を選択");
+    await canvas.findByText("提出期限を選択");
     await clickDate(root, periodStart.subtract(1, "day"));
     await clickButton(root, "確認へ");
     await canvas.findByText("内容を確認");

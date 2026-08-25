@@ -97,9 +97,9 @@ export const getDeadlineStepValidationError = ({
   periodStart,
   today,
 }: DeadlineStepValidationInput): string | undefined => {
-  if (!deadline) return "提出締切日を選択してください";
-  if (deadline < today) return "締切日は今日以降にしてください";
-  if (periodStart && deadline >= periodStart) return "締切日は開始日より前にしてください";
+  if (!deadline) return "提出期限を選択してください";
+  if (deadline < today) return "提出期限は今日以降にしてください";
+  if (periodStart && deadline >= periodStart) return "提出期限はシフト開始日より前にしてください";
   return undefined;
 };
 
@@ -111,7 +111,7 @@ export const createRecruitmentFormSchema = createRecruitmentSchema.superRefine((
   if (isValidIsoDateString(data.deadline) && data.deadline < today) {
     ctx.addIssue({
       code: "custom",
-      message: "締切日は今日以降にしてください",
+      message: "提出期限は今日以降にしてください",
       path: ["deadline"],
     });
   }

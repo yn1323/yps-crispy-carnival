@@ -111,12 +111,12 @@ export const verifyToken = mutation({
         accessKind === "submit" && recruitment.status === "confirmed" ? "submission_closed" : "invalid_link",
       );
     }
-    // submit リンクは締切後の確認用にも使うが、シフト開始日以降は確定シフトリンクへ役割を渡す。
+    // submit リンクは提出期限後の確認用にも使うが、シフト開始日以降は確定シフトリンクへ役割を渡す。
     if (accessKind === "submit" && now >= getSubmitLinkCutoff(recruitment.periodStart)) {
       return expired(magicLink.recruitmentId, "submission_closed");
     }
-    // submit リンクは「提出・修正は締切まで、閲覧はシフト開始日前日まで」なので、
-    // 締切由来の magicLink.expiresAt では失効させない。提出可否は submitShiftRequests 側で判定する。
+    // submit リンクは「提出・修正は提出期限まで、閲覧はシフト開始日前日まで」なので、
+    // 提出期限由来の magicLink.expiresAt では失効させない。提出可否は submitShiftRequests 側で判定する。
     if (accessKind === "view" && magicLink.expiresAt < now) {
       return expired(magicLink.recruitmentId, "invalid_link");
     }

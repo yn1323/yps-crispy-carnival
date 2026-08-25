@@ -366,7 +366,7 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
           createResponseMeta(responseCount, totalStaffCount),
-          { icon: LuCalendarClock, label: `締切 ${formatDateShort(deadline)}`, emphasis: true },
+          { icon: LuCalendarClock, label: `提出期限 ${formatDateShort(deadline)}`, emphasis: true },
         ],
         cta: { label: "シフトを組む", palette: "orange", variant: "solid" },
       };
@@ -377,12 +377,12 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         icon: LuCircleAlert,
         iconBg: "orange.100",
         iconFg: "orange.600",
-        title: "本日締切日です",
+        title: "本日が提出期限です",
         rowBg: "orange.50/30",
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
           createResponseMeta(responseCount, totalStaffCount),
-          { icon: LuCalendarClock, label: "今日が締切", emphasis: true },
+          { icon: LuCalendarClock, label: "今日が提出期限", emphasis: true },
         ],
         cta: { label: "回収状況を見る", palette: "orange", variant: "solid" },
       };
@@ -397,7 +397,7 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
           createResponseMeta(responseCount, totalStaffCount),
-          { icon: LuCalendarClock, label: `締切まで${action.daysLeft}日`, emphasis: true },
+          { icon: LuCalendarClock, label: `提出期限まで${action.daysLeft}日`, emphasis: true },
         ],
         cta: { label: "回収状況を見る", palette: "teal", variant: "outline" },
       };
@@ -412,7 +412,7 @@ function describeAction(action: Exclude<NextAction, { kind: "idle" }>): ActionVi
         metaItems: [
           createPeriodMeta(periodStart, periodEnd),
           createResponseMeta(responseCount, totalStaffCount),
-          { icon: LuCalendarClock, label: `締切まで${action.daysLeft}日` },
+          { icon: LuCalendarClock, label: `提出期限まで${action.daysLeft}日` },
         ],
         cta: { label: "回収状況を見る", palette: "teal", variant: "outline" },
       };

@@ -1615,7 +1615,7 @@ describe("staff/mutations", () => {
       ).rejects.toThrow("このメールアドレスはスタッフ登録の承認待ちです。");
     });
 
-    it("追加スタッフ向け通知データは締切前のopen募集だけを返す", async () => {
+    it("追加スタッフ向け通知データは提出期限前のopen募集だけを返す", async () => {
       const t = convexTest(schema, modules);
 
       const ids = await t.run(async (ctx) => {

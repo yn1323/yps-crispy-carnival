@@ -49,7 +49,7 @@ const compareByTailGroup = (a: StaffType, b: StaffType) => {
   return compareByName(a, b);
 };
 
-// シフト希望の開始・終了時刻（分）を取得
+// 希望シフトの開始・終了時刻（分）を取得
 const getRequestedMinutes = (staffShifts: ShiftData[]) => {
   const requested = staffShifts.flatMap((s) => s.requestedTimes ?? (s.requestedTime ? [s.requestedTime] : []))[0];
   if (!requested) return null;

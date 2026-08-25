@@ -26,7 +26,7 @@ describe("確定シフト閲覧・再発行シナリオ", () => {
     const scenario = createScenario(t);
     const staff = scenario.staff();
 
-    // Arrange: 確定済みシフトと閲覧セッションを用意する。
+    // Arrange: 確定シフトと閲覧セッションを用意する。
     const ids = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,

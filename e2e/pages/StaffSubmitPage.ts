@@ -16,7 +16,7 @@ export class StaffSubmitPage {
       );
       await expect(
         this.submitButton()
-          .or(this.page.getByText("締切を過ぎたため変更できません", { exact: true }))
+          .or(this.page.getByText("提出期限を過ぎたため変更できません", { exact: true }))
           .or(
             this.page.getByRole("heading", {
               name: /このリンクでは提出できません|このシフト募集は削除されました|このシフト募集の提出受付は終了しました/,
