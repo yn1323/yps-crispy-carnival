@@ -90,30 +90,6 @@ export const MultipleOrganizationsBlocked: Story = {
   },
 };
 
-export const BillingContactTransferRequiredBlocked: Story = {
-  args: {
-    preview: { status: "blocked", reason: "billingContactTransferRequired" },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await expect(canvas.getByText("請求連絡先を別の管理者へ変更してから、もう一度お試しください。")).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "削除内容を確認" })).toBeDisabled();
-  },
-};
-
-export const RecoveryManagerTransferRequiredBlocked: Story = {
-  args: {
-    preview: { status: "blocked", reason: "recoveryManagerTransferRequired" },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await expect(canvas.getByText("復旧担当者を別の管理者へ変更してから、もう一度お試しください。")).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "削除内容を確認" })).toBeDisabled();
-  },
-};
-
 export const TooManyAssociatedRecordsBlocked: Story = {
   args: {
     preview: { status: "blocked", reason: "tooManyAssociatedRecords" },

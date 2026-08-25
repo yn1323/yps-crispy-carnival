@@ -392,7 +392,7 @@ export const ReadOnlyManagerStaff: Story = {
     staff: {
       ...organizationLinkedStaff,
       isManager: true,
-      managerInvitationState: { kind: "unavailable", reason: "閲覧のみの管理者です。" },
+      managerInvitationState: { kind: "unavailable", reason: "現在のアカウント状態では操作できません。" },
     },
     defaultTab: "settings",
   },

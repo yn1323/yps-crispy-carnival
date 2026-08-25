@@ -8,7 +8,6 @@ import { getOrganizationPersonLineState } from "../line/service";
 import { deriveOrganizationBillingPolicy, getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
-import { isOrganizationBillingContact } from "./billingContact";
 import { managerInvitationStateValidator, resolvePersonManagerInvitationState } from "./managerInvitationState";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
 import {
@@ -296,8 +295,6 @@ export async function getOrganizationUserDetail(
     canWriteNormally,
     canRecoverUsageLimits,
     policy,
-    isStaff: memberships.length > 0,
-    isBillingContact: isOrganizationBillingContact(organization, person),
     isActiveActor,
     isRestricted: restrictedState !== null,
     isRestrictedRecovery,
@@ -307,7 +304,7 @@ export async function getOrganizationUserDetail(
   const writeDisabledReason = canWriteNormally
     ? undefined
     : !isActiveActor
-      ? "閲覧のみの管理者は、ユーザー情報を変更できません。"
+      ? "現在のアカウント状態では、ユーザー情報を変更できません。"
       : !billingState
         ? "組織の契約情報を確認中のため、ユーザー情報を変更できません。"
         : access?.businessWriteBlockReason === "paymentResultPending"
@@ -335,7 +332,7 @@ export async function getOrganizationUserDetail(
       ? undefined
       : canDisconnectLine
         ? undefined
-        : "閲覧のみの管理者は、LINE連携を解除できません。";
+        : "現在のアカウント状態では、LINE連携を解除できません。";
 
   return {
     person: {

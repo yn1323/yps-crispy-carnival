@@ -10,8 +10,6 @@ import { accountDeletionJobStatusValidator } from "./schemas";
 
 const blockedReasonValidator = v.union(
   v.literal("multipleOrganizations"),
-  v.literal("billingContactTransferRequired"),
-  v.literal("recoveryManagerTransferRequired"),
   v.literal("organizationDeletionUnavailable"),
   v.literal("tooManyAssociatedRecords"),
   v.literal("tooManyFutureAssignments"),

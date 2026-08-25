@@ -369,7 +369,7 @@ describe("organization shop management", () => {
     ).rejects.toThrow("Not found");
   });
 
-  it("契約制限中は復旧担当者だけがアーカイブでき、誰も再稼働できない", async () => {
+  it("旧契約制限中は対象readOnly所属だけがアーカイブでき、誰も再稼働できない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "recovery_archive", plan: "pro" });
@@ -414,7 +414,7 @@ describe("organization shop management", () => {
         shopId: ids.shopId,
         requestId: "restricted-reactivate",
       }),
-    ).rejects.toThrow("契約制限中は店舗を再稼働できません");
+    ).rejects.toThrow("現在の契約状態では店舗を再稼働できません");
   });
 
   it("active店舗の再稼働はidempotent no-opを維持する", async () => {

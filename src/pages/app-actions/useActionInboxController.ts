@@ -268,7 +268,7 @@ export function buildActionInboxItems(
           enabled: item.canRevoke,
           label: "取り消す",
           emphasis: "danger",
-          disabledReason: "閲覧のみ、または契約制限中のため取り消せません。",
+          disabledReason: "現在のアカウントまたは契約状態では取り消せません。",
           onClick: () => commands.requestRevokeInvitation(item),
         }),
         buildActionInboxAction({

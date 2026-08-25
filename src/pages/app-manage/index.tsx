@@ -682,7 +682,7 @@ export function AppManageReadOnlyNotice({ memberStatus }: { memberStatus: "activ
     <Alert.Root status="warning" borderRadius="xl" alignItems="flex-start">
       <Alert.Indicator mt={1} />
       <Alert.Content>
-        <Alert.Title>この組織は閲覧のみです</Alert.Title>
+        <Alert.Title>現在、このアカウントでは操作できません</Alert.Title>
         <Alert.Description>管理情報は確認できますが、設定や契約は変更できません。</Alert.Description>
       </Alert.Content>
     </Alert.Root>
@@ -956,7 +956,7 @@ function billingStateLabel(state: string) {
     standard: `${organizationPlanLabel("standard")}プラン`,
     pro: `${organizationPlanLabel("pro")}プラン`,
     grace: "支払い猶予中",
-    restricted: "契約制限中",
+    restricted: "契約状態の確認が必要",
     scheduledChange: "プラン変更予定",
     scheduledFree: "Freeへ変更予定",
     migrationPending: "設定移行中",

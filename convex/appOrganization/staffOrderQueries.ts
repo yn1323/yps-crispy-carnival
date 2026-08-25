@@ -83,7 +83,7 @@ export const getOrganizationStaffOrderEditor = organizationQuery({
       ];
     });
     const writeDisabledReason = !memberCanWrite
-      ? "閲覧のみの管理者は、スタッフの並び順を変更できません。"
+      ? "現在のアカウント状態では、スタッフの並び順を変更できません。"
       : !billingCanWrite
         ? policy?.businessWriteBlockReason === "paymentResultPending"
           ? "支払い結果を確認中のため、スタッフの並び順を変更できません。"

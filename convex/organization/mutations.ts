@@ -35,7 +35,6 @@ import { updateShopSettingsSchema } from "../shop/schemas";
 import { editStaffSchema } from "../staff/schemas";
 import { type OrganizationActor, requireOrganizationActorForShop, requireOrganizationReadActor } from "./access";
 import { type OrganizationAuditAction, recordOrganizationAuditEvent } from "./audit";
-import { isOrganizationBillingContact } from "./billingContact";
 import { getOrganizationDeletionEligibility } from "./deletion";
 import { updateOrganizationPersonProfile } from "./personProfile";
 import {
@@ -86,8 +85,8 @@ export const ACCOUNT_DELETION_TOO_MANY_ASSOCIATED_RECORDS_ERROR =
   "アカウントに紐づく所属情報が多いため、安全に削除できません。";
 export const ACCOUNT_DELETION_ASSOCIATED_RECORD_OWNERSHIP_ERROR = "アカウントに紐づく所属情報の範囲を確認できません。";
 export const ACCOUNT_DELETION_RECOVERY_MANAGER_TRANSFER_REQUIRED_ERROR =
-  "アカウントを削除するには、先に復旧担当者を引き継いでください。";
-const LAST_RECOVERY_MANAGER_REMOVAL_ERROR = "最後の復旧担当者は削除できません";
+  "現在の契約状態では、アカウントを削除できません。";
+const LAST_RECOVERY_MANAGER_REMOVAL_ERROR = "現在の契約状態では、管理者権限を解除できません。";
 
 export function classifyAccountDeletionOrganizationDepartureError(error: unknown) {
   if (!(error instanceof ConvexError)) return null;
@@ -95,7 +94,7 @@ export function classifyAccountDeletionOrganizationDepartureError(error: unknown
     return "tooManyAssociatedRecords" as const;
   }
   if (error.data === ACCOUNT_DELETION_RECOVERY_MANAGER_TRANSFER_REQUIRED_ERROR) {
-    return "recoveryManagerTransferRequired" as const;
+    return "organizationDeletionUnavailable" as const;
   }
   if (error.data === ACCOUNT_DELETION_ASSOCIATED_RECORD_OWNERSHIP_ERROR) {
     return "inconsistentAssociation" as const;
@@ -450,7 +449,7 @@ async function authorizeShopStateChange(
   });
   const billingState = await requireOrganizationBillingState(ctx, actor.organization._id);
   if (getEffectiveRestrictedBillingState(billingState.state)) {
-    if (args.operation === "reactivate") throw new ConvexError("契約制限中は店舗を再稼働できません");
+    if (args.operation === "reactivate") throw new ConvexError("現在の契約状態では店舗を再稼働できません");
     await requireRestrictedRecoveryCapability(ctx, {
       organizationId: actor.organization._id,
       personId: actor.person._id,
@@ -1414,9 +1413,6 @@ async function prepareFullOrganizationPersonRemoval(
     };
   },
 ): Promise<FullOrganizationPersonRemovalPlan> {
-  if (isOrganizationBillingContact(args.actor.organization, args.person)) {
-    throw new ConvexError("削除するには、先に請求先メールアドレスを変更してください。");
-  }
   const billingReferenceUpdate = await planBillingReferenceUpdate(ctx, args.billingState, args.person._id);
   if (args.member?.status === "active") {
     const hasOtherManager = await hasOtherValidActiveManager(ctx, args.actor.organization._id, args.person._id);
@@ -1876,7 +1872,7 @@ async function removeManagerRoleForActor(
     if (restrictedState.recoveryManagerPersonIds.includes(person._id)) {
       await planBillingReferenceUpdate(ctx, billingState, person._id);
     }
-    throw new ConvexError("契約制限中は管理権限を外せません");
+    throw new ConvexError("現在の契約状態では管理権限を外せません");
   }
   if (actor.member.status !== "active") throw new ConvexError("この操作を行う権限がありません");
   const policy = await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
@@ -1898,9 +1894,6 @@ async function removeManagerRoleForActor(
     )
     .collect();
   const hasActiveStaffRole = staffs.some((staff) => !staff.isDeleted);
-  if (!hasActiveStaffRole && isOrganizationBillingContact(actor.organization, person)) {
-    throw new ConvexError("管理者権限を外すには、先に請求先メールアドレスを変更してください。");
-  }
   const now = Date.now();
   const billingReferenceUpdate = await planBillingReferenceUpdate(ctx, billingState, person._id);
   const invitations = await findPendingInvitationsIssuedByManager(ctx, actor.organization._id, member._id);

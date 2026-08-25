@@ -108,7 +108,7 @@ export async function resolvePersonManagerInvitationState(
     };
   }
   if (actorMember.status !== "active") {
-    return { kind: "unavailable", reason: "閲覧のみの管理者は、管理者招待を送れません。" };
+    return { kind: "unavailable", reason: "現在のアカウント状態では、管理者招待を送れません。" };
   }
 
   const policy = args.billingState ? deriveOrganizationBillingPolicy(args.billingState.state) : null;

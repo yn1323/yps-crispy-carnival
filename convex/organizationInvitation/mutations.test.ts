@@ -700,7 +700,7 @@ describe("organizationInvitation/mutations", () => {
         recipient: { kind: "existingStaff", personId: ids.target.personId },
         requestId: "strict-readonly",
       }),
-    ).rejects.toThrow("閲覧のみの管理者です");
+    ).rejects.toThrow("現在、管理者として操作できません");
     expect(await invitationSecurityState(t)).toEqual(beforeReadOnly);
 
     const issued = await t
@@ -2356,7 +2356,7 @@ describe("organizationInvitation/mutations", () => {
         invitationId: ids.invitationId,
         requestId: "readonly-invite-resend",
       }),
-    ).rejects.toThrow("閲覧のみの管理者です");
+    ).rejects.toThrow("現在、管理者として操作できません");
     expect(await invitationSecurityState(t)).toEqual(before);
   });
 
@@ -2636,7 +2636,7 @@ describe("organizationInvitation/mutations", () => {
           invitationId: issued.invitationId,
           requestId: `resend-late-manager-${memberStatus}`,
         }),
-      ).rejects.toThrow(memberStatus === "active" ? "すでに管理者です" : "閲覧のみの管理者です");
+      ).rejects.toThrow(memberStatus === "active" ? "すでに管理者です" : "現在、管理者として操作できません");
       expect(await invitationSecurityState(t)).toEqual(before);
     },
   );
@@ -3171,7 +3171,7 @@ describe("organizationInvitation/mutations", () => {
     );
   });
 
-  it("旧Free管理者交代は店舗所属のない請求先管理者を権限解除せず、previewと承認を閉じる", async () => {
+  it("旧Free管理者交代は請求先メールと一致しても管理者を交代できる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const manager = await seedOrganizationManagerShop(ctx, {
@@ -3216,20 +3216,30 @@ describe("organizationInvitation/mutations", () => {
     await t.run(async (ctx) => {
       await ctx.db.patch(ids.invitationId, { tokenDigest: await digestInvitationToken(token) });
     });
-    const before = await invitationSecurityState(t);
-
-    await expect(t.query(api.organizationInvitation.queries.getPreview, { token })).resolves.toEqual({
-      status: "unavailable",
+    await expect(t.query(api.organizationInvitation.queries.getPreview, { token })).resolves.toMatchObject({
+      status: "ready",
     });
     await expect(
       t
         .withIdentity({ subject: "legacy_exchange_billing_target", email: ids.target.email, emailVerified: true })
         .mutation(api.organizationInvitation.mutations.accept, { token }),
-    ).resolves.toEqual({ status: "unavailable" });
+    ).resolves.toEqual({ status: "accepted", organizationId: ids.organizationId, shopId: ids.shopId });
 
-    expect(await invitationSecurityState(t)).toEqual(before);
-    await expect(t.run((ctx) => ctx.db.get(ids.memberId))).resolves.toMatchObject({ status: "active" });
-    await expect(t.run((ctx) => ctx.db.get(ids.invitationId))).resolves.toMatchObject({ status: "issued" });
+    const result = await t.run(async (ctx) => ({
+      organization: await ctx.db.get(ids.organizationId),
+      ownerMember: await ctx.db.get(ids.memberId),
+      targetMembers: await ctx.db
+        .query("organizationMembers")
+        .withIndex("by_organizationId_and_personId", (q) =>
+          q.eq("organizationId", ids.organizationId).eq("personId", ids.target.personId),
+        )
+        .collect(),
+      invitation: await ctx.db.get(ids.invitationId),
+    }));
+    expect(result.organization?.billingEmail).toBe("billing-contact@example.com");
+    expect(result.ownerMember).toMatchObject({ status: "removed" });
+    expect(result.targetMembers).toEqual([expect.objectContaining({ status: "active" })]);
+    expect(result.invitation).toMatchObject({ status: "linked" });
   });
 
   it("既発行のFree管理者交代を取り消すと通常の2人目招待を発行できる", async () => {

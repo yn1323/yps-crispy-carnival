@@ -141,7 +141,7 @@ const restrictedPaymentIssue = {
 const restricted = {
   kind: "restricted",
   planName: "Free",
-  description: "利用状況または契約状態を確認し、契約制限を解消してください。",
+  description: "利用状況または契約状態を確認してください。",
 } satisfies PlanStatusCardData;
 
 const meta = {
@@ -270,7 +270,7 @@ export const RestrictedPaymentIssueExpanded: Story = {
 };
 
 export const RestrictedExpanded: Story = {
-  name: "契約制限中",
+  name: "契約状態の確認が必要",
   args: { data: restricted, defaultExpanded: true },
 };
 

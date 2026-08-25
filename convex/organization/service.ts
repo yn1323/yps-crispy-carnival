@@ -186,7 +186,7 @@ export async function isValidOrganizationActiveManager(
   return await isValidOrganizationManagerPerson(ctx, organizationId, personId, ACTIVE_MANAGER_STATUSES);
 }
 
-/** restricted復旧担当者として使える管理者本人性を、削除mutationと同じ条件で確認する。 */
+/** 旧restricted互換で操作できるreadOnly管理者本人性を、削除mutationと同じ条件で確認する。 */
 export async function isValidOrganizationRecoveryManager(
   ctx: DbCtx,
   organizationId: Id<"organizations">,

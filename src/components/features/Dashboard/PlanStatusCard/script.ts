@@ -59,7 +59,7 @@ export function buildPlanStatusCardData(
         description: source.isComplimentary
           ? "早期登録特典によりProプラン相当の機能をずっと無料で利用できます。"
           : isServiceStopScheduled && scheduledChange
-            ? `${formatJstDate(scheduledChange.effectiveAt)}をもって解約します。解約後は契約制限中になります。データは削除されません。`
+            ? `${formatJstDate(scheduledChange.effectiveAt)}をもって解約し、Freeプランへ移行します。データは削除されません。`
             : scheduledChange && targetPlanName
               ? `${formatJstDate(scheduledChange.effectiveAt)}に${targetPlanName}プランへ変更します。`
               : undefined,
@@ -111,7 +111,7 @@ export function buildPlanStatusCardData(
         kind: "restricted",
         planName: source.displayPlan ? planName(source.displayPlan) : undefined,
         description: source.canManagePlan
-          ? "利用状況または契約状態を確認し、契約制限を解消してください。"
+          ? "利用状況または契約状態を確認してください。"
           : "契約を管理できる管理者に、利用状況または契約状態の確認を依頼してください。",
       };
   }

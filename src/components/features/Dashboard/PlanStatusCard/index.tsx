@@ -331,11 +331,11 @@ export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusP
     const badge = data.planName ? { label: `${data.planName}プラン`, background: "gray.100", color: "gray.700" } : null;
     return {
       Icon: LuCircleAlert,
-      title: "契約制限中",
+      title: "契約状態の確認が必要",
       badge,
       summaryBadge: badge,
       tone: "red",
-      detailsLabel: "契約制限の詳細",
+      detailsLabel: "契約状態の詳細",
       iconBackground: "red.100",
       iconColor: "red.700",
     };

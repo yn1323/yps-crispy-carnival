@@ -130,7 +130,7 @@ describe("ActionInbox builders", () => {
         label: "却下する",
         emphasis: "danger",
         disabled: true,
-        disabledReason: "閲覧のみ、または契約制限中のため却下できません。",
+        disabledReason: "現在のアカウントまたは契約状態では却下できません。",
       },
       {
         label: "承認する",
@@ -206,7 +206,7 @@ describe("ActionInbox builders", () => {
         label: "再送せず破棄する",
         emphasis: "danger",
         disabled: true,
-        disabledReason: "閲覧のみ、または契約制限中のため変更できません。",
+        disabledReason: "現在のアカウントまたは契約状態では変更できません。",
       },
       {
         label: "再送する",

@@ -130,7 +130,7 @@ describe("buildPlanStatusCardData", () => {
       }),
     ).toMatchObject({
       badgeLabel: "解約予定",
-      description: "2026/9/1をもって解約します。解約後は契約制限中になります。データは削除されません。",
+      description: "2026/9/1をもって解約し、Freeプランへ移行します。データは削除されません。",
       nextEventLabel: undefined,
     });
   });

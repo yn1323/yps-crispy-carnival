@@ -10,8 +10,6 @@ type OrganizationPersonCapabilityInput = {
   canWriteNormally: boolean;
   canRecoverUsageLimits?: boolean;
   policy: OrganizationBillingPolicy | null;
-  isStaff: boolean;
-  isBillingContact: boolean;
   isActiveActor: boolean;
   isRestricted: boolean;
   isRestrictedRecovery: boolean;
@@ -25,14 +23,12 @@ export function deriveOrganizationPersonCapabilities(input: OrganizationPersonCa
     (input.canWriteNormally || input.canRecoverUsageLimits || input.isRestrictedRecovery) &&
     !isManager &&
     !isLastActiveManager &&
-    !input.isLastRecoveryManager &&
-    !input.isBillingContact;
+    !input.isLastRecoveryManager;
   const canRemoveManagerRole = Boolean(
     input.managerRole === "active" &&
       input.activeManagerCount > 1 &&
       (input.canWriteNormally || input.canRecoverUsageLimits) &&
-      input.policy?.canManageManagers &&
-      (input.isStaff || !input.isBillingContact),
+      input.policy?.canManageManagers,
   );
   const managerRoleRemovalDisabledReason =
     input.managerRole === "none" || canRemoveManagerRole
@@ -42,29 +38,25 @@ export function deriveOrganizationPersonCapabilities(input: OrganizationPersonCa
         : input.activeManagerCount <= 1
           ? "最後の管理者の権限は外せません。"
           : !input.isActiveActor
-            ? "閲覧のみの管理者は、管理者権限を変更できません。"
+            ? "現在のアカウント状態では、管理者権限を変更できません。"
             : input.isRestricted
-              ? "契約制限中は、管理者権限を外せません。"
+              ? "現在の契約状態では、管理者権限を外せません。"
               : input.policy?.paidFeatureBlockReason === "paymentResultPending"
                 ? "支払い結果が確定するまで、管理者権限を変更できません。"
-                : !input.isStaff && input.isBillingContact
-                  ? "管理者権限を外すには、先に請求先メールアドレスを変更してください。"
-                  : "現在の契約状態では、管理者権限を変更できません。";
+                : "現在の契約状態では、管理者権限を変更できません。";
   const removeDisabledReason = canRemove
     ? undefined
     : isManager
       ? MANAGER_PERSON_REMOVAL_DISABLED_REASON
       : input.isLastRecoveryManager
-        ? "最後の復旧担当者は、引き継ぎまたは契約の復旧が完了するまで削除できません。"
+        ? "現在の契約状態では、このユーザーを削除できません。"
         : isLastActiveManager
           ? "管理者は削除できません。"
-          : input.isBillingContact
-            ? "削除するには、先に請求先メールアドレスを変更してください。"
-            : input.isRestrictedRecovery
-              ? "現在の契約状態では、このユーザーを削除できません。"
-              : !input.isActiveActor
-                ? "閲覧のみの管理者は、ユーザーを削除できません。"
-                : "現在の契約状態では、ユーザーを削除できません。";
+          : input.isRestrictedRecovery
+            ? "現在の契約状態では、このユーザーを削除できません。"
+            : !input.isActiveActor
+              ? "現在のアカウント状態では、ユーザーを削除できません。"
+              : "現在の契約状態では、ユーザーを削除できません。";
 
   return {
     canRemoveManagerRole,

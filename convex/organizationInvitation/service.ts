@@ -1,7 +1,6 @@
 import type { GenericDatabaseReader } from "convex/server";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
 import { resolveOrganizationPersonEmailForManagerAddition } from "../_lib/personIdentity";
-import { isOrganizationBillingContact } from "../organization/billingContact";
 import { getOrganizationBillingState } from "../organization/service";
 import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
@@ -120,7 +119,7 @@ export async function resolveFreeManagerExchangeEligibility(
   }
 
   const targetPerson = people[0];
-  const [members, staffs, inviterStaff] = await Promise.all([
+  const [members, staffs] = await Promise.all([
     ctx.db
       .query("organizationMembers")
       .withIndex("by_organizationId_and_personId", (q) =>
@@ -133,15 +132,7 @@ export async function resolveFreeManagerExchangeEligibility(
         q.eq("organizationId", args.organizationId).eq("organizationPersonId", targetPerson._id),
       )
       .collect(),
-    ctx.db
-      .query("staffs")
-      .withIndex("by_organizationId_and_organizationPersonId", (q) =>
-        q.eq("organizationId", args.organizationId).eq("organizationPersonId", inviterData.inviterPerson._id),
-      )
-      .filter((q) => q.eq(q.field("isDeleted"), false))
-      .first(),
   ]);
-  if (!inviterStaff && isOrganizationBillingContact(organization, inviterData.inviterPerson)) return null;
   if (members.length > 1 || members[0]?.status === "active" || members[0]?.status === "readOnly") {
     return null;
   }

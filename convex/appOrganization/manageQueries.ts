@@ -186,7 +186,7 @@ export const getManageOverview = organizationQuery({
         ...(!(isActiveActor && canWriteBusinessData)
           ? {
               updateOrganizationNameDisabledReason: !isActiveActor
-                ? "閲覧のみの管理者は、組織名を変更できません。"
+                ? "現在のアカウント状態では、組織名を変更できません。"
                 : access?.businessWriteBlockReason === "usageLimitExceeded"
                   ? "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。"
                   : "現在の契約状態では、組織名を変更できません。",
@@ -196,13 +196,13 @@ export const getManageOverview = organizationQuery({
         ...(!canAddShop
           ? {
               addShopDisabledReason: !isActiveActor
-                ? "閲覧のみの管理者は、店舗を追加できません。"
+                ? "現在のアカウント状態では、店舗を追加できません。"
                 : !billingState
                   ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
                   : access?.businessWriteBlockReason === "usageLimitExceeded"
                     ? "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。"
                     : restrictedState
-                      ? "契約制限中は、店舗を追加できません。"
+                      ? "現在の契約状態では、店舗を追加できません。"
                       : policy?.paidFeatureBlockReason === "freePlan"
                         ? "Freeプランでは、店舗を追加できません。\n有料プランを選択してください。"
                         : policy?.paidFeatureBlockReason === "paymentResultPending"
@@ -214,7 +214,7 @@ export const getManageOverview = organizationQuery({
         ...(!(isActiveActor && deletionEligibility.canDelete)
           ? {
               deleteOrganizationDisabledReason: !isActiveActor
-                ? "閲覧のみの管理者は、組織を削除できません。"
+                ? "現在のアカウント状態では、組織を削除できません。"
                 : deletionEligibility.canDelete
                   ? "組織を削除できません。"
                   : deletionEligibility.reason,

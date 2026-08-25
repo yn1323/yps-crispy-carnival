@@ -483,12 +483,12 @@ describe("AppStaffRoutePage", () => {
     expect(screen.getByText("全体の人物1")).not.toBeNull();
     const addButton = screen.getByRole("button", { name: "スタッフを追加" }) as HTMLButtonElement;
     expect(addButton.disabled).toBe(true);
-    expect(addButton.title).toBe("閲覧のみの管理者は、スタッフを追加できません。");
+    expect(addButton.title).toBe("現在のアカウント状態では、スタッフを追加できません。");
     const orderHandles = screen.getAllByRole("button", { name: /の並び替え$/ }) as HTMLButtonElement[];
     expect(orderHandles).toHaveLength(2);
     for (const handle of orderHandles) {
       expect(handle.disabled).toBe(true);
-      expect(handle.title).toBe("閲覧のみの管理者は、スタッフの並び順を変更できません。");
+      expect(handle.title).toBe("現在のアカウント状態では、スタッフの並び順を変更できません。");
     }
   });
 

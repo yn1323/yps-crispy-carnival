@@ -278,9 +278,9 @@ describe("所属を含むアカウント削除", () => {
     ).resolves.toEqual({ status: "blocked", reason: "multipleOrganizations" });
   });
 
-  it("共有組織の請求連絡先本人と削除不可課金状態は専用reasonで拒否する", async () => {
-    const billingContactTest = createAccountDeletionTest();
-    await billingContactTest.run(async (ctx) => {
+  it("請求先メールと一致しても共有組織から退出でき、削除不可課金状態だけを拒否する", async () => {
+    const billingEmailMatchTest = createAccountDeletionTest();
+    await billingEmailMatchTest.run(async (ctx) => {
       const target = await seedOrganizationManagerShop(ctx, {
         subject: "preview_billing_contact",
         email: "preview-billing-contact@example.com",
@@ -294,10 +294,15 @@ describe("所属を含むアカウント削除", () => {
       });
     });
     await expect(
-      billingContactTest
+      billingEmailMatchTest
         .withIdentity({ subject: "preview_billing_contact" })
         .query(api.accountDeletion.queries.getDeletionPreview, { asOfDate: AS_OF_DATE }),
-    ).resolves.toEqual({ status: "blocked", reason: "billingContactTransferRequired" });
+    ).resolves.toMatchObject({
+      status: "ready",
+      action: "leaveOrganization",
+      organization: { name: "請求連絡先店舗事業者", shopCount: 1 },
+      futureAssignmentCount: 0,
+    });
 
     const paidSoleAdminTest = createAccountDeletionTest();
     await paidSoleAdminTest.run((ctx) =>
@@ -576,7 +581,7 @@ describe("所属を含むアカウント削除", () => {
     },
   );
 
-  it("最後の復旧担当者である共有管理者は専用reasonで引継ぎを要求する", async () => {
+  it("legacy restrictedの最後のreadOnly所属は公開上の汎用reasonで拒否する", async () => {
     const t = createAccountDeletionTest();
     await t.run(async (ctx) => {
       const fixture = await seedSharedDepartureFixture(ctx);
@@ -603,7 +608,7 @@ describe("所属を含むアカウント削除", () => {
       t
         .withIdentity({ subject: "shared_departure" })
         .query(api.accountDeletion.queries.getDeletionPreview, { asOfDate: AS_OF_DATE }),
-    ).resolves.toEqual({ status: "blocked", reason: "recoveryManagerTransferRequired" });
+    ).resolves.toEqual({ status: "blocked", reason: "organizationDeletionUnavailable" });
   });
 
   it.each([

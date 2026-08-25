@@ -7,8 +7,6 @@ export type AccountDeletionAction = "accountOnly" | "leaveOrganization" | "delet
 
 export type AccountDeletionBlockedReason =
   | "multipleOrganizations"
-  | "billingContactTransferRequired"
-  | "recoveryManagerTransferRequired"
   | "organizationDeletionUnavailable"
   | "tooManyAssociatedRecords"
   | "tooManyFutureAssignments"

@@ -520,7 +520,7 @@ const ShopStatusBadges = ({ shop }: { shop: ShopContextOption }) => {
       )}
       {shop.memberStatus === "readOnly" && (
         <Badge colorPalette="gray" variant="subtle" size="sm">
-          閲覧のみ
+          操作不可
         </Badge>
       )}
     </HStack>

@@ -1059,16 +1059,16 @@ describe("organization/userDetailQueries.getUserDetail", () => {
 
     expect(await actor.query(api.organization.userDetailQueries.getUserDetail, args)).toMatchObject({
       canWrite: false,
-      writeDisabledReason: "閲覧のみの管理者は、ユーザー情報を変更できません。",
+      writeDisabledReason: "現在のアカウント状態では、ユーザー情報を変更できません。",
       line: {
         status: "linked_following",
         actionShopId: ids.shopId,
         sourceStaffId: ids.staffId,
         sourceShopId: ids.shopId,
         canLink: false,
-        linkDisabledReason: "閲覧のみの管理者は、ユーザー情報を変更できません。",
+        linkDisabledReason: "現在のアカウント状態では、ユーザー情報を変更できません。",
         canDisconnect: false,
-        disconnectDisabledReason: "閲覧のみの管理者は、LINE連携を解除できません。",
+        disconnectDisabledReason: "現在のアカウント状態では、LINE連携を解除できません。",
       },
     });
 

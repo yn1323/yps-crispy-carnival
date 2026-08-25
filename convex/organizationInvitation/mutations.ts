@@ -607,7 +607,9 @@ async function requirePersonIsEligibleManagerInviteTarget(
   if (members.length > 1) throw new ConvexError("管理者所属を一意に確認できません");
   if (members[0]?.status === "active") throw new ConvexError("この利用者はすでに管理者です");
   if (members[0]?.status === "readOnly") {
-    throw new ConvexError("この利用者は閲覧のみの管理者です。\n契約状態を復旧してから、もう一度お試しください。");
+    throw new ConvexError(
+      "この利用者は現在、管理者として操作できません。\nアカウント状態を確認してから、もう一度お試しください。",
+    );
   }
   if (!options.requireActiveStaff) return;
 
@@ -1100,7 +1102,9 @@ async function resendInvitationForActor(
     if (members.length > 1) throw new ConvexError("管理者所属を一意に確認できません");
     if (members[0]?.status === "active") throw new ConvexError("この利用者はすでに管理者です");
     if (members[0]?.status === "readOnly") {
-      throw new ConvexError("この利用者は閲覧のみの管理者です。\n契約状態を復旧してから、もう一度お試しください。");
+      throw new ConvexError(
+        "この利用者は現在、管理者として操作できません。\nアカウント状態を確認してから、もう一度お試しください。",
+      );
     }
   }
   const reservedSeat = targetPerson

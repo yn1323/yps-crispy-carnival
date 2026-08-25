@@ -1309,8 +1309,7 @@ describe("organization/queries.getSettings", () => {
       canRemoveManagerRole: true,
     });
     expect(result?.people.find((person) => person.id === ids.personId)).toMatchObject({
-      canRemoveManagerRole: false,
-      managerRoleRemovalDisabledReason: "管理者権限を外すには、先に請求先メールアドレスを変更してください。",
+      canRemoveManagerRole: true,
     });
   });
 
@@ -1375,21 +1374,21 @@ describe("organization/queries.getSettings", () => {
     expect(result?.shops).toHaveLength(2);
     expect(result?.canAddShop).toBe(false);
     expect(result?.canUpdateOrganizationName).toBe(false);
-    expect(result?.updateOrganizationNameDisabledReason).toBe("閲覧のみの管理者は、組織名を変更できません。");
+    expect(result?.updateOrganizationNameDisabledReason).toBe("現在のアカウント状態では、組織名を変更できません。");
     expect(result?.billing).toMatchObject({
       canManagePlan: false,
-      managePlanDisabledReason: "閲覧のみの管理者は、この操作を行えません。",
+      managePlanDisabledReason: "現在のアカウント状態では、この操作を行えません。",
       canUpdatePaymentMethod: false,
-      paymentMethodDisabledReason: "閲覧のみの管理者は、この操作を行えません。",
+      paymentMethodDisabledReason: "現在のアカウント状態では、この操作を行えません。",
       canUpdateBillingEmail: false,
-      billingEmailDisabledReason: "閲覧のみの管理者は、この操作を行えません。",
+      billingEmailDisabledReason: "現在のアカウント状態では、この操作を行えません。",
       canScheduleFree: false,
     });
     expect(result?.people.every((person) => !person.canRemove)).toBe(true);
     expect(result?.shops.every((shop) => !shop.canDelete)).toBe(true);
     expect(result?.shops.find((shop) => shop.id === ids.shopId)).toMatchObject({
       canUpdateSettings: false,
-      settingsDisabledReason: "閲覧のみの管理者は、店舗設定を変更できません。",
+      settingsDisabledReason: "現在のアカウント状態では、店舗設定を変更できません。",
     });
     expect(result?.shops.find((shop) => shop.name === "履歴店舗")).toMatchObject({
       canUpdateSettings: false,
@@ -1748,7 +1747,7 @@ describe("organization/queries.getSettings", () => {
     expect(result?.canUpdateOrganizationName).toBe(true);
   });
 
-  it("契約制限中からの支払い結果待ちは復旧担当者の権限と制限理由を維持する", async () => {
+  it("旧契約制限中からの支払い結果待ちは対象readOnly所属の権限と制限理由を維持する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -1801,7 +1800,7 @@ describe("organization/queries.getSettings", () => {
     expect(result?.shops[0]).toMatchObject({ canDelete: false });
   });
 
-  it("契約制限中は復旧担当者に店舗削除と復旧用契約操作だけを許可する", async () => {
+  it("旧契約制限中は対象readOnly所属に店舗削除と互換契約操作だけを許可する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -1863,7 +1862,7 @@ describe("organization/queries.getSettings", () => {
     expect(result?.shops.find((shop) => shop.id === ids.suspendedShopId)).toMatchObject({ canDelete: true });
   });
 
-  it("閲覧のみの復旧担当者には店舗削除capabilityを返さない", async () => {
+  it("対象外readOnly所属には店舗削除capabilityを返さない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -1905,11 +1904,11 @@ describe("organization/queries.getSettings", () => {
     expect(result?.shops).toHaveLength(2);
     expect(result?.shops.every((shop) => !shop.canDelete)).toBe(true);
     expect(
-      result?.shops.every((shop) => shop.deleteDisabledReason === "閲覧のみの管理者は、店舗を削除できません。"),
+      result?.shops.every((shop) => shop.deleteDisabledReason === "現在のアカウント状態では、店舗を削除できません。"),
     ).toBe(true);
   });
 
-  it("複数の復旧担当者がいる場合は最後の一人以外を整理できる", async () => {
+  it("旧契約制限の対象readOnly所属が複数いる場合は最後の一人以外を整理できる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -1922,7 +1921,7 @@ describe("organization/queries.getSettings", () => {
       const secondPersonId = await ctx.db.insert("organizationPeople", {
         organizationId: base.organizationId,
         userId: secondUserId,
-        name: "二人目の復旧担当者",
+        name: "二人目の旧readOnly所属",
         email: "second-recovery@example.com",
         emailNormalized: "second-recovery@example.com",
         status: "active",

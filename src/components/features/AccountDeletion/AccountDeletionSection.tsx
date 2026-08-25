@@ -99,16 +99,6 @@ function getBlockedGuidance(preview: AccountDeletionBlockedPreview): {
           "複数の組織に所属しているため、この画面からは削除できません。\n組織設定で組織を一つずつ削除するか、別の管理者へ引き継ぎ、組織の所属を1つ以下にしてください。",
         showContactLink: true,
       };
-    case "billingContactTransferRequired":
-      return {
-        message: "請求連絡先を別の管理者へ変更してから、もう一度お試しください。",
-        showContactLink: false,
-      };
-    case "recoveryManagerTransferRequired":
-      return {
-        message: "復旧担当者を別の管理者へ変更してから、もう一度お試しください。",
-        showContactLink: false,
-      };
     case "tooManyAssociatedRecords":
       return {
         message: "関連する履歴・アクセス情報が多いため、この画面からは削除できません。",

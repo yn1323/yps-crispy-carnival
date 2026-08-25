@@ -107,7 +107,7 @@ function organizationShopStaffMembershipWriteState(args: {
   if (args.memberStatus !== "active") {
     return {
       canWrite: false,
-      writeDisabledReason: "閲覧のみの管理者は、スタッフの所属を変更できません。",
+      writeDisabledReason: "現在のアカウント状態では、スタッフの所属を変更できません。",
     } as const;
   }
   if (args.shopStatus !== "active") {

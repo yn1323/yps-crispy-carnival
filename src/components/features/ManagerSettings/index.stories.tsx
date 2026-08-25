@@ -507,14 +507,14 @@ export const ExternalInvitationUnavailable: Story = {
       <ManagerExternalInviteFormView
         isSubmitting={false}
         isReadOnly
-        disabledReason="閲覧のみの管理者は、管理者を招待できません。"
+        disabledReason="現在のアカウント状態では、管理者を招待できません。"
         onRequestInvite={noop}
       />
     </SubpageFrame>
   ),
   play: async ({ canvasElement }) => {
     const page = within(canvasElement);
-    await expect(page.getByText("閲覧のみの管理者は、管理者を招待できません。")).toBeInTheDocument();
+    await expect(page.getByText("現在のアカウント状態では、管理者を招待できません。")).toBeInTheDocument();
     await expect(page.getByRole("textbox", { name: "名前" })).toBeDisabled();
     await expect(page.getByRole("textbox", { name: "メールアドレス" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "招待する" })).toBeDisabled();

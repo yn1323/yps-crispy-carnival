@@ -181,7 +181,7 @@ describe("organizationBilling/notification", () => {
       paragraphs: expect.arrayContaining([expect.stringContaining("有料プランを開始できませんでした")]),
     });
     expect(organizationBillingNotificationCopy("paidActivationFailedRestrictedContinued")).toMatchObject({
-      heading: "契約制限中を継続しています",
+      heading: "契約状態を確認できない状態が続いています",
       paragraphs: expect.arrayContaining([expect.stringContaining("有料プランを開始できませんでした")]),
     });
   });

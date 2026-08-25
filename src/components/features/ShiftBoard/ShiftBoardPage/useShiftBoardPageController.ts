@@ -37,7 +37,7 @@ const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知で�
 export function getShiftBoardReadOnlyReason(reason: ShiftBoardData["businessWriteBlockReason"]): string {
   switch (reason) {
     case "memberReadOnly":
-      return "管理者権限が閲覧のみに制限されているため、シフトを変更できません。";
+      return "現在のアカウント状態では、シフトを変更できません。";
     case "shopArchived":
       return "アーカイブ済みの店舗のため、シフトを変更できません。";
     case "shopPlanSuspended":

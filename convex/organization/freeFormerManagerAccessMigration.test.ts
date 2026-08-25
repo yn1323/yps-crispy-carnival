@@ -894,7 +894,7 @@ describe("旧管理者アクセス移行", () => {
     ]);
   });
 
-  it("契約制限中の復旧担当者を維持し、非復旧readOnlyだけを曖昧conflictにする", async () => {
+  it("旧契約制限中の対象readOnly所属を維持し、対象外readOnlyだけを曖昧conflictにする", async () => {
     const t = createMigrationTest();
     const ids = await t.run(async (ctx) => {
       const ids = await seedFormerManagerFixture(ctx, { billingKind: "pro" });

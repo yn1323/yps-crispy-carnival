@@ -436,7 +436,7 @@ describe("OrganizationRecruitmentManagement", () => {
       canCreateRecruitments: false,
       createRecruitmentDisabledReason: createDisabledReason,
     });
-    expect(screen.queryByText("閲覧のみの店舗では募集を作成できません")).toBeNull();
+    expect(screen.queryByText("現在のアカウント状態では募集を作成できません")).toBeNull();
   });
 
   it("作成中に組織が変わると古いsessionを閉じ、完了後も新しい組織のDialogを変更しない", async () => {

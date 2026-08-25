@@ -321,7 +321,7 @@ function ManagerRow({
               )}
               {manager.role === "readOnly" && (
                 <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
-                  閲覧のみ
+                  状態確認
                 </Badge>
               )}
             </HStack>
