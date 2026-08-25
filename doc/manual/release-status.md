@@ -30,7 +30,7 @@
 | 3か月Pro相当・カード登録不要の公開文言と、初回Setupが3か月のTrialを作るbackend・利用規約契約の一致 | **Repository整合・Production未確認** | 2026-08-24 | Repository | Trialの利用権限と上限をPro相当・50名へ更新。保存shapeを変更しないためmigrationは追加しない。Function / Scenario契約、管理ユーザー向け利用規約本文、文書版、同意要求版を更新。対象deploymentへの反映と実環境canaryは未確認 |
 | StripeのStandard・Pro販売設定、Price、明示された税区分、Webhook、公開サイトBuild用にGitHub Environmentへ設定した`STRIPE_SECRET_KEY`、`STRIPE_STANDARD_PRICE_ID`、`STRIPE_PRO_PRICE_ID` | 未確認 | 未確認 | 未確認 | StandardとProは既存Priceの値を2キーへ移し、欠損、不正、重複時はfail closedにする。実値と切替完了は未確認 |
 | plan ID Widen revisionのConvex / frontend反映と、Standard / Proの2キー契約、設定不備時に新規Checkout・料金取得・plan変更が副作用前に停止すること | 未確認 | 未確認 | 未確認 | 未登録 |
-| m042によるmarkerなしbilling stateのv2変換と、billing row・scheduled job・課金通知の全ページreadiness | 未確認 | 未確認 | 未確認 | m042はmarkerなしの全課金状態を意味を維持してcanonical化する。Stripe rowの存在は停止条件にせず、dangling・重複を停止し、plan snapshotはm045 / m046で変換する。pre / migration status / postの実環境証跡は未登録 |
+| m042によるmarkerなしbilling stateのv2変換と、billing row・scheduled job・課金通知の全ページreadiness | 未確認 | 未確認 | 未確認 | m042はmarkerなしの全課金状態を意味を維持してcanonical化する。Stripe rowの存在と同一組織の履歴行は停止条件にせず、dangling・scope固有の一意キー重複を停止し、plan snapshotはm045 / m046で変換する。pre / migration status / postの実環境証跡は未登録 |
 | m043のAnalytics source event canonical化と`ANALYTICS_CALCULATION_VERSION=2` reset、materialized table・reset generationの全ページreadiness | 未確認 | 未確認 | 未確認 | migration status、reset generation、post readinessは未登録 |
 | m044のDashboard announcement canonical化、m045 / m046のStripe plan snapshot canonical化 | 未確認 | 未確認 | 未確認 | Subscription / operationのpre、migration status、post readinessは未登録 |
 | m047の旧`shopBillingStates`物理cleanupと、旧`restricted` / `readOnly` / markerなしplan IDのNarrow readiness | 未確認 | 未確認 | 未確認 | m028とcanonical対応を確認できないrowは削除しない。m047 status、旧店舗課金row 0、課金互換readiness blocking 0の実環境証跡は未登録 |

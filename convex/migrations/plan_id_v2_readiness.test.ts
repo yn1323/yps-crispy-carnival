@@ -1,11 +1,76 @@
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { createConvexTestWithMigrations, runMigrationToCompletion } from "../_test/migrations.test-helper";
 import { seedOrganizationManagerShop } from "../_test/seed";
 import { ANALYTICS_CALCULATION_VERSION, ANALYTICS_PAYLOAD_VERSION, ANALYTICS_SCHEMA_VERSION } from "../analytics/model";
 
 const firstPage = { cursor: null, numItems: 100 } as const;
+
+async function insertSubscriptionHistory(
+  ctx: MutationCtx,
+  organizationId: Id<"organizations">,
+  suffix: string,
+  providerGeneration: number,
+) {
+  await ctx.db.insert("organizationStripeSubscriptions", {
+    organizationId,
+    stripeCustomerId: `cus_${suffix}`,
+    stripeSubscriptionId: `sub_${suffix}`,
+    stripePriceId: `price_${suffix}`,
+    livemode: false,
+    status: "canceled",
+    providerGeneration,
+    cancelAtPeriodEnd: false,
+    syncedAt: 100,
+    createdAt: 100,
+    updatedAt: 100,
+  });
+}
+
+async function insertOperationHistory(
+  ctx: MutationCtx,
+  organizationId: Id<"organizations">,
+  suffix: string,
+  requestKey: string,
+) {
+  await ctx.db.insert("organizationStripeOperations", {
+    organizationId,
+    kind: "immediatePaidCheckout",
+    requestKey,
+    stripeIdempotencyKey: `idempotency-${suffix}`,
+    livemode: false,
+    status: "succeeded",
+    attemptCount: 1,
+    completedAt: 100,
+    expiresAt: 1_100,
+    createdAt: 100,
+    updatedAt: 100,
+  });
+}
+
+async function insertWebhookHistory(
+  ctx: MutationCtx,
+  organizationId: Id<"organizations">,
+  suffix: string,
+  stripeEventId: string,
+) {
+  await ctx.db.insert("stripeWebhookEvents", {
+    stripeEventId,
+    type: "customer.subscription.updated",
+    livemode: false,
+    objectId: `sub_${suffix}`,
+    organizationId,
+    eventCreatedAt: 100,
+    status: "processed",
+    attemptCount: 1,
+    receivedAt: 100,
+    processedAt: 100,
+    expiresAt: 1_100,
+    updatedAt: 100,
+  });
+}
 
 async function insertAnalyticsReset(ctx: MutationCtx) {
   const now = 1_000;
@@ -128,6 +193,73 @@ describe("m042 plan ID readiness", () => {
         paginationOpts: firstPage,
       }),
     ).resolves.toMatchObject({ totals: { pending: 1, blocking: 1 } });
+  });
+
+  it("同じ組織のSubscription世代・operation・Webhook履歴をblockingにしない", async () => {
+    const t = createConvexTestWithMigrations();
+    await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, { subject: "m042_readiness_history", complimentary: true });
+      await insertSubscriptionHistory(ctx, seeded.organizationId, "history_1", 1);
+      await insertSubscriptionHistory(ctx, seeded.organizationId, "history_2", 2);
+      await insertOperationHistory(ctx, seeded.organizationId, "history_1", "request-history-1");
+      await insertOperationHistory(ctx, seeded.organizationId, "history_2", "request-history-2");
+      await insertWebhookHistory(ctx, seeded.organizationId, "history_1", "evt_history_1");
+      await insertWebhookHistory(ctx, seeded.organizationId, "history_2", "evt_history_2");
+    });
+
+    for (const scope of ["subscriptions", "operations", "webhooks"] as const) {
+      const result = await t.query(
+        internal.migrations.m042_organization_billing_plan_ids_v2_readiness.verifyStripeRows,
+        {
+          scope,
+          paginationOpts: firstPage,
+        },
+      );
+      expect(result.totals).toEqual({
+        stripeRows: 2,
+        danglingOrganization: 0,
+        rowsWithDuplicateLogicalKey: 0,
+        blocking: 0,
+      });
+    }
+  });
+
+  it("Stripe各scopeの論理的一意キー重複だけをblockingにする", async () => {
+    const t = createConvexTestWithMigrations();
+    await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "m042_readiness_duplicate_logical_key",
+        complimentary: true,
+      });
+      for (const suffix of ["duplicate_1", "duplicate_2"]) {
+        await ctx.db.insert("organizationStripeCustomers", {
+          organizationId: seeded.organizationId,
+          stripeCustomerId: `cus_${suffix}`,
+          livemode: false,
+          createdAt: 100,
+          updatedAt: 100,
+        });
+        await insertSubscriptionHistory(ctx, seeded.organizationId, suffix, 1);
+        await insertOperationHistory(ctx, seeded.organizationId, suffix, "request-duplicate");
+        await insertWebhookHistory(ctx, seeded.organizationId, suffix, "evt_duplicate");
+      }
+    });
+
+    for (const scope of ["customers", "subscriptions", "operations", "webhooks"] as const) {
+      const result = await t.query(
+        internal.migrations.m042_organization_billing_plan_ids_v2_readiness.verifyStripeRows,
+        {
+          scope,
+          paginationOpts: firstPage,
+        },
+      );
+      expect(result.totals).toEqual({
+        stripeRows: 2,
+        danglingOrganization: 0,
+        rowsWithDuplicateLogicalKey: 2,
+        blocking: 2,
+      });
+    }
   });
 });
 

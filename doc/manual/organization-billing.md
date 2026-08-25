@@ -164,7 +164,7 @@ pnpm exec convex run migrations/m042_organization_billing_plan_ids_v2_readiness:
   '{"scope":"customers","paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
 ```
 
-`verifyStripeRows`は`customers`、`subscriptions`、`operations`、`webhooks`の4 scopeを全ページ確認する。Stripe rowの存在自体は観測値であり、danglingな組織参照と同一組織の重複だけをblockingにする。Subscriptionとoperationのplan IDはm045 / m046で別に移行する。  続けて`verifyScheduledBillingJobs`と`verifyBillingNotificationOutbox`も同じ`paginationOpts`で全ページ確認し、`blocking: 0`を必須とする。
+`verifyStripeRows`は`customers`、`subscriptions`、`operations`、`webhooks`の4 scopeを全ページ確認する。Stripe rowの存在自体や同一組織の履歴行は観測値であり、danglingな組織参照とscope固有の一意キー重複だけをblockingにする。一意キーはCustomerが`organizationId`、Subscriptionが`organizationId + providerGeneration`、operationが`organizationId + kind + requestKey`、Webhookが`stripeEventId`である。Subscriptionとoperationのplan IDはm045 / m046で別に移行する。  続けて`verifyScheduledBillingJobs`と`verifyBillingNotificationOutbox`も同じ`paginationOpts`で全ページ確認し、`blocking: 0`を必須とする。
 
 ```bash
 pnpm exec convex run migrations/index:runOrganizationBillingPlanIdsV2 \
