@@ -1110,6 +1110,67 @@ describe("organizationInvitation/mutations", () => {
     ]);
   });
 
+  it("削除済み人物と所属のuserIdが不一致なら管理者招待を発行しない", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const manager = await seedOrganizationManagerShop(ctx, {
+        subject: "mismatched_removed_manager_invite_owner",
+        plan: "pro",
+      });
+      const email = "mismatched-removed-manager@example.com";
+      const personUserId = await seedUser(ctx, "mismatched_removed_manager_person", email);
+      const memberUserId = await seedUser(
+        ctx,
+        "mismatched_removed_manager_member",
+        "different-removed-manager@example.com",
+      );
+      const now = Date.now();
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId: manager.organizationId,
+        userId: personUserId,
+        name: "不整合な削除済み管理者",
+        email,
+        emailNormalized: email,
+        status: "removed",
+        createdAt: now - 10_000,
+        updatedAt: now,
+      });
+      const memberId = await ctx.db.insert("organizationMembers", {
+        organizationId: manager.organizationId,
+        personId,
+        userId: memberUserId,
+        status: "removed",
+        createdAt: now - 10_000,
+        updatedAt: now,
+      });
+      return { manager, email, memberId, memberUserId, personId, personUserId };
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "mismatched_removed_manager_invite_owner" })
+        .mutation(api.organizationInvitation.mutations.createExternal, {
+          shopId: seeded.manager.shopId,
+          name: "不整合な削除済み管理者",
+          email: seeded.email,
+          requestId: "mismatched-removed-manager-invite",
+        }),
+    ).rejects.toThrow("同じメールアドレスのユーザーが複数見つかりました");
+
+    const state = await t.run(async (ctx) => ({
+      invitations: await ctx.db.query("organizationInvitations").collect(),
+      member: await ctx.db.get(seeded.memberId),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+      person: await ctx.db.get(seeded.personId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.invitations).toEqual([]);
+    expect(state.outbox).toEqual([]);
+    expect(state.scheduled).toEqual([]);
+    expect(state.person).toMatchObject({ userId: seeded.personUserId, status: "removed" });
+    expect(state.member).toMatchObject({ userId: seeded.memberUserId, status: "removed" });
+  });
+
   it("対象固定後にアカウント削除された人物の招待を別人物へ付け替えない", async () => {
     const t = convexTest(schema, modules);
     const seeded = await t.run(async (ctx) => {

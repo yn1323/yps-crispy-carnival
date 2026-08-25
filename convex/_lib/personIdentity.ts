@@ -41,6 +41,7 @@ async function isRemovedOrganizationPersonDetached(
       .take(1),
   ]);
   if (members.length > 1) return false;
+  if (members[0] && (!args.person.userId || members[0].userId !== args.person.userId)) return false;
   const activeInvitationsIssuedByMember = members[0]
     ? (
         await Promise.all(
