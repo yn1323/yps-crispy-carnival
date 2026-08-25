@@ -224,6 +224,52 @@ describe("m042 plan ID readiness", () => {
     }
   });
 
+  it("組織未解決のignored Webhookだけを正常な終端として許可する", async () => {
+    const t = createConvexTestWithMigrations();
+    await t.run(async (ctx) => {
+      const danglingOrganizationId = await ctx.db.insert("organizations", {
+        name: "削除済み事業者",
+        isDeleted: true,
+        createdAt: 100,
+        updatedAt: 100,
+      });
+      await ctx.db.delete(danglingOrganizationId);
+      const insertWebhook = async (
+        suffix: string,
+        status: "ignored" | "received",
+        organizationId?: Id<"organizations">,
+      ) =>
+        await ctx.db.insert("stripeWebhookEvents", {
+          stripeEventId: `evt_${suffix}`,
+          type: "customer.subscription.updated",
+          livemode: false,
+          objectId: `sub_${suffix}`,
+          ...(organizationId ? { organizationId } : {}),
+          eventCreatedAt: 100,
+          status,
+          attemptCount: status === "ignored" ? 1 : 0,
+          ...(status === "ignored" ? { lastErrorCode: "customer_not_mapped", processedAt: 100 } : {}),
+          receivedAt: 100,
+          expiresAt: 1_100,
+          updatedAt: 100,
+        });
+      await insertWebhook("ignored_unscoped", "ignored");
+      await insertWebhook("received_unscoped", "received");
+      await insertWebhook("ignored_dangling", "ignored", danglingOrganizationId);
+    });
+
+    const result = await t.query(internal.migrations.m042_organization_billing_plan_ids_v2_readiness.verifyStripeRows, {
+      scope: "webhooks",
+      paginationOpts: firstPage,
+    });
+    expect(result.totals).toEqual({
+      stripeRows: 3,
+      danglingOrganization: 2,
+      rowsWithDuplicateLogicalKey: 0,
+      blocking: 2,
+    });
+  });
+
   it("Stripe各scopeの論理的一意キー重複だけをblockingにする", async () => {
     const t = createConvexTestWithMigrations();
     await t.run(async (ctx) => {

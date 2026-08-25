@@ -216,7 +216,7 @@ async function hasDuplicateLogicalKey(ctx: QueryCtx, scope: StripeScope, row: St
   return siblings.length > 1;
 }
 
-/** Stripe各tableをglobalにpage走査し、orphanやscope固有の一意キー重複を止める。plan IDはm045 / m046で別途確認する。 */
+/** Stripe各tableをglobalにpage走査し、不正な組織参照やscope固有の一意キー重複を止める。plan IDはm045 / m046で別途確認する。 */
 export const verifyStripeRows = internalQuery({
   args: { scope: stripeScopeValidator, paginationOpts: paginationOptsValidator },
   returns: v.object({
@@ -242,7 +242,13 @@ export const verifyStripeRows = internalQuery({
     let rowsWithDuplicateLogicalKey = 0;
     for (const row of result.page) {
       const organizationId = row.organizationId;
-      if (!organizationId || !(await ctx.db.get(organizationId))) {
+      const isUnscopedIgnoredWebhook =
+        scope === "webhooks" && !organizationId && (row as Doc<"stripeWebhookEvents">).status === "ignored";
+      if (!organizationId && !isUnscopedIgnoredWebhook) {
+        danglingOrganization += 1;
+        continue;
+      }
+      if (organizationId && !(await ctx.db.get(organizationId))) {
         danglingOrganization += 1;
         continue;
       }
