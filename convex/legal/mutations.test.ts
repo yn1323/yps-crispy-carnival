@@ -214,7 +214,7 @@ describe("legal/mutations", () => {
     });
 
     expect(shopId).toBeDefined();
-    expect(state?.termsConsentVersion).toBe("manager-terms-consent-2026-08-24-3");
+    expect(state?.termsConsentVersion).toBe("manager-terms-consent-2026-08-26");
     expect(state?.privacyConsentVersion).toBe("manager-privacy-consent-2026-08-13");
     expect(state?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-26");
     expect(state?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-08-13");
@@ -236,7 +236,7 @@ describe("legal/mutations", () => {
         subjectType: "user",
         userId,
         shopId,
-        termsConsentVersion: "manager-terms-consent-2026-08-24-3",
+        termsConsentVersion: "manager-terms-consent-2026-08-26",
         privacyConsentVersion: "manager-privacy-consent-2026-08-13",
         termsDocumentVersion: "manager-terms-doc-old",
         privacyDocumentVersion: "manager-privacy-doc-old",
@@ -257,7 +257,10 @@ describe("legal/mutations", () => {
         .withIndex("by_userId", (q) => q.eq("userId", userId))
         .first();
       if (!state) throw new Error("missing state");
-      await ctx.db.patch(state._id, { termsConsentVersion: "old-terms", privacyConsentVersion: "old-privacy" });
+      await ctx.db.patch(state._id, {
+        termsConsentVersion: "manager-terms-consent-2026-08-24-3",
+        privacyConsentVersion: "manager-privacy-consent-2026-08-13",
+      });
     });
 
     const oldConsentResult = await t

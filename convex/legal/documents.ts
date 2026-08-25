@@ -32,7 +32,7 @@ export const LEGAL_DOCUMENTS = {
       kind: "terms",
       title: "管理ユーザー向け利用規約",
       documentVersion: "manager-terms-doc-2026-08-26",
-      requiredConsentVersion: "manager-terms-consent-2026-08-24-3",
+      requiredConsentVersion: "manager-terms-consent-2026-08-26",
       path: "/terms/manager",
     },
     privacy: {
