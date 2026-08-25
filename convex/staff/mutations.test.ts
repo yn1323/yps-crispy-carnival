@@ -965,7 +965,10 @@ describe("staff/mutations", () => {
       expect(state.audits.filter((audit) => audit.action === "organization.person_reactivated")).toHaveLength(1);
     });
 
-    it("アカウント削除受付済みuserを持つ削除済み人物は通常追加でも再有効化しない", async () => {
+    it.each([
+      ["アカウント削除受付済み", "requested"],
+      ["アカウント削除済み", "deleted"],
+    ] as const)("%sの旧人物を再利用せず、新しい人物として通常追加する", async (_label, userState) => {
       const t = convexTest(schema, modules);
       const seeded = await t.run(async (ctx) => {
         const organization = await seedOrganizationManagerShop(ctx, {
@@ -974,8 +977,11 @@ describe("staff/mutations", () => {
           plan: "pro",
         });
         const removedUserId = await seedUser(ctx, "requested_reactivation_person", "requested-person@example.com");
-        await ctx.db.patch(removedUserId, { accountDeletionRequestedAt: Date.now() });
         const now = Date.now();
+        await ctx.db.patch(
+          removedUserId,
+          userState === "requested" ? { accountDeletionRequestedAt: now } : { isDeleted: true },
+        );
         const removedPersonId = await ctx.db.insert("organizationPeople", {
           organizationId: organization.organizationId,
           userId: removedUserId,
@@ -991,34 +997,59 @@ describe("staff/mutations", () => {
       const actor = t.withIdentity({ subject: "requested_reactivation_manager" });
       const requestId = nextStaffAddRequestId();
       const entries = [{ name: "再追加入力", email: "requested-person@example.com" }];
-      await expect(
-        actor.mutation(api.staff.mutations.addStaffs, {
-          shopId: seeded.shopId,
-          requestId,
-          entries,
-        }),
-      ).rejects.toThrow("このユーザーを追加できません。\nアカウントの状態を確認してください。");
+      const added = await actor.mutation(api.staff.mutations.addStaffs, {
+        shopId: seeded.shopId,
+        requestId,
+        entries,
+      });
+      const staffIds = addedStaffIds(added);
+      expect(staffIds).toHaveLength(1);
 
       const state = await t.run(async (ctx) => ({
-        person: await ctx.db.get(seeded.removedPersonId),
-        user: await ctx.db.get(seeded.removedUserId),
-        staffs: await ctx.db
-          .query("staffs")
-          .withIndex("by_organizationId_and_organizationPersonId", (q) =>
-            q.eq("organizationId", seeded.organizationId).eq("organizationPersonId", seeded.removedPersonId),
+        people: await ctx.db
+          .query("organizationPeople")
+          .withIndex("by_organizationId_and_emailNormalized", (q) =>
+            q.eq("organizationId", seeded.organizationId).eq("emailNormalized", "requested-person@example.com"),
           )
           .collect(),
+        oldPerson: await ctx.db.get(seeded.removedPersonId),
+        newStaff: await ctx.db.get(staffIds[0]),
+        user: await ctx.db.get(seeded.removedUserId),
         audits: await ctx.db.query("organizationAuditEvents").collect(),
         scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
       }));
-      expect(state.person?.status).toBe("removed");
-      expect(state.user).toMatchObject({
-        isDeleted: false,
-        accountDeletionRequestedAt: expect.any(Number),
+      const activePerson = state.people.find((person) => person.status === "active");
+      expect(state.people).toHaveLength(2);
+      expect(state.oldPerson).toMatchObject({
+        _id: seeded.removedPersonId,
+        userId: seeded.removedUserId,
+        status: "removed",
+        name: "削除受付済み人物",
       });
-      expect(state.staffs).toEqual([]);
-      expect(state.audits).toEqual([]);
-      expect(state.scheduled).toEqual([]);
+      expect(activePerson).toMatchObject({
+        name: "再追加入力",
+        email: "requested-person@example.com",
+        status: "active",
+      });
+      expect(activePerson?._id).not.toBe(seeded.removedPersonId);
+      expect(activePerson?.userId).toBeUndefined();
+      expect(state.newStaff).toMatchObject({
+        organizationPersonId: activePerson?._id,
+        name: "再追加入力",
+        email: "requested-person@example.com",
+        isDeleted: false,
+      });
+      expect(state.newStaff?.userId).toBeUndefined();
+      expect(state.user).toMatchObject(
+        userState === "requested"
+          ? { isDeleted: false, accountDeletionRequestedAt: expect.any(Number) }
+          : { isDeleted: true },
+      );
+      expect(state.audits.filter((audit) => audit.action === "organization.staff_added")).toEqual([
+        expect.objectContaining({ targetId: staffIds[0], fromState: "new" }),
+      ]);
+      expect(state.audits.filter((audit) => audit.action === "organization.person_reactivated")).toEqual([]);
+      expect(state.scheduled).toHaveLength(3);
     });
 
     it("削除済み人物に有効な管理者所属が残る不整合では権限を暗黙復元しない", async () => {

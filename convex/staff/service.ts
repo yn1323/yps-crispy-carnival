@@ -3,6 +3,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { normalizeEmail } from "../_lib/validation";
 import { ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT, SHOP_MEMBERSHIP_STATS_ACTIVE_STAFF_LIMIT } from "../constants";
+import { resolveOrganizationPersonEmail } from "../organization/personIdentity";
 import {
   createOrganizationShopStaffMembershipFingerprint,
   ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT,
@@ -389,19 +390,16 @@ export async function prepareOrganizationPeopleForStaffAddition(
     }
     inputEmails.add(email);
 
-    const matchingPeople = await ctx.db
-      .query("organizationPeople")
-      .withIndex("by_organizationId_and_emailNormalized", (q) =>
-        q.eq("organizationId", args.organizationId).eq("emailNormalized", email),
-      )
-      .take(2);
-    if (matchingPeople.length > 1) {
+    const personResolution = await resolveOrganizationPersonEmail(ctx, {
+      organizationId: args.organizationId,
+      emailNormalized: email,
+    });
+    if (personResolution.kind === "conflict") {
       throw new ConvexError(
         "このメールアドレスのユーザー情報を確認できません。\nユーザー画面で登録内容を確認してください。",
       );
     }
-
-    const person = matchingPeople[0] ?? null;
+    const person = personResolution.kind === "new" ? null : personResolution.person;
 
     let addsPersonToUsage = false;
     if (person) {

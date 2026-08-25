@@ -207,6 +207,7 @@ import type * as organization_managerInvitationState from "../organization/manag
 import type * as organization_migrations from "../organization/migrations.js";
 import type * as organization_mutations from "../organization/mutations.js";
 import type * as organization_personCapabilities from "../organization/personCapabilities.js";
+import type * as organization_personIdentity from "../organization/personIdentity.js";
 import type * as organization_personProfile from "../organization/personProfile.js";
 import type * as organization_personRemoval from "../organization/personRemoval.js";
 import type * as organization_queries from "../organization/queries.js";
@@ -489,6 +490,7 @@ declare const fullApi: ApiFromModules<{
   "organization/migrations": typeof organization_migrations;
   "organization/mutations": typeof organization_mutations;
   "organization/personCapabilities": typeof organization_personCapabilities;
+  "organization/personIdentity": typeof organization_personIdentity;
   "organization/personProfile": typeof organization_personProfile;
   "organization/personRemoval": typeof organization_personRemoval;
   "organization/queries": typeof organization_queries;

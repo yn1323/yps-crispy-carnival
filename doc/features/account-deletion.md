@@ -69,6 +69,7 @@
 - Clerk user IDは処理中jobだけへ一時保存し、完了transactionでredactする。Clerk user ID、secret、session token、provider response本文はログや公開responseへ出さず、secret、session token、provider response本文はDBにも保存しない。
 - 削除済みuserへの`getCurrentUser`は`accountDeleted`と`accountDeletionRequested`のbooleanだけを返し、保持した氏名やメールアドレスを通常画面へ返さない。
 - 再登録したClerkユーザーを、保持している履歴や削除済みuserへ自動で関連付けない。
+- 削除後に同じメールでスタッフ追加、QR申請承認、または管理者招待を行う場合は、削除済みuserに紐づく旧人物を履歴として維持し、新しい人物を作る。旧staff、管理者所属、LINE連携、招待、通知、課金参照は新しい人物へ移さない。
 - 本人からの個人データ消去要求は、本人確認、法務判断、対象データの抽出を伴う別の運用または将来機能として扱う。
 - frontendのbuild-time flagは使わず、アカウント設定では現在の削除可否を常にサーバーへ問い合わせる。既存の所属なしユーザーとlegacy削除済みユーザーには補助入口も表示し、初回セットアップでは表示しない。
 - 必須のClerk設定が揃い、`CLERK_SECRET_KEY`で取得したClerk domainと`CLERK_JWT_ISSUER_DOMAIN`の一致を確認できる場合は常に受付可能とする。

@@ -1520,14 +1520,13 @@ describe("organization/queries.getSettings", () => {
       },
     );
     expect(result?.managerInvitations.find((invitation) => invitation.id === ids.conflictInvitationId)).toMatchObject({
-      status: "conflict",
-      statusDetail: "招待後に、ユーザーまたは契約の状態が変わりました。\n権限・ユーザー・契約状態を確認してください。",
+      status: "pending",
       canResend: false,
       canRevoke: false,
     });
   });
 
-  it("対象未固定の招待と同じメールのremoved人物がいる場合はconflictとして再送を止める", async () => {
+  it("対象未固定の招待と同じメールの通常削除人物がいる場合は再利用可能な招待として表示する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -1566,8 +1565,8 @@ describe("organization/queries.getSettings", () => {
       .query(api.organization.queries.getSettings, { shopId: ids.shopId });
 
     expect(result?.managerInvitations.find((invitation) => invitation.id === ids.invitationId)).toMatchObject({
-      status: "conflict",
-      canResend: false,
+      status: "pending",
+      canResend: true,
       canRevoke: true,
     });
   });

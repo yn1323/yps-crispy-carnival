@@ -2,6 +2,7 @@ import type { GenericDatabaseReader } from "convex/server";
 import type { DataModel, Id } from "../_generated/dataModel";
 import { normalizeEmail } from "../_lib/validation";
 import { ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT } from "../constants";
+import { resolveOrganizationPersonEmail } from "../organization/personIdentity";
 
 type DbCtx = {
   db: GenericDatabaseReader<DataModel>;
@@ -37,15 +38,13 @@ export async function resolveStaffRegistrationApprovalAvailability(
     return STAFF_REGISTRATION_APPROVAL_UNAVAILABLE;
   }
 
-  const matchingPeople = await ctx.db
-    .query("organizationPeople")
-    .withIndex("by_organizationId_and_emailNormalized", (q) =>
-      q.eq("organizationId", args.organizationId).eq("emailNormalized", args.emailNormalized),
-    )
-    .take(2);
-  if (matchingPeople.length > 1) return STAFF_REGISTRATION_APPROVAL_UNAVAILABLE;
+  const personResolution = await resolveOrganizationPersonEmail(ctx, {
+    organizationId: args.organizationId,
+    emailNormalized: args.emailNormalized,
+  });
+  if (personResolution.kind === "conflict") return STAFF_REGISTRATION_APPROVAL_UNAVAILABLE;
 
-  const person = matchingPeople[0];
+  const person = personResolution.kind === "new" ? null : personResolution.person;
   if (!person) return STAFF_REGISTRATION_APPROVAL_AVAILABLE;
 
   const staffRows = await ctx.db

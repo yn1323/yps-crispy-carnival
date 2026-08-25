@@ -32,6 +32,7 @@ import { getOrganizationCreationAvailability, type OrganizationCreationAvailabil
 import { isOrganizationBillingContact } from "./billingContact";
 import { getOrganizationDeletionEligibility } from "./deletion";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
+import { resolveOrganizationPersonEmailForManagerAddition } from "./personIdentity";
 import { isValidOrganizationRecoveryManager, organizationPersonCountsTowardPeopleLimit } from "./service";
 import { organizationShopOperatingStatus } from "./shopMembershipChange";
 import { getOrganizationStaffOrderScope, ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT } from "./staffOrder";
@@ -613,6 +614,20 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
   const managerInvitationMode = "addition" as const;
   const canInviteManager = canInviteManagerAddition;
   const canRevokeInvitation = Boolean(isActiveActor && (canWriteNormally || canRecoverUsageLimits));
+  const managerAdditionPersonResolutionByEmail = new Map<
+    string,
+    ReturnType<typeof resolveOrganizationPersonEmailForManagerAddition>
+  >();
+  const resolveManagerAdditionPersonByEmail = (emailNormalized: string) => {
+    const cached = managerAdditionPersonResolutionByEmail.get(emailNormalized);
+    if (cached) return cached;
+    const resolution = resolveOrganizationPersonEmailForManagerAddition(ctx, {
+      organizationId: organization._id,
+      emailNormalized,
+    });
+    managerAdditionPersonResolutionByEmail.set(emailNormalized, resolution);
+    return resolution;
+  };
   const managerInvitations = await Promise.all(
     invitationDocs.map(async (invitation) => {
       const lifecycleStatus = getOrganizationInvitationLifecycleStatus(invitation);
@@ -655,19 +670,29 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
       const canRetryStatus = lifecycleStatus === "issued" || lifecycleStatus === "expired";
       const eligibility = canRetryStatus ? await resolveOrganizationInvitationEligibility(ctx, invitation) : null;
       const targetPerson = invitation.targetPersonId ? await ctx.db.get(invitation.targetPersonId) : null;
+      const targetResolution = canRetryStatus
+        ? await resolveManagerAdditionPersonByEmail(invitation.emailNormalized)
+        : null;
+      const resolvedPerson =
+        targetResolution?.kind === "active" || targetResolution?.kind === "removed" ? targetResolution.person : null;
       const targetPersonMismatch = Boolean(
-        invitation.targetPersonId &&
+        canRetryStatus &&
+          invitation.targetPersonId &&
           (!targetPerson ||
             targetPerson.organizationId !== organization._id ||
-            targetPerson.emailNormalized !== invitation.emailNormalized),
+            targetPerson.emailNormalized !== invitation.emailNormalized ||
+            resolvedPerson?._id !== targetPerson._id),
       );
-      const matchingPeople = invitation.targetPersonId
-        ? targetPerson && !targetPersonMismatch
-          ? [targetPerson]
-          : []
-        : peopleDocs.filter((person) => person.emailNormalized === invitation.emailNormalized);
-      const existingPerson =
-        matchingPeople.length === 1 && matchingPeople[0].status === "active" ? matchingPeople[0] : null;
+      const matchingPeople = !canRetryStatus
+        ? []
+        : invitation.targetPersonId
+          ? targetPerson && !targetPersonMismatch
+            ? [targetPerson]
+            : []
+          : resolvedPerson
+            ? [resolvedPerson]
+            : [];
+      const existingPerson = matchingPeople.length === 1 ? matchingPeople[0] : null;
       const existingPersonCounts = existingPerson
         ? await organizationPersonCountsTowardPeopleLimit(ctx, organization._id, existingPerson._id)
         : false;
@@ -688,8 +713,8 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
       const hasTargetConflict = Boolean(
         canRetryStatus &&
           (targetPersonMismatch ||
+            targetResolution?.kind === "conflict" ||
             matchingPeople.length > 1 ||
-            matchingPeople[0]?.status === "removed" ||
             (existingPerson && managerRoleByPersonId.get(existingPerson._id) === "active") ||
             (!eligibility && !isExpired)),
       );
@@ -1567,17 +1592,20 @@ export async function getCanonicalManagerSettingsOverview(
   for (const invitation of activeInvitations.invitations) {
     const purpose = getOrganizationInvitationPurpose(invitation);
     const targetPerson = invitation.targetPersonId ? await ctx.db.get(invitation.targetPersonId) : null;
+    const targetResolution = await resolveOrganizationPersonEmailForManagerAddition(ctx, {
+      organizationId: organization._id,
+      emailNormalized: invitation.emailNormalized,
+    });
+    const resolvedPerson =
+      targetResolution.kind === "active" || targetResolution.kind === "removed" ? targetResolution.person : null;
     const matchingPeople = invitation.targetPersonId
-      ? targetPerson
+      ? targetPerson && resolvedPerson?._id === targetPerson._id
         ? [targetPerson]
         : []
-      : await ctx.db
-          .query("organizationPeople")
-          .withIndex("by_organizationId_and_emailNormalized", (q) =>
-            q.eq("organizationId", organization._id).eq("emailNormalized", invitation.emailNormalized),
-          )
-          .take(2);
-    const effectiveTargetPerson = targetPerson ?? (matchingPeople.length === 1 ? matchingPeople[0] : null);
+      : resolvedPerson
+        ? [resolvedPerson]
+        : [];
+    const effectiveTargetPerson = matchingPeople.length === 1 ? matchingPeople[0] : null;
     const effectiveTargetEmail = effectiveTargetPerson
       ? requiredEmailSchema.safeParse(effectiveTargetPerson.email)
       : null;
@@ -1590,10 +1618,10 @@ export async function getCanonicalManagerSettingsOverview(
           .take(2)
       : [];
     const targetConflict = Boolean(
-      (invitation.targetPersonId && !targetPerson) ||
+      targetResolution.kind === "conflict" ||
+        (invitation.targetPersonId && (!targetPerson || resolvedPerson?._id !== targetPerson._id)) ||
         (effectiveTargetPerson &&
           (effectiveTargetPerson.organizationId !== organization._id ||
-            effectiveTargetPerson.status !== "active" ||
             effectiveTargetPerson.emailNormalized !== invitation.emailNormalized ||
             !effectiveTargetEmail?.success ||
             normalizeEmail(effectiveTargetEmail.data) !== invitation.emailNormalized)) ||

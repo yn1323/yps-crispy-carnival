@@ -496,7 +496,7 @@ describe("organization manager settings queries", () => {
     });
   });
 
-  it("外部招待後に同emailの不適格人物が現れた場合は再送不可のconflictへ閉じる", async () => {
+  it("外部招待後に同emailの通常削除人物が現れても再利用可能な招待として表示する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -527,8 +527,9 @@ describe("organization manager settings queries", () => {
       invitations: [
         {
           invitationId: ids.invitationId,
-          status: "conflict",
-          canResend: false,
+          name: "削除済みの人物",
+          status: "pending",
+          canResend: true,
           canRevoke: true,
         },
       ],

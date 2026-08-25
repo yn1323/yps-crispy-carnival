@@ -4,6 +4,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { normalizeEmail } from "../_lib/validation";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
+import { resolveOrganizationPersonEmail } from "./personIdentity";
 
 type OrganizationPersonProfileMutationCtx = MutationCtx;
 
@@ -30,13 +31,15 @@ export async function updateOrganizationPersonProfile(
   }
 
   const emailNormalized = normalizeEmail(args.email);
-  const matchingPeople = await ctx.db
-    .query("organizationPeople")
-    .withIndex("by_organizationId_and_emailNormalized", (q) =>
-      q.eq("organizationId", args.organizationId).eq("emailNormalized", emailNormalized),
-    )
-    .take(2);
-  if (matchingPeople.some((candidate) => candidate._id !== person._id)) {
+  const personResolution = await resolveOrganizationPersonEmail(ctx, {
+    organizationId: args.organizationId,
+    emailNormalized,
+  });
+  if (
+    personResolution.kind === "conflict" ||
+    personResolution.kind === "removed" ||
+    (personResolution.kind === "active" && personResolution.person._id !== person._id)
+  ) {
     throw new ConvexError("このメールアドレスは、組織内の別のユーザーが使用しています。");
   }
 

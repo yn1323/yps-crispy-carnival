@@ -1960,6 +1960,68 @@ describe("organization person profile update", () => {
     ).toHaveLength(2);
   });
 
+  it("同じメールのアカウント削除履歴が残っていても現役人物のプロフィールを更新する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "profile_with_terminal_history_actor",
+        email: "profile-with-terminal-history@example.com",
+        plan: "pro",
+      });
+      const oldUserId = await seedUser(
+        ctx,
+        "profile_with_terminal_history_old",
+        "profile-with-terminal-history@example.com",
+      );
+      const now = Date.now();
+      await ctx.db.patch(oldUserId, { isDeleted: true, accountDeletionRequestedAt: now });
+      const oldPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: base.organizationId,
+        userId: oldUserId,
+        name: "削除済みの旧人物",
+        email: "profile-with-terminal-history@example.com",
+        emailNormalized: "profile-with-terminal-history@example.com",
+        status: "removed",
+        createdAt: now - 10_000,
+        updatedAt: now,
+      });
+      await ctx.db.insert("organizationMembers", {
+        organizationId: base.organizationId,
+        personId: oldPersonId,
+        userId: oldUserId,
+        status: "removed",
+        createdAt: now - 10_000,
+        updatedAt: now,
+      });
+      return { ...base, oldPersonId, oldUserId };
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "profile_with_terminal_history_actor" })
+        .mutation(api.organization.mutations.updatePersonProfile, {
+          shopId: ids.shopId,
+          personId: ids.personId,
+          name: "更新後の現役人物",
+          email: "profile-with-terminal-history@example.com",
+          requestId: "profile-with-terminal-history",
+        }),
+    ).resolves.toEqual({ changed: true });
+
+    const state = await t.run(async (ctx) => ({
+      activePerson: await ctx.db.get(ids.personId),
+      oldPerson: await ctx.db.get(ids.oldPersonId),
+      oldUser: await ctx.db.get(ids.oldUserId),
+    }));
+    expect(state.activePerson).toMatchObject({
+      name: "更新後の現役人物",
+      email: "profile-with-terminal-history@example.com",
+      status: "active",
+    });
+    expect(state.oldPerson).toMatchObject({ _id: ids.oldPersonId, name: "削除済みの旧人物", status: "removed" });
+    expect(state.oldUser).toMatchObject({ _id: ids.oldUserId, isDeleted: true });
+  });
+
   it("組織内の別人物が使うメールアドレスへの変更を拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {

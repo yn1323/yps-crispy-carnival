@@ -494,7 +494,55 @@ describe("staffRegistration/queries", () => {
     });
 
     it.each([
-      ["アカウント削除受付済み", "accountDeletion"],
+      ["アカウント削除受付済み", "requested"],
+      ["アカウント削除済み", "deleted"],
+    ] as const)("%sの旧人物と同じemailの申請は新しい人物として承認可能にする", async (_label, userState) => {
+      const t = convexTest(schema, modules);
+      const { shopId, subject } = await t.run(async (ctx) => {
+        const subject = `terminal_registration_person_${userState}`;
+        const seeded = await seedOrganizationManagerShop(ctx, { subject, complimentary: true });
+        const now = Date.now();
+        const email = `terminal-registration-${userState}@example.com`;
+        const userId = await seedUser(ctx, `${subject}_person`, email);
+        await ctx.db.patch(
+          userId,
+          userState === "requested" ? { accountDeletionRequestedAt: now } : { isDeleted: true },
+        );
+        await ctx.db.insert("organizationPeople", {
+          organizationId: seeded.organizationId,
+          userId,
+          name: "旧人物",
+          email,
+          emailNormalized: email,
+          status: "removed",
+          createdAt: now,
+          updatedAt: now,
+        });
+        await ctx.db.insert("staffRegistrationRequests", {
+          shopId: seeded.shopId,
+          name: "再登録申請",
+          email,
+          emailNormalized: email,
+          status: "pending",
+          termsConsentVersion: "terms-consent",
+          privacyConsentVersion: "privacy-consent",
+          termsDocumentVersion: "terms-document",
+          privacyDocumentVersion: "privacy-document",
+          consentedAt: now,
+          createdAt: now,
+        });
+        return { shopId: seeded.shopId, subject };
+      });
+
+      const result = await t.withIdentity({ subject }).query(api.staffRegistration.queries.getPendingRequests, {
+        shopId,
+      });
+      expect(result).toEqual([
+        expect.objectContaining({ name: "再登録申請", canApprove: true, approveDisabledReason: null }),
+      ]);
+    });
+
+    it.each([
       ["activeな旧staffあり", "activeStaff"],
       ["activeな管理者所属あり", "activeManagerMembership"],
       ["activeなcanonical LINE連携あり", "activeCanonicalLine"],
@@ -505,11 +553,8 @@ describe("staffRegistration/queries", () => {
         const seeded = await seedOrganizationManagerShop(ctx, { subject, complimentary: true });
         const now = Date.now();
         const email = `${state.toLowerCase()}@example.com`;
-        const needsUser = state === "accountDeletion" || state === "activeManagerMembership";
+        const needsUser = state === "activeManagerMembership";
         const userId = needsUser ? await seedUser(ctx, `${subject}_person`, email) : undefined;
-        if (state === "accountDeletion" && userId) {
-          await ctx.db.patch(userId, { accountDeletionRequestedAt: now });
-        }
         const personId = await ctx.db.insert("organizationPeople", {
           organizationId: seeded.organizationId,
           ...(userId ? { userId } : {}),
