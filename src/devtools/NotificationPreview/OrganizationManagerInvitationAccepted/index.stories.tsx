@@ -1,5 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { buildOrganizationBillingEmailHtml } from "@/convex/notification/templates";
+import {
+  buildOrganizationBillingEmailHtml,
+  ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA,
+  ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT,
+} from "@/convex/notification/templates";
 import {
   EmailNotificationPreview,
   notificationPreviewFixtures as fixtures,
@@ -15,20 +19,19 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const acceptedHeading = "管理者のアカウント連携が完了しました";
-
 export const Email: Story = {
   render: () => (
     <NotificationPreviewStoryFrame>
       <EmailNotificationPreview
         label="組織管理者招待の承認完了"
-        subject={organizationSubject(acceptedHeading)}
+        subject={organizationSubject(ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT)}
         html={buildOrganizationBillingEmailHtml({
           recipientName: fixtures.managerName,
           organizationName: fixtures.organizationName,
-          heading: acceptedHeading,
-          paragraphs: ["新しい管理者のアカウントが組織に連携されました。"],
-          action: { label: "管理者設定を確認する", url: fixtures.managerSettingsUrl },
+          heading: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT,
+          headingSize: "normal",
+          paragraphs: [],
+          action: { label: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA, url: fixtures.managerSettingsUrl },
         })}
       />
     </NotificationPreviewStoryFrame>

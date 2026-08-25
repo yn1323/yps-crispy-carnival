@@ -946,6 +946,11 @@ describe("organizationInvitation/mutations", () => {
     expect(acceptanceJobs.every((job) => job.payload.suppressDelivery === true)).toBe(true);
     for (const job of acceptanceJobs) {
       if (job.payload.kind !== "email") throw new Error("email payload expected");
+      expect(job.payload.subject).toContain("管理者アカウント連携が完了しました。");
+      expect(job.payload.html).toContain(
+        'font-size:15px;font-weight:700;color:#1a202c;">管理者アカウント連携が完了しました。</p>',
+      );
+      expect(job.payload.html).not.toContain("新しい管理者のアカウントが組織に連携されました。");
       const actionUrl = extractManagerSettingsActionUrl(job.payload.html);
       expect(actionUrl.pathname).toBe("/manage/managers");
       expect([...actionUrl.searchParams.entries()]).toEqual([["org", manager.organizationId]]);
@@ -4235,7 +4240,7 @@ function testAuthTokenIdentifierForSubject(subject: string) {
 }
 
 function extractManagerSettingsActionUrl(html: string) {
-  const href = html.match(/<a href="([^"]+)"[^>]*>管理者設定を確認する<\/a>/)?.[1];
+  const href = html.match(/<a href="([^"]+)"[^>]*>シフトリを確認する<\/a>/)?.[1];
   if (!href) throw new Error("manager settings action URL not found");
   return new URL(href.replaceAll("&amp;", "&"));
 }

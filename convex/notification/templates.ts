@@ -27,13 +27,13 @@ const SHIFT_SUBMISSION_REMINDER_CTA = "希望シフトを提出する";
 const SHIFT_SUBMISSION_REMINDER_PERIOD = (periodLabel: string) =>
   `${periodLabel}の希望シフトの提出期限が近づいています。`;
 const SHIFT_SUBMISSION_REMINDER_PENDING = "締切までに提出をお願いします。";
-const SHIFT_SUBMISSION_CORRECTION_NOTE = "提出後も締切までは上記リンクから訂正が可能です。";
+const SHIFT_SUBMISSION_CORRECTION_NOTE = "提出後も締切まではリンクから訂正が可能です。";
 const SHIFTORI_CONFIRMATION_CTA = "シフトリで確認する";
 const SHIFT_CONFIRMATION_REMINDER_PERIOD = (periodLabel: string) => `${periodLabel}のシフトが締め切りました。`;
-const SHIFT_CONFIRMATION_REMINDER_ACTION = "スタッフの希望を確認し、シフトの調整・確定してください。";
+const SHIFT_CONFIRMATION_REMINDER_ACTION = "シフトの調整・確定してください。";
 const SHOP_ACTIVATION_CTA = "シフトリでシフトを作成する";
 const STAFF_REGISTRATION_OWNER_MESSAGE = "スタッフ登録申請が届いています。";
-const STAFF_REGISTRATION_OWNER_DETAIL = "シフトリで確認してください。";
+const STAFF_REGISTRATION_OWNER_DETAIL = "シフトリで確認して承認してください。";
 const STAFF_REGISTRATION_OWNER_CTA = SHIFTORI_CONFIRMATION_CTA;
 export const STAFF_LEGAL_CONSENT_SUBJECT = "シフトリの使い方のご案内";
 const STAFF_LEGAL_CONSENT_CTA = "シフトリの使い方を確認する";
@@ -464,6 +464,7 @@ type OrganizationBillingEmailParams = {
   recipientName: string;
   organizationName: string;
   heading: string;
+  headingSize?: "normal";
   paragraphs: readonly string[];
   action?: {
     label: string;
@@ -472,6 +473,8 @@ type OrganizationBillingEmailParams = {
 };
 
 export const ORGANIZATION_MANAGER_INVITATION_SUBJECT = "管理者として招待されました";
+export const ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT = "管理者アカウント連携が完了しました。";
+export const ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA = "シフトリを確認する";
 
 type OrganizationManagerInvitationEmailParams = {
   recipientName: string;
@@ -517,7 +520,7 @@ export function buildOrganizationManagerInvitationEmailHtml(params: Organization
 
           <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#1a202c;">2. 管理者になるとできること</p>
           <ul style="margin:0 0 24px;padding-left:24px;font-size:15px;color:#1a202c;">
-            <li style="margin:0 0 8px;">希望シフトの募集開始</li>
+            <li style="margin:0 0 8px;">希望シフトの募集</li>
             <li style="margin:0 0 8px;">シフトの調整</li>
             <li style="margin:0 0 8px;">シフトの確定</li>
             <li style="margin:0 0 8px;">スタッフ管理</li>
@@ -528,7 +531,7 @@ export function buildOrganizationManagerInvitationEmailHtml(params: Organization
           <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">管理者になるためには、アカウント登録が必要です。</p>
           <ol style="margin:0 0 24px;padding-left:24px;font-size:15px;color:#1a202c;">
             <li style="margin:0 0 8px;">「シフトリの管理者招待を受け取る」ボタンを押す</li>
-            <li>シフトリでアカウントを作成する（すでにお持ちの場合はログインする）</li>
+            <li>シフトリでアカウントを作成する<br />（すでにお持ちの場合はログインする）</li>
           </ol>
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
@@ -560,6 +563,7 @@ export function buildOrganizationBillingEmailHtml(params: OrganizationBillingEma
   const recipientName = escapeEmailHtml(params.recipientName);
   const organizationName = escapeEmailHtml(params.organizationName);
   const heading = escapeEmailHtml(params.heading);
+  const headingFontSize = params.headingSize === "normal" ? "15px" : "18px";
   const paragraphs = params.paragraphs
     .map(
       (paragraph) =>
@@ -587,7 +591,7 @@ export function buildOrganizationBillingEmailHtml(params: OrganizationBillingEma
         <tr><td style="padding:32px 24px;">
           <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${recipientName}さん</p>
           <p style="margin:0 0 8px;font-size:13px;color:#718096;">${organizationName}</p>
-          <p style="margin:0 0 24px;font-size:18px;font-weight:700;color:#1a202c;">${heading}</p>
+          <p style="margin:0 0 24px;font-size:${headingFontSize};font-weight:700;color:#1a202c;">${heading}</p>
           ${paragraphs}
           ${action}
 
@@ -717,7 +721,7 @@ export function buildRecruitmentEmailHtml(params: RecruitmentEmailParams): strin
             </td></tr>
           </table>
 
-          <p style="margin:0 0 24px;font-size:13px;color:#718096;">提出後も締切までは上記リンクから訂正が可能です。</p>
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">${SHIFT_SUBMISSION_CORRECTION_NOTE}</p>
 
           ${params.lineCtaHtml ?? ""}
 
@@ -941,8 +945,8 @@ export function buildStaffRegistrationOwnerDigestEmailHtml(
 export const NOTIFICATION_FAILURE_REMINDER_SUBJECT = "送れなかった通知があります";
 
 const NOTIFICATION_FAILURE_TITLE = "⚠️ 一部通知に失敗";
-const NOTIFICATION_FAILURE_STAFF_MESSAGE = "一部のスタッフに通知が正常に送信できませんでした。";
-const NOTIFICATION_FAILURE_DETAIL = "詳細はシフトリを確認ください。";
+const NOTIFICATION_FAILURE_STAFF_MESSAGE = "正常に送信できなかった通知があります。";
+const NOTIFICATION_FAILURE_DETAIL = "詳細はシフトリを確認してください。";
 
 type NotificationFailureReminderParams = {
   dashboardUrl: string;

@@ -33,6 +33,8 @@ import {
   buildStaffRegistrationOwnerDigestLineFlexMessage,
   buildStaffRegistrationOwnerDigestLineText,
   type NotificationLineFlexMessage,
+  ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA,
+  ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT,
   SHOP_ACTIVATION_REMINDER_SUBJECT,
   STAFF_LEGAL_CONSENT_SUBJECT,
   STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT,
@@ -62,7 +64,7 @@ describe("notification/templates", () => {
         "スタッフの希望収集からシフト作成・共有までを支えるシフト管理サービスです。",
         "シフトリを見る",
         "2. 管理者になるとできること",
-        "希望シフトの募集開始",
+        "希望シフトの募集",
         "シフトの調整",
         "シフトの確定",
         "スタッフ管理",
@@ -147,7 +149,7 @@ describe("notification/templates", () => {
           managerName: dangerousText,
           dashboardUrl: dangerousUrl,
         }),
-      staticMarkup: ["一部のスタッフに通知が正常に送信できませんでした。", "詳細はシフトリを確認ください。"],
+      staticMarkup: ["正常に送信できなかった通知があります。", "詳細はシフトリを確認してください。"],
     },
     {
       name: "店舗登録後リマインド",
@@ -225,7 +227,7 @@ describe("notification/templates", () => {
     );
     const appLinkIndex = html.indexOf(">シフトリを見る</a>");
     const capabilityHeadingIndex = html.indexOf("2. 管理者になるとできること");
-    const capabilityListIndex = html.indexOf("希望シフトの募集開始");
+    const capabilityListIndex = html.indexOf("希望シフトの募集");
     const procedureHeadingIndex = html.indexOf("3. シフトリの管理者になる操作手順");
     const accountRequirementIndex = html.indexOf("管理者になるためには、アカウント登録が必要です。");
     const procedureStepIndex = html.indexOf("「シフトリの管理者招待を受け取る」ボタンを押す");
@@ -249,7 +251,7 @@ describe("notification/templates", () => {
     expect(html).not.toContain("管理者はシフトリへのアカウント登録が必要となります。");
     expect(html).not.toContain("すでに登録済みのアカウントがある場合は");
     expect(html).toContain("「シフトリの管理者招待を受け取る」ボタンを押す");
-    expect(html).toContain("シフトリでアカウントを作成する（すでにお持ちの場合はログインする）");
+    expect(html).toContain("シフトリでアカウントを作成する<br />（すでにお持ちの場合はログインする）");
     expect(html).toContain('href="https://shiftori.app"');
     expect(html).toContain(">シフトリを見る</a>");
     expect(html).toContain(
@@ -258,6 +260,24 @@ describe("notification/templates", () => {
     expect(html).toContain('href="https://shiftori.app/help"');
     expect(html).toContain("このリンクは7日間有効です。");
     expect(html).not.toContain("一度だけ使用できます。");
+  });
+
+  it("管理者連携完了メールは完了文を通常サイズで表示し、補足文を表示しない", () => {
+    const html = buildOrganizationBillingEmailHtml({
+      recipientName: "佐藤 店長",
+      organizationName: "さくらフードサービス",
+      heading: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT,
+      headingSize: "normal",
+      paragraphs: [],
+      action: { label: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA, url: "https://shiftori.app/manage/managers" },
+    });
+
+    expect(html).toContain(
+      `font-size:15px;font-weight:700;color:#1a202c;">${ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT}</p>`,
+    );
+    expect(html).not.toContain('font-size:18px;font-weight:700;color:#1a202c;">');
+    expect(html).not.toContain("新しい管理者のアカウントが組織に連携されました。");
+    expect(html).toContain(`>${ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA}</a>`);
   });
 
   it("メール本文の文間改行はHTMLをescapeしたまま表示改行へ変換する", () => {
@@ -334,7 +354,8 @@ describe("notification/templates", () => {
     const flex = buildRecruitmentLineFlexMessage(params);
     const copy = `${emailHtml}\n${lineText}\n${flex.altText}\n${flexTexts(flex).join("\n")}`;
 
-    expect(copy).toContain("提出後も締切までは上記リンクから訂正が可能です。");
+    expect(copy).toContain("提出後も締切まではリンクから訂正が可能です。");
+    expect(copy).not.toContain("提出後も締切までは上記リンクから訂正が可能です。");
     expect(copy).toContain("シフト希望を提出する");
     expect(copy).not.toContain("希望シフトを提出する");
     expect(copy).not.toContain("提出・修正は締切までです。");
@@ -357,10 +378,26 @@ describe("notification/templates", () => {
     expect(copy).toContain("7/2(木)〜7/30(木)の希望シフトの提出期限が近づいています。");
     expect(copy).toContain("締切までに提出をお願いします。");
     expect(copy).toContain("希望シフトを提出する");
-    expect(copy).toContain("提出後も締切までは上記リンクから訂正が可能です。");
+    expect(copy).toContain("提出後も締切まではリンクから訂正が可能です。");
+    expect(copy).not.toContain("提出後も締切までは上記リンクから訂正が可能です。");
     expect(copy).not.toContain("シフト希望の提出締切が近づいています。");
     expect(copy).not.toContain("まだ提出していない場合は、締切までにシフト希望を提出してください。");
     expect(copy).not.toContain("提出・修正は締切までです。");
+  });
+
+  it("シフト確定リマインダーは調整・確定の案内をメールとLINEで共通表示する", () => {
+    const params = {
+      periodLabel: "7/2(木)〜7/30(木)",
+      deadlineLabel: "6/30(火) 23:59",
+      dashboardUrl: "https://shiftori.app/dashboard",
+    };
+    const emailHtml = buildShiftConfirmationReminderEmailHtml({ managerName: "佐藤 店長", ...params });
+    const lineText = buildShiftConfirmationReminderLineText(params);
+    const flex = buildShiftConfirmationReminderLineFlexMessage({ shopName: "テスト店舗", ...params });
+    const copy = `${emailHtml}\n${lineText}\n${flex.altText}\n${flexTexts(flex).join("\n")}`;
+
+    expect(copy).toContain("シフトの調整・確定してください。");
+    expect(copy).not.toContain("スタッフの希望を確認し、");
   });
 
   it("通知失敗案内は失敗内容とシフトリで確認するCTAを表示する", () => {
@@ -373,17 +410,15 @@ describe("notification/templates", () => {
       dashboardUrl: "https://shiftori.app/dashboard",
     });
 
-    expect(emailHtml).toContain(
-      "一部のスタッフに通知が正常に送信できませんでした。<br />詳細はシフトリを確認ください。",
-    );
+    expect(emailHtml).toContain("正常に送信できなかった通知があります。<br />詳細はシフトリを確認してください。");
     expect(emailHtml).toContain(">シフトリで確認する</a>");
     expect(emailHtml).toContain("このメールは送信専用です。</p>");
     expect(emailHtml).not.toContain("返信しても届きません。");
     expect(flexTexts(flex)).toEqual(
       expect.arrayContaining([
         "テスト店舗\n⚠️ 一部通知に失敗",
-        "一部のスタッフに通知が正常に送信できませんでした。",
-        "詳細はシフトリを確認ください。",
+        "正常に送信できなかった通知があります。",
+        "詳細はシフトリを確認してください。",
       ]),
     );
     expect(flexButtonLabels(flex)).toContain("シフトリで確認する");
@@ -717,7 +752,7 @@ describe("notification/templates", () => {
       {
         message: buildNotificationFailureReminderLineFlexMessage({ shopName: "テスト店舗", dashboardUrl }),
         title: "テスト店舗\n⚠️ 一部通知に失敗",
-        text: "一部のスタッフに通知が正常に送信できませんでした。",
+        text: "正常に送信できなかった通知があります。",
         label: "シフトリで確認する",
         uri: `${dashboardUrl}&openExternalBrowser=1`,
       },
@@ -769,17 +804,24 @@ describe("notification/templates", () => {
       managerName: "店長",
       dashboardUrl,
     });
+    const flex = buildStaffRegistrationOwnerDigestLineFlexMessage({
+      shopName: "テスト店舗",
+      dashboardUrl,
+    });
 
     expect(formatResendSubject("テスト店舗", STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT)).toBe(
       "【シフトリ：テスト店舗】スタッフ登録申請が届いています",
     );
     expect(lineText.startsWith("📝 スタッフ登録申請\n")).toBe(true);
     expect(lineText).toContain("スタッフ登録申請が届いています。");
-    expect(lineText).toContain("シフトリで確認してください。");
+    expect(lineText).toContain("シフトリで確認して承認してください。");
     expect(lineText).toContain(`${dashboardUrl}&openExternalBrowser=1`);
     expect(emailHtml).toContain("スタッフ登録申請が届いています。");
-    expect(emailHtml).toContain("シフトリで確認してください。");
+    expect(emailHtml).toContain("シフトリで確認して承認してください。");
     expect(emailHtml).toContain("シフトリで確認する");
+    expect(flexTexts(flex)).toEqual(
+      expect.arrayContaining(["スタッフ登録申請が届いています。", "シフトリで確認して承認してください。"]),
+    );
     expect(emailHtml).toContain(dashboardUrl.replaceAll("&", "&amp;"));
     expect(`${lineText}\n${emailHtml}`).not.toContain("申請スタッフ");
     expect(`${lineText}\n${emailHtml}`).not.toContain("request@example.com");

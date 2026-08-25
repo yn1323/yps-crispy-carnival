@@ -714,7 +714,7 @@ describe("notificationOutbox/actions", () => {
     expect(requestBody.html).toContain('href="https://app.example.com/base"');
     expect(requestBody.html).toContain(">シフトリを見る</a>");
     expect(requestBody.html).toContain("2. 管理者になるとできること");
-    expect(requestBody.html).toContain("希望シフトの募集開始");
+    expect(requestBody.html).toContain("希望シフトの募集");
     expect(requestBody.html).toContain("シフトの調整");
     expect(requestBody.html).toContain("シフトの確定");
     expect(requestBody.html).toContain("スタッフ管理");
@@ -1964,7 +1964,7 @@ async function setupOrganizationInvitationAcceptanceNotificationJob() {
         kind: "email",
         from: "シフトリ <noreply@example.com>",
         to: "manager@example.com",
-        subject: "管理者のアカウント連携が完了しました",
+        subject: "管理者アカウント連携が完了しました。",
         html: "<p>test</p>",
         context: "organizationInvitation.linked",
       },
