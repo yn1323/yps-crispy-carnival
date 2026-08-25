@@ -506,7 +506,7 @@ export function buildOrganizationManagerInvitationEmailHtml(params: Organization
         <tr><td style="padding:32px 24px;">
           <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${recipientName}さん</p>
           <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${organizationName}の${inviterName}さんから、管理者として招待されました。</p>
-          <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#1a202c;">シフトリとは</p>
+          <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#1a202c;">1. シフトリとは？</p>
           <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">スタッフの希望収集からシフト作成・共有までを支えるシフト管理サービスです。</p>
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
@@ -515,9 +515,17 @@ export function buildOrganizationManagerInvitationEmailHtml(params: Organization
             </td></tr>
           </table>
 
-          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">シフトの募集、調整、共有が可能になります。</p>
-          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">管理者はシフトリへのアカウント登録が必要となります。<br />すでに登録済みのアカウントがある場合は、そのアカウントに紐づけることも可能です。</p>
-          <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#1a202c;">シフトリの管理者になる操作手順</p>
+          <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#1a202c;">2. 管理者になるとできること</p>
+          <ul style="margin:0 0 24px;padding-left:24px;font-size:15px;color:#1a202c;">
+            <li style="margin:0 0 8px;">希望シフトの募集開始</li>
+            <li style="margin:0 0 8px;">シフトの調整</li>
+            <li style="margin:0 0 8px;">シフトの確定</li>
+            <li style="margin:0 0 8px;">スタッフ管理</li>
+            <li>店舗作成など</li>
+          </ul>
+
+          <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#1a202c;">3. シフトリの管理者になる操作手順</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">管理者になるためには、アカウント登録が必要です。</p>
           <ol style="margin:0 0 24px;padding-left:24px;font-size:15px;color:#1a202c;">
             <li style="margin:0 0 8px;">「シフトリの管理者招待を受け取る」ボタンを押す</li>
             <li>シフトリでアカウントを作成する（すでにお持ちの場合はログインする）</li>

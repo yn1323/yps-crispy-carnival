@@ -58,12 +58,17 @@ describe("notification/templates", () => {
           invitationUrl: dangerousUrl,
         }),
       staticMarkup: [
-        "シフトリとは",
+        "1. シフトリとは？",
         "スタッフの希望収集からシフト作成・共有までを支えるシフト管理サービスです。",
         "シフトリを見る",
-        "シフトの募集、調整、共有が可能になります。",
-        "管理者はシフトリへのアカウント登録が必要となります。",
-        "シフトリの管理者になる操作手順",
+        "2. 管理者になるとできること",
+        "希望シフトの募集開始",
+        "シフトの調整",
+        "シフトの確定",
+        "スタッフ管理",
+        "店舗作成など",
+        "3. シフトリの管理者になる操作手順",
+        "管理者になるためには、アカウント登録が必要です。",
         "シフトリの管理者招待を受け取る",
         "このリンクは7日間有効です。",
         "シフトリのヘルプページを見る",
@@ -219,15 +224,30 @@ describe("notification/templates", () => {
       "スタッフの希望収集からシフト作成・共有までを支えるシフト管理サービスです。",
     );
     const appLinkIndex = html.indexOf(">シフトリを見る</a>");
-    const capabilityIndex = html.indexOf("シフトの募集、調整、共有が可能になります。");
+    const capabilityHeadingIndex = html.indexOf("2. 管理者になるとできること");
+    const capabilityListIndex = html.indexOf("希望シフトの募集開始");
+    const procedureHeadingIndex = html.indexOf("3. シフトリの管理者になる操作手順");
+    const accountRequirementIndex = html.indexOf("管理者になるためには、アカウント登録が必要です。");
+    const procedureStepIndex = html.indexOf("「シフトリの管理者招待を受け取る」ボタンを押す");
 
     expect(recipientIndex).toBeGreaterThan(-1);
     expect(recipientIndex).toBeLessThan(invitationSourceIndex);
     expect(serviceDescriptionIndex).toBeLessThan(appLinkIndex);
-    expect(appLinkIndex).toBeLessThan(capabilityIndex);
+    expect(appLinkIndex).toBeLessThan(capabilityHeadingIndex);
+    expect(capabilityHeadingIndex).toBeLessThan(capabilityListIndex);
+    expect(capabilityListIndex).toBeLessThan(procedureHeadingIndex);
+    expect(procedureHeadingIndex).toBeLessThan(accountRequirementIndex);
+    expect(accountRequirementIndex).toBeLessThan(procedureStepIndex);
     expect(html.match(/管理者として招待されました/g)).toHaveLength(1);
-    expect(html).toContain("管理者はシフトリへのアカウント登録が必要となります。<br />");
-    expect(html).toContain("すでに登録済みのアカウントがある場合は、そのアカウントに紐づけることも可能です。");
+    expect(html).toContain('font-weight:700;color:#1a202c;">1. シフトリとは？</p>');
+    expect(html).toContain('font-weight:700;color:#1a202c;">2. 管理者になるとできること</p>');
+    expect(html).toContain('font-weight:700;color:#1a202c;">3. シフトリの管理者になる操作手順</p>');
+    expect(html).toContain("シフトの調整");
+    expect(html).toContain("シフトの確定");
+    expect(html).toContain("スタッフ管理");
+    expect(html).toContain("店舗作成など");
+    expect(html).not.toContain("管理者はシフトリへのアカウント登録が必要となります。");
+    expect(html).not.toContain("すでに登録済みのアカウントがある場合は");
     expect(html).toContain("「シフトリの管理者招待を受け取る」ボタンを押す");
     expect(html).toContain("シフトリでアカウントを作成する（すでにお持ちの場合はログインする）");
     expect(html).toContain('href="https://shiftori.app"');
