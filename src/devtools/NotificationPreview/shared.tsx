@@ -20,6 +20,8 @@ export const notificationPreviewFixtures = {
   reissueUrl: "https://example.com/shifts/reissue?recruitmentId=preview",
   consentUrl: "https://example.com/legal/staff/consent?token=preview-token",
   authorizeUrl: "https://example.com/line/callback?state=preview-token",
+  appUrl: "https://example.com",
+  helpUrl: "https://example.com/help",
   dashboardUrl: "https://example.com/dashboard",
   managerInvitationUrl: "https://example.com/manager-invite?token=preview-token",
   managerSettingsUrl: "https://example.com/manage/managers?org=preview-organization",

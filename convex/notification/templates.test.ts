@@ -50,18 +50,23 @@ describe("notification/templates", () => {
       name: "事業者管理者招待",
       build: () =>
         buildOrganizationManagerInvitationEmailHtml({
+          recipientName: dangerousText,
           organizationName: dangerousText,
           inviterName: dangerousText,
+          appUrl: dangerousUrl,
+          helpUrl: dangerousUrl,
           invitationUrl: dangerousUrl,
         }),
       staticMarkup: [
         "シフトリとは",
         "スタッフの希望収集からシフト作成・共有までを支えるシフト管理サービスです。",
-        "この組織のすべての店舗を管理し、契約に関する操作を行えます。",
-        "シフトリをすでに利用している方は登録済みのメールアドレスでログインしてください。",
-        "初めて利用する方は、このメールの宛先と同じメールアドレスでアカウントを登録し、招待を承認してください。",
-        "招待を確認する",
-        "このリンクは7日間有効で、一度だけ使用できます。",
+        "シフトリを見る",
+        "シフトの募集、調整、共有が可能になります。",
+        "管理者はシフトリへのアカウント登録が必要となります。",
+        "シフトリの管理者になる操作手順",
+        "シフトリの管理者招待を受け取る",
+        "このリンクは7日間有効です。",
+        "シフトリのヘルプページを見る",
       ],
     },
     {
@@ -196,6 +201,45 @@ describe("notification/templates", () => {
     for (const markup of staticMarkup) {
       expect(html).toContain(markup);
     }
+  });
+
+  it("管理者招待メールは受取人から始まり、案内と各リンクを操作順に表示する", () => {
+    const html = buildOrganizationManagerInvitationEmailHtml({
+      recipientName: "佐藤 店長",
+      organizationName: "さくらフードサービス",
+      inviterName: "鈴木 花子",
+      appUrl: "https://shiftori.app",
+      helpUrl: "https://shiftori.app/help",
+      invitationUrl: "https://shiftori.app/manager-invite?token=test-token",
+    });
+
+    const recipientIndex = html.indexOf("佐藤 店長さん");
+    const invitationSourceIndex = html.indexOf(
+      "さくらフードサービスの鈴木 花子さんから、管理者として招待されました。",
+    );
+    const serviceDescriptionIndex = html.indexOf(
+      "スタッフの希望収集からシフト作成・共有までを支えるシフト管理サービスです。",
+    );
+    const appLinkIndex = html.indexOf(">シフトリを見る</a>");
+    const capabilityIndex = html.indexOf("シフトの募集、調整、共有が可能になります。");
+
+    expect(recipientIndex).toBeGreaterThan(-1);
+    expect(recipientIndex).toBeLessThan(invitationSourceIndex);
+    expect(serviceDescriptionIndex).toBeLessThan(appLinkIndex);
+    expect(appLinkIndex).toBeLessThan(capabilityIndex);
+    expect(html.match(/管理者として招待されました/g)).toHaveLength(1);
+    expect(html).toContain("管理者はシフトリへのアカウント登録が必要となります。<br />");
+    expect(html).toContain("すでに登録済みのアカウントがある場合は、そのアカウントに紐づけることも可能です。");
+    expect(html).toContain("「シフトリの管理者招待を受け取る」ボタンを押す");
+    expect(html).toContain("シフトリでアカウントを作成する（すでにお持ちの場合はログインする）");
+    expect(html).toContain('href="https://shiftori.app"');
+    expect(html).toContain(">シフトリを見る</a>");
+    expect(html).toContain(
+      'href="https://shiftori.app/manager-invite?token=test-token" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフトリの管理者招待を受け取る</a>',
+    );
+    expect(html).toContain('href="https://shiftori.app/help"');
+    expect(html).toContain("このリンクは7日間有効です。");
+    expect(html).not.toContain("一度だけ使用できます。");
   });
 
   it("メール本文の文間改行はHTMLをescapeしたまま表示改行へ変換する", () => {

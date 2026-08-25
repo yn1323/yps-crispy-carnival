@@ -474,8 +474,11 @@ type OrganizationBillingEmailParams = {
 export const ORGANIZATION_MANAGER_INVITATION_SUBJECT = "管理者として招待されました";
 
 type OrganizationManagerInvitationEmailParams = {
+  recipientName: string;
   organizationName: string;
   inviterName: string;
+  appUrl: string;
+  helpUrl: string;
   invitationUrl: string;
 };
 
@@ -483,8 +486,11 @@ type OrganizationManagerInvitationEmailParams = {
  * 管理者招待の本文。invitationUrlはprovider呼び出し直前にactionのメモリ内で生成する。
  */
 export function buildOrganizationManagerInvitationEmailHtml(params: OrganizationManagerInvitationEmailParams): string {
+  const recipientName = escapeEmailHtml(params.recipientName);
   const organizationName = escapeEmailHtml(params.organizationName);
   const inviterName = escapeEmailHtml(params.inviterName);
+  const appUrl = escapeEmailHtml(params.appUrl);
+  const helpUrl = escapeEmailHtml(params.helpUrl);
   const invitationUrl = escapeEmailHtml(params.invitationUrl);
 
   return `<!DOCTYPE html>
@@ -498,20 +504,34 @@ export function buildOrganizationManagerInvitationEmailHtml(params: Organization
           <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
         </td></tr>
         <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:18px;font-weight:700;color:#1a202c;">管理者として招待されました</p>
-          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${inviterName}さんから「${organizationName}」の管理者に招待されました。</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${recipientName}さん</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${organizationName}の${inviterName}さんから、管理者として招待されました。</p>
           <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#1a202c;">シフトリとは</p>
           <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">スタッフの希望収集からシフト作成・共有までを支えるシフト管理サービスです。</p>
-          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">管理者になると、この組織のすべての店舗を管理し、契約に関する操作を行えます。</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">シフトリをすでに利用している方は登録済みのメールアドレスでログインしてください。初めて利用する方は、このメールの宛先と同じメールアドレスでアカウントを登録し、招待を承認してください。</p>
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr><td align="center">
-              <a href="${invitationUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">招待を確認する</a>
+              <a href="${appUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフトリを見る</a>
             </td></tr>
           </table>
 
-          <p style="margin:0 0 8px;font-size:13px;color:#718096;">このリンクは7日間有効で、一度だけ使用できます。</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">シフトの募集、調整、共有が可能になります。</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">管理者はシフトリへのアカウント登録が必要となります。<br />すでに登録済みのアカウントがある場合は、そのアカウントに紐づけることも可能です。</p>
+          <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#1a202c;">シフトリの管理者になる操作手順</p>
+          <ol style="margin:0 0 24px;padding-left:24px;font-size:15px;color:#1a202c;">
+            <li style="margin:0 0 8px;">「シフトリの管理者招待を受け取る」ボタンを押す</li>
+            <li>シフトリでアカウントを作成する（すでにお持ちの場合はログインする）</li>
+          </ol>
+
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+            <tr><td align="center">
+              <a href="${invitationUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフトリの管理者招待を受け取る</a>
+            </td></tr>
+          </table>
+
+          <p style="margin:0 0 16px;font-size:13px;color:#718096;">このリンクは7日間有効です。</p>
+          <p style="margin:0 0 8px;font-size:15px;color:#1a202c;">気になる使い方は、シフトリのヘルプページをご確認ください。</p>
+          <p style="margin:0 0 24px;font-size:15px;"><a href="${helpUrl}" style="color:#2c7a7b;text-decoration:underline;" rel="noreferrer">シフトリのヘルプページを見る</a></p>
           <p style="margin:0 0 24px;font-size:13px;color:#718096;">心当たりがない場合は、このメールを破棄してください。</p>
 
           <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />

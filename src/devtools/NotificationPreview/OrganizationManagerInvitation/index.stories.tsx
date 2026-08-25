@@ -25,8 +25,11 @@ export const Email: Story = {
         label="組織管理者招待"
         subject={organizationSubject(ORGANIZATION_MANAGER_INVITATION_SUBJECT)}
         html={buildOrganizationManagerInvitationEmailHtml({
+          recipientName: fixtures.managerName,
           organizationName: fixtures.organizationName,
           inviterName: fixtures.inviterName,
+          appUrl: fixtures.appUrl,
+          helpUrl: fixtures.helpUrl,
           invitationUrl: fixtures.managerInvitationUrl,
         })}
       />
