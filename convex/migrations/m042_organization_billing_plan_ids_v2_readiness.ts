@@ -24,11 +24,11 @@ function requireBoundedPagination(paginationOpts: PaginationOptions) {
 }
 
 function isLegacyTarget(state: { kind: string; planIdVersion?: 2; plan?: string }) {
-  return state.kind === "complimentary" && state.planIdVersion === undefined && state.plan === "business";
+  return state.planIdVersion === undefined;
 }
 
 function isCanonicalTarget(state: { kind: string; planIdVersion?: 2; plan?: string }) {
-  return state.kind === "complimentary" && state.planIdVersion === 2 && state.plan === "pro";
+  return state.planIdVersion === 2;
 }
 
 async function stripeEvidence(ctx: QueryCtx, organizationId: Id<"organizations">) {
@@ -59,7 +59,7 @@ async function stripeEvidence(ctx: QueryCtx, organizationId: Id<"organizations">
 }
 
 /**
- * m042のpre/post flight。全organization pageを走査し、支払い不要Pro以外やStripe証跡を件数だけで止める。
+ * m042のpre/post flight。全organization pageを走査し、stateの一意性とplan ID versionを確認する。
  * preではlegacy targetとresume済みv2を許可し、postではlegacy targetもblockingへ含める。
  */
 export const verifyOrganizations = internalQuery({
@@ -119,10 +119,6 @@ export const verifyOrganizations = internalQuery({
       totals.missingBillingState +
       totals.multipleBillingStates +
       totals.unexpectedBillingState +
-      totals.stripeCustomerEvidence +
-      totals.stripeSubscriptionEvidence +
-      totals.stripeOperationEvidence +
-      totals.stripeWebhookEvidence +
       (phase === "post" ? totals.legacyTarget : 0);
 
     return {
@@ -173,7 +169,7 @@ const stripeScopeValidator = v.union(
   v.literal("webhooks"),
 );
 
-/** Stripe各tableをglobalにpage走査し、orphanや同一組織の複数行も含めて全証跡を止める。 */
+/** Stripe各tableをglobalにpage走査し、orphanや同一組織の複数行を止める。plan IDはm045 / m046で別途確認する。 */
 export const verifyStripeRows = internalQuery({
   args: { scope: stripeScopeValidator, paginationOpts: paginationOptsValidator },
   returns: v.object({
@@ -233,8 +229,7 @@ export const verifyStripeRows = internalQuery({
         stripeRows: result.page.length,
         danglingOrganization,
         rowsInDuplicateOrganization,
-        // Production前提はStripe証跡0件なので、row自体をblockingとする。
-        blocking: result.page.length,
+        blocking: danglingOrganization + rowsInDuplicateOrganization,
       },
     };
   },

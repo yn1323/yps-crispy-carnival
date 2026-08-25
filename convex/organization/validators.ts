@@ -149,7 +149,8 @@ export const organizationLegacyBillingStateValidator = v.union(
 /**
  * plan ID切替後に新規保存するv2 state。
  *
- * TODO[narrow]: m042とAnalytics再構築が全deploymentで完了し、legacy stateが0件になった後に
+ * TODO[narrow]: m042〜m047とAnalytics再構築が全deploymentで完了し、
+ * billing_compatibility_narrow_readinessを含む全readinessでlegacy／conflictが0件になった後に、
  * planIdVersionとorganizationLegacyBillingStateValidatorを削除する。
  */
 export const organizationCanonicalBillingStateValidator = v.union(

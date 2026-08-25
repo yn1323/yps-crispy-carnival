@@ -23,6 +23,13 @@ describe("m042 organization billing plan IDs v2 migration", () => {
         .unique();
       if (!billingState) throw new Error("billing state not found");
       await ctx.db.patch(billingState._id, { version: 7 });
+      await ctx.db.insert("organizationMigrationConflicts", {
+        organizationId: target.organizationId,
+        sourceType: "organization",
+        sourceId: target.organizationId,
+        code: "billing_plan_ids_v2_stripe_customer_evidence",
+        createdAt: 1,
+      });
       return { ...target, billingStateId: billingState._id };
     });
 
@@ -54,10 +61,10 @@ describe("m042 organization billing plan IDs v2 migration", () => {
       }),
     ]);
     expect(snapshot.analyticsEvents).toEqual([]);
-    expect(snapshot.conflicts).toEqual([]);
+    expect(snapshot.conflicts).toEqual([expect.objectContaining({ resolvedAt: expect.any(Number) })]);
   });
 
-  it("想定外stateとStripe evidenceをconflictへ残し、課金状態と監査を変更しない", async () => {
+  it("全legacy stateをStripe evidenceの有無に依存せず意味保存でv2へ移す", async () => {
     const t = createConvexTestWithMigrations();
     const seeded = await t.run(async (ctx) => {
       const createTarget = async (subject: string) => {
@@ -136,19 +143,13 @@ describe("m042 organization billing plan IDs v2 migration", () => {
     }));
 
     expect(snapshot.billingStates.map((billingState) => billingState?.state)).toEqual([
-      { kind: "active", plan: "free" },
-      { kind: "complimentary", plan: "business" },
-      { kind: "complimentary", plan: "business" },
-      { kind: "complimentary", plan: "business" },
-      { kind: "complimentary", plan: "business" },
+      { kind: "active", planIdVersion: 2, plan: "free" },
+      { kind: "complimentary", planIdVersion: 2, plan: "pro" },
+      { kind: "complimentary", planIdVersion: 2, plan: "pro" },
+      { kind: "complimentary", planIdVersion: 2, plan: "pro" },
+      { kind: "complimentary", planIdVersion: 2, plan: "pro" },
     ]);
-    expect(snapshot.conflicts.map((conflict) => conflict.code).sort()).toEqual([
-      "billing_plan_ids_v2_stripe_customer_evidence",
-      "billing_plan_ids_v2_stripe_operation_evidence",
-      "billing_plan_ids_v2_stripe_subscription_evidence",
-      "billing_plan_ids_v2_stripe_webhook_evidence",
-      "billing_plan_ids_v2_unexpected_billing_state",
-    ]);
-    expect(snapshot.audits.filter((audit) => audit.correlationId?.includes(":migration:m042:"))).toEqual([]);
+    expect(snapshot.conflicts).toEqual([]);
+    expect(snapshot.audits.filter((audit) => audit.correlationId?.includes(":migration:m042:"))).toHaveLength(5);
   });
 });

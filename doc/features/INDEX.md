@@ -11,7 +11,7 @@
 - [通知マトリクス](behavior-notification.md)：全通知種別のトリガー・宛先・チャネル・送らない条件・失敗時
 - [認可・制限の横断規則](behavior-authorization.md)：拒否パターン、存在秘匿、token失効、レート制限、冪等性
 
-上記サマリーと条件別仕様をブラウザで通読する場合は[behavior-spec.html](behavior-spec.html)を開いてください（Markdownから生成した閲覧用で、正本は各Markdownです）。
+現在仕様の正本は上記Markdownです。基準commit `b318dc8`から生成された旧HTMLは、現行仕様と一致しないため`doc/archive/features/`へ移しました。
 実環境で利用できるかは、[リリース状態](../manual/release-status.md)に証跡がある項目だけを確認済みとして扱います。
 画面、API、関連ファイル、保証範囲の詳細は各機能文書を参照してください。
 

@@ -134,7 +134,7 @@ pnpm exec convex env list --names-only \
 2. StandardとProに使っている既存PriceをStripe Dashboardで照合し、値をログへ出さず運用担当者の安全な入力経路へ引き継ぐ。
 3. Convex deploymentと対応するGitHub Environment Secretへ`STRIPE_STANDARD_PRICE_ID`と`STRIPE_PRO_PRICE_ID`を設定する。  二つが明示され、異なるPrice IDであることを確認する。
 4. 2キー契約のartifactをbuild・deployし、実行中revisionと公開料金のStandard / Pro対応を確認する。
-5. [plan ID migrationの実行順](#plan-id-migrationの実行順)に従い、m042、m043、Analytics reset、m044、全post readinessを順に完走させる。
+5. [plan ID migrationの実行順](#plan-id-migrationの実行順)に従い、m042、m043、Analytics reset、m044、m045、m046、m047、課金互換readiness、全post readinessを順に完走させる。
 6. readinessのlegacy、blocking、未解消conflict、reset generationのblockingがすべて0件になった後、canonical requestで料金取得、Checkout、plan変更のprovider canaryを行う。
 
 値の移動はDashboardまたは対話入力で行い、command、log、運用記録へsecretやPrice IDの実値を書かない。  設定の欠損、不正、二つのPrice IDの重複時は、サーバーの課金操作と公開サイトBuildをfail closedにする。
@@ -149,11 +149,11 @@ pnpm exec convex env list --names-only \
 
 ##### m042開始後
 
-m042が開始した後はcanonicalな保存shapeを旧backendが読めないため、旧backendへ戻さない。  課金プランを未公開のままWiden backendを維持し、DBのplan IDを逆変換したり課金状態を手動patchしたりせず、migration status、全ページreadiness、失敗行を読み取りで固定する。  専用のforward migrationまたはforward fixで収束させ、m042〜m044、Analytics reset、全post readinessが揃った後にprovider canaryを行う。
+m042が開始した後はcanonicalな保存shapeを旧backendが読めないため、旧backendへ戻さない。  課金プランを未公開のままWiden backendを維持し、DBのplan IDを逆変換したり課金状態を手動patchしたりせず、migration status、全ページreadiness、失敗行を読み取りで固定する。  専用のforward migrationまたはforward fixで収束させ、m042〜m047、Analytics reset、課金互換readiness、全post readinessが揃った後にprovider canaryを行う。
 
 #### plan ID migrationの実行順
 
-readiness queryは`paginationOpts.cursor`を最初は`null`、以後は直前の`continueCursor`に置き換え、`isDone: true`まで全ページ実行する。  m042のpreでは次のqueryをこの順に実行し、全件が想定した`complimentary.business`、各異常件数と`blocking`が0件であることを記録する。
+readiness queryは`paginationOpts.cursor`を最初は`null`、以後は直前の`continueCursor`に置き換え、`isDone: true`まで全ページ実行する。  m042のpreでは次のqueryをこの順に実行し、markerなしの課金状態と再開済みv2状態の件数、各異常件数、`blocking: 0`を記録する。m042はmarkerなしの全課金状態を保存済みplan ID契約に従ってv2へ変換し、旧`pro`を`standard`、旧`business`を`pro`として意味を維持する。
 
 ```bash
 pnpm exec convex run migrations/m042_organization_billing_plan_ids_v2_readiness:verifyOrganizations \
@@ -164,7 +164,7 @@ pnpm exec convex run migrations/m042_organization_billing_plan_ids_v2_readiness:
   '{"scope":"customers","paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
 ```
 
-`verifyStripeRows`は`customers`、`subscriptions`、`operations`、`webhooks`の4 scopeを全ページ確認する。  続けて`verifyScheduledBillingJobs`と`verifyBillingNotificationOutbox`も同じ`paginationOpts`で全ページ確認し、`blocking: 0`を必須とする。
+`verifyStripeRows`は`customers`、`subscriptions`、`operations`、`webhooks`の4 scopeを全ページ確認する。Stripe rowの存在自体は観測値であり、danglingな組織参照と同一組織の重複だけをblockingにする。Subscriptionとoperationのplan IDはm045 / m046で別に移行する。  続けて`verifyScheduledBillingJobs`と`verifyBillingNotificationOutbox`も同じ`paginationOpts`で全ページ確認し、`blocking: 0`を必須とする。
 
 ```bash
 pnpm exec convex run migrations/index:runOrganizationBillingPlanIdsV2 \
@@ -204,19 +204,54 @@ pnpm exec convex run --component migrations lib:getStatus \
   --watch --deployment <fully-qualified-deployment>
 ```
 
-m044のstatus成功後、次のpost readinessをこの順で全ページ実行する。
+m044のstatus成功後、Stripe Subscription / operation snapshotをm045 / m046で移行する。`subscriptions`と`operations`をそれぞれpreで全ページ確認し、`blocking: 0`を確認してからrunnerをdry-run、本実行する。markerなしの`standard`またはv2 marker付きの旧`business`は意味を一意に判定できないため、手動変換せずconflictとして停止する。
+
+```bash
+pnpm exec convex run migrations/m045_m046_organization_stripe_plan_ids_v2_readiness:verify \
+  '{"scope":"subscriptions","phase":"pre","paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
+pnpm exec convex run migrations/m045_m046_organization_stripe_plan_ids_v2_readiness:verify \
+  '{"scope":"operations","phase":"pre","paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
+pnpm exec convex run migrations/index:runOrganizationStripePlanIdsV2 \
+  '{"dryRun":true}' --deployment <fully-qualified-deployment>
+pnpm exec convex run migrations/index:runOrganizationStripePlanIdsV2 \
+  --deployment <fully-qualified-deployment>
+pnpm exec convex run --component migrations lib:getStatus \
+  '{"names":["migrations/m045_organization_stripe_subscription_plan_ids_v2:migration","migrations/m046_organization_stripe_operation_plan_ids_v2:migration"]}' \
+  --watch --deployment <fully-qualified-deployment>
+```
+
+m028のstatus、`verifyLegacyShopBillingStates.activeRows: 0`、未解消の店舗課金conflict 0を確認した後、m047で旧`shopBillingStates`を物理削除する。店舗から組織を解決できない、またはcanonicalな組織課金状態が一意でないrowは削除せずconflictへ残す。
+
+```bash
+pnpm exec convex run migrations/index:runShopBillingStatesCleanup \
+  '{"dryRun":true}' --deployment <fully-qualified-deployment>
+pnpm exec convex run migrations/index:runShopBillingStatesCleanup \
+  --deployment <fully-qualified-deployment>
+pnpm exec convex run --component migrations lib:getStatus \
+  '{"names":["migrations/m047_shop_billing_states_cleanup:migration"]}' \
+  --watch --deployment <fully-qualified-deployment>
+```
+
+m045からm047のstatus成功後、次のpost readinessをこの順で全ページ実行する。
 
 1. m042の`verifyOrganizations`を`phase: "post"`で実行し、`legacyTarget: 0`と`blocking: 0`を確認する。  billing、Stripeの4 scope、scheduled job、billing通知も全ページ再実行する。
 2. m043の`verifySourceEvents`、`verifyOrganizations`、`verifyShops`、`verifyDailyOrganizationKpis`を`phase: "post"`で全ページ実行し、`legacyVersion: 0`と各`blocking: 0`を確認する。
 3. m044の`verify`を`phase: "post"`で全ページ実行し、`legacy: 0`と`blocking: 0`を確認する。
-4. 最後に次のqueryが`completedReset: true`、`blocking: 0`を返すことを確認する。
+4. m045 / m046共通readinessの`verify`を両scope、`phase: "post"`で全ページ実行し、`legacy: 0`と`blocking: 0`を確認する。
+5. `narrowReadiness/queries:verifyLegacyShopBillingStates`を全ページ実行し、`activeRows: 0`と`totalRows: 0`を確認する。
+6. `billing_compatibility_narrow_readiness`の`verifyBillingStates`と`verifyReadOnlyMembers`を全ページ実行し、旧`restricted`、旧`readOnly`、markerなしplan IDを含む`blocking: 0`を確認する。
+7. 最後に次のqueryが`completedReset: true`、`blocking: 0`を返すことを確認する。
 
 ```bash
+pnpm exec convex run migrations/billing_compatibility_narrow_readiness:verifyBillingStates \
+  '{"paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
+pnpm exec convex run migrations/billing_compatibility_narrow_readiness:verifyReadOnlyMembers \
+  '{"paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
 pnpm exec convex run migrations/m043_analytics_plan_ids_v2_readiness:verifyResetGeneration \
   '{}' --deployment <fully-qualified-deployment>
 ```
 
-いずれかが0件以外、または全ページ未完了なら課金プランを公開しない。  provider canaryを行えるのは、m042 → m043 → Analytics reset → m044 → 全post readinessの証跡が揃った後だけである。
+いずれかが0件以外、または全ページ未完了なら課金プランを公開せず、schema・validator・runtime fallbackのNarrowも行わない。  provider canaryを行えるのは、m042 → m043 → Analytics reset → m044 → m045 → m046 → m047 → 課金互換readiness → 全post readinessの証跡が揃った後だけである。
 
 ### Product、Price、Portal
 
@@ -312,8 +347,7 @@ Trial、解約、支払い猶予、想定外解約から`active.free`へ移行�
 |---|---|
 | `planIdVersion: 2`付きの`active.free` / `active.standard` / `active.pro` | それぞれFree / Standard / Proとして扱う |
 | `planIdVersion: 2`付きの`complimentary.pro` | 支払い不要Pro・50人上限として継続し、Stripe objectを作らない |
-| markerなしの`complimentary.business` | Widen中だけ支払い不要旧Proとして読み、m042のcanonical化対象にする |
-| markerなしの`active.pro` / `active.business`など、`complimentary.business`以外のlegacy課金状態 | m042では変換せず、pre readinessのblockingとして停止する |
+| markerなしの課金状態 | Widen中だけ旧plan ID契約で読み、m042で意味を維持したままv2へ変換する |
 | `scheduledChange.targetPlan: "free"`かつ`restrictAtPeriodEnd`なし | deployment前の旧Free変更予約として、Stripe上の期間末終了確認後に`active.free`へ収束させる |
 | `scheduledChange.targetPlan: "free"`かつ`restrictAtPeriodEnd: true` | 新しい解約予約として、Stripe上の期間末終了確認後に`active.free`へ収束させる |
 
@@ -327,7 +361,7 @@ markerなしの旧予約へ`restrictAtPeriodEnd`を後付けせず、新しい�
 業務通知は、Outbox投入後もprovider送信直前に現在の利用上限状態を再評価する。
 実利用数が上限内へ戻ると、課金状態や上限フラグの更新なしで通常利用へ戻る。
 
-plan ID切替ではmigrationとreadiness gateが必要である。  m042が変更するのは、想定対象の課金状態`complimentary.business`を`planIdVersion: 2`付きの`complimentary.pro`へ変換するbilling rowだけである。  Stripe保存行、scheduled job、課金通知は変換せず、pre / post readinessで対象行が0件であることを要求する。  実環境の対象が想定どおりかは、すべてのpre readinessを全ページ実行して判定する。
+plan ID切替ではmigrationとreadiness gateが必要である。  m042はmarkerなしの全billing stateをv2へ変換し、m045 / m046はStripe Subscription / operation snapshotを同じplan ID契約へ揃える。scheduled jobと課金通知は変換せず、pre / post readinessで処理中の対象が0件であることを要求する。m047はcanonical対応を一意に確認できた旧店舗課金rowだけを物理削除し、課金互換readinessは旧`restricted` / `readOnly`とmarkerなしplan IDが0件であることを確認する。  実環境の対象が想定どおりかは、すべてのpre readinessを全ページ実行して判定する。
 旧shapeは、新旧plan IDが共存するWiden deploy中のschemaとread互換だけに残し、新しい状態遷移から作成しない。  保存側の`planIdVersion: 2`は、同じ`pro`文字列のlegacy / canonicalの意味をWiden中に識別するための一時markerであり、永続的なDB契約にしない。
 `setFreeSelection`はdeployment前の旧Free変更予約に対するrolling API互換だけに残し、新しいTrial、解約、プラン変更からは呼び出さない。
 共存期間の終了後に、旧shape、保存側のversion marker、専用分岐をNarrowで削除する。  request / responseの`planIdVersion: 2`は、旧clientとcanonical clientのAPI契約を分ける境界として別に扱う。
@@ -381,9 +415,9 @@ probeにこの項目がないことはm021の完走や旧形式の残件0を証�
 現在のcanonical保存先は`planIdVersion: 2`付きの`complimentary.pro`である。  Widen runtimeは、m042完走までmarkerなしの`complimentary.business`もlegacy Proとして読み、新規writeでは作成しない。
 同じ`complimentary.pro`でも、m021の履歴にあるmarkerなし値と、現在のcanonical値は異なる契約である。  Widen中は一時markerで識別し、m042で`complimentary.business`をcanonical `complimentary.pro`へ変換する。
 
-対象deploymentのm021 statusとexport検証状況は、過去の変換を説明する履歴証跡である。  今回の切替完了はm042 → m043 → Analytics reset → m044 → 全post readinessと、[リリース状態](release-status.md)の実環境証跡で判定する。  m021の完了だけで現在のplan ID cutover完了とは判定しない。
+対象deploymentのm021 statusとexport検証状況は、過去の変換を説明する履歴証跡である。  今回の切替完了はm042 → m043 → Analytics reset → m044 → m045 → m046 → m047 → 課金互換readiness → 全post readinessと、[リリース状態](release-status.md)の実環境証跡で判定する。  m021の完了だけで現在のplan ID cutover完了とは判定しない。
 
-以下はm021実行時の履歴手順であり、現在のm042〜m044実行手順には流用しない。
+以下はm021実行時の履歴手順であり、現在のm042〜m047実行手順には流用しない。
 
 ### 対象と停止条件
 

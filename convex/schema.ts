@@ -263,8 +263,9 @@ const schema = defineSchema({
     // TODO[narrow]: verifyStripeSubscriptionsの全pageとprovider snapshotでPriceを照合し、必要なら新しい
     //   forward migrationでplanを補完してからrequired化する。現在のPriceやproを推測値として使わない。
     plan: v.optional(v.union(v.literal("standard"), v.literal("pro"), v.literal("business"))),
-    // TODO[narrow]: m042後の課金再開以降に作成されたsubscriptionがすべてcanonicalで、legacy Stripe行が
-    //   0件と確認できた後にbusinessと一時markerをvalidatorから削除する。
+    // TODO[narrow]: m045が全deploymentで完了し、provider snapshotとの照合と
+    //   billing_compatibility_narrow_readinessでlegacy／conflictが0件と確認できた後に、
+    //   businessと一時markerをvalidatorから削除する。
     planIdVersion: v.optional(planIdVersionValidator),
     livemode: v.boolean(),
     status: organizationStripeSubscriptionStatusValidator,
@@ -301,8 +302,8 @@ const schema = defineSchema({
     providerGeneration: v.optional(v.number()),
     sourcePlan: v.optional(v.union(v.literal("standard"), v.literal("pro"), v.literal("business"))),
     targetPlan: v.optional(v.union(v.literal("free"), v.literal("standard"), v.literal("pro"), v.literal("business"))),
-    // TODO[narrow]: m042後の課金再開以降に作成されたoperationがすべてcanonicalで、legacy operationが
-    //   0件と確認できた後にbusinessと一時markerをvalidatorから削除する。
+    // TODO[narrow]: m046が全deploymentで完了し、billing_compatibility_narrow_readinessで
+    //   legacy／conflictが0件と確認できた後に、businessと一時markerをvalidatorから削除する。
     planIdVersion: v.optional(planIdVersionValidator),
     // targetPlan=freeの旧予約と、新しい「期間末解約」をrolling互換で識別する。
     restrictAtPeriodEnd: v.optional(v.literal(true)),

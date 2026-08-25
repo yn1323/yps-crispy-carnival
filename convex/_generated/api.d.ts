@@ -118,6 +118,7 @@ import type * as line_queries from "../line/queries.js";
 import type * as line_schemas from "../line/schemas.js";
 import type * as line_service from "../line/service.js";
 import type * as line_webhook from "../line/webhook.js";
+import type * as migrations_billing_compatibility_narrow_readiness from "../migrations/billing_compatibility_narrow_readiness.js";
 import type * as migrations_index from "../migrations/index.js";
 import type * as migrations_m001_recruitments_add_shift_times from "../migrations/m001_recruitments_add_shift_times.js";
 import type * as migrations_m002_shops_add_submission_pattern from "../migrations/m002_shops_add_submission_pattern.js";
@@ -166,6 +167,10 @@ import type * as migrations_m043_analytics_plan_ids_v2 from "../migrations/m043_
 import type * as migrations_m043_analytics_plan_ids_v2_readiness from "../migrations/m043_analytics_plan_ids_v2_readiness.js";
 import type * as migrations_m044_dashboard_announcement_plan_ids_v2 from "../migrations/m044_dashboard_announcement_plan_ids_v2.js";
 import type * as migrations_m044_dashboard_announcement_plan_ids_v2_readiness from "../migrations/m044_dashboard_announcement_plan_ids_v2_readiness.js";
+import type * as migrations_m045_m046_organization_stripe_plan_ids_v2_readiness from "../migrations/m045_m046_organization_stripe_plan_ids_v2_readiness.js";
+import type * as migrations_m045_organization_stripe_subscription_plan_ids_v2 from "../migrations/m045_organization_stripe_subscription_plan_ids_v2.js";
+import type * as migrations_m046_organization_stripe_operation_plan_ids_v2 from "../migrations/m046_organization_stripe_operation_plan_ids_v2.js";
+import type * as migrations_m047_shop_billing_states_cleanup from "../migrations/m047_shop_billing_states_cleanup.js";
 import type * as migrations_organizationMigrationHelpers from "../migrations/organizationMigrationHelpers.js";
 import type * as narrowReadiness_queries from "../narrowReadiness/queries.js";
 import type * as notification_actions from "../notification/actions.js";
@@ -202,7 +207,6 @@ import type * as notificationOutbox_shopManagerNotification from "../notificatio
 import type * as notificationOutbox_types from "../notificationOutbox/types.js";
 import type * as organization_access from "../organization/access.js";
 import type * as organization_audit from "../organization/audit.js";
-import type * as organization_billingContact from "../organization/billingContact.js";
 import type * as organization_deletion from "../organization/deletion.js";
 import type * as organization_managerInvitationState from "../organization/managerInvitationState.js";
 import type * as organization_migrations from "../organization/migrations.js";
@@ -401,6 +405,7 @@ declare const fullApi: ApiFromModules<{
   "line/schemas": typeof line_schemas;
   "line/service": typeof line_service;
   "line/webhook": typeof line_webhook;
+  "migrations/billing_compatibility_narrow_readiness": typeof migrations_billing_compatibility_narrow_readiness;
   "migrations/index": typeof migrations_index;
   "migrations/m001_recruitments_add_shift_times": typeof migrations_m001_recruitments_add_shift_times;
   "migrations/m002_shops_add_submission_pattern": typeof migrations_m002_shops_add_submission_pattern;
@@ -449,6 +454,10 @@ declare const fullApi: ApiFromModules<{
   "migrations/m043_analytics_plan_ids_v2_readiness": typeof migrations_m043_analytics_plan_ids_v2_readiness;
   "migrations/m044_dashboard_announcement_plan_ids_v2": typeof migrations_m044_dashboard_announcement_plan_ids_v2;
   "migrations/m044_dashboard_announcement_plan_ids_v2_readiness": typeof migrations_m044_dashboard_announcement_plan_ids_v2_readiness;
+  "migrations/m045_m046_organization_stripe_plan_ids_v2_readiness": typeof migrations_m045_m046_organization_stripe_plan_ids_v2_readiness;
+  "migrations/m045_organization_stripe_subscription_plan_ids_v2": typeof migrations_m045_organization_stripe_subscription_plan_ids_v2;
+  "migrations/m046_organization_stripe_operation_plan_ids_v2": typeof migrations_m046_organization_stripe_operation_plan_ids_v2;
+  "migrations/m047_shop_billing_states_cleanup": typeof migrations_m047_shop_billing_states_cleanup;
   "migrations/organizationMigrationHelpers": typeof migrations_organizationMigrationHelpers;
   "narrowReadiness/queries": typeof narrowReadiness_queries;
   "notification/actions": typeof notification_actions;
@@ -485,7 +494,6 @@ declare const fullApi: ApiFromModules<{
   "notificationOutbox/types": typeof notificationOutbox_types;
   "organization/access": typeof organization_access;
   "organization/audit": typeof organization_audit;
-  "organization/billingContact": typeof organization_billingContact;
   "organization/deletion": typeof organization_deletion;
   "organization/managerInvitationState": typeof organization_managerInvitationState;
   "organization/migrations": typeof organization_migrations;

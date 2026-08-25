@@ -50,8 +50,8 @@ direct routeとpublic mutation/actionは、画面表示とは独立して認証�
 - CheckoutとCustomer Portalを開始した場合、復帰先は`/manage/billing?org=<organizationId>`にする。  復帰URLだけで支払い成功とは判断せず、Webhookまたはprovider再取得結果を正本とする。
 - `pendingActivation`で課金ページを表示した場合は、戻りqueryの有無にかかわらず、サーバーが対象Sessionを組織、operation、Customer、Price、modeに照合する。  Sessionが`open`なら自動で取り消さず、「支払いを続ける」と「支払いをやめる」を表示する。  明示的に支払いをやめた場合だけStripeで`expired`へ確定してから、支払い失敗時のfallbackへ戻す。
 - Checkoutから`stripe=cancelled`で戻った場合も同じサーバー照合を行い、`open`なら明示キャンセルとして`expired`へ収束させる。  `complete`やprovider取得失敗では状態を変更せず、Webhookまたは再試行を待つ。  ブラウザバックは`cancel_url`を通らず、bfcache復元ではReactが再マウントされない場合もあるため、戻りqueryだけでなく課金ページの初回表示と`pageshow`復元を再照合の起点にする。
-- query errorはページ内で再試行でき、readOnly所属は内容を閲覧できるが変更入口を無効にする。
-  上限超過中の整理操作と旧契約制限中の復旧操作は、課金policyが返すcapabilityに従う。
+- query errorはページ内で再試行できる。旧`readOnly`所属が残る場合は内容を閲覧できるが変更入口を無効にする。
+  上限超過中の整理操作と旧`restricted` stateの移行前操作は、課金policyが返すcapabilityに従う。
 
 ## 機能の地図
 
@@ -60,7 +60,7 @@ direct routeとpublic mutation/actionは、画面表示とは独立して認証�
 | 組織（`organizations`） | 契約、利用上限、管理権限の境界 |
 | 店舗（`shops`） | 日常業務で選択する操作対象。必ず一つの組織に属する |
 | 人物（`organizationPeople`） | 組織内の利用人数を数える正本。スタッフ兼管理者でも重複計上しない |
-| 管理者所属（`organizationMembers`） | 管理画面の権限。`active`、復旧専用の`readOnly`、失効済みの`removed`を持つ |
+| 管理者所属（`organizationMembers`） | 管理画面の権限。現行の有効状態`active`、失効済みの`removed`、旧`restricted`移行用の内部互換値`readOnly`を持つ |
 | 課金状態（`organizationBillingStates`） | Trial、Standard（`standard`）、Pro（`pro`）、Free、支払い不要Pro相当と遷移中の状態を保持する。旧plan IDと旧`restricted`はrolling deployのread互換期間だけ受け付ける |
 | Stripe対応表とoperation | 有料契約のCustomer、Subscription、非同期処理を組織単位で追跡する |
 | 管理者招待（`organizationInvitations`） | メールの受取人へ、管理者アカウントを一回だけ連携できる権限を渡す |
@@ -76,6 +76,7 @@ direct routeとpublic mutation/actionは、画面表示とは独立して認証�
 
 シフト連絡先を変更しても、Clerkのログイン方法、`users.email`、請求先メールアドレスは変更しない。
 請求先メールアドレスを変更しても、シフト連絡先とログイン方法は変更しない。
+請求先メールアドレスはStripeと課金通知の宛先となる文字列であり、管理者ロール、人物の権限、管理者交代、人物・アカウント削除の可否には使用しない。
 アカウント設定の画面と状態判定はシフト連絡先から独立させ、Clerk操作の提供可否は安全性の実験と環境確認が完了した機能だけを有効にする。
 この文書はローカル実装の境界を示すものであり、Clerkの各操作や実deploymentでの公開完了を示す証跡にはしない。
 
@@ -177,8 +178,8 @@ Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側
 支払い不要Pro相当では、Stripe Customer、Subscription、Checkout Session、Portal Session、Invoice、Subscription Schedule、課金operation、課金通知を作らない。
 公開API、管理処理、Stripeイベント、再同期処理から通常課金や別状態へ変更しない。
 
-現行コードのcanonicalな保存契約は`complimentary.pro`だけを許可する。
-Widen中は旧`complimentary.business`も読み取り、`planIdVersion: 2`を伴う`complimentary.pro`と区別する。  `planIdVersion`は移行中だけ保存する識別子であり、旧IDを作成するwriterと旧clientの共存が終わるNarrow時に旧ID互換とともに削除する。
+現行writerのcanonicalな保存契約は`planIdVersion: 2`を伴う`complimentary.pro`である。
+Widen中は旧`complimentary.business`を含むmarkerなしの課金状態も読み取り、m042でcanonicalなv2へ変換する。  `planIdVersion`は移行中だけ保存する識別子であり、課金状態とStripe snapshotの移行、旧`restricted` / `readOnly`の0件確認が終わるNarrow時に旧ID互換とともに削除する。
 
 `m021_organization_billing_complimentary_pro_to_business`とexport verifierは、当時の`complimentary.pro`を旧`complimentary.business`へ移した履歴を検証するために残す。  現行IDへの移行で履歴migrationを書き換えない。
 
@@ -187,7 +188,7 @@ Widen中は旧`complimentary.business`も読み取り、`planIdVersion: 2`を伴
 repositoryにmigrationがあることから、対象deploymentでの実行完了を推測しない。
 
 対象deploymentのmigration statusとexport検証状況は、[リリース状態](../manual/release-status.md)を正とする。
-Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を固定し、`m042_organization_billing_plan_ids_v2`の完走、旧形式の残件0、未解消conflict 0を[運用手順](../manual/organization-billing.md)で確認して記録する。
+Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を固定し、m042〜m047の完走、課金互換readinessの全ページblocking 0、旧店舗課金row 0、未解消conflict 0を[運用手順](../manual/organization-billing.md)で確認して記録する。
 このコード契約やローカルテストから、実環境の移行完了を推測しない。
 
 ## 管理者招待の安全契約
@@ -233,7 +234,7 @@ Notification Outboxは外部送信直前にも招待、所属、受取人を再�
 | `complimentary.pro` | 支払い不要Pro相当を利用中 | Pro権限を許可し、Stripe処理を拒否する |
 | `scheduledChange` | 期間末のプラン変更または解約を予約済み | 期間末までは現在の有料プランを維持する。解約予約は`restrictAtPeriodEnd: true`で識別する |
 | `grace` | 最初に検証された支払い失敗から14日間の猶予中 | 現在の有料権限と復旧操作を維持する |
-| `restricted` | 旧契約制限の互換shape | Productionの保存データには存在せず、新規作成もしない。rolling互換期間だけschema・validator・readerで受け付ける |
+| `restricted` | 旧契約制限の互換shape | 現行writerは作成しない。課金互換readinessで全deploymentの0件を確認するまでschema・validator・readerだけで受け付ける |
 
 状態遷移の前提、通知、期限、上限超過時の分岐は[業務仕様](../specs/organization-billing-business-flow.md)を参照する。
 
@@ -354,7 +355,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `api.organizationInvitation.mutations.createExternal` / `createForPerson` / `createForStaff` | rolling deploy中の旧client向けに、外部人物または既存人物へ管理者招待を発行する互換入口 |
 | `api.organizationInvitation.mutations.resend` / `revoke` | 招待の再送と取消 |
 | `api.organizationInvitation.acceptanceActions.accept` | 接続済み人物のアカウント一致、または未接続人物のClerk確認済みメールを検証して招待を承認 |
-| `api.organizationBilling.mutations.setFreeSelection` | 旧Free予約と旧`restricted`だけを読み取れるrolling互換入口。Productionに対象データはなく、Trialと新しい解約には使用しない |
+| `api.organizationBilling.mutations.setFreeSelection` | 旧Free予約と旧`restricted`だけを読み取れるrolling互換入口。Trialと新しい解約には使用せず、課金互換readiness完了後のNarrow対象にする |
 | `api.organizationBilling.mutations.updateBillingEmail` | 認証、組織境界、管理者状態を確認して請求先メールを更新する |
 | `api.organizationStripe.actions.getPlanPrice` / `startPaidCheckout` | Stripe設定と販売Priceを検証して価格を取得し、契約を開始する |
 | `api.organizationStripe.actions.inspectPendingCheckoutForOrganization` / `cancelPendingCheckoutForOrganization` | `pendingActivation`に対応するCheckout Sessionの照合と、利用者が明示した未完了Checkoutの取消。URLやclient stateだけで課金状態を変更しない |

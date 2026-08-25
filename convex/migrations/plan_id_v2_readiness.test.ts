@@ -56,7 +56,7 @@ describe("m042 plan ID readiness", () => {
     });
   });
 
-  it("unexpected state、global Stripe証跡、scheduled job、未完了billing通知をboundedに停止する", async () => {
+  it("全legacy stateとStripe証跡を観測し、live jobと未完了billing通知だけを停止条件にする", async () => {
     const t = createConvexTestWithMigrations();
     await t.run(async (ctx) => {
       const stripeTarget = await seedOrganizationManagerShop(ctx, {
@@ -107,17 +107,17 @@ describe("m042 plan ID readiness", () => {
       { phase: "pre", paginationOpts: { cursor: page1.continueCursor, numItems: 1 } },
     );
     expect(page2).toMatchObject({ scannedCount: 1, isDone: true });
-    expect(page1.totals.legacyTarget + page2.totals.legacyTarget).toBe(1);
-    expect(page1.totals.unexpectedBillingState + page2.totals.unexpectedBillingState).toBe(1);
+    expect(page1.totals.legacyTarget + page2.totals.legacyTarget).toBe(2);
+    expect(page1.totals.unexpectedBillingState + page2.totals.unexpectedBillingState).toBe(0);
     expect(page1.totals.stripeCustomerEvidence + page2.totals.stripeCustomerEvidence).toBe(1);
-    expect(page1.totals.blocking + page2.totals.blocking).toBe(2);
+    expect(page1.totals.blocking + page2.totals.blocking).toBe(0);
 
     await expect(
       t.query(internal.migrations.m042_organization_billing_plan_ids_v2_readiness.verifyStripeRows, {
         scope: "customers",
         paginationOpts: firstPage,
       }),
-    ).resolves.toMatchObject({ totals: { stripeRows: 1, blocking: 1 } });
+    ).resolves.toMatchObject({ totals: { stripeRows: 1, blocking: 0 } });
     await expect(
       t.query(internal.migrations.m042_organization_billing_plan_ids_v2_readiness.verifyScheduledBillingJobs, {
         paginationOpts: firstPage,
