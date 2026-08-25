@@ -33,7 +33,7 @@ const emailPayload = {
   kind: "email" as const,
   from: "シフトリ <noreply@example.com>",
   to: "staff@example.com",
-  subject: "シフト希望の提出をお願いします",
+  subject: "希望シフトの提出をお願いします",
   html: "<p>test</p>",
   context: "test.email",
   suppressDelivery: true,
@@ -991,7 +991,7 @@ describe("notificationOutbox", () => {
   });
 
   it.each(["restrictedStarted", "recovered"] as const)(
-    "%sのreadOnly非復旧担当者は既存Outbox経路でも送信対象にしない",
+    "%sの対象外readOnly所属は既存Outbox経路でも送信対象にしない",
     async (event) => {
       const t = createConvexTestWithMigrations();
       const ids = await t.run(async (ctx) => {
@@ -1001,7 +1001,7 @@ describe("notificationOutbox", () => {
         const formerPersonId = await ctx.db.insert("organizationPeople", {
           organizationId: seeded.organizationId,
           userId: formerUserId,
-          name: "旧復旧担当者",
+          name: "旧readOnly所属",
           email: `${event}-outbox-former@example.com`,
           emailNormalized: `${event}-outbox-former@example.com`,
           status: "active",

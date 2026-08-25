@@ -13,7 +13,7 @@ type CalendarDate = {
   day: number;
 };
 
-/** 月曜〜日曜の日付と前日締切を返す。提出締切前日17:00の自動催促も未来になる週を選ぶ。 */
+/** 月曜〜日曜の日付と提出期限前日を返す。提出期限前日17:00の自動催促も未来になる週を選ぶ。 */
 export function getNextWeekDates(now: Date | number = Date.now()) {
   const nowMs = typeof now === "number" ? now : now.getTime();
   const today = getJstCalendarDate(nowMs);

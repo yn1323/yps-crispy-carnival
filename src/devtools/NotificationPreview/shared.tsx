@@ -9,7 +9,9 @@ import { FlexMessagePreview } from "../FlexMessagePreview";
 
 export const notificationPreviewFixtures = {
   shopName: "居酒屋さくら",
+  organizationName: "さくらフードサービス",
   managerName: "佐藤 店長",
+  inviterName: "鈴木 花子",
   staffName: "山田 太郎",
   periodLabel: "2026年5月前半（5/1〜5/15）",
   deadline: "4/25(金)",
@@ -18,7 +20,11 @@ export const notificationPreviewFixtures = {
   reissueUrl: "https://example.com/shifts/reissue?recruitmentId=preview",
   consentUrl: "https://example.com/legal/staff/consent?token=preview-token",
   authorizeUrl: "https://example.com/line/callback?state=preview-token",
+  appUrl: "https://example.com",
+  helpUrl: "https://example.com/help",
   dashboardUrl: "https://example.com/dashboard",
+  managerInvitationUrl: "https://example.com/manager-invite?token=preview-token",
+  managerSettingsUrl: "https://example.com/manage/managers?org=preview-organization",
   expiresAt: new Date("2026-05-31T12:00:00+09:00").getTime(),
   shifts: [
     { date: "5/1(金)", startTime: "09:00", endTime: "13:00" },
@@ -38,7 +44,7 @@ export const legalDocuments = {
     audience: "staff",
     kind: "terms",
     title: "スタッフ向け利用規約",
-    documentVersion: "staff-terms-doc-2026-05-09",
+    documentVersion: "staff-terms-doc-2026-08-26",
     path: "/terms/staff",
     requiredConsentVersion: "staff-terms-consent-2026-05-09",
   },
@@ -46,7 +52,7 @@ export const legalDocuments = {
     audience: "staff",
     kind: "privacy",
     title: "スタッフ向けプライバシーポリシー",
-    documentVersion: "staff-privacy-doc-2026-08-13",
+    documentVersion: "staff-privacy-doc-2026-08-26",
     path: "/privacy/staff",
     requiredConsentVersion: "staff-privacy-consent-2026-08-13",
   },
@@ -72,6 +78,9 @@ type CopyState = "idle" | "copied" | "failed";
 
 export const notificationPreviewSubject = (text: string) =>
   formatResendSubject(notificationPreviewFixtures.shopName, text);
+
+export const notificationPreviewOrganizationSubject = (text: string) =>
+  formatResendSubject(notificationPreviewFixtures.organizationName, text);
 
 export const notificationPreviewLineCtaHtml = buildLineCtaSection({
   authorizeUrl: notificationPreviewFixtures.authorizeUrl,

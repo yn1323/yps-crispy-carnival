@@ -5,7 +5,12 @@ import { getAppUrl, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { observedInternalAction as internalAction } from "../_lib/errorObservability";
 import { isDryRunManagerEmail } from "../_lib/notificationDelivery";
-import { buildOrganizationBillingEmailHtml } from "../notification/templates";
+import {
+  buildOrganizationBillingEmailHtml,
+  ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA,
+  ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING,
+  ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT,
+} from "../notification/templates";
 import { emailPayload, enqueueEmail, organizationManagerInvitationEmailPayload } from "../notificationOutbox/enqueue";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
 
@@ -80,13 +85,14 @@ export const enqueueAcceptanceNotifications = internalAction({
         payload: emailPayload({
           from: formatResendFrom(data.organizationName, RESEND_FROM_EMAIL),
           to: recipient.email,
-          subject: formatResendSubject(data.organizationName, "管理者のアカウント連携が完了しました"),
+          subject: formatResendSubject(data.organizationName, ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT),
           html: buildOrganizationBillingEmailHtml({
             recipientName: recipient.name,
             organizationName: data.organizationName,
-            heading: "管理者のアカウント連携が完了しました",
-            paragraphs: ["新しい管理者のアカウントが組織に連携されました。"],
-            action: { label: "管理者設定を確認する", url: settingsUrl.toString() },
+            heading: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING,
+            headingSize: "normal",
+            paragraphs: [],
+            action: { label: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA, url: settingsUrl.toString() },
           }),
           context: "organizationInvitation.linked",
           suppressDelivery: isDryRunManagerEmail(recipient.email),

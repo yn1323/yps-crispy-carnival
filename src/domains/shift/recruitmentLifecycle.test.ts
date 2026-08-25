@@ -24,7 +24,7 @@ describe("募集ライフサイクル", () => {
     expect(getRecruitmentLifecycleStatus(input, TODAY)).toBe(expected);
   });
 
-  it("締切までの日数を基準日から数える", () => {
+  it("提出期限までの日数を基準日から数える", () => {
     expect(getRecruitmentDeadlineDays("2026-06-15", TODAY)).toBe(-1);
     expect(getRecruitmentDeadlineDays(TODAY, TODAY)).toBe(0);
     expect(getRecruitmentDeadlineDays("2026-06-18", TODAY)).toBe(2);

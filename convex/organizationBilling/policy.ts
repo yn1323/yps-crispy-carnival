@@ -368,7 +368,7 @@ export function hasLegacyBusinessBillingState(state: PersistedOrganizationBillin
   }
 }
 
-/** 支払い結果待ちでも、契約制限中から開始した場合は元の復旧契約を維持する。 */
+/** 支払い結果待ちでも、旧restricted stateから開始した場合は移行前の復旧契約を維持する。 */
 export function getEffectiveRestrictedBillingState(
   persistedState: PersistedOrganizationBillingState,
 ): RestrictedOrganizationBillingState | null {
@@ -521,7 +521,7 @@ const NO_RECOVERY_CAPABILITIES: readonly RecoveryCapability[] = [];
 /**
  * 課金状態だけから事業者全体の利用権限を導出する。
  *
- * 復旧操作は状態として許可される候補であり、呼び出し側で復旧担当者かを別途確認する。
+ * 旧restricted互換の操作は状態として許可される候補であり、呼び出し側で対象readOnly所属かを別途確認する。
  */
 export function deriveOrganizationBillingPolicy(
   persistedState: PersistedOrganizationBillingState,
@@ -543,7 +543,7 @@ export function deriveOrganizationBillingPolicy(
       }
       // StandardからProへの即時変更は支払い成功までStandard権利を維持する。
       if (state.fallback === "standard" || state.fallback === "pro") return enabledPolicy(plans, null);
-      // 契約制限中からの契約開始は、支払い成功まで制限と復旧権限を維持する。
+      // 旧restricted stateからの契約開始は、支払い成功まで移行前の制限と復旧権限を維持する。
       return restrictedPolicy(plans);
     case "active":
       return state.plan === "free" ? freePolicy(null) : enabledPolicy(plans, null);

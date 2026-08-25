@@ -815,7 +815,7 @@ describe("organizationBilling/mutations 請求先メール", () => {
     ).toHaveLength(1);
   });
 
-  it("契約制限中からの支払い結果待ちは復旧担当者が請求先メールを変更できる", async () => {
+  it("旧契約制限中からの支払い結果待ちは対象readOnly所属が請求先メールを変更できる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
@@ -902,7 +902,7 @@ describe("organizationBilling/mutations 請求先メール", () => {
           email: "must-not-change@example.com",
           requestId: "missing-restricted-fallback-billing-email",
         }),
-    ).rejects.toThrow("契約制限中の復旧操作ではありません");
+    ).rejects.toThrow("現在の契約状態では実行できない操作です");
     await expect(t.run(async (ctx) => (await ctx.db.get(ids.organizationId))?.billingEmail)).resolves.toBe(
       "billing_email_missing_restricted_fallback@example.com",
     );
@@ -1467,7 +1467,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
         state: { kind: "paymentFailed" },
         correlationId: "pending-restricted-missing-snapshot-payment-failed",
       }),
-    ).rejects.toThrow("契約制限中の復旧情報を確認できません");
+    ).rejects.toThrow("契約状態の確認に必要な情報を取得できません");
 
     const result = await t.run(async (ctx) => ({
       audits: await ctx.db.query("organizationAuditEvents").collect(),

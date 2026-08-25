@@ -62,7 +62,7 @@ export const createRecruitment = managerMutation({
     const today = todayJST();
 
     if (input.deadline < today) {
-      throw new ConvexError("締切日は今日以降にしてください");
+      throw new ConvexError("提出期限は今日以降にしてください");
     }
     if (input.periodStart <= today) {
       throw new ConvexError("開始日は明日以降にしてください");
@@ -71,7 +71,7 @@ export const createRecruitment = managerMutation({
       throw new ConvexError("終了日は開始日以降にしてください");
     }
     if (input.deadline >= input.periodStart) {
-      throw new ConvexError("締切日は開始日より前にしてください");
+      throw new ConvexError("提出期限はシフト開始日より前にしてください");
     }
     const shopClosedDates = normalizeShopClosedDates(input.shopClosedDates, input.periodStart, input.periodEnd);
     const existingRecruitments = await ctx.db
@@ -166,7 +166,7 @@ export const createRecruitment = managerMutation({
       });
     }
 
-    // 締切翌日17時に、まだ確定していなければマネージャーへ確定催促を送る。締切は作成後に編集できないため作成時のみ予約する。
+    // 提出期限の翌日17時に、まだ確定していなければマネージャーへ確定催促を送る。提出期限は作成後に編集できないため作成時のみ予約する。
     const confirmationReminderAt = getManagerConfirmationReminderAt(input.deadline);
     if (confirmationReminderAt > now) {
       await ctx.scheduler.runAt(

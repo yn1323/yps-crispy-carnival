@@ -24,7 +24,9 @@ export async function recordOrganizationMigrationConflict(
       | "organization"
       | "notificationOutbox"
       | "analyticsSourceEvent"
-      | "dashboardAnnouncement";
+      | "dashboardAnnouncement"
+      | "organizationStripeSubscription"
+      | "organizationStripeOperation";
     sourceId: string;
     code: string;
   },
@@ -66,7 +68,9 @@ export async function resolveOrganizationMigrationConflicts(
       | "organization"
       | "notificationOutbox"
       | "analyticsSourceEvent"
-      | "dashboardAnnouncement";
+      | "dashboardAnnouncement"
+      | "organizationStripeSubscription"
+      | "organizationStripeOperation";
     sourceId: string;
     codes?: readonly string[];
     resolvedAt?: number;

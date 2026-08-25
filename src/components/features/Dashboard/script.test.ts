@@ -27,11 +27,11 @@ const recruitment = (overrides: Partial<Recruitment> = {}) =>
   }) as unknown as Recruitment;
 
 describe("Dashboard recruitment display helpers", () => {
-  it("未確定で締切前なら募集中として扱う", () => {
+  it("未確定で提出期限前なら募集中として扱う", () => {
     expect(getDisplayStatus(recruitment({ deadline: "2026-06-25" }), now)).toBe("collecting");
   });
 
-  it("未確定で締切後なら要シフト調整として扱う", () => {
+  it("未確定で提出期限後なら要シフト調整として扱う", () => {
     const overdue = recruitment({ deadline: "2026-06-10" });
     expect(getDisplayStatus(overdue, now)).toBe("action-required");
     expect(getDashboardRecruitmentGroupKey(overdue, now)).toBe("actionRequired");
@@ -165,7 +165,7 @@ describe("Dashboard recruitment display helpers", () => {
     expect(result.totalCount).toBe(4);
   });
 
-  it("募集中は締切が近い順に並べる", () => {
+  it("募集中は提出期限が近い順に並べる", () => {
     const laterDeadline = recruitment({ _id: "later" as Recruitment["_id"], deadline: "2026-06-25" });
     const soonerDeadline = recruitment({ _id: "sooner" as Recruitment["_id"], deadline: "2026-06-18" });
 

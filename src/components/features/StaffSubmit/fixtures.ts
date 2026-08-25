@@ -16,13 +16,13 @@ export const submitStoryBaseData: SubmissionData = {
   legalDocuments: {
     terms: {
       title: "スタッフ向け利用規約",
-      documentVersion: "staff-terms-doc-2026-05-09",
+      documentVersion: "staff-terms-doc-2026-08-26",
       requiredConsentVersion: "staff-terms-consent-2026-05-09",
       path: "/terms/staff",
     },
     privacy: {
       title: "スタッフ向けプライバシーポリシー",
-      documentVersion: "staff-privacy-doc-2026-08-13",
+      documentVersion: "staff-privacy-doc-2026-08-26",
       requiredConsentVersion: "staff-privacy-consent-2026-08-13",
       path: "/privacy/staff",
     },

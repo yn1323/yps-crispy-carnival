@@ -1,7 +1,7 @@
 import type { PaginationOptions } from "convex/server";
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 
@@ -24,11 +24,11 @@ function requireBoundedPagination(paginationOpts: PaginationOptions) {
 }
 
 function isLegacyTarget(state: { kind: string; planIdVersion?: 2; plan?: string }) {
-  return state.kind === "complimentary" && state.planIdVersion === undefined && state.plan === "business";
+  return state.planIdVersion === undefined;
 }
 
 function isCanonicalTarget(state: { kind: string; planIdVersion?: 2; plan?: string }) {
-  return state.kind === "complimentary" && state.planIdVersion === 2 && state.plan === "pro";
+  return state.planIdVersion === 2;
 }
 
 async function stripeEvidence(ctx: QueryCtx, organizationId: Id<"organizations">) {
@@ -59,7 +59,7 @@ async function stripeEvidence(ctx: QueryCtx, organizationId: Id<"organizations">
 }
 
 /**
- * m042のpre/post flight。全organization pageを走査し、支払い不要Pro以外やStripe証跡を件数だけで止める。
+ * m042のpre/post flight。全organization pageを走査し、stateの一意性とplan ID versionを確認する。
  * preではlegacy targetとresume済みv2を許可し、postではlegacy targetもblockingへ含める。
  */
 export const verifyOrganizations = internalQuery({
@@ -119,10 +119,6 @@ export const verifyOrganizations = internalQuery({
       totals.missingBillingState +
       totals.multipleBillingStates +
       totals.unexpectedBillingState +
-      totals.stripeCustomerEvidence +
-      totals.stripeSubscriptionEvidence +
-      totals.stripeOperationEvidence +
-      totals.stripeWebhookEvidence +
       (phase === "post" ? totals.legacyTarget : 0);
 
     return {
@@ -173,7 +169,54 @@ const stripeScopeValidator = v.union(
   v.literal("webhooks"),
 );
 
-/** Stripe各tableをglobalにpage走査し、orphanや同一組織の複数行も含めて全証跡を止める。 */
+type StripeScope = "customers" | "subscriptions" | "operations" | "webhooks";
+type StripeRow =
+  | Doc<"organizationStripeCustomers">
+  | Doc<"organizationStripeSubscriptions">
+  | Doc<"organizationStripeOperations">
+  | Doc<"stripeWebhookEvents">;
+
+async function hasDuplicateLogicalKey(ctx: QueryCtx, scope: StripeScope, row: StripeRow) {
+  if (scope === "customers") {
+    const customer = row as Doc<"organizationStripeCustomers">;
+    const siblings = await ctx.db
+      .query("organizationStripeCustomers")
+      .withIndex("by_organizationId", (q) => q.eq("organizationId", customer.organizationId))
+      .take(2);
+    return siblings.length > 1;
+  }
+  if (scope === "subscriptions") {
+    const subscription = row as Doc<"organizationStripeSubscriptions">;
+    const siblings = await ctx.db
+      .query("organizationStripeSubscriptions")
+      .withIndex("by_organizationId_and_providerGeneration", (q) =>
+        q.eq("organizationId", subscription.organizationId).eq("providerGeneration", subscription.providerGeneration),
+      )
+      .take(2);
+    return siblings.length > 1;
+  }
+  if (scope === "operations") {
+    const operation = row as Doc<"organizationStripeOperations">;
+    const siblings = await ctx.db
+      .query("organizationStripeOperations")
+      .withIndex("by_organizationId_and_kind_and_requestKey", (q) =>
+        q
+          .eq("organizationId", operation.organizationId)
+          .eq("kind", operation.kind)
+          .eq("requestKey", operation.requestKey),
+      )
+      .take(2);
+    return siblings.length > 1;
+  }
+  const webhook = row as Doc<"stripeWebhookEvents">;
+  const siblings = await ctx.db
+    .query("stripeWebhookEvents")
+    .withIndex("by_stripeEventId", (q) => q.eq("stripeEventId", webhook.stripeEventId))
+    .take(2);
+  return siblings.length > 1;
+}
+
+/** Stripe各tableをglobalにpage走査し、不正な組織参照やscope固有の一意キー重複を止める。plan IDはm045 / m046で別途確認する。 */
 export const verifyStripeRows = internalQuery({
   args: { scope: stripeScopeValidator, paginationOpts: paginationOptsValidator },
   returns: v.object({
@@ -181,7 +224,7 @@ export const verifyStripeRows = internalQuery({
     totals: v.object({
       stripeRows: v.number(),
       danglingOrganization: v.number(),
-      rowsInDuplicateOrganization: v.number(),
+      rowsWithDuplicateLogicalKey: v.number(),
       blocking: v.number(),
     }),
   }),
@@ -196,34 +239,20 @@ export const verifyStripeRows = internalQuery({
             ? await ctx.db.query("organizationStripeOperations").paginate(paginationOpts)
             : await ctx.db.query("stripeWebhookEvents").paginate(paginationOpts);
     let danglingOrganization = 0;
-    let rowsInDuplicateOrganization = 0;
+    let rowsWithDuplicateLogicalKey = 0;
     for (const row of result.page) {
       const organizationId = row.organizationId;
-      if (!organizationId || !(await ctx.db.get(organizationId))) {
+      const isUnscopedIgnoredWebhook =
+        scope === "webhooks" && !organizationId && (row as Doc<"stripeWebhookEvents">).status === "ignored";
+      if (!organizationId && !isUnscopedIgnoredWebhook) {
         danglingOrganization += 1;
         continue;
       }
-      const siblings =
-        scope === "customers"
-          ? await ctx.db
-              .query("organizationStripeCustomers")
-              .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
-              .take(2)
-          : scope === "subscriptions"
-            ? await ctx.db
-                .query("organizationStripeSubscriptions")
-                .withIndex("by_organizationId_and_providerGeneration", (q) => q.eq("organizationId", organizationId))
-                .take(2)
-            : scope === "operations"
-              ? await ctx.db
-                  .query("organizationStripeOperations")
-                  .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId))
-                  .take(2)
-              : await ctx.db
-                  .query("stripeWebhookEvents")
-                  .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
-                  .take(2);
-      if (siblings.length > 1) rowsInDuplicateOrganization += 1;
+      if (organizationId && !(await ctx.db.get(organizationId))) {
+        danglingOrganization += 1;
+        continue;
+      }
+      if (await hasDuplicateLogicalKey(ctx, scope, row)) rowsWithDuplicateLogicalKey += 1;
     }
     return {
       scannedCount: result.page.length,
@@ -232,9 +261,8 @@ export const verifyStripeRows = internalQuery({
       totals: {
         stripeRows: result.page.length,
         danglingOrganization,
-        rowsInDuplicateOrganization,
-        // Production前提はStripe証跡0件なので、row自体をblockingとする。
-        blocking: result.page.length,
+        rowsWithDuplicateLogicalKey,
+        blocking: danglingOrganization + rowsWithDuplicateLogicalKey,
       },
     };
   },

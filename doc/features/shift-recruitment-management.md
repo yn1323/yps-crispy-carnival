@@ -58,8 +58,8 @@ Dashboardは募集を次の順で表示し、空の分類は表示しない。
 ## 通知との境界
 
 募集作成時は、対象スタッフへの募集通知を予約する。
-提出締切日前日17:00の自動催促は、その予定時刻が募集作成時点より未来の場合だけ予約する。
-提出締切翌日17:00の管理者向け確定催促も、予定時刻が未来の場合だけ予約する。詳細は[シフト確定リマインダー](shift-confirmation-reminder.md)を参照する。
+提出期限の前日17:00の自動催促は、その予定時刻が募集作成時点より未来の場合だけ予約する。
+提出期限の翌日17:00の管理者向け確定催促も、予定時刻が未来の場合だけ予約する。詳細は[シフト確定リマインダー](shift-confirmation-reminder.md)を参照する。
 募集作成の完了画面では「スタッフに通知しました」と案内するが、外部送信はNotification Outboxが非同期で行う。
 
 募集を削除すると、進行中の通知fanoutを同じtransactionで停止する。
@@ -76,7 +76,7 @@ lease、cursor、dedupe、再開、保持期限は[Notification Outbox](notifica
 | `api.dashboard.queries.getDashboardRecruitments` | 初期表示する現在、調整待ち、募集中、未来確定の候補を返す |
 | `api.dashboard.queries.hasDashboardPastRecruitments` | 過去の募集が存在するかを返す |
 | `api.dashboard.queries.getDashboardPastRecruitments` | 過去の募集を終了日の新しい順でページングして返す |
-| `api.dashboard.queries.getDashboardCurrentRecruitments` | 現在日付が期間内にある確定済みシフトを返す |
+| `api.dashboard.queries.getDashboardCurrentRecruitments` | 現在日付が期間内にある確定シフトを返す |
 | `api.appOrganization.queries.listOrganizationRecruitments` | canonicalな組織所属を検証し、active店舗と現在募集を店舗単位でページングして返す |
 
 管理者APIは選択店舗と所属をサーバー側で確認する。

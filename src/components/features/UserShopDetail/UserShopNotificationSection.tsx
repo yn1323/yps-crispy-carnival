@@ -286,10 +286,10 @@ function getRecruitmentMetaLabel(
       ? `確定 ${formatDateShort(dayjs(recruitment.confirmedAt).format("YYYY-MM-DD"))}`
       : "確定済み";
   }
-  if (recruitment.deadline < today) return `${formatDateShort(recruitment.deadline)} 締切済み`;
+  if (recruitment.deadline < today) return `${formatDateShort(recruitment.deadline)} 提出期限超過`;
 
   const days = getRecruitmentDeadlineDays(recruitment.deadline, today);
-  return days === 0 ? "今日が締切！" : `締切まで${days}日`;
+  return days === 0 ? "今日が提出期限！" : `提出期限まで${days}日`;
 }
 
 export function UserShopNotificationSkeleton() {

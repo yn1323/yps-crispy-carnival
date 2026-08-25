@@ -790,7 +790,7 @@ describe("通知配送outboxシナリオ", () => {
     });
   });
 
-  it("手動の募集通知再送はopenかつ開始前・締切前の募集を1スタッフへ送る", async () => {
+  it("手動の募集通知再送はopenかつ開始前・提出期限前の募集を1スタッフへ送る", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);

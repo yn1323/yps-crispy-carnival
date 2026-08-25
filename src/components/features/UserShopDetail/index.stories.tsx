@@ -259,7 +259,7 @@ export const ReadOnly: Story = {
     },
     membership: readOnlyMembership,
     isStoreReadOnly: true,
-    storeDisabledReason: "この店舗は契約制限中のため、設定を変更できません。",
+    storeDisabledReason: "現在の契約状態では、店舗設定を変更できません。",
   },
 };
 

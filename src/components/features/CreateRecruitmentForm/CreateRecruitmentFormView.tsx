@@ -108,10 +108,10 @@ const recruitmentSteps: StepperDialogStep<CreateRecruitmentStep>[] = [
   },
   {
     value: "deadline",
-    label: "提出締切",
+    label: "提出期限",
     icon: LuTimer,
-    title: "提出締切日を選択",
-    description: "シフト提出の締切日を選んでください。",
+    title: "提出期限を選択",
+    description: "希望シフトの提出期限を選んでください。",
   },
   {
     value: "confirm",

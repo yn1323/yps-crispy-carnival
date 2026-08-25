@@ -127,6 +127,17 @@ export const runDashboardAnnouncementPlanIdsV2 = migrations.runner(
   internal.migrations.m044_dashboard_announcement_plan_ids_v2.migration,
 );
 
+// Stripe snapshotの旧plan aliasをm045 Subscription、m046 Operationの順でcanonicalへ揃える。
+export const runOrganizationStripePlanIdsV2 = migrations.runner([
+  internal.migrations.m045_organization_stripe_subscription_plan_ids_v2.migration,
+  internal.migrations.m046_organization_stripe_operation_plan_ids_v2.migration,
+]);
+
+// m028とverifyLegacyShopBillingStatesでcanonical対応を確認してからだけ明示実行する。
+export const runShopBillingStatesCleanup = migrations.runner(
+  internal.migrations.m047_shop_billing_states_cleanup.migration,
+);
+
 // conflict裁定後は、この範囲だけをresetして安全に再評価する。
 export const runFormerManagerAccessCleanup = migrations.runner([
   internal.migrations.m013_former_managers_remove_manager_access.migration,

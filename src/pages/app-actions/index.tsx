@@ -196,7 +196,7 @@ export function AppActionsReadOnlyNotice() {
     <Alert.Root status="warning" borderRadius="xl">
       <Alert.Indicator />
       <Alert.Content>
-        <Alert.Title>閲覧のみの管理者です</Alert.Title>
+        <Alert.Title>現在、このアカウントでは操作できません</Alert.Title>
         <Alert.Description>対応内容は確認できますが、承認・再送・取り消しはできません。</Alert.Description>
       </Alert.Content>
     </Alert.Root>

@@ -93,7 +93,7 @@ export function AppOrganizationSwitcher({ activeOrganizationId, activeOrganizati
                       </Text>
                       {option.memberStatus === "readOnly" && (
                         <Badge colorPalette="gray" variant="subtle" size="sm" flexShrink={0}>
-                          閲覧のみ
+                          状態確認
                         </Badge>
                       )}
                     </HStack>

@@ -18,7 +18,7 @@ export const Variants: Story = {
 
 export const Mobile: Story = {
   args: {
-    phrases: ["シフト希望表は、", "お店に合わせて", "3タイプから選べます。"],
+    phrases: ["希望シフト表は、", "お店に合わせて", "3タイプから選べます。"],
     textAlign: "center",
   },
   tags: ["vrt-mobile2"],

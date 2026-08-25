@@ -23,7 +23,7 @@ type Story = StoryObj<typeof meta>;
 const sampleNames = ["田中次郎", "小林大輔", "佐藤花子"];
 const scheduledStatus = {
   kind: "scheduled" as const,
-  label: "提出締切の前日17:00に未提出者へ自動で催促します",
+  label: "提出期限の前日17:00に未提出者へ自動で催促します",
 };
 const sentStatus = {
   kind: "sent" as const,

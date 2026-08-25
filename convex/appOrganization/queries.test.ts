@@ -644,7 +644,7 @@ describe("appOrganization organization context queries", () => {
     });
     expect(readOnly.page[0]?.actions).toEqual({
       canCreate: false,
-      createDisabledReason: "閲覧のみの管理者は、募集を作成できません。",
+      createDisabledReason: "現在のアカウント状態では、募集を作成できません。",
     });
   });
 
@@ -869,9 +869,9 @@ describe("appOrganization organization context queries", () => {
       }),
     ).resolves.toMatchObject({
       canAddStaff: false,
-      addStaffDisabledReason: "閲覧のみの管理者は、スタッフを追加できません。",
+      addStaffDisabledReason: "現在のアカウント状態では、スタッフを追加できません。",
       canChangeStaffOrder: false,
-      changeStaffOrderDisabledReason: "閲覧のみの管理者は、スタッフの並び順を変更できません。",
+      changeStaffOrderDisabledReason: "現在のアカウント状態では、スタッフの並び順を変更できません。",
     });
   });
 });

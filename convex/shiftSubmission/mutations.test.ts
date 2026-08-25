@@ -33,8 +33,8 @@ async function setupTestData(
       shopId,
       termsConsentVersion: "staff-terms-consent-2026-05-09",
       privacyConsentVersion: "staff-privacy-consent-2026-08-13",
-      termsDocumentVersion: "staff-terms-doc-2026-05-09",
-      privacyDocumentVersion: "staff-privacy-doc-2026-08-13",
+      termsDocumentVersion: "staff-terms-doc-2026-08-26",
+      privacyDocumentVersion: "staff-privacy-doc-2026-08-26",
       consentedAt: Date.now(),
       method: "staff_email_link",
     });
@@ -379,7 +379,7 @@ describe("shiftSubmission/mutations", () => {
       ).rejects.toThrow(ConvexError);
     });
 
-    it("締切超過でも未提出なら初回提出でき、以降の変更はできない", async () => {
+    it("提出期限超過でも未提出なら初回提出でき、以降の変更はできない", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId } = await setupTestData(t, { deadlinePassed: true });
 
@@ -419,7 +419,7 @@ describe("shiftSubmission/mutations", () => {
       ).rejects.toThrow("Not found");
     });
 
-    it("正常にシフト希望を提出できる", async () => {
+    it("正常に希望シフトを提出できる", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
 
@@ -484,7 +484,7 @@ describe("shiftSubmission/mutations", () => {
       expect(slots).toHaveLength(SHIFT_REQUESTS_PER_SUBMISSION_LIMIT);
     });
 
-    it("不正な日付・時刻形式の希望提出は保存前に拒否する", async () => {
+    it("不正な日付・時刻形式の希望シフト提出は保存前に拒否する", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId } = await setupTestData(t);
 
@@ -841,8 +841,8 @@ describe("shiftSubmission/mutations", () => {
 
       expect(state?.termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
       expect(state?.privacyConsentVersion).toBe("staff-privacy-consent-2026-08-13");
-      expect(state?.termsDocumentVersion).toBe("staff-terms-doc-2026-05-09");
-      expect(state?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-08-13");
+      expect(state?.termsDocumentVersion).toBe("staff-terms-doc-2026-08-26");
+      expect(state?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-08-26");
       expect(state?.method).toBe("shift_submit");
       expect(events).toHaveLength(1);
       expect(events[0].method).toBe("shift_submit");

@@ -3,6 +3,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { formatDateJa, formatDateTimeJa } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
+import { resolveOrganizationPersonEmailForManagerAddition } from "../_lib/personIdentity";
 import { loadShopManagerNotificationRecipientStatus } from "../_lib/shopManagerRecipients";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
 import { normalizeEmail, requiredEmailSchema } from "../_lib/validation";
@@ -29,7 +30,6 @@ import { getOrganizationInvitationPurpose } from "../organizationInvitation/purp
 import { resolveOrganizationInvitationEligibility } from "../organizationInvitation/service";
 import { getStripeBillingConfiguration } from "../organizationStripe/config";
 import { getOrganizationCreationAvailability, type OrganizationCreationAvailability } from "../setup/service";
-import { isOrganizationBillingContact } from "./billingContact";
 import { getOrganizationDeletionEligibility } from "./deletion";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
 import { isValidOrganizationRecoveryManager, organizationPersonCountsTowardPeopleLimit } from "./service";
@@ -613,6 +613,20 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
   const managerInvitationMode = "addition" as const;
   const canInviteManager = canInviteManagerAddition;
   const canRevokeInvitation = Boolean(isActiveActor && (canWriteNormally || canRecoverUsageLimits));
+  const managerAdditionPersonResolutionByEmail = new Map<
+    string,
+    ReturnType<typeof resolveOrganizationPersonEmailForManagerAddition>
+  >();
+  const resolveManagerAdditionPersonByEmail = (emailNormalized: string) => {
+    const cached = managerAdditionPersonResolutionByEmail.get(emailNormalized);
+    if (cached) return cached;
+    const resolution = resolveOrganizationPersonEmailForManagerAddition(ctx, {
+      organizationId: organization._id,
+      emailNormalized,
+    });
+    managerAdditionPersonResolutionByEmail.set(emailNormalized, resolution);
+    return resolution;
+  };
   const managerInvitations = await Promise.all(
     invitationDocs.map(async (invitation) => {
       const lifecycleStatus = getOrganizationInvitationLifecycleStatus(invitation);
@@ -655,19 +669,29 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
       const canRetryStatus = lifecycleStatus === "issued" || lifecycleStatus === "expired";
       const eligibility = canRetryStatus ? await resolveOrganizationInvitationEligibility(ctx, invitation) : null;
       const targetPerson = invitation.targetPersonId ? await ctx.db.get(invitation.targetPersonId) : null;
+      const targetResolution = canRetryStatus
+        ? await resolveManagerAdditionPersonByEmail(invitation.emailNormalized)
+        : null;
+      const resolvedPerson =
+        targetResolution?.kind === "active" || targetResolution?.kind === "removed" ? targetResolution.person : null;
       const targetPersonMismatch = Boolean(
-        invitation.targetPersonId &&
+        canRetryStatus &&
+          invitation.targetPersonId &&
           (!targetPerson ||
             targetPerson.organizationId !== organization._id ||
-            targetPerson.emailNormalized !== invitation.emailNormalized),
+            targetPerson.emailNormalized !== invitation.emailNormalized ||
+            resolvedPerson?._id !== targetPerson._id),
       );
-      const matchingPeople = invitation.targetPersonId
-        ? targetPerson && !targetPersonMismatch
-          ? [targetPerson]
-          : []
-        : peopleDocs.filter((person) => person.emailNormalized === invitation.emailNormalized);
-      const existingPerson =
-        matchingPeople.length === 1 && matchingPeople[0].status === "active" ? matchingPeople[0] : null;
+      const matchingPeople = !canRetryStatus
+        ? []
+        : invitation.targetPersonId
+          ? targetPerson && !targetPersonMismatch
+            ? [targetPerson]
+            : []
+          : resolvedPerson
+            ? [resolvedPerson]
+            : [];
+      const existingPerson = matchingPeople.length === 1 ? matchingPeople[0] : null;
       const existingPersonCounts = existingPerson
         ? await organizationPersonCountsTowardPeopleLimit(ctx, organization._id, existingPerson._id)
         : false;
@@ -688,8 +712,8 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
       const hasTargetConflict = Boolean(
         canRetryStatus &&
           (targetPersonMismatch ||
+            targetResolution?.kind === "conflict" ||
             matchingPeople.length > 1 ||
-            matchingPeople[0]?.status === "removed" ||
             (existingPerson && managerRoleByPersonId.get(existingPerson._id) === "active") ||
             (!eligibility && !isExpired)),
       );
@@ -769,15 +793,12 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
       const hasManagerInvitation = invitedPersonIds.has(person._id);
       const isRecoveryManager = Boolean(restrictedState && recoveryPersonIds.includes(person._id));
       const isLastRecoveryManager = isRecoveryManager && recoveryPersonIds.length <= 1;
-      const isBillingContact = isOrganizationBillingContact(organization, person);
       const capabilities = deriveOrganizationPersonCapabilities({
         managerRole,
         activeManagerCount,
         canWriteNormally,
         canRecoverUsageLimits,
         policy,
-        isStaff,
-        isBillingContact,
         isActiveActor,
         isRestricted: restrictedState !== null,
         isRestrictedRecovery,
@@ -834,9 +855,9 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     : shops.length <= 1
       ? "組織には少なくとも1店舗が必要です。"
       : !isActiveActor
-        ? "閲覧のみの管理者は、店舗を削除できません。"
+        ? "現在のアカウント状態では、店舗を削除できません。"
         : restrictedState
-          ? "店舗を削除できるのは、契約の復旧担当者だけです。"
+          ? "現在の契約状態では、店舗を削除できません。"
           : "現在の契約状態では、店舗を削除できません。";
   const shopsView = (
     await Promise.all(
@@ -850,11 +871,11 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
             : !billingState
               ? "組織単位の設定を移行しています。\n完了するまでお待ちください。"
               : !isActiveActor
-                ? "閲覧のみの管理者は、店舗設定を変更できません。"
+                ? "現在のアカウント状態では、店舗設定を変更できません。"
                 : accessPolicy?.businessWriteBlockReason === "usageLimitExceeded"
                   ? usageLimitBlockedReason
                   : restrictedState
-                    ? "契約制限中は、店舗設定を変更できません。"
+                    ? "現在の契約状態では、店舗設定を変更できません。"
                     : "支払い結果が確定するまで、店舗設定を変更できません。";
         const recipientStatus = await loadShopManagerNotificationRecipientStatus(
           ctx,
@@ -965,8 +986,8 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
   const accessDisabledReason =
     !isActiveActor && !isRestrictedRecovery
       ? restrictedState
-        ? "この操作を行えるのは、契約の復旧担当者だけです。"
-        : "閲覧のみの管理者は、この操作を行えません。"
+        ? "現在の契約状態では、この操作を行えません。"
+        : "現在のアカウント状態では、この操作を行えません。"
       : undefined;
   const managePlanDisabledReason =
     billingCapabilities.canManagePlan || isComplimentary
@@ -1068,7 +1089,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
               ? "有料プランの支払い結果を確認中です。\n無料の基本機能は引き続き利用できます。"
               : restrictedState
                 ? restrictedBlockedReason(restrictedState)
-                : "支払い結果を確認しています。\n確認が終わるまで、契約制限中のままになります。",
+                : "支払い結果を確認しています。\n確認が終わるまで、契約状態を変更できません。",
           nextEvent: { label: "支払い結果", date: "確認中" },
         };
         break;
@@ -1151,11 +1172,11 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     : !billingState
       ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
       : !isActiveActor
-        ? "閲覧のみの管理者は、管理者を招待できません。"
+        ? "現在のアカウント状態では、管理者を招待できません。"
         : accessPolicy?.businessWriteBlockReason === "usageLimitExceeded"
           ? usageLimitBlockedReason
           : restrictedState
-            ? "契約制限中は、管理者を招待できません。"
+            ? "現在の契約状態では、管理者を招待できません。"
             : hasActiveFreeManagerExchangeInvitation
               ? "以前の管理者交代招待が残っています。\n取り消すか有効期限が切れてから、管理者を追加してください。"
               : policy?.paidFeatureBlockReason === "paymentResultPending"
@@ -1173,11 +1194,11 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     : !billingState
       ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
       : !isActiveActor
-        ? "閲覧のみの管理者は、店舗を追加できません。"
+        ? "現在のアカウント状態では、店舗を追加できません。"
         : accessPolicy?.businessWriteBlockReason === "usageLimitExceeded"
           ? usageLimitBlockedReason
           : restrictedState
-            ? "契約制限中は、店舗を追加できません。"
+            ? "現在の契約状態では、店舗を追加できません。"
             : policy?.paidFeatureBlockReason === "freePlan"
               ? "Freeプランでは、店舗を追加できません。\n有料プランを選択してください。"
               : policy?.paidFeatureBlockReason === "paymentResultPending"
@@ -1189,7 +1210,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     : !ctx.organizationMember
       ? "組織単位の設定を移行しています。\n完了するまでお待ちください。"
       : !isActiveActor
-        ? "閲覧のみの管理者は、組織名を変更できません。"
+        ? "現在のアカウント状態では、組織名を変更できません。"
         : accessPolicy?.businessWriteBlockReason === "usageLimitExceeded"
           ? usageLimitBlockedReason
           : "現在の契約状態では、組織名を変更できません。";
@@ -1484,7 +1505,7 @@ export async function getCanonicalManagerSettingsOverview(
       ? "現在の利用数を安全に確認できないため、管理者を招待できません。利用人数・店舗・管理者を確認してください。"
       : "プラン上限を超過しているため、管理者を招待できません。利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。";
   const inviteBaseReason = !isActiveActor
-    ? "閲覧のみの管理者は、管理者を招待できません。"
+    ? "現在のアカウント状態では、管理者を招待できません。"
     : access.businessWriteBlockReason === "usageLimitExceeded"
       ? usageLimitDisabledReason
       : restrictedState || !access.canWriteBusinessData
@@ -1522,23 +1543,12 @@ export async function getCanonicalManagerSettingsOverview(
     : [];
   const managers = [];
   for (const { member, person } of managerState.rows) {
-    const isStaff = Boolean(
-      await ctx.db
-        .query("staffs")
-        .withIndex("by_organizationId_and_organizationPersonId", (q) =>
-          q.eq("organizationId", organization._id).eq("organizationPersonId", person._id),
-        )
-        .filter((q) => q.eq(q.field("isDeleted"), false))
-        .first(),
-    );
     const capabilities = deriveOrganizationPersonCapabilities({
       managerRole: member.status === "active" ? "active" : "readOnly",
       activeManagerCount: observedActiveManagerCount,
       canWriteNormally: canWrite,
       canRecoverUsageLimits,
       policy,
-      isStaff,
-      isBillingContact: isOrganizationBillingContact(organization, person),
       isActiveActor,
       isRestricted: restrictedState !== null,
       isRestrictedRecovery: validRecoveryPersonIds.includes(organizationMember.personId),
@@ -1567,17 +1577,20 @@ export async function getCanonicalManagerSettingsOverview(
   for (const invitation of activeInvitations.invitations) {
     const purpose = getOrganizationInvitationPurpose(invitation);
     const targetPerson = invitation.targetPersonId ? await ctx.db.get(invitation.targetPersonId) : null;
+    const targetResolution = await resolveOrganizationPersonEmailForManagerAddition(ctx, {
+      organizationId: organization._id,
+      emailNormalized: invitation.emailNormalized,
+    });
+    const resolvedPerson =
+      targetResolution.kind === "active" || targetResolution.kind === "removed" ? targetResolution.person : null;
     const matchingPeople = invitation.targetPersonId
-      ? targetPerson
+      ? targetPerson && resolvedPerson?._id === targetPerson._id
         ? [targetPerson]
         : []
-      : await ctx.db
-          .query("organizationPeople")
-          .withIndex("by_organizationId_and_emailNormalized", (q) =>
-            q.eq("organizationId", organization._id).eq("emailNormalized", invitation.emailNormalized),
-          )
-          .take(2);
-    const effectiveTargetPerson = targetPerson ?? (matchingPeople.length === 1 ? matchingPeople[0] : null);
+      : resolvedPerson
+        ? [resolvedPerson]
+        : [];
+    const effectiveTargetPerson = matchingPeople.length === 1 ? matchingPeople[0] : null;
     const effectiveTargetEmail = effectiveTargetPerson
       ? requiredEmailSchema.safeParse(effectiveTargetPerson.email)
       : null;
@@ -1590,10 +1603,10 @@ export async function getCanonicalManagerSettingsOverview(
           .take(2)
       : [];
     const targetConflict = Boolean(
-      (invitation.targetPersonId && !targetPerson) ||
+      targetResolution.kind === "conflict" ||
+        (invitation.targetPersonId && (!targetPerson || resolvedPerson?._id !== targetPerson._id)) ||
         (effectiveTargetPerson &&
           (effectiveTargetPerson.organizationId !== organization._id ||
-            effectiveTargetPerson.status !== "active" ||
             effectiveTargetPerson.emailNormalized !== invitation.emailNormalized ||
             !effectiveTargetEmail?.success ||
             normalizeEmail(effectiveTargetEmail.data) !== invitation.emailNormalized)) ||
@@ -1785,7 +1798,7 @@ export async function getCanonicalManagerCandidates(ctx: CanonicalOrganizationSe
       member?.status === "active"
         ? "すでに管理者です。"
         : member?.status === "readOnly"
-          ? "閲覧のみの管理者です。契約状態を復旧してから変更してください。"
+          ? "現在、管理者として操作できません。アカウント状態を確認してから変更してください。"
           : pending
             ? "管理者招待の承認待ちです。"
             : !hasValidEmail

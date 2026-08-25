@@ -544,7 +544,7 @@ describe("shop/mutations", () => {
       });
     });
 
-    it("希望提出方法だけを正規化して更新する", async () => {
+    it("希望シフトの提出方法だけを正規化して更新する", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
         const seeded = await seedOrganizationManagerShop(ctx, {
@@ -747,7 +747,7 @@ describe("shop/mutations", () => {
       await expect(t.run(async (ctx) => (await ctx.db.get(shopId))?.name)).resolves.toBe("閲覧専用店舗");
     });
 
-    it("不正な希望提出方法は既存schemaで拒否し、店舗を更新しない", async () => {
+    it("不正な希望シフトの提出方法は既存schemaで拒否し、店舗を更新しない", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
         const seeded = await seedOrganizationManagerShop(ctx, {

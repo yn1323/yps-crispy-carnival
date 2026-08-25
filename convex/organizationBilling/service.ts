@@ -225,7 +225,7 @@ export async function requireRestrictedRecoveryCapability(
   const billingState = await getOrganizationBillingState(ctx, args.organizationId);
   const restrictedState = billingState ? getEffectiveRestrictedBillingState(billingState.state) : null;
   if (!billingState || !restrictedState) {
-    throw new ConvexError("契約制限中の復旧操作ではありません");
+    throw new ConvexError("現在の契約状態では実行できない操作です");
   }
   const isRecoveryManager = restrictedState.recoveryManagerPersonIds.some((personId) => personId === args.personId);
   const policy = deriveOrganizationBillingPolicy(billingState.state);

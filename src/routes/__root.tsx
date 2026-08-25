@@ -6,7 +6,7 @@ import { buildMeta, jsonLdMeta } from "@/src/lib/seo";
 import { ChakraProvider } from "@/src/providers/ChakraProvider";
 
 const SITE_DESCRIPTION =
-  "LINEでスタッフにシフト希望を依頼し、提出状況の確認からシフト作成・確定共有まで進められます。\nスタッフはアプリ不要で、そのまま希望シフトを提出できます。";
+  "LINEでスタッフに希望シフトの提出を依頼し、提出状況の確認からシフト作成・確定共有まで進められます。\nスタッフはアプリ不要で、そのまま希望シフトを提出できます。";
 
 const softwareApplicationJsonLd = {
   "@context": "https://schema.org",
@@ -60,7 +60,7 @@ export const Route = createRootRoute({
       },
       { name: "theme-color", content: "#000000" },
       ...buildMeta({
-        title: "シフトリ｜LINEでシフト希望を集めるシフト管理ツール",
+        title: "シフトリ｜LINEで希望シフトを集めるシフト管理ツール",
         description: SITE_DESCRIPTION,
       }),
       { property: "og:type", content: "website" },

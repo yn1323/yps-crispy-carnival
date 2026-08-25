@@ -144,7 +144,7 @@ describe("usePlanStatusCardController", () => {
       } satisfies DashboardPlanStatusSource,
     },
     {
-      name: "契約制限中",
+      name: "契約状態の確認が必要",
       source: {
         kind: "restricted",
         displayPlan: "free",

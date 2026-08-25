@@ -7,6 +7,7 @@ import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { getOrganizationInvitationSigningSecret } from "../_lib/config";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { authenticatedMutation, organizationMutation } from "../_lib/functions";
+import { resolveOrganizationPersonEmailForManagerAddition } from "../_lib/personIdentity";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { generateUUID } from "../_lib/uuid";
 import { normalizeEmail, requiredEmailSchema } from "../_lib/validation";
@@ -319,32 +320,18 @@ async function createManagerInvitation(
   let targetPerson = args.targetPerson;
   await requireOrganizationBusinessWrite(ctx, organization._id);
   const emailNormalized = normalizeEmail(args.email);
-  if (
-    targetPerson &&
-    (targetPerson.organizationId !== organization._id ||
-      targetPerson.status !== "active" ||
-      targetPerson.emailNormalized !== emailNormalized)
-  ) {
+  const personResolution = await resolveOrganizationPersonEmailForManagerAddition(ctx, {
+    organizationId: organization._id,
+    emailNormalized,
+  });
+  if (personResolution.kind === "conflict") {
+    throw new ConvexError("同じメールアドレスのユーザーが複数見つかりました。\n組織のユーザー情報を確認してください。");
+  }
+  const resolvedPerson = personResolution.kind === "new" ? undefined : personResolution.person;
+  if (targetPerson && (!resolvedPerson || targetPerson._id !== resolvedPerson._id)) {
     throw new ConvexError("Not found");
   }
-
-  if (!targetPerson) {
-    const people = await ctx.db
-      .query("organizationPeople")
-      .withIndex("by_organizationId_and_emailNormalized", (q) =>
-        q.eq("organizationId", organization._id).eq("emailNormalized", emailNormalized),
-      )
-      .take(2);
-    if (people.length > 1) {
-      throw new ConvexError(
-        "同じメールアドレスのユーザーが複数見つかりました。\n組織のユーザー情報を確認してください。",
-      );
-    }
-    if (people[0]?.status === "removed") {
-      throw new ConvexError("このユーザーは削除済みです。\nユーザー画面から再追加してください。");
-    }
-    targetPerson = people[0];
-  }
+  targetPerson ??= resolvedPerson;
 
   const requestKey = await toAuditRequestKey(args.requestId);
   const correlationId = `${organization._id}:manager-invite:create:${requestKey}`;
@@ -600,12 +587,12 @@ async function requirePersonIsEligibleManagerInviteTarget(
   ctx: MutationCtx,
   organizationId: Id<"organizations">,
   person: Doc<"organizationPeople">,
-  options: { requireActiveStaff: boolean },
+  options: { requireActiveStaff: boolean; allowRemoved?: boolean },
 ) {
   const parsedEmail = requiredEmailSchema.safeParse(person.email);
   if (
     person.organizationId !== organizationId ||
-    person.status !== "active" ||
+    (person.status !== "active" && !(options.allowRemoved && person.status === "removed")) ||
     !parsedEmail.success ||
     normalizeEmail(parsedEmail.data) !== person.emailNormalized
   ) {
@@ -620,7 +607,9 @@ async function requirePersonIsEligibleManagerInviteTarget(
   if (members.length > 1) throw new ConvexError("管理者所属を一意に確認できません");
   if (members[0]?.status === "active") throw new ConvexError("この利用者はすでに管理者です");
   if (members[0]?.status === "readOnly") {
-    throw new ConvexError("この利用者は閲覧のみの管理者です。\n契約状態を復旧してから、もう一度お試しください。");
+    throw new ConvexError(
+      "この利用者は現在、管理者として操作できません。\nアカウント状態を確認してから、もう一度お試しください。",
+    );
   }
   if (!options.requireActiveStaff) return;
 
@@ -696,19 +685,18 @@ async function issueInvitationForActor(
   });
   if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
   const emailNormalized = normalizeEmail(parsed.data.email);
-  const matches = await ctx.db
-    .query("organizationPeople")
-    .withIndex("by_organizationId_and_emailNormalized", (q) =>
-      q.eq("organizationId", actor.organization._id).eq("emailNormalized", emailNormalized),
-    )
-    .take(2);
-  if (matches.length > 1) {
+  const targetResolution = await resolveOrganizationPersonEmailForManagerAddition(ctx, {
+    organizationId: actor.organization._id,
+    emailNormalized,
+  });
+  if (targetResolution.kind === "conflict") {
     throw new ConvexError("同じメールアドレスのユーザーが複数見つかりました。\n組織のユーザー情報を確認してください。");
   }
-  const targetPerson = matches[0];
+  const targetPerson = targetResolution.kind === "new" ? undefined : targetResolution.person;
   if (targetPerson) {
     await requirePersonIsEligibleManagerInviteTarget(ctx, actor.organization._id, targetPerson, {
       requireActiveStaff: false,
+      allowRemoved: true,
     });
   }
   const result = await createManagerInvitation(ctx, {
@@ -1093,30 +1081,34 @@ async function resendInvitationForActor(
   const eligibility = await resolveOrganizationInvitationEligibility(ctx, oldInvitation);
   if (!eligibility) throw new ConvexError("この招待は現在の契約では利用できません");
   const purpose = getOrganizationInvitationPurpose(oldInvitation);
-  const people = await ctx.db
-    .query("organizationPeople")
-    .withIndex("by_organizationId_and_emailNormalized", (q) =>
-      q.eq("organizationId", organization._id).eq("emailNormalized", oldInvitation.emailNormalized),
-    )
-    .take(2);
-  if (people.length > 1 || people[0]?.status === "removed") {
+  const targetResolution = await resolveOrganizationPersonEmailForManagerAddition(ctx, {
+    organizationId: organization._id,
+    emailNormalized: oldInvitation.emailNormalized,
+  });
+  if (targetResolution.kind === "conflict") {
     throw new ConvexError("招待先の利用者を一意に確認できません");
   }
-  if (people[0]) {
+  const targetPerson = targetResolution.kind === "new" ? undefined : targetResolution.person;
+  if (oldInvitation.targetPersonId && targetPerson?._id !== oldInvitation.targetPersonId) {
+    throw new ConvexError("招待先の利用者を一意に確認できません");
+  }
+  if (targetPerson) {
     const members = await ctx.db
       .query("organizationMembers")
       .withIndex("by_organizationId_and_personId", (q) =>
-        q.eq("organizationId", organization._id).eq("personId", people[0]._id),
+        q.eq("organizationId", organization._id).eq("personId", targetPerson._id),
       )
       .take(2);
     if (members.length > 1) throw new ConvexError("管理者所属を一意に確認できません");
     if (members[0]?.status === "active") throw new ConvexError("この利用者はすでに管理者です");
     if (members[0]?.status === "readOnly") {
-      throw new ConvexError("この利用者は閲覧のみの管理者です。\n契約状態を復旧してから、もう一度お試しください。");
+      throw new ConvexError(
+        "この利用者は現在、管理者として操作できません。\nアカウント状態を確認してから、もう一度お試しください。",
+      );
     }
   }
-  const reservedSeat = people[0]
-    ? !(await organizationPersonCountsTowardPeopleLimit(ctx, organization._id, people[0]._id))
+  const reservedSeat = targetPerson
+    ? !(await organizationPersonCountsTowardPeopleLimit(ctx, organization._id, targetPerson._id))
     : true;
   await requireOrganizationCapacity(ctx, {
     organizationId: organization._id,
@@ -1144,7 +1136,7 @@ async function resendInvitationForActor(
     reservedSeat,
     ...(currentBillingState ? { organizationBillingVersionAtOrigin: currentBillingState.version } : {}),
     predecessorInvitationId: oldInvitation._id,
-    ...(oldInvitation.targetPersonId ? { targetPersonId: oldInvitation.targetPersonId } : {}),
+    ...(targetPerson ? { targetPersonId: targetPerson._id } : {}),
     now,
   });
   await recordOrganizationAuditEvent(ctx, {
@@ -1230,12 +1222,11 @@ async function findInvitationTargetPeople(ctx: MutationCtx, invitation: Doc<"org
     const targetPerson = await ctx.db.get(invitation.targetPersonId);
     return targetPerson && targetPerson.organizationId === invitation.organizationId ? [targetPerson] : [];
   }
-  return await ctx.db
-    .query("organizationPeople")
-    .withIndex("by_organizationId_and_emailNormalized", (q) =>
-      q.eq("organizationId", invitation.organizationId).eq("emailNormalized", invitation.emailNormalized),
-    )
-    .take(2);
+  const resolution = await resolveOrganizationPersonEmailForManagerAddition(ctx, {
+    organizationId: invitation.organizationId,
+    emailNormalized: invitation.emailNormalized,
+  });
+  return resolution.kind === "active" || resolution.kind === "removed" ? [resolution.person] : [];
 }
 
 export const prepareAcceptance = internalMutation({
@@ -1296,7 +1287,7 @@ export const prepareAcceptance = internalMutation({
     }
 
     const people = await findInvitationTargetPeople(ctx, invitation);
-    if (people.length > 1 || people[0]?.status === "removed") return { status: "conflict" as const };
+    if (people.length > 1) return { status: "conflict" as const };
     if (people[0]?.userId && people[0].userId !== actor.user?._id) return { status: "conflict" as const };
 
     if (actor.user) {
@@ -1409,7 +1400,7 @@ async function linkAccountWithToken(
   const purpose = getOrganizationInvitationPurpose(invitation);
 
   const people = await findInvitationTargetPeople(ctx, invitation);
-  if (people.length > 1 || people[0]?.status === "removed") return { status: "conflict" as const };
+  if (people.length > 1) return { status: "conflict" as const };
   if (people[0]?.userId && people[0].userId !== ctx.user?._id) return { status: "conflict" as const };
   const linkedTargetMatchesActor = Boolean(invitation.targetPersonId && ctx.user && people[0]?.userId === ctx.user._id);
   const verifiedEmail = options?.proof
@@ -1476,6 +1467,7 @@ async function linkAccountWithToken(
       });
 
   const now = Date.now();
+  const reactivatesPerson = people[0]?.status === "removed";
   const nextPersonFirstObservedAt = people[0]?.createdAt ?? now;
   const personId = people[0]
     ? people[0]._id
@@ -1490,7 +1482,17 @@ async function linkAccountWithToken(
         createdAt: now,
         updatedAt: now,
       });
-  if (people[0] && !people[0].userId) {
+  if (people[0] && reactivatesPerson) {
+    await ctx.db.patch(people[0]._id, {
+      userId,
+      status: "active",
+      name:
+        invitation.invitedName || ctx.user?.name || ctx.identity.name || invitation.emailNormalized.split("@", 1)[0],
+      email: invitation.email,
+      emailNormalized: invitation.emailNormalized,
+      updatedAt: now,
+    });
+  } else if (people[0] && !people[0].userId) {
     await ctx.db.patch(people[0]._id, { userId, updatedAt: now });
   }
 
@@ -1509,8 +1511,24 @@ async function linkAccountWithToken(
     await ctx.db.patch(member._id, { status: "active", invitedByMemberId: inviter._id, updatedAt: now });
   }
 
-  if (!people[0]) {
+  if (!people[0] || reactivatesPerson) {
     await syncActivatedOrganizationStaffOrder(ctx, { organizationId: invitation.organizationId });
+  }
+
+  if (reactivatesPerson) {
+    await recordOrganizationAuditEvent(ctx, {
+      organizationId: invitation.organizationId,
+      actorUserId: userId,
+      actorPersonId: personId,
+      action: "organization.person_reactivated",
+      targetKind: "person",
+      targetId: personId,
+      fromState: "removed",
+      toState: "active",
+      correlationId: `${invitation._id}:person-reactivated:${invitation.version}`,
+      occurredAt: now,
+      suppressAnalyticsEvent: true,
+    });
   }
 
   if (purpose === "freeManagerExchange") {

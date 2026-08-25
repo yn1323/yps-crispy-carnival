@@ -209,7 +209,7 @@ describe("staffAuth/mutations", () => {
       expect(result).toEqual({ status: "expired", reason: "recruitment_deleted", recruitmentId });
     });
 
-    it("accessKind未設定の使用済みsubmitトークンは締切前なら救済する", async () => {
+    it("accessKind未設定の使用済みsubmitトークンは提出期限前なら救済する", async () => {
       const t = convexTest(schema, modules);
       const { magicLinkToken, recruitmentId } = await setupTestData(t, {
         accessKind: "submit",
@@ -226,7 +226,7 @@ describe("staffAuth/mutations", () => {
       if (result.status === "ok") expect(result.recruitmentId).toBe(recruitmentId);
     });
 
-    it("submitトークンは募集締切後でもopenならセッションを発行できる", async () => {
+    it("submitトークンは募集の提出期限後でもopenならセッションを発行できる", async () => {
       const t = convexTest(schema, modules);
       const { magicLinkToken, recruitmentId } = await setupTestData(t, {
         accessKind: "submit",

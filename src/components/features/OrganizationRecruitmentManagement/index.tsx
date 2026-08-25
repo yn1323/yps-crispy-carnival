@@ -63,12 +63,12 @@ export function OrganizationRecruitmentManagement({
   const createDisabledReason = canCreateRecruitments
     ? undefined
     : isReadOnly
-      ? "閲覧のみの管理者は、募集を作成・削除できません。"
+      ? "現在のアカウント状態では、募集を作成・削除できません。"
       : (shops.find((shop) => !shop.canCreate)?.createDisabledReason ?? "募集を作成できる店舗がありません。");
   const deleteDisabledReason = canDeleteRecruitments
     ? undefined
     : isReadOnly
-      ? "閲覧のみの管理者は、募集を削除できません。"
+      ? "現在のアカウント状態では、募集を削除できません。"
       : (filteredShop?.createDisabledReason ??
         groups
           .flatMap((group) => group.recruitments)

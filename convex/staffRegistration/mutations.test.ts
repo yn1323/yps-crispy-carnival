@@ -1848,7 +1848,109 @@ describe("staffRegistration/mutations", () => {
   });
 
   it.each([
-    ["アカウント削除受付済み", "accountDeletion", "account-deletion"],
+    ["アカウント削除受付済み", "requested"],
+    ["アカウント削除済み", "deleted"],
+  ] as const)("%sの旧人物を再利用せず、新しい人物として参加申請を承認する", async (_label, userState) => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const subject = `registration_terminal_person_${userState}`;
+      const organization = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
+      const now = Date.now();
+      const email = `registration-terminal-${userState}@example.com`;
+      const oldUserId = await seedUser(ctx, `${subject}_person`, email);
+      await ctx.db.patch(
+        oldUserId,
+        userState === "requested" ? { accountDeletionRequestedAt: now } : { isDeleted: true },
+      );
+      const oldPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: organization.organizationId,
+        userId: oldUserId,
+        name: "削除前の人物",
+        email,
+        emailNormalized: email,
+        status: "removed",
+        createdAt: now - 10_000,
+        updatedAt: now,
+      });
+      const oldMemberId = await ctx.db.insert("organizationMembers", {
+        organizationId: organization.organizationId,
+        personId: oldPersonId,
+        userId: oldUserId,
+        status: "removed",
+        createdAt: now - 10_000,
+        updatedAt: now,
+      });
+      const oldStaffId = await ctx.db.insert("staffs", {
+        shopId: organization.shopId,
+        organizationId: organization.organizationId,
+        organizationPersonId: oldPersonId,
+        userId: oldUserId,
+        name: "削除前のスタッフ",
+        email,
+        emailNormalized: email,
+        isDeleted: true,
+      });
+      return { ...organization, email, oldMemberId, oldPersonId, oldStaffId, oldUserId, subject };
+    });
+    const actor = t.withIdentity({ subject: seeded.subject });
+    const link = await actor.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      shopId: seeded.shopId,
+    });
+    await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
+      token: link.token,
+      name: "再登録申請者",
+      email: seeded.email,
+      acceptedLegal: true,
+    });
+    const requestId = await getPendingRequestId(t, seeded.shopId, seeded.email);
+    const { staffId } = await actor.mutation(api.staffRegistration.mutations.approveRequest, {
+      requestId,
+      shopId: seeded.shopId,
+    });
+
+    const state = await t.run(async (ctx) => ({
+      audits: await ctx.db.query("organizationAuditEvents").collect(),
+      newStaff: await ctx.db.get(staffId),
+      oldMember: await ctx.db.get(seeded.oldMemberId),
+      oldPerson: await ctx.db.get(seeded.oldPersonId),
+      oldStaff: await ctx.db.get(seeded.oldStaffId),
+      oldUser: await ctx.db.get(seeded.oldUserId),
+      people: await ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_emailNormalized", (q) =>
+          q.eq("organizationId", seeded.organizationId).eq("emailNormalized", seeded.email),
+        )
+        .collect(),
+      request: await ctx.db.get(requestId),
+    }));
+    const activePerson = state.people.find((person) => person.status === "active");
+    expect(state.people).toHaveLength(2);
+    expect(state.oldPerson).toMatchObject({ _id: seeded.oldPersonId, status: "removed", name: "削除前の人物" });
+    expect(state.oldMember?.status).toBe("removed");
+    expect(state.oldStaff).toMatchObject({ _id: seeded.oldStaffId, isDeleted: true, name: "削除前のスタッフ" });
+    expect(state.oldUser).toMatchObject(
+      userState === "requested"
+        ? { isDeleted: false, accountDeletionRequestedAt: expect.any(Number) }
+        : { isDeleted: true },
+    );
+    expect(activePerson).toMatchObject({ name: "再登録申請者", email: seeded.email, status: "active" });
+    expect(activePerson?._id).not.toBe(seeded.oldPersonId);
+    expect(activePerson?.userId).toBeUndefined();
+    expect(state.newStaff).toMatchObject({
+      _id: staffId,
+      organizationPersonId: activePerson?._id,
+      name: "再登録申請者",
+      isDeleted: false,
+    });
+    expect(state.newStaff?.userId).toBeUndefined();
+    expect(state.request).toMatchObject({ status: "approved", approvedStaffId: staffId });
+    expect(state.audits.filter((audit) => audit.action === "organization.staff_added")).toEqual([
+      expect.objectContaining({ targetId: staffId, fromState: "new" }),
+    ]);
+    expect(state.audits.filter((audit) => audit.action === "organization.person_reactivated")).toEqual([]);
+  });
+
+  it.each([
     ["activeな旧staffあり", "activeStaff", "active-staff"],
     ["activeな管理者所属あり", "activeManagerMembership", "active-manager-membership"],
     ["activeなcanonical LINE連携あり", "activeCanonicalLine", "active-canonical-line"],
@@ -1865,11 +1967,8 @@ describe("staffRegistration/mutations", () => {
         });
         const now = Date.now();
         const email = `${slug}@example.com`;
-        const needsUser = state === "accountDeletion" || state === "activeManagerMembership";
+        const needsUser = state === "activeManagerMembership";
         const removedUserId = needsUser ? await seedUser(ctx, `${subject}_person`, email) : undefined;
-        if (state === "accountDeletion" && removedUserId) {
-          await ctx.db.patch(removedUserId, { accountDeletionRequestedAt: now });
-        }
         const removedPersonId = await ctx.db.insert("organizationPeople", {
           organizationId: organization.organizationId,
           ...(removedUserId ? { userId: removedUserId } : {}),

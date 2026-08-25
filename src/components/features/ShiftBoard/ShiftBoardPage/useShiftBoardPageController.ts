@@ -37,7 +37,7 @@ const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知で�
 export function getShiftBoardReadOnlyReason(reason: ShiftBoardData["businessWriteBlockReason"]): string {
   switch (reason) {
     case "memberReadOnly":
-      return "管理者権限が閲覧のみに制限されているため、シフトを変更できません。";
+      return "現在のアカウント状態では、シフトを変更できません。";
     case "shopArchived":
       return "アーカイブ済みの店舗のため、シフトを変更できません。";
     case "shopPlanSuspended":
@@ -190,7 +190,7 @@ export const useShiftBoardPageController = (
       // initialShifts（参照一致）を受け取って初めてユーザー編集を検知できる状態になる
       if (shifts === baselineShiftsRef.current) {
         isFormInitializedRef.current = true;
-        // 確定済みシフトを開き直しただけなら、過去の確認事項を編集面に再掲しない。
+        // 確定シフトを開き直しただけなら、過去の確認事項を編集面に再掲しない。
         setValidationWarnings(computeVisibleWarnings(shifts));
         if (!hasAttemptedConfirmRef.current) return;
       }
@@ -242,7 +242,7 @@ export const useShiftBoardPageController = (
     if (data.recruitment.reminderScheduledAt && data.recruitment.reminderScheduledAt > Date.now()) {
       return {
         kind: "scheduled",
-        label: "締切前日の17:00に、催促通知を自動で送ります。",
+        label: "提出期限の前日17:00に、催促通知を自動で送ります。",
       };
     }
     return {
@@ -415,7 +415,7 @@ export const useShiftBoardPageController = (
       },
       confirmDialog: {
         isOpen: confirmModal.isOpen,
-        title: isConfirmed ? "確定済みのシフトをもう一度通知しますか？" : "このシフトをスタッフに通知しますか？",
+        title: isConfirmed ? "確定シフトをもう一度通知しますか？" : "このシフトをスタッフに通知しますか？",
         submitLabel: isConfirmed ? "変更があるスタッフに通知" : "シフトを確定して通知",
         staffCount: staffs.length,
         warnings: displayWarnings,

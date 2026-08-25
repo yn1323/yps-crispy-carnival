@@ -32,7 +32,7 @@ export const ReadOnlySubmitView = ({ data, headerAction }: Props) => {
           </Icon>
           <Box>
             <Text fontSize="xs" fontWeight="semibold" color="blue.800">
-              締切を過ぎたため変更できません
+              提出期限を過ぎたため変更できません
             </Text>
             <Text mt={0.5} fontSize="xs" color="blue.700" lineHeight={1.6}>
               提出内容をもとに、お店でシフトを調整しています。

@@ -870,7 +870,7 @@ describe("organization person removal", () => {
     expect(finalState.recruitments.every((recruitment) => recruitment?.status === "confirmed")).toBe(true);
   });
 
-  it("請求先メールアドレスの所有者は変更完了まで事業者から削除できない", async () => {
+  it("請求先メールアドレスと一致する人物も通常の権限条件で削除できる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "billing_owner_actor", plan: "pro" });
@@ -878,7 +878,7 @@ describe("organization person removal", () => {
         base,
         subject: "billing_owner_target",
         shopIds: [],
-        manager: true,
+        manager: false,
       });
       await ctx.db.patch(base.organizationId, {
         billingEmail: target.email,
@@ -895,7 +895,8 @@ describe("organization person removal", () => {
           personId: ids.personId,
           requestId: "billing-owner",
         }),
-    ).rejects.toThrow("先に管理者権限を外してください。");
+    ).resolves.toEqual({ changed: true });
+    await expect(t.run(async (ctx) => (await ctx.db.get(ids.personId))?.status)).resolves.toBe("removed");
   });
 
   it("最後の有効管理者は自分自身でも事業者から削除できない", async () => {
@@ -1063,7 +1064,7 @@ describe("organization person removal", () => {
     expect(await readManagerRemovalProtectedState(t)).toEqual(before);
   });
 
-  it("最後の復旧担当者は別の有効管理者がいても削除できない", async () => {
+  it("legacy restrictedの最後のreadOnly所属は別の有効管理者がいても削除できない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "last_recovery_actor", plan: "pro" });
@@ -1417,7 +1418,7 @@ describe("organization person removal", () => {
     expect(await readManagerRemovalProtectedState(t)).toEqual(before);
   });
 
-  it("スタッフ所属がない請求先所有者の管理権限は請求先変更前に外せない", async () => {
+  it("スタッフ所属がない請求先一致者も管理者権限を外せる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "role_billing_actor", plan: "pro" });
@@ -1427,11 +1428,12 @@ describe("organization person removal", () => {
         shopIds: [],
         manager: true,
       });
+      if (!target.memberId) throw new Error("member not found");
       await ctx.db.patch(base.organizationId, {
         billingEmail: target.email,
         billingEmailNormalized: target.email,
       });
-      return { ...base, ...target };
+      return { ...base, ...target, memberId: target.memberId };
     });
     await expect(
       t.withIdentity({ subject: "role_billing_actor" }).mutation(api.organization.mutations.removeManagerRole, {
@@ -1439,7 +1441,8 @@ describe("organization person removal", () => {
         personId: ids.personId,
         requestId: "role-billing-request",
       }),
-    ).rejects.toThrow("管理者権限を外すには、先に請求先メールアドレスを変更してください。");
+    ).resolves.toEqual({ changed: true });
+    await expect(t.run(async (ctx) => (await ctx.db.get(ids.memberId))?.status)).resolves.toBe("removed");
   });
 
   it("スタッフ所属がなく将来シフトが残る管理者の権限解除は人物と割当を維持する", async () => {
@@ -1682,7 +1685,7 @@ describe("organization person removal", () => {
     expect(activeMembers).toHaveLength(1);
   });
 
-  it("契約制限中は最後の復旧担当者の保護を優先して管理権限解除を拒否する", async () => {
+  it("旧契約制限中は最後の対象readOnly所属を保護して管理権限解除を拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "role_restricted_actor", plan: "pro" });
@@ -1715,7 +1718,7 @@ describe("organization person removal", () => {
         personId: ids.personId,
         requestId: "role-restricted-request",
       }),
-    ).rejects.toThrow("最後の復旧担当者は削除できません");
+    ).rejects.toThrow("現在の契約状態では、管理者権限を解除できません。");
   });
 
   it("別事業者のpersonIdは同じmanager APIから削除できない", async () => {
@@ -1958,6 +1961,68 @@ describe("organization person profile update", () => {
         (job) => job.name === "notification/actions:sendOpenRecruitmentNotificationEmailsForStaffEmailChange",
       ),
     ).toHaveLength(2);
+  });
+
+  it("同じメールのアカウント削除履歴が残っていても現役人物のプロフィールを更新する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "profile_with_terminal_history_actor",
+        email: "profile-with-terminal-history@example.com",
+        plan: "pro",
+      });
+      const oldUserId = await seedUser(
+        ctx,
+        "profile_with_terminal_history_old",
+        "profile-with-terminal-history@example.com",
+      );
+      const now = Date.now();
+      await ctx.db.patch(oldUserId, { isDeleted: true, accountDeletionRequestedAt: now });
+      const oldPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: base.organizationId,
+        userId: oldUserId,
+        name: "削除済みの旧人物",
+        email: "profile-with-terminal-history@example.com",
+        emailNormalized: "profile-with-terminal-history@example.com",
+        status: "removed",
+        createdAt: now - 10_000,
+        updatedAt: now,
+      });
+      await ctx.db.insert("organizationMembers", {
+        organizationId: base.organizationId,
+        personId: oldPersonId,
+        userId: oldUserId,
+        status: "removed",
+        createdAt: now - 10_000,
+        updatedAt: now,
+      });
+      return { ...base, oldPersonId, oldUserId };
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "profile_with_terminal_history_actor" })
+        .mutation(api.organization.mutations.updatePersonProfile, {
+          shopId: ids.shopId,
+          personId: ids.personId,
+          name: "更新後の現役人物",
+          email: "profile-with-terminal-history@example.com",
+          requestId: "profile-with-terminal-history",
+        }),
+    ).resolves.toEqual({ changed: true });
+
+    const state = await t.run(async (ctx) => ({
+      activePerson: await ctx.db.get(ids.personId),
+      oldPerson: await ctx.db.get(ids.oldPersonId),
+      oldUser: await ctx.db.get(ids.oldUserId),
+    }));
+    expect(state.activePerson).toMatchObject({
+      name: "更新後の現役人物",
+      email: "profile-with-terminal-history@example.com",
+      status: "active",
+    });
+    expect(state.oldPerson).toMatchObject({ _id: ids.oldPersonId, name: "削除済みの旧人物", status: "removed" });
+    expect(state.oldUser).toMatchObject({ _id: ids.oldUserId, isDeleted: true });
   });
 
   it("組織内の別人物が使うメールアドレスへの変更を拒否する", async () => {

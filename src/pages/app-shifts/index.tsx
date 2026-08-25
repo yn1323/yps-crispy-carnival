@@ -245,7 +245,7 @@ export function AppShiftsReadOnlyNotice() {
     <Alert.Root status="warning" borderRadius="xl" alignItems="flex-start">
       <Alert.Indicator mt={1} />
       <Alert.Content>
-        <Alert.Title>この組織は閲覧のみです</Alert.Title>
+        <Alert.Title>現在、このアカウントでは操作できません</Alert.Title>
         <Alert.Description>シフトは確認できますが、募集の作成や削除はできません。</Alert.Description>
       </Alert.Content>
     </Alert.Root>

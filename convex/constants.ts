@@ -65,6 +65,8 @@ export const APP_ORGANIZATION_RECRUITMENT_SHOP_PAGE_SIZE = 1;
 export const APP_ORGANIZATION_RECRUITMENT_LEGACY_SUBMISSION_COUNT_LIMIT = 1;
 // ユーザー詳細で過去・停止中を含む店舗所属を安全に走査する上限。
 export const ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT = 100;
+// 50件の一括スタッフ追加でも、同一メールの人物履歴を一transactionで安全に分類できる上限。
+export const ORGANIZATION_PERSON_EMAIL_HISTORY_SCAN_LIMIT = 20;
 // ユーザー詳細へ返す同一組織店舗を安全に走査する上限。
 export const ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT = 100;
 // 人物削除を単一transactionで確定できる、今日以降のシフト割当上限。

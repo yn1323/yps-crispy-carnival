@@ -87,7 +87,7 @@ const STATE_PRESENTATION: Record<
     description: "支払い方法を確認してください。\n期限までは現在のプランを利用できます。",
   },
   restricted: {
-    label: "契約制限中",
+    label: "契約状態の確認が必要",
     status: "error",
     description:
       "プラン移行に伴い、機能を制限しています。\n支払いを確認するか、利用人数・店舗数を変更先プランの上限内に調整してください。",
@@ -176,7 +176,7 @@ export const PlanAndPaymentSection = ({
     (billing.state === "migrationPending"
       ? "設定移行中"
       : billing.state === "pendingActivation"
-        ? "契約制限中"
+        ? "契約状態の確認が必要"
         : billing.state === "restricted"
           ? "利用停止中"
           : "確認中");

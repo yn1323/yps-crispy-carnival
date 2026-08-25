@@ -142,13 +142,13 @@ const lineWithoutEmailData: UserDetailData = {
 const lineReadOnlyData: UserDetailData = {
   ...multipleStoresData,
   canWrite: false,
-  writeDisabledReason: "閲覧のみの管理者は、ユーザー情報を変更できません。",
+  writeDisabledReason: "現在のアカウント状態では、ユーザー情報を変更できません。",
   line: {
     ...multipleStoresData.line,
     canLink: false,
-    linkDisabledReason: "閲覧のみの管理者は、ユーザー情報を変更できません。",
+    linkDisabledReason: "現在のアカウント状態では、ユーザー情報を変更できません。",
     canDisconnect: false,
-    disconnectDisabledReason: "閲覧のみの管理者は、LINE連携を解除できません。",
+    disconnectDisabledReason: "現在のアカウント状態では、LINE連携を解除できません。",
   },
 };
 
@@ -494,7 +494,7 @@ export const ShopMembershipChangeUnavailable: Story = {
     data: {
       ...multipleStoresData,
       canWrite: false,
-      writeDisabledReason: "契約制限中のため、所属店舗を変更できません。",
+      writeDisabledReason: "現在の契約状態では、所属店舗を変更できません。",
     },
   },
   play: async () => {
@@ -504,7 +504,7 @@ export const ShopMembershipChangeUnavailable: Story = {
       await expect(checkbox).toBeDisabled();
     }
     await expect(content.getByRole("button", { name: "変更する" })).toBeDisabled();
-    await expect(content.getByText("契約制限中のため、所属店舗を変更できません。")).toBeInTheDocument();
+    await expect(content.getByText("現在の契約状態では、所属店舗を変更できません。")).toBeInTheDocument();
   },
 };
 

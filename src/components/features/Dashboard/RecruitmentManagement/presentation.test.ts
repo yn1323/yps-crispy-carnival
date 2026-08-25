@@ -21,6 +21,6 @@ describe("getCreateRecruitmentErrorMessage", () => {
 
   it("募集作成固有ではないエラーは既存の共通エラー表示に委ねる", () => {
     expect(getCreateRecruitmentErrorMessage(new Error("network error"))).toBeNull();
-    expect(getCreateRecruitmentErrorMessage({ data: "締切日は今日以降にしてください" })).toBeNull();
+    expect(getCreateRecruitmentErrorMessage({ data: "提出期限は今日以降にしてください" })).toBeNull();
   });
 });

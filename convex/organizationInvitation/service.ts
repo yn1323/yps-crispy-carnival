@@ -1,6 +1,6 @@
 import type { GenericDatabaseReader } from "convex/server";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
-import { isOrganizationBillingContact } from "../organization/billingContact";
+import { resolveOrganizationPersonEmailForManagerAddition } from "../_lib/personIdentity";
 import { getOrganizationBillingState } from "../organization/service";
 import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
@@ -77,12 +77,8 @@ async function getInvitationTargetPeople(
       ? [person]
       : [];
   }
-  return await ctx.db
-    .query("organizationPeople")
-    .withIndex("by_organizationId_and_emailNormalized", (q) =>
-      q.eq("organizationId", args.organizationId).eq("emailNormalized", args.emailNormalized),
-    )
-    .take(2);
+  const resolution = await resolveOrganizationPersonEmailForManagerAddition(ctx, args);
+  return resolution.kind === "active" || resolution.kind === "removed" ? [resolution.person] : [];
 }
 
 export async function resolveFreeManagerExchangeEligibility(
@@ -123,7 +119,7 @@ export async function resolveFreeManagerExchangeEligibility(
   }
 
   const targetPerson = people[0];
-  const [members, staffs, inviterStaff] = await Promise.all([
+  const [members, staffs] = await Promise.all([
     ctx.db
       .query("organizationMembers")
       .withIndex("by_organizationId_and_personId", (q) =>
@@ -136,15 +132,7 @@ export async function resolveFreeManagerExchangeEligibility(
         q.eq("organizationId", args.organizationId).eq("organizationPersonId", targetPerson._id),
       )
       .collect(),
-    ctx.db
-      .query("staffs")
-      .withIndex("by_organizationId_and_organizationPersonId", (q) =>
-        q.eq("organizationId", args.organizationId).eq("organizationPersonId", inviterData.inviterPerson._id),
-      )
-      .filter((q) => q.eq(q.field("isDeleted"), false))
-      .first(),
   ]);
-  if (!inviterStaff && isOrganizationBillingContact(organization, inviterData.inviterPerson)) return null;
   if (members.length > 1 || members[0]?.status === "active" || members[0]?.status === "readOnly") {
     return null;
   }
@@ -166,7 +154,7 @@ export async function resolveFreeManagerExchangeEligibility(
   if (targetMember && (!targetPerson.userId || targetMember.userId !== targetPerson.userId)) return null;
   if (targetPerson.userId) {
     const targetUser = await ctx.db.get(targetPerson.userId);
-    if (!targetUser || targetUser.isDeleted) return null;
+    if (!targetUser || targetUser.isDeleted || targetUser.accountDeletionRequestedAt !== undefined) return null;
   }
 
   return {
@@ -206,10 +194,21 @@ export async function resolveOrganizationInvitationEligibility(
   ) {
     return null;
   }
+  const targetResolution = await resolveOrganizationPersonEmailForManagerAddition(ctx, {
+    organizationId: invitation.organizationId,
+    emailNormalized: invitation.emailNormalized,
+  });
+  if (targetResolution.kind === "conflict") return null;
   if (invitation.targetPersonId) {
     const targetPeople = await getInvitationTargetPeople(ctx, invitation);
-    if (targetPeople.length !== 1 || targetPeople[0].status !== "active") return null;
+    if (targetPeople.length !== 1) return null;
     const targetPerson = targetPeople[0];
+    if (
+      (targetResolution.kind !== "active" && targetResolution.kind !== "removed") ||
+      targetResolution.person._id !== targetPerson._id
+    ) {
+      return null;
+    }
     const members = await ctx.db
       .query("organizationMembers")
       .withIndex("by_organizationId_and_personId", (q) =>
@@ -220,7 +219,7 @@ export async function resolveOrganizationInvitationEligibility(
     if (members[0] && (!targetPerson.userId || members[0].userId !== targetPerson.userId)) return null;
     if (targetPerson.userId) {
       const user = await ctx.db.get(targetPerson.userId);
-      if (!user || user.isDeleted) return null;
+      if (!user || user.isDeleted || user.accountDeletionRequestedAt !== undefined) return null;
     }
   }
   return { purpose, organization, ...inviterData };

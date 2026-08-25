@@ -156,7 +156,7 @@ function ConnectedAppStaff({
     !hasTooManyActiveShopsToReorder &&
     hasCompleteStaffOrder;
   const changeStaffOrderDisabledReason = isReadOnly
-    ? "閲覧のみの管理者は、スタッフの並び順を変更できません。"
+    ? "現在のアカウント状態では、スタッフの並び順を変更できません。"
     : summary?.canChangeStaffOrder !== true
       ? (summary?.changeStaffOrderDisabledReason ?? "現在、スタッフの並び順を変更できません。")
       : staffOrderEditor?.availability !== "ready" || !staffOrderEditor.canWrite
@@ -241,7 +241,7 @@ function ConnectedAppStaff({
           canAddStaff={canAddStaff}
           addStaffDisabledReason={
             isReadOnly
-              ? "閲覧のみの管理者は、スタッフを追加できません。"
+              ? "現在のアカウント状態では、スタッフを追加できません。"
               : shops.length === 0
                 ? "スタッフを追加するには、利用中の店舗が必要です。"
                 : summary.addStaffDisabledReason
@@ -325,7 +325,7 @@ export function AppStaffReadOnlyNotice() {
     <Alert.Root status="warning" borderRadius="xl" alignItems="flex-start">
       <Alert.Indicator mt={1} />
       <Alert.Content>
-        <Alert.Title>この組織は閲覧のみです</Alert.Title>
+        <Alert.Title>現在、このアカウントでは操作できません</Alert.Title>
         <Alert.Description>スタッフ情報は確認できますが、追加や変更はできません。</Alert.Description>
       </Alert.Content>
     </Alert.Root>

@@ -707,11 +707,25 @@ describe("notificationOutbox/actions", () => {
       tags: [{ name: "shiftori_outbox_id", value: outboxId }],
     });
     expect(requestBody.html).toContain(`href="https://app.example.com/manager-invite?token=${expectedToken}"`);
-    expect(requestBody.html).toContain("招待者さんから「招待事業者」の管理者に招待されました。");
-    expect(requestBody.html).toContain("シフトリとは");
+    expect(requestBody.html).toContain("招待先さん");
+    expect(requestBody.html).toContain("招待事業者の招待者さんから、管理者として招待されました。");
+    expect(requestBody.html).toContain("1. シフトリとは？");
     expect(requestBody.html).toContain("スタッフの希望収集からシフト作成・共有までを支えるシフト管理サービスです。");
-    expect(requestBody.html).toContain("登録済みのメールアドレスでログインしてください。");
-    expect(requestBody.html).toContain("このメールの宛先と同じメールアドレスでアカウントを登録し");
+    expect(requestBody.html).toContain('href="https://app.example.com/base"');
+    expect(requestBody.html).toContain(">シフトリを見る</a>");
+    expect(requestBody.html).toContain("2. 管理者になるとできること");
+    expect(requestBody.html).toContain("希望シフトの募集");
+    expect(requestBody.html).toContain("シフトの調整");
+    expect(requestBody.html).toContain("シフトの確定");
+    expect(requestBody.html).toContain("スタッフ管理");
+    expect(requestBody.html).toContain("店舗作成など");
+    expect(requestBody.html).toContain("3. シフトリの管理者になる操作手順");
+    expect(requestBody.html).toContain("管理者になるためには、アカウント登録が必要です。");
+    expect(requestBody.html).toContain("シフトリの管理者招待を受け取る");
+    expect(requestBody.html).toContain('href="https://app.example.com/help"');
+    expect(requestBody.html).toContain("このリンクは7日間有効です。");
+    expect(requestBody.html).not.toContain("一度だけ使用できます。");
+    expect(requestBody.html.split(expectedToken)).toHaveLength(2);
     expect(requestBody.html).not.toContain(invitationId);
     expect(new Headers((resendCall?.[1] as RequestInit | undefined)?.headers).get("idempotency-key")).toBe(
       `notification-outbox-${outboxId}`,
@@ -1894,6 +1908,7 @@ async function setupOrganizationInvitationJob(variant: InvalidOrganizationInvita
     });
     const invitationId = await ctx.db.insert("organizationInvitations", {
       organizationId,
+      invitedName: "招待先",
       email: "invite@example.com",
       emailNormalized: "invite@example.com",
       tokenDigest: "digest",
@@ -1949,7 +1964,7 @@ async function setupOrganizationInvitationAcceptanceNotificationJob() {
         kind: "email",
         from: "シフトリ <noreply@example.com>",
         to: "manager@example.com",
-        subject: "管理者のアカウント連携が完了しました",
+        subject: "管理者アカウント連携が完了しました",
         html: "<p>test</p>",
         context: "organizationInvitation.linked",
       },

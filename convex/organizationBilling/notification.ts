@@ -255,10 +255,10 @@ export function organizationBillingNotificationCopy(
     case "paidActivationFailedRestrictedContinued":
       return {
         subject: "有料プランを開始できませんでした",
-        heading: "契約制限中を継続しています",
+        heading: "契約状態を確認できない状態が続いています",
         paragraphs: [
           "支払いを確認できなかったため、有料プランを開始できませんでした。",
-          "契約制限中の状態が続いています。\n支払い方法を確認してから、もう一度手続きしてください。",
+          "契約状態を確認できない状態が続いています。\n支払い方法を確認してから、もう一度手続きしてください。",
         ],
       };
     case "graceStarted":
@@ -289,7 +289,7 @@ export function organizationBillingNotificationCopy(
           heading: `${targetPlanLabel}の利用上限を確認してください`,
           paragraphs: [
             billingSummary ? `支払い結果を確認しました。\n${billingSummary}` : "支払い結果を確認しました。",
-            `${targetPlanLabel}の利用上限を超えているため、契約制限中です。\n組織設定で利用人数・店舗数・管理者数を上限以内に整理してください。`,
+            `${targetPlanLabel}の利用上限を超えています。\n組織設定で利用人数・店舗数・管理者数を上限以内に整理してください。`,
           ],
         };
       }
@@ -310,8 +310,8 @@ export function organizationBillingNotificationCopy(
         };
       }
       return {
-        subject: "契約制限中になりました",
-        heading: "契約制限中になりました",
+        subject: "契約状態の確認が必要です",
+        heading: "契約状態の確認が必要です",
         paragraphs: [
           "既存データは引き続き閲覧できますが、シフト作成や通知などの業務操作は利用できません。",
           `組織設定で有料プランを再開するか、${FREE_PLAN_SENTENCE_LABEL}で残す管理者と店舗を整理してください。`,
@@ -336,7 +336,7 @@ export function organizationBillingNotificationCopy(
         paragraphs: [
           recoverySummary,
           ...(details?.usageLimitExceeded && targetPlanLabel ? [overLimitParagraph(`${targetPlanLabel}プラン`)] : []),
-          "契約制限中に送信されなかった通知は、自動では再送されません。",
+          "契約状態により送信されなかった通知は、自動では再送されません。",
         ],
       };
     }

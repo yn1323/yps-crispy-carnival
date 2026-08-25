@@ -19,7 +19,7 @@ const reliefItems: Array<{ imageSrc: string; title: string; body: string }> = [
   {
     imageSrc: shareConfirmedShiftImage,
     title: "確定シフトを自動共有",
-    body: "確定したシフトをLINEやメールで全員へ送ります。\n「見てなかった」を防げます。",
+    body: "確定シフトをLINEやメールで全員へ送ります。\n「見てなかった」を防げます。",
   },
 ];
 

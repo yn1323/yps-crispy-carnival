@@ -136,16 +136,21 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob): Promise<SendJobRes
       version: invitation.invitationVersion,
       signingSecret: getOrganizationInvitationSigningSecret(),
     });
-    const invitationUrl = new URL("/manager-invite", getAppUrl());
+    const appUrl = getAppUrl();
+    const invitationUrl = new URL("/manager-invite", appUrl);
     invitationUrl.searchParams.set("token", token);
+    const helpUrl = new URL("/help", appUrl);
 
     return await sendEmailJob(job, {
       from: job.payload.from,
       to: job.payload.to,
       subject: formatResendSubject(invitation.organizationName, ORGANIZATION_MANAGER_INVITATION_SUBJECT),
       html: buildOrganizationManagerInvitationEmailHtml({
+        recipientName: invitation.recipientName,
         organizationName: invitation.organizationName,
         inviterName: invitation.inviterName,
+        appUrl,
+        helpUrl: helpUrl.toString(),
         invitationUrl: invitationUrl.toString(),
       }),
       context: job.payload.context,

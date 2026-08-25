@@ -18,7 +18,7 @@ Dashboardの「要対応」も同じスタッフ申請・通知失敗カード�
 
 | 種類 | source | 表示条件 | 主な操作 |
 |---|---|---|---|
-| シフト | `recruitments` | 募集期間内で、提出締切を過ぎても`open`の募集 | 既存のシフト表を開く |
+| シフト | `recruitments` | 募集期間内で、提出期限を過ぎても`open`の募集 | 既存のシフト表を開く |
 | スタッフ | `staffRegistrationRequests` | `pending`のスタッフ登録申請 | 承認、確認後の却下 |
 | 通知 | `notificationFailureInbox` | `open`かつ管理画面から再送・解決できる通知失敗 | 再送、確認後の対応済み |
 | 管理 | `organizationInvitations` | `sendFailed`、`limitReached`、`conflict`の管理者招待 | 再送、確認後の取消 |
@@ -39,7 +39,7 @@ Dashboardの「要対応」も同じスタッフ申請・通知失敗カード�
 - 種類ごとにcursorを持ち、初期pageより古い項目は「さらに表示」から取得する。
 - 店舗filterはsource別上限やpaginationより前にserverで適用する。
 - cursorには組織、店舗filter、種類を結び付け、別scopeへの使い回しを拒否する。
-- 締切判定はserver時刻を正本にする。  queryが返す`nextRefreshAt`でclientが再購読し、画面を開いたまま締切が到来した場合も再評価する。
+- 提出期限の判定はserver時刻を正本にする。  queryが返す`nextRefreshAt`でclientが再購読し、画面を開いたまま提出期限が到来した場合も再評価する。
 - query失敗時は項目を空として扱わず、再読み込みできるエラー状態を表示する。
 - メインナビゲーションはsource別の初期page件数を組織全体の正確な未解決件数として表示しない。exact totalを返す専用集計契約がない間は件数badgeを表示せず、固定値や下限値を実件数に見せない。
 
@@ -75,7 +75,7 @@ Dashboardの「要対応」も同じスタッフ申請・通知失敗カード�
 |---|---|
 | Frontend Unit | DTOの4種類へのdispatch、共通builder、明示org・shop・target ID、Dashboardの一括再送・人数上限・確認操作、filter正規化、clock invalidation、cursor破棄、single-flight |
 | Storybook Behavior/VRT | Ready、Loading、Empty、QueryError、readOnly、独立した複数開閉、操作失敗、確認Dialog、SPのカード配置と退場animation |
-| Convex Function | canonical所属、別org/shop拒否、filter、readOnly capability、種類別continuation、締切境界、最小DTO |
+| Convex Function | canonical所属、別org/shop拒否、filter、readOnly capability、種類別continuation、提出期限境界、最小DTO |
 | Convex Scenario | 4種類のexact set、既存mutation成功後の消失、二重操作時の副作用集合 |
 
 実環境での公開状態は[リリース状態](../manual/release-status.md)の証跡を参照する。

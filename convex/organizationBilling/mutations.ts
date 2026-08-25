@@ -490,7 +490,7 @@ function resolvePendingActivationFailure(billingState: CanonicalOrganizationBill
   }
   if (billingState.state.fallback === "restricted") {
     if (!billingState.state.restrictedFallbackState) {
-      throw new ConvexError("契約制限中の復旧情報を確認できません");
+      throw new ConvexError("契約状態の確認に必要な情報を取得できません");
     }
     return {
       state: { ...billingState.state.restrictedFallbackState, planIdVersion: 2 },

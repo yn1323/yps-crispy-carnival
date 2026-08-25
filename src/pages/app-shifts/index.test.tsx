@@ -221,7 +221,7 @@ describe("AppShiftsRoutePage", () => {
     expect(groups.flatMap((group) => group.recruitments).map((item) => item._id)).toEqual(["recruitment-sooner"]);
     expect(props.shops).toHaveLength(2);
     expect(props.memberStatus).toBe("readOnly");
-    expect(screen.getByText("この組織は閲覧のみです")).toBeTruthy();
+    expect(screen.getByText("現在、このアカウントでは操作できません")).toBeTruthy();
   });
 
   it("店舗filterを変更しても全店舗queryのsubtreeを再mountしない", () => {

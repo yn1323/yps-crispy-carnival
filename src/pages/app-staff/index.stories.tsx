@@ -99,7 +99,7 @@ function StaffReadyPreview({
             : {
                 disabled: readOnly || singlePerson,
                 disabledReason: readOnly
-                  ? "閲覧のみの管理者は、スタッフの並び順を変更できません。"
+                  ? "現在のアカウント状態では、スタッフの並び順を変更できません。"
                   : singlePerson
                     ? "2名以上のスタッフがいると並び替えできます。"
                     : undefined,
@@ -116,7 +116,7 @@ function StaffReadyPreview({
         }
         onAddStaff={() => {}}
         canAddStaff={!readOnly}
-        addStaffDisabledReason={readOnly ? "閲覧のみの管理者は、スタッフを追加できません。" : undefined}
+        addStaffDisabledReason={readOnly ? "現在のアカウント状態では、スタッフを追加できません。" : undefined}
         canLoadMorePeople={canLoadMore}
         onLoadMorePeople={() => {
           setVisiblePeople((current) => [...current, loadedPerson]);

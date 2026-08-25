@@ -12,7 +12,12 @@ import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notific
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
 import { lineRecipientOutboxSnapshot, type NotificationLineRecipient } from "../notificationOutbox/types";
 import { recordNotificationPreparationFailure } from "./failureRecording";
-import { buildReminderEmailHtml, buildReminderLineFlexMessage, buildReminderLineText } from "./templates";
+import {
+  buildReminderEmailHtml,
+  buildReminderEmailSubject,
+  buildReminderLineFlexMessage,
+  buildReminderLineText,
+} from "./templates";
 
 const SHIFT_REMINDER_NOTIFICATION_KIND = "shift.reminder";
 const SHIFT_REMINDER_LINE_TITLE = "シフト提出のお願い";
@@ -46,7 +51,7 @@ export const sendReminderEmails = internalAction({
     );
     const expiresAt = getSubmitLinkCutoff(data.periodStart);
     const deadlineLabel = formatDeadlineLabel(data.deadline);
-    const subject = formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出締切が近づいています`);
+    const subject = formatResendSubject(data.shopName, buildReminderEmailSubject(data.periodLabel));
     let sentCount = 0;
 
     for (const staff of data.staffEntries) {
@@ -213,7 +218,7 @@ export const sendReminderEmailForStaff = internalAction({
     );
     const expiresAt = getSubmitLinkCutoff(data.periodStart);
     const deadlineLabel = formatDeadlineLabel(data.deadline);
-    const subject = formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出締切が近づいています`);
+    const subject = formatResendSubject(data.shopName, buildReminderEmailSubject(data.periodLabel));
     const lineRecipient = selectLineRecipient(data.staff.lineRecipient, quota);
     const selectedChannel = lineRecipient ? "line" : "email";
     const runId = notificationRunId ?? Date.now();

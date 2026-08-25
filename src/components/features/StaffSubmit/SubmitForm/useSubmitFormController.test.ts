@@ -14,7 +14,7 @@ function deferred() {
 }
 
 describe("useSubmitFormController", () => {
-  it("締切後確認中の連続送信を1回にまとめる", async () => {
+  it("提出期限後の確認中に行われた連続送信を1回にまとめる", async () => {
     const gate = deferred();
     const onSubmit = vi.fn(() => gate.promise);
     const { result } = renderHook(() =>

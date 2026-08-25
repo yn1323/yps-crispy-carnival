@@ -151,7 +151,7 @@ const notificationFailures = [
     canRetry: true,
   },
 ] as unknown as DashboardNotificationFailure[];
-// 日付が進んでもVRTの表示状態が変わらないよう、期間は将来に固定し、締切表示だけを「今日」に保つ。
+// 日付が進んでもVRTの表示状態が変わらないよう、期間は将来に固定し、提出期限の表示だけを「今日」に保つ。
 const dashboardStoryToday = dayjs().format("YYYY-MM-DD");
 const dashboardRecruitments = [
   {

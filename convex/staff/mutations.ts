@@ -1727,7 +1727,7 @@ export const setShiftExclusion = managerMutation({
     }
 
     // 対象外にする場合は、発行済みのシフト用セッション・マジックリンクを失効させ、
-    // 古いリンクでのシフト閲覧・希望提出を即座に遮断する（LINE連携は他通知で使うため残す）。
+    // 古いリンクでのシフト閲覧・希望シフト提出を即座に遮断する（LINE連携は他通知で使うため残す）。
     if (args.excluded) {
       const [sessions, magicLinks] = await Promise.all([
         ctx.db

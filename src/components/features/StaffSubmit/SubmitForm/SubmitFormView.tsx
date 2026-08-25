@@ -77,7 +77,7 @@ export function SubmitFormView({
               {formatDatePeriodWithWeekday(data.periodStart, data.periodEnd)}
             </Text>
             <Text fontSize="xs" color="fg.muted">
-              提出締切：{formatDateWithWeekday(data.deadline)} 23:59
+              提出期限：{formatDateWithWeekday(data.deadline)} 23:59
             </Text>
           </Box>
         </Flex>
@@ -198,7 +198,7 @@ export function SubmitFormView({
         </Box>
       </SubmitPageContent>
       <Dialog
-        title="提出締切を過ぎています"
+        title="提出期限を過ぎています"
         isOpen={lateSubmitDialog.isOpen}
         onOpenChange={lateSubmitDialog.onOpenChange}
         onClose={lateSubmitDialog.close}
@@ -208,7 +208,7 @@ export function SubmitFormView({
         isSubmitDisabled={isLateSubmitting}
       >
         <Text fontSize="sm" lineHeight="tall" color="fg.default">
-          提出締切を過ぎています。
+          提出期限を過ぎています。
           <br />
           提出後は、このリンクから変更できません。
           <br />

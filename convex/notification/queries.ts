@@ -438,7 +438,7 @@ export const getCurrentConfirmationEmailDataForStaff = internalQuery({
 });
 
 /**
- * 後から追加・LINE連携された1スタッフに、現在募集中の希望提出通知を送るためのデータを取得する。
+ * 後から追加・LINE連携された1スタッフに、現在募集中の希望シフト提出通知を送るためのデータを取得する。
  */
 export const getOpenRecruitmentNotificationDataForStaff = internalQuery({
   args: { staffId: v.id("staffs") },
@@ -448,7 +448,7 @@ export const getOpenRecruitmentNotificationDataForStaff = internalQuery({
 });
 
 /**
- * メール変更後に現在募集中の希望提出リンクを追送するためのデータを取得する。
+ * メール変更後に現在募集中の希望シフト提出リンクを追送するためのデータを取得する。
  * 連続更新で古い予約が残っても、現在メールと一致しないものは送らない。
  */
 export const getOpenRecruitmentEmailChangeNotificationDataForStaff = internalQuery({

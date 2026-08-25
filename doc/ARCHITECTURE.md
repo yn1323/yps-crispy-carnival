@@ -55,12 +55,12 @@ featureから切り離しても同じ業務用語で説明できる判定だけ�
 | 店舗選択とURLの店舗コンテキスト | `src/domains/shop/context.ts`、`src/components/features/AuthenticatedApp/` | `src/stores/shop/`、`src/hooks/useShopQuery.ts`、`api.dashboard.queries.getMyShops` |
 | 店舗の提出方法を編集する純粋処理 | `src/domains/shop/submissionPattern.ts` | `src/components/features/ShopForm/`、`Dashboard/SetupModal/`、`convex/shop/schemas.ts` |
 | プラン上限超過後の画面上の回復先 | `src/domains/organizationBilling/peopleCapacity.ts` | スタッフ追加や管理者追加を行う各feature、`convex/organizationBilling/` |
-| 募集期間、定休日、締切の入力 | `src/components/features/CreateRecruitmentForm/` | `Dashboard/RecruitmentManagement/`がmutationを接続し、`Demo/ShiftoriDemoFlow/`が登録不要デモとして再利用する |
+| シフト期間、定休日、提出期限の入力 | `src/components/features/CreateRecruitmentForm/` | `Dashboard/RecruitmentManagement/`がmutationを接続し、`Demo/ShiftoriDemoFlow/`が登録不要デモとして再利用する |
 | 公開TOP | `src/routes/index.tsx` | `src/pages/home/` -> `src/components/features/LandingPage/` -> `PublicPageLayout` |
 | 汎用の利用規約とプライバシーポリシー | `src/routes/terms.tsx`、`src/routes/privacy.tsx` | `src/pages/terms/`、`src/pages/privacy/`から管理ユーザー向け文書を既定表示する。対象別routeは`/terms/manager`、`/terms/staff`、`/privacy/manager`、`/privacy/staff` |
 | 確定シフト閲覧リンクの再発行 | `src/routes/_unregistered/shifts.reissue.tsx` | `src/pages/staff-shift-reissue/` -> `StaffShiftReissue` -> `api.staffAuth.mutations.requestReissue`。失効した`/shifts/view`から遷移する |
 
-現在の公開サイトは [`features/public-pages.md`](features/public-pages.md)、希望提出と閲覧リンクは [`features/shift-submission.md`](features/shift-submission.md) にまとめている。
+現在の公開サイトは [`features/public-pages.md`](features/public-pages.md)、希望シフトの提出と閲覧リンクは [`features/shift-submission.md`](features/shift-submission.md) にまとめている。
 
 ## 2. Convex関数境界
 

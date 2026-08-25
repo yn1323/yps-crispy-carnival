@@ -26,8 +26,8 @@ async function setupSubmissionPageData(
       shopId,
       termsConsentVersion: "staff-terms-consent-2026-05-09",
       privacyConsentVersion: "staff-privacy-consent-2026-08-13",
-      termsDocumentVersion: "staff-terms-doc-2026-05-09",
-      privacyDocumentVersion: "staff-privacy-doc-2026-08-13",
+      termsDocumentVersion: "staff-terms-doc-2026-08-26",
+      privacyDocumentVersion: "staff-privacy-doc-2026-08-26",
       consentedAt: Date.now(),
       method: "staff_email_link",
     });
@@ -395,7 +395,7 @@ describe("shiftSubmission/queries", () => {
       expect(pageData.data.previousWeeklyPattern).toBeNull();
     });
 
-    it("提出済みスタッフは締切後でも確定前なら提出内容を閲覧できる", async () => {
+    it("提出済みスタッフは提出期限後でも確定前なら提出内容を閲覧できる", async () => {
       const t = convexTest(schema, modules);
       const { staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);
       await seedSubmission(t, {
@@ -552,7 +552,7 @@ describe("shiftSubmission/queries", () => {
       });
     });
 
-    it("未提出スタッフは締切後でも確定前なら締切後状態のデータを取得できる", async () => {
+    it("未提出スタッフは提出期限後でも確定前なら提出期限後状態のデータを取得できる", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId } = await setupSubmissionPageData(t);
       await t.run(async (ctx) => {

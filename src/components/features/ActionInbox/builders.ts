@@ -39,7 +39,7 @@ export function buildStaffRegistrationActionInboxItem(
         enabled: data.canReject,
         label: "却下する",
         emphasis: "danger",
-        disabledReason: "閲覧のみ、または契約制限中のため却下できません。",
+        disabledReason: "現在のアカウントまたは契約状態では却下できません。",
         onClick: commands.reject,
       }),
       buildActionInboxAction({
@@ -98,7 +98,7 @@ export function buildNotificationFailureActionInboxItem(
         enabled: data.canResolve,
         label: "再送せず破棄する",
         emphasis: "danger",
-        disabledReason: "閲覧のみ、または契約制限中のため変更できません。",
+        disabledReason: "現在のアカウントまたは契約状態では変更できません。",
         onClick: commands.resolve,
       }),
       buildActionInboxAction({

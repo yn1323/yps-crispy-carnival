@@ -496,7 +496,7 @@ describe("organization manager settings queries", () => {
     });
   });
 
-  it("外部招待後に同emailの不適格人物が現れた場合は再送不可のconflictへ閉じる", async () => {
+  it("外部招待後に同emailの通常削除人物が現れても再利用可能な招待として表示する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -527,15 +527,16 @@ describe("organization manager settings queries", () => {
       invitations: [
         {
           invitationId: ids.invitationId,
-          status: "conflict",
-          canResend: false,
+          name: "削除済みの人物",
+          status: "pending",
+          canResend: true,
           canRevoke: true,
         },
       ],
     });
   });
 
-  it("削除済みstaff履歴だけの請求先管理者は権限解除不可として表示する", async () => {
+  it("削除済みstaff履歴だけで請求先メールと一致する管理者は通常条件で権限解除不可になる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -546,7 +547,7 @@ describe("organization manager settings queries", () => {
         organizationId: base.organizationId,
         shopId: base.shopId,
         key: "manager_query_deleted_staff_billing_target",
-        name: "削除済み所属の請求先管理者",
+        name: "削除済み所属の管理者",
         memberStatus: "active",
       });
       if (!target.staffId) throw new Error("staff not found");
@@ -567,12 +568,11 @@ describe("organization manager settings queries", () => {
       managers: expect.arrayContaining([
         {
           personId: ids.target.personId,
-          name: "削除済み所属の請求先管理者",
+          name: "削除済み所属の管理者",
           contactEmail: ids.target.email,
           role: "active",
           isSelf: false,
-          canRemoveRole: false,
-          removeRoleDisabledReason: "管理者権限を外すには、先に請求先メールアドレスを変更してください。",
+          canRemoveRole: true,
         },
       ]),
     });
@@ -901,7 +901,7 @@ describe("organization manager settings queries", () => {
       expect.objectContaining({
         personId: ids.readOnly.personId,
         canSelect: false,
-        disabledReason: expect.stringContaining("閲覧のみ"),
+        disabledReason: "現在、管理者として操作できません。アカウント状態を確認してから変更してください。",
       }),
       expect.objectContaining({
         personId: ids.pending.personId,

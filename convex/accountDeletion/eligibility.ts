@@ -1,7 +1,6 @@
 import type { GenericDatabaseReader } from "convex/server";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
 import { sha256Hex } from "../_lib/sha256";
-import { isOrganizationBillingContact } from "../organization/billingContact";
 import { getOrganizationDeletionEligibility } from "../organization/deletion";
 import {
   type AccountDeletionOrganizationActor,
@@ -17,8 +16,6 @@ type AccountDeletionReadCtx = { db: GenericDatabaseReader<DataModel> };
 
 export type AccountDeletionBlockedReason =
   | "multipleOrganizations"
-  | "billingContactTransferRequired"
-  | "recoveryManagerTransferRequired"
   | "organizationDeletionUnavailable"
   | "tooManyAssociatedRecords"
   | "tooManyFutureAssignments"
@@ -264,9 +261,6 @@ async function derivePlanForExistingUser(
   const otherManagerPersonIds = validManagerPersonIds.filter((personId) => personId !== person._id).sort();
   const organizationSummary = { name: organization.name, shopCount: shops.length };
   if (otherManagerPersonIds.length > 0) {
-    if (isOrganizationBillingContact(organization, person)) {
-      return { status: "blocked", reason: "billingContactTransferRequired" };
-    }
     let departurePlan: AccountDeletionOrganizationDeparturePlan;
     try {
       departurePlan = await prepareAccountDeletionOrganizationDeparture(ctx, {

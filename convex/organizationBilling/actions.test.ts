@@ -120,7 +120,7 @@ describe("organizationBilling/actions", () => {
     expect(jobs).toHaveLength(0);
   });
 
-  it("契約制限を維持した支払い結果待ちはreadOnlyの復旧担当者も課金通知へ含める", async () => {
+  it("旧契約制限を維持した支払い結果待ちは対象readOnly所属も課金通知へ含める", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, { subject: "pending_recovery_notice", plan: "pro" });
@@ -129,7 +129,7 @@ describe("organizationBilling/actions", () => {
       const recoveryPersonId = await ctx.db.insert("organizationPeople", {
         organizationId: seeded.organizationId,
         userId: recoveryUserId,
-        name: "閲覧のみ復旧担当者",
+        name: "旧readOnly所属",
         email: "recovery@example.com",
         emailNormalized: "recovery@example.com",
         status: "active",
@@ -182,7 +182,7 @@ describe("organizationBilling/actions", () => {
   });
 
   it.each(["restrictedStarted", "recovered"] as const)(
-    "%sは遷移前snapshotにだけいたreadOnly非復旧担当者を送信対象にしない",
+    "%sは遷移前snapshotにだけいた対象外readOnly所属を送信対象にしない",
     async (event) => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
@@ -192,7 +192,7 @@ describe("organizationBilling/actions", () => {
         const formerPersonId = await ctx.db.insert("organizationPeople", {
           organizationId: seeded.organizationId,
           userId: formerUserId,
-          name: "旧復旧担当者",
+          name: "旧readOnly所属",
           email: `${event}-former@example.com`,
           emailNormalized: `${event}-former@example.com`,
           status: "active",

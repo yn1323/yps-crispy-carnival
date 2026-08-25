@@ -13,7 +13,7 @@ export const RemindUnsubmittedContent = ({ unsubmittedNames, deadline }: Props) 
       </Text>
       <Box bg="gray.50" borderRadius="md" p={4}>
         <Text fontSize="sm" mb={2} color="gray.700">
-          提出締切：{deadline}
+          提出期限：{deadline}
         </Text>
         <Flex gap={2} wrap="wrap">
           {unsubmittedNames.map((name) => (

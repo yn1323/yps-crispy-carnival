@@ -826,6 +826,7 @@ export const prepareOrganizationManagerInvitationEmail = internalMutation({
     return {
       invitationId: invitation._id,
       invitationVersion: invitation.version,
+      recipientName: invitation.invitedName?.trim() || invitation.email.split("@", 1)[0],
       organizationName: organization.name,
       inviterName: inviterPerson.name,
     };

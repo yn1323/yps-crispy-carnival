@@ -220,7 +220,7 @@ export function buildActionInboxItems(
       return {
         id: item.id,
         category: "shift",
-        statusLabel: "締切済み",
+        statusLabel: "提出期限超過",
         title: "シフトを組んでスタッフに共有しましょう",
         metadata: [
           { label: item.shopName, icon: "shop" },
@@ -231,7 +231,7 @@ export function buildActionInboxItems(
               : `提出 ${item.responseCount}/${item.totalStaffCount}人`,
             icon: "people",
           },
-          { label: `締切 ${formatDateShort(item.deadline)}`, icon: "clock" },
+          { label: `提出期限 ${formatDateShort(item.deadline)}`, icon: "clock" },
         ],
         actions: [{ label: "シフトを組む", emphasis: "primary", onClick: () => commands.openShift(item) }],
       };
@@ -268,7 +268,7 @@ export function buildActionInboxItems(
           enabled: item.canRevoke,
           label: "取り消す",
           emphasis: "danger",
-          disabledReason: "閲覧のみ、または契約制限中のため取り消せません。",
+          disabledReason: "現在のアカウントまたは契約状態では取り消せません。",
           onClick: () => commands.requestRevokeInvitation(item),
         }),
         buildActionInboxAction({

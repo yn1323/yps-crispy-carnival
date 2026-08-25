@@ -18,7 +18,6 @@ import {
 } from "../dashboard/queries";
 import { getOrganizationPersonLineState } from "../line/service";
 import { type OrganizationReadActor, resolveOrganizationReadActor } from "../organization/access";
-import { isOrganizationBillingContact } from "../organization/billingContact";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "../organization/personCapabilities";
 import { getOrganizationStaffOrderScope } from "../organization/staffOrder";
 import {
@@ -275,7 +274,7 @@ function resolveBusinessWriteCapability(args: {
   businessWriteBlockReason: "paymentResultPending" | "restricted" | "usageLimitExceeded" | null;
 }) {
   if (args.memberStatus === "readOnly") {
-    return { canCreate: false, createDisabledReason: "閲覧のみの管理者は、募集を作成できません。" };
+    return { canCreate: false, createDisabledReason: "現在のアカウント状態では、募集を作成できません。" };
   }
   if (args.canWriteBusinessData) return { canCreate: true };
   return {
@@ -295,7 +294,7 @@ function resolveStaffAdditionCapability(args: {
   businessWriteBlockReason: "paymentResultPending" | "restricted" | "usageLimitExceeded" | null;
 }) {
   if (args.memberStatus === "readOnly") {
-    return { canAddStaff: false, addStaffDisabledReason: "閲覧のみの管理者は、スタッフを追加できません。" };
+    return { canAddStaff: false, addStaffDisabledReason: "現在のアカウント状態では、スタッフを追加できません。" };
   }
   if (args.canWriteBusinessData) return { canAddStaff: true };
   return {
@@ -317,7 +316,7 @@ function resolveStaffOrderChangeCapability(args: {
   if (args.memberStatus === "readOnly") {
     return {
       canChangeStaffOrder: false,
-      changeStaffOrderDisabledReason: "閲覧のみの管理者は、スタッフの並び順を変更できません。",
+      changeStaffOrderDisabledReason: "現在のアカウント状態では、スタッフの並び順を変更できません。",
     };
   }
   if (args.canWriteBusinessData) return { canChangeStaffOrder: true };
@@ -487,8 +486,6 @@ async function projectOrganizationPerson(
     canWriteNormally: ctx.organizationMember.status === "active" && args.canWriteBusinessData,
     canRecoverUsageLimits: ctx.organizationMember.status === "active" && args.canRecoverUsageLimits,
     policy: args.policy,
-    isStaff,
-    isBillingContact: isOrganizationBillingContact(organization, args.person),
     isActiveActor: ctx.organizationMember.status === "active",
     isRestricted: args.restrictedState !== null,
     isRestrictedRecovery,

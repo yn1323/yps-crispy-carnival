@@ -62,10 +62,10 @@ export const RecruitmentBoard = ({
   const resolvedCreateDisabledReason = canCreate
     ? undefined
     : (createRecruitmentDisabledReason ??
-      (isReadOnly ? "閲覧のみの店舗では募集を作成できません" : "募集を作成できません"));
+      (isReadOnly ? "現在のアカウント状態では募集を作成できません" : "募集を作成できません"));
   const resolvedEmptyState = emptyState ?? {
     title: `${title}はまだありません`,
-    description: "期間と締切を決めて、スタッフに希望を聞きましょう。",
+    description: "シフト期間と提出期限を決めて、スタッフに希望を聞きましょう。",
     actionLabel: "はじめての募集をつくる",
   };
   const isPastFirstPageLoading = isPastRecruitmentsVisible && pastStatus === "LoadingFirstPage";

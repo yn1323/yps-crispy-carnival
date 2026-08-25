@@ -41,14 +41,14 @@
 | `internal.staffRegistration.mutations.checkSubmissionIngressRateLimit` | internalMutation | Siteverify前にglobalと設定済みの信頼できるIPのhash単位で受付頻度を制限する |
 | `internal.staffRegistration.mutations.checkSubmissionRateLimit` | internalMutation | Turnstile通過後、有効な登録linkと正規化メールのhash単位で受付頻度を制限する |
 | `internal.staffRegistration.mutations.submitRegistrationRequestFromHttp` | internalMutation | HTTP入口の検証後に参加申請を作成し、利用不能なlink・店舗・契約状態を同じ結果へ変換する |
-| `api.staffRegistration.queries.getPendingRequests` | query | シフト担当者向けに自店舗の承認待ち申請と承認可否を取得する。安全でない人物不整合、account deletion受付済みでは、削除履歴を示さない汎用的な承認不可状態を返す。利用人数上限は承認mutationで再検証する |
+| `api.staffRegistration.queries.getPendingRequests` | query | シフト担当者向けに自店舗の承認待ち申請と承認可否を取得する。通常削除人物は再利用、アカウント削除履歴だけなら新規人物として承認可能にし、安全でない人物不整合は汎用的な承認不可状態へ寄せる。利用人数上限は承認mutationで再検証する |
 | `api.appOrganization.actionInboxQueries.getActionInbox` | query | Action Inboxへ承認待ち申請を投影し、Dashboardと同じ承認可否を返す |
-| `api.staffRegistration.mutations.approveRequest` | mutation | 申請を承認し、正式スタッフ作成・同意コピー・通知予約を行う。同じ正規化メールアドレスの削除済み人物は同じ組織人物をactiveへ戻し、新しいstaff IDで通常追加する |
+| `api.staffRegistration.mutations.approveRequest` | mutation | 申請を承認し、正式スタッフ作成・同意コピー・通知予約を行う。同じ正規化メールアドレスの通常削除人物はactiveへ戻し、アカウント削除履歴だけなら新しい組織人物を作成して、新しいstaff IDで通常追加する |
 | `api.staffRegistration.mutations.rejectRequest` | mutation | 申請を却下する |
 | `api.staffRegistration.queries.getActiveRegistrationLink` | query | 店舗の現在有効な登録リンクIDとURLを取得する |
 | `api.staffRegistration.mutations.ensureShopRegistrationLink` | mutation | 有効な登録リンクがなければ作成し、現在のリンクIDとURLを返す |
 | `api.staffRegistration.mutations.rotateShopRegistrationLink` | mutation | 画面が確認したリンクIDを再検証し、旧リンクの失効と新リンクの発行を同じtransactionで行う。同じ再発行要求のretryでは新しいリンクを増やさず現在値を返す |
-| `api.staff.mutations.addStaffs` | mutation | 管理者手入力でスタッフを追加する。同じ正規化メールアドレスの削除済み人物は同じ組織人物をactiveへ戻し、新しいstaff IDで通常追加する |
+| `api.staff.mutations.addStaffs` | mutation | 管理者手入力でスタッフを追加する。同じ正規化メールアドレスの通常削除人物はactiveへ戻し、アカウント削除履歴だけなら新しい組織人物を作成して、新しいstaff IDで通常追加する |
 | `api.staff.queries.listOrganizationPeopleAvailableForShop` | query | 同じ組織の有効人物から、対象店舗に所属していない候補を取得 |
 | `api.staff.mutations.addOrganizationPersonToShop` | mutation | 選択した組織人物を人物IDで再検証し、対象店舗のスタッフとして追加 |
 | `api.organization.mutations.updatePersonProfile` | mutation | 組織人物と同じ組織で紐づく有効なスタッフの氏名・シフト連絡先を更新 |
@@ -64,9 +64,9 @@
 - QR登録で同意済みのスタッフには、承認後に法務同意メールを送らない。
 - 手入力追加は従来通り、法務同意メール・LINE連携メール・募集中シフト通知を送る。Dashboardでは追加完了時に案内通知を送ったことを明示する。
 - 管理者手入力とQR申請の承認は、同じ正規化メールアドレスの削除済み人物に一致しても削除履歴の特別確認を表示せず、通常のスタッフ追加として完了する。
-- 再追加では同じ`organizationPeople`をactiveへ戻し、今回の手入力または承認済み申請の氏名・正規化メールアドレスを現在の人物情報へ反映して、新しいstaff IDを作る。旧staffの表示情報は変更せず、旧staff、旧staffのシフト提出と割当、管理者権限、ほかの店舗所属、session、magic link、LINE token、canonical LINE linkは復元しない。
+- 通常削除後の再追加では同じ`organizationPeople`をactiveへ戻し、今回の手入力または承認済み申請の氏名・正規化メールアドレスを現在の人物情報へ反映して、新しいstaff IDを作る。アカウント削除済みuserに紐づく人物はactiveへ戻さず、新しい`organizationPeople`とstaffを作る。どちらも旧staffの表示情報、シフト提出と割当、管理者権限、ほかの店舗所属、session、magic link、LINE token、canonical LINE linkを復元しない。
 - 店舗所属だけを解除し、組織人物がactiveのままであれば、組織人物のcanonical LINE連携は保持され得る。組織から人物を削除した後の再追加ではcanonical LINE連携を復元せず、本人による新しいLINE連携を必要とする。
-- 人物とstaffの対応が安全に一意解決できない不整合、account deletion受付済み、利用人数上限では、削除履歴や存在状態を示さない汎用的な追加・承認不可結果へ寄せ、person、staff、通知予約を部分的に変更しない。
+- 人物とstaffの対応が安全に一意解決できない不整合、同一メールの人物履歴が走査上限を超える場合、利用人数上限では、削除履歴や存在状態を示さない汎用的な追加・承認不可結果へ寄せ、person、staff、通知予約を部分的に変更しない。
 - 再追加は既存の人物状態、staff ID、正規化メールアドレスindexで表現できるため、schema変更とbackfillを必要としない。
 - rolling deployでは、まずbackendを通常追加の直接成功へ切り替え、旧画面の`confirmReactivationPersonIds`入力を一時的に受理する。次にfrontendの特別確認を削除し、旧画面が残らないことを確認した後で互換引数を削除する。
 - 他店舗スタッフの追加では、組織に登録済みの氏名、メールアドレス、組織共通のLINE連携状態を正として同じ人物を再利用する。管理者権限と既存店舗のセッションは変更しない。LINE連携済みなら追加先でも同じ連携を利用して連携案内を送らず、未連携なら追加先スタッフへ連携案内を送る。

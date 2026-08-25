@@ -76,7 +76,7 @@ export function UserDetailView({
           title={data.canRemove ? "利用上限の整理のみ行えます" : "組織情報は閲覧のみです"}
           description={
             data.canRemove
-              ? "契約制限中のため、通常の設定変更はできません。\n制限の解消に必要なユーザー削除は、この画面から行えます。"
+              ? "現在の契約状態では、通常の設定変更はできません。\n状態の解消に必要なユーザー削除は、この画面から行えます。"
               : (data.writeDisabledReason ?? "現在、この組織の情報を変更できません。")
           }
         />
