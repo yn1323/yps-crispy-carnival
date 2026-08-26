@@ -48,7 +48,7 @@
 | Free | Freeプランを適用した`active.free`である。追加組織の作成、未契約のTrial終了、有料契約の解約確定、支払い猶予終了、Stripe上の想定外解約から移行する。 |
 | 解約 | 有料契約を現在の支払い済み期間の終了時に終え、データを保持したまま`active.free`へ移す操作である。 |
 | 旧Free変更予約 | `targetPlan: "free"`を持ち、`restrictAtPeriodEnd: true`を持たないdeployment前から保存済みの期間末変更である。 |
-| 支払い不要Pro相当 | 既存の対象組織または移行対象組織へ、期限と利用料金を設けずProと同じ機能を提供する状態である。canonicalな内部状態は`complimentary.pro`である。新しい初回Setupと二つ目以降の追加組織には付与しない。 |
+| 支払い不要Pro相当 | 既存の対象組織、移行対象組織、または有効なプロモーションコードを入力した初回Setupへ、期限と利用料金を設けずProと同じ機能を提供する状態である。canonicalな内部状態は`complimentary.pro`である。二つ目以降の追加組織には付与しない。 |
 | 初回請求処理中 | 無料体験が終了し、Stripeから初回支払い結果が届くまでの状態である。 |
 | 稼働店舗 | 現在のシフト運用対象として有効な店舗である。 |
 | アーカイブ済み店舗 | 運用を終了したが、履歴閲覧のために残す店舗である。 |
@@ -169,7 +169,7 @@ Localと開発用Convex deploymentはそれぞれ専用のStripe Sandboxへ接�
 税、返金、未払い請求の終端方針と本番用Stripe設定を確認するまでは対象Priceをアーカイブして新規販売を停止する。
 発行済みのopen Checkout Sessionは別途失効させ、既存契約のWebhook受信と安全処理は継続する。
 
-支払い不要Pro相当は、既にこの状態である組織と、課金証跡がないことを確認して移行した対象組織に限って維持する。
+支払い不要Pro相当は、既にこの状態である組織、課金証跡がないことを確認して移行した対象組織、有効なプロモーションコードを入力した初回Setupの組織に適用する。
 
 支払い不要Pro相当には利用期限、請求周期、支払い方法、請求書を設けない。
 
@@ -251,7 +251,9 @@ Freeは、管理者を含む利用人数の合計が5名までである。
 
 一人のユーザーが自分で作成して保持できる有効な組織は、三つまでとする。
 
-所属0件からの初回Setupで作る組織は、3か月のTrialとして開始する。
+所属0件からの初回Setupで作る組織は、プロモーションコードが空欄なら3か月のTrialとして開始し、入力値が前後空白除去・大文字化後にserver-only設定と一致する場合は期限と利用料金のない`complimentary.pro`として開始する。
+
+プロモーションコードは6桁の英数字とする。  入力済みのコードが形式不正、設定不備、不一致のいずれかで適用できない場合は初回Setup全体を拒否し、Trialへfallbackしない。  コード値はDB、audit、analytics、ログへ保存しない。
 
 二つ目以降に作る組織は、Freeプラン（内部状態`active.free`）として開始する。
 
@@ -404,9 +406,11 @@ Dashboardでは、現在の組織と店舗を二枚のカードで表示する�
 
 ### 10.1 開始
 
-所属0件からの初回Setupで作る組織は、3か月のTrialとして無料体験を開始する。  既存のTrial状態を持つ組織も無料体験を継続する。  二つ目以降の組織作成時には無料体験を開始しない。
+所属0件からの初回Setupでプロモーションコードを入力しない場合は、3か月のTrialとして無料体験を開始する。  既存のTrial状態を持つ組織も無料体験を継続する。  有効なコードで支払い不要Pro相当を適用する場合と、二つ目以降の組織作成時には無料体験を開始しない。
 
-所属0件からの初回Setupは支払い方法を登録せず、Pro相当のTrial状態とTrial期限を作成し、期限処理を予約する。  Stripe Customer、Subscription、課金operationは作らない。
+コード空欄の初回Setupは支払い方法を登録せず、Pro相当のTrial状態とTrial期限を作成し、期限処理を予約する。  Stripe Customer、Subscription、課金operationは作らない。
+
+有効なコードの初回Setupはcanonicalな`complimentary.pro`を作り、Trial期限と期限処理を作らない。  Stripe Customer、Subscription、課金operation、課金通知も作らない。
 
 無料体験中は、Proと同じ50名、5店舗、5管理者の上限と有料機能を利用できる。
 
@@ -1110,7 +1114,8 @@ Freeで新しく行った操作から生じる業務通知は、Freeの利用範
 
 | 現在の状態 | きっかけ | 次の状態 | 機能 |
 |---|---|---|---|
-| 組織未作成 | 所属0件からの初回Setup | Trial | 3か月間、支払い方法の登録なしでPro相当の機能を利用可 |
+| 組織未作成 | 所属0件からの初回Setup（コード空欄） | Trial | 3か月間、支払い方法の登録なしでPro相当の機能を利用可 |
+| 組織未作成 | 所属0件からの初回Setup（有効なコード） | `complimentary.pro` | 期限と利用料金なしでPro相当の機能を利用可 |
 | 組織所属あり | 追加組織作成 | `active.free` | 5名、1店舗、2管理者のFree枠を利用可 |
 | 無料体験 | 終了前に契約し、無料体験終了 | 初回請求処理中 | Standard相当の機能を継続 |
 | 初回請求処理中 | 初回支払い成功 | 選択したStandardまたはPro | 選択プランの機能を継続 |
@@ -1136,14 +1141,14 @@ Freeで新しく行った操作から生じる業務通知は、Freeの利用範
 | active状態のプラン | 実利用数が上限超過 | 同じactive状態 | 閲覧、整理、課金、終了操作だけを許可 |
 | 上限超過中のactive状態 | 実利用数が上限内 | 同じactive状態 | DB状態更新なしで通常利用へ復旧 |
 
-支払い不要Pro相当は、既存の`complimentary.business`を`complimentary.pro`へ移行して維持し、その後は通常の管理者操作、課金API、管理用処理、Stripeイベント、再同期処理で解除または変更しない。
+支払い不要Pro相当は、既存の`complimentary.business`を`complimentary.pro`へ移行して維持するほか、有効なコードを入力した初回Setupでcanonicalな`complimentary.pro`を作成する。  付与後は通常の管理者操作、課金API、管理用処理、Stripeイベント、再同期処理で解除または変更しない。
 
 ## 23. 業務上の不変条件
 
 - 一つの組織に、複数の有効なStripe Subscriptionを作らない。
 - 支払い不要Pro相当の組織にStripe Customer、Subscription、Checkout Session、Portal Session、Invoice、Subscription Schedule、課金operation、課金通知を作らない。
-- 支払い不要Pro相当は既存の`complimentary.business`を`complimentary.pro`へ移行して維持し、課金API、管理用処理、Stripeイベント、再同期処理で別の課金状態へ変更しない。
-- 所属0件からの初回Setupでは3か月のTrialと期限処理を一度だけ作成し、Stripe Customer、Subscription、課金operationを作らない。
+- 支払い不要Pro相当は既存の`complimentary.business`を`complimentary.pro`へ移行して維持するか、有効なコードの初回Setupでcanonicalな`complimentary.pro`を作成し、課金API、管理用処理、Stripeイベント、再同期処理で別の課金状態へ変更しない。
+- 所属0件からの初回Setupでは、コード空欄なら3か月のTrialと期限処理、有効なコードなら期限処理のない`complimentary.pro`を一度だけ作成し、Stripe Customer、Subscription、課金operationを作らない。
 - 追加組織作成、未契約のTrial終了、解約確定、猶予終了、想定外解約では`active.free`を保存する。
 - ProからStandardへの変更確定では、Standard上限を超えていても`active.standard`を保存する。
 - `pendingActivation`のFreeまたはStandardのfallbackは、providerの結果を確認した後に対応するactive状態へ必ず移行する。
@@ -1325,7 +1330,7 @@ Secret keyとWebhook署名シークレットを新規販売の停止手段とし
 - 6店舗目は追加せず、問い合わせへ誘導する。
 - 人数が減っても自動でプランを変更しない。
 - 支払い不要Pro相当のcanonicalな保存状態として`complimentary.pro`だけを作成し、Widen中だけ旧`complimentary.business`を読み取れる。
-- 所属0件からの初回Setupは3か月のTrialで開始し、二つ目以降の追加組織は`active.free`で開始する。
+- 所属0件からの初回Setupはコード空欄なら3か月のTrial、有効なコードなら`complimentary.pro`で開始し、二つ目以降の追加組織は`active.free`で開始する。
 - 自分で作成した有効な組織を三つまで保持でき、招待所属と削除済み組織はこの上限へ数えない。
 - 二つ目以降の組織作成では、選択中組織にある操作本人の氏名とシフト連絡先だけを初期値として引き継ぐ。
 - 所属していない店舗を引き継ぎ元に指定しても新しい組織を作成できず、同じ店舗にいる別人物の連絡先も引き継がない。

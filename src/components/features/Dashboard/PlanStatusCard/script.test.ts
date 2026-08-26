@@ -93,7 +93,7 @@ describe("buildPlanStatusCardData", () => {
       kind: "paidPlan",
       planName: "Pro",
       badgeLabel: "支払い不要",
-      description: "早期登録特典によりProプラン相当の機能をずっと無料で利用できます。",
+      description: "支払い不要の利用条件により、Proプラン相当の機能を期限なく無料で利用できます。",
       nextEventLabel: undefined,
     });
   });

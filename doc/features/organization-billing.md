@@ -34,7 +34,7 @@ direct routeとpublic mutation/actionは、画面表示とは独立して認証�
 | 利用者・処理主体 | 完了できること | 主な条件 |
 |---|---|---|
 | 有効な管理者 | 組織、店舗、人物、管理者、契約を管理する | 認証済み利用者、`active`所属、対象組織と店舗の一致、契約状態、プラン上限をサーバーで再確認する |
-| 組織所属がない認証済み利用者 | `/dashboard`のSetupから最初の1組織、1店舗、管理者本人を作る | 所属0件をserver-sideで再確認し、3か月のTrialで作成する |
+| 組織所属がない認証済み利用者 | `/dashboard`のSetupから最初の1組織、1店舗、管理者本人を作る | 所属0件をserver-sideで再確認する。任意のプロモーションコードが空欄なら3か月のTrial、前後空白除去・大文字化後にserver-only設定と一致する場合は`complimentary.pro`で作成し、入力済みのコードが適用できない場合は作成しない |
 | 組織所属がある認証済み利用者 | 上限内で追加のFree組織を作る | 作成者本人、組織数上限、rate limit、`requestId`、参照元店舗の所属をサーバーで再確認する |
 | Stripe Webhookと内部worker | 既存の支払い結果、期間末変更、取消、再試行を検証して課金状態へ反映する | 署名、接続mode、provider objectの対応、version、冪等性を検証する |
 | 運用担当者 | Stripe設定、probe、Narrow deploy前確認、販売停止、Price rotation、復旧を行う | 実環境を一意に特定し、[運用手順](../manual/organization-billing.md)に従って証跡を残す |
@@ -108,7 +108,8 @@ direct routeとpublic mutation/actionは、画面表示とは独立して認証�
 Trialの利用権限はProと同じである。
 Freeは追加組織の初期状態、既存の`active.free`、そのFreeをfallbackとする`pendingActivation`、Trial未契約終了、有料契約終了後の受け皿として維持する。
 以下でFreeの管理者操作を説明するときは、`active.free`とFreeをfallbackとする`pendingActivation`を対象にする。
-通常の初回Setupは3か月のTrialで作る。
+通常の初回Setupは、プロモーションコードを入力せず3か月のTrialで作る。
+有効なプロモーションコードを入力した初回Setupは、支払い不要Pro相当の`complimentary.pro`で作る。
 明示的に公開した追加組織はFreeで始める。
 Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側の想定外終了では、provider側の終了を確認した後にFreeへ移す。
 このFree移行では契約終了時点の未承認招待を失効させるが、管理者、店舗、人物、スタッフ所属、シフトは変更しない。
@@ -143,11 +144,13 @@ Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側
 
 | 入口 | 対象 | 開始プラン |
 |---|---|---|
-| 初回セットアップ（`/dashboard`） | 所属がまだない利用者 | `trial` |
+| 初回セットアップ（`/dashboard`） | 所属がまだない利用者 | コード空欄では`trial`、有効なコードでは`complimentary.pro` |
 | 追加組織作成 | 既存組織のactive管理者 | `active.free` |
 
 初回Setupは本人のactiveな組織所属が0件であることをserver-sideで確認する。
-最初の組織、店舗、人物、管理者、店舗スタッフと、Pro相当の3か月Trialを一度だけ作る。Trial期限と課金deadlineは作るが、Stripe objectは作らない。
+プロモーションコードは6桁の英数字を任意入力とし、空欄なら最初の組織、店舗、人物、管理者、店舗スタッフと、Pro相当の3か月Trialを一度だけ作る。  Trial期限と課金deadlineは作るが、Stripe objectは作らない。
+入力値が前後空白除去・大文字化後にserver-only設定と一致する場合は、Trialに代えてcanonicalな`complimentary.pro`を作る。  この場合は期限と課金deadlineを作らず、Stripe object、課金operation、課金通知も作らない。
+入力済みのコードが形式不正、設定不備、不一致のいずれかで適用できない場合は、Trialへfallbackせず初回Setup全体を拒否する。  コード値はDB、audit、analytics、ログへ保存しない。
 
 追加組織は管理画面から作成できる。  serverは認証、作成元組織の管理者状態、Free枠、作成上限、rate limit、冪等性をwriteより前に確認する。
 
@@ -172,7 +175,7 @@ Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側
 
 ## 支払い不要Pro相当
 
-既存の支払い不要Pro相当の組織は、内部状態`complimentary.pro`へ移行して維持する。
+既存の支払い不要Pro相当の組織は内部状態`complimentary.pro`へ移行して維持し、有効なプロモーションコードを入力した初回Setupも同じcanonical状態で作成する。
 期限と利用料金はなく、Proの50名、5店舗、管理者5名を利用できる。
 
 支払い不要Pro相当では、Stripe Customer、Subscription、Checkout Session、Portal Session、Invoice、Subscription Schedule、課金operation、課金通知を作らない。
@@ -184,7 +187,7 @@ Widen中は旧`complimentary.business`を含むmarkerなしの課金状態も読
 `m021_organization_billing_complimentary_pro_to_business`とexport verifierは、当時の`complimentary.pro`を旧`complimentary.business`へ移した履歴を検証するために残す。  現行IDへの移行で履歴migrationを書き換えない。
 
 `m022_organization_billing_to_complimentary_business`は、全組織を現在の表示でいう支払い不要Pro相当へ寄せるために実装された履歴migrationである。
-現行の初回Setupはこのmigrationを呼ばず、新規組織をTrialで作成する。
+現行の初回Setupはこのmigrationを呼ばず、コード空欄では新規組織をTrial、有効なコードでは直接`complimentary.pro`で作成する。
 repositoryにmigrationがあることから、対象deploymentでの実行完了を推測しない。
 
 対象deploymentのmigration statusとexport検証状況は、[リリース状態](../manual/release-status.md)を正とする。
@@ -341,7 +344,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 
 | 入口 | 用途 |
 |---|---|
-| `api.setup.mutations.setupShopAndManager` | 所属0件の初期設定と、1組織、1店舗、管理者本人、Pro相当の3か月Trialを作成する。Trial deadlineは作るがStripe objectは作らない |
+| `api.setup.mutations.setupShopAndManager` | 所属0件の初期設定と、1組織、1店舗、管理者本人を作成する。任意のプロモーションコードが空欄ならPro相当の3か月Trialとdeadline、有効なら期限なしの`complimentary.pro`を作り、どちらもStripe objectは作らない |
 | `api.setup.mutations.createOrganization` | 既存管理者による追加組織作成。認証、作成上限、rate limit、冪等性を確認し`active.free`を作る |
 | `api.dashboard.queries.getMyShops` | 利用可能な店舗、組織、所属状態の取得 |
 | `api.dashboard.queries.getDashboardShop` | 選択店舗を認可し、Dashboard用の`planStatus`とrolling deploy用の旧`trialEndingNotice`を取得 |
@@ -387,7 +390,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 - `convex/organization/managerSettingsQueries.test.ts`：管理者設定のbounded read、currentとprojectedの分離、`integrityError` / `ready`、候補の選択不可理由を検証する。
 - `convex/_scenario/organizationBillingLifecycle.test.ts`と`organizationPaidPlanChanges.test.ts`：時間と複数APIをまたぐ課金ライフサイクルを検証する。
 - `convex/_scenario/staffManagerInvitation.test.ts`と`organizationManagerExchange.test.ts`：既存人物の通常招待と、既発行のFree管理者交代招待の互換処理を検証する。
-- `convex/setup/mutations.test.ts`：初回Setupが所属0件だけに許可され、Pro相当の3か月Trialとdeadlineを作り、Stripe objectを作らないことと、追加組織が認証、上限、rate limitを再確認することを検証する。
+- `convex/setup/mutations.test.ts`：初回Setupが所属0件だけに許可され、コード空欄ではPro相当の3か月Trialとdeadline、有効なコードでは期限なしの`complimentary.pro`を作ること、不正なコードでは副作用を残さないこと、いずれもStripe objectを作らないことと、追加組織が認証、上限、rate limitを再確認することを検証する。
 - `convex/_scenario/organizationCreation.test.ts`：追加組織について、Free枠、冪等性、rate limit、初期Free状態、既存組織への非混入を検証する。
 - `src/pages/dashboard/index.stories.tsx`、`src/components/features/Dashboard/DashboardContent/index.stories.tsx`、`src/components/features/OrganizationSettings/OrganizationCreation/OrganizationCreationDialog.stories.tsx`、`src/components/features/OrganizationSettings/controllers.test.tsx`：初回Setupと追加組織作成について、代表状態、フォーム操作、失敗後も同じ`requestId`を保つ再試行、mutation引数、作成後の遷移を検証する。
 - `src/components/features/OrganizationSettings/PlanAndPaymentSection.stories.tsx`と`BillingSettings/`配下のStory・Logic Test：Free、Standard、Pro、未完了Checkoutの代表状態と主要変更操作を検証する。

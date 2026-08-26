@@ -57,7 +57,7 @@ export function buildPlanStatusCardData(
               ? "変更予定"
               : "利用中",
         description: source.isComplimentary
-          ? "早期登録特典によりProプラン相当の機能をずっと無料で利用できます。"
+          ? "支払い不要の利用条件により、Proプラン相当の機能を期限なく無料で利用できます。"
           : isServiceStopScheduled && scheduledChange
             ? `${formatJstDate(scheduledChange.effectiveAt)}をもって解約し、Freeプランへ移行します。データは削除されません。`
             : scheduledChange && targetPlanName

@@ -12,7 +12,7 @@
 - `src/components/features/Dashboard/dashboardTourTargets.ts` — Dashboard内Tourターゲットの共有定数
 - `src/components/features/Dashboard/RecruitmentBoard/` — 募集作成ボタンと最新募集カードのTourターゲット
 - `src/components/features/Dashboard/StaffRoster/` — スタッフ追加ボタンのTourターゲット
-- `src/components/features/Dashboard/SetupModal/` — 初回セットアップで店舗情報、本人の表示名、シフト連絡先を登録する
+- `src/components/features/Dashboard/SetupModal/` — 初回セットアップで店舗情報、本人の表示名、シフト連絡先、任意のプロモーションコードを登録する
 - `src/components/ui/Tour/` — Dashboard用の説明なしスポットライト表示に対応した既存Tourラッパー
 
 ### バックエンド（`convex/`）
@@ -38,18 +38,20 @@
 | `api.dashboard.queries.getDashboardRecruitments` | query | 最新募集・提出人数/現在の有効スタッフ数・確定状態から進捗を派生 |
 | `api.dashboard.queries.getDashboardStaffs` | query | Dashboard上のスタッフ一覧取得 |
 | `api.dashboard.mutations.dismissOnboarding` | mutation | チュートリアル終了状態をDB保存 |
-| `api.setup.mutations.setupShopAndManager` | mutation | 組織所属が0件の本人について、最初の1組織、1店舗、管理者本人、シフト連絡先、Pro相当の3か月Trialを作成 |
+| `api.setup.mutations.setupShopAndManager` | mutation | 組織所属が0件の本人について、最初の1組織、1店舗、管理者本人、シフト連絡先を作成。コード空欄ではPro相当の3か月Trial、有効なコードでは期限なしの支払い不要Pro相当を適用 |
 
 ## 初回セットアップとの境界
 
 - 初回セットアップの「シフト通知先メールアドレス」は、本人のシフト通知と管理者向け連絡に使う連絡先であり、Clerkのログイン方法ではない。
 - 初回セットアップは`/dashboard`で組織所属が0件のときだけ表示し、同じ本人が二つ目の組織、店舗、管理者を作る入口として使わない。
-- 作成する課金状態はPro相当・利用人数上限50名の3か月Trialである。  Trial期限と課金deadlineは作成するが、Stripe Customer、Checkout Session、Subscriptionは作成しない。
+- プロモーションコードは6桁の英数字を任意入力とする。  空欄ではPro相当・利用人数上限50名の3か月Trialを作り、Trial期限と課金deadlineを作成する。
+- 入力値が前後空白除去・大文字化後にserver-only設定と一致する場合は、Trialに代えて期限なしの支払い不要Pro相当（`complimentary.pro`）を作る。  入力済みのコードが適用できない場合は初回セットアップを拒否し、Trialへfallbackしない。
+- Trialと支払い不要Pro相当のどちらでも、Stripe Customer、Checkout Session、Subscriptionは作成しない。
 - 登録した氏名とシフト連絡先は、最初の`organizationPeople`と`staffs`へ保存する。
 - 同じメールアドレスを組織の初期`billingEmail`にも設定するが、請求先は組織設定から独立して変更できる。
 - `users.email`にも初回値を保存するが、これは初期化と旧データ互換のための値であり、以後のログイン方法やシフト連絡先の正本にはしない。
 - 本文のDashboardオンボーディングは初回セットアップ完了後に始まり、ログイン方法の追加・削除・再接続は扱わない。
-- 既存データを支払い不要Pro相当（`complimentary.pro`）へ揃えるmigrationは、この初回セットアップでは実行しない。  repositoryにmigrationがあることから、対象deploymentでの実行完了を推測しない。
+- 既存データを支払い不要Pro相当（`complimentary.pro`）へ揃えるmigrationは、この初回セットアップでは実行しない。  有効なコードではmigrationを介さず同じcanonical状態を直接作り、repositoryにmigrationがあることから対象deploymentでの実行完了を推測しない。
 
 ## 表示ルール
 

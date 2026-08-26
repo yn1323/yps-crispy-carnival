@@ -1,9 +1,9 @@
 ---
 title: 特定商取引法に基づく表記
-lastUpdated: 2026年8月24日
+lastUpdated: 2026年8月26日
 ---
 
-シフト管理SaaS「シフトリ」の無料トライアル、Freeプランおよび有料プランに関する提供条件を、以下のとおり表示します。
+シフト管理SaaS「シフトリ」の無料トライアル、Freeプラン、有料プランおよび支払い不要の利用条件に関する提供条件を、以下のとおり表示します。
 
 ## サービス名
 
@@ -39,6 +39,7 @@ lastUpdated: 2026年8月24日
 
 - 無料トライアル：0円
 - Free：0円
+- 支払い不要の利用条件：0円
 - Standard：<PlanPrice plan="standard" />
 - Pro：<PlanPrice plan="pro" />
 
@@ -79,7 +80,7 @@ Freeプランまたは利用制限中の組織から有料プランを申し込�
 
 ## 役務の提供時期
 
-無料トライアルおよびFreeプランは、対象となる組織の作成完了後から利用できます。
+無料トライアル、Freeプランおよび支払い不要の利用条件は、対象となる組織の作成完了後から利用できます。
 
 Freeプランまたは利用制限中の組織から有料プランを申し込んだ場合は、Stripeで契約状態を確認した後、原則として直ちに有料プランを適用します。
 
@@ -95,7 +96,7 @@ Freeプランまたは利用制限中の組織から有料プランを申し込�
 
 ## 無料トライアル
 
-初回登録時に作成した1つ目の組織は、組織の作成完了から3か月間、クレジットカードを登録せず無料で利用できます。
+初回登録時に作成した1つ目の組織は、原則として組織の作成完了から3か月間、クレジットカードを登録せず無料で利用できます。
 
 無料トライアルの終了日は、サービス画面に表示します。
 
@@ -110,6 +111,16 @@ Freeプランまたは利用制限中の組織から有料プランを申し込�
 
 無料トライアルは、1アカウントにつき初回に作成する1組織のみが対象です。
 
+## 支払い不要の利用条件
+
+初回登録時にサービス画面で案内する適用条件を満たした場合は、1つ目の組織に無料トライアルに代えて支払い不要の利用条件を適用します。
+
+この条件では、Proと同じ機能および利用上限を、利用期限と利用料金を設けずに利用できます。
+クレジットカードの登録は必要ありません。
+
+支払い不要の利用条件を利用せずに初回登録する場合は、無料トライアルを適用します。
+2つ目以降の組織にはこの条件を適用せず、Freeプランを適用します。
+
 ## Freeプランと追加組織
 
 2つ目以降に作成する組織には、組織の作成完了時からFreeプランを適用します。
@@ -123,7 +134,7 @@ Freeプランから有料プランへ変更する場合は、契約画面で支�
 
 ## プランによる機能の違い
 
-無料トライアル、Free、StandardおよびProで利用できる基本機能に違いはありません。
+無料トライアル、Free、Standard、Proおよび支払い不要の利用条件で利用できる基本機能に違いはありません。
 
 プランごとに、利用人数、稼働店舗数および有効な管理ユーザー数の上限が異なります。
 
@@ -131,6 +142,7 @@ Freeプランから有料プランへ変更する場合は、契約画面で支�
 
 - 無料トライアル：利用人数<PlanLimit plan="trial" field="maxPeople" />名、稼働店舗<PlanLimit plan="trial" field="maxActiveShops" />件、有効な管理ユーザー<PlanLimit plan="trial" field="maxActiveManagers" />名
 - Free：利用人数<PlanLimit plan="free" field="maxPeople" />名、稼働店舗<PlanLimit plan="free" field="maxActiveShops" />件、有効な管理ユーザー<PlanLimit plan="free" field="maxActiveManagers" />名
+- 支払い不要の利用条件：利用人数<PlanLimit plan="pro" field="maxPeople" />名、稼働店舗<PlanLimit plan="pro" field="maxActiveShops" />件、有効な管理ユーザー<PlanLimit plan="pro" field="maxActiveManagers" />名
 - Standard：利用人数<PlanLimit plan="standard" field="maxPeople" />名、稼働店舗<PlanLimit plan="standard" field="maxActiveShops" />件、有効な管理ユーザー<PlanLimit plan="standard" field="maxActiveManagers" />名
 - Pro：利用人数<PlanLimit plan="pro" field="maxPeople" />名、稼働店舗<PlanLimit plan="pro" field="maxActiveShops" />件、有効な管理ユーザー<PlanLimit plan="pro" field="maxActiveManagers" />名
 
