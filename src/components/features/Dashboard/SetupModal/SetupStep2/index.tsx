@@ -3,7 +3,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "@/convex/constants";
-import { PROMOTION_CODE_LENGTH } from "@/convex/setup/constants";
 import { type ManagerProfileInput, managerProfileSchema } from "@/convex/setup/schemas";
 import { LegalDocumentLink } from "@/src/components/shared/LegalDocumentLink";
 import { useDeadlineActive } from "@/src/hooks/useDeadlineActive";
@@ -108,7 +107,6 @@ export const SetupStep2 = ({ onSubmit, defaultValues, formId = "setup-step2", pr
                 clearErrors("promotionCode");
               },
             })}
-            maxLength={PROMOTION_CODE_LENGTH}
             autoCapitalize="characters"
             autoComplete="off"
             spellCheck={false}

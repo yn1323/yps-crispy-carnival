@@ -114,7 +114,7 @@ export const PromotionCodeValidationAndNormalization: Story = {
     await expect(args.onComplete).not.toHaveBeenCalled();
 
     await userEvent.clear(promotionCode);
-    await userEvent.type(promotionCode, "ab12cd");
+    await userEvent.type(promotionCode, " ab12cd ");
     await userEvent.click(dialog.getByRole("button", { name: "利用開始" }));
     await expect(args.onComplete).toHaveBeenCalledWith(expect.objectContaining({ promotionCode: "AB12CD" }));
   },
