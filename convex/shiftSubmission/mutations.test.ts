@@ -32,9 +32,9 @@ async function setupTestData(
       staffId,
       shopId,
       termsConsentVersion: "staff-terms-consent-2026-05-09",
-      privacyConsentVersion: "staff-privacy-consent-2026-08-13",
+      privacyConsentVersion: "staff-privacy-consent-2026-08-26",
       termsDocumentVersion: "staff-terms-doc-2026-08-26",
-      privacyDocumentVersion: "staff-privacy-doc-2026-08-26",
+      privacyDocumentVersion: "staff-privacy-doc-2026-08-26-2",
       consentedAt: Date.now(),
       method: "staff_email_link",
     });
@@ -722,6 +722,38 @@ describe("shiftSubmission/mutations", () => {
       expect(submission).not.toBeNull();
     });
 
+    it("同意要求版が古いスタッフは再同意なしで提出できない", async () => {
+      const t = convexTest(schema, modules);
+      const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        const state = await ctx.db
+          .query("legalConsentStates")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .first();
+        if (!state) throw new Error("missing state");
+        await ctx.db.patch(state._id, {
+          privacyConsentVersion: "staff-privacy-consent-2026-08-13",
+        });
+      });
+
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+          sessionToken,
+          accessKind: "submit",
+          recruitmentId,
+          requests: validRequests,
+        }),
+      ).rejects.toThrow("Legal consent required");
+
+      const submission = await t.run(async (ctx) =>
+        ctx.db
+          .query("shiftSubmissions")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
+          .first(),
+      );
+      expect(submission).toBeNull();
+    });
+
     it("未同意スタッフは同意なしで提出できない", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
@@ -779,13 +811,17 @@ describe("shiftSubmission/mutations", () => {
       });
 
       expect(state?.termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
-      expect(state?.privacyConsentVersion).toBe("staff-privacy-consent-2026-08-13");
+      expect(state?.privacyConsentVersion).toBe("staff-privacy-consent-2026-08-26");
       expect(state?.termsDocumentVersion).toBe("staff-terms-doc-2026-08-26");
-      expect(state?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-08-26");
+      expect(state?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-08-26-2");
       expect(state?.method).toBe("shift_submit");
       expect(events).toHaveLength(1);
       expect(events[0].method).toBe("shift_submit");
       expect(events[0].sourceRecruitmentId).toBe(recruitmentId);
+      expect(events[0].termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
+      expect(events[0].privacyConsentVersion).toBe("staff-privacy-consent-2026-08-26");
+      expect(events[0].termsDocumentVersion).toBe("staff-terms-doc-2026-08-26");
+      expect(events[0].privacyDocumentVersion).toBe("staff-privacy-doc-2026-08-26-2");
     });
 
     it("既存提出がある場合はデータを置き換え＋submittedAt更新", async () => {

@@ -17,7 +17,7 @@ export const BottomCtaSection = () => (
         <Text color="gray.800" fontSize="md" lineHeight="1.9" fontWeight="semibold" maxW="620px">
           希望シフトを集めるところから、確定を知らせるところまで。
           <br />
-          まずは3か月、実際の店舗とスタッフで試してみませんか。
+          まずは2か月、実際の店舗とスタッフで試してみませんか。
         </Text>
         <VStack align="center" gap={3} w={{ base: "full", md: "auto" }}>
           <Stack direction={{ base: "column", md: "row" }} gap={4} w={{ base: "full", md: "auto" }}>

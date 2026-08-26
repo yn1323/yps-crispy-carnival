@@ -52,9 +52,9 @@ export const legalDocuments = {
     audience: "staff",
     kind: "privacy",
     title: "スタッフ向けプライバシーポリシー",
-    documentVersion: "staff-privacy-doc-2026-08-26",
+    documentVersion: "staff-privacy-doc-2026-08-26-2",
     path: "/privacy/staff",
-    requiredConsentVersion: "staff-privacy-consent-2026-08-13",
+    requiredConsentVersion: "staff-privacy-consent-2026-08-26",
   },
 } as const;
 

@@ -11,7 +11,7 @@ import { createScenario } from "../_test/scenarioFixtures";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const SETUP_MANAGER_SUBJECT = "scenario_setup_manager";
-const TRIAL_ENDS_AT = Date.parse("2026-08-09T15:00:00.000Z");
+const TRIAL_ENDS_AT = Date.parse("2026-07-09T15:00:00.000Z");
 const TRIAL_ENDING_VISIBLE_FROM = TRIAL_ENDS_AT - 7 * 24 * 60 * 60 * 1000;
 
 describe("管理者セットアップシナリオ", () => {

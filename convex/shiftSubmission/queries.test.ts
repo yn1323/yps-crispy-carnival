@@ -25,9 +25,9 @@ async function setupSubmissionPageData(
       staffId,
       shopId,
       termsConsentVersion: "staff-terms-consent-2026-05-09",
-      privacyConsentVersion: "staff-privacy-consent-2026-08-13",
+      privacyConsentVersion: "staff-privacy-consent-2026-08-26",
       termsDocumentVersion: "staff-terms-doc-2026-08-26",
-      privacyDocumentVersion: "staff-privacy-doc-2026-08-26",
+      privacyDocumentVersion: "staff-privacy-doc-2026-08-26-2",
       consentedAt: Date.now(),
       method: "staff_email_link",
     });
@@ -186,6 +186,35 @@ describe("shiftSubmission/queries", () => {
       });
 
       expect(result.status).toBe("ok");
+    });
+
+    it("同意要求版が古いスタッフには最新文書と再同意要否を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+      await t.run(async (ctx) => {
+        const state = await ctx.db
+          .query("legalConsentStates")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .first();
+        if (!state) throw new Error("missing state");
+        await ctx.db.patch(state._id, {
+          privacyConsentVersion: "staff-privacy-consent-2026-08-13",
+        });
+      });
+
+      const result = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+      });
+
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") throw new Error("expected submission page data");
+      expect(result.data.legalConsentRequired).toBe(true);
+      expect(result.data.legalDocuments.privacy).toMatchObject({
+        documentVersion: "staff-privacy-doc-2026-08-26-2",
+        requiredConsentVersion: "staff-privacy-consent-2026-08-26",
+      });
     });
 
     it.each([

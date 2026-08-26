@@ -465,23 +465,23 @@ describe("organizationBilling/policy trial deadline", () => {
     vi.unstubAllEnvs();
   });
 
-  it("JSTの事業者作成日から3か月後の同日00:00を返す", () => {
+  it("JSTの事業者作成日から2か月後の同日00:00を返す", () => {
     const createdAt = Date.parse("2026-07-14T01:30:00.000Z");
-    expect(calculateTrialEndsAt(createdAt)).toBe(Date.parse("2026-10-13T15:00:00.000Z"));
-    expect(calculateTrialEndsAt(Date.parse("2026-07-14T14:59:59.000Z"))).toBe(Date.parse("2026-10-13T15:00:00.000Z"));
+    expect(calculateTrialEndsAt(createdAt)).toBe(Date.parse("2026-09-13T15:00:00.000Z"));
+    expect(calculateTrialEndsAt(Date.parse("2026-07-14T14:59:59.000Z"))).toBe(Date.parse("2026-09-13T15:00:00.000Z"));
   });
 
   it("UTCでは前日になるJSTの日付境界を正しく扱う", () => {
-    expect(calculateTrialEndsAt(Date.parse("2026-06-30T14:59:59.000Z"))).toBe(Date.parse("2026-09-29T15:00:00.000Z"));
-    expect(calculateTrialEndsAt(Date.parse("2026-06-30T15:00:00.000Z"))).toBe(Date.parse("2026-09-30T15:00:00.000Z"));
+    expect(calculateTrialEndsAt(Date.parse("2026-06-30T14:59:59.000Z"))).toBe(Date.parse("2026-08-29T15:00:00.000Z"));
+    expect(calculateTrialEndsAt(Date.parse("2026-06-30T15:00:00.000Z"))).toBe(Date.parse("2026-08-31T15:00:00.000Z"));
   });
 
   it("非うるう年の2月に同じ日がなければ月末へ丸める", () => {
-    expect(calculateTrialEndsAt(Date.parse("2026-11-30T14:59:59.000Z"))).toBe(Date.parse("2027-02-27T15:00:00.000Z"));
+    expect(calculateTrialEndsAt(Date.parse("2026-12-31T14:59:59.000Z"))).toBe(Date.parse("2027-02-27T15:00:00.000Z"));
   });
 
   it("閏年の2月末へ丸める", () => {
-    expect(calculateTrialEndsAt(Date.parse("2027-11-30T14:59:59.000Z"))).toBe(Date.parse("2028-02-28T15:00:00.000Z"));
+    expect(calculateTrialEndsAt(Date.parse("2027-12-31T14:59:59.000Z"))).toBe(Date.parse("2028-02-28T15:00:00.000Z"));
   });
 
   it.each([
@@ -506,22 +506,22 @@ describe("organizationBilling/policy trial deadline", () => {
       durationDays: "   ",
     },
   ])(
-    "対象URLまたは日数が有効でなければ3か月を維持する: current=$currentDeploymentUrl, debug=$debugDeploymentUrl, days=$durationDays",
+    "対象URLまたは日数が有効でなければ2か月を維持する: current=$currentDeploymentUrl, debug=$debugDeploymentUrl, days=$durationDays",
     ({ currentDeploymentUrl, debugDeploymentUrl, durationDays }) => {
       vi.stubEnv("CONVEX_CLOUD_URL", currentDeploymentUrl);
       vi.stubEnv("DEBUG_TRIAL_DURATION_DEPLOYMENT_URL", debugDeploymentUrl);
       vi.stubEnv("DEBUG_TRIAL_DURATION_DAYS", durationDays);
 
-      expect(calculateTrialEndsAt(Date.parse("2026-07-14T01:30:00.000Z"))).toBe(Date.parse("2026-10-13T15:00:00.000Z"));
+      expect(calculateTrialEndsAt(Date.parse("2026-07-14T01:30:00.000Z"))).toBe(Date.parse("2026-09-13T15:00:00.000Z"));
     },
   );
 
-  it("対象deploymentが一致しなければ不正な日数も無視して3か月を維持する", () => {
+  it("対象deploymentが一致しなければ不正な日数も無視して2か月を維持する", () => {
     vi.stubEnv("CONVEX_CLOUD_URL", "https://current.convex.cloud");
     vi.stubEnv("DEBUG_TRIAL_DURATION_DEPLOYMENT_URL", "https://another.convex.cloud");
     vi.stubEnv("DEBUG_TRIAL_DURATION_DAYS", "not-an-integer");
 
-    expect(calculateTrialEndsAt(Date.parse("2026-07-14T01:30:00.000Z"))).toBe(Date.parse("2026-10-13T15:00:00.000Z"));
+    expect(calculateTrialEndsAt(Date.parse("2026-07-14T01:30:00.000Z"))).toBe(Date.parse("2026-09-13T15:00:00.000Z"));
   });
 
   it("対象URLを正規化し、1日を登録日の翌日00:00 JSTとして扱う", () => {
