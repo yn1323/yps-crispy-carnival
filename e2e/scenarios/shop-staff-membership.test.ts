@@ -10,7 +10,8 @@ import { ShopStaffMembershipPage } from "../pages/ShopStaffMembershipPage";
 test.use({ trace: "off", screenshot: "off", video: "off" });
 
 test.describe("店舗の所属スタッフ変更", { tag: ["@e2e-core"] }, () => {
-  test.setTimeout(60_000);
+  // 複数routeで所属追加・解除・再訪を確認するため、3 workerのcold実測へ余裕を加えた失敗上限。
+  test.setTimeout(90_000);
 
   test.afterEach(async () => {
     await resetShopStaffMembershipScenario();
