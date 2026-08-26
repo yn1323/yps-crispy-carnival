@@ -36,3 +36,4 @@
 - 個別記事のMDX本文やfrontmatterだけを変更する場合は、記事専用Storyやtestを追加しない。
 - MDX変換、frontmatter schema、一覧・カテゴリ・詳細layoutを変更した場合だけ、対応する既存testとStoryを更新する。
 - 必要な検証コマンドは `package.json` と近い既存の変更を正とする。
+- ArticleSite配下はstorybookファイルの生成は不要。build時に担保されるため。
