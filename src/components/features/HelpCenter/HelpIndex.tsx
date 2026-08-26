@@ -311,14 +311,7 @@ function TaskCard({ task, selected, onSelect }: { task: HelpTask; selected: bool
           選択中
         </Badge>
       )}
-      <Flex
-        align="center"
-        justify="center"
-        boxSize={{ base: 9, md: 10 }}
-        flexShrink={0}
-        borderRadius="lg"
-        bg="teal.100"
-      >
+      <Flex align="center" justify="center" boxSize={{ base: 9, md: 10 }} flexShrink={0} borderRadius="lg" bg="teal.50">
         <TaskIcon aria-hidden color="var(--chakra-colors-teal-800)" />
       </Flex>
       <Stack gap={1} minW={0}>

@@ -558,7 +558,7 @@ function PersonAvatar({ name, isManager }: { name: string; isManager: boolean })
     <Flex
       boxSize="40px"
       borderRadius="full"
-      bg={isManager ? "teal.500" : "teal.100"}
+      bg={isManager ? "teal.500" : "teal.50"}
       color={isManager ? "white" : "teal.700"}
       align="center"
       justify="center"

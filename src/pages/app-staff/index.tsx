@@ -290,7 +290,7 @@ export function StaffInvitationShopSelectionDialog({
                 <Flex
                   boxSize="40px"
                   borderRadius="lg"
-                  bg="teal.100"
+                  bg="teal.50"
                   color="teal.700"
                   align="center"
                   justify="center"

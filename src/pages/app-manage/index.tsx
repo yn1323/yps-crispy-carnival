@@ -263,7 +263,7 @@ function ManagementRouteRow({
       }
       onClick={onClick}
       leading={
-        <Flex boxSize="40px" borderRadius="lg" bg="teal.100" color="teal.700" align="center" justify="center">
+        <Flex boxSize="40px" borderRadius="lg" bg="teal.50" color="teal.700" align="center" justify="center">
           <RowIcon aria-hidden />
         </Flex>
       }
