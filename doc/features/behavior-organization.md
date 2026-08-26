@@ -1,10 +1,10 @@
 # 条件別仕様: 組織・店舗・管理者・アカウント
 
-> 文書種別: behavior（条件→結果の詳細仕様。機能文書・業務仕様・コードから導出）
+> 文書種別: 現行実装仕様（behavior。条件→結果の詳細を機能文書・業務要件・コードから導出）
 >
-> 作成日: 2026-08-16 ／ 基準commit: `37c908f`
+> コード照合日: 2026-08-26
 >
-> 正本: [組織課金、複数店舗、複数管理者](organization-billing.md)、[業務仕様](../specs/organization-billing-business-flow.md)、[店舗設定](shop-settings.md)、[店舗・組織削除](data-deletion.md)、[アカウント削除](account-deletion.md)、[認証画面とアカウント設定](auth-pages.md)
+> 正本: [組織課金、複数店舗、複数管理者](organization-billing.md)、[業務要件](../specs/organization-billing-business-flow.md)、[店舗設定](shop-settings.md)、[店舗・組織削除](data-deletion.md)、[アカウント削除](account-deletion.md)、[認証画面とアカウント設定](auth-pages.md)
 
 組織・店舗・管理者・ログインアカウントの操作について、条件の組み合わせごとの結果を定める。  
 複数組織・複数店舗・管理者招待・課金は通常の画面とAPIから利用できる。  以下の契約は、認証、組織境界、管理者状態、契約状態、上限、token lifecycleをserver-sideで再確認する。
@@ -13,7 +13,12 @@
 
 | 条件 | 結果 |
 |---|---|
-| 組織所属0件の認証済み利用者が`/dashboard`の初回Setupを実行 | 最初の組織・店舗・人物・管理者本人・店舗スタッフを一度に作成。課金状態は**Pro相当・利用人数上限50名の3か月Trial**。Trial期限・課金deadlineを作り、Stripeオブジェクトは作らない |
+| 組織所属0件の認証済み利用者が、初回Setupでプロモーションコードの「適用」を実行 | 入力を正規化してserver-only設定と照合する。成功しても組織、店舗、課金状態、audit、schedulerを作らず、最終Setupで再照合する |
+| プロモーションコードの事前照合が不一致、通信失敗、設定不備 | 画面では「コードが誤っています。」に統一する。残り回数は表示せず、入力をやめればコードを消してTrial経路へ戻れる |
+| 同じtabで事前照合が10回失敗 | 10分間、画面の「適用」を停止する。frontendだけの制御であり、public mutationの直接呼出しに対するserver-side rate limitではない |
+| 組織所属0件の認証済み利用者が、プロモーションコードを空欄にして`/dashboard`の初回Setupを実行 | 最初の組織・店舗・人物・管理者本人・店舗スタッフを一度に作成。課金状態は**Pro相当・利用人数上限50名の3か月Trial**。Trial期限・課金deadlineを作り、Stripeオブジェクトは作らない |
+| 組織所属0件の認証済み利用者が、有効なプロモーションコードで初回Setupを実行 | 同じ初期データを一度に作成。課金状態は期限・料金なしの**`complimentary.pro`**。Trial期限、課金deadline、Stripeオブジェクト、課金operation、課金通知は作らない |
+| 入力済みのプロモーションコードが形式不正、設定不備、不一致 | 初回Setup全体を拒否。Trialへfallbackせず、組織、店舗、人物、課金状態、audit、schedulerを作らない |
 | 所属がある利用者が初回Setupを試行 | server-sideで拒否（初回Setupは所属0件のみ） |
 | 追加組織作成 | **`active.free`**（5名・1店舗・2管理者）で開始 |
 | 自作組織を既に3つ保持 | 拒否（招待による所属と削除済み組織は数えない。削除すれば再作成可） |
@@ -197,11 +202,12 @@ strict再認証（Clerk）を経て受け付ける。**受付＝完了ではな�
 
 上限は[認可・制限](behavior-authorization.md)のプラン表、通知は[通知マトリクス](behavior-notification.md)を参照。ここでは遷移と操作条件だけを定める。
 
-### 7.1 状態遷移表（業務仕様22章の要約）
+### 7.1 状態遷移表（業務要件22章の要約）
 
 | 現在 | イベント | 次の状態 |
 |---|---|---|
-| 組織未作成 | 所属0件の初回Setup | Trial |
+| 組織未作成 | 所属0件の初回Setup（コード空欄） | Trial |
+| 組織未作成 | 所属0件の初回Setup（有効なコード） | 支払い不要Pro相当（`complimentary.pro`） |
 | 組織所属あり | 追加組織作成（公開時） | Free |
 | Trial | 継続予約して終了 | 初回請求処理中（Standard相当を継続） |
 | 初回請求処理中 | 支払い成功／失敗 | 選択プラン／支払い猶予（14日） |
@@ -223,7 +229,8 @@ strict再認証（Clerk）を経て受け付ける。**受付＝完了ではな�
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Trial : 所属0件の初回Setup
+    [*] --> Trial : 所属0件・コード空欄の初回Setup
+    [*] --> 支払い不要Pro相当 : 所属0件・有効なコードの初回Setup
     [*] --> Free : 追加組織作成（公開時）
     state 支払い不要Pro相当
 

@@ -33,6 +33,7 @@ function renderSetupView(showAccountDeletion: boolean) {
       dialog={{ isOpen: false, open: vi.fn(), onOpenChange: vi.fn() }}
       showAccountDeletion={showAccountDeletion}
       isSubmitting={false}
+      onVerifyPromotionCode={vi.fn()}
       onComplete={vi.fn()}
     />,
   );

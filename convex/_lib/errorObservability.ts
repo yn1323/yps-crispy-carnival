@@ -75,6 +75,7 @@ const safeContextFields = {
 const safeConvexErrorCodes = new Map<string, string>([
   ["Unauthenticated", "unauthenticated"],
   ["Not found", "not_found"],
+  ["PROMOTION_CODE_INVALID", "promotion_code_invalid"],
   ["Session expired", "session_expired"],
   ["analytics_source_capture_start_invalid", "analytics_source_capture_start_invalid"],
   ["analytics_reset_guard_rejected", "analytics_reset_guard_rejected"],

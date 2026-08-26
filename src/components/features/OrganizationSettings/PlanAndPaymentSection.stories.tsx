@@ -362,7 +362,7 @@ export const ComplimentaryProHasNoBillingActionsBehavior: Story = {
     await expect(canvas.queryByRole("button", { name: "支払い方法・請求書・領収書を見る" })).not.toBeInTheDocument();
     await expect(canvas.getByText("次の支払日")).toBeVisible();
     await expect(canvas.getByText("なし")).toBeVisible();
-    await expect(canvas.getByText("早期登録特典により利用料金はかかりません。")).toBeVisible();
+    await expect(canvas.getByText("支払い不要の利用条件が適用されているため、利用料金はかかりません。")).toBeVisible();
   },
 };
 

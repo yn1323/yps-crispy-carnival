@@ -17,6 +17,7 @@
  * - STRIPE_STANDARD_PRICE_ID
  * - STRIPE_PRO_PRICE_ID
  * - STRIPE_PORTAL_CONFIGURATION_ID
+ * - PROMOTION_COMPLIMENTARY_PRO_CODE
  */
 import { execFileSync } from "node:child_process";
 import { config } from "dotenv";
@@ -35,6 +36,7 @@ const CONVEX_ENV_KEYS = [
   "STRIPE_STANDARD_PRICE_ID",
   "STRIPE_PRO_PRICE_ID",
   "STRIPE_PORTAL_CONFIGURATION_ID",
+  "PROMOTION_COMPLIMENTARY_PRO_CODE",
 ] as const;
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 

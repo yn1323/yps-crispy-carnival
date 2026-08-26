@@ -1,5 +1,7 @@
 # リリース状態
 
+> 文書種別: 実環境状態
+>
 > 最終更新: 2026-08-26
 >
 > 実環境確認: 未確認
@@ -9,8 +11,8 @@
 
 ## 現在の確認状態
 
-2026-08-15時点で、この文書へ必要な実環境証跡は登録されていません。
-次の状態はすべて**未確認**です。
+最終更新時点で、この文書へProductionを確認済みとするための実環境証跡は登録されていません。
+RepositoryまたはDevelopmentの確認を明記した行を含め、Productionの状態はすべて**未確認**です。
 
 現在のrepository artifactは、追加組織、複数店舗、複数管理者、支払いを機能ごとの環境変数なしで提供します。
 このrepository上の方針から、Productionのartifact、migration、外部設定、既存データの状態を確認済みとは判定しません。
@@ -27,6 +29,7 @@
 | `/dashboard`と`/account`の新shell、旧route削除を含むartifactのProduction反映とcanary | 未確認 | 未確認 | 未確認 | 未登録 |
 | 追加組織、店舗追加、管理者招待、課金を常時公開するartifactのProduction反映と、各導線・server capabilityのcanary | 未確認 | 未確認 | 未確認 | 未登録 |
 | 新規Setupが1組織、1店舗、1管理者、3か月のTrialを作り、Trial期限処理を一度だけ予約し、Stripe Customer、Subscription、課金operationを作らないこと | 未確認 | 未確認 | 未確認 | 未登録 |
+| 有効なプロモーションコードの事前照合と初回Setupが、期限なしの`complimentary.pro`を作り、Trial期限処理、Stripe Customer、Subscription、課金operationを作らないこと | **Repository一部実装・Production未確認** | 2026-08-26 | Repository | `verifyPromotionCode`は作成副作用なしで照合し、最終Setupで再照合する。直接呼出しに対するserver-side rate limitは未実装。`ENV-SETUP-02`の実環境canary、設定値、artifact反映は未確認 |
 | 3か月Pro相当・カード登録不要の公開文言と、初回Setupが3か月のTrialを作るbackend・利用規約契約の一致 | **Repository整合・Production未確認** | 2026-08-24 | Repository | Trialの利用権限と上限をPro相当・50名へ更新。保存shapeを変更しないためmigrationは追加しない。Function / Scenario契約、管理ユーザー向け利用規約本文、文書版、同意要求版を更新。対象deploymentへの反映と実環境canaryは未確認 |
 | StripeのStandard・Pro販売設定、Price、明示された税区分、Webhook、公開サイトBuild用にGitHub Environmentへ設定した`STRIPE_SECRET_KEY`、`STRIPE_STANDARD_PRICE_ID`、`STRIPE_PRO_PRICE_ID` | 未確認 | 未確認 | 未確認 | StandardとProは既存Priceの値を2キーへ移し、欠損、不正、重複時はfail closedにする。実値と切替完了は未確認 |
 | plan ID Widen revisionのConvex / frontend反映と、Standard / Proの2キー契約、設定不備時に新規Checkout・料金取得・plan変更が副作用前に停止すること | 未確認 | 未確認 | 未確認 | 未登録 |

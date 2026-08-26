@@ -43,6 +43,7 @@ type Env = {
   readonly DEVELOPMENT_SEED_DEPLOYMENT_URL: string | undefined;
   readonly DEVELOPMENT_SEED_ENABLED: string | undefined;
   readonly NOTIFICATION_DELIVERY_MODE: string | undefined;
+  readonly PROMOTION_COMPLIMENTARY_PRO_CODE: string | undefined;
   readonly STRIPE_PORTAL_CONFIGURATION_ID: string | undefined;
   readonly STRIPE_PRO_PRICE_ID: string | undefined;
   readonly STRIPE_SECRET_KEY: string | undefined;

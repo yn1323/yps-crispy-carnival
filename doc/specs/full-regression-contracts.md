@@ -1,13 +1,13 @@
 # Full Regression横断契約表
 
-> 文書種別: テストトレーサビリティ
+> 文書種別: 検証契約（テストトレーサビリティ）
 >
-> コード照合日: 2026-08-24
+> コード照合日: 2026-08-26
 >
 > 対象: シフトリ本体、公開サイト、Convex backend、通知、関連CI
 
-この文書は、シフトリの主要な業務契約を一つの主担当テスト層へ対応付ける現行表である。
-個別機能の現在仕様は`doc/features/`とコード、テスト層の責務は`doc/rules/testing-strategy.md`、実環境の公開状態は`doc/manual/release-status.md`を正とする。
+この文書は、シフトリの主要な業務要件と現行機能を一つの主担当テスト層へ対応付ける検証契約である。
+個別機能の現在仕様はコード・設定と`doc/features/`、業務要件は`doc/specs/organization-billing-business-flow.md`、テスト層の責務は`doc/rules/testing-strategy.md`、実環境の公開状態は`doc/manual/release-status.md`を正とする。
 
 Full Regressionは一つのE2E suiteではない。
 Logic、Frontend Unit、Behavior、VRT、Convex Function、Convex Scenario、E2E、Deployed Smokeが、それぞれ異なる失敗境界を担当し、主要契約に未分類がない状態を指す。
@@ -17,7 +17,7 @@ Logic、Frontend Unit、Behavior、VRT、Convex Function、Convex Scenario、E2E
 現在の判定は**一部成立**である。
 認証・tenant、課金、Capability、主要通知、削除、全public HTTP routeは契約IDと主担当層へ分類済みであり、P0に主担当未定または根拠テスト未指定の行はない。
 
-一方、通知種別`other`のID直接指定再送と問い合わせの同一`requestId` replayは期待契約未決である。
+一方、通知種別`other`のID直接指定再送と問い合わせの同一`requestId` replayは期待契約未決である。  AIシフトたたき台作成は業務要件にあるが、機能契約の詳細とコードがなく未実装である。  プロモーションコードの事前照合は、直接呼出しを制限するserver-side rate limitがなく一部成立である。
 これらを既存実装の挙動だけから保証済みにしない。
 
 | 状態 | 判定方法 |
@@ -84,7 +84,7 @@ UI test数や静的文言を契約数に数えず、上表のどの失敗境界�
 | `AUTH-ACCOUNT-METHODS-01` | P1 | 認証済み本人がGoogle、メール、パスワードのログイン方法を変更する | 最新Clerk User確認 → 本人再確認 → 単一変更 → reloadで確定 | Clerk User resource | 次回ログイン。シフト連絡先・請求先には影響させない | 別Userへ副作用を送らない。single-flight。passwordやraw provider errorを保存・表示しない | Clerkによる確認コードだけ。Outbox対象外 | Frontend Unit | Desktop / Mobile | 実装済み | `src/components/features/LoginMethods/index.test.tsx`、`src/components/features/LoginMethods/useLoginMethodsController.test.tsx`、`src/components/features/LoginMethods/index.stories.tsx`、`src/pages/account-security/index.test.tsx` |
 | `AUTH-ACCOUNT-EMAIL-COMPAT-01` | P2 | rolling release中の旧clientを安全に停止させる | 旧API呼出し → fail-closed stub → 変更なし | 変更なし | 旧clientだけ | Clerk、user、person、staffを更新しない | なし | Convex Function | 非該当 | 実装済み | `convex/accountEmail/actions.test.ts`、`convex/accountEmail/mutations.test.ts` |
 | `LEGAL-CONSENT-01` | P0 | 管理者とスタッフが必要な法務文書へ同意する | 同意要否 → 文書表示 → 明示同意 → versionとevent保存 | managerまたはstaffの同意状態とevent | 管理画面、スタッフ提出 | 未同意、期限切れ・不整合token、他staffを拒否。二重送信しない | 未同意staffにはemail / LINE。既に同意済みなら送らない | Convex Scenario | Mobile影響あり。Behaviorで補助 | 実装済み | `convex/legal/mutations.test.ts`、`convex/legal/queries.test.ts`、`convex/_scenario/legalConsent.test.ts`、`src/components/features/StaffLegalConsent/index.test.tsx`、`src/components/features/StaffLegalConsent/ConsentView/index.stories.tsx` |
-| `SETUP-ORGANIZATION-01` | P0 | 所属のない認証済み管理者が最初の1組織、1店舗を作る | `/dashboard` → 認証済み・所属0件 → 店舗、person、manager、staff、position、同意、3か月のTrialを一transactionで作成 → `/dashboard?org&shop` | 組織、店舗、人物、所属、初期設定、Pro相当・上限50名のTrial、Trial期限 | Dashboard、募集作成、通知、課金上限 | 再実行、既存所属、途中状態を拒否し、Stripe Customer、Subscription、課金operationを作らない | 初回LINE連携案内、7日後リマインダー、Trial期限処理を必要条件で一度だけ予約 | Convex Function | Desktop ChromeをE2Eで補助 | 実装済み | `convex/setup/mutations.test.ts`、`convex/_scenario/managerSetup.test.ts`、`e2e/scenarios/manager-setup.test.ts`（`E2E-SETUP-01`） |
+| `SETUP-ORGANIZATION-01` | P0 | 所属のない認証済み管理者が最初の1組織、1店舗を作る | `/dashboard` → 認証済み・所属0件 → 店舗、person、manager、staff、position、同意を一transactionで作成。プロモーションコード空欄なら3か月のTrial、有効なら`complimentary.pro` → `/dashboard?org&shop` | 組織、店舗、人物、所属、初期設定、Pro相当・上限50名のTrialとTrial期限、または期限なしの支払い不要Pro相当 | Dashboard、募集作成、通知、課金上限 | 再実行、既存所属、形式不正・設定不備・不一致のコード、途中状態を副作用なしで拒否し、コード値とStripe Customer、Subscription、課金operationを保存しない。事前照合public mutationにはserver-side rate limitがなく、frontendの同一tab制限は直接呼出しで回避できる | 初回LINE連携案内と7日後リマインダーを必要条件で一度だけ予約。Trial期限処理はコード空欄のTrialだけに予約 | Convex Function | Desktop Chromeをコード空欄のTrial経路で補助 | 一部 | `convex/setup/mutations.test.ts`、`convex/_scenario/managerSetup.test.ts`、`e2e/scenarios/manager-setup.test.ts`（`E2E-SETUP-01`） |
 | `DASHBOARD-ONBOARDING-01` | P1 | 初回管理者が店舗登録後の4段階案内を完了する | setup済み → 募集・提出確認・スタッフ追加の案内 → dismiss | DBのdismiss状態。3/4確認だけsessionStorage | Dashboardの通常TODO表示 | 破損storageを安全に無視し、pending申請時の自動dismissと手動dismissを重複させない | 2/4は既存メールを開く案内だけ | Frontend Unit | Desktop / Mobile | 実装済み | `src/components/features/Dashboard/DashboardOnboarding/index.test.tsx`、`src/components/features/Dashboard/DashboardOnboarding/OnboardingCallout/index.stories.tsx`、`convex/dashboard/mutations.test.ts` |
 
 ## 組織、店舗、人物、権限
@@ -172,8 +172,8 @@ E2Eは代表CTAとのbrowser接続だけを守り、対象集合、channel、件
 | `DELETE-SHOP-ORGANIZATION-01` | P0 | 管理者が店舗または組織の利用を終了する | 最新可否確認 → 親を論理削除 → cleanup job → completed / actionRequired | 親・所属の停止状態、job、業務識別情報は保持 | 全manager / staff API、通知、再setup | 最後の店舗、課金契約残存、他管理者、未完了jobを拒否。global userを削除しない | 未送信通知をcancelし、新規enqueue 0件 | Convex Scenario | Desktop ChromeをE2Eで補助 | 実装済み | `convex/organization/deletion.test.ts`、`convex/deletionCleanup/mutations.test.ts`、`convex/deletionCleanup/service.test.ts`、`convex/_scenario/organizationDeletion.test.ts`、`e2e/scenarios/shop-lifecycle.test.ts` |
 | `DELETE-ACCOUNT-01` | P0 | 本人がstrict再認証後に、所属に応じた範囲でアカウント削除を依頼する | preview → HTTP受付 → 所属なしはlocal access停止、共有組織は本人離脱と通知履歴cleanup、単独管理者は組織cleanup → provider job → completed / retry / actionRequired → redaction | account deletion job、user tombstone、本人所属の終了状態またはlinked cleanup job。provider IDと共有cleanup対象は完了時redact | AuthGuard、Clerk削除、共有組織の継続利用、組織と全店舗の停止 | target IDとroleをclientから受けず、複数組織、stale fingerprint、代理session、issuer不一致、cross-tenant cleanup対象を副作用なしで拒否。共有通知履歴とlinked組織cleanupの完了前にproviderを呼ばず、子jobの運用retryは対象とversionを再確認し、provider対象未確認の404を成功にしない | 共有組織から退出する本人と組織削除対象の未送信通知を停止 | Convex Scenario | Desktop / Mobile | 実装済み | `convex/accountDeletion/combined.test.ts`、`convex/accountDeletion/httpActions.test.ts`、`convex/accountDeletion/lifecycle.test.ts`、`convex/_scenario/accountDeletion.test.ts`、`src/components/features/AccountDeletion/useAccountDeletionController.test.tsx`、`src/components/features/AccountDeletion/AccountDeletionSection.stories.tsx` |
 
-Productionには旧`restricted`と`pendingActivation.fallback: "restricted"`の保存データがないため、この契約変更にmigrationまたはbackfillは不要である。
-旧shapeはrolling deploy中のschemaとread互換だけに残し、新しい状態遷移から作成せず、共存終了後に削除する。
+現行writerは旧`restricted`と`pendingActivation.fallback: "restricted"`を作成しない。Productionの保存データとmigrationまたはbackfillの要否は未確認であり、対象deploymentの全ページreadinessを証跡として別途判断する。
+旧shapeはrolling deploy中のschemaとread互換だけに残し、新しい状態遷移から作成せず、0件を確認した後に削除する。
 
 ## Public HTTP、公開サイト、Analytics
 
@@ -197,7 +197,7 @@ Productionには旧`restricted`と`pendingActivation.fallback: "restricted"`の�
 |---|---|---|---|---|
 | `E2E-AUTH-01` | 匿名で保護routeを開くと元の遷移先付きでloginへ戻る | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/auth-pages.test.ts` |
 | `E2E-AUTH-02` | logout後に同じ保護routeへ再アクセスしてもsessionを再利用しない | Desktop Chrome / 専用actor | 実装済み | `e2e/scenarios/auth-logout.test.ts` |
-| `E2E-SETUP-01` | Clerk認証、frontend、Convexを接続し、`/dashboard`から1組織、1店舗、管理者本人、3か月のTrialを作る | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/manager-setup.test.ts` |
+| `E2E-SETUP-01` | Clerk認証、frontend、Convexを接続し、`/dashboard`からプロモーションコード空欄で1組織、1店舗、管理者本人、3か月のTrialを作る | Desktop Chrome / core E2E | 実装済み | `e2e/scenarios/manager-setup.test.ts` |
 | `E2E-STAFF-01` | 新appの全店舗表示から対象店舗を選んでスタッフを削除し、同じメールアドレスを管理者手入力で削除履歴の特別確認なしに再追加して、reload後も新しいスタッフを表示する | Desktop Chrome / core E2E。個人情報を含むartifactは保存しない | 実装済み。Preview実行未確認 | `e2e/pages/AppStaffPage.ts`、`e2e/pages/StaffLifecyclePage.ts`、`e2e/scenarios/staff-lifecycle.test.ts` |
 | `E2E-SHIFT-01` | `/shifts`の「すべて」表示から対象店舗を選んで募集し、店舗名付きカードと共通ヘッダー付きシフト表を経て、匿名staff提出、管理者確定、別匿名context閲覧を実接続する | Desktop Chrome / core E2E。Dashboard固定店舗のStep省略と確認表示はStorybook Behaviorが主担当 | 実装済み。Preview実行未確認 | `e2e/pages/AppShiftsPage.ts`、`e2e/scenarios/first-shift-delivery.test.ts`、`src/components/features/CreateRecruitmentForm/index.stories.tsx` |
 | `E2E-TENANT-01` | 同じmanagerが二組織を往復し、選択店舗の表示を混ぜない | Desktop Chrome / E2E Preview | 実装済み | `e2e/scenarios/tenant-switching.test.ts` |
@@ -237,7 +237,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 
 ## Public Convex surface inventory
 
-2026-08-23時点のpublic query、mutation、actionは152個である。
+2026-08-26時点のpublic query、mutation、actionは153個である。
 同じ業務境界のAPIは一行へまとめるが、公開export名は省略しない。
 
 | Module | Public exports | 対応契約 / 状態 |
@@ -270,7 +270,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 | `organizationInvitation/queries` | `getPreview` | `MANAGER-INVITATION-01`。token、version、期限、失効状態を検証して最小DTOを返す |
 | `organizationStripe/actions` | `cancelPendingCheckoutForOrganization`、`cancelScheduledFree`、`cancelScheduledPlanChange`、`cancelScheduledPlanChangeForOrganization`、`cancelTrialContinuation`、`cancelTrialContinuationForOrganization`、`changePaidPlanNow`、`changePaidPlanNowForOrganization`、`getCurrentSubscriptionPrice`、`getPlanPrice`、`getPlanPriceForOrganization`、`getProPrice`、`inspectPendingCheckoutForOrganization`、`openCustomerPortal`、`openCustomerPortalForOrganization`、`previewPaidPlanChange`、`previewPaidPlanChangeForOrganization`、`scheduleFreeAtPeriodEnd`、`schedulePaidPlanChange`、`schedulePaidPlanChangeForOrganization`、`scheduleServiceStopAtPeriodEnd`、`scheduleServiceStopAtPeriodEndForOrganization`、`startPaidCheckout`、`startPaidCheckoutForOrganization`、`startProCheckout` | `BILLING-CHECKOUT-01`、`BILLING-PLAN-CHANGE-01`、`BILLING-TRIAL-CANCEL-01`。`ForOrganization`は新app用のcanonical組織境界である。全public課金操作で認可、契約状態、Stripe設定、Priceを再確認し、Webhookとinternal workerの収束を維持する |
 | `recruitment/mutations` | `createRecruitment`、`deleteRecruitment` | `RECRUITMENT-01` |
-| `setup/mutations` | `createOrganization`、`createOrganizationForApp`、`setupShopAndManager` | `ORG-CREATE-01`、`SETUP-ORGANIZATION-01`。初回Setupと追加組織で開始条件、作成プラン、上限を分ける |
+| `setup/mutations` | `createOrganization`、`createOrganizationForApp`、`setupShopAndManager`、`verifyPromotionCode` | `ORG-CREATE-01`、`SETUP-ORGANIZATION-01`。初回Setupと追加組織で開始条件、作成プラン、上限を分け、プロモーションコードは作成前と最終Setupで照合する |
 | `shiftBoard/mutations` | `confirmRecruitment`、`saveShiftAssignments` | `SHIFT-BOARD-DRAFT-01`、`SHIFT-CONFIRM-01` |
 | `shiftBoard/queries` | `getShiftBoardData`、`getShiftBoardShopScopeForOrganization` | `SHIFT-BOARD-DRAFT-01`。新appはcanonical組織で店舗scopeを検証する |
 | `shiftSubmission/mutations` | `submitShiftRequests` | `SHIFT-SUBMISSION-01` |
@@ -308,6 +308,8 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 |---|---|---|---|
 | `NOTIFY-OTHER-RESEND-01` | 対象外 | Dashboard非表示の`other`をpublic mutationでも拒否するか、ID指定時だけ許可するか | 製品判断後に、拒否時副作用0または許可時scope・quotaのFunction Testを追加する |
 | `HTTP-CONTACT-01`のreplay | 一部 | 同一`requestId`を一処理意図として抑止するか、ResendとSlackへ安定idempotencyを与えるか | 期待契約確定後にHTTP FunctionまたはScenarioへ外部副作用件数を追加する |
+| `SETUP-ORGANIZATION-01`の事前照合 | 一部 | 認証済みpublic mutationの直接呼出しにも有効なserver-side quotaと拒否時副作用0を実装する | rate limitのFunction Testを追加し、frontendの10回・10分制限だけを安全境界にしない |
+| `AI-SHIFT-DRAFT-01` | 未実装 | 業務要件にある有料機能について、入力、生成結果、承認境界、安全契約を決める | 要件判断後に現行実装仕様、主担当テスト層、根拠テストを追加する |
 | 利用箇所のないpublic API | 一部 | `line.queries.getLinkStatusByShop`、`getQuotaStatus`、旧Stripe wrapper等を削除・internal化・互換維持のどれにするか | client利用箇所とrolling deploy終了条件を確認した変更で整理する |
 
 ## Full Regression完了条件

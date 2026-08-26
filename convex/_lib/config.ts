@@ -51,6 +51,11 @@ export function getNotificationDeliveryMode(): string {
   return (process.env.NOTIFICATION_DELIVERY_MODE ?? "").trim().toLowerCase();
 }
 
+export function getPromotionComplimentaryProCode(): string | undefined {
+  const value = env.PROMOTION_COMPLIMENTARY_PRO_CODE?.trim().toUpperCase();
+  return value || undefined;
+}
+
 export type DevelopmentSeedConfiguration = {
   enabled: boolean;
   currentDeploymentUrl: string;

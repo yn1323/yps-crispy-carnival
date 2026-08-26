@@ -293,7 +293,7 @@ function PlanSummary({
           )}
           {billing.isComplimentary && (
             <Text textStyle="bodySm" color="fg.muted">
-              早期登録特典によりProプラン相当の機能をずっと無料で利用できます。
+              支払い不要の利用条件により、Proプラン相当の機能を期限なく無料で利用できます。
             </Text>
           )}
         </Stack>
@@ -734,7 +734,7 @@ function PaymentInformation({
       <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" bg="white" overflow="hidden">
         {billing.isComplimentary ? (
           <Text px={{ base: 4, md: 5 }} py={4} textStyle="bodySm">
-            早期登録特典により利用料金はかかりません。
+            支払い不要の利用条件が適用されているため、利用料金はかかりません。
           </Text>
         ) : (
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">

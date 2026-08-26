@@ -57,7 +57,10 @@ GitHub Actionsの権限、trigger、Environment gate、artifactの信頼境界�
 - URLの組織、店舗、人物、募集IDを認可根拠にせず、Convex public functionがactorのcanonical所属と対象の一致を再検証する。
 - `/app`は`/dashboard`へ収束させる。旧`/app/actions`、`/app/manage*`、`/app/shifts*`、`/app/staff*`はcanonical routeへreplaceし、`/app/home`、`/app/account`、旧`/settings*`、`/users/*`、`/shops/*`、`/shiftboard/*`は互換redirectなしで削除する。
 - 複数組織、複数店舗、複数管理者、支払いのdirect routeとpublic mutation/actionは、認証、組織境界、管理者状態、契約状態、上限、Stripe設定を副作用前に再確認する。
-- 初回Setupは所属0件の本人だけに1組織、1店舗、管理者本人、3か月のTrialを作り、二重実行を拒否する。  Trial期限処理は一度だけ予約し、Stripe Customer、Subscription、課金operationを作らない。
+- 初回Setupは所属0件の本人だけに1組織、1店舗、管理者本人を作り、二重実行を拒否する。  任意のプロモーションコードが空欄なら3か月のTrialを作り、Trial期限処理を一度だけ予約し、Stripe Customer、Subscription、課金operationを作らない。
+- server側に設定した`PROMOTION_COMPLIMENTARY_PRO_CODE`と、trim・大文字化した6桁英数字の入力が一致する場合だけ`complimentary.pro`を付与する。  この経路ではTrial期限処理、Stripe Customer、Subscription、課金operationを作らない。
+- 事前照合は認証と所属0件を確認し、成功・失敗とも組織、店舗、課金状態、scheduler、Outbox、auditを作らない。  成功結果をcapabilityとして信用せず、最終Setupでコードと所属状態を再照合する。
+- コードの形式不正、server側の未設定、不一致はSetupを拒否し、DB document、scheduler、Outbox、audit、外部provider呼び出しを0件にする。  コードの実値をlogや検証証跡へ残さず、frontendの10回・10分の試行制限を安全境界として扱わない。
 
 権限、組織境界、契約状態、上限、Stripe設定で拒否するFunction Testでは、DB document、scheduler、Outbox、audit、外部provider呼び出しが0件であることまで確認する。
 Playwright用Previewで通常経路を確認しても、Productionへのartifact反映とprovider設定の確認を代替しない。
@@ -75,7 +78,9 @@ Playwright用Previewで通常経路を確認しても、Productionへのartifact
 | `ENV-REL-01` | Production release | canary head、merge SHA、tree SHA、tag、Convex、Cloudflare metadataが同じreleaseを示す |
 | `ENV-ROUTES-01` | 認証済みroute | canonicalな`/dashboard`、`/account`、`/actions`、`/manage*`、`/shifts*`、`/staff*`が表示され、`/app`と互換対象の旧`/app/*`が正規化済みsearchで所定のcanonical routeへ収束し、削除した旧routeが404になる |
 | `ENV-CAPABILITIES-01` | 組織管理機能 | Productionのdirect routeとpublic APIが、組織作成、店舗追加、管理者招待、課金の認証、組織境界、管理者状態、契約状態、上限をserver-sideで再確認する |
-| `ENV-SETUP-01` | 初回Setup | 専用の新規actorが1組織、1店舗、1管理者、3か月のTrialを作り、再実行が拒否され、Trial期限処理が一度だけ予約され、Stripe Customer、Subscription、課金operationがない |
+| `ENV-SETUP-01` | 初回Setupの通常経路 | 専用の新規actorがプロモーションコードを空欄にして1組織、1店舗、1管理者、3か月のTrialを作り、再実行が拒否され、Trial期限処理が一度だけ予約され、Stripe Customer、Subscription、課金operationがない |
+| `ENV-SETUP-02` | 初回Setupの有効コード経路 | アクセス制限された検証環境で有効なコードを事前適用でき、事前照合では作成副作用がなく、最終Setupで`complimentary.pro`が付与され、Trial期限処理、Stripe Customer、Subscription、課金operationがなく、コードの実値が証跡に残らない |
+| `ENV-SETUP-03` | 初回Setupの無効コード経路 | 形式不正、server側の未設定、不一致をそれぞれ一般化したエラーで拒否し、DB document、scheduler、Outbox、audit、外部provider呼び出しが0件で、コードの実値がlogや証跡に残らない |
 | `ENV-STRIPE-01` | Stripe sandbox | 通常、3DS成功、3DS失敗、高risk、Trial SetupIntent、Portal、実Webhookをtest値で確認する。Secret、mode、Price、Customer、Subscriptionの不整合ではprovider副作用前に拒否することも確認する |
 | `ENV-STRIPE-02` | Stripe設定 | 公開文書で申告するRadar、3DS、card testing対策と実account設定が一致する |
 | `ENV-REG-01` | 公開スタッフ登録 | 本番Turnstile、許可Origin、8 KiB超過拒否をdeployed canaryで確認する |
@@ -199,7 +204,7 @@ dual-read、migration完走、readiness成立の三条件を対象deploymentで�
 - release metadataが同じrevisionを示していない。
 
 失敗時は、販売開始、schemaのNarrow、credentialを使う公開処理など、該当する次工程を止める。
-既存契約のWebhook、安全な取消、再照合まで止めるかどうかは、対象機能の復旧手順と業務契約に従って判断する。
+既存契約のWebhook、安全な取消、再照合まで止めるかどうかは、対象機能の復旧手順と業務要件に従って判断する。
 
 ## 参照先
 

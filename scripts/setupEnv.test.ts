@@ -11,6 +11,7 @@ vi.mock("dotenv", () => ({ config: dotenvConfigMock }));
 const SECRET_SENTINEL = "secret-sentinel-should-never-be-printed";
 const TEST_ENV_KEY = "STRIPE_SECRET_KEY";
 const STANDARD_PRICE_ENV_KEY = "STRIPE_STANDARD_PRICE_ID";
+const PROMOTION_CODE_ENV_KEY = "PROMOTION_COMPLIMENTARY_PRO_CODE";
 
 describe("setupEnv", () => {
   beforeEach(() => {
@@ -22,6 +23,7 @@ describe("setupEnv", () => {
   afterEach(() => {
     delete process.env[TEST_ENV_KEY];
     delete process.env[STANDARD_PRICE_ENV_KEY];
+    delete process.env[PROMOTION_CODE_ENV_KEY];
     vi.restoreAllMocks();
   });
 
@@ -79,5 +81,24 @@ describe("setupEnv", () => {
     const [command, argv, options] = standardPriceCall;
     expect(JSON.stringify([command, argv])).not.toContain(standardPriceId);
     expect(options).toMatchObject({ input: `${standardPriceId}\n`, stdio: ["pipe", "pipe", "pipe"] });
+  });
+
+  it("プロモーションコードをargvやlogへ含めずstdinでConvex環境変数へ同期する", async () => {
+    const promotionCode = "A1B2C3";
+    process.env[PROMOTION_CODE_ENV_KEY] = promotionCode;
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await import("./setupEnv");
+
+    const promotionCodeCall = execFileSyncMock.mock.calls.find(([, args]) => args.at(-1) === PROMOTION_CODE_ENV_KEY);
+    expect(promotionCodeCall).toBeDefined();
+    if (!promotionCodeCall) return;
+    const [command, argv, options] = promotionCodeCall;
+    expect(JSON.stringify([command, argv])).not.toContain(promotionCode);
+    expect(options).toMatchObject({ input: `${promotionCode}\n`, stdio: ["pipe", "pipe", "pipe"] });
+    expect(`${logSpy.mock.calls.flat().join(" ")} ${errorSpy.mock.calls.flat().join(" ")}`).not.toContain(
+      promotionCode,
+    );
   });
 });

@@ -1,7 +1,7 @@
-# 組織課金、複数店舗、複数管理者の業務フロー仕様
+# 組織課金、複数店舗、複数管理者の業務要件
 
-- 文書種別: spec
-- 更新日: 2026-08-24
+- 文書種別: 業務要件
+- 更新日: 2026-08-26
 - 対象: Free、Trial、Standard、Pro、支払い不要Pro相当、複数店舗、複数管理者、Stripe課金
 - 実環境の公開・設定・migration状況: [リリース状態](../manual/release-status.md)
 
@@ -19,11 +19,15 @@
 
 ## 1. この文書の位置づけ
 
-この文書は、シフトリにおける組織単位の課金と、有料機能に関係する業務フローの基準を定める。
+この文書は、シフトリにおける組織単位の課金と、有料機能に関係する業務要件を定める。
 
-コード、DB Schema、API、Migrationの詳細は扱わない。
+コード、DB Schema、API、Migrationの識別子は受入条件を一意にするため参照するが、現在の技術仕様や実環境状態の正本にはしない。
 
-課金、複数店舗、複数管理者に関する既存の準備中資料と本書が矛盾する場合は、本書を業務仕様の正とする。
+課金、複数店舗、複数管理者に関する既存の準備中資料と本書が矛盾する場合は、本書を業務要件の正本とする。
+
+業務要件は現行実装より先に確定することがある。  現在の挙動はコード・設定と[現行実装仕様](../features/organization-billing.md)、検証状態は[Full Regression横断契約表](full-regression-contracts.md)、実環境状態は[リリース状態](../manual/release-status.md)を参照する。差分がある場合は本書を暗黙にコードへ合わせず、「要件判断」として扱う。
+
+「AIシフトたたき台作成」は業務要件に記載済みだが、詳細は要件判断、コードは未実装である。  現行機能や検証済み契約として扱わない。
 
 実装時は、本書の業務ルールを技術設計、画面設計、テスト設計へ分解する。
 
@@ -48,14 +52,14 @@
 | Free | Freeプランを適用した`active.free`である。追加組織の作成、未契約のTrial終了、有料契約の解約確定、支払い猶予終了、Stripe上の想定外解約から移行する。 |
 | 解約 | 有料契約を現在の支払い済み期間の終了時に終え、データを保持したまま`active.free`へ移す操作である。 |
 | 旧Free変更予約 | `targetPlan: "free"`を持ち、`restrictAtPeriodEnd: true`を持たないdeployment前から保存済みの期間末変更である。 |
-| 支払い不要Pro相当 | 既存の対象組織または移行対象組織へ、期限と利用料金を設けずProと同じ機能を提供する状態である。canonicalな内部状態は`complimentary.pro`である。新しい初回Setupと二つ目以降の追加組織には付与しない。 |
+| 支払い不要Pro相当 | 既存の対象組織、移行対象組織、または有効なプロモーションコードを入力した初回Setupへ、期限と利用料金を設けずProと同じ機能を提供する状態である。canonicalな内部状態は`complimentary.pro`である。二つ目以降の追加組織には付与しない。 |
 | 初回請求処理中 | 無料体験が終了し、Stripeから初回支払い結果が届くまでの状態である。 |
 | 稼働店舗 | 現在のシフト運用対象として有効な店舗である。 |
 | アーカイブ済み店舗 | 運用を終了したが、履歴閲覧のために残す店舗である。 |
 | プラン停止中店舗 | deployment前の旧Free移行など、プラン制限によって閲覧以外を停止した店舗である。 |
 | 上限超過 | 保存済みの現在プランに対し、未承認招待を除く実際の利用人数、稼働店舗数、有効管理者数のいずれかが上限を超えた状態である。DBへ保存せず、現在値から導出する。 |
 | 利用上限評価不能 | bounded評価で利用上限内か確定できない状態である。上限超過とは区別して表示し、安全のため同じ操作制限を適用する。 |
-| 旧契約制限shape | `restricted`または`pendingActivation.fallback: "restricted"`である。Productionの保存データには存在せず、rolling deploy中のschemaとread互換だけを目的に一時的に残す。 |
+| 旧契約制限状態 | 過去の契約制限を安全に読み取るための内部互換状態である。新しい状態遷移では作成せず、実環境で0件を確認するまで互換を終了しない。現在の識別子と保存状態は[現行実装仕様](../features/organization-billing.md)と[リリース状態](../manual/release-status.md)を参照する。 |
 | 課金通知 | 契約、プラン、請求、支払い方法、支払い結果に関する通知である。 |
 | ログイン方法 | Clerkが管理する確認済みメール、パスワード、Google接続など、シフトリへの認証手段である。 |
 | シフト連絡先 | 組織人物ごとに保持し、本人のシフト通知と管理者向け業務連絡に使うメールアドレスである。 |
@@ -150,7 +154,7 @@ UIを隠すだけでは認可とせず、実行時にも組織、管理者権限
 | Pro | 50名まで | 5店舗まで | 5名まで | すべて利用可 |
 | 支払い不要Pro相当 | 50名まで | 5店舗まで | 5名まで | Pro相当 |
 
-内部ID、DB、APIは利用者向け名称と同じ`standard`と`pro`へ揃える。  Widen中はrequest／responseの`planIdVersion: 2`と保存側の一時markerで旧`pro | business`を区別し、既存の`complimentary.business`はm042で`complimentary.pro`へ移行する。
+利用者向けのプラン名称はStandardとProとする。  内部ID、互換期間、migrationの現在仕様は[現行実装仕様](../features/organization-billing.md)と[組織課金の運用](../manual/organization-billing.md)を参照する。
 
 利用人数は管理者を含む人物の合計であり、有効管理者数はその人物へ付与できる管理者権限の上限である。
 
@@ -169,7 +173,7 @@ Localと開発用Convex deploymentはそれぞれ専用のStripe Sandboxへ接�
 税、返金、未払い請求の終端方針と本番用Stripe設定を確認するまでは対象Priceをアーカイブして新規販売を停止する。
 発行済みのopen Checkout Sessionは別途失効させ、既存契約のWebhook受信と安全処理は継続する。
 
-支払い不要Pro相当は、既にこの状態である組織と、課金証跡がないことを確認して移行した対象組織に限って維持する。
+支払い不要Pro相当は、既にこの状態である組織、課金証跡がないことを確認して移行した対象組織、有効なプロモーションコードを入力した初回Setupの組織に適用する。
 
 支払い不要Pro相当には利用期限、請求周期、支払い方法、請求書を設けない。
 
@@ -251,7 +255,9 @@ Freeは、管理者を含む利用人数の合計が5名までである。
 
 一人のユーザーが自分で作成して保持できる有効な組織は、三つまでとする。
 
-所属0件からの初回Setupで作る組織は、3か月のTrialとして開始する。
+所属0件からの初回Setupで作る組織は、プロモーションコードが空欄なら3か月のTrialとして開始し、入力値が前後空白除去・大文字化後にserver-only設定と一致する場合は期限と利用料金のない`complimentary.pro`として開始する。
+
+プロモーションコードは6桁の英数字とする。  入力済みのコードが形式不正、設定不備、不一致のいずれかで適用できない場合は初回Setup全体を拒否し、Trialへfallbackしない。  コード値はDB、audit、analytics、ログへ保存しない。
 
 二つ目以降に作る組織は、Freeプラン（内部状態`active.free`）として開始する。
 
@@ -404,9 +410,11 @@ Dashboardでは、現在の組織と店舗を二枚のカードで表示する�
 
 ### 10.1 開始
 
-所属0件からの初回Setupで作る組織は、3か月のTrialとして無料体験を開始する。  既存のTrial状態を持つ組織も無料体験を継続する。  二つ目以降の組織作成時には無料体験を開始しない。
+所属0件からの初回Setupでプロモーションコードを入力しない場合は、3か月のTrialとして無料体験を開始する。  既存のTrial状態を持つ組織も無料体験を継続する。  有効なコードで支払い不要Pro相当を適用する場合と、二つ目以降の組織作成時には無料体験を開始しない。
 
-所属0件からの初回Setupは支払い方法を登録せず、Pro相当のTrial状態とTrial期限を作成し、期限処理を予約する。  Stripe Customer、Subscription、課金operationは作らない。
+コード空欄の初回Setupは支払い方法を登録せず、Pro相当のTrial状態とTrial期限を作成し、期限処理を予約する。  Stripe Customer、Subscription、課金operationは作らない。
+
+有効なコードの初回Setupはcanonicalな`complimentary.pro`を作り、Trial期限と期限処理を作らない。  Stripe Customer、Subscription、課金operation、課金通知も作らない。
 
 無料体験中は、Proと同じ50名、5店舗、5管理者の上限と有料機能を利用できる。
 
@@ -896,13 +904,11 @@ ProからStandardへの変更確定では`active.standard`を保存する。
 
 ### 17.6 旧状態の互換
 
-`restricted`と`pendingActivation.fallback: "restricted"`はProductionの保存データに存在しないため、移行jobやbackfillを実行しない。
+新しいTrial終了、解約、猶予終了、プラン変更、想定外解約から、旧契約制限状態を作成しない。
 
-これらの旧shapeは、新旧versionが共存するrolling deploy中に旧リクエストと旧レスポンスを安全に扱うため、schema validatorとread互換にだけ一時的に残す。
-新しいTrial終了、解約、猶予終了、プラン変更、想定外解約から旧shapeを作成しない。
+Productionの保存データに旧状態が存在するかと、移行またはbackfillが必要かは、repositoryから判定しない。
 
-rolling deployの互換期間が終わった後は、旧shape、旧fallback、旧Free選択専用の型と分岐をschemaとAPIから削除する。
-将来Productionで該当データが見つかった場合は削除を止めて原因を確認し、この仕様から移行が必要だと推測しない。
+旧状態の互換を終了する前に、対象deploymentで旧状態が0件である証跡を必須とする。  該当データが見つかった場合は削除を止め、対象データに基づいて移行または互換維持を別途判断する。
 
 ## 18. 支払い失敗
 
@@ -1110,7 +1116,8 @@ Freeで新しく行った操作から生じる業務通知は、Freeの利用範
 
 | 現在の状態 | きっかけ | 次の状態 | 機能 |
 |---|---|---|---|
-| 組織未作成 | 所属0件からの初回Setup | Trial | 3か月間、支払い方法の登録なしでPro相当の機能を利用可 |
+| 組織未作成 | 所属0件からの初回Setup（コード空欄） | Trial | 3か月間、支払い方法の登録なしでPro相当の機能を利用可 |
+| 組織未作成 | 所属0件からの初回Setup（有効なコード） | `complimentary.pro` | 期限と利用料金なしでPro相当の機能を利用可 |
 | 組織所属あり | 追加組織作成 | `active.free` | 5名、1店舗、2管理者のFree枠を利用可 |
 | 無料体験 | 終了前に契約し、無料体験終了 | 初回請求処理中 | Standard相当の機能を継続 |
 | 初回請求処理中 | 初回支払い成功 | 選択したStandardまたはPro | 選択プランの機能を継続 |
@@ -1136,14 +1143,14 @@ Freeで新しく行った操作から生じる業務通知は、Freeの利用範
 | active状態のプラン | 実利用数が上限超過 | 同じactive状態 | 閲覧、整理、課金、終了操作だけを許可 |
 | 上限超過中のactive状態 | 実利用数が上限内 | 同じactive状態 | DB状態更新なしで通常利用へ復旧 |
 
-支払い不要Pro相当は、既存の`complimentary.business`を`complimentary.pro`へ移行して維持し、その後は通常の管理者操作、課金API、管理用処理、Stripeイベント、再同期処理で解除または変更しない。
+支払い不要Pro相当は、既存の`complimentary.business`を`complimentary.pro`へ移行して維持するほか、有効なコードを入力した初回Setupでcanonicalな`complimentary.pro`を作成する。  付与後は通常の管理者操作、課金API、管理用処理、Stripeイベント、再同期処理で解除または変更しない。
 
 ## 23. 業務上の不変条件
 
 - 一つの組織に、複数の有効なStripe Subscriptionを作らない。
 - 支払い不要Pro相当の組織にStripe Customer、Subscription、Checkout Session、Portal Session、Invoice、Subscription Schedule、課金operation、課金通知を作らない。
-- 支払い不要Pro相当は既存の`complimentary.business`を`complimentary.pro`へ移行して維持し、課金API、管理用処理、Stripeイベント、再同期処理で別の課金状態へ変更しない。
-- 所属0件からの初回Setupでは3か月のTrialと期限処理を一度だけ作成し、Stripe Customer、Subscription、課金operationを作らない。
+- 支払い不要Pro相当は既存の`complimentary.business`を`complimentary.pro`へ移行して維持するか、有効なコードの初回Setupでcanonicalな`complimentary.pro`を作成し、課金API、管理用処理、Stripeイベント、再同期処理で別の課金状態へ変更しない。
+- 所属0件からの初回Setupでは、コード空欄なら3か月のTrialと期限処理、有効なコードなら期限処理のない`complimentary.pro`を一度だけ作成し、Stripe Customer、Subscription、課金operationを作らない。
 - 追加組織作成、未契約のTrial終了、解約確定、猶予終了、想定外解約では`active.free`を保存する。
 - ProからStandardへの変更確定では、Standard上限を超えていても`active.standard`を保存する。
 - `pendingActivation`のFreeまたはStandardのfallbackは、providerの結果を確認した後に対応するactive状態へ必ず移行する。
@@ -1325,7 +1332,7 @@ Secret keyとWebhook署名シークレットを新規販売の停止手段とし
 - 6店舗目は追加せず、問い合わせへ誘導する。
 - 人数が減っても自動でプランを変更しない。
 - 支払い不要Pro相当のcanonicalな保存状態として`complimentary.pro`だけを作成し、Widen中だけ旧`complimentary.business`を読み取れる。
-- 所属0件からの初回Setupは3か月のTrialで開始し、二つ目以降の追加組織は`active.free`で開始する。
+- 所属0件からの初回Setupはコード空欄なら3か月のTrial、有効なコードなら`complimentary.pro`で開始し、二つ目以降の追加組織は`active.free`で開始する。
 - 自分で作成した有効な組織を三つまで保持でき、招待所属と削除済み組織はこの上限へ数えない。
 - 二つ目以降の組織作成では、選択中組織にある操作本人の氏名とシフト連絡先だけを初期値として引き継ぐ。
 - 所属していない店舗を引き継ぎ元に指定しても新しい組織を作成できず、同じ店舗にいる別人物の連絡先も引き継がない。
@@ -1430,7 +1437,7 @@ Secret keyとWebhook署名シークレットを新規販売の停止手段とし
 - 上限超過または利用上限評価不能では、通常業務、スタッフの希望シフト提出、業務メール、LINE、provider連携を含む外部通知を停止する。
 - 実利用数が上限内へ戻ると、課金状態または上限フラグの更新なしで通常利用へ戻る。
 - 利用上限評価不能を上限超過と断定せず、管理画面での確認・整理と問い合わせを案内する。
-- Productionに旧`restricted`と`pendingActivation.fallback: "restricted"`の保存データがないため、移行jobとbackfillを必要としない。
+- 新しい状態遷移では旧契約制限状態を作成しない。実環境の保存データと移行要否は、対象deploymentの証跡に基づいて別途判断する。
 - 旧shapeはrolling deploy中のschemaとread互換だけに残し、新しい状態遷移から作成しない。
 - 新旧versionの共存が終わった後に、旧shapeと専用分岐をschemaとAPIから削除する。
 - Stripe上の結果確認が必要な遷移を、ローカルの期限だけで確定しない。
@@ -1442,7 +1449,7 @@ Secret keyとWebhook署名シークレットを新規販売の停止手段とし
 - StandardとProの実価格
 - 税、インボイス制度、返金、クレジット、未払い請求の最終処理に関する法務と会計ルール
 - 年間契約と年払い
-- 41名以上または6店舗以上の個別契約
+- 51名以上または6店舗以上の個別契約
 - カード以外の支払い方法
 - 個人情報の完全消去と法定保持期間
 - 組織全体の閉鎖とデータ消去手続き

@@ -9,7 +9,7 @@
 この文書は、組織課金に関する人の運用を扱う。
 Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotation、障害復旧を、実環境を推測せずに進めるための手順である。
 
-利用者向けの機能とコードの入口は[組織課金、複数店舗、複数管理者](../features/organization-billing.md)、詳細な業務契約は[組織課金の業務仕様](../specs/organization-billing-business-flow.md)を参照する。
+利用者向けの機能とコードの入口は[組織課金、複数店舗、複数管理者](../features/organization-billing.md)、詳細な業務要件は[組織課金の業務要件](../specs/organization-billing-business-flow.md)を参照する。
 
 ## 作業目的から探す
 
@@ -54,7 +54,7 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 
 ## 公開状態
 
-現在のrepository artifactは、複数組織、複数店舗、複数管理者、支払いを機能ごとの環境変数なしで提供する。  初回Setupは所属0件の本人だけが1組織、1店舗、1管理者、3か月のTrialを作成し、追加組織はFreeで開始する。
+現在のrepository artifactは、複数組織、複数店舗、複数管理者、支払いを公開切替用の環境変数なしで提供する。  初回Setupは所属0件の本人だけが1組織、1店舗、1管理者を作成し、プロモーションコードが空欄なら3か月のTrial、server-only設定と照合できた場合は期限・料金なしの支払い不要Pro相当を適用する。  追加組織はFreeで開始する。
 
 公開判断はFeature Flagではなく、対象artifactの反映とcanaryで行う。  操作可否は認証・所属、契約状態、プラン上限、Stripe設定、rate limit、冪等性をサーバー側で判定する。  Productionへの反映状況はrepositoryから推測せず、[リリース状態](release-status.md)で証跡がある項目だけを確認済みとする。
 
@@ -73,6 +73,7 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 | `STRIPE_PRO_PRICE_ID` | Proのrecurring Priceを選ぶallowlist | 明示設定を必須とし、欠損、不正、Standardと重複する場合は課金操作を開始しない |
 | `STRIPE_PORTAL_CONFIGURATION_ID` | 支払い方法更新と請求履歴に限定したPortal設定 | 未設定または不正なら利用者起点の課金操作を開始しない |
 | `APP_URL` | CheckoutとPortalの戻り先 | サーバー側で戻り先を構築できない場合は開始しない |
+| `PROMOTION_COMPLIMENTARY_PRO_CODE` | 初回Setupで支払い不要Pro相当を適用する6桁英数字の照合値 | 未設定または不正でもコード空欄の通常登録はTrialで続ける。コードが入力された場合は支払い不要条件を適用せず、初回Setupを拒否する |
 
 値はブラウザへ公開しない。
 Stripe.jsをブラウザで直接使わないため、`VITE_STRIPE_PUBLISHABLE_KEY`は使わない。
@@ -293,6 +294,42 @@ Webhook destinationには、次の13イベントだけを登録する。
 
 登録後は[セキュリティ再検証](security-validation.md)の`ENV-STRIPE-01`と`ENV-STRIPE-02`に従い、対象revisionとprovider modeを固定したcanaryを行う。
 canaryの成功を確認するまで販売可能と判定しない。
+
+## 支払い不要条件の適用コード
+
+`PROMOTION_COMPLIMENTARY_PRO_CODE`は、所属0件からの初回Setupだけで支払い不要Pro相当を適用するserver-only環境変数である。  値は6桁の英数字とし、前後の空白を除いて大文字化した入力値と照合する。
+
+プロモーションコードが空欄なら通常どおり3か月のTrialを作成する。  入力値が設定と一致した場合は、Trialに代えて期限・料金なしの`complimentary.pro`を作成する。  二つ目以降の追加組織はコードの対象外であり、Freeで開始する。
+
+画面ではコード欄を初期表示で隠し、「プロモーションコードお持ちの方はこちら」から展開する。  「適用」の事前照合に成功すると読み取り専用で保持し、「変更する」で再編集、「入力をやめる」でコードを消してTrial経路へ戻す。  前のstepへ戻っても適用状態は保持する。
+
+事前照合は組織や課金状態を作らず、成功結果を永続化しない。  成功表示後も最終Setupが現在の設定値と所属0件を再確認するため、設定値が途中で変更・削除された場合は作成せず、Trialへfallbackしない。
+
+設定値はブラウザへ渡さず、入力値、設定値、照合結果の詳細をDB、audit、analytics、ログ、運用証跡へ残さない。  コードが入力されている状態で設定が未設定、不正、不一致の場合は、同じ利用者向けエラーで初回Setupを拒否する。
+
+画面の試行回数ロックは、同じtabで10回失敗すると10分間「適用」を止めるUX制御である。  残り回数は表示せず、不一致、通信失敗、設定不備は同じ「コードが誤っています。」に統一する。  public mutationの直接呼出しでは回避できるため安全境界やrate limitとして扱わず、配布先を限定し、漏洩が疑われる場合は設定値を変更する。
+
+設定値の変更または削除は、その後の初回Setupでの照合だけに影響する。  既に作成済みの`complimentary.pro`は維持され、設定値の変更や削除によってTrial、Free、有料プランへ移行しない。
+
+ローカルまたは現在選択中の開発deploymentには、`scripts/setupEnv.ts`のallowlistを通じて同期できる。  `.env`を複製せず、同期先を確認してから次を使う。
+
+```bash
+pnpm convex:env:setup
+```
+
+Productionまたは別projectではこのscriptを使わず、Dashboardまたは完全修飾deployment名を指定したCLIで設定する。  値をcommand引数へ書かず、対話入力する。
+
+```bash
+pnpm exec convex env set --deployment <fully-qualified-deployment> PROMOTION_COMPLIMENTARY_PRO_CODE
+```
+
+無効化するときも対象deploymentを明示する。
+
+```bash
+pnpm exec convex env remove --deployment <fully-qualified-deployment> PROMOTION_COMPLIMENTARY_PRO_CODE
+```
+
+作業後は`env list --names-only`でキーの有無だけを確認し、値を表示しない。
 
 ## Trial期限の開発用設定
 
@@ -629,7 +666,7 @@ provider側の請求停止や取消が未完了なら、新規販売を止めた
 ## 参照先
 
 - [組織課金、複数店舗、複数管理者](../features/organization-billing.md)
-- [組織課金の業務仕様](../specs/organization-billing-business-flow.md)
+- [組織課金の業務要件](../specs/organization-billing-business-flow.md)
 - [リリース状態](release-status.md)
 - [CI/CD運用](ci-cd.md)
 - [セキュリティ再検証](security-validation.md)

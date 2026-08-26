@@ -1,3 +1,4 @@
+import { Box } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCallback, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -9,13 +10,16 @@ import { StepperDialog, StepperDialogContent, type StepperDialogStep } from "@/s
 import { DEFAULT_TIME_PATTERN, normalizeShiftTypeOptions } from "@/src/domains/shop/submissionPattern";
 import { SetupShopInfoStep, type Step1Data } from "./SetupStep1";
 import { SetupStep2, type Step2Data } from "./SetupStep2";
+import type { SetupCompletionResult } from "./types";
 
 export type SetupData = Step1Data & Step2Data;
+export type { SetupCompletionResult } from "./types";
 
 type Props = {
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
-  onComplete: (data: SetupData) => void | Promise<void>;
+  onComplete: (data: SetupData) => SetupCompletionResult | undefined | Promise<SetupCompletionResult | undefined>;
+  onVerifyPromotionCode: (promotionCode: string) => boolean | Promise<boolean>;
   managerProfileDefaults?: Pick<Step2Data, "name" | "email">;
   isSubmitting?: boolean;
 };
@@ -69,10 +73,12 @@ export const SetupModal = ({
   isOpen,
   onOpenChange,
   onComplete,
+  onVerifyPromotionCode,
   managerProfileDefaults,
   isSubmitting = false,
 }: Props) => {
   const [currentStep, setCurrentStep] = useState<Step>("shopInfo");
+  const [isPromotionCodePending, setIsPromotionCodePending] = useState(false);
   const {
     getValues,
     setValue,
@@ -121,7 +127,7 @@ export const SetupModal = ({
 
   const handleStep2Submit = useCallback(
     async (data: Step2Data) => {
-      await onComplete({ ...normalizeSetupData(getValues()), ...data });
+      return await onComplete({ ...normalizeSetupData(getValues()), ...data });
     },
     [getValues, onComplete],
   );
@@ -158,7 +164,7 @@ export const SetupModal = ({
           colorPalette="teal"
           loading={isSubmitting}
           loadingText="利用開始"
-          disabled={isSubmitting}
+          disabled={isSubmitting || isPromotionCodePending}
         >
           利用開始
         </Button>
@@ -197,9 +203,14 @@ export const SetupModal = ({
           />
         )}
 
-        {currentStep === "manager" && (
-          <SetupStep2 defaultValues={managerProfileDefaults} onSubmit={handleStep2Submit} />
-        )}
+        <Box hidden={currentStep !== "manager"}>
+          <SetupStep2
+            defaultValues={managerProfileDefaults}
+            onSubmit={handleStep2Submit}
+            onVerifyPromotionCode={onVerifyPromotionCode}
+            onPromotionCodePendingChange={setIsPromotionCodePending}
+          />
+        </Box>
       </StepperDialogContent>
     </StepperDialog>
   );
