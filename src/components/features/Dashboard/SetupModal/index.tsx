@@ -1,3 +1,4 @@
+import { Box } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCallback, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -18,6 +19,7 @@ type Props = {
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
   onComplete: (data: SetupData) => SetupCompletionResult | undefined | Promise<SetupCompletionResult | undefined>;
+  onVerifyPromotionCode: (promotionCode: string) => boolean | Promise<boolean>;
   managerProfileDefaults?: Pick<Step2Data, "name" | "email">;
   isSubmitting?: boolean;
 };
@@ -71,10 +73,12 @@ export const SetupModal = ({
   isOpen,
   onOpenChange,
   onComplete,
+  onVerifyPromotionCode,
   managerProfileDefaults,
   isSubmitting = false,
 }: Props) => {
   const [currentStep, setCurrentStep] = useState<Step>("shopInfo");
+  const [isPromotionCodePending, setIsPromotionCodePending] = useState(false);
   const {
     getValues,
     setValue,
@@ -160,7 +164,7 @@ export const SetupModal = ({
           colorPalette="teal"
           loading={isSubmitting}
           loadingText="利用開始"
-          disabled={isSubmitting}
+          disabled={isSubmitting || isPromotionCodePending}
         >
           利用開始
         </Button>
@@ -199,9 +203,14 @@ export const SetupModal = ({
           />
         )}
 
-        {currentStep === "manager" && (
-          <SetupStep2 defaultValues={managerProfileDefaults} onSubmit={handleStep2Submit} />
-        )}
+        <Box hidden={currentStep !== "manager"}>
+          <SetupStep2
+            defaultValues={managerProfileDefaults}
+            onSubmit={handleStep2Submit}
+            onVerifyPromotionCode={onVerifyPromotionCode}
+            onPromotionCodePendingChange={setIsPromotionCodePending}
+          />
+        </Box>
       </StepperDialogContent>
     </StepperDialog>
   );

@@ -59,7 +59,8 @@ GitHub Actionsの権限、trigger、Environment gate、artifactの信頼境界�
 - 複数組織、複数店舗、複数管理者、支払いのdirect routeとpublic mutation/actionは、認証、組織境界、管理者状態、契約状態、上限、Stripe設定を副作用前に再確認する。
 - 初回Setupは所属0件の本人だけに1組織、1店舗、管理者本人を作り、二重実行を拒否する。  任意のプロモーションコードが空欄なら3か月のTrialを作り、Trial期限処理を一度だけ予約し、Stripe Customer、Subscription、課金operationを作らない。
 - server側に設定した`PROMOTION_COMPLIMENTARY_PRO_CODE`と、trim・大文字化した6桁英数字の入力が一致する場合だけ`complimentary.pro`を付与する。  この経路ではTrial期限処理、Stripe Customer、Subscription、課金operationを作らない。
-- コードの形式不正、server側の未設定、不一致はSetupを拒否し、DB document、scheduler、Outbox、audit、外部provider呼び出しを0件にする。  コードの実値をlogや検証証跡へ残さず、frontendの試行制限を安全境界として扱わない。
+- 事前照合は認証と所属0件を確認し、成功・失敗とも組織、店舗、課金状態、scheduler、Outbox、auditを作らない。  成功結果をcapabilityとして信用せず、最終Setupでコードと所属状態を再照合する。
+- コードの形式不正、server側の未設定、不一致はSetupを拒否し、DB document、scheduler、Outbox、audit、外部provider呼び出しを0件にする。  コードの実値をlogや検証証跡へ残さず、frontendの10回・10分の試行制限を安全境界として扱わない。
 
 権限、組織境界、契約状態、上限、Stripe設定で拒否するFunction Testでは、DB document、scheduler、Outbox、audit、外部provider呼び出しが0件であることまで確認する。
 Playwright用Previewで通常経路を確認しても、Productionへのartifact反映とprovider設定の確認を代替しない。
@@ -78,7 +79,7 @@ Playwright用Previewで通常経路を確認しても、Productionへのartifact
 | `ENV-ROUTES-01` | 認証済みroute | canonicalな`/dashboard`、`/account`、`/actions`、`/manage*`、`/shifts*`、`/staff*`が表示され、`/app`と互換対象の旧`/app/*`が正規化済みsearchで所定のcanonical routeへ収束し、削除した旧routeが404になる |
 | `ENV-CAPABILITIES-01` | 組織管理機能 | Productionのdirect routeとpublic APIが、組織作成、店舗追加、管理者招待、課金の認証、組織境界、管理者状態、契約状態、上限をserver-sideで再確認する |
 | `ENV-SETUP-01` | 初回Setupの通常経路 | 専用の新規actorがプロモーションコードを空欄にして1組織、1店舗、1管理者、3か月のTrialを作り、再実行が拒否され、Trial期限処理が一度だけ予約され、Stripe Customer、Subscription、課金operationがない |
-| `ENV-SETUP-02` | 初回Setupの有効コード経路 | アクセス制限された検証環境で有効なコードを入力すると`complimentary.pro`が付与され、Trial期限処理、Stripe Customer、Subscription、課金operationがなく、コードの実値が証跡に残らない |
+| `ENV-SETUP-02` | 初回Setupの有効コード経路 | アクセス制限された検証環境で有効なコードを事前適用でき、事前照合では作成副作用がなく、最終Setupで`complimentary.pro`が付与され、Trial期限処理、Stripe Customer、Subscription、課金operationがなく、コードの実値が証跡に残らない |
 | `ENV-SETUP-03` | 初回Setupの無効コード経路 | 形式不正、server側の未設定、不一致をそれぞれ一般化したエラーで拒否し、DB document、scheduler、Outbox、audit、外部provider呼び出しが0件で、コードの実値がlogや証跡に残らない |
 | `ENV-STRIPE-01` | Stripe sandbox | 通常、3DS成功、3DS失敗、高risk、Trial SetupIntent、Portal、実Webhookをtest値で確認する。Secret、mode、Price、Customer、Subscriptionの不整合ではprovider副作用前に拒否することも確認する |
 | `ENV-STRIPE-02` | Stripe設定 | 公開文書で申告するRadar、3DS、card testing対策と実account設定が一致する |

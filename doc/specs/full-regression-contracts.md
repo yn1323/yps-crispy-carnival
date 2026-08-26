@@ -237,7 +237,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 
 ## Public Convex surface inventory
 
-2026-08-23時点のpublic query、mutation、actionは152個である。
+2026-08-26時点のpublic query、mutation、actionは153個である。
 同じ業務境界のAPIは一行へまとめるが、公開export名は省略しない。
 
 | Module | Public exports | 対応契約 / 状態 |
@@ -270,7 +270,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 | `organizationInvitation/queries` | `getPreview` | `MANAGER-INVITATION-01`。token、version、期限、失効状態を検証して最小DTOを返す |
 | `organizationStripe/actions` | `cancelPendingCheckoutForOrganization`、`cancelScheduledFree`、`cancelScheduledPlanChange`、`cancelScheduledPlanChangeForOrganization`、`cancelTrialContinuation`、`cancelTrialContinuationForOrganization`、`changePaidPlanNow`、`changePaidPlanNowForOrganization`、`getCurrentSubscriptionPrice`、`getPlanPrice`、`getPlanPriceForOrganization`、`getProPrice`、`inspectPendingCheckoutForOrganization`、`openCustomerPortal`、`openCustomerPortalForOrganization`、`previewPaidPlanChange`、`previewPaidPlanChangeForOrganization`、`scheduleFreeAtPeriodEnd`、`schedulePaidPlanChange`、`schedulePaidPlanChangeForOrganization`、`scheduleServiceStopAtPeriodEnd`、`scheduleServiceStopAtPeriodEndForOrganization`、`startPaidCheckout`、`startPaidCheckoutForOrganization`、`startProCheckout` | `BILLING-CHECKOUT-01`、`BILLING-PLAN-CHANGE-01`、`BILLING-TRIAL-CANCEL-01`。`ForOrganization`は新app用のcanonical組織境界である。全public課金操作で認可、契約状態、Stripe設定、Priceを再確認し、Webhookとinternal workerの収束を維持する |
 | `recruitment/mutations` | `createRecruitment`、`deleteRecruitment` | `RECRUITMENT-01` |
-| `setup/mutations` | `createOrganization`、`createOrganizationForApp`、`setupShopAndManager` | `ORG-CREATE-01`、`SETUP-ORGANIZATION-01`。初回Setupと追加組織で開始条件、作成プラン、上限を分ける |
+| `setup/mutations` | `createOrganization`、`createOrganizationForApp`、`setupShopAndManager`、`verifyPromotionCode` | `ORG-CREATE-01`、`SETUP-ORGANIZATION-01`。初回Setupと追加組織で開始条件、作成プラン、上限を分け、プロモーションコードは作成前と最終Setupで照合する |
 | `shiftBoard/mutations` | `confirmRecruitment`、`saveShiftAssignments` | `SHIFT-BOARD-DRAFT-01`、`SHIFT-CONFIRM-01` |
 | `shiftBoard/queries` | `getShiftBoardData`、`getShiftBoardShopScopeForOrganization` | `SHIFT-BOARD-DRAFT-01`。新appはcanonical組織で店舗scopeを検証する |
 | `shiftSubmission/mutations` | `submitShiftRequests` | `SHIFT-SUBMISSION-01` |

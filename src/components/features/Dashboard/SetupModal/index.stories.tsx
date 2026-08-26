@@ -17,6 +17,7 @@ const meta = {
     isOpen: true,
     onOpenChange: () => {},
     onComplete: completeSetup,
+    onVerifyPromotionCode: async () => true,
     managerProfileDefaults: {
       name: "山田 太郎",
       email: "yamada@example.com",
@@ -100,23 +101,72 @@ export const PromotionCodeValidationAndNormalization: Story = {
   },
   args: {
     onComplete: fn(async () => ({ kind: "completed" as const })),
+    onVerifyPromotionCode: fn(async () => true),
   },
   play: async ({ args, canvasElement }) => {
     const dialog = await getDialog(canvasElement);
     await inputShopName(dialog);
     await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
     await userEvent.click(dialog.getByRole("checkbox", { name: /利用規約.*プライバシーポリシー.*同意/ }));
+    await expect(dialog.queryByRole("textbox", { name: "プロモーションコード（任意）" })).not.toBeInTheDocument();
+    await userEvent.click(dialog.getByRole("button", { name: "プロモーションコードお持ちの方はこちら" }));
 
     const promotionCode = dialog.getByRole("textbox", { name: "プロモーションコード（任意）" });
     await userEvent.type(promotionCode, "ABC-12");
-    await userEvent.click(dialog.getByRole("button", { name: "利用開始" }));
+    await expect(dialog.getByRole("button", { name: "利用開始" })).toBeDisabled();
+    await userEvent.click(dialog.getByRole("button", { name: "適用" }));
     await expect(await dialog.findByText("プロモーションコードは6桁の英数字で入力してください。")).toBeVisible();
+    await expect(args.onVerifyPromotionCode).not.toHaveBeenCalled();
     await expect(args.onComplete).not.toHaveBeenCalled();
 
     await userEvent.clear(promotionCode);
     await userEvent.type(promotionCode, " ab12cd ");
+    await userEvent.click(dialog.getByRole("button", { name: "適用" }));
+    await expect(args.onVerifyPromotionCode).toHaveBeenCalledWith("AB12CD");
+    await expect(promotionCode).toHaveValue("AB12CD");
+    await expect(promotionCode).toHaveAttribute("readonly");
+    await expect(dialog.getByText("無料のProプランを適用")).toBeVisible();
+
+    await userEvent.click(dialog.getByRole("button", { name: "戻る" }));
+    await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
+    await expect(dialog.getByText("無料のProプランを適用")).toBeVisible();
+    await expect(dialog.getByRole("textbox", { name: "プロモーションコード（任意）" })).toHaveAttribute("readonly");
+
+    await userEvent.click(dialog.getByRole("button", { name: "変更する" }));
+    await expect(dialog.getByRole("textbox", { name: "プロモーションコード（任意）" })).not.toHaveAttribute("readonly");
+    await expect(dialog.getByRole("button", { name: "利用開始" })).toBeDisabled();
+    await userEvent.click(dialog.getByRole("button", { name: "適用" }));
     await userEvent.click(dialog.getByRole("button", { name: "利用開始" }));
     await expect(args.onComplete).toHaveBeenCalledWith(expect.objectContaining({ promotionCode: "AB12CD" }));
+  },
+};
+
+export const PromotionCodeRevalidationFailure: Story = {
+  parameters: {
+    screenshot: { skip: true },
+  },
+  args: {
+    onComplete: fn(async () => ({ kind: "promotionCodeInvalid" as const })),
+    onVerifyPromotionCode: fn(async () => true),
+  },
+  play: async ({ canvasElement }) => {
+    const dialog = await getDialog(canvasElement);
+    await inputShopName(dialog);
+    await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
+    await userEvent.click(dialog.getByRole("checkbox", { name: /利用規約.*プライバシーポリシー.*同意/ }));
+    await userEvent.click(dialog.getByRole("button", { name: "プロモーションコードお持ちの方はこちら" }));
+    await userEvent.type(dialog.getByRole("textbox", { name: "プロモーションコード（任意）" }), "ABC123");
+    await userEvent.click(dialog.getByRole("button", { name: "適用" }));
+    await userEvent.click(dialog.getByRole("button", { name: "利用開始" }));
+
+    const promotionCode = dialog.getByRole("textbox", { name: "プロモーションコード（任意）" });
+    await expect(dialog.getByText("コードが誤っています。")).toBeVisible();
+    await expect(promotionCode).not.toHaveAttribute("readonly");
+    await expect(dialog.getByRole("button", { name: "利用開始" })).toBeDisabled();
+
+    // 最終照合で失敗しても、同じ画面で再適用できる。
+    await userEvent.click(dialog.getByRole("button", { name: "適用" }));
+    await expect(dialog.getByText("無料のProプランを適用")).toBeVisible();
   },
 };
 
@@ -125,37 +175,35 @@ export const PromotionCodeAttemptLockout: Story = {
     screenshot: { skip: true },
   },
   args: {
-    onComplete: fn(async (data) =>
-      data.promotionCode ? ({ kind: "promotionCodeInvalid" } as const) : ({ kind: "completed" } as const),
-    ),
+    onComplete: fn(async () => ({ kind: "completed" as const })),
+    onVerifyPromotionCode: fn(async () => false),
   },
   play: async ({ args, canvasElement }) => {
     const dialog = await getDialog(canvasElement);
     await inputShopName(dialog);
     await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
     await userEvent.click(dialog.getByRole("checkbox", { name: /利用規約.*プライバシーポリシー.*同意/ }));
+    await userEvent.click(dialog.getByRole("button", { name: "プロモーションコードお持ちの方はこちら" }));
 
     const promotionCode = dialog.getByRole("textbox", { name: "プロモーションコード（任意）" });
     await userEvent.type(promotionCode, "ZZ9999");
-    const submit = dialog.getByRole("button", { name: "利用開始" });
-    const onComplete = args.onComplete as ReturnType<typeof fn>;
-    onComplete.mockResolvedValueOnce({ kind: "failed" });
-    await userEvent.click(submit);
+    const apply = dialog.getByRole("button", { name: "適用" });
+    await userEvent.click(apply);
     await expect(promotionCode).toBeEnabled();
-    await expect(dialog.queryByText(/残り\d+回確認できます/)).not.toBeInTheDocument();
+    await expect(dialog.getByText("コードが誤っています。")).toBeVisible();
+    await expect(dialog.queryByText(/残り\d+回/)).not.toBeInTheDocument();
 
-    for (let attempt = 0; attempt < 9; attempt += 1) await userEvent.click(submit);
+    for (let attempt = 0; attempt < 8; attempt += 1) await userEvent.click(apply);
     await expect(promotionCode).toBeEnabled();
-    await expect(dialog.getByText("プロモーションコードを確認してください。残り1回確認できます。")).toBeVisible();
+    await expect(dialog.getByText("コードが誤っています。")).toBeVisible();
+    await expect(dialog.queryByText(/残り\d+回/)).not.toBeInTheDocument();
 
-    await userEvent.click(submit);
+    await userEvent.click(apply);
 
     await expect(promotionCode).toBeDisabled();
     await expect(promotionCode).toHaveValue("");
     await expect(
-      dialog.getByText(
-        "プロモーションコードの確認回数が上限に達しました。10分後にもう一度お試しください。コードなしの通常登録は続けられます。",
-      ),
+      dialog.getByText("プロモーションコードの確認回数が上限に達しました。10分後にもう一度お試しください。"),
     ).toBeVisible();
     const storage = canvasElement.ownerDocument.defaultView?.sessionStorage;
     const storedEntries = Array.from({ length: storage?.length ?? 0 }, (_, index) => {
@@ -163,10 +211,14 @@ export const PromotionCodeAttemptLockout: Story = {
       return `${key}:${storage?.getItem(key) ?? ""}`;
     });
     await expect(storedEntries.join("\n")).not.toContain("ZZ9999");
-    await expect(args.onComplete).toHaveBeenCalledTimes(11);
+    await expect(args.onVerifyPromotionCode).toHaveBeenCalledTimes(10);
+    await expect(args.onComplete).not.toHaveBeenCalled();
 
-    await userEvent.click(submit);
-    await expect(args.onComplete).toHaveBeenCalledTimes(12);
+    await userEvent.click(dialog.getByRole("button", { name: "入力をやめる" }));
+    await expect(dialog.queryByRole("textbox", { name: "プロモーションコード（任意）" })).not.toBeInTheDocument();
+    await expect(dialog.getByRole("button", { name: "プロモーションコードお持ちの方はこちら" })).toHaveFocus();
+    await userEvent.click(dialog.getByRole("button", { name: "利用開始" }));
+    await expect(args.onComplete).toHaveBeenCalledTimes(1);
     await expect(args.onComplete).toHaveBeenLastCalledWith(expect.objectContaining({ promotionCode: undefined }));
   },
 };
@@ -227,6 +279,7 @@ function GuardedSetupModalStory() {
         isOpen={true}
         onOpenChange={() => {}}
         onComplete={handleComplete}
+        onVerifyPromotionCode={async () => true}
         isSubmitting={isSubmitting}
         managerProfileDefaults={{
           name: "山田 太郎",

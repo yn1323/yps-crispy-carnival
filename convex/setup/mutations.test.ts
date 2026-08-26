@@ -35,6 +35,94 @@ describe("setup/mutations", () => {
     vi.unstubAllEnvs();
   });
 
+  describe("verifyPromotionCode", () => {
+    it("未認証ではコードを確認できない", async () => {
+      const t = convexTest(schema, modules);
+      vi.stubEnv("PROMOTION_COMPLIMENTARY_PRO_CODE", "ABC123");
+
+      await expect(t.mutation(api.setup.mutations.verifyPromotionCode, { promotionCode: "ABC123" })).rejects.toThrow(
+        "Unauthenticated",
+      );
+    });
+
+    it("認証済みの初回登録対象者だけが正規化したコードを副作用なしで確認できる", async () => {
+      const t = convexTest(schema, modules);
+      vi.stubEnv("PROMOTION_COMPLIMENTARY_PRO_CODE", "A1B2C3");
+
+      await expect(
+        t
+          .withIdentity({ subject: "promotion_verification_user" })
+          .mutation(api.setup.mutations.verifyPromotionCode, { promotionCode: "  a1b2c3  " }),
+      ).resolves.toBeNull();
+
+      expect(
+        await t.run(async (ctx) => ({
+          users: await ctx.db.query("users").collect(),
+          organizations: await ctx.db.query("organizations").collect(),
+          shops: await ctx.db.query("shops").collect(),
+          billingStates: await ctx.db.query("organizationBillingStates").collect(),
+          audits: await ctx.db.query("organizationAuditEvents").collect(),
+          scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        })),
+      ).toEqual({ users: [], organizations: [], shops: [], billingStates: [], audits: [], scheduled: [] });
+    });
+
+    it.each([
+      { configuredCode: "ABC123", promotionCode: "ZZZ999" },
+      { configuredCode: "", promotionCode: "ABC123" },
+      { configuredCode: "ABC-12", promotionCode: "ABC123" },
+    ])("適用できないコードは同じstructured errorで拒否する", async ({ configuredCode, promotionCode }) => {
+      const t = convexTest(schema, modules);
+      vi.stubEnv("PROMOTION_COMPLIMENTARY_PRO_CODE", configuredCode);
+
+      const caughtError = await t
+        .withIdentity({ subject: `promotion_verification_invalid_${promotionCode}` })
+        .mutation(api.setup.mutations.verifyPromotionCode, { promotionCode })
+        .then(
+          () => null,
+          (error: unknown) => error as { data?: unknown },
+        );
+
+      expect(caughtError?.data).toEqual({ code: PROMOTION_CODE_INVALID_ERROR_CODE });
+    });
+
+    it("既存組織の管理者にはコード照合結果を返さない", async () => {
+      const t = convexTest(schema, modules);
+      vi.stubEnv("PROMOTION_COMPLIMENTARY_PRO_CODE", "ABC123");
+      await t.run(async (ctx) => {
+        await seedOrganizationManagerShop(ctx, {
+          subject: "existing_promotion_verification_user",
+          email: "existing-promotion@example.com",
+          complimentary: true,
+        });
+      });
+
+      await expect(
+        t
+          .withIdentity({ subject: "existing_promotion_verification_user" })
+          .mutation(api.setup.mutations.verifyPromotionCode, { promotionCode: "ABC123" }),
+      ).rejects.toThrow("すでに組織へ所属しています。");
+    });
+
+    it("事前確認後も最終登録時の設定と一致しなければ作成しない", async () => {
+      const t = convexTest(schema, modules);
+      const asUser = t.withIdentity({ subject: "promotion_revalidation_user" });
+      vi.stubEnv("PROMOTION_COMPLIMENTARY_PRO_CODE", "ABC123");
+      await asUser.mutation(api.setup.mutations.verifyPromotionCode, { promotionCode: "ABC123" });
+
+      vi.stubEnv("PROMOTION_COMPLIMENTARY_PRO_CODE", "DEF456");
+      const caughtError = await asUser
+        .mutation(api.setup.mutations.setupShopAndManager, { ...setupArgs, promotionCode: "ABC123" })
+        .then(
+          () => null,
+          (error: unknown) => error as { data?: unknown },
+        );
+
+      expect(caughtError?.data).toEqual({ code: PROMOTION_CODE_INVALID_ERROR_CODE });
+      await expect(t.run(async (ctx) => ctx.db.query("organizations").collect())).resolves.toEqual([]);
+    });
+  });
+
   describe("setupShopAndManager", () => {
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);

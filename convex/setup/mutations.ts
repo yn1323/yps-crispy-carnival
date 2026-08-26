@@ -10,7 +10,7 @@ import { normalizeEmail } from "../_lib/validation";
 import { recordUserLegalConsent } from "../legal/service";
 import { requireOrganizationReadActor } from "../organization/access";
 import { updateShopSettingsSchema } from "../shop/schemas";
-import { isPromotionCode, PROMOTION_CODE_INVALID_ERROR_CODE } from "./constants";
+import { isPromotionCode, normalizePromotionCode, PROMOTION_CODE_INVALID_ERROR_CODE } from "./constants";
 import { setupShopAndManagerSchema } from "./schemas";
 import {
   createOrganizationWithFirstShop,
@@ -34,6 +34,85 @@ function resolveInitialSetupBillingMode(promotionCode: string | undefined): "tri
   }
   return "complimentaryPro";
 }
+
+type InitialSetupCtx = MutationCtx & { user: Doc<"users"> | null };
+
+async function assertInitialSetupEligibility(ctx: InitialSetupCtx): Promise<void> {
+  const currentUser = ctx.user;
+  if (currentUser?.isDeleted || currentUser?.accountDeletionRequestedAt !== undefined) {
+    throw new ConvexError("無効になったアカウントでは、初期設定を開始できません。");
+  }
+  if (!currentUser) return;
+
+  const currentMemberships = (
+    await Promise.all(
+      (["active", "readOnly"] as const).map((status) =>
+        ctx.db
+          .query("organizationMembers")
+          .withIndex("by_userId_and_status", (q) => q.eq("userId", currentUser._id).eq("status", status))
+          .take(2),
+      ),
+    )
+  ).flat();
+  for (const membership of currentMemberships) {
+    const organization = await ctx.db.get(membership.organizationId);
+    if (organization && !organization.isDeleted) {
+      throw new ConvexError("すでに組織へ所属しています。");
+    }
+  }
+  const activePeople = await ctx.db
+    .query("organizationPeople")
+    .withIndex("by_userId_and_status", (q) => q.eq("userId", currentUser._id).eq("status", "active"))
+    .take(2);
+  for (const person of activePeople) {
+    const organization = await ctx.db.get(person.organizationId);
+    if (organization && !organization.isDeleted) {
+      throw new ConvexError("すでに組織へ所属しています。");
+    }
+  }
+
+  const selfCreatedOrganizations = await ctx.db
+    .query("organizations")
+    .withIndex("by_createdByUserId_and_isDeleted", (q) =>
+      q.eq("createdByUserId", currentUser._id).eq("isDeleted", false),
+    )
+    .take(2);
+  if (selfCreatedOrganizations.length > 1) {
+    throw new ConvexError(
+      "作成済みの組織情報を確認できません。\n画面を更新しても解消しない場合は、お問い合わせください。",
+    );
+  }
+  if (selfCreatedOrganizations.length === 1) {
+    throw new ConvexError("自分で作成できる組織は1つまでです。");
+  }
+
+  // TODO[narrow]: 全deploymentでm025/m029が完走し、verifyShops/verifyLegacyShopMembersの
+  //   全pageが0件になった後、このlegacy shopMembers guardを削除する。
+  const legacyMemberships = ctx.db
+    .query("shopMembers")
+    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", currentUser._id).eq("isDeleted", false));
+  for await (const membership of legacyMemberships) {
+    const legacyShop = await ctx.db.get(membership.shopId);
+    if (!legacyShop || legacyShop.isDeleted) continue;
+    if (!legacyShop.organizationId) {
+      throw new ConvexError("すでに店舗が登録されています。");
+    }
+    const organization = await ctx.db.get(legacyShop.organizationId);
+    if (organization && !organization.isDeleted) {
+      throw new ConvexError("すでに組織へ所属しています。");
+    }
+  }
+}
+
+export const verifyPromotionCode = authenticatedMutation({
+  args: { promotionCode: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await assertInitialSetupEligibility(ctx);
+    resolveInitialSetupBillingMode(normalizePromotionCode(args.promotionCode));
+    return null;
+  },
+});
 
 const additionalOrganizationArgs = {
   shopName: v.string(),
@@ -101,69 +180,7 @@ export const setupShopAndManager = authenticatedMutation({
     }
     const input = parsed.data;
     const currentUser = ctx.user;
-    if (currentUser?.isDeleted || currentUser?.accountDeletionRequestedAt !== undefined) {
-      throw new ConvexError("無効になったアカウントでは、初期設定を開始できません。");
-    }
-    if (currentUser) {
-      const currentMemberships = (
-        await Promise.all(
-          (["active", "readOnly"] as const).map((status) =>
-            ctx.db
-              .query("organizationMembers")
-              .withIndex("by_userId_and_status", (q) => q.eq("userId", currentUser._id).eq("status", status))
-              .take(2),
-          ),
-        )
-      ).flat();
-      for (const membership of currentMemberships) {
-        const organization = await ctx.db.get(membership.organizationId);
-        if (organization && !organization.isDeleted) {
-          throw new ConvexError("すでに組織へ所属しています。");
-        }
-      }
-      const activePeople = await ctx.db
-        .query("organizationPeople")
-        .withIndex("by_userId_and_status", (q) => q.eq("userId", currentUser._id).eq("status", "active"))
-        .take(2);
-      for (const person of activePeople) {
-        const organization = await ctx.db.get(person.organizationId);
-        if (organization && !organization.isDeleted) {
-          throw new ConvexError("すでに組織へ所属しています。");
-        }
-      }
-
-      const selfCreatedOrganizations = await ctx.db
-        .query("organizations")
-        .withIndex("by_createdByUserId_and_isDeleted", (q) =>
-          q.eq("createdByUserId", currentUser._id).eq("isDeleted", false),
-        )
-        .take(2);
-      if (selfCreatedOrganizations.length > 1) {
-        throw new ConvexError(
-          "作成済みの組織情報を確認できません。\n画面を更新しても解消しない場合は、お問い合わせください。",
-        );
-      }
-      if (selfCreatedOrganizations.length === 1) {
-        throw new ConvexError("自分で作成できる組織は1つまでです。");
-      }
-
-      // TODO[narrow]: 全deploymentでm025/m029が完走し、verifyShops/verifyLegacyShopMembersの
-      //   全pageが0件になった後、このlegacy shopMembers guardを削除する。
-      const legacyMemberships = ctx.db
-        .query("shopMembers")
-        .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", currentUser._id).eq("isDeleted", false));
-      for await (const membership of legacyMemberships) {
-        const legacyShop = await ctx.db.get(membership.shopId);
-        if (!legacyShop || legacyShop.isDeleted) continue;
-        if (!legacyShop.organizationId) {
-          throw new ConvexError("すでに店舗が登録されています。");
-        }
-        const organization = await ctx.db.get(legacyShop.organizationId);
-        if (organization && !organization.isDeleted) {
-          throw new ConvexError("すでに組織へ所属しています。");
-        }
-      }
-    }
+    await assertInitialSetupEligibility(ctx);
 
     const billingMode = resolveInitialSetupBillingMode(input.promotionCode);
     const now = Date.now();

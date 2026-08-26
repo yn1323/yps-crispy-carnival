@@ -151,6 +151,7 @@ Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側
 プロモーションコードは6桁の英数字を任意入力とし、空欄なら最初の組織、店舗、人物、管理者、店舗スタッフと、Pro相当の3か月Trialを一度だけ作る。  Trial期限と課金deadlineは作るが、Stripe objectは作らない。
 入力値が前後空白除去・大文字化後にserver-only設定と一致する場合は、Trialに代えてcanonicalな`complimentary.pro`を作る。  この場合は期限と課金deadlineを作らず、Stripe object、課金operation、課金通知も作らない。
 入力済みのコードが形式不正、設定不備、不一致のいずれかで適用できない場合は、Trialへfallbackせず初回Setup全体を拒否する。  コード値はDB、audit、analytics、ログへ保存しない。
+画面の「適用」は、所属0件の本人だけが呼べる副作用なしの事前照合である。  成功表示は権限を付与するcapabilityではなく、最終`setupShopAndManager`も現在のserver-only設定と所属状態を独立して再確認する。
 
 追加組織は管理画面から作成できる。  serverは認証、作成元組織の管理者状態、Free枠、作成上限、rate limit、冪等性をwriteより前に確認する。
 
@@ -344,6 +345,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 
 | 入口 | 用途 |
 |---|---|
+| `api.setup.mutations.verifyPromotionCode` | 所属0件の初回登録対象者について、プロモーションコードを作成副作用なしで事前照合する。成功結果だけを返し、コード値は保存しない |
 | `api.setup.mutations.setupShopAndManager` | 所属0件の初期設定と、1組織、1店舗、管理者本人を作成する。任意のプロモーションコードが空欄ならPro相当の3か月Trialとdeadline、有効なら期限なしの`complimentary.pro`を作り、どちらもStripe objectは作らない |
 | `api.setup.mutations.createOrganization` | 既存管理者による追加組織作成。認証、作成上限、rate limit、冪等性を確認し`active.free`を作る |
 | `api.dashboard.queries.getMyShops` | 利用可能な店舗、組織、所属状態の取得 |
