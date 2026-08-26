@@ -35,7 +35,7 @@ LINE連携依頼や規約同意など、シフト以外の通知は従来どお�
 - `src/components/features/Dashboard/types.ts` — `Staff.excludedFromShift`
 - `src/components/shared/StaffListRow/` — Dashboard、組織設定、店舗詳細で共有するスタッフ行と状態バッジ
 - `src/components/features/UserShopDetail/` — シフト対象トグル、楽観更新、通知操作の無効化
-- `src/components/features/Dashboard/StaffManagement/` — スタッフ詳細ページへの遷移と、人物IDが未移行のスタッフに限った旧詳細モーダルの暫定接続
+- `src/components/features/Dashboard/StaffManagement/` — スタッフ詳細ページへの遷移
 
 ## API 一覧
 

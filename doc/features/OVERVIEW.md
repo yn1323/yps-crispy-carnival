@@ -35,7 +35,7 @@
 ## 2. 現在の公開範囲
 
 repository artifactでは、複数組織、複数店舗、複数管理者（招待）、Stripe課金を常時利用できる。
-初回登録で作る組織は、原則としてカード登録なしでPro相当の3か月Trialを開始する。  有効なプロモーションコードを入力した場合は、Trialに代えて期限・料金なしの支払い不要Pro相当を適用する。  追加組織はFreeで開始する。
+初回登録で作る組織は、原則としてカード登録なしでPro相当の2か月Trialを開始する。  有効なプロモーションコードを入力した場合は、Trialに代えて期限・料金なしの支払い不要Pro相当を適用する。  追加組織はFreeで開始する。
 
 公開導線を切り替える機能ごとの環境変数は使わない。  `PROMOTION_COMPLIMENTARY_PRO_CODE`は支払い不要条件のserver-only照合値であり、初回Setup自体の公開可否には使わない。  画面は組織作成、店舗追加、管理者、プランと支払いの導線を常時表示し、操作可否は認証・認可、所属状態、契約状態、プラン上限、Stripe設定などのサーバー判定に従う。  実deploymentへのartifact反映とcanaryは[リリース状態](../manual/release-status.md)の証跡で確認する。
 
@@ -87,7 +87,7 @@ repository artifactでは、複数組織、複数店舗、複数管理者（招�
 
 | 機能 | 概要 | 主な画面 |
 |---|---|---|
-| [トライアル終了前Dashboard案内](trial-ending-dashboard-callout.md) | プラン状態表示とTrial終了7日前Callout（rolling deploy互換）を表示する | Dashboard |
+| [Dashboardの課金案内](trial-ending-dashboard-callout.md) | Dashboardでは課金情報を表示せず、契約確認・変更を「プランと支払い」へ集約する。旧DTOとcomponentはrolling deploy互換として残す | Dashboard、プランと支払い |
 | [店舗・組織削除](data-deletion.md) | 店舗・組織の論理削除と、session・token・LINE連携・未送信通知を止める永続cleanup。業務識別情報（氏名・店舗名など）は保持し、個人情報の完全消去とは扱わない | 店舗詳細、組織設定 |
 | [アカウント削除](account-deletion.md) | strict再認証を経たアカウント削除依頼。所属構成に応じて本人所属の終了または組織全体の終了を行い、cleanup完了後にClerkユーザーを削除する | アカウント設定、`/account-deletion-accepted` |
 
@@ -115,7 +115,7 @@ repository artifactでは、複数組織、複数店舗、複数管理者（招�
 | プラン・状態 | 利用人数 | 稼働店舗 | 有効管理者 | 備考 |
 |---|---:|---:|---:|---|
 | 支払い不要Pro相当 | 50名 | 5店舗 | 5名 | 既存の適用組織と、有効なコードを入力した初回登録が対象。期限・料金・Stripeオブジェクトなし |
-| 無料体験（Trial、通常の初回登録） | 50名 | 5店舗 | 5名 | Pro相当。期間は開始から3か月（終了は該当日0:00 JST） |
+| 無料体験（Trial、通常の初回登録） | 50名 | 5店舗 | 5名 | Pro相当。期間は開始から2か月（終了は該当日0:00 JST） |
 | Free（追加組織） | 5名 | 1店舗 | 2名 | 二つ目以降の組織はこの状態で開始する |
 | Standard | 25名 | 5店舗 | 5名 | Stripe契約あり |
 | Pro | 50名 | 5店舗 | 5名 | Stripe契約あり |

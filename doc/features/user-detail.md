@@ -53,8 +53,7 @@ Dialog下部には「キャンセル」と主操作の「変更を保存」を�
 旧`/users/*` routeと、その`panel`、`returnTo`、`returnShop`、`returnShopTo`、`users`、`focus` searchは削除済みであり、互換redirectを設けない。
 一覧と詳細間の復帰は通常のbrowser historyを使う。
 
-Dashboardの移行済みスタッフは、`getDashboardStaffs`が返す`organizationPersonId`を`personId`に使う。
-Widen期間中に`organizationPersonId`が未設定のスタッフだけは、操作不能にせず旧スタッフ詳細モーダルを暫定表示する。  旧モーダルの募集、確定シフト、LINE連携案内メールにもcanonical画面と同じ再送クールダウンを表示する。
+Dashboardのスタッフは、`getDashboardStaffs`が返す`organizationPersonId`を`personId`に使い、スタッフ詳細ページへ遷移する。
 組織設定は一覧の人物IDをそのまま`personId`に使う。
 
 ## 画面一覧
@@ -167,8 +166,8 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 - `src/pages/user-shop-detail/`：pathの`shopId`を明示した詳細QueryとLoading、Empty、正常表示の分岐。
 - `src/components/features/UserDetail/`：スタッフ情報の入口、所属店舗一覧、所属店舗変更チェックリスト、スタッフ情報Dialog、URL同期、編集と確認操作。
 - `src/components/features/UserShopDetail/`：対象店舗のAPI接続と状態を所有し、LINE送信可否、通知、シフト対象設定をViewへ渡す。
-- `src/components/features/StaffNotificationHistory/`：店舗別設定ページと未移行スタッフ向け暫定詳細から利用する通知履歴。
-- `src/components/features/Dashboard/StaffManagement/`と`StaffRoster/`：店舗スタッフ一覧からの遷移と未移行スタッフの暫定フォールバック。
+- `src/components/features/StaffNotificationHistory/`：店舗別設定ページから利用する通知履歴。
+- `src/components/features/Dashboard/StaffManagement/`と`StaffRoster/`：店舗スタッフ一覧からスタッフ詳細ページへの遷移。
 - `src/components/features/OrganizationSettings/`：組織人物一覧からの遷移。
 
 ## API一覧

@@ -34,7 +34,7 @@ direct routeとpublic mutation/actionは、画面表示とは独立して認証�
 | 利用者・処理主体 | 完了できること | 主な条件 |
 |---|---|---|
 | 有効な管理者 | 組織、店舗、人物、管理者、契約を管理する | 認証済み利用者、`active`所属、対象組織と店舗の一致、契約状態、プラン上限をサーバーで再確認する |
-| 組織所属がない認証済み利用者 | `/dashboard`のSetupから最初の1組織、1店舗、管理者本人を作る | 所属0件をserver-sideで再確認する。任意のプロモーションコードが空欄なら3か月のTrial、前後空白除去・大文字化後にserver-only設定と一致する場合は`complimentary.pro`で作成し、入力済みのコードが適用できない場合は作成しない |
+| 組織所属がない認証済み利用者 | `/dashboard`のSetupから最初の1組織、1店舗、管理者本人を作る | 所属0件をserver-sideで再確認する。任意のプロモーションコードが空欄なら2か月のTrial、前後空白除去・大文字化後にserver-only設定と一致する場合は`complimentary.pro`で作成し、入力済みのコードが適用できない場合は作成しない |
 | 組織所属がある認証済み利用者 | 上限内で追加のFree組織を作る | 作成者本人、組織数上限、rate limit、`requestId`、参照元店舗の所属をサーバーで再確認する |
 | Stripe Webhookと内部worker | 既存の支払い結果、期間末変更、取消、再試行を検証して課金状態へ反映する | 署名、接続mode、provider objectの対応、version、冪等性を検証する |
 | 運用担当者 | Stripe設定、probe、Narrow deploy前確認、販売停止、Price rotation、復旧を行う | 実環境を一意に特定し、[運用手順](../manual/organization-billing.md)に従って証跡を残す |
@@ -107,7 +107,7 @@ direct routeとpublic mutation/actionは、画面表示とは独立して認証�
 Trialの利用権限はProと同じである。
 Freeは追加組織の初期状態、既存の`active.free`、そのFreeをfallbackとする`pendingActivation`、Trial未契約終了、有料契約終了後の受け皿として維持する。
 以下でFreeの管理者操作を説明するときは、`active.free`とFreeをfallbackとする`pendingActivation`を対象にする。
-通常の初回Setupは、プロモーションコードを入力せず3か月のTrialで作る。
+通常の初回Setupは、プロモーションコードを入力せず2か月のTrialで作る。
 有効なプロモーションコードを入力した初回Setupは、支払い不要Pro相当の`complimentary.pro`で作る。
 明示的に公開した追加組織はFreeで始める。
 Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側の想定外終了では、provider側の終了を確認した後にFreeへ移す。
@@ -147,7 +147,7 @@ Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側
 | 追加組織作成 | 既存組織のactive管理者 | `active.free` |
 
 初回Setupは本人のactiveな組織所属が0件であることをserver-sideで確認する。
-プロモーションコードは6桁の英数字を任意入力とし、空欄なら最初の組織、店舗、人物、管理者、店舗スタッフと、Pro相当の3か月Trialを一度だけ作る。  Trial期限と課金deadlineは作るが、Stripe objectは作らない。
+プロモーションコードは6桁の英数字を任意入力とし、空欄なら最初の組織、店舗、人物、管理者、店舗スタッフと、Pro相当の2か月Trialを一度だけ作る。  Trial期限と課金deadlineは作るが、Stripe objectは作らない。
 入力値が前後空白除去・大文字化後にserver-only設定と一致する場合は、Trialに代えてcanonicalな`complimentary.pro`を作る。  この場合は期限と課金deadlineを作らず、Stripe object、課金operation、課金通知も作らない。
 入力済みのコードが形式不正、設定不備、不一致のいずれかで適用できない場合は、Trialへfallbackせず初回Setup全体を拒否する。  コード値はDB、audit、analytics、ログへ保存しない。
 画面の「適用」は、所属0件の本人だけが呼べる副作用なしの事前照合である。  成功表示は権限を付与するcapabilityではなく、最終`setupShopAndManager`も現在のserver-only設定と所属状態を独立して再確認する。
@@ -252,7 +252,7 @@ deployment前から保存済みで`targetPlan: "free"`かつ`restrictAtPeriodEnd
 
 | 画面 | 役割 |
 |---|---|
-| `/dashboard?org=<organizationId>&shop=<shopId>` | 明示した組織とactive店舗を再検証し、現在店舗の業務と利用状況を表示する |
+| `/dashboard?org=<organizationId>&shop=<shopId>` | 明示した組織とactive店舗を再検証し、現在店舗の業務状況を表示する |
 | `/manage?org=<organizationId>` | 現在の組織と店舗の概要と、組織作成、店舗追加、管理者、課金の入口を表示する |
 | `/manage/organization?org=<organizationId>` | 現在の組織名と削除を扱う |
 | `/manage/shops/<shopId>?org=<organizationId>` | 同じ組織の現在店舗の情報、所属、稼働状態を管理する |
@@ -261,37 +261,22 @@ deployment前から保存済みで`targetPlan: "free"`かつ`restrictAtPeriodEnd
 | `/manage/billing?org=<organizationId>` | 現在プラン、価格、契約変更、Portal、請求先メールを扱う |
 | `/manager-invite?token=...` | 管理者招待のpreviewと受諾を扱う |
 
-### Dashboardの組織・プラン表示
+### Dashboardの店舗表示
 
-Dashboardは組織を親、現在の店舗を作業対象として順に表示する。
-別組織の作成、組織切替、店舗追加は、管理者状態と契約状態に応じて表示する。
+Dashboardは現在の組織に属する店舗だけを作業対象として表示する。
+組織切替はPC・モバイル共通のアプリヘッダーで扱い、Dashboard内の店舗セレクタから別組織へは移動しない。
 
-`getDashboardShop`が選択店舗と組織所属を検証して返す`planStatus`を、プラン表示の正本にする。
-`planStatus`は`trial`、`initialPaymentPending`、`pendingActivation`、Free・Standard・Proの利用中、支払い不要Pro相当、変更予約、支払い猶予を、利用者向けの最小DTOへ投影する。
-Trialの契約操作ダイアログでは、保存された終了境界を排他的な課金開始日時として扱い、JSTでその前日を「無料体験の最終日」、境界日を「課金開始日」として表示する。
-利用数DTOは課金状態と分け、現在値、未承認の管理者招待数、評価プラン、`withinLimits`、`overLimit`、`unknown`を返す。
-別組織の課金state、StripeのCustomer・Subscription・Price ID、providerの生応答は返さない。
-
-`/dashboard`は`shopId`に加えてURLから検証した`expectedOrganizationId`をDashboard queryへ渡す。
-両者が一致しない場合は店舗情報を返さず、業務更新不可の課金状態では既存Dashboardを閲覧専用にする。
+`/dashboard`はURLから検証した組織と店舗をDashboard queryへ渡す。
+両者が一致しない場合は店舗情報を返さず、上限超過または利用上限評価不能ではDashboardを閲覧専用にする。
 frontendの閲覧専用表示だけを認可根拠にせず、mutationも実行時の組織所属と課金policyを再検証する。
 
-組織Accordionを開いている間だけ、`getDashboardPlanUsage`で組織全体の利用状況を購読する。
-折りたたみ中はqueryを`"skip"`し、Dashboardの初期表示へ利用数の読み取りを追加しない。
-画面では依頼に合わせて「スタッフ」と表示するが、値は課金上の`peopleUsage`であり、店舗をまたぐ同一人物を重複排除し、active管理者と期限内の予約枠を含む。
-店舗数はactiveかつ未削除の店舗だけを数え、適用上限を確定できない状態では推測値を表示しない。
-
-管理者数はserverのDTOに`managerUsage`があるとき3列目へ表示する。
-frontendだけの状態やCSSを認可境界にしない。
-
-Dashboardは現在のプランと利用状況を最小DTOから表示し、必要な課金Calloutと「プランと支払い」への導線を提供する。
-料金と販売中プランの比較は`/manage/billing?org=<organizationId>`で扱い、CheckoutやPortalのActionは認証、組織境界、管理者状態、契約状態、Stripe設定をserver-sideで確認する。
+Dashboard内には組織切替、現在プラン、利用数、課金Callout、「プランと支払い」への導線を表示しない。
+現在プラン、料金、利用状況、販売中プランの比較は`/manage/billing?org=<organizationId>`で扱い、CheckoutやPortalのActionは認証、組織境界、管理者状態、契約状態、Stripe設定をserver-sideで確認する。
 表示する金額と`day`、`week`、`month`、`year`の請求周期はStripe Priceから取得し、開発用の短縮周期も同じ経路で表示する。
 「プランと支払い」で表示する税区分はActionが明示した場合だけ表示し、不明な場合は税込・税抜を推測しない。
 
-rolling deploy中は、`planStatus`が`undefined`の場合だけ、旧backendの応答として`trialEndingNotice`によるCalloutへfallbackする。
-`planStatus`対応backendが`planStatus: null`を返した場合は「表示対象のプラン状態なし」という明示結果なので、旧Calloutへfallbackしない。
-新旧frontendとbackendのdrainを確認した後、`trialEndingNotice`、旧Callout、`undefined`判定をNarrowで削除する。
+`getDashboardShop`の`planStatus`と`trialEndingNotice`、`getDashboardPlanUsage`は旧frontendとのrolling deploy互換としてbackendに残るが、現在のDashboardは購読・表示しない。
+新旧frontendとbackendのdrainを確認した後、互換DTOと旧表示componentをNarrowで削除する。
 
 この表示は既存の課金stateとSubscription snapshotを読み、保存形式を変更しないため、schema変更とmigrationを必要としない。
 Productionでの公開状態は未確認であり、実装やローカルテストから公開済みと判定しない。
@@ -306,7 +291,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `convex/setup/mutations.ts` | 所属0件の初回セットアップと、既存管理者による追加組織作成を受け付ける |
 | `convex/setup/service.ts` | 組織、最初の管理者、店舗、初期課金状態を作る。初回Setupはコード空欄なら`trial`、有効なコードなら`complimentary.pro`、追加組織は`active.free`を使う |
 | `convex/_lib/functions.ts` | 認証、組織所属、選択店舗、課金状態を検証するAPI wrapper |
-| `convex/dashboard/queries.ts` | 選択店舗の認可境界で、Dashboard用の現在プランと対応状態を投影し、カード展開中だけ組織の利用状況を最小DTOで返す |
+| `convex/dashboard/queries.ts` | 選択店舗の認可境界で業務更新可否を返し、旧frontend互換として現在プランと組織利用状況の最小DTOを返す |
 | `convex/organization/` | 組織、店舗、人物、管理者、利用状況、削除可否を扱う |
 | `convex/organizationBilling/` | プラン上限、利用実数から導出するaccess policy、期限、解約、旧state移行、請求先メール、通知を扱う |
 | `convex/organizationStripe/` | Stripe API、現在Subscriptionの保存済みPriceのread-only取得、Checkout、Portal、Webhook、再照合、probeを扱う |
@@ -332,7 +317,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `src/pages/account-security/` / `src/components/features/LoginMethods/` | シフト連絡先と独立したアカウント設定の画面境界、Clerk状態からの表示判定と操作可否 |
 | `src/components/features/AuthenticatedApp/AuthGuard.tsx` | URLと利用可能店舗から有効な操作contextを解決する |
 | `src/pages/dashboard/` | `/dashboard`の明示組織・店舗scope、Dashboard接続、Setup、Loading・Empty・業務更新不可・error状態を扱う |
-| `src/components/features/Dashboard/` | 組織・店舗context、現在プラン、課金対応状態、閲覧専用状態を表示する |
+| `src/components/features/Dashboard/` | 現在店舗のcontext、業務状態、閲覧専用状態を表示する |
 
 ## 主なAPI入口
 
@@ -342,7 +327,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | 入口 | 用途 |
 |---|---|
 | `api.setup.mutations.verifyPromotionCode` | 所属0件の初回登録対象者について、プロモーションコードを作成副作用なしで事前照合する。成功結果だけを返し、コード値は保存しない |
-| `api.setup.mutations.setupShopAndManager` | 所属0件の初期設定と、1組織、1店舗、管理者本人を作成する。任意のプロモーションコードが空欄ならPro相当の3か月Trialとdeadline、有効なら期限なしの`complimentary.pro`を作り、どちらもStripe objectは作らない |
+| `api.setup.mutations.setupShopAndManager` | 所属0件の初期設定と、1組織、1店舗、管理者本人を作成する。任意のプロモーションコードが空欄ならPro相当の2か月Trialとdeadline、有効なら期限なしの`complimentary.pro`を作り、どちらもStripe objectは作らない |
 | `api.setup.mutations.createOrganization` | 既存管理者による追加組織作成。認証、作成上限、rate limit、冪等性を確認し`active.free`を作る |
 | `api.dashboard.queries.getMyShops` | 利用可能な店舗、組織、所属状態の取得 |
 | `api.dashboard.queries.getDashboardShop` | 選択店舗を認可し、Dashboard用の`planStatus`とrolling deploy用の旧`trialEndingNotice`を取得 |
@@ -387,12 +372,12 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 - `convex/organization/managerSettingsQueries.test.ts`：管理者設定のbounded read、currentとprojectedの分離、`integrityError` / `ready`、候補の選択不可理由を検証する。
 - `convex/_scenario/organizationBillingLifecycle.test.ts`と`organizationPaidPlanChanges.test.ts`：時間と複数APIをまたぐ課金ライフサイクルを検証する。
 - `convex/_scenario/staffManagerInvitation.test.ts`と`organizationManagerExchange.test.ts`：既存人物の通常招待と、既発行のFree管理者交代招待の互換処理を検証する。
-- `convex/setup/mutations.test.ts`：初回Setupが所属0件だけに許可され、コード空欄ではPro相当の3か月Trialとdeadline、有効なコードでは期限なしの`complimentary.pro`を作ること、不正なコードでは副作用を残さないこと、いずれもStripe objectを作らないことと、追加組織が認証、上限、rate limitを再確認することを検証する。
+- `convex/setup/mutations.test.ts`：初回Setupが所属0件だけに許可され、コード空欄ではPro相当の2か月Trialとdeadline、有効なコードでは期限なしの`complimentary.pro`を作ること、不正なコードでは副作用を残さないこと、いずれもStripe objectを作らないことと、追加組織が認証、上限、rate limitを再確認することを検証する。
 - `convex/_scenario/organizationCreation.test.ts`：追加組織について、Free枠、冪等性、rate limit、初期Free状態、既存組織への非混入を検証する。
 - `src/pages/dashboard/index.stories.tsx`、`src/components/features/Dashboard/DashboardContent/index.stories.tsx`、`src/components/features/OrganizationSettings/OrganizationCreation/OrganizationCreationDialog.stories.tsx`、`src/components/features/OrganizationSettings/controllers.test.tsx`：初回Setupと追加組織作成について、代表状態、フォーム操作、失敗後も同じ`requestId`を保つ再試行、mutation引数、作成後の遷移を検証する。
 - `src/components/features/OrganizationSettings/PlanAndPaymentSection.stories.tsx`と`BillingSettings/`配下のStory・Logic Test：Free、Standard、Pro、未完了Checkoutの代表状態と主要変更操作を検証する。
-- `src/components/features/Dashboard/PlanStatusCard/`のFrontend Unit・Story・Logic Test：折りたたみ中のquery停止、利用状況の局所Loading、課金状態の表示変換、開閉、CTA、モバイル表示を検証する。
-- `src/components/features/Dashboard/DashboardContent/index.stories.tsx`：`undefined`と`null`のfallback差、新旧表示の優先順位を検証する。
+- `src/components/features/Dashboard/PlanStatusCard/`のFrontend Unit・Logic Test：旧frontend互換をNarrowするまで、課金状態の表示変換と利用状況queryの停止契約を検証する。現在のDashboardには合成しない。
+- `src/components/features/Dashboard/DashboardContent/index.stories.tsx`：現在店舗、業務状態、閲覧専用、Loading、Empty、Setupの代表状態を検証する。
 - `src/components/features/ManagerSettings/`のStoryとFrontend Unit Test：専用ページ、既存スタッフの単一選択、新しい人物の入力、Freeの2名上限、再送、取消、旧Free交代の互換表示、Loading、Empty、Error、閲覧専用の代表状態を検証する。
 - `e2e/scenarios/organization-lifecycle.test.ts`：専用Preview deploymentで、2組織目の作成、改名、切り替えと、組織削除後の残存組織への復帰を検証する。
 - `e2e/scenarios/manager-settings.test.ts`：同じE2E deploymentで`E2E-MANAGER-01`として、既存スタッフへの招待発行、再読込、取消、スタッフタブへの復帰を検証する。招待受諾は成功条件にしない。
