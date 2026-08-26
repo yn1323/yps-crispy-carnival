@@ -14,24 +14,24 @@ import type { ShiftSubmissionPattern, ShopFormStep } from "./script";
 const BASE_STEPS: StepperDialogStep<ShopFormStep>[] = [
   {
     value: "shopName",
-    label: "店舗名",
+    label: "店舗名設定",
     icon: LuStore,
-    title: "店舗名",
-    description: "管理画面やスタッフへの案内に表示するお店の名前です。",
+    title: "店舗名設定",
+    description: "店舗名を入力してください",
   },
   {
     value: "submissionPattern",
-    label: "集め方",
+    label: "シフト提出方法",
     icon: LuListChecks,
-    title: "希望シフトの集め方",
-    description: "スタッフが希望シフトを提出する方法を設定します。\n今後作成するシフトに適用されます。",
+    title: "シフトの提出方法",
+    description: "スタッフがシフトを提出する方法を選んでください。",
   },
   {
     value: "patternSettings",
     label: "勤務時間",
     icon: LuClock3,
     title: "勤務時間",
-    description: "スタッフが選択できる時間帯を設定します。",
+    description: "スタッフが提出できる時間帯を設定します。",
   },
   {
     value: "regularClosedDays",

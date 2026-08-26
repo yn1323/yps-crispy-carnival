@@ -1,3 +1,4 @@
+import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import { useRef, useState } from "react";
@@ -5,6 +6,7 @@ import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import { createDeferred } from "@/src/devtools/createDeferred";
 import { CreateRecruitmentForm, type CreateRecruitmentSelectableShop } from "./index.tsx";
+import { RecruitmentShopSelection } from "./RecruitmentShopSelection";
 
 const meta = {
   title: "Features/CreateRecruitmentForm",
@@ -167,6 +169,14 @@ export const ShopSelectionMobile: Story = {
   render: () => <ShopSelectionHarness />,
 };
 
+export const ShopSelectionSelected: Story = {
+  render: () => (
+    <Box maxW="760px">
+      <RecruitmentShopSelection shops={SELECTABLE_SHOPS} selectedShopId={FIXED_SHOP.shopId} onChange={() => {}} />
+    </Box>
+  ),
+};
+
 export const FutureMonthsNavigation: Story = {
   globals: {
     viewport: { value: "desktop", isRotated: false },
@@ -294,7 +304,7 @@ export const InteractiveBasicFlow: Story = {
     await clickDate(root, periodEnd);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     await clickButton(root, "次へ");
 
     await canvas.findByText("提出期限を選択");
@@ -304,10 +314,10 @@ export const InteractiveBasicFlow: Story = {
     await canvas.findByText("内容を確認");
     expect(canvas.getByText("対象店舗")).toBeTruthy();
     expect(canvas.getByText("本店")).toBeTruthy();
-    expect(canvas.getByText("お店のお休み")).toBeTruthy();
+    expect(canvas.getByText("定休日")).toBeTruthy();
     expect(canvas.getByText("なし")).toBeTruthy();
     expect(canvas.getAllByText("提出期限").length).toBeGreaterThan(0);
-    expect(canvas.getByText("通知")).toBeTruthy();
+    expect(canvas.getByText("通知方法")).toBeTruthy();
     expect(await canvas.findByText("メール・LINEで通知します")).toBeTruthy();
   },
 };
@@ -337,7 +347,7 @@ export const InteractiveShopSelectionFlow: Story = {
     await clickDate(root, periodEnd);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     await expect(getDateButton(root, monday)).toHaveAttribute("data-selected");
     await clickButton(root, "戻る");
     await canvas.findByText("シフト期間を選択");
@@ -350,7 +360,7 @@ export const InteractiveShopSelectionFlow: Story = {
     await canvas.findByText("シフト期間を選択");
     await clickButton(root, "次へ");
 
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     await waitFor(() => expect(getDateButton(root, monday)).not.toHaveAttribute("data-selected"));
     await expect(getDateButton(root, tuesday)).toHaveAttribute("data-selected");
     await clickButton(root, "次へ");
@@ -385,7 +395,7 @@ export const InteractiveSelectedShopInvalidation: Story = {
     await clickDate(root, periodStart);
     await clickDate(root, periodStart.add(2, "day"));
     await clickButton(root, "次へ");
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     await clickButton(root, "次へ");
     await canvas.findByText("提出期限を選択");
     await clickDate(root, periodStart.subtract(1, "day"));
@@ -419,7 +429,7 @@ export const InteractiveHolidayEdgeCases: Story = {
     await clickDate(root, periodEnd);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     for (const holiday of holidays) {
       await clickDate(root, holiday);
     }
@@ -459,7 +469,7 @@ export const InteractiveDefaultRegularClosedDays: Story = {
     await clickDate(root, periodEnd);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     await clickButton(root, "次へ");
 
     await canvas.findByText("提出期限を選択");
@@ -487,7 +497,7 @@ export const InteractiveDeadlineRestriction: Story = {
     await clickDate(root, periodEnd);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     await clickButton(root, "次へ");
 
     await canvas.findByText("提出期限を選択");
@@ -519,7 +529,7 @@ export const InteractiveNextMonthOnlyFlow: Story = {
     await clickDate(root, periodEnd);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     expect(getDesktopMonthLabels(getCalendarRoot(root))).toEqual([nextMonth.format("YYYY年M月")]);
 
     await clickButton(root, "戻る");
@@ -532,7 +542,7 @@ export const InteractiveNextMonthOnlyFlow: Story = {
     );
 
     await clickButton(root, "次へ");
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     expect(getDesktopMonthLabels(getCalendarRoot(root))).toEqual([nextMonth.format("YYYY年M月")]);
     await clickButton(root, "次へ");
 
@@ -566,7 +576,7 @@ export const InteractiveMobileBasicFlow: Story = {
     await clickDate(root, periodEnd);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     await clickButton(root, "次へ");
 
     await canvas.findByText("提出期限を選択");
@@ -595,7 +605,7 @@ export const InteractiveDoubleSubmitGuard: Story = {
     await clickDate(root, periodEnd);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     await clickButton(root, "次へ");
 
     await canvas.findByText("提出期限を選択");
@@ -642,7 +652,7 @@ export const Submitting: Story = {
     await clickDate(root, periodStart);
     await clickDate(root, periodEnd);
     await clickButton(root, "次へ");
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     await clickButton(root, "次へ");
     await canvas.findByText("提出期限を選択");
     await clickDate(root, periodStart.subtract(1, "day"));

@@ -39,12 +39,12 @@ export const RecruitmentConfirmation = ({ shopName, periodLabel, holidaySummary,
       )}
       <SummaryLine label="シフト期間" value={periodLabel} />
       <Separator />
-      <SummaryLine label="お店のお休み" value={holidaySummary.value} detail={holidaySummary.detail} />
+      <SummaryLine label="定休日" value={holidaySummary.value} detail={holidaySummary.detail} />
       <Separator />
       <SummaryLine label="提出期限" value={deadlineLabel} />
       <Separator />
       <SummaryLine
-        label="通知"
+        label="通知方法"
         value="メール・LINEで通知します"
         detail="提出期限の前日17:00に自動催促通知を送ります。"
       />
