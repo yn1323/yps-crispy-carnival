@@ -204,7 +204,7 @@ dual-read、migration完走、readiness成立の三条件を対象deploymentで�
 - release metadataが同じrevisionを示していない。
 
 失敗時は、販売開始、schemaのNarrow、credentialを使う公開処理など、該当する次工程を止める。
-既存契約のWebhook、安全な取消、再照合まで止めるかどうかは、対象機能の復旧手順と業務契約に従って判断する。
+既存契約のWebhook、安全な取消、再照合まで止めるかどうかは、対象機能の復旧手順と業務要件に従って判断する。
 
 ## 参照先
 

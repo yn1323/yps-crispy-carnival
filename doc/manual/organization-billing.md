@@ -9,7 +9,7 @@
 この文書は、組織課金に関する人の運用を扱う。
 Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotation、障害復旧を、実環境を推測せずに進めるための手順である。
 
-利用者向けの機能とコードの入口は[組織課金、複数店舗、複数管理者](../features/organization-billing.md)、詳細な業務契約は[組織課金の業務仕様](../specs/organization-billing-business-flow.md)を参照する。
+利用者向けの機能とコードの入口は[組織課金、複数店舗、複数管理者](../features/organization-billing.md)、詳細な業務要件は[組織課金の業務要件](../specs/organization-billing-business-flow.md)を参照する。
 
 ## 作業目的から探す
 
@@ -666,7 +666,7 @@ provider側の請求停止や取消が未完了なら、新規販売を止めた
 ## 参照先
 
 - [組織課金、複数店舗、複数管理者](../features/organization-billing.md)
-- [組織課金の業務仕様](../specs/organization-billing-business-flow.md)
+- [組織課金の業務要件](../specs/organization-billing-business-flow.md)
 - [リリース状態](release-status.md)
 - [CI/CD運用](ci-cd.md)
 - [セキュリティ再検証](security-validation.md)

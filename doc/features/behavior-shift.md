@@ -1,8 +1,8 @@
 # 条件別仕様: 募集・提出・シフト表・確定
 
-> 文書種別: behavior（条件→結果の詳細仕様。機能文書・業務仕様・コードから導出）
+> 文書種別: 現行実装仕様（behavior。条件→結果の詳細を機能文書・業務要件・コードから導出）
 >
-> 作成日: 2026-08-16 ／ 基準commit: `37c908f`
+> コード照合日: 2026-08-26
 >
 > 正本: [シフト募集管理](shift-recruitment-management.md)、[シフト表](shift-board.md)、[希望シフト提出](shift-submission.md)、[シフト確定催促リマインダー](shift-confirmation-reminder.md)、`convex/_lib/dateFormat.ts`、`convex/shiftBoard/validation.ts`
 

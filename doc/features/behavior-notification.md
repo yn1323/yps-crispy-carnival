@@ -1,10 +1,10 @@
 # 条件別仕様: 通知マトリクス
 
-> 文書種別: behavior（条件→結果の詳細仕様。機能文書・業務仕様・コードから導出）
+> 文書種別: 現行実装仕様（behavior。条件→結果の詳細を機能文書・業務要件・コードから導出）
 >
-> 作成日: 2026-08-16 ／ 基準commit: `37c908f`
+> コード照合日: 2026-08-26
 >
-> 正本: [通知配送outbox](notification-outbox.md)、[LINE通知連携](line-notification.md)、[スタッフ通知履歴](notification-history.md)、[通知不達Dashboard](notification-failure-dashboard.md)、[業務仕様4.4・21章](../specs/organization-billing-business-flow.md)
+> 正本: [通知配送outbox](notification-outbox.md)、[LINE通知連携](line-notification.md)、[スタッフ通知履歴](notification-history.md)、[通知不達Dashboard](notification-failure-dashboard.md)、[業務要件4.4・21章](../specs/organization-billing-business-flow.md)
 
 「誰に・何を・いつ・どのチャネルで送るか」と、**送らない条件**、失敗時の扱いを通知種別ごとに定める。  
 すべての外部送信はNotification Outboxが非同期で行い、アプリの「送りました」は**受付**を意味する（providerへの到達は保証しない）。

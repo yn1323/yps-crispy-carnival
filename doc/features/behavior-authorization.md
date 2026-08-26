@@ -1,10 +1,10 @@
 # 条件別仕様: 認可・制限の横断規則
 
-> 文書種別: behavior（条件→結果の詳細仕様。機能文書・業務仕様・コードから導出）
+> 文書種別: 現行実装仕様（behavior。条件→結果の詳細を機能文書・業務要件・コードから導出）
 >
-> 作成日: 2026-08-16 ／ 基準commit: `37c908f`
+> コード照合日: 2026-08-26
 >
-> 正本: `convex/_lib/functions.ts`、`convex/constants.ts`、[セキュリティ設計方針](../rules/security-strategy.md)、[業務仕様](../specs/organization-billing-business-flow.md)
+> 正本: `convex/_lib/functions.ts`、`convex/constants.ts`、[セキュリティ設計方針](../rules/security-strategy.md)、[業務要件](../specs/organization-billing-business-flow.md)
 
 全機能に共通する認可境界、拒否パターン、token失効、レート制限、冪等性の規則を定める。  
 ロール×操作の一覧表は[機能全体サマリー5章](OVERVIEW.md)を正本とし、ここでは「どう拒否されるか」を定める。
@@ -138,6 +138,7 @@ Trial、`initialPaymentPending`、`active`、`complimentary`、`scheduledChange`
 | 承認待ち申請の保存 | 店舗20件 | 受付結果だけ返して保存しない |
 | 問い合わせ | Turnstile＋メール・IPハッシュ単位、global 100回/短時間 | 送信拒否 |
 | 組織作成 | 自作保持3件、作成10回/日 | 拒否 |
+| プロモーションコード事前照合 | 同一tabで不一致10回後に10分停止。frontendだけで、server-side quotaはない | UIの「適用」を停止する。public mutationの直接呼出しでは回避でき、安全境界にはしない |
 | 閲覧リンク再発行 | 短時間の重複要求・連続試行を制限 | 同一応答のまま抑止 |
 | LINE OAuth callback | 無効state 100回/globalの照会抑止 | 拒否 |
 | Clerk確認コード送信・OAuth開始 | 同一tab内で操作単位30秒 | 連続送信を抑止（tab跨ぎはClerk serverが正本） |

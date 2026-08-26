@@ -1,10 +1,10 @@
 # 条件別仕様: スタッフ管理
 
-> 文書種別: behavior（条件→結果の詳細仕様。機能文書・業務仕様・コードから導出）
+> 文書種別: 現行実装仕様（behavior。条件→結果の詳細を機能文書・業務要件・コードから導出）
 >
-> 作成日: 2026-08-16 ／ 基準commit: `37c908f`
+> コード照合日: 2026-08-26
 >
-> 正本: [スタッフ参加QR・承認導線](staff-registration.md)、[スタッフ詳細](user-detail.md)、[シフト対象外スタッフ](shift-exclusion.md)、[業務仕様7・15章](../specs/organization-billing-business-flow.md)
+> 正本: [スタッフ参加QR・承認導線](staff-registration.md)、[スタッフ詳細](user-detail.md)、[シフト対象外スタッフ](shift-exclusion.md)、[業務要件7・15章](../specs/organization-billing-business-flow.md)
 
 スタッフの追加、承認、変更、シフト対象外、店舗所属変更、削除、再追加、並び替えについて、条件の組み合わせごとの結果を定める。
 通知の詳細は[通知マトリクス](behavior-notification.md)、認可・レート制限の横断規則は[認可・制限](behavior-authorization.md)を参照する。
@@ -78,7 +78,7 @@ stateDiagram-v2
 | 許可Origin（`STAFF_REGISTRATION_ALLOWED_ORIGINS`）からの`application/json`、8KiB以下 | 拒否 |
 | Turnstile検証（`staff_registration` action、hostname一致） | 拒否 |
 | レート制限内（メール3回/短時間・10回/日、リンク5回/短時間・40回/日、IP 10回/短時間・100回/日、global 100回/短時間） | 拒否 |
-| 店舗の承認待ち申請が20件未満 | **受付結果だけ返して保存しない**（申請者には成功と同じ応答） |
+| 保存前の承認待ち申請が20件未満（20件目までは保存） | すでに20件なら、**受付結果だけ返して保存しない**（申請者には成功と同じ応答） |
 | 登録リンクが有効、店舗・契約状態が利用可能 | 利用不能を同じ受付結果へ変換 |
 
 **新規申請・登録済み・申請済み・上限到達のすべてで同じ受付結果を返し、登録済みメールの有無を公開しない。**  

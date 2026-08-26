@@ -1,6 +1,6 @@
 # 組織課金、複数店舗、複数管理者
 
-> 文書種別: feature
+> 文書種別: 現行実装仕様（feature）
 >
 > コード照合基準: 現在のcheckoutにある実装
 >
@@ -9,7 +9,7 @@
 この文書は、組織課金に関わる現行機能の地図である。
 利用者が完了できること、アプリが保証する境界、画面とコードの入口を示す。
 
-料金、状態遷移、招待、削除を含む詳細な業務契約は[組織課金の業務仕様](../specs/organization-billing-business-flow.md)を正本とする。
+料金、状態遷移、招待、削除を含む詳細な業務要件は[組織課金の業務要件](../specs/organization-billing-business-flow.md)を正本とする。
 Stripe設定、migration確認、障害対応は[組織課金の運用](../manual/organization-billing.md)を参照する。
 
 ## 公開範囲
@@ -240,17 +240,16 @@ Notification Outboxは外部送信直前にも招待、所属、受取人を再�
 | `grace` | 最初に検証された支払い失敗から14日間の猶予中 | 現在の有料権限と復旧操作を維持する |
 | `restricted` | 旧契約制限の互換shape | 現行writerは作成しない。課金互換readinessで全deploymentの0件を確認するまでschema・validator・readerだけで受け付ける |
 
-状態遷移の前提、通知、期限、上限超過時の分岐は[業務仕様](../specs/organization-billing-business-flow.md)を参照する。
+状態遷移の前提、通知、期限、上限超過時の分岐は[業務要件](../specs/organization-billing-business-flow.md)を参照する。
 
 有料プランの新しい終了操作は「Freeプランに変更」ではなく「解約」と表示する。
 期間末までは現在の有料機能を利用でき、期間末前なら予約を取り消せる。
 Stripeで期間末終了を確認した後は`active.free`へ移し、管理者、店舗、人物、スタッフ所属、シフトを変更しない。
 Free上限を超えていれば、保存状態を増やさず整理操作だけを許可する。
 
-`active.free`は追加組織と既存のFree組織へ適用し、支払い不要Pro相当は既存組織だけの契約として維持する。
+`active.free`は追加組織と既存のFree組織へ適用する。  支払い不要Pro相当は既存の適用組織に加え、有効なプロモーションコードを入力した所属0件からの初回Setupへ適用する。
 deployment前から保存済みで`targetPlan: "free"`かつ`restrictAtPeriodEnd`を持たない変更予約も、providerで期間末終了を確認した後は`active.free`へ収束させる。
-`setFreeSelection`はrolling互換用に残すが、Productionに対象データがないためMigrationは追加しない。
-旧callerのdrainと全deploymentでの不在を別途確認した後に、旧shapeと同時にNarrowする。
+`setFreeSelection`はrolling互換用に残す。Productionの対象データとMigration要否はrepositoryから推測せず、旧callerのdrainと対象deploymentの全ページreadinessで不在を確認した後に、旧shapeと同時にNarrowする。
 
 ## 画面
 
@@ -308,7 +307,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | パス | 責務 |
 |---|---|
 | `convex/setup/mutations.ts` | 所属0件の初回セットアップと、既存管理者による追加組織作成を受け付ける |
-| `convex/setup/service.ts` | 組織、最初の管理者、店舗、初期課金状態を作る。初回Setupは`trial`、追加組織は`active.free`を使う |
+| `convex/setup/service.ts` | 組織、最初の管理者、店舗、初期課金状態を作る。初回Setupはコード空欄なら`trial`、有効なコードなら`complimentary.pro`、追加組織は`active.free`を使う |
 | `convex/_lib/functions.ts` | 認証、組織所属、選択店舗、課金状態を検証するAPI wrapper |
 | `convex/dashboard/queries.ts` | 選択店舗の認可境界で、Dashboard用の現在プランと対応状態を投影し、カード展開中だけ組織の利用状況を最小DTOで返す |
 | `convex/organization/` | 組織、店舗、人物、管理者、利用状況、削除可否を扱う |
@@ -408,7 +407,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 
 | 種別 | 正本・参照先 |
 |---|---|
-| 詳細な業務契約 | [組織課金の業務仕様](../specs/organization-billing-business-flow.md) |
+| 詳細な業務要件 | [組織課金の業務要件](../specs/organization-billing-business-flow.md) |
 | セキュリティ | [セキュリティ戦略](../rules/security-strategy.md) |
 | Convex設計 | [Convex設計戦略](../rules/convex-design-strategy.md) |
 | テスト配置 | [テスト戦略](../rules/testing-strategy.md) |
