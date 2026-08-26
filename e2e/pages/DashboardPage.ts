@@ -144,8 +144,13 @@ export class DashboardPage {
 
   async switchShopAndReadId(shopName: string, organizationId: string) {
     const currentShopId = new URL(this.page.url()).searchParams.get("shop");
-    await this.page.getByRole("button", { name: SHOP_SWITCHER_BUTTON_NAME }).click();
-    await this.page.getByRole("menuitem").filter({ hasText: shopName }).click();
+    const switcher = this.page.getByRole("button", { name: SHOP_SWITCHER_BUTTON_NAME });
+    await expect(switcher).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
+    await switcher.click();
+
+    const item = this.page.getByRole("menuitem", { name: shopName, exact: true });
+    await expect(item).toBeVisible({ timeout: DASHBOARD_DATA_TIMEOUT });
+    await item.click();
     await expect(this.page).toHaveURL(
       (url) => {
         const shopId = url.searchParams.get("shop");

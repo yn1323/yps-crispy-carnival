@@ -62,6 +62,7 @@ export function DashboardContentView({
 
   return (
     <DashboardOnboardingGate
+      key={taskScopeKey}
       canEvaluate={readiness.canEvaluateOnboarding}
       recruitments={recruitmentData?.knownRecruitments ?? []}
       staffs={staffData?.staffs ?? []}
@@ -132,21 +133,32 @@ export function DashboardContentView({
   );
 }
 
+const UNAVAILABLE_ONBOARDING_STATE: DashboardOnboardingRenderState = {
+  content: null,
+  isVisible: false,
+  onOpenRecruitment: () => {},
+};
+
 type DashboardOnboardingGateProps = ComponentProps<typeof DashboardOnboarding> & {
   canEvaluate: boolean;
 };
 
-function DashboardOnboardingGate({ canEvaluate, children, ...props }: DashboardOnboardingGateProps) {
-  if (!canEvaluate) {
-    const unavailableState: DashboardOnboardingRenderState = {
-      content: null,
-      isVisible: false,
-      onOpenRecruitment: () => {},
-    };
-    return children(unavailableState);
-  }
-
-  return <DashboardOnboarding {...props}>{children}</DashboardOnboarding>;
+function DashboardOnboardingGate({
+  canEvaluate,
+  children,
+  canShow,
+  pendingStaffRequestCount,
+  ...props
+}: DashboardOnboardingGateProps) {
+  return (
+    <DashboardOnboarding
+      {...props}
+      pendingStaffRequestCount={canEvaluate ? pendingStaffRequestCount : 0}
+      canShow={canEvaluate && canShow}
+    >
+      {(state) => children(canEvaluate ? state : UNAVAILABLE_ONBOARDING_STATE)}
+    </DashboardOnboarding>
+  );
 }
 
 export const DashboardContentSkeleton = () => (
