@@ -61,8 +61,6 @@ vi.mock("../RecruitmentManagement", () => ({
       isInitialLoading: false,
       probeMountId,
       probeValueVersion: probes.valueVersion,
-      openRecruitments: [],
-      currentRecruitments: [],
     });
   },
 }));

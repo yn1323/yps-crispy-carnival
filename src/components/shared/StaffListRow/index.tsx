@@ -20,10 +20,9 @@ type Props = {
   detail?: StaffListRowDetail;
   badges?: readonly StaffListRowBadge[];
   onOpen: () => void;
-  onOpenIntent?: () => void;
 };
 
-export function StaffListRow({ id, name, role, detail, badges = [], onOpen, onOpenIntent }: Props) {
+export function StaffListRow({ id, name, role, detail, badges = [], onOpen }: Props) {
   const initial = name.trim().charAt(0) || "?";
   const isManager = role === "manager";
   const roleLabel = isManager ? "管理者" : "スタッフ";
@@ -41,12 +40,11 @@ export function StaffListRow({ id, name, role, detail, badges = [], onOpen, onOp
       title={name}
       highlighted={isManager}
       onClick={onOpen}
-      onOpenIntent={onOpenIntent}
       leading={
         <Flex
           boxSize="40px"
           borderRadius="full"
-          bg={isManager ? "teal.500" : "teal.100"}
+          bg={isManager ? "teal.500" : "teal.50"}
           color={isManager ? "white" : "teal.700"}
           align="center"
           justify="center"

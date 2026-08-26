@@ -1,13 +1,11 @@
 import { Alert, Stack } from "@chakra-ui/react";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
-import type { FunctionReturnType } from "convex/server";
 import { useEffect, useMemo } from "react";
 import { LuRefreshCw, LuStore, LuTriangleAlert } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Dashboard, type DashboardNavigation, DashboardSkeleton } from "@/src/components/features/Dashboard";
-import type { DashboardPlanStatusSource } from "@/src/components/features/Dashboard/PlanStatusCard";
 import { Animation } from "@/src/components/templates/Animation";
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 import { Button } from "@/src/components/ui/Button";
@@ -29,45 +27,6 @@ type Props = {
   activeShops: DashboardShopOption[] | null;
   requestedShopId?: string;
 };
-
-type DashboardShop = FunctionReturnType<typeof api.dashboard.queries.getDashboardShop>;
-type DashboardPlanStatusResponse = NonNullable<NonNullable<DashboardShop>["planStatus"]>;
-
-function toCanonicalDashboardPlanStatus(status: DashboardPlanStatusResponse): DashboardPlanStatusSource {
-  const isCanonicalPaidPlan = (plan: string | undefined): plan is "standard" | "pro" =>
-    plan === "standard" || plan === "pro";
-
-  switch (status.kind) {
-    case "trial":
-      if (status.selectedPaidPlan !== undefined && !isCanonicalPaidPlan(status.selectedPaidPlan)) break;
-      return status as DashboardPlanStatusSource;
-    case "freePlan":
-      return status;
-    case "paidPlan":
-      if (!isCanonicalPaidPlan(status.plan)) break;
-      if (
-        status.scheduledChange !== undefined &&
-        status.scheduledChange.targetPlan !== "free" &&
-        status.scheduledChange.targetPlan !== "standard"
-      ) {
-        break;
-      }
-      return status as DashboardPlanStatusSource;
-    case "paymentIssue":
-      if (status.plan !== undefined && !isCanonicalPaidPlan(status.plan)) break;
-      return status as DashboardPlanStatusSource;
-    case "paymentPending":
-      if (
-        (status.currentPlan !== null && status.currentPlan !== "free" && status.currentPlan !== "standard") ||
-        !isCanonicalPaidPlan(status.targetPlan)
-      ) {
-        break;
-      }
-      return status as DashboardPlanStatusSource;
-  }
-
-  throw new Error("canonical_plan_id_response_required");
-}
 
 export function DashboardRoutePage({ organizationId, organizationName, activeShops, requestedShopId }: Props) {
   const navigate = useNavigate();
@@ -154,7 +113,6 @@ function ConnectedDashboard({
   const navigation = useMemo<DashboardNavigation>(
     () => ({
       onOpenBillingSettings: () => void navigate({ to: "/manage/billing", search: { org: organizationId } }),
-      onOpenOrganizationSettings: () => void navigate({ to: "/manage/organization", search: { org: organizationId } }),
       onOpenShopDetail: (shopId) =>
         void navigate({
           to: "/manage/shops/$shopId",
@@ -173,7 +131,6 @@ function ConnectedDashboard({
           params: { personId },
           search: { org: organizationId },
         }),
-      onManageManagers: () => void navigate({ to: "/manage/managers", search: { org: organizationId } }),
     }),
     [navigate, organizationId],
   );
@@ -187,8 +144,6 @@ function ConnectedDashboard({
   }
 
   const isReadOnly = !shop.canWriteBusinessData;
-  const planStatus = shop.planStatus ? toCanonicalDashboardPlanStatus(shop.planStatus) : shop.planStatus;
-
   return (
     <Stack gap={5}>
       {isReadOnly && (
@@ -202,12 +157,7 @@ function ConnectedDashboard({
         currentUser={currentUser && "accountDeleted" in currentUser ? null : currentUser}
         managerLegalConsentStatus={managerLegalConsentStatus}
         isReadOnly={isReadOnly}
-        trialEndingNotice={shop.trialEndingNotice}
-        planStatus={planStatus}
-        billingSettingsShopId={selectedShopId}
-        expectedOrganizationId={organizationId}
         navigation={navigation}
-        showOrganizationContext={false}
         operationContextData={{
           shops: shopContexts,
           selectedShop,
@@ -236,7 +186,6 @@ export function DashboardSetupPage() {
             shop={null}
             currentUser={currentUser && "accountDeleted" in currentUser ? null : currentUser}
             managerLegalConsentStatus={undefined}
-            showOrganizationContext={false}
           />
         )}
       </Animation>
@@ -300,7 +249,7 @@ export function DashboardPageStateView({
   onReload?: () => void;
 }) {
   if (state.kind === "loading") {
-    return <DashboardSkeleton showOrganizationContext={false} />;
+    return <DashboardSkeleton />;
   }
 
   if (state.kind === "empty") {

@@ -1,21 +1,16 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  useAtomValue: vi.fn(),
   useShopQuery: vi.fn(),
   useShopPaginatedQuery: vi.fn(),
   getDashboardStaffOrderScopeRef: Symbol("getDashboardStaffOrderScope"),
   getDashboardStaffsRef: Symbol("getDashboardStaffs"),
-  getNotificationResendCooldownsRef: Symbol("getNotificationResendCooldowns"),
-  selectedShopAtomRef: Symbol("selectedShopAtom"),
   useStaffInvitation: vi.fn(),
-  useStaffProfileManagement: vi.fn(),
 }));
 
-vi.mock("jotai", () => ({ useAtomValue: mocks.useAtomValue }));
 vi.mock("@/convex/_generated/api", () => ({
   api: {
     dashboard: {
@@ -24,51 +19,34 @@ vi.mock("@/convex/_generated/api", () => ({
         getDashboardStaffs: mocks.getDashboardStaffsRef,
       },
     },
-    staff: {
-      queries: {
-        getNotificationResendCooldowns: mocks.getNotificationResendCooldownsRef,
-      },
-    },
   },
 }));
 vi.mock("@/src/hooks/useShopQuery", () => ({ useShopQuery: mocks.useShopQuery }));
 vi.mock("@/src/hooks/useShopPaginatedQuery", () => ({ useShopPaginatedQuery: mocks.useShopPaginatedQuery }));
-vi.mock("@/src/providers/ManagerShopScopeProvider", () => ({
-  useManagerShopScope: () => ({ shopId: "shop-1", expectedOrganizationId: "organization-1" }),
-}));
-vi.mock("@/src/stores/shop", () => ({ selectedShopAtom: mocks.selectedShopAtomRef }));
-vi.mock("@/src/components/features/StaffNotificationHistory", () => ({ StaffNotificationHistory: () => null }));
 vi.mock("./StaffManagementView", () => ({
-  StaffManagementView: ({ staffs }: { staffs: Array<{ name: string }> }) => (
-    <output data-testid="staff-management-view">{staffs.map((staff) => staff.name).join(",")}</output>
+  StaffManagementView: ({
+    staffs,
+    onOpenDetail,
+  }: {
+    staffs: Array<{ name: string; organizationPersonId?: string }>;
+    onOpenDetail: (staff: { name: string; organizationPersonId?: string }) => void;
+  }) => (
+    <>
+      <output data-testid="staff-management-view">{staffs.map((staff) => staff.name).join(",")}</output>
+      {staffs[0] && (
+        <button type="button" onClick={() => onOpenDetail(staffs[0])}>
+          先頭スタッフを開く
+        </button>
+      )}
+    </>
   ),
 }));
 vi.mock("./useStaffInvitation", () => ({ useStaffInvitation: mocks.useStaffInvitation }));
-vi.mock("./useStaffLineConnection", () => ({
-  useStaffLineConnection: () => ({
-    reset: vi.fn(),
-    onShowQr: vi.fn(),
-    qrState: null,
-    onSendInvite: vi.fn(),
-    isSendingInvite: false,
-  }),
-}));
-vi.mock("./useStaffProfileManagement", () => ({
-  useStaffProfileManagement: mocks.useStaffProfileManagement,
-}));
-vi.mock("./useStaffNotificationDelivery", () => ({
-  useStaffNotificationDelivery: () => ({
-    onSendRecruitments: vi.fn(),
-    isSendingRecruitments: false,
-    onSendCurrentShift: vi.fn(),
-    isSendingCurrentShift: false,
-  }),
-}));
 
 import { StaffManagement } from ".";
 
 const queryResult = {
-  results: [{ _id: "staff-1", name: "山田 花子", isManager: false }],
+  results: [{ _id: "staff-1", organizationPersonId: "person-1", name: "山田 花子", isManager: false }],
   status: "Exhausted",
   loadMore: vi.fn(),
 };
@@ -82,7 +60,7 @@ const mixedStaffs = [
 
 function TestView() {
   return (
-    <StaffManagement openRecruitments={[]} currentRecruitments={[]}>
+    <StaffManagement>
       {(state) => (
         <>
           <output data-testid="initial-loading">{String(state.isInitialLoading)}</output>
@@ -94,28 +72,12 @@ function TestView() {
 }
 
 beforeEach(() => {
-  mocks.useAtomValue.mockReset();
   mocks.useShopQuery.mockReset();
   mocks.useShopPaginatedQuery.mockReset();
   mocks.useStaffInvitation.mockReset();
-  mocks.useStaffProfileManagement.mockReset();
-  mocks.useAtomValue.mockReturnValue(null);
   mocks.useShopQuery.mockReturnValue({ mode: "legacy" });
   mocks.useShopPaginatedQuery.mockReturnValue(queryResult);
   mocks.useStaffInvitation.mockReturnValue({});
-  mocks.useStaffProfileManagement.mockReturnValue({
-    staff: null,
-    dialog: { isOpen: false },
-    onOpen: vi.fn(),
-    onOpenChange: vi.fn(),
-    onClose: vi.fn(),
-    onEdit: vi.fn(),
-    isEditing: false,
-    onDelete: vi.fn(),
-    isDeleting: false,
-    onChangeShiftTarget: vi.fn(),
-    isChangingShiftTarget: false,
-  });
 });
 
 describe("StaffManagement staff order scope", () => {
@@ -164,11 +126,7 @@ describe("StaffManagement staff order scope", () => {
 
   it("Story等の注入dataではscopeとpaginationをskipする", () => {
     render(
-      <StaffManagement
-        data={{ staffs: mixedStaffs, status: "Exhausted", canLoadMore: false }}
-        openRecruitments={[]}
-        currentRecruitments={[]}
-      >
+      <StaffManagement data={{ staffs: mixedStaffs, status: "Exhausted", canLoadMore: false }}>
         {(state) => state.content}
       </StaffManagement>,
     );
@@ -181,47 +139,23 @@ describe("StaffManagement staff order scope", () => {
   });
 
   it("組織の店舗が1つだけなら別店舗スタッフ追加を表示対象にしない", () => {
-    render(
-      <StaffManagement organizationShopCount={1} openRecruitments={[]} currentRecruitments={[]}>
-        {(state) => state.content}
-      </StaffManagement>,
-    );
+    render(<StaffManagement organizationShopCount={1}>{(state) => state.content}</StaffManagement>);
 
     expect(mocks.useStaffInvitation).toHaveBeenLastCalledWith(false, false, undefined);
   });
 
   it("組織の店舗が2つ以上なら別店舗スタッフ追加を表示対象にする", () => {
-    render(
-      <StaffManagement organizationShopCount={2} openRecruitments={[]} currentRecruitments={[]}>
-        {(state) => state.content}
-      </StaffManagement>,
-    );
+    render(<StaffManagement organizationShopCount={2}>{(state) => state.content}</StaffManagement>);
 
     expect(mocks.useStaffInvitation).toHaveBeenLastCalledWith(false, true, undefined);
   });
 
-  it("通知クールダウンはスタッフ詳細Dialogを開いた間だけ取得する", () => {
-    const { rerender } = render(<TestView />);
+  it("スタッフ行から組織人物の詳細ページを開く", () => {
+    const onOpenStaffDetail = vi.fn();
+    render(<StaffManagement onOpenStaffDetail={onOpenStaffDetail}>{(state) => state.content}</StaffManagement>);
 
-    expect(mocks.useShopQuery).toHaveBeenCalledWith(mocks.getNotificationResendCooldownsRef, "skip");
+    fireEvent.click(screen.getByRole("button", { name: "先頭スタッフを開く" }));
 
-    mocks.useStaffProfileManagement.mockReturnValue({
-      staff: { _id: "staff-1" },
-      dialog: { isOpen: true },
-      onOpen: vi.fn(),
-      onOpenChange: vi.fn(),
-      onClose: vi.fn(),
-      onEdit: vi.fn(),
-      isEditing: false,
-      onDelete: vi.fn(),
-      isDeleting: false,
-      onChangeShiftTarget: vi.fn(),
-      isChangingShiftTarget: false,
-    });
-    rerender(<TestView />);
-
-    expect(mocks.useShopQuery).toHaveBeenCalledWith(mocks.getNotificationResendCooldownsRef, {
-      staffId: "staff-1",
-    });
+    expect(onOpenStaffDetail).toHaveBeenCalledWith("person-1", 10);
   });
 });

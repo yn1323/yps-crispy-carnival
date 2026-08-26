@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => ({
   useQuery: vi.fn(),
   useShopQuery: vi.fn(),
   dashboardProps: undefined as Record<string, unknown> | undefined,
-  dashboardSkeletonProps: undefined as Record<string, unknown> | undefined,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -43,12 +42,10 @@ vi.mock("@/convex/_generated/api", () => ({
 vi.mock("@/src/hooks/useShopQuery", () => ({ useShopQuery: mocks.useShopQuery }));
 
 vi.mock("@/src/components/features/Dashboard", () => ({
-  DashboardSkeleton: (props: Record<string, unknown>) => {
-    mocks.dashboardSkeletonProps = props;
-    return <output data-testid="home-loading">ホームを読み込み中</output>;
-  },
+  DashboardSkeleton: () => <output data-testid="home-loading">ホームを読み込み中</output>,
   Dashboard: (props: Record<string, unknown>) => {
     mocks.dashboardProps = props;
+    const operationContextData = props.operationContextData as { selectedShop: { organizationId: string } } | undefined;
     const navigation = props.navigation as
       | {
           onOpenShiftBoard: (recruitmentId: string) => void;
@@ -59,7 +56,7 @@ vi.mock("@/src/components/features/Dashboard", () => ({
       <section
         aria-label="接続済みホーム"
         data-read-only={String(props.isReadOnly)}
-        data-organization-id={String(props.expectedOrganizationId)}
+        data-organization-id={operationContextData?.selectedShop.organizationId}
       >
         {navigation ? (
           <>
@@ -140,7 +137,6 @@ beforeEach(() => {
   mocks.navigate.mockReset();
   window.localStorage.clear();
   mocks.dashboardProps = undefined;
-  mocks.dashboardSkeletonProps = undefined;
   mocks.useShopQuery.mockReset();
   mocks.useShopQuery.mockReturnValue(shop);
   mocks.useQuery.mockReset();
@@ -186,22 +182,14 @@ describe("DashboardRoutePage", () => {
     expect(mocks.dashboardProps).toMatchObject({
       shop: null,
       currentUser: { isNewUser: false, name: "管理者", email: "manager@example.com" },
-      showOrganizationContext: false,
     });
     expect(mocks.dashboardProps?.navigation).toBeUndefined();
-  });
-
-  it("ホームでは組織・プランのコンテキストを表示しない", () => {
-    renderPage();
-
-    expect(mocks.dashboardProps?.showOrganizationContext).toBe(false);
   });
 
   it("active店舗の全cursor読込中は店舗queryを開始せずDashboard skeletonを表示する", () => {
     renderPage({ activeShops: null });
 
     expect(screen.getByText("ホームを読み込み中")).not.toBeNull();
-    expect(mocks.dashboardSkeletonProps?.showOrganizationContext).toBe(false);
     expect(mocks.useShopQuery).not.toHaveBeenCalled();
   });
 

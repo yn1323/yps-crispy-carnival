@@ -17,7 +17,6 @@ type Props = {
   onOpenDetail: (staff: Staff) => void;
   onLoadMore: () => void;
   onAddIntent?: () => void;
-  onOpenDetailIntent?: () => void;
   focusedPersonId?: string;
 };
 
@@ -30,7 +29,6 @@ export const StaffRoster = ({
   onOpenDetail,
   onLoadMore,
   onAddIntent,
-  onOpenDetailIntent,
   focusedPersonId,
 }: Props) => {
   const showLoadMore = canLoadMore && status !== "LoadingFirstPage";
@@ -130,7 +128,6 @@ export const StaffRoster = ({
                   detail={{ kind: "email", value: staff.email }}
                   badges={badges}
                   onOpen={() => onOpenDetail(staff)}
-                  onOpenIntent={onOpenDetailIntent}
                 />
               );
             })}

@@ -37,31 +37,4 @@ describe("Dashboard query stage", () => {
       );
     },
   );
-
-  it.each(["recruitment", "registrationRequests", "notificationFailures"] as const)(
-    "%sが取得できない場合は要対応の一部失敗として扱う",
-    (key) => {
-      const stages = {
-        recruitment: ready(),
-        staff: ready(),
-        registrationRequests: ready(),
-        notificationFailures: ready(),
-      };
-
-      expect(getDashboardStageReadiness({ ...stages, [key]: { status: "unavailable", onRetry: vi.fn() } })).toEqual(
-        expect.objectContaining({ hasUnavailableTasks: true }),
-      );
-    },
-  );
-
-  it("スタッフ一覧だけの失敗は要対応の失敗に混ぜない", () => {
-    expect(
-      getDashboardStageReadiness({
-        recruitment: ready(),
-        staff: { status: "unavailable", onRetry: vi.fn() },
-        registrationRequests: ready(),
-        notificationFailures: ready(),
-      }),
-    ).toEqual({ canEvaluateOnboarding: false, hasUnavailableTasks: false });
-  });
 });

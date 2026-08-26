@@ -8,33 +8,6 @@ import { StaffManagementView } from "./StaffManagementView";
 const noop = () => {};
 const lazyBodyWait = { timeout: 5_000 };
 
-const closedDetail = {
-  staff: null,
-  dialog: { isOpen: false, onOpenChange: noop },
-  onOpenChange: noop,
-  onClose: noop,
-  onEdit: noop,
-  isEditing: false,
-  onDelete: noop,
-  isDeleting: false,
-  onShowLineQr: noop,
-  lineQrState: { staffId: null, authorizeUrl: null, isLoading: false },
-  onSendLineInvite: noop,
-  isSendingLineInvite: false,
-  isLineInviteCooldownActive: false,
-  onSendRecruitments: noop,
-  isSendingRecruitments: false,
-  isRecruitmentCooldownActive: false,
-  onSendCurrentShift: noop,
-  isSendingCurrentShift: false,
-  isCurrentShiftCooldownActive: false,
-  isNotificationCooldownLoading: false,
-  notificationHistory: null,
-  onChangeShiftTarget: noop,
-  isChangingShiftTarget: false,
-  onManageManagers: noop,
-};
-
 const meta = {
   title: "Features/Dashboard/StaffManagementView/StaffInvitation",
   component: ProductionStaffInvitationHarness,
@@ -75,7 +48,7 @@ export const MethodNavigationBehavior: Story = {
     await userEvent.click(await page.findByRole("button", { name: "戻る" }));
     await waitFor(() => expect(page.getByRole("button", { name: "スタッフ本人に登録してもらう" })).toHaveFocus());
 
-    const manualCard = page.getByRole("button", { name: "管理者が情報を入力して追加する" });
+    const manualCard = page.getByRole("button", { name: "あなたが情報を入力する" });
     await userEvent.click(manualCard);
     const manualHeading = await page.findByRole("heading", { name: "管理者が情報を入力して追加する" });
     await waitFor(() => expect(manualHeading).toHaveFocus());
@@ -89,7 +62,7 @@ export const MethodNavigationBehavior: Story = {
     await expect(manualActions[0]).toHaveAccessibleName("戻る");
     await expect(manualActions[1]).toHaveAccessibleName("スタッフを登録する");
     await userEvent.click(await page.findByRole("button", { name: "戻る" }));
-    await waitFor(() => expect(page.getByRole("button", { name: "管理者が情報を入力して追加する" })).toHaveFocus());
+    await waitFor(() => expect(page.getByRole("button", { name: "あなたが情報を入力する" })).toHaveFocus());
 
     const organizationCard = page.getByRole("button", { name: "別店舗のスタッフを追加する" });
     await userEvent.click(organizationCard);
@@ -115,14 +88,14 @@ export const ManualDraftRetentionAndCloseResetBehavior: Story = {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
 
-    await userEvent.click(await page.findByRole("button", { name: "管理者が情報を入力して追加する" }, lazyBodyWait));
+    await userEvent.click(await page.findByRole("button", { name: "あなたが情報を入力する" }, lazyBodyWait));
     const [nameInput] = await page.findAllByPlaceholderText("例：田中 花子");
     await userEvent.type(nameInput, "入力途中のスタッフ");
 
     await userEvent.click(await page.findByRole("button", { name: "戻る" }));
     await userEvent.click(await page.findByRole("button", { name: "スタッフ本人に登録してもらう" }));
     await userEvent.click(await page.findByRole("button", { name: "戻る" }));
-    await userEvent.click(await page.findByRole("button", { name: "管理者が情報を入力して追加する" }));
+    await userEvent.click(await page.findByRole("button", { name: "あなたが情報を入力する" }));
 
     const [retainedNameInput] = await page.findAllByPlaceholderText("例：田中 花子");
     await expect(retainedNameInput).toHaveValue("入力途中のスタッフ");
@@ -135,7 +108,7 @@ export const ManualDraftRetentionAndCloseResetBehavior: Story = {
     const [openButton] = canvas.getAllByRole("button", { name: "スタッフを追加する" });
     await userEvent.click(openButton);
     await page.findByRole("button", { name: "スタッフ本人に登録してもらう" }, lazyBodyWait);
-    await userEvent.click(await page.findByRole("button", { name: "管理者が情報を入力して追加する" }, lazyBodyWait));
+    await userEvent.click(await page.findByRole("button", { name: "あなたが情報を入力する" }, lazyBodyWait));
     const [resetNameInput] = await page.findAllByPlaceholderText("例：田中 花子");
     await expect(resetNameInput).toHaveValue("");
   },
@@ -197,11 +170,8 @@ function ProductionStaffInvitationHarness() {
       status="Exhausted"
       canLoadMore={false}
       onLoadMore={noop}
-      openRecruitments={[]}
-      currentRecruitments={[]}
       onOpenDetail={noop}
       invitation={invitation}
-      detail={closedDetail}
     />
   );
 }

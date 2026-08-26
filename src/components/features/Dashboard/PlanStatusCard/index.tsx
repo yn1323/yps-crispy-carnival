@@ -277,7 +277,7 @@ export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusP
       summaryBadge: isScheduledChange ? badge : null,
       tone: isScheduledChange ? "orange" : "neutral",
       detailsLabel: `${planName}プランの詳細`,
-      iconBackground: "teal.100",
+      iconBackground: "teal.50",
       iconColor: "teal.700",
     };
   }

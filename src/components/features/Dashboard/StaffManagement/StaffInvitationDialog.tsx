@@ -198,7 +198,11 @@ function RegistrationLinkRotationConfirmation() {
   return (
     <Stack gap={3} pt={2} color="gray.800">
       <Text lineHeight="tall">
-        現在のQRコード・送付済みリンク・開いている登録画面から、新しい申請はできなくなります。申請済みのスタッフには影響しません。
+        いたずら等防止目的でリンクを再発行します。
+        <br />
+        これまでのリンクは利用できなくなります。
+        <br />
+        よろしいですか？
       </Text>
     </Stack>
   );
@@ -215,19 +219,19 @@ const METHOD_OPTIONS: MethodOption[] = [
   {
     method: "link",
     title: "スタッフ本人に登録してもらう",
-    description: "QRコードや招待リンクを共有し、スタッフ本人に登録を依頼します。",
+    description: "招待リンクからスタッフ本人が名前、メールアドレスを登録します",
     icon: LuQrCode,
   },
   {
     method: "manual",
-    title: "管理者が情報を入力して追加する",
-    description: "氏名とメールアドレスを入力し、管理者がスタッフを直接追加します。",
+    title: "あなたが情報を入力する",
+    description: "管理者がスタッフの氏名とメールアドレスを登録します",
     icon: LuClipboardPenLine,
   },
   {
     method: "organization",
     title: "別店舗のスタッフを追加する",
-    description: "別の店舗に登録済みのスタッフを、この店舗にも追加します。",
+    description: "別の店舗に登録済みのスタッフを追加します",
     icon: LuUsersRound,
   },
 ];

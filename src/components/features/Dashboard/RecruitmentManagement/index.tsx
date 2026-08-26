@@ -44,8 +44,6 @@ export type RecruitmentManagementState = {
   recruitments: Recruitment[];
   knownRecruitments: Recruitment[];
   groups: DashboardRecruitmentGroup[];
-  currentRecruitments: Recruitment[];
-  openRecruitments: Recruitment[];
   openCreateRecruitment: () => void;
   openShiftBoard: (
     recruitmentId: Recruitment["_id"],
@@ -102,9 +100,6 @@ export function RecruitmentManagement({
   const resolvedRecruitments = data?.recruitments ?? recruitments.results;
   const recruitmentList = data?.recruitmentList ?? [...resolvedRecruitments, ...pastRecruitments.results];
   const groups = data?.groups ?? buildDashboardRecruitmentGroups({ recruitments: recruitmentList }).groups;
-  const currentRecruitments =
-    data?.currentRecruitments ?? groups.find((group) => group.key === "current")?.recruitments ?? [];
-  const openRecruitments = groups.find((group) => group.key === "collecting")?.recruitments ?? [];
   const knownRecruitments = sortRecruitmentsByCreatedAt(
     Array.from(
       new Map(
@@ -223,8 +218,6 @@ export function RecruitmentManagement({
     recruitments: resolvedRecruitments,
     knownRecruitments,
     groups,
-    currentRecruitments,
-    openRecruitments,
     openCreateRecruitment: handleOpenCreate,
     openShiftBoard: handleOpenShiftBoard,
     renderContent,

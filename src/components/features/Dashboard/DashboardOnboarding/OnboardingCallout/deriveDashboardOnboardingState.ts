@@ -41,8 +41,8 @@ export function deriveDashboardOnboardingState({
     : visibleState({
         stage: "create_recruitment",
         progressLabel: "1/4",
-        title: "シフト募集から希望シフトの提出までの流れを体験しましょう",
-        description: "期間を決めて、シフト募集を作成してみましょう。\n作成した募集はあとで削除できます。",
+        title: "シフト募集→提出→確定の流れを体験してみましょう",
+        description: "募集期間を設定してみましょう。\n作成した募集はあとで削除できます。",
         tour: {
           target: DASHBOARD_TOUR_TARGET.createRecruitment,
           placement: "bottom",
@@ -66,8 +66,8 @@ function deriveStateWithRecruitment(
     return visibleState({
       stage: "add_staff",
       progressLabel: "4/4",
-      title: "スタッフを追加して、希望シフトの提出を依頼しましょう",
-      description: "スタッフを追加すると、希望シフトの提出依頼メールとLINE連携案内を送ります。",
+      title: "スタッフを追加して、希望シフトを集めましょう",
+      description: "スタッフを追加して実際に使ってみよう",
       tour: {
         target: DASHBOARD_TOUR_TARGET.addStaff,
         placement: "top",
@@ -80,7 +80,7 @@ function deriveStateWithRecruitment(
       stage: "review_submission",
       progressLabel: "3/4",
       title: "提出されたシフトを確認しましょう",
-      description: "シフト表が更新されていることを確認しましょう。",
+      description: "シフト表が更新されたことを確認しましょう。",
       tour: {
         target: DASHBOARD_TOUR_TARGET.latestRecruitment,
         placement: "top",
@@ -92,7 +92,7 @@ function deriveStateWithRecruitment(
     stage: "submit_self",
     progressLabel: "2/4",
     title: "希望シフトを提出してみましょう",
-    description: "登録したメールアドレスに届いたリンクから、希望シフトを提出してみましょう。",
+    description: "登録したメールアドレスに通知が届いています。リンクから希望シフトを提出してみましょう。",
   });
 }
 

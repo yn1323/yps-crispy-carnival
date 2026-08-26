@@ -144,7 +144,7 @@ export const LinkRotationConfirmationBehavior: Story = {
 
     const confirmation = await page.findByRole("alertdialog", { name: "登録リンクを再発行" });
     await expect(confirmation).toHaveTextContent(
-      "現在のQRコード・送付済みリンク・開いている登録画面から、新しい申請はできなくなります。申請済みのスタッフには影響しません。",
+      "いたずら等防止目的でリンクを再発行します。これまでのリンクは利用できなくなります。よろしいですか？",
     );
     await userEvent.click(within(confirmation).getByRole("button", { name: "キャンセル" }));
 

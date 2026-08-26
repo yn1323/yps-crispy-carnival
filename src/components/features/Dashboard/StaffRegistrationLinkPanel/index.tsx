@@ -90,14 +90,10 @@ export function StaffRegistrationLinkPanel({
     <Stack gap={5}>
       <Stack gap={2}>
         <Text fontSize="sm" color="gray.800" lineHeight="tall" whiteSpace="pre-line">
-          {
-            "QRコードを対面で読み取ってもらうと、スタッフ本人がその場で登録できます。\n人数が多い場合は、招待リンクをまとめて共有する方法が便利です。"
-          }
+          QRコード、または招待リンクを共有してください。
         </Text>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          登録申請の承認後、LINE未連携の場合はスタッフに連携の案内を送ります。
-          <br />
-          募集中のシフトがある場合は、シフト提出リンクもあわせて送ります。
+          管理者が承認後、シフトリの案内メールと募集中シフトを送信します。
         </Text>
       </Stack>
 
@@ -168,10 +164,12 @@ export function StaffRegistrationLinkPanel({
       </InviteSection>
 
       {onRequestRegistrationLinkRotation && (
-        <InviteSection title="登録リンクの管理">
+        <InviteSection title="登録リンクの再発行">
           <Stack gap={3} align="flex-start">
             <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              共有済みのリンクを使えなくして、新しいリンクへ切り替えます。
+              いたずら等防止目的でリンクを再発行します。
+              <br />
+              これまでのリンクは使えなくなります。
             </Text>
             <Button
               ref={rotationTriggerRef}
