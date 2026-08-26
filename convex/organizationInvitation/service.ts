@@ -133,7 +133,7 @@ export async function resolveFreeManagerExchangeEligibility(
       )
       .collect(),
   ]);
-  if (members.length > 1 || members[0]?.status === "active" || members[0]?.status === "readOnly") {
+  if (members.length > 1 || members[0]?.status === "active") {
     return null;
   }
   let hasActiveStaffAffiliation = false;
@@ -215,7 +215,7 @@ export async function resolveOrganizationInvitationEligibility(
         q.eq("organizationId", invitation.organizationId).eq("personId", targetPerson._id),
       )
       .take(2);
-    if (members.length > 1 || members[0]?.status === "active" || members[0]?.status === "readOnly") return null;
+    if (members.length > 1 || members[0]?.status === "active") return null;
     if (members[0] && (!targetPerson.userId || members[0].userId !== targetPerson.userId)) return null;
     if (targetPerson.userId) {
       const user = await ctx.db.get(targetPerson.userId);

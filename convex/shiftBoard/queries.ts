@@ -17,11 +17,8 @@ import { getActiveRecruitmentInShop } from "../recruitment/service";
 import { isShiftTargetStaff } from "../staff/service";
 
 const shiftBoardWriteBlockReasonValidator = v.union(
-  v.literal("memberReadOnly"),
   v.literal("shopArchived"),
-  v.literal("shopPlanSuspended"),
   v.literal("paymentResultPending"),
-  v.literal("restricted"),
   v.literal("usageLimitExceeded"),
   v.literal("usageLimitEvaluationUnavailable"),
   v.null(),
@@ -158,13 +155,9 @@ export const getShiftBoardData = managerQuery({
     const businessWriteBlockReason =
       shopStatus === "archived"
         ? ("shopArchived" as const)
-        : shopStatus === "planSuspended"
-          ? ("shopPlanSuspended" as const)
-          : ctx.organizationMember?.status === "readOnly"
-            ? ("memberReadOnly" as const)
-            : organizationAccess?.usageLimitStatus?.kind === "unknown"
-              ? ("usageLimitEvaluationUnavailable" as const)
-              : (organizationAccess?.businessWriteBlockReason ?? null);
+        : organizationAccess?.usageLimitStatus?.kind === "unknown"
+          ? ("usageLimitEvaluationUnavailable" as const)
+          : (organizationAccess?.businessWriteBlockReason ?? null);
 
     return {
       shopId: shop._id,

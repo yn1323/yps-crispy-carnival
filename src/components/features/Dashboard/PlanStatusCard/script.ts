@@ -38,7 +38,7 @@ export function buildPlanStatusCardData(
         kind: "freePlan",
         description: source.canManagePlan
           ? "無料の基本機能を利用しています。必要に応じて有料プランを選べます。"
-          : "無料の基本機能を利用しています。プランの変更は、契約を管理できる管理者が行えます。",
+          : "無料の基本機能を利用しています。",
         ...(source.canManagePlan ? { primaryAction: { action: "choosePlan" as const, label: "プランを選ぶ" } } : {}),
       };
     case "paidPlan": {
@@ -83,37 +83,21 @@ export function buildPlanStatusCardData(
     }
     case "paymentIssue": {
       const canUpdatePaymentMethod = source.canUpdatePaymentMethod;
-      const canChoosePlan = source.phase === "restricted" && source.canManagePlan;
       return {
         kind: "paymentIssue",
         planName: source.plan ? paidPlanName(source.plan) : undefined,
         phase: source.phase,
-        description:
-          source.phase === "grace"
-            ? canUpdatePaymentMethod
-              ? "サービスの停止を防ぐため、お支払い方法を更新してください。"
-              : "支払い方法の更新は、契約を管理できる管理者が行えます。"
-            : source.canManagePlan
-              ? "データは削除されていません。利用を再開するには、StandardまたはProを契約してください。"
-              : "データは削除されていません。StandardまたはProの契約は、契約を管理できる管理者が行えます。",
+        description: canUpdatePaymentMethod
+          ? "サービスの停止を防ぐため、お支払い方法を更新してください。"
+          : "現在は支払い方法を更新できません。組織設定で契約状態を確認してください。",
         recoveryDeadlineLabel: source.recoveryDeadlineAt
           ? `支払い期限：${formatJstDate(source.recoveryDeadlineAt)}`
           : undefined,
-        ...(source.phase === "grace" && canUpdatePaymentMethod
+        ...(canUpdatePaymentMethod
           ? { primaryAction: { action: "updatePaymentMethod" as const, label: "支払い方法を更新する" } }
-          : canChoosePlan
-            ? { primaryAction: { action: "choosePlan" as const, label: "プランを選んで再開する" } }
-            : {}),
+          : {}),
       };
     }
-    case "restricted":
-      return {
-        kind: "restricted",
-        planName: source.displayPlan ? planName(source.displayPlan) : undefined,
-        description: source.canManagePlan
-          ? "利用状況または契約状態を確認してください。"
-          : "契約を管理できる管理者に、利用状況または契約状態の確認を依頼してください。",
-      };
   }
 }
 

@@ -86,15 +86,10 @@ function CombinedBoard() {
   );
 }
 
-function ReadyPreview({ isReadOnly = false }: { isReadOnly?: boolean }) {
+function ReadyPreview() {
   return (
     <Stack maxW="1024px" mx="auto">
-      <AppShiftsOverviewView
-        filterValue={null}
-        filterOptions={filterOptions}
-        isReadOnly={isReadOnly}
-        onFilterChange={() => undefined}
-      >
+      <AppShiftsOverviewView filterValue={null} filterOptions={filterOptions} onFilterChange={() => undefined}>
         <CombinedBoard />
       </AppShiftsOverviewView>
     </Stack>
@@ -158,12 +153,6 @@ export const AppCompositionMobile: Story = {
   name: "シフト一覧・新shell・モバイル414px",
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
-};
-
-export const ReadOnlyMobile: Story = {
-  tags: ["vrt-mobile2"],
-  globals: { viewport: { value: "mobile2", isRotated: false } },
-  render: () => <ReadyPreview isReadOnly />,
 };
 
 function FilterPreview({ singleShop = false }: { singleShop?: boolean }) {

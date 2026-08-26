@@ -718,59 +718,6 @@ describe("organization staff order", () => {
     expect(editor).toMatchObject({ availability: expected, canWrite: false, people: [] });
   });
 
-  it("readOnly管理者と契約制限中の管理者は保存できない", async () => {
-    const t = convexTest(schema, modules);
-    const readOnlySubject = "staff_order_read_only";
-    const restrictedSubject = "staff_order_restricted";
-    const ids = await t.run(async (ctx) => {
-      const readOnly = await seedOrganizationManagerShop(ctx, { subject: readOnlySubject, complimentary: true });
-      const restricted = await seedOrganizationManagerShop(ctx, { subject: restrictedSubject, complimentary: true });
-      await ctx.db.patch(readOnly.memberId, { status: "readOnly", updatedAt: Date.now() });
-      const billing = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", restricted.organizationId))
-        .unique();
-      if (!billing) throw new Error("billing state not found");
-      await ctx.db.patch(billing._id, {
-        state: {
-          kind: "restricted",
-          reason: "freeConditionsNotMet",
-          previousPlan: "business",
-          recoveryManagerPersonIds: [restricted.personId],
-          previousActiveShopIds: [restricted.shopId],
-          restrictedAt: Date.now(),
-        },
-      });
-      return { readOnly, restricted };
-    });
-    for (const [subject, base] of [
-      [readOnlySubject, ids.readOnly],
-      [restrictedSubject, ids.restricted],
-    ] as const) {
-      const actor = t.withIdentity({ subject });
-      const editor = await actor.query(api.appOrganization.staffOrderQueries.getOrganizationStaffOrderEditor, {
-        organizationId: base.organizationId,
-      });
-      expect(editor.canWrite).toBe(false);
-      await expect(
-        actor.mutation(api.appOrganization.staffOrderMutations.saveOrganizationStaffOrder, {
-          organizationId: base.organizationId,
-          orderedPersonIds: [base.personId],
-          expectedOrderFingerprint: editor.orderFingerprint,
-        }),
-      ).rejects.toThrow();
-    }
-    await expect(
-      t.withIdentity({ subject: restrictedSubject }).query(api.appOrganization.queries.getOrganizationPeopleSummary, {
-        organizationId: ids.restricted.organizationId,
-        shopFilter: "all",
-      }),
-    ).resolves.toMatchObject({
-      canChangeStaffOrder: false,
-      changeStaffOrderDisabledReason: "契約状態を復旧してからスタッフの並び順を変更できます。",
-    });
-  });
-
   it("active.freeの実数上限超過中は事業者共通の並び順を保存しない", async () => {
     const t = convexTest(schema, modules);
     const subject = "staff_order_usage_limit";

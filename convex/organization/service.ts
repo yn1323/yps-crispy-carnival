@@ -15,7 +15,6 @@ type DbCtx = {
 };
 
 const ACTIVE_MANAGER_STATUSES: ReadonlySet<Doc<"organizationMembers">["status"]> = new Set(["active"]);
-const RECOVERY_MANAGER_STATUSES: ReadonlySet<Doc<"organizationMembers">["status"]> = new Set(["active", "readOnly"]);
 
 export type OrganizationUsageSnapshot = {
   personCount: number;
@@ -186,15 +185,6 @@ export async function isValidOrganizationActiveManager(
   return await isValidOrganizationManagerPerson(ctx, organizationId, personId, ACTIVE_MANAGER_STATUSES);
 }
 
-/** 旧restricted互換で操作できるreadOnly管理者本人性を、削除mutationと同じ条件で確認する。 */
-export async function isValidOrganizationRecoveryManager(
-  ctx: DbCtx,
-  organizationId: Id<"organizations">,
-  personId: Id<"organizationPeople">,
-) {
-  return await isValidOrganizationManagerPerson(ctx, organizationId, personId, RECOVERY_MANAGER_STATUSES);
-}
-
 /**
  * 個別の人物・staff所属を外す前に、管理者権限が残っていないことを確認する。
  * 重複membershipは管理者状態を一意に証明できないためfail closedにする。
@@ -212,7 +202,7 @@ export async function requireOrganizationPersonWithoutManagerRole(
     throw new ConvexError("管理者権限の状態を確認できません。\n画面を更新して、もう一度お試しください。");
   }
   const member = members[0] ?? null;
-  if (member?.status === "active" || member?.status === "readOnly") {
+  if (member?.status === "active") {
     throw new ConvexError(MANAGER_PERSON_REMOVAL_DISABLED_REASON);
   }
   return member;

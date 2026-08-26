@@ -160,7 +160,6 @@ export function lineRecipientOutboxSnapshot(
 
 export type NotificationCancelReason =
   | "organization_billing_changed"
-  | "organization_restricted"
   | "organization_usage_limit_exceeded"
   | "organization_inactive"
   | "shop_inactive"

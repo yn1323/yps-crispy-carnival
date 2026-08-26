@@ -106,7 +106,6 @@ export const getAcceptanceNotificationData = internalQuery({
     ]);
     const representativeShop =
       shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "active") ??
-      shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "planSuspended") ??
       shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "archived");
     const recipients = [];
     for (const member of members) {

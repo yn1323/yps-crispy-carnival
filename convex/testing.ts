@@ -77,7 +77,7 @@ const ORGANIZATION_INVITATION_STATUSES: OrganizationInvitationStatus[] = [
   "revoked",
   "expired",
 ];
-const ORGANIZATION_MEMBER_STATUSES: OrganizationMemberStatus[] = ["active", "readOnly", "removed"];
+const ORGANIZATION_MEMBER_STATUSES: OrganizationMemberStatus[] = ["active", "removed"];
 const ORGANIZATION_PERSON_STATUSES: OrganizationPersonStatus[] = ["active", "removed"];
 const ALL_NOTIFICATION_OUTBOX_STATUSES: NotificationOutboxStatus[] = [
   "pending",

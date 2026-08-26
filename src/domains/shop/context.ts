@@ -1,5 +1,4 @@
-export type ShopStatus = "active" | "archived" | "planSuspended";
-export type OrganizationMemberStatus = "active" | "readOnly" | "removed";
+export type ShopStatus = "active" | "archived";
 export type OrganizationPlan = "trial" | "free" | "standard" | "pro";
 
 export type ShopContextOption = {
@@ -10,7 +9,6 @@ export type ShopContextOption = {
   organizationId: string | null;
   organizationName: string | null;
   organizationPlan: OrganizationPlan | null;
-  memberStatus: OrganizationMemberStatus;
 };
 
 export type SelectedShopType = ShopContextOption | null;
@@ -27,7 +25,6 @@ export function normalizeShopContextOption(value: unknown): ShopContextOption | 
     organizationId: typeof value.organizationId === "string" ? value.organizationId : null,
     organizationName: typeof value.organizationName === "string" ? value.organizationName : null,
     organizationPlan: isOrganizationPlan(value.organizationPlan) ? value.organizationPlan : null,
-    memberStatus: isOrganizationMemberStatus(value.memberStatus) ? value.memberStatus : "active",
   };
 }
 
@@ -46,12 +43,6 @@ export function toSelectedShop(shop: ShopContextOption): NonNullable<SelectedSho
   return { ...shop };
 }
 
-export function isSelectableShop(shop: ShopContextOption): boolean {
-  // archived / planSuspended は既存データと組織設定を読むための選択肢として残す。
-  // 書き込み可否はConvex側が店舗状態と管理者所属を再検証する。
-  return shop.memberStatus !== "removed";
-}
-
 export function isSameSelectedShop(
   selectedShop: SelectedShopType,
   shop: ShopContextOption,
@@ -63,8 +54,7 @@ export function isSameSelectedShop(
     selectedShop.shopStatus === shop.shopStatus &&
     selectedShop.organizationId === shop.organizationId &&
     selectedShop.organizationName === shop.organizationName &&
-    selectedShop.organizationPlan === shop.organizationPlan &&
-    selectedShop.memberStatus === shop.memberStatus
+    selectedShop.organizationPlan === shop.organizationPlan
   );
 }
 
@@ -100,11 +90,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isShopStatus(value: unknown): value is ShopStatus {
-  return value === "active" || value === "archived" || value === "planSuspended";
-}
-
-function isOrganizationMemberStatus(value: unknown): value is OrganizationMemberStatus {
-  return value === "active" || value === "readOnly" || value === "removed";
+  return value === "active" || value === "archived";
 }
 
 function isOrganizationPlan(value: unknown): value is OrganizationPlan {

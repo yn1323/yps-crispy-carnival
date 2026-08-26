@@ -26,11 +26,11 @@ export const DisabledWithReason: Story = {
   render: () => <DisabledWithReasonExample />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const checkbox = canvas.getByRole("checkbox", { name: "プラン停止中の店舗" });
+    const checkbox = canvas.getByRole("checkbox", { name: "アーカイブ済みの店舗" });
 
     await expect(checkbox).toBeDisabled();
     await expect(checkbox).toHaveAccessibleDescription("稼働中の店舗だけ所属を変更できます。");
-    await userEvent.click(canvas.getByText("プラン停止中の店舗"));
+    await userEvent.click(canvas.getByText("アーカイブ済みの店舗"));
     await expect(canvas.getByTestId("disabled-change-count")).toHaveTextContent("0");
   },
 };
@@ -148,14 +148,14 @@ function DisabledWithReasonExample() {
         <CheckboxListCardItem
           checked
           disabled
-          ariaLabel="プラン停止中の店舗"
+          ariaLabel="アーカイブ済みの店舗"
           leading={<StoreIcon />}
-          trailing={<StatusBadge>プラン停止中</StatusBadge>}
+          trailing={<StatusBadge>アーカイブ済み</StatusBadge>}
           disabledReason="稼働中の店舗だけ所属を変更できます。"
           onCheckedChange={() => setChangeCount((current) => current + 1)}
         >
           <Text fontWeight="medium" color="gray.900">
-            プラン停止中の店舗
+            アーカイブ済みの店舗
           </Text>
         </CheckboxListCardItem>
       </CheckboxListCard>

@@ -4,7 +4,7 @@ import { expect, userEvent, within } from "storybook/test";
 import { type ActionInboxItem, ActionInboxView } from "@/src/components/features/ActionInbox";
 import { ShopFilterMenu } from "@/src/components/features/AuthenticatedApp/ShopFilterMenu";
 import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedAppShell";
-import { AppActionsPageView, AppActionsReadOnlyNotice } from ".";
+import { AppActionsPageView } from ".";
 
 const items: readonly ActionInboxItem[] = [
   {
@@ -65,15 +65,7 @@ const items: readonly ActionInboxItem[] = [
   },
 ];
 
-function ReadyPreview({
-  readOnly = false,
-  empty = false,
-  singleShop = false,
-}: {
-  readOnly?: boolean;
-  empty?: boolean;
-  singleShop?: boolean;
-}) {
+function ReadyPreview({ empty = false, singleShop = false }: { empty?: boolean; singleShop?: boolean }) {
   const [shopFilter, setShopFilter] = useState<string | null>(null);
   return (
     <AppActionsPageView
@@ -94,7 +86,6 @@ function ReadyPreview({
         />
       }
     >
-      {readOnly && <AppActionsReadOnlyNotice />}
       <ActionInboxView items={empty ? [] : items} />
     </AppActionsPageView>
   );
@@ -130,10 +121,6 @@ export const SingleShop: Story = {
 
 export const Empty: Story = {
   render: () => <ReadyPreview empty />,
-};
-
-export const ReadOnly: Story = {
-  render: () => <ReadyPreview readOnly />,
 };
 
 export const QueryError: Story = {

@@ -30,9 +30,6 @@ import {
   type CanonicalOrganizationBillingState,
   canonicalizeOrganizationPaidPlan,
   deriveOrganizationBillingPolicy,
-  getEffectiveRestrictedBillingState,
-  ORGANIZATION_PLAN_LIMITS,
-  resolveRestrictedLimitPlan,
 } from "../organizationBilling/policy";
 import { getOrganizationAccessPolicy, getOrganizationBillingPolicy } from "../organizationBilling/service";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
@@ -141,17 +138,13 @@ const dashboardPlanStatusValidator = v.union(
   dashboardPlanStatusActionValidator.extend({
     kind: v.literal("paymentIssue"),
     plan: v.optional(v.union(v.literal("standard"), v.literal("pro"), v.literal("business"))),
-    phase: v.union(v.literal("grace"), v.literal("restricted")),
+    phase: v.literal("grace"),
     recoveryDeadlineAt: v.optional(v.number()),
   }),
   dashboardPlanStatusActionValidator.extend({
     kind: v.literal("paymentPending"),
     currentPlan: v.union(v.literal("free"), v.literal("standard"), v.literal("pro"), v.literal("business"), v.null()),
     targetPlan: v.union(v.literal("standard"), v.literal("pro"), v.literal("business")),
-  }),
-  dashboardPlanStatusActionValidator.extend({
-    kind: v.literal("restricted"),
-    displayPlan: v.union(v.literal("free"), v.literal("standard"), v.literal("pro"), v.literal("business"), v.null()),
   }),
 );
 
@@ -207,7 +200,6 @@ const dashboardShopValidator = v.object({
   canWriteBusinessData: v.boolean(),
   businessWriteBlockReason: v.union(
     v.literal("paymentResultPending"),
-    v.literal("restricted"),
     v.literal("usageLimitExceeded"),
     v.literal("usageLimitEvaluationUnavailable"),
     v.null(),
@@ -232,13 +224,6 @@ function getDashboardPlanStatusActions(args: {
 }): DashboardPlanStatusActions {
   const configuration = getStripeBillingConfiguration();
   const isActiveManager = args.organizationMember?.status === "active";
-  const restrictedState = getEffectiveRestrictedBillingState(args.billingState);
-  const isRecoveryManager = Boolean(
-    restrictedState &&
-      args.organizationMember &&
-      restrictedState.recoveryManagerPersonIds.includes(args.organizationMember.personId),
-  );
-  const canStartRestrictedRecovery = isRecoveryManager && args.billingState.kind === "restricted";
   const stripeBillingAvailable = configuration.status === "ready";
   const stripeCustomerMatchesConfiguration = Boolean(
     configuration.status === "ready" && args.stripeCustomer?.livemode === configuration.livemode,
@@ -246,20 +231,16 @@ function getDashboardPlanStatusActions(args: {
   const canManagePlan = Boolean(
     stripeBillingAvailable &&
       args.billingState.kind !== "complimentary" &&
-      (canStartRestrictedRecovery ||
-        (isActiveManager &&
-          !restrictedState &&
-          args.billingState.kind !== "initialPaymentPending" &&
-          args.billingState.kind !== "pendingActivation")),
+      isActiveManager &&
+      args.billingState.kind !== "initialPaymentPending" &&
+      args.billingState.kind !== "pendingActivation",
   );
   const canAccessCustomerPortal = Boolean(
-    canStartRestrictedRecovery ||
-      (isActiveManager &&
-        !restrictedState &&
-        ((args.billingState.kind === "trial" && args.billingState.selectedPaidPlan !== undefined) ||
-          args.billingState.kind === "scheduledChange" ||
-          args.billingState.kind === "grace" ||
-          (args.billingState.kind === "active" && args.billingState.plan !== "free"))),
+    isActiveManager &&
+      ((args.billingState.kind === "trial" && args.billingState.selectedPaidPlan !== undefined) ||
+        args.billingState.kind === "scheduledChange" ||
+        args.billingState.kind === "grace" ||
+        (args.billingState.kind === "active" && args.billingState.plan !== "free")),
   );
 
   return {
@@ -304,8 +285,6 @@ function toDashboardPlanStatus(args: {
 }): DashboardPlanStatus {
   const actions = getDashboardPlanStatusActions(args);
   const state = args.billingState;
-  const policy = deriveOrganizationBillingPolicy(state);
-
   switch (state.kind) {
     case "trial":
       return {
@@ -374,28 +353,6 @@ function toDashboardPlanStatus(args: {
         phase: "grace",
         recoveryDeadlineAt: state.endsAt,
       };
-    case "restricted": {
-      const displayPlan = policy.displayPlan === "trial" ? null : policy.displayPlan;
-      if (
-        state.reason === "paymentGraceExpired" ||
-        state.reason === "paymentActivationFailed" ||
-        state.reason === "unexpectedCancellation" ||
-        state.reason === "trialEndedWithoutSubscription" ||
-        state.reason === "scheduledCancellation"
-      ) {
-        return {
-          ...actions,
-          kind: "paymentIssue",
-          ...(displayPlan === "standard" || displayPlan === "pro" ? { plan: displayPlan } : {}),
-          phase: "restricted",
-        };
-      }
-      return {
-        ...actions,
-        kind: "restricted",
-        displayPlan,
-      };
-    }
   }
 }
 
@@ -458,14 +415,6 @@ function projectDashboardPlanStatusForClient(status: DashboardPlanStatus, planId
           status.targetPlan === "business"
             ? status.targetPlan
             : projectCanonicalPaidPlanForClient(status.targetPlan, planIdVersion),
-      };
-    case "restricted":
-      return {
-        ...status,
-        displayPlan:
-          status.displayPlan === null || status.displayPlan === "business"
-            ? status.displayPlan
-            : projectCanonicalDisplayPlanForClient(status.displayPlan, planIdVersion),
       };
   }
 }
@@ -768,9 +717,7 @@ export const getDashboardPlanUsage = managerQuery({
     if (!billingState) return null;
 
     const policy = deriveOrganizationBillingPolicy(billingState.state);
-    const restrictedState = getEffectiveRestrictedBillingState(billingState.state);
-    const restrictedLimitPlan = restrictedState ? resolveRestrictedLimitPlan(restrictedState) : null;
-    const limits = policy.limits ?? (restrictedLimitPlan ? ORGANIZATION_PLAN_LIMITS[restrictedLimitPlan] : null);
+    const limits = policy.limits;
     if (!limits) return null;
 
     const usage = await getOrganizationUsageSnapshot(ctx, organization._id, args.now);
@@ -807,61 +754,59 @@ export const getMyShops = authenticatedQuery({
       {
         shopId: Doc<"shops">["_id"];
         shopName: string;
-        shopStatus: "active" | "archived" | "planSuspended";
+        shopStatus: "active" | "archived";
         organizationId: Doc<"organizations">["_id"] | null;
         organizationName: string | null;
         organizationPlan: "trial" | "free" | "standard" | "pro" | null;
-        memberStatus: "active" | "readOnly" | "removed";
+        memberStatus: "active" | "removed";
       }
     >();
 
-    for (const status of ["active", "readOnly"] as const) {
-      const organizationMemberships = await ctx.db
+    const organizationMemberships = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", "active"))
+      .collect();
+    for (const membership of organizationMemberships) {
+      const membershipsForOrganization = await ctx.db
         .query("organizationMembers")
-        .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", status))
+        .withIndex("by_userId_and_organizationId", (q) =>
+          q.eq("userId", user._id).eq("organizationId", membership.organizationId),
+        )
+        .take(2);
+      if (membershipsForOrganization.length !== 1 || membershipsForOrganization[0]._id !== membership._id) continue;
+
+      const [organization, person] = await Promise.all([
+        ctx.db.get(membership.organizationId),
+        ctx.db.get(membership.personId),
+      ]);
+      if (
+        !organization ||
+        organization.isDeleted ||
+        !person ||
+        person.status !== "active" ||
+        person.organizationId !== organization._id ||
+        person.userId !== user._id
+      ) {
+        continue;
+      }
+      const organizationPlan = (await getOrganizationBillingPolicy(ctx, organization._id))?.targetingPlan ?? null;
+
+      const shops = await ctx.db
+        .query("shops")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", organization._id))
         .collect();
-      for (const membership of organizationMemberships) {
-        const membershipsForOrganization = await ctx.db
-          .query("organizationMembers")
-          .withIndex("by_userId_and_organizationId", (q) =>
-            q.eq("userId", user._id).eq("organizationId", membership.organizationId),
-          )
-          .take(2);
-        if (membershipsForOrganization.length !== 1 || membershipsForOrganization[0]._id !== membership._id) continue;
-
-        const [organization, person] = await Promise.all([
-          ctx.db.get(membership.organizationId),
-          ctx.db.get(membership.personId),
-        ]);
-        if (
-          !organization ||
-          organization.isDeleted ||
-          !person ||
-          person.status !== "active" ||
-          person.organizationId !== organization._id ||
-          person.userId !== user._id
-        ) {
-          continue;
-        }
-        const organizationPlan = (await getOrganizationBillingPolicy(ctx, organization._id))?.targetingPlan ?? null;
-
-        const shops = await ctx.db
-          .query("shops")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", organization._id))
-          .collect();
-        for (const shop of shops) {
-          if (shop.isDeleted) continue;
-          result.set(shop._id, {
-            shopId: shop._id,
-            shopName: shop.name,
-            // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
-            shopStatus: shop.operatingStatus ?? "active",
-            organizationId: organization._id,
-            organizationName: organization.name,
-            organizationPlan,
-            memberStatus: membership.status,
-          });
-        }
+      for (const shop of shops) {
+        if (shop.isDeleted) continue;
+        result.set(shop._id, {
+          shopId: shop._id,
+          shopName: shop.name,
+          // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
+          shopStatus: shop.operatingStatus ?? "active",
+          organizationId: organization._id,
+          organizationName: organization.name,
+          organizationPlan,
+          memberStatus: membership.status,
+        });
       }
     }
 
@@ -899,7 +844,7 @@ export const getMyShops = authenticatedQuery({
       }
 
       // m009完了後/m010完了前だけは、該当店舗一件に限って旧所属を読む。
-      // organizationMembersが存在する場合はremoved/readOnlyを旧所属で上書きしない。
+      // organizationMembersが存在する場合はremovedを旧所属で上書きしない。
       const organizationId = shop.organizationId;
       const organizationMemberships = await ctx.db
         .query("organizationMembers")
@@ -1180,7 +1125,7 @@ export const getDashboardStaffs = managerQuery({
                 )
                 .take(2)
             : [];
-        const isManager = members.length === 1 && (members[0].status === "active" || members[0].status === "readOnly");
+        const isManager = members.length === 1 && members[0].status === "active";
         const managerInvitationState = await resolvePersonManagerInvitationState(ctx, {
           organization,
           actorMember: organizationMember,

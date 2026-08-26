@@ -14,7 +14,6 @@ const shop = (
   organizationId,
   organizationName,
   organizationPlan: "standard",
-  memberStatus: "active",
 });
 
 describe("Dashboardの操作先", () => {

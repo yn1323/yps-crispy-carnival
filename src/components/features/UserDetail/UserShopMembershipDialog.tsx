@@ -340,10 +340,10 @@ function getMembershipChangeDisabledReason(shop: UserDetailData["shops"][number]
   return undefined;
 }
 
-function ShopStatusBadge({ status }: { status: Exclude<UserDetailData["shops"][number]["shopStatus"], "active"> }) {
+function ShopStatusBadge(_: { status: Exclude<UserDetailData["shops"][number]["shopStatus"], "active"> }) {
   return (
-    <Badge colorPalette={status === "archived" ? "gray" : "orange"} variant="subtle" borderRadius="full" flexShrink={0}>
-      {status === "archived" ? "アーカイブ済み" : "プラン停止中"}
+    <Badge colorPalette="gray" variant="subtle" borderRadius="full" flexShrink={0}>
+      アーカイブ済み
     </Badge>
   );
 }

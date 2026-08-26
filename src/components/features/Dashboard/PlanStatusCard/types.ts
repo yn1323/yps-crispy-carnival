@@ -30,7 +30,7 @@ export type DashboardPlanStatusSource =
   | {
       kind: "paymentIssue";
       plan?: "standard" | "pro";
-      phase: "grace" | "restricted";
+      phase: "grace";
       recoveryDeadlineAt?: number;
       canManagePlan: boolean;
       canUpdatePaymentMethod: boolean;
@@ -39,12 +39,6 @@ export type DashboardPlanStatusSource =
       kind: "paymentPending";
       currentPlan: "free" | "standard" | null;
       targetPlan: "standard" | "pro";
-      canManagePlan: boolean;
-      canUpdatePaymentMethod: boolean;
-    }
-  | {
-      kind: "restricted";
-      displayPlan: "free" | "standard" | "pro" | null;
       canManagePlan: boolean;
       canUpdatePaymentMethod: boolean;
     };
@@ -86,18 +80,13 @@ export type PlanStatusCardData =
   | {
       kind: "paymentIssue";
       planName?: PaidPlanName;
-      phase: "grace" | "restricted";
+      phase: "grace";
       description: string;
       recoveryDeadlineLabel?: string;
       primaryAction?: {
-        action: "updatePaymentMethod" | "choosePlan";
+        action: "updatePaymentMethod";
         label: string;
       };
-    }
-  | {
-      kind: "restricted";
-      planName?: PlanName;
-      description: string;
     };
 
 export type PlanStatusCardAction = "openPlanAndPayment" | "choosePlan" | "remindLater" | "updatePaymentMethod";

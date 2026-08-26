@@ -77,8 +77,7 @@ async function resolveOrganizationShopAccess(
   if (memberships.length !== 1) return null;
 
   const organizationMember = memberships[0];
-  const canRead = organizationMember.status === "active" || organizationMember.status === "readOnly";
-  if (!canRead || (mode === "mutation" && organizationMember.status !== "active")) return null;
+  if (organizationMember.status !== "active") return null;
 
   const person = await ctx.db.get(organizationMember.personId);
   if (
@@ -138,7 +137,7 @@ async function resolveShopForUser(
 ): Promise<ManagerShopAccess | null> {
   if (shopId) return await resolveExplicitShopForUser(ctx, user, shopId, mode);
 
-  const allowedStatuses = mode === "mutation" ? (["active"] as const) : (["active", "readOnly"] as const);
+  const allowedStatuses = ["active"] as const;
   for (const status of allowedStatuses) {
     const memberships = ctx.db
       .query("organizationMembers")
@@ -258,7 +257,7 @@ export const authenticatedMutation = customMutation(mutation, {
 /**
  * organizationQuery
  * - Clerk identityからcanonicalな組織所属を直接検証する
- * - active / readOnlyの通常readだけを許可し、店舗やshopMembersへfallbackしない
+ * - activeの通常readだけを許可し、店舗やshopMembersへfallbackしない
  */
 export const organizationQuery = customQuery(query, {
   args: { organizationId: v.id("organizations") },

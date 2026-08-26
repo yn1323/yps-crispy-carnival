@@ -1,4 +1,4 @@
-import { Alert, Box, Flex, Grid, Heading, HStack, Icon, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Grid, Heading, HStack, Icon, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { usePaginatedQuery, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
@@ -84,14 +84,13 @@ function toCanonicalBillingView(billing: BillingOverview["billing"]): Organizati
 
 type OrganizationScopeProps = {
   organizationId: Id<"organizations">;
-  memberStatus: "active" | "readOnly";
 };
 
 export function AppManageRoutePage(props: OrganizationScopeProps) {
   return <ManageErrorBoundary>{() => <ConnectedManagePage {...props} />}</ManageErrorBoundary>;
 }
 
-function ConnectedManagePage({ organizationId, memberStatus }: OrganizationScopeProps) {
+function ConnectedManagePage({ organizationId }: OrganizationScopeProps) {
   const navigate = useNavigate();
   const overview = useQuery(api.appOrganization.manageQueries.getManageOverview, { organizationId, planIdVersion: 2 });
   const shops = usePaginatedQuery(
@@ -108,7 +107,6 @@ function ConnectedManagePage({ organizationId, memberStatus }: OrganizationScope
     <Animation>
       <Stack as="main" gap={{ base: 6, lg: 8 }}>
         <AppManageHeader />
-        <AppManageReadOnlyNotice memberStatus={memberStatus} />
         <Stack gap={4}>
           <OrganizationUsageSection billing={usage} showCurrentPlan />
           <OrganizationManagementSection
@@ -321,7 +319,7 @@ export function AppManageOrganizationRoutePage(props: OrganizationScopeProps) {
   return <ManageErrorBoundary>{() => <ConnectedOrganizationPage {...props} />}</ManageErrorBoundary>;
 }
 
-function ConnectedOrganizationPage({ organizationId, memberStatus }: OrganizationScopeProps) {
+function ConnectedOrganizationPage({ organizationId }: OrganizationScopeProps) {
   const overview = useQuery(api.appOrganization.manageQueries.getManageOverview, { organizationId, planIdVersion: 2 });
   const billingOverview = useQuery(api.appOrganization.manageQueries.getBillingOverview, {
     organizationId,
@@ -332,7 +330,6 @@ function ConnectedOrganizationPage({ organizationId, memberStatus }: Organizatio
   return (
     <ReadyOrganizationPage
       organizationId={organizationId}
-      memberStatus={memberStatus}
       overview={overview}
       billing={toCanonicalBillingView(billingOverview.billing)}
     />
@@ -341,7 +338,6 @@ function ConnectedOrganizationPage({ organizationId, memberStatus }: Organizatio
 
 function ReadyOrganizationPage({
   organizationId,
-  memberStatus,
   overview,
   billing,
 }: OrganizationScopeProps & {
@@ -372,7 +368,6 @@ function ReadyOrganizationPage({
           backLabel="前の画面へ戻る"
           backAriaLabel="前の画面へ戻る"
         />
-        <AppManageReadOnlyNotice memberStatus={memberStatus} />
         <OrganizationUsageSection billing={billing} />
         <OrganizationBasicInformationSection
           organizationName={overview.organizationName}
@@ -481,17 +476,8 @@ export function OrganizationBasicInformationSection({
   );
 }
 
-export function AppManageManagersRoutePage({ organizationId, memberStatus }: OrganizationScopeProps) {
-  return (
-    <ManageErrorBoundary>
-      {() => (
-        <Stack gap={5}>
-          <AppManageReadOnlyNotice memberStatus={memberStatus} />
-          <ConnectedManagersPage organizationId={organizationId} />
-        </Stack>
-      )}
-    </ManageErrorBoundary>
-  );
+export function AppManageManagersRoutePage({ organizationId }: OrganizationScopeProps) {
+  return <ManageErrorBoundary>{() => <ConnectedManagersPage organizationId={organizationId} />}</ManageErrorBoundary>;
 }
 
 function ConnectedManagersPage({ organizationId }: { organizationId: Id<"organizations"> }) {
@@ -502,15 +488,10 @@ function ConnectedManagersPage({ organizationId }: { organizationId: Id<"organiz
   return <ManagerSettings overview={overview} organizationId={organizationId} />;
 }
 
-export function AppManageInviteStaffRoutePage({ organizationId, memberStatus }: OrganizationScopeProps) {
+export function AppManageInviteStaffRoutePage({ organizationId }: OrganizationScopeProps) {
   return (
     <ManageErrorBoundary maxW="760px" includeMobileNavigation={false}>
-      {() => (
-        <Stack gap={5}>
-          <AppManageReadOnlyNotice memberStatus={memberStatus} />
-          <ConnectedInviteStaffPage organizationId={organizationId} />
-        </Stack>
-      )}
+      {() => <ConnectedInviteStaffPage organizationId={organizationId} />}
     </ManageErrorBoundary>
   );
 }
@@ -524,15 +505,10 @@ function ConnectedInviteStaffPage({ organizationId }: { organizationId: Id<"orga
   return <ManagerCandidatePageContent overview={overview} result={candidates} organizationId={organizationId} />;
 }
 
-export function AppManageInviteNewRoutePage({ organizationId, memberStatus }: OrganizationScopeProps) {
+export function AppManageInviteNewRoutePage({ organizationId }: OrganizationScopeProps) {
   return (
     <ManageErrorBoundary maxW="760px" includeMobileNavigation={false}>
-      {() => (
-        <Stack gap={5}>
-          <AppManageReadOnlyNotice memberStatus={memberStatus} />
-          <ConnectedInviteNewPage organizationId={organizationId} />
-        </Stack>
-      )}
+      {() => <ConnectedInviteNewPage organizationId={organizationId} />}
     </ManageErrorBoundary>
   );
 }
@@ -554,19 +530,13 @@ export function AppManageBillingRoutePage(props: BillingRouteProps) {
   return <ManageErrorBoundary>{() => <ConnectedBillingPage {...props} />}</ManageErrorBoundary>;
 }
 
-function ConnectedBillingPage({
-  organizationId,
-  memberStatus,
-  stripeResult,
-  onStripeResultHandled,
-}: BillingRouteProps) {
+function ConnectedBillingPage({ organizationId, stripeResult, onStripeResultHandled }: BillingRouteProps) {
   const overview = useQuery(api.appOrganization.manageQueries.getBillingOverview, { organizationId, planIdVersion: 2 });
   if (overview === undefined) return <AppManageBillingPageSkeleton />;
 
   return (
     <ReadyBillingPage
       organizationId={organizationId}
-      memberStatus={memberStatus}
       overview={overview}
       stripeResult={stripeResult}
       onStripeResultHandled={onStripeResultHandled}
@@ -576,7 +546,6 @@ function ConnectedBillingPage({
 
 function ReadyBillingPage({
   organizationId,
-  memberStatus,
   overview,
   stripeResult,
   onStripeResultHandled,
@@ -591,7 +560,7 @@ function ReadyBillingPage({
     organizationId,
     organizationName: overview.organizationName,
     billing,
-    canManagePendingCheckout: memberStatus === "active",
+    canManagePendingCheckout: true,
     stripeResult,
     onStripeResultHandled,
   });
@@ -605,7 +574,6 @@ function ReadyBillingPage({
           backLabel="前の画面へ戻る"
           backAriaLabel="前の画面へ戻る"
         />
-        <AppManageReadOnlyNotice memberStatus={memberStatus} />
         <OrganizationUsageSection billing={billing} />
         <PlanAndPaymentSection
           billing={billing}
@@ -673,19 +641,6 @@ function ManageQueryState({ message, onRetry }: { message?: string; onRetry?: ()
         ) : undefined
       }
     />
-  );
-}
-
-export function AppManageReadOnlyNotice({ memberStatus }: { memberStatus: "active" | "readOnly" }) {
-  if (memberStatus !== "readOnly") return null;
-  return (
-    <Alert.Root status="warning" borderRadius="xl" alignItems="flex-start">
-      <Alert.Indicator mt={1} />
-      <Alert.Content>
-        <Alert.Title>現在、このアカウントでは操作できません</Alert.Title>
-        <Alert.Description>管理情報は確認できますが、設定や契約は変更できません。</Alert.Description>
-      </Alert.Content>
-    </Alert.Root>
   );
 }
 
@@ -956,7 +911,6 @@ function billingStateLabel(state: string) {
     standard: `${organizationPlanLabel("standard")}プラン`,
     pro: `${organizationPlanLabel("pro")}プラン`,
     grace: "支払い猶予中",
-    restricted: "契約状態の確認が必要",
     scheduledChange: "プラン変更予定",
     scheduledFree: "Freeへ変更予定",
     migrationPending: "設定移行中",

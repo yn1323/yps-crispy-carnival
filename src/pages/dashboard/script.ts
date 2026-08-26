@@ -97,7 +97,6 @@ export function buildDashboardShopContexts(
   organization: {
     id: string;
     name: string;
-    memberStatus: "active" | "readOnly";
   },
 ): ShopContextOption[] {
   return activeShops.map((shop) => ({
@@ -107,6 +106,5 @@ export function buildDashboardShopContexts(
     organizationId: organization.id,
     organizationName: organization.name,
     organizationPlan: null,
-    memberStatus: organization.memberStatus,
   }));
 }

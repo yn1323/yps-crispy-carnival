@@ -21,7 +21,6 @@ describe("selectedShopAtom storage", () => {
         organizationId: "organization-previous",
         organizationName: "前回のグループ",
         organizationPlan: legacyPlan,
-        memberStatus: "active",
       }),
     );
 
@@ -34,7 +33,6 @@ describe("selectedShopAtom storage", () => {
       organizationId: "organization-previous",
       organizationName: "前回のグループ",
       organizationPlan: canonicalPlan,
-      memberStatus: "active",
     });
   });
 
@@ -50,7 +48,6 @@ describe("selectedShopAtom storage", () => {
           organizationId: "organization-current",
           organizationName: "現在のグループ",
           organizationPlan: "pro",
-          memberStatus: "active",
         },
       }),
     );
@@ -70,7 +67,6 @@ describe("selectedShopAtom storage", () => {
       organizationId: "organization-standard",
       organizationName: "Standard組織",
       organizationPlan: "standard" as const,
-      memberStatus: "active" as const,
     };
 
     store.set(selectedShopAtom, selectedShop);
@@ -89,7 +85,6 @@ describe("selectedShopAtom storage", () => {
       organizationId: "organization-current",
       organizationName: "現在のグループ",
       organizationPlan: "pro" as const,
-      memberStatus: "active" as const,
     };
     const otherTabShop = {
       ...currentShop,

@@ -29,36 +29,6 @@ describe("m018 organization billing Business to Pro migration", () => {
         state: { kind: "initialPaymentPending", plan: "business", startedAt: 100 },
         expected: { kind: "initialPaymentPending", plan: "pro", startedAt: 100 },
       },
-      {
-        state: {
-          kind: "pendingActivation",
-          plan: "business",
-          fallback: "restricted",
-          restrictedFallbackState: {
-            kind: "restricted",
-            reason: "paymentActivationFailed",
-            previousPlan: "business",
-            recoveryManagerPersonIds: [],
-            previousActiveShopIds: [],
-            restrictedAt: 100,
-          },
-          startedAt: 200,
-        },
-        expected: {
-          kind: "pendingActivation",
-          plan: "pro",
-          fallback: "restricted",
-          restrictedFallbackState: {
-            kind: "restricted",
-            reason: "paymentActivationFailed",
-            previousPlan: "pro",
-            recoveryManagerPersonIds: [],
-            previousActiveShopIds: [],
-            restrictedAt: 100,
-          },
-          startedAt: 200,
-        },
-      },
       { state: { kind: "active", plan: "business" }, expected: { kind: "active", plan: "pro" } },
       {
         state: { kind: "complimentary", plan: "business" },
@@ -76,24 +46,6 @@ describe("m018 organization billing Business to Pro migration", () => {
       {
         state: { kind: "grace", plan: "business", startedAt: 100, endsAt: 2_000 },
         expected: { kind: "grace", plan: "pro", startedAt: 100, endsAt: 2_000 },
-      },
-      {
-        state: {
-          kind: "restricted",
-          reason: "paymentGraceExpired",
-          previousPlan: "business",
-          recoveryManagerPersonIds: [],
-          previousActiveShopIds: [],
-          restrictedAt: 100,
-        },
-        expected: {
-          kind: "restricted",
-          reason: "paymentGraceExpired",
-          previousPlan: "pro",
-          recoveryManagerPersonIds: [],
-          previousActiveShopIds: [],
-          restrictedAt: 100,
-        },
       },
     ];
 
@@ -116,13 +68,13 @@ describe("m018 organization billing Business to Pro migration", () => {
           expectedVersion: migrationCase.expectedVersion ?? 2,
         });
       }
-      const auditBillingState = await ctx.db.get(result[4].billingStateId);
+      const auditBillingState = await ctx.db.get(result[3].billingStateId);
       if (!auditBillingState) throw new Error("audit billing state not found");
       const auditId = await ctx.db.insert("organizationAuditEvents", {
         organizationId: auditBillingState.organizationId,
         action: "organization.billing_state_changed",
         targetKind: "billing",
-        targetId: result[4].billingStateId,
+        targetId: result[3].billingStateId,
         toState: "complimentary.business",
         correlationId: "m018-historical-audit",
         occurredAt: 1,

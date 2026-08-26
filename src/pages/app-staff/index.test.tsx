@@ -248,9 +248,7 @@ beforeEach(() => {
 
 describe("AppStaffRoutePage", () => {
   it("すべて表示では並び替えeditorと全スタッフを読み、D&D設定を一覧へ渡す", () => {
-    renderPage(
-      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,
-    );
+    renderPage(<AppStaffRoutePage organizationId={"organization-1" as never} activeShops={shops} />);
 
     expect(mocks.useQuery).toHaveBeenCalledWith(mocks.orderEditorQueryRef, {
       organizationId: "organization-1",
@@ -273,11 +271,7 @@ describe("AppStaffRoutePage", () => {
 
   it("filterをserver query argsへ渡し、filter変更時は別query identityへ切り替えて旧pageを残さない", () => {
     const { rerender } = renderPage(
-      <AppStaffRoutePage
-        organizationId={"organization-1" as never}
-        memberStatus="active"
-        activeShops={multipleShops}
-      />,
+      <AppStaffRoutePage organizationId={"organization-1" as never} activeShops={multipleShops} />,
     );
 
     expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(
@@ -296,7 +290,6 @@ describe("AppStaffRoutePage", () => {
       <ChakraProvider>
         <AppStaffRoutePage
           organizationId={"organization-1" as never}
-          memberStatus="active"
           activeShops={multipleShops}
           requestedShopFilter="shop-1"
         />
@@ -316,9 +309,7 @@ describe("AppStaffRoutePage", () => {
   });
 
   it("利用中の店舗が1つのとき店舗filterを表示しない", () => {
-    renderPage(
-      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,
-    );
+    renderPage(<AppStaffRoutePage organizationId={"organization-1" as never} activeShops={shops} />);
 
     expect(screen.queryByRole("button", { name: "店舗を選択" })).toBeNull();
   });
@@ -327,7 +318,6 @@ describe("AppStaffRoutePage", () => {
     renderPage(
       <AppStaffRoutePage
         organizationId={"organization-1" as never}
-        memberStatus="active"
         activeShops={shops}
         requestedShopFilter="outside-shop"
       />,
@@ -348,12 +338,7 @@ describe("AppStaffRoutePage", () => {
 
   it("店舗候補の全pageが揃うまでは人物queryを開始しない", () => {
     renderPage(
-      <AppStaffRoutePage
-        organizationId={"organization-1" as never}
-        memberStatus="active"
-        activeShops={null}
-        requestedShopFilter="shop-1"
-      />,
+      <AppStaffRoutePage organizationId={"organization-1" as never} activeShops={null} requestedShopFilter="shop-1" />,
     );
 
     expect(mocks.usePaginatedQuery).not.toHaveBeenCalled();
@@ -373,12 +358,7 @@ describe("AppStaffRoutePage", () => {
     };
 
     renderPage(
-      <AppStaffRoutePage
-        organizationId={"organization-1" as never}
-        memberStatus="active"
-        activeShops={shops}
-        requestedShopFilter="shop-1"
-      />,
+      <AppStaffRoutePage organizationId={"organization-1" as never} activeShops={shops} requestedShopFilter="shop-1" />,
     );
 
     expect(screen.getByTestId("people-counts").textContent).toBe("1000+/50:1000+");
@@ -387,12 +367,7 @@ describe("AppStaffRoutePage", () => {
   it("追加pageと、選択済み店舗＋expected orgの既存スタッフ追加Dialogへ接続する", () => {
     peopleStatus = "CanLoadMore";
     renderPage(
-      <AppStaffRoutePage
-        organizationId={"organization-1" as never}
-        memberStatus="active"
-        activeShops={shops}
-        requestedShopFilter="shop-1"
-      />,
+      <AppStaffRoutePage organizationId={"organization-1" as never} activeShops={shops} requestedShopFilter="shop-1" />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "もっと見る" }));
@@ -408,12 +383,7 @@ describe("AppStaffRoutePage", () => {
   it("店舗別では並び順scopeの取得完了までpaginationを開始せず、ordered revisionでcursor identityを分ける", () => {
     orderScopeResult = undefined;
     const { rerender } = renderPage(
-      <AppStaffRoutePage
-        organizationId={"organization-1" as never}
-        memberStatus="active"
-        activeShops={shops}
-        requestedShopFilter="shop-1"
-      />,
+      <AppStaffRoutePage organizationId={"organization-1" as never} activeShops={shops} requestedShopFilter="shop-1" />,
     );
 
     expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(mocks.peopleQueryRef, "skip", { initialNumItems: 10 });
@@ -423,7 +393,6 @@ describe("AppStaffRoutePage", () => {
       <ChakraProvider>
         <AppStaffRoutePage
           organizationId={"organization-1" as never}
-          memberStatus="active"
           activeShops={shops}
           requestedShopFilter="shop-1"
         />
@@ -440,9 +409,7 @@ describe("AppStaffRoutePage", () => {
   it("すべて表示ではeditorで並べるため、保存済みrevisionをpagination identityへ含めない", () => {
     orderScopeResult = { mode: "ordered", revision: 7 };
 
-    renderPage(
-      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,
-    );
+    renderPage(<AppStaffRoutePage organizationId={"organization-1" as never} activeShops={shops} />);
 
     expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(
       mocks.peopleQueryRef,
@@ -452,13 +419,7 @@ describe("AppStaffRoutePage", () => {
   });
 
   it("すべて表示では対象店舗を1件選び、shopIdとexpected organizationを既存追加Dialogへ渡す", async () => {
-    renderPage(
-      <AppStaffRoutePage
-        organizationId={"organization-1" as never}
-        memberStatus="active"
-        activeShops={multipleShops}
-      />,
-    );
+    renderPage(<AppStaffRoutePage organizationId={"organization-1" as never} activeShops={multipleShops} />);
 
     fireEvent.click(screen.getByRole("button", { name: "スタッフを追加" }));
 
@@ -475,20 +436,26 @@ describe("AppStaffRoutePage", () => {
     expect(mocks.invitationOpen).toHaveBeenCalledOnce();
   });
 
-  it("readOnlyのすべて表示では一覧を表示したまま追加と並び替えを無効にする", () => {
-    renderPage(
-      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="readOnly" activeShops={shops} />,
-    );
+  it("業務操作を制限中でも一覧を表示し、server capabilityの理由で追加と並び替えを無効にする", () => {
+    summaryResult = {
+      ...summaryResult,
+      canAddStaff: false,
+      addStaffDisabledReason: "プラン上限を超えているため、スタッフを追加できません。",
+      canChangeStaffOrder: false,
+      changeStaffOrderDisabledReason: "プラン上限を超えているため、スタッフの並び順を変更できません。",
+    };
+
+    renderPage(<AppStaffRoutePage organizationId={"organization-1" as never} activeShops={shops} />);
 
     expect(screen.getByText("全体の人物1")).not.toBeNull();
     const addButton = screen.getByRole("button", { name: "スタッフを追加" }) as HTMLButtonElement;
     expect(addButton.disabled).toBe(true);
-    expect(addButton.title).toBe("現在のアカウント状態では、スタッフを追加できません。");
+    expect(addButton.title).toBe("プラン上限を超えているため、スタッフを追加できません。");
     const orderHandles = screen.getAllByRole("button", { name: /の並び替え$/ }) as HTMLButtonElement[];
     expect(orderHandles).toHaveLength(2);
     for (const handle of orderHandles) {
       expect(handle.disabled).toBe(true);
-      expect(handle.title).toBe("現在のアカウント状態では、スタッフの並び順を変更できません。");
+      expect(handle.title).toBe("プラン上限を超えているため、スタッフの並び順を変更できません。");
     }
   });
 
@@ -504,9 +471,7 @@ describe("AppStaffRoutePage", () => {
       canChangeStaffOrder: true,
     };
 
-    renderPage(
-      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,
-    );
+    renderPage(<AppStaffRoutePage organizationId={"organization-1" as never} activeShops={shops} />);
 
     const orderHandle = screen.getByRole("button", { name: "全体の人物1の並び替え" }) as HTMLButtonElement;
     expect(orderHandle.disabled).toBe(true);
@@ -518,16 +483,14 @@ describe("AppStaffRoutePage", () => {
       ...summaryResult,
       totalCount: 1,
       canChangeStaffOrder: false,
-      changeStaffOrderDisabledReason: "契約状態を復旧してから並び順を変更できます。",
+      changeStaffOrderDisabledReason: "プラン上限を超えているため、並び順を変更できません。",
     };
 
-    renderPage(
-      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,
-    );
+    renderPage(<AppStaffRoutePage organizationId={"organization-1" as never} activeShops={shops} />);
 
     const orderHandle = screen.getByRole("button", { name: "全体の人物1の並び替え" }) as HTMLButtonElement;
     expect(orderHandle.disabled).toBe(true);
-    expect(orderHandle.title).toBe("契約状態を復旧してから並び順を変更できます。");
+    expect(orderHandle.title).toBe("プラン上限を超えているため、並び順を変更できません。");
   });
 
   it("50名ちょうどなら並び替えハンドルを有効にする", () => {
@@ -551,9 +514,7 @@ describe("AppStaffRoutePage", () => {
       canChangeStaffOrder: true,
     };
 
-    renderPage(
-      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,
-    );
+    renderPage(<AppStaffRoutePage organizationId={"organization-1" as never} activeShops={shops} />);
 
     const orderHandle = screen.getByRole("button", { name: "全体の人物1の並び替え" }) as HTMLButtonElement;
     expect(orderHandle.disabled).toBe(false);
@@ -568,9 +529,7 @@ describe("AppStaffRoutePage", () => {
       canChangeStaffOrder: true,
     };
 
-    renderPage(
-      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,
-    );
+    renderPage(<AppStaffRoutePage organizationId={"organization-1" as never} activeShops={shops} />);
 
     const orderHandle = screen.getByRole("button", { name: "全体の人物1の並び替え" }) as HTMLButtonElement;
     expect(orderHandle.disabled).toBe(true);
@@ -585,9 +544,7 @@ describe("AppStaffRoutePage", () => {
       canChangeStaffOrder: true,
     };
 
-    renderPage(
-      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={shops} />,
-    );
+    renderPage(<AppStaffRoutePage organizationId={"organization-1" as never} activeShops={shops} />);
 
     const orderHandle = screen.getByRole("button", { name: "全体の人物1の並び替え" }) as HTMLButtonElement;
     expect(orderHandle.disabled).toBe(true);
@@ -600,9 +557,7 @@ describe("AppStaffRoutePage", () => {
       name: `店舗${index + 1}`,
     })) as never;
 
-    renderPage(
-      <AppStaffRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={sixShops} />,
-    );
+    renderPage(<AppStaffRoutePage organizationId={"organization-1" as never} activeShops={sixShops} />);
 
     const orderHandle = screen.getByRole("button", { name: "全体の人物1の並び替え" }) as HTMLButtonElement;
     expect(orderHandle.disabled).toBe(true);

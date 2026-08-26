@@ -2,12 +2,7 @@ import { useQuery } from "convex/react";
 import { useAtomValue } from "jotai";
 import { useMemo } from "react";
 import { api } from "@/convex/_generated/api";
-import {
-  isSelectableShop,
-  normalizeShopContextOptions,
-  type SelectedShopType,
-  type ShopContextOption,
-} from "@/src/domains/shop/context";
+import { normalizeShopContextOptions, type SelectedShopType, type ShopContextOption } from "@/src/domains/shop/context";
 import { selectedShopAtom } from "@/src/stores/shop";
 import type { PlanStatusCardProps } from "../PlanStatusCard";
 import { buildOperationContextModel } from "./script";
@@ -49,10 +44,7 @@ export const OperationContext = ({
 }: Props) => {
   const rawShops = useQuery(api.dashboard.queries.getMyShops, data ? "skip" : { planIdVersion: 2 });
   const storedSelectedShop = useAtomValue(selectedShopAtom);
-  const shops = useMemo(
-    () => data?.shops ?? normalizeShopContextOptions(rawShops ?? []).filter(isSelectableShop),
-    [data?.shops, rawShops],
-  );
+  const shops = useMemo(() => data?.shops ?? normalizeShopContextOptions(rawShops ?? []), [data?.shops, rawShops]);
   const selectedShop = data?.selectedShop ?? storedSelectedShop;
   const model = useMemo(
     () => buildOperationContextModel(shops, selectedShop?.shopId ?? null),

@@ -15,5 +15,5 @@ export const Route = createFileRoute("/_auth/manage")({
 
 function AppManageRoute() {
   const organization = useAppOrganizationScope();
-  return <AppManageRoutePage organizationId={organization.organizationId} memberStatus={organization.memberStatus} />;
+  return <AppManageRoutePage organizationId={organization.organizationId} />;
 }

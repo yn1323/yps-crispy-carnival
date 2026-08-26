@@ -221,57 +221,54 @@ describe("setup/mutations", () => {
       expect(state.user).toMatchObject({ isDeleted: false, name: "山田 太郎", email: "yamada@example.com" });
     });
 
-    it.each(["active", "readOnly"] as const)(
-      "%sで有効な組織へすでに所属している場合は初回Setupを拒否する",
-      async (status) => {
-        const t = convexTest(schema, modules);
-        await t.run(async (ctx) => {
-          const owner = await seedOrganizationManagerShop(ctx, {
-            subject: "setup_invited_org_owner",
-            complimentary: true,
-          });
-          const userId = await seedUser(ctx, "setup_invited_org_member", "invited-member@example.com");
-          const now = Date.now();
-          const personId = await ctx.db.insert("organizationPeople", {
-            organizationId: owner.organizationId,
-            userId,
-            name: "招待済み管理者",
-            email: "invited-member@example.com",
-            emailNormalized: "invited-member@example.com",
-            status: "active",
-            createdAt: now,
-            updatedAt: now,
-          });
-          await ctx.db.insert("organizationMembers", {
-            organizationId: owner.organizationId,
-            personId,
-            userId,
-            status,
-            createdAt: now,
-            updatedAt: now,
-          });
+    it("有効な組織へすでに所属している場合は初回Setupを拒否する", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        const owner = await seedOrganizationManagerShop(ctx, {
+          subject: "setup_invited_org_owner",
+          complimentary: true,
         });
-        const before = await t.run(async (ctx) => ({
+        const userId = await seedUser(ctx, "setup_invited_org_member", "invited-member@example.com");
+        const now = Date.now();
+        const personId = await ctx.db.insert("organizationPeople", {
+          organizationId: owner.organizationId,
+          userId,
+          name: "招待済み管理者",
+          email: "invited-member@example.com",
+          emailNormalized: "invited-member@example.com",
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        await ctx.db.insert("organizationMembers", {
+          organizationId: owner.organizationId,
+          personId,
+          userId,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+      });
+      const before = await t.run(async (ctx) => ({
+        organizations: await ctx.db.query("organizations").collect(),
+        shops: await ctx.db.query("shops").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+
+      await expect(
+        t
+          .withIdentity({ subject: "setup_invited_org_member" })
+          .mutation(api.setup.mutations.setupShopAndManager, setupArgs),
+      ).rejects.toThrow("すでに組織へ所属しています。");
+
+      expect(
+        await t.run(async (ctx) => ({
           organizations: await ctx.db.query("organizations").collect(),
           shops: await ctx.db.query("shops").collect(),
           scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-        }));
-
-        await expect(
-          t
-            .withIdentity({ subject: "setup_invited_org_member" })
-            .mutation(api.setup.mutations.setupShopAndManager, setupArgs),
-        ).rejects.toThrow("すでに組織へ所属しています。");
-
-        expect(
-          await t.run(async (ctx) => ({
-            organizations: await ctx.db.query("organizations").collect(),
-            shops: await ctx.db.query("shops").collect(),
-            scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-          })),
-        ).toEqual(before);
-      },
-    );
+        })),
+      ).toEqual(before);
+    });
 
     it("自分で作成した有効組織が重複している場合はfail closedにする", async () => {
       const t = convexTest(schema, modules);
@@ -829,13 +826,6 @@ describe("setup/mutations", () => {
       label: string;
       corrupt: (t: OrganizationCreationTest, seed: ExistingManagerSeed) => Promise<void>;
     }> = [
-      {
-        key: "read_only",
-        label: "readOnlyのcanonical所属",
-        corrupt: async (t, seed) => {
-          await t.run(async (ctx) => ctx.db.patch(seed.memberId, { status: "readOnly" }));
-        },
-      },
       {
         key: "removed",
         label: "removedのcanonical所属",
@@ -1461,7 +1451,7 @@ describe("setup/mutations", () => {
         label: "操作元のmanager authorityが失効した",
         expectedError: "Not found",
         invalidate: async (t: OrganizationCreationTest, seed: ExistingManagerSeed) => {
-          await t.run(async (ctx) => ctx.db.patch(seed.memberId, { status: "readOnly", updatedAt: Date.now() }));
+          await t.run(async (ctx) => ctx.db.patch(seed.memberId, { status: "removed", updatedAt: Date.now() }));
         },
       },
       {

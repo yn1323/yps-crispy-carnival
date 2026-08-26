@@ -17,7 +17,6 @@ import {
   PAYMENT_GRACE_PERIOD_MS,
   projectFreeUsage,
   projectOrganizationUsage,
-  RESTRICTED_RECOVERY_CAPABILITIES,
   resolveUsageLimitPlan,
 } from "./policy";
 
@@ -100,29 +99,6 @@ describe("organizationBilling/policy usage limit plan", () => {
       expected: "standard",
     },
     {
-      name: "legacy契約制限からの有効化待ち",
-      state: {
-        kind: "pendingActivation",
-        plan: "business",
-        fallback: "restricted",
-        restrictedFallbackState: {
-          kind: "restricted",
-          reason: "planLimitExceeded",
-          limitPlan: "pro",
-          recoveryManagerPersonIds: [],
-          previousActiveShopIds: [],
-          restrictedAt: 5,
-        },
-        startedAt: 10,
-      },
-      expected: "standard",
-    },
-    {
-      name: "fallback詳細がないlegacy契約制限からの有効化待ち",
-      state: { kind: "pendingActivation", plan: "pro", fallback: "restricted", startedAt: 10 },
-      expected: null,
-    },
-    {
       name: "Active Free",
       state: { kind: "active", plan: "free" },
       expected: "free",
@@ -156,41 +132,6 @@ describe("organizationBilling/policy usage limit plan", () => {
       name: "支払い猶予中",
       state: { kind: "grace", plan: "pro", targetPlan: "business", startedAt: 10, endsAt: 20 },
       expected: "standard",
-    },
-    {
-      name: "limitPlanを持つlegacy契約制限",
-      state: {
-        kind: "restricted",
-        reason: "planLimitExceeded",
-        limitPlan: "free",
-        recoveryManagerPersonIds: [],
-        previousActiveShopIds: [],
-        restrictedAt: 10,
-      },
-      expected: "free",
-    },
-    {
-      name: "reasonだけが残るlegacy Free契約制限",
-      state: {
-        kind: "restricted",
-        reason: "freeConditionsNotMet",
-        recoveryManagerPersonIds: [],
-        previousActiveShopIds: [],
-        restrictedAt: 10,
-      },
-      expected: "free",
-    },
-    {
-      name: "適用プランを確定できないlegacy契約制限",
-      state: {
-        kind: "restricted",
-        reason: "paymentGraceExpired",
-        previousPlan: "business",
-        recoveryManagerPersonIds: [],
-        previousActiveShopIds: [],
-        restrictedAt: 10,
-      },
-      expected: null,
     },
   ])("$nameの利用上限プランを$expectedとして解決する", ({ state, expected }) => {
     expect(resolveUsageLimitPlan(state)).toBe(expected);
@@ -278,29 +219,6 @@ describe("organizationBilling/policy access policy", () => {
       businessWriteBlockReason: "usageLimitExceeded",
     });
   });
-
-  it("課金制限と上限超過が重なれば既存の課金復旧制限を優先する", () => {
-    const billingPolicy = deriveOrganizationBillingPolicy({
-      kind: "restricted",
-      reason: "planLimitExceeded",
-      limitPlan: "free",
-      recoveryManagerPersonIds: [],
-      previousActiveShopIds: [],
-      restrictedAt: 10,
-    });
-    const usageLimitStatus = evaluateOrganizationUsageLimits({
-      plan: "free",
-      usage: { peopleCount: 6, activeShopCount: 2, activeManagerCount: 3 },
-    });
-
-    expect(deriveOrganizationAccessPolicy({ billingPolicy, usageLimitStatus })).toEqual({
-      billingPolicy,
-      usageLimitStatus,
-      accessMode: "billingRecoveryOnly",
-      canWriteBusinessData: false,
-      businessWriteBlockReason: "restricted",
-    });
-  });
 });
 
 describe("organizationBilling/policy usage projection", () => {
@@ -319,34 +237,32 @@ describe("organizationBilling/policy usage projection", () => {
       managerRole: "none",
     },
     { personId: "manager-only", isActiveInOrganization: true, isStaff: false, managerRole: "active" },
-    { personId: "read-only-only", isActiveInOrganization: true, isStaff: false, managerRole: "readOnly" },
-    { personId: "read-only-staff", isActiveInOrganization: true, isStaff: true, managerRole: "readOnly" },
     { personId: "staff-without-shop", isActiveInOrganization: true, isStaff: true, managerRole: "none" },
     { personId: "removed", isActiveInOrganization: false, isStaff: true, managerRole: "active" },
   ];
 
-  it("人物単位で重複排除し、閲覧のみ管理者と削除済み人物を算入規則どおり扱う", () => {
+  it("人物単位で重複排除し、削除済み人物を算入しない", () => {
     expect(projectOrganizationUsage({ people, reservedPersonCount: 1 })).toEqual({
-      currentPeopleCount: 4,
+      currentPeopleCount: 3,
       activeManagerCount: 2,
       reservedPersonCount: 1,
-      projectedPeopleCount: 5,
+      projectedPeopleCount: 4,
     });
   });
 
   it("Free移行では選択外の純粋管理者だけを除外し、スタッフ兼務者は数え続ける", () => {
     expect(projectFreeUsage(people, "manager-only")).toEqual({
-      currentPeopleCount: 4,
-      projectedPeopleCount: 4,
+      currentPeopleCount: 3,
+      projectedPeopleCount: 3,
       projectedActiveManagerCount: 1,
       selectedManagerIsActive: true,
     });
   });
 
   it("選択した人物が有効管理者でなければFreeの管理者を成立させない", () => {
-    expect(projectFreeUsage(people, "read-only-staff")).toEqual({
-      currentPeopleCount: 4,
-      projectedPeopleCount: 3,
+    expect(projectFreeUsage(people, "staff-without-shop")).toEqual({
+      currentPeopleCount: 3,
+      projectedPeopleCount: 2,
       projectedActiveManagerCount: 0,
       selectedManagerIsActive: false,
     });
@@ -407,7 +323,6 @@ describe("organizationBilling/policy capabilities", () => {
       canManageManagers: true,
       canUsePaidFeatures: true,
       paidFeatureBlockReason: null,
-      allowedRecoveryCapabilities: [],
       deadlineAt: null,
     });
     expect(getOrganizationBillingStateDeadline(state)).toBeNull();
@@ -464,26 +379,6 @@ describe("organizationBilling/policy capabilities", () => {
       canManageManagers: true,
       canUsePaidFeatures: false,
       paidFeatureBlockReason: "paymentResultPending",
-      allowedRecoveryCapabilities: [],
-    });
-  });
-
-  it("契約制限中からの契約開始結果待ちは制限理由と復旧権限を維持する", () => {
-    expect(
-      deriveOrganizationBillingPolicy({
-        kind: "pendingActivation",
-        plan: "pro",
-        fallback: "restricted",
-        startedAt: 10,
-      }),
-    ).toMatchObject({
-      entitlementPlan: null,
-      canWriteBusinessData: false,
-      businessWriteBlockReason: "restricted",
-      canManageManagers: false,
-      canUsePaidFeatures: false,
-      paidFeatureBlockReason: "restricted",
-      allowedRecoveryCapabilities: RESTRICTED_RECOVERY_CAPABILITIES,
     });
   });
 
@@ -527,27 +422,6 @@ describe("organizationBilling/policy capabilities", () => {
       canManageManagers: true,
       canUsePaidFeatures: true,
       deadlineAt: 20,
-    });
-  });
-
-  it("契約制限中は閲覧と仕様で定めた復旧操作だけを許可する", () => {
-    expect(
-      deriveOrganizationBillingPolicy({
-        kind: "restricted",
-        reason: "paymentGraceExpired",
-        previousPlan: "pro",
-        recoveryManagerPersonIds: [],
-        previousActiveShopIds: [],
-        restrictedAt: 30,
-      }),
-    ).toMatchObject({
-      canReadExistingData: true,
-      canWriteBusinessData: false,
-      businessWriteBlockReason: "restricted",
-      canManageManagers: false,
-      canUsePaidFeatures: false,
-      paidFeatureBlockReason: "restricted",
-      allowedRecoveryCapabilities: RESTRICTED_RECOVERY_CAPABILITIES,
     });
   });
 });
@@ -719,14 +593,6 @@ describe("organizationBilling/policy verified transition", () => {
       { kind: "active", plan: "business" },
       { kind: "scheduledChange", currentPlan: "business", targetPlan: "pro", effectiveAt: 200 },
       { kind: "grace", plan: "business", startedAt: 100, endsAt: 200 },
-      {
-        kind: "restricted",
-        reason: "unexpectedCancellation",
-        previousPlan: "business",
-        recoveryManagerPersonIds: [],
-        previousActiveShopIds: [],
-        restrictedAt: 100,
-      },
       complimentary,
     ];
 
@@ -748,19 +614,6 @@ describe("organizationBilling/policy verified transition", () => {
       ),
     ).toBe(true);
     expect(isVerifiedBillingTransitionAllowed({ kind: "active", plan: "free" }, grace)).toBe(false);
-    expect(
-      isVerifiedBillingTransitionAllowed(
-        {
-          kind: "restricted",
-          reason: "paymentGraceExpired",
-          previousPlan: "pro",
-          recoveryManagerPersonIds: [],
-          previousActiveShopIds: [],
-          restrictedAt: 50,
-        },
-        grace,
-      ),
-    ).toBe(false);
   });
 
   it("プラン変更予約は有効な有料契約からFree、またはBusinessからProだけを許可する", () => {
@@ -815,7 +668,7 @@ describe("organizationBilling/policy verified transition", () => {
     expect(isVerifiedBillingTransitionAllowed(businessToPro, { kind: "active", plan: "pro" })).toBe(true);
   });
 
-  it("有料プラン有効化は結果待ち・復旧・Freeから許可し、ProからStandardへの即時遷移を拒否する", () => {
+  it("有料プラン有効化は結果待ちとFreeから許可し、ProからStandardへの即時遷移を拒否する", () => {
     const activePro = { kind: "active", plan: "pro" } as const;
 
     expect(
@@ -828,27 +681,26 @@ describe("organizationBilling/policy verified transition", () => {
     expect(isVerifiedBillingTransitionAllowed({ kind: "active", plan: "business" }, activePro)).toBe(false);
   });
 
-  it("即時支払い失敗はpendingActivationに記録したfallbackだけへ戻せる", () => {
+  it("即時支払い失敗はpendingActivationに記録したFreeまたはStandardへだけ戻せる", () => {
     const pendingFree = { kind: "pendingActivation", plan: "pro", fallback: "free", startedAt: 10 } as const;
-    const pendingRestricted = {
+    const pendingStandard = {
       kind: "pendingActivation",
-      plan: "business",
-      fallback: "restricted",
+      planIdVersion: 2,
+      plan: "pro",
+      fallback: "standard",
       startedAt: 10,
     } as const;
-    const restricted: OrganizationBillingState = {
-      kind: "restricted",
-      reason: "paymentActivationFailed",
-      recoveryManagerPersonIds: [],
-      previousActiveShopIds: [],
-      restrictedAt: 20,
-    };
 
     expect(isVerifiedBillingTransitionAllowed(pendingFree, { kind: "active", plan: "free" })).toBe(true);
-    expect(isVerifiedBillingTransitionAllowed(pendingFree, restricted)).toBe(false);
-    expect(isVerifiedBillingTransitionAllowed(pendingRestricted, restricted)).toBe(true);
-    expect(isVerifiedBillingTransitionAllowed(pendingRestricted, { kind: "active", plan: "free" })).toBe(false);
-    expect(isVerifiedBillingTransitionAllowed(pendingRestricted, { kind: "trial", trialEndsAt: 30 })).toBe(false);
+    expect(
+      isVerifiedBillingTransitionAllowed(
+        pendingStandard,
+        { kind: "active", planIdVersion: 2, plan: "standard" },
+        "paymentFailed",
+      ),
+    ).toBe(true);
+    expect(isVerifiedBillingTransitionAllowed(pendingStandard, { kind: "active", plan: "free" })).toBe(false);
+    expect(isVerifiedBillingTransitionAllowed(pendingStandard, { kind: "trial", trialEndsAt: 30 })).toBe(false);
   });
 });
 

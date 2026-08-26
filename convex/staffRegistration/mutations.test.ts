@@ -181,7 +181,7 @@ describe("staffRegistration/mutations", () => {
     expect(afterRetry.audits).toHaveLength(1);
   });
 
-  it("登録リンク再発行は未認証・readOnly・契約制限・他店舗expectedLinkIdを副作用なしで拒否する", async () => {
+  it("登録リンク再発行は未認証・removed・他店舗expectedLinkIdを副作用なしで拒否する", async () => {
     const t = convexTest(schema, modules);
     const seeded = await t.run(
       async (ctx) =>
@@ -216,32 +216,7 @@ describe("staffRegistration/mutations", () => {
       }),
     ).rejects.toThrow("Not found");
 
-    await t.run(async (ctx) => await ctx.db.patch(seeded.memberId, { status: "readOnly", updatedAt: Date.now() }));
-    await expect(
-      asManager.mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
-        shopId: seeded.shopId,
-        expectedLinkId: original.linkId,
-      }),
-    ).rejects.toThrow();
-
-    await t.run(async (ctx) => {
-      await ctx.db.patch(seeded.memberId, { status: "active", updatedAt: Date.now() });
-      const billingState = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-        .unique();
-      if (!billingState) throw new Error("billing state not found");
-      await ctx.db.patch(billingState._id, {
-        state: {
-          kind: "restricted",
-          reason: "freeConditionsNotMet",
-          previousPlan: "pro",
-          recoveryManagerPersonIds: [seeded.personId],
-          previousActiveShopIds: [seeded.shopId],
-          restrictedAt: Date.now(),
-        },
-      });
-    });
+    await t.run(async (ctx) => await ctx.db.patch(seeded.memberId, { status: "removed", updatedAt: Date.now() }));
     await expect(
       asManager.mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
         shopId: seeded.shopId,
@@ -474,7 +449,7 @@ describe("staffRegistration/mutations", () => {
     ).rejects.toThrow(`メールアドレスは${EMAIL_MAX_LENGTH}文字以内で入力してください`);
   });
 
-  it.each(["archived", "planSuspended"] as const)(
+  it.each(["archived"] as const)(
     "%s店舗では既存の公開登録リンクから新しい申請を作成できない",
     async (operatingStatus) => {
       const t = convexTest(schema, modules);
@@ -504,48 +479,6 @@ describe("staffRegistration/mutations", () => {
       );
     },
   );
-
-  it("契約制限開始後は既存の公開登録リンクから新しい申請を作成できない", async () => {
-    const t = convexTest(schema, modules);
-    const seeded = await t.run(
-      async (ctx) =>
-        await seedOrganizationManagerShop(ctx, {
-          subject: "registration_restricted_submit_manager",
-          plan: "pro",
-        }),
-    );
-    const link = await t
-      .withIdentity({ subject: "registration_restricted_submit_manager" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId: seeded.shopId });
-    await t.run(async (ctx) => {
-      const billingState = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-        .unique();
-      if (!billingState) throw new Error("billing state not found");
-      await ctx.db.patch(billingState._id, {
-        state: {
-          kind: "restricted",
-          reason: "freeConditionsNotMet",
-          previousPlan: "pro",
-          recoveryManagerPersonIds: [seeded.personId],
-          previousActiveShopIds: [seeded.shopId],
-          restrictedAt: Date.now(),
-        },
-      });
-    });
-
-    await expect(
-      t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
-        token: link.token,
-        name: "制限後の申請者",
-        email: "restricted-submit@example.com",
-        acceptedLegal: true,
-      }),
-    ).rejects.toThrow("登録リンクの有効期限が切れています");
-
-    await expect(t.run(async (ctx) => await ctx.db.query("staffRegistrationRequests").collect())).resolves.toEqual([]);
-  });
 
   it.each(["overLimit", "unknown"] as const)(
     "active.freeの利用数が%sになった場合、発行済みlinkの事前確認と最終writeを拒否する",
@@ -787,7 +720,7 @@ describe("staffRegistration/mutations", () => {
     ).rejects.toThrow("Not found");
   });
 
-  it.each(["archived", "planSuspended", "restricted", "readOnly"] as const)(
+  it.each(["archived", "removed"] as const)(
     "%sへの状態変更後は承認待ち申請を確定できず、副作用を作らない",
     async (blockedState) => {
       const t = convexTest(schema, modules);
@@ -812,29 +745,11 @@ describe("staffRegistration/mutations", () => {
       const requestId = await getPendingRequestId(t, seeded.shopId, `${blockedState}-approve@example.com`);
 
       await t.run(async (ctx) => {
-        if (blockedState === "archived" || blockedState === "planSuspended") {
+        if (blockedState === "archived") {
           await ctx.db.patch(seeded.shopId, { operatingStatus: blockedState });
           return;
         }
-        if (blockedState === "readOnly") {
-          await ctx.db.patch(seeded.memberId, { status: "readOnly", updatedAt: Date.now() });
-          return;
-        }
-        const billingState = await ctx.db
-          .query("organizationBillingStates")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-          .unique();
-        if (!billingState) throw new Error("billing state not found");
-        await ctx.db.patch(billingState._id, {
-          state: {
-            kind: "restricted",
-            reason: "freeConditionsNotMet",
-            previousPlan: "pro",
-            recoveryManagerPersonIds: [seeded.personId],
-            previousActiveShopIds: [seeded.shopId],
-            restrictedAt: Date.now(),
-          },
-        });
+        await ctx.db.patch(seeded.memberId, { status: "removed", updatedAt: Date.now() });
       });
 
       await expect(

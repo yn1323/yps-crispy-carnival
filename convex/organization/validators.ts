@@ -1,18 +1,10 @@
 import { v } from "convex/values";
 
-export const organizationShopOperatingStatusValidator = v.union(
-  v.literal("active"),
-  v.literal("archived"),
-  v.literal("planSuspended"),
-);
+export const organizationShopOperatingStatusValidator = v.union(v.literal("active"), v.literal("archived"));
 
 export const organizationPersonStatusValidator = v.union(v.literal("active"), v.literal("removed"));
 
-export const organizationMemberStatusValidator = v.union(
-  v.literal("active"),
-  v.literal("readOnly"),
-  v.literal("removed"),
-);
+export const organizationMemberStatusValidator = v.union(v.literal("active"), v.literal("removed"));
 
 export const organizationInvitationStatusValidator = v.union(
   // TODO[narrow]: Remove pending/accepted after m023 and invitation readiness have completed everywhere.
@@ -43,44 +35,6 @@ export const organizationPaidPlanValidator = v.union(v.literal("standard"), v.li
 
 export const organizationActivePlanValidator = v.union(v.literal("free"), v.literal("standard"), v.literal("pro"));
 
-export const organizationRestrictionReasonValidator = v.union(
-  v.literal("trialEndedWithoutSubscription"),
-  v.literal("scheduledCancellation"),
-  v.literal("trialFreeConditionsNotMet"),
-  v.literal("freeConditionsNotMet"),
-  v.literal("paymentGraceExpired"),
-  v.literal("paymentActivationFailed"),
-  v.literal("unexpectedCancellation"),
-  v.literal("planLimitExceeded"),
-);
-
-const organizationLegacyRestrictedBillingStateValidator = v.object({
-  kind: v.literal("restricted"),
-  reason: organizationRestrictionReasonValidator,
-  previousPlan: v.optional(organizationLegacyActivePlanValidator),
-  // TODO[narrow]: verifyOrganizationBillingStatesの全pageで欠損を確認し、必要なら新しいforward migrationで
-  //   補完した後、reason別の必須条件へ分割する。planLimitExceededではlimitPlanを必須にする。
-  limitPlan: v.optional(v.union(v.literal("free"), v.literal("pro"))),
-  // grace/pendingからの有料復旧先。既存行は未設定を現在planとして解釈する。
-  targetPlan: v.optional(organizationLegacyPaidPlanValidator),
-  recoveryManagerPersonIds: v.array(v.id("organizationPeople")),
-  previousActiveShopIds: v.array(v.id("shops")),
-  restrictedAt: v.number(),
-});
-
-const organizationRestrictedBillingStateValidator = v.object({
-  kind: v.literal("restricted"),
-  reason: organizationRestrictionReasonValidator,
-  previousPlan: v.optional(organizationActivePlanValidator),
-  // TODO[narrow]: m042完走後のreadinessで全stateがplanIdVersion=2になったことを確認してから、
-  //   legacy validatorと同時に移行注記を外す。
-  limitPlan: v.optional(organizationActivePlanValidator),
-  targetPlan: v.optional(organizationPaidPlanValidator),
-  recoveryManagerPersonIds: v.array(v.id("organizationPeople")),
-  previousActiveShopIds: v.array(v.id("shops")),
-  restrictedAt: v.number(),
-});
-
 /**
  * 事業者単位の課金状態の正本。
  *
@@ -100,8 +54,7 @@ export const organizationLegacyBillingStateValidator = v.union(
   v.object({
     kind: v.literal("pendingActivation"),
     plan: organizationLegacyPaidPlanValidator,
-    fallback: v.union(v.literal("free"), v.literal("pro"), v.literal("restricted")),
-    restrictedFallbackState: v.optional(organizationLegacyRestrictedBillingStateValidator),
+    fallback: v.union(v.literal("free"), v.literal("pro")),
     startedAt: v.number(),
   }),
   v.object({
@@ -143,7 +96,6 @@ export const organizationLegacyBillingStateValidator = v.union(
     startedAt: v.number(),
     endsAt: v.number(),
   }),
-  organizationLegacyRestrictedBillingStateValidator,
 );
 
 /**
@@ -170,8 +122,7 @@ export const organizationCanonicalBillingStateValidator = v.union(
     kind: v.literal("pendingActivation"),
     planIdVersion: planIdVersionValidator,
     plan: organizationPaidPlanValidator,
-    fallback: v.union(v.literal("free"), v.literal("standard"), v.literal("pro"), v.literal("restricted")),
-    restrictedFallbackState: v.optional(organizationRestrictedBillingStateValidator),
+    fallback: v.union(v.literal("free"), v.literal("standard"), v.literal("pro")),
     startedAt: v.number(),
   }),
   v.object({
@@ -216,9 +167,6 @@ export const organizationCanonicalBillingStateValidator = v.union(
     targetPlan: v.optional(organizationPaidPlanValidator),
     startedAt: v.number(),
     endsAt: v.number(),
-  }),
-  organizationRestrictedBillingStateValidator.extend({
-    planIdVersion: planIdVersionValidator,
   }),
 );
 

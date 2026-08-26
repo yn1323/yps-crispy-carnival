@@ -6,11 +6,8 @@ export type ShiftBoardData = {
   shopId: Id<"shops">;
   canWriteBusinessData: boolean;
   businessWriteBlockReason:
-    | "memberReadOnly"
     | "shopArchived"
-    | "shopPlanSuspended"
     | "paymentResultPending"
-    | "restricted"
     | "usageLimitExceeded"
     | "usageLimitEvaluationUnavailable"
     | null;

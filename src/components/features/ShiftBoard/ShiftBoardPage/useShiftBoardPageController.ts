@@ -36,16 +36,10 @@ const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知で�
 
 export function getShiftBoardReadOnlyReason(reason: ShiftBoardData["businessWriteBlockReason"]): string {
   switch (reason) {
-    case "memberReadOnly":
-      return "現在のアカウント状態では、シフトを変更できません。";
     case "shopArchived":
       return "アーカイブ済みの店舗のため、シフトを変更できません。";
-    case "shopPlanSuspended":
-      return "現在のプランでは、この店舗のシフトを変更できません。\n組織設定で利用店舗を確認してください。";
     case "paymentResultPending":
       return "支払い結果を確認中のため、シフトを変更できません。";
-    case "restricted":
-      return "契約状態を確認できるまで、シフトを変更できません。\n組織設定で契約状態を確認してください。";
     case "usageLimitExceeded":
       return "現在のプラン上限を超えているため、シフトを変更できません。\n組織設定で利用人数・店舗・管理者を整理するか、プランを変更してください。";
     case "usageLimitEvaluationUnavailable":

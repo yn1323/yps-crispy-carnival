@@ -19,8 +19,8 @@ const meta = {
         activeOrganizationId={ORGANIZATION_ID}
         activeOrganizationName="すーぱーかんぱにー"
         options={[
-          { id: ORGANIZATION_ID, name: "すーぱーかんぱにー", memberStatus: "active" },
-          { id: SECOND_ORGANIZATION_ID, name: "別の組織", memberStatus: "readOnly" },
+          { id: ORGANIZATION_ID, name: "すーぱーかんぱにー" },
+          { id: SECOND_ORGANIZATION_ID, name: "別の組織" },
         ]}
         onSelect={() => {}}
       />

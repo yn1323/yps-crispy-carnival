@@ -41,7 +41,6 @@ const shops = [
     organizationId: "organization-a",
     organizationName: "Aグループ",
     organizationPlan: "standard",
-    memberStatus: "active",
   },
   {
     shopId: "shop-b",
@@ -50,7 +49,6 @@ const shops = [
     organizationId: "organization-a",
     organizationName: "Aグループ",
     organizationPlan: "standard",
-    memberStatus: "active",
   },
   {
     shopId: "shop-c",
@@ -59,7 +57,6 @@ const shops = [
     organizationId: "organization-b",
     organizationName: "Bグループ",
     organizationPlan: "standard",
-    memberStatus: "active",
   },
 ] as const;
 

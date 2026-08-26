@@ -387,12 +387,12 @@ export const ManagerStaff: Story = {
   },
 };
 
-export const ReadOnlyManagerStaff: Story = {
+export const ManagerSettingsUnavailable: Story = {
   args: {
     staff: {
       ...organizationLinkedStaff,
       isManager: true,
-      managerInvitationState: { kind: "unavailable", reason: "現在のアカウント状態では操作できません。" },
+      managerInvitationState: { kind: "unavailable", reason: "現在、管理者設定を変更できません。" },
     },
     defaultTab: "settings",
   },

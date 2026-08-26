@@ -36,7 +36,7 @@ export async function resolveStaffRegistrationCapability(
     ) {
       return null;
     }
-  } else if (shop.operatingStatus === "archived" || shop.operatingStatus === "planSuspended") {
+  } else if (shop.operatingStatus === "archived") {
     return null;
   }
 

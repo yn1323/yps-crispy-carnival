@@ -16,7 +16,7 @@ async function seedPerson(
     key: string;
     name: string;
     email?: string;
-    memberStatus?: "active" | "readOnly";
+    memberStatus?: "active";
   },
 ) {
   const email = args.email ?? `${args.key}@example.com`;
@@ -123,7 +123,7 @@ describe("organization manager settings queries", () => {
 
     expect(result).toMatchObject({
       kind: "ready",
-      mode: "restricted",
+      mode: "managerAddition",
       actions: {
         canInviteExistingStaff: false,
         existingStaffDisabledReason: expect.stringContaining("プラン上限を超過"),
@@ -163,13 +163,6 @@ describe("organization manager settings queries", () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "manager_query_ready", plan: "business" });
-      const readOnly = await seedPerson(ctx, {
-        organizationId: base.organizationId,
-        key: "manager_query_readonly",
-        name: "閲覧管理者",
-        email: "readonly-manager@example.com",
-        memberStatus: "readOnly",
-      });
       const target = await seedPerson(ctx, {
         organizationId: base.organizationId,
         shopId: base.shopId,
@@ -221,7 +214,7 @@ describe("organization manager settings queries", () => {
         createdAt: NOW,
         updatedAt: NOW,
       });
-      return { ...base, readOnly, target, later, failed };
+      return { ...base, target, later, failed };
     });
 
     const result = await t
@@ -254,12 +247,6 @@ describe("organization manager settings queries", () => {
         canRemoveRole: false,
         removeRoleDisabledReason: "最後の管理者の権限は外せません。",
       },
-      {
-        role: "readOnly",
-        name: "閲覧管理者",
-        canRemoveRole: false,
-        removeRoleDisabledReason: "契約状態を復旧してから変更できます。",
-      },
     ]);
     expect(result.invitations.map((invitation) => invitation.invitationId)).toEqual([ids.failed, ids.later]);
     expect(result.invitations[0]).toMatchObject({
@@ -269,7 +256,6 @@ describe("organization manager settings queries", () => {
       canRevoke: true,
     });
     expect(JSON.stringify(result)).not.toContain("tokenDigest");
-    expect(JSON.stringify(result)).not.toContain(String(ids.readOnly.userId));
   });
 
   it.each([
@@ -474,7 +460,7 @@ describe("organization manager settings queries", () => {
         key: "manager_query_late_member",
         name: "後から管理者になった人物",
         email: "late-manager@example.com",
-        memberStatus: "readOnly",
+        memberStatus: "active",
       });
       return { ...base, invitationId, person };
     });
@@ -635,193 +621,7 @@ describe("organization manager settings queries", () => {
     ).resolves.toMatchObject({ kind: "integrityError" });
   });
 
-  it("有料上限内のactive管理者と保持中readOnly管理者の合計が5名を超えてもreadyで全件表示する", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, {
-        subject: "manager_query_paid_readonly_retained",
-        plan: "business",
-      });
-      for (let index = 0; index < 4; index += 1) {
-        await seedPerson(ctx, {
-          organizationId: base.organizationId,
-          key: `manager_query_paid_active_${index}`,
-          name: `有効管理者${index}`,
-          memberStatus: "active",
-        });
-      }
-      for (let index = 0; index < 2; index += 1) {
-        await seedPerson(ctx, {
-          organizationId: base.organizationId,
-          key: `manager_query_paid_readonly_${index}`,
-          name: `保持中管理者${index}`,
-          memberStatus: "readOnly",
-        });
-      }
-      return base;
-    });
-
-    const actor = t.withIdentity({ subject: "manager_query_paid_readonly_retained" });
-    const result = await actor.query(api.organization.queries.getManagerSettingsOverview, {
-      shopId: ids.shopId,
-      now: NOW,
-    });
-    expect(result).toMatchObject({
-      kind: "ready",
-      usage: { activeManagers: 5, maxManagers: 5 },
-    });
-    if (result.kind !== "ready") throw new Error("overview not ready");
-    expect(result.managers).toHaveLength(7);
-    expect(result.managers.filter(({ role }) => role === "active")).toHaveLength(5);
-    expect(result.managers.filter(({ role }) => role === "readOnly")).toHaveLength(2);
-    await expect(
-      actor.query(api.organization.queries.getManagerCandidates, { shopId: ids.shopId, now: NOW }),
-    ).resolves.toEqual({ kind: "ready", candidates: [] });
-  });
-
-  it("Free・restricted・readOnly actorのaction capabilityをserver policyから閉じる", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const free = await seedOrganizationManagerShop(ctx, { subject: "manager_query_free", plan: "free" });
-      await seedPerson(ctx, {
-        organizationId: free.organizationId,
-        shopId: free.shopId,
-        key: "manager_query_free_candidate",
-        name: "Free候補",
-      });
-      const restricted = await seedOrganizationManagerShop(ctx, {
-        subject: "manager_query_restricted",
-        plan: "pro",
-      });
-      const restrictedBilling = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", restricted.organizationId))
-        .unique();
-      if (!restrictedBilling) throw new Error("billing missing");
-      await ctx.db.patch(restrictedBilling._id, {
-        state: {
-          kind: "restricted",
-          reason: "paymentGraceExpired",
-          previousPlan: "pro",
-          recoveryManagerPersonIds: [restricted.personId],
-          previousActiveShopIds: [restricted.shopId],
-          restrictedAt: NOW,
-        },
-      });
-      const readOnly = await seedOrganizationManagerShop(ctx, { subject: "manager_query_readonly_actor", plan: "pro" });
-      await seedPerson(ctx, {
-        organizationId: readOnly.organizationId,
-        key: "manager_query_readonly_successor",
-        name: "有効管理者",
-        memberStatus: "active",
-      });
-      await ctx.db.patch(readOnly.memberId, { status: "readOnly" });
-      return { free, restricted, readOnly };
-    });
-    const free = await t
-      .withIdentity({ subject: "manager_query_free" })
-      .query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.free.shopId, now: NOW });
-    expect(free).toMatchObject({
-      kind: "ready",
-      mode: "managerAddition",
-      usage: { activeManagers: 1, projectedManagers: 1, maxManagers: 2 },
-      actions: { canInviteExistingStaff: true, canInviteExternal: true },
-    });
-    const restricted = await t
-      .withIdentity({ subject: "manager_query_restricted" })
-      .query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.restricted.shopId, now: NOW });
-    expect(restricted).toMatchObject({
-      kind: "ready",
-      mode: "restricted",
-      actions: { canInviteExistingStaff: false, canInviteExternal: false },
-    });
-    const readOnly = await t
-      .withIdentity({ subject: "manager_query_readonly_actor" })
-      .query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.readOnly.shopId, now: NOW });
-    expect(readOnly).toMatchObject({
-      kind: "ready",
-      mode: "restricted",
-      actions: { canInviteExistingStaff: false, canInviteExternal: false },
-    });
-  });
-
-  it.each([
-    { reason: "freeConditionsNotMet" as const },
-    { reason: "planLimitExceeded" as const, limitPlan: "free" as const },
-  ])("$reasonのrestrictedは契約上限をread boundにせずreadyで操作を閉じる", async ({ reason, limitPlan }) => {
-    const t = convexTest(schema, modules);
-    const subject = `manager_query_free_over_limit_${reason}`;
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, {
-        subject,
-        plan: "business",
-      });
-      for (let index = 0; index < 2; index += 1) {
-        await seedPerson(ctx, {
-          organizationId: base.organizationId,
-          key: `manager_query_over_limit_manager_${index}`,
-          name: `超過管理者${index}`,
-          memberStatus: "active",
-        });
-      }
-      for (let index = 0; index < 4; index += 1) {
-        await seedPerson(ctx, {
-          organizationId: base.organizationId,
-          shopId: base.shopId,
-          key: `manager_query_over_limit_staff_${index}`,
-          name: `超過スタッフ${index}`,
-        });
-      }
-      await seedInvitation(ctx, {
-        organizationId: base.organizationId,
-        inviterMemberId: base.memberId,
-        email: "over-limit-pending@example.com",
-        invitedName: "超過中の招待",
-      });
-      const billingState = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
-        .unique();
-      if (!billingState) throw new Error("billing state not found");
-      await ctx.db.patch(billingState._id, {
-        state: {
-          kind: "restricted",
-          reason,
-          previousPlan: "business",
-          ...(limitPlan ? { limitPlan } : {}),
-          recoveryManagerPersonIds: [base.personId],
-          previousActiveShopIds: [base.shopId],
-          restrictedAt: NOW,
-        },
-      });
-      return base;
-    });
-    const actor = t.withIdentity({ subject });
-
-    await expect(
-      actor.query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.shopId, now: NOW }),
-    ).resolves.toMatchObject({
-      kind: "ready",
-      mode: "restricted",
-      usage: {
-        activeManagers: 3,
-        activeInvitationCount: 1,
-        projectedManagers: 4,
-        maxManagers: 2,
-      },
-      actions: { canInviteExistingStaff: false, canInviteExternal: false },
-    });
-    const candidates = await actor.query(api.organization.queries.getManagerCandidates, {
-      shopId: ids.shopId,
-      now: NOW,
-    });
-    expect(candidates.kind).toBe("ready");
-    if (candidates.kind !== "ready") throw new Error("candidates not ready");
-    expect(candidates.candidates).toHaveLength(4);
-    expect(candidates.candidates.every((candidate) => !candidate.canSelect)).toBe(true);
-  });
-
-  it("candidateはstaff資格だけを列挙し、manager・readOnly・pending・不正メールを理由付きで閉じる", async () => {
+  it("candidateはstaff資格だけを列挙し、manager・pending・不正メールを理由付きで閉じる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "manager_candidates_owner", plan: "business" });
@@ -837,13 +637,6 @@ describe("organization manager settings queries", () => {
         key: "candidate_current",
         name: "B 現管理者",
         memberStatus: "active",
-      });
-      const readOnly = await seedPerson(ctx, {
-        organizationId: base.organizationId,
-        shopId: base.shopId,
-        key: "candidate_readonly",
-        name: "C 閲覧管理者",
-        memberStatus: "readOnly",
       });
       const pending = await seedPerson(ctx, {
         organizationId: base.organizationId,
@@ -876,7 +669,7 @@ describe("organization manager settings queries", () => {
         email: pending.email,
         targetPersonId: pending.personId,
       });
-      return { ...base, selectable, current, readOnly, pending, noEmail, invalidEmail, noStaff };
+      return { ...base, selectable, current, pending, noEmail, invalidEmail, noStaff };
     });
     const result = await t
       .withIdentity({ subject: "manager_candidates_owner" })
@@ -886,7 +679,6 @@ describe("organization manager settings queries", () => {
     expect(result.candidates.map((candidate) => candidate.name)).toEqual([
       "A 選択可能",
       "B 現管理者",
-      "C 閲覧管理者",
       "D 招待中",
       "E メールなし",
       "F 不正メール",
@@ -897,11 +689,6 @@ describe("organization manager settings queries", () => {
         personId: ids.current.personId,
         canSelect: false,
         disabledReason: "すでに管理者です。",
-      }),
-      expect.objectContaining({
-        personId: ids.readOnly.personId,
-        canSelect: false,
-        disabledReason: "現在、管理者として操作できません。アカウント状態を確認してから変更してください。",
       }),
       expect.objectContaining({
         personId: ids.pending.personId,

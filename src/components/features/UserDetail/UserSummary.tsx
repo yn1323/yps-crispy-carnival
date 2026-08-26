@@ -35,11 +35,6 @@ export function UserSummary({ data }: Props) {
                   管理者
                 </Badge>
               )}
-              {data.managerRole === "readOnly" && (
-                <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2.5}>
-                  アカウント状態の確認が必要
-                </Badge>
-              )}
               {data.managerRole === "none" && data.hasManagerInvitation && (
                 <Badge colorPalette="orange" variant="subtle" borderRadius="full" px={2.5}>
                   管理者招待中

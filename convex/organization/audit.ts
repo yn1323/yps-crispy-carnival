@@ -22,7 +22,6 @@ export type OrganizationAuditAction =
   | "organization.account_email_synced"
   | "organization.staff_added"
   | "organization.manager_role_removed"
-  | "organization.recovery_managers_changed"
   | "organization.manager_invited"
   | "organization.manager_invitation_resent"
   | "organization.manager_invitation_revoked"

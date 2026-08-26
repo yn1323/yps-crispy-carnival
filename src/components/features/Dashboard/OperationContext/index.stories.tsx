@@ -14,7 +14,6 @@ const shop = (overrides: Partial<ShopContextOption>): ShopContextOption => ({
   organizationId: "org-a",
   organizationName: "東日本事業部",
   organizationPlan: "standard",
-  memberStatus: "active",
   ...overrides,
 });
 
@@ -102,14 +101,13 @@ export const MultipleGroupsMultipleShops: Story = {
   },
 };
 
-export const LongNamesReadOnly: Story = {
+export const LongNames: Story = {
   args: {
     model: createModel(
       [
         shop({
           shopName: "駅前商業施設内レストランとても長い店舗名",
           organizationName: longOrganizationName,
-          memberStatus: "readOnly",
         }),
       ],
       "shop-a-1",

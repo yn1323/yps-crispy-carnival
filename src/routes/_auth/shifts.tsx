@@ -20,7 +20,6 @@ function AppShiftsRoute() {
   return (
     <AppShiftsRoutePage
       organizationId={organization.organizationId}
-      memberStatus={organization.memberStatus}
       activeShops={organization.activeShops}
       requestedShopFilter={shopFilter}
     />

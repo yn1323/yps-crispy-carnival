@@ -363,7 +363,7 @@ export const verifyNotificationOutbox = internalQuery({
   },
 });
 
-/** Subscription planとrestricted discriminatorの未補完件数を別々に集計する。 */
+/** Subscription planの未補完件数を集計する。 */
 export const verifyStripeSubscriptions = internalQuery({
   args: { paginationOpts: paginationOptsValidator },
   returns: v.object({
@@ -400,40 +400,6 @@ export const verifyStripeOperations = internalQuery({
         trialSetupCheckoutMissingTargetPlan: result.page.filter(
           (operation) => operation.kind === "trialSetupCheckout" && operation.targetPlan === undefined,
         ).length,
-      },
-    };
-  },
-});
-
-export const verifyOrganizationBillingStates = internalQuery({
-  args: { paginationOpts: paginationOptsValidator },
-  returns: v.object({
-    ...pageMetadataValidator,
-    anomalies: v.object({
-      restrictedPlanLimitMissing: v.number(),
-      nestedRestrictedPlanLimitMissing: v.number(),
-    }),
-  }),
-  handler: async (ctx, { paginationOpts }) => {
-    requireBoundedPagination(paginationOpts);
-    const result = await ctx.db.query("organizationBillingStates").paginate(paginationOpts);
-    const topLevelRestrictedPlanLimitMissing = result.page.filter(
-      (billing) =>
-        billing.state.kind === "restricted" &&
-        billing.state.reason === "planLimitExceeded" &&
-        billing.state.limitPlan === undefined,
-    ).length;
-    const nestedRestrictedPlanLimitMissing = result.page.filter(
-      (billing) =>
-        billing.state.kind === "pendingActivation" &&
-        billing.state.restrictedFallbackState?.reason === "planLimitExceeded" &&
-        billing.state.restrictedFallbackState.limitPlan === undefined,
-    ).length;
-    return {
-      ...pageMetadata(result),
-      anomalies: {
-        restrictedPlanLimitMissing: topLevelRestrictedPlanLimitMissing + nestedRestrictedPlanLimitMissing,
-        nestedRestrictedPlanLimitMissing,
       },
     };
   },

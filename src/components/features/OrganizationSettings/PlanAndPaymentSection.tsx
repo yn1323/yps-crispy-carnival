@@ -86,12 +86,6 @@ const STATE_PRESENTATION: Record<
     status: "warning",
     description: "支払い方法を確認してください。\n期限までは現在のプランを利用できます。",
   },
-  restricted: {
-    label: "契約状態の確認が必要",
-    status: "error",
-    description:
-      "プラン移行に伴い、機能を制限しています。\n支払いを確認するか、利用人数・店舗数を変更先プランの上限内に調整してください。",
-  },
   scheduledFree: {
     label: "Freeへ変更予定",
     status: "warning",
@@ -133,32 +127,14 @@ export const PlanAndPaymentSection = ({
           status: "warning" as const,
           description: "現在のプランの利用上限を超えています。\n上限内まで減らすと、業務操作は自動的に再開されます。",
         }
-      : billing.state === "restricted" && billing.limitPlan
+      : billing.state === "pendingActivation" && billing.currentPlan === "free"
         ? {
-            ...STATE_PRESENTATION.restricted,
-            description: `${planLabel(billing.limitPlan)}の上限に収まるよう、利用人数・店舗数・管理者数を整理してください。`,
+            ...STATE_PRESENTATION.pendingActivation,
+            description:
+              "支払いの成功を確認するまで、有料プランは開始されません。\n確認中も、Freeの基本機能は利用できます。",
           }
-        : billing.state === "restricted"
-          ? {
-              ...STATE_PRESENTATION.restricted,
-              label: "利用停止中",
-              description:
-                "店舗・ユーザー・過去のシフトは削除されていません。\nStandardまたはProを契約すると利用を再開できます。",
-            }
-          : billing.state === "pendingActivation" && billing.currentPlan === "free"
-            ? {
-                ...STATE_PRESENTATION.pendingActivation,
-                description:
-                  "支払いの成功を確認するまで、有料プランは開始されません。\n確認中も、Freeの基本機能は利用できます。",
-              }
-            : STATE_PRESENTATION[billing.state];
-  const currentPlan =
-    billing.currentPlan ??
-    (billing.state === "restricted"
-      ? (billing.previousPlan ?? null)
-      : isPlanState(billing.state)
-        ? billing.state
-        : null);
+        : STATE_PRESENTATION[billing.state];
+  const currentPlan = billing.currentPlan ?? (isPlanState(billing.state) ? billing.state : null);
   const currentPlanPresentation = currentPlan ? STATE_PRESENTATION[currentPlan] : null;
   const currentPlanDescription = billing.isComplimentary
     ? `利用人数${billing.peopleUsage.max}名・店舗${billing.shopUsage.max}件・管理者${billing.managerUsage.max}名まで利用できます。`
@@ -168,18 +144,14 @@ export const PlanAndPaymentSection = ({
   const planSummaryHeading =
     billing.state === "migrationPending" || (billing.state === "pendingActivation" && billing.currentPlan === null)
       ? "現在の利用状態"
-      : billing.state === "restricted"
-        ? "プラン"
-        : "現在のプラン";
+      : "現在のプラン";
   const planSummaryLabel =
     currentPlanPresentation?.label ??
     (billing.state === "migrationPending"
       ? "設定移行中"
       : billing.state === "pendingActivation"
         ? "契約状態の確認が必要"
-        : billing.state === "restricted"
-          ? "利用停止中"
-          : "確認中");
+        : "確認中");
   return (
     <Stack gap={{ base: 6, md: 7 }}>
       <Stack gap={4}>
@@ -567,9 +539,7 @@ function BillingStateAlert({
   const showPendingCheckoutRecovery = billing.state === "pendingActivation" && !billing.isComplimentary;
   const reductions = getRequiredReductions(billing);
   const showReductions =
-    ((billing.state === "restricted" && billing.limitPlan !== undefined) ||
-      billing.state === "scheduledChange" ||
-      billing.state === "scheduledFree") &&
+    (billing.state === "scheduledChange" || billing.state === "scheduledFree") &&
     (reductions.people > 0 || reductions.shops > 0 || reductions.managers > 0);
 
   return (
@@ -599,9 +569,7 @@ function BillingStateAlert({
           <Alert.Description whiteSpace="pre-line">
             <Stack gap={1}>
               <Text>{presentation.description}</Text>
-              {billing.blockedReason && !(billing.state === "restricted" && billing.limitPlan === undefined) && (
-                <Text>{billing.blockedReason}</Text>
-              )}
+              {billing.blockedReason && <Text>{billing.blockedReason}</Text>}
               {showReductions && <ReductionGuidance reductions={reductions} />}
               {showPaymentRecovery && !billing.canUpdatePaymentMethod && billing.paymentMethodDisabledReason && (
                 <Text id="organization-billing-recovery-payment-method-disabled-reason">
@@ -901,7 +869,7 @@ function shouldShowPlanComparison(billing: OrganizationBillingView) {
     isPlanState(billing.state) ||
     billing.state === "scheduledChange" ||
     billing.state === "scheduledFree" ||
-    ((billing.state === "restricted" || billing.state === "pendingActivation") && billing.canManagePlan)
+    (billing.state === "pendingActivation" && billing.canManagePlan)
   );
 }
 

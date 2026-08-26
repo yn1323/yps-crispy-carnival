@@ -17,7 +17,6 @@ const storyShop = {
   organizationId: "organization-story",
   organizationName: "すーぱーかんぱにー",
   organizationPlan: "standard",
-  memberStatus: "active",
 } satisfies ShopContextOption;
 
 const storyModel = (() => {
@@ -126,22 +125,8 @@ const paymentIssueWithoutPermission = {
   kind: "paymentIssue",
   planName: "Standard",
   phase: "grace",
-  description: "支払い方法の更新は、契約を管理できる管理者が行えます。",
+  description: "現在は支払い方法を更新できません。組織設定で契約状態を確認してください。",
   recoveryDeadlineLabel: "支払い期限：2026/8/17",
-} satisfies PlanStatusCardData;
-
-const restrictedPaymentIssue = {
-  kind: "paymentIssue",
-  planName: "Pro",
-  phase: "restricted",
-  description: "データは削除されていません。利用を再開するには、StandardまたはProを契約してください。",
-  primaryAction: { action: "choosePlan", label: "プランを選んで再開する" },
-} satisfies PlanStatusCardData;
-
-const restricted = {
-  kind: "restricted",
-  planName: "Free",
-  description: "利用状況または契約状態を確認してください。",
 } satisfies PlanStatusCardData;
 
 const meta = {
@@ -262,16 +247,6 @@ export const PaymentIssueExpanded: Story = {
 export const PaymentIssueWithoutPermissionExpanded: Story = {
   name: "支払い猶予中・更新権限なし",
   args: { data: paymentIssueWithoutPermission, defaultExpanded: true },
-};
-
-export const RestrictedPaymentIssueExpanded: Story = {
-  name: "支払い問題・利用制限中",
-  args: { data: restrictedPaymentIssue, defaultExpanded: true },
-};
-
-export const RestrictedExpanded: Story = {
-  name: "契約状態の確認が必要",
-  args: { data: restricted, defaultExpanded: true },
 };
 
 export const TrialToggleBehavior: Story = {

@@ -1,4 +1,4 @@
-import { Alert, Box, Flex, Heading, HStack, Icon, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Icon, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useMemo } from "react";
 import { LuChevronDown, LuMessageCircle, LuRefreshCw } from "react-icons/lu";
@@ -16,12 +16,10 @@ type ShopOption = { id: Id<"shops">; name: string };
 
 export function AppActionsRoutePage({
   organizationId,
-  memberStatus,
   activeShops,
   requestedShopFilter,
 }: {
   organizationId: Id<"organizations">;
-  memberStatus: "active" | "readOnly";
   activeShops: ShopOption[] | null;
   requestedShopFilter?: string;
 }) {
@@ -58,7 +56,6 @@ export function AppActionsRoutePage({
       <ConnectedAppActions
         key={`${organizationId}:${resolvedShopFilter}`}
         organizationId={organizationId}
-        memberStatus={memberStatus}
         activeShops={activeShops ?? []}
         shopFilter={resolvedShopFilter}
         onShopFilterChange={(nextFilter) =>
@@ -74,13 +71,11 @@ export function AppActionsRoutePage({
 
 function ConnectedAppActions({
   organizationId,
-  memberStatus,
   activeShops,
   shopFilter,
   onShopFilterChange,
 }: {
   organizationId: Id<"organizations">;
-  memberStatus: "active" | "readOnly";
   activeShops: ShopOption[];
   shopFilter: "all" | Id<"shops">;
   onShopFilterChange: (shopId: string | null) => void;
@@ -106,7 +101,6 @@ function ConnectedAppActions({
         />
       }
     >
-      {memberStatus === "readOnly" && <AppActionsReadOnlyNotice />}
       <ActionInboxView items={controller.items} completedItemId={controller.completedItemId} />
       {data.canLoadMore && (
         <Flex justify="center" mt={{ base: -4, lg: -5 }}>
@@ -188,17 +182,5 @@ export function AppActionsPageView({
         )}
       </Stack>
     </AuthenticatedPageContent>
-  );
-}
-
-export function AppActionsReadOnlyNotice() {
-  return (
-    <Alert.Root status="warning" borderRadius="xl">
-      <Alert.Indicator />
-      <Alert.Content>
-        <Alert.Title>現在、このアカウントでは操作できません</Alert.Title>
-        <Alert.Description>対応内容は確認できますが、承認・再送・取り消しはできません。</Alert.Description>
-      </Alert.Content>
-    </Alert.Root>
   );
 }

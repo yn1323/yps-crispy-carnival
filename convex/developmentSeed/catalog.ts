@@ -12,8 +12,8 @@ export const DEVELOPMENT_SEED_SCENARIO_KEYS = [
   "standard-scheduled-change",
   "payment-pending",
   "payment-grace",
-  "payment-restricted",
-  "policy-restricted",
+  "free-over-limit",
+  "standard-over-limit",
 ] as const;
 
 export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v2";
@@ -22,12 +22,11 @@ export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 66;
 export type DevelopmentSeedScenarioKey = (typeof DEVELOPMENT_SEED_SCENARIO_KEYS)[number];
 
 export const PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER = "https://seed.example.test|replace-with-clerk-token-identifier";
-export const READ_ONLY_SEED_AUTH_TOKEN_IDENTIFIER = "https://seed.example.test|readonly-manager";
-export const POLICY_RESTRICTED_EXTRA_MANAGER_AUTH_TOKEN_IDENTIFIERS = [
-  "https://seed.example.test|policy-restricted-manager-1",
-  "https://seed.example.test|policy-restricted-manager-2",
-  "https://seed.example.test|policy-restricted-manager-3",
-  "https://seed.example.test|policy-restricted-manager-4",
+export const STANDARD_OVER_LIMIT_EXTRA_MANAGER_AUTH_TOKEN_IDENTIFIERS = [
+  "https://seed.example.test|standard-over-limit-manager-1",
+  "https://seed.example.test|standard-over-limit-manager-2",
+  "https://seed.example.test|standard-over-limit-manager-3",
+  "https://seed.example.test|standard-over-limit-manager-4",
 ] as const;
 
 export function ownerAuthTokenIdentifier(key: DevelopmentSeedScenarioKey): string {
@@ -203,7 +202,7 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     dataProfile: "billingOnly",
   },
   {
-    key: "payment-restricted",
+    key: "free-over-limit",
     organizationName: "[SEED] Free・上限超過",
     shopNames: ["[SEED] Free上限超過店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
@@ -211,7 +210,7 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     dataProfile: "capacity",
   },
   {
-    key: "policy-restricted",
+    key: "standard-over-limit",
     organizationName: "[SEED] Standard・上限超過",
     shopNames: ["[SEED] Standard上限超過店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
@@ -342,12 +341,11 @@ export const DEVELOPMENT_SEED_UNION_COVERAGE = {
     pendingActivation: { kind: "seeded", scenarioKeys: ["payment-pending"] },
     active: {
       kind: "seeded",
-      scenarioKeys: ["free-capacity", "standard-operations", "payment-restricted", "policy-restricted"],
+      scenarioKeys: ["free-capacity", "standard-operations", "free-over-limit", "standard-over-limit"],
     },
     complimentary: { kind: "seeded", scenarioKeys: ["pro-notifications"] },
     scheduledChange: { kind: "seeded", scenarioKeys: ["standard-scheduled-change"] },
     grace: { kind: "seeded", scenarioKeys: ["payment-grace"] },
-    restricted: { kind: "intentionallyEmpty", reason: "旧データmigration互換だけで、新しいseedからは作らない" },
   } satisfies Record<BillingKind, UnionCoverageDisposition>,
   recruitmentStatus: {
     open: { kind: "seeded", scenarioKeys: OPERATIONS },
@@ -355,8 +353,7 @@ export const DEVELOPMENT_SEED_UNION_COVERAGE = {
   } satisfies Record<RecruitmentStatus, UnionCoverageDisposition>,
   memberStatus: {
     active: { kind: "seeded", scenarioKeys: ALL },
-    readOnly: { kind: "seeded", scenarioKeys: STANDARD_OPERATIONS },
-    removed: { kind: "intentionallyEmpty", reason: "現行画面ではactive/readOnlyを代表状態にする" },
+    removed: { kind: "intentionallyEmpty", reason: "現行画面ではactiveを代表状態にする" },
   } satisfies Record<MemberStatus, UnionCoverageDisposition>,
   registrationStatus: {
     pending: { kind: "seeded", scenarioKeys: ["free-capacity", "trial-ending"] },

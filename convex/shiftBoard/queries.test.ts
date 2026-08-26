@@ -252,15 +252,15 @@ describe("shiftBoard/queries", () => {
     ).rejects.toThrow("Shift assignment scope exceeds the supported limit");
   });
 
-  it("閲覧のみ管理者にはシフトデータを返しつつ書き込み不可理由を返す", async () => {
+  it("削除済み管理者にはシフトデータを返さない", async () => {
     const t = convexTest(schema, modules);
     const { organizationId, shopId, recruitmentId } = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
-        subject: "readonly_shift_board",
+        subject: "removed_shift_board",
         shopName: "閲覧店舗",
         plan: "pro",
       });
-      await ctx.db.patch(seeded.memberId, { status: "readOnly" });
+      await ctx.db.patch(seeded.memberId, { status: "removed" });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId: seeded.shopId,
         periodStart: "2026-08-01",
@@ -275,26 +275,21 @@ describe("shiftBoard/queries", () => {
       return { organizationId: seeded.organizationId, shopId: seeded.shopId, recruitmentId };
     });
 
-    const actor = t.withIdentity({ subject: "readonly_shift_board" });
+    const actor = t.withIdentity({ subject: "removed_shift_board" });
     await expect(
       actor.query(api.shiftBoard.queries.getShiftBoardShopScopeForOrganization, {
         organizationId,
         recruitmentId,
       }),
-    ).resolves.toEqual({ shopId, shopName: "閲覧店舗" });
-
-    const result = await actor.query(api.shiftBoard.queries.getShiftBoardData, {
-      shopId,
-      expectedOrganizationId: organizationId,
-      recruitmentId,
-      refreshDayKey: QUERY_REFRESH_DAY_KEY,
-    });
-
-    expect(result).toMatchObject({
-      canWriteBusinessData: false,
-      businessWriteBlockReason: "memberReadOnly",
-      recruitment: { _id: recruitmentId },
-    });
+    ).rejects.toThrow("Not found");
+    await expect(
+      actor.query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId,
+        expectedOrganizationId: organizationId,
+        recruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      }),
+    ).resolves.toBeNull();
   });
 
   it.each([

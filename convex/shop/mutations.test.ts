@@ -726,7 +726,7 @@ describe("shop/mutations", () => {
       await expect(t.run(async (ctx) => (await ctx.db.get(otherShopId))?.name)).resolves.toBe("別事業者店舗");
     });
 
-    it("閲覧のみの管理者は更新できない", async () => {
+    it("削除済みの管理者は更新できない", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
         const seeded = await seedOrganizationManagerShop(ctx, {
@@ -734,7 +734,7 @@ describe("shop/mutations", () => {
           shopName: "閲覧専用店舗",
           plan: "pro",
         });
-        await ctx.db.patch(seeded.memberId, { status: "readOnly" });
+        await ctx.db.patch(seeded.memberId, { status: "removed" });
         return seeded.shopId;
       });
 

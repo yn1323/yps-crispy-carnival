@@ -90,28 +90,6 @@ describe("organizationBilling/notification", () => {
     });
   });
 
-  it.each(["trialEndedWithoutSubscription", "scheduledCancellation"] as const)(
-    "%sの契約制限通知はFree整理ではなくデータ保持と再契約を案内する",
-    (restrictionReason) => {
-      expect(organizationBillingNotificationCopy("restrictedStarted", undefined, { restrictionReason })).toEqual({
-        subject: "利用停止中になりました",
-        heading: "利用停止中になりました",
-        paragraphs: [
-          "店舗・ユーザー・過去のシフトは削除されていませんが、シフト作成や通知などの業務操作は利用できません。",
-          "利用を再開するには、組織設定からStandardまたはProを契約してください。",
-        ],
-      });
-    },
-  );
-
-  it("deployment前のFree条件未達通知だけはFree整理を案内する", () => {
-    expect(
-      organizationBillingNotificationCopy("restrictedStarted", undefined, {
-        restrictionReason: "freeConditionsNotMet",
-      }).paragraphs[1],
-    ).toContain("無料プランで残す管理者と店舗を整理");
-  });
-
   it("期間末変更通知へ変更先プランと適用日時を載せる", () => {
     const copy = organizationBillingNotificationCopy("scheduledChange", undefined, {
       targetPlan: "standard",
@@ -166,22 +144,16 @@ describe("organizationBilling/notification", () => {
     expect(paragraphs).toContain("JPY");
     expect(paragraphs).toContain("2,980");
     expect(paragraphs).toContain("9/1(火) 00:00");
-    expect(detailed.paragraphs[0]).toContain(
-      "Proの契約を復旧しました。\n確認済みの管理者と店舗で業務を再開しました。\n今回の請求額",
-    );
+    expect(detailed.paragraphs[0]).toContain("Proの契約を復旧しました。\n今回の請求額");
     expect(detailed.paragraphs[0]).toContain("です。\n適用日時は");
     expect(organizationBillingNotificationCopy("recovered").paragraphs[0]).toBe(
-      "支払い結果を確認し、確認済みの管理者と店舗で業務を再開しました。",
+      "支払い結果を確認し、業務を再開しました。",
     );
   });
 
-  it("即時支払い失敗後の無料継続と契約制限継続を区別する", () => {
+  it("即時支払い失敗後のFree継続を案内する", () => {
     expect(organizationBillingNotificationCopy("paidActivationFailedFreeContinued")).toMatchObject({
       heading: "Freeを継続しています",
-      paragraphs: expect.arrayContaining([expect.stringContaining("有料プランを開始できませんでした")]),
-    });
-    expect(organizationBillingNotificationCopy("paidActivationFailedRestrictedContinued")).toMatchObject({
-      heading: "契約状態を確認できない状態が続いています",
       paragraphs: expect.arrayContaining([expect.stringContaining("有料プランを開始できませんでした")]),
     });
   });

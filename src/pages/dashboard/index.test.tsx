@@ -167,7 +167,6 @@ const renderPage = (overrides: Partial<ComponentProps<typeof DashboardRoutePage>
       <DashboardRoutePage
         organizationId={"organization-a" as never}
         organizationName="Aグループ"
-        memberStatus="active"
         activeShops={activeShops}
         requestedShopId="shop-b"
         {...overrides}
@@ -217,7 +216,6 @@ describe("DashboardRoutePage", () => {
         <DashboardRoutePage
           organizationId={"organization-a" as never}
           organizationName="Aグループ"
-          memberStatus="active"
           activeShops={activeShops}
           requestedShopId="shop-b"
         />
@@ -240,7 +238,6 @@ describe("DashboardRoutePage", () => {
         <DashboardRoutePage
           organizationId={"organization-a" as never}
           organizationName="Aグループ"
-          memberStatus="active"
           activeShops={activeShops}
           requestedShopId="shop-b"
         />
@@ -270,7 +267,6 @@ describe("DashboardRoutePage", () => {
         <DashboardRoutePage
           organizationId={"organization-a" as never}
           organizationName="Aグループ"
-          memberStatus="active"
           activeShops={activeShops}
           requestedShopId="shop-b"
         />
@@ -309,7 +305,6 @@ describe("DashboardRoutePage", () => {
         <DashboardRoutePage
           organizationId={"organization-b" as never}
           organizationName="Bグループ"
-          memberStatus="active"
           activeShops={[{ id: "shop-c", name: "C店舗" }]}
           requestedShopId="shop-a"
         />
@@ -333,13 +328,6 @@ describe("DashboardRoutePage", () => {
       organizationId: "organization-b",
       shopId: "shop-c",
     });
-  });
-
-  it("readOnly memberでは既存Dashboardの操作を無効化し、閲覧理由を表示する", () => {
-    renderPage({ memberStatus: "readOnly" });
-
-    expect(screen.getByText("現在、この店舗では操作できません")).not.toBeNull();
-    expect(screen.getByRole("region", { name: "接続済みホーム" }).getAttribute("data-read-only")).toBe("true");
   });
 
   it("プラン上限超過中はDashboardの業務操作を無効化して整理またはプラン変更を案内する", () => {

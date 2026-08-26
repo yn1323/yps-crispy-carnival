@@ -169,27 +169,22 @@ async function getActiveUserAssociationStatusForScope(
   userId: Id<"users">,
   excludedOrganizationId?: Id<"organizations">,
 ): Promise<ActiveUserAssociationStatus> {
-  for (const status of ["active", "readOnly"] as const) {
-    const memberQuery = ctx.db
-      .query("organizationMembers")
-      .withIndex("by_userId_and_status", (q) => q.eq("userId", userId).eq("status", status));
-    const members = await (excludedOrganizationId
-      ? memberQuery.filter((q) => q.neq(q.field("organizationId"), excludedOrganizationId))
-      : memberQuery
-    ).take(USER_ASSOCIATION_SCAN_LIMIT + 1);
-    if (members.length > USER_ASSOCIATION_SCAN_LIMIT) return "unknown";
-    for (const member of members) {
-      const [organization, person] = await Promise.all([
-        ctx.db.get(member.organizationId),
-        ctx.db.get(member.personId),
-      ]);
-      if (!organization) return "unknown";
-      if (organization.isDeleted) continue;
-      if (person?.status !== "active" || person.organizationId !== organization._id || person.userId !== userId) {
-        return "unknown";
-      }
-      return "found";
+  const memberQuery = ctx.db
+    .query("organizationMembers")
+    .withIndex("by_userId_and_status", (q) => q.eq("userId", userId).eq("status", "active"));
+  const members = await (excludedOrganizationId
+    ? memberQuery.filter((q) => q.neq(q.field("organizationId"), excludedOrganizationId))
+    : memberQuery
+  ).take(USER_ASSOCIATION_SCAN_LIMIT + 1);
+  if (members.length > USER_ASSOCIATION_SCAN_LIMIT) return "unknown";
+  for (const member of members) {
+    const [organization, person] = await Promise.all([ctx.db.get(member.organizationId), ctx.db.get(member.personId)]);
+    if (!organization) return "unknown";
+    if (organization.isDeleted) continue;
+    if (person?.status !== "active" || person.organizationId !== organization._id || person.userId !== userId) {
+      return "unknown";
     }
+    return "found";
   }
 
   const peopleQuery = ctx.db

@@ -758,82 +758,6 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     });
   });
 
-  it("本人性を確認できない復旧候補を引継ぎ先として数えない", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, {
-        subject: "user_detail_last_recovery_manager",
-        plan: "pro",
-      });
-      await ctx.db.patch(base.organizationId, {
-        billingEmail: "billing@example.com",
-        billingEmailNormalized: "billing@example.com",
-      });
-
-      const validUserId = await seedUser(ctx, "user_detail_valid_successor", "valid-successor@example.com");
-      const validPersonId = await seedPerson(ctx, {
-        organizationId: base.organizationId,
-        email: "valid-successor@example.com",
-        userId: validUserId,
-      });
-      await ctx.db.insert("organizationMembers", {
-        organizationId: base.organizationId,
-        personId: validPersonId,
-        userId: validUserId,
-        status: "active",
-        createdAt: NOW,
-        updatedAt: NOW,
-      });
-
-      const invalidUserId = await seedUser(ctx, "user_detail_invalid_recovery", "invalid-recovery@example.com");
-      const invalidPersonId = await seedPerson(ctx, {
-        organizationId: base.organizationId,
-        email: "invalid-recovery@example.com",
-        userId: invalidUserId,
-      });
-      for (let index = 0; index < 2; index += 1) {
-        await ctx.db.insert("organizationMembers", {
-          organizationId: base.organizationId,
-          personId: invalidPersonId,
-          userId: invalidUserId,
-          status: "active",
-          createdAt: NOW + index,
-          updatedAt: NOW + index,
-        });
-      }
-
-      const billingState = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
-        .unique();
-      if (!billingState) throw new Error("billing state not found");
-      await ctx.db.patch(billingState._id, {
-        state: {
-          kind: "restricted",
-          reason: "freeConditionsNotMet",
-          previousPlan: "pro",
-          recoveryManagerPersonIds: [base.personId, invalidPersonId],
-          previousActiveShopIds: [base.shopId],
-          restrictedAt: NOW,
-        },
-      });
-      return base;
-    });
-
-    const result = await t
-      .withIdentity({ subject: "user_detail_last_recovery_manager" })
-      .query(api.organization.userDetailQueries.getUserDetail, {
-        shopId: ids.shopId,
-        personId: ids.personId,
-        now: NOW,
-      });
-
-    expect(result).toMatchObject({
-      canRemove: false,
-      removeDisabledReason: "先に管理者権限を外してください。",
-    });
-  });
-
   it("管理者所属または店舗所属が重複した不整合はnullにする", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -899,7 +823,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
           organizationId: ids.organizationId,
           personId: ids.personId,
           userId: ids.targetUserId,
-          status: "readOnly",
+          status: "active",
           createdAt: NOW,
           updatedAt: NOW,
         }),
@@ -1022,7 +946,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     });
   });
 
-  it("閲覧専用actorと課金state欠落では書き込み不可を返す", async () => {
+  it("課金state欠落では書き込み不可を返す", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -1051,29 +975,12 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         linkedAt: NOW,
         isDeleted: false,
       });
-      await ctx.db.patch(base.memberId, { status: "readOnly" });
       return { ...base, personId, staffId };
     });
     const actor = t.withIdentity({ subject: "user_detail_read_only" });
     const args = { shopId: ids.shopId, personId: ids.personId, now: NOW };
 
-    expect(await actor.query(api.organization.userDetailQueries.getUserDetail, args)).toMatchObject({
-      canWrite: false,
-      writeDisabledReason: "現在のアカウント状態では、ユーザー情報を変更できません。",
-      line: {
-        status: "linked_following",
-        actionShopId: ids.shopId,
-        sourceStaffId: ids.staffId,
-        sourceShopId: ids.shopId,
-        canLink: false,
-        linkDisabledReason: "現在のアカウント状態では、ユーザー情報を変更できません。",
-        canDisconnect: false,
-        disconnectDisabledReason: "現在のアカウント状態では、LINE連携を解除できません。",
-      },
-    });
-
     await t.run(async (ctx) => {
-      await ctx.db.patch(ids.memberId, { status: "active" });
       const billingState = await ctx.db
         .query("organizationBillingStates")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))

@@ -9,7 +9,6 @@ import {
   AppManageBillingPageSkeleton,
   AppManageHeader,
   AppManagePageStateView,
-  AppManageReadOnlyNotice,
   ManageShopsSection,
   OrganizationBasicInformationSection,
   OrganizationManagementSection,
@@ -77,11 +76,10 @@ export const QueryError: Story = {
 
 const organizationId = "organization-preview" as never;
 
-function ReadyPreview({ readOnly = false }: { readOnly?: boolean }) {
+function ReadyPreview() {
   return (
     <Stack gap={6}>
       <AppManageHeader />
-      <AppManageReadOnlyNotice memberStatus={readOnly ? "readOnly" : "active"} />
       <Stack gap={4}>
         <OrganizationUsageSection billing={billing} showCurrentPlan />
         <OrganizationManagementSection
@@ -128,16 +126,6 @@ export const AppCompositionMobile: Story = {
   name: "管理・新shell・モバイル414px",
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
-};
-
-export const ReadyReadOnly: Story = {
-  render: () => <ReadyPreview readOnly />,
-};
-
-export const ReadyReadOnlyMobile: Story = {
-  tags: ["vrt-mobile2"],
-  globals: { viewport: { value: "mobile2", isRotated: false } },
-  render: () => <ReadyPreview readOnly />,
 };
 
 function RetryPreview() {

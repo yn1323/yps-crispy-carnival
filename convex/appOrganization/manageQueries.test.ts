@@ -38,7 +38,7 @@ describe("appOrganization/manageQueries", () => {
       organizationName: "対象組織",
       memberStatus: "active",
       usage: { state: "business", shopUsage: { current: 1 } },
-      shopCounts: { active: 1, archived: 0, planSuspended: 0, hasOverflow: false },
+      shopCounts: { active: 1, archived: 0, hasOverflow: false },
       capabilities: { canAddShop: true, canCreateOrganization: true },
     });
     await expect(
@@ -76,31 +76,6 @@ describe("appOrganization/manageQueries", () => {
         organizationId: ids.foreign.organizationId,
       }),
     ).rejects.toThrow("Not found");
-  });
-
-  it("readOnly所属は閲覧できるがwrite capabilityを公開しない", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const actor = await seedOrganizationManagerShop(ctx, {
-        subject: "manage_overview_read_only",
-        plan: "pro",
-      });
-      await ctx.db.patch(actor.memberId, { status: "readOnly", updatedAt: Date.now() });
-      return actor;
-    });
-
-    const overview = await t
-      .withIdentity({ subject: "manage_overview_read_only" })
-      .query(api.appOrganization.manageQueries.getManageOverview, {
-        organizationId: ids.organizationId,
-      });
-    expect(overview.memberStatus).toBe("readOnly");
-    expect(overview.capabilities).toMatchObject({
-      canUpdateOrganizationName: false,
-      canAddShop: false,
-      canDeleteOrganization: false,
-      canCreateOrganization: false,
-    });
   });
 
   it("未承認の管理者招待は実利用数へ加えず、招待中件数として分離する", async () => {

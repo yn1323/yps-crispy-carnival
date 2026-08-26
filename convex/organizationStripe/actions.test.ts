@@ -2,7 +2,7 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
-import { seedOrganizationManagerShop, testAuthTokenIdentifier } from "../_test/seed";
+import { seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { STRIPE_WEBHOOK_EVENT_RETENTION_MS } from "../constants";
 import { STRIPE_WEBHOOK_API_VERSION, type StripeBillingConfiguration } from "./config";
@@ -450,7 +450,7 @@ describe("organizationStripe/actions", () => {
     await expectNoStripeSideEffects(t);
   });
 
-  it("未認証・removed・readOnly・別organizationでは3 Actionともprovider通信しない", async () => {
+  it("未認証・removed・別organizationでは3 Actionともprovider通信しない", async () => {
     {
       const t = convexTest(schema, modules);
       const ids = await t.run(
@@ -482,21 +482,6 @@ describe("organizationStripe/actions", () => {
     {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
-        const seeded = await seedOrganizationManagerShop(ctx, { subject: "stripe_read_only", plan: "free" });
-        await ctx.db.patch(seeded.memberId, { status: "readOnly" });
-        return seeded;
-      });
-      expect(await invokeBillingActions(t.withIdentity({ subject: "stripe_read_only" }), ids.shopId)).toEqual([
-        { status: "unavailable", reason: "not_allowed" },
-        { status: "unavailable", reason: "not_allowed" },
-        { status: "unavailable", reason: "not_allowed" },
-      ]);
-      await expectNoStripeSideEffects(t);
-    }
-
-    {
-      const t = convexTest(schema, modules);
-      const ids = await t.run(async (ctx) => {
         await seedOrganizationManagerShop(ctx, { subject: "stripe_other_org_actor", plan: "free" });
         return await seedOrganizationManagerShop(ctx, { subject: "stripe_other_org_target", plan: "free" });
       });
@@ -509,7 +494,7 @@ describe("organizationStripe/actions", () => {
     }
   });
 
-  it("Checkout照合とキャンセル復旧は別組織actorとreadOnly actorをprovider通信前に拒否する", async () => {
+  it("Checkout照合とキャンセルは別組織actorとremoved actorをprovider通信前に拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       await seedOrganizationManagerShop(ctx, { subject: "stripe_cancel_actor_other_org", plan: "free" });
@@ -540,23 +525,23 @@ describe("organizationStripe/actions", () => {
     ).rejects.toThrow("Not found");
 
     await t.run(async (ctx) => {
-      await ctx.db.patch(ids.memberId, { status: "readOnly" });
+      await ctx.db.patch(ids.memberId, { status: "removed" });
     });
-    const readOnlyActor = t.withIdentity({ subject: "stripe_cancel_actor_target" });
+    const removedActor = t.withIdentity({ subject: "stripe_cancel_actor_target" });
     await expect(
-      readOnlyActor.action(api.organizationStripe.actions.inspectPendingCheckoutForOrganization, {
+      removedActor.action(api.organizationStripe.actions.inspectPendingCheckoutForOrganization, {
         organizationId: ids.organizationId,
       }),
-    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+    ).rejects.toThrow("Not found");
     await expect(
-      readOnlyActor.action(api.organizationStripe.actions.cancelPendingCheckoutForOrganization, {
+      removedActor.action(api.organizationStripe.actions.cancelPendingCheckoutForOrganization, {
         organizationId: ids.organizationId,
       }),
-    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+    ).rejects.toThrow("Not found");
     expect(providerFetchMock).not.toHaveBeenCalled();
   });
 
-  it("組織scopeの課金7 Actionは未認証・別組織・readOnly actorをprovider通信前に拒否する", async () => {
+  it("組織scopeの課金7 Actionは未認証・別組織・removed actorをprovider通信前に拒否する", async () => {
     configurationMock.mockReturnValue(READY_PRO_TEST_CONFIGURATION);
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -577,50 +562,13 @@ describe("organizationStripe/actions", () => {
       await expect(invoke()).rejects.toThrow("Not found");
     }
 
-    await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "readOnly", updatedAt: NOW }));
-    const readOnlyActor = t.withIdentity({ subject: "stripe_org_scope_target" });
-    for (const invoke of organizationScopedBillingActionInvocations(readOnlyActor, ids.organizationId, "read-only")) {
-      await expect(invoke()).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+    await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "removed", updatedAt: NOW }));
+    const removedActor = t.withIdentity({ subject: "stripe_org_scope_target" });
+    for (const invoke of organizationScopedBillingActionInvocations(removedActor, ids.organizationId, "removed")) {
+      await expect(invoke()).rejects.toThrow("Not found");
     }
 
     await expectNoStripeSideEffects(t);
-  });
-
-  it("組織scopeの復旧managerは価格参照だけを行え、状態不一致の変更6 Actionは開始しない", async () => {
-    configurationMock.mockReturnValue(READY_PRO_TEST_CONFIGURATION);
-    const t = convexTest(schema, modules);
-    const ids = await seedCurrentSubscriptionPriceContext(t, {
-      subject: "stripe_org_scope_recovery_manager",
-      subscriptionStatus: "past_due",
-      billingState: ({ personId, shopId }) => ({
-        kind: "restricted",
-        reason: "paymentGraceExpired",
-        previousPlan: "pro",
-        recoveryManagerPersonIds: [personId],
-        previousActiveShopIds: [shopId],
-        restrictedAt: NOW,
-      }),
-    });
-    await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "readOnly", updatedAt: NOW }));
-    providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").pop() ?? "";
-      if (resource !== "prices.retrieve") throw new Error(`Unexpected Stripe provider call: ${resource}`);
-      const [priceId] = JSON.parse(String(init?.body ?? "[]")) as [string];
-      return providerResponse(priceFixtureFor(priceId));
-    });
-    const [getPrice, ...changeActions] = organizationScopedBillingActionInvocations(
-      t.withIdentity({ subject: "stripe_org_scope_recovery_manager" }),
-      ids.organizationId,
-      "recovery-manager",
-    );
-
-    await expect(getPrice()).resolves.toMatchObject({ status: "available", unitAmount: 2980 });
-    for (const invoke of changeActions) {
-      await expect(invoke()).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
-    }
-
-    expect(providerFetchMock).toHaveBeenCalledTimes(2);
-    expect(await t.run(async (ctx) => await ctx.db.query("organizationStripeOperations").collect())).toEqual([]);
   });
 
   it("必須設定不足では3 Actionともprovider通信しない", async () => {
@@ -916,35 +864,6 @@ describe("organizationStripe/actions", () => {
     expect(providerFetchMock).not.toHaveBeenCalled();
   });
 
-  it("支払い制限中は復旧managerだけが保存済み契約Priceを取得できる", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await seedCurrentSubscriptionPriceContext(t, {
-      subject: "stripe_current_subscription_recovery_manager",
-      subscriptionStatus: "past_due",
-      billingState: ({ personId, shopId }) => ({
-        kind: "restricted",
-        reason: "paymentGraceExpired",
-        previousPlan: "pro",
-        recoveryManagerPersonIds: [personId],
-        previousActiveShopIds: [shopId],
-        restrictedAt: NOW,
-      }),
-    });
-    providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").pop() ?? "";
-      if (resource !== "prices.retrieve") throw new Error(`Unexpected Stripe provider call: ${resource}`);
-      const [priceId] = JSON.parse(String(init?.body ?? "[]")) as [string];
-      return providerResponse({ ...priceFixtureFor(priceId), active: false });
-    });
-
-    await expect(
-      t
-        .withIdentity({ subject: "stripe_current_subscription_recovery_manager" })
-        .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
-    ).resolves.toMatchObject({ status: "available", unitAmount: 1480 });
-    expect(providerFetchMock).toHaveBeenCalledTimes(1);
-  });
-
   it.each([
     {
       label: "scheduledChange",
@@ -987,49 +906,19 @@ describe("organizationStripe/actions", () => {
     expect(providerFetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("一般のreadOnly actorは有料契約Priceを取得できずprovider通信しない", async () => {
+  it("removed actorは有料契約Priceを取得できずprovider通信しない", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedCurrentSubscriptionPriceContext(t, {
-      subject: "stripe_current_subscription_read_only",
+      subject: "stripe_current_subscription_removed",
     });
-    await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "readOnly" }));
+    await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "removed" }));
 
     await expect(
       t
-        .withIdentity({ subject: "stripe_current_subscription_read_only" })
+        .withIdentity({ subject: "stripe_current_subscription_removed" })
         .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
-    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+    ).rejects.toThrow("Not found");
     expect(providerFetchMock).not.toHaveBeenCalled();
-  });
-
-  it("restricted recoveryManagerはreadOnlyになっても契約Priceを取得できる", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await seedCurrentSubscriptionPriceContext(t, {
-      subject: "stripe_current_subscription_read_only_recovery",
-      subscriptionStatus: "past_due",
-      billingState: ({ personId, shopId }) => ({
-        kind: "restricted",
-        reason: "paymentGraceExpired",
-        previousPlan: "pro",
-        recoveryManagerPersonIds: [personId],
-        previousActiveShopIds: [shopId],
-        restrictedAt: NOW,
-      }),
-    });
-    await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "readOnly" }));
-    providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").pop() ?? "";
-      if (resource !== "prices.retrieve") throw new Error(`Unexpected Stripe provider call: ${resource}`);
-      const [priceId] = JSON.parse(String(init?.body ?? "[]")) as [string];
-      return providerResponse({ ...priceFixtureFor(priceId), active: false });
-    });
-
-    await expect(
-      t
-        .withIdentity({ subject: "stripe_current_subscription_read_only_recovery" })
-        .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
-    ).resolves.toMatchObject({ status: "available", unitAmount: 1480 });
-    expect(providerFetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("Freeから日次Business Checkoutを開始しても支払確認前はpendingActivationを維持する", async () => {
@@ -6773,18 +6662,18 @@ describe("organizationStripe/actions", () => {
     expect(providerFetchMock).not.toHaveBeenCalled();
   });
 
-  it("Trial継続取消はreadOnly管理者ならoperation・scheduler・provider通信を開始しない", async () => {
+  it("Trial継続取消はremoved管理者ならoperation・scheduler・provider通信を開始しない", async () => {
     const t = convexTest(schema, modules);
-    const ids = await seedTrialContinuationCancellation(t, "read_only");
-    await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "readOnly", updatedAt: NOW }));
+    const ids = await seedTrialContinuationCancellation(t, "removed");
+    await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "removed", updatedAt: NOW }));
     const before = await trialContinuationBoundaryState(t, ids.organizationId);
 
     await expect(
       t.withIdentity({ subject: ids.subject }).action(api.organizationStripe.actions.cancelTrialContinuation, {
         shopId: ids.shopId,
-        requestId: "trial-cancel-read-only",
+        requestId: "trial-cancel-removed",
       }),
-    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+    ).rejects.toThrow("Not found");
 
     expect(await trialContinuationBoundaryState(t, ids.organizationId)).toEqual(before);
     expect(before.operations).toEqual([]);
@@ -7629,7 +7518,7 @@ describe("organizationStripe/actions", () => {
     expect(providerFetchMock).toHaveBeenCalledTimes(4);
   });
 
-  it("解約予約は未認証・readOnly・別organizationから開始できない", async () => {
+  it("解約予約は未認証・removed・別organizationから開始できない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       await seedOrganizationManagerShop(ctx, { subject: "stripe_service_stop_other", plan: "pro" });
@@ -7650,15 +7539,15 @@ describe("organizationStripe/actions", () => {
           requestId: "service-stop-other-organization",
         }),
     ).rejects.toThrow();
-    await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "readOnly", updatedAt: NOW }));
+    await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "removed", updatedAt: NOW }));
     await expect(
       t
         .withIdentity({ subject: "stripe_service_stop_target" })
         .action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd, {
           shopId: ids.shopId,
-          requestId: "service-stop-read-only",
+          requestId: "service-stop-removed",
         }),
-    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
+    ).rejects.toThrow("Not found");
     expect(providerFetchMock).not.toHaveBeenCalled();
     await expectNoStripeSideEffects(t);
   });
@@ -7972,7 +7861,7 @@ describe("organizationStripe/actions", () => {
     expect(result.subscription).toMatchObject({ status: "canceled", terminalAt: NOW });
   });
 
-  it("解約予約はproviderの期間変更後もmarkerを保持し、取消確定時にrestrictedへ移す", async () => {
+  it("解約予約はproviderの期間変更後もmarkerを保持し、取消確定時にactive.freeへ移す", async () => {
     const t = convexTest(schema, modules);
     const rescheduledEndsAt = NOW + 24 * 60 * 60_000;
     const ids = await seedScheduledFreeStripeContext(t, "stripe_scheduled_restriction_rescheduled", "pro", {
@@ -8614,14 +8503,7 @@ describe("organizationStripe/actions", () => {
         .unique();
       if (!billing) throw new Error("billing state was not seeded");
       await ctx.db.patch(billing._id, {
-        state: {
-          kind: "restricted",
-          reason: "unexpectedCancellation",
-          previousPlan: "pro",
-          recoveryManagerPersonIds: [seeded.personId],
-          previousActiveShopIds: [seeded.shopId],
-          restrictedAt: NOW,
-        },
+        state: { kind: "active", plan: "free" },
         version: 2,
         updatedAt: NOW,
       });
@@ -8728,7 +8610,7 @@ describe("organizationStripe/actions", () => {
       kind: "pendingActivation",
       planIdVersion: 2,
       plan: "standard",
-      fallback: "restricted",
+      fallback: "free",
     });
     expect(result.operation).toMatchObject({
       kind: "immediatePaidCheckout",
@@ -8763,67 +8645,6 @@ describe("organizationStripe/actions", () => {
     expect((checkoutCreateCalls[0][1] as { idempotencyKey: string }).idempotencyKey).toBe(
       result.operation?.stripeIdempotencyKey,
     );
-  });
-
-  it("grace取消後はcancelとinvoice停止の両方が成功するまで再契約を許可しない", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await seedExpiredGraceStripeContext(t, "stripe_finalization_gate");
-    await t.run(async (ctx) => {
-      const billing = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
-        .unique();
-      const subscription = await ctx.db
-        .query("organizationStripeSubscriptions")
-        .withIndex("by_organizationId_and_providerGeneration", (q) =>
-          q.eq("organizationId", ids.organizationId).eq("providerGeneration", 1),
-        )
-        .unique();
-      if (!billing || !subscription) throw new Error("billing fixture missing");
-      await ctx.db.patch(billing._id, {
-        state: {
-          kind: "restricted",
-          reason: "paymentGraceExpired",
-          previousPlan: "pro",
-          recoveryManagerPersonIds: [ids.personId],
-          previousActiveShopIds: [ids.shopId],
-          restrictedAt: NOW,
-        },
-        version: 3,
-      });
-      await ctx.db.patch(subscription._id, { status: "canceled", terminalAt: NOW });
-    });
-    const context = () =>
-      t.query(internal.organizationStripe.queries.getActionContext, {
-        tokenIdentifier: testAuthTokenIdentifier("stripe_finalization_gate"),
-        shopId: ids.shopId,
-        purpose: "startCheckout",
-      });
-    await expect(context()).resolves.toBeNull();
-    const insertFinalizationProof = async (kind: "cancelSubscription" | "stopInvoiceCollection") =>
-      await t.run(async (ctx) => {
-        await ctx.db.insert("organizationStripeOperations", {
-          organizationId: ids.organizationId,
-          kind,
-          requestKey: `finalization-${kind}`,
-          stripeIdempotencyKey: `finalization:${kind}`,
-          livemode: false,
-          expectedBillingVersion: 3,
-          providerGeneration: 1,
-          stripeObjectId: kind === "cancelSubscription" ? "sub_grace" : "in_open",
-          status: "succeeded",
-          attemptCount: 1,
-          completedAt: NOW,
-          expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
-          createdAt: NOW,
-          updatedAt: NOW,
-        });
-      });
-    await insertFinalizationProof("cancelSubscription");
-    await expect(context()).resolves.toBeNull();
-    await insertFinalizationProof("stopInvoiceCollection");
-    await expect(context()).resolves.not.toBeNull();
-    expect(providerFetchMock).not.toHaveBeenCalled();
   });
 });
 

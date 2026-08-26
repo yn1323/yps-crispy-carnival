@@ -9,7 +9,6 @@ const shop = (overrides: Partial<ShopContextOption> = {}): ShopContextOption => 
   organizationId: "organization-a",
   organizationName: "さくらダイニング",
   organizationPlan: "pro",
-  memberStatus: "active",
   ...overrides,
 });
 
@@ -24,7 +23,7 @@ describe("manager invitation helpers", () => {
     expect(formatManagerInvitationExpiry(Date.UTC(2026, 6, 23, 9, 5))).toBe("2026年7月23日 18:05");
   });
 
-  it("承認結果と同じ事業者・店舗なら閲覧専用を含む選択可能な店舗を返す", () => {
+  it("承認結果と同じ事業者・店舗を返す", () => {
     const shops = [
       shop({ organizationId: "organization-b" }),
       shop({ shopStatus: "archived" }),

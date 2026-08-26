@@ -606,11 +606,6 @@ async function requirePersonIsEligibleManagerInviteTarget(
     .take(2);
   if (members.length > 1) throw new ConvexError("管理者所属を一意に確認できません");
   if (members[0]?.status === "active") throw new ConvexError("この利用者はすでに管理者です");
-  if (members[0]?.status === "readOnly") {
-    throw new ConvexError(
-      "この利用者は現在、管理者として操作できません。\nアカウント状態を確認してから、もう一度お試しください。",
-    );
-  }
   if (!options.requireActiveStaff) return;
 
   const staffRows = await ctx.db
@@ -1101,11 +1096,6 @@ async function resendInvitationForActor(
       .take(2);
     if (members.length > 1) throw new ConvexError("管理者所属を一意に確認できません");
     if (members[0]?.status === "active") throw new ConvexError("この利用者はすでに管理者です");
-    if (members[0]?.status === "readOnly") {
-      throw new ConvexError(
-        "この利用者は現在、管理者として操作できません。\nアカウント状態を確認してから、もう一度お試しください。",
-      );
-    }
   }
   const reservedSeat = targetPerson
     ? !(await organizationPersonCountsTowardPeopleLimit(ctx, organization._id, targetPerson._id))
@@ -1385,7 +1375,6 @@ async function linkAccountWithToken(
       .collect();
     const firstReadableShop =
       shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "active") ??
-      shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "planSuspended") ??
       shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "archived");
     return firstReadableShop
       ? { status: "linked" as const, organizationId: invitation.organizationId, shopId: firstReadableShop._id }
@@ -1432,7 +1421,7 @@ async function linkAccountWithToken(
         .take(2)
     : [];
   if (existingMembers.length > 1) return { status: "conflict" as const };
-  if (existingMembers[0]?.status === "active" || existingMembers[0]?.status === "readOnly") {
+  if (existingMembers[0]?.status === "active") {
     return { status: "conflict" as const };
   }
   if (existingMembers[0]?.userId && existingMembers[0].userId !== ctx.user?._id) {
@@ -1663,9 +1652,7 @@ async function linkAccountWithToken(
   });
   const firstActiveShop = shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "active");
   const firstReadableShop =
-    firstActiveShop ??
-    shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "planSuspended") ??
-    shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "archived");
+    firstActiveShop ?? shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "archived");
   return firstReadableShop
     ? { status: "linked" as const, organizationId: invitation.organizationId, shopId: firstReadableShop._id }
     : { status: "linked" as const, organizationId: invitation.organizationId };

@@ -17,7 +17,6 @@ type DialogState = {
 type Props = {
   groups: DashboardRecruitmentGroup[];
   shops: readonly OrganizationRecruitmentShop[];
-  isReadOnly: boolean;
   canCreateRecruitments: boolean;
   createDisabledReason?: string;
   canDeleteRecruitments: boolean;
@@ -47,7 +46,6 @@ type Props = {
 export function OrganizationRecruitmentManagementView({
   groups,
   shops,
-  isReadOnly,
   canCreateRecruitments,
   createDisabledReason,
   canDeleteRecruitments,
@@ -96,7 +94,6 @@ export function OrganizationRecruitmentManagementView({
       <RecruitmentBoard
         title="シフト一覧"
         groups={groups}
-        isReadOnly={isReadOnly}
         canCreateRecruitments={canCreateRecruitments}
         createRecruitmentDisabledReason={createDisabledReason}
         showRecruitmentMenus
@@ -123,7 +120,7 @@ export function OrganizationRecruitmentManagementView({
 
       <StepperDialog
         title="新しい募集をつくる"
-        isOpen={createDialog.isOpen && !isReadOnly && selectableShops.length > 0}
+        isOpen={createDialog.isOpen && canCreateRecruitments && selectableShops.length > 0}
         onOpenChange={createDialog.onOpenChange}
         onClose={createDialog.close}
         preventClose={isCreateBusy}
@@ -139,7 +136,7 @@ export function OrganizationRecruitmentManagementView({
 
       <Dialog
         title={deleteTitle}
-        isOpen={deleteDialog.isOpen && !isReadOnly}
+        isOpen={deleteDialog.isOpen && canDeleteRecruitments}
         onOpenChange={deleteDialog.onOpenChange}
         onClose={deleteDialog.close}
         onSubmit={onDeleteConfirm}

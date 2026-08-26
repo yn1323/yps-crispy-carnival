@@ -61,8 +61,7 @@ export const RecruitmentBoard = ({
   const canCreate = canCreateRecruitments ?? !isReadOnly;
   const resolvedCreateDisabledReason = canCreate
     ? undefined
-    : (createRecruitmentDisabledReason ??
-      (isReadOnly ? "現在のアカウント状態では募集を作成できません" : "募集を作成できません"));
+    : (createRecruitmentDisabledReason ?? "現在、募集を作成できません");
   const resolvedEmptyState = emptyState ?? {
     title: `${title}はまだありません`,
     description: "シフト期間と提出期限を決めて、スタッフに希望を聞きましょう。",

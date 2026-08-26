@@ -12,7 +12,6 @@ const PAGE_SIZE = 50;
 export type AppOrganizationScope = {
   organizationId: Id<"organizations">;
   organizationName: string;
-  memberStatus: "active" | "readOnly";
   /** nullの間は全cursorを走査中。Headerの組織切替へ部分的な一覧を公開しない。 */
   organizations: AppOrganizationOption[] | null;
   /** nullの間は全cursorを走査中。部分的な店舗一覧を選択肢として公開しない。 */
@@ -22,7 +21,6 @@ export type AppOrganizationScope = {
 export type AppOrganizationOption = {
   id: Id<"organizations">;
   name: string;
-  memberStatus: "active" | "readOnly";
 };
 
 type Props = {
@@ -140,7 +138,6 @@ function VerifiedOrganizationScope({
       ? organizations.results.map((candidate) => ({
           id: candidate.organizationId,
           name: candidate.organizationName,
-          memberStatus: candidate.memberStatus,
         }))
       : null;
 
@@ -149,7 +146,6 @@ function VerifiedOrganizationScope({
       value={{
         organizationId: organization.organizationId,
         organizationName: organization.organizationName,
-        memberStatus: organization.memberStatus,
         organizations: organizationOptions,
         activeShops,
       }}

@@ -1,4 +1,4 @@
-import { Alert, Box, Flex, Heading, HStack, Icon, Skeleton, Stack } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Icon, Skeleton, Stack } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { usePaginatedQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
@@ -30,7 +30,6 @@ export type ShopOption = {
 
 type Props = {
   organizationId: Id<"organizations">;
-  memberStatus: "active" | "readOnly";
   activeShops: ShopOption[] | null;
   requestedShopFilter?: string;
 };
@@ -74,7 +73,6 @@ export function AppShiftsRoutePage(props: Props) {
       >
         <ConnectedAppShifts
           organizationId={props.organizationId}
-          memberStatus={props.memberStatus}
           activeShops={props.activeShops ?? []}
           shopFilter={resolvedFilter.shopFilter}
         />
@@ -85,12 +83,10 @@ export function AppShiftsRoutePage(props: Props) {
 
 function ConnectedAppShifts({
   organizationId,
-  memberStatus,
   activeShops,
   shopFilter,
 }: {
   organizationId: Id<"organizations">;
-  memberStatus: "active" | "readOnly";
   activeShops: ShopOption[];
   shopFilter: "all" | Id<"shops">;
 }) {
@@ -113,14 +109,11 @@ function ConnectedAppShifts({
 
   const overview = buildAppShiftsOverview(sections.results, shopFilter);
   const filterOptions = activeShops.map((shop) => ({ value: shop.id, label: shop.name }));
-  const isReadOnly = memberStatus === "readOnly";
-
   return (
     <Animation>
       <AppShiftsOverviewView
         filterValue={shopFilter === "all" ? null : shopFilter}
         filterOptions={filterOptions}
-        isReadOnly={isReadOnly}
         onFilterChange={(nextFilter) =>
           void navigate({
             to: "/shifts",
@@ -130,7 +123,6 @@ function ConnectedAppShifts({
       >
         <OrganizationRecruitmentManagement
           organizationId={organizationId}
-          memberStatus={memberStatus}
           shopFilter={shopFilter}
           shops={overview.shops}
           groups={overview.groups}
@@ -151,20 +143,17 @@ function ConnectedAppShifts({
 export function AppShiftsOverviewView({
   filterValue,
   filterOptions,
-  isReadOnly = false,
   onFilterChange,
   children,
 }: {
   filterValue: string | null;
   filterOptions: Array<{ value: string; label: string }>;
-  isReadOnly?: boolean;
   onFilterChange: (value: string | null) => void;
   children: ReactNode;
 }) {
   return (
     <Stack as="main" gap={{ base: 6, lg: 8 }}>
       <AppShiftsHeader value={filterValue} options={filterOptions} onChange={onFilterChange} />
-      {isReadOnly && <AppShiftsReadOnlyNotice />}
       {children}
     </Stack>
   );
@@ -237,18 +226,6 @@ export function AppShiftsHeader({
         <ShopFilterMenu value={value} options={options} onChange={onChange} />
       </Box>
     </Flex>
-  );
-}
-
-export function AppShiftsReadOnlyNotice() {
-  return (
-    <Alert.Root status="warning" borderRadius="xl" alignItems="flex-start">
-      <Alert.Indicator mt={1} />
-      <Alert.Content>
-        <Alert.Title>現在、このアカウントでは操作できません</Alert.Title>
-        <Alert.Description>シフトは確認できますが、募集の作成や削除はできません。</Alert.Description>
-      </Alert.Content>
-    </Alert.Root>
   );
 }
 

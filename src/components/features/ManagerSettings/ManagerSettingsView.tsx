@@ -265,13 +265,13 @@ function ManagerUsageBar({ overview }: { overview: ReadyManagerSettingsOverview 
   );
 }
 
-function ManagerAvatar({ name, readOnly = false }: { name: string; readOnly?: boolean }) {
+function ManagerAvatar({ name }: { name: string }) {
   return (
     <Flex
       boxSize="40px"
       borderRadius="full"
-      bg={readOnly ? "gray.100" : "teal.500"}
-      color={readOnly ? "gray.700" : "white"}
+      bg="teal.500"
+      color="white"
       align="center"
       justify="center"
       fontWeight="semibold"
@@ -308,7 +308,7 @@ function ManagerRow({
     >
       <Flex gap={{ base: 2, md: 4 }} align="center" minW={0}>
         <HStack gap={3} flex={1} minW={0} align="center">
-          <ManagerAvatar name={manager.name} readOnly={manager.role === "readOnly"} />
+          <ManagerAvatar name={manager.name} />
           <Stack gap={0.5} minW={0} flex={1}>
             <HStack gap={1.5} wrap="wrap">
               <Text fontWeight="semibold" color="gray.900" overflowWrap="anywhere">
@@ -317,11 +317,6 @@ function ManagerRow({
               {manager.isSelf && (
                 <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
                   あなた
-                </Badge>
-              )}
-              {manager.role === "readOnly" && (
-                <Badge colorPalette="gray" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
-                  状態確認
                 </Badge>
               )}
             </HStack>

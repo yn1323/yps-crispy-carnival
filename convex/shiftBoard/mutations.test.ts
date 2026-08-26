@@ -297,7 +297,7 @@ describe("shiftBoard/mutations", () => {
       expect(persisted).toEqual([]);
     });
 
-    it("readOnly所属と非active店舗ではapp用mutationを拒否する", async () => {
+    it("removed所属と非active店舗ではapp用mutationを拒否する", async () => {
       const t = convexTest(schema, modules);
       const target = await setupTestData(t);
       const ids = await t.run(async (ctx) => {
@@ -315,7 +315,7 @@ describe("shiftBoard/mutations", () => {
       if (!memberId || !userId) throw new Error("member fixture is incomplete");
       const actor = t.withIdentity({ subject: "user_manager" });
 
-      await t.run(async (ctx) => ctx.db.patch(memberId, { status: "readOnly", updatedAt: Date.now() }));
+      await t.run(async (ctx) => ctx.db.patch(memberId, { status: "removed", updatedAt: Date.now() }));
       await expect(
         actor.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId: target.shopId,

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { seedNotificationHistory } from "../_test/notificationHistory";
-import { seedOrganizationManagerShop, seedUser } from "../_test/seed";
+import { seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { NOTIFICATION_RESEND_COOLDOWN_MS, ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT } from "../constants";
 import {
@@ -482,20 +482,20 @@ describe("staff/queries", () => {
       ]);
     });
 
-    it("閲覧専用の管理者には追加候補を返さない", async () => {
+    it("削除済みの管理者には追加候補を返さない", async () => {
       const t = convexTest(schema, modules);
       const seeded = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
-          subject: "readonly_candidate_manager",
+          subject: "removed_candidate_manager",
           plan: "pro",
         });
-        await ctx.db.patch(base.memberId, { status: "readOnly" });
+        await ctx.db.patch(base.memberId, { status: "removed" });
         const now = Date.now();
         await ctx.db.insert("organizationPeople", {
           organizationId: base.organizationId,
           name: "追加候補",
-          email: "readonly-candidate@example.com",
-          emailNormalized: "readonly-candidate@example.com",
+          email: "removed-candidate@example.com",
+          emailNormalized: "removed-candidate@example.com",
           status: "active",
           createdAt: now,
           updatedAt: now,
@@ -505,7 +505,7 @@ describe("staff/queries", () => {
 
       await expect(
         t
-          .withIdentity({ subject: "readonly_candidate_manager" })
+          .withIdentity({ subject: "removed_candidate_manager" })
           .query(api.staff.queries.listOrganizationPeopleAvailableForShop, { shopId: seeded.shopId }),
       ).resolves.toEqual([]);
     });
@@ -789,56 +789,6 @@ describe("staff/queries", () => {
       });
     });
 
-    it("readOnly管理者は管理者表示を維持しつつactive通知対象から外し、現在の店舗所属を変更可能にする", async () => {
-      const t = convexTest(schema, modules);
-      const seeded = await t.run(async (ctx) => {
-        const base = await seedOrganizationManagerShop(ctx, {
-          subject: "shop_staff_readonly_target_manager",
-          plan: "business",
-        });
-        const userId = await seedUser(ctx, "shop_staff_readonly_target", "readonly-target@example.com");
-        const personId = await insertOrganizationPerson(ctx, {
-          organizationId: base.organizationId,
-          name: "閲覧専用管理者",
-          email: "readonly-target@example.com",
-          userId,
-        });
-        await ctx.db.insert("organizationMembers", {
-          organizationId: base.organizationId,
-          personId,
-          userId,
-          status: "readOnly",
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        });
-        const staffId = await insertCanonicalStaff(ctx, {
-          organizationId: base.organizationId,
-          personId,
-          shopId: base.shopId,
-          name: "閲覧専用管理者",
-          email: "readonly-target@example.com",
-        });
-        return { ...base, personId, staffId };
-      });
-
-      const result = await t
-        .withIdentity({ subject: "shop_staff_readonly_target_manager" })
-        .query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: seeded.shopId });
-
-      expect(result?.people.find((person) => person.personId === seeded.personId)).toEqual({
-        personId: seeded.personId,
-        name: "閲覧専用管理者",
-        email: "readonly-target@example.com",
-        isManager: true,
-        isActiveManager: false,
-        otherShopNames: [],
-        isSelected: true,
-        staffId: seeded.staffId,
-        canChange: true,
-        changeDisabledReason: null,
-      });
-    });
-
     it("未認証・別組織のroute shopではsnapshotを返さない", async () => {
       const t = convexTest(schema, modules);
       const seeded = await t.run(async (ctx) => {
@@ -863,25 +813,22 @@ describe("staff/queries", () => {
       ).resolves.toBeNull();
     });
 
-    it("閲覧専用actorにはsnapshotを返しつつ書き込み不可を明示する", async () => {
+    it("削除済みactorにはsnapshotを返さない", async () => {
       const t = convexTest(schema, modules);
       const seeded = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
-          subject: "snapshot_readonly_manager",
+          subject: "snapshot_removed_manager",
           plan: "business",
         });
-        await ctx.db.patch(base.memberId, { status: "readOnly" });
+        await ctx.db.patch(base.memberId, { status: "removed" });
         return base;
       });
 
       const result = await t
-        .withIdentity({ subject: "snapshot_readonly_manager" })
+        .withIdentity({ subject: "snapshot_removed_manager" })
         .query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: seeded.shopId });
 
-      expect(result).toMatchObject({
-        canWrite: false,
-        writeDisabledReason: "現在のアカウント状態では、スタッフの所属を変更できません。",
-      });
+      expect(result).toBeNull();
     });
 
     it("片欠け・別組織人物・削除人物・canonical重複では部分snapshotを返さない", async () => {

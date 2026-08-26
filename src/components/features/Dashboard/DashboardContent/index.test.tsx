@@ -189,7 +189,6 @@ function operationContextData(shopId: string) {
     organizationId: "organization-1",
     organizationName: "テスト組織",
     organizationPlan: "standard" as const,
-    memberStatus: "active" as const,
   };
   return { shops: [selectedShop], selectedShop };
 }

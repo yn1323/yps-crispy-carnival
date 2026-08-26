@@ -423,40 +423,6 @@ describe("dashboard/queries", () => {
 
     it.each([
       {
-        state: {
-          kind: "restricted" as const,
-          reason: "paymentGraceExpired" as const,
-          previousPlan: "pro" as const,
-          recoveryManagerPersonIds: [] as Id<"organizationPeople">[],
-          previousActiveShopIds: [] as Id<"shops">[],
-          restrictedAt: 1,
-        },
-        reason: "restricted" as const,
-      },
-    ])("$state.kindではDashboard業務操作を閲覧専用にする", async ({ state, reason }) => {
-      const t = convexTest(schema, modules);
-      const { shopId } = await t.run(async (ctx) => {
-        const seeded = await seedOrganizationManagerShop(ctx, { subject: `dashboard_${state.kind}`, plan: "pro" });
-        const billingState = await ctx.db
-          .query("organizationBillingStates")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-          .unique();
-        if (!billingState) throw new Error("billing state not found");
-        const nextState =
-          state.kind === "restricted" ? { ...state, recoveryManagerPersonIds: [seeded.personId] } : state;
-        await ctx.db.patch(billingState._id, { state: nextState });
-        return seeded;
-      });
-
-      const result = await t
-        .withIdentity({ subject: `dashboard_${state.kind}` })
-        .query(api.dashboard.queries.getDashboardShop, { shopId });
-
-      expect(result).toMatchObject({ canWriteBusinessData: false, businessWriteBlockReason: reason });
-    });
-
-    it.each([
-      {
         label: "trial",
         state: { kind: "trial", trialEndsAt: TRIAL_ENDS_AT, selectedPaidPlan: "business" },
         expected: { kind: "trial", trialEndsAt: TRIAL_ENDS_AT, selectedPaidPlan: "business" },
@@ -514,33 +480,6 @@ describe("dashboard/queries", () => {
         expected: { kind: "paymentIssue", plan: "business", phase: "grace", recoveryDeadlineAt: 3 },
         canonicalExpected: { kind: "paymentIssue", plan: "pro", phase: "grace", recoveryDeadlineAt: 3 },
       },
-      {
-        label: "restricted.payment",
-        state: {
-          kind: "restricted",
-          reason: "paymentGraceExpired",
-          previousPlan: "pro",
-          recoveryManagerPersonIds: [],
-          previousActiveShopIds: [],
-          restrictedAt: 4,
-        },
-        expected: { kind: "paymentIssue", plan: "pro", phase: "restricted" },
-        canonicalExpected: { kind: "paymentIssue", plan: "standard", phase: "restricted" },
-      },
-      {
-        label: "restricted.limit",
-        state: {
-          kind: "restricted",
-          reason: "planLimitExceeded",
-          previousPlan: "business",
-          limitPlan: "pro",
-          recoveryManagerPersonIds: [],
-          previousActiveShopIds: [],
-          restrictedAt: 5,
-        },
-        expected: { kind: "restricted", displayPlan: "pro" },
-        canonicalExpected: { kind: "restricted", displayPlan: "standard" },
-      },
     ] satisfies ReadonlyArray<{
       label: string;
       state: Doc<"organizationBillingStates">["state"];
@@ -556,15 +495,7 @@ describe("dashboard/queries", () => {
           .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
           .unique();
         if (!billingState) throw new Error("billing state not found");
-        const nextState: Doc<"organizationBillingStates">["state"] =
-          state.kind === "restricted"
-            ? {
-                ...state,
-                recoveryManagerPersonIds: [seeded.personId],
-                previousActiveShopIds: [seeded.shopId],
-              }
-            : state;
-        await ctx.db.patch(billingState._id, { state: nextState });
+        await ctx.db.patch(billingState._id, { state });
         return seeded;
       });
 
@@ -593,7 +524,7 @@ describe("dashboard/queries", () => {
       vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "bpc_dashboard_plan_status");
       const t = convexTest(schema, modules);
       const currentPeriodEndsAt = TRIAL_ENDS_AT + 30 * 24 * 60 * 60_000;
-      const { shopId, organizationId, personId, memberId } = await t.run(async (ctx) => {
+      const { shopId } = await t.run(async (ctx) => {
         const seeded = await seedOrganizationManagerShop(ctx, {
           subject: "dashboard_active_paid_status",
           plan: "pro",
@@ -632,37 +563,6 @@ describe("dashboard/queries", () => {
         plan: "pro",
         isComplimentary: false,
         currentPeriodEndsAt,
-        canManagePlan: true,
-        canUpdatePaymentMethod: true,
-      });
-
-      await t.run(async (ctx) => {
-        const billingState = await ctx.db
-          .query("organizationBillingStates")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
-          .unique();
-        if (!billingState) throw new Error("billing state not found");
-        await ctx.db.patch(billingState._id, {
-          state: {
-            kind: "restricted",
-            reason: "paymentGraceExpired",
-            previousPlan: "pro",
-            recoveryManagerPersonIds: [personId],
-            previousActiveShopIds: [shopId],
-            restrictedAt: currentPeriodEndsAt - 1,
-          },
-        });
-        await ctx.db.patch(memberId, { status: "readOnly" });
-      });
-
-      const recoveryResult = await t
-        .withIdentity({ subject: "dashboard_active_paid_status" })
-        .query(api.dashboard.queries.getDashboardShop, { shopId });
-
-      expect(recoveryResult?.planStatus).toEqual({
-        kind: "paymentIssue",
-        plan: "pro",
-        phase: "restricted",
         canManagePlan: true,
         canUpdatePaymentMethod: true,
       });
@@ -781,105 +681,6 @@ describe("dashboard/queries", () => {
         },
       );
     });
-
-    it.each([
-      {
-        key: "free",
-        label: "Free上限",
-        state: {
-          kind: "restricted",
-          reason: "freeConditionsNotMet",
-          recoveryManagerPersonIds: [],
-          previousActiveShopIds: [],
-          restrictedAt: TRIAL_ENDS_AT,
-        },
-        expected: {
-          peopleUsage: { current: 1, max: 5 },
-          shopUsage: { current: 1, max: 1 },
-          managerUsage: { current: 1, max: 2 },
-          pendingManagerInvitations: 0,
-        },
-      },
-      {
-        key: "pro",
-        label: "Pro上限",
-        state: {
-          kind: "restricted",
-          reason: "planLimitExceeded",
-          previousPlan: "business",
-          limitPlan: "pro",
-          recoveryManagerPersonIds: [],
-          previousActiveShopIds: [],
-          restrictedAt: TRIAL_ENDS_AT,
-        },
-        expected: {
-          peopleUsage: { current: 1, max: 25 },
-          shopUsage: { current: 1, max: 5 },
-          managerUsage: { current: 1, max: 5 },
-          pendingManagerInvitations: 0,
-        },
-      },
-    ] satisfies ReadonlyArray<{
-      key: string;
-      label: string;
-      state: Extract<Doc<"organizationBillingStates">["state"], { kind: "restricted" }>;
-      expected: Record<string, unknown>;
-    }>)("契約制限中でも$labelが確定する場合は利用状況を返す", async ({ key, state, expected }) => {
-      const t = convexTest(schema, modules);
-      const subject = `dashboard_usage_restricted_${key}`;
-      const { shopId } = await t.run(async (ctx) => {
-        const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
-        const billingState = await ctx.db
-          .query("organizationBillingStates")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-          .unique();
-        if (!billingState) throw new Error("billing state not found");
-        await ctx.db.patch(billingState._id, {
-          state: {
-            ...state,
-            recoveryManagerPersonIds: [seeded.personId],
-            previousActiveShopIds: [seeded.shopId],
-          },
-        });
-        return seeded;
-      });
-
-      const result = await t
-        .withIdentity({ subject })
-        .query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now: TRIAL_ENDS_AT });
-
-      expect(result).toEqual(expected);
-    });
-
-    it("適用上限がない契約制限中はnullを返す", async () => {
-      const t = convexTest(schema, modules);
-      const { shopId, organizationId, personId } = await t.run(
-        async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "dashboard_usage_unavailable", plan: "pro" }),
-      );
-      const actor = t.withIdentity({ subject: "dashboard_usage_unavailable" });
-
-      await t.run(async (ctx) => {
-        const billingState = await ctx.db
-          .query("organizationBillingStates")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
-          .unique();
-        if (!billingState) throw new Error("billing state not found");
-        await ctx.db.patch(billingState._id, {
-          state: {
-            kind: "restricted",
-            reason: "paymentGraceExpired",
-            previousPlan: "pro",
-            recoveryManagerPersonIds: [personId],
-            previousActiveShopIds: [shopId],
-            restrictedAt: TRIAL_ENDS_AT,
-          },
-        });
-      });
-
-      await expect(
-        actor.query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now: TRIAL_ENDS_AT }),
-      ).resolves.toBeNull();
-    });
   });
 
   describe("getMyShops", () => {
@@ -970,68 +771,65 @@ describe("dashboard/queries", () => {
       expect(result).toEqual([]);
     });
 
-    it.each(["active", "readOnly"] as const)(
-      "事業者の%s管理者には同じ事業者の全非削除店舗だけを返す",
-      async (memberStatus) => {
-        const t = convexTest(schema, modules);
-        const subject = `organization_shop_list_${memberStatus}`;
-        const ids = await t.run(async (ctx) => {
-          const base = await seedOrganizationManagerShop(ctx, {
-            subject,
-            shopName: "事業者店舗A",
-            plan: "pro",
-          });
-          await ctx.db.patch(base.memberId, { status: memberStatus });
-          const archivedShopId = await ctx.db.insert("shops", {
-            organizationId: base.organizationId,
-            operatingStatus: "archived",
-            name: "事業者店舗B",
-            submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-            regularClosedDays: [],
-            isDeleted: false,
-          });
-          const deletedShopId = await ctx.db.insert("shops", {
-            organizationId: base.organizationId,
-            operatingStatus: "active",
-            name: "削除済み事業者店舗",
-            submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-            regularClosedDays: [],
-            isDeleted: true,
-          });
-          const other = await seedOrganizationManagerShop(ctx, {
-            subject: `other_${memberStatus}`,
-            shopName: "別事業者店舗",
-            plan: "pro",
-          });
-          return { ...base, archivedShopId, deletedShopId, otherShopId: other.shopId };
+    it.each(["active"] as const)("事業者の%s管理者には同じ事業者の全非削除店舗だけを返す", async (memberStatus) => {
+      const t = convexTest(schema, modules);
+      const subject = `organization_shop_list_${memberStatus}`;
+      const ids = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject,
+          shopName: "事業者店舗A",
+          plan: "pro",
         });
+        await ctx.db.patch(base.memberId, { status: memberStatus });
+        const archivedShopId = await ctx.db.insert("shops", {
+          organizationId: base.organizationId,
+          operatingStatus: "archived",
+          name: "事業者店舗B",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        });
+        const deletedShopId = await ctx.db.insert("shops", {
+          organizationId: base.organizationId,
+          operatingStatus: "active",
+          name: "削除済み事業者店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: true,
+        });
+        const other = await seedOrganizationManagerShop(ctx, {
+          subject: `other_${memberStatus}`,
+          shopName: "別事業者店舗",
+          plan: "pro",
+        });
+        return { ...base, archivedShopId, deletedShopId, otherShopId: other.shopId };
+      });
 
-        const result = await t.withIdentity({ subject }).query(api.dashboard.queries.getMyShops, {});
+      const result = await t.withIdentity({ subject }).query(api.dashboard.queries.getMyShops, {});
 
-        expect(result).toEqual([
-          {
-            shopId: ids.shopId,
-            shopName: "事業者店舗A",
-            shopStatus: "active",
-            organizationId: ids.organizationId,
-            organizationName: "事業者店舗A事業者",
-            organizationPlan: "pro",
-            memberStatus,
-          },
-          {
-            shopId: ids.archivedShopId,
-            shopName: "事業者店舗B",
-            shopStatus: "archived",
-            organizationId: ids.organizationId,
-            organizationName: "事業者店舗A事業者",
-            organizationPlan: "pro",
-            memberStatus,
-          },
-        ]);
-        expect(result.some((shop) => shop.shopId === ids.deletedShopId)).toBe(false);
-        expect(result.some((shop) => shop.shopId === ids.otherShopId)).toBe(false);
-      },
-    );
+      expect(result).toEqual([
+        {
+          shopId: ids.shopId,
+          shopName: "事業者店舗A",
+          shopStatus: "active",
+          organizationId: ids.organizationId,
+          organizationName: "事業者店舗A事業者",
+          organizationPlan: "pro",
+          memberStatus,
+        },
+        {
+          shopId: ids.archivedShopId,
+          shopName: "事業者店舗B",
+          shopStatus: "archived",
+          organizationId: ids.organizationId,
+          organizationName: "事業者店舗A事業者",
+          organizationPlan: "pro",
+          memberStatus,
+        },
+      ]);
+      expect(result.some((shop) => shop.shopId === ids.deletedShopId)).toBe(false);
+      expect(result.some((shop) => shop.shopId === ids.otherShopId)).toBe(false);
+    });
 
     it("複数組織に所属する利用者には各組織の非削除店舗だけを所属状態付きで返す", async () => {
       const t = convexTest(schema, modules);
@@ -1077,7 +875,7 @@ describe("dashboard/queries", () => {
           organizationId: organizationBId,
           personId: organizationBPersonId,
           userId: organizationA.userId,
-          status: "readOnly",
+          status: "active",
           createdAt: now,
           updatedAt: now,
         });
@@ -1154,7 +952,7 @@ describe("dashboard/queries", () => {
           organizationId: ids.organizationBId,
           organizationName: "組織B",
           organizationPlan: "business",
-          memberStatus: "readOnly",
+          memberStatus: "active",
           shopId: ids.organizationBShopId,
           shopName: "組織B店舗",
           shopStatus: "archived",
@@ -1193,19 +991,6 @@ describe("dashboard/queries", () => {
         seedPlan: "free" as const,
         state: { kind: "pendingActivation", plan: "pro", fallback: "free", startedAt: Date.now() } as const,
         expectedPlan: "free" as const,
-      },
-      {
-        label: "契約制限中",
-        seedPlan: "business" as const,
-        state: {
-          kind: "restricted",
-          reason: "paymentGraceExpired",
-          previousPlan: "business",
-          recoveryManagerPersonIds: [] as Id<"organizationPeople">[],
-          previousActiveShopIds: [] as Id<"shops">[],
-          restrictedAt: Date.now(),
-        } as const,
-        expectedPlan: "business" as const,
       },
     ])("$labelは現在利用できるプランを店舗コンテキストへ返す", async ({ seedPlan, state, expectedPlan }) => {
       const t = convexTest(schema, modules);
@@ -2507,53 +2292,6 @@ describe("dashboard/queries", () => {
         reason: "このユーザーへの管理者招待の状態を確認できません。\n組織設定を確認してください。",
       });
       expect(await t.run((ctx) => ctx.db.get(invitationId))).toMatchObject({ status: "revoked" });
-    });
-
-    it("閲覧のみの管理者もスタッフ削除から保護する対象として返す", async () => {
-      const t = convexTest(schema, modules);
-      const ids = await t.run(async (ctx) => {
-        const base = await seedOrganizationManagerShop(ctx, {
-          subject: "dashboard_read_only_manager_owner",
-          plan: "pro",
-        });
-        const now = Date.now();
-        const userId = await seedUser(ctx, "dashboard_read_only_manager", "read-only@example.com");
-        const personId = await ctx.db.insert("organizationPeople", {
-          organizationId: base.organizationId,
-          userId,
-          name: "閲覧のみ管理者",
-          email: "read-only@example.com",
-          emailNormalized: "read-only@example.com",
-          status: "active",
-          createdAt: now,
-          updatedAt: now,
-        });
-        await ctx.db.insert("organizationMembers", {
-          organizationId: base.organizationId,
-          personId,
-          userId,
-          status: "readOnly",
-          createdAt: now,
-          updatedAt: now,
-        });
-        const staffId = await ctx.db.insert("staffs", {
-          shopId: base.shopId,
-          organizationId: base.organizationId,
-          organizationPersonId: personId,
-          userId,
-          name: "閲覧のみ管理者",
-          email: "read-only@example.com",
-          emailNormalized: "read-only@example.com",
-          isDeleted: false,
-        });
-        return { shopId: base.shopId, staffId };
-      });
-
-      const result = await t
-        .withIdentity({ subject: "dashboard_read_only_manager_owner" })
-        .query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
-
-      expect(result.page.find((staff) => staff._id === ids.staffId)).toMatchObject({ isManager: true });
     });
 
     it("返り値に不要なフィールドが含まれない", async () => {

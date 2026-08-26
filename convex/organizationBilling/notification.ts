@@ -17,10 +17,8 @@ export const organizationBillingNotificationEventValidator = v.union(
   v.literal("proDowngradeNotApplied"),
   v.literal("paidActivationFailedFreeContinued"),
   v.literal("paidActivationFailedProContinued"),
-  v.literal("paidActivationFailedRestrictedContinued"),
   v.literal("graceStarted"),
   v.literal("graceEndingSoon"),
-  v.literal("restrictedStarted"),
   v.literal("recovered"),
   v.literal("billingEmailChanged"),
 );
@@ -34,18 +32,6 @@ export const organizationBillingNotificationDetailsValidator = v.object({
   effectiveAt: v.optional(v.number()),
   restrictAtPeriodEnd: v.optional(v.literal(true)),
   usageLimitExceeded: v.optional(v.literal(true)),
-  restrictionReason: v.optional(
-    v.union(
-      v.literal("trialEndedWithoutSubscription"),
-      v.literal("scheduledCancellation"),
-      v.literal("trialFreeConditionsNotMet"),
-      v.literal("freeConditionsNotMet"),
-      v.literal("paymentGraceExpired"),
-      v.literal("paymentActivationFailed"),
-      v.literal("unexpectedCancellation"),
-      v.literal("planLimitExceeded"),
-    ),
-  ),
 });
 
 export type OrganizationBillingNotificationEvent =
@@ -58,10 +44,8 @@ export type OrganizationBillingNotificationEvent =
   | "proDowngradeNotApplied"
   | "paidActivationFailedFreeContinued"
   | "paidActivationFailedProContinued"
-  | "paidActivationFailedRestrictedContinued"
   | "graceStarted"
   | "graceEndingSoon"
-  | "restrictedStarted"
   | "recovered"
   | "billingEmailChanged";
 
@@ -77,15 +61,6 @@ export type OrganizationBillingNotificationDetails = {
   effectiveAt?: number;
   restrictAtPeriodEnd?: true;
   usageLimitExceeded?: true;
-  restrictionReason?:
-    | "trialEndedWithoutSubscription"
-    | "scheduledCancellation"
-    | "trialFreeConditionsNotMet"
-    | "freeConditionsNotMet"
-    | "paymentGraceExpired"
-    | "paymentActivationFailed"
-    | "unexpectedCancellation"
-    | "planLimitExceeded";
 };
 
 export type PersistedOrganizationBillingNotificationDetails = Omit<
@@ -252,15 +227,6 @@ export function organizationBillingNotificationCopy(
           "Standardを継続しています。\n支払い方法を確認してから、もう一度手続きしてください。",
         ],
       };
-    case "paidActivationFailedRestrictedContinued":
-      return {
-        subject: "有料プランを開始できませんでした",
-        heading: "契約状態を確認できない状態が続いています",
-        paragraphs: [
-          "支払いを確認できなかったため、有料プランを開始できませんでした。",
-          "契約状態を確認できない状態が続いています。\n支払い方法を確認してから、もう一度手続きしてください。",
-        ],
-      };
     case "graceStarted":
       return {
         subject: "支払い方法を確認してください",
@@ -280,52 +246,13 @@ export function organizationBillingNotificationCopy(
           "組織設定から支払い方法を確認してください。",
         ],
       };
-    case "restrictedStarted": {
-      const targetPlanLabel = details?.targetPlan ? organizationPlanLabel(details.targetPlan) : null;
-      if (targetPlanLabel) {
-        const billingSummary = formatBillingSummary(details);
-        return {
-          subject: `${targetPlanLabel}への変更には利用状況の整理が必要です`,
-          heading: `${targetPlanLabel}の利用上限を確認してください`,
-          paragraphs: [
-            billingSummary ? `支払い結果を確認しました。\n${billingSummary}` : "支払い結果を確認しました。",
-            `${targetPlanLabel}の利用上限を超えています。\n組織設定で利用人数・店舗数・管理者数を上限以内に整理してください。`,
-          ],
-        };
-      }
-      if (
-        details?.restrictionReason === "trialEndedWithoutSubscription" ||
-        details?.restrictionReason === "scheduledCancellation" ||
-        details?.restrictionReason === "paymentGraceExpired" ||
-        details?.restrictionReason === "paymentActivationFailed" ||
-        details?.restrictionReason === "unexpectedCancellation"
-      ) {
-        return {
-          subject: "利用停止中になりました",
-          heading: "利用停止中になりました",
-          paragraphs: [
-            "店舗・ユーザー・過去のシフトは削除されていませんが、シフト作成や通知などの業務操作は利用できません。",
-            "利用を再開するには、組織設定からStandardまたはProを契約してください。",
-          ],
-        };
-      }
-      return {
-        subject: "契約状態の確認が必要です",
-        heading: "契約状態の確認が必要です",
-        paragraphs: [
-          "既存データは引き続き閲覧できますが、シフト作成や通知などの業務操作は利用できません。",
-          `組織設定で有料プランを再開するか、${FREE_PLAN_SENTENCE_LABEL}で残す管理者と店舗を整理してください。`,
-        ],
-      };
-    }
     case "recovered": {
       const targetPlanLabel = details?.targetPlan ? organizationPlanLabel(details.targetPlan) : null;
       const billingSummary = formatBillingSummary(details);
       const recoverySummary = [
         targetPlanLabel
           ? `支払い結果を確認し、${targetPlanLabel}の契約を復旧しました。`
-          : "支払い結果を確認し、確認済みの管理者と店舗で業務を再開しました。",
-        targetPlanLabel && !details?.usageLimitExceeded ? "確認済みの管理者と店舗で業務を再開しました。" : "",
+          : "支払い結果を確認し、業務を再開しました。",
         billingSummary,
       ]
         .filter(Boolean)

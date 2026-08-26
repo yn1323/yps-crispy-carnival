@@ -61,14 +61,7 @@ async function setupTestData(
   });
 }
 
-async function migrateShopWithoutMigratingStaff(
-  t: TestConvex<typeof schema>,
-  args: {
-    shopId: Id<"shops">;
-    operatingStatus: "active" | "planSuspended";
-    billingState: "active" | "restricted";
-  },
-) {
+async function migrateShopWithoutMigratingStaff(t: TestConvex<typeof schema>, shopId: Id<"shops">) {
   await t.run(async (ctx) => {
     const now = Date.now();
     const organizationId = await ctx.db.insert("organizations", {
@@ -77,20 +70,10 @@ async function migrateShopWithoutMigratingStaff(
       createdAt: now,
       updatedAt: now,
     });
-    await ctx.db.patch(args.shopId, { organizationId, operatingStatus: args.operatingStatus });
+    await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
     await ctx.db.insert("organizationBillingStates", {
       organizationId,
-      state:
-        args.billingState === "active"
-          ? { kind: "active", plan: "pro" }
-          : {
-              kind: "restricted",
-              reason: "paymentGraceExpired",
-              previousPlan: "pro",
-              recoveryManagerPersonIds: [],
-              previousActiveShopIds: [args.shopId],
-              restrictedAt: now,
-            },
+      state: { kind: "active", plan: "free" },
       version: 1,
       createdAt: now,
       updatedAt: now,
@@ -230,54 +213,10 @@ describe("shiftSubmission/mutations", () => {
       expect(submissions).toEqual([]);
     });
 
-    it("未リンクの移行中staffでもplanSuspended店舗では提出できない", async () => {
-      const t = convexTest(schema, modules);
-      const { shopId, recruitmentId, sessionToken } = await setupTestData(t);
-      await migrateShopWithoutMigratingStaff(t, {
-        shopId,
-        operatingStatus: "planSuspended",
-        billingState: "active",
-      });
-
-      await expect(
-        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
-          sessionToken,
-          accessKind: "submit",
-          recruitmentId,
-          requests: validRequests,
-        }),
-      ).rejects.toThrow("Not found");
-      expect(await t.run((ctx) => ctx.db.query("shiftSubmissions").collect())).toEqual([]);
-    });
-
-    it("未リンクの移行中staffでもactive店舗が契約制限中なら提出できない", async () => {
-      const t = convexTest(schema, modules);
-      const { shopId, recruitmentId, sessionToken } = await setupTestData(t);
-      await migrateShopWithoutMigratingStaff(t, {
-        shopId,
-        operatingStatus: "active",
-        billingState: "restricted",
-      });
-
-      await expect(
-        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
-          sessionToken,
-          accessKind: "submit",
-          recruitmentId,
-          requests: validRequests,
-        }),
-      ).rejects.toThrow("契約状態を確認できるまで、閲覧と復旧に必要な操作のみ利用できます。");
-      expect(await t.run((ctx) => ctx.db.query("shiftSubmissions").collect())).toEqual([]);
-    });
-
     it("active.freeの実利用人数が上限を超えると未リンクの移行中staffも提出できない", async () => {
       const t = convexTest(schema, modules);
       const { shopId, recruitmentId, sessionToken } = await setupTestData(t);
-      await migrateShopWithoutMigratingStaff(t, {
-        shopId,
-        operatingStatus: "active",
-        billingState: "active",
-      });
+      await migrateShopWithoutMigratingStaff(t, shopId);
 
       const baseline = await t.run(async (ctx) => {
         const shop = await ctx.db.get(shopId);

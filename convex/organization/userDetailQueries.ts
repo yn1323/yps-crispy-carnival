@@ -5,7 +5,7 @@ import { dateJST } from "../_lib/dateFormat";
 import { managerQuery } from "../_lib/functions";
 import { ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT, ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT } from "../constants";
 import { getOrganizationPersonLineState } from "../line/service";
-import { deriveOrganizationBillingPolicy, getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
+import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 import { managerInvitationStateValidator, resolvePersonManagerInvitationState } from "./managerInvitationState";
@@ -15,11 +15,7 @@ import {
   personRemovalPreviewValidator,
   toPublicPersonRemovalPreview,
 } from "./personRemoval";
-import {
-  getOrganizationUsageSnapshot,
-  getValidActiveOrganizationManagerPersonIds,
-  isValidOrganizationRecoveryManager,
-} from "./service";
+import { getOrganizationUsageSnapshot, getValidActiveOrganizationManagerPersonIds } from "./service";
 import {
   createOrganizationPersonShopMembershipFingerprint,
   INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON,
@@ -35,7 +31,7 @@ export const userDetailValidator = v.object({
     hasLinkedAccount: v.boolean(),
   }),
   isSelf: v.boolean(),
-  managerRole: v.union(v.literal("active"), v.literal("readOnly"), v.literal("none")),
+  managerRole: v.union(v.literal("active"), v.literal("none")),
   hasManagerInvitation: v.boolean(),
   managerInvitationState: managerInvitationStateValidator,
   canRemoveManagerRole: v.boolean(),
@@ -170,12 +166,7 @@ export async function getOrganizationUserDetail(
     member && person.userId && member.userId === person.userId && memberUser && !memberUser.isDeleted,
   );
   if (member && !memberMatchesPerson) return null;
-  const managerRole: ManagerRole =
-    memberMatchesPerson && member?.status === "active"
-      ? "active"
-      : memberMatchesPerson && member?.status === "readOnly"
-        ? "readOnly"
-        : "none";
+  const managerRole: ManagerRole = memberMatchesPerson && member?.status === "active" ? "active" : "none";
   if (managerRole === "active" && !validActiveManagerPersonIds.includes(person._id)) return null;
 
   const today = dateJST(args.now);
@@ -277,18 +268,6 @@ export async function getOrganizationUserDetail(
   });
 
   const policy = billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
-  const restrictedState = billingState ? getEffectiveRestrictedBillingState(billingState.state) : null;
-  const recoveryManagerValidity = restrictedState
-    ? await Promise.all(
-        restrictedState.recoveryManagerPersonIds.map(
-          async (candidateId) =>
-            [candidateId, await isValidOrganizationRecoveryManager(ctx, organization._id, candidateId)] as const,
-        ),
-      )
-    : [];
-  const recoveryPersonIds = recoveryManagerValidity.flatMap(([candidateId, isValid]) => (isValid ? [candidateId] : []));
-  const isRestrictedRecovery = recoveryPersonIds.includes(organizationMember.personId);
-  const isRecoveryManager = recoveryPersonIds.includes(person._id);
   const personCapabilities = deriveOrganizationPersonCapabilities({
     managerRole,
     activeManagerCount: validActiveManagerPersonIds.length,
@@ -296,9 +275,6 @@ export async function getOrganizationUserDetail(
     canRecoverUsageLimits,
     policy,
     isActiveActor,
-    isRestricted: restrictedState !== null,
-    isRestrictedRecovery,
-    isLastRecoveryManager: isRecoveryManager && recoveryPersonIds.length <= 1,
   });
 
   const writeDisabledReason = canWriteNormally
@@ -325,7 +301,7 @@ export async function getOrganizationUserDetail(
     : !canWriteNormally
       ? writeDisabledReason
       : "LINE連携を設定するには、稼働中の店舗へ所属を追加してください。";
-  // LINE解除は通知停止の安全操作なので、active managerなら課金read-only中も許可する。
+  // LINE解除は通知停止の安全操作なので、利用上限整理中もactive managerには許可する。
   const canDisconnectLine = isActiveActor && lineState.status !== "unlinked";
   const lineDisconnectDisabledReason =
     lineState.status === "unlinked"

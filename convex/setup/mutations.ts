@@ -44,16 +44,10 @@ async function assertInitialSetupEligibility(ctx: InitialSetupCtx): Promise<void
   }
   if (!currentUser) return;
 
-  const currentMemberships = (
-    await Promise.all(
-      (["active", "readOnly"] as const).map((status) =>
-        ctx.db
-          .query("organizationMembers")
-          .withIndex("by_userId_and_status", (q) => q.eq("userId", currentUser._id).eq("status", status))
-          .take(2),
-      ),
-    )
-  ).flat();
+  const currentMemberships = await ctx.db
+    .query("organizationMembers")
+    .withIndex("by_userId_and_status", (q) => q.eq("userId", currentUser._id).eq("status", "active"))
+    .take(2);
   for (const membership of currentMemberships) {
     const organization = await ctx.db.get(membership.organizationId);
     if (organization && !organization.isDeleted) {

@@ -504,23 +504,13 @@ const ShopSelector = ({ model, onSelect }: { model: OperationContextModel; onSel
 };
 
 const ShopStatusBadges = ({ shop }: { shop: ShopContextOption }) => {
-  if (shop.shopStatus === "active" && shop.memberStatus !== "readOnly") return null;
+  if (shop.shopStatus === "active") return null;
 
   return (
     <HStack gap={1} flexShrink={0}>
-      {shop.shopStatus === "planSuspended" && (
-        <Badge colorPalette="orange" variant="subtle" size="sm">
-          プラン停止中
-        </Badge>
-      )}
       {shop.shopStatus === "archived" && (
         <Badge colorPalette="gray" variant="subtle" size="sm">
           アーカイブ済み
-        </Badge>
-      )}
-      {shop.memberStatus === "readOnly" && (
-        <Badge colorPalette="gray" variant="subtle" size="sm">
-          操作不可
         </Badge>
       )}
     </HStack>

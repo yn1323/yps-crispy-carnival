@@ -20,12 +20,7 @@ import { getOrganizationPersonLineState } from "../line/service";
 import { type OrganizationReadActor, resolveOrganizationReadActor } from "../organization/access";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "../organization/personCapabilities";
 import { getOrganizationStaffOrderScope } from "../organization/staffOrder";
-import {
-  type deriveOrganizationBillingPolicy,
-  getEffectiveRestrictedBillingState,
-  ORGANIZATION_PLAN_LIMITS,
-  resolveRestrictedLimitPlan,
-} from "../organizationBilling/policy";
+import type { OrganizationBillingPolicy } from "../organizationBilling/policy";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 
 const MAX_PAGE_SIZE = 50;
@@ -35,7 +30,7 @@ const ORGANIZATION_PEOPLE_SUMMARY_LIMIT = 1000;
 const organizationContextValidator = v.object({
   organizationId: v.id("organizations"),
   organizationName: v.string(),
-  memberStatus: v.union(v.literal("active"), v.literal("readOnly")),
+  memberStatus: v.literal("active"),
 });
 
 const activeShopContextValidator = v.object({
@@ -87,7 +82,7 @@ const organizationPersonListItemValidator = v.object({
   id: v.id("organizationPeople"),
   name: v.string(),
   email: v.union(v.string(), v.null()),
-  managerRole: v.union(v.literal("active"), v.literal("readOnly"), v.literal("none")),
+  managerRole: v.union(v.literal("active"), v.literal("none")),
   isStaff: v.boolean(),
   isLineConnected: v.boolean(),
   lineStatus: v.union(v.literal("unlinked"), v.literal("linked_following"), v.literal("linked_unfollowed")),
@@ -154,7 +149,7 @@ function boundedPaginationOptions(
 }
 
 function toOrganizationContext(actor: OrganizationReadActor) {
-  if (actor.member.status !== "active" && actor.member.status !== "readOnly") {
+  if (actor.member.status !== "active") {
     throw new ConvexError("Not found");
   }
   return {
@@ -176,7 +171,7 @@ export const listMyOrganizationContexts = authenticatedQuery({
     const memberships = await ctx.db
       .query("organizationMembers")
       .withIndex("by_userId_and_organizationId", (q) => q.eq("userId", user._id))
-      .filter((q) => q.or(q.eq(q.field("status"), "active"), q.eq(q.field("status"), "readOnly")))
+      .filter((q) => q.eq(q.field("status"), "active"))
       .paginate(boundedPagination);
 
     const contexts = await Promise.all(
@@ -269,13 +264,10 @@ function buildCurrentRecruitmentGroups(
 }
 
 function resolveBusinessWriteCapability(args: {
-  memberStatus: "active" | "readOnly";
+  memberStatus: "active";
   canWriteBusinessData: boolean;
-  businessWriteBlockReason: "paymentResultPending" | "restricted" | "usageLimitExceeded" | null;
+  businessWriteBlockReason: "paymentResultPending" | "usageLimitExceeded" | null;
 }) {
-  if (args.memberStatus === "readOnly") {
-    return { canCreate: false, createDisabledReason: "現在のアカウント状態では、募集を作成できません。" };
-  }
   if (args.canWriteBusinessData) return { canCreate: true };
   return {
     canCreate: false,
@@ -284,18 +276,15 @@ function resolveBusinessWriteCapability(args: {
         ? "支払い結果を確認中のため、募集を作成できません。"
         : args.businessWriteBlockReason === "usageLimitExceeded"
           ? "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。"
-          : "契約状態を復旧してから募集を作成できます。",
+          : "現在の契約状態では、募集を作成できません。",
   };
 }
 
 function resolveStaffAdditionCapability(args: {
-  memberStatus: "active" | "readOnly";
+  memberStatus: "active";
   canWriteBusinessData: boolean;
-  businessWriteBlockReason: "paymentResultPending" | "restricted" | "usageLimitExceeded" | null;
+  businessWriteBlockReason: "paymentResultPending" | "usageLimitExceeded" | null;
 }) {
-  if (args.memberStatus === "readOnly") {
-    return { canAddStaff: false, addStaffDisabledReason: "現在のアカウント状態では、スタッフを追加できません。" };
-  }
   if (args.canWriteBusinessData) return { canAddStaff: true };
   return {
     canAddStaff: false,
@@ -304,21 +293,15 @@ function resolveStaffAdditionCapability(args: {
         ? "支払い結果を確認中のため、スタッフを追加できません。"
         : args.businessWriteBlockReason === "usageLimitExceeded"
           ? "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。"
-          : "契約状態を復旧してからスタッフを追加できます。",
+          : "現在の契約状態では、スタッフを追加できません。",
   };
 }
 
 function resolveStaffOrderChangeCapability(args: {
-  memberStatus: "active" | "readOnly";
+  memberStatus: "active";
   canWriteBusinessData: boolean;
-  businessWriteBlockReason: "paymentResultPending" | "restricted" | "usageLimitExceeded" | null;
+  businessWriteBlockReason: "paymentResultPending" | "usageLimitExceeded" | null;
 }) {
-  if (args.memberStatus === "readOnly") {
-    return {
-      canChangeStaffOrder: false,
-      changeStaffOrderDisabledReason: "現在のアカウント状態では、スタッフの並び順を変更できません。",
-    };
-  }
   if (args.canWriteBusinessData) return { canChangeStaffOrder: true };
   return {
     canChangeStaffOrder: false,
@@ -327,7 +310,7 @@ function resolveStaffOrderChangeCapability(args: {
         ? "支払い結果を確認中のため、スタッフの並び順を変更できません。"
         : args.businessWriteBlockReason === "usageLimitExceeded"
           ? "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。"
-          : "契約状態を復旧してからスタッフの並び順を変更できます。",
+          : "現在の契約状態では、スタッフの並び順を変更できません。",
   };
 }
 
@@ -364,7 +347,7 @@ export const listOrganizationRecruitments = organizationQuery({
       );
     const access = await getOrganizationAccessPolicy(ctx, ctx.organization._id);
     const memberStatus = ctx.organizationMember.status;
-    if (memberStatus !== "active" && memberStatus !== "readOnly") throw new ConvexError("Not found");
+    if (memberStatus !== "active") throw new ConvexError("Not found");
     const writeCapability = resolveBusinessWriteCapability({
       memberStatus,
       // billing state未作成の移行中組織は既存managerMutationと同じく許可扱いにする。
@@ -437,8 +420,8 @@ async function getCanonicalManagerRole(
     .take(2);
   if (members.length !== 1 || !person.userId || members[0].userId !== person.userId) return "none";
   const user = await ctx.db.get(members[0].userId);
-  if (!user || user.isDeleted || (members[0].status !== "active" && members[0].status !== "readOnly")) return "none";
-  return members[0].status;
+  if (!user || user.isDeleted || members[0].status !== "active") return "none";
+  return "active";
 }
 
 async function projectOrganizationPerson(
@@ -446,8 +429,7 @@ async function projectOrganizationPerson(
   args: {
     person: Doc<"organizationPeople">;
     activeManagerCount: number;
-    policy: ReturnType<typeof deriveOrganizationBillingPolicy> | null;
-    restrictedState: ReturnType<typeof getEffectiveRestrictedBillingState>;
+    policy: OrganizationBillingPolicy | null;
     canWriteBusinessData: boolean;
     canRecoverUsageLimits: boolean;
   },
@@ -476,10 +458,6 @@ async function projectOrganizationPerson(
     )
     .sort((a, b) => a.name.localeCompare(b.name, "ja") || String(a._id).localeCompare(String(b._id)));
   const isStaff = staffRows.length > 0;
-  const isRestrictedRecovery = Boolean(
-    args.restrictedState?.recoveryManagerPersonIds.includes(ctx.organizationPerson._id),
-  );
-  const isRecoveryManager = Boolean(args.restrictedState?.recoveryManagerPersonIds.includes(args.person._id));
   const capabilities = deriveOrganizationPersonCapabilities({
     managerRole,
     activeManagerCount: args.activeManagerCount,
@@ -487,9 +465,6 @@ async function projectOrganizationPerson(
     canRecoverUsageLimits: ctx.organizationMember.status === "active" && args.canRecoverUsageLimits,
     policy: args.policy,
     isActiveActor: ctx.organizationMember.status === "active",
-    isRestricted: args.restrictedState !== null,
-    isRestrictedRecovery,
-    isLastRecoveryManager: isRecoveryManager && (args.restrictedState?.recoveryManagerPersonIds.length ?? 0) <= 1,
   });
   const lineStatus = lineState?.status ?? "unlinked";
 
@@ -517,11 +492,9 @@ async function getOrganizationPeopleProjectionContext(ctx: AppOrganizationQueryC
       )
       .take(MAX_ROWS_READ),
   ]);
-  const billingState = access?.billingState ?? null;
   return {
     activeManagerCount: activeManagers.length,
     policy: access?.billingPolicy ?? null,
-    restrictedState: billingState ? getEffectiveRestrictedBillingState(billingState.state) : null,
     canWriteBusinessData: access?.canWriteBusinessData ?? true,
     canRecoverUsageLimits: access?.accessMode === "limitRecoveryOnly",
   };
@@ -702,13 +675,10 @@ export const getOrganizationPeopleSummary = organizationQuery({
       shopFilter === "all" ? totalPromise : countVisibleOrganizationPeople(ctx, shopFilter),
       getOrganizationAccessPolicy(ctx, ctx.organization._id),
     ]);
-    const billingState = access?.billingState ?? null;
     const policy = access?.billingPolicy ?? null;
-    const restrictedState = billingState ? getEffectiveRestrictedBillingState(billingState.state) : null;
-    const restrictedLimitPlan = restrictedState ? resolveRestrictedLimitPlan(restrictedState) : null;
-    const limits = restrictedLimitPlan ? ORGANIZATION_PLAN_LIMITS[restrictedLimitPlan] : policy?.limits;
+    const limits = policy?.limits;
     const memberStatus = ctx.organizationMember.status;
-    if (memberStatus !== "active" && memberStatus !== "readOnly") throw new ConvexError("Not found");
+    if (memberStatus !== "active") throw new ConvexError("Not found");
     const capability = resolveStaffAdditionCapability({
       memberStatus,
       canWriteBusinessData: access?.canWriteBusinessData ?? true,

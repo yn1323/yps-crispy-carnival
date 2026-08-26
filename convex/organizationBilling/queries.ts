@@ -1,13 +1,7 @@
 import { v } from "convex/values";
 import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { organizationBillingNotificationEventValidator } from "./notification";
-import {
-  canonicalizeOrganizationBillingState,
-  getEffectiveRestrictedBillingState,
-  getOrganizationBillingStateDeadline,
-} from "./policy";
-
-const historicalRecipientEvents = new Set(["freeApplied"]);
+import { canonicalizeOrganizationBillingState, getOrganizationBillingStateDeadline } from "./policy";
 
 export const getNotificationData = internalQuery({
   args: {
@@ -65,17 +59,10 @@ export const getNotificationData = internalQuery({
       .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", args.organizationId))
       .collect();
     const recipients = [];
-    const restrictedState = getEffectiveRestrictedBillingState(billingState.state);
     for (const member of members) {
-      const isRecoveryRecipient = Boolean(restrictedState?.recoveryManagerPersonIds.includes(member.personId));
-      if (
-        requestedUserIds ? !requestedUserIds.has(member.userId) : member.status !== "active" && !isRecoveryRecipient
-      ) {
+      if (member.status !== "active" || (requestedUserIds && !requestedUserIds.has(member.userId))) {
         continue;
       }
-      const isHistoricalRecipient =
-        requestedUserIds !== null && historicalRecipientEvents.has(args.event) && member.status === "readOnly";
-      if (member.status !== "active" && !isRecoveryRecipient && !isHistoricalRecipient) continue;
       const [person, user] = await Promise.all([ctx.db.get(member.personId), ctx.db.get(member.userId)]);
       if (
         !person ||

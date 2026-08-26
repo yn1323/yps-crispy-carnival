@@ -101,35 +101,30 @@ async function derivePlanForExistingUser(
   user: Doc<"users">,
   asOfDate: string,
 ): Promise<AccountDeletionPlan> {
-  const [activeMembers, readOnlyMembers, removedMembers, activePeople, activeStaffs, activeShopMembers] =
-    await Promise.all([
-      ctx.db
-        .query("organizationMembers")
-        .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", "active"))
-        .take(ASSOCIATION_SCAN_LIMIT + 1),
-      ctx.db
-        .query("organizationMembers")
-        .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", "readOnly"))
-        .take(ASSOCIATION_SCAN_LIMIT + 1),
-      ctx.db
-        .query("organizationMembers")
-        .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", "removed"))
-        .take(ASSOCIATION_SCAN_LIMIT + 1),
-      ctx.db
-        .query("organizationPeople")
-        .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", "active"))
-        .take(ASSOCIATION_SCAN_LIMIT + 1),
-      ctx.db
-        .query("staffs")
-        .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
-        .take(ASSOCIATION_SCAN_LIMIT + 1),
-      ctx.db
-        .query("shopMembers")
-        .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
-        .take(ASSOCIATION_SCAN_LIMIT + 1),
-    ]);
+  const [activeMembers, removedMembers, activePeople, activeStaffs, activeShopMembers] = await Promise.all([
+    ctx.db
+      .query("organizationMembers")
+      .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", "active"))
+      .take(ASSOCIATION_SCAN_LIMIT + 1),
+    ctx.db
+      .query("organizationMembers")
+      .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", "removed"))
+      .take(ASSOCIATION_SCAN_LIMIT + 1),
+    ctx.db
+      .query("organizationPeople")
+      .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", "active"))
+      .take(ASSOCIATION_SCAN_LIMIT + 1),
+    ctx.db
+      .query("staffs")
+      .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
+      .take(ASSOCIATION_SCAN_LIMIT + 1),
+    ctx.db
+      .query("shopMembers")
+      .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
+      .take(ASSOCIATION_SCAN_LIMIT + 1),
+  ]);
   if (
-    [activeMembers, readOnlyMembers, removedMembers, activePeople, activeStaffs, activeShopMembers].some(
+    [activeMembers, removedMembers, activePeople, activeStaffs, activeShopMembers].some(
       (rows) => rows.length > ASSOCIATION_SCAN_LIMIT,
     )
   ) {
@@ -137,7 +132,7 @@ async function derivePlanForExistingUser(
   }
 
   const organizationIds = new Set<Id<"organizations">>();
-  for (const member of [...activeMembers, ...readOnlyMembers]) {
+  for (const member of activeMembers) {
     const [organization, person] = await Promise.all([ctx.db.get(member.organizationId), ctx.db.get(member.personId)]);
     if (
       !organization ||
@@ -201,7 +196,7 @@ async function derivePlanForExistingUser(
     };
   }
   if (organizationIds.size > 1) return { status: "blocked", reason: "multipleOrganizations" };
-  if (readOnlyMembers.length !== 0 || activePeople.length !== 1 || activeMembers.length > 1) {
+  if (activePeople.length !== 1 || activeMembers.length > 1) {
     return { status: "blocked", reason: "inconsistentAssociation" };
   }
 

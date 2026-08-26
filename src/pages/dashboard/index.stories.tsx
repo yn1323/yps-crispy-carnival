@@ -33,25 +33,12 @@ export const MobileEmpty: Story = {
   globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
-export const MobileReadOnly: Story = {
-  tags: ["vrt-mobile2"],
-  globals: { viewport: { value: "mobile2", isRotated: false } },
-  render: () => (
-    <DashboardReadOnlyNotice
-      organizationId={"organization-preview" as never}
-      memberStatus="readOnly"
-      businessWriteBlockReason={null}
-    />
-  ),
-};
-
 export const MobileUsageEvaluationUnavailable: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   render: () => (
     <DashboardReadOnlyNotice
       organizationId={"organization-preview" as never}
-      memberStatus="active"
       businessWriteBlockReason="usageLimitEvaluationUnavailable"
     />
   ),

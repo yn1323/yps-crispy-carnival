@@ -35,8 +35,7 @@ export function RecruitmentRow({
   const isDeleteEnabled = (canDelete ?? !isReadOnly) && !deleteDisabledReason;
   const resolvedDeleteDisabledReason = isDeleteEnabled
     ? undefined
-    : (deleteDisabledReason ??
-      (isReadOnly ? "現在のアカウント状態では募集を削除できません" : "この募集は削除できません"));
+    : (deleteDisabledReason ?? (isReadOnly ? "現在、募集を削除できません" : "この募集は削除できません"));
 
   return (
     <RecruitmentSummaryRow

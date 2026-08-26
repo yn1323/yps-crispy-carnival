@@ -336,7 +336,8 @@ describe("featureRequest/mutations", () => {
     expect(await t.run((ctx) => ctx.db.query("featureRequests").collect())).toEqual([]);
   });
 
-  it.each(["readOnly", "removed"] as const)("%sの組織所属ではapp要望を登録できない", async (status) => {
+  it("removedの組織所属ではapp要望を登録できない", async () => {
+    const status = "removed" as const;
     const t = convexTest(schema, modules);
     const seeded = await t.run(async (ctx) => {
       const result = await seedManagerShop(ctx, {

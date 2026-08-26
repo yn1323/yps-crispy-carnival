@@ -26,7 +26,6 @@ import {
 type Props = {
   organizationId: Id<"organizations">;
   organizationName: string;
-  memberStatus: "active" | "readOnly";
   activeShops: DashboardShopOption[] | null;
   requestedShopId?: string;
 };
@@ -65,23 +64,12 @@ function toCanonicalDashboardPlanStatus(status: DashboardPlanStatusResponse): Da
         break;
       }
       return status as DashboardPlanStatusSource;
-    case "restricted":
-      if (status.displayPlan !== null && status.displayPlan !== "free" && !isCanonicalPaidPlan(status.displayPlan)) {
-        break;
-      }
-      return status as DashboardPlanStatusSource;
   }
 
   throw new Error("canonical_plan_id_response_required");
 }
 
-export function DashboardRoutePage({
-  organizationId,
-  organizationName,
-  memberStatus,
-  activeShops,
-  requestedShopId,
-}: Props) {
+export function DashboardRoutePage({ organizationId, organizationName, activeShops, requestedShopId }: Props) {
   const navigate = useNavigate();
   const storage = resolveBrowserLocalStorage();
   const preferredShopId = readDashboardShopPreference(storage, organizationId);
@@ -127,7 +115,6 @@ export function DashboardRoutePage({
                 <ConnectedDashboard
                   organizationId={organizationId}
                   organizationName={organizationName}
-                  memberStatus={memberStatus}
                   activeShops={activeShops ?? []}
                   selectedShopId={resolution.shop.id}
                 />
@@ -143,13 +130,11 @@ export function DashboardRoutePage({
 function ConnectedDashboard({
   organizationId,
   organizationName,
-  memberStatus,
   activeShops,
   selectedShopId,
 }: {
   organizationId: Id<"organizations">;
   organizationName: string;
-  memberStatus: "active" | "readOnly";
   activeShops: DashboardShopOption[];
   selectedShopId: string;
 }) {
@@ -162,9 +147,8 @@ function ConnectedDashboard({
       buildDashboardShopContexts(activeShops, {
         id: organizationId,
         name: organizationName,
-        memberStatus,
       }),
-    [activeShops, memberStatus, organizationId, organizationName],
+    [activeShops, organizationId, organizationName],
   );
   const selectedShop = shopContexts.find((candidate) => candidate.shopId === selectedShopId);
   const navigation = useMemo<DashboardNavigation>(
@@ -202,7 +186,7 @@ function ConnectedDashboard({
     return <DashboardPageStateView state={{ kind: "inaccessible" }} onReload={() => window.location.reload()} />;
   }
 
-  const isReadOnly = memberStatus === "readOnly" || !shop.canWriteBusinessData;
+  const isReadOnly = !shop.canWriteBusinessData;
   const planStatus = shop.planStatus ? toCanonicalDashboardPlanStatus(shop.planStatus) : shop.planStatus;
 
   return (
@@ -210,7 +194,6 @@ function ConnectedDashboard({
       {isReadOnly && (
         <DashboardReadOnlyNotice
           organizationId={organizationId}
-          memberStatus={memberStatus}
           businessWriteBlockReason={shop.businessWriteBlockReason}
         />
       )}
@@ -272,20 +255,12 @@ function resolveBrowserLocalStorage(): Storage | null {
 
 export function DashboardReadOnlyNotice({
   organizationId,
-  memberStatus,
   businessWriteBlockReason,
 }: {
   organizationId: Id<"organizations">;
-  memberStatus: "active" | "readOnly";
-  businessWriteBlockReason:
-    | "paymentResultPending"
-    | "restricted"
-    | "usageLimitExceeded"
-    | "usageLimitEvaluationUnavailable"
-    | null;
+  businessWriteBlockReason: "paymentResultPending" | "usageLimitExceeded" | "usageLimitEvaluationUnavailable" | null;
 }) {
-  const usageLimitEvaluationUnavailable =
-    memberStatus === "active" && businessWriteBlockReason === "usageLimitEvaluationUnavailable";
+  const usageLimitEvaluationUnavailable = businessWriteBlockReason === "usageLimitEvaluationUnavailable";
 
   return (
     <Alert.Root status="warning" borderRadius="xl" alignItems="flex-start">
@@ -295,15 +270,13 @@ export function DashboardReadOnlyNotice({
           {usageLimitEvaluationUnavailable ? "利用状況を確認してください" : "現在、この店舗では操作できません"}
         </Alert.Title>
         <Alert.Description whiteSpace="pre-line">
-          {memberStatus === "readOnly"
-            ? "現在のアカウント状態では、既存データを確認できますが、変更や通知送信はできません。"
-            : businessWriteBlockReason === "paymentResultPending"
-              ? "支払い結果を確認中です。\n確認が完了するまで、既存データの閲覧はできますが、変更や通知送信はできません。"
-              : usageLimitEvaluationUnavailable
-                ? "現在の利用人数・店舗・管理者数がプラン上限内か安全に確認できないため、通常の業務操作を一時的に制限しています。\n管理画面で利用状況を確認・整理し、解消しない場合はサポートへお問い合わせください。"
-                : businessWriteBlockReason === "usageLimitExceeded"
-                  ? "プラン上限を超過しているため、業務操作を一時的に制限しています。\n利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。"
-                  : "契約状態の確認が必要です。\n既存データは引き続き確認できます。"}
+          {businessWriteBlockReason === "paymentResultPending"
+            ? "支払い結果を確認中です。\n確認が完了するまで、既存データの閲覧はできますが、変更や通知送信はできません。"
+            : usageLimitEvaluationUnavailable
+              ? "現在の利用人数・店舗・管理者数がプラン上限内か安全に確認できないため、通常の業務操作を一時的に制限しています。\n管理画面で利用状況を確認・整理し、解消しない場合はサポートへお問い合わせください。"
+              : businessWriteBlockReason === "usageLimitExceeded"
+                ? "プラン上限を超過しているため、業務操作を一時的に制限しています。\n利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。"
+                : "現在、業務操作を一時的に制限しています。\n既存データは引き続き確認できます。"}
         </Alert.Description>
         <Button asChild size="sm" variant="outline" mt={3} alignSelf="flex-start">
           <RouterLink to="/manage" search={{ org: organizationId }}>

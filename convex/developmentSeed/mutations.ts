@@ -41,8 +41,8 @@ const scenarioKeyValidator = v.union(
   v.literal("standard-scheduled-change"),
   v.literal("payment-pending"),
   v.literal("payment-grace"),
-  v.literal("payment-restricted"),
-  v.literal("policy-restricted"),
+  v.literal("free-over-limit"),
+  v.literal("standard-over-limit"),
 );
 
 /** 副作用なしだが、CLI実行時刻を一度だけ固定するためmutationとして提供する。 */

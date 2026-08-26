@@ -61,7 +61,6 @@ describe("AppOrganizationScopeProvider", () => {
         {
           organizationId: "organization-a",
           organizationName: "A組織",
-          memberStatus: "active",
         },
       ],
       status: "Exhausted",
@@ -116,14 +115,13 @@ describe("AppOrganizationScopeProvider", () => {
     mocks.useQuery.mockReturnValue({
       organizationId: "organization-a",
       organizationName: "A組織",
-      memberStatus: "readOnly",
     });
     mocks.usePaginatedQuery.mockImplementation((reference) =>
       reference === mocks.organizationListRef
         ? {
             results: [
-              { organizationId: "organization-a", organizationName: "A組織", memberStatus: "readOnly" },
-              { organizationId: "organization-b", organizationName: "B組織", memberStatus: "active" },
+              { organizationId: "organization-a", organizationName: "A組織" },
+              { organizationId: "organization-b", organizationName: "B組織" },
             ],
             status: "Exhausted",
             loadMore: mocks.loadOrganizations,
@@ -164,7 +162,6 @@ describe("AppOrganizationScopeProvider", () => {
       | {
           organizationId: string;
           organizationName: string;
-          memberStatus: "active";
         }
       | null
       | undefined;
@@ -172,7 +169,7 @@ describe("AppOrganizationScopeProvider", () => {
     mocks.usePaginatedQuery.mockImplementation((reference) => ({
       results:
         reference === mocks.organizationListRef
-          ? [{ organizationId: "organization-a", organizationName: "A組織", memberStatus: "active" }]
+          ? [{ organizationId: "organization-a", organizationName: "A組織" }]
           : [{ shopId: "shop-a", shopName: "A店" }],
       status: "Exhausted",
       loadMore: reference === mocks.organizationListRef ? mocks.loadOrganizations : mocks.loadShops,
@@ -196,7 +193,6 @@ describe("AppOrganizationScopeProvider", () => {
     organization = {
       organizationId: "organization-a",
       organizationName: "A組織",
-      memberStatus: "active",
     };
     rerender(view());
     expect(screen.getByTestId("scope").textContent).toBe("A組織:A店;orgs:A組織");
@@ -212,12 +208,11 @@ describe("AppOrganizationScopeProvider", () => {
     mocks.useQuery.mockReturnValue({
       organizationId: "organization-a",
       organizationName: "A組織",
-      memberStatus: "active",
     });
     mocks.usePaginatedQuery.mockImplementation((reference) =>
       reference === mocks.organizationListRef
         ? {
-            results: [{ organizationId: "organization-a", organizationName: "A組織", memberStatus: "active" }],
+            results: [{ organizationId: "organization-a", organizationName: "A組織" }],
             status: "Exhausted",
             loadMore: mocks.loadOrganizations,
           }
@@ -246,12 +241,11 @@ describe("AppOrganizationScopeProvider", () => {
     mocks.useQuery.mockReturnValue({
       organizationId: "organization-a",
       organizationName: "A組織",
-      memberStatus: "active",
     });
     mocks.usePaginatedQuery.mockImplementation((reference) =>
       reference === mocks.organizationListRef
         ? {
-            results: [{ organizationId: "organization-a", organizationName: "A組織", memberStatus: "active" }],
+            results: [{ organizationId: "organization-a", organizationName: "A組織" }],
             status: "CanLoadMore",
             loadMore: mocks.loadOrganizations,
           }

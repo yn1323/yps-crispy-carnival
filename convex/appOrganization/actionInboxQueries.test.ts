@@ -109,48 +109,6 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
     expect(filtered.items.map(({ kind }) => kind)).toEqual(["shift", "staffRegistration", "notificationFailure"]);
   });
 
-  it("readOnly actorには一覧を返すが、write capabilityをすべて閉じる", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedActionInboxSources(ctx, { subject: "action_read_only", now: NOW });
-      await seedAdditionalActiveManager(ctx, {
-        organizationId: base.organizationId,
-        subject: "action_read_only_active_manager",
-        now: NOW,
-      });
-      await ctx.db.patch(base.memberId, { status: "readOnly", updatedAt: NOW });
-      return base;
-    });
-
-    const result = await t
-      .withIdentity({ subject: "action_read_only" })
-      .query(api.appOrganization.actionInboxQueries.getActionInbox, {
-        organizationId: ids.organizationId,
-        shopFilter: "all",
-        refreshBucket: 0,
-      });
-
-    expect(result.items.map(({ kind }) => kind)).toEqual([
-      "shift",
-      "staffRegistration",
-      "notificationFailure",
-      "managerInvitation",
-    ]);
-    expect(result.items.find((item) => item.kind === "staffRegistration")).toMatchObject({
-      canApprove: false,
-      approveDisabledReason: "現在の利用状態では承認できません。",
-      canReject: false,
-    });
-    expect(result.items.find((item) => item.kind === "notificationFailure")).toMatchObject({
-      canRetry: false,
-      canResolve: false,
-    });
-    expect(result.items.find((item) => item.kind === "managerInvitation")).toMatchObject({
-      canResend: false,
-      canRevoke: false,
-    });
-  });
-
   it("上限超過では通常操作を閉じ、管理者招待の取消だけを維持する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {

@@ -115,11 +115,6 @@ export function resolveBillingPlanAction(
     case "pro":
       if (targetPlan === "standard") return { kind: "schedulePlanChange", targetPlan };
       return targetPlan === "free" ? { kind: "scheduleServiceStop", targetPlan } : null;
-    case "restricted":
-      // 支払い開始に失敗した旧状態だけを復旧対象にする。上限超過中は整理操作に限定する。
-      return !billing.limitPlan && billing.currentPlan === null && isPaidPlan(targetPlan)
-        ? { kind: "startPaidPlan", targetPlan }
-        : null;
     case "pendingActivation":
       return billing.currentPlan === null && isPaidPlan(targetPlan) ? { kind: "startPaidPlan", targetPlan } : null;
     case "grace":

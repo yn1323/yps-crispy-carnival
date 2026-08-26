@@ -144,15 +144,6 @@ describe("usePlanStatusCardController", () => {
       } satisfies DashboardPlanStatusSource,
     },
     {
-      name: "契約状態の確認が必要",
-      source: {
-        kind: "restricted",
-        displayPlan: "free",
-        canManagePlan: true,
-        canUpdatePaymentMethod: false,
-      } satisfies DashboardPlanStatusSource,
-    },
-    {
       name: "終了7日前の未選択トライアル",
       source: {
         kind: "trial",
@@ -259,7 +250,7 @@ describe("usePlanStatusCardController", () => {
     expect(onOpenBillingSettings).toHaveBeenCalledOnce();
   });
 
-  it("支払い問題・契約制限中・終了7日前の未選択トライアルだけを初期展開する", () => {
+  it("支払い問題・終了7日前の未選択トライアルだけを初期展開する", () => {
     vi.useFakeTimers();
     vi.setSystemTime(Date.parse("2026-08-10T03:00:00.000Z"));
     const paymentIssue = renderHook(() =>
@@ -286,18 +277,6 @@ describe("usePlanStatusCardController", () => {
         onOpenBillingSettings: vi.fn(),
       }),
     );
-    const restricted = renderHook(() =>
-      usePlanStatusCardController({
-        planStatus: {
-          kind: "restricted",
-          displayPlan: "free",
-          canManagePlan: true,
-          canUpdatePaymentMethod: false,
-        },
-        shopId: "shop-1",
-        onOpenBillingSettings: vi.fn(),
-      }),
-    );
     const selectedTrial = renderHook(() =>
       usePlanStatusCardController({
         planStatus: {
@@ -313,7 +292,6 @@ describe("usePlanStatusCardController", () => {
     );
 
     expect(currentCard(paymentIssue.result.current).defaultExpanded).toBe(true);
-    expect(currentCard(restricted.result.current).defaultExpanded).toBe(true);
     expect(currentCard(trial.result.current).defaultExpanded).toBe(true);
     expect(currentCard(selectedTrial.result.current).defaultExpanded).toBe(false);
   });

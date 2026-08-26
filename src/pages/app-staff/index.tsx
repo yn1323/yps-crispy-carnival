@@ -1,4 +1,4 @@
-import { Alert, Box, Flex, Heading, HStack, Icon, Skeleton, Stack } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Icon, Skeleton, Stack } from "@chakra-ui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { usePaginatedQuery, useQuery } from "convex/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -35,7 +35,6 @@ export type ShopOption = {
 
 type Props = {
   organizationId: Id<"organizations">;
-  memberStatus: "active" | "readOnly";
   activeShops: ShopOption[] | null;
   requestedShopFilter?: string;
 };
@@ -84,7 +83,6 @@ export function AppStaffRoutePage(props: Props) {
       >
         <ConnectedAppStaff
           organizationId={props.organizationId}
-          memberStatus={props.memberStatus}
           activeShops={props.activeShops ?? []}
           shopFilter={resolvedShopFilter}
         />
@@ -95,12 +93,10 @@ export function AppStaffRoutePage(props: Props) {
 
 function ConnectedAppStaff({
   organizationId,
-  memberStatus,
   activeShops,
   shopFilter,
 }: {
   organizationId: Id<"organizations">;
-  memberStatus: "active" | "readOnly";
   activeShops: ShopOption[];
   shopFilter: "all" | Id<"shops">;
 }) {
@@ -128,8 +124,7 @@ function ConnectedAppStaff({
   const shops = activeShops;
   const filterOptions = shops.map((shop) => ({ value: shop.id, label: shop.name }));
   const selectedFilterShop = shopFilter === "all" ? null : (shops.find((shop) => shop.id === shopFilter) ?? null);
-  const isReadOnly = memberStatus === "readOnly";
-  const canAddStaff = !isReadOnly && summary?.canAddStaff === true && shops.length > 0;
+  const canAddStaff = summary?.canAddStaff === true && shops.length > 0;
   const hasEnoughPeopleToReorder = (summary?.totalCount ?? 0) >= 2;
   const hasTooManyPeopleToReorder =
     summary?.totalCountHasOverflow === true || (summary?.totalCount ?? 0) > STAFF_ORDER_PEOPLE_LIMIT;
@@ -147,7 +142,6 @@ function ConnectedAppStaff({
     orderedEditorPersonIds.length === people.results.length &&
     orderedEditorPersonIds.every((personId) => visiblePersonIds.has(personId));
   const canChangeStaffOrder =
-    !isReadOnly &&
     summary?.canChangeStaffOrder === true &&
     staffOrderEditor?.availability === "ready" &&
     staffOrderEditor.canWrite &&
@@ -155,9 +149,8 @@ function ConnectedAppStaff({
     !hasTooManyPeopleToReorder &&
     !hasTooManyActiveShopsToReorder &&
     hasCompleteStaffOrder;
-  const changeStaffOrderDisabledReason = isReadOnly
-    ? "現在のアカウント状態では、スタッフの並び順を変更できません。"
-    : summary?.canChangeStaffOrder !== true
+  const changeStaffOrderDisabledReason =
+    summary?.canChangeStaffOrder !== true
       ? (summary?.changeStaffOrderDisabledReason ?? "現在、スタッフの並び順を変更できません。")
       : staffOrderEditor?.availability !== "ready" || !staffOrderEditor.canWrite
         ? (staffOrderEditor?.writeDisabledReason ?? "現在、スタッフの並び順を変更できません。")
@@ -215,8 +208,6 @@ function ConnectedAppStaff({
           }
         />
 
-        {isReadOnly && <AppStaffReadOnlyNotice />}
-
         <PeopleSection
           key={shopFilter}
           people={staffOrder.people}
@@ -240,11 +231,7 @@ function ConnectedAppStaff({
           onAddStaff={handleAddStaff}
           canAddStaff={canAddStaff}
           addStaffDisabledReason={
-            isReadOnly
-              ? "現在のアカウント状態では、スタッフを追加できません。"
-              : shops.length === 0
-                ? "スタッフを追加するには、利用中の店舗が必要です。"
-                : summary.addStaffDisabledReason
+            shops.length === 0 ? "スタッフを追加するには、利用中の店舗が必要です。" : summary.addStaffDisabledReason
           }
         />
 
@@ -317,18 +304,6 @@ export function StaffInvitationShopSelectionDialog({
         </Stack>
       </Box>
     </Dialog>
-  );
-}
-
-export function AppStaffReadOnlyNotice() {
-  return (
-    <Alert.Root status="warning" borderRadius="xl" alignItems="flex-start">
-      <Alert.Indicator mt={1} />
-      <Alert.Content>
-        <Alert.Title>現在、このアカウントでは操作できません</Alert.Title>
-        <Alert.Description>スタッフ情報は確認できますが、追加や変更はできません。</Alert.Description>
-      </Alert.Content>
-    </Alert.Root>
   );
 }
 

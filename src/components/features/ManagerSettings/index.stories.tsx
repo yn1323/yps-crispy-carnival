@@ -298,29 +298,6 @@ export const InvitationConflict: Story = {
   },
 };
 
-export const Restricted: Story = {
-  args: {
-    overview: {
-      ...overview,
-      mode: "restricted",
-      actions: {
-        canInviteExistingStaff: false,
-        existingStaffDisabledReason: "契約状態を復旧してから変更できます。",
-        canInviteExternal: false,
-        externalDisabledReason: "契約状態を復旧してから変更できます。",
-      },
-      managers: [
-        {
-          ...overview.managers[0],
-          role: "readOnly",
-          canRemoveRole: false,
-          removeRoleDisabledReason: "契約状態を復旧してから変更できます。",
-        },
-      ],
-    },
-  },
-};
-
 export const NoPendingInvitations: Story = {
   args: {
     overview: {
@@ -507,14 +484,14 @@ export const ExternalInvitationUnavailable: Story = {
       <ManagerExternalInviteFormView
         isSubmitting={false}
         isReadOnly
-        disabledReason="現在のアカウント状態では、管理者を招待できません。"
+        disabledReason="プラン上限を超えているため、管理者を招待できません。"
         onRequestInvite={noop}
       />
     </SubpageFrame>
   ),
   play: async ({ canvasElement }) => {
     const page = within(canvasElement);
-    await expect(page.getByText("現在のアカウント状態では、管理者を招待できません。")).toBeInTheDocument();
+    await expect(page.getByText("プラン上限を超えているため、管理者を招待できません。")).toBeInTheDocument();
     await expect(page.getByRole("textbox", { name: "名前" })).toBeDisabled();
     await expect(page.getByRole("textbox", { name: "メールアドレス" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "招待する" })).toBeDisabled();

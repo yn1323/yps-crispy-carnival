@@ -19,7 +19,6 @@ export type {
 
 export function OrganizationRecruitmentManagement({
   organizationId,
-  memberStatus,
   shopFilter,
   groups,
   shops,
@@ -37,7 +36,6 @@ export function OrganizationRecruitmentManagement({
   const previousInteractionScopeKeyRef = useRef(interactionScopeKey);
   const activeInteractionScopeKeyRef = useRef(interactionScopeKey);
   activeInteractionScopeKeyRef.current = interactionScopeKey;
-  const isReadOnly = memberStatus === "readOnly";
   const writableShops = useMemo(() => shops.filter((shop) => shop.canCreate), [shops]);
   const filteredShop = useMemo(
     () => (shopFilter === "all" ? undefined : shops.find((shop) => shop.shopId === shopFilter)),
@@ -49,34 +47,28 @@ export function OrganizationRecruitmentManagement({
       (filteredShop ? { shopId: filteredShop.shopId, shopName: filteredShop.shopName } : undefined),
     [filteredShop, getRecruitmentShop],
   );
-  const canCreateRecruitments = !isReadOnly && writableShops.length > 0;
-  const canDeleteRecruitments =
-    !isReadOnly &&
-    (filteredShop
-      ? filteredShop.canCreate
-      : groups
-          .flatMap((group) => group.recruitments)
-          .every((recruitment) => {
-            const targetShop = resolveRecruitmentShop(recruitment);
-            return !!targetShop && shops.some((shop) => shop.canCreate && shop.shopId === targetShop.shopId);
-          }));
+  const canCreateRecruitments = writableShops.length > 0;
+  const canDeleteRecruitments = filteredShop
+    ? filteredShop.canCreate
+    : groups
+        .flatMap((group) => group.recruitments)
+        .every((recruitment) => {
+          const targetShop = resolveRecruitmentShop(recruitment);
+          return !!targetShop && shops.some((shop) => shop.canCreate && shop.shopId === targetShop.shopId);
+        });
   const createDisabledReason = canCreateRecruitments
     ? undefined
-    : isReadOnly
-      ? "現在のアカウント状態では、募集を作成・削除できません。"
-      : (shops.find((shop) => !shop.canCreate)?.createDisabledReason ?? "募集を作成できる店舗がありません。");
+    : (shops.find((shop) => !shop.canCreate)?.createDisabledReason ?? "募集を作成できる店舗がありません。");
   const deleteDisabledReason = canDeleteRecruitments
     ? undefined
-    : isReadOnly
-      ? "現在のアカウント状態では、募集を削除できません。"
-      : (filteredShop?.createDisabledReason ??
-        groups
-          .flatMap((group) => group.recruitments)
-          .map(resolveRecruitmentShop)
-          .filter((shop) => shop !== undefined)
-          .map((targetShop) => shops.find((shop) => shop.shopId === targetShop.shopId))
-          .find((shop) => shop && !shop.canCreate)?.createDisabledReason ??
-        "対象店舗を確認できない募集があるため、削除できません。");
+    : (filteredShop?.createDisabledReason ??
+      groups
+        .flatMap((group) => group.recruitments)
+        .map(resolveRecruitmentShop)
+        .filter((shop) => shop !== undefined)
+        .map((targetShop) => shops.find((shop) => shop.shopId === targetShop.shopId))
+        .find((shop) => shop && !shop.canCreate)?.createDisabledReason ??
+      "対象店舗を確認できない募集があるため、削除できません。");
 
   const closeCreateDialog = createDialog.close;
   const closeDeleteDialog = deleteDialog.close;
@@ -185,7 +177,6 @@ export function OrganizationRecruitmentManagement({
       shopFilter={shopFilter}
       groups={groups}
       shops={shops}
-      isReadOnly={isReadOnly}
       canCreateRecruitments={canCreateRecruitments}
       createDisabledReason={createDisabledReason}
       canDeleteRecruitments={canDeleteRecruitments}
