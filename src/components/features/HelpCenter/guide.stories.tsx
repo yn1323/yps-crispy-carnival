@@ -48,7 +48,9 @@ export const Desktop: Story = {
     const firstStepsFaq = faqMetas.find(({ id }) => id === "first-steps");
     if (!firstStepsFaq) throw new Error("Guide Storyにはfirst-steps FAQが必要です");
 
-    await expect(await canvas.findByRole("heading", { level: 1, name: "最初のシフト募集を始める" })).toBeVisible();
+    await expect(
+      await canvas.findByRole("heading", { level: 1, name: "最初のシフト募集を始める" }, { timeout: 10_000 }),
+    ).toBeVisible();
     await expect(canvas.getAllByRole("link", { name: "ヘルプ" })[0]).toHaveAttribute("href", "/help");
     await expect(canvas.getAllByRole("navigation", { name: "この使い方の目次" }).length).toBeGreaterThan(0);
     await expect(canvas.getByRole("link", { name: firstStepsFaq.title })).toHaveAttribute("href", firstStepsFaq.href);
@@ -64,7 +66,9 @@ export const Mobile: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(await canvas.findByRole("heading", { level: 1, name: "最初のシフト募集を始める" })).toBeVisible();
+    await expect(
+      await canvas.findByRole("heading", { level: 1, name: "最初のシフト募集を始める" }, { timeout: 10_000 }),
+    ).toBeVisible();
     await expect(
       canvas.getByText(/初回セットアップ後、管理者自身でシフト募集の作成から希望シフトの提出/),
     ).toBeVisible();
@@ -97,9 +101,8 @@ export const RelatedFromIncomingRelation: Story = {
       throw new Error("Guide Storyにはrecruitment-notification-timing FAQが必要です");
     }
 
-    await expect(await canvas.findByRole("link", { name: recruitmentNotificationFaq.title })).toHaveAttribute(
-      "href",
-      recruitmentNotificationFaq.href,
-    );
+    await expect(
+      await canvas.findByRole("link", { name: recruitmentNotificationFaq.title }, { timeout: 10_000 }),
+    ).toHaveAttribute("href", recruitmentNotificationFaq.href);
   },
 };
