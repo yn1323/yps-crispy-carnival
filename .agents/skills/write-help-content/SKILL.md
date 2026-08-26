@@ -97,6 +97,7 @@ description: シフトリのHelpCenter向けFAQ・使い方を、現在の実装
 
 ## 日本語を整える
 
+- `../japanese-tech-writing/SKILL.md`の「直接的で自然な文」を、FAQや手順などの短い文章にも適用する。
 - シフト管理の正式用語は`../ui-architect/references/ui-writing.md`の「シフト管理の基本用語」に合わせる。
 - 1文では一つの内容だけを伝える。
 - 長い文は分割し、1文60文字以内を目安にする。
