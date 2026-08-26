@@ -117,7 +117,7 @@ describe("useForgotPasswordFlowController", () => {
       await result.current.onResetPassword({ code: "000000", password: "new-password123" });
     });
 
-    expect(result.current.errorMessage).toBe("確認コードが正しくありません。");
+    expect(result.current.errorMessage).toBe("確認コードが誤っています。");
     expect(result.current.step).toBe("reset");
     expect(signIn.resetPasswordEmailCode.submitPassword).not.toHaveBeenCalled();
     expect(signIn.finalize).not.toHaveBeenCalled();

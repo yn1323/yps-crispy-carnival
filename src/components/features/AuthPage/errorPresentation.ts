@@ -13,9 +13,9 @@ export function getClerkErrorMessage(error: unknown) {
       return "このメールアドレスのアカウントが見つかりません。";
     case "form_password_incorrect":
     case "form_password_or_identifier_incorrect":
-      return "メールアドレスまたはパスワードが正しくありません。";
+      return "メールアドレスまたはパスワードが誤っています。";
     case "form_code_incorrect":
-      return "確認コードが正しくありません。";
+      return "確認コードが誤っています。";
     case "form_code_expired":
       return "確認コードの有効期限が切れています。\nもう一度お試しください。";
     case "form_password_length_too_short":

@@ -471,7 +471,7 @@ export function useEmailPasswordMigrationController({
           return false;
         }
         await target.prepareVerification({ strategy: "email_code" });
-        syncFromUser(currentUser, { status: "success", message: "新しい確認コードを送りました。" }, target.id);
+        syncFromUser(currentUser, { status: "success", message: "新しい確認コードを再送しました。" }, target.id);
         return true;
       } catch (error) {
         setState((current) => ({ ...current, feedback: errorFeedback(error) }));

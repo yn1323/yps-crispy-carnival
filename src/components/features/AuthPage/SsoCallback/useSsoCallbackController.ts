@@ -14,8 +14,8 @@ import {
 import { resetOAuthAttempts } from "../resetOAuthAttempts";
 
 const RESEND_COOLDOWN_SECONDS = 30;
-const RECOVERY_MESSAGE = "Google認証を完了できませんでした。\n最初からやり直してください。";
-const SESSION_CREATION_ERROR = "セッションを作成できませんでした。\n最初からやり直してください。";
+const RECOVERY_MESSAGE = "Google認証を完了できませんでした。最初からやり直してください。";
+const SESSION_CREATION_ERROR = "セッションを作成できませんでした。最初からやり直してください。";
 
 type SignInHookResource = ReturnType<typeof useSignIn>["signIn"];
 type SignInCallbackResource = Pick<
@@ -265,7 +265,7 @@ export function useSsoCallbackController({
       setVerificationInfoMessage(undefined);
       try {
         await prepareClientTrustEmailCode(signIn);
-        setVerificationInfoMessage("新しい確認コードを送りました。");
+        setVerificationInfoMessage("新しい確認コードを再送しました。");
         setResendCooldownSeconds(RESEND_COOLDOWN_SECONDS);
       } catch (error) {
         setErrorMessage(getClerkErrorMessage(error));

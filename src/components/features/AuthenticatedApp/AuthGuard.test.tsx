@@ -286,7 +286,7 @@ describe("AuthGuard", () => {
     );
 
     expect(screen.getByRole("heading", { name: "アカウントの削除を受け付けました" })).not.toBeNull();
-    expect(screen.getByText(/このページを閉じても処理は続きます/)).not.toBeNull();
+    expect(screen.queryByText(/このページを閉じても処理は続きます/)).toBeNull();
     expect(screen.queryByTestId("manager-child")).toBeNull();
   });
 });
