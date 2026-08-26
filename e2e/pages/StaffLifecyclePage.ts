@@ -30,7 +30,7 @@ export class StaffLifecyclePage {
     const dialog = this.page.getByRole("dialog", { name: "スタッフを追加", exact: true });
     await expect(dialog).toBeVisible({ timeout: STAFF_LIFECYCLE_TIMEOUT });
 
-    await dialog.getByRole("button", { name: "管理者が情報を入力して追加する", exact: true }).click();
+    await dialog.getByRole("button", { name: "あなたが情報を入力する", exact: true }).click();
     await expect(dialog.getByRole("heading", { name: "管理者が情報を入力して追加する", exact: true })).toBeVisible({
       timeout: STAFF_LIFECYCLE_TIMEOUT,
     });
