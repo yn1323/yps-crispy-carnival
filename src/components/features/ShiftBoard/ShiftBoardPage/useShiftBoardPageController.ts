@@ -24,6 +24,7 @@ import {
 } from "@/src/domains/shift/date";
 import { isAssignmentsEqual } from "@/src/domains/shift/isAssignmentsEqual";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import { useDeadlineActive } from "@/src/hooks/useDeadlineActive";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import type { ShiftBoardData } from "../types";
@@ -47,6 +48,38 @@ export function getShiftBoardReadOnlyReason(reason: ShiftBoardData["businessWrit
     case null:
       return "現在、このシフトは変更できません。";
   }
+}
+
+type ResolveReminderStatusInput = {
+  lastReminderSentAt: number | null;
+  reminderScheduledAt: number | null;
+  isReminderScheduleActive: boolean;
+};
+
+export function resolveReminderStatus({
+  lastReminderSentAt,
+  reminderScheduledAt,
+  isReminderScheduleActive,
+}: ResolveReminderStatusInput): ReminderStatus {
+  if (lastReminderSentAt !== null) {
+    return {
+      kind: "sent",
+      label: `${formatDateTimeWithWeekday(lastReminderSentAt)}に催促通知を送りました`,
+    };
+  }
+  if (reminderScheduledAt === null) {
+    return {
+      kind: "none",
+      label: "自動催促の予定はありません",
+    };
+  }
+  if (isReminderScheduleActive) {
+    return {
+      kind: "scheduled",
+      label: "提出期限の前日17:00に催促通知を自動で送ります",
+    };
+  }
+  return { kind: "unconfirmed" };
 }
 
 const generatePeriodLabel = (dates: string[]): string => {
@@ -226,24 +259,16 @@ export const useShiftBoardPageController = (
     () => data.staffs.filter((staff) => !staff.isSubmitted).map((staff) => staff.name),
     [data.staffs],
   );
-  const reminderStatus = useMemo<ReminderStatus>(() => {
-    if (data.recruitment.lastReminderSentAt) {
-      return {
-        kind: "sent",
-        label: `${formatDateTimeWithWeekday(data.recruitment.lastReminderSentAt)} 催促を送信済み`,
-      };
-    }
-    if (data.recruitment.reminderScheduledAt && data.recruitment.reminderScheduledAt > Date.now()) {
-      return {
-        kind: "scheduled",
-        label: "提出期限の前日17:00に、催促通知を自動で送ります。",
-      };
-    }
-    return {
-      kind: "none",
-      label: "自動催促は設定されていません",
-    };
-  }, [data.recruitment.lastReminderSentAt, data.recruitment.reminderScheduledAt]);
+  const isReminderScheduleActive = useDeadlineActive(data.recruitment.reminderScheduledAt);
+  const reminderStatus = useMemo<ReminderStatus>(
+    () =>
+      resolveReminderStatus({
+        lastReminderSentAt: data.recruitment.lastReminderSentAt,
+        reminderScheduledAt: data.recruitment.reminderScheduledAt,
+        isReminderScheduleActive,
+      }),
+    [data.recruitment.lastReminderSentAt, data.recruitment.reminderScheduledAt, isReminderScheduleActive],
+  );
 
   // 現在のシフトを保存し、dirty判定の基準（baseline）を保存時点に更新する
   const persistCurrentShifts = useCallback(async () => {

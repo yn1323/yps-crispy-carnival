@@ -1,16 +1,29 @@
 import { useEffect, useState } from "react";
 
+const MAX_TIMEOUT_DELAY_MS = 2_147_483_647;
+
 export function useDeadlineActive(deadline: number | null | undefined) {
   const [, setClockVersion] = useState(0);
 
   useEffect(() => {
     if (deadline === null || deadline === undefined) return;
 
-    const remainingMs = deadline - Date.now();
-    if (remainingMs <= 0) return;
+    if (deadline <= Date.now()) return;
 
-    const timeoutId = globalThis.setTimeout(() => setClockVersion((version) => version + 1), remainingMs);
-    return () => globalThis.clearTimeout(timeoutId);
+    let timeoutId: ReturnType<typeof globalThis.setTimeout> | undefined;
+    const scheduleDeadlineCheck = () => {
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) {
+        setClockVersion((version) => version + 1);
+        return;
+      }
+      timeoutId = globalThis.setTimeout(scheduleDeadlineCheck, Math.min(remainingMs, MAX_TIMEOUT_DELAY_MS));
+    };
+
+    scheduleDeadlineCheck();
+    return () => {
+      if (timeoutId !== undefined) globalThis.clearTimeout(timeoutId);
+    };
   }, [deadline]);
 
   return deadline !== null && deadline !== undefined && deadline > Date.now();
