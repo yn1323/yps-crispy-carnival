@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { customQuery } from "convex-helpers/server/customFunctions";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Id } from "../_generated/dataModel";
+import { PROMOTION_CODE_INVALID_ERROR_CODE } from "../setup/constants";
 import {
   buildConvexFunctionErrorPayload,
   CONVEX_FUNCTION_ERROR_MARKER,
@@ -78,6 +79,12 @@ describe("buildConvexFunctionErrorPayload", () => {
       {},
       {},
     );
+    const invalidPromotionCode = buildConvexFunctionErrorPayload(
+      "mutation",
+      new ConvexError({ code: PROMOTION_CODE_INVALID_ERROR_CODE }),
+      {},
+      {},
+    );
     const unknown = buildConvexFunctionErrorPayload(
       "query",
       new ConvexError("secret@example.com を確認してください"),
@@ -91,6 +98,7 @@ describe("buildConvexFunctionErrorPayload", () => {
       failureKind: "domain",
       errorCode: "usage_limit_evaluation_unavailable",
     });
+    expect(invalidPromotionCode).toMatchObject({ failureKind: "domain", errorCode: "promotion_code_invalid" });
     expect(JSON.stringify(structuredKnown)).not.toContain("利用人数を減らしてください");
     expect(JSON.stringify(unavailableUsageEvaluation)).not.toContain("利用数を確認できません");
     expect(unknown).toMatchObject({ failureKind: "domain", errorCode: "convex_error" });

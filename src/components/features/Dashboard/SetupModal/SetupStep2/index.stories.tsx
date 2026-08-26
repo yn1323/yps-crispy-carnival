@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { SetupStep2 } from "./index.tsx";
+import type { SetupCompletionResult } from "../types";
+import { SetupStep2, type Step2Data } from "./index.tsx";
+
+const completeSetup = async (_data: Step2Data): Promise<SetupCompletionResult> => ({ kind: "completed" });
 
 const meta = {
   title: "Features/Dashboard/SetupModal/SetupStep2",
@@ -8,7 +11,7 @@ const meta = {
     layout: "padded",
   },
   args: {
-    onSubmit: () => {},
+    onSubmit: completeSetup,
   },
 } satisfies Meta<typeof SetupStep2>;
 

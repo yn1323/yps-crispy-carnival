@@ -13,6 +13,7 @@ const app = defineApp({
     DEVELOPMENT_SEED_ENABLED: v.optional(v.string()),
     DEVELOPMENT_SEED_DEPLOYMENT_URL: v.optional(v.string()),
     NOTIFICATION_DELIVERY_MODE: v.optional(v.string()),
+    PROMOTION_COMPLIMENTARY_PRO_CODE: v.optional(v.string()),
     STRIPE_SECRET_KEY: v.optional(v.string()),
     STRIPE_WEBHOOK_SECRET: v.optional(v.string()),
     STRIPE_STANDARD_PRICE_ID: v.optional(v.string()),

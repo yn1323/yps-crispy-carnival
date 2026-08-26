@@ -254,6 +254,7 @@ import type * as recruitment_mutations from "../recruitment/mutations.js";
 import type * as recruitment_schemas from "../recruitment/schemas.js";
 import type * as recruitment_service from "../recruitment/service.js";
 import type * as recruitment_stats from "../recruitment/stats.js";
+import type * as setup_constants from "../setup/constants.js";
 import type * as setup_mutations from "../setup/mutations.js";
 import type * as setup_schemas from "../setup/schemas.js";
 import type * as setup_service from "../setup/service.js";
@@ -541,6 +542,7 @@ declare const fullApi: ApiFromModules<{
   "recruitment/schemas": typeof recruitment_schemas;
   "recruitment/service": typeof recruitment_service;
   "recruitment/stats": typeof recruitment_stats;
+  "setup/constants": typeof setup_constants;
   "setup/mutations": typeof setup_mutations;
   "setup/schemas": typeof setup_schemas;
   "setup/service": typeof setup_service;

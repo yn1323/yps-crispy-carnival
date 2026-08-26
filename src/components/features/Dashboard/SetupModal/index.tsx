@@ -9,13 +9,15 @@ import { StepperDialog, StepperDialogContent, type StepperDialogStep } from "@/s
 import { DEFAULT_TIME_PATTERN, normalizeShiftTypeOptions } from "@/src/domains/shop/submissionPattern";
 import { SetupShopInfoStep, type Step1Data } from "./SetupStep1";
 import { SetupStep2, type Step2Data } from "./SetupStep2";
+import type { SetupCompletionResult } from "./types";
 
 export type SetupData = Step1Data & Step2Data;
+export type { SetupCompletionResult } from "./types";
 
 type Props = {
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
-  onComplete: (data: SetupData) => void | Promise<void>;
+  onComplete: (data: SetupData) => SetupCompletionResult | undefined | Promise<SetupCompletionResult | undefined>;
   managerProfileDefaults?: Pick<Step2Data, "name" | "email">;
   isSubmitting?: boolean;
 };
@@ -121,7 +123,7 @@ export const SetupModal = ({
 
   const handleStep2Submit = useCallback(
     async (data: Step2Data) => {
-      await onComplete({ ...normalizeSetupData(getValues()), ...data });
+      return await onComplete({ ...normalizeSetupData(getValues()), ...data });
     },
     [getValues, onComplete],
   );

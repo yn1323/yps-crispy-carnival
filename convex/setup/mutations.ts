@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
+import { getPromotionComplimentaryProCode } from "../_lib/config";
 import { authenticatedMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
@@ -9,6 +10,7 @@ import { normalizeEmail } from "../_lib/validation";
 import { recordUserLegalConsent } from "../legal/service";
 import { requireOrganizationReadActor } from "../organization/access";
 import { updateShopSettingsSchema } from "../shop/schemas";
+import { isPromotionCode, PROMOTION_CODE_INVALID_ERROR_CODE } from "./constants";
 import { setupShopAndManagerSchema } from "./schemas";
 import {
   createOrganizationWithFirstShop,
@@ -19,6 +21,19 @@ import {
 const WEEKDAY_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 const PRIOR_OPERATION_ERROR = "以前の操作結果を確認できません。";
 const MANAGER_AUTHORITY_SCAN_LIMIT = 50;
+
+function invalidPromotionCode(): never {
+  throw new ConvexError({ code: PROMOTION_CODE_INVALID_ERROR_CODE });
+}
+
+function resolveInitialSetupBillingMode(promotionCode: string | undefined): "trial" | "complimentaryPro" {
+  if (!promotionCode) return "trial";
+  const configuredCode = getPromotionComplimentaryProCode();
+  if (!configuredCode || !isPromotionCode(configuredCode) || configuredCode !== promotionCode) {
+    return invalidPromotionCode();
+  }
+  return "complimentaryPro";
+}
 
 const additionalOrganizationArgs = {
   shopName: v.string(),
@@ -74,12 +89,14 @@ export const setupShopAndManager = authenticatedMutation({
     submissionPattern: submissionPatternValidator,
     managerName: v.string(),
     managerEmail: v.string(),
+    promotionCode: v.optional(v.string()),
     acceptedLegal: v.literal(true),
   },
   returns: v.id("shops"),
   handler: async (ctx, args) => {
     const parsed = setupShopAndManagerSchema.safeParse(args);
     if (!parsed.success) {
+      if (parsed.error.issues.some((issue) => issue.path[0] === "promotionCode")) invalidPromotionCode();
       throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
     }
     const input = parsed.data;
@@ -148,6 +165,7 @@ export const setupShopAndManager = authenticatedMutation({
       }
     }
 
+    const billingMode = resolveInitialSetupBillingMode(input.promotionCode);
     const now = Date.now();
     const managerEmailNormalized = normalizeEmail(input.managerEmail);
     const userId = currentUser
@@ -175,7 +193,7 @@ export const setupShopAndManager = authenticatedMutation({
       shopName: input.shopName,
       regularClosedDays: [],
       submissionPattern: input.submissionPattern,
-      billingMode: "trial",
+      billingMode,
       now,
     });
 

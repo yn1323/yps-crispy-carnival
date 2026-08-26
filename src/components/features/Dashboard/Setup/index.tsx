@@ -6,6 +6,7 @@ import { useDialog } from "@/src/components/ui/Dialog";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import type { SetupData } from "../SetupModal";
 import { SetupView } from "./SetupView";
+import { isPromotionCodeInvalidError } from "./script";
 
 type Props = {
   managerProfileDefaults?: {
@@ -28,10 +29,14 @@ export function Setup({ managerProfileDefaults, showAccountDeletion, announcemen
         managerName: data.name,
         managerEmail: data.email,
         acceptedLegal: data.acceptedLegal as true,
+        ...(data.promotionCode ? { promotionCode: data.promotionCode } : {}),
       });
       showSuccessToast({ title: "セットアップが完了しました" });
+      return { kind: "completed" } as const;
     } catch (error) {
+      if (isPromotionCodeInvalidError(error)) return { kind: "promotionCodeInvalid" } as const;
       showErrorToast(error);
+      return { kind: "failed" } as const;
     }
   });
 

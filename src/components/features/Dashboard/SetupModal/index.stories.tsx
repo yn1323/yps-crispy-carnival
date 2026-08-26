@@ -1,9 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useRef, useState } from "react";
-import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
+import { expect, fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
 import { createDeferred } from "@/src/devtools/createDeferred";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
-import { SetupModal } from "./index";
+import { type SetupCompletionResult, type SetupData, SetupModal } from "./index";
+
+const completeSetup = async (_data: SetupData): Promise<SetupCompletionResult> => ({ kind: "completed" });
 
 const meta = {
   title: "Features/Dashboard/SetupModal",
@@ -14,7 +16,7 @@ const meta = {
   args: {
     isOpen: true,
     onOpenChange: () => {},
-    onComplete: () => {},
+    onComplete: completeSetup,
     managerProfileDefaults: {
       name: "山田 太郎",
       email: "yamada@example.com",
@@ -92,6 +94,83 @@ export const ShiftTypeSettingsStep: Story = {
   },
 };
 
+export const PromotionCodeValidationAndNormalization: Story = {
+  parameters: {
+    screenshot: { skip: true },
+  },
+  args: {
+    onComplete: fn(async () => ({ kind: "completed" as const })),
+  },
+  play: async ({ args, canvasElement }) => {
+    const dialog = await getDialog(canvasElement);
+    await inputShopName(dialog);
+    await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
+    await userEvent.click(dialog.getByRole("checkbox", { name: /利用規約.*プライバシーポリシー.*同意/ }));
+
+    const promotionCode = dialog.getByRole("textbox", { name: "プロモーションコード（任意）" });
+    await userEvent.type(promotionCode, "ABC-12");
+    await userEvent.click(dialog.getByRole("button", { name: "利用開始" }));
+    await expect(await dialog.findByText("プロモーションコードは6桁の英数字で入力してください。")).toBeVisible();
+    await expect(args.onComplete).not.toHaveBeenCalled();
+
+    await userEvent.clear(promotionCode);
+    await userEvent.type(promotionCode, "ab12cd");
+    await userEvent.click(dialog.getByRole("button", { name: "利用開始" }));
+    await expect(args.onComplete).toHaveBeenCalledWith(expect.objectContaining({ promotionCode: "AB12CD" }));
+  },
+};
+
+export const PromotionCodeAttemptLockout: Story = {
+  parameters: {
+    screenshot: { skip: true },
+  },
+  args: {
+    onComplete: fn(async (data) =>
+      data.promotionCode ? ({ kind: "promotionCodeInvalid" } as const) : ({ kind: "completed" } as const),
+    ),
+  },
+  play: async ({ args, canvasElement }) => {
+    const dialog = await getDialog(canvasElement);
+    await inputShopName(dialog);
+    await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
+    await userEvent.click(dialog.getByRole("checkbox", { name: /利用規約.*プライバシーポリシー.*同意/ }));
+
+    const promotionCode = dialog.getByRole("textbox", { name: "プロモーションコード（任意）" });
+    await userEvent.type(promotionCode, "ZZ9999");
+    const submit = dialog.getByRole("button", { name: "利用開始" });
+    const onComplete = args.onComplete as ReturnType<typeof fn>;
+    onComplete.mockResolvedValueOnce({ kind: "failed" });
+    await userEvent.click(submit);
+    await expect(promotionCode).toBeEnabled();
+    await expect(dialog.queryByText(/残り\d+回確認できます/)).not.toBeInTheDocument();
+
+    for (let attempt = 0; attempt < 9; attempt += 1) await userEvent.click(submit);
+    await expect(promotionCode).toBeEnabled();
+    await expect(dialog.getByText("プロモーションコードを確認してください。残り1回確認できます。")).toBeVisible();
+
+    await userEvent.click(submit);
+
+    await expect(promotionCode).toBeDisabled();
+    await expect(promotionCode).toHaveValue("");
+    await expect(
+      dialog.getByText(
+        "プロモーションコードの確認回数が上限に達しました。10分後にもう一度お試しください。コードなしの通常登録は続けられます。",
+      ),
+    ).toBeVisible();
+    const storage = canvasElement.ownerDocument.defaultView?.sessionStorage;
+    const storedEntries = Array.from({ length: storage?.length ?? 0 }, (_, index) => {
+      const key = storage?.key(index) ?? "";
+      return `${key}:${storage?.getItem(key) ?? ""}`;
+    });
+    await expect(storedEntries.join("\n")).not.toContain("ZZ9999");
+    await expect(args.onComplete).toHaveBeenCalledTimes(11);
+
+    await userEvent.click(submit);
+    await expect(args.onComplete).toHaveBeenCalledTimes(12);
+    await expect(args.onComplete).toHaveBeenLastCalledWith(expect.objectContaining({ promotionCode: undefined }));
+  },
+};
+
 export const InteractiveDoubleSubmitGuard: Story = {
   parameters: {
     screenshot: { skip: true },
@@ -139,6 +218,7 @@ function GuardedSetupModalStory() {
     pendingCompletion.current = completion;
     await completion.promise;
     if (pendingCompletion.current === completion) pendingCompletion.current = null;
+    return { kind: "completed" } as const;
   });
 
   return (
