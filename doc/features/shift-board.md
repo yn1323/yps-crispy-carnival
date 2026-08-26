@@ -62,7 +62,7 @@ serverから届いた提出内容の更新だけでは、未保存変更とし�
 
 下書き保存は現在の割当を一募集分の全置換で永続化する。  `saveShiftAssignments`は受信したraw割当を先にvalidationし、スタッフとポジションの店舗境界を確認する。  その後に省略デフォルトを実IDへ解決し、時間入力方式の安全に統合できる完全隣接区間だけを一件で保存する。  overlapや不正時刻を正規化で隠さず拒否する。
 
-routeは最初に募集から店舗を解決してURLの組織と一致することを確認する。  読み込み、保存、確定ではその店舗IDと`expectedOrganizationId`を既存manager APIへ同時に渡し、別組織の店舗、legacy店舗所属、readOnly管理者、非active店舗をserver側で拒否する。
+routeは最初に募集から店舗を解決してURLの組織と一致することを確認する。  読み込み、保存、確定ではその店舗IDと`expectedOrganizationId`を既存manager APIへ同時に渡し、別組織の店舗、legacy店舗所属、有効管理者ではない操作者、非active店舗をserver側で拒否する。
 
 既存DBの分割行は一括migrationしない。  ShiftBoard、確定シフト閲覧、新しい通知はread-time正規化するが、読み込みだけでDBを書き換えない。  管理者が既存募集を再保存した場合だけ、その募集の安全に統合できる割当がDBでも正規形へ収束する。
 

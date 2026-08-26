@@ -240,13 +240,11 @@ m045からm047のstatus成功後、次のpost readinessをこの順で全ペー�
 3. m044の`verify`を`phase: "post"`で全ページ実行し、`legacy: 0`と`blocking: 0`を確認する。
 4. m045 / m046共通readinessの`verify`を両scope、`phase: "post"`で全ページ実行し、`legacy: 0`と`blocking: 0`を確認する。
 5. `narrowReadiness/queries:verifyLegacyShopBillingStates`を全ページ実行し、`activeRows: 0`と`totalRows: 0`を確認する。
-6. `billing_compatibility_narrow_readiness`の`verifyBillingStates`と`verifyReadOnlyMembers`を全ページ実行し、旧`restricted`、旧`readOnly`、markerなしplan IDを含む`blocking: 0`を確認する。
+6. `billing_compatibility_narrow_readiness`の`verifyBillingStates`を全ページ実行し、markerなしplan IDを含む`blocking: 0`を確認する。
 7. 最後に次のqueryが`completedReset: true`、`blocking: 0`を返すことを確認する。
 
 ```bash
 pnpm exec convex run migrations/billing_compatibility_narrow_readiness:verifyBillingStates \
-  '{"paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
-pnpm exec convex run migrations/billing_compatibility_narrow_readiness:verifyReadOnlyMembers \
   '{"paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
 pnpm exec convex run migrations/m043_analytics_plan_ids_v2_readiness:verifyResetGeneration \
   '{}' --deployment <fully-qualified-deployment>
@@ -370,7 +368,7 @@ pnpm exec convex env remove --deployment <fully-qualified-deployment> DEBUG_TRIA
 未契約または継続予約取消済みのTrialが終了した場合は、管理者、店舗、人物、スタッフ所属、シフトを維持したまま`active.free`へ移行する。
 有料契約の解約確定、支払い猶予終了、Stripe上の想定外解約でも、Stripe上の契約終了を確認した後に`active.free`へ移行する。
 ProからStandardへの期間末変更では、Stripe上のphase移行と支払い結果を確認した後にcanonicalな`active.standard`へ移行する。
-`pendingActivation`で有料化しない結果が確定した場合は、保存済みのcanonical `fallback`が示すFree / Standard / Proまたは契約制限状態へ収束させる。
+`pendingActivation`で有料化しない結果が確定した場合は、保存済みのcanonical `fallback`が示すFree / Standard / Proへ収束させる。
 Stripe上の結果確認が必要な遷移を、ローカルの期限だけで確定しない。
 Trial、解約、支払い猶予、想定外解約から`active.free`へ移行するときは、契約終了時点の未承認招待を失効させる。
 
@@ -398,9 +396,8 @@ markerなしの旧予約へ`restrictAtPeriodEnd`を後付けせず、新しい�
 業務通知は、Outbox投入後もprovider送信直前に現在の利用上限状態を再評価する。
 実利用数が上限内へ戻ると、課金状態や上限フラグの更新なしで通常利用へ戻る。
 
-plan ID切替ではmigrationとreadiness gateが必要である。  m042はmarkerなしの全billing stateをv2へ変換し、m045 / m046はStripe Subscription / operation snapshotを同じplan ID契約へ揃える。scheduled jobと課金通知は変換せず、pre / post readinessで処理中の対象が0件であることを要求する。m047はcanonical対応を一意に確認できた旧店舗課金rowだけを物理削除し、課金互換readinessは旧`restricted` / `readOnly`とmarkerなしplan IDが0件であることを確認する。  実環境の対象が想定どおりかは、すべてのpre readinessを全ページ実行して判定する。
+plan ID切替ではmigrationとreadiness gateが必要である。  m042はmarkerなしの全billing stateをv2へ変換し、m045 / m046はStripe Subscription / operation snapshotを同じplan ID契約へ揃える。scheduled jobと課金通知は変換せず、pre / post readinessで処理中の対象が0件であることを要求する。m047はcanonical対応を一意に確認できた旧店舗課金rowだけを物理削除し、課金互換readinessはmarkerなしplan IDが0件であることを確認する。  実環境の対象が想定どおりかは、すべてのpre readinessを全ページ実行して判定する。
 旧shapeは、新旧plan IDが共存するWiden deploy中のschemaとread互換だけに残し、新しい状態遷移から作成しない。  保存側の`planIdVersion: 2`は、同じ`pro`文字列のlegacy / canonicalの意味をWiden中に識別するための一時markerであり、永続的なDB契約にしない。
-`setFreeSelection`はdeployment前の旧Free変更予約に対するrolling API互換だけに残し、新しいTrial、解約、プラン変更からは呼び出さない。
 共存期間の終了後に、旧shape、保存側のversion marker、専用分岐をNarrowで削除する。  request / responseの`planIdVersion: 2`は、旧clientとcanonical clientのAPI契約を分ける境界として別に扱う。
 
 状態を手動patchして収束させない。

@@ -58,7 +58,7 @@
 - 支払い不要Pro相当（`complimentary.pro`）は`organizationPlan: "pro"`の対象に含める。
 - plan IDのWiden期間だけ、version markerのない保存済み`pro`と`business`をそれぞれStandardとProとして読み取る。新規保存ではcanonical IDと一時markerを使う。
 - `organizationId`、`shopId`、`organizationPlan` のいずれか一つが選択中のコンテキストと一致すれば表示対象とする。複数フィールドを設定した場合もOR条件になる。
-- 契約プランは課金policyが用途別に導出する`targetingPlan`で判定する。Trialは`trial`、期間末変更予約中は変更前プラン、支払い猶予中は猶予中のプランとして扱う。Freeから有料プランへの支払い結果待ちはFree、StandardからProへの支払い結果待ちはStandardとして扱う。旧`restricted` stateで表示対象プランを安全に確定できない場合はプラン指定に一致しない。
+- 契約プランは課金policyが用途別に導出する`targetingPlan`で判定する。Trialは`trial`、期間末変更予約中は変更前プラン、支払い猶予中は猶予中のプランとして扱う。Freeから有料プランへの支払い結果待ちはFree、StandardからProへの支払い結果待ちはStandardとして扱う。
 - フィールドを設定したのに有効な値がない場合は全体向けにせず、どの店舗にも表示しない。全体向けにする場合は3フィールド自体を未設定にする。
 - 店舗をまだ選択できない初回セットアップでは、全体向けだけを表示する。
 - 複数公開されている場合は、`displayDate` 降順、同日内は作成日時降順の候補から、最初に表示対象となる1件だけを表示する。対象範囲の狭さは優先度に使わない。

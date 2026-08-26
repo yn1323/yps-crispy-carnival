@@ -2,7 +2,7 @@
 
 > 文書種別: 実環境状態
 >
-> 最終更新: 2026-08-26
+> 最終更新: 2026-08-27
 >
 > 実環境確認: 未確認
 
@@ -36,7 +36,8 @@ RepositoryまたはDevelopmentの確認を明記した行を含め、Production�
 | m042によるmarkerなしbilling stateのv2変換と、billing row・scheduled job・課金通知の全ページreadiness | 未確認 | 未確認 | 未確認 | m042はmarkerなしの全課金状態を意味を維持してcanonical化する。Stripe rowの存在と同一組織の履歴行は停止条件にせず、dangling・scope固有の一意キー重複を停止し、plan snapshotはm045 / m046で変換する。pre / migration status / postの実環境証跡は未登録 |
 | m043のAnalytics source event canonical化と`ANALYTICS_CALCULATION_VERSION=2` reset、materialized table・reset generationの全ページreadiness | 未確認 | 未確認 | 未確認 | migration status、reset generation、post readinessは未登録 |
 | m044のDashboard announcement canonical化、m045 / m046のStripe plan snapshot canonical化 | 未確認 | 未確認 | 未確認 | Subscription / operationのpre、migration status、post readinessは未登録 |
-| m047の旧`shopBillingStates`物理cleanupと、旧`restricted` / `readOnly` / markerなしplan IDのNarrow readiness | 未確認 | 未確認 | 未確認 | m028とcanonical対応を確認できないrowは削除しない。m047 status、旧店舗課金row 0、課金互換readiness blocking 0の実環境証跡は未登録 |
+| m047の旧`shopBillingStates`物理cleanupと、markerなしplan IDのNarrow readiness | 未確認 | 未確認 | 未確認 | m028とcanonical対応を確認できないrowは削除しない。m047 status、旧店舗課金row 0、課金互換readiness blocking 0の実環境証跡は未登録 |
+| 旧契約制限状態、閲覧専用の管理者所属、復旧専用API・権限・通知・画面を削除したartifactのProduction反映 | **Repository実装・Production未確認** | 2026-08-27 | Repository | 現行artifactは有効な管理者所属と、実利用数から導出する上限整理だけを使う。Productionの保存データ、Convex deploy、画面反映は未確認 |
 | m042〜m047の全post readinessとcanonical requestのprovider canary | 未確認 | 未確認 | 未確認 | 手順順はm042 → m043 → Analytics reset → m044 → m045 → m046 → m047 → 課金互換readiness → 全post readiness → provider canary。実環境証跡は未登録 |
 | `/commercial-transactions`の事業者名、運営責任者、所在地、電話番号 | **要対応（Production設定・公開未確認）** | 2026-08-23 | Repository | release buildはProduction GitHub Environment Variablesから3項目を取得し、欠落時に失敗する。実値とProduction表示は未確認 |
 | Resendの`email.delivered` Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
