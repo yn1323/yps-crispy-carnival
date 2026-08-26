@@ -24,7 +24,7 @@ const items: readonly ActionInboxItem[] = [
     id: "staff:preview",
     category: "staff",
     statusLabel: "承認待ち",
-    title: "山田花子さんからスタッフ登録申請があります",
+    title: "山田花子さんからスタッフ登録申請が届いています",
     metadata: [
       { label: "もて", icon: "shop" },
       { label: "申請 8/14 10:30", icon: "clock" },
@@ -53,7 +53,7 @@ const items: readonly ActionInboxItem[] = [
     id: "management:preview",
     category: "management",
     statusLabel: "招待エラー",
-    title: "鈴木さんへの管理者招待が送れませんでした",
+    title: "鈴木さんへの管理者招待を送れませんでした",
     metadata: [
       { label: "suzuki@example.com", icon: "mail" },
       { label: "8/14 08:45", icon: "clock" },

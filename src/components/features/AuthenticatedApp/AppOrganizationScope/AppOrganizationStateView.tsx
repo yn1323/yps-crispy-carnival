@@ -32,7 +32,7 @@ export function AppOrganizationStateView({ state, onReload = reloadPage, onChoos
       <Empty
         icon={LuBuilding2}
         title="利用できる組織がありません"
-        description={"組織への登録が完了していない可能性があります。\n管理者へ登録状況をご確認ください。"}
+        description={"組織への登録が完了していない可能性があります。\n担当者へ問い合わせて登録状況を確認してください。"}
         tone="neutral"
         minH="420px"
       />
@@ -44,13 +44,13 @@ export function AppOrganizationStateView({ state, onReload = reloadPage, onChoos
       <Empty
         icon={LuBuilding2}
         title="この組織を開けません"
-        description={"組織が削除されたか、この組織を利用する権限がありません。\n利用できる組織を選び直してください。"}
+        description={"組織が削除されたか、利用する権限がありません。\n利用できる組織を選び直してください。"}
         tone="warning"
         minH="420px"
         action={
           onChooseAvailableOrganization ? (
             <Button colorPalette="teal" onClick={onChooseAvailableOrganization}>
-              利用できる組織を開く
+              組織を切り替える
             </Button>
           ) : undefined
         }

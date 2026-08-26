@@ -98,12 +98,13 @@ function getDialogContent(
         submitLabel: "退出して削除",
         description: (
           <>
-            <Text>{`「${organizationName}」の管理者・スタッフとしての所属を終了し、ログインアカウントを削除します。組織と店舗は、ほかの管理者が引き続き利用できます。`}</Text>
             <Text>
-              招待・スタッフ用リンクは無効になり、LINEからのシフト操作はできなくなります。未送信のお知らせは取り消します。
-              {futureAssignmentCount > 0
-                ? ` 将来のシフト割り当て${futureAssignmentCount}件を削除します。`
-                : " 将来のシフト割り当てはありません。"}
+              「{`${organizationName}`}」の管理者・スタッフとしての所属を終了し、ログインアカウントを削除します。
+              <br />
+              組織と店舗は、ほかの管理者が引き続き利用できます。
+            </Text>
+            <Text>
+              {futureAssignmentCount > 0 ? ` 将来のシフト割り当て${futureAssignmentCount}件を削除します。` : ""}
             </Text>
           </>
         ),
@@ -118,9 +119,7 @@ function getDialogContent(
         description: (
           <>
             <Text>{`「${organizationName}」と全${shopCount}店舗の利用を終了し、ログインアカウントを削除します。`}</Text>
-            <Text>
-              組織と店舗に所属するスタッフも利用できなくなります。招待・スタッフ用リンクは無効になり、LINEからのシフト操作はできなくなります。未送信のお知らせは取り消します。
-            </Text>
+            <Text>組織と店舗に所属する全スタッフ情報も合わせて削除します。</Text>
           </>
         ),
       };
@@ -133,7 +132,7 @@ function getDialogContent(
           <Text>
             シフトリへのログインに使うアカウントを削除します。
             <br />
-            削除後は、このアカウントでシフトリを利用できなくなります。
+            アカウントを削除するとシフトリが利用できなくなります。
           </Text>
         ),
       };

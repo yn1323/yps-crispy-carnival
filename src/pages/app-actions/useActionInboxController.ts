@@ -257,7 +257,7 @@ export function buildActionInboxItems(
       statusLabel: item.status === "sendFailed" ? "招待エラー" : item.status === "limitReached" ? "上限超過" : "要確認",
       title:
         item.status === "sendFailed"
-          ? `${item.inviteeName}さんへの管理者招待が送れませんでした`
+          ? `${item.inviteeName}さんへの管理者招待を送れませんでした`
           : `${item.inviteeName}さんへの管理者招待を確認してください`,
       metadata: [
         { label: item.invitedEmail, icon: "mail" },

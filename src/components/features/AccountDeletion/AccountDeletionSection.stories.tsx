@@ -127,7 +127,11 @@ export const OrganizationDeletionUnavailableBlocked: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvas.getByText("組織または店舗の終了手続きをこの画面から進められません。")).toBeVisible();
+    await expect(
+      canvas.getByText(
+        "組織または店舗の終了手続きをこの画面から進められません。有料プランを利用中の場合は、解約手続き後、現在の支払い済み期間が終了してFreeプランへの切り替えが反映されてから、もう一度お試しください。",
+      ),
+    ).toBeVisible();
     await expect(canvas.getByRole("button", { name: "削除内容を確認" })).toBeDisabled();
   },
 };

@@ -368,8 +368,10 @@ export const RemoveRoleConfirmationBehavior: Story = {
     const confirmation = await page.findByRole("alertdialog", {
       name: "田中 太郎さんの管理者権限を外しますか？",
     });
-    await expect(within(confirmation).getByText(/あなたはこの組織へアクセスできなくなります/)).toBeInTheDocument();
-    await expect(within(confirmation).getByText(/人物情報とスタッフとしての店舗所属は残ります/)).toBeInTheDocument();
+    await expect(
+      within(confirmation).getByText(/この操作後、あなたは管理者としてアクセスできなくなります/),
+    ).toBeInTheDocument();
+    await expect(within(confirmation).getByText(/スタッフとしての店舗所属は残ります/)).toBeInTheDocument();
     await userEvent.click(within(confirmation).getByRole("button", { name: "管理者権限を外す" }));
     await expect(page.getByTestId("manager-confirmation-count")).toHaveTextContent("1");
   },

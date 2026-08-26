@@ -61,9 +61,6 @@ export function ActionInboxConfirmationDialog({
           {copy.subject}
         </Text>
         <Text whiteSpace="pre-line">{copy.description}</Text>
-        <Text color="red.700" fontWeight="semibold">
-          この操作はもとに戻せません。
-        </Text>
         {errorMessage && (
           <Text role="alert" color="red.700">
             {errorMessage}
@@ -79,22 +76,22 @@ function getCopy(confirmation: Exclude<ActionInboxConfirmation, null>) {
     return {
       title: "スタッフ登録申請を却下しますか？",
       subject: `${confirmation.applicantName}さんの申請を却下します。`,
-      description: "却下してもスタッフには通知されません。必要な場合は担当者から直接案内してください。",
-      submitLabel: "この申請を却下",
+      description: "却下してもスタッフに通知されません。必要な場合は担当者から直接案内してください。",
+      submitLabel: "却下する",
     };
   }
   if (confirmation.kind === "resolveNotification") {
     return {
-      title: "送れなかった通知を再送せず破棄しますか？",
-      subject: `${confirmation.staffName}さんへの${confirmation.notificationKindLabel}を一覧から外します。`,
-      description: "この通知は一覧から外れ、再送されません。",
-      submitLabel: "再送せず破棄する",
+      title: "送れなかった通知を破棄しますか？",
+      subject: `${confirmation.staffName}さんへの${confirmation.notificationKindLabel}を破棄します。`,
+      description: "",
+      submitLabel: "破棄する",
     };
   }
   return {
     title: "管理者招待を取り消しますか？",
     subject: `${confirmation.inviteeName}さんへの管理者招待を取り消します。`,
-    description: "招待URLは使えなくなり、招待用に確保していた管理者枠が空きます。",
-    submitLabel: "招待を取り消す",
+    description: "",
+    submitLabel: "取り消す",
   };
 }

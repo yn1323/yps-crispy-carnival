@@ -66,8 +66,8 @@ function getConfirmationCopy(confirmation: Exclude<ManagerSettingsConfirmation, 
     title: `${confirmation.manager.name}さんの管理者権限を外しますか？`,
     subject: `${confirmation.manager.name}さんの組織全体に対する管理権限を外します。`,
     description: `${
-      confirmation.manager.isSelf ? "この操作後、あなたはこの組織へアクセスできなくなります。\n" : ""
-    }人物情報とスタッフとしての店舗所属は残ります。\nこの管理者が発行した未承認の管理者招待は取り消されます。`,
+      confirmation.manager.isSelf ? "この操作後、あなたは管理者としてアクセスできなくなります。\n" : ""
+    }スタッフとしての店舗所属は残ります。`,
     submitLabel: "管理者権限を外す",
   };
 }
