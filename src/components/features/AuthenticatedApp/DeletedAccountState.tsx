@@ -13,7 +13,7 @@ export function DeletedAccountState({ accountDeletionRequested = false }: Props)
   return (
     <Empty
       icon={LuUserRoundX}
-      title={accountDeletionRequested ? "アカウントを削除しました" : "シフトリの利用は終了しています"}
+      title={accountDeletionRequested ? "アカウントの削除を受け付けました" : "シフトリの利用は終了しています"}
       description={accountDeletionRequested ? "" : "このアカウントではシフトリを利用できません。"}
       tone="warning"
       minH="100dvh"
