@@ -6,7 +6,7 @@ import type { StaffInvitationMethod, StaffInvitationViewModel } from "./StaffInv
 import { StaffManagementView } from "./StaffManagementView";
 
 const noop = () => {};
-const lazyBodyWait = { timeout: 5_000 };
+const lazyBodyWait = { timeout: 15_000 };
 
 const meta = {
   title: "Features/Dashboard/StaffManagementView/StaffInvitation",

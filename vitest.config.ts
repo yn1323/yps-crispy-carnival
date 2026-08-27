@@ -67,7 +67,9 @@ const uiProject = defineConfig({
   },
   test: {
     name: "ui",
-    // Storybook全件の並列import・描画負荷だけで、単独では即時完了するstoryを失敗させない。
+    // Preview DOMとPortalを共有するstory同士を競合させず、実際の画面遷移を検証する。
+    fileParallelism: false,
+    // 遅延importを含むstoryを、CI負荷だけで失敗させない。
     testTimeout: 30_000,
     // Enable browser mode
     browser: {
