@@ -175,8 +175,10 @@ export class ManagerSettingsPage {
 
   private invitationRow(seed: ManagerCandidateSeed): Locator {
     return this.page
-      .getByRole("region", { name: "送信済みの管理者招待", exact: true })
-      .getByRole("article")
+      .getByRole("article", {
+        name: `${seed.candidateName}さんへの管理者招待`,
+        exact: true,
+      })
       .filter({ hasText: seed.candidateEmail });
   }
 

@@ -35,8 +35,8 @@ export class StaffLifecyclePage {
       timeout: STAFF_LIFECYCLE_TIMEOUT,
     });
 
-    await dialog.getByPlaceholder("例：田中 花子").first().fill(name);
-    await dialog.getByPlaceholder("例：hanako@example.com").first().fill(email);
+    await dialog.getByPlaceholder("サンプル スタッフ").first().fill(name);
+    await dialog.getByPlaceholder("staff@example.com").first().fill(email);
     await dialog.getByRole("button", { name: "スタッフを登録する", exact: true }).click();
 
     await expect(dialog).toHaveCount(0, { timeout: STAFF_LIFECYCLE_TIMEOUT });
