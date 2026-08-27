@@ -162,6 +162,10 @@ export const StaffQueryUnavailable: Story = {
   args: { initialFailures: ["staff"] },
 };
 
+export const OperationalTodoQueryUnavailable: Story = {
+  args: { initialFailures: ["registrationRequests", "notificationFailures"] },
+};
+
 export const PrimarySectionsUnavailableMobile: Story = {
   args: { initialFailures: ["recruitment", "staff"] },
   tags: ["vrt-mobile1"],
@@ -198,5 +202,29 @@ export const StaffQueryRecoveryBehavior: Story = {
 
     await expect(await canvas.findByLabelText("スタッフ一覧")).toBeVisible();
     await expect(canvas.getByLabelText("シフト一覧")).toBeVisible();
+  },
+};
+
+export const OperationalTodoQueryRecoveryBehavior: Story = {
+  args: { initialFailures: ["registrationRequests", "notificationFailures"] },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByLabelText("シフト一覧")).toBeVisible();
+    await expect(canvas.getByLabelText("スタッフ一覧")).toBeVisible();
+    await expect(canvas.getByText("一部の要対応項目を読み込めませんでした")).toBeVisible();
+
+    await userEvent.click(canvas.getByRole("button", { name: "登録申請を再試行" }));
+
+    await expect(await canvas.findByRole("button", { name: /スタッフ登録申請が1件/ })).toBeEnabled();
+    await expect(canvas.queryByRole("button", { name: "登録申請を再試行" })).not.toBeInTheDocument();
+    await expect(canvas.getByRole("button", { name: "通知を再試行" })).toBeEnabled();
+    await expect(canvas.getByText("一部の要対応項目を読み込めませんでした")).toBeVisible();
+
+    await userEvent.click(canvas.getByRole("button", { name: "通知を再試行" }));
+
+    await expect(await canvas.findByRole("button", { name: /送れなかった通知が1件/ })).toBeEnabled();
+    await expect(canvas.queryByText("一部の要対応項目を読み込めませんでした")).not.toBeInTheDocument();
   },
 };

@@ -59,6 +59,14 @@ export function DashboardContentView({
   const registrationRequestData = registrationRequests.status === "ready" ? registrationRequests.data : null;
   const notificationFailureData = notificationFailures.status === "ready" ? notificationFailures.data : null;
   const readiness = getDashboardStageReadiness({ recruitment, staff, registrationRequests, notificationFailures });
+  const unavailableTaskSources = [
+    registrationRequests.status === "unavailable"
+      ? { key: "registration-requests", label: "登録申請", onRetry: registrationRequests.onRetry }
+      : null,
+    notificationFailures.status === "unavailable"
+      ? { key: "notification-failures", label: "通知", onRetry: notificationFailures.onRetry }
+      : null,
+  ].filter((source): source is NonNullable<typeof source> => source !== null);
 
   return (
     <DashboardOnboardingGate
@@ -106,9 +114,12 @@ export function DashboardContentView({
                       }
                     : undefined
                 }
+                unavailableTaskSources={unavailableTaskSources}
                 hideActionSection={
                   isReadOnly ||
-                  (onboarding.isVisible && (notificationFailureData?.actionItemCount ?? 0) === 0) ||
+                  (onboarding.isVisible &&
+                    (notificationFailureData?.actionItemCount ?? 0) === 0 &&
+                    unavailableTaskSources.length === 0) ||
                   !managerLegalConsentStatus
                 }
               />
