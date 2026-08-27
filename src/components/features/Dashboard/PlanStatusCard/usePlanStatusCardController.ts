@@ -54,7 +54,6 @@ export function usePlanStatusCardController({
   );
   const defaultExpanded = Boolean(
     planStatus?.kind === "paymentIssue" ||
-      planStatus?.kind === "restricted" ||
       (planStatus?.kind === "trial" &&
         planStatus.selectedPaidPlan === undefined &&
         data?.kind === "trial" &&

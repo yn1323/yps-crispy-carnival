@@ -14,16 +14,11 @@ import {
 } from "../notificationOutbox/mutations";
 import { scheduleOrganizationBillingStateDeadline } from "../organizationBilling/deadline";
 import {
-  canonicalizeOrganizationBillingState,
-  getEffectiveRestrictedBillingState,
-} from "../organizationBilling/policy";
-import {
   getOrganizationAccessPolicy,
   requireOrganizationBusinessWrite,
   requireOrganizationBusinessWriteOrLimitRecoveryCapability,
   requireOrganizationCapacity,
   requireOrganizationPaidFeature,
-  requireRestrictedRecoveryCapability,
 } from "../organizationBilling/service";
 import {
   collectIssuedInvitationsByInviter,
@@ -51,7 +46,6 @@ import {
 import { organizationNameSchema } from "./schemas";
 import {
   getValidActiveOrganizationManagerPersonIds,
-  isValidOrganizationRecoveryManager,
   requireOrganizationBillingState,
   requireOrganizationPersonWithoutManagerRole,
 } from "./service";
@@ -84,17 +78,11 @@ export const ACCOUNT_DELETION_DEPARTURE_NOTIFICATION_RECORD_LIMIT = 200;
 export const ACCOUNT_DELETION_TOO_MANY_ASSOCIATED_RECORDS_ERROR =
   "アカウントに紐づく所属情報が多いため、安全に削除できません。";
 export const ACCOUNT_DELETION_ASSOCIATED_RECORD_OWNERSHIP_ERROR = "アカウントに紐づく所属情報の範囲を確認できません。";
-export const ACCOUNT_DELETION_RECOVERY_MANAGER_TRANSFER_REQUIRED_ERROR =
-  "現在の契約状態では、アカウントを削除できません。";
-const LAST_RECOVERY_MANAGER_REMOVAL_ERROR = "現在の契約状態では、管理者権限を解除できません。";
 
 export function classifyAccountDeletionOrganizationDepartureError(error: unknown) {
   if (!(error instanceof ConvexError)) return null;
   if (error.data === ACCOUNT_DELETION_TOO_MANY_ASSOCIATED_RECORDS_ERROR) {
     return "tooManyAssociatedRecords" as const;
-  }
-  if (error.data === ACCOUNT_DELETION_RECOVERY_MANAGER_TRANSFER_REQUIRED_ERROR) {
-    return "organizationDeletionUnavailable" as const;
   }
   if (error.data === ACCOUNT_DELETION_ASSOCIATED_RECORD_OWNERSHIP_ERROR) {
     return "inconsistentAssociation" as const;
@@ -107,11 +95,7 @@ function shopStatus(shop: Doc<"shops">) {
   return shop.operatingStatus ?? ("active" as const);
 }
 
-function shopMutationResult(
-  shopId: Id<"shops">,
-  shopStatus: "active" | "archived" | "planSuspended",
-  changed: boolean,
-) {
+function shopMutationResult(shopId: Id<"shops">, shopStatus: "active" | "archived", changed: boolean) {
   return { shopId, shopStatus, changed };
 }
 
@@ -166,18 +150,12 @@ function isMatchingShopDeletionAudit(
 }
 
 async function validateCanonicalManagersForShopAddition(ctx: MutationCtx, organizationId: Id<"organizations">) {
-  const [activeMembers, readOnlyMembers] = await Promise.all([
-    ctx.db
-      .query("organizationMembers")
-      .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "active"))
-      .collect(),
-    ctx.db
-      .query("organizationMembers")
-      .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "readOnly"))
-      .collect(),
-  ]);
+  const activeMembers = await ctx.db
+    .query("organizationMembers")
+    .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "active"))
+    .collect();
   const userIds = new Set<Id<"users">>();
-  for (const member of [...activeMembers, ...readOnlyMembers]) {
+  for (const member of activeMembers) {
     if (userIds.has(member.userId)) throw new ConvexError("管理者所属を一意に確認できません");
     const [person, user] = await Promise.all([ctx.db.get(member.personId), ctx.db.get(member.userId)]);
     if (
@@ -442,30 +420,16 @@ async function authorizeShopStateChange(
     operation: "archive" | "reactivate";
   },
 ) {
-  const actor = await requireOrganizationActorForShop(ctx, {
-    user: args.user,
-    shopId: args.shopId,
-    allowReadOnly: true,
-  });
+  const actor = await requireOrganizationActorForShop(ctx, { user: args.user, shopId: args.shopId });
   const billingState = await requireOrganizationBillingState(ctx, actor.organization._id);
-  if (getEffectiveRestrictedBillingState(billingState.state)) {
-    if (args.operation === "reactivate") throw new ConvexError("現在の契約状態では店舗を再稼働できません");
-    await requireRestrictedRecoveryCapability(ctx, {
+  if (args.operation === "archive") {
+    await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
       organizationId: actor.organization._id,
       personId: actor.person._id,
       capability: "archiveShop",
     });
   } else {
-    if (actor.member.status !== "active") throw new ConvexError("Not found");
-    if (args.operation === "archive") {
-      await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
-        organizationId: actor.organization._id,
-        personId: actor.person._id,
-        capability: "archiveShop",
-      });
-    } else {
-      await requireOrganizationBusinessWrite(ctx, actor.organization._id);
-    }
+    await requireOrganizationBusinessWrite(ctx, actor.organization._id);
   }
   return { actor, billingState };
 }
@@ -478,7 +442,7 @@ async function recordShopStateChange(
     organizationId: Id<"organizations">;
     shopId: Id<"shops">;
     action: OrganizationAuditAction;
-    fromState: "active" | "archived" | "planSuspended";
+    fromState: "active" | "archived";
     toState: "active" | "archived";
     correlationId: string;
     occurredAt: number;
@@ -624,19 +588,11 @@ export const deleteShop = authenticatedMutation({
       throw new ConvexError("Not found");
     }
     const billingState = await requireOrganizationBillingState(ctx, actor.organization._id);
-    if (getEffectiveRestrictedBillingState(billingState.state)) {
-      await requireRestrictedRecoveryCapability(ctx, {
-        organizationId: actor.organization._id,
-        personId: actor.person._id,
-        capability: "archiveShop",
-      });
-    } else {
-      await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
-        organizationId: actor.organization._id,
-        personId: actor.person._id,
-        capability: "deleteShop",
-      });
-    }
+    await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
+      organizationId: actor.organization._id,
+      personId: actor.person._id,
+      capability: "deleteShop",
+    });
     const correlationId = shopDeletionCorrelationId(actor.organization._id, actor.shop._id, requestId);
     const priorAudit = await findShopDeletionAudit(ctx, correlationId);
     if (priorAudit) {
@@ -1099,20 +1055,11 @@ async function isCompletedOrganizationManagerRoleRetry(
 
 async function authorizeOrganizationPersonRemoval(ctx: MutationCtx, actor: OrganizationActor) {
   const billingState = await requireOrganizationBillingState(ctx, actor.organization._id);
-  if (getEffectiveRestrictedBillingState(billingState.state)) {
-    await requireRestrictedRecoveryCapability(ctx, {
-      organizationId: actor.organization._id,
-      personId: actor.person._id,
-      capability: "removeOrganizationPerson",
-    });
-  } else {
-    if (actor.member.status !== "active") throw new ConvexError("この操作を行う権限がありません");
-    await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
-      organizationId: actor.organization._id,
-      personId: actor.person._id,
-      capability: "removeOrganizationPerson",
-    });
-  }
+  await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
+    organizationId: actor.organization._id,
+    personId: actor.person._id,
+    capability: "removeOrganizationPerson",
+  });
   return billingState;
 }
 
@@ -1277,38 +1224,14 @@ async function hasOtherValidActiveManager(
 }
 
 type BillingReferenceUpdate = {
-  recoveryManagerPersonIds: Id<"organizationPeople">[] | null;
-  recoveryManagersChanged: boolean;
   clearFreeManager: boolean;
 };
 
-async function planBillingReferenceUpdate(
-  ctx: OrganizationReadCtx,
+function planBillingReferenceUpdate(
   billingState: Doc<"organizationBillingStates">,
   removedPersonId: Id<"organizationPeople">,
-): Promise<BillingReferenceUpdate> {
-  const clearFreeManager = billingState.freeManagerPersonId === removedPersonId;
-  const restrictedState = getEffectiveRestrictedBillingState(billingState.state);
-  if (!restrictedState) {
-    return { recoveryManagerPersonIds: null, recoveryManagersChanged: false, clearFreeManager };
-  }
-
-  const currentIds = restrictedState.recoveryManagerPersonIds;
-  const targetWasRecoveryManager = currentIds.includes(removedPersonId);
-  const nextIds: Id<"organizationPeople">[] = [];
-  const seen = new Set<Id<"organizationPeople">>();
-  for (const personId of currentIds) {
-    if (personId === removedPersonId || seen.has(personId)) continue;
-    seen.add(personId);
-    if (await isValidOrganizationRecoveryManager(ctx, billingState.organizationId, personId)) nextIds.push(personId);
-  }
-  if (targetWasRecoveryManager && nextIds.length === 0) {
-    throw new ConvexError(LAST_RECOVERY_MANAGER_REMOVAL_ERROR);
-  }
-
-  const recoveryManagersChanged =
-    currentIds.length !== nextIds.length || currentIds.some((personId, index) => personId !== nextIds[index]);
-  return { recoveryManagerPersonIds: nextIds, recoveryManagersChanged, clearFreeManager };
+): BillingReferenceUpdate {
+  return { clearFreeManager: billingState.freeManagerPersonId === removedPersonId };
 }
 
 async function applyBillingReferenceUpdate(
@@ -1321,69 +1244,30 @@ async function applyBillingReferenceUpdate(
     now: number;
   },
 ) {
-  if (!args.update.recoveryManagersChanged && !args.update.clearFreeManager) return;
-  const canonicalState = canonicalizeOrganizationBillingState(args.billingState.state);
-  const restrictedState = getEffectiveRestrictedBillingState(canonicalState);
-  const nextState =
-    restrictedState && args.update.recoveryManagerPersonIds
-      ? canonicalState.kind === "pendingActivation"
-        ? (() => {
-            const { planIdVersion: _planIdVersion, ...restrictedFallbackState } = restrictedState;
-            return {
-              ...canonicalState,
-              restrictedFallbackState: {
-                ...restrictedFallbackState,
-                recoveryManagerPersonIds: args.update.recoveryManagerPersonIds,
-              },
-            };
-          })()
-        : {
-            ...restrictedState,
-            planIdVersion: 2 as const,
-            recoveryManagerPersonIds: args.update.recoveryManagerPersonIds,
-          }
-      : canonicalState;
+  if (!args.update.clearFreeManager) return;
   const nextVersion = args.billingState.version + 1;
   await ctx.db.patch(args.billingState._id, {
-    state: nextState,
-    ...(args.update.clearFreeManager ? { freeManagerPersonId: undefined } : {}),
+    freeManagerPersonId: undefined,
     version: nextVersion,
     updatedAt: args.now,
   });
 
-  if (args.update.recoveryManagersChanged && args.update.recoveryManagerPersonIds) {
-    const previousCount = restrictedState?.recoveryManagerPersonIds.length ?? 0;
-    await recordOrganizationAuditEvent(ctx, {
-      organizationId: args.actor.organization._id,
-      actorUserId: args.actor.member.userId,
-      actorPersonId: args.actor.person._id,
-      action: "organization.recovery_managers_changed",
-      targetKind: "billing",
-      targetId: args.billingState._id,
-      fromState: `recoveryManagers:${previousCount}`,
-      toState: `recoveryManagers:${args.update.recoveryManagerPersonIds.length}`,
-      correlationId: `${args.correlationId}:recovery-managers`,
-      occurredAt: args.now,
-    });
-  }
-  if (args.update.clearFreeManager) {
-    await recordOrganizationAuditEvent(ctx, {
-      organizationId: args.actor.organization._id,
-      actorUserId: args.actor.member.userId,
-      actorPersonId: args.actor.person._id,
-      action: "organization.free_selection_changed",
-      targetKind: "billing",
-      targetId: args.billingState._id,
-      fromState: "managerSelected",
-      toState: "managerUnselected",
-      correlationId: `${args.correlationId}:free-selection`,
-      occurredAt: args.now,
-    });
-  }
+  await recordOrganizationAuditEvent(ctx, {
+    organizationId: args.actor.organization._id,
+    actorUserId: args.actor.member.userId,
+    actorPersonId: args.actor.person._id,
+    action: "organization.free_selection_changed",
+    targetKind: "billing",
+    targetId: args.billingState._id,
+    fromState: "managerSelected",
+    toState: "managerUnselected",
+    correlationId: `${args.correlationId}:free-selection`,
+    occurredAt: args.now,
+  });
 
   await scheduleOrganizationBillingStateDeadline(ctx, {
     organizationId: args.billingState.organizationId,
-    state: nextState,
+    state: args.billingState.state,
     version: nextVersion,
   });
 }
@@ -1413,7 +1297,7 @@ async function prepareFullOrganizationPersonRemoval(
     };
   },
 ): Promise<FullOrganizationPersonRemovalPlan> {
-  const billingReferenceUpdate = await planBillingReferenceUpdate(ctx, args.billingState, args.person._id);
+  const billingReferenceUpdate = planBillingReferenceUpdate(args.billingState, args.person._id);
   if (args.member?.status === "active") {
     const hasOtherManager = await hasOtherValidActiveManager(ctx, args.actor.organization._id, args.person._id);
     if (!hasOtherManager) throw new ConvexError("管理者は削除できません。");
@@ -1549,16 +1433,6 @@ async function applyFullOrganizationPersonRemoval(
       },
     },
   });
-  if (args.billingState.state.kind === "restricted") {
-    const billingVersionAfterRemoval =
-      args.plan.billingReferenceUpdate.recoveryManagersChanged || args.plan.billingReferenceUpdate.clearFreeManager
-        ? args.billingState.version + 1
-        : args.billingState.version;
-    await ctx.scheduler.runAfter(0, internal.organizationBilling.mutations.reconcileRestrictedPlanEligibility, {
-      billingStateId: args.billingState._id,
-      expectedVersion: billingVersionAfterRemoval,
-    });
-  }
 }
 
 export type AccountDeletionOrganizationDeparturePlan = {
@@ -1582,24 +1456,16 @@ export async function prepareAccountDeletionOrganizationDeparture(
 ): Promise<AccountDeletionOrganizationDeparturePlan> {
   await requireCanonicalAccountDeletionOrganizationActor(ctx, { ...args, allowFormerManager: true });
   const billingState = await requireOrganizationBillingState(ctx, args.actor.organization._id);
-  let baseRemovalPlan: FullOrganizationPersonRemovalPlan;
-  try {
-    baseRemovalPlan = await prepareFullOrganizationPersonRemoval(ctx, {
-      actor: args.actor,
-      billingState,
-      person: args.actor.person,
-      member: args.actor.member,
-      accountDeletionRecordLimits: {
-        staff: ACCOUNT_DELETION_DEPARTURE_STAFF_RECORD_LIMIT,
-        invitation: ACCOUNT_DELETION_DEPARTURE_INVITATION_RECORD_LIMIT,
-      },
-    });
-  } catch (error) {
-    if (error instanceof ConvexError && error.data === LAST_RECOVERY_MANAGER_REMOVAL_ERROR) {
-      throw new ConvexError(ACCOUNT_DELETION_RECOVERY_MANAGER_TRANSFER_REQUIRED_ERROR);
-    }
-    throw error;
-  }
+  const baseRemovalPlan = await prepareFullOrganizationPersonRemoval(ctx, {
+    actor: args.actor,
+    billingState,
+    person: args.actor.person,
+    member: args.actor.member,
+    accountDeletionRecordLimits: {
+      staff: ACCOUNT_DELETION_DEPARTURE_STAFF_RECORD_LIMIT,
+      invitation: ACCOUNT_DELETION_DEPARTURE_INVITATION_RECORD_LIMIT,
+    },
+  });
   const preparedStaffAccessRecords = await prepareStaffAccessForRemoval(ctx, baseRemovalPlan.staffIds, {
     recordLimit: ACCOUNT_DELETION_DEPARTURE_ACCESS_RECORD_LIMIT,
     limitExceededError: ACCOUNT_DELETION_TOO_MANY_ASSOCIATED_RECORDS_ERROR,
@@ -1792,11 +1658,7 @@ export const removePersonFromOrganization = authenticatedMutation({
       return { changed: false };
     }
 
-    const actor = await requireOrganizationActorForShop(ctx, {
-      user: ctx.user,
-      shopId: args.shopId,
-      allowReadOnly: true,
-    });
+    const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
     if (args.expectedOrganizationId && actor.organization._id !== args.expectedOrganizationId) {
       throw new ConvexError("Not found");
     }
@@ -1867,14 +1729,6 @@ async function removeManagerRoleForActor(
   }
   const member = members[0];
 
-  const restrictedState = getEffectiveRestrictedBillingState(billingState.state);
-  if (restrictedState) {
-    if (restrictedState.recoveryManagerPersonIds.includes(person._id)) {
-      await planBillingReferenceUpdate(ctx, billingState, person._id);
-    }
-    throw new ConvexError("現在の契約状態では管理権限を外せません");
-  }
-  if (actor.member.status !== "active") throw new ConvexError("この操作を行う権限がありません");
   const policy = await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
     organizationId: actor.organization._id,
     personId: actor.person._id,
@@ -1895,7 +1749,7 @@ async function removeManagerRoleForActor(
     .collect();
   const hasActiveStaffRole = staffs.some((staff) => !staff.isDeleted);
   const now = Date.now();
-  const billingReferenceUpdate = await planBillingReferenceUpdate(ctx, billingState, person._id);
+  const billingReferenceUpdate = planBillingReferenceUpdate(billingState, person._id);
   const invitations = await findPendingInvitationsIssuedByManager(ctx, actor.organization._id, member._id);
   await ctx.db.patch(member._id, { status: "removed", updatedAt: now });
   await deactivateLegacyPersonMemberships(ctx, actor.organization._id, member.userId);
@@ -1945,11 +1799,7 @@ export const removeManagerRole = authenticatedMutation({
     ) {
       return { changed: false };
     }
-    const actor = await requireOrganizationActorForShop(ctx, {
-      user: ctx.user,
-      shopId: args.shopId,
-      allowReadOnly: true,
-    });
+    const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
     return await removeManagerRoleForActor(ctx, { personId: args.personId, requestId }, actor);
   },
 });

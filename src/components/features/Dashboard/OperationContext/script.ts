@@ -5,15 +5,8 @@ import {
 } from "@/src/domains/shop/context";
 
 export type OperationContextModel = {
-  groups: ShopOrganizationGroup[];
   selectedGroup: ShopOrganizationGroup;
   selectedShop: ShopContextOption;
-  organizationChangeOptions: {
-    key: string;
-    organizationName: string;
-    shopId: string;
-  }[];
-  hasMultipleGroups: boolean;
   canSwitchShop: boolean;
 };
 
@@ -28,17 +21,8 @@ export function buildOperationContextModel(
   if (!selectedGroup || !selectedShop) return null;
 
   return {
-    groups,
     selectedGroup,
     selectedShop,
-    organizationChangeOptions: groups
-      .filter((group) => group.key !== selectedGroup.key)
-      .map((group) => ({
-        key: group.key,
-        organizationName: group.organizationName,
-        shopId: group.shops[0].shopId,
-      })),
-    hasMultipleGroups: groups.length > 1,
-    canSwitchShop: shops.length > 1,
+    canSwitchShop: selectedGroup.shops.length > 1,
   };
 }

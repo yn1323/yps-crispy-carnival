@@ -53,7 +53,7 @@ LINE IDの置換値は`deleted:<documentId>`として行IDから決定的に作�
 ## 削除可能条件
 
 - 店舗削除は対象組織の有効管理者だけが行え、最後の未削除店舗は削除できない。
-- 組織削除は対象組織で唯一の`active`管理者だけが行える。`readOnly`を含むほかの管理者がいる場合は先に整理する。
+- 組織削除は対象組織で唯一の`active`管理者だけが行える。ほかに`active`管理者がいる場合は先に整理する。
 - 組織削除を許可する課金状態は、有料プラン未選択のTrial、Free、支払い不要Pro相当である。
   支払い不要Pro相当のcanonical保存状態は`complimentary.pro`である。Widen期間はMigration前の`complimentary.business`も同じ権限として読み取る。
 - 有料プラン未選択のTrialでも、Stripe Subscription、進行中のTrial作成operation、または一意な終了証跡がない過去の作成operationがあれば削除しない。

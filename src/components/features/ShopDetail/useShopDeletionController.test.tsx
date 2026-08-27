@@ -15,7 +15,6 @@ const mocks = vi.hoisted(() => ({
     shopStatus: "active" as const,
     organizationId: "organization-1",
     organizationName: "さくらダイニング",
-    memberStatus: "active" as const,
   },
 }));
 

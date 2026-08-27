@@ -29,7 +29,7 @@ export function buildStaffRegistrationActionInboxItem(
     id: data.id,
     category: "staff",
     statusLabel: "承認待ち",
-    title: `${data.applicantName}さんからスタッフ登録申請があります`,
+    title: `${data.applicantName}さんからスタッフ登録申請が届いています`,
     metadata: [
       { label: data.shopName, icon: "shop" },
       { label: `申請 ${formatDateTime(new Date(data.createdAt))}`, icon: "clock" },

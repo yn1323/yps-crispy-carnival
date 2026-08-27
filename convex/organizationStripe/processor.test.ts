@@ -736,56 +736,6 @@ describe("organizationStripe/processWebhookEvent", () => {
     expect(await receiptById(t, "evt_processor_action_required_paid")).toMatchObject({ status: "processed" });
   });
 
-  it("制限中からのPro開始は保存済みの管理者と店舗だけを復旧してactive.proへ進む", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const seeded = await seedOrganizationManagerShop(ctx, { subject: "stripe_processor_restricted", plan: "free" });
-      await patchBillingState(ctx, seeded.organizationId, {
-        kind: "pendingActivation",
-        plan: "pro",
-        fallback: "restricted",
-        restrictedFallbackState: {
-          kind: "restricted",
-          reason: "freeConditionsNotMet",
-          previousPlan: "free",
-          recoveryManagerPersonIds: [seeded.personId],
-          previousActiveShopIds: [seeded.shopId],
-          restrictedAt: NOW - 120_000,
-        },
-        startedAt: NOW - 60_000,
-      });
-      await ctx.db.patch(seeded.memberId, { status: "readOnly", updatedAt: NOW - 120_000 });
-      await ctx.db.patch(seeded.shopId, { operatingStatus: "planSuspended" });
-      await ctx.db.insert("organizationStripeCustomers", {
-        organizationId: seeded.organizationId,
-        stripeCustomerId: CUSTOMER_ID,
-        livemode: false,
-        createdAt: NOW,
-        updatedAt: NOW,
-      });
-      const operationId = await insertCheckoutOperation(ctx, seeded.organizationId, "restricted");
-      return { ...seeded, operationId };
-    });
-    mockPaidInvoiceEvent("evt_processor_restricted", "active", NOW, ids.organizationId, ids.operationId);
-    await insertReceipt(t, "evt_processor_restricted", "invoice.paid", INVOICE_ID, NOW);
-
-    await t.action(internal.organizationStripe.actions.processWebhookEvent, {
-      stripeEventId: "evt_processor_restricted",
-    });
-
-    const result = await t.run(async (ctx) => ({
-      billing: await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
-        .unique(),
-      member: await ctx.db.get(ids.memberId),
-      shop: await ctx.db.get(ids.shopId),
-    }));
-    expect(result.billing?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "standard" });
-    expect(result.member?.status).toBe("active");
-    expect(result.shop?.operatingStatus).toBe("active");
-  });
-
   it("Trial期限前の0円InvoiceではProを確定せずTrialを維持する", async () => {
     const t = convexTest(schema, modules);
     const trialEndsAt = NOW + 7 * 24 * 60 * 60_000;
@@ -811,29 +761,14 @@ describe("organizationStripe/processWebhookEvent", () => {
     expect(billing?.state).toEqual({ kind: "trial", trialEndsAt, selectedPaidPlan: "pro" });
   });
 
-  it("終了済み世代の遅延invoice.paidでは制限状態を自動復旧しない", async () => {
+  it("終了済み世代の遅延invoice.paidではactive.freeを有料へ戻さない", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedStripeOrganization(t, "stripe_processor_old_generation", {
-      kind: "restricted",
-      reason: "paymentGraceExpired",
-      previousPlan: "pro",
-      recoveryManagerPersonIds: [],
-      previousActiveShopIds: [],
-      restrictedAt: NOW - 60_000,
+      kind: "active",
+      planIdVersion: 2,
+      plan: "free",
     });
     await t.run(async (ctx) => {
-      const billing = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
-        .unique();
-      if (billing?.state.kind !== "restricted") throw new Error("restricted billing missing");
-      await ctx.db.patch(billing._id, {
-        state: {
-          ...billing.state,
-          recoveryManagerPersonIds: [ids.personId],
-          previousActiveShopIds: [ids.shopId],
-        },
-      });
       await ctx.db.insert("organizationStripeSubscriptions", {
         organizationId: ids.organizationId,
         stripeCustomerId: CUSTOMER_ID,
@@ -873,7 +808,7 @@ describe("organizationStripe/processWebhookEvent", () => {
         )
         .unique(),
     }));
-    expect(result.billing?.state.kind).toBe("restricted");
+    expect(result.billing?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
     expect(result.subscription?.terminalAt).toBeDefined();
   });
 
@@ -1356,29 +1291,15 @@ describe("organizationStripe/processWebhookEvent", () => {
     await expect(receiptById(t, "evt_checkout_terminal")).resolves.toMatchObject({ status: "processed" });
   });
 
-  it("取消前に後着したpaidは非terminal世代のpaymentGraceExpiredをactiveへ復旧する", async () => {
+  it("取消前に後着したpaidは非terminal世代のgraceをactiveへ復帰する", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedStripeOrganization(t, "stripe_processor_late_paid", {
-      kind: "restricted",
-      reason: "paymentGraceExpired",
-      previousPlan: "pro",
-      recoveryManagerPersonIds: [],
-      previousActiveShopIds: [],
-      restrictedAt: NOW - 60_000,
+      kind: "grace",
+      plan: "pro",
+      startedAt: NOW - 120_000,
+      endsAt: NOW + 60_000,
     });
     await t.run(async (ctx) => {
-      const billing = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
-        .unique();
-      if (billing?.state.kind !== "restricted") throw new Error("restricted billing missing");
-      await ctx.db.patch(billing._id, {
-        state: {
-          ...billing.state,
-          recoveryManagerPersonIds: [ids.personId],
-          previousActiveShopIds: [ids.shopId],
-        },
-      });
       await ctx.db.insert("organizationStripeSubscriptions", {
         organizationId: ids.organizationId,
         stripeCustomerId: CUSTOMER_ID,

@@ -5,7 +5,7 @@ import type { OrganizationBillingView } from "./types";
 
 export type OrganizationUsageSummary = Pick<
   OrganizationBillingView,
-  "state" | "currentPlan" | "limitPlan" | "peopleUsage" | "shopUsage" | "managerUsage"
+  "state" | "currentPlan" | "peopleUsage" | "shopUsage" | "managerUsage"
 >;
 
 export function OrganizationUsageSection({
@@ -16,28 +16,6 @@ export function OrganizationUsageSection({
   showCurrentPlan?: boolean;
 }) {
   if (billing.state === "migrationPending") return null;
-
-  if (billing.state === "restricted" && billing.limitPlan === undefined) {
-    return (
-      <Box
-        as="section"
-        aria-label="組織の利用状況"
-        borderWidth="1px"
-        borderColor="blackAlpha.100"
-        borderRadius="xl"
-        bg="white"
-        px={{ base: 3, md: 4 }}
-        py={{ base: 3, md: 4 }}
-      >
-        <Text fontSize="sm" fontWeight="semibold" color="gray.800">
-          利用停止中はプラン上限を適用していません
-        </Text>
-        <Text mt={1} fontSize="xs" color="fg.muted">
-          データは保持されています。StandardまたはProを契約すると利用を再開できます。
-        </Text>
-      </Box>
-    );
-  }
 
   const appliedLimitLabel = getAppliedLimitLabel(billing);
   const pendingInvitationLabel = getPendingInvitationLabel(billing);
@@ -167,13 +145,7 @@ export function OrganizationUsageSectionSkeleton({ showCurrentPlan = false }: { 
 
 function CurrentPlanSummary({ billing }: { billing: OrganizationUsageSummary }) {
   const currentPlan = billing.currentPlan ?? (isPlanState(billing.state) ? billing.state : null);
-  const label = currentPlan
-    ? planLabel(currentPlan)
-    : billing.state === "restricted"
-      ? "利用停止中"
-      : billing.state === "migrationPending"
-        ? "設定移行中"
-        : "確認中";
+  const label = currentPlan ? planLabel(currentPlan) : billing.state === "migrationPending" ? "設定移行中" : "確認中";
 
   return (
     <Box
@@ -250,10 +222,6 @@ function UsageDivider() {
 }
 
 function getAppliedLimitLabel(billing: OrganizationUsageSummary) {
-  if (billing.state === "restricted" && billing.limitPlan) {
-    return `現在は${planLabel(billing.limitPlan)}の上限が適用されています`;
-  }
-
   return billing.state === "pendingActivation" && billing.currentPlan === null
     ? "現在はFreeの上限が適用されています"
     : undefined;

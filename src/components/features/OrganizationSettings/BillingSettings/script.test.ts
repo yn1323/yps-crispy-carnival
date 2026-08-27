@@ -45,15 +45,6 @@ describe("OrganizationSettings BillingSettings", () => {
     ).toBe(expected);
   });
 
-  it("上限超過によるrestrictedでは別の課金操作を開始しない", () => {
-    expect(
-      resolveBillingPlanAction(
-        { ...baseBilling, state: "restricted", currentPlan: null, limitPlan: "standard" },
-        "pro",
-      ),
-    ).toBeNull();
-  });
-
   it("支払い不要Proは課金操作を返さない", () => {
     expect(resolveBillingPlanAction({ ...baseBilling, isComplimentary: true }, "free")).toBeNull();
   });

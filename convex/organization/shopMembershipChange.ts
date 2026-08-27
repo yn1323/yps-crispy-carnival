@@ -2,7 +2,7 @@ import type { Id } from "../_generated/dataModel";
 import { sha256Hex } from "../_lib/sha256";
 import { ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/planLimits";
 
-export type OrganizationShopOperatingStatus = "active" | "archived" | "planSuspended";
+export type OrganizationShopOperatingStatus = "active" | "archived";
 
 export type OrganizationPersonShopMembershipSnapshotEntry = {
   staffId: Id<"staffs">;

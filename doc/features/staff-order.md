@@ -36,7 +36,7 @@
 | 既存人物を別店舗へ追加する | 人物の組織共通順位をそのまま使い、店舗別一覧の対応位置へ表示する |
 | 店舗所属だけを解除する | 組織共通順位を維持し、解除した店舗の一覧からだけ除外する |
 | 人物を組織から削除する | 組織共通順と全店舗の並び順対象から除外する |
-| 店舗をアーカイブまたは契約制限で停止する | その店舗では保存済み順を使用せず、既存の一覧順へ戻す |
+| 店舗をアーカイブする | その店舗では保存済み順を使用せず、既存の一覧順へ戻す |
 | 店舗を再稼働する | 現在の組織共通順を使って店舗別の順序を再構築する |
 | 組織を削除する | 並び順の有効状態を即時に終了し、関連データを削除cleanupの対象にする |
 
@@ -99,7 +99,7 @@ Dashboardは店舗用のorder projectionをページングし、店舗filterと�
 
 | 契約 | 主担当層 | 参照先 |
 |---|---|---|
-| 初回保存、保存順のページング、店舗部分列、Dashboard・組織設定・店舗詳細への反映、stale fingerprint、別組織ID、重複・欠落ID、readOnly・契約制限を検証する | Convex Function Test | `convex/appOrganization/staffOrder.test.ts`、`convex/appOrganization/queries.test.ts`、`convex/dashboard/queries.test.ts`、`convex/organization/queries.test.ts` |
+| 初回保存、保存順のページング、店舗部分列、Dashboard・組織設定・店舗詳細への反映、stale fingerprint、別組織ID、重複・欠落ID、`removed`所属・契約制限を検証する | Convex Function Test | `convex/appOrganization/staffOrder.test.ts`、`convex/appOrganization/queries.test.ts`、`convex/dashboard/queries.test.ts`、`convex/organization/queries.test.ts` |
 | 新規・再追加を末尾へ置き、店舗所属変更、人物削除、店舗停止・再稼働、組織削除でも安全に同期または既存順へ戻す | Convex Function / Scenario Test | `convex/staff/mutations.test.ts`、`convex/staffRegistration/mutations.test.ts`、`convex/organization/mutations.test.ts`、`convex/deletionCleanup/mutations.test.ts`、`convex/_scenario/staffOrderLifecycle.test.ts` |
 | 全人物IDの並び替え、optimistic update、保存成功、失敗時rollbackとタイトルだけのToastを検証する | Logic / Frontend Unit Test | `src/components/features/OrganizationSettings/staffOrder.test.ts`、`src/components/features/OrganizationSettings/useStaffOrderReorder.test.tsx` |
 | 「すべて」では行の左側にhandleを表示し、個別店舗ではhandleを表示しないことと、ドラッグ・キーボード操作を検証する | Frontend Unit / Storybook Behavior Test | `src/pages/app-staff/index.test.tsx`、`src/pages/app-staff/index.stories.tsx` |

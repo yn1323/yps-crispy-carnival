@@ -16,9 +16,8 @@ import {
   type DevelopmentSeedScenarioKey,
   getDevelopmentSeedScenario,
   ownerAuthTokenIdentifier,
-  POLICY_RESTRICTED_EXTRA_MANAGER_AUTH_TOKEN_IDENTIFIERS,
   PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER,
-  READ_ONLY_SEED_AUTH_TOKEN_IDENTIFIER,
+  STANDARD_OVER_LIMIT_EXTRA_MANAGER_AUTH_TOKEN_IDENTIFIERS,
 } from "./catalog";
 
 type SeedDocument<Table extends TableNames> = WithoutSystemFields<Doc<Table>>;
@@ -94,25 +93,18 @@ export async function seedDevelopmentActors(ctx: MutationCtx): Promise<{ created
     });
   }
 
-  await writer.insert("users", {
-    authTokenIdentifier: READ_ONLY_SEED_AUTH_TOKEN_IDENTIFIER,
-    name: "[SEED] 閲覧管理者",
-    email: seedEmail("readonly-manager"),
-    emailNormalized: seedEmail("readonly-manager"),
-    role: "manager",
-    isDeleted: false,
-  });
-  for (const [index, authTokenIdentifier] of POLICY_RESTRICTED_EXTRA_MANAGER_AUTH_TOKEN_IDENTIFIERS.entries()) {
+  for (const [index, authTokenIdentifier] of STANDARD_OVER_LIMIT_EXTRA_MANAGER_AUTH_TOKEN_IDENTIFIERS.entries()) {
     const ordinal = index + 1;
     await writer.insert("users", {
       authTokenIdentifier,
-      name: `[SEED] 利用条件制限・管理者${ordinal}`,
-      email: seedEmail(`policy-restricted-manager-${ordinal}`),
-      emailNormalized: seedEmail(`policy-restricted-manager-${ordinal}`),
+      name: `[SEED] Standard上限超過・管理者${ordinal}`,
+      email: seedEmail(`standard-over-limit-manager-${ordinal}`),
+      emailNormalized: seedEmail(`standard-over-limit-manager-${ordinal}`),
       role: "manager",
       isDeleted: false,
     });
   }
+
   return { createdCount: writer.insertedCount };
 }
 
@@ -129,7 +121,6 @@ async function insertPersonAndMember(
   writer: SeedWriter,
   organizationId: Id<"organizations">,
   user: Doc<"users">,
-  status: "active" | "readOnly",
   now: number,
 ) {
   const personId = await writer.insert("organizationPeople", {
@@ -147,7 +138,7 @@ async function insertPersonAndMember(
     organizationId,
     personId,
     userId: user._id,
-    status,
+    status: "active",
     createdAt: now,
     updatedAt: now,
   });
@@ -160,7 +151,7 @@ async function insertStaffPeople(
   organizationId: Id<"organizations">,
   now: number,
 ): Promise<Array<{ personId: Id<"organizationPeople">; name: string; email: string; excludedFromShift: boolean }>> {
-  const count = scenario.key === "free-capacity" || scenario.key === "payment-restricted" ? 4 : 3;
+  const count = scenario.key === "free-capacity" || scenario.key === "free-over-limit" ? 4 : 3;
   const people = [];
   for (let index = 0; index < count; index += 1) {
     const email = seedEmail(`${scenario.key}-staff-${index + 1}`);
@@ -745,23 +736,18 @@ export async function seedDevelopmentScenarioGraph(
     updatedAt: now,
   });
 
-  const primaryMembership = await insertPersonAndMember(writer, organizationId, primaryUser, "active", now);
+  const primaryMembership = await insertPersonAndMember(writer, organizationId, primaryUser, now);
   let ownerMembership = primaryMembership;
   if (ownerUser._id !== primaryUser._id) {
-    ownerMembership = await insertPersonAndMember(writer, organizationId, ownerUser, "active", now);
+    ownerMembership = await insertPersonAndMember(writer, organizationId, ownerUser, now);
   }
   const managerPersonIds = [primaryMembership.personId, ownerMembership.personId].filter(
     (personId, index, values) => values.indexOf(personId) === index,
   );
-  if (key === "standard-operations") {
-    const readOnlyUser = await requireSeedUser(ctx, READ_ONLY_SEED_AUTH_TOKEN_IDENTIFIER);
-    const readOnlyMembership = await insertPersonAndMember(writer, organizationId, readOnlyUser, "readOnly", now);
-    managerPersonIds.push(readOnlyMembership.personId);
-  }
-  if (key === "policy-restricted") {
-    for (const authTokenIdentifier of POLICY_RESTRICTED_EXTRA_MANAGER_AUTH_TOKEN_IDENTIFIERS) {
+  if (key === "standard-over-limit") {
+    for (const authTokenIdentifier of STANDARD_OVER_LIMIT_EXTRA_MANAGER_AUTH_TOKEN_IDENTIFIERS) {
       const managerUser = await requireSeedUser(ctx, authTokenIdentifier);
-      const managerMembership = await insertPersonAndMember(writer, organizationId, managerUser, "active", now);
+      const managerMembership = await insertPersonAndMember(writer, organizationId, managerUser, now);
       managerPersonIds.push(managerMembership.personId);
     }
   }

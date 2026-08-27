@@ -84,7 +84,7 @@ describe("useLoginFlowController", () => {
       await result.current.onLogin({ email: "manager@example.com", password: "wrong-password" });
     });
 
-    expect(result.current.errorMessage).toBe("メールアドレスまたはパスワードが正しくありません。");
+    expect(result.current.errorMessage).toBe("メールアドレスまたはパスワードが誤っています。");
     expect(result.current.loginStep).toBe("credentials");
     expect(signIn.mfa.sendEmailCode).not.toHaveBeenCalled();
     expect(signIn.finalize).not.toHaveBeenCalled();

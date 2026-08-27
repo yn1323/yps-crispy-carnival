@@ -24,9 +24,5 @@ export function getDashboardStageReadiness(stages: DashboardQueryStageSet) {
       stages.recruitment.status === "ready" &&
       stages.staff.status === "ready" &&
       stages.registrationRequests.status === "ready",
-    hasUnavailableTasks:
-      stages.recruitment.status === "unavailable" ||
-      stages.registrationRequests.status === "unavailable" ||
-      stages.notificationFailures.status === "unavailable",
   };
 }

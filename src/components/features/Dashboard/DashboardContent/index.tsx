@@ -6,7 +6,6 @@ import {
   type NotificationFailureRecoveryState,
 } from "../NotificationFailureRecovery";
 import type { OperationContextData } from "../OperationContext";
-import type { PlanStatusCardProps } from "../PlanStatusCard";
 import {
   RecruitmentManagement,
   type RecruitmentManagementData,
@@ -19,7 +18,6 @@ import {
   StaffRegistrationRequestManagement,
   type StaffRegistrationRequestManagementState,
 } from "../StaffRegistrationRequestManagement";
-import type { TrialEndingNoticeData } from "../TrialEndingCallout";
 import type {
   DashboardAnnouncement as DashboardAnnouncementData,
   DashboardNavigation,
@@ -84,10 +82,6 @@ type Props = {
   showAccountDeletion?: boolean;
   announcement?: DashboardAnnouncementData | null;
   operationContextData?: OperationContextData;
-  showOrganizationContext?: boolean;
-  planStatusCard?: PlanStatusCardProps | null;
-  trialEndingNotice?: TrialEndingNoticeData | null;
-  billingSettingsShopId?: string;
   navigation?: DashboardNavigation;
 };
 
@@ -119,10 +113,6 @@ export const DashboardContent = ({
   showAccountDeletion = false,
   announcement,
   operationContextData,
-  showOrganizationContext = true,
-  planStatusCard,
-  trialEndingNotice,
-  billingSettingsShopId,
   navigation,
 }: Props) => {
   // Storyはqueryに依存せず募集・スタッフの代表状態を固定する。本番の募集・スタッフは各子featureが購読する。
@@ -262,20 +252,12 @@ export const DashboardContent = ({
               key={`staff:${sourceIdentity}`}
               onStageChange={reportStaffStage}
               data={staffData}
-              openRecruitments={
-                recruitmentStage.status === "ready" ? recruitmentStage.data.openRecruitments : EMPTY_RECRUITMENTS
-              }
-              currentRecruitments={
-                recruitmentStage.status === "ready" ? recruitmentStage.data.currentRecruitments : EMPTY_RECRUITMENTS
-              }
-              recruitmentDataStatus={recruitmentStage.status}
               isReadOnly={isReadOnly}
               organizationShopCount={operationContextData?.shops.length}
               initialVisibleUserCount={visibleUserCount}
               focusedPersonId={focusedPersonId}
               onVisibleUserCountChange={onVisibleUserCountChange}
               onOpenStaffDetail={navigation?.onOpenStaffDetail}
-              onManageManagers={navigation?.onManageManagers}
               onOpenBillingSettings={navigation?.onOpenBillingSettings}
             />
             <RegistrationRequestQuerySource
@@ -300,10 +282,6 @@ export const DashboardContent = ({
               isDashboardOnboardingDismissed={isDashboardOnboardingDismissed}
               announcementContent={announcementContent ?? undefined}
               operationContextData={operationContextData}
-              showOrganizationContext={showOrganizationContext}
-              planStatusCard={planStatusCard}
-              trialEndingNotice={trialEndingNotice}
-              billingSettingsShopId={billingSettingsShopId}
               navigation={navigation}
               recruitment={recruitmentStage}
               staff={staffStage}

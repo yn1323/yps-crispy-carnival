@@ -93,7 +93,6 @@ const overview = () => ({
   organizationName: "A組織",
   organizationCreatedAt: Date.parse("2026-01-01T00:00:00Z"),
   organizationUpdatedAt: Date.parse("2026-08-15T00:00:00Z"),
-  memberStatus: "active" as const,
   usage: {
     state: "pro",
     currentPlan: "pro",
@@ -101,7 +100,7 @@ const overview = () => ({
     shopUsage: { current: 1, max: 10 },
     managerUsage: { current: 1, max: 5, pendingInvitations: 0 },
   },
-  shopCounts: { active: 1, archived: 0, planSuspended: 0, hasOverflow: false },
+  shopCounts: { active: 1, archived: 0, hasOverflow: false },
   capabilities: {
     canUpdateOrganizationName: true,
     canAddShop: true,
@@ -140,7 +139,7 @@ beforeEach(() => {
 
 describe("AppManage", () => {
   it("組織・店舗追加と管理者・支払いの導線を常に表示する", () => {
-    renderPage(<AppManageRoutePage organizationId={organizationId} memberStatus="active" />);
+    renderPage(<AppManageRoutePage organizationId={organizationId} />);
 
     expect(mocks.useQuery).toHaveBeenCalledWith(mocks.getManageOverview, {
       organizationId,
@@ -166,7 +165,7 @@ describe("AppManage", () => {
       },
     });
 
-    renderPage(<AppManageRoutePage organizationId={organizationId} memberStatus="active" />);
+    renderPage(<AppManageRoutePage organizationId={organizationId} />);
 
     const button = screen.getByRole("button", { name: "新しい組織を作る" }) as HTMLButtonElement;
     expect(button.disabled).toBe(false);

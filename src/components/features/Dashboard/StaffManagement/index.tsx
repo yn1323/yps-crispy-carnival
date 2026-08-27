@@ -1,20 +1,12 @@
-import { useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { StaffNotificationHistory } from "@/src/components/features/StaffNotificationHistory";
-import { useDeadlineActive } from "@/src/hooks/useDeadlineActive";
 import { useShopPaginatedQuery } from "@/src/hooks/useShopPaginatedQuery";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { DEFAULT_USER_LIST_COUNT, USER_LIST_PAGE_SIZE } from "@/src/lib/userListSearch";
-import { useManagerShopScope } from "@/src/providers/ManagerShopScopeProvider";
-import { selectedShopAtom } from "@/src/stores/shop";
-import type { PaginationStatus, Recruitment, Staff } from "../types";
+import type { PaginationStatus, Staff } from "../types";
 import { StaffManagementView } from "./StaffManagementView";
 import { useStaffInvitation } from "./useStaffInvitation";
-import { useStaffLineConnection } from "./useStaffLineConnection";
-import { useStaffNotificationDelivery } from "./useStaffNotificationDelivery";
-import { useStaffProfileManagement } from "./useStaffProfileManagement";
 
 export type StaffManagementData = {
   staffs: Staff[];
@@ -31,37 +23,27 @@ export type StaffManagementState = {
 
 type Props = {
   data?: StaffManagementData;
-  openRecruitments: Recruitment[];
-  currentRecruitments: Recruitment[];
-  recruitmentDataStatus?: "ready" | "loading" | "unavailable";
   isReadOnly?: boolean;
   organizationShopCount?: number;
   initialVisibleUserCount?: number;
   focusedPersonId?: string;
   onVisibleUserCountChange?: (count: number) => void;
   onOpenStaffDetail?: (personId: Id<"organizationPeople">, visibleUserCount: number) => void;
-  onManageManagers?: () => void;
   onOpenBillingSettings?: () => void;
   children: (state: StaffManagementState) => ReactNode;
 };
 
 export function StaffManagement({
   data,
-  openRecruitments,
-  currentRecruitments,
-  recruitmentDataStatus = "ready",
   isReadOnly = false,
   organizationShopCount,
   initialVisibleUserCount = DEFAULT_USER_LIST_COUNT,
   focusedPersonId,
   onVisibleUserCountChange,
   onOpenStaffDetail,
-  onManageManagers,
   onOpenBillingSettings,
   children,
 }: Props) {
-  const selectedShop = useAtomValue(selectedShopAtom);
-  const managerShopScope = useManagerShopScope();
   const [visibleStaffCount, setVisibleStaffCount] = useState(initialVisibleUserCount);
   const staffOrderScope = useShopQuery(api.dashboard.queries.getDashboardStaffOrderScope, data ? "skip" : {});
   const orderRevision = staffOrderScope?.mode === "ordered" ? staffOrderScope.revision : null;
@@ -100,23 +82,8 @@ export function StaffManagement({
 
   const showOrganizationPeopleAddition = organizationShopCount === undefined || organizationShopCount > 1;
   const invitation = useStaffInvitation(isReadOnly, showOrganizationPeopleAddition, onOpenBillingSettings);
-  const lineConnection = useStaffLineConnection(isReadOnly);
-  const profile = useStaffProfileManagement(staffs, { onResetDetail: lineConnection.reset, isReadOnly });
-  const notifications = useStaffNotificationDelivery(isReadOnly);
-  const notificationCooldowns = useShopQuery(
-    api.staff.queries.getNotificationResendCooldowns,
-    profile.staff && profile.dialog.isOpen ? { staffId: profile.staff._id } : "skip",
-  );
-  const isNotificationCooldownLoading =
-    profile.staff !== null && profile.dialog.isOpen && notificationCooldowns === undefined;
-  const isRecruitmentCooldownActive = useDeadlineActive(notificationCooldowns?.openRecruitmentsUntil);
-  const isCurrentShiftCooldownActive = useDeadlineActive(notificationCooldowns?.currentShiftUntil);
-  const isLineInviteCooldownActive = useDeadlineActive(notificationCooldowns?.lineInviteUntil);
   const handleOpenDetail = (staff: Staff) => {
-    if (!staff.organizationPersonId) {
-      profile.onOpen(staff);
-      return;
-    }
+    if (!staff.organizationPersonId) return;
     onOpenStaffDetail?.(staff.organizationPersonId, visibleStaffCount);
   };
 
@@ -127,58 +94,9 @@ export function StaffManagement({
       canLoadMore={canLoadMore}
       onLoadMore={handleLoadMore}
       focusedPersonId={focusedPersonId}
-      openRecruitments={openRecruitments}
-      currentRecruitments={currentRecruitments}
-      recruitmentDataStatus={recruitmentDataStatus}
       onOpenDetail={handleOpenDetail}
       isReadOnly={isReadOnly}
       invitation={invitation}
-      detail={{
-        staff: profile.staff,
-        dialog: profile.dialog,
-        onOpenChange: profile.onOpenChange,
-        onClose: profile.onClose,
-        onEdit: profile.onEdit,
-        isEditing: profile.isEditing,
-        onDelete: profile.onDelete,
-        isDeleting: profile.isDeleting,
-        onChangeShiftTarget: profile.onChangeShiftTarget,
-        isChangingShiftTarget: profile.isChangingShiftTarget,
-        onManageManagers: () => {
-          onManageManagers?.();
-        },
-        onShowLineQr: lineConnection.onShowQr,
-        lineQrState: lineConnection.qrState,
-        onSendLineInvite: (staff) => {
-          if (isNotificationCooldownLoading || isLineInviteCooldownActive) return;
-          return lineConnection.onSendInvite(staff);
-        },
-        isSendingLineInvite: lineConnection.isSendingInvite,
-        isLineInviteCooldownActive,
-        onSendRecruitments: (staff) => {
-          if (isNotificationCooldownLoading || isRecruitmentCooldownActive) return;
-          return notifications.onSendRecruitments(staff);
-        },
-        isSendingRecruitments: notifications.isSendingRecruitments,
-        isRecruitmentCooldownActive,
-        onSendCurrentShift: (staff) => {
-          if (isNotificationCooldownLoading || isCurrentShiftCooldownActive) return;
-          return notifications.onSendCurrentShift(staff);
-        },
-        isSendingCurrentShift: notifications.isSendingCurrentShift,
-        isCurrentShiftCooldownActive,
-        isNotificationCooldownLoading,
-        notificationHistory:
-          profile.staff && (managerShopScope?.shopId || selectedShop?.shopId) ? (
-            <StaffNotificationHistory
-              key={profile.staff._id}
-              shopId={(managerShopScope?.shopId ?? selectedShop?.shopId) as Id<"shops">}
-              staffId={profile.staff._id}
-              enabled={profile.dialog.isOpen}
-              expectedOrganizationId={managerShopScope?.expectedOrganizationId as Id<"organizations"> | undefined}
-            />
-          ) : null,
-      }}
     />
   );
 

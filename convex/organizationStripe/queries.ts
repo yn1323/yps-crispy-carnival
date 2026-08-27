@@ -8,10 +8,7 @@ import {
   requireOrganizationReadActor,
 } from "../organization/access";
 import { organizationCanonicalBillingStateValidator } from "../organization/validators";
-import {
-  canonicalizeOrganizationBillingState,
-  getEffectiveRestrictedBillingState,
-} from "../organizationBilling/policy";
+import { canonicalizeOrganizationBillingState } from "../organizationBilling/policy";
 import { canonicalizeStripePaidPlan, canonicalizeStripeTargetPlan } from "./planIds";
 import {
   organizationStripeOperationKindValidator,
@@ -85,7 +82,6 @@ export const getActionContext = internalQuery({
     const actor = await requireOrganizationActorForShop(ctx, {
       user: users[0],
       shopId: args.shopId,
-      allowReadOnly: true,
     });
     return await getActionContextForActor(ctx, actor, args.purpose);
   },
@@ -133,35 +129,8 @@ async function getActionContextForActor(ctx: QueryCtx, actor: OrganizationReadAc
   if (!billingState) return null;
   if (purpose === "currentSubscriptionPrice" && latestSubscription?.terminalAt !== undefined) return null;
   const canonicalBillingState = canonicalizeOrganizationBillingState(billingState.state);
-  const restrictedState = getEffectiveRestrictedBillingState(canonicalBillingState);
-  const isRecoveryManager = restrictedState?.recoveryManagerPersonIds.includes(actor.person._id) === true;
   const isActiveManager = actor.member.status === "active";
-  if (!isActiveManager && !isRecoveryManager) return null;
-  if (!isPurposeAllowed(purpose, canonicalBillingState, isActiveManager, isRecoveryManager)) return null;
-  if (
-    purpose === "startCheckout" &&
-    canonicalBillingState.kind === "restricted" &&
-    canonicalBillingState.reason === "paymentGraceExpired" &&
-    latestSubscription?.terminalAt !== undefined
-  ) {
-    const collectionFinalized = (
-      await Promise.all(
-        (["cancelSubscription", "stopInvoiceCollection"] as const).map(async (kind) =>
-          ctx.db
-            .query("organizationStripeOperations")
-            .withIndex("by_organizationId_and_providerGeneration_and_kind_and_status", (q) =>
-              q
-                .eq("organizationId", actor.organization._id)
-                .eq("providerGeneration", latestSubscription.providerGeneration)
-                .eq("kind", kind)
-                .eq("status", "succeeded"),
-            )
-            .first(),
-        ),
-      )
-    ).every((operation) => operation !== null);
-    if (!collectionFinalized) return null;
-  }
+  if (!isActiveManager || !isPurposeAllowed(purpose, canonicalBillingState, isActiveManager)) return null;
 
   return {
     organizationId: actor.organization._id,
@@ -839,8 +808,6 @@ export const resolveOrganizationByCustomer = internalQuery({
       latestStripeSubscriptionScheduleId: v.optional(v.string()),
       latestStripeSubscriptionTerminal: v.boolean(),
       currentStripeSubscriptionId: v.optional(v.string()),
-      restoreManagerPersonIds: v.optional(v.array(v.id("organizationPeople"))),
-      restoreShopIds: v.optional(v.array(v.id("shops"))),
     }),
   ),
   handler: async (ctx, args) => {
@@ -867,10 +834,6 @@ export const resolveOrganizationByCustomer = internalQuery({
       return null;
     }
     const canonicalBillingState = canonicalizeOrganizationBillingState(billingState.state);
-    const restorationSelection =
-      canonicalBillingState.kind === "pendingActivation" || canonicalBillingState.kind === "restricted"
-        ? await getPaidRestorationSelection(ctx, customer.organizationId, canonicalBillingState)
-        : undefined;
     return {
       organizationId: customer.organizationId,
       livemode: customer.livemode,
@@ -893,50 +856,9 @@ export const resolveOrganizationByCustomer = internalQuery({
       ...(latestSubscription && !latestSubscription.terminalAt
         ? { currentStripeSubscriptionId: latestSubscription.stripeSubscriptionId }
         : {}),
-      ...(restorationSelection
-        ? {
-            restoreManagerPersonIds: restorationSelection.managerPersonIds,
-            restoreShopIds: restorationSelection.shopIds,
-          }
-        : {}),
     };
   },
 });
-
-async function getPaidRestorationSelection(
-  ctx: QueryCtx,
-  organizationId: Id<"organizations">,
-  state: Extract<typeof organizationCanonicalBillingStateValidator.type, { kind: "pendingActivation" | "restricted" }>,
-) {
-  if (state.kind === "restricted") {
-    return {
-      managerPersonIds: state.recoveryManagerPersonIds,
-      shopIds: state.previousActiveShopIds,
-    };
-  }
-  if (state.fallback === "restricted") {
-    if (!state.restrictedFallbackState) return null;
-    return {
-      managerPersonIds: state.restrictedFallbackState.recoveryManagerPersonIds,
-      shopIds: state.restrictedFallbackState.previousActiveShopIds,
-    };
-  }
-
-  const [members, shops] = await Promise.all([
-    ctx.db
-      .query("organizationMembers")
-      .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "active"))
-      .collect(),
-    ctx.db
-      .query("shops")
-      .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
-      .collect(),
-  ]);
-  return {
-    managerPersonIds: [...new Set(members.map((member) => member.personId))],
-    shopIds: shops.filter((shop) => !shop.isDeleted && shop.operatingStatus === "active").map((shop) => shop._id),
-  };
-}
 
 export const getSafetyContextByOrganization = internalQuery({
   args: {
@@ -1190,39 +1112,21 @@ function isPurposeAllowed(
     | "cancelScheduledPlanChange",
   state: typeof organizationCanonicalBillingStateValidator.type,
   isActiveManager: boolean,
-  isRecoveryManager: boolean,
 ) {
   if (state.kind === "complimentary") return false;
   switch (purpose) {
     case "price":
-      return isActiveManager || isRecoveryManager;
+      return isActiveManager;
     case "currentSubscriptionPrice":
       if (state.kind === "active") return isActiveManager && state.plan !== "free";
       if (state.kind === "scheduledChange" || state.kind === "grace") return isActiveManager;
-      return (
-        state.kind === "restricted" &&
-        isRecoveryManager &&
-        (state.reason === "paymentGraceExpired" ||
-          state.reason === "paymentActivationFailed" ||
-          state.reason === "unexpectedCancellation" ||
-          state.reason === "trialEndedWithoutSubscription" ||
-          state.reason === "scheduledCancellation")
-      );
+      return false;
     case "startCheckout":
-      if (state.kind === "restricted") return isRecoveryManager;
-      if (state.kind === "pendingActivation") {
-        return state.fallback === "restricted" ? isRecoveryManager : isActiveManager;
-      }
+      if (state.kind === "pendingActivation") return isActiveManager;
       return isActiveManager && (state.kind === "trial" || (state.kind === "active" && state.plan === "free"));
     case "cancelCheckout":
-      if (state.kind === "restricted") return isRecoveryManager;
-      if (state.kind === "pendingActivation") {
-        return state.fallback === "restricted" ? isRecoveryManager : isActiveManager;
-      }
       return isActiveManager;
     case "portal":
-      if (state.kind === "restricted") return isRecoveryManager;
-      if (state.kind === "pendingActivation" && state.fallback === "restricted") return isRecoveryManager;
       return (
         isActiveManager &&
         (state.kind === "trial" ||

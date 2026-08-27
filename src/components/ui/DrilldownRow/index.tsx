@@ -13,7 +13,6 @@ type Props = {
   highlighted?: boolean;
   disabled?: boolean;
   onClick: () => void;
-  onOpenIntent?: () => void;
 };
 
 export function DrilldownRow({
@@ -27,7 +26,6 @@ export function DrilldownRow({
   highlighted = false,
   disabled = false,
   onClick,
-  onOpenIntent,
 }: Props) {
   const generatedDescriptionId = useId();
   const descriptionId = accessibleDescription ? (id ? `${id}-summary` : generatedDescriptionId) : undefined;
@@ -58,8 +56,6 @@ export function DrilldownRow({
         outlineColor: "teal.500",
         outlineOffset: "-2px",
       }}
-      onPointerEnter={disabled ? undefined : onOpenIntent}
-      onFocus={disabled ? undefined : onOpenIntent}
       onClick={onClick}
     >
       {leading}

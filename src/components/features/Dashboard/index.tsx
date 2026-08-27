@@ -1,7 +1,5 @@
 import type { ComponentProps } from "react";
-import type { Id } from "@/convex/_generated/dataModel";
 import { DashboardContent, DashboardContentSkeleton } from "./DashboardContent";
-import { type DashboardPlanStatusSource, usePlanStatusCardController } from "./PlanStatusCard";
 import type { DashboardNavigation } from "./types";
 
 type DashboardContentProps = ComponentProps<typeof DashboardContent>;
@@ -25,15 +23,8 @@ type Props = {
   focusedPersonId?: string;
   onVisibleUserCountChange?: (count: number) => void;
   operationContextData?: DashboardContentProps["operationContextData"];
-  showOrganizationContext?: DashboardContentProps["showOrganizationContext"];
-  planStatus?: DashboardPlanStatusSource | null;
-  trialEndingNotice?: DashboardContentProps["trialEndingNotice"];
-  billingSettingsShopId?: DashboardContentProps["billingSettingsShopId"];
-  expectedOrganizationId?: Id<"organizations">;
   navigation?: DashboardNavigation;
 };
-
-const NOOP_NAVIGATION = () => undefined;
 
 export function Dashboard({
   shop,
@@ -44,20 +35,8 @@ export function Dashboard({
   focusedPersonId,
   onVisibleUserCountChange,
   operationContextData,
-  showOrganizationContext = true,
-  planStatus,
-  trialEndingNotice,
-  billingSettingsShopId,
-  expectedOrganizationId,
   navigation,
 }: Props) {
-  const planStatusCard = usePlanStatusCardController({
-    planStatus,
-    shopId: billingSettingsShopId,
-    expectedOrganizationId,
-    onOpenBillingSettings: navigation?.onOpenBillingSettings ?? NOOP_NAVIGATION,
-  });
-
   return (
     <DashboardContent
       shop={shop}
@@ -66,10 +45,6 @@ export function Dashboard({
       focusedPersonId={focusedPersonId}
       onVisibleUserCountChange={onVisibleUserCountChange}
       operationContextData={operationContextData}
-      showOrganizationContext={showOrganizationContext}
-      planStatusCard={planStatusCard}
-      trialEndingNotice={trialEndingNotice}
-      billingSettingsShopId={billingSettingsShopId}
       navigation={navigation}
       isDashboardOnboardingDismissed={Boolean(
         currentUser && !currentUser.isNewUser && currentUser.dashboardOnboardingDismissedAt,

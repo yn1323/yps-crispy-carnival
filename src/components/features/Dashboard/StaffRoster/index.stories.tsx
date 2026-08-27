@@ -68,11 +68,10 @@ export const InputOrderBehavior: Story = {
   },
 };
 
-export const DialogIntentBehavior: Story = {
+export const AddIntentAndDetailNavigationBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   args: {
     onAddIntent: fn(),
-    onOpenDetailIntent: fn(),
     onOpenDetail: fn(),
   },
   play: async ({ args, canvasElement }) => {
@@ -83,8 +82,6 @@ export const DialogIntentBehavior: Story = {
     await userEvent.hover(invitationButton);
     await expect(args.onAddIntent).toHaveBeenCalled();
 
-    detailButton.focus();
-    await expect(args.onOpenDetailIntent).toHaveBeenCalled();
     await userEvent.click(detailButton);
     await expect(args.onOpenDetail).toHaveBeenCalledTimes(1);
   },

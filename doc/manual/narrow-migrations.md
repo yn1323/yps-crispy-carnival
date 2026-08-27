@@ -46,7 +46,7 @@ statusが`success`でも、その後に旧writerが旧形式を作ればreadines
 | m045 | Stripe Subscription snapshot | 旧`pro` / `business` plan IDをv2の`standard` / `pro`へ変換 |
 | m046 | Stripe operation snapshot | 旧source / target plan IDをv2へ変換 |
 | m047 | `shopBillingStates` | canonicalな組織課金状態との対応を一意に確認できた旧店舗課金rowを物理削除 |
-| 最終readiness | `organizationBillingStates` / `organizationMembers` | 旧`restricted`、`readOnly`、markerなしplan IDが0件であることを全ページ確認 |
+| 最終readiness | `organizationBillingStates` | markerなしplan IDが0件であることを全ページ確認 |
 
 m023からm028とm030からm040は固定seriesの末尾へ追加します。  m029とm041は固定seriesと包括runnerへ含めません。  m042からm047も課金プラン未公開の対象deploymentで専用runnerを順番に明示実行し、その後に最終readinessを確認します。m029は後述する権限移行gateを満たしたdeploymentで、m041はLINE共通化のexportと全ページreadinessを満たして変換対象があるdeploymentで、それぞれ専用runnerを明示実行します。
 
@@ -274,7 +274,7 @@ Narrow deploy後も、旧形式を投入するMigration Testはschema validation
 
 `shops`、`staffs`、`shopMembers`、`shopBillingStates`はm025からm029の関係するstatusとreadinessを満たしてから、optionalなcanonical IDとlegacy authority fallbackを削除します。  `verifyStaffs.danglingStaffUser`、`verifyStaffs.missingPersonUserForLinkedStaff`、`verifyStaffs.personUserMismatch`、`verifyStaffs.activeStaffPersonEmailMismatch`も0件でなければならず、本人紐付けや連絡先projectionを推測して解消しません。  m029を実行していないdeploymentでは`shopMembers` fallbackを削除しません。
 
-課金互換は、m042からm047の全migration status、各pre / post readiness、`billing_compatibility_narrow_readiness`の両query、未解消conflict 0件が全deploymentで揃った後にだけNarrowします。`planIdVersion`、旧plan literal、`restricted`、`readOnly`、`setFreeSelection`、旧復旧capabilityと専用表示を同じNarrow変更で削除し、請求先メールアドレスを権限根拠へ戻しません。
+課金plan ID互換は、m042からm047の全migration status、各pre / post readiness、`billing_compatibility_narrow_readiness:verifyBillingStates`、未解消conflict 0件が全deploymentで揃った後にだけNarrowします。`planIdVersion`と旧plan literalは同じNarrow変更で削除し、請求先メールアドレスを権限根拠へ使いません。
 
 `notificationOutbox`は、m024 / m025 / m030 / m037のstatus、全ページreadiness、Outbox所有conflictの未解消0件、旧scheduled callerのdrainが揃った後にだけNarrowします。  `organizationId` / `purpose` / `notificationContext` / `deliverySuppressed`をrequired化し、`purpose ?? "business"`、purpose未設定のindex分岐、Widen前shop-scoped scan、店舗所属へ戻すreader fallbackを同じ契約変更で削除します。  `shopId`はbilling等のorganization-only通知で、`organizationBillingVersionAtEnqueue`は履歴snapshotとして、どちらもoptionalのまま維持します。
 

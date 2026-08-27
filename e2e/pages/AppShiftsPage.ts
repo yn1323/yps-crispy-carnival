@@ -76,7 +76,7 @@ export class AppShiftsPage {
     await this.selectCalendarDate(dialog, data.periodEnd);
     await dialog.getByRole("button", { name: "次へ" }).click();
 
-    await expect(dialog.getByText("お店のお休みを選択", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("定休日を選択(任意)", { exact: true })).toBeVisible();
     await dialog.getByRole("button", { name: "次へ" }).click();
 
     await expect(dialog.getByText("提出期限を選択", { exact: true })).toBeVisible();

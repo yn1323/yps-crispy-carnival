@@ -88,7 +88,7 @@ const shopStep: StepperDialogStep<CreateRecruitmentStep> = {
   label: "店舗",
   icon: LuStore,
   title: "対象店舗を選択",
-  description: "シフト募集を作成する店舗を1つ選んでください。",
+  description: "対象店舗を選んでください。",
 };
 
 const recruitmentSteps: StepperDialogStep<CreateRecruitmentStep>[] = [
@@ -97,14 +97,14 @@ const recruitmentSteps: StepperDialogStep<CreateRecruitmentStep>[] = [
     label: "期間",
     icon: LuCalendarDays,
     title: "シフト期間を選択",
-    description: "募集するシフトの開始日と終了日を選んでください。",
+    description: "募集シフトの開始・終了日を選んでください。",
   },
   {
     value: "holidays",
     label: "お休み",
     icon: LuCalendarX,
-    title: "お店のお休みを選択",
-    description: "お休みの日を設定してください。",
+    title: "定休日を選択(任意)",
+    description: "定休日を設定してください。",
   },
   {
     value: "deadline",
@@ -118,7 +118,7 @@ const recruitmentSteps: StepperDialogStep<CreateRecruitmentStep>[] = [
     label: "確認",
     icon: LuCalendarCheck,
     title: "内容を確認",
-    description: "作成する募集の内容を確認してください。",
+    description: "作成する募集シフトの内容を確認してください。",
   },
 ];
 

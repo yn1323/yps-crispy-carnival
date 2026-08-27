@@ -6,13 +6,11 @@ import { HeroSummary, HeroSummarySkeleton } from "../HeroSummary";
 import { LegalReconsent } from "../LegalReconsent";
 import type { NotificationFailureRecoveryState } from "../NotificationFailureRecovery";
 import { OperationContext, type OperationContextData, OperationContextSkeleton } from "../OperationContext";
-import type { PlanStatusCardProps } from "../PlanStatusCard";
 import { RecruitmentBoardSkeleton } from "../RecruitmentBoard";
 import type { RecruitmentManagementState } from "../RecruitmentManagement";
 import type { StaffManagementState } from "../StaffManagement";
 import type { StaffRegistrationRequestManagementState } from "../StaffRegistrationRequestManagement";
 import { StaffRosterSkeleton } from "../StaffRoster";
-import { TrialEndingCallout, type TrialEndingNoticeData } from "../TrialEndingCallout";
 import type { DashboardNavigation } from "../types";
 import { DashboardSectionUnavailable } from "./DashboardSectionUnavailable";
 import { type DashboardQueryStage, getDashboardStageReadiness } from "./queryStage";
@@ -32,10 +30,6 @@ export type DashboardContentViewProps = {
   isDashboardOnboardingDismissed: boolean;
   announcementContent?: ReactNode;
   operationContextData?: OperationContextData;
-  showOrganizationContext?: boolean;
-  planStatusCard?: PlanStatusCardProps | null;
-  trialEndingNotice?: TrialEndingNoticeData | null;
-  billingSettingsShopId?: string;
   recruitment: DashboardQueryStage<RecruitmentManagementState>;
   staff: DashboardQueryStage<StaffManagementState>;
   registrationRequests: DashboardQueryStage<StaffRegistrationRequestManagementState>;
@@ -50,10 +44,6 @@ export function DashboardContentView({
   isDashboardOnboardingDismissed,
   announcementContent,
   operationContextData,
-  showOrganizationContext = true,
-  planStatusCard,
-  trialEndingNotice,
-  billingSettingsShopId,
   recruitment,
   staff,
   registrationRequests,
@@ -61,7 +51,7 @@ export function DashboardContentView({
   navigation,
 }: DashboardContentViewProps) {
   if (recruitment.status === "loading") {
-    return <DashboardContentSkeleton showOrganizationContext={showOrganizationContext} />;
+    return <DashboardContentSkeleton />;
   }
 
   const recruitmentData = recruitment.status === "ready" ? recruitment.data : null;
@@ -70,9 +60,6 @@ export function DashboardContentView({
   const notificationFailureData = notificationFailures.status === "ready" ? notificationFailures.data : null;
   const readiness = getDashboardStageReadiness({ recruitment, staff, registrationRequests, notificationFailures });
   const unavailableTaskSources = [
-    recruitment.status === "unavailable"
-      ? { key: "recruitment", label: "シフト募集", onRetry: recruitment.onRetry }
-      : null,
     registrationRequests.status === "unavailable"
       ? { key: "registration-requests", label: "登録申請", onRetry: registrationRequests.onRetry }
       : null,
@@ -83,6 +70,7 @@ export function DashboardContentView({
 
   return (
     <DashboardOnboardingGate
+      key={taskScopeKey}
       canEvaluate={readiness.canEvaluateOnboarding}
       recruitments={recruitmentData?.knownRecruitments ?? []}
       staffs={staffData?.staffs ?? []}
@@ -95,21 +83,8 @@ export function DashboardContentView({
           <ContentWrapper>
             <Stack gap={{ base: 4, lg: 6 }}>
               <Stack gap={{ base: 3, lg: 4 }}>
-                <OperationContext
-                  data={operationContextData}
-                  showOrganizationContext={showOrganizationContext}
-                  planStatusCard={planStatusCard}
-                  billingSettingsShopId={billingSettingsShopId}
-                  onOpenOrganizationSettings={navigation?.onOpenOrganizationSettings}
-                  onOpenShopDetail={navigation?.onOpenShopDetail}
-                />
+                <OperationContext data={operationContextData} onOpenShopDetail={navigation?.onOpenShopDetail} />
                 <LegalReconsent status={managerLegalConsentStatus} />
-                {planStatusCard === undefined && billingSettingsShopId && navigation?.onOpenBillingSettings ? (
-                  <TrialEndingCallout
-                    notice={trialEndingNotice ?? null}
-                    onOpenBillingSettings={navigation.onOpenBillingSettings}
-                  />
-                ) : null}
               </Stack>
               <HeroSummary
                 key={taskScopeKey}
@@ -144,7 +119,7 @@ export function DashboardContentView({
                   isReadOnly ||
                   (onboarding.isVisible &&
                     (notificationFailureData?.actionItemCount ?? 0) === 0 &&
-                    !readiness.hasUnavailableTasks) ||
+                    unavailableTaskSources.length === 0) ||
                   !managerLegalConsentStatus
                 }
               />
@@ -169,31 +144,38 @@ export function DashboardContentView({
   );
 }
 
+const UNAVAILABLE_ONBOARDING_STATE: DashboardOnboardingRenderState = {
+  content: null,
+  isVisible: false,
+  onOpenRecruitment: () => {},
+};
+
 type DashboardOnboardingGateProps = ComponentProps<typeof DashboardOnboarding> & {
   canEvaluate: boolean;
 };
 
-function DashboardOnboardingGate({ canEvaluate, children, ...props }: DashboardOnboardingGateProps) {
-  if (!canEvaluate) {
-    const unavailableState: DashboardOnboardingRenderState = {
-      content: null,
-      isVisible: false,
-      onOpenRecruitment: () => {},
-    };
-    return children(unavailableState);
-  }
-
-  return <DashboardOnboarding {...props}>{children}</DashboardOnboarding>;
+function DashboardOnboardingGate({
+  canEvaluate,
+  children,
+  canShow,
+  pendingStaffRequestCount,
+  ...props
+}: DashboardOnboardingGateProps) {
+  return (
+    <DashboardOnboarding
+      {...props}
+      pendingStaffRequestCount={canEvaluate ? pendingStaffRequestCount : 0}
+      canShow={canEvaluate && canShow}
+    >
+      {(state) => children(canEvaluate ? state : UNAVAILABLE_ONBOARDING_STATE)}
+    </DashboardOnboarding>
+  );
 }
 
-export const DashboardContentSkeleton = ({
-  showOrganizationContext = true,
-}: {
-  showOrganizationContext?: boolean;
-} = {}) => (
+export const DashboardContentSkeleton = () => (
   <ContentWrapper>
     <Stack gap={{ base: 4, lg: 6 }}>
-      <OperationContextSkeleton showOrganizationContext={showOrganizationContext} />
+      <OperationContextSkeleton />
       <HeroSummarySkeleton />
     </Stack>
     <RecruitmentBoardSkeleton />

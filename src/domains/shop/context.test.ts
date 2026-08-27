@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  groupShopsByOrganization,
-  isSelectableShop,
-  normalizeSelectedShop,
-  normalizeShopContextOptions,
-} from "./context";
+import { groupShopsByOrganization, normalizeSelectedShop, normalizeShopContextOptions } from "./context";
 
 describe("shop context", () => {
   it("旧selected-shop DTOをactive所属として読み込める", () => {
@@ -15,7 +10,6 @@ describe("shop context", () => {
       organizationId: null,
       organizationName: null,
       organizationPlan: null,
-      memberStatus: "active",
     });
   });
 
@@ -36,15 +30,13 @@ describe("shop context", () => {
     );
   });
 
-  it("アーカイブ店舗は閲覧候補へ残し、削除済み所属だけを選択候補から外す", () => {
-    const [active, suspended, archived, removed] = normalizeShopContextOptions([
+  it("稼働中店舗とアーカイブ店舗を保持する", () => {
+    const shops = normalizeShopContextOptions([
       { shopId: "1", shopName: "A", shopStatus: "active" },
-      { shopId: "2", shopName: "B", shopStatus: "planSuspended", memberStatus: "readOnly" },
-      { shopId: "3", shopName: "C", shopStatus: "archived" },
-      { shopId: "4", shopName: "D", shopStatus: "active", memberStatus: "removed" },
+      { shopId: "2", shopName: "B", shopStatus: "archived" },
     ]);
 
-    expect([active, suspended, archived, removed].map(isSelectableShop)).toEqual([true, true, true, false]);
+    expect(shops.map((shop) => shop.shopStatus)).toEqual(["active", "archived"]);
   });
 
   it("店舗を組織ごとにまとめて安定した順序で返す", () => {

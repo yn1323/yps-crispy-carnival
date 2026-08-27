@@ -26,7 +26,7 @@ describe("development seed catalog", () => {
 
   it("CLIとdeployment backendを削除前に照合する固定契約を持つ", () => {
     expect(DEVELOPMENT_SEED_CONTRACT_VERSION).toBe("development-seed-v2");
-    expect(DEVELOPMENT_SEED_CONTRACT_FINGERPRINT).toBe("161fbc73");
+    expect(DEVELOPMENT_SEED_CONTRACT_FINGERPRINT).toBe("6bb80627");
     expect(DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT).toBe(66);
   });
 
@@ -39,16 +39,15 @@ describe("development seed catalog", () => {
       "standard-scheduled-change",
       "payment-pending",
       "payment-grace",
-      "payment-restricted",
-      "policy-restricted",
+      "free-over-limit",
+      "standard-over-limit",
     ]);
     expect(new Set(DEVELOPMENT_SEED_SCENARIO_KEYS).size).toBe(9);
   });
 
-  it("Standard解約予約とStandard上限超過をcanonical billing stateで表す", () => {
+  it("Standard解約予約をcanonical billing stateで表す", () => {
     const now = Date.parse("2026-08-20T00:00:00.000Z");
     const scheduled = DEVELOPMENT_SEED_SCENARIOS.find((scenario) => scenario.key === "standard-scheduled-change");
-    const overLimit = DEVELOPMENT_SEED_SCENARIOS.find((scenario) => scenario.key === "policy-restricted");
 
     expect(scheduled?.billingState(now)).toEqual({
       kind: "scheduledChange",
@@ -58,7 +57,14 @@ describe("development seed catalog", () => {
       effectiveAt: now + 14 * 24 * 60 * 60 * 1000,
       restrictAtPeriodEnd: true,
     });
-    expect(overLimit?.billingState()).toEqual({ kind: "active", planIdVersion: 2, plan: "standard" });
+  });
+
+  it("FreeとStandardの上限超過scenarioをcanonical active stateで表す", () => {
+    const free = DEVELOPMENT_SEED_SCENARIOS.find((scenario) => scenario.key === "free-over-limit");
+    const standard = DEVELOPMENT_SEED_SCENARIOS.find((scenario) => scenario.key === "standard-over-limit");
+
+    expect(free?.billingState()).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
+    expect(standard?.billingState()).toEqual({ kind: "active", planIdVersion: 2, plan: "standard" });
   });
 
   it("主要unionの全値をseedまたは理由付き対象外へ分類する", () => {
@@ -73,7 +79,6 @@ describe("development seed catalog", () => {
       "grace",
       "initialPaymentPending",
       "pendingActivation",
-      "restricted",
       "scheduledChange",
       "trial",
     ]);

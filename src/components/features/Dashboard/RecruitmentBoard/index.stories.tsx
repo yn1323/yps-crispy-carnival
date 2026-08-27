@@ -248,15 +248,15 @@ export const AllShopsPastOnly: Story = {
     hasPastRecruitments: false,
     isPastRecruitmentsVisible: false,
     emptyState: {
-      title: "表示中のシフトはありません",
-      description: "過去のシフトは、店舗で絞り込むと確認できます。",
+      title: "利用可能なシフトはありません",
+      description: "店舗で絞り込むと過去シフトを確認できます。",
       actionLabel: "新しい募集をつくる",
     },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(await canvas.findByText("表示中のシフトはありません")).toBeInTheDocument();
+    await expect(await canvas.findByText("利用可能なシフトはありません")).toBeInTheDocument();
     await expect(canvas.queryByText("シフト一覧はまだありません")).not.toBeInTheDocument();
   },
 };

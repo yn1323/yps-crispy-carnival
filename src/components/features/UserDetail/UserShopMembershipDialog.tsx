@@ -253,7 +253,7 @@ export function UserShopMembershipDialog({
                     <Flex
                       boxSize="40px"
                       borderRadius="lg"
-                      bg="teal.100"
+                      bg="teal.50"
                       color="teal.700"
                       align="center"
                       justify="center"
@@ -340,10 +340,10 @@ function getMembershipChangeDisabledReason(shop: UserDetailData["shops"][number]
   return undefined;
 }
 
-function ShopStatusBadge({ status }: { status: Exclude<UserDetailData["shops"][number]["shopStatus"], "active"> }) {
+function ShopStatusBadge(_: { status: Exclude<UserDetailData["shops"][number]["shopStatus"], "active"> }) {
   return (
-    <Badge colorPalette={status === "archived" ? "gray" : "orange"} variant="subtle" borderRadius="full" flexShrink={0}>
-      {status === "archived" ? "アーカイブ済み" : "プラン停止中"}
+    <Badge colorPalette="gray" variant="subtle" borderRadius="full" flexShrink={0}>
+      アーカイブ済み
     </Badge>
   );
 }

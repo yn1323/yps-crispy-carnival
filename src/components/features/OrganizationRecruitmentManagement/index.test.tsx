@@ -260,7 +260,6 @@ const recruitmentShopById = new Map<Recruitment["_id"], OrganizationRecruitmentS
 
 const buildFeature = (props?: {
   organizationId?: Id<"organizations">;
-  memberStatus?: "active" | "readOnly";
   shopFilter?: "all" | Id<"shops">;
   groups?: DashboardRecruitmentGroup[];
   shops?: OrganizationRecruitmentShop[];
@@ -268,7 +267,6 @@ const buildFeature = (props?: {
   <ChakraProvider>
     <OrganizationRecruitmentManagement
       organizationId={props?.organizationId ?? ("organization-a" as Id<"organizations">)}
-      memberStatus={props?.memberStatus ?? "active"}
       shopFilter={props?.shopFilter ?? "all"}
       groups={props?.groups ?? groups}
       shops={props?.shops ?? shops}
@@ -323,7 +321,6 @@ describe("OrganizationRecruitmentManagement", () => {
     expect(screen.getByText("本店")).not.toBeNull();
     expect(screen.getByText("休止中の店舗")).not.toBeNull();
     expect(mocks.boardProps).toMatchObject({
-      isReadOnly: false,
       canCreateRecruitments: true,
       canDeleteRecruitments: false,
       deleteRecruitmentDisabledReason: "この店舗では募集を作成できません。",
@@ -423,7 +420,7 @@ describe("OrganizationRecruitmentManagement", () => {
     });
   });
 
-  it("active管理者でも作成不可ならreadOnly扱いにせず、店舗の作成不可理由を表示する", () => {
+  it("作成不可なら店舗の作成不可理由を表示する", () => {
     const createDisabledReason = "支払い結果を確認中のため、新しい募集を作成できません。";
     renderFeature({
       shops: shops.map((shop) => ({ ...shop, canCreate: false, createDisabledReason })),
@@ -432,11 +429,10 @@ describe("OrganizationRecruitmentManagement", () => {
     expect((screen.getByRole("button", { name: "新しい募集をつくる" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(createDisabledReason)).not.toBeNull();
     expect(mocks.boardProps).toMatchObject({
-      isReadOnly: false,
       canCreateRecruitments: false,
       createRecruitmentDisabledReason: createDisabledReason,
     });
-    expect(screen.queryByText("現在のアカウント状態では募集を作成できません")).toBeNull();
+    expect(screen.queryByText("現在、募集を作成できません")).toBeNull();
   });
 
   it("作成中に組織が変わると古いsessionを閉じ、完了後も新しい組織のDialogを変更しない", async () => {
@@ -527,21 +523,5 @@ describe("OrganizationRecruitmentManagement", () => {
 
     expect(screen.getByRole("region", { name: /9\/8.*シフト募集を削除/ })).not.toBeNull();
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
-  });
-
-  it("readOnlyでは作成・削除をUIとcontrollerの両方で抑止する", () => {
-    renderFeature({ memberStatus: "readOnly" });
-
-    expect((screen.getByRole("button", { name: "新しい募集をつくる" }) as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "recruitment-aを削除" }));
-
-    expect(screen.queryByRole("region", { name: /シフト募集を削除/ })).toBeNull();
-    expect(mocks.createRecruitment).not.toHaveBeenCalled();
-    expect(mocks.deleteRecruitment).not.toHaveBeenCalled();
-    expect(mocks.boardProps).toMatchObject({
-      isReadOnly: true,
-      canCreateRecruitments: false,
-      canDeleteRecruitments: false,
-    });
   });
 });

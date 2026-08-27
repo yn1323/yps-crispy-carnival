@@ -52,7 +52,7 @@ function SsoCallbackStory({ isSubmitting, mode }: SsoCallbackStoryProps) {
 
   return (
     <SsoRecoveryView
-      errorMessage="Google認証を完了できませんでした。\n最初からやり直してください。"
+      errorMessage={`Google認証を完了できませんでした。\n最初からやり直してください。`}
       isSubmitting={isSubmitting}
       target="login"
       onRestart={noop}

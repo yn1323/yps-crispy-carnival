@@ -131,11 +131,6 @@ export function OnboardingCallout({ state, showLabel = true, onDismiss }: Props)
                   <LuMapPinned />
                   {TOUR_BUTTON_LABEL}
                 </Button>
-                {state.stage === "add_staff" && (
-                  <Button variant="outline" colorPalette="teal" size="sm" onClick={handleDismiss}>
-                    チュートリアルを閉じる
-                  </Button>
-                )}
               </Flex>
             )}
           </Flex>

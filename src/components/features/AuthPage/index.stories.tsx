@@ -185,7 +185,7 @@ const LoginVerificationResendContent = (args: AuthStoryContentArgs) => {
       mode="login"
       loginStep="verify-email-code"
       verificationInfoMessage={infoMessage}
-      onResendLoginCode={() => setInfoMessage("新しい確認コードを送りました。")}
+      onResendLoginCode={() => setInfoMessage("新しい確認コードを再送しました。")}
     />
   );
 };
@@ -241,7 +241,7 @@ export const Submitting: Story = {
 export const ErrorState: Story = {
   args: {
     mode: "login",
-    errorMessage: "メールアドレスまたはパスワードが正しくありません。",
+    errorMessage: "メールアドレスまたはパスワードが誤っています。",
   },
 };
 
@@ -292,7 +292,7 @@ export const LoginVerificationError: Story = {
     mode: "login",
     loginStep: "verify-email-code",
     loginSafeIdentifier: "ma***@example.com",
-    errorMessage: "確認コードが正しくありません。",
+    errorMessage: "確認コードが誤っています。",
   },
 };
 
@@ -307,7 +307,7 @@ export const LoginVerificationResend: Story = {
     const canvas = within(canvasElement);
 
     await userEvent.click(await canvas.findByRole("button", { name: "確認コードを再送" }));
-    await expect(await canvas.findByText("新しい確認コードを送りました。")).toBeInTheDocument();
+    await expect(await canvas.findByText("新しい確認コードを再送しました。")).toBeInTheDocument();
   },
 };
 

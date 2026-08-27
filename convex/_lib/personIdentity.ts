@@ -1,7 +1,6 @@
 import type { GenericDatabaseReader } from "convex/server";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
 import { ORGANIZATION_PERSON_EMAIL_HISTORY_SCAN_LIMIT } from "../constants";
-import { getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
 import { normalizeEmail } from "./validation";
 
 type OrganizationPersonIdentityCtx = {
@@ -118,13 +117,7 @@ export async function resolveOrganizationPersonEmail(
       .take(2);
     if (billingStates.length > 1) return { kind: "conflict" };
     const billingState = billingStates[0];
-    const recoveryManagerPersonIds = billingState
-      ? (getEffectiveRestrictedBillingState(billingState.state)?.recoveryManagerPersonIds ?? [])
-      : [];
-    if (
-      billingState?.freeManagerPersonId === reusableRemovedPeople[0]._id ||
-      recoveryManagerPersonIds.includes(reusableRemovedPeople[0]._id)
-    ) {
+    if (billingState?.freeManagerPersonId === reusableRemovedPeople[0]._id) {
       return { kind: "conflict" };
     }
   }

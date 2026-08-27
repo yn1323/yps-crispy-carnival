@@ -21,10 +21,5 @@ export const Route = createFileRoute("/_auth/manage_/managers_/invite-staff")({
 
 function AppManageInviteStaffRoute() {
   const organization = useAppOrganizationScope();
-  return (
-    <AppManageInviteStaffRoutePage
-      organizationId={organization.organizationId}
-      memberStatus={organization.memberStatus}
-    />
-  );
+  return <AppManageInviteStaffRoutePage organizationId={organization.organizationId} />;
 }

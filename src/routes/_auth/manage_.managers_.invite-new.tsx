@@ -21,10 +21,5 @@ export const Route = createFileRoute("/_auth/manage_/managers_/invite-new")({
 
 function AppManageInviteNewRoute() {
   const organization = useAppOrganizationScope();
-  return (
-    <AppManageInviteNewRoutePage
-      organizationId={organization.organizationId}
-      memberStatus={organization.memberStatus}
-    />
-  );
+  return <AppManageInviteNewRoutePage organizationId={organization.organizationId} />;
 }

@@ -57,7 +57,7 @@ async function countSelfCreatedOrganizations(ctx: DbCtx, userId: Id<"users">): P
 /**
  * 新しい組織を作れるかを、選択中組織の課金状態や所属状態と切り離して判定する。
  *
- * 組織は独立した契約単位であり、ある組織に旧restricted stateが残っていても別組織の契約主体にはなれる。
+ * 組織は独立した契約単位であり、別組織の契約状態には左右されない。
  */
 export async function getOrganizationCreationAvailability(
   ctx: DbCtx,

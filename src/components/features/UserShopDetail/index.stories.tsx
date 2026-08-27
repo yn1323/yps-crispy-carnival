@@ -234,12 +234,12 @@ export const NotificationCooldownMobile: Story = {
   globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
-const readOnlyMembership: UserShopDetailMembership = {
+const limitRecoveryMembership: UserShopDetailMembership = {
   ...membership,
-  shopStatus: "planSuspended",
+  shopStatus: "active",
 };
 
-export const ReadOnly: Story = {
+export const LimitRecoveryOnly: Story = {
   args: {
     data: {
       ...data,
@@ -249,17 +249,18 @@ export const ReadOnly: Story = {
       shops: [
         {
           shopId,
-          shopName: readOnlyMembership.shopName,
-          shopStatus: readOnlyMembership.shopStatus,
+          shopName: limitRecoveryMembership.shopName,
+          shopStatus: limitRecoveryMembership.shopStatus,
           canChangeMembership: false,
-          membershipChangeDisabledReason: "稼働中の店舗だけ所属を変更できます。",
+          membershipChangeDisabledReason: "現在の利用状態では、店舗所属を変更できません。",
         },
       ],
-      memberships: [readOnlyMembership],
+      memberships: [limitRecoveryMembership],
     },
-    membership: readOnlyMembership,
+    membership: limitRecoveryMembership,
     isStoreReadOnly: true,
-    storeDisabledReason: "現在の契約状態では、店舗設定を変更できません。",
+    storeDisabledReason:
+      "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。",
   },
 };
 

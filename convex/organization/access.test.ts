@@ -15,8 +15,8 @@ async function seedOrganizationAccess(
   ctx: MutationCtx,
   args: {
     subject: string;
-    memberStatus: "active" | "readOnly" | "removed";
-    operatingStatus?: "active" | "archived" | "planSuspended";
+    memberStatus: "active" | "removed";
+    operatingStatus?: "active" | "archived";
     withLegacyMembership?: boolean;
   },
 ) {
@@ -64,8 +64,9 @@ async function seedOrganizationAccess(
 }
 
 describe("organization manager access", () => {
-  it.each(["active", "readOnly"] as const)("%s所属は組織店舗を参照できる", async (memberStatus) => {
+  it("active所属は組織店舗を参照できる", async () => {
     const t = convexTest(schema, modules);
+    const memberStatus = "active" as const;
     const subject = `organization_query_${memberStatus}`;
     const { shopId } = await t.run(async (ctx) => await seedOrganizationAccess(ctx, { subject, memberStatus }));
 
@@ -109,15 +110,15 @@ describe("organization manager access", () => {
     await expect(t.run(async (ctx) => (await ctx.db.get(shopId))?.name)).resolves.toBe("組織店舗");
   });
 
-  it("readOnly所属は旧shopMembersが残っていてもmutationを実行できない", async () => {
+  it.each(["archived"] as const)("active所属でも%s店舗はmutationを実行できない", async (operatingStatus) => {
     const t = convexTest(schema, modules);
-    const subject = "organization_read_only_mutation";
+    const subject = `organization_inactive_shop_${operatingStatus}`;
     const { shopId } = await t.run(
       async (ctx) =>
         await seedOrganizationAccess(ctx, {
           subject,
-          memberStatus: "readOnly",
-          withLegacyMembership: true,
+          memberStatus: "active",
+          operatingStatus,
         }),
     );
 
@@ -128,29 +129,6 @@ describe("organization manager access", () => {
       }),
     ).rejects.toThrow("Not found");
   });
-
-  it.each(["archived", "planSuspended"] as const)(
-    "active所属でも%s店舗はmutationを実行できない",
-    async (operatingStatus) => {
-      const t = convexTest(schema, modules);
-      const subject = `organization_inactive_shop_${operatingStatus}`;
-      const { shopId } = await t.run(
-        async (ctx) =>
-          await seedOrganizationAccess(ctx, {
-            subject,
-            memberStatus: "active",
-            operatingStatus,
-          }),
-      );
-
-      await expect(
-        t.withIdentity({ subject }).mutation(api.shop.mutations.updateShopSettings, {
-          ...validShopUpdate,
-          shopId,
-        }),
-      ).rejects.toThrow("Not found");
-    },
-  );
 
   it("m009完了後m010前は所属行が0件の場合だけ旧shopMembersで参照できる", async () => {
     const t = convexTest(schema, modules);

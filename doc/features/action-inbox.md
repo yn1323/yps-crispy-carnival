@@ -10,7 +10,7 @@ Dashboardの「要対応」も同じスタッフ申請・通知失敗カード�
 |---|---|
 | `?org=<organizationId>` | active組織に属する全active店舗の項目と、組織単位の管理者招待項目 |
 | `?org=<organizationId>&shopFilter=<shopId>` | serverで同一組織・active店舗と確認できた店舗の項目だけ。組織単位の管理者招待は含めない |
-| `readOnly`所属または業務write制限中 | 項目は閲覧できるが、server DTOの`can*`に応じて操作を無効にする |
+| `limitRecoveryOnly`による業務write制限中 | 項目は閲覧できるが、server DTOの`can*`に応じて操作を無効にする |
 
 `org`、`shopFilter`、項目ID、画面に表示した`can*`は信頼しない。  public queryと各mutationは、Clerk identityからcanonicalな組織所属を解決し、組織、店舗、対象documentの対応を再検証する。
 
@@ -74,8 +74,8 @@ Dashboardの「要対応」も同じスタッフ申請・通知失敗カード�
 | 層 | 主に守る契約 |
 |---|---|
 | Frontend Unit | DTOの4種類へのdispatch、共通builder、明示org・shop・target ID、Dashboardの一括再送・人数上限・確認操作、filter正規化、clock invalidation、cursor破棄、single-flight |
-| Storybook Behavior/VRT | Ready、Loading、Empty、QueryError、readOnly、独立した複数開閉、操作失敗、確認Dialog、SPのカード配置と退場animation |
-| Convex Function | canonical所属、別org/shop拒否、filter、readOnly capability、種類別continuation、提出期限境界、最小DTO |
+| Storybook Behavior/VRT | Ready、Loading、Empty、QueryError、`limitRecoveryOnly`、独立した複数開閉、操作失敗、確認Dialog、SPのカード配置と退場animation |
+| Convex Function | canonical所属、別org/shop拒否、filter、write capability、種類別continuation、提出期限境界、最小DTO |
 | Convex Scenario | 4種類のexact set、既存mutation成功後の消失、二重操作時の副作用集合 |
 
 実環境での公開状態は[リリース状態](../manual/release-status.md)の証跡を参照する。

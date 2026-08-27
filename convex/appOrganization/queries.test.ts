@@ -22,7 +22,7 @@ async function seedOrganizationForUser(
   args: {
     userId: Id<"users">;
     name: string;
-    memberStatus?: "active" | "readOnly" | "removed";
+    memberStatus?: "active" | "removed";
     personStatus?: "active" | "removed";
     organizationDeleted?: boolean;
     withMembership?: boolean;
@@ -177,18 +177,18 @@ describe("appOrganization organization context queries", () => {
     await expect(t.query(api.appOrganization.queries.getOrganizationContext, { organizationId })).resolves.toBeNull();
   });
 
-  it("activeとreadOnlyのcanonical所属を最小DTOで返し、一覧の未取得pageにある組織も直接開ける", async () => {
+  it("複数のactive canonical所属を最小DTOで返し、一覧の未取得pageにある組織も直接開ける", async () => {
     const t = convexTest(schema, modules);
     const subject = "organization_context_multi";
     const ids = await t.run(async (ctx) => {
       const active = await seedOrganizationManagerShop(ctx, { subject, shopName: "Active" });
       await ctx.db.patch(active.organizationId, { name: "Active組織" });
-      const readOnly = await seedOrganizationForUser(ctx, {
+      const secondActive = await seedOrganizationForUser(ctx, {
         userId: active.userId,
-        name: "ReadOnly組織",
-        memberStatus: "readOnly",
+        name: "Second組織",
+        memberStatus: "active",
       });
-      return { active, readOnly };
+      return { active, secondActive };
     });
     const actor = t.withIdentity({ subject });
 
@@ -201,7 +201,7 @@ describe("appOrganization organization context queries", () => {
 
     const notFetchedOrganizationId =
       first.page[0]?.organizationId === ids.active.organizationId
-        ? ids.readOnly.organizationId
+        ? ids.secondActive.organizationId
         : ids.active.organizationId;
     await expect(
       actor.query(api.appOrganization.queries.getOrganizationContext, {
@@ -215,9 +215,9 @@ describe("appOrganization organization context queries", () => {
             memberStatus: "active",
           }
         : {
-            organizationId: ids.readOnly.organizationId,
-            organizationName: "ReadOnly組織",
-            memberStatus: "readOnly",
+            organizationId: ids.secondActive.organizationId,
+            organizationName: "Second組織",
+            memberStatus: "active",
           },
     );
 
@@ -233,9 +233,9 @@ describe("appOrganization organization context queries", () => {
         memberStatus: "active",
       },
       {
-        organizationId: ids.readOnly.organizationId,
-        organizationName: "ReadOnly組織",
-        memberStatus: "readOnly",
+        organizationId: ids.secondActive.organizationId,
+        organizationName: "Second組織",
+        memberStatus: "active",
       },
     ]);
   });
@@ -411,11 +411,7 @@ describe("appOrganization organization context queries", () => {
     const subject = "organization_context_shops";
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject, shopName: "店舗A" });
-      const insertShop = async (
-        name: string,
-        operatingStatus: "active" | "archived" | "planSuspended",
-        isDeleted = false,
-      ) =>
+      const insertShop = async (name: string, operatingStatus: "active" | "archived", isDeleted = false) =>
         await ctx.db.insert("shops", {
           organizationId: base.organizationId,
           operatingStatus,
@@ -431,7 +427,6 @@ describe("appOrganization organization context queries", () => {
       const activeF = await insertShop("店舗F", "active");
       const activeG = await insertShop("店舗G", "active");
       const archived = await insertShop("アーカイブ店舗", "archived");
-      const suspended = await insertShop("停止店舗", "planSuspended");
       const deleted = await insertShop("削除済み店舗", "active", true);
       const missingOperatingStatus = await ctx.db.insert("shops", {
         organizationId: base.organizationId,
@@ -453,7 +448,6 @@ describe("appOrganization organization context queries", () => {
         activeF,
         activeG,
         archived,
-        suspended,
         deleted,
         missingOperatingStatus,
         other,
@@ -490,7 +484,7 @@ describe("appOrganization organization context queries", () => {
     ]);
     expect(
       found.some((shop) =>
-        [ids.archived, ids.suspended, ids.deleted, ids.missingOperatingStatus, ids.other.shopId].includes(shop.shopId),
+        [ids.archived, ids.deleted, ids.missingOperatingStatus, ids.other.shopId].includes(shop.shopId),
       ),
     ).toBe(false);
     expect(Object.keys(found[0] ?? {}).sort()).toEqual(["shopId", "shopName"]);
@@ -504,12 +498,11 @@ describe("appOrganization organization context queries", () => {
     ).rejects.toThrow("Not found");
   });
 
-  it("readOnly所属もactive店舗を参照でき、危険なpage sizeは拒否する", async () => {
+  it("active所属はactive店舗を参照でき、危険なpage sizeは拒否する", async () => {
     const t = convexTest(schema, modules);
-    const subject = "organization_context_read_only_shops";
+    const subject = "organization_context_active_shops";
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject });
-      await ctx.db.patch(base.memberId, { status: "readOnly" });
       return base;
     });
     const actor = t.withIdentity({ subject });
@@ -636,16 +629,6 @@ describe("appOrganization organization context queries", () => {
         paginationOpts: firstPage(2),
       }),
     ).rejects.toThrow("numItems must be between 1 and 1");
-
-    await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "readOnly" }));
-    const readOnly = await actor.query(api.appOrganization.queries.listOrganizationRecruitments, {
-      organizationId: ids.organizationId,
-      paginationOpts: firstPage(1),
-    });
-    expect(readOnly.page[0]?.actions).toEqual({
-      canCreate: false,
-      createDisabledReason: "現在のアカウント状態では、募集を作成できません。",
-    });
   });
 
   it("募集一覧endpointは未認証・他組織・removed所属・削除済み組織を拒否する", async () => {
@@ -859,19 +842,6 @@ describe("appOrganization organization context queries", () => {
       canChangeStaffOrder: false,
       changeStaffOrderDisabledReason:
         "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。",
-    });
-
-    await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "readOnly" }));
-    await expect(
-      actor.query(api.appOrganization.queries.getOrganizationPeopleSummary, {
-        organizationId: ids.organizationId,
-        shopFilter: "all",
-      }),
-    ).resolves.toMatchObject({
-      canAddStaff: false,
-      addStaffDisabledReason: "現在のアカウント状態では、スタッフを追加できません。",
-      canChangeStaffOrder: false,
-      changeStaffOrderDisabledReason: "現在のアカウント状態では、スタッフの並び順を変更できません。",
     });
   });
 });

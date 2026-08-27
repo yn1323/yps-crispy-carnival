@@ -28,11 +28,7 @@ export function UserShopMembershipList({ data, onOpenShop }: Props) {
               leading={<ShopIcon />}
               badges={
                 <HStack gap={1.5} wrap="wrap" ms="auto" flexShrink={0}>
-                  {membership.shopStatus !== "active" && (
-                    <StatusBadge colorPalette={membership.shopStatus === "archived" ? "gray" : "orange"}>
-                      {membership.shopStatus === "archived" ? "アーカイブ済み" : "プラン停止中"}
-                    </StatusBadge>
-                  )}
+                  {membership.shopStatus !== "active" && <StatusBadge colorPalette="gray">アーカイブ済み</StatusBadge>}
                   {membership.excludedFromShift && <StatusBadge colorPalette="gray">シフト対象外</StatusBadge>}
                 </HStack>
               }
@@ -51,7 +47,7 @@ function ShopIcon() {
     <Flex
       boxSize="40px"
       borderRadius="full"
-      bg="teal.100"
+      bg="teal.50"
       color="teal.700"
       align="center"
       justify="center"

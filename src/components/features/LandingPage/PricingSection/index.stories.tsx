@@ -23,7 +23,7 @@ export const Desktop: Story = {
     const canvas = within(canvasElement);
     const trialNotice = within(canvas.getByLabelText("Proプランの無料トライアル"));
 
-    await expect(trialNotice.getByText("登録から3か月間")).toBeInTheDocument();
+    await expect(trialNotice.getByText("登録から2か月間")).toBeInTheDocument();
     await expect(trialNotice.getByText("Proプランを無料でお試し")).toBeInTheDocument();
     await expect(trialNotice.getByText("クレジットカード不要")).toBeInTheDocument();
     await expect(trialNotice.getByText("スタッフ50名・5店舗・管理者5名まで")).toBeInTheDocument();

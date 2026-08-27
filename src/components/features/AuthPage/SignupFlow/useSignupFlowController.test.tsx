@@ -125,7 +125,7 @@ describe("useSignupFlowController", () => {
       await result.current.onVerifyEmail({ code: "000000" });
     });
 
-    expect(result.current.errorMessage).toBe("確認コードが正しくありません。");
+    expect(result.current.errorMessage).toBe("確認コードが誤っています。");
     expect(result.current.isVerificationStep).toBe(true);
     expect(signUp.finalize).not.toHaveBeenCalled();
   });

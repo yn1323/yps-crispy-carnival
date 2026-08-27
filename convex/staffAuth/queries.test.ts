@@ -94,7 +94,7 @@ describe("staffAuth/queries", () => {
       expect(await t.query(api.staffAuth.queries.getRecruitmentInfo, { recruitmentId })).toBeNull();
     });
 
-    it.each(["active", "planSuspended", "archived"] as const)(
+    it.each(["active", "archived"] as const)(
       "店舗状態が%sでも現行の非削除parent契約では確定募集を返す",
       async (operatingStatus) => {
         const t = convexTest(schema, modules);

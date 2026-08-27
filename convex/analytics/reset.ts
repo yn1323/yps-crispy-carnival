@@ -285,7 +285,7 @@ async function seedShops(ctx: MutationCtx, run: Doc<"analyticsRuns">, cursor?: s
       .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
       .unique();
     if (!organization) throw new Error("analytics_reset_scope_invalid");
-    const inactive = shop.isDeleted || shop.operatingStatus === "archived" || shop.operatingStatus === "planSuspended";
+    const inactive = shop.isDeleted || shop.operatingStatus === "archived";
     await ctx.db.insert("analyticsShops", {
       organizationId,
       shopId: shop._id,

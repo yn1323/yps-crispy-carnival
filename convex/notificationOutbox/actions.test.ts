@@ -8,6 +8,7 @@ import {
   seedLegacyManagerShop,
   seedManagerShop,
   seedOrganizationManagerShop,
+  seedUser,
 } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
@@ -834,103 +835,6 @@ describe("notificationOutbox/actions", () => {
     expect(JSON.stringify(after)).not.toContain(expectedToken);
   });
 
-  it("契約制限開始後は業務メールを停止し、課金メールだけを送る", async () => {
-    vi.stubEnv("RESEND_API_KEY", "resend-token");
-    const fetchMock = vi.fn<typeof globalThis.fetch>(
-      async () => new Response(JSON.stringify({ id: "email_billing_123" }), { status: 200 }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const { userId, shopId } = await seedManagerShop(ctx, {
-        subject: "restricted_manager",
-        email: "manager@example.com",
-        shopName: "契約制限店舗",
-      });
-      const now = Date.now();
-      const organizationId = await ctx.db.insert("organizations", {
-        createdByUserId: userId,
-        name: "契約制限事業者",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
-      const personId = await ctx.db.insert("organizationPeople", {
-        organizationId,
-        userId,
-        name: "管理者",
-        email: "manager@example.com",
-        emailNormalized: "manager@example.com",
-        status: "active",
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.insert("organizationMembers", {
-        organizationId,
-        personId,
-        userId,
-        status: "active",
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.insert("organizationBillingStates", {
-        organizationId,
-        state: {
-          kind: "restricted",
-          reason: "paymentGraceExpired",
-          previousPlan: "pro",
-          recoveryManagerPersonIds: [personId],
-          previousActiveShopIds: [shopId],
-          restrictedAt: now,
-        },
-        version: 2,
-        createdAt: now,
-        updatedAt: now,
-      });
-      const insertEmail = async (purpose: "business" | "billing") =>
-        await ctx.db.insert("notificationOutbox", {
-          channel: "email",
-          status: "pending",
-          dedupeKey: `email:test:restricted-${purpose}`,
-          organizationId,
-          purpose,
-          userId,
-          payload: {
-            kind: "email",
-            from: "シフトリ <noreply@example.com>",
-            to: "manager@example.com",
-            subject: purpose,
-            html: `<p>${purpose}</p>`,
-            context: `test.restricted.${purpose}`,
-          },
-          attemptCount: 0,
-          nextRunAt: now,
-          createdAt: now,
-          updatedAt: now,
-        });
-      return {
-        businessId: await insertEmail("business"),
-        billingId: await insertEmail("billing"),
-      };
-    });
-
-    await t.action(internal.notificationOutbox.actions.processPending, {});
-
-    const resendCalls = fetchMock.mock.calls.filter(([input]) => String(input).includes("api.resend.com/emails"));
-    expect(resendCalls).toHaveLength(1);
-    const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
-    const stateById = new Map(jobs.map((job) => [job._id, job]));
-    expect(stateById.get(ids.businessId)).toMatchObject({
-      status: "cancelled",
-      cancelReason: "organization_restricted",
-    });
-    expect(stateById.get(ids.billingId)).toMatchObject({
-      status: "sent",
-      resendEmailId: "email_billing_123",
-    });
-  });
-
   it("利用上限超過後は既存の業務メールをproviderへ送らず、課金メールだけを送る", async () => {
     vi.stubEnv("RESEND_API_KEY", "resend-token");
     const fetchMock = vi.fn<typeof globalThis.fetch>(
@@ -1255,7 +1159,7 @@ describe("notificationOutbox/actions", () => {
     {
       label: "管理者変更が制限された事業者",
       variant: "managerChangesUnavailable",
-      reason: "organization_restricted",
+      reason: "organization_usage_limit_exceeded",
     },
     { label: "削除された事業者", variant: "organizationDeleted", reason: "organization_inactive" },
   ] as const)("$labelの管理者招待はproviderを呼ばずに停止する", async ({ variant, reason }) => {
@@ -1889,19 +1793,36 @@ async function setupOrganizationInvitationJob(variant: InvalidOrganizationInvita
       createdAt: now,
       updatedAt: now,
     });
+    if (variant === "managerChangesUnavailable") {
+      for (let index = 0; index < 2; index += 1) {
+        const additionalUserId = await seedUser(
+          ctx,
+          `inviter_over_limit_${index}`,
+          `inviter-over-limit-${index}@example.com`,
+        );
+        const additionalPersonId = await ctx.db.insert("organizationPeople", {
+          organizationId,
+          userId: additionalUserId,
+          name: `追加管理者${index + 1}`,
+          email: `inviter-over-limit-${index}@example.com`,
+          emailNormalized: `inviter-over-limit-${index}@example.com`,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        await ctx.db.insert("organizationMembers", {
+          organizationId,
+          personId: additionalPersonId,
+          userId: additionalUserId,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    }
     await ctx.db.insert("organizationBillingStates", {
       organizationId,
-      state:
-        variant === "managerChangesUnavailable"
-          ? {
-              kind: "restricted",
-              reason: "paymentGraceExpired",
-              previousPlan: "pro",
-              recoveryManagerPersonIds: [personId],
-              previousActiveShopIds: [],
-              restrictedAt: now,
-            }
-          : { kind: "active", plan: "pro" },
+      state: { kind: "active", plan: variant === "managerChangesUnavailable" ? "free" : "pro" },
       version: 1,
       createdAt: now,
       updatedAt: now,

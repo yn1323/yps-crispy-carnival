@@ -633,7 +633,7 @@ export function useLoginMethodsController({
               return false;
             }
             await target.prepareVerification({ strategy: "email_code" });
-            setEmailPasswordState({ status: "success", message: "新しい確認コードを送りました。" });
+            setEmailPasswordState({ status: "success", message: "新しい確認コードを再送しました。" });
             return true;
           }
           if (operation === "verifyLoginEmail" && (typeof payload !== "string" || !payload.trim())) {

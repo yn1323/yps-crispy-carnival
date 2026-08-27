@@ -765,60 +765,6 @@ describe("notificationOutbox", () => {
     });
   });
 
-  it("契約制限を維持する支払い結果待ちはfallback snapshot欠損でも業務通知を送信直前に停止する", async () => {
-    const t = createConvexTestWithMigrations();
-    const ids = await t.run((ctx) =>
-      seedOrganizationManagerShop(ctx, { subject: "pending_restricted_business_gate", plan: "pro" }),
-    );
-    const payload = {
-      kind: "email" as const,
-      from: "シフトリ <noreply@example.com>",
-      to: "pending_restricted_business_gate@example.com",
-      subject: "業務通知",
-      html: "<p>test</p>",
-      context: "test.organizationBusiness",
-      suppressDelivery: true,
-    };
-    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
-      channel: "email",
-      shopId: ids.shopId,
-      organizationId: ids.organizationId,
-      userId: ids.userId,
-      purpose: "business",
-      dedupeKey: "email:test:pending-restricted-final-gate",
-      payload,
-    });
-    if (!enqueued) throw new Error("notification was not enqueued");
-    await t.run(async (ctx) => {
-      const billingState = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
-        .unique();
-      if (!billingState) throw new Error("billing state not found");
-      await ctx.db.patch(billingState._id, {
-        state: {
-          kind: "pendingActivation",
-          plan: "business",
-          fallback: "restricted",
-          startedAt: Date.now(),
-        },
-        version: 2,
-      });
-      await ctx.db.patch(enqueued.outboxId, { status: "processing" });
-    });
-
-    await expect(
-      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
-        outboxId: enqueued.outboxId,
-        now: Date.now(),
-      }),
-    ).resolves.toBeNull();
-    await expect(t.run((ctx) => ctx.db.get(enqueued.outboxId))).resolves.toMatchObject({
-      status: "cancelled",
-      cancelReason: "organization_restricted",
-    });
-  });
-
   it("課金状態の正本が重複した場合は送信直前にfail-closedにする", async () => {
     const t = createConvexTestWithMigrations();
     const ids = await t.run((ctx) =>
@@ -989,74 +935,6 @@ describe("notificationOutbox", () => {
       }),
     ).resolves.toMatchObject({ _id: line.outboxId });
   });
-
-  it.each(["restrictedStarted", "recovered"] as const)(
-    "%sの対象外readOnly所属は既存Outbox経路でも送信対象にしない",
-    async (event) => {
-      const t = createConvexTestWithMigrations();
-      const ids = await t.run(async (ctx) => {
-        const seeded = await seedOrganizationManagerShop(ctx, { subject: `${event}_outbox_current`, plan: "pro" });
-        const now = Date.now();
-        const formerUserId = await seedUser(ctx, `${event}_outbox_former`, `${event}-outbox-former@example.com`);
-        const formerPersonId = await ctx.db.insert("organizationPeople", {
-          organizationId: seeded.organizationId,
-          userId: formerUserId,
-          name: "旧readOnly所属",
-          email: `${event}-outbox-former@example.com`,
-          emailNormalized: `${event}-outbox-former@example.com`,
-          status: "active",
-          createdAt: now,
-          updatedAt: now,
-        });
-        await ctx.db.insert("organizationMembers", {
-          organizationId: seeded.organizationId,
-          personId: formerPersonId,
-          userId: formerUserId,
-          status: "readOnly",
-          createdAt: now,
-          updatedAt: now,
-        });
-        const billingState = await ctx.db
-          .query("organizationBillingStates")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-          .unique();
-        if (!billingState) throw new Error("billing state not found");
-        if (event === "restrictedStarted") {
-          await ctx.db.patch(billingState._id, {
-            state: {
-              kind: "restricted",
-              reason: "freeConditionsNotMet",
-              previousPlan: "pro",
-              recoveryManagerPersonIds: [seeded.personId],
-              previousActiveShopIds: [seeded.shopId],
-              restrictedAt: now,
-            },
-          });
-        }
-        return { ...seeded, formerUserId };
-      });
-
-      await expect(
-        t.mutation(internal.notificationOutbox.mutations.enqueue, {
-          channel: "email",
-          organizationId: ids.organizationId,
-          userId: ids.formerUserId,
-          purpose: "billing",
-          dedupeKey: `email:test:${event}-former-recipient`,
-          payload: {
-            kind: "email",
-            from: "シフトリ <noreply@example.com>",
-            to: `${event}-outbox-former@example.com`,
-            subject: "契約通知",
-            html: "<p>test</p>",
-            context: `organizationBilling.${event}`,
-            suppressDelivery: true,
-          },
-        }),
-      ).resolves.toBeNull();
-      await expect(t.run((ctx) => ctx.db.query("notificationOutbox").collect())).resolves.toEqual([]);
-    },
-  );
 
   it("契約cutoff前の同一dedupeKeyジョブを停止し、現在versionの業務通知を新規作成する", async () => {
     const { t, shopId, staffId } = await setupShop();

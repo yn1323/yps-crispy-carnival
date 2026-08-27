@@ -15,7 +15,8 @@ type AppNavigationScenarioSeed = {
 test.use({ trace: "off", screenshot: "off", video: "off" });
 
 test.describe("新appのメインナビゲーション", { tag: ["@e2e-core"] }, () => {
-  test.setTimeout(45_000);
+  // canonical遷移と旧URLからのreplace・履歴復帰を確認するため、3 workerのcold実測へ余裕を加えた失敗上限。
+  test.setTimeout(75_000);
 
   test.afterEach(async () => {
     await resetCurrentManagerScenarioData();

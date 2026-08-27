@@ -125,8 +125,6 @@ function billingStateAuditLabel(state: Doc<"organizationBillingStates">["state"]
       return `${state.kind}.${state.plan}.${state.fallback}`;
     case "scheduledChange":
       return `${state.kind}.${state.currentPlan}.${state.targetPlan}`;
-    case "restricted":
-      return `${state.kind}.${state.reason}`;
     case "trial":
       return state.selectedPaidPlan ? `${state.kind}.${state.selectedPaidPlan}` : state.kind;
   }

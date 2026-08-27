@@ -916,7 +916,6 @@ describe("organization migrations", () => {
 
     await t.run(async (ctx) => {
       await ctx.db.patch(seeded.shopId, { operatingStatus: "archived" });
-      await ctx.db.patch(canonical.memberId, { status: "readOnly", updatedAt: Date.now() });
     });
     await runOrganizationMigrations(t);
     await runOrganizationMigrations(t);
@@ -928,7 +927,7 @@ describe("organization migrations", () => {
     }));
     expect(archivedState.shop?.operatingStatus).toBe("archived");
     expect(archivedState.person?.status).toBe("active");
-    expect(archivedState.member?.status).toBe("readOnly");
+    expect(archivedState.member?.status).toBe("active");
     expect(archivedState.staff).toMatchObject({
       organizationId: canonical.organizationId,
       organizationPersonId: canonical.personId,
@@ -936,7 +935,7 @@ describe("organization migrations", () => {
 
     await t.run(async (ctx) => {
       const now = Date.now();
-      await ctx.db.patch(seeded.shopId, { operatingStatus: "planSuspended" });
+      await ctx.db.patch(seeded.shopId, { operatingStatus: "active" });
       await ctx.db.patch(canonical.personId, { status: "removed", updatedAt: now });
       await ctx.db.patch(canonical.memberId, { status: "removed", updatedAt: now });
     });
@@ -949,7 +948,7 @@ describe("organization migrations", () => {
       shop: await ctx.db.get(seeded.shopId),
       staff: await ctx.db.get(seeded.managerStaffId),
     }));
-    expect(removedState.shop?.operatingStatus).toBe("planSuspended");
+    expect(removedState.shop?.operatingStatus).toBe("active");
     expect(removedState.person?.status).toBe("removed");
     expect(removedState.member?.status).toBe("removed");
     expect(removedState.staff).toMatchObject({

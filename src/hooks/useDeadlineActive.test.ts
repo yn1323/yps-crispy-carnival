@@ -46,4 +46,17 @@ describe("useDeadlineActive", () => {
     act(() => vi.advanceTimersByTime(1_000));
     expect(result.current).toBe(false);
   });
+
+  it("timer上限より遠いdeadlineでも上限到達時に解除せず実際の期限まで待つ", () => {
+    const maxTimeoutDelayMs = 2_147_483_647;
+    const deadline = Date.now() + maxTimeoutDelayMs + 1_000;
+    const { result } = renderHook(() => useDeadlineActive(deadline));
+
+    act(() => vi.advanceTimersByTime(maxTimeoutDelayMs));
+    expect(result.current).toBe(true);
+    act(() => vi.advanceTimersByTime(999));
+    expect(result.current).toBe(true);
+    act(() => vi.advanceTimersByTime(1));
+    expect(result.current).toBe(false);
+  });
 });

@@ -50,14 +50,19 @@ export const HeroSummary = ({
   unavailableTaskSources = [],
 }: Props) => {
   const action = isRecruitmentTaskAvailable ? pickNextAction(recruitments) : undefined;
+  const hasActionItems =
+    action !== undefined ||
+    notificationFailures !== undefined ||
+    staffRegistrationRequest !== undefined ||
+    unavailableTaskSources.length > 0;
 
-  if (!announcementBanner && hideActionSection) return null;
+  if (!announcementBanner && (hideActionSection || !hasActionItems)) return null;
 
   return (
     <Stack gap={{ base: 5, lg: 6 }}>
       {announcementBanner}
 
-      {!hideActionSection && (
+      {!hideActionSection && hasActionItems && (
         <Stack gap={{ base: 3, lg: 4 }}>
           <HStack gap={2.5} align="center">
             <Box fontSize={{ base: "xl", lg: "2xl" }} flexShrink={0}>

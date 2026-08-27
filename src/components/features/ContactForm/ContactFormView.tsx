@@ -64,9 +64,6 @@ export function ContactFormView(props: ContactFormViewProps) {
         <Text as="h2" color="gray.950" fontSize="xl" fontWeight="bold">
           お問い合わせを受け付けました
         </Text>
-        <Text color="fg.muted" fontSize="sm" lineHeight="tall">
-          内容を確認のうえ、ご連絡します。
-        </Text>
         <Button asChild colorPalette="teal" minW="160px" mt={2}>
           <MeasurementBoundaryLink href="/">TOPに戻る</MeasurementBoundaryLink>
         </Button>

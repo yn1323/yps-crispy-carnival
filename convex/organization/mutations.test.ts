@@ -281,7 +281,7 @@ async function readManagerRemovalProtectedState(t: TestConvex<typeof schema>) {
 
 const managerRoleRemovalAccessCases = [
   { actorCase: "unauthenticated", actorLabel: "未認証" },
-  { actorCase: "readOnly", actorLabel: "閲覧のみ管理者" },
+  { actorCase: "removed", actorLabel: "削除済み管理者" },
   { actorCase: "crossTenant", actorLabel: "別事業者の人物" },
 ] as const;
 
@@ -459,36 +459,33 @@ describe("organization person removal", () => {
     });
   });
 
-  it.each(["archived", "planSuspended"] as const)(
-    "%s店舗では未完了の店舗所属解除を拒否する",
-    async (operatingStatus) => {
-      const t = convexTest(schema, modules);
-      const ids = await t.run(async (ctx) => {
-        const base = await seedOrganizationManagerShop(ctx, {
-          subject: `inactive_shop_remove_${operatingStatus}`,
-          plan: "pro",
-        });
-        const target = await seedTargetPerson(ctx, {
-          base,
-          subject: `inactive_shop_target_${operatingStatus}`,
-          shopIds: [base.shopId],
-        });
-        await ctx.db.patch(base.shopId, { operatingStatus });
-        return { ...base, ...target };
+  it.each(["archived"] as const)("%s店舗では未完了の店舗所属解除を拒否する", async (operatingStatus) => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: `inactive_shop_remove_${operatingStatus}`,
+        plan: "pro",
       });
+      const target = await seedTargetPerson(ctx, {
+        base,
+        subject: `inactive_shop_target_${operatingStatus}`,
+        shopIds: [base.shopId],
+      });
+      await ctx.db.patch(base.shopId, { operatingStatus });
+      return { ...base, ...target };
+    });
 
-      await expect(
-        t
-          .withIdentity({ subject: `inactive_shop_remove_${operatingStatus}` })
-          .mutation(api.organization.mutations.removePersonFromShop, {
-            shopId: ids.shopId,
-            staffId: ids.staffIds[0],
-            requestId: `inactive-shop-remove-${operatingStatus}`,
-          }),
-      ).rejects.toThrow("稼働中の店舗だけ所属を変更できます");
-      await expect(t.run(async (ctx) => (await ctx.db.get(ids.staffIds[0]))?.isDeleted)).resolves.toBe(false);
-    },
-  );
+    await expect(
+      t
+        .withIdentity({ subject: `inactive_shop_remove_${operatingStatus}` })
+        .mutation(api.organization.mutations.removePersonFromShop, {
+          shopId: ids.shopId,
+          staffId: ids.staffIds[0],
+          requestId: `inactive-shop-remove-${operatingStatus}`,
+        }),
+    ).rejects.toThrow("稼働中の店舗だけ所属を変更できます");
+    await expect(t.run(async (ctx) => (await ctx.db.get(ids.staffIds[0]))?.isDeleted)).resolves.toBe(false);
+  });
 
   it.each([
     ["未認証", "unauthenticated", "Unauthenticated"],
@@ -1024,150 +1021,6 @@ describe("organization person removal", () => {
     await expect(t.run(async (ctx) => (await ctx.db.get(ids.memberId))?.status)).resolves.toBe("active");
   });
 
-  it("契約制限中も復旧担当管理者の人物削除を副作用なしで拒否する", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "recovery_actor", plan: "pro" });
-      const target = await seedTargetPerson(ctx, {
-        base,
-        subject: "recovery_target",
-        shopIds: [],
-        manager: true,
-      });
-      const billingState = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
-        .unique();
-      if (!billingState) throw new Error("billing state not found");
-      await ctx.db.patch(billingState._id, {
-        freeManagerPersonId: target.personId,
-        state: {
-          kind: "restricted",
-          reason: "freeConditionsNotMet",
-          previousPlan: "pro",
-          recoveryManagerPersonIds: [base.personId, target.personId],
-          previousActiveShopIds: [base.shopId],
-          restrictedAt: NOW,
-        },
-      });
-      return { ...base, ...target, billingStateId: billingState._id, recoveryActorPersonId: base.personId };
-    });
-
-    const before = await readManagerRemovalProtectedState(t);
-    await expect(
-      t.withIdentity({ subject: "recovery_actor" }).mutation(api.organization.mutations.removePersonFromOrganization, {
-        shopId: ids.shopId,
-        personId: ids.personId,
-        requestId: "recovery-manager",
-      }),
-    ).rejects.toThrow("先に管理者権限を外してください。");
-    expect(await readManagerRemovalProtectedState(t)).toEqual(before);
-  });
-
-  it("legacy restrictedの最後のreadOnly所属は別の有効管理者がいても削除できない", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "last_recovery_actor", plan: "pro" });
-      const successor = await seedTargetPerson(ctx, {
-        base,
-        subject: "last_recovery_successor",
-        shopIds: [],
-        manager: true,
-      });
-      await ctx.db.patch(base.organizationId, {
-        billingEmail: successor.email,
-        billingEmailNormalized: successor.email,
-      });
-      const billingState = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
-        .unique();
-      if (!billingState) throw new Error("billing state not found");
-      await ctx.db.patch(billingState._id, {
-        state: {
-          kind: "restricted",
-          reason: "freeConditionsNotMet",
-          previousPlan: "pro",
-          recoveryManagerPersonIds: [base.personId],
-          previousActiveShopIds: [base.shopId],
-          restrictedAt: NOW,
-        },
-      });
-      return { ...base, billingStateId: billingState._id };
-    });
-
-    await expect(
-      t
-        .withIdentity({ subject: "last_recovery_actor" })
-        .mutation(api.organization.mutations.removePersonFromOrganization, {
-          shopId: ids.shopId,
-          personId: ids.personId,
-          requestId: "last-recovery-request",
-        }),
-    ).rejects.toThrow("先に管理者権限を外してください。");
-    const state = await t.run(async (ctx) => ({
-      billingState: await ctx.db.get(ids.billingStateId),
-      person: await ctx.db.get(ids.personId),
-    }));
-    expect(state.person?.status).toBe("active");
-    expect(state.billingState?.version).toBe(1);
-  });
-
-  it("所属重複でアクセス不能な復旧候補を有効な引継ぎ先として数えない", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, {
-        subject: "last_recovery_duplicate_successor",
-        plan: "pro",
-      });
-      const successor = await seedTargetPerson(ctx, {
-        base,
-        subject: "last_recovery_duplicate_target",
-        shopIds: [],
-        manager: true,
-      });
-      await ctx.db.insert("organizationMembers", {
-        organizationId: base.organizationId,
-        personId: successor.personId,
-        userId: successor.userId,
-        status: "active",
-        createdAt: NOW,
-        updatedAt: NOW,
-      });
-      await ctx.db.patch(base.organizationId, {
-        billingEmail: "billing@example.com",
-        billingEmailNormalized: "billing@example.com",
-      });
-      const billingState = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
-        .unique();
-      if (!billingState) throw new Error("billing state not found");
-      await ctx.db.patch(billingState._id, {
-        state: {
-          kind: "restricted",
-          reason: "freeConditionsNotMet",
-          previousPlan: "pro",
-          recoveryManagerPersonIds: [base.personId, successor.personId],
-          previousActiveShopIds: [base.shopId],
-          restrictedAt: NOW,
-        },
-      });
-      return base;
-    });
-
-    await expect(
-      t
-        .withIdentity({ subject: "last_recovery_duplicate_successor" })
-        .mutation(api.organization.mutations.removePersonFromOrganization, {
-          shopId: ids.shopId,
-          personId: ids.personId,
-          requestId: "last-recovery-duplicate-successor",
-        }),
-    ).rejects.toThrow("先に管理者権限を外してください。");
-    await expect(t.run(async (ctx) => (await ctx.db.get(ids.personId))?.status)).resolves.toBe("active");
-  });
-
   it("スタッフ兼管理者の管理権限だけを外し、スタッフ所属とリンクを保持する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -1321,8 +1174,8 @@ describe("organization person removal", () => {
           shopIds: [foreign.shopId],
           manager: true,
         });
-        if (actorCase === "readOnly") {
-          await ctx.db.patch(actor.memberId, { status: "readOnly", updatedAt: NOW });
+        if (actorCase === "removed") {
+          await ctx.db.patch(actor.memberId, { status: "removed", updatedAt: NOW });
         }
         return { actor, actorTarget, foreignTarget };
       });
@@ -1336,13 +1189,7 @@ describe("organization person removal", () => {
           personId: actorCase === "crossTenant" ? ids.foreignTarget.personId : ids.actorTarget.personId,
           requestId: `role-access-${actorCase}`,
         }),
-      ).rejects.toThrow(
-        actorCase === "unauthenticated"
-          ? "Unauthenticated"
-          : actorCase === "readOnly"
-            ? "この操作を行う権限がありません"
-            : "Not found",
-      );
+      ).rejects.toThrow(actorCase === "unauthenticated" ? "Unauthenticated" : "Not found");
       expect(await readManagerRemovalProtectedState(t)).toEqual(before);
     },
   );
@@ -1683,42 +1530,6 @@ describe("organization person removal", () => {
           .collect(),
     );
     expect(activeMembers).toHaveLength(1);
-  });
-
-  it("旧契約制限中は最後の対象readOnly所属を保護して管理権限解除を拒否する", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "role_restricted_actor", plan: "pro" });
-      const target = await seedTargetPerson(ctx, {
-        base,
-        subject: "role_restricted_target",
-        shopIds: [base.shopId],
-        manager: true,
-      });
-      const billingState = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
-        .unique();
-      if (!billingState) throw new Error("billing state not found");
-      await ctx.db.patch(billingState._id, {
-        state: {
-          kind: "restricted",
-          reason: "freeConditionsNotMet",
-          previousPlan: "pro",
-          recoveryManagerPersonIds: [target.personId],
-          previousActiveShopIds: [base.shopId],
-          restrictedAt: NOW,
-        },
-      });
-      return { ...base, ...target };
-    });
-    await expect(
-      t.withIdentity({ subject: "role_restricted_actor" }).mutation(api.organization.mutations.removeManagerRole, {
-        shopId: ids.shopId,
-        personId: ids.personId,
-        requestId: "role-restricted-request",
-      }),
-    ).rejects.toThrow("現在の契約状態では、管理者権限を解除できません。");
   });
 
   it("別事業者のpersonIdは同じmanager APIから削除できない", async () => {
@@ -2129,7 +1940,7 @@ describe("organization person profile update", () => {
     });
   });
 
-  it("別組織の人物IDと閲覧のみ管理者からの更新を拒否する", async () => {
+  it("別組織の人物IDとremoved管理者からの更新を拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const actor = await seedOrganizationManagerShop(ctx, {
@@ -2154,14 +1965,14 @@ describe("organization person profile update", () => {
       }),
     ).rejects.toThrow("Not found");
 
-    await t.run(async (ctx) => await ctx.db.patch(ids.actor.memberId, { status: "readOnly" }));
+    await t.run(async (ctx) => await ctx.db.patch(ids.actor.memberId, { status: "removed" }));
     await expect(
       actor.mutation(api.organization.mutations.updatePersonProfile, {
         shopId: ids.actor.shopId,
         personId: ids.actor.personId,
-        name: "閲覧のみ更新",
-        email: "profile-readonly@example.com",
-        requestId: "person-profile-readonly",
+        name: "削除済み更新",
+        email: "profile-removed@example.com",
+        requestId: "person-profile-removed",
       }),
     ).rejects.toThrow("Not found");
   });
@@ -2276,58 +2087,6 @@ describe("account deletion organization operations", () => {
       session: { revokedAt: NOW },
       staff: { isDeleted: true },
       successorMember: { status: "active" },
-    });
-  });
-
-  it("readOnly管理者しか残らない本人離脱は無変更で拒否する", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, {
-        subject: "account_departure_readonly_actor",
-        plan: "pro",
-      });
-      const successor = await seedTargetPerson(ctx, {
-        base,
-        subject: "account_departure_readonly_successor",
-        shopIds: [],
-        manager: true,
-      });
-      if (!successor.memberId) throw new Error("successor member not found");
-      await ctx.db.patch(successor.memberId, { status: "readOnly" });
-      await ctx.db.patch(base.organizationId, {
-        billingEmail: successor.email,
-        billingEmailNormalized: successor.email,
-      });
-      const [organization, person, member] = await Promise.all([
-        ctx.db.get(base.organizationId),
-        ctx.db.get(base.personId),
-        ctx.db.get(base.memberId),
-      ]);
-      if (!organization || !person || !member) throw new Error("account departure actor not found");
-      return { ...base, actor: { organization, person, member } };
-    });
-
-    await expect(
-      t.run(async (ctx) =>
-        prepareAccountDeletionOrganizationDeparture(ctx, {
-          actor: ids.actor,
-          accountUserId: ids.userId,
-          asOfDate: todayJST(),
-        }),
-      ),
-    ).rejects.toThrowError("管理者は削除できません。");
-    await expect(
-      t.run(async (ctx) => ({
-        audits: await ctx.db.query("organizationAuditEvents").collect(),
-        member: await ctx.db.get(ids.memberId),
-        organization: await ctx.db.get(ids.organizationId),
-        person: await ctx.db.get(ids.personId),
-      })),
-    ).resolves.toMatchObject({
-      audits: [],
-      member: { status: "active" },
-      organization: { isDeleted: false },
-      person: { status: "active" },
     });
   });
 

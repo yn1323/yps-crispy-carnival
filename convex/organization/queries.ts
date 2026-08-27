@@ -12,12 +12,9 @@ import { getOrganizationPersonLineState } from "../line/service";
 import { getResendDelayedFailureDeadline } from "../notificationOutbox/resendDelayedFailure";
 import {
   deriveOrganizationBillingPolicy,
-  getEffectiveRestrictedBillingState,
   ORGANIZATION_PLAN_LIMITS,
   type OrganizationPersonUsageInput,
   projectOrganizationUsage,
-  type RestrictedOrganizationBillingState,
-  resolveRestrictedLimitPlan,
 } from "../organizationBilling/policy";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import {
@@ -32,7 +29,7 @@ import { getStripeBillingConfiguration } from "../organizationStripe/config";
 import { getOrganizationCreationAvailability, type OrganizationCreationAvailability } from "../setup/service";
 import { getOrganizationDeletionEligibility } from "./deletion";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
-import { isValidOrganizationRecoveryManager, organizationPersonCountsTowardPeopleLimit } from "./service";
+import { organizationPersonCountsTowardPeopleLimit } from "./service";
 import { organizationShopOperatingStatus } from "./shopMembershipChange";
 import { getOrganizationStaffOrderScope, ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT } from "./staffOrder";
 import { planIdVersionValidator } from "./validators";
@@ -56,7 +53,7 @@ const organizationPersonViewValidator = v.object({
   id: v.string(),
   name: v.string(),
   email: v.union(v.string(), v.null()),
-  managerRole: v.union(v.literal("active"), v.literal("readOnly"), v.literal("none")),
+  managerRole: v.union(v.literal("active"), v.literal("none")),
   isStaff: v.boolean(),
   isLineConnected: v.boolean(),
   lineStatus: v.union(v.literal("unlinked"), v.literal("linked_following"), v.literal("linked_unfollowed")),
@@ -128,7 +125,6 @@ export const billingViewValidator = v.object({
     v.literal("initialPaymentPending"),
     v.literal("pendingActivation"),
     v.literal("grace"),
-    v.literal("restricted"),
     v.literal("scheduledChange"),
     v.literal("migrationPending"),
   ),
@@ -140,7 +136,6 @@ export const billingViewValidator = v.object({
   hasStripeCustomer: v.boolean(),
   targetPlan: v.optional(v.union(v.literal("free"), v.literal("standard"), v.literal("pro"), v.literal("business"))),
   restrictAtPeriodEnd: v.optional(v.literal(true)),
-  limitPlan: v.optional(v.union(v.literal("free"), v.literal("standard"), v.literal("pro"), v.literal("business"))),
   peopleUsage: v.object({ current: v.number(), max: v.number(), pendingInvitations: v.number() }),
   shopUsage: v.object({ current: v.number(), max: v.number(), pendingInvitations: v.number() }),
   managerUsage: v.object({ current: v.number(), max: v.number(), pendingInvitations: v.number() }),
@@ -207,14 +202,7 @@ export function projectCanonicalDisplayPlanForClient(
 }
 
 type BillingView = {
-  state:
-    | BillingPlan
-    | "initialPaymentPending"
-    | "pendingActivation"
-    | "grace"
-    | "restricted"
-    | "scheduledChange"
-    | "migrationPending";
+  state: BillingPlan | "initialPaymentPending" | "pendingActivation" | "grace" | "scheduledChange" | "migrationPending";
   currentPlan: BillingPlan | null;
   isComplimentary: boolean;
   hasTrialContinuation: boolean;
@@ -223,7 +211,6 @@ type BillingView = {
   hasStripeCustomer: boolean;
   targetPlan?: Exclude<BillingPlan, "trial">;
   restrictAtPeriodEnd?: true;
-  limitPlan?: "free" | "standard" | "pro" | "business";
   peopleUsage: { current: number; max: number; pendingInvitations: number };
   shopUsage: { current: number; max: number; pendingInvitations: number };
   managerUsage: { current: number; max: number; pendingInvitations: number };
@@ -253,14 +240,6 @@ function projectBillingViewForClient(billing: BillingView, planIdVersion: Client
     state: billing.state === "standard" || billing.state === "pro" ? projectPlan(billing.state) : billing.state,
     currentPlan: billing.currentPlan === null ? null : projectPlan(billing.currentPlan),
     ...(billing.targetPlan === undefined ? {} : { targetPlan: projectProductPlan(billing.targetPlan) }),
-    ...(billing.limitPlan === undefined
-      ? {}
-      : {
-          limitPlan:
-            billing.limitPlan === "business"
-              ? billing.limitPlan
-              : projectCanonicalDisplayPlanForClient(billing.limitPlan, planIdVersion),
-        }),
     ...(billing.previousPlan === undefined ? {} : { previousPlan: projectPlan(billing.previousPlan) }),
   };
 }
@@ -345,28 +324,6 @@ function legacyMigrationPendingSettings(
   };
 }
 
-function restrictedBlockedReason(state: RestrictedOrganizationBillingState) {
-  switch (state.reason) {
-    case "trialEndedWithoutSubscription":
-      return "トライアルが終了しました。\n利用を再開するには、StandardまたはProを契約してください。";
-    case "scheduledCancellation":
-      return "予約した解約が適用されました。\n利用を再開するには、StandardまたはProを契約してください。";
-    case "trialFreeConditionsNotMet":
-    case "freeConditionsNotMet":
-      return "Freeプランの利用人数または店舗数の上限を超えています。\nユーザーまたは店舗を削除してから、再確認してください。";
-    case "paymentGraceExpired":
-      return "支払い猶予が終了しています。\n支払い方法を更新するか、有料プランを再開してください。";
-    case "paymentActivationFailed":
-      return "有料プランの支払いを確認できませんでした。\n有料プランを再契約してください。";
-    case "unexpectedCancellation":
-      return "契約状態を確認できません。\n有料プランを再契約してください。";
-    case "planLimitExceeded":
-      return state.limitPlan === "standard"
-        ? "Standardの利用人数上限を超えています。\n利用人数を上限以内に整理すると、Standardを利用できます。"
-        : "Freeプランの利用上限を超えています。\n利用人数・店舗数・管理者数を上限以内に整理してください。";
-  }
-}
-
 type CanonicalOrganizationSettingsCtx = QueryCtx & {
   user: Doc<"users">;
   organization: Doc<"organizations">;
@@ -382,7 +339,6 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
   const [
     peopleDocs,
     activeMembers,
-    readOnlyMembers,
     shops,
     pendingInvitations,
     acceptedInvitations,
@@ -399,12 +355,6 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     ctx.db
       .query("organizationMembers")
       .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organization._id).eq("status", "active"))
-      .collect(),
-    ctx.db
-      .query("organizationMembers")
-      .withIndex("by_organizationId_and_status", (q) =>
-        q.eq("organizationId", organization._id).eq("status", "readOnly"),
-      )
       .collect(),
     ctx.db
       .query("shops")
@@ -474,7 +424,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     )
   ).flat();
   const shopById = new Map(shops.map((shop) => [shop._id, shop]));
-  const memberDocs = [...activeMembers, ...readOnlyMembers];
+  const memberDocs = activeMembers;
   const memberUsers = await Promise.all(memberDocs.map(async (member) => ctx.db.get(member.userId)));
   const memberUserById = new Map(memberUsers.filter((user) => user !== null).map((user) => [user._id, user]));
   const membersByPersonId = new Map<Id<"organizationPeople">, Doc<"organizationMembers">[]>();
@@ -513,14 +463,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     const memberMatchesPerson = Boolean(
       member && person.userId && member.userId === person.userId && memberUser && !memberUser.isDeleted,
     );
-    managerRoleByPersonId.set(
-      person._id,
-      memberMatchesPerson && member?.status === "active"
-        ? "active"
-        : memberMatchesPerson && member?.status === "readOnly"
-          ? "readOnly"
-          : "none",
-    );
+    managerRoleByPersonId.set(person._id, memberMatchesPerson && member?.status === "active" ? "active" : "none");
   }
 
   // 店舗所属がなくなっても組織の利用人数に含まれる人物は、削除済みを含むstaff履歴から判定する。
@@ -568,24 +511,11 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
   const stripeCustomerMatchesConfiguration = Boolean(
     stripeBillingConfiguration.status === "ready" && stripeCustomer?.livemode === stripeBillingConfiguration.livemode,
   );
-  const restrictedState = billingState ? getEffectiveRestrictedBillingState(billingState.state) : null;
   const isActiveActor = ctx.organizationMember?.status === "active";
-  const isRestrictedRecovery = Boolean(
-    restrictedState &&
-      isActiveActor &&
-      ctx.organizationMember &&
-      restrictedState.recoveryManagerPersonIds.includes(ctx.organizationMember.personId),
-  );
-  const canStartRestrictedRecovery = isRestrictedRecovery && billingState?.state.kind === "restricted";
   const canWriteNormally = Boolean(isActiveActor && accessPolicy?.canWriteBusinessData);
   const canRecoverUsageLimits = Boolean(isActiveActor && accessPolicy?.accessMode === "limitRecoveryOnly");
-  const restrictedLimitPlan = restrictedState ? resolveRestrictedLimitPlan(restrictedState) : null;
   // 購入対象の表示ではなく、現在のentitlementを利用上限の根拠にする。
-  const usageLimits = restrictedLimitPlan ? ORGANIZATION_PLAN_LIMITS[restrictedLimitPlan] : policy?.limits;
-
-  const recoveryPersonIds = restrictedState
-    ? restrictedState.recoveryManagerPersonIds.filter((personId) => people.some((person) => person._id === personId))
-    : [];
+  const usageLimits = policy?.limits;
   const activeManagerCount = usage.activeManagerCount;
   const pendingManagerInvitationCount = pendingInvitations.filter(
     (invitation) => invitation.expiresAt > now && getOrganizationInvitationPurpose(invitation) === "managerAddition",
@@ -791,8 +721,6 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
       const lineStatus = lineStateByPersonId.get(person._id)?.status ?? "unlinked";
       const isLineConnected = lineStatus !== "unlinked";
       const hasManagerInvitation = invitedPersonIds.has(person._id);
-      const isRecoveryManager = Boolean(restrictedState && recoveryPersonIds.includes(person._id));
-      const isLastRecoveryManager = isRecoveryManager && recoveryPersonIds.length <= 1;
       const capabilities = deriveOrganizationPersonCapabilities({
         managerRole,
         activeManagerCount,
@@ -800,9 +728,6 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
         canRecoverUsageLimits,
         policy,
         isActiveActor,
-        isRestricted: restrictedState !== null,
-        isRestrictedRecovery,
-        isLastRecoveryManager,
       });
       const assignedShops = staffRows
         .flatMap((staff) => {
@@ -837,9 +762,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
         );
       }
       return (
-        Number(b.managerRole === "active") - Number(a.managerRole === "active") ||
-        Number(b.managerRole === "readOnly") - Number(a.managerRole === "readOnly") ||
-        a.name.localeCompare(b.name, "ja")
+        Number(b.managerRole === "active") - Number(a.managerRole === "active") || a.name.localeCompare(b.name, "ja")
       );
     });
 
@@ -847,18 +770,14 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
   for (const staff of staffDocs) {
     staffCountByShopId.set(staff.shopId, (staffCountByShopId.get(staff.shopId) ?? 0) + 1);
   }
-  const canDeleteShop = Boolean(
-    shops.length > 1 && (restrictedState ? isRestrictedRecovery : canWriteNormally || canRecoverUsageLimits),
-  );
+  const canDeleteShop = Boolean(shops.length > 1 && (canWriteNormally || canRecoverUsageLimits));
   const deleteShopDisabledReason = canDeleteShop
     ? undefined
     : shops.length <= 1
       ? "組織には少なくとも1店舗が必要です。"
       : !isActiveActor
         ? "現在のアカウント状態では、店舗を削除できません。"
-        : restrictedState
-          ? "現在の契約状態では、店舗を削除できません。"
-          : "現在の契約状態では、店舗を削除できません。";
+        : "現在の契約状態では、店舗を削除できません。";
   const shopsView = (
     await Promise.all(
       shops.map(async (shop) => {
@@ -874,9 +793,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
                 ? "現在のアカウント状態では、店舗設定を変更できません。"
                 : accessPolicy?.businessWriteBlockReason === "usageLimitExceeded"
                   ? usageLimitBlockedReason
-                  : restrictedState
-                    ? "現在の契約状態では、店舗設定を変更できません。"
-                    : "支払い結果が確定するまで、店舗設定を変更できません。";
+                  : "支払い結果が確定するまで、店舗設定を変更できません。";
         const recipientStatus = await loadShopManagerNotificationRecipientStatus(
           ctx,
           shop._id,
@@ -908,36 +825,30 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
 
   const runtimeBillingState = billingState?.state ?? null;
   const canAccessCustomerPortal = Boolean(
-    canStartRestrictedRecovery ||
-      (isActiveActor &&
-        billingState &&
-        !restrictedState &&
-        ((billingState.state.kind === "trial" && billingState.state.selectedPaidPlan !== undefined) ||
-          billingState.state.kind === "scheduledChange" ||
-          billingState.state.kind === "grace" ||
-          (billingState.state.kind === "active" && billingState.state.plan !== "free"))),
+    isActiveActor &&
+      billingState &&
+      ((billingState.state.kind === "trial" && billingState.state.selectedPaidPlan !== undefined) ||
+        billingState.state.kind === "scheduledChange" ||
+        billingState.state.kind === "grace" ||
+        (billingState.state.kind === "active" && billingState.state.plan !== "free")),
   );
   const billingCapabilities = {
     canManagePlan: Boolean(
       stripeBillingAvailable &&
         !isComplimentary &&
-        (canStartRestrictedRecovery ||
-          (isActiveActor &&
-            billingState &&
-            !restrictedState &&
-            billingState.state.kind !== "initialPaymentPending" &&
-            billingState.state.kind !== "pendingActivation")),
+        isActiveActor &&
+        billingState &&
+        billingState.state.kind !== "initialPaymentPending" &&
+        billingState.state.kind !== "pendingActivation",
     ),
     canUpdatePaymentMethod: Boolean(
       stripeBillingAvailable && stripeCustomerMatchesConfiguration && !isComplimentary && canAccessCustomerPortal,
     ),
     canUpdateBillingEmail: Boolean(
       !isComplimentary &&
-        (isRestrictedRecovery ||
-          (isActiveActor &&
-            billingState &&
-            !restrictedState &&
-            (billingState.state.kind !== "pendingActivation" || billingState.state.fallback === "free"))),
+        isActiveActor &&
+        billingState &&
+        (billingState.state.kind !== "pendingActivation" || billingState.state.fallback === "free"),
     ),
     canScheduleFree: Boolean(
       stripeBillingAvailable &&
@@ -973,7 +884,6 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
       shops: Math.max(0, activeShopCount - (requiredReductionLimits?.maxActiveShops ?? 0)),
       managers: Math.max(0, managerUsageCurrent - (requiredReductionLimits?.maxActiveManagers ?? 0)),
     },
-    ...(restrictedLimitPlan ? { limitPlan: restrictedLimitPlan } : {}),
     billingEmail: organization.billingEmail ?? "",
     isComplimentary,
     stripeBillingAvailable,
@@ -983,12 +893,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     ),
     ...billingCapabilities,
   };
-  const accessDisabledReason =
-    !isActiveActor && !isRestrictedRecovery
-      ? restrictedState
-        ? "現在の契約状態では、この操作を行えません。"
-        : "現在のアカウント状態では、この操作を行えません。"
-      : undefined;
+  const accessDisabledReason = !isActiveActor ? "現在のアカウント状態では、この操作を行えません。" : undefined;
   const managePlanDisabledReason =
     billingCapabilities.canManagePlan || isComplimentary
       ? undefined
@@ -1059,7 +964,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
           currentPlan: "trial",
           ...(state.selectedPaidPlan ? { targetPlan: state.selectedPaidPlan } : {}),
           trialEndsAt: state.trialEndsAt,
-          // trialEndsAt は登録開始日の3か月後の同日（同日がなければ月末）の0:00 JSTを表す排他的な境界。
+          // trialEndsAt は登録開始日の2か月後の同日（同日がなければ月末）の0:00 JSTを表す排他的な境界。
           // 次の予定ではトライアルを利用できる最終日を表示する。
           nextEvent: { label: "トライアル最終日", date: formatDateJa(state.trialEndsAt - 1) },
         };
@@ -1087,9 +992,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
           blockedReason:
             state.fallback === "free"
               ? "有料プランの支払い結果を確認中です。\n無料の基本機能は引き続き利用できます。"
-              : restrictedState
-                ? restrictedBlockedReason(restrictedState)
-                : "支払い結果を確認しています。\n確認が終わるまで、契約状態を変更できません。",
+              : "支払い結果を確認しています。\n確認が終わるまで、契約状態を変更できません。",
           nextEvent: { label: "支払い結果", date: "確認中" },
         };
         break;
@@ -1153,17 +1056,6 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
           nextEvent: { label: "支払い猶予期限", date: formatDateTimeJa(state.endsAt) },
         };
         break;
-      case "restricted":
-        billing = {
-          ...billingBase,
-          ...billingCapabilityReasons,
-          state: "restricted",
-          currentPlan: null,
-          ...(state.previousPlan ? { previousPlan: state.previousPlan } : {}),
-          ...(state.targetPlan ? { targetPlan: state.targetPlan } : {}),
-          blockedReason: restrictedBlockedReason(state),
-        };
-        break;
     }
   }
 
@@ -1175,13 +1067,11 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
         ? "現在のアカウント状態では、管理者を招待できません。"
         : accessPolicy?.businessWriteBlockReason === "usageLimitExceeded"
           ? usageLimitBlockedReason
-          : restrictedState
-            ? "現在の契約状態では、管理者を招待できません。"
-            : hasActiveFreeManagerExchangeInvitation
-              ? "以前の管理者交代招待が残っています。\n取り消すか有効期限が切れてから、管理者を追加してください。"
-              : policy?.paidFeatureBlockReason === "paymentResultPending"
-                ? "支払い結果が確定してから、管理者を招待できます。"
-                : `管理者と招待中の管理者は、組織全体で${policy?.limits?.maxActiveManagers ?? ORGANIZATION_PLAN_LIMITS.standard.maxActiveManagers}名までです。`;
+          : hasActiveFreeManagerExchangeInvitation
+            ? "以前の管理者交代招待が残っています。\n取り消すか有効期限が切れてから、管理者を追加してください。"
+            : policy?.paidFeatureBlockReason === "paymentResultPending"
+              ? "支払い結果が確定してから、管理者を招待できます。"
+              : `管理者と招待中の管理者は、組織全体で${policy?.limits?.maxActiveManagers ?? ORGANIZATION_PLAN_LIMITS.standard.maxActiveManagers}名までです。`;
   const canAddShop = Boolean(
     isActiveActor &&
       canWriteNormally &&
@@ -1197,14 +1087,12 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
         ? "現在のアカウント状態では、店舗を追加できません。"
         : accessPolicy?.businessWriteBlockReason === "usageLimitExceeded"
           ? usageLimitBlockedReason
-          : restrictedState
-            ? "現在の契約状態では、店舗を追加できません。"
-            : policy?.paidFeatureBlockReason === "freePlan"
-              ? "Freeプランでは、店舗を追加できません。\n有料プランを選択してください。"
-              : policy?.paidFeatureBlockReason === "paymentResultPending"
-                ? "支払い結果が確定してから、店舗を追加できます。"
-                : `店舗は、組織ごとに${policy?.limits?.maxActiveShops ?? ORGANIZATION_PLAN_LIMITS.standard.maxActiveShops}件まで登録できます。`;
-  const canUpdateOrganizationName = Boolean(isActiveActor && (!billingState || restrictedState || canWriteNormally));
+          : policy?.paidFeatureBlockReason === "freePlan"
+            ? "Freeプランでは、店舗を追加できません。\n有料プランを選択してください。"
+            : policy?.paidFeatureBlockReason === "paymentResultPending"
+              ? "支払い結果が確定してから、店舗を追加できます。"
+              : `店舗は、組織ごとに${policy?.limits?.maxActiveShops ?? ORGANIZATION_PLAN_LIMITS.standard.maxActiveShops}件まで登録できます。`;
+  const canUpdateOrganizationName = Boolean(isActiveActor && (!billingState || canWriteNormally));
   const updateOrganizationNameDisabledReason = canUpdateOrganizationName
     ? undefined
     : !ctx.organizationMember
@@ -1275,7 +1163,7 @@ export const managerSettingsOverviewValidator = v.union(
   v.object({
     kind: v.literal("ready"),
     organizationName: v.string(),
-    mode: v.union(v.literal("managerAddition"), v.literal("freeManagerExchange"), v.literal("restricted")),
+    mode: v.literal("managerAddition"),
     usage: v.object({
       activeManagers: v.number(),
       activeInvitationCount: v.number(),
@@ -1295,7 +1183,7 @@ export const managerSettingsOverviewValidator = v.union(
         personId: v.id("organizationPeople"),
         name: v.string(),
         contactEmail: v.string(),
-        role: v.union(v.literal("active"), v.literal("readOnly")),
+        role: v.literal("active"),
         isSelf: v.boolean(),
         canRemoveRole: v.boolean(),
         removeRoleDisabledReason: v.optional(v.string()),
@@ -1341,40 +1229,28 @@ const MANAGER_SETTINGS_INTEGRITY_ERROR = "管理者情報を確認できませ�
 const MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS = {
   people: Math.max(...Object.values(ORGANIZATION_PLAN_LIMITS).map((limits) => limits.maxPeople)),
   activeManagers: Math.max(...Object.values(ORGANIZATION_PLAN_LIMITS).map((limits) => limits.maxActiveManagers)),
-  readOnlyManagers: Math.max(...Object.values(ORGANIZATION_PLAN_LIMITS).map((limits) => limits.maxPeople)),
   invitations: Math.max(...Object.values(ORGANIZATION_PLAN_LIMITS).map((limits) => limits.maxActiveManagers)),
 } as const;
 
 function getManagerSettingsLimits(billingState: Doc<"organizationBillingStates">) {
   const policy = deriveOrganizationBillingPolicy(billingState.state);
-  const restrictedState = getEffectiveRestrictedBillingState(billingState.state);
-  const restrictedPlan = restrictedState
-    ? (resolveRestrictedLimitPlan(restrictedState) ?? restrictedState.previousPlan ?? restrictedState.targetPlan)
-    : null;
   return {
     policy,
-    restrictedState,
-    limits: restrictedPlan ? ORGANIZATION_PLAN_LIMITS[restrictedPlan] : policy.limits,
+    limits: policy.limits,
   };
 }
 
 async function readBoundedManagerMembers(
   ctx: Pick<QueryCtx, "db">,
   organizationId: Id<"organizations">,
-  limits: { active: number; readOnly: number },
+  limit: number,
 ) {
-  const [active, readOnly] = await Promise.all([
-    ctx.db
-      .query("organizationMembers")
-      .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "active"))
-      .take(limits.active + 1),
-    ctx.db
-      .query("organizationMembers")
-      .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "readOnly"))
-      .take(limits.readOnly + 1),
-  ]);
-  const hasOverflow = active.length > limits.active || readOnly.length > limits.readOnly;
-  const members = [...active, ...readOnly];
+  const active = await ctx.db
+    .query("organizationMembers")
+    .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "active"))
+    .take(limit + 1);
+  const hasOverflow = active.length > limit;
+  const members = active;
   const seenPeople = new Set<Id<"organizationPeople">>();
   const seenUsers = new Set<Id<"users">>();
   const rows: Array<{ member: Doc<"organizationMembers">; person: Doc<"organizationPeople"> }> = [];
@@ -1414,7 +1290,7 @@ async function readBoundedManagerMembers(
     }
     rows.push({ member, person });
   }
-  return { active, readOnly, rows, hasOverflow };
+  return { active, rows, hasOverflow };
 }
 
 /** canonical organization actorから管理者専用のbounded DTOを組み立てる。 */
@@ -1431,17 +1307,14 @@ export async function getCanonicalManagerSettingsOverview(
   const access = await getOrganizationAccessPolicy(ctx, organization._id);
   if (!access) return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
   const billingState = access.billingState;
-  const { policy, restrictedState, limits } = getManagerSettingsLimits(billingState);
+  const { policy, limits } = getManagerSettingsLimits(billingState);
   if (!limits) return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
   const isActiveActor = organizationMember.status === "active";
-  const canWrite = Boolean(isActiveActor && access.canWriteBusinessData && !restrictedState);
+  const canWrite = Boolean(isActiveActor && access.canWriteBusinessData);
   const canRecoverUsageLimits = isActiveActor && access.accessMode === "limitRecoveryOnly";
 
   const [managerState, activeInvitations] = await Promise.all([
-    readBoundedManagerMembers(ctx, organization._id, {
-      active: MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS.activeManagers,
-      readOnly: MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS.readOnlyManagers,
-    }),
+    readBoundedManagerMembers(ctx, organization._id, MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS.activeManagers),
     readActiveIssuedInvitationsByOrganization(
       ctx,
       organization._id,
@@ -1469,8 +1342,7 @@ export async function getCanonicalManagerSettingsOverview(
   const pendingAdditions = purposes.filter((purpose) => purpose === "managerAddition").length;
   const pendingExchanges = purposes.filter((purpose) => purpose === "freeManagerExchange").length;
   const projectedManagers = observedActiveManagerCount + pendingAdditions;
-  const mode: "managerAddition" | "freeManagerExchange" | "restricted" =
-    canWrite && policy.canManageManagers ? "managerAddition" : "restricted";
+  const mode = "managerAddition" as const;
 
   const activePeople = await ctx.db
     .query("organizationPeople")
@@ -1508,8 +1380,8 @@ export async function getCanonicalManagerSettingsOverview(
     ? "現在のアカウント状態では、管理者を招待できません。"
     : access.businessWriteBlockReason === "usageLimitExceeded"
       ? usageLimitDisabledReason
-      : restrictedState || !access.canWriteBusinessData
-        ? "契約状態を復旧してから変更できます。"
+      : !access.canWriteBusinessData
+        ? "現在の契約状態では変更できません。"
         : !policy.canManageManagers
           ? "現在の契約状態では、管理者を招待できません。"
           : hasExchangePending
@@ -1532,33 +1404,21 @@ export async function getCanonicalManagerSettingsOverview(
         ? `利用人数は、組織全体で${limits.maxPeople}名までです。`
         : (inviteBaseReason ?? "現在の契約状態では、新しいユーザーを招待できません。");
 
-  const validRecoveryPersonIds = restrictedState
-    ? (
-        await Promise.all(
-          restrictedState.recoveryManagerPersonIds.map(async (personId) =>
-            (await isValidOrganizationRecoveryManager(ctx, organization._id, personId)) ? personId : null,
-          ),
-        )
-      ).filter((personId): personId is Id<"organizationPeople"> => personId !== null)
-    : [];
   const managers = [];
-  for (const { member, person } of managerState.rows) {
+  for (const { person } of managerState.rows) {
     const capabilities = deriveOrganizationPersonCapabilities({
-      managerRole: member.status === "active" ? "active" : "readOnly",
+      managerRole: "active",
       activeManagerCount: observedActiveManagerCount,
       canWriteNormally: canWrite,
       canRecoverUsageLimits,
       policy,
       isActiveActor,
-      isRestricted: restrictedState !== null,
-      isRestrictedRecovery: validRecoveryPersonIds.includes(organizationMember.personId),
-      isLastRecoveryManager: validRecoveryPersonIds.includes(person._id) && validRecoveryPersonIds.length <= 1,
     });
     managers.push({
       personId: person._id,
       name: person.name,
       contactEmail: person.email,
-      role: member.status === "active" ? ("active" as const) : ("readOnly" as const),
+      role: "active" as const,
       isSelf: person._id === organizationMember.personId,
       canRemoveRole: capabilities.canRemoveManagerRole,
       ...(capabilities.managerRoleRemovalDisabledReason
@@ -1567,10 +1427,7 @@ export async function getCanonicalManagerSettingsOverview(
     });
   }
   managers.sort(
-    (left, right) =>
-      Number(right.role === "active") - Number(left.role === "active") ||
-      left.name.localeCompare(right.name, "ja") ||
-      left.personId.localeCompare(right.personId),
+    (left, right) => left.name.localeCompare(right.name, "ja") || left.personId.localeCompare(right.personId),
   );
 
   const invitations = [];
@@ -1612,8 +1469,7 @@ export async function getCanonicalManagerSettingsOverview(
             normalizeEmail(effectiveTargetEmail.data) !== invitation.emailNormalized)) ||
         matchingPeople.length > 1 ||
         matchingMember.length > 1 ||
-        matchingMember[0]?.status === "active" ||
-        matchingMember[0]?.status === "readOnly",
+        matchingMember[0]?.status === "active",
     );
     const eligibility = targetConflict ? null : await resolveOrganizationInvitationEligibility(ctx, invitation);
     const outbox = await ctx.db
@@ -1712,7 +1568,7 @@ export async function getCanonicalManagerCandidates(ctx: CanonicalOrganizationSe
   const access = await getOrganizationAccessPolicy(ctx, organization._id);
   if (!access) return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
   const billingState = access.billingState;
-  const { policy, restrictedState, limits } = getManagerSettingsLimits(billingState);
+  const { policy, limits } = getManagerSettingsLimits(billingState);
   if (!limits) return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
   const [people, invitations, managers] = await Promise.all([
     ctx.db
@@ -1725,10 +1581,7 @@ export async function getCanonicalManagerCandidates(ctx: CanonicalOrganizationSe
       args.now,
       MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS.invitations,
     ),
-    readBoundedManagerMembers(ctx, organization._id, {
-      active: MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS.activeManagers,
-      readOnly: MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS.readOnlyManagers,
-    }),
+    readBoundedManagerMembers(ctx, organization._id, MANAGER_SETTINGS_ABSOLUTE_READ_LIMITS.activeManagers),
   ]);
   if (
     !managers ||
@@ -1770,7 +1623,7 @@ export async function getCanonicalManagerCandidates(ctx: CanonicalOrganizationSe
   );
   const pendingEmails = new Set(invitations.invitations.map((invitation) => invitation.emailNormalized));
   const isActiveActor = organizationMember.status === "active";
-  const canWrite = Boolean(isActiveActor && access.canWriteBusinessData && !restrictedState);
+  const canWrite = Boolean(isActiveActor && access.canWriteBusinessData);
   const pendingPurposes = invitations.invitations.map((invitation) => getOrganizationInvitationPurpose(invitation));
   const pendingAdditions = pendingPurposes.filter((purpose) => purpose === "managerAddition").length;
   const hasPendingExchange = pendingPurposes.some((purpose) => purpose === "freeManagerExchange");
@@ -1797,17 +1650,15 @@ export async function getCanonicalManagerCandidates(ctx: CanonicalOrganizationSe
     const disabledReason =
       member?.status === "active"
         ? "すでに管理者です。"
-        : member?.status === "readOnly"
-          ? "現在、管理者として操作できません。アカウント状態を確認してから変更してください。"
-          : pending
-            ? "管理者招待の承認待ちです。"
-            : !hasValidEmail
-              ? person.email.trim().length === 0
-                ? "メールアドレスが登録されていません。"
-                : "メールアドレスの形式を確認してください。"
-              : !canInviteManager
-                ? managerInvitationDisabledReason
-                : undefined;
+        : pending
+          ? "管理者招待の承認待ちです。"
+          : !hasValidEmail
+            ? person.email.trim().length === 0
+              ? "メールアドレスが登録されていません。"
+              : "メールアドレスの形式を確認してください。"
+            : !canInviteManager
+              ? managerInvitationDisabledReason
+              : undefined;
     candidates.push({
       personId: person._id,
       name: person.name,

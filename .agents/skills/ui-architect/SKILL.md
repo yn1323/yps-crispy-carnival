@@ -59,7 +59,8 @@ UI作業を、利用者のタスクから検証まで順に進める。
 - 内部の型名、状態名、queue、tokenなどをそのまま表示しない。
 - 利用者に見える事実だけを書き、未完了の処理を完了と表現しない。
 - ボタン、ラベル、Toast、表見出しは短くする。
-- 複数文の説明に推敲が必要なら`$japanese-tech-writing`を使う。
+- ボタンやラベルなどの短いUI文言にも、`../japanese-tech-writing/SKILL.md`の「直接的で自然な文」を適用する。
+- 複数文の説明を構成から推敲する場合は`$japanese-tech-writing`を使う。
 - 読み物としての緩急が必要な長い説明だけに`$cognitive-rhythm-writing`を併用する。
 - HelpCenterのFAQ・使い方は`$write-help-content`、ArticleSiteの記事は`$seo-article-writer`へ分ける。
 

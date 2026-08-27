@@ -116,7 +116,10 @@ describe("organizationStripe/maintenance", () => {
     await t.run(async (ctx) => {
       const initial = await seedOrganizationManagerShop(ctx, { subject: "stripe_safe_initial", plan: "pro" });
       const grace = await seedOrganizationManagerShop(ctx, { subject: "stripe_safe_grace", plan: "pro" });
-      const restricted = await seedOrganizationManagerShop(ctx, { subject: "stripe_safe_restricted", plan: "pro" });
+      const cancellationGrace = await seedOrganizationManagerShop(ctx, {
+        subject: "stripe_safe_cancellation_grace",
+        plan: "pro",
+      });
       const scheduledPaid = await seedOrganizationManagerShop(ctx, {
         subject: "stripe_safe_scheduled_paid",
         plan: "business",
@@ -133,13 +136,11 @@ describe("organizationStripe/maintenance", () => {
         startedAt: NOW - 15 * DAY_MS,
         endsAt: NOW - DAY_MS,
       });
-      await replaceBillingState(ctx, restricted.organizationId, {
-        kind: "restricted",
-        reason: "paymentGraceExpired",
-        previousPlan: "pro",
-        recoveryManagerPersonIds: [],
-        previousActiveShopIds: [],
-        restrictedAt: NOW - DAY_MS,
+      await replaceBillingState(ctx, cancellationGrace.organizationId, {
+        kind: "grace",
+        plan: "pro",
+        startedAt: NOW - 15 * DAY_MS,
+        endsAt: NOW - DAY_MS,
       });
       await replaceBillingState(ctx, scheduledPaid.organizationId, {
         kind: "scheduledChange",
@@ -175,15 +176,15 @@ describe("organizationStripe/maintenance", () => {
         expectedBillingVersion: 0,
       });
       await insertOperation(ctx, {
-        organizationId: restricted.organizationId,
-        requestKey: "safe-restricted-cancel",
+        organizationId: cancellationGrace.organizationId,
+        requestKey: "safe-grace-cancel",
         kind: "cancelSubscription",
         status: "retrying",
         nextRunAt: NOW,
         expectedBillingVersion: 0,
       });
       await insertOperation(ctx, {
-        organizationId: restricted.organizationId,
+        organizationId: cancellationGrace.organizationId,
         requestKey: "future-stop-invoice",
         kind: "stopInvoiceCollection",
         status: "retrying",
@@ -268,7 +269,7 @@ describe("organizationStripe/maintenance", () => {
         args: {
           organizationId: expect.any(String),
           expectedBillingVersion: 1,
-          requestId: "safe-restricted-cancel",
+          requestId: "safe-grace-cancel",
         },
       },
     ]);
@@ -1358,16 +1359,8 @@ describe("organizationStripe/maintenance", () => {
       });
       await replaceBillingState(ctx, nested.organizationId, {
         kind: "pendingActivation",
-        plan: "pro",
-        fallback: "restricted",
-        restrictedFallbackState: {
-          kind: "restricted",
-          reason: "paymentActivationFailed",
-          previousPlan: "business",
-          recoveryManagerPersonIds: [],
-          previousActiveShopIds: [],
-          restrictedAt: NOW,
-        },
+        plan: "business",
+        fallback: "pro",
         startedAt: NOW,
       });
       await replaceBillingState(ctx, scheduled.organizationId, {

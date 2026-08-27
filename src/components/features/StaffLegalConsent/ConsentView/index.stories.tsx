@@ -16,8 +16,8 @@ const documents = {
   },
   privacy: {
     title: "スタッフ向けプライバシーポリシー",
-    documentVersion: "staff-privacy-doc-2026-08-26",
-    requiredConsentVersion: "staff-privacy-consent-2026-08-13",
+    documentVersion: "staff-privacy-doc-2026-08-26-2",
+    requiredConsentVersion: "staff-privacy-consent-2026-08-26",
     path: "/privacy/staff",
   },
 };

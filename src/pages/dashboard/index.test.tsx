@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => ({
   useQuery: vi.fn(),
   useShopQuery: vi.fn(),
   dashboardProps: undefined as Record<string, unknown> | undefined,
-  dashboardSkeletonProps: undefined as Record<string, unknown> | undefined,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -43,12 +42,10 @@ vi.mock("@/convex/_generated/api", () => ({
 vi.mock("@/src/hooks/useShopQuery", () => ({ useShopQuery: mocks.useShopQuery }));
 
 vi.mock("@/src/components/features/Dashboard", () => ({
-  DashboardSkeleton: (props: Record<string, unknown>) => {
-    mocks.dashboardSkeletonProps = props;
-    return <output data-testid="home-loading">ホームを読み込み中</output>;
-  },
+  DashboardSkeleton: () => <output data-testid="home-loading">ホームを読み込み中</output>,
   Dashboard: (props: Record<string, unknown>) => {
     mocks.dashboardProps = props;
+    const operationContextData = props.operationContextData as { selectedShop: { organizationId: string } } | undefined;
     const navigation = props.navigation as
       | {
           onOpenShiftBoard: (recruitmentId: string) => void;
@@ -59,7 +56,7 @@ vi.mock("@/src/components/features/Dashboard", () => ({
       <section
         aria-label="接続済みホーム"
         data-read-only={String(props.isReadOnly)}
-        data-organization-id={String(props.expectedOrganizationId)}
+        data-organization-id={operationContextData?.selectedShop.organizationId}
       >
         {navigation ? (
           <>
@@ -140,7 +137,6 @@ beforeEach(() => {
   mocks.navigate.mockReset();
   window.localStorage.clear();
   mocks.dashboardProps = undefined;
-  mocks.dashboardSkeletonProps = undefined;
   mocks.useShopQuery.mockReset();
   mocks.useShopQuery.mockReturnValue(shop);
   mocks.useQuery.mockReset();
@@ -167,7 +163,6 @@ const renderPage = (overrides: Partial<ComponentProps<typeof DashboardRoutePage>
       <DashboardRoutePage
         organizationId={"organization-a" as never}
         organizationName="Aグループ"
-        memberStatus="active"
         activeShops={activeShops}
         requestedShopId="shop-b"
         {...overrides}
@@ -187,22 +182,14 @@ describe("DashboardRoutePage", () => {
     expect(mocks.dashboardProps).toMatchObject({
       shop: null,
       currentUser: { isNewUser: false, name: "管理者", email: "manager@example.com" },
-      showOrganizationContext: false,
     });
     expect(mocks.dashboardProps?.navigation).toBeUndefined();
-  });
-
-  it("ホームでは組織・プランのコンテキストを表示しない", () => {
-    renderPage();
-
-    expect(mocks.dashboardProps?.showOrganizationContext).toBe(false);
   });
 
   it("active店舗の全cursor読込中は店舗queryを開始せずDashboard skeletonを表示する", () => {
     renderPage({ activeShops: null });
 
     expect(screen.getByText("ホームを読み込み中")).not.toBeNull();
-    expect(mocks.dashboardSkeletonProps?.showOrganizationContext).toBe(false);
     expect(mocks.useShopQuery).not.toHaveBeenCalled();
   });
 
@@ -217,7 +204,6 @@ describe("DashboardRoutePage", () => {
         <DashboardRoutePage
           organizationId={"organization-a" as never}
           organizationName="Aグループ"
-          memberStatus="active"
           activeShops={activeShops}
           requestedShopId="shop-b"
         />
@@ -240,7 +226,6 @@ describe("DashboardRoutePage", () => {
         <DashboardRoutePage
           organizationId={"organization-a" as never}
           organizationName="Aグループ"
-          memberStatus="active"
           activeShops={activeShops}
           requestedShopId="shop-b"
         />
@@ -270,7 +255,6 @@ describe("DashboardRoutePage", () => {
         <DashboardRoutePage
           organizationId={"organization-a" as never}
           organizationName="Aグループ"
-          memberStatus="active"
           activeShops={activeShops}
           requestedShopId="shop-b"
         />
@@ -309,7 +293,6 @@ describe("DashboardRoutePage", () => {
         <DashboardRoutePage
           organizationId={"organization-b" as never}
           organizationName="Bグループ"
-          memberStatus="active"
           activeShops={[{ id: "shop-c", name: "C店舗" }]}
           requestedShopId="shop-a"
         />
@@ -333,13 +316,6 @@ describe("DashboardRoutePage", () => {
       organizationId: "organization-b",
       shopId: "shop-c",
     });
-  });
-
-  it("readOnly memberでは既存Dashboardの操作を無効化し、閲覧理由を表示する", () => {
-    renderPage({ memberStatus: "readOnly" });
-
-    expect(screen.getByText("現在、この店舗では操作できません")).not.toBeNull();
-    expect(screen.getByRole("region", { name: "接続済みホーム" }).getAttribute("data-read-only")).toBe("true");
   });
 
   it("プラン上限超過中はDashboardの業務操作を無効化して整理またはプラン変更を案内する", () => {

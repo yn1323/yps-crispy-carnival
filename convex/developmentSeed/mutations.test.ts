@@ -124,8 +124,8 @@ describe("development seed internal mutations", () => {
         "standard-scheduled-change",
         "payment-pending",
         "payment-grace",
-        "payment-restricted",
-        "policy-restricted",
+        "free-over-limit",
+        "standard-over-limit",
       ],
       tableCount: 66,
     });

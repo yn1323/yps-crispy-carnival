@@ -74,7 +74,7 @@ export const migration = migrations.define({
       return;
     }
 
-    // m014を先に実行しても権限を落とさず、m013または手動裁定後だけ旧所属を失効させる。
+    // canonicalな管理者所属がremovedになった後だけ、旧所属を失効させる。
     if (members[0].status !== "removed") {
       await resolveOrganizationMigrationConflicts(ctx, {
         sourceType: "shopMember",

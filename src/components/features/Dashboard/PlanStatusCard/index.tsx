@@ -24,7 +24,6 @@ export function PlanStatusCard({ data, usage, onAction, onRequestCollapse }: Pla
           {data.kind === "trial" && <TrialDetails data={data} onRemindLater={handleRemindLater} />}
           {data.kind === "paymentPending" && <PaymentPendingDetails data={data} />}
           {data.kind === "paymentIssue" && <PaymentIssueDetails data={data} />}
-          {data.kind === "restricted" && <RestrictedDetails data={data} />}
         </Stack>
         <PlanUsageFooter usage={usage} />
       </Stack>
@@ -123,12 +122,10 @@ function PaymentPendingDetails({ data }: { data: Extract<PlanStatusCardData, { k
 }
 
 function PaymentIssueDetails({ data }: { data: Extract<PlanStatusCardData, { kind: "paymentIssue" }> }) {
-  const deadlineColor = data.phase === "grace" ? "orange.800" : "red.800";
-
   return (
     <Stack gap={1.5}>
       {data.recoveryDeadlineLabel && (
-        <Text fontSize="sm" fontWeight="bold" color={deadlineColor}>
+        <Text fontSize="sm" fontWeight="bold" color="orange.800">
           {data.recoveryDeadlineLabel}
         </Text>
       )}
@@ -136,14 +133,6 @@ function PaymentIssueDetails({ data }: { data: Extract<PlanStatusCardData, { kin
         {data.description}
       </Text>
     </Stack>
-  );
-}
-
-function RestrictedDetails({ data }: { data: Extract<PlanStatusCardData, { kind: "restricted" }> }) {
-  return (
-    <Text fontSize="sm" fontWeight="medium">
-      {data.description}
-    </Text>
   );
 }
 
@@ -288,7 +277,7 @@ export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusP
       summaryBadge: isScheduledChange ? badge : null,
       tone: isScheduledChange ? "orange" : "neutral",
       detailsLabel: `${planName}プランの詳細`,
-      iconBackground: "teal.100",
+      iconBackground: "teal.50",
       iconColor: "teal.700",
     };
   }
@@ -327,37 +316,20 @@ export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusP
     };
   }
 
-  if (data.kind === "restricted") {
-    const badge = data.planName ? { label: `${data.planName}プラン`, background: "gray.100", color: "gray.700" } : null;
-    return {
-      Icon: LuCircleAlert,
-      title: "契約状態の確認が必要",
-      badge,
-      summaryBadge: badge,
-      tone: "red",
-      detailsLabel: "契約状態の詳細",
-      iconBackground: "red.100",
-      iconColor: "red.700",
-    };
-  }
-
-  const isGrace = data.phase === "grace";
-  const badge = isGrace
-    ? {
-        label: data.recoveryDeadlineLabel?.replace(/^支払い期限：/, "期限 ") ?? "要対応",
-        background: "orange.100",
-        color: "orange.700",
-      }
-    : { label: "利用制限中", background: "red.100", color: "red.700" };
+  const badge = {
+    label: data.recoveryDeadlineLabel?.replace(/^支払い期限：/, "期限 ") ?? "要対応",
+    background: "orange.100",
+    color: "orange.700",
+  };
   return {
     Icon: LuCircleAlert,
     title: "支払いに問題があります",
     badge,
     summaryBadge: badge,
-    tone: isGrace ? "orange" : "red",
+    tone: "orange",
     detailsLabel: "支払い問題の詳細",
-    iconBackground: isGrace ? "orange.100" : "red.100",
-    iconColor: isGrace ? "orange.700" : "red.700",
+    iconBackground: "orange.100",
+    iconColor: "orange.700",
   };
 }
 

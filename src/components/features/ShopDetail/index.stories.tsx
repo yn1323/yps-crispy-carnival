@@ -319,7 +319,7 @@ export const SettingsBatchUpdateBehavior: Story = {
     await userEvent.type(shopName, "更新後の新宿店");
     await userEvent.click(form.getByRole("button", { name: "次へ" }));
 
-    await form.findByText("希望シフトの集め方");
+    await form.findByText("シフトの提出方法");
     await userEvent.click(form.getByRole("button", { name: "次へ" }));
 
     await form.findByText("シフト開始時間");
@@ -343,7 +343,7 @@ export const SettingsSubmitLockBehavior: Story = {
     const dialog = within(dialogElement);
 
     await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
-    await dialog.findByText("希望シフトの集め方");
+    await dialog.findByText("シフトの提出方法");
     await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
     await dialog.findByText("シフト開始時間");
     await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
@@ -1038,7 +1038,6 @@ function MembershipRemovalRejectedResultHarness() {
       if (previewKeyRef.current === nextKey) return true;
       previewKeyRef.current = nextKey;
       setPreviewKey(nextKey);
-      setErrorMessage(undefined);
       return true;
     },
     [],

@@ -71,7 +71,7 @@ export function ForgotPasswordForm({
     <Stack as="form" gap={5} onSubmit={handleSubmit(onRequestReset)}>
       <AuthError message={errorMessage} />
       <Field.Root invalid={!!errors.email}>
-        <Field.Label>ログインに使うメールアドレス</Field.Label>
+        <Field.Label>メールアドレス</Field.Label>
         <Input type="email" autoComplete="email" placeholder="example@example.com" {...register("email")} />
         <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
       </Field.Root>

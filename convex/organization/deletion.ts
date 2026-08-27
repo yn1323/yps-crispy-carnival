@@ -51,21 +51,13 @@ export async function getOrganizationDeletionEligibility(
     billingState: Doc<"organizationBillingStates"> | null;
   },
 ): Promise<OrganizationDeletionEligibility> {
-  const [activeMembers, readOnlyMembers] = await Promise.all([
-    ctx.db
-      .query("organizationMembers")
-      .withIndex("by_organizationId_and_status", (q) =>
-        q.eq("organizationId", args.organizationId).eq("status", "active"),
-      )
-      .take(2),
-    ctx.db
-      .query("organizationMembers")
-      .withIndex("by_organizationId_and_status", (q) =>
-        q.eq("organizationId", args.organizationId).eq("status", "readOnly"),
-      )
-      .first(),
-  ]);
-  if (activeMembers.length !== 1 || activeMembers[0]._id !== args.actorMemberId || readOnlyMembers) {
+  const activeMembers = await ctx.db
+    .query("organizationMembers")
+    .withIndex("by_organizationId_and_status", (q) =>
+      q.eq("organizationId", args.organizationId).eq("status", "active"),
+    )
+    .take(2);
+  if (activeMembers.length !== 1 || activeMembers[0]._id !== args.actorMemberId) {
     return {
       canDelete: false,
       code: "manager",

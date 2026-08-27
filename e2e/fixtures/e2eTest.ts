@@ -8,6 +8,7 @@ import { runWithE2ERuntimeSignalMonitoring } from "../helpers/runtimeSignals";
 import { artifactSafeTest as base, expect } from "./artifactSafeTest";
 
 type E2ETestFixtures = {
+  clerkTestingTokenEnabled: boolean;
   e2eClerkUser: string;
   e2eRunDiagnostics: undefined;
   e2eUserAnnotation: undefined;
@@ -20,6 +21,8 @@ type E2EWorkerFixtures = {
 const stopRuntimeMonitoringByTest = new WeakMap<TestInfo, () => void>();
 
 export const test = base.extend<E2ETestFixtures, E2EWorkerFixtures>({
+  clerkTestingTokenEnabled: [true, { option: true }],
+
   e2eWorkerUser: [
     // biome-ignore lint/correctness/noEmptyPattern: Playwright requires fixture destructuring even when unused.
     async ({}, use, workerInfo) => {
@@ -76,7 +79,7 @@ export const test = base.extend<E2ETestFixtures, E2EWorkerFixtures>({
     { auto: true },
   ],
 
-  page: async ({ page }, use, testInfo) => {
+  page: async ({ clerkTestingTokenEnabled, page }, use, testInfo) => {
     const restoreClerkConsole = installSafeClerkTestingConsole();
     try {
       await runWithE2ERuntimeSignalMonitoring({
@@ -85,10 +88,11 @@ export const test = base.extend<E2ETestFixtures, E2EWorkerFixtures>({
         baseURL: testInfo.project.use.baseURL,
         registerStop: (stop) => stopRuntimeMonitoringByTest.set(testInfo, stop),
         action: async () => {
-          await setupClerkTestingToken({ page });
+          if (clerkTestingTokenEnabled) await setupClerkTestingToken({ page });
           await use(page);
         },
         cleanup: async () => {
+          if (!clerkTestingTokenEnabled) return;
           try {
             // Clerk testing routeを待って解除し、context終了後のretryと機密URL付きwarningを防ぐ。
             await page.context().unrouteAll({ behavior: "wait" });

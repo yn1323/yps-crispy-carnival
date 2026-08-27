@@ -134,9 +134,7 @@ describe("AppShiftsRoutePage", () => {
       loadMore: mocks.loadMore,
     });
 
-    renderPage(
-      <AppShiftsRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={activeShops} />,
-    );
+    renderPage(<AppShiftsRoutePage organizationId={"organization-1" as never} activeShops={activeShops} />);
 
     expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(
       mocks.queryRef,
@@ -156,9 +154,7 @@ describe("AppShiftsRoutePage", () => {
       loadMore: mocks.loadMore,
     });
 
-    renderPage(
-      <AppShiftsRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={activeShops} />,
-    );
+    renderPage(<AppShiftsRoutePage organizationId={"organization-1" as never} activeShops={activeShops} />);
 
     expect(screen.getByRole("heading", { level: 1, name: "シフト" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "店舗で絞り込む（現在：すべて）" })).toBeTruthy();
@@ -189,13 +185,7 @@ describe("AppShiftsRoutePage", () => {
       loadMore: mocks.loadMore,
     });
 
-    renderPage(
-      <AppShiftsRoutePage
-        organizationId={"organization-1" as never}
-        memberStatus="active"
-        activeShops={activeShops.slice(0, 1)}
-      />,
-    );
+    renderPage(<AppShiftsRoutePage organizationId={"organization-1" as never} activeShops={activeShops.slice(0, 1)} />);
 
     expect(screen.queryByRole("button", { name: "店舗で絞り込む（現在：すべて）" })).toBeNull();
   });
@@ -210,7 +200,6 @@ describe("AppShiftsRoutePage", () => {
     renderPage(
       <AppShiftsRoutePage
         organizationId={"organization-1" as never}
-        memberStatus="readOnly"
         activeShops={activeShops}
         requestedShopFilter="shop-2"
       />,
@@ -220,8 +209,6 @@ describe("AppShiftsRoutePage", () => {
     const groups = props.groups as Array<{ recruitments: Recruitment[] }>;
     expect(groups.flatMap((group) => group.recruitments).map((item) => item._id)).toEqual(["recruitment-sooner"]);
     expect(props.shops).toHaveLength(2);
-    expect(props.memberStatus).toBe("readOnly");
-    expect(screen.getByText("現在、このアカウントでは操作できません")).toBeTruthy();
   });
 
   it("店舗filterを変更しても全店舗queryのsubtreeを再mountしない", () => {
@@ -232,7 +219,7 @@ describe("AppShiftsRoutePage", () => {
     });
 
     const view = renderPage(
-      <AppShiftsRoutePage organizationId={"organization-1" as never} memberStatus="active" activeShops={activeShops} />,
+      <AppShiftsRoutePage organizationId={"organization-1" as never} activeShops={activeShops} />,
     );
     expect(screen.getByTestId("management-mount-id").textContent).toBe("1");
 
@@ -240,7 +227,6 @@ describe("AppShiftsRoutePage", () => {
       <ChakraProvider>
         <AppShiftsRoutePage
           organizationId={"organization-1" as never}
-          memberStatus="active"
           activeShops={activeShops}
           requestedShopFilter="shop-2"
         />
@@ -262,7 +248,6 @@ describe("AppShiftsRoutePage", () => {
     renderPage(
       <AppShiftsRoutePage
         organizationId={"organization-1" as never}
-        memberStatus="active"
         activeShops={activeShops}
         requestedShopFilter="foreign-shop"
       />,

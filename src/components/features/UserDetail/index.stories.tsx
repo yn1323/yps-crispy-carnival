@@ -36,7 +36,7 @@ const shinjukuMembership: UserDetailData["memberships"][number] = {
   staffId: shinjukuStaffId,
   shopId: shinjukuShopId,
   shopName: "新宿店",
-  shopStatus: "planSuspended",
+  shopStatus: "archived",
   excludedFromShift: true,
   canRemove: false,
   removeDisabledReason: "稼働中の店舗だけ所属を変更できます。",
@@ -53,7 +53,7 @@ const shibuyaShop: UserDetailData["shops"][number] = {
 const shinjukuShop: UserDetailData["shops"][number] = {
   shopId: shinjukuShopId,
   shopName: "新宿店",
-  shopStatus: "planSuspended",
+  shopStatus: "archived",
   canChangeMembership: false,
   membershipChangeDisabledReason: "稼働中の店舗だけ所属を変更できます。",
 };
@@ -137,19 +137,6 @@ const lineUnfollowedData: UserDetailData = {
 const lineWithoutEmailData: UserDetailData = {
   ...lineUnlinkedData,
   person: { ...lineUnlinkedData.person, email: "" },
-};
-
-const lineReadOnlyData: UserDetailData = {
-  ...multipleStoresData,
-  canWrite: false,
-  writeDisabledReason: "現在のアカウント状態では、ユーザー情報を変更できません。",
-  line: {
-    ...multipleStoresData.line,
-    canLink: false,
-    linkDisabledReason: "現在のアカウント状態では、ユーザー情報を変更できません。",
-    canDisconnect: false,
-    disconnectDisabledReason: "現在のアカウント状態では、LINE連携を解除できません。",
-  },
 };
 
 const lineBillingReadOnlyData: UserDetailData = {
@@ -410,10 +397,6 @@ export const LineUnfollowedDialog: Story = {
 
 export const LineWithoutEmailDialog: Story = {
   args: { activePanel: "line", data: lineWithoutEmailData },
-};
-
-export const LineReadOnlyDialog: Story = {
-  args: { activePanel: "line", data: lineReadOnlyData },
 };
 
 export const LineBillingReadOnlyDialog: Story = {

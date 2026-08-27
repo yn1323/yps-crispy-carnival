@@ -18,7 +18,7 @@ export type ShopDetailData = {
 export type ShopDetailPerson = {
   id: string;
   name: string;
-  managerRole: "active" | "readOnly" | "none";
+  managerRole: "active" | "none";
   lineStatus?: "unlinked" | "linked_following" | "linked_unfollowed";
   isLineConnected?: boolean;
   shopNames: readonly string[];

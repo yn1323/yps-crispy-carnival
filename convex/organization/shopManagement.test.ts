@@ -15,7 +15,7 @@ async function seedOrganizationShop(
   args: {
     organizationId: Id<"organizations">;
     name: string;
-    status?: "active" | "archived" | "planSuspended";
+    status?: "active" | "archived";
   },
 ) {
   return await ctx.db.insert("shops", {
@@ -34,7 +34,7 @@ async function seedAdditionalManager(
     organizationId: Id<"organizations">;
     shopId: Id<"shops">;
     subject: string;
-    status: "active" | "readOnly";
+    status: "active" | "removed";
   },
 ) {
   const email = `${args.subject}@example.com`;
@@ -77,13 +77,7 @@ describe("organization shop management", () => {
         subject: "add_shop_active_manager",
         status: "active",
       });
-      const readOnlyManager = await seedAdditionalManager(ctx, {
-        organizationId: base.organizationId,
-        shopId: base.shopId,
-        subject: "add_shop_readonly_manager",
-        status: "readOnly",
-      });
-      return { ...base, activeManager, readOnlyManager };
+      return { ...base, activeManager };
     });
     const asActor = t.withIdentity({ subject: "add_shop_actor" });
 
@@ -136,7 +130,7 @@ describe("organization shop management", () => {
     ).resolves.toEqual({ shopId: created.shopId, shopStatus: "active", changed: false });
   });
 
-  it("未認証、閲覧専用、別組織の利用者は店舗を追加できない", async () => {
+  it("未認証、removed、別組織の利用者は店舗を追加できない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const target = await seedOrganizationManagerShop(ctx, {
@@ -147,8 +141,8 @@ describe("organization shop management", () => {
       await seedAdditionalManager(ctx, {
         organizationId: target.organizationId,
         shopId: target.shopId,
-        subject: "add_shop_readonly",
-        status: "readOnly",
+        subject: "add_shop_removed",
+        status: "removed",
       });
       await seedOrganizationManagerShop(ctx, { subject: "add_shop_other_org", plan: "pro" });
       return target;
@@ -163,7 +157,7 @@ describe("organization shop management", () => {
 
     await expect(t.mutation(api.organization.mutations.addShop, args)).rejects.toThrow("Unauthenticated");
     await expect(
-      t.withIdentity({ subject: "add_shop_readonly" }).mutation(api.organization.mutations.addShop, args),
+      t.withIdentity({ subject: "add_shop_removed" }).mutation(api.organization.mutations.addShop, args),
     ).rejects.toThrow("Not found");
     await expect(
       t.withIdentity({ subject: "add_shop_other_org" }).mutation(api.organization.mutations.addShop, args),
@@ -216,7 +210,7 @@ describe("organization shop management", () => {
     expect(state.audits).toEqual([]);
   });
 
-  it.each(["archived", "planSuspended"] as const)(
+  it.each(["archived"] as const)(
     "%s店舗を選択中でも有効管理者は事業者へ新店舗を追加できる",
     async (operatingStatus) => {
       const t = convexTest(schema, modules);
@@ -367,54 +361,6 @@ describe("organization shop management", () => {
         requestId: "archive-idor-request",
       }),
     ).rejects.toThrow("Not found");
-  });
-
-  it("旧契約制限中は対象readOnly所属だけがアーカイブでき、誰も再稼働できない", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "recovery_archive", plan: "pro" });
-      const other = await seedAdditionalManager(ctx, {
-        organizationId: base.organizationId,
-        shopId: base.shopId,
-        subject: "non_recovery_archive",
-        status: "active",
-      });
-      const billingState = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
-        .unique();
-      if (!billingState) throw new Error("billing state not found");
-      await ctx.db.patch(billingState._id, {
-        state: {
-          kind: "restricted",
-          reason: "freeConditionsNotMet",
-          previousPlan: "pro",
-          recoveryManagerPersonIds: [base.personId],
-          previousActiveShopIds: [base.shopId],
-          restrictedAt: Date.now(),
-        },
-      });
-      return { ...base, other };
-    });
-
-    await expect(
-      t.withIdentity({ subject: "non_recovery_archive" }).mutation(api.organization.mutations.archiveShop, {
-        shopId: ids.shopId,
-        requestId: "non-recovery-archive",
-      }),
-    ).rejects.toThrow("この復旧操作を行う権限がありません");
-    await expect(
-      t.withIdentity({ subject: "recovery_archive" }).mutation(api.organization.mutations.archiveShop, {
-        shopId: ids.shopId,
-        requestId: "recovery-archive",
-      }),
-    ).resolves.toEqual({ shopId: ids.shopId, shopStatus: "archived", changed: true });
-    await expect(
-      t.withIdentity({ subject: "recovery_archive" }).mutation(api.organization.mutations.reactivateShop, {
-        shopId: ids.shopId,
-        requestId: "restricted-reactivate",
-      }),
-    ).rejects.toThrow("現在の契約状態では店舗を再稼働できません");
   });
 
   it("active店舗の再稼働はidempotent no-opを維持する", async () => {
@@ -727,7 +673,7 @@ describe("organization shop management", () => {
         const remainingShopId = await seedOrganizationShop(ctx, {
           organizationId: base.organizationId,
           name: "停止中の残存店舗",
-          status: "planSuspended",
+          status: "archived",
         });
         return { ...base, remainingShopId };
       });
@@ -749,7 +695,7 @@ describe("organization shop management", () => {
           .unique(),
       }));
       expect(state.deletedShop?.isDeleted).toBe(true);
-      expect(state.remainingShop).toMatchObject({ isDeleted: false, operatingStatus: "planSuspended" });
+      expect(state.remainingShop).toMatchObject({ isDeleted: false, operatingStatus: "archived" });
       expect(state.billingState?.freeShopId).toBeUndefined();
       expect(state.billingState?.version).toBe(2);
     });
@@ -820,64 +766,19 @@ describe("organization shop management", () => {
       },
     );
 
-    it("契約制限中は復旧担当の有効管理者だけが店舗を削除できる", async () => {
-      const t = convexTest(schema, modules);
-      const ids = await t.run(async (ctx) => {
-        const base = await seedOrganizationManagerShop(ctx, { subject: "delete_recovery", plan: "pro" });
-        const remainingShopId = await seedOrganizationShop(ctx, {
-          organizationId: base.organizationId,
-          name: "復旧後も残す店舗",
-        });
-        await seedAdditionalManager(ctx, {
-          organizationId: base.organizationId,
-          shopId: base.shopId,
-          subject: "delete_non_recovery",
-          status: "active",
-        });
-        const billingState = await ctx.db
-          .query("organizationBillingStates")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
-          .unique();
-        if (!billingState) throw new Error("billing state not found");
-        await ctx.db.patch(billingState._id, {
-          state: {
-            kind: "restricted",
-            reason: "freeConditionsNotMet",
-            previousPlan: "pro",
-            recoveryManagerPersonIds: [base.personId],
-            previousActiveShopIds: [base.shopId, remainingShopId],
-            restrictedAt: Date.now(),
-          },
-        });
-        return base;
-      });
-      const args = {
-        shopId: ids.shopId,
-        confirmShopId: ids.shopId,
-        requestId: "delete-restricted-shop",
-      };
-
-      await expect(
-        t.withIdentity({ subject: "delete_non_recovery" }).mutation(api.organization.mutations.deleteShop, args),
-      ).rejects.toThrow("この復旧操作を行う権限がありません");
-      await expect(
-        t.withIdentity({ subject: "delete_recovery" }).mutation(api.organization.mutations.deleteShop, args),
-      ).resolves.toEqual({ shopId: ids.shopId, changed: true });
-    });
-
-    it("未認証、閲覧のみの管理者、別組織の管理者は店舗削除の副作用を開始しない", async () => {
+    it("未認証、removed管理者、別組織の管理者は店舗削除の副作用を開始しない", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const target = await seedOrganizationManagerShop(ctx, { subject: "delete_target_owner", plan: "pro" });
         await seedOrganizationShop(ctx, { organizationId: target.organizationId, name: "対象組織の残す店舗" });
-        const readOnly = await seedAdditionalManager(ctx, {
+        const removed = await seedAdditionalManager(ctx, {
           organizationId: target.organizationId,
           shopId: target.shopId,
-          subject: "delete_readonly",
-          status: "readOnly",
+          subject: "delete_removed",
+          status: "removed",
         });
         await seedOrganizationManagerShop(ctx, { subject: "delete_other_organization", plan: "pro" });
-        return { ...target, readOnly };
+        return { ...target, removed };
       });
       const args = {
         shopId: ids.shopId,
@@ -899,7 +800,7 @@ describe("organization shop management", () => {
 
       await expect(t.mutation(api.organization.mutations.deleteShop, args)).rejects.toThrow("Unauthenticated");
       await expect(
-        t.withIdentity({ subject: "delete_readonly" }).mutation(api.organization.mutations.deleteShop, args),
+        t.withIdentity({ subject: "delete_removed" }).mutation(api.organization.mutations.deleteShop, args),
       ).rejects.toThrow("Not found");
       await expect(
         t.withIdentity({ subject: "delete_other_organization" }).mutation(api.organization.mutations.deleteShop, args),

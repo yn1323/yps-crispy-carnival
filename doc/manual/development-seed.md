@@ -61,8 +61,8 @@ localでは、現在の`convex/`を読み込んだlocal Convex serverが動作�
 | `standard-scheduled-change` | Standardの解約予約 |
 | `payment-pending` | 課金の`pendingActivation` |
 | `payment-grace` | 支払猶予中 |
-| `payment-restricted` | `paymentGraceExpired`による利用制限 |
-| `policy-restricted` | Standardの`planLimitExceeded`による利用制限 |
+| `free-over-limit` | Freeの管理者上限超過と、`limitRecoveryOnly`での整理導線 |
+| `standard-over-limit` | Standardの管理者上限超過と、`limitRecoveryOnly`での整理導線 |
 
 メールアドレスは`example.test`、LINE識別子は架空値を使います。  通知Outbox、fan-out、遅延deadline、cleanup、Stripe処理、scheduled functionは、実行可能な状態で残しません。
 

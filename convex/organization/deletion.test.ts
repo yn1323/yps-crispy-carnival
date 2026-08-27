@@ -791,7 +791,7 @@ describe("organization deletion", () => {
     await expect(t.run((ctx) => ctx.db.query("deletionCleanupJobs").collect())).resolves.toHaveLength(0);
   });
 
-  it("未認証、閲覧専用、ほかの有効管理者がいる組織を副作用なしで拒否する", async () => {
+  it("未認証またはほかの有効管理者がいる組織を副作用なしで拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "delete_with_managers", plan: "free" });
@@ -811,7 +811,7 @@ describe("organization deletion", () => {
         organizationId: base.organizationId,
         personId: otherPersonId,
         userId: otherUserId,
-        status: "readOnly",
+        status: "active",
         createdAt: now,
         updatedAt: now,
       });
@@ -830,7 +830,7 @@ describe("organization deletion", () => {
     await expect(t.mutation(api.organization.mutations.deleteOrganization, args)).rejects.toThrow("Unauthenticated");
     await expect(
       t.withIdentity({ subject: "delete_other_manager" }).mutation(api.organization.mutations.deleteOrganization, args),
-    ).rejects.toThrow("Not found");
+    ).rejects.toThrow("組織を削除するには、先にほかの管理者の権限を外してください。");
     await expect(
       t.withIdentity({ subject: "delete_with_managers" }).mutation(api.organization.mutations.deleteOrganization, args),
     ).rejects.toThrow("組織を削除するには、先にほかの管理者の権限を外してください。");

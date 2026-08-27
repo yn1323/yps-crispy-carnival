@@ -57,7 +57,7 @@ async function seedMembershipChangeShop(
   ctx: MutationCtx,
   organizationId: Id<"organizations">,
   name: string,
-  operatingStatus: "active" | "archived" | "planSuspended" = "active",
+  operatingStatus: "active" | "archived" = "active",
 ) {
   return await ctx.db.insert("shops", {
     organizationId,
@@ -477,16 +477,16 @@ describe("staff/mutations", () => {
       expect(state.scheduled).toEqual([]);
     });
 
-    it("利用人数に未算入のreadOnly人物をスタッフ化する場合も一人分の空きを要求する", async () => {
+    it("利用人数に未算入のremoved管理者人物をスタッフ化する場合も一人分の空きを要求する", async () => {
       const t = convexTest(schema, modules);
       const seeded = await t.run(async (ctx) => {
         const organization = await seedOrganizationManagerShop(ctx, {
-          subject: "readonly_staff_capacity_manager",
+          subject: "removed_staff_capacity_manager",
           plan: "free",
         });
         const now = Date.now();
         for (let index = 0; index < 4; index += 1) {
-          const email = `readonly-capacity-staff-${index}@example.com`;
+          const email = `removed-capacity-staff-${index}@example.com`;
           const personId = await ctx.db.insert("organizationPeople", {
             organizationId: organization.organizationId,
             name: `既存スタッフ${index}`,
@@ -506,13 +506,13 @@ describe("staff/mutations", () => {
             isDeleted: false,
           });
         }
-        const targetUserId = await seedUser(ctx, "readonly_staff_capacity_target", "readonly-target@example.com");
+        const targetUserId = await seedUser(ctx, "removed_staff_capacity_target", "removed-target@example.com");
         const targetPersonId = await ctx.db.insert("organizationPeople", {
           organizationId: organization.organizationId,
           userId: targetUserId,
           name: "閲覧のみ人物",
-          email: "readonly-target@example.com",
-          emailNormalized: "readonly-target@example.com",
+          email: "removed-target@example.com",
+          emailNormalized: "removed-target@example.com",
           status: "active",
           createdAt: now,
           updatedAt: now,
@@ -521,7 +521,7 @@ describe("staff/mutations", () => {
           organizationId: organization.organizationId,
           personId: targetPersonId,
           userId: targetUserId,
-          status: "readOnly",
+          status: "removed",
           createdAt: now,
           updatedAt: now,
         });
@@ -529,10 +529,10 @@ describe("staff/mutations", () => {
       });
 
       await expect(
-        t.withIdentity({ subject: "readonly_staff_capacity_manager" }).mutation(api.staff.mutations.addStaffs, {
+        t.withIdentity({ subject: "removed_staff_capacity_manager" }).mutation(api.staff.mutations.addStaffs, {
           shopId: seeded.shopId,
           requestId: nextStaffAddRequestId(),
-          entries: [{ name: "入力名", email: "readonly-target@example.com" }],
+          entries: [{ name: "入力名", email: "removed-target@example.com" }],
         }),
       ).rejects.toThrow("利用人数が現在のプラン上限を超えます");
 
@@ -2697,7 +2697,7 @@ describe("staff/mutations", () => {
           subject: "membership_change_boundary_foreign",
           plan: "pro",
         });
-        const inactiveShopId = await seedMembershipChangeShop(ctx, owner.organizationId, "停止店舗", "planSuspended");
+        const inactiveShopId = await seedMembershipChangeShop(ctx, owner.organizationId, "停止店舗", "archived");
         const personId = await seedMembershipChangePerson(ctx, {
           organizationId: owner.organizationId,
           email: "membership-change-boundary@example.com",

@@ -273,7 +273,7 @@ function createItem(): ActionInboxItem {
     id: "staff:registration-1",
     category: "staff",
     statusLabel: "承認待ち",
-    title: "山田花子さんからスタッフ登録申請があります",
+    title: "山田花子さんからスタッフ登録申請が届いています",
     metadata: [{ label: "yn1323店舗", icon: "shop" }],
     actions: [
       {

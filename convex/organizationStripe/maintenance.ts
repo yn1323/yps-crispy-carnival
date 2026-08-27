@@ -369,10 +369,7 @@ export const recoverSafeOperations = internalMutation({
             internal.organizationStripe.actions.reconcileTrialContinuationCancellation,
             actionArgs,
           );
-        } else if (
-          billing.state.kind === "grace" ||
-          (billing.state.kind === "restricted" && billing.state.reason === "paymentGraceExpired")
-        ) {
+        } else if (billing.state.kind === "grace") {
           await ctx.scheduler.runAfter(0, internal.organizationStripe.actions.stopExpiredGraceCollection, actionArgs);
         } else if (operation.kind === "reconcileSubscription") {
           await ctx.scheduler.runAfter(

@@ -24,7 +24,6 @@ function AppManageBillingRoute() {
   return (
     <AppManageBillingRoutePage
       organizationId={organization.organizationId}
-      memberStatus={organization.memberStatus}
       stripeResult={stripe}
       onStripeResultHandled={handleStripeResult}
     />

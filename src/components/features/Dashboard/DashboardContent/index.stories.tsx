@@ -8,30 +8,15 @@ import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedA
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
 import { Button } from "@/src/components/ui/Button";
-import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvider";
 import { userAtom } from "@/src/stores/user";
 import type { DashboardNotificationFailure } from "../NotificationFailureRecovery";
 import type { OperationContextData } from "../OperationContext";
 import { buildDashboardRecruitmentGroups } from "../script";
 import { mockCurrentRecruitments, mockRecruitments, mockStaffs } from "../stories/fixtures";
-import type {
-  DashboardAnnouncement,
-  DashboardNavigation,
-  Recruitment,
-  Staff,
-  StaffRegistrationRequest,
-} from "../types";
+import type { DashboardAnnouncement, Recruitment, Staff, StaffRegistrationRequest } from "../types";
 import { DashboardContent, DashboardContentSkeleton } from "./index";
 
 const noop = () => {};
-const dashboardNavigation = {
-  onOpenBillingSettings: noop,
-  onOpenOrganizationSettings: noop,
-  onOpenShopDetail: noop,
-  onOpenShiftBoard: noop,
-  onOpenStaffDetail: noop,
-  onManageManagers: noop,
-} satisfies DashboardNavigation;
 
 const shop = {
   name: "居酒屋たなか",
@@ -45,7 +30,6 @@ const operationShop = {
   organizationId: "organization-1",
   organizationName: "たなかグループ",
   organizationPlan: "standard" as const,
-  memberStatus: "active" as const,
 };
 const operationContextData = {
   shops: [
@@ -54,13 +38,6 @@ const operationContextData = {
       ...operationShop,
       shopId: "shop-2",
       shopName: "カフェたなか",
-    },
-    {
-      ...operationShop,
-      shopId: "shop-3",
-      shopName: "ビストロ佐藤",
-      organizationId: "organization-2",
-      organizationName: "佐藤フードグループ",
     },
   ],
   selectedShop: operationShop,
@@ -234,21 +211,6 @@ const singleShopDashboardArgs = {
   isDashboardOnboardingDismissed: true,
 } satisfies ComponentProps<typeof DashboardContent>;
 
-const proPlanStatusCard = {
-  data: {
-    kind: "paidPlan",
-    planName: "Standard",
-    badgeLabel: "利用中",
-    nextEventLabel: "次回更新日：2026/9/1",
-  },
-  defaultExpanded: true,
-  usage: {
-    peopleUsage: { current: 12, max: 25 },
-    shopUsage: { current: 2, max: 5 },
-  },
-  onAction: noop,
-} satisfies NonNullable<ComponentProps<typeof DashboardContent>["planStatusCard"]>;
-
 const singleShopStoryStore = createStore();
 singleShopStoryStore.set(userAtom, {
   authId: "dashboard-story-user",
@@ -330,32 +292,9 @@ export const SingleShopMobile: Story = {
   globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
-export const SingleShopWithoutOrganizationContext: Story = {
-  name: "ホーム・組織とプラン非表示・デスクトップ",
-  args: {
-    ...singleShopDashboardArgs,
-    showOrganizationContext: false,
-  },
-  render: (args) => (
-    <DashboardPagePreview>
-      <DashboardContent {...args} />
-    </DashboardPagePreview>
-  ),
-};
-
-export const SingleShopWithoutOrganizationContextMobile: Story = {
-  ...SingleShopWithoutOrganizationContext,
-  name: "ホーム・組織とプラン非表示・モバイル",
-  tags: ["vrt-mobile1"],
-  globals: { viewport: { value: "mobile1", isRotated: false } },
-};
-
 export const HomeAppCompositionDesktop: Story = {
   name: "ホーム・新shell・デスクトップ",
-  args: {
-    ...singleShopDashboardArgs,
-    showOrganizationContext: false,
-  },
+  args: singleShopDashboardArgs,
   parameters: { vrt: { releaseFixedHeader: true } },
   render: (args) => (
     <DashboardAppShellPreview>
@@ -370,90 +309,6 @@ export const HomeAppCompositionMobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
 };
-
-export const SingleShopWithPlanStatus: Story = {
-  name: "1店舗・組織とプラン展開・デスクトップ",
-  args: {
-    ...singleShopDashboardArgs,
-    planStatusCard: proPlanStatusCard,
-  },
-  render: (args) => (
-    <DashboardPagePreview>
-      <DashboardContent {...args} />
-    </DashboardPagePreview>
-  ),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await expect(canvas.getByRole("button", { name: /たなかグループ/ })).toHaveAttribute("aria-expanded", "true");
-    await expect(canvas.getByRole("region", { name: "Standardプランの詳細" })).toBeVisible();
-    await expect(canvas.getByText("次回更新日：2026/9/1")).toBeVisible();
-    await expect(canvas.getByRole("heading", { name: "要対応", level: 2 })).toBeVisible();
-  },
-};
-
-export const SingleShopWithPlanStatusMobile: Story = {
-  ...SingleShopWithPlanStatus,
-  name: "1店舗・組織とプラン展開・モバイル",
-  tags: ["vrt-mobile1"],
-  globals: { viewport: { value: "mobile1", isRotated: false } },
-};
-
-export const PlanStatusCompositionBehavior: Story = {
-  name: "プラン詳細とTrial案内の置換",
-  args: singleShopDashboardArgs,
-  parameters: {
-    screenshot: { skip: true },
-  },
-  render: () => <PlanStatusCompositionStory />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-
-    await expect(canvas.queryByRole("region", { name: "Standardプランの詳細" })).not.toBeInTheDocument();
-    await expect(await canvas.findByRole("region", { name: "トライアル終了前の支払い案内" })).toBeVisible();
-
-    await userEvent.click(canvas.getByRole("button", { name: "新Backendの非表示状態を表示する" }));
-    await expect(canvas.queryByRole("region", { name: "Standardプランの詳細" })).not.toBeInTheDocument();
-    await expect(canvas.queryByRole("region", { name: "トライアル終了前の支払い案内" })).not.toBeInTheDocument();
-
-    await userEvent.click(canvas.getByRole("button", { name: "プラン詳細を表示する" }));
-    await waitFor(() => expect(canvas.getByRole("region", { name: "Standardプランの詳細" })).toBeVisible());
-    await expect(canvas.queryByRole("region", { name: "トライアル終了前の支払い案内" })).not.toBeInTheDocument();
-  },
-};
-
-function PlanStatusCompositionStory() {
-  const [planStatusMode, setPlanStatusMode] = useState<"legacy" | "none" | "card">("legacy");
-
-  return (
-    <DashboardPagePreview>
-      <Button
-        aria-label="新Backendの非表示状態を表示する"
-        aria-pressed={planStatusMode === "none"}
-        onClick={() => setPlanStatusMode("none")}
-      >
-        新Backendの非表示状態を表示する
-      </Button>
-      <Button
-        aria-label="プラン詳細を表示する"
-        aria-pressed={planStatusMode === "card"}
-        onClick={() => setPlanStatusMode("card")}
-      >
-        プラン詳細を表示する
-      </Button>
-      <DashboardContent
-        {...singleShopDashboardArgs}
-        navigation={dashboardNavigation}
-        billingSettingsShopId="shop-1"
-        trialEndingNotice={{
-          visibleFrom: Date.now() - 86_400_000,
-          trialEndsAt: Date.now() + 86_400_000,
-        }}
-        planStatusCard={planStatusMode === "legacy" ? undefined : planStatusMode === "none" ? null : proPlanStatusCard}
-      />
-    </DashboardPagePreview>
-  );
-}
 
 export const ReadOnlyShop: Story = {
   args: {
@@ -548,29 +403,6 @@ function ReadOnlyTransitionStory() {
     </>
   );
 }
-
-export const LegacyStaffDetailFallbackBehavior: Story = {
-  args: {
-    ...Normal.args,
-    staffs: mockStaffs.map((staff) =>
-      staff._id === mockStaffs[1]._id ? { ...staff, organizationPersonId: null } : staff,
-    ),
-  },
-  parameters: {
-    screenshot: { skip: true },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(document.body);
-
-    await userEvent.click(canvas.getByRole("button", { name: "佐藤花子のスタッフ詳細を開く" }));
-    const staffDetailDialog = await body.findByRole("dialog", { name: "スタッフ詳細" });
-    const closeButtons = within(staffDetailDialog).getAllByRole("button", { name: "閉じる" });
-    await expect(closeButtons).toHaveLength(2);
-    await userEvent.click(closeButtons[closeButtons.length - 1]);
-    await waitFor(() => expect(body.queryByRole("dialog", { name: "スタッフ詳細" })).not.toBeInTheDocument());
-  },
-};
 
 export const WithAnnouncement: Story = {
   args: {
@@ -678,41 +510,6 @@ export const OperationalTodoConfirmationFocusBehavior: Story = {
     const dialog = await body.findByRole("alertdialog", { name: "スタッフ登録申請を却下しますか？" });
     await userEvent.click(within(dialog).getByRole("button", { name: "やめる" }));
     await waitFor(() => expect(trigger).toHaveFocus());
-  },
-};
-
-export const OperationalTodoConfirmationSuccessFocusBehavior: Story = {
-  args: {
-    ...Normal.args,
-    pendingStaffRequests: pendingStaffRequests.slice(0, 1),
-    isDashboardOnboardingDismissed: true,
-  },
-  parameters: { screenshot: { skip: true } },
-  render: (args) => (
-    <ManagerShopScopeProvider shopId="shop-1" expectedOrganizationId="organization-1">
-      <DashboardContent {...args} />
-    </ManagerShopScopeProvider>
-  ),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(document.body);
-
-    await userEvent.click(canvas.getByRole("button", { name: /スタッフ登録申請が1件/ }));
-    const registrationItems = await canvas.findByRole("region", { name: "スタッフ登録申請" });
-    const originalCard = within(registrationItems).getByRole("article");
-    const originalTrigger = within(originalCard).getByRole("button", { name: /その他の操作$/ });
-    await userEvent.click(originalTrigger);
-    await userEvent.click(await body.findByRole("menuitem", { name: "却下する" }));
-
-    const dialog = await body.findByRole("alertdialog", { name: "スタッフ登録申請を却下しますか？" });
-    await userEvent.click(within(dialog).getByRole("button", { name: "この申請を却下" }));
-
-    await waitFor(() => expect(originalCard).toHaveAttribute("data-state", "exiting"));
-    await expect(originalTrigger.isConnected).toBe(true);
-    const exitingItems = canvas.getByRole("region", { name: "スタッフ登録申請" });
-    await expect(within(exitingItems).getByRole("article")).toBe(originalCard);
-    await expect(within(exitingItems).getByRole("button", { name: /その他の操作$/ })).toBe(originalTrigger);
-    await waitFor(() => expect(originalTrigger).toHaveFocus());
   },
 };
 
@@ -876,7 +673,7 @@ export const RecruitmentCreateReopenResetsBehavior: Story = {
     }
 
     await userEvent.click(dialogView.getByRole("button", { name: "次へ" }));
-    await dialogView.findByText("お店のお休みを選択");
+    await dialogView.findByText("定休日を選択(任意)");
     await userEvent.click(dialogView.getByRole("button", { name: "閉じる" }));
     await waitFor(() => expect(body.queryByRole("dialog", { name: "新しい募集をつくる" })).not.toBeInTheDocument());
 

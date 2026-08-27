@@ -87,7 +87,7 @@ describe("ActionInbox builders", () => {
       id: "staffRegistration:registration-1",
       category: "staff",
       statusLabel: "承認待ち",
-      title: "山田花子さんからスタッフ登録申請があります",
+      title: "山田花子さんからスタッフ登録申請が届いています",
       metadata: [
         { label: "yn1323店舗", icon: "shop" },
         { label: "申請 2026/8/14 10:30", icon: "clock" },

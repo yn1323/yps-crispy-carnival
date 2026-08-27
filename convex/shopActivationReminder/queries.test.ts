@@ -138,11 +138,11 @@ describe("shopActivationReminder/queries", () => {
     await expect(t.query(getReminderTargetRef, { shopId })).resolves.toBeNull();
   });
 
-  it("canonical管理者がreadOnlyならactiveな旧所属が残っていても対象外にする", async () => {
+  it("canonical管理者がremovedならactiveな旧所属が残っていても対象外にする", async () => {
     const t = createTest();
     const { shopId, userId, memberId } = await seedShopWithManagerStaff(t);
     await t.run(async (ctx) => {
-      await ctx.db.patch(memberId, { status: "readOnly", updatedAt: Date.now() });
+      await ctx.db.patch(memberId, { status: "removed", updatedAt: Date.now() });
       await seedLegacyShopMembership(ctx, { shopId, userId });
     });
 

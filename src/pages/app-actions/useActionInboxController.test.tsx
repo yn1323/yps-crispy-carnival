@@ -114,7 +114,7 @@ describe("useActionInboxController", () => {
     });
 
     const management = findItem(result.current.items, "management");
-    expect(management.title).toBe("鈴木さんへの管理者招待が送れませんでした");
+    expect(management.title).toBe("鈴木さんへの管理者招待を送れませんでした");
     await act(async () => runEnabledAction(getAction(management.actions, "再送する")));
     expect(mocks.resendInvitation).toHaveBeenCalledExactlyOnceWith({
       organizationId,

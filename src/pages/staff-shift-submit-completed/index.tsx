@@ -36,9 +36,7 @@ export function StaffShiftSubmitCompletedView({ state, canGoBack = false, onBack
           <Empty
             icon={LuCheck}
             title="提出が完了しました"
-            description={
-              "希望シフトを提出しました。\nシフトが確定すると、LINEまたはメールへお知らせを送ります。\nこのページは閉じて大丈夫です。"
-            }
+            description={"シフト確定をお待ちください。\nこのページは閉じて構いません。"}
             tone="brand"
             iconVariant="circle"
             size="lg"

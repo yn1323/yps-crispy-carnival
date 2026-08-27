@@ -22,7 +22,7 @@ export function ForgotPasswordFlowView({
   onResetPassword,
 }: ForgotPasswordFlowViewProps) {
   return (
-    <AuthShell title="パスワードを再設定" description="ログインに使うメールアドレスに再設定コードを送信します。">
+    <AuthShell title="パスワードを再設定" description="メールアドレスに再設定コードを送信します。">
       <ForgotPasswordForm
         errorMessage={errorMessage}
         isSubmitting={isSubmitting}

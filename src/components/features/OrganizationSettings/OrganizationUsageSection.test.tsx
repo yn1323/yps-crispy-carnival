@@ -23,14 +23,13 @@ afterEach(() => {
 });
 
 describe("OrganizationUsageSection", () => {
-  it("Standard上限をStandardとして表示する", () => {
+  it("有料プランの支払い確認中はFree上限を表示する", () => {
     const billing = {
-      state: "restricted",
+      state: "pendingActivation",
       currentPlan: null,
-      limitPlan: "standard",
-      peopleUsage: { current: 20, max: 25 },
-      shopUsage: { current: 2, max: 3 },
-      managerUsage: { current: 2, max: 3 },
+      peopleUsage: { current: 5, max: 5 },
+      shopUsage: { current: 1, max: 1 },
+      managerUsage: { current: 1, max: 2 },
     } satisfies OrganizationUsageSummary;
 
     render(
@@ -39,7 +38,6 @@ describe("OrganizationUsageSection", () => {
       </ChakraProvider>,
     );
 
-    expect(screen.getByText("現在はStandardの上限が適用されています")).not.toBeNull();
-    expect(screen.queryByText("現在はProの上限が適用されています")).toBeNull();
+    expect(screen.getByText("現在はFreeの上限が適用されています")).not.toBeNull();
   });
 });

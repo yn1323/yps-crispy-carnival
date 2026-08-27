@@ -1,4 +1,3 @@
-import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { scheduleOrganizationBillingStateDeadline } from "../organizationBilling/deadline";
@@ -60,16 +59,6 @@ export const migration = migrations.define({
         organizationId: billingState.organizationId,
         state: normalizedState,
         version: nextVersion,
-      });
-    }
-
-    if (
-      normalizedState.kind === "restricted" &&
-      (normalizedState.reason === "trialFreeConditionsNotMet" || normalizedState.reason === "freeConditionsNotMet")
-    ) {
-      await ctx.scheduler.runAfter(0, internal.organizationBilling.mutations.reconcileRestrictedFreeEligibility, {
-        billingStateId: billingState._id,
-        expectedVersion: nextVersion,
       });
     }
   },

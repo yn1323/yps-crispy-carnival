@@ -107,10 +107,9 @@ vi.mock("@/src/components/features/AuthenticatedApp", () => ({
   useAppOrganizationScope: () => ({
     organizationId: "organization-a",
     organizationName: "A組織",
-    memberStatus: "active",
     organizations: [
-      { id: "organization-a", name: "A組織", memberStatus: "active" },
-      { id: "organization-b", name: "B組織", memberStatus: "readOnly" },
+      { id: "organization-a", name: "A組織" },
+      { id: "organization-b", name: "B組織" },
     ],
     activeShops: [],
   }),

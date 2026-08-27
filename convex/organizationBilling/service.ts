@@ -13,10 +13,8 @@ import {
   deriveOrganizationBillingPolicy,
   evaluateOrganizationUsageLimits,
   evaluatePlanLimits,
-  getEffectiveRestrictedBillingState,
   ORGANIZATION_PLAN_LIMITS,
   type OrganizationAccessPolicy,
-  type RecoveryCapability,
   resolveUsageLimitPlan,
 } from "./policy";
 
@@ -107,12 +105,7 @@ function usageLimitExceededError(access: OrganizationAccessPolicy) {
 function requireBusinessWriteFromAccess(access: Awaited<ReturnType<typeof getOrganizationAccessPolicy>>) {
   if (!access) return null;
   if (access.accessMode === "normal") return access.billingPolicy;
-  if (access.accessMode === "limitRecoveryOnly") throw usageLimitExceededError(access);
-  throw new ConvexError(
-    access.businessWriteBlockReason === "paymentResultPending"
-      ? "支払い結果を確認中のため、業務操作はまだ利用できません。"
-      : "契約状態を確認できるまで、閲覧と復旧に必要な操作のみ利用できます。",
-  );
+  throw usageLimitExceededError(access);
 }
 
 /**
@@ -212,25 +205,4 @@ export async function requireOrganizationCapacity(
     throw new ConvexError(message);
   }
   return { billingState, policy, usage };
-}
-
-export async function requireRestrictedRecoveryCapability(
-  ctx: DbCtx,
-  args: {
-    organizationId: Id<"organizations">;
-    personId: Id<"organizationPeople">;
-    capability: RecoveryCapability;
-  },
-) {
-  const billingState = await getOrganizationBillingState(ctx, args.organizationId);
-  const restrictedState = billingState ? getEffectiveRestrictedBillingState(billingState.state) : null;
-  if (!billingState || !restrictedState) {
-    throw new ConvexError("現在の契約状態では実行できない操作です");
-  }
-  const isRecoveryManager = restrictedState.recoveryManagerPersonIds.some((personId) => personId === args.personId);
-  const policy = deriveOrganizationBillingPolicy(billingState.state);
-  if (!isRecoveryManager || !policy.allowedRecoveryCapabilities.includes(args.capability)) {
-    throw new ConvexError("この復旧操作を行う権限がありません");
-  }
-  return { billingState, policy };
 }

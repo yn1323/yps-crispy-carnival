@@ -53,7 +53,7 @@ export async function resolveOrganizationReadActor(
     )
     .take(2);
   if (
-    (member.status !== "active" && member.status !== "readOnly") ||
+    member.status !== "active" ||
     membersForPerson.length !== 1 ||
     membersForPerson[0]._id !== member._id ||
     member.personId !== person._id ||
@@ -84,7 +84,6 @@ export async function requireOrganizationActorForShop(
   args: {
     user: Doc<"users"> | null;
     shopId: Id<"shops">;
-    allowReadOnly?: boolean;
   },
 ): Promise<OrganizationActor> {
   if (!args.user || args.user.isDeleted) throw new ConvexError("Not found");
@@ -103,8 +102,7 @@ export async function requireOrganizationActorForShop(
     .take(2);
   if (members.length !== 1) throw new ConvexError("Not found");
   const member = members[0];
-  const allowed = member.status === "active" || (args.allowReadOnly === true && member.status === "readOnly");
-  if (!allowed) throw new ConvexError("Not found");
+  if (member.status !== "active") throw new ConvexError("Not found");
 
   const person = await ctx.db.get(member.personId);
   if (!person) throw new ConvexError("Not found");

@@ -29,7 +29,7 @@ import {
   upsertConfirmationSnapshotRecord,
 } from "../notification/confirmationSnapshots";
 import { buildNotificationFanoutTargetKey, isSupplementalConfirmationFanoutStale } from "../notification/fanout";
-import { billingStateReferencesBusinessPlan, getEffectiveRestrictedBillingState } from "../organizationBilling/policy";
+import { billingStateReferencesBusinessPlan } from "../organizationBilling/policy";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { isOrganizationInvitationIssued } from "../organizationInvitation/lifecycle";
 import { resolveOrganizationInvitationEligibility } from "../organizationInvitation/service";
@@ -96,7 +96,6 @@ const ORGANIZATION_NOTIFICATION_CANCEL_BATCH_SIZE = 100;
 export const BULK_NOTIFICATION_CANCEL_CANDIDATE_LIMIT = 50;
 const DEFAULT_NOTIFICATION_CANCELLATION_LIMIT_ERROR =
   "未送信の案内が多いため、一括で所属を変更できません。\n対象を分けて、もう一度お試しください。";
-const HISTORICAL_BILLING_RECIPIENT_CONTEXTS = new Set(["organizationBilling.freeApplied"]);
 const BILLING_DEADLINE_CONTEXT_STATE = {
   "organizationBilling.trialEnding": "trial",
   "organizationBilling.graceEndingSoon": "grace",
@@ -1386,11 +1385,9 @@ async function getNotificationEligibility(
       return { organizationId, cancelReason: "invalid_scope" };
     }
     if (access.accessMode !== "normal") {
-      const isUsageLimitBlocked =
-        access.usageLimitStatus?.kind === "overLimit" || access.usageLimitStatus?.kind === "unknown";
       return {
         organizationId,
-        cancelReason: isUsageLimitBlocked ? "organization_usage_limit_exceeded" : "organization_restricted",
+        cancelReason: "organization_usage_limit_exceeded",
       };
     }
   }
@@ -1440,12 +1437,7 @@ async function getNotificationEligibility(
   }
 
   if (notification.userId) {
-    const userReason = await getUserRecipientCancellationReason(
-      ctx,
-      notification,
-      organizationId,
-      billingState ? (getEffectiveRestrictedBillingState(billingState.state)?.recoveryManagerPersonIds ?? []) : [],
-    );
+    const userReason = await getUserRecipientCancellationReason(ctx, notification, organizationId);
     if (userReason) return { organizationId, cancelReason: userReason };
   }
 
@@ -1579,7 +1571,6 @@ async function getUserRecipientCancellationReason(
   ctx: MutationCtx,
   notification: NotificationEligibilityInput,
   organizationId?: Id<"organizations">,
-  recoveryManagerPersonIds: Id<"organizationPeople">[] = [],
 ): Promise<NotificationCancelReason | undefined> {
   const userId = notification.userId;
   if (!userId) return undefined;
@@ -1622,16 +1613,7 @@ async function getUserRecipientCancellationReason(
       return "recipient_inactive";
     }
 
-    const isRecoveryRecipient =
-      notification.purpose === "billing" &&
-      member?.status === "readOnly" &&
-      recoveryManagerPersonIds.includes(member.personId);
-    const isHistoricalBillingRecipient =
-      notification.purpose === "billing" &&
-      member?.status === "readOnly" &&
-      notification.payload.kind === "email" &&
-      HISTORICAL_BILLING_RECIPIENT_CONTEXTS.has(notification.payload.context);
-    if (member && member.status !== "active" && !isRecoveryRecipient && !isHistoricalBillingRecipient) {
+    if (member && member.status !== "active") {
       return "recipient_inactive";
     }
   }

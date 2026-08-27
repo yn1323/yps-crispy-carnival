@@ -29,7 +29,6 @@ const operationShop = {
   organizationId: "organization-1",
   organizationName: "たなかグループ",
   organizationPlan: "standard" as const,
-  memberStatus: "active" as const,
 };
 const operationContextData = {
   shops: [operationShop],
@@ -109,20 +108,13 @@ function DashboardQueryRecoveryPreview({ initialFailures }: Props) {
             }),
         }
       : { status: "ready", data };
-  const isRecruitmentAvailable = !failedStages.has("recruitment");
-
   return (
     <Provider store={storyStore}>
       <Box minH="100vh" bg="gray.50">
         <RootContentWrapper>
           <RecruitmentManagement regularClosedDays={shop.regularClosedDays} data={recruitmentData}>
             {(recruitment) => (
-              <StaffManagement
-                data={staffData}
-                openRecruitments={isRecruitmentAvailable ? recruitment.openRecruitments : []}
-                currentRecruitments={isRecruitmentAvailable ? recruitment.currentRecruitments : []}
-                recruitmentDataStatus={isRecruitmentAvailable ? "ready" : "unavailable"}
-              >
+              <StaffManagement data={staffData}>
                 {(staff) => (
                   <StaffRegistrationRequestManagement shopName={shop.name} requests={pendingStaffRequests}>
                     {(registrationRequests) => (
@@ -174,8 +166,8 @@ export const OperationalTodoQueryUnavailable: Story = {
   args: { initialFailures: ["registrationRequests", "notificationFailures"] },
 };
 
-export const MultipleQueryUnavailableMobile: Story = {
-  args: { initialFailures: ["recruitment", "staff", "registrationRequests", "notificationFailures"] },
+export const PrimarySectionsUnavailableMobile: Story = {
+  args: { initialFailures: ["recruitment", "staff"] },
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
 };
@@ -186,11 +178,10 @@ export const RecruitmentQueryRecoveryBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvas.getByRole("heading", { name: /たなかグループ/, level: 2 })).toBeVisible();
     await expect(canvas.getByLabelText("スタッフ一覧")).toBeVisible();
     await expect(canvas.getByText("シフト募集を読み込めませんでした")).toBeVisible();
 
-    await userEvent.click(canvas.getByRole("button", { name: "シフト募集を再試行" }));
+    await userEvent.click(canvas.getByRole("button", { name: "再試行する" }));
 
     await expect(await canvas.findByLabelText("シフト一覧")).toBeVisible();
     await expect(canvas.queryByText("シフト募集を読み込めませんでした")).not.toBeInTheDocument();
@@ -225,10 +216,15 @@ export const OperationalTodoQueryRecoveryBehavior: Story = {
     await expect(canvas.getByText("一部の要対応項目を読み込めませんでした")).toBeVisible();
 
     await userEvent.click(canvas.getByRole("button", { name: "登録申請を再試行" }));
+
+    await expect(await canvas.findByRole("button", { name: /スタッフ登録申請が1件/ })).toBeEnabled();
+    await expect(canvas.queryByRole("button", { name: "登録申請を再試行" })).not.toBeInTheDocument();
+    await expect(canvas.getByRole("button", { name: "通知を再試行" })).toBeEnabled();
+    await expect(canvas.getByText("一部の要対応項目を読み込めませんでした")).toBeVisible();
+
     await userEvent.click(canvas.getByRole("button", { name: "通知を再試行" }));
 
+    await expect(await canvas.findByRole("button", { name: /送れなかった通知が1件/ })).toBeEnabled();
     await expect(canvas.queryByText("一部の要対応項目を読み込めませんでした")).not.toBeInTheDocument();
-    await expect(canvas.getByRole("button", { name: /スタッフ登録申請が1件/ })).toBeEnabled();
-    await expect(canvas.getByRole("button", { name: /送れなかった通知が1件/ })).toBeEnabled();
   },
 };

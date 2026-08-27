@@ -211,7 +211,7 @@ describe("SSO callback", () => {
     expect(resources.signIn.finalize).not.toHaveBeenCalled();
     expect(navigation.recover).toHaveBeenCalledExactlyOnceWith(
       "login",
-      "セッションを作成できませんでした。\n最初からやり直してください。",
+      "セッションを作成できませんでした。最初からやり直してください。",
     );
   });
 

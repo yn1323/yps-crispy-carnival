@@ -96,11 +96,11 @@ function boundedList<T>(items: T[]): T[] | null {
 }
 
 function organizationShopStaffMembershipWriteState(args: {
-  memberStatus: "active" | "readOnly" | "removed";
-  shopStatus: "active" | "archived" | "planSuspended";
+  memberStatus: "active" | "removed";
+  shopStatus: "active" | "archived";
   hasBillingPolicy: boolean;
   canWriteBusinessData: boolean;
-  businessWriteBlockReason: "paymentResultPending" | "restricted" | null;
+  businessWriteBlockReason: "paymentResultPending" | null;
 }) {
   const canWrite = args.memberStatus === "active" && args.shopStatus === "active" && args.canWriteBusinessData;
   if (canWrite) return { canWrite: true, writeDisabledReason: null } as const;
@@ -132,8 +132,8 @@ async function getOrganizationShopStaffMembershipWriteState(
   ctx: Parameters<typeof collectOrganizationShopStaffMembershipSnapshot>[0],
   args: {
     organizationId: Id<"organizations">;
-    memberStatus: "active" | "readOnly" | "removed";
-    shopStatus: "active" | "archived" | "planSuspended";
+    memberStatus: "active" | "removed";
+    shopStatus: "active" | "archived";
   },
 ) {
   const billingPolicy = await getOrganizationBillingPolicy(ctx, args.organizationId);
@@ -317,49 +317,35 @@ export const listOrganizationPeopleAvailableForShop = managerQuery({
   returns: v.union(v.null(), v.array(availableOrganizationPersonValidator)),
   handler: async (ctx) => {
     if (!ctx.user || !ctx.shop || !ctx.organization) return [];
-    if (ctx.organizationMember?.status === "readOnly") return [];
-
     const organizationId = ctx.organization._id;
     const shopId = ctx.shop._id;
-    const [peopleResult, activeMembersResult, readOnlyMembersResult, shopsResult, pendingRequestsResult] =
-      await Promise.all([
-        ctx.db
-          .query("organizationPeople")
-          .withIndex("by_organizationId_and_status", (q) =>
-            q.eq("organizationId", organizationId).eq("status", "active"),
-          )
-          .take(ORGANIZATION_PERSON_LIST_LIMIT + 1),
-        ctx.db
-          .query("organizationMembers")
-          .withIndex("by_organizationId_and_status", (q) =>
-            q.eq("organizationId", organizationId).eq("status", "active"),
-          )
-          .take(ORGANIZATION_PERSON_LIST_LIMIT + 1),
-        ctx.db
-          .query("organizationMembers")
-          .withIndex("by_organizationId_and_status", (q) =>
-            q.eq("organizationId", organizationId).eq("status", "readOnly"),
-          )
-          .take(ORGANIZATION_PERSON_LIST_LIMIT + 1),
-        ctx.db
-          .query("shops")
-          .withIndex("by_organizationId_and_isDeleted", (q) =>
-            q.eq("organizationId", organizationId).eq("isDeleted", false),
-          )
-          .take(ORGANIZATION_PERSON_LIST_LIMIT + 1),
-        ctx.db
-          .query("staffRegistrationRequests")
-          .withIndex("by_shopId_status", (q) => q.eq("shopId", shopId).eq("status", "pending"))
-          .take(ORGANIZATION_PERSON_LIST_LIMIT + 1),
-      ]);
+    const [peopleResult, activeMembersResult, shopsResult, pendingRequestsResult] = await Promise.all([
+      ctx.db
+        .query("organizationPeople")
+        .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "active"))
+        .take(ORGANIZATION_PERSON_LIST_LIMIT + 1),
+      ctx.db
+        .query("organizationMembers")
+        .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "active"))
+        .take(ORGANIZATION_PERSON_LIST_LIMIT + 1),
+      ctx.db
+        .query("shops")
+        .withIndex("by_organizationId_and_isDeleted", (q) =>
+          q.eq("organizationId", organizationId).eq("isDeleted", false),
+        )
+        .take(ORGANIZATION_PERSON_LIST_LIMIT + 1),
+      ctx.db
+        .query("staffRegistrationRequests")
+        .withIndex("by_shopId_status", (q) => q.eq("shopId", shopId).eq("status", "pending"))
+        .take(ORGANIZATION_PERSON_LIST_LIMIT + 1),
+    ]);
     const people = boundedList(peopleResult);
     const activeMembers = boundedList(activeMembersResult);
-    const readOnlyMembers = boundedList(readOnlyMembersResult);
     const allNonDeletedShops = boundedList(shopsResult);
     const pendingRequests = boundedList(pendingRequestsResult);
-    if (!people || !activeMembers || !readOnlyMembers || !allNonDeletedShops || !pendingRequests) return null;
+    if (!people || !activeMembers || !allNonDeletedShops || !pendingRequests) return null;
     if (people.some((person) => normalizeEmail(person.email) !== person.emailNormalized)) return null;
-    const members = [...activeMembers, ...readOnlyMembers];
+    const members = activeMembers;
     const shops = allNonDeletedShops.filter(
       (shop) => organizationShopOperatingStatus(shop.operatingStatus) === "active",
     );

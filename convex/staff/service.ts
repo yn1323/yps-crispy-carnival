@@ -59,7 +59,7 @@ export async function collectOrganizationShopStaffMembershipSnapshot(
   const shop = await ctx.db.get(args.shopId);
   if (!shop || shop.isDeleted || shop.organizationId !== args.organizationId) return null;
 
-  const [people, activeMembers, readOnlyMembers, shops, pendingRegistrations, targetShopStaffs, organizationStaffRows] =
+  const [people, activeMembers, shops, pendingRegistrations, targetShopStaffs, organizationStaffRows] =
     await Promise.all([
       ctx.db
         .query("organizationPeople")
@@ -71,12 +71,6 @@ export async function collectOrganizationShopStaffMembershipSnapshot(
         .query("organizationMembers")
         .withIndex("by_organizationId_and_status", (q) =>
           q.eq("organizationId", args.organizationId).eq("status", "active"),
-        )
-        .take(ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT + 1),
-      ctx.db
-        .query("organizationMembers")
-        .withIndex("by_organizationId_and_status", (q) =>
-          q.eq("organizationId", args.organizationId).eq("status", "readOnly"),
         )
         .take(ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT + 1),
       ctx.db
@@ -101,8 +95,6 @@ export async function collectOrganizationShopStaffMembershipSnapshot(
   if (
     !isWithinOrganizationShopStaffMembershipLimit(people) ||
     !isWithinOrganizationShopStaffMembershipLimit(activeMembers) ||
-    !isWithinOrganizationShopStaffMembershipLimit(readOnlyMembers) ||
-    !isWithinOrganizationShopStaffMembershipLimit([...activeMembers, ...readOnlyMembers]) ||
     !isWithinOrganizationShopStaffMembershipLimit(shops) ||
     !isWithinOrganizationShopStaffMembershipLimit(pendingRegistrations) ||
     targetShopStaffs.length > SHOP_MEMBERSHIP_STATS_ACTIVE_STAFF_LIMIT ||
@@ -160,7 +152,7 @@ export async function collectOrganizationShopStaffMembershipSnapshot(
     otherShopNamesByPersonId.set(staff.organizationPersonId, names);
   }
 
-  const managerMemberships = [...activeMembers, ...readOnlyMembers];
+  const managerMemberships = activeMembers;
   const activeManagerPersonIds = new Set(activeMembers.map((membership) => membership.personId));
   const personIdsWithStaffHistory = new Set(
     organizationStaffRows.flatMap((staff) => (staff.organizationPersonId ? [staff.organizationPersonId] : [])),
@@ -179,7 +171,7 @@ export async function collectOrganizationShopStaffMembershipSnapshot(
     .map((person): OrganizationShopStaffMembershipSnapshotPerson => {
       const currentStaff = currentStaffByPersonId.get(person._id) ?? null;
       // UI capabilityもmutation guardと同じpersonId基準でfail closedにする。
-      // user linkが壊れている場合でもactive/readOnly roleの解除表示を許可しない。
+      // user linkが壊れている場合でも管理者roleの解除表示を許可しない。
       const isManager = managerMemberships.some((membership) => membership.personId === person._id);
       const hasLegacyEmailConflict = legacyEmails.has(person.emailNormalized);
       const hasActiveStaffEmailConflict =

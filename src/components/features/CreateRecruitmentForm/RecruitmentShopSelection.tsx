@@ -30,11 +30,11 @@ export function RecruitmentShopSelection({ shops, selectedShopId, onChange }: Pr
               borderRadius={0}
               borderTopWidth={index === 0 ? 0 : "1px"}
               borderTopColor="blackAlpha.100"
-              bg={isSelected ? "teal.500" : "white"}
-              color={isSelected ? "white" : "gray.900"}
+              bg={isSelected ? "gray.50" : "white"}
+              color="gray.900"
               cursor="pointer"
               _hover={!isSelected ? { bg: "gray.50" } : undefined}
-              _checked={{ bg: "teal.500", color: "white" }}
+              _checked={{ bg: "gray.50", color: "gray.900" }}
             >
               <RadioCard.ItemHiddenInput />
               <RadioCard.ItemControl px={{ base: 3, md: 4 }} py={3.5} minH="64px" alignItems="center">
@@ -42,7 +42,7 @@ export function RecruitmentShopSelection({ shops, selectedShopId, onChange }: Pr
                 <Flex
                   boxSize="40px"
                   borderRadius="lg"
-                  bg="teal.100"
+                  bg="teal.50"
                   color="teal.700"
                   align="center"
                   justify="center"

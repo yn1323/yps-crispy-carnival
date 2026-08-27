@@ -7,7 +7,7 @@ import { modules, schema } from "../_test/setup.test-helper";
 const NOW = Date.parse("2026-07-20T00:00:00.000Z");
 
 describe("organizationStripe/queries", () => {
-  it("期間末解約は最新intentだけを使い、取消済み旧Free予約や証跡なしをrestrictedへ倒す", async () => {
+  it("期間末解約は最新intentだけを使い、取消済み旧Free予約や証跡なしを解約扱いにする", async () => {
     const t = convexTest(schema, modules);
     const effectiveAt = NOW + 30 * 24 * 60 * 60_000;
     const organizations = await t.run(async (ctx) => {

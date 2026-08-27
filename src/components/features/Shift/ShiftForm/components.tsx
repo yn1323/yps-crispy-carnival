@@ -205,10 +205,12 @@ type UnsubmittedStripProps = {
   onOpenDetails?: () => void;
 };
 
-export type ReminderStatus = {
-  kind: "scheduled" | "sent" | "none";
-  label: string;
-};
+export type ReminderStatus =
+  | {
+      kind: "scheduled" | "sent" | "none";
+      label: string;
+    }
+  | { kind: "unconfirmed" };
 
 export const UnsubmittedStrip = ({ names, reminderStatus, onOpenDetails }: UnsubmittedStripProps) => {
   const statusColor =
@@ -246,9 +248,11 @@ export const UnsubmittedStrip = ({ names, reminderStatus, onOpenDetails }: Unsub
             </Box>
           ))}
         </Flex>
-        <Box textStyle="caption" flexShrink={0} style={{ color: statusColor }}>
-          {reminderStatus.label}
-        </Box>
+        {reminderStatus.kind !== "unconfirmed" && (
+          <Box textStyle="caption" flexShrink={0} style={{ color: statusColor }}>
+            {reminderStatus.label}
+          </Box>
+        )}
       </Flex>
       <Box display={{ base: "block", lg: "none" }} flexShrink={0}>
         <button
@@ -274,9 +278,11 @@ export const UnsubmittedStrip = ({ names, reminderStatus, onOpenDetails }: Unsub
           <span style={{ fontSize: "var(--chakra-font-sizes-sm)", fontWeight: 700, color: "#b45309" }}>
             未提出 {names.length}人
           </span>
-          <span style={{ fontSize: "var(--chakra-font-sizes-xs)", color: "#b45309", opacity: 0.8 }}>
-            {reminderStatus.label}
-          </span>
+          {reminderStatus.kind !== "unconfirmed" && (
+            <span style={{ fontSize: "var(--chakra-font-sizes-xs)", color: "#b45309", opacity: 0.8 }}>
+              {reminderStatus.label}
+            </span>
+          )}
           {onOpenDetails && (
             <span
               style={{ marginLeft: "auto", fontSize: "var(--chakra-font-sizes-md)", color: "#b45309", flexShrink: 0 }}

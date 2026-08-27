@@ -282,7 +282,6 @@ describe("ManagerInvitationAcceptance controller", () => {
         organizationId: "organization-invited",
         organizationName: "招待先組織",
         organizationPlan: "pro",
-        memberStatus: "active",
       },
     ];
     rerender(<ManagerInvitationAcceptance token="invitation-token" />);

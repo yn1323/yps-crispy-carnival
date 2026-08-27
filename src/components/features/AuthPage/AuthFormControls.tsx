@@ -32,9 +32,9 @@ export const OAuthSection = ({ label, isLineBrowser, isSubmitting, onClick }: OA
       <Alert.Root status="warning" borderRadius="lg">
         <Alert.Indicator />
         <Alert.Description>
-          LINEアプリ内では、Googleログインを利用できません。
+          LINEアプリからGoogleログインを利用できません。
           <br />
-          Googleのボタンを押すと、このページを外部ブラウザで開き直します。
+          ブラウザで開き直してください。
         </Alert.Description>
       </Alert.Root>
     )}

@@ -9,11 +9,10 @@ const ORGANIZATION_A = "organizations_a" as Id<"organizations">;
 const ORGANIZATION_B = "organizations_b" as Id<"organizations">;
 
 const options: AppOrganizationSwitcherOption[] = [
-  { id: ORGANIZATION_A, name: "株式会社さくらダイニング", memberStatus: "active" },
+  { id: ORGANIZATION_A, name: "株式会社さくらダイニング" },
   {
     id: ORGANIZATION_B,
     name: "株式会社とても長い名前のみどりフーズ西日本事業本部",
-    memberStatus: "readOnly",
   },
 ];
 
@@ -41,7 +40,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Desktop: Story = {};
 
-export const OpenMenuWithLongNameAndReadOnly: Story = {
+export const OpenMenuWithLongName: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const screen = within(canvasElement.ownerDocument.body);
@@ -49,7 +48,7 @@ export const OpenMenuWithLongNameAndReadOnly: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "組織を切り替える（現在：株式会社さくらダイニング）" }));
 
     const option = await screen.findByRole("menuitemradio", {
-      name: "株式会社とても長い名前のみどりフーズ西日本事業本部 状態確認",
+      name: "株式会社とても長い名前のみどりフーズ西日本事業本部",
     });
     await waitFor(() => expect(option).toBeVisible());
   },
@@ -65,7 +64,7 @@ export const SelectionBehavior: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "組織を切り替える（現在：株式会社さくらダイニング）" }));
     await userEvent.click(
       await screen.findByRole("menuitemradio", {
-        name: "株式会社とても長い名前のみどりフーズ西日本事業本部 状態確認",
+        name: "株式会社とても長い名前のみどりフーズ西日本事業本部",
       }),
     );
 
@@ -113,7 +112,7 @@ export const Mobile: Story = {
 export const NarrowMobileOpenMenu: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
-  play: OpenMenuWithLongNameAndReadOnly.play,
+  play: OpenMenuWithLongName.play,
 };
 
 function SelectionBehaviorHarness() {

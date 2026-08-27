@@ -7,13 +7,7 @@ import { PeopleSection } from "@/src/components/features/OrganizationSettings";
 import type { OrganizationPersonView } from "@/src/components/features/OrganizationSettings/types";
 import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedAppShell";
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
-import {
-  AppStaffHeader,
-  AppStaffPageStateView,
-  AppStaffReadOnlyNotice,
-  type ShopOption,
-  StaffInvitationShopSelectionDialog,
-} from ".";
+import { AppStaffHeader, AppStaffPageStateView, type ShopOption, StaffInvitationShopSelectionDialog } from ".";
 
 const people: OrganizationPersonView[] = [
   {
@@ -63,14 +57,14 @@ const invitationShops: ShopOption[] = [
 
 function StaffReadyPreview({
   withNextPage = false,
-  readOnly = false,
+  usageLimitExceeded = false,
   empty = false,
   singleShop = false,
   singlePerson = false,
   filteredByShop = false,
 }: {
   withNextPage?: boolean;
-  readOnly?: boolean;
+  usageLimitExceeded?: boolean;
   empty?: boolean;
   singleShop?: boolean;
   singlePerson?: boolean;
@@ -87,7 +81,6 @@ function StaffReadyPreview({
         options={singleShop ? shopOptions.slice(0, 1) : shopOptions}
         onChange={() => {}}
       />
-      {readOnly && <AppStaffReadOnlyNotice />}
       <PeopleSection
         people={visiblePeople}
         peopleUsage={{ current: empty ? 0 : singlePerson ? 1 : 12, max: 50 }}
@@ -97,9 +90,9 @@ function StaffReadyPreview({
           filteredByShop
             ? undefined
             : {
-                disabled: readOnly || singlePerson,
-                disabledReason: readOnly
-                  ? "現在のアカウント状態では、スタッフの並び順を変更できません。"
+                disabled: usageLimitExceeded || singlePerson,
+                disabledReason: usageLimitExceeded
+                  ? "プラン上限を超えているため、スタッフの並び順を変更できません。"
                   : singlePerson
                     ? "2名以上のスタッフがいると並び替えできます。"
                     : undefined,
@@ -115,8 +108,10 @@ function StaffReadyPreview({
               }
         }
         onAddStaff={() => {}}
-        canAddStaff={!readOnly}
-        addStaffDisabledReason={readOnly ? "現在のアカウント状態では、スタッフを追加できません。" : undefined}
+        canAddStaff={!usageLimitExceeded}
+        addStaffDisabledReason={
+          usageLimitExceeded ? "プラン上限を超えているため、スタッフを追加できません。" : undefined
+        }
         canLoadMorePeople={canLoadMore}
         onLoadMorePeople={() => {
           setVisiblePeople((current) => [...current, loadedPerson]);
@@ -189,10 +184,10 @@ export const AppCompositionMobile: Story = {
   globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
-export const ReadOnlyMobile: Story = {
+export const UsageLimitExceededMobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
-  render: () => <StaffReadyPreview readOnly />,
+  render: () => <StaffReadyPreview usageLimitExceeded />,
 };
 
 export const EmptyMobile: Story = {

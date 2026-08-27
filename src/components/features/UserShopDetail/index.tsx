@@ -77,8 +77,6 @@ export function UserShopDetail({ data, membership, targetShopId, expectedOrganiz
 function getStoreDisabledReason(data: UserShopDetailData, membership: UserShopDetailMembership) {
   if (!data.canWrite) return data.writeDisabledReason ?? "現在、この組織の情報を変更できません。";
   if (membership.shopStatus === "archived") return "停止中の店舗では、店舗別設定を変更できません。";
-  if (membership.shopStatus === "planSuspended")
-    return "契約上限を超えて停止中の店舗では、店舗別設定を変更できません。";
   return undefined;
 }
 

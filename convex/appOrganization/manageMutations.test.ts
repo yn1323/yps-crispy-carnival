@@ -143,53 +143,6 @@ describe("app organization manage mutations", () => {
     expect(await manageWriteState(t)).toEqual(before);
   });
 
-  it("readOnly所属はManage writeを実行できず、Stripe action contextも取得できない", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const actor = await seedOrganizationManagerShop(ctx, {
-        subject: "app_manage_read_only_write",
-        plan: "business",
-      });
-      await ctx.db.patch(actor.memberId, { status: "readOnly", updatedAt: Date.now() });
-      return actor;
-    });
-    const actor = t.withIdentity({ subject: "app_manage_read_only_write" });
-    const before = await manageWriteState(t);
-
-    await expect(
-      actor.mutation(api.organization.mutations.updateOrganizationNameForOrganization, {
-        organizationId: ids.organizationId,
-        name: "変更後",
-        requestId: "read-only-name",
-      }),
-    ).rejects.toThrow("Not found");
-    await expect(
-      actor.mutation(api.organizationBilling.mutations.updateBillingEmailForOrganization, {
-        organizationId: ids.organizationId,
-        email: "read-only-billing@example.com",
-        requestId: "read-only-billing",
-      }),
-    ).rejects.toThrow();
-    await expect(
-      actor.mutation(api.setup.mutations.createOrganizationForApp, {
-        organizationId: ids.organizationId,
-        shopName: "閲覧者の新組織",
-        regularClosedDays: [],
-        submissionPattern: { kind: "dateOnly" },
-        requestId: "read-only-create-organization",
-      }),
-    ).rejects.toThrow("Not found");
-    await expect(
-      t.query(internal.organizationStripe.queries.getActionContextForOrganization, {
-        tokenIdentifier: testAuthTokenIdentifier("app_manage_read_only_write"),
-        organizationId: ids.organizationId,
-        purpose: "price",
-      }),
-    ).resolves.toBeNull();
-
-    expect(await manageWriteState(t)).toEqual(before);
-  });
-
   it("removed所属はManage read/writeとStripe action contextを利用できない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {

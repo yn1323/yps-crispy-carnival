@@ -62,7 +62,7 @@
 
 | 対象利用者 | 主な画面・利用場面 | 機能文書 |
 |---|---|---|
-| Trial中の組織管理者 | Dashboardの終了前案内とプラン変更導線 | [トライアル終了前Dashboard案内](trial-ending-dashboard-callout.md) |
+| 組織管理者 | Dashboardと課金画面の表示境界、旧Dashboard案内の互換状態 | [Dashboardの課金案内](trial-ending-dashboard-callout.md) |
 | 組織管理者、店舗管理者 | 店舗・組織の利用停止と永続cleanup | [店舗・組織削除](data-deletion.md) |
 | 所属のない管理ユーザー | 再認証を伴うアカウント削除依頼 | [所属なしユーザーのアカウント削除](account-deletion.md) |
 

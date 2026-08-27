@@ -209,68 +209,6 @@ export const ServiceStopScheduledBehavior: Story = {
   },
 };
 
-export const RestrictedForStandard: Story = {
-  name: "Standard上限の契約制限",
-  args: {
-    billing: {
-      ...billing,
-      state: "restricted",
-      currentPlan: null,
-      previousPlan: "pro",
-      targetPlan: "standard",
-      limitPlan: "standard",
-      requiredReductions: { people: 1, shops: 0, managers: 0 },
-      peopleUsage: { current: 21, max: 25 },
-      blockedReason: "Standardの利用人数を超えています。",
-      nextEvent: undefined,
-      canManagePlan: false,
-      canScheduleFree: false,
-    },
-  },
-};
-
-export const RestrictedForFree: Story = {
-  name: "Free上限の契約制限",
-  args: {
-    billing: {
-      ...billing,
-      state: "restricted",
-      currentPlan: null,
-      previousPlan: "standard",
-      targetPlan: "free",
-      limitPlan: "free",
-      requiredReductions: { people: 2, shops: 1, managers: 1 },
-      peopleUsage: { current: 7, max: 5 },
-      shopUsage: { current: 2, max: 1 },
-      managerUsage: { current: 2, max: 1 },
-      blockedReason: "Freeの利用上限を超えています。",
-      nextEvent: undefined,
-      canManagePlan: false,
-      canScheduleFree: false,
-    },
-  },
-};
-
-export const RestrictedAfterTrial: Story = {
-  name: "トライアル終了後の利用停止",
-  args: {
-    billing: {
-      ...billing,
-      state: "restricted",
-      currentPlan: null,
-      previousPlan: undefined,
-      targetPlan: undefined,
-      limitPlan: undefined,
-      blockedReason: "現在の契約状態では業務データを更新できません。",
-      nextEvent: undefined,
-      hasStripeCustomer: false,
-      canManagePlan: true,
-      canUpdatePaymentMethod: false,
-      canScheduleFree: false,
-    },
-  },
-};
-
 export const PendingCheckoutOpen: Story = {
   name: "支払い手続きが未完了",
   args: {
@@ -402,13 +340,6 @@ export const MobilePro: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: Pro.args,
-};
-
-export const MobileRestricted: Story = {
-  name: "Standard上限の契約制限・モバイル",
-  tags: ["vrt-mobile1"],
-  globals: { viewport: { value: "mobile1", isRotated: false } },
-  args: RestrictedForStandard.args,
 };
 
 export const MobileFreeOverLimit: Story = {

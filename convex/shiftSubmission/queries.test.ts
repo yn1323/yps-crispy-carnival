@@ -25,9 +25,9 @@ async function setupSubmissionPageData(
       staffId,
       shopId,
       termsConsentVersion: "staff-terms-consent-2026-05-09",
-      privacyConsentVersion: "staff-privacy-consent-2026-08-13",
+      privacyConsentVersion: "staff-privacy-consent-2026-08-26",
       termsDocumentVersion: "staff-terms-doc-2026-08-26",
-      privacyDocumentVersion: "staff-privacy-doc-2026-08-26",
+      privacyDocumentVersion: "staff-privacy-doc-2026-08-26-2",
       consentedAt: Date.now(),
       method: "staff_email_link",
     });
@@ -188,6 +188,35 @@ describe("shiftSubmission/queries", () => {
       expect(result.status).toBe("ok");
     });
 
+    it("同意要求版が古いスタッフには最新文書と再同意要否を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+      await t.run(async (ctx) => {
+        const state = await ctx.db
+          .query("legalConsentStates")
+          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
+          .first();
+        if (!state) throw new Error("missing state");
+        await ctx.db.patch(state._id, {
+          privacyConsentVersion: "staff-privacy-consent-2026-08-13",
+        });
+      });
+
+      const result = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
+        sessionToken,
+        accessKind: "submit",
+        recruitmentId,
+      });
+
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") throw new Error("expected submission page data");
+      expect(result.data.legalConsentRequired).toBe(true);
+      expect(result.data.legalDocuments.privacy).toMatchObject({
+        documentVersion: "staff-privacy-doc-2026-08-26-2",
+        requiredConsentVersion: "staff-privacy-consent-2026-08-26",
+      });
+    });
+
     it.each([
       ["overLimit", "usage_limit_exceeded"],
       ["unknown", "usage_limit_evaluation_unavailable"],
@@ -246,43 +275,6 @@ describe("shiftSubmission/queries", () => {
             .first(),
         ),
       ).toBeNull();
-    });
-
-    it("未リンクの移行中staffはplanSuspendedかつ契約制限中でも既存データを閲覧できる", async () => {
-      const t = convexTest(schema, modules);
-      const { shopId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);
-      await t.run(async (ctx) => {
-        const now = Date.now();
-        const organizationId = await ctx.db.insert("organizations", {
-          name: "移行中閲覧テスト事業者",
-          isDeleted: false,
-          createdAt: now,
-          updatedAt: now,
-        });
-        await ctx.db.patch(shopId, { organizationId, operatingStatus: "planSuspended" });
-        await ctx.db.insert("organizationBillingStates", {
-          organizationId,
-          state: {
-            kind: "restricted",
-            reason: "paymentGraceExpired",
-            previousPlan: "pro",
-            recoveryManagerPersonIds: [],
-            previousActiveShopIds: [shopId],
-            restrictedAt: now,
-          },
-          version: 1,
-          createdAt: now,
-          updatedAt: now,
-        });
-      });
-
-      const result = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
-        sessionToken,
-        accessKind: "submit",
-        recruitmentId,
-      });
-
-      expect(result.status).toBe("ok");
     });
 
     it("未リンクの移行中staffでも削除済み事業者のsessionは無効として扱う", async () => {

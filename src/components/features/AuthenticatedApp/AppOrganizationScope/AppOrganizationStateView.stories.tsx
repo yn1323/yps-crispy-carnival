@@ -30,7 +30,7 @@ export const Inaccessible: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("heading", { name: "この組織を開けません" })).toBeVisible();
-    await userEvent.click(canvas.getByRole("button", { name: "利用できる組織を開く" }));
+    await userEvent.click(canvas.getByRole("button", { name: "組織を切り替える" }));
     await expect(args.onChooseAvailableOrganization).toHaveBeenCalledTimes(1);
   },
 };

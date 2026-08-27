@@ -687,73 +687,6 @@ describe("line/mutations", () => {
       });
     });
 
-    it("発行後に事業者店舗がplanSuspendedになったtokenは expired を返し副作用を起こさない", async () => {
-      const t = convexTest(schema, modules);
-      const { staffId, shopId } = await setupOrganizationShop(t, "line_validate_suspended");
-      const { token, tokenDocId } = await seedLineLinkToken(t, {
-        staffId,
-        shopId,
-        token: "suspended-shop-line-token",
-      });
-      await t.run(async (ctx) => await ctx.db.patch(shopId, { operatingStatus: "planSuspended" }));
-
-      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toEqual({
-        status: "expired",
-      });
-
-      const state = await t.run(async (ctx) => ({
-        link: await ctx.db.get(tokenDocId),
-        accounts: await ctx.db.query("staffLineAccounts").collect(),
-        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-      }));
-      expect(state.link?.usedAt).toBeUndefined();
-      expect(state.accounts).toEqual([]);
-      expect(state.scheduled).toEqual([]);
-    });
-
-    it("発行後に事業者がrestrictedになったtokenは expired を返し副作用を起こさない", async () => {
-      const t = convexTest(schema, modules);
-      const { organizationId, personId, staffId, shopId } = await setupOrganizationShop(t, "line_validate_restricted");
-      const { token, tokenDocId } = await seedLineLinkToken(t, {
-        staffId,
-        shopId,
-        token: "restricted-organization-line-token",
-      });
-      await t.run(async (ctx) => {
-        const billingState = await ctx.db
-          .query("organizationBillingStates")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
-          .unique();
-        if (!billingState) throw new Error("missing billing state");
-        const now = Date.now();
-        await ctx.db.patch(billingState._id, {
-          state: {
-            kind: "restricted",
-            reason: "paymentGraceExpired",
-            previousPlan: "pro",
-            recoveryManagerPersonIds: [personId],
-            previousActiveShopIds: [shopId],
-            restrictedAt: now,
-          },
-          version: billingState.version + 1,
-          updatedAt: now,
-        });
-      });
-
-      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toEqual({
-        status: "expired",
-      });
-
-      const state = await t.run(async (ctx) => ({
-        link: await ctx.db.get(tokenDocId),
-        accounts: await ctx.db.query("staffLineAccounts").collect(),
-        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-      }));
-      expect(state.link?.usedAt).toBeUndefined();
-      expect(state.accounts).toEqual([]);
-      expect(state.scheduled).toEqual([]);
-    });
-
     it("Widen前tokenは現在のcanonical scopeを一意に導出できる場合だけ互換受理する", async () => {
       const t = convexTest(schema, modules);
       const target = await setupOrganizationShop(t, "old_token_compat");
@@ -1075,89 +1008,6 @@ describe("line/mutations", () => {
             .first(),
         ),
       ).resolves.toBeNull();
-    });
-
-    it("token検証後に事業者店舗がplanSuspendedになった場合は連携もscheduleも行わない", async () => {
-      const t = convexTest(schema, modules);
-      const { staffId, shopId } = await setupOrganizationShop(t, "line_finalize_suspended");
-      const { token, tokenDocId } = await seedLineLinkToken(t, {
-        staffId,
-        shopId,
-        token: "suspended-shop-finalize-token",
-      });
-      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toMatchObject({
-        status: "ok",
-      });
-      await t.run(async (ctx) => await ctx.db.patch(shopId, { operatingStatus: "planSuspended" }));
-
-      await expect(
-        t.mutation(internal.line.mutations.finalizeLinking, {
-          staffId,
-          tokenDocId,
-          lineUserId: "U_suspended_shop",
-          lineFollowing: true,
-        }),
-      ).resolves.toEqual({ status: "expired" });
-
-      const state = await t.run(async (ctx) => ({
-        link: await ctx.db.get(tokenDocId),
-        accounts: await ctx.db.query("staffLineAccounts").collect(),
-        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-      }));
-      expect(state.link?.usedAt).toBeUndefined();
-      expect(state.accounts).toEqual([]);
-      expect(state.scheduled).toEqual([]);
-    });
-
-    it("token検証後に事業者がrestrictedになった場合は連携もscheduleも行わない", async () => {
-      const t = convexTest(schema, modules);
-      const { organizationId, personId, staffId, shopId } = await setupOrganizationShop(t, "line_finalize_restricted");
-      const { token, tokenDocId } = await seedLineLinkToken(t, {
-        staffId,
-        shopId,
-        token: "restricted-organization-finalize-token",
-      });
-      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toMatchObject({
-        status: "ok",
-      });
-      await t.run(async (ctx) => {
-        const billingState = await ctx.db
-          .query("organizationBillingStates")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
-          .unique();
-        if (!billingState) throw new Error("missing billing state");
-        const now = Date.now();
-        await ctx.db.patch(billingState._id, {
-          state: {
-            kind: "restricted",
-            reason: "paymentGraceExpired",
-            previousPlan: "pro",
-            recoveryManagerPersonIds: [personId],
-            previousActiveShopIds: [shopId],
-            restrictedAt: now,
-          },
-          version: billingState.version + 1,
-          updatedAt: now,
-        });
-      });
-
-      await expect(
-        t.mutation(internal.line.mutations.finalizeLinking, {
-          staffId,
-          tokenDocId,
-          lineUserId: "U_restricted_organization",
-          lineFollowing: true,
-        }),
-      ).resolves.toEqual({ status: "expired" });
-
-      const state = await t.run(async (ctx) => ({
-        link: await ctx.db.get(tokenDocId),
-        accounts: await ctx.db.query("staffLineAccounts").collect(),
-        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-      }));
-      expect(state.link?.usedAt).toBeUndefined();
-      expect(state.accounts).toEqual([]);
-      expect(state.scheduled).toEqual([]);
     });
 
     it("既に他スタッフに紐づく lineUserId は奪う", async () => {
@@ -1801,48 +1651,7 @@ describe("line/mutations", () => {
       ).resolves.toEqual({ status: "expired" });
     });
 
-    it("restricted billingでもactive管理者は安全停止として明示解除できる", async () => {
-      const t = convexTest(schema, modules);
-      const target = await setupOrganizationPersonTwoShops(t, "restricted_disconnect");
-      await finalizeForStaff(t, {
-        subject: "restricted_disconnect",
-        shopId: target.shopId,
-        staffId: target.staffAId,
-        lineUserId: "U_restricted_disconnect",
-      });
-      await t.run(async (ctx) => {
-        const billingState = await ctx.db
-          .query("organizationBillingStates")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", target.organizationId))
-          .unique();
-        if (!billingState) throw new Error("missing billing state");
-        const now = Date.now();
-        await ctx.db.patch(billingState._id, {
-          state: {
-            kind: "restricted",
-            reason: "paymentGraceExpired",
-            previousPlan: "pro",
-            recoveryManagerPersonIds: [target.personId],
-            previousActiveShopIds: [target.shopId, target.shopBId],
-            restrictedAt: now,
-          },
-          version: billingState.version + 1,
-          updatedAt: now,
-        });
-      });
-
-      await expect(
-        t
-          .withIdentity({ subject: "restricted_disconnect" })
-          .mutation(api.line.mutations.disconnectOrganizationPersonLine, {
-            shopId: target.shopId,
-            organizationPersonId: target.personId,
-            requestId: "restricted-disconnect-request",
-          }),
-      ).resolves.toEqual({ changed: true });
-    });
-
-    it("readOnly管理者と別organizationからの明示解除をIDORとして拒否する", async () => {
+    it("removed管理者と別organizationからの明示解除をIDORとして拒否する", async () => {
       const t = convexTest(schema, modules);
       const target = await setupOrganizationPersonTwoShops(t, "disconnect_target");
       const foreign = await setupOrganizationPersonTwoShops(t, "disconnect_foreign");
@@ -1862,12 +1671,12 @@ describe("line/mutations", () => {
             requestId: "foreign-disconnect-request",
           }),
       ).rejects.toThrow("Not found");
-      await t.run(async (ctx) => await ctx.db.patch(target.memberId, { status: "readOnly" }));
+      await t.run(async (ctx) => await ctx.db.patch(target.memberId, { status: "removed" }));
       await expect(
         t.withIdentity({ subject: "disconnect_target" }).mutation(api.line.mutations.disconnectOrganizationPersonLine, {
           shopId: target.shopId,
           organizationPersonId: target.personId,
-          requestId: "readonly-disconnect-request",
+          requestId: "removed-disconnect-request",
         }),
       ).rejects.toThrow("Not found");
 

@@ -12,7 +12,8 @@ test.describe("認証境界", { tag: ["@e2e-core"] }, () => {
     authPage = new AuthPage(page);
   });
 
-  test.use({ storageState: { cookies: [], origins: [] } });
+  // 認証操作を行わない匿名route検証では、連続navigationと競合するClerk FAPIのinterceptを登録しない。
+  test.use({ clerkTestingTokenEnabled: false, storageState: { cookies: [], origins: [] } });
 
   test("[E2E-AUTH-01] 匿名の保護routeは安全な戻り先へ誘導し公開routeを維持する", async ({ page }) => {
     await test.step("保護routeの未許可queryを戻り先から除外する", async () => {

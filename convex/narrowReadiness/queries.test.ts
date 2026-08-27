@@ -364,38 +364,6 @@ describe("Narrow readiness queries", () => {
         createdAt: now,
         updatedAt: now,
       });
-      await ctx.db.insert("organizationBillingStates", {
-        organizationId,
-        state: {
-          kind: "restricted",
-          reason: "planLimitExceeded",
-          recoveryManagerPersonIds: [personId],
-          previousActiveShopIds: [shopId],
-          restrictedAt: now,
-        },
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.insert("organizationBillingStates", {
-        organizationId,
-        state: {
-          kind: "pendingActivation",
-          plan: "pro",
-          fallback: "restricted",
-          restrictedFallbackState: {
-            kind: "restricted",
-            reason: "planLimitExceeded",
-            recoveryManagerPersonIds: [personId],
-            previousActiveShopIds: [shopId],
-            restrictedAt: now,
-          },
-          startedAt: now,
-        },
-        version: 2,
-        createdAt: now,
-        updatedAt: now,
-      });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
         periodStart: "2026-08-01",
@@ -516,7 +484,6 @@ describe("Narrow readiness queries", () => {
       t.query(internal.narrowReadiness.queries.verifyNotificationOutbox, { paginationOpts: firstPage }),
       t.query(internal.narrowReadiness.queries.verifyStripeSubscriptions, { paginationOpts: firstPage }),
       t.query(internal.narrowReadiness.queries.verifyStripeOperations, { paginationOpts: firstPage }),
-      t.query(internal.narrowReadiness.queries.verifyOrganizationBillingStates, { paginationOpts: firstPage }),
       t.query(internal.narrowReadiness.queries.verifyNotificationFanoutOperations, {
         paginationOpts: firstPage,
       }),
@@ -553,8 +520,8 @@ describe("Narrow readiness queries", () => {
     expect(results[3].anomalies).toMatchObject({
       missingBillingEmail: 1,
       missingBillingEmailNormalized: 1,
-      missingBillingState: 1,
-      ambiguousBillingStates: 1,
+      missingBillingState: 2,
+      ambiguousBillingStates: 0,
     });
     expect(results[4].anomalies).toEqual({
       legacyStatus: 1,
@@ -590,35 +557,31 @@ describe("Narrow readiness queries", () => {
       trialSetupCheckoutMissingTargetPlan: 1,
     });
     expect(results[8].anomalies).toEqual({
-      restrictedPlanLimitMissing: 2,
-      nestedRestrictedPlanLimitMissing: 1,
-    });
-    expect(results[9].anomalies).toEqual({
       missingSupersedesActiveOperations: 1,
       incompleteSupplementalBaseline: 1,
     });
-    expect(results[10].anomalies).toEqual({
+    expect(results[9].anomalies).toEqual({
       missingFirstSubmittedAt: 1,
       firstSubmittedAfterSubmittedAt: 1,
     });
-    expect(results[11].anomalies).toEqual({
+    expect(results[10].anomalies).toEqual({
       missingIsDefault: 1,
       defaultSelectionMismatch: 1,
       deletedDefaultTrue: 1,
     });
-    expect(results[12].anomalies).toEqual({ readerWindowOverflow: 0, multipleDefaultShops: 1 });
-    expect(results[12].observations).toEqual({ shopsWithoutActivePositions: 1 });
-    expect(results[13].anomalies).toEqual({
+    expect(results[11].anomalies).toEqual({ readerWindowOverflow: 0, multipleDefaultShops: 1 });
+    expect(results[11].observations).toEqual({ shopsWithoutActivePositions: 1 });
+    expect(results[12].anomalies).toEqual({
       missingAccessKind: 1,
       activeViewMissingNotificationOperationKey: 1,
     });
-    expect(results[14].anomalies).toEqual({ missingAccessKind: 1 });
-    expect(results[15].activeRows).toBe(1);
-    expect(results[15].totalRows).toBe(1);
-    expect(results[16].activeRows).toBe(1);
-    expect(results[16].totalRows).toBe(2);
-    expect(results[17].unresolvedRows).toBe(1);
-    expect(results[17].unresolvedNotificationOutboxScopeRows).toBe(0);
+    expect(results[13].anomalies).toEqual({ missingAccessKind: 1 });
+    expect(results[14].activeRows).toBe(1);
+    expect(results[14].totalRows).toBe(1);
+    expect(results[15].activeRows).toBe(2);
+    expect(results[15].totalRows).toBe(2);
+    expect(results[16].unresolvedRows).toBe(1);
+    expect(results[16].unresolvedNotificationOutboxScopeRows).toBe(0);
 
     const serialized = JSON.stringify(results);
     expect(serialized).not.toContain(secretEmail);

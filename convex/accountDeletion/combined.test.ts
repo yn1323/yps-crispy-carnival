@@ -581,36 +581,6 @@ describe("所属を含むアカウント削除", () => {
     },
   );
 
-  it("legacy restrictedの最後のreadOnly所属は公開上の汎用reasonで拒否する", async () => {
-    const t = createAccountDeletionTest();
-    await t.run(async (ctx) => {
-      const fixture = await seedSharedDepartureFixture(ctx);
-      const billingState = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", fixture.organizationId))
-        .unique();
-      if (!billingState) throw new Error("billing state not found");
-      await ctx.db.patch(billingState._id, {
-        state: {
-          kind: "restricted",
-          reason: "freeConditionsNotMet",
-          previousPlan: "pro",
-          recoveryManagerPersonIds: [fixture.personId],
-          previousActiveShopIds: [fixture.shopId],
-          restrictedAt: NOW,
-        },
-        version: billingState.version + 1,
-        updatedAt: NOW,
-      });
-    });
-
-    await expect(
-      t
-        .withIdentity({ subject: "shared_departure" })
-        .query(api.accountDeletion.queries.getDeletionPreview, { asOfDate: AS_OF_DATE }),
-    ).resolves.toEqual({ status: "blocked", reason: "organizationDeletionUnavailable" });
-  });
-
   it.each([
     { label: "current staff", hasStaffUserId: true, historicalDeletedShop: false },
     { label: "legacy staff without userId", hasStaffUserId: false, historicalDeletedShop: false },

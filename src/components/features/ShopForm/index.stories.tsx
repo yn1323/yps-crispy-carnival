@@ -118,7 +118,7 @@ export const InteractiveStepperFlow: Story = {
     expect(root.getByRole("textbox", { name: "お店の名前" })).toBeTruthy();
     await clickButton(root, "次へ");
 
-    await root.findByText("希望シフトの集め方");
+    await root.findByText("シフトの提出方法");
     await clickButton(root, "次へ");
 
     expect(await root.findByText("現在の設定: 定休日なし")).toBeTruthy();
@@ -126,7 +126,7 @@ export const InteractiveStepperFlow: Story = {
     expect(root.queryByText("勤務時間")).toBeNull();
 
     await clickButton(root, "戻る");
-    await root.findByText("希望シフトの集め方");
+    await root.findByText("シフトの提出方法");
     await clickButton(root, "時間指定");
     await clickButton(root, "次へ");
 
@@ -145,7 +145,7 @@ export const InteractiveStepperFlow: Story = {
     await waitFor(() => expect(endTimeSelect).toHaveTextContent("23:00"));
 
     await clickButton(root, "戻る");
-    await root.findByText("希望シフトの集め方");
+    await root.findByText("シフトの提出方法");
     await clickButton(root, "勤務区分");
     await clickButton(root, "次へ");
 

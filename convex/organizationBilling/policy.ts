@@ -33,16 +33,6 @@ export type LegacyOrganizationBillingState = Infer<typeof organizationLegacyBill
 export type CanonicalOrganizationBillingState = Infer<typeof organizationCanonicalBillingStateValidator>;
 /** Widen中に既存call siteが受け取る保存shape。semantic判定前にcanonicalizeする。 */
 export type OrganizationBillingState = PersistedOrganizationBillingState;
-type CanonicalRootRestrictedOrganizationBillingState = Extract<
-  CanonicalOrganizationBillingState,
-  { kind: "restricted" }
->;
-/** root stateとpendingActivation内のfallbackの両方で使うsemantic restricted shape。 */
-export type RestrictedOrganizationBillingState = Omit<
-  CanonicalRootRestrictedOrganizationBillingState,
-  "planIdVersion"
-> & { planIdVersion?: 2 };
-type LegacyRestrictedOrganizationBillingState = Extract<LegacyOrganizationBillingState, { kind: "restricted" }>;
 type M018NormalizedOrganizationBillingState =
   | Exclude<LegacyOrganizationBillingState, { kind: "complimentary" }>
   | CanonicalOrganizationBillingState
@@ -57,14 +47,6 @@ export function normalizeOrganizationPaidPlan(_plan: "pro" | "business"): "pro" 
 /** m018用の履歴互換helper。通常runtimeでは使用しない。 */
 export function normalizeOrganizationActivePlan(plan: "free" | "pro" | "business"): "free" | "pro" {
   return plan === "free" ? "free" : "pro";
-}
-
-function normalizeM018RestrictedState(state: LegacyRestrictedOrganizationBillingState) {
-  const { previousPlan, ...rest } = state;
-  return {
-    ...rest,
-    ...(previousPlan === undefined ? {} : { previousPlan: normalizeOrganizationActivePlan(previousPlan) }),
-  };
 }
 
 /** m018用の履歴互換helper。BusinessをProへ畳む意味を変更しない。 */
@@ -84,16 +66,8 @@ export function normalizeOrganizationBillingState(
     }
     case "initialPaymentPending":
       return { ...state, plan: normalizeOrganizationPaidPlan(state.plan) };
-    case "pendingActivation": {
-      const { plan, restrictedFallbackState, ...rest } = state;
-      return {
-        ...rest,
-        plan: normalizeOrganizationPaidPlan(plan),
-        ...(restrictedFallbackState
-          ? { restrictedFallbackState: normalizeM018RestrictedState(restrictedFallbackState) }
-          : {}),
-      };
-    }
+    case "pendingActivation":
+      return { ...state, plan: normalizeOrganizationPaidPlan(state.plan) };
     case "active":
       return { ...state, plan: normalizeOrganizationActivePlan(state.plan) };
     case "complimentary":
@@ -104,8 +78,6 @@ export function normalizeOrganizationBillingState(
         : { ...state, currentPlan: "pro", targetPlan: "free" };
     case "grace":
       return { ...state, plan: normalizeOrganizationPaidPlan(state.plan) };
-    case "restricted":
-      return normalizeM018RestrictedState(state);
   }
 }
 
@@ -123,20 +95,6 @@ export function canonicalizeOrganizationPaidPlan(
 
 function canonicalizeLegacyActivePlan(plan: "free" | "pro" | "business"): OrganizationEntitlementPlan {
   return plan === "free" ? "free" : canonicalizeOrganizationPaidPlan(plan);
-}
-
-function canonicalizeLegacyRestrictedState(
-  state: LegacyRestrictedOrganizationBillingState,
-): RestrictedOrganizationBillingState {
-  const { previousPlan, limitPlan, targetPlan, ...rest } = state;
-  return {
-    ...rest,
-    ...(previousPlan === undefined ? {} : { previousPlan: canonicalizeLegacyActivePlan(previousPlan) }),
-    ...(limitPlan === undefined
-      ? {}
-      : { limitPlan: limitPlan === "free" ? "free" : canonicalizeOrganizationPaidPlan(limitPlan) }),
-    ...(targetPlan === undefined ? {} : { targetPlan: canonicalizeOrganizationPaidPlan(targetPlan) }),
-  };
 }
 
 /**
@@ -162,15 +120,12 @@ export function canonicalizeOrganizationBillingState(
     case "initialPaymentPending":
       return { ...state, planIdVersion: 2, plan: canonicalizeOrganizationPaidPlan(state.plan) };
     case "pendingActivation": {
-      const { plan, fallback, restrictedFallbackState, ...rest } = state;
+      const { plan, fallback, ...rest } = state;
       return {
         ...rest,
         planIdVersion: 2,
         plan: canonicalizeOrganizationPaidPlan(plan),
         fallback: fallback === "pro" ? "standard" : fallback,
-        ...(restrictedFallbackState
-          ? { restrictedFallbackState: canonicalizeLegacyRestrictedState(restrictedFallbackState) }
-          : {}),
       };
     }
     case "active":
@@ -203,8 +158,6 @@ export function canonicalizeOrganizationBillingState(
         ...(targetPlan === undefined ? {} : { targetPlan: canonicalizeOrganizationPaidPlan(targetPlan) }),
       };
     }
-    case "restricted":
-      return { ...canonicalizeLegacyRestrictedState(state), planIdVersion: 2 };
   }
 }
 
@@ -236,23 +189,16 @@ export function resolveOrganizationBillingPlans(
         displayPlan: state.plan,
         targetingPlan: state.plan,
       };
-    case "pendingActivation": {
+    case "pendingActivation":
       if (state.fallback === "free") {
         return { paidPlan: state.plan, entitlementPlan: "free", displayPlan: "free", targetingPlan: "free" };
       }
-      if (state.fallback === "standard" || state.fallback === "pro") {
-        return {
-          paidPlan: state.plan,
-          entitlementPlan: state.fallback,
-          displayPlan: state.fallback,
-          targetingPlan: state.fallback,
-        };
-      }
-      const fallback = state.restrictedFallbackState
-        ? resolveRestrictedDisplayPlan(state.restrictedFallbackState)
-        : null;
-      return { paidPlan: state.plan, entitlementPlan: null, displayPlan: fallback, targetingPlan: fallback };
-    }
+      return {
+        paidPlan: state.plan,
+        entitlementPlan: state.fallback,
+        displayPlan: state.fallback,
+        targetingPlan: state.fallback,
+      };
     case "active":
       return {
         paidPlan: state.plan === "free" ? null : state.plan,
@@ -281,17 +227,6 @@ export function resolveOrganizationBillingPlans(
         displayPlan: state.plan,
         targetingPlan: state.plan,
       };
-    case "restricted": {
-      const displayPlan = resolveRestrictedDisplayPlan(state);
-      return {
-        paidPlan:
-          state.targetPlan ??
-          (state.previousPlan === "standard" || state.previousPlan === "pro" ? state.previousPlan : null),
-        entitlementPlan: null,
-        displayPlan,
-        targetingPlan: displayPlan,
-      };
-    }
   }
 }
 
@@ -300,17 +235,8 @@ export function billingStateReferencesBusinessPlan(state: PersistedOrganizationB
   return hasLegacyBusinessBillingState(state);
 }
 
-export function resolveRestrictedLimitPlan(
-  state: RestrictedOrganizationBillingState,
-): OrganizationEntitlementPlan | null {
-  if (state.limitPlan) return state.limitPlan;
-  if (state.reason === "trialFreeConditionsNotMet" || state.reason === "freeConditionsNotMet") return "free";
-  return null;
-}
-
 /**
  * 現在の利用数へ適用するプランを、課金ライフサイクルとは独立して解決する。
- * legacy restrictedは保存済みのlimitPlanだけを利用し、現在プランを推測しない。
  */
 export function resolveUsageLimitPlan(
   persistedState: PersistedOrganizationBillingState,
@@ -322,10 +248,7 @@ export function resolveUsageLimitPlan(
     case "initialPaymentPending":
       return "standard";
     case "pendingActivation":
-      if (state.fallback === "free" || state.fallback === "standard" || state.fallback === "pro") {
-        return state.fallback;
-      }
-      return state.restrictedFallbackState ? resolveRestrictedLimitPlan(state.restrictedFallbackState) : null;
+      return state.fallback;
     case "active":
       return state.plan;
     case "complimentary":
@@ -334,13 +257,7 @@ export function resolveUsageLimitPlan(
       return state.currentPlan;
     case "grace":
       return state.plan;
-    case "restricted":
-      return resolveRestrictedLimitPlan(state);
   }
-}
-
-function resolveRestrictedDisplayPlan(state: RestrictedOrganizationBillingState): OrganizationDisplayPlan | null {
-  return resolveRestrictedLimitPlan(state) ?? state.previousPlan ?? state.targetPlan ?? null;
 }
 
 export function hasLegacyBusinessBillingState(state: PersistedOrganizationBillingState): boolean {
@@ -352,7 +269,7 @@ export function hasLegacyBusinessBillingState(state: PersistedOrganizationBillin
     case "grace":
       return state.plan === "business";
     case "pendingActivation":
-      return state.plan === "business" || state.restrictedFallbackState?.previousPlan === "business";
+      return state.plan === "business";
     case "active":
       return state.plan === "business";
     case "complimentary":
@@ -363,21 +280,7 @@ export function hasLegacyBusinessBillingState(state: PersistedOrganizationBillin
       const targetPlan: string = state.targetPlan;
       return currentPlan === "business" || targetPlan === "pro";
     }
-    case "restricted":
-      return state.previousPlan === "business";
   }
-}
-
-/** 支払い結果待ちでも、旧restricted stateから開始した場合は移行前の復旧契約を維持する。 */
-export function getEffectiveRestrictedBillingState(
-  persistedState: PersistedOrganizationBillingState,
-): RestrictedOrganizationBillingState | null {
-  const state = canonicalizeOrganizationBillingState(persistedState);
-  if (state.kind === "restricted") return state;
-  if (state.kind === "pendingActivation" && state.fallback === "restricted") {
-    return state.restrictedFallbackState ?? null;
-  }
-  return null;
 }
 
 /**
@@ -430,7 +333,6 @@ export function isVerifiedBillingTransitionAllowed(
           current.plan === "standard" &&
           next.plan === "pro" &&
           next.fallback === "standard") ||
-        (current.kind === "restricted" && next.fallback === "restricted") ||
         (current.kind === "pendingActivation" && current.plan === next.plan && current.fallback === next.fallback)
       );
     case "active":
@@ -449,13 +351,6 @@ export function isVerifiedBillingTransitionAllowed(
         );
       }
       if (current.kind === "grace") return (current.targetPlan ?? current.plan) === next.plan;
-      if (current.kind === "restricted") {
-        return (
-          current.targetPlan === next.plan ||
-          current.previousPlan === next.plan ||
-          resolveRestrictedLimitPlan(current) === next.plan
-        );
-      }
       if (current.kind !== "active") return false;
       if (current.plan === "free") return true;
       return current.plan === next.plan;
@@ -475,29 +370,12 @@ export function isVerifiedBillingTransitionAllowed(
       return current.kind === "active" && current.plan === next.currentPlan;
     case "trial":
       return false;
-    case "restricted":
-      return (
-        (current.kind === "pendingActivation" && current.fallback === "restricted") ||
-        current.kind === "grace" ||
-        current.kind === "scheduledChange"
-      );
   }
 }
 
-export const RESTRICTED_RECOVERY_CAPABILITIES = [
-  "startOrRestartPaidPlan",
-  "updatePaymentMethod",
-  "updateBillingEmail",
-  "selectFreeManager",
-  "selectFreeShop",
-  "removeOrganizationPerson",
-  "archiveShop",
-] as const;
-
-export type RecoveryCapability = (typeof RESTRICTED_RECOVERY_CAPABILITIES)[number];
-export type BusinessWriteBlockReason = "paymentResultPending" | "restricted";
+export type BusinessWriteBlockReason = "paymentResultPending";
 export type PaidFeatureBlockReason = "freePlan" | BusinessWriteBlockReason;
-export type OrganizationAccessMode = "normal" | "limitRecoveryOnly" | "billingRecoveryOnly";
+export type OrganizationAccessMode = "normal" | "limitRecoveryOnly";
 export type OrganizationAccessBlockReason = BusinessWriteBlockReason | "usageLimitExceeded";
 
 export type OrganizationBillingPolicy = {
@@ -507,21 +385,16 @@ export type OrganizationBillingPolicy = {
   targetingPlan: OrganizationDisplayPlan | null;
   limits: OrganizationPlanLimits | null;
   canReadExistingData: true;
-  canWriteBusinessData: boolean;
+  canWriteBusinessData: true;
   businessWriteBlockReason: BusinessWriteBlockReason | null;
   canManageManagers: boolean;
   canUsePaidFeatures: boolean;
   paidFeatureBlockReason: PaidFeatureBlockReason | null;
-  allowedRecoveryCapabilities: readonly RecoveryCapability[];
   deadlineAt: number | null;
 };
 
-const NO_RECOVERY_CAPABILITIES: readonly RecoveryCapability[] = [];
-
 /**
  * 課金状態だけから事業者全体の利用権限を導出する。
- *
- * 旧restricted互換の操作は状態として許可される候補であり、呼び出し側で対象readOnly所属かを別途確認する。
  */
 export function deriveOrganizationBillingPolicy(
   persistedState: PersistedOrganizationBillingState,
@@ -542,9 +415,7 @@ export function deriveOrganizationBillingPolicy(
         };
       }
       // StandardからProへの即時変更は支払い成功までStandard権利を維持する。
-      if (state.fallback === "standard" || state.fallback === "pro") return enabledPolicy(plans, null);
-      // 旧restricted stateからの契約開始は、支払い成功まで移行前の制限と復旧権限を維持する。
-      return restrictedPolicy(plans);
+      return enabledPolicy(plans, null);
     case "active":
       return state.plan === "free" ? freePolicy(null) : enabledPolicy(plans, null);
     case "complimentary":
@@ -555,25 +426,7 @@ export function deriveOrganizationBillingPolicy(
     case "grace":
       // 猶予中も元の有料プランを通常どおり利用できる。
       return enabledPolicy(plans, state.endsAt);
-    case "restricted":
-      return restrictedPolicy(plans);
   }
-}
-
-function restrictedPolicy(plans: OrganizationBillingPlanResolution): OrganizationBillingPolicy {
-  return {
-    ...plans,
-    entitlementPlan: null,
-    limits: null,
-    canReadExistingData: true,
-    canWriteBusinessData: false,
-    businessWriteBlockReason: "restricted",
-    canManageManagers: false,
-    canUsePaidFeatures: false,
-    paidFeatureBlockReason: "restricted",
-    allowedRecoveryCapabilities: RESTRICTED_RECOVERY_CAPABILITIES,
-    deadlineAt: null,
-  };
 }
 
 function enabledPolicy(plans: OrganizationBillingPlanResolution, deadlineAt: number | null): OrganizationBillingPolicy {
@@ -587,7 +440,6 @@ function enabledPolicy(plans: OrganizationBillingPlanResolution, deadlineAt: num
     canManageManagers: true,
     canUsePaidFeatures: true,
     paidFeatureBlockReason: null,
-    allowedRecoveryCapabilities: NO_RECOVERY_CAPABILITIES,
     deadlineAt,
   };
 }
@@ -605,7 +457,6 @@ function freePolicy(paidPlan: OrganizationPaidPlan | null): OrganizationBillingP
     canManageManagers: true,
     canUsePaidFeatures: false,
     paidFeatureBlockReason: "freePlan",
-    allowedRecoveryCapabilities: NO_RECOVERY_CAPABILITIES,
     deadlineAt: null,
   };
 }
@@ -614,7 +465,7 @@ export type OrganizationPersonUsageInput = {
   personId: string;
   isActiveInOrganization: boolean;
   isStaff: boolean;
-  managerRole: "none" | "active" | "readOnly";
+  managerRole: "none" | "active";
 };
 
 export type OrganizationUsageProjection = {
@@ -654,8 +505,8 @@ export type FreeUsageProjection = {
 };
 
 /**
- * Free移行後に選択者以外を閲覧のみにした時点の利用人数を投影する。
- * スタッフでもある元管理者は、閲覧のみになった後も利用人数へ含める。
+ * Freeの管理者選択後の利用人数を投影する。
+ * 管理者権限を外れてもスタッフ所属がある人物は利用人数へ含める。
  */
 export function projectFreeUsage(
   peopleInput: readonly OrganizationPersonUsageInput[],
@@ -796,20 +647,11 @@ export function evaluateOrganizationUsageLimits(input: {
   return violations.length === 0 ? { kind: "withinLimits", ...common } : { kind: "overLimit", ...common, violations };
 }
 
-/** 課金上の拒否を優先し、その次に利用上限超過による整理専用状態を合成する。 */
+/** 現在の利用数が上限内かどうかから、通常利用と上限整理専用状態を合成する。 */
 export function deriveOrganizationAccessPolicy(input: {
   billingPolicy: OrganizationBillingPolicy;
   usageLimitStatus: OrganizationUsageLimitStatus | null;
 }): OrganizationAccessPolicy {
-  if (!input.billingPolicy.canWriteBusinessData) {
-    return {
-      ...input,
-      accessMode: "billingRecoveryOnly",
-      canWriteBusinessData: false,
-      businessWriteBlockReason: input.billingPolicy.businessWriteBlockReason,
-    };
-  }
-
   if (input.usageLimitStatus?.kind === "overLimit" || input.usageLimitStatus?.kind === "unknown") {
     return {
       ...input,
@@ -874,7 +716,7 @@ function requireNonNegativeInteger(value: number, fieldName: string): void {
 }
 
 /**
- * 通常は事業者作成日の3か月後にあたる日付の00:00 JSTを返す。
+ * 通常は事業者作成日の2か月後にあたる日付の00:00 JSTを返す。
  * 対象deploymentへ開発用日数が設定されていれば、N暦日後の00:00 JSTを返す。
  */
 export function calculateTrialEndsAt(organizationCreatedAt: number): number {
@@ -891,8 +733,8 @@ export function calculateTrialEndsAt(organizationCreatedAt: number): number {
     return createdDayStartAt + debugDurationDays * DAY_MS;
   }
 
-  const targetMonthStartAt = jstMonthStartMs(createdYear, createdMonth + 3);
-  const nextMonthStartAt = jstMonthStartMs(createdYear, createdMonth + 4);
+  const targetMonthStartAt = jstMonthStartMs(createdYear, createdMonth + 2);
+  const nextMonthStartAt = jstMonthStartMs(createdYear, createdMonth + 3);
   const lastDayOfTargetMonth = (nextMonthStartAt - targetMonthStartAt) / DAY_MS;
   const targetDay = Math.min(createdAtJst.getUTCDate(), lastDayOfTargetMonth);
 
@@ -912,7 +754,6 @@ export function getOrganizationBillingStateDeadline(state: PersistedOrganization
     case "pendingActivation":
     case "active":
     case "complimentary":
-    case "restricted":
       return null;
   }
 }

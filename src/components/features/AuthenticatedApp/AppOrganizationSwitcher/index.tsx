@@ -1,4 +1,4 @@
-import { Badge, HStack, Icon, Menu, Portal, Text } from "@chakra-ui/react";
+import { Icon, Menu, Portal, Text } from "@chakra-ui/react";
 import { LuBuilding2, LuCheck, LuChevronDown } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/src/components/ui/Button";
@@ -6,7 +6,6 @@ import { Button } from "@/src/components/ui/Button";
 export type AppOrganizationSwitcherOption = {
   id: Id<"organizations">;
   name: string;
-  memberStatus: "active" | "readOnly";
 };
 
 type Props = {
@@ -80,23 +79,17 @@ export function AppOrganizationSwitcher({ activeOrganizationId, activeOrganizati
                     <LuCheck aria-hidden />
                   </Menu.ItemIndicator>
                   <Menu.ItemText minW={0} w="full">
-                    <HStack gap={2} minW={0} w="full">
-                      <Text
-                        as="span"
-                        flex={1}
-                        minW={0}
-                        fontSize="sm"
-                        fontWeight={option.id === activeOrganizationId ? "bold" : "medium"}
-                        truncate
-                      >
-                        {option.name}
-                      </Text>
-                      {option.memberStatus === "readOnly" && (
-                        <Badge colorPalette="gray" variant="subtle" size="sm" flexShrink={0}>
-                          状態確認
-                        </Badge>
-                      )}
-                    </HStack>
+                    <Text
+                      as="span"
+                      display="block"
+                      minW={0}
+                      w="full"
+                      fontSize="sm"
+                      fontWeight={option.id === activeOrganizationId ? "bold" : "medium"}
+                      truncate
+                    >
+                      {option.name}
+                    </Text>
                   </Menu.ItemText>
                 </Menu.RadioItem>
               ))}

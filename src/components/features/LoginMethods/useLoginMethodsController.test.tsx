@@ -491,7 +491,7 @@ describe("useLoginMethodsController", () => {
     expect(pendingEmail.prepareVerification).toHaveBeenCalledTimes(2);
     expect(result.current.emailPasswordState).toEqual({
       status: "success",
-      message: "新しい確認コードを送りました。",
+      message: "新しい確認コードを再送しました。",
     });
 
     now.mockRestore();

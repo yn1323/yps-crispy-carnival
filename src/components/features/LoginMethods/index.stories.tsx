@@ -210,7 +210,7 @@ function LoginMethodsPreview({
       return true;
     },
     resendLoginEmailCode: async () => {
-      setEmailPasswordState({ status: "success", message: "新しい確認コードを送りました。" });
+      setEmailPasswordState({ status: "success", message: "新しい確認コードを再送しました。" });
       return true;
     },
   };

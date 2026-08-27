@@ -307,12 +307,12 @@ export const Confirmed: Story = {
   },
 };
 
-export const ReadOnly: Story = {
+export const UsageLimitExceeded: Story = {
   args: {
     data: {
       ...mockData,
       canWriteBusinessData: false,
-      businessWriteBlockReason: "restricted",
+      businessWriteBlockReason: "usageLimitExceeded",
     },
   },
   play: async ({ canvasElement }) => {
@@ -411,7 +411,7 @@ const DynamicCapabilityHarness = () => {
             setData((current) => ({
               ...current,
               canWriteBusinessData: false,
-              businessWriteBlockReason: "restricted",
+              businessWriteBlockReason: "usageLimitExceeded",
             }))
           }
         >

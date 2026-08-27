@@ -147,7 +147,7 @@ export function useLoginFlowController({ redirectTo, initialErrorMessage }: UseL
 
       try {
         await prepareClientTrustEmailCode(signIn);
-        setVerificationInfoMessage("新しい確認コードを送りました。");
+        setVerificationInfoMessage("新しい確認コードを再送しました。");
         setResendCooldownSeconds(RESEND_COOLDOWN_SECONDS);
       } catch (error) {
         setErrorMessage(getClerkErrorMessage(error));

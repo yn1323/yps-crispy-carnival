@@ -161,7 +161,7 @@ describe("buildPlanStatusCardData", () => {
     ).toMatchObject({ currentPlanName: undefined, targetPlanName: "Pro" });
   });
 
-  it("支払い問題をphase・支払い更新権限・期限に応じて変換する", () => {
+  it("支払い猶予を支払い更新権限・期限に応じて変換する", () => {
     expect(
       buildPlanStatusCardData({
         kind: "paymentIssue",
@@ -176,44 +176,17 @@ describe("buildPlanStatusCardData", () => {
       recoveryDeadlineLabel: "支払い期限：2026/8/17",
       primaryAction: { action: "updatePaymentMethod", label: "支払い方法を更新する" },
     });
-    const readOnlyIssue = buildPlanStatusCardData({
+    const unavailableIssue = buildPlanStatusCardData({
       kind: "paymentIssue",
-      phase: "restricted",
+      phase: "grace",
       canManagePlan: false,
       canUpdatePaymentMethod: false,
     });
-    expect(readOnlyIssue).toMatchObject({
-      phase: "restricted",
-      description: "データは削除されていません。StandardまたはProの契約は、契約を管理できる管理者が行えます。",
+    expect(unavailableIssue).toMatchObject({
+      phase: "grace",
+      description: "現在は支払い方法を更新できません。組織設定で契約状態を確認してください。",
     });
-    expect(readOnlyIssue).not.toHaveProperty("primaryAction");
-
-    expect(
-      buildPlanStatusCardData({
-        kind: "paymentIssue",
-        phase: "restricted",
-        canManagePlan: true,
-        canUpdatePaymentMethod: false,
-      }),
-    ).toMatchObject({
-      description: "データは削除されていません。利用を再開するには、StandardまたはProを契約してください。",
-      primaryAction: { action: "choosePlan", label: "プランを選んで再開する" },
-    });
-  });
-
-  it("契約制限中を表示プランと操作権限に応じて変換する", () => {
-    expect(
-      buildPlanStatusCardData({
-        kind: "restricted",
-        displayPlan: "standard",
-        canManagePlan: false,
-        canUpdatePaymentMethod: false,
-      }),
-    ).toEqual({
-      kind: "restricted",
-      planName: "Standard",
-      description: "契約を管理できる管理者に、利用状況または契約状態の確認を依頼してください。",
-    });
+    expect(unavailableIssue).not.toHaveProperty("primaryAction");
   });
 });
 

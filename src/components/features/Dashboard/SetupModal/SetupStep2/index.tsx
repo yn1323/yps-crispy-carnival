@@ -167,22 +167,24 @@ export const SetupStep2 = ({
           {errors.email && <Field.ErrorText>{errors.email.message}</Field.ErrorText>}
         </Field.Root>
         <Field.Root invalid={!!errors.acceptedLegal}>
-          <Checkbox.Root
-            colorPalette="teal"
-            checked={acceptedLegal}
-            cursor="pointer"
-            onCheckedChange={(details) => {
-              setValue("acceptedLegal", details.checked === true, { shouldDirty: true, shouldValidate: true });
-            }}
-          >
-            <Checkbox.HiddenInput />
-            <Checkbox.Control cursor="pointer" />
-            <Checkbox.Label fontSize="sm" lineHeight={1.7} cursor="pointer">
-              <LegalDocumentLink href="/terms/manager">利用規約</LegalDocumentLink>と
-              <LegalDocumentLink href="/privacy/manager">プライバシーポリシー</LegalDocumentLink>
-              に同意します
-            </Checkbox.Label>
-          </Checkbox.Root>
+          <Flex justify="flex-end" w="full">
+            <Checkbox.Root
+              colorPalette="teal"
+              checked={acceptedLegal}
+              cursor="pointer"
+              onCheckedChange={(details) => {
+                setValue("acceptedLegal", details.checked === true, { shouldDirty: true, shouldValidate: true });
+              }}
+            >
+              <Checkbox.HiddenInput />
+              <Checkbox.Control cursor="pointer" />
+              <Checkbox.Label fontSize="sm" lineHeight={1.7} cursor="pointer">
+                <LegalDocumentLink href="/terms/manager">利用規約</LegalDocumentLink>と
+                <LegalDocumentLink href="/privacy/manager">プライバシーポリシー</LegalDocumentLink>
+                に同意します
+              </Checkbox.Label>
+            </Checkbox.Root>
+          </Flex>
           {errors.acceptedLegal && <Field.ErrorText>{errors.acceptedLegal.message}</Field.ErrorText>}
         </Field.Root>
         {isPromotionCodeOpen ? (

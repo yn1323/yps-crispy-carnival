@@ -78,7 +78,7 @@ function AccountDeletionSectionError() {
 function getReadyDescription(preview: AccountDeletionReadyPreview): string {
   switch (preview.action) {
     case "accountOnly":
-      return "ログインに使うアカウントを削除します。削除後は、このアカウントでシフトリを利用できません。";
+      return "ログインに使うアカウントを削除します。アカウントを削除するとシフトリが利用できなくなります。";
     case "leaveOrganization":
       return `「${preview.organization.name}」から退出し、ログインアカウントを削除します。組織と店舗は、ほかの管理者が引き続き利用できます。`;
     case "deleteOrganization":
@@ -122,7 +122,8 @@ function getBlockedGuidance(preview: AccountDeletionBlockedPreview): {
       };
     case "organizationDeletionUnavailable":
       return {
-        message: "組織または店舗の終了手続きをこの画面から進められません。",
+        message:
+          "組織または店舗の終了手続きをこの画面から進められません。有料プランを利用中の場合は、解約手続き後、現在の支払い済み期間が終了してFreeプランへの切り替えが反映されてから、もう一度お試しください。",
         showContactLink: true,
       };
     case "inconsistentAssociation":

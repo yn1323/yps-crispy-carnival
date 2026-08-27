@@ -221,57 +221,54 @@ describe("setup/mutations", () => {
       expect(state.user).toMatchObject({ isDeleted: false, name: "山田 太郎", email: "yamada@example.com" });
     });
 
-    it.each(["active", "readOnly"] as const)(
-      "%sで有効な組織へすでに所属している場合は初回Setupを拒否する",
-      async (status) => {
-        const t = convexTest(schema, modules);
-        await t.run(async (ctx) => {
-          const owner = await seedOrganizationManagerShop(ctx, {
-            subject: "setup_invited_org_owner",
-            complimentary: true,
-          });
-          const userId = await seedUser(ctx, "setup_invited_org_member", "invited-member@example.com");
-          const now = Date.now();
-          const personId = await ctx.db.insert("organizationPeople", {
-            organizationId: owner.organizationId,
-            userId,
-            name: "招待済み管理者",
-            email: "invited-member@example.com",
-            emailNormalized: "invited-member@example.com",
-            status: "active",
-            createdAt: now,
-            updatedAt: now,
-          });
-          await ctx.db.insert("organizationMembers", {
-            organizationId: owner.organizationId,
-            personId,
-            userId,
-            status,
-            createdAt: now,
-            updatedAt: now,
-          });
+    it("有効な組織へすでに所属している場合は初回Setupを拒否する", async () => {
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        const owner = await seedOrganizationManagerShop(ctx, {
+          subject: "setup_invited_org_owner",
+          complimentary: true,
         });
-        const before = await t.run(async (ctx) => ({
+        const userId = await seedUser(ctx, "setup_invited_org_member", "invited-member@example.com");
+        const now = Date.now();
+        const personId = await ctx.db.insert("organizationPeople", {
+          organizationId: owner.organizationId,
+          userId,
+          name: "招待済み管理者",
+          email: "invited-member@example.com",
+          emailNormalized: "invited-member@example.com",
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+        await ctx.db.insert("organizationMembers", {
+          organizationId: owner.organizationId,
+          personId,
+          userId,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
+      });
+      const before = await t.run(async (ctx) => ({
+        organizations: await ctx.db.query("organizations").collect(),
+        shops: await ctx.db.query("shops").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+
+      await expect(
+        t
+          .withIdentity({ subject: "setup_invited_org_member" })
+          .mutation(api.setup.mutations.setupShopAndManager, setupArgs),
+      ).rejects.toThrow("すでに組織へ所属しています。");
+
+      expect(
+        await t.run(async (ctx) => ({
           organizations: await ctx.db.query("organizations").collect(),
           shops: await ctx.db.query("shops").collect(),
           scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-        }));
-
-        await expect(
-          t
-            .withIdentity({ subject: "setup_invited_org_member" })
-            .mutation(api.setup.mutations.setupShopAndManager, setupArgs),
-        ).rejects.toThrow("すでに組織へ所属しています。");
-
-        expect(
-          await t.run(async (ctx) => ({
-            organizations: await ctx.db.query("organizations").collect(),
-            shops: await ctx.db.query("shops").collect(),
-            scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-          })),
-        ).toEqual(before);
-      },
-    );
+        })),
+      ).toEqual(before);
+    });
 
     it("自分で作成した有効組織が重複している場合はfail closedにする", async () => {
       const t = convexTest(schema, modules);
@@ -366,7 +363,7 @@ describe("setup/mutations", () => {
       ).rejects.toThrow("メールアドレスの形式で入力してください");
     });
 
-    it("店舗・ユーザー・スタッフ・3か月Trial・同意履歴を作成する", async () => {
+    it("店舗・ユーザー・スタッフ・2か月Trial・同意履歴を作成する", async () => {
       const t = convexTest(schema, modules);
       const now = new Date("2026-07-05T10:00:00+09:00");
       vi.setSystemTime(now);
@@ -418,7 +415,7 @@ describe("setup/mutations", () => {
         version: organizationBillingState.version,
       }).toEqual({
         organizationId,
-        state: { kind: "trial", planIdVersion: 2, trialEndsAt: Date.parse("2026-10-04T15:00:00.000Z") },
+        state: { kind: "trial", planIdVersion: 2, trialEndsAt: Date.parse("2026-09-04T15:00:00.000Z") },
         freeManagerPersonId: undefined,
         freeShopId: undefined,
         version: 1,
@@ -479,10 +476,10 @@ describe("setup/mutations", () => {
           .withIndex("by_userId", (q) => q.eq("userId", user._id))
           .first(),
       );
-      expect(consentState?.termsConsentVersion).toBe("manager-terms-consent-2026-08-26");
-      expect(consentState?.privacyConsentVersion).toBe("manager-privacy-consent-2026-08-13");
-      expect(consentState?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-26-2");
-      expect(consentState?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-08-13");
+      expect(consentState?.termsConsentVersion).toBe("manager-terms-consent-2026-08-27-2");
+      expect(consentState?.privacyConsentVersion).toBe("manager-privacy-consent-2026-08-26");
+      expect(consentState?.termsDocumentVersion).toBe("manager-terms-doc-2026-08-27-2");
+      expect(consentState?.privacyDocumentVersion).toBe("manager-privacy-doc-2026-08-26");
       expect(consentState?.method).toBe("manager_setup");
 
       const staffs = await t.run(async (ctx) =>
@@ -504,9 +501,9 @@ describe("setup/mutations", () => {
           .first(),
       );
       expect(staffConsentState?.termsConsentVersion).toBe("staff-terms-consent-2026-05-09");
-      expect(staffConsentState?.privacyConsentVersion).toBe("staff-privacy-consent-2026-08-13");
+      expect(staffConsentState?.privacyConsentVersion).toBe("staff-privacy-consent-2026-08-26");
       expect(staffConsentState?.termsDocumentVersion).toBe("staff-terms-doc-2026-08-26");
-      expect(staffConsentState?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-08-26");
+      expect(staffConsentState?.privacyDocumentVersion).toBe("staff-privacy-doc-2026-08-26-2");
       expect(staffConsentState?.method).toBe("manager_setup");
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
@@ -533,11 +530,11 @@ describe("setup/mutations", () => {
           .map((job) => ({ scheduledTime: job.scheduledTime, args: job.args[0] })),
       ).toEqual([
         {
-          scheduledTime: Date.parse("2026-10-04T15:00:00.000Z"),
+          scheduledTime: Date.parse("2026-09-04T15:00:00.000Z"),
           args: {
             organizationId,
             expectedVersion: 1,
-            expectedDeadlineAt: Date.parse("2026-10-04T15:00:00.000Z"),
+            expectedDeadlineAt: Date.parse("2026-09-04T15:00:00.000Z"),
           },
         },
       ]);
@@ -829,13 +826,6 @@ describe("setup/mutations", () => {
       label: string;
       corrupt: (t: OrganizationCreationTest, seed: ExistingManagerSeed) => Promise<void>;
     }> = [
-      {
-        key: "read_only",
-        label: "readOnlyのcanonical所属",
-        corrupt: async (t, seed) => {
-          await t.run(async (ctx) => ctx.db.patch(seed.memberId, { status: "readOnly" }));
-        },
-      },
       {
         key: "removed",
         label: "removedのcanonical所属",
@@ -1461,7 +1451,7 @@ describe("setup/mutations", () => {
         label: "操作元のmanager authorityが失効した",
         expectedError: "Not found",
         invalidate: async (t: OrganizationCreationTest, seed: ExistingManagerSeed) => {
-          await t.run(async (ctx) => ctx.db.patch(seed.memberId, { status: "readOnly", updatedAt: Date.now() }));
+          await t.run(async (ctx) => ctx.db.patch(seed.memberId, { status: "removed", updatedAt: Date.now() }));
         },
       },
       {

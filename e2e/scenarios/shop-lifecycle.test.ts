@@ -16,8 +16,8 @@ type ShopLifecycleScenarioSeed = {
 test.use({ trace: "off", screenshot: "off", video: "off" });
 
 test.describe("同一組織の店舗ライフサイクル", { tag: ["@e2e-core"] }, () => {
-  // 複数routeで店舗追加・設定変更・削除・再訪を確認するため、cold CI実測へ余裕を加えた失敗上限。
-  test.setTimeout(90_000);
+  // 複数routeで店舗追加・設定変更・削除・再訪を確認するため、3 workerのcold実測へ余裕を加えた失敗上限。
+  test.setTimeout(120_000);
 
   test.afterEach(async () => {
     await resetCurrentManagerScenarioData();
@@ -38,6 +38,7 @@ test.describe("同一組織の店舗ライフサイクル", { tag: ["@e2e-core"]
     await lifecycle.addShop(addedShopName);
 
     await dashboard.goto({ organizationId: seed.organizationId, shopId: seed.shopId });
+    await dashboard.expectSelectedShop(seed.shopName, seed.organizationId, seed.shopId);
     const addedShopId = await dashboard.switchShopAndReadId(addedShopName, seed.organizationId);
     assertNotificationDeliverySuppressed(addedShopId);
 

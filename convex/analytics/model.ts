@@ -212,13 +212,13 @@ export const analyticsSourceEventPayloadValidator = v.union(
         v.object({
           kind: v.literal("shop"),
           shopId: v.id("shops"),
-          status: v.union(v.literal("active"), v.literal("archived"), v.literal("planSuspended")),
+          status: v.union(v.literal("active"), v.literal("archived")),
         }),
         v.object({
           kind: v.literal("manager"),
           memberId: v.id("organizationMembers"),
           personId: v.id("organizationPeople"),
-          status: v.union(v.literal("active"), v.literal("readOnly"), v.literal("removed")),
+          status: v.union(v.literal("active"), v.literal("removed")),
         }),
       ),
     ),

@@ -161,7 +161,7 @@ describe("development seed rebuild", () => {
     expect(preflight.scenarioKeys).toEqual(DEVELOPMENT_SEED_SCENARIO_KEYS);
     expect(verification).toEqual({
       contractVersion: "development-seed-v2",
-      contractFingerprint: "161fbc73",
+      contractFingerprint: "6bb80627",
       scenarioCount: 9,
       tableCount: 66,
       organizationCount: 9,
