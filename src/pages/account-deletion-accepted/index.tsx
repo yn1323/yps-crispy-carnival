@@ -14,7 +14,7 @@ export function AccountDeletionAcceptedPage() {
           icon={LuCircleCheck}
           iconVariant="circle"
           size="lg"
-          title="アカウントの削除を受け付けました"
+          title="アカウントを削除しました"
           titleAs="h1"
           description="シフトリをご利用いただきありがとうございました。"
           tone="brand"

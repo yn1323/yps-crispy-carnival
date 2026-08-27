@@ -50,7 +50,7 @@ import { AccountDeletionAcceptedPage } from ".";
 it("公開受付ページを表示する", () => {
   render(<AccountDeletionAcceptedPage />);
 
-  expect(screen.getByRole("heading", { name: "アカウントの削除を受け付けました" })).not.toBeNull();
+  expect(screen.getByRole("heading", { name: "アカウントを削除しました" })).not.toBeNull();
   expect(screen.getByText("シフトリをご利用いただきありがとうございました。")).not.toBeNull();
   expect(screen.queryByText(/このアカウントでは、シフトリを利用できなくなりました/)).toBeNull();
   expect(screen.queryByText(/法令または契約上必要な業務記録として残る場合があります/)).toBeNull();
