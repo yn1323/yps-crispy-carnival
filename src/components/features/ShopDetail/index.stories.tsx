@@ -1038,7 +1038,6 @@ function MembershipRemovalRejectedResultHarness() {
       if (previewKeyRef.current === nextKey) return true;
       previewKeyRef.current = nextKey;
       setPreviewKey(nextKey);
-      setErrorMessage(undefined);
       return true;
     },
     [],
