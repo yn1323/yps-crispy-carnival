@@ -87,24 +87,6 @@ export const AddIntentAndDetailNavigationBehavior: Story = {
   },
 };
 
-export const DetailUnavailableBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  args: {
-    staffs: [{ ...mockStaffs[1], organizationPersonId: null }],
-    onOpenDetail: fn(),
-  },
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-    const row = canvas.getByRole("button", { name: /スタッフ詳細は現在開けません/ });
-
-    await expect(row).toBeDisabled();
-    await expect(row).toHaveAccessibleDescription(/スタッフ情報を確認できないため、詳細を開けません/);
-    await expect(canvas.getByText("詳細を開けません")).toBeVisible();
-    await userEvent.click(row);
-    await expect(args.onOpenDetail).not.toHaveBeenCalled();
-  },
-};
-
 export const LongNameWithAllBadgesMobile: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },

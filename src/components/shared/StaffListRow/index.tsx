@@ -9,8 +9,7 @@ export type StaffListRowRole = "manager" | "staff";
 export type StaffListRowBadge =
   | { kind: "role" }
   | { kind: "line"; status: StaffListRowLineStatus }
-  | { kind: "shiftExcluded" }
-  | { kind: "detailUnavailable" };
+  | { kind: "shiftExcluded" };
 
 export type StaffListRowDetail = { kind: "shopNames"; names: readonly string[] } | { kind: "email"; value: string };
 
@@ -20,12 +19,10 @@ type Props = {
   role: StaffListRowRole;
   detail?: StaffListRowDetail;
   badges?: readonly StaffListRowBadge[];
-  disabled?: boolean;
-  disabledReason?: string;
   onOpen: () => void;
 };
 
-export function StaffListRow({ id, name, role, detail, badges = [], disabled = false, disabledReason, onOpen }: Props) {
+export function StaffListRow({ id, name, role, detail, badges = [], onOpen }: Props) {
   const initial = name.trim().charAt(0) || "?";
   const isManager = role === "manager";
   const roleLabel = isManager ? "管理者" : "スタッフ";
@@ -39,10 +36,9 @@ export function StaffListRow({ id, name, role, detail, badges = [], disabled = f
   return (
     <DrilldownRow
       id={id}
-      ariaLabel={disabled ? `${name}のスタッフ詳細は現在開けません` : `${name}のスタッフ詳細を開く`}
+      ariaLabel={`${name}のスタッフ詳細を開く`}
       title={name}
       highlighted={isManager}
-      disabled={disabled}
       onClick={onOpen}
       leading={
         <Flex
@@ -99,7 +95,6 @@ export function StaffListRow({ id, name, role, detail, badges = [], disabled = f
           {roleLabel}です。{linePresentation ? `${linePresentation.description}。` : ""}
           {shopNames ? (shopNames === "なし" ? "所属店舗はありません。" : `所属店舗は${shopNames}です。`) : ""}
           {isShiftExcluded ? "シフト対象外です。" : ""}
-          {disabledReason ? `${disabledReason}。` : ""}
         </>
       }
     />
@@ -121,8 +116,7 @@ function StaffBadge({ badge, role }: { badge: StaffListRowBadge; role: StaffList
     return <StatusBadge colorPalette={presentation.colorPalette}>{presentation.label}</StatusBadge>;
   }
 
-  if (badge.kind === "shiftExcluded") return <StatusBadge colorPalette="gray">シフト対象外</StatusBadge>;
-  return <StatusBadge colorPalette="gray">詳細を開けません</StatusBadge>;
+  return <StatusBadge colorPalette="gray">シフト対象外</StatusBadge>;
 }
 
 function StatusBadge({
