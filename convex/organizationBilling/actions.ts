@@ -8,36 +8,33 @@ import { observedInternalAction as internalAction } from "../_lib/errorObservabi
 import { buildOrganizationBillingEmailHtml } from "../notification/templates";
 import { emailPayload, enqueueEmail } from "../notificationOutbox/enqueue";
 import {
-  canonicalizeOrganizationBillingNotificationDetails,
+  canonicalizeScheduledOrganizationBillingNotification,
   organizationBillingNotificationCopy,
-  organizationBillingNotificationDetailsValidator,
-  organizationBillingNotificationEventValidator,
+  scheduledOrganizationBillingNotificationDetailsValidator,
+  scheduledOrganizationBillingNotificationEventValidator,
 } from "./notification";
 
 export const enqueueBillingNotification = internalAction({
   args: {
     organizationId: v.id("organizations"),
-    event: organizationBillingNotificationEventValidator,
+    event: scheduledOrganizationBillingNotificationEventValidator,
     eventKey: v.string(),
     recipientUserIds: v.optional(v.array(v.id("users"))),
     expectedDeadlineAt: v.optional(v.number()),
-    notificationDetails: v.optional(organizationBillingNotificationDetailsValidator),
+    notificationDetails: v.optional(scheduledOrganizationBillingNotificationDetailsValidator),
   },
   returns: v.object({ enqueuedCount: v.number() }),
   handler: async (ctx, args) => {
+    const notification = canonicalizeScheduledOrganizationBillingNotification(args.event, args.notificationDetails);
     const data = await ctx.runQuery(internal.organizationBilling.queries.getNotificationData, {
       organizationId: args.organizationId,
-      event: args.event,
+      event: notification.event,
       recipientUserIds: args.recipientUserIds,
       expectedDeadlineAt: args.expectedDeadlineAt,
     });
     if (!data) return { enqueuedCount: 0 };
 
-    const copy = organizationBillingNotificationCopy(
-      args.event,
-      data.trialEnding,
-      canonicalizeOrganizationBillingNotificationDetails(args.notificationDetails),
-    );
+    const copy = organizationBillingNotificationCopy(notification.event, data.trialEnding, notification.details);
     const settingsUrl = new URL("/manage/billing", getAppUrl());
     settingsUrl.searchParams.set("org", data.organizationId);
     let enqueuedCount = 0;
@@ -58,7 +55,7 @@ export const enqueueBillingNotification = internalAction({
             paragraphs: copy.paragraphs,
             action: { label: "組織設定を確認する", url: settingsUrl.toString() },
           }),
-          context: `organizationBilling.${args.event}`,
+          context: `organizationBilling.${notification.event}`,
         }),
       });
       if (result) enqueuedCount += 1;

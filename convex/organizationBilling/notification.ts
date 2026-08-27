@@ -1,3 +1,4 @@
+import type { Infer } from "convex/values";
 import { v } from "convex/values";
 import { formatDateTimeLabel } from "../_lib/dateFormat";
 import { organizationPaidPlanLabel, organizationPlanLabel, organizationPlanSentenceLabel } from "./planPresentation";
@@ -23,7 +24,17 @@ export const organizationBillingNotificationEventValidator = v.union(
   v.literal("billingEmailChanged"),
 );
 
-export const organizationBillingNotificationDetailsValidator = v.object({
+/**
+ * 旧revisionがrunAfter(0)へ保存したaction引数だけをdrainするvalidator。
+ * 現行writer・query・copyのevent型へ旧値を戻さない。
+ */
+export const scheduledOrganizationBillingNotificationEventValidator = v.union(
+  organizationBillingNotificationEventValidator,
+  v.literal("paidActivationFailedRestrictedContinued"),
+  v.literal("restrictedStarted"),
+);
+
+const organizationBillingNotificationDetailsFields = {
   // Widen中は旧scheduled actionのunversioned pro/businessも受理する。
   targetPlan: v.optional(v.union(v.literal("free"), v.literal("standard"), v.literal("pro"), v.literal("business"))),
   planIdVersion: v.optional(v.literal(2)),
@@ -32,6 +43,24 @@ export const organizationBillingNotificationDetailsValidator = v.object({
   effectiveAt: v.optional(v.number()),
   restrictAtPeriodEnd: v.optional(v.literal(true)),
   usageLimitExceeded: v.optional(v.literal(true)),
+};
+
+export const organizationBillingNotificationDetailsValidator = v.object(organizationBillingNotificationDetailsFields);
+
+const legacyOrganizationBillingRestrictionReasonValidator = v.union(
+  v.literal("trialEndedWithoutSubscription"),
+  v.literal("scheduledCancellation"),
+  v.literal("trialFreeConditionsNotMet"),
+  v.literal("freeConditionsNotMet"),
+  v.literal("paymentGraceExpired"),
+  v.literal("paymentActivationFailed"),
+  v.literal("unexpectedCancellation"),
+  v.literal("planLimitExceeded"),
+);
+
+export const scheduledOrganizationBillingNotificationDetailsValidator = v.object({
+  ...organizationBillingNotificationDetailsFields,
+  restrictionReason: v.optional(legacyOrganizationBillingRestrictionReasonValidator),
 });
 
 export type OrganizationBillingNotificationEvent =
@@ -48,6 +77,10 @@ export type OrganizationBillingNotificationEvent =
   | "graceEndingSoon"
   | "recovered"
   | "billingEmailChanged";
+
+export type ScheduledOrganizationBillingNotificationEvent = Infer<
+  typeof scheduledOrganizationBillingNotificationEventValidator
+>;
 
 export type TrialEndingNotificationDetails = {
   trialEndsAt: number;
@@ -71,19 +104,57 @@ export type PersistedOrganizationBillingNotificationDetails = Omit<
   planIdVersion?: 2;
 };
 
+type ScheduledOrganizationBillingNotificationDetails = Infer<
+  typeof scheduledOrganizationBillingNotificationDetailsValidator
+>;
+
 /** 旧scheduled argsのpro/businessを意味で読み替え、copy生成前にcanonicalへ閉じる。 */
 export function canonicalizeOrganizationBillingNotificationDetails(
-  details?: PersistedOrganizationBillingNotificationDetails,
+  details?: ScheduledOrganizationBillingNotificationDetails,
 ): OrganizationBillingNotificationDetails | undefined {
   if (!details) return undefined;
-  const { planIdVersion, targetPlan, ...rest } = details;
-  if (!targetPlan) return rest;
+  const rest: OrganizationBillingNotificationDetails = {
+    ...(details.amountDue !== undefined ? { amountDue: details.amountDue } : {}),
+    ...(details.currency !== undefined ? { currency: details.currency } : {}),
+    ...(details.effectiveAt !== undefined ? { effectiveAt: details.effectiveAt } : {}),
+    ...(details.restrictAtPeriodEnd ? { restrictAtPeriodEnd: true } : {}),
+    ...(details.usageLimitExceeded ? { usageLimitExceeded: true } : {}),
+  };
+  if (!details.targetPlan) return rest;
+  const { planIdVersion, targetPlan } = details;
   if (planIdVersion === 2) {
     if (targetPlan === "business") throw new Error("billing_notification_plan_id_version_invalid");
     return { ...rest, targetPlan };
   }
   if (targetPlan === "standard") throw new Error("billing_notification_plan_id_version_missing");
   return { ...rest, targetPlan: targetPlan === "pro" ? "standard" : targetPlan === "business" ? "pro" : "free" };
+}
+
+/** 旧scheduled eventを現行の通知copyとOutbox contextへ収束させる。 */
+export function canonicalizeScheduledOrganizationBillingNotification(
+  event: ScheduledOrganizationBillingNotificationEvent,
+  details?: ScheduledOrganizationBillingNotificationDetails,
+): {
+  event: OrganizationBillingNotificationEvent;
+  details: OrganizationBillingNotificationDetails | undefined;
+} {
+  const canonicalDetails = canonicalizeOrganizationBillingNotificationDetails(details);
+  if (event === "paidActivationFailedRestrictedContinued") {
+    return { event: "paidActivationFailedFreeContinued", details: canonicalDetails };
+  }
+  if (event === "restrictedStarted") {
+    if (canonicalDetails?.targetPlan === "standard" || canonicalDetails?.targetPlan === "pro") {
+      return {
+        event: "planActivated",
+        details: { ...canonicalDetails, usageLimitExceeded: true },
+      };
+    }
+    return {
+      event: "freeApplied",
+      details: { ...canonicalDetails, usageLimitExceeded: true },
+    };
+  }
+  return { event, details: canonicalDetails };
 }
 
 export function organizationBillingNotificationCopy(
