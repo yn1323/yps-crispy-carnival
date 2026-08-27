@@ -234,7 +234,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 
 ## Public Convex surface inventory
 
-2026-08-27時点のpublic query、mutation、actionは152個である。
+2026-08-27時点のpublic query、mutation、actionは140個である。
 同じ業務境界のAPIは一行へまとめるが、公開export名は省略しない。
 
 | Module | Public exports | 対応契約 / 状態 |
@@ -258,12 +258,12 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 | `line/queries` | `getLinkStatusByShop`、`getQuotaStatus` | `CAP-LINE-LINK-01`。実装済みだが現行利用箇所がない場合は固定拡大前にinternal化または削除を再評価 |
 | `notificationOutbox/mutations` | `resendFailure`、`resendOpenFailures`、`resolveFailure`、`retryFailure` | `NOTIFY-FAILURE-01`。`resendFailure`の`other`だけ`NOTIFY-OTHER-RESEND-01` |
 | `notificationOutbox/queries` | `hasOpenFailures`、`listOpenFailures`、`listStaffNotificationHistory` | `NOTIFY-FAILURE-01`、`NOTIFY-HISTORY-01` |
-| `organization/mutations` | `addShop`、`addShopForOrganization`、`archiveShop`、`deleteOrganization`、`deleteOrganizationForOrganization`、`deleteShop`、`reactivateShop`、`removeManagerRole`、`removeManagerRoleForOrganization`、`removePersonFromOrganization`、`removePersonFromShop`、`updateOrganizationName`、`updateOrganizationNameForOrganization`、`updatePersonProfile` | `SHOP-LIFECYCLE-01`、`DELETE-SHOP-ORGANIZATION-01`、`DELETE-PERSON-01`、`PERSON-ROLE-01`、`ORG-PROFILE-01`。`ForOrganization`は新app用のcanonical組織境界である。店舗を増やす操作も認可、契約状態、上限を再確認する |
-| `organization/queries` | `getSettings`、`getManagerSettingsOverview`、`getManagerCandidates` | `ORG-CONTEXT-01`、`MANAGER-INVITATION-01`、`DELETE-SHOP-ORGANIZATION-01`。管理者Queryは`{ shopId, now }`を受け、bounded readの不整合をunionで閉じる |
+| `organization/mutations` | `addShop`、`addShopForOrganization`、`archiveShop`、`deleteOrganization`、`deleteOrganizationForOrganization`、`deleteShop`、`reactivateShop`、`removeManagerRoleForOrganization`、`removePersonFromOrganization`、`removePersonFromShop`、`updateOrganizationName`、`updateOrganizationNameForOrganization`、`updatePersonProfile` | `SHOP-LIFECYCLE-01`、`DELETE-SHOP-ORGANIZATION-01`、`DELETE-PERSON-01`、`PERSON-ROLE-01`、`ORG-PROFILE-01`。`ForOrganization`は新app用のcanonical組織境界である。店舗を増やす操作も認可、契約状態、上限を再確認する |
+| `organization/queries` | `getSettings` | `ORG-CONTEXT-01`、`DELETE-SHOP-ORGANIZATION-01`。店舗を起点に組織設定DTOを返す |
 | `organization/userDetailQueries` | `getUserDetail` | `PERSON-MEMBERSHIP-01`、`PERSON-ROLE-01` |
 | `organizationBilling/mutations` | `updateBillingEmail`、`updateBillingEmailForOrganization` | `BILLING-ENTITLEMENT-01`、`BILLING-PLAN-CHANGE-01`。認可、契約状態、上限整理・課金操作の許可、冪等性を副作用前に確認する |
 | `organizationInvitation/acceptanceActions` | `accept` | `MANAGER-INVITATION-01`。確認済みemailまたは接続済みaccountと、tokenの状態を検証する |
-| `organizationInvitation/mutations` | `issue`、`issueForOrganization`、`accept`、`create`、`createExternal`、`createForPerson`、`createForStaff`、`linkAccount`、`resend`、`resendForOrganization`、`revoke`、`revokeForOrganization` | `MANAGER-INVITATION-01`。`ForOrganization`は新app用のcanonical組織境界である。発行・再送・受諾・取消の各状態でtoken、本人性、上限、tenantを再確認する |
+| `organizationInvitation/mutations` | `issueForOrganization`、`resendForOrganization`、`revokeForOrganization` | `MANAGER-INVITATION-01`。canonical組織境界を再検証し、発行・再送・取消でtoken、上限、tenantを確認する |
 | `organizationInvitation/queries` | `getPreview` | `MANAGER-INVITATION-01`。token、version、期限、失効状態を検証して最小DTOを返す |
 | `organizationStripe/actions` | `cancelPendingCheckoutForOrganization`、`cancelScheduledFree`、`cancelScheduledPlanChange`、`cancelScheduledPlanChangeForOrganization`、`cancelTrialContinuation`、`cancelTrialContinuationForOrganization`、`changePaidPlanNow`、`changePaidPlanNowForOrganization`、`getCurrentSubscriptionPrice`、`getPlanPrice`、`getPlanPriceForOrganization`、`getProPrice`、`inspectPendingCheckoutForOrganization`、`openCustomerPortal`、`openCustomerPortalForOrganization`、`previewPaidPlanChange`、`previewPaidPlanChangeForOrganization`、`scheduleFreeAtPeriodEnd`、`schedulePaidPlanChange`、`schedulePaidPlanChangeForOrganization`、`scheduleServiceStopAtPeriodEnd`、`scheduleServiceStopAtPeriodEndForOrganization`、`startPaidCheckout`、`startPaidCheckoutForOrganization`、`startProCheckout` | `BILLING-CHECKOUT-01`、`BILLING-PLAN-CHANGE-01`、`BILLING-TRIAL-CANCEL-01`。`ForOrganization`は新app用のcanonical組織境界である。全public課金操作で認可、契約状態、Stripe設定、Priceを再確認し、Webhookとinternal workerの収束を維持する |
 | `recruitment/mutations` | `createRecruitment`、`deleteRecruitment` | `RECRUITMENT-01` |

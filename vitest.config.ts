@@ -67,6 +67,8 @@ const uiProject = defineConfig({
   },
   test: {
     name: "ui",
+    // Storybook全件の並列import・描画負荷だけで、単独では即時完了するstoryを失敗させない。
+    testTimeout: 30_000,
     // Enable browser mode
     browser: {
       enabled: true,

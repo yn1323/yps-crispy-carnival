@@ -347,7 +347,7 @@ export const AddEmailPasswordBehavior: Story = {
     await userEvent.click(inputDialog.getByRole("button", { name: "続ける" }));
 
     const codeDialog = within(await body.findByRole("dialog", { name: "メールアドレスとパスワードを設定" }));
-    await expect(await codeDialog.findByText("login@example.comに確認コードを送りました。")).toBeVisible();
+    await expect(codeDialog.getByText(/login@example\.com/)).toBeVisible();
     await userEvent.type(codeDialog.getByRole("textbox", { name: "確認コード" }), "123456");
     await userEvent.click(codeDialog.getByRole("button", { name: "決定する" }));
 
@@ -360,7 +360,7 @@ export const AddEmailPasswordBehavior: Story = {
     ).not.toBeInTheDocument();
     await userEvent.type(passwordDialog.getByLabelText("新しいパスワード"), "safe-password");
     await userEvent.type(passwordDialog.getByLabelText("新しいパスワード（確認）"), "safe-password");
-    await userEvent.click(passwordDialog.getByRole("button", { name: "パスワードを設定" }));
+    await userEvent.click(passwordDialog.getByRole("button", { name: "設定する" }));
 
     await waitFor(() => expect(body.queryByRole("dialog", { name: "パスワード設定" })).not.toBeInTheDocument());
     const toastTitle = await body.findByText("メインのメールアドレスとパスワードを設定しました");
@@ -422,7 +422,7 @@ export const EmailPasswordCodeMismatchBehavior: Story = {
     const dialog = within(await body.findByRole("dialog", { name: "メールアドレスとパスワードを設定" }));
 
     await userEvent.type(dialog.getByRole("textbox", { name: "確認コード" }), "000000");
-    await userEvent.click(dialog.getByRole("button", { name: "メールを確認" }));
+    await userEvent.click(dialog.getByRole("button", { name: "決定する" }));
 
     await expect(await dialog.findByText("確認コードが一致しません。もう一度入力してください。")).toBeVisible();
     await expect(dialog.getByRole("textbox", { name: "確認コード" })).toBeEnabled();

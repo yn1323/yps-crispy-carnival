@@ -81,8 +81,8 @@ export const ValidSubmitPassesNormalizedPayload: Story = {
   ),
   play: async ({ args, canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body);
-    const [nameInput] = await page.findAllByPlaceholderText("例：田中 花子");
-    const [emailInput] = await page.findAllByPlaceholderText("例：hanako@example.com");
+    const [nameInput] = await page.findAllByPlaceholderText("サンプル スタッフ");
+    const [emailInput] = await page.findAllByPlaceholderText("staff@example.com");
 
     await userEvent.type(nameInput, " 田中 花子 ");
     await userEvent.type(emailInput, " hanako@example.com ");

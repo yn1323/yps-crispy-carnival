@@ -43,7 +43,7 @@ export const Validation: Story = {
     const screen = within(document.body);
     const dialog = within(await screen.findByRole("dialog"));
     await userEvent.click(dialog.getByRole("button", { name: "要望を送る" }));
-    await expect(screen.findByText("要望を入力してください")).resolves.toBeVisible();
+    await expect(await dialog.findByText("要望を入力してください")).toBeVisible();
   },
 };
 
