@@ -262,8 +262,7 @@ export const GoogleAccountCollision: Story = {
     phase: "unavailable",
     feedbackStatus: "error",
     googleErrorKind: "accountCollision",
-    feedbackMessage:
-      "このGoogleアカウントは追加できません。別のGoogleアカウントを選んでください。現在のログイン方法は変更されていません。",
+    feedbackMessage: "このGoogleアカウントは追加できません。別のGoogleアカウントを選んでください。",
   },
 };
 
@@ -273,7 +272,7 @@ export const GoogleAlreadyConnected: Story = {
     phase: "unavailable",
     feedbackStatus: "error",
     googleErrorKind: "alreadyConnected",
-    feedbackMessage: "このGoogleアカウントはすでに接続されています。画面を再読み込みして最新の状態を確認してください。",
+    feedbackMessage: "このGoogleアカウントはすでに接続済みです。画面を再読み込みして最新の状態を確認してください。",
   },
 };
 
@@ -293,8 +292,7 @@ export const GoogleRetryableError: Story = {
     phase: "unavailable",
     feedbackStatus: "error",
     googleErrorKind: "retryable",
-    feedbackMessage:
-      "Googleログインを追加できませんでした。現在のログイン方法は変更されていません。もう一度お試しください。",
+    feedbackMessage: "Googleログインを追加できませんでした。",
   },
 };
 
@@ -304,15 +302,14 @@ export const GoogleRetryFromErrorBehavior: Story = {
     phase: "unavailable",
     feedbackStatus: "error",
     googleErrorKind: "retryable",
-    feedbackMessage:
-      "Googleログインを追加できませんでした。現在のログイン方法は変更されていません。もう一度お試しください。",
+    feedbackMessage: "Googleログインを追加できませんでした。",
   },
   parameters: { screenshot: { skip: true } },
   play: async () => {
     const body = within(document.body);
     const dialog = within(await body.findByRole("dialog", { name: "Googleログインを追加" }));
 
-    await userEvent.click(dialog.getByRole("button", { name: "もう一度試す" }));
+    await userEvent.click(dialog.getByRole("button", { name: "再実行する" }));
 
     const skeleton = await dialog.findByLabelText("Googleログイン画面を読み込み中");
     await waitFor(() => expect(skeleton).toBeVisible());
@@ -343,20 +340,16 @@ export const AddEmailPasswordBehavior: Story = {
     await expect(emailInput).toHaveValue("google@gmail.com");
     const cancelButton = inputDialog.getByRole("button", { name: "キャンセル" });
     await expect(cancelButton).toBeInTheDocument();
-    const submitButton = inputDialog.getByRole("button", { name: "確認コードを送る" });
+    const submitButton = inputDialog.getByRole("button", { name: "続ける" });
     await expect(submitButton).toBeInTheDocument();
     await userEvent.clear(emailInput);
     await userEvent.type(emailInput, "login@example.com");
-    await userEvent.click(inputDialog.getByRole("button", { name: "確認コードを送る" }));
+    await userEvent.click(inputDialog.getByRole("button", { name: "続ける" }));
 
     const codeDialog = within(await body.findByRole("dialog", { name: "メールアドレスとパスワードを設定" }));
-    await expect(
-      await codeDialog.findByText(
-        "login@example.comに確認コードを送りました。メールに届いたコードを入力してください。",
-      ),
-    ).toBeVisible();
+    await expect(await codeDialog.findByText("login@example.comに確認コードを送りました。")).toBeVisible();
     await userEvent.type(codeDialog.getByRole("textbox", { name: "確認コード" }), "123456");
-    await userEvent.click(codeDialog.getByRole("button", { name: "メールを確認" }));
+    await userEvent.click(codeDialog.getByRole("button", { name: "決定する" }));
 
     const passwordDialog = within(await body.findByRole("dialog", { name: "パスワード設定" }));
     await expect(
@@ -396,8 +389,8 @@ export const EmailVerificationBackBehavior: Story = {
   play: async () => {
     const body = within(document.body);
     const dialog = within(await body.findByRole("dialog", { name: "メールアドレスとパスワードを設定" }));
-    const backButton = dialog.getByRole("button", { name: "入力し直す" });
-    const verifyButton = dialog.getByRole("button", { name: "メールを確認" });
+    const backButton = dialog.getByRole("button", { name: "戻る" });
+    const verifyButton = dialog.getByRole("button", { name: "決定する" });
 
     await expect(backButton.compareDocumentPosition(verifyButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     await userEvent.click(backButton);
@@ -443,7 +436,7 @@ export const ConnectGoogleBehavior: Story = {
     const body = within(document.body);
     const dialog = within(await body.findByRole("dialog", { name: "Googleログインを追加" }));
 
-    await userEvent.click(dialog.getByRole("button", { name: "Googleアカウントを選ぶ" }));
+    await userEvent.click(dialog.getByRole("button", { name: "選択する" }));
 
     const skeleton = await dialog.findByLabelText("Googleログイン画面を読み込み中");
     await waitFor(() => expect(skeleton).toBeVisible());

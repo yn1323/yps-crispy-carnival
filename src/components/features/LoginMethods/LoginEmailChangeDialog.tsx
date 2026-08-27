@@ -80,12 +80,12 @@ export function LoginEmailChangeDialog({
       layout="flow"
       startAction={
         <Button type="button" variant="outline" onClick={handleBackToInput} disabled={isBusy}>
-          入力し直す
+          戻る
         </Button>
       }
       endAction={
         <Button type="submit" form={LOGIN_EMAIL_CODE_FORM_ID} colorPalette="teal" loading={isBusy} loadingText="確認中">
-          メールを確認
+          決定する
         </Button>
       }
     />
@@ -125,7 +125,9 @@ export function LoginEmailChangeDialog({
         <Stack gap={5}>
           <Text color="fg.muted">
             {targetEmailAddress ?? "入力したメールアドレス"}
-            に確認コードを送りました。メールに届いたコードを入力してください。
+            に確認コードを送りました。
+            <br />
+            届いたコードを入力してください。
           </Text>
           <LoginMethodEmailCodeForm
             formId={LOGIN_EMAIL_CODE_FORM_ID}
@@ -189,7 +191,7 @@ function EmailInputStep({
         <Input
           type="email"
           autoComplete="email"
-          placeholder="例：login@example.com"
+          placeholder="login@example.com"
           maxLength={EMAIL_MAX_LENGTH}
           disabled={isBusy}
           {...emailRegistration}

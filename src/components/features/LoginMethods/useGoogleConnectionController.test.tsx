@@ -591,7 +591,7 @@ describe("Google接続controller", () => {
 
     expect(secondMount.result.current.state.feedback).toEqual({
       status: "success",
-      message: "Googleログインを追加しました。",
+      message: "Google認証ログインを追加しました。",
     });
     expect(user.reload).toHaveBeenCalledTimes(3);
     expect(onHandled).toHaveBeenCalledOnce();
@@ -735,14 +735,12 @@ describe("Google接続controller", () => {
     {
       clerkCode: "oauth_identification_claimed",
       expectedKind: "accountCollision",
-      expectedMessage:
-        "このGoogleアカウントは追加できません。別のGoogleアカウントを選んでください。現在のログイン方法は変更されていません。",
+      expectedMessage: "このGoogleアカウントは追加できません。別のGoogleアカウントを選んでください。",
     },
     {
       clerkCode: "oauth_account_already_connected",
       expectedKind: "alreadyConnected",
-      expectedMessage:
-        "このGoogleアカウントはすでに接続されています。画面を再読み込みして最新の状態を確認してください。",
+      expectedMessage: "このGoogleアカウントはすでに接続済みです。画面を再読み込みして最新の状態を確認してください。",
     },
   ])(
     "OAuth帰還時の$clerkCodeを識別子なしの専用エラーへ分ける",
@@ -859,9 +857,7 @@ describe("Google接続controller", () => {
     await act(async () => result.current.start());
 
     expect(result.current.state.errorKind).toBe("retryable");
-    expect(result.current.state.feedback.message).toBe(
-      "Googleログインを追加できませんでした。現在のログイン方法は変更されていません。もう一度お試しください。",
-    );
+    expect(result.current.state.feedback.message).toBe("Googleログインを追加できませんでした。");
     expect(result.current.state.feedback.message).not.toContain("private-google-account@example.com");
 
     await act(async () => result.current.start());
@@ -872,7 +868,7 @@ describe("Google接続controller", () => {
       errorKind: "cooldown",
       feedback: {
         status: "error",
-        message: "Googleの確認を開始した直後です。あと30秒ほど待ってから再試行してください。",
+        message: "再実行エラー。\nあと30秒ほど待ってから再試行してください。",
       },
     });
 

@@ -42,12 +42,12 @@ export function LoginForm({
       <AuthError message={errorMessage} />
       <Field.Root invalid={!!errors.email}>
         <Field.Label>メールアドレス</Field.Label>
-        <Input type="email" autoComplete="email" placeholder="example@example.com" {...register("email")} />
+        <Input type="email" autoComplete="email" placeholder="login@example.com" {...register("email")} />
         <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
       </Field.Root>
       <Field.Root invalid={!!errors.password}>
         <Field.Label>パスワード</Field.Label>
-        <PasswordInput autoComplete="current-password" placeholder="パスワード" {...register("password")} />
+        <PasswordInput autoComplete="current-password" {...register("password")} />
         <Field.ErrorText>{errors.password?.message}</Field.ErrorText>
       </Field.Root>
       <Flex justify="end">

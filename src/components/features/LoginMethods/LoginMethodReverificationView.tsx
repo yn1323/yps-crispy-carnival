@@ -112,7 +112,7 @@ export function LoginMethodReverificationView({ controller }: { controller: Logi
           <Text fontWeight="semibold">
             {state.stage === "second" ? "二段階認証の方法を選択" : "本人確認方法を選択"}
           </Text>
-          <Text color="fg.muted">続行するため、利用できる方法から一つ選んでください。</Text>
+          <Text color="fg.muted">いずれか一つ選んでください。</Text>
         </Stack>
         {state.message ? (
           <Alert.Root status="info" borderRadius="lg" alignItems="flex-start" role="status" aria-live="polite">
@@ -205,6 +205,7 @@ function FactorInput({
           type={isPassword ? "password" : "text"}
           inputMode={isPassword || factor.strategy === "backup_code" ? undefined : "numeric"}
           autoComplete={isPassword ? "current-password" : "one-time-code"}
+          placeholder={isPassword || factor.strategy === "backup_code" ? "******" : "123456"}
           value={value}
           onChange={(event) => setValue(event.currentTarget.value)}
         />
@@ -221,7 +222,7 @@ function FactorInput({
             void controller.resend();
           }}
         >
-          確認コードを再送
+          確認コードを再送する
         </Button>
       ) : null}
     </Stack>
@@ -247,14 +248,14 @@ function factorLabel(factor: LoginMethodReverificationFactor) {
 }
 
 function factorHeading(factor: LoginMethodReverificationFactor): string | null {
-  if (factor.strategy === "password") return "現在のパスワードを入力";
+  if (factor.strategy === "password") return "";
   if (factor.strategy === "totp") return "認証アプリのコードを入力";
   if (factor.strategy === "backup_code") return "バックアップコードを入力";
   return null;
 }
 
 function factorDescription(factor: LoginMethodReverificationFactor) {
-  if (factor.strategy === "password") return "続行するには、現在のパスワードで本人確認してください。";
+  if (factor.strategy === "password") return "現在のパスワードを入力してください。";
   if (factor.strategy === "totp") return "認証アプリに表示されているコードを入力してください。";
   if (factor.strategy === "backup_code") return "保存している未使用のバックアップコードを入力してください。";
   return factor.displayIdentifier

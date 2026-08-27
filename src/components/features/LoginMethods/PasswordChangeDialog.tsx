@@ -1,4 +1,4 @@
-import { Alert, Field, Input, Stack, Text } from "@chakra-ui/react";
+import { Alert, Field, Input, Stack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Dialog } from "@/src/components/ui/Dialog";
@@ -82,7 +82,6 @@ function PasswordChangeForm({ controller }: { controller: PasswordChangeControll
         await controller.changePassword(values);
       })}
     >
-      <Text color="fg.muted">変更後、この端末以外ではログアウトされます。</Text>
       {errorMessage ? (
         <Alert.Root status="error" role="alert" aria-live="assertive" borderRadius="lg">
           <Alert.Indicator />
@@ -91,17 +90,35 @@ function PasswordChangeForm({ controller }: { controller: PasswordChangeControll
       ) : null}
       <Field.Root invalid={Boolean(errors.currentPassword)}>
         <Field.Label>現在のパスワード</Field.Label>
-        <Input type="password" autoComplete="current-password" disabled={isBusy} {...register("currentPassword")} />
+        <Input
+          type="password"
+          autoComplete="current-password"
+          placeholder="******"
+          disabled={isBusy}
+          {...register("currentPassword")}
+        />
         <Field.ErrorText>{errors.currentPassword?.message}</Field.ErrorText>
       </Field.Root>
       <Field.Root invalid={Boolean(errors.newPassword)}>
         <Field.Label>新しいパスワード</Field.Label>
-        <Input type="password" autoComplete="new-password" disabled={isBusy} {...register("newPassword")} />
+        <Input
+          type="password"
+          autoComplete="new-password"
+          placeholder="******"
+          disabled={isBusy}
+          {...register("newPassword")}
+        />
         <Field.ErrorText>{errors.newPassword?.message}</Field.ErrorText>
       </Field.Root>
       <Field.Root invalid={Boolean(errors.confirmation)}>
         <Field.Label>新しいパスワード（確認）</Field.Label>
-        <Input type="password" autoComplete="new-password" disabled={isBusy} {...register("confirmation")} />
+        <Input
+          type="password"
+          autoComplete="new-password"
+          placeholder="******"
+          disabled={isBusy}
+          {...register("confirmation")}
+        />
         <Field.ErrorText>{errors.confirmation?.message}</Field.ErrorText>
       </Field.Root>
     </Stack>

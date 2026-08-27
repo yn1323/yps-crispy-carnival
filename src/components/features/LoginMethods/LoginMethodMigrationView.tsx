@@ -74,7 +74,6 @@ export function LoginMethodMigrationView(props: LoginMethodMigrationViewProps) {
 
 function MigrationActions({ props, isBusy }: { props: LoginMethodMigrationViewProps; isBusy: boolean }) {
   if (props.flow === "connect-google") {
-    const isStarting = props.controller.state.phase === "redirecting" || props.controller.state.phase === "settling";
     if (props.controller.state.phase === "methodReady") {
       return (
         <DialogActionArea
@@ -101,12 +100,12 @@ function MigrationActions({ props, isBusy }: { props: LoginMethodMigrationViewPr
             type="button"
             colorPalette="teal"
             loading={isBusy}
-            loadingText={isStarting ? "Googleアカウントを確認中" : "確認中"}
+            loadingText="確認中"
             onClick={() => {
               void props.controller.start();
             }}
           >
-            {props.controller.state.phase === "unavailable" ? "もう一度試す" : "Googleアカウントを選ぶ"}
+            {props.controller.state.phase === "unavailable" ? "再実行する" : "選択する"}
           </Button>
         }
       />
@@ -135,14 +134,8 @@ function MigrationActions({ props, isBusy }: { props: LoginMethodMigrationViewPr
             </Button>
           }
           endAction={
-            <Button
-              type="submit"
-              form={EMAIL_MIGRATION_EMAIL_FORM_ID}
-              colorPalette="teal"
-              loading={isBusy}
-              loadingText="確認コードを送信中"
-            >
-              確認コードを送る
+            <Button type="submit" form={EMAIL_MIGRATION_EMAIL_FORM_ID} colorPalette="teal" loading={isBusy}>
+              続ける
             </Button>
           }
         />
@@ -153,7 +146,7 @@ function MigrationActions({ props, isBusy }: { props: LoginMethodMigrationViewPr
           layout="flow"
           startAction={
             <Button type="button" variant="outline" disabled={isBusy} onClick={props.controller.reset}>
-              入力し直す
+              戻る
             </Button>
           }
           endAction={
@@ -164,7 +157,7 @@ function MigrationActions({ props, isBusy }: { props: LoginMethodMigrationViewPr
               loading={isBusy}
               loadingText="確認中"
             >
-              メールを確認
+              決定する
             </Button>
           }
         />
@@ -184,9 +177,9 @@ function MigrationActions({ props, isBusy }: { props: LoginMethodMigrationViewPr
               form={EMAIL_MIGRATION_PASSWORD_FORM_ID}
               colorPalette="teal"
               loading={isBusy}
-              loadingText="パスワードを設定中"
+              loadingText="設定する"
             >
-              パスワードを設定
+              設定する
             </Button>
           }
         />
@@ -205,12 +198,12 @@ function MigrationActions({ props, isBusy }: { props: LoginMethodMigrationViewPr
               type="button"
               colorPalette="teal"
               loading={isBusy}
-              loadingText="もう一度試す"
+              loadingText="再実行する"
               onClick={() => {
                 void props.controller.refresh();
               }}
             >
-              もう一度試す
+              再実行する
             </Button>
           }
         />

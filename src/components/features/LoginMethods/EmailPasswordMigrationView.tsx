@@ -31,9 +31,7 @@ export function EmailPasswordMigrationView({ controller }: { controller: EmailPa
       {state.phase === "unavailable" ? (
         <Alert.Root status="error" borderRadius="lg">
           <Alert.Indicator />
-          <Alert.Description>
-            メールアドレスとパスワードを設定できません。Google認証は変更されていません。
-          </Alert.Description>
+          <Alert.Description>メールアドレスとパスワードを設定できませんでした。</Alert.Description>
         </Alert.Root>
       ) : null}
     </Stack>
@@ -67,14 +65,14 @@ function EmailChoiceStep({ controller }: { controller: EmailPasswordMigrationCon
         <Input
           type="email"
           autoComplete="email"
-          placeholder="例：login@example.com"
+          placeholder="login@example.com"
           maxLength={EMAIL_MAX_LENGTH}
           disabled={busy}
           {...register("email")}
         />
         <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
       </Field.Root>
-      <Text color="fg.muted">Google認証は解除しません。</Text>
+      <Text color="fg.muted">メール・パスワードでもログインできるようにします</Text>
     </Stack>
   );
 }
@@ -85,7 +83,9 @@ function EmailVerificationStep({ controller }: { controller: EmailPasswordMigrat
     <Stack gap={5}>
       <Text color="fg.muted">
         {controller.state.targetEmailAddress ?? "入力したメールアドレス"}
-        に確認コードを送りました。メールに届いたコードを入力してください。
+        に確認コードを送りました。
+        <br />
+        届いたコードを入力してください。
       </Text>
       <LoginMethodEmailCodeForm
         formId={EMAIL_MIGRATION_CODE_FORM_ID}
@@ -121,12 +121,24 @@ function PasswordStep({ controller }: { controller: EmailPasswordMigrationContro
     >
       <Field.Root invalid={Boolean(errors.newPassword)}>
         <Field.Label>新しいパスワード</Field.Label>
-        <Input type="password" autoComplete="new-password" disabled={busy} {...register("newPassword")} />
+        <Input
+          type="password"
+          autoComplete="new-password"
+          placeholder="******"
+          disabled={busy}
+          {...register("newPassword")}
+        />
         <Field.ErrorText>{errors.newPassword?.message}</Field.ErrorText>
       </Field.Root>
       <Field.Root invalid={Boolean(errors.confirmation)}>
         <Field.Label>新しいパスワード（確認）</Field.Label>
-        <Input type="password" autoComplete="new-password" disabled={busy} {...register("confirmation")} />
+        <Input
+          type="password"
+          autoComplete="new-password"
+          placeholder="******"
+          disabled={busy}
+          {...register("confirmation")}
+        />
         <Field.ErrorText>{errors.confirmation?.message}</Field.ErrorText>
       </Field.Root>
     </Stack>

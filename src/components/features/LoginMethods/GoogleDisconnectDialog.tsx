@@ -47,8 +47,8 @@ export function GoogleDisconnectDialog({
     <DialogActionArea
       layout="standard"
       endAction={
-        <Button type="button" colorPalette="red" loading={isBusy} loadingText="もう一度試す" onClick={submit}>
-          もう一度試す
+        <Button type="button" colorPalette="red" loading={isBusy} loadingText="再実行する" onClick={submit}>
+          再実行する
         </Button>
       }
     />
@@ -80,7 +80,7 @@ export function GoogleDisconnectDialog({
           <Text>
             このGoogleアカウントではログインできなくなります。
             <br />
-            メールアドレスとパスワードは残ります。
+            メール・パスワードのログインは残ります。
           </Text>
           <CardError state={controller.googleState} />
         </Stack>
