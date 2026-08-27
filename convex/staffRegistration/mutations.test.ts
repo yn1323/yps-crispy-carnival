@@ -1304,11 +1304,11 @@ describe("staffRegistration/mutations", () => {
       }
       const invitationId = await ctx.db.insert("organizationInvitations", {
         organizationId: organization.organizationId,
+        invitedName: "予約枠の申請スタッフ",
         email: "Reserved-Registration@Example.com",
         emailNormalized: "reserved-registration@example.com",
         tokenDigest: "registration-reserved-invitation-digest",
-        status: "pending",
-        purpose: "managerAddition",
+        status: "issued",
         inviterMemberId: organization.memberId,
         reservedSeat: true,
         version: 1,
@@ -1349,7 +1349,7 @@ describe("staffRegistration/mutations", () => {
           q
             .eq("organizationId", seeded.organizationId)
             .eq("emailNormalized", "reserved-registration@example.com")
-            .eq("status", "pending"),
+            .eq("status", "issued"),
         )
         .collect();
       const audits = await ctx.db.query("organizationAuditEvents").collect();
@@ -1367,7 +1367,7 @@ describe("staffRegistration/mutations", () => {
     expect(state.invitations).toEqual([
       expect.objectContaining({
         _id: seeded.invitationId,
-        status: "pending",
+        status: "issued",
         reservedSeat: false,
         version: 1,
       }),
@@ -1417,11 +1417,11 @@ describe("staffRegistration/mutations", () => {
       }
       const invitationId = await ctx.db.insert("organizationInvitations", {
         organizationId: organization.organizationId,
+        invitedName: "上限超過の申請者",
         email: "registration-rollback@example.com",
         emailNormalized: "registration-rollback@example.com",
         tokenDigest: "registration-reservation-rollback-digest",
-        status: "pending",
-        purpose: "managerAddition",
+        status: "issued",
         inviterMemberId: organization.memberId,
         reservedSeat: true,
         version: 1,
@@ -1463,7 +1463,7 @@ describe("staffRegistration/mutations", () => {
       scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
     }));
     expect(state.request?.status).toBe("pending");
-    expect(state.invitation).toMatchObject({ status: "pending", reservedSeat: true, version: 1 });
+    expect(state.invitation).toMatchObject({ status: "issued", reservedSeat: true, version: 1 });
     expect(state.people).toHaveLength(25);
     expect(state.staffs).toHaveLength(24);
     expect(state.audits).toEqual([]);

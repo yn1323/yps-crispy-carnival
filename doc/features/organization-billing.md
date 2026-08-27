@@ -75,7 +75,7 @@ direct routeとpublic mutation/actionは、画面表示とは独立して認証�
 
 シフト連絡先を変更しても、Clerkのログイン方法、`users.email`、請求先メールアドレスは変更しない。
 請求先メールアドレスを変更しても、シフト連絡先とログイン方法は変更しない。
-請求先メールアドレスはStripeと課金通知の宛先となる文字列であり、管理者ロール、人物の権限、管理者交代、人物・アカウント削除の可否には使用しない。
+請求先メールアドレスはStripeと課金通知の宛先となる文字列であり、管理者ロール、人物の権限、管理者権限の追加・解除、人物・アカウント削除の可否には使用しない。
 アカウント設定の画面と状態判定はシフト連絡先から独立させ、Clerk操作の提供可否は安全性の実験と環境確認が完了した機能だけを有効にする。
 この文書はローカル実装の境界を示すものであり、Clerkの各操作や実deploymentでの公開完了を示す証跡にはしない。
 
@@ -198,7 +198,7 @@ Narrow版を対象deploymentへdeployする前に、完全修飾deployment名を
 
 管理者招待は管理画面から利用できる。
 取消、期限切れ処理、残存招待を減らすcleanupを含め、次の契約を専用Preview deploymentのE2EとFunction Testで維持する。
-発行・再送・preview・`linkAccount`・legacy `accept`・招待通知と管理者連携完了通知は、認証、所属、token、version、上限をサーバー側で確認する。
+発行・再送・preview・承認action・招待通知と管理者連携完了通知は、認証、所属、token、version、上限をサーバー側で確認する。
 取消済み、期限切れ、再送前versionの招待は受諾できない。
 Notification Outboxは外部送信直前にも招待、所属、受取人を再確認し、無効になった招待の投入済み通知をproviderへ送らず取消する。
 
@@ -214,11 +214,8 @@ Notification Outboxは外部送信直前にも招待、所属、受取人を再�
 - 新規発行は、同じ対象の期限内招待を暗黙に再送しない。管理者設定の招待中一覧から明示的に再送し、以前の招待URLが使えなくなることを確認する。
 - 生tokenをNotification Outboxへ保存せず、送信直前にサーバー側秘密値から導出する。
 - 外部人物は招待発行時に人物や所属を作らず、アカウント連携が成功したtransaction内で初めて作る。
-- Freeは、既存スタッフと外部人物のどちらにも通常の管理者追加招待（`purpose: "managerAddition"`）を発行できる。
+- Freeは、既存スタッフと外部人物のどちらにも管理者追加招待を発行できる。
   有効管理者と期限内の追加招待は合計2名までとし、外部人物の招待では利用人数の空きも確認する。
-- 旧`freeManagerExchange`招待は新規発行と再送を行わない。
-  既発行の期限内tokenだけは旧意味のまま承認または取消でき、承認時は後任の有効化と旧管理者の権限失効を同じtransactionで確定する。
-  この招待が残る間は新しい追加招待を発行しない。
 - Freeで有効管理者を2名から1名にする権限解除は許可し、1名から0名にする解除は拒否する。
 - 期限切れ、取消、上限超過、メール不一致、所属不整合では管理者権限を作らない。
 - `active`の管理者人物は、スタッフ所属だけを個別店舗または全店舗から解除できる。
@@ -333,13 +330,12 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `api.dashboard.queries.getDashboardShop` | 選択店舗を認可し、Dashboard用の`planStatus`とrolling deploy用の旧`trialEndingNotice`を取得 |
 | `api.dashboard.queries.getDashboardPlanUsage` | 選択店舗を認可し、明示された時刻を基準にスタッフ・店舗・管理者の現在値と上限を取得 |
 | `api.organization.queries.getSettings` | 組織設定、利用状況、課金状態、操作可否の取得 |
-| `api.organization.queries.getManagerSettingsOverview` | `{ shopId, now }`で選択店舗を認可し、管理者数、招待中件数、現在の管理者、期限内の招待、操作可否を`integrityError` / `ready` unionで取得 |
-| `api.organization.queries.getManagerCandidates` | `{ shopId, now }`で選択店舗を認可し、既存スタッフの単一選択候補と選択不可理由を`integrityError` / `ready` unionで取得。候補サブページを開いた間だけ購読する |
+| `api.appOrganization.manageQueries.getManagerSettingsOverview` | URLの`org`をcanonical membershipで検証し、管理者数、招待中件数、現在の管理者、期限内の招待、操作可否を`integrityError` / `ready` unionで取得 |
+| `api.appOrganization.manageQueries.getManagerCandidates` | URLの`org`をcanonical membershipで検証し、既存スタッフの単一選択候補と選択不可理由を`integrityError` / `ready` unionで取得。候補サブページを開いた間だけ購読する |
 | `api.organization.mutations.*` | 組織名、店舗、人物、管理者、削除の更新 |
 | `api.organizationInvitation.queries.getPreview` | tokenのdigest、version、期限、取消状態を確認して招待previewを返す |
-| `api.organizationInvitation.mutations.issue` | 組織管理者が人物上限、管理者上限、予約枠を確認して管理者招待を発行する |
-| `api.organizationInvitation.mutations.createExternal` / `createForPerson` / `createForStaff` | rolling deploy中の旧client向けに、外部人物または既存人物へ管理者招待を発行する互換入口 |
-| `api.organizationInvitation.mutations.resend` / `revoke` | 招待の再送と取消 |
+| `api.organizationInvitation.mutations.issueForOrganization` | canonical active管理者と組織境界、人物上限、管理者上限、予約枠を確認して管理者招待を発行する |
+| `api.organizationInvitation.mutations.resendForOrganization` / `revokeForOrganization` | canonical active管理者と組織境界を再検証して招待を再送または取り消す |
 | `api.organizationInvitation.acceptanceActions.accept` | 接続済み人物のアカウント一致、または未接続人物のClerk確認済みメールを検証して招待を承認 |
 | `api.organizationBilling.mutations.updateBillingEmail` | 認証、組織境界、管理者状態を確認して請求先メールを更新する |
 | `api.organizationStripe.actions.getPlanPrice` / `startPaidCheckout` | Stripe設定と販売Priceを検証して価格を取得し、契約を開始する |
@@ -361,7 +357,6 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 `getProPrice`と`startProCheckout`は旧クライアント向け互換入口として残す。
 `scheduleFreeAtPeriodEnd`は旧クライアントへ`not_allowed`を返し、新しいFree予約を作らない。
 `cancelScheduledFree`はdeployment前からある予約を取り消す互換入口として残す。
-`organizationInvitation.mutations.linkAccount`と`organizationInvitation.mutations.accept`もrolling deploy中の旧クライアント向け互換入口であり、新しい画面の標準承認経路にはしない。
 
 ## 検証の入口
 
@@ -371,14 +366,14 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 - `convex/organizationInvitation/*.test.ts`：token、期限、接続済み人物のアカウント一致、未接続人物のClerk確認済みメール、provider失敗時の非消費、予約枠、再送、連携を検証する。
 - `convex/organization/managerSettingsQueries.test.ts`：管理者設定のbounded read、currentとprojectedの分離、`integrityError` / `ready`、候補の選択不可理由を検証する。
 - `convex/_scenario/organizationBillingLifecycle.test.ts`と`organizationPaidPlanChanges.test.ts`：時間と複数APIをまたぐ課金ライフサイクルを検証する。
-- `convex/_scenario/staffManagerInvitation.test.ts`と`organizationManagerExchange.test.ts`：既存人物の通常招待と、既発行のFree管理者交代招待の互換処理を検証する。
+- `convex/_scenario/staffManagerInvitation.test.ts`と`organizationManagerAddition.test.ts`：既存人物の招待と、Freeで2人目を追加した後も既存管理者とスタッフ通知を維持することを検証する。
 - `convex/setup/mutations.test.ts`：初回Setupが所属0件だけに許可され、コード空欄ではPro相当の2か月Trialとdeadline、有効なコードでは期限なしの`complimentary.pro`を作ること、不正なコードでは副作用を残さないこと、いずれもStripe objectを作らないことと、追加組織が認証、上限、rate limitを再確認することを検証する。
 - `convex/_scenario/organizationCreation.test.ts`：追加組織について、Free枠、冪等性、rate limit、初期Free状態、既存組織への非混入を検証する。
 - `src/pages/dashboard/index.stories.tsx`、`src/components/features/Dashboard/DashboardContent/index.stories.tsx`、`src/components/features/OrganizationSettings/OrganizationCreation/OrganizationCreationDialog.stories.tsx`、`src/components/features/OrganizationSettings/controllers.test.tsx`：初回Setupと追加組織作成について、代表状態、フォーム操作、失敗後も同じ`requestId`を保つ再試行、mutation引数、作成後の遷移を検証する。
 - `src/components/features/OrganizationSettings/PlanAndPaymentSection.stories.tsx`と`BillingSettings/`配下のStory・Logic Test：Free、Standard、Pro、未完了Checkoutの代表状態と主要変更操作を検証する。
 - `src/components/features/Dashboard/PlanStatusCard/`のFrontend Unit・Logic Test：旧frontend互換をNarrowするまで、課金状態の表示変換と利用状況queryの停止契約を検証する。現在のDashboardには合成しない。
 - `src/components/features/Dashboard/DashboardContent/index.stories.tsx`：現在店舗、業務状態、閲覧専用、Loading、Empty、Setupの代表状態を検証する。
-- `src/components/features/ManagerSettings/`のStoryとFrontend Unit Test：専用ページ、既存スタッフの単一選択、新しい人物の入力、Freeの2名上限、再送、取消、旧Free交代の互換表示、Loading、Empty、Error、閲覧専用の代表状態を検証する。
+- `src/components/features/ManagerSettings/`のStoryとFrontend Unit Test：専用ページ、既存スタッフの単一選択、新しい人物の入力、Freeの2名上限、再送、取消、Loading、Empty、Error、閲覧専用の代表状態を検証する。
 - `e2e/scenarios/organization-lifecycle.test.ts`：専用Preview deploymentで、2組織目の作成、改名、切り替えと、組織削除後の残存組織への復帰を検証する。
 - `e2e/scenarios/manager-settings.test.ts`：同じE2E deploymentで`E2E-MANAGER-01`として、既存スタッフへの招待発行、再読込、取消、スタッフタブへの復帰を検証する。招待受諾は成功条件にしない。
 - `e2e/scenarios/manager-lifecycle.test.ts`：同じE2E deploymentで`E2E-MANAGER-02`として、別のClerk actorによる招待受諾、管理者権限の取得と解除、解除後の管理画面へのアクセス拒否、スタッフ所属の維持を検証する。

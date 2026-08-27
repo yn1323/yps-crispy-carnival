@@ -500,7 +500,6 @@ describe("organizationBilling/service access policy", () => {
         invitedName: "招待中",
         tokenDigest: "pending-invitation-digest",
         status: "issued",
-        purpose: "managerAddition",
         inviterMemberId: base.memberId,
         reservedSeat: true,
         version: 1,

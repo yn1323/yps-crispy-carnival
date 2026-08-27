@@ -83,6 +83,14 @@ export function createScenario(t: ScenarioTest) {
         selectedShopId = shopId;
         return shopId;
       };
+      const getSelectedOrganizationId = async () => {
+        const shopId = await getSelectedShopId();
+        return await t.run(async (ctx) => {
+          const shop = await ctx.db.get(shopId);
+          if (!shop?.organizationId) throw new Error("Scenario organization is not canonical");
+          return shop.organizationId;
+        });
+      };
 
       return {
         async setupShopAndManager(
@@ -175,15 +183,15 @@ export function createScenario(t: ScenarioTest) {
           if (!staff || staff.shopId !== (await getSelectedShopId()) || !staff.organizationPersonId) {
             throw new Error("Scenario manager invitation target is not canonical");
           }
-          return asManager.mutation(api.organizationInvitation.mutations.issue, {
+          return asManager.mutation(api.organizationInvitation.mutations.issueForOrganization, {
+            organizationId: await getSelectedOrganizationId(),
             recipient: { kind: "existingStaff", personId: staff.organizationPersonId },
             requestId: generateUUID(),
-            shopId: await getSelectedShopId(),
           });
         },
         async issueExternalManagerInvitation(args: { invitedName: string; email: string }) {
-          return asManager.mutation(api.organizationInvitation.mutations.issue, {
-            shopId: await getSelectedShopId(),
+          return asManager.mutation(api.organizationInvitation.mutations.issueForOrganization, {
+            organizationId: await getSelectedOrganizationId(),
             recipient: { kind: "external", invitedName: args.invitedName, email: args.email },
             requestId: generateUUID(),
           });
@@ -207,12 +215,9 @@ export function createScenario(t: ScenarioTest) {
               ),
           );
         },
-        linkManagerInvitationAccount(token: string) {
-          return asManager.mutation(api.organizationInvitation.mutations.linkAccount, { token });
-        },
         async removeManagerRole(personId: Id<"organizationPeople">) {
-          return asManager.mutation(api.organization.mutations.removeManagerRole, {
-            shopId: await getSelectedShopId(),
+          return asManager.mutation(api.organization.mutations.removeManagerRoleForOrganization, {
+            organizationId: await getSelectedOrganizationId(),
             personId,
             requestId: generateUUID(),
           });

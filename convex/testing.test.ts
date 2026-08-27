@@ -497,11 +497,13 @@ describe("E2E testing helpers", () => {
     expect(state.staffs).toHaveLength(1);
     expect(state.staffs[0]).toMatchObject({ shopId: seed.shopId, isDeleted: false });
 
-    await t.withIdentity({ subject: managerSubject }).mutation(api.organizationInvitation.mutations.issue, {
-      shopId: seed.shopId,
-      recipient: { kind: "existingStaff", personId: seed.candidatePersonId },
-      requestId: "e2e-manager-lifecycle-capability",
-    });
+    await t
+      .withIdentity({ subject: managerSubject })
+      .mutation(api.organizationInvitation.mutations.issueForOrganization, {
+        organizationId: seed.organizationId,
+        recipient: { kind: "existingStaff", personId: seed.candidatePersonId },
+        requestId: "e2e-manager-lifecycle-capability",
+      });
     const afterIssue = await t.query(internal.testing.getManagerInvitationCapability, {
       organizationId: seed.organizationId,
       targetPersonId: seed.candidatePersonId,

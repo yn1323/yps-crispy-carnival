@@ -13,10 +13,6 @@ import {
   DASHBOARD_RESPONSE_COUNT_LIMIT,
 } from "../constants";
 import { resolveStaffLineRecipient } from "../line/service";
-import {
-  managerInvitationStateValidator,
-  resolvePersonManagerInvitationState,
-} from "../organization/managerInvitationState";
 import { projectCanonicalDisplayPlanForClient, projectCanonicalPaidPlanForClient } from "../organization/queries";
 import { getOrganizationBillingState, getOrganizationUsageSnapshot } from "../organization/service";
 import { getOrganizationStaffOrderScope } from "../organization/staffOrder";
@@ -32,7 +28,6 @@ import {
   deriveOrganizationBillingPolicy,
 } from "../organizationBilling/policy";
 import { getOrganizationAccessPolicy, getOrganizationBillingPolicy } from "../organizationBilling/service";
-import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 import { getStripeBillingConfiguration } from "../organizationStripe/config";
 
 const myShopValidator = v.object({
@@ -62,7 +57,6 @@ const dashboardStaffValidator = v.object({
   excludedFromShift: v.boolean(),
   isOrganizationLinked: v.boolean(),
   organizationPersonId: v.union(v.id("organizationPeople"), v.null()),
-  managerInvitationState: managerInvitationStateValidator,
 });
 
 export const dashboardRecruitmentValidator = v.object({
@@ -1055,16 +1049,6 @@ export const getDashboardStaffs = managerQuery({
     if (!shop) return EMPTY_PAGE;
 
     const organization = ctx.organization;
-    const organizationMember = ctx.organizationMember;
-    const now = Date.now();
-    const [billingState, usage, pendingInvitations] = organization
-      ? await Promise.all([
-          getOrganizationBillingState(ctx, organization._id),
-          getOrganizationUsageSnapshot(ctx, organization._id, now),
-          collectIssuedInvitationsByOrganization(ctx, organization._id),
-        ])
-      : [null, null, []];
-    const activePendingInvitations = pendingInvitations.filter((invitation) => invitation.expiresAt > now);
     const useOrderedIndex = args.orderRevision !== undefined && args.orderRevision !== null;
     if (useOrderedIndex && (!Number.isSafeInteger(args.orderRevision) || (args.orderRevision as number) < 1)) {
       throw new ConvexError("orderRevision must be a positive safe integer");
@@ -1126,17 +1110,6 @@ export const getDashboardStaffs = managerQuery({
                 .take(2)
             : [];
         const isManager = members.length === 1 && members[0].status === "active";
-        const managerInvitationState = await resolvePersonManagerInvitationState(ctx, {
-          organization,
-          actorMember: organizationMember,
-          person,
-          personMembers: members,
-          contactEmail: s.email,
-          isOrganizationLinked,
-          billingState,
-          usage,
-          activePendingInvitations,
-        });
         return {
           _id: s._id,
           name: s.name,
@@ -1151,7 +1124,6 @@ export const getDashboardStaffs = managerQuery({
             person && organization && person.organizationId === organization._id && person.status === "active"
               ? person._id
               : null,
-          managerInvitationState,
         };
       }),
     );

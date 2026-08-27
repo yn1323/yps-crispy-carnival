@@ -64,21 +64,19 @@ async function seedInvitation(
     organizationId: Id<"organizations">;
     inviterMemberId: Id<"organizationMembers">;
     email: string;
-    status?: "issued" | "pending" | "linked" | "revoked";
+    status?: "issued" | "linked" | "revoked";
     expiresAt?: number;
     invitedName?: string;
     targetPersonId?: Id<"organizationPeople">;
-    purpose?: "managerAddition" | "freeManagerExchange";
   },
 ) {
   return await ctx.db.insert("organizationInvitations", {
     organizationId: args.organizationId,
     email: args.email,
     emailNormalized: args.email.trim().toLowerCase(),
-    ...(args.invitedName ? { invitedName: args.invitedName } : {}),
+    invitedName: args.invitedName ?? args.email.split("@", 1)[0],
     tokenDigest: `digest-${args.email}-${args.status ?? "issued"}`,
     status: args.status ?? "issued",
-    purpose: args.purpose ?? "managerAddition",
     inviterMemberId: args.inviterMemberId,
     ...(args.targetPersonId ? { targetPersonId: args.targetPersonId } : {}),
     reservedSeat: !args.targetPersonId,
@@ -119,11 +117,13 @@ describe("organization manager settings queries", () => {
 
     const result = await t
       .withIdentity({ subject: "manager_query_usage_over_limit" })
-      .query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.shopId, now: NOW });
+      .query(api.appOrganization.manageQueries.getManagerSettingsOverview, {
+        organizationId: ids.organizationId,
+        now: NOW,
+      });
 
     expect(result).toMatchObject({
       kind: "ready",
-      mode: "managerAddition",
       actions: {
         canInviteExistingStaff: false,
         existingStaffDisabledReason: expect.stringContaining("プラン上限を超過"),
@@ -140,7 +140,7 @@ describe("organization manager settings queries", () => {
     });
   });
 
-  it("未認証・別tenant shopはPIIを返さずintegrityErrorへ閉じる", async () => {
+  it("未認証・別tenant組織はPIIを返さず拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const actor = await seedOrganizationManagerShop(ctx, { subject: "manager_query_tenant_actor", plan: "pro" });
@@ -148,18 +148,27 @@ describe("organization manager settings queries", () => {
       return { actor, other };
     });
     await expect(
-      t.query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.actor.shopId, now: NOW }),
-    ).resolves.toMatchObject({ kind: "integrityError" });
+      t.query(api.appOrganization.manageQueries.getManagerSettingsOverview, {
+        organizationId: ids.actor.organizationId,
+        now: NOW,
+      }),
+    ).rejects.toThrow("Not found");
     const actor = t.withIdentity({ subject: "manager_query_tenant_actor" });
     await expect(
-      actor.query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.other.shopId, now: NOW }),
-    ).resolves.toMatchObject({ kind: "integrityError" });
+      actor.query(api.appOrganization.manageQueries.getManagerSettingsOverview, {
+        organizationId: ids.other.organizationId,
+        now: NOW,
+      }),
+    ).rejects.toThrow("Not found");
     await expect(
-      actor.query(api.organization.queries.getManagerCandidates, { shopId: ids.other.shopId, now: NOW }),
-    ).resolves.toMatchObject({ kind: "integrityError" });
+      actor.query(api.appOrganization.manageQueries.getManagerCandidates, {
+        organizationId: ids.other.organizationId,
+        now: NOW,
+      }),
+    ).rejects.toThrow("Not found");
   });
 
-  it("activeとprojectedを分離し、legacy pending・期限overlay・順序・sendFailedを投影する", async () => {
+  it("activeとprojectedを分離し、期限overlay・順序・sendFailedを投影する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject: "manager_query_ready", plan: "business" });
@@ -175,7 +184,7 @@ describe("organization manager settings queries", () => {
         inviterMemberId: base.memberId,
         email: "later@example.com",
         invitedName: "後の招待",
-        status: "pending",
+        status: "issued",
         expiresAt: NOW + 3_000,
       });
       const failed = await seedInvitation(ctx, {
@@ -191,7 +200,7 @@ describe("organization manager settings queries", () => {
         organizationId: base.organizationId,
         inviterMemberId: base.memberId,
         email: "expired@example.com",
-        status: "pending",
+        status: "issued",
         expiresAt: NOW,
       });
       await ctx.db.insert("notificationOutbox", {
@@ -219,15 +228,16 @@ describe("organization manager settings queries", () => {
 
     const result = await t
       .withIdentity({ subject: "manager_query_ready" })
-      .query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.shopId, now: NOW });
+      .query(api.appOrganization.manageQueries.getManagerSettingsOverview, {
+        organizationId: ids.organizationId,
+        now: NOW,
+      });
     expect(result).toMatchObject({
       kind: "ready",
-      mode: "managerAddition",
       usage: {
         activeManagers: 1,
         activeInvitationCount: 2,
         pendingAdditions: 2,
-        pendingExchanges: 0,
         projectedManagers: 3,
         maxManagers: 5,
       },
@@ -245,7 +255,7 @@ describe("organization manager settings queries", () => {
         role: "active",
         name: "管理者",
         canRemoveRole: false,
-        removeRoleDisabledReason: "最後の管理者の権限は外せません。",
+        removeRoleDisabledReason: "少なくとも管理者が1名必要です。",
       },
     ]);
     expect(result.invitations.map((invitation) => invitation.invitationId)).toEqual([ids.failed, ids.later]);
@@ -306,7 +316,10 @@ describe("organization manager settings queries", () => {
 
       const result = await t
         .withIdentity({ subject: `manager_query_${deliveryStatus}` })
-        .query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.shopId, now: NOW });
+        .query(api.appOrganization.manageQueries.getManagerSettingsOverview, {
+          organizationId: ids.organizationId,
+          now: NOW,
+        });
 
       if (result.kind !== "ready") throw new Error("overview not ready");
       expect(result.invitations).toEqual([
@@ -314,7 +327,6 @@ describe("organization manager settings queries", () => {
           invitationId: ids.invitationId,
           name: "招待対象者",
           invitedEmail: `${deliveryStatus}@example.com`,
-          purpose: "managerAddition",
           status: "sendFailed",
           expiresAt: NOW + 86_400_000,
           canResend: true,
@@ -383,7 +395,10 @@ describe("organization manager settings queries", () => {
 
       const result = await t
         .withIdentity({ subject: `manager_query_provider_pair_${caseKey}` })
-        .query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.shopId, now: NOW });
+        .query(api.appOrganization.manageQueries.getManagerSettingsOverview, {
+          organizationId: ids.organizationId,
+          now: NOW,
+        });
 
       if (result.kind !== "ready") throw new Error("overview not ready");
       expect(result.invitations).toEqual([
@@ -397,50 +412,6 @@ describe("organization manager settings queries", () => {
       ]);
     },
   );
-
-  it("旧Free管理者交代が残る間は通常追加の新規招待と再送を止める", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, {
-        subject: "manager_query_legacy_exchange_blocks_addition",
-        plan: "free",
-      });
-      const additionId = await seedInvitation(ctx, {
-        organizationId: base.organizationId,
-        inviterMemberId: base.memberId,
-        email: "existing-addition@example.com",
-      });
-      const exchangeId = await seedInvitation(ctx, {
-        organizationId: base.organizationId,
-        inviterMemberId: base.memberId,
-        email: "legacy-exchange@example.com",
-        purpose: "freeManagerExchange",
-      });
-      return { ...base, additionId, exchangeId };
-    });
-
-    const result = await t
-      .withIdentity({ subject: "manager_query_legacy_exchange_blocks_addition" })
-      .query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.shopId, now: NOW });
-
-    expect(result).toMatchObject({
-      kind: "ready",
-      mode: "managerAddition",
-      usage: { pendingAdditions: 1, pendingExchanges: 1 },
-      actions: { canInviteExistingStaff: false, canInviteExternal: false },
-    });
-    if (result.kind !== "ready") throw new Error("overview not ready");
-    expect(result.invitations.find((invitation) => invitation.invitationId === ids.additionId)).toMatchObject({
-      purpose: "managerAddition",
-      canResend: false,
-      canRevoke: true,
-    });
-    expect(result.invitations.find((invitation) => invitation.invitationId === ids.exchangeId)).toMatchObject({
-      purpose: "freeManagerExchange",
-      canResend: false,
-      canRevoke: true,
-    });
-  });
 
   it("外部招待後に同email人物が管理者になるとconflictへ閉じ、その人物名を表示する", async () => {
     const t = convexTest(schema, modules);
@@ -467,7 +438,10 @@ describe("organization manager settings queries", () => {
 
     const result = await t
       .withIdentity({ subject: "manager_query_external_conflict" })
-      .query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.shopId, now: NOW });
+      .query(api.appOrganization.manageQueries.getManagerSettingsOverview, {
+        organizationId: ids.organizationId,
+        now: NOW,
+      });
     expect(result).toMatchObject({
       kind: "ready",
       invitations: [
@@ -507,7 +481,10 @@ describe("organization manager settings queries", () => {
 
     const result = await t
       .withIdentity({ subject: "manager_query_external_removed" })
-      .query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.shopId, now: NOW });
+      .query(api.appOrganization.manageQueries.getManagerSettingsOverview, {
+        organizationId: ids.organizationId,
+        now: NOW,
+      });
     expect(result).toMatchObject({
       kind: "ready",
       invitations: [
@@ -548,7 +525,10 @@ describe("organization manager settings queries", () => {
 
     const result = await t
       .withIdentity({ subject: "manager_query_deleted_staff_billing" })
-      .query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.shopId, now: NOW });
+      .query(api.appOrganization.manageQueries.getManagerSettingsOverview, {
+        organizationId: ids.organizationId,
+        now: NOW,
+      });
     expect(result).toMatchObject({
       kind: "ready",
       managers: expect.arrayContaining([
@@ -573,7 +553,7 @@ describe("organization manager settings queries", () => {
           organizationId: base.organizationId,
           inviterMemberId: base.memberId,
           email: `overflow-${index}@example.com`,
-          status: index % 2 === 0 ? "issued" : "pending",
+          status: "issued",
           expiresAt: NOW + index + 1,
         });
       }
@@ -582,7 +562,10 @@ describe("organization manager settings queries", () => {
     await expect(
       t
         .withIdentity({ subject: "manager_query_overflow" })
-        .query(api.organization.queries.getManagerSettingsOverview, { shopId: ids.shopId, now: NOW }),
+        .query(api.appOrganization.manageQueries.getManagerSettingsOverview, {
+          organizationId: ids.organizationId,
+          now: NOW,
+        }),
     ).resolves.toMatchObject({ kind: "integrityError" });
   });
 
@@ -604,8 +587,8 @@ describe("organization manager settings queries", () => {
       return base;
     });
     const actor = t.withIdentity({ subject: "manager_query_manager_overflow" });
-    const overview = await actor.query(api.organization.queries.getManagerSettingsOverview, {
-      shopId: ids.shopId,
+    const overview = await actor.query(api.appOrganization.manageQueries.getManagerSettingsOverview, {
+      organizationId: ids.organizationId,
       now: NOW,
     });
     expect(overview).toMatchObject({
@@ -617,7 +600,10 @@ describe("organization manager settings queries", () => {
     expect(overview.managers).toHaveLength(6);
     expect(overview.managers.filter((manager) => !manager.isSelf).every((manager) => manager.canRemoveRole)).toBe(true);
     await expect(
-      actor.query(api.organization.queries.getManagerCandidates, { shopId: ids.shopId, now: NOW }),
+      actor.query(api.appOrganization.manageQueries.getManagerCandidates, {
+        organizationId: ids.organizationId,
+        now: NOW,
+      }),
     ).resolves.toMatchObject({ kind: "integrityError" });
   });
 
@@ -673,7 +659,7 @@ describe("organization manager settings queries", () => {
     });
     const result = await t
       .withIdentity({ subject: "manager_candidates_owner" })
-      .query(api.organization.queries.getManagerCandidates, { shopId: ids.shopId, now: NOW });
+      .query(api.appOrganization.manageQueries.getManagerCandidates, { organizationId: ids.organizationId, now: NOW });
     expect(result.kind).toBe("ready");
     if (result.kind !== "ready") throw new Error("candidates not ready");
     expect(result.candidates.map((candidate) => candidate.name)).toEqual([

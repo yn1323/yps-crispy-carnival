@@ -118,7 +118,6 @@ describe("事業者課金ライフサイクル", () => {
         invitedName: "招待中の管理者",
         tokenDigest: "trial-free-pending-invitation",
         status: "issued",
-        purpose: "managerAddition",
         inviterMemberId: seeded.memberId,
         reservedSeat: true,
         version: 1,

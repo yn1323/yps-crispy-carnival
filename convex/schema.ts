@@ -47,7 +47,6 @@ import {
 } from "./notificationOutbox/schemas";
 import {
   organizationBillingStateValidator,
-  organizationInvitationPurposeValidator,
   organizationInvitationStatusValidator,
   organizationMemberStatusValidator,
   organizationPersonStatusValidator,
@@ -194,14 +193,9 @@ const schema = defineSchema({
     organizationId: v.id("organizations"),
     email: v.string(),
     emailNormalized: v.string(),
-    // TODO[narrow]: Make required after m023 and verifyOrganizationInvitations have completed everywhere.
-    invitedName: v.optional(v.string()),
+    invitedName: v.string(),
     tokenDigest: v.string(),
     status: organizationInvitationStatusValidator,
-    // TODO[narrow]: m023でWiden前の招待を補完し、全deploymentのstatusと
-    //   verifyOrganizationInvitations全pageのmissingPurposeが0件であることを確認後、v.optional()を外し、
-    //   organizationInvitation/service.tsのmanagerAddition fallbackも削除する。
-    purpose: v.optional(organizationInvitationPurposeValidator),
     inviterMemberId: v.id("organizationMembers"),
     // 人物詳細またはスタッフ詳細から発行した招待だけ、アカウント連携対象の人物を固定する。
     // 外部の新規人物向け招待では未設定が正しい。
@@ -213,9 +207,6 @@ const schema = defineSchema({
     sentAt: v.optional(v.number()),
     linkedAt: v.optional(v.number()),
     linkedByPersonId: v.optional(v.id("organizationPeople")),
-    // TODO[narrow]: Remove accepted* after m023 has copied and unset all legacy values in every deployment.
-    acceptedAt: v.optional(v.number()),
-    acceptedByPersonId: v.optional(v.id("organizationPeople")),
     revokedAt: v.optional(v.number()),
     expiredAt: v.optional(v.number()),
     createdAt: v.number(),

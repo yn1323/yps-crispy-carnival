@@ -1,7 +1,7 @@
 import { Box, Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect, useState } from "react";
-import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { Id } from "@/convex/_generated/dataModel";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import { ManagerCandidateListView } from "./ManagerCandidateListView";
@@ -29,12 +29,10 @@ const noop = () => undefined;
 const overview: ReadyManagerSettingsOverview = {
   kind: "ready",
   organizationName: "株式会社さくらダイニング",
-  mode: "managerAddition",
   usage: {
     activeManagers: 2,
     activeInvitationCount: 1,
     pendingAdditions: 1,
-    pendingExchanges: 0,
     projectedManagers: 3,
     maxManagers: 5,
   },
@@ -65,7 +63,6 @@ const overview: ReadyManagerSettingsOverview = {
       invitationId,
       name: "鈴木 次郎",
       invitedEmail: "suzuki@sakura.example.com",
-      purpose: "managerAddition",
       status: "pending",
       expiresAt: Date.UTC(2026, 7, 20, 9, 0),
       canResend: true,
@@ -164,12 +161,10 @@ export const FreeAvailable: Story = {
   args: {
     overview: {
       ...overview,
-      mode: "managerAddition",
       usage: {
         activeManagers: 1,
         activeInvitationCount: 0,
         pendingAdditions: 0,
-        pendingExchanges: 0,
         projectedManagers: 1,
         maxManagers: 2,
       },
@@ -181,73 +176,11 @@ export const FreeAvailable: Story = {
         {
           ...overview.managers[0],
           canRemoveRole: false,
-          removeRoleDisabledReason: "最後の管理者の権限は外せません。",
+          removeRoleDisabledReason: "少なくとも管理者が1名必要です。",
         },
       ],
       invitations: [],
     },
-  },
-};
-
-export const LegacyFreeExchangePending: Story = {
-  args: {
-    overview: {
-      ...overview,
-      mode: "managerAddition",
-      usage: {
-        activeManagers: 1,
-        activeInvitationCount: 1,
-        pendingAdditions: 0,
-        pendingExchanges: 1,
-        projectedManagers: 1,
-        maxManagers: 2,
-      },
-      actions: {
-        canInviteExistingStaff: false,
-        existingStaffDisabledReason:
-          "以前の管理者交代招待が残っています。取り消すか有効期限が切れてから、管理者を追加してください。",
-        canInviteExternal: false,
-        externalDisabledReason:
-          "以前の管理者交代招待が残っています。取り消すか有効期限が切れてから、管理者を追加してください。",
-      },
-      managers: [overview.managers[0]],
-      invitations: [
-        {
-          ...overview.invitations[0],
-          purpose: "freeManagerExchange",
-          canResend: true,
-          canRevoke: true,
-        },
-      ],
-    },
-  },
-  play: async () => {
-    await expect(
-      await screen.findByText("以前の交代方式の招待です。承認されると、現在の管理者から管理者権限が外れます。"),
-    ).toBeInTheDocument();
-    await expect(screen.getByRole("button", { name: "再送する" })).toBeDisabled();
-    await expect(screen.getByRole("button", { name: "取り消す" })).toBeEnabled();
-  },
-};
-
-export const LegacyBackendFreeExchangeMode: Story = {
-  parameters: { screenshot: { skip: true } },
-  args: {
-    overview: {
-      ...overview,
-      mode: "freeManagerExchange",
-      actions: { canInviteExistingStaff: true, canInviteExternal: true },
-    },
-  },
-  play: async () => {
-    await expect(screen.getByRole("heading", { name: "管理者を追加" })).toBeInTheDocument();
-    await expect(screen.queryByRole("button", { name: /既存スタッフを管理者として招待/ })).not.toBeInTheDocument();
-    await expect(screen.queryByRole("button", { name: /新しいユーザーを管理者として招待/ })).not.toBeInTheDocument();
-    await expect(
-      screen.getAllByText(
-        "以前の管理者交代機能は終了しました。送信済みの交代招待を取り消すか、有効期限が切れてから画面を更新してください。",
-      ),
-    ).toHaveLength(2);
   },
 };
 

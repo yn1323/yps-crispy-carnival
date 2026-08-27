@@ -42,19 +42,12 @@ async function isRemovedOrganizationPersonDetached(
   if (members.length > 1) return false;
   if (members[0] && (!args.person.userId || members[0].userId !== args.person.userId)) return false;
   const activeInvitationsIssuedByMember = members[0]
-    ? (
-        await Promise.all(
-          (["issued", "pending"] as const).map(
-            async (status) =>
-              await ctx.db
-                .query("organizationInvitations")
-                .withIndex("by_inviterMemberId_and_status", (q) =>
-                  q.eq("inviterMemberId", members[0]._id).eq("status", status),
-                )
-                .take(1),
-          ),
+    ? await ctx.db
+        .query("organizationInvitations")
+        .withIndex("by_inviterMemberId_and_status", (q) =>
+          q.eq("inviterMemberId", members[0]._id).eq("status", "issued"),
         )
-      ).flat()
+        .take(1)
     : [];
   return (
     !activeStaff &&

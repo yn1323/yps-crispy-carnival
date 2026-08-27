@@ -514,11 +514,11 @@ describe("所属を含むアカウント削除", () => {
           for (let index = 0; index < 51; index += 1) {
             await ctx.db.insert("organizationInvitations", {
               organizationId: fixture.organizationId,
+              invitedName: `招待対象${index}`,
               email: `invitee-${index}@example.com`,
               emailNormalized: `invitee-${index}@example.com`,
               tokenDigest: `shared-departure-overflow-${index}`,
               status: "issued",
-              purpose: "managerAddition",
               inviterMemberId: fixture.memberId,
               reservedSeat: true,
               version: 1,
@@ -533,11 +533,11 @@ describe("所属を含むアカウント削除", () => {
         if (recordKind === "invitationNotification") {
           organizationInvitationId = await ctx.db.insert("organizationInvitations", {
             organizationId: fixture.organizationId,
+            invitedName: "通知対象",
             email: "invitation-notification@example.com",
             emailNormalized: "invitation-notification@example.com",
             tokenDigest: "shared-departure-invitation-notification-overflow",
             status: "issued",
-            purpose: "managerAddition",
             inviterMemberId: fixture.memberId,
             reservedSeat: true,
             version: 1,

@@ -88,8 +88,8 @@ describe("organizationInvitation/acceptanceActions", () => {
     const invitationEmail = "provider-failure-target@example.com";
     const created = await t
       .withIdentity({ subject: "provider_failure_owner" })
-      .mutation(api.organizationInvitation.mutations.issue, {
-        shopId: manager.shopId,
+      .mutation(api.organizationInvitation.mutations.issueForOrganization, {
+        organizationId: manager.organizationId,
         recipient: { kind: "external", invitedName: "Provider復旧対象", email: invitationEmail },
         requestId: "provider-failure-create",
       });
@@ -350,14 +350,14 @@ describe("organizationInvitation/acceptanceActions", () => {
       await providerInvoked.promise;
 
       if (operation === "resend") {
-        await fixture.owner.mutation(api.organizationInvitation.mutations.resend, {
-          shopId: fixture.manager.shopId,
+        await fixture.owner.mutation(api.organizationInvitation.mutations.resendForOrganization, {
+          organizationId: fixture.manager.organizationId,
           invitationId: fixture.invitation._id,
           requestId: `accept-${operation}-rotate`,
         });
       } else {
-        await fixture.owner.mutation(api.organizationInvitation.mutations.revoke, {
-          shopId: fixture.manager.shopId,
+        await fixture.owner.mutation(api.organizationInvitation.mutations.revokeForOrganization, {
+          organizationId: fixture.manager.organizationId,
           invitationId: fixture.invitation._id,
           requestId: `accept-${operation}-revoke`,
         });
@@ -432,8 +432,8 @@ async function seedAcceptanceFixture(caseKey: string) {
   const manager = await t.run((ctx) => seedOrganizationManagerShop(ctx, { subject: `${caseKey}_owner`, plan: "pro" }));
   const email = `${caseKey.replaceAll("_", "-")}-target@example.com`;
   const owner = t.withIdentity({ subject: `${caseKey}_owner` });
-  const issued = await owner.mutation(api.organizationInvitation.mutations.issue, {
-    shopId: manager.shopId,
+  const issued = await owner.mutation(api.organizationInvitation.mutations.issueForOrganization, {
+    organizationId: manager.organizationId,
     recipient: { kind: "external", invitedName: "受諾競合対象", email },
     requestId: `${caseKey}-issue`,
   });

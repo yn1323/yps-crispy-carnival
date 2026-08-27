@@ -208,7 +208,6 @@ import type * as notificationOutbox_types from "../notificationOutbox/types.js";
 import type * as organization_access from "../organization/access.js";
 import type * as organization_audit from "../organization/audit.js";
 import type * as organization_deletion from "../organization/deletion.js";
-import type * as organization_managerInvitationState from "../organization/managerInvitationState.js";
 import type * as organization_migrations from "../organization/migrations.js";
 import type * as organization_mutations from "../organization/mutations.js";
 import type * as organization_personCapabilities from "../organization/personCapabilities.js";
@@ -235,7 +234,6 @@ import type * as organizationInvitation_actions from "../organizationInvitation/
 import type * as organizationInvitation_constants from "../organizationInvitation/constants.js";
 import type * as organizationInvitation_lifecycle from "../organizationInvitation/lifecycle.js";
 import type * as organizationInvitation_mutations from "../organizationInvitation/mutations.js";
-import type * as organizationInvitation_purpose from "../organizationInvitation/purpose.js";
 import type * as organizationInvitation_queries from "../organizationInvitation/queries.js";
 import type * as organizationInvitation_schemas from "../organizationInvitation/schemas.js";
 import type * as organizationInvitation_service from "../organizationInvitation/service.js";
@@ -496,7 +494,6 @@ declare const fullApi: ApiFromModules<{
   "organization/access": typeof organization_access;
   "organization/audit": typeof organization_audit;
   "organization/deletion": typeof organization_deletion;
-  "organization/managerInvitationState": typeof organization_managerInvitationState;
   "organization/migrations": typeof organization_migrations;
   "organization/mutations": typeof organization_mutations;
   "organization/personCapabilities": typeof organization_personCapabilities;
@@ -523,7 +520,6 @@ declare const fullApi: ApiFromModules<{
   "organizationInvitation/constants": typeof organizationInvitation_constants;
   "organizationInvitation/lifecycle": typeof organizationInvitation_lifecycle;
   "organizationInvitation/mutations": typeof organizationInvitation_mutations;
-  "organizationInvitation/purpose": typeof organizationInvitation_purpose;
   "organizationInvitation/queries": typeof organizationInvitation_queries;
   "organizationInvitation/schemas": typeof organizationInvitation_schemas;
   "organizationInvitation/service": typeof organizationInvitation_service;

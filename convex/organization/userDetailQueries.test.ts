@@ -101,7 +101,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     });
   });
 
-  it("組織人物と有効店舗所属を最小DTOで返し、招待状態を同じ契約で更新する", async () => {
+  it("組織人物と有効店舗所属を最小DTOで返し、管理者招待の有無を更新する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -197,11 +197,6 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       isSelf: false,
       managerRole: "none",
       hasManagerInvitation: false,
-      managerInvitationState: {
-        kind: "available",
-        mode: "addition",
-        replacesStaleInvitation: false,
-      },
       canRemoveManagerRole: false,
       canRemove: true,
       removalPreview: {
@@ -299,11 +294,11 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("organizationInvitations", {
         organizationId: ids.organizationId,
+        invitedName: "詳細対象",
         email: "detail-person@example.com",
         emailNormalized: "detail-person@example.com",
         tokenDigest: "never-return-invitation-token",
         status: "issued",
-        purpose: "managerAddition",
         inviterMemberId: ids.memberId,
         targetPersonId: ids.personId,
         reservedSeat: false,
@@ -320,7 +315,6 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     });
     expect(pending).toMatchObject({
       hasManagerInvitation: true,
-      managerInvitationState: { kind: "pending", mode: "addition" },
     });
     expect(JSON.stringify(pending)).not.toContain("never-return-invitation-token");
   });
@@ -614,7 +608,6 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     expect(result).toMatchObject({
       isSelf: false,
       managerRole: "active",
-      managerInvitationState: { kind: "unavailable", reason: "このユーザーはすでに管理者です。" },
       canRemoveManagerRole: true,
       canRemove: false,
       removeDisabledReason: "先に管理者権限を外してください。",
@@ -752,7 +745,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     expect(result).toMatchObject({
       isSelf: true,
       canRemoveManagerRole: false,
-      managerRoleRemovalDisabledReason: "最後の管理者の権限は外せません。",
+      managerRoleRemovalDisabledReason: "少なくとも管理者が1名必要です。",
       canRemove: false,
       removeDisabledReason: "先に管理者権限を外してください。",
     });

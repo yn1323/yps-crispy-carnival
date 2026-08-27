@@ -647,11 +647,11 @@ describe("staff/mutations", () => {
         }
         const invitationId = await ctx.db.insert("organizationInvitations", {
           organizationId: organization.organizationId,
+          invitedName: "予約済みスタッフ",
           email: "Reserved-Staff@Example.com",
           emailNormalized: "reserved-staff@example.com",
           tokenDigest: "reserved-seat-to-staff-person",
-          status: "pending",
-          purpose: "managerAddition",
+          status: "issued",
           inviterMemberId: organization.memberId,
           reservedSeat: true,
           version: 1,
@@ -692,7 +692,7 @@ describe("staff/mutations", () => {
           .withIndex("by_shopId", (q) => q.eq("shopId", seeded.shopId))
           .collect(),
       }));
-      expect(state.invitation).toMatchObject({ status: "pending", reservedSeat: false, version: 1 });
+      expect(state.invitation).toMatchObject({ status: "issued", reservedSeat: false, version: 1 });
       expect(state.invitation?.updatedAt).toBeGreaterThan(seeded.invitationUpdatedAt);
       expect(state.people).toHaveLength(15);
       expect(state.staffs).toHaveLength(14);
@@ -720,11 +720,11 @@ describe("staff/mutations", () => {
           invitationIds.push(
             await ctx.db.insert("organizationInvitations", {
               organizationId: organization.organizationId,
+              invitedName: "重複予約対象",
               email: "duplicate-reservation@example.com",
               emailNormalized: "duplicate-reservation@example.com",
               tokenDigest: `duplicate-reservation-${index}`,
-              status: "pending",
-              purpose: "managerAddition",
+              status: "issued",
               inviterMemberId: organization.memberId,
               reservedSeat: true,
               version: 1,
@@ -867,6 +867,7 @@ describe("staff/mutations", () => {
         });
         const invitationId = await ctx.db.insert("organizationInvitations", {
           organizationId: organization.organizationId,
+          invitedName: "削除済み対象",
           email: "Removed@Example.com",
           emailNormalized: "removed@example.com",
           tokenDigest: "removed-person-invitation",
@@ -874,7 +875,6 @@ describe("staff/mutations", () => {
           inviterMemberId: organization.memberId,
           reservedSeat: false,
           version: 2,
-          acceptedByPersonId: removedPersonId,
           revokedAt,
           expiresAt: now + 86_400_000,
           createdAt: now - 30_000,
@@ -1205,10 +1205,11 @@ describe("staff/mutations", () => {
         });
         await ctx.db.insert("organizationInvitations", {
           organizationId: organization.organizationId,
+          invitedName: "予約対象",
           email: "reserved-seat@example.com",
           emailNormalized: "reserved-seat@example.com",
           tokenDigest: "reserved-seat-for-reactivation",
-          status: "pending",
+          status: "issued",
           inviterMemberId: organization.memberId,
           reservedSeat: true,
           version: 1,

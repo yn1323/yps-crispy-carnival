@@ -170,13 +170,6 @@ export const analyticsSourceEventPayloadValidator = v.union(
     validTo: v.optional(v.number()),
   }),
   v.object({
-    kind: v.literal("managerMembershipExchange"),
-    formerPersonId: v.id("organizationPeople"),
-    nextPersonId: v.id("organizationPeople"),
-    validFrom: v.number(),
-    nextPersonFirstObservedAt: v.number(),
-  }),
-  v.object({
     kind: v.literal("staffMembership"),
     staffId: v.id("staffs"),
     organizationPersonId: v.optional(v.id("organizationPeople")),

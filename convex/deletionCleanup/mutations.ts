@@ -65,7 +65,6 @@ const ORGANIZATION_PHASES = [
   "organizationPeople",
   "organizationMembers",
   "organizationInvitationsIssued",
-  "organizationInvitationsPending",
   "organizationCreatedByUser",
   "organizationVerification",
 ] as const;
@@ -111,7 +110,6 @@ const ORGANIZATION_VERIFICATION_RESOURCES = [
   "organizationPeople",
   "organizationMembers",
   "organizationInvitationsIssued",
-  "organizationInvitationsPending",
   "organizationCreatedByUser",
 ] as const;
 
@@ -508,12 +506,7 @@ async function runOrganizationStep(
     }
     case "organizationInvitationsIssued": {
       const done = await revokeOrganizationInvitations(ctx, organizationId, "issued");
-      return done ? { phase: "organizationInvitationsPending" } : { phase: job.phase };
-    }
-    case "organizationInvitationsPending": {
-      const done = await revokeOrganizationInvitations(ctx, organizationId, "pending");
-      if (!done) return { phase: job.phase };
-      return { phase: "organizationCreatedByUser" };
+      return done ? { phase: "organizationCreatedByUser" } : { phase: job.phase };
     }
     case "organizationCreatedByUser": {
       // 旧jobとの互換性のためphaseは維持するが、global userは組織削除の対象外。
@@ -715,11 +708,7 @@ async function revokeByShop(
   return pageResult(page);
 }
 
-async function revokeOrganizationInvitations(
-  ctx: MutationCtx,
-  organizationId: Id<"organizations">,
-  status: "issued" | "pending",
-) {
+async function revokeOrganizationInvitations(ctx: MutationCtx, organizationId: Id<"organizations">, status: "issued") {
   const invitations = await ctx.db
     .query("organizationInvitations")
     .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", status))
@@ -851,15 +840,6 @@ async function verifyOrganizationCleanup(
         .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "issued"))
         .first();
       return invitation ? { phase: "organizationInvitationsIssued" } : nextOrganizationVerificationStep(resource);
-    }
-    case "organizationInvitationsPending": {
-      const invitation = await ctx.db
-        .query("organizationInvitations")
-        .withIndex("by_organizationId_and_status", (q) =>
-          q.eq("organizationId", organizationId).eq("status", "pending"),
-        )
-        .first();
-      return invitation ? { phase: "organizationInvitationsPending" } : nextOrganizationVerificationStep(resource);
     }
     case "organizationCreatedByUser": {
       // 旧verification resourceとの互換性のため残し、global userは検証対象にしない。

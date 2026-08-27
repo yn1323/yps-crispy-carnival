@@ -396,11 +396,11 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
       const now = Date.now();
       await ctx.db.insert("organizationInvitations", {
         organizationId: seeded.organizationId,
+        invitedName: "予約対象",
         email: "reserved-standard-seat@example.com",
         emailNormalized: "reserved-standard-seat@example.com",
         tokenDigest: "reserved-standard-seat-token-digest",
-        status: "pending",
-        purpose: "managerAddition",
+        status: "issued",
         inviterMemberId: seeded.memberId,
         reservedSeat: true,
         version: 1,

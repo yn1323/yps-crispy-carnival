@@ -93,7 +93,6 @@ describe("appOrganization/manageQueries", () => {
         invitedName: "招待中の管理者",
         tokenDigest: "manage-usage-pending-invitation",
         status: "issued",
-        purpose: "managerAddition",
         inviterMemberId: actor.memberId,
         reservedSeat: true,
         version: 1,

@@ -122,7 +122,7 @@ describe("Narrow readiness queries", () => {
         createdAt: now,
         updatedAt: now,
       });
-      const crossOrganizationPersonId = await ctx.db.insert("organizationPeople", {
+      await ctx.db.insert("organizationPeople", {
         organizationId: legacyOrganizationId,
         name: "別グループ人物",
         email: "cross-organization-person@example.com",
@@ -141,7 +141,7 @@ describe("Narrow readiness queries", () => {
         updatedAt: now,
       });
       await ctx.db.delete(danglingPersonId);
-      const memberId = await ctx.db.insert("organizationMembers", {
+      await ctx.db.insert("organizationMembers", {
         organizationId,
         personId,
         userId,
@@ -240,72 +240,6 @@ describe("Narrow readiness queries", () => {
         shopId: legacyShopId,
         planKey: "free",
         source: "system",
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.insert("organizationInvitations", {
-        organizationId,
-        email: secretEmail,
-        emailNormalized: secretEmail,
-        tokenDigest: "secret-token-digest",
-        status: "accepted",
-        inviterMemberId: memberId,
-        reservedSeat: false,
-        version: 1,
-        expiresAt: now + 60_000,
-        targetPersonId: crossOrganizationPersonId,
-        acceptedAt: now,
-        acceptedByPersonId: crossOrganizationPersonId,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.insert("organizationInvitations", {
-        organizationId,
-        email: "linked-missing-evidence@example.com",
-        emailNormalized: "linked-missing-evidence@example.com",
-        invitedName: "連携証跡欠損",
-        tokenDigest: "linked-missing-evidence-digest",
-        status: "linked",
-        purpose: "managerAddition",
-        inviterMemberId: memberId,
-        reservedSeat: false,
-        version: 1,
-        expiresAt: now + 60_000,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.insert("organizationInvitations", {
-        organizationId,
-        email: "non-linked-evidence@example.com",
-        emailNormalized: "non-linked-evidence@example.com",
-        invitedName: "非連携状態の証跡",
-        tokenDigest: "non-linked-evidence-digest",
-        status: "issued",
-        purpose: "managerAddition",
-        inviterMemberId: memberId,
-        reservedSeat: false,
-        version: 1,
-        expiresAt: now + 60_000,
-        targetPersonId: danglingPersonId,
-        linkedAt: now,
-        linkedByPersonId: danglingPersonId,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.insert("organizationInvitations", {
-        organizationId,
-        email: "cross-linked-evidence@example.com",
-        emailNormalized: "cross-linked-evidence@example.com",
-        invitedName: "別グループ連携者",
-        tokenDigest: "cross-linked-evidence-digest",
-        status: "linked",
-        purpose: "managerAddition",
-        inviterMemberId: memberId,
-        reservedSeat: false,
-        version: 1,
-        expiresAt: now + 60_000,
-        linkedAt: now,
-        linkedByPersonId: crossOrganizationPersonId,
         createdAt: now,
         updatedAt: now,
       });
@@ -480,7 +414,6 @@ describe("Narrow readiness queries", () => {
       t.query(internal.narrowReadiness.queries.verifyUsers, { paginationOpts: firstPage }),
       t.query(internal.narrowReadiness.queries.verifyStaffs, { paginationOpts: firstPage }),
       t.query(internal.narrowReadiness.queries.verifyOrganizations, { paginationOpts: firstPage }),
-      t.query(internal.narrowReadiness.queries.verifyOrganizationInvitations, { paginationOpts: firstPage }),
       t.query(internal.narrowReadiness.queries.verifyNotificationOutbox, { paginationOpts: firstPage }),
       t.query(internal.narrowReadiness.queries.verifyStripeSubscriptions, { paginationOpts: firstPage }),
       t.query(internal.narrowReadiness.queries.verifyStripeOperations, { paginationOpts: firstPage }),
@@ -524,21 +457,6 @@ describe("Narrow readiness queries", () => {
       ambiguousBillingStates: 0,
     });
     expect(results[4].anomalies).toEqual({
-      legacyStatus: 1,
-      missingInvitedName: 1,
-      missingPurpose: 1,
-      legacyAcceptedFields: 1,
-      linkedMissingLinkedAt: 1,
-      linkedMissingLinkedByPersonId: 1,
-      nonLinkedLinkEvidence: 1,
-      danglingTargetPerson: 1,
-      targetPersonOrganizationMismatch: 1,
-      danglingLinkedByPerson: 1,
-      linkedByPersonOrganizationMismatch: 1,
-      danglingAcceptedByPerson: 0,
-      acceptedByPersonOrganizationMismatch: 1,
-    });
-    expect(results[5].anomalies).toEqual({
       missingNotificationContext: 1,
       missingDeliverySuppressed: 1,
       missingPurpose: 1,
@@ -551,37 +469,37 @@ describe("Narrow readiness queries", () => {
       shopOrganizationMismatch: 0,
       incompleteFanoutLink: 1,
     });
-    expect(results[6].anomalies.missingPlan).toBe(1);
-    expect(results[7].anomalies).toEqual({
+    expect(results[5].anomalies.missingPlan).toBe(1);
+    expect(results[6].anomalies).toEqual({
       legacyImmediateProCheckout: 1,
       trialSetupCheckoutMissingTargetPlan: 1,
     });
-    expect(results[8].anomalies).toEqual({
+    expect(results[7].anomalies).toEqual({
       missingSupersedesActiveOperations: 1,
       incompleteSupplementalBaseline: 1,
     });
-    expect(results[9].anomalies).toEqual({
+    expect(results[8].anomalies).toEqual({
       missingFirstSubmittedAt: 1,
       firstSubmittedAfterSubmittedAt: 1,
     });
-    expect(results[10].anomalies).toEqual({
+    expect(results[9].anomalies).toEqual({
       missingIsDefault: 1,
       defaultSelectionMismatch: 1,
       deletedDefaultTrue: 1,
     });
-    expect(results[11].anomalies).toEqual({ readerWindowOverflow: 0, multipleDefaultShops: 1 });
-    expect(results[11].observations).toEqual({ shopsWithoutActivePositions: 1 });
-    expect(results[12].anomalies).toEqual({
+    expect(results[10].anomalies).toEqual({ readerWindowOverflow: 0, multipleDefaultShops: 1 });
+    expect(results[10].observations).toEqual({ shopsWithoutActivePositions: 1 });
+    expect(results[11].anomalies).toEqual({
       missingAccessKind: 1,
       activeViewMissingNotificationOperationKey: 1,
     });
-    expect(results[13].anomalies).toEqual({ missingAccessKind: 1 });
-    expect(results[14].activeRows).toBe(1);
-    expect(results[14].totalRows).toBe(1);
-    expect(results[15].activeRows).toBe(2);
-    expect(results[15].totalRows).toBe(2);
-    expect(results[16].unresolvedRows).toBe(1);
-    expect(results[16].unresolvedNotificationOutboxScopeRows).toBe(0);
+    expect(results[12].anomalies).toEqual({ missingAccessKind: 1 });
+    expect(results[13].activeRows).toBe(1);
+    expect(results[13].totalRows).toBe(1);
+    expect(results[14].activeRows).toBe(2);
+    expect(results[14].totalRows).toBe(2);
+    expect(results[15].unresolvedRows).toBe(1);
+    expect(results[15].unresolvedNotificationOutboxScopeRows).toBe(0);
 
     const serialized = JSON.stringify(results);
     expect(serialized).not.toContain(secretEmail);

@@ -32,7 +32,6 @@ const SAFE_ERROR_CODES = new Set([
   "analytics_line_account_batch_too_large",
   "analytics_line_batch_incomplete",
   "analytics_maintenance_preempted",
-  "analytics_manager_exchange_same_person",
   "analytics_notification_cycle_scope_mismatch",
   "analytics_notification_scope_conflict",
   "analytics_notification_terminal_at_missing",

@@ -97,7 +97,7 @@ Dashboardのスタッフは、`getDashboardStaffs`が返す`organizationPersonId
 - 明示解除は確認表示を経て、その組織の全所属店舗だけを停止する。別組織の連携には影響せず、再利用には本人による新しい連携を必要とする。
 - 通知対象の募集と確定シフトは、Dashboardと同じ色・状態表現でシフト期間、提出期限または確定日、提出人数を表示する。確定シフトは終了日が今日以降の現在分と将来分を表示して再送でき、過去分は表示しない。
 - 確定シフトの個別再送は1回につき40件までを対象とする。対象が40件を超える場合は一部だけ送らず、再送を開始できないことを表示する。
-- 管理者の招待・交代・権限解除は`/manage/managers?org=<organizationId>`へ集約する。  スタッフ詳細は管理者設定への導線を表示しない。
+- 管理者の招待・権限解除は`/manage/managers?org=<organizationId>`へ集約する。  スタッフ詳細は管理者設定への導線を表示しない。
 - backendは招待、再送、受諾、権限追加の各public APIで、認証、組織境界、管理者状態、招待token lifecycleをserver-sideでも確認する。
 - 通常利用中の`active`管理者は、人物側または店舗側の所属変更から個別店舗・全店舗のスタッフ所属を解除できる。
   個別解除ではほかの店舗所属を維持し、全店舗解除でも管理者権限と組織人物を維持する。
@@ -182,7 +182,7 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 | `api.dashboard.queries.getDashboardRecruitments` | `managerQuery` | `targetShopId`で指定した対象店舗の募集中シフトを取得する |
 | `api.dashboard.queries.getDashboardCurrentRecruitments` | `managerQuery` | `targetShopId`で指定した対象店舗の終了日が今日以降の確定シフトを取得する |
 | `api.organization.mutations.updatePersonProfile` | `authenticatedMutation` | アカウント連携の有無にかかわらず、名前とシフト連絡先を組織共通personと同じ組織の未削除staffへ同期する |
-| `api.organization.mutations.removeManagerRole` | `authenticatedMutation` | 人物とシフト記録を維持し、組織の管理者権限だけを外す。店舗所属がなければ管理アクセスを終了する |
+| `api.organization.mutations.removeManagerRoleForOrganization` | `authenticatedMutation` | canonicalな組織境界を再検証し、人物とシフト記録を維持したまま管理者権限だけを外す。店舗所属がなければ管理アクセスを終了する |
 | `api.organization.mutations.removePersonFromShop` | `authenticatedMutation` | `targetShopId`で指定した店舗のスタッフ所属とスタッフアクセスだけを終了する。active managerも対象にでき、管理者権限と組織人物は維持する |
 | `api.organization.mutations.removePersonFromOrganization` | `authenticatedMutation` | 組織内の全所属とアクセスを終了する。対象がactive managerなら先に権限解除を要求する |
 | `api.staff.mutations.addStaffs` | `managerMutation` | 管理者手入力でスタッフを追加する。通常削除人物はactiveへ戻し、アカウント削除履歴だけなら新しい人物として、削除履歴の特別確認なしで新しいstaff IDを作る |

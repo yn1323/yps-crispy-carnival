@@ -1140,37 +1140,35 @@ async function findPendingInvitationsForRemovedPersonBounded(
   };
 
   const inviterMemberId = args.member?._id;
-  for (const status of ["issued", "pending"] as const) {
-    if (inviterMemberId) {
-      add(
-        await ctx.db
-          .query("organizationInvitations")
-          .withIndex("by_inviterMemberId_and_status", (q) =>
-            q.eq("inviterMemberId", inviterMemberId).eq("status", status),
-          )
-          .take(args.recordLimit + 1),
-      );
-    }
+  if (inviterMemberId) {
     add(
       await ctx.db
         .query("organizationInvitations")
-        .withIndex("by_organizationId_and_targetPersonId_and_status", (q) =>
-          q.eq("organizationId", args.organizationId).eq("targetPersonId", args.person._id).eq("status", status),
-        )
-        .take(args.recordLimit + 1),
-    );
-    add(
-      await ctx.db
-        .query("organizationInvitations")
-        .withIndex("by_organizationId_and_emailNormalized_and_status", (q) =>
-          q
-            .eq("organizationId", args.organizationId)
-            .eq("emailNormalized", args.person.emailNormalized)
-            .eq("status", status),
+        .withIndex("by_inviterMemberId_and_status", (q) =>
+          q.eq("inviterMemberId", inviterMemberId).eq("status", "issued"),
         )
         .take(args.recordLimit + 1),
     );
   }
+  add(
+    await ctx.db
+      .query("organizationInvitations")
+      .withIndex("by_organizationId_and_targetPersonId_and_status", (q) =>
+        q.eq("organizationId", args.organizationId).eq("targetPersonId", args.person._id).eq("status", "issued"),
+      )
+      .take(args.recordLimit + 1),
+  );
+  add(
+    await ctx.db
+      .query("organizationInvitations")
+      .withIndex("by_organizationId_and_emailNormalized_and_status", (q) =>
+        q
+          .eq("organizationId", args.organizationId)
+          .eq("emailNormalized", args.person.emailNormalized)
+          .eq("status", "issued"),
+      )
+      .take(args.recordLimit + 1),
+  );
   return [...invitations.values()];
 }
 
@@ -1784,26 +1782,6 @@ async function removeManagerRoleForActor(
 }
 
 /** 管理者権限だけを明示的に終了し、人物とシフト履歴は保持する。 */
-export const removeManagerRole = authenticatedMutation({
-  args: { shopId: v.id("shops"), personId: v.id("organizationPeople"), requestId: v.string() },
-  returns: personRemovalResultValidator,
-  handler: async (ctx, args) => {
-    const requestId = await toAuditRequestKey(args.requestId);
-    if (
-      await isCompletedPersonRemovalActorRetry(ctx, {
-        shopId: args.shopId,
-        operation: "managerRole",
-        targetId: args.personId,
-        requestId,
-      })
-    ) {
-      return { changed: false };
-    }
-    const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
-    return await removeManagerRoleForActor(ctx, { personId: args.personId, requestId }, actor);
-  },
-});
-
 export const removeManagerRoleForOrganization = authenticatedMutation({
   args: {
     organizationId: v.id("organizations"),

@@ -137,7 +137,7 @@ export const RetryActionBehavior: Story = {
   render: (args) => <RetryBehaviorStory {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "もう一度試す" }));
+    await userEvent.click(canvas.getByRole("button", { name: "再実行する" }));
     await expect(canvas.getByText("招待の再確認を要求しました")).toBeInTheDocument();
   },
 };
@@ -165,7 +165,7 @@ export const AcceptedWithoutDestinationBehavior: Story = {
   render: (args) => <AcceptedWithoutDestinationBehaviorStory {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "ダッシュボードへ" }));
+    await userEvent.click(canvas.getByRole("button", { name: "シフトリを確認する" }));
     await expect(canvas.getByText("ダッシュボードへの遷移を要求しました")).toBeInTheDocument();
   },
 };

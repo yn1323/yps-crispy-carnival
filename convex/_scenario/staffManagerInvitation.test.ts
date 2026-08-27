@@ -77,7 +77,6 @@ describe("既存スタッフの管理者招待シナリオ", () => {
       organizationId: seeded.organizationId,
       targetPersonId: personId,
       status: "issued",
-      purpose: "managerAddition",
     });
 
     const token = await deriveInvitationToken({

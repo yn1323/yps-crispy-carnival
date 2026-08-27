@@ -58,4 +58,3 @@ export type {
   ManagerSettingsManager,
   ReadyManagerSettingsOverview,
 } from "./types";
-export { isLegacyFreeManagerExchangeMode } from "./types";

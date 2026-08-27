@@ -83,8 +83,7 @@ export async function runInvitationAcceptance(
     },
   });
   if (finalized.status === "unavailable") return { status: "unavailable", retryable: false };
-  // Proof付き経路ではemailMismatchは発生しない。旧DTOが型に残る間だけconflictへ閉じる。
-  if (finalized.status === "emailMismatch" || finalized.status === "conflict") return { status: "conflict" };
+  if (finalized.status === "conflict") return { status: "conflict" };
   if (finalized.status === "linked") {
     return {
       status: "linked",

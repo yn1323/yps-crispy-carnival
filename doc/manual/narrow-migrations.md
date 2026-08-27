@@ -21,7 +21,7 @@ statusが`success`でも、その後に旧writerが旧形式を作ればreadines
 
 | Migration | 対象 | 補完内容 |
 |---|---|---|
-| m023 | `organizationInvitations` | 旧status、`invitedName`、`purpose`、旧`accepted*` |
+| m023 | `organizationInvitations` | 廃止済み履歴slot（no-op） |
 | m024 | `notificationOutbox` | `purpose`、`notificationContext`、`deliverySuppressed` |
 | m025 | `shops` | `organizationId`、`operatingStatus`、後発移行組織の支払い不要Pro相当（当時の内部IDは`complimentary.business`）課金状態 |
 | m026 | `shopMembers` | canonicalな人物と管理者所属 |
@@ -86,7 +86,6 @@ pnpm exec convex run narrowReadiness/queries:verifyShops \
 - `verifyUsers`
 - `verifyStaffs`
 - `verifyOrganizations`
-- `verifyOrganizationInvitations`
 - `verifyNotificationOutbox`
 - `verifyStripeSubscriptions`
 - `verifyStripeOperations`
@@ -269,8 +268,6 @@ Narrow deploy後も、旧形式を投入するMigration Testはschema validation
 `recruitments.draftSavedAt`は、下書きがない募集では未設定が正しい条件付きfieldです。  m038と`verifyRecruitments.assignmentsWithoutDraftSavedAt`が全deploymentで収束した後はassignment作成時刻fallbackだけを削除し、schema上のoptionalは維持します。
 
 `shops.regularClosedDays`と`recruitments.shopClosedDates`は、過去のrequired追加時にMigrationがなかったため、m039 / m040を先にdeployできるよう一時的にoptionalへWidenしています。  両migrationと`verifyShops.missingRegularClosedDays` / `verifyRecruitments.missingShopClosedDates`が全deploymentで0になった後、requiredへ戻すdeployでbackendとfrontendの空配列fallbackを同時に削除します。
-
-`organizationInvitations`はm023のstatus、link evidence、target / linkedBy / acceptedBy人物のtenant scope、旧status、旧`accepted*`、未解消conflictがすべて0件になった後にだけ、旧literalと旧fieldをschema・validator・readerから削除します。  証跡が欠けた`accepted`や別事業者・danglingな人物を`linked`へ推測変換しません。
 
 `shops`、`staffs`、`shopMembers`、`shopBillingStates`はm025からm029の関係するstatusとreadinessを満たしてから、optionalなcanonical IDとlegacy authority fallbackを削除します。  `verifyStaffs.danglingStaffUser`、`verifyStaffs.missingPersonUserForLinkedStaff`、`verifyStaffs.personUserMismatch`、`verifyStaffs.activeStaffPersonEmailMismatch`も0件でなければならず、本人紐付けや連絡先projectionを推測して解消しません。  m029を実行していないdeploymentでは`shopMembers` fallbackを削除しません。
 

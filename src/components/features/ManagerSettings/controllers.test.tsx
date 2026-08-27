@@ -75,12 +75,10 @@ const requestIds = [
 const overview: ReadyManagerSettingsOverview = {
   kind: "ready",
   organizationName: "さくらダイニング",
-  mode: "managerAddition",
   usage: {
     activeManagers: 2,
     activeInvitationCount: 1,
     pendingAdditions: 1,
-    pendingExchanges: 0,
     projectedManagers: 3,
     maxManagers: 5,
   },
@@ -103,7 +101,6 @@ const overview: ReadyManagerSettingsOverview = {
       invitationId,
       name: "山田 美咲",
       invitedEmail: "yamada@example.com",
-      purpose: "managerAddition",
       status: "pending",
       expiresAt: Date.UTC(2026, 7, 20),
       canResend: true,
@@ -159,24 +156,6 @@ describe("useManagerSettingsController", () => {
         requestId: requestIds[0],
       }),
     );
-  });
-
-  it("旧backendが交代招待を再送可能として返しても再送を開始しない", () => {
-    const legacyInvitation = {
-      ...overview.invitations[0],
-      purpose: "freeManagerExchange" as const,
-      canResend: true,
-    };
-    const legacyOverview: ReadyManagerSettingsOverview = {
-      ...overview,
-      invitations: [legacyInvitation],
-    };
-    const { result } = renderHook(() => useManagerSettingsController({ overview: legacyOverview, organizationId }));
-
-    act(() => result.current.onRequestResend(legacyInvitation));
-
-    expect(result.current.confirmation).toBeNull();
-    expect(mocks.resend).not.toHaveBeenCalled();
   });
 
   it("管理者設定のタイトル戻るは固定の組織設定へ遷移せず履歴へ戻る", () => {
@@ -327,19 +306,6 @@ describe("useManagerIssueController", () => {
     await waitFor(() => expect(onCompleted).toHaveBeenCalledOnce());
   });
 
-  it("旧backendのFree交代modeではaction capabilityがtrueでも新しい招待を開始しない", () => {
-    const legacyOverview: ReadyManagerSettingsOverview = {
-      ...overview,
-      mode: "freeManagerExchange",
-      actions: { canInviteExistingStaff: true, canInviteExternal: true },
-    };
-    const { result } = renderHook(() => useManagerIssueController({ overview: legacyOverview, organizationId }));
-
-    act(() => result.current.onRequestExistingStaff(candidate));
-    act(() => result.current.onRequestExternal("旧方式候補", "legacy@example.com"));
-    expect(mocks.issue).not.toHaveBeenCalled();
-  });
-
   it("既存スタッフ招待は通信失敗後も同じrequestIdで再試行する", async () => {
     const error = new ConvexError("操作結果を確認できませんでした。");
     mocks.randomUUID.mockReturnValueOnce(requestIds[0]);
@@ -436,20 +402,6 @@ describe("useManagerIssueController", () => {
         actions: { ...overview.actions, canInviteExistingStaff: false },
       },
     });
-    act(() => submit(candidate));
-
-    await waitFor(() => expect(mocks.issue).not.toHaveBeenCalled());
-  });
-
-  it("既存スタッフ招待は追加方式が変わったSubmitでmutationを呼ばない", async () => {
-    const { result, rerender } = renderHook(
-      ({ value }: { value: ReadyManagerSettingsOverview }) =>
-        useManagerIssueController({ overview: value, organizationId }),
-      { initialProps: { value: overview } },
-    );
-    const submit = result.current.onRequestExistingStaff;
-
-    rerender({ value: { ...overview, mode: "freeManagerExchange" } });
     act(() => submit(candidate));
 
     await waitFor(() => expect(mocks.issue).not.toHaveBeenCalled());
