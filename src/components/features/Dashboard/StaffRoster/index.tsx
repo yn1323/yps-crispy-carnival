@@ -113,11 +113,13 @@ export const StaffRoster = ({
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.50">
             {staffs.map((staff) => {
               const badges: StaffListRowBadge[] = [];
+              const isDetailUnavailable = !staff.organizationPersonId;
               if (staff.isManager) badges.push({ kind: "role" });
               if (staff.isLineLinked && staff.isLineFollowing) {
                 badges.push({ kind: "line", status: "linked_following" });
               }
               if (staff.excludedFromShift) badges.push({ kind: "shiftExcluded" });
+              if (isDetailUnavailable) badges.push({ kind: "detailUnavailable" });
 
               return (
                 <StaffListRow
@@ -127,6 +129,8 @@ export const StaffRoster = ({
                   role={staff.isManager ? "manager" : "staff"}
                   detail={{ kind: "email", value: staff.email }}
                   badges={badges}
+                  disabled={isDetailUnavailable}
+                  disabledReason={isDetailUnavailable ? "スタッフ情報を確認できないため、詳細を開けません" : undefined}
                   onOpen={() => onOpenDetail(staff)}
                 />
               );
