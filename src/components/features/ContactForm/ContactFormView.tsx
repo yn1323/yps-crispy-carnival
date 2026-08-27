@@ -103,7 +103,7 @@ export function ContactFormView(props: ContactFormViewProps) {
             bg="white"
             maxLength={CONTACT_NAME_MAX_LENGTH}
             autoComplete="name"
-            placeholder="例：山田 太郎"
+            placeholder="サンプル ユーザー"
           />
           {props.errors.name && <Field.ErrorText>{props.errors.name}</Field.ErrorText>}
         </Field.Root>
@@ -115,7 +115,7 @@ export function ContactFormView(props: ContactFormViewProps) {
             bg="white"
             type="email"
             autoComplete="email"
-            placeholder="例：yamada@example.com"
+            placeholder="contact@example.com"
           />
           {props.errors.email && <Field.ErrorText>{props.errors.email}</Field.ErrorText>}
         </Field.Root>
@@ -127,7 +127,7 @@ export function ContactFormView(props: ContactFormViewProps) {
             bg="white"
             maxLength={CONTACT_ORGANIZATION_MAX_LENGTH}
             autoComplete="organization"
-            placeholder="例：シフトリ渋谷店"
+            placeholder="サンプル組織"
           />
           {props.errors.organization && <Field.ErrorText>{props.errors.organization}</Field.ErrorText>}
         </Field.Root>

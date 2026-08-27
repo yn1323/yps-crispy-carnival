@@ -30,7 +30,7 @@ export const SetupShopInfoStep = ({
         name="shopName"
         value={shopName}
         maxLength={SHOP_NAME_MAX_LENGTH}
-        placeholder="例：居酒屋たなか"
+        placeholder="サンプル店舗"
         onChange={(event) => onShopNameChange(event.target.value)}
       />
       {shopNameError && <Field.ErrorText>{shopNameError}</Field.ErrorText>}

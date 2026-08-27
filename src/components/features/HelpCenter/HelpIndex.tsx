@@ -177,7 +177,7 @@ function HelpHeader({ query, onQueryChange }: { query: string; onQueryChange: (v
           value={query}
           onChange={(event) => onQueryChange(event.currentTarget.value)}
           aria-label="ヘルプを検索"
-          placeholder="例：スタッフを追加したい、通知が届かない"
+          placeholder="スタッフを追加したい、通知が届かない"
           h={{ base: 12, md: 14 }}
           pe={4}
           bg="white"

@@ -160,7 +160,7 @@ export function StaffRegistrationView({ state }: Props) {
                   {...state.nameRegistration}
                   bg="white"
                   maxLength={PERSON_NAME_MAX_LENGTH}
-                  placeholder="例：田中 花子"
+                  placeholder="サンプル スタッフ"
                 />
                 {state.nameError && <Field.ErrorText>{state.nameError}</Field.ErrorText>}
               </Field.Root>
@@ -172,7 +172,7 @@ export function StaffRegistrationView({ state }: Props) {
                   {...state.emailRegistration}
                   bg="white"
                   maxLength={EMAIL_MAX_LENGTH}
-                  placeholder="例：hanako@example.com"
+                  placeholder="staff@example.com"
                 />
                 {state.emailError && <Field.ErrorText>{state.emailError}</Field.ErrorText>}
                 {state.typoSuggestion && (
