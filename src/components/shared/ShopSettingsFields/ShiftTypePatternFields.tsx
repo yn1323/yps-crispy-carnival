@@ -84,7 +84,7 @@ export function ShiftTypePatternFields({
                   <Input
                     value={row.option.name}
                     maxLength={SHIFT_TYPE_NAME_MAX_LENGTH}
-                    placeholder="例: 早番"
+                    placeholder="早番"
                     bg="white"
                     aria-invalid={!!row.nameError}
                     onChange={(event) => onUpdate(row.index, { name: event.target.value })}

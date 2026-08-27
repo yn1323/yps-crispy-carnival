@@ -30,7 +30,7 @@ export const ReissueForm = ({ onSubmit, isSubmitting }: Props) => {
 
         <Field.Root invalid={!!errors.email}>
           <Field.Label>メールアドレス</Field.Label>
-          <Input type="email" placeholder="example@email.com" maxLength={EMAIL_MAX_LENGTH} {...register("email")} />
+          <Input type="email" placeholder="staff@example.com" maxLength={EMAIL_MAX_LENGTH} {...register("email")} />
           {errors.email && <Field.ErrorText>{errors.email.message}</Field.ErrorText>}
         </Field.Root>
 

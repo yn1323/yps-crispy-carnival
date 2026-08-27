@@ -137,7 +137,7 @@ export const RetryActionBehavior: Story = {
   render: (args) => <RetryBehaviorStory {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "もう一度試す" }));
+    await userEvent.click(canvas.getByRole("button", { name: "再実行する" }));
     await expect(canvas.getByText("招待の再確認を要求しました")).toBeInTheDocument();
   },
 };
@@ -165,7 +165,7 @@ export const AcceptedWithoutDestinationBehavior: Story = {
   render: (args) => <AcceptedWithoutDestinationBehaviorStory {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "ダッシュボードへ" }));
+    await userEvent.click(canvas.getByRole("button", { name: "シフトリを確認する" }));
     await expect(canvas.getByText("ダッシュボードへの遷移を要求しました")).toBeInTheDocument();
   },
 };
@@ -211,7 +211,7 @@ export const VerificationFlowBehavior: Story = {
   render: (args) => <VerificationFlowStory {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.type(canvas.getByRole("textbox", { name: "招待先メールアドレス" }), "invite@example.com");
+    await userEvent.type(canvas.getByRole("textbox", { name: "メールアドレス" }), "invite@example.com");
     await userEvent.click(canvas.getByRole("button", { name: "確認コードを送信" }));
     await expect(await canvas.findByRole("textbox", { name: "確認コード" })).toBeInTheDocument();
     await expect(canvas.queryByText("invite@example.com", { exact: false })).not.toBeInTheDocument();
@@ -250,7 +250,7 @@ export const LoginBehavior: Story = {
   render: (args) => <LoginBehaviorStory {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "ログインして続ける" }));
+    await userEvent.click(canvas.getByRole("button", { name: "すでにアカウントを持っている" }));
     await expect(canvas.getByText("ログイン画面への遷移を要求しました")).toBeInTheDocument();
   },
 };

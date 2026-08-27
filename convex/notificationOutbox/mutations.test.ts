@@ -1140,10 +1140,11 @@ describe("notificationOutbox", () => {
       });
       const invitationId = await ctx.db.insert("organizationInvitations", {
         organizationId,
+        invitedName: "招待対象",
         email: "invite@example.com",
         emailNormalized: "invite@example.com",
         tokenDigest: "digest",
-        status: "pending",
+        status: "issued",
         inviterMemberId: memberId,
         reservedSeat: true,
         version: 1,

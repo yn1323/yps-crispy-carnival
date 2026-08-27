@@ -14,7 +14,7 @@
   個別解除では対象店舗のstaff所属だけを終了してほかの店舗所属を維持し、全店舗解除でも組織人物と管理者権限を維持する。
 - active管理者人物を組織から削除する場合は、先に管理者権限を外す。
   最後のactive管理者の権限は外せず、店舗・組織全体の削除cleanupは個別人物操作と分けて扱う。
-- 管理者所属は`active`と`removed`だけを保存する。管理者交代で管理者ではなくなった人物は`removed`にする。
+- 管理者所属は`active`と`removed`だけを保存する。管理者権限を外した人物は`removed`にする。
 - `shops.organizationId`が店舗の組織を表し、管理者APIは認証済み利用者の組織所属と選択店舗をサーバー側で検証する。
 - `getMyShops`は利用可能な店舗を組織名、店舗状態、所属状態付きで返し、`removed`になった人物へ当該組織の店舗を返さない。
 - `/dashboard`は`org`で検証した一つの組織だけを表示し、`shop`はその組織のactive店舗から選ぶ。  URLで有効な店舗、現在組織の保存済みhint、active店舗の先頭の順に解決し、名称や人物情報はbrowser storageへ保存しない。
@@ -32,8 +32,8 @@
 - 新しい管理者所属は`organizationMembers`だけへ保存し、`shopMembers`への互換書き込みは行わない。
 - `shopMembers`は、canonical所属がまだない利用者を移行中も締め出さないためのread fallbackとしてだけ使う。canonical所属が1件でもあれば、状態にかかわらず旧所属を認可根拠にしない。
 - `m029_shop_members_narrow_prep`は、canonical所属と一意に対応するactiveな旧所属を論理削除する。  権限を変えるため固定seriesには含めず、dry run、m025からm028のstatus、readiness、未解消conflict 0件を確認したdeploymentだけで専用runnerを明示実行する。  未移行または対応が曖昧な旧所属は削除せず、migration conflictへ記録する。
-- 管理者交代では対応する旧`shopMembers`も削除済みにし、legacy fallbackから管理権限が復活しないようにする。
-- `m013_former_managers_remove_manager_access`と`m014_removed_organization_members_delete_legacy_shop_members`は、既存の交代済み旧管理者にも同じ権限失効を適用する。
+- 管理者権限の解除では対応する旧`shopMembers`も削除済みにし、legacy fallbackから管理権限が復活しないようにする。
+- `m013_former_managers_remove_manager_access`と`m014_removed_organization_members_delete_legacy_shop_members`は、既存の権限解除済み管理者にも同じ権限失効を適用する。
 - `shops.organizationId`と`shops.operatingStatus`はWiden期間中だけoptionalである。対象deploymentで`m009_shops_to_organizations`の完走と互換readの安定を確認した後にだけNarrowする。
 - 固定seriesへの登録から実環境でのmigration完了、Narrow、旧所属データの物理削除を推測しない。対象deploymentの確認結果は[リリース状態](../manual/release-status.md)を参照する。
 

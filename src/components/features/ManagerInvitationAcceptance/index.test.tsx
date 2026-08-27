@@ -108,7 +108,7 @@ vi.mock("./ManagerInvitationAcceptanceView", () => ({
           コードを再送
         </button>
         <button type="button" onClick={() => void actions.onGoToDashboard()}>
-          ダッシュボードへ
+          シフトリを確認する
         </button>
       </div>
     );
@@ -312,7 +312,7 @@ describe("ManagerInvitationAcceptance controller", () => {
     });
     expect(mocks.navigate).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "ダッシュボードへ" }));
+    fireEvent.click(screen.getByRole("button", { name: "シフトリを確認する" }));
 
     expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
       to: "/dashboard",

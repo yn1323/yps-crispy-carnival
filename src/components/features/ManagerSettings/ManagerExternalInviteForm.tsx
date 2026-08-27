@@ -85,7 +85,7 @@ export function ManagerExternalInviteFormView({
           <Field.Label>名前</Field.Label>
           <Input
             autoComplete="name"
-            placeholder="例：山田 太郎"
+            placeholder="サンプル 管理者"
             disabled={isSubmitting || isReadOnly}
             {...register("name")}
           />
@@ -96,7 +96,7 @@ export function ManagerExternalInviteFormView({
           <Input
             type="email"
             autoComplete="email"
-            placeholder="例：yamada@example.com"
+            placeholder="manager@example.com"
             disabled={isSubmitting || isReadOnly}
             {...register("email")}
           />

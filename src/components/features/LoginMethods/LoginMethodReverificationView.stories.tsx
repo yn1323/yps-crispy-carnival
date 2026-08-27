@@ -66,9 +66,6 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-// Static stories are VRT fixtures. Interactive contracts live in the Behavior stories below.
-export const FactorSelection: Story = {};
-
 export const PasswordInput: Story = {
   args: {
     controller: staticController(inputState(passwordFactor, firstFactors)),
@@ -142,7 +139,7 @@ export const NoSupportedFactorError: Story = {
       stage: null,
       factors: [],
       selectedFactor: null,
-      message: "このアカウントで利用できる本人確認方法がありません。変更は行っていません。",
+      message: "このアカウントで利用できる本人確認方法がありません。",
     }),
   },
 };
@@ -199,7 +196,7 @@ export const ResendBehavior: Story = {
   play: async () => {
     const canvas = within(await within(document.body).findByRole("dialog", { name: "確認が必要です" }));
 
-    await userEvent.click(await canvas.findByRole("button", { name: "確認コードを再送" }));
+    await userEvent.click(await canvas.findByRole("button", { name: "確認コードを再送する" }));
     const resendMessage = await canvas.findByText("新しい確認コードを送信しました。");
     await waitFor(() => expect(resendMessage).toBeVisible());
     await expect(canvas.queryByRole("button", { name: "別の方法を使う" })).not.toBeInTheDocument();

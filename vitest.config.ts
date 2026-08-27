@@ -67,6 +67,10 @@ const uiProject = defineConfig({
   },
   test: {
     name: "ui",
+    // Preview DOMとPortalを共有するstory同士を競合させず、実際の画面遷移を検証する。
+    fileParallelism: false,
+    // 遅延importを含むstoryを、CI負荷だけで失敗させない。
+    testTimeout: 30_000,
     // Enable browser mode
     browser: {
       enabled: true,

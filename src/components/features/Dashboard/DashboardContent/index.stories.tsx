@@ -420,15 +420,14 @@ export const WithNotificationFailures: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    const trigger = canvas.getByRole("button", { name: /送れなかった通知が2件/ });
     await expect(canvas.queryByRole("region", { name: "送れなかった通知" })).not.toBeInTheDocument();
-    await userEvent.click(trigger);
+    await userEvent.click(canvas.getByRole("button", { name: /送れなかった通知が2件/ }));
 
     const notificationItems = await canvas.findByRole("region", { name: "送れなかった通知" });
     await waitFor(() => expect(within(notificationItems).getByText(/佐藤 真由美さんへシフト募集通知/)).toBeVisible());
     await expect(within(notificationItems).getAllByRole("button", { name: "再送する" }).length).toBeGreaterThan(0);
 
-    await userEvent.click(trigger);
+    await userEvent.click(canvas.getByRole("button", { name: /送れなかった通知が2件/ }));
     await waitFor(() => expect(canvas.queryByRole("region", { name: "送れなかった通知" })).not.toBeInTheDocument());
   },
 };
@@ -443,14 +442,12 @@ export const MultipleOperationalTodoPanelsBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const notificationTrigger = canvas.getByRole("button", { name: /送れなかった通知が2件/ });
-    const registrationTrigger = canvas.getByRole("button", { name: /スタッフ登録申請が2件/ });
 
     await expect(canvas.queryByRole("region", { name: "送れなかった通知" })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("region", { name: "スタッフ登録申請" })).not.toBeInTheDocument();
 
-    await userEvent.click(notificationTrigger);
-    await userEvent.click(registrationTrigger);
+    await userEvent.click(canvas.getByRole("button", { name: /送れなかった通知が2件/ }));
+    await userEvent.click(canvas.getByRole("button", { name: /スタッフ登録申請が2件/ }));
 
     const notificationItems = await canvas.findByRole("region", { name: "送れなかった通知" });
     const registrationItems = await canvas.findByRole("region", { name: "スタッフ登録申請" });
@@ -461,7 +458,7 @@ export const MultipleOperationalTodoPanelsBehavior: Story = {
       expect(within(registrationItems).getAllByRole("button", { name: "承認する" })[0]).toBeVisible(),
     );
 
-    await userEvent.click(notificationTrigger);
+    await userEvent.click(canvas.getByRole("button", { name: /送れなかった通知が2件/ }));
     await waitFor(() => expect(canvas.queryByRole("region", { name: "送れなかった通知" })).not.toBeInTheDocument());
     await expect(canvas.getByRole("region", { name: "スタッフ登録申請" })).toBeVisible();
   },

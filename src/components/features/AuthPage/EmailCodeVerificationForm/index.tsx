@@ -11,6 +11,7 @@ type EmailCodeVerificationFormProps = {
   errorMessage?: string;
   infoMessage?: string;
   isSubmitting?: boolean;
+  codeInputAction?: ReactNode;
   secondaryActions?: ReactNode;
   submitLabel: string;
   submittingLabel: string;
@@ -22,6 +23,7 @@ export function EmailCodeVerificationForm({
   errorMessage,
   infoMessage,
   isSubmitting,
+  codeInputAction,
   secondaryActions,
   submitLabel,
   submittingLabel,
@@ -53,6 +55,7 @@ export function EmailCodeVerificationForm({
         <Input inputMode="numeric" autoComplete="one-time-code" placeholder="123456" {...register("code")} />
         <Field.ErrorText>{errors.code?.message}</Field.ErrorText>
       </Field.Root>
+      {codeInputAction}
       <Button type="submit" colorPalette="teal" size="lg" loading={isSubmitting} loadingText={submittingLabel}>
         {submitLabel}
       </Button>

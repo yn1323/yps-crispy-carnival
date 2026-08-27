@@ -1151,7 +1151,7 @@ describe("notificationOutbox/actions", () => {
   it.each([
     { label: "再発行前のversion", variant: "versionMismatch", reason: "invitation_inactive" },
     { label: "取消済み", variant: "revoked", reason: "invitation_inactive" },
-    { label: "使用済み", variant: "accepted", reason: "invitation_inactive" },
+    { label: "使用済み", variant: "linked", reason: "invitation_inactive" },
     { label: "期限切れ", variant: "expired", reason: "invitation_inactive" },
     { label: "宛先が変わった", variant: "recipientMismatch", reason: "invitation_inactive" },
     { label: "権限を失った招待者", variant: "inviterMemberRemoved", reason: "invitation_inactive" },
@@ -1747,7 +1747,7 @@ async function setupStaleEmailJob(target: "staff" | "organizationPerson" | "lega
 type InvalidOrganizationInvitationVariant =
   | "versionMismatch"
   | "revoked"
-  | "accepted"
+  | "linked"
   | "expired"
   | "recipientMismatch"
   | "inviterMemberRemoved"
@@ -1833,7 +1833,7 @@ async function setupOrganizationInvitationJob(variant: InvalidOrganizationInvita
       email: "invite@example.com",
       emailNormalized: "invite@example.com",
       tokenDigest: "digest",
-      status: variant === "revoked" ? "revoked" : variant === "accepted" ? "accepted" : "pending",
+      status: variant === "revoked" ? "revoked" : variant === "linked" ? "linked" : "issued",
       inviterMemberId: memberId,
       reservedSeat: true,
       version: variant === "versionMismatch" ? 2 : 1,

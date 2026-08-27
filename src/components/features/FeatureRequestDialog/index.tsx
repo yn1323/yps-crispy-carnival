@@ -121,6 +121,7 @@ export function FeatureRequestDialog({ onSubmit }: FeatureRequestDialogProps) {
                 bg="white"
                 minH="120px"
                 maxLength={FEATURE_REQUEST_COMMENT_MAX_LENGTH}
+                placeholder="スタッフの希望シフトを一覧で確認したいです。"
                 resize="vertical"
               />
               <Text alignSelf="flex-end" color="fg.muted" fontSize="xs">

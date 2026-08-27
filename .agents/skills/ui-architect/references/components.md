@@ -184,8 +184,9 @@ Dialog固有の意味、文言、PC/SP配置、footer、close lockは[UI設計�
 |---|---|
 | 既知の進捗 | `Progress` linear（%） |
 | 既知のステップ | `Stepper` |
-| 不明・短時間 | `Spinner`（最後の手段） |
-| 不明・コンテンツがある | `Skeleton`（レイアウト保持） |
+| 不明・ページ、Card、sectionなどまとまった領域 | `ShiftoriLoading`（シフトリアイコン + `Loading...`） |
+| 不明・表示済みの面にある局所コンテンツ | `Skeleton`（レイアウト保持） |
+| 不明・短時間の小さなinline処理 | `Spinner`（最後の手段） |
 | ボタン押下中 | ボタン内 spinner + disable |
 | ページ遷移 | TopBar progress（薄い線） |
 

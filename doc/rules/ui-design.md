@@ -57,6 +57,8 @@ Dialog表示中のブラウザ戻るは、ページ遷移ではなく最前面�
 Dialog、tab、長いページの下位sectionは、初回利用まで内容のmount、module取得、データ取得を遅らせてよい。
 遅延表示する領域には大きさと意味が対応するLoadingを置き、操作後に画面全体が空白になる状態を作らない。
 Loadingは対象領域の見出しまたはlandmarkと対応させ、支援技術と自動テストが処理中と完了を識別できる状態にする。
+ページ全体、Card、sectionなど一定の面積を占めるLoadingには、`src/components/ui/ShiftoriLoading`のシフトリアイコンと`Loading...`を使う。
+ボタン内や小さなinline処理のLoadingは対象外とし、操作対象に対応する局所的な進行表示を使う。
 
 moduleまたはデータの取得に失敗した場合は、失敗した領域だけをErrorへ切り替え、取得済みの兄弟sectionとnavigationは操作可能なままにする。
 再試行または再読み込みが必要な場合は、その理由と操作をErrorの近くへ示す。

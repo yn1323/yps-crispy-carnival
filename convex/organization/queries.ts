@@ -23,7 +23,6 @@ import {
   getOrganizationInvitationLifecycleStatus,
   readActiveIssuedInvitationsByOrganization,
 } from "../organizationInvitation/lifecycle";
-import { getOrganizationInvitationPurpose } from "../organizationInvitation/purpose";
 import { resolveOrganizationInvitationEligibility } from "../organizationInvitation/service";
 import { getStripeBillingConfiguration } from "../organizationStripe/config";
 import { getOrganizationCreationAvailability, type OrganizationCreationAvailability } from "../setup/service";
@@ -162,8 +161,6 @@ export const organizationSettingsValidator = v.object({
   shops: v.array(organizationShopViewValidator),
   billing: billingViewValidator,
   canInviteManager: v.boolean(),
-  managerInvitationMode: v.union(v.literal("addition"), v.literal("freeManagerExchange")),
-  freeManagerExchangeCandidates: v.array(v.object({ id: v.string(), name: v.string(), email: v.string() })),
   inviteManagerDisabledReason: v.optional(v.string()),
   canUpdateOrganizationName: v.boolean(),
   updateOrganizationNameDisabledReason: v.optional(v.string()),
@@ -309,8 +306,6 @@ function legacyMigrationPendingSettings(
       billingEmailDisabledReason: "設定の移行が完了するまでお待ちください。",
     },
     canInviteManager: false,
-    managerInvitationMode: "addition" as const,
-    freeManagerExchangeCandidates: [],
     inviteManagerDisabledReason: migrationReason,
     canUpdateOrganizationName: false,
     updateOrganizationNameDisabledReason: migrationReason,
@@ -517,30 +512,20 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
   // 購入対象の表示ではなく、現在のentitlementを利用上限の根拠にする。
   const usageLimits = policy?.limits;
   const activeManagerCount = usage.activeManagerCount;
-  const pendingManagerInvitationCount = pendingInvitations.filter(
-    (invitation) => invitation.expiresAt > now && getOrganizationInvitationPurpose(invitation) === "managerAddition",
-  ).length;
+  const pendingManagerInvitationCount = pendingInvitations.filter((invitation) => invitation.expiresAt > now).length;
   const projectedActiveManagerCount = activeManagerCount + pendingManagerInvitationCount;
-  const activeFreeManagerExchangeInvitations = pendingInvitations.filter(
-    (invitation) =>
-      invitation.expiresAt > now && getOrganizationInvitationPurpose(invitation) === "freeManagerExchange",
-  );
-  const hasActiveFreeManagerExchangeInvitation = activeFreeManagerExchangeInvitations.length > 0;
   const canInviteManagerAddition = Boolean(
     isActiveActor &&
       canWriteNormally &&
       policy?.canManageManagers &&
       policy.limits &&
-      projectedActiveManagerCount < policy.limits.maxActiveManagers &&
-      !hasActiveFreeManagerExchangeInvitation,
+      projectedActiveManagerCount < policy.limits.maxActiveManagers,
   );
-  const freeManagerExchangeCandidates: Array<{ id: string; name: string; email: string }> = [];
   const invitedPersonIds = new Set(
     pendingInvitations.flatMap((invitation) =>
       invitation.expiresAt > now && invitation.targetPersonId ? [invitation.targetPersonId] : [],
     ),
   );
-  const managerInvitationMode = "addition" as const;
   const canInviteManager = canInviteManagerAddition;
   const canRevokeInvitation = Boolean(isActiveActor && (canWriteNormally || canRecoverUsageLimits));
   const managerAdditionPersonResolutionByEmail = new Map<
@@ -595,7 +580,6 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
           ((await hasManagerInvitationDeliveryFailure(ctx, currentVersionOutbox)) ||
             (currentVersionEnqueueFailure && !hasSuccessfulCurrentVersionEnqueue)),
       );
-      const purpose = getOrganizationInvitationPurpose(invitation);
       const canRetryStatus = lifecycleStatus === "issued" || lifecycleStatus === "expired";
       const eligibility = canRetryStatus ? await resolveOrganizationInvitationEligibility(ctx, invitation) : null;
       const targetPerson = invitation.targetPersonId ? await ctx.db.get(invitation.targetPersonId) : null;
@@ -632,8 +616,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
           (existingPersonCounts ||
             usage.projectedPeopleCount + (personReservationAlreadyCounted ? 0 : 1) <= policy.limits.maxPeople),
       );
-      const managerReservationAlreadyCounted =
-        lifecycleStatus === "issued" && invitation.expiresAt > now && purpose === "managerAddition";
+      const managerReservationAlreadyCounted = lifecycleStatus === "issued" && invitation.expiresAt > now;
       const canFitResentManager = Boolean(
         policy?.limits &&
           projectedActiveManagerCount - (managerReservationAlreadyCounted ? 1 : 0) + 1 <=
@@ -648,17 +631,13 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
             (!eligibility && !isExpired)),
       );
       const hasCapacityConflict = Boolean(
-        canRetryStatus &&
-          !hasTargetConflict &&
-          purpose === "managerAddition" &&
-          (!canFitResentManager || !canFitResentPerson),
+        canRetryStatus && !hasTargetConflict && (!canFitResentManager || !canFitResentPerson),
       );
       const canResend = Boolean(
         canRevokeInvitation &&
           canRetryStatus &&
           eligibility &&
           !hasTargetConflict &&
-          purpose === "managerAddition" &&
           canFitResentManager &&
           matchingPeople.length <= 1 &&
           (!existingPerson || managerRoleByPersonId.get(existingPerson._id) !== "active") &&
@@ -693,9 +672,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
                 ? canRevoke
                   ? "招待後に、ユーザーまたは契約の状態が変わりました。\nこの招待を取り消して、内容を確認してください。"
                   : "招待後に、ユーザーまたは契約の状態が変わりました。\n権限・ユーザー・契約状態を確認してください。"
-                : status === "pending" && purpose === "freeManagerExchange"
-                  ? "アカウント連携が完了するまでは、現在の管理者が引き続き操作できます。"
-                  : undefined;
+                : undefined;
       return {
         id: invitation._id,
         email: invitation.email,
@@ -1067,11 +1044,9 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
         ? "現在のアカウント状態では、管理者を招待できません。"
         : accessPolicy?.businessWriteBlockReason === "usageLimitExceeded"
           ? usageLimitBlockedReason
-          : hasActiveFreeManagerExchangeInvitation
-            ? "以前の管理者交代招待が残っています。\n取り消すか有効期限が切れてから、管理者を追加してください。"
-            : policy?.paidFeatureBlockReason === "paymentResultPending"
-              ? "支払い結果が確定してから、管理者を招待できます。"
-              : `管理者と招待中の管理者は、組織全体で${policy?.limits?.maxActiveManagers ?? ORGANIZATION_PLAN_LIMITS.standard.maxActiveManagers}名までです。`;
+          : policy?.paidFeatureBlockReason === "paymentResultPending"
+            ? "支払い結果が確定してから、管理者を招待できます。"
+            : `管理者と招待中の管理者は、組織全体で${policy?.limits?.maxActiveManagers ?? ORGANIZATION_PLAN_LIMITS.standard.maxActiveManagers}名までです。`;
   const canAddShop = Boolean(
     isActiveActor &&
       canWriteNormally &&
@@ -1123,8 +1098,6 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     shops: shopsView,
     billing: projectBillingViewForClient(billing, planIdVersion),
     canInviteManager,
-    managerInvitationMode,
-    freeManagerExchangeCandidates,
     ...(inviteManagerDisabledReason ? { inviteManagerDisabledReason } : {}),
     canUpdateOrganizationName,
     ...(updateOrganizationNameDisabledReason ? { updateOrganizationNameDisabledReason } : {}),
@@ -1163,12 +1136,10 @@ export const managerSettingsOverviewValidator = v.union(
   v.object({
     kind: v.literal("ready"),
     organizationName: v.string(),
-    mode: v.literal("managerAddition"),
     usage: v.object({
       activeManagers: v.number(),
       activeInvitationCount: v.number(),
       pendingAdditions: v.number(),
-      pendingExchanges: v.number(),
       projectedManagers: v.number(),
       maxManagers: v.number(),
     }),
@@ -1194,7 +1165,6 @@ export const managerSettingsOverviewValidator = v.union(
         invitationId: v.id("organizationInvitations"),
         name: v.string(),
         invitedEmail: v.string(),
-        purpose: v.union(v.literal("managerAddition"), v.literal("freeManagerExchange")),
         status: v.union(
           v.literal("pending"),
           v.literal("sendFailed"),
@@ -1338,11 +1308,8 @@ export async function getCanonicalManagerSettingsOverview(
     access.usageProbe?.usage.activeManagerCount ?? 0,
   );
 
-  const purposes = activeInvitations.invitations.map((invitation) => getOrganizationInvitationPurpose(invitation));
-  const pendingAdditions = purposes.filter((purpose) => purpose === "managerAddition").length;
-  const pendingExchanges = purposes.filter((purpose) => purpose === "freeManagerExchange").length;
+  const pendingAdditions = activeInvitations.invitations.length;
   const projectedManagers = observedActiveManagerCount + pendingAdditions;
-  const mode = "managerAddition" as const;
 
   const activePeople = await ctx.db
     .query("organizationPeople")
@@ -1371,7 +1338,6 @@ export async function getCanonicalManagerSettingsOverview(
   const reservedPeople = activeInvitations.invitations.filter((invitation) => invitation.reservedSeat).length;
   const canFitManager = projectedManagers < limits.maxActiveManagers;
   const canFitPerson = peopleUsage + reservedPeople < limits.maxPeople;
-  const hasExchangePending = pendingExchanges > 0;
   const usageLimitDisabledReason =
     access.usageLimitStatus?.kind === "unknown"
       ? "現在の利用数を安全に確認できないため、管理者を招待できません。利用人数・店舗・管理者を確認してください。"
@@ -1384,18 +1350,14 @@ export async function getCanonicalManagerSettingsOverview(
         ? "現在の契約状態では変更できません。"
         : !policy.canManageManagers
           ? "現在の契約状態では、管理者を招待できません。"
-          : hasExchangePending
-            ? "以前の管理者交代招待が残っています。取り消すか有効期限が切れてから、管理者を追加してください。"
-            : !canFitManager
-              ? `管理者と招待中の管理者は、組織全体で${limits.maxActiveManagers}名までです。`
-              : undefined;
-  const canInviteExistingStaff = Boolean(canWrite && policy.canManageManagers && canFitManager && !hasExchangePending);
+          : !canFitManager
+            ? `管理者と招待中の管理者は、組織全体で${limits.maxActiveManagers}名までです。`
+            : undefined;
+  const canInviteExistingStaff = Boolean(canWrite && policy.canManageManagers && canFitManager);
   const existingStaffDisabledReason = canInviteExistingStaff
     ? undefined
     : (inviteBaseReason ?? "現在の契約状態では、管理者を招待できません。");
-  const canInviteExternal = Boolean(
-    canWrite && policy.canManageManagers && canFitManager && canFitPerson && !hasExchangePending,
-  );
+  const canInviteExternal = Boolean(canWrite && policy.canManageManagers && canFitManager && canFitPerson);
   const externalDisabledReason = canInviteExternal
     ? undefined
     : !canWrite
@@ -1432,7 +1394,6 @@ export async function getCanonicalManagerSettingsOverview(
 
   const invitations = [];
   for (const invitation of activeInvitations.invitations) {
-    const purpose = getOrganizationInvitationPurpose(invitation);
     const targetPerson = invitation.targetPersonId ? await ctx.db.get(invitation.targetPersonId) : null;
     const targetResolution = await resolveOrganizationPersonEmailForManagerAddition(ctx, {
       organizationId: organization._id,
@@ -1492,7 +1453,7 @@ export async function getCanonicalManagerSettingsOverview(
             )
             .first(),
         );
-    const limitReached = purpose === "managerAddition" && projectedManagers > limits.maxActiveManagers;
+    const limitReached = projectedManagers > limits.maxActiveManagers;
     const status =
       targetConflict || !eligibility
         ? ("conflict" as const)
@@ -1503,14 +1464,11 @@ export async function getCanonicalManagerSettingsOverview(
             : ("pending" as const);
     invitations.push({
       invitationId: invitation._id,
-      name: effectiveTargetPerson?.name ?? invitation.invitedName?.trim() ?? invitation.email.split("@", 1)[0],
+      name: effectiveTargetPerson?.name ?? invitation.invitedName.trim(),
       invitedEmail: invitation.email,
-      purpose,
       status,
       expiresAt: invitation.expiresAt,
-      canResend: Boolean(
-        canWrite && purpose === "managerAddition" && !hasExchangePending && status !== "conflict" && !limitReached,
-      ),
+      canResend: Boolean(canWrite && status !== "conflict" && !limitReached),
       canRevoke: canWrite || canRecoverUsageLimits,
     });
   }
@@ -1518,12 +1476,10 @@ export async function getCanonicalManagerSettingsOverview(
   return {
     kind: "ready" as const,
     organizationName: organization.name,
-    mode,
     usage: {
       activeManagers: observedActiveManagerCount,
       activeInvitationCount: activeInvitations.invitations.length,
       pendingAdditions,
-      pendingExchanges,
       projectedManagers,
       maxManagers: Number(limits.maxActiveManagers),
     },
@@ -1537,26 +1493,6 @@ export async function getCanonicalManagerSettingsOverview(
     invitations,
   };
 }
-
-/** 管理者専用ページのPIIと操作可否だけを返すbounded DTO。 */
-export const getManagerSettingsOverview = managerQuery({
-  args: { now: v.number() },
-  returns: managerSettingsOverviewValidator,
-  handler: async (ctx, args) => {
-    if (!ctx.user || !ctx.organization || !ctx.organizationMember) {
-      return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
-    }
-    return await getCanonicalManagerSettingsOverview(
-      {
-        ...ctx,
-        user: ctx.user,
-        organization: ctx.organization,
-        organizationMember: ctx.organizationMember,
-      },
-      args,
-    );
-  },
-});
 
 /** canonical organization actorから既存スタッフ招待候補を組み立てる。 */
 export async function getCanonicalManagerCandidates(ctx: CanonicalOrganizationSettingsCtx, args: { now: number }) {
@@ -1624,21 +1560,17 @@ export async function getCanonicalManagerCandidates(ctx: CanonicalOrganizationSe
   const pendingEmails = new Set(invitations.invitations.map((invitation) => invitation.emailNormalized));
   const isActiveActor = organizationMember.status === "active";
   const canWrite = Boolean(isActiveActor && access.canWriteBusinessData);
-  const pendingPurposes = invitations.invitations.map((invitation) => getOrganizationInvitationPurpose(invitation));
-  const pendingAdditions = pendingPurposes.filter((purpose) => purpose === "managerAddition").length;
-  const hasPendingExchange = pendingPurposes.some((purpose) => purpose === "freeManagerExchange");
+  const pendingAdditions = invitations.invitations.length;
   const canFitManager = managers.active.length + pendingAdditions < limits.maxActiveManagers;
-  const canInviteManager = Boolean(canWrite && policy.canManageManagers && canFitManager && !hasPendingExchange);
+  const canInviteManager = Boolean(canWrite && policy.canManageManagers && canFitManager);
   const managerInvitationDisabledReason =
     access.businessWriteBlockReason === "usageLimitExceeded"
       ? "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。"
       : !canWrite || !policy.canManageManagers
         ? "現在の契約状態では、管理者を招待できません。"
-        : hasPendingExchange
-          ? "以前の管理者交代招待が残っています。取り消すか有効期限が切れてから、管理者を追加してください。"
-          : !canFitManager
-            ? `管理者と招待中の管理者は、組織全体で${limits.maxActiveManagers}名までです。`
-            : undefined;
+        : !canFitManager
+          ? `管理者と招待中の管理者は、組織全体で${limits.maxActiveManagers}名までです。`
+          : undefined;
 
   const candidates = [];
   for (const person of people) {
@@ -1672,23 +1604,3 @@ export async function getCanonicalManagerCandidates(ctx: CanonicalOrganizationSe
   );
   return { kind: "ready" as const, candidates };
 }
-
-/** 既存スタッフ招待subpageでだけ購読するbounded候補一覧。 */
-export const getManagerCandidates = managerQuery({
-  args: { now: v.number() },
-  returns: managerCandidatesValidator,
-  handler: async (ctx, args) => {
-    if (!ctx.user || !ctx.organization || !ctx.organizationMember) {
-      return { kind: "integrityError" as const, message: MANAGER_SETTINGS_INTEGRITY_ERROR };
-    }
-    return await getCanonicalManagerCandidates(
-      {
-        ...ctx,
-        user: ctx.user,
-        organization: ctx.organization,
-        organizationMember: ctx.organizationMember,
-      },
-      args,
-    );
-  },
-});

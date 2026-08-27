@@ -40,7 +40,6 @@ const removablePersonData = {
   isSelf: false,
   managerRole: "none",
   hasManagerInvitation: false,
-  managerInvitationState: { kind: "available", mode: "addition", replacesStaleInvitation: false },
   canRemoveManagerRole: false,
   managerRoleRemovalDisabledReason: undefined,
   canRemove: true,

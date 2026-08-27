@@ -66,7 +66,6 @@ export async function seedActionInboxSources(
     invitedName: "招待対象者",
     tokenDigest: `action-invitation-${args.subject}`,
     status: "issued",
-    purpose: "managerAddition",
     inviterMemberId: base.memberId,
     reservedSeat: true,
     version: 1,

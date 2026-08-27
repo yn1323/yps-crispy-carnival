@@ -17,7 +17,6 @@ import { getLegalConsentVersions, type LegalAudience } from "./legal/documents";
 import { upsertStaffLineAccount } from "./line/service";
 import { clearResendDelayedFailureDeadline } from "./notificationOutbox/resendDelayedFailure";
 import { isOrganizationInvitationIssued } from "./organizationInvitation/lifecycle";
-import { getOrganizationInvitationPurpose } from "./organizationInvitation/purpose";
 import { deriveInvitationToken, digestInvitationToken, invitationRateLimitKey } from "./organizationInvitation/token";
 import schema from "./schema";
 
@@ -69,14 +68,7 @@ type OrganizationMemberStatus = Doc<"organizationMembers">["status"];
 type OrganizationPersonStatus = Doc<"organizationPeople">["status"];
 type DeletionCleanupJobStatus = Doc<"deletionCleanupJobs">["status"];
 
-const ORGANIZATION_INVITATION_STATUSES: OrganizationInvitationStatus[] = [
-  "pending",
-  "accepted",
-  "issued",
-  "linked",
-  "revoked",
-  "expired",
-];
+const ORGANIZATION_INVITATION_STATUSES: OrganizationInvitationStatus[] = ["issued", "linked", "revoked", "expired"];
 const ORGANIZATION_MEMBER_STATUSES: OrganizationMemberStatus[] = ["active", "removed"];
 const ORGANIZATION_PERSON_STATUSES: OrganizationPersonStatus[] = ["active", "removed"];
 const ALL_NOTIFICATION_OUTBOX_STATUSES: NotificationOutboxStatus[] = [
@@ -1216,7 +1208,7 @@ export const seedManagerLifecycleScenario = internalMutation({
   },
 });
 
-/** Free管理者交代と複数組織切替で共有する、actor単位で回収可能なE2E前提を作る。 */
+/** Free管理者追加と複数組織切替で共有する、actor単位で回収可能なE2E前提を作る。 */
 export const seedFreeManagerMultiOrganizationScenario = internalMutation({
   args: {
     actorAManagerAuthTokenIdentifier: v.string(),
@@ -1256,9 +1248,9 @@ export const seedFreeManagerMultiOrganizationScenario = internalMutation({
       name: DEFAULT_MANAGER.name,
       email: args.actorAManagerEmail,
     });
-    const actorBName = args.actorBName ?? "交代先スタッフB";
-    const targetOrganizationName = args.targetOrganizationName ?? "E2E Free交代対象グループ";
-    const targetShopName = args.targetShopName ?? "E2E Free交代対象店舗";
+    const actorBName = args.actorBName ?? "追加対象スタッフB";
+    const targetOrganizationName = args.targetOrganizationName ?? "E2E Free管理者追加対象グループ";
+    const targetShopName = args.targetShopName ?? "E2E Free管理者追加対象店舗";
     const targetOrganizationId = await createScenarioOrganization(ctx, {
       createdByUserId: actorAUserId,
       name: targetOrganizationName,
@@ -1600,11 +1592,7 @@ export const getManagerInvitationCapability = internalQuery({
       )
       .order("desc")
       .take(2);
-    const invitations = issued.filter(
-      (invitation) =>
-        isOrganizationInvitationIssued(invitation) &&
-        getOrganizationInvitationPurpose(invitation) === "managerAddition",
-    );
+    const invitations = issued.filter(isOrganizationInvitationIssued);
     if (invitations.length === 0) return { token: null };
     if (invitations.length !== 1) {
       throw new Error("E2E capability lookup failed: ambiguous-manager-invitation");

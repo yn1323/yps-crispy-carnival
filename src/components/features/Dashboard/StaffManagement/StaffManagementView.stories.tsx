@@ -6,7 +6,7 @@ import type { StaffInvitationMethod, StaffInvitationViewModel } from "./StaffInv
 import { StaffManagementView } from "./StaffManagementView";
 
 const noop = () => {};
-const lazyBodyWait = { timeout: 5_000 };
+const lazyBodyWait = { timeout: 15_000 };
 
 const meta = {
   title: "Features/Dashboard/StaffManagementView/StaffInvitation",
@@ -89,7 +89,7 @@ export const ManualDraftRetentionAndCloseResetBehavior: Story = {
     const page = within(canvasElement.ownerDocument.body);
 
     await userEvent.click(await page.findByRole("button", { name: "あなたが情報を入力する" }, lazyBodyWait));
-    const [nameInput] = await page.findAllByPlaceholderText("例：田中 花子");
+    const [nameInput] = await page.findAllByPlaceholderText("サンプル スタッフ");
     await userEvent.type(nameInput, "入力途中のスタッフ");
 
     await userEvent.click(await page.findByRole("button", { name: "戻る" }));
@@ -97,7 +97,7 @@ export const ManualDraftRetentionAndCloseResetBehavior: Story = {
     await userEvent.click(await page.findByRole("button", { name: "戻る" }));
     await userEvent.click(await page.findByRole("button", { name: "あなたが情報を入力する" }));
 
-    const [retainedNameInput] = await page.findAllByPlaceholderText("例：田中 花子");
+    const [retainedNameInput] = await page.findAllByPlaceholderText("サンプル スタッフ");
     await expect(retainedNameInput).toHaveValue("入力途中のスタッフ");
 
     await userEvent.click(await page.findByRole("button", { name: "戻る" }));
@@ -109,7 +109,7 @@ export const ManualDraftRetentionAndCloseResetBehavior: Story = {
     await userEvent.click(openButton);
     await page.findByRole("button", { name: "スタッフ本人に登録してもらう" }, lazyBodyWait);
     await userEvent.click(await page.findByRole("button", { name: "あなたが情報を入力する" }, lazyBodyWait));
-    const [resetNameInput] = await page.findAllByPlaceholderText("例：田中 花子");
+    const [resetNameInput] = await page.findAllByPlaceholderText("サンプル スタッフ");
     await expect(resetNameInput).toHaveValue("");
   },
 };

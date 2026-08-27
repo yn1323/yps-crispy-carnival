@@ -208,11 +208,11 @@ describe("割当付き組織人物削除・再追加シナリオ", () => {
       });
       const invitationId = await ctx.db.insert("organizationInvitations", {
         organizationId: primary.organizationId,
+        invitedName: "削除対象",
         email: "removal-target@example.com",
         emailNormalized: "removal-target@example.com",
         tokenDigest: "organization-removal-invitation",
         status: "issued",
-        purpose: "managerAddition",
         inviterMemberId: primary.memberId,
         targetPersonId,
         reservedSeat: false,
@@ -290,8 +290,8 @@ describe("割当付き組織人物削除・再追加シナリオ", () => {
     ).rejects.toThrow("先に管理者権限を外してください。");
     await expect(t.run(async (ctx) => (await ctx.db.get(ids.targetMemberId))?.status)).resolves.toBe("active");
     await expect(
-      manager.mutation(api.organization.mutations.removeManagerRole, {
-        shopId: ids.shopId,
+      manager.mutation(api.organization.mutations.removeManagerRoleForOrganization, {
+        organizationId: ids.organizationId,
         personId: ids.targetPersonId,
         requestId: "organization-person-removal-role",
       }),

@@ -11,7 +11,6 @@ type ManagerInvitationIssueRequest =
   | {
       kind: "existingStaff";
       candidate: ManagerSettingsCandidate;
-      mode: ReadyManagerSettingsOverview["mode"];
       requestId: string;
     }
   | {
@@ -71,11 +70,7 @@ export function useManagerIssueController({
   return {
     isRunning,
     onRequestExistingStaff: (candidate: ManagerSettingsCandidate) => {
-      if (
-        !candidate.canSelect ||
-        latestOverviewRef.current.mode !== "managerAddition" ||
-        !latestOverviewRef.current.actions.canInviteExistingStaff
-      ) {
+      if (!candidate.canSelect || !latestOverviewRef.current.actions.canInviteExistingStaff) {
         return;
       }
       const previous = lastExistingStaffRequestRef.current;
@@ -83,7 +78,6 @@ export function useManagerIssueController({
       const request = {
         kind: "existingStaff",
         candidate,
-        mode: latestOverviewRef.current.mode,
         requestId,
       } as const;
       lastExistingStaffRequestRef.current = { personId: candidate.personId, requestId };
@@ -94,10 +88,7 @@ export function useManagerIssueController({
       });
     },
     onRequestExternal: (invitedName: string, email: string) => {
-      if (
-        latestOverviewRef.current.mode !== "managerAddition" ||
-        !latestOverviewRef.current.actions.canInviteExternal
-      ) {
+      if (!latestOverviewRef.current.actions.canInviteExternal) {
         return;
       }
       const previous = lastExternalRequestRef.current;
@@ -116,9 +107,7 @@ export function useManagerIssueController({
 
 function isIssueRequestAllowed(request: ManagerInvitationIssueRequest, overview: ReadyManagerSettingsOverview) {
   if (request.kind === "existingStaff") {
-    return (
-      overview.mode === "managerAddition" && overview.actions.canInviteExistingStaff && request.mode === overview.mode
-    );
+    return overview.actions.canInviteExistingStaff;
   }
-  return overview.mode === "managerAddition" && overview.actions.canInviteExternal;
+  return overview.actions.canInviteExternal;
 }

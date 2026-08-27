@@ -65,7 +65,7 @@ export function LoginMethodEmailCodeForm({
           void onResend();
         }}
       >
-        確認コードを再送
+        確認コードを再送する
       </Button>
     </Stack>
   );

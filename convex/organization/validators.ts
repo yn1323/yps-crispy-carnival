@@ -7,18 +7,10 @@ export const organizationPersonStatusValidator = v.union(v.literal("active"), v.
 export const organizationMemberStatusValidator = v.union(v.literal("active"), v.literal("removed"));
 
 export const organizationInvitationStatusValidator = v.union(
-  // TODO[narrow]: Remove pending/accepted after m023 and invitation readiness have completed everywhere.
-  v.literal("pending"),
-  v.literal("accepted"),
   v.literal("issued"),
   v.literal("linked"),
   v.literal("revoked"),
   v.literal("expired"),
-);
-
-export const organizationInvitationPurposeValidator = v.union(
-  v.literal("managerAddition"),
-  v.literal("freeManagerExchange"),
 );
 
 export const planIdVersionValidator = v.literal(2);

@@ -288,10 +288,11 @@ describe("organization/queries.getSettings", () => {
       const now = Date.now();
       await ctx.db.insert("organizationInvitations", {
         organizationId: base.organizationId,
+        invitedName: "招待対象",
         email: "invitee@example.com",
         emailNormalized: "invitee@example.com",
         tokenDigest: "never-return-this-digest",
-        status: "pending",
+        status: "issued",
         inviterMemberId: base.memberId,
         reservedSeat: true,
         version: 1,
@@ -322,8 +323,6 @@ describe("organization/queries.getSettings", () => {
       "canInviteManager",
       "canUpdateOrganizationName",
       "deleteOrganizationDisabledReason",
-      "freeManagerExchangeCandidates",
-      "managerInvitationMode",
       "managerInvitations",
       "organizationId",
       "organizationName",
@@ -338,8 +337,6 @@ describe("organization/queries.getSettings", () => {
       canAddShop: true,
       canCreateOrganization: true,
       canInviteManager: true,
-      managerInvitationMode: "addition",
-      freeManagerExchangeCandidates: [],
       managerInvitations: [
         {
           id: expect.any(String),
@@ -466,11 +463,11 @@ describe("organization/queries.getSettings", () => {
       });
       await ctx.db.insert("organizationInvitations", {
         organizationId: base.organizationId,
+        invitedName: "上限予約対象",
         email: "pending-over-limit@example.com",
         emailNormalized: "pending-over-limit@example.com",
         tokenDigest: "settings-free-over-limit-pending",
         status: "issued",
-        purpose: "managerAddition",
         inviterMemberId: base.memberId,
         reservedSeat: true,
         version: 1,
@@ -1026,7 +1023,6 @@ describe("organization/queries.getSettings", () => {
         invitedName: "招待中の人物",
         tokenDigest: "issued-invitation-digest",
         status: "issued",
-        purpose: "managerAddition",
         targetPersonId: personId,
         inviterMemberId: base.memberId,
         reservedSeat: true,
@@ -1084,7 +1080,6 @@ describe("organization/queries.getSettings", () => {
         invitedName: "旧招待人物",
         tokenDigest: "legacy-issued-invitation-digest",
         status: "issued",
-        purpose: "managerAddition",
         targetPersonId: personId,
         inviterMemberId: base.memberId,
         reservedSeat: true,
@@ -1133,7 +1128,6 @@ describe("organization/queries.getSettings", () => {
           invitedName: "配送遅延中の招待対象者",
           tokenDigest: `settings-provider-pair-${caseKey}-digest`,
           status: "issued",
-          purpose: "managerAddition",
           inviterMemberId: base.memberId,
           reservedSeat: true,
           version: 1,
@@ -1349,11 +1343,11 @@ describe("organization/queries.getSettings", () => {
       });
       const invitationId = await ctx.db.insert("organizationInvitations", {
         organizationId: base.organizationId,
+        invitedName: "削除済み招待対象",
         email: "removed-invitee@example.com",
         emailNormalized: "removed-invitee@example.com",
         tokenDigest: "settings-removed-invitee-digest",
-        status: "pending",
-        purpose: "managerAddition",
+        status: "issued",
         inviterMemberId: base.memberId,
         reservedSeat: false,
         version: 1,
@@ -1403,11 +1397,11 @@ describe("organization/queries.getSettings", () => {
       });
       const invitationId = await ctx.db.insert("organizationInvitations", {
         organizationId: base.organizationId,
+        invitedName: "重複招待対象",
         email: "duplicate-invitee@example.com",
         emailNormalized: "duplicate-invitee@example.com",
         tokenDigest: "settings-duplicate-invitee-digest",
-        status: "pending",
-        purpose: "managerAddition",
+        status: "issued",
         inviterMemberId: base.memberId,
         reservedSeat: false,
         version: 1,
@@ -1630,11 +1624,11 @@ describe("organization/queries.getSettings", () => {
         pendingInvitationIds.push(
           await ctx.db.insert("organizationInvitations", {
             organizationId: base.organizationId,
+            invitedName: `招待対象${index}`,
             email: `pending-${index}@example.com`,
             emailNormalized: `pending-${index}@example.com`,
             tokenDigest: `pending-digest-${index}`,
-            status: "pending",
-            purpose: "managerAddition",
+            status: "issued",
             inviterMemberId: base.memberId,
             reservedSeat: false,
             version: 1,
@@ -1647,11 +1641,11 @@ describe("organization/queries.getSettings", () => {
       for (let index = 0; index < 101; index += 1) {
         await ctx.db.insert("organizationInvitations", {
           organizationId: base.organizationId,
+          invitedName: `取消対象${index}`,
           email: `revoked-${index}@example.com`,
           emailNormalized: `revoked-${index}@example.com`,
           tokenDigest: `revoked-digest-${index}`,
           status: "revoked",
-          purpose: "managerAddition",
           inviterMemberId: base.memberId,
           reservedSeat: false,
           version: 1,

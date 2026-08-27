@@ -326,15 +326,7 @@ export async function releasePendingInvitationReservationsForStaffAddition(
   if (issuedInvitations.length > options.scanLimit) {
     throw new ConvexError("管理者招待が多いため、スタッフを追加できません。\n組織設定で招待状況を確認してください。");
   }
-  const pendingInvitations = await ctx.db
-    .query("organizationInvitations")
-    .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "pending"))
-    .take(options.scanLimit - issuedInvitations.length + 1);
-  if (issuedInvitations.length + pendingInvitations.length > options.scanLimit) {
-    throw new ConvexError("管理者招待が多いため、スタッフを追加できません。\n組織設定で招待状況を確認してください。");
-  }
-  const invitations = [...issuedInvitations, ...pendingInvitations];
-  await releaseMatchingInvitationReservations(ctx, invitations, entries, now);
+  await releaseMatchingInvitationReservations(ctx, issuedInvitations, entries, now);
 }
 
 async function releaseMatchingInvitationReservations(

@@ -153,17 +153,12 @@ export const SetupStep2 = ({
       <Stack gap={5}>
         <Field.Root invalid={!!errors.name}>
           <Field.Label>あなたの名前</Field.Label>
-          <Input {...register("name")} maxLength={PERSON_NAME_MAX_LENGTH} placeholder="例：山田 太郎" />
+          <Input {...register("name")} maxLength={PERSON_NAME_MAX_LENGTH} placeholder="サンプル 管理者" />
           {errors.name && <Field.ErrorText>{errors.name.message}</Field.ErrorText>}
         </Field.Root>
         <Field.Root invalid={!!errors.email}>
           <Field.Label>シフト通知先メールアドレス</Field.Label>
-          <Input
-            type="email"
-            {...register("email")}
-            maxLength={EMAIL_MAX_LENGTH}
-            placeholder="例：yamada@example.com"
-          />
+          <Input type="email" {...register("email")} maxLength={EMAIL_MAX_LENGTH} placeholder="manager@example.com" />
           {errors.email && <Field.ErrorText>{errors.email.message}</Field.ErrorText>}
         </Field.Root>
         <Field.Root invalid={!!errors.acceptedLegal}>
@@ -202,7 +197,7 @@ export const SetupStep2 = ({
                   autoCapitalize="characters"
                   autoComplete="off"
                   spellCheck={false}
-                  placeholder="例：ABC123"
+                  placeholder="ABC123"
                   readOnly={appliedPromotionCode !== null}
                   disabled={isPromotionCodeBlocked || isVerifyingPromotionCode}
                   flex={1}

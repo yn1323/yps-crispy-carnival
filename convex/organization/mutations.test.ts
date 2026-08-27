@@ -546,10 +546,11 @@ describe("organization person removal", () => {
       });
       const invitationId = await ctx.db.insert("organizationInvitations", {
         organizationId: base.organizationId,
+        invitedName: "招待対象",
         email: "invitee@example.com",
         emailNormalized: "invitee@example.com",
         tokenDigest: "issued-invitation-digest",
-        status: "pending",
+        status: "issued",
         inviterMemberId: target.memberId as Id<"organizationMembers">,
         reservedSeat: true,
         version: 1,
@@ -564,7 +565,6 @@ describe("organization person removal", () => {
         invitedName: "削除対象",
         tokenDigest: "targeted-issued-invitation-digest",
         status: "issued",
-        purpose: "managerAddition",
         inviterMemberId: base.memberId,
         targetPersonId: target.personId,
         reservedSeat: true,
@@ -1040,10 +1040,11 @@ describe("organization person removal", () => {
       await ctx.db.patch(billingState._id, { freeManagerPersonId: target.personId });
       const invitationId = await ctx.db.insert("organizationInvitations", {
         organizationId: base.organizationId,
+        invitedName: "招待対象",
         email: "role-invitee@example.com",
         emailNormalized: "role-invitee@example.com",
         tokenDigest: "role-removal-invitation",
-        status: "pending",
+        status: "issued",
         inviterMemberId: target.memberId,
         reservedSeat: true,
         version: 1,
@@ -1101,11 +1102,13 @@ describe("organization person removal", () => {
     });
 
     const call = () =>
-      t.withIdentity({ subject: "role_remove_actor" }).mutation(api.organization.mutations.removeManagerRole, {
-        shopId: ids.shopId,
-        personId: ids.personId,
-        requestId: "role-remove-request",
-      });
+      t
+        .withIdentity({ subject: "role_remove_actor" })
+        .mutation(api.organization.mutations.removeManagerRoleForOrganization, {
+          organizationId: ids.organizationId,
+          personId: ids.personId,
+          requestId: "role-remove-request",
+        });
     await expect(call()).resolves.toEqual({ changed: true });
     await expect(call()).resolves.toEqual({ changed: false });
 
@@ -1184,8 +1187,8 @@ describe("organization person removal", () => {
         actorCase === "unauthenticated" ? t : t.withIdentity({ subject: `role_access_${actorCase}_actor` });
 
       await expect(
-        caller.mutation(api.organization.mutations.removeManagerRole, {
-          shopId: ids.actor.shopId,
+        caller.mutation(api.organization.mutations.removeManagerRoleForOrganization, {
+          organizationId: ids.actor.organizationId,
           personId: actorCase === "crossTenant" ? ids.foreignTarget.personId : ids.actorTarget.personId,
           requestId: `role-access-${actorCase}`,
         }),
@@ -1208,11 +1211,13 @@ describe("organization person removal", () => {
     });
 
     await expect(
-      t.withIdentity({ subject: "role_remove_no_staff_actor" }).mutation(api.organization.mutations.removeManagerRole, {
-        shopId: ids.shopId,
-        personId: ids.personId,
-        requestId: "role-no-staff-request",
-      }),
+      t
+        .withIdentity({ subject: "role_remove_no_staff_actor" })
+        .mutation(api.organization.mutations.removeManagerRoleForOrganization, {
+          organizationId: ids.organizationId,
+          personId: ids.personId,
+          requestId: "role-no-staff-request",
+        }),
     ).resolves.toEqual({ changed: true });
     const state = await t.run(async (ctx) => ({
       audit: await ctx.db
@@ -1248,16 +1253,16 @@ describe("organization person removal", () => {
     });
     const actor = t.withIdentity({ subject: "role_intent_actor" });
     await expect(
-      actor.mutation(api.organization.mutations.removeManagerRole, {
-        shopId: ids.shopId,
+      actor.mutation(api.organization.mutations.removeManagerRoleForOrganization, {
+        organizationId: ids.organizationId,
         personId: ids.first.personId,
         requestId: "role-intent-shared",
       }),
     ).resolves.toEqual({ changed: true });
     const before = await readManagerRemovalProtectedState(t);
     await expect(
-      actor.mutation(api.organization.mutations.removeManagerRole, {
-        shopId: ids.shopId,
+      actor.mutation(api.organization.mutations.removeManagerRoleForOrganization, {
+        organizationId: ids.organizationId,
         personId: ids.second.personId,
         requestId: "role-intent-shared",
       }),
@@ -1283,11 +1288,13 @@ describe("organization person removal", () => {
       return { ...base, ...target, memberId: target.memberId };
     });
     await expect(
-      t.withIdentity({ subject: "role_billing_actor" }).mutation(api.organization.mutations.removeManagerRole, {
-        shopId: ids.shopId,
-        personId: ids.personId,
-        requestId: "role-billing-request",
-      }),
+      t
+        .withIdentity({ subject: "role_billing_actor" })
+        .mutation(api.organization.mutations.removeManagerRoleForOrganization, {
+          organizationId: ids.organizationId,
+          personId: ids.personId,
+          requestId: "role-billing-request",
+        }),
     ).resolves.toEqual({ changed: true });
     await expect(t.run(async (ctx) => (await ctx.db.get(ids.memberId))?.status)).resolves.toBe("removed");
   });
@@ -1311,11 +1318,13 @@ describe("organization person removal", () => {
       return { ...base, ...target, assignmentId };
     });
     await expect(
-      t.withIdentity({ subject: "role_future_actor" }).mutation(api.organization.mutations.removeManagerRole, {
-        shopId: ids.shopId,
-        personId: ids.personId,
-        requestId: "role-future-request",
-      }),
+      t
+        .withIdentity({ subject: "role_future_actor" })
+        .mutation(api.organization.mutations.removeManagerRoleForOrganization, {
+          organizationId: ids.organizationId,
+          personId: ids.personId,
+          requestId: "role-future-request",
+        }),
     ).resolves.toEqual({ changed: true });
     const state = await t.run(async (ctx) => ({
       assignment: await ctx.db.get(ids.assignmentId),
@@ -1344,11 +1353,13 @@ describe("organization person removal", () => {
       return base;
     });
     await expect(
-      t.withIdentity({ subject: "role_last_manager" }).mutation(api.organization.mutations.removeManagerRole, {
-        shopId: ids.shopId,
-        personId: ids.personId,
-        requestId: "role-last-request",
-      }),
+      t
+        .withIdentity({ subject: "role_last_manager" })
+        .mutation(api.organization.mutations.removeManagerRoleForOrganization, {
+          organizationId: ids.organizationId,
+          personId: ids.personId,
+          requestId: "role-last-request",
+        }),
     ).rejects.toThrow("最後の有効管理者の管理者権限は外せません");
   });
 
@@ -1365,11 +1376,13 @@ describe("organization person removal", () => {
       return { ...base, ...target };
     });
     await expect(
-      t.withIdentity({ subject: "role_free_actor" }).mutation(api.organization.mutations.removeManagerRole, {
-        shopId: ids.shopId,
-        personId: ids.personId,
-        requestId: "role-free-request",
-      }),
+      t
+        .withIdentity({ subject: "role_free_actor" })
+        .mutation(api.organization.mutations.removeManagerRoleForOrganization, {
+          organizationId: ids.organizationId,
+          personId: ids.personId,
+          requestId: "role-free-request",
+        }),
     ).resolves.toEqual({ changed: true });
     const state = await t.run(async (ctx) => ({
       member: await ctx.db.get(ids.memberId as Id<"organizationMembers">),
@@ -1476,8 +1489,8 @@ describe("organization person removal", () => {
       },
     });
     await expect(
-      actor.mutation(api.organization.mutations.removeManagerRole, {
-        shopId: ids.shopId,
+      actor.mutation(api.organization.mutations.removeManagerRoleForOrganization, {
+        organizationId: ids.organizationId,
         personId: people[1].personId,
         requestId: "free-limit-recovery-manager",
       }),
@@ -1500,15 +1513,17 @@ describe("organization person removal", () => {
     });
 
     const results = await Promise.allSettled([
-      t.withIdentity({ subject: "role_free_concurrent_actor" }).mutation(api.organization.mutations.removeManagerRole, {
-        shopId: ids.shopId,
-        personId: ids.target.personId,
-        requestId: "role-free-concurrent-remove-target",
-      }),
+      t
+        .withIdentity({ subject: "role_free_concurrent_actor" })
+        .mutation(api.organization.mutations.removeManagerRoleForOrganization, {
+          organizationId: ids.organizationId,
+          personId: ids.target.personId,
+          requestId: "role-free-concurrent-remove-target",
+        }),
       t
         .withIdentity({ subject: "role_free_concurrent_target" })
-        .mutation(api.organization.mutations.removeManagerRole, {
-          shopId: ids.shopId,
+        .mutation(api.organization.mutations.removeManagerRoleForOrganization, {
+          organizationId: ids.organizationId,
           personId: ids.personId,
           requestId: "role-free-concurrent-remove-actor",
         }),

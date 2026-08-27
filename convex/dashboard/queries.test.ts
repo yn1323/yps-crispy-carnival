@@ -650,11 +650,11 @@ describe("dashboard/queries", () => {
         });
         await ctx.db.insert("organizationInvitations", {
           organizationId: seeded.organizationId,
+          invitedName: "予約対象",
           email: "reserved-seat@example.com",
           emailNormalized: "reserved-seat@example.com",
           tokenDigest: "dashboard-usage-reserved-seat",
           status: "issued",
-          purpose: "managerAddition",
           inviterMemberId: seeded.memberId,
           reservedSeat: true,
           version: 1,
@@ -2114,7 +2114,7 @@ describe("dashboard/queries", () => {
       });
     });
 
-    it("対象人物の管理者所属と招待状態を返し、メール変更後の招待し直しを案内する", async () => {
+    it("対象人物の管理者所属を返す", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
@@ -2179,119 +2179,10 @@ describe("dashboard/queries", () => {
       const before = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
       expect(before.page.find((staff) => staff.name === "別の管理者")).toMatchObject({
         isManager: true,
-        managerInvitationState: { kind: "unavailable", reason: "このユーザーはすでに管理者です。" },
       });
       expect(before.page.find((staff) => staff._id === ids.targetStaffId)).toMatchObject({
         isManager: false,
-        managerInvitationState: {
-          kind: "available",
-          mode: "addition",
-          replacesStaleInvitation: false,
-        },
       });
-
-      const invitationId = await t.run(async (ctx) => {
-        const now = Date.now();
-        return await ctx.db.insert("organizationInvitations", {
-          organizationId: ids.organizationId,
-          email: "target-before@example.com",
-          emailNormalized: "target-before@example.com",
-          tokenDigest: "dashboard-target-pending",
-          status: "pending",
-          purpose: "managerAddition",
-          inviterMemberId: ids.memberId,
-          targetPersonId: ids.targetPersonId,
-          reservedSeat: false,
-          version: 1,
-          expiresAt: now + 86_400_000,
-          createdAt: now,
-          updatedAt: now,
-        });
-      });
-      const pending = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
-      expect(pending.page.find((staff) => staff._id === ids.targetStaffId)?.managerInvitationState).toEqual({
-        kind: "pending",
-        mode: "addition",
-      });
-
-      await t.run(async (ctx) => {
-        const now = Date.now();
-        await ctx.db.patch(ids.targetPersonId, {
-          email: "target-after@example.com",
-          emailNormalized: "target-after@example.com",
-          updatedAt: now,
-        });
-        await ctx.db.patch(ids.targetStaffId, {
-          email: "target-after@example.com",
-          emailNormalized: "target-after@example.com",
-        });
-      });
-      const stale = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
-      expect(stale.page.find((staff) => staff._id === ids.targetStaffId)?.managerInvitationState).toEqual({
-        kind: "available",
-        mode: "addition",
-        replacesStaleInvitation: true,
-      });
-
-      const currentEmailLegacyInvitationId = await t.run(async (ctx) => {
-        const now = Date.now();
-        return await ctx.db.insert("organizationInvitations", {
-          organizationId: ids.organizationId,
-          email: "target-after@example.com",
-          emailNormalized: "target-after@example.com",
-          tokenDigest: "dashboard-current-email-legacy-pending",
-          status: "pending",
-          purpose: "managerAddition",
-          inviterMemberId: ids.memberId,
-          reservedSeat: false,
-          version: 1,
-          expiresAt: now + 86_400_000,
-          createdAt: now,
-          updatedAt: now,
-        });
-      });
-      const conflicted = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
-      expect(conflicted.page.find((staff) => staff._id === ids.targetStaffId)?.managerInvitationState).toEqual({
-        kind: "unavailable",
-        reason: "このユーザーへの管理者招待の状態を確認できません。\n組織設定を確認してください。",
-      });
-
-      await t.run(async (ctx) => {
-        const now = Date.now();
-        await ctx.db.patch(invitationId, {
-          status: "revoked",
-          revokedAt: now,
-          version: 2,
-          updatedAt: now,
-        });
-        await ctx.db.patch(currentEmailLegacyInvitationId, {
-          status: "revoked",
-          revokedAt: now,
-          version: 2,
-          updatedAt: now,
-        });
-        await ctx.db.insert("organizationInvitations", {
-          organizationId: ids.organizationId,
-          email: "target-after@example.com",
-          emailNormalized: "target-after@example.com",
-          tokenDigest: "dashboard-current-email-other-target-pending",
-          status: "pending",
-          purpose: "managerAddition",
-          inviterMemberId: ids.memberId,
-          targetPersonId: ids.otherManagerPersonId,
-          reservedSeat: false,
-          version: 1,
-          expiresAt: now + 86_400_000,
-          createdAt: now,
-          updatedAt: now,
-        });
-      });
-      const wrongTarget = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
-      expect(wrongTarget.page.find((staff) => staff._id === ids.targetStaffId)?.managerInvitationState).toEqual({
-        kind: "unavailable",
-        reason: "このユーザーへの管理者招待の状態を確認できません。\n組織設定を確認してください。",
-      });
-      expect(await t.run((ctx) => ctx.db.get(invitationId))).toMatchObject({ status: "revoked" });
     });
 
     it("返り値に不要なフィールドが含まれない", async () => {
@@ -2322,7 +2213,6 @@ describe("dashboard/queries", () => {
         "isLineLinked",
         "isManager",
         "isOrganizationLinked",
-        "managerInvitationState",
         "name",
         "organizationPersonId",
       ]);

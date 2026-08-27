@@ -661,7 +661,6 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
             invitedName: `上限招待${index}`,
             tokenDigest: `manager-limit-token-${index}`,
             status: "issued",
-            purpose: "managerAddition",
             inviterMemberId: base.memberId,
             reservedSeat: true,
             version: 1,

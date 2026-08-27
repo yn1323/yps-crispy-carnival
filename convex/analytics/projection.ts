@@ -9,7 +9,6 @@ type OrganizationPayload = Extract<AnalyticsSourceEventPayload, { kind: "organiz
 type ShopPayload = Extract<AnalyticsSourceEventPayload, { kind: "shop" }>;
 type PersonPayload = Extract<AnalyticsSourceEventPayload, { kind: "person" }>;
 type ManagerMembershipPayload = Extract<AnalyticsSourceEventPayload, { kind: "managerMembership" }>;
-type ManagerMembershipExchangePayload = Extract<AnalyticsSourceEventPayload, { kind: "managerMembershipExchange" }>;
 type StaffMembershipPayload = Extract<AnalyticsSourceEventPayload, { kind: "staffMembership" }>;
 type CyclePayload = Extract<AnalyticsSourceEventPayload, { kind: "cycle" }>;
 type LineAccountPayload = Extract<AnalyticsSourceEventPayload, { kind: "lineAccount" }>;
@@ -326,39 +325,6 @@ async function applyManagerMembership(
   };
   if (exact) await ctx.db.replace(exact._id, value);
   else await ctx.db.insert("analyticsMemberships", value);
-}
-
-async function applyManagerMembershipExchange(
-  ctx: MutationCtx,
-  organizationId: Id<"organizations">,
-  payload: ManagerMembershipExchangePayload,
-  dataStartAt: number,
-) {
-  if (payload.formerPersonId === payload.nextPersonId) throw new Error("analytics_manager_exchange_same_person");
-  await applyManagerMembership(
-    ctx,
-    organizationId,
-    {
-      kind: "managerMembership",
-      personId: payload.formerPersonId,
-      status: "removed",
-      validFrom: payload.validFrom,
-      validTo: payload.validFrom,
-    },
-    dataStartAt,
-  );
-  await applyManagerMembership(
-    ctx,
-    organizationId,
-    {
-      kind: "managerMembership",
-      personId: payload.nextPersonId,
-      personFirstObservedAt: payload.nextPersonFirstObservedAt,
-      status: "active",
-      validFrom: payload.validFrom,
-    },
-    dataStartAt,
-  );
 }
 
 async function applyStaffMembership(
@@ -843,10 +809,6 @@ export async function applySourceEventPage(
     case "managerMembership":
       if (!event.organizationId) throw new Error("analytics_event_manager_scope_missing");
       await applyManagerMembership(ctx, event.organizationId, payload, dataStartAt);
-      return projectionComplete;
-    case "managerMembershipExchange":
-      if (!event.organizationId) throw new Error("analytics_event_manager_scope_missing");
-      await applyManagerMembershipExchange(ctx, event.organizationId, payload, dataStartAt);
       return projectionComplete;
     case "staffMembership":
       if (!event.organizationId || !event.shopId) throw new Error("analytics_event_staff_scope_missing");

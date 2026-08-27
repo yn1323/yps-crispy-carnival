@@ -38,10 +38,6 @@ export function ManagerSettingsView({
   onRequestRevoke,
   onRequestRemoveRole,
 }: Props) {
-  const canIssueManagerAddition = overview.mode === "managerAddition";
-  const legacyModeDisabledReason =
-    "以前の管理者交代機能は終了しました。送信済みの交代招待を取り消すか、有効期限が切れてから画面を更新してください。";
-
   return (
     <Stack gap={{ base: 6, md: 8 }}>
       <DetailPageHeader
@@ -61,32 +57,28 @@ export function ManagerSettingsView({
         <Grid templateColumns={{ base: "1fr", md: "repeat(2, minmax(0, 1fr))" }} gap={3}>
           <ManagerActionCard
             title="既存スタッフを管理者として招待"
-            description="組織に登録済みのスタッフから選択"
+            description="登録済みのスタッフから選択"
             icon={LuUsers}
             destination="existingStaff"
-            enabled={canIssueManagerAddition && overview.actions.canInviteExistingStaff}
+            enabled={overview.actions.canInviteExistingStaff}
             onClick={() => onOpenInvitation("existingStaff")}
-            disabledReason={
-              canIssueManagerAddition ? overview.actions.existingStaffDisabledReason : legacyModeDisabledReason
-            }
+            disabledReason={overview.actions.existingStaffDisabledReason}
           />
           <ManagerActionCard
             title="新しいユーザーを管理者として招待"
-            description="経営者・本部担当者などをメールで招待"
+            description="新規スタッフを管理者として招待"
             icon={LuMailPlus}
             destination="external"
-            enabled={canIssueManagerAddition && overview.actions.canInviteExternal}
+            enabled={overview.actions.canInviteExternal}
             onClick={() => onOpenInvitation("external")}
-            disabledReason={
-              canIssueManagerAddition ? overview.actions.externalDisabledReason : legacyModeDisabledReason
-            }
+            disabledReason={overview.actions.externalDisabledReason}
           />
         </Grid>
       </Stack>
 
       <Stack as="section" gap={4} aria-labelledby="current-managers-heading">
         <SectionHeading id="current-managers-heading" icon={LuShieldCheck}>
-          現在の管理者
+          管理者一覧
         </SectionHeading>
         <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
@@ -104,16 +96,10 @@ export function ManagerSettingsView({
 
       <Stack as="section" gap={4} aria-labelledby="pending-manager-invitations-heading">
         <SectionHeading id="pending-manager-invitations-heading" icon={LuMailPlus}>
-          送信済みの管理者招待
+          招待中
         </SectionHeading>
         {overview.invitations.length === 0 ? (
-          <Empty
-            icon={LuMailPlus}
-            title="送信済みの管理者招待はありません"
-            description="新しく招待すると、ここで再送や取り消しができます。"
-            variant="section"
-            py={8}
-          />
+          <Empty icon={LuMailPlus} title="招待中の管理者はいません" description="" variant="section" py={8} />
         ) : (
           <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.100" overflow="hidden">
             <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
@@ -315,7 +301,7 @@ function ManagerRow({
                 {manager.name}
               </Text>
               {manager.isSelf && (
-                <Badge colorPalette="teal" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
+                <Badge colorPalette="green" variant="subtle" borderRadius="full" px={2} textStyle="2xs">
                   あなた
                 </Badge>
               )}
@@ -392,11 +378,6 @@ function InvitationRow({
           <Text fontSize="sm" color="fg.muted" overflowWrap="anywhere">
             {invitation.invitedEmail}
           </Text>
-          {invitation.purpose === "freeManagerExchange" && (
-            <Text fontSize="xs" color="orange.700">
-              以前の交代方式の招待です。承認されると、現在の管理者から管理者権限が外れます。
-            </Text>
-          )}
         </Stack>
       </HStack>
       <Stack gap={1} minW={{ md: "176px" }} align={{ base: "flex-start", md: "flex-end" }}>
@@ -411,16 +392,6 @@ function InvitationRow({
         <Grid templateColumns="repeat(2, minmax(0, 1fr))" gap={2}>
           <Button
             variant="outline"
-            size={{ base: "md", md: "sm" }}
-            minH={{ base: "44px", md: "36px" }}
-            disabled={!canResend}
-            aria-describedby={!canResend ? disabledReasonId : undefined}
-            onClick={() => onRequestResend(invitation)}
-          >
-            再送する
-          </Button>
-          <Button
-            variant="outline"
             colorPalette="red"
             size={{ base: "md", md: "sm" }}
             minH={{ base: "44px", md: "36px" }}
@@ -429,6 +400,17 @@ function InvitationRow({
             onClick={() => onRequestRevoke(invitation)}
           >
             取り消す
+          </Button>
+          <Button
+            variant="outline"
+            size={{ base: "md", md: "sm" }}
+            minH={{ base: "44px", md: "36px" }}
+            colorPalette="teal"
+            disabled={!canResend}
+            aria-describedby={!canResend ? disabledReasonId : undefined}
+            onClick={() => onRequestResend(invitation)}
+          >
+            再送する
           </Button>
         </Grid>
         {mutationDisabledReason && (

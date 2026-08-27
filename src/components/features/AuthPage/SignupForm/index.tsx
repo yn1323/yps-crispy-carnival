@@ -70,12 +70,13 @@ export function SignupForm({
       <AuthError message={errorMessage} />
       <Field.Root invalid={!!errors.email}>
         <Field.Label>メールアドレス</Field.Label>
-        <Input type="email" autoComplete="email" placeholder="example@example.com" {...register("email")} />
+        <Input type="email" autoComplete="email" placeholder="login@example.com" {...register("email")} />
         <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
       </Field.Root>
       <Field.Root invalid={!!errors.password}>
         <Field.Label>パスワード</Field.Label>
-        <PasswordInput autoComplete="new-password" placeholder="8文字以上" {...register("password")} />
+        <PasswordInput autoComplete="new-password" {...register("password")} />
+        <Field.HelperText>8文字以上で入力してください。</Field.HelperText>
         <Field.ErrorText>{errors.password?.message}</Field.ErrorText>
       </Field.Root>
       <ClerkCaptcha />

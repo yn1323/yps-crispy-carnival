@@ -101,6 +101,18 @@ const message = `${shopName} で使うシフトリの案内です`;
 
 ## 要素別ルール
 
+### Placeholders
+
+- placeholderは入力例または形式の補助に使い、label、accessible name、必須条件、エラー、操作結果の説明を置き換えない。
+- 空の状態から利用者が入力するtext、email、search、Textareaには、入力内容を判断しやすくする具体例を入れる。placeholderの先頭に`例：`または`例:`は付けない。
+- 氏名、店舗名、組織名は、実在の人物や店舗を想起させない明らかなサンプル表現にする。役割に応じて`サンプル スタッフ`、`サンプル 管理者`、`サンプル ユーザー`、`サンプル店舗`、`サンプル組織`を使う。
+- メールアドレスは予約済みの`example.com`、`example.net`、`example.org`だけを使う。役割に応じて`staff@example.com`、`manager@example.com`、`login@example.com`、`contact@example.com`、`user@example.com`を使い、`email.com`や実サービスのドメインは使わない。
+- Textareaは、入力してほしい内容が分かる短い例文にする。`入力してください`、`ご記載ください`のようにlabelと重複する指示だけを置かない。
+- 確認コードは`123456`を使う。アカウント設定のpasswordとバックアップコードは`******`を使い、実際の秘密値や文字数要件を例示しない。ログイン、新規登録、パスワード再設定のpasswordは、labelと常時見える補足で目的と要件が分かる場合はplaceholderを付けない。
+- SelectとComboboxは、`選択してください`、`開始`、`終了`などの操作promptを使い、入力例として扱わない。
+- hidden、checkbox、radio、file、toggle、native date/time/monthと、値が常に事前入力される編集fieldにはplaceholderを追加しない。
+- placeholderを変更しても、input type、autocomplete、name、label、aria属性、validation、送信値は変えない。
+
 ### Buttons and CTAs
 
 - 目的語と動詞を使う: `変更を保存`、`この募集を削除`、`希望シフトを提出する`。

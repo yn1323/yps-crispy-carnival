@@ -62,7 +62,6 @@ function expectedEventType(payload: AnalyticsSourceEventPayload): AnalyticsSourc
     case "person":
       return "person.changed";
     case "managerMembership":
-    case "managerMembershipExchange":
       return "managerMembership.changed";
     case "staffMembership":
     case "staffMembershipBatch":

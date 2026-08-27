@@ -124,7 +124,7 @@ function CurrentUserLoginMethods({
         });
       } else {
         showSuccessToast({
-          title: "Googleログインを追加しました",
+          title: "Google認証ログインを追加しました",
         });
       }
       onBackToOverview();

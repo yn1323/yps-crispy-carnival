@@ -15,7 +15,7 @@ export function ShopNameField({ registration, invalid, errorMessage, hideLabel =
       {!hideLabel && <Field.Label>お店の名前</Field.Label>}
       <Input
         aria-label={hideLabel ? "お店の名前" : undefined}
-        placeholder="例：居酒屋たなか"
+        placeholder="サンプル店舗"
         maxLength={SHOP_NAME_MAX_LENGTH}
         {...registration}
       />

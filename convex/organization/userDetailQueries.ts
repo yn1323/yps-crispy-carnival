@@ -8,14 +8,13 @@ import { getOrganizationPersonLineState } from "../line/service";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
-import { managerInvitationStateValidator, resolvePersonManagerInvitationState } from "./managerInvitationState";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
 import {
   collectPersonRemovalPreview,
   personRemovalPreviewValidator,
   toPublicPersonRemovalPreview,
 } from "./personRemoval";
-import { getOrganizationUsageSnapshot, getValidActiveOrganizationManagerPersonIds } from "./service";
+import { getValidActiveOrganizationManagerPersonIds } from "./service";
 import {
   createOrganizationPersonShopMembershipFingerprint,
   INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON,
@@ -33,7 +32,6 @@ export const userDetailValidator = v.object({
   isSelf: v.boolean(),
   managerRole: v.union(v.literal("active"), v.literal("none")),
   hasManagerInvitation: v.boolean(),
-  managerInvitationState: managerInvitationStateValidator,
   canRemoveManagerRole: v.boolean(),
   managerRoleRemovalDisabledReason: v.optional(v.string()),
   canRemove: v.boolean(),
@@ -123,31 +121,29 @@ export async function getOrganizationUserDetail(
   const person = await ctx.db.get(personId);
   if (!person || person.organizationId !== organization._id || person.status !== "active") return null;
 
-  const [personMembers, staffDocs, shopDocs, access, usage, validActiveManagerPersonIds, invitationDocs] =
-    await Promise.all([
-      ctx.db
-        .query("organizationMembers")
-        .withIndex("by_organizationId_and_personId", (q) =>
-          q.eq("organizationId", organization._id).eq("personId", person._id),
-        )
-        .take(2),
-      ctx.db
-        .query("staffs")
-        .withIndex("by_organizationId_and_organizationPersonId", (q) =>
-          q.eq("organizationId", organization._id).eq("organizationPersonId", person._id),
-        )
-        .take(ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT + 1),
-      ctx.db
-        .query("shops")
-        .withIndex("by_organizationId_and_isDeleted", (q) =>
-          q.eq("organizationId", organization._id).eq("isDeleted", false),
-        )
-        .take(ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT + 1),
-      getOrganizationAccessPolicy(ctx, organization._id),
-      getOrganizationUsageSnapshot(ctx, organization._id, args.now),
-      getValidActiveOrganizationManagerPersonIds(ctx, organization._id),
-      collectIssuedInvitationsByOrganization(ctx, organization._id),
-    ]);
+  const [personMembers, staffDocs, shopDocs, access, validActiveManagerPersonIds, invitationDocs] = await Promise.all([
+    ctx.db
+      .query("organizationMembers")
+      .withIndex("by_organizationId_and_personId", (q) =>
+        q.eq("organizationId", organization._id).eq("personId", person._id),
+      )
+      .take(2),
+    ctx.db
+      .query("staffs")
+      .withIndex("by_organizationId_and_organizationPersonId", (q) =>
+        q.eq("organizationId", organization._id).eq("organizationPersonId", person._id),
+      )
+      .take(ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT + 1),
+    ctx.db
+      .query("shops")
+      .withIndex("by_organizationId_and_isDeleted", (q) =>
+        q.eq("organizationId", organization._id).eq("isDeleted", false),
+      )
+      .take(ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT + 1),
+    getOrganizationAccessPolicy(ctx, organization._id),
+    getValidActiveOrganizationManagerPersonIds(ctx, organization._id),
+    collectIssuedInvitationsByOrganization(ctx, organization._id),
+  ]);
   const billingState = access?.billingState ?? null;
   const isActiveActor = organizationMember.status === "active";
   const canWriteNormally = isActiveActor && access?.canWriteBusinessData === true;
@@ -255,17 +251,6 @@ export async function getOrganizationUserDetail(
     })
     .sort((a, b) => a.shopName.localeCompare(b.shopName, "ja") || a.shopId.localeCompare(b.shopId));
   const activePendingInvitations = invitationDocs.filter((invitation) => invitation.expiresAt > args.now);
-  const managerInvitationState = await resolvePersonManagerInvitationState(ctx, {
-    organization,
-    actorMember: organizationMember,
-    person,
-    personMembers,
-    contactEmail: person.email,
-    isOrganizationLinked: true,
-    billingState,
-    usage,
-    activePendingInvitations,
-  });
 
   const policy = billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
   const personCapabilities = deriveOrganizationPersonCapabilities({
@@ -320,7 +305,6 @@ export async function getOrganizationUserDetail(
     isSelf: person._id === organizationMember.personId,
     managerRole,
     hasManagerInvitation: activePendingInvitations.some((invitation) => invitation.targetPersonId === person._id),
-    managerInvitationState,
     ...personCapabilities,
     removalPreview: toPublicPersonRemovalPreview(removalPreview),
     canWrite: canWriteNormally,

@@ -77,7 +77,7 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
               <Flex gap={3} direction={{ base: "column", lg: "row" }} align={{ lg: "flex-start" }}>
                 <Field.Root w={{ lg: "200px" }} flexShrink={0} invalid={!!nameError} minH={{ lg: "60px" }}>
                   <Input
-                    placeholder="例：田中 花子"
+                    placeholder="サンプル スタッフ"
                     maxLength={PERSON_NAME_MAX_LENGTH}
                     {...register(`entries.${index}.name`)}
                   />
@@ -87,7 +87,7 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
                 <Field.Root invalid={!!emailError} flex={1} minH={{ lg: "60px" }}>
                   <Input
                     type="email"
-                    placeholder="例：hanako@example.com"
+                    placeholder="staff@example.com"
                     maxLength={EMAIL_MAX_LENGTH}
                     {...register(`entries.${index}.email`)}
                   />

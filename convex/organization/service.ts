@@ -7,7 +7,6 @@ import {
   canonicalizeOrganizationBillingState,
 } from "../organizationBilling/policy";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
-import { getOrganizationInvitationPurpose } from "../organizationInvitation/purpose";
 import { MANAGER_PERSON_REMOVAL_DISABLED_REASON } from "./personCapabilities";
 
 type DbCtx = {
@@ -319,9 +318,7 @@ export async function getOrganizationUsageSnapshot(
     (invitation) => invitation._id !== options?.excludedInvitationId && invitation.expiresAt > now,
   );
   const reservedSeatCount = activePendingInvitations.filter((invitation) => invitation.reservedSeat).length;
-  const pendingManagerInvitationCount = activePendingInvitations.filter(
-    (invitation) => getOrganizationInvitationPurpose(invitation) === "managerAddition",
-  ).length;
+  const pendingManagerInvitationCount = activePendingInvitations.length;
   return {
     personCount,
     reservedSeatCount,

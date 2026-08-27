@@ -84,7 +84,6 @@ const baseData: UserDetailData = {
   isSelf: false,
   managerRole: "active",
   hasManagerInvitation: false,
-  managerInvitationState: { kind: "unavailable", reason: "このユーザーはすでに管理者です。" },
   canRemoveManagerRole: true,
   managerRoleRemovalDisabledReason: undefined,
   canRemove: false,
@@ -107,7 +106,6 @@ const baseData: UserDetailData = {
 const multipleStoresData: UserDetailData = {
   ...baseData,
   managerRole: "none",
-  managerInvitationState: { kind: "available", mode: "addition", replacesStaleInvitation: false },
   canRemoveManagerRole: false,
   canRemove: true,
   removeDisabledReason: undefined,
@@ -118,7 +116,6 @@ const multipleStoresData: UserDetailData = {
 const activeManagerMultipleStoresData: UserDetailData = {
   ...multipleStoresData,
   managerRole: "active",
-  managerInvitationState: { kind: "unavailable", reason: "このユーザーはすでに管理者です。" },
   canRemoveManagerRole: true,
   canRemove: false,
   removeDisabledReason: "管理者は削除できません。先に管理者権限を外してください。",
@@ -897,7 +894,6 @@ export const ShopMembershipNoActiveShopBehavior: Story = {
 const aggregateRemovalLimitData: UserDetailData = {
   ...baseData,
   managerRole: "none",
-  managerInvitationState: { kind: "available", mode: "addition", replacesStaleInvitation: false },
   shops: [
     shibuyaShop,
     {

@@ -143,7 +143,6 @@ export const DayCard = ({
           items={timeOptions}
           value={entry.startTime}
           onChange={(v) => onTimeChange("startTime", v)}
-          placeholder=""
           size="xs"
           w="80px"
         />
@@ -154,7 +153,6 @@ export const DayCard = ({
           items={timeOptions}
           value={entry.endTime}
           onChange={(v) => onTimeChange("endTime", v)}
-          placeholder=""
           size="xs"
           w="80px"
         />

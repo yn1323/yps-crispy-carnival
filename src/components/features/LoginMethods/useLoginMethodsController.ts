@@ -39,7 +39,7 @@ const GOOGLE_DISCONNECT_REVERIFICATION_OPTIONS: LoginMethodOperationOptions = {
   preferredFirstFactorStrategy: "password",
 };
 const GOOGLE_DISCONNECT_EMAIL_REQUIRED_MESSAGE =
-  "メールアドレス未設定時はGoogle認証を解除できません。先にメールアドレスとパスワードを設定してください。";
+  "Google認証を解除できません。先にメールアドレスとパスワードを設定してください。";
 const GOOGLE_DISCONNECT_STATE_CHANGED_MESSAGE =
   "ログイン方法の状態が変わったため、Google連携を解除していません。最新の状態を読み込んでください。";
 const GOOGLE_DISCONNECT_CLEANUP_PENDING_MESSAGE =
@@ -203,7 +203,7 @@ export function useLoginMethodsController({
     setEmailChangeDialog({ isOpen: false });
     setEmailPasswordState(IDLE_STATE);
     showSuccessToast({
-      title: "メインのメールアドレスを変更しました",
+      title: "メールアドレスを変更しました",
     });
   };
   const { run: reload } = useSingleFlight(async () => {
