@@ -55,46 +55,6 @@ describe("organizationBilling/actions", () => {
     expect(jobs.some((job) => job.channel === "line")).toBe(false);
   });
 
-  it.each([
-    {
-      event: "restrictedStarted" as const,
-      notificationDetails: {
-        planIdVersion: 2 as const,
-        targetPlan: "standard" as const,
-        restrictionReason: "planLimitExceeded" as const,
-      },
-      expectedContext: "organizationBilling.planActivated",
-      expectedCopy: "Standardを開始しました",
-    },
-    {
-      event: "paidActivationFailedRestrictedContinued" as const,
-      notificationDetails: { restrictionReason: "paymentActivationFailed" as const },
-      expectedContext: "organizationBilling.paidActivationFailedFreeContinued",
-      expectedCopy: "Freeを継続しています",
-    },
-  ])("旧scheduled event $eventを受理し現行通知へ収束する", async (testCase) => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run((ctx) =>
-      seedOrganizationManagerShop(ctx, { subject: `legacy_notice_${testCase.event}`, plan: "business" }),
-    );
-
-    await expect(
-      t.action(internal.organizationBilling.actions.enqueueBillingNotification, {
-        organizationId: ids.organizationId,
-        event: testCase.event,
-        eventKey: `legacy-notice-${testCase.event}`,
-        notificationDetails: testCase.notificationDetails,
-      }),
-    ).resolves.toEqual({ enqueuedCount: 1 });
-
-    const jobs = await t.run((ctx) => ctx.db.query("notificationOutbox").collect());
-    expect(jobs).toHaveLength(1);
-    expect(jobs[0]?.payload).toMatchObject({ kind: "email", context: testCase.expectedContext });
-    if (jobs[0]?.payload.kind !== "email") throw new Error("email payload not found");
-    expect(jobs[0].payload.html).toContain(testCase.expectedCopy);
-    expect(jobs[0].payload.context.toLowerCase()).not.toContain("restricted");
-  });
-
   it("支払い不要Pro相当では内部通知actionを直接呼んでも課金通知を作成しない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run((ctx) =>
