@@ -4,9 +4,15 @@ UIに必須の4状態。Storybook Storyで全部見える状態を必ず用意�
 
 ## Loading
 
-### 第一候補：Skeleton
+### まとまった領域：ShiftoriLoading
 
-- レイアウト形状を保持（背景に薄いブロック）
+- ページ全体、Card、sectionなど一定の面積を占めるLoadingには`src/components/ui/ShiftoriLoading`を使う
+- 表示はシフトリアイコンと`Loading...`に統一し、`variant`と`minH`を対象領域へ合わせる
+- 見出しまたはlandmarkと対応するアクセシブルな名前を付ける
+
+### 局所的な差し替え：Skeleton
+
+- すでに表示されている面の中で、差し替わる内容のレイアウト形状を保持する
 - shimmer animation で動きを示す
 - データが入る場所のサイズ・位置を予告
 
@@ -27,7 +33,7 @@ UIに必須の4状態。Storybook Storyで全部見える状態を必ず用意�
 
 避けるべきタイミング：
 - 長時間（10秒以上）：Spinnerを見続けるのは苦痛 → Skeleton or progress
-- ページ全体（FullPageSpinner濫用）：白画面が長い → Skeleton
+- ページ全体、Card、sectionなどのまとまった領域 → `ShiftoriLoading`
 
 ### ボタン内 Loading
 - ボタン disable + 内部 spinner
@@ -148,7 +154,7 @@ UIに必須の4状態。Storybook Storyで全部見える状態を必ず用意�
 データ取得の3状態：
 
 ```
-isLoading → Skeleton表示
+isLoading → 領域に応じてShiftoriLoadingまたはSkeleton表示
 isError → Errorメッセージ
 data && data.length === 0 → Empty
 data && data.length > 0 → コンテンツ
@@ -176,7 +182,7 @@ data && data.length > 0 → コンテンツ
 
 Storybook Stories（必須）：
 - `Default` - 通常データ
-- `Loading` - Skeleton
+- `Loading` - 対象領域に適したShiftoriLoadingまたはSkeleton
 - `Empty` - 空（3種類別Storyにしてもよい）
 - `Error` - エラー
 - `Many` - 大量データ

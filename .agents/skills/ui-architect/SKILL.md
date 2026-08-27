@@ -49,6 +49,10 @@ UI作業を、利用者のタスクから検証まで順に進める。
 - 権限不足
 - 利用不可
 
+ページ全体、Card、sectionなどまとまった領域のLoadingは、`doc/rules/ui-design.md`の共通Loading基準に照らして`src/components/ui/ShiftoriLoading`を使う。
+ボタン内や小さなinline処理は、操作対象に対応する局所的な進行表示を使う。
+Loading、Empty、Error、Successの部品選定に迷う場合は`references/states.md`を読む。
+
 非同期処理では、受付、送信、到達、完了を実際の保証に合わせて区別する。
 送信操作は、見た目のloadingやdisabledだけでなく、フロントの同期ガードと必要なバックエンドの冪等性で二重実行を防ぐ。
 
@@ -58,6 +62,7 @@ UI作業を、利用者のタスクから検証まで順に進める。
 - シフト管理の正式用語は`references/ui-writing.md`の「シフト管理の基本用語」を正本とする。
 - 内部の型名、状態名、queue、tokenなどをそのまま表示しない。
 - 利用者に見える事実だけを書き、未完了の処理を完了と表現しない。
+- placeholderを設計または監査する場合は、`references/ui-writing.md`の「Placeholders」を読み、入力種別、事前値、補足文との役割を区別する。
 - ボタン、ラベル、Toast、表見出しは短くする。
 - ボタンやラベルなどの短いUI文言にも、`../japanese-tech-writing/SKILL.md`の「直接的で自然な文」を適用する。
 - 複数文の説明を構成から推敲する場合は`$japanese-tech-writing`を使う。
