@@ -23,6 +23,8 @@ export const notificationPurposeValidator = v.union(v.literal("business"), v.lit
 // 永続化する理由は監査・運用に必要な安全な分類だけに限定し、宛先やtokenを含めない。
 export const notificationCancelReasonValidator = v.union(
   v.literal("organization_billing_changed"),
+  // TODO[narrow]: 全deploymentで旧OutboxのcancelReason移行と残件0を確認後に削除する。
+  v.literal("organization_restricted"),
   v.literal("organization_usage_limit_exceeded"),
   v.literal("organization_inactive"),
   v.literal("shop_inactive"),
