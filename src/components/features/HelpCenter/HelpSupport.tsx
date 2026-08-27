@@ -8,16 +8,16 @@ export function HelpSupport() {
       pt={{ base: 8, lg: 10 }}
       borderTopWidth="1px"
       borderColor="gray.200"
-      align={{ base: "stretch", md: "flex-end" }}
+      align="flex-end"
       gap={3}
     >
-      <Stack gap={1} align={{ base: "flex-start", md: "flex-end" }} textAlign={{ md: "right" }}>
-        <Flex align="center" gap={2} color="gray.950" fontWeight="bold" justify={{ md: "flex-end" }}>
+      <Stack gap={1} align="flex-end" textAlign="right">
+        <Flex align="center" gap={2} color="gray.950" fontWeight="bold" justify="flex-end">
           <LuCircleHelp aria-hidden />
           解決しない場合
         </Flex>
         <Text color="gray.600" fontSize="sm">
-          画面、操作、エラーメッセージなどを添えてご連絡ください。
+          画面、操作、エラーメッセージを添えてご連絡ください。
         </Text>
       </Stack>
       <Link href="/contact" color="teal.700" fontWeight="bold" display="inline-flex" alignItems="center" gap={2}>

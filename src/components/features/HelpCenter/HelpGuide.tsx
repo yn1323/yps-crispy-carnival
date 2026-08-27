@@ -317,7 +317,6 @@ function HelpGuideNotFound() {
           icon={LuCircleHelp}
           title="ヘルプが見つかりません"
           titleAs="h1"
-          description="URLが正しいか確認するか、ヘルプから目的の内容を探してください。"
           action={
             <Link href="/help" color="teal.700" fontWeight="bold" display="inline-flex" alignItems="center" gap={2}>
               <LuArrowLeft aria-hidden />
