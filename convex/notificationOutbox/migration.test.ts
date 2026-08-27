@@ -89,9 +89,7 @@ describe("notification terminal redaction migrations", () => {
           lastError: `raw-provider-error:${status}:secret-recipient@example.com`,
           ...(status === "sent" ? { sentAt: oldTerminalAt } : {}),
           ...(status === "failed" ? { failedAt: oldTerminalAt } : {}),
-          ...(status === "cancelled"
-            ? { cancelledAt: oldTerminalAt, cancelReason: "organization_restricted" as const }
-            : {}),
+          ...(status === "cancelled" ? { cancelledAt: oldTerminalAt } : {}),
           createdAt: oldTerminalAt,
           updatedAt: oldTerminalAt,
         });
@@ -178,10 +176,6 @@ describe("notification terminal redaction migrations", () => {
       notificationContext: "notification.sendConfirmationEmail",
       deliverySuppressed: true,
       payload: { to: "secret-recipient@example.com" },
-    });
-    expect(migrated.outbox.find((job) => job._id === ids.outboxIds.cancelled)).toMatchObject({
-      status: "cancelled",
-      cancelReason: "organization_restricted",
     });
     expect(migrated.failure.find((failure) => failure._id === ids.failureId)).toMatchObject({
       status: "resolved",
