@@ -2,7 +2,7 @@
 
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useDialogVisualViewportStyle } from "./useDialogVisualViewportStyle";
+import { useDialogVisualViewport, useDialogVisualViewportStyle } from "./useDialogVisualViewportStyle";
 
 type TestVisualViewport = EventTarget & {
   height: number;
@@ -11,6 +11,7 @@ type TestVisualViewport = EventTarget & {
 
 const originalVisualViewport = window.visualViewport;
 const originalInnerHeight = window.innerHeight;
+const originalInnerWidth = window.innerWidth;
 
 function createVisualViewport(height: number, offsetTop: number): TestVisualViewport {
   return Object.assign(new EventTarget(), { height, offsetTop });
@@ -32,6 +33,10 @@ afterEach(() => {
     configurable: true,
     value: originalInnerHeight,
   });
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: originalInnerWidth,
+  });
   vi.restoreAllMocks();
 });
 
@@ -49,18 +54,24 @@ describe("useDialogVisualViewportStyle", () => {
     expect(windowAddEventListener).not.toHaveBeenCalledWith("resize", expect.any(Function));
   });
 
-  it("Visual Viewportの高さと上端位置を丸めてCSS変数へ反映する", async () => {
+  it("Visual Viewportの高さと上端位置、layout viewportの幅を丸めて返す", async () => {
     const viewport = createVisualViewport(480.6, 12.4);
     setVisualViewport(viewport);
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 390.4 });
     const addEventListener = vi.spyOn(viewport, "addEventListener");
     const removeEventListener = vi.spyOn(viewport, "removeEventListener");
 
-    const { result, unmount } = renderHook(() => useDialogVisualViewportStyle(true));
+    const { result, unmount } = renderHook(() => useDialogVisualViewport(true));
 
     await waitFor(() => {
       expect(result.current).toEqual({
-        "--dialog-visual-viewport-height": "481px",
-        "--dialog-visual-viewport-offset-top": "12px",
+        height: 481,
+        offsetTop: 12,
+        width: 390,
+        style: {
+          "--dialog-visual-viewport-height": "481px",
+          "--dialog-visual-viewport-offset-top": "12px",
+        },
       });
     });
     expect(addEventListener).toHaveBeenCalledWith("resize", expect.any(Function));
