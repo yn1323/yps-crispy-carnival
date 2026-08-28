@@ -559,6 +559,17 @@ type OrganizationManagerInvitationEmailParams = {
   invitationUrl: string;
 };
 
+export function buildOrganizationManagerInvitationLineText(params: {
+  organizationName: string;
+  invitationUrl: string;
+}): string {
+  return [
+    `${params.organizationName}の管理者として招待されました。`,
+    "ログインして、アカウント連携を完了してください。",
+    withOpenExternalBrowser(params.invitationUrl),
+  ].join("\n");
+}
+
 /**
  * 管理者招待の本文。invitationUrlはprovider呼び出し直前にactionのメモリ内で生成する。
  */
@@ -794,7 +805,7 @@ export function buildLineCtaSection(params: { authorizeUrl: string; reLink: bool
   const label = params.reLink ? "LINEを再連携する" : "LINE連携する";
   const note = escapeEmailHtmlWithLineBreaks(
     params.reLink
-      ? "シフトリ公式アカウントの友だち追加が解除されています。\nもう一度友だち追加すると、同じ組織の所属店舗からシフトのお知らせをLINEで受け取れます。\nLINEで送れない場合は、メールでお知らせすることがあります。"
+      ? "シフトリ公式アカウントの友だち追加が解除されています。\nLINE通知を受け取るには、友達してください。"
       : LINE_CTA_NOTE,
   );
   return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;border-top:1px solid #e2e8f0;padding-top:24px;">

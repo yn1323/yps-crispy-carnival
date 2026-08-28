@@ -8,7 +8,6 @@ import { getAppUrl, getOrganizationInvitationSigningSecret, isDebugNotifyFailEna
 import { formatResendSubject } from "../_lib/emailFormat";
 import { observedInternalAction as internalAction } from "../_lib/errorObservability";
 import { LineApiError, pushLineMessage } from "../_lib/lineClient";
-import { withOpenExternalBrowser } from "../_lib/lineUrl";
 import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
 import { getResendClient, ResendEmailError, sendResendEmail } from "../_lib/resend";
 import {
@@ -19,6 +18,7 @@ import {
 } from "../constants";
 import {
   buildOrganizationManagerInvitationEmailHtml,
+  buildOrganizationManagerInvitationLineText,
   type LinePushMessage,
   ORGANIZATION_MANAGER_INVITATION_SUBJECT,
 } from "../notification/templates";
@@ -172,16 +172,16 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob): Promise<SendJobRes
     });
     const invitationUrl = new URL("/manager-invite", getAppUrl());
     invitationUrl.searchParams.set("token", token);
-    const externalBrowserUrl = withOpenExternalBrowser(invitationUrl.toString());
     return await sendLineJob(ctx, job, {
       toUserId: job.payload.toUserId,
       suppressDelivery: job.payload.suppressDelivery,
       fallbackEmail: job.payload.fallbackEmail,
       message: {
         type: "text",
-        text: `${invitation.organizationName}の管理者として招待されました。
-ログインして、アカウント連携を完了してください。
-${externalBrowserUrl}`,
+        text: buildOrganizationManagerInvitationLineText({
+          organizationName: invitation.organizationName,
+          invitationUrl: invitationUrl.toString(),
+        }),
       },
     });
   }

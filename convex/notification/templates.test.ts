@@ -11,6 +11,7 @@ import {
   buildNotificationFailureReminderLineText,
   buildOrganizationBillingEmailHtml,
   buildOrganizationManagerInvitationEmailHtml,
+  buildOrganizationManagerInvitationLineText,
   buildRecruitmentEmailHtml,
   buildRecruitmentEmailSubject,
   buildRecruitmentLineFlexMessage,
@@ -268,6 +269,21 @@ describe("notification/templates", () => {
     expect(html).not.toContain("一度だけ使用できます。");
   });
 
+  it("管理者招待LINEは組織名と外部ブラウザ指定付き招待URLを表示する", () => {
+    expect(
+      buildOrganizationManagerInvitationLineText({
+        organizationName: "さくらフードサービス",
+        invitationUrl: "https://shiftori.app/manager-invite?token=test-token",
+      }),
+    ).toBe(
+      [
+        "さくらフードサービスの管理者として招待されました。",
+        "ログインして、アカウント連携を完了してください。",
+        "https://shiftori.app/manager-invite?token=test-token&openExternalBrowser=1",
+      ].join("\n"),
+    );
+  });
+
   it("管理者連携完了メールは完了文を通常サイズで表示し、補足文を表示しない", () => {
     const html = buildOrganizationBillingEmailHtml({
       recipientName: "佐藤 店長",
@@ -331,7 +347,7 @@ describe("notification/templates", () => {
       "下記ボタンからLINEと連携してください。<br />メールで受け取りを希望される場合は、無視してください。",
     );
     expect(reLinkCta).toContain(
-      "シフトリ公式アカウントの友だち追加が解除されています。<br />もう一度友だち追加すると、同じ組織の所属店舗からシフトのお知らせをLINEで受け取れます。<br />LINEで送れない場合は、メールでお知らせすることがあります。",
+      "シフトリ公式アカウントの友だち追加が解除されています。<br />LINE通知を受け取るには、友達してください。",
     );
     expect(inviteHtml).not.toContain("LINE連携は同じ組織の所属店舗で共通です。");
     expect(legalConsentHtml).toContain("詳細はリンクから確認ください。");
@@ -502,9 +518,8 @@ describe("notification/templates", () => {
     expect(inviteHtml).not.toContain("スタッフ登録が承認されました。");
     expect(initialCta).toContain("シフトのお知らせをLINEでも受け取れます。");
     expect(initialCta).not.toContain("LINE連携は同じ組織の所属店舗で共通です。");
-    expect(reLinkCta).toContain("LINEで送れない場合は、メールでお知らせすることがあります。");
     expect(reLinkCta).toContain(
-      "もう一度友だち追加すると、同じ組織の所属店舗からシフトのお知らせをLINEで受け取れます。",
+      "シフトリ公式アカウントの友だち追加が解除されています。<br />LINE通知を受け取るには、友達してください。",
     );
   });
 

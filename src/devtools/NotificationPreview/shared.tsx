@@ -25,6 +25,8 @@ export const notificationPreviewFixtures = {
   dashboardUrl: "https://example.com/dashboard",
   managerInvitationUrl: "https://example.com/manager-invite?token=preview-token",
   managerSettingsUrl: "https://example.com/manage/managers?org=preview-organization",
+  billingSettingsUrl: "https://example.com/manage/billing?org=preview-organization",
+  longFlexUrl: `https://example.com/shifts/view?token=${"a".repeat(1600)}`,
   expiresAt: new Date("2026-05-31T12:00:00+09:00").getTime(),
   shifts: [
     { date: "5/1(金)", startTime: "09:00", endTime: "13:00" },
@@ -36,6 +38,19 @@ export const notificationPreviewFixtures = {
     { date: "5/1(金)", startTime: null, endTime: null },
     { date: "5/2(土)", startTime: null, endTime: null },
     { date: "5/3(日)", startTime: null, endTime: null },
+  ],
+  shiftsWithClosedDay: [
+    { date: "5/1(金)", startTime: "09:00", endTime: "13:00" },
+    { date: "5/2(土)", timeLabel: "定休日" },
+    { date: "5/3(日)", startTime: null, endTime: null },
+  ],
+  shiftsByDay: [
+    { date: "5/1(金)", timeLabel: "出勤" },
+    { date: "5/2(土)", startTime: null, endTime: null },
+  ],
+  shiftsByWorkOption: [
+    { date: "5/1(金)", timeLabel: "遅番（15:00-22:00）" },
+    { date: "5/2(土)", startTime: null, endTime: null },
   ],
 };
 
@@ -69,6 +84,10 @@ type TextLineNotificationPreview = {
   text: string;
 };
 
+type TextEmailNotificationPreview = TextLineNotificationPreview & {
+  subject: string;
+};
+
 type FlexLineNotificationPreview = {
   label: string;
   message: unknown;
@@ -85,6 +104,11 @@ export const notificationPreviewOrganizationSubject = (text: string) =>
 export const notificationPreviewLineCtaHtml = buildLineCtaSection({
   authorizeUrl: notificationPreviewFixtures.authorizeUrl,
   reLink: false,
+});
+
+export const notificationPreviewLineReCtaHtml = buildLineCtaSection({
+  authorizeUrl: notificationPreviewFixtures.authorizeUrl,
+  reLink: true,
 });
 
 export const NotificationPreviewStoryFrame = ({ children }: { children?: ReactNode }) => (
@@ -104,6 +128,36 @@ export const EmailNotificationPreview = ({ label, subject, html }: EmailNotifica
       </Text>
     </Box>
     <EmailPreview html={html} width="100%" />
+  </Flex>
+);
+
+export const TextEmailNotificationPreview = ({ label, subject, text }: TextEmailNotificationPreview) => (
+  <Flex direction="column" gap={3} width="480px" maxW="100%">
+    <Box>
+      <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
+        {label}
+      </Text>
+      <Text mt={1} fontSize="sm" fontWeight="medium" color="gray.900" lineHeight="short">
+        {subject}
+      </Text>
+    </Box>
+    <Box
+      as="pre"
+      m={0}
+      p={4}
+      bg="white"
+      border="1px solid"
+      borderColor="gray.200"
+      borderRadius="md"
+      whiteSpace="pre-wrap"
+      fontFamily="body"
+      fontSize="sm"
+      lineHeight="1.8"
+      color="gray.900"
+      wordBreak="break-word"
+    >
+      {text}
+    </Box>
   </Flex>
 );
 

@@ -9,6 +9,7 @@ import {
   FlexLineNotificationPreview,
   notificationPreviewFixtures as fixtures,
   notificationPreviewLineCtaHtml as lineCtaHtml,
+  notificationPreviewLineReCtaHtml as lineReCtaHtml,
   NotificationPreviewStoryFrame,
   notificationPreviewSubject as subject,
 } from "../shared";
@@ -22,6 +23,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Email: Story = {
+  name: "メール（LINE連携）",
   render: () => (
     <NotificationPreviewStoryFrame>
       <EmailNotificationPreview
@@ -33,6 +35,43 @@ export const Email: Story = {
           linkExpiresAtLabel: fixtures.deadline,
           magicLinkUrl: fixtures.submitLinkUrl,
           lineCtaHtml,
+        })}
+      />
+    </NotificationPreviewStoryFrame>
+  ),
+};
+
+export const EmailLineRelink: Story = {
+  name: "メール（LINE再連携）",
+  render: () => (
+    <NotificationPreviewStoryFrame>
+      <EmailNotificationPreview
+        label="未提出リマインダー・LINE再連携"
+        subject={subject(buildReminderEmailSubject(fixtures.periodLabel))}
+        html={buildReminderEmailHtml({
+          staffName: fixtures.staffName,
+          periodLabel: fixtures.periodLabel,
+          linkExpiresAtLabel: fixtures.deadline,
+          magicLinkUrl: fixtures.submitLinkUrl,
+          lineCtaHtml: lineReCtaHtml,
+        })}
+      />
+    </NotificationPreviewStoryFrame>
+  ),
+};
+
+export const EmailWithoutLineCta: Story = {
+  name: "メール（LINE案内なし）",
+  render: () => (
+    <NotificationPreviewStoryFrame>
+      <EmailNotificationPreview
+        label="未提出リマインダー・LINE案内なし"
+        subject={subject(buildReminderEmailSubject(fixtures.periodLabel))}
+        html={buildReminderEmailHtml({
+          staffName: fixtures.staffName,
+          periodLabel: fixtures.periodLabel,
+          linkExpiresAtLabel: fixtures.deadline,
+          magicLinkUrl: fixtures.submitLinkUrl,
         })}
       />
     </NotificationPreviewStoryFrame>
