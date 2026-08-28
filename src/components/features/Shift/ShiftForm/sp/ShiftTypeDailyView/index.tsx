@@ -93,6 +93,9 @@ export const SPShiftTypeDailyView = () => {
                 borderColor={chipBorderColor}
                 bg={active ? "teal.500" : isClosed ? "gray.50" : "white"}
                 cursor="pointer"
+                transitionProperty="colors"
+                transitionDuration="faster"
+                _active={{ bg: active ? "teal.600" : "gray.100", transitionDuration: "0ms" }}
               >
                 <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
                 <Box
@@ -273,7 +276,34 @@ const ShiftTypeOptionButton = ({
     bg={viewModel.assigned ? viewModel.color.assignedBg : "white"}
     color={viewModel.assigned ? viewModel.color.accent : "gray.600"}
     cursor={isReadOnly ? "default" : "pointer"}
-    _active={isReadOnly ? undefined : { bg: viewModel.assigned ? viewModel.color.headerBg : "gray.50" }}
+    position="relative"
+    isolation="isolate"
+    overflow="hidden"
+    transitionProperty="colors"
+    transitionDuration="faster"
+    _before={
+      viewModel.assigned
+        ? {
+            content: '""',
+            position: "absolute",
+            inset: 0,
+            zIndex: -1,
+            borderRadius: "inherit",
+            bg: "blackAlpha.200",
+            opacity: 0,
+            pointerEvents: "none",
+            transitionProperty: "opacity",
+            transitionDuration: "faster",
+          }
+        : undefined
+    }
+    _active={
+      isReadOnly
+        ? undefined
+        : viewModel.assigned
+          ? { _before: { opacity: 1, transitionDuration: "0ms" } }
+          : { bg: "gray.100", transitionDuration: "0ms" }
+    }
   >
     <Flex align="center" gap={2}>
       <Text as="span" fontSize="lg" lineHeight={1} color={viewModel.assigned ? viewModel.color.accent : "gray.400"}>

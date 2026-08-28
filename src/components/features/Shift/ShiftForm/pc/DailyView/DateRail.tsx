@@ -62,8 +62,10 @@ export const DateRail = ({ dates, selectedDate, onSelect, holidays = [], issueCo
               borderWidth="1px"
               borderColor={badgeBorderColor}
               bg={active ? "teal.500" : isClosed ? "gray.50" : "transparent"}
-              transition="all 120ms"
+              transitionProperty="colors"
+              transitionDuration="faster"
               _hover={{ bg: active ? "teal.600" : "gray.50" }}
+              _active={{ bg: active ? "teal.600" : "gray.100", transitionDuration: "0ms" }}
             >
               <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
               <Flex align="baseline" justify="center" gap="3px">

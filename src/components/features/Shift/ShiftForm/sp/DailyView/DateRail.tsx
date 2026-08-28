@@ -67,6 +67,9 @@ export const DateRail = ({
                 })}
                 bg={active ? "teal.500" : isClosed ? "gray.50" : "white"}
                 cursor="pointer"
+                transitionProperty="colors"
+                transitionDuration="faster"
+                _active={{ bg: active ? "teal.600" : "gray.100", transitionDuration: "0ms" }}
               >
                 <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
                 <Box

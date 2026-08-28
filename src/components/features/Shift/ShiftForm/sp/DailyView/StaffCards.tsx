@@ -86,7 +86,9 @@ export const SPDailyCard = ({
       px={3}
       py="10px"
       cursor="pointer"
-      _active={{ bg: "gray.50" }}
+      transitionProperty="colors"
+      transitionDuration="faster"
+      _active={{ bg: tone ? "red.100" : "gray.100", transitionDuration: "0ms" }}
       _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
     >
       <Flex align="center" gap={2} mb={2}>
@@ -209,7 +211,9 @@ export const SPOffCard = ({
       borderRadius="md"
       cursor={isReadOnly ? "default" : "pointer"}
       textAlign="left"
-      _active={isReadOnly ? undefined : { bg: "gray.50" }}
+      transitionProperty="colors"
+      transitionDuration="faster"
+      _active={isReadOnly ? undefined : { bg: tone ? "red.100" : "gray.100", transitionDuration: "0ms" }}
       _focusVisible={isReadOnly ? undefined : { outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
     >
       {tone && <IssueDot tone={tone} />}

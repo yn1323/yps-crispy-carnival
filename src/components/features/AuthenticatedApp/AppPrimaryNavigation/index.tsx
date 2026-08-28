@@ -92,7 +92,10 @@ function DesktopNavigationLink({ item, isActive, activeOrganizationId }: Navigat
       fontWeight={isActive ? "bold" : "semibold"}
       whiteSpace="nowrap"
       focusRing="none"
+      transitionProperty="colors"
+      transitionDuration="faster"
       _hover={{ color: "teal.800", bg: "gray.50", textDecoration: "none" }}
+      _active={{ bg: "gray.100", transitionDuration: "0ms" }}
     >
       <RouterLink to={target.to} search={target.search} aria-current={isActive ? "page" : undefined}>
         <NavigationIcon item={item} size="20px" />
@@ -123,7 +126,10 @@ function MobileNavigationLink({ item, isActive, activeOrganizationId }: Navigati
       fontWeight={isActive ? "bold" : "semibold"}
       lineHeight="short"
       focusRing="none"
+      transitionProperty="colors"
+      transitionDuration="faster"
       _hover={{ bg: "gray.50", color: isActive ? "teal.800" : "gray.900", textDecoration: "none" }}
+      _active={{ bg: "gray.100", transitionDuration: "0ms" }}
     >
       <RouterLink to={target.to} search={target.search} aria-current={isActive ? "page" : undefined}>
         {isActive && (

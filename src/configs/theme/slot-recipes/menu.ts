@@ -53,6 +53,12 @@ export const menuSlotRecipe = defineSlotRecipe({
       position: "relative",
       flex: "0 0 auto",
       outline: 0,
+      transitionProperty: "background-color",
+      transitionDuration: "faster",
+      _active: {
+        bg: "bg.emphasized",
+        transitionDuration: "0ms",
+      },
       _disabled: {
         layerStyle: "disabled",
       },

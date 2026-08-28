@@ -151,6 +151,9 @@ const Stepper = ({ currentStep, onStepSelect }: { currentStep: DemoStep; onStepS
               cursor="pointer"
               onClick={() => onStepSelect(step.id)}
               _hover={{ color: "teal.700" }}
+              transitionProperty="colors"
+              transitionDuration="faster"
+              _active={{ bg: "gray.100", transitionDuration: "0ms" }}
               aria-current={isCurrent ? "step" : undefined}
             >
               <Flex

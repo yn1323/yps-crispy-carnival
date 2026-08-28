@@ -1,5 +1,8 @@
 import { defineRecipe } from "@chakra-ui/react";
 
+const pressedSelector =
+  "&:is(:active, [data-active]):not(:disabled, [disabled], [data-disabled], [aria-disabled=true], [readonly], [data-readonly], [aria-readonly=true])";
+
 export const buttonRecipe = defineRecipe({
   className: "chakra-button",
   base: {
@@ -20,9 +23,28 @@ export const buttonRecipe = defineRecipe({
     lineHeight: "1.2",
     isolation: "isolate",
     fontWeight: "medium",
-    transitionProperty: "common",
-    transitionDuration: "moderate",
+    transitionProperty: "colors",
+    transitionDuration: "faster",
     focusVisibleRing: "outside",
+    _before: {
+      content: '""',
+      position: "absolute",
+      inset: "0",
+      zIndex: "-1",
+      borderRadius: "inherit",
+      bg: "blackAlpha.200",
+      opacity: "0",
+      pointerEvents: "none",
+      transitionProperty: "opacity",
+      transitionDuration: "faster",
+    },
+    [pressedSelector]: {
+      transitionDuration: "0ms",
+      _before: {
+        opacity: "1",
+        transitionDuration: "0ms",
+      },
+    },
     _disabled: {
       layerStyle: "disabled",
     },
@@ -115,13 +137,10 @@ export const buttonRecipe = defineRecipe({
         bg: "colorPalette.solid",
         color: "colorPalette.contrast",
         borderColor: "transparent",
+        overflow: "hidden",
         _hover: {
           bg: "colorPalette.solid/92",
           shadow: "xs",
-        },
-        _active: {
-          bg: "colorPalette.solid",
-          transform: "translateY(1px)",
         },
         _expanded: {
           bg: "colorPalette.solid/92",
@@ -159,10 +178,6 @@ export const buttonRecipe = defineRecipe({
           bg: "gray.50",
           borderColor: "colorPalette.solid",
         },
-        _active: {
-          bg: "gray.100",
-          borderColor: "colorPalette.solid",
-        },
         _expanded: {
           bg: "gray.50",
           borderColor: "colorPalette.solid",
@@ -173,10 +188,6 @@ export const buttonRecipe = defineRecipe({
         color: "colorPalette.fg",
         _hover: {
           bg: "blackAlpha.50",
-          color: "colorPalette.solid",
-        },
-        _active: {
-          bg: "blackAlpha.100",
           color: "colorPalette.solid",
         },
         _expanded: {
@@ -190,9 +201,6 @@ export const buttonRecipe = defineRecipe({
           color: "colorPalette.solid",
           textDecoration: "underline",
           textUnderlineOffset: "3px",
-        },
-        _active: {
-          color: "colorPalette.solid",
         },
       },
     },

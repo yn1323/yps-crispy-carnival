@@ -70,9 +70,11 @@ export function CheckboxListCardItem({
       bg={tone === "danger" ? "red.50" : "white"}
       borderLeftWidth={tone === "danger" ? "3px" : 0}
       borderLeftColor={tone === "danger" ? "red.500" : undefined}
-      transition="background-color 150ms ease"
+      transitionProperty="background-color"
+      transitionDuration="faster"
       cursor={disabled ? "not-allowed" : "pointer"}
       _hover={disabled ? undefined : { bg: tone === "danger" ? "red.100" : hoverBg }}
+      _active={disabled ? undefined : { bg: tone === "danger" ? "red.100" : "gray.100", transitionDuration: "0ms" }}
       onCheckedChange={(details) => {
         if (!disabled) onCheckedChange(details.checked === true);
       }}

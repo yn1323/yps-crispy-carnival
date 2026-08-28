@@ -22,7 +22,15 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
           aria-label="ユーザーメニュー"
           cursor="pointer"
           _hover={{ opacity: 0.8 }}
-          transition="opacity 0.15s"
+          css={{
+            "&:is(:active, [data-active]):not(:disabled, [disabled], [data-disabled], [aria-disabled=true])": {
+              bg: isLight ? "blackAlpha.200" : "whiteAlpha.200",
+              opacity: 1,
+              transitionDuration: "0ms",
+            },
+          }}
+          transitionProperty="background-color, opacity"
+          transitionDuration="faster"
           display="flex"
           alignItems="center"
           gap={{ base: 0, md: 2 }}

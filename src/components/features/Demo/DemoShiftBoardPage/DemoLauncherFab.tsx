@@ -37,7 +37,9 @@ export const DemoLauncherFab = ({ onStart, onDismiss }: Props) => {
         cursor="pointer"
         onClick={onStart}
         _hover={{ bg: "teal.600" }}
-        transition="background 0.12s"
+        transitionProperty="background"
+        transitionDuration="faster"
+        _active={{ bg: "blackAlpha.200", transitionDuration: "0ms" }}
       >
         <Icon boxSize={4}>
           <LuPlay />
@@ -54,7 +56,9 @@ export const DemoLauncherFab = ({ onStart, onDismiss }: Props) => {
         cursor="pointer"
         onClick={onDismiss}
         _hover={{ bg: "teal.600" }}
-        transition="background 0.12s"
+        transitionProperty="background"
+        transitionDuration="faster"
+        _active={{ bg: "blackAlpha.200", transitionDuration: "0ms" }}
       >
         <Icon boxSize={4}>
           <LuX />

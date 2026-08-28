@@ -90,6 +90,9 @@ export function RecruitmentSummaryRow({ recruitment, dataTour, onClick, ariaLabe
         align="stretch"
         gap={{ base: 1.5, lg: 3 }}
         cursor={onClick ? "pointer" : undefined}
+        transitionProperty={onClick ? "background" : undefined}
+        transitionDuration={onClick ? "faster" : undefined}
+        _active={onClick ? { bg: "gray.100", transitionDuration: "0ms" } : undefined}
         _focusVisible={onClick ? { outline: "2px solid", outlineColor: "teal.500", outlineOffset: "-2px" } : undefined}
       >
         <Flex
