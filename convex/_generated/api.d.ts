@@ -87,6 +87,7 @@ import type * as appOrganization_staffOrderMutations from "../appOrganization/st
 import type * as appOrganization_staffOrderQueries from "../appOrganization/staffOrderQueries.js";
 import type * as constants from "../constants.js";
 import type * as contact_actions from "../contact/actions.js";
+import type * as contact_email from "../contact/email.js";
 import type * as contact_httpActions from "../contact/httpActions.js";
 import type * as contact_mutations from "../contact/mutations.js";
 import type * as contact_schemas from "../contact/schemas.js";
@@ -373,6 +374,7 @@ declare const fullApi: ApiFromModules<{
   "appOrganization/staffOrderQueries": typeof appOrganization_staffOrderQueries;
   constants: typeof constants;
   "contact/actions": typeof contact_actions;
+  "contact/email": typeof contact_email;
   "contact/httpActions": typeof contact_httpActions;
   "contact/mutations": typeof contact_mutations;
   "contact/schemas": typeof contact_schemas;
