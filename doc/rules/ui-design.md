@@ -93,6 +93,10 @@ Loading、Empty、Error、Success、処理中を別の状態として設計す�
 
 スタッフ向け画面で操作を続けられない場合は、状態だけで終えず、「シフト作成担当者に連絡してください」など次の行動を示す。
 
+押下可能なbutton、navigation、list row、selection cardは、pointerを押している間に背景または背景上のstate layerを即時に変え、短いtapでも押下を知覚できるようにする。
+押下のfeedbackで位置、寸法、scaleを変えず、解除時だけ短い色transitionを使う。
+一時的な押下とselected、current、open、loadingを同じ見た目にせず、disabledとread-onlyには押下feedbackを出さない。
+
 ## Dialogのアクション
 
 Dialogのボタンは、**意味**、**配置スロット**、**閉じられる状態**を分けて決める。
