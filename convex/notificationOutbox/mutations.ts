@@ -29,7 +29,6 @@ import {
   upsertConfirmationSnapshotRecord,
 } from "../notification/confirmationSnapshots";
 import { buildNotificationFanoutTargetKey, isSupplementalConfirmationFanoutStale } from "../notification/fanout";
-import { billingStateReferencesBusinessPlan } from "../organizationBilling/policy";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { isOrganizationInvitationIssued } from "../organizationInvitation/lifecycle";
 import { resolveOrganizationInvitationEligibility } from "../organizationInvitation/service";
@@ -96,10 +95,6 @@ const ORGANIZATION_NOTIFICATION_CANCEL_BATCH_SIZE = 100;
 export const BULK_NOTIFICATION_CANCEL_CANDIDATE_LIMIT = 50;
 const DEFAULT_NOTIFICATION_CANCELLATION_LIMIT_ERROR =
   "未送信の案内が多いため、一括で所属を変更できません。\n対象を分けて、もう一度お試しください。";
-const BILLING_DEADLINE_CONTEXT_STATE = {
-  "organizationBilling.trialEnding": "trial",
-  "organizationBilling.graceEndingSoon": "grace",
-} as const;
 
 const failureResendResultValidator = v.union(
   v.object({ scheduled: v.literal(true) }),
@@ -1403,21 +1398,6 @@ async function getNotificationEligibility(
           : {}),
       }
     : { organizationId };
-  if (purpose === "billing" && notification.payload.kind === "email") {
-    const expectedStateKind =
-      BILLING_DEADLINE_CONTEXT_STATE[notification.payload.context as keyof typeof BILLING_DEADLINE_CONTEXT_STATE];
-    const hasLegacyBusinessCopy =
-      notification.payload.context.startsWith("organizationBilling.") &&
-      (notification.payload.subject.includes("Businessプラン") || notification.payload.html.includes("Businessプラン"));
-    if (
-      (notification.organizationBillingVersionAtEnqueue !== undefined &&
-        notification.organizationBillingVersionAtEnqueue !== billingState?.version) ||
-      (expectedStateKind && billingState?.state.kind !== expectedStateKind) ||
-      (hasLegacyBusinessCopy && (!billingState || !billingStateReferencesBusinessPlan(billingState.state)))
-    ) {
-      return { organizationId, cancelReason: "organization_billing_changed" };
-    }
-  }
   if (purpose === "business" && predatesBusinessNotificationCutoff(notification, billingContext)) {
     return { organizationId, cancelReason: "organization_billing_changed" };
   }

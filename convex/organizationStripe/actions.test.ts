@@ -1704,20 +1704,13 @@ describe("organizationStripe/actions", () => {
       status: "succeeded",
       attemptCount: 2,
     });
-    const notification = await t.run(async (ctx) =>
-      (await ctx.db.system.query("_scheduled_functions").collect()).find(
-        (job) =>
-          job.name === "organizationBilling/actions:enqueueBillingNotification" &&
-          job.args[0]?.event === "planActivated",
+    await expect(
+      t.run(async (ctx) =>
+        (await ctx.db.system.query("_scheduled_functions").collect()).filter((job) =>
+          job.name.startsWith("organizationBilling/actions:"),
+        ),
       ),
-    );
-    expect(notification?.args[0]?.notificationDetails).toEqual({
-      planIdVersion: 2,
-      targetPlan: "pro",
-      amountDue: 2_980,
-      currency: "jpy",
-      effectiveAt: NOW,
-    });
+    ).resolves.toEqual([]);
 
     const next = await t.mutation(internal.organizationStripe.mutations.beginOperation, {
       organizationId: ids.organizationId,
@@ -2598,21 +2591,13 @@ describe("organizationStripe/actions", () => {
       expect(state.billing?.state.kind).toBe(expectedKind);
       if (result === "paid") {
         expect(state.billing?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "standard" });
-        const notification = await t.run(async (ctx) =>
-          (await ctx.db.system.query("_scheduled_functions").collect()).find(
-            (job) =>
-              job.name === "organizationBilling/actions:enqueueBillingNotification" &&
-              job.args[0]?.event === "planActivated",
+        await expect(
+          t.run(async (ctx) =>
+            (await ctx.db.system.query("_scheduled_functions").collect()).filter((job) =>
+              job.name.startsWith("organizationBilling/actions:"),
+            ),
           ),
-        );
-        expect(notification?.args[0]?.notificationDetails).toEqual({
-          planIdVersion: 2,
-          targetPlan: "standard",
-          amountDue: 1_480,
-          currency: "jpy",
-          effectiveAt: NOW,
-          ...(overProLimit ? { usageLimitExceeded: true } : {}),
-        });
+        ).resolves.toEqual([]);
         if (overProLimit) {
           expect(state.billing).toMatchObject({
             businessNotificationCutoffVersion: 3,
@@ -2786,20 +2771,13 @@ describe("organizationStripe/actions", () => {
             .unique(),
       ),
     ).toMatchObject({ status: "processed" });
-    const notification = await t.run(async (ctx) =>
-      (await ctx.db.system.query("_scheduled_functions").collect()).find(
-        (job) =>
-          job.name === "organizationBilling/actions:enqueueBillingNotification" &&
-          job.args[0]?.event === "planActivated",
+    await expect(
+      t.run(async (ctx) =>
+        (await ctx.db.system.query("_scheduled_functions").collect()).filter((job) =>
+          job.name.startsWith("organizationBilling/actions:"),
+        ),
       ),
-    );
-    expect(notification?.args[0]?.notificationDetails).toEqual({
-      planIdVersion: 2,
-      targetPlan: "standard",
-      amountDue: 1_480,
-      currency: "jpy",
-      effectiveAt: NOW,
-    });
+    ).resolves.toEqual([]);
   });
 
   it("Business→Proの初回Pro請求が未確定でもSchedule bindingを保持し、後続invoice.paidで回収する", async () => {
@@ -3175,8 +3153,8 @@ describe("organizationStripe/actions", () => {
     });
     expect(
       await t.run(async (ctx) =>
-        (await ctx.db.system.query("_scheduled_functions").collect()).filter(
-          (job) => job.name === "organizationBilling/actions:enqueueBillingNotification",
+        (await ctx.db.system.query("_scheduled_functions").collect()).filter((job) =>
+          job.name.startsWith("organizationBilling/actions:"),
         ),
       ),
     ).toEqual([]);
@@ -7029,7 +7007,6 @@ describe("organizationStripe/actions", () => {
     });
     expect(state.scheduled.map((job) => job.name)).toEqual([
       "organizationStripe/actions:reconcileInitialPaymentPending",
-      "organizationBilling/actions:enqueueBillingNotification",
     ]);
     expect(state.scheduled).not.toContainEqual(
       expect.objectContaining({ name: "organizationStripe/actions:reconcileTrialContinuationCancellation" }),

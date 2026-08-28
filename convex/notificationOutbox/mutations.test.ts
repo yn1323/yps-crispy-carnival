@@ -653,7 +653,7 @@ describe("notificationOutbox", () => {
     });
   });
 
-  it("active.freeの実利用人数が上限超過中でもbilling通知は配送直前検証を通す", async () => {
+  it("billingEmailChangedは上限超過・契約version更新後も配送直前検証を通す", async () => {
     const t = createConvexTestWithMigrations();
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
@@ -687,6 +687,14 @@ describe("notificationOutbox", () => {
     expect(claimed.map(({ _id, status }) => ({ _id, status }))).toEqual([
       { _id: enqueued.outboxId, status: "processing" },
     ]);
+    await t.run(async (ctx) => {
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, { version: billingState.version + 1 });
+    });
     await expect(
       t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
         outboxId: enqueued.outboxId,
@@ -697,71 +705,6 @@ describe("notificationOutbox", () => {
       _id: enqueued.outboxId,
       status: "processing",
       purpose: "billing",
-    });
-  });
-
-  it.each([
-    {
-      label: "Trial終了",
-      context: "organizationBilling.trialEnding",
-      state: { kind: "trial" as const, trialEndsAt: 1_000 },
-    },
-    {
-      label: "猶予終了前",
-      context: "organizationBilling.graceEndingSoon",
-      state: { kind: "grace" as const, plan: "pro" as const, startedAt: 100, endsAt: 1_000 },
-    },
-  ])("$labelの課金reminderは状態変更後の再送を送信直前に停止する", async ({ context, state }) => {
-    const t = createConvexTestWithMigrations();
-    const ids = await t.run(async (ctx) => {
-      const seeded = await seedOrganizationManagerShop(ctx, {
-        subject: `stale_${state.kind}_reminder`,
-        plan: "pro",
-      });
-      const billingState = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-        .unique();
-      if (!billingState) throw new Error("billing state not found");
-      await ctx.db.patch(billingState._id, { state, version: 4 });
-      return { ...seeded, billingStateId: billingState._id };
-    });
-    const payload = {
-      kind: "email" as const,
-      from: "シフトリ <noreply@example.com>",
-      to: `stale_${state.kind}_reminder@example.com`,
-      subject: "契約期限のお知らせ",
-      html: "<p>test</p>",
-      context,
-      suppressDelivery: true,
-    };
-    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
-      channel: "email",
-      organizationId: ids.organizationId,
-      userId: ids.userId,
-      purpose: "billing",
-      dedupeKey: `email:test:stale-${state.kind}-reminder`,
-      payload,
-    });
-    if (!enqueued) throw new Error("notification was not enqueued");
-
-    await t.run(async (ctx) => {
-      await ctx.db.patch(ids.billingStateId, {
-        state: { kind: "active", plan: "pro" },
-        version: 5,
-      });
-      await ctx.db.patch(enqueued.outboxId, { status: "processing" });
-    });
-    await expect(
-      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
-        outboxId: enqueued.outboxId,
-        now: Date.now(),
-      }),
-    ).resolves.toBeNull();
-    await expect(t.run((ctx) => ctx.db.get(enqueued.outboxId))).resolves.toMatchObject({
-      status: "cancelled",
-      cancelReason: "organization_billing_changed",
-      organizationBillingVersionAtEnqueue: 4,
     });
   });
 

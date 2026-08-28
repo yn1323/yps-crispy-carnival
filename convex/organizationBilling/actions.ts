@@ -7,37 +7,20 @@ import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { observedInternalAction as internalAction } from "../_lib/errorObservability";
 import { buildOrganizationBillingEmailHtml } from "../notification/templates";
 import { emailPayload, enqueueEmail } from "../notificationOutbox/enqueue";
-import {
-  canonicalizeOrganizationBillingNotificationDetails,
-  organizationBillingNotificationCopy,
-  organizationBillingNotificationDetailsValidator,
-  organizationBillingNotificationEventValidator,
-} from "./notification";
+import { organizationBillingEmailChangedNotificationCopy } from "./notification";
 
-export const enqueueBillingNotification = internalAction({
+export const enqueueBillingEmailChangedNotification = internalAction({
   args: {
     organizationId: v.id("organizations"),
-    event: organizationBillingNotificationEventValidator,
     eventKey: v.string(),
-    recipientUserIds: v.optional(v.array(v.id("users"))),
-    expectedDeadlineAt: v.optional(v.number()),
-    notificationDetails: v.optional(organizationBillingNotificationDetailsValidator),
   },
   returns: v.object({ enqueuedCount: v.number() }),
   handler: async (ctx, args) => {
-    const data = await ctx.runQuery(internal.organizationBilling.queries.getNotificationData, {
+    const data = await ctx.runQuery(internal.organizationBilling.queries.getBillingEmailChangedNotificationData, {
       organizationId: args.organizationId,
-      event: args.event,
-      recipientUserIds: args.recipientUserIds,
-      expectedDeadlineAt: args.expectedDeadlineAt,
     });
     if (!data) return { enqueuedCount: 0 };
 
-    const copy = organizationBillingNotificationCopy(
-      args.event,
-      data.trialEnding,
-      canonicalizeOrganizationBillingNotificationDetails(args.notificationDetails),
-    );
     const settingsUrl = new URL("/manage/billing", getAppUrl());
     settingsUrl.searchParams.set("org", data.organizationId);
     let enqueuedCount = 0;
@@ -50,15 +33,15 @@ export const enqueueBillingNotification = internalAction({
         payload: emailPayload({
           from: formatResendFrom(data.organizationName, RESEND_FROM_EMAIL),
           to: recipient.email,
-          subject: formatResendSubject(data.organizationName, copy.subject),
+          subject: formatResendSubject(data.organizationName, organizationBillingEmailChangedNotificationCopy.subject),
           html: buildOrganizationBillingEmailHtml({
             recipientName: recipient.name,
             organizationName: data.organizationName,
-            heading: copy.heading,
-            paragraphs: copy.paragraphs,
-            action: { label: "組織設定を確認する", url: settingsUrl.toString() },
+            heading: organizationBillingEmailChangedNotificationCopy.heading,
+            paragraphs: organizationBillingEmailChangedNotificationCopy.paragraphs,
+            action: { label: "シフトリを確認する", url: settingsUrl.toString() },
           }),
-          context: `organizationBilling.${args.event}`,
+          context: "organizationBilling.billingEmailChanged",
         }),
       });
       if (result) enqueuedCount += 1;

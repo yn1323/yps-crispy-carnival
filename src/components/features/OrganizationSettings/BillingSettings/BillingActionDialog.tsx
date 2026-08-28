@@ -234,7 +234,7 @@ function dialogContent(dialog: BillingActionDialogState): {
         description: "トライアルは最終日までそのまま利用できます。",
         submitLabel: "有料継続を取り消す",
         submitColorPalette: "red",
-        note: `取り消すとトライアル終了後は${FREE_PLAN_SENTENCE_LABEL}へ変更されます。店舗・ユーザー・過去のシフトは削除されません。${FREE_PLAN_SENTENCE_LABEL}の上限を超える場合は、上限内へ整理するまで業務操作が制限されます。`,
+        note: `取り消すとトライアル終了後は${FREE_PLAN_SENTENCE_LABEL}へ変更されます。${FREE_PLAN_SENTENCE_LABEL}の上限を超える場合は、上限内へ整理するまで業務操作が制限されます。`,
       };
     case "schedulePlanChange":
       return {

@@ -16,7 +16,7 @@ import {
 } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT } from "../organization/service";
-import { TRIAL_ENDING_REMINDER_LEAD_MS } from "../organizationBilling/notification";
+import { TRIAL_ENDING_NOTICE_LEAD_MS } from "./queries";
 
 const PAGINATION_FIRST_PAGE = { paginationOpts: { numItems: 10, cursor: null } };
 const firstPageArgs = (shopId: Id<"shops">) => ({ ...PAGINATION_FIRST_PAGE, shopId });
@@ -110,7 +110,7 @@ describe("dashboard/queries", () => {
         .query(api.dashboard.queries.getDashboardShop, { shopId });
 
       expect(result?.trialEndingNotice).toEqual({
-        visibleFrom: TRIAL_ENDS_AT - TRIAL_ENDING_REMINDER_LEAD_MS,
+        visibleFrom: TRIAL_ENDS_AT - TRIAL_ENDING_NOTICE_LEAD_MS,
         trialEndsAt: TRIAL_ENDS_AT,
       });
     });
@@ -171,7 +171,7 @@ describe("dashboard/queries", () => {
 
       expect(firstShop?.trialEndingNotice).toEqual(secondShop?.trialEndingNotice);
       expect(firstShop?.trialEndingNotice).toEqual({
-        visibleFrom: TRIAL_ENDS_AT - TRIAL_ENDING_REMINDER_LEAD_MS,
+        visibleFrom: TRIAL_ENDS_AT - TRIAL_ENDING_NOTICE_LEAD_MS,
         trialEndsAt: TRIAL_ENDS_AT,
       });
     });

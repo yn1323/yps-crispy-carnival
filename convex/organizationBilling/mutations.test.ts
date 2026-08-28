@@ -114,9 +114,7 @@ describe("organizationBilling/mutations 請求先メール", () => {
     expect(result.audits[0]?.correlationId).not.toContain(requestId);
     expect(
       result.scheduled.filter(
-        (job) =>
-          job.name === "organizationBilling/actions:enqueueBillingNotification" &&
-          job.args[0]?.event === "billingEmailChanged",
+        (job) => job.name === "organizationBilling/actions:enqueueBillingEmailChangedNotification",
       ),
     ).toHaveLength(1);
     expect(result.scheduled.filter((job) => job.name === "organizationStripe/actions:syncBillingEmail")).toHaveLength(
@@ -183,9 +181,7 @@ describe("organizationBilling/mutations 請求先メール", () => {
     expect(result.audits.filter((audit) => audit.action === "organization.billing_email_changed")).toHaveLength(0);
     expect(
       result.scheduled.filter(
-        (job) =>
-          job.name === "organizationBilling/actions:enqueueBillingNotification" &&
-          job.args[0]?.event === "billingEmailChanged",
+        (job) => job.name === "organizationBilling/actions:enqueueBillingEmailChangedNotification",
       ),
     ).toHaveLength(0);
   });
@@ -278,9 +274,7 @@ describe("organizationBilling/mutations 請求先メール", () => {
     expect(result.audits.filter((audit) => audit.action === "organization.billing_email_changed")).toHaveLength(1);
     expect(
       result.scheduled.filter(
-        (job) =>
-          job.name === "organizationBilling/actions:enqueueBillingNotification" &&
-          job.args[0]?.event === "billingEmailChanged",
+        (job) => job.name === "organizationBilling/actions:enqueueBillingEmailChangedNotification",
       ),
     ).toHaveLength(1);
   });
@@ -449,7 +443,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
   it.each([
     { label: "StandardからFree", currentPlan: "standard", targetPlan: "free" },
     { label: "ProからStandard", currentPlan: "pro", targetPlan: "standard" },
-  ] as const)("$labelの期間末変更予約を明示eventで取り消し、全有効管理者へ通知する", async (plan) => {
+  ] as const)("$labelの期間末変更予約を明示eventで取り消し、課金メールは送らない", async (plan) => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
@@ -457,11 +451,6 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
         plan: plan.currentPlan,
         planIdVersion: 2,
       });
-      const secondManager = await addManager(
-        ctx,
-        seeded.organizationId,
-        `cancel_${plan.currentPlan}_${plan.targetPlan}_second`,
-      );
       const billingState = await ctx.db
         .query("organizationBillingStates")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
@@ -485,7 +474,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
                 effectiveAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
               },
       });
-      return { ...seeded, secondManagerUserId: secondManager.userId, billingStateId: billingState._id };
+      return { ...seeded, billingStateId: billingState._id };
     });
     const correlationId = `cancel-${plan.currentPlan}-${plan.targetPlan}`;
     const expectedPlan = plan.currentPlan;
@@ -524,32 +513,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
       fromState: "scheduledChange",
       toState: expectedPlan,
     });
-    expect(
-      result.scheduled.filter(
-        (job) =>
-          job.name === "organizationBilling/actions:enqueueBillingNotification" &&
-          job.args[0]?.event === "scheduledChangeCanceled",
-      ),
-    ).toHaveLength(1);
-
-    await expect(
-      t.action(internal.organizationBilling.actions.enqueueBillingNotification, {
-        organizationId: ids.organizationId,
-        event: "scheduledChangeCanceled",
-        eventKey: correlationId,
-      }),
-    ).resolves.toEqual({ enqueuedCount: 2 });
-    const outbox = await t.run(async (ctx) =>
-      (await ctx.db.query("notificationOutbox").collect()).filter(
-        (job) => job.organizationId === ids.organizationId && job.status === "pending",
-      ),
-    );
-    expect(outbox.map((job) => job.userId).sort()).toEqual([ids.userId, ids.secondManagerUserId].sort());
-    expect(
-      outbox.every(
-        (job) => job.payload.kind === "email" && job.payload.context === "organizationBilling.scheduledChangeCanceled",
-      ),
-    ).toBe(true);
+    expect(result.scheduled.filter((job) => job.name.startsWith("organizationBilling/actions:"))).toEqual([]);
   });
 
   it("Freeからの即時支払い失敗は有料プランを開放せずactive.freeへ戻す", async () => {
@@ -594,13 +558,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
           job.args[0]?.cutoffVersion === 3,
       ),
     ).toBe(false);
-    expect(
-      result.scheduled.filter(
-        (job) =>
-          job.name === "organizationBilling/actions:enqueueBillingNotification" &&
-          job.args[0]?.event === "paidActivationFailedFreeContinued",
-      ),
-    ).toHaveLength(1);
+    expect(result.scheduled.filter((job) => job.name.startsWith("organizationBilling/actions:"))).toEqual([]);
   });
 
   it("Free上限超過でも即時支払い失敗後に人物を維持してactive.freeへ戻す", async () => {
@@ -662,14 +620,7 @@ describe("organizationBilling/mutations 検証済み課金遷移", () => {
           job.args[0]?.cutoffVersion === 3,
       ),
     ).toHaveLength(1);
-    expect(
-      result.scheduled.filter(
-        (job) =>
-          job.name === "organizationBilling/actions:enqueueBillingNotification" &&
-          job.args[0]?.event === "paidActivationFailedFreeContinued" &&
-          job.args[0]?.notificationDetails?.usageLimitExceeded === true,
-      ),
-    ).toHaveLength(1);
+    expect(result.scheduled.filter((job) => job.name.startsWith("organizationBilling/actions:"))).toEqual([]);
   });
 
   it("pendingActivation以外のpaymentFailedイベントを拒否する", async () => {
@@ -929,14 +880,7 @@ describe("organizationBilling/mutations first trial invoice", () => {
     });
     expect(result.members.map((member) => member?.status)).toEqual(["active", "active", "active"]);
     expect(result.shop?.operatingStatus).toBe("active");
-    expect(
-      result.scheduled.filter(
-        (job) =>
-          job.name === "organizationBilling/actions:enqueueBillingNotification" &&
-          job.args[0]?.event === "freeApplied" &&
-          job.args[0]?.notificationDetails?.usageLimitExceeded === true,
-      ),
-    ).toHaveLength(1);
+    expect(result.scheduled.filter((job) => job.name.startsWith("organizationBilling/actions:"))).toEqual([]);
     expect(
       result.scheduled.filter(
         (job) =>
@@ -990,14 +934,7 @@ describe("organizationBilling/mutations first trial invoice", () => {
     });
     expect(result.billing?.businessNotificationCutoffAt).toBeUndefined();
     expect(result.billing?.businessNotificationCutoffVersion).toBeUndefined();
-    expect(
-      result.scheduled.filter(
-        (job) =>
-          job.name === "organizationBilling/actions:enqueueBillingNotification" &&
-          job.args[0]?.event === "freeApplied" &&
-          job.args[0]?.notificationDetails?.usageLimitExceeded === undefined,
-      ),
-    ).toHaveLength(1);
+    expect(result.scheduled.filter((job) => job.name.startsWith("organizationBilling/actions:"))).toEqual([]);
     expect(
       result.scheduled.some(
         (job) => job.name === "notificationOutbox/mutations:cancelOrganizationBusinessNotifications",

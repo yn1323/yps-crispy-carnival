@@ -1638,7 +1638,6 @@ export const reconcileScheduledPaidPlanDeadline = internalAction({
         expectedDeadlineAt: effectiveAt,
         result,
         ...(result === "failed" ? { firstFailureAt: authoritativeInvoiceFailureAt(invoice) } : {}),
-        ...(result === "paid" ? { amountDue: invoice.amount_paid, currency: invoice.currency } : {}),
         correlationId: `stripe:${operation.operationId}:scheduled-paid-${result}`,
       });
       if (
@@ -2281,7 +2280,7 @@ async function processVerifiedStripeEvent(
       if (invoice?.status !== "paid" || subscription.status !== "active") {
         return { kind: "retry" as const, errorCode: "pending_update_payment_unconfirmed" };
       }
-      return (await applyVerifiedPaidEntitlement(ctx, event, synchronized, invoice)) ?? processedResult(synchronized);
+      return (await applyVerifiedPaidEntitlement(ctx, event, synchronized)) ?? processedResult(synchronized);
     }
 
     if (invoice && billing.state.kind === "scheduledChange") {
@@ -2386,7 +2385,7 @@ async function processVerifiedStripeEvent(
         return { kind: "retry" as const, errorCode: "billing_version_conflict" };
       return processedResult(synchronized);
     }
-    return (await applyVerifiedPaidEntitlement(ctx, event, synchronized, invoice)) ?? processedResult(synchronized);
+    return (await applyVerifiedPaidEntitlement(ctx, event, synchronized)) ?? processedResult(synchronized);
   }
 
   if (event.type === "invoice.payment_failed" || event.type === "invoice.payment_action_required") {
@@ -2484,9 +2483,8 @@ function paidPlanAfterVerifiedPayment(state: CanonicalOrganizationBillingState):
 
 async function applyVerifiedPaidEntitlement(
   ctx: ActionCtx,
-  event: { stripeEventId: string; eventCreatedAt: number },
+  event: { stripeEventId: string },
   synchronized: SynchronizedSubscription,
-  invoice?: Stripe.Invoice | null,
 ): Promise<WebhookProcessResult | null> {
   const billing = synchronized.organization.billingState;
   const targetPlan = paidPlanAfterVerifiedPayment(billing.state);
@@ -2496,17 +2494,6 @@ async function applyVerifiedPaidEntitlement(
     expectedVersion: billing.version,
     planIdVersion: 2,
     state: { kind: "active", plan: targetPlan },
-    ...(invoice?.status === "paid"
-      ? {
-          notificationDetails: {
-            planIdVersion: 2,
-            targetPlan,
-            amountDue: invoice.amount_paid,
-            currency: invoice.currency,
-            effectiveAt: event.eventCreatedAt,
-          },
-        }
-      : {}),
     correlationId: `stripe:${event.stripeEventId}:invoice-paid`,
   });
   const converged = await billingMutationConverged(
@@ -2605,7 +2592,6 @@ async function applyScheduledPaidInvoiceResult(
     expectedDeadlineAt: billing.state.effectiveAt,
     result,
     ...(result === "failed" ? { firstFailureAt: authoritativeInvoiceFailureAt(invoice, event.eventCreatedAt) } : {}),
-    ...(result === "paid" ? { amountDue: invoice.amount_paid, currency: invoice.currency } : {}),
     correlationId: `stripe:${event.stripeEventId}:scheduled-paid-${result}`,
   });
   const converged = await billingMutationConverged(
@@ -3709,13 +3695,6 @@ async function recoverImmediatePaidPlanChange(
         expectedVersion: billingVersion,
         planIdVersion: 2,
         state: { kind: "active", plan: "pro" },
-        notificationDetails: {
-          planIdVersion: 2,
-          targetPlan: "pro",
-          amountDue: invoice.amount_paid,
-          currency: invoice.currency,
-          effectiveAt: persisted.prorationDate * 1000,
-        },
         correlationId: `stripe:${operation.operationId}:pro-activated`,
       });
       if (
@@ -4297,13 +4276,6 @@ async function applyImmediatePaidPlanChange(
         expectedVersion: expectedBillingVersion,
         planIdVersion: 2,
         state: { kind: "active", plan: "pro" },
-        notificationDetails: {
-          planIdVersion: 2,
-          targetPlan: "pro",
-          amountDue: invoice.amount_paid,
-          currency: invoice.currency,
-          effectiveAt: args.prorationDate * 1000,
-        },
         correlationId: `stripe:${operation.operationId}:pro-activated`,
       });
       if (!activated.changed) throw new Error("billing_version_conflict");

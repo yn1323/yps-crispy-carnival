@@ -21,7 +21,6 @@ import {
   organizationShopOperatingStatusValidator,
   planIdVersionValidator,
 } from "../organization/validators";
-import { TRIAL_ENDING_REMINDER_LEAD_MS } from "../organizationBilling/notification";
 import {
   type CanonicalOrganizationBillingState,
   canonicalizeOrganizationPaidPlan,
@@ -29,6 +28,8 @@ import {
 } from "../organizationBilling/policy";
 import { getOrganizationAccessPolicy, getOrganizationBillingPolicy } from "../organizationBilling/service";
 import { getStripeBillingConfiguration } from "../organizationStripe/config";
+
+export const TRIAL_ENDING_NOTICE_LEAD_MS = 7 * 24 * 60 * 60 * 1000;
 
 const myShopValidator = v.object({
   shopId: v.id("shops"),
@@ -644,7 +645,7 @@ export const getDashboardShop = managerQuery({
     const trialEndingNotice =
       billingState?.state.kind === "trial" && billingState.state.selectedPaidPlan === undefined
         ? {
-            visibleFrom: billingState.state.trialEndsAt - TRIAL_ENDING_REMINDER_LEAD_MS,
+            visibleFrom: billingState.state.trialEndsAt - TRIAL_ENDING_NOTICE_LEAD_MS,
             trialEndsAt: billingState.state.trialEndsAt,
           }
         : null;
