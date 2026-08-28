@@ -227,7 +227,7 @@ export const StepperDialogContent = <TStep extends string>({
   actions,
   showSteps = true,
 }: StepperDialogContentProps<TStep>) => {
-  const { mode } = useDialogKeyboardLayoutContext();
+  const { mode, registerLeadingRegion } = useDialogKeyboardLayoutContext();
   const usesAdaptiveScroll = mode !== "body-scroll";
   const currentStepDetail = steps.find((step) => step.value === currentStep);
   const shouldShowStepTitle = Boolean(
@@ -244,7 +244,7 @@ export const StepperDialogContent = <TStep extends string>({
       direction="column"
     >
       {showSteps && (
-        <Box flexShrink={0} px={{ base: 0, md: 6 }} pt={{ base: 2, md: 0 }} pb={4}>
+        <Box ref={registerLeadingRegion} flexShrink={0} px={{ base: 0, md: 6 }} pt={{ base: 2, md: 0 }} pb={4}>
           <StepperDialogSteps steps={steps} currentStep={currentStep} />
         </Box>
       )}

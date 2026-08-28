@@ -1,4 +1,3 @@
-import type { RefObject } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type DialogKeyboardLayoutMode = "body-scroll" | "header-body-scroll" | "content-scroll";
@@ -13,8 +12,10 @@ const EDITABLE_INPUT_TYPES = new Set(["email", "number", "password", "search", "
 
 type UseDialogKeyboardLayoutOptions = {
   enabled: boolean;
-  contentRef: RefObject<HTMLElement | null>;
+  contentElement: HTMLElement | null;
   footerElement: HTMLElement | null;
+  headerElement?: HTMLElement | null;
+  leadingElement?: HTMLElement | null;
   viewportHeight: number | undefined;
   viewportOffsetTop: number | undefined;
   viewportWidth: number | undefined;
@@ -37,6 +38,7 @@ export const resolveDialogKeyboardLayoutMode = ({
   viewportWidth,
   contentHeight,
   footerHeight,
+  topChromeHeight = 0,
 }: {
   enabled: boolean;
   isEditing: boolean;
@@ -44,17 +46,19 @@ export const resolveDialogKeyboardLayoutMode = ({
   viewportWidth: number | undefined;
   contentHeight?: number;
   footerHeight: number;
+  topChromeHeight?: number;
 }): DialogKeyboardLayoutMode => {
   if (!enabled || !isEditing || viewportHeight == null || viewportWidth == null) return "body-scroll";
   if (viewportWidth >= DIALOG_MOBILE_MAX_WIDTH) return "body-scroll";
 
-  const availableHeight = Math.min(viewportHeight, contentHeight ?? viewportHeight) - footerHeight;
+  const availableHeight = Math.min(viewportHeight, contentHeight ?? viewportHeight) - footerHeight - topChromeHeight;
   return availableHeight >= DIALOG_MIN_EDITING_SCROLLPORT_HEIGHT ? "header-body-scroll" : "content-scroll";
 };
 
 type DialogMeasurements = {
   contentHeight: number | undefined;
   footerHeight: number;
+  topChromeHeight: number;
 };
 
 const getMeasuredHeight = (element: HTMLElement): number | undefined => {
@@ -64,8 +68,10 @@ const getMeasuredHeight = (element: HTMLElement): number | undefined => {
 
 export const useDialogKeyboardLayout = ({
   enabled,
-  contentRef,
+  contentElement,
   footerElement,
+  headerElement,
+  leadingElement,
   viewportHeight,
   viewportOffsetTop,
   viewportWidth,
@@ -75,6 +81,7 @@ export const useDialogKeyboardLayout = ({
   const [measurements, setMeasurements] = useState<DialogMeasurements>({
     contentHeight: undefined,
     footerHeight: 0,
+    topChromeHeight: 0,
   });
   const hasEditingSessionRef = useRef(false);
   const restingViewportHeightRef = useRef<number | null>(null);
@@ -116,7 +123,7 @@ export const useDialogKeyboardLayout = ({
       return;
     }
 
-    const content = contentRef.current;
+    const content = contentElement;
     if (!content) return;
 
     const updateFocus = (target: EventTarget | null) => {
@@ -144,25 +151,29 @@ export const useDialogKeyboardLayout = ({
       content.removeEventListener("focusout", handleFocusOut);
       clearBlurTimeout();
     };
-  }, [beginEditingSession, clearBlurTimeout, contentRef, enabled, finishEditingSession]);
+  }, [beginEditingSession, clearBlurTimeout, contentElement, enabled, finishEditingSession]);
 
   useEffect(() => {
     if (!enabled) {
-      setMeasurements({ contentHeight: undefined, footerHeight: 0 });
+      setMeasurements({ contentHeight: undefined, footerHeight: 0, topChromeHeight: 0 });
       return;
     }
 
-    const content = contentRef.current;
+    const content = contentElement;
     if (!content) return;
 
     const updateMeasurements = () => {
       const nextMeasurements = {
         contentHeight: getMeasuredHeight(content),
         footerHeight: footerElement ? (getMeasuredHeight(footerElement) ?? 0) : 0,
+        topChromeHeight:
+          (headerElement ? (getMeasuredHeight(headerElement) ?? 0) : 0) +
+          (leadingElement ? (getMeasuredHeight(leadingElement) ?? 0) : 0),
       };
       setMeasurements((current) =>
         current.contentHeight === nextMeasurements.contentHeight &&
-        current.footerHeight === nextMeasurements.footerHeight
+        current.footerHeight === nextMeasurements.footerHeight &&
+        current.topChromeHeight === nextMeasurements.topChromeHeight
           ? current
           : nextMeasurements,
       );
@@ -173,12 +184,14 @@ export const useDialogKeyboardLayout = ({
     const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(updateMeasurements);
     observer?.observe(content);
     if (footerElement) observer?.observe(footerElement);
+    if (headerElement) observer?.observe(headerElement);
+    if (leadingElement) observer?.observe(leadingElement);
 
     return () => {
       observer?.disconnect();
       window.removeEventListener("resize", updateMeasurements);
     };
-  }, [contentRef, enabled, footerElement]);
+  }, [contentElement, enabled, footerElement, headerElement, leadingElement]);
 
   useEffect(() => {
     if (!enabled || viewportHeight == null || viewportWidth == null) return;
@@ -229,13 +242,14 @@ export const useDialogKeyboardLayout = ({
     viewportWidth,
     contentHeight: measurements.contentHeight,
     footerHeight: measurements.footerHeight,
+    topChromeHeight: measurements.topChromeHeight,
   });
 
   useEffect(() => {
     if (mode === "body-scroll" || viewportHeight == null || !focusedEditableElement) return;
 
     const frame = window.requestAnimationFrame(() => {
-      const content = contentRef.current;
+      const content = contentElement;
       if (!content?.contains(focusedEditableElement) || document.activeElement !== focusedEditableElement) return;
       if (typeof focusedEditableElement.scrollIntoView !== "function") return;
 
@@ -255,7 +269,7 @@ export const useDialogKeyboardLayout = ({
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [contentRef, focusedEditableElement, footerElement, mode, viewportHeight, viewportOffsetTop]);
+  }, [contentElement, focusedEditableElement, footerElement, mode, viewportHeight, viewportOffsetTop]);
 
   return { mode, footerHeight: measurements.footerHeight };
 };

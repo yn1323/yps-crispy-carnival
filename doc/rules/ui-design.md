@@ -164,7 +164,7 @@ Dialogを完了、終了、または前の段階へ移動するボタンはfoote
 viewport基準の独自なfixed footerを各featureへ追加しない。
 
 モバイルのフォームで文字入力を開始した場合は、実際に見えているviewportを基準に入力領域を優先する。
-footerを残して十分な入力領域を確保できる間は、headerを本文と一緒にscrollさせ、footerをキーボード直上のDialog下端に留める。
+footer、header、Stepperの進行表示など、フォームの前後に残るUIの実高を除いても十分な入力領域を確保できる間は、headerを本文と一緒にscrollさせ、footerをキーボード直上のDialog下端に留める。
 footerを残すと入力領域が共通の最小高を下回る場合は、header、本文、footerを同じscroll領域へ置き、footerを本文の後から操作できるようにする。
 この切替ではinputとactionを再mountせず、focus、入力値、DOM順を維持する。
 

@@ -34,11 +34,13 @@ export type DialogKeyboardLayout = "body-scroll" | "adaptive";
 type DialogKeyboardLayoutContextValue = {
   mode: DialogKeyboardLayoutMode;
   registerFooter: (element: HTMLElement | null) => void;
+  registerLeadingRegion: (element: HTMLElement | null) => void;
 };
 
 const DialogKeyboardLayoutContext = createContext<DialogKeyboardLayoutContextValue>({
   mode: "body-scroll",
   registerFooter: () => {},
+  registerLeadingRegion: () => {},
 });
 
 export const useDialogKeyboardLayoutContext = () => useContext(DialogKeyboardLayoutContext);
@@ -222,20 +224,29 @@ export const Dialog = ({
   const hasScrollableBody = Boolean(resolvedMaxH || contentProps?.maxH || contentProps?.h);
   const contentRef = useRef<HTMLDivElement>(null);
   const closeTriggerRef = useRef<HTMLButtonElement>(null);
+  const [contentElement, setContentElement] = useState<HTMLElement | null>(null);
   const [footerElement, setFooterElement] = useState<HTMLElement | null>(null);
+  const [headerElement, setHeaderElement] = useState<HTMLElement | null>(null);
+  const [leadingElement, setLeadingElement] = useState<HTMLElement | null>(null);
   const viewport = useDialogVisualViewport(isOpen && usesKeyboardAwareViewport);
   const usesAdaptiveKeyboardLayout = resolvedKeyboardLayout === "adaptive";
   const keyboardLayoutState = useDialogKeyboardLayout({
     enabled: isOpen && usesAdaptiveKeyboardLayout,
-    contentRef,
+    contentElement,
     footerElement,
+    headerElement,
+    leadingElement,
     viewportHeight: viewport.height,
     viewportOffsetTop: viewport.offsetTop,
     viewportWidth: viewport.width,
   });
   const keyboardLayoutMode = keyboardLayoutState.mode;
   const keyboardLayoutContext = useMemo<DialogKeyboardLayoutContextValue>(
-    () => ({ mode: keyboardLayoutMode, registerFooter: setFooterElement }),
+    () => ({
+      mode: keyboardLayoutMode,
+      registerFooter: setFooterElement,
+      registerLeadingRegion: setLeadingElement,
+    }),
     [keyboardLayoutMode],
   );
   const {
@@ -254,7 +265,7 @@ export const Dialog = ({
     overflowY: bodyOverflowY,
     ...restBodyProps
   } = bodyProps ?? {};
-  const mergedContentRef = useMemo(() => mergeRefs(contentRef, contentPropsRef), [contentPropsRef]);
+  const mergedContentRef = useMemo(() => mergeRefs(contentRef, setContentElement, contentPropsRef), [contentPropsRef]);
   const handleOpenChange = useCallback(
     (details: { open: boolean }) => {
       if (isBusy && !details.open) return;
@@ -297,6 +308,7 @@ export const Dialog = ({
   const headerAndBody = (
     <>
       <ChakraDialog.Header
+        ref={usesAdaptiveKeyboardLayout ? setHeaderElement : undefined}
         flexShrink={0}
         pt={mobileFullScreen ? { base: "calc(env(safe-area-inset-top) + 1.5rem)", lg: 6 } : undefined}
       >

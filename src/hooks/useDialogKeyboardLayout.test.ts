@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { RefObject } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DIALOG_MIN_EDITING_SCROLLPORT_HEIGHT,
@@ -24,30 +23,45 @@ class TestResizeObserver {
   }
 }
 
-const createDialogElements = (initialFooterHeight: number, initialContentHeight = 500) => {
+const createDialogElements = (
+  initialFooterHeight: number,
+  initialContentHeight = 500,
+  initialHeaderHeight = 0,
+  initialLeadingHeight = 0,
+) => {
   let footerHeight = initialFooterHeight;
   let contentHeight = initialContentHeight;
+  const headerHeight = initialHeaderHeight;
+  let leadingHeight = initialLeadingHeight;
   const content = document.createElement("div");
+  const header = document.createElement("div");
+  const leading = document.createElement("div");
   const input = document.createElement("input");
   input.type = "text";
   const button = document.createElement("button");
   const footer = document.createElement("div");
-  content.append(input, button, footer);
+  content.append(header, leading, input, button, footer);
   document.body.append(content);
   vi.spyOn(content, "getBoundingClientRect").mockImplementation(() => ({ height: contentHeight }) as DOMRect);
+  vi.spyOn(header, "getBoundingClientRect").mockImplementation(() => ({ height: headerHeight }) as DOMRect);
+  vi.spyOn(leading, "getBoundingClientRect").mockImplementation(() => ({ height: leadingHeight }) as DOMRect);
   vi.spyOn(footer, "getBoundingClientRect").mockImplementation(() => ({ height: footerHeight }) as DOMRect);
 
   return {
     button,
     content,
-    contentRef: { current: content } as RefObject<HTMLElement | null>,
     footer,
+    header,
     input,
+    leading,
     setContentHeight: (height: number) => {
       contentHeight = height;
     },
     setFooterHeight: (height: number) => {
       footerHeight = height;
+    },
+    setLeadingHeight: (height: number) => {
+      leadingHeight = height;
     },
   };
 };
@@ -104,6 +118,37 @@ describe("resolveDialogKeyboardLayoutMode", () => {
     ).toBe("content-scroll");
   });
 
+  it("HeaderとStepperを除いた実フォーム領域が不足する場合はFooter固定を解除する", () => {
+    expect(
+      resolveDialogKeyboardLayoutMode({
+        enabled: true,
+        isEditing: true,
+        viewportHeight: 395,
+        viewportWidth: 390,
+        contentHeight: 395,
+        footerHeight: 77,
+        topChromeHeight: 162,
+      }),
+    ).toBe("content-scroll");
+  });
+
+  it.each([
+    { viewportHeight: 399, expected: "content-scroll" },
+    { viewportHeight: 400, expected: "header-body-scroll" },
+    { viewportHeight: 401, expected: "header-body-scroll" },
+  ] as const)("Headerと先頭領域を差し引いた可視高が境界付近のとき$expectedを選ぶ", ({ viewportHeight, expected }) => {
+    expect(
+      resolveDialogKeyboardLayoutMode({
+        enabled: true,
+        isEditing: true,
+        viewportHeight,
+        viewportWidth: 390,
+        footerHeight: 80,
+        topChromeHeight: 80,
+      }),
+    ).toBe(expected);
+  });
+
   it.each([
     { enabled: false, isEditing: true, viewportWidth: 390 },
     { enabled: true, isEditing: false, viewportWidth: 390 },
@@ -122,13 +167,37 @@ describe("resolveDialogKeyboardLayoutMode", () => {
 });
 
 describe("useDialogKeyboardLayout", () => {
+  it("遅延mount後にContentを受け取ると既にfocus中のinputから入力レイアウトを開始する", async () => {
+    const elements = createDialogElements(77, 395, 110, 52);
+    const { result, rerender } = renderHook(
+      ({ contentElement }: { contentElement: HTMLElement | null }) =>
+        useDialogKeyboardLayout({
+          enabled: true,
+          contentElement,
+          footerElement: elements.footer,
+          headerElement: elements.header,
+          leadingElement: elements.leading,
+          viewportHeight: 395,
+          viewportOffsetTop: 0,
+          viewportWidth: 390,
+        }),
+      { initialProps: { contentElement: null as HTMLElement | null } },
+    );
+
+    act(() => elements.input.focus());
+    expect(result.current.mode).toBe("body-scroll");
+
+    rerender({ contentElement: elements.content });
+    await waitFor(() => expect(result.current.mode).toBe("content-scroll"));
+  });
+
   it("入力開始後はHeaderとBodyをスクロールし、可視高さ不足時はFooterも通常フローへ移す", async () => {
     const elements = createDialogElements(80);
     const { result, rerender } = renderHook(
       (props: { viewportHeight: number }) =>
         useDialogKeyboardLayout({
           enabled: true,
-          contentRef: elements.contentRef,
+          contentElement: elements.content,
           footerElement: elements.footer,
           viewportHeight: props.viewportHeight,
           viewportOffsetTop: 0,
@@ -151,7 +220,7 @@ describe("useDialogKeyboardLayout", () => {
       (props: { viewportHeight: number }) =>
         useDialogKeyboardLayout({
           enabled: true,
-          contentRef: elements.contentRef,
+          contentElement: elements.content,
           footerElement: elements.footer,
           viewportHeight: props.viewportHeight,
           viewportOffsetTop: 0,
@@ -176,7 +245,7 @@ describe("useDialogKeyboardLayout", () => {
     const { result } = renderHook(() =>
       useDialogKeyboardLayout({
         enabled: true,
-        contentRef: elements.contentRef,
+        contentElement: elements.content,
         footerElement: elements.footer,
         viewportHeight: 500,
         viewportOffsetTop: 0,
@@ -204,7 +273,7 @@ describe("useDialogKeyboardLayout", () => {
     const { result } = renderHook(() =>
       useDialogKeyboardLayout({
         enabled: true,
-        contentRef: elements.contentRef,
+        contentElement: elements.content,
         footerElement: elements.footer,
         viewportHeight: 400,
         viewportOffsetTop: 0,
@@ -222,6 +291,53 @@ describe("useDialogKeyboardLayout", () => {
     await waitFor(() => expect(result.current.mode).toBe("content-scroll"));
   });
 
+  it("HeaderとStepperの実高を引いたフォーム領域でFooter固定可否を決める", async () => {
+    const elements = createDialogElements(77, 395, 110, 52);
+    const { result } = renderHook(() =>
+      useDialogKeyboardLayout({
+        enabled: true,
+        contentElement: elements.content,
+        footerElement: elements.footer,
+        headerElement: elements.header,
+        leadingElement: elements.leading,
+        viewportHeight: 395,
+        viewportOffsetTop: 0,
+        viewportWidth: 390,
+      }),
+    );
+
+    act(() => elements.input.focus());
+
+    await waitFor(() => expect(result.current.mode).toBe("content-scroll"));
+    expect(resizeObserverObserve).toHaveBeenCalledWith(elements.content);
+    expect(resizeObserverObserve).toHaveBeenCalledWith(elements.header);
+    expect(resizeObserverObserve).toHaveBeenCalledWith(elements.leading);
+    expect(resizeObserverObserve).toHaveBeenCalledWith(elements.footer);
+  });
+
+  it("Stepperの実高が増えてフォーム領域が境界を下回るとFooter固定を解除する", async () => {
+    const elements = createDialogElements(80, 500, 100, 60);
+    const { result } = renderHook(() =>
+      useDialogKeyboardLayout({
+        enabled: true,
+        contentElement: elements.content,
+        footerElement: elements.footer,
+        headerElement: elements.header,
+        leadingElement: elements.leading,
+        viewportHeight: 500,
+        viewportOffsetTop: 0,
+        viewportWidth: 390,
+      }),
+    );
+
+    act(() => elements.input.focus());
+    await waitFor(() => expect(result.current.mode).toBe("header-body-scroll"));
+
+    elements.setLeadingHeight(81);
+    act(() => resizeObserverCallback?.([], {} as ResizeObserver));
+    await waitFor(() => expect(result.current.mode).toBe("content-scroll"));
+  });
+
   it("mode切替後にfocus中のinputが可視領域外なら最小限のscrollを要求する", async () => {
     const elements = createDialogElements(80);
     const scrollIntoView = vi.fn();
@@ -231,7 +347,7 @@ describe("useDialogKeyboardLayout", () => {
       (props: { viewportHeight: number }) =>
         useDialogKeyboardLayout({
           enabled: true,
-          contentRef: elements.contentRef,
+          contentElement: elements.content,
           footerElement: elements.footer,
           viewportHeight: props.viewportHeight,
           viewportOffsetTop: 0,
@@ -258,7 +374,7 @@ describe("useDialogKeyboardLayout", () => {
     renderHook(() =>
       useDialogKeyboardLayout({
         enabled: true,
-        contentRef: elements.contentRef,
+        contentElement: elements.content,
         footerElement: elements.footer,
         viewportHeight: 500,
         viewportOffsetTop: 0,
@@ -283,7 +399,7 @@ describe("useDialogKeyboardLayout", () => {
       (props: { viewportOffsetTop: number }) =>
         useDialogKeyboardLayout({
           enabled: true,
-          contentRef: elements.contentRef,
+          contentElement: elements.content,
           footerElement: elements.footer,
           viewportHeight: 500,
           viewportOffsetTop: props.viewportOffsetTop,
@@ -311,7 +427,7 @@ describe("useDialogKeyboardLayout", () => {
     const { result } = renderHook(() =>
       useDialogKeyboardLayout({
         enabled: true,
-        contentRef: elements.contentRef,
+        contentElement: elements.content,
         footerElement: elements.footer,
         viewportHeight: 300,
         viewportOffsetTop: 0,
@@ -332,7 +448,7 @@ describe("useDialogKeyboardLayout", () => {
     const { unmount } = renderHook(() =>
       useDialogKeyboardLayout({
         enabled: true,
-        contentRef: elements.contentRef,
+        contentElement: elements.content,
         footerElement: elements.footer,
         viewportHeight: 500,
         viewportOffsetTop: 0,
@@ -355,7 +471,7 @@ describe("useDialogKeyboardLayout", () => {
     const { unmount } = renderHook(() =>
       useDialogKeyboardLayout({
         enabled: true,
-        contentRef: elements.contentRef,
+        contentElement: elements.content,
         footerElement: elements.footer,
         viewportHeight: 500,
         viewportOffsetTop: 0,
