@@ -99,3 +99,15 @@ export const Mobile: Story = {
     await expectFontSize(canvasElement, "16px");
   },
 };
+
+export const MobileLandscape: Story = {
+  globals: { viewport: { value: "mobile2Landscape", isRotated: false } },
+  tags: ["vrt-mobile2"],
+  play: async ({ canvasElement }) => {
+    const viewport = canvasElement.ownerDocument.defaultView;
+
+    await expect(viewport?.innerWidth).toBe(896);
+    await expect(viewport?.innerHeight).toBe(414);
+    await expectFontSize(canvasElement, "16px");
+  },
+};

@@ -75,6 +75,13 @@ const preview: Preview = {
             height: "896px",
           },
         },
+        mobile2Landscape: {
+          name: "Mobile Large Landscape",
+          styles: {
+            width: "896px",
+            height: "414px",
+          },
+        },
       },
     },
   },

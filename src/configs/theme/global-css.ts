@@ -55,9 +55,10 @@ export const globalCss = defineGlobalStyles({
     color: "fg.muted/80",
   },
   [mobileTextInputSelector]: {
-    "@media screen and (max-width: 767px)": {
-      // Chakraのsize recipeや個別指定より優先し、iOSのフォーカス時ズームを防ぐ。
-      fontSize: "16px !important",
-    },
+    "@media screen and (max-width: 767px), screen and (orientation: landscape) and (max-width: 1023px) and (max-height: 767px)":
+      {
+        // Chakraのsize recipeや個別指定より優先し、iOSのフォーカス時ズームを防ぐ。
+        fontSize: "16px !important",
+      },
   },
 });

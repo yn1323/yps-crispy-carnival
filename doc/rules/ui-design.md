@@ -99,9 +99,9 @@ Loading、Empty、Error、Success、処理中を別の状態として設計す�
 
 ## モバイルのフォーム入力
 
-モバイルでは、文字入力を受ける`input`（type未指定、`text`、`email`、`password`、`search`、`tel`、`url`、`number`）、`textarea`、nativeとcustomの`select`の実効フォントサイズを16px以上にする。  iOSブラウザがフォーカス時にページを自動拡大せず、入力中も周囲の操作を確認できる状態を保つためである。
+幅768px未満、または横向きで幅1024px未満かつ高さ768px未満の表示では、文字入力を受ける`input`（type未指定、`text`、`email`、`password`、`search`、`tel`、`url`、`number`）、`textarea`、nativeとcustomの`select`の実効フォントサイズを16px以上にする。  iOSブラウザがフォーカス時にページを自動拡大せず、入力中も周囲の操作を確認できる状態を保つためである。
 
-ラベル、補足、エラー、ボタンなど、フォーカスされるフォームコントロール以外の文字は16px未満でもよい。  デスクトップではcomponentのsize recipeを維持し、viewportの`user-scalable`や`maximum-scale`で利用者のズーム操作を禁止しない。
+ラベル、補足、エラー、ボタンなど、フォーカスされるフォームコントロール以外の文字は16px未満でもよい。  対象外のviewportではcomponentのsize recipeを維持し、viewportの`user-scalable`や`maximum-scale`で利用者のズーム操作を禁止しない。
 
 ## Dialogのアクション
 
