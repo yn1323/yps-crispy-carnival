@@ -776,8 +776,10 @@ function BillingInformationRow({
         color="gray.900"
         cursor={disabled ? "not-allowed" : "pointer"}
         opacity={disabled ? 0.64 : 1}
-        transition="background-color 150ms ease"
+        transitionProperty="background-color"
+        transitionDuration="faster"
         _hover={disabled ? undefined : { bg: "gray.50" }}
+        _active={disabled ? undefined : { bg: "gray.100", transitionDuration: "0ms" }}
         _focusVisible={{
           outlineWidth: "2px",
           outlineStyle: "solid",

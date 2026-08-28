@@ -101,6 +101,10 @@ const WeekCard = ({
       borderBottomWidth={isOpen ? "1px" : "0"}
       borderColor="gray.100"
       cursor="pointer"
+      bg="transparent"
+      transitionProperty="colors"
+      transitionDuration="faster"
+      _active={{ bg: "gray.100", transitionDuration: "0ms" }}
     >
       <Flex
         w="28px"
@@ -143,7 +147,9 @@ const DayRow = ({ row, onDateTap }: { row: DateOnlyOverviewDayRowViewModel; onDa
     borderColor="gray.100"
     bg="white"
     cursor={row.canOpenDaily ? "pointer" : "default"}
-    _active={row.canOpenDaily ? { bg: "gray.50" } : undefined}
+    transitionProperty="colors"
+    transitionDuration="faster"
+    _active={row.canOpenDaily ? { bg: "gray.100", transitionDuration: "0ms" } : undefined}
     _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "-2px" }}
   >
     <Box w="68px" flexShrink={0} position="relative">

@@ -304,7 +304,8 @@ const DateOnlyCell = ({
       fontSize="xl"
       fontWeight={assigned ? 700 : 500}
       cursor={isReadOnly || isClosed || !date.inRange ? "default" : "pointer"}
-      transition="background 0.12s ease, border-color 0.12s ease, color 0.12s ease"
+      transitionProperty="colors"
+      transitionDuration="faster"
       _hover={
         isReadOnly || isClosed || !date.inRange
           ? undefined
@@ -313,6 +314,11 @@ const DateOnlyCell = ({
               borderColor: assigned ? "teal.700" : requested ? "teal.600" : "gray.400",
               color: assigned ? "white" : "gray.500",
             }
+      }
+      _active={
+        isReadOnly || isClosed || !date.inRange
+          ? undefined
+          : { bg: assigned ? "teal.600" : "gray.100", transitionDuration: "0ms" }
       }
       _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
     >

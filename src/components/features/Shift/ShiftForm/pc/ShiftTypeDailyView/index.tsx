@@ -248,7 +248,27 @@ const ShiftTypeCell = ({
       fontSize="xl"
       fontWeight={cell.assigned ? 700 : 500}
       cursor={isReadOnly ? "default" : "pointer"}
-      transition="background 0.12s ease, border-color 0.12s ease, color 0.12s ease"
+      position="relative"
+      isolation="isolate"
+      overflow="hidden"
+      transitionProperty="colors"
+      transitionDuration="faster"
+      _before={
+        cell.assigned
+          ? {
+              content: '""',
+              position: "absolute",
+              inset: 0,
+              zIndex: -1,
+              borderRadius: "inherit",
+              bg: "blackAlpha.200",
+              opacity: 0,
+              pointerEvents: "none",
+              transitionProperty: "opacity",
+              transitionDuration: "faster",
+            }
+          : undefined
+      }
       _hover={
         isReadOnly
           ? undefined
@@ -257,6 +277,13 @@ const ShiftTypeCell = ({
               borderColor: cell.assigned ? cell.color.accent : "gray.400",
               color: cell.assigned ? cell.color.accent : "gray.500",
             }
+      }
+      _active={
+        isReadOnly
+          ? undefined
+          : cell.assigned
+            ? { _before: { opacity: 1, transitionDuration: "0ms" } }
+            : { bg: "gray.100", transitionDuration: "0ms" }
       }
       _focusVisible={{ outline: "2px solid", outlineColor: cell.color.accent, outlineOffset: "1px" }}
     >

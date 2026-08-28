@@ -93,6 +93,10 @@ const WeekCard = ({ week, isOpen, onToggle, onDateClick }: WeekCardProps) => (
       onClick={onToggle}
       borderBottomWidth={isOpen ? "1px" : "0"}
       borderColor="gray.100"
+      bg="transparent"
+      transitionProperty="colors"
+      transitionDuration="faster"
+      _active={{ bg: "gray.100", transitionDuration: "0ms" }}
     >
       <Flex
         w="28px"
@@ -170,6 +174,9 @@ const DateHeaderCell = ({
     cursor={date.isClickable ? "pointer" : "default"}
     opacity={date.opacity}
     bg={date.isClosed ? "gray.100" : undefined}
+    transitionProperty="colors"
+    transitionDuration="faster"
+    _active={date.isClickable ? { bg: date.isClosed ? "gray.200" : "gray.100", transitionDuration: "0ms" } : undefined}
   >
     <Box display="inline-block" position="relative" px={date.warningCount > 0 ? 1 : 0}>
       {date.warningCount > 0 && <IssueCountBadge count={date.warningCount} tone="warning" top="-10px" right="-14px" />}

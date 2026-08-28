@@ -13,6 +13,7 @@ const TONE_CONFIG: Record<
     border: string;
     fg: string;
     hover: string;
+    pressed: string;
     focus: string;
     icon: IconType;
     title: (count: number) => string;
@@ -25,6 +26,7 @@ const TONE_CONFIG: Record<
     border: "red.200",
     fg: "red.700",
     hover: "red.100",
+    pressed: "red.200",
     focus: "red.400",
     icon: LuCircleAlert,
     title: (count) => `確定する前に${count}件修正してください`,
@@ -36,6 +38,7 @@ const TONE_CONFIG: Record<
     border: "orange.200",
     fg: "orange.700",
     hover: "orange.100",
+    pressed: "orange.200",
     focus: "orange.400",
     icon: LuTriangleAlert,
     title: (count) => `確認事項（${count}件）`,
@@ -67,7 +70,10 @@ const DismissButton = ({ onDismiss, tone }: { onDismiss?: () => void; tone: Issu
       borderRadius="md"
       color={config.fg}
       cursor="pointer"
+      transitionProperty="colors"
+      transitionDuration="faster"
       _hover={{ bg: config.hover }}
+      _active={{ bg: config.pressed, transitionDuration: "0ms" }}
     >
       <Icon boxSize={4}>
         <LuX />
@@ -102,7 +108,10 @@ const IssueList = ({
             py="6px"
             borderRadius="md"
             cursor="pointer"
+            transitionProperty="colors"
+            transitionDuration="faster"
             _hover={{ bg: config.hover }}
+            _active={{ bg: config.pressed, transitionDuration: "0ms" }}
             _focusVisible={{ outline: "2px solid", outlineColor: config.focus }}
             onClick={() => onSelectIssue?.(issue)}
             onKeyDown={(e) => {
@@ -153,6 +162,10 @@ export const ValidationErrorPanel = ({
             minW={0}
             cursor="pointer"
             textAlign="left"
+            borderRadius="md"
+            transitionProperty="colors"
+            transitionDuration="faster"
+            _active={{ bg: config.pressed, transitionDuration: "0ms" }}
           >
             <Icon color={config.fg} boxSize={4} flexShrink={0}>
               <TitleIcon />

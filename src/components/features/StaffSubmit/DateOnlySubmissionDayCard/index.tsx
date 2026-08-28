@@ -27,7 +27,14 @@ export function DateOnlySubmissionDayCard({ entry, onToggleWorking, isShopClosed
       borderColor={entry.isWorking && !isShopClosed ? "teal.600" : "border.default"}
       cursor={isShopClosed || isReadOnly ? "default" : "pointer"}
       onClick={isShopClosed || isReadOnly ? undefined : onToggleWorking}
+      transitionProperty="background"
+      transitionDuration="faster"
       _hover={isShopClosed || isReadOnly ? undefined : { bg: entry.isWorking ? "teal.50" : "gray.50" }}
+      _active={
+        isShopClosed || isReadOnly
+          ? undefined
+          : { bg: entry.isWorking ? "teal.100" : "gray.100", transitionDuration: "0ms" }
+      }
     >
       <Text fontSize="sm" fontWeight="medium" color={dateColor}>
         {dateLabel}

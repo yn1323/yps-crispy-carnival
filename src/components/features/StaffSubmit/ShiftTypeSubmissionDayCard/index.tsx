@@ -75,7 +75,10 @@ export function ShiftTypeSubmissionDayCard({
         role={isReadOnly ? undefined : "button"}
         aria-label={isReadOnly ? undefined : `${dateLabel}を出勤希望にする`}
         onClick={isReadOnly ? undefined : onToggleWorking}
+        transitionProperty="background"
+        transitionDuration="faster"
         _hover={isReadOnly ? undefined : { bg: "gray.50" }}
+        _active={isReadOnly ? undefined : { bg: "gray.100", transitionDuration: "0ms" }}
       >
         <Text fontSize="sm" fontWeight="medium" color={dateColor}>
           {dateLabel}
