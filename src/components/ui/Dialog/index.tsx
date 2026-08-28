@@ -1,13 +1,14 @@
 import { Box, Dialog as ChakraDialog, CloseButton, Flex, mergeRefs, Portal } from "@chakra-ui/react";
 import type { ComponentProps, ReactNode } from "react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/Button";
 import { TOASTER_LAYER_SELECTOR } from "@/src/components/ui/toaster";
 import { useCloseDialogOnBrowserBack } from "@/src/hooks/useCloseDialogOnBrowserBack";
+import { type DialogKeyboardLayoutMode, useDialogKeyboardLayout } from "@/src/hooks/useDialogKeyboardLayout";
 import {
   DIALOG_VISUAL_VIEWPORT_HEIGHT,
   DIALOG_VISUAL_VIEWPORT_OFFSET_TOP,
-  useDialogVisualViewportStyle,
+  useDialogVisualViewport,
 } from "@/src/hooks/useDialogVisualViewportStyle";
 
 const getInteractOutsideTarget = (event: Event) => {
@@ -28,6 +29,19 @@ const preventCloseWhenInteractingWithToaster: NonNullable<
 };
 
 export type DialogActionAreaLayout = "standard" | "flow";
+export type DialogKeyboardLayout = "body-scroll" | "adaptive";
+
+type DialogKeyboardLayoutContextValue = {
+  mode: DialogKeyboardLayoutMode;
+  registerFooter: (element: HTMLElement | null) => void;
+};
+
+const DialogKeyboardLayoutContext = createContext<DialogKeyboardLayoutContextValue>({
+  mode: "body-scroll",
+  registerFooter: () => {},
+});
+
+export const useDialogKeyboardLayoutContext = () => useContext(DialogKeyboardLayoutContext);
 
 type DialogActionAreaActions =
   | { startAction: ReactNode; endAction?: ReactNode }
@@ -151,6 +165,7 @@ export type DialogProps = {
   formId?: string;
   modal?: boolean;
   keyboardAwareViewport?: boolean;
+  keyboardLayout?: DialogKeyboardLayout;
   positionerProps?: ComponentProps<typeof ChakraDialog.Positioner>;
   contentProps?: ComponentProps<typeof ChakraDialog.Content>;
   bodyProps?: ComponentProps<typeof ChakraDialog.Body>;
@@ -182,6 +197,7 @@ export const Dialog = ({
   formId,
   modal = true,
   keyboardAwareViewport = false,
+  keyboardLayout,
   positionerProps,
   contentProps,
   bodyProps,
@@ -194,7 +210,9 @@ export const Dialog = ({
   const isBusy = preventClose || isLoading;
   const hasSubmitAction = Boolean(onSubmit || formId);
   const resolvedCloseLabel = closeLabel ?? (hasSubmitAction ? "キャンセル" : "閉じる");
-  const usesKeyboardAwareViewport = keyboardAwareViewport || mobileFullScreen;
+  const resolvedKeyboardLayout =
+    keyboardLayout ?? (mobileFullScreen || keyboardAwareViewport || hasSubmitAction ? "adaptive" : "body-scroll");
+  const usesKeyboardAwareViewport = keyboardAwareViewport || mobileFullScreen || resolvedKeyboardLayout === "adaptive";
   const resolvedMaxW = mobileFullScreen
     ? (mergeMobileFullScreenSize(maxW, "100vw", "640px") as DialogProps["maxW"])
     : maxW;
@@ -202,10 +220,40 @@ export const Dialog = ({
     ? (mergeMobileFullScreenSize(maxH, DIALOG_VISUAL_VIEWPORT_HEIGHT, "85dvh") as DialogProps["maxH"])
     : maxH;
   const hasScrollableBody = Boolean(resolvedMaxH || contentProps?.maxH || contentProps?.h);
-  const viewportStyle = useDialogVisualViewportStyle(isOpen && usesKeyboardAwareViewport);
   const contentRef = useRef<HTMLDivElement>(null);
   const closeTriggerRef = useRef<HTMLButtonElement>(null);
-  const { ref: contentPropsRef, tabIndex: contentTabIndex, ...restContentProps } = contentProps ?? {};
+  const [footerElement, setFooterElement] = useState<HTMLElement | null>(null);
+  const viewport = useDialogVisualViewport(isOpen && usesKeyboardAwareViewport);
+  const usesAdaptiveKeyboardLayout = resolvedKeyboardLayout === "adaptive";
+  const keyboardLayoutState = useDialogKeyboardLayout({
+    enabled: isOpen && usesAdaptiveKeyboardLayout,
+    contentRef,
+    footerElement,
+    viewportHeight: viewport.height,
+    viewportOffsetTop: viewport.offsetTop,
+    viewportWidth: viewport.width,
+  });
+  const keyboardLayoutMode = keyboardLayoutState.mode;
+  const keyboardLayoutContext = useMemo<DialogKeyboardLayoutContextValue>(
+    () => ({ mode: keyboardLayoutMode, registerFooter: setFooterElement }),
+    [keyboardLayoutMode],
+  );
+  const {
+    ref: contentPropsRef,
+    tabIndex: contentTabIndex,
+    display: contentDisplay,
+    flexDirection: contentFlexDirection,
+    overflow: contentOverflow,
+    overflowY: contentOverflowY,
+    ...restContentProps
+  } = contentProps ?? {};
+  const {
+    flex: bodyFlex,
+    h: bodyHeight,
+    minH: bodyMinHeight,
+    overflowY: bodyOverflowY,
+    ...restBodyProps
+  } = bodyProps ?? {};
   const mergedContentRef = useMemo(() => mergeRefs(contentRef, contentPropsRef), [contentPropsRef]);
   const handleOpenChange = useCallback(
     (details: { open: boolean }) => {
@@ -224,6 +272,10 @@ export const Dialog = ({
   }, [handleOpenChange, isBusy, onClose]);
   useCloseDialogOnBrowserBack(isOpen, () => handleOpenChange({ open: false }), onBackGuardRemoved, !isBusy);
   const { style: positionerStyle, ...restPositionerProps } = positionerProps ?? {};
+  const isHeaderBodyScroll = keyboardLayoutMode === "header-body-scroll";
+  const isContentScroll = keyboardLayoutMode === "content-scroll";
+  const usesNaturalBodyFlow = isHeaderBodyScroll || isContentScroll;
+  const hasManagedScroll = hasScrollableBody || usesNaturalBodyFlow;
 
   const closeAction = (
     <Button type="button" variant="outline" onClick={handleClose} disabled={isBusy}>
@@ -241,6 +293,49 @@ export const Dialog = ({
       {submitLabel}
     </Button>
   ) : undefined;
+
+  const headerAndBody = (
+    <>
+      <ChakraDialog.Header
+        flexShrink={0}
+        pt={mobileFullScreen ? { base: "calc(env(safe-area-inset-top) + 1.5rem)", lg: 6 } : undefined}
+      >
+        <ChakraDialog.Title>{title}</ChakraDialog.Title>
+      </ChakraDialog.Header>
+      <ChakraDialog.Body
+        {...restBodyProps}
+        flex={hasManagedScroll ? (usesNaturalBodyFlow ? "none" : (bodyFlex ?? 1)) : bodyFlex}
+        h={usesNaturalBodyFlow ? "auto" : bodyHeight}
+        minH={hasManagedScroll ? (usesNaturalBodyFlow ? 0 : (bodyMinHeight ?? 0)) : bodyMinHeight}
+        overflowY={hasManagedScroll ? (usesNaturalBodyFlow ? "visible" : (bodyOverflowY ?? "auto")) : bodyOverflowY}
+      >
+        {children}
+      </ChakraDialog.Body>
+    </>
+  );
+
+  const mainRegion = usesAdaptiveKeyboardLayout ? (
+    <Flex
+      data-dialog-main-region
+      direction="column"
+      flex={hasManagedScroll ? (isContentScroll ? "none" : 1) : undefined}
+      minH={hasManagedScroll ? (isContentScroll ? "auto" : 0) : undefined}
+      overflow={isHeaderBodyScroll ? "auto" : isContentScroll ? "visible" : hasManagedScroll ? "hidden" : undefined}
+      overscrollBehaviorY={isHeaderBodyScroll ? "contain" : undefined}
+      scrollPaddingBlockStart={isHeaderBodyScroll ? 4 : undefined}
+      scrollPaddingBlockEnd={
+        isHeaderBodyScroll && hideFooter && keyboardLayoutState.footerHeight > 0
+          ? `calc(${keyboardLayoutState.footerHeight}px + 1rem)`
+          : isHeaderBodyScroll
+            ? 4
+            : undefined
+      }
+    >
+      {headerAndBody}
+    </Flex>
+  ) : (
+    headerAndBody
+  );
 
   return (
     <ChakraDialog.Root
@@ -267,66 +362,62 @@ export const Dialog = ({
           top={usesKeyboardAwareViewport ? DIALOG_VISUAL_VIEWPORT_OFFSET_TOP : undefined}
           {...restPositionerProps}
           style={{
-            ...viewportStyle,
+            ...viewport.style,
             ...positionerStyle,
           }}
         >
-          <ChakraDialog.Content
-            ref={mergedContentRef}
-            maxW={resolvedMaxW}
-            maxH={resolvedMaxH}
-            w={mobileFullScreen ? "full" : undefined}
-            h={mobileFullScreen ? { base: DIALOG_VISUAL_VIEWPORT_HEIGHT, lg: "auto" } : undefined}
-            my={mobileFullScreen ? { base: 0, lg: "var(--dialog-base-margin)" } : undefined}
-            borderRadius={mobileFullScreen ? { base: 0, lg: "l3" } : undefined}
-            display={hasScrollableBody ? "flex" : undefined}
-            flexDirection="column"
-            overflow={hasScrollableBody ? "hidden" : undefined}
-            aria-busy={isBusy || undefined}
-            tabIndex={role === "alertdialog" ? (contentTabIndex ?? -1) : contentTabIndex}
-            {...restContentProps}
-          >
-            <ChakraDialog.Header
-              flexShrink={0}
-              pt={mobileFullScreen ? { base: "calc(env(safe-area-inset-top) + 1.5rem)", lg: 6 } : undefined}
+          <DialogKeyboardLayoutContext.Provider value={keyboardLayoutContext}>
+            <ChakraDialog.Content
+              ref={mergedContentRef}
+              maxW={resolvedMaxW}
+              maxH={
+                resolvedMaxH ?? (usesNaturalBodyFlow && !contentProps?.h ? DIALOG_VISUAL_VIEWPORT_HEIGHT : undefined)
+              }
+              w={mobileFullScreen ? "full" : undefined}
+              h={mobileFullScreen ? { base: DIALOG_VISUAL_VIEWPORT_HEIGHT, lg: "auto" } : undefined}
+              my={mobileFullScreen ? { base: 0, lg: "var(--dialog-base-margin)" } : undefined}
+              borderRadius={mobileFullScreen ? { base: 0, lg: "l3" } : undefined}
+              {...restContentProps}
+              display={contentDisplay ?? (hasManagedScroll ? "flex" : undefined)}
+              flexDirection={contentFlexDirection ?? "column"}
+              overflow={isContentScroll ? "auto" : (contentOverflow ?? (hasManagedScroll ? "hidden" : undefined))}
+              overflowY={isContentScroll ? "auto" : contentOverflowY}
+              overscrollBehaviorY={isContentScroll ? "contain" : undefined}
+              scrollPaddingBlock={isContentScroll ? 4 : undefined}
+              data-dialog-keyboard-layout={usesAdaptiveKeyboardLayout ? keyboardLayoutMode : undefined}
+              aria-busy={isBusy || undefined}
+              tabIndex={role === "alertdialog" ? (contentTabIndex ?? -1) : contentTabIndex}
             >
-              <ChakraDialog.Title>{title}</ChakraDialog.Title>
-            </ChakraDialog.Header>
-            <ChakraDialog.Body
-              flex={hasScrollableBody ? 1 : undefined}
-              minH={hasScrollableBody ? 0 : undefined}
-              overflowY={hasScrollableBody ? "auto" : undefined}
-              {...bodyProps}
-            >
-              {children}
-            </ChakraDialog.Body>
-            {!hideFooter && (
-              <ChakraDialog.Footer
-                flexShrink={0}
-                borderTopWidth={hasScrollableBody ? 1 : undefined}
-                borderColor={hasScrollableBody ? "border.default" : undefined}
-                pb={mobileFullScreen ? { base: "calc(env(safe-area-inset-bottom) + 1rem)", lg: 4 } : undefined}
-              >
-                {footer ?? (
-                  <DialogActionArea
-                    layout={actionLayout}
-                    startAction={submitAction ? closeAction : undefined}
-                    endAction={submitAction ?? closeAction}
-                  />
-                )}
-              </ChakraDialog.Footer>
-            )}
-            {!isBusy && (
-              <ChakraDialog.CloseTrigger
-                asChild
-                position="absolute"
-                top={mobileFullScreen ? { base: "calc(env(safe-area-inset-top) + 0.5rem)", lg: 2 } : 2}
-                insetEnd={mobileFullScreen ? { base: "calc(env(safe-area-inset-right) + 0.5rem)", lg: 2 } : 2}
-              >
-                <CloseButton ref={closeTriggerRef} size="sm" aria-label="閉じる" />
-              </ChakraDialog.CloseTrigger>
-            )}
-          </ChakraDialog.Content>
+              {mainRegion}
+              {!hideFooter && (
+                <ChakraDialog.Footer
+                  ref={usesAdaptiveKeyboardLayout ? setFooterElement : undefined}
+                  flexShrink={0}
+                  borderTopWidth={hasManagedScroll ? 1 : undefined}
+                  borderColor={hasManagedScroll ? "border.default" : undefined}
+                  pb={mobileFullScreen ? { base: "calc(env(safe-area-inset-bottom) + 1rem)", lg: 4 } : undefined}
+                >
+                  {footer ?? (
+                    <DialogActionArea
+                      layout={actionLayout}
+                      startAction={submitAction ? closeAction : undefined}
+                      endAction={submitAction ?? closeAction}
+                    />
+                  )}
+                </ChakraDialog.Footer>
+              )}
+              {!isBusy && (
+                <ChakraDialog.CloseTrigger
+                  asChild
+                  position="absolute"
+                  top={mobileFullScreen ? { base: "calc(env(safe-area-inset-top) + 0.5rem)", lg: 2 } : 2}
+                  insetEnd={mobileFullScreen ? { base: "calc(env(safe-area-inset-right) + 0.5rem)", lg: 2 } : 2}
+                >
+                  <CloseButton ref={closeTriggerRef} size="sm" aria-label="閉じる" />
+                </ChakraDialog.CloseTrigger>
+              )}
+            </ChakraDialog.Content>
+          </DialogKeyboardLayoutContext.Provider>
         </ChakraDialog.Positioner>
       </Portal>
     </ChakraDialog.Root>

@@ -2,7 +2,7 @@ import { Box, Field, Input, Stack, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { LuCalendarDays, LuChevronLeft, LuStore, LuTimer } from "react-icons/lu";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Button } from "@/src/components/ui/Button";
 import { StepperDialog, StepperDialogContent, type StepperDialogStep } from "./index";
 
@@ -162,6 +162,31 @@ export const MobileFullScreen: Story = {
     viewport: { value: "mobile1", isRotated: false },
   },
   render: () => <StepperDialogDemo longContent />,
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    const dialog = await page.findByRole("dialog", { name: "店舗設定" });
+    const input = within(dialog).getByRole("textbox", { name: "お店の名前" });
+    const actionBar = dialog.querySelector<HTMLElement>("[data-dialog-action-bar]");
+    const mainRegion = dialog.querySelector<HTMLElement>("[data-dialog-main-region]");
+    if (!actionBar || !mainRegion) throw new Error("StepperDialogのscroll領域またはaction barが見つかりません。");
+
+    await userEvent.click(input);
+    await userEvent.type(input, " 本店");
+    await waitFor(() => {
+      expect(dialog).toHaveAttribute(
+        "data-dialog-keyboard-layout",
+        window.innerWidth < 1024 ? "header-body-scroll" : "body-scroll",
+      );
+    });
+    await expect(within(dialog).getByRole("textbox", { name: "お店の名前" })).toBe(input);
+    await expect(input).toHaveValue("居酒屋たなか 本店");
+    await expect(input.compareDocumentPosition(actionBar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    if (window.innerWidth < 1024) {
+      await waitFor(() =>
+        expect(Number.parseFloat(getComputedStyle(mainRegion).scrollPaddingBlockEnd)).toBeGreaterThan(16),
+      );
+    }
+  },
 };
 
 export const MobileInlineLong: Story = {

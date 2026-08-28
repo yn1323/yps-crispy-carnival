@@ -1,4 +1,4 @@
-import { Box, Input, Stack, Text } from "@chakra-ui/react";
+import { Box, Field, Input, Stack, Text } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useRouter } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
@@ -208,6 +208,86 @@ export const MobileFullScreenScrolling: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   render: () => <MobileFullScreenScrollingExample />,
+};
+
+const MobileAdaptiveKeyboardExample = ({ constrainedHeight = false }: { constrainedHeight?: boolean }) => {
+  const { isOpen, close, onOpenChange } = useDialog(true);
+
+  return (
+    <Dialog
+      title="スタッフを追加"
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      onClose={close}
+      formId="adaptive-keyboard-form"
+      closeLabel="戻る"
+      submitLabel="スタッフを登録する"
+      actionLayout="flow"
+      mobileFullScreen={!constrainedHeight}
+      keyboardAwareViewport={constrainedHeight}
+      maxW={constrainedHeight ? "calc(100vw - 32px)" : undefined}
+      maxH={constrainedHeight ? "300px" : undefined}
+    >
+      <form id="adaptive-keyboard-form" onSubmit={(event) => event.preventDefault()}>
+        <Stack gap={5}>
+          <Text color="fg.muted">
+            入力中はフォームを優先し、十分な入力領域を確保できる場合は操作ボタンを画面内に残します。
+          </Text>
+          {Array.from({ length: 4 }, (_, index) => (
+            <Stack key={index} gap={3}>
+              <Text fontWeight="semibold">スタッフ {index + 1}</Text>
+              <Field.Root>
+                <Field.Label>スタッフ名</Field.Label>
+                <Input autoFocus={index === 0} defaultValue={index === 0 ? "山田 花子" : ""} />
+              </Field.Root>
+              <Field.Root>
+                <Field.Label>メールアドレス</Field.Label>
+                <Input type="email" />
+              </Field.Root>
+            </Stack>
+          ))}
+        </Stack>
+      </form>
+    </Dialog>
+  );
+};
+
+const verifyAdaptiveKeyboardLayout = async (
+  canvasElement: HTMLElement,
+  mobileMode: "header-body-scroll" | "content-scroll",
+) => {
+  const page = within(canvasElement.ownerDocument.body);
+  const dialog = await page.findByRole("dialog", { name: "スタッフを追加" });
+  const firstInput = within(dialog).getAllByRole("textbox", { name: "スタッフ名" })[0];
+  const back = within(dialog).getByRole("button", { name: "戻る" });
+  const submit = within(dialog).getByRole("button", { name: "スタッフを登録する" });
+
+  await userEvent.click(firstInput);
+  await userEvent.type(firstInput, " 追記");
+  await waitFor(() => {
+    expect(dialog).toHaveAttribute(
+      "data-dialog-keyboard-layout",
+      window.innerWidth < 1024 ? mobileMode : "body-scroll",
+    );
+  });
+  await expect(within(dialog).getAllByRole("textbox", { name: "スタッフ名" })[0]).toBe(firstInput);
+  await expect(firstInput).toHaveValue("山田 花子 追記");
+  await expect(firstInput).toHaveFocus();
+  await expect(back.compareDocumentPosition(submit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+};
+
+export const MobileAdaptiveKeyboard: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  render: () => <MobileAdaptiveKeyboardExample />,
+  play: async ({ canvasElement }) => verifyAdaptiveKeyboardLayout(canvasElement, "header-body-scroll"),
+};
+
+export const MobileAdaptiveInsufficientHeight: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  render: () => <MobileAdaptiveKeyboardExample constrainedHeight />,
+  play: async ({ canvasElement }) => verifyAdaptiveKeyboardLayout(canvasElement, "content-scroll"),
 };
 
 const ActionOrderAndFocusExample = () => {
