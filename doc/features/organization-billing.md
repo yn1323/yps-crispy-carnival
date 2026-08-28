@@ -70,12 +70,13 @@ direct routeとpublic mutation/actionは、画面表示とは独立して認証�
 |---|---|---|---|
 | ログイン方法 | Clerkの確認済みメール、パスワード、Google接続 | シフトリへの認証 | 画面右上の「アカウント設定」から開く`/account` |
 | シフト連絡先 | 組織ごとの`organizationPeople.email` | 本人のシフト通知と管理者向けの業務連絡 | ユーザー詳細 |
-| 請求先 | 組織ごとの`organizations.billingEmail` | Stripeの請求書、領収書、カード関連通知 | 「プランと支払い」 |
+| 請求先 | 組織ごとの`organizations.billingEmail` | Stripeの請求書、領収書、決済関連通知 | 「プランと支払い」 |
 | 初期化・旧データ互換値 | `users.email` | 初回セットアップ時のsnapshotとcanonical所属がない旧データのfallback | 通常の設定画面では直接編集しない |
 
 シフト連絡先を変更しても、Clerkのログイン方法、`users.email`、請求先メールアドレスは変更しない。
 請求先メールアドレスを変更しても、シフト連絡先とログイン方法は変更しない。
-請求先メールアドレスはStripeと課金通知の宛先となる文字列であり、管理者ロール、人物の権限、管理者権限の追加・解除、人物・アカウント削除の可否には使用しない。
+請求先メールアドレスはStripeが送る請求書、領収書、決済関連通知の宛先であり、管理者ロール、人物の権限、管理者権限の追加・解除、人物・アカウント削除の可否には使用しない。
+シフトリが送る請求先メールアドレス変更通知は、送信時点の全有効管理者のシフト連絡先へ送る。
 アカウント設定の画面と状態判定はシフト連絡先から独立させ、Clerk操作の提供可否は安全性の実験と環境確認が完了した機能だけを有効にする。
 この文書はローカル実装の境界を示すものであり、Clerkの各操作や実deploymentでの公開完了を示す証跡にはしない。
 
@@ -135,7 +136,20 @@ Trial未契約終了、有料契約の解約、支払い猶予終了、Stripe側
 - 支払い猶予終了では、未払いとSubscription終了、請求回収停止を確認してから`active.free`へ移す。
 - 解約の予約には新契約を示すmarkerを保存し、同じ`targetPlan: "free"`を使うdeployment前の旧Free予約と区別する。
 - カード番号、CVC、有効期限をアプリの引数、DB、ログへ保存しない。
-- 課金・招待通知はNotification Outboxへ積み、外部送信直前に組織、所属、課金version、現在の宛先を再確認する。
+- 請求先メールアドレス変更通知と招待通知はNotification Outboxへ積み、外部送信直前に組織、所属、現在の宛先を再確認する。
+
+### 組織課金メール
+
+シフトリが送る組織課金メールは、「請求先メールアドレスを変更しました」だけである。
+請求先メールアドレスの変更時に、各送信時点の全有効管理者を再抽出し、現在のシフト連絡先へメールを個別送信する。
+LINE配送、削除済み人物への配送、同じ`requestId`による重複通知は作成しない。
+
+Trial終了、契約開始、プラン変更、解約、支払い失敗、猶予、Free移行、支払い復旧では、シフトリの組織課金メールを作成しない。
+請求書、領収書、決済関連通知と支払い方法更新への導線はStripeへ委ね、組織の請求先メールアドレスを宛先とする。
+Stripe Productionの顧客メール設定と実到着は未確認であり、repositoryの実装やローカルテストから有効化済みと判断しない。
+
+この縮小は保存済みデータの形を変更しない。
+プラン機能の公開前で廃止対象メールの予約jobも存在しないため、migration、backfill、旧jobの互換no-op、queue drainは行わない。
 
 ## 組織の作成
 
@@ -290,7 +304,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `convex/_lib/functions.ts` | 認証、組織所属、選択店舗、課金状態を検証するAPI wrapper |
 | `convex/dashboard/queries.ts` | 選択店舗の認可境界で業務更新可否を返し、旧frontend互換として現在プランと組織利用状況の最小DTOを返す |
 | `convex/organization/` | 組織、店舗、人物、管理者、利用状況、削除可否を扱う |
-| `convex/organizationBilling/` | プラン上限、利用実数から導出するaccess policy、期限、解約、旧state移行、請求先メール、通知を扱う |
+| `convex/organizationBilling/` | プラン上限、利用実数から導出するaccess policy、期限、解約、旧state移行、請求先メール、請求先変更通知を扱う |
 | `convex/organizationStripe/` | Stripe API、現在Subscriptionの保存済みPriceのread-only取得、Checkout、Portal、Webhook、再照合、probeを扱う |
 | `convex/organizationInvitation/mutations.ts` | 管理者招待の発行、再送、取消、承認準備、proof付き確定、旧mutation互換を扱う |
 | `convex/organizationInvitation/acceptanceActions.ts` / `convex/_lib/clerkVerifiedEmailProvider.ts` | 未接続人物のClerk確認済みメールをNode runtimeで照合し、provider失敗時は招待を消費せず返す |
@@ -337,7 +351,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `api.organizationInvitation.mutations.issueForOrganization` | canonical active管理者と組織境界、人物上限、管理者上限、予約枠を確認して管理者招待を発行する |
 | `api.organizationInvitation.mutations.resendForOrganization` / `revokeForOrganization` | canonical active管理者と組織境界を再検証して招待を再送または取り消す |
 | `api.organizationInvitation.acceptanceActions.accept` | 接続済み人物のアカウント一致、または未接続人物のClerk確認済みメールを検証して招待を承認 |
-| `api.organizationBilling.mutations.updateBillingEmail` | 認証、組織境界、管理者状態を確認して請求先メールを更新する |
+| `api.organizationBilling.mutations.updateBillingEmail` | 認証、組織境界、管理者状態を確認して請求先メールを更新し、全有効管理者への変更通知とStripe同期を予約する |
 | `api.organizationStripe.actions.getPlanPrice` / `startPaidCheckout` | Stripe設定と販売Priceを検証して価格を取得し、契約を開始する |
 | `api.organizationStripe.actions.inspectPendingCheckoutForOrganization` / `cancelPendingCheckoutForOrganization` | `pendingActivation`に対応するCheckout Sessionの照合と、利用者が明示した未完了Checkoutの取消。URLやclient stateだけで課金状態を変更しない |
 | `api.organizationStripe.actions.getCurrentSubscriptionPrice` | 選択店舗を認可し、現在の非terminal Subscriptionに保存したPriceから金額、通貨、周期、明示された税区分だけを取得 |
@@ -360,7 +374,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 
 ## 検証の入口
 
-- `convex/organizationBilling/*.test.ts`：プラン上限、利用実数からのaccess導出、Trial終了と解約後のFree移行、ProからStandardへの適用、旧shapeのread互換、期限、通知を検証する。
+- `convex/organizationBilling/*.test.ts`：プラン上限、利用実数からのaccess導出、Trial終了と解約後のFree移行、ProからStandardへの適用、旧shapeのread互換、期限を検証する。通知は請求先メールアドレス変更時の全有効管理者へのメールだけを許可し、課金状態遷移ではOutboxと予約jobが0件であることを検証する。
 - `convex/dashboard/queries.test.ts`：選択店舗の認可境界、全課金状態の`planStatus`投影、利用状況の現在値・上限、不要な識別子の非露出を検証する。
 - `convex/organizationStripe/*.test.ts`：新規販売用Price、現在Subscriptionの保存済みPrice、Checkout、期間末解約と取消、Webhook、再照合、支払い不要Pro相当のStripe隔離、probeを検証する。
 - `convex/organizationInvitation/*.test.ts`：token、期限、接続済み人物のアカウント一致、未接続人物のClerk確認済みメール、provider失敗時の非消費、予約枠、再送、連携を検証する。
