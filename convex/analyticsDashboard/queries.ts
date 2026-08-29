@@ -35,7 +35,6 @@ import {
   getShopDimension,
   hasCompleteRequestedRange,
   pageInfo,
-  projectCanonicalAnalyticsPlanForClient,
   responseMetadata,
   rowBelongsToCompleteRun,
   toCycleRowDto,
@@ -69,33 +68,12 @@ import {
 const analyticsCompletenessArg = v.union(v.literal("complete"), v.literal("partial"), v.literal("unavailable"));
 const granularityArg = v.union(v.literal("day"), v.literal("week"), v.literal("month"));
 const directionArg = v.union(v.literal("asc"), v.literal("desc"));
-const planArg = v.union(
-  v.literal("trial"),
-  v.literal("free"),
-  v.literal("standard"),
-  v.literal("pro"),
-  v.literal("business"),
-);
+const planArg = v.union(v.literal("trial"), v.literal("free"), v.literal("standard"), v.literal("pro"));
 const nullableStringArg = v.union(v.string(), v.null());
 const nullableCompletenessArg = v.union(analyticsCompletenessArg, v.null());
 const PAGINATION_MAX_BYTES = 256 * 1024;
 
 type RatePair = { numerator: number; denominator: number };
-
-function canonicalizeAnalyticsDashboardPlan(
-  plan: "trial" | "free" | "standard" | "pro" | "business" | null,
-  planIdVersion?: 2,
-): CanonicalAnalyticsPlanKey | null {
-  if (plan === null) return null;
-  if (planIdVersion === 2) {
-    if (plan === "business") throw new Error("analytics_plan_v2_business_invalid");
-    return plan;
-  }
-  if (plan === "standard") throw new Error("analytics_plan_legacy_standard_invalid");
-  if (plan === "pro") return "standard";
-  if (plan === "business") return "pro";
-  return plan;
-}
 
 type SeriesSource = {
   snapshotDate: string;
@@ -670,12 +648,10 @@ export const getOrganizations = internalQuery({
     sort: v.union(v.literal("registeredAt"), v.literal("currentPlan")),
     direction: directionArg,
     plan: v.union(planArg, v.null()),
-    planIdVersion: v.optional(v.literal(2)),
     completeness: nullableCompletenessArg,
   },
   returns: organizationsResponseValidator,
   handler: async (ctx, args) => {
-    const requestedPlan = canonicalizeAnalyticsDashboardPlan(args.plan, args.planIdVersion);
     const state = await getAnalyticsReadState(ctx);
     const range = await getCompleteRunRange(ctx, state, args, { detailRetention: true });
     const latestRun = range.latestCompleteRun;
@@ -692,19 +668,12 @@ export const getOrganizations = internalQuery({
         rows: [],
       };
     }
-    const page = await organizationPage(ctx, { ...args, plan: requestedPlan });
-    const dimensionRows = page.page.filter(
-      (organization) => !requestedPlan || organization.currentPlan === requestedPlan,
-    );
+    const page = await organizationPage(ctx, args);
+    const dimensionRows = page.page.filter((organization) => !args.plan || organization.currentPlan === args.plan);
     const mapped = await Promise.all(
       dimensionRows.map(async (organization) => {
         const kpi = await getLatestOrganizationKpi(ctx, latestRun, organization.organizationId);
-        return toOrganizationRowDto(
-          organization,
-          kpi ? toOrganizationKpiDto(kpi) : null,
-          latestRun.dataStartAt,
-          args.planIdVersion,
-        );
+        return toOrganizationRowDto(organization, kpi ? toOrganizationKpiDto(kpi) : null, latestRun.dataStartAt);
       }),
     );
     const rows = mapped.filter((row) => !args.completeness || row.kpis?.completeness === args.completeness);
@@ -781,7 +750,6 @@ export const getOrganization = internalQuery({
     granularity: granularityArg,
     cursor: nullableStringArg,
     limit: v.number(),
-    planIdVersion: v.optional(v.literal(2)),
   },
   returns: v.union(organizationDetailResponseValidator, v.null()),
   handler: async (ctx, args) => {
@@ -830,7 +798,7 @@ export const getOrganization = internalQuery({
     const shops = await Promise.all(
       shopsPage.page.map(async (shop) => {
         const kpi = await getLatestShopKpi(ctx, latestRun, shop.shopId);
-        return toShopRowDto(shop, organization.displayName, kpi ? toShopKpiDto(kpi) : null, args.planIdVersion);
+        return toShopRowDto(shop, organization.displayName, kpi ? toShopKpiDto(kpi) : null);
       }),
     );
     const current = currentKpi ? toOrganizationKpiDto(currentKpi) : null;
@@ -851,7 +819,7 @@ export const getOrganization = internalQuery({
         }),
         warnings: [...rangeWarnings(state, args, range), ...pageWarnings(shopsPage)],
       }),
-      organization: toOrganizationRowDto(organization, current, latestRun.dataStartAt, args.planIdVersion),
+      organization: toOrganizationRowDto(organization, current, latestRun.dataStartAt),
       series,
       shops,
     };
@@ -1009,7 +977,6 @@ export const getShops = internalQuery({
     direction: directionArg,
     organizationId: nullableStringArg,
     plan: v.union(planArg, v.null()),
-    planIdVersion: v.optional(v.literal(2)),
     shopSize: v.union(
       v.literal("1-4"),
       v.literal("5-9"),
@@ -1045,7 +1012,6 @@ export const getShops = internalQuery({
   },
   returns: v.union(shopsResponseValidator, v.null()),
   handler: async (ctx, args) => {
-    const requestedPlan = canonicalizeAnalyticsDashboardPlan(args.plan, args.planIdVersion);
     const state = await getAnalyticsReadState(ctx);
     const range = await getCompleteRunRange(ctx, state, args, { detailRetention: true });
     const displayRun = range.latestCompleteRun;
@@ -1069,7 +1035,7 @@ export const getShops = internalQuery({
       const organization = await getOrganizationDimension(ctx, organizationId);
       if (!organization || organization.deletedAt !== undefined) return null;
     }
-    const page = await shopPage(ctx, { ...args, organizationId, plan: requestedPlan });
+    const page = await shopPage(ctx, { ...args, organizationId });
     const organizations = new Map<Id<"organizations">, ReturnType<typeof getOrganizationDimension>>();
     const getOrganization = (id: Id<"organizations">) => {
       const existing = organizations.get(id);
@@ -1080,8 +1046,7 @@ export const getShops = internalQuery({
     };
     const dimensionRows = page.page.filter(
       (shop) =>
-        (!requestedPlan || shop.currentPlan === requestedPlan) &&
-        (!args.cohort || monthJST(shop.registeredAt) === args.cohort),
+        (!args.plan || shop.currentPlan === args.plan) && (!args.cohort || monthJST(shop.registeredAt) === args.cohort),
     );
     const mapped = await Promise.all(
       dimensionRows.map(async (shop) => {
@@ -1098,7 +1063,7 @@ export const getShops = internalQuery({
         const usageKpis =
           displayRun._id === usageRun._id ? displayKpis : usageKpiDoc ? toShopKpiDto(usageKpiDoc) : null;
         const row: AnalyticsShopListRowDto = {
-          ...toShopRowDto(shop, organization.displayName, displayKpis, args.planIdVersion),
+          ...toShopRowDto(shop, organization.displayName, displayKpis),
           ...classifyShopUsage({
             cutoffAt: usageRun.cutoffAt,
             latestActivityAt: shop.latestActivityAt ?? null,
@@ -1180,7 +1145,6 @@ export const getShop = internalQuery({
     from: v.string(),
     to: v.string(),
     granularity: granularityArg,
-    planIdVersion: v.optional(v.literal(2)),
   },
   returns: v.union(shopDetailResponseValidator, v.null()),
   handler: async (ctx, args) => {
@@ -1235,7 +1199,7 @@ export const getShop = internalQuery({
         pageInfo: singletonPageInfo(series.length),
         warnings: rangeWarnings(state, args, range),
       }),
-      shop: toShopRowDto(shop, organization.displayName, current, args.planIdVersion),
+      shop: toShopRowDto(shop, organization.displayName, current),
       series,
     };
   },
@@ -1363,7 +1327,6 @@ export const getCycle = internalQuery({
 
 export const getSegments = internalQuery({
   args: {
-    planIdVersion: v.optional(v.literal(2)),
     from: v.string(),
     to: v.string(),
     cursor: nullableStringArg,
@@ -1427,10 +1390,7 @@ export const getSegments = internalQuery({
       return {
         snapshotDate: row.snapshotDate,
         dimension: row.dimension,
-        bucket:
-          row.dimension === "plan"
-            ? projectCanonicalAnalyticsPlanForClient(requireCanonicalSegmentPlan(row.bucket), args.planIdVersion)
-            : row.bucket,
+        bucket: row.dimension === "plan" ? requireCanonicalSegmentPlan(row.bucket) : row.bucket,
         shopCount: row.shopCount,
         kpiEligibleShopCount: row.kpiEligibleShopCount,
         milestoneCounts: row.milestoneCounts,

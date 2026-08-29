@@ -21,7 +21,6 @@ import type {
   AnalyticsShopUsageLikelihood,
   AnalyticsShopUsageReason,
   CanonicalAnalyticsPlanKey,
-  LegacyAnalyticsPlanKey,
 } from "./dto";
 import type { AnalyticsShopUsageFilter } from "./schemas";
 
@@ -208,14 +207,13 @@ export function toOrganizationRowDto(
   doc: Doc<"analyticsOrganizations">,
   kpis: AnalyticsOrganizationKpiDto | null,
   dataStartAt: number,
-  planIdVersion?: 2,
 ): AnalyticsOrganizationRowDto {
   return {
     organizationId: doc.organizationId,
     displayName: doc.displayName,
     registeredAt: doc.registeredAt,
     deletedAt: doc.deletedAt ?? null,
-    currentPlan: projectAnalyticsPlan(doc.currentPlan, planIdVersion),
+    currentPlan: projectAnalyticsPlan(doc.currentPlan),
     firstShopAt: doc.firstShopAt ?? null,
     secondShopAt: doc.secondShopAt ?? null,
     secondShopFirstConfirmedAt:
@@ -230,7 +228,6 @@ export function toShopRowDto(
   doc: Doc<"analyticsShops">,
   organizationDisplayName: string,
   kpis: AnalyticsShopKpiDto | null,
-  planIdVersion?: 2,
 ): AnalyticsShopRowDto {
   const milestoneEligible = kpis?.kpiEligible === true;
   return {
@@ -240,7 +237,7 @@ export function toShopRowDto(
     displayName: doc.displayName,
     registeredAt: doc.registeredAt,
     deletedAt: doc.deletedAt ?? null,
-    currentPlan: projectAnalyticsPlan(doc.currentPlan, planIdVersion),
+    currentPlan: projectAnalyticsPlan(doc.currentPlan),
     milestoneDates: {
       registeredAt: doc.registeredAt,
       firstRecruitmentAt: milestoneEligible ? (doc.firstRecruitmentAt ?? null) : null,
@@ -256,25 +253,13 @@ export function toShopRowDto(
 }
 
 function requireCanonicalAnalyticsPlan(plan: Doc<"analyticsOrganizations">["currentPlan"]): CanonicalAnalyticsPlanKey {
-  if (plan === undefined || plan === "business") throw new Error("analytics_plan_projection_not_canonical");
-  return plan;
+  if (plan === "trial" || plan === "free" || plan === "standard" || plan === "pro") return plan;
+  throw new Error("analytics_plan_projection_not_canonical");
 }
 
-export function projectCanonicalAnalyticsPlanForClient(
-  canonical: CanonicalAnalyticsPlanKey,
-  planIdVersion?: 2,
-): CanonicalAnalyticsPlanKey | LegacyAnalyticsPlanKey {
-  if (planIdVersion === 2) return canonical;
-  return canonical === "standard" ? "pro" : canonical === "pro" ? "business" : canonical;
-}
-
-function projectAnalyticsPlan(
-  plan: Doc<"analyticsOrganizations">["currentPlan"],
-  planIdVersion?: 2,
-): CanonicalAnalyticsPlanKey | LegacyAnalyticsPlanKey | null {
+function projectAnalyticsPlan(plan: Doc<"analyticsOrganizations">["currentPlan"]): CanonicalAnalyticsPlanKey | null {
   if (plan === undefined) return null;
-  const canonical = requireCanonicalAnalyticsPlan(plan);
-  return projectCanonicalAnalyticsPlanForClient(canonical, planIdVersion);
+  return requireCanonicalAnalyticsPlan(plan);
 }
 
 type AnalyticsShopUsageKpiEvidence = Pick<

@@ -1,10 +1,10 @@
 import { v } from "convex/values";
 import {
+  analyticsCanonicalPlanValidator,
   analyticsCompletenessValidator,
   analyticsHealthSignalCountsValidator,
   analyticsHealthSignalValidator,
   analyticsMilestoneCountsValidator,
-  analyticsPlanValidator,
   analyticsSegmentDimensionValidator,
 } from "../analytics/model";
 
@@ -156,7 +156,7 @@ export const analyticsOrganizationRowValidator = v.object({
   displayName: v.string(),
   registeredAt: v.number(),
   deletedAt: v.union(v.number(), v.null()),
-  currentPlan: v.union(analyticsPlanValidator, v.null()),
+  currentPlan: v.union(analyticsCanonicalPlanValidator, v.null()),
   firstShopAt: v.union(v.number(), v.null()),
   secondShopAt: v.union(v.number(), v.null()),
   secondShopFirstConfirmedAt: v.union(v.number(), v.null()),
@@ -205,7 +205,7 @@ export const analyticsShopRowValidator = v.object({
   displayName: v.string(),
   registeredAt: v.number(),
   deletedAt: v.union(v.number(), v.null()),
-  currentPlan: v.union(analyticsPlanValidator, v.null()),
+  currentPlan: v.union(analyticsCanonicalPlanValidator, v.null()),
   milestoneDates: analyticsMilestoneDatesValidator,
   latestActivityAt: v.union(v.number(), v.null()),
   nextCyclePeriodStart: v.union(v.string(), v.null()),

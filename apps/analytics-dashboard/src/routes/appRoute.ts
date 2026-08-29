@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { upgradeAnalyticsPlanSearchParams } from "@/api/analyticsPlanIds";
 
 export type AppRoute =
   | { name: "overview" }
@@ -67,7 +66,6 @@ export function withSearchPatch(
   options: { dropSort?: boolean } = {},
 ) {
   const params = new URLSearchParams(window.location.search);
-  upgradeAnalyticsPlanSearchParams(params);
   params.delete("cursor");
   params.delete("segmentCursor");
   if (options.dropSort) {
