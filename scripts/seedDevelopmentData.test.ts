@@ -371,13 +371,13 @@ describe("seedDevelopmentData CLI", () => {
     }
   });
 
-  it("package script由来のliteral -- を含むdev確認引数でmainから完走する", () => {
+  it("package scriptのdev確認引数でmainから完走する", () => {
     const previousExitCode = process.exitCode;
     process.exitCode = undefined;
     const commandRunner = createSuccessfulRunner();
 
     try {
-      main(["dev", "--", "--yes"], {
+      main(["dev", "--yes"], {
         commandRunner,
         fileReader: () => "CONVEX_DEPLOYMENT=dev:team-project\n",
         logger: { log: vi.fn() },

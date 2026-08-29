@@ -73,7 +73,7 @@
     "convex:clear:local": "tsx scripts/clearConvexTables.ts",
     "convex:clear:dev": "tsx scripts/clearConvexTables.ts --env-file .env.develop",
     "convex:seed:local": "tsx scripts/seedDevelopmentData.ts local",
-    "convex:seed:dev": "tsx scripts/seedDevelopmentData.ts dev",
+    "convex:seed:dev": "tsx scripts/seedDevelopmentData.ts dev --yes",
     "convex:restore": "tsx convex-seeds/scripts/import.ts",
     "convex:save": "tsx convex-seeds/scripts/export.ts",
     "convex:env-setup": "tsx scripts/setupEnv.ts",

@@ -317,7 +317,7 @@ export function parseDevelopmentSeedCliArgs(args: readonly string[]): Developmen
   }
 
   throw new DevelopmentSeedError(
-    "Usage: pnpm convex:seed:local または pnpm convex:seed:dev -- --yes（対象やenv fileは変更できません）",
+    "Usage: pnpm convex:seed:local または pnpm convex:seed:dev（対象やenv fileは変更できません）",
   );
 }
 

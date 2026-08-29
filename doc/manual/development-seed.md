@@ -16,7 +16,7 @@
 | 対象 | 固定env file | 必須の`CONVEX_DEPLOYMENT` | 実行コマンド |
 |---|---|---|---|
 | local | `.env.local` | `local:<deployment-name>` | `pnpm convex:seed:local` |
-| Development | `.env.develop` | `dev:<deployment-name>` | `pnpm convex:seed:dev -- --yes` |
+| Development | `.env.develop` | `dev:<deployment-name>` | `pnpm convex:seed:dev` |
 
 `.env.local`と`.env.develop`はGitへ追加しません。  Productionを指す値、`/`形式やprefixだけの値、対象と一致しない値、複数の`CONVEX_DEPLOYMENT`があるファイルでは、削除前にCLIが停止します。  `CONVEX_DEPLOY_KEY`、`CONVEX_DEPLOYMENT_TOKEN`、self-hosted用URLまたはadmin keyが同じファイルにある場合も実行しません。
 
@@ -81,10 +81,10 @@ localを置き換える場合は、次を実行します。
 pnpm convex:seed:local
 ```
 
-固定したDevelopment deploymentを置き換える場合は、明示的な確認引数を付けます。
+固定したDevelopment deploymentを置き換える場合は、次を実行します。  package scriptが破壊的操作の確認引数`--yes`を内部で固定し、CLIを直接呼び出す場合は引き続き`--yes`が必須です。
 
 ```bash
-pnpm convex:seed:dev -- --yes
+pnpm convex:seed:dev
 ```
 
 CLIは、次の順番で処理します。  一つの段階が失敗した場合はnonzeroで終了し、後続段階を実行しません。

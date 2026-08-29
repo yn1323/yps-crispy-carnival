@@ -218,7 +218,7 @@ export const ScheduleProServiceStop: Story = {
 };
 
 export const CancelTrialContinuation: Story = {
-  name: "トライアルの有料継続取消",
+  name: "トライアルの継続取消",
   args: {
     dialog: {
       kind: "cancelTrialContinuation",

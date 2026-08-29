@@ -412,7 +412,7 @@ function PlanComparisonCards({
       {(serviceStopAction?.kind === "scheduleServiceStop" || serviceStopAction?.kind === "cancelTrialContinuation") && (
         <Flex justify="flex-end">
           <Button size="sm" variant="outline" colorPalette="red" minH="40px" onClick={() => onSelectPlan("free")}>
-            {serviceStopAction.kind === "scheduleServiceStop" ? "期間末に利用を停止" : "有料継続を取り消す"}
+            {serviceStopAction.kind === "scheduleServiceStop" ? "期間末に利用を停止" : "支払い予約を取り消す"}
           </Button>
         </Flex>
       )}
@@ -477,7 +477,7 @@ function planChangeLabel(action: BillingPlanAction, plan: BillingProductPlan) {
   if (action.kind === "cancelScheduledPlanChange") {
     return action.isServiceStop ? "解約予約を取り消す" : "変更予約を取り消す";
   }
-  if (action.kind === "cancelTrialContinuation") return "有料継続を取り消す";
+  if (action.kind === "cancelTrialContinuation") return "支払い予約を取り消す";
   if (action.kind === "scheduleServiceStop") return "期間末で解約";
   return `${planLabel(plan)}へ変更`;
 }
