@@ -5,7 +5,7 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { jstDayRangeMs } from "../_lib/dateFormat";
-import { SCENARIO_NOW } from "../_test/scenarioBuilders";
+import { SCENARIO_NOW, seedStaff } from "../_test/scenarioBuilders";
 import { seedCanonicalStaffLineRecipient, seedOrganizationManagerShop, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { getAnalyticsReadState, getCompleteRunRange } from "../analyticsDashboard/queryHelpers";
@@ -542,13 +542,10 @@ describe("Analytics simplified control plane", () => {
         subject: "analytics_source_replay",
         shopName: "再適用検証店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
-        organizationId: seeded.organizationId,
+      const staffId = await seedStaff(ctx, {
         shopId: seeded.shopId,
         name: "再適用スタッフ",
         email: "replay@example.com",
-        emailNormalized: "replay@example.com",
-        isDeleted: false,
       });
       await ctx.db.insert("analyticsOrganizations", {
         organizationId: seeded.organizationId,
@@ -701,7 +698,6 @@ describe("Analytics simplified control plane", () => {
             ? seeded.shopId
             : await ctx.db.insert("shops", {
                 organizationId: seeded.organizationId,
-                operatingStatus: "active",
                 name: `削除対象店舗${index}`,
                 submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
                 regularClosedDays: [],
@@ -909,21 +905,15 @@ describe("Analytics simplified control plane", () => {
     const cutoffAt = DATA_START_AT + DAY_MS;
     const result = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, { subject: "analytics_cycle_boundary" });
-      const includedStaffId = await ctx.db.insert("staffs", {
-        organizationId: seeded.organizationId,
+      const includedStaffId = await seedStaff(ctx, {
         shopId: seeded.shopId,
         name: "終了境界スタッフ",
         email: "boundary-end@example.com",
-        emailNormalized: "boundary-end@example.com",
-        isDeleted: false,
       });
-      const excludedStaffId = await ctx.db.insert("staffs", {
-        organizationId: seeded.organizationId,
+      const excludedStaffId = await seedStaff(ctx, {
         shopId: seeded.shopId,
         name: "開始境界スタッフ",
         email: "boundary-start@example.com",
-        emailNormalized: "boundary-start@example.com",
-        isDeleted: false,
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId: seeded.shopId,
@@ -1012,13 +1002,10 @@ describe("Analytics simplified control plane", () => {
     const dataStartAt = cutoffAt - DAY_MS;
     const result = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, { subject: "analytics_cycle_redacted_replay" });
-      const staffId = await ctx.db.insert("staffs", {
-        organizationId: seeded.organizationId,
+      const staffId = await seedStaff(ctx, {
         shopId: seeded.shopId,
         name: "再構築対象スタッフ",
         email: "redacted-replay@example.com",
-        emailNormalized: "redacted-replay@example.com",
-        isDeleted: false,
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId: seeded.shopId,
@@ -1129,13 +1116,10 @@ describe("Analytics simplified control plane", () => {
     const dataStartAt = cutoffAt - DAY_MS;
     const result = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, { subject: "analytics_cycle_expired_first_finalize" });
-      const staffId = await ctx.db.insert("staffs", {
-        organizationId: seeded.organizationId,
+      const staffId = await seedStaff(ctx, {
         shopId: seeded.shopId,
         name: "期限後スタッフ",
         email: "expired-first@example.com",
-        emailNormalized: "expired-first@example.com",
-        isDeleted: false,
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId: seeded.shopId,
@@ -1244,13 +1228,10 @@ describe("Analytics simplified control plane", () => {
       const chunk = await t.run(async (ctx) => {
         const ids: Id<"staffs">[] = [];
         for (let index = start; index < Math.min(start + 100, total); index += 1) {
-          const staffId = await ctx.db.insert("staffs", {
-            organizationId: fixture.organizationId,
+          const staffId = await seedStaff(ctx, {
             shopId: fixture.shopId,
             name: `上限検証スタッフ${index}`,
             email: `union-cap-${index}@example.com`,
-            emailNormalized: `union-cap-${index}@example.com`,
-            isDeleted: false,
           });
           ids.push(staffId);
           if (index < ANALYTICS_POLICY.batch.scopeReadLimit) {

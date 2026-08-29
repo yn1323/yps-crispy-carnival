@@ -32,7 +32,7 @@ describe("deletionCleanup worker", () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, { name: "削除対象店舗", isDeleted: true });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedCleanupStaff(ctx, {
         shopId,
         name: "残存スタッフ",
         email: "remaining@example.com",
@@ -100,7 +100,7 @@ describe("deletionCleanup worker", () => {
       const staffIds = [];
       for (let index = 0; index < 101; index += 1) {
         staffIds.push(
-          await ctx.db.insert("staffs", {
+          await seedCleanupStaff(ctx, {
             shopId,
             name: `スタッフ${index}`,
             email: `staff${index}@example.com`,
@@ -370,7 +370,7 @@ describe("deletionCleanup worker", () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, { name: "通知履歴削除店舗", isDeleted: true });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedCleanupStaff(ctx, {
         shopId,
         name: "通知履歴スタッフ",
         email: "history@example.com",
@@ -436,8 +436,7 @@ describe("deletionCleanup worker", () => {
         name: "通知履歴削除店舗",
         isDeleted: true,
       });
-      const staffId = await ctx.db.insert("staffs", {
-        organizationId,
+      const staffId = await seedCleanupStaff(ctx, {
         shopId,
         name: "通知履歴スタッフ",
         email: "organization-history@example.com",
@@ -1151,8 +1150,7 @@ describe("deletionCleanup worker", () => {
     const ids = await t.run(async (ctx) => {
       const organizationId = await seedOrganization(ctx, "削除対象グループ", undefined, true);
       const shopId = await seedShop(ctx, { organizationId, name: "削除対象店舗", isDeleted: true });
-      const staffId = await ctx.db.insert("staffs", {
-        organizationId,
+      const staffId = await seedCleanupStaff(ctx, {
         shopId,
         name: "置換漏れスタッフ",
         email: "remaining-staff@example.com",
@@ -1419,6 +1417,43 @@ describe("deletionCleanup operational status", () => {
   });
 });
 
+async function seedCleanupStaff(
+  ctx: MutationCtx,
+  args: {
+    shopId: Id<"shops">;
+    name: string;
+    email: string;
+    emailNormalized?: string;
+    isDeleted: boolean;
+  },
+) {
+  const shop = await ctx.db.get(args.shopId);
+  if (!shop) throw new Error("cleanup staff fixture shop was not found");
+  let organizationId = shop.organizationId;
+  if (!organizationId) {
+    organizationId = await seedOrganization(ctx, `${shop.name}事業者`);
+    await ctx.db.patch(shop._id, { organizationId });
+  }
+  const organizationPersonId = await ctx.db.insert("organizationPeople", {
+    organizationId,
+    name: args.name,
+    email: args.email,
+    emailNormalized: args.email.trim().toLowerCase(),
+    status: args.isDeleted ? "removed" : "active",
+    createdAt: NOW,
+    updatedAt: NOW,
+  });
+  return await ctx.db.insert("staffs", {
+    shopId: args.shopId,
+    organizationId,
+    organizationPersonId,
+    name: args.name,
+    email: args.email,
+    ...(args.emailNormalized === undefined ? {} : { emailNormalized: args.emailNormalized }),
+    isDeleted: args.isDeleted,
+  });
+}
+
 async function seedShop(
   ctx: MutationCtx,
   args: {
@@ -1428,7 +1463,7 @@ async function seedShop(
   },
 ) {
   return await ctx.db.insert("shops", {
-    ...(args.organizationId ? { organizationId: args.organizationId, operatingStatus: "active" as const } : {}),
+    ...(args.organizationId ? { organizationId: args.organizationId } : {}),
     name: args.name,
     submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     regularClosedDays: [],

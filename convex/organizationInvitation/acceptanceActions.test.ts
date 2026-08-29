@@ -83,7 +83,7 @@ describe("organizationInvitation/acceptanceActions", () => {
 
     const t = convexTest(schema, modules);
     const manager = await t.run((ctx) =>
-      seedOrganizationManagerShop(ctx, { subject: "provider_failure_owner", plan: "pro" }),
+      seedOrganizationManagerShop(ctx, { subject: "provider_failure_owner", plan: "standard" }),
     );
     const invitationEmail = "provider-failure-target@example.com";
     const created = await t
@@ -429,7 +429,9 @@ async function seedAcceptanceFixture(caseKey: string) {
   vi.setSystemTime(new Date("2026-08-04T12:00:00+09:00"));
   vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", SIGNING_SECRET);
   const t = convexTest(schema, modules);
-  const manager = await t.run((ctx) => seedOrganizationManagerShop(ctx, { subject: `${caseKey}_owner`, plan: "pro" }));
+  const manager = await t.run((ctx) =>
+    seedOrganizationManagerShop(ctx, { subject: `${caseKey}_owner`, plan: "standard" }),
+  );
   const email = `${caseKey.replaceAll("_", "-")}-target@example.com`;
   const owner = t.withIdentity({ subject: `${caseKey}_owner` });
   const issued = await owner.mutation(api.organizationInvitation.mutations.issueForOrganization, {

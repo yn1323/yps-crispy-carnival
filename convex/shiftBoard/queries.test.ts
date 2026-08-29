@@ -106,11 +106,10 @@ describe("shiftBoard/queries", () => {
         subject: "manager_adjacent_projection",
         shopName: "隣接表示店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "隣接表示スタッフ",
         email: "adjacent-projection@example.com",
-        isDeleted: false,
       });
       const positionId = await ctx.db.insert("positions", {
         shopId,
@@ -206,11 +205,10 @@ describe("shiftBoard/queries", () => {
         subject: "manager_assignment_overflow",
         shopName: "割当上限店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "割当上限スタッフ",
         email: "assignment-overflow@example.com",
-        isDeleted: false,
       });
       const positionId = await ctx.db.insert("positions", {
         shopId,
@@ -258,7 +256,7 @@ describe("shiftBoard/queries", () => {
       const seeded = await seedOrganizationManagerShop(ctx, {
         subject: "removed_shift_board",
         shopName: "閲覧店舗",
-        plan: "pro",
+        plan: "standard",
       });
       await ctx.db.patch(seeded.memberId, { status: "removed" });
       const recruitmentId = await ctx.db.insert("recruitments", {
@@ -398,18 +396,16 @@ describe("shiftBoard/queries", () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId, includedStaffId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_excluded", shopName: "テスト店舗" });
-      const includedStaffId = await ctx.db.insert("staffs", {
+      const includedStaffId = await seedStaff(ctx, {
         shopId,
         name: "通常スタッフ",
         email: "normal@example.com",
-        isDeleted: false,
       });
-      await ctx.db.insert("staffs", {
+      await seedStaff(ctx, {
         shopId,
         name: "対象外スタッフ",
         email: "excluded@example.com",
         excludedFromShift: true,
-        isDeleted: false,
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
@@ -441,7 +437,7 @@ describe("shiftBoard/queries", () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_removed_history", shopName: "履歴店舗" });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "削除済みスタッフ",
         email: "removed-history@example.com",
@@ -508,11 +504,10 @@ describe("shiftBoard/queries", () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId, staffId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_all_off", shopName: "テスト店舗" });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "全休みスタッフ",
         email: "all-off@example.com",
-        isDeleted: false,
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
@@ -556,11 +551,10 @@ describe("shiftBoard/queries", () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId, staffId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_date_only_board", shopName: "テスト店舗" });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "日ごとスタッフ",
         email: "date-only@example.com",
-        isDeleted: false,
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
@@ -602,11 +596,10 @@ describe("shiftBoard/queries", () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId, staffId, positionId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_shift_type_board", shopName: "テスト店舗" });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "勤務区分スタッフ",
         email: "shift-type@example.com",
-        isDeleted: false,
       });
       const positionId = await ctx.db.insert("positions", {
         shopId,
@@ -685,17 +678,15 @@ describe("shiftBoard/queries", () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId, staffBeforeDraftId, staffAfterDraftId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_draft_status", shopName: "テスト店舗" });
-      const staffBeforeDraftId = await ctx.db.insert("staffs", {
+      const staffBeforeDraftId = await seedStaff(ctx, {
         shopId,
         name: "保存前提出",
         email: "before@example.com",
-        isDeleted: false,
       });
-      const staffAfterDraftId = await ctx.db.insert("staffs", {
+      const staffAfterDraftId = await seedStaff(ctx, {
         shopId,
         name: "保存後提出",
         email: "after@example.com",
-        isDeleted: false,
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
@@ -741,11 +732,10 @@ describe("shiftBoard/queries", () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId, staffId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_legacy_draft", shopName: "テスト店舗" });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "既存スタッフ",
         email: "legacy@example.com",
-        isDeleted: false,
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,

@@ -143,8 +143,8 @@ describe("organization manager settings queries", () => {
   it("未認証・別tenant組織はPIIを返さず拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const actor = await seedOrganizationManagerShop(ctx, { subject: "manager_query_tenant_actor", plan: "pro" });
-      const other = await seedOrganizationManagerShop(ctx, { subject: "manager_query_tenant_other", plan: "pro" });
+      const actor = await seedOrganizationManagerShop(ctx, { subject: "manager_query_tenant_actor", plan: "standard" });
+      const other = await seedOrganizationManagerShop(ctx, { subject: "manager_query_tenant_other", plan: "standard" });
       return { actor, other };
     });
     await expect(
@@ -171,7 +171,7 @@ describe("organization manager settings queries", () => {
   it("activeとprojectedを分離し、期限overlay・順序・sendFailedを投影する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "manager_query_ready", plan: "business" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "manager_query_ready", plan: "pro" });
       const target = await seedPerson(ctx, {
         organizationId: base.organizationId,
         shopId: base.shopId,
@@ -279,7 +279,7 @@ describe("organization manager settings queries", () => {
       const ids = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
           subject: `manager_query_${deliveryStatus}`,
-          plan: "business",
+          plan: "pro",
         });
         const invitationId = await seedInvitation(ctx, {
           organizationId: base.organizationId,
@@ -351,7 +351,7 @@ describe("organization manager settings queries", () => {
       const ids = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
           subject: `manager_query_provider_pair_${caseKey}`,
-          plan: "business",
+          plan: "pro",
         });
         const invitationId = await seedInvitation(ctx, {
           organizationId: base.organizationId,
@@ -418,7 +418,7 @@ describe("organization manager settings queries", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "manager_query_external_conflict",
-        plan: "business",
+        plan: "pro",
       });
       const invitationId = await seedInvitation(ctx, {
         organizationId: base.organizationId,
@@ -461,7 +461,7 @@ describe("organization manager settings queries", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "manager_query_external_removed",
-        plan: "business",
+        plan: "pro",
       });
       const invitationId = await seedInvitation(ctx, {
         organizationId: base.organizationId,
@@ -504,7 +504,7 @@ describe("organization manager settings queries", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "manager_query_deleted_staff_billing",
-        plan: "business",
+        plan: "pro",
       });
       const target = await seedPerson(ctx, {
         organizationId: base.organizationId,
@@ -547,7 +547,7 @@ describe("organization manager settings queries", () => {
   it("有効招待のabsolute bounded read超過は部分一覧を返さずintegrityErrorにする", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "manager_query_overflow", plan: "business" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "manager_query_overflow", plan: "pro" });
       for (let index = 0; index < 6; index += 1) {
         await seedInvitation(ctx, {
           organizationId: base.organizationId,
@@ -574,7 +574,7 @@ describe("organization manager settings queries", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "manager_query_manager_overflow",
-        plan: "business",
+        plan: "pro",
       });
       for (let index = 0; index < 5; index += 1) {
         await seedPerson(ctx, {
@@ -610,7 +610,7 @@ describe("organization manager settings queries", () => {
   it("candidateはstaff資格だけを列挙し、manager・pending・不正メールを理由付きで閉じる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "manager_candidates_owner", plan: "business" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "manager_candidates_owner", plan: "pro" });
       const selectable = await seedPerson(ctx, {
         organizationId: base.organizationId,
         shopId: base.shopId,

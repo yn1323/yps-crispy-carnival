@@ -310,7 +310,7 @@ describe("所属を含むアカウント削除", () => {
         subject: "preview_paid_sole_admin",
         email: "preview-paid-sole-admin@example.com",
         shopName: "有料単独店舗",
-        plan: "pro",
+        plan: "standard",
       }),
     );
     await expect(

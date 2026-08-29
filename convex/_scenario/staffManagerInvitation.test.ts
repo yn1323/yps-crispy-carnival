@@ -54,7 +54,7 @@ describe("既存スタッフの管理者招待シナリオ", () => {
         subject: "staff_invitation_owner",
         email: "owner@example.com",
         shopName: "管理者招待テスト店舗",
-        plan: "pro",
+        plan: "standard",
       }),
     );
     const [staffId] = await owner.addStaffs([{ name: "招待対象スタッフ", email: "target@example.com" }]);
@@ -126,7 +126,7 @@ describe("既存スタッフの管理者招待シナリオ", () => {
     expect(dashboardStaffs.page.find((staff) => staff._id === staffId)).toMatchObject({
       _id: staffId,
       isManager: true,
-      isOrganizationLinked: true,
+      organizationPersonId: personId,
     });
   });
 
@@ -146,7 +146,7 @@ describe("既存スタッフの管理者招待シナリオ", () => {
         subject: "digest_owner",
         email: "owner@example.com",
         shopName: "複数管理者通知店舗",
-        plan: "pro",
+        plan: "standard",
       });
       await ctx.db.insert("shopMembers", {
         shopId: organization.shopId,

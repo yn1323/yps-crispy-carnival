@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
+import type { Doc } from "../_generated/dataModel";
 import { createMigrationHistoryTestWithMigrations, runMigrationToCompletion } from "../_test/migrations.test-helper";
+
+const historicalComplimentaryBusinessState = () =>
+  ({ kind: "complimentary", plan: "business" }) as unknown as Doc<"organizationBillingStates">["state"];
 
 describe("m028 shop billing Narrow preparation migration", () => {
   it("旧rowを削除せずcanonical対応の異常だけを記録し、再実行でconflictを重複させない", async () => {
@@ -34,7 +38,7 @@ describe("m028 shop billing Narrow preparation migration", () => {
       const createCanonicalBilling = async (organizationId: Awaited<ReturnType<typeof createOrganization>>) =>
         await ctx.db.insert("organizationBillingStates", {
           organizationId,
-          state: { kind: "complimentary", plan: "business" },
+          state: historicalComplimentaryBusinessState(),
           version: 1,
           createdAt: now,
           updatedAt: now,

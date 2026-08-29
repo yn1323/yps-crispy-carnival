@@ -77,10 +77,7 @@ async function insertCompleteRun(ctx: MutationCtx, targetDate: string) {
   });
 }
 
-async function insertOrganization(
-  ctx: MutationCtx,
-  currentPlan: "trial" | "free" | "standard" | "pro" | "business" = "free",
-) {
+async function insertOrganization(ctx: MutationCtx, currentPlan: "trial" | "free" | "standard" | "pro" = "free") {
   const organizationId = await ctx.db.insert("organizations", {
     name: "利用候補テスト組織",
     isDeleted: false,
@@ -103,12 +100,11 @@ async function insertShop(
     organizationId: Id<"organizations">;
     displayName: string;
     registeredAt: number;
-    currentPlan?: "trial" | "free" | "standard" | "pro" | "business";
+    currentPlan?: "trial" | "free" | "standard" | "pro";
   },
 ) {
   const shopId = await ctx.db.insert("shops", {
     organizationId: args.organizationId,
-    operatingStatus: "active",
     name: args.displayName,
     regularClosedDays: [],
     submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
@@ -231,7 +227,7 @@ async function seedUsageClasses(ctx: MutationCtx) {
 }
 
 describe("Analytics Dashboard店舗一覧の利用候補", () => {
-  it("request version別にplan filterとresponseを同じ意味へ投影する", async () => {
+  it("canonical planでfilterし、responseも同じplan IDを返す", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const standardOrganizationId = await insertOrganization(ctx, "standard");
@@ -252,49 +248,27 @@ describe("Analytics Dashboard店舗一覧の利用候補", () => {
       return { standardOrganizationId, proOrganizationId, standardShopId, proShopId };
     });
 
-    const legacyStandardOrganizations = await t.query(internal.analyticsDashboard.queries.getOrganizations, {
+    const standardOrganizations = await t.query(internal.analyticsDashboard.queries.getOrganizations, {
       from: PAST_DATE,
       to: PAST_DATE,
       cursor: null,
       limit: 50,
       sort: "currentPlan",
       direction: "asc",
-      plan: "pro",
-      completeness: null,
-    });
-    const canonicalStandardOrganizations = await t.query(internal.analyticsDashboard.queries.getOrganizations, {
-      from: PAST_DATE,
-      to: PAST_DATE,
-      cursor: null,
-      limit: 50,
-      sort: "currentPlan",
-      direction: "asc",
-      planIdVersion: 2,
       plan: "standard",
       completeness: null,
     });
-    expect(legacyStandardOrganizations.rows).toMatchObject([
-      { organizationId: ids.standardOrganizationId, currentPlan: "pro" },
-    ]);
-    expect(canonicalStandardOrganizations.rows).toMatchObject([
+    expect(standardOrganizations.rows).toMatchObject([
       { organizationId: ids.standardOrganizationId, currentPlan: "standard" },
     ]);
 
-    const legacyProShops = await t.query(internal.analyticsDashboard.queries.getShops, {
+    const proShops = await t.query(internal.analyticsDashboard.queries.getShops, {
       ...baseRequest,
       sort: "currentPlan",
-      plan: "business",
-      usage: null,
-    });
-    const canonicalProShops = await t.query(internal.analyticsDashboard.queries.getShops, {
-      ...baseRequest,
-      sort: "currentPlan",
-      planIdVersion: 2,
       plan: "pro",
       usage: null,
     });
-    expect(legacyProShops?.rows).toMatchObject([{ shopId: ids.proShopId, currentPlan: "business" }]);
-    expect(canonicalProShops?.rows).toMatchObject([{ shopId: ids.proShopId, currentPlan: "pro" }]);
+    expect(proShops?.rows).toMatchObject([{ shopId: ids.proShopId, currentPlan: "pro" }]);
   });
 
   it("USAGE-QUERY-01 過去期間を表示しても利用候補は最新complete runで判定する", async () => {
@@ -519,7 +493,7 @@ describe("Analytics Dashboard店舗一覧の利用候補", () => {
 });
 
 describe("Analytics Dashboard plan segment", () => {
-  it("request version別にcanonical bucketを同じ意味のplan IDへ投影する", async () => {
+  it("canonical bucketをそのまま返す", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
       const runId = await insertCompleteRun(ctx, LATEST_DATE);
@@ -569,14 +543,9 @@ describe("Analytics Dashboard plan segment", () => {
       dimension: "plan" as const,
       completeness: null,
     };
-    const legacy = await t.query(internal.analyticsDashboard.queries.getSegments, args);
-    const canonical = await t.query(internal.analyticsDashboard.queries.getSegments, {
-      ...args,
-      planIdVersion: 2,
-    });
+    const response = await t.query(internal.analyticsDashboard.queries.getSegments, args);
 
-    expect(legacy.rows.map((row) => row.bucket).sort()).toEqual(["business", "pro"]);
-    expect(canonical.rows.map((row) => row.bucket).sort()).toEqual(["pro", "standard"]);
+    expect(response.rows.map((row) => row.bucket).sort()).toEqual(["pro", "standard"]);
   });
 });
 

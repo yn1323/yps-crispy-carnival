@@ -9,6 +9,7 @@ import {
   seedNotificationFailure,
   seedPendingRegistrationRequests,
 } from "../_test/actionInboxFixtures";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedOrganizationManagerShop, seedOrganizationPersonLineLink } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { DASHBOARD_RESPONSE_COUNT_LIMIT } from "../constants";
@@ -70,7 +71,7 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
     expect(filtered.items.every(({ scope }) => scope.kind === "shop" && scope.shopId === ids.actor.shopId)).toBe(true);
   });
 
-  it("旧形式のstatus未設定店舗を稼働中として扱い、削除済みactive履歴を走査上限へ含めない", async () => {
+  it("legacy statusに関係なく非削除店舗を扱い、削除済み履歴を走査上限へ含めない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedActionInboxSources(ctx, { subject: "action_legacy_active_shop", now: NOW });
@@ -384,14 +385,11 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
         subject: "action_failure_filter_pagination",
         complimentary: true,
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId: base.shopId,
-        organizationId: base.organizationId,
         name: "可視failure対象",
         email: "visible-failure@example.com",
-        emailNormalized: "visible-failure@example.com",
         excludedFromShift: false,
-        isDeleted: false,
       });
       const visibleFailureId = await seedNotificationFailure(ctx, {
         shopId: base.shopId,
@@ -507,7 +505,6 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
       });
       const secondShopId = await ctx.db.insert("shops", {
         organizationId: base.organizationId,
-        operatingStatus: "active",
         name: "追加店舗",
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         regularClosedDays: [],
@@ -571,7 +568,7 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
       }),
     ).rejects.toThrowError("Invalid continuation cursor");
 
-    await t.run(async (ctx) => await ctx.db.patch(ids.secondShopId, { operatingStatus: "archived" }));
+    await t.run(async (ctx) => await ctx.db.patch(ids.secondShopId, { isDeleted: true }));
     await expect(
       actor.query(api.appOrganization.actionInboxQueries.getActionInbox, {
         organizationId: ids.organizationId,
@@ -591,14 +588,11 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
       });
       for (let index = 1; index < DASHBOARD_RESPONSE_COUNT_LIMIT; index += 1) {
         const email = `bounded-staff-${index}@example.com`;
-        await ctx.db.insert("staffs", {
+        await seedStaff(ctx, {
           shopId: base.shopId,
-          organizationId: base.organizationId,
           name: `上限スタッフ${index}`,
           email,
-          emailNormalized: email,
           excludedFromShift: false,
-          isDeleted: false,
         });
       }
       return base;
@@ -616,14 +610,11 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
     });
 
     await t.run(async (ctx) => {
-      await ctx.db.insert("staffs", {
+      await seedStaff(ctx, {
         shopId: ids.shopId,
-        organizationId: ids.organizationId,
         name: "上限超過スタッフ",
         email: "over-limit-staff@example.com",
-        emailNormalized: "over-limit-staff@example.com",
         excludedFromShift: false,
-        isDeleted: false,
       });
     });
     const overLimit = await actor.query(api.appOrganization.actionInboxQueries.getActionInbox, {

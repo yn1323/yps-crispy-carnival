@@ -15,12 +15,10 @@ async function seedOrganizationShop(
   args: {
     organizationId: Id<"organizations">;
     name: string;
-    status?: "active" | "archived";
   },
 ) {
   return await ctx.db.insert("shops", {
     organizationId: args.organizationId,
-    operatingStatus: args.status ?? "active",
     name: args.name,
     submissionPattern,
     regularClosedDays: [],
@@ -69,7 +67,7 @@ describe("organization shop management", () => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "add_shop_actor",
         shopName: "既存店",
-        plan: "pro",
+        plan: "standard",
       });
       const activeManager = await seedAdditionalManager(ctx, {
         organizationId: base.organizationId,
@@ -108,12 +106,12 @@ describe("organization shop management", () => {
     }));
     expect(state.shop).toMatchObject({
       organizationId: ids.organizationId,
-      operatingStatus: "active",
       name: "新店舗",
       regularClosedDays: ["sun", "tue", "fri"],
       submissionPattern,
       isDeleted: false,
     });
+    expect(state.shop).not.toHaveProperty("operatingStatus");
     expect(state.positions).toHaveLength(1);
     expect(state.positions[0]).toMatchObject({ isDefault: true, isDeleted: false });
     expect(state.memberships).toEqual([]);
@@ -130,13 +128,39 @@ describe("organization shop management", () => {
     ).resolves.toEqual({ shopId: created.shopId, shopStatus: "active", changed: false });
   });
 
+  it("追加済み店舗が削除された後は同じrequestIdの再送で削除済み店舗を返さない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run((ctx) =>
+      seedOrganizationManagerShop(ctx, {
+        subject: "add_deleted_shop_retry_actor",
+        shopName: "既存店",
+        plan: "standard",
+      }),
+    );
+    const asActor = t.withIdentity({ subject: "add_deleted_shop_retry_actor" });
+    const args = {
+      shopId: ids.shopId,
+      shopName: "削除予定店",
+      regularClosedDays: [],
+      submissionPattern,
+      requestId: "add-deleted-shop-retry",
+    };
+
+    const created = await asActor.mutation(api.organization.mutations.addShop, args);
+    await t.run((ctx) => ctx.db.patch(created.shopId, { isDeleted: true }));
+
+    await expect(asActor.mutation(api.organization.mutations.addShop, args)).rejects.toThrow(
+      "以前の操作結果を確認できません",
+    );
+  });
+
   it("未認証、removed、別組織の利用者は店舗を追加できない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const target = await seedOrganizationManagerShop(ctx, {
         subject: "add_shop_access_owner",
         shopName: "追加対象店",
-        plan: "pro",
+        plan: "standard",
       });
       await seedAdditionalManager(ctx, {
         organizationId: target.organizationId,
@@ -144,7 +168,7 @@ describe("organization shop management", () => {
         subject: "add_shop_removed",
         status: "removed",
       });
-      await seedOrganizationManagerShop(ctx, { subject: "add_shop_other_org", plan: "pro" });
+      await seedOrganizationManagerShop(ctx, { subject: "add_shop_other_org", plan: "standard" });
       return target;
     });
     const args = {
@@ -179,7 +203,7 @@ describe("organization shop management", () => {
       const seeded = await seedOrganizationManagerShop(ctx, {
         subject: "requested_add_shop_actor",
         shopName: "既存店",
-        plan: "pro",
+        plan: "standard",
       });
       await ctx.db.patch(seeded.userId, { accountDeletionRequestedAt: Date.now() });
       return seeded;
@@ -210,42 +234,12 @@ describe("organization shop management", () => {
     expect(state.audits).toEqual([]);
   });
 
-  it.each(["archived"] as const)(
-    "%s店舗を選択中でも有効管理者は事業者へ新店舗を追加できる",
-    async (operatingStatus) => {
-      const t = convexTest(schema, modules);
-      const ids = await t.run(async (ctx) => {
-        const base = await seedOrganizationManagerShop(ctx, {
-          subject: `inactive_add_shop_${operatingStatus}`,
-          plan: "pro",
-        });
-        await ctx.db.patch(base.shopId, { operatingStatus });
-        return base;
-      });
-
-      const created = await t
-        .withIdentity({ subject: `inactive_add_shop_${operatingStatus}` })
-        .mutation(api.organization.mutations.addShop, {
-          shopId: ids.shopId,
-          shopName: `${operatingStatus}から追加`,
-          submissionPattern,
-          requestId: `inactive-add-${operatingStatus}`,
-        });
-      await expect(t.run((ctx) => ctx.db.get(created.shopId))).resolves.toMatchObject({
-        organizationId: ids.organizationId,
-        operatingStatus: "active",
-        regularClosedDays: [],
-        isDeleted: false,
-      });
-    },
-  );
-
-  it("5店舗稼働中のBusinessでは6店舗目を保存せず拒否する", async () => {
+  it("5店舗あるBusinessでは6店舗目を保存せず拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "sixth_shop", plan: "business" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "sixth_shop", plan: "pro" });
       for (let index = 2; index <= 5; index += 1) {
-        await seedOrganizationShop(ctx, { organizationId: base.organizationId, name: `稼働店${index}` });
+        await seedOrganizationShop(ctx, { organizationId: base.organizationId, name: `店舗${index}` });
       }
       return base;
     });
@@ -287,158 +281,6 @@ describe("organization shop management", () => {
     ).rejects.toThrow("この機能はトライアルまたはStandardで利用できます。");
   });
 
-  it("アーカイブは履歴を削除せず、同じrequestIdを再実行しても監査を重複作成しない", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "archive_shop", plan: "pro" });
-      const staffId = await ctx.db.insert("staffs", {
-        shopId: base.shopId,
-        organizationId: base.organizationId,
-        organizationPersonId: base.personId,
-        userId: base.userId,
-        name: "管理者",
-        email: "archive_shop@example.com",
-        emailNormalized: "archive_shop@example.com",
-        isDeleted: false,
-      });
-      const recruitmentId = await ctx.db.insert("recruitments", {
-        shopId: base.shopId,
-        periodStart: "2026-07-01",
-        periodEnd: "2026-07-07",
-        deadline: "2026-06-30",
-        shopClosedDates: [],
-        status: "confirmed",
-        confirmedAt: Date.now(),
-        submissionPattern,
-        isDeleted: false,
-      });
-      return { ...base, recruitmentId, staffId };
-    });
-    const asActor = t.withIdentity({ subject: "archive_shop" });
-
-    await expect(
-      asActor.mutation(api.organization.mutations.archiveShop, {
-        shopId: ids.shopId,
-        requestId: "archive-shop-request",
-      }),
-    ).resolves.toEqual({ shopId: ids.shopId, shopStatus: "archived", changed: true });
-    await expect(
-      asActor.mutation(api.organization.mutations.archiveShop, {
-        shopId: ids.shopId,
-        requestId: "archive-shop-request",
-      }),
-    ).resolves.toEqual({ shopId: ids.shopId, shopStatus: "archived", changed: false });
-
-    const requestKey = await toAuditRequestKey("archive-shop-request");
-    const state = await t.run(async (ctx) => ({
-      shop: await ctx.db.get(ids.shopId),
-      staff: await ctx.db.get(ids.staffId),
-      recruitment: await ctx.db.get(ids.recruitmentId),
-      audits: await ctx.db
-        .query("organizationAuditEvents")
-        .withIndex("by_correlationId", (q) =>
-          q.eq("correlationId", `${ids.organizationId}:shop:archive:${ids.shopId}:${requestKey}`),
-        )
-        .collect(),
-    }));
-    expect(state.shop).toMatchObject({ operatingStatus: "archived", isDeleted: false });
-    expect(state.staff).toMatchObject({ isDeleted: false });
-    expect(state.recruitment).toMatchObject({ isDeleted: false });
-    expect(state.audits).toHaveLength(1);
-  });
-
-  it("別事業者の管理者は店舗IDを知っていてもアーカイブできない", async () => {
-    const t = convexTest(schema, modules);
-    const targetShopId = await t.run(async (ctx) => {
-      await seedOrganizationManagerShop(ctx, { subject: "archive_idor_actor", plan: "pro" });
-      const other = await seedOrganizationManagerShop(ctx, { subject: "archive_idor_target", plan: "pro" });
-      return other.shopId;
-    });
-
-    await expect(
-      t.withIdentity({ subject: "archive_idor_actor" }).mutation(api.organization.mutations.archiveShop, {
-        shopId: targetShopId,
-        requestId: "archive-idor-request",
-      }),
-    ).rejects.toThrow("Not found");
-  });
-
-  it("active店舗の再稼働はidempotent no-opを維持する", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(
-      async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "reactivate_active_noop", plan: "pro" }),
-    );
-    await expect(
-      t.withIdentity({ subject: "reactivate_active_noop" }).mutation(api.organization.mutations.reactivateShop, {
-        shopId: ids.shopId,
-        requestId: "reactivate-active-noop",
-      }),
-    ).resolves.toEqual({ shopId: ids.shopId, shopStatus: "active", changed: false });
-    await expect(
-      t.run(async (ctx) =>
-        ctx.db
-          .query("organizationAuditEvents")
-          .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", ids.organizationId))
-          .collect(),
-      ),
-    ).resolves.toEqual([]);
-  });
-
-  it("再稼働時に店舗上限を再確認し、空きができた後だけ稼働へ戻す", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "reactivate_capacity", plan: "business" });
-      const targetShopId = await seedOrganizationShop(ctx, {
-        organizationId: base.organizationId,
-        name: "再稼働対象",
-        status: "archived",
-      });
-      const activeShopIds: Id<"shops">[] = [];
-      for (let index = 2; index <= 5; index += 1) {
-        activeShopIds.push(
-          await seedOrganizationShop(ctx, { organizationId: base.organizationId, name: `稼働店${index}` }),
-        );
-      }
-      return { ...base, activeShopIds, targetShopId };
-    });
-    const asActor = t.withIdentity({ subject: "reactivate_capacity" });
-
-    await expect(
-      asActor.mutation(api.organization.mutations.reactivateShop, {
-        shopId: ids.targetShopId,
-        requestId: "reactivate-at-capacity",
-      }),
-    ).rejects.toThrow("店舗数が現在のプラン上限を超えます。");
-
-    await t.run(async (ctx) => await ctx.db.patch(ids.activeShopIds[0], { operatingStatus: "archived" }));
-    await expect(
-      asActor.mutation(api.organization.mutations.reactivateShop, {
-        shopId: ids.targetShopId,
-        requestId: "reactivate-after-space",
-      }),
-    ).resolves.toEqual({ shopId: ids.targetShopId, shopStatus: "active", changed: true });
-  });
-
-  it("稼働中の店舗があっても別店舗を再稼働できる", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "enabled_reactivate", plan: "pro" });
-      const targetShopId = await seedOrganizationShop(ctx, {
-        organizationId: base.organizationId,
-        name: "公開後の再稼働店舗",
-        status: "archived",
-      });
-      return { ...base, targetShopId };
-    });
-
-    await expect(
-      t.withIdentity({ subject: "enabled_reactivate" }).mutation(api.organization.mutations.reactivateShop, {
-        shopId: ids.targetShopId,
-        requestId: "enabled-reactivate",
-      }),
-    ).resolves.toEqual({ shopId: ids.targetShopId, shopStatus: "active", changed: true });
-  });
-
   describe("deleteShop", () => {
     const deadlineStateCases: Array<{
       label: string;
@@ -452,18 +294,10 @@ describe("organization shop management", () => {
         label: "scheduledChange",
         buildState: (_now, deadlineAt) => ({
           kind: "scheduledChange",
-          currentPlan: "pro",
+          currentPlan: "standard",
           targetPlan: "free",
           effectiveAt: deadlineAt,
-        }),
-      },
-      {
-        label: "grace",
-        buildState: (now, deadlineAt) => ({
-          kind: "grace",
-          plan: "pro",
-          startedAt: now - 1_000,
-          endsAt: deadlineAt,
+          restrictAtPeriodEnd: true,
         }),
       },
     ];
@@ -474,7 +308,7 @@ describe("organization shop management", () => {
     it("スタッフ所属がある組織店舗を即時削除し、同じrequestIdの再送では監査とcleanupを重複させない", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
-        const base = await seedOrganizationManagerShop(ctx, { subject: "delete_shop", plan: "pro" });
+        const base = await seedOrganizationManagerShop(ctx, { subject: "delete_shop", plan: "standard" });
         const remainingShopId = await seedOrganizationShop(ctx, {
           organizationId: base.organizationId,
           name: "残す店舗",
@@ -482,9 +316,21 @@ describe("organization shop management", () => {
         const staffUserId = await seedUser(ctx, "delete_shop_staff_only", "shop-staff-user@example.com");
         const staffUserBefore = await ctx.db.get(staffUserId);
         if (!staffUserBefore) throw new Error("staff user not found");
+        const now = Date.now();
+        const staffPersonId = await ctx.db.insert("organizationPeople", {
+          organizationId: base.organizationId,
+          userId: staffUserId,
+          name: "所属スタッフ",
+          email: "shop-staff-user@example.com",
+          emailNormalized: "shop-staff-user@example.com",
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
         const staffId = await ctx.db.insert("staffs", {
           shopId: base.shopId,
           organizationId: base.organizationId,
+          organizationPersonId: staffPersonId,
           userId: staffUserId,
           name: "所属スタッフ",
           email: "shop-staff-user@example.com",
@@ -534,7 +380,7 @@ describe("organization shop management", () => {
       expect(state.remainingShop?.isDeleted).toBe(false);
       expect(state.staff?.isDeleted).toBe(false);
       expect(state.staffUser).toEqual(ids.staffUserBefore);
-      expect(state.usage.activeShopCount).toBe(1);
+      expect(state.usage.shopCount).toBe(1);
       expect(state.audits).toHaveLength(1);
       expect(state.audits[0]).toMatchObject({
         action: "organization.shop_deleted",
@@ -574,7 +420,7 @@ describe("organization shop management", () => {
     it("2店舗を同時に削除してもOCCで必ず1店舗を残す", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
-        const base = await seedOrganizationManagerShop(ctx, { subject: "delete_concurrently", plan: "pro" });
+        const base = await seedOrganizationManagerShop(ctx, { subject: "delete_concurrently", plan: "standard" });
         const secondShopId = await seedOrganizationShop(ctx, {
           organizationId: base.organizationId,
           name: "第二店舗",
@@ -620,7 +466,7 @@ describe("organization shop management", () => {
     it("最後の非削除店舗は削除しない", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(
-        async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "delete_last_shop", plan: "pro" }),
+        async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "delete_last_shop", plan: "standard" }),
       );
 
       await expect(
@@ -648,7 +494,7 @@ describe("organization shop management", () => {
     it("確認対象と削除対象が一致しない場合は削除しない", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
-        const base = await seedOrganizationManagerShop(ctx, { subject: "delete_confirm_mismatch", plan: "pro" });
+        const base = await seedOrganizationManagerShop(ctx, { subject: "delete_confirm_mismatch", plan: "standard" });
         const otherShopId = await seedOrganizationShop(ctx, {
           organizationId: base.organizationId,
           name: "別店舗",
@@ -666,14 +512,13 @@ describe("organization shop management", () => {
       await expect(t.run((ctx) => ctx.db.get(ids.shopId))).resolves.toMatchObject({ isDeleted: false });
     });
 
-    it("Freeで残す店舗も削除し、参照をクリアして残存店舗を自動再稼働しない", async () => {
+    it("Free対象店舗を削除し、参照をクリアして未削除の残存店舗を保持する", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, { subject: "delete_free_shop", plan: "free" });
         const remainingShopId = await seedOrganizationShop(ctx, {
           organizationId: base.organizationId,
-          name: "停止中の残存店舗",
-          status: "archived",
+          name: "残存店舗",
         });
         return { ...base, remainingShopId };
       });
@@ -695,7 +540,7 @@ describe("organization shop management", () => {
           .unique(),
       }));
       expect(state.deletedShop?.isDeleted).toBe(true);
-      expect(state.remainingShop).toMatchObject({ isDeleted: false, operatingStatus: "archived" });
+      expect(state.remainingShop).toMatchObject({ isDeleted: false });
       expect(state.billingState?.freeShopId).toBeUndefined();
       expect(state.billingState?.version).toBe(2);
     });
@@ -708,7 +553,7 @@ describe("organization shop management", () => {
         const deadlineAt = now + 7 * 24 * 60 * 60 * 1000;
         vi.setSystemTime(now);
         const ids = await t.run(async (ctx) => {
-          const base = await seedOrganizationManagerShop(ctx, { subject: "delete_deadline_shop", plan: "pro" });
+          const base = await seedOrganizationManagerShop(ctx, { subject: "delete_deadline_shop", plan: "standard" });
           await seedOrganizationShop(ctx, {
             organizationId: base.organizationId,
             name: "期限後も残る店舗",
@@ -769,7 +614,7 @@ describe("organization shop management", () => {
     it("未認証、removed管理者、別組織の管理者は店舗削除の副作用を開始しない", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
-        const target = await seedOrganizationManagerShop(ctx, { subject: "delete_target_owner", plan: "pro" });
+        const target = await seedOrganizationManagerShop(ctx, { subject: "delete_target_owner", plan: "standard" });
         await seedOrganizationShop(ctx, { organizationId: target.organizationId, name: "対象組織の残す店舗" });
         const removed = await seedAdditionalManager(ctx, {
           organizationId: target.organizationId,
@@ -777,7 +622,7 @@ describe("organization shop management", () => {
           subject: "delete_removed",
           status: "removed",
         });
-        await seedOrganizationManagerShop(ctx, { subject: "delete_other_organization", plan: "pro" });
+        await seedOrganizationManagerShop(ctx, { subject: "delete_other_organization", plan: "standard" });
         return { ...target, removed };
       });
       const args = {

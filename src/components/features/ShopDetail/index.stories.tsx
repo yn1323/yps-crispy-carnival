@@ -206,9 +206,9 @@ export const ReadOnly: Story = {
     shop: {
       ...shop,
       canUpdateSettings: false,
-      settingsDisabledReason: "現在の契約状態では、店舗情報を変更できません。",
+      settingsDisabledReason: "現在のプランでは、店舗情報を変更できません。",
       canDelete: false,
-      deleteDisabledReason: "現在の契約状態では、この店舗を削除できません。",
+      deleteDisabledReason: "現在のプランでは、この店舗を削除できません。",
     },
   },
 };
@@ -420,7 +420,7 @@ export const StaffMembershipReadOnlyTriggerBehavior: Story = {
     shop: {
       ...shop,
       canUpdateSettings: false,
-      settingsDisabledReason: "現在の契約状態では、店舗情報を変更できません。",
+      settingsDisabledReason: "現在のプランでは、店舗情報を変更できません。",
     },
   },
   play: async ({ canvasElement }) => {

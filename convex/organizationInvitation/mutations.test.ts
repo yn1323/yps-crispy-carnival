@@ -65,7 +65,7 @@ describe("organizationInvitation/mutations", () => {
   it("組織単位APIで発行・再送・取消を行い、再送前のURLを失効する", async () => {
     const t = convexTest(schema, modules);
     const manager = await t.run((ctx) =>
-      seedOrganizationManagerShop(ctx, { subject: "invitation_owner", plan: "business" }),
+      seedOrganizationManagerShop(ctx, { subject: "invitation_owner", plan: "pro" }),
     );
     const owner = t.withIdentity({ subject: "invitation_owner" });
     const issued = await owner.mutation(api.organizationInvitation.mutations.issueForOrganization, {
@@ -102,7 +102,7 @@ describe("organizationInvitation/mutations", () => {
   it("同じ要求は同じ招待へ収束し、同じrequestIdの別対象を拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const manager = await seedOrganizationManagerShop(ctx, { subject: "strict_owner", plan: "pro" });
+      const manager = await seedOrganizationManagerShop(ctx, { subject: "strict_owner", plan: "standard" });
       const first = await seedActiveStaff(ctx, { ...manager, subject: "strict_first" });
       const second = await seedActiveStaff(ctx, { ...manager, subject: "strict_second" });
       return { ...manager, first, second };
@@ -131,7 +131,7 @@ describe("organizationInvitation/mutations", () => {
   it("同じ対象の有効招待を暗黙に再送しない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const manager = await seedOrganizationManagerShop(ctx, { subject: "pending_owner", plan: "pro" });
+      const manager = await seedOrganizationManagerShop(ctx, { subject: "pending_owner", plan: "standard" });
       const target = await seedActiveStaff(ctx, { ...manager, subject: "pending_target" });
       return { ...manager, target };
     });
@@ -155,9 +155,7 @@ describe("organizationInvitation/mutations", () => {
 
   it("外部人物は発行時に作らず、招待へ氏名と予約枠を保存する", async () => {
     const t = convexTest(schema, modules);
-    const manager = await t.run((ctx) =>
-      seedOrganizationManagerShop(ctx, { subject: "external_owner", plan: "business" }),
-    );
+    const manager = await t.run((ctx) => seedOrganizationManagerShop(ctx, { subject: "external_owner", plan: "pro" }));
     const issued = await t
       .withIdentity({ subject: "external_owner" })
       .mutation(api.organizationInvitation.mutations.issueForOrganization, {
@@ -207,8 +205,8 @@ describe("organizationInvitation/mutations", () => {
   it.each(["issue", "resend", "revoke"] as const)("別組織からの%sを副作用なしで拒否する", async (operation) => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => ({
-      actor: await seedOrganizationManagerShop(ctx, { subject: `cross_${operation}_actor`, plan: "business" }),
-      foreign: await seedOrganizationManagerShop(ctx, { subject: `cross_${operation}_foreign`, plan: "business" }),
+      actor: await seedOrganizationManagerShop(ctx, { subject: `cross_${operation}_actor`, plan: "pro" }),
+      foreign: await seedOrganizationManagerShop(ctx, { subject: `cross_${operation}_foreign`, plan: "pro" }),
     }));
     const foreign = t.withIdentity({ subject: `cross_${operation}_foreign` });
     const invitation = await foreign.mutation(api.organizationInvitation.mutations.issueForOrganization, {
@@ -242,9 +240,7 @@ describe("organizationInvitation/mutations", () => {
 
   it("削除済み管理者は発行・再送・取消を行えない", async () => {
     const t = convexTest(schema, modules);
-    const manager = await t.run((ctx) =>
-      seedOrganizationManagerShop(ctx, { subject: "removed_owner", plan: "business" }),
-    );
+    const manager = await t.run((ctx) => seedOrganizationManagerShop(ctx, { subject: "removed_owner", plan: "pro" }));
     const owner = t.withIdentity({ subject: "removed_owner" });
     const invitation = await owner.mutation(api.organizationInvitation.mutations.issueForOrganization, {
       organizationId: manager.organizationId,
@@ -281,7 +277,7 @@ describe("organizationInvitation/mutations", () => {
   it("期限処理は現在versionだけを失効し、stale jobをno-opにする", async () => {
     const t = convexTest(schema, modules);
     const manager = await t.run((ctx) =>
-      seedOrganizationManagerShop(ctx, { subject: "expiration_owner", plan: "business" }),
+      seedOrganizationManagerShop(ctx, { subject: "expiration_owner", plan: "pro" }),
     );
     const issued = await t
       .withIdentity({ subject: "expiration_owner" })

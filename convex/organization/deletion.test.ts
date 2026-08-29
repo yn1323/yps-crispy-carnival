@@ -257,6 +257,7 @@ describe("organization deletion", () => {
         stripeCustomerId: "cus_delete_stripe_guard",
         stripeSubscriptionId: "sub_delete_stripe_guard",
         stripePriceId: "price_pro_test",
+        plan: "standard",
         livemode: false,
         status: "canceled",
         providerGeneration: 1,
@@ -367,6 +368,7 @@ describe("organization deletion", () => {
         stripeCustomerId: "cus_delete_invalid_trial",
         stripeSubscriptionId: "sub_delete_invalid_trial",
         stripePriceId: "price_pro_test",
+        plan: "standard",
         livemode: false,
         status: "canceled",
         providerGeneration: 1,
@@ -400,6 +402,7 @@ describe("organization deletion", () => {
         organizationId: seeded.organizationId,
         stripeCustomerId: "cus_delete_old_current",
         stripePriceId: "price_pro_test",
+        plan: "standard" as const,
         livemode: false,
         cancelAtPeriodEnd: false,
         syncedAt: now,
@@ -477,7 +480,7 @@ describe("organization deletion", () => {
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
         subject: "deleted_trial_paid_plan_selection",
-        plan: "pro",
+        plan: "standard",
       });
       const billingState = await ctx.db
         .query("organizationBillingStates")
@@ -695,9 +698,20 @@ describe("organization deletion", () => {
         });
         if (associationKind === "staff") {
           const email = `shared_${associationKind}_staff@example.com`;
+          const organizationPersonId = await ctx.db.insert("organizationPeople", {
+            organizationId: other.organizationId,
+            userId: target.staffUserId,
+            name: "別組織だけの共有スタッフ",
+            email,
+            emailNormalized: email,
+            status: "active",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          });
           await ctx.db.insert("staffs", {
             shopId: other.shopId,
             organizationId: other.organizationId,
+            organizationPersonId,
             userId: target.staffUserId,
             name: "別組織だけの共有スタッフ",
             email,
@@ -743,7 +757,7 @@ describe("organization deletion", () => {
   it("有料契約、stale画面、対象不一致を副作用なしで拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "delete_rejected", plan: "pro" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "delete_rejected", plan: "standard" });
       const other = await seedOrganizationManagerShop(ctx, { subject: "delete_other_target", plan: "free" });
       const organization = await ctx.db.get(base.organizationId);
       if (!organization) throw new Error("organization not found");

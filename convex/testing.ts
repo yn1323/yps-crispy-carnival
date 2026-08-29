@@ -869,7 +869,6 @@ async function createScenarioMember(
 async function createScenarioShop(ctx: MutationCtx, args: { organizationId: Id<"organizations">; name: string }) {
   const shopId = await ctx.db.insert("shops", {
     organizationId: args.organizationId,
-    operatingStatus: "active",
     name: args.name,
     submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     regularClosedDays: [],
@@ -882,7 +881,7 @@ async function createComplimentaryProEntitlement(ctx: MutationCtx, organizationI
   const now = Date.now();
   return await ctx.db.insert("organizationBillingStates", {
     organizationId,
-    state: { kind: "complimentary", planIdVersion: 2, plan: "pro" },
+    state: { kind: "complimentary", plan: "pro" },
     version: 1,
     createdAt: now,
     updatedAt: now,
@@ -900,7 +899,7 @@ async function createActiveFreeEntitlement(
   const now = Date.now();
   return await ctx.db.insert("organizationBillingStates", {
     organizationId: args.organizationId,
-    state: { kind: "active", planIdVersion: 2, plan: "free" },
+    state: { kind: "active", plan: "free" },
     freeManagerPersonId: args.managerPersonId,
     freeShopId: args.shopId,
     version: 1,
@@ -924,6 +923,7 @@ async function createScenarioStaff(
     args.personId ??
     (await createScenarioPerson(ctx, {
       organizationId: args.organizationId,
+      userId: args.userId,
       name: args.name,
       email: args.email,
     }));

@@ -10,7 +10,7 @@ describe("organizationInvitation/lifecycle bounded operational reader", () => {
     const t = convexTest(schema, modules);
     const now = Date.parse("2026-08-13T00:00:00Z");
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "lifecycle_reader_owner", plan: "business" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "lifecycle_reader_owner", plan: "pro" });
       const insert = async (status: "issued" | "linked", expiresAt: number, suffix: string) =>
         await ctx.db.insert("organizationInvitations", {
           organizationId: base.organizationId,
@@ -47,7 +47,7 @@ describe("organizationInvitation/lifecycle bounded operational reader", () => {
     const t = convexTest(schema, modules);
     const now = Date.parse("2026-08-13T00:00:00Z");
     const organizationId = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "lifecycle_overflow_owner", plan: "business" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "lifecycle_overflow_owner", plan: "pro" });
       for (let index = 0; index < 4; index += 1) {
         await ctx.db.insert("organizationInvitations", {
           organizationId: base.organizationId,

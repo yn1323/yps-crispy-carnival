@@ -27,7 +27,6 @@ describe("organization/queries.getSettings", () => {
       const base = await seedOrganizationManagerShop(ctx, { subject, complimentary: true });
       const secondShopId = await ctx.db.insert("shops", {
         organizationId: base.organizationId,
-        operatingStatus: "active",
         name: "別店舗",
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         regularClosedDays: [],
@@ -141,6 +140,32 @@ describe("organization/queries.getSettings", () => {
     ]);
   });
 
+  it("両canonical ID未設定staffは人物へ投影せず、店舗のnondeleted staff件数には含める", async () => {
+    const t = convexTest(schema, modules);
+    const subject = "settings_missing_canonical_staff";
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, { subject, complimentary: true });
+      await ctx.db.insert("staffs", {
+        shopId: base.shopId,
+        name: "移行中スタッフ",
+        email: "missing-canonical@example.com",
+        emailNormalized: "missing-canonical@example.com",
+        isDeleted: false,
+      });
+      return base;
+    });
+
+    const result = await t.withIdentity({ subject }).query(api.organization.queries.getSettings, {
+      shopId: ids.shopId,
+    });
+    if (!result) throw new Error("settings not found");
+
+    expect(result.people.map(({ id, name, isStaff, shopIds }) => ({ id, name, isStaff, shopIds }))).toEqual([
+      { id: ids.personId, name: "管理者", isStaff: false, shopIds: [] },
+    ]);
+    expect(result.shops.find((shop) => shop.id === ids.shopId)).toMatchObject({ staffCount: 1 });
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
   });
@@ -225,7 +250,7 @@ describe("organization/queries.getSettings", () => {
       async (ctx) =>
         await seedOrganizationManagerShop(ctx, {
           subject: "settings_customer_missing",
-          plan: "pro",
+          plan: "standard",
         }),
     );
 
@@ -234,7 +259,7 @@ describe("organization/queries.getSettings", () => {
       .query(api.organization.queries.getSettings, { shopId: ids.shopId });
 
     expect(result?.billing).toMatchObject({
-      state: "pro",
+      state: "standard",
       hasStripeCustomer: false,
       canUpdatePaymentMethod: false,
       paymentMethodDisabledReason: "Stripeの契約情報を準備中です。\nしばらくしてから、もう一度お試しください。",
@@ -246,7 +271,7 @@ describe("organization/queries.getSettings", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_customer_livemode_mismatch",
-        plan: "pro",
+        plan: "standard",
       });
       const now = Date.now();
       await ctx.db.insert("organizationStripeCustomers", {
@@ -264,7 +289,7 @@ describe("organization/queries.getSettings", () => {
       .query(api.organization.queries.getSettings, { shopId: ids.shopId });
 
     expect(result?.billing).toMatchObject({
-      state: "pro",
+      state: "standard",
       stripeBillingAvailable: true,
       hasStripeCustomer: true,
       canUpdatePaymentMethod: false,
@@ -279,7 +304,7 @@ describe("organization/queries.getSettings", () => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_actor",
         shopName: "設定対象店",
-        plan: "pro",
+        plan: "standard",
       });
       await ctx.db.patch(base.shopId, {
         regularClosedDays: ["mon", "thu"],
@@ -350,8 +375,8 @@ describe("organization/queries.getSettings", () => {
       canDeleteOrganization: false,
       deleteOrganizationDisabledReason: "組織を削除するには、先に有料契約やプラン変更を終了してください。",
       billing: {
-        state: "pro",
-        currentPlan: "pro",
+        state: "standard",
+        currentPlan: "standard",
         isComplimentary: false,
         hasTrialContinuation: false,
         hasStripeCustomer: true,
@@ -455,7 +480,6 @@ describe("organization/queries.getSettings", () => {
       await addManager("third");
       await ctx.db.insert("shops", {
         organizationId: base.organizationId,
-        operatingStatus: "active",
         name: "上限超過店舗",
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         regularClosedDays: [],
@@ -509,7 +533,7 @@ describe("organization/queries.getSettings", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_usage_unknown",
-        plan: "business",
+        plan: "pro",
       });
       const now = Date.now();
       let recoveryPersonId: Id<"organizationPeople"> | null = null;
@@ -529,7 +553,6 @@ describe("organization/queries.getSettings", () => {
       if (!recoveryPersonId) throw new Error("整理対象人物を作成できませんでした");
       const secondShopId = await ctx.db.insert("shops", {
         organizationId: base.organizationId,
-        operatingStatus: "active",
         name: "整理可能店舗",
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         regularClosedDays: [],
@@ -543,7 +566,7 @@ describe("organization/queries.getSettings", () => {
       .query(api.organization.queries.getSettings, { shopId: ids.shopId });
 
     expect(result?.billing).toMatchObject({
-      state: "business",
+      state: "pro",
       blockedReason: expect.stringContaining("利用数を安全に確認できない"),
       canManagePlan: true,
     });
@@ -572,7 +595,7 @@ describe("organization/queries.getSettings", () => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_local_manager_recipient",
         email: "local-manager@example.com",
-        plan: "pro",
+        plan: "standard",
       });
       await ctx.db.insert("staffs", {
         shopId: base.shopId,
@@ -599,7 +622,7 @@ describe("organization/queries.getSettings", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_manager_recipient_overflow",
-        plan: "pro",
+        plan: "standard",
       });
       for (let index = 1; index < 20; index += 1) {
         const userId = await seedUser(ctx, `settings_nonlocal_manager_${index}`);
@@ -680,7 +703,7 @@ describe("organization/queries.getSettings", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_stripe_off_existing_customer",
-        plan: "pro",
+        plan: "standard",
       });
       const now = Date.now();
       await ctx.db.insert("organizationStripeCustomers", {
@@ -698,7 +721,7 @@ describe("organization/queries.getSettings", () => {
       .query(api.organization.queries.getSettings, { shopId: ids.shopId });
 
     expect(result?.billing).toMatchObject({
-      state: "pro",
+      state: "standard",
       stripeBillingAvailable: false,
       hasStripeCustomer: true,
       canUpdatePaymentMethod: false,
@@ -706,36 +729,43 @@ describe("organization/queries.getSettings", () => {
     });
   });
 
-  it("旧形式のstatus未設定店舗は稼働中として数え、アーカイブ済みは数えない", async () => {
+  it("未削除店舗を店舗数へ含め、削除済み店舗は一覧と店舗数から除外する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
-        subject: "settings_active_shop_usage",
-        plan: "pro",
+        subject: "settings_shop_usage",
+        plan: "standard",
       });
-      let legacyActiveShopId: Id<"shops"> | null = null;
-      for (const [index, operatingStatus] of ["active", "active", "active", undefined, "archived"].entries()) {
+      let includedShopId: Id<"shops"> | null = null;
+      for (let index = 0; index < 4; index += 1) {
         const shopId = await ctx.db.insert("shops", {
           organizationId: base.organizationId,
-          ...(operatingStatus ? { operatingStatus: operatingStatus as "active" | "archived" } : {}),
           name: `店舗${index}`,
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           regularClosedDays: [],
           isDeleted: false,
         });
-        if (operatingStatus === undefined) legacyActiveShopId = shopId;
+        if (index === 0) includedShopId = shopId;
       }
-      if (!legacyActiveShopId) throw new Error("legacy active shop fixture was not created");
-      return { ...base, legacyActiveShopId };
+      const deletedShopId = await ctx.db.insert("shops", {
+        organizationId: base.organizationId,
+        name: "削除済み店舗",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        isDeleted: true,
+      });
+      if (!includedShopId) throw new Error("included shop fixture was not created");
+      return { ...base, deletedShopId, includedShopId };
     });
 
     const result = await t
-      .withIdentity({ subject: "settings_active_shop_usage" })
+      .withIdentity({ subject: "settings_shop_usage" })
       .query(api.organization.queries.getSettings, { shopId: ids.shopId });
 
     expect(result?.billing.shopUsage).toEqual({ current: 5, max: 5, pendingInvitations: 0 });
-    expect(result?.shops).toHaveLength(6);
-    expect(result?.shops.find((shop) => shop.id === ids.legacyActiveShopId)?.canUpdateSettings).toBe(true);
+    expect(result?.shops).toHaveLength(5);
+    expect(result?.shops.find((shop) => shop.id === ids.includedShopId)?.canUpdateSettings).toBe(true);
+    expect(result?.shops.find((shop) => shop.id === ids.deletedShopId)).toBeUndefined();
     expect(result?.canAddShop).toBe(false);
   });
 
@@ -759,7 +789,7 @@ describe("organization/queries.getSettings", () => {
   it("上限まで作成済みの利用者には組織作成不可と理由を返す", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "settings_create_limit", plan: "pro" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "settings_create_limit", plan: "standard" });
       const now = Date.now();
       for (const name of ["二つ目", "三つ目"]) {
         await ctx.db.insert("organizations", {
@@ -824,7 +854,7 @@ describe("organization/queries.getSettings", () => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_unassigned_staff",
         shopName: "所属確認店",
-        plan: "business",
+        plan: "pro",
       });
       const now = Date.now();
       const unassignedPersonId = await ctx.db.insert("organizationPeople", {
@@ -882,11 +912,10 @@ describe("organization/queries.getSettings", () => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_duplicate_shop_names",
         shopName: "同名店舗",
-        plan: "pro",
+        plan: "standard",
       });
       const secondShopId = await ctx.db.insert("shops", {
         organizationId: base.organizationId,
-        operatingStatus: "active",
         name: "同名店舗",
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         regularClosedDays: [],
@@ -894,7 +923,6 @@ describe("organization/queries.getSettings", () => {
       });
       const deletedStaffShopId = await ctx.db.insert("shops", {
         organizationId: base.organizationId,
-        operatingStatus: "active",
         name: "削除済み所属店舗",
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         regularClosedDays: [],
@@ -943,7 +971,7 @@ describe("organization/queries.getSettings", () => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_line_connected",
         shopName: "LINE設定店",
-        plan: "pro",
+        plan: "standard",
       });
       const now = Date.now();
       const personId = await ctx.db.insert("organizationPeople", {
@@ -995,7 +1023,7 @@ describe("organization/queries.getSettings", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_manager_invitation",
-        plan: "pro",
+        plan: "standard",
       });
       const now = Date.now();
       const personId = await ctx.db.insert("organizationPeople", {
@@ -1061,7 +1089,7 @@ describe("organization/queries.getSettings", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_legacy_orphan_invitation",
-        plan: "pro",
+        plan: "standard",
       });
       const now = Date.now();
       const personId = await ctx.db.insert("organizationPeople", {
@@ -1118,7 +1146,7 @@ describe("organization/queries.getSettings", () => {
       const ids = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
           subject: `settings_provider_pair_${caseKey}`,
-          plan: "pro",
+          plan: "standard",
         });
         const now = Date.now();
         const invitationId = await ctx.db.insert("organizationInvitations", {
@@ -1203,8 +1231,8 @@ describe("organization/queries.getSettings", () => {
     expect(result).toMatchObject({
       canAddShop: true,
       billing: {
-        state: "business",
-        currentPlan: "business",
+        state: "pro",
+        currentPlan: "pro",
         isComplimentary: true,
         hasTrialContinuation: false,
         peopleUsage: { current: 1, max: 50, pendingInvitations: 0 },
@@ -1225,7 +1253,7 @@ describe("organization/queries.getSettings", () => {
 
     const canonicalResult = await t
       .withIdentity({ subject: "settings_complimentary_business" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId, planIdVersion: 2 });
+      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
     expect(canonicalResult?.billing).toMatchObject({
       state: "pro",
       currentPlan: "pro",
@@ -1242,7 +1270,7 @@ describe("organization/queries.getSettings", () => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_role_removal_actor",
         shopName: "権限設定店",
-        plan: "pro",
+        plan: "standard",
       });
       const now = Date.now();
       const secondUserId = await seedUser(ctx, "settings_role_removal_target", "target@example.com");
@@ -1290,46 +1318,12 @@ describe("organization/queries.getSettings", () => {
     });
   });
 
-  it("操作元店舗の状態に依存せず組織全体のDTOを返す", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, {
-        subject: "settings_archived_staff",
-        shopName: "アーカイブ店",
-        plan: "pro",
-      });
-      await ctx.db.insert("staffs", {
-        shopId: base.shopId,
-        organizationId: base.organizationId,
-        organizationPersonId: base.personId,
-        userId: base.userId,
-        name: "管理者",
-        email: "settings_archived_staff@example.com",
-        emailNormalized: "settings_archived_staff@example.com",
-        isDeleted: false,
-      });
-      await ctx.db.patch(base.shopId, { operatingStatus: "archived" });
-      return base;
-    });
-
-    const result = await t
-      .withIdentity({ subject: "settings_archived_staff" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
-
-    expect(result).not.toHaveProperty("currentShopName");
-    expect(result?.people.find((person) => person.id === ids.personId)).toMatchObject({
-      isStaff: true,
-      shopNames: ["アーカイブ店"],
-    });
-    expect(result?.people.find((person) => person.id === ids.personId)).not.toHaveProperty("currentShopStaffId");
-  });
-
   it("対象未固定の招待と同じメールの通常削除人物がいる場合は再利用可能な招待として表示する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_removed_invitee",
-        plan: "pro",
+        plan: "standard",
       });
       const now = Date.now();
       await ctx.db.insert("organizationPeople", {
@@ -1374,7 +1368,7 @@ describe("organization/queries.getSettings", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_duplicate_invitee",
-        plan: "pro",
+        plan: "standard",
       });
       const now = Date.now();
       await ctx.db.insert("organizationPeople", {
@@ -1429,7 +1423,7 @@ describe("organization/queries.getSettings", () => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_migration_pending",
         shopName: "移行待ち店舗",
-        plan: "pro",
+        plan: "standard",
       });
       const billingState = await ctx.db
         .query("organizationBillingStates")
@@ -1469,7 +1463,7 @@ describe("organization/queries.getSettings", () => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_initial_payment_pending",
         shopName: "初回請求待ち店舗",
-        plan: "pro",
+        plan: "standard",
       });
       const billingState = await ctx.db
         .query("organizationBillingStates")
@@ -1552,7 +1546,7 @@ describe("organization/queries.getSettings", () => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_future_assignment",
         shopName: "将来割当店",
-        plan: "pro",
+        plan: "standard",
       });
       const now = Date.now();
       const personId = await ctx.db.insert("organizationPeople", {
@@ -1616,7 +1610,7 @@ describe("organization/queries.getSettings", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "settings_invitation_history_limit",
-        plan: "pro",
+        plan: "standard",
       });
       const now = Date.now();
       const pendingInvitationIds: Id<"organizationInvitations">[] = [];
@@ -1679,8 +1673,8 @@ describe("organization/queries.getSettings", () => {
   it("別事業者のshopIdでは設定内容を返さない", async () => {
     const t = convexTest(schema, modules);
     const otherShopId = await t.run(async (ctx) => {
-      await seedOrganizationManagerShop(ctx, { subject: "settings_idor_actor", plan: "pro" });
-      const other = await seedOrganizationManagerShop(ctx, { subject: "settings_idor_other", plan: "pro" });
+      await seedOrganizationManagerShop(ctx, { subject: "settings_idor_actor", plan: "standard" });
+      const other = await seedOrganizationManagerShop(ctx, { subject: "settings_idor_other", plan: "standard" });
       return other.shopId;
     });
 

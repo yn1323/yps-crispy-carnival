@@ -17,12 +17,12 @@ describe("appOrganization/manageQueries", () => {
       const actor = await seedOrganizationManagerShop(ctx, {
         subject: "manage_overview_actor",
         shopName: "対象店舗",
-        plan: "business",
+        plan: "pro",
       });
       const foreign = await seedOrganizationManagerShop(ctx, {
         subject: "manage_overview_foreign",
         shopName: "別組織店舗",
-        plan: "business",
+        plan: "pro",
       });
       await ctx.db.patch(actor.organizationId, { name: "対象組織" });
       return { actor, foreign };
@@ -37,14 +37,13 @@ describe("appOrganization/manageQueries", () => {
       organizationId: ids.actor.organizationId,
       organizationName: "対象組織",
       memberStatus: "active",
-      usage: { state: "business", shopUsage: { current: 1 } },
+      usage: { state: "pro", shopUsage: { current: 1 } },
       shopCounts: { active: 1, archived: 0, hasOverflow: false },
       capabilities: { canAddShop: true, canCreateOrganization: true },
     });
     await expect(
       actor.query(api.appOrganization.manageQueries.getManageOverview, {
         organizationId: ids.actor.organizationId,
-        planIdVersion: 2,
       }),
     ).resolves.toMatchObject({
       usage: {
@@ -56,7 +55,6 @@ describe("appOrganization/manageQueries", () => {
     await expect(
       actor.query(api.appOrganization.manageQueries.getBillingOverview, {
         organizationId: ids.actor.organizationId,
-        planIdVersion: 2,
       }),
     ).resolves.toMatchObject({
       billing: {
@@ -152,13 +150,13 @@ describe("appOrganization/manageQueries", () => {
     });
   });
 
-  it("activeとarchivedをcursor paginationし、5件を超える店舗も欠落させない", async () => {
+  it("legacy statusに関係なく非削除店舗をcursor paginationし、旧archived filterは空にする", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const actor = await seedOrganizationManagerShop(ctx, {
         subject: "manage_shops_pagination",
         shopName: "利用中 1",
-        plan: "business",
+        plan: "pro",
       });
       for (let index = 2; index <= 4; index += 1) {
         await ctx.db.insert("shops", {
@@ -186,7 +184,6 @@ describe("appOrganization/manageQueries", () => {
 
     const first = await actor.query(api.appOrganization.manageQueries.listOrganizationShops, {
       organizationId: ids.organizationId,
-      status: "all",
       paginationOpts: page(3),
     });
     const second = await actor.query(api.appOrganization.manageQueries.listOrganizationShops, {
@@ -203,13 +200,13 @@ describe("appOrganization/manageQueries", () => {
     expect(all).toHaveLength(8);
     expect(new Set(all.map((shop) => shop.shopId)).size).toBe(8);
     expect(third.isDone).toBe(true);
+    expect(all.every((shop) => shop.operatingStatus === "active")).toBe(true);
 
     const archived = await actor.query(api.appOrganization.manageQueries.listOrganizationShops, {
       organizationId: ids.organizationId,
       status: "archived",
       paginationOpts: page(10),
     });
-    expect(archived.page).toHaveLength(4);
-    expect(archived.page.every((shop) => shop.operatingStatus === "archived")).toBe(true);
+    expect(archived).toMatchObject({ page: [], isDone: true });
   });
 });
