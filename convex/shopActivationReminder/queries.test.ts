@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import type { Id } from "../_generated/dataModel";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedLegacyShopMembership, seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { getReminderTargetRef } from "./refs";
@@ -44,13 +45,12 @@ async function insertStaff(
   },
 ) {
   return await t.run(async (ctx) => {
-    return await ctx.db.insert("staffs", {
+    return await seedStaff(ctx, {
       shopId: args.shopId,
       name: args.name,
       email: args.email,
-      emailNormalized: args.email.toLowerCase(),
-      ...(args.userId ? { userId: args.userId } : {}),
-      ...(args.excludedFromShift ? { excludedFromShift: true } : {}),
+      userId: args.userId,
+      excludedFromShift: args.excludedFromShift,
       isDeleted: args.isDeleted ?? false,
     });
   });

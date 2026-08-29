@@ -1,5 +1,6 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { recalculateOpenRecruitmentStatsForShops } from "./stats";
@@ -9,12 +10,10 @@ describe("recruitment/stats", () => {
     const t = convexTest(schema, modules);
     const shopId = await t.run(async (ctx) => {
       const targetShopId = await seedShop(ctx, "統計更新上限店舗");
-      await ctx.db.insert("staffs", {
+      await seedStaff(ctx, {
         shopId: targetShopId,
         name: "対象スタッフ",
         email: "stats-work-limit@example.com",
-        emailNormalized: "stats-work-limit@example.com",
-        isDeleted: false,
       });
       await ctx.db.insert("recruitments", {
         shopId: targetShopId,

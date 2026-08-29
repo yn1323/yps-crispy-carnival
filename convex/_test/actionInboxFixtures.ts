@@ -1,5 +1,6 @@
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { seedStaff } from "./scenarioBuilders";
 import { seedOrganizationManagerShop, seedUser } from "./seed";
 
 const submissionPattern = { kind: "time" as const, startTime: "09:00", endTime: "22:00" };
@@ -20,14 +21,10 @@ export async function seedActionInboxSources(
     shopName: args.shopName ?? "対応テスト店舗",
     complimentary: true,
   });
-  const staffId = await ctx.db.insert("staffs", {
+  const staffId = await seedStaff(ctx, {
     shopId: base.shopId,
-    organizationId: base.organizationId,
     name: "通知対象スタッフ",
     email: "action-staff@example.com",
-    emailNormalized: "action-staff@example.com",
-    excludedFromShift: false,
-    isDeleted: false,
   });
   const recruitmentId = await ctx.db.insert("recruitments", {
     shopId: base.shopId,

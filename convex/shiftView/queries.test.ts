@@ -2,6 +2,7 @@ import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { SHIFT_ASSIGNMENT_LIMIT } from "../constants";
@@ -9,18 +10,16 @@ import { SHIFT_ASSIGNMENT_LIMIT } from "../constants";
 async function setupConfirmedShiftView(t: TestConvex<typeof schema>, accessKind: "submit" | "view" = "view") {
   return await t.run(async (ctx) => {
     const shopId = await seedShop(ctx, "確定シフト閲覧店舗");
-    const staffId = await ctx.db.insert("staffs", {
+    const staffId = await seedStaff(ctx, {
       shopId,
       name: "閲覧スタッフ",
       email: "viewer@example.com",
-      isDeleted: false,
     });
-    const excludedStaffId = await ctx.db.insert("staffs", {
+    const excludedStaffId = await seedStaff(ctx, {
       shopId,
       name: "対象外スタッフ",
       email: "excluded@example.com",
       excludedFromShift: true,
-      isDeleted: false,
     });
     const positionId = await ctx.db.insert("positions", {
       shopId,
