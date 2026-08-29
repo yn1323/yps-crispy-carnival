@@ -15,7 +15,7 @@ import {
   type HelpMetadata,
   helpMetas,
 } from "./helpMeta";
-import { getHelpTask } from "./helpTasks";
+import { getHelpTask, getHelpTaskHref, type HelpTaskId } from "./helpTasks";
 import { createHelpMdxComponents } from "./mdxComponents";
 
 export type HelpGuideProps = {
@@ -143,7 +143,7 @@ function HelpGuideBody({ guide }: { guide: HelpGuideContent }) {
   );
 }
 
-function HelpBreadcrumbs({ taskTitle, taskId, title }: { taskTitle?: string; taskId?: string; title: string }) {
+function HelpBreadcrumbs({ taskTitle, taskId, title }: { taskTitle?: string; taskId?: HelpTaskId; title: string }) {
   return (
     <HStack as="nav" aria-label="パンくず" gap={2} wrap="wrap" color="gray.600" fontSize="sm">
       <Link href="/help" color="teal.700" fontWeight="semibold">
@@ -152,7 +152,7 @@ function HelpBreadcrumbs({ taskTitle, taskId, title }: { taskTitle?: string; tas
       <Text aria-hidden>/</Text>
       {taskTitle && taskId && (
         <>
-          <Link href={`/help#task-${taskId}`} color="teal.700" fontWeight="semibold">
+          <Link href={getHelpTaskHref(taskId)} color="teal.700" fontWeight="semibold">
             {taskTitle}
           </Link>
           <Text aria-hidden>/</Text>

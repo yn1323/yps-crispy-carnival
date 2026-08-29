@@ -16,6 +16,8 @@ export const HELP_TASK_IDS = [
 
 export type HelpTaskId = (typeof HELP_TASK_IDS)[number];
 
+export type HelpTaskHref = `/help/tasks/${HelpTaskId}`;
+
 export type HelpTask = {
   id: HelpTaskId;
   title: string;
@@ -92,4 +94,8 @@ export const HELP_TASKS = [
 
 export function getHelpTask(id: string): HelpTask | undefined {
   return HELP_TASKS.find((task) => task.id === id);
+}
+
+export function getHelpTaskHref(id: HelpTaskId): HelpTaskHref {
+  return `/help/tasks/${id}`;
 }

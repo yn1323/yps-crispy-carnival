@@ -13,6 +13,7 @@ import {
   FIXED_PUBLIC_ROUTES,
   getCanonicalRoute,
   getIndexableCanonicalRoutes,
+  HELP_TASK_ROUTES,
   NOINDEX_PUBLIC_ROUTES,
   routeToHtmlPath,
 } from "./staticSite";
@@ -36,6 +37,7 @@ describe("static site manifest", () => {
       "/articles/$slug",
       "/articles/categories/$categorySlug",
       "/help/$slug",
+      "/help/tasks/$taskId",
       "/app/staff/order",
       "/staff/order",
       ...csrPatterns,
@@ -76,6 +78,9 @@ describe("static site manifest", () => {
       expect(routes).toContain("/articles/line-shift-collection-guide");
       expect(routes).toContain("/articles/categories/operations");
       expect(routes).toContain("/help/add-staff");
+      for (const taskRoute of HELP_TASK_ROUTES) {
+        expect(routes).toContain(taskRoute);
+      }
       expect(routes).not.toContain("/articles/missing-entry");
       expect(routes).not.toContain("/articles/_draft");
       expect(routes).not.toContain("/help/missing-entry");

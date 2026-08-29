@@ -2,7 +2,7 @@
 
 > 文書種別: feature
 >
-> 最終コード照合: 2026-08-26（この変更を含む）
+> 最終コード照合: 2026-08-29（この変更を含む）
 
 公開サイトは、登録前の製品理解と、利用中の疑問解消をつなぐ認証不要のページ群である。
 ルート`/`を入口に、機能紹介、ヘルプ、記事、操作デモへ利用者を案内する。
@@ -14,7 +14,8 @@
 | `/` | 価値、利用の流れ、提出方法、利用例、料金プラン、ヘルプと記事への入口、登録導線をまとめるTOP | `src/pages/home/`、`src/components/features/LandingPage/` |
 | `/features` | 希望回収、未提出確認、シフト作成、確定通知など、できることを詳しく示す | `src/pages/features/`、`FeatureSection`、`BenefitsSection` |
 | `/commercial-transactions` | 有料プランの販売条件と、特定商取引法に基づく事業者情報を示す | `src/pages/commercial-transactions/`、`CommercialTransactions` |
-| `/help` | FAQと使い方を、やりたいことと共通検索から探せるようにする | `src/pages/help/`、`src/components/features/HelpCenter/` |
+| `/help` | FAQと使い方を、検索とやりたいことから探す入口を示す | `src/pages/help/`、`src/components/features/HelpCenter/` |
+| `/help/tasks/:taskId` | 一つのやりたいことに属するFAQと使い方を表示する | `src/pages/help/`、`src/components/features/HelpCenter/` |
 | `/help/:slug` | 一つの使い方を表示し、関連するFAQと使い方へつなぐ | `src/pages/help/`、`HelpCenter/content/guides/` |
 | `/articles` | シフト運営に関する記事とカテゴリへの入口を示す | `src/pages/articles/`、`ArticleListPage` |
 | `/articles/:slug` | 一つの記事を表示し、関連する製品情報へつなぐ | `ArticlePage`、`ArticleSite/content/articles/` |
@@ -120,7 +121,7 @@ Productionの設定値と公開表示の確認状況は、[リリース状態](.
 | デモ | 登録前に操作と結果を確かめたい | 実データを保存せず、主要な操作の流れを体験できるようにする |
 
 ヘルプはFAQと使い方を一つのMDX形式で管理し、利用者が完了したい仕事ごとに分類する。
-FAQは`/help#<faq-id>`で展開・共有し、使い方は`/help/:slug`の個別ページで表示する。
+FAQは`/help/tasks/:taskId#<faq-id>`で展開・共有し、使い方は`/help/:slug`の個別ページで表示する。
 TOPに掲載するFAQは`homeFeatured`、FAQから案内する主な使い方は`primaryGuide`で指定する。
 frontmatter、検索、関連付け、本文の表示規則は[ヘルプセンター](help-center.md)を正本とする。
 
@@ -133,7 +134,7 @@ frontmatter、検索、関連付け、本文の表示規則は[ヘルプセン�
 
 ## 静的生成とメタデータ
 
-`scripts/staticSite.ts`はTOP、機能紹介、ヘルプ一覧、問い合わせ、記事一覧、汎用の法務文書、特定商取引法に基づく表記、二つのデモなどを固定の公開routeとして持つ。  現在、独立した`/pricing` routeはない。
+`scripts/staticSite.ts`はTOP、機能紹介、ヘルプTOPとタスクページ、問い合わせ、記事一覧、汎用の法務文書、特定商取引法に基づく表記、二つのデモなどを公開routeとして持つ。  現在、独立した`/pricing` routeはない。
 ヘルプの使い方は`HelpCenter/content/guides/`、記事詳細とカテゴリは`ArticleSite/content/`の公開済みslugから対象routeを組み立てる。
 TanStack StartはこのallowlistだけをStatic Prerenderingし、認証routeやCapability routeを自動探索しない。
 
@@ -179,7 +180,7 @@ route inventory testは各`Disallow`が実在するCSR routeのprefixである�
 - `src/components/features/LandingPage/PricingSection/`：TOPの料金プラン比較
 - `src/routes/features.tsx`、`src/pages/features/`：機能紹介
 - `src/routes/commercial-transactions.tsx`、`src/pages/commercial-transactions/`、`src/components/features/CommercialTransactions/`：特定商取引法に基づく表記
-- `src/routes/help.tsx`、`src/routes/help.*.tsx`、`src/pages/help/`：ヘルプ一覧と使い方詳細のURL境界
+- `src/routes/help.tsx`、`src/routes/help.*.tsx`、`src/pages/help/`：ヘルプTOP、タスク、使い方詳細のURL境界
 - `src/components/features/HelpCenter/`：FAQ、使い方、検索、構造化データ
 - `src/components/features/HelpCenter/content/**/*.mdx`：ヘルプ本文、検索用メタデータ、関連付け、表示順
 - `src/routes/articles*.tsx`、`src/pages/articles/`、`src/components/features/ArticleSite/`：記事一覧、記事詳細、カテゴリ

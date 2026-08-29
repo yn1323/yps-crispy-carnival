@@ -1,9 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, waitFor, within } from "storybook/test";
-import { faqEntries } from "./faqContent";
+import { expect, userEvent, within } from "storybook/test";
 import { HelpIndex } from "./HelpIndex";
-import { getGuideMeta } from "./helpMeta";
-import { HELP_TASKS } from "./helpTasks";
+import { getHelpTaskHref, HELP_TASKS } from "./helpTasks";
 
 const meta = {
   title: "Features/HelpCenter/Index",
@@ -43,10 +41,9 @@ export const Desktop: Story = {
     await expect(await canvas.findByRole("heading", { level: 1, name: "ヘルプ" })).toBeVisible();
     await expect(canvas.getByRole("searchbox", { name: "ヘルプを検索" })).toBeVisible();
     for (const task of HELP_TASKS) {
-      await expect(canvas.getByRole("button", { name: task.title })).toHaveAttribute("aria-pressed", "false");
+      await expect(canvas.getByRole("link", { name: task.title })).toHaveAttribute("href", getHelpTaskHref(task.id));
     }
-    await expect(canvas.getByRole("heading", { level: 2, name: "よくある質問" })).toBeVisible();
-    await expect(canvas.getByRole("heading", { level: 2, name: "手順から探す" })).toBeVisible();
+    await expect(canvas.queryByRole("heading", { level: 2, name: "よくある質問" })).not.toBeInTheDocument();
   },
 };
 
@@ -58,49 +55,22 @@ export const Mobile: Story = {
 };
 
 export const SearchWithoutResults: Story = {
+  parameters: {
+    screenshot: { skip: true },
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const search = await canvas.findByRole("searchbox", { name: "ヘルプを検索" });
 
     await userEvent.type(search, "一致しない検索語xyz");
     await expect(await canvas.findByText("該当するヘルプが見つかりません")).toBeVisible();
-    await expect(canvas.queryByRole("button", { name: HELP_TASKS[0].title })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("link", { name: HELP_TASKS[0].title })).not.toBeInTheDocument();
 
     const clearButtons = canvas.getAllByRole("button", { name: "検索をクリア" });
     await userEvent.click(clearButtons[0]);
     await expect(search).toHaveValue("");
     await expect(search).toHaveFocus();
-    await expect(await canvas.findByRole("button", { name: HELP_TASKS[0].title })).toBeVisible();
-  },
-};
-
-export const TaskSelection: Story = {
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const task = HELP_TASKS.find(({ id }) => id === "staff-management");
-    const selectedFaq = faqEntries.find(({ meta: entryMeta }) => entryMeta.task === task?.id);
-    const otherFaq = faqEntries.find(({ meta: entryMeta }) => entryMeta.task !== task?.id);
-    if (!task || !selectedFaq || !otherFaq) throw new Error("task選択Storyに必要なヘルプが見つかりません");
-
-    const taskButton = await canvas.findByRole("button", { name: task.title });
-    await userEvent.click(taskButton);
-    await expect(taskButton).toHaveAttribute("aria-pressed", "true");
-    await expect(canvas.getByText("選択中")).toBeVisible();
-
-    const taskSection = await canvas.findByRole("region", { name: task.title });
-    const taskCanvas = within(taskSection);
-    await expect(taskCanvas.getByRole("button", { name: new RegExp(selectedFaq.meta.title) })).toBeVisible();
-    await expect(taskCanvas.queryByRole("button", { name: new RegExp(otherFaq.meta.title) })).not.toBeInTheDocument();
-    if (selectedFaq.meta.primaryGuide) {
-      const guide = getGuideMeta(selectedFaq.meta.primaryGuide);
-      if (!guide) throw new Error("task選択Storyの使い方が見つかりません");
-      await expect(taskCanvas.getByRole("link", { name: new RegExp(guide.title) })).toHaveAttribute("href", guide.href);
-    }
-
-    await userEvent.click(taskButton);
-    await expect(taskButton).toHaveAttribute("aria-pressed", "false");
-    await expect(canvas.queryByText("選択中")).not.toBeInTheDocument();
-    await expect(await canvas.findByRole("heading", { level: 2, name: "よくある質問" })).toBeVisible();
+    await expect(await canvas.findByRole("link", { name: HELP_TASKS[0].title })).toBeVisible();
   },
 };
 
@@ -114,102 +84,14 @@ export const Search: Story = {
 
     await userEvent.type(search, "スタッフ 追加");
 
-    await expect(canvas.queryByRole("button", { name: HELP_TASKS[0].title })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("link", { name: HELP_TASKS[0].title })).not.toBeInTheDocument();
     await expect(await canvas.findByRole("heading", { level: 2, name: /よくある質問/ })).toBeVisible();
-    await expect(canvas.getByRole("button", { name: /スタッフを追加する方法は？/ })).toBeVisible();
-    await expect(canvas.getByRole("heading", { level: 2, name: /詳しい使い方/ })).toBeVisible();
-    await expect(canvas.getByRole("link", { name: /スタッフを追加する/ })).toHaveAttribute("href", "/help/add-staff");
-  },
-};
-
-export const FaqHashOpen: Story = {
-  parameters: {
-    screenshot: { skip: true },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const entry = faqEntries.find(({ meta: entryMeta }) => entryMeta.id === "build-before-submissions-complete");
-    if (!entry) throw new Error("FAQ hash storyにはbuild-before-submissions-completeが必要です");
-
-    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${entry.meta.id}`);
-    window.dispatchEvent(new HashChangeEvent("hashchange"));
-
-    const trigger = await canvas.findByRole("button", { name: new RegExp(entry.meta.title) });
-    const task = HELP_TASKS.find(({ id }) => id === entry.meta.task);
-    if (!task) throw new Error(`FAQ「${entry.meta.id}」のtaskが見つかりません`);
-    await waitFor(async () => {
-      await expect(trigger).toHaveAttribute("aria-expanded", "true");
-      await expect(trigger).toHaveFocus();
-      await expect(canvas.getByRole("button", { name: task.title })).toHaveAttribute("aria-pressed", "true");
-    });
-    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
-  },
-};
-
-export const TaskHashOpen: Story = {
-  parameters: {
-    screenshot: { skip: true },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const task = HELP_TASKS.find(({ id }) => id === "staff-management");
-    if (!task) throw new Error("task hash storyにはstaff-managementが必要です");
-
-    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#task-${task.id}`);
-    window.dispatchEvent(new HashChangeEvent("hashchange"));
-
-    const taskButton = await canvas.findByRole("button", { name: task.title });
-    await waitFor(async () => {
-      await expect(taskButton).toHaveAttribute("aria-pressed", "true");
-      await expect(canvas.getByRole("region", { name: task.title })).toBeVisible();
-    });
-    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
-  },
-};
-
-export const FaqExpanded: Story = {
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const entry = faqEntries[0];
-    if (!entry) throw new Error("FAQ storyには公開中のFAQが1件以上必要です");
-
-    const trigger = await canvas.findByRole("button", { name: new RegExp(entry.meta.title) });
-    await userEvent.click(trigger);
-    await expect(trigger).toHaveAttribute("aria-expanded", "true");
-    const item = trigger.closest('[data-part="item"]');
-    if (!item) throw new Error(`FAQ「${entry.meta.id}」の項目が見つかりません`);
-    await waitFor(async () => {
-      await expect(item).toHaveTextContent(entry.meta.summary.split("。 ")[0]);
-    });
-    if (entry.meta.primaryGuide) {
-      const primaryGuide = getGuideMeta(entry.meta.primaryGuide);
-      if (!primaryGuide) throw new Error(`FAQ「${entry.meta.id}」のprimaryGuideが見つかりません`);
-      await expect(canvas.getByRole("link", { name: `「${primaryGuide.title}」を見る` })).toHaveAttribute(
-        "href",
-        `/help/${entry.meta.primaryGuide}`,
-      );
-    }
-  },
-};
-
-export const FaqRelatedHelp: Story = {
-  parameters: {
-    screenshot: { skip: true },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const entry = faqEntries.find(({ meta: entryMeta }) => entryMeta.id === "recruitment-notification-timing");
-    if (!entry) throw new Error("関連ヘルプStoryにはrecruitment-notification-timing FAQが必要です");
-    const trigger = await canvas.findByRole("button", {
-      name: (accessibleName) => accessibleName.includes(entry.meta.title),
-    });
-
-    await userEvent.click(trigger);
-    await waitFor(async () => {
-      await expect(canvas.getByRole("link", { name: "スタッフへの通知履歴を確認する" })).toHaveAttribute(
-        "href",
-        "/help/check-notification-history",
-      );
-    });
+    await expect(canvas.getByRole("link", { name: /スタッフを追加する方法は？/ })).toHaveAttribute(
+      "href",
+      "/help/tasks/staff-management#add-staff-methods",
+    );
+    await expect(canvas.getByRole("heading", { level: 2, name: /使い方/ })).toBeVisible();
+    const addStaffGuide = canvas.getAllByRole("link").find((link) => link.getAttribute("href") === "/help/add-staff");
+    await expect(addStaffGuide).toHaveAttribute("href", "/help/add-staff");
   },
 };

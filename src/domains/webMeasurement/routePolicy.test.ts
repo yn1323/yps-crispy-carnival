@@ -6,6 +6,7 @@ describe("Web計測route policy", () => {
     ["/", "home"],
     ["/features/", "features"],
     ["/help?from=top", "help_index"],
+    ["/help/tasks/staff-management#add-staff-methods", "help_index"],
     ["/help/add-staff/#answer", "help_guide"],
     ["/contact", "contact"],
     ["/articles", "articles_index"],

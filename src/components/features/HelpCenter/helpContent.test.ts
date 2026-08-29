@@ -19,6 +19,7 @@ import {
   homeFeaturedFaqMetas,
   landingFaqs,
 } from "./helpMeta";
+import { resolveLegacyHelpHash } from "./helpNavigation";
 import { normalizeHelpSearchText, searchHelpMetas } from "./helpSearch";
 import { HELP_TASKS } from "./helpTasks";
 
@@ -81,7 +82,7 @@ function searchFixture(overrides: Partial<FaqIndexMetadata> & Pick<FaqIndexMetad
     summary: `${id}の概要`,
     bodyText: `${id}の本文`,
     answerText: `${id}の本文`,
-    href: `/help#${id}`,
+    href: `/help/tasks/getting-started#${id}`,
     ...rest,
   };
 }
@@ -100,9 +101,11 @@ describe("HelpCenterの実コンテンツ", () => {
   it("本文由来のsummary・bodyText・answerTextとkind別hrefを生成する", () => {
     expect(helpMetas.every((meta) => meta.summary.length > 0)).toBe(true);
     expect(helpIndexMetas.every((meta) => meta.bodyText.length >= meta.summary.length)).toBe(true);
-    expect(faqIndexMetas.every((meta) => meta.answerText === meta.bodyText && meta.href === `/help#${meta.id}`)).toBe(
-      true,
-    );
+    expect(
+      faqIndexMetas.every(
+        (meta) => meta.answerText === meta.bodyText && meta.href === `/help/tasks/${meta.task}#${meta.id}`,
+      ),
+    ).toBe(true);
     expect(guideMetas.every((meta) => meta.href === `/help/${meta.id}`)).toBe(true);
   });
 
@@ -129,6 +132,15 @@ describe("HelpCenterの実コンテンツ", () => {
         acceptedAnswer: { "@type": "Answer", text: meta.summary },
       })),
     });
+  });
+});
+
+describe("HelpCenterの旧hash URL", () => {
+  it("taskとFAQの旧hashを新しいページへ解決する", () => {
+    expect(resolveLegacyHelpHash("#task-staff-management")).toBe("/help/tasks/staff-management");
+    expect(resolveLegacyHelpHash("#add-staff-methods")).toBe("/help/tasks/staff-management#add-staff-methods");
+    expect(resolveLegacyHelpHash("#unknown-help")).toBeUndefined();
+    expect(resolveLegacyHelpHash("#%E0%A4%A")).toBeUndefined();
   });
 });
 

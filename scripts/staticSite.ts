@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { articleSlugAliases, resolveArticleSlug } from "../src/components/features/ArticleSite/articleAliases";
+import { HELP_TASK_IDS } from "../src/components/features/HelpCenter/helpTasks";
 
 export const STATIC_CLIENT_OUTPUT_DIR = "dist/client";
 export const STATIC_404_BUILD_PATH = "/__static-404";
@@ -35,6 +36,8 @@ export const NOINDEX_PUBLIC_ROUTES = new Set<string>([
   "/terms/manager",
   "/terms/staff",
 ]);
+
+export const HELP_TASK_ROUTES = HELP_TASK_IDS.map((taskId) => `/help/tasks/${taskId}`);
 
 /** Queryを含めず、指定されたpathだけをCSR shellへ渡す。 */
 export const CSR_SHELL_STATIC_ROUTES = [
@@ -135,9 +138,9 @@ export function collectPublicRoutes(repoRoot = process.cwd()): string[] {
   );
   const helpGuideRoutes = listPublishedHelpGuideSlugs(repoRoot).map((slug) => `/help/${slug}`);
 
-  return Array.from(new Set([...FIXED_PUBLIC_ROUTES, ...articleRoutes, ...categoryRoutes, ...helpGuideRoutes])).sort(
-    (left, right) => left.localeCompare(right),
-  );
+  return Array.from(
+    new Set([...FIXED_PUBLIC_ROUTES, ...HELP_TASK_ROUTES, ...articleRoutes, ...categoryRoutes, ...helpGuideRoutes]),
+  ).sort((left, right) => left.localeCompare(right));
 }
 
 /** 互換URLを含め、検索エンジンへ示すno-slash canonical pathを返す。 */

@@ -91,19 +91,19 @@
 
 ## ヘルプ
 
-シフトリを利用中に確認したいFAQと詳しい操作手順を、同じタスク分類と検索から探せるヘルプです。FAQはハッシュ付きURL、使い方は個別ページで直接参照できます。
+シフトリを利用中に確認したいFAQと詳しい操作手順を、同じタスク分類と検索から探せるヘルプです。FAQはタスク別ページ、使い方は個別ページで直接参照できます。
 
 ### よくある質問
 
-- [利用を始めるとき、最初に何をしますか？](https://shiftori.app/help#first-steps): 管理者自身で募集、提出、シフト表確認を試してからスタッフを追加する順序
-- [店舗設定を変更すると、作成済みの募集も変わりますか？](https://shiftori.app/help#existing-recruitment-after-shop-change): 設定変更が反映される募集の範囲
-- [スタッフを追加する方法は？](https://shiftori.app/help#add-staff-methods): 本人による参加申請、管理者の手入力、別店舗からの追加
-- [募集を作成すると、すぐにスタッフへ届きますか？](https://shiftori.app/help#recruitment-notification-timing): 募集作成と通知到達の違い
-- [提出した希望シフトを変更できますか？](https://shiftori.app/help#edit-submitted-request): 提出期限前の再提出と提出期限後の扱い
-- [希望シフトが全員分そろう前でも作成できますか？](https://shiftori.app/help#build-before-submissions-complete): 未提出者がいる状態での下書き作成
-- [通知履歴の「送信済み」は、スタッフに届いた意味ですか？](https://shiftori.app/help#sent-status-meaning): 送信済み、配信済み、開封の違い
-- [現在のプランと利用人数はどこで確認できますか？](https://shiftori.app/help#plan-and-usage-location): プランと組織の利用状況の確認場所
-- [パスワードを忘れた場合は？](https://shiftori.app/help#forgot-password): ログイン方法に応じたパスワード再設定
+- [利用を始めるとき、最初に何をしますか？](https://shiftori.app/help/tasks/getting-started#first-steps): 管理者自身で募集、提出、シフト表確認を試してからスタッフを追加する順序
+- [店舗設定を変更すると、作成済みの募集も変わりますか？](https://shiftori.app/help/tasks/shop-settings#existing-recruitment-after-shop-change): 設定変更が反映される募集の範囲
+- [スタッフを追加する方法は？](https://shiftori.app/help/tasks/staff-management#add-staff-methods): 本人による参加申請、管理者の手入力、別店舗からの追加
+- [募集を作成すると、すぐにスタッフへ届きますか？](https://shiftori.app/help/tasks/shift-recruitment#recruitment-notification-timing): 募集作成と通知到達の違い
+- [提出した希望シフトを変更できますか？](https://shiftori.app/help/tasks/shift-submission#edit-submitted-request): 提出期限前の再提出と提出期限後の扱い
+- [希望シフトが全員分そろう前でも作成できますか？](https://shiftori.app/help/tasks/shift-building#build-before-submissions-complete): 未提出者がいる状態での下書き作成
+- [通知履歴の「送信済み」は、スタッフに届いた意味ですか？](https://shiftori.app/help/tasks/notifications#sent-status-meaning): 送信済み、配信済み、開封の違い
+- [現在のプランと利用人数はどこで確認できますか？](https://shiftori.app/help/tasks/organization-billing#plan-and-usage-location): プランと組織の利用状況の確認場所
+- [パスワードを忘れた場合は？](https://shiftori.app/help/tasks/troubleshooting#forgot-password): ログイン方法に応じたパスワード再設定
 
 ### 詳しい使い方
 

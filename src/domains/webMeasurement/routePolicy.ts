@@ -59,6 +59,9 @@ export function classifyWebMeasurementRoute(value: string): WebMeasurementRoute 
   if (/^\/articles\/[^/]+$/.test(pathname)) {
     return { surface: "measured_public", routeFamily: "article_detail" };
   }
+  if (/^\/help\/tasks\/[^/]+$/.test(pathname)) {
+    return { surface: "measured_public", routeFamily: "help_index" };
+  }
   if (/^\/help\/[^/]+$/.test(pathname)) {
     return { surface: "measured_public", routeFamily: "help_guide" };
   }

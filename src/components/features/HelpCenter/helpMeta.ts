@@ -1,7 +1,7 @@
 import type { HelpFeatureId } from "./helpFeatures";
 import { parseHelpFrontmatter } from "./helpSchema";
 import type { HelpAudience, HelpTaskId } from "./helpTasks";
-import { getHelpTask } from "./helpTasks";
+import { getHelpTask, getHelpTaskHref } from "./helpTasks";
 
 export type HelpContentKind = "faq" | "guide";
 
@@ -21,7 +21,7 @@ type HelpMetadataBase = {
 
 export type FaqMetadata = HelpMetadataBase & {
   kind: "faq";
-  href: `/help#${string}`;
+  href: `/help/tasks/${HelpTaskId}#${string}`;
   primaryGuide?: string;
 };
 
@@ -99,7 +99,7 @@ export function buildHelpMetas(
       return {
         ...common,
         kind: "faq",
-        href: `/help#${id}`,
+        href: `${getHelpTaskHref(parsed.task)}#${id}`,
         primaryGuide: parsed.primaryGuide,
       } satisfies FaqMetadata;
     }

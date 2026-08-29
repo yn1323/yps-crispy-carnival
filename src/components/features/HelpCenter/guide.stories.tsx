@@ -52,6 +52,10 @@ export const Desktop: Story = {
       await canvas.findByRole("heading", { level: 1, name: "最初のシフト募集を始める" }, { timeout: 10_000 }),
     ).toBeVisible();
     await expect(canvas.getAllByRole("link", { name: "ヘルプ" })[0]).toHaveAttribute("href", "/help");
+    await expect(canvas.getByRole("link", { name: "利用開始したい" })).toHaveAttribute(
+      "href",
+      "/help/tasks/getting-started",
+    );
     await expect(canvas.getAllByRole("navigation", { name: "この使い方の目次" }).length).toBeGreaterThan(0);
     await expect(canvas.getByRole("link", { name: firstStepsFaq.title })).toHaveAttribute("href", firstStepsFaq.href);
     await expect(canvas.getByRole("link", { name: /スタッフを追加する/ })).toHaveAttribute("href", "/help/add-staff");

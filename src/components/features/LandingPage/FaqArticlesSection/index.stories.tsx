@@ -29,7 +29,7 @@ export const HelpCenterContent: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const firstStepsFaq = landingFaqs.find(({ href }) => href === "/help#first-steps");
+    const firstStepsFaq = landingFaqs.find(({ href }) => href === "/help/tasks/getting-started#first-steps");
     if (!firstStepsFaq) throw new Error("Landing Page Storyにはfirst-steps FAQが必要です");
 
     await userEvent.click(canvas.getByRole("button", { name: firstStepsFaq.q }));
