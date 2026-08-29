@@ -55,6 +55,7 @@ export const run = migrations.runner([
   internal.migrations.m038_recruitments_draft_saved_at_narrow_prep.migration,
   internal.migrations.m039_shops_regular_closed_days_narrow_prep.migration,
   internal.migrations.m040_recruitments_shop_closed_dates_narrow_prep.migration,
+  internal.migrations.m049_notification_outbox_shop_deleted_reason.migration,
 ]);
 
 // Widen対応版の確認と、衝突修復後にm012だけを限定再実行するために使う。
@@ -92,7 +93,20 @@ export const runNarrowPreparation = migrations.runner([
   internal.migrations.m038_recruitments_draft_saved_at_narrow_prep.migration,
   internal.migrations.m039_shops_regular_closed_days_narrow_prep.migration,
   internal.migrations.m040_recruitments_shop_closed_dates_narrow_prep.migration,
+  internal.migrations.m049_notification_outbox_shop_deleted_reason.migration,
 ]);
+
+// 店舗lifecycle export preflightの全deployment成功後だけ、対象deploymentへ明示実行する。
+// deploy workflowの自動seriesには含めず、runtime切替前の異常検知をmigration後へ遅らせない。
+export const runShopsOperatingStatusRemoval = migrations.runner(
+  internal.migrations.m048_shops_unset_operating_status.migration,
+);
+
+// 両canonical ID欠損staffのdry runと、根拠を確認したdeploymentだけでの限定実行に使う。
+// fixed seriesや包括prepへ含めず、全ページreadinessと未解消staff conflictを実行前後に記録する。
+export const runStaffCanonicalLinkBackfill = migrations.runner(
+  internal.migrations.m050_staffs_canonical_links_backfill.migration,
+);
 
 // canonical authorityとconflictの運用確認後にだけ、旧shopMembersを論理削除する明示runner。
 // fixed seriesや包括prepへ含めず、dry runとreadinessを記録してから対象deploymentで実行する。
@@ -109,31 +123,3 @@ export const runNotificationTerminalRedaction = migrations.runner([
 // LINE共通化のexport/readinessでcounterpart欠損が1件以上、異常0件の場合だけ実行する。
 // 完全ゼロ経路では実行しないため、fixed seriesには含めない。
 export const runLineCommonLinkBackfill = migrations.runner(internal.migrations.m041_line_common_links.migration);
-
-// plan ID cutover専用。Production exportの全readiness pageがblocking=0であり、
-// scheduled billing jobと未完了billing通知が0件であることを確認した後にだけ明示実行する。
-// fixed seriesには含めない。Narrow時はfresh replayでm012等がlegacy stateを生成した後にも走る
-// forward canonicalizerをdefault series末尾へ別途追加し、歴史migration本体は変更しない。
-export const runOrganizationBillingPlanIdsV2 = migrations.runner(
-  internal.migrations.m042_organization_billing_plan_ids_v2.migration,
-);
-
-// m042完了後、Widen writerと並行してv1 source payloadが0件になるまで冪等に再実行する。
-// 続けてcalculationVersion=2のanalytics resetを完走し、materialized tablesを再構築する。
-export const runAnalyticsPlanIdsV2 = migrations.runner(internal.migrations.m043_analytics_plan_ids_v2.migration);
-
-// dashboard announcementのcomma-separated targetをcanonicalへ揃える専用runner。
-export const runDashboardAnnouncementPlanIdsV2 = migrations.runner(
-  internal.migrations.m044_dashboard_announcement_plan_ids_v2.migration,
-);
-
-// Stripe snapshotの旧plan aliasをm045 Subscription、m046 Operationの順でcanonicalへ揃える。
-export const runOrganizationStripePlanIdsV2 = migrations.runner([
-  internal.migrations.m045_organization_stripe_subscription_plan_ids_v2.migration,
-  internal.migrations.m046_organization_stripe_operation_plan_ids_v2.migration,
-]);
-
-// m028とverifyLegacyShopBillingStatesでcanonical対応を確認してからだけ明示実行する。
-export const runShopBillingStatesCleanup = migrations.runner(
-  internal.migrations.m047_shop_billing_states_cleanup.migration,
-);

@@ -72,9 +72,10 @@ const schema = defineSchema({
     //   前提: 全deploymentでm025が完走し、verifyShopsの全pageで欠損・danglingが0件であること。
     //   対応: v.optional() を外して v.id("organizations") にする。
     organizationId: v.optional(v.id("organizations")),
-    // TODO[narrow]: Widen -> Migrate -> Narrow の2段階目。
-    //   前提: 全deploymentでm025が完走し、verifyShopsの全pageで欠損・danglingが0件であること。
-    //   対応: v.optional() を外して organizationShopOperatingStatusValidator にする。
+    // TODO[narrow]: 店舗status廃止のWiden -> Migrate -> Narrow 2段階目。
+    //   通常runtimeはこのlegacy fieldを読み書きしない。
+    //   全deploymentでm048が完走し、verifyShopsの全pageでstatus残存・legacy eventが0件になった後、
+    //   field・validator・status indexをまとめて削除する。
     operatingStatus: v.optional(organizationShopOperatingStatusValidator),
     name: v.string(),
     // TODO[narrow]: 全deploymentでm039のshop workerが完走し、verifyShopsの
@@ -584,15 +585,10 @@ const schema = defineSchema({
   // ========================================
   staffs: defineTable({
     shopId: v.id("shops"),
-    // TODO[narrow]: Widen -> Migrate -> Narrow の2段階目。
-    //   前提: 全deploymentでm026/m027が完走し、verifyStaffsとverifyOrganizationMigrationConflictsの
-    //   全pageが0件であること。
-    //   対応: v.optional() を外して v.id("organizations") にする。
+    // TODO[narrow]: 全deploymentでm050が完走し、verifyStaffsの全pageでcanonical ID anomalyが0件、
+    //   verifyOrganizationMigrationConflictsの未解決staff conflictが0件になった後にrequired化する。
+    //   Widen中に許可する旧形式は両fieldとも未設定だけであり、片方だけのrowは常に不整合として扱う。
     organizationId: v.optional(v.id("organizations")),
-    // TODO[narrow]: Widen -> Migrate -> Narrow の2段階目。
-    //   前提: 全deploymentでm026/m027が完走し、verifyStaffsとverifyOrganizationMigrationConflictsの
-    //   全pageが0件であること。
-    //   対応: v.optional() を外して v.id("organizationPeople") にする。
     organizationPersonId: v.optional(v.id("organizationPeople")),
     name: v.string(),
     email: v.string(),

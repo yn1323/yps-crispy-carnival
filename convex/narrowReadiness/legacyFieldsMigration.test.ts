@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
-import { createMigrationHistoryTestWithMigrations, runMigrationToCompletion } from "../_test/migrations.test-helper";
+import {
+  createMigrationHistoryTestWithMigrations,
+  legacyStaffDocumentForMigrationHistory,
+  runMigrationToCompletion,
+} from "../_test/migrations.test-helper";
 import { ensureDefaultPosition } from "../position/service";
 
 describe("pre-2026-06 narrow preparation migrations", () => {
@@ -14,18 +18,21 @@ describe("pre-2026-06 narrow preparation migrations", () => {
         role: "admin",
         isDeleted: false,
       });
-      const staffId = await ctx.db.insert("staffs", {
-        shopId: await ctx.db.insert("shops", {
-          name: "旧メール店舗",
-          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-          regularClosedDays: [],
+      const staffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId: await ctx.db.insert("shops", {
+            name: "旧メール店舗",
+            submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+            regularClosedDays: [],
+            isDeleted: false,
+          }),
+          name: "旧スタッフ",
+          email: " Legacy-Staff@Example.COM ",
+          emailNormalized: "stale@example.com",
           isDeleted: false,
         }),
-        name: "旧スタッフ",
-        email: " Legacy-Staff@Example.COM ",
-        emailNormalized: "stale@example.com",
-        isDeleted: false,
-      });
+      );
       return { userId, staffId };
     });
 
@@ -69,13 +76,16 @@ describe("pre-2026-06 narrow preparation migrations", () => {
         regularClosedDays: [],
         isDeleted: false,
       });
-      const staffId = await ctx.db.insert("staffs", {
-        shopId,
-        name: "提出スタッフ",
-        email: "submit@example.com",
-        emailNormalized: "submit@example.com",
-        isDeleted: false,
-      });
+      const staffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          name: "提出スタッフ",
+          email: "submit@example.com",
+          emailNormalized: "submit@example.com",
+          isDeleted: false,
+        }),
+      );
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
         periodStart: "2026-05-11",
@@ -251,13 +261,16 @@ describe("pre-2026-06 narrow preparation migrations", () => {
         regularClosedDays: [],
         isDeleted: false,
       });
-      const staffId = await ctx.db.insert("staffs", {
-        shopId,
-        name: "access staff",
-        email: "access@example.com",
-        emailNormalized: "access@example.com",
-        isDeleted: false,
-      });
+      const staffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          name: "access staff",
+          email: "access@example.com",
+          emailNormalized: "access@example.com",
+          isDeleted: false,
+        }),
+      );
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
         periodStart: "2026-05-11",

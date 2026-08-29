@@ -16,6 +16,9 @@ const BILLING_CONFLICT_CODES = [
   "narrow_prep_stripe_mapping_evidence",
 ] as const;
 
+const historicalComplimentaryBusinessState = () =>
+  ({ kind: "complimentary", plan: "business" }) as unknown as Doc<"organizationBillingStates">["state"];
+
 /**
  * 既存店舗を一店舗一事業者で移行する。
  *
@@ -200,7 +203,7 @@ async function ensureLateMigratedOrganizationBilling(
   const now = Date.now();
   const billingStateId = await ctx.db.insert("organizationBillingStates", {
     organizationId,
-    state: { kind: "complimentary", plan: "business" },
+    state: historicalComplimentaryBusinessState(),
     version: 1,
     createdAt: now,
     updatedAt: now,
