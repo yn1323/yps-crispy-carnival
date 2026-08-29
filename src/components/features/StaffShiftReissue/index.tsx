@@ -55,7 +55,7 @@ export function StaffShiftReissueView({ periodLabel, isDone, isSubmitting, onSub
         <Empty
           icon={LuSend}
           title="再発行を受け付けました"
-          description={"入力内容が登録情報と一致し、再発行できる場合は、新しい閲覧リンクをLINEまたはメールへ送ります。"}
+          description={"新しい閲覧リンクをLINEまたはメールへ送ります。\nしばらくお待ちください。"}
           secondaryDescription="届かない場合は、シフト作成担当者に連絡してください。"
           tone="brand"
         />

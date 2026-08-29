@@ -23,9 +23,9 @@ export const ReissueForm = ({ onSubmit, isSubmitting }: Props) => {
     <form onSubmit={handleSubmit(onSubmit)}>
       <VStack gap={5} align="stretch">
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          登録時に使ったメールアドレスを入力してください。
+          スタッフとして登録したメールアドレスを入力してください。
           <br />
-          再発行の申込みを受け付けます。
+          シフト閲覧リンクを再発行します。
         </Text>
 
         <Field.Root invalid={!!errors.email}>

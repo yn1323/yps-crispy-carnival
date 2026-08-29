@@ -263,7 +263,7 @@ function PlanSummary({
           )}
           {billing.isComplimentary && (
             <Text textStyle="bodySm" color="fg.muted">
-              支払い不要の利用条件により、Proプラン相当の機能を期限なく無料で利用できます。
+              Proプラン相当の機能を期限なく無料で利用できます。
             </Text>
           )}
         </Stack>

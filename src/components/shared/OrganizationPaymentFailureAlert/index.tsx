@@ -18,7 +18,9 @@ export function OrganizationPaymentFailureAlert({ terminationPending, onStartPai
           <Alert.Description>
             <Stack gap={1.5}>
               <Text>
-                請求通知先メールアドレスにStripeから案内が届いている場合があります。有料プランを利用する場合は、支払い方法を確認して、もう一度契約してください。
+                請求通知先メールアドレスにStripeから案内が届いている場合があります。
+                <br />
+                支払い方法を確認して、もう一度希望のプランの支払いをしてください。
               </Text>
               {terminationPending && (
                 <Text id="organization-payment-failure-termination-pending">{TERMINATION_PENDING_DESCRIPTION}</Text>
@@ -26,21 +28,6 @@ export function OrganizationPaymentFailureAlert({ terminationPending, onStartPai
             </Stack>
           </Alert.Description>
         </Alert.Content>
-
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          colorPalette="orange"
-          flexShrink={0}
-          w={{ base: "full", md: "auto" }}
-          minH={{ base: "44px", md: "36px" }}
-          onClick={onStartPaidPlan}
-          disabled={terminationPending}
-          aria-describedby={terminationPending ? "organization-payment-failure-termination-pending" : undefined}
-        >
-          有料プランを契約する
-        </Button>
       </Flex>
     </Alert.Root>
   );

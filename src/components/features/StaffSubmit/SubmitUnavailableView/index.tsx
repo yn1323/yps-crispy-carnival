@@ -23,7 +23,7 @@ const PRESENTATION = {
   submission_closed: {
     icon: LuCalendarX,
     title: "このシフト募集の提出受付は終了しました",
-    description: "変更したい日がある場合は、シフト作成担当者に連絡してください。",
+    description: "変更日がある場合、シフト作成担当者に直接連絡してください。",
     tone: "neutral" as const,
   },
   usage_limit_exceeded: {

@@ -240,8 +240,8 @@ function dialogContent(dialog: BillingActionDialogState): {
     case "startPaidPlan":
       return dialog.source === "trial"
         ? {
-            title: `トライアル終了後も${planLabel(dialog.targetPlan)}プランを継続しますか？`,
-            description: "トライアル最終日までは料金がかからず、その翌日から請求が始まります。",
+            title: `トライアル終了後、${planLabel(dialog.targetPlan)}プランを継続しますか？`,
+            description: "トライアル終了の翌日から請求開始日となります。",
             submitLabel: "支払いへ進む",
             submitColorPalette: "teal",
           }
@@ -249,35 +249,35 @@ function dialogContent(dialog: BillingActionDialogState): {
             title: `${planLabel(dialog.targetPlan)}プランを開始しますか？`,
             submitLabel: "支払いを続ける",
             submitColorPalette: "teal",
-            note: "支払い成功の確認後に有料プランを利用できます。",
+            note: "",
           };
     case "changePaidPlanNow":
       return {
         title: "Proプランへ変更しますか？",
         submitLabel: "Proへ変更",
         submitColorPalette: "teal",
-        note: "日割り料金がすぐに請求されます。支払いを確認するまでStandardを維持します。",
+        note: "",
       };
     case "cancelTrialContinuation":
       return {
-        title: "有料プランの継続を取り消しますか？",
-        submitLabel: "有料継続を取り消す",
+        title: "プラン支払い予約を取り消しますか？",
+        submitLabel: "取り消す",
         submitColorPalette: "red",
-        note: "Trial最終日まで利用でき、終了後はFreeへ変更されます。",
+        note: "Trial最終後はFreeプランになります。",
       };
     case "schedulePlanChange":
       return {
         title: `${planLabel(dialog.targetPlan)}プランへの変更を予約しますか？`,
         submitLabel: "プラン変更を予約",
         submitColorPalette: "orange",
-        note: "変更予定日までProを利用できます。Standardの初回支払いを確認できない場合はFreeへ変更されます。",
+        note: "プラン変更予定日までProが継続されます。",
       };
     case "scheduleServiceStop":
       return {
-        title: "期間末で解約しますか？",
+        title: "解約しますか？",
         submitLabel: "解約する",
         submitColorPalette: "red",
-        note: "変更日まで現在のプランを利用できます。店舗・ユーザー・過去のシフトは削除されません。",
+        note: "変更日まで現在のプランを利用できます。",
       };
     case "cancelScheduledPlanChange":
       return dialog.isServiceStop
