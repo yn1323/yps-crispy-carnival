@@ -4,7 +4,6 @@ import { getHelpTask, getHelpTaskHref } from "./helpTasks";
 const legacyHelpHashRedirects: Readonly<Record<string, string>> = {
   "first-steps": "/help/scenarios/shift-management",
   "choose-staff-status-change": "/help/tasks/staff-management",
-  "deletion-scope-differences": "/help/tasks/organization-billing",
   "task-getting-started": "/help/scenarios/shift-management",
 };
 

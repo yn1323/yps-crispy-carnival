@@ -145,7 +145,9 @@ describe("HelpCenterの旧hash URL", () => {
     expect(resolveLegacyHelpHash("#add-staff-methods")).toBe("/help/tasks/staff-management#add-staff-methods");
     expect(resolveLegacyHelpHash("#first-steps")).toBe("/help/scenarios/shift-management");
     expect(resolveLegacyHelpHash("#choose-staff-status-change")).toBe("/help/tasks/staff-management");
-    expect(resolveLegacyHelpHash("#deletion-scope-differences")).toBe("/help/tasks/organization-billing");
+    expect(resolveLegacyHelpHash("#deletion-scope-differences")).toBe(
+      "/help/tasks/organization-billing#deletion-scope-differences",
+    );
     expect(resolveLegacyHelpHash("#task-getting-started")).toBe("/help/scenarios/shift-management");
     expect(resolveLegacyHelpHash("#unknown-help")).toBeUndefined();
     expect(resolveLegacyHelpHash("#%E0%A4%A")).toBeUndefined();
