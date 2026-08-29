@@ -1,4 +1,4 @@
-import { test } from "../fixtures/e2eTest";
+import { expect, test } from "../fixtures/e2eTest";
 import { expectAppHydrated } from "../helpers/appReadiness";
 import { signInFreshE2EManagerSession } from "../helpers/authSession";
 import { getE2EReservedMultiActorClerkUserForWorker } from "../helpers/e2eUsers";
@@ -51,14 +51,13 @@ authLogoutTest.describe("ログアウト後の認証境界", { tag: ["@e2e-core"
 
       await new DashboardPage(page).goto({ organizationId: seed.organizationId, shopId: seed.shopId });
       await new UserMenu(page).logout();
-
-      const authPage = new AuthPage(page);
-      await authPage.expectCurrentAuthPath("/login", protectedPath);
-      await authPage.expectLoginVisible();
+      await expect(page).toHaveURL((url) => url.pathname === "/");
+      await expectAppHydrated(page);
 
       await page.goto(protectedPath, { waitUntil: "commit" });
       await expectAppHydrated(page);
 
+      const authPage = new AuthPage(page);
       await authPage.expectCurrentAuthPath("/login", protectedPath);
       await authPage.expectLoginVisible();
       await authPage.expectProtectedDashboardHidden();
