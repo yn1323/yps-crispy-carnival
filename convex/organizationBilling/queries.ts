@@ -1,6 +1,5 @@
 import { v } from "convex/values";
 import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
-import { canonicalizeOrganizationBillingState } from "./policy";
 
 export const getBillingEmailChangedNotificationData = internalQuery({
   args: {
@@ -29,10 +28,7 @@ export const getBillingEmailChangedNotificationData = internalQuery({
         .unique(),
     ]);
     if (!organization || organization.isDeleted || !persistedBillingState) return null;
-    const billingState = {
-      ...persistedBillingState,
-      state: canonicalizeOrganizationBillingState(persistedBillingState.state),
-    };
+    const billingState = persistedBillingState;
     if (billingState.state.kind === "complimentary") return null;
 
     const members = await ctx.db

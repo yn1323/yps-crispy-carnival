@@ -11,14 +11,8 @@ import {
   STRIPE_OPERATION_RETENTION_MS,
   STRIPE_WEBHOOK_EVENT_RETENTION_MS,
 } from "../constants";
-import { canonicalizeOrganizationBillingState } from "../organizationBilling/policy";
 import { STRIPE_WEBHOOK_API_VERSION } from "./config";
-import {
-  type CanonicalStripePaidPlan,
-  type CanonicalStripeTargetPlan,
-  canonicalizeStripePaidPlan,
-  canonicalizeStripeTargetPlan,
-} from "./planIds";
+import type { CanonicalStripePaidPlan, CanonicalStripeTargetPlan } from "./planIds";
 import {
   organizationStripeOperationKindValidator,
   organizationStripeOperationStatusValidator,
@@ -311,6 +305,7 @@ export const beginOperation = internalMutation({
         v.literal("trialContinuationCancellation"),
         v.literal("scheduledFreeDeadline"),
         v.literal("scheduledPaidPlanDeadline"),
+        v.literal("paymentTermination"),
       ),
     ),
     stripePriceIdSnapshot: v.optional(v.string()),
@@ -334,13 +329,19 @@ export const beginOperation = internalMutation({
     if (
       (args.recoveryPurpose === "trialContinuationCancellation" && args.kind !== "cancelSubscription") ||
       ((args.recoveryPurpose === "scheduledFreeDeadline" || args.recoveryPurpose === "scheduledPaidPlanDeadline") &&
-        args.kind !== "reconcileSubscription")
+        args.kind !== "reconcileSubscription") ||
+      (args.recoveryPurpose === "paymentTermination" &&
+        args.kind !== "cancelSubscription" &&
+        args.kind !== "stopInvoiceCollection")
     ) {
       throw new ConvexError("Invalid recovery purpose");
     }
     const hasTrialCreateSnapshot = args.trialSubscriptionCreateSnapshot !== undefined;
     if ((args.kind === "createTrialSubscription") !== hasTrialCreateSnapshot) {
       throw new ConvexError("Invalid trial subscription create snapshot");
+    }
+    if (args.kind === "createTrialSubscription" && args.targetPlan !== "standard" && args.targetPlan !== "pro") {
+      throw new ConvexError("Invalid trial subscription target plan");
     }
     if (
       args.trialSubscriptionCreateSnapshot &&
@@ -390,8 +391,8 @@ export const beginOperation = internalMutation({
         existing.providerGeneration !== args.providerGeneration ||
         existing.recoveryPurpose !== args.recoveryPurpose ||
         existing.stripePriceIdSnapshot !== args.stripePriceIdSnapshot ||
-        canonicalizeOptionalOperationSourcePlan(existing) !== args.sourcePlan ||
-        canonicalizeOptionalOperationTargetPlan(existing) !== args.targetPlan ||
+        existing.sourcePlan !== args.sourcePlan ||
+        existing.targetPlan !== args.targetPlan ||
         existing.restrictAtPeriodEnd !== args.restrictAtPeriodEnd ||
         existing.changeMode !== args.changeMode ||
         existing.stripeSubscriptionIdSnapshot !== args.stripeSubscriptionIdSnapshot ||
@@ -541,14 +542,13 @@ export const beginOperation = internalMutation({
 
     if (
       args.kind === "trialSetupCheckout" ||
-      args.kind === "immediateProCheckout" ||
       args.kind === "immediatePaidCheckout" ||
       args.kind === "createTrialSubscription"
     ) {
       const competingKinds =
         args.kind === "createTrialSubscription"
           ? (["createTrialSubscription"] as const)
-          : (["trialSetupCheckout", "immediateProCheckout", "immediatePaidCheckout"] as const);
+          : (["trialSetupCheckout", "immediatePaidCheckout"] as const);
       const blockingStatuses = ["queued", "processing", "retrying", "succeeded", "actionRequired"] as const;
       const generationOperations = (
         await Promise.all(
@@ -616,7 +616,6 @@ export const beginOperation = internalMutation({
       ...(args.stripePriceIdSnapshot ? { stripePriceIdSnapshot: args.stripePriceIdSnapshot } : {}),
       ...(args.sourcePlan ? { sourcePlan: args.sourcePlan } : {}),
       ...(args.targetPlan ? { targetPlan: args.targetPlan } : {}),
-      planIdVersion: 2,
       ...(args.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
       ...(args.changeMode ? { changeMode: args.changeMode } : {}),
       ...(args.stripeSubscriptionIdSnapshot ? { stripeSubscriptionIdSnapshot: args.stripeSubscriptionIdSnapshot } : {}),
@@ -876,9 +875,11 @@ export const resolveInactivePriceTrialSubscription = internalMutation({
         .query("organizationBillingStates")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", args.organizationId))
         .unique();
-      // TODO[narrow]: 旧trialSetupCheckoutのtargetPlan欠損0と旧scheduler drainを確認後にfallbackを削除する。
-      const targetPlan = canonicalizeOptionalOperationTargetPlan(source) ?? "standard";
-      const canonicalBillingState = billing ? canonicalizeOrganizationBillingState(billing.state) : undefined;
+      if (source.targetPlan !== "standard" && source.targetPlan !== "pro") {
+        return { kind: "conflict" as const };
+      }
+      const targetPlan = source.targetPlan;
+      const canonicalBillingState = billing?.state;
       const trialConverged =
         mapping.status === "trialing" &&
         mapping.terminalAt === undefined &&
@@ -1135,7 +1136,7 @@ export const finishOperation = internalMutation({
   },
 });
 
-export const retryExpiredGraceSafetyOperation = internalMutation({
+export const retryPaymentTerminationSafetyOperation = internalMutation({
   args: {
     operationId: v.id("organizationStripeOperations"),
     leaseToken: v.string(),
@@ -1143,17 +1144,14 @@ export const retryExpiredGraceSafetyOperation = internalMutation({
     expectedBillingVersion: v.number(),
     requestId: v.string(),
     errorCode: v.string(),
-    // TODO[narrow]: 全deploymentで旧scheduled argsがdrainし、対象operationの回復処理が収束した後にrequired化する。
-    action: v.optional(
-      v.union(
-        v.literal("expiredGrace"),
-        v.literal("initialPayment"),
-        v.literal("trialContinuation"),
-        v.literal("invalidTrialSubscription"),
-        v.literal("scheduledFree"),
-        v.literal("scheduledPaid"),
-        v.literal("cancelAtPeriodEnd"),
-      ),
+    action: v.union(
+      v.literal("paymentTermination"),
+      v.literal("initialPayment"),
+      v.literal("trialContinuation"),
+      v.literal("invalidTrialSubscription"),
+      v.literal("scheduledFree"),
+      v.literal("scheduledPaid"),
+      v.literal("cancelAtPeriodEnd"),
     ),
     operationKind: v.optional(v.union(v.literal("scheduleFree"), v.literal("cancelFreeSchedule"))),
   },
@@ -1169,6 +1167,10 @@ export const retryExpiredGraceSafetyOperation = internalMutation({
       (args.action === "invalidTrialSubscription" &&
         (operation.kind !== "cancelSubscription" ||
           operation.recoveryPurpose !== "invalidTrialSubscriptionCancellation")) ||
+      (args.action === "paymentTermination" &&
+        ((operation.kind !== "cancelSubscription" && operation.kind !== "stopInvoiceCollection") ||
+          operation.recoveryPurpose !== "paymentTermination" ||
+          operation.expectedBillingVersion !== args.expectedBillingVersion)) ||
       (args.action === "cancelAtPeriodEnd" && operation.kind !== args.operationKind) ||
       (args.action !== "cancelAtPeriodEnd" && args.operationKind !== undefined)
     ) {
@@ -1211,7 +1213,7 @@ export const retryExpiredGraceSafetyOperation = internalMutation({
                 ? internal.organizationStripe.actions.reconcileScheduledPaidPlanDeadline
                 : args.action === "cancelAtPeriodEnd"
                   ? internal.organizationStripe.actions.reconcileCancelAtPeriodEndChange
-                  : internal.organizationStripe.actions.stopExpiredGraceCollection,
+                  : internal.organizationStripe.actions.finishPaymentTermination,
       {
         organizationId: args.organizationId,
         expectedBillingVersion: args.expectedBillingVersion,
@@ -1507,9 +1509,7 @@ export const releaseExpiredCheckoutOperation = internalMutation({
     const operation = await ctx.db.get(args.operationId);
     if (
       operation?.status === "cancelled" &&
-      (operation.kind === "trialSetupCheckout" ||
-        operation.kind === "immediateProCheckout" ||
-        operation.kind === "immediatePaidCheckout") &&
+      (operation.kind === "trialSetupCheckout" || operation.kind === "immediatePaidCheckout") &&
       operation.stripeObjectId === args.stripeSessionId &&
       (operation.lastErrorCode === "checkout_session_cancelled" ||
         operation.lastErrorCode === "checkout_session_expired_webhook" ||
@@ -1520,9 +1520,7 @@ export const releaseExpiredCheckoutOperation = internalMutation({
     if (
       operation?.status !== "succeeded" ||
       operation.stripeObjectId !== args.stripeSessionId ||
-      (operation.kind !== "trialSetupCheckout" &&
-        operation.kind !== "immediateProCheckout" &&
-        operation.kind !== "immediatePaidCheckout")
+      (operation.kind !== "trialSetupCheckout" && operation.kind !== "immediatePaidCheckout")
     ) {
       return { changed: false };
     }
@@ -1636,7 +1634,7 @@ export const saveSubscriptionSnapshot = internalMutation({
     stripeSubscriptionId: v.string(),
     stripeSubscriptionItemId: v.optional(v.string()),
     stripePriceId: v.string(),
-    plan: v.optional(v.union(v.literal("standard"), v.literal("pro"))),
+    plan: v.union(v.literal("standard"), v.literal("pro")),
     livemode: v.boolean(),
     status: organizationStripeSubscriptionStatusValidator,
     providerGeneration: v.number(),
@@ -1746,8 +1744,7 @@ export const saveSubscriptionSnapshot = internalMutation({
       stripeSubscriptionId: args.stripeSubscriptionId,
       ...(args.stripeSubscriptionItemId ? { stripeSubscriptionItemId: args.stripeSubscriptionItemId } : {}),
       stripePriceId: args.stripePriceId,
-      ...(args.plan ? { plan: args.plan } : {}),
-      ...(args.plan ? { planIdVersion: 2 as const } : {}),
+      plan: args.plan,
       livemode: args.livemode,
       status: args.status,
       providerGeneration: args.providerGeneration,
@@ -1785,12 +1782,8 @@ function operationResult(operation: Doc<"organizationStripeOperations">, created
     ...(operation.stripeObjectId ? { stripeObjectId: operation.stripeObjectId } : {}),
     ...(operation.providerGeneration !== undefined ? { providerGeneration: operation.providerGeneration } : {}),
     ...(operation.stripePriceIdSnapshot ? { stripePriceIdSnapshot: operation.stripePriceIdSnapshot } : {}),
-    ...(operation.sourcePlan
-      ? { sourcePlan: canonicalizeStripePaidPlan(operation.sourcePlan, operation.planIdVersion) }
-      : {}),
-    ...(operation.targetPlan
-      ? { targetPlan: canonicalizeStripeTargetPlan(operation.targetPlan, operation.planIdVersion) }
-      : {}),
+    ...(operation.sourcePlan ? { sourcePlan: operation.sourcePlan } : {}),
+    ...(operation.targetPlan ? { targetPlan: operation.targetPlan } : {}),
     ...(operation.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
     ...(operation.changeMode ? { changeMode: operation.changeMode } : {}),
     ...(operation.stripeSubscriptionIdSnapshot
@@ -1866,8 +1859,8 @@ function samePaidPlanChangeIntent(
     operation.livemode === args.livemode &&
     operation.expectedBillingVersion === args.expectedBillingVersion &&
     operation.providerGeneration === args.providerGeneration &&
-    canonicalizeOptionalOperationSourcePlan(operation) === args.sourcePlan &&
-    canonicalizeOptionalOperationTargetPlan(operation) === args.targetPlan &&
+    operation.sourcePlan === args.sourcePlan &&
+    operation.targetPlan === args.targetPlan &&
     operation.changeMode === args.changeMode &&
     operation.stripeSubscriptionIdSnapshot === args.stripeSubscriptionIdSnapshot &&
     operation.stripeSubscriptionItemIdSnapshot === args.stripeSubscriptionItemIdSnapshot &&
@@ -1875,18 +1868,6 @@ function samePaidPlanChangeIntent(
     operation.targetStripePriceIdSnapshot === args.targetStripePriceIdSnapshot &&
     operation.prorationDate === args.prorationDate
   );
-}
-
-function canonicalizeOptionalOperationSourcePlan(
-  operation: Pick<Doc<"organizationStripeOperations">, "sourcePlan" | "planIdVersion">,
-) {
-  return operation.sourcePlan ? canonicalizeStripePaidPlan(operation.sourcePlan, operation.planIdVersion) : undefined;
-}
-
-function canonicalizeOptionalOperationTargetPlan(
-  operation: Pick<Doc<"organizationStripeOperations">, "targetPlan" | "planIdVersion">,
-) {
-  return operation.targetPlan ? canonicalizeStripeTargetPlan(operation.targetPlan, operation.planIdVersion) : undefined;
 }
 
 function sameTrialSubscriptionCreateSnapshot(

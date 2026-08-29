@@ -1,3 +1,4 @@
+import type { Doc } from "../_generated/dataModel";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import { migrations } from "./index";
 import {
@@ -14,6 +15,9 @@ const CONFLICT_CODES = {
 } as const;
 
 const OWNED_CONFLICT_CODES = Object.values(CONFLICT_CODES);
+
+const historicalComplimentaryBusinessState = () =>
+  ({ kind: "complimentary", plan: "business" }) as unknown as Doc<"organizationBillingStates">["state"];
 
 /** 旧店舗モデルから移行した事業者へ、支払い不要Business権限を一度だけ付与する。 */
 export const migration = migrations.define({
@@ -86,7 +90,7 @@ export const migration = migrations.define({
       const now = Date.now();
       const billingStateId = await ctx.db.insert("organizationBillingStates", {
         organizationId: organization._id,
-        state: { kind: "complimentary", plan: "business" },
+        state: historicalComplimentaryBusinessState(),
         version: 1,
         createdAt: now,
         updatedAt: now,
