@@ -28,16 +28,9 @@ export async function resolveStaffRegistrationCapability(
       ctx.db.get(shop.organizationId),
       getOrganizationAccessPolicy(ctx, shop.organizationId),
     ]);
-    if (
-      !organization ||
-      organization.isDeleted ||
-      shop.operatingStatus !== "active" ||
-      (accessPolicy !== null && accessPolicy.accessMode !== "normal")
-    ) {
+    if (!organization || organization.isDeleted || (accessPolicy !== null && accessPolicy.accessMode !== "normal")) {
       return null;
     }
-  } else if (shop.operatingStatus === "archived") {
-    return null;
   }
 
   return shop;

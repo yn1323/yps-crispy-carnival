@@ -33,7 +33,6 @@ describe("LINE common link readiness queries", () => {
         shopIds.push(
           await ctx.db.insert("shops", {
             organizationId,
-            ...(name === "店舗A" ? { operatingStatus: "active" as const } : {}),
             name,
             regularClosedDays: [],
             submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
@@ -103,7 +102,6 @@ describe("LINE common link readiness queries", () => {
       });
       const shopId = await ctx.db.insert("shops", {
         organizationId,
-        operatingStatus: "active",
         name: "確認店",
         regularClosedDays: [],
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
@@ -221,7 +219,7 @@ describe("LINE common link readiness queries", () => {
     ).toBeNull();
   });
 
-  it("archived店舗のstaff履歴を現在の複数所属へ数えない", async () => {
+  it("削除済み店舗のstaff履歴を現在の複数所属へ数えない", async () => {
     const t = createMigrationHistoryTestWithMigrations();
     await t.run(async (ctx) => {
       const now = Date.now();
@@ -242,14 +240,13 @@ describe("LINE common link readiness queries", () => {
         createdAt: now,
         updatedAt: now,
       });
-      for (const [index, operatingStatus] of (["active", "archived"] as const).entries()) {
+      for (let index = 0; index < 2; index += 1) {
         const shopId = await ctx.db.insert("shops", {
           organizationId,
-          operatingStatus,
           name: `履歴店舗${index}`,
           regularClosedDays: [],
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-          isDeleted: false,
+          isDeleted: index === 1,
         });
         await ctx.db.insert("staffs", {
           shopId,
@@ -284,7 +281,6 @@ describe("LINE common link readiness queries", () => {
       });
       const shopId = await ctx.db.insert("shops", {
         organizationId,
-        operatingStatus: "active",
         name: "投影確認店",
         regularClosedDays: [],
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },

@@ -6,8 +6,8 @@ import { observedInternalMutation as internalMutation } from "../_lib/errorObser
 import { NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS } from "../constants";
 import { tombstoneLineProviderUserIfUnreferenced } from "../line/service";
 import {
+  cancelNotificationForDeletedShop,
   cancelNotificationForInactiveOrganization,
-  cancelNotificationForInactiveShop,
 } from "../notificationOutbox/mutations";
 import { safelyDeactivateOrganizationStaffOrder } from "../organization/staffOrder";
 import { type DeletionCleanupTarget, getDeletionCleanupJobForTarget } from "./service";
@@ -584,7 +584,7 @@ async function runShopResource(
         .withIndex("by_shopId_status", (q) => q.eq("shopId", shopId).eq("status", "pending"))
         .take(CLEANUP_BATCH_SIZE);
       const now = Date.now();
-      for (const job of jobs) await cancelNotificationForInactiveShop(ctx, job, now);
+      for (const job of jobs) await cancelNotificationForDeletedShop(ctx, job, now);
       return { done: jobs.length < CLEANUP_BATCH_SIZE };
     }
     case "outboxProcessing": {
@@ -679,7 +679,7 @@ async function cancelStaleProcessingOutbox(
   const pendingLeaseExpiries: number[] = [];
   for (const job of jobs) {
     if ((job.processingStartedAt ?? 0) <= staleBefore) {
-      if (scope === "shop") await cancelNotificationForInactiveShop(ctx, job, now);
+      if (scope === "shop") await cancelNotificationForDeletedShop(ctx, job, now);
       else await cancelNotificationForInactiveOrganization(ctx, job, now);
     } else {
       pendingLeaseExpiries.push((job.processingStartedAt ?? now) + NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS);

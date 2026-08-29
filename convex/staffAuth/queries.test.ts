@@ -93,23 +93,5 @@ describe("staffAuth/queries", () => {
 
       expect(await t.query(api.staffAuth.queries.getRecruitmentInfo, { recruitmentId })).toBeNull();
     });
-
-    it.each(["active", "archived"] as const)(
-      "店舗状態が%sでも現行の非削除parent契約では確定募集を返す",
-      async (operatingStatus) => {
-        const t = convexTest(schema, modules);
-        const { shopId, recruitmentId } = await seedRecruitment(t, `${operatingStatus}店舗`);
-        await t.run(async (ctx) => {
-          await ctx.db.patch(shopId, { operatingStatus });
-        });
-
-        expect(await t.query(api.staffAuth.queries.getRecruitmentInfo, { recruitmentId })).toEqual({
-          recruitmentId,
-          shopName: `${operatingStatus}店舗`,
-          periodStart: "2026-08-01",
-          periodEnd: "2026-08-31",
-        });
-      },
-    );
   });
 });

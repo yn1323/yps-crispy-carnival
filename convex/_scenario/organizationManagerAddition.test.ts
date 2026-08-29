@@ -71,11 +71,10 @@ describe("Free管理者追加シナリオ", () => {
       });
       const unjoinedShopId = await ctx.db.insert("shops", {
         organizationId: organization.organizationId,
-        operatingStatus: "archived",
         name: "既存管理者がスタッフではない店舗",
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         regularClosedDays: [],
-        isDeleted: false,
+        isDeleted: true,
       });
 
       const now = Date.now();
@@ -108,7 +107,6 @@ describe("Free管理者追加シナリオ", () => {
       });
       const otherShopId = await ctx.db.insert("shops", {
         organizationId: otherOrganizationId,
-        operatingStatus: "active",
         name: "別事業者の店舗",
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         regularClosedDays: [],
@@ -293,9 +291,7 @@ describe("Free管理者追加シナリオ", () => {
 
     const ownerIdentity = t.withIdentity({ subject: "free_addition_owner", email: "owner@example.com" });
     const ownerShops = await ownerIdentity.query(api.dashboard.queries.getMyShops, {});
-    expect(ownerShops.map((shop) => shop.shopId).sort()).toEqual(
-      [seeded.shopId, seeded.unjoinedShopId, seeded.otherShopId].sort(),
-    );
+    expect(ownerShops.map((shop) => shop.shopId).sort()).toEqual([seeded.shopId, seeded.otherShopId].sort());
     expect(ownerShops).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

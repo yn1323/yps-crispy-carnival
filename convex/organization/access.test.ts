@@ -16,7 +16,7 @@ async function seedOrganizationAccess(
   args: {
     subject: string;
     memberStatus: "active" | "removed";
-    operatingStatus?: "active" | "archived";
+    shopDeleted?: boolean;
     withLegacyMembership?: boolean;
   },
 ) {
@@ -33,11 +33,10 @@ async function seedOrganizationAccess(
   });
   const shopId = await ctx.db.insert("shops", {
     organizationId,
-    operatingStatus: args.operatingStatus ?? "active",
     name: "組織店舗",
     submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     regularClosedDays: [],
-    isDeleted: false,
+    isDeleted: args.shopDeleted ?? false,
   });
   const personId = await ctx.db.insert("organizationPeople", {
     organizationId,
@@ -75,7 +74,7 @@ describe("organization manager access", () => {
     ).resolves.toMatchObject({ name: "組織店舗" });
   });
 
-  it("active所属はshopMembersなしでactive店舗を更新できる", async () => {
+  it("active所属はshopMembersなしで未削除店舗を更新できる", async () => {
     const t = convexTest(schema, modules);
     const subject = "organization_active_mutation";
     const { shopId } = await t.run(
@@ -110,15 +109,15 @@ describe("organization manager access", () => {
     await expect(t.run(async (ctx) => (await ctx.db.get(shopId))?.name)).resolves.toBe("組織店舗");
   });
 
-  it.each(["archived"] as const)("active所属でも%s店舗はmutationを実行できない", async (operatingStatus) => {
+  it("active所属でも削除済み店舗はmutationを実行できない", async () => {
     const t = convexTest(schema, modules);
-    const subject = `organization_inactive_shop_${operatingStatus}`;
+    const subject = "organization_deleted_shop";
     const { shopId } = await t.run(
       async (ctx) =>
         await seedOrganizationAccess(ctx, {
           subject,
           memberStatus: "active",
-          operatingStatus,
+          shopDeleted: true,
         }),
     );
 
@@ -144,7 +143,7 @@ describe("organization manager access", () => {
         createdAt: now,
         updatedAt: now,
       });
-      await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
+      await ctx.db.patch(shopId, { organizationId });
       await seedLegacyShopMembership(ctx, { userId, shopId });
       return shopId;
     });
@@ -168,7 +167,7 @@ describe("organization manager access", () => {
         createdAt: now,
         updatedAt: now,
       });
-      await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
+      await ctx.db.patch(shopId, { organizationId });
       await seedLegacyShopMembership(ctx, { userId, shopId });
       await seedLegacyShopMembership(ctx, { userId, shopId });
       return shopId;
@@ -229,7 +228,6 @@ describe("organization manager access", () => {
       });
       await ctx.db.patch(targetShopId, {
         organizationId: otherOrganizationId,
-        operatingStatus: "active",
       });
       return targetShopId;
     });
@@ -256,7 +254,6 @@ describe("organization manager access", () => {
       });
       const secondShopId = await ctx.db.insert("shops", {
         organizationId: secondOrganizationId,
-        operatingStatus: "active",
         name: "別組織店舗",
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         regularClosedDays: [],
@@ -324,7 +321,7 @@ describe("organization manager access", () => {
         createdAt: now,
         updatedAt: now,
       });
-      await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
+      await ctx.db.patch(shopId, { organizationId });
       await seedLegacyShopMembership(ctx, { userId, shopId });
       return { organizationId, shopId };
     });

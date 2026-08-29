@@ -1,7 +1,7 @@
 import { v } from "convex/values";
-import { isShopParentActive } from "../_lib/activeShop";
 import { observedInternalQuery as internalQuery, observedQuery as query } from "../_lib/errorObservability";
 import { authenticatedQuery } from "../_lib/functions";
+import { isShopAvailable } from "../_lib/shopAvailability";
 import { resolveStaffLineRecipient } from "../line/service";
 import { toNotificationLineRecipient } from "../notificationOutbox/types";
 import { getLegalDocumentsForAudience } from "./documents";
@@ -63,13 +63,7 @@ export const getStaffConsentPageData = query({
     }
 
     const [staff, shop] = await Promise.all([ctx.db.get(tokenDoc.staffId), ctx.db.get(tokenDoc.shopId)]);
-    if (
-      !staff ||
-      staff.isDeleted ||
-      staff.shopId !== tokenDoc.shopId ||
-      !shop ||
-      !(await isShopParentActive(ctx, shop))
-    ) {
+    if (!staff || staff.isDeleted || staff.shopId !== tokenDoc.shopId || !shop || !(await isShopAvailable(ctx, shop))) {
       return { status: "expired" as const, documents };
     }
 
@@ -104,7 +98,7 @@ export const getStaffConsentNotificationDataInternal = internalQuery({
     if (!includeConsented && (await hasCurrentStaffLegalConsent(ctx, staff._id))) return null;
 
     const shop = await ctx.db.get(staff.shopId);
-    if (!shop || !(await isShopParentActive(ctx, shop))) return null;
+    if (!shop || !(await isShopAvailable(ctx, shop))) return null;
     const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: staff.shopId });
 
     return {

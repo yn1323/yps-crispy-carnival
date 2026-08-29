@@ -17,7 +17,6 @@ import { getActiveRecruitmentInShop } from "../recruitment/service";
 import { isShiftTargetStaff } from "../staff/service";
 
 const shiftBoardWriteBlockReasonValidator = v.union(
-  v.literal("shopArchived"),
   v.literal("paymentResultPending"),
   v.literal("usageLimitExceeded"),
   v.literal("usageLimitEvaluationUnavailable"),
@@ -149,15 +148,11 @@ export const getShiftBoardData = managerQuery({
     const editableEndMinutes = timeToMinutes(endTimeStr);
     const startHour = Math.floor(editableStartMinutes / 60);
     const endHour = Math.ceil(editableEndMinutes / 60);
-    // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
-    const shopStatus = shop.operatingStatus ?? "active";
     const organizationAccess = ctx.organization ? await getOrganizationAccessPolicy(ctx, ctx.organization._id) : null;
     const businessWriteBlockReason =
-      shopStatus === "archived"
-        ? ("shopArchived" as const)
-        : organizationAccess?.usageLimitStatus?.kind === "unknown"
-          ? ("usageLimitEvaluationUnavailable" as const)
-          : (organizationAccess?.businessWriteBlockReason ?? null);
+      organizationAccess?.usageLimitStatus?.kind === "unknown"
+        ? ("usageLimitEvaluationUnavailable" as const)
+        : (organizationAccess?.businessWriteBlockReason ?? null);
 
     return {
       shopId: shop._id,

@@ -162,6 +162,8 @@ export type NotificationCancelReason =
   | "organization_billing_changed"
   | "organization_usage_limit_exceeded"
   | "organization_inactive"
+  | "shop_deleted"
+  // TODO[narrow]: 全deploymentでm049完走・legacyShopInactiveCancelReason=0確認後に削除する。
   | "shop_inactive"
   | "recruitment_inactive"
   | "notification_superseded"

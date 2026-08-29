@@ -26,7 +26,6 @@ describe("組織削除シナリオ", () => {
       });
       const secondShopId = await ctx.db.insert("shops", {
         organizationId: target.organizationId,
-        operatingStatus: "active",
         name: "削除対象店B",
         submissionPattern,
         regularClosedDays: [],

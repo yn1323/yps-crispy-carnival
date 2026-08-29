@@ -15,12 +15,26 @@ import {
   evaluatePlanLimits,
   ORGANIZATION_PLAN_LIMITS,
   type OrganizationAccessPolicy,
+  type OrganizationUsageLimitViolation,
+  type PlanLimitViolation,
   resolveUsageLimitPlan,
 } from "./policy";
 
 type DbCtx = {
   db: GenericDatabaseReader<DataModel>;
 };
+
+export type LegacyPlanLimitViolation = Exclude<PlanLimitViolation, "shops"> | "activeShops";
+
+/** TODO[narrow]: 旧client drain後のPR2で削除し、公開DTOもcanonicalなshopsへ揃える。 */
+export function toLegacyPlanLimitViolation(violation: PlanLimitViolation): LegacyPlanLimitViolation {
+  return violation === "shops" ? "activeShops" : violation;
+}
+
+/** TODO[narrow]: 旧client drain後のPR2で削除する公開usage-limit DTO projection。 */
+export function toLegacyUsageLimitViolation(violation: OrganizationUsageLimitViolation) {
+  return { ...violation, kind: toLegacyPlanLimitViolation(violation.kind) };
+}
 
 export async function getOrganizationBillingPolicy(ctx: DbCtx, organizationId: Id<"organizations">) {
   const billingState = await getOrganizationBillingState(ctx, organizationId);
@@ -69,7 +83,6 @@ export async function getOrganizationAccessPolicy(ctx: DbCtx, organizationId: Id
 export const LIMIT_RECOVERY_CAPABILITIES = [
   "removeOrganizationPerson",
   "removeManagerRole",
-  "archiveShop",
   "deleteShop",
   "cancelManagerInvitation",
   "rejectStaffRegistrationRequest",
@@ -88,7 +101,7 @@ function usageLimitExceededError(access: OrganizationAccessPolicy) {
       message:
         "現在の利用数を安全に確認できないため、通常の業務操作を一時的に制限しています。利用人数・店舗・管理者を整理するか、プランを変更してください。",
       plan: access.usageLimitStatus.evaluatedPlan,
-      unknownDimensions: access.usageLimitStatus.unknownDimensions,
+      unknownDimensions: access.usageLimitStatus.unknownDimensions.map(toLegacyPlanLimitViolation),
     });
   }
   if (access.usageLimitStatus?.kind !== "overLimit") {
@@ -98,7 +111,7 @@ function usageLimitExceededError(access: OrganizationAccessPolicy) {
     code: "USAGE_LIMIT_EXCEEDED" as const,
     message: "現在のプラン上限を超えているため、利用人数・店舗・管理者を整理するか、プランを変更してください。",
     plan: access.usageLimitStatus.evaluatedPlan,
-    violations: access.usageLimitStatus.violations,
+    violations: access.usageLimitStatus.violations.map(toLegacyUsageLimitViolation),
   });
 }
 
@@ -173,7 +186,7 @@ export async function requireOrganizationCapacity(
   args: {
     organizationId: Id<"organizations">;
     additionalPeople?: number;
-    additionalActiveShops?: number;
+    additionalShops?: number;
     additionalActiveManagers?: number;
     excludedInvitationId?: Id<"organizationInvitations">;
   },
@@ -192,14 +205,14 @@ export async function requireOrganizationCapacity(
   });
   const projectedUsage = {
     peopleCount: usage.projectedPersonCount + (args.additionalPeople ?? 0),
-    activeShopCount: usage.activeShopCount + (args.additionalActiveShops ?? 0),
+    shopCount: usage.shopCount + (args.additionalShops ?? 0),
     activeManagerCount: usage.projectedActiveManagerCount + (args.additionalActiveManagers ?? 0),
   };
   const evaluation = evaluatePlanLimits(policy.entitlementPlan, projectedUsage);
   if (!evaluation.withinLimits) {
     const message = evaluation.violations.includes("people")
       ? `利用人数が現在のプラン上限を超えます。\n現在${usage.projectedPersonCount}名、上限${policy.limits.maxPeople}名です。`
-      : evaluation.violations.includes("activeShops")
+      : evaluation.violations.includes("shops")
         ? "店舗数が現在のプラン上限を超えます。"
         : "招待中を含めた管理者の合計が、現在のプラン上限を超えます。";
     throw new ConvexError(message);

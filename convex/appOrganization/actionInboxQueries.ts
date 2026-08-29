@@ -12,12 +12,11 @@ import {
   isLineInviteResendContext,
 } from "../notificationOutbox/failureResend";
 import { getCanonicalManagerSettingsOverview } from "../organization/queries";
-import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { resolveStaffRegistrationApprovalAvailability } from "../staffRegistration/service";
 
 const SOURCE_PAGE_SIZE = 8;
-const MAX_ACTIVE_SHOPS = 50;
+const MAX_SHOPS = 50;
 const SOURCE_SCAN_MULTIPLIER = 12;
 const SOURCE_SCAN_LIMIT = SOURCE_PAGE_SIZE * SOURCE_SCAN_MULTIPLIER;
 
@@ -222,35 +221,20 @@ async function resolveActionShops(
 ): Promise<Doc<"shops">[]> {
   if (shopFilter !== "all") {
     const shop = await ctx.db.get(shopFilter);
-    if (
-      !shop ||
-      shop.isDeleted ||
-      shop.organizationId !== ctx.organization._id ||
-      organizationShopOperatingStatus(shop.operatingStatus) !== "active"
-    ) {
+    if (!shop || shop.isDeleted || shop.organizationId !== ctx.organization._id) {
       throw new ConvexError("Not found");
     }
     return [shop];
   }
 
-  const [explicitActiveShops, legacyActiveShops] = await Promise.all([
-    ctx.db
-      .query("shops")
-      .withIndex("by_organizationId_and_operatingStatus_and_isDeleted", (q) =>
-        q.eq("organizationId", ctx.organization._id).eq("operatingStatus", "active").eq("isDeleted", false),
-      )
-      .take(MAX_ACTIVE_SHOPS + 1),
-    // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後に削除する。
-    ctx.db
-      .query("shops")
-      .withIndex("by_organizationId_and_operatingStatus_and_isDeleted", (q) =>
-        q.eq("organizationId", ctx.organization._id).eq("operatingStatus", undefined).eq("isDeleted", false),
-      )
-      .take(MAX_ACTIVE_SHOPS + 1),
-  ]);
-  const shopRows = [...explicitActiveShops, ...legacyActiveShops];
-  if (shopRows.length > MAX_ACTIVE_SHOPS) {
-    throw new ConvexError("店舗数が安全な取得上限を超えています。管理画面で店舗状態を確認してください。");
+  const shopRows = await ctx.db
+    .query("shops")
+    .withIndex("by_organizationId_and_isDeleted", (q) =>
+      q.eq("organizationId", ctx.organization._id).eq("isDeleted", false),
+    )
+    .take(MAX_SHOPS + 1);
+  if (shopRows.length > MAX_SHOPS) {
+    throw new ConvexError("店舗数が安全な取得上限を超えています。管理画面で店舗数を確認してください。");
   }
   return shopRows;
 }
