@@ -29,7 +29,7 @@
 
 | API | 種別 | 用途 |
 |---|---|---|
-| `api.dashboard.queries.getActiveDashboardAnnouncementsV2` | query | `isPublished: true` かつ `isDeleted: false` の最新候補を最大100件返す。`planIdVersion: 2`ではcanonical ID、未指定では旧フロント向けIDを返す |
+| `api.dashboard.queries.getActiveDashboardAnnouncementsV2` | query | `isPublished: true` かつ `isDeleted: false` の最新候補を最大100件返す |
 | `api.dashboard.queries.getActiveDashboardAnnouncements` | query | deploy互換のため、プラン単独指定を除外して直前版フロントへ候補を返す |
 | `api.dashboard.queries.getActiveDashboardAnnouncement` | query | deploy互換のため、対象指定のない最新1件だけを旧フロントへ返す |
 
@@ -40,7 +40,6 @@
   "organizationId": "対象組織ID1,対象組織ID2（任意）",
   "shopId": "対象店舗ID1,対象店舗ID2（任意）",
   "organizationPlan": "pro",
-  "planIdVersion": 2,
   "title": "LINE通知の遅延について",
   "bodyHtml": "<p>現在、LINE通知の送信に遅延が発生しています。</p><p>復旧までメール通知をご確認ください。</p>",
   "displayDate": "2026-06-17",
@@ -56,9 +55,8 @@
 - 対象を複数指定するときは、各フィールドへ半角カンマ区切りで入力する。単一値もそのまま入力でき、値の前後の空白と空要素は無視する。
 - `organizationPlan`には`trial`、`free`、`standard`、`pro`を指定できる。大文字と小文字は区別する。
 - 支払い不要Pro相当（`complimentary.pro`）は`organizationPlan: "pro"`の対象に含める。
-- plan IDのWiden期間だけ、version markerのない保存済み`pro`と`business`をそれぞれStandardとProとして読み取る。新規保存ではcanonical IDと一時markerを使う。
 - `organizationId`、`shopId`、`organizationPlan` のいずれか一つが選択中のコンテキストと一致すれば表示対象とする。複数フィールドを設定した場合もOR条件になる。
-- 契約プランは課金policyが用途別に導出する`targetingPlan`で判定する。Trialは`trial`、期間末変更予約中は変更前プラン、支払い猶予中は猶予中のプランとして扱う。Freeから有料プランへの支払い結果待ちはFree、StandardからProへの支払い結果待ちはStandardとして扱う。
+- 契約プランは課金policyが導出する`targetingPlan`で判定する。Trialは`trial`、初回支払い待ち（`initialPaymentPending`）はFree、期間末変更予約（`scheduledChange`）は変更前の現在プラン、支払い結果待ち（`pendingActivation`）はfallbackプランとして扱う。支払い失敗後の停止処理中（`paymentTerminationPending`）はFreeとして扱う。
 - フィールドを設定したのに有効な値がない場合は全体向けにせず、どの店舗にも表示しない。全体向けにする場合は3フィールド自体を未設定にする。
 - 店舗をまだ選択できない初回セットアップでは、全体向けだけを表示する。
 - 複数公開されている場合は、`displayDate` 降順、同日内は作成日時降順の候補から、最初に表示対象となる1件だけを表示する。対象範囲の狭さは優先度に使わない。

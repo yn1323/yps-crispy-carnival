@@ -3,7 +3,7 @@
 `doc/plans/`は、計画を作成した時点の判断、実装順序、受入条件を残す場所です。
 現在の機能や常設規約は、各表の「現在の正本」を参照してください。
 
-> 分類日: 2026-08-25
+> 分類日: 2026-08-29
 >
 > 分類基準: 既存計画は2026-07-23のworktree、2026-08-02以降の追加計画は作成時点のworktreeと各計画本文
 
@@ -28,6 +28,7 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [プラン遷移簡素化と支払い失敗対応](2026-08-29_プラン遷移簡素化と支払い失敗対応_変更計画.md) | `rollout verification` | Repository実装と主担当の自動テスト、lint、type-check、buildは完了。Stripe Sandbox canary、顧客向けメール設定と実到着、Production artifact・Convex deployment、CI VRTは未確認 | [課金業務フロー](../specs/organization-billing-business-flow.md)、[グループ課金](../features/organization-billing.md)、[グループ課金の運用](../manual/organization-billing.md)、[リリース状態](../manual/release-status.md) |
 | [認証済み新ページ正式切替と旧ページ削除](2026-08-15_認証済み新ページ正式切替と旧ページ削除_実装計画.md) | `rollout verification` | repository実装、目的別commit、Pull Request更新、最新head SHAの全test・build・全E2E・VRT captureとcompare開始は確認済み。Productionのcanonical所属readiness、artifact反映、canaryは未確認 | 現行仕様は[機能インデックス](../features/INDEX.md)、実環境証跡は[リリース状態](../manual/release-status.md)、設計と検証は[フロントエンド方針](../rules/frontend-architecture.md)、[テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md) |
 | [LINE連携のグループ内共通化](2026-08-13_LINE連携のグループ内共通化_実装計画.md) | `rollout verification` | repository artifactのcanonical readは更新済み。店舗・所属追加は常時公開契約へ移行済み。Production artifactとdeploymentの確定、exportとbackup、必要なmigration、非同期処理のdrain、反映後canary、Preview E2E、CI VRT、法務確認と実環境証跡は未実施 | [LINE通知連携](../features/line-notification.md)、[ユーザー詳細](../features/user-detail.md)、[通知配送outbox](../features/notification-outbox.md)、[リリース状態](../manual/release-status.md) |
 | [管理者設定ページ](2026-08-13_管理者設定ページ_実装計画.md) | `rollout verification` | repository実装、主担当test、標準検証は完了。Preview E2E・CI VRT、Widen deploy後の旧client排出確認とAPI Narrow、Production公開判断・canaryは未確認 | [グループ課金](../features/organization-billing.md)、[ユーザー詳細](../features/user-detail.md)、[店舗所属の移行互換](../features/manager-shop-membership.md)、[課金業務フロー](../specs/organization-billing-business-flow.md) |
