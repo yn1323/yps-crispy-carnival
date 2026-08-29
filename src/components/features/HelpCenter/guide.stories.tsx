@@ -55,7 +55,7 @@ export const Desktop: Story = {
       "/help/tasks/troubleshooting",
     );
     await expect(canvas.getAllByRole("navigation", { name: "この使い方の目次" }).length).toBeGreaterThan(0);
-    await expect(canvas.getByRole("link", { name: "スタッフの参加申請を承認する" })).toHaveAttribute(
+    await expect(canvas.getByRole("link", { name: "スタッフの参加申請を承認・却下する" })).toHaveAttribute(
       "href",
       "/help/review-staff-registration-request",
     );
