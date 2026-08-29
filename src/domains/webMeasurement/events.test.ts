@@ -28,11 +28,11 @@ describe("Web計測event serializer", () => {
 
   it("CTAは登録済みIDとroute familyだけを送る", () => {
     expect(
-      serializeWebMeasurementEvent({ kind: "public_cta", ctaId: "hero_signup", routeFamily: "home" }, context),
+      serializeWebMeasurementEvent({ kind: "public_cta", ctaId: "hero_usage_video", routeFamily: "home" }, context),
     ).toEqual({
       event: "select_content",
       app_environment: "preview",
-      content_id: "hero_signup",
+      content_id: "hero_usage_video",
       content_type: "public_cta",
       release_id: "abc123",
       route_family: "home",

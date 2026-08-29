@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { PUBLIC_PLAN_PRICE_FIXTURE } from "@/src/domains/publicPricing/fixture";
 import { LandingPage } from ".";
 
@@ -17,7 +18,17 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Desktop: Story = {};
+export const Desktop: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const usageVideoLinks = canvas.getAllByRole("link", { name: "使い方動画を見る" });
+
+    await expect(usageVideoLinks).toHaveLength(2);
+    for (const link of usageVideoLinks) {
+      await expect(link).toHaveAttribute("href", "/help/scenarios/shift-management");
+    }
+  },
+};
 
 export const Mobile: Story = {
   tags: ["vrt-mobile2"],
