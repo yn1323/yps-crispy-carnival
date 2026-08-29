@@ -69,7 +69,7 @@ export function ManagerExternalInviteFormView({
       <Stack gap={5} maxW="640px" w="full">
         <Stack gap={1}>
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            組織、店舗にいないユーザーを招待します。
+            組織と店舗に未所属のユーザーを招待します。
           </Text>
         </Stack>
         {isReadOnly && disabledReason && (

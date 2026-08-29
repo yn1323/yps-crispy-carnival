@@ -5,8 +5,8 @@ export function getManagerInvitationStatusPresentation(status: ManagerSettingsIn
   colorPalette: "orange" | "red";
 } {
   if (status === "sendFailed") return { label: "送信エラー", colorPalette: "red" };
-  if (status === "limitReached") return { label: "上限到達（現在は連携できません）", colorPalette: "orange" };
-  if (status === "conflict") return { label: "競合", colorPalette: "orange" };
+  if (status === "limitReached") return { label: "これ以上追加できません", colorPalette: "orange" };
+  if (status === "conflict") return { label: "エラー", colorPalette: "orange" };
   return { label: "招待中", colorPalette: "orange" };
 }
 
