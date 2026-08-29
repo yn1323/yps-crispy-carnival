@@ -1,6 +1,13 @@
 import { faqMetas } from "./helpMeta";
 import { getHelpTask, getHelpTaskHref } from "./helpTasks";
 
+const legacyHelpHashRedirects: Readonly<Record<string, string>> = {
+  "first-steps": "/help/scenarios/shift-management",
+  "choose-staff-status-change": "/help/tasks/staff-management",
+  "deletion-scope-differences": "/help/tasks/organization-billing",
+  "task-getting-started": "/help/scenarios/shift-management",
+};
+
 export function resolveLegacyHelpHash(hash: string): string | undefined {
   let id: string;
   try {
@@ -10,6 +17,9 @@ export function resolveLegacyHelpHash(hash: string): string | undefined {
   }
 
   if (!id) return undefined;
+
+  const legacyHref = legacyHelpHashRedirects[id];
+  if (legacyHref) return legacyHref;
 
   if (id.startsWith("task-")) {
     const task = getHelpTask(id.slice("task-".length));
