@@ -2,7 +2,6 @@ import { Alert, Badge, Box, Flex, Skeleton, Stack, Text, VisuallyHidden } from "
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LuUser } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
-import { MembershipRemovalImpact } from "@/src/components/shared/MembershipRemovalImpact";
 import { Button } from "@/src/components/ui/Button";
 import { CheckboxListCard, CheckboxListCardItem } from "@/src/components/ui/CheckboxListCard";
 import { Dialog, DialogActionArea } from "@/src/components/ui/Dialog";
@@ -20,7 +19,6 @@ type ShopId = NonNullable<ShopStaffMembershipChangeInput["shopId"]>;
 type MembershipSession = {
   shopId: string;
   people: ShopStaffMembershipData["people"];
-  preservedStaffs: ShopStaffMembershipData["preservedStaffs"];
   initialSelectedPersonIds: MembershipPerson["personId"][];
   selectedPersonIds: MembershipPerson["personId"][];
   expectedMembershipFingerprint: string;
@@ -137,6 +135,7 @@ export function ShopStaffMembershipDialog({
     };
   }, [initialSelectedPersonIdSet, selectedPersonIdSet, session]);
   const removedPersonIds = useMemo(() => removedPeople.map((person) => person.personId), [removedPeople]);
+  const removalImpactId = removedPeople.length > 0 ? "shop-staff-membership-removal-impact" : undefined;
   const hasDiff = addedPeople.length > 0 || removedPeople.length > 0;
   const isStale = Boolean(
     session && controller.data && controller.data.membershipFingerprint !== session.expectedMembershipFingerprint,
@@ -151,9 +150,7 @@ export function ShopStaffMembershipDialog({
   const globalDisabledReasonId = globalDisabledReason ? "shop-staff-membership-change-disabled" : undefined;
   const staleReasonId = isStale ? "shop-staff-membership-change-stale" : undefined;
   const listDisabledReasonIds = [globalDisabledReasonId, staleReasonId].filter(Boolean).join(" ") || undefined;
-  const removesAllEditableStaff = Boolean(
-    removedPeople.length > 0 && session?.selectedPersonIds.length === 0 && session.preservedStaffs.length === 0,
-  );
+  const removesAllEditableStaff = Boolean(removedPeople.length > 0 && session?.selectedPersonIds.length === 0);
   const removesLastManagerNotificationRecipient = Boolean(
     removedPeople.some((person) => person.isActiveManager && person.email.trim().length > 0) &&
       !session?.people.some(
@@ -312,7 +309,7 @@ export function ShopStaffMembershipDialog({
     >
       <Stack ref={contentRef} gap={4}>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          {shopName}のシフトスタッフを選択してください。管理者権限と、ほかの店舗への所属は変更されません。
+          {shopName}の所属スタッフを選んでください。
         </Text>
 
         {globalDisabledReason && (
@@ -330,7 +327,7 @@ export function ShopStaffMembershipDialog({
             <Alert.Content>
               <Alert.Description id={staleReasonId}>
                 {session?.submittedInput
-                  ? "表示中に所属状態が変わりました。前回の結果が不明な場合は、同じ内容で再試行できます。内容を確認するには画面を再読み込みしてください。"
+                  ? "他管理者が更新した可能性があります。画面を再読み込みしてください。"
                   : "表示中に所属状態が変わりました。画面を再読み込みしてから、もう一度お試しください。"}
               </Alert.Description>
             </Alert.Content>
@@ -343,7 +340,7 @@ export function ShopStaffMembershipDialog({
           <MembershipListSkeleton />
         ) : controller.data === null ? (
           <InlineError message="所属スタッフを読み込めませんでした。画面を再読み込みしてください。" />
-        ) : session && session.people.length + session.preservedStaffs.length === 0 ? (
+        ) : session && session.people.length === 0 ? (
           <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" px={4} py={8} textAlign="center">
             <Text fontWeight="semibold" color="gray.900">
               選択できるスタッフがいません
@@ -364,8 +361,8 @@ export function ShopStaffMembershipDialog({
                 membershipShopNames.length > 0 ? `所属：${membershipShopNames.join("、")}` : "所属：なし";
               const isRemoved =
                 initialSelectedPersonIdSet.has(person.personId) && !selectedPersonIdSet.has(person.personId);
-              const isFirstRemoved = removedPeople[0]?.personId === person.personId;
-              const removalImpactId = isRemoved ? `shop-staff-membership-removal-impact-${person.personId}` : undefined;
+              const isAdded =
+                selectedPersonIdSet.has(person.personId) && !initialSelectedPersonIdSet.has(person.personId);
               const isDisabled =
                 Boolean(globalDisabledReason) ||
                 !person.canChange ||
@@ -378,7 +375,9 @@ export function ShopStaffMembershipDialog({
                   checked={selectedPersonIdSet.has(person.personId)}
                   disabled={isDisabled}
                   ariaLabel={`${person.name}を所属スタッフにする`}
-                  ariaDescribedBy={[listDisabledReasonIds, personContextId, removalImpactId].filter(Boolean).join(" ")}
+                  ariaDescribedBy={[listDisabledReasonIds, personContextId, isRemoved ? removalImpactId : undefined]
+                    .filter(Boolean)
+                    .join(" ")}
                   disabledReason={disabledReason}
                   tone={isRemoved ? "danger" : "default"}
                   hoverBg="teal.50"
@@ -404,47 +403,48 @@ export function ShopStaffMembershipDialog({
                       {person.isManager ? "管理者。" : "スタッフ。"}
                       {`${membershipDescription}。`}
                     </VisuallyHidden>
-                    {isRemoved ? (
-                      <MembershipRemovalImpact
-                        id={removalImpactId}
-                        heading={person.name}
-                        description={membershipDescription}
-                        badgeLabel="この店舗から外す"
-                        statusMessage={isFirstRemoved && isPreviewLoading ? "変更内容を確認しています…" : undefined}
-                      />
-                    ) : (
-                      <>
-                        <Text fontWeight="medium" color="gray.900" lineHeight="short" overflowWrap="anywhere">
-                          {person.name}
-                        </Text>
-                        <Text fontSize="xs" color="fg.subtle" overflowWrap="anywhere">
-                          {membershipDescription}
-                        </Text>
-                      </>
-                    )}
+                    <Flex align="center" gap={2} wrap="wrap">
+                      <Text fontWeight="medium" color="gray.900" lineHeight="short" overflowWrap="anywhere">
+                        {person.name}
+                      </Text>
+                      {isRemoved ? (
+                        <Badge colorPalette="red" variant="outline" borderRadius="md" px={2} py={0.5}>
+                          店舗から外す
+                        </Badge>
+                      ) : isAdded ? (
+                        <Badge colorPalette="blue" variant="outline" borderRadius="md" px={2} py={0.5}>
+                          店舗に追加
+                        </Badge>
+                      ) : null}
+                    </Flex>
+                    <Text fontSize="xs" color="fg.subtle" overflowWrap="anywhere">
+                      {membershipDescription}
+                    </Text>
                   </Stack>
                 </CheckboxListCardItem>
               );
             })}
-            {session.preservedStaffs.map((staff) => (
-              <CheckboxListCardItem
-                key={staff.staffId}
-                checked
-                disabled
-                ariaLabel={`${staff.name}は所属スタッフです`}
-                disabledReason={staff.changeDisabledReason}
-                onCheckedChange={() => {}}
-                leading={<PersonAvatar name={staff.name} isManager={false} />}
-              >
-                <Stack gap={0.5} minW={0}>
-                  <Text fontWeight="medium" color="gray.900" lineHeight="short" overflowWrap="anywhere">
-                    {staff.name}
-                  </Text>
-                </Stack>
-              </CheckboxListCardItem>
-            ))}
           </CheckboxListCard>
         ) : null}
+
+        {removalImpactId && (
+          <Alert.Root status="warning" borderRadius="lg">
+            <Alert.Indicator />
+            <Alert.Content id={removalImpactId}>
+              <Alert.Title>店舗から外れるスタッフがいます</Alert.Title>
+              <Alert.Description>
+                店舗から外れると、今日以降のシフトから削除されます。
+                <br />
+                また、この店舗のシフト通知は届かなくなります。
+              </Alert.Description>
+              {isPreviewLoading && (
+                <Text mt={1} fontSize="xs" color="fg.muted" role="status">
+                  変更内容を確認しています…
+                </Text>
+              )}
+            </Alert.Content>
+          </Alert.Root>
+        )}
 
         {previewTooMany && (
           <Alert.Root status="warning" borderRadius="lg">
@@ -472,10 +472,9 @@ export function ShopStaffMembershipDialog({
           <Alert.Root status="warning" borderRadius="lg">
             <Alert.Indicator />
             <Alert.Content>
-              <Alert.Title>変更後、この店舗の管理者は0名になります</Alert.Title>
+              <Alert.Title>店舗の管理者は0名になります</Alert.Title>
               <Alert.Description>
-                管理通知が必要な場合は、有効な管理者を1名以上、この店舗の所属スタッフに残してください。
-                管理者権限自体は変更されません。
+                シフト管理、スタッフ管理は可能ですが、管理者向けの通知が届かなくなります。
               </Alert.Description>
             </Alert.Content>
           </Alert.Root>
@@ -485,9 +484,7 @@ export function ShopStaffMembershipDialog({
           <Alert.Root status="info" borderRadius="lg">
             <Alert.Indicator />
             <Alert.Content>
-              <Alert.Description>
-                シフト提出に必要な案内を予約します。LINE未連携の場合だけ、組織共通の連携案内も送ります。
-              </Alert.Description>
+              <Alert.Title>新規追加スタッフへ募集中シフトを送信します。</Alert.Title>
             </Alert.Content>
           </Alert.Root>
         )}
@@ -544,7 +541,6 @@ function createSession(shopId: string, data: ShopStaffMembershipData): Membershi
   return {
     shopId,
     people,
-    preservedStaffs: data.preservedStaffs.map((staff) => ({ ...staff })),
     initialSelectedPersonIds: people.flatMap((person) => (person.isSelected ? [person.personId] : [])),
     selectedPersonIds: people.flatMap((person) => (person.isSelected ? [person.personId] : [])),
     expectedMembershipFingerprint: data.membershipFingerprint,

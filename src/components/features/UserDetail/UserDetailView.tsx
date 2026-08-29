@@ -89,7 +89,7 @@ export function UserDetailView({
           leading={<BasicInformationIcon />}
           secondary={
             <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              名前・シフト通知先などを管理
+              名前・シフト通知先の管理
             </Text>
           }
           disabled={nonNavigationActionsDisabled}
@@ -115,7 +115,7 @@ export function UserDetailView({
             onClick={actions.onOpenAddShop}
           >
             <LuPencil aria-hidden />
-            所属店舗を変更する
+            {data.memberships.length === 0 ? "所属店舗を追加する" : "所属店舗を変更する"}
           </Button>
         </Flex>
         <Box p={{ base: 3, md: 4 }}>
@@ -207,10 +207,10 @@ function UserLineConnectionRow({
         }
         secondary={
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            LINE連携状況、連携方法について
+            LINE連携状況・連携方法
           </Text>
         }
-        accessibleDescription={`${presentation.description} LINE連携状況、連携方法について`}
+        accessibleDescription={`${presentation.description} LINE連携状況・連携方法について`}
         disabled={disabled}
         onClick={onOpen}
       />

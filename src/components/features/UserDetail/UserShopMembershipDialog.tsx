@@ -1,8 +1,7 @@
-import { Badge, Box, Flex, Stack, Text } from "@chakra-ui/react";
+import { Alert, Badge, Box, Flex, Stack, Text } from "@chakra-ui/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LuStore } from "react-icons/lu";
 import type { Id } from "@/convex/_generated/dataModel";
-import { MembershipRemovalImpact } from "@/src/components/shared/MembershipRemovalImpact";
 import { CheckboxListCard, CheckboxListCardItem } from "@/src/components/ui/CheckboxListCard";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { UserDetailData, UserMembershipChangeInput } from "./types";
@@ -13,8 +12,8 @@ type MembershipSession = {
   personId: UserDetailData["person"]["id"];
   shops: UserDetailData["shops"];
   memberships: UserDetailData["memberships"];
-  initialActiveShopIds: Id<"shops">[];
-  selectedActiveShopIds: Id<"shops">[];
+  initialShopIds: Id<"shops">[];
+  selectedShopIds: Id<"shops">[];
   expectedMembershipFingerprint: string;
   requestId: string;
   submittedInput: UserMembershipChangeInput | null;
@@ -53,38 +52,29 @@ export function UserShopMembershipDialog({
   const isCurrentSession = session.personId === data.person.id;
   const visibleShops = isCurrentSession ? session.shops : data.shops;
   const visibleMemberships = isCurrentSession ? session.memberships : data.memberships;
-  const fallbackActiveMembershipShopIds = getActiveMembershipShopIds(data.shops, data.memberships);
-  const initialActiveShopIds = isCurrentSession ? session.initialActiveShopIds : fallbackActiveMembershipShopIds;
-  const selectedActiveShopIds = isCurrentSession ? session.selectedActiveShopIds : fallbackActiveMembershipShopIds;
-  const initialActiveShopIdSet = useMemo(() => new Set(initialActiveShopIds), [initialActiveShopIds]);
-  const selectedActiveShopIdSet = useMemo(() => new Set(selectedActiveShopIds), [selectedActiveShopIds]);
+  const fallbackMembershipShopIds = getMembershipShopIds(data.shops, data.memberships);
+  const initialShopIds = isCurrentSession ? session.initialShopIds : fallbackMembershipShopIds;
+  const selectedShopIds = isCurrentSession ? session.selectedShopIds : fallbackMembershipShopIds;
+  const initialShopIdSet = useMemo(() => new Set(initialShopIds), [initialShopIds]);
+  const selectedShopIdSet = useMemo(() => new Set(selectedShopIds), [selectedShopIds]);
   const membershipByShopId = useMemo(
     () => new Map(visibleMemberships.map((membership) => [membership.shopId, membership])),
     [visibleMemberships],
   );
-  const visibleShopRows = visibleShops.filter(
-    (shop) => shop.shopStatus === "active" || membershipByShopId.has(shop.shopId),
-  );
-  const activeShops = visibleShops.filter((shop) => shop.shopStatus === "active");
-  const hasActiveShopContext = activeShops.length > 0;
+  const hasShopContext = visibleShops.length > 0;
   const globalDisabledReason = !data.canWrite
     ? (data.writeDisabledReason ?? "現在、この組織の所属店舗を変更できません。")
-    : !hasActiveShopContext
-      ? "稼働中の店舗がないため、所属店舗を変更できません。"
+    : !hasShopContext
+      ? "店舗がないため、所属店舗を変更できません。"
       : undefined;
   const globalDisabledReasonId = globalDisabledReason ? "user-shop-membership-change-disabled" : undefined;
   const addedShops = visibleShops.filter(
-    (shop) =>
-      shop.shopStatus === "active" &&
-      selectedActiveShopIdSet.has(shop.shopId) &&
-      !initialActiveShopIdSet.has(shop.shopId),
+    (shop) => selectedShopIdSet.has(shop.shopId) && !initialShopIdSet.has(shop.shopId),
   );
   const removedShops = visibleShops.filter(
-    (shop) =>
-      shop.shopStatus === "active" &&
-      initialActiveShopIdSet.has(shop.shopId) &&
-      !selectedActiveShopIdSet.has(shop.shopId),
+    (shop) => initialShopIdSet.has(shop.shopId) && !selectedShopIdSet.has(shop.shopId),
   );
+  const removalImpactId = removedShops.length > 0 ? "user-shop-membership-removal-impact" : undefined;
   const removedMemberships = removedShops.flatMap((shop) => {
     const membership = membershipByShopId.get(shop.shopId);
     return membership ? [membership] : [];
@@ -98,9 +88,7 @@ export function UserShopMembershipDialog({
     removedMemberships.some((membership) => membership.removalPreview.kind === "tooMany") ||
     readyRemovalAssignmentCount > MEMBERSHIP_REMOVAL_ASSIGNMENT_LIMIT;
   const hasDiff = addedShops.length > 0 || removedShops.length > 0;
-  const hasRemainingInactiveMembership = visibleMemberships.some((membership) => membership.shopStatus !== "active");
-  const removesAllMemberships =
-    removedShops.length > 0 && selectedActiveShopIds.length === 0 && !hasRemainingInactiveMembership;
+  const removesAllMemberships = removedShops.length > 0 && selectedShopIds.length === 0;
   const isFingerprintDirty = isCurrentSession && data.membershipFingerprint !== session.expectedMembershipFingerprint;
   const canSubmitFrozenIntent = !isFingerprintDirty || Boolean(session.submittedInput);
 
@@ -108,13 +96,13 @@ export function UserShopMembershipDialog({
     if (isChanging) return;
     setSession((current) => {
       if (current.personId !== data.person.id) return current;
-      const selected = new Set(current.selectedActiveShopIds);
+      const selected = new Set(current.selectedShopIds);
       if (checked === selected.has(shopId)) return current;
       if (checked) selected.add(shopId);
       else selected.delete(shopId);
       return {
         ...current,
-        selectedActiveShopIds: current.shops.flatMap((shop) => (selected.has(shop.shopId) ? [shop.shopId] : [])),
+        selectedShopIds: current.shops.flatMap((shop) => (selected.has(shop.shopId) ? [shop.shopId] : [])),
         requestId: crypto.randomUUID(),
         submittedInput: null,
       };
@@ -125,7 +113,7 @@ export function UserShopMembershipDialog({
     if (
       !isCurrentSession ||
       !data.canWrite ||
-      !hasActiveShopContext ||
+      !hasShopContext ||
       !hasDiff ||
       hasTooManyAssignments ||
       !canSubmitFrozenIntent
@@ -136,8 +124,7 @@ export function UserShopMembershipDialog({
       return;
     }
     const diffShopIds = [...addedShops, ...removedShops].map((shop) => shop.shopId);
-    const authorizationShop =
-      visibleShops.find((shop) => shop.shopStatus === "active" && diffShopIds.includes(shop.shopId)) ?? activeShops[0];
+    const authorizationShop = visibleShops.find((shop) => diffShopIds.includes(shop.shopId)) ?? visibleShops[0];
     if (!authorizationShop) return;
     const removalPreviews = removedMemberships.flatMap((membership) =>
       membership.removalPreview.kind === "ready"
@@ -154,7 +141,7 @@ export function UserShopMembershipDialog({
 
     const input: UserMembershipChangeInput = {
       shopId: authorizationShop.shopId,
-      desiredActiveShopIds: selectedActiveShopIds,
+      desiredActiveShopIds: selectedShopIds,
       expectedMembershipFingerprint: session.expectedMembershipFingerprint,
       removalPreviews,
       requestId: session.requestId,
@@ -185,7 +172,7 @@ export function UserShopMembershipDialog({
       isSubmitDisabled={
         !isCurrentSession ||
         !data.canWrite ||
-        !hasActiveShopContext ||
+        !hasShopContext ||
         !hasDiff ||
         hasTooManyAssignments ||
         !canSubmitFrozenIntent ||
@@ -197,30 +184,32 @@ export function UserShopMembershipDialog({
     >
       <Stack gap={4}>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          シフトスタッフとして所属する店舗を選択してください。
-          <br />
-          店舗から外す場合、チェックを外してください。
+          スタッフとして所属する店舗を選択してください。
         </Text>
 
         {globalDisabledReason && (
-          <Box bg="orange.50" borderWidth="1px" borderColor="orange.200" borderRadius="lg" px={3} py={2.5}>
-            <Text id={globalDisabledReasonId} fontSize="sm" color="orange.800" lineHeight="tall">
-              {globalDisabledReason}
-            </Text>
-          </Box>
+          <Alert.Root status="warning" borderRadius="lg">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Description id={globalDisabledReasonId}>{globalDisabledReason}</Alert.Description>
+            </Alert.Content>
+          </Alert.Root>
         )}
 
         {isFingerprintDirty && (
-          <Box bg="orange.50" borderWidth="1px" borderColor="orange.200" borderRadius="lg" px={3} py={2.5}>
-            <Text fontSize="sm" color="orange.800" lineHeight="tall">
-              {session.submittedInput
-                ? "表示中に所属店舗の状態が変わりました。前回の結果が不明な場合は同じ内容で再試行できます。内容を確認するには画面を再読み込みしてください。"
-                : "表示中に所属店舗の状態が変わりました。画面を再読み込みしてから、もう一度お試しください。"}
-            </Text>
-          </Box>
+          <Alert.Root status="warning" borderRadius="lg" role="alert">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Description>
+                {session.submittedInput
+                  ? "表示中に所属店舗の状態が変わりました。前回の結果が不明な場合は同じ内容で再試行できます。内容を確認するには画面を再読み込みしてください。"
+                  : "表示中に所属店舗の状態が変わりました。画面を再読み込みしてから、もう一度お試しください。"}
+              </Alert.Description>
+            </Alert.Content>
+          </Alert.Root>
         )}
 
-        {visibleShopRows.length === 0 ? (
+        {visibleShops.length === 0 ? (
           <Box borderWidth="1px" borderColor="blackAlpha.100" borderRadius="xl" px={4} py={8} textAlign="center">
             <Text fontWeight="semibold" color="gray.900">
               店舗がありません
@@ -231,12 +220,10 @@ export function UserShopMembershipDialog({
           </Box>
         ) : (
           <CheckboxListCard ariaLabel="所属する店舗">
-            {visibleShopRows.map((shop) => {
-              const membership = membershipByShopId.get(shop.shopId);
-              const isActive = shop.shopStatus === "active";
-              const checked = isActive ? selectedActiveShopIdSet.has(shop.shopId) : Boolean(membership);
-              const isRemoved = isActive && initialActiveShopIdSet.has(shop.shopId) && !checked;
-              const removalImpactId = isRemoved ? `user-shop-membership-removal-impact-${shop.shopId}` : undefined;
+            {visibleShops.map((shop) => {
+              const checked = selectedShopIdSet.has(shop.shopId);
+              const isRemoved = initialShopIdSet.has(shop.shopId) && !checked;
+              const isAdded = checked && !initialShopIdSet.has(shop.shopId);
               const disabledReason = globalDisabledReason ? undefined : getMembershipChangeDisabledReason(shop);
               const isDisabled = Boolean(globalDisabledReason || disabledReason) || isChanging;
 
@@ -246,9 +233,13 @@ export function UserShopMembershipDialog({
                   checked={checked}
                   disabled={isDisabled}
                   ariaLabel={shop.shopName}
-                  ariaDescribedBy={[globalDisabledReasonId, removalImpactId].filter(Boolean).join(" ") || undefined}
+                  ariaDescribedBy={
+                    [globalDisabledReasonId, isRemoved ? removalImpactId : undefined].filter(Boolean).join(" ") ||
+                    undefined
+                  }
                   disabledReason={disabledReason}
                   tone={isRemoved ? "danger" : "default"}
+                  hoverBg="teal.50"
                   leading={
                     <Flex
                       boxSize="40px"
@@ -263,39 +254,69 @@ export function UserShopMembershipDialog({
                       <LuStore />
                     </Flex>
                   }
-                  trailing={shop.shopStatus !== "active" && <ShopStatusBadge status={shop.shopStatus} />}
                   onCheckedChange={(nextChecked) => changeSelection(shop.shopId, nextChecked)}
                 >
-                  {isRemoved ? (
-                    <MembershipRemovalImpact id={removalImpactId} heading={shop.shopName} badgeLabel="店舗から外す" />
-                  ) : (
-                    <Text fontWeight="medium" color="gray.900" lineHeight="short">
+                  <Flex align="center" gap={2} wrap="wrap">
+                    <Text fontWeight="medium" color="gray.900" lineHeight="short" overflowWrap="anywhere">
                       {shop.shopName}
                     </Text>
-                  )}
+                    {isRemoved ? (
+                      <Badge colorPalette="red" variant="outline" borderRadius="md" px={2} py={0.5}>
+                        店舗から外す
+                      </Badge>
+                    ) : isAdded ? (
+                      <Badge colorPalette="blue" variant="outline" borderRadius="md" px={2} py={0.5}>
+                        店舗に追加
+                      </Badge>
+                    ) : null}
+                  </Flex>
                 </CheckboxListCardItem>
               );
             })}
           </CheckboxListCard>
         )}
 
+        {removalImpactId && (
+          <Alert.Root status="warning" borderRadius="lg">
+            <Alert.Indicator />
+            <Alert.Content id={removalImpactId}>
+              <Alert.Title>店舗から外れるスタッフがいます</Alert.Title>
+              <Alert.Description>
+                店舗から外れると、今日以降のシフトから削除されます。
+                <br />
+                また、外した店舗のシフト通知は届かなくなります。
+              </Alert.Description>
+            </Alert.Content>
+          </Alert.Root>
+        )}
+
         {hasTooManyAssignments && (
-          <Box bg="orange.50" borderWidth="1px" borderColor="orange.200" borderRadius="lg" px={3} py={2.5}>
-            <Text fontSize="sm" color="orange.800" fontWeight="semibold">
-              今日以降のシフトが多いため、この画面では変更できません。
-            </Text>
-            <Text mt={1} fontSize="sm" color="orange.800">
-              先にシフトを整理してから、もう一度お試しください。
-            </Text>
-          </Box>
+          <Alert.Root status="warning" borderRadius="lg">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>今日以降のシフトが多いため、この画面では変更できません</Alert.Title>
+              <Alert.Description>先にシフトを整理してください。</Alert.Description>
+            </Alert.Content>
+          </Alert.Root>
         )}
 
         {removesAllMemberships && (
-          <Box bg="orange.50" borderWidth="1px" borderColor="orange.200" borderRadius="lg" px={3} py={2.5}>
-            <Text fontSize="sm" color="orange.800" fontWeight="semibold">
-              全店舗から外した場合でも、無所属としてスタッフは残り続けます。
-            </Text>
-          </Box>
+          <Alert.Root status="warning" borderRadius="lg">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>変更後、このスタッフの所属店舗は0店舗になります</Alert.Title>
+              <Alert.Description>組織への所属や利用人数のカウントは残ります。</Alert.Description>
+            </Alert.Content>
+          </Alert.Root>
+        )}
+
+        {addedShops.length > 0 && (
+          <Alert.Root status="info" borderRadius="lg">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>追加した店舗の募集中シフトを、このスタッフへ送信します。</Alert.Title>
+            </Alert.Content>
+          </Alert.Root>
         )}
       </Stack>
     </Dialog>
@@ -308,42 +329,27 @@ function createSession(data: UserDetailData): MembershipSession {
     ...membership,
     removalPreview: { ...membership.removalPreview },
   }));
-  const initialActiveShopIds = getActiveMembershipShopIds(shops, memberships);
+  const initialShopIds = getMembershipShopIds(shops, memberships);
   return {
     personId: data.person.id,
     shops,
     memberships,
-    initialActiveShopIds,
-    selectedActiveShopIds: initialActiveShopIds,
+    initialShopIds,
+    selectedShopIds: initialShopIds,
     expectedMembershipFingerprint: data.membershipFingerprint,
     requestId: crypto.randomUUID(),
     submittedInput: null,
   };
 }
 
-function getActiveMembershipShopIds(shops: UserDetailData["shops"], memberships: UserDetailData["memberships"]) {
-  const activeMembershipShopIdSet = new Set(
-    memberships.flatMap((membership) => (membership.shopStatus === "active" ? [membership.shopId] : [])),
-  );
-  return shops.flatMap((shop) =>
-    shop.shopStatus === "active" && activeMembershipShopIdSet.has(shop.shopId) ? [shop.shopId] : [],
-  );
+function getMembershipShopIds(shops: UserDetailData["shops"], memberships: UserDetailData["memberships"]) {
+  const membershipShopIdSet = new Set(memberships.map((membership) => membership.shopId));
+  return shops.flatMap((shop) => (membershipShopIdSet.has(shop.shopId) ? [shop.shopId] : []));
 }
 
 function getMembershipChangeDisabledReason(shop: UserDetailData["shops"][number]) {
-  if (shop.shopStatus !== "active") {
-    return shop.membershipChangeDisabledReason ?? "稼働中の店舗だけ所属を変更できます。";
-  }
   if (!shop.canChangeMembership) {
     return shop.membershipChangeDisabledReason ?? "この店舗の所属は変更できません。";
   }
   return undefined;
-}
-
-function ShopStatusBadge(_: { status: Exclude<UserDetailData["shops"][number]["shopStatus"], "active"> }) {
-  return (
-    <Badge colorPalette="gray" variant="subtle" borderRadius="full" flexShrink={0}>
-      アーカイブ済み
-    </Badge>
-  );
 }

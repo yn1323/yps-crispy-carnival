@@ -71,7 +71,6 @@ const data: ShopStaffMembershipData = {
       changeDisabledReason: null,
     },
   ],
-  preservedStaffs: [],
 };
 
 const input: ShopStaffMembershipChangeInput = {
