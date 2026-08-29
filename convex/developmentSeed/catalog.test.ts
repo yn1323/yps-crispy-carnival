@@ -26,7 +26,7 @@ describe("development seed catalog", () => {
 
   it("CLIとdeployment backendを削除前に照合する固定契約を持つ", () => {
     expect(DEVELOPMENT_SEED_CONTRACT_VERSION).toBe("development-seed-v2");
-    expect(DEVELOPMENT_SEED_CONTRACT_FINGERPRINT).toBe("6bb80627");
+    expect(DEVELOPMENT_SEED_CONTRACT_FINGERPRINT).toBe("4014fb18");
     expect(DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT).toBe(66);
   });
 
@@ -38,7 +38,7 @@ describe("development seed catalog", () => {
       "pro-notifications",
       "standard-scheduled-change",
       "payment-pending",
-      "payment-grace",
+      "payment-failure",
       "free-over-limit",
       "standard-over-limit",
     ]);
@@ -51,7 +51,6 @@ describe("development seed catalog", () => {
 
     expect(scheduled?.billingState(now)).toEqual({
       kind: "scheduledChange",
-      planIdVersion: 2,
       currentPlan: "standard",
       targetPlan: "free",
       effectiveAt: now + 14 * 24 * 60 * 60 * 1000,
@@ -63,8 +62,8 @@ describe("development seed catalog", () => {
     const free = DEVELOPMENT_SEED_SCENARIOS.find((scenario) => scenario.key === "free-over-limit");
     const standard = DEVELOPMENT_SEED_SCENARIOS.find((scenario) => scenario.key === "standard-over-limit");
 
-    expect(free?.billingState()).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
-    expect(standard?.billingState()).toEqual({ kind: "active", planIdVersion: 2, plan: "standard" });
+    expect(free?.billingState()).toEqual({ kind: "active", plan: "free" });
+    expect(standard?.billingState()).toEqual({ kind: "active", plan: "standard" });
   });
 
   it("主要unionの全値をseedまたは理由付き対象外へ分類する", () => {
@@ -76,8 +75,8 @@ describe("development seed catalog", () => {
     expect(Object.keys(DEVELOPMENT_SEED_UNION_COVERAGE.billingKind).sort()).toEqual([
       "active",
       "complimentary",
-      "grace",
       "initialPaymentPending",
+      "paymentTerminationPending",
       "pendingActivation",
       "scheduledChange",
       "trial",

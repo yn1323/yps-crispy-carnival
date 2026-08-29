@@ -11,7 +11,7 @@ export const DEVELOPMENT_SEED_SCENARIO_KEYS = [
   "pro-notifications",
   "standard-scheduled-change",
   "payment-pending",
-  "payment-grace",
+  "payment-failure",
   "free-over-limit",
   "standard-over-limit",
 ] as const;
@@ -126,7 +126,7 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     organizationName: "[SEED] Free・上限確認",
     shopNames: ["[SEED] Free店舗"],
     shopPatterns: [DATE_ONLY_SUBMISSION_PATTERN],
-    billingState: () => ({ kind: "active", planIdVersion: 2, plan: "free" }),
+    billingState: () => ({ kind: "active", plan: "free" }),
     dataProfile: "capacity",
   },
   {
@@ -136,7 +136,6 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     shopPatterns: [TIME_SUBMISSION_PATTERN],
     billingState: (now) => ({
       kind: "trial",
-      planIdVersion: 2,
       selectedPaidPlan: "standard",
       trialEndsAt: now + 3 * DAY_MS,
     }),
@@ -147,7 +146,7 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     organizationName: "[SEED] Standard・複数店舗",
     shopNames: ["[SEED] 本店", "[SEED] 駅前店", "[SEED] 商業施設店"],
     shopPatterns: [TIME_SUBMISSION_PATTERN, DATE_ONLY_SUBMISSION_PATTERN, SHIFT_TYPE_SUBMISSION_PATTERN],
-    billingState: () => ({ kind: "active", planIdVersion: 2, plan: "standard" }),
+    billingState: () => ({ kind: "active", plan: "standard" }),
     dataProfile: "operations",
   },
   {
@@ -155,7 +154,7 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     organizationName: "[SEED] Pro・通知",
     shopNames: ["[SEED] 通知確認店舗"],
     shopPatterns: [SHIFT_TYPE_SUBMISSION_PATTERN],
-    billingState: () => ({ kind: "complimentary", planIdVersion: 2, plan: "pro" }),
+    billingState: () => ({ kind: "complimentary", plan: "pro" }),
     dataProfile: "notifications",
   },
   {
@@ -165,7 +164,6 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     shopPatterns: [TIME_SUBMISSION_PATTERN],
     billingState: (now) => ({
       kind: "scheduledChange",
-      planIdVersion: 2,
       currentPlan: "standard",
       targetPlan: "free",
       effectiveAt: now + 14 * DAY_MS,
@@ -180,7 +178,6 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     shopPatterns: [TIME_SUBMISSION_PATTERN],
     billingState: (now) => ({
       kind: "pendingActivation",
-      planIdVersion: 2,
       plan: "standard",
       fallback: "free",
       startedAt: now - DAY_MS,
@@ -188,16 +185,14 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     dataProfile: "billingOnly",
   },
   {
-    key: "payment-grace",
-    organizationName: "[SEED] 支払猶予中",
-    shopNames: ["[SEED] 支払猶予店舗"],
+    key: "payment-failure",
+    organizationName: "[SEED] 支払い失敗",
+    shopNames: ["[SEED] 支払い失敗店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
     billingState: (now) => ({
-      kind: "grace",
-      planIdVersion: 2,
-      plan: "standard",
+      kind: "paymentTerminationPending",
+      previousPlan: "standard",
       startedAt: now - 7 * DAY_MS,
-      endsAt: now + 7 * DAY_MS,
     }),
     dataProfile: "billingOnly",
   },
@@ -206,7 +201,7 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     organizationName: "[SEED] Free・上限超過",
     shopNames: ["[SEED] Free上限超過店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
-    billingState: () => ({ kind: "active", planIdVersion: 2, plan: "free" }),
+    billingState: () => ({ kind: "active", plan: "free" }),
     dataProfile: "capacity",
   },
   {
@@ -214,7 +209,7 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     organizationName: "[SEED] Standard・上限超過",
     shopNames: ["[SEED] Standard上限超過店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
-    billingState: () => ({ kind: "active", planIdVersion: 2, plan: "standard" }),
+    billingState: () => ({ kind: "active", plan: "standard" }),
     dataProfile: "billingOnly",
   },
 ] as const satisfies readonly DevelopmentSeedScenario[];
@@ -345,7 +340,7 @@ export const DEVELOPMENT_SEED_UNION_COVERAGE = {
     },
     complimentary: { kind: "seeded", scenarioKeys: ["pro-notifications"] },
     scheduledChange: { kind: "seeded", scenarioKeys: ["standard-scheduled-change"] },
-    grace: { kind: "seeded", scenarioKeys: ["payment-grace"] },
+    paymentTerminationPending: { kind: "seeded", scenarioKeys: ["payment-failure"] },
   } satisfies Record<BillingKind, UnionCoverageDisposition>,
   recruitmentStatus: {
     open: { kind: "seeded", scenarioKeys: OPERATIONS },

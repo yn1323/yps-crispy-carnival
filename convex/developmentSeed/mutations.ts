@@ -40,7 +40,7 @@ const scenarioKeyValidator = v.union(
   v.literal("pro-notifications"),
   v.literal("standard-scheduled-change"),
   v.literal("payment-pending"),
-  v.literal("payment-grace"),
+  v.literal("payment-failure"),
   v.literal("free-over-limit"),
   v.literal("standard-over-limit"),
 );
