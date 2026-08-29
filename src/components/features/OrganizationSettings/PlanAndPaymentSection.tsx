@@ -9,10 +9,11 @@ import {
   LuMail,
 } from "react-icons/lu";
 import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
+import { OrganizationPaymentFailureAlert } from "@/src/components/shared/OrganizationPaymentFailureAlert";
 import { Button } from "@/src/components/ui/Button";
 import {
   type BillingPlanAction,
-  formatPlanPrice,
+  formatPlanPriceLine,
   getRequiredReductions,
   planLabel,
   resolveBillingPlanAction,
@@ -74,22 +75,12 @@ const STATE_PRESENTATION: Record<
   initialPaymentPending: {
     label: "初回請求を確認中",
     status: "info",
-    description: "初回支払いの結果を確認しています。\n確認中も、選択した有料プランを利用できます。",
+    description: "初回支払いの結果を確認しています。\n確認中も、Freeの基本機能を利用できます。",
   },
   pendingActivation: {
     label: "支払い結果を確認中",
     status: "info",
-    description: "支払いの成功を確認するまで、有料プランは開始されず、業務データも更新できません。",
-  },
-  grace: {
-    label: "支払い猶予中",
-    status: "warning",
-    description: "支払い方法を確認してください。\n期限までは現在のプランを利用できます。",
-  },
-  scheduledFree: {
-    label: "Freeへ変更予定",
-    status: "warning",
-    description: "現在の支払い済み期間が終わるまでは、現在の有料プランを利用できます。",
+    description: "支払いの結果を確認しています。",
   },
   scheduledChange: {
     label: "プラン変更予定",
@@ -133,7 +124,12 @@ export const PlanAndPaymentSection = ({
             description:
               "支払いの成功を確認するまで、有料プランは開始されません。\n確認中も、Freeの基本機能は利用できます。",
           }
-        : STATE_PRESENTATION[billing.state];
+        : billing.state === "pendingActivation" && billing.currentPlan === "standard"
+          ? {
+              ...STATE_PRESENTATION.pendingActivation,
+              description: "Proプランへの変更結果を確認しています。\n確認中も、Standardプランを利用できます。",
+            }
+          : STATE_PRESENTATION[billing.state];
   const currentPlan = billing.currentPlan ?? (isPlanState(billing.state) ? billing.state : null);
   const currentPlanPresentation = currentPlan ? STATE_PRESENTATION[currentPlan] : null;
   const currentPlanDescription = billing.isComplimentary
@@ -155,6 +151,13 @@ export const PlanAndPaymentSection = ({
   return (
     <Stack gap={{ base: 6, md: 7 }}>
       <Stack gap={4}>
+        {billing.currentPlan === "free" && billing.paymentFailure && (
+          <OrganizationPaymentFailureAlert
+            terminationPending={billing.paymentFailure.terminationPending}
+            onStartPaidPlan={() => onManagePlan("standard")}
+          />
+        )}
+
         {!billing.isComplimentary && !billing.canManagePlan && billing.managePlanDisabledReason && (
           <Text id="organization-billing-manage-plan-disabled-reason" fontSize="sm" color="orange.700">
             {billing.managePlanDisabledReason}
@@ -171,12 +174,7 @@ export const PlanAndPaymentSection = ({
         />
 
         {isExceptionalState(billing.state) && !isServiceStopScheduled && (
-          <BillingStateAlert
-            billing={billing}
-            presentation={presentation}
-            onUpdatePaymentMethod={onUpdatePaymentMethod}
-            pendingCheckout={pendingCheckout}
-          />
+          <BillingStateAlert billing={billing} presentation={presentation} pendingCheckout={pendingCheckout} />
         )}
 
         {!isExceptionalState(billing.state) && billing.blockedReason && (
@@ -344,9 +342,7 @@ function PlanComparisonCards({
 }) {
   const visiblePlans =
     billing.currentPlan === "free" ||
-    ((billing.state === "scheduledChange" || billing.state === "scheduledFree") &&
-      billing.targetPlan === "free" &&
-      billing.restrictAtPeriodEnd !== true)
+    (billing.state === "scheduledChange" && billing.targetPlan === "free" && billing.restrictAtPeriodEnd !== true)
       ? (["free", "standard", "pro"] as const)
       : (["standard", "pro"] as const);
   const serviceStopAction = resolveBillingPlanAction(billing, "free");
@@ -391,7 +387,7 @@ function PlanComparisonCards({
                 <Text textStyle="sm">管理者 {limits.maxActiveManagers}名まで</Text>
               </Stack>
 
-              {action && action.kind !== "openPortal" && (
+              {action && (
                 <Button
                   size="sm"
                   variant={isSecondaryPlanAction(action) ? "outline" : "solid"}
@@ -457,16 +453,10 @@ function PlanPrice({
     );
   }
   if (price.status === "available") {
-    const formatted = formatPlanPrice(price.value);
     return (
-      <Stack gap={0}>
-        <Text fontSize="lg" fontWeight="bold">
-          {formatted.amount}
-        </Text>
-        <Text fontSize="xs" color="fg.muted">
-          {formatted.interval}・{formatted.tax}
-        </Text>
-      </Stack>
+      <Text fontSize="lg" fontWeight="bold">
+        {formatPlanPriceLine(price.value)}
+      </Text>
     );
   }
   return (
@@ -527,20 +517,16 @@ function BillingStatus({
 function BillingStateAlert({
   billing,
   presentation,
-  onUpdatePaymentMethod,
   pendingCheckout,
 }: {
   billing: OrganizationBillingView;
   presentation: (typeof STATE_PRESENTATION)[BillingDisplayState];
-  onUpdatePaymentMethod: () => void;
   pendingCheckout: Props["pendingCheckout"];
 }) {
-  const showPaymentRecovery = billing.state === "grace";
   const showPendingCheckoutRecovery = billing.state === "pendingActivation" && !billing.isComplimentary;
   const reductions = getRequiredReductions(billing);
   const showReductions =
-    (billing.state === "scheduledChange" || billing.state === "scheduledFree") &&
-    (reductions.people > 0 || reductions.shops > 0 || reductions.managers > 0);
+    billing.state === "scheduledChange" && (reductions.people > 0 || reductions.shops > 0 || reductions.managers > 0);
 
   return (
     <Alert.Root
@@ -571,38 +557,12 @@ function BillingStateAlert({
               <Text>{presentation.description}</Text>
               {billing.blockedReason && <Text>{billing.blockedReason}</Text>}
               {showReductions && <ReductionGuidance reductions={reductions} />}
-              {showPaymentRecovery && !billing.canUpdatePaymentMethod && billing.paymentMethodDisabledReason && (
-                <Text id="organization-billing-recovery-payment-method-disabled-reason">
-                  {billing.paymentMethodDisabledReason}
-                </Text>
-              )}
               {showPendingCheckoutRecovery && <PendingCheckoutGuidance status={pendingCheckout.status} />}
             </Stack>
           </Alert.Description>
         </Alert.Content>
 
-        {showPendingCheckoutRecovery ? (
-          <PendingCheckoutActions pendingCheckout={pendingCheckout} />
-        ) : showPaymentRecovery && !billing.isComplimentary ? (
-          <Button
-            size="sm"
-            variant="outline"
-            colorPalette={presentation.status === "error" ? "red" : "orange"}
-            flexShrink={0}
-            w={{ base: "full", md: "auto" }}
-            minH={{ base: "44px", md: "36px" }}
-            onClick={onUpdatePaymentMethod}
-            disabled={!billing.canUpdatePaymentMethod}
-            title={!billing.canUpdatePaymentMethod ? billing.paymentMethodDisabledReason : undefined}
-            aria-describedby={
-              !billing.canUpdatePaymentMethod && billing.paymentMethodDisabledReason
-                ? "organization-billing-recovery-payment-method-disabled-reason"
-                : undefined
-            }
-          >
-            支払い方法を見る
-          </Button>
-        ) : null}
+        {showPendingCheckoutRecovery ? <PendingCheckoutActions pendingCheckout={pendingCheckout} /> : null}
       </Flex>
     </Alert.Root>
   );
@@ -682,7 +642,7 @@ function ReductionGuidance({ reductions }: { reductions: ReturnType<typeof getRe
 function trialContinuationDescription(billing: OrganizationBillingView) {
   if (billing.targetPlan === "pro") return "終了後はProへ継続する予定です。";
   if (billing.targetPlan === "standard") return "終了後はStandardへ継続する予定です。";
-  return "継続登録がない場合、トライアル終了後はFreeプランへ変更されます。データは削除されません。";
+  return "終了後はFreeプランに移行します。";
 }
 
 function PaymentInformation({
@@ -862,7 +822,7 @@ function isServiceStopScheduledState(billing: Pick<OrganizationBillingView, "sta
 }
 
 function isScheduledPlanTransition(state: BillingDisplayState): boolean {
-  return state === "scheduledChange" || state === "scheduledFree";
+  return state === "scheduledChange";
 }
 
 function shouldShowPlanComparison(billing: OrganizationBillingView) {
@@ -870,13 +830,10 @@ function shouldShowPlanComparison(billing: OrganizationBillingView) {
   return (
     isPlanState(billing.state) ||
     billing.state === "scheduledChange" ||
-    billing.state === "scheduledFree" ||
     (billing.state === "pendingActivation" && billing.canManagePlan)
   );
 }
 
 function shouldShowCurrentPlan(state: BillingDisplayState): boolean {
-  return (
-    state === "initialPaymentPending" || state === "grace" || state === "scheduledChange" || state === "scheduledFree"
-  );
+  return state === "initialPaymentPending" || state === "scheduledChange";
 }

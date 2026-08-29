@@ -3,7 +3,6 @@ import type { BillingProductPlan, OrganizationBillingView } from "../types";
 import {
   billingUnavailableMessage,
   formatBillingBoundaryDate,
-  formatTrialBillingDates,
   getRequiredReductions,
   resolveBillingPlanAction,
 } from "./script";
@@ -34,8 +33,12 @@ describe("OrganizationSettings BillingSettings", () => {
     [{ state: "standard", currentPlan: "standard" }, "free", "scheduleServiceStop"],
     [{ state: "pro", currentPlan: "pro" }, "standard", "schedulePlanChange"],
     [{ state: "pro", currentPlan: "pro" }, "free", "scheduleServiceStop"],
+    [
+      { state: "trial", currentPlan: "trial", hasTrialContinuation: true, targetPlan: "pro" },
+      "free",
+      "cancelTrialContinuation",
+    ],
     [{ state: "scheduledChange", currentPlan: "pro", targetPlan: "standard" }, "pro", "cancelScheduledPlanChange"],
-    [{ state: "grace", currentPlan: "pro", canScheduleFree: false }, "pro", "openPortal"],
   ] as const)("契約状態%oから%sへの操作を%sへ対応付ける", (overrides, targetPlan, expected) => {
     expect(
       resolveBillingPlanAction(
@@ -55,10 +58,6 @@ describe("OrganizationSettings BillingSettings", () => {
 
   it("トライアル終了境界をJSTの請求開始日へ整形する", () => {
     expect(formatBillingBoundaryDate(Date.parse("2026-09-01T00:00:00+09:00"))).toBe("2026年9月1日");
-    expect(formatTrialBillingDates(Date.parse("2026-09-01T00:00:00+09:00"))).toEqual({
-      trialEndsOn: "2026年8月31日",
-      billingStartsOn: "2026年9月1日",
-    });
   });
 
   it("serverの削減数がなければ利用数と現在上限から安全側に導出する", () => {

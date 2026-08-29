@@ -23,7 +23,7 @@ import { openBillingUrl } from "./openBillingUrl";
 import {
   type BillingActionDialogState,
   billingUnavailableMessage,
-  formatTrialBillingDates,
+  formatBillingBoundaryDate,
   getRequiredReductions,
   planLabel,
   resolveBillingPlanAction,
@@ -37,8 +37,6 @@ type Input = {
   stripeResult?: "returned" | "cancelled";
   onStripeResultHandled?: () => void;
 };
-
-type PortalIntent = { kind: "plan" } | { kind: "paymentMethod" } | { kind: "billingDocuments" };
 
 type PendingCheckoutState = { status: Exclude<BillingPendingCheckoutStatus, "open"> } | { status: "open"; url: string };
 
@@ -113,7 +111,6 @@ export function useStripeBillingController(input: Input) {
       try {
         const result = await getPlanPriceForOrganization({
           organizationId: latestRef.current.organizationId,
-          planIdVersion: 2,
           targetPlan,
         });
         if (
@@ -146,9 +143,16 @@ export function useStripeBillingController(input: Input) {
   }, [activeScopeId, input.billing.isComplimentary, loadPlanPrice]);
 
   useEffect(() => {
-    setDialog((current) =>
-      current?.kind === "startPaidPlan" ? { ...current, price: planPrices[current.targetPlan] } : current,
-    );
+    setDialog((current) => {
+      if (
+        current?.kind !== "startPaidPlan" &&
+        current?.kind !== "changePaidPlanNow" &&
+        current?.kind !== "schedulePlanChange"
+      ) {
+        return current;
+      }
+      return { ...current, price: planPrices[current.targetPlan] };
+    });
   }, [planPrices]);
 
   useEffect(() => {
@@ -334,7 +338,6 @@ export function useStripeBillingController(input: Input) {
         const request = { targetPlan: intent.targetPlan, requestId: intent.intentKey } as const;
         const result = await previewPaidPlanChangeForOrganization({
           organizationId: latestRef.current.organizationId,
-          planIdVersion: 2,
           ...request,
         });
         if (activeScopeIdRef.current !== intent.shopId) return;
@@ -377,7 +380,9 @@ export function useStripeBillingController(input: Input) {
       return;
     }
     if (currentDialog.kind === "startPaidPlan" && currentDialog.price.status !== "available") return;
+    if (currentDialog.kind === "changePaidPlanNow" && currentDialog.price.status !== "available") return;
     if (currentDialog.kind === "changePaidPlanNow" && currentDialog.preview.status !== "available") return;
+    if (currentDialog.kind === "schedulePlanChange" && currentDialog.price.status !== "available") return;
 
     const requestId = currentDialog.intentKey;
     const organizationId = current.organizationId;
@@ -387,7 +392,6 @@ export function useStripeBillingController(input: Input) {
         const result = asBillingUrlActionResult(
           await startPaidCheckoutForOrganization({
             organizationId,
-            planIdVersion: 2,
             requestId,
             targetPlan: currentDialog.targetPlan,
           }),
@@ -405,7 +409,6 @@ export function useStripeBillingController(input: Input) {
         const result = asBillingAcceptedActionResult(
           await changePaidPlanNowForOrganization({
             organizationId,
-            planIdVersion: 2,
             requestId,
             targetPlan: currentDialog.targetPlan,
             prorationDate,
@@ -424,7 +427,6 @@ export function useStripeBillingController(input: Input) {
           : currentDialog.kind === "schedulePlanChange"
             ? await schedulePaidPlanChangeForOrganization({
                 organizationId,
-                planIdVersion: 2,
                 requestId,
                 targetPlan: currentDialog.targetPlan,
               })
@@ -441,10 +443,10 @@ export function useStripeBillingController(input: Input) {
     }
   });
 
-  const { run: openPortal } = useSingleFlight(async (intent: PortalIntent) => {
+  const { run: openPortal } = useSingleFlight(async () => {
     const current = latestRef.current;
     const scopeId = activeScopeIdRef.current;
-    if (current.billing.isComplimentary || !scopeId || !canOpenPortal(current.billing, intent)) return;
+    if (current.billing.isComplimentary || !scopeId || !canOpenPortal(current.billing)) return;
 
     try {
       const result = asBillingUrlActionResult(
@@ -468,48 +470,47 @@ export function useStripeBillingController(input: Input) {
       if (current.billing.isComplimentary || !scopeId) return;
       const action = resolveBillingPlanAction(current.billing, targetPlan);
       if (!action) return;
-      if (action.kind === "openPortal") {
-        void openPortal({ kind: "plan" });
-        return;
-      }
 
       const base = {
         intentKey: createBrowserUuid(),
         shopId: scopeId,
         organizationName: current.organizationName,
+        currentPlan:
+          current.billing.currentPlan ?? (current.billing.state === "trial" ? ("trial" as const) : ("free" as const)),
       };
       if (action.kind === "startPaidPlan") {
-        const trialDates =
+        const trialBillingStartsOn =
           current.billing.state === "trial" && current.billing.trialEndsAt
-            ? formatTrialBillingDates(current.billing.trialEndsAt)
+            ? formatBillingBoundaryDate(current.billing.trialEndsAt)
             : null;
         setDialog({
           ...base,
           ...action,
           source: current.billing.state === "trial" ? "trial" : "immediate",
           ...(current.billing.state === "trial"
-            ? {
-                trialEndsOn: trialDates?.trialEndsOn ?? current.billing.nextEvent?.date,
-                billingStartsOn: trialDates?.billingStartsOn ?? "トライアル終了後",
-              }
+            ? { billingStartsOn: trialBillingStartsOn ?? "トライアル終了後" }
             : { billingStartsOn: "Stripeでの支払い完了日" }),
           price: planPrices[action.targetPlan],
         });
         return;
       }
       if (action.kind === "changePaidPlanNow") {
-        setDialog({ ...base, ...action, preview: { status: "loading" } });
+        setDialog({ ...base, ...action, price: planPrices[action.targetPlan], preview: { status: "loading" } });
         void prepareProrationPreview({ ...base, targetPlan: action.targetPlan });
         return;
       }
       if (action.kind === "cancelTrialContinuation") {
-        setDialog({ ...base, ...action, trialEndsOn: current.billing.nextEvent?.date });
+        const effectiveOn = current.billing.trialEndsAt
+          ? formatBillingBoundaryDate(current.billing.trialEndsAt)
+          : current.billing.nextEvent?.date;
+        setDialog({ ...base, ...action, effectiveOn });
         return;
       }
       if (action.kind === "schedulePlanChange") {
         setDialog({
           ...base,
           ...action,
+          price: planPrices[action.targetPlan],
           effectiveOn: current.billing.nextEvent?.date,
           requiredReductions: getRequiredReductions(current.billing, action.targetPlan),
         });
@@ -555,10 +556,10 @@ export function useStripeBillingController(input: Input) {
     managePlan,
     retryPlanPrice,
     updatePaymentMethod: () => {
-      if (!latestRef.current.billing.isComplimentary) void openPortal({ kind: "paymentMethod" });
+      if (!latestRef.current.billing.isComplimentary) void openPortal();
     },
     openBillingDocuments: () => {
-      if (!latestRef.current.billing.isComplimentary) void openPortal({ kind: "billingDocuments" });
+      if (!latestRef.current.billing.isComplimentary) void openPortal();
     },
     dialog: {
       dialog,
@@ -568,7 +569,13 @@ export function useStripeBillingController(input: Input) {
       },
       onRetryPrice: () => {
         const current = dialogRef.current;
-        if (current?.kind === "startPaidPlan") retryPlanPrice(current.targetPlan);
+        if (
+          current?.kind === "startPaidPlan" ||
+          current?.kind === "changePaidPlanNow" ||
+          current?.kind === "schedulePlanChange"
+        ) {
+          retryPlanPrice(current.targetPlan);
+        }
       },
       onRetryPreview: () => {
         const current = dialogRef.current;
@@ -583,17 +590,15 @@ export function useStripeBillingController(input: Input) {
 
 function defaultTargetPlan(billing: OrganizationBillingView): BillingProductPlan {
   if (billing.state === "free" || billing.state === "trial" || billing.currentPlan === null) return "standard";
-  if (billing.state === "scheduledChange" || billing.state === "scheduledFree") {
+  if (billing.state === "scheduledChange") {
     return billing.currentPlan === "trial" ? "standard" : billing.currentPlan;
   }
   if (billing.currentPlan === "pro") return "standard";
   return "pro";
 }
 
-function canOpenPortal(billing: OrganizationBillingView, intent: PortalIntent): boolean {
-  if (!billing.stripeBillingAvailable || !billing.canUpdatePaymentMethod) return false;
-  if (intent.kind !== "plan") return true;
-  return billing.state === "grace";
+function canOpenPortal(billing: OrganizationBillingView): boolean {
+  return billing.stripeBillingAvailable && billing.canUpdatePaymentMethod;
 }
 
 function showUnavailable(reason: Parameters<typeof billingUnavailableMessage>[0]): void {

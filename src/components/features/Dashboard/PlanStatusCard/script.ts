@@ -81,23 +81,6 @@ export function buildPlanStatusCardData(
           : `${targetPlanName}プランの支払い結果を確認しています。確認が完了するまでお待ちください。`,
       };
     }
-    case "paymentIssue": {
-      const canUpdatePaymentMethod = source.canUpdatePaymentMethod;
-      return {
-        kind: "paymentIssue",
-        planName: source.plan ? paidPlanName(source.plan) : undefined,
-        phase: source.phase,
-        description: canUpdatePaymentMethod
-          ? "サービスの停止を防ぐため、お支払い方法を更新してください。"
-          : "現在は支払い方法を更新できません。組織設定で契約状態を確認してください。",
-        recoveryDeadlineLabel: source.recoveryDeadlineAt
-          ? `支払い期限：${formatJstDate(source.recoveryDeadlineAt)}`
-          : undefined,
-        ...(canUpdatePaymentMethod
-          ? { primaryAction: { action: "updatePaymentMethod" as const, label: "支払い方法を更新する" } }
-          : {}),
-      };
-    }
   }
 }
 

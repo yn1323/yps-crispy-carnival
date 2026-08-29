@@ -107,6 +107,37 @@ export const FreeOverLimitBehavior: Story = {
   },
 };
 
+export const PaymentFailedFree: Story = {
+  name: "支払い失敗後のFree・再契約可能",
+  args: {
+    billing: {
+      ...(Free.args?.billing as OrganizationBillingView),
+      paymentFailure: { terminationPending: false },
+    },
+  },
+};
+
+export const PaymentTerminationPending: Story = {
+  name: "支払い失敗後のFree・終了処理中",
+  args: {
+    billing: {
+      ...(Free.args?.billing as OrganizationBillingView),
+      paymentFailure: { terminationPending: true },
+    },
+  },
+};
+
+export const PaymentFailureActionBehavior: Story = {
+  name: "支払い失敗後に再契約する（操作確認）",
+  parameters: { screenshot: { skip: true } },
+  args: { ...PaymentFailedFree.args, onManagePlan: fn() },
+  play: async ({ args, canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole("button", { name: "有料プランを契約する" }));
+    await expect(args.onManagePlan).toHaveBeenCalledTimes(1);
+    await expect(args.onManagePlan).toHaveBeenCalledWith("standard");
+  },
+};
+
 export const Trial: Story = {
   name: "トライアル",
   args: {
@@ -234,6 +265,36 @@ export const PendingCheckoutOpen: Story = {
   },
 };
 
+export const PendingStandardUpgradeOpen: Story = {
+  name: "StandardからProへの支払い手続きが未完了",
+  args: {
+    billing: {
+      ...billing,
+      state: "pendingActivation",
+      currentPlan: "standard",
+      targetPlan: "pro",
+      nextEvent: { label: "支払い結果", date: "確認中" },
+      canManagePlan: false,
+      canUpdatePaymentMethod: false,
+      canScheduleFree: false,
+      blockedReason: "支払い結果を確認しています。確認が終わるまで、契約状態を変更できません。",
+    },
+    pendingCheckout: {
+      status: "open",
+      isCancelling: false,
+      onContinue: fn(),
+      onCancel: fn(),
+      onRetry: fn(),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Proプランへの変更結果を確認しています。", { exact: false })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "支払いを続ける" })).toBeEnabled();
+    await expect(canvas.getByRole("button", { name: "支払いをやめる" })).toBeEnabled();
+  },
+};
+
 export const PriceLoading: Story = {
   name: "料金を読み込み中",
   args: { planPrices: { standard: { status: "loading" }, pro: { status: "loading" } } },
@@ -347,6 +408,13 @@ export const MobileFreeOverLimit: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: FreeOverLimit.args,
+};
+
+export const MobilePaymentFailedFree: Story = {
+  name: "支払い失敗後のFree・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: PaymentFailedFree.args,
 };
 
 export const MobilePendingCheckoutOpen: Story = {

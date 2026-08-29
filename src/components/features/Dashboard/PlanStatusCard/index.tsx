@@ -1,5 +1,5 @@
 import { Badge, Box, Flex, Grid, HStack, Skeleton, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
-import { LuBadgeCheck, LuCircleAlert, LuClock3, LuStore, LuUserRoundCog, LuUsers } from "react-icons/lu";
+import { LuBadgeCheck, LuClock3, LuStore, LuUserRoundCog, LuUsers } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import type { PlanStatusCardData, PlanStatusCardProps, PlanStatusCardUsage } from "./types";
 
@@ -23,7 +23,6 @@ export function PlanStatusCard({ data, usage, onAction, onRequestCollapse }: Pla
           {data.kind === "paidPlan" && <PaidPlanDetails data={data} />}
           {data.kind === "trial" && <TrialDetails data={data} onRemindLater={handleRemindLater} />}
           {data.kind === "paymentPending" && <PaymentPendingDetails data={data} />}
-          {data.kind === "paymentIssue" && <PaymentIssueDetails data={data} />}
         </Stack>
         <PlanUsageFooter usage={usage} />
       </Stack>
@@ -118,21 +117,6 @@ function PaymentPendingDetails({ data }: { data: Extract<PlanStatusCardData, { k
     <Text fontSize="sm" fontWeight="medium">
       {data.description}
     </Text>
-  );
-}
-
-function PaymentIssueDetails({ data }: { data: Extract<PlanStatusCardData, { kind: "paymentIssue" }> }) {
-  return (
-    <Stack gap={1.5}>
-      {data.recoveryDeadlineLabel && (
-        <Text fontSize="sm" fontWeight="bold" color="orange.800">
-          {data.recoveryDeadlineLabel}
-        </Text>
-      )}
-      <Text fontSize="sm" fontWeight="medium">
-        {data.description}
-      </Text>
-    </Stack>
   );
 }
 
@@ -243,7 +227,7 @@ function UsageSkeleton({ withDivider = false }: { withDivider?: boolean }) {
   );
 }
 
-type PlanStatusTone = "neutral" | "blue" | "orange" | "red";
+type PlanStatusTone = "neutral" | "blue" | "orange";
 
 type PlanStatusBadge = {
   label: string;
@@ -302,34 +286,16 @@ export function getPlanStatusPresentation(data: PlanStatusCardData): PlanStatusP
     };
   }
 
-  if (data.kind === "paymentPending") {
-    const badge = { label: `${data.targetPlanName}へ変更`, background: "blue.100", color: "blue.700" };
-    return {
-      Icon: LuClock3,
-      title: "支払い結果を確認中",
-      badge,
-      summaryBadge: badge,
-      tone: "blue",
-      detailsLabel: "支払い結果確認中の詳細",
-      iconBackground: "blue.100",
-      iconColor: "blue.700",
-    };
-  }
-
-  const badge = {
-    label: data.recoveryDeadlineLabel?.replace(/^支払い期限：/, "期限 ") ?? "要対応",
-    background: "orange.100",
-    color: "orange.700",
-  };
+  const badge = { label: `${data.targetPlanName}へ変更`, background: "blue.100", color: "blue.700" };
   return {
-    Icon: LuCircleAlert,
-    title: "支払いに問題があります",
+    Icon: LuClock3,
+    title: "支払い結果を確認中",
     badge,
     summaryBadge: badge,
-    tone: "orange",
-    detailsLabel: "支払い問題の詳細",
-    iconBackground: "orange.100",
-    iconColor: "orange.700",
+    tone: "blue",
+    detailsLabel: "支払い結果確認中の詳細",
+    iconBackground: "blue.100",
+    iconColor: "blue.700",
   };
 }
 

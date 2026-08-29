@@ -22,7 +22,7 @@ export function formatPricePresentation(price: PricePresentationInput): PricePre
 
 export function formatPricePresentationLine(price: PricePresentationInput): string {
   const formatted = formatPricePresentation(price);
-  return `${formatted.amount}/${formatBillingUnit(price.interval, price.intervalCount)}（${formatted.tax}）`;
+  return `${formatted.amount}(${formatted.tax}) / ${formatBillingUnit(price.interval, price.intervalCount)}`;
 }
 
 export function formatCurrencyAmount(currencyValue: string, amountInMinorUnit: number): string {

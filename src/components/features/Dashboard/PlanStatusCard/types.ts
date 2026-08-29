@@ -28,14 +28,6 @@ export type DashboardPlanStatusSource =
       canUpdatePaymentMethod: boolean;
     }
   | {
-      kind: "paymentIssue";
-      plan?: "standard" | "pro";
-      phase: "grace";
-      recoveryDeadlineAt?: number;
-      canManagePlan: boolean;
-      canUpdatePaymentMethod: boolean;
-    }
-  | {
       kind: "paymentPending";
       currentPlan: "free" | "standard" | null;
       targetPlan: "standard" | "pro";
@@ -76,20 +68,9 @@ export type PlanStatusCardData =
       currentPlanName?: PlanName;
       targetPlanName: PaidPlanName;
       description: string;
-    }
-  | {
-      kind: "paymentIssue";
-      planName?: PaidPlanName;
-      phase: "grace";
-      description: string;
-      recoveryDeadlineLabel?: string;
-      primaryAction?: {
-        action: "updatePaymentMethod";
-        label: string;
-      };
     };
 
-export type PlanStatusCardAction = "openPlanAndPayment" | "choosePlan" | "remindLater" | "updatePaymentMethod";
+export type PlanStatusCardAction = "openPlanAndPayment" | "choosePlan" | "remindLater";
 
 export type PlanStatusCardUsageItem = {
   current: number;

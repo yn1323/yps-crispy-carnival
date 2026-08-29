@@ -37,10 +37,7 @@ export type BillingDisplayState =
   | "pro"
   | "initialPaymentPending"
   | "pendingActivation"
-  | "grace"
   | "scheduledChange"
-  // TODO[narrow]: billing viewの全deployment反映と旧DTO callerのdrain後に削除する。
-  | "scheduledFree"
   | "migrationPending";
 
 export type BillingUsageView = {
@@ -96,6 +93,9 @@ export type OrganizationBillingView = {
   nextEvent?: {
     label: string;
     date: string;
+  };
+  paymentFailure?: {
+    terminationPending: boolean;
   };
   blockedReason?: string;
   billingEmail: string;

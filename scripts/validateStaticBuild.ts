@@ -268,7 +268,7 @@ export function assertPublicPlanPriceMarkup(label: string, html: string): void {
   for (const price of parsedPrices) {
     const amount = formatPublicPriceAmount(price.currency, price.unitAmount);
     const taxLabel = price.taxBehavior === "inclusive" ? "税込" : "税別";
-    const expectedText = `${amount}/${formatPublicBillingUnit(price.interval, price.intervalCount)}（${taxLabel}）`;
+    const expectedText = `${amount}(${taxLabel}) / ${formatPublicBillingUnit(price.interval, price.intervalCount)}`;
     assert(price.visibleText === expectedText, `${label} ${price.plan} visible price must equal ${expectedText}`);
   }
 }

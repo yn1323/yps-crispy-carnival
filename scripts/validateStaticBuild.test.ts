@@ -50,7 +50,7 @@ function createPriceMarkup({
   const intervalLabel = { day: "日", week: "週間", month: "か月", year: "年" }[interval] ?? interval;
   const visibleText =
     text ??
-    `${plan === "pro" ? "¥6,000" : "¥3,000"}/${intervalCount}${intervalLabel}（${taxBehavior === "inclusive" ? "税込" : "税別"}）`;
+    `${plan === "pro" ? "¥6,000" : "¥3,000"}(${taxBehavior === "inclusive" ? "税込" : "税別"}) / ${intervalCount}${intervalLabel}`;
   return `<span data-public-plan-price="${plan}" data-currency="${currency}" data-unit-amount="${unitAmount}" data-interval="${interval}" data-interval-count="${intervalCount}" data-tax-behavior="${taxBehavior}">${visibleText}</span>`;
 }
 
@@ -151,10 +151,10 @@ describe("static build public plan price boundary", () => {
   });
 
   it.each([
-    ["金額", createPriceMarkup({ plan: "standard", text: "¥4,000/1か月（税込）" })],
-    ["請求周期", createPriceMarkup({ plan: "standard", text: "¥3,000/1年（税込）" })],
-    ["税区分", createPriceMarkup({ plan: "standard", text: "¥3,000/1か月（税別）" })],
-    ["余分な料金", createPriceMarkup({ plan: "standard", text: "¥3,000/1か月（税込）＋¥500" })],
+    ["金額", createPriceMarkup({ plan: "standard", text: "¥4,000(税込) / 1か月" })],
+    ["請求周期", createPriceMarkup({ plan: "standard", text: "¥3,000(税込) / 1年" })],
+    ["税区分", createPriceMarkup({ plan: "standard", text: "¥3,000(税別) / 1か月" })],
+    ["余分な料金", createPriceMarkup({ plan: "standard", text: "¥3,000(税込) / 1か月＋¥500" })],
   ])("属性と一致しない表示%sを拒否する", (_caseName, invalidStandardMarkup) => {
     const html = `${invalidStandardMarkup}${createPriceMarkup({ plan: "pro" })}`;
     expect(() => assertPublicPlanPriceMarkup("/commercial-transactions", html)).toThrow();

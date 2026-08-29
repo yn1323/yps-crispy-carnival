@@ -1,7 +1,8 @@
 import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
 import { organizationPlanLabel } from "@/convex/organizationBilling/planPresentation";
-import { formatPricePresentation } from "@/src/domains/organizationBilling/pricePresentation";
+import { formatPricePresentationLine } from "@/src/domains/organizationBilling/pricePresentation";
 import type {
+  BillingPlan,
   BillingPlanPrice,
   BillingPlanPriceState,
   BillingProductPlan,
@@ -24,8 +25,7 @@ export type BillingPlanAction =
   | { kind: "schedulePlanChange"; targetPlan: "standard" }
   | { kind: "scheduleServiceStop"; targetPlan: "free" }
   | { kind: "cancelScheduledPlanChange"; targetPlan: BillingProductPlan; isServiceStop?: true }
-  | { kind: "cancelTrialContinuation"; targetPlan: PaidBillingPlan }
-  | { kind: "openPortal"; targetPlan: PaidBillingPlan };
+  | { kind: "cancelTrialContinuation"; targetPlan: PaidBillingPlan };
 
 export type BillingProrationPreview = {
   currency: string;
@@ -44,6 +44,7 @@ type BillingDialogBase = {
   intentKey: string;
   shopId: string;
   organizationName: string;
+  currentPlan: BillingPlan;
 };
 
 export type BillingActionDialogState =
@@ -52,22 +53,23 @@ export type BillingActionDialogState =
       source: "trial" | "immediate";
       targetPlan: PaidBillingPlan;
       price: BillingPlanPriceState;
-      trialEndsOn?: string;
       billingStartsOn: string;
     })
   | (BillingDialogBase & {
       kind: "changePaidPlanNow";
       targetPlan: "pro";
+      price: BillingPlanPriceState;
       preview: BillingProrationPreviewState;
     })
   | (BillingDialogBase & {
       kind: "cancelTrialContinuation";
       targetPlan: PaidBillingPlan;
-      trialEndsOn?: string;
+      effectiveOn?: string;
     })
   | (BillingDialogBase & {
       kind: "schedulePlanChange";
       targetPlan: "standard";
+      price: BillingPlanPriceState;
       effectiveOn?: string;
       requiredReductions: BillingRequiredReductions;
     })
@@ -89,7 +91,7 @@ export function resolveBillingPlanAction(
 ): BillingPlanAction | null {
   if (billing.isComplimentary || !billing.stripeBillingAvailable || !billing.canManagePlan) return null;
 
-  if (billing.state === "scheduledChange" || billing.state === "scheduledFree") {
+  if (billing.state === "scheduledChange") {
     return targetPlan === billing.currentPlan && billing.targetPlan
       ? {
           kind: "cancelScheduledPlanChange",
@@ -117,16 +119,14 @@ export function resolveBillingPlanAction(
       return targetPlan === "free" ? { kind: "scheduleServiceStop", targetPlan } : null;
     case "pendingActivation":
       return billing.currentPlan === null && isPaidPlan(targetPlan) ? { kind: "startPaidPlan", targetPlan } : null;
-    case "grace":
-      return billing.currentPlan === targetPlan && isPaidPlan(targetPlan) ? { kind: "openPortal", targetPlan } : null;
     case "initialPaymentPending":
     case "migrationPending":
       return null;
   }
 }
 
-export function formatPlanPrice(price: BillingPlanPrice): { amount: string; interval: string; tax: string } {
-  return formatPricePresentation(price);
+export function formatPlanPriceLine(price: BillingPlanPrice): string {
+  return formatPricePresentationLine(price);
 }
 
 export { formatCurrencyAmount } from "@/src/domains/organizationBilling/pricePresentation";
@@ -140,13 +140,6 @@ export function formatBillingBoundaryDate(timestamp: number): string {
   }).formatToParts(new Date(timestamp));
   const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
   return `${value("year")}年${value("month")}月${value("day")}日`;
-}
-
-export function formatTrialBillingDates(trialEndsAt: number): { trialEndsOn: string; billingStartsOn: string } {
-  return {
-    trialEndsOn: formatBillingBoundaryDate(trialEndsAt - 1),
-    billingStartsOn: formatBillingBoundaryDate(trialEndsAt),
-  };
 }
 
 export function billingUnavailableMessage(reason: BillingUnavailableReason): {
