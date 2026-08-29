@@ -27,6 +27,10 @@ const meta = {
   parameters: {
     layout: "fullscreen",
     vrt: { releaseFixedHeader: true },
+    screenshot: {
+      // メール本文は通知PreviewのVRTで検証し、全画面スクロール合成ではiframeの描画揺れだけを除外する。
+      mask: { selector: 'iframe[title="シフト確定メールの表示例"]', color: "#f7fafc" },
+    },
   },
 } satisfies Meta<typeof HelpShiftManagementScenario>;
 
