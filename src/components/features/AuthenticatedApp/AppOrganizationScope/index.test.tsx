@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   organizationListRef: Symbol("listMyOrganizationContexts"),
   organizationContextRef: Symbol("getOrganizationContext"),
-  activeShopsRef: Symbol("listOrganizationActiveShops"),
+  shopsRef: Symbol("listOrganizationShops"),
   usePaginatedQuery: vi.fn(),
   useQuery: vi.fn(),
   loadOrganizations: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock("@/convex/_generated/api", () => ({
       queries: {
         listMyOrganizationContexts: mocks.organizationListRef,
         getOrganizationContext: mocks.organizationContextRef,
-        listOrganizationActiveShops: mocks.activeShopsRef,
+        listOrganizationShops: mocks.shopsRef,
       },
     },
   },
@@ -40,7 +40,7 @@ function ScopeConsumer() {
   const scope = useAppOrganizationScope();
   return (
     <div data-testid="scope">
-      {scope.organizationName}:{scope.activeShops?.map((shop) => shop.name).join(",") ?? "shops-loading"};orgs:
+      {scope.organizationName}:{scope.shops?.map((shop) => shop.name).join(",") ?? "shops-loading"};orgs:
       {scope.organizations?.map((organization) => organization.name).join(",") ?? "organizations-loading"}
     </div>
   );
@@ -150,7 +150,7 @@ describe("AppOrganizationScopeProvider", () => {
       organizationId: "organization-a",
     });
     expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(
-      mocks.activeShopsRef,
+      mocks.shopsRef,
       { organizationId: "organization-a" },
       { initialNumItems: 50 },
     );
@@ -187,7 +187,7 @@ describe("AppOrganizationScopeProvider", () => {
     const { rerender } = render(view());
 
     expect(screen.getByTestId("organization-state").textContent).toBe("loading");
-    expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(mocks.activeShopsRef, "skip", { initialNumItems: 50 });
+    expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(mocks.shopsRef, "skip", { initialNumItems: 50 });
     expect(screen.queryByTestId("scope")).toBeNull();
 
     organization = {
@@ -200,7 +200,7 @@ describe("AppOrganizationScopeProvider", () => {
     organization = null;
     rerender(view());
     expect(screen.getByTestId("organization-state").textContent).toBe("inaccessible");
-    expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(mocks.activeShopsRef, "skip", { initialNumItems: 50 });
+    expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(mocks.shopsRef, "skip", { initialNumItems: 50 });
     expect(screen.queryByTestId("scope")).toBeNull();
   });
 

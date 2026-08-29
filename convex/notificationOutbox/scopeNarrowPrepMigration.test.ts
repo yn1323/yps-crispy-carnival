@@ -41,7 +41,6 @@ describe("notification outbox scope narrow prep migration", () => {
       await ctx.db.delete(danglingOrganizationId);
       const shopWithDanglingOrganizationId = await ctx.db.insert("shops", {
         organizationId: danglingOrganizationId,
-        operatingStatus: "active",
         name: "dangling事業者参照店舗",
         regularClosedDays: [],
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
@@ -215,7 +214,7 @@ describe("notification outbox scope narrow prep migration", () => {
 
     await runM037(t);
     await t.run(async (ctx) => {
-      await ctx.db.patch(ids.legacyShopId, { organizationId: ids.canonicalOrganizationId, operatingStatus: "active" });
+      await ctx.db.patch(ids.legacyShopId, { organizationId: ids.canonicalOrganizationId });
     });
     await t.mutation(internal.migrations.m037_notification_outbox_scope_narrow_prep.migration, {
       batchSize: 100,

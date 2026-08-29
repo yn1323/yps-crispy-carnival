@@ -2,6 +2,7 @@ import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../_generated/api";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedCanonicalStaffLineRecipient, seedManagerShop, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { getLegalConsentVersions } from "./documents";
@@ -9,11 +10,10 @@ import { getLegalConsentVersions } from "./documents";
 async function setupStaff(t: TestConvex<typeof schema>) {
   return await t.run(async (ctx) => {
     const shopId = await seedShop(ctx, "テスト店舗");
-    const staffId = await ctx.db.insert("staffs", {
+    const staffId = await seedStaff(ctx, {
       shopId,
       name: "田中 太郎",
       email: "tanaka@example.com",
-      isDeleted: false,
     });
     return { shopId, staffId };
   });
@@ -294,11 +294,10 @@ describe("legal/mutations", () => {
     const versions = getLegalConsentVersions("staff");
     const { staffId } = await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, "テスト店舗");
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "田中 太郎",
         email: "tanaka@example.com",
-        isDeleted: false,
       });
       await seedCanonicalStaffLineRecipient(ctx, { staffId, lineUserId: "U_staff", following: true });
       await ctx.db.insert("legalConsentStates", {

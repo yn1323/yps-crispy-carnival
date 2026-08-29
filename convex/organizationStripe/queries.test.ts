@@ -89,6 +89,7 @@ describe("organizationStripe/queries", () => {
           stripeCustomerId,
           stripeSubscriptionId: "sub_guard_duplicate",
           stripePriceId: "price_guard_duplicate",
+          plan: "standard",
           stripeSubscriptionScheduleId: "sub_sched_guard_duplicate",
           livemode: false,
           status: "active",
@@ -101,7 +102,7 @@ describe("organizationStripe/queries", () => {
         });
         await ctx.db.insert("organizationStripeOperations", {
           organizationId,
-          kind: "immediateProCheckout",
+          kind: "immediatePaidCheckout",
           requestKey: `guard-duplicate-${index}`,
           stripeIdempotencyKey: `test:guard-duplicate-${index}`,
           livemode: false,
@@ -148,12 +149,12 @@ describe("organizationStripe/queries", () => {
 
   it("Pro Subscriptionの課金期間・item・schedule snapshotを保存し、Actionと安全処理に同じ値を返す", async () => {
     const t = convexTest(schema, modules);
-    const subject = "stripe_business_subscription_snapshot";
+    const subject = "stripe_pro_subscription_snapshot";
     const ids = await t.run(async (ctx) => {
-      const seeded = await seedOrganizationManagerShop(ctx, { subject, planIdVersion: 2, plan: "pro" });
+      const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
       await ctx.db.insert("organizationStripeCustomers", {
         organizationId: seeded.organizationId,
-        stripeCustomerId: "cus_business_snapshot",
+        stripeCustomerId: "cus_pro_snapshot",
         livemode: false,
         createdAt: NOW,
         updatedAt: NOW,
@@ -161,20 +162,20 @@ describe("organizationStripe/queries", () => {
       return seeded;
     });
     const snapshot = {
-      stripeSubscriptionId: "sub_business_snapshot",
-      stripeSubscriptionItemId: "si_business_snapshot",
-      stripePriceId: "price_business_snapshot",
+      stripeSubscriptionId: "sub_pro_snapshot",
+      stripeSubscriptionItemId: "si_pro_snapshot",
+      stripePriceId: "price_pro_snapshot",
       plan: "pro" as const,
       currentPeriodStartsAt: NOW - 10 * 24 * 60 * 60_000,
       currentPeriodEndsAt: NOW + 20 * 24 * 60 * 60_000,
       billingCycleAnchor: NOW - 10 * 24 * 60 * 60_000,
-      stripeSubscriptionScheduleId: "sub_sched_business_snapshot",
+      stripeSubscriptionScheduleId: "sub_sched_pro_snapshot",
     };
 
     await expect(
       t.mutation(internal.organizationStripe.mutations.saveSubscriptionSnapshot, {
         organizationId: ids.organizationId,
-        stripeCustomerId: "cus_business_snapshot",
+        stripeCustomerId: "cus_pro_snapshot",
         ...snapshot,
         livemode: false,
         status: "active",
@@ -223,7 +224,7 @@ describe("organizationStripe/queries", () => {
     expect(persisted).toMatchObject(snapshot);
   });
 
-  it("complimentary.businessの既知Subscription ScheduleはCustomer hintがなくてもprovider照合前に遮断する", async () => {
+  it("complimentary.proの既知Subscription ScheduleはCustomer hintがなくてもprovider照合前に遮断する", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
@@ -235,14 +236,14 @@ describe("organizationStripe/queries", () => {
         .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
         .unique();
       if (!billing) throw new Error("billing fixture missing");
-      await ctx.db.patch(billing._id, { state: { kind: "complimentary", plan: "business" } });
+      await ctx.db.patch(billing._id, { state: { kind: "complimentary", plan: "pro" } });
       await ctx.db.insert("organizationStripeSubscriptions", {
         organizationId: seeded.organizationId,
         stripeCustomerId: "cus_complimentary_schedule_guard",
         stripeSubscriptionId: "sub_complimentary_schedule_guard",
         stripeSubscriptionScheduleId: "sub_sched_complimentary_guard",
-        stripePriceId: "price_business_complimentary_guard",
-        plan: "business",
+        stripePriceId: "price_pro_complimentary_guard",
+        plan: "pro",
         livemode: false,
         status: "active",
         providerGeneration: 1,

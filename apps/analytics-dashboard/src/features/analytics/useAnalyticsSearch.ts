@@ -9,25 +9,23 @@ import type {
   ShopsParams,
   TrendsParams,
 } from "@/api/analyticsClient";
-import { ANALYTICS_PLAN_ID_VERSION, upgradeAnalyticsPlanSearchParams } from "@/api/analyticsPlanIds";
 import type {
   AnalyticsCadenceFilter,
   AnalyticsCompleteness,
   AnalyticsHealthSignalKey,
   AnalyticsLineUsageFilter,
   AnalyticsOrganizationSort,
+  AnalyticsPlanKey,
   AnalyticsSegmentDimension,
   AnalyticsShopSizeFilter,
   AnalyticsShopSort,
   AnalyticsShopUsageFilter,
-  CanonicalAnalyticsPlanKey,
 } from "@/api/analyticsTypes";
 
 export type AnalyticsGranularity = "day" | "week" | "month";
 export type SortDirection = "asc" | "desc";
 
 export type AnalyticsSearchState = {
-  planIdVersion: typeof ANALYTICS_PLAN_ID_VERSION;
   from: string;
   to: string;
   compareFrom?: string;
@@ -35,7 +33,7 @@ export type AnalyticsSearchState = {
   granularity: AnalyticsGranularity;
   organizationId?: string;
   shopId?: string;
-  plan?: string;
+  plan?: AnalyticsPlanKey;
   shopSize?: string;
   cohort?: string;
   cadence?: string;
@@ -50,7 +48,7 @@ export type AnalyticsSearchState = {
   segmentCursor?: string;
 };
 
-const PLANS = ["trial", "free", "standard", "pro"] as const satisfies readonly CanonicalAnalyticsPlanKey[];
+const PLANS = ["trial", "free", "standard", "pro"] as const satisfies readonly AnalyticsPlanKey[];
 const COMPLETENESS = ["complete", "partial", "unavailable"] as const;
 const ORGANIZATION_SORTS = ["registeredAt", "currentPlan"] as const;
 const SHOP_SORTS = ["registeredAt", "currentPlan", "latestActivityAt"] as const;
@@ -87,7 +85,6 @@ function valueIn<const Values extends readonly string[]>(value: string | undefin
 const OPTIONAL_KEYS = [
   "organizationId",
   "shopId",
-  "plan",
   "shopSize",
   "cohort",
   "cadence",
@@ -146,7 +143,6 @@ function defaultRange() {
 function parseSearch(search: string) {
   const originalParams = new URLSearchParams(search);
   const params = new URLSearchParams(search);
-  upgradeAnalyticsPlanSearchParams(params);
   const defaults = defaultRange();
   const from = params.get("from") ?? defaults.from;
   const to = params.get("to") ?? defaults.to;
@@ -156,7 +152,6 @@ function parseSearch(search: string) {
     direction: direction === "asc" ? "asc" : "desc",
     from,
     granularity: granularity === "day" || granularity === "month" ? granularity : "week",
-    planIdVersion: ANALYTICS_PLAN_ID_VERSION,
     to,
   };
 
@@ -170,6 +165,14 @@ function parseSearch(search: string) {
   for (const key of OPTIONAL_KEYS) {
     const value = params.get(key);
     if (value) result[key] = value;
+  }
+  const rawPlan = params.get("plan") ?? undefined;
+  const plan = valueIn(rawPlan, PLANS);
+  if (plan) result.plan = plan;
+  if (params.has("plan") && plan === undefined) {
+    delete result.cursor;
+    params.delete("cursor");
+    params.delete("plan");
   }
   const rawUsage = params.get("usage") ?? undefined;
   const usage = valueIn(rawUsage, SHOP_USAGE);
@@ -203,7 +206,6 @@ export function overviewParams(search: AnalyticsSearchState): OverviewParams {
     compareTo: search.compareTo,
     from: search.from,
     organizationId: search.organizationId,
-    planIdVersion: search.planIdVersion,
     shopId: search.shopId,
     to: search.to,
   };
@@ -213,7 +215,6 @@ export function seriesParams(search: AnalyticsSearchState): OrganizationParams |
   return {
     from: search.from,
     granularity: search.granularity,
-    planIdVersion: search.planIdVersion,
     to: search.to,
   };
 }
@@ -224,7 +225,6 @@ export function organizationDetailParams(search: AnalyticsSearchState): Organiza
     from: search.from,
     granularity: search.granularity,
     limit: 50,
-    planIdVersion: search.planIdVersion,
     to: search.to,
   };
 }
@@ -234,7 +234,6 @@ export function trendsParams(search: AnalyticsSearchState): Omit<TrendsParams, "
     from: search.from,
     granularity: search.granularity,
     organizationId: search.organizationId,
-    planIdVersion: search.planIdVersion,
     shopId: search.shopId,
     to: search.to,
   };
@@ -246,8 +245,7 @@ export function organizationsParams(search: AnalyticsSearchState): Organizations
     direction: search.direction,
     from: search.from,
     limit: 50,
-    plan: valueIn(search.plan, PLANS),
-    planIdVersion: search.planIdVersion,
+    plan: search.plan,
     sort: valueIn(search.sort, ORGANIZATION_SORTS) as AnalyticsOrganizationSort | undefined,
     to: search.to,
   };
@@ -263,8 +261,7 @@ export function shopsParams(search: AnalyticsSearchState): ShopsParams {
     limit: 50,
     lineUsage: valueIn(search.lineUsage, LINE_USAGE) as AnalyticsLineUsageFilter | undefined,
     organizationId: search.organizationId,
-    plan: valueIn(search.plan, PLANS),
-    planIdVersion: search.planIdVersion,
+    plan: search.plan,
     shopSize: valueIn(search.shopSize, SHOP_SIZES) as AnalyticsShopSizeFilter | undefined,
     sort: valueIn(search.sort, SHOP_SORTS) as AnalyticsShopSort | undefined,
     to: search.to,
@@ -279,7 +276,6 @@ export function shopCyclesParams(search: AnalyticsSearchState): ShopCyclesParams
     direction: "desc",
     from: search.from,
     limit: 50,
-    planIdVersion: search.planIdVersion,
     sort: "periodStart",
     to: search.to,
   };
@@ -293,7 +289,6 @@ export function segmentsParams(search: AnalyticsSearchState): SegmentsParams {
     direction: "asc",
     from: search.from,
     limit: 50,
-    planIdVersion: search.planIdVersion,
     sort: "dimension",
     to: search.to,
   };
@@ -323,7 +318,6 @@ export function useAnalyticsSearch() {
   const update = useCallback((patch: Partial<AnalyticsSearchState>, replace = false) => {
     if ("from" in patch || "to" in patch) hasExplicitRange.current = true;
     const params = new URLSearchParams(window.location.search);
-    upgradeAnalyticsPlanSearchParams(params);
     for (const [key, value] of Object.entries(patch)) {
       if (value === undefined || value === "") params.delete(key);
       else params.set(key, String(value));
@@ -366,7 +360,6 @@ export function useAnalyticsSearch() {
       }
 
       const params = new URLSearchParams(window.location.search);
-      upgradeAnalyticsPlanSearchParams(params);
       params.set("from", from);
       params.set("to", to);
       if (comparison) {

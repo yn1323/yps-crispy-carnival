@@ -33,7 +33,7 @@ export function useBillingSettingsController(input: Input) {
     try {
       const requestId = crypto.randomUUID();
       await updateBillingEmailForOrganization({ organizationId: latest.organizationId, email, requestId });
-      showSuccessToast({ title: "請求先メールアドレスを変更しました" });
+      showSuccessToast({ title: "請求通知先メールアドレスを変更しました" });
       setIsBillingEmailOpen(false);
     } catch (error) {
       showErrorToast(error);

@@ -2,6 +2,7 @@ import { makeFunctionReference } from "convex/server";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import type { Id } from "../_generated/dataModel";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop, seedOrganizationMembership, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { FEATURE_REQUEST_COMMENT_MAX_LENGTH } from "../constants";
@@ -200,21 +201,21 @@ describe("featureRequest/mutations", () => {
     expect(requests[0]).not.toHaveProperty("shopId");
   });
 
-  it("active店舗がなくてもcanonicalな組織scopeで要望を登録する", async () => {
+  it("非削除店舗がなくてもcanonicalな組織scopeで要望を登録する", async () => {
     const t = convexTest(schema, modules);
     const seeded = await t.run(async (ctx) => {
       const result = await seedManagerShop(ctx, {
-        subject: "app_feature_request_without_active_shop",
-        email: "app-feature-request-without-active-shop@example.com",
-        shopName: "停止済み組織scope店舗",
+        subject: "app_feature_request_without_non_deleted_shop",
+        email: "app-feature-request-without-non-deleted-shop@example.com",
+        shopName: "削除済み組織scope店舗",
       });
-      await ctx.db.patch(result.shopId, { operatingStatus: "archived" });
+      await ctx.db.patch(result.shopId, { isDeleted: true });
       return result;
     });
 
     await expect(
       t
-        .withIdentity({ subject: "app_feature_request_without_active_shop" })
+        .withIdentity({ subject: "app_feature_request_without_non_deleted_shop" })
         .mutation(submitFeatureRequestForOrganization, {
           expectedOrganizationId: seeded.organizationId,
           comment: "店舗がなくても伝えたい要望",
@@ -232,23 +233,23 @@ describe("featureRequest/mutations", () => {
     expect(requests[0]).not.toHaveProperty("shopId");
   });
 
-  it("停止済み店舗scopeでは要望を登録できない", async () => {
+  it("削除済み店舗scopeでは要望を登録できない", async () => {
     const t = convexTest(schema, modules);
     const seeded = await t.run(async (ctx) => {
       const result = await seedManagerShop(ctx, {
-        subject: "app_feature_request_archived_shop",
-        email: "app-feature-request-archived-shop@example.com",
-        shopName: "停止済み要望店舗",
+        subject: "app_feature_request_deleted_shop",
+        email: "app-feature-request-deleted-shop@example.com",
+        shopName: "削除済み要望店舗",
       });
-      await ctx.db.patch(result.shopId, { operatingStatus: "archived" });
+      await ctx.db.patch(result.shopId, { isDeleted: true });
       return result;
     });
 
     await expect(
-      t.withIdentity({ subject: "app_feature_request_archived_shop" }).mutation(submitFeatureRequestForOrganization, {
+      t.withIdentity({ subject: "app_feature_request_deleted_shop" }).mutation(submitFeatureRequestForOrganization, {
         expectedOrganizationId: seeded.organizationId,
         shopId: seeded.shopId,
-        comment: "停止済み店舗への要望",
+        comment: "削除済み店舗への要望",
         requestId: REQUEST_ID,
       }),
     ).rejects.toThrow("Not found");
@@ -363,11 +364,10 @@ describe("featureRequest/mutations", () => {
     const t = convexTest(schema, modules);
     const seeded = await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, "スタッフ要望店舗");
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "スタッフ",
         email: "staff@example.com",
-        isDeleted: false,
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
@@ -424,11 +424,10 @@ describe("featureRequest/mutations", () => {
     const sessionToken = "staff-feature-request-view-session";
     await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, "閲覧session要望店舗");
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "閲覧スタッフ",
         email: "viewer@example.com",
-        isDeleted: false,
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,

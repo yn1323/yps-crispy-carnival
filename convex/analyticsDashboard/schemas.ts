@@ -24,7 +24,7 @@ export const ANALYTICS_DASHBOARD_MAX_SCAN_ROWS = 500;
 export const FEATURE_REQUEST_MAX_PAGE_SIZE = 50;
 
 const granularities: readonly AnalyticsGranularity[] = ["day", "week", "month"];
-const plans: readonly AnalyticsPlanKey[] = ["trial", "free", "standard", "pro", "business"];
+const plans: readonly AnalyticsPlanKey[] = ["trial", "free", "standard", "pro"];
 const completenessValues: readonly AnalyticsCompleteness[] = ["complete", "partial", "unavailable"];
 const directions: readonly AnalyticsDirection[] = ["asc", "desc"];
 const healthSignals: readonly AnalyticsHealthSignalKey[] = [
@@ -123,7 +123,6 @@ export type AnalyticsOrganizationsRequest = DateRange &
   Pagination &
   Sort<AnalyticsOrganizationSort> & {
     endpoint: "organizations";
-    planIdVersion?: 2;
     plan: AnalyticsPlanKey | null;
     completeness: AnalyticsCompleteness | null;
   };
@@ -131,7 +130,6 @@ export type AnalyticsOrganizationsRequest = DateRange &
 export type AnalyticsOrganizationRequest = SeriesRange &
   Pagination & {
     endpoint: "organization";
-    planIdVersion?: 2;
     organizationId: string;
   };
 
@@ -139,7 +137,6 @@ export type AnalyticsShopsRequest = DateRange &
   Pagination &
   Sort<AnalyticsShopSort> & {
     endpoint: "shops";
-    planIdVersion?: 2;
     organizationId: string | null;
     plan: AnalyticsPlanKey | null;
     shopSize: AnalyticsShopSizeFilter | null;
@@ -153,7 +150,6 @@ export type AnalyticsShopsRequest = DateRange &
 
 export type AnalyticsShopRequest = SeriesRange & {
   endpoint: "shop";
-  planIdVersion?: 2;
   shopId: string;
 };
 
@@ -181,7 +177,7 @@ export type AnalyticsSegmentsRequest = DateRange &
 
 export type FeatureRequestsRequest = Pagination & { endpoint: "requests" };
 
-export type AnalyticsDashboardRequest = (
+export type AnalyticsDashboardRequest =
   | AnalyticsOverviewRequest
   | AnalyticsTrendsRequest
   | AnalyticsMilestonesRequest
@@ -193,8 +189,7 @@ export type AnalyticsDashboardRequest = (
   | AnalyticsShopCyclesRequest
   | AnalyticsCycleRequest
   | AnalyticsSegmentsRequest
-  | FeatureRequestsRequest
-) & { planIdVersion?: 2 };
+  | FeatureRequestsRequest;
 
 export type AnalyticsDashboardEndpoint = AnalyticsDashboardRequest["endpoint"];
 
@@ -206,7 +201,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function validateAllowedKeys(input: Record<string, unknown>, allowed: readonly string[]): ParseResult<null> {
   const allowedSet = new Set(allowed);
-  allowedSet.add("planIdVersion");
   if (Object.keys(input).some((key) => !allowedSet.has(key))) {
     return { ok: false, message: "対応していないquery parameterが含まれています" };
   }
@@ -277,22 +271,6 @@ function readEnum<T extends string>(
     return { ok: false, message: `${key}が正しくありません` };
   }
   return { ok: true, value: value as T };
-}
-
-function readPlanIdVersion(value: unknown): ParseResult<2 | undefined> {
-  if (value === undefined) return { ok: true, value: undefined };
-  if (value === 2) return { ok: true, value: 2 };
-  return { ok: false, message: "planIdVersionが正しくありません" };
-}
-
-function validatePlanContract(plan: AnalyticsPlanKey | null, planIdVersion?: 2): ParseResult<null> {
-  if (planIdVersion === 2 && plan === "business") {
-    return { ok: false, message: "planIdVersion=2ではbusinessを指定できません" };
-  }
-  if (planIdVersion === undefined && plan === "standard") {
-    return { ok: false, message: "standardにはplanIdVersion=2が必要です" };
-  }
-  return { ok: true, value: null };
 }
 
 function readOpaqueId(value: unknown, key: string, required: true): ParseResult<string>;
@@ -379,8 +357,6 @@ export function parseAnalyticsDashboardRequest(inputValue: unknown): ParseResult
     return { ok: false, message: "リクエスト形式が正しくありません" };
   }
   const input = inputValue;
-  const planIdVersion = readPlanIdVersion(input.planIdVersion);
-  if (!planIdVersion.ok) return planIdVersion;
 
   if (input.endpoint === "overview") {
     const keys = validateAllowedKeys(input, [
@@ -461,15 +437,12 @@ export function parseAnalyticsDashboardRequest(inputValue: unknown): ParseResult
     if (!direction.ok || direction.value === null) return direction as ParseResult<never>;
     const plan = readEnum(input.plan, "plan", plans, null);
     if (!plan.ok) return plan;
-    const planContract = validatePlanContract(plan.value, planIdVersion.value);
-    if (!planContract.ok) return planContract;
     const completeness = readEnum(input.completeness, "completeness", completenessValues, null);
     if (!completeness.ok) return completeness;
     return {
       ok: true,
       value: {
         endpoint: "organizations",
-        ...(planIdVersion.value ? { planIdVersion: planIdVersion.value } : {}),
         from: range.value.from,
         to: range.value.to,
         ...pagination.value,
@@ -492,7 +465,6 @@ export function parseAnalyticsDashboardRequest(inputValue: unknown): ParseResult
       ok: true,
       value: {
         endpoint: "organization",
-        ...(planIdVersion.value ? { planIdVersion: planIdVersion.value } : {}),
         ...series.value,
         ...pagination.value,
         organizationId: organizationId.value,
@@ -532,8 +504,6 @@ export function parseAnalyticsDashboardRequest(inputValue: unknown): ParseResult
     if (!organizationId.ok) return organizationId;
     const plan = readEnum(input.plan, "plan", plans, null);
     if (!plan.ok) return plan;
-    const planContract = validatePlanContract(plan.value, planIdVersion.value);
-    if (!planContract.ok) return planContract;
     const shopSize = readEnum(input.shopSize, "shopSize", shopSizeFilters, null);
     if (!shopSize.ok) return shopSize;
     const cohort = readCohort(input.cohort);
@@ -553,7 +523,6 @@ export function parseAnalyticsDashboardRequest(inputValue: unknown): ParseResult
       ok: true,
       value: {
         endpoint: "shops",
-        ...(planIdVersion.value ? { planIdVersion: planIdVersion.value } : {}),
         from: range.value.from,
         to: range.value.to,
         ...pagination.value,
@@ -581,7 +550,6 @@ export function parseAnalyticsDashboardRequest(inputValue: unknown): ParseResult
       ok: true,
       value: {
         endpoint: "shop",
-        ...(planIdVersion.value ? { planIdVersion: planIdVersion.value } : {}),
         ...series.value,
         shopId: shopId.value,
       },
@@ -667,7 +635,6 @@ export function parseAnalyticsDashboardRequest(inputValue: unknown): ParseResult
       ok: true,
       value: {
         endpoint: "segments",
-        ...(planIdVersion.value ? { planIdVersion: planIdVersion.value } : {}),
         from: range.value.from,
         to: range.value.to,
         ...pagination.value,
@@ -715,7 +682,6 @@ export function normalizeBrowserRequestInput(
     return { ok: false, message: "pathで指定する値をquery parameterへ重複指定できません" };
   }
   const raw: Record<string, unknown> = { ...parsedParams.value, endpoint, ...pathIds };
-  if (raw.planIdVersion === "2") raw.planIdVersion = 2;
   if (endpoint === "overview") {
     raw.compareFrom ??= null;
     raw.compareTo ??= null;

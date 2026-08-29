@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { seedNotificationHistory } from "../_test/notificationHistory";
+import { seedStaff } from "../_test/scenarioBuilders";
 import {
   seedLegacyShopMembership,
   seedManagerShop,
@@ -28,11 +29,10 @@ async function setupShop(t: TestConvex<typeof schema>) {
       email: "mgr@example.com",
       shopName: "テスト店舗",
     });
-    const staffId = await ctx.db.insert("staffs", {
+    const staffId = await seedStaff(ctx, {
       shopId,
       name: "鈴木太郎",
       email: "suzuki@example.com",
-      isDeleted: false,
     });
     return { shopId, staffId };
   });
@@ -41,7 +41,7 @@ async function setupShop(t: TestConvex<typeof schema>) {
 async function setupOrganizationShop(
   t: TestConvex<typeof schema>,
   subject: string,
-  plan: "free" | "pro" | "business" = "pro",
+  plan: "free" | "standard" | "pro" = "standard",
 ) {
   return await t.run(async (ctx) => {
     const seeded = await seedOrganizationManagerShop(ctx, {
@@ -77,7 +77,7 @@ async function setupOrganizationPersonTwoShops(t: TestConvex<typeof schema>, sub
       subject,
       email: `${subject}@example.com`,
       shopName: "店舗A",
-      plan: "pro",
+      plan: "standard",
     });
     const now = Date.now();
     const staffPersonId = await ctx.db.insert("organizationPeople", {
@@ -91,7 +91,6 @@ async function setupOrganizationPersonTwoShops(t: TestConvex<typeof schema>, sub
     });
     const shopBId = await ctx.db.insert("shops", {
       organizationId: seeded.organizationId,
-      operatingStatus: "active",
       name: "店舗B",
       submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       regularClosedDays: [],
@@ -265,7 +264,7 @@ async function seedFriendshipFanoutJob(
         subject: `fanout_${args.suffix}_${index}`,
         email: `fanout_${args.suffix}_${index}@example.com`,
         shopName: `fanout店舗${index}`,
-        plan: "pro",
+        plan: "standard",
       });
       const personId = await ctx.db.insert("organizationPeople", {
         organizationId: seeded.organizationId,
@@ -284,7 +283,6 @@ async function seedFriendshipFanoutJob(
             ? seeded.shopId
             : await ctx.db.insert("shops", {
                 organizationId: seeded.organizationId,
-                operatingStatus: "active",
                 name: `fanout店舗${index}-${staffIndex}`,
                 submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
                 regularClosedDays: [],
@@ -366,11 +364,10 @@ describe("line/mutations", () => {
       const { shopId } = await setupShop(t);
       const otherStaffId = await t.run(async (ctx) => {
         const otherShopId = await seedShop(ctx, "他店舗");
-        return await ctx.db.insert("staffs", {
+        return await seedStaff(ctx, {
           shopId: otherShopId,
           name: "他店スタッフ",
           email: "other@example.com",
-          isDeleted: false,
         });
       });
 
@@ -408,6 +405,70 @@ describe("line/mutations", () => {
       expect(after).toEqual(before);
     });
 
+    it("removed personへのトークン発行を拒否し、既存トークンを失効しない", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, staffId } = await setupShop(t);
+      await seedLineLinkToken(t, { shopId, staffId, token: "removed-person-existing-token" });
+      await t.run(async (ctx) => {
+        const staff = await ctx.db.get(staffId);
+        if (!staff?.organizationPersonId) throw new Error("canonical staff not found");
+        await ctx.db.patch(staff.organizationPersonId, { status: "removed", updatedAt: Date.now() });
+      });
+      const before = await t.run(async (ctx) => await ctx.db.query("lineLinkTokens").collect());
+
+      await expect(
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.generateLinkToken, { shopId, staffId }),
+      ).rejects.toThrow("LINE連携に必要な情報を発行できませんでした");
+
+      await expect(t.run(async (ctx) => await ctx.db.query("lineLinkTokens").collect())).resolves.toEqual(before);
+    });
+
+    it.each([
+      ["参照切れ", "dangling"],
+      ["削除済み", "deleted"],
+      ["削除受付済み", "requested"],
+    ] as const)("linked userが%sならトークンを発行せず既存tokenも変更しない", async (_label, state) => {
+      const t = convexTest(schema, modules);
+      const target = await setupOrganizationShop(t, `line_token_linked_user_${state}`);
+      const linkedUserId = await t.run(async (ctx) => {
+        const now = Date.now();
+        const userId = await ctx.db.insert("users", {
+          authTokenIdentifier: `https://convex.test|line_token_subject_${state}`,
+          name: "LINE連携対象",
+          email: `line-token-linked-user-${state}@example.com`,
+          emailNormalized: `line-token-linked-user-${state}@example.com`,
+          role: "manager",
+          isDeleted: false,
+        });
+        await Promise.all([
+          ctx.db.patch(target.personId, { userId, updatedAt: now }),
+          ctx.db.patch(target.staffId, { userId }),
+        ]);
+        return userId;
+      });
+      await seedLineLinkToken(t, {
+        shopId: target.shopId,
+        staffId: target.staffId,
+        token: `linked-user-existing-token-${state}`,
+      });
+      await t.run(async (ctx) => {
+        if (state === "dangling") await ctx.db.delete(linkedUserId);
+        else if (state === "deleted") await ctx.db.patch(linkedUserId, { isDeleted: true });
+        else await ctx.db.patch(linkedUserId, { accountDeletionRequestedAt: Date.now() });
+      });
+      const before = await t.run(async (ctx) => await ctx.db.query("lineLinkTokens").collect());
+
+      await expect(
+        t.withIdentity({ subject: `line_token_linked_user_${state}` }).mutation(api.line.mutations.generateLinkToken, {
+          shopId: target.shopId,
+          staffId: target.staffId,
+        }),
+      ).rejects.toThrow("LINE連携に必要な情報を発行できませんでした");
+
+      const after = await t.run(async (ctx) => await ctx.db.query("lineLinkTokens").collect());
+      expect(after).toEqual(before);
+    });
+
     it("複数店舗マネージャーは shopId 指定でその店舗のスタッフにトークンを発行できる", async () => {
       const t = convexTest(schema, modules);
       const { shopAId, shopBId, staffBId } = await t.run(async (ctx) => {
@@ -418,11 +479,10 @@ describe("line/mutations", () => {
         });
         const shopBId = await seedShop(ctx, "店舗B");
         await seedLegacyShopMembership(ctx, { userId, shopId: shopBId });
-        const staffBId = await ctx.db.insert("staffs", {
+        const staffBId = await seedStaff(ctx, {
           shopId: shopBId,
           name: "B店スタッフ",
           email: "b@example.com",
-          isDeleted: false,
         });
         return { shopAId, shopBId, staffBId };
       });
@@ -611,11 +671,10 @@ describe("line/mutations", () => {
       const first = await setupShop(t);
       const second = await t.run(async (ctx) => {
         const shopId = await seedShop(ctx, "重複token対象店舗");
-        const staffId = await ctx.db.insert("staffs", {
+        const staffId = await seedStaff(ctx, {
           shopId,
           name: "重複token対象スタッフ",
           email: "duplicate-line@example.com",
-          isDeleted: false,
         });
         return { shopId, staffId };
       });
@@ -709,6 +768,30 @@ describe("line/mutations", () => {
         organizationPersonId: target.personId,
         lineLinkGenerationAtIssue: 0,
       });
+    });
+
+    it("両canonical ID欠損staffのWiden前tokenはexpiredへfail closedする", async () => {
+      const t = convexTest(schema, modules);
+      const target = await setupOrganizationShop(t, "unresolved_old_token");
+      const token = "unresolved-old-shape-token";
+      const tokenDocId = await t.run(async (ctx) => {
+        const id = await ctx.db.insert("lineLinkTokens", {
+          staffId: target.staffId,
+          shopId: target.shopId,
+          token,
+          expiresAt: Date.now() + 60_000,
+        });
+        await ctx.db.patch(target.staffId, { organizationId: undefined, organizationPersonId: undefined });
+        return id;
+      });
+
+      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toEqual({
+        status: "expired",
+      });
+      const storedToken = await t.run(async (ctx) => await ctx.db.get(tokenDocId));
+      expect(storedToken).not.toBeNull();
+      expect(storedToken).not.toHaveProperty("usedAt");
+      await expect(t.run(async (ctx) => ctx.db.query("staffLineAccounts").collect())).resolves.toEqual([]);
     });
 
     it("canonical tokenのgenerationが現在人物とずれた場合はexpiredへfail closedする", async () => {
@@ -852,9 +935,7 @@ describe("line/mutations", () => {
       expect(link?.usedAt).toBeGreaterThan(0);
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
-      expect(
-        scheduled.some((job) => job.name === "legal/actions:sendStaffConsentLine" && job.args[0]?.staffId === staffId),
-      ).toBe(true);
+      expect(scheduled.some((job) => job.name === "line/mutations:kickFriendshipFanoutJob")).toBe(true);
     });
 
     it.each(["overLimit", "unknown"] as const)(
@@ -886,7 +967,30 @@ describe("line/mutations", () => {
       },
     );
 
-    it("事業者移行中で課金状態が未作成でもactive店舗ならvalidateと連携を継続できる", async () => {
+    it("token検証後にstaffの両canonical IDが欠損した場合は永続化直前に拒否する", async () => {
+      const t = convexTest(schema, modules);
+      const target = await issueOrganizationLineLinkToken(t, "finalize_after_canonical_loss");
+      await expect(
+        t.mutation(internal.line.mutations.validateLinkToken, { state: target.token }),
+      ).resolves.toMatchObject({ status: "ok" });
+      await t.run(async (ctx) => {
+        await ctx.db.patch(target.staffId, { organizationId: undefined, organizationPersonId: undefined });
+      });
+      const before = await readLineLinkingBusinessState(t, target.tokenDocId);
+
+      await expect(
+        t.mutation(internal.line.mutations.finalizeLinking, {
+          staffId: target.staffId,
+          tokenDocId: target.tokenDocId,
+          lineUserId: "U_finalize_after_canonical_loss",
+          lineFollowing: true,
+        }),
+      ).resolves.toEqual({ status: "expired" });
+
+      expect(await readLineLinkingBusinessState(t, target.tokenDocId)).toEqual(before);
+    });
+
+    it("事業者移行中で課金状態が未作成でも非削除店舗ならvalidateと連携を継続できる", async () => {
       const t = convexTest(schema, modules);
       const { organizationId, staffId, shopId } = await setupOrganizationShop(t, "line_widen_without_billing");
       const { token, tokenDocId } = await seedLineLinkToken(t, {
@@ -1010,43 +1114,44 @@ describe("line/mutations", () => {
       ).resolves.toBeNull();
     });
 
-    it("既に他スタッフに紐づく lineUserId は奪う", async () => {
+    it("別personに紐づく lineUserId は奪わず、副作用なしで拒否する", async () => {
       const t = convexTest(schema, modules);
       const { shopId, staffId } = await setupShop(t);
       const otherStaffId = await t.run(async (ctx) => {
-        const otherStaffId = await ctx.db.insert("staffs", {
+        const otherStaffId = await seedStaff(ctx, {
           shopId,
           name: "別人",
           email: "other@example.com",
-          isDeleted: false,
         });
         await seedStaffLineAccount(ctx, { staffId: otherStaffId, shopId, lineUserId: "U_dup", following: true });
         return otherStaffId;
       });
       const { tokenDocId } = await seedLineLinkToken(t, { staffId, shopId, token: "relink-token" });
 
-      await t.mutation(internal.line.mutations.finalizeLinking, {
-        staffId,
-        tokenDocId,
-        lineUserId: "U_dup",
-        lineFollowing: true,
-      });
+      await expect(
+        t.mutation(internal.line.mutations.finalizeLinking, {
+          staffId,
+          tokenDocId,
+          lineUserId: "U_dup",
+          lineFollowing: true,
+        }),
+      ).rejects.toThrow("LINE連携を完了できませんでした");
 
-      const accounts = await t.run(async (ctx) =>
-        ctx.db
+      const state = await t.run(async (ctx) => ({
+        accounts: await ctx.db
           .query("staffLineAccounts")
           .withIndex("by_lineUserId_and_isDeleted", (q) => q.eq("lineUserId", "U_dup").eq("isDeleted", false))
           .collect(),
-      );
-      expect(accounts).toHaveLength(1);
-      expect(accounts[0].staffId).toBe(staffId);
-      const oldManager = await t.run(async (ctx) =>
-        ctx.db
-          .query("staffLineAccounts")
-          .withIndex("by_staffId", (q) => q.eq("staffId", otherStaffId))
-          .first(),
-      );
-      expect(oldManager?.isDeleted).toBe(true);
+        token: await ctx.db.get(tokenDocId),
+        providers: await ctx.db.query("lineProviderUsers").collect(),
+        links: await ctx.db.query("organizationPersonLineLinks").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(state.accounts).toEqual([expect.objectContaining({ staffId: otherStaffId, isDeleted: false })]);
+      expect(state.token?.usedAt).toBeUndefined();
+      expect(state.providers).toEqual([]);
+      expect(state.links).toEqual([]);
+      expect(state.scheduled).toEqual([]);
     });
 
     it("別店舗で同じ lineUserId を連携しても、既存店舗のアカウントは残る（多店舗連携）", async () => {
@@ -1059,11 +1164,10 @@ describe("line/mutations", () => {
       // 店舗Bの別 staff レコード（同一人物）
       const { shopBId, staffBId } = await t.run(async (ctx) => {
         const shopBId = await seedShop(ctx, "店舗B");
-        const staffBId = await ctx.db.insert("staffs", {
+        const staffBId = await seedStaff(ctx, {
           shopId: shopBId,
           name: "鈴木太郎",
           email: "suzuki@example.com",
-          isDeleted: false,
         });
         return { shopBId, staffBId };
       });
@@ -1164,13 +1268,12 @@ describe("line/mutations", () => {
       );
     });
 
-    it("operatingStatus未定義のWiden前shopでもpublic発行からcanonical確定・readまで継続する", async () => {
+    it("非削除shopはpublic発行からcanonical確定・readまで継続する", async () => {
       const t = convexTest(schema, modules);
-      const target = await setupOrganizationShop(t, "widen_shop_status");
-      await t.run(async (ctx) => await ctx.db.patch(target.shopId, { operatingStatus: undefined }));
+      const target = await setupOrganizationShop(t, "nondeleted_shop");
 
       const { token } = await t
-        .withIdentity({ subject: "widen_shop_status" })
+        .withIdentity({ subject: "nondeleted_shop" })
         .mutation(api.line.mutations.generateLinkToken, { shopId: target.shopId, staffId: target.staffId });
       const tokenDoc = await t.run(async (ctx) =>
         ctx.db
@@ -1183,7 +1286,7 @@ describe("line/mutations", () => {
         t.mutation(internal.line.mutations.finalizeLinking, {
           staffId: target.staffId,
           tokenDocId: tokenDoc._id,
-          lineUserId: "U_widen_shop_status",
+          lineUserId: "U_nondeleted_shop",
           lineFollowing: true,
           lineFriendshipObservedAt: Date.now(),
         }),
@@ -1193,7 +1296,7 @@ describe("line/mutations", () => {
       );
       expect(recipient).toMatchObject({
         authority: "canonical",
-        lineUserId: "U_widen_shop_status",
+        lineUserId: "U_nondeleted_shop",
         following: true,
       });
     });
@@ -1405,17 +1508,11 @@ describe("line/mutations", () => {
       const target = await setupOrganizationShop(t, "many_legacy_projections");
       await t.run(async (ctx) => {
         for (let index = 0; index < 51; index += 1) {
-          const shopId = await ctx.db.insert("shops", {
-            name: `legacy projection店舗${index}`,
-            submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-            regularClosedDays: [],
-            isDeleted: false,
-          });
-          const staffId = await ctx.db.insert("staffs", {
+          const shopId = await seedShop(ctx, `legacy projection店舗${index}`);
+          const staffId = await seedStaff(ctx, {
             shopId,
             name: `legacy projectionスタッフ${index}`,
             email: `legacy-projection-${index}@example.com`,
-            isDeleted: false,
           });
           await seedStaffLineAccount(ctx, {
             staffId,
@@ -1606,10 +1703,10 @@ describe("line/mutations", () => {
       expect(state.audits.filter((audit) => audit.action === "organization.person_line_disconnected")).toHaveLength(1);
     });
 
-    it("archived所属で発行した旧shape tokenも別active所属からの解除で失効する", async () => {
+    it("論理削除済み所属で発行した旧shape tokenも別の非削除所属からの解除で失効する", async () => {
       const t = convexTest(schema, modules);
-      const target = await setupOrganizationPersonTwoShops(t, "archived_old_token_revoke");
-      const oldToken = "archived-old-shape-token";
+      const target = await setupOrganizationPersonTwoShops(t, "deleted_old_token_revoke");
+      const oldToken = "deleted-old-shape-token";
       const oldTokenId = await t.run(async (ctx) => {
         const tokenId = await ctx.db.insert("lineLinkTokens", {
           staffId: target.staffAId,
@@ -1617,26 +1714,28 @@ describe("line/mutations", () => {
           token: oldToken,
           expiresAt: Date.now() + 60_000,
         });
-        await ctx.db.patch(target.shopId, { operatingStatus: "archived" });
+        await ctx.db.patch(target.shopId, { isDeleted: true });
         return tokenId;
       });
       await finalizeForStaff(t, {
-        subject: "archived_old_token_revoke",
+        subject: "deleted_old_token_revoke",
         shopId: target.shopBId,
         staffId: target.staffBId,
-        lineUserId: "U_archived_old_token_revoke",
+        lineUserId: "U_deleted_old_token_revoke",
       });
 
       await expect(
         t
-          .withIdentity({ subject: "archived_old_token_revoke" })
+          .withIdentity({ subject: "deleted_old_token_revoke" })
           .mutation(api.line.mutations.disconnectOrganizationPersonLine, {
             shopId: target.shopBId,
             organizationPersonId: target.personId,
-            requestId: "disconnect-archived-old-token",
+            requestId: "disconnect-deleted-old-token",
           }),
       ).resolves.toEqual({ changed: true });
-      await t.run(async (ctx) => await ctx.db.patch(target.shopId, { operatingStatus: "active" }));
+
+      const revokedToken = await t.run(async (ctx) => await ctx.db.get(oldTokenId));
+      expect(revokedToken?.revokedAt).toEqual(expect.any(Number));
 
       await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: oldToken })).resolves.toEqual({
         status: "expired",
@@ -1645,7 +1744,7 @@ describe("line/mutations", () => {
         t.mutation(internal.line.mutations.finalizeLinking, {
           staffId: target.staffAId,
           tokenDocId: oldTokenId,
-          lineUserId: "U_replay_after_reactivate",
+          lineUserId: "U_replay_after_shop_delete",
           lineFollowing: true,
         }),
       ).resolves.toEqual({ status: "expired" });
@@ -1701,7 +1800,7 @@ describe("line/mutations", () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());
 
-    it("followをcursorで再開し、全active membershipのanalyticsと通知を一度だけ予約する", async () => {
+    it("followをcursorで再開し、全非削除membershipのanalyticsと通知を一度だけ予約する", async () => {
       const t = convexTest(schema, modules);
       const seeded = await seedFriendshipFanoutJob(t, {
         suffix: "follow",
@@ -1781,7 +1880,7 @@ describe("line/mutations", () => {
       ).toHaveLength(seeded.staffIds.length * 2);
     });
 
-    it("unfollowも全active membershipへanalyticsを残すが通知は予約しない", async () => {
+    it("unfollowも全非削除membershipへanalyticsを残すが通知は予約しない", async () => {
       const t = convexTest(schema, modules);
       const seeded = await seedFriendshipFanoutJob(t, {
         suffix: "unfollow",
@@ -1987,11 +2086,10 @@ describe("line/mutations", () => {
           following: false,
         });
         const shopBId = await seedShop(ctx, "店舗B");
-        const staffBId = await ctx.db.insert("staffs", {
+        const staffBId = await seedStaff(ctx, {
           shopId: shopBId,
           name: "鈴木太郎",
           email: "suzuki@example.com",
-          isDeleted: false,
         });
         await seedStaffLineAccount(ctx, {
           staffId: staffBId,
@@ -2250,11 +2348,10 @@ describe("line/mutations", () => {
         const ids: Id<"staffs">[] = [];
         for (let i = 0; i < 31; i++) {
           ids.push(
-            await ctx.db.insert("staffs", {
+            await seedStaff(ctx, {
               shopId,
               name: `スタッフ${i + 1}`,
               email: `staff-${i + 1}@example.com`,
-              isDeleted: false,
             }),
           );
         }
@@ -2275,11 +2372,10 @@ describe("line/mutations", () => {
       const { shopId } = await setupShop(t);
       const otherStaffId = await t.run(async (ctx) => {
         const sid = await seedShop(ctx, "他店舗");
-        return await ctx.db.insert("staffs", {
+        return await seedStaff(ctx, {
           shopId: sid,
           name: "他店スタッフ",
           email: "other@example.com",
-          isDeleted: false,
         });
       });
       await expect(
@@ -2304,15 +2400,23 @@ describe("line/mutations", () => {
       expect(scheduled.filter((job) => job.name === "line/actions:sendInviteEmail")).toHaveLength(0);
     });
 
-    it("メールアドレス未登録なら拒否", async () => {
+    it("personのメールアドレスが未登録ならstaff snapshotにメールがあっても副作用なしで拒否する", async () => {
       const t = convexTest(schema, modules);
       const { shopId, staffId } = await setupShop(t);
       await t.run(async (ctx) => {
-        await ctx.db.patch(staffId, { email: "" });
+        const staff = await ctx.db.get(staffId);
+        if (!staff?.organizationPersonId) throw new Error("canonical staff not found");
+        await ctx.db.patch(staff.organizationPersonId, { email: "", emailNormalized: "", updatedAt: Date.now() });
       });
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.sendInvite, { shopId, staffId }),
       ).rejects.toThrow("メールアドレスが未登録");
+      await expect(
+        t.run(async (ctx) => ({
+          rateLimits: await ctx.db.query("rateLimits").collect(),
+          scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        })),
+      ).resolves.toEqual({ rateLimits: [], scheduled: [] });
     });
   });
 });

@@ -123,7 +123,7 @@ describe("development seed internal mutations", () => {
         "pro-notifications",
         "standard-scheduled-change",
         "payment-pending",
-        "payment-grace",
+        "payment-failure",
         "free-over-limit",
         "standard-over-limit",
       ],

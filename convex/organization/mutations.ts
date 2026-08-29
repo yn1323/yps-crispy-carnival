@@ -28,6 +28,7 @@ import { ensureDefaultPosition } from "../position/service";
 import { recalculateOpenRecruitmentStatsForShops } from "../recruitment/stats";
 import { updateShopSettingsSchema } from "../shop/schemas";
 import { editStaffSchema } from "../staff/schemas";
+import { hasCanonicalStaffIdentity } from "../staff/service";
 import { type OrganizationActor, requireOrganizationActorForShop, requireOrganizationReadActor } from "./access";
 import { type OrganizationAuditAction, recordOrganizationAuditEvent } from "./audit";
 import { getOrganizationDeletionEligibility } from "./deletion";
@@ -50,11 +51,11 @@ import {
   requireOrganizationPersonWithoutManagerRole,
 } from "./service";
 import { safelyDeactivateOrganizationStaffOrder, syncActivatedOrganizationStaffOrder } from "./staffOrder";
-import { organizationShopOperatingStatusValidator } from "./validators";
 
 const shopMutationResultValidator = v.object({
   shopId: v.id("shops"),
-  shopStatus: organizationShopOperatingStatusValidator,
+  // 旧frontendとのrolling compatibility。店舗status廃止後は非削除店舗だけが返る。
+  shopStatus: v.literal("active"),
   changed: v.boolean(),
 });
 
@@ -90,21 +91,15 @@ export function classifyAccountDeletionOrganizationDepartureError(error: unknown
   return null;
 }
 
-function shopStatus(shop: Doc<"shops">) {
-  // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
-  return shop.operatingStatus ?? ("active" as const);
+function shopMutationResult(shopId: Id<"shops">, changed: boolean) {
+  return { shopId, shopStatus: "active" as const, changed };
 }
 
-function shopMutationResult(shopId: Id<"shops">, shopStatus: "active" | "archived", changed: boolean) {
-  return { shopId, shopStatus, changed };
-}
-
-async function getPriorShopOperation(
+async function getPriorAddedShop(
   ctx: MutationCtx,
   args: {
     correlationId: string;
     organizationId: Id<"organizations">;
-    expectedShopId?: Id<"shops">;
   },
 ) {
   const audit = await ctx.db
@@ -113,11 +108,11 @@ async function getPriorShopOperation(
     .first();
   if (!audit) return null;
   const shopId = audit.targetId ? ctx.db.normalizeId("shops", audit.targetId) : null;
-  if (!shopId || (args.expectedShopId && shopId !== args.expectedShopId)) {
+  if (!shopId) throw new ConvexError("以前の操作結果を確認できません");
+  const shop = await ctx.db.get(shopId);
+  if (!shop || shop.organizationId !== args.organizationId || shop.isDeleted) {
     throw new ConvexError("以前の操作結果を確認できません");
   }
-  const shop = await ctx.db.get(shopId);
-  if (!shop || shop.organizationId !== args.organizationId) throw new ConvexError("以前の操作結果を確認できません");
   return shop;
 }
 
@@ -326,21 +321,20 @@ async function addShopForActor(
   const requestId = await toAuditRequestKey(args.requestId);
   const organization = actor.organization;
   const correlationId = `${organization._id}:shop:add:${requestId}`;
-  const priorShop = await getPriorShopOperation(ctx, { correlationId, organizationId: organization._id });
-  if (priorShop) return shopMutationResult(priorShop._id, "active", false);
+  const priorShop = await getPriorAddedShop(ctx, { correlationId, organizationId: organization._id });
+  if (priorShop) return shopMutationResult(priorShop._id, false);
 
   // 店舗追加は複数店舗機能なので、Freeでは空きがあっても許可しない。
   await requireOrganizationPaidFeature(ctx, organization._id);
   await requireOrganizationCapacity(ctx, {
     organizationId: organization._id,
-    additionalActiveShops: 1,
+    additionalShops: 1,
   });
   await validateCanonicalManagersForShopAddition(ctx, organization._id);
 
   const now = Date.now();
   const shopId = await ctx.db.insert("shops", {
     organizationId: organization._id,
-    operatingStatus: "active",
     name: parsed.data.shopName,
     regularClosedDays: WEEKDAY_ORDER.filter((day) => parsed.data.regularClosedDays.includes(day)),
     submissionPattern: normalizeSubmissionPattern(parsed.data.submissionPattern),
@@ -355,7 +349,6 @@ async function addShopForActor(
     action: "organization.shop_added",
     targetKind: "shop",
     targetId: shopId,
-    toState: "active",
     correlationId,
     occurredAt: now,
     analyticsEvent: {
@@ -369,7 +362,7 @@ async function addShopForActor(
       },
     },
   });
-  return shopMutationResult(shopId, "active", true);
+  return shopMutationResult(shopId, true);
 }
 
 const addShopArgs = {
@@ -410,136 +403,6 @@ export const addShopForOrganization = organizationMutation({
       member: ctx.organizationMember,
       person: ctx.organizationPerson,
     }),
-});
-
-async function authorizeShopStateChange(
-  ctx: MutationCtx,
-  args: {
-    user: Doc<"users"> | null;
-    shopId: Id<"shops">;
-    operation: "archive" | "reactivate";
-  },
-) {
-  const actor = await requireOrganizationActorForShop(ctx, { user: args.user, shopId: args.shopId });
-  const billingState = await requireOrganizationBillingState(ctx, actor.organization._id);
-  if (args.operation === "archive") {
-    await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
-      organizationId: actor.organization._id,
-      personId: actor.person._id,
-      capability: "archiveShop",
-    });
-  } else {
-    await requireOrganizationBusinessWrite(ctx, actor.organization._id);
-  }
-  return { actor, billingState };
-}
-
-async function recordShopStateChange(
-  ctx: MutationCtx,
-  args: {
-    actorUserId: Id<"users">;
-    actorPersonId: Id<"organizationPeople">;
-    organizationId: Id<"organizations">;
-    shopId: Id<"shops">;
-    action: OrganizationAuditAction;
-    fromState: "active" | "archived";
-    toState: "active" | "archived";
-    correlationId: string;
-    occurredAt: number;
-  },
-) {
-  await recordOrganizationAuditEvent(ctx, {
-    organizationId: args.organizationId,
-    actorUserId: args.actorUserId,
-    actorPersonId: args.actorPersonId,
-    action: args.action,
-    targetKind: "shop",
-    targetId: args.shopId,
-    fromState: args.fromState,
-    toState: args.toState,
-    correlationId: args.correlationId,
-    occurredAt: args.occurredAt,
-  });
-}
-
-export const archiveShop = authenticatedMutation({
-  args: { shopId: v.id("shops"), requestId: v.string() },
-  returns: shopMutationResultValidator,
-  handler: async (ctx, args) => {
-    const requestId = await toAuditRequestKey(args.requestId);
-    const { actor } = await authorizeShopStateChange(ctx, {
-      user: ctx.user,
-      shopId: args.shopId,
-      operation: "archive",
-    });
-    const correlationId = `${actor.organization._id}:shop:archive:${actor.shop._id}:${requestId}`;
-    const priorShop = await getPriorShopOperation(ctx, {
-      correlationId,
-      organizationId: actor.organization._id,
-      expectedShopId: actor.shop._id,
-    });
-    if (priorShop) return shopMutationResult(priorShop._id, "archived", false);
-
-    const fromState = shopStatus(actor.shop);
-    if (fromState === "archived") return shopMutationResult(actor.shop._id, "archived", false);
-    const now = Date.now();
-    await ctx.db.patch(actor.shop._id, { operatingStatus: "archived" });
-    await syncActivatedOrganizationStaffOrder(ctx, { organizationId: actor.organization._id });
-    await recordShopStateChange(ctx, {
-      actorUserId: actor.member.userId,
-      actorPersonId: actor.person._id,
-      organizationId: actor.organization._id,
-      shopId: actor.shop._id,
-      action: "organization.shop_archived",
-      fromState,
-      toState: "archived",
-      correlationId,
-      occurredAt: now,
-    });
-    return shopMutationResult(actor.shop._id, "archived", true);
-  },
-});
-
-export const reactivateShop = authenticatedMutation({
-  args: { shopId: v.id("shops"), requestId: v.string() },
-  returns: shopMutationResultValidator,
-  handler: async (ctx, args) => {
-    const requestId = await toAuditRequestKey(args.requestId);
-    const { actor } = await authorizeShopStateChange(ctx, {
-      user: ctx.user,
-      shopId: args.shopId,
-      operation: "reactivate",
-    });
-    const correlationId = `${actor.organization._id}:shop:reactivate:${actor.shop._id}:${requestId}`;
-    const priorShop = await getPriorShopOperation(ctx, {
-      correlationId,
-      organizationId: actor.organization._id,
-      expectedShopId: actor.shop._id,
-    });
-    if (priorShop) return shopMutationResult(priorShop._id, "active", false);
-
-    const fromState = shopStatus(actor.shop);
-    if (fromState === "active") return shopMutationResult(actor.shop._id, "active", false);
-    await requireOrganizationCapacity(ctx, {
-      organizationId: actor.organization._id,
-      additionalActiveShops: 1,
-    });
-    const now = Date.now();
-    await ctx.db.patch(actor.shop._id, { operatingStatus: "active" });
-    await syncActivatedOrganizationStaffOrder(ctx, { organizationId: actor.organization._id });
-    await recordShopStateChange(ctx, {
-      actorUserId: actor.member.userId,
-      actorPersonId: actor.person._id,
-      organizationId: actor.organization._id,
-      shopId: actor.shop._id,
-      action: "organization.shop_reactivated",
-      fromState,
-      toState: "active",
-      correlationId,
-      occurredAt: now,
-    });
-    return shopMutationResult(actor.shop._id, "active", true);
-  },
 });
 
 /**
@@ -642,7 +505,6 @@ export const deleteShop = authenticatedMutation({
       action: "organization.shop_deleted",
       targetKind: "shop",
       targetId: actor.shop._id,
-      fromState: shopStatus(actor.shop),
       toState: "deleted",
       correlationId,
       occurredAt: now,
@@ -1298,7 +1160,7 @@ async function prepareFullOrganizationPersonRemoval(
   const billingReferenceUpdate = planBillingReferenceUpdate(args.billingState, args.person._id);
   if (args.member?.status === "active") {
     const hasOtherManager = await hasOtherValidActiveManager(ctx, args.actor.organization._id, args.person._id);
-    if (!hasOtherManager) throw new ConvexError("管理者は削除できません。");
+    if (!hasOtherManager) throw new ConvexError("管理権限を外してから削除してください。");
   }
 
   const staffQuery = ctx.db
@@ -1549,9 +1411,6 @@ export const removePersonFromShop = authenticatedMutation({
     }
 
     const actor = await requireOrganizationActorForShop(ctx, { user: ctx.user, shopId: args.shopId });
-    if (shopStatus(actor.shop) !== "active") {
-      throw new ConvexError("稼働中の店舗だけ所属を変更できます");
-    }
     await requireOrganizationBusinessWrite(ctx, actor.organization._id);
     const { audit, correlationId } = await findPersonRemovalAudit(ctx, {
       organizationId: actor.organization._id,
@@ -1565,9 +1424,9 @@ export const removePersonFromShop = authenticatedMutation({
     if (
       !staff ||
       staff.isDeleted ||
+      !hasCanonicalStaffIdentity(staff) ||
       staff.shopId !== actor.shop._id ||
-      staff.organizationId !== actor.organization._id ||
-      !staff.organizationPersonId
+      staff.organizationId !== actor.organization._id
     ) {
       throw new ConvexError("Not found");
     }
@@ -1619,7 +1478,7 @@ export const removePersonFromShop = authenticatedMutation({
         payload: {
           kind: "staffMembership",
           staffId: staff._id,
-          ...(staff.organizationPersonId ? { organizationPersonId: staff.organizationPersonId } : {}),
+          organizationPersonId: staff.organizationPersonId,
           status: "removed",
           isShiftTarget: !staff.excludedFromShift,
           validFrom: now,

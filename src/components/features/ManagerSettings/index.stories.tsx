@@ -191,9 +191,9 @@ export const AtCapacity: Story = {
       usage: { ...overview.usage, activeManagers: 5, projectedManagers: 5, maxManagers: 5 },
       actions: {
         canInviteExistingStaff: false,
-        existingStaffDisabledReason: "管理者と招待中の管理者は、組織全体で5名までです。",
+        existingStaffDisabledReason: "これ以上管理者を追加できません。",
         canInviteExternal: false,
-        externalDisabledReason: "管理者と招待中の管理者は、組織全体で5名までです。",
+        externalDisabledReason: "これ以上管理者を追加できません。",
       },
       invitations: [{ ...overview.invitations[0], status: "limitReached" }],
     },
@@ -363,7 +363,7 @@ export const CandidateUnavailableAtCapacity: Story = {
           actions: {
             ...overview.actions,
             canInviteExistingStaff: false,
-            existingStaffDisabledReason: "管理者と招待中の管理者は、組織全体で5名までです。",
+            existingStaffDisabledReason: "これ以上管理者を追加できません。",
           },
         }}
         result={{ kind: "ready", candidates }}

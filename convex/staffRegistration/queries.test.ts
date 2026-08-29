@@ -58,36 +58,14 @@ describe("staffRegistration/queries", () => {
       });
     });
 
-    it.each(["archived"] as const)("%s状態の店舗は登録ページに店舗情報を返さない", async (blockedState) => {
-      const t = convexTest(schema, modules);
-      const token = `blocked-registration-page-${blockedState}`;
-      await t.run(async (ctx) => {
-        const seeded = await seedOrganizationManagerShop(ctx, {
-          subject: `blocked_registration_page_${blockedState}`,
-          plan: "pro",
-        });
-        await ctx.db.patch(seeded.shopId, { operatingStatus: blockedState });
-        await ctx.db.insert("shopRegistrationLinks", {
-          shopId: seeded.shopId,
-          token,
-          createdAt: Date.now(),
-        });
-      });
-
-      await expect(t.query(api.staffRegistration.queries.getRegistrationPageData, { token })).resolves.toEqual({
-        status: "expired",
-        documents: getLegalDocumentsForAudience("staff"),
-      });
-    });
-
     it("存在しない・失効済みtokenと削除済み店舗はexpiredを返す", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
-        const activeShopId = await seedShop(ctx, "有効店舗");
+        const revokedLinkShopId = await seedShop(ctx, "登録link失効店舗");
         const deletedShopId = await seedShop(ctx, "削除済み店舗");
         await ctx.db.patch(deletedShopId, { isDeleted: true });
         await ctx.db.insert("shopRegistrationLinks", {
-          shopId: activeShopId,
+          shopId: revokedLinkShopId,
           token: "revoked-registration-token",
           createdAt: Date.now(),
           revokedAt: Date.now(),
@@ -264,9 +242,9 @@ describe("staffRegistration/queries", () => {
       });
     });
 
-    it("対象店舗の重複だけを承認不可にし、同じ人物の別稼働店舗所属は承認可能にする", async () => {
+    it("対象店舗の重複だけを承認不可にし、別店舗所属と削除済み店舗の所属は承認可能にする", async () => {
       const t = convexTest(schema, modules);
-      const { targetShopId, activeOtherRequestId } = await t.run(async (ctx) => {
+      const { targetShopId, otherShopRequestId } = await t.run(async (ctx) => {
         const seeded = await seedOrganizationManagerShop(ctx, {
           subject: "registration_approval_visibility_manager",
           email: "registration-approval-visibility-manager@example.com",
@@ -274,21 +252,19 @@ describe("staffRegistration/queries", () => {
           complimentary: true,
         });
         const now = Date.now();
-        const activeOtherShopId = await ctx.db.insert("shops", {
+        const otherShopId = await ctx.db.insert("shops", {
           organizationId: seeded.organizationId,
-          operatingStatus: "active",
-          name: "別の稼働店舗",
+          name: "別の店舗",
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           regularClosedDays: [],
           isDeleted: false,
         });
-        const archivedOtherShopId = await ctx.db.insert("shops", {
+        const deletedOtherShopId = await ctx.db.insert("shops", {
           organizationId: seeded.organizationId,
-          operatingStatus: "archived",
-          name: "別の終了店舗",
+          name: "別の削除済み店舗",
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           regularClosedDays: [],
-          isDeleted: false,
+          isDeleted: true,
         });
 
         const createPerson = async (email: string) =>
@@ -303,8 +279,8 @@ describe("staffRegistration/queries", () => {
           });
         await createPerson("no-membership@example.com");
         const targetOnlyPersonId = await createPerson("target-only@example.com");
-        const activeOtherPersonId = await createPerson("other-active@example.com");
-        const archivedPersonId = await createPerson("other-archived@example.com");
+        const otherShopPersonId = await createPerson("other-shop@example.com");
+        const deletedShopPersonId = await createPerson("deleted-shop@example.com");
 
         await ctx.db.insert("staffs", {
           shopId: seeded.shopId,
@@ -317,22 +293,22 @@ describe("staffRegistration/queries", () => {
           isDeleted: false,
         });
         await ctx.db.insert("staffs", {
-          shopId: activeOtherShopId,
+          shopId: otherShopId,
           organizationId: seeded.organizationId,
-          organizationPersonId: activeOtherPersonId,
-          name: "別の稼働店舗スタッフ",
-          email: "other-active@example.com",
-          emailNormalized: "other-active@example.com",
+          organizationPersonId: otherShopPersonId,
+          name: "別店舗スタッフ",
+          email: "other-shop@example.com",
+          emailNormalized: "other-shop@example.com",
           excludedFromShift: false,
           isDeleted: false,
         });
         await ctx.db.insert("staffs", {
-          shopId: archivedOtherShopId,
+          shopId: deletedOtherShopId,
           organizationId: seeded.organizationId,
-          organizationPersonId: archivedPersonId,
-          name: "別の終了店舗スタッフ",
-          email: "other-archived@example.com",
-          emailNormalized: "other-archived@example.com",
+          organizationPersonId: deletedShopPersonId,
+          name: "削除済み店舗スタッフ",
+          email: "deleted-shop@example.com",
+          emailNormalized: "deleted-shop@example.com",
           excludedFromShift: false,
           isDeleted: false,
         });
@@ -377,8 +353,8 @@ describe("staffRegistration/queries", () => {
           { name: "新規人物", email: "new-person@example.com" },
           { name: "所属なし", email: "no-membership@example.com" },
           { name: "対象店舗だけ", email: "target-only@example.com" },
-          { name: "別の稼働店舗", email: "other-active@example.com" },
-          { name: "別の終了店舗", email: "other-archived@example.com" },
+          { name: "別店舗", email: "other-shop@example.com" },
+          { name: "削除済み店舗", email: "deleted-shop@example.com" },
           { name: "別組織だけ", email: "cross-tenant@example.com" },
         ];
         const requestIds = new Map<string, string>();
@@ -390,9 +366,9 @@ describe("staffRegistration/queries", () => {
           });
           requestIds.set(request.name, requestId);
         }
-        const activeOtherRequestId = requestIds.get("別の稼働店舗");
-        if (!activeOtherRequestId) throw new Error("active other shop request fixture was not created");
-        return { targetShopId: seeded.shopId, activeOtherRequestId };
+        const otherShopRequestId = requestIds.get("別店舗");
+        if (!otherShopRequestId) throw new Error("other shop request fixture was not created");
+        return { targetShopId: seeded.shopId, otherShopRequestId };
       });
 
       const result = await t
@@ -416,12 +392,12 @@ describe("staffRegistration/queries", () => {
           approveDisabledReason: "この申請は現在承認できません。不要な申請は却下できます。",
         },
         {
-          _id: activeOtherRequestId,
-          name: "別の稼働店舗",
+          _id: otherShopRequestId,
+          name: "別店舗",
           canApprove: true,
           approveDisabledReason: null,
         },
-        { _id: expect.any(String), name: "別の終了店舗", canApprove: true, approveDisabledReason: null },
+        { _id: expect.any(String), name: "削除済み店舗", canApprove: true, approveDisabledReason: null },
         { _id: expect.any(String), name: "別組織だけ", canApprove: true, approveDisabledReason: null },
       ]);
     });
@@ -601,34 +577,30 @@ describe("staffRegistration/queries", () => {
       ]);
     });
 
-    it.each([
-      ["canonical", true],
-      ["legacy", false],
-    ])("対象店舗に同emailの%s staffがいる申請は承認不可にする", async (_label, canonical) => {
+    it("対象店舗に同emailのstaffがいる申請は承認不可にする", async () => {
       const t = convexTest(schema, modules);
       const { subject, shopId } = await t.run(async (ctx) => {
-        const subject = `existing_registration_staff_${canonical ? "canonical" : "legacy"}`;
+        const subject = "existing_registration_staff";
         const seeded = await seedOrganizationManagerShop(ctx, { subject, complimentary: true });
         const now = Date.now();
-        const email = canonical ? "existing-registration@example.com" : "Legacy-Existing@Example.com";
+        const email = "existing-registration@example.com";
         const emailNormalized = email.toLowerCase();
-        const organizationPersonId = canonical
-          ? await ctx.db.insert("organizationPeople", {
-              organizationId: seeded.organizationId,
-              name: "既存スタッフ",
-              email,
-              emailNormalized,
-              status: "active",
-              createdAt: now,
-              updatedAt: now,
-            })
-          : undefined;
+        const organizationPersonId = await ctx.db.insert("organizationPeople", {
+          organizationId: seeded.organizationId,
+          name: "既存スタッフ",
+          email,
+          emailNormalized,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        });
         await ctx.db.insert("staffs", {
           shopId: seeded.shopId,
           organizationId: seeded.organizationId,
-          ...(organizationPersonId ? { organizationPersonId, emailNormalized } : {}),
+          organizationPersonId,
           name: "既存スタッフ",
           email,
+          emailNormalized,
           excludedFromShift: false,
           isDeleted: false,
         });

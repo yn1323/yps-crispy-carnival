@@ -83,7 +83,6 @@ export function StaffManagement({
   const showOrganizationPeopleAddition = organizationShopCount === undefined || organizationShopCount > 1;
   const invitation = useStaffInvitation(isReadOnly, showOrganizationPeopleAddition, onOpenBillingSettings);
   const handleOpenDetail = (staff: Staff) => {
-    if (!staff.organizationPersonId) return;
     onOpenStaffDetail?.(staff.organizationPersonId, visibleStaffCount);
   };
 

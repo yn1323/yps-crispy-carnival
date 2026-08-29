@@ -9,10 +9,9 @@ import { modules, schema } from "../_test/setup.test-helper";
 
 const NOW = new Date("2026-08-20T00:00:00.000Z").getTime();
 
-async function seedActiveShop(ctx: MutationCtx, organizationId: Id<"organizations">, name: string) {
+async function seedShop(ctx: MutationCtx, organizationId: Id<"organizations">, name: string) {
   return await ctx.db.insert("shops", {
     organizationId,
-    operatingStatus: "active",
     name,
     submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     regularClosedDays: [],
@@ -66,7 +65,7 @@ describe("スタッフ並び順のライフサイクルシナリオ", () => {
         email: "staff-order-lifecycle-manager@example.com",
         complimentary: true,
       });
-      const secondaryShopId = await seedActiveShop(ctx, base.organizationId, "並び順サブ店舗");
+      const secondaryShopId = await seedShop(ctx, base.organizationId, "並び順サブ店舗");
       const personId = await ctx.db.insert("organizationPeople", {
         organizationId: base.organizationId,
         name: "並び順対象スタッフ",

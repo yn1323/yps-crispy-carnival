@@ -52,7 +52,6 @@ const candidatePersonId = "person-candidate" as Id<"organizationPeople">;
 const firstShopCandidatePersonId = "person-first-shop-candidate" as Id<"organizationPeople">;
 const managerStaffId = "staff-manager" as Id<"staffs">;
 const staffStaffId = "staff-staff" as Id<"staffs">;
-const preservedStaffId = "staff-preserved" as Id<"staffs">;
 
 const membershipData: ShopStaffMembershipData = {
   membershipFingerprint: "a".repeat(64),
@@ -108,7 +107,6 @@ const membershipData: ShopStaffMembershipData = {
       changeDisabledReason: null,
     },
   ],
-  preservedStaffs: [],
 };
 
 const readyRemovalPreview: Extract<ShopStaffMembershipRemovalPreview, { kind: "ready" }> = {
@@ -208,9 +206,9 @@ export const ReadOnly: Story = {
     shop: {
       ...shop,
       canUpdateSettings: false,
-      settingsDisabledReason: "現在の契約状態では、店舗情報を変更できません。",
+      settingsDisabledReason: "現在のプランでは、店舗情報を変更できません。",
       canDelete: false,
-      deleteDisabledReason: "現在の契約状態では、この店舗を削除できません。",
+      deleteDisabledReason: "現在のプランでは、この店舗を削除できません。",
     },
   },
 };
@@ -422,7 +420,7 @@ export const StaffMembershipReadOnlyTriggerBehavior: Story = {
     shop: {
       ...shop,
       canUpdateSettings: false,
-      settingsDisabledReason: "現在の契約状態では、店舗情報を変更できません。",
+      settingsDisabledReason: "現在のプランでは、店舗情報を変更できません。",
     },
   },
   play: async ({ canvasElement }) => {
@@ -471,8 +469,10 @@ export const StaffMembershipAdditionBehavior: Story = {
     await expect(candidate).toHaveAccessibleDescription(/スタッフ。所属：池袋店。/);
     await expect(content.queryByText("jiro.suzuki@example.com")).not.toBeInTheDocument();
     await userEvent.click(candidate);
-    await expect(content.getByText(/案内を予約します/)).toBeInTheDocument();
-    await expect(content.queryByText("シフト割り当てから削除")).not.toBeInTheDocument();
+    await expect(content.getByText("店舗に追加")).toBeInTheDocument();
+    await expect(content.getAllByText("店舗に追加")).toHaveLength(1);
+    await expect(content.getByText("新規追加スタッフへ募集中シフトを送信します。")).toBeInTheDocument();
+    await expect(content.queryByText("店舗から外れるスタッフがいます")).not.toBeInTheDocument();
     await userEvent.click(content.getByRole("button", { name: "変更する" }));
 
     await waitFor(() => {
@@ -501,12 +501,14 @@ export const StaffMembershipRemovalBehavior: Story = {
         name: "田中 太郎を所属スタッフにする",
       }),
     );
-    await expect(content.getByText("この店舗から外す")).toBeInTheDocument();
-    await expect(content.getByText("変更後、この店舗の管理者は0名になります")).toBeInTheDocument();
-    await expect(content.getByText("シフト割り当てから削除")).toBeInTheDocument();
-    await expect(content.getByText("シフト通知は届かなくなります")).toBeInTheDocument();
+    await expect(content.getByText("店舗から外す")).toBeInTheDocument();
+    await expect(content.queryByText("店舗に追加")).not.toBeInTheDocument();
+    await expect(content.getByText("店舗の管理者は0名になります")).toBeInTheDocument();
+    await expect(content.getByText("店舗から外れるスタッフがいます")).toBeInTheDocument();
+    await expect(content.getByText(/店舗から外れると、今日以降のシフトから削除されます。/)).toBeInTheDocument();
+    await expect(content.getByText(/この店舗のシフト通知は届かなくなります。/)).toBeInTheDocument();
     await expect(content.getByRole("checkbox", { name: "田中 太郎を所属スタッフにする" })).toHaveAccessibleDescription(
-      /シフト割り当てから削除.*シフト通知は届かなくなります/,
+      /店舗から外れるスタッフがいます.*今日以降のシフトから削除されます.*シフト通知は届かなくなります/,
     );
     await expect(content.queryByText(/過去のシフト記録/)).not.toBeInTheDocument();
     await expect(content.queryByText(/シフト割り当て.*件/)).not.toBeInTheDocument();
@@ -528,6 +530,31 @@ export const StaffMembershipRemovalBehavior: Story = {
   },
 };
 
+export const StaffMembershipMultipleRemovalCalloutBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <MembershipDialogHarness />,
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", {
+      name: "所属スタッフを変更",
+    });
+    const content = within(dialog);
+    const manager = content.getByRole("checkbox", { name: "田中 太郎を所属スタッフにする" });
+    const staff = content.getByRole("checkbox", { name: "佐藤 花子を所属スタッフにする" });
+
+    await userEvent.click(manager);
+    await expect(manager).not.toBeChecked();
+    await userEvent.click(staff);
+    await expect(staff).not.toBeChecked();
+
+    await expect(content.getAllByText("店舗から外す")).toHaveLength(2);
+    await expect(content.getAllByText("店舗から外れるスタッフがいます")).toHaveLength(1);
+    await expect(content.getAllByText(/店舗から外れると、今日以降のシフトから削除されます。/)).toHaveLength(1);
+    await expect(content.getAllByText(/この店舗のシフト通知は届かなくなります。/)).toHaveLength(1);
+    await expect(manager).toHaveAccessibleDescription(/店舗から外れるスタッフがいます.*シフト通知は届かなくなります/);
+    await expect(staff).toHaveAccessibleDescription(/店舗から外れるスタッフがいます.*シフト通知は届かなくなります/);
+  },
+};
+
 export const StaffMembershipRemovalToggleBehavior: Story = {
   parameters: { screenshot: { skip: true } },
   render: () => <MembershipDialogHarness />,
@@ -542,12 +569,12 @@ export const StaffMembershipRemovalToggleBehavior: Story = {
 
     await userEvent.click(removedPerson);
     await expect(removedPerson).not.toBeChecked();
-    await expect(content.getByText("シフト割り当てから削除")).toBeInTheDocument();
+    await expect(content.getByText("店舗から外れるスタッフがいます")).toBeInTheDocument();
 
     await userEvent.click(removedPerson);
     await expect(removedPerson).toBeChecked();
-    await waitFor(() => expect(content.queryByText("シフト割り当てから削除")).not.toBeInTheDocument());
-    await expect(content.queryByText("変更後、この店舗の管理者は0名になります")).not.toBeInTheDocument();
+    await waitFor(() => expect(content.queryByText("店舗から外れるスタッフがいます")).not.toBeInTheDocument());
+    await expect(content.queryByText("店舗の管理者は0名になります")).not.toBeInTheDocument();
     await expect(content.getByRole("button", { name: "変更する" })).toBeDisabled();
   },
 };
@@ -560,7 +587,7 @@ export const StaffMembershipRemovalState: Story = {
     });
     const content = within(dialog);
     await userEvent.click(content.getByRole("checkbox", { name: "田中 太郎を所属スタッフにする" }));
-    await content.findByText("シフト割り当てから削除");
+    await content.findByText("店舗から外れるスタッフがいます");
   },
 };
 
@@ -591,45 +618,6 @@ export const StaffMembershipRemoveAllWarningBehavior: Story = {
       }),
     );
     await expect(content.getByText("変更後、この店舗のスタッフは0名になります")).toBeInTheDocument();
-  },
-};
-
-export const StaffMembershipPreservedStaffBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  render: () => (
-    <MembershipDialogHarness
-      data={{
-        ...membershipData,
-        people: membershipData.people.filter((person) => person.personId === managerPersonId),
-        preservedStaffs: [
-          {
-            staffId: preservedStaffId,
-            name: "移行中スタッフ",
-            email: "legacy.staff@example.com",
-            changeDisabledReason: "移行中のスタッフは、この画面では所属を変更できません。",
-          },
-        ],
-      }}
-    />
-  ),
-  play: async () => {
-    const dialog = await screen.findByRole("dialog", {
-      name: "所属スタッフを変更",
-    });
-    const content = within(dialog);
-    const preserved = content.getByRole("checkbox", {
-      name: "移行中スタッフは所属スタッフです",
-    });
-
-    await expect(preserved).toBeChecked();
-    await expect(preserved).toBeDisabled();
-    await expect(preserved).toHaveAccessibleDescription("移行中のスタッフは、この画面では所属を変更できません。");
-    await userEvent.click(
-      content.getByRole("checkbox", {
-        name: "田中 太郎を所属スタッフにする",
-      }),
-    );
-    await expect(content.queryByText("変更後、この店舗のスタッフは0名になります")).not.toBeInTheDocument();
   },
 };
 
@@ -667,7 +655,8 @@ export const StaffMembershipPreviewLoadingBehavior: Story = {
     });
 
     await userEvent.click(removedPerson);
-    await expect(content.getByText("シフト割り当てから削除")).toBeInTheDocument();
+    await expect(content.getByText("店舗から外れるスタッフがいます")).toBeInTheDocument();
+    await expect(content.getByRole("status")).toHaveTextContent("変更内容を確認しています…");
     await expect(content.getByRole("button", { name: "変更する" })).toBeDisabled();
     await expect(content.getByRole("button", { name: "キャンセル" })).toBeEnabled();
     await expect(removedPerson).toBeEnabled();
@@ -704,7 +693,9 @@ export const StaffMembershipUnknownResultRetryBehavior: Story = {
     );
     await userEvent.click(content.getByRole("button", { name: "変更する" }));
 
-    await expect(await content.findByText(/前回の結果が不明な場合は、同じ内容で再試行できます/)).toBeInTheDocument();
+    await expect(
+      await content.findByText("他管理者が更新した可能性があります。画面を再読み込みしてください。"),
+    ).toBeInTheDocument();
     await userEvent.click(content.getByRole("button", { name: "変更する" }));
 
     await waitFor(() => {
@@ -758,15 +749,8 @@ export const StaffMembershipRemovalRejectedResultBehavior: Story = {
     await waitFor(() => expect(submitButton).toBeEnabled());
     await userEvent.click(submitButton);
 
-    await expect(content.getByText(/シフトの割り当てが変更されました/)).toBeInTheDocument();
+    await expect(content.queryByText(/シフトの割り当てが変更されました/)).not.toBeInTheDocument();
     await expect(canvas.getByTestId("staff-membership-removal-rejected-inputs")).toHaveTextContent("requestId");
-
-    await waitFor(() => expect(submitButton).toBeEnabled());
-    await userEvent.click(submitButton);
-    const inputs = JSON.parse(
-      canvas.getByTestId("staff-membership-removal-rejected-inputs").textContent ?? "[]",
-    ) as ShopStaffMembershipChangeInput[];
-    await expect(inputs).toHaveLength(2);
   },
 };
 
@@ -1028,7 +1012,6 @@ function MembershipRemovalRejectedResultHarness() {
   const [previewKey, setPreviewKey] = useState<string>();
   const previewKeyRef = useRef<string | undefined>(undefined);
   const [inputs, setInputs] = useState<ShopStaffMembershipChangeInput[]>([]);
-  const [errorMessage, setErrorMessage] = useState<string>();
   const ensureRemovalPreview = useCallback(
     (
       personIds: Parameters<ShopStaffMembershipDialogController["ensureRemovalPreview"]>[0],
@@ -1046,10 +1029,8 @@ function MembershipRemovalRejectedResultHarness() {
     previewKeyRef.current = undefined;
     setPreviewKey(undefined);
   }, []);
-  const clearError = useCallback(() => setErrorMessage(undefined), []);
   const submitChange = useCallback(async (input: ShopStaffMembershipChangeInput) => {
     setInputs((current) => [...current, input]);
-    setErrorMessage("今日以降のシフトの割り当てが変更されました。");
     return "rejected" as const;
   }, []);
   const controller = useMemo<ShopStaffMembershipDialogController>(
@@ -1059,13 +1040,12 @@ function MembershipRemovalRejectedResultHarness() {
         ? { kind: "ready", key: previewKey, preview: readyRemovalPreview }
         : { kind: "idle" },
       isChanging: false,
-      errorMessage,
       ensureRemovalPreview,
       clearRemovalPreview,
-      clearError,
+      clearError: () => {},
       submitChange,
     }),
-    [clearError, clearRemovalPreview, ensureRemovalPreview, errorMessage, previewKey, submitChange],
+    [clearRemovalPreview, ensureRemovalPreview, previewKey, submitChange],
   );
 
   return (

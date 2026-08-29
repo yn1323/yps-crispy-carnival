@@ -160,34 +160,6 @@ describe("buildPlanStatusCardData", () => {
       }),
     ).toMatchObject({ currentPlanName: undefined, targetPlanName: "Pro" });
   });
-
-  it("支払い猶予を支払い更新権限・期限に応じて変換する", () => {
-    expect(
-      buildPlanStatusCardData({
-        kind: "paymentIssue",
-        plan: "standard",
-        phase: "grace",
-        recoveryDeadlineAt: trialEndsAt,
-        ...actions,
-      }),
-    ).toMatchObject({
-      planName: "Standard",
-      phase: "grace",
-      recoveryDeadlineLabel: "支払い期限：2026/8/17",
-      primaryAction: { action: "updatePaymentMethod", label: "支払い方法を更新する" },
-    });
-    const unavailableIssue = buildPlanStatusCardData({
-      kind: "paymentIssue",
-      phase: "grace",
-      canManagePlan: false,
-      canUpdatePaymentMethod: false,
-    });
-    expect(unavailableIssue).toMatchObject({
-      phase: "grace",
-      description: "現在は支払い方法を更新できません。組織設定で契約状態を確認してください。",
-    });
-    expect(unavailableIssue).not.toHaveProperty("primaryAction");
-  });
 });
 
 describe("JSTの日付表示", () => {

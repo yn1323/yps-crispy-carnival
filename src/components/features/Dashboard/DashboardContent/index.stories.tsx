@@ -26,7 +26,6 @@ const shop = {
 const operationShop = {
   shopId: "shop-1",
   shopName: shop.name,
-  shopStatus: "active" as const,
   organizationId: "organization-1",
   organizationName: "たなかグループ",
   organizationPlan: "standard" as const,

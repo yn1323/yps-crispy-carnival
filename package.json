@@ -82,7 +82,8 @@
     "convex:migrate:status": "convex run --component migrations lib:getStatus --watch",
     "convex:verify-complimentary-m021-export": "tsx scripts/verifyComplimentaryBusinessM021Export.ts",
     "convex:verify-analytics-line-readiness": "tsx scripts/verifyAnalyticsLineReadinessExport.ts",
-    "convex:verify-line-common-readiness": "tsx scripts/verifyLineCommonLinkReadinessExport.ts"
+    "convex:verify-line-common-readiness": "tsx scripts/verifyLineCommonLinkReadinessExport.ts",
+    "convex:verify-shop-lifecycle-readiness": "tsx scripts/verifyShopLifecycleReadinessExport.ts"
   },
   "dependencies": {
     "@chakra-ui/react": "catalog:",

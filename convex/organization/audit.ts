@@ -9,9 +9,7 @@ export type OrganizationAuditAction =
   | "organization.name_changed"
   | "organization.billing_email_changed"
   | "organization.shop_added"
-  | "organization.shop_archived"
   | "organization.shop_deleted"
-  | "organization.shop_reactivated"
   | "organization.person_removed_from_shop"
   | "organization.person_shop_memberships_changed"
   | "organization.shop_staff_memberships_changed"
@@ -29,7 +27,6 @@ export type OrganizationAuditAction =
   | "organization.manager_invitation_linked"
   | "organization.staff_registration_link_rotated"
   | "organization.free_selection_changed"
-  | "organization.billing_grace_shortened"
   | "organization.billing_state_changed";
 
 export async function recordOrganizationAuditEvent(
@@ -93,21 +90,9 @@ async function inferAnalyticsEvent(
   if (
     args.targetKind === "shop" &&
     args.targetId &&
-    [
-      "organization.shop_added",
-      "organization.shop_archived",
-      "organization.shop_reactivated",
-      "organization.shop_deleted",
-    ].includes(args.action)
+    (args.action === "organization.shop_added" || args.action === "organization.shop_deleted")
   ) {
-    const change =
-      args.action === "organization.shop_added"
-        ? "created"
-        : args.action === "organization.shop_archived"
-          ? "archived"
-          : args.action === "organization.shop_reactivated"
-            ? "reactivated"
-            : "deleted";
+    const change = args.action === "organization.shop_added" ? "created" : "deleted";
     return {
       eventType: "shop.changed",
       shopId: args.targetId as Id<"shops">,

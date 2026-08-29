@@ -1,6 +1,6 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
-import { seedLegacyStaff, seedStaff } from "./scenarioBuilders";
+import { seedStaff } from "./scenarioBuilders";
 import {
   seedLegacyManagerShop,
   seedLegacyShop,
@@ -47,10 +47,10 @@ describe("test seed contracts", () => {
 
     expect(snapshot.managerShop).toMatchObject({
       organizationId: seeded.organizationId,
-      operatingStatus: "active",
+      isDeleted: false,
     });
     expect(snapshot.standaloneShop?.organizationId).toBeDefined();
-    expect(snapshot.standaloneShop?.operatingStatus).toBe("active");
+    expect(snapshot.standaloneShop?.isDeleted).toBe(false);
     expect(snapshot.secondMember).toMatchObject({
       organizationId: seeded.organizationId,
       status: "active",
@@ -70,7 +70,7 @@ describe("test seed contracts", () => {
     expect(snapshot.legacyMemberships).toEqual([]);
   });
 
-  it("旧形式は明示的なlegacy fixtureでだけ作る", async () => {
+  it("旧店舗形式は明示的なlegacy fixtureでだけ作る", async () => {
     const t = convexTest(schema, modules);
     const seeded = await t.run(async (ctx) => {
       const manager = await seedLegacyManagerShop(ctx, {
@@ -78,18 +78,12 @@ describe("test seed contracts", () => {
         shopName: "旧管理店舗",
       });
       const standaloneShopId = await seedLegacyShop(ctx, "旧単独店舗");
-      const staffId = await seedLegacyStaff(ctx, {
-        shopId: manager.shopId,
-        name: "旧スタッフ",
-        email: "legacy-staff@example.com",
-      });
-      return { ...manager, staffId, standaloneShopId };
+      return { ...manager, standaloneShopId };
     });
 
     const snapshot = await t.run(async (ctx) => ({
       managerShop: await ctx.db.get(seeded.shopId),
       standaloneShop: await ctx.db.get(seeded.standaloneShopId),
-      staff: await ctx.db.get(seeded.staffId),
       memberships: await ctx.db
         .query("shopMembers")
         .withIndex("by_userId_and_shopId", (q) => q.eq("userId", seeded.userId).eq("shopId", seeded.shopId))
@@ -100,8 +94,6 @@ describe("test seed contracts", () => {
     expect(snapshot.managerShop?.operatingStatus).toBeUndefined();
     expect(snapshot.standaloneShop?.organizationId).toBeUndefined();
     expect(snapshot.standaloneShop?.operatingStatus).toBeUndefined();
-    expect(snapshot.staff?.organizationId).toBeUndefined();
-    expect(snapshot.staff?.organizationPersonId).toBeUndefined();
     expect(snapshot.memberships).toHaveLength(1);
   });
 });

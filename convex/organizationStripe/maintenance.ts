@@ -1,4 +1,3 @@
-import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
@@ -8,7 +7,6 @@ import {
   observedInternalQuery as internalQuery,
 } from "../_lib/errorObservability";
 import { STRIPE_OPERATION_MAX_ATTEMPTS, STRIPE_OPERATION_RETENTION_MS } from "../constants";
-import { hasLegacyBusinessBillingState } from "../organizationBilling/policy";
 import { hasUniqueTerminalSubscriptionEvidence } from "./subscriptionEvidence";
 import { organizationStripeOperationStatusValidator, stripeWebhookEventStatusValidator } from "./validators";
 
@@ -24,7 +22,6 @@ const PROBE_ORGANIZATION_LIMIT = 100;
 const PROBE_SUBSCRIPTION_LIMIT = 500;
 const PROBE_CUSTOMER_LIMIT = 500;
 const PROBE_RELATIONSHIP_LIMIT = 100;
-const M018_DUPLICATE_BILLING_STATES_CONFLICT = "billing_business_to_pro_ambiguous_billing_states";
 
 const WEBHOOK_STATUSES = [
   "received",
@@ -79,42 +76,6 @@ const observedStatusValidator = v.object({
 const boundedCountValidator = v.object({
   observedCount: v.number(),
   hasMore: v.boolean(),
-});
-
-const legacyBusinessStateValidator = v.object({
-  billingStateId: v.id("organizationBillingStates"),
-  organizationId: v.id("organizations"),
-  stateKind: v.string(),
-});
-
-/** 全pageを走査したときだけ、legacy Businessが0件であることを証明できる運用query。 */
-export const verifyLegacyBusinessStates = internalQuery({
-  args: { paginationOpts: paginationOptsValidator },
-  returns: v.object({
-    legacyBusinessStates: v.array(legacyBusinessStateValidator),
-    legacyBusinessCount: v.number(),
-    scannedCount: v.number(),
-    isDone: v.boolean(),
-    continueCursor: v.string(),
-  }),
-  handler: async (ctx, args) => {
-    const result = await ctx.db.query("organizationBillingStates").paginate(args.paginationOpts);
-    const legacyBusinessStates = result.page
-      .filter((billing) => hasLegacyBusinessBillingState(billing.state))
-      .map((billing) => ({
-        billingStateId: billing._id,
-        organizationId: billing.organizationId,
-        stateKind: billing.state.kind,
-      }));
-
-    return {
-      legacyBusinessStates,
-      legacyBusinessCount: legacyBusinessStates.length,
-      scannedCount: result.page.length,
-      isDone: result.isDone,
-      continueCursor: result.continueCursor,
-    };
-  },
 });
 
 /**
@@ -324,7 +285,7 @@ export const recoverSafeOperations = internalMutation({
       } else {
         const actionArgs = {
           organizationId: operation.organizationId,
-          expectedBillingVersion: billing.version,
+          expectedBillingVersion: operation.expectedBillingVersion ?? billing.version,
           requestId: operation.requestKey,
         };
         if (operation.kind === "reconcileSubscription" && billing.state.kind === "initialPaymentPending") {
@@ -369,8 +330,11 @@ export const recoverSafeOperations = internalMutation({
             internal.organizationStripe.actions.reconcileTrialContinuationCancellation,
             actionArgs,
           );
-        } else if (billing.state.kind === "grace") {
-          await ctx.scheduler.runAfter(0, internal.organizationStripe.actions.stopExpiredGraceCollection, actionArgs);
+        } else if (
+          (operation.kind === "cancelSubscription" || operation.kind === "stopInvoiceCollection") &&
+          operation.recoveryPurpose === "paymentTermination"
+        ) {
+          await ctx.scheduler.runAfter(0, internal.organizationStripe.actions.finishPaymentTermination, actionArgs);
         } else if (operation.kind === "reconcileSubscription") {
           await ctx.scheduler.runAfter(
             0,
@@ -378,7 +342,9 @@ export const recoverSafeOperations = internalMutation({
             actionArgs,
           );
         } else {
-          await ctx.scheduler.runAfter(0, internal.organizationStripe.actions.stopExpiredGraceCollection, actionArgs);
+          await terminalizeRecoveryCandidate(ctx, operation, now, "billing_binding_invalid");
+          terminalizedWithoutDispatchCount += 1;
+          continue;
         }
       }
 
@@ -604,7 +570,6 @@ export const getProbe = internalQuery({
       organizationsWithMultipleStripeCustomers: boundedCountValidator,
       subscriptionsWithoutMatchingLocalCustomer: boundedCountValidator,
       stripeCustomersWithoutBillingState: boundedCountValidator,
-      unresolvedM018MigrationConflicts: boundedCountValidator,
     }),
   }),
   handler: async (ctx) => {
@@ -701,7 +666,6 @@ async function probeSafetyOperations(ctx: QueryCtx) {
     unfinishedStopInvoiceCollection,
     trialSetupCheckout,
     createTrialSubscription,
-    legacyImmediateProCheckout,
     immediatePaidCheckout,
     reconcileSubscriptionActionRequired,
   ] = await Promise.all([
@@ -709,7 +673,6 @@ async function probeSafetyOperations(ctx: QueryCtx) {
     observeOperations(ctx, "stopInvoiceCollection", UNFINISHED_OPERATION_STATUSES),
     observePriceRotationBlockingOperations(ctx, "trialSetupCheckout"),
     observePriceRotationBlockingOperations(ctx, "createTrialSubscription"),
-    observePriceRotationBlockingOperations(ctx, "immediateProCheckout"),
     observePriceRotationBlockingOperations(ctx, "immediatePaidCheckout"),
     observeOperations(ctx, "reconcileSubscription", ["actionRequired"]),
   ]);
@@ -720,7 +683,7 @@ async function probeSafetyOperations(ctx: QueryCtx) {
     priceRotationBlocking: {
       trialSetupCheckout,
       createTrialSubscription,
-      immediatePaidCheckout: combineBoundedCounts(legacyImmediateProCheckout, immediatePaidCheckout),
+      immediatePaidCheckout,
     },
     reconcileSubscriptionActionRequired,
   };
@@ -728,7 +691,7 @@ async function probeSafetyOperations(ctx: QueryCtx) {
 
 async function observePriceRotationBlockingOperations(
   ctx: QueryCtx,
-  kind: "trialSetupCheckout" | "createTrialSubscription" | "immediateProCheckout" | "immediatePaidCheckout",
+  kind: "trialSetupCheckout" | "createTrialSubscription" | "immediatePaidCheckout",
 ) {
   const statuses = [...UNFINISHED_OPERATION_STATUSES, "succeeded", "actionRequired"] as const;
   const samples = await Promise.all(
@@ -789,13 +752,6 @@ async function observeOperations(
   };
 }
 
-function combineBoundedCounts(...counts: Array<{ observedCount: number; hasMore: boolean }>) {
-  return {
-    observedCount: counts.reduce((total, count) => total + count.observedCount, 0),
-    hasMore: counts.some((count) => count.hasMore),
-  };
-}
-
 async function probeRelationshipAnomalies(ctx: QueryCtx) {
   const billingStates = await ctx.db.query("organizationBillingStates").take(PROBE_ORGANIZATION_LIMIT + 1);
   const sampled = billingStates.slice(0, PROBE_ORGANIZATION_LIMIT);
@@ -809,12 +765,6 @@ async function probeRelationshipAnomalies(ctx: QueryCtx) {
   const hasMoreCustomers = customers.length > PROBE_CUSTOMER_LIMIT;
   const customerRelationshipSample = customers.slice(0, PROBE_RELATIONSHIP_LIMIT);
   const hasMoreCustomerRelationships = customers.length > PROBE_RELATIONSHIP_LIMIT;
-  const unresolvedM018MigrationConflicts = await ctx.db
-    .query("organizationMigrationConflicts")
-    .withIndex("by_code_and_resolvedAt", (q) =>
-      q.eq("code", M018_DUPLICATE_BILLING_STATES_CONFLICT).eq("resolvedAt", undefined),
-    )
-    .take(PROBE_LIMIT_PER_STATUS + 1);
   const nonterminalSubscriptionsByOrganization = new Map<Id<"organizations">, number>();
   for (const subscription of subscriptions.slice(0, PROBE_SUBSCRIPTION_LIMIT)) {
     if (subscription.terminalAt !== undefined) continue;
@@ -916,10 +866,6 @@ async function probeRelationshipAnomalies(ctx: QueryCtx) {
     stripeCustomersWithoutBillingState: {
       observedCount: stripeCustomersWithoutBillingState,
       hasMore: hasMoreCustomerRelationships,
-    },
-    unresolvedM018MigrationConflicts: {
-      observedCount: Math.min(unresolvedM018MigrationConflicts.length, PROBE_LIMIT_PER_STATUS),
-      hasMore: unresolvedM018MigrationConflicts.length > PROBE_LIMIT_PER_STATUS,
     },
   };
 }

@@ -14,11 +14,10 @@ async function setupSubmissionPageData(
 ) {
   return await t.run(async (ctx) => {
     const shopId = await seedShop(ctx, "履歴テスト店舗");
-    const staffId = await ctx.db.insert("staffs", {
+    const staffId = await seedStaff(ctx, {
       shopId,
       name: "履歴スタッフ",
       email: "history@example.com",
-      isDeleted: false,
     });
     await ctx.db.insert("legalConsentStates", {
       subjectType: "staff",
@@ -277,18 +276,13 @@ describe("shiftSubmission/queries", () => {
       ).toBeNull();
     });
 
-    it("未リンクの移行中staffでも削除済み事業者のsessionは無効として扱う", async () => {
+    it("削除済み事業者のstaff sessionは無効として扱う", async () => {
       const t = convexTest(schema, modules);
       const { shopId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);
       await t.run(async (ctx) => {
-        const now = Date.now();
-        const organizationId = await ctx.db.insert("organizations", {
-          name: "削除済み移行テスト事業者",
-          isDeleted: true,
-          createdAt: now,
-          updatedAt: now,
-        });
-        await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
+        const shop = await ctx.db.get(shopId);
+        if (!shop?.organizationId) throw new Error("テスト用organizationが見つかりません");
+        await ctx.db.patch(shop.organizationId, { isDeleted: true, updatedAt: Date.now() });
       });
 
       const result = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
@@ -733,11 +727,10 @@ describe("shiftSubmission/queries", () => {
       const t = convexTest(schema, modules);
       const { shopId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);
       const otherStaffId = await t.run(async (ctx) =>
-        ctx.db.insert("staffs", {
+        seedStaff(ctx, {
           shopId,
           name: "別スタッフ",
           email: "other@example.com",
-          isDeleted: false,
         }),
       );
       await seedSubmission(t, { recruitmentId, staffId: otherStaffId, slots: [] });

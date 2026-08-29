@@ -6,7 +6,7 @@ import { NotificationResendCooldownNotice } from "@/src/components/shared/Notifi
 import { Button } from "@/src/components/ui/Button";
 import { formatDateShort } from "@/src/domains/shift/date";
 import { getRecruitmentDeadlineDays, getRecruitmentLifecycleStatus } from "@/src/domains/shift/recruitmentLifecycle";
-import type { UserShopDetailData, UserShopDetailMembership, UserShopDetailRecruitment } from "./types";
+import type { UserShopDetailMembership, UserShopDetailRecruitment } from "./types";
 
 type NotificationAction = {
   isDisabled: boolean;
@@ -16,7 +16,6 @@ type NotificationAction = {
 };
 
 type Props = {
-  data: UserShopDetailData;
   membership: UserShopDetailMembership;
   isReadOnly: boolean;
   isLoading: boolean;
@@ -28,7 +27,6 @@ type Props = {
 };
 
 export function UserShopNotificationSection({
-  data,
   membership,
   isReadOnly,
   isLoading,
@@ -38,9 +36,7 @@ export function UserShopNotificationSection({
   sendRecruitmentsAction,
   sendCurrentShiftAction,
 }: Props) {
-  const isLineActive = data.line.status === "linked_following";
-  const hasNotificationChannel = data.person.email.length > 0 || isLineActive;
-  const canSendNotification = !isReadOnly && !membership.excludedFromShift && hasNotificationChannel;
+  const canSendNotification = !isReadOnly && !membership.excludedFromShift;
 
   return (
     <Stack gap={10}>
@@ -57,17 +53,6 @@ export function UserShopNotificationSection({
                 <Text fontSize="xs" color="fg.muted">
                   シフト表表示、提出依頼、確定シフト通知の対象から外れています。
                   <br />
-                </Text>
-              </Stack>
-            </Box>
-          )}
-
-          {!membership.excludedFromShift && !hasNotificationChannel && (
-            <Box borderWidth="1px" borderColor="orange.200" bg="orange.50" borderRadius="md" p={3}>
-              <Stack gap={1}>
-                <Text fontWeight="semibold">通知手段がありません</Text>
-                <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-                  スタッフ情報にメールアドレスを登録するか、スタッフ詳細の「LINE連携」から設定してください。
                 </Text>
               </Stack>
             </Box>

@@ -30,7 +30,7 @@ describe("hosting report workflow contract", () => {
       comment: "Comment PR while report is deploying",
       wait: "Wait for hosted Playwright report",
       update: "Update PR comment with Playwright report",
-      fail: "Fail when Playwright report is unavailable",
+      warning: "Warn when Playwright report is unavailable",
     },
     {
       workflow: "vrt.yml",
@@ -38,25 +38,31 @@ describe("hosting report workflow contract", () => {
       comment: "Comment PR while VRT report is deploying",
       wait: "Wait for hosted VRT report",
       update: "Update PR comment with VRT report",
-      fail: "Fail when VRT report is unavailable",
+      warning: "Warn when VRT report is unavailable",
     },
-  ])("$workflow はコメント権限エラーとPages検証を分離する", ({ workflow, job, comment, wait, update, fail }) => {
-    const target = readWorkflow(workflow).jobs[job];
-    expect(target.permissions?.issues).toBe("write");
-    expect(target.permissions?.["pull-requests"]).toBe("write");
+  ])(
+    "$workflow はコメント権限エラーとPages公開timeoutをテスト結果から分離する",
+    ({ workflow, job, comment, wait, update, warning }) => {
+      const target = readWorkflow(workflow).jobs[job];
+      expect(target.permissions?.issues).toBe("write");
+      expect(target.permissions?.["pull-requests"]).toBe("write");
 
-    expect(step(target, comment)["continue-on-error"]).toBe(true);
-    expect(step(target, update)["continue-on-error"]).toBe(true);
+      expect(step(target, comment)["continue-on-error"]).toBe(true);
+      expect(step(target, update)["continue-on-error"]).toBe(true);
 
-    const waitCondition = String(step(target, wait).if);
-    expect(waitCondition).toContain("steps.publish.outputs.status");
-    expect(waitCondition).not.toContain("report_comment");
+      const waitCondition = String(step(target, wait).if);
+      expect(waitCondition).toContain("steps.publish.outputs.status");
+      expect(waitCondition).not.toContain("report_comment");
 
-    const failCondition = String(step(target, fail).if);
-    expect(failCondition).toContain("steps.publish.outputs.status");
-    expect(failCondition).toContain("steps.wait_deploy.outputs.deploy_status != 'success'");
-    expect(failCondition).not.toContain("report_comment");
-  });
+      const warningStep = step(target, warning);
+      const warningCondition = String(warningStep.if);
+      expect(warningCondition).toContain("steps.publish.outputs.status");
+      expect(warningCondition).toContain("steps.wait_deploy.outputs.deploy_status != 'success'");
+      expect(warningCondition).not.toContain("report_comment");
+      expect(String(warningStep.run)).toContain("::warning::");
+      expect(String(warningStep.run)).not.toContain("exit 1");
+    },
+  );
 
   it("保持Workflowはsource tokenでPRを読みhosting tokenでsnapshotを更新する", () => {
     const target = readWorkflow("maintain-hosted-reports.yml").jobs.prune;

@@ -41,9 +41,6 @@ export function ManagerCandidateListView({
         <Text as="h2" fontSize="lg" fontWeight="semibold" color="gray.900">
           招待するスタッフを選択
         </Text>
-        <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          一度に1名を選び、管理者として招待します。
-        </Text>
       </Stack>
 
       {!hasSelectableCandidate && (

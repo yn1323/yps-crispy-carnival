@@ -30,7 +30,7 @@ export async function seedStaff(
 ) {
   const shop = await ctx.db.get(args.shopId);
   if (!shop?.organizationId) {
-    throw new Error("seedStaff requires a canonical shop; use seedLegacyStaff explicitly");
+    throw new Error("seedStaff requires a canonical shop");
   }
   const organizationId = shop.organizationId;
 
@@ -69,29 +69,6 @@ export async function seedStaff(
     userId: args.userId,
     excludedFromShift: args.excludedFromShift ?? false,
     isDeleted: args.isDeleted ?? false,
-  });
-}
-
-/** Migration履歴・rolling互換だけで使う、organization link未設定の旧staff fixture。 */
-export async function seedLegacyStaff(
-  ctx: MutationCtx,
-  args: {
-    shopId: Id<"shops">;
-    name: string;
-    email?: string;
-    userId?: Id<"users">;
-    isDeleted?: boolean;
-    excludedFromShift?: boolean;
-  },
-) {
-  return await ctx.db.insert("staffs", {
-    shopId: args.shopId,
-    name: args.name,
-    email: args.email ?? "",
-    emailNormalized: args.email?.trim().toLowerCase() ?? "",
-    userId: args.userId,
-    isDeleted: args.isDeleted ?? false,
-    ...(args.excludedFromShift === undefined ? {} : { excludedFromShift: args.excludedFromShift }),
   });
 }
 

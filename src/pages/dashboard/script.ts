@@ -22,16 +22,16 @@ export type DashboardShopResolution =
  * 保存値は候補内に存在するときだけ利用するclient hintであり、認可には使わない。
  */
 export function resolveDashboardShop(
-  activeShops: readonly DashboardShopOption[] | null,
+  shops: readonly DashboardShopOption[] | null,
   requestedShopId?: string,
   preferredShopId?: string,
 ): DashboardShopResolution {
-  if (activeShops === null) return { kind: "loading" };
-  if (activeShops.length === 0) return { kind: "empty" };
+  if (shops === null) return { kind: "loading" };
+  if (shops.length === 0) return { kind: "empty" };
 
-  const requestedShop = requestedShopId ? activeShops.find((shop) => shop.id === requestedShopId) : undefined;
-  const preferredShop = preferredShopId ? activeShops.find((shop) => shop.id === preferredShopId) : undefined;
-  const shop = requestedShop ?? preferredShop ?? activeShops[0];
+  const requestedShop = requestedShopId ? shops.find((shop) => shop.id === requestedShopId) : undefined;
+  const preferredShop = preferredShopId ? shops.find((shop) => shop.id === preferredShopId) : undefined;
+  const shop = requestedShop ?? preferredShop ?? shops[0];
 
   return {
     kind: "ready",
@@ -93,16 +93,15 @@ function parseDashboardShopPreferences(rawValue: string | null): Record<string, 
 }
 
 export function buildDashboardShopContexts(
-  activeShops: readonly DashboardShopOption[],
+  shops: readonly DashboardShopOption[],
   organization: {
     id: string;
     name: string;
   },
 ): ShopContextOption[] {
-  return activeShops.map((shop) => ({
+  return shops.map((shop) => ({
     shopId: shop.id,
     shopName: shop.name,
-    shopStatus: "active",
     organizationId: organization.id,
     organizationName: organization.name,
     organizationPlan: null,

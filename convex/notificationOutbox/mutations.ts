@@ -22,14 +22,18 @@ import {
   RESEND_DELAYED_FAILURE_GRACE_MS,
   RESEND_DELAYED_FAILURE_RECOVERY_BATCH_SIZE,
 } from "../constants";
-import { getOrganizationPersonLineState, resolveStaffLineRecipient } from "../line/service";
+import {
+  getOrganizationPersonLineState,
+  getStaffLineAccount,
+  resolveCanonicalStaffScope,
+  resolveStaffLineRecipient,
+} from "../line/service";
 import {
   buildConfirmationSnapshotSignature,
   confirmationSnapshotInputValidator,
   upsertConfirmationSnapshotRecord,
 } from "../notification/confirmationSnapshots";
 import { buildNotificationFanoutTargetKey, isSupplementalConfirmationFanoutStale } from "../notification/fanout";
-import { billingStateReferencesBusinessPlan } from "../organizationBilling/policy";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { isOrganizationInvitationIssued } from "../organizationInvitation/lifecycle";
 import { resolveOrganizationInvitationEligibility } from "../organizationInvitation/service";
@@ -96,10 +100,6 @@ const ORGANIZATION_NOTIFICATION_CANCEL_BATCH_SIZE = 100;
 export const BULK_NOTIFICATION_CANCEL_CANDIDATE_LIMIT = 50;
 const DEFAULT_NOTIFICATION_CANCELLATION_LIMIT_ERROR =
   "未送信の案内が多いため、一括で所属を変更できません。\n対象を分けて、もう一度お試しください。";
-const BILLING_DEADLINE_CONTEXT_STATE = {
-  "organizationBilling.trialEnding": "trial",
-  "organizationBilling.graceEndingSoon": "grace",
-} as const;
 
 const failureResendResultValidator = v.union(
   v.object({ scheduled: v.literal(true) }),
@@ -1342,9 +1342,8 @@ async function getNotificationEligibility(
     return { organizationId, cancelReason: "invalid_scope" };
   }
   if (purpose === "business" && notification.shopId) {
-    // TODO[narrow]: 全deploymentでm025完走・missingOperatingStatus=0確認後はundefinedをactive扱いしない。
-    if (!shop || shop.isDeleted || (shop.operatingStatus !== undefined && shop.operatingStatus !== "active")) {
-      return { organizationId, cancelReason: "shop_inactive" };
+    if (!shop || shop.isDeleted) {
+      return { organizationId, cancelReason: "shop_deleted" };
     }
   }
   let recruitment: Doc<"recruitments"> | null = null;
@@ -1403,21 +1402,6 @@ async function getNotificationEligibility(
           : {}),
       }
     : { organizationId };
-  if (purpose === "billing" && notification.payload.kind === "email") {
-    const expectedStateKind =
-      BILLING_DEADLINE_CONTEXT_STATE[notification.payload.context as keyof typeof BILLING_DEADLINE_CONTEXT_STATE];
-    const hasLegacyBusinessCopy =
-      notification.payload.context.startsWith("organizationBilling.") &&
-      (notification.payload.subject.includes("Businessプラン") || notification.payload.html.includes("Businessプラン"));
-    if (
-      (notification.organizationBillingVersionAtEnqueue !== undefined &&
-        notification.organizationBillingVersionAtEnqueue !== billingState?.version) ||
-      (expectedStateKind && billingState?.state.kind !== expectedStateKind) ||
-      (hasLegacyBusinessCopy && (!billingState || !billingStateReferencesBusinessPlan(billingState.state)))
-    ) {
-      return { organizationId, cancelReason: "organization_billing_changed" };
-    }
-  }
   if (purpose === "business" && predatesBusinessNotificationCutoff(notification, billingContext)) {
     return { organizationId, cancelReason: "organization_billing_changed" };
   }
@@ -1535,25 +1519,67 @@ async function getStaffRecipientCancellationReason(
     staff.isDeleted ||
     (notification.recruitmentId !== undefined && !isShiftTargetStaff(staff)) ||
     (notification.shopId !== undefined && staff.shopId !== notification.shopId) ||
-    (organizationId !== undefined && staff.organizationId !== undefined && staff.organizationId !== organizationId)
+    organizationId === undefined
   ) {
     return "recipient_inactive";
   }
 
-  if (organizationId && staff.organizationPersonId) {
-    const person = await ctx.db.get(staff.organizationPersonId);
-    if (!person || person.organizationId !== organizationId || person.status !== "active") {
-      return "recipient_inactive";
-    }
+  const isUnresolvedStaff = staff.organizationId === undefined && staff.organizationPersonId === undefined;
+  if (isUnresolvedStaff) {
+    // TODO[narrow]: 全deploymentでm050完走・verifyStaffs全異常0・未解消staff conflict 0を確認後、
+    //   保存済みOutboxだけに許可する旧staff宛先の送信直前互換を削除する。
+    // enqueue入力にはcreatedAtがないため、新規通知や再発行はこの分岐を通れない。
     if (
-      notification.payload.kind === "email" &&
-      normalizeEmail(notification.payload.to) !== normalizeEmail(person.email)
+      notification.createdAt === undefined ||
+      notification.shopId === undefined ||
+      (notification.purpose ?? "business") !== "business" ||
+      isLineInviteResendContext(notificationContextForPayload(notification.payload, notification.dedupeKey ?? ""))
     ) {
       return "recipient_inactive";
     }
-  } else if (
+    const shop = await ctx.db.get(notification.shopId);
+    if (!shop || shop.isDeleted || shop.organizationId !== organizationId) {
+      return "recipient_inactive";
+    }
+    if (notification.payload.kind === "email") {
+      return staff.email.length > 0 && notification.payload.to === staff.email ? undefined : "recipient_inactive";
+    }
+    if (notification.payload.kind === "line") {
+      let lineAccount: Doc<"staffLineAccounts"> | null = null;
+      try {
+        lineAccount = await getStaffLineAccount(ctx, staff._id);
+      } catch {
+        return "recipient_inactive";
+      }
+      if (
+        !lineAccount ||
+        lineAccount.shopId !== notification.shopId ||
+        !lineAccount.following ||
+        !lineRecipientSnapshotMatches(notification, {
+          authority: "legacy",
+          lineUserId: lineAccount.lineUserId,
+        })
+      ) {
+        return "recipient_inactive";
+      }
+      return undefined;
+    }
+    return "recipient_inactive";
+  }
+  if (staff.organizationId === undefined || staff.organizationPersonId === undefined) {
+    return "recipient_inactive";
+  }
+
+  const canonicalScope = await resolveCanonicalStaffScope(ctx, {
+    staffId: staff._id,
+    ...(notification.shopId ? { shopId: notification.shopId } : {}),
+  });
+  if (!canonicalScope || canonicalScope.organization._id !== organizationId) {
+    return "recipient_inactive";
+  }
+  if (
     notification.payload.kind === "email" &&
-    normalizeEmail(notification.payload.to) !== normalizeEmail(staff.email)
+    normalizeEmail(notification.payload.to) !== normalizeEmail(canonicalScope.person.email)
   ) {
     return "recipient_inactive";
   }
@@ -1740,8 +1766,8 @@ async function cancelActiveNotification(
 }
 
 /** 店舗削除cleanupから、通常の取消と同じterminal・Failure Inbox解決契約を適用する。 */
-export async function cancelNotificationForInactiveShop(ctx: MutationCtx, job: Doc<"notificationOutbox">, now: number) {
-  return await cancelActiveNotification(ctx, job, "shop_inactive", now);
+export async function cancelNotificationForDeletedShop(ctx: MutationCtx, job: Doc<"notificationOutbox">, now: number) {
+  return await cancelActiveNotification(ctx, job, "shop_deleted", now);
 }
 
 /** 組織削除cleanupから、未送信通知を既存のterminal契約で停止する。 */
@@ -1982,17 +2008,24 @@ async function requestFailureResend(
   const resendKind = getNotificationFailureResendKind(failure.notificationContext);
   if (!resendKind) return { scheduled: false, reason: "notRetryable" as const };
 
-  const allowed = await allowFailureRetry(ctx, failure._id);
-  if (!allowed) return { scheduled: false, reason: "rateLimited" as const };
-
   const staff = await ctx.db.get(failure.staffId);
   if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted) {
     return { scheduled: false, reason: "notRetryable" as const };
   }
-  const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: staff.shopId });
-  if (!staff.email && !(lineRecipient?.lineUserId && lineRecipient.following)) {
+  const canonicalScope = await resolveCanonicalStaffScope(ctx, {
+    staffId: staff._id,
+    shopId: ctx.shop._id,
+  });
+  if (!canonicalScope) {
     return { scheduled: false, reason: "notRetryable" as const };
   }
+  const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: staff.shopId });
+  if (!canonicalScope.person.email && !(lineRecipient?.lineUserId && lineRecipient.following)) {
+    return { scheduled: false, reason: "notRetryable" as const };
+  }
+
+  const allowed = await allowFailureRetry(ctx, failure._id);
+  if (!allowed) return { scheduled: false, reason: "rateLimited" as const };
 
   const now = Date.now();
   const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
@@ -2046,28 +2079,24 @@ async function requestLineInviteResend(
 
   const staff = await ctx.db.get(failure.staffId);
   // 連携依頼はメールで送るため、メール未登録のスタッフには再送できない。
-  if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted || !staff.email) {
+  if (!staff || staff.shopId !== ctx.shop._id || staff.isDeleted) {
     return { scheduled: false, reason: "notRetryable" as const };
   }
-  const hasCanonicalOrganizationId = staff.organizationId !== undefined;
-  const hasCanonicalPersonId = staff.organizationPersonId !== undefined;
-  if (hasCanonicalOrganizationId !== hasCanonicalPersonId) {
+  const canonicalScope = await resolveCanonicalStaffScope(ctx, {
+    staffId: staff._id,
+    shopId: ctx.shop._id,
+  });
+  if (!canonicalScope?.person.email) {
     return { scheduled: false, reason: "notRetryable" as const };
   }
-  const lineState =
-    staff.organizationId && staff.organizationPersonId
-      ? await getOrganizationPersonLineState(ctx, {
-          organizationId: staff.organizationId,
-          organizationPersonId: staff.organizationPersonId,
-        })
-      : null;
-  if (hasCanonicalOrganizationId && !lineState) {
+  const lineState = await getOrganizationPersonLineState(ctx, {
+    organizationId: canonicalScope.organization._id,
+    organizationPersonId: canonicalScope.person._id,
+  });
+  if (!lineState) {
     return { scheduled: false, reason: "notRetryable" as const };
   }
-  const legacyLineRecipient = !hasCanonicalOrganizationId
-    ? await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: staff.shopId })
-    : null;
-  if ((lineState && lineState.status !== "unlinked") || legacyLineRecipient) {
+  if (lineState.status !== "unlinked") {
     await resolveSupersededFailureInbox(ctx, failure, {
       now: Date.now(),
       reservedFailureKey: failure.failureKey,
@@ -2087,12 +2116,8 @@ async function requestLineInviteResend(
   // sendInviteEmail は呼ぶたびに新しい連携トークン（マジックリンク）を発行して送り直す。
   await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
     staffId: failure.staffId,
-    ...(staff.organizationPersonId && lineState
-      ? {
-          organizationPersonId: staff.organizationPersonId,
-          lineLinkGenerationAtSchedule: lineState.generation,
-        }
-      : {}),
+    organizationPersonId: canonicalScope.person._id,
+    lineLinkGenerationAtSchedule: lineState.generation,
     ...notificationOrigin,
   });
   await markFailureRetrying(ctx, failure._id, Date.now());

@@ -13,7 +13,6 @@ const TARGET_SUBJECT = "organization_removal_target";
 async function seedShop(ctx: MutationCtx, organizationId: Id<"organizations">, name: string) {
   return await ctx.db.insert("shops", {
     organizationId,
-    operatingStatus: "active",
     name,
     submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     regularClosedDays: [],
@@ -57,13 +56,13 @@ describe("割当付き組織人物削除・再追加シナリオ", () => {
         subject: TARGET_SUBJECT,
         email: "removal-target@example.com",
         shopName: "削除対象の別グループ店舗",
-        plan: "pro",
+        plan: "standard",
       });
       const primary = await seedOrganizationManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
         email: "removal-actor@example.com",
         shopName: "人物削除メイン店舗",
-        plan: "pro",
+        plan: "standard",
       });
       const secondaryShopId = await seedShop(ctx, primary.organizationId, "人物削除サブ店舗");
       const targetPersonId = await ctx.db.insert("organizationPeople", {

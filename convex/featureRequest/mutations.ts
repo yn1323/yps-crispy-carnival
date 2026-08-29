@@ -5,7 +5,6 @@ import { authenticatedMutation, managerMutation, staffSessionMutation } from "..
 import { rateLimit } from "../_lib/rateLimits";
 import { sessionMatchesAccessKind } from "../_lib/staffAccess";
 import { requireOrganizationActorForShop, requireOrganizationReadActor } from "../organization/access";
-import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import { requireOrganizationBusinessWrite } from "../organizationBilling/service";
 import { submitFeatureRequestSchema } from "./schemas";
 
@@ -86,10 +85,7 @@ export const submitForOrganization = authenticatedMutation({
         user,
         shopId: args.shopId,
       });
-      if (
-        actor.organization._id !== args.expectedOrganizationId ||
-        organizationShopOperatingStatus(actor.shop.operatingStatus) !== "active"
-      ) {
+      if (actor.organization._id !== args.expectedOrganizationId) {
         throw new ConvexError("Not found");
       }
       await requireOrganizationBusinessWrite(ctx, actor.organization._id);

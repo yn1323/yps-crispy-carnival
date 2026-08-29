@@ -91,11 +91,11 @@ export function UserLineConnectionDialog({
         <Button
           colorPalette="red"
           loading={isDisconnecting}
-          loadingText="LINE連携を解除する"
+          loadingText="解除する"
           disabled={!data.line.canDisconnect}
           onClick={handleDisconnect}
         >
-          LINE連携を解除する
+          解除する
         </Button>
       }
     />
@@ -168,7 +168,6 @@ export function UserLineConnectionDialog({
                     colorPalette="teal"
                     gap={1.5}
                     disabled={
-                      data.person.email.length === 0 ||
                       isSendingInvite ||
                       isQrLoading ||
                       isDisconnecting ||
@@ -182,13 +181,8 @@ export function UserLineConnectionDialog({
                     <LuMail aria-hidden />
                     メールで{data.line.status === "unlinked" ? "LINE連携" : "再連携"}リンクを送る
                   </Button>
-                  {isLineInviteCooldownActive && data.person.email.length > 0 && <NotificationResendCooldownNotice />}
+                  {isLineInviteCooldownActive && <NotificationResendCooldownNotice />}
                 </Stack>
-                {data.person.email.length === 0 && (
-                  <Text fontSize="xs" color="fg.muted" lineHeight="tall">
-                    メールアドレスが未登録のため、メールでは送れません。リンクを本人へ直接共有してください。
-                  </Text>
-                )}
               </LineConnectionMethod>
             </Stack>
           ) : (
@@ -257,8 +251,7 @@ function DisconnectConfirmation({ personName, disabledReason }: { personName: st
       <Text fontWeight="semibold" color="gray.900">
         {personName}さんのLINE連携を解除しますか？
       </Text>
-      <Text>この組織のすべての所属店舗でLINE通知が停止します。</Text>
-      <Text>ほかの組織のLINE連携には影響しません。</Text>
+      <Text>LINE通知が停止し、登録したメールアドレスに通知します。</Text>
       <Text color="red.700" fontWeight="semibold">
         再び利用するには、本人による新しい連携が必要です。
       </Text>

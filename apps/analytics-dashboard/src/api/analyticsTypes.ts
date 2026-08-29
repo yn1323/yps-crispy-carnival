@@ -35,7 +35,6 @@ export type {
   AnalyticsTrendMetric,
   AnalyticsTrendPointDto,
   AnalyticsTrendValueDto,
-  CanonicalAnalyticsPlanKey,
   CycleDetailResponse,
   FeatureRequestRowDto,
   FeatureRequestsResponse,

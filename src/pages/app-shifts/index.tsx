@@ -30,7 +30,7 @@ export type ShopOption = {
 
 type Props = {
   organizationId: Id<"organizations">;
-  activeShops: ShopOption[] | null;
+  shops: ShopOption[] | null;
   requestedShopFilter?: string;
 };
 
@@ -38,8 +38,8 @@ export function AppShiftsRoutePage(props: Props) {
   const navigate = useNavigate();
   const [retryRevision, setRetryRevision] = useState(0);
   const resolvedFilter = useMemo(
-    () => resolveShopFilter(props.activeShops, props.requestedShopFilter),
-    [props.activeShops, props.requestedShopFilter],
+    () => resolveShopFilter(props.shops, props.requestedShopFilter),
+    [props.shops, props.requestedShopFilter],
   );
   const shouldReplaceSearch = resolvedFilter.kind === "ready" && resolvedFilter.shouldReplaceSearch;
 
@@ -73,7 +73,7 @@ export function AppShiftsRoutePage(props: Props) {
       >
         <ConnectedAppShifts
           organizationId={props.organizationId}
-          activeShops={props.activeShops ?? []}
+          shops={props.shops ?? []}
           shopFilter={resolvedFilter.shopFilter}
         />
       </ErrorBoundary>
@@ -83,11 +83,11 @@ export function AppShiftsRoutePage(props: Props) {
 
 function ConnectedAppShifts({
   organizationId,
-  activeShops,
+  shops,
   shopFilter,
 }: {
   organizationId: Id<"organizations">;
-  activeShops: ShopOption[];
+  shops: ShopOption[];
   shopFilter: "all" | Id<"shops">;
 }) {
   const navigate = useNavigate();
@@ -108,7 +108,7 @@ function ConnectedAppShifts({
   if (sections.results.length === 0) return <AppShiftsPageStateView state={{ kind: "empty" }} />;
 
   const overview = buildAppShiftsOverview(sections.results, shopFilter);
-  const filterOptions = activeShops.map((shop) => ({ value: shop.id, label: shop.name }));
+  const filterOptions = shops.map((shop) => ({ value: shop.id, label: shop.name }));
   return (
     <Animation>
       <AppShiftsOverviewView
@@ -253,8 +253,8 @@ export function AppShiftsPageStateView({ state, onRetry }: { state: AppShiftsPag
         <AppShiftsHeader value={null} options={[]} onChange={() => undefined} />
         <Empty
           icon={LuCalendarDays}
-          title="利用中の店舗がありません"
-          description="店舗を追加または再開すると、全店舗のシフトをまとめて確認できます。"
+          title="店舗がありません"
+          description="店舗を追加すると、全店舗のシフトをまとめて確認できます。"
           tone="neutral"
           minH="420px"
         />

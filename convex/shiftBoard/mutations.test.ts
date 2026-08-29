@@ -4,9 +4,10 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedLegacyShopMembership, seedManagerShop, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
+import { SHIFT_ASSIGNMENT_LIMIT } from "../constants";
 import {
   buildConfirmationSnapshotSignature,
   buildConfirmationSnapshotsForStaffs,
@@ -50,17 +51,15 @@ async function setupTestData(t: TestConvex<typeof schema>, options?: { shopClose
       isDeleted: false,
       submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     });
-    const staffId1 = await ctx.db.insert("staffs", {
+    const staffId1 = await seedStaff(ctx, {
       shopId,
       name: "鈴木太郎",
       email: "suzuki@example.com",
-      isDeleted: false,
     });
-    const staffId2 = await ctx.db.insert("staffs", {
+    const staffId2 = await seedStaff(ctx, {
       shopId,
       name: "佐藤花子",
       email: "sato@example.com",
-      isDeleted: false,
     });
     return { shopId, recruitmentId, staffId1, staffId2 };
   });
@@ -297,7 +296,7 @@ describe("shiftBoard/mutations", () => {
       expect(persisted).toEqual([]);
     });
 
-    it("removed所属と非active店舗ではapp用mutationを拒否する", async () => {
+    it("removed所属と削除済み店舗ではapp用mutationを拒否する", async () => {
       const t = convexTest(schema, modules);
       const target = await setupTestData(t);
       const ids = await t.run(async (ctx) => {
@@ -327,7 +326,7 @@ describe("shiftBoard/mutations", () => {
 
       await t.run(async (ctx) => {
         await ctx.db.patch(memberId, { status: "active", updatedAt: Date.now() });
-        await ctx.db.patch(target.shopId, { operatingStatus: "archived" });
+        await ctx.db.patch(target.shopId, { isDeleted: true });
       });
       await expect(
         actor.mutation(api.shiftBoard.mutations.confirmRecruitment, {
@@ -339,7 +338,7 @@ describe("shiftBoard/mutations", () => {
       ).rejects.toThrow("Not found");
 
       await t.run(async (ctx) => {
-        await ctx.db.patch(target.shopId, { operatingStatus: "active" });
+        await ctx.db.patch(target.shopId, { isDeleted: false });
         await seedLegacyShopMembership(ctx, { userId, shopId: target.shopId });
         await ctx.db.delete(memberId);
       });
@@ -1905,56 +1904,6 @@ describe("shiftBoard/mutations", () => {
         .find((job) => job.args[0]?.isResend);
       expect(result).toEqual({ status: "scheduled", notifiedStaffCount: 2 });
       expect(resendJob?.args[0]?.targetStaffIds).toEqual(expect.arrayContaining([staffId1, staffId2]));
-    });
-
-    it("再通知対象がシフトボード上限を超える場合は欠落させずfail-closedにする", async () => {
-      const t = convexTest(schema, modules);
-      const { shopId, recruitmentId } = await t.run(async (ctx) => {
-        const { shopId } = await seedManagerShop(ctx, {
-          subject: "user_manager",
-          email: "manager@example.com",
-          shopName: "テスト店舗",
-        });
-        const recruitmentId = await ctx.db.insert("recruitments", {
-          shopId,
-          periodStart: "2026-01-20",
-          periodEnd: "2026-01-26",
-          deadline: "2026-01-17",
-          shopClosedDates: [],
-          status: "confirmed",
-          confirmedAt: 1_000,
-          isDeleted: false,
-          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-        });
-        const staffIds: Id<"staffs">[] = [];
-        for (let i = 0; i < SHIFT_BOARD_STAFF_LIMIT + 1; i++) {
-          staffIds.push(
-            await ctx.db.insert("staffs", {
-              shopId,
-              name: `スタッフ${i.toString().padStart(3, "0")}`,
-              email: `staff${i}@example.com`,
-              isDeleted: false,
-            }),
-          );
-        }
-        return { shopId, recruitmentId };
-      });
-
-      await expect(
-        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
-          shopId,
-          recruitmentId,
-          intent: "resend",
-        }),
-      ).rejects.toThrow("通知対象が上限を超えています");
-
-      const state = await t.run(async (ctx) => ({
-        operations: await ctx.db.query("notificationFanoutOperations").collect(),
-        jobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
-          (job) => job.name === "notification/actions:sendShiftConfirmationEmails",
-        ),
-      }));
-      expect(state).toEqual({ operations: [], jobs: [] });
     });
 
     it("過去シフトの再通知は拒否し、通知予約しない", async () => {

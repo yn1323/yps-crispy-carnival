@@ -58,7 +58,6 @@ describe("AppShopDetailPage", () => {
     expect(mocks.useQuery).toHaveBeenCalledExactlyOnceWith(mocks.getSettingsRef, {
       shopId: "shop-target",
       expectedOrganizationId: "organization-a",
-      planIdVersion: 2,
     });
     expect(screen.getByTestId("shop").textContent).toBe("shop-target");
     expect(screen.getByTestId("expected-organization").textContent).toBe("organization-a");

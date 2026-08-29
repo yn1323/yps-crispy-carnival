@@ -2,8 +2,8 @@ import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { isShopParentActive } from "../_lib/activeShop";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
+import { isShopAvailable } from "../_lib/shopAvailability";
 import { staffAccessKindValidator } from "../_lib/staffAccess";
 import { generateUUID } from "../_lib/uuid";
 import {
@@ -13,6 +13,7 @@ import {
   NOTIFICATION_FANOUT_RECOVERY_BATCH_SIZE,
   NOTIFICATION_FANOUT_SCOPE_LIMIT,
 } from "../constants";
+import { resolveCanonicalStaffScope } from "../line/service";
 import { isShiftTargetStaff } from "../staff/service";
 import {
   buildConfirmationSnapshotSignature,
@@ -43,20 +44,11 @@ export const createMagicLink = internalMutation({
     expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const [staff, shop, recruitment] = await Promise.all([
-      ctx.db.get(args.staffId),
-      ctx.db.get(args.shopId),
+    const [canonicalScope, recruitment] = await Promise.all([
+      resolveCanonicalStaffScope(ctx, { staffId: args.staffId, shopId: args.shopId }),
       ctx.db.get(args.recruitmentId),
     ]);
-    if (
-      !staff ||
-      staff.isDeleted ||
-      staff.shopId !== args.shopId ||
-      !(await isShopParentActive(ctx, shop)) ||
-      !recruitment ||
-      recruitment.isDeleted ||
-      recruitment.shopId !== args.shopId
-    ) {
+    if (!canonicalScope || !recruitment || recruitment.isDeleted || recruitment.shopId !== args.shopId) {
       throw new Error("Inactive notification scope");
     }
     const token = generateUUID();
@@ -86,20 +78,11 @@ export const getOrCreateSubmitMagicLink = internalMutation({
     expiresAt: v.number(),
   },
   handler: async (ctx, args) => {
-    const [staff, shop, recruitment] = await Promise.all([
-      ctx.db.get(args.staffId),
-      ctx.db.get(args.shopId),
+    const [canonicalScope, recruitment] = await Promise.all([
+      resolveCanonicalStaffScope(ctx, { staffId: args.staffId, shopId: args.shopId }),
       ctx.db.get(args.recruitmentId),
     ]);
-    if (
-      !staff ||
-      staff.isDeleted ||
-      staff.shopId !== args.shopId ||
-      !(await isShopParentActive(ctx, shop)) ||
-      !recruitment ||
-      recruitment.isDeleted ||
-      recruitment.shopId !== args.shopId
-    ) {
+    if (!canonicalScope || !recruitment || recruitment.isDeleted || recruitment.shopId !== args.shopId) {
       throw new Error("Inactive notification scope");
     }
     const existingLinks = await ctx.db
@@ -145,16 +128,12 @@ export const getOrCreateNotificationViewMagicLink = internalMutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    const [staff, shop, recruitment] = await Promise.all([
-      ctx.db.get(args.staffId),
-      ctx.db.get(args.shopId),
+    const [canonicalScope, recruitment] = await Promise.all([
+      resolveCanonicalStaffScope(ctx, { staffId: args.staffId, shopId: args.shopId }),
       ctx.db.get(args.recruitmentId),
     ]);
     if (
-      !staff ||
-      staff.isDeleted ||
-      staff.shopId !== args.shopId ||
-      !(await isShopParentActive(ctx, shop)) ||
+      !canonicalScope ||
       !recruitment ||
       recruitment.isDeleted ||
       recruitment.shopId !== args.shopId ||
@@ -450,6 +429,19 @@ export const recoverNotificationFanoutOperations = internalMutation({
   },
 });
 
+async function resolveCanonicalNotificationFanoutTargetIds(
+  ctx: MutationCtx,
+  shopId: Id<"shops">,
+  staffs: readonly Doc<"staffs">[],
+) {
+  const scopes = await Promise.all(
+    staffs
+      .filter(isShiftTargetStaff)
+      .map(async (staff) => await resolveCanonicalStaffScope(ctx, { staffId: staff._id, shopId })),
+  );
+  return scopes.flatMap((scope) => (scope ? [scope.staff._id] : []));
+}
+
 export const ensureRecruitmentNotificationFanout = internalMutation({
   args: {
     recruitmentId: v.id("recruitments"),
@@ -458,14 +450,16 @@ export const ensureRecruitmentNotificationFanout = internalMutation({
   handler: async (ctx, args) => {
     const recruitment = await ctx.db.get(args.recruitmentId);
     const shop = recruitment ? await ctx.db.get(recruitment.shopId) : null;
-    if (
-      !recruitment ||
-      recruitment.isDeleted ||
-      recruitment.status !== "open" ||
-      !(await isShopParentActive(ctx, shop))
-    ) {
+    if (!recruitment || recruitment.isDeleted || recruitment.status !== "open" || !(await isShopAvailable(ctx, shop))) {
       return null;
     }
+    const operationKey = `shift.recruitment:v1:${args.recruitmentId}`;
+    const existing = await ctx.db
+      .query("notificationFanoutOperations")
+      .withIndex("by_operationKey", (q) => q.eq("operationKey", operationKey))
+      .unique();
+    if (existing) return existing._id;
+
     const staffs = await ctx.db
       .query("staffs")
       .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", recruitment.shopId).eq("isDeleted", false))
@@ -473,13 +467,16 @@ export const ensureRecruitmentNotificationFanout = internalMutation({
     if (staffs.length > NOTIFICATION_FANOUT_SCOPE_LIMIT) {
       throw new Error("Notification fanout scope exceeds the supported limit");
     }
+    const targetStaffIds = await resolveCanonicalNotificationFanoutTargetIds(ctx, recruitment.shopId, staffs);
+    if (targetStaffIds.length === 0) return null;
+
     const { operation } = await ensureNotificationFanoutOperation(ctx, {
-      operationKey: `shift.recruitment:v1:${args.recruitmentId}`,
+      operationKey,
       kind: "recruitment",
       purpose: "recruitment",
       recruitmentId: args.recruitmentId,
       shopId: recruitment.shopId,
-      targetStaffIds: staffs.filter(isShiftTargetStaff).map((staff) => staff._id),
+      targetStaffIds,
       dedupeSuffix: "recruitment",
       ...(args.organizationBillingVersionAtOrigin === undefined
         ? {}
@@ -505,7 +502,7 @@ export const ensureConfirmationNotificationFanout = internalMutation({
       !recruitment ||
       recruitment.isDeleted ||
       recruitment.status !== "confirmed" ||
-      !(await isShopParentActive(ctx, shop))
+      !(await isShopAvailable(ctx, shop))
     ) {
       return null;
     }
@@ -528,6 +525,15 @@ export const ensureConfirmationNotificationFanout = internalMutation({
 
     const operationIsResend = latestOperationKey ? latestIsResend : args.isResend;
     const operationRunId = latestOperationKey ? latestRunId : args.notificationRunId;
+    const operationKey =
+      args.operationKey ??
+      latestOperationKey ??
+      `shift.confirmation:legacy:v1:${args.recruitmentId}:${args.isResend ? `resend:${args.notificationRunId ?? "unknown"}` : "confirm"}`;
+    const existing = await ctx.db
+      .query("notificationFanoutOperations")
+      .withIndex("by_operationKey", (q) => q.eq("operationKey", operationKey))
+      .unique();
+    if (existing) return existing._id;
 
     const requestedIds = args.targetStaffIds
       ? normalizeNotificationFanoutTargetStaffIds(args.targetStaffIds)
@@ -541,14 +547,13 @@ export const ensureConfirmationNotificationFanout = internalMutation({
       throw new Error("Notification fanout scope exceeds the supported limit");
     }
     const staffs = await Promise.all(requestedIds.map((staffId) => ctx.db.get(staffId)));
-    const targetStaffIds = staffs.flatMap((staff) =>
-      staff && staff.shopId === recruitment.shopId && isShiftTargetStaff(staff) ? [staff._id] : [],
+    const targetStaffIds = await resolveCanonicalNotificationFanoutTargetIds(
+      ctx,
+      recruitment.shopId,
+      staffs.filter((staff): staff is Doc<"staffs"> => Boolean(staff && staff.shopId === recruitment.shopId)),
     );
+    if (targetStaffIds.length === 0) return null;
 
-    const operationKey =
-      args.operationKey ??
-      latestOperationKey ??
-      `shift.confirmation:legacy:v1:${args.recruitmentId}:${args.isResend ? `resend:${args.notificationRunId ?? "unknown"}` : "confirm"}`;
     const dedupeSuffix = operationIsResend ? `resend:${operationRunId ?? `legacy:${operationKey}`}` : "confirm";
     const { operation } = await ensureNotificationFanoutOperation(ctx, {
       operationKey,
@@ -582,7 +587,7 @@ export const claimNotificationFanoutBatch = internalMutation({
       recruitment.isDeleted ||
       recruitment.shopId !== operation.shopId ||
       recruitment.status !== expectedStatus ||
-      !(await isShopParentActive(ctx, shop))
+      !(await isShopAvailable(ctx, shop))
     ) {
       const now = Date.now();
       await ctx.db.patch(operationId, {

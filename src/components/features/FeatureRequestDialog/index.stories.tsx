@@ -111,7 +111,7 @@ export const AppFixedShopScope: Story = {
   },
 };
 
-export const AppWithoutActiveShops: Story = {
+export const AppWithoutShops: Story = {
   parameters: { screenshot: { skip: true } },
   render: () => <AppFeatureRequestAction expectedOrganizationId={ORGANIZATION_ID} scope={{ kind: "organization" }} />,
   play: async ({ canvasElement }) => {

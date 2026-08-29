@@ -28,10 +28,12 @@ async function seedNotificationManagerStaff(ctx: MutationCtx, args: { shopId: Id
     : [];
   if (people.length > 1) throw new Error("manager staff fixture person is ambiguous");
   const person = people[0];
-  const email = person?.email ?? user.email;
+  if (!organizationId || !person) throw new Error("manager staff fixture requires a canonical person");
+  const email = person.email;
   return await ctx.db.insert("staffs", {
     shopId: args.shopId,
-    ...(person && organizationId ? { organizationId, organizationPersonId: person._id } : {}),
+    organizationId,
+    organizationPersonId: person._id,
     userId: args.userId,
     name: "通知管理スタッフ",
     email,
@@ -201,7 +203,7 @@ describe("isNotificationDeliverySuppressedForShop", () => {
     ).resolves.toBe(true);
   });
 
-  it("m010処理途中はcanonical所属がない旧managerだけを通知判定へ補う", async () => {
+  it("personのない旧managerはstaff通知判定へ補わない", async () => {
     vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "@test.example");
     const t = convexTest(schema, modules);
     const shopId = await t.run(async (ctx) => {
@@ -209,10 +211,9 @@ describe("isNotificationDeliverySuppressedForShop", () => {
         subject: "manager_partial_primary",
         email: "preview-primary@test.example",
       });
-      const legacyUserId = await seedUser(ctx, "manager_partial_legacy", "preview-legacy@test.example");
+      const legacyUserId = await seedUser(ctx, "manager_partial_legacy", "legacy@real.example");
       await seedLegacyShopMembership(ctx, { userId: legacyUserId, shopId: seeded.shopId });
       await seedNotificationManagerStaff(ctx, { shopId: seeded.shopId, userId: seeded.userId });
-      await seedNotificationManagerStaff(ctx, { shopId: seeded.shopId, userId: legacyUserId });
       return seeded.shopId;
     });
 

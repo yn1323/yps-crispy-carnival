@@ -111,7 +111,7 @@ const shop = {
   trialEndingNotice: null,
 };
 
-const activeShops = [
+const shops = [
   { id: "shop-a", name: "A店舗" },
   { id: "shop-b", name: "B店舗" },
 ];
@@ -163,7 +163,7 @@ const renderPage = (overrides: Partial<ComponentProps<typeof DashboardRoutePage>
       <DashboardRoutePage
         organizationId={"organization-a" as never}
         organizationName="Aグループ"
-        activeShops={activeShops}
+        shops={shops}
         requestedShopId="shop-b"
         {...overrides}
       />
@@ -186,8 +186,8 @@ describe("DashboardRoutePage", () => {
     expect(mocks.dashboardProps?.navigation).toBeUndefined();
   });
 
-  it("active店舗の全cursor読込中は店舗queryを開始せずDashboard skeletonを表示する", () => {
-    renderPage({ activeShops: null });
+  it("店舗一覧の全cursor読込中は店舗queryを開始せずDashboard skeletonを表示する", () => {
+    renderPage({ shops: null });
 
     expect(screen.getByText("ホームを読み込み中")).not.toBeNull();
     expect(mocks.useShopQuery).not.toHaveBeenCalled();
@@ -196,7 +196,7 @@ describe("DashboardRoutePage", () => {
   it("店舗とDashboard queryを順に解決してもfade境界を再マウントしない", () => {
     mocks.useShopQuery.mockReturnValue(undefined);
     mocks.useQuery.mockReturnValue(undefined);
-    const view = renderPage({ activeShops: null });
+    const view = renderPage({ shops: null });
     const initialAnimation = screen.getByTestId("home-animation");
 
     view.rerender(
@@ -204,7 +204,7 @@ describe("DashboardRoutePage", () => {
         <DashboardRoutePage
           organizationId={"organization-a" as never}
           organizationName="Aグループ"
-          activeShops={activeShops}
+          shops={shops}
           requestedShopId="shop-b"
         />
       </ChakraProvider>,
@@ -226,7 +226,7 @@ describe("DashboardRoutePage", () => {
         <DashboardRoutePage
           organizationId={"organization-a" as never}
           organizationName="Aグループ"
-          activeShops={activeShops}
+          shops={shops}
           requestedShopId="shop-b"
         />
       </ChakraProvider>,
@@ -255,7 +255,7 @@ describe("DashboardRoutePage", () => {
         <DashboardRoutePage
           organizationId={"organization-a" as never}
           organizationName="Aグループ"
-          activeShops={activeShops}
+          shops={shops}
           requestedShopId="shop-b"
         />
       </ChakraProvider>,
@@ -276,7 +276,7 @@ describe("DashboardRoutePage", () => {
         replace: true,
       }),
     );
-    expect(mocks.useShopQuery).toHaveBeenCalledWith(mocks.dashboardShopQuery, { planIdVersion: 2 });
+    expect(mocks.useShopQuery).toHaveBeenCalledWith(mocks.dashboardShopQuery, {});
     const scope = screen.getByTestId("manager-scope");
     expect(scope.getAttribute("data-shop-id")).toBe("shop-a");
     expect(scope.getAttribute("data-organization-id")).toBe("organization-a");
@@ -293,7 +293,7 @@ describe("DashboardRoutePage", () => {
         <DashboardRoutePage
           organizationId={"organization-b" as never}
           organizationName="Bグループ"
-          activeShops={[{ id: "shop-c", name: "C店舗" }]}
+          shops={[{ id: "shop-c", name: "C店舗" }]}
           requestedShopId="shop-a"
         />
       </ChakraProvider>,
@@ -337,6 +337,33 @@ describe("DashboardRoutePage", () => {
     expect(screen.getByText(/利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。/)).not.toBeNull();
   });
 
+  it("支払い失敗でFreeへ変更された場合は再契約導線を表示し、プランと支払いへ進める", () => {
+    mocks.useShopQuery.mockReturnValue({
+      ...shop,
+      paymentFailure: { terminationPending: false },
+    });
+
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "有料プランを契約する" }));
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: "/manage/billing",
+      search: { org: "organization-a" },
+    });
+  });
+
+  it("支払い終了処理中は同じAlertを表示し、再契約操作を無効にする", () => {
+    mocks.useShopQuery.mockReturnValue({
+      ...shop,
+      paymentFailure: { terminationPending: true },
+    });
+
+    renderPage();
+
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "有料プランを契約する" }).disabled).toBe(true);
+    expect(screen.getByText("支払い処理を終了しています。完了後に有料プランを契約できます。")).not.toBeNull();
+  });
+
   it("利用上限を評価できない場合は上限超過と断定せず、整理操作と問い合わせを案内する", () => {
     mocks.useShopQuery.mockReturnValue({
       ...shop,
@@ -376,7 +403,7 @@ describe("DashboardRoutePage", () => {
     });
   });
 
-  it("URLに店舗がなければ組織別の保存hintをactive店舗一覧で検証して復元する", async () => {
+  it("URLに店舗がなければ組織別の保存hintを店舗一覧で検証して復元する", async () => {
     window.localStorage.setItem(
       DASHBOARD_SHOP_PREFERENCE_STORAGE_KEY,
       JSON.stringify({ "organization-a": "shop-b", "organization-b": "shop-c" }),
@@ -394,8 +421,8 @@ describe("DashboardRoutePage", () => {
     expect(screen.getByTestId("manager-scope").getAttribute("data-shop-id")).toBe("shop-b");
   });
 
-  it("active店舗がなければsetup mutationを開かず、管理画面への回復導線を表示する", () => {
-    renderPage({ activeShops: [], requestedShopId: undefined });
+  it("店舗がなければsetup mutationを開かず、管理画面への回復導線を表示する", () => {
+    renderPage({ shops: [], requestedShopId: undefined });
 
     fireEvent.click(screen.getByRole("button", { name: "管理を開く" }));
     expect(mocks.navigate).toHaveBeenCalledWith({

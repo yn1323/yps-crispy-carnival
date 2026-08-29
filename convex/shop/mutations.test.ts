@@ -2,6 +2,8 @@ import { ConvexError } from "convex/values";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
+import type { MutationCtx } from "../_generated/server";
 import { seedLegacyManagerShop, seedManagerShop, seedOrganizationManagerShop, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
@@ -19,6 +21,47 @@ const validArgs = {
 
 const MANAGER_SUBJECT = "user_manager";
 
+async function insertStaffIdentityOrganization(ctx: MutationCtx, label: string) {
+  const now = Date.now();
+  return await ctx.db.insert("organizations", {
+    name: `${label}スタッフ所属事業者`,
+    isDeleted: false,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+// 旧店舗のcleanup互換を検証しつつ、staff row自体は現行の必須identity shapeで作る。
+async function insertRequiredIdentityStaffForLegacyShopCleanup(
+  ctx: MutationCtx,
+  args: {
+    shopId: Id<"shops">;
+    organizationId: Id<"organizations">;
+    name: string;
+    email: string;
+  },
+) {
+  const now = Date.now();
+  const organizationPersonId = await ctx.db.insert("organizationPeople", {
+    organizationId: args.organizationId,
+    name: args.name,
+    email: args.email,
+    emailNormalized: args.email,
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  });
+  return await ctx.db.insert("staffs", {
+    shopId: args.shopId,
+    organizationId: args.organizationId,
+    organizationPersonId,
+    name: args.name,
+    email: args.email,
+    emailNormalized: args.email,
+    isDeleted: false,
+  });
+}
+
 describe("shop/mutations", () => {
   describe("updateShopSettings", () => {
     it("同じ時刻の複数更新を別の分析source eventとして記録する", async () => {
@@ -34,7 +77,7 @@ describe("shop/mutations", () => {
             subject: MANAGER_SUBJECT,
             email: "analytics-shop-manager@example.com",
             shopName: "更新前店舗",
-            plan: "pro",
+            plan: "standard",
           }),
         );
         const asManager = t.withIdentity({ subject: MANAGER_SUBJECT });
@@ -513,7 +556,7 @@ describe("shop/mutations", () => {
         const seeded = await seedOrganizationManagerShop(ctx, {
           subject: "partial_shop_name",
           shopName: "更新前店舗",
-          plan: "pro",
+          plan: "standard",
         });
         await ctx.db.patch(seeded.shopId, {
           regularClosedDays: ["sun", "wed"],
@@ -550,7 +593,7 @@ describe("shop/mutations", () => {
         const seeded = await seedOrganizationManagerShop(ctx, {
           subject: "partial_submission_pattern",
           shopName: "提出方法店舗",
-          plan: "pro",
+          plan: "standard",
         });
         await ctx.db.patch(seeded.shopId, { regularClosedDays: ["sun", "thu"] });
         return seeded.shopId;
@@ -599,7 +642,7 @@ describe("shop/mutations", () => {
         const seeded = await seedOrganizationManagerShop(ctx, {
           subject: "partial_closed_days",
           shopName: "定休日店舗",
-          plan: "pro",
+          plan: "standard",
         });
         await ctx.db.patch(seeded.shopId, { submissionPattern: { kind: "dateOnly" } });
         return seeded.shopId;
@@ -633,11 +676,10 @@ describe("shop/mutations", () => {
         const seeded = await seedOrganizationManagerShop(ctx, {
           subject: "partial_explicit_target",
           shopName: "基準店舗",
-          plan: "pro",
+          plan: "standard",
         });
         const targetShopId = await ctx.db.insert("shops", {
           organizationId: seeded.organizationId,
-          operatingStatus: "active",
           name: "更新対象店舗",
           submissionPattern: { kind: "dateOnly" },
           regularClosedDays: ["sun"],
@@ -664,11 +706,10 @@ describe("shop/mutations", () => {
         const seeded = await seedOrganizationManagerShop(ctx, {
           subject: "partial_missing_target",
           shopName: "先頭店舗",
-          plan: "pro",
+          plan: "standard",
         });
         const otherShopId = await ctx.db.insert("shops", {
           organizationId: seeded.organizationId,
-          operatingStatus: "active",
           name: "2店舗目",
           submissionPattern: { kind: "dateOnly" },
           regularClosedDays: [],
@@ -708,11 +749,11 @@ describe("shop/mutations", () => {
     it("別事業者の店舗は Not found で更新できない", async () => {
       const t = convexTest(schema, modules);
       const otherShopId = await t.run(async (ctx) => {
-        await seedOrganizationManagerShop(ctx, { subject: "partial_idor_actor", plan: "pro" });
+        await seedOrganizationManagerShop(ctx, { subject: "partial_idor_actor", plan: "standard" });
         const other = await seedOrganizationManagerShop(ctx, {
           subject: "partial_idor_other",
           shopName: "別事業者店舗",
-          plan: "pro",
+          plan: "standard",
         });
         return other.shopId;
       });
@@ -732,7 +773,7 @@ describe("shop/mutations", () => {
         const seeded = await seedOrganizationManagerShop(ctx, {
           subject: "partial_read_only",
           shopName: "閲覧専用店舗",
-          plan: "pro",
+          plan: "standard",
         });
         await ctx.db.patch(seeded.memberId, { status: "removed" });
         return seeded.shopId;
@@ -753,7 +794,7 @@ describe("shop/mutations", () => {
         const seeded = await seedOrganizationManagerShop(ctx, {
           subject: "partial_invalid_pattern",
           shopName: "入力検証店舗",
-          plan: "pro",
+          plan: "standard",
         });
         return seeded.shopId;
       });
@@ -825,7 +866,7 @@ describe("shop/mutations", () => {
     it("事業者に紐づく店舗は旧APIで削除せず組織設定の削除導線へ寄せる", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run((ctx) =>
-        seedOrganizationManagerShop(ctx, { subject: "organization_shop_delete", plan: "pro" }),
+        seedOrganizationManagerShop(ctx, { subject: "organization_shop_delete", plan: "standard" }),
       );
 
       await expect(
@@ -840,7 +881,8 @@ describe("shop/mutations", () => {
         member: await ctx.db.get(ids.memberId),
         scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
       }));
-      expect(state.shop).toMatchObject({ isDeleted: false, operatingStatus: "active" });
+      expect(state.shop).toMatchObject({ isDeleted: false });
+      expect(state.shop?.operatingStatus).toBeUndefined();
       expect(state.member?.status).toBe("active");
       expect(state.scheduled.filter((job) => job.name === "shop/mutations:cleanupDeletedShop")).toHaveLength(0);
     });
@@ -863,12 +905,12 @@ describe("shop/mutations", () => {
           isDeleted: false,
           submissionPattern: { kind: "dateOnly" },
         });
-        const staffId = await ctx.db.insert("staffs", {
+        const staffOrganizationId = await insertStaffIdentityOrganization(ctx, "削除対象店舗");
+        const staffId = await insertRequiredIdentityStaffForLegacyShopCleanup(ctx, {
           shopId,
+          organizationId: staffOrganizationId,
           name: "佐藤",
           email: "sato@example.com",
-          emailNormalized: "sato@example.com",
-          isDeleted: false,
         });
         const sessionId = await ctx.db.insert("sessions", {
           sessionToken: "session-token",
@@ -959,12 +1001,12 @@ describe("shop/mutations", () => {
           email: "other@example.com",
           shopName: "別店舗",
         });
-        const otherStaffId = await ctx.db.insert("staffs", {
+        const staffOrganizationId = await insertStaffIdentityOrganization(ctx, "別店舗");
+        const otherStaffId = await insertRequiredIdentityStaffForLegacyShopCleanup(ctx, {
           shopId: other.shopId,
+          organizationId: staffOrganizationId,
           name: "別スタッフ",
           email: "other-staff@example.com",
-          emailNormalized: "other-staff@example.com",
-          isDeleted: false,
         });
         return { ownShopId: own.shopId, otherShopId: other.shopId, otherStaffId };
       });
@@ -1047,12 +1089,12 @@ describe("shop/mutations", () => {
       await t.run(async (ctx) => {
         expect(await ctx.db.get(ids.pendingId)).toMatchObject({
           status: "cancelled",
-          cancelReason: "shop_inactive",
+          cancelReason: "shop_deleted",
           cancelledAt: expect.any(Number),
         });
         expect(await ctx.db.get(ids.processingId)).toMatchObject({
           status: "cancelled",
-          cancelReason: "shop_inactive",
+          cancelReason: "shop_deleted",
         });
         expect(await ctx.db.get(ids.failureId)).toMatchObject({
           status: "resolved",
@@ -1111,7 +1153,7 @@ describe("shop/mutations", () => {
       const staleOutbox = await t.run(async (ctx) => ctx.db.get(ids.outboxId));
       expect(staleOutbox).toMatchObject({
         status: "cancelled",
-        cancelReason: "shop_inactive",
+        cancelReason: "shop_deleted",
       });
       expect(staleOutbox).not.toHaveProperty("processingStartedAt");
     });
@@ -1135,14 +1177,14 @@ describe("shop/mutations", () => {
           isDeleted: false,
           submissionPattern: { kind: "dateOnly" },
         });
+        const staffOrganizationId = await insertStaffIdentityOrganization(ctx, "一括削除対象店舗");
         const magicLinkIds = [];
         for (let i = 0; i < COUNT; i++) {
-          const staffId = await ctx.db.insert("staffs", {
+          const staffId = await insertRequiredIdentityStaffForLegacyShopCleanup(ctx, {
             shopId,
+            organizationId: staffOrganizationId,
             name: `スタッフ${i}`,
             email: `staff${i}@example.com`,
-            emailNormalized: `staff${i}@example.com`,
-            isDeleted: false,
           });
           magicLinkIds.push(
             await ctx.db.insert("magicLinks", {

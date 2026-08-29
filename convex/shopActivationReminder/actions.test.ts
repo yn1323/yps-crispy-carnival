@@ -1,5 +1,6 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedCanonicalStaffLineRecipient, seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { SHOP_ACTIVATION_REMINDER_SUBJECT } from "../notification/templates";
@@ -137,12 +138,10 @@ describe("shopActivationReminder/actions", () => {
   it("本人以外のシフト対象staffがいればoutboxを作らない", async () => {
     const { t, shopId } = await setupReminderTarget();
     await t.run(async (ctx) => {
-      await ctx.db.insert("staffs", {
+      await seedStaff(ctx, {
         shopId,
         name: "田中",
         email: "tanaka@example.com",
-        emailNormalized: "tanaka@example.com",
-        isDeleted: false,
       });
     });
 

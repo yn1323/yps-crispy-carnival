@@ -10,6 +10,7 @@ import {
   seedManagerShop,
   seedOrganizationManagerShop,
   seedOrganizationPersonLineLink,
+  seedShop,
   seedUser,
 } from "../_test/seed";
 import {
@@ -26,6 +27,7 @@ import {
 } from "../constants";
 import { resolveStaffLineRecipient } from "../line/service";
 import { buildConfirmationSnapshotSignature } from "../notification/confirmationSnapshots";
+import { LINE_INVITE_NOTIFICATION_CONTEXT } from "./failureResend";
 import { NOTIFICATION_FAILURE_REMINDER_CONTEXT, SHOP_ACTIVATION_REMINDER_CONTEXT } from "./failureSuppress";
 import { lineRecipientOutboxSnapshot, toNotificationLineRecipient } from "./types";
 
@@ -47,13 +49,14 @@ async function setupShop() {
       email: "manager@example.com",
       shopName: "通知店舗",
     });
-    const staffId = await ctx.db.insert("staffs", {
+    const staffId = await seedStaff(ctx, {
       shopId,
       name: "通知スタッフ",
       email: "staff@example.com",
-      isDeleted: false,
     });
-    return { shopId, staffId, userId };
+    const staff = await ctx.db.get(staffId);
+    if (!staff) throw new Error("notification staff was not created");
+    return { shopId, staffId, organizationPersonId: staff.organizationPersonId, userId };
   });
   return { t, ...ids };
 }
@@ -184,15 +187,231 @@ describe("notificationOutbox", () => {
     expect(jobs[0].purpose).toBe("business");
   });
 
+  it("両canonical ID欠損staffは保存済みemail jobの完全一致宛先だけ配送可能で、新規enqueueは拒否する", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const ids = await t.run(async (ctx) => {
+      const [shop, staff] = await Promise.all([ctx.db.get(shopId), ctx.db.get(staffId)]);
+      if (!shop?.organizationId || !staff) throw new Error("legacy email recipient fixture was not created");
+      await ctx.db.patch(staffId, { organizationId: undefined, organizationPersonId: undefined });
+      const now = Date.now();
+      const leaseToken = "stored-unresolved-email-lease";
+      const outboxId = await ctx.db.insert("notificationOutbox", {
+        channel: "email",
+        status: "processing",
+        shopId,
+        organizationId: shop.organizationId,
+        staffId,
+        purpose: "business",
+        dedupeKey: "email:test:stored-unresolved-recipient",
+        payload: emailPayload,
+        attemptCount: 1,
+        nextRunAt: now,
+        processingStartedAt: now,
+        leaseToken,
+        leaseExpiresAt: now + NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { outboxId, leaseToken, now };
+    });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.enqueue, {
+        channel: "email",
+        shopId,
+        staffId,
+        history: { notificationKind: "test.email", displayTitle: emailPayload.subject },
+        dedupeKey: "email:test:new-unresolved-recipient",
+        payload: emailPayload,
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+        outboxId: ids.outboxId,
+        leaseToken: ids.leaseToken,
+        now: ids.now,
+      }),
+    ).resolves.toMatchObject({ _id: ids.outboxId, status: "processing" });
+    await expect(t.run(async (ctx) => ctx.db.query("notificationOutbox").collect())).resolves.toHaveLength(1);
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(staffId, { email: "changed-after-enqueue@example.com" });
+    });
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+        outboxId: ids.outboxId,
+        leaseToken: ids.leaseToken,
+        now: ids.now,
+      }),
+    ).resolves.toBeNull();
+    await expect(t.run(async (ctx) => ctx.db.get(ids.outboxId))).resolves.toMatchObject({
+      status: "cancelled",
+      cancelReason: "recipient_inactive",
+    });
+  });
+
+  it.each(["organizationId", "organizationPersonId"] as const)(
+    "canonical IDが片側だけ欠損したstaffの保存済みjobは配送前に停止する: %s",
+    async (missingField) => {
+      const { t, shopId, staffId } = await setupShop();
+      const ids = await t.run(async (ctx) => {
+        const shop = await ctx.db.get(shopId);
+        if (!shop?.organizationId) throw new Error("partial recipient fixture was not created");
+        await ctx.db.patch(staffId, { [missingField]: undefined });
+        const now = Date.now();
+        const leaseToken = `partial-recipient-${missingField}-lease`;
+        const outboxId = await ctx.db.insert("notificationOutbox", {
+          channel: "email",
+          status: "processing",
+          shopId,
+          organizationId: shop.organizationId,
+          staffId,
+          purpose: "business",
+          dedupeKey: `email:test:partial-recipient:${missingField}`,
+          payload: emailPayload,
+          attemptCount: 1,
+          nextRunAt: now,
+          processingStartedAt: now,
+          leaseToken,
+          leaseExpiresAt: now + NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
+          createdAt: now,
+          updatedAt: now,
+        });
+        return { outboxId, leaseToken, now };
+      });
+
+      await expect(
+        t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+          outboxId: ids.outboxId,
+          leaseToken: ids.leaseToken,
+          now: ids.now,
+        }),
+      ).resolves.toBeNull();
+      await expect(t.run(async (ctx) => ctx.db.get(ids.outboxId))).resolves.toMatchObject({
+        status: "cancelled",
+        cancelReason: "recipient_inactive",
+      });
+    },
+  );
+
+  it("両canonical ID欠損staffの保存済みLINE連携案内は宛先一致でも配送しない", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const ids = await t.run(async (ctx) => {
+      const shop = await ctx.db.get(shopId);
+      if (!shop?.organizationId) throw new Error("legacy LINE invite fixture was not created");
+      await ctx.db.patch(staffId, { organizationId: undefined, organizationPersonId: undefined });
+      const now = Date.now();
+      const leaseToken = "stored-unresolved-line-invite-lease";
+      const outboxId = await ctx.db.insert("notificationOutbox", {
+        channel: "email",
+        status: "processing",
+        shopId,
+        organizationId: shop.organizationId,
+        staffId,
+        purpose: "business",
+        dedupeKey: "email:lineInvite:stored-unresolved-recipient",
+        payload: {
+          ...emailPayload,
+          context: LINE_INVITE_NOTIFICATION_CONTEXT,
+        },
+        attemptCount: 1,
+        nextRunAt: now,
+        processingStartedAt: now,
+        leaseToken,
+        leaseExpiresAt: now + NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { outboxId, leaseToken, now };
+    });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
+        outboxId: ids.outboxId,
+        leaseToken: ids.leaseToken,
+        now: ids.now,
+      }),
+    ).resolves.toBeNull();
+    await expect(t.run(async (ctx) => ctx.db.get(ids.outboxId))).resolves.toMatchObject({
+      status: "cancelled",
+      cancelReason: "recipient_inactive",
+    });
+  });
+
+  it("両canonical ID欠損staffの保存済みLINE jobは同じ店舗の既存staff accountだけ配送可能にする", async () => {
+    const { t, shopId, staffId } = await setupShop();
+    const ids = await t.run(async (ctx) => {
+      const [shop, staff] = await Promise.all([ctx.db.get(shopId), ctx.db.get(staffId)]);
+      if (!shop?.organizationId || !staff) throw new Error("legacy LINE recipient fixture was not created");
+      await ctx.db.patch(staffId, { organizationId: undefined, organizationPersonId: undefined });
+      const accountId = await ctx.db.insert("staffLineAccounts", {
+        staffId,
+        shopId,
+        lineUserId: "U_stored_unresolved_recipient",
+        linkedAt: Date.now(),
+        following: true,
+        isDeleted: false,
+      });
+      const now = Date.now();
+      const leaseToken = "stored-unresolved-line-lease";
+      const outboxId = await ctx.db.insert("notificationOutbox", {
+        channel: "line",
+        status: "processing",
+        shopId,
+        organizationId: shop.organizationId,
+        staffId,
+        purpose: "business",
+        dedupeKey: "line:test:stored-unresolved-recipient",
+        payload: {
+          kind: "line",
+          toUserId: "U_stored_unresolved_recipient",
+          text: "保存済み通知",
+          suppressDelivery: true,
+        },
+        attemptCount: 1,
+        nextRunAt: now,
+        processingStartedAt: now,
+        leaseToken,
+        leaseExpiresAt: now + NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { accountId, outboxId, leaseToken, now };
+    });
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareLineForProviderDelivery, {
+        outboxId: ids.outboxId,
+        leaseToken: ids.leaseToken,
+        now: ids.now,
+      }),
+    ).resolves.toEqual({ toUserId: "U_stored_unresolved_recipient" });
+
+    await t.run(async (ctx) => {
+      const otherShopId = await seedShop(ctx, "保存済みLINE宛先の別店舗");
+      await ctx.db.patch(ids.accountId, { shopId: otherShopId });
+    });
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.prepareLineForProviderDelivery, {
+        outboxId: ids.outboxId,
+        leaseToken: ids.leaseToken,
+        now: ids.now,
+      }),
+    ).resolves.toBeNull();
+    await expect(t.run(async (ctx) => ctx.db.get(ids.outboxId))).resolves.toMatchObject({
+      status: "cancelled",
+      cancelReason: "recipient_inactive",
+    });
+  });
+
   it("canonical再連携後の同じdedupeKeyは旧generationをcancelし、現在generationで新規作成する", async () => {
     const t = createConvexTestWithMigrations();
     const ids = await t.run(async (ctx) => {
       const seeded = await seedManagerShop(ctx, { subject: "canonical_dedupe_generation" });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId: seeded.shopId,
         name: "canonical dedupe recipient",
         email: "canonical-dedupe@example.com",
-        isDeleted: false,
       });
       const recipient = await seedCanonicalStaffLineRecipient(ctx, {
         staffId,
@@ -271,7 +490,7 @@ describe("notificationOutbox", () => {
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
         subject: "legacy_snapshot_generation",
-        plan: "pro",
+        plan: "standard",
       });
       const now = Date.now();
       const organizationPersonId = await ctx.db.insert("organizationPeople", {
@@ -653,7 +872,7 @@ describe("notificationOutbox", () => {
     });
   });
 
-  it("active.freeの実利用人数が上限超過中でもbilling通知は配送直前検証を通す", async () => {
+  it("billingEmailChangedは上限超過・契約version更新後も配送直前検証を通す", async () => {
     const t = createConvexTestWithMigrations();
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
@@ -687,6 +906,14 @@ describe("notificationOutbox", () => {
     expect(claimed.map(({ _id, status }) => ({ _id, status }))).toEqual([
       { _id: enqueued.outboxId, status: "processing" },
     ]);
+    await t.run(async (ctx) => {
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.patch(billingState._id, { version: billingState.version + 1 });
+    });
     await expect(
       t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
         outboxId: enqueued.outboxId,
@@ -700,75 +927,10 @@ describe("notificationOutbox", () => {
     });
   });
 
-  it.each([
-    {
-      label: "Trial終了",
-      context: "organizationBilling.trialEnding",
-      state: { kind: "trial" as const, trialEndsAt: 1_000 },
-    },
-    {
-      label: "猶予終了前",
-      context: "organizationBilling.graceEndingSoon",
-      state: { kind: "grace" as const, plan: "pro" as const, startedAt: 100, endsAt: 1_000 },
-    },
-  ])("$labelの課金reminderは状態変更後の再送を送信直前に停止する", async ({ context, state }) => {
-    const t = createConvexTestWithMigrations();
-    const ids = await t.run(async (ctx) => {
-      const seeded = await seedOrganizationManagerShop(ctx, {
-        subject: `stale_${state.kind}_reminder`,
-        plan: "pro",
-      });
-      const billingState = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-        .unique();
-      if (!billingState) throw new Error("billing state not found");
-      await ctx.db.patch(billingState._id, { state, version: 4 });
-      return { ...seeded, billingStateId: billingState._id };
-    });
-    const payload = {
-      kind: "email" as const,
-      from: "シフトリ <noreply@example.com>",
-      to: `stale_${state.kind}_reminder@example.com`,
-      subject: "契約期限のお知らせ",
-      html: "<p>test</p>",
-      context,
-      suppressDelivery: true,
-    };
-    const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
-      channel: "email",
-      organizationId: ids.organizationId,
-      userId: ids.userId,
-      purpose: "billing",
-      dedupeKey: `email:test:stale-${state.kind}-reminder`,
-      payload,
-    });
-    if (!enqueued) throw new Error("notification was not enqueued");
-
-    await t.run(async (ctx) => {
-      await ctx.db.patch(ids.billingStateId, {
-        state: { kind: "active", plan: "pro" },
-        version: 5,
-      });
-      await ctx.db.patch(enqueued.outboxId, { status: "processing" });
-    });
-    await expect(
-      t.mutation(internal.notificationOutbox.mutations.prepareForDelivery, {
-        outboxId: enqueued.outboxId,
-        now: Date.now(),
-      }),
-    ).resolves.toBeNull();
-    await expect(t.run((ctx) => ctx.db.get(enqueued.outboxId))).resolves.toMatchObject({
-      status: "cancelled",
-      cancelReason: "organization_billing_changed",
-      organizationBillingVersionAtEnqueue: 4,
-    });
-  });
-
   it("課金状態の正本が重複した場合は送信直前にfail-closedにする", async () => {
     const t = createConvexTestWithMigrations();
     const ids = await t.run((ctx) =>
-      seedOrganizationManagerShop(ctx, { subject: "duplicate_billing_state_gate", plan: "pro" }),
+      seedOrganizationManagerShop(ctx, { subject: "duplicate_billing_state_gate", plan: "standard" }),
     );
     const enqueued = await t.mutation(internal.notificationOutbox.mutations.enqueue, {
       channel: "email",
@@ -858,7 +1020,7 @@ describe("notificationOutbox", () => {
       const seeded = await seedOrganizationManagerShop(ctx, {
         subject: "outbox_partial_person",
         email: "outbox-login@example.com",
-        plan: "pro",
+        plan: "standard",
       });
       await ctx.db.delete(seeded.memberId);
       await seedLegacyShopMembership(ctx, { shopId: seeded.shopId, userId: seeded.userId });
@@ -940,20 +1102,19 @@ describe("notificationOutbox", () => {
     const { t, shopId, staffId } = await setupShop();
     const { oldOutboxId, organizationId } = await t.run(async (ctx) => {
       const now = Date.now();
-      const organizationId = await ctx.db.insert("organizations", {
-        name: "Free通知事業者",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
-      await ctx.db.insert("organizationBillingStates", {
-        organizationId,
+      const shop = await ctx.db.get(shopId);
+      if (!shop?.organizationId) throw new Error("canonical shop not found");
+      const organizationId = shop.organizationId;
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+        .unique();
+      if (!billingState) throw new Error("organization billing state not found");
+      await ctx.db.patch(billingState._id, {
         state: { kind: "active", plan: "free" },
         businessNotificationCutoffAt: now,
         businessNotificationCutoffVersion: 2,
         version: 2,
-        createdAt: now,
         updatedAt: now,
       });
       const oldOutboxId = await ctx.db.insert("notificationOutbox", {
@@ -1008,7 +1169,7 @@ describe("notificationOutbox", () => {
         createdAt: now,
         updatedAt: now,
       });
-      await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
+      await ctx.db.patch(shopId, { organizationId });
 
       const insertOutbox = async (args: {
         dedupeKey: string;
@@ -1119,7 +1280,7 @@ describe("notificationOutbox", () => {
         createdAt: now,
         updatedAt: now,
       });
-      await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
+      await ctx.db.patch(shopId, { organizationId });
       const personId = await ctx.db.insert("organizationPeople", {
         organizationId,
         userId,
@@ -1236,31 +1397,16 @@ describe("notificationOutbox", () => {
     expect(await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect())).toHaveLength(1);
   });
 
-  it("100件の通常通知をpendingジョブとして受け付ける", async () => {
-    const { t, shopId } = await setupShop();
-    const staffIds = await t.run(async (ctx) => {
-      const ids: Id<"staffs">[] = [];
-      for (let i = 0; i < 100; i++) {
-        ids.push(
-          await ctx.db.insert("staffs", {
-            shopId,
-            name: `通知スタッフ${i + 1}`,
-            email: `notify-${i + 1}@example.com`,
-            isDeleted: false,
-          }),
-        );
-      }
-      return ids;
-    });
-
-    for (const [index, staffId] of staffIds.entries()) {
+  it("100件の課金通知をpendingジョブとして受け付ける", async () => {
+    const { t, shopId, userId } = await setupShop();
+    for (let index = 0; index < 100; index += 1) {
       await t.mutation(internal.notificationOutbox.mutations.enqueue, {
         channel: "email",
         shopId,
-        staffId,
-        history: { notificationKind: "test.email", displayTitle: emailPayload.subject },
+        userId,
+        purpose: "billing",
         dedupeKey: `email:test:bulk:${index}`,
-        payload: { ...emailPayload, to: `notify-${index + 1}@example.com` },
+        payload: { ...emailPayload, to: "manager@example.com" },
       });
     }
 
@@ -3269,6 +3415,49 @@ describe("notificationOutbox", () => {
     expect(openPage.page).toHaveLength(0);
   });
 
+  it("resendFailureはremoved personのstaffを副作用なしで拒否する", async () => {
+    const { t, shopId, staffId, organizationPersonId } = await setupShop();
+    if (!organizationPersonId) throw new Error("canonical staff person not found");
+    const recruitmentId = await insertRecruitment(t, shopId);
+    const failureId = await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.patch(organizationPersonId, { status: "removed", updatedAt: now });
+      return await ctx.db.insert("notificationFailureInbox", {
+        failureKey: "enqueue_preparation:test:removed-person",
+        sourceType: "enqueue_preparation",
+        status: "open",
+        shopId,
+        recruitmentId,
+        staffId,
+        channel: "email",
+        dedupeKey: "email:recruitment:removed-person",
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
+        firstFailedAt: now,
+        lastFailedAt: now,
+        lastError: "preparation failed",
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "user_mgr" })
+        .mutation(api.notificationOutbox.mutations.resendFailure, { failureId, shopId }),
+    ).resolves.toEqual({ scheduled: false, reason: "notRetryable" });
+    await expect(
+      t.run(async (ctx) => ({
+        failure: await ctx.db.get(failureId),
+        rateLimits: await ctx.db.query("rateLimits").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      })),
+    ).resolves.toMatchObject({
+      failure: { status: "open" },
+      rateLimits: [],
+      scheduled: [],
+    });
+  });
+
   it("resendFailureは催促不達を個別催促actionに予約してretryingへ移す", async () => {
     const { t, shopId, staffId } = await setupShop();
     const recruitmentId = await insertRecruitment(t, shopId);
@@ -3414,7 +3603,7 @@ describe("notificationOutbox", () => {
   });
 
   it("resendFailureはLINE連携案内の不達を連携依頼メール再送に予約する（募集なしでも可）", async () => {
-    const { t, shopId, staffId } = await setupShop();
+    const { t, shopId, staffId, organizationPersonId } = await setupShop();
     const failureId = await t.run(async (ctx) => {
       const now = Date.now();
       return await ctx.db.insert("notificationFailureInbox", {
@@ -3448,8 +3637,11 @@ describe("notificationOutbox", () => {
       state.scheduled.some((job) => job.name === "line/actions:sendInviteEmail" && job.args[0]?.staffId === staffId),
     ).toBe(true);
     const inviteJob = state.scheduled.find((job) => job.name === "line/actions:sendInviteEmail");
-    expect(inviteJob?.args[0]).not.toHaveProperty("organizationPersonId");
-    expect(inviteJob?.args[0]).not.toHaveProperty("lineLinkGenerationAtSchedule");
+    expect(inviteJob?.args[0]).toMatchObject({
+      staffId,
+      organizationPersonId,
+      lineLinkGenerationAtSchedule: 0,
+    });
     const openPage = await t
       .withIdentity({ subject: "user_mgr" })
       .query(api.notificationOutbox.queries.listOpenFailures, {
@@ -3588,7 +3780,7 @@ describe("notificationOutbox", () => {
   it("resendFailureはメール未登録スタッフのLINE連携案内を再送しない", async () => {
     const { t, shopId } = await setupShop();
     const staffWithoutEmailId = await t.run(async (ctx) => {
-      return await ctx.db.insert("staffs", { shopId, name: "メールなしスタッフ", email: "", isDeleted: false });
+      return await seedStaff(ctx, { shopId, name: "メールなしスタッフ", email: "" });
     });
     const failureId = await t.run(async (ctx) => {
       const now = Date.now();
@@ -3743,11 +3935,10 @@ describe("notificationOutbox", () => {
         createdAt: now,
         updatedAt: now,
       });
-      const otherStaffId = await ctx.db.insert("staffs", {
+      const otherStaffId = await seedStaff(ctx, {
         shopId: other.shopId,
         name: "別店舗スタッフ",
         email: "other-staff@example.com",
-        isDeleted: false,
       });
       const otherRecruitmentId = await ctx.db.insert("recruitments", {
         shopId: other.shopId,

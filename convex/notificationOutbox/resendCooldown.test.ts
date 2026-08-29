@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import type { Doc } from "../_generated/dataModel";
 import { seedNotificationHistory } from "../_test/notificationHistory";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { NOTIFICATION_RESEND_COOLDOWN_MS } from "../constants";
@@ -95,7 +96,7 @@ describe("notificationOutbox/resendCooldown", () => {
         subject: "resend_cooldown_saturation_manager",
         email: "resend-cooldown-saturation-manager@example.com",
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "過密通知対象",
         email: "resend-cooldown-saturation@example.com",

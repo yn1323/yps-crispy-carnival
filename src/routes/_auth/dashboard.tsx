@@ -18,7 +18,7 @@ function DashboardRoute() {
     <DashboardRoutePage
       organizationId={organization.organizationId}
       organizationName={organization.organizationName}
-      activeShops={organization.activeShops}
+      shops={organization.shops}
       requestedShopId={shop}
     />
   );

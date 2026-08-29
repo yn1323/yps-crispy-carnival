@@ -11,7 +11,7 @@ describe("organization/personRemoval", () => {
     const preview = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "person_removal_limit",
-        plan: "pro",
+        plan: "standard",
       });
       const staffId = await ctx.db.insert("staffs", {
         organizationId: base.organizationId,

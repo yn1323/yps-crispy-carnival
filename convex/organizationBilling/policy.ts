@@ -2,11 +2,7 @@ import type { Infer } from "convex/values";
 import { getDebugTrialDurationDays } from "../_lib/config";
 import { jstMonthStartMs } from "../_lib/dateFormat";
 import { DAY_MS } from "../constants";
-import type {
-  organizationBillingStateValidator,
-  organizationCanonicalBillingStateValidator,
-  organizationLegacyBillingStateValidator,
-} from "../organization/validators";
+import type { organizationBillingStateValidator } from "../organization/validators";
 import {
   ORGANIZATION_PLAN_LIMITS,
   type OrganizationDisplayPlan,
@@ -27,139 +23,10 @@ export { ORGANIZATION_PLAN_LIMITS } from "./planLimits";
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
-export const PAYMENT_GRACE_PERIOD_MS = 14 * DAY_MS;
 export type PersistedOrganizationBillingState = Infer<typeof organizationBillingStateValidator>;
-export type LegacyOrganizationBillingState = Infer<typeof organizationLegacyBillingStateValidator>;
-export type CanonicalOrganizationBillingState = Infer<typeof organizationCanonicalBillingStateValidator>;
-/** Widen中に既存call siteが受け取る保存shape。semantic判定前にcanonicalizeする。 */
+export type CanonicalOrganizationBillingState = PersistedOrganizationBillingState;
 export type OrganizationBillingState = PersistedOrganizationBillingState;
-type M018NormalizedOrganizationBillingState =
-  | Exclude<LegacyOrganizationBillingState, { kind: "complimentary" }>
-  | CanonicalOrganizationBillingState
-  | { kind: "complimentary"; plan: "pro" };
-export type VerifiedBillingTransitionCause = "stateUpdate" | "paymentFailed" | "scheduledChangeCanceled";
-
-/** m018用の履歴互換helper。通常runtimeでは使用しない。 */
-export function normalizeOrganizationPaidPlan(_plan: "pro" | "business"): "pro" {
-  return "pro";
-}
-
-/** m018用の履歴互換helper。通常runtimeでは使用しない。 */
-export function normalizeOrganizationActivePlan(plan: "free" | "pro" | "business"): "free" | "pro" {
-  return plan === "free" ? "free" : "pro";
-}
-
-/** m018用の履歴互換helper。BusinessをProへ畳む意味を変更しない。 */
-export function normalizeOrganizationBillingState(
-  state: PersistedOrganizationBillingState,
-): M018NormalizedOrganizationBillingState {
-  if ("planIdVersion" in state) return state;
-  switch (state.kind) {
-    case "trial": {
-      const { selectedPaidPlan, ...rest } = state;
-      return {
-        ...rest,
-        ...(selectedPaidPlan === undefined
-          ? {}
-          : { selectedPaidPlan: normalizeOrganizationPaidPlan(selectedPaidPlan) }),
-      };
-    }
-    case "initialPaymentPending":
-      return { ...state, plan: normalizeOrganizationPaidPlan(state.plan) };
-    case "pendingActivation":
-      return { ...state, plan: normalizeOrganizationPaidPlan(state.plan) };
-    case "active":
-      return { ...state, plan: normalizeOrganizationActivePlan(state.plan) };
-    case "complimentary":
-      return { kind: "complimentary", plan: "pro" };
-    case "scheduledChange":
-      return state.targetPlan === "pro"
-        ? { kind: "active", plan: "pro" }
-        : { ...state, currentPlan: "pro", targetPlan: "free" };
-    case "grace":
-      return { ...state, plan: normalizeOrganizationPaidPlan(state.plan) };
-  }
-}
-
-export function canonicalizeOrganizationPaidPlan(
-  plan: "standard" | "pro" | "business",
-  planIdVersion?: 2,
-): OrganizationPaidPlan {
-  if (planIdVersion === 2) {
-    if (plan === "business") throw new Error("billing_plan_id_version_invalid");
-    return plan;
-  }
-  if (plan === "standard") throw new Error("billing_plan_id_version_missing");
-  return plan === "pro" ? "standard" : "pro";
-}
-
-function canonicalizeLegacyActivePlan(plan: "free" | "pro" | "business"): OrganizationEntitlementPlan {
-  return plan === "free" ? "free" : canonicalizeOrganizationPaidPlan(plan);
-}
-
-/**
- * Widen中のlegacy stateを、runtimeが扱うcanonical v2 stateへ投影する。
- * 保存値はm042が書き換えるまで変更せず、未versioned proをStandard、businessをProとして読む。
- */
-export function canonicalizeOrganizationBillingState(
-  state: PersistedOrganizationBillingState,
-): CanonicalOrganizationBillingState {
-  if ("planIdVersion" in state) return state;
-
-  switch (state.kind) {
-    case "trial": {
-      const { selectedPaidPlan, ...rest } = state;
-      return {
-        ...rest,
-        planIdVersion: 2,
-        ...(selectedPaidPlan === undefined
-          ? {}
-          : { selectedPaidPlan: canonicalizeOrganizationPaidPlan(selectedPaidPlan) }),
-      };
-    }
-    case "initialPaymentPending":
-      return { ...state, planIdVersion: 2, plan: canonicalizeOrganizationPaidPlan(state.plan) };
-    case "pendingActivation": {
-      const { plan, fallback, ...rest } = state;
-      return {
-        ...rest,
-        planIdVersion: 2,
-        plan: canonicalizeOrganizationPaidPlan(plan),
-        fallback: fallback === "pro" ? "standard" : fallback,
-      };
-    }
-    case "active":
-      return { ...state, planIdVersion: 2, plan: canonicalizeLegacyActivePlan(state.plan) };
-    case "complimentary":
-      return { kind: "complimentary", planIdVersion: 2, plan: "pro" };
-    case "scheduledChange":
-      if (state.currentPlan === "pro") {
-        return {
-          ...state,
-          planIdVersion: 2,
-          currentPlan: "standard",
-          targetPlan: "free",
-        };
-      }
-      return state.targetPlan === "pro"
-        ? {
-            ...state,
-            planIdVersion: 2,
-            currentPlan: "pro",
-            targetPlan: "standard",
-          }
-        : { ...state, planIdVersion: 2, currentPlan: "pro", targetPlan: "free" };
-    case "grace": {
-      const { plan, targetPlan, ...rest } = state;
-      return {
-        ...rest,
-        planIdVersion: 2,
-        plan: canonicalizeOrganizationPaidPlan(plan),
-        ...(targetPlan === undefined ? {} : { targetPlan: canonicalizeOrganizationPaidPlan(targetPlan) }),
-      };
-    }
-  }
-}
+export type VerifiedBillingTransitionCause = "stateUpdate" | "activationFailed" | "scheduledChangeCanceled";
 
 export type OrganizationBillingPlanResolution = {
   paidPlan: OrganizationPaidPlan | null;
@@ -170,9 +37,8 @@ export type OrganizationBillingPlanResolution = {
 
 /** 通常runtime用。履歴migrationのBusiness→Pro正規化とは分離する。 */
 export function resolveOrganizationBillingPlans(
-  persistedState: PersistedOrganizationBillingState,
+  state: PersistedOrganizationBillingState,
 ): OrganizationBillingPlanResolution {
-  const state = canonicalizeOrganizationBillingState(persistedState);
   switch (state.kind) {
     case "trial":
       return {
@@ -184,10 +50,9 @@ export function resolveOrganizationBillingPlans(
     case "initialPaymentPending":
       return {
         paidPlan: state.plan,
-        // 既存契約どおり、初回請求結果待ちはStandard相当を維持する。
-        entitlementPlan: "standard",
-        displayPlan: state.plan,
-        targetingPlan: state.plan,
+        entitlementPlan: "free",
+        displayPlan: "free",
+        targetingPlan: "free",
       };
     case "pendingActivation":
       if (state.fallback === "free") {
@@ -220,33 +85,25 @@ export function resolveOrganizationBillingPlans(
         displayPlan: state.currentPlan,
         targetingPlan: state.currentPlan,
       };
-    case "grace":
+    case "paymentTerminationPending":
       return {
-        paidPlan: state.targetPlan ?? state.plan,
-        entitlementPlan: state.plan,
-        displayPlan: state.plan,
-        targetingPlan: state.plan,
+        paidPlan: null,
+        entitlementPlan: "free",
+        displayPlan: "free",
+        targetingPlan: "free",
       };
   }
-}
-
-/** 通常runtimeで、表示中または変更先としてBusinessを参照する状態かを判定する。 */
-export function billingStateReferencesBusinessPlan(state: PersistedOrganizationBillingState): boolean {
-  return hasLegacyBusinessBillingState(state);
 }
 
 /**
  * 現在の利用数へ適用するプランを、課金ライフサイクルとは独立して解決する。
  */
-export function resolveUsageLimitPlan(
-  persistedState: PersistedOrganizationBillingState,
-): OrganizationEntitlementPlan | null {
-  const state = canonicalizeOrganizationBillingState(persistedState);
+export function resolveUsageLimitPlan(state: PersistedOrganizationBillingState): OrganizationEntitlementPlan | null {
   switch (state.kind) {
     case "trial":
       return "pro";
     case "initialPaymentPending":
-      return "standard";
+      return "free";
     case "pendingActivation":
       return state.fallback;
     case "active":
@@ -255,57 +112,9 @@ export function resolveUsageLimitPlan(
       return "pro";
     case "scheduledChange":
       return state.currentPlan;
-    case "grace":
-      return state.plan;
+    case "paymentTerminationPending":
+      return "free";
   }
-}
-
-export function hasLegacyBusinessBillingState(state: PersistedOrganizationBillingState): boolean {
-  if ("planIdVersion" in state) return false;
-  switch (state.kind) {
-    case "trial":
-      return state.selectedPaidPlan === "business";
-    case "initialPaymentPending":
-    case "grace":
-      return state.plan === "business";
-    case "pendingActivation":
-      return state.plan === "business";
-    case "active":
-      return state.plan === "business";
-    case "complimentary":
-      return state.plan === "business";
-    case "scheduledChange": {
-      // m018の旧判定式を、現在のdiscriminated unionで型絞り込みさせずそのまま維持する。
-      const currentPlan: string = state.currentPlan;
-      const targetPlan: string = state.targetPlan;
-      return currentPlan === "business" || targetPlan === "pro";
-    }
-  }
-}
-
-/**
- * 検証済みの最初の支払い失敗時刻から、延長されない14日間の猶予を組み立てる。
- */
-export function createPaymentGraceState(
-  plan: OrganizationPaidPlan,
-  firstFailureAt: number,
-  targetPlan: OrganizationPaidPlan = plan,
-): Extract<CanonicalOrganizationBillingState, { kind: "grace" }> {
-  if (!Number.isSafeInteger(firstFailureAt) || firstFailureAt < 0) {
-    throw new RangeError("firstFailureAt must be a non-negative safe integer timestamp");
-  }
-  const endsAt = firstFailureAt + PAYMENT_GRACE_PERIOD_MS;
-  if (!Number.isSafeInteger(endsAt)) {
-    throw new RangeError("payment grace deadline must be a safe integer timestamp");
-  }
-  return {
-    kind: "grace",
-    planIdVersion: 2,
-    plan,
-    ...(targetPlan === plan ? {} : { targetPlan }),
-    startedAt: firstFailureAt,
-    endsAt,
-  };
 }
 
 /**
@@ -313,12 +122,10 @@ export function createPaymentGraceState(
  * Stripe等の到着順やクライアント状態を根拠に、業務状態を飛び越えさせない。
  */
 export function isVerifiedBillingTransitionAllowed(
-  persistedCurrent: PersistedOrganizationBillingState,
-  persistedNext: PersistedOrganizationBillingState,
+  current: PersistedOrganizationBillingState,
+  next: PersistedOrganizationBillingState,
   cause: VerifiedBillingTransitionCause = "stateUpdate",
 ): boolean {
-  const current = canonicalizeOrganizationBillingState(persistedCurrent);
-  const next = canonicalizeOrganizationBillingState(persistedNext);
   if (current.kind === "complimentary" || next.kind === "complimentary") return false;
 
   switch (next.kind) {
@@ -337,7 +144,10 @@ export function isVerifiedBillingTransitionAllowed(
       );
     case "active":
       if (next.plan === "free") {
-        return current.kind === "pendingActivation" && current.fallback === "free";
+        return (
+          (current.kind === "pendingActivation" && current.fallback === "free") ||
+          current.kind === "paymentTerminationPending"
+        );
       }
       if (current.kind === "scheduledChange") {
         if (cause === "scheduledChangeCanceled") return current.currentPlan === next.plan;
@@ -347,27 +157,29 @@ export function isVerifiedBillingTransitionAllowed(
       if (current.kind === "pendingActivation") {
         return (
           current.plan === next.plan ||
-          (cause === "paymentFailed" && current.fallback === "standard" && next.plan === "standard")
+          (cause === "activationFailed" && current.fallback === "standard" && next.plan === "standard")
         );
       }
-      if (current.kind === "grace") return (current.targetPlan ?? current.plan) === next.plan;
       if (current.kind !== "active") return false;
       if (current.plan === "free") return true;
       return current.plan === next.plan;
-    case "grace":
-      if (current.kind === "active" && current.plan !== "free") return current.plan === next.plan;
-      if (current.kind === "initialPaymentPending") {
-        return next.plan === "standard" && (next.targetPlan ?? next.plan) === current.plan;
-      }
-      if (current.kind === "scheduledChange") {
-        return current.currentPlan === next.plan && current.targetPlan === (next.targetPlan ?? next.plan);
-      }
-      return false;
     case "scheduledChange":
       if (current.kind === "scheduledChange") {
         return current.currentPlan === next.currentPlan && current.targetPlan === next.targetPlan;
       }
       return current.kind === "active" && current.plan === next.currentPlan;
+    case "paymentTerminationPending":
+      if (current.kind === "paymentTerminationPending") {
+        return current.previousPlan === next.previousPlan;
+      }
+      if (current.kind === "initialPaymentPending") return next.previousPlan === "trial";
+      if (current.kind === "active") {
+        return current.plan !== "free" && next.previousPlan === current.plan;
+      }
+      if (current.kind === "scheduledChange") {
+        return next.previousPlan === current.currentPlan;
+      }
+      return false;
     case "trial":
       return false;
   }
@@ -396,16 +208,13 @@ export type OrganizationBillingPolicy = {
 /**
  * 課金状態だけから事業者全体の利用権限を導出する。
  */
-export function deriveOrganizationBillingPolicy(
-  persistedState: PersistedOrganizationBillingState,
-): OrganizationBillingPolicy {
-  const state = canonicalizeOrganizationBillingState(persistedState);
+export function deriveOrganizationBillingPolicy(state: PersistedOrganizationBillingState): OrganizationBillingPolicy {
   const plans = resolveOrganizationBillingPlans(state);
   switch (state.kind) {
     case "trial":
       return enabledPolicy(plans, state.trialEndsAt);
     case "initialPaymentPending":
-      return enabledPolicy(plans, null);
+      return freePolicy(plans.paidPlan);
     case "pendingActivation":
       // Freeからの契約開始は支払い成功までFree権利を維持し、有料機能だけを開放しない。
       if (state.fallback === "free") {
@@ -423,9 +232,8 @@ export function deriveOrganizationBillingPolicy(
     case "scheduledChange":
       // FreeまたはStandardへの変更予定は、期間終了まで現在の有料プランを維持する。
       return enabledPolicy(plans, state.effectiveAt);
-    case "grace":
-      // 猶予中も元の有料プランを通常どおり利用できる。
-      return enabledPolicy(plans, state.endsAt);
+    case "paymentTerminationPending":
+      return freePolicy(null);
   }
 }
 
@@ -559,11 +367,11 @@ function countsTowardPeopleLimit(person: NormalizedPersonUsage): boolean {
 
 export type OrganizationUsageSnapshot = {
   peopleCount: number;
-  activeShopCount: number;
+  shopCount: number;
   activeManagerCount: number;
 };
 
-export type PlanLimitViolation = "people" | "activeShops" | "activeManagers";
+export type PlanLimitViolation = "people" | "shops" | "activeManagers";
 
 export type OrganizationUsageLimitViolation = {
   kind: PlanLimitViolation;
@@ -622,12 +430,12 @@ export function evaluateOrganizationUsageLimits(input: {
       excess: input.usage.peopleCount - limits.maxPeople,
     });
   }
-  if (input.usage.activeShopCount > limits.maxActiveShops) {
+  if (input.usage.shopCount > limits.maxShops) {
     violations.push({
-      kind: "activeShops",
-      current: input.usage.activeShopCount,
-      max: limits.maxActiveShops,
-      excess: input.usage.activeShopCount - limits.maxActiveShops,
+      kind: "shops",
+      current: input.usage.shopCount,
+      max: limits.maxShops,
+      excess: input.usage.shopCount - limits.maxShops,
     });
   }
   if (input.usage.activeManagerCount > limits.maxActiveManagers) {
@@ -675,7 +483,7 @@ export function evaluatePlanLimits(plan: OrganizationPlan, usage: OrganizationUs
   const violations: PlanLimitViolation[] = [];
 
   if (usage.peopleCount > limits.maxPeople) violations.push("people");
-  if (usage.activeShopCount > limits.maxActiveShops) violations.push("activeShops");
+  if (usage.shopCount > limits.maxShops) violations.push("shops");
   if (usage.activeManagerCount > limits.maxActiveManagers) violations.push("activeManagers");
 
   return {
@@ -685,7 +493,7 @@ export function evaluatePlanLimits(plan: OrganizationPlan, usage: OrganizationUs
   };
 }
 
-export type FreeEligibilityFailure = "activeManagerCount" | "activeShopCount" | "peopleCount";
+export type FreeEligibilityFailure = "activeManagerCount" | "shopCount" | "peopleCount";
 
 export function evaluateFreeEligibility(usage: OrganizationUsageSnapshot) {
   validateUsageSnapshot(usage);
@@ -694,7 +502,7 @@ export function evaluateFreeEligibility(usage: OrganizationUsageSnapshot) {
   if (usage.activeManagerCount < 1 || usage.activeManagerCount > ORGANIZATION_PLAN_LIMITS.free.maxActiveManagers) {
     failures.push("activeManagerCount");
   }
-  if (usage.activeShopCount > ORGANIZATION_PLAN_LIMITS.free.maxActiveShops) failures.push("activeShopCount");
+  if (usage.shopCount > ORGANIZATION_PLAN_LIMITS.free.maxShops) failures.push("shopCount");
   if (usage.peopleCount > ORGANIZATION_PLAN_LIMITS.free.maxPeople) failures.push("peopleCount");
 
   return {
@@ -705,7 +513,7 @@ export function evaluateFreeEligibility(usage: OrganizationUsageSnapshot) {
 
 function validateUsageSnapshot(usage: OrganizationUsageSnapshot): void {
   requireNonNegativeInteger(usage.peopleCount, "peopleCount");
-  requireNonNegativeInteger(usage.activeShopCount, "activeShopCount");
+  requireNonNegativeInteger(usage.shopCount, "shopCount");
   requireNonNegativeInteger(usage.activeManagerCount, "activeManagerCount");
 }
 
@@ -742,18 +550,16 @@ export function calculateTrialEndsAt(organizationCreatedAt: number): number {
 }
 
 export function getOrganizationBillingStateDeadline(state: PersistedOrganizationBillingState): number | null {
-  const canonicalState = canonicalizeOrganizationBillingState(state);
-  switch (canonicalState.kind) {
+  switch (state.kind) {
     case "trial":
-      return canonicalState.trialEndsAt;
+      return state.trialEndsAt;
     case "scheduledChange":
-      return canonicalState.effectiveAt;
-    case "grace":
-      return canonicalState.endsAt;
+      return state.effectiveAt;
     case "initialPaymentPending":
     case "pendingActivation":
     case "active":
     case "complimentary":
+    case "paymentTerminationPending":
       return null;
   }
 }

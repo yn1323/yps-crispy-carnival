@@ -42,7 +42,7 @@ export function UserSummary({ data }: Props) {
               )}
             </HStack>
             <Text fontSize="sm" color="fg.muted" truncate>
-              {data.person.email || "メールアドレス未登録"}
+              {data.person.email}
             </Text>
           </Stack>
         </HStack>

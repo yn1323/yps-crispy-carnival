@@ -99,7 +99,7 @@ describe("Home店舗の組織別client hint", () => {
 });
 
 describe("buildDashboardShopContexts", () => {
-  it("canonical organizationのactive店舗だけを既存Dashboardの店舗contextへ変換する", () => {
+  it("canonical organizationの非削除店舗を既存Dashboardの店舗contextへ変換する", () => {
     expect(
       buildDashboardShopContexts(SHOPS, {
         id: "organization-a",
@@ -109,7 +109,6 @@ describe("buildDashboardShopContexts", () => {
       {
         shopId: "shop-a",
         shopName: "A店舗",
-        shopStatus: "active",
         organizationId: "organization-a",
         organizationName: "Aグループ",
         organizationPlan: null,
@@ -117,7 +116,6 @@ describe("buildDashboardShopContexts", () => {
       {
         shopId: "shop-b",
         shopName: "B店舗",
-        shopStatus: "active",
         organizationId: "organization-a",
         organizationName: "Aグループ",
         organizationPlan: null,

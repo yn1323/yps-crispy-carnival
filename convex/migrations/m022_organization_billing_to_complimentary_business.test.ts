@@ -1,7 +1,8 @@
+import type { WithoutSystemFields } from "convex/server";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
-import { createConvexTestWithMigrations } from "../_test/migrations.test-helper";
+import type { Doc, Id } from "../_generated/dataModel";
+import { createMigrationHistoryTestWithMigrations } from "../_test/migrations.test-helper";
 import { seedOrganizationManagerShop } from "../_test/seed";
 
 const migrationArgs = { batchSize: 100, cursor: null, dryRun: false } as const;
@@ -10,9 +11,21 @@ const m022Migration = internal.migrations.m022_organization_billing_to_complimen
 const correlationId = (organizationId: Id<"organizations">) =>
   `${organizationId}:migration:m022:to-complimentary-business`;
 
+const historicalComplimentaryBusinessState = () =>
+  ({ kind: "complimentary", plan: "business" }) as unknown as Doc<"organizationBillingStates">["state"];
+
+type CurrentStripeSubscriptionInsert = WithoutSystemFields<Doc<"organizationStripeSubscriptions">>;
+type M022HistoricalStripeSubscriptionInsert = Omit<CurrentStripeSubscriptionInsert, "plan">;
+
+function historicalStripeSubscription(
+  subscription: M022HistoricalStripeSubscriptionInsert,
+): CurrentStripeSubscriptionInsert {
+  return subscription as unknown as CurrentStripeSubscriptionInsert;
+}
+
 describe("m022 organization billing to complimentary Business migration", () => {
   it("全課金状態を支払い不要Businessへ寄せ、Free選択を消し、再実行で監査を重複させない", async () => {
-    const t = createConvexTestWithMigrations();
+    const t = createMigrationHistoryTestWithMigrations();
     const seeded = await t.run(async (ctx) => {
       const findState = async (organizationId: Id<"organizations">) => {
         const state = await ctx.db
@@ -42,7 +55,7 @@ describe("m022 organization billing to complimentary Business migration", () => 
       const complimentary = await seedOrganizationManagerShop(ctx, { subject: "m022_complimentary", plan: "pro" });
       const complimentaryState = await findState(complimentary.organizationId);
       await ctx.db.patch(complimentaryState._id, {
-        state: { kind: "complimentary", plan: "business" },
+        state: historicalComplimentaryBusinessState(),
         version: 6,
       });
 
@@ -97,7 +110,7 @@ describe("m022 organization billing to complimentary Business migration", () => 
   });
 
   it("organization欠損・重複課金状態・Stripe対応をconflictで停止し、状態を変更しない", async () => {
-    const t = createConvexTestWithMigrations();
+    const t = createMigrationHistoryTestWithMigrations();
     const seeded = await t.run(async (ctx) => {
       const createTarget = async (subject: string) => {
         const target = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
@@ -130,19 +143,22 @@ describe("m022 organization billing to complimentary Business migration", () => 
         createdAt: now,
         updatedAt: now,
       });
-      await ctx.db.insert("organizationStripeSubscriptions", {
-        organizationId: subscription.organizationId,
-        stripeCustomerId: "cus_m022_subscription",
-        stripeSubscriptionId: "sub_m022_mapping",
-        stripePriceId: "price_m022_mapping",
-        livemode: false,
-        status: "canceled",
-        providerGeneration: 1,
-        cancelAtPeriodEnd: false,
-        syncedAt: now,
-        createdAt: now,
-        updatedAt: now,
-      });
+      await ctx.db.insert(
+        "organizationStripeSubscriptions",
+        historicalStripeSubscription({
+          organizationId: subscription.organizationId,
+          stripeCustomerId: "cus_m022_subscription",
+          stripeSubscriptionId: "sub_m022_mapping",
+          stripePriceId: "price_m022_mapping",
+          livemode: false,
+          status: "canceled",
+          providerGeneration: 1,
+          cancelAtPeriodEnd: false,
+          syncedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
 
       return { missing, duplicate, customer, subscription };
     });

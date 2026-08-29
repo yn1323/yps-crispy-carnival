@@ -60,7 +60,7 @@ localでは、現在の`convex/`を読み込んだlocal Convex serverが動作�
 | `pro-notifications` | Pro、通知失敗、LINE連携、確定後の差分 |
 | `standard-scheduled-change` | Standardの解約予約 |
 | `payment-pending` | 課金の`pendingActivation` |
-| `payment-grace` | 支払猶予中 |
+| `payment-failure` | 支払い失敗後のFree・契約終了処理中 |
 | `free-over-limit` | Freeの管理者上限超過と、`limitRecoveryOnly`での整理導線 |
 | `standard-over-limit` | Standardの管理者上限超過と、`limitRecoveryOnly`での整理導線 |
 

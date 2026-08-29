@@ -180,7 +180,7 @@ describe("組織の対応一覧シナリオ", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "action_inbox_manager_provider_delayed",
-        plan: "business",
+        plan: "pro",
       });
       const invitationId = await ctx.db.insert("organizationInvitations", {
         organizationId: base.organizationId,
@@ -299,7 +299,7 @@ describe("組織の対応一覧シナリオ", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "action_inbox_manager_provider_failure",
-        plan: "business",
+        plan: "pro",
       });
       const invitationId = await ctx.db.insert("organizationInvitations", {
         organizationId: base.organizationId,

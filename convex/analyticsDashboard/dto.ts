@@ -5,9 +5,7 @@ export type AnalyticsAvailability = "available" | "unavailable";
 export type AnalyticsGranularity = "day" | "week" | "month";
 
 export type CanonicalAnalyticsPlanKey = "trial" | "free" | "standard" | "pro";
-export type LegacyAnalyticsPlanKey = "trial" | "free" | "pro" | "business";
-/** Widen response型。planIdVersion=2のresponseはCanonicalだけを返す。 */
-export type AnalyticsPlanKey = CanonicalAnalyticsPlanKey | "business";
+export type AnalyticsPlanKey = CanonicalAnalyticsPlanKey;
 
 export type AnalyticsDirection = "asc" | "desc";
 

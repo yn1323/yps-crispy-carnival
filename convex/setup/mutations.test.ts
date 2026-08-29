@@ -387,7 +387,7 @@ describe("setup/mutations", () => {
       expect(shop?.name).toBe("テスト店舗");
       expect(shop?.regularClosedDays).toEqual([]);
       expect(shop?.submissionPattern).toEqual({ kind: "dateOnly" });
-      expect(shop?.operatingStatus).toBe("active");
+      expect(shop?.isDeleted).toBe(false);
       expect(shop?.organizationId).toBeDefined();
       if (!shop?.organizationId) throw new Error("organization not found");
       const organizationId = shop.organizationId;
@@ -415,7 +415,7 @@ describe("setup/mutations", () => {
         version: organizationBillingState.version,
       }).toEqual({
         organizationId,
-        state: { kind: "trial", planIdVersion: 2, trialEndsAt: Date.parse("2026-09-04T15:00:00.000Z") },
+        state: { kind: "trial", trialEndsAt: Date.parse("2026-09-04T15:00:00.000Z") },
         freeManagerPersonId: undefined,
         freeShopId: undefined,
         version: 1,
@@ -618,7 +618,7 @@ describe("setup/mutations", () => {
       });
 
       expect(state.billingState).toMatchObject({
-        state: { kind: "complimentary", planIdVersion: 2, plan: "pro" },
+        state: { kind: "complimentary", plan: "pro" },
         version: 1,
       });
       expect(state.billingState?.freeManagerPersonId).toBeUndefined();
@@ -1058,7 +1058,7 @@ describe("setup/mutations", () => {
       expect(state.audits).toEqual([]);
     });
 
-    it("二つ目の組織をFreeで作り、既存組織の支払い不要Businessを変えない", async () => {
+    it("二つ目の組織をFreeで作り、既存組織の支払い不要Proを変えない", async () => {
       const t = convexTest(schema, modules);
       const now = new Date("2026-07-25T10:00:00+09:00");
       vi.setSystemTime(now);
@@ -1100,15 +1100,15 @@ describe("setup/mutations", () => {
         };
       });
 
-      expect(state.shop).toMatchObject({ name: "二つ目の店舗", operatingStatus: "active", isDeleted: false });
+      expect(state.shop).toMatchObject({ name: "二つ目の店舗", isDeleted: false });
       expect(state.organization).toMatchObject({ name: "二つ目の店舗グループ", createdByUserId: seed.userId });
       const newBillingState = state.billingStates.find((billing) => billing.organizationId !== seed.organizationId);
       const existingBillingState = state.billingStates.find(
         (billing) => billing.organizationId === seed.organizationId,
       );
-      expect(newBillingState?.state).toEqual({ kind: "active", planIdVersion: 2, plan: "free" });
+      expect(newBillingState?.state).toEqual({ kind: "active", plan: "free" });
       expect(newBillingState?.version).toBe(1);
-      expect(existingBillingState?.state).toEqual({ kind: "complimentary", plan: "business" });
+      expect(existingBillingState?.state).toEqual({ kind: "complimentary", plan: "pro" });
       expect(state.people).toHaveLength(1);
       expect(state.members).toHaveLength(1);
       expect(state.staffs).toHaveLength(1);

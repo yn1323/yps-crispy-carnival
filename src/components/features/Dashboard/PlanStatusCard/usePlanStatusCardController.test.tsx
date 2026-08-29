@@ -32,6 +32,13 @@ const paidPlan = {
   canUpdatePaymentMethod: true,
 } satisfies DashboardPlanStatusSource;
 
+const trialEndingSoon = {
+  kind: "trial",
+  trialEndsAt: Date.parse("2026-08-16T15:00:00.000Z"),
+  canManagePlan: true,
+  canUpdatePaymentMethod: false,
+} satisfies DashboardPlanStatusSource;
+
 type ControllerProps = {
   planStatus: DashboardPlanStatusSource | null | undefined;
   shopId: string | undefined;
@@ -133,33 +140,14 @@ describe("usePlanStatusCardController", () => {
     });
   });
 
-  it.each([
-    {
-      name: "支払い問題",
-      source: {
-        kind: "paymentIssue",
-        phase: "grace",
-        canManagePlan: true,
-        canUpdatePaymentMethod: true,
-      } satisfies DashboardPlanStatusSource,
-    },
-    {
-      name: "終了7日前の未選択トライアル",
-      source: {
-        kind: "trial",
-        trialEndsAt: Date.parse("2026-08-17T15:00:00.000Z"),
-        canManagePlan: true,
-        canUpdatePaymentMethod: false,
-      } satisfies DashboardPlanStatusSource,
-    },
-  ])("$nameの自動展開では初回から利用状況を購読する", ({ source }) => {
+  it("終了7日前の未選択トライアルは自動展開し、初回から利用状況を購読する", () => {
     vi.useFakeTimers();
     const openedAt = Date.parse("2026-08-11T03:00:00.000Z");
     vi.setSystemTime(openedAt);
 
     const { result } = renderHook(() =>
       usePlanStatusCardController({
-        planStatus: source,
+        planStatus: trialEndingSoon,
         shopId: "shop-1",
         onOpenBillingSettings: vi.fn(),
       }),
@@ -181,16 +169,10 @@ describe("usePlanStatusCardController", () => {
       if (args === "skip") return planUsage;
       return args.shopId === "shop-a" ? planUsage : undefined;
     });
-    const paymentIssue = {
-      kind: "paymentIssue",
-      phase: "grace",
-      canManagePlan: true,
-      canUpdatePaymentMethod: true,
-    } satisfies DashboardPlanStatusSource;
     const { result, rerender } = renderHook(
       ({ shopId }) =>
         usePlanStatusCardController({
-          planStatus: paymentIssue,
+          planStatus: trialEndingSoon,
           shopId,
           onOpenBillingSettings: vi.fn(),
         }),
@@ -209,17 +191,13 @@ describe("usePlanStatusCardController", () => {
   });
 
   it("利用状況のloading・非表示・取得成功を共通propへ区別して渡す", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse("2026-08-11T03:00:00.000Z"));
     let queryResult: PlanStatusCardUsage | null | undefined;
     mocks.query.mockImplementation(() => queryResult);
-    const paymentIssue = {
-      kind: "paymentIssue",
-      phase: "grace",
-      canManagePlan: true,
-      canUpdatePaymentMethod: true,
-    } satisfies DashboardPlanStatusSource;
     const { result, rerender } = renderHook(() =>
       usePlanStatusCardController({
-        planStatus: paymentIssue,
+        planStatus: trialEndingSoon,
         shopId: "shop-1",
         onOpenBillingSettings: vi.fn(),
       }),
@@ -250,29 +228,12 @@ describe("usePlanStatusCardController", () => {
     expect(onOpenBillingSettings).toHaveBeenCalledOnce();
   });
 
-  it("支払い問題・終了7日前の未選択トライアルだけを初期展開する", () => {
+  it("終了7日前の未選択トライアルだけを初期展開する", () => {
     vi.useFakeTimers();
     vi.setSystemTime(Date.parse("2026-08-10T03:00:00.000Z"));
-    const paymentIssue = renderHook(() =>
-      usePlanStatusCardController({
-        planStatus: {
-          kind: "paymentIssue",
-          phase: "grace",
-          canManagePlan: true,
-          canUpdatePaymentMethod: true,
-        },
-        shopId: "shop-1",
-        onOpenBillingSettings: vi.fn(),
-      }),
-    );
     const trial = renderHook(() =>
       usePlanStatusCardController({
-        planStatus: {
-          kind: "trial",
-          trialEndsAt: Date.parse("2026-08-16T15:00:00.000Z"),
-          canManagePlan: true,
-          canUpdatePaymentMethod: false,
-        },
+        planStatus: trialEndingSoon,
         shopId: "shop-1",
         onOpenBillingSettings: vi.fn(),
       }),
@@ -280,18 +241,14 @@ describe("usePlanStatusCardController", () => {
     const selectedTrial = renderHook(() =>
       usePlanStatusCardController({
         planStatus: {
-          kind: "trial",
-          trialEndsAt: Date.parse("2026-08-16T15:00:00.000Z"),
+          ...trialEndingSoon,
           selectedPaidPlan: "standard",
-          canManagePlan: true,
-          canUpdatePaymentMethod: true,
         },
         shopId: "shop-1",
         onOpenBillingSettings: vi.fn(),
       }),
     );
 
-    expect(currentCard(paymentIssue.result.current).defaultExpanded).toBe(true);
     expect(currentCard(trial.result.current).defaultExpanded).toBe(true);
     expect(currentCard(selectedTrial.result.current).defaultExpanded).toBe(false);
   });

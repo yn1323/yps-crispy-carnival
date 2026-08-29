@@ -60,15 +60,14 @@ async function overflowOrganizationPeopleProbe(
 }
 
 describe("organization.mutations.updateOrganizationName", () => {
-  it("非稼働店舗を選択中でも事業者名を変更し、同じrequestIdを冪等に扱う", async () => {
+  it("店舗を選択中に事業者名を変更し、同じrequestIdを冪等に扱う", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "organization_name_actor",
         shopName: "変更前店舗",
-        plan: "pro",
+        plan: "standard",
       });
-      await ctx.db.patch(base.shopId, { operatingStatus: "archived" });
       return base;
     });
     const requestId = "organization-name-request";
@@ -110,7 +109,7 @@ describe("organization.mutations.updateOrganizationName", () => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "organization_name_remove_suffix",
         shopName: "編集対象店舗",
-        plan: "pro",
+        plan: "standard",
       });
       await ctx.db.patch(base.organizationId, { name: "編集対象店舗グループ" });
       return base;
@@ -135,7 +134,7 @@ describe("organization.mutations.updateOrganizationName", () => {
     const ids = await t.run(async (ctx) => {
       const removed = await seedOrganizationManagerShop(ctx, {
         subject: "organization_name_removed",
-        plan: "pro",
+        plan: "standard",
       });
       await ctx.db.patch(removed.memberId, { status: "removed" });
       return removed;
@@ -194,7 +193,7 @@ describe("organization.mutations.updateOrganizationName", () => {
         await seedOrganizationManagerShop(ctx, {
           subject: "organization_name_usage_unknown",
           shopName: "利用数確認前店舗",
-          plan: "pro",
+          plan: "standard",
         }),
     );
     await overflowOrganizationPeopleProbe(t, {
@@ -225,7 +224,7 @@ describe("organization.mutations.updateOrganizationName", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "organization_name_missing_billing",
-        plan: "pro",
+        plan: "standard",
       });
       const billingState = await ctx.db
         .query("organizationBillingStates")

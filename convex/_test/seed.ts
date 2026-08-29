@@ -30,7 +30,6 @@ export async function seedShop(ctx: MutationCtx, name = "テスト店舗") {
   });
   return await ctx.db.insert("shops", {
     organizationId,
-    operatingStatus: "active",
     name,
     submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     regularClosedDays: [],
@@ -153,31 +152,19 @@ export async function seedLegacyManagerShop(
   return { userId, shopId };
 }
 
-function legacySeedPlan(plan: "free" | "standard" | "pro" | "business" | undefined) {
-  if (plan === "standard") throw new Error("standard requires planIdVersion=2");
-  return plan ?? "free";
-}
-
-function canonicalSeedPlan(plan: "free" | "standard" | "pro" | "business" | undefined) {
-  if (plan === "business") throw new Error("planIdVersion=2 does not accept business");
-  return plan ?? "free";
-}
-
 export async function seedOrganizationManagerShop(
   ctx: MutationCtx,
   args: {
     subject: string;
     email?: string;
     shopName?: string;
-    // markerなしはlegacy、planIdVersion=2はcanonical fixtureとして扱う。
-    plan?: "free" | "standard" | "pro" | "business";
-    planIdVersion?: 2;
+    plan?: "free" | "standard" | "pro";
     complimentary?: boolean;
     shopDeleted?: boolean;
     membershipDeleted?: boolean;
   },
 ) {
-  const paidPlan = args.planIdVersion === 2 ? canonicalSeedPlan(args.plan) : legacySeedPlan(args.plan);
+  const plan = args.plan ?? "free";
   const email = (args.email ?? `${args.subject}@example.com`).trim().toLowerCase();
   const userId = await seedUser(ctx, args.subject, email);
   const now = Date.now();
@@ -210,7 +197,6 @@ export async function seedOrganizationManagerShop(
   });
   const shopId = await ctx.db.insert("shops", {
     organizationId,
-    operatingStatus: args.shopDeleted ? "archived" : "active",
     name: args.shopName ?? "テスト店舗",
     submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     regularClosedDays: [],
@@ -218,13 +204,7 @@ export async function seedOrganizationManagerShop(
   });
   await ctx.db.insert("organizationBillingStates", {
     organizationId,
-    state: args.complimentary
-      ? args.planIdVersion === 2
-        ? { kind: "complimentary", planIdVersion: 2, plan: "pro" }
-        : { kind: "complimentary", plan: "business" }
-      : args.planIdVersion === 2
-        ? { kind: "active", planIdVersion: 2, plan: paidPlan as "free" | "standard" | "pro" }
-        : { kind: "active", plan: paidPlan as "free" | "pro" | "business" },
+    state: args.complimentary ? { kind: "complimentary", plan: "pro" } : { kind: "active", plan },
     ...(args.complimentary ? {} : { freeManagerPersonId: personId, freeShopId: shopId }),
     version: 1,
     createdAt: now,
@@ -295,29 +275,14 @@ export async function seedCanonicalStaffLineRecipient(
   },
 ) {
   const staff = await ctx.db.get(args.staffId);
-  if (!staff || staff.isDeleted) throw new Error("seedCanonicalStaffLineRecipient requires an active staff");
-  const shop = await ctx.db.get(staff.shopId);
-  if (!shop?.organizationId || shop.isDeleted || shop.operatingStatus !== "active") {
-    throw new Error("seedCanonicalStaffLineRecipient requires an active canonical shop");
+  if (!staff || staff.isDeleted || !staff.organizationId || !staff.organizationPersonId) {
+    throw new Error("seedCanonicalStaffLineRecipient requires an active canonical staff");
   }
-  const now = Date.now();
-  const organizationPersonId =
-    staff.organizationPersonId ??
-    (await ctx.db.insert("organizationPeople", {
-      organizationId: shop.organizationId,
-      ...(staff.userId ? { userId: staff.userId } : {}),
-      name: staff.name,
-      email: staff.email,
-      emailNormalized: staff.email.trim().toLowerCase(),
-      status: "active",
-      createdAt: now,
-      updatedAt: now,
-    }));
-  await ctx.db.patch(staff._id, {
-    organizationId: shop.organizationId,
-    organizationPersonId,
-    emailNormalized: staff.email.trim().toLowerCase(),
-  });
+  const shop = await ctx.db.get(staff.shopId);
+  if (!shop?.organizationId || shop.isDeleted || staff.organizationId !== shop.organizationId) {
+    throw new Error("seedCanonicalStaffLineRecipient requires a non-deleted canonical shop");
+  }
+  const organizationPersonId = staff.organizationPersonId;
   const recipient = await seedOrganizationPersonLineLink(ctx, {
     organizationId: shop.organizationId,
     organizationPersonId,

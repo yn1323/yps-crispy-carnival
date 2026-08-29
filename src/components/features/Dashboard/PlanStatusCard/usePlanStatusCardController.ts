@@ -53,11 +53,10 @@ export function usePlanStatusCardController({
     [currentTime, planStatus],
   );
   const defaultExpanded = Boolean(
-    planStatus?.kind === "paymentIssue" ||
-      (planStatus?.kind === "trial" &&
-        planStatus.selectedPaidPlan === undefined &&
-        data?.kind === "trial" &&
-        data.remainingDays <= 7),
+    planStatus?.kind === "trial" &&
+      planStatus.selectedPaidPlan === undefined &&
+      data?.kind === "trial" &&
+      data.remainingDays <= 7,
   );
   const canSubscribeToUsage = Boolean(data && shopId);
   const expansionState = useRef<ExpansionState>({

@@ -48,6 +48,7 @@ cancel済みrunはreport upload、Pages公開、Pull Requestコメントを行�
 
 Playwright reportおよびJSON resultは、upload前にprivacy gateで検査する。
 privacy gateがtoken、credential、非placeholder email、認証storage、検査不能なartifactを検出した場合は、reportを公開しない。
+Playwright本体、result gate、privacy gate、report snapshotのpublish失敗は、引き続きworkflowを失敗させる。  snapshot publish後にGitHub Pages上の公開markerを15分以内に確認できない場合だけwarningとし、成功したテストを失敗へ変更しない。  公開URLを確認できない場合はActionsのartifactで結果を確認する。
 
 flake調査はretryを無効にした次のcommandで行う。
 
@@ -69,6 +70,7 @@ Playwright用Convex Previewでも、追加組織、店舗追加、管理者招�
 
 VRTの差分とレポート公開は `.github/workflows/vrt.yml` が管理する。
 差分承認の条件と承認環境はworkflowを確認し、レポートURLだけを根拠に成功扱いしない。
+baseline取得、build、capture、比較、report snapshotのpublish失敗はblockingのまま維持する。  snapshot publish後にGitHub Pages上の公開markerだけを確認できない場合はwarningとし、差分の有無と承認条件は変更しない。  差分がある場合は承認jobを待機させ、公開レポートまたはartifactで差分を目視できるまで承認しない。
 
 ## `develop` への反映
 

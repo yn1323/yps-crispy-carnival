@@ -16,7 +16,7 @@ describe("pricePresentation", () => {
       interval: "1か月ごと",
       tax: "税込",
     });
-    expect(formatPricePresentationLine(price)).toBe("¥3,000/1か月（税込）");
+    expect(formatPricePresentationLine(price)).toBe("¥3,000(税込) / 1か月");
   });
 
   it("小数単位のある通貨と複数年周期、税別を整形する", () => {
@@ -33,7 +33,7 @@ describe("pricePresentation", () => {
       interval: "2年ごと",
       tax: "税別",
     });
-    expect(formatPricePresentationLine(price)).toMatch(/^USD.*12\.34\/2年（税別）$/);
+    expect(formatPricePresentationLine(price)).toMatch(/^USD.*12\.34\(税別\) \/ 2年$/);
   });
 
   it.each([

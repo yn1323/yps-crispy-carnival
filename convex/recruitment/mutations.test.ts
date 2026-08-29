@@ -6,7 +6,7 @@ import { getManagerConfirmationReminderAt, todayJST } from "../_lib/dateFormat";
 import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { NOTIFICATION_FANOUT_SCOPE_LIMIT, RECRUITMENT_PERIOD_DAYS_MAX } from "../constants";
+import { RECRUITMENT_PERIOD_DAYS_MAX } from "../constants";
 
 function futureDate(daysFromNow: number): string {
   const d = new Date(Date.now() + 9 * 60 * 60 * 1000);
@@ -119,35 +119,6 @@ describe("recruitment/mutations", () => {
       expect(state).toEqual({ recruitments: [], stats: [], operations: [], jobs: [] });
     });
 
-    it("募集通知対象が上限を超える場合は無言で切り捨てず作成全体をfail-closedにする", async () => {
-      const { t, shopId } = await setupShop();
-      await t.run(async (ctx) => {
-        for (let index = 0; index < NOTIFICATION_FANOUT_SCOPE_LIMIT + 1; index++) {
-          await ctx.db.insert("staffs", {
-            shopId,
-            name: `上限超過スタッフ${index}`,
-            email: `recruitment-overflow-${index}@example.com`,
-            isDeleted: false,
-          });
-        }
-      });
-
-      await expect(
-        t.withIdentity({ subject: "user_mgr" }).mutation(api.recruitment.mutations.createRecruitment, {
-          ...validArgs(),
-          shopId,
-        }),
-      ).rejects.toThrow("通知対象が上限を超えています");
-
-      const state = await t.run(async (ctx) => ({
-        recruitments: await ctx.db.query("recruitments").collect(),
-        stats: await ctx.db.query("recruitmentStats").collect(),
-        operations: await ctx.db.query("notificationFanoutOperations").collect(),
-        jobs: await ctx.db.system.query("_scheduled_functions").collect(),
-      }));
-      expect(state).toEqual({ recruitments: [], stats: [], operations: [], jobs: [] });
-    });
-
     it("募集作成後のaction実行前にTrial終了してもFree上限内なら通知を継続し、再実行を重複させない", async () => {
       const now = new Date("2026-01-01T00:00:00+09:00");
       vi.setSystemTime(now);
@@ -155,7 +126,7 @@ describe("recruitment/mutations", () => {
       const ids = await t.run(async (ctx) => {
         const seeded = await seedOrganizationManagerShop(ctx, {
           subject: "notification_origin_race",
-          plan: "business",
+          plan: "pro",
         });
         const billingState = await ctx.db
           .query("organizationBillingStates")

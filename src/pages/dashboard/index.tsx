@@ -6,6 +6,7 @@ import { LuRefreshCw, LuStore, LuTriangleAlert } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Dashboard, type DashboardNavigation, DashboardSkeleton } from "@/src/components/features/Dashboard";
+import { OrganizationPaymentFailureAlert } from "@/src/components/shared/OrganizationPaymentFailureAlert";
 import { Animation } from "@/src/components/templates/Animation";
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
 import { Button } from "@/src/components/ui/Button";
@@ -24,15 +25,15 @@ import {
 type Props = {
   organizationId: Id<"organizations">;
   organizationName: string;
-  activeShops: DashboardShopOption[] | null;
+  shops: DashboardShopOption[] | null;
   requestedShopId?: string;
 };
 
-export function DashboardRoutePage({ organizationId, organizationName, activeShops, requestedShopId }: Props) {
+export function DashboardRoutePage({ organizationId, organizationName, shops, requestedShopId }: Props) {
   const navigate = useNavigate();
   const storage = resolveBrowserLocalStorage();
   const preferredShopId = readDashboardShopPreference(storage, organizationId);
-  const resolution = resolveDashboardShop(activeShops, requestedShopId, preferredShopId);
+  const resolution = resolveDashboardShop(shops, requestedShopId, preferredShopId);
   const canonicalShopId = resolution.kind === "ready" ? resolution.canonicalShopId : undefined;
   const shouldReplaceSearch = resolution.kind === "ready" && resolution.shouldReplaceSearch;
 
@@ -74,7 +75,7 @@ export function DashboardRoutePage({ organizationId, organizationName, activeSho
                 <ConnectedDashboard
                   organizationId={organizationId}
                   organizationName={organizationName}
-                  activeShops={activeShops ?? []}
+                  shops={shops ?? []}
                   selectedShopId={resolution.shop.id}
                 />
               </ManagerShopScopeProvider>
@@ -89,25 +90,25 @@ export function DashboardRoutePage({ organizationId, organizationName, activeSho
 function ConnectedDashboard({
   organizationId,
   organizationName,
-  activeShops,
+  shops,
   selectedShopId,
 }: {
   organizationId: Id<"organizations">;
   organizationName: string;
-  activeShops: DashboardShopOption[];
+  shops: DashboardShopOption[];
   selectedShopId: string;
 }) {
   const navigate = useNavigate();
-  const shop = useShopQuery(api.dashboard.queries.getDashboardShop, { planIdVersion: 2 });
+  const shop = useShopQuery(api.dashboard.queries.getDashboardShop, {});
   const currentUser = useQuery(api.dashboard.queries.getCurrentUser, {});
   const managerLegalConsentStatus = useQuery(api.legal.queries.getManagerConsentStatus, {});
   const shopContexts = useMemo(
     () =>
-      buildDashboardShopContexts(activeShops, {
+      buildDashboardShopContexts(shops, {
         id: organizationId,
         name: organizationName,
       }),
-    [activeShops, organizationId, organizationName],
+    [shops, organizationId, organizationName],
   );
   const selectedShop = shopContexts.find((candidate) => candidate.shopId === selectedShopId);
   const navigation = useMemo<DashboardNavigation>(
@@ -146,6 +147,12 @@ function ConnectedDashboard({
   const isReadOnly = !shop.canWriteBusinessData;
   return (
     <Stack gap={5}>
+      {shop.paymentFailure && (
+        <OrganizationPaymentFailureAlert
+          terminationPending={shop.paymentFailure.terminationPending}
+          onStartPaidPlan={navigation.onOpenBillingSettings}
+        />
+      )}
       {isReadOnly && (
         <DashboardReadOnlyNotice
           organizationId={organizationId}
@@ -256,8 +263,8 @@ export function DashboardPageStateView({
     return (
       <Empty
         icon={LuStore}
-        title="利用できる店舗がありません"
-        description={"この組織には利用中の店舗がありません。\n店舗の状態は管理画面から確認できます。"}
+        title="店舗がありません"
+        description="ダッシュボードを表示するには、管理画面から店舗を追加してください。"
         tone="neutral"
         minH="420px"
         action={

@@ -8,6 +8,11 @@ import { getOrganizationPersonLineState } from "../line/service";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
+import {
+  hasCanonicalStaffIdentity,
+  hasValidCanonicalStaffUserLifecycle,
+  hasValidOrganizationPersonUserLifecycle,
+} from "../staff/service";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
 import {
   collectPersonRemovalPreview,
@@ -15,12 +20,7 @@ import {
   toPublicPersonRemovalPreview,
 } from "./personRemoval";
 import { getValidActiveOrganizationManagerPersonIds } from "./service";
-import {
-  createOrganizationPersonShopMembershipFingerprint,
-  INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON,
-  organizationShopOperatingStatus,
-} from "./shopMembershipChange";
-import { organizationShopOperatingStatusValidator } from "./validators";
+import { createOrganizationPersonShopMembershipFingerprint } from "./shopMembershipChange";
 
 export const userDetailValidator = v.object({
   person: v.object({
@@ -54,7 +54,8 @@ export const userDetailValidator = v.object({
     v.object({
       shopId: v.id("shops"),
       shopName: v.string(),
-      shopStatus: organizationShopOperatingStatusValidator,
+      // 旧frontendとのrolling compatibility。非削除店舗だけを返す。
+      shopStatus: v.literal("active"),
       canChangeMembership: v.boolean(),
       membershipChangeDisabledReason: v.optional(v.string()),
     }),
@@ -64,7 +65,7 @@ export const userDetailValidator = v.object({
       staffId: v.id("staffs"),
       shopId: v.id("shops"),
       shopName: v.string(),
-      shopStatus: organizationShopOperatingStatusValidator,
+      shopStatus: v.literal("active"),
       excludedFromShift: v.boolean(),
       canRemove: v.boolean(),
       removeDisabledReason: v.optional(v.string()),
@@ -120,6 +121,7 @@ export async function getOrganizationUserDetail(
   if (!personId) return null;
   const person = await ctx.db.get(personId);
   if (!person || person.organizationId !== organization._id || person.status !== "active") return null;
+  if (!(await hasValidOrganizationPersonUserLifecycle(ctx, person))) return null;
 
   const [personMembers, staffDocs, shopDocs, access, validActiveManagerPersonIds, invitationDocs] = await Promise.all([
     ctx.db
@@ -155,11 +157,23 @@ export async function getOrganizationUserDetail(
   ) {
     return null;
   }
+  const staffUserLifecycleChecks = await Promise.all(
+    staffDocs.map(async (staff) => {
+      if (!hasCanonicalStaffIdentity(staff)) return false;
+      return await hasValidCanonicalStaffUserLifecycle(ctx, staff, person);
+    }),
+  );
+  if (staffUserLifecycleChecks.some((isValid) => !isValid)) return null;
 
   const member = personMembers[0] ?? null;
   const memberUser = member ? await ctx.db.get(member.userId) : null;
   const memberMatchesPerson = Boolean(
-    member && person.userId && member.userId === person.userId && memberUser && !memberUser.isDeleted,
+    member &&
+      person.userId &&
+      member.userId === person.userId &&
+      memberUser &&
+      !memberUser.isDeleted &&
+      memberUser.accountDeletionRequestedAt === undefined,
   );
   if (member && !memberMatchesPerson) return null;
   const managerRole: ManagerRole = memberMatchesPerson && member?.status === "active" ? "active" : "none";
@@ -178,7 +192,6 @@ export async function getOrganizationUserDetail(
       .map(async (staff) => {
         const targetShop = await ctx.db.get(staff.shopId);
         if (!targetShop || targetShop.isDeleted || targetShop.organizationId !== organization._id) return null;
-        const targetShopStatus = organizationShopOperatingStatus(targetShop.operatingStatus);
         const membershipRemovalPreview = await collectPersonRemovalPreview(ctx, {
           scope: {
             kind: "shop",
@@ -195,15 +208,11 @@ export async function getOrganizationUserDetail(
             staffId: staff._id,
             shopId: targetShop._id,
             shopName: targetShop.name,
-            shopStatus: targetShopStatus,
+            shopStatus: "active" as const,
             // TODO[narrow]: 全deploymentでm027完走・missingExcludedFromShift=0確認後にfallbackを外す。
             excludedFromShift: staff.excludedFromShift ?? false,
-            canRemove: targetShopStatus === "active" && canWriteNormally,
-            ...(targetShopStatus !== "active"
-              ? { removeDisabledReason: INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON }
-              : !canWriteNormally
-                ? { removeDisabledReason: "現在の利用状態では、店舗所属を変更できません。" }
-                : {}),
+            canRemove: canWriteNormally,
+            ...(!canWriteNormally ? { removeDisabledReason: "現在の利用状態では、店舗所属を変更できません。" } : {}),
             removalPreview: toPublicPersonRemovalPreview(membershipRemovalPreview),
           },
         };
@@ -223,7 +232,6 @@ export async function getOrganizationUserDetail(
     validMembershipRows.map((row) => ({
       staffId: row.staff._id,
       shopId: row.staff.shopId,
-      shopStatus: row.view.shopStatus,
     })),
   );
   const memberships = validMembershipRows
@@ -236,17 +244,14 @@ export async function getOrganizationUserDetail(
   if (!lineState) return null;
   const shops = shopDocs
     .map((targetShop) => {
-      const targetShopStatus = organizationShopOperatingStatus(targetShop.operatingStatus);
       return {
         shopId: targetShop._id,
         shopName: targetShop.name,
-        shopStatus: targetShopStatus,
-        canChangeMembership: targetShopStatus === "active" && canWriteNormally,
-        ...(targetShopStatus !== "active"
-          ? { membershipChangeDisabledReason: INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON }
-          : !canWriteNormally
-            ? { membershipChangeDisabledReason: "現在の利用状態では、店舗所属を変更できません。" }
-            : {}),
+        shopStatus: "active" as const,
+        canChangeMembership: canWriteNormally,
+        ...(!canWriteNormally
+          ? { membershipChangeDisabledReason: "現在の利用状態では、店舗所属を変更できません。" }
+          : {}),
       };
     })
     .sort((a, b) => a.shopName.localeCompare(b.shopName, "ja") || a.shopId.localeCompare(b.shopId));
@@ -273,19 +278,15 @@ export async function getOrganizationUserDetail(
           : access?.businessWriteBlockReason === "usageLimitExceeded"
             ? "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。"
             : "契約状態を確認できるまで、ユーザー情報を変更できません。";
-  const lineSourceMembership = memberships.find((membership) => membership.shopStatus === "active") ?? null;
-  const actionShopId =
-    args.actionShopId ??
-    lineSourceMembership?.shopId ??
-    shops.find((candidate) => candidate.shopStatus === "active")?.shopId ??
-    shops[0]?.shopId;
+  const lineSourceMembership = memberships[0] ?? null;
+  const actionShopId = args.actionShopId ?? lineSourceMembership?.shopId ?? shops[0]?.shopId;
   if (!actionShopId) return null;
   const canLinkLine = canWriteNormally && lineSourceMembership !== null;
   const lineLinkDisabledReason = canLinkLine
     ? undefined
     : !canWriteNormally
       ? writeDisabledReason
-      : "LINE連携を設定するには、稼働中の店舗へ所属を追加してください。";
+      : "LINE連携を設定するには、店舗へ所属を追加してください。";
   // LINE解除は通知停止の安全操作なので、利用上限整理中もactive managerには許可する。
   const canDisconnectLine = isActiveActor && lineState.status !== "unlinked";
   const lineDisconnectDisabledReason =

@@ -67,7 +67,7 @@ LINEのシフト募集、確定シフト、シフト変更のタイトルは、�
 
 店舗別設定ページはpathの`shopId`とURLで検証済みの`organizationId`をqueryへ明示して渡し、browser storageの店舗IDを履歴の取得対象に使わない。
 ブラウザから渡される`personId`、`shopId`、`organizationId`、`staffId`は認可情報として扱わない。
-manager queryは認証identityから対象店舗への管理アクセスを解決し、スタッフと店舗の所属関係、削除状態、店舗状態をサーバー側で検証する。
+manager queryは認証identityから対象店舗への管理アクセスを解決し、スタッフと店舗の所属関係、店舗と親組織の削除状態をサーバー側で検証する。
 権限のない店舗、不正な組み合わせ、削除済み対象では履歴を返さず、拒否時にOutboxや履歴を更新しない。
 
 ## 状況表示の意味

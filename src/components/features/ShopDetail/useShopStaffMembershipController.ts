@@ -269,11 +269,8 @@ function resolveRemovalPreviewState({
 
 function toMembershipChangeErrorMessage(error: unknown) {
   const message = getConvexErrorMessage(error);
-  if (
-    message?.includes("店舗所属が変更されています") ||
-    message?.includes("削除対象のシフトが変更されています") ||
-    message?.includes("今日以降のシフトの割り当てが変更されました")
-  ) {
+  if (message?.includes("今日以降のシフトの割り当てが変更されました")) return undefined;
+  if (message?.includes("店舗所属が変更されています") || message?.includes("削除対象のシフトが変更されています")) {
     return STALE_RELOAD_MESSAGE;
   }
   if (message && SAFE_REJECTION_MESSAGE_PARTS.some((part) => message.includes(part))) return message;

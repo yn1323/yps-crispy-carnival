@@ -66,7 +66,6 @@ export function UserShopDetailView({
 
       <UserShopDetailPageSection>
         <UserShopNotificationSection
-          data={data}
           membership={membership}
           isReadOnly={isStoreReadOnly}
           isLoading={state.notifications.isLoading}

@@ -3,6 +3,7 @@ import { organizationQuery } from "../_lib/functions";
 import {
   getOrganizationStaffOrderEditorSnapshot,
   ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT,
+  type OrganizationStaffOrderAvailability,
   getOrganizationStaffOrderScope as resolveOrganizationStaffOrderScope,
 } from "../organization/staffOrder";
 import { getOrganizationBillingPolicy } from "../organizationBilling/service";
@@ -36,14 +37,25 @@ const organizationStaffOrderEditorValidator = v.object({
   availability: availabilityValidator,
 });
 
+function projectAvailability(availability: OrganizationStaffOrderAvailability): typeof availabilityValidator.type {
+  switch (availability) {
+    case "tooManyShops":
+      return "tooManyActiveShops";
+    case "ready":
+    case "tooManyPeople":
+    case "legacyDataIncomplete":
+      return availability;
+  }
+}
+
 function availabilityDisabledReason(availability: typeof availabilityValidator.type) {
   switch (availability) {
     case "tooManyPeople":
       return `利用人数が${ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT}名を超えているため、並び順を変更できません。`;
     case "tooManyActiveShops":
-      return "稼働中の店舗が5店舗を超えているため、並び順を変更できません。";
+      return "店舗が5店舗を超えているため、並び順を変更できません。";
     case "legacyDataIncomplete":
-      return "スタッフ情報の移行状態を確認しているため、並び順を変更できません。";
+      return "スタッフ情報を確認できないため、並び順を変更できません。";
     case "ready":
       return undefined;
   }
@@ -55,13 +67,14 @@ export const getOrganizationStaffOrderEditor = organizationQuery({
   handler: async (ctx) => {
     const snapshot = await getOrganizationStaffOrderEditorSnapshot(ctx, ctx.organization._id);
     const policy = await getOrganizationBillingPolicy(ctx, ctx.organization._id);
-    const availabilityReason = availabilityDisabledReason(snapshot.availability);
+    const availability = projectAvailability(snapshot.availability);
+    const availabilityReason = availabilityDisabledReason(availability);
     const memberCanWrite = ctx.organizationMember.status === "active";
     const billingCanWrite = policy?.canWriteBusinessData ?? true;
     const canWrite = memberCanWrite && billingCanWrite && snapshot.availability === "ready";
     const peopleById = new Map((snapshot.source?.people ?? []).map((person) => [person._id, person] as const));
     const shopNamesByPersonId = new Map<string, string[]>();
-    for (const { shop, staffs } of snapshot.source?.activeShops ?? []) {
+    for (const { shop, staffs } of snapshot.source?.shops ?? []) {
       for (const { organizationPersonId } of staffs) {
         const names = shopNamesByPersonId.get(organizationPersonId) ?? [];
         names.push(shop.name);
@@ -95,7 +108,7 @@ export const getOrganizationStaffOrderEditor = organizationQuery({
       orderFingerprint: snapshot.orderFingerprint,
       canWrite,
       ...(writeDisabledReason ? { writeDisabledReason } : {}),
-      availability: snapshot.availability,
+      availability,
     };
   },
 });

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { seedStaff } from "../_test/scenarioBuilders";
 import {
   seedCanonicalStaffLineRecipient,
   seedLegacyShopMembership,
@@ -54,20 +55,6 @@ async function insertCanonicalManagerStaff(
     email: args.email,
     emailNormalized: args.email,
     isDeleted: args.isDeleted ?? false,
-  });
-}
-
-async function insertLegacyManagerStaff(
-  ctx: MutationCtx,
-  args: { shopId: Id<"shops">; userId: Id<"users">; email: string },
-) {
-  return await ctx.db.insert("staffs", {
-    shopId: args.shopId,
-    userId: args.userId,
-    name: "旧管理スタッフ",
-    email: args.email,
-    emailNormalized: args.email,
-    isDeleted: false,
   });
 }
 
@@ -148,7 +135,7 @@ describe("staffRegistration/notificationQueries", () => {
   });
 
   describe("getOwnerDigestTargetForShop", () => {
-    it("canonical管理者はpersonの連絡先を使い、legacy管理者だけusersへfallbackする", async () => {
+    it("canonical管理者はpersonの連絡先を使い、personのないlegacy管理者は通知対象にしない", async () => {
       const t = convexTest(schema, modules);
       const { organizationId, shopId } = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
@@ -179,11 +166,6 @@ describe("staffRegistration/notificationQueries", () => {
 
         const secondUserId = await seedUser(ctx, "owner_email", "owner-email@example.com");
         await seedLegacyShopMembership(ctx, { shopId: seeded.shopId, userId: secondUserId });
-        await insertLegacyManagerStaff(ctx, {
-          shopId: seeded.shopId,
-          userId: secondUserId,
-          email: "owner-email@example.com",
-        });
         await insertPendingRequest(ctx, { shopId: seeded.shopId, status: "pending" });
         return { organizationId: seeded.organizationId, shopId: seeded.shopId };
       });
@@ -215,16 +197,7 @@ describe("staffRegistration/notificationQueries", () => {
           lineUserId: "U_owner_line",
           lineFollowing: true,
         },
-        {
-          name: "管理者",
-          email: "owner-email@example.com",
-          lineUserId: undefined,
-          lineFollowing: undefined,
-        },
       ]);
-      const emailRecipient = result?.recipients.find((recipient) => recipient.email === "owner-email@example.com");
-      expect(emailRecipient).not.toHaveProperty("lineUserId");
-      expect(emailRecipient).not.toHaveProperty("lineFollowing");
     });
 
     it("person作成後でorganizationMember作成前の管理者もperson連絡先とLINEを使う", async () => {
@@ -291,12 +264,10 @@ describe("staffRegistration/notificationQueries", () => {
           userId: seeded.userId,
           email: "target-manager@example.com",
         });
-        await ctx.db.insert("staffs", {
+        await seedStaff(ctx, {
           shopId: seeded.shopId,
           name: "一般スタッフ",
           email: "staff-only@example.com",
-          emailNormalized: "staff-only@example.com",
-          isDeleted: false,
         });
         await seedManagerShop(ctx, {
           subject: "other_manager",
@@ -349,16 +320,13 @@ describe("staffRegistration/notificationQueries", () => {
         });
         const otherShopId = await seedShop(ctx, "別店舗");
         await seedLegacyShopMembership(ctx, { shopId: otherShopId, userId: seeded.userId });
-        const otherShopManagerStaffId = await ctx.db.insert("staffs", {
+        const otherShopManagerStaffId = await seedStaff(ctx, {
           shopId: otherShopId,
           userId: seeded.userId,
           name: "別店舗の管理スタッフ",
           email: "multi-shop@example.com",
-          emailNormalized: "multi-shop@example.com",
-          isDeleted: false,
         });
-        await seedStaffLineAccount(ctx, {
-          shopId: otherShopId,
+        await seedCanonicalStaffLineRecipient(ctx, {
           staffId: otherShopManagerStaffId,
           lineUserId: "U_other_shop",
           following: true,

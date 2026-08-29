@@ -205,29 +205,21 @@ export async function loadShopManagerUsers(
 
 function resolveManagerStaff(contact: ShopManagerContact, activeStaffs: Doc<"staffs">[], staffScanComplete: boolean) {
   if (!staffScanComplete) return null;
+  if (contact.kind !== "canonical") return null;
 
-  if (contact.kind === "canonical") {
-    const candidates = activeStaffs.filter(
-      (staff) => staff.organizationPersonId === contact.person._id || staff.userId === contact.user._id,
-    );
-    if (candidates.length !== 1) return null;
-
-    const [staff] = candidates;
-    if (
-      staff.organizationId !== contact.organizationId ||
-      staff.organizationPersonId !== contact.person._id ||
-      (staff.userId !== undefined && staff.userId !== contact.user._id)
-    ) {
-      return null;
-    }
-    return staff;
-  }
-
-  const candidates = activeStaffs.filter((staff) => staff.userId === contact.user._id);
+  const candidates = activeStaffs.filter(
+    (staff) => staff.organizationPersonId === contact.person._id || staff.userId === contact.user._id,
+  );
   if (candidates.length !== 1) return null;
+
   const [staff] = candidates;
-  // canonical情報が一部だけ入ったstaffは誤紐付けを避け、person所属が確定するまで対象外にする。
-  if (staff.organizationId !== undefined || staff.organizationPersonId !== undefined) return null;
+  if (
+    staff.organizationId !== contact.organizationId ||
+    staff.organizationPersonId !== contact.person._id ||
+    (staff.userId !== undefined && staff.userId !== contact.user._id)
+  ) {
+    return null;
+  }
   return staff;
 }
 

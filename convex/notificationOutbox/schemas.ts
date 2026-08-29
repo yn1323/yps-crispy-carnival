@@ -25,6 +25,8 @@ export const notificationCancelReasonValidator = v.union(
   v.literal("organization_billing_changed"),
   v.literal("organization_usage_limit_exceeded"),
   v.literal("organization_inactive"),
+  v.literal("shop_deleted"),
+  // TODO[narrow]: 全deploymentでm049完走・legacyShopInactiveCancelReason=0確認後に削除する。
   v.literal("shop_inactive"),
   v.literal("recruitment_inactive"),
   v.literal("notification_superseded"),

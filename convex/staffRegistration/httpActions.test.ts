@@ -2,6 +2,7 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
@@ -271,12 +272,10 @@ describe("staffRegistration/httpActions", () => {
     const t = convexTest(schema, modules);
     const { shopId, token } = await createRegistrationLink(t, "generic");
     await t.run(async (ctx) => {
-      await ctx.db.insert("staffs", {
+      await seedStaff(ctx, {
         shopId,
         name: "登録済みスタッフ",
         email: "existing@example.com",
-        emailNormalized: "existing@example.com",
-        isDeleted: false,
       });
       for (let index = 0; index < STAFF_REGISTRATION_PENDING_LIMIT - 1; index += 1) {
         const email = `seeded-${index}@example.com`;
@@ -433,14 +432,14 @@ describe("staffRegistration/httpActions", () => {
     expect(state.rateLimitRows).toHaveLength(1);
   });
 
-  it("Turnstile後に店舗状態が利用不能なら安全なlink errorへ変換し、申請を作らない", async () => {
+  it("Turnstile後に店舗が削除済みなら安全なlink errorへ変換し、申請を作らない", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => turnstileSuccess()),
     );
     const t = convexTest(schema, modules);
-    const { shopId, token } = await createRegistrationLink(t, "archived_after_verification");
-    await t.run(async (ctx) => await ctx.db.patch(shopId, { operatingStatus: "archived" }));
+    const { shopId, token } = await createRegistrationLink(t, "deleted_after_verification");
+    await t.run(async (ctx) => await ctx.db.patch(shopId, { isDeleted: true }));
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const response = await post(t, validBody(token));

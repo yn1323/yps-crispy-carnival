@@ -2,10 +2,10 @@ import {
   LINE_ORGANIZATION_PERSON_STAFF_HISTORY_SCAN_LIMIT,
   LINE_PROVIDER_ACTIVE_ORGANIZATION_LINK_MAX,
 } from "../constants";
-import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import { migrations } from "./index";
 
 const migrationError = (code: string) => new Error(`line_common_link_migration:${code}`);
+const legacyOrganizationShopOperatingStatus = (status: "active" | "archived" | undefined) => status ?? "active";
 
 type LegacyFriendshipEvidence = {
   friendshipObservedAt: number;
@@ -103,7 +103,7 @@ export const migration = migrations.define({
         personStaffShop !== null &&
         !personStaffShop.isDeleted &&
         personStaffShop.organizationId === organizationId &&
-        organizationShopOperatingStatus(personStaffShop.operatingStatus) === "active"
+        legacyOrganizationShopOperatingStatus(personStaffShop.operatingStatus) === "active"
       );
     });
     if (activePersonStaffs.length !== 1 || activePersonStaffs[0]._id !== staff._id) {

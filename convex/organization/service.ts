@@ -2,10 +2,7 @@ import type { GenericDatabaseReader } from "convex/server";
 import { ConvexError } from "convex/values";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import {
-  type CanonicalOrganizationBillingState,
-  canonicalizeOrganizationBillingState,
-} from "../organizationBilling/policy";
+import type { CanonicalOrganizationBillingState } from "../organizationBilling/policy";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 import { MANAGER_PERSON_REMOVAL_DISABLED_REASON } from "./personCapabilities";
 
@@ -22,13 +19,13 @@ export type OrganizationUsageSnapshot = {
   activeManagerCount: number;
   pendingManagerInvitationCount: number;
   projectedActiveManagerCount: number;
-  activeShopCount: number;
+  shopCount: number;
 };
 
 export type OrganizationActualUsage = {
   peopleCount: number;
   activeManagerCount: number;
-  activeShopCount: number;
+  shopCount: number;
 };
 
 export type OrganizationProjectedUsage = {
@@ -40,7 +37,7 @@ export type OrganizationProjectedUsage = {
 
 export const ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT = 100;
 
-export type OrganizationUsageDimension = "people" | "activeShops" | "activeManagers";
+export type OrganizationUsageDimension = "people" | "shops" | "activeManagers";
 
 export type OrganizationActualUsageProbe = {
   usage: OrganizationActualUsage;
@@ -55,7 +52,7 @@ export function toOrganizationActualUsage(usage: OrganizationUsageSnapshot): Org
   return {
     peopleCount: usage.personCount,
     activeManagerCount: usage.activeManagerCount,
-    activeShopCount: usage.activeShopCount,
+    shopCount: usage.shopCount,
   };
 }
 
@@ -81,12 +78,7 @@ export async function getOrganizationBillingState(
     .query("organizationBillingStates")
     .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
     .unique();
-  return billingState
-    ? {
-        ...billingState,
-        state: canonicalizeOrganizationBillingState(billingState.state),
-      }
-    : null;
+  return billingState;
 }
 
 export async function requireOrganizationBillingState(ctx: DbCtx, organizationId: Id<"organizations">) {
@@ -263,7 +255,7 @@ export async function getOrganizationUsageSnapshot(
   now = Date.now(),
   options?: { excludedInvitationId?: Id<"organizationInvitations"> },
 ): Promise<OrganizationUsageSnapshot> {
-  const [people, activeMembers, explicitActiveShops, legacyActiveShops, pendingInvitations] = await Promise.all([
+  const [people, activeMembers, shops, pendingInvitations] = await Promise.all([
     ctx.db
       .query("organizationPeople")
       .withIndex("by_organizationId_and_emailNormalized", (q) => q.eq("organizationId", organizationId))
@@ -274,15 +266,8 @@ export async function getOrganizationUsageSnapshot(
       .collect(),
     ctx.db
       .query("shops")
-      .withIndex("by_organizationId_and_operatingStatus_and_isDeleted", (q) =>
-        q.eq("organizationId", organizationId).eq("operatingStatus", "active").eq("isDeleted", false),
-      )
-      .collect(),
-    // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後に削除する。
-    ctx.db
-      .query("shops")
-      .withIndex("by_organizationId_and_operatingStatus_and_isDeleted", (q) =>
-        q.eq("organizationId", organizationId).eq("operatingStatus", undefined).eq("isDeleted", false),
+      .withIndex("by_organizationId_and_isDeleted", (q) =>
+        q.eq("organizationId", organizationId).eq("isDeleted", false),
       )
       .collect(),
     collectIssuedInvitationsByOrganization(ctx, organizationId),
@@ -326,7 +311,7 @@ export async function getOrganizationUsageSnapshot(
     activeManagerCount: activeManagerPersonIds.size,
     pendingManagerInvitationCount,
     projectedActiveManagerCount: activeManagerPersonIds.size + pendingManagerInvitationCount,
-    activeShopCount: explicitActiveShops.length + legacyActiveShops.length,
+    shopCount: shops.length,
   };
 }
 
@@ -337,9 +322,9 @@ export async function getOrganizationUsageSnapshot(
 export async function getOrganizationActualUsageProbe(
   ctx: DbCtx,
   organizationId: Id<"organizations">,
-  limits: { maxPeople: number; maxActiveShops: number; maxActiveManagers: number },
+  limits: { maxPeople: number; maxShops: number; maxActiveManagers: number },
 ): Promise<OrganizationActualUsageProbe> {
-  const [activePeopleRows, activeMembers, explicitActiveShops, legacyActiveShops] = await Promise.all([
+  const [activePeopleRows, activeMembers, shops] = await Promise.all([
     ctx.db
       .query("organizationPeople")
       .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "active"))
@@ -350,22 +335,14 @@ export async function getOrganizationActualUsageProbe(
       .take(limits.maxPeople + 1),
     ctx.db
       .query("shops")
-      .withIndex("by_organizationId_and_operatingStatus_and_isDeleted", (q) =>
-        q.eq("organizationId", organizationId).eq("operatingStatus", "active").eq("isDeleted", false),
-      )
-      .take(ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT + 1),
-    // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後に削除する。
-    ctx.db
-      .query("shops")
-      .withIndex("by_organizationId_and_operatingStatus_and_isDeleted", (q) =>
-        q.eq("organizationId", organizationId).eq("operatingStatus", undefined).eq("isDeleted", false),
+      .withIndex("by_organizationId_and_isDeleted", (q) =>
+        q.eq("organizationId", organizationId).eq("isDeleted", false),
       )
       .take(ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT + 1),
   ]);
 
   const activePeople = activePeopleRows.slice(0, ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT);
-  const activeShopRows = [...explicitActiveShops, ...legacyActiveShops];
-  const shopRows = activeShopRows.slice(0, ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT);
+  const shopRows = shops.slice(0, ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT);
   const activeManagerPersonIds = new Set(
     await getValidOrganizationManagerPersonIds(
       ctx,
@@ -388,14 +365,14 @@ export async function getOrganizationActualUsageProbe(
     }),
   );
   const observedPeopleCount = countedPeople.filter(Boolean).length;
-  const observedActiveShopCount = shopRows.length;
+  const observedShopCount = shopRows.length;
   const activePeopleOverflow = activePeopleRows.length > ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT;
   const activeManagersMayHaveMore = activeMembers.length >= limits.maxPeople + 1;
-  const activeShopsOverflow = activeShopRows.length > ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT;
+  const shopsOverflow = shops.length > ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT;
   const usage = {
     peopleCount: observedPeopleCount,
     activeManagerCount: activeManagerPersonIds.size,
-    activeShopCount: observedActiveShopCount,
+    shopCount: observedShopCount,
   };
   const unknownDimensions: OrganizationUsageDimension[] = [];
   const lowerBoundDimensions: OrganizationUsageDimension[] = [];
@@ -408,8 +385,8 @@ export async function getOrganizationActualUsageProbe(
       "activeManagers",
     );
   }
-  if (activeShopsOverflow) {
-    (observedActiveShopCount > limits.maxActiveShops ? lowerBoundDimensions : unknownDimensions).push("activeShops");
+  if (shopsOverflow) {
+    (observedShopCount > limits.maxShops ? lowerBoundDimensions : unknownDimensions).push("shops");
   }
 
   return { usage, unknownDimensions, lowerBoundDimensions };

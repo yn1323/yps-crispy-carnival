@@ -7,21 +7,40 @@
 > 実環境の公開・設定・migration状況: [リリース状態](release-status.md)
 
 この文書は、組織課金に関する人の運用を扱う。
-Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotation、障害復旧を、実環境を推測せずに進めるための手順である。
+Stripe設定、日常probe、販売停止、Price rotation、障害復旧を、実環境を推測せずに進めるための手順である。
 
 利用者向けの機能とコードの入口は[組織課金、複数店舗、複数管理者](../features/organization-billing.md)、詳細な業務要件は[組織課金の業務要件](../specs/organization-billing-business-flow.md)を参照する。
+
+## 支払い失敗処理の実環境確認
+
+検証済みの支払い失敗後は、Stripe契約の終了処理を開始すると同時にFree権限へ変更する。
+リポジトリの実装だけではStripe設定、Convex deployment、顧客向けメールの有効化を証明できないため、対象environmentごとに次の項目を確認する。
+
+プラン機能は未公開のため、旧プランIDのmigration、backfill、rolling互換は行わない。
+m042〜m047、`planIdVersion`、旧`pro | business`互換の運用手順は本書から削除した。対象migrationを実行しない。
+
+確認結果は[リリース状態](release-status.md)へ記録する。
+
+1. Webhook destinationに`invoice.payment_failed`と`invoice.payment_action_required`が登録され、署名検証からworkerの処理まで対象revisionで到達することを確認する。
+2. Stripe Dashboardのカード支払い失敗向け顧客メール設定を確認し、組織の請求通知先メールアドレスがStripe Customerの`email`へ同期されていることを確認する。
+3. Stripe Sandboxで、検証済みの未払いから`paymentTerminationPending`へ移り、終了処理中からFree権限だけが適用されることを確認する。
+4. Subscription終了とInvoiceの`auto_advance: false`が冪等に収束し、確認後に`active.free`と支払い失敗理由が保存されることを確認する。
+5. 終了処理中を含め、ダッシュボードと「プランと支払い」にAlertが表示され、処理完了までは再契約できないことを確認する。
+6. 新しい有料契約の支払い成功だけが支払い失敗理由を消し、旧Subscriptionの遅延eventで自動復帰しないことを確認する。
+
+Stripe顧客向けメールの有効化画面と実到着は外部設定の証跡であり、リポジトリの実装やWebhook canaryの成功だけで確認済みとしない。
 
 ## 作業目的から探す
 
 | 作業 | 参照する節 |
 |---|---|
+| 支払い失敗処理の実環境確認 | [支払い失敗処理の実環境確認](#支払い失敗処理の実環境確認) |
 | 実環境での完了条件と作業前確認 | [完了の判定](#完了の判定)、[作業前の共通確認](#作業前の共通確認) |
 | repository artifactとProduction反映の境界 | [公開状態](#公開状態) |
 | Stripeの環境変数、Price、Portal、Webhook設定 | [Stripeの設定](#stripeの設定) |
 | Trial期限を開発用に短縮 | [Trial期限の開発用設定](#trial期限の開発用設定) |
-| 下位プランへの移行と旧shapeの互換確認 | [下位active planへの移行とrolling互換](#下位active-planへの移行とrolling互換) |
+| 支払い失敗と下位プランへの移行 | [支払い失敗と下位active planへの移行](#支払い失敗と下位active-planへの移行) |
 | Webhook、operation、対応不整合の日常確認 | [日常probe](#日常probe) |
-| m021の履歴確認とNarrow deploy前ゲート | [m021の履歴とNarrow deploy前確認](#m021の履歴とnarrow-deploy前確認) |
 | 新規販売の停止と支払い不要プランのP0 | [販売停止](#販売停止) |
 | StandardまたはProのPrice切替 | [Price rotation](#price-rotation) |
 | Webhookと安全operationの再開 | [Webhookとoperationの復旧](#webhookとoperationの復旧) |
@@ -29,14 +48,13 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 
 ## 完了の判定
 
-リポジトリの実装、ローカルテスト、plan文書だけでは、Stripe設定、production公開、Convex deploy、migration完了を証明できない。
+リポジトリの実装、ローカルテスト、plan文書だけでは、Stripe設定、production公開、Convex deployを証明できない。
 実環境の作業は、対象revision、完全修飾deployment名、provider mode、実行結果、証跡が[リリース状態](release-status.md)に揃った時点で確認済みとする。
 
-次の三つを混同しない。
+次の二つを混同しない。
 
-1. export検証は、保存データの対象集合と不変条件を確認する。
-2. migration statusは、workerが対象deploymentで完走したことを確認する。
-3. provider canaryは、Stripeの実設定とdeployed artifactの組み合わせを確認する。
+1. repository検証は、変更後artifactの契約と自動テストを確認する。
+2. provider canaryは、Stripeの実設定とdeployed artifactの組み合わせを確認する。
 
 一つが成功しても、残りの成功を意味しない。
 
@@ -127,7 +145,7 @@ pnpm exec convex env list --names-only \
   --deployment <fully-qualified-deployment>
 ```
 
-### plan IDとPrice keyの切替
+### Price keyの設定とcanonical artifact確認
 
 この切替は課金プランの公開前に行い、Preview、Develop、Productionを別作業として扱う。  対象deploymentとGitHub Environmentを固定し、切替完了まで課金プランを公開しない。  Price自体は作り直さず、変更前にStandardとして使っていたPrice値を`STRIPE_STANDARD_PRICE_ID`へ、Proとして使っていたPrice値を`STRIPE_PRO_PRICE_ID`へ移す。
 
@@ -135,122 +153,9 @@ pnpm exec convex env list --names-only \
 2. StandardとProに使っている既存PriceをStripe Dashboardで照合し、値をログへ出さず運用担当者の安全な入力経路へ引き継ぐ。
 3. Convex deploymentと対応するGitHub Environment Secretへ`STRIPE_STANDARD_PRICE_ID`と`STRIPE_PRO_PRICE_ID`を設定する。  二つが明示され、異なるPrice IDであることを確認する。
 4. 2キー契約のartifactをbuild・deployし、実行中revisionと公開料金のStandard / Pro対応を確認する。
-5. [plan ID migrationの実行順](#plan-id-migrationの実行順)に従い、m042、m043、Analytics reset、m044、m045、m046、m047、課金互換readiness、全post readinessを順に完走させる。
-6. readinessのlegacy、blocking、未解消conflict、reset generationのblockingがすべて0件になった後、canonical requestで料金取得、Checkout、plan変更のprovider canaryを行う。
+5. canonical requestで料金取得、Checkout、plan変更のprovider canaryを行う。
 
 値の移動はDashboardまたは対話入力で行い、command、log、運用記録へsecretやPrice IDの実値を書かない。  設定の欠損、不正、二つのPrice IDの重複時は、サーバーの課金操作と公開サイトBuildをfail closedにする。
-
-#### rollbackの分岐
-
-最初にm042のcomponent statusと対象billing rowを読み取りで確認し、m042の本実行開始前か、開始後かで手順を分ける。  開始済みか判定できない場合は安全側の「m042開始後」として扱う。
-
-##### m042開始前
-
-課金プランを未公開のまま保ち、移行を開始しない。  旧artifactへ戻す場合は、先にそのartifactが要求する環境変数構成を復元し、新frontendと旧backendが組み合わさらない専用手順を使う。  通常のrelease workflowでreverse commitを流さない。
-
-##### m042開始後
-
-m042が開始した後はcanonicalな保存shapeを旧backendが読めないため、旧backendへ戻さない。  課金プランを未公開のままWiden backendを維持し、DBのplan IDを逆変換したり課金状態を手動patchしたりせず、migration status、全ページreadiness、失敗行を読み取りで固定する。  専用のforward migrationまたはforward fixで収束させ、m042〜m047、Analytics reset、課金互換readiness、全post readinessが揃った後にprovider canaryを行う。
-
-#### plan ID migrationの実行順
-
-readiness queryは`paginationOpts.cursor`を最初は`null`、以後は直前の`continueCursor`に置き換え、`isDone: true`まで全ページ実行する。  m042のpreでは次のqueryをこの順に実行し、markerなしの課金状態と再開済みv2状態の件数、各異常件数、`blocking: 0`を記録する。m042はmarkerなしの全課金状態を保存済みplan ID契約に従ってv2へ変換し、旧`pro`を`standard`、旧`business`を`pro`として意味を維持する。
-
-```bash
-pnpm exec convex run migrations/m042_organization_billing_plan_ids_v2_readiness:verifyOrganizations \
-  '{"phase":"pre","paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
-pnpm exec convex run migrations/m042_organization_billing_plan_ids_v2_readiness:verifyBillingRows \
-  '{"paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
-pnpm exec convex run migrations/m042_organization_billing_plan_ids_v2_readiness:verifyStripeRows \
-  '{"scope":"customers","paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
-```
-
-`verifyStripeRows`は`customers`、`subscriptions`、`operations`、`webhooks`の4 scopeを全ページ確認する。Stripe rowの存在自体や同一組織の履歴行は観測値であり、danglingな組織参照とscope固有の一意キー重複だけをblockingにする。一意キーはCustomerが`organizationId`、Subscriptionが`organizationId + providerGeneration`、operationが`organizationId + kind + requestKey`、Webhookが`stripeEventId`である。Subscriptionとoperationのplan IDはm045 / m046で別に移行する。  続けて`verifyScheduledBillingJobs`と`verifyBillingNotificationOutbox`も同じ`paginationOpts`で全ページ確認し、`blocking: 0`を必須とする。
-
-```bash
-pnpm exec convex run migrations/index:runOrganizationBillingPlanIdsV2 \
-  '{"dryRun":true}' --deployment <fully-qualified-deployment>
-pnpm exec convex run migrations/index:runOrganizationBillingPlanIdsV2 \
-  --deployment <fully-qualified-deployment>
-pnpm exec convex run --component migrations lib:getStatus \
-  '{"names":["migrations/m042_organization_billing_plan_ids_v2:migration"]}' \
-  --watch --deployment <fully-qualified-deployment>
-```
-
-m042のstatus成功を記録したら、post readinessはまだ最終判定に使わず、次にm043を実行する。  三つのmigrationとAnalytics resetの間は課金プランを公開せず、provider canaryへ進まない。
-
-```bash
-pnpm exec convex run migrations/m043_analytics_plan_ids_v2_readiness:verifySourceEvents \
-  '{"phase":"pre","paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
-pnpm exec convex run migrations/index:runAnalyticsPlanIdsV2 \
-  '{"dryRun":true}' --deployment <fully-qualified-deployment>
-pnpm exec convex run migrations/index:runAnalyticsPlanIdsV2 \
-  --deployment <fully-qualified-deployment>
-pnpm exec convex run --component migrations lib:getStatus \
-  '{"names":["migrations/m043_analytics_plan_ids_v2:migration"]}' \
-  --watch --deployment <fully-qualified-deployment>
-```
-
-Widen writerはv2 source eventを並行して書けるため、Analytics writerは停止しない。  m043のstatus成功後、m044より先に`ANALYTICS_CALCULATION_VERSION=2`のresetを[Analytics rollout](analytics-rollout.md)どおり完走させる。  post readinessはreset後も保留し、m044完走後にまとめて行う。
-
-```bash
-pnpm exec convex run migrations/m044_dashboard_announcement_plan_ids_v2_readiness:verify \
-  '{"phase":"pre","paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
-pnpm exec convex run migrations/index:runDashboardAnnouncementPlanIdsV2 \
-  '{"dryRun":true}' --deployment <fully-qualified-deployment>
-pnpm exec convex run migrations/index:runDashboardAnnouncementPlanIdsV2 \
-  --deployment <fully-qualified-deployment>
-pnpm exec convex run --component migrations lib:getStatus \
-  '{"names":["migrations/m044_dashboard_announcement_plan_ids_v2:migration"]}' \
-  --watch --deployment <fully-qualified-deployment>
-```
-
-m044のstatus成功後、Stripe Subscription / operation snapshotをm045 / m046で移行する。`subscriptions`と`operations`をそれぞれpreで全ページ確認し、`blocking: 0`を確認してからrunnerをdry-run、本実行する。markerなしの`standard`またはv2 marker付きの旧`business`は意味を一意に判定できないため、手動変換せずconflictとして停止する。
-
-```bash
-pnpm exec convex run migrations/m045_m046_organization_stripe_plan_ids_v2_readiness:verify \
-  '{"scope":"subscriptions","phase":"pre","paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
-pnpm exec convex run migrations/m045_m046_organization_stripe_plan_ids_v2_readiness:verify \
-  '{"scope":"operations","phase":"pre","paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
-pnpm exec convex run migrations/index:runOrganizationStripePlanIdsV2 \
-  '{"dryRun":true}' --deployment <fully-qualified-deployment>
-pnpm exec convex run migrations/index:runOrganizationStripePlanIdsV2 \
-  --deployment <fully-qualified-deployment>
-pnpm exec convex run --component migrations lib:getStatus \
-  '{"names":["migrations/m045_organization_stripe_subscription_plan_ids_v2:migration","migrations/m046_organization_stripe_operation_plan_ids_v2:migration"]}' \
-  --watch --deployment <fully-qualified-deployment>
-```
-
-m028のstatus、`verifyLegacyShopBillingStates.activeRows: 0`、未解消の店舗課金conflict 0を確認した後、m047で旧`shopBillingStates`を物理削除する。店舗から組織を解決できない、またはcanonicalな組織課金状態が一意でないrowは削除せずconflictへ残す。
-
-```bash
-pnpm exec convex run migrations/index:runShopBillingStatesCleanup \
-  '{"dryRun":true}' --deployment <fully-qualified-deployment>
-pnpm exec convex run migrations/index:runShopBillingStatesCleanup \
-  --deployment <fully-qualified-deployment>
-pnpm exec convex run --component migrations lib:getStatus \
-  '{"names":["migrations/m047_shop_billing_states_cleanup:migration"]}' \
-  --watch --deployment <fully-qualified-deployment>
-```
-
-m045からm047のstatus成功後、次のpost readinessをこの順で全ページ実行する。
-
-1. m042の`verifyOrganizations`を`phase: "post"`で実行し、`legacyTarget: 0`と`blocking: 0`を確認する。  billing、Stripeの4 scope、scheduled job、billing通知も全ページ再実行する。
-2. m043の`verifySourceEvents`、`verifyOrganizations`、`verifyShops`、`verifyDailyOrganizationKpis`を`phase: "post"`で全ページ実行し、`legacyVersion: 0`と各`blocking: 0`を確認する。
-3. m044の`verify`を`phase: "post"`で全ページ実行し、`legacy: 0`と`blocking: 0`を確認する。
-4. m045 / m046共通readinessの`verify`を両scope、`phase: "post"`で全ページ実行し、`legacy: 0`と`blocking: 0`を確認する。
-5. `narrowReadiness/queries:verifyLegacyShopBillingStates`を全ページ実行し、`activeRows: 0`と`totalRows: 0`を確認する。
-6. `billing_compatibility_narrow_readiness`の`verifyBillingStates`を全ページ実行し、markerなしplan IDを含む`blocking: 0`を確認する。
-7. 最後に次のqueryが`completedReset: true`、`blocking: 0`を返すことを確認する。
-
-```bash
-pnpm exec convex run migrations/billing_compatibility_narrow_readiness:verifyBillingStates \
-  '{"paginationOpts":{"cursor":null,"numItems":100}}' --deployment <fully-qualified-deployment>
-pnpm exec convex run migrations/m043_analytics_plan_ids_v2_readiness:verifyResetGeneration \
-  '{}' --deployment <fully-qualified-deployment>
-```
-
-いずれかが0件以外、または全ページ未完了なら課金プランを公開せず、schema・validator・runtime fallbackのNarrowも行わない。  provider canaryを行えるのは、m042 → m043 → Analytics reset → m044 → m045 → m046 → m047 → 課金互換readiness → 全post readinessの証跡が揃った後だけである。
 
 ### Product、Price、Portal
 
@@ -363,45 +268,33 @@ pnpm exec convex env remove --deployment <fully-qualified-deployment> DEBUG_TRIA
 対象を引数で固定できない`pnpm convex:env:setup`では設定せず、Dashboardまたは完全修飾deployment名を指定したCLIを使う。
 作業後は`env list --names-only`でキーの有無だけを確認し、値をログや証跡へ残さない。
 
-## 下位active planへの移行とrolling互換
+## 支払い失敗と下位active planへの移行
 
 未契約または継続予約取消済みのTrialが終了した場合は、管理者、店舗、人物、スタッフ所属、シフトを維持したまま`active.free`へ移行する。
-有料契約の解約確定、支払い猶予終了、Stripe上の想定外解約でも、Stripe上の契約終了を確認した後に`active.free`へ移行する。
-ProからStandardへの期間末変更では、Stripe上のphase移行と支払い結果を確認した後にcanonicalな`active.standard`へ移行する。
-`pendingActivation`で有料化しない結果が確定した場合は、保存済みのcanonical `fallback`が示すFree / Standard / Proへ収束させる。
-Stripe上の結果確認が必要な遷移を、ローカルの期限だけで確定しない。
-Trial、解約、支払い猶予、想定外解約から`active.free`へ移行するときは、契約終了時点の未承認招待を失効させる。
+有料契約の解約は期間末に適用し、Stripe上の契約終了を確認した後に`active.free`へ移行する。
+ProからStandardへの期間末変更は、Stripe上のphase移行と支払い成功を確認した後に`active.standard`へ移行する。
 
-新しい解約予約には`restrictAtPeriodEnd: true`を保存する。
-予約を受け付けた時点では契約を終了せず、Stripeの`cancel_at_period_end`とローカルの変更予約が対応していることを確認する。
-期間末前の取消では、Stripeの`cancel_at_period_end`が解除されたことと、ローカル状態が元の有料プランへ戻ったことを照合する。
+StandardからProへの即時変更はStripeの`pending_if_incomplete`を使う。  未払いの間はHosted Invoice URLから支払いを再開でき、利用者が取り消した場合または日割り支払いに失敗した場合は、その変更で作られたInvoiceだけを安定したidempotency keyで`void`する。  Subscriptionを再取得し、`pending_update`が消えてStandardのPriceが維持されていることを確認してから`active.standard`へ戻す。
 
-次のcanonical状態とWiden中のlegacy状態を区別する。
+Trial終了時の初回請求、Standard / Proの通常更新、ProからStandardへの変更適用時の初回請求について検証済みの未払いを確認した場合は、`paymentTerminationPending`へ移行する。
+これは利用者向けのプランではなく、Subscription終了とInvoiceの自動回収停止を追跡する内部workflowである。
+開始時点からFreeの利用権限を適用し、支払い処理の再試行中も有料機能を許可しない。
 
-| 保存状態 | 運用上の扱い |
-|---|---|
-| `planIdVersion: 2`付きの`active.free` / `active.standard` / `active.pro` | それぞれFree / Standard / Proとして扱う |
-| `planIdVersion: 2`付きの`complimentary.pro` | 支払い不要Pro・50人上限として継続し、Stripe objectを作らない |
-| markerなしの課金状態 | Widen中だけ旧plan ID契約で読み、m042で意味を維持したままv2へ変換する |
-| `scheduledChange.targetPlan: "free"`かつ`restrictAtPeriodEnd`なし | deployment前の旧Free変更予約として、Stripe上の期間末終了確認後に`active.free`へ収束させる |
-| `scheduledChange.targetPlan: "free"`かつ`restrictAtPeriodEnd: true` | 新しい解約予約として、Stripe上の期間末終了確認後に`active.free`へ収束させる |
+内部workerは同じidempotency keyでSubscriptionを終了し、対象となるopenまたはdraft Invoiceの`auto_advance: false`を確認する。
+Stripe側の停止を確認した後に、`active.free`と支払い失敗理由を同じ処理で保存する。
+途中で失敗した場合はFree権限のまま再試行し、上限到達時は`actionRequired`として運用確認へ送る。
+処理完了まで新しい有料契約を開始させない。
 
-markerなしの旧予約へ`restrictAtPeriodEnd`を後付けせず、新しい解約予約からmarkerを除かない。
-どちらの予約でも、保存済みの管理者や店舗を自動で削減せず、Free成立の事前条件にも使わない。
+`auto_advance: false`は自動再請求、Reminder、Stripe Billingによる自動処理を止めるための完了条件である。
+支払い失敗で有料契約全体を終了する本手順では、未払いInvoiceを`void`または`uncollectible`へ自動変更せず、別途確定した会計方針に従う。  StandardからProへの未完了変更だけは、変更を取り消してStandardを維持するため、当該日割りInvoiceを`void`する。
+旧Invoiceが後から支払い済みになっても自動復帰せず、運用上の要対応として扱う。
 
-上限状態は、未承認の管理者招待を除く実際の利用人数、稼働店舗数、有効管理者数と、保存済みの現在プランから導出する。
+上限状態は、未承認の管理者招待を除く実際の利用人数、未削除店舗数、有効管理者数と、現在適用中のFree / Standard / Proから導出する。
 上限超過と利用上限評価不能は課金状態として保存しない。
-上限超過または利用上限評価不能の間は、閲覧、人物削除、管理者権限解除、店舗のアーカイブと削除、招待取消、課金と請求先変更、組織とアカウントの終了に必要な操作だけを許可する。
-通常業務、スタッフの希望シフト提出、業務メール、LINE、provider連携を含む外部通知は停止する。
-業務通知は、Outbox投入後もprovider送信直前に現在の利用上限状態を再評価する。
-実利用数が上限内へ戻ると、課金状態や上限フラグの更新なしで通常利用へ戻る。
+利用実数が上限内へ戻ると、課金状態や上限フラグの更新なしで通常利用へ戻る。
 
-plan ID切替ではmigrationとreadiness gateが必要である。  m042はmarkerなしの全billing stateをv2へ変換し、m045 / m046はStripe Subscription / operation snapshotを同じplan ID契約へ揃える。scheduled jobと課金通知は変換せず、pre / post readinessで処理中の対象が0件であることを要求する。m047はcanonical対応を一意に確認できた旧店舗課金rowだけを物理削除し、課金互換readinessはmarkerなしplan IDが0件であることを確認する。  実環境の対象が想定どおりかは、すべてのpre readinessを全ページ実行して判定する。
-旧shapeは、新旧plan IDが共存するWiden deploy中のschemaとread互換だけに残し、新しい状態遷移から作成しない。  保存側の`planIdVersion: 2`は、同じ`pro`文字列のlegacy / canonicalの意味をWiden中に識別するための一時markerであり、永続的なDB契約にしない。
-共存期間の終了後に、旧shape、保存側のversion marker、専用分岐をNarrowで削除する。  request / responseの`planIdVersion: 2`は、旧clientとcanonical clientのAPI契約を分ける境界として別に扱う。
-
-状態を手動patchして収束させない。
-不一致がある場合は、対象組織、billing version、変更予約のmarker、Stripe Subscriptionの`cancel_at_period_end`と期間終了日時、関連operationとWebhookを読み取りで照合し、provider再照合またはforward repairを選ぶ。
+旧プランIDのmigration、backfill、rolling互換は行わない。
+対象environmentではcanonicalな変更後artifactとStripe Sandbox canaryだけを確認する。
 
 ## 日常probe
 
@@ -432,126 +325,12 @@ probeは全件集計ではなく、項目ごとに`observedCount`と`hasMore`を
 | `anomalies.organizationsWithMultipleStripeCustomers` | 一組織に複数Customerがある不整合 |
 | `anomalies.subscriptionsWithoutMatchingLocalCustomer` | SubscriptionとローカルCustomerの対応不整合 |
 | `anomalies.stripeCustomersWithoutBillingState` | Customerに対応する課金状態の欠落 |
-| `anomalies.unresolvedM018MigrationConflicts` | Business廃止時の履歴migrationで未解消のconflict |
 
 いずれかの`observedCount`が0でも、対応する`hasMore`が`true`なら解消済みと判定しない。
 probeだけでは、Stripe上のPriceのactive状態、Subscription ItemのPrice、最新Invoiceの状態、`auto_advance`停止を証明できない。
 必要な項目はStripe APIの再取得結果とDashboardの対象objectを照合する。
 
-`verifyLegacyBusinessStates`はm018の履歴確認専用である。
-現行のBusinessやm021の履歴確認には使わない。
-
-`anomalies.complimentaryProAwaitingM021`はNarrow後のmaintenance probeから削除されている。
-probeにこの項目がないことはm021の完走や旧形式の残件0を証明しないため、Narrow deploy前はmigration statusとexportを別々に確認する。
-
-## m021の履歴とNarrow deploy前確認
-
-現在のcanonical保存先は`planIdVersion: 2`付きの`complimentary.pro`である。  Widen runtimeは、m042完走までmarkerなしの`complimentary.business`もlegacy Proとして読み、新規writeでは作成しない。
-同じ`complimentary.pro`でも、m021の履歴にあるmarkerなし値と、現在のcanonical値は異なる契約である。  Widen中は一時markerで識別し、m042で`complimentary.business`をcanonical `complimentary.pro`へ変換する。
-
-対象deploymentのm021 statusとexport検証状況は、過去の変換を説明する履歴証跡である。  今回の切替完了はm042 → m043 → Analytics reset → m044 → m045 → m046 → m047 → 課金互換readiness → 全post readinessと、[リリース状態](release-status.md)の実環境証跡で判定する。  m021の完了だけで現在のplan ID cutover完了とは判定しない。
-
-以下はm021実行時の履歴手順であり、現在のm042〜m047実行手順には流用しない。
-
-### 対象と停止条件
-
-`m021_organization_billing_complimentary_pro_to_business`は、Widen期間にStripeから隔離された旧`complimentary.pro`だけを`complimentary.business`へ変更するための履歴migrationである。
-組織欠落、課金状態重複、Stripe Customer、Subscription、全statusのoperation、Webhook、課金通知、先行監査のいずれかがあれば変更せずconflictへ残す。
-
-未移行の旧形式が見つかった場合はNarrow版をdeployしない。
-Widen版の対象revisionへ戻ってm021と検証を完了し、その証跡を固定してからNarrow deployへ進む。
-
-事前検証で次のいずれかが起きたら、migrationを開始しない。
-
-- 対象件数が0件である。
-- 必須tableまたはmanifest dataがない。
-- JSONLを解釈できない。
-- Stripe証跡、先行監査、未解消m021 conflictがある。
-- 対象deployment、commit、snapshot取得時刻を一意に記録できない。
-
-### snapshot A、B、C
-
-| snapshot | 取得時点 | 用途 |
-|---|---|---|
-| A | 対象releaseを始める前 | 障害調査と最終手段のrestore判断に使う。日常的なrollback手段にはしない |
-| B | m021を含むreleaseの実行直前 | Go / No-Goのpre検証と対象集合の固定 |
-| C | m021 statusの成功確認後 | post検証と移行後の証明 |
-
-三つは別々のアクセス制限された一意なパスへ保存する。
-各snapshotにdeployment名、commit SHA、取得時刻、ZIPのSHA-256、対象件数、対象set hash、verifier結果を対応付ける。
-
-production snapshotには`pnpm convex:save`を使わない。
-このコマンドは既存のbackup領域を掃除して固定パスへコピーするため、production証跡の分離に適さない。
-Dashboard backupを優先し、CLIを使う場合は完全修飾deployment名と一意な保存先を指定する。
-
-```bash
-pnpm exec convex export --deployment <fully-qualified-deployment> \
-  --path <access-controlled-unique-path>.zip
-unzip -t <snapshot>.zip
-shasum -a 256 <snapshot>.zip
-```
-
-snapshot取得後に対象データが変わった可能性があれば、そのsnapshotをGo判定に使わず再取得する。
-
-### pre検証
-
-snapshot Bへpre verifierを実行する。
-
-```bash
-pnpm convex:verify-complimentary-m021-export -- \
-  --mode pre \
-  --path <snapshot-b.zip>
-```
-
-成功したreportから`targetCount`と`targetSetSha256`を記録する。
-この二つはpost検証へそのまま引き渡す。
-
-### migrationの実行とstatus確認
-
-`convex/migrations/index.ts`の固定seriesにはm021が登録されている。
-developmentへのdeployは`.github/workflows/deploy.yml`、production releaseは`.github/workflows/release.yml`がConvex deploy後に`migrations/index:run`を実行する。
-
-workflowで固定seriesを実行する場合、同じdeploymentへ手動の本実行を重ねない。
-実際にworkflowが実行済みか、どのrevisionが対象かは[リリース状態](release-status.md)で確認する。
-
-対象deploymentを完全指定し、m021が`isDone: true`、`state: "success"`、`error`なしになるまでstatusを確認する。
-
-```bash
-pnpm exec convex run --deployment <fully-qualified-deployment> \
-  --component migrations lib:getStatus \
-  '{"names":["migrations/m021_organization_billing_complimentary_pro_to_business:migration"]}' \
-  --watch
-```
-
-CLIが表示したdeployment名が意図した対象と一致しなければ、その結果を採用しない。
-
-### post検証
-
-m021のstatus成功後にsnapshot Cを取得し、preの件数とhashを指定してpost verifierを実行する。
-
-```bash
-pnpm convex:verify-complimentary-m021-export -- \
-  --mode post \
-  --path <snapshot-c.zip> \
-  --expected-target-count <pre-target-count> \
-  --expected-target-set-sha256 <pre-target-set-sha256>
-```
-
-reportの`migrationStatus: "not_verified_by_export"`は意図した値である。
-exportはworkerの完走を証明しないため、component statusとpost verifierの両方を証跡に残す。
-全対象deploymentの完走、旧形式の残件0、未解消conflict 0を[リリース状態](release-status.md)で確認するまで、Narrow版をdeployしない。
-
-### 失敗時の復旧
-
-- productionでm021をresetしない。
-- 課金証跡、監査、conflictを手動削除しない。
-- 旧`complimentary.pro`や`complimentary.business`を手動patchしない。
-- m021後にpre-Widen版へ戻さない。
-- snapshot Aを即時restoreする前提にせず、影響とprovider状態を確認する。
-- 修復が必要ならm022以降のforward migrationを作り、同じpre/status/postの証跡を設計する。
-
-失敗中も、既存契約の署名済みWebhook、取消、請求停止、再照合を止めない。
-支払い不要Pro相当にStripe objectが対応した疑いがある場合は、次のP0手順へ進む。
+`anomalies.complimentaryProAwaitingM021`は現在のmaintenance probeから削除されている。
 
 ## 販売停止
 
@@ -653,7 +432,7 @@ provider側の請求停止や取消が未完了なら、新規販売を止めた
 - 確認日時、確認者、対象commit、artifact。
 - 環境、完全修飾deployment名、Stripe accountの識別情報とmode。
 - CLIが表示した実行対象。
-- probe、migration status、export verifier、provider canaryの結果。
+- probeとprovider canaryの結果。
 - snapshotまたはログのアクセス制限された保管先。
 - 販売停止の対象、停止時刻、未解決のoperation。
 - 復旧先と、販売再開または次工程へ進める条件。
@@ -670,11 +449,10 @@ provider側の請求停止や取消が未完了なら、新規販売を止めた
 - [セキュリティ戦略](../rules/security-strategy.md)
 - [Convex設計戦略](../rules/convex-design-strategy.md)
 - [テスト戦略](../rules/testing-strategy.md)
+- [Stripe: Subscriptionの解約](https://docs.stripe.com/billing/subscriptions/cancel)
+- [Stripe: Invoiceの自動回収停止](https://docs.stripe.com/api/invoices/update)
 - `convex/organizationStripe/config.ts`
 - `convex/organizationStripe/webhook.ts`
 - `convex/organizationStripe/maintenance.ts`
-- `convex/migrations/index.ts`
-- `convex/migrations/m021_organization_billing_complimentary_pro_to_business.ts`
-- `scripts/verifyComplimentaryBusinessM021Export.ts`
 - `.github/workflows/deploy.yml`
 - `.github/workflows/release.yml`

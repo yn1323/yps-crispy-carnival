@@ -5,8 +5,8 @@ describe("管理者招待の表示変換", () => {
   it.each([
     ["pending", { label: "招待中", colorPalette: "orange" }],
     ["sendFailed", { label: "送信エラー", colorPalette: "red" }],
-    ["limitReached", { label: "上限到達（現在は連携できません）", colorPalette: "orange" }],
-    ["conflict", { label: "競合", colorPalette: "orange" }],
+    ["limitReached", { label: "これ以上追加できません", colorPalette: "orange" }],
+    ["conflict", { label: "エラー", colorPalette: "orange" }],
   ] as const)("%sを対応するラベルと色へ変換する", (status, expected) => {
     expect(getManagerInvitationStatusPresentation(status)).toEqual(expected);
   });

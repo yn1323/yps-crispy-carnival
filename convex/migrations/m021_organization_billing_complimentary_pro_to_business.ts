@@ -85,7 +85,7 @@ export const migration = migrations.define({
 
     const now = Date.now();
     await ctx.db.patch(billingState._id, {
-      state: { kind: "complimentary", plan: "business" },
+      state: { kind: "complimentary", plan: "business" } as unknown as typeof billingState.state,
       version: billingState.version + 1,
       updatedAt: now,
     });

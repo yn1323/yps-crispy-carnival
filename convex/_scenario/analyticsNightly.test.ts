@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { jstDayRangeMs } from "../_lib/dateFormat";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { ANALYTICS_CALCULATION_VERSION, ANALYTICS_SCHEMA_VERSION } from "../analytics/model";
@@ -232,13 +233,10 @@ describe("Analytics夜間バッチシナリオ", () => {
 
     vi.setSystemTime(INITIAL_PARTIAL_AT);
     const staffId = await t.run(async (ctx) => {
-      const id = await ctx.db.insert("staffs", {
-        organizationId: operational.organizationId,
+      const id = await seedStaff(ctx, {
         shopId: operational.shopId,
         name: "partial境界追加スタッフ",
         email: "partial-catch-up@example.com",
-        emailNormalized: "partial-catch-up@example.com",
-        isDeleted: false,
       });
       await recordAnalyticsSourceEvent(ctx, {
         eventKey: "scenario:partial:staff-active",
@@ -457,13 +455,10 @@ describe("Analytics夜間バッチシナリオ", () => {
         subject: "analytics_failed_day_gap",
         shopName: "欠損日検証店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
-        organizationId: operational.organizationId,
+      const staffId = await seedStaff(ctx, {
         shopId: operational.shopId,
         name: "欠損日検証スタッフ",
         email: "gap@example.com",
-        emailNormalized: "gap@example.com",
-        isDeleted: false,
       });
       const resetRunId = await ctx.db.insert("analyticsRuns", {
         runKey: "reset:scenario-baseline",

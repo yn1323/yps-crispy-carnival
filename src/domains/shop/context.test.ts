@@ -2,11 +2,10 @@ import { describe, expect, it } from "vitest";
 import { groupShopsByOrganization, normalizeSelectedShop, normalizeShopContextOptions } from "./context";
 
 describe("shop context", () => {
-  it("旧selected-shop DTOをactive所属として読み込める", () => {
+  it("状態値がない旧selected-shop DTOを読み込める", () => {
     expect(normalizeSelectedShop({ shopId: "shop-1", shopName: "渋谷店" })).toEqual({
       shopId: "shop-1",
       shopName: "渋谷店",
-      shopStatus: "active",
       organizationId: null,
       organizationName: null,
       organizationPlan: null,
@@ -30,13 +29,24 @@ describe("shop context", () => {
     );
   });
 
-  it("稼働中店舗とアーカイブ店舗を保持する", () => {
+  it("旧active値だけを互換入力として受理し、archivedと未知値は除外する", () => {
     const shops = normalizeShopContextOptions([
       { shopId: "1", shopName: "A", shopStatus: "active" },
       { shopId: "2", shopName: "B", shopStatus: "archived" },
+      { shopId: "3", shopName: "C", shopStatus: "unknown" },
+      { shopId: "4", shopName: "D", operatingStatus: "archived" },
     ]);
 
-    expect(shops.map((shop) => shop.shopStatus)).toEqual(["active", "archived"]);
+    expect(shops).toEqual([
+      {
+        shopId: "1",
+        shopName: "A",
+        organizationId: null,
+        organizationName: null,
+        organizationPlan: null,
+      },
+    ]);
+    expect(normalizeSelectedShop({ shopId: "2", shopName: "B", shopStatus: "archived" })).toBeNull();
   });
 
   it("店舗を組織ごとにまとめて安定した順序で返す", () => {

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-import { isShopParentActive } from "../_lib/activeShop";
 import { observedQuery as query } from "../_lib/errorObservability";
+import { isShopAvailable } from "../_lib/shopAvailability";
 
 /**
  * 募集情報の公開データ取得（認証不要）
@@ -27,7 +27,7 @@ export const getRecruitmentInfo = query({
     if (!recruitment || recruitment.isDeleted || recruitment.status !== "confirmed") return null;
 
     const shop = await ctx.db.get(recruitment.shopId);
-    if (!shop || !(await isShopParentActive(ctx, shop))) return null;
+    if (!shop || !(await isShopAvailable(ctx, shop))) return null;
 
     return {
       recruitmentId: normalizedRecruitmentId,

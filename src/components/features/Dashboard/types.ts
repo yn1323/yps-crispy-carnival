@@ -33,7 +33,7 @@ export type DashboardRecruitmentGroupsResult = {
 
 export type Staff = {
   _id: Id<"staffs">;
-  organizationPersonId: Id<"organizationPeople"> | null;
+  organizationPersonId: Id<"organizationPeople">;
   name: string;
   email: string;
   isManager: boolean;

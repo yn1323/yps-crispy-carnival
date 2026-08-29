@@ -28,7 +28,6 @@ export function UserShopMembershipList({ data, onOpenShop }: Props) {
               leading={<ShopIcon />}
               badges={
                 <HStack gap={1.5} wrap="wrap" ms="auto" flexShrink={0}>
-                  {membership.shopStatus !== "active" && <StatusBadge colorPalette="gray">アーカイブ済み</StatusBadge>}
                   {membership.excludedFromShift && <StatusBadge colorPalette="gray">シフト対象外</StatusBadge>}
                 </HStack>
               }

@@ -92,7 +92,7 @@ export const getAcceptanceNotificationData = internalQuery({
     const organization = await ctx.db.get(invitation.organizationId);
     if (!organization || organization.isDeleted) return null;
 
-    const [members, shops] = await Promise.all([
+    const [members, representativeShop] = await Promise.all([
       ctx.db
         .query("organizationMembers")
         .withIndex("by_organizationId_and_status", (q) =>
@@ -101,12 +101,11 @@ export const getAcceptanceNotificationData = internalQuery({
         .collect(),
       ctx.db
         .query("shops")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", invitation.organizationId))
-        .collect(),
+        .withIndex("by_organizationId_and_isDeleted", (q) =>
+          q.eq("organizationId", invitation.organizationId).eq("isDeleted", false),
+        )
+        .first(),
     ]);
-    const representativeShop =
-      shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "active") ??
-      shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "archived");
     const recipients = [];
     for (const member of members) {
       const [person, user] = await Promise.all([ctx.db.get(member.personId), ctx.db.get(member.userId)]);

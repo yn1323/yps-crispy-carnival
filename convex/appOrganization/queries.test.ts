@@ -11,9 +11,7 @@ import { modules, schema } from "../_test/setup.test-helper";
 type OrganizationContext = FunctionReturnType<
   typeof api.appOrganization.queries.listMyOrganizationContexts
 >["page"][number];
-type ActiveShopContext = FunctionReturnType<
-  typeof api.appOrganization.queries.listOrganizationActiveShops
->["page"][number];
+type ShopContext = FunctionReturnType<typeof api.appOrganization.queries.listOrganizationShops>["page"][number];
 
 const NOW = Date.parse("2026-08-14T00:00:00Z");
 
@@ -26,7 +24,6 @@ async function seedOrganizationForUser(
     personStatus?: "active" | "removed";
     organizationDeleted?: boolean;
     withMembership?: boolean;
-    withActiveShop?: boolean;
   },
 ) {
   const user = await ctx.db.get(args.userId);
@@ -62,17 +59,7 @@ async function seedOrganizationForUser(
           createdAt: NOW,
           updatedAt: NOW,
         });
-  const shopId = args.withActiveShop
-    ? await ctx.db.insert("shops", {
-        organizationId,
-        operatingStatus: "active",
-        name: `${args.name}店舗`,
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      })
-    : null;
-  return { organizationId, personId, memberId, shopId };
+  return { organizationId, personId, memberId };
 }
 
 function firstPage(numItems = 20): PaginationOptions {
@@ -406,61 +393,54 @@ describe("appOrganization organization context queries", () => {
     ]);
   });
 
-  it("activeかつ非削除の同一組織店舗だけをcursor paginationで最後まで返す", async () => {
+  it("非削除の同一組織店舗だけをcursor paginationで最後まで返す", async () => {
     const t = convexTest(schema, modules);
-    const subject = "organization_context_shops";
+    const subject = "organization_context_shops_alias";
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject, shopName: "店舗A" });
-      const insertShop = async (name: string, operatingStatus: "active" | "archived", isDeleted = false) =>
+      const insertShop = async (name: string, isDeleted = false) =>
         await ctx.db.insert("shops", {
           organizationId: base.organizationId,
-          operatingStatus,
           name,
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           regularClosedDays: [],
           isDeleted,
         });
-      const activeB = await insertShop("店舗B", "active");
-      const activeC = await insertShop("店舗C", "active");
-      const activeD = await insertShop("店舗D", "active");
-      const activeE = await insertShop("店舗E", "active");
-      const activeF = await insertShop("店舗F", "active");
-      const activeG = await insertShop("店舗G", "active");
-      const archived = await insertShop("アーカイブ店舗", "archived");
-      const deleted = await insertShop("削除済み店舗", "active", true);
-      const missingOperatingStatus = await ctx.db.insert("shops", {
-        organizationId: base.organizationId,
-        name: "状態未移行店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      });
+      const shopB = await insertShop("店舗B");
+      const shopC = await insertShop("店舗C");
+      const shopD = await insertShop("店舗D");
+      const shopE = await insertShop("店舗E");
+      const shopF = await insertShop("店舗F");
+      const shopG = await insertShop("店舗G");
+      const shopH = await insertShop("店舗H");
+      const shopI = await insertShop("店舗I");
+      const deleted = await insertShop("削除済み店舗", true);
       const other = await seedOrganizationManagerShop(ctx, {
         subject: "organization_context_shops_other",
         shopName: "別組織店舗",
       });
       return {
         base,
-        activeB,
-        activeC,
-        activeD,
-        activeE,
-        activeF,
-        activeG,
-        archived,
+        shopB,
+        shopC,
+        shopD,
+        shopE,
+        shopF,
+        shopG,
+        shopH,
+        shopI,
         deleted,
-        missingOperatingStatus,
         other,
       };
     });
     const actor = t.withIdentity({ subject });
-    const found: ActiveShopContext[] = [];
+    const found: ShopContext[] = [];
     let cursor: string | null = null;
     let firstIsDone = true;
 
     for (let pageNumber = 0; pageNumber < 10; pageNumber += 1) {
-      const result: PaginationResult<ActiveShopContext> = await actor.query(
-        api.appOrganization.queries.listOrganizationActiveShops,
+      const result: PaginationResult<ShopContext> = await actor.query(
+        api.appOrganization.queries.listOrganizationShops,
         {
           organizationId: ids.base.organizationId,
           paginationOpts: { numItems: 1, cursor },
@@ -475,66 +455,69 @@ describe("appOrganization organization context queries", () => {
     expect(firstIsDone).toBe(false);
     expect(found).toEqual([
       { shopId: ids.base.shopId, shopName: "店舗A" },
-      { shopId: ids.activeB, shopName: "店舗B" },
-      { shopId: ids.activeC, shopName: "店舗C" },
-      { shopId: ids.activeD, shopName: "店舗D" },
-      { shopId: ids.activeE, shopName: "店舗E" },
-      { shopId: ids.activeF, shopName: "店舗F" },
-      { shopId: ids.activeG, shopName: "店舗G" },
+      { shopId: ids.shopB, shopName: "店舗B" },
+      { shopId: ids.shopC, shopName: "店舗C" },
+      { shopId: ids.shopD, shopName: "店舗D" },
+      { shopId: ids.shopE, shopName: "店舗E" },
+      { shopId: ids.shopF, shopName: "店舗F" },
+      { shopId: ids.shopG, shopName: "店舗G" },
+      { shopId: ids.shopH, shopName: "店舗H" },
+      { shopId: ids.shopI, shopName: "店舗I" },
     ]);
-    expect(
-      found.some((shop) =>
-        [ids.archived, ids.deleted, ids.missingOperatingStatus, ids.other.shopId].includes(shop.shopId),
-      ),
-    ).toBe(false);
+    expect(found.some((shop) => [ids.deleted, ids.other.shopId].includes(shop.shopId))).toBe(false);
     expect(Object.keys(found[0] ?? {}).sort()).toEqual(["shopId", "shopName"]);
     await expect(
       t
         .withIdentity({ subject: "organization_context_shops_other" })
-        .query(api.appOrganization.queries.listOrganizationActiveShops, {
+        .query(api.appOrganization.queries.listOrganizationShops, {
           organizationId: ids.base.organizationId,
           paginationOpts: firstPage(),
         }),
     ).rejects.toThrow("Not found");
   });
 
-  it("active所属はactive店舗を参照でき、危険なpage sizeは拒否する", async () => {
+  it("非削除店舗のcanonical APIと旧API名が同じ結果を返し、危険なpage sizeは拒否する", async () => {
     const t = convexTest(schema, modules);
-    const subject = "organization_context_active_shops";
+    const subject = "organization_context_shops";
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject });
       return base;
     });
     const actor = t.withIdentity({ subject });
 
-    await expect(
+    const [canonical, legacy] = await Promise.all([
+      actor.query(api.appOrganization.queries.listOrganizationShops, {
+        organizationId: ids.organizationId,
+        paginationOpts: firstPage(),
+      }),
       actor.query(api.appOrganization.queries.listOrganizationActiveShops, {
         organizationId: ids.organizationId,
         paginationOpts: firstPage(),
       }),
-    ).resolves.toMatchObject({ page: [{ shopId: ids.shopId, shopName: "テスト店舗" }], isDone: true });
+    ]);
+    expect(canonical).toMatchObject({ page: [{ shopId: ids.shopId, shopName: "テスト店舗" }], isDone: true });
+    expect(legacy).toEqual(canonical);
     await expect(
       actor.query(api.appOrganization.queries.listMyOrganizationContexts, { paginationOpts: firstPage(51) }),
     ).rejects.toThrow("numItems must be between 1 and 50");
     await expect(
-      actor.query(api.appOrganization.queries.listOrganizationActiveShops, {
+      actor.query(api.appOrganization.queries.listOrganizationShops, {
         organizationId: ids.organizationId,
         paginationOpts: { ...firstPage(), maximumRowsRead: 0 },
       }),
     ).rejects.toThrow("maximumRowsRead must be a positive integer");
   });
 
-  it("active店舗ごとの募集を一つのcursor familyで返し、契約上限を超えた店舗にも到達できる", async () => {
+  it("非削除店舗ごとの募集を一つのcursor familyで返し、契約上限を超えた店舗にも到達できる", async () => {
     const t = convexTest(schema, modules);
     const subject = "app_organization_recruitment_sections";
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject, shopName: "店舗A", complimentary: true });
-      const activeShopIds = [base.shopId];
+      const shopIds = [base.shopId];
       for (const name of ["店舗B", "店舗C", "店舗D", "店舗E", "店舗F", "店舗G"]) {
-        activeShopIds.push(
+        shopIds.push(
           await ctx.db.insert("shops", {
             organizationId: base.organizationId,
-            operatingStatus: "active",
             name,
             submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
             regularClosedDays: [],
@@ -542,15 +525,14 @@ describe("appOrganization organization context queries", () => {
           }),
         );
       }
-      const archivedShopId = await ctx.db.insert("shops", {
+      const additionalShopId = await ctx.db.insert("shops", {
         organizationId: base.organizationId,
-        operatingStatus: "archived",
-        name: "休止店舗",
+        name: "店舗H",
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         regularClosedDays: [],
         isDeleted: false,
       });
-      for (const [index, shopId] of activeShopIds.entries()) {
+      for (const [index, shopId] of shopIds.entries()) {
         const recruitmentId = await ctx.db.insert("recruitments", {
           shopId,
           periodStart: `2026-08-${20 + index}`,
@@ -564,13 +546,10 @@ describe("appOrganization organization context queries", () => {
         // recruitmentStatsがないrolling期間でも、各店舗pageのlegacy fallback workは固定上限で止まる。
         for (let staffIndex = 0; staffIndex < 3; staffIndex += 1) {
           const email = `section-${index}-${staffIndex}@example.com`;
-          const staffId = await ctx.db.insert("staffs", {
-            organizationId: base.organizationId,
+          const staffId = await seedStaff(ctx, {
             shopId,
             name: `スタッフ${index}-${staffIndex}`,
             email,
-            emailNormalized: email,
-            isDeleted: false,
           });
           await ctx.db.insert("shiftSubmissions", {
             recruitmentId,
@@ -580,7 +559,7 @@ describe("appOrganization organization context queries", () => {
           });
         }
       }
-      return { ...base, activeShopIds, archivedShopId };
+      return { ...base, shopIds, additionalShopId };
     });
     const actor = t.withIdentity({ subject });
     const sections: FunctionReturnType<typeof api.appOrganization.queries.listOrganizationRecruitments>["page"] = [];
@@ -601,9 +580,8 @@ describe("appOrganization organization context queries", () => {
       cursor = page.continueCursor;
     }
 
-    expect(sections.map((section) => section.shop.shopId)).toEqual(ids.activeShopIds);
-    expect(sections.some((section) => section.shop.shopId === ids.archivedShopId)).toBe(false);
-    expect(sections).toHaveLength(7);
+    expect(sections.map((section) => section.shop.shopId)).toEqual([...ids.shopIds, ids.additionalShopId]);
+    expect(sections).toHaveLength(8);
     expect(pageSizes.every((size) => size <= 1)).toBe(true);
     expect(sections[0]).toMatchObject({
       shop: { shopName: "店舗A", operatingStatus: "active", regularClosedDays: [] },
@@ -678,13 +656,10 @@ describe("appOrganization organization context queries", () => {
       const base = await seedOrganizationManagerShop(ctx, { subject });
       for (let index = 0; index <= 1000; index += 1) {
         const email = `overflow-${index}@example.com`;
-        await ctx.db.insert("staffs", {
-          organizationId: base.organizationId,
+        await seedStaff(ctx, {
           shopId: base.shopId,
           name: `スタッフ${index}`,
           email,
-          emailNormalized: email,
-          isDeleted: false,
         });
       }
       await ctx.db.insert("recruitments", {
@@ -719,7 +694,6 @@ describe("appOrganization organization context queries", () => {
       const base = await seedOrganizationManagerShop(ctx, { subject, shopName: "店舗A", plan: "free" });
       const secondShopId = await ctx.db.insert("shops", {
         organizationId: base.organizationId,
-        operatingStatus: "active",
         name: "店舗B",
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         regularClosedDays: [],
@@ -843,5 +817,43 @@ describe("appOrganization organization context queries", () => {
       changeStaffOrderDisabledReason:
         "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。",
     });
+  });
+
+  it("両canonical ID未設定staffを店舗の人物一覧と表示件数へ投影しない", async () => {
+    const t = convexTest(schema, modules);
+    const subject = "app_organization_missing_canonical_staff";
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
+      await ctx.db.insert("staffs", {
+        shopId: base.shopId,
+        name: "移行中スタッフ",
+        email: "missing-canonical@example.com",
+        emailNormalized: "missing-canonical@example.com",
+        isDeleted: false,
+      });
+      return base;
+    });
+    const actor = t.withIdentity({ subject });
+
+    const [filtered, all, summary] = await Promise.all([
+      actor.query(api.appOrganization.queries.listOrganizationPeople, {
+        organizationId: ids.organizationId,
+        shopFilter: ids.shopId,
+        paginationOpts: firstPage(),
+      }),
+      actor.query(api.appOrganization.queries.listOrganizationPeople, {
+        organizationId: ids.organizationId,
+        shopFilter: "all",
+        paginationOpts: firstPage(),
+      }),
+      actor.query(api.appOrganization.queries.getOrganizationPeopleSummary, {
+        organizationId: ids.organizationId,
+        shopFilter: ids.shopId,
+      }),
+    ]);
+
+    expect(filtered.page).toEqual([]);
+    expect(all.page.map(({ id, name }) => ({ id, name }))).toEqual([{ id: ids.personId, name: "管理者" }]);
+    expect(summary).toMatchObject({ totalCount: 1, visibleCount: 0 });
   });
 });

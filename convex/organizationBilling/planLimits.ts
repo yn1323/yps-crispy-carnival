@@ -1,12 +1,12 @@
 const STANDARD_PLAN_LIMITS = {
   maxPeople: 25,
-  maxActiveShops: 5,
+  maxShops: 5,
   maxActiveManagers: 5,
 } as const;
 
 const PRO_PLAN_LIMITS = {
   maxPeople: 50,
-  maxActiveShops: 5,
+  maxShops: 5,
   maxActiveManagers: 5,
 } as const;
 
@@ -19,7 +19,7 @@ export const ORGANIZATION_PLAN_LIMITS = {
   trial: PRO_PLAN_LIMITS,
   free: {
     maxPeople: 5,
-    maxActiveShops: 1,
+    maxShops: 1,
     maxActiveManagers: 2,
   },
   standard: STANDARD_PLAN_LIMITS,

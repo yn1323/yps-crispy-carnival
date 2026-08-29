@@ -26,12 +26,11 @@ import {
 import { resolveOrganizationInvitationEligibility } from "../organizationInvitation/service";
 import { getStripeBillingConfiguration } from "../organizationStripe/config";
 import { getOrganizationCreationAvailability, type OrganizationCreationAvailability } from "../setup/service";
+import { hasCanonicalStaffIdentity } from "../staff/service";
 import { getOrganizationDeletionEligibility } from "./deletion";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
 import { organizationPersonCountsTowardPeopleLimit } from "./service";
-import { organizationShopOperatingStatus } from "./shopMembershipChange";
 import { getOrganizationStaffOrderScope, ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT } from "./staffOrder";
-import { planIdVersionValidator } from "./validators";
 
 async function hasManagerInvitationDeliveryFailure(
   ctx: QueryCtx,
@@ -106,13 +105,7 @@ const organizationShopViewValidator = v.object({
   deleteDisabledReason: v.optional(v.string()),
 });
 
-const billingPlanValidator = v.union(
-  v.literal("trial"),
-  v.literal("free"),
-  v.literal("standard"),
-  v.literal("pro"),
-  v.literal("business"),
-);
+const billingPlanValidator = v.union(v.literal("trial"), v.literal("free"), v.literal("standard"), v.literal("pro"));
 
 export const billingViewValidator = v.object({
   state: v.union(
@@ -120,10 +113,8 @@ export const billingViewValidator = v.object({
     v.literal("free"),
     v.literal("standard"),
     v.literal("pro"),
-    v.literal("business"),
     v.literal("initialPaymentPending"),
     v.literal("pendingActivation"),
-    v.literal("grace"),
     v.literal("scheduledChange"),
     v.literal("migrationPending"),
   ),
@@ -133,7 +124,7 @@ export const billingViewValidator = v.object({
   trialEndsAt: v.optional(v.number()),
   stripeBillingAvailable: v.boolean(),
   hasStripeCustomer: v.boolean(),
-  targetPlan: v.optional(v.union(v.literal("free"), v.literal("standard"), v.literal("pro"), v.literal("business"))),
+  targetPlan: v.optional(v.union(v.literal("free"), v.literal("standard"), v.literal("pro"))),
   restrictAtPeriodEnd: v.optional(v.literal(true)),
   peopleUsage: v.object({ current: v.number(), max: v.number(), pendingInvitations: v.number() }),
   shopUsage: v.object({ current: v.number(), max: v.number(), pendingInvitations: v.number() }),
@@ -142,7 +133,7 @@ export const billingViewValidator = v.object({
   nextEvent: v.optional(v.object({ label: v.string(), date: v.string() })),
   blockedReason: v.optional(v.string()),
   billingEmail: v.string(),
-  previousPlan: v.optional(billingPlanValidator),
+  paymentFailure: v.optional(v.object({ terminationPending: v.boolean() })),
   canManagePlan: v.boolean(),
   canUpdatePaymentMethod: v.boolean(),
   canUpdateBillingEmail: v.boolean(),
@@ -172,34 +163,10 @@ export const organizationSettingsValidator = v.object({
   createOrganizationDisabledReason: v.optional(v.string()),
 });
 
-type BillingPlan = "trial" | "free" | "standard" | "pro" | "business";
-type ClientPlanIdVersion = 2 | undefined;
-
-export function projectCanonicalPaidPlanForClient(plan: "standard" | "pro", planIdVersion: ClientPlanIdVersion) {
-  return planIdVersion === 2 ? plan : plan === "standard" ? ("pro" as const) : ("business" as const);
-}
-
-export function projectCanonicalDisplayPlanForClient(
-  plan: "standard" | "pro",
-  planIdVersion: ClientPlanIdVersion,
-): "standard" | "pro" | "business";
-export function projectCanonicalDisplayPlanForClient(
-  plan: "free" | "standard" | "pro",
-  planIdVersion: ClientPlanIdVersion,
-): "free" | "standard" | "pro" | "business";
-export function projectCanonicalDisplayPlanForClient(
-  plan: "trial" | "free" | "standard" | "pro",
-  planIdVersion: ClientPlanIdVersion,
-): "trial" | "free" | "standard" | "pro" | "business";
-export function projectCanonicalDisplayPlanForClient(
-  plan: "trial" | "free" | "standard" | "pro",
-  planIdVersion: ClientPlanIdVersion,
-) {
-  return plan === "standard" || plan === "pro" ? projectCanonicalPaidPlanForClient(plan, planIdVersion) : plan;
-}
+type BillingPlan = "trial" | "free" | "standard" | "pro";
 
 type BillingView = {
-  state: BillingPlan | "initialPaymentPending" | "pendingActivation" | "grace" | "scheduledChange" | "migrationPending";
+  state: BillingPlan | "initialPaymentPending" | "pendingActivation" | "scheduledChange" | "migrationPending";
   currentPlan: BillingPlan | null;
   isComplimentary: boolean;
   hasTrialContinuation: boolean;
@@ -215,7 +182,7 @@ type BillingView = {
   nextEvent?: { label: string; date: string };
   blockedReason?: string;
   billingEmail: string;
-  previousPlan?: BillingPlan;
+  paymentFailure?: { terminationPending: boolean };
   canManagePlan: boolean;
   canUpdatePaymentMethod: boolean;
   canUpdateBillingEmail: boolean;
@@ -224,22 +191,6 @@ type BillingView = {
   paymentMethodDisabledReason?: string;
   billingEmailDisabledReason?: string;
 };
-
-function projectBillingViewForClient(billing: BillingView, planIdVersion: ClientPlanIdVersion): BillingView {
-  if (planIdVersion === 2) return billing;
-
-  const projectPlan = (plan: BillingPlan): BillingPlan =>
-    plan === "standard" || plan === "pro" ? projectCanonicalPaidPlanForClient(plan, planIdVersion) : plan;
-  const projectProductPlan = (plan: Exclude<BillingPlan, "trial">): Exclude<BillingPlan, "trial"> =>
-    plan === "standard" || plan === "pro" ? projectCanonicalPaidPlanForClient(plan, planIdVersion) : plan;
-  return {
-    ...billing,
-    state: billing.state === "standard" || billing.state === "pro" ? projectPlan(billing.state) : billing.state,
-    currentPlan: billing.currentPlan === null ? null : projectPlan(billing.currentPlan),
-    ...(billing.targetPlan === undefined ? {} : { targetPlan: projectProductPlan(billing.targetPlan) }),
-    ...(billing.previousPlan === undefined ? {} : { previousPlan: projectPlan(billing.previousPlan) }),
-  };
-}
 
 function legacyMigrationPendingSettings(
   user: Doc<"users">,
@@ -326,7 +277,7 @@ type CanonicalOrganizationSettingsCtx = QueryCtx & {
 };
 
 /** canonical organization actorから設定DTOを組み立てる。app用queryと旧shop入口で同じ表示契約を共有する。 */
-export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizationSettingsCtx, planIdVersion?: 2) {
+export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizationSettingsCtx) {
   // 新しい組織を作れるかは選択中組織の課金状態や所属状態と独立しており、利用者単位で決まる。
   const creationAvailability = await getOrganizationCreationAvailability(ctx, ctx.user);
   const organization = ctx.organization;
@@ -430,7 +381,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
   }
   const staffRowsByPersonId = new Map<Id<"organizationPeople">, Doc<"staffs">[]>();
   for (const staff of staffDocs) {
-    if (!staff.organizationPersonId) continue;
+    if (!hasCanonicalStaffIdentity(staff) || staff.organizationId !== organization._id) continue;
     const current = staffRowsByPersonId.get(staff.organizationPersonId) ?? [];
     current.push(staff);
     staffRowsByPersonId.set(staff.organizationPersonId, current);
@@ -488,16 +439,14 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     (invitation) => invitation.reservedSeat && invitation.expiresAt > now,
   ).length;
   const usage = projectOrganizationUsage({ people: usageInputs, reservedPersonCount });
-  const activeShopCount = shops.filter(
-    (shop) => organizationShopOperatingStatus(shop.operatingStatus) === "active",
-  ).length;
+  const shopCount = shops.length;
   const policy = accessPolicy?.billingPolicy ?? null;
   const usageLimitStatus = accessPolicy?.usageLimitStatus ?? null;
   const usageLimitBlockedReason =
     usageLimitStatus?.kind === "overLimit"
-      ? "現在のプランの利用上限を超えています。\n利用人数・稼働店舗・有効管理者を上限内まで減らすと、業務操作は自動的に再開されます。"
+      ? "現在のプランの利用上限を超えています。\n利用人数・店舗・有効管理者を上限内まで減らすと、業務操作は自動的に再開されます。"
       : usageLimitStatus?.kind === "unknown"
-        ? "現在の利用数を安全に確認できないため、通常の業務操作を一時的に制限しています。\n利用人数・稼働店舗・有効管理者を整理するか、プランを変更してください。"
+        ? "現在の利用数を安全に確認できないため、通常の業務操作を一時的に制限しています。\n利用人数・店舗・有効管理者を整理するか、プランを変更してください。"
         : undefined;
   const stripeBillingConfiguration = getStripeBillingConfiguration();
   const stripeBillingAvailable = stripeBillingConfiguration.status === "ready";
@@ -758,19 +707,16 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
   const shopsView = (
     await Promise.all(
       shops.map(async (shop) => {
-        const operatingStatus = organizationShopOperatingStatus(shop.operatingStatus);
-        const canUpdateSettings = Boolean(canWriteNormally && operatingStatus === "active");
+        const canUpdateSettings = canWriteNormally;
         const settingsDisabledReason = canUpdateSettings
           ? undefined
-          : operatingStatus !== "active"
-            ? "利用停止中の店舗は、設定を変更できません。"
-            : !billingState
-              ? "組織単位の設定を移行しています。\n完了するまでお待ちください。"
-              : !isActiveActor
-                ? "現在のアカウント状態では、店舗設定を変更できません。"
-                : accessPolicy?.businessWriteBlockReason === "usageLimitExceeded"
-                  ? usageLimitBlockedReason
-                  : "支払い結果が確定するまで、店舗設定を変更できません。";
+          : !billingState
+            ? "組織単位の設定を移行しています。\n完了するまでお待ちください。"
+            : !isActiveActor
+              ? "現在のアカウント状態では、店舗設定を変更できません。"
+              : accessPolicy?.businessWriteBlockReason === "usageLimitExceeded"
+                ? usageLimitBlockedReason
+                : "支払い結果が確定するまで、店舗設定を変更できません。";
         const recipientStatus = await loadShopManagerNotificationRecipientStatus(
           ctx,
           shop._id,
@@ -806,7 +752,6 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
       billingState &&
       ((billingState.state.kind === "trial" && billingState.state.selectedPaidPlan !== undefined) ||
         billingState.state.kind === "scheduledChange" ||
-        billingState.state.kind === "grace" ||
         (billingState.state.kind === "active" && billingState.state.plan !== "free")),
   );
   const billingCapabilities = {
@@ -816,7 +761,8 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
         isActiveActor &&
         billingState &&
         billingState.state.kind !== "initialPaymentPending" &&
-        billingState.state.kind !== "pendingActivation",
+        billingState.state.kind !== "pendingActivation" &&
+        billingState.state.kind !== "paymentTerminationPending",
     ),
     canUpdatePaymentMethod: Boolean(
       stripeBillingAvailable && stripeCustomerMatchesConfiguration && !isComplimentary && canAccessCustomerPortal,
@@ -838,7 +784,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
   const peopleUsageCurrent = usage.currentPeopleCount;
   const managerUsageCurrent = activeManagerCount;
   const maxPeople = usageLimits?.maxPeople ?? 0;
-  const maxShops = usageLimits?.maxActiveShops ?? 0;
+  const maxShops = usageLimits?.maxShops ?? 0;
   const maxManagers = usageLimits?.maxActiveManagers ?? 0;
   const requiredReductionLimits =
     runtimeBillingState?.kind === "scheduledChange"
@@ -850,7 +796,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
       max: maxPeople,
       pendingInvitations: usage.reservedPersonCount,
     },
-    shopUsage: { current: activeShopCount, max: maxShops, pendingInvitations: 0 },
+    shopUsage: { current: shopCount, max: maxShops, pendingInvitations: 0 },
     managerUsage: {
       current: managerUsageCurrent,
       max: maxManagers,
@@ -858,7 +804,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     },
     requiredReductions: {
       people: Math.max(0, peopleUsageCurrent - (requiredReductionLimits?.maxPeople ?? 0)),
-      shops: Math.max(0, activeShopCount - (requiredReductionLimits?.maxActiveShops ?? 0)),
+      shops: Math.max(0, shopCount - (requiredReductionLimits?.maxShops ?? 0)),
       managers: Math.max(0, managerUsageCurrent - (requiredReductionLimits?.maxActiveManagers ?? 0)),
     },
     billingEmail: organization.billingEmail ?? "",
@@ -868,6 +814,13 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     hasTrialContinuation: Boolean(
       runtimeBillingState?.kind === "trial" && runtimeBillingState.selectedPaidPlan !== undefined,
     ),
+    ...(billingState?.lastPlanChange
+      ? {
+          paymentFailure: {
+            terminationPending: billingState.state.kind === "paymentTerminationPending",
+          },
+        }
+      : {}),
     ...billingCapabilities,
   };
   const accessDisabledReason = !isActiveActor ? "現在のアカウント状態では、この操作を行えません。" : undefined;
@@ -883,7 +836,9 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
               ? "初回支払いの結果を確認中のため、プランを変更できません。"
               : billingState.state.kind === "pendingActivation"
                 ? "支払い結果を確認中のため、別のプランへは変更できません。"
-                : "現在の契約状態では、プランを変更できません。"));
+                : billingState.state.kind === "paymentTerminationPending"
+                  ? "支払い失敗後の契約終了処理中です。"
+                  : "現在の契約状態では、プランを変更できません。"));
   const paymentMethodDisabledReason =
     billingCapabilities.canUpdatePaymentMethod || isComplimentary
       ? undefined
@@ -951,7 +906,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
           ...billingBase,
           ...billingCapabilityReasons,
           state: "initialPaymentPending",
-          currentPlan: "standard",
+          currentPlan: "free",
           targetPlan: state.plan,
           nextEvent: { label: "支払い結果", date: "確認中" },
         };
@@ -961,10 +916,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
           ...billingBase,
           ...billingCapabilityReasons,
           state: "pendingActivation",
-          currentPlan:
-            state.fallback === "free" || state.fallback === "standard" || state.fallback === "pro"
-              ? state.fallback
-              : null,
+          currentPlan: state.fallback === "free" || state.fallback === "standard" ? state.fallback : null,
           targetPlan: state.plan,
           blockedReason:
             state.fallback === "free"
@@ -1021,16 +973,13 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
           },
         };
         break;
-      case "grace":
+      case "paymentTerminationPending":
         billing = {
           ...billingBase,
           ...billingCapabilityReasons,
-          state: "grace",
-          currentPlan: state.plan,
-          ...(state.targetPlan ? { targetPlan: state.targetPlan } : {}),
-          blockedReason:
-            "期限までに支払い方法を更新しない場合はFreeプランへ変更されます。\nFreeプランの利用上限を超えているときは、上限内へ整理するまで業務操作が制限されます。",
-          nextEvent: { label: "支払い猶予期限", date: formatDateTimeJa(state.endsAt) },
+          state: "free",
+          currentPlan: "free",
+          ...(usageLimitBlockedReason ? { blockedReason: usageLimitBlockedReason } : {}),
         };
         break;
     }
@@ -1052,7 +1001,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
       canWriteNormally &&
       policy?.canUsePaidFeatures &&
       policy.limits &&
-      activeShopCount < policy.limits.maxActiveShops,
+      shopCount < policy.limits.maxShops,
   );
   const addShopDisabledReason = canAddShop
     ? undefined
@@ -1066,7 +1015,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
             ? "Freeプランでは、店舗を追加できません。\n有料プランを選択してください。"
             : policy?.paidFeatureBlockReason === "paymentResultPending"
               ? "支払い結果が確定してから、店舗を追加できます。"
-              : `店舗は、組織ごとに${policy?.limits?.maxActiveShops ?? ORGANIZATION_PLAN_LIMITS.standard.maxActiveShops}件まで登録できます。`;
+              : `店舗は、組織ごとに${policy?.limits?.maxShops ?? ORGANIZATION_PLAN_LIMITS.standard.maxShops}件まで登録できます。`;
   const canUpdateOrganizationName = Boolean(isActiveActor && (!billingState || canWriteNormally));
   const updateOrganizationNameDisabledReason = canUpdateOrganizationName
     ? undefined
@@ -1096,7 +1045,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     people: peopleView,
     managerInvitations,
     shops: shopsView,
-    billing: projectBillingViewForClient(billing, planIdVersion),
+    billing,
     canInviteManager,
     ...(inviteManagerDisabledReason ? { inviteManagerDisabledReason } : {}),
     canUpdateOrganizationName,
@@ -1111,23 +1060,20 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
 }
 
 export const getSettings = managerQuery({
-  args: { planIdVersion: v.optional(planIdVersionValidator) },
+  args: {},
   returns: v.union(organizationSettingsValidator, v.null()),
-  handler: async (ctx, args) => {
+  handler: async (ctx) => {
     if (!ctx.user || !ctx.shop) return null;
     const creationAvailability = await getOrganizationCreationAvailability(ctx, ctx.user);
     if (!ctx.organization || !ctx.organizationMember) {
       return legacyMigrationPendingSettings(ctx.user, ctx.shop, creationAvailability);
     }
-    return await getCanonicalOrganizationSettings(
-      {
-        ...ctx,
-        user: ctx.user,
-        organization: ctx.organization,
-        organizationMember: ctx.organizationMember,
-      },
-      args.planIdVersion,
-    );
+    return await getCanonicalOrganizationSettings({
+      ...ctx,
+      user: ctx.user,
+      organization: ctx.organization,
+      organizationMember: ctx.organizationMember,
+    });
   },
 });
 
@@ -1542,12 +1488,7 @@ export async function getCanonicalManagerCandidates(ctx: CanonicalOrganizationSe
     for (const staff of staffs) {
       if (staff.isDeleted) continue;
       const shop = await ctx.db.get(staff.shopId);
-      if (
-        shop &&
-        !shop.isDeleted &&
-        shop.organizationId === organization._id &&
-        organizationShopOperatingStatus(shop.operatingStatus) === "active"
-      ) {
+      if (shop && !shop.isDeleted && shop.organizationId === organization._id) {
         activeStaffPersonIds.add(person._id);
         break;
       }

@@ -19,7 +19,7 @@ async function setupPerson(t: TestConvex<typeof schema>, suffix: string) {
       subject: `manager_${suffix}`,
       email: `manager_${suffix}@example.com`,
       shopName: `店舗${suffix}`,
-      plan: "pro",
+      plan: "standard",
     });
     const now = Date.now();
     const organizationPersonId = await ctx.db.insert("organizationPeople", {
@@ -170,28 +170,63 @@ describe("line/service canonical read authority", () => {
     await expect(readAllResolvers(t, target)).resolves.toEqual({ staff: null, person: null, state: null });
   });
 
-  it("旧shopのoperatingStatus未定義をactiveとしてcanonical resolverで解決する", async () => {
+  it("staffとpersonのuserIdが一致しない所属はcanonical宛先として解決しない", async () => {
     const t = convexTest(schema, modules);
-    const target = await setupPerson(t, "legacy_shop_status");
-    const canonical = await t.run(async (ctx) => {
-      await ctx.db.patch(target.shopId, { operatingStatus: undefined });
-      return await seedOrganizationPersonLineLink(ctx, {
+    const target = await setupPerson(t, "user_mismatch");
+    await t.run(async (ctx) => {
+      await ctx.db.patch(target.staffId, { userId: target.userId });
+      await seedOrganizationPersonLineLink(ctx, {
         organizationId: target.organizationId,
         organizationPersonId: target.organizationPersonId,
-        lineUserId: "U_legacy_shop_status",
+        lineUserId: "U_user_mismatch",
       });
     });
 
-    const result = await readAllResolvers(t, target);
-    expect(result.staff).toMatchObject({
-      authority: "canonical",
-      organizationPersonLineLinkId: canonical.organizationPersonLineLinkId,
-      lineUserId: "U_legacy_shop_status",
-    });
-    expect(result.person).toMatchObject({ authority: "canonical", lineUserId: "U_legacy_shop_status" });
+    await expect(
+      t.run(async (ctx) =>
+        resolveStaffLineRecipient(ctx, {
+          staffId: target.staffId,
+          shopId: target.shopId,
+        }),
+      ),
+    ).resolves.toBeNull();
   });
 
-  it("削除済み所属履歴が上限を超えてもactive staffだけをboundedに返す", async () => {
+  it.each([
+    ["参照切れ", "dangling"],
+    ["削除済み", "deleted"],
+    ["削除受付済み", "requested"],
+  ] as const)("linked userが%sならstaff/personのcanonical LINE解決をfail closedにする", async (_label, state) => {
+    const t = convexTest(schema, modules);
+    const target = await setupPerson(t, `linked_user_${state}`);
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      const linkedUserId = await ctx.db.insert("users", {
+        authTokenIdentifier: `https://convex.test|line_linked_user_${state}`,
+        name: "LINE連携対象",
+        email: `line-linked-user-${state}@example.com`,
+        emailNormalized: `line-linked-user-${state}@example.com`,
+        role: "manager",
+        isDeleted: false,
+      });
+      await Promise.all([
+        ctx.db.patch(target.organizationPersonId, { userId: linkedUserId, updatedAt: now }),
+        ctx.db.patch(target.staffId, { userId: linkedUserId }),
+      ]);
+      await seedOrganizationPersonLineLink(ctx, {
+        organizationId: target.organizationId,
+        organizationPersonId: target.organizationPersonId,
+        lineUserId: `U_linked_user_${state}`,
+      });
+      if (state === "dangling") await ctx.db.delete(linkedUserId);
+      else if (state === "deleted") await ctx.db.patch(linkedUserId, { isDeleted: true });
+      else await ctx.db.patch(linkedUserId, { accountDeletionRequestedAt: now });
+    });
+
+    await expect(readAllResolvers(t, target)).resolves.toEqual({ staff: null, person: null, state: null });
+  });
+
+  it("削除済み所属履歴が上限を超えても非削除staffだけをboundedに返す", async () => {
     const t = convexTest(schema, modules);
     const target = await setupPerson(t, "deleted_history");
     await t.run(async (ctx) => {
@@ -207,57 +242,55 @@ describe("line/service canonical read authority", () => {
       }
     });
 
-    const activeStaffs = await t.run(async (ctx) =>
+    const nonDeletedStaffs = await t.run(async (ctx) =>
       listActiveStaffsForOrganizationPerson(ctx, {
         organizationId: target.organizationId,
         organizationPersonId: target.organizationPersonId,
       }),
     );
-    expect(activeStaffs.map((staff) => staff._id)).toEqual([target.staffId]);
+    expect(nonDeletedStaffs.map((staff) => staff._id)).toEqual([target.staffId]);
   });
 
-  it("archived店舗の所属履歴21件はactive上限へ数えない", async () => {
+  it("論理削除済み店舗の所属は上限へ数えない", async () => {
     const t = convexTest(schema, modules);
-    const target = await setupPerson(t, "archived_history");
+    const target = await setupPerson(t, "deleted_shop_history");
     await t.run(async (ctx) => {
       for (let index = 0; index <= LINE_ORGANIZATION_PERSON_ACTIVE_STAFF_MAX; index += 1) {
         const shopId = await ctx.db.insert("shops", {
           organizationId: target.organizationId,
-          operatingStatus: "archived",
-          name: `停止店舗${index}`,
+          name: `削除済み店舗${index}`,
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
           regularClosedDays: [],
-          isDeleted: false,
+          isDeleted: true,
         });
         await ctx.db.insert("staffs", {
           shopId,
           organizationId: target.organizationId,
           organizationPersonId: target.organizationPersonId,
-          name: `停止所属${index}`,
-          email: `archived-${index}@example.com`,
+          name: `削除済み店舗所属${index}`,
+          email: `deleted-shop-${index}@example.com`,
           isDeleted: false,
         });
       }
     });
 
-    const activeStaffs = await t.run(async (ctx) =>
+    const nonDeletedStaffs = await t.run(async (ctx) =>
       listActiveStaffsForOrganizationPerson(ctx, {
         organizationId: target.organizationId,
         organizationPersonId: target.organizationPersonId,
       }),
     );
-    expect(activeStaffs.map((staff) => staff._id)).toEqual([target.staffId]);
+    expect(nonDeletedStaffs.map((staff) => staff._id)).toEqual([target.staffId]);
   });
 
-  it("active所属が上限を超えるとbounded集約をfail closedにする", async () => {
+  it("非削除所属が上限を超えるとbounded集約をfail closedにする", async () => {
     const t = convexTest(schema, modules);
-    const target = await setupPerson(t, "active_overflow");
+    const target = await setupPerson(t, "nondeleted_overflow");
     await t.run(async (ctx) => {
       for (let index = 1; index <= LINE_ORGANIZATION_PERSON_ACTIVE_STAFF_MAX; index += 1) {
         const shopId = await ctx.db.insert("shops", {
           organizationId: target.organizationId,
-          operatingStatus: "active",
-          name: `active店舗${index}`,
+          name: `非削除店舗${index}`,
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
           regularClosedDays: [],
           isDeleted: false,
@@ -266,8 +299,8 @@ describe("line/service canonical read authority", () => {
           shopId,
           organizationId: target.organizationId,
           organizationPersonId: target.organizationPersonId,
-          name: `active所属${index}`,
-          email: `active-overflow-${index}@example.com`,
+          name: `非削除所属${index}`,
+          email: `nondeleted-overflow-${index}@example.com`,
           isDeleted: false,
         });
       }
@@ -284,7 +317,7 @@ describe("line/service canonical read authority", () => {
   });
 
   it.each([true, false])(
-    "最後のactive所属がなくてもretained canonical linkはfollowing=%sを表示しwrite継承できる",
+    "最後の非削除所属がなくてもretained canonical linkはfollowing=%sを表示しwrite継承できる",
     async (following) => {
       const t = convexTest(schema, modules);
       const target = await setupPerson(t, `last_membership_${following}`);
@@ -295,7 +328,7 @@ describe("line/service canonical read authority", () => {
           lineUserId: `U_last_membership_${following}`,
           following,
         });
-        await ctx.db.patch(target.shopId, { operatingStatus: "archived" });
+        await ctx.db.patch(target.shopId, { isDeleted: true });
         return seeded;
       });
 
@@ -340,7 +373,7 @@ describe("line/service canonical read authority", () => {
         lineUserId: "U_last_membership_corrupt",
       });
       await ctx.db.patch(target.organizationPersonId, { lineLinkGeneration: canonical.generation + 1 });
-      await ctx.db.patch(target.shopId, { operatingStatus: "archived" });
+      await ctx.db.patch(target.shopId, { isDeleted: true });
     });
 
     const state = await t.run(async (ctx) =>

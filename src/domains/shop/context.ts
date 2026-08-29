@@ -1,10 +1,8 @@
-export type ShopStatus = "active" | "archived";
 export type OrganizationPlan = "trial" | "free" | "standard" | "pro";
 
 export type ShopContextOption = {
   shopId: string;
   shopName: string;
-  shopStatus: ShopStatus;
   // TODO[narrow]: 全deploymentでm025/m026が完走し、shop/member readinessが0件になった後にnullを外す。
   organizationId: string | null;
   organizationName: string | null;
@@ -17,11 +15,18 @@ export function normalizeShopContextOption(value: unknown): ShopContextOption | 
   if (!isRecord(value) || typeof value.shopId !== "string" || typeof value.shopName !== "string") {
     return null;
   }
+  // 旧保存値やrolling deploymentから状態値を受け取った場合も、
+  // archivedや未知の値を現行店舗へ黙って読み替えない。
+  if (
+    (value.shopStatus !== undefined && value.shopStatus !== "active") ||
+    (value.operatingStatus !== undefined && value.operatingStatus !== "active")
+  ) {
+    return null;
+  }
 
   return {
     shopId: value.shopId,
     shopName: value.shopName,
-    shopStatus: isShopStatus(value.shopStatus) ? value.shopStatus : "active",
     organizationId: typeof value.organizationId === "string" ? value.organizationId : null,
     organizationName: typeof value.organizationName === "string" ? value.organizationName : null,
     organizationPlan: isOrganizationPlan(value.organizationPlan) ? value.organizationPlan : null,
@@ -51,7 +56,6 @@ export function isSameSelectedShop(
     selectedShop !== null &&
     selectedShop.shopId === shop.shopId &&
     selectedShop.shopName === shop.shopName &&
-    selectedShop.shopStatus === shop.shopStatus &&
     selectedShop.organizationId === shop.organizationId &&
     selectedShop.organizationName === shop.organizationName &&
     selectedShop.organizationPlan === shop.organizationPlan
@@ -87,10 +91,6 @@ export function groupShopsByOrganization(shops: readonly ShopContextOption[]): S
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-function isShopStatus(value: unknown): value is ShopStatus {
-  return value === "active" || value === "archived";
 }
 
 function isOrganizationPlan(value: unknown): value is OrganizationPlan {

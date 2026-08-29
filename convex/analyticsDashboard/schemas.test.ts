@@ -23,70 +23,40 @@ function shopsRequest(overrides: Record<string, unknown> = {}) {
 }
 
 describe("Analytics Dashboard request schema", () => {
-  it("plan ID contractをrequest versionで曖昧なく分ける", () => {
-    const legacy = parseAnalyticsDashboardRequest(shopsRequest({ plan: "pro" }));
-    const canonical = parseAnalyticsDashboardRequest(shopsRequest({ planIdVersion: 2, plan: "standard" }));
+  it.each(["trial", "free", "standard", "pro"] as const)("canonical plan=%sを受け付ける", (plan) => {
+    const result = parseAnalyticsDashboardRequest(shopsRequest({ plan }));
 
-    expect(legacy.ok).toBe(true);
-    if (legacy.ok) expect(legacy.value).toMatchObject({ endpoint: "shops", plan: "pro" });
-    expect(canonical.ok).toBe(true);
-    if (canonical.ok) {
-      expect(canonical.value).toMatchObject({ endpoint: "shops", planIdVersion: 2, plan: "standard" });
-    }
-    expect(parseAnalyticsDashboardRequest(shopsRequest({ plan: "standard" }))).toEqual({
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value).toMatchObject({ endpoint: "shops", plan });
+  });
+
+  it("旧businessとplanIdVersionを拒否する", () => {
+    expect(parseAnalyticsDashboardRequest(shopsRequest({ plan: "business" }))).toEqual({
       ok: false,
-      message: "standardにはplanIdVersion=2が必要です",
+      message: "planが正しくありません",
     });
-    expect(parseAnalyticsDashboardRequest(shopsRequest({ planIdVersion: 2, plan: "business" }))).toEqual({
+    expect(parseAnalyticsDashboardRequest(shopsRequest({ planIdVersion: 2, plan: "standard" }))).toEqual({
       ok: false,
-      message: "planIdVersion=2ではbusinessを指定できません",
+      message: "対応していないquery parameterが含まれています",
     });
   });
 
-  it("未知のplanIdVersionを拒否する", () => {
-    expect(parseAnalyticsDashboardRequest(shopsRequest({ planIdVersion: 3 }))).toEqual({
-      ok: false,
-      message: "planIdVersionが正しくありません",
-    });
-  });
-
-  it("browser GETの文字列versionを厳密にv2へ正規化する", () => {
+  it("browser GETでもcanonical planだけを受け付ける", () => {
     const canonical = normalizeBrowserRequestInput(
       "shops",
-      new URLSearchParams({ from: "2026-08-01", to: "2026-08-12", planIdVersion: "2", plan: "standard" }),
-    );
-    const legacy = normalizeBrowserRequestInput(
-      "shops",
-      new URLSearchParams({ from: "2026-08-01", to: "2026-08-12", plan: "pro" }),
+      new URLSearchParams({ from: "2026-08-01", to: "2026-08-12", plan: "standard" }),
     );
 
     expect(canonical.ok).toBe(true);
     if (canonical.ok) {
-      expect(canonical.value).toMatchObject({ endpoint: "shops", planIdVersion: 2, plan: "standard" });
+      expect(canonical.value).toMatchObject({ endpoint: "shops", plan: "standard" });
     }
-    expect(legacy.ok).toBe(true);
-    if (legacy.ok) expect(legacy.value).toMatchObject({ endpoint: "shops", plan: "pro" });
     expect(
       normalizeBrowserRequestInput(
         "shops",
-        new URLSearchParams({ from: "2026-08-01", to: "2026-08-12", planIdVersion: "02", plan: "standard" }),
+        new URLSearchParams({ from: "2026-08-01", to: "2026-08-12", planIdVersion: "2", plan: "standard" }),
       ),
-    ).toEqual({ ok: false, message: "planIdVersionが正しくありません" });
-    expect(
-      normalizeBrowserRequestInput(
-        "shops",
-        new URLSearchParams("from=2026-08-01&to=2026-08-12&planIdVersion=2&planIdVersion=2"),
-      ),
-    ).toEqual({ ok: false, message: "planIdVersionは一つだけ指定してください" });
-
-    const segments = normalizeBrowserRequestInput(
-      "segments",
-      new URLSearchParams({ from: "2026-08-01", to: "2026-08-12", planIdVersion: "2", dimension: "plan" }),
-    );
-    expect(segments.ok).toBe(true);
-    if (segments.ok) {
-      expect(segments.value).toMatchObject({ endpoint: "segments", planIdVersion: 2, dimension: "plan" });
-    }
+    ).toEqual({ ok: false, message: "対応していないquery parameterが含まれています" });
   });
 
   it("overviewの表示期間と比較期間を合計5年以内へ制限する", () => {

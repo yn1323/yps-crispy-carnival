@@ -15,7 +15,6 @@ import { ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT } from "../constants";
 import { requireOrganizationReadActor } from "../organization/access";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import { getOrganizationBillingState, organizationPersonCountsTowardPeopleLimit } from "../organization/service";
-import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import { syncActivatedOrganizationStaffOrder } from "../organization/staffOrder";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import {
@@ -441,21 +440,16 @@ async function requirePersonIsEligibleManagerInviteTarget(
   if (staffRows.length > ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT) {
     throw new ConvexError("スタッフ所属を確認できません。\n画面を更新して、もう一度お試しください。");
   }
-  let hasActiveStaff = false;
+  let hasEligibleStaff = false;
   for (const staff of staffRows) {
     if (staff.isDeleted) continue;
     const shop = await ctx.db.get(staff.shopId);
-    if (
-      shop &&
-      !shop.isDeleted &&
-      shop.organizationId === organizationId &&
-      organizationShopOperatingStatus(shop.operatingStatus) === "active"
-    ) {
-      hasActiveStaff = true;
+    if (shop && !shop.isDeleted && shop.organizationId === organizationId) {
+      hasEligibleStaff = true;
       break;
     }
   }
-  if (!hasActiveStaff) throw new ConvexError("管理者として招待できるスタッフ所属がありません");
+  if (!hasEligibleStaff) throw new ConvexError("管理者として招待できるスタッフ所属がありません");
 }
 
 type InvitationManagerActor = {
@@ -1026,13 +1020,12 @@ async function linkAccountWithToken(
     ) {
       return { status: "used" as const };
     }
-    const shops = await ctx.db
+    const firstReadableShop = await ctx.db
       .query("shops")
-      .withIndex("by_organizationId", (q) => q.eq("organizationId", invitation.organizationId))
-      .collect();
-    const firstReadableShop =
-      shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "active") ??
-      shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "archived");
+      .withIndex("by_organizationId_and_isDeleted", (q) =>
+        q.eq("organizationId", invitation.organizationId).eq("isDeleted", false),
+      )
+      .first();
     return firstReadableShop
       ? { status: "linked" as const, organizationId: invitation.organizationId, shopId: firstReadableShop._id }
       : { status: "linked" as const, organizationId: invitation.organizationId };
@@ -1166,10 +1159,12 @@ async function linkAccountWithToken(
     });
   }
 
-  const shops = await ctx.db
+  const firstReadableShop = await ctx.db
     .query("shops")
-    .withIndex("by_organizationId", (q) => q.eq("organizationId", invitation.organizationId))
-    .collect();
+    .withIndex("by_organizationId_and_isDeleted", (q) =>
+      q.eq("organizationId", invitation.organizationId).eq("isDeleted", false),
+    )
+    .first();
 
   await ctx.db.patch(invitation._id, {
     status: "linked",
@@ -1207,9 +1202,6 @@ async function linkAccountWithToken(
     expectedVersion: invitation.version + 1,
     organizationBillingVersionAtOrigin: capacity.billingState.version,
   });
-  const firstActiveShop = shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "active");
-  const firstReadableShop =
-    firstActiveShop ?? shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "archived");
   return firstReadableShop
     ? { status: "linked" as const, organizationId: invitation.organizationId, shopId: firstReadableShop._id }
     : { status: "linked" as const, organizationId: invitation.organizationId };

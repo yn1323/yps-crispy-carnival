@@ -161,7 +161,7 @@ describe("development seed rebuild", () => {
     expect(preflight.scenarioKeys).toEqual(DEVELOPMENT_SEED_SCENARIO_KEYS);
     expect(verification).toEqual({
       contractVersion: "development-seed-v2",
-      contractFingerprint: "6bb80627",
+      contractFingerprint: "4014fb18",
       scenarioCount: 9,
       tableCount: 66,
       organizationCount: 9,
@@ -369,14 +369,14 @@ describe("development seed rebuild", () => {
     ]);
     expect(scheduledStopSettings?.billing).toMatchObject({
       state: "scheduledChange",
-      currentPlan: "pro",
+      currentPlan: "standard",
       targetPlan: "free",
       restrictAtPeriodEnd: true,
       nextEvent: { label: "契約終了日" },
     });
     expect(policyOverLimitSettings?.billing).toMatchObject({
-      state: "pro",
-      currentPlan: "pro",
+      state: "standard",
+      currentPlan: "standard",
       peopleUsage: { current: 6, max: 25, pendingInvitations: 0 },
       shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
       managerUsage: { current: 6, max: 5, pendingInvitations: 0 },

@@ -175,13 +175,13 @@ function OrganizationScopedAppLayout({
           expectedOrganizationId: organization.organizationId,
           scope: { kind: "organization" as const },
         }
-      : organization.activeShops
+      : organization.shops
         ? {
             expectedOrganizationId: organization.organizationId,
             scope: resolveAppFeatureRequestScope({
               pathname,
               homeShopId,
-              activeShops: organization.activeShops,
+              shops: organization.shops,
             }),
           }
         : undefined;

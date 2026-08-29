@@ -4,7 +4,6 @@ import { ConvexError, v } from "convex/values";
 import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { normalizeEmail } from "../_lib/validation";
 import { LINE_ORGANIZATION_PERSON_STAFF_HISTORY_SCAN_LIMIT } from "../constants";
-import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 
 const MAX_PAGE_SIZE = 100;
 const pageMetadataValidator = {
@@ -38,27 +37,102 @@ export const verifyShops = internalQuery({
     ...pageMetadataValidator,
     anomalies: v.object({
       missingOrganizationId: v.number(),
-      missingOperatingStatus: v.number(),
+      archivedOperatingStatus: v.number(),
+      unknownOperatingStatus: v.number(),
       missingRegularClosedDays: v.number(),
       danglingOrganizationId: v.number(),
+    }),
+    observations: v.object({
+      operatingStatusPresent: v.number(),
     }),
   }),
   handler: async (ctx, { paginationOpts }) => {
     requireBoundedPagination(paginationOpts);
     const result = await ctx.db.query("shops").paginate(paginationOpts);
     let missingOrganizationId = 0;
-    let missingOperatingStatus = 0;
+    let archivedOperatingStatus = 0;
+    let unknownOperatingStatus = 0;
+    let operatingStatusPresent = 0;
     let missingRegularClosedDays = 0;
     let danglingOrganizationId = 0;
     for (const shop of result.page) {
       if (!shop.organizationId) missingOrganizationId += 1;
       else if (!(await ctx.db.get(shop.organizationId))) danglingOrganizationId += 1;
-      if (!shop.operatingStatus) missingOperatingStatus += 1;
+      const { operatingStatus } = shop as typeof shop & { operatingStatus?: unknown };
+      if (operatingStatus !== undefined) operatingStatusPresent += 1;
+      if (operatingStatus === "archived") archivedOperatingStatus += 1;
+      else if (operatingStatus !== undefined && operatingStatus !== "active") unknownOperatingStatus += 1;
       if (shop.regularClosedDays === undefined) missingRegularClosedDays += 1;
     }
     return {
       ...pageMetadata(result),
-      anomalies: { missingOrganizationId, missingOperatingStatus, missingRegularClosedDays, danglingOrganizationId },
+      anomalies: {
+        missingOrganizationId,
+        archivedOperatingStatus,
+        unknownOperatingStatus,
+        missingRegularClosedDays,
+        danglingOrganizationId,
+      },
+      observations: { operatingStatusPresent },
+    };
+  },
+});
+
+/** 店舗archive廃止前に、旧監査actionの残件をPIIやrow IDなしで数える。 */
+export const verifyOrganizationAuditShopLifecycle = internalQuery({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: v.object({
+    ...pageMetadataValidator,
+    anomalies: v.object({
+      shopArchivedActions: v.number(),
+      shopReactivatedActions: v.number(),
+    }),
+  }),
+  handler: async (ctx, { paginationOpts }) => {
+    requireBoundedPagination(paginationOpts);
+    const result = await ctx.db.query("organizationAuditEvents").paginate(paginationOpts);
+    return {
+      ...pageMetadata(result),
+      anomalies: {
+        shopArchivedActions: result.page.filter((event) => event.action === "organization.shop_archived").length,
+        shopReactivatedActions: result.page.filter((event) => event.action === "organization.shop_reactivated").length,
+      },
+    };
+  },
+});
+
+/** 店舗archive廃止前に、旧analytics payloadの残件をPIIやrow IDなしで数える。 */
+export const verifyAnalyticsShopLifecycle = internalQuery({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: v.object({
+    ...pageMetadataValidator,
+    anomalies: v.object({
+      shopArchivedChanges: v.number(),
+      shopReactivatedChanges: v.number(),
+      shopStatusDeltas: v.number(),
+    }),
+  }),
+  handler: async (ctx, { paginationOpts }) => {
+    requireBoundedPagination(paginationOpts);
+    const result = await ctx.db.query("analyticsSourceEvents").paginate(paginationOpts);
+    let shopArchivedChanges = 0;
+    let shopReactivatedChanges = 0;
+    let shopStatusDeltas = 0;
+    for (const event of result.page) {
+      const payload = event.payload as unknown;
+      if (!payload || typeof payload !== "object") continue;
+      const legacyPayload = payload as { kind?: unknown; change?: unknown; statusDeltas?: unknown };
+      if (legacyPayload.kind === "shop" && legacyPayload.change === "archived") shopArchivedChanges += 1;
+      if (legacyPayload.kind === "shop" && legacyPayload.change === "reactivated") shopReactivatedChanges += 1;
+      if (legacyPayload.kind !== "plan" || !Array.isArray(legacyPayload.statusDeltas)) continue;
+      shopStatusDeltas += legacyPayload.statusDeltas.filter((delta) => {
+        if (!delta || typeof delta !== "object") return false;
+        return (delta as { kind?: unknown }).kind === "shop";
+      }).length;
+    }
+    return {
+      ...pageMetadata(result),
+      anomalies: { shopArchivedChanges, shopReactivatedChanges, shopStatusDeltas },
     };
   },
 });
@@ -105,6 +179,9 @@ export const verifyStaffs = internalQuery({
       danglingOrganizationPerson: v.number(),
       personOrganizationMismatch: v.number(),
       danglingStaffUser: v.number(),
+      danglingPersonUser: v.number(),
+      deletedLinkedUser: v.number(),
+      deletionRequestedLinkedUser: v.number(),
       missingPersonUserForLinkedStaff: v.number(),
       personUserMismatch: v.number(),
       activeStaffLinkedRemovedPerson: v.number(),
@@ -126,6 +203,9 @@ export const verifyStaffs = internalQuery({
       danglingOrganizationPerson: 0,
       personOrganizationMismatch: 0,
       danglingStaffUser: 0,
+      danglingPersonUser: 0,
+      deletedLinkedUser: 0,
+      deletionRequestedLinkedUser: 0,
       missingPersonUserForLinkedStaff: 0,
       personUserMismatch: 0,
       activeStaffLinkedRemovedPerson: 0,
@@ -141,7 +221,10 @@ export const verifyStaffs = internalQuery({
       if (staff.emailNormalized === undefined) anomalies.missingEmailNormalized += 1;
       else if (staff.emailNormalized !== normalizeEmail(staff.email)) anomalies.invalidEmailNormalization += 1;
       if (Boolean(staff.organizationId) !== Boolean(staff.organizationPersonId)) anomalies.partialOrganizationLink += 1;
-      if (staff.userId !== undefined && !(await ctx.db.get(staff.userId))) anomalies.danglingStaffUser += 1;
+      const staffUser = staff.userId === undefined ? null : await ctx.db.get(staff.userId);
+      if (staff.userId !== undefined && !staffUser) anomalies.danglingStaffUser += 1;
+      let hasDeletedLinkedUser = staffUser?.isDeleted === true;
+      let hasDeletionRequestedLinkedUser = staffUser?.accountDeletionRequestedAt !== undefined;
 
       const shop = await ctx.db.get(staff.shopId);
       if (!shop) anomalies.danglingShop += 1;
@@ -153,6 +236,10 @@ export const verifyStaffs = internalQuery({
         const person = await ctx.db.get(staff.organizationPersonId);
         if (!person) anomalies.danglingOrganizationPerson += 1;
         else {
+          const personUser = person.userId === undefined ? null : await ctx.db.get(person.userId);
+          if (person.userId !== undefined && !personUser) anomalies.danglingPersonUser += 1;
+          hasDeletedLinkedUser ||= personUser?.isDeleted === true;
+          hasDeletionRequestedLinkedUser ||= personUser?.accountDeletionRequestedAt !== undefined;
           if (!staff.organizationId || person.organizationId !== staff.organizationId) {
             anomalies.personOrganizationMismatch += 1;
           }
@@ -173,6 +260,8 @@ export const verifyStaffs = internalQuery({
           }
         }
       }
+      if (hasDeletedLinkedUser) anomalies.deletedLinkedUser += 1;
+      if (hasDeletionRequestedLinkedUser) anomalies.deletionRequestedLinkedUser += 1;
     }
     return { ...pageMetadata(result), anomalies };
   },
@@ -239,6 +328,7 @@ export const verifyNotificationOutbox = internalQuery({
       shopDanglingOrganizationId: v.number(),
       shopOrganizationMismatch: v.number(),
       incompleteFanoutLink: v.number(),
+      legacyShopInactiveCancelReason: v.number(),
     }),
   }),
   handler: async (ctx, { paginationOpts }) => {
@@ -256,6 +346,7 @@ export const verifyNotificationOutbox = internalQuery({
       shopDanglingOrganizationId: 0,
       shopOrganizationMismatch: 0,
       incompleteFanoutLink: 0,
+      legacyShopInactiveCancelReason: 0,
     };
     for (const outbox of result.page) {
       if (!outbox.notificationContext) anomalies.missingNotificationContext += 1;
@@ -279,50 +370,9 @@ export const verifyNotificationOutbox = internalQuery({
       if ((outbox.fanoutTargetKey === undefined) !== (outbox.fanoutOperationId === undefined)) {
         anomalies.incompleteFanoutLink += 1;
       }
+      if (outbox.cancelReason === "shop_inactive") anomalies.legacyShopInactiveCancelReason += 1;
     }
     return { ...pageMetadata(result), anomalies };
-  },
-});
-
-/** Subscription planの未補完件数を集計する。 */
-export const verifyStripeSubscriptions = internalQuery({
-  args: { paginationOpts: paginationOptsValidator },
-  returns: v.object({
-    ...pageMetadataValidator,
-    anomalies: v.object({ missingPlan: v.number() }),
-  }),
-  handler: async (ctx, { paginationOpts }) => {
-    requireBoundedPagination(paginationOpts);
-    const result = await ctx.db.query("organizationStripeSubscriptions").paginate(paginationOpts);
-    return {
-      ...pageMetadata(result),
-      anomalies: { missingPlan: result.page.filter((subscription) => !subscription.plan).length },
-    };
-  },
-});
-
-/** 旧Stripe operation literalと、Business導入前trial operationのplan欠損を数える。 */
-export const verifyStripeOperations = internalQuery({
-  args: { paginationOpts: paginationOptsValidator },
-  returns: v.object({
-    ...pageMetadataValidator,
-    anomalies: v.object({
-      legacyImmediateProCheckout: v.number(),
-      trialSetupCheckoutMissingTargetPlan: v.number(),
-    }),
-  }),
-  handler: async (ctx, { paginationOpts }) => {
-    requireBoundedPagination(paginationOpts);
-    const result = await ctx.db.query("organizationStripeOperations").paginate(paginationOpts);
-    return {
-      ...pageMetadata(result),
-      anomalies: {
-        legacyImmediateProCheckout: result.page.filter((operation) => operation.kind === "immediateProCheckout").length,
-        trialSetupCheckoutMissingTargetPlan: result.page.filter(
-          (operation) => operation.kind === "trialSetupCheckout" && operation.targetPlan === undefined,
-        ).length,
-      },
-    };
   },
 });
 
@@ -578,12 +628,13 @@ export const verifyLegacyShopBillingStates = internalQuery({
   },
 });
 
-/** 未解消conflictは種類やsource IDを公開せず、総数とOutbox scope分の件数だけを返す。 */
+/** 未解消conflictはcodeやsource IDを公開せず、Narrow gateに必要な集計件数だけを返す。 */
 export const verifyOrganizationMigrationConflicts = internalQuery({
   args: { paginationOpts: paginationOptsValidator },
   returns: v.object({
     ...pageMetadataValidator,
     unresolvedRows: v.number(),
+    unresolvedStaffRows: v.number(),
     unresolvedNotificationOutboxScopeRows: v.number(),
   }),
   handler: async (ctx, { paginationOpts }) => {
@@ -592,6 +643,9 @@ export const verifyOrganizationMigrationConflicts = internalQuery({
     return {
       ...pageMetadata(result),
       unresolvedRows: result.page.filter((conflict) => conflict.resolvedAt === undefined).length,
+      unresolvedStaffRows: result.page.filter(
+        (conflict) => conflict.resolvedAt === undefined && conflict.sourceType === "staff",
+      ).length,
       unresolvedNotificationOutboxScopeRows: result.page.filter(
         (conflict) =>
           conflict.resolvedAt === undefined &&
@@ -618,24 +672,13 @@ export const verifyLineCommonOrganizations = internalQuery({
     let activeOrganizationsWithMultipleShops = 0;
     for (const organization of result.page) {
       if (organization.isDeleted) continue;
-      // TODO[narrow]: m025完走まではoperatingStatus欠損も現行runtimeと同じactiveとして数える。
-      const [explicitActiveShops, legacyActiveShops] = await Promise.all([
-        ctx.db
-          .query("shops")
-          .withIndex("by_organizationId_and_operatingStatus", (q) =>
-            q.eq("organizationId", organization._id).eq("operatingStatus", "active"),
-          )
-          .filter((q) => q.eq(q.field("isDeleted"), false))
-          .take(2),
-        ctx.db
-          .query("shops")
-          .withIndex("by_organizationId_and_operatingStatus", (q) =>
-            q.eq("organizationId", organization._id).eq("operatingStatus", undefined),
-          )
-          .filter((q) => q.eq(q.field("isDeleted"), false))
-          .take(2),
-      ]);
-      if (explicitActiveShops.length + legacyActiveShops.length > 1) {
+      const shops = await ctx.db
+        .query("shops")
+        .withIndex("by_organizationId_and_isDeleted", (q) =>
+          q.eq("organizationId", organization._id).eq("isDeleted", false),
+        )
+        .take(2);
+      if (shops.length > 1) {
         activeOrganizationsWithMultipleShops += 1;
       }
     }
@@ -683,12 +726,7 @@ export const verifyLineCommonPeople = internalQuery({
       const activeStaffs = [];
       for (const staff of staffHistory) {
         const shop = await ctx.db.get(staff.shopId);
-        if (
-          shop &&
-          !shop.isDeleted &&
-          shop.organizationId === person.organizationId &&
-          organizationShopOperatingStatus(shop.operatingStatus) === "active"
-        ) {
+        if (shop && !shop.isDeleted && shop.organizationId === person.organizationId) {
           activeStaffs.push(staff);
         }
       }

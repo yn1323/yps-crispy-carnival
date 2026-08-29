@@ -4,6 +4,7 @@ import type { MutationCtx } from "../_generated/server";
 import { assertDevelopmentSeedEnabled } from "../_lib/config";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import schema from "../schema";
+import { hasCanonicalStaffIdentity } from "../staff/service";
 import { requireDevelopmentSeedWorkflowState } from "./audit";
 import {
   assertSeedDate,
@@ -252,8 +253,8 @@ export const verify = internalMutation({
       if (person.organizationId !== member.organizationId) throw new Error("Seed member crosses organization boundary");
     }
     for (const staff of staffs) {
+      if (!hasCanonicalStaffIdentity(staff)) throw new Error("Seed staff canonical identity is missing");
       const shop = requireRecord(shopMap, staff.shopId, "staff shop");
-      if (!staff.organizationId || !staff.organizationPersonId) throw new Error("Seed staff canonical link is missing");
       const person = requireRecord(personMap, staff.organizationPersonId, "staff person");
       if (shop.organizationId !== staff.organizationId || person.organizationId !== staff.organizationId) {
         throw new Error("Seed staff crosses organization boundary");
@@ -331,7 +332,7 @@ export const verify = internalMutation({
     }
     for (const account of staffLineAccounts) {
       const staff = requireRecord(staffMap, account.staffId, "LINE account staff");
-      if (staff.shopId !== account.shopId || !staff.organizationPersonId) {
+      if (staff.shopId !== account.shopId) {
         throw new Error("Development seed LINE account graph is inconsistent");
       }
       const providerUser = lineProviderUsers.find((candidate) => candidate.lineUserId === account.lineUserId);

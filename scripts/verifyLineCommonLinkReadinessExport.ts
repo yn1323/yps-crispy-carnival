@@ -32,7 +32,7 @@ export type LineCommonLinkReadinessReport = {
   scheduledCallerCheck: "required_from_deployment";
   counts: {
     activeOrganizations: number;
-    activeShops: number;
+    shops: number;
     activePeople: number;
     activeStaffs: number;
     activeLegacyAccounts: number;
@@ -43,7 +43,7 @@ export type LineCommonLinkReadinessReport = {
     actionRequiredFanoutJobs: number;
   };
   anomalies: {
-    organizationsWithMultipleActiveShops: number;
+    organizationsWithMultipleShops: number;
     peopleWithMultipleActiveStaffs: number;
     personStaffHistoryOverLimit: number;
     activeStaffCanonicalReference: number;
@@ -123,26 +123,25 @@ export function verifyLineCommonLinkReadiness(
   );
 
   const activeOrganizations = input.organizations.filter(active);
-  const activeShops = input.shops.filter(
+  const availableShops = input.shops.filter(
     (row) => active(row) && (row.operatingStatus === undefined || row.operatingStatus === "active"),
   );
   const activePeople = input.people.filter((row) => row.status === "active");
   const activeStaffs = input.staffs.filter(active);
-  const activeShopIds = new Set(activeShops.map((shop) => requireString(shop, "_id", "shops")));
-  const activeShopStaffs = activeStaffs.filter((staff) => {
+  const shopIds = new Set(availableShops.map((shop) => requireString(shop, "_id", "shops")));
+  const shopStaffs = activeStaffs.filter((staff) => {
     const shopId = optionalString(staff, "shopId");
-    return shopId !== undefined && activeShopIds.has(shopId);
+    return shopId !== undefined && shopIds.has(shopId);
   });
   const activeLegacyAccounts = input.legacyAccounts.filter(active);
   const activeProviderUsers = input.providerUsers.filter(active);
   const activePersonLinks = input.personLinks.filter(active);
 
-  const activeShopsByOrganization = groupValues(activeShops, (row) => optionalString(row, "organizationId"));
-  const activeStaffsByPerson = groupValues(activeShopStaffs, (row) => optionalString(row, "organizationPersonId"));
+  const shopsByOrganization = groupValues(availableShops, (row) => optionalString(row, "organizationId"));
+  const activeStaffsByPerson = groupValues(shopStaffs, (row) => optionalString(row, "organizationPersonId"));
   const staffHistoryByPerson = groupValues(activeStaffs, (row) => optionalString(row, "organizationPersonId"));
-  const organizationsWithMultipleActiveShops = activeOrganizations.filter(
-    (organization) =>
-      (activeShopsByOrganization.get(requireString(organization, "_id", "organizations"))?.length ?? 0) > 1,
+  const organizationsWithMultipleShops = activeOrganizations.filter(
+    (organization) => (shopsByOrganization.get(requireString(organization, "_id", "organizations"))?.length ?? 0) > 1,
   ).length;
   const peopleWithMultipleActiveStaffs = activePeople.filter(
     (person) => (activeStaffsByPerson.get(requireString(person, "_id", "organizationPeople"))?.length ?? 0) > 1,
@@ -333,7 +332,7 @@ export function verifyLineCommonLinkReadiness(
   const actionRequiredFanoutJobs = input.fanoutJobs.filter((job) => job.status === "actionRequired").length;
 
   const anomalies = {
-    organizationsWithMultipleActiveShops,
+    organizationsWithMultipleShops,
     peopleWithMultipleActiveStaffs,
     personStaffHistoryOverLimit,
     activeStaffCanonicalReference,
@@ -376,7 +375,7 @@ export function verifyLineCommonLinkReadiness(
     scheduledCallerCheck: "required_from_deployment",
     counts: {
       activeOrganizations: activeOrganizations.length,
-      activeShops: activeShops.length,
+      shops: availableShops.length,
       activePeople: activePeople.length,
       activeStaffs: activeStaffs.length,
       activeLegacyAccounts: activeLegacyAccounts.length,

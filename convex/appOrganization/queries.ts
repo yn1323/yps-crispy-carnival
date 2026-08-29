@@ -22,6 +22,7 @@ import { deriveOrganizationPersonCapabilities, type ManagerRole } from "../organ
 import { getOrganizationStaffOrderScope } from "../organization/staffOrder";
 import type { OrganizationBillingPolicy } from "../organizationBilling/policy";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
+import { hasCanonicalStaffIdentity } from "../staff/service";
 
 const MAX_PAGE_SIZE = 50;
 const MAX_ROWS_READ = 100;
@@ -33,7 +34,7 @@ const organizationContextValidator = v.object({
   memberStatus: v.literal("active"),
 });
 
-const activeShopContextValidator = v.object({
+const shopContextValidator = v.object({
   shopId: v.id("shops"),
   shopName: v.string(),
 });
@@ -206,24 +207,32 @@ export const getOrganizationContext = authenticatedQuery({
   },
 });
 
-/** Homeの店舗selector向けに、認可済み組織のactive店舗だけを返す。 */
+async function listOrganizationShopsPage(ctx: AppOrganizationQueryCtx, paginationOpts: PaginationOptions) {
+  const shops = await ctx.db
+    .query("shops")
+    .withIndex("by_organizationId_and_isDeleted", (q) =>
+      q.eq("organizationId", ctx.organization._id).eq("isDeleted", false),
+    )
+    .paginate(boundedPaginationOptions(paginationOpts));
+
+  return {
+    ...shops,
+    page: shops.page.map((shop) => ({ shopId: shop._id, shopName: shop.name })),
+  };
+}
+
+/** Homeの店舗selector向けに、認可済み組織の非削除店舗だけを返すcanonical API。 */
+export const listOrganizationShops = organizationQuery({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(shopContextValidator),
+  handler: async (ctx, { paginationOpts }) => await listOrganizationShopsPage(ctx, paginationOpts),
+});
+
+/** TODO[narrow]: 旧client drain後のPR2で削除する旧API名。返却契約はcanonical APIと同一。 */
 export const listOrganizationActiveShops = organizationQuery({
   args: { paginationOpts: paginationOptsValidator },
-  returns: paginationResultValidator(activeShopContextValidator),
-  handler: async (ctx, { paginationOpts }) => {
-    const shops = await ctx.db
-      .query("shops")
-      .withIndex("by_organizationId_and_operatingStatus", (q) =>
-        q.eq("organizationId", ctx.organization._id).eq("operatingStatus", "active"),
-      )
-      .filter((q) => q.eq(q.field("isDeleted"), false))
-      .paginate(boundedPaginationOptions(paginationOpts));
-
-    return {
-      ...shops,
-      page: shops.page.map((shop) => ({ shopId: shop._id, shopName: shop.name })),
-    };
-  },
+  returns: paginationResultValidator(shopContextValidator),
+  handler: async (ctx, { paginationOpts }) => await listOrganizationShopsPage(ctx, paginationOpts),
 });
 
 type DashboardRecruitment = typeof dashboardRecruitmentValidator.type;
@@ -328,17 +337,16 @@ async function getBoundedTotalStaffCount(ctx: AppOrganizationQueryCtx, shopId: I
   };
 }
 
-/** 組織内のactive店舗と現在募集を、店舗単位の一つのcursor familyで返す。 */
+/** 組織内の非削除店舗と現在募集を、店舗単位の一つのcursor familyで返す。 */
 export const listOrganizationRecruitments = organizationQuery({
   args: { paginationOpts: paginationOptsValidator },
   returns: paginationResultValidator(organizationRecruitmentSectionValidator),
   handler: async (ctx, { paginationOpts }) => {
     const shops = await ctx.db
       .query("shops")
-      .withIndex("by_organizationId_and_operatingStatus", (q) =>
-        q.eq("organizationId", ctx.organization._id).eq("operatingStatus", "active"),
+      .withIndex("by_organizationId_and_isDeleted", (q) =>
+        q.eq("organizationId", ctx.organization._id).eq("isDeleted", false),
       )
-      .filter((q) => q.eq(q.field("isDeleted"), false))
       .paginate(
         boundedPaginationOptions(paginationOpts, {
           maxPageSize: APP_ORGANIZATION_RECRUITMENT_SHOP_PAGE_SIZE,
@@ -606,7 +614,7 @@ export const listOrganizationPeople = organizationQuery({
     const people = (
       await Promise.all(
         staffs.page.map(async (staff) => {
-          if (staff.organizationId !== ctx.organization._id || !staff.organizationPersonId) {
+          if (!hasCanonicalStaffIdentity(staff) || staff.organizationId !== ctx.organization._id) {
             return null;
           }
           const canonicalStaff = await ctx.db
@@ -655,7 +663,9 @@ async function countVisibleOrganizationPeople(ctx: AppOrganizationQueryCtx, shop
     .take(ORGANIZATION_PEOPLE_SUMMARY_LIMIT + 1);
   const peopleIds = new Set(
     staffs.flatMap((staff) =>
-      staff.organizationId === ctx.organization._id && staff.organizationPersonId ? [staff.organizationPersonId] : [],
+      hasCanonicalStaffIdentity(staff) && staff.organizationId === ctx.organization._id
+        ? [staff.organizationPersonId]
+        : [],
     ),
   );
   return {

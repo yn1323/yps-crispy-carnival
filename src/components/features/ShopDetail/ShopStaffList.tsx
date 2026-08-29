@@ -48,7 +48,7 @@ export function ShopStaffList({
           onClick={onChangeStaffs}
         >
           <LuPencil aria-hidden />
-          所属スタッフを変更する
+          {staffs.length === 0 ? "所属スタッフを追加する" : "所属スタッフを変更する"}
         </Button>
       </Flex>
 
@@ -56,9 +56,9 @@ export function ShopStaffList({
         <Alert.Root status="warning" borderRadius="lg">
           <Alert.Indicator />
           <Alert.Content>
-            <Alert.Title>店舗通知を受け取る管理者がいません</Alert.Title>
+            <Alert.Title>この店舗には管理者がいません。</Alert.Title>
             <Alert.Description>
-              スタッフ申請、シフト確定、通知エラーなど、この店舗に関する管理者向け通知は送信されません。
+              スタッフ申請、シフト確定、通知エラーなど、この店舗に関する管理者向け通知が送信されません。
               <br />
               管理者を所属させることをおすすめします。
             </Alert.Description>

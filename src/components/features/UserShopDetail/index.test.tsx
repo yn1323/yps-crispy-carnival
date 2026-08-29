@@ -116,14 +116,14 @@ describe("UserShopDetail", () => {
     expect(screen.getByTestId("history-shop").textContent).toBe("shop-target");
   });
 
-  it("停止中店舗は閲覧専用として全controllerへ渡す", () => {
-    const archivedMembership = { ...membership, shopStatus: "archived" } as UserShopDetailMembership;
-    render(<UserShopDetail data={data} membership={archivedMembership} targetShopId={targetShopId} onBack={vi.fn()} />);
+  it("組織の更新が制限されている場合は閲覧専用として全controllerへ渡す", () => {
+    const readOnlyData = { ...data, canWrite: false } as UserShopDetailData;
+    render(<UserShopDetail data={readOnlyData} membership={membership} targetShopId={targetShopId} onBack={vi.fn()} />);
 
     expect(screen.getByTestId("read-only").textContent).toBe("true");
     expect(mocks.useNotificationActions).toHaveBeenCalledWith({
       targetShopId,
-      membership: archivedMembership,
+      membership,
       isReadOnly: true,
       enabled: true,
     });

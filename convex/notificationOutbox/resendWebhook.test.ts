@@ -1,6 +1,7 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Id } from "../_generated/dataModel";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { RESEND_DELAYED_FAILURE_GRACE_MS, RESEND_WEBHOOK_BODY_MAX_BYTES } from "../constants";
@@ -349,7 +350,7 @@ async function seedSentEmailOutbox(
       email: "manager@example.com",
       shopName: "Resend Webhook店舗",
     });
-    const staffId = await ctx.db.insert("staffs", {
+    const staffId = await seedStaff(ctx, {
       shopId,
       name: "メールスタッフ",
       email: "mail-staff@example.com",

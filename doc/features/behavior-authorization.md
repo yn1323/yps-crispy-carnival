@@ -54,8 +54,8 @@ frontendの閲覧専用表示は認可根拠ではなく、mutationが毎回組�
 ### 3.2 課金ライフサイクルと利用上限による書き込み制御
 
 課金ライフサイクルと利用上限は別に判定する。
-Trial、`initialPaymentPending`、`active`、`complimentary`、`scheduledChange`、`grace`は、その時点の有効プランを持つ。
-`pendingActivation`は支払い成功までFreeまたはStandardのfallbackを維持し、有料機能だけを開放しない。
+Trial、`active`、`complimentary`、`scheduledChange`は、その時点の有効プランを持つ。
+`pendingActivation`は支払い成功までFreeまたはStandardのfallbackを維持し、`initialPaymentPending`と`paymentTerminationPending`はFree権限を適用する。  支払い成功前または検証済みの支払い失敗後に、有料機能を開放しない。
 
 | 利用上限の導出結果 | `accessMode` | 業務書き込み |
 |---|---|---|
@@ -63,14 +63,14 @@ Trial、`initialPaymentPending`、`active`、`complimentary`、`scheduledChange`
 | 上限超過 | `limitRecoveryOnly` | 整理・課金・終了操作だけ可 |
 | bounded評価で確定不能 | `limitRecoveryOnly` | 上限超過と断定せず、安全側で同じ操作だけ可 |
 
-上限超過中と評価不能中は、募集の作成・編集・削除、シフトの下書き保存・編集・確定、スタッフの希望シフト提出、スタッフの追加・再有効化・情報変更、管理者招待の発行・再送・承認、店舗の追加・再稼働、業務メール・LINEの新規送信を停止する。
+上限超過中と評価不能中は、募集の作成・編集・削除、シフトの下書き保存・編集・確定、スタッフの希望シフト提出、スタッフの追加・再有効化・情報変更、管理者招待の発行・再送・承認、店舗の追加、業務メール・LINEの新規送信を停止する。
 
 | 許可する操作 | 誰が |
 |---|---|
 | 既存データの閲覧 | 対象組織の有効管理者 |
 | 組織からの利用者削除 | 有効管理者 |
 | 管理者権限解除 | 有効管理者。最後の有効管理者は解除不可 |
-| 店舗のアーカイブまたは削除 | 有効管理者 |
+| 店舗削除 | 有効管理者 |
 | 未承認の管理者招待取消 | 有効管理者 |
 | 有料契約の開始・上位プラン変更、支払い方法更新、請求先メール変更 | 有効管理者 |
 | 組織削除、アカウント削除に必要な所属整理 | 各削除契約を満たす管理者または本人 |
@@ -111,7 +111,7 @@ Trial、`initialPaymentPending`、`active`、`complimentary`、`scheduledChange`
 
 ## 5. プラン上限と超過時の挙動
 
-| プラン・状態 | 利用人数 | 稼働店舗 | 有効管理者 |
+| プラン・状態 | 利用人数 | 店舗数 | 有効管理者 |
 |---|---:|---:|---:|
 | Trial／支払い不要Pro相当／Pro | 50 | 5 | 5 |
 | Standard | 25 | 5 | 5 |

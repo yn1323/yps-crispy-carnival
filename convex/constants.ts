@@ -17,7 +17,7 @@ export const LINE_FRIENDSHIP_FANOUT_MAX_ATTEMPTS = 8;
 export const LINE_FRIENDSHIP_FANOUT_RECOVERY_BATCH_SIZE = 24;
 export const LINE_FRIENDSHIP_FANOUT_PRUNE_BATCH_SIZE = 100;
 export const LINE_ORGANIZATION_PERSON_ACTIVE_STAFF_MAX = 20;
-// inactive店舗の所属履歴はactive上限へ数えない一方、人物単位の履歴走査自体は有限で停止する。
+// 削除済み店舗の所属履歴は現在所属の上限へ数えない一方、人物単位の履歴走査自体は有限で停止する。
 export const LINE_ORGANIZATION_PERSON_STAFF_HISTORY_SCAN_LIMIT = 100;
 export const LEGAL_CONSENT_TOKEN_TTL_MS = 30 * DAY_MS;
 export const RATE_LIMIT_RETRY_FALLBACK_MS = MINUTE_MS;
@@ -63,7 +63,7 @@ export const APP_ORGANIZATION_RECRUITMENT_SHOP_PAGE_SIZE = 1;
 // recruitmentStats欠損時は正確な提出数ではなく、安全に確認できた下限値を返す。
 // 一募集あたり1件とoverflow検知用1件に絞り、最悪時も単一queryのdocument read上限内に収める。
 export const APP_ORGANIZATION_RECRUITMENT_LEGACY_SUBMISSION_COUNT_LIMIT = 1;
-// ユーザー詳細で過去・停止中を含む店舗所属を安全に走査する上限。
+// ユーザー詳細で削除済み店舗の履歴を含む店舗所属を安全に走査する上限。
 export const ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT = 100;
 // 50件の一括スタッフ追加でも、同一メールの人物履歴を一transactionで安全に分類できる上限。
 export const ORGANIZATION_PERSON_EMAIL_HISTORY_SCAN_LIMIT = 20;

@@ -8,7 +8,6 @@
  * @module
  */
 
-import type * as _lib_activeShop from "../_lib/activeShop.js";
 import type * as _lib_auditCorrelation from "../_lib/auditCorrelation.js";
 import type * as _lib_clerkVerifiedEmailProvider from "../_lib/clerkVerifiedEmailProvider.js";
 import type * as _lib_config from "../_lib/config.js";
@@ -33,6 +32,7 @@ import type * as _lib_resendWebhookSignature from "../_lib/resendWebhookSignatur
 import type * as _lib_sha256 from "../_lib/sha256.js";
 import type * as _lib_shiftAssignmentNormalization from "../_lib/shiftAssignmentNormalization.js";
 import type * as _lib_shiftAssignmentValidators from "../_lib/shiftAssignmentValidators.js";
+import type * as _lib_shopAvailability from "../_lib/shopAvailability.js";
 import type * as _lib_shopManagerRecipients from "../_lib/shopManagerRecipients.js";
 import type * as _lib_staffAccess from "../_lib/staffAccess.js";
 import type * as _lib_submissionPattern from "../_lib/submissionPattern.js";
@@ -87,6 +87,7 @@ import type * as appOrganization_staffOrderMutations from "../appOrganization/st
 import type * as appOrganization_staffOrderQueries from "../appOrganization/staffOrderQueries.js";
 import type * as constants from "../constants.js";
 import type * as contact_actions from "../contact/actions.js";
+import type * as contact_email from "../contact/email.js";
 import type * as contact_httpActions from "../contact/httpActions.js";
 import type * as contact_mutations from "../contact/mutations.js";
 import type * as contact_schemas from "../contact/schemas.js";
@@ -118,7 +119,6 @@ import type * as line_queries from "../line/queries.js";
 import type * as line_schemas from "../line/schemas.js";
 import type * as line_service from "../line/service.js";
 import type * as line_webhook from "../line/webhook.js";
-import type * as migrations_billing_compatibility_narrow_readiness from "../migrations/billing_compatibility_narrow_readiness.js";
 import type * as migrations_index from "../migrations/index.js";
 import type * as migrations_m001_recruitments_add_shift_times from "../migrations/m001_recruitments_add_shift_times.js";
 import type * as migrations_m002_shops_add_submission_pattern from "../migrations/m002_shops_add_submission_pattern.js";
@@ -161,16 +161,9 @@ import type * as migrations_m038_recruitments_draft_saved_at_narrow_prep from ".
 import type * as migrations_m039_shops_regular_closed_days_narrow_prep from "../migrations/m039_shops_regular_closed_days_narrow_prep.js";
 import type * as migrations_m040_recruitments_shop_closed_dates_narrow_prep from "../migrations/m040_recruitments_shop_closed_dates_narrow_prep.js";
 import type * as migrations_m041_line_common_links from "../migrations/m041_line_common_links.js";
-import type * as migrations_m042_organization_billing_plan_ids_v2 from "../migrations/m042_organization_billing_plan_ids_v2.js";
-import type * as migrations_m042_organization_billing_plan_ids_v2_readiness from "../migrations/m042_organization_billing_plan_ids_v2_readiness.js";
-import type * as migrations_m043_analytics_plan_ids_v2 from "../migrations/m043_analytics_plan_ids_v2.js";
-import type * as migrations_m043_analytics_plan_ids_v2_readiness from "../migrations/m043_analytics_plan_ids_v2_readiness.js";
-import type * as migrations_m044_dashboard_announcement_plan_ids_v2 from "../migrations/m044_dashboard_announcement_plan_ids_v2.js";
-import type * as migrations_m044_dashboard_announcement_plan_ids_v2_readiness from "../migrations/m044_dashboard_announcement_plan_ids_v2_readiness.js";
-import type * as migrations_m045_m046_organization_stripe_plan_ids_v2_readiness from "../migrations/m045_m046_organization_stripe_plan_ids_v2_readiness.js";
-import type * as migrations_m045_organization_stripe_subscription_plan_ids_v2 from "../migrations/m045_organization_stripe_subscription_plan_ids_v2.js";
-import type * as migrations_m046_organization_stripe_operation_plan_ids_v2 from "../migrations/m046_organization_stripe_operation_plan_ids_v2.js";
-import type * as migrations_m047_shop_billing_states_cleanup from "../migrations/m047_shop_billing_states_cleanup.js";
+import type * as migrations_m048_shops_unset_operating_status from "../migrations/m048_shops_unset_operating_status.js";
+import type * as migrations_m049_notification_outbox_shop_deleted_reason from "../migrations/m049_notification_outbox_shop_deleted_reason.js";
+import type * as migrations_m050_staffs_canonical_links_backfill from "../migrations/m050_staffs_canonical_links_backfill.js";
 import type * as migrations_organizationMigrationHelpers from "../migrations/organizationMigrationHelpers.js";
 import type * as narrowReadiness_queries from "../narrowReadiness/queries.js";
 import type * as notification_actions from "../notification/actions.js";
@@ -294,7 +287,6 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  "_lib/activeShop": typeof _lib_activeShop;
   "_lib/auditCorrelation": typeof _lib_auditCorrelation;
   "_lib/clerkVerifiedEmailProvider": typeof _lib_clerkVerifiedEmailProvider;
   "_lib/config": typeof _lib_config;
@@ -319,6 +311,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/sha256": typeof _lib_sha256;
   "_lib/shiftAssignmentNormalization": typeof _lib_shiftAssignmentNormalization;
   "_lib/shiftAssignmentValidators": typeof _lib_shiftAssignmentValidators;
+  "_lib/shopAvailability": typeof _lib_shopAvailability;
   "_lib/shopManagerRecipients": typeof _lib_shopManagerRecipients;
   "_lib/staffAccess": typeof _lib_staffAccess;
   "_lib/submissionPattern": typeof _lib_submissionPattern;
@@ -373,6 +366,7 @@ declare const fullApi: ApiFromModules<{
   "appOrganization/staffOrderQueries": typeof appOrganization_staffOrderQueries;
   constants: typeof constants;
   "contact/actions": typeof contact_actions;
+  "contact/email": typeof contact_email;
   "contact/httpActions": typeof contact_httpActions;
   "contact/mutations": typeof contact_mutations;
   "contact/schemas": typeof contact_schemas;
@@ -404,7 +398,6 @@ declare const fullApi: ApiFromModules<{
   "line/schemas": typeof line_schemas;
   "line/service": typeof line_service;
   "line/webhook": typeof line_webhook;
-  "migrations/billing_compatibility_narrow_readiness": typeof migrations_billing_compatibility_narrow_readiness;
   "migrations/index": typeof migrations_index;
   "migrations/m001_recruitments_add_shift_times": typeof migrations_m001_recruitments_add_shift_times;
   "migrations/m002_shops_add_submission_pattern": typeof migrations_m002_shops_add_submission_pattern;
@@ -447,16 +440,9 @@ declare const fullApi: ApiFromModules<{
   "migrations/m039_shops_regular_closed_days_narrow_prep": typeof migrations_m039_shops_regular_closed_days_narrow_prep;
   "migrations/m040_recruitments_shop_closed_dates_narrow_prep": typeof migrations_m040_recruitments_shop_closed_dates_narrow_prep;
   "migrations/m041_line_common_links": typeof migrations_m041_line_common_links;
-  "migrations/m042_organization_billing_plan_ids_v2": typeof migrations_m042_organization_billing_plan_ids_v2;
-  "migrations/m042_organization_billing_plan_ids_v2_readiness": typeof migrations_m042_organization_billing_plan_ids_v2_readiness;
-  "migrations/m043_analytics_plan_ids_v2": typeof migrations_m043_analytics_plan_ids_v2;
-  "migrations/m043_analytics_plan_ids_v2_readiness": typeof migrations_m043_analytics_plan_ids_v2_readiness;
-  "migrations/m044_dashboard_announcement_plan_ids_v2": typeof migrations_m044_dashboard_announcement_plan_ids_v2;
-  "migrations/m044_dashboard_announcement_plan_ids_v2_readiness": typeof migrations_m044_dashboard_announcement_plan_ids_v2_readiness;
-  "migrations/m045_m046_organization_stripe_plan_ids_v2_readiness": typeof migrations_m045_m046_organization_stripe_plan_ids_v2_readiness;
-  "migrations/m045_organization_stripe_subscription_plan_ids_v2": typeof migrations_m045_organization_stripe_subscription_plan_ids_v2;
-  "migrations/m046_organization_stripe_operation_plan_ids_v2": typeof migrations_m046_organization_stripe_operation_plan_ids_v2;
-  "migrations/m047_shop_billing_states_cleanup": typeof migrations_m047_shop_billing_states_cleanup;
+  "migrations/m048_shops_unset_operating_status": typeof migrations_m048_shops_unset_operating_status;
+  "migrations/m049_notification_outbox_shop_deleted_reason": typeof migrations_m049_notification_outbox_shop_deleted_reason;
+  "migrations/m050_staffs_canonical_links_backfill": typeof migrations_m050_staffs_canonical_links_backfill;
   "migrations/organizationMigrationHelpers": typeof migrations_organizationMigrationHelpers;
   "narrowReadiness/queries": typeof narrowReadiness_queries;
   "notification/actions": typeof notification_actions;

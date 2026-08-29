@@ -28,7 +28,6 @@ type OrganizationSeed = Awaited<ReturnType<typeof seedOrganizationManagerShop>>;
 async function seedOrganizationShop(ctx: MutationCtx, organizationId: Id<"organizations">, name: string) {
   return await ctx.db.insert("shops", {
     organizationId,
-    operatingStatus: "active",
     name,
     submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     regularClosedDays: [],
@@ -190,12 +189,12 @@ async function seedOutbox(
   });
 }
 
-type RejectedShopRemovalCase = "unauthenticated" | "foreignShop" | "mismatchedStaff" | "deletedStaff";
+type RejectedShopRemovalCase = "unauthenticated" | "foreignShop" | "mismatchedStaff" | "deletedShop" | "deletedStaff";
 
 async function seedRejectedShopRemovalCase(t: TestConvex<typeof schema>, scenario: RejectedShopRemovalCase) {
   return await t.run(async (ctx) => {
     const actorSubject = `rejected_shop_removal_${scenario}_actor`;
-    const actorBase = await seedOrganizationManagerShop(ctx, { subject: actorSubject, plan: "pro" });
+    const actorBase = await seedOrganizationManagerShop(ctx, { subject: actorSubject, plan: "standard" });
     let targetBase = actorBase;
     let operationShopId = actorBase.shopId;
     let targetShopId = actorBase.shopId;
@@ -203,7 +202,7 @@ async function seedRejectedShopRemovalCase(t: TestConvex<typeof schema>, scenari
     if (scenario === "foreignShop") {
       targetBase = await seedOrganizationManagerShop(ctx, {
         subject: `rejected_shop_removal_${scenario}_foreign_manager`,
-        plan: "pro",
+        plan: "standard",
       });
       operationShopId = targetBase.shopId;
       targetShopId = targetBase.shopId;
@@ -229,6 +228,8 @@ async function seedRejectedShopRemovalCase(t: TestConvex<typeof schema>, scenari
     });
     if (scenario === "deletedStaff") {
       await ctx.db.patch(target.staffIds[0], { isDeleted: true });
+    } else if (scenario === "deletedShop") {
+      await ctx.db.patch(operationShopId, { isDeleted: true });
     }
 
     return {
@@ -285,104 +286,6 @@ const managerRoleRemovalAccessCases = [
   { actorCase: "crossTenant", actorLabel: "別事業者の人物" },
 ] as const;
 
-describe("organization shop staff order lifecycle", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(NOW);
-  });
-
-  afterEach(() => vi.useRealTimers());
-
-  it("店舗のアーカイブ中はprojectionを参照せず、再稼働時に組織共通順から再構築する", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "shop_order_lifecycle_manager", plan: "pro" });
-      const target = await seedTargetPerson(ctx, {
-        base,
-        subject: "shop_order_lifecycle_staff",
-        shopIds: [base.shopId],
-      });
-      await ctx.db.insert("organizationStaffOrderStates", {
-        organizationId: base.organizationId,
-        revision: 1,
-        activatedAt: NOW,
-        updatedAt: NOW,
-      });
-      await ctx.db.insert("organizationStaffOrderEntries", {
-        organizationId: base.organizationId,
-        organizationPersonId: base.personId,
-        displayOrder: 0,
-      });
-      await ctx.db.insert("organizationStaffOrderEntries", {
-        organizationId: base.organizationId,
-        organizationPersonId: target.personId,
-        displayOrder: 1,
-      });
-      await ctx.db.insert("shopStaffOrderEntries", {
-        organizationId: base.organizationId,
-        shopId: base.shopId,
-        staffId: target.staffIds[0],
-        organizationPersonId: target.personId,
-        displayOrder: 1,
-      });
-      return { ...base, staffId: target.staffIds[0], targetPersonId: target.personId };
-    });
-
-    const actor = t.withIdentity({ subject: "shop_order_lifecycle_manager" });
-    await expect(
-      actor.mutation(api.organization.mutations.archiveShop, {
-        shopId: ids.shopId,
-        requestId: "archive-staff-order-shop",
-      }),
-    ).resolves.toMatchObject({ shopId: ids.shopId, shopStatus: "archived", changed: true });
-
-    const archived = await t.run(async (ctx) => ({
-      state: (
-        await ctx.db
-          .query("organizationStaffOrderStates")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
-          .unique()
-      )?.revision,
-      entries: await ctx.db
-        .query("shopStaffOrderEntries")
-        .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", ids.shopId))
-        .collect(),
-    }));
-    expect(archived.state).toBe(2);
-    expect(archived.entries).toHaveLength(1);
-
-    await expect(
-      actor.mutation(api.organization.mutations.reactivateShop, {
-        shopId: ids.shopId,
-        requestId: "reactivate-staff-order-shop",
-      }),
-    ).resolves.toMatchObject({ shopId: ids.shopId, shopStatus: "active", changed: true });
-
-    const reactivated = await t.run(async (ctx) => ({
-      state: (
-        await ctx.db
-          .query("organizationStaffOrderStates")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
-          .unique()
-      )?.revision,
-      entries: await ctx.db
-        .query("shopStaffOrderEntries")
-        .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", ids.shopId))
-        .collect(),
-    }));
-    expect(reactivated.state).toBe(3);
-    expect(reactivated.entries).toEqual([
-      expect.objectContaining({
-        organizationId: ids.organizationId,
-        shopId: ids.shopId,
-        staffId: ids.staffId,
-        organizationPersonId: ids.targetPersonId,
-        displayOrder: 1,
-      }),
-    ]);
-  });
-});
-
 describe("organization person removal", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -394,7 +297,7 @@ describe("organization person removal", () => {
   it("active管理者を店舗から外し、管理者権限と他店舗所属を維持する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "shop_remove_actor", plan: "pro" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "shop_remove_actor", plan: "standard" });
       const otherShopId = await seedOrganizationShop(ctx, base.organizationId, "別店舗");
       const target = await seedTargetPerson(ctx, {
         base,
@@ -459,38 +362,11 @@ describe("organization person removal", () => {
     });
   });
 
-  it.each(["archived"] as const)("%s店舗では未完了の店舗所属解除を拒否する", async (operatingStatus) => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, {
-        subject: `inactive_shop_remove_${operatingStatus}`,
-        plan: "pro",
-      });
-      const target = await seedTargetPerson(ctx, {
-        base,
-        subject: `inactive_shop_target_${operatingStatus}`,
-        shopIds: [base.shopId],
-      });
-      await ctx.db.patch(base.shopId, { operatingStatus });
-      return { ...base, ...target };
-    });
-
-    await expect(
-      t
-        .withIdentity({ subject: `inactive_shop_remove_${operatingStatus}` })
-        .mutation(api.organization.mutations.removePersonFromShop, {
-          shopId: ids.shopId,
-          staffId: ids.staffIds[0],
-          requestId: `inactive-shop-remove-${operatingStatus}`,
-        }),
-    ).rejects.toThrow("稼働中の店舗だけ所属を変更できます");
-    await expect(t.run(async (ctx) => (await ctx.db.get(ids.staffIds[0]))?.isDeleted)).resolves.toBe(false);
-  });
-
   it.each([
     ["未認証", "unauthenticated", "Unauthenticated"],
     ["権限のない店舗", "foreignShop", "Not found"],
     ["店舗とスタッフの不一致", "mismatchedStaff", "Not found"],
+    ["削除済み店舗", "deletedShop", "Not found"],
     ["削除済みスタッフ", "deletedStaff", "Not found"],
   ] as const)("%sでは店舗所属を削除せず、副作用も起こさない", async (_label, scenario, expectedError) => {
     const t = convexTest(schema, modules);
@@ -516,7 +392,7 @@ describe("organization person removal", () => {
   it("active管理者の事業者人物削除を副作用なしで拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "org_remove_actor", plan: "pro" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "org_remove_actor", plan: "standard" });
       const otherShopId = await seedOrganizationShop(ctx, base.organizationId, "別店舗");
       const target = await seedTargetPerson(ctx, {
         base,
@@ -533,7 +409,7 @@ describe("organization person removal", () => {
       const access = await seedStaffAccess(ctx, { shopId: base.shopId, staffId: target.staffIds[0] });
       const otherOrganization = await seedOrganizationManagerShop(ctx, {
         subject: "org_remove_other_actor",
-        plan: "pro",
+        plan: "standard",
       });
       const otherOrganizationMembershipId = await seedLegacyShopMembership(ctx, {
         shopId: otherOrganization.shopId,
@@ -648,7 +524,7 @@ describe("organization person removal", () => {
   it("別の有効管理者がいても管理者本人の人物削除を副作用なしで拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "self_remove_actor", plan: "pro" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "self_remove_actor", plan: "standard" });
       const successor = await seedTargetPerson(ctx, {
         base,
         subject: "self_remove_successor",
@@ -678,7 +554,7 @@ describe("organization person removal", () => {
   it.each(["shop", "organization"] as const)("%s削除はpreview確認後に今日以降の割当も削除する", async (scope) => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: `future_${scope}_actor`, plan: "pro" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: `future_${scope}_actor`, plan: "standard" });
       const target = await seedTargetPerson(ctx, {
         base,
         subject: `future_${scope}_target`,
@@ -732,7 +608,7 @@ describe("organization person removal", () => {
   it("stale previewでは無変更にし、再確認後は対象の今日以降だけを削除して再送を冪等にする", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "stale_preview_actor", plan: "pro" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "stale_preview_actor", plan: "standard" });
       const secondShopId = await seedOrganizationShop(ctx, base.organizationId, "第二店舗");
       const target = await seedTargetPerson(ctx, {
         base,
@@ -746,7 +622,7 @@ describe("organization person removal", () => {
       });
       const otherOrganization = await seedOrganizationManagerShop(ctx, {
         subject: "stale_preview_other_org",
-        plan: "pro",
+        plan: "standard",
       });
       const otherOrganizationTarget = await seedTargetPerson(ctx, {
         base: otherOrganization,
@@ -870,7 +746,7 @@ describe("organization person removal", () => {
   it("請求先メールアドレスと一致する人物も通常の権限条件で削除できる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "billing_owner_actor", plan: "pro" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "billing_owner_actor", plan: "standard" });
       const target = await seedTargetPerson(ctx, {
         base,
         subject: "billing_owner_target",
@@ -899,7 +775,7 @@ describe("organization person removal", () => {
   it("最後の有効管理者は自分自身でも事業者から削除できない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "last_manager", plan: "pro" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "last_manager", plan: "standard" });
       await ctx.db.patch(base.organizationId, {
         billingEmail: "billing@example.com",
         billingEmailNormalized: "billing@example.com",
@@ -938,7 +814,10 @@ describe("organization person removal", () => {
   it("所属が重複してアクセス不能な管理者を有効な後任として数えない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "last_manager_duplicate_successor", plan: "pro" });
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "last_manager_duplicate_successor",
+        plan: "standard",
+      });
       await ctx.db.patch(base.organizationId, {
         billingEmail: "billing@example.com",
         billingEmailNormalized: "billing@example.com",
@@ -976,7 +855,7 @@ describe("organization person removal", () => {
   it("同じuserが別personで重複所属するアクセス不能な管理者も有効な後任として数えない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "last_manager_duplicate_user", plan: "pro" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "last_manager_duplicate_user", plan: "standard" });
       await ctx.db.patch(base.organizationId, {
         billingEmail: "billing@example.com",
         billingEmailNormalized: "billing@example.com",
@@ -1024,7 +903,7 @@ describe("organization person removal", () => {
   it("スタッフ兼管理者の管理権限だけを外し、スタッフ所属とリンクを保持する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "role_remove_actor", plan: "pro" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "role_remove_actor", plan: "standard" });
       const target = await seedTargetPerson(ctx, {
         base,
         subject: "role_remove_target",
@@ -1159,7 +1038,7 @@ describe("organization person removal", () => {
       const ids = await t.run(async (ctx) => {
         const actor = await seedOrganizationManagerShop(ctx, {
           subject: `role_access_${actorCase}_actor`,
-          plan: "pro",
+          plan: "standard",
         });
         const actorTarget = await seedTargetPerson(ctx, {
           base: actor,
@@ -1169,7 +1048,7 @@ describe("organization person removal", () => {
         });
         const foreign = await seedOrganizationManagerShop(ctx, {
           subject: `role_access_${actorCase}_foreign`,
-          plan: "pro",
+          plan: "standard",
         });
         const foreignTarget = await seedTargetPerson(ctx, {
           base: foreign,
@@ -1200,7 +1079,7 @@ describe("organization person removal", () => {
   it("スタッフ所属がない管理者の権限解除は人物を保持して管理アクセスだけを終了する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "role_remove_no_staff_actor", plan: "pro" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "role_remove_no_staff_actor", plan: "standard" });
       const target = await seedTargetPerson(ctx, {
         base,
         subject: "role_remove_no_staff_target",
@@ -1236,7 +1115,7 @@ describe("organization person removal", () => {
   it("管理者権限解除は同じrequestIdの別personを副作用なしで拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "role_intent_actor", plan: "pro" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "role_intent_actor", plan: "standard" });
       const first = await seedTargetPerson(ctx, {
         base,
         subject: "role_intent_first",
@@ -1273,7 +1152,7 @@ describe("organization person removal", () => {
   it("スタッフ所属がない請求先一致者も管理者権限を外せる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "role_billing_actor", plan: "pro" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "role_billing_actor", plan: "standard" });
       const target = await seedTargetPerson(ctx, {
         base,
         subject: "role_billing_target",
@@ -1302,7 +1181,7 @@ describe("organization person removal", () => {
   it("スタッフ所属がなく将来シフトが残る管理者の権限解除は人物と割当を維持する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "role_future_actor", plan: "pro" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "role_future_actor", plan: "standard" });
       const target = await seedTargetPerson(ctx, {
         base,
         subject: "role_future_target",
@@ -1345,7 +1224,7 @@ describe("organization person removal", () => {
   it("最後の有効管理者の管理権限は外せない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject: "role_last_manager", plan: "pro" });
+      const base = await seedOrganizationManagerShop(ctx, { subject: "role_last_manager", plan: "standard" });
       await ctx.db.patch(base.organizationId, {
         billingEmail: "billing@example.com",
         billingEmailNormalized: "billing@example.com",
@@ -1433,11 +1312,12 @@ describe("organization person removal", () => {
       },
     });
     await expect(
-      actor.mutation(api.organization.mutations.archiveShop, {
+      actor.mutation(api.organization.mutations.deleteShop, {
         shopId: ids.excessShopId,
-        requestId: "free-limit-recovery-archive",
+        confirmShopId: ids.excessShopId,
+        requestId: "free-limit-recovery-delete-shop",
       }),
-    ).resolves.toEqual({ shopId: ids.excessShopId, shopStatus: "archived", changed: true });
+    ).resolves.toEqual({ shopId: ids.excessShopId, changed: true });
     await expect(requireBusinessWrite()).resolves.toMatchObject({ entitlementPlan: "free" });
     await expect(readBillingContract()).resolves.toEqual(ids.billingContract);
 
@@ -1550,8 +1430,8 @@ describe("organization person removal", () => {
   it("別事業者のpersonIdは同じmanager APIから削除できない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const actor = await seedOrganizationManagerShop(ctx, { subject: "idor_actor", plan: "pro" });
-      const other = await seedOrganizationManagerShop(ctx, { subject: "idor_other", plan: "pro" });
+      const actor = await seedOrganizationManagerShop(ctx, { subject: "idor_actor", plan: "standard" });
+      const other = await seedOrganizationManagerShop(ctx, { subject: "idor_other", plan: "standard" });
       return { actorShopId: actor.shopId, otherPersonId: other.personId };
     });
 
@@ -1579,7 +1459,7 @@ describe("organization person profile update", () => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "profile_self_actor",
         email: "profile-self-login@example.com",
-        plan: "pro",
+        plan: "standard",
       });
       const activeStaffId = await ctx.db.insert("staffs", {
         shopId: base.shopId,
@@ -1724,7 +1604,7 @@ describe("organization person profile update", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "profile_multi_shop_actor",
-        plan: "pro",
+        plan: "standard",
       });
       const otherShopId = await seedOrganizationShop(ctx, base.organizationId, "別店舗");
       const targetUserId = await seedUser(ctx, "profile_multi_shop_target", "profile-before@example.com");
@@ -1795,7 +1675,7 @@ describe("organization person profile update", () => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "profile_with_terminal_history_actor",
         email: "profile-with-terminal-history@example.com",
-        plan: "pro",
+        plan: "standard",
       });
       const oldUserId = await seedUser(
         ctx,
@@ -1856,7 +1736,7 @@ describe("organization person profile update", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "profile_duplicate_actor",
-        plan: "pro",
+        plan: "standard",
       });
       const now = Date.now();
       const personId = await ctx.db.insert("organizationPeople", {
@@ -1891,80 +1771,16 @@ describe("organization person profile update", () => {
     ).rejects.toThrow("このメールアドレスは、組織内の別のユーザーが使用しています。");
   });
 
-  it("未正規化の旧スタッフが使うメールアドレスへの変更を拒否する", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, {
-        subject: "profile_legacy_duplicate_actor",
-        plan: "pro",
-      });
-      const now = Date.now();
-      const personId = await ctx.db.insert("organizationPeople", {
-        organizationId: base.organizationId,
-        name: "変更対象",
-        email: "profile-legacy-target@example.com",
-        emailNormalized: "profile-legacy-target@example.com",
-        status: "active",
-        createdAt: now,
-        updatedAt: now,
-      });
-      const staffId = await ctx.db.insert("staffs", {
-        shopId: base.shopId,
-        organizationId: base.organizationId,
-        organizationPersonId: personId,
-        name: "変更対象",
-        email: "profile-legacy-target@example.com",
-        emailNormalized: "profile-legacy-target@example.com",
-        isDeleted: false,
-      });
-      await ctx.db.insert("staffs", {
-        shopId: base.shopId,
-        organizationId: base.organizationId,
-        name: "旧データ",
-        email: "Legacy-Used@Example.com",
-        isDeleted: false,
-      });
-      return { ...base, personId, staffId };
-    });
-
-    await expect(
-      t
-        .withIdentity({ subject: "profile_legacy_duplicate_actor" })
-        .mutation(api.organization.mutations.updatePersonProfile, {
-          shopId: ids.shopId,
-          personId: ids.personId,
-          name: "変更後",
-          email: "legacy-used@example.com",
-          requestId: "person-profile-legacy-duplicate",
-        }),
-    ).rejects.toThrow("このメールアドレスはすでに使用されています。");
-
-    const state = await t.run(async (ctx) => ({
-      person: await ctx.db.get(ids.personId),
-      staff: await ctx.db.get(ids.staffId),
-    }));
-    expect(state.person).toMatchObject({
-      name: "変更対象",
-      email: "profile-legacy-target@example.com",
-      emailNormalized: "profile-legacy-target@example.com",
-    });
-    expect(state.staff).toMatchObject({
-      name: "変更対象",
-      email: "profile-legacy-target@example.com",
-      emailNormalized: "profile-legacy-target@example.com",
-    });
-  });
-
   it("別組織の人物IDとremoved管理者からの更新を拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const actor = await seedOrganizationManagerShop(ctx, {
         subject: "profile_idor_actor",
-        plan: "pro",
+        plan: "standard",
       });
       const other = await seedOrganizationManagerShop(ctx, {
         subject: "profile_idor_other",
-        plan: "pro",
+        plan: "standard",
       });
       return { actor, other };
     });
@@ -2006,7 +1822,7 @@ describe("account deletion organization operations", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "account_departure_actor",
-        plan: "pro",
+        plan: "standard",
       });
       const successor = await seedTargetPerson(ctx, {
         base,

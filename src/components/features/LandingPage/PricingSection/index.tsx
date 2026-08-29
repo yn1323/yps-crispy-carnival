@@ -122,7 +122,7 @@ function ProTrialNotice() {
           <Text as="span">クレジットカード不要</Text>
         </Flex>
         <Text fontSize={{ base: "sm", md: "md" }} fontWeight="semibold" lineHeight="1.7">
-          スタッフ{limits.maxPeople}名・{limits.maxActiveShops}店舗・管理者{limits.maxActiveManagers}名まで
+          スタッフ{limits.maxPeople}名・{limits.maxShops}店舗・管理者{limits.maxActiveManagers}名まで
         </Text>
       </Flex>
     </Stack>
@@ -190,7 +190,7 @@ function PlanCard({
 
       <Stack as="ul" gap={3} listStyle="none" p={0} mt={3}>
         <PlanLimit icon={LuUsers} label={`スタッフ ${limits.maxPeople}名まで`} description="管理者を含む" />
-        <PlanLimit icon={LuStore} label={`店舗数 ${limits.maxActiveShops}店舗まで`} />
+        <PlanLimit icon={LuStore} label={`店舗数 ${limits.maxShops}店舗まで`} />
         <PlanLimit icon={LuUserRoundCog} label={`管理者数 ${limits.maxActiveManagers}名まで`} />
       </Stack>
     </Box>

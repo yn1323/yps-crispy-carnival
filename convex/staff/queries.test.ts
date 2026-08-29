@@ -67,7 +67,7 @@ describe("staff/queries", () => {
         const base = await seedOrganizationManagerShop(ctx, {
           subject: "notification_cooldown_manager",
           email: "notification-cooldown-manager@example.com",
-          plan: "pro",
+          plan: "standard",
         });
         const personId = await insertOrganizationPerson(ctx, {
           organizationId: base.organizationId,
@@ -83,7 +83,6 @@ describe("staff/queries", () => {
         });
         const otherShopId = await ctx.db.insert("shops", {
           organizationId: base.organizationId,
-          operatingStatus: "active",
           name: "別店舗",
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           regularClosedDays: [],
@@ -145,46 +144,6 @@ describe("staff/queries", () => {
       });
     });
 
-    it("legacy staffは現在店舗の3種類だけを返す", async () => {
-      const t = convexTest(schema, modules);
-      const requestedAt = 2_000_000;
-      const ids = await t.run(async (ctx) => {
-        const base = await seedOrganizationManagerShop(ctx, {
-          subject: "legacy_notification_cooldown_manager",
-          email: "legacy-notification-cooldown-manager@example.com",
-        });
-        const staffId = await ctx.db.insert("staffs", {
-          shopId: base.shopId,
-          name: "legacyスタッフ",
-          email: "legacy-notification-target@example.com",
-          isDeleted: false,
-        });
-        return { ...base, staffId };
-      });
-      await t.run(
-        async (ctx) =>
-          await seedNotificationHistory(ctx, {
-            shopId: ids.shopId,
-            staffId: ids.staffId,
-            notificationKind: LINE_INVITE_NOTIFICATION_KIND,
-            requestedAt,
-          }),
-      );
-
-      await expect(
-        t
-          .withIdentity({ subject: "legacy_notification_cooldown_manager" })
-          .query(api.staff.queries.getNotificationResendCooldowns, {
-            shopId: ids.shopId,
-            staffId: ids.staffId,
-          }),
-      ).resolves.toEqual({
-        openRecruitmentsUntil: null,
-        currentShiftUntil: null,
-        lineInviteUntil: requestedAt + NOTIFICATION_RESEND_COOLDOWN_MS,
-      });
-    });
-
     it("未認証・他店舗・削除済みスタッフには履歴を返さない", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
@@ -192,29 +151,41 @@ describe("staff/queries", () => {
           subject: "notification_cooldown_scope_manager",
           email: "notification-cooldown-scope-manager@example.com",
         });
-        const activeStaffId = await ctx.db.insert("staffs", {
+        const activePersonId = await insertOrganizationPerson(ctx, {
+          organizationId: base.organizationId,
+          name: "有効スタッフ",
+          email: "active-cooldown@example.com",
+        });
+        const activeStaffId = await insertCanonicalStaff(ctx, {
+          organizationId: base.organizationId,
+          personId: activePersonId,
           shopId: base.shopId,
           name: "有効スタッフ",
           email: "active-cooldown@example.com",
-          isDeleted: false,
         });
-        const deletedStaffId = await ctx.db.insert("staffs", {
+        const deletedPersonId = await insertOrganizationPerson(ctx, {
+          organizationId: base.organizationId,
+          name: "削除済みスタッフ",
+          email: "deleted-cooldown@example.com",
+        });
+        const deletedStaffId = await insertCanonicalStaff(ctx, {
+          organizationId: base.organizationId,
+          personId: deletedPersonId,
           shopId: base.shopId,
           name: "削除済みスタッフ",
           email: "deleted-cooldown@example.com",
-          isDeleted: true,
         });
-        const otherShopId = await ctx.db.insert("shops", {
-          name: "他店舗",
-          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-          regularClosedDays: [],
-          isDeleted: false,
+        await ctx.db.patch(deletedStaffId, { isDeleted: true });
+        const foreign = await seedOrganizationManagerShop(ctx, {
+          subject: "notification_cooldown_scope_foreign",
+          email: "notification-cooldown-scope-foreign@example.com",
         });
-        const otherStaffId = await ctx.db.insert("staffs", {
-          shopId: otherShopId,
+        const otherStaffId = await insertCanonicalStaff(ctx, {
+          organizationId: foreign.organizationId,
+          personId: foreign.personId,
+          shopId: foreign.shopId,
           name: "他店舗スタッフ",
-          email: "other-cooldown@example.com",
-          isDeleted: false,
+          email: "notification-cooldown-scope-foreign@example.com",
         });
         return { ...base, activeStaffId, deletedStaffId, otherStaffId };
       });
@@ -251,11 +222,10 @@ describe("staff/queries", () => {
           subject: "candidate_manager",
           email: "manager@example.com",
           shopName: "本店",
-          plan: "pro",
+          plan: "standard",
         });
         const otherShopId = await ctx.db.insert("shops", {
           organizationId: base.organizationId,
-          operatingStatus: "active",
           name: "2号店",
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           regularClosedDays: [],
@@ -282,7 +252,6 @@ describe("staff/queries", () => {
         });
         const deletedShopId = await ctx.db.insert("shops", {
           organizationId: base.organizationId,
-          operatingStatus: "active",
           name: "削除済み店舗",
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           regularClosedDays: [],
@@ -382,11 +351,10 @@ describe("staff/queries", () => {
         const base = await seedOrganizationManagerShop(ctx, {
           subject: "candidate_shop_feature_closed_manager",
           email: "candidate-shop-feature-closed-manager@example.com",
-          plan: "business",
+          plan: "pro",
         });
         const otherShopId = await ctx.db.insert("shops", {
           organizationId: base.organizationId,
-          operatingStatus: "active",
           name: "既存所属店舗",
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           regularClosedDays: [],
@@ -441,53 +409,12 @@ describe("staff/queries", () => {
       ]);
     });
 
-    it("対象店舗に人物ID未移行の同一メールスタッフがいる場合も候補から除外する", async () => {
-      const t = convexTest(schema, modules);
-      const seeded = await t.run(async (ctx) => {
-        const base = await seedOrganizationManagerShop(ctx, {
-          subject: "legacy_candidate_manager",
-          plan: "pro",
-        });
-        const now = Date.now();
-        const personId = await ctx.db.insert("organizationPeople", {
-          organizationId: base.organizationId,
-          name: "移行前スタッフ",
-          email: "Legacy@Example.com",
-          emailNormalized: "legacy@example.com",
-          status: "active",
-          createdAt: now,
-          updatedAt: now,
-        });
-        await ctx.db.insert("staffs", {
-          shopId: base.shopId,
-          name: "移行前スタッフ",
-          email: "legacy@example.com",
-          isDeleted: false,
-        });
-        return { ...base, legacyPersonId: personId };
-      });
-
-      const result = await t
-        .withIdentity({ subject: "legacy_candidate_manager" })
-        .query(api.staff.queries.listOrganizationPeopleAvailableForShop, { shopId: seeded.shopId });
-
-      expect(result).toEqual([
-        {
-          personId: seeded.personId,
-          name: "管理者",
-          email: "legacy_candidate_manager@example.com",
-          shopNames: [],
-          isManager: true,
-        },
-      ]);
-    });
-
     it("削除済みの管理者には追加候補を返さない", async () => {
       const t = convexTest(schema, modules);
       const seeded = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
           subject: "removed_candidate_manager",
-          plan: "pro",
+          plan: "standard",
         });
         await ctx.db.patch(base.memberId, { status: "removed" });
         const now = Date.now();
@@ -515,7 +442,7 @@ describe("staff/queries", () => {
       const seeded = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
           subject: "invalid_candidate_manager",
-          plan: "pro",
+          plan: "standard",
         });
         const now = Date.now();
         await ctx.db.insert("organizationPeople", {
@@ -542,7 +469,7 @@ describe("staff/queries", () => {
       const seeded = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
           subject: "many_candidate_manager",
-          plan: "business",
+          plan: "pro",
         });
         const now = Date.now();
         for (let index = 0; index < 100; index += 1) {
@@ -569,18 +496,17 @@ describe("staff/queries", () => {
   });
 
   describe("getOrganizationShopStaffMembershipChange", () => {
-    it("人物・現在所属・他店舗・変更不可の旧rowと承認待ちを安定したDTOで返す", async () => {
+    it("人物・現在所属・他店舗・承認待ちを安定したDTOで返す", async () => {
       const t = convexTest(schema, modules);
       const seeded = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
           subject: "shop_staff_membership_manager",
           email: "manager@example.com",
           shopName: "本店",
-          plan: "business",
+          plan: "pro",
         });
         const otherShopId = await ctx.db.insert("shops", {
           organizationId: base.organizationId,
-          operatingStatus: "active",
           name: "2号店",
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           regularClosedDays: [],
@@ -598,10 +524,10 @@ describe("staff/queries", () => {
           name: "店舗側表示名",
           email: "current@example.com",
         });
-        const legacyPersonId = await insertOrganizationPerson(ctx, {
+        const availablePersonId = await insertOrganizationPerson(ctx, {
           organizationId: base.organizationId,
-          name: "B移行待ち",
-          email: "Legacy@Example.com",
+          name: "B未所属",
+          email: "available@example.com",
         });
         const otherPersonId = await insertOrganizationPerson(ctx, {
           organizationId: base.organizationId,
@@ -640,27 +566,13 @@ describe("staff/queries", () => {
           consentedAt: now,
           createdAt: now,
         });
-        const legacyStaffId = await ctx.db.insert("staffs", {
-          shopId: base.shopId,
-          name: "移行待ちスタッフ",
-          email: "legacy@example.com",
-          isDeleted: false,
-        });
-        const preservedStaffId = await ctx.db.insert("staffs", {
-          shopId: base.shopId,
-          name: "旧スタッフ",
-          email: "orphan@example.com",
-          isDeleted: false,
-        });
         return {
           ...base,
           currentPersonId,
           currentStaffId,
-          legacyPersonId,
+          availablePersonId,
           otherPersonId,
           pendingPersonId,
-          legacyStaffId,
-          preservedStaffId,
         };
       });
 
@@ -698,16 +610,16 @@ describe("staff/queries", () => {
             changeDisabledReason: null,
           },
           {
-            personId: seeded.legacyPersonId,
-            name: "B移行待ち",
-            email: "Legacy@Example.com",
+            personId: seeded.availablePersonId,
+            name: "B未所属",
+            email: "available@example.com",
             isManager: false,
             isActiveManager: false,
             otherShopNames: [],
             isSelected: false,
             staffId: null,
-            canChange: false,
-            changeDisabledReason: "移行中のスタッフと同じメールアドレスのため、所属を変更できません。",
+            canChange: true,
+            changeDisabledReason: null,
           },
           {
             personId: seeded.otherPersonId,
@@ -734,20 +646,6 @@ describe("staff/queries", () => {
             changeDisabledReason: "スタッフ登録の承認待ちのため、所属を変更できません。",
           },
         ],
-        preservedStaffs: [
-          {
-            staffId: seeded.legacyStaffId,
-            name: "移行待ちスタッフ",
-            email: "legacy@example.com",
-            changeDisabledReason: "移行中のスタッフは、この画面では所属を変更できません。",
-          },
-          {
-            staffId: seeded.preservedStaffId,
-            name: "旧スタッフ",
-            email: "orphan@example.com",
-            changeDisabledReason: "移行中のスタッフは、この画面では所属を変更できません。",
-          },
-        ],
       });
     });
 
@@ -756,7 +654,7 @@ describe("staff/queries", () => {
       const seeded = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
           subject: "shop_staff_email_conflict_manager",
-          plan: "business",
+          plan: "pro",
         });
         const ownerPersonId = await insertOrganizationPerson(ctx, {
           organizationId: base.organizationId,
@@ -794,11 +692,11 @@ describe("staff/queries", () => {
       const seeded = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
           subject: "snapshot_scope_manager",
-          plan: "business",
+          plan: "pro",
         });
         const foreign = await seedOrganizationManagerShop(ctx, {
           subject: "snapshot_foreign_manager",
-          plan: "business",
+          plan: "pro",
         });
         return { ...base, foreignShopId: foreign.shopId };
       });
@@ -818,7 +716,7 @@ describe("staff/queries", () => {
       const seeded = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
           subject: "snapshot_removed_manager",
-          plan: "business",
+          plan: "pro",
         });
         await ctx.db.patch(base.memberId, { status: "removed" });
         return base;
@@ -831,16 +729,47 @@ describe("staff/queries", () => {
       expect(result).toBeNull();
     });
 
-    it("片欠け・別組織人物・削除人物・canonical重複では部分snapshotを返さない", async () => {
+    it("両canonical ID未設定staffがある場合は所属snapshotと解除previewを返さない", async () => {
+      const t = convexTest(schema, modules);
+      const seeded = await t.run(async (ctx) => {
+        const base = await seedOrganizationManagerShop(ctx, {
+          subject: "snapshot_missing_canonical_staff_manager",
+          plan: "pro",
+        });
+        await ctx.db.insert("staffs", {
+          shopId: base.shopId,
+          name: "canonical ID未設定staff",
+          email: "missing-canonical@example.com",
+          emailNormalized: "missing-canonical@example.com",
+          isDeleted: false,
+        });
+        return base;
+      });
+      const actor = t.withIdentity({ subject: "snapshot_missing_canonical_staff_manager" });
+
+      await expect(
+        actor.query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: seeded.shopId }),
+      ).resolves.toBeNull();
+      await expect(
+        actor.query(api.staff.queries.previewOrganizationShopStaffMembershipRemovals, {
+          shopId: seeded.shopId,
+          personIds: [seeded.personId],
+          expectedMembershipFingerprint: "a".repeat(64),
+          now: 0,
+        }),
+      ).resolves.toBeNull();
+    });
+
+    it("別組織人物・削除人物・canonical重複では部分snapshotを返さない", async () => {
       const t = convexTest(schema, modules);
       const seeded = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
           subject: "snapshot_corrupt_manager",
-          plan: "business",
+          plan: "pro",
         });
         const foreign = await seedOrganizationManagerShop(ctx, {
           subject: "snapshot_corrupt_foreign",
-          plan: "business",
+          plan: "pro",
         });
         const removedPersonId = await insertOrganizationPerson(ctx, {
           organizationId: base.organizationId,
@@ -858,19 +787,6 @@ describe("staff/queries", () => {
       const actor = t.withIdentity({ subject: "snapshot_corrupt_manager" });
       const query = async () =>
         await actor.query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: seeded.shopId });
-
-      const partialId = await t.run(
-        async (ctx) =>
-          await ctx.db.insert("staffs", {
-            organizationId: seeded.organizationId,
-            shopId: seeded.shopId,
-            name: "片欠け",
-            email: "partial@example.com",
-            isDeleted: false,
-          }),
-      );
-      await expect(query()).resolves.toBeNull();
-      await t.run(async (ctx) => await ctx.db.delete(partialId));
 
       const foreignId = await t.run(
         async (ctx) =>
@@ -927,7 +843,7 @@ describe("staff/queries", () => {
       const seeded = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
           subject: "removal_preview_manager",
-          plan: "business",
+          plan: "pro",
         });
         const firstPersonId = await insertOrganizationPerson(ctx, {
           organizationId: base.organizationId,
@@ -1028,7 +944,7 @@ describe("staff/queries", () => {
       const seeded = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
           subject: "removal_preview_stale_manager",
-          plan: "business",
+          plan: "pro",
         });
         const personId = await insertOrganizationPerson(ctx, {
           organizationId: base.organizationId,
@@ -1076,7 +992,7 @@ describe("staff/queries", () => {
       const seeded = await t.run(async (ctx) => {
         const base = await seedOrganizationManagerShop(ctx, {
           subject: "removal_preview_limit_manager",
-          plan: "business",
+          plan: "pro",
         });
         const personIds: Id<"organizationPeople">[] = [];
         const staffIds: Id<"staffs">[] = [];

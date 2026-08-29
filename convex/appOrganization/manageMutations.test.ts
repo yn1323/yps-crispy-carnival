@@ -72,11 +72,11 @@ describe("app organization manage mutations", () => {
     const ids = await t.run(async (ctx) => {
       const actor = await seedOrganizationManagerShop(ctx, {
         subject: "app_manage_cross_actor",
-        plan: "business",
+        plan: "pro",
       });
       const foreign = await seedOrganizationManagerShop(ctx, {
         subject: "app_manage_cross_foreign",
-        plan: "business",
+        plan: "pro",
       });
       return { actor, foreign };
     });
@@ -148,7 +148,7 @@ describe("app organization manage mutations", () => {
     const ids = await t.run(async (ctx) => {
       const actor = await seedOrganizationManagerShop(ctx, {
         subject: "app_manage_removed_actor",
-        plan: "business",
+        plan: "pro",
       });
       await ctx.db.patch(actor.memberId, { status: "removed", updatedAt: Date.now() });
       return actor;

@@ -21,8 +21,6 @@ export const organizationStripeOperationKindValidator = v.union(
   v.literal("createCustomer"),
   v.literal("trialSetupCheckout"),
   v.literal("createTrialSubscription"),
-  // TODO[narrow]: 旧client配布終了後、全deploymentのoperation rowとscheduler残件が0件になったら削除する。
-  v.literal("immediateProCheckout"),
   v.literal("immediatePaidCheckout"),
   v.literal("previewPaidPlanChange"),
   v.literal("changePaidPlanNow"),

@@ -1,10 +1,10 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { isShopParentActive } from "../_lib/activeShop";
 import { getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { observedInternalMutation as internalMutation, observedMutation as mutation } from "../_lib/errorObservability";
 import { rateLimit } from "../_lib/rateLimits";
+import { isShopAvailable } from "../_lib/shopAvailability";
 import { recruitmentMatchesAccessKind, sessionMatchesAccessKind, staffAccessKindValidator } from "../_lib/staffAccess";
 import { generateUUID } from "../_lib/uuid";
 import { normalizeEmail } from "../_lib/validation";
@@ -13,6 +13,7 @@ import {
   STAFF_SESSION_EXPIRY_RECOVERY_BATCH_SIZE,
   STAFF_SESSION_TTL_MS,
 } from "../constants";
+import { resolveCanonicalStaffScope } from "../line/service";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { isShiftTargetStaff } from "../staff/service";
 import { reissueSchema } from "./schemas";
@@ -91,12 +92,10 @@ export const verifyToken = mutation({
       return expired(magicLink.recruitmentId, "recruitment_deleted");
     }
     // シフト対象外スタッフはマジックリンクからセッションを発行させない。
-    if (
-      !staff ||
-      !isShiftTargetStaff(staff) ||
-      staff.shopId !== magicLink.shopId ||
-      !(await isShopParentActive(ctx, shop))
-    ) {
+    const canonicalScope = staff
+      ? await resolveCanonicalStaffScope(ctx, { staffId: staff._id, shopId: magicLink.shopId })
+      : null;
+    if (!staff || !isShiftTargetStaff(staff) || !canonicalScope || !(await isShopAvailable(ctx, shop))) {
       return expired(magicLink.recruitmentId, "invalid_link");
     }
 
@@ -272,7 +271,7 @@ export const requestReissue = mutation({
       return logSkip("recruitment_not_confirmed", { status: recruitment.status });
     }
     const shop = await ctx.db.get(recruitment.shopId);
-    if (!(await isShopParentActive(ctx, shop))) return logSkip("shop_inactive");
+    if (!(await isShopAvailable(ctx, shop))) return logSkip("shop_or_organization_deleted");
 
     const staffs = await ctx.db
       .query("staffs")
@@ -285,6 +284,11 @@ export const requestReissue = mutation({
     const staff = staffs[0];
     // シフト対象外スタッフには確定シフトの再発行リンクを送らない。
     if (!isShiftTargetStaff(staff)) return logSkip("staff_excluded", { emailDomain });
+    const canonicalScope = await resolveCanonicalStaffScope(ctx, {
+      staffId: staff._id,
+      shopId: recruitment.shopId,
+    });
+    if (!canonicalScope) return logSkip("staff_canonical_identity_missing", { emailDomain });
 
     const staffId = staff._id;
     const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: recruitment.shopId });

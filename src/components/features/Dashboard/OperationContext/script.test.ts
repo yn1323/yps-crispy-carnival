@@ -10,7 +10,6 @@ const shop = (
 ): ShopContextOption => ({
   shopId,
   shopName,
-  shopStatus: "active",
   organizationId,
   organizationName,
   organizationPlan: "standard",

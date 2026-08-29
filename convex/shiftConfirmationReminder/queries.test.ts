@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedCanonicalStaffLineRecipient, seedLegacyShopMembership, seedManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
@@ -50,13 +51,11 @@ describe("shiftConfirmationReminder/queries", () => {
 
         const secondUserId = await seedUser(ctx, "reminder_email", "owner-email@example.com");
         await seedLegacyShopMembership(ctx, { shopId: seeded.shopId, userId: secondUserId });
-        await ctx.db.insert("staffs", {
+        await seedStaff(ctx, {
           shopId: seeded.shopId,
           userId: secondUserId,
           name: "メール通知管理者",
           email: "owner-email@example.com",
-          emailNormalized: "owner-email@example.com",
-          isDeleted: false,
         });
 
         return {

@@ -107,10 +107,10 @@ export async function createOrganizationWithFirstShop(
   const managerEmailNormalized = normalizeEmail(args.managerEmail);
   const billingState =
     args.billingMode === "free"
-      ? ({ kind: "active", planIdVersion: 2, plan: "free" } as const)
+      ? ({ kind: "active", plan: "free" } as const)
       : args.billingMode === "complimentaryPro"
-        ? ({ kind: "complimentary", planIdVersion: 2, plan: "pro" } as const)
-        : ({ kind: "trial", planIdVersion: 2, trialEndsAt: calculateTrialEndsAt(now) } as const);
+        ? ({ kind: "complimentary", plan: "pro" } as const)
+        : ({ kind: "trial", trialEndsAt: calculateTrialEndsAt(now) } as const);
 
   const organizationId = await ctx.db.insert("organizations", {
     createdByUserId: userId,
@@ -142,7 +142,6 @@ export async function createOrganizationWithFirstShop(
 
   const shopId = await ctx.db.insert("shops", {
     organizationId,
-    operatingStatus: "active",
     name: args.shopName,
     regularClosedDays: args.regularClosedDays,
     submissionPattern: normalizeSubmissionPattern(args.submissionPattern),

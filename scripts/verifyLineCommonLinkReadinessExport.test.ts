@@ -149,7 +149,7 @@ describe("verifyLineCommonLinkReadiness", () => {
     const report = verifyLineCommonLinkReadiness(input, NOW);
 
     expect(report).toMatchObject({ ok: false, rolloutPath: "blocked" });
-    expect(report.anomalies.organizationsWithMultipleActiveShops).toBe(1);
+    expect(report.anomalies.organizationsWithMultipleShops).toBe(1);
     expect(report.anomalies.legacyOrganizationLineOwnershipConflict).toBe(1);
     expect(report.anomalies.legacyFriendshipConflict).toBe(1);
     expect(report.counts.oldUnusedTokens).toBe(2);
@@ -166,7 +166,7 @@ describe("verifyLineCommonLinkReadiness", () => {
     const report = verifyLineCommonLinkReadiness(input, NOW);
 
     expect(report).toMatchObject({ ok: false, rolloutPath: "blocked" });
-    expect(report.anomalies.organizationsWithMultipleActiveShops).toBe(1);
+    expect(report.anomalies.organizationsWithMultipleShops).toBe(1);
   });
 
   it("archived店舗のstaff履歴を現在の複数店舗所属へ数えない", () => {
@@ -209,7 +209,7 @@ describe("verifyLineCommonLinkReadiness", () => {
     expect(report.anomalies.activeCanonicalLinkWithoutExactLegacyProjection).toBe(0);
   });
 
-  it("active店舗数とは別にstaff履歴のruntime走査上限を停止条件にする", () => {
+  it("対象店舗数とは別にstaff履歴のruntime走査上限を停止条件にする", () => {
     const input = canonicalFixture();
     for (let index = 0; index < 100; index += 1) {
       const shopId = `archived-shop-${index}`;

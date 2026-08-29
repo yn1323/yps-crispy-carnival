@@ -214,7 +214,7 @@ async function getActiveUserAssociationStatusForScope(
     const shop = await ctx.db.get(staff.shopId);
     if (!shop) return "unknown";
     if (shop.isDeleted || (excludedOrganizationId && shop.organizationId === excludedOrganizationId)) continue;
-    if (staff.organizationId && staff.organizationId !== shop.organizationId) return "unknown";
+    if (staff.organizationId !== shop.organizationId) return "unknown";
     if (!shop.organizationId) return "found";
     const organization = await ctx.db.get(shop.organizationId);
     if (!organization) return "unknown";

@@ -64,7 +64,7 @@ export const InjectedPriceCatalog: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvas.getByLabelText("¥12,345/2週間（税別）")).toBeInTheDocument();
-    await expect(canvas.getByLabelText("¥54,321/2週間（税別）")).toBeInTheDocument();
+    await expect(canvas.getByLabelText("¥12,345(税別) / 2週間")).toBeInTheDocument();
+    await expect(canvas.getByLabelText("¥54,321(税別) / 2週間")).toBeInTheDocument();
   },
 };

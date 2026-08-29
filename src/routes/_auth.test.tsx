@@ -111,7 +111,7 @@ vi.mock("@/src/components/features/AuthenticatedApp", () => ({
       { id: "organization-a", name: "A組織" },
       { id: "organization-b", name: "B組織" },
     ],
-    activeShops: [],
+    shops: [],
   }),
 }));
 

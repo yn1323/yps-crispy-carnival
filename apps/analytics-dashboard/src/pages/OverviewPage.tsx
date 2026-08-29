@@ -47,7 +47,6 @@ export function OverviewPage({ navigate }: { navigate: (href: string) => void })
     from: search.from,
     health: "needsAttention" as const,
     limit: 5,
-    planIdVersion: search.planIdVersion,
     sort: "latestActivityAt" as const,
     to: search.to,
   };

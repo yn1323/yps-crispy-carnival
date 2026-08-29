@@ -3,10 +3,10 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { DatabaseReader, DatabaseWriter } from "../_generated/server";
 import { sha256Hex } from "../_lib/sha256";
 import { ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/planLimits";
-import { organizationShopOperatingStatus } from "./shopMembershipChange";
+import { hasCanonicalStaffIdentity } from "../staff/service";
 
 export const ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT = ORGANIZATION_PLAN_LIMITS.pro.maxPeople;
-export const ORGANIZATION_STAFF_ORDER_ACTIVE_SHOP_LIMIT = 5;
+export const ORGANIZATION_STAFF_ORDER_SHOP_LIMIT = 5;
 const BOUNDED_PEOPLE_READ = ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT + 1;
 const BOUNDED_SHOP_CANDIDATE_READ = ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT + 1;
 const BOUNDED_STATE_READ = 3;
@@ -14,24 +14,20 @@ const BOUNDED_STATE_READ = 3;
 type ReadCtx = { db: DatabaseReader };
 type WriteCtx = { db: DatabaseWriter };
 
-type ActiveShopStaff = {
+type ShopStaff = {
   staff: Doc<"staffs">;
   organizationPersonId: Id<"organizationPeople">;
 };
 
 export type OrganizationStaffOrderSourceSnapshot = {
   people: Doc<"organizationPeople">[];
-  activeShops: Array<{
+  shops: Array<{
     shop: Doc<"shops">;
-    staffs: ActiveShopStaff[];
+    staffs: ShopStaff[];
   }>;
 };
 
-export type OrganizationStaffOrderAvailability =
-  | "ready"
-  | "tooManyPeople"
-  | "tooManyActiveShops"
-  | "legacyDataIncomplete";
+export type OrganizationStaffOrderAvailability = "ready" | "tooManyPeople" | "tooManyShops" | "legacyDataIncomplete";
 
 type SourceSnapshotResult =
   | { availability: "ready"; snapshot: OrganizationStaffOrderSourceSnapshot }
@@ -87,33 +83,14 @@ function hasUniqueValues(values: readonly string[]) {
   return new Set(values).size === values.length;
 }
 
-async function listActiveShops(ctx: ReadCtx, organizationId: Id<"organizations">) {
-  // operatingStatus欠損は既存の移行互換規約どおりactiveとして扱う。
-  // isDeletedはindexに含まれないため、statusごとのcandidate自体を固定上限で読む。
-  // 全candidateを読めない場合は、稼働中の一部shopだけをsourceにせずfail closedする。
-  const [activeCandidates, legacyActiveCandidates] = await Promise.all([
-    ctx.db
-      .query("shops")
-      .withIndex("by_organizationId_and_operatingStatus", (q) =>
-        q.eq("organizationId", organizationId).eq("operatingStatus", "active"),
-      )
-      .take(BOUNDED_SHOP_CANDIDATE_READ),
-    ctx.db
-      .query("shops")
-      .withIndex("by_organizationId_and_operatingStatus", (q) =>
-        q.eq("organizationId", organizationId).eq("operatingStatus", undefined),
-      )
-      .take(BOUNDED_SHOP_CANDIDATE_READ),
-  ]);
-  if (
-    activeCandidates.length >= BOUNDED_SHOP_CANDIDATE_READ ||
-    legacyActiveCandidates.length >= BOUNDED_SHOP_CANDIDATE_READ
-  ) {
-    return null;
-  }
-  return [...activeCandidates, ...legacyActiveCandidates]
-    .filter((shop) => !shop.isDeleted && organizationShopOperatingStatus(shop.operatingStatus) === "active")
-    .sort((left, right) => left._id.localeCompare(right._id));
+async function listShops(ctx: ReadCtx, organizationId: Id<"organizations">) {
+  const shops = await ctx.db
+    .query("shops")
+    .withIndex("by_organizationId_and_isDeleted", (q) => q.eq("organizationId", organizationId).eq("isDeleted", false))
+    .take(BOUNDED_SHOP_CANDIDATE_READ);
+  // 一部店舗だけを並び順sourceにしないため、上限超過時はfail closedする。
+  if (shops.length >= BOUNDED_SHOP_CANDIDATE_READ) return null;
+  return shops.sort((left, right) => left._id.localeCompare(right._id));
 }
 
 /** 並び順を有効化できるcanonical sourceを、契約上限+1件で検査する。 */
@@ -130,17 +107,17 @@ export async function getOrganizationStaffOrderSourceSnapshot(
     return { availability: "tooManyPeople", people: sortedPeople };
   }
 
-  const activeShops = await listActiveShops(ctx, organizationId);
-  if (!activeShops) {
+  const shops = await listShops(ctx, organizationId);
+  if (!shops) {
     return { availability: "legacyDataIncomplete", people: sortedPeople };
   }
-  if (activeShops.length > ORGANIZATION_STAFF_ORDER_ACTIVE_SHOP_LIMIT) {
-    return { availability: "tooManyActiveShops", people: sortedPeople };
+  if (shops.length > ORGANIZATION_STAFF_ORDER_SHOP_LIMIT) {
+    return { availability: "tooManyShops", people: sortedPeople };
   }
 
   const peopleById = new Map(people.map((person) => [person._id, person]));
-  const shopsWithStaffs: OrganizationStaffOrderSourceSnapshot["activeShops"] = [];
-  for (const shop of activeShops) {
+  const shopsWithStaffs: OrganizationStaffOrderSourceSnapshot["shops"] = [];
+  for (const shop of shops) {
     const staffs = await ctx.db
       .query("staffs")
       .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
@@ -148,16 +125,14 @@ export async function getOrganizationStaffOrderSourceSnapshot(
     if (staffs.length > ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT) {
       return { availability: "legacyDataIncomplete", people: sortedPeople };
     }
-    const canonicalStaffs: ActiveShopStaff[] = [];
+    const canonicalStaffs: ShopStaff[] = [];
     const seenPersonIds = new Set<Id<"organizationPeople">>();
     for (const staff of staffs) {
+      if (!hasCanonicalStaffIdentity(staff)) {
+        return { availability: "legacyDataIncomplete", people: sortedPeople };
+      }
       const personId = staff.organizationPersonId;
-      if (
-        staff.organizationId !== organizationId ||
-        !personId ||
-        !peopleById.has(personId) ||
-        seenPersonIds.has(personId)
-      ) {
+      if (staff.organizationId !== organizationId || !peopleById.has(personId) || seenPersonIds.has(personId)) {
         return { availability: "legacyDataIncomplete", people: sortedPeople };
       }
       seenPersonIds.add(personId);
@@ -168,7 +143,7 @@ export async function getOrganizationStaffOrderSourceSnapshot(
 
   return {
     availability: "ready",
-    snapshot: { people: sortedPeople, activeShops: shopsWithStaffs },
+    snapshot: { people: sortedPeople, shops: shopsWithStaffs },
   };
 }
 
@@ -208,7 +183,7 @@ async function readOrganizationOrderResolution(
   );
   const shopEntries = new Map<Id<"shops">, Doc<"shopStaffOrderEntries">[]>();
   let allShopEntriesValid = true;
-  for (const { shop, staffs } of source.activeShops) {
+  for (const { shop, staffs } of source.shops) {
     const entries = await ctx.db
       .query("shopStaffOrderEntries")
       .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", shop._id))
@@ -264,7 +239,8 @@ async function createOrderFingerprint(args: {
       stateRevision: args.stateRevision,
       orderedPersonIds: args.orderedPersonIds,
       activePeople: args.source.people.map((person) => person._id).sort(),
-      activeShops: args.source.activeShops
+      // v1 fingerprintのrolling互換を維持するため、serialized keyはPR2まで旧名を保持する。
+      activeShops: args.source.shops
         .map(({ shop, staffs }) => ({
           shopId: shop._id,
           staffs: staffs
@@ -351,12 +327,7 @@ export async function getOrganizationStaffOrderScope(
   if (!args.shopId) return { mode: "ordered", revision: state.revision };
 
   const shop = await ctx.db.get(args.shopId);
-  if (
-    !shop ||
-    shop.isDeleted ||
-    shop.organizationId !== args.organizationId ||
-    organizationShopOperatingStatus(shop.operatingStatus) !== "active"
-  ) {
+  if (!shop || shop.isDeleted || shop.organizationId !== args.organizationId) {
     return { mode: "legacy" };
   }
   const [staffs, shopEntries] = await Promise.all([
@@ -378,8 +349,8 @@ export async function getOrganizationStaffOrderScope(
   const activePersonIds = new Set(personIds);
   const canonicalStaffs = staffs.every(
     (staff) =>
+      hasCanonicalStaffIdentity(staff) &&
       staff.organizationId === args.organizationId &&
-      staff.organizationPersonId !== undefined &&
       activePersonIds.has(staff.organizationPersonId),
   );
   const staffIds = staffs.map((staff) => staff._id);
@@ -432,7 +403,7 @@ async function writeOrderRows(
       displayOrder,
     });
   }
-  for (const { shop, staffs } of args.source.activeShops) {
+  for (const { shop, staffs } of args.source.shops) {
     const orderedStaffs = [...staffs].sort(
       (left, right) =>
         (displayOrderByPersonId.get(left.organizationPersonId) ?? Number.MAX_SAFE_INTEGER) -

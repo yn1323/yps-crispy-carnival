@@ -5,6 +5,7 @@ import {
   createMigrationHistoryTestWithMigrations,
   runMigrationToCompletion,
 } from "../_test/migrations.test-helper";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop } from "../_test/seed";
 import {
   NOTIFICATION_FAILURE_INBOX_RETENTION_MS,
@@ -61,7 +62,7 @@ describe("notification terminal redaction migrations", () => {
         email: "manager@example.com",
         shopName: "通知redaction移行店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "通知redactionスタッフ",
         email: "secret-recipient@example.com",

@@ -20,7 +20,7 @@ function AppActionsRoute() {
   return (
     <AppActionsRoutePage
       organizationId={organization.organizationId}
-      activeShops={organization.activeShops}
+      shops={organization.shops}
       requestedShopFilter={shopFilter}
     />
   );

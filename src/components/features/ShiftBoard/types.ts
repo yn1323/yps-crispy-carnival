@@ -5,12 +5,7 @@ import type { TimeRange } from "@/src/domains/shift/types";
 export type ShiftBoardData = {
   shopId: Id<"shops">;
   canWriteBusinessData: boolean;
-  businessWriteBlockReason:
-    | "shopArchived"
-    | "paymentResultPending"
-    | "usageLimitExceeded"
-    | "usageLimitEvaluationUnavailable"
-    | null;
+  businessWriteBlockReason: "paymentResultPending" | "usageLimitExceeded" | "usageLimitEvaluationUnavailable" | null;
   recruitment: {
     _id: Id<"recruitments">;
     periodStart: string;

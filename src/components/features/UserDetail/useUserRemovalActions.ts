@@ -21,10 +21,7 @@ export function useUserRemovalActions({
   const [dialog, setDialog] = useState<UserDetailDialog>(null);
   const removePerson = useMutation(api.organization.mutations.removePersonFromOrganization);
   const operationShopId =
-    data.shops.find((shop) => shop.shopId === selectedShopId)?.shopId ??
-    data.shops.find((shop) => shop.shopStatus === "active")?.shopId ??
-    data.shops[0]?.shopId ??
-    null;
+    data.shops.find((shop) => shop.shopId === selectedShopId)?.shopId ?? data.shops[0]?.shopId ?? null;
 
   useEffect(() => {
     setDialog((current) => {

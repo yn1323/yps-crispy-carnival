@@ -180,7 +180,12 @@ export function createScenario(t: ScenarioTest) {
         },
         async inviteStaffAsManager(staffId: Id<"staffs">) {
           const staff = await t.run((ctx) => ctx.db.get(staffId));
-          if (!staff || staff.shopId !== (await getSelectedShopId()) || !staff.organizationPersonId) {
+          if (
+            !staff?.organizationId ||
+            !staff.organizationPersonId ||
+            staff.shopId !== (await getSelectedShopId()) ||
+            staff.organizationId !== (await getSelectedOrganizationId())
+          ) {
             throw new Error("Scenario manager invitation target is not canonical");
           }
           return asManager.mutation(api.organizationInvitation.mutations.issueForOrganization, {
@@ -223,7 +228,33 @@ export function createScenario(t: ScenarioTest) {
           });
         },
         async editStaff(args: { staffId: Id<"staffs">; name: string; email: string }) {
-          return asManager.mutation(api.staff.mutations.editStaff, { ...args, shopId: await getSelectedShopId() });
+          const shopId = await getSelectedShopId();
+          const expectedOrganizationId = await getSelectedOrganizationId();
+          const personId = await t.run(async (ctx) => {
+            const staff = await ctx.db.get(args.staffId);
+            if (
+              !staff ||
+              staff.isDeleted ||
+              !staff.organizationPersonId ||
+              staff.shopId !== shopId ||
+              staff.organizationId !== expectedOrganizationId
+            ) {
+              throw new Error("Scenario staff profile target is not canonical");
+            }
+            const person = await ctx.db.get(staff.organizationPersonId);
+            if (!person || person.organizationId !== expectedOrganizationId || person.status !== "active") {
+              throw new Error("Scenario staff profile target is not canonical");
+            }
+            return person._id;
+          });
+          return asManager.mutation(api.organization.mutations.updatePersonProfile, {
+            shopId,
+            expectedOrganizationId,
+            personId,
+            name: args.name,
+            email: args.email,
+            requestId: generateUUID(),
+          });
         },
         async sendOpenRecruitmentNotifications(staffId: Id<"staffs">) {
           return asManager.mutation(api.staff.mutations.sendOpenRecruitmentNotifications, {
