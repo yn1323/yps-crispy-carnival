@@ -2,7 +2,7 @@
 
 > 文書種別: 実環境状態
 >
-> 最終更新: 2026-08-27
+> 最終更新: 2026-08-29
 >
 > 実環境確認: 未確認
 
@@ -22,6 +22,8 @@ RepositoryまたはDevelopmentの確認を明記した行を含め、Production�
 | Productionのフロントエンドartifactとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | ProductionのConvex deployとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | Productionのmigration seriesと各migrationの完了 | 未確認 | 未確認 | 未確認 | 未登録 |
+| 店舗status廃止のdeploy前export検証、m048 / m049完了、全ページpost-readiness、旧client drain | **Development PR1例外承認・runtime未反映・Production未確認** | 2026-08-29 10:15 JST | `dev:fortunate-mallard-809` | 削除済み`archived` 1件を変更せずPR1 runtime切替を進めるDevelopment限定の例外承認を得た。公開Function metadataは旧runtimeの140件で、`archiveShop` / `reactivateShop`が残る。m048、PR2、Productionとほかのdeploymentは未確認 |
+| `staffs.organizationId` / `organizationPersonId` required Narrowと旧staff fallback削除 | **Development deploy停止・Production未確認** | 2026-08-29 10:23 JST | `dev:fortunate-mallard-809` | `verifyStaffs`全5ページ・497件で両ID欠損が各355件。欠損staffは未削除54店舗に分布し、未解消migration conflictも356件あるため、共有artifactの反映を停止した |
 | `/dashboard`新shell反映前に`resolveOrganizationReadActor`と同じ一意性・active状態・相互リンク一致を満たす管理者所属と、legacyな`shopMembers`だけで利用できる管理者が0件であること | 未確認 | 未確認 | 未確認 | 未登録 |
 | m022による既存組織の`complimentary.business`化と、対象集合・実行後exportの検証 | 未確認 | 未確認 | 未確認 | 未登録 |
 | LINE共通化のProduction export判定、m041の実行要否と完了、全ページreadiness | 未確認 | 未確認 | 未確認 | 未登録 |
@@ -32,13 +34,14 @@ RepositoryまたはDevelopmentの確認を明記した行を含め、Production�
 | 有効なプロモーションコードの事前照合と初回Setupが、期限なしの`complimentary.pro`を作り、Trial期限処理、Stripe Customer、Subscription、課金operationを作らないこと | **Repository一部実装・Production未確認** | 2026-08-26 | Repository | `verifyPromotionCode`は作成副作用なしで照合し、最終Setupで再照合する。直接呼出しに対するserver-side rate limitは未実装。`ENV-SETUP-02`の実環境canary、設定値、artifact反映は未確認 |
 | 2か月Pro相当・カード登録不要の公開文言と、初回Setupが2か月のTrialを作るbackend・利用規約契約の一致 | **Repository整合・Production未確認** | 2026-08-27 | Repository | 新規SetupのTrial期限計算を2か月へ更新。保存shapeと保存済みの期限を変更しないためmigrationとbackfillは追加しない。Function / Scenario契約、管理ユーザー向け利用規約本文、文書版、同意要求版を更新。対象deploymentへの反映と実環境canaryは未確認 |
 | StripeのStandard・Pro販売設定、Price、明示された税区分、Webhook、公開サイトBuild用にGitHub Environmentへ設定した`STRIPE_SECRET_KEY`、`STRIPE_STANDARD_PRICE_ID`、`STRIPE_PRO_PRICE_ID` | 未確認 | 未確認 | 未確認 | StandardとProは既存Priceの値を2キーへ移し、欠損、不正、重複時はfail closedにする。実値と切替完了は未確認 |
-| plan ID Widen revisionのConvex / frontend反映と、Standard / Proの2キー契約、設定不備時に新規Checkout・料金取得・plan変更が副作用前に停止すること | 未確認 | 未確認 | 未確認 | 未登録 |
-| m042によるmarkerなしbilling stateのv2変換と、billing row・scheduled job・課金通知の全ページreadiness | 未確認 | 未確認 | 未確認 | m042はmarkerなしの全課金状態を意味を維持してcanonical化する。Stripe rowの存在と同一組織の履歴行は停止条件にせず、dangling・scope固有の一意キー重複を停止し、plan snapshotはm045 / m046で変換する。pre / migration status / postの実環境証跡は未登録 |
-| m043のAnalytics source event canonical化と`ANALYTICS_CALCULATION_VERSION=2` reset、materialized table・reset generationの全ページreadiness | 未確認 | 未確認 | 未確認 | migration status、reset generation、post readinessは未登録 |
-| m044のDashboard announcement canonical化、m045 / m046のStripe plan snapshot canonical化 | 未確認 | 未確認 | 未確認 | Subscription / operationのpre、migration status、post readinessは未登録 |
-| m047の旧`shopBillingStates`物理cleanupと、markerなしplan IDのNarrow readiness | 未確認 | 未確認 | 未確認 | m028とcanonical対応を確認できないrowは削除しない。m047 status、旧店舗課金row 0、課金互換readiness blocking 0の実環境証跡は未登録 |
+| 支払い猶予なしのFree移行、支払い失敗理由の画面表示、Stripe顧客向け支払い失敗メール | **Repository実装・実環境未確認** | 2026-08-29 | Repository | 14日猶予を削除し、対象3請求の検証済み未払いでは終了処理中からFree権限を適用する。Subscription終了、Invoice自動回収停止、`active.free`確定、支払い失敗理由の保持、Dashboardとプラン画面のAlertをFunction・Scenario・UIテストで確認。Stripe Dashboardの顧客メール設定、Customer.email同期、Sandbox canary、Production実到着は未確認 |
+| plan ID Widen revisionのConvex / frontend反映と、Standard / Proの2キー契約 | **取下げ・実行不要** | 2026-08-29 | 要件判断 | プラン機能は未公開のため、旧プランIDとのrolling互換を行わない。設定不備時に副作用前停止する契約はcanonical実装へ残す |
+| m042によるmarkerなしbilling stateのv2変換とreadiness | **取下げ・実行不要** | 2026-08-29 | 要件判断 | 保存済み課金データのmigrationとbackfillを行わない。m042を対象deploymentで実行しない |
+| m043のAnalytics source event canonical化と`ANALYTICS_CALCULATION_VERSION=2` reset | **取下げ・実行不要** | 2026-08-29 | 要件判断 | 未公開プランID切替のためのmigrationとresetを対象deploymentで実行しない |
+| m044のDashboard announcement canonical化、m045 / m046のStripe plan snapshot canonical化 | **取下げ・実行不要** | 2026-08-29 | 要件判断 | 未公開プランID切替のためのmigrationを対象deploymentで実行しない |
+| m047の旧`shopBillingStates`物理cleanupと、markerなしplan IDのNarrow readiness | **取下げ・実行不要** | 2026-08-29 | 要件判断 | 未公開プランID切替のためのcleanupとreadinessを対象deploymentで実行しない |
 | 旧契約制限状態、閲覧専用の管理者所属、復旧専用API・権限・通知・画面を削除したartifactのProduction反映 | **Repository実装・Production未確認** | 2026-08-27 | Repository | 現行artifactは有効な管理者所属と、実利用数から導出する上限整理だけを使う。Productionの保存データ、Convex deploy、画面反映は未確認 |
-| m042〜m047の全post readinessとcanonical requestのprovider canary | 未確認 | 未確認 | 未確認 | 手順順はm042 → m043 → Analytics reset → m044 → m045 → m046 → m047 → 課金互換readiness → 全post readiness → provider canary。実環境証跡は未登録 |
+| m042〜m047の全post readiness | **取下げ・実行不要** | 2026-08-29 | 要件判断 | migrationと互換readinessは実行しない。canonical requestのprovider canaryは、変更後artifactの独立した公開確認として扱う |
 | `/commercial-transactions`の事業者名、運営責任者、所在地、電話番号 | **要対応（Production設定・公開未確認）** | 2026-08-23 | Repository | release buildはProduction GitHub Environment Variablesから3項目を取得し、欠落時に失敗する。実値とProduction表示は未確認 |
 | Resendの`email.delivered` Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Clerk、Cloudflare、Stripeのセキュリティ設定とprovider canary | 未確認 | 未確認 | 未確認 | 未登録 |
@@ -98,6 +101,46 @@ artifactのProduction反映と反映後canaryも別の証跡とし、ローカ�
 - 停止位置・復旧先:
 - 次の確認条件:
 ```
+
+### 2026-08-29 05:57 JST：店舗ライフサイクルdeploy前export（Development）
+
+- 状態: Development PR1例外承認・runtime未反映・Production未確認
+- 確認者: Codex（読み取り専用）
+- 環境: Development
+- 完全修飾deployment名: `dev:fortunate-mallard-809`
+- commit SHA: deploymentへ反映済みのSHAは未確認。local checkoutは`2e4041941548de2fcf347b03b990ca7a42760ede`をbaseとする未コミットworktree
+- artifact: runtime artifactは未反映。Convex snapshot timestampは`1787950593768228579`
+- 公開Function確認: 2026-08-29 10:15 JSTにFunction metadataを読み取り、Developmentは公開140件、旧`organization/mutations`の`archiveShop`と`reactivateShop`を公開中と確認した。local checkoutの静的棚卸しは133件である
+- 実行または確認内容: file storageを含まないsnapshot exportを`verifyShopLifecycleReadinessExport`で全件検証し、追加のread-only集計で該当rowの削除状態と親組織の削除状態を確認
+- CLIが表示した対象: `fortunate-mallard-809`
+- 結果: 134店舗中`operatingStatus`保持134件、`archived` 1件、未知status 0件。旧archive/reactivate audit action、旧analytics change、全shop status deltaは0件。`archived`の1件は`isDeleted: true`で、親組織も`isDeleted: true`
+- 要件判断: 2026-08-29 10:11 JSTに、保存済み`archived` 1件を変更せず、DevelopmentのPR1 runtime切替を進める例外承認を得た。この承認は`dev:fortunate-mallard-809`の削除済み店舗1件だけを対象とし、汎用readiness、m048、PR2、ほかのdeploymentの条件を緩和しない
+- 証跡: Convex Dashboardのsnapshotと、download済みZIPのSHA-256 `98f5df1779de4e6cffd1ba4e67ae3826d29dd7421f30676848a5996c9bcbdf75`。PIIとrow IDは本文へ記録していない
+- 停止位置・復旧先: DevelopmentのPR1 runtime gateだけを解除する。m048のdry run・本実行とPR2 Narrowは、保存済み`archived`が残るため停止を維持する。`archived`を`active`または`isDeleted`へ自動変換しない
+- 次の確認条件: m048またはPR2の前に、保存済み`archived` 1件を別途判断し、snapshot exportで`archivedOperatingStatus: 0`を確認する。対象となるほかのDevelopment、Preview、Production deploymentも同じpreflightで確認する
+
+### 2026-08-29 10:23 JST：staff canonical ID Narrow deploy前確認（Development）
+
+- 状態: Development deploy停止・Production未確認
+- 確認者: Codex（読み取り専用）
+- 環境: Development
+- 完全修飾deployment名: `dev:fortunate-mallard-809`
+- commit SHA: deploymentへ反映済みのSHAは未確認。local checkoutは`2e4041941548de2fcf347b03b990ca7a42760ede`をbaseとする未コミットworktree
+- artifact: 共有artifactは未反映。Convex snapshot timestampは`1787966523604968268`
+- 実行または確認内容: `verifyStaffs`を100件単位で5ページ、`verifyOrganizationMigrationConflicts`を100件単位で4ページ全件走査した。file storageを含まないsnapshotで欠損staffを店舗別に集計した
+- CLIが表示した対象: `fortunate-mallard-809`
+- 結果: staff 497件中、`missingOrganizationId`と`missingOrganizationPersonId`は各355件、その他のstaff anomalyは0件。欠損staffは54店舗に分布し、対象店舗はすべて`isDeleted: false`。migration conflict 356件はすべて未解消である
+- 追加診断: m011とm027は各469件を処理して`isDone: true`、`state: "success"`。m027後に作成された28 staffはcanonical ID欠損0件であり、欠損355件はすべてm027以前に作成されている。欠損staffごとに未解消のstaff conflict `email_name_mismatch`が1件あり、sourceも355件すべて異なる。migration未実行や現行writerの再流入ではなく、同一組織内のメール一致・氏名不一致を推測統合しなかった集合として扱う
+- 証跡: 本節の件数集計とConvex Dashboardのsnapshot。店舗名、staff ID、氏名、メールアドレスは文書へ記録せず、download済みZIPは集計後に削除した
+- 停止位置・復旧先: shared checkoutの`staffs.organizationId` / `organizationPersonId` required schemaをDevelopmentへ反映しない。旧migrationを推測実行せず、Widen、既存データ移行、Narrowの順序を再判断する
+- 次の確認条件: 両ID欠損、関連する未解消staff migration conflict、dangling / mismatchを全ページ合計0件にしてから、同じartifactで再確認する
+
+### 2026-08-29：staff・人物件数の参考確認（Production）
+
+- 状態: ユーザーによるDashboard件数確認のみ。Production export、全ページreadiness、artifact一致は未確認
+- 環境: Production
+- 結果: `organizationPeople` 779件、`staffs` 791件とユーザーが確認した。12件差は人物と店舗staffが1対1ではないデータモデルだけから異常とは判定せず、Widen artifactの準備やm050 dry runへ進む停止条件にはしない
+- 停止位置・復旧先: required Narrowの条件は緩和しない。`verifyStaffs`全anomaly 0、未解消staff conflict 0、tenant・user・lifecycle整合、人物数・利用人数の意図しない変化なしを、ProductionでPIIを出さずに別途確認する。件数差から同一人物を推測統合しない
 
 ### 2026-08-04 09:18 JST：シフト連絡先projection（Development）
 

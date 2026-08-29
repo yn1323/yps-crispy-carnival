@@ -40,15 +40,11 @@ statusが`success`でも、その後に旧writerが旧形式を作ればreadines
 | m039 | `shops` | 欠損した`regularClosedDays`を、現行fallbackと同じ空配列へ補完 |
 | m040 | `recruitments` | 欠損した`shopClosedDates`を、現行fallbackと同じ空配列へ補完 |
 | m041 | `staffLineAccounts` | LINE共通化の事前検証を満たすactive旧連携だけを、provider userとorganization person linkへ変換 |
-| m042 | `organizationBillingStates` | markerなしの全課金状態を、保存済みplan IDの意味を維持してv2へ変換 |
-| m043 | Analytics source / materialized data | 旧plan IDをcanonical化し、calculation version 2のresetへ接続 |
-| m044 | Dashboard announcement | 旧plan IDを含む対象指定をcanonical化 |
-| m045 | Stripe Subscription snapshot | 旧`pro` / `business` plan IDをv2の`standard` / `pro`へ変換 |
-| m046 | Stripe operation snapshot | 旧source / target plan IDをv2へ変換 |
-| m047 | `shopBillingStates` | canonicalな組織課金状態との対応を一意に確認できた旧店舗課金rowを物理削除 |
-| 最終readiness | `organizationBillingStates` | markerなしplan IDが0件であることを全ページ確認 |
+| m048 | `shops` | 旧`operatingStatus: "active"`だけをunset。`archived`または未知値は推測変換せず停止 |
+| m049 | `notificationOutbox` | 店舗削除による旧`shop_inactive`取消理由を`shop_deleted`へ置換 |
+| m050 | `staffs` | 両canonical ID欠損rowを、同一組織の一意な既存active人物へ厳格に照合してlink |
 
-m023からm028とm030からm040は固定seriesの末尾へ追加します。  m029とm041は固定seriesと包括runnerへ含めません。  m042からm047も課金プラン未公開の対象deploymentで専用runnerを順番に明示実行し、その後に最終readinessを確認します。m029は後述する権限移行gateを満たしたdeploymentで、m041はLINE共通化のexportと全ページreadinessを満たして変換対象があるdeploymentで、それぞれ専用runnerを明示実行します。
+m023からm028、m030からm040、m049は固定seriesの末尾へ追加します。  m029、m041、m048、m050は固定seriesと包括runnerへ含めません。  m029は後述する権限移行gate、m041はLINE共通化のexportと全ページreadiness、m048は店舗ライフサイクルのdeploy前export検証、m050はstaff canonical linkのdry runと未解消conflict確認を満たしたdeploymentで、それぞれ専用runnerを明示実行します。
 
 過去のmigrationをresetして完了扱いを書き換える運用は行いません。
 
@@ -62,7 +58,7 @@ pnpm exec convex run --component migrations lib:getStatus \
   --deployment <fully-qualified-deployment>
 ```
 
-固定seriesに含むm023からm028とm030からm040が、すべて`isDone: true`かつ`state: "success"`であることを確認します。  m029またはm041を実行したdeploymentでは、専用runnerのstatusも別に記録します。
+固定seriesに含むm023からm028、m030からm040、m049が、すべて`isDone: true`かつ`state: "success"`であることを確認します。  m029、m041、m048、m050を実行したdeploymentでは、専用runnerのstatusも別に記録します。
 
 失敗または未完了が一件でもあれば、schema、validator、fallbackをNarrowしません。  m029が未実行であること自体を固定seriesの失敗とは扱いませんが、旧`shopMembers` authorityを削除するNarrowは進めません。
 
@@ -87,8 +83,6 @@ pnpm exec convex run narrowReadiness/queries:verifyShops \
 - `verifyStaffs`
 - `verifyOrganizations`
 - `verifyNotificationOutbox`
-- `verifyStripeSubscriptions`
-- `verifyStripeOperations`
 - `verifyOrganizationBillingStates`
 - `verifyNotificationFanoutOperations`
 - `verifyRecruitments`
@@ -100,6 +94,8 @@ pnpm exec convex run narrowReadiness/queries:verifyShops \
 - `verifyLegacyShopMembers`
 - `verifyLegacyShopBillingStates`
 - `verifyOrganizationMigrationConflicts`
+- `verifyOrganizationAuditShopLifecycle`
+- `verifyAnalyticsShopLifecycle`
 
 LINE共通化では、上の既存queryとは別に次も全ページ走査します。
 
@@ -111,9 +107,65 @@ LINE共通化では、上の既存queryとは別に次も全ページ走査し�
 - `verifyLineCommonScheduledCallers`
 
 全ページの`anomalies`、`activeRows`、`totalRows`、`unresolvedRows`を項目別に合計します。
+staff canonical IDのNarrowでは`unresolvedStaffRows`も全ページ合計し、0件を確認します。
 Outbox scopeのNarrowでは`unresolvedNotificationOutboxScopeRows`も全ページ合計し、0件を確認します。
+店舗削除理由のNarrowでは`verifyNotificationOutbox.legacyShopInactiveCancelReason`も全ページ合計し、m049後に0件であることを確認します。
 合計が0でない項目は、次のNarrow deployを止める理由と修復方法を記録します。
 `verifyPositionShops.observations.shopsWithoutActivePositions`は、positionが不要な店舗もあり得るため観測値です。  `anomalies`とは分けて記録し、この値だけではNarrowを止めません。
+
+店舗ライフサイクルのNarrowでは、`verifyShops.observations.operatingStatusPresent`も全ページ合計します。  m048実行前に`archivedOperatingStatus`または`unknownOperatingStatus`が1件でもあればmigrationを実行せず、対象deploymentと件数を記録して個別判断へ分けます。  m048成功後は`operatingStatusPresent`と、旧監査action・旧analytics change・`active`を含む全shop status deltaを数える二つのlifecycle readinessがすべて0件であることを確認してから、schema field、index、validator、互換DTOを削除します。
+
+### 店舗ライフサイクルruntime切替前のexport検証
+
+店舗statusを参照しないruntimeを先に反映すると、残存`archived`または未知値を非削除店舗として扱うため、m048の失敗だけでは安全に停止できません。  対象deploymentを完全修飾名で棚卸しし、runtime artifactの反映前に各deploymentのsnapshot exportを取得して、次を実行します。
+
+```bash
+pnpm convex:verify-shop-lifecycle-readiness -- --path <export.zip>
+```
+
+`phase: "pre_runtime"`、`ready: true`、`archivedOperatingStatus: 0`、`unknownOperatingStatus: 0`、旧archive/reactivate audit action、旧analytics change、全shop status deltaが0件であることをdeploymentごとに記録します。  `operatingStatusPresent`はm048でunsetする`active`を含む観測値なので、単独ではruntime切替を止めません。  `archivedDeletedShops`、`archivedNonDeletedShops`、`archivedShopsWithUnknownDeletionState`は停止対象の削除状態を個人情報なしで分類する観測値であり、削除済みであっても`archivedOperatingStatus`の停止条件は緩和しません。  一件でも異常があればartifactを反映せず、値を`active`または`isDeleted`へ推測変換しません。
+
+事前検証が揃った後にruntime artifactを反映し、m048は専用runnerで最初にdry runし、同じ対象deploymentへ明示実行します。  次は実行例であり、この文書だけを根拠にProduction操作は行いません。
+
+```bash
+pnpm exec convex run migrations/index:runShopsOperatingStatusRemoval \
+  '{"dryRun":true}' \
+  --deployment <fully-qualified-deployment>
+
+pnpm exec convex run migrations/index:runShopsOperatingStatusRemoval \
+  '{}' \
+  --deployment <fully-qualified-deployment>
+```
+
+実行後はmigration statusと三つの店舗ライフサイクルreadinessを全ページ再確認し、`operatingStatusPresent`を含む全項目0件を記録します。  export CLIの`ready`はruntime切替前専用の判定なので、m048後のNarrow可否を`ready`だけから判断しません。
+
+### staff canonical linkのWidenとm050
+
+`staffs.organizationId`と`staffs.organizationPersonId`の両方が欠損するrowは、削除状態や「移行中スタッフ」という利用者向けroleではありません。  Widen期間も「アーカイブ済みユーザー」「削除済み」「移行中スタッフ」のbadgeやlabelを付けず、実際の`isDeleted`履歴だけを既存の履歴画面で削除済みとして扱います。
+
+欠損rowに残すruntime互換は、保存済みstaff / session / shopを再検証する既存staff sessionと、保存済み通知宛先の配送に限定します。  canonical人物詳細、店舗所属変更、LINE再連携、新しいtoken発行はfail closedのままにします。
+
+m050は両IDが欠損するstaffだけを対象にし、次をすべて満たす場合だけlinkします。
+
+- 保存済み`shopId`から非削除shopと非削除organizationを一意に取得できる。
+- 現行のメール正規化規則で空でないidentityを得られ、同一organization内の既存active人物を一意に解決できる。空identityやremoved人物には削除済みstaffも自動linkせず、人物を新規作成・推測統合しない。
+- `staff.userId`がある場合は同じ有効userが`person.userId`へ設定済みであり、同一organization内でそのuserに結び付く人物がcandidateだけである。同じuserのorganization membershipは0件またはcandidate人物に結び付く1件だけとし、同じ店舗のactive staff重複、user不在・削除中・別人物link、tenant不一致がない。`person.userId`欠損をm050で補完しない。
+- active staffの氏名とメールはcanonical人物へ揃える。削除済みstaffは履歴の氏名とメールを変更しない。
+- 人物、user、人物status、LINE連携、通知、利用人数状態を変更しない。
+
+初回実行は専用runnerでdry runし、対象deploymentと集計結果を記録します。  次は実行例であり、この文書だけを根拠にProduction操作は行いません。
+
+```bash
+pnpm exec convex run migrations/index:runStaffCanonicalLinkBackfill \
+  '{"dryRun":true}' \
+  --deployment <fully-qualified-deployment>
+
+pnpm exec convex run migrations/index:runStaffCanonicalLinkBackfill \
+  '{}' \
+  --deployment <fully-qualified-deployment>
+```
+
+実行後はm050 status、`verifyStaffs`の全anomaly、`verifyOrganizationMigrationConflicts.unresolvedStaffRows`を全ページ再確認します。  すべて0件であり、tenant / user / lifecycle整合と、人物数・利用人数に意図しない変化がないことを確認するまでrequired Narrowへ進みません。  件数とstatusだけを記録し、氏名・メール・row IDをreadinessやログへ出しません。
 
 ログイン方法とシフト連絡先の分離を公開する前は、`verifyStaffs.activeStaffPersonEmailMismatch`も全ページ合計で0件であることを確認します。  0件でない場合はpersonと未削除staffの連絡先projectionが既存データ上で一致していないため、本実装の更新処理で推測修復せず、対象deploymentと件数を記録して別のmigration判定へ分けます。
 
@@ -165,6 +217,9 @@ canonical counterpart欠損、未完了fan-out、snapshotが不完全なtoken・
 | m039 | m039 |
 | m040 | m040 |
 | m041 | m041。LINE共通化のexportと全ページreadinessを再確認してから限定実行 |
+| m048 | m048。`archived`・未知値0件と全ページreadinessを再確認してから限定実行 |
+| m049 | m049 |
+| m050 | m050。両ID欠損staffだけを再評価し、全staff readinessと未解消staff conflictを再確認してから限定実行 |
 
 ```bash
 pnpm exec convex run migrations/m026_shop_members_narrow_prep:migration \
@@ -225,7 +280,6 @@ pnpm exec convex run migrations/index:runShopMembersNarrowPreparation \
 
 - `organizations.billingEmail`と`billingEmailNormalized`：個人情報を別の値から推測せず、運用担当者が正しい請求先を確認します。
 - `organizationStripeSubscriptions.plan`：現在のPrice設定だけで過去世代を推測せず、保存済みPriceとprovider snapshotを照合します。
-- `organizationStripeOperations.kind: "immediateProCheckout"`と`trialSetupCheckout.targetPlan`欠損：現在の販売planから過去operationの意図を推測せず、保存済みStripe objectと実行時の設定を照合します。
 - `organizationBillingStates.state.limitPlan`：`planLimitExceeded`のrowだけを対象に、制限へ遷移した時点のplanを確認します。
 - `notificationOutbox.organizationBillingVersionAtEnqueue`：enqueue時点のsnapshotなので、現在の課金versionから補完しません。
 - `notificationOutbox`のscope矛盾：両scope欠損、dangling参照、保存済み事業者と店舗所属の不一致は、どちらかのtenantへ推測補完せず、m037がPIIなしのconflictへ残します。
@@ -243,9 +297,8 @@ pnpm exec convex run migrations/index:runShopMembersNarrowPreparation \
 - `_scheduled_functions`に、旧通知action、旧fanout引数、旧店舗cleanup functionを呼ぶ予約が残っていない。  実行中・再試行中のjobも含めてdrainを確認する。
 - `notificationOutbox.legacyFanoutDedupeKeys`と旧dedupe keyを送るschedulerがなく、Outboxのfanout link不完全件数が0である。
 - スタッフ提出画面の旧versionが`submitShiftRequests.requests`を送っておらず、全callerがrequiredな`submission` discriminated unionを送る。
-- trial継続選択で`plan`を省略する旧checkout actionと予約済みcallerがなく、`trialSetupCheckout.targetPlan`欠損が0である。
-- Stripeの旧`immediateProCheckout`、target planなしtrial operation、subscription planなしrowがなく、provider snapshotと保存済みplanが一致する。
 - 旧API名、旧literal、optional argsを利用する外部callerがないことを、deploy履歴とアクセス記録で確認する。
+- 店舗ライフサイクルのPR2では、`listOrganizationActiveShops`、`desiredActiveShopIds`、固定値の`operatingStatus` / `shopStatus: "active"`、利用上限の`activeShops`、スタッフ並び順の`tooManyActiveShops`とv1 fingerprintの`activeShops`、旧localStorage statusを使うclientが残っていないことを確認する。
 - LINE共通化では、旧shapeの未使用token、generation snapshotのないactive LINE Outbox、旧shapeの予約済み`sendInviteEmail`が0件である。常時canonical readのartifact反映後も、旧shapeを新規作成するwriterがない。
 
 このgateを確認できない場合、保存schemaだけを先にrequired化しません。  runtime fallbackには削除条件を示す`TODO[narrow]`を残し、次のNarrow deployでschema、validator、reader、writerを同時に削除します。
@@ -257,7 +310,7 @@ Developmentの完了だけをProductionの完了として扱いません。
 
 旧authorityとfallbackを外す条件は、readerとwriterがcanonical tableへ切り替わり、`activeRows`が0であることです。  `shopMembers`はm029後も論理削除rowが履歴として残るため、`activeRows: 0`と`totalRows: 0`を同じ意味に扱いません。  `shopBillingStates.activeRows`は、canonical課金状態がなく実際にlegacy fallbackへ到達するrowだけを数え、`totalRows`は保持中の物理rowを数えます。
 
-旧table自体をschemaから外す条件は、別の保持・監査判断と物理cleanup migrationを経て`totalRows`が0になることです。  `shopBillingStates`はm047で対応が一意なrowを物理削除し、`verifyLegacyShopBillingStates.totalRows: 0`をNarrow条件にします。`shopMembers`の論理削除rowを物理削除するmigrationは、この変更には含めません。
+旧table自体をschemaから外す条件は、別の保持・監査判断と物理cleanup migrationを経て`totalRows`が0になることです。  `shopMembers`の論理削除rowを物理削除するmigrationは、この変更には含めません。
 readinessが成立する前に旧authorityを削除すると既存利用者を締め出し、成立後も残すと旧所属による権限復活経路を残します。
 
 Narrow deploy後も、旧形式を投入するMigration Testはschema validationを無効にした履歴用helperで維持します。
@@ -269,9 +322,9 @@ Narrow deploy後も、旧形式を投入するMigration Testはschema validation
 
 `shops.regularClosedDays`と`recruitments.shopClosedDates`は、過去のrequired追加時にMigrationがなかったため、m039 / m040を先にdeployできるよう一時的にoptionalへWidenしています。  両migrationと`verifyShops.missingRegularClosedDays` / `verifyRecruitments.missingShopClosedDates`が全deploymentで0になった後、requiredへ戻すdeployでbackendとfrontendの空配列fallbackを同時に削除します。
 
-`shops`、`staffs`、`shopMembers`、`shopBillingStates`はm025からm029の関係するstatusとreadinessを満たしてから、optionalなcanonical IDとlegacy authority fallbackを削除します。  `verifyStaffs.danglingStaffUser`、`verifyStaffs.missingPersonUserForLinkedStaff`、`verifyStaffs.personUserMismatch`、`verifyStaffs.activeStaffPersonEmailMismatch`も0件でなければならず、本人紐付けや連絡先projectionを推測して解消しません。  m029を実行していないdeploymentでは`shopMembers` fallbackを削除しません。
+`staffs.organizationId`と`staffs.organizationPersonId`はm050を反映できるWiden期間だけoptionalにします。  新しいwriterは両IDを必須の組として保存し、欠損rowを新規流入させません。  対象となる全deploymentでm050が成功し、`verifyStaffs`の全anomalyと`unresolvedStaffRows`が全ページ合計0件になり、tenant / user / lifecycle整合と人物数・利用人数の意図しない変化がないことを確認した後だけ、両IDを同時にrequiredへ戻します。  同じNarrowでm050限定互換を削除し、m011 / m027とschema validationを無効にしたMigration Testは履歴として維持します。
 
-課金plan ID互換は、m042からm047の全migration status、各pre / post readiness、`billing_compatibility_narrow_readiness:verifyBillingStates`、未解消conflict 0件が全deploymentで揃った後にだけNarrowします。`planIdVersion`と旧plan literalは同じNarrow変更で削除し、請求先メールアドレスを権限根拠へ使いません。
+`shops`、`shopMembers`、`shopBillingStates`はm025からm029の関係するstatusとreadinessを満たしてから、optionalなcanonical IDとlegacy authority fallbackを削除します。  m029を実行していないdeploymentでは`shopMembers` fallbackを削除しません。
 
 `notificationOutbox`は、m024 / m025 / m030 / m037のstatus、全ページreadiness、Outbox所有conflictの未解消0件、旧scheduled callerのdrainが揃った後にだけNarrowします。  `organizationId` / `purpose` / `notificationContext` / `deliverySuppressed`をrequired化し、`purpose ?? "business"`、purpose未設定のindex分岐、Widen前shop-scoped scan、店舗所属へ戻すreader fallbackを同じ契約変更で削除します。  `shopId`はbilling等のorganization-only通知で、`organizationBillingVersionAtEnqueue`は履歴snapshotとして、どちらもoptionalのまま維持します。
 
@@ -285,5 +338,5 @@ LINE共通化のlegacy readを削除したartifactは、m041を実行した場�
 
 - Production Migrationの実行。
 - Production documentの手動更新または削除。
-- `shopMembers`と、m047が安全に対応を確定できない`shopBillingStates` rowの物理削除。
+- `shopMembers`と`shopBillingStates` rowの物理削除。
 - Productionの完了を、ローカルテストやDevelopmentの結果から推測して記録すること。
