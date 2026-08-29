@@ -6,6 +6,7 @@ const meta = {
   component: OrganizationPaymentFailureAlert,
   parameters: { layout: "padded" },
   args: {
+    canStartPaidPlan: true,
     terminationPending: false,
     onStartPaidPlan: () => {},
   },
@@ -21,6 +22,14 @@ export const ActiveFree: Story = {
 export const TerminationPending: Story = {
   name: "支払い終了処理中",
   args: { terminationPending: true },
+};
+
+export const PlanManagementUnavailable: Story = {
+  name: "プラン操作不可",
+  args: {
+    canStartPaidPlan: false,
+    startPaidPlanDisabledReason: "支払い結果を確認中のため、別のプランへは変更できません。",
+  },
 };
 
 export const Mobile: Story = {

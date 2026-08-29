@@ -148,17 +148,20 @@ export const PlanAndPaymentSection = ({
       : billing.state === "pendingActivation"
         ? "契約状態の確認が必要"
         : "確認中");
+  const paymentFailure = billing.currentPlan === "free" ? billing.paymentFailure : undefined;
   return (
     <Stack gap={{ base: 6, md: 7 }}>
       <Stack gap={4}>
-        {billing.currentPlan === "free" && billing.paymentFailure && (
+        {paymentFailure && (
           <OrganizationPaymentFailureAlert
-            terminationPending={billing.paymentFailure.terminationPending}
+            canStartPaidPlan={billing.canManagePlan}
+            terminationPending={paymentFailure.terminationPending}
+            startPaidPlanDisabledReason={billing.managePlanDisabledReason}
             onStartPaidPlan={() => onManagePlan("standard")}
           />
         )}
 
-        {!billing.isComplimentary && !billing.canManagePlan && billing.managePlanDisabledReason && (
+        {!paymentFailure && !billing.isComplimentary && !billing.canManagePlan && billing.managePlanDisabledReason && (
           <Text id="organization-billing-manage-plan-disabled-reason" fontSize="sm" color="orange.700">
             {billing.managePlanDisabledReason}
           </Text>

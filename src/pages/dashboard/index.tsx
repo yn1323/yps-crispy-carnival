@@ -145,11 +145,18 @@ function ConnectedDashboard({
   }
 
   const isReadOnly = !shop.canWriteBusinessData;
+  const canStartPaidPlan = shop.planStatus?.canManagePlan ?? true;
   return (
     <Stack gap={5}>
       {shop.paymentFailure && (
         <OrganizationPaymentFailureAlert
+          canStartPaidPlan={canStartPaidPlan}
           terminationPending={shop.paymentFailure.terminationPending}
+          startPaidPlanDisabledReason={
+            canStartPaidPlan
+              ? undefined
+              : "現在は有料プランを契約できません。「プランと支払い」で契約状態を確認してください。"
+          }
           onStartPaidPlan={navigation.onOpenBillingSettings}
         />
       )}

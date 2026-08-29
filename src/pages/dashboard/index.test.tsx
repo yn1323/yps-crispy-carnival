@@ -364,6 +364,30 @@ describe("DashboardRoutePage", () => {
     expect(screen.getByText("支払い処理を終了しています。完了後に有料プランを契約できます。")).not.toBeNull();
   });
 
+  it("支払い失敗が残るプラン操作不可状態では、理由を表示して再契約操作を無効にする", () => {
+    mocks.useShopQuery.mockReturnValue({
+      ...shop,
+      paymentFailure: { terminationPending: false },
+      planStatus: {
+        kind: "paymentPending",
+        currentPlan: "free",
+        targetPlan: "standard",
+        canManagePlan: false,
+        canUpdatePaymentMethod: false,
+      },
+    });
+
+    renderPage();
+
+    const button = screen.getByRole<HTMLButtonElement>("button", { name: "有料プランを契約する" });
+    expect(button.disabled).toBe(true);
+    expect(
+      screen.getByText("現在は有料プランを契約できません。「プランと支払い」で契約状態を確認してください。"),
+    ).not.toBeNull();
+    fireEvent.click(button);
+    expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+
   it("利用上限を評価できない場合は上限超過と断定せず、整理操作と問い合わせを案内する", () => {
     mocks.useShopQuery.mockReturnValue({
       ...shop,

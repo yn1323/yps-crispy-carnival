@@ -127,6 +127,31 @@ export const PaymentTerminationPending: Story = {
   },
 };
 
+export const PaymentFailurePlanManagementUnavailable: Story = {
+  name: "支払い失敗後のFree・プラン操作不可",
+  args: {
+    billing: {
+      ...(Free.args?.billing as OrganizationBillingView),
+      state: "pendingActivation",
+      currentPlan: "free",
+      targetPlan: "standard",
+      paymentFailure: { terminationPending: false },
+      canManagePlan: false,
+      managePlanDisabledReason: "支払い結果を確認中のため、別のプランへは変更できません。",
+    },
+    onManagePlan: fn(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole("button", { name: "有料プランを契約する" });
+
+    await expect(button).toBeDisabled();
+    await expect(canvas.getByText("支払い結果を確認中のため、別のプランへは変更できません。")).toBeVisible();
+    await userEvent.click(button);
+    await expect(args.onManagePlan).not.toHaveBeenCalled();
+  },
+};
+
 export const PaymentFailureActionBehavior: Story = {
   name: "支払い失敗後に再契約する（操作確認）",
   parameters: { screenshot: { skip: true } },
