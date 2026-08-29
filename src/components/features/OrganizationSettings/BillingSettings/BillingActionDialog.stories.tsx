@@ -92,7 +92,7 @@ export const RegisterTrialStandardContinuation: Story = {
   },
   play: async () => {
     const dialog = await within(document.body).findByRole("alertdialog", {
-      name: "トライアル終了後もStandardプランを継続しますか？",
+      name: "トライアル終了後、Standardプランを継続しますか？",
     });
     await expect(within(dialog).getByText("トライアル → Standard")).toBeInTheDocument();
   },
@@ -232,7 +232,7 @@ export const CancelTrialContinuation: Story = {
   },
   play: async () => {
     const dialog = await within(document.body).findByRole("alertdialog", {
-      name: "有料プランの継続を取り消しますか？",
+      name: "プラン支払い予約を取り消しますか？",
     });
     await expect(within(dialog).getByText("トライアル → Pro")).toBeInTheDocument();
   },
@@ -253,7 +253,7 @@ export const CancelTrialStandardContinuation: Story = {
   },
   play: async () => {
     const dialog = await within(document.body).findByRole("alertdialog", {
-      name: "有料プランの継続を取り消しますか？",
+      name: "プラン支払い予約を取り消しますか？",
     });
     await expect(within(dialog).getByText("トライアル → Standard")).toBeInTheDocument();
   },

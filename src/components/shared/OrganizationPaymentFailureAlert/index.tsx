@@ -28,6 +28,21 @@ export function OrganizationPaymentFailureAlert({ terminationPending, onStartPai
             </Stack>
           </Alert.Description>
         </Alert.Content>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          colorPalette="orange"
+          flexShrink={0}
+          w={{ base: "full", md: "auto" }}
+          minH={{ base: "44px", md: "36px" }}
+          onClick={onStartPaidPlan}
+          disabled={terminationPending}
+          aria-describedby={terminationPending ? "organization-payment-failure-termination-pending" : undefined}
+        >
+          有料プランを契約する
+        </Button>
       </Flex>
     </Alert.Root>
   );
