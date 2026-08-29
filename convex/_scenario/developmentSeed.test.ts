@@ -160,18 +160,18 @@ describe("development seed rebuild", () => {
     const t = convexTest(schema, modules);
     const { actors, preflight, verification } = await rebuild(t);
 
-    expect(actors).toEqual({ createdCount: 13 });
+    expect(actors).toEqual({ createdCount: 11 });
     expect(actors).not.toHaveProperty("primaryAuthTokenIdentifier");
     expect(preflight.scenarioKeys).toEqual(DEVELOPMENT_SEED_SCENARIO_KEYS);
     expect(verification).toEqual({
-      contractVersion: "development-seed-v3",
-      contractFingerprint: "4014fb18",
+      contractVersion: "development-seed-v4",
+      contractFingerprint: "5a10ca20",
       scenarioCount: 9,
       tableCount: 66,
       organizationCount: 9,
       shopCount: 11,
-      staffCount: 23,
-      recruitmentCount: 12,
+      staffCount: 163,
+      recruitmentCount: 17,
       openFailureCount: 1,
       activeOutboxCount: 0,
       activeFanoutCount: 0,
@@ -185,6 +185,16 @@ describe("development seed rebuild", () => {
       ].sort(),
       outboxStatuses: (await ctx.db.query("notificationOutbox").collect()).map((row) => row.status).sort(),
       failureStatuses: (await ctx.db.query("notificationFailureInbox").collect()).map((row) => row.status).sort(),
+      legacyBillingShapeCount: (await ctx.db.query("organizationBillingStates").collect()).filter((row) => {
+        const state = row.state as unknown as Record<string, unknown>;
+        return "planIdVersion" in state || state.kind === "grace" || Object.values(state).includes("business");
+      }).length,
+      legacyShopBillingStateCount: (await ctx.db.query("shopBillingStates").collect()).length,
+      legacyShopOperatingStatusCount: (await ctx.db.query("shops").collect()).filter(
+        (shop) => shop.operatingStatus !== undefined,
+      ).length,
+      deletedShopCount: (await ctx.db.query("shops").collect()).filter((shop) => shop.isDeleted).length,
+      deletedStaffCount: (await ctx.db.query("staffs").collect()).filter((staff) => staff.isDeleted).length,
       delayedDeadlines: await ctx.db.query("notificationResendDelayedFailureDeadlines").collect(),
       auditMarkers: await ctx.db.query("rateLimits").collect(),
       activeScheduled: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
@@ -195,10 +205,81 @@ describe("development seed rebuild", () => {
       patterns: ["dateOnly", "shiftType", "time"],
       outboxStatuses: ["failed", "sent"],
       failureStatuses: ["open", "resolved"],
+      legacyBillingShapeCount: 0,
+      legacyShopBillingStateCount: 0,
+      legacyShopOperatingStatusCount: 0,
+      deletedShopCount: 0,
+      deletedStaffCount: 0,
       delayedDeadlines: [],
       auditMarkers: [],
       activeScheduled: [],
     });
+
+    const organizationUsageSummaries = await t.run(async (ctx) => {
+      const [organizations, people, members, shops, staffs] = await Promise.all([
+        ctx.db.query("organizations").collect(),
+        ctx.db.query("organizationPeople").collect(),
+        ctx.db.query("organizationMembers").collect(),
+        ctx.db.query("shops").collect(),
+        ctx.db.query("staffs").collect(),
+      ]);
+      return organizations.map((organization) => {
+        const organizationShops = shops.filter((shop) => shop.organizationId === organization._id);
+        return {
+          organizationName: organization.name,
+          peopleCount: people.filter(
+            (person) => person.organizationId === organization._id && person.status === "active",
+          ).length,
+          activeManagerCount: members.filter(
+            (member) => member.organizationId === organization._id && member.status === "active",
+          ).length,
+          peopleNames: people
+            .filter((person) => person.organizationId === organization._id && person.status === "active")
+            .map((person) => person.name)
+            .sort(),
+          staffCountsByShop: organizationShops.map(
+            (shop) => staffs.filter((staff) => staff.shopId === shop._id).length,
+          ),
+        };
+      });
+    });
+    const usageByOrganization = Object.fromEntries(
+      organizationUsageSummaries.map(({ organizationName, ...usage }) => [organizationName, usage]),
+    );
+    expect(usageByOrganization).toMatchObject({
+      "[SEED] Trial・50名・終了間近": {
+        peopleCount: 50,
+        activeManagerCount: 2,
+        staffCountsByShop: [50],
+      },
+      "[SEED] Pro・50名・通知": {
+        peopleCount: 50,
+        activeManagerCount: 2,
+        staffCountsByShop: [50],
+      },
+      "[SEED] Standard・25名・複数店舗": {
+        peopleCount: 25,
+        activeManagerCount: 5,
+        staffCountsByShop: [25, 12, 6],
+      },
+      合同会社シフトリノート: {
+        peopleCount: 9,
+        activeManagerCount: 1,
+        peopleNames: [
+          "波留野 澄人",
+          "小庭井 美澄",
+          "水代谷 朔",
+          "野依田 千景",
+          "古瀬戸 透里",
+          "月守 奈緒",
+          "霞野 直",
+          "森澄 ひより",
+          "羽路木 圭",
+        ].sort(),
+        staffCountsByShop: [9],
+      },
+    });
+    expect(Math.max(...Object.values(usageByOrganization).map((usage) => usage.activeManagerCount))).toBe(5);
 
     const productScopes = await t.run(async (ctx) => {
       const organizations = await ctx.db.query("organizations").collect();
@@ -210,10 +291,10 @@ describe("development seed rebuild", () => {
         if (!shop) throw new Error(`Missing product-query seed shop: ${organizationName}`);
         return shop._id;
       };
-      const businessOrganization = organizationByName.get("[SEED] Pro・通知");
-      const proOrganization = organizationByName.get("[SEED] Standard・複数店舗");
+      const businessOrganization = organizationByName.get("[SEED] Pro・50名・通知");
+      const proOrganization = organizationByName.get("[SEED] Standard・25名・複数店舗");
       if (!businessOrganization || !proOrganization) throw new Error("Missing product-query seed organization");
-      const businessShopId = findShop("[SEED] Pro・通知");
+      const businessShopId = findShop("[SEED] Pro・50名・通知");
       const businessPeople = await ctx.db
         .query("organizationPeople")
         .withIndex("by_organizationId_and_status", (q) =>
@@ -293,9 +374,9 @@ describe("development seed rebuild", () => {
       return {
         businessShopId,
         freeShopId: findShop("[SEED] Free・上限確認"),
-        policyOverLimitShopId: findShop("[SEED] Standard・上限超過"),
+        policyOverLimitShopId: findShop("[SEED] Free・上限超過"),
         scheduledStopShopId: findShop("[SEED] Standard・解約予約"),
-        trialShopId: findShop("[SEED] Trial・終了間近"),
+        trialShopId: findShop("合同会社シフトリノート"),
         lineStatuses: lineStates.map((state) => state?.status).sort(),
         lineRecipientFollowing: lineRecipients.map((recipient) => recipient?.following).sort(),
         proOrderModes: proOrderScopes.map((scope) => scope.mode),
@@ -344,8 +425,8 @@ describe("development seed rebuild", () => {
     ]);
     expect(freeRequests).toEqual([expect.objectContaining({ name: "[SEED] 上限で承認不可", canApprove: true })]);
     expect(trialRequests).toEqual([
-      expect.objectContaining({ name: "[SEED] 承認可能", canApprove: true }),
-      expect.objectContaining({ name: "[SEED] 既存スタッフのため承認不可", canApprove: false }),
+      expect.objectContaining({ name: "鳥沢野 美月", canApprove: true }),
+      expect.objectContaining({ name: "小庭井 美澄", canApprove: false }),
     ]);
     await expect(
       primaryManager.mutation(api.staffRegistration.mutations.approveRequest, {
@@ -366,7 +447,7 @@ describe("development seed rebuild", () => {
           .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
             q
               .eq("shopId", productScopes.trialShopId)
-              .eq("emailNormalized", "trial-ending-approval-pending@seed.example.test")
+              .eq("emailNormalized", "trial-daily-approval-pending@seed.example.test")
               .eq("isDeleted", false),
           )
           .unique();
@@ -388,12 +469,12 @@ describe("development seed rebuild", () => {
       nextEvent: { label: "契約終了日" },
     });
     expect(policyOverLimitSettings?.billing).toMatchObject({
-      state: "standard",
-      currentPlan: "standard",
-      peopleUsage: { current: 6, max: 25, pendingInvitations: 0 },
-      shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
-      managerUsage: { current: 6, max: 5, pendingInvitations: 0 },
-      requiredReductions: { people: 0, shops: 0, managers: 1 },
+      state: "free",
+      currentPlan: "free",
+      peopleUsage: { current: 6, max: 5, pendingInvitations: 0 },
+      shopUsage: { current: 1, max: 1, pendingInvitations: 0 },
+      managerUsage: { current: 2, max: 2, pendingInvitations: 0 },
+      requiredReductions: { people: 1, shops: 0, managers: 0 },
     });
     expect(policyOverLimitSettings).toMatchObject({
       canUpdateOrganizationName: false,

@@ -39,8 +39,10 @@ export const Desktop: Story = {
 
     await expect(canvas.getByRole("heading", { level: 1, name: "毎回のシフト管理を進める" })).toBeVisible();
     await expect(canvas.getByText("シフトリの基本的な使い方を紹介します。")).toBeVisible();
-    await expect(canvas.getByRole("navigation", { name: "毎回行う流れ" })).toBeVisible();
-    await expect(canvas.getByRole("link", { name: "1 募集" })).toHaveAttribute("href", "#create-recruitment");
+    await expect(canvas.getByRole("heading", { level: 2, name: "シフト回収の流れ" })).toBeVisible();
+    await expect(canvas.getByRole("navigation", { name: "シフト回収の流れ" })).toBeVisible();
+    await expect(canvas.getByRole("link", { name: "1 募集開始" })).toHaveAttribute("href", "#create-recruitment");
+    await expect(canvas.getByRole("link", { name: "4 スタッフへ通知" })).toHaveAttribute("href", "#check-notification");
     await expect(canvas.getByRole("heading", { level: 2, name: "募集シフトを作成する" })).toBeVisible();
     await expect(canvas.getByRole("heading", { level: 2, name: "希望シフトを提出する" })).toBeVisible();
     await expect(canvas.getByRole("heading", { level: 2, name: "確定したシフトを通知する" })).toBeVisible();
@@ -48,6 +50,7 @@ export const Desktop: Story = {
     await expect(canvas.getAllByText("スタッフ")).toHaveLength(2);
     await expect(canvas.getAllByText("動画は準備中")).toHaveLength(4);
     await expect(canvas.getByTitle("シフト確定メールの表示例")).toHaveAttribute("sandbox", "");
+    await expect(canvas.queryByText("各ステップを選択すると、ページ内の説明へ移動します。")).not.toBeInTheDocument();
     await expect(canvas.queryByText(/^完了：/)).not.toBeInTheDocument();
     await expect(canvas.queryByText("メールの例")).not.toBeInTheDocument();
     await expect(canvas.queryByText("勤務日と時間はスタッフごとに異なります。")).not.toBeInTheDocument();
@@ -61,6 +64,6 @@ export const Mobile: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("navigation", { name: "毎回行う流れ", hidden: true })).not.toBeVisible();
+    await expect(canvas.getByRole("navigation", { name: "シフト回収の流れ", hidden: true })).not.toBeVisible();
   },
 };

@@ -17,7 +17,6 @@ export type DevelopmentSeedTarget = "local" | "dev";
 
 type DevelopmentSeedTargetConfig = {
   envFile: ".env.local" | ".env.develop";
-  target: DevelopmentSeedTarget;
 };
 
 type DevelopmentSeedCommandRunner = (args: readonly string[], env: Readonly<NodeJS.ProcessEnv>) => string;
@@ -26,6 +25,7 @@ type DevelopmentSeedLogger = Pick<Console, "log">;
 
 type DevelopmentSeedDependencies = {
   commandRunner?: DevelopmentSeedCommandRunner;
+  environmentRunner?: DevelopmentSeedCommandRunner;
   fileReader?: DevelopmentSeedFileReader;
   logger?: DevelopmentSeedLogger;
 };
@@ -91,8 +91,8 @@ export type DevelopmentSeedSummary = {
 };
 
 const TARGET_CONFIGS: Record<DevelopmentSeedTarget, DevelopmentSeedTargetConfig> = {
-  local: { target: "local", envFile: ".env.local" },
-  dev: { target: "dev", envFile: ".env.develop" },
+  local: { envFile: ".env.local" },
+  dev: { envFile: ".env.develop" },
 };
 
 export {
@@ -232,7 +232,6 @@ function parseJsonResult(stdout: string, phase: string): unknown {
 
 function invokeDevelopmentSeedFunction(
   commandRunner: DevelopmentSeedCommandRunner,
-  config: DevelopmentSeedTargetConfig,
   childEnv: Readonly<NodeJS.ProcessEnv>,
   phase: string,
   functionName: string,
@@ -240,71 +239,127 @@ function invokeDevelopmentSeedFunction(
 ): unknown {
   let stdout: string;
   try {
-    stdout = commandRunner(
-      ["exec", "convex", "run", "--deployment", config.target, functionName, JSON.stringify(args)],
-      childEnv,
-    );
+    stdout = commandRunner(["exec", "convex", "run", functionName, JSON.stringify(args)], childEnv);
   } catch {
     throw new DevelopmentSeedError(`${phase}に失敗しました。生のエラーは表示せず、後続処理を停止しました。`);
   }
   return parseJsonResult(stdout, phase);
 }
 
-const FORBIDDEN_DEPLOYMENT_SELECTOR_NAMES = [
-  "CONVEX_DEPLOY_KEY",
+const FORBIDDEN_COMMON_DEPLOYMENT_SELECTOR_NAMES = [
   "CONVEX_DEPLOYMENT_TOKEN",
   "CONVEX_SELF_HOSTED_URL",
   "CONVEX_SELF_HOSTED_ADMIN_KEY",
 ] as const;
 
-type ValidatedDevelopmentSeedDeployment = {
-  configuredDeployment: string;
-  deploymentName: string;
-};
+type ValidatedDevelopmentSeedDeployment =
+  | {
+      kind: "personalDev";
+      configuredDeployment: string;
+      deploymentName: string;
+    }
+  | {
+      kind: "deployKey";
+      deployKey: string;
+      deploymentName: string;
+    };
+
+function countAssignments(contents: string, name: string): number {
+  return contents.split(/\r?\n/).filter((line) => new RegExp(`^\\s*(?:export\\s+)?${name}\\s*=`).test(line)).length;
+}
 
 function validateDevelopmentSeedDeployment(
   target: DevelopmentSeedTarget,
   contents: string,
 ): ValidatedDevelopmentSeedDeployment {
   const parsed = parseDotenv(contents);
-  const deploymentAssignmentCount = contents
-    .split(/\r?\n/)
-    .filter((line) => /^\s*(?:export\s+)?CONVEX_DEPLOYMENT\s*=/.test(line)).length;
-  const configuredDeployment = parsed.CONVEX_DEPLOYMENT?.trim() ?? "";
-  if (deploymentAssignmentCount !== 1 || !configuredDeployment) {
-    throw new DevelopmentSeedError(
-      `${TARGET_CONFIGS[target].envFile}のCONVEX_DEPLOYMENTを一意に確認できません。処理は開始していません。`,
-    );
-  }
-
-  if (FORBIDDEN_DEPLOYMENT_SELECTOR_NAMES.some((name) => Boolean(parsed[name]?.trim()))) {
+  if (FORBIDDEN_COMMON_DEPLOYMENT_SELECTOR_NAMES.some((name) => countAssignments(contents, name) > 0)) {
     throw new DevelopmentSeedError(
       `${TARGET_CONFIGS[target].envFile}に許可されていないdeployment selectorがあります。処理は開始していません。`,
     );
   }
 
-  const match = configuredDeployment.match(/^(local|dev):([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)$/);
-  if (!match || match[1] !== target) {
+  if (target === "local") {
+    const configuredDeployment = parsed.CONVEX_DEPLOYMENT?.trim() ?? "";
+    if (countAssignments(contents, "CONVEX_DEPLOYMENT") !== 1 || !configuredDeployment) {
+      throw new DevelopmentSeedError(".env.localのCONVEX_DEPLOYMENTを一意に確認できません。処理は開始していません。");
+    }
+    if (countAssignments(contents, "CONVEX_DEPLOY_KEY") > 0) {
+      throw new DevelopmentSeedError(".env.localにCONVEX_DEPLOY_KEYは設定できません。処理は開始していません。");
+    }
+    const match = configuredDeployment.match(/^dev:([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)$/);
+    if (!match) {
+      throw new DevelopmentSeedError(".env.localが個人用dev deploymentを指していません。処理は開始していません。");
+    }
+    return { kind: "personalDev", configuredDeployment, deploymentName: match[1] ?? "" };
+  }
+
+  const deployKey = parsed.CONVEX_DEPLOY_KEY?.trim() ?? "";
+  if (countAssignments(contents, "CONVEX_DEPLOY_KEY") !== 1 || !deployKey) {
+    throw new DevelopmentSeedError(".env.developのCONVEX_DEPLOY_KEYを一意に確認できません。処理は開始していません。");
+  }
+  if (countAssignments(contents, "CONVEX_DEPLOYMENT") > 0) {
+    throw new DevelopmentSeedError(".env.developにCONVEX_DEPLOYMENTは設定できません。処理は開始していません。");
+  }
+  const match = deployKey.match(/^prod:([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)\|.+$/);
+  if (!match) {
     throw new DevelopmentSeedError(
-      `${TARGET_CONFIGS[target].envFile}が許可された${target} deploymentを指していません。処理は開始していません。`,
+      ".env.developが固定したDevelopment deploymentのkeyを持っていません。処理は開始していません。",
     );
   }
-  return { configuredDeployment, deploymentName: match[2] ?? "" };
+  return { kind: "deployKey", deployKey, deploymentName: match[1] ?? "" };
 }
 
 export function assertDevelopmentSeedDeployment(target: DevelopmentSeedTarget, contents: string): void {
   validateDevelopmentSeedDeployment(target, contents);
 }
 
-function buildDevelopmentSeedChildEnv(configuredDeployment: string): Readonly<NodeJS.ProcessEnv> {
-  return Object.freeze({
+function buildDevelopmentSeedChildEnv(
+  validatedDeployment: ValidatedDevelopmentSeedDeployment,
+): Readonly<NodeJS.ProcessEnv> {
+  const childEnv: NodeJS.ProcessEnv = {
     ...process.env,
-    CONVEX_DEPLOYMENT: configuredDeployment,
+    CONVEX_DEPLOYMENT: "",
     CONVEX_DEPLOY_KEY: "",
     CONVEX_DEPLOYMENT_TOKEN: "",
     CONVEX_SELF_HOSTED_URL: "",
     CONVEX_SELF_HOSTED_ADMIN_KEY: "",
-  });
+  };
+  if (validatedDeployment.kind === "personalDev") {
+    childEnv.CONVEX_DEPLOYMENT = validatedDeployment.configuredDeployment;
+  } else {
+    childEnv.CONVEX_DEPLOY_KEY = validatedDeployment.deployKey;
+  }
+  return Object.freeze(childEnv);
+}
+
+function enableDevelopmentSeedGuard(
+  environmentRunner: DevelopmentSeedCommandRunner,
+  childEnv: Readonly<NodeJS.ProcessEnv>,
+): void {
+  try {
+    environmentRunner(["exec", "convex", "env", "set", "DEVELOPMENT_SEED_ENABLED", "true"], childEnv);
+  } catch {
+    throw new DevelopmentSeedError("破壊操作guardの一時有効化に失敗しました。シード処理は開始していません。");
+  }
+}
+
+function disableAndVerifyDevelopmentSeedGuard(
+  environmentRunner: DevelopmentSeedCommandRunner,
+  childEnv: Readonly<NodeJS.ProcessEnv>,
+): boolean {
+  try {
+    environmentRunner(["exec", "convex", "env", "set", "DEVELOPMENT_SEED_ENABLED", "false"], childEnv);
+  } catch {
+    // A timed-out command may still have updated the remote value, so verify independently below.
+  }
+
+  try {
+    const value = environmentRunner(["exec", "convex", "env", "get", "DEVELOPMENT_SEED_ENABLED"], childEnv);
+    return value.trim() === "false";
+  } catch {
+    return false;
+  }
 }
 
 export function parseDevelopmentSeedCliArgs(args: readonly string[]): DevelopmentSeedTarget {
@@ -352,18 +407,17 @@ function validatePreflightContract(
   if (!deploymentUrl) {
     throw new DevelopmentSeedError("preflightのdeployment URLを確認できません。cancel・削除は実行していません。");
   }
-  if (target === "dev") {
-    let hostname: string;
-    try {
-      hostname = new URL(deploymentUrl).hostname.toLowerCase();
-    } catch {
-      throw new DevelopmentSeedError("preflightのdeployment URLを確認できません。cancel・削除は実行していません。");
-    }
-    if (hostname !== `${deploymentName}.convex.cloud`) {
-      throw new DevelopmentSeedError(
-        "preflightのdevelopment deploymentが固定env fileと一致しません。cancel・削除は実行していません。",
-      );
-    }
+  let parsedDeploymentUrl: URL;
+  try {
+    parsedDeploymentUrl = new URL(deploymentUrl);
+  } catch {
+    throw new DevelopmentSeedError("preflightのdeployment URLを確認できません。cancel・削除は実行していません。");
+  }
+  const expectedDeploymentUrl = `https://${deploymentName}.convex.cloud`;
+  if (parsedDeploymentUrl.href !== `${expectedDeploymentUrl}/` || deploymentUrl !== expectedDeploymentUrl) {
+    throw new DevelopmentSeedError(
+      `preflightの${target === "local" ? "個人用dev" : "Development"} deploymentが固定env fileと一致しません。cancel・削除は実行していません。`,
+    );
   }
 }
 
@@ -385,29 +439,19 @@ function validateVerification(result: VerifyResult, preflight: PreflightResult):
   }
 }
 
-export function runDevelopmentSeed(
+function executeDevelopmentSeedWorkflow(
   target: DevelopmentSeedTarget,
-  dependencies: DevelopmentSeedDependencies = {},
+  commandRunner: DevelopmentSeedCommandRunner,
+  logger: DevelopmentSeedLogger,
+  childEnv: Readonly<NodeJS.ProcessEnv>,
+  deploymentName: string,
 ): DevelopmentSeedSummary {
-  const config = TARGET_CONFIGS[target];
-  const commandRunner = dependencies.commandRunner ?? defaultCommandRunner;
-  const fileReader = dependencies.fileReader ?? defaultFileReader;
-  const logger = dependencies.logger ?? console;
-
-  let envContents: string;
-  try {
-    envContents = fileReader(config.envFile);
-  } catch {
-    throw new DevelopmentSeedError(`${config.envFile}を確認できません。処理は開始していません。`);
-  }
-  const validatedDeployment = validateDevelopmentSeedDeployment(target, envContents);
-  const childEnv = buildDevelopmentSeedChildEnv(validatedDeployment.configuredDeployment);
-
-  logger.log(`[development-seed] ${target} deploymentの全データ置換を開始します。`);
+  logger.log(
+    `[development-seed] ${target === "local" ? "個人用dev" : "Development"} deploymentの全データ置換を開始します。`,
+  );
 
   const preflightValue = invokeDevelopmentSeedFunction(
     commandRunner,
-    config,
     childEnv,
     "事前確認",
     "developmentSeed/mutations:preflight",
@@ -416,7 +460,7 @@ export function runDevelopmentSeed(
   if (!isPreflightResult(preflightValue)) {
     throw new DevelopmentSeedError("事前確認の応答形式が契約と一致しません。後続処理は実行していません。");
   }
-  validatePreflightContract(preflightValue, target, validatedDeployment.deploymentName);
+  validatePreflightContract(preflightValue, target, deploymentName);
   validateScenarioKeys(preflightValue.scenarioKeys);
   logger.log(
     `[development-seed] 事前確認完了（${preflightValue.scenarioKeys.length}シナリオ、${preflightValue.tableCount}テーブル）。`,
@@ -429,7 +473,6 @@ export function runDevelopmentSeed(
   for (let callCount = 0; callCount < MAX_PAGINATED_CALLS; callCount += 1) {
     const resultValue = invokeDevelopmentSeedFunction(
       commandRunner,
-      config,
       childEnv,
       "予約処理の停止",
       "developmentSeed/mutations:cancelScheduledFunctions",
@@ -468,7 +511,6 @@ export function runDevelopmentSeed(
   for (let callCount = 0; callCount < MAX_PAGINATED_CALLS; callCount += 1) {
     const resultValue = invokeDevelopmentSeedFunction(
       commandRunner,
-      config,
       childEnv,
       "全テーブル削除",
       "developmentSeed/mutations:clearAllTables",
@@ -494,7 +536,6 @@ export function runDevelopmentSeed(
 
   const actorsValue = invokeDevelopmentSeedFunction(
     commandRunner,
-    config,
     childEnv,
     "actor作成",
     "developmentSeed/mutations:seedActors",
@@ -509,7 +550,6 @@ export function runDevelopmentSeed(
   for (const [scenarioIndex, scenarioKey] of preflightValue.scenarioKeys.entries()) {
     const scenarioValue = invokeDevelopmentSeedFunction(
       commandRunner,
-      config,
       childEnv,
       `シナリオ${scenarioIndex + 1}作成`,
       "developmentSeed/mutations:seedScenario",
@@ -526,7 +566,6 @@ export function runDevelopmentSeed(
 
   const verifyValue = invokeDevelopmentSeedFunction(
     commandRunner,
-    config,
     childEnv,
     "完了検証",
     "developmentSeed/queries:verify",
@@ -550,6 +589,59 @@ export function runDevelopmentSeed(
     insertedDocumentCount,
     verification: verifyValue,
   };
+}
+
+export function runDevelopmentSeed(
+  target: DevelopmentSeedTarget,
+  dependencies: DevelopmentSeedDependencies = {},
+): DevelopmentSeedSummary {
+  const config = TARGET_CONFIGS[target];
+  const commandRunner = dependencies.commandRunner ?? defaultCommandRunner;
+  const environmentRunner = dependencies.environmentRunner ?? defaultCommandRunner;
+  const fileReader = dependencies.fileReader ?? defaultFileReader;
+  const logger = dependencies.logger ?? console;
+
+  let envContents: string;
+  try {
+    envContents = fileReader(config.envFile);
+  } catch {
+    throw new DevelopmentSeedError(`${config.envFile}を確認できません。処理は開始していません。`);
+  }
+  const validatedDeployment = validateDevelopmentSeedDeployment(target, envContents);
+  const childEnv = buildDevelopmentSeedChildEnv(validatedDeployment);
+
+  let summary: DevelopmentSeedSummary | undefined;
+  let operationError: unknown;
+  let guardEnableAttempted = false;
+  let guardDisabled = false;
+  try {
+    guardEnableAttempted = true;
+    enableDevelopmentSeedGuard(environmentRunner, childEnv);
+    summary = executeDevelopmentSeedWorkflow(
+      target,
+      commandRunner,
+      logger,
+      childEnv,
+      validatedDeployment.deploymentName,
+    );
+  } catch (error) {
+    operationError = error;
+  } finally {
+    if (guardEnableAttempted) {
+      guardDisabled = disableAndVerifyDevelopmentSeedGuard(environmentRunner, childEnv);
+      if (guardDisabled) logger.log("[development-seed] 破壊操作guardの無効化を確認しました。");
+    }
+  }
+
+  if (!guardDisabled) {
+    const operationMessage = operationError ? `${formatDevelopmentSeedError(operationError)} ` : "";
+    throw new DevelopmentSeedError(
+      `${operationMessage}破壊操作guardの無効化を確認できません。対象deploymentでDEVELOPMENT_SEED_ENABLED=falseを確認してください。`,
+    );
+  }
+  if (operationError) throw operationError;
+  if (!summary) throw new DevelopmentSeedError("開発シードの完了状態を確認できませんでした。");
+  return summary;
 }
 
 export function formatDevelopmentSeedError(error: unknown): string {

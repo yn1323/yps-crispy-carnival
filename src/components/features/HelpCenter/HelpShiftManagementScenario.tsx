@@ -9,10 +9,10 @@ import { SHIFT_MANAGEMENT_SCENARIO } from "./helpScenario";
 import type { HelpAudience } from "./helpTasks";
 
 const FLOW_STEPS = [
-  { id: "create-recruitment", number: 1, label: "募集" },
+  { id: "create-recruitment", number: 1, label: "募集開始" },
   { id: "submit-requests", number: 2, label: "提出" },
   { id: "build-and-confirm", number: 3, label: "調整・確定" },
-  { id: "check-notification", number: 4, label: "通知確認" },
+  { id: "check-notification", number: 4, label: "スタッフへ通知" },
 ] as const;
 
 type ScenarioVideoSource = { src: string; captionsSrc: string } | { src?: never; captionsSrc?: never };
@@ -182,13 +182,10 @@ function ScenarioStepper() {
     <Box as="section" aria-labelledby="scenario-flow-title" display={{ base: "none", md: "block" }}>
       <Stack gap={1} mb={6}>
         <Heading id="scenario-flow-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }}>
-          毎回行う流れ
+          シフト回収の流れ
         </Heading>
-        <Text color="gray.600" fontSize="sm" lineHeight="1.7">
-          各ステップを選択すると、ページ内の説明へ移動します。
-        </Text>
       </Stack>
-      <SimpleGrid as="nav" aria-label="毎回行う流れ" columns={{ base: 2, md: 4 }} gap={{ base: 3, md: 0 }}>
+      <SimpleGrid as="nav" aria-label="シフト回収の流れ" columns={{ base: 2, md: 4 }} gap={{ base: 3, md: 0 }}>
         {FLOW_STEPS.map((step, index) => (
           <Flex key={step.id} position="relative" justify="center">
             {index < FLOW_STEPS.length - 1 && (
