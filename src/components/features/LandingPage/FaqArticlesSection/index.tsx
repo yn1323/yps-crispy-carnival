@@ -56,7 +56,7 @@ export const FaqArticlesSection = () => (
                         alignItems="center"
                         gap={2}
                       >
-                        この回答をヘルプで見る
+                        この回答をヘルプ・使い方で見る
                         <Icon as={LuArrowRight} boxSize={4} />
                       </Link>
                     </Accordion.ItemBody>
@@ -76,7 +76,7 @@ export const FaqArticlesSection = () => (
               gap={2}
               _hover={{ textDecoration: "none", color: "teal.900" }}
             >
-              ヘルプを見る
+              ヘルプ・使い方を見る
               <Icon as={LuArrowRight} boxSize={4} />
             </Link>
           </Flex>

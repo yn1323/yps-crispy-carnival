@@ -38,10 +38,10 @@ export const HelpCenterContent: Story = {
     await waitFor(async () => {
       await expect(answer).toBeVisible();
     });
-    await expect(within(answer).getByRole("link", { name: "この回答をヘルプで見る" })).toHaveAttribute(
+    await expect(within(answer).getByRole("link", { name: "この回答をヘルプ・使い方で見る" })).toHaveAttribute(
       "href",
       firstStepsFaq.href,
     );
-    await expect(canvas.getByRole("link", { name: "ヘルプを見る" })).toHaveAttribute("href", "/help");
+    await expect(canvas.getByRole("link", { name: "ヘルプ・使い方を見る" })).toHaveAttribute("href", "/help");
   },
 };

@@ -26,6 +26,7 @@ const fixedMeasuredRoutes = new Map<string, MeasuredPublicRouteFamily>([
   ["/demo/shiftboard", "demo_shiftboard"],
   ["/features", "features"],
   ["/help", "help_index"],
+  ["/help/scenarios/shift-management", "help_guide"],
 ]);
 
 const publicUnmeasuredRoutes = new Set([

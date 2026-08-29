@@ -89,7 +89,7 @@ function HelpTaskView({
           <Stack gap={5} maxW="760px">
             <HStack as="nav" aria-label="パンくず" gap={2} wrap="wrap" color="gray.600" fontSize="sm">
               <Link href="/help" color="teal.700" fontWeight="semibold">
-                ヘルプ
+                ヘルプ・使い方
               </Link>
               <Text aria-hidden>/</Text>
               <Text color="gray.700" lineClamp={1}>
@@ -159,7 +159,7 @@ function HelpTaskView({
             gap={2}
           >
             <LuArrowLeft aria-hidden />
-            ヘルプTOPに戻る
+            ヘルプ・使い方TOPに戻る
           </Link>
         </Stack>
         <HelpSupport />
@@ -211,7 +211,7 @@ function HelpTaskNotFound() {
           action={
             <Link href="/help" color="teal.700" fontWeight="bold" display="inline-flex" alignItems="center" gap={2}>
               <LuArrowLeft aria-hidden />
-              ヘルプへ戻る
+              ヘルプ・使い方へ戻る
             </Link>
           }
           size="lg"

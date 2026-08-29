@@ -90,7 +90,7 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
             <Menu.Item asChild value="help" cursor="pointer">
               <a href="/help" target="_blank" rel="noreferrer">
                 <LuBookOpen />
-                ヘルプ
+                ヘルプ・使い方
               </a>
             </Menu.Item>
             <Menu.Item asChild value="contact" cursor="pointer">

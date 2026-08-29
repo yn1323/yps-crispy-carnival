@@ -8,6 +8,7 @@ describe("Web計測route policy", () => {
     ["/help?from=top", "help_index"],
     ["/help/tasks/staff-management#add-staff-methods", "help_index"],
     ["/help/add-staff/#answer", "help_guide"],
+    ["/help/scenarios/shift-management", "help_guide"],
     ["/contact", "contact"],
     ["/articles", "articles_index"],
     ["/articles/shiftori-line-workflow", "article_detail"],
@@ -49,6 +50,8 @@ describe("Web計測route policy", () => {
     "/faq",
     "/howto",
     "/help/a/b",
+    "/help/scenarios/unknown",
+    "/help/scenarios/a/b",
     "/unknown",
     "/articles/categories/a/b",
   ])("%sはdefault closedにする", (pathname) => {

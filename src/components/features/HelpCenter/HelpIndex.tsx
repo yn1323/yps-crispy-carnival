@@ -5,6 +5,7 @@ import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { HelpAudienceBadge } from "./HelpAudienceBadge";
+import { HelpScenarioLinkCard } from "./HelpScenarioCard";
 import { HelpSupport } from "./HelpSupport";
 import { HelpTaskLinkCard } from "./HelpTaskCard";
 import { type HelpIndexMetadata, helpIndexMetas } from "./helpIndexData";
@@ -45,7 +46,10 @@ export function HelpIndex({ metas = helpIndexMetas, tasks = HELP_TASKS }: HelpIn
         {hasQuery ? (
           <SearchResults results={results} query={query} onClear={clearSearch} />
         ) : (
-          <TaskLinks tasks={tasks} />
+          <Stack gap={{ base: 8, lg: 10 }}>
+            <ScenarioLink />
+            <TaskLinks tasks={tasks} />
+          </Stack>
         )}
         <HelpSupport />
       </Container>
@@ -53,22 +57,32 @@ export function HelpIndex({ metas = helpIndexMetas, tasks = HELP_TASKS }: HelpIn
   );
 }
 
+function ScenarioLink() {
+  return (
+    <Box as="section" aria-labelledby="help-scenario-title">
+      <Stack gap={1} mb={5}>
+        <Heading id="help-scenario-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }}>
+          基本の使い方を見る
+        </Heading>
+      </Stack>
+      <HelpScenarioLinkCard />
+    </Box>
+  );
+}
+
 function HelpHeader({ query, onQueryChange }: { query: string; onQueryChange: (value: string) => void }) {
   return (
     <Stack gap={3} maxW="760px" mb={{ base: 8, lg: 10 }}>
       <Heading as="h1" color="gray.950" fontSize={{ base: "2xl", lg: "3xl" }} letterSpacing="0">
-        ヘルプ
+        ヘルプ・使い方
       </Heading>
-      <Text color="gray.700" lineHeight="1.7">
-        キーワードで検索するか、やりたいことを選んでください。
-      </Text>
       <Box mt={1}>
         <Input
           id="help-search"
           type="search"
           value={query}
           onChange={(event) => onQueryChange(event.currentTarget.value)}
-          aria-label="ヘルプを検索"
+          aria-label="キーワードで検索"
           placeholder="スタッフを追加したい、通知が届かない"
           h={{ base: 12, md: 14 }}
           pe={4}
@@ -90,9 +104,6 @@ function TaskLinks({ tasks }: { tasks: readonly HelpTask[] }) {
         <Heading id="help-tasks-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }}>
           やりたいことから探す
         </Heading>
-        <Text color="gray.600" fontSize="sm" lineHeight="1.7">
-          選んだ内容に合う、よくある質問と使い方をまとめて確認できます。
-        </Text>
       </Stack>
       <SimpleGrid columns={{ base: 2, lg: 3 }} gap={{ base: 2.5, md: 3 }}>
         {tasks.map((task) => (

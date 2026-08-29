@@ -11,6 +11,7 @@ describe("app route matching", () => {
   it.each([
     ["/help", "/help/"],
     ["/help/tasks/staff-management", "/help/tasks/$taskId"],
+    ["/help/scenarios/shift-management", "/help/scenarios/shift-management"],
     ["/help/start-shift-management", "/help/$slug"],
   ])("公開ヘルプURL %s をHelpCenter routeへ接続する", (pathname, expectedRouteId) => {
     expect(getLeafRouteId(pathname)).toBe(expectedRouteId);

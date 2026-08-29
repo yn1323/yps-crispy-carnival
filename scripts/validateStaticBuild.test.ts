@@ -17,10 +17,11 @@ describe("static build help bundle boundary", () => {
       expect(() => assertHelpIndexBundleBoundary("/help", preload)).not.toThrow();
     }
     expect(() => assertHelpIndexBundleBoundary("/help/add-staff", "<html></html>")).not.toThrow();
+    expect(() => assertHelpIndexBundleBoundary("/help/scenarios/shift-management", "<html></html>")).not.toThrow();
     expect(() => assertHelpIndexBundleBoundary("/help/tasks/staff-management", "<html></html>")).not.toThrow();
   });
 
-  it.each(["/", "/help/add-staff", "/help/tasks/staff-management", "/articles"])(
+  it.each(["/", "/help/add-staff", "/help/scenarios/shift-management", "/help/tasks/staff-management", "/articles"])(
     "%sで全文検索bundleの先読みを拒否する",
     (route) => {
       for (const preload of helpIndexPreloads) {

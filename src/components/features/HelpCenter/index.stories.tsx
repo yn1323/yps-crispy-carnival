@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { HelpIndex } from "./HelpIndex";
+import { SHIFT_MANAGEMENT_SCENARIO } from "./helpScenario";
 import { getHelpTaskHref, HELP_TASKS } from "./helpTasks";
 
 const meta = {
@@ -38,8 +39,13 @@ export const Desktop: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(await canvas.findByRole("heading", { level: 1, name: "ヘルプ" })).toBeVisible();
-    await expect(canvas.getByRole("searchbox", { name: "ヘルプを検索" })).toBeVisible();
+    await expect(await canvas.findByRole("heading", { level: 1, name: "ヘルプ・使い方" })).toBeVisible();
+    await expect(canvas.getByRole("searchbox", { name: "キーワードで検索" })).toBeVisible();
+    const scenarioCard = canvas.getByRole("link", { name: SHIFT_MANAGEMENT_SCENARIO.cardTitle });
+    await expect(scenarioCard).toHaveAttribute("href", SHIFT_MANAGEMENT_SCENARIO.href);
+    const scenarioCardContent = within(scenarioCard);
+    await expect(scenarioCardContent.getByText("管理者")).toBeVisible();
+    await expect(scenarioCardContent.getByText("スタッフ")).toBeVisible();
     for (const task of HELP_TASKS) {
       await expect(canvas.getByRole("link", { name: task.title })).toHaveAttribute("href", getHelpTaskHref(task.id));
     }
@@ -60,7 +66,7 @@ export const SearchWithoutResults: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const search = await canvas.findByRole("searchbox", { name: "ヘルプを検索" });
+    const search = await canvas.findByRole("searchbox", { name: "キーワードで検索" });
 
     await userEvent.type(search, "一致しない検索語xyz");
     await expect(await canvas.findByText("該当するヘルプが見つかりません")).toBeVisible();
@@ -80,7 +86,7 @@ export const Search: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const search = await canvas.findByRole("searchbox", { name: "ヘルプを検索" });
+    const search = await canvas.findByRole("searchbox", { name: "キーワードで検索" });
 
     await userEvent.type(search, "スタッフ 追加");
 

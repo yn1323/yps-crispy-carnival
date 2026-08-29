@@ -17,7 +17,7 @@ export function buildHelpTaskPageHead(taskId: string) {
     links: buildLinks({ canonical }),
     meta: [
       ...buildMeta({
-        title: `${task.title}｜ヘルプ`,
+        title: `${task.title}｜ヘルプ・使い方`,
         description: `${task.description} よくある質問と詳しい使い方を確認できます。`,
         canonical,
       }),
@@ -28,7 +28,7 @@ export function buildHelpTaskPageHead(taskId: string) {
           {
             "@type": "ListItem",
             position: 1,
-            name: "ヘルプ",
+            name: "ヘルプ・使い方",
             item: `${SITE_URL}/help`,
           },
           {

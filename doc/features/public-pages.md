@@ -14,8 +14,9 @@
 | `/` | 価値、利用の流れ、提出方法、利用例、料金プラン、ヘルプと記事への入口、登録導線をまとめるTOP | `src/pages/home/`、`src/components/features/LandingPage/` |
 | `/features` | 希望回収、未提出確認、シフト作成、確定通知など、できることを詳しく示す | `src/pages/features/`、`FeatureSection`、`BenefitsSection` |
 | `/commercial-transactions` | 有料プランの販売条件と、特定商取引法に基づく事業者情報を示す | `src/pages/commercial-transactions/`、`CommercialTransactions` |
-| `/help` | FAQと使い方を、検索とやりたいことから探す入口を示す | `src/pages/help/`、`src/components/features/HelpCenter/` |
+| `/help` | 「ヘルプ・使い方」として、FAQと使い方を検索とやりたいことから探す入口を示す | `src/pages/help/`、`src/components/features/HelpCenter/` |
 | `/help/tasks/:taskId` | 一つのやりたいことに属するFAQと使い方を表示する | `src/pages/help/`、`src/components/features/HelpCenter/` |
+| `/help/scenarios/shift-management` | スタッフ追加の準備から確定通知までを、動画とStepperで順番に示す | `src/pages/help/`、`HelpShiftManagementScenario` |
 | `/help/:slug` | 一つの使い方を表示し、関連するFAQと使い方へつなぐ | `src/pages/help/`、`HelpCenter/content/guides/` |
 | `/articles` | シフト運営に関する記事とカテゴリへの入口を示す | `src/pages/articles/`、`ArticleListPage` |
 | `/articles/:slug` | 一つの記事を表示し、関連する製品情報へつなぐ | `ArticlePage`、`ArticleSite/content/articles/` |
@@ -27,7 +28,7 @@ TOPは`src/routes/index.tsx`から`HomePage`を呼び、`HomePage`が`LandingPag
 `LandingPage`は`PublicPageLayout`の中に、Hero、課題の軽減、利用の流れ、提出方法、比較、利用例、複数店舗・複数担当者での運用、料金プラン、CTA、ヘルプと記事の各sectionを並べる。
 
 ヘルプ、記事、デモは同じ公開サイトに属するが、内容の置き場所は分かれている。
-FAQと使い方は共通のMDX基盤を含む`HelpCenter`、記事は`ArticleSite`、操作できるデモは`Demo`が所有する。
+FAQ、使い方、TSXの動画シナリオは`HelpCenter`、記事は`ArticleSite`、操作できるデモは`Demo`が所有する。
 ヘルプの管理形式と公開契約は[ヘルプセンター](help-center.md)を参照する。
 
 ## 公開サイトから接続する機能
@@ -117,10 +118,11 @@ Productionの設定値と公開表示の確認状況は、[リリース状態](.
 | TOPの料金プランsection | 人数と店舗数に合うプランと料金を比較したい | シフト管理の基本機能が共通であることと、Free・Standard・Proの料金と利用上限を示す。Standard・Proの金額は特定商取引法ページと同じbuild時料金カタログを使う |
 | ヘルプのFAQ | 料金、通知、導入、運用について結論を知りたい | 質問ごとに結論と必要な注意点を示す |
 | ヘルプの使い方 | 画面でどう操作し、失敗時にどう戻るか | 操作場所、手順、結果、回復方法を示す |
+| ヘルプの動画シナリオ | 毎回のシフト管理をどの順番で進めるか | スタッフ追加の準備と、募集から確定通知までを一つのページで順番に示す |
 | 記事 | シフト運営の課題をどう判断するか | 課題の整理、選択肢、関連する製品導線を示す |
 | デモ | 登録前に操作と結果を確かめたい | 実データを保存せず、主要な操作の流れを体験できるようにする |
 
-ヘルプはFAQと使い方を一つのMDX形式で管理し、利用者が完了したい仕事ごとに分類する。
+ヘルプはFAQと使い方を一つのMDX形式で管理し、利用者が完了したい仕事ごとに分類する。動画シナリオはTOPから直接開くTSXページとして分ける。
 FAQは`/help/tasks/:taskId#<faq-id>`で展開・共有し、使い方は`/help/:slug`の個別ページで表示する。
 TOPに掲載するFAQは`homeFeatured`、FAQから案内する主な使い方は`primaryGuide`で指定する。
 frontmatter、検索、関連付け、本文の表示規則は[ヘルプセンター](help-center.md)を正本とする。
@@ -134,7 +136,7 @@ frontmatter、検索、関連付け、本文の表示規則は[ヘルプセン�
 
 ## 静的生成とメタデータ
 
-`scripts/staticSite.ts`はTOP、機能紹介、ヘルプTOPとタスクページ、問い合わせ、記事一覧、汎用の法務文書、特定商取引法に基づく表記、二つのデモなどを公開routeとして持つ。  現在、独立した`/pricing` routeはない。
+`scripts/staticSite.ts`はTOP、機能紹介、ヘルプTOP・動画シナリオ・タスクページ、問い合わせ、記事一覧、汎用の法務文書、特定商取引法に基づく表記、二つのデモなどを公開routeとして持つ。  現在、独立した`/pricing` routeはない。
 ヘルプの使い方は`HelpCenter/content/guides/`、記事詳細とカテゴリは`ArticleSite/content/`の公開済みslugから対象routeを組み立てる。
 TanStack StartはこのallowlistだけをStatic Prerenderingし、認証routeやCapability routeを自動探索しない。
 

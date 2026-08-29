@@ -17,7 +17,7 @@ export function buildHelpGuidePageHead(slug: string) {
     links: buildLinks({ canonical: guide.href }),
     meta: [
       ...buildMeta({
-        title: `${guide.title}｜ヘルプ`,
+        title: `${guide.title}｜ヘルプ・使い方`,
         description: guide.summary,
         canonical: guide.href,
       }),
@@ -28,7 +28,7 @@ export function buildHelpGuidePageHead(slug: string) {
           {
             "@type": "ListItem",
             position: 1,
-            name: "ヘルプ",
+            name: "ヘルプ・使い方",
             item: `${SITE_URL}/help`,
           },
           {

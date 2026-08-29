@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { articleSlugAliases, resolveArticleSlug } from "../src/components/features/ArticleSite/articleAliases";
+import { SHIFT_MANAGEMENT_SCENARIO } from "../src/components/features/HelpCenter/helpScenario";
 import { HELP_TASK_IDS } from "../src/components/features/HelpCenter/helpTasks";
 
 export const STATIC_CLIENT_OUTPUT_DIR = "dist/client";
@@ -17,6 +18,7 @@ export const FIXED_PUBLIC_ROUTES = [
   "/demo/shiftboard",
   "/features",
   "/help",
+  SHIFT_MANAGEMENT_SCENARIO.href,
   "/privacy",
   "/privacy/manager",
   "/privacy/staff",

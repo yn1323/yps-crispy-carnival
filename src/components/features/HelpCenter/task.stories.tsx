@@ -55,7 +55,7 @@ export const Desktop: Story = {
       if (!guide) throw new Error("task Storyの使い方が見つかりません");
       await expect(canvas.getByRole("link", { name: new RegExp(guide.title) })).toHaveAttribute("href", guide.href);
     }
-    await expect(canvas.getByRole("link", { name: "ヘルプTOPに戻る" })).toHaveAttribute("href", "/help");
+    await expect(canvas.getByRole("link", { name: "ヘルプ・使い方TOPに戻る" })).toHaveAttribute("href", "/help");
   },
 };
 
@@ -128,6 +128,6 @@ export const NotFound: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(await canvas.findByRole("heading", { level: 1, name: "やりたいことが見つかりません" })).toBeVisible();
-    await expect(canvas.getByRole("link", { name: "ヘルプへ戻る" })).toHaveAttribute("href", "/help");
+    await expect(canvas.getByRole("link", { name: "ヘルプ・使い方へ戻る" })).toHaveAttribute("href", "/help");
   },
 };

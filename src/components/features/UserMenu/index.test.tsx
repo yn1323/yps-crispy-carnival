@@ -69,7 +69,7 @@ describe("UserMenu", () => {
     expect(mocks.linkProps).toHaveBeenCalledWith({ to: "/account", search: undefined });
   });
 
-  it("ヘルプと問い合わせは別タブで開く", async () => {
+  it("ヘルプ・使い方と問い合わせは別タブで開く", async () => {
     const store = createStore();
     store.set(userAtom, {
       authId: "user_actor",
@@ -86,7 +86,7 @@ describe("UserMenu", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "ユーザーメニュー" }));
 
-    const helpLink = await screen.findByRole("menuitem", { name: "ヘルプ" });
+    const helpLink = await screen.findByRole("menuitem", { name: "ヘルプ・使い方" });
     expect(helpLink.getAttribute("href")).toBe("/help");
     expect(helpLink.getAttribute("target")).toBe("_blank");
     expect(screen.getByRole("menuitem", { name: "お問い合わせ" }).getAttribute("target")).toBe("_blank");
