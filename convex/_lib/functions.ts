@@ -4,7 +4,6 @@ import { customMutation, customQuery } from "convex-helpers/server/customFunctio
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { requireOrganizationReadActor } from "../organization/access";
-import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import {
   type LimitRecoveryCapability,
   requireOrganizationBusinessWrite,
@@ -50,7 +49,6 @@ async function resolveOrganizationShopAccess(
   ctx: DbCtx,
   user: Doc<"users">,
   shop: Doc<"shops">,
-  mode: ManagerAccessMode,
 ): Promise<ManagerShopAccess | null> {
   if (!shop.organizationId || shop.isDeleted) return null;
 
@@ -62,8 +60,6 @@ async function resolveOrganizationShopAccess(
     .withIndex("by_userId_and_organizationId", (q) => q.eq("userId", user._id).eq("organizationId", organization._id))
     .take(2);
   if (memberships.length === 0) {
-    if (mode === "mutation" && organizationShopOperatingStatus(shop.operatingStatus) !== "active") return null;
-
     // TODO[narrow]: 全deploymentでm029が完走し、verifyLegacyShopMembersの全pageが0件になった後、
     //   このshopMembers fallbackを削除する。organizationMemberが1件でも存在する場合は使用しない。
     const legacyMemberships = await ctx.db
@@ -89,8 +85,6 @@ async function resolveOrganizationShopAccess(
     return null;
   }
 
-  if (mode === "mutation" && organizationShopOperatingStatus(shop.operatingStatus) !== "active") return null;
-
   return { shop, organization, organizationMember };
 }
 
@@ -112,15 +106,10 @@ async function resolveLegacyShopAccess(
   return memberships.length === 1 ? { shop, organization: null, organizationMember: null } : null;
 }
 
-async function resolveExplicitShopForUser(
-  ctx: DbCtx,
-  user: Doc<"users">,
-  shopId: Id<"shops">,
-  mode: ManagerAccessMode,
-) {
+async function resolveExplicitShopForUser(ctx: DbCtx, user: Doc<"users">, shopId: Id<"shops">) {
   const shop = await ctx.db.get(shopId);
   if (!shop) return null;
-  if (shop.organizationId) return await resolveOrganizationShopAccess(ctx, user, shop, mode);
+  if (shop.organizationId) return await resolveOrganizationShopAccess(ctx, user, shop);
   return await resolveLegacyShopAccess(ctx, user, shop);
 }
 
@@ -133,9 +122,8 @@ async function resolveShopForUser(
   ctx: DbCtx,
   user: Doc<"users">,
   shopId: Id<"shops"> | undefined,
-  mode: ManagerAccessMode,
 ): Promise<ManagerShopAccess | null> {
-  if (shopId) return await resolveExplicitShopForUser(ctx, user, shopId, mode);
+  if (shopId) return await resolveExplicitShopForUser(ctx, user, shopId);
 
   const allowedStatuses = ["active"] as const;
   for (const status of allowedStatuses) {
@@ -143,25 +131,15 @@ async function resolveShopForUser(
       .query("organizationMembers")
       .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", status));
     for await (const membership of memberships) {
-      const activeShop = await ctx.db
+      const shop = await ctx.db
         .query("shops")
-        .withIndex("by_organizationId_and_operatingStatus", (q) =>
-          q.eq("organizationId", membership.organizationId).eq("operatingStatus", "active"),
+        .withIndex("by_organizationId_and_isDeleted", (q) =>
+          q.eq("organizationId", membership.organizationId).eq("isDeleted", false),
         )
         .first();
-      if (activeShop) {
-        const access = await resolveOrganizationShopAccess(ctx, user, activeShop, mode);
+      if (shop) {
+        const access = await resolveOrganizationShopAccess(ctx, user, shop);
         if (access) return access;
-      }
-
-      if (mode === "query") {
-        const organizationShops = ctx.db
-          .query("shops")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", membership.organizationId));
-        for await (const shop of organizationShops) {
-          const access = await resolveOrganizationShopAccess(ctx, user, shop, mode);
-          if (access) return access;
-        }
       }
     }
   }
@@ -172,7 +150,7 @@ async function resolveShopForUser(
     .query("shopMembers")
     .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false));
   for await (const membership of legacyMemberships) {
-    const access = await resolveExplicitShopForUser(ctx, user, membership.shopId, mode);
+    const access = await resolveExplicitShopForUser(ctx, user, membership.shopId);
     if (access) return access;
   }
   return null;
@@ -347,7 +325,7 @@ export const managerQuery = customQuery(query, {
     }
     const user = await getUserByIdentity(ctx, identity, "query");
     if (user) registerConvexFunctionErrorContext(ctx, { actorKind: "manager", actorUserId: user._id });
-    const access = user && !user.isDeleted ? await resolveShopForUser(ctx, user, shopId, "query") : null;
+    const access = user && !user.isDeleted ? await resolveShopForUser(ctx, user, shopId) : null;
     if (!user || user.isDeleted || !access) {
       return { ctx: { user: null, shop: null, organization: null, organizationMember: null }, args: {} };
     }
@@ -386,7 +364,7 @@ async function resolveManagerMutationInput(
   }
   const user = await getUserByIdentity(ctx, identity, "mutation");
   if (user) registerConvexFunctionErrorContext(ctx, { actorKind: "manager", actorUserId: user._id });
-  const access = user && !user.isDeleted ? await resolveShopForUser(ctx, user, shopId, "mutation") : null;
+  const access = user && !user.isDeleted ? await resolveShopForUser(ctx, user, shopId) : null;
   if (!user || user.isDeleted || !access) {
     throw new ConvexError("Not found");
   }
