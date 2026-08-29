@@ -21,7 +21,7 @@ export const BottomCtaSection = () => (
         </Text>
         <VStack align="center" gap={3} w={{ base: "full", md: "auto" }}>
           <Stack direction={{ base: "column", md: "row" }} gap={4} w={{ base: "full", md: "auto" }}>
-            <BottomButton href="/signup" label="シフトリを始める" primary />
+            <BottomButton href="/signup" label="シフトリをはじめる" primary />
             <BottomButton href="/demo/flow" label="登録不要でデモを見る" />
           </Stack>
           <TrialReassurance />

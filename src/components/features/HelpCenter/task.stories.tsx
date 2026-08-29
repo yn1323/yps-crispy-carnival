@@ -55,7 +55,7 @@ export const Desktop: Story = {
       if (!guide) throw new Error("task Storyの使い方が見つかりません");
       await expect(canvas.getByRole("link", { name: new RegExp(guide.title) })).toHaveAttribute("href", guide.href);
     }
-    await expect(canvas.getByRole("link", { name: "ほかのやりたいことを探す" })).toHaveAttribute("href", "/help");
+    await expect(canvas.getByRole("link", { name: "ヘルプTOPに戻る" })).toHaveAttribute("href", "/help");
   },
 };
 

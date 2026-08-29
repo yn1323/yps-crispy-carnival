@@ -71,14 +71,14 @@ export const HELP_TASKS = [
   },
   {
     id: "notifications",
-    title: "LINE・メール通知を確認したい",
+    title: "LINE・メール通知について",
     description: "通知手段、送信状況、届かない場合の確認方法を案内します",
     audience: "all",
     order: 70,
   },
   {
     id: "organization-billing",
-    title: "組織・管理者・料金を管理したい",
+    title: "組織・管理者・料金について",
     description: "組織の利用状況、管理者、プランと支払いを確認します",
     audience: "manager",
     order: 80,

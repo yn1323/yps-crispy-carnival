@@ -70,7 +70,7 @@ export const HeroSection = () => (
               gap={4}
               w={{ base: "full", md: "auto" }}
             >
-              <HeroButton href="/signup" label="シフトリを始める" tone="primary" measurementCtaId="hero_signup" />
+              <HeroButton href="/signup" label="シフトリをはじめる" tone="primary" measurementCtaId="hero_signup" />
               <HeroButton
                 href="/demo/flow"
                 label="登録不要でデモを見る"

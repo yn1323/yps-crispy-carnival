@@ -290,7 +290,7 @@ const PublicLoginButton = ({ display }: PublicLoginButtonProps) => (
 const PublicSignupButton = () => (
   <Button asChild colorPalette="teal" h="38px" px={5} borderRadius="md" fontSize="sm" fontWeight="bold" hideBelow="md">
     <MeasurementBoundaryLink href="/signup" measurementCtaId="header_signup">
-      シフトリを始める
+      シフトリをはじめる
     </MeasurementBoundaryLink>
   </Button>
 );

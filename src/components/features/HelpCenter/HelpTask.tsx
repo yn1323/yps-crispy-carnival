@@ -111,9 +111,6 @@ function HelpTaskView({
               >
                 {task.title}
               </Heading>
-              <Text color="gray.600" lineHeight="1.7">
-                {task.description}
-              </Text>
             </Stack>
           </Stack>
 
@@ -131,9 +128,6 @@ function HelpTaskView({
                   <Heading id="help-task-faqs-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }}>
                     よくある質問
                   </Heading>
-                  <Text color="gray.600" fontSize="sm" lineHeight="1.7">
-                    質問を選ぶと、このページで回答を確認できます。
-                  </Text>
                 </Stack>
                 <HelpFaqAccordion entries={faqs} metas={metas} value={openItems} onValueChange={setOpenItems} />
               </Stack>
@@ -145,9 +139,6 @@ function HelpTaskView({
                   <Heading id="help-task-guides-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }}>
                     使い方
                   </Heading>
-                  <Text color="gray.600" fontSize="sm" lineHeight="1.7">
-                    操作手順は、使い方の専用ページで詳しく確認できます。
-                  </Text>
                 </Stack>
                 <Stack gap={0} borderWidth="1px" borderColor="gray.200" borderRadius="lg" overflow="hidden">
                   {guides.map((guide) => (
@@ -168,7 +159,7 @@ function HelpTaskView({
             gap={2}
           >
             <LuArrowLeft aria-hidden />
-            ほかのやりたいことを探す
+            ヘルプTOPに戻る
           </Link>
         </Stack>
         <HelpSupport />
