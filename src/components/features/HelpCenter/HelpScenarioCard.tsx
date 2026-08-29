@@ -1,13 +1,52 @@
 import { Flex, Link, Stack, Text } from "@chakra-ui/react";
-import { LuArrowRight, LuSprout } from "react-icons/lu";
+import type { IconType } from "react-icons";
+import { LuArrowRight, LuBuilding2, LuSprout } from "react-icons/lu";
 import { HelpAudienceBadge } from "./HelpAudienceBadge";
 import { SHIFT_MANAGEMENT_SCENARIO } from "./helpScenario";
+import type { HelpAudience } from "./helpTasks";
+import { ORGANIZATION_STRUCTURE_HELP } from "./organizationStructureHelp";
 
 export function HelpScenarioLinkCard() {
   return (
-    <Link
+    <HelpBasicLinkCard
       href={SHIFT_MANAGEMENT_SCENARIO.href}
-      aria-label={SHIFT_MANAGEMENT_SCENARIO.cardTitle}
+      title={SHIFT_MANAGEMENT_SCENARIO.cardTitle}
+      description={SHIFT_MANAGEMENT_SCENARIO.cardDescription}
+      audiences={["manager", "staff"]}
+      icon={LuSprout}
+    />
+  );
+}
+
+export function HelpOrganizationStructureLinkCard() {
+  return (
+    <HelpBasicLinkCard
+      href={ORGANIZATION_STRUCTURE_HELP.href}
+      title={ORGANIZATION_STRUCTURE_HELP.cardTitle}
+      description={ORGANIZATION_STRUCTURE_HELP.cardDescription}
+      audiences={[ORGANIZATION_STRUCTURE_HELP.audience]}
+      icon={LuBuilding2}
+    />
+  );
+}
+
+function HelpBasicLinkCard({
+  href,
+  title,
+  description,
+  audiences,
+  icon: CardIcon,
+}: {
+  href: string;
+  title: string;
+  description: string;
+  audiences: readonly HelpAudience[];
+  icon: IconType;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-label={title}
       display="flex"
       alignItems="center"
       gap={{ base: 3, md: 4 }}
@@ -31,18 +70,19 @@ export function HelpScenarioLinkCard() {
         borderRadius="lg"
         bg="teal.50"
       >
-        <LuSprout aria-hidden color="var(--chakra-colors-teal-800)" />
+        <CardIcon aria-hidden color="var(--chakra-colors-teal-800)" />
       </Flex>
       <Stack gap={1} minW={0} flex="1">
         <Flex gap={2} wrap="wrap">
-          <HelpAudienceBadge audience="manager" />
-          <HelpAudienceBadge audience="staff" />
+          {audiences.map((audience) => (
+            <HelpAudienceBadge key={audience} audience={audience} />
+          ))}
         </Flex>
         <Text fontWeight="bold" lineHeight="1.5" fontSize={{ base: "md", md: "lg" }}>
-          {SHIFT_MANAGEMENT_SCENARIO.cardTitle}
+          {title}
         </Text>
         <Text color="gray.600" fontSize="sm" lineHeight="1.7">
-          {SHIFT_MANAGEMENT_SCENARIO.cardDescription}
+          {description}
         </Text>
       </Stack>
       <LuArrowRight aria-hidden color="var(--chakra-colors-teal-700)" />

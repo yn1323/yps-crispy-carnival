@@ -3,6 +3,7 @@ import { join, relative, resolve } from "node:path";
 import { articleSlugAliases, resolveArticleSlug } from "../src/components/features/ArticleSite/articleAliases";
 import { SHIFT_MANAGEMENT_SCENARIO } from "../src/components/features/HelpCenter/helpScenario";
 import { HELP_TASK_IDS } from "../src/components/features/HelpCenter/helpTasks";
+import { ORGANIZATION_STRUCTURE_HELP } from "../src/components/features/HelpCenter/organizationStructureHelp";
 
 export const STATIC_CLIENT_OUTPUT_DIR = "dist/client";
 export const STATIC_404_BUILD_PATH = "/__static-404";
@@ -18,6 +19,7 @@ export const FIXED_PUBLIC_ROUTES = [
   "/demo/shiftboard",
   "/features",
   "/help",
+  ORGANIZATION_STRUCTURE_HELP.href,
   SHIFT_MANAGEMENT_SCENARIO.href,
   "/privacy",
   "/privacy/manager",

@@ -8,6 +8,7 @@ describe("Web計測route policy", () => {
     ["/help?from=top", "help_index"],
     ["/help/tasks/staff-management#add-staff-methods", "help_index"],
     ["/help/add-staff/#answer", "help_guide"],
+    ["/help/basics/organization-structure", "help_guide"],
     ["/help/scenarios/shift-management", "help_guide"],
     ["/contact", "contact"],
     ["/articles", "articles_index"],

@@ -3,6 +3,7 @@ import { expect, userEvent, within } from "storybook/test";
 import { HelpIndex } from "./HelpIndex";
 import { SHIFT_MANAGEMENT_SCENARIO } from "./helpScenario";
 import { getHelpTaskHref, HELP_TASKS } from "./helpTasks";
+import { ORGANIZATION_STRUCTURE_HELP } from "./organizationStructureHelp";
 
 const meta = {
   title: "Features/HelpCenter/Index",
@@ -41,6 +42,8 @@ export const Desktop: Story = {
 
     await expect(await canvas.findByRole("heading", { level: 1, name: "ヘルプ・使い方" })).toBeVisible();
     await expect(canvas.getByRole("searchbox", { name: "キーワードで検索" })).toBeVisible();
+    const organizationStructureCard = canvas.getByRole("link", { name: ORGANIZATION_STRUCTURE_HELP.cardTitle });
+    await expect(organizationStructureCard).toHaveAttribute("href", ORGANIZATION_STRUCTURE_HELP.href);
     const scenarioCard = canvas.getByRole("link", { name: SHIFT_MANAGEMENT_SCENARIO.cardTitle });
     await expect(scenarioCard).toHaveAttribute("href", SHIFT_MANAGEMENT_SCENARIO.href);
     const scenarioCardContent = within(scenarioCard);

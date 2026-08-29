@@ -26,6 +26,7 @@ const fixedMeasuredRoutes = new Map<string, MeasuredPublicRouteFamily>([
   ["/demo/shiftboard", "demo_shiftboard"],
   ["/features", "features"],
   ["/help", "help_index"],
+  ["/help/basics/organization-structure", "help_guide"],
   ["/help/scenarios/shift-management", "help_guide"],
 ]);
 

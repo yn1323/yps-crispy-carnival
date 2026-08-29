@@ -5,7 +5,7 @@ import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { HelpAudienceBadge } from "./HelpAudienceBadge";
-import { HelpScenarioLinkCard } from "./HelpScenarioCard";
+import { HelpOrganizationStructureLinkCard, HelpScenarioLinkCard } from "./HelpScenarioCard";
 import { HelpSupport } from "./HelpSupport";
 import { HelpTaskLinkCard } from "./HelpTaskCard";
 import { type HelpIndexMetadata, helpIndexMetas } from "./helpIndexData";
@@ -47,7 +47,7 @@ export function HelpIndex({ metas = helpIndexMetas, tasks = HELP_TASKS }: HelpIn
           <SearchResults results={results} query={query} onClear={clearSearch} />
         ) : (
           <Stack gap={{ base: 8, lg: 10 }}>
-            <ScenarioLink />
+            <BasicHelpLinks />
             <TaskLinks tasks={tasks} />
           </Stack>
         )}
@@ -57,15 +57,18 @@ export function HelpIndex({ metas = helpIndexMetas, tasks = HELP_TASKS }: HelpIn
   );
 }
 
-function ScenarioLink() {
+function BasicHelpLinks() {
   return (
-    <Box as="section" aria-labelledby="help-scenario-title">
+    <Box as="section" aria-labelledby="help-basics-title">
       <Stack gap={1} mb={5}>
-        <Heading id="help-scenario-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }}>
+        <Heading id="help-basics-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }}>
           基本の使い方を見る
         </Heading>
       </Stack>
-      <HelpScenarioLinkCard />
+      <Stack gap={3}>
+        <HelpOrganizationStructureLinkCard />
+        <HelpScenarioLinkCard />
+      </Stack>
     </Box>
   );
 }
