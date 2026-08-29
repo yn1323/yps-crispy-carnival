@@ -16,7 +16,6 @@ import {
   type DevelopmentSeedScenarioKey,
   getDevelopmentSeedScenario,
   ownerAuthTokenIdentifier,
-  PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER,
   STANDARD_OVER_LIMIT_EXTRA_MANAGER_AUTH_TOKEN_IDENTIFIERS,
 } from "./catalog";
 
@@ -64,17 +63,20 @@ function personName(index: number): string {
   return "[SEED] シフト対象外";
 }
 
-export async function seedDevelopmentActors(ctx: MutationCtx): Promise<{ createdCount: number }> {
+export async function seedDevelopmentActors(
+  ctx: MutationCtx,
+  primaryAuthTokenIdentifier: string,
+): Promise<{ createdCount: number }> {
   const existing = await ctx.db
     .query("users")
-    .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER))
+    .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", primaryAuthTokenIdentifier))
     .unique();
   if (existing) throw new Error("Development seed actors already exist; clear all tables before seeding");
 
   const writer = new SeedWriter(ctx);
   await writer.insert("users", {
-    authTokenIdentifier: PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER,
-    name: "[SEED] 管理者A（Clerk置換対象）",
+    authTokenIdentifier: primaryAuthTokenIdentifier,
+    name: "[SEED] 管理者A",
     email: seedEmail("primary-manager"),
     emailNormalized: seedEmail("primary-manager"),
     role: "manager",
@@ -84,7 +86,7 @@ export async function seedDevelopmentActors(ctx: MutationCtx): Promise<{ created
   for (const key of DEVELOPMENT_SEED_SCENARIO_KEYS) {
     if (key === "free-capacity") continue;
     await writer.insert("users", {
-      authTokenIdentifier: ownerAuthTokenIdentifier(key),
+      authTokenIdentifier: ownerAuthTokenIdentifier(key, primaryAuthTokenIdentifier),
       name: `[SEED] ${key} 管理者B`,
       email: seedEmail(`owner-${key}`),
       emailNormalized: seedEmail(`owner-${key}`),
@@ -712,6 +714,7 @@ export async function seedDevelopmentScenarioGraph(
   ctx: MutationCtx,
   key: DevelopmentSeedScenarioKey,
   today: string,
+  primaryAuthTokenIdentifier: string,
 ): Promise<{ insertedCount: number }> {
   const scenario = getDevelopmentSeedScenario(key);
   const duplicate = (await ctx.db.query("organizations").take(DEVELOPMENT_SEED_SCENARIO_KEYS.length + 1)).find(
@@ -719,8 +722,8 @@ export async function seedDevelopmentScenarioGraph(
   );
   if (duplicate) throw new Error("Development seed scenario already exists; clear all tables before retrying");
 
-  const primaryUser = await requireSeedUser(ctx, PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER);
-  const ownerUser = await requireSeedUser(ctx, ownerAuthTokenIdentifier(key));
+  const primaryUser = await requireSeedUser(ctx, primaryAuthTokenIdentifier);
+  const ownerUser = await requireSeedUser(ctx, ownerAuthTokenIdentifier(key, primaryAuthTokenIdentifier));
   const now = Date.now();
   const writer = new SeedWriter(ctx);
   const organizationId = await writer.insert("organizations", {

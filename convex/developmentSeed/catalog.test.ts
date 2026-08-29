@@ -25,7 +25,7 @@ describe("development seed catalog", () => {
   });
 
   it("CLIとdeployment backendを削除前に照合する固定契約を持つ", () => {
-    expect(DEVELOPMENT_SEED_CONTRACT_VERSION).toBe("development-seed-v2");
+    expect(DEVELOPMENT_SEED_CONTRACT_VERSION).toBe("development-seed-v3");
     expect(DEVELOPMENT_SEED_CONTRACT_FINGERPRINT).toBe("4014fb18");
     expect(DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT).toBe(66);
   });

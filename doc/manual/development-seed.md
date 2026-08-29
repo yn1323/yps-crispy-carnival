@@ -20,6 +20,8 @@
 
 `.env.local`と`.env.develop`はGitへ追加しません。  Productionを指す値、`/`形式やprefixだけの値、対象と一致しない値、複数の`CONVEX_DEPLOYMENT`があるファイルでは、削除前にCLIが停止します。  `CONVEX_DEPLOY_KEY`、`CONVEX_DEPLOYMENT_TOKEN`、self-hosted用URLまたはadmin keyが同じファイルにある場合も実行しません。
 
+この二つのlocal env fileはdeployment selector専用です。  Clerk利用者の識別子はここへ書かず、対象ごとのConvex deployment環境変数へ設定します。
+
 ## 実行前の準備
 
 ### 対象deploymentとコード
@@ -32,19 +34,24 @@ localでは、現在の`convex/`を読み込んだlocal Convex serverが動作�
 
 ### 破壊的helperの環境guard
 
-対象Convex deploymentへ、次の三条件をすべて設定します。  値はDashboardまたは対象を固定した対話入力で設定し、コマンド履歴、文書、Issue、ログへ残しません。
+対象Convex deploymentへ、次の四つのseed設定に加え、対象Clerk instanceの`CLERK_JWT_ISSUER_DOMAIN`を設定します。  値はDashboardまたは対象を固定した対話入力で設定し、コマンド履歴、文書、Issue、ログへ残しません。
 
 | 変数 | 必須値 |
 |---|---|
 | `DEVELOPMENT_SEED_ENABLED` | `true` |
 | `DEVELOPMENT_SEED_DEPLOYMENT_URL` | 同じdeploymentの`CONVEX_CLOUD_URL`と正規化後に一致するURL |
 | `NOTIFICATION_DELIVERY_MODE` | `dry-run` |
+| `DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER` | 専用Clerk Development利用者の`identity.tokenIdentifier`と完全一致する値 |
 
-`convex/developmentSeed/`の各internal functionは、呼び出しごとに三条件を再確認します。  CLI側の固定target確認だけでは、backendの削除権限を有効にできません。
+`DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER`はlocalとDevelopmentの各Convex deploymentへ個別に設定します。  両方が同じClerk instanceの同じ利用者を使う場合は、同じ値を設定できます。  設定済みの`CLERK_JWT_ISSUER_DOMAIN`と識別子のissuerが一致することも確認します。
+
+preflightは、識別子が未設定、不正、または`CLERK_JWT_ISSUER_DOMAIN`と不一致の場合、scheduled functionの取消やtable削除より前に停止します。  `convex/developmentSeed/`の各internal functionも、呼び出しごとに環境guardを再確認します。  CLI側の固定target確認だけでは、backendの削除権限を有効にできません。
 
 `DEVELOPMENT_SEED_ENABLED=true`は、実行直前から後処理までの間だけ設定します。  CLIはConvexの環境変数を変更しないため、成功・失敗にかかわらず、作業を止める時点で`DEVELOPMENT_SEED_ENABLED`を`false`にするか削除します。  再実行するときだけ、対象deploymentを再確認して`true`へ戻します。
 
 `NOTIFICATION_DELIVERY_MODE=dry-run`は、シードデータを利用している間も維持します。  `DEVELOPMENT_SEED_ENABLED`の無効化と一緒に配送modeを戻しません。
+
+`DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER`もtableの全削除では消えないため、同じ専用利用者を使う間は維持します。  Clerk利用者を削除または作り直した場合は、対象deploymentの値を更新してからseedを再実行します。
 
 追加組織、店舗追加、管理者招待、課金画面の確認に、機能ごとの環境変数は不要です。  通知は`dry-run`のまま確認します。  実際のメールやLINEを送るために配送modeを変えると、シード用functionのguardが失敗します。
 
@@ -82,7 +89,7 @@ pnpm convex:seed:dev -- --yes
 
 CLIは、次の順番で処理します。  一つの段階が失敗した場合はnonzeroで終了し、後続段階を実行しません。
 
-1. target、deployment URL、反映済みbackendの契約version・catalog fingerprint、三つのbackend guardをpreflightで確認する。
+1. target、deployment URL、反映済みbackendの契約version・catalog fingerprint、四つのseed設定とClerk issuerをpreflightで確認する。
 2. `pending`のscheduled functionをbounded pageで取り消す。
 3. `inProgress`が0件であることを確認する。
 4. 全テーブルをbounded batchで削除する。
@@ -97,17 +104,11 @@ CLIは、次の順番で処理します。  一つの段階が失敗した場合
 
 ## Clerk Development利用者との紐付け
 
-シード直後の主利用者は、架空の`authTokenIdentifier`を持つため、そのままでは実際のClerk sessionと一致しません。  Clerk Development instanceの専用テスト利用者を一人選び、Convex Dashboardで主利用者の`users`一行だけを更新します。
+seedは`DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER`を主利用者の`users.authTokenIdentifier`として保存し、その利用者を九つの組織すべてのactive managerとして作成します。  seed後にConvex Dashboardで`users`を手動置換する必要はありません。
 
-1. 対象のClerk Development instanceとConvex Development deploymentが対応していることを確認する。
-2. 専用テスト利用者の現在のClerk identityから、Convexが解決する`identity.tokenIdentifier`をアクセス制限された場所で確認する。
-3. `users.email`が`primary-manager@seed.example.test`の行を一件だけ開く。
-4. その行の`authTokenIdentifier`だけを、手順2の完全一致値へ置き換える。
-5. ログインし、九つの組織と対象店舗を切り替えられることを確認する。
+localとDevelopmentが同じClerk instanceを参照し、同じ専用利用者でログインする場合は、両deploymentへ同じ識別子を設定します。  ログイン後は、九つの組織と対象店舗を切り替えられることを確認します。
 
-`organizationPeople.userId`と`organizationMembers.userId`は、すでに同じ`users._id`を参照しています。  ほかのdocument、シフト連絡先、請求先メールを変更しません。
-
-Clerk User ID、JWT、session token、`identity.tokenIdentifier`の値は、Issue、ログ、スクリーンショット、共有文書へ残しません。
+Clerk User ID、JWT、session token、`identity.tokenIdentifier`の値は、Git、コマンド履歴、Issue、ログ、スクリーンショット、共有文書へ残しません。
 
 ## 再実行と失敗時の復旧
 
@@ -115,7 +116,7 @@ Clerk User ID、JWT、session token、`identity.tokenIdentifier`の値は、Issu
 
 | 停止位置 | deploymentの状態 | 対応 |
 |---|---|---|
-| preflight前、またはtarget不一致 | データ変更なし | env file、反映済みfunction、三つのguardを確認してから再実行する |
+| preflight前、またはtarget不一致 | データ変更なし | env file、反映済みfunction、四つのseed設定とClerk issuerを確認してから再実行する |
 | scheduled function確認中 | `pending`の予約だけが一部取り消されている可能性がある | `inProgress`の終了を待ち、通常workflowへの影響を確認してから再実行する |
 | 全テーブル削除以降、完了検証より前 | 開発画面で利用できない部分状態 | 利用を止め、原因を修正して同じコマンドを先頭から再実行する |
 | 完了検証の失敗 | データは存在するが完成条件を満たさない | 完了扱いにせず、検証エラーの分類後に再実行する |
@@ -137,7 +138,7 @@ CLIが完了を表示した後、次を確認します。
 - 九つのシナリオと九つの組織が存在する。
 - catalog対象の全tableがseedまたは意図的な空tableとして検証される。
 - activeなOutbox、fan-out、遅延deadline、scheduled functionが0件である。
-- Clerkを紐付けた主利用者が対象組織と店舗を切り替えられる。
+- Convex deployment環境変数でClerkと紐付けた主利用者が、九つの組織すべてでactive managerとなり、対象店舗を切り替えられる。
 - `DEVELOPMENT_SEED_ENABLED`が`false`または未設定へ戻っている。
 - `NOTIFICATION_DELIVERY_MODE=dry-run`が維持されている。
 - secret、token、メールアドレス、Clerk識別子を実行ログへ記録していない。

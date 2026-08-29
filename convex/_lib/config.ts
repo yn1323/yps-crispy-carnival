@@ -61,7 +61,40 @@ export type DevelopmentSeedConfiguration = {
   currentDeploymentUrl: string;
   targetDeploymentUrl: string;
   notificationDeliveryMode: string;
+  primaryAuthTokenIdentifier: string;
 };
+
+function normalizeClerkIssuer(value: string | undefined): string | null {
+  try {
+    const url = new URL(value?.trim() ?? "");
+    if (url.protocol !== "https:" || (url.pathname !== "/" && url.pathname !== "")) return null;
+    if (url.search || url.hash || url.username || url.password) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function assertDevelopmentSeedPrimaryAuthTokenIdentifier(value: string): string {
+  const expectedIssuer = normalizeClerkIssuer(env.CLERK_JWT_ISSUER_DOMAIN);
+  if (!expectedIssuer) {
+    throw new Error("Development seed Clerk issuer is not configured");
+  }
+
+  const parts = value.split("|");
+  if (parts.length !== 2) {
+    throw new Error("Development seed primary auth token identifier is invalid");
+  }
+  const [rawIssuer, subject] = parts;
+  const issuer = normalizeClerkIssuer(rawIssuer);
+  if (!issuer || rawIssuer !== issuer || !/^user_[A-Za-z0-9]+$/.test(subject)) {
+    throw new Error("Development seed primary auth token identifier is invalid");
+  }
+  if (issuer !== expectedIssuer) {
+    throw new Error("Development seed primary auth token identifier issuer does not match");
+  }
+  return value;
+}
 
 /**
  * 全tableを置換する開発用seedのserver-side gate。
@@ -69,10 +102,11 @@ export type DevelopmentSeedConfiguration = {
  */
 export function getDevelopmentSeedConfiguration(): DevelopmentSeedConfiguration {
   return {
-    enabled: process.env.DEVELOPMENT_SEED_ENABLED === "true",
-    currentDeploymentUrl: normalizeDeploymentUrl(process.env.CONVEX_CLOUD_URL),
-    targetDeploymentUrl: normalizeDeploymentUrl(process.env.DEVELOPMENT_SEED_DEPLOYMENT_URL),
-    notificationDeliveryMode: getNotificationDeliveryMode(),
+    enabled: env.DEVELOPMENT_SEED_ENABLED === "true",
+    currentDeploymentUrl: normalizeDeploymentUrl(env.CONVEX_CLOUD_URL),
+    targetDeploymentUrl: normalizeDeploymentUrl(env.DEVELOPMENT_SEED_DEPLOYMENT_URL),
+    notificationDeliveryMode: (env.NOTIFICATION_DELIVERY_MODE ?? "").trim().toLowerCase(),
+    primaryAuthTokenIdentifier: (env.DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER ?? "").trim(),
   };
 }
 
@@ -91,7 +125,15 @@ export function assertDevelopmentSeedEnabled(): DevelopmentSeedConfiguration {
   if (configuration.notificationDeliveryMode !== "dry-run") {
     throw new Error("Development seed requires notification dry-run mode");
   }
-  return configuration;
+  if (!configuration.primaryAuthTokenIdentifier) {
+    throw new Error("Development seed primary auth token identifier is not configured");
+  }
+  return {
+    ...configuration,
+    primaryAuthTokenIdentifier: assertDevelopmentSeedPrimaryAuthTokenIdentifier(
+      configuration.primaryAuthTokenIdentifier,
+    ),
+  };
 }
 
 /**

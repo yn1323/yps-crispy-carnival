@@ -42,6 +42,7 @@ type Env = {
   readonly DEBUG_TRIAL_DURATION_DEPLOYMENT_URL: string | undefined;
   readonly DEVELOPMENT_SEED_DEPLOYMENT_URL: string | undefined;
   readonly DEVELOPMENT_SEED_ENABLED: string | undefined;
+  readonly DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER: string | undefined;
   readonly NOTIFICATION_DELIVERY_MODE: string | undefined;
   readonly PROMOTION_COMPLIMENTARY_PRO_CODE: string | undefined;
   readonly STRIPE_PORTAL_CONFIGURATION_ID: string | undefined;

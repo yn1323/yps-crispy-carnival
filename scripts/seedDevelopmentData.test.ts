@@ -89,10 +89,7 @@ function createSuccessfulRunner() {
     }
     if (functionName === "developmentSeed/mutations:seedActors") {
       expect(payload).toEqual({ today: PREFLIGHT.today, auditToken: AUDIT_TOKEN });
-      return JSON.stringify({
-        createdCount: 3,
-        primaryAuthTokenIdentifier: "https://seed.example.test|replace-with-clerk-token-identifier",
-      });
+      return JSON.stringify({ createdCount: 3 });
     }
     if (functionName === "developmentSeed/mutations:seedScenario") {
       expect(payload.today).toBe(PREFLIGHT.today);
@@ -227,12 +224,11 @@ describe("seedDevelopmentData CLI", () => {
     }
     expect(childEnvironments.size).toBe(1);
     const output = JSON.stringify(log.mock.calls);
-    expect(output).not.toContain("replace-with-clerk-token-identifier");
     expect(output).not.toContain("primary-manager@seed.example.test");
   });
 
   it.each([
-    ["旧contract", { ...PREFLIGHT, contractVersion: "development-seed-v0" }],
+    ["旧contract", { ...PREFLIGHT, contractVersion: "development-seed-v2" }],
     ["旧table catalog", { ...PREFLIGHT, tableCount: 65 }],
     ["別deployment", { ...PREFLIGHT, deploymentUrl: "https://other-development.convex.cloud" }],
   ])("preflightが%sならcancel・削除前に停止する", (_caseName, preflight) => {

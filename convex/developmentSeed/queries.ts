@@ -16,7 +16,6 @@ import {
   DEVELOPMENT_SEED_SCENARIOS,
   DEVELOPMENT_SEED_TABLE_COVERAGE,
   DEVELOPMENT_SEED_UNION_COVERAGE,
-  PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER,
 } from "./catalog";
 
 const VERIFY_ROW_LIMIT = 512;
@@ -95,7 +94,7 @@ export const verify = internalMutation({
     liveScheduledFunctionCount: v.number(),
   }),
   handler: async (ctx, { today, auditToken }) => {
-    assertDevelopmentSeedEnabled();
+    const configuration = assertDevelopmentSeedEnabled();
     assertSeedDate(today);
     if (Object.keys(schema.tables).length !== DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT) {
       throw new Error("Development seed table catalog count is stale");
@@ -216,7 +215,7 @@ export const verify = internalMutation({
     if (organizations.length !== DEVELOPMENT_SEED_SCENARIO_KEYS.length) {
       throw new Error("Development seed organization count is invalid");
     }
-    const primaryUser = users.find((user) => user.authTokenIdentifier === PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER);
+    const primaryUser = users.find((user) => user.authTokenIdentifier === configuration.primaryAuthTokenIdentifier);
     if (!primaryUser) throw new Error("Development seed primary user is missing");
 
     const organizationMap = new Map(organizations.map((organization) => [organization._id, organization]));

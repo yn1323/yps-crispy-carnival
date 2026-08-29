@@ -3,11 +3,7 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { modules, schema } from "../_test/setup.test-helper";
-import {
-  DEVELOPMENT_SEED_SCENARIO_KEYS,
-  type DevelopmentSeedScenarioKey,
-  PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER,
-} from "../developmentSeed/catalog";
+import { DEVELOPMENT_SEED_SCENARIO_KEYS, type DevelopmentSeedScenarioKey } from "../developmentSeed/catalog";
 import { hasCurrentStaffLegalConsent } from "../legal/service";
 import { getOrganizationPersonLineState, resolveStaffLineRecipient } from "../line/service";
 import {
@@ -15,6 +11,9 @@ import {
   hasValidConfirmationSnapshotSignature,
 } from "../notification/confirmationSnapshots";
 import { getOrganizationStaffOrderScope } from "../organization/staffOrder";
+
+const CLERK_ISSUER = "https://clerk.seed.example.test";
+const PRIMARY_AUTH_TOKEN_IDENTIFIER = `${CLERK_ISSUER}|user_seedPrimary`;
 
 type PreflightResult = {
   contractVersion: string;
@@ -65,12 +64,12 @@ const clearRef = makeFunctionReference<"mutation", { tableIndex: number; auditTo
 const seedActorsRef = makeFunctionReference<
   "mutation",
   { today: string; auditToken: string },
-  { createdCount: number; primaryAuthTokenIdentifier: string }
+  { createdCount: number }
 >("developmentSeed/mutations:seedActors") as unknown as FunctionReference<
   "mutation",
   "internal",
   { today: string; auditToken: string },
-  { createdCount: number; primaryAuthTokenIdentifier: string }
+  { createdCount: number }
 >;
 const seedScenarioRef = makeFunctionReference<
   "mutation",
@@ -93,6 +92,8 @@ function configureDevelopmentSeed() {
   vi.stubEnv("CONVEX_CLOUD_URL", "https://seed-development.convex.cloud");
   vi.stubEnv("DEVELOPMENT_SEED_DEPLOYMENT_URL", "https://seed-development.convex.cloud");
   vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "dry-run");
+  vi.stubEnv("CLERK_JWT_ISSUER_DOMAIN", CLERK_ISSUER);
+  vi.stubEnv("DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER", PRIMARY_AUTH_TOKEN_IDENTIFIER);
 }
 
 async function cancelAllScheduledFunctions(t: SeedTest): Promise<string> {
@@ -122,24 +123,25 @@ async function clearAllTables(t: SeedTest, auditToken: string) {
 }
 
 async function seedAllScenarios(t: SeedTest, today: string, auditToken: string) {
-  await t.mutation(seedActorsRef, { today, auditToken });
+  const actors = await t.mutation(seedActorsRef, { today, auditToken });
   for (const scenarioKey of DEVELOPMENT_SEED_SCENARIO_KEYS) {
     await t.mutation(seedScenarioRef, { scenarioKey, today, auditToken });
   }
+  return actors;
 }
 
 async function prepareRebuild(t: SeedTest) {
   const preflight = await t.mutation(preflightRef, {});
   const auditToken = await cancelAllScheduledFunctions(t);
   await clearAllTables(t, auditToken);
-  await seedAllScenarios(t, preflight.today, auditToken);
-  return { auditToken, preflight };
+  const actors = await seedAllScenarios(t, preflight.today, auditToken);
+  return { actors, auditToken, preflight };
 }
 
 async function rebuild(t: SeedTest) {
-  const { auditToken, preflight } = await prepareRebuild(t);
+  const { actors, auditToken, preflight } = await prepareRebuild(t);
   const verification = await t.mutation(verifyRef, { today: preflight.today, auditToken });
-  return { preflight, verification };
+  return { actors, preflight, verification };
 }
 
 describe("development seed rebuild", () => {
@@ -156,11 +158,13 @@ describe("development seed rebuild", () => {
 
   it("preflightから9 scenarioと整合graphを構築しactive workflowを残さない", async () => {
     const t = convexTest(schema, modules);
-    const { preflight, verification } = await rebuild(t);
+    const { actors, preflight, verification } = await rebuild(t);
 
+    expect(actors).toEqual({ createdCount: 13 });
+    expect(actors).not.toHaveProperty("primaryAuthTokenIdentifier");
     expect(preflight.scenarioKeys).toEqual(DEVELOPMENT_SEED_SCENARIO_KEYS);
     expect(verification).toEqual({
-      contractVersion: "development-seed-v2",
+      contractVersion: "development-seed-v3",
       contractFingerprint: "4014fb18",
       scenarioCount: 9,
       tableCount: 66,
@@ -250,9 +254,13 @@ describe("development seed rebuild", () => {
       ]);
       const primaryUser = await ctx.db
         .query("users")
-        .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER))
+        .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", PRIMARY_AUTH_TOKEN_IDENTIFIER))
         .unique();
       if (!primaryUser) throw new Error("Missing primary seed user");
+      const primaryMemberships = await ctx.db
+        .query("organizationMembers")
+        .withIndex("by_userId_and_status", (q) => q.eq("userId", primaryUser._id).eq("status", "active"))
+        .collect();
       const primaryConsentStates = await ctx.db
         .query("legalConsentStates")
         .withIndex("by_userId", (q) => q.eq("userId", primaryUser._id))
@@ -291,6 +299,8 @@ describe("development seed rebuild", () => {
         lineStatuses: lineStates.map((state) => state?.status).sort(),
         lineRecipientFollowing: lineRecipients.map((recipient) => recipient?.following).sort(),
         proOrderModes: proOrderScopes.map((scope) => scope.mode),
+        primaryManagerRole: primaryUser.role,
+        primaryManagerOrganizationIds: primaryMemberships.map((membership) => membership.organizationId).sort(),
         primaryConsentStateCount: primaryConsentStates.length,
         confirmationSignatureValid: hasValidConfirmationSnapshotSignature(confirmationSnapshot),
         confirmationMatchesCurrent: confirmationSnapshotMatchesAssignments(
@@ -309,11 +319,14 @@ describe("development seed rebuild", () => {
     expect(productScopes.lineStatuses).toEqual(["linked_following", "linked_unfollowed"]);
     expect(productScopes.lineRecipientFollowing).toEqual([false, true]);
     expect(productScopes.proOrderModes).toEqual(["ordered", "ordered", "ordered", "ordered"]);
+    expect(productScopes.primaryManagerRole).toBe("manager");
+    expect(productScopes.primaryManagerOrganizationIds).toHaveLength(9);
+    expect(new Set(productScopes.primaryManagerOrganizationIds).size).toBe(9);
     expect(productScopes.primaryConsentStateCount).toBe(1);
     expect(productScopes.confirmationSignatureValid).toBe(true);
     expect(productScopes.confirmationMatchesCurrent).toBe(false);
     expect(productScopes.confirmationNotificationGraphMatches).toBe(true);
-    const primaryManager = t.withIdentity({ tokenIdentifier: PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER });
+    const primaryManager = t.withIdentity({ tokenIdentifier: PRIMARY_AUTH_TOKEN_IDENTIFIER });
     const visibleFailures = await primaryManager.query(api.notificationOutbox.queries.listOpenFailures, {
       shopId: productScopes.businessShopId,
       paginationOpts: { numItems: 10, cursor: null },

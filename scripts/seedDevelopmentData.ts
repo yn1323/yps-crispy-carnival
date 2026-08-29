@@ -56,7 +56,6 @@ type ClearAllTablesResult = {
 
 type SeedActorsResult = {
   createdCount: number;
-  primaryAuthTokenIdentifier: string;
 };
 
 type SeedScenarioResult = {
@@ -164,7 +163,7 @@ function isClearAllTablesResult(value: unknown): value is ClearAllTablesResult {
 
 function isSeedActorsResult(value: unknown): value is SeedActorsResult {
   if (!isRecord(value)) return false;
-  return isNonNegativeInteger(value.createdCount) && typeof value.primaryAuthTokenIdentifier === "string";
+  return Object.keys(value).length === 1 && isNonNegativeInteger(value.createdCount);
 }
 
 function isSeedScenarioResult(value: unknown): value is SeedScenarioResult {
@@ -501,7 +500,7 @@ export function runDevelopmentSeed(
     "developmentSeed/mutations:seedActors",
     { today: preflightValue.today, auditToken },
   );
-  if (!isSeedActorsResult(actorsValue) || !actorsValue.primaryAuthTokenIdentifier) {
+  if (!isSeedActorsResult(actorsValue)) {
     throw new DevelopmentSeedError("actor作成の応答形式が契約と一致しません。後続処理を停止しました。");
   }
   let insertedDocumentCount = actorsValue.createdCount;

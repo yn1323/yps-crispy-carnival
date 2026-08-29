@@ -26,7 +26,6 @@ import {
   DEVELOPMENT_SEED_CONTRACT_VERSION,
   DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT,
   DEVELOPMENT_SEED_SCENARIO_KEYS,
-  PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER,
 } from "./catalog";
 
 const SCHEDULE_AUDIT_PAGE_SIZE = 100;
@@ -212,9 +211,9 @@ export const clearAllTables = internalMutation({
 
 export const seedActors = internalMutation({
   args: { today: v.string(), auditToken: v.string() },
-  returns: v.object({ createdCount: v.number(), primaryAuthTokenIdentifier: v.string() }),
+  returns: v.object({ createdCount: v.number() }),
   handler: async (ctx, { today, auditToken }) => {
-    assertDevelopmentSeedEnabled();
+    const configuration = assertDevelopmentSeedEnabled();
     const { marker, state } = await requireDevelopmentSeedWorkflowState(
       ctx,
       auditToken,
@@ -225,11 +224,11 @@ export const seedActors = internalMutation({
       throw new Error("Development seed workflow is not ready to seed actors");
     }
     assertSeedDate(today);
-    const result = await seedDevelopmentActors(ctx);
+    const result = await seedDevelopmentActors(ctx, configuration.primaryAuthTokenIdentifier);
     await ctx.db.patch(marker._id, {
       value: encodeDevelopmentSeedSeedingState(0, DEVELOPMENT_SEED_SCENARIO_KEYS.length),
     });
-    return { ...result, primaryAuthTokenIdentifier: PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER };
+    return result;
   },
 });
 
@@ -237,7 +236,7 @@ export const seedScenario = internalMutation({
   args: { scenarioKey: scenarioKeyValidator, today: v.string(), auditToken: v.string() },
   returns: v.object({ scenarioKey: v.string(), insertedCount: v.number() }),
   handler: async (ctx, { scenarioKey, today, auditToken }) => {
-    assertDevelopmentSeedEnabled();
+    const configuration = assertDevelopmentSeedEnabled();
     const { marker, state } = await requireDevelopmentSeedWorkflowState(
       ctx,
       auditToken,
@@ -251,7 +250,12 @@ export const seedScenario = internalMutation({
       throw new Error("Development seed scenario does not match server progress");
     }
     assertSeedDate(today);
-    const result = await seedDevelopmentScenarioGraph(ctx, scenarioKey, today);
+    const result = await seedDevelopmentScenarioGraph(
+      ctx,
+      scenarioKey,
+      today,
+      configuration.primaryAuthTokenIdentifier,
+    );
     const nextScenarioIndex = state.nextScenarioIndex + 1;
     await ctx.db.patch(marker._id, {
       value:

@@ -16,12 +16,11 @@ export const DEVELOPMENT_SEED_SCENARIO_KEYS = [
   "standard-over-limit",
 ] as const;
 
-export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v2";
+export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v3";
 export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 66;
 
 export type DevelopmentSeedScenarioKey = (typeof DEVELOPMENT_SEED_SCENARIO_KEYS)[number];
 
-export const PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER = "https://seed.example.test|replace-with-clerk-token-identifier";
 export const STANDARD_OVER_LIMIT_EXTRA_MANAGER_AUTH_TOKEN_IDENTIFIERS = [
   "https://seed.example.test|standard-over-limit-manager-1",
   "https://seed.example.test|standard-over-limit-manager-2",
@@ -29,8 +28,8 @@ export const STANDARD_OVER_LIMIT_EXTRA_MANAGER_AUTH_TOKEN_IDENTIFIERS = [
   "https://seed.example.test|standard-over-limit-manager-4",
 ] as const;
 
-export function ownerAuthTokenIdentifier(key: DevelopmentSeedScenarioKey): string {
-  return key === "free-capacity" ? PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER : `https://seed.example.test|owner-${key}`;
+export function ownerAuthTokenIdentifier(key: DevelopmentSeedScenarioKey, primaryAuthTokenIdentifier: string): string {
+  return key === "free-capacity" ? primaryAuthTokenIdentifier : `https://seed.example.test|owner-${key}`;
 }
 
 export type DevelopmentSeedRecruitmentWindowKey =
