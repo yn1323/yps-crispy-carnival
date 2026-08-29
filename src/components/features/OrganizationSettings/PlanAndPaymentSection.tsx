@@ -45,7 +45,7 @@ type Props = {
 
 function formatPlanLimitsDescription(plan: keyof typeof ORGANIZATION_PLAN_LIMITS, suffix: string): string {
   const limits = ORGANIZATION_PLAN_LIMITS[plan];
-  return `利用人数${limits.maxPeople}名・店舗${limits.maxActiveShops}件・管理者${limits.maxActiveManagers}名まで${suffix}`;
+  return `利用人数${limits.maxPeople}名・店舗${limits.maxShops}件・管理者${limits.maxActiveManagers}名まで${suffix}`;
 }
 
 const STATE_PRESENTATION: Record<
@@ -383,7 +383,7 @@ function PlanComparisonCards({
 
               <Stack gap={1} color="fg.muted">
                 <Text textStyle="sm">利用人数 {limits.maxPeople}名まで</Text>
-                <Text textStyle="sm">店舗 {limits.maxActiveShops}店舗まで</Text>
+                <Text textStyle="sm">店舗 {limits.maxShops}店舗まで</Text>
                 <Text textStyle="sm">管理者 {limits.maxActiveManagers}名まで</Text>
               </Stack>
 

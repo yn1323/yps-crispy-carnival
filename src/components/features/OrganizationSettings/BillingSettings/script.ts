@@ -192,7 +192,7 @@ export function getRequiredReductions(
   const limits = targetPlan ? ORGANIZATION_PLAN_LIMITS[targetPlan] : undefined;
   return {
     people: Math.max(0, billing.peopleUsage.current - (limits?.maxPeople ?? billing.peopleUsage.max)),
-    shops: Math.max(0, billing.shopUsage.current - (limits?.maxActiveShops ?? billing.shopUsage.max)),
+    shops: Math.max(0, billing.shopUsage.current - (limits?.maxShops ?? billing.shopUsage.max)),
     managers: Math.max(0, billing.managerUsage.current - (limits?.maxActiveManagers ?? billing.managerUsage.max)),
   };
 }

@@ -5,7 +5,6 @@ import { buildManagerInvitationRedirect, findAcceptedShopContext, formatManagerI
 const shop = (overrides: Partial<ShopContextOption> = {}): ShopContextOption => ({
   shopId: "shop-a",
   shopName: "渋谷店",
-  shopStatus: "active",
   organizationId: "organization-a",
   organizationName: "さくらダイニング",
   organizationPlan: "pro",
@@ -24,11 +23,7 @@ describe("manager invitation helpers", () => {
   });
 
   it("承認結果と同じ事業者・店舗を返す", () => {
-    const shops = [
-      shop({ organizationId: "organization-b" }),
-      shop({ shopStatus: "archived" }),
-      shop({ shopId: "shop-b" }),
-    ];
+    const shops = [shop({ organizationId: "organization-b" }), shop(), shop({ shopId: "shop-b" })];
 
     expect(findAcceptedShopContext(shops, { organizationId: "organization-a", shopId: "shop-a" })).toEqual(shops[1]);
     expect(findAcceptedShopContext(shops, { organizationId: "organization-a", shopId: "shop-b" })).toEqual(shops[2]);

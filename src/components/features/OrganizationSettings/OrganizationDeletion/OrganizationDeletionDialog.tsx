@@ -37,7 +37,7 @@ export function OrganizationDeletionDialog({ dialog, isRunning, onClose, onBackG
         <Text fontWeight="bold">この操作は元に戻せません。</Text>
         <Text fontWeight="semibold">対象: {dialog.organizationName}</Text>
         <Stack gap={2} fontSize="sm" color="fg" lineHeight="tall">
-          <Text>組織とすべての店舗の利用を停止し、管理権限、LINE連携、提出・閲覧用リンクを無効にします。</Text>
+          <Text>組織とすべての店舗を削除し、管理権限、LINE連携、提出・閲覧用リンクを無効にします。</Text>
           <Text>ほかの組織への所属と、シフトリへのログインに使うアカウントは削除しません。</Text>
           <Text>ほかの組織に所属していない場合は、削除後に新しい店舗を登録できます。</Text>
         </Stack>

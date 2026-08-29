@@ -183,7 +183,6 @@ function operationContextData(shopId: string) {
   const selectedShop = {
     shopId,
     shopName: `店舗${shopId}`,
-    shopStatus: "active" as const,
     organizationId: "organization-1",
     organizationName: "テスト組織",
     organizationPlan: "standard" as const,

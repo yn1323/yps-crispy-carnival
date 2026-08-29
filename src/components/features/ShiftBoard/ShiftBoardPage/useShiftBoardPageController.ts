@@ -37,8 +37,6 @@ const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知で�
 
 export function getShiftBoardReadOnlyReason(reason: ShiftBoardData["businessWriteBlockReason"]): string {
   switch (reason) {
-    case "shopArchived":
-      return "アーカイブ済みの店舗のため、シフトを変更できません。";
     case "paymentResultPending":
       return "支払い結果を確認中のため、シフトを変更できません。";
     case "usageLimitExceeded":

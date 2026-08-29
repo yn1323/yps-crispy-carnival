@@ -87,7 +87,7 @@ export const FreeOverLimit: Story = {
       managerUsage: { current: 3, max: 2, pendingInvitations: 1 },
       requiredReductions: { people: 2, shops: 1, managers: 1 },
       blockedReason:
-        "現在のプランの利用上限を超えています。\n利用人数・稼働店舗・有効管理者を上限内まで減らすと、業務操作は自動的に再開されます。",
+        "現在のプランの利用上限を超えています。\n利用人数・店舗数・有効管理者数を上限内まで減らすと、業務操作は自動的に再開されます。",
       canManagePlan: true,
     },
   },
