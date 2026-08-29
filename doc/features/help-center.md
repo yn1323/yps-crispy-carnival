@@ -21,6 +21,7 @@ FAQと使い方は同じMDX管理基盤へ所属するが、FAQは短い回答�
 
 `/faq`と`/howto`は公開しない。  
 旧`/help#task-<task-id>`と`/help#<faq-id>`は、ブラウザ上で対応する新URLへ置き換えて互換性を保つ。
+統合した旧使い方URLは、対応するシナリオまたはタスクページへ恒久転送する。
 
 ## やりたいこと
 
@@ -120,7 +121,7 @@ sitemapは同じ公開route一覧から生成し、ヘルプには`lastmod`を�
 
 - `src/routes/help.tsx`、`help.index.tsx`、`help.basics.organization-structure.tsx`、`help.scenarios.shift-management.tsx`、`help.tasks.$taskId.tsx`、`help.$slug.tsx`：URL境界
 - `src/pages/help/`：ページ入口とhead
-- `src/components/features/HelpCenter/helpMeta.ts`：軽量metadata、関係、構造化データ
+- `src/components/features/HelpCenter/helpMeta.ts`、`helpAliases.ts`、`helpNavigation.ts`：軽量metadata、関係、旧URLの解決、構造化データ
 - `src/components/features/HelpCenter/helpIndexData.ts`：`/help`だけが使う全文検索・FAQ回答テキスト
 - `src/components/features/HelpCenter/helpSearch.ts`：共通検索
 - `src/components/features/HelpCenter/faqContent.ts`、`guideContent.ts`：本文コンポーネントと目次

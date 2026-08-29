@@ -71,12 +71,7 @@ export const HeroSection = () => (
               w={{ base: "full", md: "auto" }}
             >
               <HeroButton href="/signup" label="シフトリをはじめる" tone="primary" measurementCtaId="hero_signup" />
-              <HeroButton
-                href="/help/scenarios/shift-management"
-                label="使い方動画を見る"
-                tone="secondary"
-                measurementCtaId="hero_usage_video"
-              />
+              <HeroButton href="/help" label="基本の使い方を見る" tone="secondary" measurementCtaId="hero_help" />
             </Stack>
             <TrialReassurance />
           </VStack>
@@ -113,7 +108,7 @@ const HeroButton = ({
 }: {
   href: string;
   label: string;
-  measurementCtaId: "hero_signup" | "hero_usage_video";
+  measurementCtaId: "hero_signup" | "hero_help";
   tone: "primary" | "secondary";
 }) => {
   const isPrimary = tone === "primary";

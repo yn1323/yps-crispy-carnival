@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { legacyHelpGuideRedirects, resolveLegacyHelpGuideHref } from "./helpAliases";
 import {
   buildHelpIndexMetas,
   type FaqIndexMetadata,
@@ -144,6 +145,15 @@ describe("HelpCenterの旧hash URL", () => {
     expect(resolveLegacyHelpHash("#add-staff-methods")).toBe("/help/tasks/staff-management#add-staff-methods");
     expect(resolveLegacyHelpHash("#unknown-help")).toBeUndefined();
     expect(resolveLegacyHelpHash("#%E0%A4%A")).toBeUndefined();
+  });
+});
+
+describe("HelpCenterの旧使い方URL", () => {
+  it("削除した公開slugを現在のシナリオまたはtaskへ解決する", () => {
+    expect(Object.keys(legacyHelpGuideRedirects)).toHaveLength(8);
+    expect(resolveLegacyHelpGuideHref("start-shift-management")).toBe("/help/scenarios/shift-management");
+    expect(resolveLegacyHelpGuideHref("add-staff")).toBe("/help/tasks/staff-management");
+    expect(resolveLegacyHelpGuideHref("unknown-help")).toBeUndefined();
   });
 });
 

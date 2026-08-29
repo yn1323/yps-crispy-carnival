@@ -8,9 +8,9 @@ export const publicCtaIds = [
   "header_login",
   "header_signup",
   "hero_signup",
-  "hero_usage_video",
+  "hero_help",
   "bottom_signup",
-  "bottom_usage_video",
+  "bottom_help",
   "feature_demo",
   "demo_complete_signup",
 ] as const;

@@ -66,7 +66,7 @@ export function HelpShiftManagementScenario() {
                 <>
                   募集期間と提出期限を設定します。
                   <br />
-                  シフトを設定すると自動でスタッフに通知を行います。
+                  シフト募集を作成すると、スタッフへの通知処理が始まります。
                 </>
               }
             >
@@ -90,7 +90,7 @@ export function HelpShiftManagementScenario() {
                 <>
                   提出された希望シフトを見ながら、勤務時間・勤務日を割り当てます。
                   <br />
-                  シフトを確定すると、スタッフに通知が届きます。
+                  シフトを確定すると、スタッフへの通知処理が始まります。
                 </>
               }
             >
@@ -101,7 +101,7 @@ export function HelpShiftManagementScenario() {
               number={4}
               audience="staff"
               title="確定したシフトを通知する"
-              description="スタッフには次のような通知がメール、またはLINEで届きます。"
+              description="スタッフへは、次のような通知をメールまたはLINEで送ります。"
             >
               <ConfirmationNotificationExample />
             </ScenarioStep>

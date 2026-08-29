@@ -21,11 +21,11 @@ type Story = StoryObj<typeof meta>;
 export const Desktop: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const usageVideoLinks = canvas.getAllByRole("link", { name: "使い方動画を見る" });
+    const basicHelpLinks = canvas.getAllByRole("link", { name: "基本の使い方を見る" });
 
-    await expect(usageVideoLinks).toHaveLength(2);
-    for (const link of usageVideoLinks) {
-      await expect(link).toHaveAttribute("href", "/help/scenarios/shift-management");
+    await expect(basicHelpLinks).toHaveLength(2);
+    for (const link of basicHelpLinks) {
+      await expect(link).toHaveAttribute("href", "/help");
     }
   },
 };
