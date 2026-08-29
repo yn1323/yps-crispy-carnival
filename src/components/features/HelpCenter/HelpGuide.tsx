@@ -63,7 +63,7 @@ function HelpGuideView({ guide, metas }: { guide: HelpGuideContent; metas: reado
   const relatedGuides = getRelatedGuides(guide, metas);
 
   return (
-    <PublicPageLayout headerProps={{ showLinks: false, showLogin: false }}>
+    <PublicPageLayout>
       <Box borderBottomWidth="1px" borderColor="gray.200" bg="gray.50/60">
         <Container maxW="6xl" px={{ base: 4, lg: 8 }} py={{ base: 7, lg: 10 }}>
           <Stack gap={5} maxW="800px">
@@ -123,7 +123,7 @@ function HelpGuideView({ guide, metas }: { guide: HelpGuideContent; metas: reado
 
 function HelpGuideLoading() {
   return (
-    <PublicPageLayout headerProps={{ showLinks: false, showLogin: false }}>
+    <PublicPageLayout>
       <Container maxW="720px" px={4} py={{ base: 12, lg: 20 }}>
         <Text role="status" color="gray.600">
           ヘルプを読み込んでいます
@@ -311,7 +311,7 @@ function RelatedLink({ href, title, icon: RelatedIcon }: { href: string; title: 
 
 function HelpGuideNotFound() {
   return (
-    <PublicPageLayout headerProps={{ showLinks: false, showLogin: false }}>
+    <PublicPageLayout>
       <Container maxW="720px" px={4} py={{ base: 12, lg: 20 }}>
         <Empty
           icon={LuCircleHelp}

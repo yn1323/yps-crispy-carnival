@@ -6,7 +6,7 @@ import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
 
 export function DemoShiftBoardRoutePage() {
   return (
-    <PublicPageLayout minH="100dvh" showFooter={false} headerProps={{ showLinks: false, showLogin: false }}>
+    <PublicPageLayout minH="100dvh" showFooter={false}>
       <Box h={{ base: "auto", lg: `calc(100dvh - ${HEADER_HEIGHT.md})` }} minH={{ lg: "560px" }}>
         <DemoShiftBoardPage
           headerStart={<TopLink />}

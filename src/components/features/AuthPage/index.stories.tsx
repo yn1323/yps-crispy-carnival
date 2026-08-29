@@ -372,7 +372,8 @@ export const LoginRouteNavigation: Story = {
     await userEvent.click(await canvas.findByRole("link", { name: "新規登録" }));
     await expect(await canvas.findByRole("heading", { name: "シフトリをはじめる" })).toBeInTheDocument();
 
-    await userEvent.click(await canvas.findByRole("link", { name: "ログイン" }));
+    const authMain = within(await canvas.findByRole("main"));
+    await userEvent.click(await authMain.findByRole("link", { name: "ログイン" }));
     await expect(await canvas.findByRole("heading", { name: "シフトリにログイン" })).toBeInTheDocument();
 
     await userEvent.click(await canvas.findByRole("link", { name: "パスワードを忘れた方" }));

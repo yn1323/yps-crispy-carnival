@@ -106,7 +106,17 @@ export const Public: Story = {
   },
   play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("link", { name: "料金" })).toHaveAttribute("href", "#pricing");
+    for (const [label, href] of [
+      ["機能", "/#features"],
+      ["導入事例", "/#use-cases"],
+      ["料金", "/#pricing"],
+      ["よくある質問", "/#faq"],
+      ["お役立ち記事", "/#articles"],
+    ]) {
+      await expect(canvas.getByRole("link", { name: label })).toHaveAttribute("href", href);
+    }
+    await expect(canvas.getByRole("link", { name: "ログイン" })).toHaveAttribute("href", "/login");
+    await expect(canvas.getByRole("link", { name: "シフトリをはじめる" })).toHaveAttribute("href", "/signup");
   },
 };
 

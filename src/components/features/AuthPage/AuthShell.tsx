@@ -14,7 +14,7 @@ type AuthShellProps = {
 export function AuthShell({ children, description, isInitialLoading, title }: AuthShellProps) {
   return (
     <Box minH="100dvh" bgGradient="to-b" gradientFrom="#E6F7F5" gradientVia="#F3FBFA" gradientTo="white">
-      <Header variant="public" showLinks={false} showLogin={false} />
+      <Header variant="public" />
       <Container
         as="main"
         maxW="7xl"

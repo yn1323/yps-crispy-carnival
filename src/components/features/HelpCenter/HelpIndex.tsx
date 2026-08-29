@@ -40,7 +40,7 @@ export function HelpIndex({ metas = helpIndexMetas, tasks = HELP_TASKS }: HelpIn
   };
 
   return (
-    <PublicPageLayout headerProps={{ showLinks: false, showLogin: false }}>
+    <PublicPageLayout>
       <Container maxW="6xl" px={{ base: 4, lg: 8 }} py={{ base: 6, lg: 10 }}>
         <HelpHeader query={query} onQueryChange={setQuery} />
         {hasQuery ? (

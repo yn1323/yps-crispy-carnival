@@ -83,7 +83,7 @@ function HelpTaskView({
   }, [faqById]);
 
   return (
-    <PublicPageLayout headerProps={{ showLinks: false, showLogin: false }}>
+    <PublicPageLayout>
       <Container maxW="6xl" px={{ base: 4, lg: 8 }} py={{ base: 6, lg: 10 }}>
         <Stack gap={{ base: 8, lg: 10 }}>
           <Stack gap={5} maxW="760px">
@@ -202,7 +202,7 @@ function GuideLink({ guide }: { guide: GuideMetadata }) {
 
 function HelpTaskNotFound() {
   return (
-    <PublicPageLayout headerProps={{ showLinks: false, showLogin: false }}>
+    <PublicPageLayout>
       <Container maxW="720px" px={4} py={{ base: 12, lg: 20 }}>
         <Empty
           icon={LuCircleHelp}

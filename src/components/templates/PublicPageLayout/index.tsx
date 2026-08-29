@@ -3,7 +3,10 @@ import type { ReactNode } from "react";
 import { HEADER_HEIGHT, Header, type HeaderProps } from "@/src/components/templates/Header";
 import { PublicFooter } from "@/src/components/templates/PublicFooter";
 
-type PublicHeaderProps = Omit<Extract<HeaderProps, { variant: "public" }>, "variant">;
+type PublicHeaderProps = Omit<
+  Extract<HeaderProps, { variant: "public" }>,
+  "variant" | "showLinks" | "showLogin" | "showSignup"
+>;
 
 type Props = {
   children: ReactNode;

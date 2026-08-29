@@ -26,7 +26,7 @@ const SCENARIO_VIDEOS = {
 
 export function HelpShiftManagementScenario() {
   return (
-    <PublicPageLayout headerProps={{ showLinks: false, showLogin: false }}>
+    <PublicPageLayout>
       <Box borderBottomWidth="1px" borderColor="gray.200" bg="gray.50/60">
         <Container maxW="6xl" px={{ base: 4, lg: 8 }} py={{ base: 7, lg: 10 }}>
           <Stack gap={5} maxW="820px">
