@@ -49,8 +49,8 @@ const removablePersonData = {
   line: {
     status: "unlinked",
     actionShopId: shopId,
-    sourceStaffId: null,
-    sourceShopId: null,
+    sourceStaffId: "staff-current" as Id<"staffs">,
+    sourceShopId: shopId,
     canLink: false,
     canDisconnect: false,
   },
@@ -182,7 +182,11 @@ describe("useUserRemovalActions", () => {
   it("削除capabilityがない場合は確認を開かない", () => {
     const { result } = renderHook(() =>
       useUserRemovalActions({
-        data: { ...removablePersonData, canRemove: false, removeDisabledReason: "管理者は削除できません。" },
+        data: {
+          ...removablePersonData,
+          canRemove: false,
+          removeDisabledReason: "管理者は削除できません。先に管理者権限を外してください。",
+        },
         selectedShopId: shopId,
         onPersonRemoved: vi.fn(),
       }),

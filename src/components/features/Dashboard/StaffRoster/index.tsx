@@ -122,7 +122,7 @@ export const StaffRoster = ({
               return (
                 <StaffListRow
                   key={staff._id}
-                  id={staff.organizationPersonId ? `dashboard-user-${staff.organizationPersonId}` : undefined}
+                  id={`dashboard-user-${staff.organizationPersonId}`}
                   name={staff.name}
                   role={staff.isManager ? "manager" : "staff"}
                   detail={{ kind: "email", value: staff.email }}

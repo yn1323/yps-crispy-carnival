@@ -3,6 +3,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedShop, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
@@ -480,7 +481,7 @@ async function sign(rawBody: string) {
 async function seedFollowTarget(t: TestConvex<typeof schema>) {
   return await t.run(async (ctx) => {
     const shopId = await seedShop(ctx, "Webhook店舗");
-    const staffId = await ctx.db.insert("staffs", {
+    const staffId = await seedStaff(ctx, {
       shopId,
       name: "Webhookスタッフ",
       email: "line-webhook@example.com",

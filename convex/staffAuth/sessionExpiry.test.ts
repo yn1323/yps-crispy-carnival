@@ -2,6 +2,7 @@ import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { STAFF_SESSION_EXPIRY_RECOVERY_BATCH_SIZE } from "../constants";
@@ -11,12 +12,10 @@ const NOW = new Date("2026-01-10T00:00:00+09:00").getTime();
 async function seedViewMagicLink(t: TestConvex<typeof schema>) {
   return await t.run(async (ctx) => {
     const shopId = await seedShop(ctx, "session期限テスト店舗");
-    const staffId = await ctx.db.insert("staffs", {
+    const staffId = await seedStaff(ctx, {
       shopId,
       name: "session期限スタッフ",
       email: "session-expiry@example.com",
-      emailNormalized: "session-expiry@example.com",
-      isDeleted: false,
     });
     const recruitmentId = await ctx.db.insert("recruitments", {
       shopId,

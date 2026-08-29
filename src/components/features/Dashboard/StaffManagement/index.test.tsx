@@ -28,8 +28,8 @@ vi.mock("./StaffManagementView", () => ({
     staffs,
     onOpenDetail,
   }: {
-    staffs: Array<{ name: string; organizationPersonId?: string }>;
-    onOpenDetail: (staff: { name: string; organizationPersonId?: string }) => void;
+    staffs: Array<{ name: string; organizationPersonId: string }>;
+    onOpenDetail: (staff: { name: string; organizationPersonId: string }) => void;
   }) => (
     <>
       <output data-testid="staff-management-view">{staffs.map((staff) => staff.name).join(",")}</output>
@@ -52,10 +52,10 @@ const queryResult = {
 };
 
 const mixedStaffs = [
-  { _id: "staff-1", name: "一般スタッフA", isManager: false },
-  { _id: "staff-2", name: "管理者A", isManager: true },
-  { _id: "staff-3", name: "一般スタッフB", isManager: false },
-  { _id: "staff-4", name: "管理者B", isManager: true },
+  { _id: "staff-1", organizationPersonId: "person-1", name: "一般スタッフA", isManager: false },
+  { _id: "staff-2", organizationPersonId: "person-2", name: "管理者A", isManager: true },
+  { _id: "staff-3", organizationPersonId: "person-3", name: "一般スタッフB", isManager: false },
+  { _id: "staff-4", organizationPersonId: "person-4", name: "管理者B", isManager: true },
 ] as never;
 
 function TestView() {

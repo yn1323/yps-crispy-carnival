@@ -10,14 +10,19 @@ import {
   LINE_PROVIDER_ACTIVE_ORGANIZATION_LINK_MAX,
 } from "../constants";
 import { deletedLineUserId } from "../deletionCleanup/tombstone";
-import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
+import {
+  type CanonicalStaff,
+  hasCanonicalStaffIdentity,
+  hasValidCanonicalStaffUserLifecycle,
+  hasValidOrganizationPersonUserLifecycle,
+} from "../staff/service";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
 const LINE_LINK_ERROR = "LINE連携を完了できませんでした。";
 
 type CanonicalStaffScope = {
-  staff: Doc<"staffs">;
+  staff: CanonicalStaff;
   shop: Doc<"shops">;
   organization: Doc<"organizations">;
   person: Doc<"organizationPeople">;
@@ -57,17 +62,11 @@ export async function resolveCanonicalStaffScope(
   args: { staffId: Id<"staffs">; shopId?: Id<"shops"> },
 ): Promise<CanonicalStaffScope | null> {
   const staff = await ctx.db.get(args.staffId);
-  if (!staff || staff.isDeleted || (args.shopId && staff.shopId !== args.shopId)) return null;
+  if (!staff || staff.isDeleted || !hasCanonicalStaffIdentity(staff) || (args.shopId && staff.shopId !== args.shopId)) {
+    return null;
+  }
   const shop = await ctx.db.get(staff.shopId);
-  if (
-    !shop ||
-    shop.isDeleted ||
-    organizationShopOperatingStatus(shop.operatingStatus) !== "active" ||
-    !shop.organizationId ||
-    !staff.organizationId ||
-    !staff.organizationPersonId ||
-    staff.organizationId !== shop.organizationId
-  ) {
+  if (!shop || shop.isDeleted || !shop.organizationId || staff.organizationId !== shop.organizationId) {
     return null;
   }
   const [organization, person] = await Promise.all([
@@ -83,6 +82,7 @@ export async function resolveCanonicalStaffScope(
   ) {
     return null;
   }
+  if (!(await hasValidCanonicalStaffUserLifecycle(ctx, staff, person))) return null;
   return { staff, shop, organization, person };
 }
 
@@ -124,6 +124,7 @@ export async function getOrganizationPersonLineState(
   ) {
     return null;
   }
+  if (!(await hasValidOrganizationPersonUserLifecycle(ctx, person))) return null;
   const generation = person.lineLinkGeneration ?? 0;
 
   const link = await getUniqueActivePersonLink(ctx, person._id);
@@ -197,6 +198,7 @@ export async function getOrganizationPersonLineRecipient(
   ) {
     return null;
   }
+  if (!(await hasValidOrganizationPersonUserLifecycle(ctx, person))) return null;
   const link = await getUniqueActivePersonLink(ctx, person._id);
   if (!link || link === undefined || link.organizationId !== organization._id) return null;
   const generation = person.lineLinkGeneration ?? 0;
@@ -237,18 +239,25 @@ export async function listActiveStaffsForOrganizationPerson(
   ctx: DbCtx,
   args: { organizationId: Id<"organizations">; organizationPersonId: Id<"organizationPeople"> },
 ) {
+  const person = await ctx.db.get(args.organizationPersonId);
+  if (
+    !person ||
+    person.organizationId !== args.organizationId ||
+    person.status !== "active" ||
+    !(await hasValidOrganizationPersonUserLifecycle(ctx, person))
+  ) {
+    throw new ConvexError(LINE_LINK_ERROR);
+  }
   const candidates = await listOrganizationPersonStaffHistory(ctx, args);
   const shops = await Promise.all(candidates.map(async (staff) => await ctx.db.get(staff.shopId)));
   const active: Doc<"staffs">[] = [];
   for (const [index, staff] of candidates.entries()) {
     const shop = shops[index];
-    if (
-      !shop ||
-      shop.isDeleted ||
-      organizationShopOperatingStatus(shop.operatingStatus) !== "active" ||
-      shop.organizationId !== args.organizationId
-    ) {
+    if (!shop || shop.isDeleted || shop.organizationId !== args.organizationId) {
       continue;
+    }
+    if (!hasCanonicalStaffIdentity(staff) || !(await hasValidCanonicalStaffUserLifecycle(ctx, staff, person))) {
+      throw new ConvexError(LINE_LINK_ERROR);
     }
     active.push(staff);
     if (active.length > LINE_ORGANIZATION_PERSON_ACTIVE_STAFF_MAX) throw new ConvexError(LINE_LINK_ERROR);
@@ -256,7 +265,7 @@ export async function listActiveStaffsForOrganizationPerson(
   return active;
 }
 
-/** inactive店舗も含むnondeleted staff履歴。旧shape capability失効にだけ使う。 */
+/** 削除済み店舗の所属も含むnondeleted staff履歴。旧shape capability失効にだけ使う。 */
 export async function listOrganizationPersonStaffHistory(
   ctx: DbCtx,
   args: { organizationId: Id<"organizations">; organizationPersonId: Id<"organizationPeople"> },

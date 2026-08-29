@@ -40,7 +40,7 @@ export function deriveOrganizationPersonCapabilities(input: OrganizationPersonCa
     : isManager
       ? MANAGER_PERSON_REMOVAL_DISABLED_REASON
       : isLastActiveManager
-        ? "管理者は削除できません。"
+        ? "管理権限を外してから削除してください。"
         : !input.isActiveActor
           ? "現在のアカウント状態では、ユーザーを削除できません。"
           : "現在の契約状態では、ユーザーを削除できません。";

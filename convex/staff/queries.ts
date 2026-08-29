@@ -7,13 +7,9 @@ import { ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT } from "../constants";
 import { listActiveStaffsForOrganizationPerson, resolveCanonicalStaffScope } from "../line/service";
 import { collectNotificationResendCooldowns } from "../notificationOutbox/resendCooldown";
 import { collectPersonRemovalPreview } from "../organization/personRemoval";
-import {
-  INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON,
-  ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT,
-  organizationShopOperatingStatus,
-} from "../organization/shopMembershipChange";
+import { ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT } from "../organization/shopMembershipChange";
 import { getOrganizationBillingPolicy } from "../organizationBilling/service";
-import { collectOrganizationShopStaffMembershipSnapshot } from "./service";
+import { collectOrganizationShopStaffMembershipSnapshot, hasCanonicalStaffIdentity } from "./service";
 
 const ORGANIZATION_PERSON_LIST_LIMIT = 100;
 
@@ -58,14 +54,6 @@ const organizationShopStaffMembershipChangeValidator = v.object({
       changeDisabledReason: nullableStringValidator,
     }),
   ),
-  preservedStaffs: v.array(
-    v.object({
-      staffId: v.id("staffs"),
-      name: v.string(),
-      email: v.string(),
-      changeDisabledReason: v.string(),
-    }),
-  ),
 });
 
 const organizationShopStaffMembershipRemovalPreviewValidator = v.union(
@@ -97,21 +85,17 @@ function boundedList<T>(items: T[]): T[] | null {
 
 function organizationShopStaffMembershipWriteState(args: {
   memberStatus: "active" | "removed";
-  shopStatus: "active" | "archived";
   hasBillingPolicy: boolean;
   canWriteBusinessData: boolean;
   businessWriteBlockReason: "paymentResultPending" | null;
 }) {
-  const canWrite = args.memberStatus === "active" && args.shopStatus === "active" && args.canWriteBusinessData;
+  const canWrite = args.memberStatus === "active" && args.canWriteBusinessData;
   if (canWrite) return { canWrite: true, writeDisabledReason: null } as const;
   if (args.memberStatus !== "active") {
     return {
       canWrite: false,
       writeDisabledReason: "現在のアカウント状態では、スタッフの所属を変更できません。",
     } as const;
-  }
-  if (args.shopStatus !== "active") {
-    return { canWrite: false, writeDisabledReason: INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON } as const;
   }
   if (!args.hasBillingPolicy) {
     return {
@@ -133,13 +117,11 @@ async function getOrganizationShopStaffMembershipWriteState(
   args: {
     organizationId: Id<"organizations">;
     memberStatus: "active" | "removed";
-    shopStatus: "active" | "archived";
   },
 ) {
   const billingPolicy = await getOrganizationBillingPolicy(ctx, args.organizationId);
   return organizationShopStaffMembershipWriteState({
     memberStatus: args.memberStatus,
-    shopStatus: args.shopStatus,
     hasBillingPolicy: billingPolicy !== null,
     canWriteBusinessData: billingPolicy?.canWriteBusinessData ?? false,
     businessWriteBlockReason: billingPolicy?.businessWriteBlockReason ?? null,
@@ -159,7 +141,6 @@ export const getOrganizationShopStaffMembershipChange = managerQuery({
     const writeState = await getOrganizationShopStaffMembershipWriteState(ctx, {
       organizationId: ctx.organization._id,
       memberStatus: ctx.organizationMember.status,
-      shopStatus: organizationShopOperatingStatus(snapshot.shop.operatingStatus),
     });
     return {
       membershipFingerprint: snapshot.membershipFingerprint,
@@ -178,12 +159,6 @@ export const getOrganizationShopStaffMembershipChange = managerQuery({
           changeDisabledReason,
         }),
       ),
-      preservedStaffs: snapshot.preservedStaffs.map(({ staff, changeDisabledReason }) => ({
-        staffId: staff._id,
-        name: staff.name,
-        email: staff.email,
-        changeDisabledReason,
-      })),
     };
   },
 });
@@ -202,7 +177,7 @@ export const getNotificationResendCooldowns = managerQuery({
       staffId: staff._id,
       shopId: ctx.shop._id,
     });
-    if (!canonicalScope) return currentStaffCooldowns;
+    if (!canonicalScope) return null;
 
     const activeStaffs = await listActiveStaffsForOrganizationPerson(ctx, {
       organizationId: canonicalScope.organization._id,
@@ -251,7 +226,6 @@ export const previewOrganizationShopStaffMembershipRemovals = managerQuery({
     const writeState = await getOrganizationShopStaffMembershipWriteState(ctx, {
       organizationId: ctx.organization._id,
       memberStatus: ctx.organizationMember.status,
-      shopStatus: organizationShopOperatingStatus(snapshot.shop.operatingStatus),
     });
     if (!writeState.canWrite) return null;
 
@@ -346,9 +320,7 @@ export const listOrganizationPeopleAvailableForShop = managerQuery({
     if (!people || !activeMembers || !allNonDeletedShops || !pendingRequests) return null;
     if (people.some((person) => normalizeEmail(person.email) !== person.emailNormalized)) return null;
     const members = activeMembers;
-    const shops = allNonDeletedShops.filter(
-      (shop) => organizationShopOperatingStatus(shop.operatingStatus) === "active",
-    );
+    const shops = allNonDeletedShops;
     const pendingEmails = new Set(pendingRequests.map((request) => request.emailNormalized));
 
     const staffRowsByShop = await Promise.all(
@@ -361,11 +333,20 @@ export const listOrganizationPeopleAvailableForShop = managerQuery({
       })),
     );
     if (staffRowsByShop.some(({ staffs }) => staffs.length > ORGANIZATION_PERSON_LIST_LIMIT)) return null;
+    const canonicalStaffRowsByShop = staffRowsByShop.map(({ shop, staffs }) => ({
+      shop,
+      staffs: staffs.filter(hasCanonicalStaffIdentity),
+    }));
+    if (
+      canonicalStaffRowsByShop.some(
+        ({ staffs }, index) => staffs.length !== (staffRowsByShop[index]?.staffs.length ?? 0),
+      )
+    ) {
+      return null;
+    }
 
-    const currentShopStaffs = staffRowsByShop.find(({ shop }) => shop._id === shopId)?.staffs ?? [];
-    const currentPersonIds = new Set(
-      currentShopStaffs.flatMap((staff) => (staff.organizationPersonId ? [staff.organizationPersonId] : [])),
-    );
+    const currentShopStaffs = canonicalStaffRowsByShop.find(({ shop }) => shop._id === shopId)?.staffs ?? [];
+    const currentPersonIds = new Set(currentShopStaffs.map((staff) => staff.organizationPersonId));
     const currentEmails = new Set(currentShopStaffs.map((staff) => normalizeEmail(staff.email)));
 
     const membershipsByPersonId = new Map<Id<"organizationPeople">, Doc<"organizationMembers">[]>();
@@ -376,9 +357,8 @@ export const listOrganizationPeopleAvailableForShop = managerQuery({
     }
 
     const shopNamesByPersonId = new Map<Id<"organizationPeople">, Set<string>>();
-    for (const { shop, staffs } of staffRowsByShop) {
+    for (const { shop, staffs } of canonicalStaffRowsByShop) {
       for (const staff of staffs) {
-        if (!staff.organizationPersonId) continue;
         const current = shopNamesByPersonId.get(staff.organizationPersonId) ?? new Set<string>();
         current.add(shop.name);
         shopNamesByPersonId.set(staff.organizationPersonId, current);

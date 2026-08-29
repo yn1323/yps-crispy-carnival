@@ -2,12 +2,9 @@ import type { Id } from "../_generated/dataModel";
 import { sha256Hex } from "../_lib/sha256";
 import { ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/planLimits";
 
-export type OrganizationShopOperatingStatus = "active" | "archived";
-
 export type OrganizationPersonShopMembershipSnapshotEntry = {
   staffId: Id<"staffs">;
   shopId: Id<"shops">;
-  shopStatus: OrganizationShopOperatingStatus;
 };
 
 /** 店舗軸の所属変更で一度に表示する人物数。 */
@@ -17,7 +14,6 @@ export const ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT = ORGANIZATI
 
 export type OrganizationShopStaffMembershipFingerprintInput = {
   shopId: Id<"shops">;
-  shopStatus: OrganizationShopOperatingStatus;
   people: ReadonlyArray<{
     personId: Id<"organizationPeople">;
     name: string;
@@ -26,8 +22,8 @@ export type OrganizationShopStaffMembershipFingerprintInput = {
   }>;
   activeStaffs: ReadonlyArray<{
     staffId: Id<"staffs">;
-    organizationId: Id<"organizations"> | null;
-    organizationPersonId: Id<"organizationPeople"> | null;
+    organizationId: Id<"organizations">;
+    organizationPersonId: Id<"organizationPeople">;
     name: string;
     emailNormalized: string;
   }>;
@@ -39,12 +35,6 @@ export type OrganizationShopStaffMembershipFingerprintInput = {
 
 export const STALE_SHOP_MEMBERSHIP_CHANGE_ERROR =
   "店舗所属が変更されています。\n最新の内容を確認して、もう一度お試しください。";
-export const INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON = "稼働中の店舗だけ所属を変更できます。";
-
-export function organizationShopOperatingStatus(status: OrganizationShopOperatingStatus | undefined) {
-  // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
-  return status ?? ("active" as const);
-}
 
 export function sortShopIds(shopIds: readonly Id<"shops">[]) {
   return [...shopIds].sort((left, right) => left.localeCompare(right));
@@ -52,10 +42,7 @@ export function sortShopIds(shopIds: readonly Id<"shops">[]) {
 
 export function sortMembershipSnapshotEntries(entries: readonly OrganizationPersonShopMembershipSnapshotEntry[]) {
   return [...entries].sort(
-    (left, right) =>
-      left.shopId.localeCompare(right.shopId) ||
-      left.staffId.localeCompare(right.staffId) ||
-      left.shopStatus.localeCompare(right.shopStatus),
+    (left, right) => left.shopId.localeCompare(right.shopId) || left.staffId.localeCompare(right.staffId),
   );
 }
 
@@ -65,7 +52,7 @@ export async function createOrganizationPersonShopMembershipFingerprint(
 ) {
   return await sha256Hex(
     JSON.stringify({
-      version: 1,
+      version: 2,
       memberships: sortMembershipSnapshotEntries(entries),
     }),
   );
@@ -77,9 +64,8 @@ export async function createOrganizationShopStaffMembershipFingerprint(
 ) {
   return await sha256Hex(
     JSON.stringify({
-      version: 1,
+      version: 2,
       shopId: input.shopId,
-      shopStatus: input.shopStatus,
       people: [...input.people].sort((left, right) => left.personId.localeCompare(right.personId)),
       activeStaffs: [...input.activeStaffs].sort((left, right) => left.staffId.localeCompare(right.staffId)),
       pendingRegistrations: [...input.pendingRegistrations].sort(

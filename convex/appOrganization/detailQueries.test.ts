@@ -11,12 +11,12 @@ describe("appOrganization/detailQueries.getUserDetail", () => {
       const actor = await seedOrganizationManagerShop(ctx, {
         subject: "app_detail_actor",
         shopName: "対象店舗",
-        plan: "pro",
+        plan: "standard",
       });
       const other = await seedOrganizationManagerShop(ctx, {
         subject: "app_detail_other",
         shopName: "別組織店舗",
-        plan: "pro",
+        plan: "standard",
       });
       return { actor, other };
     });
@@ -45,8 +45,8 @@ describe("appOrganization/detailQueries.getUserDetail", () => {
   it("別組織をexpected organizationに指定したreadを拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const actor = await seedOrganizationManagerShop(ctx, { subject: "app_detail_scope_actor", plan: "pro" });
-      const other = await seedOrganizationManagerShop(ctx, { subject: "app_detail_scope_other", plan: "pro" });
+      const actor = await seedOrganizationManagerShop(ctx, { subject: "app_detail_scope_actor", plan: "standard" });
+      const other = await seedOrganizationManagerShop(ctx, { subject: "app_detail_scope_other", plan: "standard" });
       return { actor, other };
     });
 

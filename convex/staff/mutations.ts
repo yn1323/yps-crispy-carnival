@@ -2,13 +2,13 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { isShopParentActive } from "../_lib/activeShop";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { todayJST } from "../_lib/dateFormat";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { managerMutation } from "../_lib/functions";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { sha256Hex } from "../_lib/sha256";
+import { isShopAvailable } from "../_lib/shopAvailability";
 import { normalizeEmail } from "../_lib/validation";
 import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
 import {
@@ -19,6 +19,7 @@ import {
 } from "../constants";
 import {
   getOrganizationPersonLineState,
+  resolveCanonicalStaffScope,
   resolveOrganizationPersonLineInheritanceRecipient,
   resolveStaffLineRecipient,
 } from "../line/service";
@@ -33,7 +34,6 @@ import {
   isNotificationResendCooldownActive,
 } from "../notificationOutbox/resendCooldown";
 import { recordOrganizationAuditEvent } from "../organization/audit";
-import { updateOrganizationPersonProfile } from "../organization/personProfile";
 import {
   BULK_STAFF_ACCESS_REVOCATION_RECORD_LIMIT,
   collectPersonRemovalPreview,
@@ -44,21 +44,22 @@ import {
 } from "../organization/personRemoval";
 import {
   createOrganizationPersonShopMembershipFingerprint,
-  INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON,
   ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT,
   ORGANIZATION_SHOP_STAFF_MEMBERSHIP_DESIRED_LIMIT,
-  organizationShopOperatingStatus,
   STALE_SHOP_MEMBERSHIP_CHANGE_ERROR,
   sortShopIds,
 } from "../organization/shopMembershipChange";
 import { syncActivatedOrganizationStaffOrder } from "../organization/staffOrder";
 import { requireOrganizationCapacity } from "../organizationBilling/service";
 import { recalculateOpenRecruitmentStatsForShops } from "../recruitment/stats";
-import { addStaffsSchema, editStaffSchema } from "./schemas";
+import { addStaffsSchema } from "./schemas";
 import {
   collectOrganizationShopStaffMembershipSnapshot,
   findActiveStaffByEmail,
   getActiveStaffInShop,
+  hasCanonicalStaffIdentity,
+  hasValidCanonicalStaffUserLifecycle,
+  hasValidOrganizationPersonUserLifecycle,
   isShiftTargetStaff,
   materializeOrganizationPeopleForStaffAddition,
   prepareOrganizationPeopleForStaffAddition,
@@ -108,7 +109,9 @@ async function recoverCompletedStaffAddition(
             .withIndex("by_correlationId", (q) => q.eq("correlationId", `${correlationBase}:staff:${index}`))
             .first();
     const staffId = audit?.targetId ? ctx.db.normalizeId("staffs", audit.targetId) : null;
-    const staff = staffId ? await ctx.db.get(staffId) : null;
+    const canonicalScope = staffId ? await resolveCanonicalStaffScope(ctx, { staffId, shopId: ctx.shop._id }) : null;
+    const staff = canonicalScope?.staff;
+    const person = canonicalScope?.person;
     if (
       audit?.action !== "organization.staff_added" ||
       audit.organizationId !== args.organizationId ||
@@ -118,9 +121,12 @@ async function recoverCompletedStaffAddition(
       audit.toState !== `active:${ctx.shop._id}:batch:${args.entries.length}` ||
       !["new", "activePerson", "removedPerson"].includes(audit.fromState ?? "") ||
       !staff ||
+      !person ||
       staff.shopId !== ctx.shop._id ||
       staff.organizationId !== args.organizationId ||
-      staff.isDeleted ||
+      person.organizationId !== args.organizationId ||
+      person.status !== "active" ||
+      (staff.userId !== undefined && person.userId !== staff.userId) ||
       normalizeEmail(staff.email) !== entry.email ||
       (audit.fromState !== "activePerson" && staff.name !== entry.name)
     ) {
@@ -132,10 +138,11 @@ async function recoverCompletedStaffAddition(
 }
 
 async function getSendableStaff(ctx: ManagerStaffMutationCtx, staffId: Id<"staffs">) {
-  const staff = await getActiveStaffInShop(ctx, ctx.shop._id, staffId);
-  if (!staff) {
+  const canonicalScope = await resolveCanonicalStaffScope(ctx, { staffId, shopId: ctx.shop._id });
+  if (!canonicalScope) {
     throw new ConvexError("Not found");
   }
+  const { staff } = canonicalScope;
 
   const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: ctx.shop._id });
   const canSend = staff.email.length > 0 || Boolean(lineRecipient?.lineUserId && lineRecipient.following);
@@ -293,11 +300,13 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
     .filter((e) => e.name !== "");
 
   const organizationId = ctx.shop.organizationId;
+  if (!organizationId || ctx.organization?._id !== organizationId) {
+    throw new ConvexError("Not found");
+  }
   const prevalidatedActivePeople = args.prevalidatedActiveOrganizationPeople;
   if (
     prevalidatedActivePeople &&
-    (!organizationId ||
-      prevalidatedActivePeople.length !== validEntries.length ||
+    (prevalidatedActivePeople.length !== validEntries.length ||
       prevalidatedActivePeople.some(
         (person, index) =>
           person.name !== validEntries[index]?.name || normalizeEmail(person.email) !== validEntries[index]?.email,
@@ -305,15 +314,12 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
   ) {
     throw new ConvexError("スタッフの追加対象を確認できません。\n画面を更新して、もう一度お試しください。");
   }
-  if (organizationId) {
-    if (ctx.organization?._id !== organizationId) throw new ConvexError("Not found");
-    const completed = await recoverCompletedStaffAddition(ctx, {
-      organizationId,
-      entries: validEntries,
-      requestId,
-    });
-    if (completed) return completed;
-  }
+  const completed = await recoverCompletedStaffAddition(ctx, {
+    organizationId,
+    entries: validEntries,
+    requestId,
+  });
+  if (completed) return completed;
 
   const inputEmails = new Set<string>();
   for (const entry of validEntries) {
@@ -343,13 +349,13 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
   type StaffInsertEntry = {
     name: string;
     email: string;
-    organizationId?: Id<"organizations">;
-    organizationPersonId?: Id<"organizationPeople">;
+    organizationId: Id<"organizations">;
+    organizationPersonId: Id<"organizationPeople">;
     sourceState: "new" | "activePerson" | "removedPerson";
     reactivatedPersonId?: Id<"organizationPeople">;
   };
-  let staffEntries: StaffInsertEntry[] = validEntries.map((entry) => ({ ...entry, sourceState: "new" }));
-  if (organizationId && prevalidatedActivePeople) {
+  let staffEntries: StaffInsertEntry[];
+  if (prevalidatedActivePeople) {
     const people = await Promise.all(
       prevalidatedActivePeople.map(async (entry) => {
         const person = await ctx.db.get(entry.personId);
@@ -359,7 +365,8 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
           person.status !== "active" ||
           person.name !== entry.name ||
           normalizeEmail(person.email) !== entry.email ||
-          person.emailNormalized !== entry.email
+          person.emailNormalized !== entry.email ||
+          !(await hasValidOrganizationPersonUserLifecycle(ctx, person))
         ) {
           throw new ConvexError("スタッフの追加対象が変更されています。\n画面を更新して、もう一度お試しください。");
         }
@@ -380,7 +387,7 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
       organizationPersonId: person._id,
       sourceState: "activePerson",
     }));
-  } else if (organizationId) {
+  } else {
     const prepared = await prepareOrganizationPeopleForStaffAddition(ctx, {
       organizationId,
       shopId: ctx.shop._id,
@@ -408,9 +415,6 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
 
   const lineContexts = await Promise.all(
     staffEntries.map(async (entry) => {
-      if (!entry.organizationId || !entry.organizationPersonId) {
-        return { lineRecipient: null, lineState: null };
-      }
       const lineRecipient = await resolveOrganizationPersonLineInheritanceRecipient(ctx, {
         organizationId: entry.organizationId,
         organizationPersonId: entry.organizationPersonId,
@@ -441,12 +445,10 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
 
   const inserted: Id<"staffs">[] = [];
   for (const entry of staffEntries) {
-    // TODO[narrow]: 全deploymentでm025/m027完走・staff readiness 0確認後、canonical IDsを必須にする。
     const id = await ctx.db.insert("staffs", {
       shopId: ctx.shop._id,
-      ...(entry.organizationId && entry.organizationPersonId
-        ? { organizationId: entry.organizationId, organizationPersonId: entry.organizationPersonId }
-        : {}),
+      organizationId: entry.organizationId,
+      organizationPersonId: entry.organizationPersonId,
       name: entry.name,
       email: entry.email,
       emailNormalized: entry.email,
@@ -455,11 +457,16 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
     });
     inserted.push(id);
   }
-  if (organizationId && !args.deferStaffOrderSync) {
+  if (!args.deferStaffOrderSync) {
     await syncActivatedOrganizationStaffOrder(ctx, { organizationId });
   }
   const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
   for (const [index, staffId] of inserted.entries()) {
+    const entry = staffEntries[index];
+    const lineState = lineStates[index];
+    if (!entry || !lineState) {
+      throw new ConvexError("スタッフの追加結果を確認できません。\n画面を更新して、もう一度お試しください。");
+    }
     // スタッフ追加直後に必要な案内をまとめて fire-and-forget する。
     // mutation は登録完了を優先し、外部送信の失敗や dry-run 判定は action 側で扱う。
     await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentEmail, {
@@ -467,16 +474,10 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
       ...notificationOrigin,
     });
     if (!lineRecipients[index]) {
-      const entry = staffEntries[index];
-      const lineState = lineStates[index];
       await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
         staffId,
-        ...(entry?.organizationPersonId && lineState
-          ? {
-              organizationPersonId: entry.organizationPersonId,
-              lineLinkGenerationAtSchedule: lineState.generation,
-            }
-          : {}),
+        organizationPersonId: entry.organizationPersonId,
+        lineLinkGenerationAtSchedule: lineState.generation,
         ...notificationOrigin,
       });
     }
@@ -486,70 +487,64 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
     });
   }
 
-  if (organizationId) {
-    const correlationBase = `${organizationId}:staff-add:${requestId}`;
-    const now = Date.now();
-    for (const [index, staffId] of inserted.entries()) {
-      const entry = staffEntries[index];
-      if (!entry) {
-        throw new ConvexError("スタッフの追加結果を確認できません。\n画面を更新して、もう一度お試しください。");
-      }
+  const correlationBase = `${organizationId}:staff-add:${requestId}`;
+  const now = Date.now();
+  for (const [index, staffId] of inserted.entries()) {
+    const entry = staffEntries[index];
+    if (!entry) {
+      throw new ConvexError("スタッフの追加結果を確認できません。\n画面を更新して、もう一度お試しください。");
+    }
+    await recordOrganizationAuditEvent(ctx, {
+      organizationId,
+      actorUserId: ctx.user._id,
+      actorPersonId: ctx.organizationMember?.personId,
+      action: "organization.staff_added",
+      targetKind: "staff",
+      targetId: staffId,
+      fromState: entry.sourceState,
+      toState: `active:${ctx.shop._id}:batch:${inserted.length}`,
+      correlationId: `${correlationBase}:staff:${index}`,
+      occurredAt: now,
+      ...(index === 0
+        ? {
+            analyticsEvent: {
+              eventType: "staffMembership.changed" as const,
+              shopId: ctx.shop._id,
+              payload: {
+                kind: "staffMembershipBatch" as const,
+                memberships: inserted.map((insertedStaffId, insertedIndex) => {
+                  const insertedEntry = staffEntries[insertedIndex];
+                  if (!insertedEntry) throw new ConvexError("スタッフの追加結果を確認できません。");
+                  const lineState = lineStates[insertedIndex];
+                  return {
+                    staffId: insertedStaffId,
+                    organizationPersonId: insertedEntry.organizationPersonId,
+                    personFirstObservedAt: now,
+                    isShiftTarget: true,
+                    validFrom: now,
+                    lineLinked: lineState !== null && lineState.status !== "unlinked",
+                    lineFollowing: lineState?.status === "linked_following",
+                  };
+                }),
+              },
+            },
+          }
+        : {}),
+    });
+    if (entry.reactivatedPersonId) {
       await recordOrganizationAuditEvent(ctx, {
         organizationId,
         actorUserId: ctx.user._id,
         actorPersonId: ctx.organizationMember?.personId,
-        action: "organization.staff_added",
-        targetKind: "staff",
-        targetId: staffId,
-        fromState: entry.sourceState,
-        toState: `active:${ctx.shop._id}:batch:${inserted.length}`,
-        correlationId: `${correlationBase}:staff:${index}`,
+        action: "organization.person_reactivated",
+        targetKind: "person",
+        targetId: entry.reactivatedPersonId,
+        fromState: "removed",
+        toState: "active",
+        correlationId: `${correlationBase}:person:${entry.reactivatedPersonId}`,
         occurredAt: now,
-        ...(index === 0
-          ? {
-              analyticsEvent: {
-                eventType: "staffMembership.changed" as const,
-                shopId: ctx.shop._id,
-                payload: {
-                  kind: "staffMembershipBatch" as const,
-                  memberships: inserted.map((insertedStaffId, insertedIndex) => {
-                    const insertedEntry = staffEntries[insertedIndex];
-                    if (!insertedEntry) throw new ConvexError("スタッフの追加結果を確認できません。");
-                    const lineState = lineStates[insertedIndex];
-                    return {
-                      staffId: insertedStaffId,
-                      ...(insertedEntry.organizationPersonId
-                        ? {
-                            organizationPersonId: insertedEntry.organizationPersonId,
-                            personFirstObservedAt: now,
-                          }
-                        : {}),
-                      isShiftTarget: true,
-                      validFrom: now,
-                      lineLinked: lineState !== null && lineState.status !== "unlinked",
-                      lineFollowing: lineState?.status === "linked_following",
-                    };
-                  }),
-                },
-              },
-            }
-          : {}),
+        suppressAnalyticsEvent: true,
       });
-      if (entry.reactivatedPersonId) {
-        await recordOrganizationAuditEvent(ctx, {
-          organizationId,
-          actorUserId: ctx.user._id,
-          actorPersonId: ctx.organizationMember?.personId,
-          action: "organization.person_reactivated",
-          targetKind: "person",
-          targetId: entry.reactivatedPersonId,
-          fromState: "removed",
-          toState: "active",
-          correlationId: `${correlationBase}:person:${entry.reactivatedPersonId}`,
-          occurredAt: now,
-          suppressAnalyticsEvent: true,
-        });
-      }
     }
   }
   return { status: "added" as const, staffIds: inserted };
@@ -582,7 +577,8 @@ export const addOrganizationPersonToShop = managerMutation({
       !person ||
       person.organizationId !== ctx.organization._id ||
       person.status !== "active" ||
-      normalizeEmail(person.email) !== person.emailNormalized
+      normalizeEmail(person.email) !== person.emailNormalized ||
+      !(await hasValidOrganizationPersonUserLifecycle(ctx, person))
     ) {
       throw new ConvexError("Not found");
     }
@@ -646,14 +642,14 @@ function canonicalRemovalPreviews(previews: readonly ShopMembershipRemovalPrevie
 }
 
 function validateShopMembershipChangeInput(
-  desiredActiveShopIds: readonly Id<"shops">[],
+  desiredShopIds: readonly Id<"shops">[],
   removalPreviews: readonly ShopMembershipRemovalPreviewInput[],
   expectedMembershipFingerprint: string,
 ) {
   const isSha256Hex = (value: string) => /^[0-9a-f]{64}$/.test(value);
   if (
-    desiredActiveShopIds.length > ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT ||
-    new Set(desiredActiveShopIds).size !== desiredActiveShopIds.length ||
+    desiredShopIds.length > ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT ||
+    new Set(desiredShopIds).size !== desiredShopIds.length ||
     removalPreviews.length > ORGANIZATION_USER_DETAIL_SHOP_SCAN_LIMIT ||
     !isSha256Hex(expectedMembershipFingerprint) ||
     removalPreviews.some(
@@ -770,6 +766,7 @@ async function recoverCompletedShopMembershipChange(
 export const changeOrganizationPersonShopMemberships = managerMutation({
   args: {
     personId: v.id("organizationPeople"),
+    // rolling client互換のfield名。値はすべての未削除店舗のdesired-setとして扱う。
     desiredActiveShopIds: v.array(v.id("shops")),
     expectedMembershipFingerprint: v.string(),
     removalPreviews: v.array(shopMembershipRemovalPreviewValidator),
@@ -808,7 +805,8 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
       !person ||
       person.organizationId !== organizationId ||
       person.status !== "active" ||
-      normalizeEmail(person.email) !== person.emailNormalized
+      normalizeEmail(person.email) !== person.emailNormalized ||
+      !(await hasValidOrganizationPersonUserLifecycle(ctx, person))
     ) {
       throw new ConvexError("Not found");
     }
@@ -822,6 +820,11 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
     if (staffDocs.length > ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT) {
       throw new ConvexError("ユーザーの店舗所属を確認できません。\n画面を更新して、もう一度お試しください。");
     }
+    for (const staff of staffDocs) {
+      if (!hasCanonicalStaffIdentity(staff) || !(await hasValidCanonicalStaffUserLifecycle(ctx, staff, person))) {
+        throw new ConvexError("ユーザーの店舗所属を確認できません。\n画面を更新して、もう一度お試しください。");
+      }
+    }
 
     const activeStaffs = staffDocs.filter((staff) => !staff.isDeleted);
     const currentMemberships = await Promise.all(
@@ -830,7 +833,7 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
         if (!shop || shop.isDeleted || shop.organizationId !== organizationId) {
           throw new ConvexError("Not found");
         }
-        return { staff, shop, shopStatus: organizationShopOperatingStatus(shop.operatingStatus) };
+        return { staff, shop };
       }),
     );
     if (new Set(currentMemberships.map((membership) => membership.shop._id)).size !== currentMemberships.length) {
@@ -841,33 +844,29 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
       currentMemberships.map((membership) => ({
         staffId: membership.staff._id,
         shopId: membership.shop._id,
-        shopStatus: membership.shopStatus,
       })),
     );
     if (currentFingerprint !== args.expectedMembershipFingerprint) {
       throw new ConvexError(STALE_SHOP_MEMBERSHIP_CHANGE_ERROR);
     }
 
-    const desiredActiveShopIds = sortShopIds(args.desiredActiveShopIds);
+    const desiredShopIds = sortShopIds(args.desiredActiveShopIds);
     const desiredShops = await Promise.all(
-      desiredActiveShopIds.map(async (shopId) => {
+      desiredShopIds.map(async (shopId) => {
         const shop = await ctx.db.get(shopId);
         if (!shop || shop.isDeleted || shop.organizationId !== organizationId) throw new ConvexError("Not found");
-        if (organizationShopOperatingStatus(shop.operatingStatus) !== "active") {
-          throw new ConvexError(INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON);
-        }
         return shop;
       }),
     );
     const desiredShopById = new Map(desiredShops.map((shop) => [shop._id, shop]));
-    const desiredShopIdSet = new Set(desiredActiveShopIds);
+    const desiredShopIdSet = new Set(desiredShopIds);
     const currentMembershipByShopId = new Map(
       currentMemberships.map((membership) => [membership.shop._id, membership]),
     );
     const removals = currentMemberships
-      .filter((membership) => membership.shopStatus === "active" && !desiredShopIdSet.has(membership.shop._id))
+      .filter((membership) => !desiredShopIdSet.has(membership.shop._id))
       .sort((left, right) => left.shop._id.localeCompare(right.shop._id));
-    const addedShopIds = desiredActiveShopIds.filter((shopId) => !currentMembershipByShopId.has(shopId));
+    const addedShopIds = desiredShopIds.filter((shopId) => !currentMembershipByShopId.has(shopId));
     const removedShopIds = removals.map((membership) => membership.shop._id);
 
     const removalByShopId = new Map(removals.map((membership) => [membership.shop._id, membership]));
@@ -1237,10 +1236,6 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
     if (snapshot.membershipFingerprint !== args.expectedMembershipFingerprint) {
       throw new ConvexError(STALE_SHOP_MEMBERSHIP_CHANGE_ERROR);
     }
-    if (organizationShopOperatingStatus(snapshot.shop.operatingStatus) !== "active") {
-      throw new ConvexError(INACTIVE_SHOP_MEMBERSHIP_CHANGE_DISABLED_REASON);
-    }
-
     const desiredPersonIdSet = new Set(args.desiredActivePersonIds);
     const snapshotPersonIdSet = new Set(snapshot.people.map((entry) => entry.person._id));
     if (args.desiredActivePersonIds.some((personId) => !snapshotPersonIdSet.has(personId))) {
@@ -1456,112 +1451,6 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
   },
 });
 
-export const editStaff = managerMutation({
-  args: {
-    staffId: v.id("staffs"),
-    name: v.string(),
-    email: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const parsed = editStaffSchema.safeParse({ name: args.name, email: args.email });
-    if (!parsed.success) {
-      throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
-    }
-    const input = parsed.data;
-    const staff = await getActiveStaffInShop(ctx, ctx.shop._id, args.staffId);
-    if (!staff) {
-      throw new ConvexError("Not found");
-    }
-
-    const trimmedEmail = normalizeEmail(input.email);
-    const trimmedName = input.name;
-    const organizationId = staff.organizationId;
-    const organizationPersonId = staff.organizationPersonId;
-    const hasOrganizationLink = Boolean(organizationId || organizationPersonId);
-    if (hasOrganizationLink && (!organizationId || !organizationPersonId)) {
-      throw new ConvexError("スタッフのユーザー情報を確認できません。\n組織設定で登録内容を確認してください。");
-    }
-    if (organizationId && (!ctx.organization || organizationId !== ctx.organization._id)) {
-      throw new ConvexError("スタッフのユーザー情報を確認できません。\n組織設定で登録内容を確認してください。");
-    }
-    const organizationPerson = organizationId && organizationPersonId ? await ctx.db.get(organizationPersonId) : null;
-    if (
-      organizationId &&
-      (!organizationPerson ||
-        organizationPerson.organizationId !== organizationId ||
-        organizationPerson.status !== "active")
-    ) {
-      throw new ConvexError("スタッフのユーザー情報を確認できません。\n組織設定で登録内容を確認してください。");
-    }
-
-    if (organizationPerson && organizationId) {
-      const result = await updateOrganizationPersonProfile(ctx, {
-        organizationId,
-        personId: organizationPerson._id,
-        actorUser: ctx.user,
-        notificationShopId: ctx.shop._id,
-        name: trimmedName,
-        email: trimmedEmail,
-      });
-      if (result.changed) {
-        await recordOrganizationAuditEvent(ctx, {
-          organizationId,
-          actorUserId: ctx.user._id,
-          actorPersonId: ctx.organizationMember?.personId,
-          action: "organization.person_profile_updated",
-          targetKind: "person",
-          targetId: organizationPerson._id,
-        });
-      }
-      return null;
-    }
-
-    const duplicateByNormalized = await ctx.db
-      .query("staffs")
-      .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
-        q.eq("shopId", ctx.shop._id).eq("emailNormalized", trimmedEmail).eq("isDeleted", false),
-      )
-      .first();
-    const duplicate =
-      duplicateByNormalized ??
-      (await ctx.db
-        .query("staffs")
-        .withIndex("by_shopId_email_isDeleted", (q) =>
-          q.eq("shopId", ctx.shop._id).eq("email", trimmedEmail).eq("isDeleted", false),
-        )
-        .first());
-    if (duplicate && duplicate._id !== args.staffId) {
-      throw new ConvexError("このメールアドレスはすでに使用されています。");
-    }
-
-    // TODO[narrow]: 全deploymentでm032が完走し、verifyStaffsのemail残件が全pageで0になった後にemail fallbackを削除する。
-    const previousEmailNormalized = normalizeEmail(staff.emailNormalized ?? staff.email);
-    const emailChanged = trimmedEmail !== previousEmailNormalized;
-    const emailChangedAt = Date.now();
-    await ctx.db.patch(staff._id, { name: trimmedName, email: trimmedEmail, emailNormalized: trimmedEmail });
-    if (staff.userId === ctx.user._id) {
-      // legacy staffでも表示名だけを同期し、シフト連絡先をusersのbootstrap snapshotへ逆同期しない。
-      await ctx.db.patch(ctx.user._id, { name: trimmedName });
-    }
-
-    if (emailChanged) {
-      const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
-      await ctx.scheduler.runAfter(
-        0,
-        internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaffEmailChange,
-        {
-          staffId: staff._id,
-          expectedEmailNormalized: trimmedEmail,
-          emailChangedAt,
-          ...notificationOrigin,
-        },
-      );
-    }
-    return null;
-  },
-});
-
 export const sendOpenRecruitmentNotifications = managerMutation({
   args: {
     staffId: v.id("staffs"),
@@ -1629,7 +1518,21 @@ export const sendCurrentShiftNotification = managerMutation({
   ),
   handler: async (ctx, args) => {
     await validateOptionalNotificationRequestId(args.requestId);
-    const staff = await getSendableStaff(ctx, args.staffId);
+    const staff = await getActiveStaffInShop(ctx, ctx.shop._id, args.staffId);
+    if (!staff) {
+      throw new ConvexError("Not found");
+    }
+    const canonicalScope = await resolveCanonicalStaffScope(ctx, {
+      staffId: staff._id,
+      shopId: ctx.shop._id,
+    });
+    if (!canonicalScope) {
+      return { scheduled: false, reason: "noCurrentShift" as const };
+    }
+    const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: ctx.shop._id });
+    if (staff.email.length === 0 && !(lineRecipient?.lineUserId && lineRecipient.following)) {
+      throw new ConvexError("メールアドレスの登録またはLINE連携が必要です。");
+    }
     if (!isShiftTargetStaff(staff)) {
       return { scheduled: false, reason: "noCurrentShift" as const };
     }
@@ -1665,11 +1568,15 @@ export const prepareLegacyCurrentShiftConfirmationFanout = internalMutation({
     organizationBillingVersionAtOrigin: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const staff = await ctx.db.get(args.staffId);
-    const shop = staff ? await ctx.db.get(staff.shopId) : null;
-    if (!staff || staff.isDeleted || !isShiftTargetStaff(staff) || !(await isShopParentActive(ctx, shop))) {
+    const canonicalScope = await resolveCanonicalStaffScope(ctx, { staffId: args.staffId });
+    if (
+      !canonicalScope ||
+      !isShiftTargetStaff(canonicalScope.staff) ||
+      !(await isShopAvailable(ctx, canonicalScope.shop))
+    ) {
       return { status: "skipped" as const, reason: "noCurrentShift" as const };
     }
+    const { staff } = canonicalScope;
     const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: staff.shopId });
     if (staff.email.length === 0 && !(lineRecipient?.lineUserId && lineRecipient.following)) {
       return { status: "skipped" as const, reason: "noCurrentShift" as const };
@@ -1699,32 +1606,38 @@ export const setShiftExclusion = managerMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const staff = await getActiveStaffInShop(ctx, ctx.shop._id, args.staffId);
-    if (!staff) {
+    const canonicalScope = await resolveCanonicalStaffScope(ctx, {
+      staffId: args.staffId,
+      shopId: ctx.shop._id,
+    });
+    if (
+      !canonicalScope ||
+      !ctx.organization ||
+      ctx.shop.organizationId !== ctx.organization._id ||
+      canonicalScope.organization._id !== ctx.organization._id
+    ) {
       throw new ConvexError("Not found");
     }
+    const { staff } = canonicalScope;
     // 削除と異なり、管理者（店舗共通アドレス本人）もシフト対象外にできる（主ユースケース）。
     const now = Date.now();
     await ctx.db.patch(args.staffId, { excludedFromShift: args.excluded });
-    const organizationId = staff.organizationId ?? ctx.shop.organizationId;
-    if (organizationId) {
-      await recordAnalyticsSourceEvent(ctx, {
-        eventKey: `staffMembership:${staff._id}:shiftTarget:${crypto.randomUUID()}`,
-        eventType: "staffMembership.changed",
-        occurredAt: now,
-        organizationId,
-        shopId: staff.shopId,
-        subjectId: staff._id,
-        payload: {
-          kind: "staffMembership",
-          staffId: staff._id,
-          ...(staff.organizationPersonId ? { organizationPersonId: staff.organizationPersonId } : {}),
-          status: "active",
-          isShiftTarget: !args.excluded,
-          validFrom: now,
-        },
-      });
-    }
+    await recordAnalyticsSourceEvent(ctx, {
+      eventKey: `staffMembership:${staff._id}:shiftTarget:${crypto.randomUUID()}`,
+      eventType: "staffMembership.changed",
+      occurredAt: now,
+      organizationId: staff.organizationId,
+      shopId: staff.shopId,
+      subjectId: staff._id,
+      payload: {
+        kind: "staffMembership",
+        staffId: staff._id,
+        organizationPersonId: staff.organizationPersonId,
+        status: "active",
+        isShiftTarget: !args.excluded,
+        validFrom: now,
+      },
+    });
 
     // 対象外にする場合は、発行済みのシフト用セッション・マジックリンクを失効させ、
     // 古いリンクでのシフト閲覧・希望シフト提出を即座に遮断する（LINE連携は他通知で使うため残す）。
@@ -1746,81 +1659,6 @@ export const setShiftExclusion = managerMutation({
         ...magicLinks.filter((link) => !link.revokedAt).map((link) => ctx.db.patch(link._id, { revokedAt: now })),
       ]);
     }
-    return null;
-  },
-});
-
-/**
- * organization link未設定staffだけを扱う旧削除API。
- * TODO[narrow]: 全deploymentでm027完走・verifyStaffsのlink残件0・旧client配布終了を確認後に削除する。
- */
-export const deleteStaff = managerMutation({
-  args: {
-    staffId: v.id("staffs"),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const staff = await getActiveStaffInShop(ctx, ctx.shop._id, args.staffId);
-    if (!staff) {
-      throw new ConvexError("Not found");
-    }
-    if (staff.organizationId || staff.organizationPersonId) {
-      throw new ConvexError("この店舗への所属は、組織設定のユーザー画面から解除してください。");
-    }
-
-    if (staff.userId === ctx.user._id) {
-      throw new ConvexError("自分のアカウントは削除できません。");
-    }
-
-    const now = Date.now();
-    await ctx.db.patch(args.staffId, { isDeleted: true });
-    if (ctx.shop.organizationId) {
-      await recordAnalyticsSourceEvent(ctx, {
-        eventKey: `staffMembership:${staff._id}:deleted:${now}`,
-        eventType: "staffMembership.changed",
-        occurredAt: now,
-        organizationId: ctx.shop.organizationId,
-        shopId: staff.shopId,
-        subjectId: staff._id,
-        payload: {
-          kind: "staffMembership",
-          staffId: staff._id,
-          status: "removed",
-          isShiftTarget: !staff.excludedFromShift,
-          validFrom: staff._creationTime,
-          validTo: now,
-        },
-      });
-    }
-    await ctx.scheduler.runAfter(0, internal.notificationOutbox.mutations.deleteStaffNotificationHistoryBatch, {
-      shopId: ctx.shop._id,
-      staffId: args.staffId,
-    });
-
-    const [sessions, magicLinks, lineLinkTokens, lineAccounts] = await Promise.all([
-      ctx.db
-        .query("sessions")
-        .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
-        .collect(),
-      ctx.db
-        .query("magicLinks")
-        .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
-        .collect(),
-      ctx.db
-        .query("lineLinkTokens")
-        .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
-        .collect(),
-      ctx.db
-        .query("staffLineAccounts")
-        .withIndex("by_staffId", (q) => q.eq("staffId", args.staffId))
-        .collect(),
-    ]);
-    await Promise.all([
-      ...sessions.map((session) => ctx.db.patch(session._id, { revokedAt: now })),
-      ...magicLinks.map((token) => ctx.db.patch(token._id, { revokedAt: now })),
-      ...lineLinkTokens.map((token) => ctx.db.patch(token._id, { revokedAt: now })),
-      ...lineAccounts.map((account) => ctx.db.patch(account._id, { isDeleted: true, following: false })),
-    ]);
     return null;
   },
 });

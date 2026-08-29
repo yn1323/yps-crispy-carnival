@@ -3,6 +3,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop, seedOrganizationManagerShop, seedOrganizationPersonLineLink } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { LINE_LINK_REDEEM_GLOBAL_LIMIT } from "../constants";
@@ -15,11 +16,10 @@ async function seedRedeemableToken(t: TestConvex<typeof schema>, token: string) 
       email: `${token}@example.com`,
       shopName: "LINE連携店舗",
     });
-    const staffId = await ctx.db.insert("staffs", {
+    const staffId = await seedStaff(ctx, {
       shopId,
       name: "LINE連携スタッフ",
       email: "line-staff@example.com",
-      isDeleted: false,
     });
     const tokenDocId = await ctx.db.insert("lineLinkTokens", {
       staffId,
@@ -236,12 +236,7 @@ describe("line/actions", () => {
 
       expect(state.account).toMatchObject({ lineUserId: "U_redeemed", following: true, isDeleted: false });
       expect(state.token?.usedAt).toEqual(expect.any(Number));
-      expect(state.scheduled.map((job) => job.name).sort()).toEqual(
-        [
-          "legal/actions:sendStaffConsentLine",
-          "notification/actions:sendOpenRecruitmentNotificationLinesForStaff",
-        ].sort(),
-      );
+      expect(state.scheduled.map((job) => job.name)).toEqual(["line/mutations:kickFriendshipFanoutJob"]);
     });
 
     it("未followならneeds_followを返し、通知actionを予約しない", async () => {
@@ -263,7 +258,13 @@ describe("line/actions", () => {
         scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
       }));
       expect(state.account).toMatchObject({ lineUserId: "U_redeemed", following: false, isDeleted: false });
-      expect(state.scheduled).toEqual([]);
+      expect(
+        state.scheduled.filter(
+          (job) =>
+            job.name === "legal/actions:sendStaffConsentLine" ||
+            job.name === "notification/actions:sendOpenRecruitmentNotificationLinesForStaff",
+        ),
+      ).toEqual([]);
     });
 
     it("異なる無効stateでglobal上限に達してもproviderを呼ばず、window回復後は正常tokenを処理する", async () => {
@@ -330,21 +331,34 @@ describe("line/actions", () => {
 
   it("LINE連携案内メールの件名を安全な通知履歴metadataとして保存する", async () => {
     const t = convexTest(schema, modules);
-    const staffId = await t.run(async (ctx) => {
+    const target = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, {
         subject: "line_invite_manager",
         email: "line-invite-manager@notification.invalid",
         shopName: "LINE案内店舗",
       });
-      return await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "LINE案内スタッフ",
         email: "line-invite-staff@example.com",
-        isDeleted: false,
       });
+      const staff = await ctx.db.get(staffId);
+      if (!staff?.organizationPersonId) throw new Error("canonical staff not found");
+      const person = await ctx.db.get(staff.organizationPersonId);
+      if (!person) throw new Error("person not found");
+      await ctx.db.patch(staffId, {
+        name: "古いLINE案内staff snapshot",
+        email: "stale-line-invite@example.com",
+        emailNormalized: "stale-line-invite@example.com",
+      });
+      return { staffId, organizationPersonId: person._id, lineLinkGeneration: person.lineLinkGeneration ?? 0 };
     });
 
-    await t.action(internal.line.actions.sendInviteEmail, { staffId });
+    await t.action(internal.line.actions.sendInviteEmail, {
+      staffId: target.staffId,
+      organizationPersonId: target.organizationPersonId,
+      lineLinkGenerationAtSchedule: target.lineLinkGeneration,
+    });
 
     const state = await t.run(async (ctx) => ({
       histories: await ctx.db.query("notificationHistory").collect(),
@@ -355,10 +369,11 @@ describe("line/actions", () => {
     if (state.jobs[0]?.payload.kind !== "email") throw new Error("LINE連携案内がメールpayloadではありません");
     expect(state.histories[0]).toMatchObject({
       outboxId: state.jobs[0]._id,
-      staffId,
+      staffId: target.staffId,
       notificationKind: "line.invite",
       displayTitle: state.jobs[0].payload.subject,
     });
+    expect(state.jobs[0].payload.to).toBe("line-invite-staff@example.com");
   });
 
   it("旧shapeのscheduled callerも実行時にcanonical連携済みならtokenとメールを作らない", async () => {
@@ -368,7 +383,7 @@ describe("line/actions", () => {
         subject: "old_shape_canonical_invite",
         email: "old-shape-manager@example.com",
         shopName: "旧予約店舗",
-        plan: "pro",
+        plan: "standard",
       });
       const now = Date.now();
       const organizationPersonId = await ctx.db.insert("organizationPeople", {
@@ -414,7 +429,7 @@ describe("line/actions", () => {
         subject: "old_shape_after_disconnect",
         email: "old-shape-after-disconnect@example.com",
         shopName: "旧予約解除店舗",
-        plan: "pro",
+        plan: "standard",
       });
       const now = Date.now();
       const organizationPersonId = await ctx.db.insert("organizationPeople", {
@@ -463,7 +478,7 @@ describe("line/actions", () => {
         subject: `explicit_relink_${following}`,
         email: `explicit-relink-${following}@example.com`,
         shopName: "明示再連携店舗",
-        plan: "pro",
+        plan: "standard",
       });
       const now = Date.now();
       const organizationPersonId = await ctx.db.insert("organizationPeople", {
@@ -518,7 +533,7 @@ describe("line/actions", () => {
         subject: "stale_relink_invite",
         email: "stale-relink-invite@example.com",
         shopName: "世代競合店舗",
-        plan: "pro",
+        plan: "standard",
       });
       const now = Date.now();
       const organizationPersonId = await ctx.db.insert("organizationPeople", {

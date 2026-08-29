@@ -2,7 +2,6 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { isShopParentActive } from "../_lib/activeShop";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { APP_URL } from "../_lib/config";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
@@ -10,6 +9,7 @@ import { authenticatedMutation, managerMutation } from "../_lib/functions";
 import { buildLineAuthorizeUrl } from "../_lib/lineClient";
 import { rateLimit } from "../_lib/rateLimits";
 import { sha256Hex } from "../_lib/sha256";
+import { isShopAvailable } from "../_lib/shopAvailability";
 import { generateUUID } from "../_lib/uuid";
 import { ANALYTICS_POLICY } from "../analytics/registry";
 import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
@@ -32,7 +32,6 @@ import {
 } from "../notificationOutbox/resendCooldown";
 import { requireOrganizationActorForShop } from "../organization/access";
 import { recordOrganizationAuditEvent } from "../organization/audit";
-import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { getActiveStaffInShop } from "../staff/service";
 import {
@@ -71,7 +70,6 @@ function appendAnalyticsLineAccountChange(
 async function canRedeemLineLinkTokenForShop(ctx: Pick<MutationCtx, "db">, shop: Doc<"shops">) {
   const organizationId = shop.organizationId;
   if (!organizationId) return true;
-  if (organizationShopOperatingStatus(shop.operatingStatus) !== "active") return false;
 
   const [organization, billingStates] = await Promise.all([
     ctx.db.get(organizationId),
@@ -92,16 +90,14 @@ async function canRedeemLineLinkTokenForShop(ctx: Pick<MutationCtx, "db">, shop:
 async function issueLinkToken(ctx: MutationCtx, args: { staffId: Id<"staffs">; shopId: Id<"shops"> }) {
   const now = Date.now();
   const canonicalScope = await resolveCanonicalStaffScope(ctx, args);
-  const activeCandidates = canonicalScope
-    ? await collectOrganizationPersonActiveLineTokens(ctx, {
-        organizationId: canonicalScope.organization._id,
-        organizationPersonId: canonicalScope.person._id,
-        now,
-      })
-    : await ctx.db
-        .query("lineLinkTokens")
-        .withIndex("by_staffId_and_expiresAt", (q) => q.eq("staffId", args.staffId).gte("expiresAt", now))
-        .take(LINE_LINK_ACTIVE_TOKEN_SCAN_LIMIT + 1);
+  if (!canonicalScope) {
+    throw new ConvexError("LINE連携に必要な情報を発行できませんでした。");
+  }
+  const activeCandidates = await collectOrganizationPersonActiveLineTokens(ctx, {
+    organizationId: canonicalScope.organization._id,
+    organizationPersonId: canonicalScope.person._id,
+    now,
+  });
   if (activeCandidates.length > LINE_LINK_ACTIVE_TOKEN_SCAN_LIMIT) {
     throw new ConvexError("LINE連携に必要な情報を発行できませんでした。");
   }
@@ -115,13 +111,9 @@ async function issueLinkToken(ctx: MutationCtx, args: { staffId: Id<"staffs">; s
   await ctx.db.insert("lineLinkTokens", {
     staffId: args.staffId,
     shopId: args.shopId,
-    ...(canonicalScope
-      ? {
-          organizationId: canonicalScope.organization._id,
-          organizationPersonId: canonicalScope.person._id,
-          lineLinkGenerationAtIssue: canonicalScope.person.lineLinkGeneration ?? 0,
-        }
-      : {}),
+    organizationId: canonicalScope.organization._id,
+    organizationPersonId: canonicalScope.person._id,
+    lineLinkGenerationAtIssue: canonicalScope.person.lineLinkGeneration ?? 0,
     token,
     expiresAt: now + LINE_LINK_TOKEN_TTL_MS,
   });
@@ -168,7 +160,7 @@ export const createLinkTokenInternal = internalMutation({
   args: { staffId: v.id("staffs"), shopId: v.id("shops") },
   handler: async (ctx, { staffId, shopId }) => {
     const [staff, shop] = await Promise.all([ctx.db.get(staffId), ctx.db.get(shopId)]);
-    if (!staff || staff.isDeleted || staff.shopId !== shopId || !(await isShopParentActive(ctx, shop))) {
+    if (!staff || staff.isDeleted || staff.shopId !== shopId || !(await isShopAvailable(ctx, shop))) {
       throw new ConvexError("Not found");
     }
     const token = await issueLinkToken(ctx, { staffId, shopId });
@@ -185,7 +177,7 @@ async function resolveCanonicalTokenScope(ctx: MutationCtx, token: Doc<"lineLink
   const hasAnySnapshot = snapshotValues.some((value) => value !== undefined);
   const hasCompleteSnapshot = snapshotValues.every((value) => value !== undefined);
   if (hasAnySnapshot && !hasCompleteSnapshot) return { status: "invalid" as const };
-  if (!canonicalScope) return hasAnySnapshot ? { status: "invalid" as const } : { status: "legacy" as const };
+  if (!canonicalScope) return { status: "invalid" as const };
   if (
     hasCompleteSnapshot &&
     (token.organizationId !== canonicalScope.organization._id ||
@@ -296,7 +288,7 @@ async function finalizeCanonicalLinking(
     if (!accountStaff || accountStaff.isDeleted) continue;
     const accountShop = await ctx.db.get(accountStaff.shopId);
     if (!accountShop || accountShop.isDeleted) continue;
-    const accountOrganizationId = accountStaff.organizationId ?? accountShop.organizationId;
+    const accountOrganizationId = accountStaff.organizationId;
     if (accountOrganizationId !== args.scope.organization._id) continue;
     if (accountShop.organizationId !== args.scope.organization._id) {
       throw new ConvexError("LINE連携を完了できませんでした。");
@@ -410,103 +402,14 @@ export const finalizeLinking = internalMutation({
     }
     const canonical = await resolveCanonicalTokenScope(ctx, link);
     if (canonical.status === "invalid") return { status: "expired" as const };
-    if (canonical.status === "canonical") {
-      const result = await finalizeCanonicalLinking(ctx, {
-        token: link,
-        scope: canonical.scope,
-        lineUserId: args.lineUserId,
-        lineFollowing: args.lineFollowing,
-        lineFriendshipObservedAt: args.lineFriendshipObservedAt ?? Date.now(),
-      });
-      return args.lineFriendshipObservedAt === undefined ? { status: result.status } : result;
-    }
-    const currentAccount = await getStaffLineAccount(ctx, args.staffId);
-
-    // 同一店舗で別スタッフに同じ lineUserId が紐づいていた場合だけ付け替える
-    // （真の重複/担当替え）。別店舗のアカウントは残す（同一人物の多店舗連携を許可）。
-    const sameLineAccounts = await findStaffLineAccountsByLineUserId(ctx, args.lineUserId);
-    if (sameLineAccounts.length > LINE_LEGACY_ACTIVE_ACCOUNT_SCAN_MAX) {
-      throw new ConvexError("LINE連携を完了できませんでした。");
-    }
-    const duplicateAccounts = sameLineAccounts.filter(
-      (account) => account.staffId !== args.staffId && account.shopId === staff.shopId,
-    );
-    const currentAccountUsesLineUser = sameLineAccounts.some((account) => account.staffId === args.staffId);
-    const resultingAccountCount =
-      sameLineAccounts.length - duplicateAccounts.length + (currentAccountUsesLineUser ? 0 : 1);
-    if (
-      resultingAccountCount > LINE_LEGACY_ACTIVE_ACCOUNT_SCAN_MAX ||
-      duplicateAccounts.length + 1 > ANALYTICS_POLICY.batch.sourceEvents
-    ) {
-      throw new ConvexError("LINE連携を完了できませんでした。");
-    }
-    const linkedAt = Date.now();
-    const analyticsAccounts: AnalyticsLineAccountChange[] = [];
-    let analyticsAccountsComplete = true;
-    for (const acc of sameLineAccounts) {
-      if (acc.staffId !== args.staffId && acc.shopId === staff.shopId) {
-        await ctx.db.patch(acc._id, { isDeleted: true, following: false });
-        if (shop.organizationId) {
-          analyticsAccountsComplete =
-            appendAnalyticsLineAccountChange(analyticsAccounts, {
-              staffId: acc.staffId,
-              linked: false,
-              following: false,
-              occurredAt: linkedAt,
-            }) && analyticsAccountsComplete;
-        }
-      }
-    }
-
-    const accountId = await upsertStaffLineAccount(ctx, {
-      staffId: args.staffId,
-      shopId: staff.shopId,
+    const result = await finalizeCanonicalLinking(ctx, {
+      token: link,
+      scope: canonical.scope,
       lineUserId: args.lineUserId,
-      following: args.lineFollowing,
+      lineFollowing: args.lineFollowing,
+      lineFriendshipObservedAt: args.lineFriendshipObservedAt ?? Date.now(),
     });
-    await ctx.db.patch(args.tokenDocId, { usedAt: linkedAt });
-    if (shop.organizationId) {
-      analyticsAccountsComplete =
-        appendAnalyticsLineAccountChange(analyticsAccounts, {
-          staffId: staff._id,
-          linked: true,
-          following: args.lineFollowing,
-          occurredAt: linkedAt,
-        }) && analyticsAccountsComplete;
-      await recordAnalyticsSourceEvent(ctx, {
-        eventKey: `lineAccountBatch:${accountId}:linked:${linkedAt}`,
-        eventType: "lineAccount.changed",
-        occurredAt: linkedAt,
-        payload: {
-          kind: "lineAccountBatch",
-          isComplete: analyticsAccountsComplete,
-          accounts: analyticsAccounts,
-        },
-      });
-    }
-    const notificationOrigin = await getBusinessNotificationOrigin(ctx, {
-      organizationId: shop.organizationId,
-      shopId: shop._id,
-    });
-    if (args.lineFollowing) {
-      // LINE連携直後に同意依頼を送る。未followの場合は needs_follow 画面で友だち追加を促し、
-      // follow Webhook 側で同じ案内を送る。
-      await ctx.scheduler.runAfter(0, internal.legal.actions.sendStaffConsentLine, {
-        staffId: args.staffId,
-        ...notificationOrigin,
-      });
-    }
-    if (args.lineFollowing && !currentAccount?.following) {
-      // 初回followになったタイミングだけ、現在募集中の提出リンクをLINEにも流す。
-      // 既にfollow済みの再連携では重複送信しない。
-      await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationLinesForStaff, {
-        staffId: args.staffId,
-        ...notificationOrigin,
-      });
-    }
-    return args.lineFriendshipObservedAt === undefined
-      ? { status: "ok" as const }
-      : { status: "ok" as const, following: args.lineFollowing };
+    return args.lineFriendshipObservedAt === undefined ? { status: result.status } : result;
   },
 });
 
@@ -1175,20 +1078,21 @@ export const sendInvite = managerMutation({
     if (!staff) {
       throw new ConvexError("Not found");
     }
-    if (!staff.email) {
-      throw new ConvexError("メールアドレスが未登録です");
-    }
-
     const canonicalScope = await resolveCanonicalStaffScope(ctx, {
       staffId: staff._id,
       shopId: ctx.shop._id,
     });
-    const cooldownStaffs = canonicalScope
-      ? await listActiveStaffsForOrganizationPerson(ctx, {
-          organizationId: canonicalScope.organization._id,
-          organizationPersonId: canonicalScope.person._id,
-        })
-      : [staff];
+    if (!canonicalScope) {
+      throw new ConvexError("Not found");
+    }
+    if (!canonicalScope.person.email) {
+      throw new ConvexError("メールアドレスが未登録です");
+    }
+
+    const cooldownStaffs = await listActiveStaffsForOrganizationPerson(ctx, {
+      organizationId: canonicalScope.organization._id,
+      organizationPersonId: canonicalScope.person._id,
+    });
     const cooldowns = await collectNotificationResendCooldowns(
       ctx,
       cooldownStaffs.map((cooldownStaff) => ({
@@ -1209,12 +1113,8 @@ export const sendInvite = managerMutation({
 
     await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
       staffId: staff._id,
-      ...(canonicalScope
-        ? {
-            organizationPersonId: canonicalScope.person._id,
-            lineLinkGenerationAtSchedule: canonicalScope.person.lineLinkGeneration ?? 0,
-          }
-        : {}),
+      organizationPersonId: canonicalScope.person._id,
+      lineLinkGenerationAtSchedule: canonicalScope.person.lineLinkGeneration ?? 0,
       ...notificationOrigin,
     });
     return { scheduled: true as const };

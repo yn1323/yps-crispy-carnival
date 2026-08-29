@@ -108,7 +108,7 @@ describe("m041 LINE common link backfill", () => {
       const archivedShopId = await ctx.db.insert("shops", {
         organizationId: seeded.organizationId,
         operatingStatus: "archived",
-        name: "停止店舗",
+        name: "旧archived店舗",
         regularClosedDays: [],
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
         isDeleted: false,

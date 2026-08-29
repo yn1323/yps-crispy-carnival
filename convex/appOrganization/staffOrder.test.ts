@@ -516,7 +516,7 @@ describe("organization staff order", () => {
     ]);
   });
 
-  it("50人×5稼働店舗を一transactionで有効化し、最大301 documentを構築する", async () => {
+  it("50人×5店舗を一transactionで有効化し、最大301 documentを構築する", async () => {
     const t = convexTest(schema, modules);
     const subject = "staff_order_maximum";
     const ids = await t.run(async (ctx) => {
@@ -526,7 +526,6 @@ describe("organization staff order", () => {
         shopIds.push(
           await ctx.db.insert("shops", {
             organizationId: base.organizationId,
-            operatingStatus: "active",
             name: `店舗${index + 1}`,
             submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
             regularClosedDays: [],
@@ -575,88 +574,81 @@ describe("organization staff order", () => {
     ).resolves.toEqual({ states: 1, organizationEntries: 50, shopEntries: 250 });
   });
 
-  it.each([
-    { label: "active", operatingStatus: "active" as const },
-    { label: "operatingStatus欠損", operatingStatus: undefined },
-  ])(
-    "deleted $label shopがscan上限を超えた場合は一部sourceを採用せずfail closedする",
-    async ({ label, operatingStatus }) => {
-      const t = convexTest(schema, modules);
-      const subject = `staff_order_deleted_shop_scan_${label}`;
-      const base = await t.run(async (ctx) => {
-        const seeded = await seedOrganizationManagerShop(ctx, { subject, complimentary: true });
-        for (let index = 0; index <= ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT; index += 1) {
-          await ctx.db.insert("shops", {
-            organizationId: seeded.organizationId,
-            ...(operatingStatus ? { operatingStatus } : {}),
-            name: `削除済み店舗${index}`,
-            submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-            regularClosedDays: [],
-            isDeleted: true,
-          });
-        }
-        return seeded;
-      });
-      const actor = t.withIdentity({ subject });
+  it("大量の削除済み店舗があっても非削除店舗だけをsourceにしてreadyを維持する", async () => {
+    const t = convexTest(schema, modules);
+    const subject = "staff_order_deleted_shop_scan";
+    const base = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, { subject, complimentary: true });
+      for (let index = 0; index <= ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT; index += 1) {
+        await ctx.db.insert("shops", {
+          organizationId: seeded.organizationId,
+          name: `削除済み店舗${index}`,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: true,
+        });
+      }
+      return seeded;
+    });
+    const actor = t.withIdentity({ subject });
 
-      const source = await t.run(
-        async (ctx) => await getOrganizationStaffOrderSourceSnapshot(ctx, base.organizationId),
-      );
-      expect(source.availability).toBe("legacyDataIncomplete");
-      expect("snapshot" in source).toBe(false);
+    const source = await t.run(async (ctx) => await getOrganizationStaffOrderSourceSnapshot(ctx, base.organizationId));
+    expect(source.availability).toBe("ready");
+    if (source.availability !== "ready") throw new Error("staff order source is not ready");
+    expect(source.snapshot.shops.map(({ shop }) => shop._id)).toEqual([base.shopId]);
 
-      const editor = await actor.query(api.appOrganization.staffOrderQueries.getOrganizationStaffOrderEditor, {
+    const editor = await actor.query(api.appOrganization.staffOrderQueries.getOrganizationStaffOrderEditor, {
+      organizationId: base.organizationId,
+    });
+    expect(editor).toMatchObject({ availability: "ready", canWrite: true });
+    expect(editor.people.map((person) => person.personId)).toEqual([base.personId]);
+    await expect(
+      actor.mutation(api.appOrganization.staffOrderMutations.saveOrganizationStaffOrder, {
         organizationId: base.organizationId,
-      });
-      expect(editor).toMatchObject({ availability: "legacyDataIncomplete", canWrite: false, people: [] });
-      await expect(
-        actor.mutation(api.appOrganization.staffOrderMutations.saveOrganizationStaffOrder, {
-          organizationId: base.organizationId,
-          orderedPersonIds: [base.personId],
-          expectedOrderFingerprint: editor.orderFingerprint,
-        }),
-      ).rejects.toThrow("並び順を保存できる状態ではありません");
-      await expect(
-        t.run(async (ctx) => ({
-          states: await ctx.db.query("organizationStaffOrderStates").collect(),
-          organizationEntries: await ctx.db.query("organizationStaffOrderEntries").collect(),
-          shopEntries: await ctx.db.query("shopStaffOrderEntries").collect(),
-        })),
-      ).resolves.toEqual({ states: [], organizationEntries: [], shopEntries: [] });
-    },
-  );
+        orderedPersonIds: [base.personId],
+        expectedOrderFingerprint: editor.orderFingerprint,
+      }),
+    ).resolves.toMatchObject({ changed: true, revision: 1 });
+    await expect(
+      t.run(async (ctx) => ({
+        states: await ctx.db.query("organizationStaffOrderStates").collect(),
+        organizationEntries: await ctx.db.query("organizationStaffOrderEntries").collect(),
+        shopEntries: await ctx.db.query("shopStaffOrderEntries").collect(),
+      })),
+    ).resolves.toMatchObject({
+      states: [{ revision: 1 }],
+      organizationEntries: [{ organizationPersonId: base.personId }],
+      shopEntries: [],
+    });
+  });
 
-  it("正規の5稼働店舗と少数のdeleted shopは完全に読み分けてreadyを維持する", async () => {
+  it("5件の非削除店舗と少数の削除済み店舗を完全に読み分けてreadyを維持する", async () => {
     const t = convexTest(schema, modules);
     const subject = "staff_order_deleted_shop_bounded_ready";
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, { subject, complimentary: true });
-      const activeShopIds = [base.shopId];
+      const shopIds = [base.shopId];
       for (let index = 1; index < 5; index += 1) {
-        activeShopIds.push(
+        shopIds.push(
           await ctx.db.insert("shops", {
             organizationId: base.organizationId,
-            ...(index === 4 ? {} : { operatingStatus: "active" as const }),
-            name: `稼働店舗${index + 1}`,
+            name: `店舗${index + 1}`,
             submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
             regularClosedDays: [],
             isDeleted: false,
           }),
         );
       }
-      for (const operatingStatus of ["active" as const, undefined]) {
-        for (let index = 0; index < 2; index += 1) {
-          await ctx.db.insert("shops", {
-            organizationId: base.organizationId,
-            ...(operatingStatus ? { operatingStatus } : {}),
-            name: `削除済み${operatingStatus ?? "legacy"}${index}`,
-            submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-            regularClosedDays: [],
-            isDeleted: true,
-          });
-        }
+      for (let index = 0; index < 4; index += 1) {
+        await ctx.db.insert("shops", {
+          organizationId: base.organizationId,
+          name: `削除済み店舗${index}`,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: true,
+        });
       }
-      return { base, activeShopIds };
+      return { base, shopIds };
     });
 
     const source = await t.run(
@@ -664,7 +656,7 @@ describe("organization staff order", () => {
     );
     expect(source.availability).toBe("ready");
     if (source.availability !== "ready") throw new Error("staff order source is not ready");
-    expect(source.snapshot.activeShops.map(({ shop }) => shop._id).sort()).toEqual([...ids.activeShopIds].sort());
+    expect(source.snapshot.shops.map(({ shop }) => shop._id).sort()).toEqual([...ids.shopIds].sort());
 
     const editor = await t
       .withIdentity({ subject })
@@ -678,8 +670,9 @@ describe("organization staff order", () => {
   it.each([
     { kind: "people" as const, expected: "tooManyPeople" as const },
     { kind: "shops" as const, expected: "tooManyActiveShops" as const },
-    { kind: "unlinked" as const, expected: "legacyDataIncomplete" as const },
-  ])("$kindの安全上限・legacy不整合では部分一覧を返さず有効化しない", async ({ kind, expected }) => {
+    { kind: "inactivePerson" as const, expected: "legacyDataIncomplete" as const },
+    { kind: "missingCanonical" as const, expected: "legacyDataIncomplete" as const },
+  ])("$kindの安全上限・canonical不整合では部分一覧を返さず有効化しない", async ({ kind, expected }) => {
     const t = convexTest(schema, modules);
     const subject = `staff_order_unavailable_${kind}`;
     const base = await t.run(async (ctx) => {
@@ -692,24 +685,49 @@ describe("organization staff order", () => {
         for (let index = 1; index <= 5; index += 1) {
           await ctx.db.insert("shops", {
             organizationId: seeded.organizationId,
-            operatingStatus: "active",
             name: `追加店舗${index}`,
             submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
             regularClosedDays: [],
             isDeleted: false,
           });
         }
+      } else if (kind === "inactivePerson") {
+        const now = Date.parse("2026-08-20T00:00:00Z");
+        const removedPersonId = await ctx.db.insert("organizationPeople", {
+          organizationId: seeded.organizationId,
+          name: "削除済み人物",
+          email: "removed-person@example.com",
+          emailNormalized: "removed-person@example.com",
+          status: "removed",
+          createdAt: now,
+          updatedAt: now,
+        });
+        await ctx.db.insert("staffs", {
+          organizationId: seeded.organizationId,
+          organizationPersonId: removedPersonId,
+          shopId: seeded.shopId,
+          name: "削除済み人物参照スタッフ",
+          email: "removed-person@example.com",
+          emailNormalized: "removed-person@example.com",
+          isDeleted: false,
+        });
       } else {
         await ctx.db.insert("staffs", {
           shopId: seeded.shopId,
-          name: "未移行スタッフ",
-          email: "legacy@example.com",
-          emailNormalized: "legacy@example.com",
+          name: "canonical ID未設定staff",
+          email: "missing-canonical@example.com",
+          emailNormalized: "missing-canonical@example.com",
           isDeleted: false,
         });
       }
       return seeded;
     });
+    if (kind === "shops") {
+      const source = await t.run(
+        async (ctx) => await getOrganizationStaffOrderSourceSnapshot(ctx, base.organizationId),
+      );
+      expect(source.availability).toBe("tooManyShops");
+    }
     const editor = await t
       .withIdentity({ subject })
       .query(api.appOrganization.staffOrderQueries.getOrganizationStaffOrderEditor, {

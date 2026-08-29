@@ -1,6 +1,13 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
-import { seedLegacyShop, seedLegacyShopMembership, seedOrganizationManagerShop, seedUser } from "../_test/seed";
+import { seedStaff } from "../_test/scenarioBuilders";
+import {
+  seedLegacyShop,
+  seedLegacyShopMembership,
+  seedOrganizationManagerShop,
+  seedShop,
+  seedUser,
+} from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { getActiveUserAssociationStatus, getOtherActiveUserAssociationStatus } from "./service";
 
@@ -55,15 +62,16 @@ describe("deletionCleanup association scan", () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const missingStaffShopUserId = await seedUser(ctx, "association_missing_staff_shop");
-      const missingStaffShopId = await seedLegacyShop(ctx, "削除するstaff親店舗");
-      await ctx.db.insert("staffs", {
+      const missingStaffShopId = await seedShop(ctx, "削除するstaff親店舗");
+      const missingStaffId = await seedStaff(ctx, {
         shopId: missingStaffShopId,
         userId: missingStaffShopUserId,
         name: "親欠損スタッフ",
         email: "missing-staff-shop@example.com",
-        emailNormalized: "missing-staff-shop@example.com",
-        isDeleted: false,
       });
+      const missingStaff = await ctx.db.get(missingStaffId);
+      if (!missingStaff?.organizationPersonId) throw new Error("missing staff fixture was not canonical");
+      await ctx.db.patch(missingStaff.organizationPersonId, { status: "removed", updatedAt: Date.now() });
       await ctx.db.delete(missingStaffShopId);
 
       const missingMemberShopUserId = await seedUser(ctx, "association_missing_member_shop");
@@ -74,15 +82,16 @@ describe("deletionCleanup association scan", () => {
       const mismatchedStaffUserId = await seedUser(ctx, "association_mismatched_staff");
       const first = await seedOrganizationManagerShop(ctx, { subject: "association_staff_org_a", plan: "free" });
       const second = await seedOrganizationManagerShop(ctx, { subject: "association_staff_org_b", plan: "free" });
-      await ctx.db.insert("staffs", {
+      const mismatchedStaffId = await seedStaff(ctx, {
         shopId: first.shopId,
-        organizationId: second.organizationId,
         userId: mismatchedStaffUserId,
         name: "不整合スタッフ",
         email: "mismatched-staff@example.com",
-        emailNormalized: "mismatched-staff@example.com",
-        isDeleted: false,
       });
+      const mismatchedStaff = await ctx.db.get(mismatchedStaffId);
+      if (!mismatchedStaff?.organizationPersonId) throw new Error("mismatched staff fixture was not canonical");
+      await ctx.db.patch(mismatchedStaff.organizationPersonId, { status: "removed", updatedAt: Date.now() });
+      await ctx.db.patch(mismatchedStaffId, { organizationId: second.organizationId });
       return { missingStaffShopUserId, missingMemberShopUserId, mismatchedStaffUserId };
     });
 

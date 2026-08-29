@@ -41,6 +41,7 @@ async function seedStaff(
     email?: string;
     excludedFromShift?: boolean;
     isDeleted?: boolean;
+    userId?: Id<"users">;
   },
 ) {
   const email = args.email ?? "detail-person@example.com";
@@ -51,12 +52,58 @@ async function seedStaff(
     name: args.name ?? "詳細対象ユーザー",
     email,
     emailNormalized: email,
+    ...(args.userId ? { userId: args.userId } : {}),
     excludedFromShift: args.excludedFromShift ?? false,
     isDeleted: args.isDeleted ?? false,
   });
 }
 
 describe("organization/userDetailQueries.getUserDetail", () => {
+  it.each([
+    ["参照切れ", "dangling"],
+    ["削除済み", "deleted"],
+    ["削除受付済み", "requested"],
+  ] as const)("linked userが%sの人物詳細はPIIを返さずnullにする", async (_label, state) => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: `user_detail_linked_user_${state}`,
+        plan: "standard",
+      });
+      const linkedUserId = await seedUser(
+        ctx,
+        `user_detail_target_${state}`,
+        `user-detail-target-${state}@example.com`,
+      );
+      const personId = await seedPerson(ctx, {
+        organizationId: base.organizationId,
+        email: `user-detail-target-${state}@example.com`,
+        userId: linkedUserId,
+      });
+      await seedStaff(ctx, {
+        organizationId: base.organizationId,
+        personId,
+        shopId: base.shopId,
+        email: `user-detail-target-${state}@example.com`,
+        userId: linkedUserId,
+      });
+      if (state === "dangling") await ctx.db.delete(linkedUserId);
+      else if (state === "deleted") await ctx.db.patch(linkedUserId, { isDeleted: true });
+      else await ctx.db.patch(linkedUserId, { accountDeletionRequestedAt: NOW });
+      return { ...base, personId };
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: `user_detail_linked_user_${state}` })
+        .query(api.organization.userDetailQueries.getUserDetail, {
+          shopId: ids.shopId,
+          personId: ids.personId,
+          now: NOW,
+        }),
+    ).resolves.toBeNull();
+  });
+
   it("active.freeの利用人数超過中は人物削除だけを許可し、通常編集と店舗所属変更を閉じる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -101,33 +148,30 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     });
   });
 
-  it("組織人物と有効店舗所属を最小DTOで返し、管理者招待の有無を更新する", async () => {
+  it("組織人物と未削除店舗所属を最小DTOで返し、管理者招待の有無を更新する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_actor",
         shopName: "青山店",
-        plan: "pro",
+        plan: "standard",
       });
       const secondShopId = await ctx.db.insert("shops", {
         organizationId: base.organizationId,
-        operatingStatus: "active",
         name: "赤坂店",
         regularClosedDays: [],
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         isDeleted: false,
       });
-      const archivedShopId = await ctx.db.insert("shops", {
+      const thirdShopId = await ctx.db.insert("shops", {
         organizationId: base.organizationId,
-        operatingStatus: "archived",
-        name: "旧店舗",
+        name: "上野店",
         regularClosedDays: [],
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         isDeleted: false,
       });
       await ctx.db.insert("shops", {
         organizationId: base.organizationId,
-        operatingStatus: "active",
         name: "削除済み店舗",
         regularClosedDays: [],
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
@@ -136,7 +180,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_other_organization_shop",
         shopName: "別グループ店舗",
-        plan: "pro",
+        plan: "standard",
       });
       const personId = await seedPerson(ctx, { organizationId: base.organizationId });
       const firstStaffId = await seedStaff(ctx, {
@@ -150,10 +194,10 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         personId,
         shopId: secondShopId,
       });
-      const archivedStaffId = await seedStaff(ctx, {
+      const thirdStaffId = await seedStaff(ctx, {
         organizationId: base.organizationId,
         personId,
-        shopId: archivedShopId,
+        shopId: thirdShopId,
       });
       await seedStaff(ctx, {
         organizationId: base.organizationId,
@@ -177,7 +221,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         linkedAt: NOW,
         isDeleted: false,
       });
-      return { ...base, personId, firstStaffId, secondStaffId, archivedShopId, archivedStaffId, secondShopId };
+      return { ...base, personId, firstStaffId, secondStaffId, secondShopId, thirdShopId, thirdStaffId };
     });
     const actor = t.withIdentity({ subject: "user_detail_actor" });
 
@@ -209,19 +253,18 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       line: {
         status: "linked_following",
         actionShopId: ids.shopId,
-        sourceStaffId: ids.firstStaffId,
-        sourceShopId: ids.shopId,
+        sourceStaffId: ids.thirdStaffId,
+        sourceShopId: ids.thirdShopId,
         canLink: true,
         canDisconnect: true,
       },
       membershipFingerprint: expect.stringMatching(/^[0-9a-f]{64}$/),
       shops: [
         {
-          shopId: ids.archivedShopId,
-          shopName: "旧店舗",
-          shopStatus: "archived",
-          canChangeMembership: false,
-          membershipChangeDisabledReason: "稼働中の店舗だけ所属を変更できます。",
+          shopId: ids.thirdShopId,
+          shopName: "上野店",
+          shopStatus: "active",
+          canChangeMembership: true,
         },
         {
           shopId: ids.shopId,
@@ -238,13 +281,12 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       ],
       memberships: [
         {
-          staffId: ids.archivedStaffId,
-          shopId: ids.archivedShopId,
-          shopName: "旧店舗",
-          shopStatus: "archived",
+          staffId: ids.thirdStaffId,
+          shopId: ids.thirdShopId,
+          shopName: "上野店",
+          shopStatus: "active",
           excludedFromShift: false,
-          canRemove: false,
-          removeDisabledReason: "稼働中の店舗だけ所属を変更できます。",
+          canRemove: true,
           removalPreview: {
             kind: "ready",
             asOfDate: "2026-07-19",
@@ -284,12 +326,12 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     });
     expect(JSON.stringify(result)).not.toContain("never-return-line-user-id");
 
-    const fromArchivedShop = await actor.query(api.organization.userDetailQueries.getUserDetail, {
-      shopId: ids.archivedShopId,
+    const fromThirdShop = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      shopId: ids.thirdShopId,
       personId: ids.personId,
       now: NOW,
     });
-    expect(fromArchivedShop?.canWrite).toBe(true);
+    expect(fromThirdShop?.canWrite).toBe(true);
 
     await t.run(async (ctx) => {
       await ctx.db.insert("organizationInvitations", {
@@ -325,11 +367,10 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_common_line",
         shopName: "青山店",
-        plan: "pro",
+        plan: "standard",
       });
       const secondShopId = await ctx.db.insert("shops", {
         organizationId: base.organizationId,
-        operatingStatus: "active",
         name: "赤坂店",
         regularClosedDays: [],
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
@@ -398,7 +439,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_line_inconsistent",
-        plan: "pro",
+        plan: "standard",
       });
       const personId = await seedPerson(ctx, { organizationId: base.organizationId });
       await seedStaff(ctx, { organizationId: base.organizationId, personId, shopId: base.shopId });
@@ -444,7 +485,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_canonical_no_fallback",
-        plan: "pro",
+        plan: "standard",
       });
       const personId = await seedPerson(ctx, { organizationId: base.organizationId });
       const staffId = await seedStaff(ctx, {
@@ -478,8 +519,8 @@ describe("organization/userDetailQueries.getUserDetail", () => {
   it("壊れたID、他組織人物、removed人物を同じnullへ寄せる", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const actor = await seedOrganizationManagerShop(ctx, { subject: "user_detail_boundary", plan: "pro" });
-      const other = await seedOrganizationManagerShop(ctx, { subject: "user_detail_other", plan: "pro" });
+      const actor = await seedOrganizationManagerShop(ctx, { subject: "user_detail_boundary", plan: "standard" });
+      const other = await seedOrganizationManagerShop(ctx, { subject: "user_detail_other", plan: "standard" });
       const removedPersonId = await seedPerson(ctx, {
         organizationId: actor.organizationId,
         email: "removed-detail@example.com",
@@ -518,7 +559,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_member_identity",
-        plan: "pro",
+        plan: "standard",
       });
       const memberUserId = await seedUser(ctx, "user_detail_member_identity_target");
       const otherUserId = await seedUser(ctx, "user_detail_member_identity_other");
@@ -558,7 +599,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_manager_without_shop",
-        plan: "pro",
+        plan: "standard",
       });
       const targetUserId = await seedUser(
         ctx,
@@ -624,7 +665,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         sourceStaffId: null,
         sourceShopId: null,
         canLink: false,
-        linkDisabledReason: "LINE連携を設定するには、稼働中の店舗へ所属を追加してください。",
+        linkDisabledReason: "LINE連携を設定するには、店舗へ所属を追加してください。",
         canDisconnect: true,
       },
     });
@@ -656,7 +697,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_manager_membership",
-        plan: "pro",
+        plan: "standard",
       });
       const targetUserId = await seedUser(
         ctx,
@@ -710,7 +751,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_last_valid_manager",
-        plan: "pro",
+        plan: "standard",
       });
       await ctx.db.patch(base.organizationId, {
         billingEmail: "billing@example.com",
@@ -756,11 +797,11 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_duplicates",
-        plan: "pro",
+        plan: "standard",
       });
       const other = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_duplicates_other",
-        plan: "pro",
+        plan: "standard",
       });
       const targetUserId = await seedUser(ctx, "user_detail_target_manager", "target-manager@example.com");
       const personId = await seedPerson(ctx, {
@@ -840,11 +881,10 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_assignment",
-        plan: "pro",
+        plan: "standard",
       });
       const secondShopId = await ctx.db.insert("shops", {
         organizationId: base.organizationId,
-        operatingStatus: "active",
         name: "別店舗",
         regularClosedDays: [],
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
@@ -944,7 +984,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_read_only",
-        plan: "pro",
+        plan: "standard",
       });
       const personId = await seedPerson(ctx, { organizationId: base.organizationId });
       const staffId = await seedStaff(ctx, {

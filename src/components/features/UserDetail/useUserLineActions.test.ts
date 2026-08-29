@@ -154,8 +154,8 @@ describe("useUserLineActions", () => {
       ...data,
       line: {
         ...data.line,
-        sourceStaffId: null,
-        sourceShopId: null,
+        sourceStaffId,
+        sourceShopId,
         canLink: false,
         canDisconnect: false,
       },
