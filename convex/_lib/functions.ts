@@ -463,34 +463,37 @@ async function resolveStaffSession(
     return { status: "notFound" };
   }
 
-  if (shop.organizationId) {
-    const organization = await ctx.db.get(shop.organizationId);
+  if (!shop.organizationId) {
+    return { status: "notFound" };
+  }
+  const organization = await ctx.db.get(shop.organizationId);
+  if (!organization || organization.isDeleted) {
+    return { status: "notFound" };
+  }
+
+  // TODO[narrow]: 全deploymentでm050完走・verifyStaffs全異常0・未解消staff conflict 0を確認後、
+  //   両canonical ID欠損staffの既存session互換を削除する。片側だけの欠損は常にfail closed。
+  const isUnresolvedStaff = staff.organizationId === undefined && staff.organizationPersonId === undefined;
+  if (!isUnresolvedStaff) {
     if (
-      !organization ||
-      organization.isDeleted ||
-      (mode === "mutation" && organizationShopOperatingStatus(shop.operatingStatus) !== "active")
+      staff.organizationId === undefined ||
+      staff.organizationPersonId === undefined ||
+      staff.organizationId !== organization._id
     ) {
       return { status: "notFound" };
     }
-
-    // TODO[narrow]: 全deploymentでm027が完走し、verifyStaffsの全pageが0件であることを確認後、
-    //   organizationId/organizationPersonId未設定staffを許可するisLegacyStaffDuringMigration fallbackを削除する。
-    const isLegacyStaffDuringMigration = !staff.organizationId && !staff.organizationPersonId;
-    if (!isLegacyStaffDuringMigration) {
-      if (staff.organizationId !== organization._id || !staff.organizationPersonId) {
-        return { status: "notFound" };
-      }
-      const person = await ctx.db.get(staff.organizationPersonId);
-      if (person?.status !== "active" || person.organizationId !== organization._id) {
-        return { status: "notFound" };
-      }
+    const person = await ctx.db.get(staff.organizationPersonId);
+    if (
+      person?.status !== "active" ||
+      person.organizationId !== organization._id ||
+      (staff.userId !== undefined && person.userId !== staff.userId)
+    ) {
+      return { status: "notFound" };
     }
+  }
 
-    if (mode === "mutation") {
-      await requireOrganizationBusinessWrite(ctx, organization._id);
-    }
-  } else if (staff.organizationId || staff.organizationPersonId) {
-    return { status: "notFound" };
+  if (mode === "mutation") {
+    await requireOrganizationBusinessWrite(ctx, organization._id);
   }
 
   return { status: "ok", ctx: { staff, shop, session } };
@@ -516,7 +519,7 @@ export const staffSessionQuery = customQuery(query, {
       actorKind: "staff",
       staffId: result.ctx.staff._id,
       shopId: result.ctx.shop._id,
-      ...(result.ctx.staff.organizationId ? { organizationId: result.ctx.staff.organizationId } : {}),
+      ...(result.ctx.shop.organizationId ? { organizationId: result.ctx.shop.organizationId } : {}),
       ...(result.ctx.staff.organizationPersonId ? { actorPersonId: result.ctx.staff.organizationPersonId } : {}),
     });
     return { ctx: result.ctx, args: {} };
@@ -542,7 +545,7 @@ export const staffSessionMutation = customMutation(mutation, {
       actorKind: "staff",
       staffId: result.ctx.staff._id,
       shopId: result.ctx.shop._id,
-      ...(result.ctx.staff.organizationId ? { organizationId: result.ctx.staff.organizationId } : {}),
+      ...(result.ctx.shop.organizationId ? { organizationId: result.ctx.shop.organizationId } : {}),
       ...(result.ctx.staff.organizationPersonId ? { actorPersonId: result.ctx.staff.organizationPersonId } : {}),
     });
     return { ctx: result.ctx, args: {} };
