@@ -1,4 +1,4 @@
-import { Box, Container, Grid, Heading, HStack, Link, Stack, Text } from "@chakra-ui/react";
+import { Container, Grid, Heading, HStack, Link, Stack, Text } from "@chakra-ui/react";
 import { useEffect, useMemo, useState } from "react";
 import { LuArrowLeft, LuArrowRight, LuCircleHelp } from "react-icons/lu";
 import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
@@ -7,7 +7,6 @@ import { faqEntries, type HelpFaqContent } from "./faqContent";
 import { HelpAudienceBadge } from "./HelpAudienceBadge";
 import { HelpFaqAccordion } from "./HelpFaqAccordion";
 import { HelpSupport } from "./HelpSupport";
-import { SelectedHelpTaskCard } from "./HelpTaskCard";
 import { type GuideMetadata, type HelpMetadata, helpMetas } from "./helpMeta";
 import { HELP_TASKS, type HelpTask as HelpTaskDefinition } from "./helpTasks";
 
@@ -87,19 +86,36 @@ function HelpTaskView({
     <PublicPageLayout headerProps={{ showLinks: false, showLogin: false }}>
       <Container maxW="6xl" px={{ base: 4, lg: 8 }} py={{ base: 6, lg: 10 }}>
         <Stack gap={{ base: 8, lg: 10 }}>
-          <HStack as="nav" aria-label="パンくず" gap={2} wrap="wrap" color="gray.600" fontSize="sm">
-            <Link href="/help" color="teal.700" fontWeight="semibold">
-              ヘルプ
-            </Link>
-            <Text aria-hidden>/</Text>
-            <Text color="gray.700" lineClamp={1}>
-              {task.title}
-            </Text>
-          </HStack>
+          <Stack gap={5} maxW="760px">
+            <HStack as="nav" aria-label="パンくず" gap={2} wrap="wrap" color="gray.600" fontSize="sm">
+              <Link href="/help" color="teal.700" fontWeight="semibold">
+                ヘルプ
+              </Link>
+              <Text aria-hidden>/</Text>
+              <Text color="gray.700" lineClamp={1}>
+                {task.title}
+              </Text>
+            </HStack>
 
-          <Box maxW="760px">
-            <SelectedHelpTaskCard task={task} />
-          </Box>
+            <Stack gap={3} align="flex-start">
+              <HelpAudienceBadge audience={task.audience} />
+              <Heading
+                id={`help-task-${task.id}-title`}
+                as="h1"
+                color="gray.950"
+                fontSize={{ base: "2xl", lg: "3xl" }}
+                lineHeight="1.4"
+                letterSpacing="0"
+                textWrap="balance"
+                wordBreak="keep-all"
+              >
+                {task.title}
+              </Heading>
+              <Text color="gray.600" lineHeight="1.7">
+                {task.description}
+              </Text>
+            </Stack>
+          </Stack>
 
           <Grid
             templateColumns={{

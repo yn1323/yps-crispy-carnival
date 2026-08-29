@@ -47,7 +47,6 @@ export const Desktop: Story = {
     if (!task || !selectedFaq) throw new Error("task Storyに必要なヘルプが見つかりません");
 
     await expect(await canvas.findByRole("heading", { level: 1, name: task.title })).toBeVisible();
-    await expect(canvas.getByText("選択中")).toBeVisible();
     await expect(canvas.getByRole("heading", { level: 2, name: "よくある質問" })).toBeVisible();
     await expect(canvas.getByRole("button", { name: new RegExp(selectedFaq.meta.title) })).toBeVisible();
     await expect(canvas.getByRole("heading", { level: 2, name: "使い方" })).toBeVisible();
