@@ -14,8 +14,8 @@ type Props = {
 };
 
 export function UserShopDetail({ data, membership, targetShopId, expectedOrganizationId, onBack }: Props) {
-  const isStoreReadOnly = !data.canWrite || membership.shopStatus !== "active";
-  const storeDisabledReason = getStoreDisabledReason(data, membership);
+  const isStoreReadOnly = !data.canWrite;
+  const storeDisabledReason = getStoreDisabledReason(data);
   const notifications = useUserShopNotificationActions({
     targetShopId,
     membership,
@@ -74,9 +74,8 @@ export function UserShopDetail({ data, membership, targetShopId, expectedOrganiz
   );
 }
 
-function getStoreDisabledReason(data: UserShopDetailData, membership: UserShopDetailMembership) {
+function getStoreDisabledReason(data: UserShopDetailData) {
   if (!data.canWrite) return data.writeDisabledReason ?? "現在、この組織の情報を変更できません。";
-  if (membership.shopStatus === "archived") return "停止中の店舗では、店舗別設定を変更できません。";
   return undefined;
 }
 

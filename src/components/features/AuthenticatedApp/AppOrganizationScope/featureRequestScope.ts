@@ -6,15 +6,15 @@ import type {
 type Input = {
   pathname: string;
   homeShopId?: string;
-  activeShops: AppFeatureRequestShop[];
+  shops: AppFeatureRequestShop[];
 };
 
-/** 画面から分かる店舗は、canonical organization queryが返したactive店舗との一致だけで採用する。 */
-export function resolveAppFeatureRequestScope({ pathname, homeShopId, activeShops }: Input): AppFeatureRequestScope {
+/** 画面から分かる店舗は、canonical organization queryが返した未削除店舗との一致だけで採用する。 */
+export function resolveAppFeatureRequestScope({ pathname, homeShopId, shops }: Input): AppFeatureRequestScope {
   const routePathname = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   const requestedShopId =
     routePathname.toLowerCase() === "/dashboard" ? homeShopId : resolveScopedShopId(routePathname);
-  const verifiedShop = requestedShopId ? activeShops.find((shop) => shop.id === requestedShopId) : undefined;
+  const verifiedShop = requestedShopId ? shops.find((shop) => shop.id === requestedShopId) : undefined;
 
   return verifiedShop ? { kind: "shop", shop: verifiedShop } : { kind: "organization" };
 }

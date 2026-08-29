@@ -16,18 +16,15 @@ type ShopOption = { id: Id<"shops">; name: string };
 
 export function AppActionsRoutePage({
   organizationId,
-  activeShops,
+  shops,
   requestedShopFilter,
 }: {
   organizationId: Id<"organizations">;
-  activeShops: ShopOption[] | null;
+  shops: ShopOption[] | null;
   requestedShopFilter?: string;
 }) {
   const navigate = useNavigate();
-  const resolvedFilter = useMemo(
-    () => resolveShopFilter(activeShops, requestedShopFilter),
-    [activeShops, requestedShopFilter],
-  );
+  const resolvedFilter = useMemo(() => resolveShopFilter(shops, requestedShopFilter), [shops, requestedShopFilter]);
   const filterKind = resolvedFilter.kind;
   const shouldReplaceSearch = resolvedFilter.kind === "ready" && resolvedFilter.shouldReplaceSearch;
   const resolvedShopFilter = resolvedFilter.kind === "ready" ? resolvedFilter.shopFilter : "all";
@@ -56,7 +53,7 @@ export function AppActionsRoutePage({
       <ConnectedAppActions
         key={`${organizationId}:${resolvedShopFilter}`}
         organizationId={organizationId}
-        activeShops={activeShops ?? []}
+        shops={shops ?? []}
         shopFilter={resolvedShopFilter}
         onShopFilterChange={(nextFilter) =>
           void navigate({
@@ -71,12 +68,12 @@ export function AppActionsRoutePage({
 
 function ConnectedAppActions({
   organizationId,
-  activeShops,
+  shops,
   shopFilter,
   onShopFilterChange,
 }: {
   organizationId: Id<"organizations">;
-  activeShops: ShopOption[];
+  shops: ShopOption[];
   shopFilter: "all" | Id<"shops">;
   onShopFilterChange: (shopId: string | null) => void;
 }) {
@@ -95,7 +92,7 @@ function ConnectedAppActions({
       headingAction={
         <ShopFilterMenu
           value={shopFilter === "all" ? null : shopFilter}
-          options={activeShops.map((shop) => ({ value: shop.id, label: shop.name }))}
+          options={shops.map((shop) => ({ value: shop.id, label: shop.name }))}
           onChange={onShopFilterChange}
           prefix="対象"
         />

@@ -3,13 +3,13 @@ export type ShopFilterResolution<TShopId extends string> =
   | { kind: "ready"; shopFilter: "all" | TShopId; shouldReplaceSearch: boolean };
 
 export function resolveShopFilter<TShopId extends string>(
-  activeShops: readonly { id: TShopId }[] | null,
+  shops: readonly { id: TShopId }[] | null,
   requestedShopFilter?: string,
 ): ShopFilterResolution<TShopId> {
-  if (activeShops === null) return { kind: "loading" };
+  if (shops === null) return { kind: "loading" };
   if (!requestedShopFilter) return { kind: "ready", shopFilter: "all", shouldReplaceSearch: false };
 
-  const shop = activeShops.find((candidate) => candidate.id === requestedShopFilter);
+  const shop = shops.find((candidate) => candidate.id === requestedShopFilter);
   if (!shop) return { kind: "ready", shopFilter: "all", shouldReplaceSearch: true };
 
   return { kind: "ready", shopFilter: shop.id, shouldReplaceSearch: false };

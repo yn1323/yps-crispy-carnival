@@ -15,7 +15,7 @@ export type AppOrganizationScope = {
   /** nullの間は全cursorを走査中。Headerの組織切替へ部分的な一覧を公開しない。 */
   organizations: AppOrganizationOption[] | null;
   /** nullの間は全cursorを走査中。部分的な店舗一覧を選択肢として公開しない。 */
-  activeShops: AppFeatureRequestShop[] | null;
+  shops: AppFeatureRequestShop[] | null;
 };
 
 export type AppOrganizationOption = {
@@ -114,15 +114,15 @@ function VerifiedOrganizationScope({
     {},
     { initialNumItems: PAGE_SIZE },
   );
-  const shops = usePaginatedQuery(
-    api.appOrganization.queries.listOrganizationActiveShops,
+  const shopsQuery = usePaginatedQuery(
+    api.appOrganization.queries.listOrganizationShops,
     organization ? { organizationId: organization.organizationId } : "skip",
     { initialNumItems: PAGE_SIZE },
   );
 
   useEffect(() => {
-    if (shops.status === "CanLoadMore") shops.loadMore(PAGE_SIZE);
-  }, [shops.loadMore, shops.status]);
+    if (shopsQuery.status === "CanLoadMore") shopsQuery.loadMore(PAGE_SIZE);
+  }, [shopsQuery.loadMore, shopsQuery.status]);
 
   useEffect(() => {
     if (organizations.status === "CanLoadMore") organizations.loadMore(PAGE_SIZE);
@@ -131,8 +131,10 @@ function VerifiedOrganizationScope({
   if (organization === undefined) return renderState({ kind: "loading" });
   if (organization === null) return renderState({ kind: "error", reason: "inaccessible" });
 
-  const activeShops =
-    shops.status === "Exhausted" ? shops.results.map((shop) => ({ id: shop.shopId, name: shop.shopName })) : null;
+  const shops =
+    shopsQuery.status === "Exhausted"
+      ? shopsQuery.results.map((shop) => ({ id: shop.shopId, name: shop.shopName }))
+      : null;
   const organizationOptions =
     organizations.status === "Exhausted"
       ? organizations.results.map((candidate) => ({
@@ -147,7 +149,7 @@ function VerifiedOrganizationScope({
         organizationId: organization.organizationId,
         organizationName: organization.organizationName,
         organizations: organizationOptions,
-        activeShops,
+        shops,
       }}
     >
       {children}

@@ -95,7 +95,7 @@ const makeSection = (shopId: string, shopName: string, item: Recruitment): Recru
 
 const firstSection = makeSection("shop-1", "本店", recruitment("recruitment-later", "2026-08-20"));
 const secondSection = makeSection("shop-2", "駅前店", recruitment("recruitment-sooner", "2026-08-10"));
-const activeShops = [
+const shops = [
   { id: "shop-1" as never, name: "本店" },
   { id: "shop-2" as never, name: "駅前店" },
 ];
@@ -134,7 +134,7 @@ describe("AppShiftsRoutePage", () => {
       loadMore: mocks.loadMore,
     });
 
-    renderPage(<AppShiftsRoutePage organizationId={"organization-1" as never} activeShops={activeShops} />);
+    renderPage(<AppShiftsRoutePage organizationId={"organization-1" as never} shops={shops} />);
 
     expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(
       mocks.queryRef,
@@ -154,7 +154,7 @@ describe("AppShiftsRoutePage", () => {
       loadMore: mocks.loadMore,
     });
 
-    renderPage(<AppShiftsRoutePage organizationId={"organization-1" as never} activeShops={activeShops} />);
+    renderPage(<AppShiftsRoutePage organizationId={"organization-1" as never} shops={shops} />);
 
     expect(screen.getByRole("heading", { level: 1, name: "シフト" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "店舗で絞り込む（現在：すべて）" })).toBeTruthy();
@@ -178,14 +178,14 @@ describe("AppShiftsRoutePage", () => {
     });
   });
 
-  it("利用中の店舗が1つのとき店舗filterを表示しない", () => {
+  it("店舗が1つのとき店舗filterを表示しない", () => {
     mocks.usePaginatedQuery.mockReturnValue({
       results: [firstSection],
       status: "Exhausted",
       loadMore: mocks.loadMore,
     });
 
-    renderPage(<AppShiftsRoutePage organizationId={"organization-1" as never} activeShops={activeShops.slice(0, 1)} />);
+    renderPage(<AppShiftsRoutePage organizationId={"organization-1" as never} shops={shops.slice(0, 1)} />);
 
     expect(screen.queryByRole("button", { name: "店舗で絞り込む（現在：すべて）" })).toBeNull();
   });
@@ -198,11 +198,7 @@ describe("AppShiftsRoutePage", () => {
     });
 
     renderPage(
-      <AppShiftsRoutePage
-        organizationId={"organization-1" as never}
-        activeShops={activeShops}
-        requestedShopFilter="shop-2"
-      />,
+      <AppShiftsRoutePage organizationId={"organization-1" as never} shops={shops} requestedShopFilter="shop-2" />,
     );
 
     const props = mocks.managementProps[0];
@@ -218,18 +214,12 @@ describe("AppShiftsRoutePage", () => {
       loadMore: mocks.loadMore,
     });
 
-    const view = renderPage(
-      <AppShiftsRoutePage organizationId={"organization-1" as never} activeShops={activeShops} />,
-    );
+    const view = renderPage(<AppShiftsRoutePage organizationId={"organization-1" as never} shops={shops} />);
     expect(screen.getByTestId("management-mount-id").textContent).toBe("1");
 
     view.rerender(
       <ChakraProvider>
-        <AppShiftsRoutePage
-          organizationId={"organization-1" as never}
-          activeShops={activeShops}
-          requestedShopFilter="shop-2"
-        />
+        <AppShiftsRoutePage organizationId={"organization-1" as never} shops={shops} requestedShopFilter="shop-2" />
       </ChakraProvider>,
     );
 
@@ -248,7 +238,7 @@ describe("AppShiftsRoutePage", () => {
     renderPage(
       <AppShiftsRoutePage
         organizationId={"organization-1" as never}
-        activeShops={activeShops}
+        shops={shops}
         requestedShopFilter="foreign-shop"
       />,
     );

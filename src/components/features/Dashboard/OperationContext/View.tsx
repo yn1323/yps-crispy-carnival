@@ -1,8 +1,7 @@
-import { Badge, Box, Flex, HStack, Icon, Menu, Portal, Skeleton, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
+import { Box, Flex, HStack, Icon, Menu, Portal, Skeleton, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
 import { LuCheck, LuChevronDown, LuSettings, LuStore } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
-import type { ShopContextOption } from "@/src/domains/shop/context";
 import type { OperationContextModel } from "./script";
 
 export type OperationContextViewProps = {
@@ -62,7 +61,6 @@ const ShopSelector = ({ model, onSelect }: { model: OperationContextModel; onSel
           <Text as="span" flex={1} minW={0} fontSize="lg" fontWeight="bold" color="gray.900" truncate>
             {model.selectedShop.shopName}
           </Text>
-          <ShopStatusBadges shop={model.selectedShop} />
         </HStack>
       </Stack>
     );
@@ -101,7 +99,6 @@ const ShopSelector = ({ model, onSelect }: { model: OperationContextModel; onSel
                 <Text as="span" flex={1} minW={0} fontSize="lg" fontWeight="bold" truncate>
                   {model.selectedShop.shopName}
                 </Text>
-                <ShopStatusBadges shop={model.selectedShop} />
               </HStack>
             </Stack>
             <Icon as={LuChevronDown} boxSize={5} color="gray.500" flexShrink={0} />
@@ -132,7 +129,6 @@ const ShopSelector = ({ model, onSelect }: { model: OperationContextModel; onSel
                           <Text fontSize="sm" fontWeight={isSelected ? "bold" : "medium"} truncate minW={0}>
                             {shop.shopName}
                           </Text>
-                          <ShopStatusBadges shop={shop} />
                         </HStack>
                       </HStack>
                     </Menu.Item>
@@ -144,20 +140,6 @@ const ShopSelector = ({ model, onSelect }: { model: OperationContextModel; onSel
         </Portal>
       </Menu.Root>
     </Box>
-  );
-};
-
-const ShopStatusBadges = ({ shop }: { shop: ShopContextOption }) => {
-  if (shop.shopStatus === "active") return null;
-
-  return (
-    <HStack gap={1} flexShrink={0}>
-      {shop.shopStatus === "archived" && (
-        <Badge colorPalette="gray" variant="subtle" size="sm">
-          アーカイブ済み
-        </Badge>
-      )}
-    </HStack>
   );
 };
 

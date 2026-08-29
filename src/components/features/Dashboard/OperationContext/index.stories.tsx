@@ -9,7 +9,6 @@ import { OperationContextView } from "./View";
 const shop = (overrides: Partial<ShopContextOption>): ShopContextOption => ({
   shopId: "shop-a-1",
   shopName: "A店舗",
-  shopStatus: "active",
   organizationId: "org-a",
   organizationName: "東日本事業部",
   organizationPlan: "standard",

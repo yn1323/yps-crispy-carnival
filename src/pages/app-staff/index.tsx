@@ -35,7 +35,7 @@ export type ShopOption = {
 
 type Props = {
   organizationId: Id<"organizations">;
-  activeShops: ShopOption[] | null;
+  shops: ShopOption[] | null;
   requestedShopFilter?: string;
 };
 
@@ -43,8 +43,8 @@ export function AppStaffRoutePage(props: Props) {
   const navigate = useNavigate();
   const [retryRevision, setRetryRevision] = useState(0);
   const resolvedFilter = useMemo(
-    () => resolveShopFilter(props.activeShops, props.requestedShopFilter),
-    [props.activeShops, props.requestedShopFilter],
+    () => resolveShopFilter(props.shops, props.requestedShopFilter),
+    [props.shops, props.requestedShopFilter],
   );
   const filterKind = resolvedFilter.kind;
   const shouldReplaceSearch = resolvedFilter.kind === "ready" && resolvedFilter.shouldReplaceSearch;
@@ -83,7 +83,7 @@ export function AppStaffRoutePage(props: Props) {
       >
         <ConnectedAppStaff
           organizationId={props.organizationId}
-          activeShops={props.activeShops ?? []}
+          shops={props.shops ?? []}
           shopFilter={resolvedShopFilter}
         />
       </ErrorBoundary>
@@ -93,11 +93,11 @@ export function AppStaffRoutePage(props: Props) {
 
 function ConnectedAppStaff({
   organizationId,
-  activeShops,
+  shops,
   shopFilter,
 }: {
   organizationId: Id<"organizations">;
-  activeShops: ShopOption[];
+  shops: ShopOption[];
   shopFilter: "all" | Id<"shops">;
 }) {
   const navigate = useNavigate();
@@ -121,14 +121,13 @@ function ConnectedAppStaff({
   });
   const [invitationShopId, setInvitationShopId] = useState<Id<"shops"> | null>(null);
   const shopSelectionDialog = useDialog();
-  const shops = activeShops;
   const filterOptions = shops.map((shop) => ({ value: shop.id, label: shop.name }));
   const selectedFilterShop = shopFilter === "all" ? null : (shops.find((shop) => shop.id === shopFilter) ?? null);
   const canAddStaff = summary?.canAddStaff === true && shops.length > 0;
   const hasEnoughPeopleToReorder = (summary?.totalCount ?? 0) >= 2;
   const hasTooManyPeopleToReorder =
     summary?.totalCountHasOverflow === true || (summary?.totalCount ?? 0) > STAFF_ORDER_PEOPLE_LIMIT;
-  const hasTooManyActiveShopsToReorder = activeShops.length > 5;
+  const hasTooManyShopsToReorder = shops.length > 5;
   const orderedEditorPersonIds =
     staffOrderEditor?.availability === "ready"
       ? staffOrderEditor.people.map((person) => person.personId)
@@ -147,7 +146,7 @@ function ConnectedAppStaff({
     staffOrderEditor.canWrite &&
     hasEnoughPeopleToReorder &&
     !hasTooManyPeopleToReorder &&
-    !hasTooManyActiveShopsToReorder &&
+    !hasTooManyShopsToReorder &&
     hasCompleteStaffOrder;
   const changeStaffOrderDisabledReason =
     summary?.canChangeStaffOrder !== true
@@ -158,8 +157,8 @@ function ConnectedAppStaff({
           ? "2名以上のスタッフがいると並び替えできます。"
           : hasTooManyPeopleToReorder
             ? `利用人数が${STAFF_ORDER_PEOPLE_LIMIT}名を超えているため、並び順を変更できません。`
-            : hasTooManyActiveShopsToReorder
-              ? "稼働中の店舗が5店舗を超えているため、並び順を変更できません。"
+            : hasTooManyShopsToReorder
+              ? "店舗が5店舗を超えているため、並び順を変更できません。"
               : !hasCompleteStaffOrder
                 ? "スタッフ一覧の読み込み完了後に並び替えできます。"
                 : undefined;
@@ -231,7 +230,7 @@ function ConnectedAppStaff({
           onAddStaff={handleAddStaff}
           canAddStaff={canAddStaff}
           addStaffDisabledReason={
-            shops.length === 0 ? "スタッフを追加するには、利用中の店舗が必要です。" : summary.addStaffDisabledReason
+            shops.length === 0 ? "スタッフを追加するには、店舗が必要です。" : summary.addStaffDisabledReason
           }
         />
 
