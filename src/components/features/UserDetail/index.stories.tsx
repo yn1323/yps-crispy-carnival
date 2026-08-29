@@ -128,11 +128,6 @@ const lineUnfollowedData: UserDetailData = {
   line: { ...multipleStoresData.line, status: "linked_unfollowed" },
 };
 
-const lineWithoutEmailData: UserDetailData = {
-  ...lineUnlinkedData,
-  person: { ...lineUnlinkedData.person, email: "" },
-};
-
 const lineBillingReadOnlyData: UserDetailData = {
   ...multipleStoresData,
   canWrite: false,
@@ -150,10 +145,10 @@ const lineWithoutMembershipData: UserDetailData = {
   memberships: [],
   line: {
     ...multipleStoresData.line,
-    sourceStaffId: null,
-    sourceShopId: null,
+    sourceStaffId: shibuyaStaffId,
+    sourceShopId: shibuyaShopId,
     canLink: false,
-    linkDisabledReason: "LINE連携を設定するには、稼働中の店舗へ所属を追加してください。",
+    linkDisabledReason: "LINE連携を設定するには、店舗へ所属を追加してください。",
   },
 };
 
@@ -393,10 +388,6 @@ export const LineUnfollowedDialog: Story = {
   args: { activePanel: "line", data: lineUnfollowedData },
 };
 
-export const LineWithoutEmailDialog: Story = {
-  args: { activePanel: "line", data: lineWithoutEmailData },
-};
-
 export const LineBillingReadOnlyDialog: Story = {
   args: { activePanel: "line", data: lineBillingReadOnlyData },
 };
@@ -500,7 +491,7 @@ export const PersonRemovalUnavailable: Story = {
     data: {
       ...baseData,
       canRemove: false,
-      removeDisabledReason: "管理者は削除できません。",
+      removeDisabledReason: "管理者は削除できません。先に管理者権限を外してください。",
     },
   },
 };
@@ -718,9 +709,9 @@ export const LineDisconnectInlineConfirmationBehavior: Story = {
     const confirmation = await page.findByRole("alertdialog", { name: "LINE連携を解除" });
     const confirmationContent = within(confirmation);
     await expect(
-      confirmationContent.getByText("この組織のすべての所属店舗でLINE通知が停止します。"),
+      confirmationContent.getByText("LINE通知が停止し、登録したメールアドレスに通知します。"),
     ).toBeInTheDocument();
-    await expect(confirmationContent.getByText("ほかの組織のLINE連携には影響しません。")).toBeInTheDocument();
+
     await expect(confirmationContent.getByRole("button", { name: "戻る" })).toHaveFocus();
 
     await userEvent.click(confirmationContent.getByRole("button", { name: "戻る" }));
@@ -729,7 +720,7 @@ export const LineDisconnectInlineConfirmationBehavior: Story = {
     await waitFor(() => expect(disconnectTrigger).toHaveFocus());
     await userEvent.click(disconnectTrigger);
     const reopenedConfirmation = await page.findByRole("alertdialog", { name: "LINE連携を解除" });
-    await userEvent.click(within(reopenedConfirmation).getByRole("button", { name: "LINE連携を解除する" }));
+    await userEvent.click(within(reopenedConfirmation).getByRole("button", { name: "解除する" }));
 
     await expect(canvas.getByTestId("line-disconnect-count")).toHaveTextContent("1");
     await expect(page.queryByRole("alertdialog", { name: "LINE連携を解除" })).not.toBeInTheDocument();
