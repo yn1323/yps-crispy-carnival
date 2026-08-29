@@ -358,7 +358,7 @@ jobs:
             const fs = require('node:fs');
             let body = fs.readFileSync('vrt-comment-final.md', 'utf8');
             if (process.env.DEPLOY_STATUS !== 'success') {
-              body += '\n\n> ⚠️ レポートのデプロイに失敗しました。Actionsログを確認してください。';
+              body += '\n\n> ⚠️ レポートの公開確認がタイムアウトしました。差分結果はActionsログとartifactを確認してください。';
             }
             await github.rest.issues.updateComment({
               owner: context.repo.owner,
@@ -366,11 +366,10 @@ jobs:
               comment_id: Number(process.env.COMMENT_ID),
               body,
             });
-      - name: Fail when VRT report is unavailable
+      - name: Warn when VRT report is unavailable
         if: ${{ always() && (steps.publish.outputs.status == 'published' || steps.publish.outputs.status == 'noop') && steps.wait_deploy.outputs.deploy_status != 'success' }}
         run: |
-          echo "::error::hosting-pages deploy could not be confirmed within 15 minutes"
-          exit 1
+          echo "::warning::hosting-pages deploy could not be confirmed within 15 minutes; VRT comparison and artifact checks remain authoritative"
       - name: Set diff output
         id: diff_check
         if: always()
