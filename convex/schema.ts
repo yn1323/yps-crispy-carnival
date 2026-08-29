@@ -48,10 +48,11 @@ import {
 import {
   organizationBillingStateValidator,
   organizationInvitationStatusValidator,
+  organizationLastPlanChangeValidator,
   organizationMemberStatusValidator,
+  organizationPaidPlanValidator,
   organizationPersonStatusValidator,
   organizationShopOperatingStatusValidator,
-  planIdVersionValidator,
 } from "./organization/validators";
 import {
   organizationStripeOperationKindValidator,
@@ -225,6 +226,7 @@ const schema = defineSchema({
   organizationBillingStates: defineTable({
     organizationId: v.id("organizations"),
     state: organizationBillingStateValidator,
+    lastPlanChange: v.optional(organizationLastPlanChangeValidator),
     freeManagerPersonId: v.optional(v.id("organizationPeople")),
     freeShopId: v.optional(v.id("shops")),
     businessNotificationCutoffAt: v.optional(v.number()),
@@ -252,13 +254,7 @@ const schema = defineSchema({
     stripeSubscriptionId: v.string(),
     stripeSubscriptionItemId: v.optional(v.string()),
     stripePriceId: v.string(),
-    // TODO[narrow]: verifyStripeSubscriptionsの全pageとprovider snapshotでPriceを照合し、必要なら新しい
-    //   forward migrationでplanを補完してからrequired化する。現在のPriceやproを推測値として使わない。
-    plan: v.optional(v.union(v.literal("standard"), v.literal("pro"), v.literal("business"))),
-    // TODO[narrow]: m045が全deploymentで完了し、provider snapshotとの照合と
-    //   billing_compatibility_narrow_readinessでlegacy／conflictが0件と確認できた後に、
-    //   businessと一時markerをvalidatorから削除する。
-    planIdVersion: v.optional(planIdVersionValidator),
+    plan: organizationPaidPlanValidator,
     livemode: v.boolean(),
     status: organizationStripeSubscriptionStatusValidator,
     providerGeneration: v.number(),
@@ -292,12 +288,8 @@ const schema = defineSchema({
     livemode: v.boolean(),
     expectedBillingVersion: v.optional(v.number()),
     providerGeneration: v.optional(v.number()),
-    sourcePlan: v.optional(v.union(v.literal("standard"), v.literal("pro"), v.literal("business"))),
-    targetPlan: v.optional(v.union(v.literal("free"), v.literal("standard"), v.literal("pro"), v.literal("business"))),
-    // TODO[narrow]: m046が全deploymentで完了し、billing_compatibility_narrow_readinessで
-    //   legacy／conflictが0件と確認できた後に、businessと一時markerをvalidatorから削除する。
-    planIdVersion: v.optional(planIdVersionValidator),
-    // targetPlan=freeの旧予約と、新しい「期間末解約」をrolling互換で識別する。
+    sourcePlan: v.optional(organizationPaidPlanValidator),
+    targetPlan: v.optional(v.union(v.literal("free"), organizationPaidPlanValidator)),
     restrictAtPeriodEnd: v.optional(v.literal(true)),
     changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
     stripeSubscriptionIdSnapshot: v.optional(v.string()),
@@ -306,13 +298,14 @@ const schema = defineSchema({
     targetStripePriceIdSnapshot: v.optional(v.string()),
     prorationDate: v.optional(v.number()),
     effectiveAt: v.optional(v.number()),
-    // cancelSubscription / reconcileSubscription の回収先を識別する。既存operationは猶予終了回収として扱う。
+    // cancelSubscription / reconcileSubscription の回収先を識別する。
     recoveryPurpose: v.optional(
       v.union(
         v.literal("trialContinuationCancellation"),
         v.literal("invalidTrialSubscriptionCancellation"),
         v.literal("scheduledFreeDeadline"),
         v.literal("scheduledPaidPlanDeadline"),
+        v.literal("paymentTermination"),
       ),
     ),
     // 無効なTrial Subscriptionのcleanupでは、作成元operationとの所有関係を固定する。
@@ -569,10 +562,8 @@ const schema = defineSchema({
     // 単一IDまたは半角カンマ区切りの複数ID。表示制御用であり認可には使わない。
     organizationId: v.optional(v.string()),
     shopId: v.optional(v.string()),
-    // 半角カンマ区切りのplan ID。Widen中は未versioned legacyとv2 canonicalをreaderで判別する。
+    // 半角カンマ区切りのcanonical plan ID。
     organizationPlan: v.optional(v.string()),
-    // TODO[narrow]: m044完走とreadiness blocking=0確認後にmarkerを削除する。
-    planIdVersion: v.optional(planIdVersionValidator),
     title: v.string(),
     bodyHtml: v.string(),
     displayDate: v.string(), // "2026-06-17"

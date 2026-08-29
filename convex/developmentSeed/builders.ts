@@ -182,8 +182,6 @@ async function insertShopGraph(
     const pattern = scenario.shopPatterns[shopIndex];
     const shopId = await writer.insert("shops", {
       organizationId,
-      // 支払い・利用条件による契約制限はbilling stateだけで表し、店舗停止とは混同しない。
-      operatingStatus: "active",
       name: scenario.shopNames[shopIndex],
       regularClosedDays: [],
       submissionPattern: pattern,
@@ -759,6 +757,15 @@ export async function seedDevelopmentScenarioGraph(
   await writer.insert("organizationBillingStates", {
     organizationId,
     state: canonicalBillingState,
+    ...(canonicalBillingState.kind === "paymentTerminationPending"
+      ? {
+          lastPlanChange: {
+            reason: "paymentFailed" as const,
+            previousPlan: canonicalBillingState.previousPlan,
+            occurredAt: canonicalBillingState.startedAt,
+          },
+        }
+      : {}),
     version: 1,
     createdAt: now,
     updatedAt: now,

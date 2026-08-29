@@ -10,11 +10,8 @@ import {
   getCanonicalOrganizationSettings,
   managerCandidatesValidator,
   managerSettingsOverviewValidator,
-  projectCanonicalDisplayPlanForClient,
 } from "../organization/queries";
 import { type CanonicalOrganizationBillingStateDocument, getOrganizationUsageSnapshot } from "../organization/service";
-import { organizationShopOperatingStatus } from "../organization/shopMembershipChange";
-import { planIdVersionValidator } from "../organization/validators";
 import { deriveOrganizationBillingPolicy, ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/policy";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { getOrganizationCreationAvailability } from "../setup/service";
@@ -28,10 +25,8 @@ const manageBillingStateValidator = v.union(
   v.literal("free"),
   v.literal("standard"),
   v.literal("pro"),
-  v.literal("business"),
   v.literal("initialPaymentPending"),
   v.literal("pendingActivation"),
-  v.literal("grace"),
   v.literal("scheduledChange"),
   v.literal("migrationPending"),
 );
@@ -44,14 +39,7 @@ const manageUsageItemValidator = v.object({
 
 const manageUsageValidator = v.object({
   state: manageBillingStateValidator,
-  currentPlan: v.union(
-    v.literal("trial"),
-    v.literal("free"),
-    v.literal("standard"),
-    v.literal("pro"),
-    v.literal("business"),
-    v.null(),
-  ),
+  currentPlan: v.union(v.literal("trial"), v.literal("free"), v.literal("standard"), v.literal("pro"), v.null()),
   peopleUsage: manageUsageItemValidator,
   shopUsage: manageUsageItemValidator,
   managerUsage: manageUsageItemValidator,
@@ -84,10 +72,12 @@ const manageOverviewValidator = v.object({
 const organizationShopListItemValidator = v.object({
   shopId: v.id("shops"),
   shopName: v.string(),
-  operatingStatus: v.union(v.literal("active"), v.literal("archived")),
+  // rolling deploy中の旧client互換field。非削除店舗だけをactive固定で返す。
+  operatingStatus: v.literal("active"),
 });
 
-const shopStatusFilterValidator = v.union(v.literal("all"), v.literal("active"), v.literal("archived"));
+// rolling deploy中の旧clientはstatusを送る。新clientは未指定で全非削除店舗を読む。
+const shopStatusFilterValidator = v.optional(v.union(v.literal("all"), v.literal("active"), v.literal("archived")));
 
 function boundedPaginationOptions(paginationOpts: PaginationOptions): PaginationOptions {
   if (
@@ -105,28 +95,20 @@ function boundedPaginationOptions(paginationOpts: PaginationOptions): Pagination
 
 /** Manage top専用。店舗実体をinlineせず、組織と利用状況・操作可否だけを返す。 */
 export const getManageOverview = organizationQuery({
-  args: { planIdVersion: v.optional(planIdVersionValidator) },
+  args: {},
   returns: manageOverviewValidator,
-  handler: async (ctx, args) => {
+  handler: async (ctx) => {
     const memberStatus = ctx.organizationMember.status;
     if (memberStatus !== "active") throw new ConvexError("Not found");
-    const [access, usage, creationAvailability, activeShops, archivedShops] = await Promise.all([
+    const [access, usage, creationAvailability, shops] = await Promise.all([
       getOrganizationAccessPolicy(ctx, ctx.organization._id),
       getOrganizationUsageSnapshot(ctx, ctx.organization._id),
       getOrganizationCreationAvailability(ctx, ctx.user),
       ctx.db
         .query("shops")
-        .withIndex("by_organizationId_and_operatingStatus", (q) =>
-          q.eq("organizationId", ctx.organization._id).eq("operatingStatus", "active"),
+        .withIndex("by_organizationId_and_isDeleted", (q) =>
+          q.eq("organizationId", ctx.organization._id).eq("isDeleted", false),
         )
-        .filter((q) => q.eq(q.field("isDeleted"), false))
-        .take(SHOP_COUNT_LIMIT + 1),
-      ctx.db
-        .query("shops")
-        .withIndex("by_organizationId_and_operatingStatus", (q) =>
-          q.eq("organizationId", ctx.organization._id).eq("operatingStatus", "archived"),
-        )
-        .filter((q) => q.eq(q.field("isDeleted"), false))
         .take(SHOP_COUNT_LIMIT + 1),
     ]);
     const billingState = access?.billingState ?? null;
@@ -140,7 +122,7 @@ export const getManageOverview = organizationQuery({
         canWriteBusinessData &&
         policy?.canUsePaidFeatures &&
         limits &&
-        usage.activeShopCount < limits.maxActiveShops,
+        usage.shopCount < limits.maxShops,
     );
     const deletionEligibility = await getOrganizationDeletionEligibility(ctx, {
       organizationId: ctx.organization._id,
@@ -154,11 +136,12 @@ export const getManageOverview = organizationQuery({
       organizationCreatedAt: ctx.organization.createdAt,
       organizationUpdatedAt: ctx.organization.updatedAt,
       memberStatus,
-      usage: projectManageUsage(billingState, usage, limits, args.planIdVersion),
+      usage: projectManageUsage(billingState, usage, limits),
+      // 旧client互換。archive廃止後は全非削除店舗をactiveへ投影し、archivedは常に0にする。
       shopCounts: {
-        active: Math.min(activeShops.length, SHOP_COUNT_LIMIT),
-        archived: Math.min(archivedShops.length, SHOP_COUNT_LIMIT),
-        hasOverflow: activeShops.length > SHOP_COUNT_LIMIT || archivedShops.length > SHOP_COUNT_LIMIT,
+        active: Math.min(shops.length, SHOP_COUNT_LIMIT),
+        archived: 0,
+        hasOverflow: shops.length > SHOP_COUNT_LIMIT,
       },
       capabilities: {
         canUpdateOrganizationName: isActiveActor && canWriteBusinessData,
@@ -184,7 +167,7 @@ export const getManageOverview = organizationQuery({
                       ? "Freeプランでは、店舗を追加できません。\n有料プランを選択してください。"
                       : policy?.paidFeatureBlockReason === "paymentResultPending"
                         ? "支払い結果が確定してから、店舗を追加できます。"
-                        : `店舗は、組織ごとに${limits?.maxActiveShops ?? ORGANIZATION_PLAN_LIMITS.standard.maxActiveShops}件まで登録できます。`,
+                        : `店舗は、組織ごとに${limits?.maxShops ?? ORGANIZATION_PLAN_LIMITS.standard.maxShops}件まで登録できます。`,
             }
           : {}),
         canDeleteOrganization: isActiveActor && deletionEligibility.canDelete,
@@ -213,22 +196,21 @@ type ManageUsageSnapshot = Awaited<ReturnType<typeof getOrganizationUsageSnapsho
 function projectManageUsage(
   billingState: CanonicalOrganizationBillingStateDocument | null,
   usage: ManageUsageSnapshot,
-  limits: { maxPeople: number; maxActiveShops: number; maxActiveManagers: number } | null | undefined,
-  planIdVersion?: 2,
+  limits: { maxPeople: number; maxShops: number; maxActiveManagers: number } | null | undefined,
 ) {
   const state = manageBillingState(billingState);
   const currentPlan = manageCurrentPlan(billingState);
   return {
-    state: state === "standard" || state === "pro" ? projectCanonicalDisplayPlanForClient(state, planIdVersion) : state,
-    currentPlan: currentPlan === null ? null : projectCanonicalDisplayPlanForClient(currentPlan, planIdVersion),
+    state,
+    currentPlan,
     peopleUsage: {
       current: usage.personCount,
       max: limits?.maxPeople ?? 0,
       pendingInvitations: usage.reservedSeatCount,
     },
     shopUsage: {
-      current: usage.activeShopCount,
-      max: limits?.maxActiveShops ?? 0,
+      current: usage.shopCount,
+      max: limits?.maxShops ?? 0,
       pendingInvitations: 0,
     },
     managerUsage: {
@@ -244,6 +226,7 @@ function manageBillingState(billingState: CanonicalOrganizationBillingStateDocum
   const state = billingState.state;
   if (state.kind === "active") return state.plan;
   if (state.kind === "complimentary") return "pro" as const;
+  if (state.kind === "paymentTerminationPending") return "free" as const;
   return state.kind;
 }
 
@@ -259,18 +242,15 @@ function manageCurrentPlan(billingState: CanonicalOrganizationBillingStateDocume
       return "pro" as const;
     case "scheduledChange":
       return state.currentPlan;
-    case "grace":
-      return state.plan;
     case "pendingActivation":
-      return state.fallback === "free" || state.fallback === "standard" || state.fallback === "pro"
-        ? state.fallback
-        : null;
+      return state.fallback;
     case "initialPaymentPending":
-      return "standard" as const;
+    case "paymentTerminationPending":
+      return "free" as const;
   }
 }
 
-/** active・archivedをstatus別にcursor paginationし、累積店舗を上限件数でtruncateしない。 */
+/** 非削除店舗をcursor paginationする。旧clientのarchived指定には空結果を返す。 */
 export const listOrganizationShops = organizationQuery({
   args: {
     status: shopStatusFilterValidator,
@@ -279,28 +259,23 @@ export const listOrganizationShops = organizationQuery({
   returns: paginationResultValidator(organizationShopListItemValidator),
   handler: async (ctx, { status, paginationOpts }) => {
     const bounded = boundedPaginationOptions(paginationOpts);
-    const result =
-      status === "all"
-        ? await ctx.db
-            .query("shops")
-            .withIndex("by_organizationId_and_isDeleted", (q) =>
-              q.eq("organizationId", ctx.organization._id).eq("isDeleted", false),
-            )
-            .paginate(bounded)
-        : await ctx.db
-            .query("shops")
-            .withIndex("by_organizationId_and_operatingStatus", (q) =>
-              q.eq("organizationId", ctx.organization._id).eq("operatingStatus", status),
-            )
-            .filter((q) => q.eq(q.field("isDeleted"), false))
-            .paginate(bounded);
+    if (status === "archived") {
+      return { page: [], isDone: true, continueCursor: "" };
+    }
+    const result = await ctx.db
+      .query("shops")
+      .withIndex("by_organizationId_and_isDeleted", (q) =>
+        q.eq("organizationId", ctx.organization._id).eq("isDeleted", false),
+      )
+      .paginate(bounded);
 
     return {
       ...result,
       page: result.page.map((shop) => ({
         shopId: shop._id,
         shopName: shop.name,
-        operatingStatus: organizationShopOperatingStatus(shop.operatingStatus),
+        // rolling deploy中の旧client互換。DBのlegacy fieldは参照しない。
+        operatingStatus: "active" as const,
       })),
     };
   },
@@ -308,16 +283,16 @@ export const listOrganizationShops = organizationQuery({
 
 /** Billing detail専用。canonical組織に紐づく表示DTOを返す。 */
 export const getBillingOverview = organizationQuery({
-  args: { planIdVersion: v.optional(planIdVersionValidator) },
+  args: {},
   returns: v.object({
     organizationName: v.string(),
     memberStatus: v.literal("active"),
     billing: billingViewValidator,
   }),
-  handler: async (ctx, args) => {
+  handler: async (ctx) => {
     const memberStatus = ctx.organizationMember.status;
     if (memberStatus !== "active") throw new ConvexError("Not found");
-    const settings = await getCanonicalOrganizationSettings(ctx, args.planIdVersion);
+    const settings = await getCanonicalOrganizationSettings(ctx);
     return {
       organizationName: ctx.organization.name,
       memberStatus,
