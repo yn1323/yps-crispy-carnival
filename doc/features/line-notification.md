@@ -2,7 +2,7 @@
 
 > 文書種別: feature
 >
-> 最終コード照合: 2026-08-13
+> 最終コード照合: 2026-08-29
 >
 > 基準: LINE連携共通化の実装worktree
 
@@ -43,6 +43,10 @@ LINE連携案内メールは、同じ組織人物への送信受付から10分�
 
 連携URLは72時間有効で、同じ組織人物に再発行すると、発行元店舗にかかわらず以前の未使用tokenを失効させる。
 利用できるtokenは同じ組織人物の最新一件だけであり、発行時の組織、人物、連携世代を再検証してから使用済みとして記録する。
+
+staff canonical linkのWiden期間も、連携URLの新規発行、案内送信、OAuthの検証・確定は、staffの両canonical IDと現在の組織・人物を一意に再検証できる場合だけ許可する。Widen前に発行した旧shape tokenも現在のcanonical scopeを解決できる場合だけ受理し、両ID欠損または片側だけ欠損するstaffでは期限切れと同じ状態へfail closedにする。欠損staffを「移行中」「削除済み」と表示する連携状態は設けない。
+
+既に保存された通知Outboxの宛先互換は、保存時のstaff・shop・メールまたは既存staff LINE投影とpayload snapshotが送信直前にも完全一致する場合だけ配送を継続する。この互換から新しいtokenやcanonical LINE連携を作成・更新しない。
 
 無効、期限切れ、使用済み、失効済みtokenは、LINE providerと通信する前に拒否する。
 Webhook、rate limit、環境変数、障害確認は[LINE通知の設定と運用](../manual/line-notification.md)を参照する。
@@ -101,7 +105,7 @@ LINE公式アカウント上の友だち状態はLINE利用者単位で管理す
 ## 認可と機密情報
 
 ブラウザから渡される`personId`、`shopId`、`organizationId`、`staffId`や、所属店舗一覧からの遷移は認可根拠にしない。
-Convexは認証identityから管理アクセスを解決し、対象店舗への権限、スタッフと店舗・人物の対応、削除状態、店舗状態を各操作で再検証する。
+Convexは認証identityから管理アクセスを解決し、対象店舗への権限、スタッフと店舗・人物の対応、店舗と親組織の削除状態を各操作で再検証する。
 権限のない店舗、不正な組み合わせ、削除済み対象は拒否するか、存在を区別できない最小情報の状態へ寄せる。
 連携URL発行は既存tokenの失効を維持し、メール送信は既存のrate limitとOutboxの再検証を維持する。
 送信受付から10分未満の`sendInvite`は`recentlySent`を返し、rate limit、Scheduler、Outboxを増やさない。

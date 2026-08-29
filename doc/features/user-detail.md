@@ -5,6 +5,8 @@
 組織内の人物を表す`organizationPeople`を正本として、共通プロフィールとLINE連携状態はスタッフ詳細ページ、管理者の変更操作は管理者設定ページ、店舗ごとのシフト設定と通知は店舗別設定ページで扱う。
 Dashboardのスタッフ一覧、組織設定のユーザー一覧、`/staff`の組織人物一覧は、同じスタッフ詳細ページへ遷移する。
 
+staff canonical linkのWiden期間も、人物詳細と所属変更は`staffs.organizationId`と`staffs.organizationPersonId`が両方揃い、対象組織・人物・店舗と一致することを必須にする。両ID欠損rowは人物DTOとDashboardの詳細導線へ投影せず、所属変更snapshotへ混入した場合は部分結果を返さない。「移行中スタッフ」「削除済み」「アーカイブ済み」という専用表示は追加せず、m050で安全にlinkされた後は通常の人物・スタッフとして表示する。
+
 `/staff`で店舗filterが「すべて」のときは、各行の左側にあるドラッグハンドルで組織の全人物を並べ替える。
 保存済みの組織共通順はスタッフ管理、Dashboard、店舗詳細の所属スタッフ一覧へ適用し、店舗別一覧ではその部分列を表示する。
 シフト表と希望シフト入力の勤務開始時刻順は変更しない。
@@ -30,8 +32,8 @@ Dashboardのスタッフ一覧、組織設定のユーザー一覧、`/staff`の
 スタッフ情報の行から共通プロフィールを扱うレスポンシブDialogを開く。  管理者権限と招待中のBadgeはスタッフ詳細ページ側で表示し、スタッフ情報Dialogには管理者設定への導線や権限の説明を表示しない。
 Dialog下部には「キャンセル」と主操作の「変更を保存」を表示し、変更可否と処理状態に応じて主操作を制御する。
 組織からの削除は、所属店舗一覧の下にあるユーザー削除カードから確認Dialogを開く。
-「所属店舗を変更」から、シフトスタッフとして所属する店舗をdesired-setで選ぶ変更Dialogを開く。
-稼働中の店舗はチェックを変更でき、`archived`の既存所属はチェック済みの変更不可項目として保持する。
+「所属店舗を変更」（所属店舗が0件の場合は「所属店舗を追加する」）から、スタッフとして所属する店舗をdesired-setで選ぶ変更Dialogを開く。
+未削除の店舗は、所属中・未所属を問わずチェックを変更できる。
 所属店舗の行から、対象店舗をpathの`shopId`で表す店舗別設定ページへ遷移する。
 店舗別設定ページは`<店舗名>：<スタッフ名>さん`を見出しとし、通知、通知履歴、シフト対象設定をタブに分けず縦に並べる。通知履歴の見出しには、組織共通のLINE連携の有無を補助バッジとして表示する。
 
@@ -72,24 +74,25 @@ Dashboardのスタッフは、`getDashboardStaffs`が返す`organizationPersonId
   上限超過・利用数評価不能でも一覧を維持し、スタッフ追加をサーバー由来の理由とともに無効にする。
 - `/staff`を全店舗表示している状態からスタッフを追加する場合は、店舗一覧と同じdrilldown listで対象店舗を1店舗選び、既存のスタッフ追加Dialogへ進む。対象店舗選択DialogはSPで全画面表示する。店舗filterで1店舗に絞り込み済みの場合は選択を省略する。
 - 存在しない人物、削除済み人物、別組織の人物には同じ「ユーザーを表示できません」を表示し、存在や所属を区別して漏らさない。
+- canonical link未解決のstaffだけを人物詳細として開く経路は作らない。所属変更に未解決または片側だけ欠損したstaffが混在する場合も、削除状態を推測せず汎用的な取得失敗として扱う。
 - 対象店舗への管理アクセスがない、人物と店舗所属が一致しない、所属または店舗が削除済みの場合も、存在を区別しない最小情報のEmpty状態へ寄せる。
 - スタッフ情報Dialogと所属店舗変更Dialogは、PCではモーダル、SPではフルスクリーンで表示する。
 - アカウント連携済み・未連携、本人・他者を分けず、同じプロフィールフォームでシフト連絡先を編集する。
 - 本人が管理者の場合だけ、シフト通知先メールアドレスの下に「シフト通知先のメールアドレスです。」と「ログインで利用するメールはアカウント設定から設定してください。」を改行して表示し、「アカウント設定」をリンクにする。
 - 店舗別設定はPCとSPのどちらも通常のページとして表示し、Dialog用の固定高、入れ子スクロール、全画面モーダル用レイアウトを使わない。
 - 所属店舗一覧には未所属店舗を表示しない。
-- 所属店舗変更Dialogは、シフトスタッフとして所属する店舗のdesired-setチェックリストを表示する。冒頭では「シフトスタッフとして所属する店舗を選択してください。」に続けて、「店舗から外す場合、チェックを外してください。」を改行して表示する。`active`の店舗は所属中・未所属を問わず編集でき、`archived`の既存所属はチェック済みのまま変更不可として理由を表示する。非activeの未所属店舗と削除済み店舗は表示しない。
+- 所属店舗変更Dialogは、スタッフとして所属する未削除店舗のdesired-setチェックリストを表示し、冒頭に「スタッフとして所属する店舗を選択してください。」と表示する。削除済み店舗は表示しない。
 - Dialog下部には「キャンセル」と主操作の「変更する」を表示する。
   初期状態との差分がない間、処理中、上限超過・利用数評価不能では「変更する」を無効にする。
-- 追加と解除のどちらも「変更する」を1回押すと確定処理へ進み、二重確認Dialogは開かない。初期状態で所属していた店舗のチェックを外した場合だけ、その店舗の行に「店舗から外す」と「今日以降のシフト割り当てから削除します。」「この店舗からの通知を停止します。LINE連携は組織に残ります。」の2項目を赤字の箇条書きで表示し、再びチェックすると解除表示を消す。解除対象ごとの件数と合計は表示せず、取得済みの解除previewを同じmutationへ渡す。
+- 追加と解除のどちらも「変更する」を1回押すと確定処理へ進み、二重確認Dialogは開かない。初期状態で未所属だった店舗を選ぶと行に「店舗に追加」と表示し、追加した店舗の募集中シフトを対象スタッフへ送信することをDialog下部に案内する。初期状態で所属していた店舗のチェックを外すと行に「店舗から外す」と表示し、解除対象が1件以上ある間だけ、今日以降のシフトから削除され、外した店舗のシフト通知が届かなくなることをDialog下部の共通警告に1件表示する。再びチェックすると解除Badgeを消し、解除対象が0件になった時点で共通警告も消す。解除対象ごとの件数と合計は表示せず、取得済みの解除previewを同じmutationへ渡す。
 - active管理者の店舗所属を外す場合は、店舗通知を受け取る管理者を各店舗に1名以上所属させる推奨と、別の所属管理者がいなければスタッフ参加申請、シフト確定催促、通知エラーなどが送信されないことをDialog内に表示する。
 - 解除対象ごとの将来シフト割当previewが`tooMany`の場合、または解除対象全体の割当件数がtransaction上限を超える場合は一部だけ処理せず、対象が多いため変更できないことを表示して確定を無効にする。previewが取得後に変わった場合は選択全体を未反映として最新状態を再取得する。
-- 全店舗のチェックを外すことは許可する。この場合は「全店舗から外した場合でも、無所属としてスタッフは残り続けます。」と変更Dialog内で示す。最後の店舗所属を解除しても組織の人物情報、管理者権限、請求上の利用人数は維持され、店舗スタッフとしてのアクセスだけが終了する。人数枠を空ける操作はユーザー削除として分ける。
+- 全店舗のチェックを外すことは許可する。この場合は「変更後、このスタッフの所属店舗は0店舗になります」と、組織への所属や利用人数のカウントが残ることを変更Dialog内で示す。最後の店舗所属を解除しても組織の人物情報、管理者権限、請求上の利用人数は維持され、店舗スタッフとしてのアクセスだけが終了する。人数枠を空ける操作はユーザー削除として分ける。
 - 変更成功後は詳細Queryの更新に従って所属店舗一覧とチェックリストを更新し、Dialogを閉じる。通常の失敗では選択を維持し、membershipまたはpreviewが古い場合は最新状態を再取得して選択し直すよう求める。
 - 組織設定のスタッフ一覧では、組織人物共通のLINE連携状態を「LINE連携済み」「LINE通知不可」「LINE未連携」のバッジで表示する。
 - スタッフ詳細では「LINE連携」の行に未連携、連携済み、友だち解除の状態を表示する。Dialogから人物専用URLの表示、案内メール、再連携、明示解除を行い、同じ組織の所属店舗で共通利用することを説明する。
 - 店舗別設定ページでは、通知送信と履歴、シフト対象設定を縦に表示する。通知履歴の見出しには組織共通のLINE連携状態を補助バッジで表示し、LINE連携と店舗所属の変更はスタッフ詳細で行う。
-- アーカイブ済み店舗、上限超過・利用数評価不能では、サーバーが返す操作可否と理由を表示し、通常の更新操作を無効にする。
+- 削除済み店舗は対象外とし、上限超過・利用数評価不能では、サーバーが返す操作可否と理由を表示して通常の更新操作を無効にする。
   有効管理者には利用アクセスを問わず安全停止のためのLINE明示解除を許可する。
 - API取得に失敗した場合はページのエラー状態へ寄せ、直前の別店舗データを表示しない。
 - 通知、LINE案内、シフト対象設定は個別に処理中状態を表示し、同じ操作の重複送信を防ぐ。募集、確定シフト、LINE連携案内メールは、同種の送信受付から10分間はoutlineの再送操作を無効にし、「送信済みです。」と「送信から10分後に再送できるようになります。」を操作の近くに表示する。正確な解除時刻、最終送信日時、チャネル、自動／手動は表示しない。シフト対象設定は画面を先に切り替え、失敗時に元へ戻し、操作直後から最低1000msは再操作を無効にする。
@@ -102,7 +105,7 @@ Dashboardのスタッフは、`getDashboardStaffs`が返す`organizationPersonId
 - 通常利用中の`active`管理者は、人物側または店舗側の所属変更から個別店舗・全店舗のスタッフ所属を解除できる。
   個別解除ではほかの店舗所属を維持し、全店舗解除でも管理者権限と組織人物を維持する。
 - 上限超過・利用数評価不能では店舗所属だけを外しても利用人数が減らないため、所属変更は許可しない。
-  組織からの人物削除、管理者権限解除、招待取消、店舗アーカイブは別の上限整理操作として許可する。
+  組織からの人物削除、管理者権限解除、招待取消、店舗削除は別の上限整理操作として許可する。
 - 管理者人物を組織から削除する操作は、先に管理者権限を外すまで拒否する。
   最後のactive管理者の権限解除も拒否し、人物削除mutationでserver-side guardを再確認する。
 - 個別通知の再送は、募集通知と終了日が今日以降の確定シフト通知の両方でactor単位と組織単位の短時間・日次quotaを適用する。client request IDはquota keyに使わず、別managerへ切り替えても組織quotaを共有する。
@@ -127,12 +130,12 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 ## 認可と安全性
 
 - Convexは認証identityから有効な管理アクセスを解決し、店舗別設定のQueryでは人物に対象店舗の有効な所属があることを応答前に検証し、更新時は対象店舗への書込権限を検証する。
-- 店舗別APIは、対象スタッフと`targetShopId`の所属関係、人物との対応、削除状態、店舗状態をサーバー側で再検証する。
+- 店舗別APIは、対象スタッフと`targetShopId`の所属関係、人物との対応、店舗と親組織の削除状態をサーバー側で再検証する。
 - 権限のない店舗、不正な人物・店舗・スタッフの組み合わせ、削除済み対象は拒否するか、存在を区別できない最小情報のEmpty状態へ寄せる。
 - 所属店舗一覧から選ばれたことや、フロントエンドが保持する`selectedShopAtom`は認可根拠にしない。
 - スタッフ詳細QueryはURLの`org`に対するcanonicalな`organizationMembers`を必須とし、人物と対象店舗が同じ組織に属することをサーバーで再検証する。新しい詳細画面では先頭店舗や旧`shopMembers` fallbackを組織authorityに使わない。画面上で有効にする更新操作も同じ`expectedOrganizationId`を渡し、不一致なら存在を区別せずfail closedにする。
 - プロフィール更新APIは、actorの組織権限、personの所属、各staffの組織・店舗・personの対応、組織内の重複をサーバーで確認し、同じ組織のpersonと未削除staffだけを一transactionで更新する。不整合な所属が1件でもあれば全体をfail-closedにし、`users.email`、Clerk、別組織、請求先は更新しない。
-- 所属店舗変更APIは、actorの組織権限と書込可否、personの同一組織・有効状態、指定した全店舗の同一組織・削除状態・店舗状態、active staffの一意性をサーバー側で再検証する。clientが渡すperson、店舗集合、staff、fingerprint、previewを認可根拠にせず、非active所属をdesired-setから脱落させたり、別組織へ所属を作ったりしない。
+- 所属店舗変更APIは、actorの組織権限と書込可否、personの同一組織・有効状態、指定した全店舗が同一組織の非削除店舗であること、active staffの一意性をサーバー側で再検証する。clientが渡すperson、店舗集合、staff、fingerprint、previewを認可根拠にせず、削除済み店舗を変更対象へ含めたり、別組織へ所属を作ったりしない。
 - 所属店舗変更APIは`membershipFingerprint`と解除対象ごとのpreviewを再計算し、stale、権限不足、通常利用不可、不正な組合せ、件数超過のいずれでもDB、scheduler、Outbox、監査記録を増やさない。
 - 管理者手入力とQR承認による再追加は、actorの管理権限、対象店舗と組織、正規化メールアドレス、人物とstaffの一意性、旧userのaccount deletion状態、利用人数上限をserver-sideで再検証する。旧userが削除済みなら旧人物を履歴として維持し、それ以外を安全に満たせない場合は汎用的に拒否して削除履歴を応答へ出さない。
 - Clerkのメール、`users.email`、シフト連絡先が異なる状態を正常として扱い、認証後アプリをブロックしたり自動上書きしたりしない。
@@ -188,7 +191,7 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 | `api.staff.mutations.addStaffs` | `managerMutation` | 管理者手入力でスタッフを追加する。通常削除人物はactiveへ戻し、アカウント削除履歴だけなら新しい人物として、削除履歴の特別確認なしで新しいstaff IDを作る |
 | `api.staffRegistration.queries.getPendingRequests` | `managerQuery` | QR申請と承認可否を取得する。通常削除人物は再利用、アカウント削除履歴だけなら新規人物として承認可能にし、安全でない人物不整合と利用人数上限は汎用的な承認不可状態へ寄せる |
 | `api.staffRegistration.mutations.approveRequest` | `managerMutation` | QR申請を承認する。通常削除人物はactiveへ戻し、アカウント削除履歴だけなら新しい人物として、削除履歴の特別確認なしで新しいstaff IDを作る |
-| `api.staff.mutations.changeOrganizationPersonShopMemberships` | `managerMutation` | 同じ組織の既存人物について、active店舗のdesired-set、`membershipFingerprint`、解除preview、安定した`requestId`を再検証し、店舗所属の追加と解除を一transactionで反映する。active managerのスタッフ所属も同じ契約で解除できる |
+| `api.staff.mutations.changeOrganizationPersonShopMemberships` | `managerMutation` | 同じ組織の既存人物について、未削除店舗のdesired-set、`membershipFingerprint`、解除preview、安定した`requestId`を再検証し、店舗所属の追加と解除を一transactionで反映する。active managerのスタッフ所属も同じ契約で解除できる |
 | `api.staff.mutations.setShiftExclusion` | `managerMutation` | `targetShopId`で指定した店舗のスタッフをシフト対象または対象外に切り替える |
 | `api.line.mutations.generateLinkToken` | `managerMutation` | 発行元staffを再検証し、同じ組織人物の全店舗で使うLINE連携リンクを発行する |
 | `api.line.mutations.sendInvite` | `managerMutation` | 発行元staffを再検証し、同じ組織人物へLINE連携案内を送る |
@@ -211,4 +214,4 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 | active managerの個別・全店舗のスタッフ所属を解除しても、管理者権限と組織人物を維持し、個別解除ではほかの店舗所属も維持する。管理者人物の組織削除と最後のactive管理者の権限解除は拒否する | Convex Function Test、Convex Scenario Test | `convex/organization/mutations.test.ts`、`convex/staff/mutations.test.ts`、`convex/organization/userDetailQueries.test.ts`、`convex/_scenario/organizationPersonRemoval.test.ts` |
 | 共通の店舗所属解除処理が旧credential・LINE・通知・将来シフトを失効させ、過去履歴を保持し、削除済みstaffから提出・閲覧・通知へ進めない状態遷移を守る | Convex Scenario Test | `convex/_scenario/staffManagement.test.ts`、`convex/_scenario/securityBoundaries.test.ts`、`convex/_scenario/organizationPersonRemoval.test.ts`、`convex/_scenario/notificationHistory.test.ts` |
 | 通常の組織人物削除後は同じ人物をactiveへ戻し、アカウント削除後は旧人物を維持して新しい人物を作る。どちらも新しいstaffだけを作り、旧staff、シフト提出と割当、管理者権限、ほかの店舗所属、session、magic link、LINE token、canonical LINE linkを復元しない | Convex Function / Scenario Test | `convex/staff/mutations.test.ts`、`convex/staffRegistration/mutations.test.ts`、`convex/_scenario/organizationPersonRemoval.test.ts`、`convex/_scenario/staffRegistration.test.ts` |
-| チェック操作だけでは送信せず、差分なしを無効にし、解除を含む変更を正しい店舗のpreview付きで1回の確定操作から送信し、二重確認Dialogを開かず、`tooMany`、stale、二重送信を安全に扱う | Frontend Unit Test、Behavior Test | `src/components/features/UserDetail/useUserMembershipActions.test.ts`、`src/components/features/UserDetail/index.stories.tsx` |
+| チェック操作だけでは送信せず、追加・解除のBadgeと解除対象共通の警告を表示する。差分なしを無効にし、解除を含む変更を正しい店舗のpreview付きで1回の確定操作から送信し、二重確認Dialogを開かず、`tooMany`、stale、二重送信を安全に扱う | Frontend Unit Test、Behavior Test | `src/components/features/UserDetail/useUserMembershipActions.test.ts`、`src/components/features/UserDetail/index.stories.tsx` |

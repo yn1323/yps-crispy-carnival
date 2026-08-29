@@ -141,7 +141,7 @@ outboxは`convex/notificationOutbox/`が所有する。
 Stripe Webhookは署名検証後に`stripeWebhookEvents`へ保存し、internal actionが処理する。
 Stripe operationとWebhook eventの予約漏れや期限切れleaseは`convex/organizationStripe/maintenance.ts`とcronが回収する。
 
-店舗、組織、アカウントの削除は、受付transactionで利用停止状態とcleanup jobを先に保存する。
+店舗、組織、アカウントの削除は、受付transactionで論理削除状態とcleanup jobを先に保存する。
 `convex/deletionCleanup/`と`convex/accountDeletion/`がbounded batch、lease、recovery cronを使い、外部provider処理を含む長い削除を再開する。
 詳細は [`features/data-deletion.md`](features/data-deletion.md) と [`features/account-deletion.md`](features/account-deletion.md) を参照する。
 

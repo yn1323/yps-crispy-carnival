@@ -22,7 +22,7 @@
 | 画面 | 利用者ができること |
 |---|---|
 | `/dashboard?org=<organizationId>&shop=<shopId>` | 明示した組織と店舗を再検証し、募集作成、状態別一覧、削除確認を扱う |
-| `/shifts?org=<organizationId>` | canonicalな組織にあるactive店舗の募集を状態別にまとめ、店舗filter、募集作成、削除確認、シフト表への遷移を扱う |
+| `/shifts?org=<organizationId>` | canonicalな組織にある未削除店舗の募集を状態別にまとめ、店舗filter、募集作成、削除確認、シフト表への遷移を扱う |
 | `/shifts/<recruitmentId>/board?org=<organizationId>` | 組織と募集の店舗関係を再検証し、共通アプリヘッダー配下で割当編集と確定を扱う |
 
 Dashboardは募集を次の順で表示し、空の分類は表示しない。
@@ -36,7 +36,7 @@ Dashboardは募集を次の順で表示し、空の分類は表示しない。
 現在、調整待ち、募集中、未来の確定済み募集は初期表示する。
 過去の募集は存在だけを先に確認し、利用者が「過去のシフトを見る」を選んだ後にページングして取得する。
 
-`/shifts`は店舗数分のqueryを購読せず、組織内のactive店舗を一つのcursor familyで最後までページングしてから、募集を全店舗横断で状態別にまとめる。
+`/shifts`は店舗数分のqueryを購読せず、組織内の未削除店舗を一つのcursor familyで最後までページングしてから、募集を全店舗横断で状態別にまとめる。
 店舗filterの初期値は「すべて」であり、特定店舗へ絞っても募集作成時の候補には利用可能な全店舗を残す。
 一覧カードでは店舗名を表示するが、対象店舗が固定されているDashboardでは表示しない。
 
@@ -77,7 +77,7 @@ lease、cursor、dedupe、再開、保持期限は[Notification Outbox](notifica
 | `api.dashboard.queries.hasDashboardPastRecruitments` | 過去の募集が存在するかを返す |
 | `api.dashboard.queries.getDashboardPastRecruitments` | 過去の募集を終了日の新しい順でページングして返す |
 | `api.dashboard.queries.getDashboardCurrentRecruitments` | 現在日付が期間内にある確定シフトを返す |
-| `api.appOrganization.queries.listOrganizationRecruitments` | canonicalな組織所属を検証し、active店舗と現在募集を店舗単位でページングして返す |
+| `api.appOrganization.queries.listOrganizationRecruitments` | canonicalな組織所属を検証し、未削除店舗と現在募集を店舗単位でページングして返す |
 
 管理者APIは選択店舗と所属をサーバー側で確認する。
 削除済み募集は一覧とスタッフ向けデータ取得から除外する。
@@ -97,7 +97,7 @@ lease、cursor、dedupe、再開、保持期限は[Notification Outbox](notifica
 
 | 契約 | 主担当層 | 参照先 |
 |---|---|---|
-| 未認証、他組織、removed所属、削除済み組織を拒否し、active店舗を固定page上限のcursorで取得でき、legacy集計とスタッフscanの上限到達を黙って正確な値にしない | Convex Function Test | `convex/appOrganization/queries.test.ts` |
+| 未認証、他組織、removed所属、削除済み組織を拒否し、未削除店舗を固定page上限のcursorで取得でき、legacy集計とスタッフscanの上限到達を黙って正確な値にしない | Convex Function Test | `convex/appOrganization/queries.test.ts` |
 | 一つの組織query familyを最後まで取得し、全店舗の募集を状態別に統合し、filterとシフト表遷移を接続する | Frontend Unit Test | `src/pages/app-shifts/index.test.tsx` |
 | 選択した店舗IDと組織IDを作成・削除mutationへ渡し、店舗filter時だけ過去募集を遅延取得し、組織またはfilter変更前の完了結果を現在のDialogへ反映しない | Frontend Unit Test | `src/components/features/OrganizationRecruitmentManagement/index.test.tsx` |
 | `/shifts`では店舗選択Stepを表示し、Dashboardでは省略する一方、どちらの確認Stepにも店舗名を表示する | Storybook Behavior / VRT | `src/components/features/CreateRecruitmentForm/index.stories.tsx` |

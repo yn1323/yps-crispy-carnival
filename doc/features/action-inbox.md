@@ -8,8 +8,8 @@ Dashboardの「要対応」も同じスタッフ申請・通知失敗カード�
 
 | 画面状態 | 表示対象 |
 |---|---|
-| `?org=<organizationId>` | active組織に属する全active店舗の項目と、組織単位の管理者招待項目 |
-| `?org=<organizationId>&shopFilter=<shopId>` | serverで同一組織・active店舗と確認できた店舗の項目だけ。組織単位の管理者招待は含めない |
+| `?org=<organizationId>` | active組織に属する全未削除店舗の項目と、組織単位の管理者招待項目 |
+| `?org=<organizationId>&shopFilter=<shopId>` | serverで同一組織の未削除店舗と確認できた店舗の項目だけ。組織単位の管理者招待は含めない |
 | `limitRecoveryOnly`による業務write制限中 | 項目は閲覧できるが、server DTOの`can*`に応じて操作を無効にする |
 
 `org`、`shopFilter`、項目ID、画面に表示した`can*`は信頼しない。  public queryと各mutationは、Clerk identityからcanonicalな組織所属を解決し、組織、店舗、対象documentの対応を再検証する。

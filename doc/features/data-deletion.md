@@ -55,7 +55,7 @@ LINE IDの置換値は`deleted:<documentId>`として行IDから決定的に作�
 - 店舗削除は対象組織の有効管理者だけが行え、最後の未削除店舗は削除できない。
 - 組織削除は対象組織で唯一の`active`管理者だけが行える。ほかに`active`管理者がいる場合は先に整理する。
 - 組織削除を許可する課金状態は、有料プラン未選択のTrial、Free、支払い不要Pro相当である。
-  支払い不要Pro相当のcanonical保存状態は`complimentary.pro`である。Widen期間はMigration前の`complimentary.business`も同じ権限として読み取る。
+  支払い不要Pro相当の保存状態は`complimentary.pro`である。
 - 有料プラン未選択のTrialでも、Stripe Subscription、進行中のTrial作成operation、または一意な終了証跡がない過去の作成operationがあれば削除しない。
   provider上の契約が終了済みであることを、保存済みSubscriptionとcleanup operationの対応から確認できる場合だけ受け付ける。
 - 組織削除は未完了の店舗削除jobがない場合だけ受け付ける。
@@ -105,7 +105,7 @@ LINE IDの置換値は`deleted:<documentId>`として行IDから決定的に作�
 | API | 種別 | 説明 |
 | --- | --- | --- |
 | `api.organization.queries.getSettings` | `managerQuery` | 組織ID、更新時刻、削除可否と拒否理由を返す |
-| `api.organization.mutations.deleteShop` | `authenticatedMutation` | 店舗を即時停止し、shop scopeのcleanup jobを開始する |
+| `api.organization.mutations.deleteShop` | `authenticatedMutation` | 店舗を即時に論理削除し、shop scopeのcleanup jobを開始する |
 | `api.organization.mutations.deleteOrganization` | `authenticatedMutation` | 組織を即時停止し、organization scopeのcleanup jobを開始する |
 | `api.accountDeletion.queries.getDeletionPreview` | `authenticatedQuery` | 本人の所属と管理者構成から、アカウント削除時の範囲とfingerprintを返す |
 | `POST /account-deletion/request` | HTTP Action | strict再認証と最新fingerprintを確認し、本人所属の終了または組織cleanupとaccount deletion jobを同時に受け付ける |
