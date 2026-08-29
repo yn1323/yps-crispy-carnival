@@ -33,7 +33,7 @@ const billing: OrganizationBillingView = {
 
 const shops = Array.from({ length: 6 }, (_, index) => ({
   id: `shop-preview-${index + 1}`,
-  name: index === 5 ? "旧駅前店（アーカイブ）" : `${index + 1}号店`,
+  name: index === 5 ? "駅前店" : `${index + 1}号店`,
   regularClosedDays: [],
   submissionPattern: { kind: "dateOnly" as const },
   staffCount: 0,

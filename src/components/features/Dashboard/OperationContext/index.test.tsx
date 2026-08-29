@@ -36,7 +36,6 @@ const shops = [
   {
     shopId: "shop-a",
     shopName: "A店",
-    shopStatus: "active",
     organizationId: "organization-a",
     organizationName: "Aグループ",
     organizationPlan: "standard",
@@ -44,7 +43,6 @@ const shops = [
   {
     shopId: "shop-b",
     shopName: "B店",
-    shopStatus: "active",
     organizationId: "organization-a",
     organizationName: "Aグループ",
     organizationPlan: "standard",
@@ -52,7 +50,6 @@ const shops = [
   {
     shopId: "shop-c",
     shopName: "C店",
-    shopStatus: "active",
     organizationId: "organization-b",
     organizationName: "Bグループ",
     organizationPlan: "standard",
@@ -113,7 +110,7 @@ describe("OperationContext", () => {
       </ChakraProvider>,
     );
 
-    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.getMyShops, { planIdVersion: 2 });
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.getMyShops, {});
   });
 
   it("店舗セレクトで選んだ店舗をcallbackへ返す", async () => {

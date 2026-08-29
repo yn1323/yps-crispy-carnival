@@ -132,7 +132,7 @@ beforeEach(() => {
   });
   mocks.usePaginatedQuery.mockReturnValue({
     status: "Exhausted",
-    results: [{ shopId: "shop-a", shopName: "A店舗", operatingStatus: "active" }],
+    results: [{ shopId: "shop-a", shopName: "A店舗" }],
     loadMore: vi.fn(),
   });
 });
@@ -143,8 +143,12 @@ describe("AppManage", () => {
 
     expect(mocks.useQuery).toHaveBeenCalledWith(mocks.getManageOverview, {
       organizationId,
-      planIdVersion: 2,
     });
+    expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(
+      mocks.listOrganizationShops,
+      { organizationId },
+      { initialNumItems: 20 },
+    );
     expect(screen.getByRole("button", { name: "組織情報を開く" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "新しい組織を作る" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "管理者と権限を開く" })).not.toBeNull();

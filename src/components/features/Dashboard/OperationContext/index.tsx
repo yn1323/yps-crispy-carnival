@@ -23,7 +23,7 @@ type Props = {
 };
 
 export const OperationContext = ({ data, onOpenShopDetail }: Props) => {
-  const rawShops = useQuery(api.dashboard.queries.getMyShops, data ? "skip" : { planIdVersion: 2 });
+  const rawShops = useQuery(api.dashboard.queries.getMyShops, data ? "skip" : {});
   const storedSelectedShop = useAtomValue(selectedShopAtom);
   const shops = useMemo(() => data?.shops ?? normalizeShopContextOptions(rawShops ?? []), [data?.shops, rawShops]);
   const selectedShop = data?.selectedShop ?? storedSelectedShop;

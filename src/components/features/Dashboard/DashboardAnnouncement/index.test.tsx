@@ -42,6 +42,6 @@ describe("DashboardAnnouncement", () => {
   it("canonical plan ID契約を指定してお知らせを取得する", () => {
     render(<DashboardAnnouncement />);
 
-    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.getActiveDashboardAnnouncementsV2, { planIdVersion: 2 });
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.getActiveDashboardAnnouncementsV2, {});
   });
 });
