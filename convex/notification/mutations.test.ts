@@ -2,6 +2,7 @@ import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { buildConfirmationSnapshotSignature } from "./confirmationSnapshots";
@@ -20,7 +21,7 @@ describe("notification/mutations", () => {
         isDeleted: false,
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "提出スタッフ",
         email: "submit@example.com",
@@ -47,7 +48,7 @@ describe("notification/mutations", () => {
           isDeleted: false,
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
-        const staffId = await ctx.db.insert("staffs", {
+        const staffId = await seedStaff(ctx, {
           shopId,
           name: "鈴木太郎",
           email: "suzuki@example.com",
@@ -97,7 +98,7 @@ describe("notification/mutations", () => {
           isDeleted: false,
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
-        const staffId = await ctx.db.insert("staffs", {
+        const staffId = await seedStaff(ctx, {
           shopId,
           name: "提出スタッフ",
           email: "submit@example.com",
@@ -121,6 +122,32 @@ describe("notification/mutations", () => {
           .first(),
       );
       expect(magicLink).toMatchObject({ accessKind: "submit", expiresAt });
+    });
+
+    it("所属人物がremovedのスタッフにはリンクを発行せず、副作用を残さない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupSubmitLinkTestData(t);
+      await t.run(async (ctx) => {
+        const staff = await ctx.db.get(ids.staffId);
+        if (!staff?.organizationPersonId) throw new Error("canonical staff person not found");
+        await ctx.db.patch(staff.organizationPersonId, { status: "removed", updatedAt: Date.now() });
+      });
+
+      await expect(
+        t.mutation(internal.notification.mutations.createMagicLink, {
+          staffId: ids.staffId,
+          shopId: ids.shopId,
+          recruitmentId: ids.recruitmentId,
+          accessKind: "submit",
+        }),
+      ).rejects.toThrow("Inactive notification scope");
+
+      const state = await t.run(async (ctx) => ({
+        magicLinks: await ctx.db.query("magicLinks").collect(),
+        outbox: await ctx.db.query("notificationOutbox").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(state).toEqual({ magicLinks: [], outbox: [], scheduled: [] });
     });
   });
 
@@ -203,12 +230,144 @@ describe("notification/mutations", () => {
     });
   });
 
+  describe("notification fanoutのcanonical scope", () => {
+    it.each(["recruitment", "confirmation"] as const)(
+      "%sはcanonical ID欠損staffだけなら新規fanoutの副作用を残さない",
+      async (kind) => {
+        const t = convexTest(schema, modules);
+        const recruitmentId = await t.run(async (ctx) => {
+          const shopId = await seedShop(ctx, `${kind} fail closed店舗`);
+          const staffId = await seedStaff(ctx, {
+            shopId,
+            name: "解決不能スタッフ",
+            email: `${kind}-unresolved-fanout@example.com`,
+          });
+          await ctx.db.patch(staffId, { organizationId: undefined, organizationPersonId: undefined });
+          return await ctx.db.insert("recruitments", {
+            shopId,
+            periodStart: "2026-02-01",
+            periodEnd: "2026-02-28",
+            deadline: "2026-01-25",
+            shopClosedDates: [],
+            status: kind === "recruitment" ? "open" : "confirmed",
+            ...(kind === "confirmation" ? { confirmedAt: Date.now() } : {}),
+            isDeleted: false,
+            submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          });
+        });
+
+        const operationId =
+          kind === "recruitment"
+            ? await t.mutation(internal.notification.mutations.ensureRecruitmentNotificationFanout, {
+                recruitmentId,
+              })
+            : await t.mutation(internal.notification.mutations.ensureConfirmationNotificationFanout, {
+                recruitmentId,
+                isResend: false,
+                operationKey: `canonical-scope:${kind}:${recruitmentId}`,
+              });
+        expect(operationId).toBeNull();
+
+        const effects = await t.run(async (ctx) => ({
+          fanoutOperations: await ctx.db.query("notificationFanoutOperations").collect(),
+          magicLinks: await ctx.db.query("magicLinks").collect(),
+          outbox: await ctx.db.query("notificationOutbox").collect(),
+          history: await ctx.db.query("notificationHistory").collect(),
+          deliveryEvents: await ctx.db.query("notificationDeliveryEvents").collect(),
+          failures: await ctx.db.query("notificationFailureInbox").collect(),
+          usage: await ctx.db.query("notificationUsage").collect(),
+          rateLimits: await ctx.db.query("rateLimits").collect(),
+          scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        }));
+        expect(effects).toEqual({
+          fanoutOperations: [],
+          magicLinks: [],
+          outbox: [],
+          history: [],
+          deliveryEvents: [],
+          failures: [],
+          usage: [],
+          rateLimits: [],
+          scheduled: [],
+        });
+      },
+    );
+
+    it.each(["recruitment", "confirmation"] as const)(
+      "%sは混在staffからcanonical対象だけを新規fanoutへ固定する",
+      async (kind) => {
+        const t = convexTest(schema, modules);
+        const ids = await t.run(async (ctx) => {
+          const shopId = await seedShop(ctx, `${kind} mixed店舗`);
+          const canonicalStaffId = await seedStaff(ctx, {
+            shopId,
+            name: "canonicalスタッフ",
+            email: `${kind}-canonical-fanout@example.com`,
+          });
+          const unresolvedStaffId = await seedStaff(ctx, {
+            shopId,
+            name: "解決不能スタッフ",
+            email: `${kind}-unresolved-mixed-fanout@example.com`,
+          });
+          await ctx.db.patch(unresolvedStaffId, {
+            organizationId: undefined,
+            organizationPersonId: undefined,
+          });
+          const recruitmentId = await ctx.db.insert("recruitments", {
+            shopId,
+            periodStart: "2026-02-01",
+            periodEnd: "2026-02-28",
+            deadline: "2026-01-25",
+            shopClosedDates: [],
+            status: kind === "recruitment" ? "open" : "confirmed",
+            ...(kind === "confirmation" ? { confirmedAt: Date.now() } : {}),
+            isDeleted: false,
+            submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          });
+          return { recruitmentId, canonicalStaffId, unresolvedStaffId };
+        });
+
+        const operationId =
+          kind === "recruitment"
+            ? await t.mutation(internal.notification.mutations.ensureRecruitmentNotificationFanout, {
+                recruitmentId: ids.recruitmentId,
+              })
+            : await t.mutation(internal.notification.mutations.ensureConfirmationNotificationFanout, {
+                recruitmentId: ids.recruitmentId,
+                isResend: false,
+                targetStaffIds: [ids.canonicalStaffId, ids.unresolvedStaffId],
+                operationKey: `canonical-scope:${kind}:${ids.recruitmentId}`,
+              });
+        expect(operationId).toBeTypeOf("string");
+
+        const state = await t.run(async (ctx) => ({
+          operations: await ctx.db.query("notificationFanoutOperations").collect(),
+          outbox: await ctx.db.query("notificationOutbox").collect(),
+          failures: await ctx.db.query("notificationFailureInbox").collect(),
+          rateLimits: await ctx.db.query("rateLimits").collect(),
+          scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        }));
+        expect(state.operations).toEqual([
+          expect.objectContaining({
+            _id: operationId,
+            kind,
+            targetStaffIds: [ids.canonicalStaffId],
+          }),
+        ]);
+        expect(state.outbox).toEqual([]);
+        expect(state.failures).toEqual([]);
+        expect(state.rateLimits).toEqual([]);
+        expect(state.scheduled).toEqual([]);
+      },
+    );
+  });
+
   describe("upsertConfirmationSnapshot compatibility", () => {
     it("現在のcanonical Outboxが実在する確定内容だけをsnapshotへ反映する", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const shopId = await seedShop(ctx, "snapshot compatibility店舗");
-        const staffId = await ctx.db.insert("staffs", {
+        const staffId = await seedStaff(ctx, {
           shopId,
           name: "snapshot compatibilityスタッフ",
           email: "snapshot-compatibility@example.com",

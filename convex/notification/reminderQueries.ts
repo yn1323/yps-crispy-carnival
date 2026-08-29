@@ -1,9 +1,18 @@
 import { v } from "convex/values";
+import type { Doc } from "../_generated/dataModel";
+import type { QueryCtx } from "../_generated/server";
 import { formatPeriodLabel, getDeadlineCutoff } from "../_lib/dateFormat";
 import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
-import { resolveStaffLineRecipient } from "../line/service";
+import { resolveCanonicalStaffScope, resolveStaffLineRecipient } from "../line/service";
 import { toNotificationLineRecipient } from "../notificationOutbox/types";
 import { isShiftTargetStaff } from "../staff/service";
+
+async function resolveCanonicalReminderContact(ctx: QueryCtx, staff: Doc<"staffs">) {
+  const scope = await resolveCanonicalStaffScope(ctx, { staffId: staff._id, shopId: staff.shopId });
+  if (!scope) return null;
+  const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: staff.shopId });
+  return { scope, lineRecipient };
+}
 
 /**
  * 催促メール送信に必要なデータを取得（未提出スタッフのみ）
@@ -38,19 +47,22 @@ export const getReminderEmailData = internalQuery({
     const staffEntries = (
       await Promise.all(
         unsubmittedStaffs.map(async (s) => {
-          const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: s._id, shopId: s.shopId });
-          const projectedLineRecipient = toNotificationLineRecipient(lineRecipient);
+          const contact = await resolveCanonicalReminderContact(ctx, s);
+          if (!contact) return null;
           return {
             staffId: s._id,
-            name: s.name,
-            email: s.email,
-            lineUserId: lineRecipient?.lineUserId,
-            lineFollowing: lineRecipient?.following,
-            lineRecipient: projectedLineRecipient,
+            name: contact.scope.person.name,
+            email: contact.scope.person.email,
+            lineUserId: contact.lineRecipient?.lineUserId,
+            lineFollowing: contact.lineRecipient?.following,
+            lineRecipient: toNotificationLineRecipient(contact.lineRecipient),
           };
         }),
       )
-    ).filter((s) => s.email.length > 0 || (s.lineUserId && s.lineFollowing));
+    ).filter(
+      (contact): contact is NonNullable<typeof contact> =>
+        contact !== null && (contact.email.length > 0 || Boolean(contact.lineUserId && contact.lineFollowing)),
+    );
 
     return {
       shopId: recruitment.shopId,
@@ -86,8 +98,11 @@ export const getReminderEmailDataForStaff = internalQuery({
 
     const shop = await ctx.db.get(recruitment.shopId);
     if (!shop || shop.isDeleted) return null;
-    const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: staff.shopId });
-    if (!staff.email && !(lineRecipient?.lineUserId && lineRecipient.following)) return null;
+    const contact = await resolveCanonicalReminderContact(ctx, staff);
+    if (!contact) return null;
+    if (!contact.scope.person.email && !(contact.lineRecipient?.lineUserId && contact.lineRecipient.following)) {
+      return null;
+    }
 
     return {
       shopId: recruitment.shopId,
@@ -97,11 +112,11 @@ export const getReminderEmailDataForStaff = internalQuery({
       deadline: recruitment.deadline,
       staff: {
         staffId: staff._id,
-        name: staff.name,
-        email: staff.email,
-        lineUserId: lineRecipient?.lineUserId,
-        lineFollowing: lineRecipient?.following,
-        lineRecipient: toNotificationLineRecipient(lineRecipient),
+        name: contact.scope.person.name,
+        email: contact.scope.person.email,
+        lineUserId: contact.lineRecipient?.lineUserId,
+        lineFollowing: contact.lineRecipient?.following,
+        lineRecipient: toNotificationLineRecipient(contact.lineRecipient),
       },
     };
   },

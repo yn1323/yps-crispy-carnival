@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
-import { isShopParentActive } from "../_lib/activeShop";
 import {
   formatDateLabel,
   formatPeriodLabel,
@@ -12,6 +11,7 @@ import {
 } from "../_lib/dateFormat";
 import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
+import { isShopAvailable } from "../_lib/shopAvailability";
 import { buildShiftTimeLabel } from "../_lib/time";
 import { normalizeEmail } from "../_lib/validation";
 import {
@@ -20,7 +20,7 @@ import {
   OPEN_RECRUITMENT_NOTIFICATION_LIMIT,
   SHIFT_ASSIGNMENT_LIMIT,
 } from "../constants";
-import { resolveStaffLineRecipient } from "../line/service";
+import { resolveCanonicalStaffScope, resolveStaffLineRecipient } from "../line/service";
 import { type NotificationLineRecipient, toNotificationLineRecipient } from "../notificationOutbox/types";
 import { isShiftTargetStaff } from "../staff/service";
 import {
@@ -54,6 +54,18 @@ async function resolveLineRecipientSnapshot(
 ): Promise<NotificationLineRecipient | null> {
   const recipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: staff.shopId });
   return toNotificationLineRecipient(recipient);
+}
+
+async function resolveCanonicalStaffNotificationContact(
+  ctx: QueryCtx,
+  staff: Doc<"staffs">,
+  knownLineRecipient?: NotificationLineRecipient | null,
+) {
+  const scope = await resolveCanonicalStaffScope(ctx, { staffId: staff._id, shopId: staff.shopId });
+  if (!scope) return null;
+  const lineRecipient =
+    knownLineRecipient !== undefined ? knownLineRecipient : await resolveLineRecipientSnapshot(ctx, scope.staff);
+  return { scope, lineRecipient };
 }
 
 async function getConfirmationAssignments(
@@ -103,8 +115,14 @@ async function buildConfirmationStaffEntries(
   const projectedAssignments =
     submissionPattern.kind === "time" ? normalizeExactAdjacentTimeAssignments(assignments) : assignments;
 
-  return Promise.all(
+  const entries = await Promise.all(
     staffs.map(async (staff) => {
+      const contact = await resolveCanonicalStaffNotificationContact(
+        ctx,
+        staff,
+        staffs.length === 1 ? knownLineRecipient : undefined,
+      );
+      if (!contact) return null;
       const staffAssignments = projectedAssignments.filter((a) => a.staffId === staff._id);
       const assignmentsByDate = new Map<string, AssignmentTime[]>();
       for (const assignment of staffAssignments) {
@@ -116,9 +134,6 @@ async function buildConfirmationStaffEntries(
         });
         assignmentsByDate.set(assignment.date, items);
       }
-      const lineRecipient =
-        knownLineRecipient && staffs.length === 1 ? knownLineRecipient : await resolveLineRecipientSnapshot(ctx, staff);
-
       const shifts = dates.map((date) => {
         const timeLabel = shopClosedDateSet.has(date)
           ? "定休日"
@@ -142,25 +157,25 @@ async function buildConfirmationStaffEntries(
 
       return {
         staffId: staff._id,
-        name: staff.name,
-        email: staff.email,
-        lineUserId: lineRecipient?.lineUserId,
-        lineFollowing: lineRecipient?.following,
-        lineRecipient,
+        name: contact.scope.person.name,
+        email: contact.scope.person.email,
+        lineUserId: contact.lineRecipient?.lineUserId,
+        lineFollowing: contact.lineRecipient?.following,
+        lineRecipient: contact.lineRecipient,
         shifts,
         snapshotAssignments,
         snapshotSignature: buildConfirmationSnapshotSignature(snapshotAssignments),
       };
     }),
   );
+  return entries.filter((entry): entry is NonNullable<(typeof entries)[number]> => entry !== null);
 }
 
 async function getOpenRecruitmentNotificationDataForStaffInternal(ctx: QueryCtx, staffId: Id<"staffs">) {
   const staff = await ctx.db.get(staffId);
   if (!staff || !isShiftTargetStaff(staff)) return null;
-
-  const shop = await ctx.db.get(staff.shopId);
-  if (!shop || shop.isDeleted) return null;
+  const contact = await resolveCanonicalStaffNotificationContact(ctx, staff);
+  if (!contact) return null;
 
   const now = Date.now();
   const today = todayJST();
@@ -180,19 +195,17 @@ async function getOpenRecruitmentNotificationDataForStaffInternal(ctx: QueryCtx,
       deadline: r.deadline,
     }));
 
-  const lineRecipient = await resolveLineRecipientSnapshot(ctx, staff);
-
   return {
     shopId: staff.shopId,
-    shopName: shop.name,
+    shopName: contact.scope.shop.name,
     staff: {
       staffId: staff._id,
-      name: staff.name,
-      email: staff.email,
-      emailNormalized: staff.emailNormalized,
-      lineUserId: lineRecipient?.lineUserId,
-      lineFollowing: lineRecipient?.following,
-      lineRecipient,
+      name: contact.scope.person.name,
+      email: contact.scope.person.email,
+      emailNormalized: contact.scope.person.emailNormalized,
+      lineUserId: contact.lineRecipient?.lineUserId,
+      lineFollowing: contact.lineRecipient?.following,
+      lineRecipient: contact.lineRecipient,
     },
     recruitments: openRecruitments,
   };
@@ -287,6 +300,12 @@ export const getRecruitmentEmailData = internalQuery({
     if (staffs.length > NOTIFICATION_FANOUT_SCOPE_LIMIT) {
       throw new Error("Notification fanout scope exceeds the supported limit");
     }
+    const contacts = await Promise.all(
+      // シフト対象外スタッフには募集通知を送らない。
+      staffs.filter(isShiftTargetStaff).map(async (staff) => {
+        return await resolveCanonicalStaffNotificationContact(ctx, staff);
+      }),
+    );
 
     return {
       shopId: recruitment.shopId,
@@ -294,19 +313,19 @@ export const getRecruitmentEmailData = internalQuery({
       periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
       periodStart: recruitment.periodStart,
       deadline: recruitment.deadline,
-      staffEntries: await Promise.all(
-        // シフト対象外スタッフには募集通知を送らない。
-        staffs.filter(isShiftTargetStaff).map(async (s) => {
-          const lineRecipient = await resolveLineRecipientSnapshot(ctx, s);
-          return {
-            staffId: s._id,
-            name: s.name,
-            email: s.email,
-            lineUserId: lineRecipient?.lineUserId,
-            lineFollowing: lineRecipient?.following,
-            lineRecipient,
-          };
-        }),
+      staffEntries: contacts.flatMap((contact) =>
+        contact
+          ? [
+              {
+                staffId: contact.scope.staff._id,
+                name: contact.scope.person.name,
+                email: contact.scope.person.email,
+                lineUserId: contact.lineRecipient?.lineUserId,
+                lineFollowing: contact.lineRecipient?.following,
+                lineRecipient: contact.lineRecipient,
+              },
+            ]
+          : [],
       ),
     };
   },
@@ -336,8 +355,8 @@ export const getRecruitmentNotificationDataForStaff = internalQuery({
 
     const shop = await ctx.db.get(recruitment.shopId);
     if (!shop || shop.isDeleted) return null;
-    const lineRecipient = await resolveLineRecipientSnapshot(ctx, staff);
-
+    const contact = await resolveCanonicalStaffNotificationContact(ctx, staff);
+    if (!contact) return null;
     return {
       shopId: recruitment.shopId,
       shopName: shop.name,
@@ -349,11 +368,11 @@ export const getRecruitmentNotificationDataForStaff = internalQuery({
       },
       staff: {
         staffId: staff._id,
-        name: staff.name,
-        email: staff.email,
-        lineUserId: lineRecipient?.lineUserId,
-        lineFollowing: lineRecipient?.following,
-        lineRecipient,
+        name: contact.scope.person.name,
+        email: contact.scope.person.email,
+        lineUserId: contact.lineRecipient?.lineUserId,
+        lineFollowing: contact.lineRecipient?.following,
+        lineRecipient: contact.lineRecipient,
       },
     };
   },
@@ -371,7 +390,9 @@ export const getCurrentConfirmationEmailDataForStaff = internalQuery({
     if (!staff || !isShiftTargetStaff(staff)) return null;
 
     const shop = await ctx.db.get(staff.shopId);
-    if (!shop || !(await isShopParentActive(ctx, shop))) return null;
+    if (!shop || !(await isShopAvailable(ctx, shop))) return null;
+    const contact = await resolveCanonicalStaffNotificationContact(ctx, staff);
+    if (!contact) return null;
 
     const recruitments = await ctx.db
       .query("recruitments")
@@ -391,7 +412,6 @@ export const getCurrentConfirmationEmailDataForStaff = internalQuery({
       return null;
     }
 
-    const lineRecipient = await resolveLineRecipientSnapshot(ctx, staff);
     const assignmentsByRecruitment: Doc<"shiftAssignments">[][] = [];
     let remainingAssignmentCapacity = SHIFT_ASSIGNMENT_LIMIT;
     for (const recruitment of recruitments) {
@@ -407,7 +427,13 @@ export const getCurrentConfirmationEmailDataForStaff = internalQuery({
     const recruitmentEntries = await Promise.all(
       recruitments.map(async (recruitment, index) => {
         const assignments = assignmentsByRecruitment[index];
-        const staffEntries = await buildConfirmationStaffEntries(ctx, recruitment, [staff], assignments, lineRecipient);
+        const staffEntries = await buildConfirmationStaffEntries(
+          ctx,
+          recruitment,
+          [staff],
+          assignments,
+          contact.lineRecipient,
+        );
         const staffEntry = staffEntries[0];
         return staffEntry
           ? {
@@ -424,11 +450,11 @@ export const getCurrentConfirmationEmailDataForStaff = internalQuery({
       shopName: shop.name,
       staff: {
         staffId: staff._id,
-        name: staff.name,
-        email: staff.email,
-        lineUserId: lineRecipient?.lineUserId,
-        lineFollowing: lineRecipient?.following,
-        lineRecipient,
+        name: contact.scope.person.name,
+        email: contact.scope.person.email,
+        lineUserId: contact.lineRecipient?.lineUserId,
+        lineFollowing: contact.lineRecipient?.following,
+        lineRecipient: contact.lineRecipient,
       },
       recruitments: recruitmentEntries.filter(
         (entry): entry is NonNullable<(typeof recruitmentEntries)[number]> => entry !== null,
@@ -460,8 +486,7 @@ export const getOpenRecruitmentEmailChangeNotificationDataForStaff = internalQue
     const data = await getOpenRecruitmentNotificationDataForStaffInternal(ctx, staffId);
     if (!data) return null;
 
-    // TODO[narrow]: 全deploymentでm032が完走し、verifyStaffsのemail残件が全pageで0になった後にemail fallbackを削除する。
-    const currentEmailNormalized = normalizeEmail(data.staff.emailNormalized ?? data.staff.email);
+    const currentEmailNormalized = normalizeEmail(data.staff.emailNormalized);
     if (currentEmailNormalized === "" || currentEmailNormalized !== expectedEmailNormalized) return null;
 
     return data;
@@ -484,17 +509,17 @@ export const getReissueEmailData = internalQuery({
 
     const shop = await ctx.db.get(recruitment.shopId);
     if (!shop || shop.isDeleted) return null;
-
-    const lineRecipient = await resolveLineRecipientSnapshot(ctx, staff);
+    const contact = await resolveCanonicalStaffNotificationContact(ctx, staff);
+    if (!contact) return null;
 
     return {
       shopId: recruitment.shopId,
       shopName: shop.name,
-      staffName: staff.name,
-      staffEmail: staff.email,
-      lineUserId: lineRecipient?.lineUserId,
-      lineFollowing: lineRecipient?.following,
-      lineRecipient,
+      staffName: contact.scope.person.name,
+      staffEmail: contact.scope.person.email,
+      lineUserId: contact.lineRecipient?.lineUserId,
+      lineFollowing: contact.lineRecipient?.following,
+      lineRecipient: contact.lineRecipient,
       periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
     };
   },

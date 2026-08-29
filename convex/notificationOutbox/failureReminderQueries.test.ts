@@ -244,14 +244,6 @@ describe("notificationOutbox/failureReminderQueries", () => {
 
         const secondUserId = await seedUser(ctx, "owner_email", "owner-email@example.com");
         await seedLegacyShopMembership(ctx, { shopId: seeded.shopId, userId: secondUserId });
-        await ctx.db.insert("staffs", {
-          shopId: seeded.shopId,
-          userId: secondUserId,
-          name: "メール通知管理者",
-          email: "owner-email@example.com",
-          emailNormalized: "owner-email@example.com",
-          isDeleted: false,
-        });
         await insertFailure(ctx, { shopId: seeded.shopId, status: "open" });
         return { organizationId: seeded.organizationId, shopId: seeded.shopId };
       });
@@ -269,17 +261,14 @@ describe("notificationOutbox/failureReminderQueries", () => {
         ["org", String(organizationId)],
         ["shop", String(shopId)],
       ]);
-      expect(result?.recipients).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            email: "owner-line@example.com",
-            lineUserId: "U_owner_line",
-            lineFollowing: true,
-            lineRecipient: expect.objectContaining({ lineUserId: "U_owner_line", following: true }),
-          }),
-          expect.objectContaining({ email: "owner-email@example.com" }),
-        ]),
-      );
+      expect(result.recipients).toEqual([
+        expect.objectContaining({
+          email: "owner-line@example.com",
+          lineUserId: "U_owner_line",
+          lineFollowing: true,
+          lineRecipient: expect.objectContaining({ lineUserId: "U_owner_line", following: true }),
+        }),
+      ]);
     });
 
     it("種別「通知」(other) しかない店舗は null を返す", async () => {

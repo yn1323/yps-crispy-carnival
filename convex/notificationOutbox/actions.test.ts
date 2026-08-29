@@ -60,7 +60,7 @@ async function setupLineJob(status: number, responseBody = "line error") {
       email: "manager@example.com",
       shopName: "LINE通知店舗",
     });
-    const staffId = await ctx.db.insert("staffs", {
+    const staffId = await seedStaff(ctx, {
       shopId,
       name: "LINEスタッフ",
       email: "line-staff@example.com",
@@ -100,13 +100,22 @@ async function setupLineRecipientRevalidationJob(scope: "staff" | "manager" = "s
       email: "line-revalidation-manager@example.com",
       shopName: "LINE宛先再検証店舗",
     });
-    const staffId = await ctx.db.insert("staffs", {
-      shopId,
-      name: "LINE宛先再検証スタッフ",
-      email: "line-revalidation@example.com",
-      ...(scope === "manager" ? { organizationId, organizationPersonId: personId } : {}),
-      isDeleted: false,
-    });
+    const staffId =
+      scope === "manager"
+        ? await ctx.db.insert("staffs", {
+            shopId,
+            organizationId,
+            organizationPersonId: personId,
+            name: "LINE宛先再検証スタッフ",
+            email: "line-revalidation@example.com",
+            emailNormalized: "line-revalidation@example.com",
+            isDeleted: false,
+          })
+        : await seedStaff(ctx, {
+            shopId,
+            name: "LINE宛先再検証スタッフ",
+            email: "line-revalidation@example.com",
+          });
     const recipient = await seedCanonicalStaffLineRecipient(ctx, {
       staffId,
       lineUserId: "U_line_current",
@@ -160,7 +169,7 @@ describe("notificationOutbox/actions", () => {
         email: "manager@example.com",
         shopName: "LINE通知店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "LINEスタッフ",
         email: "line-staff@example.com",
@@ -437,7 +446,7 @@ describe("notificationOutbox/actions", () => {
         email: "manager@example.com",
         shopName: "LINE通知店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "LINEスタッフ",
         email: "line-staff@example.com",
@@ -507,7 +516,7 @@ describe("notificationOutbox/actions", () => {
         email: "manager@example.com",
         shopName: "LINE通知店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "LINEスタッフ",
         email: "line-staff@example.com",
@@ -575,7 +584,7 @@ describe("notificationOutbox/actions", () => {
         email: "manager@example.com",
         shopName: "LINE通知店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "LINEスタッフ",
         email: "line-staff@example.com",
@@ -776,7 +785,6 @@ describe("notificationOutbox/actions", () => {
       });
       const shopId = await ctx.db.insert("shops", {
         organizationId: invitation.organizationId,
-        operatingStatus: "active",
         name: "LINE招待店舗",
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         regularClosedDays: [],
@@ -1099,7 +1107,7 @@ describe("notificationOutbox/actions", () => {
   });
 
   it.each([
-    { label: "スタッフ", target: "staff" },
+    { label: "スタッフの所属人物", target: "staff" },
     { label: "事業者人物", target: "organizationPerson" },
     { label: "旧管理者user", target: "legacyUser" },
   ] as const)("enqueue後に$labelのメールアドレスが変わった場合は旧宛先へ送らない", async ({ target }) => {
@@ -1133,7 +1141,7 @@ describe("notificationOutbox/actions", () => {
     },
   );
 
-  it("enqueue後に店舗が停止した場合はproviderを呼ばずに停止する", async () => {
+  it("enqueue後に店舗が削除された場合はproviderを呼ばずに通知を停止する", async () => {
     vi.stubEnv("RESEND_API_KEY", "resend-token");
     const fetchMock = vi.fn<typeof globalThis.fetch>();
     vi.stubGlobal("fetch", fetchMock);
@@ -1145,7 +1153,7 @@ describe("notificationOutbox/actions", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     const jobs = await t.run(async (ctx) => await ctx.db.query("notificationOutbox").collect());
     expect(jobs).toHaveLength(1);
-    expect(jobs[0]).toMatchObject({ status: "cancelled", cancelReason: "shop_inactive" });
+    expect(jobs[0]).toMatchObject({ status: "cancelled", cancelReason: "shop_deleted" });
   });
 
   it.each([
@@ -1513,7 +1521,7 @@ async function setupEmailJob(options: { dedupeKey?: string; context?: string; su
       email: "manager@example.com",
       shopName: "メール通知店舗",
     });
-    const staffId = await ctx.db.insert("staffs", {
+    const staffId = await seedStaff(ctx, {
       shopId,
       name: "メールスタッフ",
       email: "mail-staff@example.com",
@@ -1560,7 +1568,7 @@ async function setupOrganizationEmailJob(removedTarget: "person" | "member") {
       createdAt: now,
       updatedAt: now,
     });
-    await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
+    await ctx.db.patch(shopId, { organizationId });
     const personId = await ctx.db.insert("organizationPeople", {
       organizationId,
       userId,
@@ -1622,11 +1630,10 @@ async function setupStaleEmailJob(target: "staff" | "organizationPerson" | "lega
       target === "legacyUser" ? await seedLegacyManagerShop(ctx, seedArgs) : await seedManagerShop(ctx, seedArgs);
     const now = Date.now();
     if (target === "staff") {
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId: seeded.shopId,
         name: "宛先変更スタッフ",
         email: "old-recipient@example.com",
-        emailNormalized: "old-recipient@example.com",
         isDeleted: false,
       });
       const id = await ctx.db.insert("notificationOutbox", {
@@ -1648,9 +1655,12 @@ async function setupStaleEmailJob(target: "staff" | "organizationPerson" | "lega
         createdAt: now,
         updatedAt: now,
       });
-      await ctx.db.patch(staffId, {
+      const staff = await ctx.db.get(staffId);
+      if (!staff?.organizationPersonId) throw new Error("canonical staff person not found");
+      await ctx.db.patch(staff.organizationPersonId, {
         email: "new-recipient@example.com",
         emailNormalized: "new-recipient@example.com",
+        updatedAt: now,
       });
       return id;
     }
@@ -1689,7 +1699,7 @@ async function setupStaleEmailJob(target: "staff" | "organizationPerson" | "lega
       createdAt: now,
       updatedAt: now,
     });
-    await ctx.db.patch(seeded.shopId, { organizationId, operatingStatus: "active" });
+    await ctx.db.patch(seeded.shopId, { organizationId });
     const personId = await ctx.db.insert("organizationPeople", {
       organizationId,
       userId: seeded.userId,
@@ -1916,7 +1926,6 @@ async function setupOrganizationInvitationLineJob(options: { initialAttemptCount
     });
     const shopId = await ctx.db.insert("shops", {
       organizationId: invitation.organizationId,
-      operatingStatus: "active",
       name: "LINE招待店舗",
       submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       regularClosedDays: [],

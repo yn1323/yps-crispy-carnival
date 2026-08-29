@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedCanonicalStaffLineRecipient, seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { NOTIFICATION_FANOUT_BATCH_SIZE, NOTIFICATION_FANOUT_SCOPE_LIMIT } from "../constants";
@@ -15,13 +16,19 @@ describe("notification/actions", () => {
   it("Pro上限50人分の募集開始通知をoutboxにenqueueする", async () => {
     const t = convexTest(schema, modules);
     const recruitmentId = await t.run(async (ctx) => {
-      const { shopId } = await seedManagerShop(ctx, {
+      const { shopId, userId } = await seedManagerShop(ctx, {
         subject: "user_mgr",
         email: "manager@notification.invalid",
         shopName: "50人店舗",
       });
-      for (let i = 0; i < NOTIFICATION_FANOUT_SCOPE_LIMIT; i++) {
-        await ctx.db.insert("staffs", {
+      await seedStaff(ctx, {
+        shopId,
+        userId,
+        name: "管理者",
+        email: "manager@notification.invalid",
+      });
+      for (let i = 0; i < NOTIFICATION_FANOUT_SCOPE_LIMIT - 1; i++) {
+        await seedStaff(ctx, {
           shopId,
           name: `スタッフ${i + 1}`,
           email: `staff-${i + 1}@example.com`,
@@ -86,13 +93,13 @@ describe("notification/actions", () => {
         email: "manager@notification.invalid",
         shopName: "差分通知店舗",
       });
-      const staffId1 = await ctx.db.insert("staffs", {
+      const staffId1 = await seedStaff(ctx, {
         shopId,
         name: "対象スタッフ",
         email: "target@example.com",
         isDeleted: false,
       });
-      const staffId2 = await ctx.db.insert("staffs", {
+      const staffId2 = await seedStaff(ctx, {
         shopId,
         name: "対象外スタッフ",
         email: "ignored@example.com",
@@ -187,7 +194,7 @@ describe("notification/actions", () => {
         email: "manager@example.com",
         shopName: "空メール店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "メールなしスタッフ",
         email: "",
@@ -246,7 +253,7 @@ describe("notification/actions", () => {
         email: "manager@notification.invalid",
         shopName: "変更通知店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "LINEスタッフ",
         email: "line-staff@notification.invalid",

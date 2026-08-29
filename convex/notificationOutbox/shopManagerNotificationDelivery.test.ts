@@ -28,7 +28,7 @@ describe("店舗管理通知の配送直前検証", () => {
       const seeded = await seedOrganizationManagerShop(ctx, {
         subject: `shop_manager_email_${context}`,
         email: "shop-manager-email@example.com",
-        plan: "pro",
+        plan: "standard",
       });
       const staffId = await ctx.db.insert("staffs", {
         shopId: seeded.shopId,
@@ -84,7 +84,7 @@ describe("店舗管理通知の配送直前検証", () => {
       const seeded = await seedOrganizationManagerShop(ctx, {
         subject: "shop_manager_line_membership",
         email: "shop-manager-line@example.com",
-        plan: "pro",
+        plan: "standard",
       });
       const staffId = await ctx.db.insert("staffs", {
         shopId: seeded.shopId,
@@ -174,7 +174,7 @@ describe("店舗管理通知の配送直前検証", () => {
         await seedOrganizationManagerShop(ctx, {
           subject: "organization_mail_without_shop_staff",
           email: "organization-mail@example.com",
-          plan: "pro",
+          plan: "standard",
         }),
     );
     const commonPayload = {
