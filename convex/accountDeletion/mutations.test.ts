@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop, seedOrganizationManagerShop, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { runAccountDeletionJob } from "./actions";
@@ -182,13 +183,11 @@ describe("accountDeletion", () => {
         complimentary: true,
       });
       const userId = await seedUser(ctx, "shared_cleanup_subject", "shared-cleanup-subject@example.com");
-      const staffId = await ctx.db.insert("staffs", {
-        organizationId: owner.organizationId,
+      const staffId = await seedStaff(ctx, {
         shopId: owner.shopId,
         userId,
         name: "削除済みスタッフ",
         email: "shared-cleanup-staff@example.com",
-        emailNormalized: "shared-cleanup-staff@example.com",
         isDeleted: true,
       });
       const outboxId = await ctx.db.insert("notificationOutbox", {
@@ -294,13 +293,11 @@ describe("accountDeletion", () => {
         complimentary: true,
       });
       const userId = await seedUser(ctx, "shared_cleanup_corrupt_subject", "shared-cleanup-corrupt@example.com");
-      const staffId = await ctx.db.insert("staffs", {
-        organizationId: owner.organizationId,
+      const staffId = await seedStaff(ctx, {
         shopId: owner.shopId,
         userId: owner.userId,
         name: "別アカウントの削除済みスタッフ",
         email: "shared-cleanup-corrupt-staff@example.com",
-        emailNormalized: "shared-cleanup-corrupt-staff@example.com",
         isDeleted: true,
       });
       const outboxId = await ctx.db.insert("notificationOutbox", {

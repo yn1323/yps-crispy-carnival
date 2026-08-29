@@ -9,6 +9,7 @@ import {
   prepareAccountDeletionOrganizationDeparture,
 } from "../organization/mutations";
 import { getOrganizationBillingState, getValidActiveOrganizationManagerPersonIds } from "../organization/service";
+import { hasCanonicalStaffIdentity } from "../staff/service";
 
 const ASSOCIATION_SCAN_LIMIT = 100;
 
@@ -101,7 +102,7 @@ async function derivePlanForExistingUser(
   user: Doc<"users">,
   asOfDate: string,
 ): Promise<AccountDeletionPlan> {
-  const [activeMembers, removedMembers, activePeople, activeStaffs, activeShopMembers] = await Promise.all([
+  const [activeMembers, removedMembers, activePeople, activeStaffs, currentShopMemberships] = await Promise.all([
     ctx.db
       .query("organizationMembers")
       .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", "active"))
@@ -124,7 +125,7 @@ async function derivePlanForExistingUser(
       .take(ASSOCIATION_SCAN_LIMIT + 1),
   ]);
   if (
-    [activeMembers, removedMembers, activePeople, activeStaffs, activeShopMembers].some(
+    [activeMembers, removedMembers, activePeople, activeStaffs, currentShopMemberships].some(
       (rows) => rows.length > ASSOCIATION_SCAN_LIMIT,
     )
   ) {
@@ -154,12 +155,11 @@ async function derivePlanForExistingUser(
     organizationIds.add(organization._id);
   }
   for (const staff of activeStaffs) {
-    const [shop, person] = await Promise.all([
-      ctx.db.get(staff.shopId),
-      staff.organizationPersonId ? ctx.db.get(staff.organizationPersonId) : null,
-    ]);
+    if (!hasCanonicalStaffIdentity(staff)) {
+      return { status: "blocked", reason: "inconsistentAssociation" };
+    }
+    const [shop, person] = await Promise.all([ctx.db.get(staff.shopId), ctx.db.get(staff.organizationPersonId)]);
     if (
-      !staff.organizationId ||
       !shop ||
       shop.isDeleted ||
       shop.organizationId !== staff.organizationId ||
@@ -176,7 +176,7 @@ async function derivePlanForExistingUser(
     }
     organizationIds.add(organization._id);
   }
-  for (const membership of activeShopMembers) {
+  for (const membership of currentShopMemberships) {
     const shop = await ctx.db.get(membership.shopId);
     if (!shop || shop.isDeleted || !shop.organizationId) {
       return { status: "blocked", reason: "inconsistentAssociation" };
