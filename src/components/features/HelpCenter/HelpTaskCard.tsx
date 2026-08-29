@@ -7,7 +7,6 @@ import {
   LuCircleHelp,
   LuClipboardPen,
   LuMegaphone,
-  LuRocket,
   LuStore,
   LuUsers,
 } from "react-icons/lu";
@@ -15,7 +14,6 @@ import { HelpAudienceBadge } from "./HelpAudienceBadge";
 import { getHelpTaskHref, type HelpTask, type HelpTaskId } from "./helpTasks";
 
 const TASK_ICONS: Record<HelpTaskId, ElementType> = {
-  "getting-started": LuRocket,
   "shop-settings": LuStore,
   "staff-management": LuUsers,
   "shift-recruitment": LuMegaphone,

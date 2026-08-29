@@ -36,7 +36,7 @@ function faqFrontmatter(overrides: Record<string, unknown> = {}): Record<string,
   return {
     kind: "faq",
     title: "テスト用の質問ですか？",
-    task: "getting-started",
+    task: "staff-management",
     audience: "manager",
     keywords: [],
     featureIds: [],
@@ -51,7 +51,7 @@ function guideFrontmatter(overrides: Record<string, unknown> = {}): Record<strin
   return {
     kind: "guide",
     title: "テスト用の使い方",
-    task: "getting-started",
+    task: "staff-management",
     audience: "manager",
     keywords: [],
     featureIds: [],
@@ -72,7 +72,7 @@ function searchFixture(overrides: Partial<FaqIndexMetadata> & Pick<FaqIndexMetad
     id,
     kind: "faq",
     title: `${id}のタイトル`,
-    task: "getting-started",
+    task: "staff-management",
     audience: "manager",
     keywords: [],
     featureIds: [],
@@ -82,19 +82,21 @@ function searchFixture(overrides: Partial<FaqIndexMetadata> & Pick<FaqIndexMetad
     summary: `${id}の概要`,
     bodyText: `${id}の本文`,
     answerText: `${id}の本文`,
-    href: `/help/tasks/getting-started#${id}`,
+    href: `/help/tasks/staff-management#${id}`,
     ...rest,
   };
 }
 
 describe("HelpCenterの実コンテンツ", () => {
-  it("全taskにFAQと使い方を用意し、代表FAQを同じtaskの使い方へ接続する", () => {
+  it("全taskに公開コンテンツを用意し、primaryGuideを同じtaskへ接続する", () => {
     for (const task of HELP_TASKS) {
-      const taskFaqs = faqMetas.filter((meta) => meta.task === task.id);
-      const taskGuides = guideMetas.filter((meta) => meta.task === task.id);
-      expect(taskFaqs.length).toBeGreaterThan(0);
-      expect(taskGuides.length).toBeGreaterThan(0);
-      expect(taskFaqs.some((faq) => faq.primaryGuide && getGuideMeta(faq.primaryGuide)?.task === task.id)).toBe(true);
+      expect(helpMetas.filter((meta) => meta.task === task.id).length).toBeGreaterThan(0);
+    }
+
+    for (const faq of faqMetas) {
+      if (faq.primaryGuide) {
+        expect(getGuideMeta(faq.primaryGuide)?.task).toBe(faq.task);
+      }
     }
   });
 
@@ -110,7 +112,8 @@ describe("HelpCenterの実コンテンツ", () => {
   });
 
   it("トップ掲載FAQを6件以内に保ち、同じ内容からJSON-LDを生成する", () => {
-    expect(homeFeaturedFaqMetas).toHaveLength(6);
+    expect(homeFeaturedFaqMetas.length).toBeGreaterThan(0);
+    expect(homeFeaturedFaqMetas.length).toBeLessThanOrEqual(6);
     expect(landingFaqs).toEqual(
       homeFeaturedFaqMetas.map((meta) => ({ q: meta.title, a: meta.summary, href: meta.href })),
     );

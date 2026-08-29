@@ -161,14 +161,14 @@ function PreparationSection() {
           シフト募集開始後に追加した場合でも、シフトを送ることができます。
         </Text>
         <Link
-          href="/help/add-staff"
+          href="/help/tasks/staff-management#add-staff-methods"
           color="teal.700"
           fontWeight="bold"
           display="inline-flex"
           alignItems="center"
           gap={2}
         >
-          詳しい使い方
+          スタッフの追加方法を見る
           <LuArrowRight aria-hidden />
         </Link>
       </Stack>

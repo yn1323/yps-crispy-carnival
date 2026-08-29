@@ -3,7 +3,6 @@ export const HELP_AUDIENCES = ["all", "manager", "staff"] as const;
 export type HelpAudience = (typeof HELP_AUDIENCES)[number];
 
 export const HELP_TASK_IDS = [
-  "getting-started",
   "shop-settings",
   "staff-management",
   "shift-recruitment",
@@ -27,13 +26,6 @@ export type HelpTask = {
 };
 
 export const HELP_TASKS = [
-  {
-    id: "getting-started",
-    title: "利用開始したい",
-    description: "アカウント作成方法を確認します",
-    audience: "manager",
-    order: 10,
-  },
   {
     id: "shop-settings",
     title: "店舗を設定したい",

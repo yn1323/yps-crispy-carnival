@@ -97,7 +97,9 @@ export const Search: Story = {
       "/help/tasks/staff-management#add-staff-methods",
     );
     await expect(canvas.getByRole("heading", { level: 2, name: /使い方/ })).toBeVisible();
-    const addStaffGuide = canvas.getAllByRole("link").find((link) => link.getAttribute("href") === "/help/add-staff");
-    await expect(addStaffGuide).toHaveAttribute("href", "/help/add-staff");
+    await expect(canvas.getByRole("link", { name: /スタッフの参加申請を承認する/ })).toHaveAttribute(
+      "href",
+      "/help/review-staff-registration-request",
+    );
   },
 };

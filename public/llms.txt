@@ -95,7 +95,6 @@
 
 ### よくある質問
 
-- [利用を始めるとき、最初に何をしますか？](https://shiftori.app/help/tasks/getting-started#first-steps): 管理者自身で募集、提出、シフト表確認を試してからスタッフを追加する順序
 - [店舗設定を変更すると、作成済みの募集も変わりますか？](https://shiftori.app/help/tasks/shop-settings#existing-recruitment-after-shop-change): 設定変更が反映される募集の範囲
 - [スタッフを追加する方法は？](https://shiftori.app/help/tasks/staff-management#add-staff-methods): 本人による参加申請、管理者の手入力、別店舗からの追加
 - [募集を作成すると、すぐにスタッフへ届きますか？](https://shiftori.app/help/tasks/shift-recruitment#recruitment-notification-timing): 募集作成と通知到達の違い
@@ -107,15 +106,10 @@
 
 ### 詳しい使い方
 
-- [最初のシフト募集を始める](https://shiftori.app/help/start-shift-management): 店舗設定後、管理者自身で募集、提出、シフト表確認を試してスタッフを追加する流れ
 - [店舗設定を変更する](https://shiftori.app/help/update-shop-settings): 店舗名、希望シフトの集め方、勤務時間、定休日の変更
-- [スタッフを追加する](https://shiftori.app/help/add-staff): 参加申請、手入力、別店舗からスタッフを追加する方法
 - [シフト募集を作成する](https://shiftori.app/help/create-shift-recruitment): 対象期間と提出期限を決めて募集する方法
-- [希望シフトを提出する](https://shiftori.app/help/submit-shift-request): 提出リンクから希望を入力し、必要に応じて提出し直す方法
-- [シフトを作成して確定する](https://shiftori.app/help/build-and-confirm-shift): 希望を見ながら割り当て、下書き保存し、確定する方法
 - [スタッフへの通知履歴を確認する](https://shiftori.app/help/check-notification-history): 通知日時、チャネル、目的、送信状況の確認方法
 - [現在のプランと利用状況を確認する](https://shiftori.app/help/check-plan-and-usage): 組織のプラン、利用数、支払い状態の確認方法
-- [パスワードを再設定する](https://shiftori.app/help/reset-password): メールの確認コードを使う再設定手順
 
 ## シフト作成ガイド記事
 

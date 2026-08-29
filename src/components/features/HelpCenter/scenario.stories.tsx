@@ -43,6 +43,10 @@ export const Desktop: Story = {
     await expect(canvas.getByRole("navigation", { name: "シフト回収の流れ" })).toBeVisible();
     await expect(canvas.getByRole("link", { name: "1 募集開始" })).toHaveAttribute("href", "#create-recruitment");
     await expect(canvas.getByRole("link", { name: "4 スタッフへ通知" })).toHaveAttribute("href", "#check-notification");
+    await expect(canvas.getByRole("link", { name: "スタッフの追加方法を見る" })).toHaveAttribute(
+      "href",
+      "/help/tasks/staff-management#add-staff-methods",
+    );
     await expect(canvas.getByRole("heading", { level: 2, name: "募集シフトを作成する" })).toBeVisible();
     await expect(canvas.getByRole("heading", { level: 2, name: "希望シフトを提出する" })).toBeVisible();
     await expect(canvas.getByRole("heading", { level: 2, name: "確定したシフトを通知する" })).toBeVisible();
