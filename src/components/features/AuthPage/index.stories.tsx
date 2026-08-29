@@ -367,7 +367,10 @@ export const LoginRouteNavigation: Story = {
   render: (args) => <RoutedAuthStory {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const header = within(await canvas.findByRole("banner"));
 
+    await expect(header.queryByRole("link", { name: "ログイン" })).not.toBeInTheDocument();
+    await expect(header.queryByRole("link", { name: "シフトリをはじめる" })).not.toBeInTheDocument();
     await expect(await canvas.findByRole("heading", { name: "シフトリにログイン" })).toBeInTheDocument();
     await userEvent.click(await canvas.findByRole("link", { name: "新規登録" }));
     await expect(await canvas.findByRole("heading", { name: "シフトリをはじめる" })).toBeInTheDocument();
