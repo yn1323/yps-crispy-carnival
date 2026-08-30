@@ -175,7 +175,10 @@ function PlanRelationship() {
           プランごとの利用上限
         </Heading>
         <Text color="gray.700" lineHeight="1.8">
-          利用上限は、組織全体のスタッフ人、店舗数、管理者数が基準になります。
+          利用上限は、組織全体のスタッフ数、店舗数、管理者数が基準になります。
+        </Text>
+        <Text color="gray.700" lineHeight="1.8">
+          どの店舗にも所属していないスタッフも、組織に登録されている限り利用人数に含まれます。
         </Text>
       </Stack>
 

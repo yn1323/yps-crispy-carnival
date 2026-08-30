@@ -64,6 +64,7 @@ export const Desktop: Story = {
     ]) {
       await expect(canvas.getByLabelText(`${videoTitle}の動画`)).toHaveAttribute("controls");
       await expect(canvas.getByLabelText(`${videoTitle}の動画`)).toHaveAttribute("preload", "metadata");
+      await expect(canvas.getByRole("list", { name: `${videoTitle}の操作手順` })).toBeVisible();
     }
     await expect(canvas.queryByText("動画は準備中")).not.toBeInTheDocument();
     await expect(canvas.getByTitle("シフト確定メールの表示例")).toHaveAttribute("sandbox", "");

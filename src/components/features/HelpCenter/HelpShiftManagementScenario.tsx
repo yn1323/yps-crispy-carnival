@@ -1,4 +1,17 @@
-import { Box, Container, chakra, Flex, Grid, Heading, HStack, Link, SimpleGrid, Stack, Text } from "@chakra-ui/react";
+import {
+  Box,
+  Container,
+  chakra,
+  Flex,
+  Grid,
+  Heading,
+  HStack,
+  Link,
+  List,
+  SimpleGrid,
+  Stack,
+  Text,
+} from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { LuArrowLeft, LuArrowRight, LuCheck, LuUsers } from "react-icons/lu";
 import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
@@ -25,6 +38,30 @@ const SCENARIO_VIDEOS = {
   submitRequests: submitShiftPreferencesVideoUrl,
   buildAndConfirm: buildAndConfirmShiftVideoUrl,
 } satisfies Record<string, string>;
+
+const SCENARIO_VIDEO_STEPS = {
+  addStaff: [
+    "シフト一覧の下にある「スタッフを追加する」を選択します。",
+    "「スタッフを追加」でスタッフ名とメールアドレスを入力します。",
+    "「スタッフを登録する」を選択し、スタッフ一覧に追加されたことを確認します。",
+  ],
+  createRecruitment: [
+    "「募集をつくる」を選択し、シフト期間の開始日と終了日をカレンダーで選びます。",
+    "必要に応じて定休日を選び、希望シフトの提出期限を設定します。",
+    "確認画面で期間・提出期限・通知方法を確認し、「募集をつくる」を選択します。",
+  ],
+  submitRequests: [
+    "LINEまたはメールに届いたリンクを開き、勤務できる日を選択します。",
+    "選んだ日ごとに、勤務できる開始時刻と終了時刻を設定します。",
+    "利用規約とプライバシーポリシーへの同意を確認し、「希望シフトを提出」を選択します。",
+  ],
+  buildAndConfirm: [
+    "シフト一覧から募集中のシフトを開き、日別画面でスタッフの希望時間を確認します。",
+    "勤務枠をドラッグして、スタッフごとの勤務日と勤務時間を割り当てます。",
+    "すべての日を調整したら「シフトを確定して通知」を選択します。",
+    "確認画面で希望時間外や未提出スタッフへの割り当てを確認し、もう一度「シフトを確定して通知」を選択します。",
+  ],
+} satisfies Record<keyof typeof SCENARIO_VIDEOS, readonly string[]>;
 
 export function HelpShiftManagementScenario() {
   return (
@@ -72,7 +109,11 @@ export function HelpShiftManagementScenario() {
                 </>
               }
             >
-              <ScenarioVideo title="募集シフトを作成する" src={SCENARIO_VIDEOS.createRecruitment} />
+              <ScenarioVideo
+                title="募集シフトを作成する"
+                src={SCENARIO_VIDEOS.createRecruitment}
+                steps={SCENARIO_VIDEO_STEPS.createRecruitment}
+              />
             </ScenarioStep>
             <ScenarioStep
               id="submit-requests"
@@ -81,7 +122,11 @@ export function HelpShiftManagementScenario() {
               title="希望シフトを提出する"
               description="スタッフは、LINEまたはメールに届いたリンクから希望シフトを提出します。"
             >
-              <ScenarioVideo title="希望シフトを提出する" src={SCENARIO_VIDEOS.submitRequests} />
+              <ScenarioVideo
+                title="希望シフトを提出する"
+                src={SCENARIO_VIDEOS.submitRequests}
+                steps={SCENARIO_VIDEO_STEPS.submitRequests}
+              />
             </ScenarioStep>
             <ScenarioStep
               id="build-and-confirm"
@@ -96,7 +141,11 @@ export function HelpShiftManagementScenario() {
                 </>
               }
             >
-              <ScenarioVideo title="シフトを調整して確定する" src={SCENARIO_VIDEOS.buildAndConfirm} />
+              <ScenarioVideo
+                title="シフトを調整して確定する"
+                src={SCENARIO_VIDEOS.buildAndConfirm}
+                steps={SCENARIO_VIDEO_STEPS.buildAndConfirm}
+              />
             </ScenarioStep>
             <ScenarioStep
               id="check-notification"
@@ -174,7 +223,7 @@ function PreparationSection() {
           <LuArrowRight aria-hidden />
         </Link>
       </Stack>
-      <ScenarioVideo title="スタッフを追加する" src={SCENARIO_VIDEOS.addStaff} />
+      <ScenarioVideo title="スタッフを追加する" src={SCENARIO_VIDEOS.addStaff} steps={SCENARIO_VIDEO_STEPS.addStaff} />
     </Grid>
   );
 }
@@ -312,24 +361,45 @@ function ScenarioStep({
   );
 }
 
-function ScenarioVideo({ title, src }: { title: string; src: string }) {
+function ScenarioVideo({ title, src, steps }: { title: string; src: string; steps: readonly string[] }) {
   return (
-    <Box aspectRatio="16 / 9" overflow="hidden" borderWidth="1px" borderColor="gray.200" borderRadius="lg" bg="gray.50">
-      {/* biome-ignore lint/a11y/useMediaCaption: 音声のない操作動画のため、字幕へ置き換える音声情報がない。 */}
-      <chakra.video
-        src={src}
-        controls
-        playsInline
-        preload="metadata"
-        aria-label={`${title}の動画`}
-        w="full"
-        h="full"
-        objectFit="contain"
-        bg="black"
+    <Stack gap={4}>
+      <Box
+        aspectRatio="16 / 9"
+        overflow="hidden"
+        borderWidth="1px"
+        borderColor="gray.200"
+        borderRadius="lg"
+        bg="gray.50"
       >
-        お使いのブラウザでは動画を再生できません。
-      </chakra.video>
-    </Box>
+        {/* biome-ignore lint/a11y/useMediaCaption: 音声のない操作動画であり、同等の操作手順を直後のテキストで提供する。 */}
+        <chakra.video
+          src={src}
+          controls
+          playsInline
+          preload="metadata"
+          aria-label={`${title}の動画`}
+          w="full"
+          h="full"
+          objectFit="contain"
+          bg="black"
+        >
+          お使いのブラウザでは動画を再生できません。
+        </chakra.video>
+      </Box>
+      <Stack gap={2}>
+        <Heading as="h3" color="gray.950" fontSize="md">
+          動画と同じ操作手順
+        </Heading>
+        <List.Root as="ol" aria-label={`${title}の操作手順`} gap={2} ps={5} color="gray.700" fontSize="sm">
+          {steps.map((step) => (
+            <List.Item key={step} lineHeight="1.8">
+              {step}
+            </List.Item>
+          ))}
+        </List.Root>
+      </Stack>
+    </Stack>
   );
 }
 
