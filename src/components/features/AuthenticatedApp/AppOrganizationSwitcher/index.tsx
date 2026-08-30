@@ -38,7 +38,7 @@ export function AppOrganizationSwitcher({ activeOrganizationId, activeOrganizati
           borderColor="gray.300"
           color="gray.900"
           flexShrink={0}
-          justifyContent="flex-start"
+          justifyContent={{ base: "center", lg: "flex-start" }}
           _hover={{ bg: "gray.50", borderColor: "gray.400" }}
         >
           <Icon as={LuBuilding2} boxSize={5} color="teal.700" flexShrink={0} aria-hidden />
