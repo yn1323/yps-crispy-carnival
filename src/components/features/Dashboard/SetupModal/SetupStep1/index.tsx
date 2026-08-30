@@ -1,8 +1,9 @@
-import { Box, Field, Input, SimpleGrid, Stack, Text } from "@chakra-ui/react";
+import { Box, Field, SimpleGrid, Stack, Text } from "@chakra-ui/react";
 import { LuCalendarDays, LuClock3, LuListChecks } from "react-icons/lu";
 import { SHOP_NAME_MAX_LENGTH } from "@/convex/constants";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
 import { Button } from "@/src/components/ui/Button";
+import { Input } from "@/src/components/ui/FormControls";
 import { selectSubmissionPattern } from "@/src/domains/shop/submissionPattern";
 import { SUBMISSION_PATTERN_OPTIONS } from "./script";
 

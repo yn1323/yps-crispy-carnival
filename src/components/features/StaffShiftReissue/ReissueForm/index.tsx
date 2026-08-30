@@ -1,9 +1,10 @@
-import { Field, Input, Separator, Text, VStack } from "@chakra-ui/react";
+import { Field, Separator, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { EMAIL_MAX_LENGTH } from "@/convex/constants";
 import { type ReissueFormValues, reissueSchema } from "@/convex/staffAuth/schemas";
 import { Button } from "@/src/components/ui/Button";
+import { Input } from "@/src/components/ui/FormControls";
 
 type Props = {
   onSubmit: (values: ReissueFormValues) => void | Promise<void>;

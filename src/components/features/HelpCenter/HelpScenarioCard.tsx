@@ -81,7 +81,7 @@ function HelpBasicLinkCard({
         <Text fontWeight="bold" lineHeight="1.5" fontSize={{ base: "md", md: "lg" }}>
           {title}
         </Text>
-        <Text color="gray.600" fontSize="sm" lineHeight="1.7">
+        <Text display={{ base: "none", md: "block" }} color="gray.600" fontSize="sm" lineHeight="1.7">
           {description}
         </Text>
       </Stack>

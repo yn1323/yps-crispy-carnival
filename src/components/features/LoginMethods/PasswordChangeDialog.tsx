@@ -1,7 +1,8 @@
-import { Alert, Field, Input, Stack } from "@chakra-ui/react";
+import { Alert, Field, Stack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Dialog } from "@/src/components/ui/Dialog";
+import { Input } from "@/src/components/ui/FormControls";
 import {
   isLoginMethodReverificationBusy,
   LoginMethodReverificationActions,
@@ -92,6 +93,7 @@ function PasswordChangeForm({ controller }: { controller: PasswordChangeControll
         <Field.Label>現在のパスワード</Field.Label>
         <Input
           type="password"
+          autocompletePolicy="auth"
           autoComplete="current-password"
           placeholder="******"
           disabled={isBusy}
@@ -103,6 +105,7 @@ function PasswordChangeForm({ controller }: { controller: PasswordChangeControll
         <Field.Label>新しいパスワード</Field.Label>
         <Input
           type="password"
+          autocompletePolicy="auth"
           autoComplete="new-password"
           placeholder="******"
           disabled={isBusy}
@@ -114,6 +117,7 @@ function PasswordChangeForm({ controller }: { controller: PasswordChangeControll
         <Field.Label>新しいパスワード（確認）</Field.Label>
         <Input
           type="password"
+          autocompletePolicy="auth"
           autoComplete="new-password"
           placeholder="******"
           disabled={isBusy}

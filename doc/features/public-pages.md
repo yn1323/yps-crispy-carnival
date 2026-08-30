@@ -22,7 +22,6 @@
 | `/articles` | シフト運営に関する記事とカテゴリへの入口を示す | `src/pages/articles/`、`ArticleListPage` |
 | `/articles/:slug` | 一つの記事を表示し、関連する製品情報へつなぐ | `ArticlePage`、`ArticleSite/content/articles/` |
 | `/articles/categories/:categorySlug` | 同じ課題領域の記事をまとめる | `ArticleCategoryPage`、`ArticleSite/content/categories/` |
-| `/demo/flow` | 募集作成から確定通知までの流れを、登録なしで順番に試せるようにする | `src/pages/demo-flow/`、`Demo/ShiftoriDemoFlow/` |
 | `/demo/shiftboard` | PC向けシフト表の入力と調整を、登録なしで試せるようにする | `src/pages/demo-shift-board/`、`Demo/DemoShiftBoardPage/` |
 
 TOPは`src/routes/index.tsx`から`HomePage`を呼び、`HomePage`が`LandingPage`を構成する。
@@ -114,7 +113,7 @@ Productionの設定値と公開表示の確認状況は、[リリース状態](.
 
 | 場所 | 利用者の問い | 内容の責務 |
 |---|---|---|
-| TOP | 自分の店舗で何が楽になるか | 価値と利用の流れを短く示し、詳しい入口を選べるようにする |
+| TOP | 自分の店舗で何が楽になるか | 価値と利用の流れ、導入前のよくある質問を短く示し、詳しい入口を選べるようにする |
 | 機能紹介 | どの作業を支援できるか | 主な機能と利用場面を比較できるようにする |
 | TOPの料金プランsection | 人数と店舗数に合うプランと料金を比較したい | シフト管理の基本機能が共通であることと、Free・Standard・Proの料金と利用上限を示す。Standard・Proの金額は特定商取引法ページと同じbuild時料金カタログを使う |
 | ヘルプのFAQ | 料金、通知、導入、運用について結論を知りたい | 質問ごとに結論と必要な注意点を示す |
@@ -124,9 +123,11 @@ Productionの設定値と公開表示の確認状況は、[リリース状態](.
 | 記事 | シフト運営の課題をどう判断するか | 課題の整理、選択肢、関連する製品導線を示す |
 | デモ | 登録前に操作と結果を確かめたい | 実データを保存せず、主要な操作の流れを体験できるようにする |
 
-ヘルプはFAQと使い方を一つのMDX形式で管理し、利用者が完了したい仕事ごとに分類する。組織構造と動画シナリオはTOPから直接開くTSXページとして分ける。
+TOPのFAQは、導入を検討する利用者向けの5件を`LandingPage/faqs.ts`で管理する。  表示内容とTOPの`FAQPage`構造化データは同じデータから生成し、各回答は文ごとに改行して表示する。
+
+ヘルプは利用開始後のFAQと使い方を一つのMDX形式で管理し、利用者が完了したい仕事ごとに分類する。組織構造と動画シナリオはTOPから直接開くTSXページとして分ける。
 FAQは`/help/tasks/:taskId#<faq-id>`で展開・共有し、使い方は`/help/:slug`の個別ページで表示する。
-TOPに掲載するFAQは`homeFeatured`、FAQから案内する主な使い方は`primaryGuide`で指定する。
+FAQから案内する主な使い方は`primaryGuide`で指定する。
 frontmatter、検索、関連付け、本文の表示規則は[ヘルプセンター](help-center.md)を正本とする。
 
 ヘルプと記事は、`_`始まりのディレクトリを下書きとして読み込まない。
@@ -138,7 +139,7 @@ frontmatter、検索、関連付け、本文の表示規則は[ヘルプセン�
 
 ## 静的生成とメタデータ
 
-`scripts/staticSite.ts`はTOP、機能紹介、ヘルプTOP・組織構造・動画シナリオ・タスクページ、問い合わせ、記事一覧、汎用の法務文書、特定商取引法に基づく表記、二つのデモなどを公開routeとして持つ。  現在、独立した`/pricing` routeはない。
+`scripts/staticSite.ts`はTOP、機能紹介、ヘルプTOP・組織構造・動画シナリオ・タスクページ、問い合わせ、記事一覧、汎用の法務文書、特定商取引法に基づく表記、シフトボードデモなどを公開routeとして持つ。  現在、独立した`/pricing` routeはない。
 ヘルプの使い方は`HelpCenter/content/guides/`、記事詳細とカテゴリは`ArticleSite/content/`の公開済みslugから対象routeを組み立てる。
 TanStack StartはこのallowlistだけをStatic Prerenderingし、認証routeやCapability routeを自動探索しない。
 
@@ -165,6 +166,7 @@ Static Prerenderingは、ルート以外を`dist/client/features.html`のよう�
 
 sitemap、canonical、内部リンクは、ルート以外を末尾スラッシュなしで統一する。
 公開済みの旧記事slugは互換URLとしてSSG対象に残し、HTMLと`Link` headerのcanonicalは現slugへ向ける。
+廃止した`/demo/flow`と末尾スラッシュ付きURLは、生成した`_redirects`で`/help/scenarios/shift-management`へ`301`転送する。
 既知の公開routeの末尾スラッシュ付きURLは、生成した`_redirects`で末尾スラッシュなしのHTMLへ`200` proxyする。
 3xxを返さないため、既存端末に残ったno-slashからslashへの308 cacheが適用されても、slash側の`200`でループを終端できる。
 
@@ -175,12 +177,13 @@ shellは`noindex`、`no-store`、`no-referrer`で公開canonicalを持たず、q
 `/cache-reset`だけは`Clear-Site-Data: "cache"`を返す。
 cookieとstorageは消去せず、旧308 cacheが残る端末の回復導線として使う。
 
-`public/robots.txt`は認証済みshellとCapability・callback routeに対する既存の`Disallow`を維持する。
-route inventory testは各`Disallow`が実在するCSR routeのprefixであることを確認し、不在routeだった`/welcome`は対象に含めない。
+`public/robots.txt`は認証済みshellとCapability・callback routeに対する既存の`Disallow`を維持する。  `/account`だけは`/account-deletion-accepted`を遮断しないよう、末尾一致の`/account$`を使う。
+route inventory testは各`Disallow`が実在するCSR routeのprefixまたは完全一致patternであり、公開SSG routeと重ならないことを確認する。  不在routeだった`/welcome`は対象に含めない。
 
 ## 関連ファイル
 
 - `src/routes/index.tsx`、`src/pages/home/`、`src/components/features/LandingPage/`：公開TOP
+- `src/components/features/LandingPage/faqs.ts`：TOPのFAQ表示と`FAQPage`構造化データ
 - `src/components/features/LandingPage/PricingSection/`：TOPの料金プラン比較
 - `src/routes/features.tsx`、`src/pages/features/`：機能紹介
 - `src/routes/commercial-transactions.tsx`、`src/pages/commercial-transactions/`、`src/components/features/CommercialTransactions/`：特定商取引法に基づく表記

@@ -1,6 +1,7 @@
-import { Field, Input } from "@chakra-ui/react";
+import { Field } from "@chakra-ui/react";
 import type { UseFormRegisterReturn } from "react-hook-form";
 import { SHOP_NAME_MAX_LENGTH } from "@/convex/constants";
+import { Input } from "@/src/components/ui/FormControls";
 
 export type ShopNameFieldProps = {
   registration: UseFormRegisterReturn<"shopName">;

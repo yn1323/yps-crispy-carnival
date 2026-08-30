@@ -1,7 +1,8 @@
-import { Alert, Field, Input, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Alert, Field, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/Button";
 import { DialogActionArea } from "@/src/components/ui/Dialog";
+import { Input } from "@/src/components/ui/FormControls";
 import type { LoginMethodReverificationController, LoginMethodReverificationFactor } from "./reverificationTypes";
 
 export const isLoginMethodReverificationBusy = (controller: LoginMethodReverificationController) =>
@@ -204,6 +205,7 @@ function FactorInput({
         <Input
           type={isPassword ? "password" : "text"}
           inputMode={isPassword || factor.strategy === "backup_code" ? undefined : "numeric"}
+          autocompletePolicy="auth"
           autoComplete={isPassword ? "current-password" : "one-time-code"}
           placeholder={isPassword || factor.strategy === "backup_code" ? "******" : "123456"}
           value={value}

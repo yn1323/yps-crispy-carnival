@@ -20,7 +20,7 @@ publish前に、環境ごとに次を確認する。
 
 - Develop、Preview、Productionでcontainer、GA4 property、web data streamが分離されているか。
 - GTMに初回page view、History Change、All Clicks、広いlink click、Custom HTMLが残っていないか。Google tagの`send_page_view`が`false`か。
-- Google tagとGA4 event tagが、`page_view`、`select_content`、`tutorial_complete`、`web_vital`の登録済みeventだけを受けるか。
+- Google tagとGA4 event tagが、`page_view`、`select_content`、`web_vital`の登録済みeventだけを受けるか。
 - GA4 Enhanced Measurementが無効か。page viewだけでなく、scroll、outbound click、site search、video、file download、form interactionも自動収集しない。
 - Google Signals、Ads連携、User-ID、user-provided data collection、cross-domainが無効か。
 - data redactionでemailとcredential query名が防御的に登録されているか。
@@ -57,7 +57,7 @@ Clarityを将来検討する場合は、SecurityとProductの別判断、収集�
 Applicationのexact serializerは、GTM containerがbrowser組み込み変数を独自取得することまでは防げない。  外部設定は次の契約をすべて満たす。
 
 1. Google tagは`send_page_view = false`とし、GA4 Enhanced Measurementをすべて無効にする。
-2. TriggerはCustom Eventの`page_view`、`select_content`、`tutorial_complete`、`web_vital`だけに限定する。History Change、All Pages、Initialization、All Clicks、Just Links、Form Submission、Custom HTMLを使わない。
+2. TriggerはCustom Eventの`page_view`、`select_content`、`web_vital`だけに限定する。History Change、All Pages、Initialization、All Clicks、Just Links、Form Submission、Custom HTMLを使わない。
 3. GTMの組み込み`Page URL`、`Page Path`、`Referrer`、`Page Title`、`Click URL`をtag、trigger、variableから参照しない。
 4. `route_family`または`document_route_family`は`src/domains/webMeasurement/`の有限値だけを受けるLookup Tableにし、defaultはtagを発火しない。
 5. GA4へ渡すpage contextは次の有限値へ必ず上書きする。値を省略してbrowser既定値へfallbackさせない。
@@ -68,7 +68,7 @@ Applicationのexact serializerは、GTM containerがbrowser組み込み変数を
 | `page_referrer` | 定数`https://shiftori.app/__measurement/referrer-not-collected` |
 | `page_title` | Lookup Tableで`shiftori:<route-family>`へ写像したsynthetic title |
 
-Lookup Tableへ登録するroute familyは`home`、`features`、`pricing`、`help_index`、`help_guide`、`contact`、`articles_index`、`article_detail`、`article_category`、`demo_flow`、`demo_shiftboard`だけとする。  未知値ではGoogle tagとGA4 event tagを発火させない。
+Lookup Tableへ登録するroute familyは`home`、`features`、`pricing`、`help_index`、`help_guide`、`contact`、`articles_index`、`article_detail`、`article_category`、`demo_shiftboard`だけとする。  未知値ではGoogle tagとGA4 event tagを発火させない。
 `/terms*`、`/privacy*`、`/commercial-transactions`などの法務文書は`public_unmeasured`として公開表示だけを行い、page viewとWeb Vitalsを送らない。
 
 GTM loaderの既存scriptをapplicationが検出した場合、dataLayerとloaderをbest-effortで破棄し、そのdocumentでは再初期化しない。  ただし実行済みの第三者codeを完全にはunloadできないため、検出時は外部containerまたはbaked scriptの混入としてenableをoffに戻し、安全なartifactへrollbackする。
@@ -96,7 +96,7 @@ GTMのWorkspaceからPreviewを開き、syntheticな公開URLだけで検証す�
 1. 計測を許可していない新しいbrowser contextで公開ページを開く。
 2. `googletagmanager.com`、Google Analytics、`clarity.ms`へのrequestが0件であることを確認する。
 3. 許可後に同じURLが一度再読み込みされ、GTM scriptが一件だけloadされ、再読み込み後の`page_view`が一件だけ発火することを確認する。同意前documentのWeb Vitalsが送られていないことも確認する。
-4. CTAとデモ完了を操作し、登録済みeventと有限parameterだけを確認する。GA4 requestの`dl`、`dr`、`dt`が上記synthetic値だけであり、表示中URLのquery、hash、title、referrer、click先URLが含まれないことをnetworkで確認する。
+4. CTAを操作し、登録済みeventと有限parameterだけを確認する。GA4 requestの`dl`、`dr`、`dt`が上記synthetic値だけであり、表示中URLのquery、hash、title、referrer、click先URLが含まれないことをnetworkで確認する。
 5. Dashboard、認証、Capability、staff、callbackのsynthetic URLを新しいdocumentで開き、第三者requestが0件であることを確認する。
 6. 許可を取り消し、reload後に第三者requestが発生しないことを確認する。
 7. URL、query、ID、token、code、state、メール、店舗名、自由入力がTag Assistant、dataLayer、GA4 network requestにないことを確認する。`clarity.ms`へのrequestは許可後も0件であることを確認する。

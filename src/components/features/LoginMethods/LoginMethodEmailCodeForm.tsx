@@ -1,8 +1,9 @@
-import { Alert, Field, Input, Stack } from "@chakra-ui/react";
+import { Alert, Field, Stack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/src/components/ui/Button";
+import { Input } from "@/src/components/ui/FormControls";
 
 const verificationCodeSchema = z.object({
   code: z.string().min(1, "確認コードを入力してください"),
@@ -48,6 +49,7 @@ export function LoginMethodEmailCodeForm({
         <Field.Label>確認コード</Field.Label>
         <Input
           inputMode="numeric"
+          autocompletePolicy="auth"
           autoComplete="one-time-code"
           placeholder="123456"
           disabled={isBusy}

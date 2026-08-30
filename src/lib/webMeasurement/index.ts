@@ -139,16 +139,6 @@ export function trackPublicCta(ctaId: PublicCtaId, pathname = window.location.pa
   );
 }
 
-export function trackDemoValueReached(pathname = window.location.pathname): boolean {
-  if (!documentContext || !isGtmInitialized()) return false;
-  const route = classifyWebMeasurementRoute(pathname);
-  if (route.surface !== "measured_public" || route.routeFamily !== "demo_flow") return false;
-
-  return pushGtmEvent(
-    serializeWebMeasurementEvent({ kind: "demo_value_reached", routeFamily: "demo_flow" }, documentContext.context),
-  );
-}
-
 export function stopDocumentWebMeasurement(): void {
   stopGTM();
   documentContext = null;

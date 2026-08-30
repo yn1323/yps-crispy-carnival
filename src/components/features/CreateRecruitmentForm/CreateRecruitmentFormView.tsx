@@ -170,8 +170,11 @@ export const CreateRecruitmentFormView = ({
       onSubmit={onSubmit}
       style={{ display: "flex", flex: 1, flexDirection: "column", minHeight: 0 }}
     >
+      {/* biome-ignore lint/correctness/noRestrictedElements: Hidden form values are not user-editable fields. */}
       <input type="hidden" {...hiddenFields.periodStart} />
+      {/* biome-ignore lint/correctness/noRestrictedElements: Hidden form values are not user-editable fields. */}
       <input type="hidden" {...hiddenFields.periodEnd} />
+      {/* biome-ignore lint/correctness/noRestrictedElements: Hidden form values are not user-editable fields. */}
       <input type="hidden" {...hiddenFields.deadline} />
 
       <StepperDialogContent steps={steps} currentStep={currentStep} actions={actions} showSteps={!isPeriodOnly}>

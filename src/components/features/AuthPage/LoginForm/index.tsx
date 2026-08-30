@@ -1,7 +1,8 @@
-import { Field, Flex, Input, Stack, Text } from "@chakra-ui/react";
+import { Field, Flex, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Button } from "@/src/components/ui/Button";
+import { Input } from "@/src/components/ui/FormControls";
 import { AuthError, AuthModeLink, OAuthSection, PasswordInput } from "../AuthFormControls";
 import { type LoginValues, loginSchema } from "./schema";
 
@@ -42,12 +43,18 @@ export function LoginForm({
       <AuthError message={errorMessage} />
       <Field.Root invalid={!!errors.email}>
         <Field.Label>メールアドレス</Field.Label>
-        <Input type="email" autoComplete="email" placeholder="login@example.com" {...register("email")} />
+        <Input
+          type="email"
+          autocompletePolicy="auth"
+          autoComplete="email"
+          placeholder="login@example.com"
+          {...register("email")}
+        />
         <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
       </Field.Root>
       <Field.Root invalid={!!errors.password}>
         <Field.Label>パスワード</Field.Label>
-        <PasswordInput autoComplete="current-password" {...register("password")} />
+        <PasswordInput autocompletePolicy="auth" autoComplete="current-password" {...register("password")} />
         <Field.ErrorText>{errors.password?.message}</Field.ErrorText>
       </Field.Root>
       <Flex justify="end">

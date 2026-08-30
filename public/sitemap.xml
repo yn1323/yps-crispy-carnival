@@ -70,9 +70,6 @@
     <loc>https://shiftori.app/contact</loc>
   </url>
   <url>
-    <loc>https://shiftori.app/demo/flow</loc>
-  </url>
-  <url>
     <loc>https://shiftori.app/demo/shiftboard</loc>
   </url>
   <url>
@@ -80,6 +77,9 @@
   </url>
   <url>
     <loc>https://shiftori.app/help</loc>
+  </url>
+  <url>
+    <loc>https://shiftori.app/help/access-multiple-organizations</loc>
   </url>
   <url>
     <loc>https://shiftori.app/help/basics/organization-structure</loc>

@@ -11,8 +11,6 @@ export const publicCtaIds = [
   "hero_help",
   "bottom_signup",
   "bottom_help",
-  "feature_demo",
-  "demo_complete_signup",
 ] as const;
 export type PublicCtaId = (typeof publicCtaIds)[number];
 
@@ -32,10 +30,6 @@ export type WebMeasurementEvent =
       kind: "public_cta";
       ctaId: PublicCtaId;
       routeFamily: MeasuredPublicRouteFamily;
-    }
-  | {
-      kind: "demo_value_reached";
-      routeFamily: "demo_flow";
     }
   | {
       kind: "web_vital";
@@ -61,13 +55,6 @@ export type SerializedWebMeasurementEvent =
       content_type: "public_cta";
       release_id: string;
       route_family: MeasuredPublicRouteFamily;
-    }
-  | {
-      event: "tutorial_complete";
-      app_environment: WebMeasurementEnvironment;
-      flow_name: "shiftori_demo";
-      release_id: string;
-      route_family: "demo_flow";
     }
   | {
       event: "web_vital";
@@ -154,13 +141,6 @@ export function serializeWebMeasurementEvent(
         ...base,
         content_id: event.ctaId,
         content_type: "public_cta",
-        route_family: event.routeFamily,
-      };
-    case "demo_value_reached":
-      return {
-        event: "tutorial_complete",
-        ...base,
-        flow_name: "shiftori_demo",
         route_family: event.routeFamily,
       };
     case "web_vital":

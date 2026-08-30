@@ -7,7 +7,6 @@ import {
   isWebMeasurementRuntimeEnabled,
   resetWebMeasurementForTests,
   stopDocumentWebMeasurement,
-  trackDemoValueReached,
   trackPublicCta,
   trackPublicPageView,
 } from ".";
@@ -103,20 +102,18 @@ describe("Web計測runtime", () => {
     ]);
   });
 
-  it("CTAとデモ価値到達を登録済みpayloadだけで送る", () => {
+  it("CTAを登録済みpayloadだけで送る", () => {
     initializeDocumentWebMeasurement({
       config: { ...config, webVitalsSampleRate: 0 },
-      currentPathname: "/demo/flow",
-      initialDocumentPathname: "/demo/flow",
+      currentPathname: "/",
+      initialDocumentPathname: "/",
       viewportWidth: 1280,
     });
 
-    expect(trackPublicCta("demo_complete_signup", "/demo/flow")).toBe(true);
-    expect(trackDemoValueReached("/demo/flow")).toBe(true);
-    expect(window.dataLayer?.slice(-2)).toEqual([
-      expect.objectContaining({ event: "select_content", content_id: "demo_complete_signup" }),
-      expect.objectContaining({ event: "tutorial_complete", flow_name: "shiftori_demo" }),
-    ]);
+    expect(trackPublicCta("hero_signup", "/")).toBe(true);
+    expect(window.dataLayer?.at(-1)).toEqual(
+      expect.objectContaining({ event: "select_content", content_id: "hero_signup" }),
+    );
   });
 
   it("Web Vitalsのdocument routeはcallback時の現在routeへ変えない", async () => {

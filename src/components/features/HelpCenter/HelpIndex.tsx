@@ -1,9 +1,10 @@
-import { Box, Container, Flex, Grid, Heading, Input, Link, SimpleGrid, Stack, Text } from "@chakra-ui/react";
+import { Box, Container, Flex, Grid, Heading, Link, SimpleGrid, Stack, Text } from "@chakra-ui/react";
 import { useEffect, useMemo, useState } from "react";
 import { LuArrowRight, LuSearch } from "react-icons/lu";
 import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
+import { Input } from "@/src/components/ui/FormControls";
 import { HelpAudienceBadge } from "./HelpAudienceBadge";
 import { HelpOrganizationStructureLinkCard, HelpScenarioLinkCard } from "./HelpScenarioCard";
 import { HelpSupport } from "./HelpSupport";
@@ -66,8 +67,8 @@ function BasicHelpLinks() {
         </Heading>
       </Stack>
       <Stack gap={3}>
-        <HelpOrganizationStructureLinkCard />
         <HelpScenarioLinkCard />
+        <HelpOrganizationStructureLinkCard />
       </Stack>
     </Box>
   );

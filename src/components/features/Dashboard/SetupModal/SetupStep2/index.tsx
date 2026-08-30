@@ -1,4 +1,4 @@
-import { Checkbox, Field, Flex, HStack, Input, Stack, Text } from "@chakra-ui/react";
+import { Checkbox, Field, Flex, HStack, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -7,6 +7,7 @@ import { normalizePromotionCode } from "@/convex/setup/constants";
 import { type ManagerProfileInput, managerProfileSchema } from "@/convex/setup/schemas";
 import { LegalDocumentLink } from "@/src/components/shared/LegalDocumentLink";
 import { Button } from "@/src/components/ui/Button";
+import { Input } from "@/src/components/ui/FormControls";
 import { useDeadlineActive } from "@/src/hooks/useDeadlineActive";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import {
@@ -195,7 +196,6 @@ export const SetupStep2 = ({
                     },
                   })}
                   autoCapitalize="characters"
-                  autoComplete="off"
                   spellCheck={false}
                   placeholder="ABC123"
                   readOnly={appliedPromotionCode !== null}

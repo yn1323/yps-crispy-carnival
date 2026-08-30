@@ -1,4 +1,4 @@
-import { Alert, Box, Checkbox, Field, Input, Link, NativeSelect, Stack, Text, Textarea } from "@chakra-ui/react";
+import { Alert, Box, Checkbox, Field, Link, Stack, Text } from "@chakra-ui/react";
 import type { FormEventHandler } from "react";
 import type { UseFormRegisterReturn } from "react-hook-form";
 import { LuCheck } from "react-icons/lu";
@@ -11,6 +11,7 @@ import { CONTACT_TYPE_OPTIONS } from "@/convex/contact/schemas";
 import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
 import { TurnstileWidget } from "@/src/components/shared/TurnstileWidget";
 import { Button } from "@/src/components/ui/Button";
+import { Input, NativeSelect, Textarea } from "@/src/components/ui/FormControls";
 
 type ContactFormFields = {
   type: UseFormRegisterReturn<"type">;
@@ -102,7 +103,6 @@ export function ContactFormView(props: ContactFormViewProps) {
             {...props.fields.name}
             bg="white"
             maxLength={CONTACT_NAME_MAX_LENGTH}
-            autoComplete="name"
             placeholder="サンプル ユーザー"
           />
           {props.errors.name && <Field.ErrorText>{props.errors.name}</Field.ErrorText>}
@@ -110,13 +110,7 @@ export function ContactFormView(props: ContactFormViewProps) {
 
         <Field.Root invalid={!!props.errors.email}>
           <Field.Label>メールアドレス</Field.Label>
-          <Input
-            {...props.fields.email}
-            bg="white"
-            type="email"
-            autoComplete="email"
-            placeholder="contact@example.com"
-          />
+          <Input {...props.fields.email} bg="white" type="email" placeholder="contact@example.com" />
           {props.errors.email && <Field.ErrorText>{props.errors.email}</Field.ErrorText>}
         </Field.Root>
 
@@ -126,7 +120,6 @@ export function ContactFormView(props: ContactFormViewProps) {
             {...props.fields.organization}
             bg="white"
             maxLength={CONTACT_ORGANIZATION_MAX_LENGTH}
-            autoComplete="organization"
             placeholder="サンプル組織"
           />
           {props.errors.organization && <Field.ErrorText>{props.errors.organization}</Field.ErrorText>}

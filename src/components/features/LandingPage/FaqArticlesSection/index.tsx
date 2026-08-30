@@ -4,8 +4,8 @@ import type { IconType } from "react-icons";
 import { LuArrowRight, LuBookOpen, LuFileSpreadsheet, LuMessageCircle, LuMonitorCheck } from "react-icons/lu";
 import type { ArticleMetadata } from "@/src/components/features/ArticleSite/articleMeta";
 import { articleMetas } from "@/src/components/features/ArticleSite/articleMeta";
-import { landingFaqs } from "@/src/components/features/HelpCenter/helpMeta";
 import { LANDING_HEADER_SCROLL_MARGIN_TOP } from "../constants";
+import { landingFaqs } from "../faqs";
 import { SectionHeading } from "../SectionHeading";
 import { splitLandingFaqAnswerSentences } from "./script";
 
@@ -46,19 +46,6 @@ export const FaqArticlesSection = () => (
                           </Fragment>
                         ))}
                       </Text>
-                      <Link
-                        href={faq.href}
-                        mt={3}
-                        color="teal.700"
-                        fontSize="sm"
-                        fontWeight="bold"
-                        display="inline-flex"
-                        alignItems="center"
-                        gap={2}
-                      >
-                        この回答をヘルプ・使い方で見る
-                        <Icon as={LuArrowRight} boxSize={4} />
-                      </Link>
                     </Accordion.ItemBody>
                   </Accordion.ItemContent>
                 </Accordion.Item>

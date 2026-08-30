@@ -32,7 +32,6 @@ const MEASURED_PUBLIC_SOURCE_PREFIXES = [
   "src/components/templates/PublicPageLayout/",
   "src/pages/articles/",
   "src/pages/contact/",
-  "src/pages/demo-flow/",
   "src/pages/demo-shift-board/",
   "src/pages/features/",
   "src/pages/help/",
@@ -40,7 +39,6 @@ const MEASURED_PUBLIC_SOURCE_PREFIXES = [
   "src/routes/articles.",
   "src/routes/articles/",
   "src/routes/contact.tsx",
-  "src/routes/demo.flow.tsx",
   "src/routes/demo.shiftboard.tsx",
   "src/routes/features.tsx",
   "src/routes/help.tsx",
@@ -510,7 +508,6 @@ describe("Web計測document境界", () => {
       ],
       ["src/components/templates/Header/index.tsx", '<MeasurementBoundaryLink href="/login"'],
       ["src/components/templates/Header/index.tsx", '<MeasurementBoundaryLink href="/signup"'],
-      ["src/components/features/Demo/ShiftoriDemoFlow/index.tsx", '<MeasurementBoundaryLink href="/signup"'],
       ["src/components/features/AccountDeletion/AccountDeletionDialog.tsx", '<MeasurementBoundaryLink href="/contact"'],
       [
         "src/components/features/Dashboard/DashboardContent/DashboardSectionUnavailable.tsx",

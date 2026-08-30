@@ -14,6 +14,7 @@ import {
   getCanonicalRoute,
   LEGACY_HELP_ROUTE_REDIRECTS,
   NOINDEX_PUBLIC_ROUTES,
+  RETIRED_PUBLIC_ROUTE_REDIRECTS,
   routeToHtmlPath,
   STATIC_CLIENT_OUTPUT_DIR,
 } from "./staticSite";
@@ -335,8 +336,9 @@ function assertCloudflareFiles(publicRoutes: string[], redirects: string, header
   assert(headers === createCloudflareHeaders(publicRoutes), "_headers differs from the route manifest");
 
   const rules = parseRedirectRules(redirects);
+  const permanentRedirects = [...LEGACY_HELP_ROUTE_REDIRECTS, ...RETIRED_PUBLIC_ROUTE_REDIRECTS];
   const expectedPermanentRedirects = new Set(
-    LEGACY_HELP_ROUTE_REDIRECTS.map(({ source, target, status }) => `${source} ${target} ${status}`),
+    permanentRedirects.map(({ source, target, status }) => `${source} ${target} ${status}`),
   );
   assert(
     rules.every(
@@ -345,7 +347,7 @@ function assertCloudflareFiles(publicRoutes: string[], redirects: string, header
     ),
     "redirect rules must be known permanent redirects or 200 proxies",
   );
-  for (const { source, target, status } of LEGACY_HELP_ROUTE_REDIRECTS) {
+  for (const { source, target, status } of permanentRedirects) {
     assert(
       rules.filter((rule) => rule[0] === source && rule[1] === target && rule[2] === String(status)).length === 1,
       `${source} must redirect exactly once to ${target}`,

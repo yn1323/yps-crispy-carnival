@@ -417,12 +417,14 @@ async function seedOperationalData(
     );
   } else if (scenario.key === "trial-daily") {
     const keys = Object.keys(windows) as DevelopmentSeedRecruitmentWindowKey[];
-    for (const key of keys) {
-      recruitmentIds.push(
-        await insertRecruitment(writer, shops[0], windows[key], now, {
-          withAssignments: windows[key].status === "confirmed" || key === "actionRequired",
-        }),
-      );
+    for (const shop of shops) {
+      for (const key of keys) {
+        recruitmentIds.push(
+          await insertRecruitment(writer, shop, windows[key], now, {
+            withAssignments: windows[key].status === "confirmed" || key === "actionRequired",
+          }),
+        );
+      }
     }
   } else {
     recruitmentIds.push(
@@ -444,7 +446,7 @@ async function seedRegistrationData(
   const email = seedEmail(`${scenario.key}-approval-pending`);
   await writer.insert("staffRegistrationRequests", {
     shopId: firstShopId,
-    name: scenario.key === "free-capacity" ? "[SEED] 上限で承認不可" : "鳥沢野 美月",
+    name: scenario.key === "free-capacity" ? "[SEED] 上限で承認不可" : "佐々木 由佳",
     email,
     emailNormalized: email,
     status: "pending",

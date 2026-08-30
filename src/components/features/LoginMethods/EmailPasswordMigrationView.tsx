@@ -1,9 +1,10 @@
-import { Alert, Field, Input, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Alert, Field, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { requiredEmailSchema } from "@/convex/_lib/validation";
 import { EMAIL_MAX_LENGTH } from "@/convex/constants";
+import { Input } from "@/src/components/ui/FormControls";
 import { LoginMethodEmailCodeForm } from "./LoginMethodEmailCodeForm";
 import { MigrationFeedbackError } from "./LoginMethodMigrationState";
 import { type PasswordSetupValues, passwordSetupSchema } from "./passwordSchema";
@@ -64,6 +65,7 @@ function EmailChoiceStep({ controller }: { controller: EmailPasswordMigrationCon
         <Field.Label>メールアドレス</Field.Label>
         <Input
           type="email"
+          autocompletePolicy="auth"
           autoComplete="email"
           placeholder="login@example.com"
           maxLength={EMAIL_MAX_LENGTH}
@@ -123,6 +125,7 @@ function PasswordStep({ controller }: { controller: EmailPasswordMigrationContro
         <Field.Label>新しいパスワード</Field.Label>
         <Input
           type="password"
+          autocompletePolicy="auth"
           autoComplete="new-password"
           placeholder="******"
           disabled={busy}
@@ -134,6 +137,7 @@ function PasswordStep({ controller }: { controller: EmailPasswordMigrationContro
         <Field.Label>新しいパスワード（確認）</Field.Label>
         <Input
           type="password"
+          autocompletePolicy="auth"
           autoComplete="new-password"
           placeholder="******"
           disabled={busy}

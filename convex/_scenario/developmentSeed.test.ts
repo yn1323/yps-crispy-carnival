@@ -165,13 +165,13 @@ describe("development seed rebuild", () => {
     expect(preflight.scenarioKeys).toEqual(DEVELOPMENT_SEED_SCENARIO_KEYS);
     expect(verification).toEqual({
       contractVersion: "development-seed-v4",
-      contractFingerprint: "5a10ca20",
+      contractFingerprint: "b41c8bee",
       scenarioCount: 9,
       tableCount: 66,
       organizationCount: 9,
-      shopCount: 11,
-      staffCount: 163,
-      recruitmentCount: 17,
+      shopCount: 12,
+      staffCount: 169,
+      recruitmentCount: 22,
       openFailureCount: 1,
       activeOutboxCount: 0,
       activeFanoutCount: 0,
@@ -266,17 +266,17 @@ describe("development seed rebuild", () => {
         peopleCount: 9,
         activeManagerCount: 1,
         peopleNames: [
-          "波留野 澄人",
-          "小庭井 美澄",
-          "水代谷 朔",
-          "野依田 千景",
-          "古瀬戸 透里",
-          "月守 奈緒",
-          "霞野 直",
-          "森澄 ひより",
-          "羽路木 圭",
+          "佐藤 健一",
+          "田中 美咲",
+          "鈴木 翔太",
+          "高橋 里奈",
+          "伊藤 拓也",
+          "山本 彩",
+          "中村 直樹",
+          "小林 愛",
+          "加藤 蓮",
         ].sort(),
-        staffCountsByShop: [9],
+        staffCountsByShop: [9, 6],
       },
     });
     expect(Math.max(...Object.values(usageByOrganization).map((usage) => usage.activeManagerCount))).toBe(5);
@@ -425,8 +425,8 @@ describe("development seed rebuild", () => {
     ]);
     expect(freeRequests).toEqual([expect.objectContaining({ name: "[SEED] 上限で承認不可", canApprove: true })]);
     expect(trialRequests).toEqual([
-      expect.objectContaining({ name: "鳥沢野 美月", canApprove: true }),
-      expect.objectContaining({ name: "小庭井 美澄", canApprove: false }),
+      expect.objectContaining({ name: "佐々木 由佳", canApprove: true }),
+      expect.objectContaining({ name: "田中 美咲", canApprove: false }),
     ]);
     await expect(
       primaryManager.mutation(api.staffRegistration.mutations.approveRequest, {
