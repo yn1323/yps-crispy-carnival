@@ -1,7 +1,11 @@
 import { Box, Container, chakra, Flex, Grid, Heading, HStack, Link, SimpleGrid, Stack, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
-import { LuArrowLeft, LuArrowRight, LuCheck, LuPlay, LuUsers } from "react-icons/lu";
+import { LuArrowLeft, LuArrowRight, LuCheck, LuUsers } from "react-icons/lu";
 import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
+import addStaffVideoUrl from "./assets/shift-management/add-staff.mp4?url";
+import buildAndConfirmShiftVideoUrl from "./assets/shift-management/build-and-confirm-shift.mp4?url";
+import createRecruitmentVideoUrl from "./assets/shift-management/create-recruitment.mp4?url";
+import submitShiftPreferencesVideoUrl from "./assets/shift-management/submit-shift-preferences.mp4?url";
 import { ConfirmationNotificationExample } from "./ConfirmationNotificationExample";
 import { HelpAudienceBadge } from "./HelpAudienceBadge";
 import { HelpSupport } from "./HelpSupport";
@@ -15,14 +19,12 @@ const FLOW_STEPS = [
   { id: "check-notification", number: 4, label: "スタッフへ通知" },
 ] as const;
 
-type ScenarioVideoSource = { src: string; captionsSrc: string } | { src?: never; captionsSrc?: never };
-
 const SCENARIO_VIDEOS = {
-  addStaff: {},
-  createRecruitment: {},
-  submitRequests: {},
-  buildAndConfirm: {},
-} satisfies Record<string, ScenarioVideoSource>;
+  addStaff: addStaffVideoUrl,
+  createRecruitment: createRecruitmentVideoUrl,
+  submitRequests: submitShiftPreferencesVideoUrl,
+  buildAndConfirm: buildAndConfirmShiftVideoUrl,
+} satisfies Record<string, string>;
 
 export function HelpShiftManagementScenario() {
   return (
@@ -70,7 +72,7 @@ export function HelpShiftManagementScenario() {
                 </>
               }
             >
-              <ScenarioVideo title="募集シフトを作成する" {...SCENARIO_VIDEOS.createRecruitment} />
+              <ScenarioVideo title="募集シフトを作成する" src={SCENARIO_VIDEOS.createRecruitment} />
             </ScenarioStep>
             <ScenarioStep
               id="submit-requests"
@@ -79,7 +81,7 @@ export function HelpShiftManagementScenario() {
               title="希望シフトを提出する"
               description="スタッフは、LINEまたはメールに届いたリンクから希望シフトを提出します。"
             >
-              <ScenarioVideo title="希望シフトを提出する" {...SCENARIO_VIDEOS.submitRequests} />
+              <ScenarioVideo title="希望シフトを提出する" src={SCENARIO_VIDEOS.submitRequests} />
             </ScenarioStep>
             <ScenarioStep
               id="build-and-confirm"
@@ -94,7 +96,7 @@ export function HelpShiftManagementScenario() {
                 </>
               }
             >
-              <ScenarioVideo title="シフトを調整して確定する" {...SCENARIO_VIDEOS.buildAndConfirm} />
+              <ScenarioVideo title="シフトを調整して確定する" src={SCENARIO_VIDEOS.buildAndConfirm} />
             </ScenarioStep>
             <ScenarioStep
               id="check-notification"
@@ -172,7 +174,7 @@ function PreparationSection() {
           <LuArrowRight aria-hidden />
         </Link>
       </Stack>
-      <ScenarioVideo title="スタッフを追加する" {...SCENARIO_VIDEOS.addStaff} />
+      <ScenarioVideo title="スタッフを追加する" src={SCENARIO_VIDEOS.addStaff} />
     </Grid>
   );
 }
@@ -270,7 +272,7 @@ function ScenarioStep({
       borderColor="gray.200"
       scrollMarginTop="108px"
     >
-      <Grid templateColumns={{ base: "1fr", lg: "280px minmax(0, 1fr)" }} gap={{ base: 6, lg: 8 }}>
+      <Grid templateColumns={{ base: "1fr", lg: "340px minmax(0, 1fr)" }} gap={{ base: 6, lg: 8 }}>
         <Stack gap={3} align="flex-start">
           <HelpAudienceBadge audience={audience} />
           <HStack align="flex-start" gap={3}>
@@ -310,35 +312,23 @@ function ScenarioStep({
   );
 }
 
-function ScenarioVideo({ title, ...video }: { title: string } & ScenarioVideoSource) {
+function ScenarioVideo({ title, src }: { title: string; src: string }) {
   return (
     <Box aspectRatio="16 / 9" overflow="hidden" borderWidth="1px" borderColor="gray.200" borderRadius="lg" bg="gray.50">
-      {video.src ? (
-        <chakra.video
-          src={video.src}
-          controls
-          playsInline
-          preload="none"
-          aria-label={`${title}の動画`}
-          w="full"
-          h="full"
-          bg="black"
-        >
-          <track kind="captions" src={video.captionsSrc} srcLang="ja" label="日本語" default />
-          お使いのブラウザでは動画を再生できません。
-        </chakra.video>
-      ) : (
-        <Flex w="full" h="full" align="center" justify="center">
-          <Stack align="center" gap={3} color="gray.600">
-            <Flex align="center" justify="center" boxSize={12} borderRadius="full" bg="gray.200">
-              <LuPlay aria-hidden color="var(--chakra-colors-gray-700)" />
-            </Flex>
-            <Text fontSize="sm" fontWeight="semibold">
-              動画は準備中
-            </Text>
-          </Stack>
-        </Flex>
-      )}
+      {/* biome-ignore lint/a11y/useMediaCaption: 音声のない操作動画のため、字幕へ置き換える音声情報がない。 */}
+      <chakra.video
+        src={src}
+        controls
+        playsInline
+        preload="metadata"
+        aria-label={`${title}の動画`}
+        w="full"
+        h="full"
+        objectFit="contain"
+        bg="black"
+      >
+        お使いのブラウザでは動画を再生できません。
+      </chakra.video>
     </Box>
   );
 }

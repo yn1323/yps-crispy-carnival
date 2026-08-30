@@ -28,8 +28,8 @@ const meta = {
     layout: "fullscreen",
     vrt: { releaseFixedHeader: true },
     screenshot: {
-      // メール本文は通知PreviewのVRTで検証し、全画面スクロール合成ではiframeの描画揺れだけを除外する。
-      mask: { selector: 'iframe[title="シフト確定メールの表示例"]', color: "#f7fafc" },
+      // 動画とメール本文は個別の表示契約で検証し、全画面VRTではメディアの描画揺れだけを除外する。
+      mask: { selector: 'video, iframe[title="シフト確定メールの表示例"]', color: "#f7fafc" },
     },
   },
 } satisfies Meta<typeof HelpShiftManagementScenario>;
@@ -56,7 +56,16 @@ export const Desktop: Story = {
     await expect(canvas.getByRole("heading", { level: 2, name: "確定したシフトを通知する" })).toBeVisible();
     await expect(canvas.getAllByText("管理者")).toHaveLength(3);
     await expect(canvas.getAllByText("スタッフ")).toHaveLength(2);
-    await expect(canvas.getAllByText("動画は準備中")).toHaveLength(4);
+    for (const videoTitle of [
+      "スタッフを追加する",
+      "募集シフトを作成する",
+      "希望シフトを提出する",
+      "シフトを調整して確定する",
+    ]) {
+      await expect(canvas.getByLabelText(`${videoTitle}の動画`)).toHaveAttribute("controls");
+      await expect(canvas.getByLabelText(`${videoTitle}の動画`)).toHaveAttribute("preload", "metadata");
+    }
+    await expect(canvas.queryByText("動画は準備中")).not.toBeInTheDocument();
     await expect(canvas.getByTitle("シフト確定メールの表示例")).toHaveAttribute("sandbox", "");
     await expect(canvas.queryByText("各ステップを選択すると、ページ内の説明へ移動します。")).not.toBeInTheDocument();
     await expect(canvas.queryByText(/^完了：/)).not.toBeInTheDocument();
