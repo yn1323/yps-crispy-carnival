@@ -4118,24 +4118,23 @@ async function recoverScheduledPaidPlanChange(
     throw new Error("paid_plan_change_period_invalid");
   }
 
-  let scheduleId =
-    operation.stripeObjectId ?? stripeObjectId(current.schedule) ?? context.subscription.stripeSubscriptionScheduleId;
+  let scheduleId = operation.stripeObjectId;
   let schedule = scheduleId
     ? await stripe.subscriptionSchedules.retrieve(scheduleId)
     : await stripe.subscriptionSchedules.create(
-        {
-          from_subscription: current.id,
-          metadata: stripeMetadata({
-            organizationId: context.organizationId,
-            operationId: operation.operationId,
-            providerGeneration: persisted.providerGeneration,
-            priceId: persisted.targetStripePriceIdSnapshot,
-          }),
-        },
+        { from_subscription: current.id },
         { idempotencyKey: `${operation.stripeIdempotencyKey}:create` },
       );
   scheduleId = schedule.id;
-  assertPaidPlanChangeSchedule(schedule, context, persisted, operation.operationId, scheduleId);
+  assertPaidPlanChangeScheduleConfigurable(schedule, {
+    scheduleId,
+    subscriptionId: persisted.stripeSubscriptionIdSnapshot,
+    organizationId: context.organizationId,
+    sourceOperationId: operation.operationId,
+    providerGeneration: persisted.providerGeneration,
+    targetStripePriceId: persisted.targetStripePriceIdSnapshot,
+    livemode: persisted.livemode,
+  });
   if (schedule.status === "released" && currentItem.price.id !== persisted.targetStripePriceIdSnapshot) {
     throw new Error("released_schedule_target_not_applied");
   }
@@ -4195,8 +4194,8 @@ async function recoverScheduledPaidPlanChange(
       },
       { idempotencyKey: `${operation.stripeIdempotencyKey}:configure` },
     );
-    assertPaidPlanChangeSchedule(schedule, context, persisted, operation.operationId, scheduleId);
   }
+  assertPaidPlanChangeSchedule(schedule, context, persisted, operation.operationId, scheduleId);
   if (
     !schedule.phases.some(
       (phase) =>
@@ -4356,28 +4355,68 @@ function assertPaidPlanChangeSchedule(
   });
 }
 
-function assertPaidPlanChangeScheduleEvidence(
+type PaidPlanChangeScheduleEvidence = {
+  scheduleId: string;
+  subscriptionId: string;
+  organizationId: Id<"organizations">;
+  sourceOperationId: Id<"organizationStripeOperations">;
+  providerGeneration: number;
+  targetStripePriceId: string;
+  livemode: boolean;
+};
+
+const PAID_PLAN_CHANGE_SCHEDULE_METADATA_KEYS = [
+  "shiftori_organization_id",
+  "shiftori_operation_id",
+  "shiftori_provider_generation",
+  "shiftori_price_id",
+] as const;
+
+function assertPaidPlanChangeScheduleRelationship(
   schedule: Stripe.SubscriptionSchedule,
-  expected: {
-    scheduleId: string;
-    subscriptionId: string;
-    organizationId: Id<"organizations">;
-    sourceOperationId: Id<"organizationStripeOperations">;
-    providerGeneration: number;
-    targetStripePriceId: string;
-    livemode: boolean;
-  },
+  expected: PaidPlanChangeScheduleEvidence,
 ) {
   if (
     schedule.id !== expected.scheduleId ||
     schedule.livemode !== expected.livemode ||
     schedule.status === "canceled" ||
-    subscriptionScheduleSubscriptionId(schedule) !== expected.subscriptionId ||
-    schedule.metadata?.shiftori_organization_id !== String(expected.organizationId) ||
-    schedule.metadata?.shiftori_operation_id !== String(expected.sourceOperationId) ||
-    schedule.metadata?.shiftori_provider_generation !== String(expected.providerGeneration) ||
-    schedule.metadata?.shiftori_price_id !== expected.targetStripePriceId
+    subscriptionScheduleSubscriptionId(schedule) !== expected.subscriptionId
   ) {
+    throw new Error("subscription_schedule_relationship_invalid");
+  }
+}
+
+function hasPaidPlanChangeScheduleMetadataEvidence(
+  schedule: Stripe.SubscriptionSchedule,
+  expected: PaidPlanChangeScheduleEvidence,
+) {
+  return (
+    schedule.metadata?.shiftori_organization_id === String(expected.organizationId) &&
+    schedule.metadata?.shiftori_operation_id === String(expected.sourceOperationId) &&
+    schedule.metadata?.shiftori_provider_generation === String(expected.providerGeneration) &&
+    schedule.metadata?.shiftori_price_id === expected.targetStripePriceId
+  );
+}
+
+function assertPaidPlanChangeScheduleConfigurable(
+  schedule: Stripe.SubscriptionSchedule,
+  expected: PaidPlanChangeScheduleEvidence,
+) {
+  assertPaidPlanChangeScheduleRelationship(schedule, expected);
+  const hasAnyOwnershipMetadata = PAID_PLAN_CHANGE_SCHEDULE_METADATA_KEYS.some(
+    (key) => schedule.metadata?.[key] !== undefined,
+  );
+  if (hasAnyOwnershipMetadata && !hasPaidPlanChangeScheduleMetadataEvidence(schedule, expected)) {
+    throw new Error("subscription_schedule_relationship_invalid");
+  }
+}
+
+function assertPaidPlanChangeScheduleEvidence(
+  schedule: Stripe.SubscriptionSchedule,
+  expected: PaidPlanChangeScheduleEvidence,
+) {
+  assertPaidPlanChangeScheduleRelationship(schedule, expected);
+  if (!hasPaidPlanChangeScheduleMetadataEvidence(schedule, expected)) {
     throw new Error("subscription_schedule_relationship_invalid");
   }
 }
@@ -4728,19 +4767,11 @@ async function scheduleProToStandard(
       return unavailable(operation.conflict ? "in_progress" : "request_already_used");
     }
     leaseToken = requireOperationLease(operation);
-    scheduleId = operation.stripeObjectId ?? stripeObjectId(current.schedule) ?? undefined;
+    scheduleId = operation.stripeObjectId ?? undefined;
     let schedule = scheduleId
       ? await stripe.subscriptionSchedules.retrieve(scheduleId)
       : await stripe.subscriptionSchedules.create(
-          {
-            from_subscription: current.id,
-            metadata: stripeMetadata({
-              organizationId: context.organizationId,
-              operationId: operation.operationId,
-              providerGeneration: context.providerGeneration,
-              priceId: configuration.standardPriceId,
-            }),
-          },
+          { from_subscription: current.id },
           { idempotencyKey: `${operation.stripeIdempotencyKey}:create` },
         );
     scheduleId = schedule.id;
@@ -4753,8 +4784,8 @@ async function scheduleProToStandard(
       targetStripePriceId: configuration.standardPriceId,
       livemode: configuration.livemode,
     };
-    // 既存Scheduleはmetadataでこのoperationの所有物と確認できる場合だけ再利用する。
-    assertPaidPlanChangeScheduleEvidence(schedule, expectedSchedule);
+    // create直後はmetadataが未設定なので、関係と競合metadataを検証してからoperationへ固定する。
+    assertPaidPlanChangeScheduleConfigurable(schedule, expectedSchedule);
     if (schedule.status === "released") throw new Error("subscription_schedule_already_released");
     const bound = await ctx.runMutation(internal.organizationStripe.mutations.bindPlanChangeProviderObject, {
       operationId: operation.operationId,
