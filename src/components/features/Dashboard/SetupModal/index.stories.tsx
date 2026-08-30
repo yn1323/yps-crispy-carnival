@@ -126,11 +126,13 @@ export const PromotionCodeValidationAndNormalization: Story = {
     await expect(promotionCode).toHaveValue("AB12CD");
     await expect(promotionCode).toHaveAttribute("readonly");
     await expect(dialog.getByText("無料のProプランを適用")).toBeVisible();
+    await expect(dialog.queryByRole("button", { name: "入力をやめる" })).not.toBeInTheDocument();
 
     await userEvent.click(dialog.getByRole("button", { name: "戻る" }));
     await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
     await expect(dialog.getByText("無料のProプランを適用")).toBeVisible();
     await expect(dialog.getByRole("textbox", { name: "プロモーションコード（任意）" })).toHaveAttribute("readonly");
+    await expect(dialog.queryByRole("button", { name: "入力をやめる" })).not.toBeInTheDocument();
 
     await userEvent.click(dialog.getByRole("button", { name: "変更する" }));
     await expect(dialog.getByRole("textbox", { name: "プロモーションコード（任意）" })).not.toHaveAttribute("readonly");

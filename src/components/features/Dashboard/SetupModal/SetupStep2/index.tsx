@@ -241,18 +241,20 @@ export const SetupStep2 = ({
                 </Text>
               ) : null}
             </Field.Root>
-            <Flex justify="flex-end">
-              <Button
-                type="button"
-                variant="ghost"
-                colorPalette="gray"
-                size="sm"
-                disabled={isVerifyingPromotionCode}
-                onClick={stopPromotionCodeInput}
-              >
-                入力をやめる
-              </Button>
-            </Flex>
+            {appliedPromotionCode === null && (
+              <Flex justify="flex-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  colorPalette="gray"
+                  size="sm"
+                  disabled={isVerifyingPromotionCode}
+                  onClick={stopPromotionCodeInput}
+                >
+                  入力をやめる
+                </Button>
+              </Flex>
+            )}
           </Stack>
         ) : (
           <Flex justify="flex-end">
