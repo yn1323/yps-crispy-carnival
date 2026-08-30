@@ -6,7 +6,7 @@ import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
 
 export function FeaturesPage() {
   return (
-    <PublicPageLayout headerProps={{ showLinks: false, showLogin: false }}>
+    <PublicPageLayout>
       <Container maxW="7xl" pt={{ base: 4, md: 6 }} pb={{ base: 6, md: 8 }}>
         <Link href="/" color="teal.700" textStyle="sm" fontWeight="bold" _hover={{ opacity: 0.8 }}>
           ← TOPへ

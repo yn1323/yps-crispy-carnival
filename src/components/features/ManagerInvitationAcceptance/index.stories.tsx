@@ -250,6 +250,10 @@ export const LoginBehavior: Story = {
   render: (args) => <LoginBehaviorStory {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const header = within(canvas.getByRole("banner"));
+
+    await expect(header.queryByRole("link", { name: "ログイン" })).not.toBeInTheDocument();
+    await expect(header.queryByRole("link", { name: "シフトリをはじめる" })).not.toBeInTheDocument();
     await userEvent.click(canvas.getByRole("button", { name: "すでにアカウントを持っている" }));
     await expect(canvas.getByText("ログイン画面への遷移を要求しました")).toBeInTheDocument();
   },

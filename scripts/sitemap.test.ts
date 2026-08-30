@@ -11,6 +11,7 @@ import {
   CSR_SHELL_STATIC_ROUTES,
   collectPublicRoutes,
   getIndexableCanonicalRoutes,
+  HELP_TASK_ROUTES,
   NOINDEX_PUBLIC_ROUTES,
 } from "./staticSite";
 
@@ -33,6 +34,9 @@ describe("sitemap generator", () => {
     expect(paths).not.toContain("/articles/line-shift-collection-guide");
     expect(paths).not.toContain("/pricing");
     expect(paths).toContain("/help");
+    for (const taskRoute of HELP_TASK_ROUTES) {
+      expect(paths).toContain(taskRoute);
+    }
     expect(paths.some((path) => path.startsWith("/help/"))).toBe(true);
     expect(paths).not.toContain("/faq");
     expect(paths).not.toContain("/howto");

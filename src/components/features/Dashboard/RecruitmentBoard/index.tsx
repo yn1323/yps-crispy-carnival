@@ -64,7 +64,7 @@ export const RecruitmentBoard = ({
     : (createRecruitmentDisabledReason ?? "現在、募集を作成できません");
   const resolvedEmptyState = emptyState ?? {
     title: `${title}はまだありません`,
-    description: "シフト期間と提出期限を決めて、スタッフに希望を聞きましょう。",
+    description: "",
     actionLabel: "はじめての募集をつくる",
   };
   const isPastFirstPageLoading = isPastRecruitmentsVisible && pastStatus === "LoadingFirstPage";

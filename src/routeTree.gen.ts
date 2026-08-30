@@ -59,6 +59,9 @@ import { Route as UnregisteredShiftsSubmitRouteImport } from './routes/_unregist
 import { Route as UnregisteredShiftsViewRouteImport } from './routes/_unregistered/shifts.view'
 import { Route as UnregisteredStaffRegisterRouteImport } from './routes/_unregistered/staff.register'
 import { Route as ArticlesCategoriesCategorySlugRouteImport } from './routes/articles.categories.$categorySlug'
+import { Route as HelpBasicsOrganizationStructureRouteImport } from './routes/help.basics.organization-structure'
+import { Route as HelpScenariosShiftManagementRouteImport } from './routes/help.scenarios.shift-management'
+import { Route as HelpTasksTaskIdRouteImport } from './routes/help.tasks.$taskId'
 import { Route as AuthAppManageBillingRouteImport } from './routes/_auth/app_.manage_.billing'
 import { Route as AuthAppManageManagersRouteImport } from './routes/_auth/app_.manage_.managers'
 import { Route as AuthAppManageOrganizationRouteImport } from './routes/_auth/app_.manage_.organization'
@@ -330,6 +333,23 @@ const ArticlesCategoriesCategorySlugRoute =
     path: '/categories/$categorySlug',
     getParentRoute: () => ArticlesRoute,
   } as any)
+const HelpBasicsOrganizationStructureRoute =
+  HelpBasicsOrganizationStructureRouteImport.update({
+    id: '/basics/organization-structure',
+    path: '/basics/organization-structure',
+    getParentRoute: () => HelpRoute,
+  } as any)
+const HelpScenariosShiftManagementRoute =
+  HelpScenariosShiftManagementRouteImport.update({
+    id: '/scenarios/shift-management',
+    path: '/scenarios/shift-management',
+    getParentRoute: () => HelpRoute,
+  } as any)
+const HelpTasksTaskIdRoute = HelpTasksTaskIdRouteImport.update({
+  id: '/tasks/$taskId',
+  path: '/tasks/$taskId',
+  getParentRoute: () => HelpRoute,
+} as any)
 const AuthAppManageBillingRoute = AuthAppManageBillingRouteImport.update({
   id: '/app_/manage_/billing',
   path: '/app/manage/billing',
@@ -477,6 +497,9 @@ export interface FileRoutesByFullPath {
   '/shifts/view': typeof UnregisteredShiftsViewRoute
   '/staff/register': typeof UnregisteredStaffRegisterRoute
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
+  '/help/basics/organization-structure': typeof HelpBasicsOrganizationStructureRoute
+  '/help/scenarios/shift-management': typeof HelpScenariosShiftManagementRoute
+  '/help/tasks/$taskId': typeof HelpTasksTaskIdRoute
   '/app/manage/billing': typeof AuthAppManageBillingRoute
   '/app/manage/managers': typeof AuthAppManageManagersRoute
   '/app/manage/organization': typeof AuthAppManageOrganizationRoute
@@ -542,6 +565,9 @@ export interface FileRoutesByTo {
   '/shifts/view': typeof UnregisteredShiftsViewRoute
   '/staff/register': typeof UnregisteredStaffRegisterRoute
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
+  '/help/basics/organization-structure': typeof HelpBasicsOrganizationStructureRoute
+  '/help/scenarios/shift-management': typeof HelpScenariosShiftManagementRoute
+  '/help/tasks/$taskId': typeof HelpTasksTaskIdRoute
   '/app/manage/billing': typeof AuthAppManageBillingRoute
   '/app/manage/managers': typeof AuthAppManageManagersRoute
   '/app/manage/organization': typeof AuthAppManageOrganizationRoute
@@ -612,6 +638,9 @@ export interface FileRoutesById {
   '/_unregistered/shifts/view': typeof UnregisteredShiftsViewRoute
   '/_unregistered/staff/register': typeof UnregisteredStaffRegisterRoute
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
+  '/help/basics/organization-structure': typeof HelpBasicsOrganizationStructureRoute
+  '/help/scenarios/shift-management': typeof HelpScenariosShiftManagementRoute
+  '/help/tasks/$taskId': typeof HelpTasksTaskIdRoute
   '/_auth/app_/manage_/billing': typeof AuthAppManageBillingRoute
   '/_auth/app_/manage_/managers': typeof AuthAppManageManagersRoute
   '/_auth/app_/manage_/organization': typeof AuthAppManageOrganizationRoute
@@ -681,6 +710,9 @@ export interface FileRouteTypes {
     | '/shifts/view'
     | '/staff/register'
     | '/articles/categories/$categorySlug'
+    | '/help/basics/organization-structure'
+    | '/help/scenarios/shift-management'
+    | '/help/tasks/$taskId'
     | '/app/manage/billing'
     | '/app/manage/managers'
     | '/app/manage/organization'
@@ -746,6 +778,9 @@ export interface FileRouteTypes {
     | '/shifts/view'
     | '/staff/register'
     | '/articles/categories/$categorySlug'
+    | '/help/basics/organization-structure'
+    | '/help/scenarios/shift-management'
+    | '/help/tasks/$taskId'
     | '/app/manage/billing'
     | '/app/manage/managers'
     | '/app/manage/organization'
@@ -815,6 +850,9 @@ export interface FileRouteTypes {
     | '/_unregistered/shifts/view'
     | '/_unregistered/staff/register'
     | '/articles/categories/$categorySlug'
+    | '/help/basics/organization-structure'
+    | '/help/scenarios/shift-management'
+    | '/help/tasks/$taskId'
     | '/_auth/app_/manage_/billing'
     | '/_auth/app_/manage_/managers'
     | '/_auth/app_/manage_/organization'
@@ -1213,6 +1251,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ArticlesCategoriesCategorySlugRouteImport
       parentRoute: typeof ArticlesRoute
     }
+    '/help/basics/organization-structure': {
+      id: '/help/basics/organization-structure'
+      path: '/basics/organization-structure'
+      fullPath: '/help/basics/organization-structure'
+      preLoaderRoute: typeof HelpBasicsOrganizationStructureRouteImport
+      parentRoute: typeof HelpRoute
+    }
+    '/help/scenarios/shift-management': {
+      id: '/help/scenarios/shift-management'
+      path: '/scenarios/shift-management'
+      fullPath: '/help/scenarios/shift-management'
+      preLoaderRoute: typeof HelpScenariosShiftManagementRouteImport
+      parentRoute: typeof HelpRoute
+    }
+    '/help/tasks/$taskId': {
+      id: '/help/tasks/$taskId'
+      path: '/tasks/$taskId'
+      fullPath: '/help/tasks/$taskId'
+      preLoaderRoute: typeof HelpTasksTaskIdRouteImport
+      parentRoute: typeof HelpRoute
+    }
     '/_auth/app_/manage_/billing': {
       id: '/_auth/app_/manage_/billing'
       path: '/app/manage/billing'
@@ -1449,11 +1508,17 @@ const ArticlesRouteWithChildren = ArticlesRoute._addFileChildren(
 interface HelpRouteChildren {
   HelpSlugRoute: typeof HelpSlugRoute
   HelpIndexRoute: typeof HelpIndexRoute
+  HelpBasicsOrganizationStructureRoute: typeof HelpBasicsOrganizationStructureRoute
+  HelpScenariosShiftManagementRoute: typeof HelpScenariosShiftManagementRoute
+  HelpTasksTaskIdRoute: typeof HelpTasksTaskIdRoute
 }
 
 const HelpRouteChildren: HelpRouteChildren = {
   HelpSlugRoute: HelpSlugRoute,
   HelpIndexRoute: HelpIndexRoute,
+  HelpBasicsOrganizationStructureRoute: HelpBasicsOrganizationStructureRoute,
+  HelpScenariosShiftManagementRoute: HelpScenariosShiftManagementRoute,
+  HelpTasksTaskIdRoute: HelpTasksTaskIdRoute,
 }
 
 const HelpRouteWithChildren = HelpRoute._addFileChildren(HelpRouteChildren)

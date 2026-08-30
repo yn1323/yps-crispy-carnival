@@ -9,6 +9,8 @@ import {
   DEVELOPMENT_SEED_SCENARIOS,
   DEVELOPMENT_SEED_TABLE_COVERAGE,
   DEVELOPMENT_SEED_UNION_COVERAGE,
+  getDevelopmentSeedNonManagerPersonCount,
+  getDevelopmentSeedScenario,
 } from "./catalog";
 
 describe("development seed catalog", () => {
@@ -25,8 +27,8 @@ describe("development seed catalog", () => {
   });
 
   it("CLIとdeployment backendを削除前に照合する固定契約を持つ", () => {
-    expect(DEVELOPMENT_SEED_CONTRACT_VERSION).toBe("development-seed-v2");
-    expect(DEVELOPMENT_SEED_CONTRACT_FINGERPRINT).toBe("4014fb18");
+    expect(DEVELOPMENT_SEED_CONTRACT_VERSION).toBe("development-seed-v4");
+    expect(DEVELOPMENT_SEED_CONTRACT_FINGERPRINT).toBe("5a10ca20");
     expect(DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT).toBe(66);
   });
 
@@ -40,7 +42,7 @@ describe("development seed catalog", () => {
       "payment-pending",
       "payment-failure",
       "free-over-limit",
-      "standard-over-limit",
+      "trial-daily",
     ]);
     expect(new Set(DEVELOPMENT_SEED_SCENARIO_KEYS).size).toBe(9);
   });
@@ -58,12 +60,54 @@ describe("development seed catalog", () => {
     });
   });
 
-  it("FreeとStandardの上限超過scenarioをcanonical active stateで表す", () => {
+  it("Freeの利用人数上限超過をcanonical active stateで表す", () => {
     const free = DEVELOPMENT_SEED_SCENARIOS.find((scenario) => scenario.key === "free-over-limit");
-    const standard = DEVELOPMENT_SEED_SCENARIOS.find((scenario) => scenario.key === "standard-over-limit");
 
     expect(free?.billingState()).toEqual({ kind: "active", plan: "free" });
-    expect(standard?.billingState()).toEqual({ kind: "active", plan: "standard" });
+  });
+
+  it("Trial・Pro・Standardの利用人数境界と自然名の普段使いTrialを定義する", () => {
+    const byKey = new Map(DEVELOPMENT_SEED_SCENARIOS.map((scenario) => [scenario.key, scenario]));
+    expect(byKey.get("trial-ending")).toMatchObject({
+      peopleCount: 50,
+      activeManagerCount: 2,
+      staffCountsByShop: [50],
+    });
+    expect(byKey.get("pro-notifications")).toMatchObject({
+      peopleCount: 50,
+      activeManagerCount: 2,
+      staffCountsByShop: [50],
+    });
+    expect(byKey.get("standard-operations")).toMatchObject({
+      peopleCount: 25,
+      activeManagerCount: 5,
+      staffCountsByShop: [25, 12, 6],
+    });
+
+    const daily = getDevelopmentSeedScenario("trial-daily");
+    expect(daily).toMatchObject({
+      organizationName: "合同会社シフトリノート",
+      shopNames: ["シフトリノート こもれび坂店"],
+      peopleCount: 9,
+      activeManagerCount: 1,
+      staffCountsByShop: [9],
+    });
+    expect(daily.primaryManagerName).toBe("波留野 澄人");
+    expect(daily.staffNames).toHaveLength(8);
+    expect(new Set(daily.staffNames).size).toBe(8);
+    expect(daily.staffNames?.every((name) => !name.startsWith("[SEED]"))).toBe(true);
+
+    for (const scenario of DEVELOPMENT_SEED_SCENARIOS) {
+      expect(() => getDevelopmentSeedNonManagerPersonCount(scenario)).not.toThrow();
+      expect(scenario.activeManagerCount).toBeLessThanOrEqual(5);
+    }
+
+    expect(() =>
+      getDevelopmentSeedNonManagerPersonCount({
+        ...getDevelopmentSeedScenario("standard-operations"),
+        activeManagerCount: 6,
+      }),
+    ).toThrow(/people configuration is invalid/);
   });
 
   it("主要unionの全値をseedまたは理由付き対象外へ分類する", () => {

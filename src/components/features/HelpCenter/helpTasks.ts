@@ -3,7 +3,6 @@ export const HELP_AUDIENCES = ["all", "manager", "staff"] as const;
 export type HelpAudience = (typeof HELP_AUDIENCES)[number];
 
 export const HELP_TASK_IDS = [
-  "getting-started",
   "shop-settings",
   "staff-management",
   "shift-recruitment",
@@ -16,6 +15,8 @@ export const HELP_TASK_IDS = [
 
 export type HelpTaskId = (typeof HELP_TASK_IDS)[number];
 
+export type HelpTaskHref = `/help/tasks/${HelpTaskId}`;
+
 export type HelpTask = {
   id: HelpTaskId;
   title: string;
@@ -25,13 +26,6 @@ export type HelpTask = {
 };
 
 export const HELP_TASKS = [
-  {
-    id: "getting-started",
-    title: "利用開始したい",
-    description: "アカウント作成方法を確認します",
-    audience: "manager",
-    order: 10,
-  },
   {
     id: "shop-settings",
     title: "店舗を設定したい",
@@ -69,14 +63,14 @@ export const HELP_TASKS = [
   },
   {
     id: "notifications",
-    title: "LINE・メール通知を確認したい",
+    title: "LINE・メール通知について",
     description: "通知手段、送信状況、届かない場合の確認方法を案内します",
     audience: "all",
     order: 70,
   },
   {
     id: "organization-billing",
-    title: "組織・管理者・料金を管理したい",
+    title: "組織・管理者・料金について",
     description: "組織の利用状況、管理者、プランと支払いを確認します",
     audience: "manager",
     order: 80,
@@ -92,4 +86,8 @@ export const HELP_TASKS = [
 
 export function getHelpTask(id: string): HelpTask | undefined {
   return HELP_TASKS.find((task) => task.id === id);
+}
+
+export function getHelpTaskHref(id: HelpTaskId): HelpTaskHref {
+  return `/help/tasks/${id}`;
 }

@@ -6,8 +6,6 @@ export function ArticleSiteShell({ children }: { children: ReactNode }): ReactNo
   return (
     <PublicPageLayout
       headerProps={{
-        showLinks: false,
-        showLogin: false,
         bg: "white",
         boxShadow: { base: "0 8px 20px rgba(15, 23, 42, 0.04)", md: "none" },
       }}

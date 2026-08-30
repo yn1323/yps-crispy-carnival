@@ -29,19 +29,19 @@ export const HelpCenterContent: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const firstStepsFaq = landingFaqs.find(({ href }) => href === "/help#first-steps");
-    if (!firstStepsFaq) throw new Error("Landing Page Storyにはfirst-steps FAQが必要です");
+    const [featuredFaq] = landingFaqs;
+    if (!featuredFaq) throw new Error("Landing Page Storyにはトップ掲載FAQが必要です");
 
-    await userEvent.click(canvas.getByRole("button", { name: firstStepsFaq.q }));
+    await userEvent.click(canvas.getByRole("button", { name: featuredFaq.q }));
 
-    const answer = await canvas.findByRole("region", { name: firstStepsFaq.q });
+    const answer = await canvas.findByRole("region", { name: featuredFaq.q });
     await waitFor(async () => {
       await expect(answer).toBeVisible();
     });
-    await expect(within(answer).getByRole("link", { name: "この回答をヘルプで見る" })).toHaveAttribute(
+    await expect(within(answer).getByRole("link", { name: "この回答をヘルプ・使い方で見る" })).toHaveAttribute(
       "href",
-      firstStepsFaq.href,
+      featuredFaq.href,
     );
-    await expect(canvas.getByRole("link", { name: "ヘルプを見る" })).toHaveAttribute("href", "/help");
+    await expect(canvas.getByRole("link", { name: "ヘルプ・使い方を見る" })).toHaveAttribute("href", "/help");
   },
 };

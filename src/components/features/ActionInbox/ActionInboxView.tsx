@@ -5,9 +5,9 @@ import {
   LuBellOff,
   LuCalendarClock,
   LuCalendarDays,
+  LuCheck,
   LuClock3,
   LuEllipsis,
-  LuInbox,
   LuMail,
   LuShieldAlert,
   LuStore,
@@ -234,7 +234,7 @@ export function ActionInboxView({
       <VisuallyHidden aria-live="polite">{completionAnnouncement}</VisuallyHidden>
       {visibleItems.length === 0 ? (
         hideEmpty ? null : (
-          <Empty icon={LuInbox} title="対応が必要な項目はありません" tone="brand" variant="section" />
+          <Empty icon={LuCheck} title="対応が必要な項目はありません" tone="brand" variant="section" />
         )
       ) : (
         <Stack as="section" aria-label={ariaLabel} gap={0}>

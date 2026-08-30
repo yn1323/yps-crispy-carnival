@@ -86,7 +86,7 @@ export type ManagerInvitationAcceptanceViewProps = {
 export function ManagerInvitationAcceptanceView({ state, actions }: ManagerInvitationAcceptanceViewProps) {
   return (
     <Box minH="100dvh" bgGradient="to-b" gradientFrom="teal.50" gradientVia="gray.50" gradientTo="white">
-      <Header variant="public" showLinks={false} showLogin={false} showSignup={false} />
+      <Header variant="public" showLogin={false} showSignup={false} />
       <Container
         as="main"
         maxW="2xl"

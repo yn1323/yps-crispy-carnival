@@ -12,7 +12,7 @@ type LegalPageProps = {
 
 export function LegalPage({ title, lastUpdated, children }: LegalPageProps): ReactNode {
   return (
-    <PublicPageLayout headerProps={{ showLinks: false, showLogin: false }} mainProps={{ pt: 0 }}>
+    <PublicPageLayout mainProps={{ pt: 0 }}>
       <VStack
         mx="auto"
         w="full"

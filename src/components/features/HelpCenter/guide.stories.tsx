@@ -7,7 +7,7 @@ const meta = {
   title: "Features/HelpCenter/Guide",
   component: HelpGuide,
   args: {
-    slug: "start-shift-management",
+    slug: "resolve-action-inbox",
   },
   decorators: [
     (Story) => (
@@ -45,16 +45,20 @@ type Story = StoryObj<typeof meta>;
 export const Desktop: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const firstStepsFaq = faqMetas.find(({ id }) => id === "first-steps");
-    if (!firstStepsFaq) throw new Error("Guide Storyにはfirst-steps FAQが必要です");
 
     await expect(
-      await canvas.findByRole("heading", { level: 1, name: "最初のシフト募集を始める" }, { timeout: 10_000 }),
+      await canvas.findByRole("heading", { level: 1, name: "「要対応」ページの使い方" }, { timeout: 10_000 }),
     ).toBeVisible();
-    await expect(canvas.getAllByRole("link", { name: "ヘルプ" })[0]).toHaveAttribute("href", "/help");
+    await expect(canvas.getAllByRole("link", { name: "ヘルプ・使い方" })[0]).toHaveAttribute("href", "/help");
+    await expect(canvas.getByRole("link", { name: "その他困りごと" })).toHaveAttribute(
+      "href",
+      "/help/tasks/troubleshooting",
+    );
     await expect(canvas.getAllByRole("navigation", { name: "この使い方の目次" }).length).toBeGreaterThan(0);
-    await expect(canvas.getByRole("link", { name: firstStepsFaq.title })).toHaveAttribute("href", firstStepsFaq.href);
-    await expect(canvas.getByRole("link", { name: /スタッフを追加する/ })).toHaveAttribute("href", "/help/add-staff");
+    await expect(canvas.getByRole("link", { name: "スタッフの参加申請を承認・却下する" })).toHaveAttribute(
+      "href",
+      "/help/review-staff-registration-request",
+    );
   },
 };
 
@@ -67,11 +71,9 @@ export const Mobile: Story = {
     const canvas = within(canvasElement);
 
     await expect(
-      await canvas.findByRole("heading", { level: 1, name: "最初のシフト募集を始める" }, { timeout: 10_000 }),
+      await canvas.findByRole("heading", { level: 1, name: "「要対応」ページの使い方" }, { timeout: 10_000 }),
     ).toBeVisible();
-    await expect(
-      canvas.getByText(/初回セットアップ後、管理者自身でシフト募集の作成から希望シフトの提出/),
-    ).toBeVisible();
+    await expect(canvas.getByText(/管理者の判断や操作が必要な項目を種類ごとに確認できます/)).toBeVisible();
   },
 };
 
@@ -83,7 +85,7 @@ export const NotFound: Story = {
     const canvas = within(canvasElement);
 
     await expect(await canvas.findByRole("heading", { level: 1, name: "ヘルプが見つかりません" })).toBeVisible();
-    await expect(canvas.getByRole("link", { name: "ヘルプへ戻る" })).toHaveAttribute("href", "/help");
+    await expect(canvas.getByRole("link", { name: "ヘルプ・使い方へ戻る" })).toHaveAttribute("href", "/help");
   },
 };
 

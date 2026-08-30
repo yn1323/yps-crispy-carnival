@@ -70,13 +70,8 @@ export const HeroSection = () => (
               gap={4}
               w={{ base: "full", md: "auto" }}
             >
-              <HeroButton href="/signup" label="シフトリを始める" tone="primary" measurementCtaId="hero_signup" />
-              <HeroButton
-                href="/demo/flow"
-                label="登録不要でデモを見る"
-                tone="secondary"
-                measurementCtaId="hero_demo"
-              />
+              <HeroButton href="/signup" label="シフトリをはじめる" tone="primary" measurementCtaId="hero_signup" />
+              <HeroButton href="/help" label="基本の使い方を見る" tone="secondary" measurementCtaId="hero_help" />
             </Stack>
             <TrialReassurance />
           </VStack>
@@ -113,7 +108,7 @@ const HeroButton = ({
 }: {
   href: string;
   label: string;
-  measurementCtaId: "hero_signup" | "hero_demo";
+  measurementCtaId: "hero_signup" | "hero_help";
   tone: "primary" | "secondary";
 }) => {
   const isPrimary = tone === "primary";

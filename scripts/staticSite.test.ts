@@ -13,6 +13,8 @@ import {
   FIXED_PUBLIC_ROUTES,
   getCanonicalRoute,
   getIndexableCanonicalRoutes,
+  HELP_TASK_ROUTES,
+  LEGACY_HELP_ROUTE_REDIRECTS,
   NOINDEX_PUBLIC_ROUTES,
   routeToHtmlPath,
 } from "./staticSite";
@@ -36,6 +38,7 @@ describe("static site manifest", () => {
       "/articles/$slug",
       "/articles/categories/$categorySlug",
       "/help/$slug",
+      "/help/tasks/$taskId",
       "/app/staff/order",
       "/staff/order",
       ...csrPatterns,
@@ -66,7 +69,7 @@ describe("static site manifest", () => {
       writeFileSync(join(contentRoot, "articles/shiftori-line-workflow/index.mdx"), "# Current article");
       writeFileSync(join(contentRoot, "articles/_draft/index.mdx"), "# Draft");
       writeFileSync(join(contentRoot, "categories/operations/index.mdx"), "# Operations");
-      writeFileSync(join(helpRoot, "add-staff.mdx"), "# Add staff");
+      writeFileSync(join(helpRoot, "published-help.mdx"), "# Published help");
       writeFileSync(join(helpRoot, "_draft.mdx"), "# Draft help");
       writeFileSync(join(helpRoot, "legacy-help/index.mdx"), "# Legacy help");
 
@@ -75,12 +78,20 @@ describe("static site manifest", () => {
       expect(routes).toContain("/articles/published");
       expect(routes).toContain("/articles/line-shift-collection-guide");
       expect(routes).toContain("/articles/categories/operations");
-      expect(routes).toContain("/help/add-staff");
+      expect(routes).toContain("/help/published-help");
+      expect(routes).toContain("/help/basics/organization-structure");
+      expect(routes).toContain("/help/scenarios/shift-management");
+      for (const taskRoute of HELP_TASK_ROUTES) {
+        expect(routes).toContain(taskRoute);
+      }
       expect(routes).not.toContain("/articles/missing-entry");
       expect(routes).not.toContain("/articles/_draft");
       expect(routes).not.toContain("/help/missing-entry");
       expect(routes).not.toContain("/help/_draft");
       expect(routes).not.toContain("/help/legacy-help");
+      for (const { source } of LEGACY_HELP_ROUTE_REDIRECTS.filter(({ source }) => !source.endsWith("/"))) {
+        expect(routes).not.toContain(source);
+      }
     } finally {
       rmSync(repoRoot, { recursive: true, force: true });
     }
@@ -118,6 +129,8 @@ describe("static site manifest", () => {
 
   it("sitemap対象をindex可能なcanonical URLへ重複なく畳み込む", () => {
     expect(FIXED_PUBLIC_ROUTES).toContain("/help");
+    expect(FIXED_PUBLIC_ROUTES).toContain("/help/basics/organization-structure");
+    expect(FIXED_PUBLIC_ROUTES).toContain("/help/scenarios/shift-management");
     expect(FIXED_PUBLIC_ROUTES).not.toContain("/faq");
     expect(FIXED_PUBLIC_ROUTES).not.toContain("/howto");
     expect(FIXED_PUBLIC_ROUTES).toContain("/commercial-transactions");
@@ -166,9 +179,12 @@ describe("static site manifest", () => {
     expect(routeToHtmlPath(route)).toBe(expected);
   });
 
-  it("実在する公開slash aliasとCSR routeだけを200 proxyする", () => {
+  it("旧ヘルプURLを301転送し、実在する公開slash aliasとCSR routeだけを200 proxyする", () => {
     const redirects = createCloudflareRedirects(["/", "/features", "/articles/known"]);
 
+    for (const { source, target, status } of LEGACY_HELP_ROUTE_REDIRECTS) {
+      expect(redirects).toContain(`${source} ${target} ${status}`);
+    }
     expect(redirects).toContain("/features/ /features 200");
     expect(redirects).toContain("/articles/known/ /articles/known 200");
     expect(redirects).not.toContain("/articles/:slug");

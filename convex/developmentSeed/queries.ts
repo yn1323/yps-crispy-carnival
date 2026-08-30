@@ -3,6 +3,7 @@ import type { Doc, Id, TableNames } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { assertDevelopmentSeedEnabled } from "../_lib/config";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
+import { ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/planLimits";
 import schema from "../schema";
 import { hasCanonicalStaffIdentity } from "../staff/service";
 import { requireDevelopmentSeedWorkflowState } from "./audit";
@@ -16,7 +17,6 @@ import {
   DEVELOPMENT_SEED_SCENARIOS,
   DEVELOPMENT_SEED_TABLE_COVERAGE,
   DEVELOPMENT_SEED_UNION_COVERAGE,
-  PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER,
 } from "./catalog";
 
 const VERIFY_ROW_LIMIT = 512;
@@ -95,7 +95,7 @@ export const verify = internalMutation({
     liveScheduledFunctionCount: v.number(),
   }),
   handler: async (ctx, { today, auditToken }) => {
-    assertDevelopmentSeedEnabled();
+    const configuration = assertDevelopmentSeedEnabled();
     assertSeedDate(today);
     if (Object.keys(schema.tables).length !== DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT) {
       throw new Error("Development seed table catalog count is stale");
@@ -216,7 +216,7 @@ export const verify = internalMutation({
     if (organizations.length !== DEVELOPMENT_SEED_SCENARIO_KEYS.length) {
       throw new Error("Development seed organization count is invalid");
     }
-    const primaryUser = users.find((user) => user.authTokenIdentifier === PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER);
+    const primaryUser = users.find((user) => user.authTokenIdentifier === configuration.primaryAuthTokenIdentifier);
     if (!primaryUser) throw new Error("Development seed primary user is missing");
 
     const organizationMap = new Map(organizations.map((organization) => [organization._id, organization]));
@@ -230,6 +230,8 @@ export const verify = internalMutation({
     const lineProviderUserMap = new Map(lineProviderUsers.map((providerUser) => [providerUser._id, providerUser]));
 
     for (const organization of organizations) {
+      const scenario = DEVELOPMENT_SEED_SCENARIOS.find((candidate) => candidate.organizationName === organization.name);
+      if (!scenario) throw new Error("Development seed organization scenario is unknown");
       const primaryMemberships = organizationMembers.filter(
         (membership) =>
           membership.organizationId === organization._id &&
@@ -237,6 +239,36 @@ export const verify = internalMutation({
           membership.status === "active",
       );
       if (primaryMemberships.length !== 1) throw new Error("Primary seed manager must be active in every organization");
+      const activeMemberships = organizationMembers.filter(
+        (membership) => membership.organizationId === organization._id && membership.status === "active",
+      );
+      if (
+        activeMemberships.length !== scenario.activeManagerCount ||
+        activeMemberships.length > ORGANIZATION_PLAN_LIMITS.pro.maxActiveManagers
+      ) {
+        throw new Error("Development seed active manager count is invalid");
+      }
+      const activePeople = organizationPeople.filter(
+        (person) => person.organizationId === organization._id && person.status === "active",
+      );
+      const countedPersonIds = new Set([
+        ...activeMemberships.map((membership) => membership.personId),
+        ...staffs
+          .filter((staff) => staff.organizationId === organization._id)
+          .map((staff) => staff.organizationPersonId),
+      ]);
+      if (activePeople.length !== scenario.peopleCount || countedPersonIds.size !== scenario.peopleCount) {
+        throw new Error("Development seed organization people count is invalid");
+      }
+      for (const [shopIndex, shopName] of scenario.shopNames.entries()) {
+        const shop = shops.find(
+          (candidate) => candidate.organizationId === organization._id && candidate.name === shopName,
+        );
+        if (!shop) throw new Error("Development seed scenario shop is missing");
+        if (staffs.filter((staff) => staff.shopId === shop._id).length !== scenario.staffCountsByShop[shopIndex]) {
+          throw new Error("Development seed scenario shop staff count is invalid");
+        }
+      }
       if (billingStates.filter((billing) => billing.organizationId === organization._id).length !== 1) {
         throw new Error("Every seed organization must have exactly one billing state");
       }
@@ -244,6 +276,8 @@ export const verify = internalMutation({
 
     for (const shop of shops) {
       if (!shop.organizationId) throw new Error("Seed shop organization is missing");
+      if (shop.operatingStatus !== undefined) throw new Error("Seed shop contains a legacy operating status");
+      if (shop.isDeleted) throw new Error("Seed shop must not be deleted");
       requireRecord(organizationMap, shop.organizationId, "shop organization");
     }
     for (const person of organizationPeople)
@@ -254,6 +288,7 @@ export const verify = internalMutation({
     }
     for (const staff of staffs) {
       if (!hasCanonicalStaffIdentity(staff)) throw new Error("Seed staff canonical identity is missing");
+      if (staff.isDeleted) throw new Error("Seed staff must not be deleted");
       const shop = requireRecord(shopMap, staff.shopId, "staff shop");
       const person = requireRecord(personMap, staff.organizationPersonId, "staff person");
       if (shop.organizationId !== staff.organizationId || person.organizationId !== staff.organizationId) {
@@ -398,39 +433,46 @@ export const verify = internalMutation({
       }
     }
 
-    const proOrganization = organizations.find((organization) => organization.name === "[SEED] Standard・複数店舗");
-    if (!proOrganization) throw new Error("Standard operation scenario is missing");
-    if (orderStates.filter((state) => state.organizationId === proOrganization._id).length !== 1) {
+    const standardOrganization = organizations.find(
+      (organization) => organization.name === "[SEED] Standard・25名・複数店舗",
+    );
+    if (!standardOrganization) throw new Error("Standard operation scenario is missing");
+    if (orderStates.filter((state) => state.organizationId === standardOrganization._id).length !== 1) {
       throw new Error("Standard custom staff order state is missing");
     }
-    const proActivePeople = organizationPeople.filter(
-      (person) => person.organizationId === proOrganization._id && person.status === "active",
+    const standardActivePeople = organizationPeople.filter(
+      (person) => person.organizationId === standardOrganization._id && person.status === "active",
     );
     if (
-      orderEntries.filter((entry) => entry.organizationId === proOrganization._id).length !== proActivePeople.length
+      orderEntries.filter((entry) => entry.organizationId === standardOrganization._id).length !==
+      standardActivePeople.length
     ) {
       throw new Error("Standard organization staff order is incomplete");
     }
-    if (shopOrderEntries.filter((entry) => entry.organizationId === proOrganization._id).length !== 9) {
+    const standardStaffCount = staffs.filter((staff) => staff.organizationId === standardOrganization._id).length;
+    if (
+      shopOrderEntries.filter((entry) => entry.organizationId === standardOrganization._id).length !==
+      standardStaffCount
+    ) {
       throw new Error("Standard shop staff order is incomplete");
     }
     if (
       announcements.length !== 1 ||
-      announcements[0].organizationId !== proOrganization._id ||
+      announcements[0].organizationId !== standardOrganization._id ||
       announcements[0].displayDate !== today
     ) {
       throw new Error("Development seed dashboard announcement is invalid");
     }
 
     const windows = buildDevelopmentSeedRecruitmentWindows(today);
-    const proShopIds = new Set(
-      shops.filter((shop) => shop.organizationId === proOrganization._id).map((shop) => shop._id),
+    const standardShopIds = new Set(
+      shops.filter((shop) => shop.organizationId === standardOrganization._id).map((shop) => shop._id),
     );
     for (const window of Object.values(windows)) {
       if (
         !recruitments.some(
           (recruitment) =>
-            proShopIds.has(recruitment.shopId) &&
+            standardShopIds.has(recruitment.shopId) &&
             recruitment.status === window.status &&
             recruitment.deadline === window.deadline &&
             recruitment.periodStart === window.periodStart &&

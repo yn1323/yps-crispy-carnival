@@ -3,11 +3,7 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { modules, schema } from "../_test/setup.test-helper";
-import {
-  DEVELOPMENT_SEED_SCENARIO_KEYS,
-  type DevelopmentSeedScenarioKey,
-  PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER,
-} from "../developmentSeed/catalog";
+import { DEVELOPMENT_SEED_SCENARIO_KEYS, type DevelopmentSeedScenarioKey } from "../developmentSeed/catalog";
 import { hasCurrentStaffLegalConsent } from "../legal/service";
 import { getOrganizationPersonLineState, resolveStaffLineRecipient } from "../line/service";
 import {
@@ -15,6 +11,9 @@ import {
   hasValidConfirmationSnapshotSignature,
 } from "../notification/confirmationSnapshots";
 import { getOrganizationStaffOrderScope } from "../organization/staffOrder";
+
+const CLERK_ISSUER = "https://clerk.seed.example.test";
+const PRIMARY_AUTH_TOKEN_IDENTIFIER = `${CLERK_ISSUER}|user_seedPrimary`;
 
 type PreflightResult = {
   contractVersion: string;
@@ -65,12 +64,12 @@ const clearRef = makeFunctionReference<"mutation", { tableIndex: number; auditTo
 const seedActorsRef = makeFunctionReference<
   "mutation",
   { today: string; auditToken: string },
-  { createdCount: number; primaryAuthTokenIdentifier: string }
+  { createdCount: number }
 >("developmentSeed/mutations:seedActors") as unknown as FunctionReference<
   "mutation",
   "internal",
   { today: string; auditToken: string },
-  { createdCount: number; primaryAuthTokenIdentifier: string }
+  { createdCount: number }
 >;
 const seedScenarioRef = makeFunctionReference<
   "mutation",
@@ -93,6 +92,8 @@ function configureDevelopmentSeed() {
   vi.stubEnv("CONVEX_CLOUD_URL", "https://seed-development.convex.cloud");
   vi.stubEnv("DEVELOPMENT_SEED_DEPLOYMENT_URL", "https://seed-development.convex.cloud");
   vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "dry-run");
+  vi.stubEnv("CLERK_JWT_ISSUER_DOMAIN", CLERK_ISSUER);
+  vi.stubEnv("DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER", PRIMARY_AUTH_TOKEN_IDENTIFIER);
 }
 
 async function cancelAllScheduledFunctions(t: SeedTest): Promise<string> {
@@ -122,24 +123,25 @@ async function clearAllTables(t: SeedTest, auditToken: string) {
 }
 
 async function seedAllScenarios(t: SeedTest, today: string, auditToken: string) {
-  await t.mutation(seedActorsRef, { today, auditToken });
+  const actors = await t.mutation(seedActorsRef, { today, auditToken });
   for (const scenarioKey of DEVELOPMENT_SEED_SCENARIO_KEYS) {
     await t.mutation(seedScenarioRef, { scenarioKey, today, auditToken });
   }
+  return actors;
 }
 
 async function prepareRebuild(t: SeedTest) {
   const preflight = await t.mutation(preflightRef, {});
   const auditToken = await cancelAllScheduledFunctions(t);
   await clearAllTables(t, auditToken);
-  await seedAllScenarios(t, preflight.today, auditToken);
-  return { auditToken, preflight };
+  const actors = await seedAllScenarios(t, preflight.today, auditToken);
+  return { actors, auditToken, preflight };
 }
 
 async function rebuild(t: SeedTest) {
-  const { auditToken, preflight } = await prepareRebuild(t);
+  const { actors, auditToken, preflight } = await prepareRebuild(t);
   const verification = await t.mutation(verifyRef, { today: preflight.today, auditToken });
-  return { preflight, verification };
+  return { actors, preflight, verification };
 }
 
 describe("development seed rebuild", () => {
@@ -156,18 +158,20 @@ describe("development seed rebuild", () => {
 
   it("preflightから9 scenarioと整合graphを構築しactive workflowを残さない", async () => {
     const t = convexTest(schema, modules);
-    const { preflight, verification } = await rebuild(t);
+    const { actors, preflight, verification } = await rebuild(t);
 
+    expect(actors).toEqual({ createdCount: 11 });
+    expect(actors).not.toHaveProperty("primaryAuthTokenIdentifier");
     expect(preflight.scenarioKeys).toEqual(DEVELOPMENT_SEED_SCENARIO_KEYS);
     expect(verification).toEqual({
-      contractVersion: "development-seed-v2",
-      contractFingerprint: "4014fb18",
+      contractVersion: "development-seed-v4",
+      contractFingerprint: "5a10ca20",
       scenarioCount: 9,
       tableCount: 66,
       organizationCount: 9,
       shopCount: 11,
-      staffCount: 23,
-      recruitmentCount: 12,
+      staffCount: 163,
+      recruitmentCount: 17,
       openFailureCount: 1,
       activeOutboxCount: 0,
       activeFanoutCount: 0,
@@ -181,6 +185,16 @@ describe("development seed rebuild", () => {
       ].sort(),
       outboxStatuses: (await ctx.db.query("notificationOutbox").collect()).map((row) => row.status).sort(),
       failureStatuses: (await ctx.db.query("notificationFailureInbox").collect()).map((row) => row.status).sort(),
+      legacyBillingShapeCount: (await ctx.db.query("organizationBillingStates").collect()).filter((row) => {
+        const state = row.state as unknown as Record<string, unknown>;
+        return "planIdVersion" in state || state.kind === "grace" || Object.values(state).includes("business");
+      }).length,
+      legacyShopBillingStateCount: (await ctx.db.query("shopBillingStates").collect()).length,
+      legacyShopOperatingStatusCount: (await ctx.db.query("shops").collect()).filter(
+        (shop) => shop.operatingStatus !== undefined,
+      ).length,
+      deletedShopCount: (await ctx.db.query("shops").collect()).filter((shop) => shop.isDeleted).length,
+      deletedStaffCount: (await ctx.db.query("staffs").collect()).filter((staff) => staff.isDeleted).length,
       delayedDeadlines: await ctx.db.query("notificationResendDelayedFailureDeadlines").collect(),
       auditMarkers: await ctx.db.query("rateLimits").collect(),
       activeScheduled: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
@@ -191,10 +205,81 @@ describe("development seed rebuild", () => {
       patterns: ["dateOnly", "shiftType", "time"],
       outboxStatuses: ["failed", "sent"],
       failureStatuses: ["open", "resolved"],
+      legacyBillingShapeCount: 0,
+      legacyShopBillingStateCount: 0,
+      legacyShopOperatingStatusCount: 0,
+      deletedShopCount: 0,
+      deletedStaffCount: 0,
       delayedDeadlines: [],
       auditMarkers: [],
       activeScheduled: [],
     });
+
+    const organizationUsageSummaries = await t.run(async (ctx) => {
+      const [organizations, people, members, shops, staffs] = await Promise.all([
+        ctx.db.query("organizations").collect(),
+        ctx.db.query("organizationPeople").collect(),
+        ctx.db.query("organizationMembers").collect(),
+        ctx.db.query("shops").collect(),
+        ctx.db.query("staffs").collect(),
+      ]);
+      return organizations.map((organization) => {
+        const organizationShops = shops.filter((shop) => shop.organizationId === organization._id);
+        return {
+          organizationName: organization.name,
+          peopleCount: people.filter(
+            (person) => person.organizationId === organization._id && person.status === "active",
+          ).length,
+          activeManagerCount: members.filter(
+            (member) => member.organizationId === organization._id && member.status === "active",
+          ).length,
+          peopleNames: people
+            .filter((person) => person.organizationId === organization._id && person.status === "active")
+            .map((person) => person.name)
+            .sort(),
+          staffCountsByShop: organizationShops.map(
+            (shop) => staffs.filter((staff) => staff.shopId === shop._id).length,
+          ),
+        };
+      });
+    });
+    const usageByOrganization = Object.fromEntries(
+      organizationUsageSummaries.map(({ organizationName, ...usage }) => [organizationName, usage]),
+    );
+    expect(usageByOrganization).toMatchObject({
+      "[SEED] Trial・50名・終了間近": {
+        peopleCount: 50,
+        activeManagerCount: 2,
+        staffCountsByShop: [50],
+      },
+      "[SEED] Pro・50名・通知": {
+        peopleCount: 50,
+        activeManagerCount: 2,
+        staffCountsByShop: [50],
+      },
+      "[SEED] Standard・25名・複数店舗": {
+        peopleCount: 25,
+        activeManagerCount: 5,
+        staffCountsByShop: [25, 12, 6],
+      },
+      合同会社シフトリノート: {
+        peopleCount: 9,
+        activeManagerCount: 1,
+        peopleNames: [
+          "波留野 澄人",
+          "小庭井 美澄",
+          "水代谷 朔",
+          "野依田 千景",
+          "古瀬戸 透里",
+          "月守 奈緒",
+          "霞野 直",
+          "森澄 ひより",
+          "羽路木 圭",
+        ].sort(),
+        staffCountsByShop: [9],
+      },
+    });
+    expect(Math.max(...Object.values(usageByOrganization).map((usage) => usage.activeManagerCount))).toBe(5);
 
     const productScopes = await t.run(async (ctx) => {
       const organizations = await ctx.db.query("organizations").collect();
@@ -206,10 +291,10 @@ describe("development seed rebuild", () => {
         if (!shop) throw new Error(`Missing product-query seed shop: ${organizationName}`);
         return shop._id;
       };
-      const businessOrganization = organizationByName.get("[SEED] Pro・通知");
-      const proOrganization = organizationByName.get("[SEED] Standard・複数店舗");
+      const businessOrganization = organizationByName.get("[SEED] Pro・50名・通知");
+      const proOrganization = organizationByName.get("[SEED] Standard・25名・複数店舗");
       if (!businessOrganization || !proOrganization) throw new Error("Missing product-query seed organization");
-      const businessShopId = findShop("[SEED] Pro・通知");
+      const businessShopId = findShop("[SEED] Pro・50名・通知");
       const businessPeople = await ctx.db
         .query("organizationPeople")
         .withIndex("by_organizationId_and_status", (q) =>
@@ -250,9 +335,13 @@ describe("development seed rebuild", () => {
       ]);
       const primaryUser = await ctx.db
         .query("users")
-        .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER))
+        .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", PRIMARY_AUTH_TOKEN_IDENTIFIER))
         .unique();
       if (!primaryUser) throw new Error("Missing primary seed user");
+      const primaryMemberships = await ctx.db
+        .query("organizationMembers")
+        .withIndex("by_userId_and_status", (q) => q.eq("userId", primaryUser._id).eq("status", "active"))
+        .collect();
       const primaryConsentStates = await ctx.db
         .query("legalConsentStates")
         .withIndex("by_userId", (q) => q.eq("userId", primaryUser._id))
@@ -285,12 +374,14 @@ describe("development seed rebuild", () => {
       return {
         businessShopId,
         freeShopId: findShop("[SEED] Free・上限確認"),
-        policyOverLimitShopId: findShop("[SEED] Standard・上限超過"),
+        policyOverLimitShopId: findShop("[SEED] Free・上限超過"),
         scheduledStopShopId: findShop("[SEED] Standard・解約予約"),
-        trialShopId: findShop("[SEED] Trial・終了間近"),
+        trialShopId: findShop("合同会社シフトリノート"),
         lineStatuses: lineStates.map((state) => state?.status).sort(),
         lineRecipientFollowing: lineRecipients.map((recipient) => recipient?.following).sort(),
         proOrderModes: proOrderScopes.map((scope) => scope.mode),
+        primaryManagerRole: primaryUser.role,
+        primaryManagerOrganizationIds: primaryMemberships.map((membership) => membership.organizationId).sort(),
         primaryConsentStateCount: primaryConsentStates.length,
         confirmationSignatureValid: hasValidConfirmationSnapshotSignature(confirmationSnapshot),
         confirmationMatchesCurrent: confirmationSnapshotMatchesAssignments(
@@ -309,11 +400,14 @@ describe("development seed rebuild", () => {
     expect(productScopes.lineStatuses).toEqual(["linked_following", "linked_unfollowed"]);
     expect(productScopes.lineRecipientFollowing).toEqual([false, true]);
     expect(productScopes.proOrderModes).toEqual(["ordered", "ordered", "ordered", "ordered"]);
+    expect(productScopes.primaryManagerRole).toBe("manager");
+    expect(productScopes.primaryManagerOrganizationIds).toHaveLength(9);
+    expect(new Set(productScopes.primaryManagerOrganizationIds).size).toBe(9);
     expect(productScopes.primaryConsentStateCount).toBe(1);
     expect(productScopes.confirmationSignatureValid).toBe(true);
     expect(productScopes.confirmationMatchesCurrent).toBe(false);
     expect(productScopes.confirmationNotificationGraphMatches).toBe(true);
-    const primaryManager = t.withIdentity({ tokenIdentifier: PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER });
+    const primaryManager = t.withIdentity({ tokenIdentifier: PRIMARY_AUTH_TOKEN_IDENTIFIER });
     const visibleFailures = await primaryManager.query(api.notificationOutbox.queries.listOpenFailures, {
       shopId: productScopes.businessShopId,
       paginationOpts: { numItems: 10, cursor: null },
@@ -331,8 +425,8 @@ describe("development seed rebuild", () => {
     ]);
     expect(freeRequests).toEqual([expect.objectContaining({ name: "[SEED] 上限で承認不可", canApprove: true })]);
     expect(trialRequests).toEqual([
-      expect.objectContaining({ name: "[SEED] 承認可能", canApprove: true }),
-      expect.objectContaining({ name: "[SEED] 既存スタッフのため承認不可", canApprove: false }),
+      expect.objectContaining({ name: "鳥沢野 美月", canApprove: true }),
+      expect.objectContaining({ name: "小庭井 美澄", canApprove: false }),
     ]);
     await expect(
       primaryManager.mutation(api.staffRegistration.mutations.approveRequest, {
@@ -353,7 +447,7 @@ describe("development seed rebuild", () => {
           .withIndex("by_shopId_emailNormalized_isDeleted", (q) =>
             q
               .eq("shopId", productScopes.trialShopId)
-              .eq("emailNormalized", "trial-ending-approval-pending@seed.example.test")
+              .eq("emailNormalized", "trial-daily-approval-pending@seed.example.test")
               .eq("isDeleted", false),
           )
           .unique();
@@ -375,12 +469,12 @@ describe("development seed rebuild", () => {
       nextEvent: { label: "契約終了日" },
     });
     expect(policyOverLimitSettings?.billing).toMatchObject({
-      state: "standard",
-      currentPlan: "standard",
-      peopleUsage: { current: 6, max: 25, pendingInvitations: 0 },
-      shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
-      managerUsage: { current: 6, max: 5, pendingInvitations: 0 },
-      requiredReductions: { people: 0, shops: 0, managers: 1 },
+      state: "free",
+      currentPlan: "free",
+      peopleUsage: { current: 6, max: 5, pendingInvitations: 0 },
+      shopUsage: { current: 1, max: 1, pendingInvitations: 0 },
+      managerUsage: { current: 2, max: 2, pendingInvitations: 0 },
+      requiredReductions: { people: 1, shops: 0, managers: 0 },
     });
     expect(policyOverLimitSettings).toMatchObject({
       canUpdateOrganizationName: false,

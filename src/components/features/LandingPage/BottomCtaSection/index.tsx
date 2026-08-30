@@ -1,5 +1,5 @@
 import { Box, Container, Heading, Icon, Stack, Text, VStack } from "@chakra-ui/react";
-import { LuChevronRight, LuMousePointerClick } from "react-icons/lu";
+import { LuBookOpen, LuChevronRight } from "react-icons/lu";
 import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
 import { Button } from "@/src/components/ui/Button";
 import { TrialReassurance } from "../TrialReassurance";
@@ -21,8 +21,8 @@ export const BottomCtaSection = () => (
         </Text>
         <VStack align="center" gap={3} w={{ base: "full", md: "auto" }}>
           <Stack direction={{ base: "column", md: "row" }} gap={4} w={{ base: "full", md: "auto" }}>
-            <BottomButton href="/signup" label="シフトリを始める" primary />
-            <BottomButton href="/demo/flow" label="登録不要でデモを見る" />
+            <BottomButton href="/signup" label="シフトリをはじめる" primary />
+            <BottomButton href="/help" label="基本の使い方を見る" />
           </Stack>
           <TrialReassurance />
         </VStack>
@@ -44,7 +44,7 @@ const BottomButton = ({ href, label, primary = false }: { href: string; label: s
     borderRadius="md"
     fontWeight="bold"
   >
-    <MeasurementBoundaryLink href={href} measurementCtaId={primary ? "bottom_signup" : "bottom_demo"}>
+    <MeasurementBoundaryLink href={href} measurementCtaId={primary ? "bottom_signup" : "bottom_help"}>
       {primary ? (
         <>
           {label}
@@ -52,7 +52,7 @@ const BottomButton = ({ href, label, primary = false }: { href: string; label: s
         </>
       ) : (
         <>
-          <Icon as={LuMousePointerClick} boxSize={5} />
+          <Icon as={LuBookOpen} boxSize={5} />
           {label}
         </>
       )}

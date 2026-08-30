@@ -123,7 +123,9 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
     expect(response?.ok(), `/ returned ${response?.status() ?? "no response"}`).toBe(true);
     await expect(page).toHaveURL((url) => url.origin === expectedOrigin && url.pathname === "/");
     await expect(page.getByRole("heading", { level: 1, name: /シフトのやり取りを/ })).toBeVisible();
-    await expect(page.getByRole("link", { name: /登録不要でデモを見る/ }).first()).toBeVisible();
+    const basicHelpLink = page.getByRole("link", { name: "基本の使い方を見る" }).first();
+    await expect(basicHelpLink).toBeVisible();
+    await expect(basicHelpLink).toHaveAttribute("href", "/help");
     await expectAppHydrated(page);
 
     expect(thirdPartyMeasurementRequests).toEqual([]);

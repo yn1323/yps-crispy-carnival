@@ -15,7 +15,7 @@ import {
   type HelpMetadata,
   helpMetas,
 } from "./helpMeta";
-import { getHelpTask } from "./helpTasks";
+import { getHelpTask, getHelpTaskHref, type HelpTaskId } from "./helpTasks";
 import { createHelpMdxComponents } from "./mdxComponents";
 
 export type HelpGuideProps = {
@@ -63,7 +63,7 @@ function HelpGuideView({ guide, metas }: { guide: HelpGuideContent; metas: reado
   const relatedGuides = getRelatedGuides(guide, metas);
 
   return (
-    <PublicPageLayout headerProps={{ showLinks: false, showLogin: false }}>
+    <PublicPageLayout>
       <Box borderBottomWidth="1px" borderColor="gray.200" bg="gray.50/60">
         <Container maxW="6xl" px={{ base: 4, lg: 8 }} py={{ base: 7, lg: 10 }}>
           <Stack gap={5} maxW="800px">
@@ -123,7 +123,7 @@ function HelpGuideView({ guide, metas }: { guide: HelpGuideContent; metas: reado
 
 function HelpGuideLoading() {
   return (
-    <PublicPageLayout headerProps={{ showLinks: false, showLogin: false }}>
+    <PublicPageLayout>
       <Container maxW="720px" px={4} py={{ base: 12, lg: 20 }}>
         <Text role="status" color="gray.600">
           ヘルプを読み込んでいます
@@ -143,16 +143,16 @@ function HelpGuideBody({ guide }: { guide: HelpGuideContent }) {
   );
 }
 
-function HelpBreadcrumbs({ taskTitle, taskId, title }: { taskTitle?: string; taskId?: string; title: string }) {
+function HelpBreadcrumbs({ taskTitle, taskId, title }: { taskTitle?: string; taskId?: HelpTaskId; title: string }) {
   return (
     <HStack as="nav" aria-label="パンくず" gap={2} wrap="wrap" color="gray.600" fontSize="sm">
       <Link href="/help" color="teal.700" fontWeight="semibold">
-        ヘルプ
+        ヘルプ・使い方
       </Link>
       <Text aria-hidden>/</Text>
       {taskTitle && taskId && (
         <>
-          <Link href={`/help#task-${taskId}`} color="teal.700" fontWeight="semibold">
+          <Link href={getHelpTaskHref(taskId)} color="teal.700" fontWeight="semibold">
             {taskTitle}
           </Link>
           <Text aria-hidden>/</Text>
@@ -311,7 +311,7 @@ function RelatedLink({ href, title, icon: RelatedIcon }: { href: string; title: 
 
 function HelpGuideNotFound() {
   return (
-    <PublicPageLayout headerProps={{ showLinks: false, showLogin: false }}>
+    <PublicPageLayout>
       <Container maxW="720px" px={4} py={{ base: 12, lg: 20 }}>
         <Empty
           icon={LuCircleHelp}
@@ -320,7 +320,7 @@ function HelpGuideNotFound() {
           action={
             <Link href="/help" color="teal.700" fontWeight="bold" display="inline-flex" alignItems="center" gap={2}>
               <LuArrowLeft aria-hidden />
-              ヘルプへ戻る
+              ヘルプ・使い方へ戻る
             </Link>
           }
           size="lg"

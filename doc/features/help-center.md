@@ -2,28 +2,31 @@
 
 > 文書種別: feature
 >
-> 最終コード照合: 2026-08-23（この変更を含む）
+> 最終コード照合: 2026-08-30（この変更を含む）
 
-シフトリを利用中の管理者とスタッフが、やりたいことからFAQと詳しい使い方を探す公開ヘルプである。  
+「ヘルプ・使い方」は、シフトリを利用中の管理者とスタッフが、やりたいことからFAQと詳しい使い方を探す公開ページである。
+
 FAQと使い方は同じMDX管理基盤へ所属するが、FAQは短い回答、使い方は操作を完了するための手順として分ける。
 
 ## 公開URL
 
 | パス | 内容 |
 |---|---|
-| `/help` | 検索、やりたいこと一覧、よく見られるFAQと使い方、選択したタスクの関連ヘルプ |
-| `/help#task-<task-id>` | 対象のやりたいことを選択し、関連するFAQと使い方を表示するURL |
-| `/help#<faq-id>` | 対象FAQを展開し、質問へフォーカスする共有URL |
+| `/help` | 検索とやりたいこと一覧を表示する「ヘルプ・使い方」TOP |
+| `/help/tasks/<task-id>` | 対象のやりたいことに属するFAQと使い方を表示するページ |
+| `/help/tasks/<task-id>#<faq-id>` | 対象FAQを展開し、質問へフォーカスする共有URL |
+| `/help/basics/organization-structure` | 組織、店舗、スタッフ、管理者、プランの関係と利用上限の数え方を図で確認するページ |
+| `/help/scenarios/shift-management` | スタッフ追加の準備から確定通知までを、動画とStepperで順番に確認するページ |
 | `/help/<guide-id>` | 使い方の個別ページ |
 
 `/faq`と`/howto`は公開しない。  
-旧URLのredirectとaliasも設けない。
+旧`/help#task-<task-id>`と`/help#<faq-id>`は、ブラウザ上で対応する新URLへ置き換えて互換性を保つ。
+統合した旧使い方URLは、対応するシナリオまたはタスクページへ恒久転送する。
 
 ## やりたいこと
 
 各MDXは、次のいずれか一つへ所属する。
 
-- 利用を始めたい
 - 店舗を設定したい
 - スタッフを追加・管理したい
 - シフトを募集・回収したい
@@ -34,7 +37,7 @@ FAQと使い方は同じMDX管理基盤へ所属するが、FAQは短い回答�
 - 困りごとを解決したい
 
 ID、表示名、説明、対象者、表示順は`helpTasks.ts`を正本とする。  
-タスクカードは選択状態を持ち、選択したタスクに属するFAQと使い方だけを一覧の下へ表示する。
+ヘルプTOPは、組織構造とシフト管理の流れを確認する基本ページへの入口を先に表示し、その下にタスクカードを表示する。タスクページではタスク名を通常のページ見出しとして表示し、そのタスクに属するFAQと使い方だけを表示する。
 
 ## MDX
 
@@ -58,7 +61,7 @@ FAQと使い方は、共通のfrontmatterを使う。
 | `primaryGuide` | FAQから案内する主な使い方 |
 | `related` | 主従関係ではない関連FAQ・使い方 |
 | `order` | 同じtask・kind内の表示順 |
-| `homeFeatured` | TOPと`/help`の初期表示へ掲載するFAQ |
+| `homeFeatured` | サービスTOPへ掲載するFAQ |
 
 slugとhrefはMDXのファイル名とkindから生成する。
 検索結果の概要、SEO description、FAQ構造化データには、本文の最初の表示段落を使う。
@@ -88,38 +91,45 @@ FAQと使い方を一つの検索欄から検索する。
 
 ## 表示と画像
 
-`/help`の初期表示では、タスクカードの後に`homeFeatured`のFAQと、そのFAQが`primaryGuide`で参照する使い方だけを表示する。
-タスクを選ぶと初期表示の一覧を置き換え、選択したタスクのFAQと使い方だけを種類別に表示する。
+`/help`の初期表示では、検索欄、組織構造とシフト管理シナリオへの入口、タスクカードを表示する。
+
+検索中はタスクカードを隠し、FAQと使い方を種類別のリンクとして表示する。FAQのリンク先は所属するタスクページ内の該当質問、使い方のリンク先は個別ページである。
+
+タスクページはタスク名のページ見出し、FAQ、使い方を表示する。
+
 FAQはアコーディオンでその場に表示し、使い方は個別ページへのリンクとして表示する。
-検索中はタスクカードと通常の一覧を隠し、検索結果のFAQと使い方だけを種類別に表示する。
 
 使い方ページは、パンくず、対象者、本文、H2が3件以上ある場合の目次、関連FAQ、関連する使い方、問い合わせ導線を表示する。  
 画像はMDXとコロケーションせず、`content/images/<guide-id>/`へ置く。  MDXでは`../images/<guide-id>/<filename>`の相対pathで参照し、バンドルURLへ解決する。
 操作場所や状態差を文章だけで特定しにくい場合だけ画像を使い、意味のあるaltを設定する。
+
+シフト管理シナリオはTSXで構成し、初回だけ行うスタッフ追加と、毎回行う募集、提出、調整・確定、スタッフへの通知を分けて表示する。  PCでは「シフト回収の流れ」のStepperをページ内の各説明へ移動する目次として表示し、SPでは非表示にする。動画未設定時は同じ比率の準備中表示を保ち、動画を設定する場合は日本語字幕も併せて指定する。  確定通知の例は本番のメール生成処理へ架空の固定データを渡して表示し、実ユーザーデータ、通知API、送信処理には接続しない。
+
+組織構造の基本ページはTSXで構成し、組織を起点に店舗、人物、役割、プランがどう紐づくかを図で表示する。  プラン上限は`ORGANIZATION_PLAN_LIMITS`を参照し、利用人数が複数店舗所属や管理者兼務で重複しないこと、プランが組織単位であることを説明する。動画、認証状態、実ユーザーデータ、Convex APIには接続しない。
 
 ## 検証
 
 build前に、frontmatter、kindと配置、task、feature ID、ID・タイトル・orderの重複、本文、primaryGuide、related、下書き参照を検証する。  
 検索ロジックと構造化データはLogic Test、検索・FAQ展開などの操作はStorybook Behavior Test、PC・SPの代表レイアウトはVRTが担当する。
 
-`/help`だけが全文検索用の本文テキストを読み込む。使い方ページでは対象slugのMDX本文・目次・画像だけを遅延読込し、他の使い方や全文検索データを先読みしない。  
+`/help`だけが全文検索用の本文テキストを読み込む。タスクページはFAQ本文と軽量metadataを読み込み、全文検索データを先読みしない。使い方ページでは対象slugのMDX本文・目次・画像だけを遅延読込する。
 
-`scripts/staticSite.ts`は公開中のguide MDXファイルを走査し、`/help/<guide-id>`だけを静的生成する。
+`scripts/staticSite.ts`は組織構造の基本ページ、シフト管理シナリオ、全タスクページ、公開中のguide MDXファイルから組み立てた`/help/<guide-id>`を静的生成する。
 sitemapは同じ公開route一覧から生成し、ヘルプには`lastmod`を付けない。
 
 ## 関連ファイル
 
-- `src/routes/help.tsx`、`help.index.tsx`、`help.$slug.tsx`：URL境界
+- `src/routes/help.tsx`、`help.index.tsx`、`help.basics.organization-structure.tsx`、`help.scenarios.shift-management.tsx`、`help.tasks.$taskId.tsx`、`help.$slug.tsx`：URL境界
 - `src/pages/help/`：ページ入口とhead
-- `src/components/features/HelpCenter/helpMeta.ts`：軽量metadata、関係、構造化データ
+- `src/components/features/HelpCenter/helpMeta.ts`、`helpAliases.ts`、`helpNavigation.ts`：軽量metadata、関係、旧URLの解決、構造化データ
 - `src/components/features/HelpCenter/helpIndexData.ts`：`/help`だけが使う全文検索・FAQ回答テキスト
 - `src/components/features/HelpCenter/helpSearch.ts`：共通検索
 - `src/components/features/HelpCenter/faqContent.ts`、`guideContent.ts`：本文コンポーネントと目次
-- `src/components/features/HelpCenter/HelpIndex.tsx`、`HelpGuide.tsx`：一覧と使い方詳細
+- `src/components/features/HelpCenter/HelpIndex.tsx`、`HelpOrganizationStructure.tsx`、`HelpShiftManagementScenario.tsx`、`HelpTask.tsx`、`HelpGuide.tsx`：TOP、組織構造、動画シナリオ、タスク、使い方詳細
 - `src/components/features/HelpCenter/helpContent.test.ts`：管理形式と検索のLogic Test
 - `scripts/staticSite.ts`、`scripts/sitemap.ts`：静的生成とsitemap
 
 ## API
 
 Convex API、認証状態、実ユーザーデータ、外部通知には接続しない。  
-公開済みのMDXを静的に表示する。
+公開済みのMDXとTSXのシナリオを静的に表示する。

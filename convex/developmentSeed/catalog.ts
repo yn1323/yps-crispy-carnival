@@ -2,6 +2,7 @@ import type { Doc, TableNames } from "../_generated/dataModel";
 import { addDays, dateToUtcMs, formatUtcDate } from "../_lib/dateFormat";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import type { NOTIFICATION_OUTBOX_STATUSES } from "../notificationOutbox/schemas";
+import { ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/planLimits";
 import type { OrganizationBillingState } from "../organizationBilling/policy";
 
 export const DEVELOPMENT_SEED_SCENARIO_KEYS = [
@@ -13,25 +14,13 @@ export const DEVELOPMENT_SEED_SCENARIO_KEYS = [
   "payment-pending",
   "payment-failure",
   "free-over-limit",
-  "standard-over-limit",
+  "trial-daily",
 ] as const;
 
-export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v2";
+export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v4";
 export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 66;
 
 export type DevelopmentSeedScenarioKey = (typeof DEVELOPMENT_SEED_SCENARIO_KEYS)[number];
-
-export const PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER = "https://seed.example.test|replace-with-clerk-token-identifier";
-export const STANDARD_OVER_LIMIT_EXTRA_MANAGER_AUTH_TOKEN_IDENTIFIERS = [
-  "https://seed.example.test|standard-over-limit-manager-1",
-  "https://seed.example.test|standard-over-limit-manager-2",
-  "https://seed.example.test|standard-over-limit-manager-3",
-  "https://seed.example.test|standard-over-limit-manager-4",
-] as const;
-
-export function ownerAuthTokenIdentifier(key: DevelopmentSeedScenarioKey): string {
-  return key === "free-capacity" ? PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER : `https://seed.example.test|owner-${key}`;
-}
 
 export type DevelopmentSeedRecruitmentWindowKey =
   | "pastConfirmed"
@@ -114,9 +103,48 @@ export type DevelopmentSeedScenario = {
   organizationName: string;
   shopNames: readonly string[];
   shopPatterns: readonly ShiftSubmissionPattern[];
+  peopleCount: number;
+  activeManagerCount: number;
+  staffCountsByShop: readonly number[];
+  primaryManagerName?: string;
+  staffNames?: readonly string[];
   billingState: RelativeBillingState;
   dataProfile: "capacity" | "operations" | "notifications" | "billingOnly";
 };
+
+export function getDevelopmentSeedNonManagerPersonCount(scenario: DevelopmentSeedScenario): number {
+  if (
+    !Number.isInteger(scenario.peopleCount) ||
+    !Number.isInteger(scenario.activeManagerCount) ||
+    scenario.peopleCount < 1 ||
+    scenario.activeManagerCount < 1 ||
+    scenario.activeManagerCount > ORGANIZATION_PLAN_LIMITS.pro.maxActiveManagers ||
+    scenario.activeManagerCount > scenario.peopleCount ||
+    scenario.shopNames.length !== scenario.shopPatterns.length ||
+    scenario.shopNames.length !== scenario.staffCountsByShop.length ||
+    scenario.staffCountsByShop.some((count) => !Number.isInteger(count) || count < 0 || count > scenario.peopleCount)
+  ) {
+    throw new Error("Development seed scenario people configuration is invalid");
+  }
+  const nonManagerPersonCount = scenario.peopleCount - scenario.activeManagerCount;
+  if (Math.max(...scenario.staffCountsByShop) < nonManagerPersonCount) {
+    throw new Error("Development seed scenario leaves a non-manager without a staff role");
+  }
+  if (scenario.staffNames && scenario.staffNames.length !== nonManagerPersonCount) {
+    throw new Error("Development seed scenario staff names are incomplete");
+  }
+  return nonManagerPersonCount;
+}
+
+export function managerAuthTokenIdentifiers(
+  scenario: DevelopmentSeedScenario,
+  primaryAuthTokenIdentifier: string,
+): string[] {
+  getDevelopmentSeedNonManagerPersonCount(scenario);
+  return Array.from({ length: scenario.activeManagerCount }, (_, index) =>
+    index === 0 ? primaryAuthTokenIdentifier : `https://seed.example.test|${scenario.key}-manager-${index + 1}`,
+  );
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -126,14 +154,20 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     organizationName: "[SEED] Free・上限確認",
     shopNames: ["[SEED] Free店舗"],
     shopPatterns: [DATE_ONLY_SUBMISSION_PATTERN],
+    peopleCount: 5,
+    activeManagerCount: 1,
+    staffCountsByShop: [5],
     billingState: () => ({ kind: "active", plan: "free" }),
     dataProfile: "capacity",
   },
   {
     key: "trial-ending",
-    organizationName: "[SEED] Trial・終了間近",
-    shopNames: ["[SEED] Trial店舗"],
+    organizationName: "[SEED] Trial・50名・終了間近",
+    shopNames: ["[SEED] Trial50名店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
+    peopleCount: 50,
+    activeManagerCount: 2,
+    staffCountsByShop: [50],
     billingState: (now) => ({
       kind: "trial",
       selectedPaidPlan: "standard",
@@ -143,17 +177,23 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
   },
   {
     key: "standard-operations",
-    organizationName: "[SEED] Standard・複数店舗",
+    organizationName: "[SEED] Standard・25名・複数店舗",
     shopNames: ["[SEED] 本店", "[SEED] 駅前店", "[SEED] 商業施設店"],
     shopPatterns: [TIME_SUBMISSION_PATTERN, DATE_ONLY_SUBMISSION_PATTERN, SHIFT_TYPE_SUBMISSION_PATTERN],
+    peopleCount: 25,
+    activeManagerCount: 5,
+    staffCountsByShop: [25, 12, 6],
     billingState: () => ({ kind: "active", plan: "standard" }),
     dataProfile: "operations",
   },
   {
     key: "pro-notifications",
-    organizationName: "[SEED] Pro・通知",
-    shopNames: ["[SEED] 通知確認店舗"],
+    organizationName: "[SEED] Pro・50名・通知",
+    shopNames: ["[SEED] Pro50名・通知確認店舗"],
     shopPatterns: [SHIFT_TYPE_SUBMISSION_PATTERN],
+    peopleCount: 50,
+    activeManagerCount: 2,
+    staffCountsByShop: [50],
     billingState: () => ({ kind: "complimentary", plan: "pro" }),
     dataProfile: "notifications",
   },
@@ -162,6 +202,9 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     organizationName: "[SEED] Standard・解約予約",
     shopNames: ["[SEED] 解約予約店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
+    peopleCount: 2,
+    activeManagerCount: 2,
+    staffCountsByShop: [0],
     billingState: (now) => ({
       kind: "scheduledChange",
       currentPlan: "standard",
@@ -176,6 +219,9 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     organizationName: "[SEED] 支払反映待ち",
     shopNames: ["[SEED] 支払反映待ち店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
+    peopleCount: 2,
+    activeManagerCount: 2,
+    staffCountsByShop: [0],
     billingState: (now) => ({
       kind: "pendingActivation",
       plan: "standard",
@@ -189,6 +235,9 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     organizationName: "[SEED] 支払い失敗",
     shopNames: ["[SEED] 支払い失敗店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
+    peopleCount: 2,
+    activeManagerCount: 2,
+    staffCountsByShop: [0],
     billingState: (now) => ({
       kind: "paymentTerminationPending",
       previousPlan: "standard",
@@ -201,16 +250,37 @@ export const DEVELOPMENT_SEED_SCENARIOS = [
     organizationName: "[SEED] Free・上限超過",
     shopNames: ["[SEED] Free上限超過店舗"],
     shopPatterns: [TIME_SUBMISSION_PATTERN],
+    peopleCount: 6,
+    activeManagerCount: 2,
+    staffCountsByShop: [6],
     billingState: () => ({ kind: "active", plan: "free" }),
     dataProfile: "capacity",
   },
   {
-    key: "standard-over-limit",
-    organizationName: "[SEED] Standard・上限超過",
-    shopNames: ["[SEED] Standard上限超過店舗"],
-    shopPatterns: [TIME_SUBMISSION_PATTERN],
-    billingState: () => ({ kind: "active", plan: "standard" }),
-    dataProfile: "billingOnly",
+    key: "trial-daily",
+    organizationName: "合同会社シフトリノート",
+    shopNames: ["シフトリノート こもれび坂店"],
+    shopPatterns: [SHIFT_TYPE_SUBMISSION_PATTERN],
+    peopleCount: 9,
+    activeManagerCount: 1,
+    staffCountsByShop: [9],
+    primaryManagerName: "波留野 澄人",
+    staffNames: [
+      "小庭井 美澄",
+      "水代谷 朔",
+      "野依田 千景",
+      "古瀬戸 透里",
+      "月守 奈緒",
+      "霞野 直",
+      "森澄 ひより",
+      "羽路木 圭",
+    ],
+    billingState: (now) => ({
+      kind: "trial",
+      selectedPaidPlan: "pro",
+      trialEndsAt: now + 45 * DAY_MS,
+    }),
+    dataProfile: "operations",
   },
 ] as const satisfies readonly DevelopmentSeedScenario[];
 
@@ -228,7 +298,13 @@ type CoverageDisposition =
     };
 
 const ALL = DEVELOPMENT_SEED_SCENARIO_KEYS;
-const OPERATIONS = ["free-capacity", "trial-ending", "standard-operations", "pro-notifications"] as const;
+const OPERATIONS = [
+  "free-capacity",
+  "trial-ending",
+  "standard-operations",
+  "pro-notifications",
+  "trial-daily",
+] as const;
 const STANDARD_OPERATIONS = ["standard-operations"] as const;
 const PRO_NOTIFICATIONS = ["pro-notifications"] as const;
 const empty = (reason: string): CoverageDisposition => ({ kind: "intentionallyEmpty", reason });
@@ -270,11 +346,11 @@ export const DEVELOPMENT_SEED_TABLE_COVERAGE = {
   organizationPersonLineLinks: seeded(PRO_NOTIFICATIONS),
   lineFriendshipFanoutJobs: empty("active LINE workflowを作らない"),
   lineWebhookMessageReceipts: empty("provider Webhook receiptを作らない"),
-  shopRegistrationLinks: seeded(["trial-ending"]),
-  staffRegistrationRequests: seeded(["free-capacity", "trial-ending"]),
+  shopRegistrationLinks: seeded(["trial-daily"]),
+  staffRegistrationRequests: seeded(["free-capacity", "trial-daily"]),
   legalConsentStates: seeded(OPERATIONS),
   recruitments: seeded(OPERATIONS),
-  shiftSubmissionSlots: seeded(["trial-ending", "standard-operations", "pro-notifications"]),
+  shiftSubmissionSlots: seeded(["trial-ending", "standard-operations", "pro-notifications", "trial-daily"]),
   shiftSubmissionDates: seeded(["free-capacity", "standard-operations"]),
   shiftAssignments: seeded(OPERATIONS),
   shiftConfirmationSnapshots: seeded(PRO_NOTIFICATIONS),
@@ -328,15 +404,15 @@ export const DEVELOPMENT_SEED_UNION_COVERAGE = {
   submissionKind: {
     time: { kind: "seeded", scenarioKeys: ["trial-ending", "standard-operations"] },
     dateOnly: { kind: "seeded", scenarioKeys: ["free-capacity", "standard-operations"] },
-    shiftType: { kind: "seeded", scenarioKeys: ["standard-operations", "pro-notifications"] },
+    shiftType: { kind: "seeded", scenarioKeys: ["standard-operations", "pro-notifications", "trial-daily"] },
   } satisfies Record<SubmissionKind, UnionCoverageDisposition>,
   billingKind: {
-    trial: { kind: "seeded", scenarioKeys: ["trial-ending"] },
+    trial: { kind: "seeded", scenarioKeys: ["trial-ending", "trial-daily"] },
     initialPaymentPending: { kind: "intentionallyEmpty", reason: "pendingActivationを代表表示にする" },
     pendingActivation: { kind: "seeded", scenarioKeys: ["payment-pending"] },
     active: {
       kind: "seeded",
-      scenarioKeys: ["free-capacity", "standard-operations", "free-over-limit", "standard-over-limit"],
+      scenarioKeys: ["free-capacity", "standard-operations", "free-over-limit"],
     },
     complimentary: { kind: "seeded", scenarioKeys: ["pro-notifications"] },
     scheduledChange: { kind: "seeded", scenarioKeys: ["standard-scheduled-change"] },
@@ -351,7 +427,7 @@ export const DEVELOPMENT_SEED_UNION_COVERAGE = {
     removed: { kind: "intentionallyEmpty", reason: "現行画面ではactiveを代表状態にする" },
   } satisfies Record<MemberStatus, UnionCoverageDisposition>,
   registrationStatus: {
-    pending: { kind: "seeded", scenarioKeys: ["free-capacity", "trial-ending"] },
+    pending: { kind: "seeded", scenarioKeys: ["free-capacity", "trial-daily"] },
     approved: { kind: "intentionallyEmpty", reason: "approved後はstaff graphを正本にする" },
     rejected: { kind: "intentionallyEmpty", reason: "pendingの承認可否を代表状態にする" },
   } satisfies Record<RegistrationStatus, UnionCoverageDisposition>,
@@ -385,7 +461,21 @@ function hashContractDescriptor(descriptor: string): string {
 }
 
 const DEVELOPMENT_SEED_CONTRACT_DESCRIPTOR = [
-  ...DEVELOPMENT_SEED_SCENARIO_KEYS.map((key) => `scenario:${key}`),
+  ...DEVELOPMENT_SEED_SCENARIOS.map((configuredScenario) => {
+    const scenario: DevelopmentSeedScenario = configuredScenario;
+    return `scenario:${JSON.stringify({
+      key: scenario.key,
+      organizationName: scenario.organizationName,
+      shopNames: scenario.shopNames,
+      shopPatternKinds: scenario.shopPatterns.map((pattern) => pattern.kind),
+      peopleCount: scenario.peopleCount,
+      activeManagerCount: scenario.activeManagerCount,
+      staffCountsByShop: scenario.staffCountsByShop,
+      primaryManagerName: scenario.primaryManagerName ?? null,
+      staffNames: scenario.staffNames ?? null,
+      dataProfile: scenario.dataProfile,
+    })}`;
+  }),
   ...Object.entries(DEVELOPMENT_SEED_TABLE_COVERAGE)
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([tableName, disposition]) => `table:${tableName}:${contractDispositionFingerprint(disposition)}`),

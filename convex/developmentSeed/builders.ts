@@ -14,10 +14,9 @@ import {
   type DevelopmentSeedRecruitmentWindowKey,
   type DevelopmentSeedScenario,
   type DevelopmentSeedScenarioKey,
+  getDevelopmentSeedNonManagerPersonCount,
   getDevelopmentSeedScenario,
-  ownerAuthTokenIdentifier,
-  PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER,
-  STANDARD_OVER_LIMIT_EXTRA_MANAGER_AUTH_TOKEN_IDENTIFIERS,
+  managerAuthTokenIdentifiers,
 } from "./catalog";
 
 type SeedDocument<Table extends TableNames> = WithoutSystemFields<Doc<Table>>;
@@ -42,8 +41,17 @@ class SeedWriter {
 type SeedStaff = {
   staffId: Id<"staffs">;
   personId: Id<"organizationPeople">;
+  name: string;
   email: string;
   excludedFromShift: boolean;
+};
+
+type SeedStaffPerson = {
+  personId: Id<"organizationPeople">;
+  name: string;
+  email: string;
+  excludedFromShift: boolean;
+  userId?: Id<"users">;
 };
 
 type SeedShop = {
@@ -57,24 +65,30 @@ function seedEmail(localPart: string): string {
   return `${localPart}@seed.example.test`;
 }
 
-function personName(index: number): string {
+function personName(scenario: DevelopmentSeedScenario, index: number): string {
+  const configuredName = scenario.staffNames?.[index];
+  if (configuredName) return configuredName;
   if (index === 0) return "[SEED] 提出済み";
   if (index === 1) return "[SEED] 全休希望";
   if (index === 2) return "[SEED] 未提出";
-  return "[SEED] シフト対象外";
+  if (index === 3) return "[SEED] シフト対象外";
+  return `[SEED] スタッフ${String(index + 1).padStart(2, "0")}`;
 }
 
-export async function seedDevelopmentActors(ctx: MutationCtx): Promise<{ createdCount: number }> {
+export async function seedDevelopmentActors(
+  ctx: MutationCtx,
+  primaryAuthTokenIdentifier: string,
+): Promise<{ createdCount: number }> {
   const existing = await ctx.db
     .query("users")
-    .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER))
+    .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", primaryAuthTokenIdentifier))
     .unique();
   if (existing) throw new Error("Development seed actors already exist; clear all tables before seeding");
 
   const writer = new SeedWriter(ctx);
   await writer.insert("users", {
-    authTokenIdentifier: PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER,
-    name: "[SEED] 管理者A（Clerk置換対象）",
+    authTokenIdentifier: primaryAuthTokenIdentifier,
+    name: "[SEED] 管理者A",
     email: seedEmail("primary-manager"),
     emailNormalized: seedEmail("primary-manager"),
     role: "manager",
@@ -82,27 +96,20 @@ export async function seedDevelopmentActors(ctx: MutationCtx): Promise<{ created
   });
 
   for (const key of DEVELOPMENT_SEED_SCENARIO_KEYS) {
-    if (key === "free-capacity") continue;
-    await writer.insert("users", {
-      authTokenIdentifier: ownerAuthTokenIdentifier(key),
-      name: `[SEED] ${key} 管理者B`,
-      email: seedEmail(`owner-${key}`),
-      emailNormalized: seedEmail(`owner-${key}`),
-      role: "manager",
-      isDeleted: false,
-    });
-  }
-
-  for (const [index, authTokenIdentifier] of STANDARD_OVER_LIMIT_EXTRA_MANAGER_AUTH_TOKEN_IDENTIFIERS.entries()) {
-    const ordinal = index + 1;
-    await writer.insert("users", {
-      authTokenIdentifier,
-      name: `[SEED] Standard上限超過・管理者${ordinal}`,
-      email: seedEmail(`standard-over-limit-manager-${ordinal}`),
-      emailNormalized: seedEmail(`standard-over-limit-manager-${ordinal}`),
-      role: "manager",
-      isDeleted: false,
-    });
+    const scenario = getDevelopmentSeedScenario(key);
+    const managerIdentifiers = managerAuthTokenIdentifiers(scenario, primaryAuthTokenIdentifier);
+    for (let index = 1; index < managerIdentifiers.length; index += 1) {
+      const ordinal = index + 1;
+      const email = seedEmail(`${key}-manager-${ordinal}`);
+      await writer.insert("users", {
+        authTokenIdentifier: managerIdentifiers[index],
+        name: `[SEED] ${key} 管理者${ordinal}`,
+        email,
+        emailNormalized: email,
+        role: "manager",
+        isDeleted: false,
+      });
+    }
   }
 
   return { createdCount: writer.insertedCount };
@@ -122,11 +129,12 @@ async function insertPersonAndMember(
   organizationId: Id<"organizations">,
   user: Doc<"users">,
   now: number,
+  displayName = user.name,
 ) {
   const personId = await writer.insert("organizationPeople", {
     organizationId,
     userId: user._id,
-    name: user.name,
+    name: displayName,
     email: user.email,
     emailNormalized: user.emailNormalized ?? user.email.toLowerCase(),
     status: "active",
@@ -142,7 +150,17 @@ async function insertPersonAndMember(
     createdAt: now,
     updatedAt: now,
   });
-  return { personId, memberId };
+  return {
+    personId,
+    memberId,
+    staffPerson: {
+      personId,
+      name: displayName,
+      email: user.email,
+      excludedFromShift: false,
+      userId: user._id,
+    } satisfies SeedStaffPerson,
+  };
 }
 
 async function insertStaffPeople(
@@ -150,12 +168,12 @@ async function insertStaffPeople(
   scenario: DevelopmentSeedScenario,
   organizationId: Id<"organizations">,
   now: number,
-): Promise<Array<{ personId: Id<"organizationPeople">; name: string; email: string; excludedFromShift: boolean }>> {
-  const count = scenario.key === "free-capacity" || scenario.key === "free-over-limit" ? 4 : 3;
-  const people = [];
+): Promise<SeedStaffPerson[]> {
+  const count = getDevelopmentSeedNonManagerPersonCount(scenario);
+  const people: SeedStaffPerson[] = [];
   for (let index = 0; index < count; index += 1) {
     const email = seedEmail(`${scenario.key}-staff-${index + 1}`);
-    const name = personName(index);
+    const name = personName(scenario, index);
     const personId = await writer.insert("organizationPeople", {
       organizationId,
       name,
@@ -175,7 +193,7 @@ async function insertShopGraph(
   writer: SeedWriter,
   scenario: DevelopmentSeedScenario,
   organizationId: Id<"organizations">,
-  staffPeople: Awaited<ReturnType<typeof insertStaffPeople>>,
+  staffPeople: SeedStaffPerson[],
 ): Promise<SeedShop[]> {
   const shops: SeedShop[] = [];
   for (let shopIndex = 0; shopIndex < scenario.shopNames.length; shopIndex += 1) {
@@ -214,7 +232,7 @@ async function insertShopGraph(
         );
       }
 
-      for (const person of staffPeople) {
+      for (const person of staffPeople.slice(0, scenario.staffCountsByShop[shopIndex])) {
         const staffId = await writer.insert("staffs", {
           shopId,
           organizationId,
@@ -222,12 +240,14 @@ async function insertShopGraph(
           name: person.name,
           email: person.email,
           emailNormalized: person.email,
+          ...(person.userId ? { userId: person.userId } : {}),
           excludedFromShift: person.excludedFromShift,
           isDeleted: false,
         });
         staffs.push({
           staffId,
           personId: person.personId,
+          name: person.name,
           email: person.email,
           excludedFromShift: person.excludedFromShift,
         });
@@ -395,6 +415,15 @@ async function seedOperationalData(
         withAssignments: false,
       }),
     );
+  } else if (scenario.key === "trial-daily") {
+    const keys = Object.keys(windows) as DevelopmentSeedRecruitmentWindowKey[];
+    for (const key of keys) {
+      recruitmentIds.push(
+        await insertRecruitment(writer, shops[0], windows[key], now, {
+          withAssignments: windows[key].status === "confirmed" || key === "actionRequired",
+        }),
+      );
+    }
   } else {
     recruitmentIds.push(
       await insertRecruitment(writer, shops[0], windows.currentConfirmed, now, { withAssignments: true }),
@@ -407,15 +436,15 @@ async function seedRegistrationData(
   writer: SeedWriter,
   scenario: DevelopmentSeedScenario,
   firstShopId: Id<"shops">,
-  existingStaffEmail: string,
+  existingStaff: Pick<SeedStaff, "name" | "email">,
   now: number,
 ) {
-  if (scenario.key !== "free-capacity" && scenario.key !== "trial-ending") return;
+  if (scenario.key !== "free-capacity" && scenario.key !== "trial-daily") return;
   const legalVersions = getLegalConsentVersions("staff");
   const email = seedEmail(`${scenario.key}-approval-pending`);
   await writer.insert("staffRegistrationRequests", {
     shopId: firstShopId,
-    name: scenario.key === "free-capacity" ? "[SEED] 上限で承認不可" : "[SEED] 承認可能",
+    name: scenario.key === "free-capacity" ? "[SEED] 上限で承認不可" : "鳥沢野 美月",
     email,
     emailNormalized: email,
     status: "pending",
@@ -423,12 +452,12 @@ async function seedRegistrationData(
     consentedAt: now - 60 * 60 * 1000,
     createdAt: now - 60 * 60 * 1000,
   });
-  if (scenario.key === "trial-ending") {
+  if (scenario.key === "trial-daily") {
     await writer.insert("staffRegistrationRequests", {
       shopId: firstShopId,
-      name: "[SEED] 既存スタッフのため承認不可",
-      email: existingStaffEmail,
-      emailNormalized: existingStaffEmail,
+      name: existingStaff.name,
+      email: existingStaff.email,
+      emailNormalized: existingStaff.email,
       status: "pending",
       ...legalVersions,
       consentedAt: now - 2 * 60 * 60 * 1000,
@@ -477,7 +506,7 @@ async function seedCustomStaffOrder(
   scenario: DevelopmentSeedScenario,
   organizationId: Id<"organizations">,
   managerPersonIds: readonly Id<"organizationPeople">[],
-  staffPeople: Awaited<ReturnType<typeof insertStaffPeople>>,
+  staffPeople: SeedStaffPerson[],
   shops: SeedShop[],
   today: string,
   now: number,
@@ -712,6 +741,7 @@ export async function seedDevelopmentScenarioGraph(
   ctx: MutationCtx,
   key: DevelopmentSeedScenarioKey,
   today: string,
+  primaryAuthTokenIdentifier: string,
 ): Promise<{ insertedCount: number }> {
   const scenario = getDevelopmentSeedScenario(key);
   const duplicate = (await ctx.db.query("organizations").take(DEVELOPMENT_SEED_SCENARIO_KEYS.length + 1)).find(
@@ -719,8 +749,14 @@ export async function seedDevelopmentScenarioGraph(
   );
   if (duplicate) throw new Error("Development seed scenario already exists; clear all tables before retrying");
 
-  const primaryUser = await requireSeedUser(ctx, PRIMARY_SEED_AUTH_TOKEN_IDENTIFIER);
-  const ownerUser = await requireSeedUser(ctx, ownerAuthTokenIdentifier(key));
+  const managerUsers = await Promise.all(
+    managerAuthTokenIdentifiers(scenario, primaryAuthTokenIdentifier).map(
+      async (authTokenIdentifier) => await requireSeedUser(ctx, authTokenIdentifier),
+    ),
+  );
+  const primaryUser = managerUsers[0];
+  const ownerUser = managerUsers[1] ?? primaryUser;
+  if (!primaryUser || !ownerUser) throw new Error("Development seed scenario managers are incomplete");
   const now = Date.now();
   const writer = new SeedWriter(ctx);
   const organizationId = await writer.insert("organizations", {
@@ -734,25 +770,23 @@ export async function seedDevelopmentScenarioGraph(
     updatedAt: now,
   });
 
-  const primaryMembership = await insertPersonAndMember(writer, organizationId, primaryUser, now);
-  let ownerMembership = primaryMembership;
-  if (ownerUser._id !== primaryUser._id) {
-    ownerMembership = await insertPersonAndMember(writer, organizationId, ownerUser, now);
+  const managerMemberships = [];
+  for (const [index, managerUser] of managerUsers.entries()) {
+    managerMemberships.push(
+      await insertPersonAndMember(
+        writer,
+        organizationId,
+        managerUser,
+        now,
+        index === 0 ? scenario.primaryManagerName : undefined,
+      ),
+    );
   }
-  const managerPersonIds = [primaryMembership.personId, ownerMembership.personId].filter(
-    (personId, index, values) => values.indexOf(personId) === index,
-  );
-  if (key === "standard-over-limit") {
-    for (const authTokenIdentifier of STANDARD_OVER_LIMIT_EXTRA_MANAGER_AUTH_TOKEN_IDENTIFIERS) {
-      const managerUser = await requireSeedUser(ctx, authTokenIdentifier);
-      const managerMembership = await insertPersonAndMember(writer, organizationId, managerUser, now);
-      managerPersonIds.push(managerMembership.personId);
-    }
-  }
+  const managerPersonIds = managerMemberships.map((membership) => membership.personId);
 
-  const staffPeople =
-    scenario.dataProfile === "billingOnly" ? [] : await insertStaffPeople(writer, scenario, organizationId, now);
-  const shops = await insertShopGraph(writer, scenario, organizationId, staffPeople);
+  const staffPeople = await insertStaffPeople(writer, scenario, organizationId, now);
+  const shopStaffPeople = [...staffPeople, ...managerMemberships.map((membership) => membership.staffPerson)];
+  const shops = await insertShopGraph(writer, scenario, organizationId, shopStaffPeople);
   const canonicalBillingState = scenario.billingState(now);
   await writer.insert("organizationBillingStates", {
     organizationId,
@@ -774,7 +808,7 @@ export async function seedDevelopmentScenarioGraph(
   let recruitmentIds: Id<"recruitments">[] = [];
   if (scenario.dataProfile !== "billingOnly") {
     recruitmentIds = await seedOperationalData(writer, scenario, shops, today, now);
-    await seedRegistrationData(writer, scenario, shops[0].shopId, shops[0].staffs[0].email, now);
+    await seedRegistrationData(writer, scenario, shops[0].shopId, shops[0].staffs[0], now);
     await seedConsentData(ctx, writer, scenario, shops[0].shopId, primaryUser._id, now);
     await seedCustomStaffOrder(writer, scenario, organizationId, managerPersonIds, staffPeople, shops, today, now);
     if (scenario.key === "pro-notifications") {

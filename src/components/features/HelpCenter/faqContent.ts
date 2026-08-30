@@ -2,7 +2,7 @@ import type { MdxComponent } from "@/src/lib/mdx";
 import { type FaqMetadata, faqMetas, helpIdFromPath } from "./helpMeta";
 
 /**
- * FAQの本文層。`/help` のコード分割された画面からだけ読み込む。
+ * FAQの本文層。`/help/tasks/<task-id>` の画面からだけ読み込む。
  * メタデータは軽量な `helpMeta.ts` を正本とし、IDでMDX本文と結合する。
  */
 export type HelpFaqContent = {

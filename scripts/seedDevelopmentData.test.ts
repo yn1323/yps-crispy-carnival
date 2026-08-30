@@ -26,8 +26,8 @@ const VERIFY_RESULT = {
   tableCount: 66,
   organizationCount: 9,
   shopCount: 11,
-  staffCount: 19,
-  recruitmentCount: 11,
+  staffCount: 163,
+  recruitmentCount: 17,
   openFailureCount: 1,
   activeOutboxCount: 0,
   activeFanoutCount: 0,
@@ -35,6 +35,8 @@ const VERIFY_RESULT = {
   liveScheduledFunctionCount: 0,
 };
 const AUDIT_TOKEN = "00000000-0000-4000-8000-000000000001";
+const PERSONAL_DEV_ENV = "CONVEX_DEPLOYMENT=dev:team-project\n";
+const SHARED_DEVELOPMENT_ENV = "CONVEX_DEPLOY_KEY=prod:team-project|test-deploy-key\n";
 
 function readInvocation(args: readonly string[]) {
   const functionName = args.at(-2);
@@ -43,12 +45,13 @@ function readInvocation(args: readonly string[]) {
   return { functionName, payload: JSON.parse(rawPayload) as Record<string, unknown> };
 }
 
-function createSuccessfulRunner() {
+function createSuccessfulRunner(events?: string[]) {
   let cancelCallCount = 0;
   let clearCallCount = 0;
 
   return vi.fn((args: readonly string[], _env: Readonly<NodeJS.ProcessEnv>) => {
     const { functionName, payload } = readInvocation(args);
+    events?.push(functionName);
 
     if (functionName === "developmentSeed/mutations:preflight") {
       return `Convex result\n${JSON.stringify(PREFLIGHT)}`;
@@ -89,10 +92,7 @@ function createSuccessfulRunner() {
     }
     if (functionName === "developmentSeed/mutations:seedActors") {
       expect(payload).toEqual({ today: PREFLIGHT.today, auditToken: AUDIT_TOKEN });
-      return JSON.stringify({
-        createdCount: 3,
-        primaryAuthTokenIdentifier: "https://seed.example.test|replace-with-clerk-token-identifier",
-      });
+      return JSON.stringify({ createdCount: 3 });
     }
     if (functionName === "developmentSeed/mutations:seedScenario") {
       expect(payload.today).toBe(PREFLIGHT.today);
@@ -104,6 +104,28 @@ function createSuccessfulRunner() {
       return JSON.stringify(VERIFY_RESULT);
     }
     throw new Error(`unexpected function: ${functionName}`);
+  });
+}
+
+function createSuccessfulEnvironmentRunner(events?: string[]) {
+  let enabled = "false";
+  return vi.fn((args: readonly string[], _env: Readonly<NodeJS.ProcessEnv>) => {
+    expect(args.slice(0, 3)).toEqual(["exec", "convex", "env"]);
+    const operation = args[3];
+    const name = args[4];
+    expect(name).toBe("DEVELOPMENT_SEED_ENABLED");
+    if (operation === "set") {
+      const value = args[5];
+      if (value !== "true" && value !== "false") throw new Error("unexpected guard value");
+      enabled = value;
+      events?.push(`env:set:${value}`);
+      return "";
+    }
+    if (operation === "get") {
+      events?.push("env:get");
+      return `${enabled}\n`;
+    }
+    throw new Error("unexpected environment command");
   });
 }
 
@@ -125,35 +147,46 @@ describe("seedDevelopmentData CLI", () => {
     expect(() => parseDevelopmentSeedCliArgs(["local", "--yes"])).toThrow("対象やenv fileは変更できません");
   });
 
-  it("固定env fileがlocalまたはdev deploymentを一意に指す場合だけ許可する", () => {
-    expect(() => assertDevelopmentSeedDeployment("local", "CONVEX_DEPLOYMENT=local:local-project\n")).not.toThrow();
-    expect(() => assertDevelopmentSeedDeployment("dev", 'CONVEX_DEPLOYMENT="dev:team-project"\n')).not.toThrow();
+  it("localは個人用dev selector、Developmentは固定deploy keyだけを許可する", () => {
+    expect(() => assertDevelopmentSeedDeployment("local", PERSONAL_DEV_ENV)).not.toThrow();
+    expect(() => assertDevelopmentSeedDeployment("dev", SHARED_DEVELOPMENT_ENV)).not.toThrow();
     expect(() =>
-      assertDevelopmentSeedDeployment("dev", "export CONVEX_DEPLOYMENT=dev:team-project # comment\n"),
-    ).not.toThrow();
+      assertDevelopmentSeedDeployment("dev", "CONVEX_DEPLOY_KEY=dev:team-project|test-deploy-key\n"),
+    ).toThrow("固定したDevelopment deploymentのkeyを持っていません");
 
-    expect(() => assertDevelopmentSeedDeployment("local", "CONVEX_DEPLOYMENT=dev:team-project\n")).toThrow(
-      "許可されたlocal deploymentを指していません",
-    );
     expect(() => assertDevelopmentSeedDeployment("local", "CONVEX_DEPLOYMENT=localhost\n")).toThrow(
-      "許可されたlocal deploymentを指していません",
+      "個人用dev deploymentを指していません",
+    );
+    expect(() => assertDevelopmentSeedDeployment("local", "CONVEX_DEPLOYMENT=local:local-project\n")).toThrow(
+      "個人用dev deploymentを指していません",
     );
     expect(() => assertDevelopmentSeedDeployment("local", "CONVEX_DEPLOYMENT=prod:team-project\n")).toThrow(
-      "許可されたlocal deploymentを指していません",
+      "個人用dev deploymentを指していません",
     );
-    expect(() => assertDevelopmentSeedDeployment("dev", "CONVEX_DEPLOYMENT=prod:team-project\n")).toThrow(
-      "許可されたdev deploymentを指していません",
-    );
-    expect(() => assertDevelopmentSeedDeployment("dev", "CONVEX_DEPLOYMENT=development\n")).toThrow(
-      "許可されたdev deploymentを指していません",
-    );
-    expect(() => assertDevelopmentSeedDeployment("dev", "CONVEX_DEPLOYMENT=dev/team-project\n")).toThrow(
-      "許可されたdev deploymentを指していません",
-    );
-    expect(() => assertDevelopmentSeedDeployment("dev", "OTHER=value\n")).toThrow("一意に確認できません");
     expect(() =>
-      assertDevelopmentSeedDeployment("dev", "CONVEX_DEPLOYMENT=dev:first\nCONVEX_DEPLOYMENT=dev:second\n"),
-    ).toThrow("一意に確認できません");
+      assertDevelopmentSeedDeployment("local", "CONVEX_DEPLOYMENT=dev:first\nCONVEX_DEPLOYMENT=dev:second\n"),
+    ).toThrow("CONVEX_DEPLOYMENTを一意に確認できません");
+    expect(() => assertDevelopmentSeedDeployment("dev", "CONVEX_DEPLOYMENT=prod:team-project\n")).toThrow(
+      "CONVEX_DEPLOY_KEYを一意に確認できません",
+    );
+    expect(() =>
+      assertDevelopmentSeedDeployment("dev", "CONVEX_DEPLOY_KEY=preview:team:project|test-deploy-key\n"),
+    ).toThrow("固定したDevelopment deploymentのkeyを持っていません");
+    expect(() =>
+      assertDevelopmentSeedDeployment("dev", "CONVEX_DEPLOY_KEY=project:team:project|test-deploy-key\n"),
+    ).toThrow("固定したDevelopment deploymentのkeyを持っていません");
+    expect(() => assertDevelopmentSeedDeployment("dev", "CONVEX_DEPLOY_KEY=prod:team-project\n")).toThrow(
+      "固定したDevelopment deploymentのkeyを持っていません",
+    );
+    expect(() => assertDevelopmentSeedDeployment("dev", "OTHER=value\n")).toThrow(
+      "CONVEX_DEPLOY_KEYを一意に確認できません",
+    );
+    expect(() =>
+      assertDevelopmentSeedDeployment(
+        "dev",
+        "CONVEX_DEPLOY_KEY=prod:first|first-secret\nCONVEX_DEPLOY_KEY=prod:second|second-secret\n",
+      ),
+    ).toThrow("CONVEX_DEPLOY_KEYを一意に確認できません");
   });
 
   it.each([
@@ -161,25 +194,45 @@ describe("seedDevelopmentData CLI", () => {
     "CONVEX_DEPLOYMENT_TOKEN=dev:other-project|secret",
     "CONVEX_SELF_HOSTED_URL=https://self-hosted.example.test",
     "CONVEX_SELF_HOSTED_ADMIN_KEY=secret",
-  ])("優先selector %s を削除前に拒否する", (selector) => {
+  ])("localでは優先selector %s を削除前に拒否する", (selector) => {
+    const commandRunner = vi.fn();
+
+    expect(() =>
+      runDevelopmentSeed("local", {
+        commandRunner,
+        fileReader: () => `${PERSONAL_DEV_ENV}${selector}\n`,
+        logger: { log: vi.fn() },
+      }),
+    ).toThrow(/CONVEX_DEPLOY_KEYは設定できません|許可されていないdeployment selector/);
+    expect(commandRunner).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "CONVEX_DEPLOYMENT=dev:other-project",
+    "CONVEX_DEPLOYMENT_TOKEN=dev:other-project|secret",
+    "CONVEX_SELF_HOSTED_URL=https://self-hosted.example.test",
+    "CONVEX_SELF_HOSTED_ADMIN_KEY=secret",
+  ])("Developmentでは競合selector %s を削除前に拒否する", (selector) => {
     const commandRunner = vi.fn();
 
     expect(() =>
       runDevelopmentSeed("dev", {
         commandRunner,
-        fileReader: () => `CONVEX_DEPLOYMENT=dev:team-project\n${selector}\n`,
+        fileReader: () => `${SHARED_DEVELOPMENT_ENV}${selector}\n`,
         logger: { log: vi.fn() },
       }),
-    ).toThrow("許可されていないdeployment selector");
+    ).toThrow(/CONVEX_DEPLOYMENTは設定できません|許可されていないdeployment selector/);
     expect(commandRunner).not.toHaveBeenCalled();
   });
 
-  it("preflightから検証までを固定dev targetで順番に実行する", () => {
-    const commandRunner = createSuccessfulRunner();
-    const fileReader = vi.fn(() => "CONVEX_DEPLOYMENT=dev:team-project\n");
+  it("preflightから検証までを固定Development deploy keyで順番に実行する", () => {
+    const events: string[] = [];
+    const commandRunner = createSuccessfulRunner(events);
+    const environmentRunner = createSuccessfulEnvironmentRunner(events);
+    const fileReader = vi.fn(() => SHARED_DEVELOPMENT_ENV);
     const log = vi.fn();
 
-    const summary = runDevelopmentSeed("dev", { commandRunner, fileReader, logger: { log } });
+    const summary = runDevelopmentSeed("dev", { commandRunner, environmentRunner, fileReader, logger: { log } });
 
     expect(summary).toEqual({
       target: "dev",
@@ -210,15 +263,23 @@ describe("seedDevelopmentData CLI", () => {
         .filter(({ functionName }) => functionName === "developmentSeed/mutations:seedScenario")
         .map(({ payload }) => payload.scenarioKey),
     ).toEqual(DEVELOPMENT_SEED_SCENARIO_KEYS);
+    expect(events).toEqual([
+      "env:set:true",
+      ...invocations.map(({ functionName }) => functionName),
+      "env:set:false",
+      "env:get",
+    ]);
 
     const childEnvironments = new Set<Readonly<NodeJS.ProcessEnv>>();
-    for (const [args, env] of commandRunner.mock.calls) {
-      expect(args.slice(0, 5)).toEqual(["exec", "convex", "run", "--deployment", "dev"]);
+    for (const [args, env] of [...commandRunner.mock.calls, ...environmentRunner.mock.calls]) {
+      expect(args.slice(0, 2)).toEqual(["exec", "convex"]);
+      expect(["run", "env"]).toContain(args[2]);
+      expect(args).not.toContain("--deployment");
       expect(args).not.toContain("--push");
       expect(args).not.toContain("--env-file");
       expect(env).toMatchObject({
-        CONVEX_DEPLOYMENT: "dev:team-project",
-        CONVEX_DEPLOY_KEY: "",
+        CONVEX_DEPLOYMENT: "",
+        CONVEX_DEPLOY_KEY: "prod:team-project|test-deploy-key",
         CONVEX_DEPLOYMENT_TOKEN: "",
         CONVEX_SELF_HOSTED_URL: "",
         CONVEX_SELF_HOSTED_ADMIN_KEY: "",
@@ -227,23 +288,30 @@ describe("seedDevelopmentData CLI", () => {
     }
     expect(childEnvironments.size).toBe(1);
     const output = JSON.stringify(log.mock.calls);
-    expect(output).not.toContain("replace-with-clerk-token-identifier");
+    expect(output).not.toContain("test-deploy-key");
     expect(output).not.toContain("primary-manager@seed.example.test");
+    expect(log).toHaveBeenCalledWith("[development-seed] 破壊操作guardの無効化を確認しました。");
   });
 
   it.each([
-    ["旧contract", { ...PREFLIGHT, contractVersion: "development-seed-v0" }],
+    ["旧contract", { ...PREFLIGHT, contractVersion: "development-seed-v2" }],
     ["旧table catalog", { ...PREFLIGHT, tableCount: 65 }],
     ["別deployment", { ...PREFLIGHT, deploymentUrl: "https://other-development.convex.cloud" }],
+    ["HTTP URL", { ...PREFLIGHT, deploymentUrl: "http://team-project.convex.cloud" }],
+    ["port付きURL", { ...PREFLIGHT, deploymentUrl: "https://team-project.convex.cloud:443" }],
+    ["path付きURL", { ...PREFLIGHT, deploymentUrl: "https://team-project.convex.cloud/path" }],
+    ["query付きURL", { ...PREFLIGHT, deploymentUrl: "https://team-project.convex.cloud?target=other" }],
   ])("preflightが%sならcancel・削除前に停止する", (_caseName, preflight) => {
     const commandRunner = vi.fn((_args: readonly string[], _env: Readonly<NodeJS.ProcessEnv>) =>
       JSON.stringify(preflight),
     );
+    const environmentRunner = createSuccessfulEnvironmentRunner();
 
     expect(() =>
       runDevelopmentSeed("dev", {
         commandRunner,
-        fileReader: () => "CONVEX_DEPLOYMENT=dev:team-project\n",
+        environmentRunner,
+        fileReader: () => SHARED_DEVELOPMENT_ENV,
         logger: { log: vi.fn() },
       }),
     ).toThrow(/cancel・削除は実行していません|固定env fileと一致しません/);
@@ -251,23 +319,50 @@ describe("seedDevelopmentData CLI", () => {
     expect(readInvocation(commandRunner.mock.calls[0]?.[0] ?? []).functionName).toBe(
       "developmentSeed/mutations:preflight",
     );
+    expect(environmentRunner.mock.calls.map(([args]) => args.slice(3))).toEqual([
+      ["set", "DEVELOPMENT_SEED_ENABLED", "true"],
+      ["set", "DEVELOPMENT_SEED_ENABLED", "false"],
+      ["get", "DEVELOPMENT_SEED_ENABLED"],
+    ]);
+  });
+
+  it("個人用dev selectorとpreflight URLが違えば削除前に停止する", () => {
+    const commandRunner = vi.fn(() =>
+      JSON.stringify({ ...PREFLIGHT, deploymentUrl: "https://other-development.convex.cloud" }),
+    );
+    const environmentRunner = createSuccessfulEnvironmentRunner();
+
+    expect(() =>
+      runDevelopmentSeed("local", {
+        commandRunner,
+        environmentRunner,
+        fileReader: () => PERSONAL_DEV_ENV,
+        logger: { log: vi.fn() },
+      }),
+    ).toThrow("個人用dev deploymentが固定env fileと一致しません");
+    expect(commandRunner).toHaveBeenCalledTimes(1);
   });
 
   it("env fileがpreflight後に変わっても検証済みdeployment snapshotだけを全phaseへ渡す", () => {
-    let envContents = "CONVEX_DEPLOYMENT=dev:team-project\n";
+    let envContents = SHARED_DEVELOPMENT_ENV;
     const successfulRunner = createSuccessfulRunner();
     const commandRunner = vi.fn((args: readonly string[], env: Readonly<NodeJS.ProcessEnv>) => {
-      envContents = "CONVEX_DEPLOYMENT=prod:production-project\nCONVEX_DEPLOY_KEY=prod:secret|token\n";
+      envContents = "CONVEX_DEPLOY_KEY=prod:production-project|other-secret\n";
       return successfulRunner(args, env);
+    });
+    const successfulEnvironmentRunner = createSuccessfulEnvironmentRunner();
+    const environmentRunner = vi.fn((args: readonly string[], env: Readonly<NodeJS.ProcessEnv>) => {
+      envContents = "CONVEX_DEPLOY_KEY=prod:production-project|other-secret\n";
+      return successfulEnvironmentRunner(args, env);
     });
     const fileReader = vi.fn(() => envContents);
 
-    runDevelopmentSeed("dev", { commandRunner, fileReader, logger: { log: vi.fn() } });
+    runDevelopmentSeed("dev", { commandRunner, environmentRunner, fileReader, logger: { log: vi.fn() } });
 
     expect(fileReader).toHaveBeenCalledTimes(1);
-    for (const [, env] of commandRunner.mock.calls) {
-      expect(env.CONVEX_DEPLOYMENT).toBe("dev:team-project");
-      expect(env.CONVEX_DEPLOY_KEY).toBe("");
+    for (const [, env] of [...commandRunner.mock.calls, ...environmentRunner.mock.calls]) {
+      expect(env.CONVEX_DEPLOYMENT).toBe("");
+      expect(env.CONVEX_DEPLOY_KEY).toBe("prod:team-project|test-deploy-key");
     }
   });
 
@@ -286,19 +381,23 @@ describe("seedDevelopmentData CLI", () => {
       }
       throw new Error("clear must not run");
     });
-    const fileReader = vi.fn(() => "CONVEX_DEPLOYMENT=local:local-project\n");
+    const environmentRunner = createSuccessfulEnvironmentRunner();
+    const fileReader = vi.fn(() => PERSONAL_DEV_ENV);
 
     expect(() =>
       runDevelopmentSeed("local", {
         commandRunner,
+        environmentRunner,
         fileReader,
         logger: { log: vi.fn() },
       }),
     ).toThrow("全テーブル削除は開始していません");
     expect(fileReader).toHaveBeenCalledExactlyOnceWith(".env.local");
     for (const [args, env] of commandRunner.mock.calls) {
-      expect(args.slice(0, 5)).toEqual(["exec", "convex", "run", "--deployment", "local"]);
-      expect(env.CONVEX_DEPLOYMENT).toBe("local:local-project");
+      expect(args.slice(0, 3)).toEqual(["exec", "convex", "run"]);
+      expect(args).not.toContain("--deployment");
+      expect(env.CONVEX_DEPLOYMENT).toBe("dev:team-project");
+      expect(env.CONVEX_DEPLOY_KEY).toBe("");
     }
     expect(commandRunner.mock.calls.map(([args]) => readInvocation(args).functionName)).toEqual([
       "developmentSeed/mutations:preflight",
@@ -319,12 +418,14 @@ describe("seedDevelopmentData CLI", () => {
       }
       return successfulRunner(args, env);
     });
+    const environmentRunner = createSuccessfulEnvironmentRunner();
 
     let failure: unknown;
     try {
       runDevelopmentSeed("dev", {
         commandRunner,
-        fileReader: () => "CONVEX_DEPLOYMENT=dev:team-project\n",
+        environmentRunner,
+        fileReader: () => SHARED_DEVELOPMENT_ENV,
         logger: { log: vi.fn() },
       });
     } catch (error) {
@@ -339,15 +440,22 @@ describe("seedDevelopmentData CLI", () => {
       "developmentSeed/queries:verify",
     );
     expect(scenarioCallCount).toBe(3);
+    expect(environmentRunner.mock.calls.map(([args]) => args.slice(3))).toEqual([
+      ["set", "DEVELOPMENT_SEED_ENABLED", "true"],
+      ["set", "DEVELOPMENT_SEED_ENABLED", "false"],
+      ["get", "DEVELOPMENT_SEED_ENABLED"],
+    ]);
   });
 
   it("不正なJSON応答を出力へ複製せず、後続処理を止める", () => {
     const rawOutput = "token=secret-token primary-manager@seed.example.test";
+    const environmentRunner = createSuccessfulEnvironmentRunner();
     let failure: unknown;
     try {
       runDevelopmentSeed("local", {
         commandRunner: () => rawOutput,
-        fileReader: () => "CONVEX_DEPLOYMENT=local:local-project\n",
+        environmentRunner,
+        fileReader: () => PERSONAL_DEV_ENV,
         logger: { log: vi.fn() },
       });
     } catch (error) {
@@ -358,6 +466,82 @@ describe("seedDevelopmentData CLI", () => {
     expect(safeError).toContain("応答形式を確認できません");
     expect(safeError).not.toContain("secret-token");
     expect(safeError).not.toContain("primary-manager@seed.example.test");
+  });
+
+  it("guardの有効化に失敗してもseedを開始せず無効化を確認する", () => {
+    const commandRunner = vi.fn();
+    const environmentRunner = vi.fn((args: readonly string[]) => {
+      const operation = args[3];
+      const value = args[5];
+      if (operation === "set" && value === "true") {
+        throw new Error("token=secret-deploy-key primary-manager@seed.example.test");
+      }
+      if (operation === "set" && value === "false") return "";
+      if (operation === "get") return "false\n";
+      throw new Error("unexpected environment command");
+    });
+
+    let failure: unknown;
+    try {
+      runDevelopmentSeed("local", {
+        commandRunner,
+        environmentRunner,
+        fileReader: () => PERSONAL_DEV_ENV,
+        logger: { log: vi.fn() },
+      });
+    } catch (error) {
+      failure = error;
+    }
+
+    const safeError = formatDevelopmentSeedError(failure);
+    expect(safeError).toContain("一時有効化に失敗");
+    expect(safeError).not.toContain("secret-deploy-key");
+    expect(safeError).not.toContain("primary-manager@seed.example.test");
+    expect(commandRunner).not.toHaveBeenCalled();
+    expect(environmentRunner.mock.calls.map(([args]) => args.slice(3))).toEqual([
+      ["set", "DEVELOPMENT_SEED_ENABLED", "true"],
+      ["set", "DEVELOPMENT_SEED_ENABLED", "false"],
+      ["get", "DEVELOPMENT_SEED_ENABLED"],
+    ]);
+  });
+
+  it("guardのfalse設定が失敗してもgetでfalseなら完了扱いにする", () => {
+    const commandRunner = createSuccessfulRunner();
+    const environmentRunner = vi.fn((args: readonly string[]) => {
+      const operation = args[3];
+      const value = args[5];
+      if (operation === "set" && value === "true") return "";
+      if (operation === "set" && value === "false") throw new Error("ambiguous timeout");
+      if (operation === "get") return "false\n";
+      throw new Error("unexpected environment command");
+    });
+
+    expect(
+      runDevelopmentSeed("local", {
+        commandRunner,
+        environmentRunner,
+        fileReader: () => PERSONAL_DEV_ENV,
+        logger: { log: vi.fn() },
+      }),
+    ).toMatchObject({ target: "local", scenarioCount: 9 });
+  });
+
+  it("seed完了後もguardがfalseと確認できなければnonzeroにする", () => {
+    const commandRunner = createSuccessfulRunner();
+    const environmentRunner = vi.fn((args: readonly string[]) => {
+      if (args[3] === "set") return "";
+      if (args[3] === "get") return "true\n";
+      throw new Error("unexpected environment command");
+    });
+
+    expect(() =>
+      runDevelopmentSeed("local", {
+        commandRunner,
+        environmentRunner,
+        fileReader: () => PERSONAL_DEV_ENV,
+        logger: { log: vi.fn() },
+      }),
+    ).toThrow("DEVELOPMENT_SEED_ENABLED=falseを確認してください");
   });
 
   it("引数エラーをnonzeroにし、安全なusageだけを表示する", () => {
@@ -375,15 +559,17 @@ describe("seedDevelopmentData CLI", () => {
     }
   });
 
-  it("package script由来のliteral -- を含むdev確認引数でmainから完走する", () => {
+  it("package scriptのdev確認引数でmainから完走する", () => {
     const previousExitCode = process.exitCode;
     process.exitCode = undefined;
     const commandRunner = createSuccessfulRunner();
+    const environmentRunner = createSuccessfulEnvironmentRunner();
 
     try {
-      main(["dev", "--", "--yes"], {
+      main(["dev", "--yes"], {
         commandRunner,
-        fileReader: () => "CONVEX_DEPLOYMENT=dev:team-project\n",
+        environmentRunner,
+        fileReader: () => SHARED_DEVELOPMENT_ENV,
         logger: { log: vi.fn() },
       });
 

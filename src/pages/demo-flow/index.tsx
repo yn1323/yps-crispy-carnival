@@ -3,12 +3,7 @@ import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
 
 export function DemoFlowRoutePage() {
   return (
-    <PublicPageLayout
-      bg="gray.50"
-      minH="100dvh"
-      showFooter={false}
-      headerProps={{ showLinks: false, showLogin: false }}
-    >
+    <PublicPageLayout bg="gray.50" minH="100dvh" showFooter={false}>
       <ShiftoriDemoFlow />
     </PublicPageLayout>
   );

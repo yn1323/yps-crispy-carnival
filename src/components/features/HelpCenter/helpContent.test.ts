@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { legacyHelpGuideRedirects, resolveLegacyHelpGuideHref } from "./helpAliases";
 import {
   buildHelpIndexMetas,
   type FaqIndexMetadata,
@@ -19,6 +20,7 @@ import {
   homeFeaturedFaqMetas,
   landingFaqs,
 } from "./helpMeta";
+import { resolveLegacyHelpHash } from "./helpNavigation";
 import { normalizeHelpSearchText, searchHelpMetas } from "./helpSearch";
 import { HELP_TASKS } from "./helpTasks";
 
@@ -35,7 +37,7 @@ function faqFrontmatter(overrides: Record<string, unknown> = {}): Record<string,
   return {
     kind: "faq",
     title: "テスト用の質問ですか？",
-    task: "getting-started",
+    task: "staff-management",
     audience: "manager",
     keywords: [],
     featureIds: [],
@@ -50,7 +52,7 @@ function guideFrontmatter(overrides: Record<string, unknown> = {}): Record<strin
   return {
     kind: "guide",
     title: "テスト用の使い方",
-    task: "getting-started",
+    task: "staff-management",
     audience: "manager",
     keywords: [],
     featureIds: [],
@@ -71,7 +73,7 @@ function searchFixture(overrides: Partial<FaqIndexMetadata> & Pick<FaqIndexMetad
     id,
     kind: "faq",
     title: `${id}のタイトル`,
-    task: "getting-started",
+    task: "staff-management",
     audience: "manager",
     keywords: [],
     featureIds: [],
@@ -81,33 +83,38 @@ function searchFixture(overrides: Partial<FaqIndexMetadata> & Pick<FaqIndexMetad
     summary: `${id}の概要`,
     bodyText: `${id}の本文`,
     answerText: `${id}の本文`,
-    href: `/help#${id}`,
+    href: `/help/tasks/staff-management#${id}`,
     ...rest,
   };
 }
 
 describe("HelpCenterの実コンテンツ", () => {
-  it("全taskにFAQと使い方を用意し、代表FAQを同じtaskの使い方へ接続する", () => {
+  it("全taskに公開コンテンツを用意し、primaryGuideを同じtaskへ接続する", () => {
     for (const task of HELP_TASKS) {
-      const taskFaqs = faqMetas.filter((meta) => meta.task === task.id);
-      const taskGuides = guideMetas.filter((meta) => meta.task === task.id);
-      expect(taskFaqs.length).toBeGreaterThan(0);
-      expect(taskGuides.length).toBeGreaterThan(0);
-      expect(taskFaqs.some((faq) => faq.primaryGuide && getGuideMeta(faq.primaryGuide)?.task === task.id)).toBe(true);
+      expect(helpMetas.filter((meta) => meta.task === task.id).length).toBeGreaterThan(0);
+    }
+
+    for (const faq of faqMetas) {
+      if (faq.primaryGuide) {
+        expect(getGuideMeta(faq.primaryGuide)?.task).toBe(faq.task);
+      }
     }
   });
 
   it("本文由来のsummary・bodyText・answerTextとkind別hrefを生成する", () => {
     expect(helpMetas.every((meta) => meta.summary.length > 0)).toBe(true);
     expect(helpIndexMetas.every((meta) => meta.bodyText.length >= meta.summary.length)).toBe(true);
-    expect(faqIndexMetas.every((meta) => meta.answerText === meta.bodyText && meta.href === `/help#${meta.id}`)).toBe(
-      true,
-    );
+    expect(
+      faqIndexMetas.every(
+        (meta) => meta.answerText === meta.bodyText && meta.href === `/help/tasks/${meta.task}#${meta.id}`,
+      ),
+    ).toBe(true);
     expect(guideMetas.every((meta) => meta.href === `/help/${meta.id}`)).toBe(true);
   });
 
   it("トップ掲載FAQを6件以内に保ち、同じ内容からJSON-LDを生成する", () => {
-    expect(homeFeaturedFaqMetas).toHaveLength(6);
+    expect(homeFeaturedFaqMetas.length).toBeGreaterThan(0);
+    expect(homeFeaturedFaqMetas.length).toBeLessThanOrEqual(6);
     expect(landingFaqs).toEqual(
       homeFeaturedFaqMetas.map((meta) => ({ q: meta.title, a: meta.summary, href: meta.href })),
     );
@@ -129,6 +136,30 @@ describe("HelpCenterの実コンテンツ", () => {
         acceptedAnswer: { "@type": "Answer", text: meta.summary },
       })),
     });
+  });
+});
+
+describe("HelpCenterの旧hash URL", () => {
+  it("taskとFAQの旧hashを新しいページへ解決する", () => {
+    expect(resolveLegacyHelpHash("#task-staff-management")).toBe("/help/tasks/staff-management");
+    expect(resolveLegacyHelpHash("#add-staff-methods")).toBe("/help/tasks/staff-management#add-staff-methods");
+    expect(resolveLegacyHelpHash("#first-steps")).toBe("/help/scenarios/shift-management");
+    expect(resolveLegacyHelpHash("#choose-staff-status-change")).toBe("/help/tasks/staff-management");
+    expect(resolveLegacyHelpHash("#deletion-scope-differences")).toBe(
+      "/help/tasks/organization-billing#deletion-scope-differences",
+    );
+    expect(resolveLegacyHelpHash("#task-getting-started")).toBe("/help/scenarios/shift-management");
+    expect(resolveLegacyHelpHash("#unknown-help")).toBeUndefined();
+    expect(resolveLegacyHelpHash("#%E0%A4%A")).toBeUndefined();
+  });
+});
+
+describe("HelpCenterの旧使い方URL", () => {
+  it("削除した公開slugを現在のシナリオまたはtaskへ解決する", () => {
+    expect(Object.keys(legacyHelpGuideRedirects)).toHaveLength(8);
+    expect(resolveLegacyHelpGuideHref("start-shift-management")).toBe("/help/scenarios/shift-management");
+    expect(resolveLegacyHelpGuideHref("add-staff")).toBe("/help/tasks/staff-management");
+    expect(resolveLegacyHelpGuideHref("unknown-help")).toBeUndefined();
   });
 });
 

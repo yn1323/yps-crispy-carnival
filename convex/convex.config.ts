@@ -12,6 +12,7 @@ const app = defineApp({
     DEBUG_TRIAL_DURATION_DEPLOYMENT_URL: v.optional(v.string()),
     DEVELOPMENT_SEED_ENABLED: v.optional(v.string()),
     DEVELOPMENT_SEED_DEPLOYMENT_URL: v.optional(v.string()),
+    DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER: v.optional(v.string()),
     NOTIFICATION_DELIVERY_MODE: v.optional(v.string()),
     PROMOTION_COMPLIMENTARY_PRO_CODE: v.optional(v.string()),
     STRIPE_SECRET_KEY: v.optional(v.string()),

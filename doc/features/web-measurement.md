@@ -25,11 +25,11 @@ GTMは、次の条件をすべて満たすdocumentでだけ読み込む。
 
 | Surface | 対象 | 第三者script |
 |---|---|---|
-| 計測する公開面 | TOP、機能、ヘルプ一覧・使い方詳細、問い合わせ、記事一覧・詳細・カテゴリ、2種類のデモ | 条件を満たした場合だけ読み込む |
+| 計測する公開面 | TOP、機能、ヘルプTOP・タスク・使い方詳細・動画シナリオ、問い合わせ、記事一覧・詳細・カテゴリ、2種類のデモ | 条件を満たした場合だけ読み込む |
 | 計測しない公開面 | 法務文書、削除受付、cache reset | 読み込まない |
 | 非公開面 | 認証、Dashboard、店舗・人物・ShiftBoard、Capability、staff、callback、未知URL | 読み込まない |
 
-ヘルプ一覧は`help_index`、使い方詳細はslugにかかわらず`help_guide`へ写像する。
+ヘルプTOPとタスクページは`help_index`、使い方詳細と動画シナリオはslugにかかわらず`help_guide`へ写像する。
 その他の動的URLも有限のroute familyへ写像し、ヘルプ・記事のslug、店舗ID、人物ID、募集ID、query、hash、raw URLは送らない。
 
 公開面と非公開面を越えるlinkは、通常のdocument navigationを使う。  一度読み込まれた第三者scriptをSPA遷移先へ残さないためである。

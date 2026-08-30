@@ -393,7 +393,7 @@ const DemoCompleteCta = () => (
         <MeasurementBoundaryLink href="/signup" measurementCtaId="demo_complete_signup">
           <Icon as={LuUserPlus} boxSize={5} />
           <Text as="span" flex={1} textAlign="center">
-            シフトリを始める
+            シフトリをはじめる
           </Text>
           <Icon as={LuChevronRight} boxSize={5} />
         </MeasurementBoundaryLink>

@@ -12,6 +12,7 @@ import {
   createCloudflareHeaders,
   createCloudflareRedirects,
   getCanonicalRoute,
+  LEGACY_HELP_ROUTE_REDIRECTS,
   NOINDEX_PUBLIC_ROUTES,
   routeToHtmlPath,
   STATIC_CLIENT_OUTPUT_DIR,
@@ -334,10 +335,22 @@ function assertCloudflareFiles(publicRoutes: string[], redirects: string, header
   assert(headers === createCloudflareHeaders(publicRoutes), "_headers differs from the route manifest");
 
   const rules = parseRedirectRules(redirects);
-  assert(
-    rules.every((rule) => rule.length === 3 && rule[2] === "200"),
-    "all redirect rules must be 200 proxies",
+  const expectedPermanentRedirects = new Set(
+    LEGACY_HELP_ROUTE_REDIRECTS.map(({ source, target, status }) => `${source} ${target} ${status}`),
   );
+  assert(
+    rules.every(
+      (rule) =>
+        rule.length === 3 && (rule[2] === "200" || expectedPermanentRedirects.has(`${rule[0]} ${rule[1]} ${rule[2]}`)),
+    ),
+    "redirect rules must be known permanent redirects or 200 proxies",
+  );
+  for (const { source, target, status } of LEGACY_HELP_ROUTE_REDIRECTS) {
+    assert(
+      rules.filter((rule) => rule[0] === source && rule[1] === target && rule[2] === String(status)).length === 1,
+      `${source} must redirect exactly once to ${target}`,
+    );
+  }
   assert(!rules.some(([source]) => source === "/*"), "catch-all SPA fallback is forbidden");
   assert(
     !rules.some(([source]) => source?.startsWith(ARTICLE_ROUTE_PREFIX) && source.includes(":")),

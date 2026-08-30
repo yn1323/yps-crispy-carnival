@@ -8,7 +8,7 @@ import { Empty } from "@/src/components/ui/Empty";
 
 export function CacheResetPage() {
   return (
-    <PublicPageLayout showFooter={false} headerProps={{ showLinks: false, showLogin: false }}>
+    <PublicPageLayout showFooter={false}>
       <Container maxW="720px" px={{ base: 4, md: 6 }}>
         <Empty
           icon={LuRefreshCw}

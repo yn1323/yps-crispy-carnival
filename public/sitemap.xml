@@ -82,13 +82,7 @@
     <loc>https://shiftori.app/help</loc>
   </url>
   <url>
-    <loc>https://shiftori.app/help/add-staff</loc>
-  </url>
-  <url>
-    <loc>https://shiftori.app/help/apply-previous-shift-request</loc>
-  </url>
-  <url>
-    <loc>https://shiftori.app/help/build-and-confirm-shift</loc>
+    <loc>https://shiftori.app/help/basics/organization-structure</loc>
   </url>
   <url>
     <loc>https://shiftori.app/help/check-notification-history</loc>
@@ -109,25 +103,37 @@
     <loc>https://shiftori.app/help/reissue-confirmed-shift-link</loc>
   </url>
   <url>
-    <loc>https://shiftori.app/help/reset-password</loc>
-  </url>
-  <url>
     <loc>https://shiftori.app/help/resolve-action-inbox</loc>
   </url>
   <url>
     <loc>https://shiftori.app/help/review-staff-registration-request</loc>
   </url>
   <url>
-    <loc>https://shiftori.app/help/run-shift-management-cycle</loc>
+    <loc>https://shiftori.app/help/scenarios/shift-management</loc>
   </url>
   <url>
-    <loc>https://shiftori.app/help/start-shift-management</loc>
+    <loc>https://shiftori.app/help/tasks/notifications</loc>
   </url>
   <url>
-    <loc>https://shiftori.app/help/submit-shift-request</loc>
+    <loc>https://shiftori.app/help/tasks/organization-billing</loc>
   </url>
   <url>
-    <loc>https://shiftori.app/help/troubleshoot-notification-delivery</loc>
+    <loc>https://shiftori.app/help/tasks/shift-building</loc>
+  </url>
+  <url>
+    <loc>https://shiftori.app/help/tasks/shift-recruitment</loc>
+  </url>
+  <url>
+    <loc>https://shiftori.app/help/tasks/shift-submission</loc>
+  </url>
+  <url>
+    <loc>https://shiftori.app/help/tasks/shop-settings</loc>
+  </url>
+  <url>
+    <loc>https://shiftori.app/help/tasks/staff-management</loc>
+  </url>
+  <url>
+    <loc>https://shiftori.app/help/tasks/troubleshooting</loc>
   </url>
   <url>
     <loc>https://shiftori.app/help/update-confirmed-shift</loc>
