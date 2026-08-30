@@ -1,6 +1,6 @@
 User-agent: *
 Disallow: /app
-Disallow: /account
+Disallow: /account$
 Disallow: /actions
 Disallow: /dashboard
 Disallow: /manage

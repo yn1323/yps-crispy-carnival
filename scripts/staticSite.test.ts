@@ -150,17 +150,22 @@ describe("static site manifest", () => {
     ).toEqual(["/", "/articles/shiftori-line-workflow"]);
   });
 
-  it("robots.txtのDisallowは実在するCSR routeのprefixだけを持つ", () => {
+  it("robots.txtのDisallowは実在するCSR routeだけを対象にし、公開SSG routeと重ならない", () => {
     const robots = readFileSync(join(process.cwd(), "public/robots.txt"), "utf8");
     const disallowRules = Array.from(robots.matchAll(/^Disallow:\s*(\S+)$/gm), (match) => match[1]).filter(
       (rule): rule is string => rule !== undefined,
     );
     const csrRoutes = [...CSR_SHELL_STATIC_ROUTES, ...CSR_SHELL_DYNAMIC_ROUTES];
+    const matchesRobotsRule = (route: string, rule: string) => {
+      const exactMatch = rule.endsWith("$");
+      const rulePath = exactMatch ? rule.slice(0, -1) : rule;
+      return exactMatch ? route === rulePath : route.startsWith(rulePath);
+    };
 
     expect(disallowRules).not.toContain("/welcome");
     expect(disallowRules).toEqual([
       "/app",
-      "/account",
+      "/account$",
       "/actions",
       "/dashboard",
       "/manage",
@@ -171,7 +176,14 @@ describe("static site manifest", () => {
       "/sso-callback",
     ]);
     for (const rule of disallowRules) {
-      expect(csrRoutes.some((route) => route === rule || route.startsWith(`${rule}/`))).toBe(true);
+      const exactMatch = rule.endsWith("$");
+      const rulePath = exactMatch ? rule.slice(0, -1) : rule;
+      expect(csrRoutes.some((route) => route === rulePath || (!exactMatch && route.startsWith(`${rulePath}/`)))).toBe(
+        true,
+      );
+    }
+    for (const route of collectPublicRoutes()) {
+      expect(disallowRules.some((rule) => matchesRobotsRule(route, rule))).toBe(false);
     }
   });
 

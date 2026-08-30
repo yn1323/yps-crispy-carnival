@@ -177,8 +177,8 @@ shellは`noindex`、`no-store`、`no-referrer`で公開canonicalを持たず、q
 `/cache-reset`だけは`Clear-Site-Data: "cache"`を返す。
 cookieとstorageは消去せず、旧308 cacheが残る端末の回復導線として使う。
 
-`public/robots.txt`は認証済みshellとCapability・callback routeに対する既存の`Disallow`を維持する。
-route inventory testは各`Disallow`が実在するCSR routeのprefixであることを確認し、不在routeだった`/welcome`は対象に含めない。
+`public/robots.txt`は認証済みshellとCapability・callback routeに対する既存の`Disallow`を維持する。  `/account`だけは`/account-deletion-accepted`を遮断しないよう、末尾一致の`/account$`を使う。
+route inventory testは各`Disallow`が実在するCSR routeのprefixまたは完全一致patternであり、公開SSG routeと重ならないことを確認する。  不在routeだった`/welcome`は対象に含めない。
 
 ## 関連ファイル
 
