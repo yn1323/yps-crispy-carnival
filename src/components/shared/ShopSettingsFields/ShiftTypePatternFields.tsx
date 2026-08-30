@@ -1,9 +1,10 @@
-import { Box, Field, Grid, HStack, Input, type SelectRootProps, Stack, Text } from "@chakra-ui/react";
+import { Box, Field, Grid, HStack, type SelectRootProps, Stack, Text } from "@chakra-ui/react";
 import { useId } from "react";
 import { LuPlus, LuTrash2 } from "react-icons/lu";
 import { SHIFT_TYPE_NAME_MAX_LENGTH } from "@/convex/constants";
 import type { ShiftTypeOption } from "@/convex/shop/schemas";
 import { Button, IconButton } from "@/src/components/ui/Button";
+import { Input } from "@/src/components/ui/FormControls";
 import { Select } from "@/src/components/ui/Select";
 import { DIALOG_SELECT_POSITIONING } from "./selectPositioning";
 

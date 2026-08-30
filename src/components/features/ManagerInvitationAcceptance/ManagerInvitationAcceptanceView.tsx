@@ -8,7 +8,6 @@ import {
   Heading,
   HStack,
   Icon,
-  Input,
   Spinner,
   Stack,
   Text,
@@ -27,6 +26,7 @@ import {
 } from "@/src/components/features/AuthPage/EmailCodeVerificationForm";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
+import { Input } from "@/src/components/ui/FormControls";
 import { ShiftoriLoading } from "@/src/components/ui/ShiftoriLoading";
 
 const invitationEmailSchema = z.object({ email: requiredEmailSchema });
@@ -215,6 +215,7 @@ function VerificationRequired({
             <Field.Label>メールアドレス</Field.Label>
             <Input
               type="email"
+              autocompletePolicy="auth"
               autoComplete="email"
               maxLength={EMAIL_MAX_LENGTH}
               placeholder="manager@example.com"

@@ -1,4 +1,4 @@
-import { Field, Text, Textarea, VStack } from "@chakra-ui/react";
+import { Field, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "convex/react";
 import { makeFunctionReference } from "convex/server";
@@ -11,6 +11,7 @@ import { featureRequestCommentSchema } from "@/convex/featureRequest/schemas";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
+import { Textarea } from "@/src/components/ui/FormControls";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { type AppFeatureRequestScope, resolveAppFeatureRequestShopId } from "./appScope";

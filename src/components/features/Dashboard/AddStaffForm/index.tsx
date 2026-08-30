@@ -1,9 +1,10 @@
-import { Box, Field, Flex, Input, Stack, Text } from "@chakra-ui/react";
+import { Box, Field, Flex, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useFieldArray, useForm } from "react-hook-form";
 import { LuPlus, LuX } from "react-icons/lu";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH, STAFF_ADD_ENTRIES_MAX } from "@/convex/constants";
 import { Button, IconButton } from "@/src/components/ui/Button";
+import { Input } from "@/src/components/ui/FormControls";
 import { STAFF_ADDITION_EMAIL_NOTICE } from "../staffAdditionCopy";
 import { type AddStaffFormData, addStaffSchema } from "./script";
 

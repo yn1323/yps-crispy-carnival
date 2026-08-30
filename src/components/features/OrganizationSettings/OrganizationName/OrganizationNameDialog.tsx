@@ -1,7 +1,8 @@
-import { Field, Input } from "@chakra-ui/react";
+import { Field } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import { ORGANIZATION_NAME_MAX_LENGTH } from "@/convex/constants";
 import { Dialog } from "@/src/components/ui/Dialog";
+import { Input } from "@/src/components/ui/FormControls";
 
 type Props = {
   isOpen: boolean;

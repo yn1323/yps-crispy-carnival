@@ -1,10 +1,11 @@
-import { Alert, Field, Flex, Input, Stack, Text } from "@chakra-ui/react";
+import { Alert, Field, Flex, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
 import type { Id } from "@/convex/_generated/dataModel";
 import { createExternalOrganizationManagerInvitationSchema } from "@/convex/organizationInvitation/schemas";
 import { Button } from "@/src/components/ui/Button";
+import { Input } from "@/src/components/ui/FormControls";
 import type { ReadyManagerSettingsOverview } from "./types";
 import { useManagerIssueController } from "./useManagerIssueController";
 
@@ -83,19 +84,13 @@ export function ManagerExternalInviteFormView({
         )}
         <Field.Root required invalid={Boolean(errors.name)}>
           <Field.Label>名前</Field.Label>
-          <Input
-            autoComplete="name"
-            placeholder="サンプル 管理者"
-            disabled={isSubmitting || isReadOnly}
-            {...register("name")}
-          />
+          <Input placeholder="サンプル 管理者" disabled={isSubmitting || isReadOnly} {...register("name")} />
           <Field.ErrorText>{errors.name?.message}</Field.ErrorText>
         </Field.Root>
         <Field.Root required invalid={Boolean(errors.email)}>
           <Field.Label>メールアドレス</Field.Label>
           <Input
             type="email"
-            autoComplete="email"
             placeholder="manager@example.com"
             disabled={isSubmitting || isReadOnly}
             {...register("email")}

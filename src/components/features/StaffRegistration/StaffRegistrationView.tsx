@@ -1,4 +1,4 @@
-import { Box, Checkbox, Circle, Field, HStack, Input, Stack, Text, VStack } from "@chakra-ui/react";
+import { Box, Checkbox, Circle, Field, HStack, Stack, Text, VStack } from "@chakra-ui/react";
 import type { FormEventHandler, ReactNode } from "react";
 import type { UseFormRegisterReturn } from "react-hook-form";
 import { LuCheck, LuClock, LuUserPlus } from "react-icons/lu";
@@ -8,6 +8,7 @@ import { StaffGuideContent } from "@/src/components/shared/StaffGuideContent";
 import { TurnstileWidget } from "@/src/components/shared/TurnstileWidget";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
+import { Input } from "@/src/components/ui/FormControls";
 
 type Props = {
   state:

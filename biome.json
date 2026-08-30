@@ -41,6 +41,56 @@
       "react": "recommended"
     }
   },
+  "overrides": [
+    {
+      "includes": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "!src/**/*.test.ts",
+        "!src/**/*.test.tsx",
+        "!src/**/*.stories.ts",
+        "!src/**/*.stories.tsx",
+        "!src/components/ui/FormControls/index.tsx",
+        "!src/components/ui/Select/index.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noRestrictedElements": {
+              "level": "error",
+              "options": {
+                "elements": {
+                  "input": "入力欄は @/src/components/ui/FormControls を使用してください。",
+                  "textarea": "入力欄は @/src/components/ui/FormControls を使用してください。",
+                  "select": "入力欄は @/src/components/ui/FormControls を使用してください。"
+                }
+              }
+            }
+          },
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@chakra-ui/react": {
+                    "importNames": [
+                      "Input",
+                      "Textarea",
+                      "NativeSelect",
+                      "NativeSelectField",
+                      "Select",
+                      "SelectHiddenSelect"
+                    ],
+                    "message": "@/src/components/ui/FormControls または @/src/components/ui/Select を使用してください。"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "assist": {
     "actions": {
       "source": {

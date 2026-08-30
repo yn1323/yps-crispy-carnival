@@ -1,7 +1,8 @@
-import { Field, Input, Stack, Text } from "@chakra-ui/react";
+import { Field, Stack, Text } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import { EMAIL_MAX_LENGTH } from "@/convex/constants";
 import { Dialog } from "@/src/components/ui/Dialog";
+import { Input } from "@/src/components/ui/FormControls";
 
 type Props = {
   isOpen: boolean;
@@ -53,7 +54,6 @@ export function BillingEmailDialog({ isOpen, billingEmail, isRunning, onClose, o
             <Field.Label>新しい請求先メールアドレス</Field.Label>
             <Input
               type="email"
-              autoComplete="email"
               value={email}
               maxLength={EMAIL_MAX_LENGTH}
               onChange={(event) => setEmail(event.currentTarget.value)}

@@ -1,7 +1,8 @@
-import { Alert, Field, Input, Stack, Text } from "@chakra-ui/react";
+import { Alert, Field, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Button } from "@/src/components/ui/Button";
+import { Input } from "@/src/components/ui/FormControls";
 import { AuthError, AuthModeLink, PasswordInput } from "../AuthFormControls";
 import { type ForgotRequestValues, type ForgotResetValues, forgotRequestSchema, forgotResetSchema } from "./schema";
 
@@ -47,12 +48,18 @@ export function ForgotPasswordForm({
         </Alert.Root>
         <Field.Root invalid={!!resetErrors.code}>
           <Field.Label>確認コード</Field.Label>
-          <Input inputMode="numeric" autoComplete="one-time-code" placeholder="123456" {...registerReset("code")} />
+          <Input
+            inputMode="numeric"
+            autocompletePolicy="auth"
+            autoComplete="one-time-code"
+            placeholder="123456"
+            {...registerReset("code")}
+          />
           <Field.ErrorText>{resetErrors.code?.message}</Field.ErrorText>
         </Field.Root>
         <Field.Root invalid={!!resetErrors.password}>
           <Field.Label>新しいパスワード</Field.Label>
-          <PasswordInput autoComplete="new-password" {...registerReset("password")} />
+          <PasswordInput autocompletePolicy="auth" autoComplete="new-password" {...registerReset("password")} />
           <Field.HelperText>8文字以上で入力してください。</Field.HelperText>
           <Field.ErrorText>{resetErrors.password?.message}</Field.ErrorText>
         </Field.Root>
@@ -73,7 +80,13 @@ export function ForgotPasswordForm({
       <AuthError message={errorMessage} />
       <Field.Root invalid={!!errors.email}>
         <Field.Label>メールアドレス</Field.Label>
-        <Input type="email" autoComplete="email" placeholder="login@example.com" {...register("email")} />
+        <Input
+          type="email"
+          autocompletePolicy="auth"
+          autoComplete="email"
+          placeholder="login@example.com"
+          {...register("email")}
+        />
         <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
       </Field.Root>
       <Button type="submit" colorPalette="teal" size="lg" loading={isSubmitting} loadingText="送信中">

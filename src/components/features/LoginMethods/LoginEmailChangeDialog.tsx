@@ -1,4 +1,4 @@
-import { Alert, Field, Input, Stack, Text } from "@chakra-ui/react";
+import { Alert, Field, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -7,6 +7,7 @@ import { requiredEmailSchema } from "@/convex/_lib/validation";
 import { EMAIL_MAX_LENGTH } from "@/convex/constants";
 import { Button } from "@/src/components/ui/Button";
 import { Dialog, DialogActionArea } from "@/src/components/ui/Dialog";
+import { Input } from "@/src/components/ui/FormControls";
 import { LoginMethodEmailCodeForm } from "./LoginMethodEmailCodeForm";
 import {
   isLoginMethodReverificationBusy,
@@ -190,6 +191,7 @@ function EmailInputStep({
         <Field.Label>新しいメールアドレス</Field.Label>
         <Input
           type="email"
+          autocompletePolicy="auth"
           autoComplete="email"
           placeholder="login@example.com"
           maxLength={EMAIL_MAX_LENGTH}

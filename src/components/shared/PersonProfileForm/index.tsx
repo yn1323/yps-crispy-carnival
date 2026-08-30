@@ -1,10 +1,11 @@
-import { Field, Input, Stack } from "@chakra-ui/react";
+import { Field, Stack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH } from "@/convex/constants";
 import { editStaffSchema } from "@/convex/staff/schemas";
+import { Input } from "@/src/components/ui/FormControls";
 
 export type PersonProfileFormData = z.infer<typeof editStaffSchema>;
 
