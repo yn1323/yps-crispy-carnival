@@ -61,7 +61,7 @@ FAQと使い方は、共通のfrontmatterを使う。
 | `primaryGuide` | FAQから案内する主な使い方 |
 | `related` | 主従関係ではない関連FAQ・使い方 |
 | `order` | 同じtask・kind内の表示順 |
-| `homeFeatured` | サービスTOPへ掲載するFAQ |
+| `homeFeatured` | 旧TOP掲載指定とのfrontmatter互換。現在のTOP FAQでは参照しない |
 
 slugとhrefはMDXのファイル名とkindから生成する。
 検索結果の概要、SEO description、FAQ構造化データには、本文の最初の表示段落を使う。

@@ -113,7 +113,7 @@ Productionの設定値と公開表示の確認状況は、[リリース状態](.
 
 | 場所 | 利用者の問い | 内容の責務 |
 |---|---|---|
-| TOP | 自分の店舗で何が楽になるか | 価値と利用の流れを短く示し、詳しい入口を選べるようにする |
+| TOP | 自分の店舗で何が楽になるか | 価値と利用の流れ、導入前のよくある質問を短く示し、詳しい入口を選べるようにする |
 | 機能紹介 | どの作業を支援できるか | 主な機能と利用場面を比較できるようにする |
 | TOPの料金プランsection | 人数と店舗数に合うプランと料金を比較したい | シフト管理の基本機能が共通であることと、Free・Standard・Proの料金と利用上限を示す。Standard・Proの金額は特定商取引法ページと同じbuild時料金カタログを使う |
 | ヘルプのFAQ | 料金、通知、導入、運用について結論を知りたい | 質問ごとに結論と必要な注意点を示す |
@@ -123,9 +123,11 @@ Productionの設定値と公開表示の確認状況は、[リリース状態](.
 | 記事 | シフト運営の課題をどう判断するか | 課題の整理、選択肢、関連する製品導線を示す |
 | デモ | 登録前に操作と結果を確かめたい | 実データを保存せず、主要な操作の流れを体験できるようにする |
 
-ヘルプはFAQと使い方を一つのMDX形式で管理し、利用者が完了したい仕事ごとに分類する。組織構造と動画シナリオはTOPから直接開くTSXページとして分ける。
+TOPのFAQは、導入を検討する利用者向けの5件を`LandingPage/faqs.ts`で管理する。  表示内容とTOPの`FAQPage`構造化データは同じデータから生成し、各回答は文ごとに改行して表示する。
+
+ヘルプは利用開始後のFAQと使い方を一つのMDX形式で管理し、利用者が完了したい仕事ごとに分類する。組織構造と動画シナリオはTOPから直接開くTSXページとして分ける。
 FAQは`/help/tasks/:taskId#<faq-id>`で展開・共有し、使い方は`/help/:slug`の個別ページで表示する。
-TOPに掲載するFAQは`homeFeatured`、FAQから案内する主な使い方は`primaryGuide`で指定する。
+FAQから案内する主な使い方は`primaryGuide`で指定する。
 frontmatter、検索、関連付け、本文の表示規則は[ヘルプセンター](help-center.md)を正本とする。
 
 ヘルプと記事は、`_`始まりのディレクトリを下書きとして読み込まない。
@@ -181,6 +183,7 @@ route inventory testは各`Disallow`が実在するCSR routeのprefixである�
 ## 関連ファイル
 
 - `src/routes/index.tsx`、`src/pages/home/`、`src/components/features/LandingPage/`：公開TOP
+- `src/components/features/LandingPage/faqs.ts`：TOPのFAQ表示と`FAQPage`構造化データ
 - `src/components/features/LandingPage/PricingSection/`：TOPの料金プラン比較
 - `src/routes/features.tsx`、`src/pages/features/`：機能紹介
 - `src/routes/commercial-transactions.tsx`、`src/pages/commercial-transactions/`、`src/components/features/CommercialTransactions/`：特定商取引法に基づく表記

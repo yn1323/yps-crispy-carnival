@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
-import { landingFaqs } from "@/src/components/features/HelpCenter/helpMeta";
+import { landingFaqs } from "../faqs";
 import { FaqArticlesSection } from ".";
 
 const meta = {
@@ -23,7 +23,7 @@ export const Mobile: Story = {
   },
 };
 
-export const HelpCenterContent: Story = {
+export const FaqInteraction: Story = {
   parameters: {
     screenshot: { skip: true },
   },
@@ -38,10 +38,7 @@ export const HelpCenterContent: Story = {
     await waitFor(async () => {
       await expect(answer).toBeVisible();
     });
-    await expect(within(answer).getByRole("link", { name: "この回答をヘルプ・使い方で見る" })).toHaveAttribute(
-      "href",
-      featuredFaq.href,
-    );
+    await expect(answer).toHaveTextContent(featuredFaq.a.replaceAll("\n", ""));
     await expect(canvas.getByRole("link", { name: "ヘルプ・使い方を見る" })).toHaveAttribute("href", "/help");
   },
 };
