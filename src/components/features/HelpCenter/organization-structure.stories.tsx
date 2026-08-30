@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { HelpOrganizationStructure } from "./HelpOrganizationStructure";
 
 const meta = {
@@ -32,7 +33,17 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Desktop: Story = {};
+export const Desktop: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const relatedHelp = within(canvas.getByRole("region", { name: "関連情報" }));
+
+    await expect(relatedHelp.getByRole("link", { name: /管理者を招待・再送・取り消す/ })).toHaveAttribute(
+      "href",
+      "/help/manage-manager-invitations",
+    );
+  },
+};
 
 export const Mobile: Story = {
   tags: ["vrt-mobile2"],

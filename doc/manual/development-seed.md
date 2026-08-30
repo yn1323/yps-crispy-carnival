@@ -75,7 +75,7 @@ Trial、Pro、Standardの人数は、現行プランと同じく管理者を含�
 | `payment-pending` | 課金の`pendingActivation` |
 | `payment-failure` | 支払い失敗後のFree・契約終了処理中 |
 | `free-over-limit` | Freeの利用人数6名／上限5名と、`limitRecoveryOnly`での整理導線。管理者は上限内の2名 |
-| `trial-daily` | 普段使い用Trial。`合同会社シフトリノート`、`シフトリノート こもれび坂店`、自然な架空名の9名、全募集状態、承認可能な登録申請 |
+| `trial-daily` | 普段使い用Trial。`合同会社シフトリノート`、`シフトリノート こもれび坂店`／`シフトリノート 駅前店`の2店舗、自然な架空名の9名、全募集状態、承認可能／重複の承認不可を含む登録申請 |
 
 メールアドレスは`example.test`、LINE識別子は架空値を使います。  通知Outbox、fan-out、遅延deadline、cleanup、Stripe処理、scheduled functionは、実行可能な状態で残しません。
 

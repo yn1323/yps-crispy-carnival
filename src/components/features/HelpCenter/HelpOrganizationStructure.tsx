@@ -59,7 +59,7 @@ export function HelpOrganizationStructure() {
             headingId="organization-overview-title"
             src={organizationOverviewImage}
             alt="組織を中心に、一つのプラン、複数の店舗、スタッフ、組織全体を管理する管理者の関係を示す図"
-            caption="組織がシフトリにおける最大の管理単位です。プランは店舗ごとではなく組織に一つ設定され、組織には利用できる店舗を少なくとも1店舗残します。"
+            caption="組織がシフトリにおける最大の管理単位です。"
             expandLabel="組織・店舗・スタッフの全体像"
             priority
           />
@@ -67,14 +67,14 @@ export function HelpOrganizationStructure() {
             headingId="staff-admin-relationship-title"
             src={staffAdminRelationshipImage}
             alt="田中さんが店舗Aと店舗Bにスタッフとして所属し、同じ組織の管理者も兼ねる関係を示す図"
-            caption="同じスタッフは、複数店舗に所属しても1名として数えます。管理者権限は店舗単位ではなく、組織全体に適用されます。"
+            caption="同じ組織の中でならスタッフの配置は自由に決められます。"
             expandLabel="スタッフと管理者の関係"
           />
           <StructureFigure
             headingId="multiple-organizations-title"
             src={multipleOrganizationsImage}
             alt="一つのログイン用アカウントから、データが独立した組織Aと組織Bを切り替える関係を示す図"
-            caption="組織を切り替えても、店舗・スタッフ・シフトは組織間で自動共有されません。自分で作成して保持できる組織は3つまでで、招待で所属する組織はこの上限に含みません。"
+            caption="組織間で店舗・スタッフ・シフトは独立しています。"
             expandLabel="複数の組織を使う場合"
           />
           <PlanRelationship />
@@ -173,35 +173,11 @@ function PlanRelationship() {
           プランごとの利用上限
         </Heading>
         <Text color="gray.700" lineHeight="1.8">
-          利用上限は、組織全体の利用人数、店舗数、有効な管理者数で数えます。
+          利用上限は、組織全体のスタッフ人、店舗数、管理者数が基準になります。
         </Text>
       </Stack>
 
       <PlanLimitsTable />
-
-      <Stack gap={3}>
-        <Box borderWidth="1px" borderColor="gray.200" borderRadius="lg" bg="gray.50" px={{ base: 4, md: 5 }} py={4}>
-          <Stack gap={2}>
-            <Text color="gray.950" fontWeight="bold">
-              利用人数の数え方
-            </Text>
-            <Text color="gray.700" fontSize="sm" lineHeight="1.8">
-              店舗に所属していない組織のユーザーも、登録されている間は利用人数に含まれます。管理者は利用人数と有効な管理者数の両方に含まれます。
-            </Text>
-          </Stack>
-        </Box>
-
-        <Box borderWidth="1px" borderColor="gray.200" borderRadius="lg" bg="gray.50" px={{ base: 4, md: 5 }} py={4}>
-          <Stack gap={2}>
-            <Text color="gray.950" fontWeight="bold">
-              上限に達した場合
-            </Text>
-            <Text color="gray.700" fontSize="sm" lineHeight="1.8">
-              上限を超える追加は保存されません。プラン変更後などに既存の件数が上限を超えた場合も、登録済みのデータは削除されません。上位プランへ変更するか、利用人数、店舗数、管理者数を上限内に減らすと、通常の操作を再開できます。
-            </Text>
-          </Stack>
-        </Box>
-      </Stack>
     </Stack>
   );
 }
@@ -255,9 +231,6 @@ function PlanLimitsTable() {
           </Table.Body>
         </Table.Root>
       </Box>
-      <Text color="gray.600" fontSize="sm" lineHeight="1.7">
-        支払い不要Pro相当を利用している組織にも、Proと同じ上限を適用します。未承認の管理者招待は現在の利用数に含めませんが、招待を出せるかの判定では必要な枠を確保します。
-      </Text>
     </Stack>
   );
 }
@@ -266,7 +239,7 @@ function RelatedHelp() {
   return (
     <Stack as="section" aria-labelledby="related-help-title" gap={4}>
       <Heading id="related-help-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }}>
-        次に確認する
+        関連情報
       </Heading>
       <Link
         href="/help/check-plan-and-usage"
@@ -291,6 +264,33 @@ function RelatedHelp() {
           <Text fontWeight="bold">現在のプランと利用状況を確認する</Text>
           <Text color="gray.600" fontSize="sm" lineHeight="1.7">
             管理画面で現在のプランと、利用人数・店舗数・管理者数を確認します。
+          </Text>
+        </Stack>
+        <LuArrowRight aria-hidden color="var(--chakra-colors-teal-700)" />
+      </Link>
+      <Link
+        href="/help/manage-manager-invitations"
+        display="flex"
+        alignItems="center"
+        justifyContent="space-between"
+        gap={4}
+        minH="88px"
+        px={{ base: 4, md: 5 }}
+        py={4}
+        borderWidth="1px"
+        borderColor="gray.200"
+        borderRadius="lg"
+        color="gray.950"
+        bg="white"
+        textDecoration="none"
+        _hover={{ borderColor: "gray.400", bg: "gray.50", textDecoration: "none" }}
+        _active={{ bg: "gray.100" }}
+        _focusVisible={{ borderColor: "teal.600", boxShadow: "0 0 0 2px var(--chakra-colors-teal-600)" }}
+      >
+        <Stack gap={1}>
+          <Text fontWeight="bold">管理者を招待・再送・取り消す</Text>
+          <Text color="gray.600" fontSize="sm" lineHeight="1.7">
+            組織の「管理者と権限」で、既存スタッフまたは新しいユーザーを管理者として招待できます。
           </Text>
         </Stack>
         <LuArrowRight aria-hidden color="var(--chakra-colors-teal-700)" />

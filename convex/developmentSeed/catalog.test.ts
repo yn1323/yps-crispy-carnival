@@ -28,7 +28,7 @@ describe("development seed catalog", () => {
 
   it("CLIとdeployment backendを削除前に照合する固定契約を持つ", () => {
     expect(DEVELOPMENT_SEED_CONTRACT_VERSION).toBe("development-seed-v4");
-    expect(DEVELOPMENT_SEED_CONTRACT_FINGERPRINT).toBe("5a10ca20");
+    expect(DEVELOPMENT_SEED_CONTRACT_FINGERPRINT).toBe("b41c8bee");
     expect(DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT).toBe(66);
   });
 
@@ -87,12 +87,12 @@ describe("development seed catalog", () => {
     const daily = getDevelopmentSeedScenario("trial-daily");
     expect(daily).toMatchObject({
       organizationName: "合同会社シフトリノート",
-      shopNames: ["シフトリノート こもれび坂店"],
+      shopNames: ["シフトリノート こもれび坂店", "シフトリノート 駅前店"],
       peopleCount: 9,
       activeManagerCount: 1,
-      staffCountsByShop: [9],
+      staffCountsByShop: [9, 6],
     });
-    expect(daily.primaryManagerName).toBe("波留野 澄人");
+    expect(daily.primaryManagerName).toBe("佐藤 健一");
     expect(daily.staffNames).toHaveLength(8);
     expect(new Set(daily.staffNames).size).toBe(8);
     expect(daily.staffNames?.every((name) => !name.startsWith("[SEED]"))).toBe(true);

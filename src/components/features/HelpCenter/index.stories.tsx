@@ -49,6 +49,9 @@ export const Desktop: Story = {
     const scenarioCardContent = within(scenarioCard);
     await expect(scenarioCardContent.getByText("管理者")).toBeVisible();
     await expect(scenarioCardContent.getByText("スタッフ")).toBeVisible();
+    const basicLinks = within(canvas.getByRole("region", { name: "基本の使い方を見る" })).getAllByRole("link");
+    await expect(basicLinks[0]).toHaveAttribute("href", SHIFT_MANAGEMENT_SCENARIO.href);
+    await expect(basicLinks[1]).toHaveAttribute("href", ORGANIZATION_STRUCTURE_HELP.href);
     for (const task of HELP_TASKS) {
       await expect(canvas.getByRole("link", { name: task.title })).toHaveAttribute("href", getHelpTaskHref(task.id));
     }
@@ -60,6 +63,18 @@ export const Mobile: Story = {
   tags: ["vrt-mobile2"],
   globals: {
     viewport: { value: "mobile2", isRotated: false },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    const basicLinks = within(canvas.getByRole("region", { name: "基本の使い方を見る" })).getAllByRole("link");
+    await expect(within(basicLinks[0]).getByText(SHIFT_MANAGEMENT_SCENARIO.cardDescription)).not.toBeVisible();
+    await expect(within(basicLinks[1]).getByText(ORGANIZATION_STRUCTURE_HELP.cardDescription)).not.toBeVisible();
+
+    for (const task of HELP_TASKS) {
+      const taskDescription = within(canvas.getByRole("link", { name: task.title })).getByText(task.description);
+      await expect(taskDescription, `${task.title}の説明文`).not.toBeVisible();
+    }
   },
 };
 

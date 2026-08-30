@@ -66,8 +66,8 @@ function BasicHelpLinks() {
         </Heading>
       </Stack>
       <Stack gap={3}>
-        <HelpOrganizationStructureLinkCard />
         <HelpScenarioLinkCard />
+        <HelpOrganizationStructureLinkCard />
       </Stack>
     </Box>
   );

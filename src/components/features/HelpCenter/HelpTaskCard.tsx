@@ -30,7 +30,7 @@ export function HelpTaskLinkCard({ task }: { task: HelpTask }) {
       href={getHelpTaskHref(task.id)}
       aria-label={task.title}
       display="flex"
-      alignItems="flex-start"
+      alignItems={{ base: "center", md: "flex-start" }}
       justifyContent="flex-start"
       gap={3}
       minH={{ base: "112px", md: "148px" }}
@@ -64,7 +64,13 @@ function HelpTaskCardContent({ task }: { task: HelpTask }) {
         <Text fontWeight="bold" lineHeight="1.5" fontSize={{ base: "sm", md: "md" }}>
           {task.title}
         </Text>
-        <Text display={{ base: "none", md: "block" }} color="gray.600" fontSize="sm" lineHeight="1.6" lineClamp={2}>
+        <Text
+          display={{ base: "none", md: "block" }}
+          color="gray.600"
+          fontSize="sm"
+          lineHeight="1.6"
+          lineClamp={{ base: undefined, md: 2 }}
+        >
           {task.description}
         </Text>
       </Stack>
