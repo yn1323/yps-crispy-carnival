@@ -1920,6 +1920,110 @@ describe("organizationStripe/actions", () => {
     expect(next).toMatchObject({ created: true, conflict: false });
   });
 
+  it("Pro→Standard Schedule作成後・operation束縛前のlocal停止は同じcreate keyで回収して収束する", async () => {
+    configurationMock.mockReturnValue(READY_PRO_TEST_CONFIGURATION);
+    const t = convexTest(schema, modules);
+    const ids = await seedPaidPlanStripeContext(t, {
+      subject: "stripe_schedule_paid_plan_recovery_before_bind",
+      plan: "pro",
+    });
+    const stripeIdempotencyKey = "test:schedule-recovery-before-bind";
+    const operationId = await t.run(
+      async (ctx) =>
+        await ctx.db.insert("organizationStripeOperations", {
+          organizationId: ids.organizationId,
+          kind: "schedulePaidPlanChange",
+          requestKey: "schedule-recovery-before-bind",
+          stripeIdempotencyKey,
+          livemode: false,
+          expectedBillingVersion: 1,
+          providerGeneration: 1,
+          sourcePlan: "pro",
+          targetPlan: "standard",
+          changeMode: "periodEnd",
+          stripeSubscriptionIdSnapshot: ids.stripeSubscriptionId,
+          stripeSubscriptionItemIdSnapshot: ids.stripeSubscriptionItemId,
+          sourceStripePriceIdSnapshot: PRO_PRICE_ID,
+          targetStripePriceIdSnapshot: READY_TEST_CONFIGURATION.standardPriceId,
+          effectiveAt: ids.periodEndsAt,
+          status: "retrying",
+          attemptCount: 1,
+          nextRunAt: NOW,
+          expiresAt: NOW + STRIPE_WEBHOOK_EVENT_RETENTION_MS,
+          createdAt: NOW - 1_000,
+          updatedAt: NOW - 1_000,
+        }),
+    );
+    const providerResources: string[] = [];
+    const scheduleCreateCalls: unknown[][] = [];
+    const scheduleUpdateCalls: unknown[][] = [];
+    providerFetchMock.mockImplementation(async (input, init) => {
+      const resource = String(input).split("/").pop() ?? "";
+      const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+      providerResources.push(resource);
+      if (resource === "subscriptions.retrieve") {
+        return providerResponse(
+          paidPlanSubscriptionFixture(ids, {
+            plan: "pro",
+            invoiceStatus: "paid",
+            scheduleId: ids.stripeSubscriptionScheduleId,
+          }),
+        );
+      }
+      if (resource === "subscriptionSchedules.create") {
+        scheduleCreateCalls.push(args);
+        return providerResponse(subscriptionScheduleFixture(ids, { status: "not_started", metadata: {} }));
+      }
+      if (resource === "prices.retrieve") return providerResponse(priceFixtureFor(String(args[0])));
+      if (resource === "subscriptionSchedules.update") {
+        scheduleUpdateCalls.push(args);
+        const payload = args[1] as { phases: unknown[]; metadata: { shiftori_operation_id: string } };
+        return providerResponse(
+          subscriptionScheduleFixture(ids, {
+            status: "active",
+            phases: payload.phases,
+            operationId: payload.metadata.shiftori_operation_id,
+          }),
+        );
+      }
+      throw new Error(`Unexpected Stripe provider call: ${resource}`);
+    });
+
+    await t.action(internal.organizationStripe.actions.reconcilePaidPlanChangeOperation, { operationId });
+
+    expect(providerResources).toEqual([
+      "subscriptions.retrieve",
+      "subscriptionSchedules.create",
+      "prices.retrieve",
+      "subscriptionSchedules.update",
+    ]);
+    expect(providerResources).not.toContain("subscriptionSchedules.retrieve");
+    expect(scheduleCreateCalls).toEqual([
+      [{ from_subscription: ids.stripeSubscriptionId }, { idempotencyKey: `${stripeIdempotencyKey}:create` }],
+    ]);
+    expect(scheduleUpdateCalls).toHaveLength(1);
+    expect(
+      (scheduleUpdateCalls[0][1] as { metadata: { shiftori_operation_id: string } }).metadata.shiftori_operation_id,
+    ).toBe(operationId);
+    const state = await paidPlanStripeState(t, ids.organizationId);
+    expect(state.billing?.state).toEqual({
+      kind: "scheduledChange",
+      currentPlan: "pro",
+      targetPlan: "standard",
+      effectiveAt: ids.periodEndsAt,
+    });
+    expect(state.subscription).toMatchObject({
+      stripeSubscriptionScheduleId: ids.stripeSubscriptionScheduleId,
+      plan: "pro",
+    });
+    expect(state.operations.find((operation) => operation._id === operationId)).toMatchObject({
+      status: "succeeded",
+      attemptCount: 2,
+      stripeObjectId: ids.stripeSubscriptionScheduleId,
+      stripeIdempotencyKey,
+    });
+  });
+
   it("Pro→Standard Schedule作成後のlocal停止は保存済みScheduleを再利用して収束する", async () => {
     configurationMock.mockReturnValue(READY_PRO_TEST_CONFIGURATION);
     const t = convexTest(schema, modules);
@@ -2312,11 +2416,10 @@ describe("organizationStripe/actions", () => {
       }
       if (resource === "subscriptionSchedules.create") {
         scheduleCreateCalls.push(args);
-        const payload = args[0] as { metadata: { shiftori_operation_id: string } };
         return providerResponse(
           subscriptionScheduleFixture(ids, {
             status: "not_started",
-            operationId: payload.metadata.shiftori_operation_id,
+            metadata: {},
           }),
         );
       }
@@ -2358,7 +2461,12 @@ describe("organizationStripe/actions", () => {
     ).resolves.toEqual({ status: "accepted" });
 
     expect(scheduleCreateCalls).toHaveLength(1);
-    expect(scheduleCreateCalls[0][0]).toMatchObject({ from_subscription: ids.stripeSubscriptionId });
+    expect(scheduleCreateCalls[0]).toEqual([
+      { from_subscription: ids.stripeSubscriptionId },
+      {
+        idempotencyKey: `shiftori:test:schedulePaidPlanChange:${ids.organizationId}:pro-to-pro-at-period-end:create`,
+      },
+    ]);
     expect(scheduleUpdateCalls).toHaveLength(1);
     expect(scheduleUpdateCalls[0][0]).toBe(ids.stripeSubscriptionScheduleId);
     expect(scheduleUpdateCalls[0][1]).toEqual({
@@ -2396,6 +2504,9 @@ describe("organizationStripe/actions", () => {
       stripePriceId: PRO_PRICE_ID,
       stripeSubscriptionScheduleId: ids.stripeSubscriptionScheduleId,
     });
+    expect(scheduleOperationId).toBe(
+      state.operations.find((candidate) => candidate.kind === "schedulePaidPlanChange")?._id,
+    );
 
     await expect(
       actor.action(api.organizationStripe.actions.cancelScheduledPlanChangeForOrganization, {
@@ -2411,13 +2522,13 @@ describe("organizationStripe/actions", () => {
     expect(state.subscription).not.toHaveProperty("stripeSubscriptionScheduleId");
   });
 
-  it("Pro→Standard開始時の既存Scheduleが別operation所有なら更新せず、actionRequired ownerを別requestで迂回させない", async () => {
+  it("Pro→Standard開始時の未束縛Scheduleは再利用せず、actionRequired ownerを別requestで迂回させない", async () => {
     configurationMock.mockReturnValue(READY_PRO_TEST_CONFIGURATION);
     const t = convexTest(schema, modules);
     const subject = "stripe_pro_to_standard_foreign_schedule_start";
     const foreignScheduleId = "sub_sched_foreign_schedule_start";
     const ids = await seedPaidPlanStripeContext(t, { subject, plan: "pro" });
-    let scheduleRetrieveCount = 0;
+    const scheduleCreateCalls: unknown[][] = [];
     const scheduleUpdateCalls: unknown[][] = [];
     providerFetchMock.mockImplementation(async (input, init) => {
       const resource = String(input).split("/").pop() ?? "";
@@ -2432,15 +2543,9 @@ describe("organizationStripe/actions", () => {
           }),
         );
       }
-      if (resource === "subscriptionSchedules.retrieve") {
-        scheduleRetrieveCount += 1;
-        return providerResponse({
-          ...subscriptionScheduleFixture(ids, {
-            status: "active",
-            operationId: "foreign-operation-owner",
-          }),
-          id: foreignScheduleId,
-        });
+      if (resource === "subscriptionSchedules.create") {
+        scheduleCreateCalls.push(args);
+        throw new MockStripeError(400);
       }
       if (resource === "subscriptionSchedules.update") {
         scheduleUpdateCalls.push(args);
@@ -2462,6 +2567,7 @@ describe("organizationStripe/actions", () => {
     const operation = state.operations.find((candidate) => candidate.kind === "schedulePaidPlanChange");
     expect(operation).toMatchObject({ status: "retrying", attemptCount: 1 });
     if (!operation) throw new Error("schedule operation missing");
+    expect(operation).not.toHaveProperty("stripeObjectId");
     await t.run(async (ctx) => {
       await ctx.db.patch(operation._id, { attemptCount: 7, nextRunAt: NOW, updatedAt: NOW });
     });
@@ -2484,7 +2590,21 @@ describe("organizationStripe/actions", () => {
     ).resolves.toEqual({ status: "unavailable", reason: "in_progress" });
     state = await paidPlanStripeState(t, ids.organizationId);
     expect(state.operations.filter((candidate) => candidate.kind === "schedulePaidPlanChange")).toHaveLength(1);
-    expect(scheduleRetrieveCount).toBe(2);
+    expect(state.subscription).not.toHaveProperty("stripeSubscriptionScheduleId");
+    expect(scheduleCreateCalls).toEqual([
+      [
+        { from_subscription: ids.stripeSubscriptionId },
+        {
+          idempotencyKey: `shiftori:test:schedulePaidPlanChange:${ids.organizationId}:foreign-schedule-owner-1:create`,
+        },
+      ],
+      [
+        { from_subscription: ids.stripeSubscriptionId },
+        {
+          idempotencyKey: `shiftori:test:schedulePaidPlanChange:${ids.organizationId}:foreign-schedule-owner-1:create`,
+        },
+      ],
+    ]);
     expect(scheduleUpdateCalls).toEqual([]);
   });
 
@@ -2502,11 +2622,10 @@ describe("organizationStripe/actions", () => {
         return providerResponse(paidPlanSubscriptionFixture(ids, { plan: "pro", invoiceStatus: "paid" }));
       }
       if (resource === "subscriptionSchedules.create") {
-        const payload = args[0] as { metadata: { shiftori_operation_id: string } };
         return providerResponse(
           subscriptionScheduleFixture(ids, {
             status: "released",
-            operationId: payload.metadata.shiftori_operation_id,
+            metadata: {},
           }),
         );
       }
@@ -9511,6 +9630,7 @@ function subscriptionScheduleFixture(
     phases?: unknown[];
     operationId?: Id<"organizationStripeOperations"> | string;
     targetStripePriceId?: string;
+    metadata?: Record<string, string>;
   },
 ) {
   return {
@@ -9520,7 +9640,7 @@ function subscriptionScheduleFixture(
     released_subscription: args.status === "released" ? ids.stripeSubscriptionId : null,
     livemode: false,
     status: args.status,
-    metadata: {
+    metadata: args.metadata ?? {
       shiftori_organization_id: String(ids.organizationId),
       ...(args.operationId ? { shiftori_operation_id: String(args.operationId) } : {}),
       shiftori_provider_generation: "1",

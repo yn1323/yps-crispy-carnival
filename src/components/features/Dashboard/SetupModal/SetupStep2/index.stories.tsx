@@ -51,6 +51,7 @@ const applyPromotionCode = async (canvasElement: HTMLElement) => {
   await userEvent.type(input, "ab12cd");
   await userEvent.click(canvas.getByRole("button", { name: "適用" }));
   await expect(await canvas.findByText("無料のProプランを適用")).toBeVisible();
+  await expect(canvas.queryByRole("button", { name: "入力をやめる" })).not.toBeInTheDocument();
 };
 
 export const PromotionCodeApplied: Story = {

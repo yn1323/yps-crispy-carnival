@@ -263,7 +263,7 @@ function dialogContent(dialog: BillingActionDialogState): {
         title: "プラン支払い予約を取り消しますか？",
         submitLabel: "取り消す",
         submitColorPalette: "red",
-        note: "Trial最終後はFreeプランになります。",
+        note: "Trial終了後はFreeプランになります。",
       };
     case "schedulePlanChange":
       return {

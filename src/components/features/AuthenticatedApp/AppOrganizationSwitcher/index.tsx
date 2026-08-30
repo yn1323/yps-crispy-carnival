@@ -38,15 +38,18 @@ export function AppOrganizationSwitcher({ activeOrganizationId, activeOrganizati
           borderColor="gray.300"
           color="gray.900"
           flexShrink={0}
+          justifyContent="flex-start"
           _hover={{ bg: "gray.50", borderColor: "gray.400" }}
         >
           <Icon as={LuBuilding2} boxSize={5} color="teal.700" flexShrink={0} aria-hidden />
           <Text
             as="span"
             display={{ base: "none", lg: "block" }}
-            maxW={{ lg: "132px", xl: "180px" }}
+            flex={1}
+            minW={0}
             fontSize="sm"
             fontWeight="semibold"
+            textAlign="left"
             truncate
           >
             {activeOrganizationName}
@@ -57,6 +60,7 @@ export function AppOrganizationSwitcher({ activeOrganizationId, activeOrganizati
             boxSize={4}
             color="gray.500"
             flexShrink={0}
+            ml="auto"
             aria-hidden
           />
         </Button>

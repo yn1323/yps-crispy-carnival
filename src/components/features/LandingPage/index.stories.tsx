@@ -25,7 +25,7 @@ export const Desktop: Story = {
 
     await expect(basicHelpLinks).toHaveLength(2);
     for (const link of basicHelpLinks) {
-      await expect(link).toHaveAttribute("href", "/help");
+      await expect(link).toHaveAttribute("href", "/help/scenarios/shift-management");
     }
   },
 };

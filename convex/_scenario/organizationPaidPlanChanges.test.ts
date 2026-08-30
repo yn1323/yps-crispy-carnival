@@ -481,6 +481,7 @@ function installProToStandardProvider(
   let scheduledMetadata: Record<string, string> | undefined;
   let scheduledPhases: unknown[] = [];
   let scheduleCreateAttempts = 0;
+  const scheduleCreateCalls: unknown[][] = [];
   let scheduleReleaseAttempts = 0;
 
   const currentSubscription = () => {
@@ -511,13 +512,13 @@ function installProToStandardProvider(
     if (resource === "invoices.retrieve") return providerResponse(currentSubscription().latest_invoice);
     if (resource === "subscriptionSchedules.create") {
       scheduleCreateAttempts += 1;
+      scheduleCreateCalls.push(args);
       if (options.failFirstScheduleCreate && scheduleCreateAttempts === 1) {
-        throw new MockStripeError(500);
+        throw new MockStripeError(400);
       }
-      scheduledMetadata = (args[0] as { metadata: Record<string, string> }).metadata;
       return providerResponse({
         ...scheduleFixture(ids, { status: "not_started" }),
-        metadata: scheduledMetadata,
+        metadata: {},
       });
     }
     if (resource === "subscriptionSchedules.update") {
@@ -563,6 +564,9 @@ function installProToStandardProvider(
     },
     get scheduleCreateAttempts() {
       return scheduleCreateAttempts;
+    },
+    get scheduleCreateCalls() {
+      return scheduleCreateCalls;
     },
     get scheduleReleaseAttempts() {
       return scheduleReleaseAttempts;
@@ -950,10 +954,9 @@ describe("有料プラン変更シナリオ", () => {
         );
       }
       if (resource === "subscriptionSchedules.create") {
-        scheduledMetadata = (args[0] as { metadata: Record<string, string> }).metadata;
         return providerResponse({
           ...scheduleFixture(ids, { status: "not_started" }),
-          metadata: scheduledMetadata,
+          metadata: {},
         });
       }
       if (resource === "subscriptionSchedules.update") {
@@ -1428,7 +1431,7 @@ describe("有料プラン変更シナリオ", () => {
     expect(snapshot.billing?.state).toEqual({ kind: "active", plan: "standard" });
   });
 
-  it("ProからStandardのSchedule作成一時失敗は30秒後のprovider再取得で同じoperationから復旧する", async () => {
+  it("ProからStandardのSchedule作成がproviderに拒否されても30秒後に同じoperationから復旧する", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedPaidStripeContext(t, { subject: "pro_standard_schedule_retry", plan: "pro" });
     const provider = installProToStandardProvider(ids, {
@@ -1472,6 +1475,20 @@ describe("有料プラン変更シナリオ", () => {
     });
     expect(snapshot.operations[0]).toMatchObject({ status: "succeeded", attemptCount: 2 });
     expect(provider.scheduleCreateAttempts).toBe(2);
+    expect(provider.scheduleCreateCalls).toEqual([
+      [
+        { from_subscription: ids.stripeSubscriptionId },
+        {
+          idempotencyKey: `shiftori:test:schedulePaidPlanChange:${ids.organizationId}:pro-standard-schedule-provider-retry:create`,
+        },
+      ],
+      [
+        { from_subscription: ids.stripeSubscriptionId },
+        {
+          idempotencyKey: `shiftori:test:schedulePaidPlanChange:${ids.organizationId}:pro-standard-schedule-provider-retry:create`,
+        },
+      ],
+    ]);
     expect(provider.scheduledPhases).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
