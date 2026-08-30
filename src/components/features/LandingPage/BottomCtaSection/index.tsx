@@ -22,7 +22,7 @@ export const BottomCtaSection = () => (
         <VStack align="center" gap={3} w={{ base: "full", md: "auto" }}>
           <Stack direction={{ base: "column", md: "row" }} gap={4} w={{ base: "full", md: "auto" }}>
             <BottomButton href="/signup" label="シフトリをはじめる" primary />
-            <BottomButton href="/help" label="基本の使い方を見る" />
+            <BottomButton href="/help/scenarios/shift-management" label="基本の使い方を見る" />
           </Stack>
           <TrialReassurance />
         </VStack>

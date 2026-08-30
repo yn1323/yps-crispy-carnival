@@ -125,7 +125,7 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
     await expect(page.getByRole("heading", { level: 1, name: /シフトのやり取りを/ })).toBeVisible();
     const basicHelpLink = page.getByRole("link", { name: "基本の使い方を見る" }).first();
     await expect(basicHelpLink).toBeVisible();
-    await expect(basicHelpLink).toHaveAttribute("href", "/help");
+    await expect(basicHelpLink).toHaveAttribute("href", "/help/scenarios/shift-management");
     await expectAppHydrated(page);
 
     expect(thirdPartyMeasurementRequests).toEqual([]);
