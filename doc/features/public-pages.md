@@ -164,6 +164,7 @@ Static Prerenderingは、ルート以外を`dist/client/features.html`のよう�
 
 sitemap、canonical、内部リンクは、ルート以外を末尾スラッシュなしで統一する。
 公開済みの旧記事slugは互換URLとしてSSG対象に残し、HTMLと`Link` headerのcanonicalは現slugへ向ける。
+廃止した`/demo/flow`と末尾スラッシュ付きURLは、生成した`_redirects`で`/help/scenarios/shift-management`へ`301`転送する。
 既知の公開routeの末尾スラッシュ付きURLは、生成した`_redirects`で末尾スラッシュなしのHTMLへ`200` proxyする。
 3xxを返さないため、既存端末に残ったno-slashからslashへの308 cacheが適用されても、slash側の`200`でループを終端できる。
 

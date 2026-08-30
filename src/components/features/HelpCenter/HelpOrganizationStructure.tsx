@@ -39,9 +39,6 @@ export function HelpOrganizationStructure() {
               >
                 {ORGANIZATION_STRUCTURE_HELP.title}
               </Heading>
-              <Text color="gray.700" lineHeight="1.8">
-                {ORGANIZATION_STRUCTURE_HELP.description}
-              </Text>
             </Stack>
           </Stack>
         </Container>

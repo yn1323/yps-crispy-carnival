@@ -16,6 +16,7 @@ import {
   HELP_TASK_ROUTES,
   LEGACY_HELP_ROUTE_REDIRECTS,
   NOINDEX_PUBLIC_ROUTES,
+  RETIRED_PUBLIC_ROUTE_REDIRECTS,
   routeToHtmlPath,
 } from "./staticSite";
 
@@ -89,7 +90,10 @@ describe("static site manifest", () => {
       expect(routes).not.toContain("/help/missing-entry");
       expect(routes).not.toContain("/help/_draft");
       expect(routes).not.toContain("/help/legacy-help");
-      for (const { source } of LEGACY_HELP_ROUTE_REDIRECTS.filter(({ source }) => !source.endsWith("/"))) {
+      for (const { source } of [
+        ...LEGACY_HELP_ROUTE_REDIRECTS.filter(({ source }) => !source.endsWith("/")),
+        ...RETIRED_PUBLIC_ROUTE_REDIRECTS.filter(({ source }) => !source.endsWith("/")),
+      ]) {
         expect(routes).not.toContain(source);
       }
     } finally {
@@ -179,10 +183,13 @@ describe("static site manifest", () => {
     expect(routeToHtmlPath(route)).toBe(expected);
   });
 
-  it("旧ヘルプURLを301転送し、実在する公開slash aliasとCSR routeだけを200 proxyする", () => {
+  it("旧公開URLを301転送し、実在する公開slash aliasとCSR routeだけを200 proxyする", () => {
     const redirects = createCloudflareRedirects(["/", "/features", "/articles/known"]);
 
     for (const { source, target, status } of LEGACY_HELP_ROUTE_REDIRECTS) {
+      expect(redirects).toContain(`${source} ${target} ${status}`);
+    }
+    for (const { source, target, status } of RETIRED_PUBLIC_ROUTE_REDIRECTS) {
       expect(redirects).toContain(`${source} ${target} ${status}`);
     }
     expect(redirects).toContain("/features/ /features 200");

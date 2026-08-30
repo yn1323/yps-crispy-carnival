@@ -7,7 +7,7 @@ export function buildHelpOrganizationStructurePageHead() {
     meta: [
       ...buildMeta({
         title: `${ORGANIZATION_STRUCTURE_HELP.title}｜ヘルプ・使い方`,
-        description: ORGANIZATION_STRUCTURE_HELP.description,
+        description: ORGANIZATION_STRUCTURE_HELP.metaDescription,
         canonical: ORGANIZATION_STRUCTURE_HELP.href,
       }),
       ...jsonLdMeta({
