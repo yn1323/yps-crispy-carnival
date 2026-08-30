@@ -38,6 +38,16 @@ export const Desktop: Story = {
     const canvas = within(canvasElement);
     const relatedHelp = within(canvas.getByRole("region", { name: "関連情報" }));
 
+    await expect(canvas.getByRole("figure", { name: "組織・店舗・スタッフの全体像" })).toHaveAccessibleDescription(
+      /店舗ごとの契約ではありません/,
+    );
+    await expect(canvas.getByRole("figure", { name: "スタッフと管理者の関係" })).toHaveAccessibleDescription(
+      /スタッフ1名として数えます/,
+    );
+    await expect(canvas.getByRole("figure", { name: "複数の組織を使う場合" })).toHaveAccessibleDescription(
+      /別の組織へ自動では共有されません/,
+    );
+
     await expect(relatedHelp.getByRole("link", { name: /管理者を招待・再送・取り消す/ })).toHaveAttribute(
       "href",
       "/help/manage-manager-invitations",

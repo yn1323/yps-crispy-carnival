@@ -55,7 +55,7 @@ export function HelpOrganizationStructure() {
           <StructureFigure
             headingId="organization-overview-title"
             src={organizationOverviewImage}
-            alt="組織を中心に、一つのプラン、複数の店舗、スタッフ、組織全体を管理する管理者の関係を示す図"
+            accessibleDescription="シフトリでは組織が最大の管理単位です。プランと課金は組織に1つで、店舗ごとの契約ではありません。店舗は組織に所属し、スタッフは組織に登録したうえで店舗に所属します。管理者は特定の店舗ではなく組織全体を管理します。"
             caption="組織がシフトリにおける最大の管理単位です。"
             expandLabel="組織・店舗・スタッフの全体像"
             priority
@@ -63,14 +63,14 @@ export function HelpOrganizationStructure() {
           <StructureFigure
             headingId="staff-admin-relationship-title"
             src={staffAdminRelationshipImage}
-            alt="田中さんが店舗Aと店舗Bにスタッフとして所属し、同じ組織の管理者も兼ねる関係を示す図"
+            accessibleDescription="1人のスタッフは同じ組織内の複数店舗に所属でき、管理者も兼ねられます。複数店舗に所属しても、プランの利用人数はスタッフ1名として数えます。管理者権限は店舗単位ではなく組織全体に適用されます。"
             caption="同じ組織の中でならスタッフの配置は自由に決められます。"
             expandLabel="スタッフと管理者の関係"
           />
           <StructureFigure
             headingId="multiple-organizations-title"
             src={multipleOrganizationsImage}
-            alt="一つのログイン用アカウントから、データが独立した組織Aと組織Bを切り替える関係を示す図"
+            accessibleDescription="1つのログイン用アカウントで複数の組織を切り替えられます。プラン、店舗、スタッフ、シフトのデータは組織ごとに独立し、別の組織へ自動では共有されません。"
             caption="組織間で店舗・スタッフ・シフトは独立しています。"
             expandLabel="複数の組織を使う場合"
           />
@@ -100,22 +100,27 @@ function HelpBreadcrumbs() {
 function StructureFigure({
   headingId,
   src,
-  alt,
+  accessibleDescription,
   caption,
   expandLabel,
   priority = false,
 }: {
   headingId: string;
   src: string;
-  alt: string;
+  accessibleDescription: string;
   caption: string;
   expandLabel: string;
   priority?: boolean;
 }) {
+  const descriptionId = `${headingId}-description`;
+
   return (
-    <Box as="figure" m={0} aria-labelledby={headingId}>
+    <Box as="figure" m={0} aria-labelledby={headingId} aria-describedby={descriptionId}>
       <VisuallyHidden as="h2" id={headingId}>
         {expandLabel}
+      </VisuallyHidden>
+      <VisuallyHidden as="p" id={descriptionId}>
+        {accessibleDescription}
       </VisuallyHidden>
       <Box
         overflow="hidden"
@@ -128,7 +133,7 @@ function StructureFigure({
       >
         <Image
           src={src}
-          alt={alt}
+          alt=""
           width={STRUCTURE_IMAGE_WIDTH}
           height={STRUCTURE_IMAGE_HEIGHT}
           loading={priority ? "eager" : "lazy"}
