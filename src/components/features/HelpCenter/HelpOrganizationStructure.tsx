@@ -1,20 +1,16 @@
-import { Box, Container, Flex, Grid, Heading, HStack, Link, SimpleGrid, Stack, Table, Text } from "@chakra-ui/react";
-import type { IconType } from "react-icons";
-import {
-  LuArrowDown,
-  LuArrowLeft,
-  LuArrowRight,
-  LuBuilding2,
-  LuCreditCard,
-  LuStore,
-  LuUserRoundCog,
-  LuUsers,
-} from "react-icons/lu";
+import { Box, Container, Heading, HStack, Image, Link, Stack, Table, Text, VisuallyHidden } from "@chakra-ui/react";
+import { LuArrowLeft, LuArrowRight } from "react-icons/lu";
 import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
 import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
+import organizationOverviewImage from "./content/images/organization-structure/shiftori_01_structure_staff.webp";
+import staffAdminRelationshipImage from "./content/images/organization-structure/shiftori_02_staff_admin_relationship.webp";
+import multipleOrganizationsImage from "./content/images/organization-structure/shiftori_03_multiple_organizations_staff.webp";
 import { HelpAudienceBadge } from "./HelpAudienceBadge";
 import { HelpSupport } from "./HelpSupport";
 import { ORGANIZATION_STRUCTURE_HELP } from "./organizationStructureHelp";
+
+const STRUCTURE_IMAGE_WIDTH = 1448;
+const STRUCTURE_IMAGE_HEIGHT = 1086;
 
 const PLAN_ROWS = [
   { id: "trial", label: "トライアル", note: "Proと同じ上限" },
@@ -57,12 +53,31 @@ export function HelpOrganizationStructure() {
           aria-labelledby="help-organization-structure-title"
           maxW="960px"
           mx="auto"
-          gap={{ base: 12, lg: 16 }}
+          gap={{ base: 10, lg: 14 }}
         >
-          <OrganizationOverview />
-          <PersonRoleRelationship />
+          <StructureFigure
+            headingId="organization-overview-title"
+            src={organizationOverviewImage}
+            alt="組織を中心に、一つのプラン、複数の店舗、スタッフ、組織全体を管理する管理者の関係を示す図"
+            caption="組織がシフトリにおける最大の管理単位です。プランは店舗ごとではなく組織に一つ設定され、組織には利用できる店舗を少なくとも1店舗残します。"
+            expandLabel="組織・店舗・スタッフの全体像"
+            priority
+          />
+          <StructureFigure
+            headingId="staff-admin-relationship-title"
+            src={staffAdminRelationshipImage}
+            alt="田中さんが店舗Aと店舗Bにスタッフとして所属し、同じ組織の管理者も兼ねる関係を示す図"
+            caption="同じスタッフは、複数店舗に所属しても1名として数えます。管理者権限は店舗単位ではなく、組織全体に適用されます。"
+            expandLabel="スタッフと管理者の関係"
+          />
+          <StructureFigure
+            headingId="multiple-organizations-title"
+            src={multipleOrganizationsImage}
+            alt="一つのログイン用アカウントから、データが独立した組織Aと組織Bを切り替える関係を示す図"
+            caption="組織を切り替えても、店舗・スタッフ・シフトは組織間で自動共有されません。自分で作成して保持できる組織は3つまでで、招待で所属する組織はこの上限に含みません。"
+            expandLabel="複数の組織を使う場合"
+          />
           <PlanRelationship />
-          <MultipleOrganizations />
           <RelatedHelp />
           <HelpSupport />
         </Stack>
@@ -85,105 +100,68 @@ function HelpBreadcrumbs() {
   );
 }
 
-function OrganizationOverview() {
+function StructureFigure({
+  headingId,
+  src,
+  alt,
+  caption,
+  expandLabel,
+  priority = false,
+}: {
+  headingId: string;
+  src: string;
+  alt: string;
+  caption: string;
+  expandLabel: string;
+  priority?: boolean;
+}) {
   return (
-    <Stack as="section" aria-labelledby="organization-overview-title" gap={6}>
-      <Stack gap={2}>
-        <Heading id="organization-overview-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }}>
-          全体の関係
-        </Heading>
-        <Text color="gray.700" lineHeight="1.8">
-          組織が管理のまとまりです。店舗、スタッフ、管理者、プランは、すべて一つの組織に紐づきます。
-        </Text>
-      </Stack>
-
-      <Box as="figure" m={0}>
-        <Stack gap={0} align="stretch">
-          <ConceptCard
-            icon={LuBuilding2}
-            label="管理のまとまり"
-            title="組織"
-            description="店舗、利用者、契約をまとめます。組織が異なると、店舗やスタッフ、シフト、プランも別々に管理されます。"
-            highlighted
-          />
-          <DiagramConnector label="組織ごとに管理" />
-          <SimpleGrid columns={{ base: 1, md: 3 }} gap={3}>
-            <ConceptCard
-              icon={LuCreditCard}
-              label="組織に1つ"
-              title="プラン"
-              description="同じ組織にあるすべての店舗へ、共通のプランと利用上限を適用します。"
-            />
-            <ConceptCard
-              icon={LuStore}
-              label="1つの組織に所属"
-              title="店舗"
-              description="シフト募集や勤務時間を管理する単位です。店舗ごとに所属スタッフを設定します。"
-            />
-            <ConceptCard
-              icon={LuUsers}
-              label="組織に登録"
-              title="スタッフ・管理者"
-              description="同じ人物が複数店舗に所属したり、スタッフと管理者を兼ねたりできます。"
-            />
-          </SimpleGrid>
-        </Stack>
-        <Text as="figcaption" mt={4} color="gray.600" fontSize="sm" lineHeight="1.7">
-          店舗は必ず一つの組織に属します。組織には、利用できる店舗を少なくとも一つ残します。
-        </Text>
+    <Box as="figure" m={0} aria-labelledby={headingId}>
+      <VisuallyHidden as="h2" id={headingId}>
+        {expandLabel}
+      </VisuallyHidden>
+      <Box
+        overflow="hidden"
+        w="full"
+        borderWidth="1px"
+        borderColor="gray.200"
+        borderRadius="xl"
+        bg="white"
+        aspectRatio={STRUCTURE_IMAGE_WIDTH / STRUCTURE_IMAGE_HEIGHT}
+      >
+        <Image
+          src={src}
+          alt={alt}
+          width={STRUCTURE_IMAGE_WIDTH}
+          height={STRUCTURE_IMAGE_HEIGHT}
+          loading={priority ? "eager" : "lazy"}
+          decoding="async"
+          w="full"
+          h="full"
+          objectFit="contain"
+        />
       </Box>
-    </Stack>
-  );
-}
-
-function PersonRoleRelationship() {
-  return (
-    <Stack as="section" aria-labelledby="person-role-title" gap={6}>
-      <Stack gap={2}>
-        <Heading id="person-role-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }}>
-          スタッフと管理者の関係
-        </Heading>
-        <Text color="gray.700" lineHeight="1.8">
-          人物は組織に一人として登録され、店舗への所属と管理者権限をそれぞれ持てます。
+      <Stack as="figcaption" mt={3} gap={2} align="flex-start">
+        <Text color="gray.700" fontSize="sm" lineHeight="1.8">
+          {caption}
         </Text>
-      </Stack>
-
-      <Box as="figure" m={0}>
-        <Grid
-          templateColumns={{ base: "1fr", lg: "minmax(0, 260px) 48px minmax(0, 1fr)" }}
-          gap={{ base: 0, lg: 3 }}
-          alignItems="stretch"
+        <Link
+          href={src}
+          target="_blank"
+          rel="noopener noreferrer"
+          display={{ base: "inline-flex", lg: "none" }}
+          alignItems="center"
+          gap={1}
+          color="teal.700"
+          fontSize="sm"
+          fontWeight="bold"
+          aria-label={`${expandLabel}の画像を拡大して新しいタブで見る`}
         >
-          <ConceptCard
-            icon={LuUsers}
-            label="同じ一人"
-            title="組織の利用者"
-            description="氏名とシフト連絡先は組織ごとに管理します。"
-            highlighted
-          />
-          <DiagramConnector compact />
-          <SimpleGrid columns={{ base: 1, md: 2 }} gap={3}>
-            <ConceptCard
-              icon={LuStore}
-              label="スタッフとして"
-              title="店舗A・店舗Bに所属"
-              description="所属する店舗ごとに、希望シフトの提出や確定シフトの通知を受けます。所属店舗は0件にもできます。"
-            />
-            <ConceptCard
-              icon={LuUserRoundCog}
-              label="管理者として"
-              title="組織全体を管理"
-              description="管理者権限は店舗単位ではありません。同じ組織の店舗、スタッフ、プランを管理します。"
-            />
-          </SimpleGrid>
-        </Grid>
-        <Box mt={4} px={4} py={3} borderRadius="lg" bg="gray.50">
-          <Text color="gray.700" fontSize="sm" lineHeight="1.7">
-            複数店舗に所属しても、スタッフと管理者を兼ねても、利用人数は一人として数えます。店舗に所属していない人物も、組織に残っている間は利用人数に含まれます。
-          </Text>
-        </Box>
-      </Box>
-    </Stack>
+          画像を拡大して見る
+          <LuArrowRight aria-hidden />
+        </Link>
+      </Stack>
+    </Box>
   );
 }
 
@@ -192,51 +170,38 @@ function PlanRelationship() {
     <Stack as="section" aria-labelledby="plan-relationship-title" gap={6}>
       <Stack gap={2}>
         <Heading id="plan-relationship-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }}>
-          プランは組織ごとに1つ
+          プランごとの利用上限
         </Heading>
         <Text color="gray.700" lineHeight="1.8">
-          店舗ごとの契約ではありません。同じ組織の利用人数、店舗数、有効な管理者数の合計に、組織のプラン上限を適用します。
+          利用上限は、組織全体の利用人数、店舗数、有効な管理者数で数えます。
         </Text>
       </Stack>
 
-      <Box as="figure" m={0}>
-        <Stack gap={0}>
-          <ConceptCard
-            icon={LuCreditCard}
-            label="組織全体に適用"
-            title="現在のプラン"
-            description="一つのプランで、同じ組織にある店舗と利用者を管理します。"
-            highlighted
-          />
-          <DiagramConnector label="次の3項目を合計" />
-          <SimpleGrid columns={{ base: 1, md: 3 }} gap={3}>
-            <CountCard
-              icon={LuUsers}
-              title="利用人数"
-              description="管理者とスタッフを合わせ、同じ人物は一人として数えます。"
-            />
-            <CountCard icon={LuStore} title="店舗数" description="削除されていない店舗を、組織全体で数えます。" />
-            <CountCard
-              icon={LuUserRoundCog}
-              title="管理者数"
-              description="現在有効な管理者を数えます。管理者は利用人数にも含まれます。"
-            />
-          </SimpleGrid>
-        </Stack>
-      </Box>
-
       <PlanLimitsTable />
 
-      <Box borderWidth="1px" borderColor="gray.200" borderRadius="lg" bg="gray.50" px={{ base: 4, md: 5 }} py={4}>
-        <Stack gap={2}>
-          <Text color="gray.950" fontWeight="bold">
-            上限に達した場合
-          </Text>
-          <Text color="gray.700" fontSize="sm" lineHeight="1.8">
-            上限を超える追加は保存されません。プラン変更後などに既存の件数が上限を超えた場合も、登録済みのデータは削除されません。上位プランへ変更するか、利用人数、店舗数、管理者数を上限内に減らすと、通常の操作を再開できます。
-          </Text>
-        </Stack>
-      </Box>
+      <Stack gap={3}>
+        <Box borderWidth="1px" borderColor="gray.200" borderRadius="lg" bg="gray.50" px={{ base: 4, md: 5 }} py={4}>
+          <Stack gap={2}>
+            <Text color="gray.950" fontWeight="bold">
+              利用人数の数え方
+            </Text>
+            <Text color="gray.700" fontSize="sm" lineHeight="1.8">
+              店舗に所属していない組織のユーザーも、登録されている間は利用人数に含まれます。管理者は利用人数と有効な管理者数の両方に含まれます。
+            </Text>
+          </Stack>
+        </Box>
+
+        <Box borderWidth="1px" borderColor="gray.200" borderRadius="lg" bg="gray.50" px={{ base: 4, md: 5 }} py={4}>
+          <Stack gap={2}>
+            <Text color="gray.950" fontWeight="bold">
+              上限に達した場合
+            </Text>
+            <Text color="gray.700" fontSize="sm" lineHeight="1.8">
+              上限を超える追加は保存されません。プラン変更後などに既存の件数が上限を超えた場合も、登録済みのデータは削除されません。上位プランへ変更するか、利用人数、店舗数、管理者数を上限内に減らすと、通常の操作を再開できます。
+            </Text>
+          </Stack>
+        </Box>
+      </Stack>
     </Stack>
   );
 }
@@ -244,9 +209,6 @@ function PlanRelationship() {
 function PlanLimitsTable() {
   return (
     <Stack gap={3}>
-      <Heading as="h3" color="gray.950" fontSize={{ base: "lg", md: "xl" }}>
-        プランごとの利用上限
-      </Heading>
       <Box overflowX="auto" borderWidth="1px" borderColor="gray.200" borderRadius="lg">
         <Table.Root size="sm" minW="560px">
           <Table.Header>
@@ -300,51 +262,6 @@ function PlanLimitsTable() {
   );
 }
 
-function MultipleOrganizations() {
-  return (
-    <Stack as="section" aria-labelledby="multiple-organizations-title" gap={6}>
-      <Stack gap={2}>
-        <Heading id="multiple-organizations-title" as="h2" color="gray.950" fontSize={{ base: "xl", lg: "2xl" }}>
-          複数の組織を使う場合
-        </Heading>
-        <Text color="gray.700" lineHeight="1.8">
-          一つのログイン用アカウントで、複数の組織に所属できます。組織ごとにプランとデータを切り替えて使います。
-        </Text>
-      </Stack>
-
-      <Box as="figure" m={0}>
-        <Stack gap={0}>
-          <ConceptCard
-            icon={LuUsers}
-            label="同じログイン"
-            title="ログイン用アカウント"
-            description="招待を受けると、同じアカウントから別の組織へ切り替えられます。"
-            highlighted
-          />
-          <DiagramConnector label="組織を切り替える" />
-          <SimpleGrid columns={{ base: 1, md: 2 }} gap={3}>
-            <ConceptCard
-              icon={LuBuilding2}
-              label="独立して管理"
-              title="組織A"
-              description="組織Aのプラン、店舗、スタッフ、シフトを持ちます。"
-            />
-            <ConceptCard
-              icon={LuBuilding2}
-              label="独立して管理"
-              title="組織B"
-              description="組織Bのプラン、店舗、スタッフ、シフトを持ちます。"
-            />
-          </SimpleGrid>
-        </Stack>
-        <Text as="figcaption" mt={4} color="gray.600" fontSize="sm" lineHeight="1.7">
-          自分で作成して保持できる組織は3つまでです。招待されて所属する組織は、この3つに含みません。別の組織へ店舗やスタッフ、シフトを自動で共有することはありません。
-        </Text>
-      </Box>
-    </Stack>
-  );
-}
-
 function RelatedHelp() {
   return (
     <Stack as="section" aria-labelledby="related-help-title" gap={4}>
@@ -383,96 +300,5 @@ function RelatedHelp() {
         ヘルプ・使い方TOPに戻る
       </Link>
     </Stack>
-  );
-}
-
-function ConceptCard({
-  icon: ConceptIcon,
-  label,
-  title,
-  description,
-  highlighted = false,
-}: {
-  icon: IconType;
-  label: string;
-  title: string;
-  description: string;
-  highlighted?: boolean;
-}) {
-  return (
-    <Stack
-      gap={3}
-      h="full"
-      p={{ base: 4, md: 5 }}
-      borderWidth="1px"
-      borderColor="gray.200"
-      borderRadius="xl"
-      bg={highlighted ? "teal.50" : "white"}
-    >
-      <Flex align="center" gap={3}>
-        <Flex
-          align="center"
-          justify="center"
-          boxSize={10}
-          flexShrink={0}
-          borderRadius="lg"
-          bg={highlighted ? "teal.100" : "gray.100"}
-        >
-          <ConceptIcon
-            aria-hidden
-            color={highlighted ? "var(--chakra-colors-teal-800)" : "var(--chakra-colors-gray-700)"}
-          />
-        </Flex>
-        <Stack gap={0}>
-          <Text color={highlighted ? "teal.800" : "gray.600"} fontSize="xs" fontWeight="bold">
-            {label}
-          </Text>
-          <Text color="gray.950" fontWeight="bold" fontSize={{ base: "md", md: "lg" }}>
-            {title}
-          </Text>
-        </Stack>
-      </Flex>
-      <Text color="gray.700" fontSize="sm" lineHeight="1.8">
-        {description}
-      </Text>
-    </Stack>
-  );
-}
-
-function CountCard({ icon, title, description }: { icon: IconType; title: string; description: string }) {
-  return <ConceptCard icon={icon} label="プラン上限の対象" title={title} description={description} />;
-}
-
-function DiagramConnector({ label, compact = false }: { label?: string; compact?: boolean }) {
-  return (
-    <Flex
-      aria-hidden
-      direction={{ base: "column", lg: compact ? "row" : "column" }}
-      align="center"
-      justify="center"
-      gap={1}
-      py={compact ? { base: 2, lg: 0 } : 2}
-      color="gray.500"
-    >
-      {compact ? (
-        <>
-          <Box display={{ base: "block", lg: "none" }}>
-            <LuArrowDown />
-          </Box>
-          <Box display={{ base: "none", lg: "block" }}>
-            <LuArrowRight />
-          </Box>
-        </>
-      ) : (
-        <>
-          {label && (
-            <Text fontSize="xs" fontWeight="bold">
-              {label}
-            </Text>
-          )}
-          <LuArrowDown />
-        </>
-      )}
-    </Flex>
   );
 }
