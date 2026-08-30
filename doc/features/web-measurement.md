@@ -25,7 +25,7 @@ GTMは、次の条件をすべて満たすdocumentでだけ読み込む。
 
 | Surface | 対象 | 第三者script |
 |---|---|---|
-| 計測する公開面 | TOP、機能、ヘルプTOP・タスク・使い方詳細・動画シナリオ、問い合わせ、記事一覧・詳細・カテゴリ、2種類のデモ | 条件を満たした場合だけ読み込む |
+| 計測する公開面 | TOP、機能、ヘルプTOP・タスク・使い方詳細・動画シナリオ、問い合わせ、記事一覧・詳細・カテゴリ、シフトボードデモ | 条件を満たした場合だけ読み込む |
 | 計測しない公開面 | 法務文書、削除受付、cache reset | 読み込まない |
 | 非公開面 | 認証、Dashboard、店舗・人物・ShiftBoard、Capability、staff、callback、未知URL | 読み込まない |
 
@@ -41,8 +41,7 @@ GTMは、次の条件をすべて満たすdocumentでだけ読み込む。
 | 種類 | 発火条件 | 主な有限値 |
 |---|---|---|
 | page view | 計測対象の公開routeを表示したとき | route family、environment、release |
-| 公開CTA | 登録、デモ、ログインなど、登録済みCTAを選んだとき | CTA ID、route family |
-| デモ価値到達 | 募集、提出、調整を経て確定操作を完了したとき | demo flow |
+| 公開CTA | 登録、ヘルプ、ログインなど、登録済みCTAを選んだとき | CTA ID、route family |
 | Web Vitals | sampling対象documentでcallbackを受けたとき | metric、rating、navigation type、viewport、初回document route family |
 
 Event unionとserializerは`src/domains/webMeasurement/`を正本とする。  Featureから任意のevent名やparameterをGTMへ渡すAPIは公開しない。

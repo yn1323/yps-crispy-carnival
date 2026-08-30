@@ -16,7 +16,6 @@ export const FIXED_PUBLIC_ROUTES = [
   "/cache-reset",
   "/commercial-transactions",
   "/contact",
-  "/demo/flow",
   "/demo/shiftboard",
   "/features",
   "/help",

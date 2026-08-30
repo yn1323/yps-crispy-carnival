@@ -23,8 +23,6 @@ const sitePageSchema = z.object({
   latestTitle: z.string().min(1),
   ctaTitle: z.string().min(1),
   ctaDescription: z.string().min(1),
-  ctaPrimaryLabel: z.string().min(1),
-  ctaPrimaryHref: z.string().min(1),
   ctaSecondaryLabel: z.string().min(1),
   ctaSecondaryHref: z.string().min(1),
   concernSlugs: listSchema,

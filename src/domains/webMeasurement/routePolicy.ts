@@ -7,7 +7,6 @@ export const measuredPublicRouteFamilies = [
   "articles_index",
   "article_detail",
   "article_category",
-  "demo_flow",
   "demo_shiftboard",
 ] as const;
 
@@ -22,7 +21,6 @@ const fixedMeasuredRoutes = new Map<string, MeasuredPublicRouteFamily>([
   ["/", "home"],
   ["/articles", "articles_index"],
   ["/contact", "contact"],
-  ["/demo/flow", "demo_flow"],
   ["/demo/shiftboard", "demo_shiftboard"],
   ["/features", "features"],
   ["/help", "help_index"],

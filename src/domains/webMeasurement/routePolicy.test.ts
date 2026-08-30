@@ -14,7 +14,6 @@ describe("Web計測route policy", () => {
     ["/articles", "articles_index"],
     ["/articles/shiftori-line-workflow", "article_detail"],
     ["/articles/categories/shift-management", "article_category"],
-    ["/demo/flow", "demo_flow"],
     ["/demo/shiftboard", "demo_shiftboard"],
   ] as const)("%sを有限の公開route familyへ写像する", (pathname, routeFamily) => {
     expect(classifyWebMeasurementRoute(pathname)).toEqual({ surface: "measured_public", routeFamily });

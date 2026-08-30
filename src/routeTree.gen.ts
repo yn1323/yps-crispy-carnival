@@ -36,7 +36,6 @@ import { Route as AuthShiftsRouteImport } from './routes/_auth/shifts'
 import { Route as AuthStaffRouteImport } from './routes/_auth/staff'
 import { Route as ArticlesIndexRouteImport } from './routes/articles.index'
 import { Route as ArticlesSlugRouteImport } from './routes/articles.$slug'
-import { Route as DemoFlowRouteImport } from './routes/demo.flow'
 import { Route as DemoShiftboardRouteImport } from './routes/demo.shiftboard'
 import { Route as HelpIndexRouteImport } from './routes/help.index'
 import { Route as HelpSlugRouteImport } from './routes/help.$slug'
@@ -212,11 +211,6 @@ const ArticlesSlugRoute = ArticlesSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
   getParentRoute: () => ArticlesRoute,
-} as any)
-const DemoFlowRoute = DemoFlowRouteImport.update({
-  id: '/demo/flow',
-  path: '/demo/flow',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const DemoShiftboardRoute = DemoShiftboardRouteImport.update({
   id: '/demo/shiftboard',
@@ -473,7 +467,6 @@ export interface FileRoutesByFullPath {
   '/shifts': typeof AuthShiftsRoute
   '/staff': typeof AuthStaffRoute
   '/articles/$slug': typeof ArticlesSlugRoute
-  '/demo/flow': typeof DemoFlowRoute
   '/demo/shiftboard': typeof DemoShiftboardRoute
   '/help/$slug': typeof HelpSlugRoute
   '/privacy/manager': typeof PrivacyManagerRoute
@@ -541,7 +534,6 @@ export interface FileRoutesByTo {
   '/shifts': typeof AuthShiftsRoute
   '/staff': typeof AuthStaffRoute
   '/articles/$slug': typeof ArticlesSlugRoute
-  '/demo/flow': typeof DemoFlowRoute
   '/demo/shiftboard': typeof DemoShiftboardRoute
   '/help/$slug': typeof HelpSlugRoute
   '/privacy/manager': typeof PrivacyManagerRoute
@@ -614,7 +606,6 @@ export interface FileRoutesById {
   '/_auth/shifts': typeof AuthShiftsRoute
   '/_auth/staff': typeof AuthStaffRoute
   '/articles/$slug': typeof ArticlesSlugRoute
-  '/demo/flow': typeof DemoFlowRoute
   '/demo/shiftboard': typeof DemoShiftboardRoute
   '/help/$slug': typeof HelpSlugRoute
   '/privacy_/manager': typeof PrivacyManagerRoute
@@ -686,7 +677,6 @@ export interface FileRouteTypes {
     | '/shifts'
     | '/staff'
     | '/articles/$slug'
-    | '/demo/flow'
     | '/demo/shiftboard'
     | '/help/$slug'
     | '/privacy/manager'
@@ -754,7 +744,6 @@ export interface FileRouteTypes {
     | '/shifts'
     | '/staff'
     | '/articles/$slug'
-    | '/demo/flow'
     | '/demo/shiftboard'
     | '/help/$slug'
     | '/privacy/manager'
@@ -826,7 +815,6 @@ export interface FileRouteTypes {
     | '/_auth/shifts'
     | '/_auth/staff'
     | '/articles/$slug'
-    | '/demo/flow'
     | '/demo/shiftboard'
     | '/help/$slug'
     | '/privacy_/manager'
@@ -891,7 +879,6 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   SsoCallbackRoute: typeof SsoCallbackRoute
   TermsRoute: typeof TermsRoute
-  DemoFlowRoute: typeof DemoFlowRoute
   DemoShiftboardRoute: typeof DemoShiftboardRoute
   PrivacyManagerRoute: typeof PrivacyManagerRoute
   PrivacyStaffRoute: typeof PrivacyStaffRoute
@@ -1089,13 +1076,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/articles/$slug'
       preLoaderRoute: typeof ArticlesSlugRouteImport
       parentRoute: typeof ArticlesRoute
-    }
-    '/demo/flow': {
-      id: '/demo/flow'
-      path: '/demo/flow'
-      fullPath: '/demo/flow'
-      preLoaderRoute: typeof DemoFlowRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/demo/shiftboard': {
       id: '/demo/shiftboard'
@@ -1542,7 +1522,6 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   SsoCallbackRoute: SsoCallbackRoute,
   TermsRoute: TermsRoute,
-  DemoFlowRoute: DemoFlowRoute,
   DemoShiftboardRoute: DemoShiftboardRoute,
   PrivacyManagerRoute: PrivacyManagerRoute,
   PrivacyStaffRoute: PrivacyStaffRoute,

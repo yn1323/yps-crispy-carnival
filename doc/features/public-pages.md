@@ -22,7 +22,6 @@
 | `/articles` | シフト運営に関する記事とカテゴリへの入口を示す | `src/pages/articles/`、`ArticleListPage` |
 | `/articles/:slug` | 一つの記事を表示し、関連する製品情報へつなぐ | `ArticlePage`、`ArticleSite/content/articles/` |
 | `/articles/categories/:categorySlug` | 同じ課題領域の記事をまとめる | `ArticleCategoryPage`、`ArticleSite/content/categories/` |
-| `/demo/flow` | 募集作成から確定通知までの流れを、登録なしで順番に試せるようにする | `src/pages/demo-flow/`、`Demo/ShiftoriDemoFlow/` |
 | `/demo/shiftboard` | PC向けシフト表の入力と調整を、登録なしで試せるようにする | `src/pages/demo-shift-board/`、`Demo/DemoShiftBoardPage/` |
 
 TOPは`src/routes/index.tsx`から`HomePage`を呼び、`HomePage`が`LandingPage`を構成する。
@@ -138,7 +137,7 @@ frontmatter、検索、関連付け、本文の表示規則は[ヘルプセン�
 
 ## 静的生成とメタデータ
 
-`scripts/staticSite.ts`はTOP、機能紹介、ヘルプTOP・組織構造・動画シナリオ・タスクページ、問い合わせ、記事一覧、汎用の法務文書、特定商取引法に基づく表記、二つのデモなどを公開routeとして持つ。  現在、独立した`/pricing` routeはない。
+`scripts/staticSite.ts`はTOP、機能紹介、ヘルプTOP・組織構造・動画シナリオ・タスクページ、問い合わせ、記事一覧、汎用の法務文書、特定商取引法に基づく表記、シフトボードデモなどを公開routeとして持つ。  現在、独立した`/pricing` routeはない。
 ヘルプの使い方は`HelpCenter/content/guides/`、記事詳細とカテゴリは`ArticleSite/content/`の公開済みslugから対象routeを組み立てる。
 TanStack StartはこのallowlistだけをStatic Prerenderingし、認証routeやCapability routeを自動探索しない。
 

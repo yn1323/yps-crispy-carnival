@@ -95,7 +95,7 @@ repository artifactでは、複数組織、複数店舗、複数管理者（招�
 
 | 機能 | 概要 | 主な画面 |
 |---|---|---|
-| [公開サイト](public-pages.md) | TOP、機能紹介、無料トライアル条件、記事、登録不要の操作デモ、特定商取引法表記。認証・Convex不要の静的生成 | `/`、`/features`、`/articles`、`/demo/flow`、`/demo/shiftboard`、`/commercial-transactions` |
+| [公開サイト](public-pages.md) | TOP、機能紹介、無料トライアル条件、記事、登録不要のシフトボードデモ、特定商取引法表記。認証・Convex不要の静的生成 | `/`、`/features`、`/articles`、`/demo/shiftboard`、`/commercial-transactions` |
 | [ヘルプセンター](help-center.md) | FAQと使い方を共通のMDX形式で管理し、やりたいことと検索から探せるようにする | `/help`、`/help/tasks/:taskId`、`/help/:slug` |
 | [問い合わせ](contact.md) | 未ログイン可の問い合わせフォーム。Turnstile・レート制限後にResendでメール送信し、Slackへ社内通知する | `/contact` |
 | [公開サイトのWeb計測](web-measurement.md) | 同意した端末に限り、公開ページの導線・Web VitalsをGTM/GA4へ低cardinalityで送る | 公開ページ |
