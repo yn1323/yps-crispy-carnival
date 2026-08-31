@@ -2,7 +2,7 @@
 
 > 文書種別: feature
 >
-> 最終コード照合: 2026-08-30（この変更を含む）
+> 最終コード照合: 2026-08-31（この変更を含む）
 
 「ヘルプ・使い方」は、シフトリを利用中の管理者とスタッフが、やりたいことからFAQと詳しい使い方を探す公開ページである。
 
@@ -16,6 +16,7 @@ FAQと使い方は同じMDX管理基盤へ所属するが、FAQは短い回答�
 | `/help/tasks/<task-id>` | 対象のやりたいことに属するFAQと使い方を表示するページ |
 | `/help/tasks/<task-id>#<faq-id>` | 対象FAQを展開し、質問へフォーカスする共有URL |
 | `/help/basics/organization-structure` | 組織、店舗、スタッフ、管理者、プランの関係と利用上限の数え方を図で確認するページ |
+| `/help/basics/notifications` | メール・LINE通知の送信タイミングと、決済関連メールの宛先を確認するページ |
 | `/help/scenarios/shift-management` | スタッフ追加の準備から確定通知までを、動画とStepperで順番に確認するページ |
 | `/help/<guide-id>` | 使い方の個別ページ |
 
@@ -37,7 +38,7 @@ FAQと使い方は同じMDX管理基盤へ所属するが、FAQは短い回答�
 - 困りごとを解決したい
 
 ID、表示名、説明、対象者、表示順は`helpTasks.ts`を正本とする。  
-ヘルプTOPは、組織構造とシフト管理の流れを確認する基本ページへの入口を先に表示し、その下にタスクカードを表示する。タスクページではタスク名を通常のページ見出しとして表示し、そのタスクに属するFAQと使い方だけを表示する。
+ヘルプTOPは、シフト管理の流れ、通知の送信タイミング、組織構造を確認する基本ページへの入口を先に表示し、その下にタスクカードを表示する。タスクページではタスク名を通常のページ見出しとして表示し、そのタスクに属するFAQと使い方だけを表示する。
 
 ## MDX
 
@@ -91,7 +92,7 @@ FAQと使い方を一つの検索欄から検索する。
 
 ## 表示と画像
 
-`/help`の初期表示では、検索欄、組織構造とシフト管理シナリオへの入口、タスクカードを表示する。
+`/help`の初期表示では、検索欄、シフト管理シナリオ、通知の基本ページ、組織構造への入口、タスクカードを表示する。
 
 検索中はタスクカードを隠し、FAQと使い方を種類別のリンクとして表示する。FAQのリンク先は所属するタスクページ内の該当質問、使い方のリンク先は個別ページである。
 
@@ -107,6 +108,8 @@ FAQはアコーディオンでその場に表示し、使い方は個別ペー�
 
 組織構造の基本ページはTSXで構成し、3枚の図を中心に、組織を起点とした店舗、スタッフ、管理者、プランの関係と複数組織の切り替えを表示する。  プラン上限表は`ORGANIZATION_PLAN_LIMITS`を参照し、利用人数が複数店舗所属や管理者兼務で重複しないこと、プランが組織単位であることを説明する。動画、認証状態、実ユーザーデータ、Convex APIには接続しない。
 
+通知の基本ページはTSXで構成し、3枚の通知フロー図を中心に、スタッフ登録・シフト管理・管理者招待の通知タイミングと、料金・プランに関する決済関連メールの宛先を表示する。通知条件は現在の通知マトリクスを正本とし、認証状態、実ユーザーデータ、Convex APIには接続しない。
+
 ## 検証
 
 build前に、frontmatter、kindと配置、task、feature ID、ID・タイトル・orderの重複、本文、primaryGuide、related、下書き参照を検証する。  
@@ -114,18 +117,18 @@ build前に、frontmatter、kindと配置、task、feature ID、ID・タイト�
 
 `/help`だけが全文検索用の本文テキストを読み込む。タスクページはFAQ本文と軽量metadataを読み込み、全文検索データを先読みしない。使い方ページでは対象slugのMDX本文・目次・画像だけを遅延読込する。
 
-`scripts/staticSite.ts`は組織構造の基本ページ、シフト管理シナリオ、全タスクページ、公開中のguide MDXファイルから組み立てた`/help/<guide-id>`を静的生成する。
+`scripts/staticSite.ts`は組織構造と通知の基本ページ、シフト管理シナリオ、全タスクページ、公開中のguide MDXファイルから組み立てた`/help/<guide-id>`を静的生成する。
 sitemapは同じ公開route一覧から生成し、ヘルプには`lastmod`を付けない。
 
 ## 関連ファイル
 
-- `src/routes/help.tsx`、`help.index.tsx`、`help.basics.organization-structure.tsx`、`help.scenarios.shift-management.tsx`、`help.tasks.$taskId.tsx`、`help.$slug.tsx`：URL境界
+- `src/routes/help.tsx`、`help.index.tsx`、`help.basics.notifications.tsx`、`help.basics.organization-structure.tsx`、`help.scenarios.shift-management.tsx`、`help.tasks.$taskId.tsx`、`help.$slug.tsx`：URL境界
 - `src/pages/help/`：ページ入口とhead
 - `src/components/features/HelpCenter/helpMeta.ts`、`helpAliases.ts`、`helpNavigation.ts`：軽量metadata、関係、旧URLの解決、構造化データ
 - `src/components/features/HelpCenter/helpIndexData.ts`：`/help`だけが使う全文検索・FAQ回答テキスト
 - `src/components/features/HelpCenter/helpSearch.ts`：共通検索
 - `src/components/features/HelpCenter/faqContent.ts`、`guideContent.ts`：本文コンポーネントと目次
-- `src/components/features/HelpCenter/HelpIndex.tsx`、`HelpOrganizationStructure.tsx`、`HelpShiftManagementScenario.tsx`、`HelpTask.tsx`、`HelpGuide.tsx`：TOP、組織構造、動画シナリオ、タスク、使い方詳細
+- `src/components/features/HelpCenter/HelpIndex.tsx`、`HelpNotificationBasics.tsx`、`HelpOrganizationStructure.tsx`、`HelpShiftManagementScenario.tsx`、`HelpTask.tsx`、`HelpGuide.tsx`：TOP、通知、組織構造、動画シナリオ、タスク、使い方詳細
 - `src/components/features/HelpCenter/helpContent.test.ts`：管理形式と検索のLogic Test
 - `scripts/staticSite.ts`、`scripts/sitemap.ts`：静的生成とsitemap
 
