@@ -90,7 +90,7 @@ describe("useSignupFlowController", () => {
     });
 
     expect(result.current.errorMessage).toBe(
-      "このメールアドレスはすでに登録されています。\nログインをお試しください。",
+      "このメールアドレスはすでに登録されています。\n一度ログアウトしてから招待リンクを再度クリックしてください。",
     );
     expect(result.current.isVerificationStep).toBe(false);
     expect(signUp.verifications.sendEmailCode).not.toHaveBeenCalled();

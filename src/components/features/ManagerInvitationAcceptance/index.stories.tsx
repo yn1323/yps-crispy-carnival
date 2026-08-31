@@ -69,6 +69,17 @@ export const VerificationRequired: Story = {
     },
   },
 };
+export const VerificationEmailAlreadyRegistered: Story = {
+  args: {
+    state: {
+      kind: "verificationRequired",
+      step: "input",
+      errorMessage:
+        "このメールアドレスはすでに登録されています。\n一度ログアウトしてから招待リンクを再度クリックしてください。",
+      isBusy: false,
+    },
+  },
+};
 export const VerificationCode: Story = {
   args: {
     state: {

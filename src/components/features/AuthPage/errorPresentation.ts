@@ -24,7 +24,7 @@ export function getClerkErrorMessage(error: unknown) {
     case "form_password_compromised":
       return "このパスワードは安全性に問題があります。\n別のパスワードを設定してください。";
     case "form_identifier_exists":
-      return "このメールアドレスはすでに登録されています。\nログインをお試しください。";
+      return "このメールアドレスはすでに登録されています。\n一度ログアウトしてから招待リンクを再度クリックしてください。";
     case "too_many_requests":
       return "試行回数が多すぎます。\n時間をおいて、もう一度お試しください。";
     default:

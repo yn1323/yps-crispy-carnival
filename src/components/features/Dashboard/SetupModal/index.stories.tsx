@@ -63,6 +63,26 @@ export const DateOnlySkipsSettingsMobile: Story = {
   play: async ({ canvasElement }) => openDateOnlyManagerStep(canvasElement),
 };
 
+const showLegalValidationError = async (canvasElement: HTMLElement) => {
+  const dialog = await getDialog(canvasElement);
+  await inputShopName(dialog);
+  await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
+  await userEvent.click(dialog.getByRole("button", { name: "利用開始" }));
+  await expect(await dialog.findByText("利用規約とプライバシーポリシーに同意してください。")).toBeVisible();
+};
+
+export const LegalValidationError: Story = {
+  play: async ({ canvasElement }) => showLegalValidationError(canvasElement),
+};
+
+export const LegalValidationErrorMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: {
+    viewport: { value: "mobile2", isRotated: false },
+  },
+  play: async ({ canvasElement }) => showLegalValidationError(canvasElement),
+};
+
 export const TimeSettingsStep: Story = {
   parameters: {
     screenshot: { skip: true },
