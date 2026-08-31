@@ -10,7 +10,7 @@ type Props = {
   mobileNavigationHeight?: string;
 };
 
-export function FullPageSpinner({ showHeader = false, reserveHeaderSpace = false, mobileNavigationHeight }: Props) {
+export function FullPageSpinner({ showHeader = false, reserveHeaderSpace = true, mobileNavigationHeight }: Props) {
   const mobileNavigationPadding = mobileNavigationHeight
     ? {
         base: `calc(${mobileNavigationHeight} + env(safe-area-inset-bottom))`,

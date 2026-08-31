@@ -1,4 +1,4 @@
-import { useAuth, useReverification, useUser } from "@clerk/react";
+import { useAuth, useClerk, useReverification, useUser } from "@clerk/react";
 import { isReverificationCancelledError } from "@clerk/react/errors";
 import type { EmailAddressResource } from "@clerk/shared/types";
 import { useNavigate } from "@tanstack/react-router";
@@ -33,6 +33,7 @@ type Props = {
 export function ManagerInvitationAcceptance({ token }: Props) {
   const navigate = useNavigate();
   const { isLoaded: isAuthLoaded, isSignedIn } = useAuth();
+  const { signOut } = useClerk();
   const { isLoaded: isUserLoaded, user } = useUser();
   const { isAuthenticated, isLoading: isConvexAuthLoading } = useConvexAuth();
   const preview = useQuery(api.organizationInvitation.queries.getPreview, token ? { token } : "skip");
@@ -44,6 +45,7 @@ export function ManagerInvitationAcceptance({ token }: Props) {
   const [verificationStep, setVerificationStep] = useState<VerificationStep>("input");
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [verificationInfo, setVerificationInfo] = useState<string | null>(null);
+  const [verificationRequiresLogout, setVerificationRequiresLogout] = useState(false);
   const [maskedVerificationEmail, setMaskedVerificationEmail] = useState("");
   const verificationEmailRef = useRef<EmailAddressResource | null>(null);
   const invitationRedirect = useMemo(() => buildManagerInvitationRedirect(token), [token]);
@@ -85,6 +87,7 @@ export function ManagerInvitationAcceptance({ token }: Props) {
       if (result.status === "verificationRequired") {
         setVerificationStep("input");
         setVerificationInfo(null);
+        setVerificationRequiresLogout(false);
         setVerificationError(
           afterVerification
             ? "入力したメールアドレスを招待先として確認できませんでした。招待メールの宛先を確認してください。"
@@ -115,6 +118,7 @@ export function ManagerInvitationAcceptance({ token }: Props) {
   const { run: startVerification, isRunning: isStartingVerification } = useSingleFlight(async (email: string) => {
     setVerificationError(null);
     setVerificationInfo(null);
+    setVerificationRequiresLogout(false);
 
     const parsed = requiredEmailSchema.safeParse(email);
     if (!parsed.success) {
@@ -156,6 +160,7 @@ export function ManagerInvitationAcceptance({ token }: Props) {
       setVerificationStep("code");
     } catch (error) {
       if (isReverificationCancelledError(error)) return;
+      setVerificationRequiresLogout(hasClerkErrorCode(error, "form_identifier_exists"));
       setVerificationError(getClerkErrorMessage(error));
     }
   });
@@ -163,6 +168,7 @@ export function ManagerInvitationAcceptance({ token }: Props) {
   const { run: verifyCode, isRunning: isVerifyingCode } = useSingleFlight(async (code: string) => {
     setVerificationError(null);
     setVerificationInfo(null);
+    setVerificationRequiresLogout(false);
 
     const emailAddress = verificationEmailRef.current;
     if (!emailAddress || !user) {
@@ -189,6 +195,7 @@ export function ManagerInvitationAcceptance({ token }: Props) {
   const { run: resendCode, isRunning: isResendingCode } = useSingleFlight(async () => {
     setVerificationError(null);
     setVerificationInfo(null);
+    setVerificationRequiresLogout(false);
 
     const emailAddress = verificationEmailRef.current;
     if (!emailAddress) {
@@ -212,6 +219,7 @@ export function ManagerInvitationAcceptance({ token }: Props) {
     setVerificationStep("input");
     setVerificationError(null);
     setVerificationInfo(null);
+    setVerificationRequiresLogout(false);
   };
 
   const state = resolveViewState({
@@ -230,6 +238,7 @@ export function ManagerInvitationAcceptance({ token }: Props) {
     verificationStep,
     verificationError,
     verificationInfo,
+    verificationRequiresLogout,
     maskedVerificationEmail,
     isVerifyingEmail: isStartingVerification || isVerifyingCode || isResendingCode || isAccepting,
   });
@@ -245,6 +254,11 @@ export function ManagerInvitationAcceptance({ token }: Props) {
         onVerifyCode: ({ code }) => void verifyCode(code),
         onResendCode: () => void resendCode(),
         onBackToVerificationInput: backToEmailInput,
+        onLogout: () => {
+          void signOut().catch(() => {
+            setVerificationError("ログアウトできませんでした。もう一度お試しください。");
+          });
+        },
         onGoToDashboard: () =>
           void navigate({
             to: "/dashboard",
@@ -278,6 +292,7 @@ function resolveViewState({
   verificationStep,
   verificationError,
   verificationInfo,
+  verificationRequiresLogout,
   maskedVerificationEmail,
   isVerifyingEmail,
 }: {
@@ -296,6 +311,7 @@ function resolveViewState({
   verificationStep: VerificationStep;
   verificationError: string | null;
   verificationInfo: string | null;
+  verificationRequiresLogout: boolean;
   maskedVerificationEmail: string;
   isVerifyingEmail: boolean;
 }): ManagerInvitationAcceptanceViewState {
@@ -324,6 +340,7 @@ function resolveViewState({
           kind: "verificationRequired",
           step: "input",
           errorMessage: verificationError,
+          requiresLogout: verificationRequiresLogout,
           isBusy: isVerifyingEmail,
         };
   }
@@ -347,6 +364,13 @@ function resolveViewState({
     isSignedIn,
     isAccepting,
   };
+}
+
+function hasClerkErrorCode(error: unknown, expectedCode: string): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const candidate = "errors" in error && Array.isArray(error.errors) ? error.errors[0] : error;
+  return Boolean(candidate && typeof candidate === "object" && "code" in candidate && candidate.code === expectedCode);
 }
 
 export type {
