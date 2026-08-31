@@ -356,7 +356,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `convex/organization/` | 組織、店舗、人物、管理者、利用状況、削除可否を扱う |
 | `convex/organizationBilling/` | プラン上限、利用実数から導出するaccess policy、期限、解約、支払い失敗後のFree移行、請求先メール、請求先変更通知を扱う |
 | `convex/organizationStripe/` | Stripe API、現在Subscriptionの保存済みPriceのread-only取得、Checkout、Portal、Webhook、再照合、probeを扱う |
-| `convex/organizationInvitation/mutations.ts` | 管理者招待の発行、再送、取消、承認準備、proof付き確定、旧mutation互換を扱う |
+| `convex/organizationInvitation/mutations.ts` | 管理者招待の発行、再送、取消、承認準備、proof付き確定を扱う |
 | `convex/organizationInvitation/acceptanceActions.ts` / `convex/_lib/clerkVerifiedEmailProvider.ts` | 未接続人物のClerk確認済みメールをNode runtimeで照合し、provider失敗時は招待を消費せず返す |
 | `convex/migrations/m023_organization_invitations_narrow_prep.ts` | 旧招待lifecycleと欠損fieldをNarrow前に補完する |
 | `convex/migrations/m028_shop_billing_states_narrow_prep.ts` | 旧店舗課金rowを保持したままcanonical課金状態との対応異常を記録する |
