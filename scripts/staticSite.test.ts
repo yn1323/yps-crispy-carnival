@@ -80,6 +80,7 @@ describe("static site manifest", () => {
       expect(routes).toContain("/articles/line-shift-collection-guide");
       expect(routes).toContain("/articles/categories/operations");
       expect(routes).toContain("/help/published-help");
+      expect(routes).toContain("/help/basics/notifications");
       expect(routes).toContain("/help/basics/organization-structure");
       expect(routes).toContain("/help/scenarios/shift-management");
       for (const taskRoute of HELP_TASK_ROUTES) {
@@ -133,6 +134,7 @@ describe("static site manifest", () => {
 
   it("sitemap対象をindex可能なcanonical URLへ重複なく畳み込む", () => {
     expect(FIXED_PUBLIC_ROUTES).toContain("/help");
+    expect(FIXED_PUBLIC_ROUTES).toContain("/help/basics/notifications");
     expect(FIXED_PUBLIC_ROUTES).toContain("/help/basics/organization-structure");
     expect(FIXED_PUBLIC_ROUTES).toContain("/help/scenarios/shift-management");
     expect(FIXED_PUBLIC_ROUTES).not.toContain("/faq");

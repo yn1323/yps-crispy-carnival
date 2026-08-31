@@ -4,6 +4,7 @@ import { articleSlugAliases, resolveArticleSlug } from "../src/components/featur
 import { legacyHelpGuideRedirects } from "../src/components/features/HelpCenter/helpAliases";
 import { SHIFT_MANAGEMENT_SCENARIO } from "../src/components/features/HelpCenter/helpScenario";
 import { HELP_TASK_IDS } from "../src/components/features/HelpCenter/helpTasks";
+import { NOTIFICATION_BASICS_HELP } from "../src/components/features/HelpCenter/notificationBasicsHelp";
 import { ORGANIZATION_STRUCTURE_HELP } from "../src/components/features/HelpCenter/organizationStructureHelp";
 
 export const STATIC_CLIENT_OUTPUT_DIR = "dist/client";
@@ -19,6 +20,7 @@ export const FIXED_PUBLIC_ROUTES = [
   "/demo/shiftboard",
   "/features",
   "/help",
+  NOTIFICATION_BASICS_HELP.href,
   ORGANIZATION_STRUCTURE_HELP.href,
   SHIFT_MANAGEMENT_SCENARIO.href,
   "/privacy",
