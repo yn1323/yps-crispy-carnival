@@ -178,7 +178,7 @@ describe("AuthGuard", () => {
 
     const spinner = screen.getByTestId("full-page-spinner");
     expect(spinner.getAttribute("data-show-header")).toBe("true");
-    expect(spinner.getAttribute("data-mobile-navigation-height")).toBe("68px");
+    expect(spinner.getAttribute("data-mobile-navigation-height")).toBe("56px");
   });
 
   it("未認証時はrouter stateに欠けたsearchも実URLからredirectへ保持する", () => {

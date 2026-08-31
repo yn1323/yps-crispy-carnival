@@ -164,6 +164,7 @@ vi.mock("@/src/components/templates/FullPageSpinner", () => ({
 
 vi.mock("@/src/components/templates/Header", () => ({
   HEADER_HEIGHT: { base: "0px", md: "0px" },
+  AUTHENTICATED_APP_HEADER_HEIGHT: { base: "0px", md: "0px" },
 }));
 
 vi.mock("@/src/providers/AuthProviders", () => ({
@@ -265,7 +266,7 @@ describe("認証済み親route", () => {
 
     expect(mocks.fullPageSpinnerProps).toHaveBeenCalledWith({
       reserveHeaderSpace: true,
-      mobileNavigationHeight: "68px",
+      mobileNavigationHeight: "56px",
     });
   });
 

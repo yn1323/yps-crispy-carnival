@@ -6,8 +6,11 @@ import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoun
 import { Button } from "@/src/components/ui/Button";
 
 export const HEADER_HEIGHT = { base: "64px", md: "68px" } as const;
+export const AUTHENTICATED_APP_HEADER_HEIGHT = { base: "52px", md: "52px" } as const;
 export const STAFF_CONTENT_MAX_W = "1024px";
 export const STAFF_PAGE_PX = { base: 4, lg: 6 } as const;
+
+const GLASS_BACKDROP_FILTER = "blur(12px) saturate(135%)";
 
 const publicNavItems = [
   { label: "機能", href: "/#features" },
@@ -98,7 +101,7 @@ export const Header = (props: HeaderProps = {}) => {
 
   if (props.primaryNavigation !== undefined) {
     return (
-      <HeaderShell position={props.position ?? "fixed"}>
+      <HeaderShell position={props.position ?? "fixed"} minH={AUTHENTICATED_APP_HEADER_HEIGHT} py={0}>
         <Grid templateColumns="auto minmax(0, 1fr) auto" alignItems="center" gap={{ base: 2, lg: 4 }} w="full" minW={0}>
           {brand}
           <Box minW={0}>{props.primaryNavigation}</Box>
@@ -109,7 +112,7 @@ export const Header = (props: HeaderProps = {}) => {
   }
 
   return (
-    <HeaderShell position={props.position ?? "fixed"}>
+    <HeaderShell position={props.position ?? "fixed"} minH={AUTHENTICATED_APP_HEADER_HEIGHT} py={0}>
       {brand}
       {userActions}
     </HeaderShell>
@@ -139,10 +142,10 @@ const HeaderShell = ({
   px,
   py = { base: 2, md: 2.5 },
   justify = "space-between",
-  bg = "whiteAlpha.950",
+  bg = "rgba(255, 255, 255, 0.82)",
   bgImage,
   borderBottomWidth = "1px",
-  borderColor = "blackAlpha.50",
+  borderColor = "rgba(15, 23, 42, 0.08)",
   boxShadow,
 }: HeaderShellProps) => (
   <Box
@@ -153,7 +156,8 @@ const HeaderShell = ({
     zIndex="sticky"
     bg={bg}
     bgImage={bgImage}
-    backdropFilter="blur(14px)"
+    backdropFilter={GLASS_BACKDROP_FILTER}
+    css={{ WebkitBackdropFilter: GLASS_BACKDROP_FILTER }}
     borderBottomWidth={borderBottomWidth}
     borderColor={borderColor}
     boxShadow={boxShadow}

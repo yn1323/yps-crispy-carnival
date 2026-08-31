@@ -2,8 +2,10 @@ import { Box, Container, Grid, Heading, Text } from "@chakra-ui/react";
 import { useRouter } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { LuChevronLeft } from "react-icons/lu";
-import { HEADER_HEIGHT } from "@/src/components/templates/Header";
+import { AUTHENTICATED_APP_HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
+
+const GLASS_BACKDROP_FILTER = "blur(12px) saturate(135%)";
 
 type Props = {
   title: string;
@@ -61,16 +63,17 @@ export function FocusedFlowHeader({
       top={0}
       zIndex="sticky"
       w="full"
-      bg="whiteAlpha.950"
+      bg="rgba(255, 255, 255, 0.82)"
       borderBottomWidth="1px"
-      borderColor="blackAlpha.100"
-      backdropFilter="blur(14px)"
+      borderColor="rgba(15, 23, 42, 0.08)"
+      backdropFilter={GLASS_BACKDROP_FILTER}
+      css={{ WebkitBackdropFilter: GLASS_BACKDROP_FILTER }}
     >
       <Container
         maxW="1024px"
-        minH={compact ? { base: "48px", md: "52px" } : HEADER_HEIGHT}
+        minH={compact ? { base: "48px", md: "52px" } : AUTHENTICATED_APP_HEADER_HEIGHT}
         px={{ base: 3, md: 4 }}
-        py={compact ? 0 : 2}
+        py={0}
       >
         <Grid
           minH={{ base: "48px", md: "52px" }}

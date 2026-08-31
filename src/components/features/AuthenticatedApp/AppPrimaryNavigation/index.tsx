@@ -4,7 +4,9 @@ import { resolveAppNavigationTarget } from "../appNavigationTargetResolver";
 import type { AppNavigationKey, AppPrimaryNavigationItem } from "./navigation";
 import { APP_PRIMARY_NAVIGATION_ITEMS } from "./navigation";
 
-export const MOBILE_APP_NAVIGATION_HEIGHT = "68px";
+export const MOBILE_APP_NAVIGATION_HEIGHT = "56px";
+
+const GLASS_BACKDROP_FILTER = "blur(12px) saturate(135%)";
 
 type Props = {
   activeKey: AppNavigationKey | null;
@@ -45,11 +47,11 @@ export function MobileAppPrimaryNavigation({ activeKey, activeOrganizationId }: 
       insetX={0}
       bottom={0}
       zIndex="sticky"
-      bg="whiteAlpha.950"
+      bg="rgba(255, 255, 255, 0.82)"
       borderTopWidth="1px"
-      borderColor="gray.200"
-      boxShadow="0 -4px 16px rgba(0, 0, 0, 0.06)"
-      backdropFilter="blur(14px)"
+      borderColor="rgba(15, 23, 42, 0.08)"
+      backdropFilter={GLASS_BACKDROP_FILTER}
+      css={{ WebkitBackdropFilter: GLASS_BACKDROP_FILTER }}
       pb="env(safe-area-inset-bottom)"
     >
       <Grid templateColumns="repeat(5, minmax(0, 1fr))" w="full">

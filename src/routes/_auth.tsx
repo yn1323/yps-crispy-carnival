@@ -22,7 +22,7 @@ import { AppFeatureRequestAction, type AppFeatureRequestScope } from "@/src/comp
 import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedAppShell";
 import { FocusedFlowHeader } from "@/src/components/templates/FocusedFlowHeader";
 import { FullPageSpinner } from "@/src/components/templates/FullPageSpinner";
-import { HEADER_HEIGHT } from "@/src/components/templates/Header";
+import { AUTHENTICATED_APP_HEADER_HEIGHT } from "@/src/components/templates/Header";
 import {
   buildCanonicalAccountSecuritySearchString,
   needsAccountSecuritySearchCanonicalization,
@@ -248,14 +248,14 @@ function AppOrganizationRouteState({
           minH={
             appShell.mode === "navigation"
               ? {
-                  base: `calc(100dvh - ${HEADER_HEIGHT.base} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
-                  md: `calc(100dvh - ${HEADER_HEIGHT.md} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
-                  lg: `calc(100dvh - ${HEADER_HEIGHT.md})`,
+                  base: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.base} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
+                  md: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.md} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
+                  lg: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.md})`,
                 }
               : {
-                  base: `calc(100dvh - ${HEADER_HEIGHT.base})`,
-                  md: `calc(100dvh - ${HEADER_HEIGHT.md})`,
-                  lg: `calc(100dvh - ${HEADER_HEIGHT.md})`,
+                  base: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.base})`,
+                  md: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.md})`,
+                  lg: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.md})`,
                 }
           }
           display="flex"
