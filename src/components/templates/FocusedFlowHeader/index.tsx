@@ -6,6 +6,7 @@ import { AUTHENTICATED_APP_HEADER_HEIGHT } from "@/src/components/templates/Head
 import { Button } from "@/src/components/ui/Button";
 
 const GLASS_BACKDROP_FILTER = "blur(12px) saturate(135%)";
+const AUTHENTICATED_GLASS_BACKGROUND = "rgba(255, 255, 255, 0.76)";
 
 type Props = {
   title: string;
@@ -63,7 +64,7 @@ export function FocusedFlowHeader({
       top={0}
       zIndex="sticky"
       w="full"
-      bg="rgba(255, 255, 255, 0.82)"
+      bg={AUTHENTICATED_GLASS_BACKGROUND}
       borderBottomWidth="1px"
       borderColor="rgba(15, 23, 42, 0.08)"
       backdropFilter={GLASS_BACKDROP_FILTER}

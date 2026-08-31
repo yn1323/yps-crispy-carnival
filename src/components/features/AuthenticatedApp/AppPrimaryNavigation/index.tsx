@@ -7,6 +7,7 @@ import { APP_PRIMARY_NAVIGATION_ITEMS } from "./navigation";
 export const MOBILE_APP_NAVIGATION_HEIGHT = "56px";
 
 const GLASS_BACKDROP_FILTER = "blur(12px) saturate(135%)";
+const AUTHENTICATED_GLASS_BACKGROUND = "rgba(255, 255, 255, 0.76)";
 
 type Props = {
   activeKey: AppNavigationKey | null;
@@ -47,7 +48,7 @@ export function MobileAppPrimaryNavigation({ activeKey, activeOrganizationId }: 
       insetX={0}
       bottom={0}
       zIndex="sticky"
-      bg="rgba(255, 255, 255, 0.82)"
+      bg={AUTHENTICATED_GLASS_BACKGROUND}
       borderTopWidth="1px"
       borderColor="rgba(15, 23, 42, 0.08)"
       backdropFilter={GLASS_BACKDROP_FILTER}

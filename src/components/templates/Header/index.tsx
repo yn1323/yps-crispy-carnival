@@ -11,6 +11,7 @@ export const STAFF_CONTENT_MAX_W = "1024px";
 export const STAFF_PAGE_PX = { base: 4, lg: 6 } as const;
 
 const GLASS_BACKDROP_FILTER = "blur(12px) saturate(135%)";
+const AUTHENTICATED_GLASS_BACKGROUND = "rgba(255, 255, 255, 0.76)";
 
 const publicNavItems = [
   { label: "機能", href: "/#features" },
@@ -101,7 +102,12 @@ export const Header = (props: HeaderProps = {}) => {
 
   if (props.primaryNavigation !== undefined) {
     return (
-      <HeaderShell position={props.position ?? "fixed"} minH={AUTHENTICATED_APP_HEADER_HEIGHT} py={0}>
+      <HeaderShell
+        position={props.position ?? "fixed"}
+        minH={AUTHENTICATED_APP_HEADER_HEIGHT}
+        py={0}
+        bg={AUTHENTICATED_GLASS_BACKGROUND}
+      >
         <Grid templateColumns="auto minmax(0, 1fr) auto" alignItems="center" gap={{ base: 2, lg: 4 }} w="full" minW={0}>
           {brand}
           <Box minW={0}>{props.primaryNavigation}</Box>
@@ -112,7 +118,12 @@ export const Header = (props: HeaderProps = {}) => {
   }
 
   return (
-    <HeaderShell position={props.position ?? "fixed"} minH={AUTHENTICATED_APP_HEADER_HEIGHT} py={0}>
+    <HeaderShell
+      position={props.position ?? "fixed"}
+      minH={AUTHENTICATED_APP_HEADER_HEIGHT}
+      py={0}
+      bg={AUTHENTICATED_GLASS_BACKGROUND}
+    >
       {brand}
       {userActions}
     </HeaderShell>
