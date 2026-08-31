@@ -1,9 +1,10 @@
 import { Flex, Link, Stack, Text } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import { LuArrowRight, LuBuilding2, LuSprout } from "react-icons/lu";
+import { LuArrowRight, LuBellRing, LuBuilding2, LuSprout } from "react-icons/lu";
 import { HelpAudienceBadge } from "./HelpAudienceBadge";
 import { SHIFT_MANAGEMENT_SCENARIO } from "./helpScenario";
 import type { HelpAudience } from "./helpTasks";
+import { NOTIFICATION_BASICS_HELP } from "./notificationBasicsHelp";
 import { ORGANIZATION_STRUCTURE_HELP } from "./organizationStructureHelp";
 
 export function HelpScenarioLinkCard() {
@@ -26,6 +27,18 @@ export function HelpOrganizationStructureLinkCard() {
       description={ORGANIZATION_STRUCTURE_HELP.cardDescription}
       audiences={[ORGANIZATION_STRUCTURE_HELP.audience]}
       icon={LuBuilding2}
+    />
+  );
+}
+
+export function HelpNotificationBasicsLinkCard() {
+  return (
+    <HelpBasicLinkCard
+      href={NOTIFICATION_BASICS_HELP.href}
+      title={NOTIFICATION_BASICS_HELP.cardTitle}
+      description={NOTIFICATION_BASICS_HELP.cardDescription}
+      audiences={NOTIFICATION_BASICS_HELP.audiences}
+      icon={LuBellRing}
     />
   );
 }

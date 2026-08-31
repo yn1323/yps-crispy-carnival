@@ -163,7 +163,7 @@ export function UserLineConnectionDialog({
                 number="2"
                 title={data.line.status === "unlinked" ? "LINE連携リンクをメールで送る" : "再連携リンクをメールで送る"}
               >
-                <Stack align={{ base: "flex-start", sm: "flex-end" }} gap={1.5} w="full">
+                <Stack align="flex-end" gap={1.5} w="full">
                   <Button
                     colorPalette="teal"
                     gap={1.5}

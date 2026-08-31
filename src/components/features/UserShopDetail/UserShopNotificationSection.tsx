@@ -145,7 +145,7 @@ function NotificationSection({
             {title}
           </Text>
         </HStack>
-        <Stack align={{ base: "flex-start", sm: "flex-end" }} gap={1.5}>
+        <Stack align="flex-end" gap={1.5}>
           <Button
             colorPalette="teal"
             flexShrink={0}

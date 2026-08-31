@@ -58,6 +58,7 @@ import { Route as UnregisteredShiftsSubmitRouteImport } from './routes/_unregist
 import { Route as UnregisteredShiftsViewRouteImport } from './routes/_unregistered/shifts.view'
 import { Route as UnregisteredStaffRegisterRouteImport } from './routes/_unregistered/staff.register'
 import { Route as ArticlesCategoriesCategorySlugRouteImport } from './routes/articles.categories.$categorySlug'
+import { Route as HelpBasicsNotificationsRouteImport } from './routes/help.basics.notifications'
 import { Route as HelpBasicsOrganizationStructureRouteImport } from './routes/help.basics.organization-structure'
 import { Route as HelpScenariosShiftManagementRouteImport } from './routes/help.scenarios.shift-management'
 import { Route as HelpTasksTaskIdRouteImport } from './routes/help.tasks.$taskId'
@@ -327,6 +328,11 @@ const ArticlesCategoriesCategorySlugRoute =
     path: '/categories/$categorySlug',
     getParentRoute: () => ArticlesRoute,
   } as any)
+const HelpBasicsNotificationsRoute = HelpBasicsNotificationsRouteImport.update({
+  id: '/basics/notifications',
+  path: '/basics/notifications',
+  getParentRoute: () => HelpRoute,
+} as any)
 const HelpBasicsOrganizationStructureRoute =
   HelpBasicsOrganizationStructureRouteImport.update({
     id: '/basics/organization-structure',
@@ -490,6 +496,7 @@ export interface FileRoutesByFullPath {
   '/shifts/view': typeof UnregisteredShiftsViewRoute
   '/staff/register': typeof UnregisteredStaffRegisterRoute
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
+  '/help/basics/notifications': typeof HelpBasicsNotificationsRoute
   '/help/basics/organization-structure': typeof HelpBasicsOrganizationStructureRoute
   '/help/scenarios/shift-management': typeof HelpScenariosShiftManagementRoute
   '/help/tasks/$taskId': typeof HelpTasksTaskIdRoute
@@ -557,6 +564,7 @@ export interface FileRoutesByTo {
   '/shifts/view': typeof UnregisteredShiftsViewRoute
   '/staff/register': typeof UnregisteredStaffRegisterRoute
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
+  '/help/basics/notifications': typeof HelpBasicsNotificationsRoute
   '/help/basics/organization-structure': typeof HelpBasicsOrganizationStructureRoute
   '/help/scenarios/shift-management': typeof HelpScenariosShiftManagementRoute
   '/help/tasks/$taskId': typeof HelpTasksTaskIdRoute
@@ -629,6 +637,7 @@ export interface FileRoutesById {
   '/_unregistered/shifts/view': typeof UnregisteredShiftsViewRoute
   '/_unregistered/staff/register': typeof UnregisteredStaffRegisterRoute
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
+  '/help/basics/notifications': typeof HelpBasicsNotificationsRoute
   '/help/basics/organization-structure': typeof HelpBasicsOrganizationStructureRoute
   '/help/scenarios/shift-management': typeof HelpScenariosShiftManagementRoute
   '/help/tasks/$taskId': typeof HelpTasksTaskIdRoute
@@ -700,6 +709,7 @@ export interface FileRouteTypes {
     | '/shifts/view'
     | '/staff/register'
     | '/articles/categories/$categorySlug'
+    | '/help/basics/notifications'
     | '/help/basics/organization-structure'
     | '/help/scenarios/shift-management'
     | '/help/tasks/$taskId'
@@ -767,6 +777,7 @@ export interface FileRouteTypes {
     | '/shifts/view'
     | '/staff/register'
     | '/articles/categories/$categorySlug'
+    | '/help/basics/notifications'
     | '/help/basics/organization-structure'
     | '/help/scenarios/shift-management'
     | '/help/tasks/$taskId'
@@ -838,6 +849,7 @@ export interface FileRouteTypes {
     | '/_unregistered/shifts/view'
     | '/_unregistered/staff/register'
     | '/articles/categories/$categorySlug'
+    | '/help/basics/notifications'
     | '/help/basics/organization-structure'
     | '/help/scenarios/shift-management'
     | '/help/tasks/$taskId'
@@ -1231,6 +1243,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ArticlesCategoriesCategorySlugRouteImport
       parentRoute: typeof ArticlesRoute
     }
+    '/help/basics/notifications': {
+      id: '/help/basics/notifications'
+      path: '/basics/notifications'
+      fullPath: '/help/basics/notifications'
+      preLoaderRoute: typeof HelpBasicsNotificationsRouteImport
+      parentRoute: typeof HelpRoute
+    }
     '/help/basics/organization-structure': {
       id: '/help/basics/organization-structure'
       path: '/basics/organization-structure'
@@ -1488,6 +1507,7 @@ const ArticlesRouteWithChildren = ArticlesRoute._addFileChildren(
 interface HelpRouteChildren {
   HelpSlugRoute: typeof HelpSlugRoute
   HelpIndexRoute: typeof HelpIndexRoute
+  HelpBasicsNotificationsRoute: typeof HelpBasicsNotificationsRoute
   HelpBasicsOrganizationStructureRoute: typeof HelpBasicsOrganizationStructureRoute
   HelpScenariosShiftManagementRoute: typeof HelpScenariosShiftManagementRoute
   HelpTasksTaskIdRoute: typeof HelpTasksTaskIdRoute
@@ -1496,6 +1516,7 @@ interface HelpRouteChildren {
 const HelpRouteChildren: HelpRouteChildren = {
   HelpSlugRoute: HelpSlugRoute,
   HelpIndexRoute: HelpIndexRoute,
+  HelpBasicsNotificationsRoute: HelpBasicsNotificationsRoute,
   HelpBasicsOrganizationStructureRoute: HelpBasicsOrganizationStructureRoute,
   HelpScenariosShiftManagementRoute: HelpScenariosShiftManagementRoute,
   HelpTasksTaskIdRoute: HelpTasksTaskIdRoute,

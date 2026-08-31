@@ -6,7 +6,11 @@ import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { Input } from "@/src/components/ui/FormControls";
 import { HelpAudienceBadge } from "./HelpAudienceBadge";
-import { HelpOrganizationStructureLinkCard, HelpScenarioLinkCard } from "./HelpScenarioCard";
+import {
+  HelpNotificationBasicsLinkCard,
+  HelpOrganizationStructureLinkCard,
+  HelpScenarioLinkCard,
+} from "./HelpScenarioCard";
 import { HelpSupport } from "./HelpSupport";
 import { HelpTaskLinkCard } from "./HelpTaskCard";
 import { type HelpIndexMetadata, helpIndexMetas } from "./helpIndexData";
@@ -68,6 +72,7 @@ function BasicHelpLinks() {
       </Stack>
       <Stack gap={3}>
         <HelpScenarioLinkCard />
+        <HelpNotificationBasicsLinkCard />
         <HelpOrganizationStructureLinkCard />
       </Stack>
     </Box>

@@ -181,7 +181,11 @@ export const SetupStep2 = ({
               </Checkbox.Label>
             </Checkbox.Root>
           </Flex>
-          {errors.acceptedLegal && <Field.ErrorText>{errors.acceptedLegal.message}</Field.ErrorText>}
+          {errors.acceptedLegal && (
+            <Field.ErrorText alignSelf="flex-end" maxW="full" textAlign="right">
+              {errors.acceptedLegal.message}
+            </Field.ErrorText>
+          )}
         </Field.Root>
         {isPromotionCodeOpen ? (
           <Stack gap={1.5}>

@@ -17,6 +17,7 @@ describe("static build help bundle boundary", () => {
       expect(() => assertHelpIndexBundleBoundary("/help", preload)).not.toThrow();
     }
     expect(() => assertHelpIndexBundleBoundary("/help/add-staff", "<html></html>")).not.toThrow();
+    expect(() => assertHelpIndexBundleBoundary("/help/basics/notifications", "<html></html>")).not.toThrow();
     expect(() => assertHelpIndexBundleBoundary("/help/basics/organization-structure", "<html></html>")).not.toThrow();
     expect(() => assertHelpIndexBundleBoundary("/help/scenarios/shift-management", "<html></html>")).not.toThrow();
     expect(() => assertHelpIndexBundleBoundary("/help/tasks/staff-management", "<html></html>")).not.toThrow();
@@ -25,6 +26,7 @@ describe("static build help bundle boundary", () => {
   it.each([
     "/",
     "/help/add-staff",
+    "/help/basics/notifications",
     "/help/basics/organization-structure",
     "/help/scenarios/shift-management",
     "/help/tasks/staff-management",
