@@ -67,7 +67,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 | `notificationOutbox.mutations.resolveFailure` | managerMutation | 同一店舗の open かつDashboard表示対象の失敗を手動で `resolved/dismissed` にする |
 | `internal.notificationOutbox.actions.processPending` | internalAction | claim 済みジョブを配送し、成功・再試行・失敗へ分類する |
 | `internal.notification.mutations.recoverNotificationFanoutOperations` | internalMutation | 予約漏れのpending fanoutと期限切れprocessing leaseをboundedに再予約する |
-| `internal.notification.actions.sendCurrentShiftConfirmationForStaff` | internalAction | rolling deploy前に予約済みの旧個別通知を、新しい50件上限のdurable fanoutへ収束させる互換入口 |
+| `internal.notification.actions.sendCurrentShiftConfirmationForStaff` | internalAction | rolling deploy前に予約済みの旧個別通知を、新しい40件上限のdurable fanoutへ収束させる互換入口 |
 | `POST /resend/webhook` | HTTP action | Resend の `email.delivered` / `email.delivery_delayed` / `email.failed` / `email.bounced` / `email.suppressed` を受信する |
 
 ## 配送ルール
