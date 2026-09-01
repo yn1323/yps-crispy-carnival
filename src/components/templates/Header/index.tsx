@@ -11,7 +11,7 @@ export const STAFF_CONTENT_MAX_W = "1024px";
 export const STAFF_PAGE_PX = { base: 4, lg: 6 } as const;
 
 const GLASS_BACKDROP_FILTER = "blur(12px) saturate(135%)";
-const AUTHENTICATED_GLASS_BACKGROUND = "rgba(255, 255, 255, 0.76)";
+const AUTHENTICATED_GLASS_BACKGROUND = "rgba(255, 255, 255, 0.00)";
 
 const publicNavItems = [
   { label: "機能", href: "/#features" },

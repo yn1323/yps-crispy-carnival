@@ -6,7 +6,7 @@ import { AUTHENTICATED_APP_HEADER_HEIGHT } from "@/src/components/templates/Head
 import { Button } from "@/src/components/ui/Button";
 
 const GLASS_BACKDROP_FILTER = "blur(12px) saturate(135%)";
-const AUTHENTICATED_GLASS_BACKGROUND = "rgba(255, 255, 255, 0.76)";
+const AUTHENTICATED_GLASS_BACKGROUND = "rgba(255, 255, 255, 0.00)";
 
 type Props = {
   title: string;

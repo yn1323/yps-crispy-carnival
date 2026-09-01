@@ -7,7 +7,7 @@ import { APP_PRIMARY_NAVIGATION_ITEMS } from "./navigation";
 export const MOBILE_APP_NAVIGATION_HEIGHT = "56px";
 
 const GLASS_BACKDROP_FILTER = "blur(12px) saturate(135%)";
-const AUTHENTICATED_GLASS_BACKGROUND = "rgba(255, 255, 255, 0.76)";
+const AUTHENTICATED_GLASS_BACKGROUND = "rgba(255, 255, 255, 0.00)";
 
 type Props = {
   activeKey: AppNavigationKey | null;
