@@ -8,7 +8,11 @@ import type { StaffManagementState } from "../StaffManagement";
 import type { StaffRegistrationRequestManagementState } from "../StaffRegistrationRequestManagement";
 import { DashboardContentView, type DashboardContentViewProps } from "./DashboardContentView";
 
-const probes = vi.hoisted(() => ({ onboardingVisible: false, operationContextMounts: 0 }));
+const probes = vi.hoisted(() => ({
+  onboardingDismissed: true,
+  onboardingVisible: false,
+  operationContextMounts: 0,
+}));
 
 vi.mock("@chakra-ui/react", () => ({
   Stack: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -21,12 +25,20 @@ vi.mock("@/src/components/templates/ContentWrapper", () => ({
 vi.mock("../DashboardOnboarding", () => ({
   DashboardOnboarding: ({
     children,
+    canShow,
   }: {
-    children: (state: { content: ReactNode; isVisible: boolean; onOpenRecruitment: () => void }) => ReactNode;
+    children: (state: {
+      content: ReactNode;
+      isDismissed: boolean;
+      isVisible: boolean;
+      onOpenRecruitment: () => void;
+    }) => ReactNode;
+    canShow: boolean;
   }) =>
     children({
-      content: probes.onboardingVisible ? <section aria-label="シフトリへようこそ！" /> : null,
-      isVisible: probes.onboardingVisible,
+      content: probes.onboardingVisible && canShow ? <section aria-label="シフトリへようこそ！" /> : null,
+      isDismissed: probes.onboardingDismissed,
+      isVisible: probes.onboardingVisible && canShow,
       onOpenRecruitment: () => {},
     }),
 }));
@@ -100,11 +112,13 @@ function buildProps(
 
 describe("DashboardContentView", () => {
   beforeEach(() => {
+    probes.onboardingDismissed = true;
     probes.onboardingVisible = false;
     probes.operationContextMounts = 0;
   });
 
   it("オンボーディング表示中はホーム画面への追加案内を表示しない", () => {
+    probes.onboardingDismissed = false;
     probes.onboardingVisible = true;
 
     render(<DashboardContentView {...buildProps({ status: "ready", data: registrationRequestData })} />);
@@ -125,6 +139,28 @@ describe("DashboardContentView", () => {
   it("オンボーディングを評価できるまではホーム画面への追加案内を表示しない", () => {
     render(<DashboardContentView {...buildProps({ status: "loading" })} />);
 
+    expect(screen.queryByRole("complementary", { name: "ホーム画面への追加案内" })).toBeNull();
+  });
+
+  it("オンボーディングが未完了のまま一時的に非表示なら追加案内を表示しない", () => {
+    probes.onboardingDismissed = false;
+    probes.onboardingVisible = true;
+    const props = buildProps({ status: "ready", data: registrationRequestData });
+
+    render(
+      <DashboardContentView
+        {...props}
+        managerLegalConsentStatus={{
+          required: true,
+          documents: {
+            terms: { title: "利用規約", path: "/terms" },
+            privacy: { title: "プライバシーポリシー", path: "/privacy" },
+          },
+        }}
+      />,
+    );
+
+    expect(screen.queryByRole("region", { name: "シフトリへようこそ！" })).toBeNull();
     expect(screen.queryByRole("complementary", { name: "ホーム画面への追加案内" })).toBeNull();
   });
 

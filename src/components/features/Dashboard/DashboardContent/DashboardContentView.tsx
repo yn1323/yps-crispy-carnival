@@ -89,7 +89,7 @@ export function DashboardContentView({
               </Stack>
               {onboarding.isVisible ? (
                 onboarding.content
-              ) : readiness.canEvaluateOnboarding ? (
+              ) : readiness.canEvaluateOnboarding && onboarding.isDismissed ? (
                 <HomeScreenInstallGuidePrompt />
               ) : null}
               <HeroSummary
@@ -151,6 +151,7 @@ export function DashboardContentView({
 
 const UNAVAILABLE_ONBOARDING_STATE: DashboardOnboardingRenderState = {
   content: null,
+  isDismissed: false,
   isVisible: false,
   onOpenRecruitment: () => {},
 };
