@@ -2,11 +2,11 @@
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { STANDALONE_DISPLAY_QUERY } from "@/src/lib/pwaDisplayMode";
 import { ChakraProvider } from "@/src/providers/ChakraProvider";
 import { HOME_SCREEN_INSTALL_GUIDE_DISMISSAL_STORAGE_KEY, HomeScreenInstallGuidePrompt } from ".";
 
 const MOBILE_VIEWPORT_QUERY = "(max-width: 1023px)";
-const STANDALONE_DISPLAY_QUERY = "(display-mode: standalone)";
 const LINK_LABEL = "ホーム画面にシフトリを追加する（別タブで開きます）";
 
 let isMobileViewport = true;

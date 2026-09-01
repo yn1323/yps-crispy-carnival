@@ -2,17 +2,13 @@ import { Flex, Link } from "@chakra-ui/react";
 import { useEffect, useRef, useState } from "react";
 import { LuExternalLink, LuX } from "react-icons/lu";
 import { IconButton } from "@/src/components/ui/Button";
+import { isStandaloneWebApp, STANDALONE_DISPLAY_QUERY } from "@/src/lib/pwaDisplayMode";
 
 export const HOME_SCREEN_INSTALL_GUIDE_DISMISSAL_STORAGE_KEY =
   "shiftori-dashboard-home-screen-install-guide-dismissed:v1";
 
 const HOME_SCREEN_INSTALL_GUIDE_PATH = "/help/open-shiftori-from-home-screen";
 const MOBILE_VIEWPORT_QUERY = "(max-width: 1023px)";
-const STANDALONE_DISPLAY_QUERY = "(display-mode: standalone)";
-
-type NavigatorWithStandalone = Navigator & {
-  standalone?: boolean;
-};
 
 export function HomeScreenInstallGuidePrompt() {
   const [isVisible, setIsVisible] = useState(false);
@@ -28,8 +24,7 @@ export function HomeScreenInstallGuidePrompt() {
       setIsVisible(
         !dismissedInSessionRef.current &&
           mobileViewport.matches &&
-          !standaloneDisplay.matches &&
-          !(window.navigator as NavigatorWithStandalone).standalone &&
+          !isStandaloneWebApp(standaloneDisplay.matches, window.navigator) &&
           !readDismissedState(),
       );
     };

@@ -196,6 +196,14 @@ describe("DashboardOnboarding", () => {
     expect(screen.getByTestId("dismissed").textContent).toBe("false");
   });
 
+  it("保存済みの終了状態を復元し、dismiss mutationを再実行しない", () => {
+    renderOnboarding({ isDismissed: true });
+
+    expect(screen.getByTestId("visible").textContent).toBe("false");
+    expect(screen.getByTestId("dismissed").textContent).toBe("true");
+    expect(mocks.dismissOnboarding).not.toHaveBeenCalled();
+  });
+
   it("スタッフ申請が届いた場合は案内を自動終了し、dismissを一度だけ保存する", async () => {
     const { rerender } = renderOnboarding({ pendingStaffRequestCount: 1 });
 
