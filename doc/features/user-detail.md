@@ -197,7 +197,7 @@ mutationの成功は、DB transactionと必要な通知・cleanupの予約が確
 | `api.line.mutations.sendInvite` | `managerMutation` | 発行元staffを再検証し、同じ組織人物へLINE連携案内を送る |
 | `api.line.mutations.disconnectOrganizationPersonLine` | `authenticatedMutation` | 組織人物の共通LINE連携を明示解除し、その組織の全所属店舗で停止する |
 | `api.staff.mutations.sendOpenRecruitmentNotifications` | `managerMutation` | `targetShopId`で指定した店舗のスタッフへ現在送れる募集通知を、actor・組織単位の再送quota内で予約する |
-| `api.staff.mutations.sendCurrentShiftNotification` | `managerMutation` | `targetShopId`で指定した店舗のスタッフへ終了日が今日以降の確定シフト通知を、actor・組織単位の再送quota内かつ最大50件でdurable fanoutとして予約する。超過時は何も予約しない |
+| `api.staff.mutations.sendCurrentShiftNotification` | `managerMutation` | `targetShopId`で指定した店舗のスタッフへ終了日が今日以降の確定シフト通知を、actor・組織単位の再送quota内かつ最大40件でdurable fanoutとして予約する。超過時は何も予約しない |
 | `api.notificationOutbox.queries.listStaffNotificationHistory` | `managerQuery` | `targetShopId`で指定した店舗のスタッフへ送った通知履歴を最小DTOでページングする |
 
 ## テスト契約
