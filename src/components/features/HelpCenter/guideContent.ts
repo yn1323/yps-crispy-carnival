@@ -1,12 +1,18 @@
-import { createMdxImageSrcResolver, type MdxComponent, type MdxTocItem } from "@/src/lib/mdx";
+import {
+  createMdxImageSrcResolver,
+  createMdxVideoSrcResolver,
+  type MdxComponent,
+  type MdxTocItem,
+} from "@/src/lib/mdx";
 import { type GuideMetadata, getGuideMeta, guideMetas, helpIdFromPath } from "./helpMeta";
 
-/** 使い方の本文層。各slugの本文・目次・画像は、その詳細画面を開いたときだけ読み込む。 */
+/** 使い方の本文層。各slugの本文・目次・画像・動画は、その詳細画面を開いたときだけ読み込む。 */
 export type HelpGuideContent = {
   meta: GuideMetadata;
   Content: MdxComponent;
   toc: MdxTocItem[];
   resolveImageSrc: (src: string) => string;
+  resolveVideoSrc: (src: string) => string;
 };
 
 type AsyncLoader<T> = () => Promise<T>;
@@ -35,6 +41,14 @@ const guideImageLoaders: Record<string, AsyncLoader<string>> = import.meta.glob<
   },
 );
 
+const guideVideoLoaders: Record<string, AsyncLoader<string>> = import.meta.glob<string>(
+  ["./content/videos/**/*.{mp4,webm}", "!./content/videos/_*/**"],
+  {
+    query: "?url",
+    import: "default",
+  },
+);
+
 assertGuideLoaderPaths(guideComponentLoaders, guideTocLoaders, guideMetas);
 
 export async function loadGuideContent(slug?: string): Promise<HelpGuideContent | undefined> {
@@ -47,10 +61,11 @@ export async function loadGuideContent(slug?: string): Promise<HelpGuideContent 
   if (!componentLoader) throw new Error(`使い方「${meta.id}」のMDX本文が見つかりません`);
   if (!tocLoader) throw new Error(`使い方「${meta.id}」の目次が見つかりません`);
 
-  const [Content, toc, imageModules] = await Promise.all([
+  const [Content, toc, imageModules, videoModules] = await Promise.all([
     componentLoader(),
     tocLoader(),
     loadGuideImages(meta.id, guideImageLoaders),
+    loadGuideVideos(meta.id, guideVideoLoaders),
   ]);
 
   return {
@@ -58,6 +73,7 @@ export async function loadGuideContent(slug?: string): Promise<HelpGuideContent 
     Content,
     toc,
     resolveImageSrc: createMdxImageSrcResolver(documentPath, imageModules),
+    resolveVideoSrc: createMdxVideoSrcResolver(documentPath, videoModules),
   };
 }
 
@@ -91,6 +107,15 @@ async function loadGuideImages(
 ): Promise<Record<string, string>> {
   const directoryPrefix = `./content/images/${guideId}/`;
   const entries = Object.entries(imageLoaders).filter(([path]) => path.startsWith(directoryPrefix));
+  return Object.fromEntries(await Promise.all(entries.map(async ([path, loader]) => [path, await loader()])));
+}
+
+async function loadGuideVideos(
+  guideId: string,
+  videoLoaders: Readonly<Record<string, AsyncLoader<string>>>,
+): Promise<Record<string, string>> {
+  const directoryPrefix = `./content/videos/${guideId}/`;
+  const entries = Object.entries(videoLoaders).filter(([path]) => path.startsWith(directoryPrefix));
   return Object.fromEntries(await Promise.all(entries.map(async ([path, loader]) => [path, await loader()])));
 }
 

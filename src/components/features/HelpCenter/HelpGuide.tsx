@@ -134,7 +134,10 @@ function HelpGuideLoading() {
 }
 
 function HelpGuideBody({ guide }: { guide: HelpGuideContent }) {
-  const components = useMemo(() => createHelpMdxComponents(guide.resolveImageSrc), [guide.resolveImageSrc]);
+  const components = useMemo(
+    () => createHelpMdxComponents(guide.resolveImageSrc, guide.resolveVideoSrc),
+    [guide.resolveImageSrc, guide.resolveVideoSrc],
+  );
 
   return (
     <VStack as="article" aria-labelledby="help-guide-title" align="stretch" gap={4}>

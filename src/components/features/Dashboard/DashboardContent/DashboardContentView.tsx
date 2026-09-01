@@ -3,6 +3,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { ContentWrapper } from "@/src/components/templates/ContentWrapper";
 import { DashboardOnboarding, type DashboardOnboardingRenderState } from "../DashboardOnboarding";
 import { HeroSummary, HeroSummarySkeleton } from "../HeroSummary";
+import { HomeScreenInstallGuidePrompt } from "../HomeScreenInstallGuidePrompt";
 import { LegalReconsent } from "../LegalReconsent";
 import type { NotificationFailureRecoveryState } from "../NotificationFailureRecovery";
 import { OperationContext, type OperationContextData, OperationContextSkeleton } from "../OperationContext";
@@ -86,6 +87,11 @@ export function DashboardContentView({
                 <OperationContext data={operationContextData} onOpenShopDetail={navigation?.onOpenShopDetail} />
                 <LegalReconsent status={managerLegalConsentStatus} />
               </Stack>
+              {onboarding.isVisible ? (
+                onboarding.content
+              ) : readiness.canEvaluateOnboarding ? (
+                <HomeScreenInstallGuidePrompt />
+              ) : null}
               <HeroSummary
                 key={taskScopeKey}
                 recruitments={recruitmentData?.recruitments ?? []}
@@ -124,7 +130,6 @@ export function DashboardContentView({
                 }
               />
             </Stack>
-            {onboarding.content}
             {recruitment.status === "ready" ? (
               recruitment.data.renderContent({ onBeforeOpenShiftBoard: onboarding.onOpenRecruitment })
             ) : (

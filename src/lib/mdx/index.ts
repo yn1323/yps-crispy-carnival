@@ -36,10 +36,34 @@ export function createMdxImageSrcResolver(
   return (src) => resolveMdxImageSrc(src, documentPath, imageModules);
 }
 
+export function createMdxVideoSrcResolver(
+  documentPath: string | undefined,
+  videoModules: Readonly<Record<string, string>>,
+): (src: string) => string {
+  return (src) => resolveMdxVideoSrc(src, documentPath, videoModules);
+}
+
 export function resolveMdxImageSrc(
   src: string,
   documentPath: string | undefined,
   imageModules: Readonly<Record<string, string>>,
+): string {
+  return resolveMdxAssetSrc(src, documentPath, imageModules, "画像");
+}
+
+export function resolveMdxVideoSrc(
+  src: string,
+  documentPath: string | undefined,
+  videoModules: Readonly<Record<string, string>>,
+): string {
+  return resolveMdxAssetSrc(src, documentPath, videoModules, "動画");
+}
+
+function resolveMdxAssetSrc(
+  src: string,
+  documentPath: string | undefined,
+  assetModules: Readonly<Record<string, string>>,
+  assetName: "画像" | "動画",
 ): string {
   if (/^(https?:)?\/\//.test(src) || /^(data|blob):/.test(src) || src.startsWith("/")) {
     return src;
@@ -51,9 +75,9 @@ export function resolveMdxImageSrc(
 
   const documentDirectory = documentPath.replace(/\/[^/]*$/, "");
   const normalizedPath = normalizeMdxContentPath(`${documentDirectory}/${src}`);
-  const resolved = imageModules[normalizedPath];
+  const resolved = assetModules[normalizedPath];
   if (!resolved) {
-    throw new Error(`MDX「${documentPath}」の画像「${src}」が見つかりません`);
+    throw new Error(`MDX「${documentPath}」の${assetName}「${src}」が見つかりません`);
   }
   return resolved;
 }

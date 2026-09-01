@@ -735,6 +735,8 @@ export const OnboardingStaffAddedMobile: Story = {
 };
 
 export const DismissedOnboardingShowsNextAction: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
   args: {
     ...dashboardBaseArgs,
     recruitments: [],
@@ -750,10 +752,16 @@ export const DismissedOnboardingShowsNextAction: Story = {
 
     await expect(canvas.getByRole("region", { name: "シフトリへようこそ！" })).toBeVisible();
     await expect(canvas.queryByRole("heading", { name: "要対応" })).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("link", { name: "ホーム画面にシフトリを追加する（別タブで開きます）" }),
+    ).not.toBeInTheDocument();
 
     await userEvent.click(canvas.getByRole("button", { name: "シフトリへようこそを閉じる" }));
 
     await expect(await canvas.findByRole("heading", { name: "要対応" })).toBeVisible();
+    await expect(
+      await canvas.findByRole("link", { name: "ホーム画面にシフトリを追加する（別タブで開きます）" }),
+    ).toBeVisible();
     await expect(canvas.queryByRole("region", { name: "シフトリへようこそ！" })).not.toBeInTheDocument();
   },
 };

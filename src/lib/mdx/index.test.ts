@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createMdxImageSrcResolver,
+  createMdxVideoSrcResolver,
   extractFrontmatterSource,
   extractMdxToc,
   getUnderscorePrefixedMdxSlugs,
@@ -90,6 +91,7 @@ describe("mdx-text", () => {
       "最初の回答とリンクの文言です。",
       "一つ目",
       "二つ目",
+      "アコーディオン内の手順",
     ]);
   });
 
@@ -133,6 +135,24 @@ describe("MDX相対画像", () => {
 
     expect(() => resolveImageSrc("../images/example/missing.webp")).toThrow(
       "MDX「./content/guides/example.mdx」の画像「../images/example/missing.webp」が見つかりません",
+    );
+  });
+});
+
+describe("MDX相対動画", () => {
+  it("文書からの相対pathをbundled URLへ解決する", () => {
+    const resolveVideoSrc = createMdxVideoSrcResolver("./content/guides/example.mdx", {
+      "./content/videos/example/guide.mp4": "/assets/guide.hash.mp4",
+    });
+
+    expect(resolveVideoSrc("../videos/example/guide.mp4")).toBe("/assets/guide.hash.mp4");
+  });
+
+  it("存在しない相対動画pathを拒否する", () => {
+    const resolveVideoSrc = createMdxVideoSrcResolver("./content/guides/example.mdx", {});
+
+    expect(() => resolveVideoSrc("../videos/example/missing.mp4")).toThrow(
+      "MDX「./content/guides/example.mdx」の動画「../videos/example/missing.mp4」が見つかりません",
     );
   });
 });

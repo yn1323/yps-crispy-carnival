@@ -1,11 +1,15 @@
-import { Box, Heading, Image, Link, List, Table, Text } from "@chakra-ui/react";
+import { Accordion, Box, chakra, Heading, Image, Link, List, Stack, Table, Text } from "@chakra-ui/react";
 import { Children, type ComponentProps, isValidElement, type ReactNode } from "react";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { type MdxComponents, toHeadingId } from "@/src/lib/mdx";
 
 type ResolveImageSrc = (src: string) => string;
+type ResolveVideoSrc = (src: string) => string;
 
-export function createHelpMdxComponents(resolveImageSrc: ResolveImageSrc = (src) => src): MdxComponents {
+export function createHelpMdxComponents(
+  resolveImageSrc: ResolveImageSrc = (src) => src,
+  resolveVideoSrc: ResolveVideoSrc = (src) => src,
+): MdxComponents {
   const Img = ({ src, alt, title }: ComponentProps<"img">) => (
     <HelpFigureView src={resolveImageSrc(src ?? "")} alt={alt ?? ""} caption={title} />
   );
@@ -23,6 +27,10 @@ export function createHelpMdxComponents(resolveImageSrc: ResolveImageSrc = (src)
     width?: number;
     height?: number;
   }) => <HelpFigureView src={resolveImageSrc(src)} alt={alt} caption={caption} width={width} height={height} />;
+
+  const HelpVideo = ({ src, title, width, height }: { src: string; title: string; width: number; height: number }) => (
+    <HelpVideoView src={resolveVideoSrc(src)} title={title} width={width} height={height} />
+  );
 
   return {
     h1: () => null,
@@ -62,8 +70,88 @@ export function createHelpMdxComponents(resolveImageSrc: ResolveImageSrc = (src)
     ),
     strong: (props: ComponentProps<"strong">) => <Box as="strong" color="gray.950" fontWeight="bold" {...props} />,
     img: Img,
+    HelpAccordion,
     HelpFigure,
+    HelpVideo,
   } satisfies MdxComponents;
+}
+
+function HelpAccordion({ title, children }: { title: string; children: ReactNode }) {
+  if (!title.trim()) throw new Error("ヘルプのアコーディオンにはtitleを指定してください");
+
+  return (
+    <Accordion.Root collapsible lazyMount variant="plain">
+      <Accordion.Item
+        value={title}
+        borderWidth="1px"
+        borderColor="gray.200"
+        borderRadius="lg"
+        bg="white"
+        overflow="hidden"
+      >
+        <Heading as="h3" fontSize="inherit" fontWeight="normal">
+          <Accordion.ItemTrigger
+            alignItems="center"
+            gap={3}
+            px={{ base: 4, md: 5 }}
+            py={3.5}
+            cursor="pointer"
+            textAlign="left"
+            _hover={{ bg: "gray.50" }}
+          >
+            <Text as="span" flex="1" color="gray.950" fontWeight="bold" lineHeight="1.7">
+              {title}
+            </Text>
+            <Accordion.ItemIndicator color="teal.700" flexShrink={0} />
+          </Accordion.ItemTrigger>
+        </Heading>
+        <Accordion.ItemContent borderTopWidth="1px" borderTopColor="gray.100">
+          <Accordion.ItemBody px={{ base: 4, md: 5 }} py={5}>
+            <Stack gap={4}>{children}</Stack>
+          </Accordion.ItemBody>
+        </Accordion.ItemContent>
+      </Accordion.Item>
+    </Accordion.Root>
+  );
+}
+
+function HelpVideoView({ src, title, width, height }: { src: string; title: string; width: number; height: number }) {
+  if (!src.trim()) throw new Error("ヘルプ動画にはsrcを指定してください");
+  if (!title.trim()) throw new Error("ヘルプ動画には内容を説明するtitleを指定してください");
+  if (width <= 0 || height <= 0) throw new Error("ヘルプ動画には正のwidthとheightを指定してください");
+
+  return (
+    <Box as="figure" my={2}>
+      <Box
+        overflow="hidden"
+        w="full"
+        maxW={{ base: "360px", md: "380px" }}
+        mx="auto"
+        borderWidth="1px"
+        borderColor="gray.200"
+        borderRadius="lg"
+        bg="black"
+        aspectRatio={width / height}
+      >
+        {/* biome-ignore lint/a11y/useMediaCaption: 音声トラックのない操作動画のため、字幕は不要です。 */}
+        <chakra.video
+          src={src}
+          htmlWidth={width}
+          htmlHeight={height}
+          controls
+          playsInline
+          preload="metadata"
+          aria-label={`${title}の動画`}
+          w="full"
+          h="full"
+          objectFit="contain"
+          bg="black"
+        >
+          お使いのブラウザでは動画を再生できません。
+        </chakra.video>
+      </Box>
+    </Box>
+  );
 }
 
 function HelpHeading({ level, children }: { level: 2 | 3; children: ReactNode }) {
@@ -100,11 +188,21 @@ function HelpFigureView({
   if (!alt.trim()) throw new Error("ヘルプ画像には内容を説明するaltを指定してください");
 
   return (
-    <Box as="figure" my={2}>
+    <Box
+      as="figure"
+      my={2}
+      w={{ base: "full", md: width ? `${width}px` : "full" }}
+      maxW="full"
+      mx={width ? "auto" : undefined}
+    >
+      {caption && (
+        <Text as="figcaption" mb={2} color="gray.600" fontSize="sm" lineHeight="1.7">
+          {caption}
+        </Text>
+      )}
       <Box
         overflow="hidden"
-        w={{ base: "full", md: width ? `${width}px` : "full" }}
-        maxW="full"
+        w="full"
         borderWidth="1px"
         borderColor="gray.200"
         borderRadius="lg"
@@ -123,11 +221,6 @@ function HelpFigureView({
           objectFit="contain"
         />
       </Box>
-      {caption && (
-        <Text as="figcaption" mt={2} color="gray.600" fontSize="sm" lineHeight="1.7">
-          {caption}
-        </Text>
-      )}
     </Box>
   );
 }

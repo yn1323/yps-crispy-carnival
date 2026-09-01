@@ -106,12 +106,15 @@ type MdxAstNode = {
   type: string;
   value?: unknown;
   alt?: unknown;
+  name?: unknown;
   children?: MdxAstNode[];
 };
 
+const SEARCHABLE_MDX_CONTAINER_NAMES = new Set(["HelpAccordion"]);
+
 /**
  * ヘルプの検索と構造化データで使う、画面に表示される文章だけを段落・リスト項目単位で取り出す。
- * JSX componentは図や補助UIなので、属性名や内部実装語を検索・JSON-LDへ混ぜない。
+ * JSXの属性名と図・動画は検索・JSON-LDへ混ぜず、検索対象の補助UIだけ子要素の本文を取り出す。
  */
 export async function extractMdxTextBlocks(source: string): Promise<string[]> {
   let textBlocks: string[] = [];
@@ -147,7 +150,9 @@ function readMdxNodeText(node: MdxAstNode): string {
 }
 
 function isExcludedMdxNode(node: MdxAstNode): boolean {
-  return node.type === "yaml" || node.type === "html" || node.type.startsWith("mdx");
+  if (node.type === "yaml" || node.type === "html") return true;
+  if (!node.type.startsWith("mdx")) return false;
+  return node.type !== "mdxJsxFlowElement" || !SEARCHABLE_MDX_CONTAINER_NAMES.has(String(node.name));
 }
 
 function normalizeMdxText(value: string): string {
