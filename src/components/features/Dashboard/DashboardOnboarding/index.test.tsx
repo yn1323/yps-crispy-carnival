@@ -71,10 +71,12 @@ const renderOnboarding = ({
   recruitments = [],
   pendingStaffRequestCount = 0,
   isDismissed = false,
+  canShow = true,
 }: {
   recruitments?: Recruitment[];
   pendingStaffRequestCount?: number;
   isDismissed?: boolean;
+  canShow?: boolean;
 } = {}) =>
   render(
     <DashboardOnboarding
@@ -82,7 +84,7 @@ const renderOnboarding = ({
       staffs={managerOnly}
       pendingStaffRequestCount={pendingStaffRequestCount}
       isDismissed={isDismissed}
-      canShow
+      canShow={canShow}
     >
       {(state) => <OnboardingProbe state={state} latestRecruitmentId={recruitments[0]?._id} />}
     </DashboardOnboarding>,
@@ -97,6 +99,7 @@ function OnboardingProbe({
 }) {
   return (
     <div>
+      <output data-testid="dismissed">{String(state.isDismissed)}</output>
       <output data-testid="visible">{String(state.isVisible)}</output>
       {state.content}
       {latestRecruitmentId && (
@@ -166,6 +169,7 @@ describe("DashboardOnboarding", () => {
     fireEvent.click(screen.getByRole("button", { name: "ガイドを閉じる" }));
 
     await waitFor(() => expect(screen.getByTestId("visible").textContent).toBe("false"));
+    expect(screen.getByTestId("dismissed").textContent).toBe("true");
     expect(mocks.useMutation).toHaveBeenCalledWith(mocks.dismissReference);
     expect(mocks.dismissOnboarding).toHaveBeenCalledOnce();
     expect(mocks.dismissOnboarding).toHaveBeenCalledWith({});
@@ -181,13 +185,30 @@ describe("DashboardOnboarding", () => {
 
     await waitFor(() => expect(mocks.showErrorToast).toHaveBeenCalledWith(error));
     expect(screen.getByTestId("visible").textContent).toBe("true");
+    expect(screen.getByTestId("dismissed").textContent).toBe("false");
     expect(screen.getByTestId("stage").textContent).toBe("create_recruitment");
+  });
+
+  it("表示条件を満たさず一時的に非表示でも、未終了の案内を終了済みとして扱わない", () => {
+    renderOnboarding({ canShow: false });
+
+    expect(screen.getByTestId("visible").textContent).toBe("false");
+    expect(screen.getByTestId("dismissed").textContent).toBe("false");
+  });
+
+  it("保存済みの終了状態を復元し、dismiss mutationを再実行しない", () => {
+    renderOnboarding({ isDismissed: true });
+
+    expect(screen.getByTestId("visible").textContent).toBe("false");
+    expect(screen.getByTestId("dismissed").textContent).toBe("true");
+    expect(mocks.dismissOnboarding).not.toHaveBeenCalled();
   });
 
   it("スタッフ申請が届いた場合は案内を自動終了し、dismissを一度だけ保存する", async () => {
     const { rerender } = renderOnboarding({ pendingStaffRequestCount: 1 });
 
     expect(screen.getByTestId("visible").textContent).toBe("false");
+    expect(screen.getByTestId("dismissed").textContent).toBe("true");
     await waitFor(() => expect(mocks.dismissOnboarding).toHaveBeenCalledOnce());
     expect(mocks.dismissOnboarding).toHaveBeenCalledWith({});
 

@@ -2,7 +2,7 @@
 
 > 文書種別: feature
 >
-> 最終コード照合: 2026-08-31（この変更を含む）
+> 最終コード照合: 2026-09-01（この変更を含む）
 
 「ヘルプ・使い方」は、シフトリを利用中の管理者とスタッフが、やりたいことからFAQと詳しい使い方を探す公開ページである。
 
@@ -46,7 +46,8 @@ ID、表示名、説明、対象者、表示順は`helpTasks.ts`を正本とす�
 src/components/features/HelpCenter/content/
 ├─ faqs/<id>.mdx
 ├─ guides/<id>.mdx
-└─ images/<guide-id>/<filename>
+├─ images/<guide-id>/<filename>
+└─ videos/<guide-id>/<filename>
 ```
 
 FAQと使い方は、共通のfrontmatterを使う。
@@ -103,6 +104,8 @@ FAQはアコーディオンでその場に表示し、使い方は個別ペー�
 使い方ページは、パンくず、対象者、本文、H2が3件以上ある場合の目次、関連FAQ、関連する使い方、問い合わせ導線を表示する。  
 画像はMDXとコロケーションせず、`content/images/<guide-id>/`へ置く。  MDXでは`../images/<guide-id>/<filename>`の相対pathで参照し、バンドルURLへ解決する。
 操作場所や状態差を文章だけで特定しにくい場合だけ画像を使い、意味のあるaltを設定する。
+操作動画は`content/videos/<guide-id>/`へ置き、`HelpVideo`でブラウザ標準のcontrolsと元動画の縦横比を保って表示する。  必要な操作は動画または本文で確認できるようにする。
+補助的な端末別手順は`HelpAccordion`で折りたたみ、操作の要点は検索対象になる本文にも記載する。
 
 シフト管理シナリオはTSXで構成し、初回だけ行うスタッフ追加と、毎回行う募集、提出、調整・確定、スタッフへの通知を分けて表示する。  PCでは「シフト回収の流れ」のStepperをページ内の各説明へ移動する目次として表示し、SPでは非表示にする。4本の音声なし操作動画は同component配下へ配置し、ブラウザの標準controlsで表示する。  確定通知の例は本番のメール生成処理へ架空の固定データを渡して表示し、実ユーザーデータ、通知API、送信処理には接続しない。
 
@@ -115,7 +118,7 @@ FAQはアコーディオンでその場に表示し、使い方は個別ペー�
 build前に、frontmatter、kindと配置、task、feature ID、ID・タイトル・orderの重複、本文、primaryGuide、related、下書き参照を検証する。  
 検索ロジックと構造化データはLogic Test、検索・FAQ展開などの操作はStorybook Behavior Test、PC・SPの代表レイアウトはVRTが担当する。
 
-`/help`だけが全文検索用の本文テキストを読み込む。タスクページはFAQ本文と軽量metadataを読み込み、全文検索データを先読みしない。使い方ページでは対象slugのMDX本文・目次・画像だけを遅延読込する。
+`/help`だけが全文検索用の本文テキストを読み込む。タスクページはFAQ本文と軽量metadataを読み込み、全文検索データを先読みしない。使い方ページでは対象slugのMDX本文・目次・画像・動画だけを遅延読込する。
 
 `scripts/staticSite.ts`は組織構造と通知の基本ページ、シフト管理シナリオ、全タスクページ、公開中のguide MDXファイルから組み立てた`/help/<guide-id>`を静的生成する。
 sitemapは同じ公開route一覧から生成し、ヘルプには`lastmod`を付けない。

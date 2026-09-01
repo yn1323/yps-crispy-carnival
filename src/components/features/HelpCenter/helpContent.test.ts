@@ -357,9 +357,9 @@ describe("HelpCenter検索", () => {
     ]);
   });
 
-  it("featureIdsとMDXのJSX名・属性を検索対象へ混ぜない", () => {
+  it("featureIdsとMDXのJSX名・属性を除外し、HelpAccordionの本文を検索対象にする", () => {
     const extractedText = Object.values(extractedMdxTextModules)[0];
-    expect(extractedText).toEqual(["最初の回答とリンクの文言です。", "一つ目", "二つ目"]);
+    expect(extractedText).toEqual(["最初の回答とリンクの文言です。", "一つ目", "二つ目", "アコーディオン内の手順"]);
 
     const [baseMeta] = buildSingleFaq(faqFrontmatter({ featureIds: ["line-notification"] }), extractedText);
     const [meta] = buildHelpIndexMetas([baseMeta], { [FAQ_PATH]: extractedText });
@@ -367,5 +367,6 @@ describe("HelpCenter検索", () => {
     expect(searchHelpMetas([meta], "TestVisual")).toEqual([]);
     expect(searchHelpMetas([meta], "検索へ含めない属性")).toEqual([]);
     expect(searchHelpMetas([meta], "最初 回答")).toEqual([meta]);
+    expect(searchHelpMetas([meta], "アコーディオン 手順")).toEqual([meta]);
   });
 });
