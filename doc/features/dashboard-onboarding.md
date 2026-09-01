@@ -7,6 +7,7 @@
 ### フロントエンド（`src/`）
 
 - `src/components/features/Dashboard/DashboardContent/index.tsx` — オンボーディング機能とDashboard各セクションを合成する
+- `src/components/features/Dashboard/HomeScreenInstallGuidePrompt/` — ホーム画面追加案内の端末・standalone・非表示状態とUIを所有する
 - `src/components/features/Dashboard/HeroSummary/` — オンボーディング中に通常の「要対応」セクションを隠す表示制御
 - `src/components/features/Dashboard/DashboardOnboarding/` — オンボーディング状態、Callout UI、進捗判定、通常の「要対応」との表示切り替え、モーダル/画面遷移との接続、Storybook、ロジックテストを所有する
 - `src/components/features/Dashboard/dashboardTourTargets.ts` — Dashboard内Tourターゲットの共有定数
@@ -14,6 +15,7 @@
 - `src/components/features/Dashboard/StaffRoster/` — スタッフ追加ボタンのTourターゲット
 - `src/components/features/Dashboard/SetupModal/` — 初回セットアップで店舗情報、本人の表示名、シフト連絡先、任意のプロモーションコードを登録する
 - `src/components/ui/Tour/` — Dashboard用の説明なしスポットライト表示に対応した既存Tourラッパー
+- `public/manifest.json` — ホーム画面からstandalone起動したときの開始先を`/dashboard`に指定する
 
 ### バックエンド（`convex/`）
 
@@ -62,6 +64,9 @@
 - 表示中は通常の「要対応」セクションを出さず、「はじめの確認」セクションを同列に表示する
 - オンボーディング表示可否が未確定の間は通常の「要対応」セクションを出さず、リフレッシュ時の一瞬の表示切り替わりを避ける
 - 手動で閉じた場合はDBに終了状態を保存し、同じ管理ユーザーでは別端末でも再表示しない
+- オンボーディングが消えた後は、スマートフォンの通常ブラウザに限り、ホーム画面追加案内を「要対応」より前に表示する
+- PCとstandalone起動ではホーム画面追加案内を表示しない。  案内を閉じた場合はLocalStorageに保存し、同じ端末・ブラウザで再表示しない
+- ホーム画面追加案内からは、端末別の使い方`/help/open-shiftori-from-home-screen`を別タブで開く
 - Callout内の「ガイド」ボタンはショートカットではなく、次に触る場所を説明なしのTourで表示するだけにする
 - 2/4はメールを開く案内なので、Dashboard上のガイドボタンは表示しない
 - Tour対象のボタンやカードを押したらTourだけを非表示にし、通常の操作を続行する
