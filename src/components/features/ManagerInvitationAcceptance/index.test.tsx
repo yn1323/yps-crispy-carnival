@@ -15,6 +15,7 @@ type CapturedState = {
   step?: string;
   errorMessage?: string | null;
   infoMessage?: string | null;
+  requiresLogout?: boolean;
   hasDestination?: boolean;
   isRetrying?: boolean;
 };
@@ -24,6 +25,7 @@ type CapturedActions = {
   onStartVerification: (email: string) => void | Promise<void>;
   onVerifyCode: (values: { code: string }) => void | Promise<void>;
   onResendCode: () => void | Promise<void>;
+  onLogout: () => void | Promise<void>;
   onGoToDashboard: () => void | Promise<void>;
 };
 
@@ -33,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   shopsQuery: Symbol("getMyShops"),
   acceptInvitation: vi.fn(),
   navigate: vi.fn(),
+  signOut: vi.fn(),
   useAction: vi.fn(),
   useQuery: vi.fn(),
   runWithReverification: vi.fn(),
@@ -54,6 +57,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@clerk/react", () => ({
   useAuth: () => ({ isLoaded: true, isSignedIn: true }),
+  useClerk: () => ({ signOut: mocks.signOut }),
   useUser: () => ({ isLoaded: true, user: mocks.user }),
   useReverification:
     (operation: (...args: unknown[]) => Promise<unknown>) =>
@@ -95,6 +99,7 @@ vi.mock("./ManagerInvitationAcceptanceView", () => ({
         <output data-testid="state-step">{state.step ?? ""}</output>
         <output data-testid="state-error">{state.errorMessage ?? ""}</output>
         <output data-testid="state-info">{state.infoMessage ?? ""}</output>
+        <output data-testid="state-requires-logout">{String(state.requiresLogout ?? false)}</output>
         <button type="button" onClick={() => void actions.onAccept()}>
           招待を再確認
         </button>
@@ -106,6 +111,9 @@ vi.mock("./ManagerInvitationAcceptanceView", () => ({
         </button>
         <button type="button" onClick={() => void actions.onResendCode()}>
           コードを再送
+        </button>
+        <button type="button" onClick={() => void actions.onLogout()}>
+          ログアウト
         </button>
         <button type="button" onClick={() => void actions.onGoToDashboard()}>
           シフトリを確認する
@@ -132,6 +140,7 @@ function createEmailAddress(emailAddress: string, status: "unverified" | "verifi
 beforeEach(() => {
   mocks.acceptInvitation.mockReset();
   mocks.navigate.mockReset();
+  mocks.signOut.mockReset();
   mocks.useAction.mockReset();
   mocks.useQuery.mockReset();
   mocks.runWithReverification.mockReset();
@@ -154,6 +163,7 @@ beforeEach(() => {
   );
   mocks.isReverificationCancelledError.mockReturnValue(false);
   mocks.user.reload.mockResolvedValue(mocks.user);
+  mocks.signOut.mockResolvedValue(undefined);
 });
 
 describe("ManagerInvitationAcceptance controller", () => {
@@ -186,6 +196,26 @@ describe("ManagerInvitationAcceptance controller", () => {
     fireEvent.click(screen.getByRole("button", { name: "コードを再送" }));
     await waitFor(() => expect(screen.getByTestId("state-info").textContent).toBe("確認コードを再送しました。"));
     expect(emailAddress.prepareVerification).toHaveBeenCalledTimes(2);
+  });
+
+  it("招待先メールが別アカウントに登録済みなら再入力を止め、ログアウトできる", async () => {
+    mocks.acceptInvitation.mockResolvedValue({ status: "verificationRequired" });
+    mocks.user.createEmailAddress.mockRejectedValue({
+      errors: [{ code: "form_identifier_exists", longMessage: "Email address is used by another user" }],
+    });
+
+    render(<ManagerInvitationAcceptance token="invitation-token" />);
+    await waitFor(() => expect(screen.getByTestId("state-kind").textContent).toBe("verificationRequired"));
+
+    fireEvent.click(screen.getByRole("button", { name: "招待先メールを確認" }));
+
+    await waitFor(() => expect(screen.getByTestId("state-requires-logout").textContent).toBe("true"));
+    expect(screen.getByTestId("state-error").textContent).toBe(
+      "このメールアドレスはすでに登録されています。\n一度ログアウトしてから招待リンクを再度クリックしてください。",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "ログアウト" }));
+    expect(mocks.signOut).toHaveBeenCalledOnce();
   });
 
   it("新しいメールを再認証付きで追加し、コード確認後にUserをreloadしてactionを再実行する", async () => {

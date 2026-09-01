@@ -8,12 +8,12 @@ import {
   MobileAppPrimaryNavigation,
 } from "@/src/components/features/AuthenticatedApp/AppPrimaryNavigation";
 import { AppFeatureRequestAction, type AppFeatureRequestScope } from "@/src/components/features/FeatureRequestDialog";
-import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
+import { AUTHENTICATED_APP_HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 
 export const AUTHENTICATED_APP_CONTENT_HEIGHT = {
-  base: `calc(100dvh - ${HEADER_HEIGHT.base} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
-  md: `calc(100dvh - ${HEADER_HEIGHT.md} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
-  lg: `calc(100dvh - ${HEADER_HEIGHT.md})`,
+  base: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.base} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
+  md: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.md} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
+  lg: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.md})`,
 } as const;
 
 const UserMenu = lazy(() =>
@@ -62,7 +62,7 @@ export function AuthenticatedAppShell({
         }
       />
       <Box
-        pt={HEADER_HEIGHT}
+        pt={AUTHENTICATED_APP_HEADER_HEIGHT}
         pb={
           showPrimaryNavigation
             ? { base: `calc(${MOBILE_APP_NAVIGATION_HEIGHT} + env(safe-area-inset-bottom))`, lg: 0 }

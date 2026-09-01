@@ -50,6 +50,7 @@ export type ManagerInvitationAcceptanceViewState =
       kind: "verificationRequired";
       step: "input";
       errorMessage: string | null;
+      requiresLogout: boolean;
       isBusy: boolean;
     }
   | {
@@ -79,6 +80,7 @@ export type ManagerInvitationAcceptanceViewProps = {
     onVerifyCode: (values: EmailVerificationValues) => void | Promise<void>;
     onResendCode: () => void | Promise<void>;
     onBackToVerificationInput: () => void;
+    onLogout: () => void;
     onGoToDashboard: () => void;
   };
 };
@@ -195,7 +197,19 @@ function VerificationRequired({
         </Stack>
       </VStack>
 
-      {state.step === "input" ? (
+      {state.step === "input" && state.requiresLogout ? (
+        <Stack gap={5}>
+          {state.errorMessage && (
+            <Alert.Root status="error" borderRadius="lg">
+              <Alert.Indicator />
+              <Alert.Description whiteSpace="pre-line">{state.errorMessage}</Alert.Description>
+            </Alert.Root>
+          )}
+          <Button type="button" colorPalette="teal" size="lg" minH="48px" onClick={actions.onLogout}>
+            ログアウトする
+          </Button>
+        </Stack>
+      ) : state.step === "input" ? (
         <Stack as="form" gap={5} onSubmit={handleSubmit(({ email }) => actions.onStartVerification(email))}>
           <Alert.Root status="info" borderRadius="lg">
             <Alert.Indicator />

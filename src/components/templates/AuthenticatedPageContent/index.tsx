@@ -1,7 +1,7 @@
 import { Box } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { AUTHENTICATED_APP_CONTENT_HEIGHT } from "@/src/components/templates/AuthenticatedAppShell";
-import { HEADER_HEIGHT } from "@/src/components/templates/Header";
+import { AUTHENTICATED_APP_HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
 
 export const AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT = {
@@ -22,8 +22,8 @@ export function AuthenticatedPageContent({ children, includeMobileNavigation = f
         includeMobileNavigation
           ? AUTHENTICATED_APP_CONTENT_HEIGHT
           : {
-              base: `calc(100dvh - ${HEADER_HEIGHT.base})`,
-              md: `calc(100dvh - ${HEADER_HEIGHT.md})`,
+              base: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.base})`,
+              md: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.md})`,
             }
       }
       bg="gray.50"
