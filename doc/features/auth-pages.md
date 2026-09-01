@@ -154,7 +154,7 @@ Google account linkingのOAuth帰還先は`/account`専用とし、サインイ�
 - すでにpersonとClerk Userが接続済みの場合は、現在の内部`userId`との一致で本人を確認する。
 - 未接続personまたは外部招待の場合は、招待先が現在のClerk Userのverified EmailAddressに含まれることをConvex Node actionからClerk Backend APIで確認する。
 
-現在のClerk Userに招待先のverified EmailAddressがない場合だけ、利用者へ招待メールの宛先を明示入力してもらい、同じEmailAddress resourceを再利用または追加して`email_code`で所有確認する。  確認後は招待tokenだけで受諾actionを再実行し、入力メールや確認コードをConvex、storage、log、auditへ渡さない。
+現在のClerk Userに招待先のverified EmailAddressがない場合だけ、利用者へ招待メールの宛先を明示入力してもらい、同じEmailAddress resourceを再利用または追加して`email_code`で所有確認する。  招待先メールが別のClerkアカウントへ登録済みで追加できない場合は、再入力を続けず、現在のアカウントからログアウトして同じ招待URLを開き直す導線を表示する。  確認後は招待tokenだけで受諾actionを再実行し、入力メールや確認コードをConvex、storage、log、auditへ渡さない。
 
 招待の所有確認でClerkへ追加したEmailAddressは、シフト連絡先の自動同期ではない。  personの既存連絡先、`users.email`、請求先を上書きせず、ログインに使えるかどうかもClerkの実際の設定に従う。
 
