@@ -3554,27 +3554,172 @@ describe("organizationStripe/actions", () => {
   });
 
   it.each([
-    { kind: "trial", expectedMode: "setup" },
-    { kind: "immediate", expectedMode: "subscription" },
-  ] as const)("$kind Checkoutはcard限定かつ固定の戻り先を使い、生カードfieldを渡さない", async (testCase) => {
+    {
+      kind: "trial-standard",
+      billingKind: "trial",
+      targetPlan: "standard",
+      expectedMode: "setup",
+      expectedCustomText: {
+        submit: {
+          message:
+            "トライアル終了後はStandardプラン（月額1,480円・税込）に切り替えます。この画面では支払い方法のみ登録し、トライアル終了まで請求されません。",
+        },
+      },
+    },
+    {
+      kind: "trial-pro",
+      billingKind: "trial",
+      targetPlan: "pro",
+      expectedMode: "setup",
+      expectedCustomText: {
+        submit: {
+          message:
+            "トライアル終了後はProプラン（月額2,980円・税込）に切り替えます。この画面では支払い方法のみ登録し、トライアル終了まで請求されません。",
+        },
+      },
+    },
+    {
+      kind: "trial-short-cadence",
+      billingKind: "trial",
+      targetPlan: "standard",
+      expectedMode: "setup",
+      expectedCustomText: {
+        submit: {
+          message:
+            "トライアル終了後はStandardプラン（2日ごとに320円・税別）に切り替えます。この画面では支払い方法のみ登録し、トライアル終了まで請求されません。",
+        },
+      },
+    },
+    {
+      kind: "immediate",
+      billingKind: "immediate",
+      targetPlan: "standard",
+      expectedMode: "subscription",
+      expectedCustomText: undefined,
+    },
+  ] as const)(
+    "$kind Checkoutはcard限定と固定の戻り先を使い、Trialだけ料金説明を渡して生カードfieldを渡さない",
+    async (testCase) => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: `stripe_checkout_payload_${testCase.kind}`,
+          plan: "free",
+        });
+        if (testCase.billingKind === "trial") {
+          const billing = await ctx.db
+            .query("organizationBillingStates")
+            .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+            .unique();
+          if (!billing) throw new Error("billing state missing");
+          await ctx.db.patch(billing._id, {
+            state: { kind: "trial", trialEndsAt: NOW + 14 * 24 * 60 * 60_000 },
+            updatedAt: NOW,
+          });
+        }
+        return seeded;
+      });
+      const checkoutCreateCalls: unknown[][] = [];
+      providerFetchMock.mockImplementation(async (input, init) => {
+        const resource = String(input).split("/").pop() ?? "";
+        const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+        if (resource === "prices.retrieve") {
+          const priceId = String(args[0]);
+          const usesShortCadence = testCase.kind === "trial-short-cadence";
+          return providerResponse({
+            id: priceId,
+            active: true,
+            livemode: false,
+            currency: "jpy",
+            unit_amount: usesShortCadence ? 320 : priceId === PRO_PRICE_ID ? 2980 : 1480,
+            tax_behavior: usesShortCadence ? "exclusive" : "inclusive",
+            recurring: usesShortCadence
+              ? { interval: "day", interval_count: 2 }
+              : { interval: "month", interval_count: 1 },
+          });
+        }
+        if (resource === "customers.create") {
+          return providerResponse({ id: `cus_checkout_payload_${testCase.kind}`, livemode: false });
+        }
+        if (resource === "checkout.sessions.create") {
+          checkoutCreateCalls.push(args);
+          return providerResponse({
+            id: `cs_checkout_payload_${testCase.kind}`,
+            url: `https://checkout.stripe.test/${testCase.kind}`,
+            livemode: false,
+          });
+        }
+        throw new Error(`Unexpected Stripe provider call: ${resource}`);
+      });
+
+      await expect(
+        t
+          .withIdentity({ subject: `stripe_checkout_payload_${testCase.kind}` })
+          .action(api.organizationStripe.actions.startPaidCheckout, {
+            shopId: ids.shopId,
+            targetPlan: testCase.targetPlan,
+            requestId: `checkout-payload-${testCase.kind}`,
+          }),
+      ).resolves.toEqual({ status: "available", url: `https://checkout.stripe.test/${testCase.kind}` });
+
+      expect(checkoutCreateCalls).toHaveLength(1);
+      const payload = checkoutCreateCalls[0][0] as Record<string, unknown>;
+      expect(payload).toMatchObject({ mode: testCase.expectedMode, payment_method_types: ["card"] });
+      expect(payload.custom_text).toEqual(testCase.expectedCustomText);
+      for (const [urlValue, result] of [
+        [payload.success_url, "returned"],
+        [payload.cancel_url, "cancelled"],
+      ] as const) {
+        const url = new URL(String(urlValue));
+        expect(`${url.origin}${url.pathname}`).toBe("https://app.example.test/manage/billing");
+        expect(url.searchParams.get("org")).toBe(ids.organizationId);
+        expect(url.searchParams.get("stripe")).toBe(result);
+      }
+      expect(payload).not.toHaveProperty("payment_method_data");
+      expect(payload).not.toHaveProperty("card");
+      expect(payload).not.toHaveProperty("cvc");
+      expect(payload).not.toHaveProperty("number");
+      expect(payload).not.toHaveProperty("exp_month");
+      expect(payload).not.toHaveProperty("exp_year");
+    },
+  );
+
+  it("表示版のない既存Trial Checkout operationは再試行でも従来payloadを維持する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
-        subject: `stripe_checkout_payload_${testCase.kind}`,
+        subject: "stripe_checkout_legacy_custom_text",
         plan: "free",
       });
-      if (testCase.kind === "trial") {
-        const billing = await ctx.db
-          .query("organizationBillingStates")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-          .unique();
-        if (!billing) throw new Error("billing state missing");
-        await ctx.db.patch(billing._id, {
-          state: { kind: "trial", trialEndsAt: NOW + 14 * 24 * 60 * 60_000 },
-          updatedAt: NOW,
-        });
-      }
+      const billing = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billing) throw new Error("billing state missing");
+      await ctx.db.patch(billing._id, {
+        state: { kind: "trial", trialEndsAt: NOW + 14 * 24 * 60 * 60_000 },
+        updatedAt: NOW,
+      });
       return seeded;
+    });
+    const requestId = "legacy_custom_text_retry";
+    const legacyOperation = await t.mutation(internal.organizationStripe.mutations.beginOperation, {
+      organizationId: ids.organizationId,
+      kind: "trialSetupCheckout",
+      requestKey: requestId,
+      livemode: false,
+      expectedBillingVersion: 1,
+      providerGeneration: 1,
+      targetPlan: "standard",
+      changeMode: "checkout",
+      stripePriceIdSnapshot: READY_TEST_CONFIGURATION.standardPriceId,
+      targetStripePriceIdSnapshot: READY_TEST_CONFIGURATION.standardPriceId,
+    });
+    await t.mutation(internal.organizationStripe.mutations.finishOperation, {
+      operationId: legacyOperation.operationId,
+      leaseToken: legacyOperation.leaseToken as string,
+      status: "retrying",
+      errorCode: "temporary_provider_error",
     });
     const checkoutCreateCalls: unknown[][] = [];
     providerFetchMock.mockImplementation(async (input, init) => {
@@ -3582,7 +3727,7 @@ describe("organizationStripe/actions", () => {
       const args = JSON.parse(String(init?.body ?? "[]")) as unknown[];
       if (resource === "prices.retrieve") {
         return providerResponse({
-          id: READY_TEST_CONFIGURATION.standardPriceId,
+          id: String(args[0]),
           active: true,
           livemode: false,
           currency: "jpy",
@@ -3592,13 +3737,13 @@ describe("organizationStripe/actions", () => {
         });
       }
       if (resource === "customers.create") {
-        return providerResponse({ id: `cus_checkout_payload_${testCase.kind}`, livemode: false });
+        return providerResponse({ id: "cus_checkout_legacy_custom_text", livemode: false });
       }
       if (resource === "checkout.sessions.create") {
         checkoutCreateCalls.push(args);
         return providerResponse({
-          id: `cs_checkout_payload_${testCase.kind}`,
-          url: `https://checkout.stripe.test/${testCase.kind}`,
+          id: "cs_checkout_legacy_custom_text",
+          url: "https://checkout.stripe.test/legacy-custom-text",
           livemode: false,
         });
       }
@@ -3607,32 +3752,20 @@ describe("organizationStripe/actions", () => {
 
     await expect(
       t
-        .withIdentity({ subject: `stripe_checkout_payload_${testCase.kind}` })
+        .withIdentity({ subject: "stripe_checkout_legacy_custom_text" })
         .action(api.organizationStripe.actions.startPaidCheckout, {
           shopId: ids.shopId,
           targetPlan: "standard",
-          requestId: `checkout-payload-${testCase.kind}`,
+          requestId,
         }),
-    ).resolves.toEqual({ status: "available", url: `https://checkout.stripe.test/${testCase.kind}` });
+    ).resolves.toEqual({ status: "available", url: "https://checkout.stripe.test/legacy-custom-text" });
 
     expect(checkoutCreateCalls).toHaveLength(1);
-    const payload = checkoutCreateCalls[0][0] as Record<string, unknown>;
-    expect(payload).toMatchObject({ mode: testCase.expectedMode, payment_method_types: ["card"] });
-    for (const [urlValue, result] of [
-      [payload.success_url, "returned"],
-      [payload.cancel_url, "cancelled"],
-    ] as const) {
-      const url = new URL(String(urlValue));
-      expect(`${url.origin}${url.pathname}`).toBe("https://app.example.test/manage/billing");
-      expect(url.searchParams.get("org")).toBe(ids.organizationId);
-      expect(url.searchParams.get("stripe")).toBe(result);
-    }
-    expect(payload).not.toHaveProperty("payment_method_data");
-    expect(payload).not.toHaveProperty("card");
-    expect(payload).not.toHaveProperty("cvc");
-    expect(payload).not.toHaveProperty("number");
-    expect(payload).not.toHaveProperty("exp_month");
-    expect(payload).not.toHaveProperty("exp_year");
+    expect(checkoutCreateCalls[0]?.[0]).not.toHaveProperty("custom_text");
+    const operation = await t.run(async (ctx) => await ctx.db.get(legacyOperation.operationId));
+    expect(operation).not.toBeNull();
+    expect(operation).not.toHaveProperty("checkoutCustomTextVersion");
+    expect(operation).toMatchObject({ status: "succeeded", attemptCount: 2 });
   });
 
   it("organization-scoped Checkoutは組織を保持してapp課金画面へ戻す", async () => {

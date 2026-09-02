@@ -63,6 +63,7 @@ const operationResultValidator = v.object({
   targetPlan: v.optional(v.union(v.literal("free"), v.literal("standard"), v.literal("pro"))),
   restrictAtPeriodEnd: v.optional(v.literal(true)),
   changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
+  checkoutCustomTextVersion: v.optional(v.literal(1)),
   stripeSubscriptionIdSnapshot: v.optional(v.string()),
   stripeSubscriptionItemIdSnapshot: v.optional(v.string()),
   sourceStripePriceIdSnapshot: v.optional(v.string()),
@@ -313,6 +314,7 @@ export const beginOperation = internalMutation({
     targetPlan: v.optional(v.union(v.literal("free"), v.literal("standard"), v.literal("pro"))),
     restrictAtPeriodEnd: v.optional(v.literal(true)),
     changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
+    checkoutCustomTextVersion: v.optional(v.literal(1)),
     stripeSubscriptionIdSnapshot: v.optional(v.string()),
     stripeSubscriptionItemIdSnapshot: v.optional(v.string()),
     sourceStripePriceIdSnapshot: v.optional(v.string()),
@@ -342,6 +344,9 @@ export const beginOperation = internalMutation({
     }
     if (args.kind === "createTrialSubscription" && args.targetPlan !== "standard" && args.targetPlan !== "pro") {
       throw new ConvexError("Invalid trial subscription target plan");
+    }
+    if (args.checkoutCustomTextVersion !== undefined && args.kind !== "trialSetupCheckout") {
+      throw new ConvexError("Invalid checkout custom text version");
     }
     if (
       args.trialSubscriptionCreateSnapshot &&
@@ -618,6 +623,9 @@ export const beginOperation = internalMutation({
       ...(args.targetPlan ? { targetPlan: args.targetPlan } : {}),
       ...(args.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
       ...(args.changeMode ? { changeMode: args.changeMode } : {}),
+      ...(args.checkoutCustomTextVersion !== undefined
+        ? { checkoutCustomTextVersion: args.checkoutCustomTextVersion }
+        : {}),
       ...(args.stripeSubscriptionIdSnapshot ? { stripeSubscriptionIdSnapshot: args.stripeSubscriptionIdSnapshot } : {}),
       ...(args.stripeSubscriptionItemIdSnapshot
         ? { stripeSubscriptionItemIdSnapshot: args.stripeSubscriptionItemIdSnapshot }
@@ -1786,6 +1794,9 @@ function operationResult(operation: Doc<"organizationStripeOperations">, created
     ...(operation.targetPlan ? { targetPlan: operation.targetPlan } : {}),
     ...(operation.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
     ...(operation.changeMode ? { changeMode: operation.changeMode } : {}),
+    ...(operation.checkoutCustomTextVersion !== undefined
+      ? { checkoutCustomTextVersion: operation.checkoutCustomTextVersion }
+      : {}),
     ...(operation.stripeSubscriptionIdSnapshot
       ? { stripeSubscriptionIdSnapshot: operation.stripeSubscriptionIdSnapshot }
       : {}),

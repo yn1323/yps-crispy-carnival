@@ -80,6 +80,7 @@ direct routeとpublic mutation/actionは、画面表示とは独立して認証�
 - 組織名、現在店舗、組織削除は既存Dialogとcontrollerを再利用する。  組織作成、店舗追加、管理者招待、請求先変更、Stripe操作の入口は常時表示し、操作可否はサーバーが返すcapabilityに従う。
 - CheckoutとCustomer Portalを開始した場合、復帰先は`/manage/billing?org=<organizationId>`にする。  復帰URLだけで支払い成功とは判断せず、Webhookまたはprovider再取得結果を正本とする。
 - プラン操作の確認Dialogはbrowser history guardを登録しない。  ブラウザバックでは課金ページから通常どおり離れ、ページを離れた後に返った処理結果でStripeへ遷移しない。  同じ課金ページを表示中に検証済みCheckout URLを取得した場合だけ一度だけ遷移し、離脱後は再表示時の未完了Checkout照合から再開または終了する。
+- TrialのSetup Checkoutには、選択プラン、Stripeで検証した料金・税区分・請求周期、支払い方法の登録時点では請求しない説明を確定ボタン付近へ表示する。  表示payloadのversionをoperationへ保存し、導入前のretrying operationは従来payloadのまま再試行する。
 - `pendingActivation`または継続プラン未登録のTrialで課金ページを表示した場合は、戻りqueryの有無にかかわらず、サーバーが対象Sessionを組織、operation、Customer、Price、generation、livemode、modeに照合する。  Sessionが`open`なら自動で取り消さず、支払いまたは支払い方法の登録を続ける操作と、やめる操作を表示する。
 - `pendingActivation`で明示的に支払いをやめた場合は、Stripeで`expired`へ確定してから支払い失敗時のfallbackへ戻す。  Trialで明示的に登録をやめた場合、または初回照合時点でSessionが`expired`の場合は、operationだけを解放し、Trial状態、終了日時、versionを維持する。
 - Checkoutから`stripe=cancelled`で戻った場合も同じサーバー照合を行い、`open`なら明示キャンセルとして`expired`へ収束させる。  `complete`やprovider取得失敗では状態を変更せず、Webhookまたは再試行を待つ。  ブラウザバックは`cancel_url`を通らず、bfcache復元ではReactが再マウントされない場合もあるため、戻りqueryだけでなく課金ページの初回表示と`pageshow`復元を再照合の起点にする。
