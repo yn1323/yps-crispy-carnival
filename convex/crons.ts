@@ -10,6 +10,14 @@ crons.cron("line-quota-refresh", "0 17 * * *", internal.line.actions.refreshQuot
 // 通知outboxを1分ごとに回収する。enqueue側ではworker予約を読まず、cronを配送開始の主導線にする。
 crons.interval("notification-outbox-drain", { minutes: 1 }, internal.notificationOutbox.actions.processPending, {});
 
+// Resendのdelivery_delayed猶予が期限切れになった通知を、既存FailureInboxへ昇格する。
+crons.interval(
+  "notification-resend-delayed-failure-recover",
+  { minutes: 1 },
+  internal.notificationOutbox.mutations.recoverOverdueResendDelayedFailures,
+  {},
+);
+
 // fanout actionの予約漏れと期限切れleaseを1分ごとに回収する。
 crons.interval(
   "notification-fanout-recover",
@@ -18,11 +26,22 @@ crons.interval(
   {},
 );
 
+// LINE友だち状態fanoutの予約漏れと期限切れleaseを回収する。
+crons.interval(
+  "line-friendship-fanout-recover",
+  { minutes: 1 },
+  internal.line.mutations.recoverFriendshipFanoutJobs,
+  {},
+);
+
 // 削除cleanupの予約漏れと期限切れleaseを回収する。各jobはbounded mutationで一batchずつ進む。
 crons.interval("deletion-cleanup-recover", { minutes: 1 }, internal.deletionCleanup.mutations.recover, {});
 
 // アカウント削除jobの予約漏れ・期限切れleaseを1分ごとに回収する。
 crons.interval("account-deletion-recover", { minutes: 1 }, internal.accountDeletion.mutations.recover, {});
+
+// 発行時の期限予約がない既存sessionや予約漏れを期限順のbounded batchで回収する。
+crons.interval("staff-session-expiry-recover", { minutes: 1 }, internal.staffAuth.mutations.recoverExpiredSessions, {});
 
 // Stripe Webhookの予約漏れ・期限切れleaseを1分ごとに回収する。
 crons.interval(
@@ -58,6 +77,9 @@ crons.cron(
   internal.line.mutations.pruneExpiredWebhookMessageReceipts,
   {},
 );
+
+// 完了・supersededのLINE友だち状態fanout jobを保持期限後に削除する。
+crons.cron("line-friendship-fanout-prune", "55 18 * * *", internal.line.mutations.pruneFriendshipFanoutJobs, {});
 
 // 通知配送イベントログを1日1回削除（JST 03:30 = UTC 18:30）
 crons.cron(

@@ -15,12 +15,18 @@ type CapturedState = {
   step?: string;
   errorMessage?: string | null;
   infoMessage?: string | null;
+  requiresLogout?: boolean;
+  hasDestination?: boolean;
+  isRetrying?: boolean;
 };
 
 type CapturedActions = {
+  onAccept: () => void | Promise<void>;
   onStartVerification: (email: string) => void | Promise<void>;
   onVerifyCode: (values: { code: string }) => void | Promise<void>;
   onResendCode: () => void | Promise<void>;
+  onLogout: () => void | Promise<void>;
+  onGoToDashboard: () => void | Promise<void>;
 };
 
 const mocks = vi.hoisted(() => ({
@@ -29,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   shopsQuery: Symbol("getMyShops"),
   acceptInvitation: vi.fn(),
   navigate: vi.fn(),
+  signOut: vi.fn(),
   useAction: vi.fn(),
   useQuery: vi.fn(),
   runWithReverification: vi.fn(),
@@ -38,7 +45,7 @@ const mocks = vi.hoisted(() => ({
     organizationName: "さくらダイニング",
     expiresAt: Date.UTC(2026, 6, 23, 9),
   },
-  shops: [],
+  shops: [] as Array<Record<string, unknown>>,
   user: {
     emailAddresses: [] as MockEmailAddress[],
     reload: vi.fn(),
@@ -50,6 +57,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@clerk/react", () => ({
   useAuth: () => ({ isLoaded: true, isSignedIn: true }),
+  useClerk: () => ({ signOut: mocks.signOut }),
   useUser: () => ({ isLoaded: true, user: mocks.user }),
   useReverification:
     (operation: (...args: unknown[]) => Promise<unknown>) =>
@@ -91,6 +99,10 @@ vi.mock("./ManagerInvitationAcceptanceView", () => ({
         <output data-testid="state-step">{state.step ?? ""}</output>
         <output data-testid="state-error">{state.errorMessage ?? ""}</output>
         <output data-testid="state-info">{state.infoMessage ?? ""}</output>
+        <output data-testid="state-requires-logout">{String(state.requiresLogout ?? false)}</output>
+        <button type="button" onClick={() => void actions.onAccept()}>
+          招待を再確認
+        </button>
         <button type="button" onClick={() => void actions.onStartVerification("invite@example.com")}>
           招待先メールを確認
         </button>
@@ -99,6 +111,12 @@ vi.mock("./ManagerInvitationAcceptanceView", () => ({
         </button>
         <button type="button" onClick={() => void actions.onResendCode()}>
           コードを再送
+        </button>
+        <button type="button" onClick={() => void actions.onLogout()}>
+          ログアウト
+        </button>
+        <button type="button" onClick={() => void actions.onGoToDashboard()}>
+          シフトリを確認する
         </button>
       </div>
     );
@@ -122,6 +140,7 @@ function createEmailAddress(emailAddress: string, status: "unverified" | "verifi
 beforeEach(() => {
   mocks.acceptInvitation.mockReset();
   mocks.navigate.mockReset();
+  mocks.signOut.mockReset();
   mocks.useAction.mockReset();
   mocks.useQuery.mockReset();
   mocks.runWithReverification.mockReset();
@@ -129,6 +148,7 @@ beforeEach(() => {
   mocks.user.reload.mockReset();
   mocks.user.createEmailAddress.mockReset();
   mocks.user.emailAddresses = [];
+  mocks.shops = [];
   mocks.latestState = null;
   mocks.latestActions = null;
 
@@ -143,6 +163,7 @@ beforeEach(() => {
   );
   mocks.isReverificationCancelledError.mockReturnValue(false);
   mocks.user.reload.mockResolvedValue(mocks.user);
+  mocks.signOut.mockResolvedValue(undefined);
 });
 
 describe("ManagerInvitationAcceptance controller", () => {
@@ -156,6 +177,7 @@ describe("ManagerInvitationAcceptance controller", () => {
     expect(mocks.useAction).toHaveBeenCalledWith(mocks.acceptAction);
     expect(mocks.acceptInvitation).toHaveBeenCalledOnce();
     expect(mocks.acceptInvitation).toHaveBeenCalledWith({ token: "invitation-token" });
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.shopsQuery, {});
   });
 
   it("同じ未確認メールがClerk Userにあれば再作成せず、確認コード送信を再開する", async () => {
@@ -174,6 +196,26 @@ describe("ManagerInvitationAcceptance controller", () => {
     fireEvent.click(screen.getByRole("button", { name: "コードを再送" }));
     await waitFor(() => expect(screen.getByTestId("state-info").textContent).toBe("確認コードを再送しました。"));
     expect(emailAddress.prepareVerification).toHaveBeenCalledTimes(2);
+  });
+
+  it("招待先メールが別アカウントに登録済みなら再入力を止め、ログアウトできる", async () => {
+    mocks.acceptInvitation.mockResolvedValue({ status: "verificationRequired" });
+    mocks.user.createEmailAddress.mockRejectedValue({
+      errors: [{ code: "form_identifier_exists", longMessage: "Email address is used by another user" }],
+    });
+
+    render(<ManagerInvitationAcceptance token="invitation-token" />);
+    await waitFor(() => expect(screen.getByTestId("state-kind").textContent).toBe("verificationRequired"));
+
+    fireEvent.click(screen.getByRole("button", { name: "招待先メールを確認" }));
+
+    await waitFor(() => expect(screen.getByTestId("state-requires-logout").textContent).toBe("true"));
+    expect(screen.getByTestId("state-error").textContent).toBe(
+      "このメールアドレスはすでに登録されています。\n一度ログアウトしてから招待リンクを再度クリックしてください。",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "ログアウト" }));
+    expect(mocks.signOut).toHaveBeenCalledOnce();
   });
 
   it("新しいメールを再認証付きで追加し、コード確認後にUserをreloadしてactionを再実行する", async () => {
@@ -215,5 +257,96 @@ describe("ManagerInvitationAcceptance controller", () => {
     expect(screen.getByTestId("state-error").textContent).toContain(
       "入力したメールアドレスを招待先として確認できませんでした",
     );
+  });
+
+  it.each([
+    {
+      failure: "transport例外",
+      arrangeFailure: () => mocks.acceptInvitation.mockRejectedValueOnce(new Error("temporary failure")),
+    },
+    {
+      failure: "再試行可能なunavailable応答",
+      arrangeFailure: () => mocks.acceptInvitation.mockResolvedValueOnce({ status: "unavailable", retryable: true }),
+    },
+  ])("$failureでは自動再試行せず、利用者の再試行で受諾できる", async ({ arrangeFailure }) => {
+    arrangeFailure();
+    mocks.acceptInvitation.mockResolvedValueOnce({
+      status: "linked",
+      organizationId: "organization-invited",
+      shopId: "shop-invited",
+    });
+
+    render(<ManagerInvitationAcceptance token="invitation-token" />);
+
+    await waitFor(() => expect(screen.getByTestId("state-kind").textContent).toBe("retryableError"));
+    expect(mocks.latestState).toMatchObject({ kind: "retryableError", isRetrying: false });
+    expect(mocks.acceptInvitation).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByRole("button", { name: "招待を再確認" }));
+
+    await waitFor(() => expect(screen.getByTestId("state-kind").textContent).toBe("accepted"));
+    expect(mocks.acceptInvitation).toHaveBeenCalledTimes(2);
+    expect(mocks.acceptInvitation.mock.calls).toEqual([
+      [{ token: "invitation-token" }],
+      [{ token: "invitation-token" }],
+    ]);
+  });
+
+  it("受諾した店舗が所属一覧へ現れたら、その店舗を選択してDashboardへ遷移する", async () => {
+    mocks.acceptInvitation.mockResolvedValue({
+      status: "linked",
+      organizationId: "organization-invited",
+      shopId: "shop-invited",
+    });
+
+    const { rerender } = render(<ManagerInvitationAcceptance token="invitation-token" />);
+
+    await waitFor(() => expect(screen.getByTestId("state-kind").textContent).toBe("accepted"));
+    expect(mocks.navigate).not.toHaveBeenCalled();
+
+    mocks.shops = [
+      {
+        shopId: "shop-invited",
+        shopName: "招待先店舗",
+        shopStatus: "active",
+        organizationId: "organization-invited",
+        organizationName: "招待先組織",
+        organizationPlan: "pro",
+      },
+    ];
+    rerender(<ManagerInvitationAcceptance token="invitation-token" />);
+
+    await waitFor(() =>
+      expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
+        to: "/dashboard",
+        search: { org: "organization-invited", shop: "shop-invited" },
+        replace: true,
+      }),
+    );
+  });
+
+  it("受諾後に対象店舗をまだ取得できなくても完了状態を保ち、手動でDashboardへ戻れる", async () => {
+    mocks.acceptInvitation.mockResolvedValue({
+      status: "linked",
+      organizationId: "organization-invited",
+      shopId: "shop-invited",
+    });
+
+    render(<ManagerInvitationAcceptance token="invitation-token" />);
+
+    await waitFor(() => expect(screen.getByTestId("state-kind").textContent).toBe("accepted"));
+    expect(mocks.latestState).toMatchObject({
+      kind: "accepted",
+      isPreparingDestination: false,
+      hasDestination: false,
+    });
+    expect(mocks.navigate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "シフトリを確認する" }));
+
+    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
+      to: "/dashboard",
+      search: { org: "organization-invited", shop: "shop-invited" },
+    });
   });
 });

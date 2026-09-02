@@ -8,11 +8,12 @@ import {
 } from "./OrganizationPeopleCandidateList";
 import {
   StaffInvitationDialogView,
-  type StaffInvitationTab,
+  type StaffInvitationMethod,
   type StaffInvitationViewModel,
 } from "./StaffInvitationDialog";
 
 const personId = (value: string) => value as Id<"organizationPeople">;
+const registrationLinkId = (value: string) => value as Id<"shopRegistrationLinks">;
 
 const candidates: OrganizationPersonCandidate[] = [
   {
@@ -34,31 +35,33 @@ const candidates: OrganizationPersonCandidate[] = [
 const noop = () => {};
 
 function createInvitation(
-  activeTab: StaffInvitationTab,
+  selectedMethod: StaffInvitationMethod | null,
   overrides: Partial<StaffInvitationViewModel> = {},
 ): StaffInvitationViewModel {
   return {
     dialog: { isOpen: true, onOpenChange: noop },
-    activeTab,
+    selectedMethod,
     showOrganizationPeopleAddition: true,
+    registrationLinkId: registrationLinkId("registration-link-1"),
     registrationUrl: "https://shiftori.example.com/staff/register/shop_123",
+    registrationUrlError: false,
     peopleCapacityResolution: null,
     isRegistrationUrlLoading: false,
+    isConfirmingRegistrationLinkRotation: false,
+    isRotatingRegistrationLink: false,
     isAddingStaffs: false,
     addingOrganizationPersonId: null,
     isAddingOrganizationPerson: false,
     onOpen: noop,
     onClose: noop,
-    onTabChange: noop,
+    onSelectMethod: noop,
+    onBackToMethods: noop,
+    onRetryRegistrationUrl: noop,
+    onRequestRegistrationLinkRotation: noop,
+    onCancelRegistrationLinkRotation: noop,
+    onRotateRegistrationLink: noop,
     onAddStaffs: noop,
     onAddOrganizationPerson: noop,
-    reactivationConfirmation: {
-      dialog: { isOpen: false, onOpenChange: noop },
-      candidates: [],
-      isConfirming: false,
-      onConfirm: noop,
-      onClose: noop,
-    },
     ...overrides,
   };
 }
@@ -72,7 +75,7 @@ const meta = {
   component: StaffInvitationDialogView,
   parameters: { layout: "fullscreen" },
   args: {
-    invitation: createInvitation("link"),
+    invitation: createInvitation(null),
     organizationPeopleContent: candidateList,
   },
 } satisfies Meta<typeof StaffInvitationDialogView>;
@@ -80,7 +83,84 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const LinkInvitation: Story = {};
+export const MethodSelection: Story = {};
+
+export const MethodSelectionWithoutOrganizationPeople: Story = {
+  args: {
+    invitation: createInvitation(null, { showOrganizationPeopleAddition: false }),
+  },
+};
+
+export const LinkInvitation: Story = {
+  args: {
+    invitation: createInvitation("link"),
+  },
+};
+
+export const LinkInvitationLoading: Story = {
+  args: {
+    invitation: createInvitation("link", {
+      registrationUrl: null,
+      isRegistrationUrlLoading: true,
+    }),
+  },
+};
+
+export const LinkInvitationError: Story = {
+  args: {
+    invitation: createInvitation("link", {
+      registrationUrl: null,
+      registrationUrlError: true,
+    }),
+  },
+};
+
+export const LinkRotationConfirmation: Story = {
+  args: {
+    invitation: createInvitation("link", {
+      isConfirmingRegistrationLinkRotation: true,
+    }),
+  },
+};
+
+export const LinkRotationConfirmationMobile: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: {
+    invitation: createInvitation("link", {
+      isConfirmingRegistrationLinkRotation: true,
+    }),
+  },
+};
+
+export const LinkRotationConfirmationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <RegistrationLinkRotationDialogHarness />,
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+
+    const trigger = await page.findByRole("button", { name: "登録リンクを再発行" });
+    await userEvent.click(trigger);
+
+    const confirmation = await page.findByRole("alertdialog", { name: "登録リンクを再発行" });
+    await expect(confirmation).toHaveTextContent(
+      "いたずら等防止目的でリンクを再発行します。これまでのリンクは利用できなくなります。よろしいですか？",
+    );
+    await userEvent.click(within(confirmation).getByRole("button", { name: "キャンセル" }));
+
+    const restoredTrigger = await page.findByRole("button", { name: "登録リンクを再発行" });
+    await waitFor(() => expect(restoredTrigger).toHaveFocus());
+
+    await userEvent.click(restoredTrigger);
+    await userEvent.click(
+      within(await page.findByRole("alertdialog", { name: "登録リンクを再発行" })).getByRole("button", {
+        name: "再発行する",
+      }),
+    );
+    const dialog = await page.findByRole("dialog", { name: "スタッフを追加" });
+    await expect(within(dialog).getByText("https://shiftori.example.com/staff/register/shop_456")).toBeInTheDocument();
+  },
+};
 
 export const ManualRegistration: Story = {
   args: {
@@ -102,9 +182,9 @@ export const OrganizationPeopleDarkLaunchBehavior: Story = {
   play: async ({ canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body);
 
-    await expect(page.queryByRole("tab", { name: "他店舗スタッフを招待" })).not.toBeInTheDocument();
+    await expect(page.queryByRole("button", { name: "別店舗のスタッフを追加する" })).not.toBeInTheDocument();
     await expect(page.queryByRole("button", { name: "佐藤 真由美をこの店舗に追加" })).not.toBeInTheDocument();
-    await expect(await page.findByRole("tab", { name: "リンクから招待" })).toHaveAttribute("aria-selected", "true");
+    await page.findByRole("button", { name: "スタッフ本人に登録してもらう" });
   },
 };
 
@@ -152,7 +232,7 @@ export const OrganizationPeopleError: Story = {
     organizationPeopleContent: (
       <OrganizationPeopleCandidateListView
         candidates={[]}
-        errorMessage="モーダルを閉じて、もう一度お試しください。"
+        errorMessage="追加方法に戻って、もう一度お試しください。"
         addingPersonId={null}
         isAdding={false}
         onAdd={noop}
@@ -161,7 +241,12 @@ export const OrganizationPeopleError: Story = {
   },
 };
 
-export const Mobile: Story = {
+export const MethodSelectionMobile: Story = {
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
+export const OrganizationPeopleMobile: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: {
@@ -185,78 +270,77 @@ export const ManualRegistrationMobile: Story = {
   },
 };
 
-export const TabSwitchBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  render: () => <InteractiveDialog initialTab="link" onAdd={noop} />,
-  play: async ({ canvasElement }) => {
-    const page = within(canvasElement.ownerDocument.body);
-
-    await expect(page.queryByRole("button", { name: "スタッフを登録する" })).not.toBeInTheDocument();
-    await expect(page.queryByRole("button", { name: "佐藤 真由美をこの店舗に追加" })).not.toBeInTheDocument();
-    await userEvent.click(await page.findByRole("tab", { name: "管理者が登録" }));
-    await expect(await page.findByRole("button", { name: "スタッフを登録する" })).toBeInTheDocument();
-
-    await userEvent.click(await page.findByRole("tab", { name: "他店舗スタッフを招待" }));
-    await expect(await page.findByRole("button", { name: "佐藤 真由美をこの店舗に追加" })).toBeInTheDocument();
-  },
-};
-
-export const LinkTabCloseBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  render: () => <InteractiveDialog initialTab="link" onAdd={noop} />,
-  play: async ({ canvasElement }) => {
-    const page = within(canvasElement.ownerDocument.body);
-
-    await userEvent.click(await page.findByRole("button", { name: "スタッフ招待を閉じる" }));
-    await waitFor(() => expect(page.queryByRole("dialog", { name: "スタッフを招待" })).not.toBeInTheDocument());
-  },
-};
-
 export const CandidateAdditionClosesDialog: Story = {
   parameters: { screenshot: { skip: true } },
-  render: () => <InteractiveDialog initialTab="organization" onAdd={noop} />,
+  render: () => <CandidateDialogHarness onAdd={noop} />,
   play: async ({ canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body);
 
     await userEvent.click(await page.findByRole("button", { name: "佐藤 真由美をこの店舗に追加" }));
 
-    await waitFor(() => expect(page.queryByRole("dialog", { name: "スタッフを招待" })).not.toBeInTheDocument());
+    await waitFor(() => expect(page.queryByRole("dialog", { name: "スタッフを追加" })).not.toBeInTheDocument());
   },
 };
 
-function InteractiveDialog({
-  initialTab,
-  onAdd,
-}: {
-  initialTab: StaffInvitationTab;
-  onAdd: (personId: Id<"organizationPeople">) => void | Promise<void>;
-}) {
-  const [activeTab, setActiveTab] = useState(initialTab);
+function CandidateDialogHarness({ onAdd }: { onAdd: (personId: Id<"organizationPeople">) => void | Promise<void> }) {
+  const [selectedMethod, setSelectedMethod] = useState<StaffInvitationMethod | null>("organization");
   const [isOpen, setIsOpen] = useState(true);
-  const invitation = createInvitation(activeTab, {
+
+  const closeDialog = () => {
+    setIsOpen(false);
+    setSelectedMethod(null);
+  };
+  const invitation = createInvitation(selectedMethod, {
     dialog: {
       isOpen,
-      onOpenChange: ({ open }) => setIsOpen(open),
+      onOpenChange: ({ open }) => {
+        if (open) {
+          setSelectedMethod(null);
+          setIsOpen(true);
+          return;
+        }
+        closeDialog();
+      },
     },
-    onClose: () => setIsOpen(false),
-    onTabChange: setActiveTab,
+    onClose: closeDialog,
+    onSelectMethod: setSelectedMethod,
+    onBackToMethods: () => setSelectedMethod(null),
     onAddOrganizationPerson: async (targetPersonId) => {
       await onAdd(targetPersonId);
-      setIsOpen(false);
+      closeDialog();
     },
   });
 
   return (
-    <StaffInvitationDialogView
-      invitation={invitation}
-      organizationPeopleContent={
-        <OrganizationPeopleCandidateListView
-          candidates={candidates}
-          addingPersonId={null}
-          isAdding={false}
-          onAdd={invitation.onAddOrganizationPerson}
-        />
-      }
-    />
+    isOpen && (
+      <StaffInvitationDialogView
+        invitation={invitation}
+        organizationPeopleContent={
+          <OrganizationPeopleCandidateListView
+            candidates={candidates}
+            addingPersonId={null}
+            isAdding={false}
+            onAdd={invitation.onAddOrganizationPerson}
+          />
+        }
+      />
+    )
   );
+}
+
+function RegistrationLinkRotationDialogHarness() {
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [url, setUrl] = useState("https://shiftori.example.com/staff/register/shop_123");
+  const invitation = createInvitation("link", {
+    registrationUrl: url,
+    isConfirmingRegistrationLinkRotation: isConfirming,
+    onRequestRegistrationLinkRotation: () => setIsConfirming(true),
+    onCancelRegistrationLinkRotation: () => setIsConfirming(false),
+    onRotateRegistrationLink: () => {
+      setUrl("https://shiftori.example.com/staff/register/shop_456");
+      setIsConfirming(false);
+    },
+  });
+
+  return <StaffInvitationDialogView invitation={invitation} organizationPeopleContent={candidateList} />;
 }

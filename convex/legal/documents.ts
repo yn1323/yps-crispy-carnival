@@ -18,22 +18,29 @@ export type LegalDocumentInfo = {
   path: string;
 };
 
+export type LegalDocumentLink = Pick<
+  LegalDocumentInfo,
+  "title" | "documentVersion" | "requiredConsentVersion" | "path"
+>;
+
+export type LegalDocumentLinks = Record<LegalDocumentKind, LegalDocumentLink>;
+
 export const LEGAL_DOCUMENTS = {
   manager: {
     terms: {
       audience: "manager",
       kind: "terms",
       title: "管理ユーザー向け利用規約",
-      documentVersion: "manager-terms-doc-2026-05-09",
-      requiredConsentVersion: "manager-terms-consent-2026-05-09",
+      documentVersion: "manager-terms-doc-2026-08-27-2",
+      requiredConsentVersion: "manager-terms-consent-2026-08-27-2",
       path: "/terms/manager",
     },
     privacy: {
       audience: "manager",
       kind: "privacy",
       title: "管理ユーザー向けプライバシーポリシー",
-      documentVersion: "manager-privacy-doc-2026-07-10",
-      requiredConsentVersion: "manager-privacy-consent-2026-05-09",
+      documentVersion: "manager-privacy-doc-2026-08-26",
+      requiredConsentVersion: "manager-privacy-consent-2026-08-26",
       path: "/privacy/manager",
     },
   },
@@ -42,7 +49,7 @@ export const LEGAL_DOCUMENTS = {
       audience: "staff",
       kind: "terms",
       title: "スタッフ向け利用規約",
-      documentVersion: "staff-terms-doc-2026-05-09",
+      documentVersion: "staff-terms-doc-2026-08-26",
       requiredConsentVersion: "staff-terms-consent-2026-05-09",
       path: "/terms/staff",
     },
@@ -50,8 +57,8 @@ export const LEGAL_DOCUMENTS = {
       audience: "staff",
       kind: "privacy",
       title: "スタッフ向けプライバシーポリシー",
-      documentVersion: "staff-privacy-doc-2026-07-10",
-      requiredConsentVersion: "staff-privacy-consent-2026-05-09",
+      documentVersion: "staff-privacy-doc-2026-08-26-2",
+      requiredConsentVersion: "staff-privacy-consent-2026-08-26",
       path: "/privacy/staff",
     },
   },

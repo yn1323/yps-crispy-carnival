@@ -3,6 +3,7 @@ import dayjs from "dayjs";
 import type { RefObject } from "react";
 import { getWeekdayLabel } from "@/src/domains/shift/date";
 import { DateIssueBadge, dateIssueBorderColor } from "../../components";
+import { getShiftWeekdayColor } from "../../weekdayPresentation";
 
 type Props = {
   dates: string[];
@@ -66,6 +67,9 @@ export const DateRail = ({
                 })}
                 bg={active ? "teal.500" : isClosed ? "gray.50" : "white"}
                 cursor="pointer"
+                transitionProperty="colors"
+                transitionDuration="faster"
+                _active={{ bg: active ? "teal.600" : "gray.100", transitionDuration: "0ms" }}
               >
                 <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
                 <Box
@@ -81,7 +85,7 @@ export const DateRail = ({
                   textStyle="2xs"
                   mt="2px"
                   fontWeight={active ? 700 : 500}
-                  style={{ color: active ? "white" : getDayColor(iso) }}
+                  style={{ color: active ? "white" : getShiftWeekdayColor(iso) }}
                 >
                   {getWeekdayLabel(iso)}
                 </Box>
@@ -101,7 +105,7 @@ export const DateRail = ({
             <Box textStyle="xl" fontWeight={700} color="gray.800" fontVariantNumeric="tabular-nums">
               {selected.month() + 1}月{selected.date()}日
             </Box>
-            <Box textStyle="sm" fontWeight={600} style={{ color: getDayColor(selectedDate) }}>
+            <Box textStyle="sm" fontWeight={600} style={{ color: getShiftWeekdayColor(selectedDate) }}>
               ({getWeekdayLabel(selectedDate)})
             </Box>
             {isShopClosedDate && (
@@ -114,11 +118,4 @@ export const DateRail = ({
       )}
     </>
   );
-};
-
-const getDayColor = (date: string): string => {
-  const day = dayjs(date).day();
-  if (day === 0) return "#ef4444";
-  if (day === 6) return "#3b82f6";
-  return "#3f3f46";
 };

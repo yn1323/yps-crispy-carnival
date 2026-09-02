@@ -1,6 +1,6 @@
 ---
 name: ui-architect
-description: シフトリのUI/UXを設計、実装、レビューするとき、利用者のタスクから画面構造、コンポーネント、状態、マイクロコピー、検証までを一貫して決める。新規画面、フォーム、ダイアログ、一覧、Dashboard、空状態、エラー、通知、既存UIの改善、UI文言の変更で使う。記事、HowTo、技術文書だけの作業には使わない。
+description: シフトリのUI/UXを設計、実装、レビューするとき、利用者のタスクから画面構造、コンポーネント、状態、マイクロコピー、検証までを一貫して決める。新規画面、フォーム、ダイアログ、一覧、Dashboard、空状態、エラー、通知、既存UIの改善、UI文言の変更で使う。記事、ヘルプ本文、技術文書だけの作業には使わない。
 ---
 
 # シフトリのUIを設計する
@@ -34,6 +34,8 @@ UI作業を、利用者のタスクから検証まで順に進める。
 - 新しいwrapperは、業務上の意味、状態分岐、レイアウト責務のいずれかを持つ場合だけ作る。
 - モバイルはPC版の縮小ではなく、情報順序と操作方法を端末に合わせる。
 - 破壊的操作、長い編集、URL共有、戻る操作の要否から、Dialogと専用ページを選ぶ。
+- Dialogは、編集、確認、閲覧、複数段階のどれかに分類し、各ボタンのPrimary、Secondary、Destructiveの意味を決める。
+- Dialogを扱う場合は、`doc/rules/ui-design.md`の「Dialogのアクション」を適用し、終了操作、inline confirmation、close lock、scroll時のaction areaを設計する。
 
 ## 3. 状態を設計する
 
@@ -47,18 +49,25 @@ UI作業を、利用者のタスクから検証まで順に進める。
 - 権限不足
 - 利用不可
 
+ページ全体、Card、sectionなどまとまった領域のLoadingは、`doc/rules/ui-design.md`の共通Loading基準に照らして`src/components/ui/ShiftoriLoading`を使う。
+ボタン内や小さなinline処理は、操作対象に対応する局所的な進行表示を使う。
+Loading、Empty、Error、Successの部品選定に迷う場合は`references/states.md`を読む。
+
 非同期処理では、受付、送信、到達、完了を実際の保証に合わせて区別する。
 送信操作は、見た目のloadingやdisabledだけでなく、フロントの同期ガードと必要なバックエンドの冪等性で二重実行を防ぐ。
 
 ## 4. マイクロコピーを書く
 
 - ボタンは操作、見出しは対象、エラーは原因と次の行動を書く。
+- シフト管理の正式用語は`references/ui-writing.md`の「シフト管理の基本用語」を正本とする。
 - 内部の型名、状態名、queue、tokenなどをそのまま表示しない。
 - 利用者に見える事実だけを書き、未完了の処理を完了と表現しない。
+- placeholderを設計または監査する場合は、`references/ui-writing.md`の「Placeholders」を読み、入力種別、事前値、補足文との役割を区別する。
 - ボタン、ラベル、Toast、表見出しは短くする。
-- 複数文の説明に推敲が必要なら`$japanese-tech-writing`を使う。
+- ボタンやラベルなどの短いUI文言にも、`../japanese-tech-writing/SKILL.md`の「直接的で自然な文」を適用する。
+- 複数文の説明を構成から推敲する場合は`$japanese-tech-writing`を使う。
 - 読み物としての緩急が必要な長い説明だけに`$cognitive-rhythm-writing`を併用する。
-- HowTo記事は`$write-help-content`、ArticleSiteの記事は`$seo-article-writer`へ分ける。
+- HelpCenterのFAQ・使い方は`$write-help-content`、ArticleSiteの記事は`$seo-article-writer`へ分ける。
 
 ## 5. 実装する
 
@@ -72,6 +81,8 @@ UI作業を、利用者のタスクから検証まで順に進める。
 - 主タスクが最短の導線で完了するか確認する。
 - Loading、Empty、Error、Successなど変更に関係する代表状態を確認する。
 - デスクトップとモバイルで情報順序、折り返し、操作領域を確認する。
+- DialogはPCとSPでDOM順と見た目の順、action areaの配置、長い文言、本文scroll、safe areaを確認する。
+- 閲覧専用を含む終了操作、すべてのclose経路、close lockの開始と解除、Dialogを重ねない確認遷移を確認する。
 - キーボード操作、フォーカス、ラベル、コントラストを確認する。
 - テスト層や新しい検証契約を設計する場合は`$test-strategy`を使う。
 - 対象範囲の`AGENTS.md`に従ってlint、型、テストを実行する。

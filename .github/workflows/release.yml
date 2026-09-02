@@ -50,12 +50,31 @@ jobs:
           echo "tag=${NEW_TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${NEW_TAG#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Commit, tag and push
+      - name: Commit release
         run: |
           git add package.json
           git commit -m "chore: release ${{ steps.bump.outputs.tag }}"
-          git tag ${{ steps.bump.outputs.tag }}
-          git push origin main --follow-tags
+
+      - name: Record release build metadata
+        run: echo "VITE_RELEASE_ID=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      # Stripeを含む公開artifactのBuildを先に完了し、失敗時はtag、deploymentを変更しない。
+      - name: Build
+        run: pnpm build
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_STANDARD_PRICE_ID: ${{ secrets.STRIPE_STANDARD_PRICE_ID }}
+          STRIPE_PRO_PRICE_ID: ${{ secrets.STRIPE_PRO_PRICE_ID }}
+          VITE_APP_ENVIRONMENT: production
+          VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          VITE_COMMERCIAL_TRANSACTIONS_ADDRESS: ${{ vars.VITE_COMMERCIAL_TRANSACTIONS_ADDRESS }}
+          VITE_COMMERCIAL_TRANSACTIONS_NAME: ${{ vars.VITE_COMMERCIAL_TRANSACTIONS_NAME }}
+          VITE_COMMERCIAL_TRANSACTIONS_PHONE_NUMBER: ${{ vars.VITE_COMMERCIAL_TRANSACTIONS_PHONE_NUMBER }}
+          VITE_GTM_ID: ${{ secrets.VITE_GTM_ID }}
+          VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
+          VITE_WEB_MEASUREMENT_ENABLED: ${{ vars.VITE_WEB_MEASUREMENT_ENABLED }}
+          VITE_WEB_VITALS_SAMPLE_RATE: ${{ vars.VITE_WEB_VITALS_SAMPLE_RATE }}
 
       - name: Deploy Convex
         run: npx convex deploy
@@ -67,14 +86,6 @@ jobs:
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
 
-      - name: Build
-        run: pnpm build
-        env:
-          VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
-          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
-          VITE_GTM_ID: ${{ secrets.VITE_GTM_ID }}
-          VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
-
       - name: Deploy to Cloudflare Pages
         run: |
           npx wrangler pages deploy dist/client \
@@ -83,6 +94,14 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # すべてのProduction deployment成功後に、release commitとtagを同時に公開する。
+      - name: Tag and push
+        env:
+          RELEASE_TAG: ${{ steps.bump.outputs.tag }}
+        run: |
+          git tag "$RELEASE_TAG"
+          git push --atomic origin "HEAD:refs/heads/main" "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2

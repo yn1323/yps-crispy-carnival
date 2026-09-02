@@ -8,6 +8,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const storybookAppVersion = "0.0.0-vrt";
 const storybookBuildDateJst = "2026-01-13";
 
+// Storybookがroot Vite configを読む前に、料金は決定的なfixtureへ固定する。
+process.env.VITE_APP_ENVIRONMENT = "storybook";
+
 /** Storybookはroot Vite configを読むため、複数entryを扱えないStartのapp pluginだけを外す。 */
 function withoutApplicationPlugins(plugins: PluginOption[]): PluginOption[] {
   return plugins.flatMap((plugin) => {
@@ -36,8 +39,10 @@ const config: StorybookConfig = {
   viteFinal: async (config) => {
     config.define = {
       ...config.define,
+      __APP_ENVIRONMENT__: JSON.stringify("local"),
       __APP_VERSION__: JSON.stringify(storybookAppVersion),
       __BUILD_DATE_JST__: JSON.stringify(storybookBuildDateJst),
+      __RELEASE_ID__: JSON.stringify("storybook"),
     };
     config.resolve = {
       ...config.resolve,

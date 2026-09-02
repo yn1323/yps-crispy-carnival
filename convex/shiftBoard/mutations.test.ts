@@ -4,9 +4,10 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { seedLegacyShopMembership, seedManagerShop, seedUser } from "../_test/seed";
+import { seedStaff } from "../_test/scenarioBuilders";
+import { seedLegacyShopMembership, seedManagerShop, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
+import { SHIFT_ASSIGNMENT_LIMIT } from "../constants";
 import {
   buildConfirmationSnapshotSignature,
   buildConfirmationSnapshotsForStaffs,
@@ -50,17 +51,15 @@ async function setupTestData(t: TestConvex<typeof schema>, options?: { shopClose
       isDeleted: false,
       submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     });
-    const staffId1 = await ctx.db.insert("staffs", {
+    const staffId1 = await seedStaff(ctx, {
       shopId,
       name: "鈴木太郎",
       email: "suzuki@example.com",
-      isDeleted: false,
     });
-    const staffId2 = await ctx.db.insert("staffs", {
+    const staffId2 = await seedStaff(ctx, {
       shopId,
       name: "佐藤花子",
       email: "sato@example.com",
-      isDeleted: false,
     });
     return { shopId, recruitmentId, staffId1, staffId2 };
   });
@@ -227,6 +226,133 @@ async function seedLineConfirmationWithFallback(
 }
 
 describe("shiftBoard/mutations", () => {
+  describe("app organization scope", () => {
+    beforeEach(() => {
+      vi.stubEnv("ANALYTICS_SOURCE_CAPTURE_START_AT", "");
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-20T00:00:00+09:00"));
+    });
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      vi.useRealTimers();
+    });
+
+    it("URL組織と募集の店舗組織が一致する場合だけ保存し、別組織targetでは書き込まない", async () => {
+      const t = convexTest(schema, modules);
+      const target = await setupTestData(t);
+      const ids = await t.run(async (ctx) => {
+        const shop = await ctx.db.get(target.shopId);
+        if (!shop?.organizationId) throw new Error("canonical shop fixture is incomplete");
+        const other = await seedOrganizationManagerShop(ctx, {
+          subject: "app_shift_board_other_manager",
+          shopName: "別組織店舗",
+          complimentary: true,
+        });
+        const otherRecruitmentId = await ctx.db.insert("recruitments", {
+          shopId: other.shopId,
+          periodStart: "2026-01-20",
+          periodEnd: "2026-01-26",
+          deadline: "2026-01-17",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        return { organizationId: shop.organizationId, other, otherRecruitmentId };
+      });
+      const actor = t.withIdentity({ subject: "user_manager" });
+
+      await expect(
+        actor.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId: target.shopId,
+          expectedOrganizationId: ids.organizationId,
+          recruitmentId: target.recruitmentId,
+          assignments: [],
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        actor.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId: ids.other.shopId,
+          expectedOrganizationId: ids.organizationId,
+          recruitmentId: ids.otherRecruitmentId,
+          assignments: [],
+        }),
+      ).rejects.toThrow("Not found");
+      await expect(
+        actor.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId: target.shopId,
+          expectedOrganizationId: ids.other.organizationId,
+          recruitmentId: target.recruitmentId,
+          intent: "confirm",
+        }),
+      ).rejects.toThrow("Not found");
+
+      const persisted = await t.run(async (ctx) =>
+        ctx.db
+          .query("shiftAssignments")
+          .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", ids.otherRecruitmentId))
+          .collect(),
+      );
+      expect(persisted).toEqual([]);
+    });
+
+    it("removed所属と削除済み店舗ではapp用mutationを拒否する", async () => {
+      const t = convexTest(schema, modules);
+      const target = await setupTestData(t);
+      const ids = await t.run(async (ctx) => {
+        const shop = await ctx.db.get(target.shopId);
+        const organizationId = shop?.organizationId;
+        if (!organizationId) throw new Error("canonical shop fixture is incomplete");
+        const member = await ctx.db
+          .query("organizationMembers")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+          .unique();
+        return { organizationId, memberId: member?._id ?? null, userId: member?.userId ?? null };
+      });
+      const memberId = ids.memberId;
+      const userId = ids.userId;
+      if (!memberId || !userId) throw new Error("member fixture is incomplete");
+      const actor = t.withIdentity({ subject: "user_manager" });
+
+      await t.run(async (ctx) => ctx.db.patch(memberId, { status: "removed", updatedAt: Date.now() }));
+      await expect(
+        actor.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId: target.shopId,
+          expectedOrganizationId: ids.organizationId,
+          recruitmentId: target.recruitmentId,
+          assignments: [],
+        }),
+      ).rejects.toThrow("Not found");
+
+      await t.run(async (ctx) => {
+        await ctx.db.patch(memberId, { status: "active", updatedAt: Date.now() });
+        await ctx.db.patch(target.shopId, { isDeleted: true });
+      });
+      await expect(
+        actor.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          shopId: target.shopId,
+          expectedOrganizationId: ids.organizationId,
+          recruitmentId: target.recruitmentId,
+          intent: "confirm",
+        }),
+      ).rejects.toThrow("Not found");
+
+      await t.run(async (ctx) => {
+        await ctx.db.patch(target.shopId, { isDeleted: false });
+        await seedLegacyShopMembership(ctx, { userId, shopId: target.shopId });
+        await ctx.db.delete(memberId);
+      });
+      await expect(
+        actor.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
+          shopId: target.shopId,
+          expectedOrganizationId: ids.organizationId,
+          recruitmentId: target.recruitmentId,
+          assignments: [],
+        }),
+      ).rejects.toThrow("Not found");
+    });
+  });
+
   describe("saveShiftAssignments", () => {
     beforeEach(() => {
       vi.stubEnv("ANALYTICS_SOURCE_CAPTURE_START_AT", "");
@@ -1780,56 +1906,6 @@ describe("shiftBoard/mutations", () => {
       expect(resendJob?.args[0]?.targetStaffIds).toEqual(expect.arrayContaining([staffId1, staffId2]));
     });
 
-    it("再通知対象がシフトボード上限を超える場合は欠落させずfail-closedにする", async () => {
-      const t = convexTest(schema, modules);
-      const { shopId, recruitmentId } = await t.run(async (ctx) => {
-        const { shopId } = await seedManagerShop(ctx, {
-          subject: "user_manager",
-          email: "manager@example.com",
-          shopName: "テスト店舗",
-        });
-        const recruitmentId = await ctx.db.insert("recruitments", {
-          shopId,
-          periodStart: "2026-01-20",
-          periodEnd: "2026-01-26",
-          deadline: "2026-01-17",
-          shopClosedDates: [],
-          status: "confirmed",
-          confirmedAt: 1_000,
-          isDeleted: false,
-          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-        });
-        const staffIds: Id<"staffs">[] = [];
-        for (let i = 0; i < SHIFT_BOARD_STAFF_LIMIT + 1; i++) {
-          staffIds.push(
-            await ctx.db.insert("staffs", {
-              shopId,
-              name: `スタッフ${i.toString().padStart(3, "0")}`,
-              email: `staff${i}@example.com`,
-              isDeleted: false,
-            }),
-          );
-        }
-        return { shopId, recruitmentId };
-      });
-
-      await expect(
-        t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
-          shopId,
-          recruitmentId,
-          intent: "resend",
-        }),
-      ).rejects.toThrow("通知対象が上限を超えています");
-
-      const state = await t.run(async (ctx) => ({
-        operations: await ctx.db.query("notificationFanoutOperations").collect(),
-        jobs: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
-          (job) => job.name === "notification/actions:sendShiftConfirmationEmails",
-        ),
-      }));
-      expect(state).toEqual({ operations: [], jobs: [] });
-    });
-
     it("過去シフトの再通知は拒否し、通知予約しない", async () => {
       const t = convexTest(schema, modules);
       const { shopId, recruitmentId } = await setupTestData(t);
@@ -1869,7 +1945,7 @@ describe("shiftBoard/mutations", () => {
           recruitmentId,
           intent: "resend",
         }),
-      ).rejects.toThrow("確定済みのシフトだけ再送できます");
+      ).rejects.toThrow("確定シフトだけ再送できます");
     });
 
     it("定休日に既存シフトが残っている場合は確定できない", async () => {

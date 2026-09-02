@@ -1,3 +1,5 @@
+import { env } from "../_generated/server";
+
 export function getAppUrl(): string {
   return process.env.APP_URL ?? "https://shiftori.app";
 }
@@ -41,53 +43,121 @@ export function isDebugNotifyFailEnabled(): boolean {
   return (process.env.DEBUG_NOTIFY_FAIL ?? "").trim().length > 0;
 }
 
-/**
- * ダークローンチ中に公開していない導線の設定。
- *
- * 未設定は閉じた状態として扱う。新しいdeploymentと設定漏れが閉じる側に倒れる。
- * 段階解放の順序と各段階の作業は`doc/plans/2026-07-25_ダークローンチ_実装計画.md`にある。
- */
-function isFeatureEnabled(value: string | undefined): boolean {
-  return (value ?? "").trim() === "enabled";
+function normalizeDeploymentUrl(value: string | undefined): string {
+  return value?.trim().replace(/\/+$/, "") ?? "";
 }
 
-export function isOrganizationCreationEnabled(): boolean {
-  return isFeatureEnabled(process.env.FEATURE_ORGANIZATION_CREATION);
+export function getNotificationDeliveryMode(): string {
+  return (process.env.NOTIFICATION_DELIVERY_MODE ?? "").trim().toLowerCase();
 }
 
-export function isShopAdditionEnabled(): boolean {
-  return isFeatureEnabled(process.env.FEATURE_SHOP_ADDITION);
+export function getPromotionComplimentaryProCode(): string | undefined {
+  const value = env.PROMOTION_COMPLIMENTARY_PRO_CODE?.trim().toUpperCase();
+  return value || undefined;
 }
 
-export function isBillingEnabled(): boolean {
-  return isFeatureEnabled(process.env.FEATURE_BILLING);
-}
-
-export function isManagerInvitationEnabled(): boolean {
-  return isFeatureEnabled(process.env.FEATURE_MANAGER_INVITATION);
-}
-
-export type FeatureVisibility = {
-  organizationSettingsNavigation: boolean;
-  billing: boolean;
-  shopMembershipAddition: boolean;
+export type DevelopmentSeedConfiguration = {
+  enabled: boolean;
+  currentDeploymentUrl: string;
+  targetDeploymentUrl: string;
+  notificationDeliveryMode: string;
+  primaryAuthTokenIdentifier: string;
 };
 
-/**
- * 認証後のUIが参照するダークローンチ状態を、一度のqueryで返せる形へ集約する。
- * グループ設定への導線は、配下の機能が一つでも公開されている場合だけ表示する。
- */
-export function getFeatureVisibility(): FeatureVisibility {
-  const organizationCreation = isOrganizationCreationEnabled();
-  const shopAddition = isShopAdditionEnabled();
-  const billing = isBillingEnabled();
-  const managerInvitation = isManagerInvitationEnabled();
+function normalizeClerkIssuer(value: string | undefined): string | null {
+  try {
+    const url = new URL(value?.trim() ?? "");
+    if (url.protocol !== "https:" || (url.pathname !== "/" && url.pathname !== "")) return null;
+    if (url.search || url.hash || url.username || url.password) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
 
+function assertDevelopmentSeedPrimaryAuthTokenIdentifier(value: string): string {
+  const expectedIssuer = normalizeClerkIssuer(env.CLERK_JWT_ISSUER_DOMAIN);
+  if (!expectedIssuer) {
+    throw new Error("Development seed Clerk issuer is not configured");
+  }
+
+  const parts = value.split("|");
+  if (parts.length !== 2) {
+    throw new Error("Development seed primary auth token identifier is invalid");
+  }
+  const [rawIssuer, subject] = parts;
+  const issuer = normalizeClerkIssuer(rawIssuer);
+  if (!issuer || rawIssuer !== issuer || !/^user_[A-Za-z0-9]+$/.test(subject)) {
+    throw new Error("Development seed primary auth token identifier is invalid");
+  }
+  if (issuer !== expectedIssuer) {
+    throw new Error("Development seed primary auth token identifier issuer does not match");
+  }
+  return value;
+}
+
+/**
+ * 全tableを置換する開発用seedのserver-side gate。
+ * internal functionも誤ったdeploymentから実行され得るため、各entrypointで毎回再確認する。
+ */
+export function getDevelopmentSeedConfiguration(): DevelopmentSeedConfiguration {
   return {
-    organizationSettingsNavigation: organizationCreation || shopAddition || billing || managerInvitation,
-    billing,
-    shopMembershipAddition: shopAddition,
+    enabled: env.DEVELOPMENT_SEED_ENABLED === "true",
+    currentDeploymentUrl: normalizeDeploymentUrl(env.CONVEX_CLOUD_URL),
+    targetDeploymentUrl: normalizeDeploymentUrl(env.DEVELOPMENT_SEED_DEPLOYMENT_URL),
+    notificationDeliveryMode: (env.NOTIFICATION_DELIVERY_MODE ?? "").trim().toLowerCase(),
+    primaryAuthTokenIdentifier: (env.DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER ?? "").trim(),
   };
+}
+
+export function assertDevelopmentSeedEnabled(): DevelopmentSeedConfiguration {
+  const configuration = getDevelopmentSeedConfiguration();
+  if (!configuration.enabled) {
+    throw new Error("Development seed is disabled");
+  }
+  if (
+    !configuration.currentDeploymentUrl ||
+    !configuration.targetDeploymentUrl ||
+    configuration.currentDeploymentUrl !== configuration.targetDeploymentUrl
+  ) {
+    throw new Error("Development seed deployment does not match");
+  }
+  if (configuration.notificationDeliveryMode !== "dry-run") {
+    throw new Error("Development seed requires notification dry-run mode");
+  }
+  if (!configuration.primaryAuthTokenIdentifier) {
+    throw new Error("Development seed primary auth token identifier is not configured");
+  }
+  return {
+    ...configuration,
+    primaryAuthTokenIdentifier: assertDevelopmentSeedPrimaryAuthTokenIdentifier(
+      configuration.primaryAuthTokenIdentifier,
+    ),
+  };
+}
+
+/**
+ * 対象deploymentへ明示的に結び付けた、開発用Trial期間だけを返す。
+ * URL不一致では日数を解釈せず、通常のTrial期間へ戻す。
+ */
+export function getDebugTrialDurationDays(): number | undefined {
+  const currentDeploymentUrl = normalizeDeploymentUrl(process.env.CONVEX_CLOUD_URL);
+  const debugDeploymentUrl = normalizeDeploymentUrl(env.DEBUG_TRIAL_DURATION_DEPLOYMENT_URL);
+  if (!currentDeploymentUrl || !debugDeploymentUrl || currentDeploymentUrl !== debugDeploymentUrl) {
+    return undefined;
+  }
+
+  const rawDurationDays = env.DEBUG_TRIAL_DURATION_DAYS?.trim();
+  if (!rawDurationDays) {
+    return undefined;
+  }
+
+  const durationDays = Number(rawDurationDays);
+  if (!/^[1-9]\d*$/.test(rawDurationDays) || !Number.isSafeInteger(durationDays) || durationDays > 30) {
+    throw new RangeError("DEBUG_TRIAL_DURATION_DAYS must be an integer between 1 and 30");
+  }
+
+  return durationDays;
 }
 
 export function getOrganizationInvitationSigningSecret(): string {

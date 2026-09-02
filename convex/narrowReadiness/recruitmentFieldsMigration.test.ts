@@ -15,21 +15,30 @@ describe("recruitment fields Narrow preparation migrations", () => {
       });
       const legacyShopId = await ctx.db.insert("shops", {
         organizationId,
-        operatingStatus: "active",
         name: "旧店舗",
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
         isDeleted: false,
       });
       const canonicalShopId = await ctx.db.insert("shops", {
         organizationId,
-        operatingStatus: "active",
         name: "現行店舗",
         regularClosedDays: ["sun"],
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
         isDeleted: false,
       });
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId,
+        name: "移行対象スタッフ",
+        email: "migration@example.com",
+        emailNormalized: "migration@example.com",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
       const staffId = await ctx.db.insert("staffs", {
         shopId: legacyShopId,
+        organizationId,
+        organizationPersonId: personId,
         name: "移行対象スタッフ",
         email: "migration@example.com",
         emailNormalized: "migration@example.com",

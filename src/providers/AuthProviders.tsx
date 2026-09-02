@@ -12,7 +12,14 @@ import { ConvexClientProvider } from "@/src/providers/ConvexProvider";
  * レイアウト間の遷移でプロバイダが再マウントされても WebSocket 接続は維持される。
  */
 export const AuthProviders = ({ children }: { children: ReactNode }) => (
-  <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} localization={jaJP}>
+  <ClerkProvider
+    publishableKey={CLERK_PUBLISHABLE_KEY}
+    localization={jaJP}
+    signInUrl="/login"
+    signUpUrl="/signup"
+    signInFallbackRedirectUrl="/dashboard"
+    signUpFallbackRedirectUrl="/dashboard"
+  >
     <ConvexClientProvider env={CONVEX_URL}>{children}</ConvexClientProvider>
   </ClerkProvider>
 );

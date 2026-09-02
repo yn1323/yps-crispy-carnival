@@ -1,0 +1,3808 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>シフトリ 機能仕様まとめ（基準commit b318dc8・履歴）</title>
+<style>
+:root {
+  --ink: #1a202c; --sub: #4a5568; --line: #e2e8f0; --bg: #ffffff; --panel: #f7fafc;
+  --accent: #0d9488; --accent-weak: #f0fdfa; --warn-bg: #fffbeb;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", Meiryo, system-ui, sans-serif; font-size: 15px; line-height: 1.75; }
+ul, ol { padding-left: 24px; }
+li { margin: 3px 0; }
+a { color: #0b7285; }
+.layout { display: flex; min-height: 100vh; }
+nav { width: 280px; flex: none; border-right: 1px solid var(--line); background: var(--panel); padding: 20px 14px 40px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+nav .site-title { font-size: 16px; font-weight: 700; margin: 0 6px 4px; }
+nav .site-meta { font-size: 11.5px; color: var(--sub); margin: 0 6px 14px; }
+.nav-group { margin-bottom: 10px; }
+.nav-doc { display: block; font-weight: 700; font-size: 13.5px; color: var(--ink); text-decoration: none; padding: 5px 8px; border-radius: 6px; }
+.nav-doc:hover { background: var(--accent-weak); }
+.nav-group ul { list-style: none; margin: 2px 0 0; padding: 0 0 0 10px; }
+.nav-group li a { display: block; font-size: 12.5px; color: var(--sub); text-decoration: none; padding: 2.5px 8px; border-left: 2px solid var(--line); }
+.nav-group li a:hover { color: var(--accent); border-left-color: var(--accent); }
+main { flex: 1; min-width: 0; padding: 32px 44px 120px; max-width: 1080px; }
+.page-intro { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 14px 18px; font-size: 13.5px; color: var(--sub); margin-bottom: 28px; }
+section.doc { margin-bottom: 72px; }
+.doc-header { border-bottom: 3px solid var(--accent); margin-bottom: 20px; padding-bottom: 6px; }
+.doc-header h1 { font-size: 25px; margin: 0 0 2px; }
+.doc-src { margin: 0; font-size: 12px; color: var(--sub); }
+h2 { font-size: 19px; margin: 40px 0 12px; padding: 6px 10px; background: var(--accent-weak); border-left: 4px solid var(--accent); border-radius: 4px; }
+h3 { font-size: 16px; margin: 28px 0 10px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+h4 { font-size: 14.5px; margin: 20px 0 8px; }
+p { margin: 10px 0; }
+code { background: #edf2f7; border-radius: 4px; padding: 1px 5px; font-size: 0.88em; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; }
+pre.codeblock { background: #1a202c; color: #e2e8f0; padding: 14px 16px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; line-height: 1.6; }
+pre.codeblock code { background: none; color: inherit; padding: 0; }
+blockquote { margin: 12px 0; padding: 8px 16px; border-left: 4px solid var(--line); background: var(--panel); color: var(--sub); font-size: 13px; border-radius: 0 6px 6px 0; }
+blockquote p { margin: 4px 0; }
+.tbl { overflow-x: auto; margin: 14px 0; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; line-height: 1.6; }
+th, td { border: 1px solid var(--line); padding: 7px 10px; vertical-align: top; text-align: left; }
+th { background: var(--panel); font-size: 12.5px; white-space: nowrap; }
+tbody tr:nth-child(even) { background: #fbfdfe; }
+td[align="center"], th[align="center"] { text-align: center; }
+td[align="right"], th[align="right"] { text-align: right; }
+a.repo-link { color: #6b46a8; text-decoration-style: dotted; }
+.mermaid-block { margin: 18px 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; overflow-x: auto; }
+.mermaid { display: flex; justify-content: center; }
+.mermaid-src { margin-top: 8px; font-size: 12px; color: var(--sub); }
+.mermaid-src pre { background: var(--panel); padding: 10px; border-radius: 6px; overflow-x: auto; }
+.mermaid-offline-note { display: none; font-size: 12px; color: #92400e; background: var(--warn-bg); padding: 6px 10px; border-radius: 6px; margin-bottom: 8px; }
+.no-mermaid .mermaid-offline-note { display: block; }
+.no-mermaid pre.mermaid { display: block; background: var(--panel); padding: 12px; border-radius: 6px; font-size: 12.5px; overflow-x: auto; }
+footer { margin-top: 60px; font-size: 12px; color: var(--sub); border-top: 1px solid var(--line); padding-top: 14px; }
+@media (max-width: 900px) {
+  .layout { display: block; }
+  nav { position: static; width: auto; height: auto; border-right: none; border-bottom: 1px solid var(--line); }
+  main { padding: 24px 18px 80px; }
+}
+@media print {
+  nav { display: none; }
+  main { max-width: none; padding: 0; }
+  .mermaid-src { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav>
+<p class="site-title">シフトリ 機能仕様まとめ</p>
+<p class="site-meta">生成日 2026/08/17 ／ 基準commit <code>b318dc8</code></p>
+<div class="nav-group"><a class="nav-doc" href="#doc-overview">全体サマリー</a><ul><li><a href="#overview-s2">1. システムで解決できること</a></li><li><a href="#overview-s3">2. 現在の公開範囲</a></li><li><a href="#overview-s4">3. 機能一覧</a></li><li><a href="#overview-s12">4. 制限一覧</a></li><li><a href="#overview-s18">5. ロール別にできること</a></li><li><a href="#overview-s21">6. 状況別の挙動</a></li><li><a href="#overview-s26">7. 文書とコードの突き合わせで確認した注意点</a></li><li><a href="#overview-s27">8. マニュアル・テストケースへの展開</a></li></ul></div>
+<div class="nav-group"><a class="nav-doc" href="#doc-staff">スタッフ管理</a><ul><li><a href="#staff-s2">1. 共通の前提</a></li><li><a href="#staff-s3">2. スタッフ追加</a></li><li><a href="#staff-s8">3. プロフィール変更（氏名・シフト連絡先）</a></li><li><a href="#staff-s9">4. シフト対象外の切替（setShiftExclusion）</a></li><li><a href="#staff-s10">5. 店舗所属の変更（desired-set一括変更）</a></li><li><a href="#staff-s14">6. 組織からの削除（removePersonFromOrganization）</a></li><li><a href="#staff-s17">7. イベント別のデータ残存マトリクス（○×早見表）</a></li><li><a href="#staff-s18">8. テスト観点への変換メモ</a></li></ul></div>
+<div class="nav-group"><a class="nav-doc" href="#doc-organization">組織・店舗・管理者・アカウント</a><ul><li><a href="#organization-s2">1. 組織の作成</a></li><li><a href="#organization-s3">2. 組織名の変更・組織削除</a></li><li><a href="#organization-s4">3. 店舗の設定・追加・アーカイブ・削除</a></li><li><a href="#organization-s9">4. 管理者の追加（招待）・権限解除</a></li><li><a href="#organization-s13">5. アカウント（ログイン方法）の変更</a></li><li><a href="#organization-s15">6. アカウント削除</a></li><li><a href="#organization-s16">7. 課金・契約の状態遷移</a></li><li><a href="#organization-s20">8. テスト観点への変換メモ</a></li></ul></div>
+<div class="nav-group"><a class="nav-doc" href="#doc-shift">募集・提出・シフト表・確定</a><ul><li><a href="#shift-s2">1. 日時の定義（すべてJST）</a></li><li><a href="#shift-s3">2. 募集の状態遷移</a></li><li><a href="#shift-s6">3. スタッフの提出可否（デシジョンテーブル）</a></li><li><a href="#shift-s9">4. シフト表（管理者の編集）</a></li><li><a href="#shift-s14">5. 確定シフトの閲覧・再発行</a></li><li><a href="#shift-s15">6. 提出率・件数表示の規則</a></li><li><a href="#shift-s16">7. テスト観点への変換メモ</a></li></ul></div>
+<div class="nav-group"><a class="nav-doc" href="#doc-notification">通知マトリクス</a><ul><li><a href="#notification-s2">1. チャネル選択の共通規則</a></li><li><a href="#notification-s3">2. 宛先解決の共通規則</a></li><li><a href="#notification-s4">3. 送信直前の再確認（provider gate）</a></li><li><a href="#notification-s5">4. 通知マトリクス</a></li><li><a href="#notification-s9">5. 送らない共通条件（全通知に適用）</a></li><li><a href="#notification-s10">6. 配送の状態と再試行</a></li><li><a href="#notification-s11">7. 不達（要対応Inbox）の扱い</a></li><li><a href="#notification-s12">8. 使用量カウント</a></li><li><a href="#notification-s13">9. 付録: 配送パイプライン図</a></li><li><a href="#notification-s14">10. テスト観点への変換メモ</a></li></ul></div>
+<div class="nav-group"><a class="nav-doc" href="#doc-authorization">認可・制限の横断規則</a><ul><li><a href="#authorization-s2">1. 認可境界の種類</a></li><li><a href="#authorization-s3">2. 存在秘匿の応答契約</a></li><li><a href="#authorization-s4">3. ロール・状態による書き込み拒否</a></li><li><a href="#authorization-s8">4. token・sessionの失効マトリクス</a></li><li><a href="#authorization-s9">5. プラン上限と超過時の挙動</a></li><li><a href="#authorization-s10">6. レート制限・quota一覧</a></li><li><a href="#authorization-s11">7. 冪等性・二重実行の契約</a></li><li><a href="#authorization-s12">8. 外部サービス障害時の挙動</a></li><li><a href="#authorization-s13">9. ログ・応答に含めない情報</a></li><li><a href="#authorization-s14">10. テスト観点への変換メモ</a></li></ul></div>
+</nav>
+<main>
+<div class="page-intro">
+このHTMLは <code>doc/features/OVERVIEW.md</code> と条件別仕様5本（behavior-*.md）から生成した閲覧用まとめです。
+内容の正本は各Markdownファイルであり、食い違う場合はMarkdown・機能文書・コードを優先してください。
+紫の点線リンクはリポジトリ内の別文書への相対リンクです。図はオンライン時にレンダリングされ、オフラインではソース表示になります。
+</div>
+<section class="doc" id="doc-overview">
+<header class="doc-header"><h1>全体サマリー</h1><p class="doc-src">正本: <code>doc/features/OVERVIEW.md</code></p></header>
+<blockquote>
+<p>文書種別: overview（各機能文書・業務仕様から導出した横断サマリー）</p>
+<p>作成日: 2026-08-16</p>
+<p>基準commit: <code>37c908f</code></p>
+</blockquote>
+<p>この文書は、マニュアル作成とテストケース設計の起点として、シフトリの全機能、制限、ロール別・状況別の権限を一枚で俯瞰する。<br>個別の詳細は各機能文書（<code>doc/features/</code>）、業務契約は<code>doc/specs/</code>、実装値はコードを正本とし、この文書と食い違う場合は正本を優先する。</p>
+<p>条件の組み合わせごとの詳細な挙動（エッジケース含む）は、次の条件別仕様へ分割している。</p>
+<ul>
+<li><a href="#doc-staff">スタッフ管理</a></li>
+<li><a href="#doc-organization">組織・店舗・管理者・アカウント</a></li>
+<li><a href="#doc-shift">募集・提出・シフト表・確定</a></li>
+<li><a href="#doc-notification">通知マトリクス</a></li>
+<li><a href="#doc-authorization">認可・制限の横断規則</a></li>
+</ul>
+<h2 id="overview-s2">1. システムで解決できること</h2>
+<p>シフトリは、店舗スタッフのシフト管理SaaSである。<br>シフト担当者とスタッフの間で毎回発生する次の作業を、Webとメール・LINE通知で置き換える。</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>課題</th>
+<th>シフトリでの解決</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>希望シフトの回収が紙・口頭・個別連絡でばらつく</td>
+<td>募集を作成すると全対象スタッフへ提出リンクをメール・LINEで自動送付し、締切前日に未提出者へ自動催促する</td>
+</tr>
+<tr>
+<td>誰が提出済みか分からない</td>
+<td>Dashboardとシフト表で提出人数・提出内容をリアルタイムに確認できる</td>
+</tr>
+<tr>
+<td>シフト表の作成と調整に時間がかかる</td>
+<td>希望と割当を同じ画面で比較しながら編集し、違反（店舗境界・休業日など）を保存前に検出する</td>
+</tr>
+<tr>
+<td>確定シフトの周知漏れ</td>
+<td>確定時に変更のあったスタッフへだけ確定通知と閲覧リンクを自動送付する</td>
+</tr>
+<tr>
+<td>確定の放置</td>
+<td>締切翌日に管理者へ確定催促を自動送付し、要対応一覧にも表示する</td>
+</tr>
+<tr>
+<td>スタッフの連絡先収集の手間</td>
+<td>店舗専用QR/URLからスタッフ本人が参加申請し、管理者承認で登録が完了する</td>
+</tr>
+<tr>
+<td>通知が届かない事故に気づけない</td>
+<td>不達通知をDashboardの要対応に集約し、再通知・日次リマインダーを提供する</td>
+</tr>
+</tbody></table></div>
+<p>スタッフはアカウント登録不要で、メール・LINEに届くリンク（magic link）だけで提出・閲覧できる。</p>
+<h2 id="overview-s3">2. 現在の公開範囲</h2>
+<p>repository artifactでは、複数組織、複数店舗、複数管理者（招待）、Stripe課金を常時利用できる。<br>初回登録で作る組織は、カード登録なしでPro相当・利用人数上限50名の3か月Trialを開始する。追加組織はFreeで開始する。</p>
+<p>機能ごとの公開環境変数は使わない。画面は組織作成、店舗追加、管理者、プランと支払いの導線を常時表示し、操作可否は認証・認可、所属状態、契約状態、プラン上限、Stripe設定などのサーバー判定に従う。実deploymentへのartifact反映とcanaryはリリース状態の証跡で確認する。</p>
+<p>なお、業務仕様（<code>doc/specs/organization-billing-business-flow.md</code>）に有料機能として挙がる「AIシフトたたき台作成」は、現時点でコード実装がない（仕様先行）。</p>
+<h2 id="overview-s4">3. 機能一覧</h2>
+<h3 id="overview-s5">3.1 利用開始・認証・法務同意</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>機能</th>
+<th>概要</th>
+<th>主な画面</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="auth-pages.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">認証画面とアカウント設定</a></td>
+<td>Clerkを基盤に、Google認証とメール・パスワードのログイン、新規登録、パスワード再設定、別端末ログイン時のメール確認コード、ログイン方法の追加・変更・解除を提供する。LINEアプリ内ブラウザではGoogle OAuthを外部ブラウザへ逃がす</td>
+<td><code>/login</code>、<code>/signup</code>、<code>/forgot-password</code>、<code>/account</code></td>
+</tr>
+<tr>
+<td><a href="legal-consent.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">法務同意フロー</a></td>
+<td>管理ユーザーとスタッフ別に利用規約・プライバシーポリシーの同意を版数管理する。軽微な文書更新では再同意を求めない。スタッフは未同意でも通知を受け取れ、提出時に同意を回収する</td>
+<td><code>/terms</code>、<code>/privacy</code>（<code>/manager</code>・<code>/staff</code>別あり）、<code>/legal/staff/consent</code>、Dashboard再同意バナー</td>
+</tr>
+<tr>
+<td><a href="dashboard-onboarding.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">ログイン後オンボーディング</a></td>
+<td>初回セットアップ（店舗名・提出方法・氏名・シフト連絡先）と、募集作成→通知確認→希望提出→シフト表確認→スタッフ追加の4ステップ体験ガイド</td>
+<td><code>/dashboard</code></td>
+</tr>
+<tr>
+<td><a href="staff-registration.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">スタッフ参加QR・承認導線</a></td>
+<td>店舗専用QR/URLからスタッフ本人が名前・連絡先・同意を申請し、管理者が承認・却下する。Turnstileとレート制限でbotを抑止し、承認待ちがある店舗へ日次digestを送る</td>
+<td><code>/staff/register</code>、Dashboard、<code>/actions</code></td>
+</tr>
+</tbody></table></div>
+<h3 id="overview-s6">3.2 組織・店舗・人物・権限</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>機能</th>
+<th>概要</th>
+<th>主な画面</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="organization-billing.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">組織課金、複数店舗、複数管理者</a></td>
+<td>組織単位の契約・利用上限・課金状態の管理。組織名変更、組織削除、管理者招待、プランと支払い</td>
+<td><code>/manage</code>、<code>/manage/organization</code>、<code>/manage/billing</code>、<code>/manage/managers</code></td>
+</tr>
+<tr>
+<td><a href="manager-shop-membership.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">店舗単位管理者所属の移行互換</a></td>
+<td>旧<code>shopMembers</code>から<code>organizationMembers</code>への移行互換と、店舗コンテキスト解決（URL<code>?shop=</code>の検証・fallback規則）</td>
+<td><code>/dashboard</code></td>
+</tr>
+<tr>
+<td><a href="shop-settings.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">店舗設定</a></td>
+<td>店舗名、希望シフトの提出方法（時間指定・日ごと・勤務区分）、定休日、所属スタッフの一括変更、店舗削除</td>
+<td><code>/manage/shops/&lt;shopId&gt;</code></td>
+</tr>
+<tr>
+<td><a href="user-detail.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">スタッフ詳細</a></td>
+<td>組織人物（<code>organizationPeople</code>）を正本に、氏名・シフト連絡先、所属店舗、LINE連携、管理者権限バッジ、組織からの削除を扱う。店舗別設定で通知・通知履歴・シフト対象設定を扱う</td>
+<td><code>/staff</code>、<code>/staff/&lt;personId&gt;</code>、<code>/staff/&lt;personId&gt;/shops/&lt;shopId&gt;</code></td>
+</tr>
+</tbody></table></div>
+<h3 id="overview-s7">3.3 募集・希望提出・シフト編集・確定</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>機能</th>
+<th>概要</th>
+<th>主な画面</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="shift-recruitment-management.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">シフト募集管理</a></td>
+<td>募集の作成、状態別一覧（現在・要調整・募集中・確定済み・過去）、論理削除。作成時に募集通知・提出催促・確定催促を予約する</td>
+<td><code>/dashboard</code>、<code>/shifts</code></td>
+</tr>
+<tr>
+<td><a href="shift-board.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">シフト表</a></td>
+<td>提出方式に対応した割当編集（PC週表・SP日別）、未保存変更の確認、確定前validation、希望との食い違い表示、下書き保存、確定と差分再通知</td>
+<td><code>/shifts/&lt;recruitmentId&gt;/board</code></td>
+</tr>
+<tr>
+<td><a href="shift-submission.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">希望シフト提出</a></td>
+<td>スタッフがリンクから希望を提出・再提出する。前回パターンのワンクリック適用、提出完了画面、確定シフト閲覧、閲覧リンク再発行</td>
+<td><code>/shifts/submit</code>、<code>/shifts/submit/completed</code>、<code>/shifts/view</code>、<code>/shifts/reissue</code></td>
+</tr>
+<tr>
+<td><a href="shift-exclusion.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">シフト対象外スタッフ</a></td>
+<td>シフトを出さないスタッフを店舗ごとにシフト表示・シフト関連通知・提出率母数から外す。対象外化で提出用セッション・リンクを失効させる</td>
+<td>スタッフ店舗別設定</td>
+</tr>
+<tr>
+<td><a href="shift-confirmation-reminder.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">シフト確定催促リマインダー</a></td>
+<td>締切翌日17:00 JSTに未確定募集の管理者へ確定を催促する（画面なし・自動通知）</td>
+<td>メール・LINE</td>
+</tr>
+<tr>
+<td><a href="shop-activation-reminder.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">店舗登録後の本番募集リマインダー</a></td>
+<td>初回店舗登録7日後17:00 JSTに、本人以外のシフト対象スタッフが未登録の店舗の管理者へ案内する</td>
+<td>メール・LINE</td>
+</tr>
+</tbody></table></div>
+<h3 id="overview-s8">3.4 通知・再送・LINE連携</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>機能</th>
+<th>概要</th>
+<th>主な画面</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="action-inbox.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">要対応</a></td>
+<td>締切超過の未確定募集、承認待ち申請、不達通知、招待エラーを組織横断で一覧化し、承認・再送・解決の操作を受け付ける</td>
+<td><code>/actions</code></td>
+</tr>
+<tr>
+<td><a href="line-notification.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">LINE通知連携</a></td>
+<td>LINE Loginで組織人物へLINEを連携し、連携済み・友だち状態ならLINE、それ以外はメールへ自動振り分けする。連携URL発行、依頼メール、明示解除</td>
+<td>スタッフ詳細、<code>/line/callback</code></td>
+</tr>
+<tr>
+<td><a href="notification-outbox.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">通知配送outbox</a></td>
+<td>全メール・LINE通知を<code>pending</code>ジョブ化してworkerが非同期配送する基盤。重複排除、再試行、LINE quota超過時のメールfallback、送信直前の宛先・権限再確認、30日後のpayload redaction</td>
+<td>なし（基盤）</td>
+</tr>
+<tr>
+<td><a href="notification-history.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">スタッフ通知履歴</a></td>
+<td>スタッフごとの通知の日時・チャネル・タイトル・送信/配信状況を表示する（本文・宛先は保存しない）</td>
+<td>スタッフ店舗別設定</td>
+</tr>
+<tr>
+<td><a href="notification-failure-dashboard.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">通知不達Dashboard</a></td>
+<td>不達通知の一覧、個別・一斉再通知、「無視する」、open不達がある店舗への日次リマインダー</td>
+<td>Dashboard「要対応」</td>
+</tr>
+<tr>
+<td><a href="dashboard-announcements.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">Dashboardお知らせ</a></td>
+<td>全体・組織・店舗・プラン単位を対象にお知らせを1件表示する。管理UIはなくConvex Dashboardから登録する</td>
+<td>Dashboard</td>
+</tr>
+</tbody></table></div>
+<h3 id="overview-s9">3.5 課金・解約・削除</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>機能</th>
+<th>概要</th>
+<th>主な画面</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="trial-ending-dashboard-callout.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">トライアル終了前Dashboard案内</a></td>
+<td>プラン状態表示とTrial終了7日前Callout（rolling deploy互換）を表示する</td>
+<td>Dashboard</td>
+</tr>
+<tr>
+<td><a href="data-deletion.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">店舗・組織削除</a></td>
+<td>店舗・組織の論理削除と、session・token・LINE連携・未送信通知を止める永続cleanup。業務識別情報（氏名・店舗名など）は保持し、個人情報の完全消去とは扱わない</td>
+<td>店舗詳細、組織設定</td>
+</tr>
+<tr>
+<td><a href="account-deletion.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">アカウント削除</a></td>
+<td>strict再認証を経たアカウント削除依頼。所属構成に応じて本人所属の終了または組織全体の終了を行い、cleanup完了後にClerkユーザーを削除する</td>
+<td>アカウント設定、<code>/account-deletion-accepted</code></td>
+</tr>
+</tbody></table></div>
+<h3 id="overview-s10">3.6 公開サイト・ヘルプ・問い合わせ</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>機能</th>
+<th>概要</th>
+<th>主な画面</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="public-pages.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">公開サイト</a></td>
+<td>TOP、機能紹介、無料トライアル条件、記事、登録不要の操作デモ、特定商取引法表記。認証・Convex不要の静的生成</td>
+<td><code>/</code>、<code>/features</code>、<code>/articles</code>、<code>/demo/flow</code>、<code>/demo/shiftboard</code>、<code>/commercial-transactions</code></td>
+</tr>
+<tr>
+<td><a href="help-center.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">ヘルプセンター</a></td>
+<td>FAQと使い方を共通のMDX形式で管理し、やりたいことと検索から探せるようにする</td>
+<td><code>/help</code>、<code>/help/:slug</code></td>
+</tr>
+<tr>
+<td><a href="contact.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">問い合わせ</a></td>
+<td>未ログイン可の問い合わせフォーム。Turnstile・レート制限後にResendでメール送信し、Slackへ社内通知する</td>
+<td><code>/contact</code></td>
+</tr>
+<tr>
+<td><a href="web-measurement.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">公開サイトのWeb計測</a></td>
+<td>同意した端末に限り、公開ページの導線・Web VitalsをGTM/GA4へ低cardinalityで送る</td>
+<td>公開ページ</td>
+</tr>
+<tr>
+<td><a href="feature-requests.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">要望受付</a></td>
+<td>管理ユーザーと提出中スタッフがヘッダーから200文字以内の要望を送る</td>
+<td>認証済みヘッダー、提出画面ヘッダー</td>
+</tr>
+</tbody></table></div>
+<h3 id="overview-s11">3.7 内部分析（利用者非公開）</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>機能</th>
+<th>概要</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="analytics.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">分析KPI蓄積基盤</a></td>
+<td>業務mutationと同一transactionでsource eventを追記し、JST 03:00の夜間batchで導入到達度・運用健全性・日次snapshotを集計する</td>
+</tr>
+<tr>
+<td><a href="analytics-dashboard.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">分析KPI可視化アプリ</a></td>
+<td>別のCloudflare Workerで配信する内部BI。全体→組織→店舗→シフト周期へ掘り下げ、<code>/requests</code>で要望を確認する</td>
+</tr>
+</tbody></table></div>
+<h2 id="overview-s12">4. 制限一覧</h2>
+<h3 id="overview-s13">4.1 プランと利用上限</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>プラン・状態</th>
+<th align="right">利用人数</th>
+<th align="right">稼働店舗</th>
+<th align="right">有効管理者</th>
+<th>備考</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>支払い不要Pro相当（既存組織のみ）</td>
+<td align="right">50名</td>
+<td align="right">5店舗</td>
+<td align="right">5名</td>
+<td>期限・料金・Stripeオブジェクトなし</td>
+</tr>
+<tr>
+<td>無料体験（Trial、初回登録）</td>
+<td align="right">50名</td>
+<td align="right">5店舗</td>
+<td align="right">5名</td>
+<td>Pro相当。期間は開始から3か月（終了は該当日0:00 JST）</td>
+</tr>
+<tr>
+<td>Free（追加組織）</td>
+<td align="right">5名</td>
+<td align="right">1店舗</td>
+<td align="right">2名</td>
+<td>二つ目以降の組織はこの状態で開始する</td>
+</tr>
+<tr>
+<td>Standard</td>
+<td align="right">25名</td>
+<td align="right">5店舗</td>
+<td align="right">5名</td>
+<td>Stripe契約あり</td>
+</tr>
+<tr>
+<td>Pro</td>
+<td align="right">50名</td>
+<td align="right">5店舗</td>
+<td align="right">5名</td>
+<td>Stripe契約あり</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>利用人数は組織内の人物単位で重複なく数える。管理者兼スタッフ・複数店舗所属・シフト対象外・アーカイブ店舗のみ所属も1名。元管理者はスタッフでもある場合のみ1名。未承認招待は数えない。</li>
+<li>上限を超える追加操作（Standardの26人目・Proの51人目・6店舗目・6人目の管理者）は確定前に止め、一部だけの保存はしない。利用人数は上位の標準プランがある場合だけプラン変更を案内し、Pro上限では現在値と上限だけを表示する。</li>
+<li>人数が減っても自動でプランを下げない。</li>
+<li>自分で作成して保持できる組織は3つまで、組織作成は1日10回まで（招待所属・削除済みは数えない）。</li>
+</ul>
+<h3 id="overview-s14">4.2 シフト運用の業務ルール</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>項目</th>
+<th>制限・仕様</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>募集期間</td>
+<td>最大31日（<code>RECRUITMENT_PERIOD_DAYS_MAX</code>）</td>
+</tr>
+<tr>
+<td>提出締切</td>
+<td>募集作成時に設定し、後から編集できない（募集は作成・削除のみ）</td>
+</tr>
+<tr>
+<td>希望提出・再提出</td>
+<td>提出締切日23:59 JSTまで</td>
+</tr>
+<tr>
+<td>締切後の提出</td>
+<td>提出済みスタッフは閲覧のみ。未提出スタッフだけ確認ダイアログ後に初回提出できる</td>
+</tr>
+<tr>
+<td>提出リンクが開ける期間</td>
+<td>募集が<code>open</code>かつシフト開始日0:00 JSTより前まで</td>
+</tr>
+<tr>
+<td>シフト表の保存・確定・再通知</td>
+<td>シフト終了日を過ぎた募集は受け付けない（画面とmutation双方で確認）</td>
+</tr>
+<tr>
+<td>過去の扱い</td>
+<td>シフト終了日当日は過去に含めず、翌日から過去として扱う</td>
+</tr>
+<tr>
+<td>確定済み募集の削除</td>
+<td>可能（削除前に確認）</td>
+</tr>
+<tr>
+<td>提出方法</td>
+<td>店舗設定で時間指定・日ごと・勤務区分から選択。募集は作成時点の設定をsnapshotし、店舗設定を後から変えても既存募集は変わらない</td>
+</tr>
+<tr>
+<td>勤務区分</td>
+<td>最大4件</td>
+</tr>
+<tr>
+<td>シフト表の時間単位</td>
+<td>30分</td>
+</tr>
+<tr>
+<td>1回の提出の希望件数</td>
+<td>最大31件</td>
+</tr>
+<tr>
+<td>シフト表のスタッフ・割当規模</td>
+<td>スタッフ200名、希望・割当各2000件が読み書きの上限</td>
+</tr>
+<tr>
+<td>スタッフ手入力追加</td>
+<td>1回最大50名</td>
+</tr>
+<tr>
+<td>承認待ち参加申請</td>
+<td>1店舗最大20件（超過分は受け付けるが保存しない）</td>
+</tr>
+<tr>
+<td>人物削除時の将来割当</td>
+<td>1回のtransactionで500件まで。超過時は先にシフト整理を求める</td>
+</tr>
+<tr>
+<td>名前・入力長</td>
+<td>店舗名・組織名・氏名80文字、勤務区分名30文字、メール254文字、問い合わせ本文2000文字、要望200文字</td>
+</tr>
+</tbody></table></div>
+<h3 id="overview-s15">4.3 リンク・token・sessionの有効期限</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>対象</th>
+<th>期限</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>スタッフ提出・閲覧magic link</td>
+<td>24時間（既定）</td>
+</tr>
+<tr>
+<td>スタッフsession</td>
+<td>14日</td>
+</tr>
+<tr>
+<td>LINE連携URL</td>
+<td>72時間。同一人物への再発行で旧tokenを失効</td>
+</tr>
+<tr>
+<td>法務同意token</td>
+<td>30日</td>
+</tr>
+<tr>
+<td>管理者招待</td>
+<td>7日・一回限り。再送で旧URLを失効</td>
+</tr>
+<tr>
+<td>Stripe Customer Portal URL</td>
+<td>都度発行の一時URL（恒久保存しない）</td>
+</tr>
+</tbody></table></div>
+<h3 id="overview-s16">4.4 通知・再送のレート制限</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>対象</th>
+<th>制限</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>スタッフ個別通知の再送</td>
+<td>操作者ごと1日10回、組織ごと1日20回（募集通知・確定通知共通のquota）</td>
+</tr>
+<tr>
+<td>確定シフトの個別再送</td>
+<td>1回につき募集40件まで。超過時は一部だけ送らず開始しない</td>
+</tr>
+<tr>
+<td>募集・確定通知fanout</td>
+<td>対象スタッフ最大50名、10名ずつ処理</td>
+</tr>
+<tr>
+<td>通知の再試行</td>
+<td>最大5回。LINE quota超過時はfallbackメールへ切替</td>
+</tr>
+<tr>
+<td>参加申請（公開HTTP）</td>
+<td>メール単位3回/短時間・10回/日、リンク単位5回/短時間・40回/日、IP・global制限あり。Turnstile必須</td>
+</tr>
+<tr>
+<td>問い合わせ</td>
+<td>Turnstile必須。メール・IPハッシュ単位のレート制限</td>
+</tr>
+<tr>
+<td>組織作成</td>
+<td>1日10回</td>
+</tr>
+</tbody></table></div>
+<h3 id="overview-s17">4.5 データ保持・redaction</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>対象</th>
+<th>保持</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>通知の宛先・本文（outbox payload）</td>
+<td>送信完了・失敗・キャンセルから30日でredact</td>
+</tr>
+<tr>
+<td>不達通知（FailureInbox）</td>
+<td>最終失敗から30日でエラーをredactし、表示・再通知対象から除外（<code>resolved/expired</code>）</td>
+</tr>
+<tr>
+<td>配送イベントログ</td>
+<td>90日で削除</td>
+</tr>
+<tr>
+<td>Stripe Webhook・operation</td>
+<td>90日</td>
+</tr>
+<tr>
+<td>店舗・組織・人物の削除</td>
+<td>論理削除。氏名・メール・店舗名・組織名・過去シフト・監査履歴は保持し、session・token・LINE連携・未送信通知を失効</td>
+</tr>
+<tr>
+<td>通知履歴（metadata）</td>
+<td>スタッフ・店舗の削除まで保持。削除時にcleanupで物理削除</td>
+</tr>
+</tbody></table></div>
+<h2 id="overview-s18">5. ロール別にできること</h2>
+<h3 id="overview-s19">5.1 ロールの定義</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>ロール</th>
+<th>実体</th>
+<th>認証</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>有効管理者（<code>active</code>）</td>
+<td><code>organizationMembers.active</code>。組織内の全店舗を管理し、契約操作も行える。プラン上限まで複数人を招待できる</td>
+<td>Clerkログイン</td>
+</tr>
+<tr>
+<td>復旧担当者（<code>readOnly</code>）</td>
+<td>契約制限中に閲覧と復旧操作だけを許可された直前の管理者</td>
+<td>Clerkログイン</td>
+</tr>
+<tr>
+<td>元管理者（<code>removed</code>）</td>
+<td>管理者所属を終了した人物。管理画面のデータは閲覧できない</td>
+<td>Clerkログイン（管理画面は拒否）</td>
+</tr>
+<tr>
+<td>スタッフ</td>
+<td><code>staffs</code>（店舗別）＋<code>organizationPeople</code>（組織共通）。アカウント登録不要</td>
+<td>magic link → スタッフsession</td>
+</tr>
+<tr>
+<td>未ログイン</td>
+<td>公開サイト利用者・参加申請者</td>
+<td>なし（Turnstile等で保護）</td>
+</tr>
+</tbody></table></div>
+<p>管理者・スタッフの追加にはメールアドレスが必須で、同一組織内の同じ正規化メールは同一人物として再利用する。<br>別組織の情報は参照しない。</p>
+<h3 id="overview-s20">5.2 権限マトリクス</h3>
+<p>○=可、△=条件付き、×=不可。</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>操作</th>
+<th>有効管理者</th>
+<th>復旧担当者(readOnly)</th>
+<th>元管理者</th>
+<th>スタッフ</th>
+<th>未ログイン</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Dashboard・シフト表・スタッフ情報の閲覧</td>
+<td>○</td>
+<td>○（閲覧専用表示）</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+</tr>
+<tr>
+<td>募集の作成・削除</td>
+<td>○</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+</tr>
+<tr>
+<td>シフトの下書き保存・確定・再通知</td>
+<td>○</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+</tr>
+<tr>
+<td>スタッフ追加・参加申請の承認/却下</td>
+<td>○</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+</tr>
+<tr>
+<td>シフト対象外の切替・店舗所属の変更</td>
+<td>○</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+</tr>
+<tr>
+<td>店舗設定（店舗名・提出方法・定休日）の変更</td>
+<td>○</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+</tr>
+<tr>
+<td>通知の個別再送・不達再通知・無視</td>
+<td>○</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+</tr>
+<tr>
+<td>LINE連携URL発行・依頼送信</td>
+<td>○</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+</tr>
+<tr>
+<td>LINE連携の明示解除</td>
+<td>○（契約制限中も可）</td>
+<td>×</td>
+<td>×</td>
+<td>×（本人の連携操作は○）</td>
+<td>×</td>
+</tr>
+<tr>
+<td>組織名の変更</td>
+<td>○（課金状態を問わず）</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+</tr>
+<tr>
+<td>組織からの利用者削除</td>
+<td>○</td>
+<td>○（復旧操作として）</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+</tr>
+<tr>
+<td>店舗のアーカイブ</td>
+<td>○</td>
+<td>○（復旧操作として）</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+</tr>
+<tr>
+<td>店舗削除</td>
+<td>○（最後の1店舗は不可）</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+</tr>
+<tr>
+<td>組織削除</td>
+<td>△（唯一の<code>active</code>管理者のみ。課金状態条件あり）</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+</tr>
+<tr>
+<td>契約操作（開始・変更・停止予約）</td>
+<td>○</td>
+<td>△（再契約・支払い方法更新・請求先変更のみ）</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+</tr>
+<tr>
+<td>管理者招待・権限解除</td>
+<td>○（最後の1名の解除は不可）</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+<td>×</td>
+</tr>
+<tr>
+<td>自分のスタッフ所属の解除</td>
+<td>○（管理者権限と組織人物は維持）</td>
+<td>×（操作はactive管理者のみ）</td>
+<td>-</td>
+<td>-（本人操作なし。管理者が実施）</td>
+<td>×</td>
+</tr>
+<tr>
+<td>アカウント削除依頼</td>
+<td>△（所属構成による。複数組織所属は不可）</td>
+<td>△</td>
+<td>○</td>
+<td>×（スタッフにアカウントなし）</td>
+<td>×</td>
+</tr>
+<tr>
+<td>希望シフトの提出・再提出</td>
+<td>△（自分がシフト対象スタッフを兼ねる場合、スタッフとして）</td>
+<td>同左</td>
+<td>同左</td>
+<td>○（締切まで）</td>
+<td>×</td>
+</tr>
+<tr>
+<td>確定シフトの閲覧・閲覧リンク再発行</td>
+<td>同上</td>
+<td>同上</td>
+<td>同上</td>
+<td>○</td>
+<td>×</td>
+</tr>
+<tr>
+<td>要望の送信</td>
+<td>○</td>
+<td>○</td>
+<td>×</td>
+<td>○（提出画面から）</td>
+<td>×</td>
+</tr>
+<tr>
+<td>参加申請（QR/URL）</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>○</td>
+</tr>
+<tr>
+<td>問い合わせ・公開サイト・デモ</td>
+<td>○</td>
+<td>○</td>
+<td>○</td>
+<td>○</td>
+<td>○</td>
+</tr>
+</tbody></table></div>
+<p>補足:</p>
+<ul>
+<li>スタッフ所属の解除は「解除される対象」がactive/readOnlyの管理者人物でも実行できる（管理者権限と組織人物は維持される）。一方で「操作する側」はactiveな管理者に限られ、readOnlyの操作者は拒否される。</li>
+<li>元管理者がスタッフを兼ねる場合、スタッフとしての提出・閲覧・通知は継続する。管理者だった事実を根拠にした閲覧は一切許可しない。</li>
+<li>シフト対象外スタッフは提出・閲覧・再発行の全スタッフ導線を失効し、シフト関連通知から外れる。LINE連携依頼や規約同意などシフト以外の通知は届く。</li>
+<li>URL・localStorage・クライアントが渡すIDは認可根拠にせず、全APIがサーバー側で所属・店舗境界・課金状態を再検証する。存在と権限不足は区別して漏らさない。</li>
+</ul>
+<h2 id="overview-s21">6. 状況別の挙動</h2>
+<h3 id="overview-s22">6.1 募集のライフサイクル</h3>
+<p>募集の保存状態は<code>open</code>と<code>confirmed</code>の2値で、日付（提出締切・シフト開始・シフト終了）との組み合わせで画面の扱いが変わる。</p>
+<pre class="codeblock"><code>作成(open) → 提出締切(23:59 JST) → 確定(confirmed) → シフト終了日 → 翌日から過去
+                                  ↑ 編集・再確定は終了日まで何度でも可
+任意の時点で論理削除できる</code></pre>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>状況</th>
+<th>管理者ができること</th>
+<th>スタッフができること</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>募集作成〜締切前（<code>open</code>）</td>
+<td>シフト表で割当編集・下書き保存。確定も日付・状態条件を満たせば可能（締切前の確定を禁止する条件はない）</td>
+<td>提出リンクから提出・再提出（締切日23:59 JSTまで）。提出済み内容の確認</td>
+</tr>
+<tr>
+<td><strong>締切後〜確定前（<code>open</code>のまま）</strong></td>
+<td>編集・保存・確定が可能。Dashboardで「要シフト調整」、<code>/actions</code>に表示。締切翌日17:00に確定催促が届く</td>
+<td><strong>提出リンクは引き続き開ける（シフト開始日0:00 JSTまで）。提出済みなら閲覧のみ、未提出なら確認ダイアログ後に初回提出だけ可能</strong></td>
+</tr>
+<tr>
+<td>確定後（<code>confirmed</code>）</td>
+<td>シフト終了日までは再編集・再確定できる。再確定時は前回通知との差分があるスタッフと、前回の確定通知が未配送のスタッフへ再通知。個別再送も可能</td>
+<td>確定通知の閲覧リンクから確定シフトを閲覧。リンクを失った場合は再発行画面（登録メール一致で新リンク送付）。提出画面は「提出受付終了」</td>
+</tr>
+<tr>
+<td>シフト終了日の翌日以降</td>
+<td>保存・確定・再通知は不可。過去のシフトとして閲覧のみ（Dashboardでは店舗filter時に遅延取得）</td>
+<td>確定シフトの個別再送対象外（再送は終了日が今日以降の募集のみ）</td>
+</tr>
+<tr>
+<td>削除済み</td>
+<td>一覧から消える。進行中の通知fanoutは同一transactionで停止</td>
+<td>提出・閲覧リンクは「募集削除済み」の利用不可状態になる</td>
+</tr>
+</tbody></table></div>
+<p>未提出スタッフへの割当、休み希望日への割当、希望時間外・希望外区分の割当は、確定を拒否しない「確認事項」として表示する。<br>店舗境界違反や休業日割当などの違反は保存・確定を拒否する。</p>
+<h3 id="overview-s23">6.2 契約状態による制限（契約制限中 <code>restricted</code>）</h3>
+<p>Trial未契約終了、解約の期間末適用、支払い失敗14日経過などで契約制限中になると、業務を進める書き込みを止める。</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>分類</th>
+<th>契約制限中の扱い</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>停止する操作</td>
+<td>募集の作成・編集・削除、シフトの保存・編集・確定、スタッフ追加・再有効化、管理者招待、店舗追加・再稼働、新規の業務メール・LINE送信</td>
+</tr>
+<tr>
+<td>継続できる操作</td>
+<td>既存データの閲覧（復旧担当者）、組織名変更（有効管理者）、再契約・支払い方法更新・請求先メール変更、利用者の組織からの削除、店舗アーカイブ、activeな管理者によるLINE明示解除</td>
+</tr>
+<tr>
+<td>データ</td>
+<td>店舗・利用者・シフトは削除しない。直前の管理者と稼働店舗を復旧候補として保持する</td>
+</tr>
+<tr>
+<td>画面</td>
+<td>契約制限へ切り替わった画面は書込ダイアログを閉じ、ShiftBoardの未保存編集を破棄する。閲覧専用表示になる</td>
+</tr>
+</tbody></table></div>
+<p>支払い失敗の14日猶予中は、失敗前プランの全機能を通常どおり利用できる（警告と支払い導線を表示）。<br><code>readOnly</code>の組織所属では、要対応・スタッフ一覧などの画面は閲覧でき、操作だけがサーバー由来の理由付きで無効になる。</p>
+<h3 id="overview-s24">6.3 スタッフ導線の失効条件</h3>
+<p>次のいずれかで、発行済みの提出・閲覧セッションとmagic linkは使えなくなる。</p>
+<ul>
+<li>シフト対象外への切替（<code>excludedFromShift</code>）</li>
+<li>店舗からの所属解除（本日以降の割当も削除。過去の提出・割当は履歴として保持）</li>
+<li>組織からの人物削除（全店舗の所属とLINE連携を終了）</li>
+<li>店舗削除・組織削除</li>
+<li>募集の削除、シフト開始日0:00 JSTの到来（提出リンクが開けるのはここまで。提出締切ではリンク自体は失効しない）、リンク・sessionの有効期限切れ</li>
+</ul>
+<p>解除後に同じ人物を再追加した場合は、旧staffのsession・magic link・提出・割当を復元せず、新しいstaffとして未提出から開始する。<br>店舗所属の解除だけでは組織共通のLINE連携を保持し得るが、組織から削除した後の再追加では本人による新しいLINE連携が必要になる。</p>
+<h3 id="overview-s25">6.4 自動通知の一覧（時刻はJST）</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>通知</th>
+<th>タイミング</th>
+<th>宛先</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>募集開始</td>
+<td>募集作成時</td>
+<td>対象店舗のシフト対象スタッフ</td>
+</tr>
+<tr>
+<td>提出催促</td>
+<td>締切前日17:00（作成時点で未来の場合のみ予約）</td>
+<td>未提出のシフト対象スタッフ</td>
+</tr>
+<tr>
+<td>確定シフト</td>
+<td>確定時（前回通知と差分のあるスタッフ＋前回の確定通知が未配送のスタッフ）</td>
+<td>対象スタッフ</td>
+</tr>
+<tr>
+<td>シフト確定催促</td>
+<td>締切翌日17:00、未確定の場合</td>
+<td>対象店舗にスタッフ所属するactive管理者</td>
+</tr>
+<tr>
+<td>参加申請digest</td>
+<td>毎日17:00、直近24時間に承認待ちがある店舗</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>通知不達digest</td>
+<td>毎日17:00、直近24時間にopen不達がある店舗</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>本番募集リマインダー</td>
+<td>初回店舗登録7日後17:00、本人以外のシフト対象スタッフ未登録の場合</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>LINE連携依頼・法務同意依頼</td>
+<td>スタッフ追加時（未連携・未同意の場合）</td>
+<td>対象スタッフ</td>
+</tr>
+<tr>
+<td>課金通知（Trial終了予告・支払い失敗等）</td>
+<td>各イベント時</td>
+<td>有効管理者・復旧担当者（メールのみ。LINEへは送らない）</td>
+</tr>
+</tbody></table></div>
+<p>店舗単位の管理通知は「対象店舗にスタッフとして所属するactive管理者」だけに送る。<br>対象者が0人なら送信せず、店舗詳細に管理者を店舗所属へ置く推奨を表示する。<br>チャネルは、組織共通のLINE連携が有効かつ友だち状態ならLINE優先、それ以外は現在のシフト連絡先へメール。課金通知と管理者招待は常にメール。</p>
+<h2 id="overview-s26">7. 文書とコードの突き合わせで確認した注意点</h2>
+<p>マニュアル・テストケースに影響し得る既知の差分・未実装・運用前提を挙げる。</p>
+<ul>
+<li><strong>AIシフトたたき台作成</strong>は業務仕様の有料機能として定義されているが、コード実装がない。マニュアル・テスト対象から除外する。</li>
+<li><code>confirmRecruitment</code>は確定時に共通validation全体を再実行せず、募集の存在・終了日・状態・休業日だけを再確認する（既知の差分として<code>doc/plans/2026-07-23_doc現行コード差分調査.md</code>に記録あり）。</li>
+<li>提出催促・確定催促は募集作成時にschedulerへ予約するため、<strong>機能デプロイ前から存在する募集には催促が付かない</strong>（既知の割り切り）。</li>
+<li>通知不達の個別再送<code>resendFailure</code>は、ID直指定の<code>other</code> context失敗にactionable判定を再適用しない（既知の差分）。</li>
+<li>Dashboardお知らせと通知使用量（<code>notificationUsage</code>）には管理UIがなく、Convex Dashboardでの直接操作・確認が運用手順になる。</li>
+<li>実環境で利用できる機能は<code>doc/manual/release-status.md</code>の証跡が正であり、コードの存在から公開済みと判断しない。</li>
+<li>機能文書の形式は新旧が混在している（<code>shift-submission.md</code>などはヘッダー・保証範囲の章立てがない旧形式）。内容の照合日も文書ごとに異なるため、テスト設計時は対象文書の「最終コード照合」日付を確認する。</li>
+</ul>
+<h2 id="overview-s27">8. マニュアル・テストケースへの展開</h2>
+<ul>
+<li><strong>マニュアル</strong>: 1章（解決する課題）と3章（機能一覧）を目次の骨格にし、公開範囲（2章）で対象機能を絞る。操作手順の本文は<code>/help</code>と<code>/help/:slug</code>（<code>src/components/features/HelpCenter/content/</code>）に集約し、<code>write-help-content</code>の規約に従って追加する。</li>
+<li><strong>テストケース</strong>: 4章の各制限値は境界値テストの入力（上限ちょうど・上限+1）にそのまま使える。5章のマトリクスの×セルは認可拒否テスト、6.1の状態×ロール表の各セルは状態遷移テストの観点になる。既存の主担当テスト層と重複させないため、各機能文書の「テスト契約」節と<code>doc/specs/full-regression-contracts.md</code>を先に確認する。</li>
+<li>通知系のテストは「送信の受付」と「providerへの到達」を区別する（アプリは受付までを保証し、配送はOutboxが非同期に行う）。</li>
+</ul>
+
+</section>
+
+<section class="doc" id="doc-staff">
+<header class="doc-header"><h1>スタッフ管理</h1><p class="doc-src">正本: <code>doc/features/behavior-staff.md</code></p></header>
+<blockquote>
+<p>文書種別: behavior（条件→結果の詳細仕様。機能文書・業務仕様・コードから導出）</p>
+<p>作成日: 2026-08-16 ／ 基準commit: <code>37c908f</code></p>
+<p>正本: <a href="staff-registration.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">スタッフ参加QR・承認導線</a>、<a href="user-detail.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">スタッフ詳細</a>、<a href="shift-exclusion.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">シフト対象外スタッフ</a>、<a href="../specs/organization-billing-business-flow.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">業務仕様7・15章</a></p>
+</blockquote>
+<p>スタッフの追加、承認、変更、シフト対象外、店舗所属変更、削除、再追加について、条件の組み合わせごとの結果を定める。<br>通知の詳細は<a href="#doc-notification">通知マトリクス</a>、認可・レート制限の横断規則は<a href="#doc-authorization">認可・制限</a>を参照する。</p>
+<h2 id="staff-s2">1. 共通の前提</h2>
+<ul>
+<li>スタッフ・管理者の追加にはメールアドレスが必須である。</li>
+<li>メールアドレスは正規化（前後の空白除去、大文字小文字の同一視）して、<strong>同じ組織内だけ</strong>を照合する。別組織に同じメールの人物がいても、名前・所属・役割を一切参照しない。</li>
+<li>同じ組織に既存人物（<code>organizationPeople</code>）がいる場合はその人物を再利用し、<strong>登録済みの名前を正</strong>とする。人物が増えないため利用人数も増えない。</li>
+<li>利用人数は人物単位で数える。管理者兼スタッフ、複数店舗所属、シフト対象外、アーカイブ店舗のみ所属はいずれも1名。詳細は<a href="#doc-authorization">認可・制限</a>を参照。</li>
+</ul>
+<p>スタッフのライフサイクル全体像:</p>
+<div class="mermaid-block"><p class="mermaid-offline-note">図の描画にはインターネット接続が必要です（オフラインでは下のソースを参照）。</p><pre class="mermaid">stateDiagram-v2
+    [*] --&gt; 申請中 : 本人がQR/URLで参加申請
+    [*] --&gt; 在籍 : 管理者手入力・別店舗スタッフ追加
+    申請中 --&gt; 在籍 : 管理者が承認（人数上限を再検証）
+    申請中 --&gt; [*] : 却下
+    在籍 --&gt; シフト対象外 : トグルで切替（提出リンク失効）
+    シフト対象外 --&gt; 在籍 : 対象に戻す（割当は保持されていた）
+    在籍 --&gt; 店舗所属なし : 店舗から外す（将来割当を削除）
+    在籍 --&gt; 組織から削除 : 人物削除（管理者は権限解除が先）
+    店舗所属なし --&gt; 在籍 : 再追加（新staff ID・未提出から開始）
+    組織から削除 --&gt; 在籍 : 再追加（新staff ID・LINE再連携が必要）
+
+    note right of 店舗所属なし
+        組織人物・利用人数・管理者権限・
+        組織共通LINE連携は維持される
+    end note
+    note right of 組織から削除
+        利用人数から除外
+        過去のシフト履歴は残る
+    end note</pre><details class="mermaid-src"><summary>図のソース</summary><pre><code>stateDiagram-v2
+    [*] --&gt; 申請中 : 本人がQR/URLで参加申請
+    [*] --&gt; 在籍 : 管理者手入力・別店舗スタッフ追加
+    申請中 --&gt; 在籍 : 管理者が承認（人数上限を再検証）
+    申請中 --&gt; [*] : 却下
+    在籍 --&gt; シフト対象外 : トグルで切替（提出リンク失効）
+    シフト対象外 --&gt; 在籍 : 対象に戻す（割当は保持されていた）
+    在籍 --&gt; 店舗所属なし : 店舗から外す（将来割当を削除）
+    在籍 --&gt; 組織から削除 : 人物削除（管理者は権限解除が先）
+    店舗所属なし --&gt; 在籍 : 再追加（新staff ID・未提出から開始）
+    組織から削除 --&gt; 在籍 : 再追加（新staff ID・LINE再連携が必要）
+
+    note right of 店舗所属なし
+        組織人物・利用人数・管理者権限・
+        組織共通LINE連携は維持される
+    end note
+    note right of 組織から削除
+        利用人数から除外
+        過去のシフト履歴は残る
+    end note</code></pre></details></div>
+<h2 id="staff-s3">2. スタッフ追加</h2>
+<p>追加経路は3つある。どの経路でも結果の人物・staffの形は同じになる。</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>経路</th>
+<th>入口</th>
+<th>完了条件</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>管理者手入力</td>
+<td>Dashboard「スタッフを追加する」→手入力（<code>addStaffs</code>、1回最大50名）</td>
+<td>即時</td>
+</tr>
+<tr>
+<td>本人QR/URL申請</td>
+<td><code>/staff/register</code> → 管理者承認（<code>approveRequest</code>）</td>
+<td>管理者の承認</td>
+</tr>
+<tr>
+<td>別店舗スタッフの追加</td>
+<td>追加ダイアログ「別店舗のスタッフを追加する」（<code>addOrganizationPersonToShop</code>）</td>
+<td>即時</td>
+</tr>
+</tbody></table></div>
+<h3 id="staff-s4">2.1 追加時のデシジョンテーブル（3経路共通）</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>同一組織に同じ正規化メールの人物</th>
+<th>その他の条件</th>
+<th>結果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>なし</td>
+<td>利用人数に空きあり</td>
+<td>新しい人物＋staffを作成し、利用人数+1</td>
+</tr>
+<tr>
+<td>2</td>
+<td>なし</td>
+<td>利用人数が上限（Standardの26人目、Proの51人目等）</td>
+<td><strong>確定前に拒否</strong>。一部だけ保存しない。上位の標準プランがある場合だけプラン変更を案内し、Pro上限では現在値と上限だけを表示</td>
+</tr>
+<tr>
+<td>3</td>
+<td>active人物あり（対象店舗に未所属）</td>
+<td>-</td>
+<td>人物を再利用し店舗所属だけ追加。利用人数は増えない。名前は登録済みの値が正</td>
+</tr>
+<tr>
+<td>4</td>
+<td>active人物あり（対象店舗に所属済み）</td>
+<td>-</td>
+<td>重複追加しない</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>削除済み人物あり</strong></td>
+<td>上限に空きあり</td>
+<td><strong>削除履歴の確認を出さず通常追加として完了</strong>。内部では同じ人物をactiveへ戻し、今回の氏名・メールを人物へ反映し、<strong>新しいstaff ID</strong>を作る</td>
+</tr>
+<tr>
+<td>6</td>
+<td>削除済み人物あり</td>
+<td>利用人数上限（再追加は1人増として判定）</td>
+<td>汎用的な追加不可（削除履歴を示さない）</td>
+</tr>
+<tr>
+<td>7</td>
+<td>-</td>
+<td>account deletion受付済みの人物に一致</td>
+<td>汎用的な追加不可。person・staff・通知予約を一切変更しない</td>
+</tr>
+<tr>
+<td>8</td>
+<td>-</td>
+<td>人物とstaffの対応が一意に解決できない不整合</td>
+<td>汎用的な追加不可（fail-closed、部分適用なし）</td>
+</tr>
+<tr>
+<td>9</td>
+<td>-</td>
+<td>操作者がreadOnly／契約制限中／権限なし</td>
+<td>拒否（スタッフ追加ボタンも理由付きで無効）</td>
+</tr>
+</tbody></table></div>
+<p>再追加（#5）で<strong>復元しないもの</strong>: 旧staffの表示情報、旧staffのシフト提出と割当、管理者権限、ほかの店舗所属、session、magic link、LINE token、canonical LINE連携（組織から削除されていた場合）。<br>新しいstaffは各募集に<strong>未提出</strong>の状態から開始する。</p>
+<h3 id="staff-s5">2.2 QR/URL申請（公開HTTP）の受付条件</h3>
+<p><code>POST /staff-registration/submit</code>は次をすべて満たす場合だけ申請を保存する。</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>条件</th>
+<th>満たさない場合</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>許可Origin（<code>STAFF_REGISTRATION_ALLOWED_ORIGINS</code>）からの<code>application/json</code>、8KiB以下</td>
+<td>拒否</td>
+</tr>
+<tr>
+<td>Turnstile検証（<code>staff_registration</code> action、hostname一致）</td>
+<td>拒否</td>
+</tr>
+<tr>
+<td>レート制限内（メール3回/短時間・10回/日、リンク5回/短時間・40回/日、IP 10回/短時間・100回/日、global 100回/短時間）</td>
+<td>拒否</td>
+</tr>
+<tr>
+<td>店舗の承認待ち申請が20件未満</td>
+<td><strong>受付結果だけ返して保存しない</strong>（申請者には成功と同じ応答）</td>
+</tr>
+<tr>
+<td>登録リンクが有効、店舗・契約状態が利用可能</td>
+<td>利用不能を同じ受付結果へ変換</td>
+</tr>
+</tbody></table></div>
+<p><strong>新規申請・登録済み・申請済み・上限到達のすべてで同じ受付結果を返し、登録済みメールの有無を公開しない。</strong><br>IP制限は<code>STAFF_REGISTRATION_TRUSTED_IP_HEADER</code>が信頼できる環境だけで適用し、未設定時はclientの<code>X-Forwarded-For</code>を信頼せずIP制限を省略する。</p>
+<h3 id="staff-s6">2.3 承認・却下</h3>
+<ul>
+<li>承認時にも利用人数上限・契約状態を再検証する（<code>getPendingRequests</code>の承認可否表示は参考値で、mutationが最終判定）。</li>
+<li>削除済み人物・不整合・account deletion受付済みは、一覧の時点から<strong>削除履歴を示さない汎用的な承認不可状態</strong>として返す。</li>
+<li>QRで規約同意済みのスタッフには、承認後に法務同意メールを送らない。</li>
+<li>承認後、同じ組織人物がLINE未連携の場合だけLINE連携案内を送り、受付中の募集があれば提出リンクも送る。</li>
+<li>却下は申請を<code>rejected</code>にするだけで、人物・staffを作らない。</li>
+</ul>
+<h3 id="staff-s7">2.4 経路ごとの通知の違い</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>経路</th>
+<th>法務同意依頼</th>
+<th>LINE連携依頼</th>
+<th>受付中募集の提出リンク</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>管理者手入力</td>
+<td>送る</td>
+<td>未連携なら送る</td>
+<td>受付中募集があれば送る</td>
+</tr>
+<tr>
+<td>QR申請の承認</td>
+<td><strong>同意済みなら送らない</strong></td>
+<td>未連携なら送る</td>
+<td>受付中募集があれば送る</td>
+</tr>
+<tr>
+<td>別店舗スタッフ追加</td>
+<td>送らない（同意済みの人物を再利用）</td>
+<td><strong>連携済みなら送らない</strong>。未連携なら追加先スタッフへ送る</td>
+<td>受付中募集があれば送る</td>
+</tr>
+</tbody></table></div>
+<h2 id="staff-s8">3. プロフィール変更（氏名・シフト連絡先）</h2>
+<p><code>updatePersonProfile</code>は、対象の<code>organizationPeople</code>と、<strong>同じ組織で同じ人物に紐づく未削除の全<code>staffs</code>行</strong>へ一括同期する。</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>変更</th>
+<th>連動して変わるもの</th>
+<th>変わらないもの</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>氏名</td>
+<td>同一組織の未削除staff全行、<code>users</code>の表示名（本人の場合）</td>
+<td>別組織の人物</td>
+</tr>
+<tr>
+<td>シフト連絡先</td>
+<td>同一組織の未削除staff全行</td>
+<td><strong>Clerkのログイン方法、<code>users.email</code>、別組織の人物、組織の請求先メールアドレス</strong></td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>権限を持つ管理者は本人・他者のどちらも編集できる。アカウント連携の有無で画面は変わらない。</li>
+<li>所属に1件でも不整合があれば<strong>全体をfail-closed</strong>にし、部分更新しない。</li>
+<li>メール変更後は、<strong>LINEを受信できないスタッフに限り</strong>、変更後の宛先へ受付中の募集（未削除・<code>open</code>・シフト開始前・締切以前）を再送する。</li>
+</ul>
+<h2 id="staff-s9">4. シフト対象外の切替（<code>setShiftExclusion</code>）</h2>
+<p>店舗ごとの設定。「このユーザーをシフト対象とする」トグルで切り替える。管理者本人も対象外にできる。</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>対象外にすると</th>
+<th>対象に戻すと</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>シフト表・スタッフ向け確定シフト表示から除外</td>
+<td>再び表示</td>
+</tr>
+<tr>
+<td>シフト関連通知（募集開始・提出催促・確定、一括/個別再送/追加・メール変更・LINE follow追送のすべて）から除外</td>
+<td>再び通知対象</td>
+</tr>
+<tr>
+<td>提出率の母数から除外（分子は母数を上限にクランプし「3/2人」を出さない）</td>
+<td>母数に戻る</td>
+</tr>
+<tr>
+<td><strong>発行済みの提出用session・magic linkを失効</strong>（古いリンクからの閲覧・提出・再発行を全て拒否）</td>
+<td>新しいリンクは通常どおり発行される</td>
+</tr>
+<tr>
+<td>行に「シフト対象外」バッジ、「募集中/確定シフトを再送する」ボタンが無効化</td>
+<td>解除</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>LINE連携tokenはシフト以外の通知（同意依頼など）で使うため<strong>失効させない</strong>。LINE連携依頼・規約同意などシフト以外の通知は従来どおり送る。</li>
+<li>確定済みの<code>shiftAssignments</code>は削除しない。対象に戻せば再び表示・通知される。</li>
+<li>UIは先に表示を切り替え、失敗時に元へ戻す。切替直後1000msは再操作を無効にする。</li>
+</ul>
+<h2 id="staff-s10">5. 店舗所属の変更（desired-set一括変更）</h2>
+<p>スタッフ詳細の「所属店舗を変更」（人物側）と店舗詳細の「所属スタッフを変更する」（店舗側）は、同じ契約で動く。</p>
+<h3 id="staff-s11">5.1 変更の前提条件</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>条件</th>
+<th>結果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Dialogを開いた時点の<code>membershipFingerprint</code>が保存時も一致</td>
+<td>続行</td>
+</tr>
+<tr>
+<td>fingerprintが変わった（他の変更が挟まった）</td>
+<td><strong>変更全体を拒否</strong>し、最新状態の再取得と選択し直しを求める。DB・scheduler・Outbox・監査を一切変更しない</td>
+</tr>
+<tr>
+<td>解除対象の将来シフト割当previewが取得後に変化</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>previewが<code>tooMany</code>、または解除対象全体の割当がtransaction上限（500件）超過</td>
+<td>一部だけ処理せず、確定を無効にして「対象が多いため変更できない」と表示</td>
+</tr>
+<tr>
+<td>差分なし／処理中／閲覧専用／契約制限中</td>
+<td>「変更する」ボタンを無効化。mutationも拒否</td>
+</tr>
+<tr>
+<td>同じ<code>requestId</code>＋同じ変更内容の再実行</td>
+<td>最初に確定した結果を返す（staff・通知・監査を重複させない）</td>
+</tr>
+<tr>
+<td>同じ<code>requestId</code>を<strong>異なる内容</strong>へ再利用</td>
+<td>拒否</td>
+</tr>
+</tbody></table></div>
+<h3 id="staff-s12">5.2 チェックの扱い</h3>
+<ul>
+<li><code>active</code>店舗は所属中・未所属を問わず編集できる。</li>
+<li><code>archived</code>・<code>planSuspended</code>の既存所属は<strong>チェック済みの変更不可</strong>として保持する（desired-setから脱落させない）。非activeの未所属店舗と削除済み店舗は表示しない。</li>
+<li>追加と解除は「変更する」1回で確定し、二重確認Dialogは開かない。解除行にだけ赤字で影響（今日以降の割当削除・通知停止・LINE連携は組織に残る）を表示する。</li>
+</ul>
+<h3 id="staff-s13">5.3 解除の効果</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>終了するもの</th>
+<th>保持するもの</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>対象店舗のstaff（論理削除、<strong>新staff IDでの再開始</strong>）</td>
+<td>過去のシフト割当・提出（履歴として保持、新staffへ継承しない）</td>
+</tr>
+<tr>
+<td><strong>今日以降のシフト割当（削除）</strong></td>
+<td>組織人物（<code>organizationPeople</code>）、利用人数への算入</td>
+</tr>
+<tr>
+<td>staff用session・magic link・LINE token・互換用店舗LINE投影</td>
+<td><strong>組織共通のcanonical LINE連携</strong></td>
+</tr>
+<tr>
+<td>対象店舗からの未送信通知</td>
+<td>管理者権限、ほかの店舗所属</td>
+</tr>
+<tr>
+<td>通知履歴（画面から即時対象外→cleanupで物理削除）</td>
+<td>-</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li><strong>全店舗のチェックを外すことは許可</strong>する。「無所属としてスタッフは残り続けます」と表示し、利用人数は減らない（人数枠を空けるにはユーザー削除）。</li>
+<li><strong>解除の対象</strong>はactive/readOnlyの管理者人物でもよい（先に管理者権限を外す必要はなく、管理者権限と組織人物は維持する）。ただし<strong>操作できるのは対象組織のactiveな管理者だけ</strong>で、readOnlyの操作者は拒否される（<code>removePersonFromShop</code>は<code>allowReadOnly</code>なしの権限確認＋業務書き込み確認を行う）。</li>
+<li>変更後にその店舗のactive管理者所属が0人になる場合は、店舗管理通知（参加申請digest・確定催促・不達digest等）が送信されなくなる警告をDialog内に表示する。警告は変更を<strong>拒否しない</strong>。</li>
+<li>解除・追加で影響するopen募集は、回答数を変更後のactiveかつシフト対象のstaffの提出だけで再計算する（旧staffの提出は履歴に残すが現在の回答数から除外）。</li>
+</ul>
+<h2 id="staff-s14">6. 組織からの削除（<code>removePersonFromOrganization</code>）</h2>
+<h3 id="staff-s15">6.1 削除できない条件</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>条件</th>
+<th>結果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>対象がactiveまたはreadOnlyの管理者</td>
+<td><strong>拒否</strong>。先に管理者設定で権限を外す（mutationがserver-side guardで再確認）</td>
+</tr>
+<tr>
+<td>対象が最後のactive管理者（＝自分の権限解除が先に拒否される）</td>
+<td>権限解除の時点で拒否</td>
+</tr>
+<tr>
+<td>対象のメールが組織の請求先メールアドレスに登録済み</td>
+<td>請求先を変更するまで削除を完了できない</td>
+</tr>
+<tr>
+<td>対象が最後の復旧担当者（契約制限中）</td>
+<td>引き継ぎまたは復旧完了まで削除不可</td>
+</tr>
+<tr>
+<td>今日以降の割当が一度に処理できる上限（500件）超過</td>
+<td>削除を止め、先に対象シフトの整理を案内</td>
+</tr>
+<tr>
+<td>確認画面表示後に割当件数・対象が変化</td>
+<td>削除せず最新内容を再確認させる</td>
+</tr>
+</tbody></table></div>
+<h3 id="staff-s16">6.2 削除の効果</h3>
+<ul>
+<li>その組織における全店舗所属・管理権限・スタッフ権限・閲覧権限を終了し、利用人数から除外する。</li>
+<li>今日以降のシフト割当を、所属の終了と<strong>同じ処理</strong>で削除する（確認画面にはJST業務日付で数えた「今日以降のシフトN件からも外れます」を表示）。</li>
+<li>既存のアプリ内session・スタッフ向けリンク・その人物が発行した未使用招待を失効させる。</li>
+<li>削除開始後は新しい通知を予約せず、未送信通知を停止する。外部送信の直前にも組織所属を再確認する。</li>
+<li>その組織のLINE連携を終了する（別組織の連携は影響なし）。</li>
+<li><strong>保持</strong>: 過去の確定シフト・割当・監査履歴（削除済み人物と分かる表示）、ログインアカウント、別組織の所属。募集の状態・確定日時・他の人物の割当と提出は変更しない。</li>
+<li>組織からの削除はサービス上の所属解除であり、個人情報の完全消去とは別の手続きである。</li>
+<li>自分自身を削除した場合はsearchを外した<code>/dashboard</code>へ戻り、残っている組織を再解決する。</li>
+</ul>
+<h2 id="staff-s17">7. イベント別のデータ残存マトリクス（○×早見表）</h2>
+<p>4〜6章の効果を1枚に並べ直したもの。○＝残る・継続、×＝消える・停止、△＝条件付き、−＝該当なし。</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>項目</th>
+<th align="center">シフト対象外化</th>
+<th align="center">店舗所属の解除</th>
+<th align="center">組織から削除</th>
+<th align="center">（参考）再追加後</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>過去の提出・シフト割当</td>
+<td align="center">○</td>
+<td align="center">○（履歴として）</td>
+<td align="center">○（削除済み表示）</td>
+<td align="center">○（旧staffの履歴。新staffへ継承しない）</td>
+</tr>
+<tr>
+<td>今日以降のシフト割当</td>
+<td align="center">○（削除しない）</td>
+<td align="center">×（削除）</td>
+<td align="center">×（削除）</td>
+<td align="center">×（復元しない）</td>
+</tr>
+<tr>
+<td>提出・閲覧のsession／magic link</td>
+<td align="center">×</td>
+<td align="center">×（対象店舗分）</td>
+<td align="center">×（全店舗分）</td>
+<td align="center">新規発行から利用</td>
+</tr>
+<tr>
+<td>シフト関連通知（募集・催促・確定）</td>
+<td align="center">×</td>
+<td align="center">×（対象店舗分）</td>
+<td align="center">×</td>
+<td align="center">○（新staffとして）</td>
+</tr>
+<tr>
+<td>シフト以外の通知（同意依頼・LINE案内）</td>
+<td align="center">○</td>
+<td align="center">×（対象店舗分）</td>
+<td align="center">×</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td>組織共通のLINE連携（canonical）</td>
+<td align="center">○</td>
+<td align="center"><strong>○（残り得る）</strong></td>
+<td align="center">×（その組織分を終了）</td>
+<td align="center">店舗解除後の再追加は○／組織削除後は×（再連携が必要）</td>
+</tr>
+<tr>
+<td>利用人数への算入</td>
+<td align="center">○</td>
+<td align="center">○（無所属でも1名）</td>
+<td align="center">×（除外）</td>
+<td align="center">○（1名として再算入）</td>
+</tr>
+<tr>
+<td>管理者権限</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">−（先に権限解除が前提）</td>
+<td align="center">×（自動復元しない）</td>
+</tr>
+<tr>
+<td>ほかの店舗への所属</td>
+<td align="center">○</td>
+<td align="center">○（個別解除の場合）</td>
+<td align="center">×</td>
+<td align="center">−</td>
+</tr>
+<tr>
+<td>通知履歴（管理画面表示）</td>
+<td align="center">○</td>
+<td align="center">×（即時非表示→cleanupで物理削除）</td>
+<td align="center">×（同左）</td>
+<td align="center">新規分のみ</td>
+</tr>
+</tbody></table></div>
+<h2 id="staff-s18">8. テスト観点への変換メモ</h2>
+<ul>
+<li>2.1の表の各行がそのまま1ケースになる。特に#5〜#8は「<strong>応答から削除履歴・存在が判別できないこと</strong>」まで検証する。</li>
+<li>5.1のstale系は「Dialogを開いたまま別経路で同じ人物を変更→保存」の並行シナリオで再現する。</li>
+<li>境界値: 手入力50名/51名、承認待ち20件/21件、割当500件/501件、利用人数上限ちょうど/+1。</li>
+<li>再追加後の検証は「旧リンクが無効」「新staffは未提出」「回答数が再計算される」「LINE連携の保持/非保持（店舗解除のみ vs 組織削除後）」の4点を必ず含める。</li>
+</ul>
+
+</section>
+
+<section class="doc" id="doc-organization">
+<header class="doc-header"><h1>組織・店舗・管理者・アカウント</h1><p class="doc-src">正本: <code>doc/features/behavior-organization.md</code></p></header>
+<blockquote>
+<p>文書種別: behavior（条件→結果の詳細仕様。機能文書・業務仕様・コードから導出）</p>
+<p>作成日: 2026-08-16 ／ 基準commit: <code>37c908f</code></p>
+<p>正本: <a href="organization-billing.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">組織課金、複数店舗、複数管理者</a>、<a href="../specs/organization-billing-business-flow.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">業務仕様</a>、<a href="shop-settings.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">店舗設定</a>、<a href="data-deletion.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">店舗・組織削除</a>、<a href="account-deletion.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">アカウント削除</a>、<a href="auth-pages.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">認証画面とアカウント設定</a></p>
+</blockquote>
+<p>組織・店舗・管理者・ログインアカウントの操作について、条件の組み合わせごとの結果を定める。<br>複数組織・複数店舗・管理者招待・課金は通常の画面とAPIから利用できる。以下の契約は、認証、組織境界、管理者状態、契約状態、上限、token lifecycleをserver-sideで再確認する。</p>
+<h2 id="organization-s2">1. 組織の作成</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>条件</th>
+<th>結果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>組織所属0件の認証済み利用者が<code>/dashboard</code>の初回Setupを実行</td>
+<td>最初の組織・店舗・人物・管理者本人・店舗スタッフを一度に作成。課金状態は<strong>Pro相当・利用人数上限50名の3か月Trial</strong>。Trial期限・課金deadlineを作り、Stripeオブジェクトは作らない</td>
+</tr>
+<tr>
+<td>所属がある利用者が初回Setupを試行</td>
+<td>server-sideで拒否（初回Setupは所属0件のみ）</td>
+</tr>
+<tr>
+<td>追加組織作成</td>
+<td><strong><code>active.free</code></strong>（5名・1店舗・2管理者）で開始</td>
+</tr>
+<tr>
+<td>自作組織を既に3つ保持</td>
+<td>拒否（招待による所属と削除済み組織は数えない。削除すれば再作成可）</td>
+</tr>
+<tr>
+<td>1日の作成回数が10回に到達</td>
+<td>拒否（rate limit）</td>
+</tr>
+<tr>
+<td>同じ<code>requestId</code>での再実行</td>
+<td>冪等（組織を重複作成しない）</td>
+</tr>
+<tr>
+<td>追加組織作成時、所属していない店舗を<code>sourceShopId</code>に指定</td>
+<td>拒否。同じ店舗の別人物の連絡先も引き継がない</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>初回Setupで入力した氏名・シフト連絡先は、最初の人物・店舗スタッフ・組織の初期請求先へsnapshotする。以後は独立して管理し、自動同期しない。</li>
+<li>追加組織へは操作本人の氏名とシフト連絡先<strong>だけ</strong>を引き継ぐ。既存組織の別人物・スタッフ所属・店舗・シフトは複製しない。</li>
+<li>組織名の初期値は「＜最初の店舗名＞グループ」。80文字まで、後から自由に変更できる（「グループ」の削除も可）。</li>
+</ul>
+<h2 id="organization-s3">2. 組織名の変更・組織削除</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>操作</th>
+<th>条件</th>
+<th>結果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>組織名変更</td>
+<td>有効管理者。<strong>課金状態を問わず</strong>（契約制限中も可）</td>
+<td>変更（80文字まで）</td>
+</tr>
+<tr>
+<td>組織削除</td>
+<td>下表の全条件</td>
+<td>論理削除＋全店舗の永続cleanup開始</td>
+</tr>
+</tbody></table></div>
+<p>組織削除が<strong>拒否</strong>される条件（1つでも該当すれば拒否）:</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>条件</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>操作者が組織で唯一の<code>active</code>管理者ではない（<code>readOnly</code>を含む他の管理者がいる場合は先に整理）</td>
+</tr>
+<tr>
+<td>2</td>
+<td>課金状態が許可外。許可は「有料プラン未選択のTrial」「Free」「支払い不要Pro相当」のみ</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Trialでも、Stripe Subscription・進行中のTrial作成operation・終了証跡のない過去のoperationが残っている</td>
+</tr>
+<tr>
+<td>4</td>
+<td>未完了の店舗削除jobがある</td>
+</tr>
+</tbody></table></div>
+<p>組織削除の効果は<a href="data-deletion.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">店舗・組織削除</a>の表を正本とする。要点:</p>
+<ul>
+<li>全店舗・全staff・組織人物・管理者所属を論理削除し、session・token・登録リンク・LINE連携（その組織分）・未送信通知を失効・停止する。</li>
+<li><strong><code>users</code>（ログインアカウント）は変更しない</strong>。最後の有効組織を削除した利用者は同じ認証のまま店舗登録画面へ戻り、新しい組織を作成できる。</li>
+<li>氏名・メール・店舗名・組織名・請求先は業務履歴の識別のためDBに保持する（個人情報の完全消去ではない）。</li>
+</ul>
+<h2 id="organization-s4">3. 店舗の設定・追加・アーカイブ・削除</h2>
+<h3 id="organization-s5">3.1 店舗設定の変更</h3>
+<ul>
+<li>店舗名（80文字）、希望シフトの提出方法（時間指定／日ごと／勤務区分）、定休日を1回のmutationで一括更新する。</li>
+<li>勤務区分は最大4件。保存時に開始時間昇順（同時刻は終了時間昇順）へ整列する。</li>
+<li><strong>提出方法を変更しても既存募集には影響しない</strong>。募集は作成時点の提出方法をsnapshotしている。</li>
+<li>閲覧専用（readOnly）・契約制限中は編集導線が無効になり、mutationも拒否する。</li>
+</ul>
+<h3 id="organization-s6">3.2 店舗の追加・再稼働</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>条件</th>
+<th>結果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>稼働店舗が5店舗未満</td>
+<td>追加できる</td>
+</tr>
+<tr>
+<td>6店舗目の追加</td>
+<td><strong>確定前に停止</strong>し問い合わせへ誘導</td>
+</tr>
+<tr>
+<td>アーカイブ済み・プラン停止中の店舗</td>
+<td>稼働店舗数に数えない</td>
+</tr>
+<tr>
+<td>アーカイブ済み店舗の再稼働</td>
+<td>店舗上限を<strong>再確認</strong>してから稼働へ戻す</td>
+</tr>
+</tbody></table></div>
+<h3 id="organization-s7">3.3 店舗のアーカイブ</h3>
+<ul>
+<li>店舗データと過去シフトは削除しない。</li>
+<li>アーカイブ済み店舗にしか所属していない人物も、組織から削除されるまで利用人数に含める。</li>
+<li>契約制限中の復旧担当者も実行できる（復旧のための整理操作）。</li>
+</ul>
+<h3 id="organization-s8">3.4 店舗削除</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>条件</th>
+<th>結果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>有効管理者が、最後ではない未削除店舗を削除</td>
+<td>論理削除＋cleanup job開始</td>
+</tr>
+<tr>
+<td><strong>最後の未削除店舗</strong>を削除</td>
+<td>拒否</td>
+</tr>
+<tr>
+<td>clientの確認ID・更新時刻がサーバー最新と不一致</td>
+<td>拒否（最新状態と照合）</td>
+</tr>
+</tbody></table></div>
+<p>効果: 対象店舗のstaff・店舗LINE投影を論理削除、店舗用session・magic link・LINE連携token・法務同意token・登録リンクを失効、未送信通知を停止。<br><code>users</code>・<code>organizationPeople</code>・<code>organizationMembers</code>は変更せず、対象店舗のユーザーは組織人物として残る。<br>削除成功後は、削除対象と異なる現在の店舗、なければ同組織の先頭の未削除店舗へ復帰する。</p>
+<h2 id="organization-s9">4. 管理者の追加（招待）・権限解除</h2>
+<h3 id="organization-s10">4.1 招待の発行</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>条件</th>
+<th>結果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>有効管理者が、既存スタッフ1名を選択 or 新規の氏名＋メールを入力</td>
+<td>招待メールを送付（<strong>LINEでは送らない</strong>）。tokenは7日有効・一回限り</td>
+</tr>
+<tr>
+<td>2</td>
+<td>管理者上限超過（有効管理者＋期限内の未承認招待の合計が、通常5名／Free 2名を超える）</td>
+<td><strong>発行時に拒否</strong></td>
+</tr>
+<tr>
+<td>3</td>
+<td>新規人物の招待で利用人数に空きがない</td>
+<td>拒否（承認時の超過を防ぐため<strong>1人分の枠を発行時に予約</strong>。取消・期限切れで解放）</td>
+</tr>
+<tr>
+<td>4</td>
+<td>既存スタッフの招待</td>
+<td>利用人数の枠は追加予約しない（管理者数のみ+1見込み）</td>
+</tr>
+<tr>
+<td>5</td>
+<td>同じ組織×同じ正規化メールに期限内の有効招待が既にある</td>
+<td>新規発行を拒否（<strong>暗黙の再送にしない</strong>。招待中一覧から明示的に再送する）</td>
+</tr>
+<tr>
+<td>6</td>
+<td>同じメールへの並行発行</td>
+<td>招待と予約枠を1つだけ作る</td>
+</tr>
+<tr>
+<td>7</td>
+<td>旧<code>freeManagerExchange</code>招待が期限内に残っている（旧Free互換）</td>
+<td>新しい追加招待を発行しない</td>
+</tr>
+<tr>
+<td>8</td>
+<td>再送</td>
+<td>旧招待を失効させtokenをローテーション（<strong>古いURLは使えなくなる</strong>）</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>招待URLにはメール・組織ID・役割を含めず、ランダム値だけを含める。</li>
+<li>外部人物の招待では、発行時点で人物・所属を作らない（承認transactionで初めて作る）。</li>
+<li>招待発行者が組織から削除された場合、その発行済み未承認招待は無効になる。</li>
+</ul>
+<h3 id="organization-s11">4.2 招待の承認（受諾）</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>状況</th>
+<th>承認できる条件</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>招待対象の組織人物がログインアカウントへ<strong>接続済み</strong></td>
+<td><strong>同じアカウントでログインした本人のみ</strong>（メール照合は本人性の代わりにしない）</td>
+</tr>
+<tr>
+<td>2</td>
+<td>未接続の人物、または人物がまだ存在しない</td>
+<td>Clerkが<strong>確認済み</strong>として返すメールアドレスのいずれかが招待先メールと完全一致（primaryのみの値や未確認メールは根拠にしない）</td>
+</tr>
+<tr>
+<td>3</td>
+<td>未登録の受信者</td>
+<td>アカウント登録後に同じ招待へ戻って承認できる</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Clerkの設定不足・一時障害・照会失敗</td>
+<td>承認を完了せず、<strong>招待を未使用のまま</strong>再試行可能な結果を返す</td>
+</tr>
+<tr>
+<td>5</td>
+<td>期限切れ／使用済み／取消済み／再送前の古いURL</td>
+<td>承認不可</td>
+</tr>
+<tr>
+<td>6</td>
+<td>既存スタッフ招待で、招待後に対象スタッフのメールが変わった</td>
+<td>古い招待は承認不可。新しいメールへ再招待する</td>
+</tr>
+<tr>
+<td>7</td>
+<td>承認時点で契約状態・利用人数上限・管理者上限に違反</td>
+<td>承認拒否（発行時と承認時の<strong>両方</strong>で確認）</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>承認完了で受信者は<strong>組織全体の</strong>有効管理者になる（全店舗を管理でき、契約操作も可能）。</li>
+<li>承認完了は本人と他の全有効管理者へメールで通知する。</li>
+<li>承認前に同じ人物がスタッフとして追加された場合は、予約枠を実際の人物へ付け替えて二重に数えない。</li>
+<li>契約制限開始・旧Free移行時に未承認の追加招待を無効化する（通常の有料契約更新では無効化しない）。</li>
+</ul>
+<h3 id="organization-s12">4.3 管理者権限の解除</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>条件</th>
+<th>結果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>2名以上の有効管理者がいる組織で1名の権限を解除</td>
+<td>可。人物・シフト記録・スタッフ所属は維持</td>
+</tr>
+<tr>
+<td><strong>最後のactive管理者（1名→0名）</strong></td>
+<td><strong>拒否</strong></td>
+</tr>
+<tr>
+<td>Freeで2名→1名</td>
+<td>可</td>
+</tr>
+<tr>
+<td>解除された人物（元管理者）の以後</td>
+<td>管理画面のデータ（組織設定・Dashboard・シフト・過去データ・スタッフ情報）を閲覧できない。スタッフ所属があればスタッフ向け機能（提出・通知）は継続</td>
+</tr>
+<tr>
+<td>解除後の自動復元</td>
+<td>しない（契約終了や再契約でも復元しない）</td>
+</tr>
+<tr>
+<td>解除後に組織からも削除したい</td>
+<td>権限解除→人物削除の<strong>2段階</strong>（管理者のままの人物削除はserver guardで拒否）</td>
+</tr>
+</tbody></table></div>
+<p>自分自身の権限を解除した場合は、失効した店舗をURLに残さずダッシュボードへ戻る。</p>
+<h2 id="organization-s13">5. アカウント（ログイン方法）の変更</h2>
+<p>ログイン方法はClerkが正本で、シフト連絡先・請求先とは独立している。3状態と可能な操作:</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>状態</th>
+<th>できる操作</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Googleのみ</td>
+<td>メールアドレス＋パスワードの設定</td>
+</tr>
+<tr>
+<td>メール・パスワードのみ</td>
+<td>メインのメールアドレス変更、パスワード変更、Google認証の追加</td>
+</tr>
+<tr>
+<td>両方</td>
+<td>メールアドレス変更、パスワード変更、Google認証の解除</td>
+</tr>
+</tbody></table></div>
+<h3 id="organization-s14">5.1 条件別の挙動</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>操作</th>
+<th>条件</th>
+<th>結果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>メインのメールアドレス変更</td>
+<td>変更先が未確認</td>
+<td><code>email_code</code>（6桁コード）で所有確認後にPrimaryへ切替</td>
+</tr>
+<tr>
+<td>2</td>
+<td>同上</td>
+<td>旧Primaryが<code>oauth_google</code>にlink</td>
+<td>旧PrimaryをGoogleログイン維持のため<strong>secondaryとして保持</strong>（削除しない）</td>
+</tr>
+<tr>
+<td>3</td>
+<td>同上</td>
+<td>旧Primaryがgoogle-linkでない</td>
+<td>旧Primaryを削除。削除失敗時は可能な限り旧Primaryへ戻して再試行を案内</td>
+</tr>
+<tr>
+<td>4</td>
+<td>パスワード変更</td>
+<td>現在のパスワードをserver検証</td>
+<td>変更成功で<strong>他端末をログアウト</strong>（現在の端末は維持）</td>
+</tr>
+<tr>
+<td>5</td>
+<td>パスワード初回設定（Googleのみ）</td>
+<td>メール確認→パスワード設定</td>
+<td>他端末はログアウトしない</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Google認証の追加</td>
+<td>選んだGoogleが<strong>別のClerk Userに接続済み</strong></td>
+<td>自動統合せずエラー（既存のメール・パスワードは維持）</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Google認証の解除</td>
+<td>有効なパスワード＋確認済みPrimaryが残る</td>
+<td>解除できる</td>
+</tr>
+<tr>
+<td>8</td>
+<td>同上</td>
+<td><strong>Googleのみの状態</strong></td>
+<td>解除不可。「先にメールアドレス・パスワードを設定」と赤いSnackbarで通知</td>
+</tr>
+<tr>
+<td>9</td>
+<td>応答喪失（通信断）</td>
+<td>メール・Google系</td>
+<td>reloadして確定状態を確認し、完了条件を満たせば成功へ収束。EmailAddressを重複作成しない</td>
+</tr>
+<tr>
+<td>10</td>
+<td>応答喪失</td>
+<td>パスワード変更</td>
+<td>反映済みの可能性があるため<strong>自動再試行しない</strong>。成功も表示しない</td>
+</tr>
+<tr>
+<td>11</td>
+<td>別端末・新しい端末相当でのパスワードログイン</td>
+<td>Clerkが追加確認を要求</td>
+<td>メール確認コードによる本人確認。信頼済み端末の判定はClerkが正本（Cookie削除・シークレットモード等で再要求）</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>どのログイン方法変更も、<strong>シフト連絡先・請求先メールアドレス・<code>users.email</code>を変更しない</strong>（逆も同様）。Clerk・<code>users</code>・組織のメールが異なる状態は正常。</li>
+<li>任意のEmailAddressを選んで削除する操作と、パスワードの削除は提供しない。</li>
+<li>LINEアプリ内ブラウザではGoogle OAuthを外部ブラウザで開き直す。メール・パスワード認証はLINE内でも利用可能。</li>
+</ul>
+<h2 id="organization-s15">6. アカウント削除</h2>
+<p>strict再認証（Clerk）を経て受け付ける。<strong>受付＝完了ではない</strong>（cleanup完了後にClerkユーザーを削除する）。</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>本人の有効な組織所属</th>
+<th>管理者構成</th>
+<th>結果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>なし</td>
+<td>-</td>
+<td>ローカル利用を停止し、Clerkユーザー削除へ進む</td>
+</tr>
+<tr>
+<td>2</td>
+<td>1つ</td>
+<td>本人<strong>以外</strong>に有効な<code>active</code>管理者がいる</td>
+<td>本人のmanager・person・staff・session・token・LINE連携・未送信通知を終了し、今日以降の割当を削除。<strong>組織・店舗・他の管理者・過去のシフト履歴は維持</strong>。本人staffの通知履歴が消えたことを確認してからClerk削除</td>
+</tr>
+<tr>
+<td>3</td>
+<td>1つ</td>
+<td>本人が唯一の有効な<code>active</code>管理者</td>
+<td><strong>組織を論理削除</strong>して全店舗cleanupを開始。cleanup完了を確認してからClerk削除</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>2つ以上</strong>、または所属不整合</td>
+<td>-</td>
+<td><strong>受付しない</strong>。所属を1つ以下へ整理するか問い合わせを案内</td>
+</tr>
+</tbody></table></div>
+<p>追加の拒否条件:</p>
+<ul>
+<li><code>readOnly</code>管理者は引き継ぎ先とみなさない（#3の判定で「他の管理者」に数えない）。</li>
+<li>共有組織から退出する本人が<strong>請求先メールアドレスの登録者</strong>または<strong>最後の復旧担当者</strong>の場合、先に別の管理者へ移すまで受付しない。</li>
+<li>previewと受付の間に組織・管理者・店舗・課金状態・将来割当が変化した場合、stale fingerprintとして拒否する。</li>
+<li>Clerkの代理操作session（<code>actor</code>/<code>act</code> claim）は本人同意として扱わずfail-closedで拒否する。</li>
+</ul>
+<p>削除後: <code>getCurrentUser</code>は<code>accountDeleted</code>のbooleanだけを返し、保持している氏名・メールを画面へ返さない。再登録した新しいClerkユーザーを過去の履歴へ自動関連付けしない。</p>
+<h2 id="organization-s16">7. 課金・契約の状態遷移</h2>
+<p>上限は<a href="#doc-authorization">認可・制限</a>のプラン表、通知は<a href="#doc-notification">通知マトリクス</a>を参照。ここでは遷移と操作条件だけを定める。</p>
+<h3 id="organization-s17">7.1 状態遷移表（業務仕様22章の要約）</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>現在</th>
+<th>イベント</th>
+<th>次の状態</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>組織未作成</td>
+<td>所属0件の初回Setup</td>
+<td>Trial</td>
+</tr>
+<tr>
+<td>組織所属あり</td>
+<td>追加組織作成（公開時）</td>
+<td>Free</td>
+</tr>
+<tr>
+<td>Trial</td>
+<td>継続予約して終了</td>
+<td>初回請求処理中（Standard相当を継続）</td>
+</tr>
+<tr>
+<td>初回請求処理中</td>
+<td>支払い成功／失敗</td>
+<td>選択プラン／支払い猶予（14日）</td>
+</tr>
+<tr>
+<td>Trial</td>
+<td>未契約または継続予約取消のまま終了</td>
+<td>契約制限中（<code>trialEndedWithoutSubscription</code>）</td>
+</tr>
+<tr>
+<td>Standard</td>
+<td>Pro即時変更を開始</td>
+<td>支払い結果待ち（確定までStandard維持）</td>
+</tr>
+<tr>
+<td>Pro</td>
+<td>Standard変更予約</td>
+<td>期間末変更予定（期間末までPro）</td>
+</tr>
+<tr>
+<td>Standard／Pro</td>
+<td>解約予約</td>
+<td>解約予定（<code>restrictAtPeriodEnd: true</code>。期間末まで現行プラン）</td>
+</tr>
+<tr>
+<td>変更・解約予定</td>
+<td>予約取消（provider確認後）</td>
+<td>元のプラン</td>
+</tr>
+<tr>
+<td>期間末変更予定</td>
+<td>phase移行成功＋Standard条件内／条件外</td>
+<td>Standard／Standard向け契約制限中（削減のみ許可）</td>
+</tr>
+<tr>
+<td>解約予定</td>
+<td>Stripeで期間末終了を確認</td>
+<td>契約制限中（<code>scheduledCancellation</code>）</td>
+</tr>
+<tr>
+<td>Standard／Pro</td>
+<td>更新支払い失敗</td>
+<td>支払い猶予（14日、全機能継続）</td>
+</tr>
+<tr>
+<td>支払い猶予</td>
+<td>支払い成功／14日経過</td>
+<td>元のプラン（変更後は上限再評価）／契約制限中</td>
+</tr>
+<tr>
+<td>契約制限中</td>
+<td>再契約成功</td>
+<td>Standard／Pro（復元対象を確認後）</td>
+</tr>
+<tr>
+<td>Standard向け契約制限中</td>
+<td>人物削除で25名以内</td>
+<td>Standard（自動再評価）</td>
+</tr>
+</tbody></table></div>
+<p>主要経路の図示（旧Free互換・移行系は表を正本とする）:</p>
+<div class="mermaid-block"><p class="mermaid-offline-note">図の描画にはインターネット接続が必要です（オフラインでは下のソースを参照）。</p><pre class="mermaid">stateDiagram-v2
+    [*] --&gt; Trial : 所属0件の初回Setup
+    [*] --&gt; Free : 追加組織作成（公開時）
+    state 支払い不要Pro相当
+
+    Trial --&gt; 初回請求処理中 : 継続予約して終了
+    Trial --&gt; 契約制限中 : 未契約/予約取消のまま終了
+    初回請求処理中 --&gt; 有料プラン : 初回支払い成功
+    初回請求処理中 --&gt; 支払い猶予 : 初回支払い失敗
+
+    Free --&gt; 有料プラン : 契約開始（支払い成功後）
+    有料プラン --&gt; 変更・解約予定 : 期間末変更/解約を予約
+    変更・解約予定 --&gt; 有料プラン : 予約取消（provider確認後）
+    変更・解約予定 --&gt; 契約制限中 : 期間末終了/変更先の上限超過
+    変更・解約予定 --&gt; 有料プラン : 期間末変更が条件内で成立
+
+    有料プラン --&gt; 支払い猶予 : 更新支払い失敗
+    支払い猶予 --&gt; 有料プラン : 14日以内に支払い成功
+    支払い猶予 --&gt; 契約制限中 : 14日経過
+
+    契約制限中 --&gt; 有料プラン : 再契約成功（復元対象を確認後）
+
+    note right of 支払い不要Pro相当
+        期限・料金なし
+        どの処理からも他状態へ変更しない
+    end note
+    note right of 支払い猶予
+        失敗前プランの全機能を継続
+        猶予終了3日前に再通知
+    end note
+    note right of 契約制限中
+        データ保持・閲覧と復旧操作のみ
+        直前の管理者・店舗を復旧候補に保持
+    end note</pre><details class="mermaid-src"><summary>図のソース</summary><pre><code>stateDiagram-v2
+    [*] --&gt; Trial : 所属0件の初回Setup
+    [*] --&gt; Free : 追加組織作成（公開時）
+    state 支払い不要Pro相当
+
+    Trial --&gt; 初回請求処理中 : 継続予約して終了
+    Trial --&gt; 契約制限中 : 未契約/予約取消のまま終了
+    初回請求処理中 --&gt; 有料プラン : 初回支払い成功
+    初回請求処理中 --&gt; 支払い猶予 : 初回支払い失敗
+
+    Free --&gt; 有料プラン : 契約開始（支払い成功後）
+    有料プラン --&gt; 変更・解約予定 : 期間末変更/解約を予約
+    変更・解約予定 --&gt; 有料プラン : 予約取消（provider確認後）
+    変更・解約予定 --&gt; 契約制限中 : 期間末終了/変更先の上限超過
+    変更・解約予定 --&gt; 有料プラン : 期間末変更が条件内で成立
+
+    有料プラン --&gt; 支払い猶予 : 更新支払い失敗
+    支払い猶予 --&gt; 有料プラン : 14日以内に支払い成功
+    支払い猶予 --&gt; 契約制限中 : 14日経過
+
+    契約制限中 --&gt; 有料プラン : 再契約成功（復元対象を確認後）
+
+    note right of 支払い不要Pro相当
+        期限・料金なし
+        どの処理からも他状態へ変更しない
+    end note
+    note right of 支払い猶予
+        失敗前プランの全機能を継続
+        猶予終了3日前に再通知
+    end note
+    note right of 契約制限中
+        データ保持・閲覧と復旧操作のみ
+        直前の管理者・店舗を復旧候補に保持
+    end note</code></pre></details></div>
+<h3 id="organization-s18">7.2 主要ルール</h3>
+<ul>
+<li>Trial期間は開始から3か月。終了は該当日の0:00 JST（同日がない月は末日へ丸め）。</li>
+<li>支払い猶予は<strong>最初の失敗時点から14日後の同時刻</strong>で固定（Stripeの再試行回数で延長しない）。猶予中は失敗前プランの全機能を利用できる。</li>
+<li>14日経過後は旧Subscriptionを終了し、復旧には<strong>新しい契約</strong>を要求する（旧請求の遅延成功では自動復旧しない）。</li>
+<li>どの終了・制限でも店舗・利用者・シフトは削除せず、直前の管理者・稼働店舗を復旧候補として保持する。</li>
+<li>支払い成功画面・復帰URLだけでは有料機能を開放しない（署名済みWebhookまたはprovider再取得が正本）。重複・順不同のWebhookで状態を過去へ戻さない。</li>
+<li>Customer Portalは支払い方法更新と請求書確認に限定し、Portalでのプラン変更・契約取消は無効。URLは都度発行の一時URL。</li>
+<li>支払い不要Pro相当には、Stripeオブジェクト・課金操作・課金通知を一切作らず、どの処理からも別の課金状態へ変更しない。</li>
+<li>契約制限中に許可される操作と停止される操作は<a href="#doc-authorization">認可・制限</a>の表を正本とする。</li>
+</ul>
+<h3 id="organization-s19">7.3 課金状態×操作の可否（○×早見表）</h3>
+<p>○＝可、△＝一部のみ、×＝不可。列は<code>active</code>各プラン／支払い結果待ち（<code>pendingActivation</code>）／支払い猶予（<code>grace</code>）／契約制限中（<code>restricted</code>）。</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>操作</th>
+<th align="center">active（Trial／Standard／Pro／支払い不要Pro相当／Free）</th>
+<th align="center">支払い結果待ち</th>
+<th align="center">支払い猶予</th>
+<th align="center">契約制限中</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>既存データの閲覧</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○（readOnly含む）</td>
+</tr>
+<tr>
+<td>募集・シフト・スタッフの業務書き込み</td>
+<td align="center">○（プラン上限内）</td>
+<td align="center">×（<code>paymentResultPending</code>）</td>
+<td align="center">○（失敗前プランの全機能）</td>
+<td align="center">×（<code>restricted</code>）</td>
+</tr>
+<tr>
+<td>組織名の変更</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○（有効管理者）</td>
+</tr>
+<tr>
+<td>新規の業務通知（メール・LINE）</td>
+<td align="center">○</td>
+<td align="center">○（Trial→請求処理中では停止しない）</td>
+<td align="center">○</td>
+<td align="center">×（新規外部送信を開始しない）</td>
+</tr>
+<tr>
+<td>契約操作（開始・プラン変更・停止予約）</td>
+<td align="center">○</td>
+<td align="center">△（結果確定待ち）</td>
+<td align="center">○（支払い方法更新を含む）</td>
+<td align="center">△（再契約・支払い方法更新・請求先変更のみ）</td>
+</tr>
+<tr>
+<td>利用者の組織からの削除・店舗アーカイブ</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○（復旧のための整理として許可）</td>
+</tr>
+<tr>
+<td>店舗追加・スタッフ追加・管理者招待</td>
+<td align="center">○（上限内）</td>
+<td align="center">×</td>
+<td align="center">○</td>
+<td align="center">×</td>
+</tr>
+<tr>
+<td>LINE連携の明示解除</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○（activeな管理者のみ。readOnlyは×）</td>
+</tr>
+</tbody></table></div>
+<h2 id="organization-s20">8. テスト観点への変換メモ</h2>
+<ul>
+<li>4.1・4.2の各行は「発行時拒否」と「承認時拒否」を<strong>別ケース</strong>として起こす（両方で検証する契約のため）。</li>
+<li>5章は3状態×各操作の直積に、#9〜#11の異常系（応答喪失・別User接続済み・新端末）を加える。</li>
+<li>6章は4分岐＋追加拒否3条件＋stale fingerprintで最低8ケース。</li>
+<li>7章の遷移表は状態遷移テストとしてN+スイッチカバレッジを検討する（特に「猶予→成功→元プラン」と「猶予→成功→変更先上限評価」の分岐）。</li>
+</ul>
+
+</section>
+
+<section class="doc" id="doc-shift">
+<header class="doc-header"><h1>募集・提出・シフト表・確定</h1><p class="doc-src">正本: <code>doc/features/behavior-shift.md</code></p></header>
+<blockquote>
+<p>文書種別: behavior（条件→結果の詳細仕様。機能文書・業務仕様・コードから導出）</p>
+<p>作成日: 2026-08-16 ／ 基準commit: <code>37c908f</code></p>
+<p>正本: <a href="shift-recruitment-management.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">シフト募集管理</a>、<a href="shift-board.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">シフト表</a>、<a href="shift-submission.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">希望シフト提出</a>、<a href="shift-confirmation-reminder.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">シフト確定催促リマインダー</a>、<code>convex/_lib/dateFormat.ts</code>、<code>convex/shiftBoard/validation.ts</code></p>
+</blockquote>
+<p>シフト運用の中心である募集ライフサイクルについて、日時境界・状態・操作者の組み合わせごとの結果を定める。</p>
+<h2 id="shift-s2">1. 日時の定義（すべてJST）</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>名称</th>
+<th>定義</th>
+<th>実装</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>提出締切の有効期限</td>
+<td>締切日の<strong>23:59まで有効</strong>（cutoff＝締切翌日0:00）</td>
+<td><code>getDeadlineCutoff</code></td>
+</tr>
+<tr>
+<td>スタッフ提出催促の予定時刻</td>
+<td>cutoff − 31時間 ＝ <strong>締切前日17:00</strong></td>
+<td><code>getReminderScheduledAt</code></td>
+</tr>
+<tr>
+<td>管理者確定催促の予定時刻</td>
+<td>cutoff ＋ 17時間 ＝ <strong>締切翌日17:00</strong></td>
+<td><code>getManagerConfirmationReminderAt</code></td>
+</tr>
+<tr>
+<td>提出リンクが開ける期限</td>
+<td><strong>シフト開始日0:00より前</strong>まで</td>
+<td></td>
+</tr>
+<tr>
+<td>「過去のシフト」の始まり</td>
+<td>シフト<strong>終了日の翌日</strong>から（終了日当日は過去に含めない）</td>
+<td></td>
+</tr>
+<tr>
+<td>募集期間の上限</td>
+<td>最大31日</td>
+<td><code>RECRUITMENT_PERIOD_DAYS_MAX</code></td>
+</tr>
+</tbody></table></div>
+<p>締切は募集作成後に<strong>編集できない</strong>（募集APIは作成と削除のみ）。催促の再スケジュールは存在しない。</p>
+<h2 id="shift-s3">2. 募集の状態遷移</h2>
+<p>保存状態は<code>open</code>と<code>confirmed</code>の2値。論理削除（<code>isDeleted</code>）はどちらの状態からでも可能。</p>
+<pre class="codeblock"><code>[作成] → open → (確定) → confirmed → (再編集・再確定を繰り返せる) → [シフト終了日翌日: 実質read-only]
+              ↘ (削除) isDeleted ← どの時点からでも可（確定済みも削除前確認のうえ削除できる）</code></pre>
+<div class="mermaid-block"><p class="mermaid-offline-note">図の描画にはインターネット接続が必要です（オフラインでは下のソースを参照）。</p><pre class="mermaid">stateDiagram-v2
+    [*] --&gt; open : 募集作成（募集通知＋催促を予約）
+    open --&gt; open : 下書き保存（全置換）
+    open --&gt; confirmed : 確定（差分のあるスタッフへ通知）
+    confirmed --&gt; confirmed : 再編集＋再送（差分あり＋前回未配送のスタッフへ再通知）
+    open --&gt; deleted : 削除
+    confirmed --&gt; deleted : 削除（確認あり）
+    deleted --&gt; [*]
+
+    note right of open
+        締切前日17:00 未提出者へ催促（1回だけ）
+        締切翌日17:00 管理者へ確定催促（未確定なら）
+    end note
+    note right of confirmed
+        シフト終了日を過ぎると
+        保存・確定・再通知は不可（閲覧のみ）
+    end note
+    note right of deleted
+        スタッフ導線は利用不可
+        進行中の通知fanoutを同時停止
+    end note</pre><details class="mermaid-src"><summary>図のソース</summary><pre><code>stateDiagram-v2
+    [*] --&gt; open : 募集作成（募集通知＋催促を予約）
+    open --&gt; open : 下書き保存（全置換）
+    open --&gt; confirmed : 確定（差分のあるスタッフへ通知）
+    confirmed --&gt; confirmed : 再編集＋再送（差分あり＋前回未配送のスタッフへ再通知）
+    open --&gt; deleted : 削除
+    confirmed --&gt; deleted : 削除（確認あり）
+    deleted --&gt; [*]
+
+    note right of open
+        締切前日17:00 未提出者へ催促（1回だけ）
+        締切翌日17:00 管理者へ確定催促（未確定なら）
+    end note
+    note right of confirmed
+        シフト終了日を過ぎると
+        保存・確定・再通知は不可（閲覧のみ）
+    end note
+    note right of deleted
+        スタッフ導線は利用不可
+        進行中の通知fanoutを同時停止
+    end note</code></pre></details></div>
+<h3 id="shift-s4">2.1 状態×イベントの結果表</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>現在の状態</th>
+<th>イベント</th>
+<th>結果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>open（終了日前）</td>
+<td>管理者が保存（<code>saveShiftAssignments</code>）</td>
+<td>validation通過分を<strong>一募集分の全置換</strong>で下書き保存</td>
+</tr>
+<tr>
+<td>open（終了日前）</td>
+<td>管理者が確定（<code>confirmRecruitment</code>）</td>
+<td><code>confirmed</code>へ。差分のあるスタッフへ確定通知を予約。<strong>締切前の確定を禁止する条件はない</strong></td>
+</tr>
+<tr>
+<td>confirmed（終了日前）</td>
+<td>管理者が再編集→再確定</td>
+<td>前回通知snapshotとの<strong>差分があるスタッフ</strong>と、<strong>前回の確定通知が未配送のスタッフ</strong>へ再通知</td>
+</tr>
+<tr>
+<td>open/confirmed</td>
+<td><strong>シフト終了日を過ぎた</strong></td>
+<td>保存・確定・再通知を<strong>画面とmutationの両方で拒否</strong>。閲覧のみ</td>
+</tr>
+<tr>
+<td>open</td>
+<td>締切前日17:00到来</td>
+<td>未提出のシフト対象スタッフへ催促（1回だけ。<code>lastReminderSentAt</code>で再送防止）</td>
+</tr>
+<tr>
+<td>open</td>
+<td>締切翌日17:00到来</td>
+<td>対象店舗にスタッフ所属するactive管理者へ確定催促</td>
+</tr>
+<tr>
+<td>confirmed／削除済み</td>
+<td>催促の発火時刻到来</td>
+<td><strong>送らない</strong>（発火時に状態を再確認）</td>
+</tr>
+<tr>
+<td>open/confirmed</td>
+<td>管理者が削除</td>
+<td>論理削除。スタッフ向け導線を失効し、進行中の通知fanoutを同一transactionで停止。Outbox投入済み分もprovider呼出し直前に無効化</td>
+</tr>
+<tr>
+<td>削除済み</td>
+<td>すべての操作・スタッフアクセス</td>
+<td>一覧・シフト表・提出画面から除外（<code>getShiftBoardData</code>は<code>null</code>）</td>
+</tr>
+</tbody></table></div>
+<p>補足:</p>
+<ul>
+<li>確定済みの募集へ「確定」意図で<code>confirmRecruitment</code>を呼んでもエラーにならず<strong>no-op（<code>null</code>を返す）</strong>。再通知は「再送」意図（<code>intent: &quot;resend&quot;</code>）で行い、未確定の募集への再送意図はエラーになる。</li>
+<li>募集作成時、催促は<strong>予定時刻が作成時点より未来の場合だけ</strong>予約する（締切が近すぎる募集には催促が付かない）。機能デプロイ前から存在する募集にも予約はない。</li>
+<li>Dashboardの分類は「現在のシフト」（今日が期間内の確定済み）→「要シフト調整」（締切超過のopen）→「募集中」→「確定済み（未来）」→「過去のシフト」の順で、空の分類は表示しない。</li>
+<li>締切を過ぎてもopenの募集は<code>/actions</code>（要対応）にも表示される。締切判定はserver時刻が正本で、画面を開いたまま締切が到来しても再評価される。</li>
+<li>募集の削除に日付条件はない（存在・店舗一致だけを確認するため、過去の募集も削除できる）。</li>
+</ul>
+<h3 id="shift-s5">2.2 時期×操作の可否マトリクス（○×早見表）</h3>
+<p>○＝可、△＝条件付き、×＝不可、−＝該当なし。2.1と3章の内容を時期軸で並べ直したもの。</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>操作</th>
+<th align="center">締切前（open）</th>
+<th align="center">締切後〜開始前（open）</th>
+<th align="center">確定後〜終了日</th>
+<th align="center">終了日翌日以降</th>
+<th align="center">削除済み</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>スタッフ: 初回提出</td>
+<td align="center">○</td>
+<td align="center">△（確認ダイアログ後）</td>
+<td align="center">×</td>
+<td align="center">×</td>
+<td align="center">×</td>
+</tr>
+<tr>
+<td>スタッフ: 再提出（上書き）</td>
+<td align="center">○</td>
+<td align="center">×</td>
+<td align="center">×</td>
+<td align="center">×</td>
+<td align="center">×</td>
+</tr>
+<tr>
+<td>スタッフ: 提出内容の閲覧（提出リンク）</td>
+<td align="center">○</td>
+<td align="center">○（開始日0:00まで）</td>
+<td align="center">×（受付終了）</td>
+<td align="center">×</td>
+<td align="center">×</td>
+</tr>
+<tr>
+<td>スタッフ: 確定シフトの閲覧（閲覧リンク）</td>
+<td align="center">−</td>
+<td align="center">−</td>
+<td align="center">○</td>
+<td align="center">△（リンク有効期間内）</td>
+<td align="center">×</td>
+</tr>
+<tr>
+<td>スタッフ: 閲覧リンクの再発行</td>
+<td align="center">−</td>
+<td align="center">−</td>
+<td align="center">○</td>
+<td align="center">○（確定済み・未削除なら期間条件なし）</td>
+<td align="center">×</td>
+</tr>
+<tr>
+<td>管理者: シフト表の閲覧</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">×（データは<code>null</code>）</td>
+</tr>
+<tr>
+<td>管理者: 下書き保存</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">×</td>
+<td align="center">×</td>
+</tr>
+<tr>
+<td>管理者: 確定</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">−（確定済み。confirm意図はno-op）</td>
+<td align="center">×</td>
+<td align="center">×</td>
+</tr>
+<tr>
+<td>管理者: 再送（再確定通知）</td>
+<td align="center">×</td>
+<td align="center">×</td>
+<td align="center">○（差分＋前回未配送分）</td>
+<td align="center">×</td>
+<td align="center">×</td>
+</tr>
+<tr>
+<td>管理者: 確定シフトの個別再送</td>
+<td align="center">−</td>
+<td align="center">−</td>
+<td align="center">○（40件まで）</td>
+<td align="center">×</td>
+<td align="center">×</td>
+</tr>
+<tr>
+<td>管理者: 募集の削除</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○（確認あり）</td>
+<td align="center">○</td>
+<td align="center">−</td>
+</tr>
+</tbody></table></div>
+<h2 id="shift-s6">3. スタッフの提出可否（デシジョンテーブル）</h2>
+<p>前提: リンク（magic link→session）が有効で、スタッフがシフト対象であること。リンク・session自体の失効条件は<a href="#doc-authorization">認可・制限</a>を参照。</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>募集の状態</th>
+<th>現在時刻</th>
+<th>提出済みか</th>
+<th>結果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>open</td>
+<td>締切日23:59まで</td>
+<td>未提出</td>
+<td>提出できる</td>
+</tr>
+<tr>
+<td>2</td>
+<td>open</td>
+<td>締切日23:59まで</td>
+<td>提出済み</td>
+<td><strong>再提出できる</strong>（上書き）</td>
+</tr>
+<tr>
+<td>3</td>
+<td>open</td>
+<td><strong>締切後</strong>〜シフト開始日0:00前</td>
+<td>提出済み</td>
+<td><strong>閲覧のみ</strong>（再提出不可）</td>
+</tr>
+<tr>
+<td>4</td>
+<td>open</td>
+<td>締切後〜シフト開始日0:00前</td>
+<td><strong>未提出</strong></td>
+<td><strong>確認ダイアログを経て初回提出のみ可</strong></td>
+</tr>
+<tr>
+<td>5</td>
+<td>open</td>
+<td>シフト開始日0:00以降</td>
+<td>-</td>
+<td>提出画面を開けない（提出受付終了）</td>
+</tr>
+<tr>
+<td>6</td>
+<td>confirmed</td>
+<td>-</td>
+<td>-</td>
+<td>提出受付終了（確定シフトは閲覧リンクで見る）</td>
+</tr>
+<tr>
+<td>7</td>
+<td>削除済み</td>
+<td>-</td>
+<td>-</td>
+<td>「募集削除済み」の利用不可表示</td>
+</tr>
+<tr>
+<td>8</td>
+<td>token不正・用途違い・使用済みviewリンク・スタッフ削除済み</td>
+<td>-</td>
+<td>-</td>
+<td>詳細を出さず一律「リンク無効」（存在を漏らさない）</td>
+</tr>
+</tbody></table></div>
+<h3 id="shift-s7">3.1 提出内容の規則（提出方法別）</h3>
+<p>募集は<strong>作成時点</strong>の店舗の提出方法をsnapshotする。店舗設定を後から変えても既存募集の提出画面とvalidationは変わらない。</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>提出方法</th>
+<th>入力</th>
+<th>保存先・規則</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>時間指定（<code>time</code>）</td>
+<td>日ごとの開始・終了時間（店舗設定の範囲内）</td>
+<td><code>shiftSubmissionSlots</code>。1回の提出は最大31件</td>
+</tr>
+<tr>
+<td>日ごと（<code>dateOnly</code>）</td>
+<td>出勤可能日のみ選択</td>
+<td><code>shiftSubmissionDates</code>。時間スロットは作らない。通知上は「出勤」と表示</td>
+</tr>
+<tr>
+<td>勤務区分（<code>shiftType</code>）</td>
+<td>区分を選択（同じ日に複数区分可）</td>
+<td>区分の時間を<code>shiftSubmissionSlots</code>へ保存。<strong>同じ日の同じ区分は重複登録しない</strong></td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>「前回と同じシフトを適用」は、今回募集より前の日付で<strong>シフトが1件以上ある最新週</strong>（月曜始まり）を提出明細から参照する。全休み提出しか履歴がない、または提出経験がないスタッフには表示しない。適用はフォーム入力を埋めるだけで、提出はスタッフが明示的に押す。</li>
+<li>管理者の割当編集は希望の原本（提出明細）を書き換えない。</li>
+</ul>
+<h3 id="shift-s8">3.2 提出完了画面の表示条件</h3>
+<p>「提出が完了しました」は、次を<strong>すべて</strong>server側で照合できた場合だけ表示する。</p>
+<ul>
+<li>同じ募集の保存済み<code>submit</code> sessionが存在する</li>
+<li>session・店舗・スタッフ・募集・本人の提出recordの対応が取れる</li>
+</ul>
+<p>URLを直接開いた、sessionが無効、提出recordがない場合は成功を表示しない。query失敗は利用不可と区別し、画面内から再試行できる。</p>
+<h2 id="shift-s9">4. シフト表（管理者の編集）</h2>
+<h3 id="shift-s10">4.1 画面へ入る条件</h3>
+<p>routeは募集から店舗を解決し、URLの組織との一致を確認する。読み込み・保存・確定は店舗IDと<code>expectedOrganizationId</code>を同時に渡し、次を<strong>server側で拒否</strong>する。</p>
+<ul>
+<li>別組織の店舗、募集と店舗の不一致</li>
+<li>legacy店舗所属だけの利用者、canonical所属のないアクセス</li>
+<li>readOnly管理者の書き込み、非active店舗</li>
+<li>削除済み募集（データは<code>null</code>）</li>
+</ul>
+<h3 id="shift-s11">4.2 編集の規則</h3>
+<ul>
+<li>募集期間外の日付は表示できても<strong>編集できない</strong>。</li>
+<li>画面幅（PC週表／SP日別）で操作方法は違うが、保存する割当とserver validationは共通。時間単位は30分。</li>
+<li>時間入力方式のSPは、勤務区間0件なら新規追加、1件なら置換、<strong>2件以上はPC版での編集を案内</strong>（全削除は可能）。</li>
+<li>編集後に戻る操作をすると「保存して戻る／保存せず戻る」の確認Dialogを表示する。serverから届いた提出更新だけでは未保存扱いにしない。</li>
+</ul>
+<h3 id="shift-s12">4.3 validationの2階層</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>階層</th>
+<th>内容</th>
+<th>例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>違反（保存・確定を拒否）</strong></td>
+<td><code>validateShiftAssignments</code>が収集。一覧・日付badge・該当スタッフ強調が連動</td>
+<td>スタッフ・ポジションの店舗境界違反、休業日への割当、時間の重複（overlap）、不正時刻</td>
+</tr>
+<tr>
+<td><strong>確認事項（確定を拒否しない）</strong></td>
+<td>希望との食い違いとして表示のみ</td>
+<td>未提出スタッフへの割当、休み希望日への割当、希望時間外、希望していない勤務区分</td>
+</tr>
+</tbody></table></div>
+<p>同じセルに違反と確認事項がある場合は違反（拒否理由）を優先表示する。<br><code>saveShiftAssignments</code>はraw割当を先にvalidationし、overlapや不正時刻を正規化で隠さず拒否する。</p>
+<h3 id="shift-s13">4.4 確定（<code>confirmRecruitment</code>）</h3>
+<ul>
+<li>確定操作は「検証済み内容を<code>saveShiftAssignments</code>で保存→<code>confirmRecruitment</code>」の2段で行う。</li>
+<li><code>confirmRecruitment</code>自身が再確認するのは<strong>募集の存在・終了日・状態・保存済み割当の休業日だけ</strong>であり、共通validation全体を単独で再実行しない（既知の差分として記録済み。直接API呼び出しの保証は現行この範囲）。</li>
+<li>確定通知の対象は「前回の確定通知snapshotと現在の割当を比較して<strong>変更があるスタッフ</strong>」に加えて、「<strong>前回の確定通知がまだ配送されていないスタッフ</strong>」（<code>undeliveredStaffIds</code>。割当が変わっていなくても最新内容で通知する）。<ul>
+<li>時間入力方式では、区間の分割・統合だけの表現差は再通知しない。snapshotのsignatureが壊れている場合は安全側で再通知する。</li>
+<li>snapshotがない既存募集は、導入後の初回再通知だけ全員が対象。</li>
+</ul>
+</li>
+<li>同じ内容の確定・再通知はsemantic key（店舗×募集×用途×スタッフ×文面に影響する値）へ収束し、重複送信しない。</li>
+</ul>
+<h2 id="shift-s14">5. 確定シフトの閲覧・再発行</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>状況</th>
+<th>結果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>確定通知のリンク（view token）から開く</td>
+<td>提出方法snapshotに沿った確定割当・定休日を表示。時間入力方式は隣接区間を統合して表示</td>
+</tr>
+<tr>
+<td>2</td>
+<td>リンクが無効で、募集IDを復元できる</td>
+<td>閲覧画面から再発行画面（<code>/shifts/reissue</code>）へ案内</td>
+</tr>
+<tr>
+<td>3</td>
+<td>リンクから募集IDを復元できない</td>
+<td>再発行ボタンを案内せず、元のメール・LINEを開くかシフト担当者への連絡を案内</td>
+</tr>
+<tr>
+<td>4</td>
+<td>再発行要求: 登録メールと確定済み募集の対象スタッフが一致</td>
+<td>新しい閲覧リンクの通知を予約</td>
+</tr>
+<tr>
+<td>5</td>
+<td>再発行要求: メール不一致・対象外</td>
+<td><strong>一致した場合と同じ応答</strong>（登録の有無を漏らさない）。実際には送らない</td>
+</tr>
+<tr>
+<td>6</td>
+<td>短時間の重複要求・連続試行</td>
+<td>レート制限</td>
+</tr>
+<tr>
+<td>7</td>
+<td>シフト対象外・削除済みスタッフ</td>
+<td>スタッフ認証境界で拒否（リンク無効扱い）</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>管理者による確定シフトの個別再送は、<strong>終了日が今日以降</strong>の募集だけが対象で、1回につき40件まで。超過時は一部だけ送らず開始しない。</li>
+</ul>
+<h2 id="shift-s15">6. 提出率・件数表示の規則</h2>
+<ul>
+<li>提出率の母数は「activeかつシフト対象のスタッフ数」。対象外スタッフの過去提出が残っても、分子は母数を上限にクランプする。</li>
+<li>スタッフscanが安全上限に達した場合、分母を確定値として表示せず、下限件数とoverflowを明示する（黙って不正確な値にしない）。</li>
+<li><code>recruitmentStats</code>未作成の旧募集は提出記録の読取件数を制限し、上限到達時は下限値として表示する。</li>
+<li>店舗所属の変更（追加・解除）があったopen募集は、回答数を現在のactiveかつシフト対象staffの提出だけから再計算する。</li>
+</ul>
+<h2 id="shift-s16">7. テスト観点への変換メモ</h2>
+<ul>
+<li>1章の各時刻は境界値テストの中心。<strong>23:59:59／0:00:00、前日17:00の前後、終了日当日／翌日</strong>を最低ペアで検証する。</li>
+<li>3章の表は8行×リンク失効条件の直積が提出系の主要ケース。#8は「応答が区別できないこと」まで確認する。</li>
+<li>4.3は「違反→保存拒否」「確認事項→確定は通る」を対で検証する。<code>confirmRecruitment</code>直接呼び出しの保証範囲（4.4）は現行仕様として扱い、強化するならまず文書と差分調査を更新する。</li>
+<li>再確定の差分通知は「変更なし・全員配送済み→通知0件」「1名だけ変更→1名だけ」「分割⇔統合のみ→0件」「変更なしでも前回未配送の1名→その1名だけ」の4点セット。</li>
+</ul>
+
+</section>
+
+<section class="doc" id="doc-notification">
+<header class="doc-header"><h1>通知マトリクス</h1><p class="doc-src">正本: <code>doc/features/behavior-notification.md</code></p></header>
+<blockquote>
+<p>文書種別: behavior（条件→結果の詳細仕様。機能文書・業務仕様・コードから導出）</p>
+<p>作成日: 2026-08-16 ／ 基準commit: <code>37c908f</code></p>
+<p>正本: <a href="notification-outbox.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">通知配送outbox</a>、<a href="line-notification.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">LINE通知連携</a>、<a href="notification-history.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">スタッフ通知履歴</a>、<a href="notification-failure-dashboard.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">通知不達Dashboard</a>、<a href="../specs/organization-billing-business-flow.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">業務仕様4.4・21章</a></p>
+</blockquote>
+<p>「誰に・何を・いつ・どのチャネルで送るか」と、<strong>送らない条件</strong>、失敗時の扱いを通知種別ごとに定める。<br>すべての外部送信はNotification Outboxが非同期で行い、アプリの「送りました」は<strong>受付</strong>を意味する（providerへの到達は保証しない）。</p>
+<h2 id="notification-s2">1. チャネル選択の共通規則</h2>
+<p>利用者がチャネルを選ぶ設定はなく、送信時点の状態で自動選択する。</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>条件</th>
+<th>チャネル</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>組織共通のLINE連携が有効 かつ 友だち状態</td>
+<td><strong>LINE優先</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td>LINE未連携／友だち解除（ブロック）</td>
+<td>メール（現在のシフト連絡先へ）</td>
+</tr>
+<tr>
+<td>3</td>
+<td>LINE quotaが<code>exceeded</code></td>
+<td>LINEジョブは<code>failed</code>にし、payloadにfallbackメールがあればメールを別ジョブで送る</td>
+</tr>
+<tr>
+<td>4</td>
+<td>quota状態を取得できない</td>
+<td>LINE送信を試みる</td>
+</tr>
+<tr>
+<td>5</td>
+<td>LINE APIの429／5xx</td>
+<td><strong>fallbackせず再試行</strong>（恒久的4xxは<code>failed</code>）</td>
+</tr>
+<tr>
+<td>6</td>
+<td>課金通知・管理者招待</td>
+<td><strong>常にメール</strong>（LINE連携済みでもLINEへ送らない）</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>宛先メールの正本は<code>organizationPeople.email</code>（シフト連絡先）。Clerkのログイン用メールや<code>users.email</code>を通知先にしない。</li>
+<li>Stripe発の請求書・領収書・カード関連だけは組織の請求先メールアドレス（<code>organizations.billingEmail</code>）へ届く。</li>
+</ul>
+<p>チャネル決定の早見表（○×）:</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th align="center">LINE連携</th>
+<th align="center">友だち状態</th>
+<th align="center">quota</th>
+<th>実際のチャネル</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">正常・不明</td>
+<td><strong>LINE</strong></td>
+</tr>
+<tr>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">超過</td>
+<td>fallbackメールがあれば<strong>メール</strong>、なければ失敗</td>
+</tr>
+<tr>
+<td align="center">○</td>
+<td align="center">×（ブロック・解除）</td>
+<td align="center">−</td>
+<td><strong>メール</strong></td>
+</tr>
+<tr>
+<td align="center">×</td>
+<td align="center">−</td>
+<td align="center">−</td>
+<td><strong>メール</strong></td>
+</tr>
+<tr>
+<td align="center">−（課金通知・管理者招待）</td>
+<td align="center">−</td>
+<td align="center">−</td>
+<td><strong>常にメール</strong>（LINE配送を作らない）</td>
+</tr>
+</tbody></table></div>
+<h2 id="notification-s3">2. 宛先解決の共通規則</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>通知の分類</th>
+<th>宛先</th>
+<th>0人の場合</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>スタッフ向けシフト通知</td>
+<td>対象店舗のactiveな正規staffのうち<strong>シフト対象</strong>（<code>excludedFromShift</code>でない）の者</td>
+<td>送らない</td>
+</tr>
+<tr>
+<td>店舗管理通知（参加申請digest・確定催促・本番募集案内・不達digest）</td>
+<td>activeな<code>organizationMembers</code>のうち、<strong>同じ組織人物が対象店舗のactiveな正規staffとしても所属</strong>する人物だけ</td>
+<td><strong>送らない</strong>（店舗詳細に「管理者を店舗所属に置く」推奨を表示）</td>
+</tr>
+<tr>
+<td>組織通知（課金・管理者招待・招待承認完了）</td>
+<td>有効管理者（＋文脈により復旧担当者）。店舗所属を受信条件にしない</td>
+<td>-</td>
+</tr>
+</tbody></table></div>
+<p>組織から削除された人物は、すべての組織通知から除外する。各送信時点で宛先を再抽出する。</p>
+<p>受信者ロール別の早見表（○＝受信対象、×＝対象外）:</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>通知グループ</th>
+<th align="center">シフト対象スタッフ</th>
+<th align="center">対象外スタッフ</th>
+<th align="center">店舗所属のactive管理者</th>
+<th align="center">店舗未所属のactive管理者</th>
+<th align="center">復旧担当者（readOnly）</th>
+<th align="center">請求先メール</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>シフト運用（募集・催促・確定・再送）</td>
+<td align="center">○</td>
+<td align="center">×</td>
+<td align="center">△（自分がその店舗のシフト対象スタッフでもある場合）</td>
+<td align="center">×</td>
+<td align="center">×</td>
+<td align="center">×</td>
+</tr>
+<tr>
+<td>店舗管理通知（申請digest・確定催促・不達digest・本番募集案内）</td>
+<td align="center">×</td>
+<td align="center">×</td>
+<td align="center">○</td>
+<td align="center"><strong>×</strong></td>
+<td align="center">×</td>
+<td align="center">×</td>
+</tr>
+<tr>
+<td>同意依頼・LINE連携案内</td>
+<td align="center">○</td>
+<td align="center">○（シフト以外は届く）</td>
+<td align="center">−</td>
+<td align="center">−</td>
+<td align="center">−</td>
+<td align="center">×</td>
+</tr>
+<tr>
+<td>課金通知（シフトリ発）</td>
+<td align="center">×</td>
+<td align="center">×</td>
+<td align="center">○（有効管理者として）</td>
+<td align="center">○（同左。店舗所属は条件でない）</td>
+<td align="center">△（支払い失敗系・復旧・請求先変更）</td>
+<td align="center">×</td>
+</tr>
+<tr>
+<td>管理者招待</td>
+<td align="center">×（招待先メールのみ）</td>
+<td align="center">−</td>
+<td align="center">−</td>
+<td align="center">−</td>
+<td align="center">×</td>
+<td align="center">×</td>
+</tr>
+<tr>
+<td>Stripe直送（請求書・領収書・カード）</td>
+<td align="center">×</td>
+<td align="center">×</td>
+<td align="center">×</td>
+<td align="center">×</td>
+<td align="center">×</td>
+<td align="center">○</td>
+</tr>
+</tbody></table></div>
+<h2 id="notification-s4">3. 送信直前の再確認（provider gate）</h2>
+<p>Outboxに入った後でも、provider呼び出しの<strong>直前</strong>に次を再確認し、満たさなければ送信せずcancelする。</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>再確認</th>
+<th>cancel理由</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>募集の存在・論理削除</td>
+<td><code>recruitment_inactive</code></td>
+</tr>
+<tr>
+<td>スタッフのシフト対象性・active状態</td>
+<td><code>recipient_inactive</code></td>
+</tr>
+<tr>
+<td>管理者権限・店舗staff所属・現在の宛先（店舗管理通知）</td>
+<td><code>recipient_inactive</code></td>
+</tr>
+<tr>
+<td>確定通知の世代（募集の最新確定operationと一致するか）</td>
+<td><code>notification_superseded</code></td>
+</tr>
+<tr>
+<td>組織の契約状態・受信者の所属（課金・業務通知）</td>
+<td>停止</td>
+</tr>
+<tr>
+<td>招待の有効性（管理者招待）</td>
+<td>投入済みでも取消</td>
+</tr>
+</tbody></table></div>
+<h2 id="notification-s5">4. 通知マトリクス</h2>
+<h3 id="notification-s6">4.1 スタッフ向け（シフト運用）</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>通知</th>
+<th>トリガー</th>
+<th>宛先</th>
+<th>送らない条件</th>
+<th>不達時に要対応Inboxへ</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>募集開始</td>
+<td>募集作成時</td>
+<td>対象店舗のシフト対象スタッフ（最大50名、10名ずつ）</td>
+<td>シフト対象外／削除済みスタッフ／募集が削除済み（gate）</td>
+<td><strong>載る</strong></td>
+</tr>
+<tr>
+<td>提出催促</td>
+<td>締切<strong>前日17:00</strong>（作成時に予約。予定時刻が過去なら予約しない）</td>
+<td><strong>未提出</strong>のシフト対象スタッフのみ</td>
+<td>募集が<code>open</code>でない／削除済み／<strong>送信済み（1回だけ）</strong>／デプロイ前から存在する募集（予約なし）</td>
+<td>載る</td>
+</tr>
+<tr>
+<td>確定シフト</td>
+<td>確定・再確定時</td>
+<td>前回確定通知との<strong>差分があるスタッフ</strong>＋<strong>前回の確定通知が未配送のスタッフ</strong></td>
+<td>差分がなく前回通知も配送済み／分割⇔統合の表現差のみ／シフト対象外／旧世代（superseded）</td>
+<td>載る</td>
+</tr>
+<tr>
+<td>募集の個別再送</td>
+<td>管理者の手動操作</td>
+<td>指定スタッフ</td>
+<td>対象外スタッフ（ボタン無効）／再送quota超過（操作者10/日・組織20/日）</td>
+<td>載る</td>
+</tr>
+<tr>
+<td>確定シフトの個別再送</td>
+<td>管理者の手動操作</td>
+<td>指定スタッフ</td>
+<td><strong>終了日が過去</strong>の募集／対象が40件超（全部送らない）／quota超過</td>
+<td>載る</td>
+</tr>
+<tr>
+<td>メール変更時の再送</td>
+<td>シフト連絡先の変更</td>
+<td><strong>LINEを受信できない</strong>スタッフのみ、新宛先へ</td>
+<td>受付中募集（未削除・open・開始前・締切以前）がない</td>
+<td>載る</td>
+</tr>
+<tr>
+<td>LINE連携完了・follow時の追送</td>
+<td>連携完了またはfollow受信</td>
+<td>対象スタッフへ受付中募集をLINEで</td>
+<td>受付中募集がない</td>
+<td>載る</td>
+</tr>
+<tr>
+<td>閲覧リンク再発行</td>
+<td>スタッフの再発行要求</td>
+<td>本人（メール一致時のみ実送信。<strong>応答は一致有無で同一</strong>）</td>
+<td>メール不一致／対象外／確定済み募集でない／レート制限</td>
+<td>載る</td>
+</tr>
+<tr>
+<td>法務同意依頼</td>
+<td>スタッフ追加時</td>
+<td>未同意スタッフ</td>
+<td><strong>QR申請で同意済み</strong>／別店舗追加の再利用人物</td>
+<td>記録のみ（<code>other</code>種別のため表示されない）</td>
+</tr>
+<tr>
+<td>LINE連携依頼</td>
+<td>スタッフ追加時、または管理者の手動送信</td>
+<td>組織人物が<strong>LINE未連携</strong>の場合のみ</td>
+<td>連携済み（別店舗追加でも重ねて送らない）／メール未登録（連携依頼はメール送付のため送れない）</td>
+<td>載る（再通知は<strong>毎回新しい連携トークン</strong>を発行）</td>
+</tr>
+</tbody></table></div>
+<h3 id="notification-s7">4.2 管理者向け（店舗管理通知、時刻はJST）</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>通知</th>
+<th>トリガー</th>
+<th>宛先</th>
+<th>送らない条件</th>
+<th>要対応Inboxへ</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>シフト確定催促</td>
+<td>締切<strong>翌日17:00</strong>（作成時に予約）</td>
+<td>対象店舗にスタッフ所属するactive管理者（最大20名）</td>
+<td>発火時に確定済み／削除済み／宛先0人／予定時刻が作成時点で過去</td>
+<td><strong>載せない</strong>（配送イベントログには残る）</td>
+</tr>
+<tr>
+<td>スタッフ参加申請digest</td>
+<td>毎日17:00</td>
+<td>同上</td>
+<td>直近24時間以内の承認待ちがない（＝通常1回だけ送る）／宛先0人</td>
+<td>記録は残るが表示されない（<code>other</code>種別）</td>
+</tr>
+<tr>
+<td>通知不達digest</td>
+<td>毎日17:00</td>
+<td>同上</td>
+<td><code>open</code>の不達がない／最終失敗から24時間超過／宛先0人</td>
+<td><strong>載せない</strong>（メタ失敗でInboxを汚さない）</td>
+</tr>
+<tr>
+<td>本番募集リマインダー</td>
+<td>初回店舗登録の<strong>7日後17:00</strong>（登録時に予約、backfillなし）</td>
+<td>同上</td>
+<td>発火時に本人以外のシフト対象スタッフが登録済み／宛先0人</td>
+<td>載せない</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>申請digestには申請者名・メール・件数を載せず、Dashboardリンクだけを案内する。</li>
+<li>CTAは通知元店舗を<code>shop</code>クエリで指定したDashboard URL。</li>
+<li>「要対応Inboxへ」の区別は2段階ある。確定催促・不達digest・本番募集リマインダーは<strong>抑止context</strong>によりInboxへの記録自体を作らない（配送イベントログには残る）。参加申請digestや法務同意依頼は抑止contextを持たず記録は作られるが、種別が<code>other</code>（「通知」）のため一覧・要対応カード・日次リマインダーには表示されない（<code>isManagerActionableNotificationFailure</code>）。</li>
+</ul>
+<h3 id="notification-s8">4.3 組織向け（課金・招待。すべてメールのみ）</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>通知</th>
+<th>トリガー</th>
+<th>宛先</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>管理者招待</td>
+<td>発行・再送</td>
+<td>招待先メールアドレス</td>
+</tr>
+<tr>
+<td>招待承認完了</td>
+<td>承認</td>
+<td>承認者本人＋他の全有効管理者</td>
+</tr>
+<tr>
+<td>Trial終了案内</td>
+<td>終了の<strong>7日前</strong></td>
+<td>全有効管理者</td>
+</tr>
+<tr>
+<td>契約開始・プラン変更</td>
+<td>各操作の確定</td>
+<td>全有効管理者</td>
+</tr>
+<tr>
+<td>解約の予約・取消・適用</td>
+<td>各操作</td>
+<td>直前までの全有効管理者</td>
+</tr>
+<tr>
+<td>支払い失敗</td>
+<td>最初の失敗を確認した直後</td>
+<td>全有効管理者</td>
+</tr>
+<tr>
+<td>猶予期限前の再案内</td>
+<td>猶予終了の<strong>3日前</strong>（未払いの場合）</td>
+<td>有効管理者＋復旧担当者</td>
+</tr>
+<tr>
+<td>契約制限開始</td>
+<td>猶予終了</td>
+<td>復旧担当者</td>
+</tr>
+<tr>
+<td>支払い復旧完了</td>
+<td>支払い成功</td>
+<td>有効管理者＋復旧担当者</td>
+</tr>
+<tr>
+<td>請求先メールアドレス変更</td>
+<td>変更操作</td>
+<td>全有効管理者＋復旧担当者</td>
+</tr>
+<tr>
+<td>請求書・領収書・カード関連</td>
+<td>Stripeの請求イベント</td>
+<td>組織の請求先メールアドレス（<strong>Stripeが直接送る</strong>）</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>課金通知はLINE連携の有無にかかわらずメールで送り、LINE配送を1件も作らない。複数宛先はメールアドレスを相互に見せないよう個別送信する。</li>
+<li>支払い不要Pro相当では課金通知を一切発生させない。</li>
+</ul>
+<h2 id="notification-s9">5. 送らない共通条件（全通知に適用）</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>条件</th>
+<th>挙動</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td><code>NOTIFICATION_DELIVERY_MODE</code>がdry-run／disabled／mock</td>
+<td>外部配送を抑止。<strong>通知履歴も作成しない</strong>。使用量にも数えない</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>DEBUG_NOTIFY_FAIL</code>設定時</td>
+<td>dry-runより優先して非リトライ失敗にする（FailureInbox確認用。実送信しない）</td>
+</tr>
+<tr>
+<td>3</td>
+<td>契約制限中への移行（Trial未契約終了・解約適用・猶予終了）</td>
+<td><strong>適用時刻以降に送信予定だった業務通知を停止</strong>。外部送信直前にも契約状態を確認</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Trial→初回請求処理中・有料プラン・支払い猶予への移行</td>
+<td>業務通知を<strong>停止しない</strong></td>
+</tr>
+<tr>
+<td>5</td>
+<td>停止された過去の業務通知</td>
+<td>再契約後も<strong>自動再送しない</strong></td>
+</tr>
+<tr>
+<td>6</td>
+<td>同じ<code>dedupeKey</code>のactiveジョブ（pending/processing）が存在</td>
+<td>重複作成しない</td>
+</tr>
+<tr>
+<td>7</td>
+<td>店舗・組織・人物・staffの削除、店舗所属解除</td>
+<td>対象scopeの未送信通知を停止</td>
+</tr>
+<tr>
+<td>8</td>
+<td>dry-run判定（管理者宛）で対象店舗のactive管理者全員がallowlist一致</td>
+<td>抑止。走査上限超過で全員を確認できない場合は<strong>抑止せず通常配送</strong>（fail-safe）</td>
+</tr>
+</tbody></table></div>
+<h2 id="notification-s10">6. 配送の状態と再試行</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>表示（通知履歴）</th>
+<th>意味</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>送信待ち</td>
+<td>Outbox登録済み、外部送信前</td>
+</tr>
+<tr>
+<td>送信済み</td>
+<td>providerが送信要求を受け付けた（LINEはここまでしか確認できない）</td>
+</tr>
+<tr>
+<td>配信済み</td>
+<td>メールのみ。受信側メールサーバーへの到達（<strong>開封ではない</strong>）</td>
+</tr>
+<tr>
+<td>配信が遅れています</td>
+<td>メールのみ。Resendが遅延を通知</td>
+</tr>
+<tr>
+<td>送れませんでした</td>
+<td>送信処理またはprovider配送の失敗</td>
+</tr>
+<tr>
+<td>キャンセル</td>
+<td>削除・対象外化などによる配送中止</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>再試行は最大5回（1分〜1時間のbackoff）。LINEの429/5xxは再試行、恒久4xxは失敗。</li>
+<li>LINEからメールへfallbackした場合は、LINEとメールが<strong>別の履歴</strong>として残る。</li>
+<li>通知履歴・要対応Inboxには宛先・本文・リンクURL・provider生エラーを保存しない（固定taxonomyのみ）。</li>
+</ul>
+<h2 id="notification-s11">7. 不達（要対応Inbox）の扱い</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>規則</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>最終失敗・enqueue失敗が<code>open</code>として載る。Resendの遅延・失敗・bounce・抑止イベントも既存Outboxへ照合できた場合だけ載る</td>
+</tr>
+<tr>
+<td>2</td>
+<td>同じ通知種別×募集×スタッフの失敗は<strong>最新1件だけ</strong>が<code>open</code>（古い行は<code>resolved/superseded</code>）</td>
+</tr>
+<tr>
+<td>3</td>
+<td>確定催促・不達digest・本番募集リマインダーは抑止contextによりInboxに<strong>記録自体を作らない</strong>（配送イベントログには残る）。種別を判定できない<code>other</code> contextはInboxに記録されるが、一覧・要対応カード・日次digestには<strong>表示されない</strong></td>
+</tr>
+<tr>
+<td>4</td>
+<td>募集に紐づく不達は、募集が**非削除かつ<code>open</code>**の場合だけ表示・再通知対象（募集終了後の行は記録のみ）</td>
+</tr>
+<tr>
+<td>5</td>
+<td>再通知は「受付済み」で成功扱い（配送完了ではない）。再失敗すれば同じ行が<code>open</code>へ戻る</td>
+</tr>
+<tr>
+<td>6</td>
+<td>「無視する」は確認Dialogを経て<code>resolved/dismissed</code>（物理削除しない）。再失敗すれば再表示される</td>
+</tr>
+<tr>
+<td>7</td>
+<td>最終失敗から<strong>30日</strong>で<code>resolved/expired</code>になり、表示・再通知対象から外れる</td>
+</tr>
+<tr>
+<td>8</td>
+<td>LINE連携案内の再通知は毎回<strong>新しい連携トークン</strong>を発行する（古いトークンの使い回しをしない）</td>
+</tr>
+</tbody></table></div>
+<h2 id="notification-s12">8. 使用量カウント</h2>
+<ul>
+<li>店舗×月（JST）でメール／LINE件数を集計する。実際に<code>sent</code>へ遷移したときだけ数え、dedupe・失敗・再試行中・dry-runは数えない。LINEのfallbackメールは送れた時点でメールとして数える。</li>
+<li>閲覧UIはなく、Convex Dashboardで直接確認する（運用手順）。</li>
+</ul>
+<h2 id="notification-s13">9. 付録: 配送パイプライン図</h2>
+<div class="mermaid-block"><p class="mermaid-offline-note">図の描画にはインターネット接続が必要です（オフラインでは下のソースを参照）。</p><pre class="mermaid">flowchart TD
+    A[業務mutation/scheduled action] --&gt;|enqueue: 同一dedupeKeyのactiveジョブがあれば作らない| B[pending]
+    B --&gt;|1分ごとのworkerがclaim| C[processing]
+    C --&gt; D{送信直前の再確認}
+    D --&gt;|募集削除| E1[cancelled: recruitment_inactive]
+    D --&gt;|対象外化・権限喪失・宛先消失| E2[cancelled: recipient_inactive]
+    D --&gt;|旧世代の確定通知| E3[cancelled: notification_superseded]
+    D --&gt;|OK| F{provider送信}
+    F --&gt;|成功| G[sent → 通知履歴・使用量カウント]
+    F --&gt;|一時エラー 429/5xx| H[retry: 最大5回 backoff 1分〜1時間]
+    H --&gt; B
+    F --&gt;|LINE quota超過| I[LINEジョブはfailed + fallbackメールをenqueue]
+    I --&gt; B
+    F --&gt;|恒久エラー・再試行上限| J[failed]
+    J --&gt; K{要対応Inboxへ?}
+    K --&gt;|抑止context: 確定催促・不達digest・本番募集案内| L[記録しない・配送イベントログのみ]
+    K --&gt;|other種別: 同意依頼・申請digest等| M[記録するが表示しない]
+    K --&gt;|actionable種別: 募集・催促・確定・LINE案内| N[open: Dashboard要対応に表示]
+    N --&gt;|管理者が再通知| B
+    N --&gt;|無視する| O[resolved/dismissed]
+    N --&gt;|最終失敗から30日| P[resolved/expired]</pre><details class="mermaid-src"><summary>図のソース</summary><pre><code>flowchart TD
+    A[業務mutation/scheduled action] --&gt;|enqueue: 同一dedupeKeyのactiveジョブがあれば作らない| B[pending]
+    B --&gt;|1分ごとのworkerがclaim| C[processing]
+    C --&gt; D{送信直前の再確認}
+    D --&gt;|募集削除| E1[cancelled: recruitment_inactive]
+    D --&gt;|対象外化・権限喪失・宛先消失| E2[cancelled: recipient_inactive]
+    D --&gt;|旧世代の確定通知| E3[cancelled: notification_superseded]
+    D --&gt;|OK| F{provider送信}
+    F --&gt;|成功| G[sent → 通知履歴・使用量カウント]
+    F --&gt;|一時エラー 429/5xx| H[retry: 最大5回 backoff 1分〜1時間]
+    H --&gt; B
+    F --&gt;|LINE quota超過| I[LINEジョブはfailed + fallbackメールをenqueue]
+    I --&gt; B
+    F --&gt;|恒久エラー・再試行上限| J[failed]
+    J --&gt; K{要対応Inboxへ?}
+    K --&gt;|抑止context: 確定催促・不達digest・本番募集案内| L[記録しない・配送イベントログのみ]
+    K --&gt;|other種別: 同意依頼・申請digest等| M[記録するが表示しない]
+    K --&gt;|actionable種別: 募集・催促・確定・LINE案内| N[open: Dashboard要対応に表示]
+    N --&gt;|管理者が再通知| B
+    N --&gt;|無視する| O[resolved/dismissed]
+    N --&gt;|最終失敗から30日| P[resolved/expired]</code></pre></details></div>
+<h2 id="notification-s14">10. テスト観点への変換メモ</h2>
+<ul>
+<li>4章の各行は「送る1ケース＋送らない条件ごとの1ケース」で展開する。<strong>送らない側の網羅が本体</strong>。</li>
+<li>1章のチャネル選択は「連携×友だち×quota×429」の組み合わせ表で検証する。特に「quota超過→fallbackメール」と「429→fallbackしない」を対にする。</li>
+<li>3章のprovider gateは「Outbox投入後に募集削除／対象外化／権限剥奪」の後出しシナリオで検証する。</li>
+<li>時刻系（17:00発火・24時間ウィンドウ・7日後・30日expire）は、発火直前・直後の境界と「発火時に条件が消えていた」ケースを対にする。</li>
+</ul>
+
+</section>
+
+<section class="doc" id="doc-authorization">
+<header class="doc-header"><h1>認可・制限の横断規則</h1><p class="doc-src">正本: <code>doc/features/behavior-authorization.md</code></p></header>
+<blockquote>
+<p>文書種別: behavior（条件→結果の詳細仕様。機能文書・業務仕様・コードから導出）</p>
+<p>作成日: 2026-08-16 ／ 基準commit: <code>37c908f</code></p>
+<p>正本: <code>convex/_lib/functions.ts</code>、<code>convex/constants.ts</code>、<a href="../rules/security-strategy.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">セキュリティ設計方針</a>、<a href="../specs/organization-billing-business-flow.md" class="repo-link" title="リポジトリ内の文書（このHTMLからは相対パス）">業務仕様</a></p>
+</blockquote>
+<p>全機能に共通する認可境界、拒否パターン、token失効、レート制限、冪等性の規則を定める。<br>ロール×操作の一覧表は<a href="#doc-overview">機能全体サマリー5章</a>を正本とし、ここでは「どう拒否されるか」を定める。</p>
+<h2 id="authorization-s2">1. 認可境界の種類</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>wrapper／入口</th>
+<th>検証内容</th>
+<th>主な利用者</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>authenticatedQuery/Mutation</code></td>
+<td>Clerk認証と削除済みアカウント判定</td>
+<td>本人操作（アカウント設定・組織横断操作）</td>
+</tr>
+<tr>
+<td><code>organizationQuery/Mutation</code></td>
+<td>認証＋URLの<code>organizationId</code>に対するcanonicalな<code>organizationMembers</code></td>
+<td>認証済みappの組織スコープ画面</td>
+</tr>
+<tr>
+<td><code>managerQuery/Mutation</code></td>
+<td>認証＋選択店舗への管理アクセス（店舗と組織の一致を毎回確認）</td>
+<td>Dashboard・店舗スコープ操作</td>
+</tr>
+<tr>
+<td><code>staffSessionQuery/Mutation</code></td>
+<td>sessionToken＋アクセス用途（<code>accessKind</code>）＋シフト対象性</td>
+<td>スタッフの提出・閲覧</td>
+</tr>
+<tr>
+<td>公開HTTP action</td>
+<td>Origin・body上限・Turnstile・レート制限</td>
+<td>参加申請・問い合わせ・アカウント削除</td>
+</tr>
+<tr>
+<td>Webhook</td>
+<td>署名検証（raw body）・イベントID重複排除・順不同耐性</td>
+<td>Stripe・LINE・Resend</td>
+</tr>
+<tr>
+<td>internal</td>
+<td>外部から呼べない</td>
+<td>cron・worker・migration</td>
+</tr>
+</tbody></table></div>
+<p>共通原則:</p>
+<ul>
+<li><strong>URL・localStorage・クライアントが渡すID（組織・店舗・人物・staff・募集）は対象の指定であって認可根拠ではない</strong>。サーバーが認証identityから所属を毎回解決し、対象との対応を再検証する。</li>
+<li>URLの<code>?shop=</code>は利用可能な店舗一覧と照合してから採用する。候補外の店舗が明示された場合は<strong>別店舗へ自動fallbackせず</strong>、店舗スコープのデータを表示しない汎用エラーにする。</li>
+</ul>
+<h2 id="authorization-s3">2. 存在秘匿の応答契約</h2>
+<p>次の場合は「存在しない」と「権限がない」を<strong>同じ応答</strong>にし、存在・所属・削除履歴を漏らさない。テストでは応答の同一性まで検証する。</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>場面</th>
+<th>同一応答になる組</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>スタッフ詳細（<code>/staff/&lt;personId&gt;</code>）</td>
+<td>存在しない人物／削除済み人物／別組織の人物 → 同じ「ユーザーを表示できません」</td>
+</tr>
+<tr>
+<td>店舗別設定</td>
+<td>管理アクセスなし／人物と店舗所属の不一致／所属・店舗が削除済み → 同じ最小Empty</td>
+</tr>
+<tr>
+<td>スタッフの提出・閲覧リンク</td>
+<td>存在しないtoken／用途違い／使用済みviewリンク／スタッフ削除済み → 一律「リンク無効」</td>
+</tr>
+<tr>
+<td>QR参加申請（公開HTTP）</td>
+<td>新規申請／登録済み／申請済み／承認待ち上限到達 → 同じ受付結果（登録済みメールの有無を公開しない）</td>
+</tr>
+<tr>
+<td>閲覧リンク再発行</td>
+<td>メール一致／不一致 → 同じ応答（実送信だけが異なる）</td>
+</tr>
+<tr>
+<td>スタッフ追加・承認</td>
+<td>削除済み人物の再追加／account deletion受付済み／人物不整合／利用人数上限 → 削除履歴・存在を示さない汎用不可</td>
+</tr>
+</tbody></table></div>
+<h2 id="authorization-s4">3. ロール・状態による書き込み拒否</h2>
+<h3 id="authorization-s5">3.1 組織所属の状態</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th><code>organizationMembers</code>の状態</th>
+<th>読み取り</th>
+<th>書き込み</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>active</code></td>
+<td>可</td>
+<td>可（課金状態の制限に従う）</td>
+</tr>
+<tr>
+<td><code>readOnly</code>（契約制限中の復旧担当者）</td>
+<td>可（閲覧専用表示）</td>
+<td>復旧操作のみ（下表）</td>
+</tr>
+<tr>
+<td><code>removed</code>（元管理者）</td>
+<td><strong>不可</strong>（<code>getMyShops</code>が当該組織の店舗を返さない）</td>
+<td>不可</td>
+</tr>
+</tbody></table></div>
+<p>frontendの閲覧専用表示は認可根拠ではなく、mutationが毎回組織所属と課金policyを再検証する。<br>購読中に権限が消えた場合（管理者交代等）は、選択状態を正規化するまで旧店舗の子画面を描画しない。</p>
+<h3 id="authorization-s6">3.2 課金状態による書き込み制御（<code>businessWriteBlockReason</code>）</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>課金状態</th>
+<th>業務書き込み</th>
+<th>備考</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Trial／Standard／Pro／支払い不要Pro相当／Free</td>
+<td>可</td>
+<td>プラン上限内で</td>
+</tr>
+<tr>
+<td><code>pendingActivation</code>（支払い結果待ち）</td>
+<td>ブロック理由<code>paymentResultPending</code></td>
+<td>確認中の表示</td>
+</tr>
+<tr>
+<td><code>grace</code>（支払い猶予14日）</td>
+<td><strong>可</strong>（失敗前プランの全機能）</td>
+<td>警告と支払い導線を表示</td>
+</tr>
+<tr>
+<td><code>restricted</code>（契約制限中）</td>
+<td>ブロック理由<code>restricted</code></td>
+<td>下表の操作だけ許可</td>
+</tr>
+</tbody></table></div>
+<p>契約制限中に<strong>停止</strong>する操作: 募集の作成・編集・削除、シフトの下書き保存・編集・確定、スタッフの追加・再有効化、管理者招待、店舗の追加・再稼働、AIシフトたたき台（未実装）、業務メール・LINEの新規送信。</p>
+<p>契約制限中でも<strong>許可</strong>する操作:</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>操作</th>
+<th>誰が</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>既存データの閲覧</td>
+<td>復旧担当者（readOnly）</td>
+</tr>
+<tr>
+<td>組織名の変更</td>
+<td>有効管理者</td>
+</tr>
+<tr>
+<td>有料契約の開始・再開、支払い方法更新、請求先メール変更</td>
+<td>復旧担当者</td>
+</tr>
+<tr>
+<td>組織からの利用者削除、店舗のアーカイブ</td>
+<td>復旧担当者</td>
+</tr>
+<tr>
+<td>旧Free移行の管理者・店舗選択（該当する旧状態のみ）</td>
+<td>復旧担当者</td>
+</tr>
+<tr>
+<td>LINE連携の明示解除（通知停止の安全操作）</td>
+<td><strong>activeな管理者のみ</strong>（readOnlyは不可）</td>
+</tr>
+</tbody></table></div>
+<p>契約制限へ切り替わった画面は書き込みDialogを閉じ、ShiftBoardの未保存編集を永続化済みデータへ戻す。</p>
+<h3 id="authorization-s7">3.3 スタッフsessionの拒否条件</h3>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>条件</th>
+<th>結果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>session期限切れ（14日）</td>
+<td>拒否。期限到来はDB購読で画面へ即時反映</td>
+</tr>
+<tr>
+<td>アクセス用途（<code>accessKind</code>）の不一致（提出用tokenで閲覧等）</td>
+<td>拒否（リンク無効扱い）</td>
+</tr>
+<tr>
+<td><code>excludedFromShift</code>（シフト対象外）</td>
+<td>拒否（発行済みsession・magic linkも対象外化時に失効済み）</td>
+</tr>
+<tr>
+<td>staff・店舗・組織の論理削除</td>
+<td>拒否</td>
+</tr>
+</tbody></table></div>
+<h2 id="authorization-s8">4. token・sessionの失効マトリクス</h2>
+<p>「何が起きると、何が使えなくなるか」。○＝失効する。</p>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>イベント</th>
+<th>提出・閲覧magic link / session</th>
+<th>LINE連携token</th>
+<th>法務同意token</th>
+<th>店舗登録リンク</th>
+<th>管理者招待</th>
+<th>canonical LINE連携</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>シフト対象外への切替</td>
+<td>○</td>
+<td>残す（他通知で使用）</td>
+<td>残す</td>
+<td>-</td>
+<td>-</td>
+<td>残す</td>
+</tr>
+<tr>
+<td>店舗からの所属解除</td>
+<td>○（対象店舗分）</td>
+<td>○（店舗分）</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td><strong>残り得る</strong></td>
+</tr>
+<tr>
+<td>組織からの人物削除</td>
+<td>○（全店舗分）</td>
+<td>○</td>
+<td>−※</td>
+<td>-</td>
+<td>本人が発行した未承認招待○</td>
+<td>○（その組織分）</td>
+</tr>
+<tr>
+<td>店舗削除</td>
+<td>○（店舗分）</td>
+<td>○</td>
+<td>○</td>
+<td>○</td>
+<td>-</td>
+<td>残す（組織人物の連携）</td>
+</tr>
+<tr>
+<td>組織削除</td>
+<td>○（全店舗分）</td>
+<td>○</td>
+<td>○</td>
+<td>○</td>
+<td>○</td>
+<td>○（その組織分。別組織は残す）</td>
+</tr>
+<tr>
+<td>募集の削除</td>
+<td>対象募集のリンクが利用不可</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+</tr>
+<tr>
+<td>LINE連携URLの再発行</td>
+<td>-</td>
+<td>○（同一人物の旧token）</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+</tr>
+<tr>
+<td>招待の再送</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>○（旧token）</td>
+<td>-</td>
+</tr>
+<tr>
+<td>LINEの明示解除</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>○（全所属店舗で停止、再連携必要）</td>
+</tr>
+<tr>
+<td>友だちブロック</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+<td>連携は残る（LINE送信不可→メールへ）</td>
+</tr>
+</tbody></table></div>
+<p>※ 組織からの人物削除では法務同意tokenの個別失効処理はなく（<code>personRemoval</code>の失効対象はsession・magic link・LINE連携token・店舗LINE投影）、30日の期限切れに任せる。session・magic linkは失効するため提出系の導線は使えない。</p>
+<p>有効期限（イベントがなくても失効する）: magic link 24時間（既定）、スタッフsession 14日、LINE連携URL 72時間、法務同意token 30日、管理者招待7日、Stripe Portal URLはStripe側の短期失効。</p>
+<h2 id="authorization-s9">5. プラン上限と超過時の挙動</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>プラン・状態</th>
+<th align="right">利用人数</th>
+<th align="right">稼働店舗</th>
+<th align="right">有効管理者</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Trial／支払い不要Pro相当／Pro</td>
+<td align="right">50</td>
+<td align="right">5</td>
+<td align="right">5</td>
+</tr>
+<tr>
+<td>Standard</td>
+<td align="right">25</td>
+<td align="right">5</td>
+<td align="right">5</td>
+</tr>
+<tr>
+<td>Free</td>
+<td align="right">5</td>
+<td align="right">1</td>
+<td align="right">2</td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>超過する操作（Standardの26人目・Proの51人目・6人目管理者・6店舗目）は<strong>確定前に拒否</strong>し、現在の利用状況を表示する。一部だけの保存はしない。利用人数は上位の標準プランがある場合だけプラン変更を案内し、Pro上限では問い合わせ導線を表示しない。</li>
+<li>管理者上限は「有効管理者＋期限内の未承認招待」の見込み合計で判定する。</li>
+<li>プラン上限を<strong>読み取りの上限に流用しない</strong>。上限超過の既存データ（人物・店舗）も一覧の追加ページから全件到達できる。</li>
+<li>人数が減っても自動でプランを変更しない。</li>
+</ul>
+<h2 id="authorization-s10">6. レート制限・quota一覧</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>対象</th>
+<th>制限</th>
+<th>到達時の挙動</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>スタッフ個別通知の再送</td>
+<td>操作者10回/日、組織20回/日（募集・確定共通。actorを替えても組織quotaを共有）</td>
+<td>再送を受け付けない</td>
+</tr>
+<tr>
+<td>再送の配送対象数</td>
+<td>organization×通知種別で200件/短時間、1000件/日</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>確定シフト個別再送の対象募集</td>
+<td>1回50件</td>
+<td><strong>超過時は1件も送らず</strong>開始不可を表示</td>
+</tr>
+<tr>
+<td>通知fanout</td>
+<td>対象スタッフ50名/操作、10名ずつ処理</td>
+<td>上限で固定</td>
+</tr>
+<tr>
+<td>QR参加申請</td>
+<td>メール3回/短時間・10回/日、リンク5回/短時間・40回/日、IP 10回/短時間・100回/日、global</td>
+<td>受付拒否（Turnstile通過後も適用）</td>
+</tr>
+<tr>
+<td>承認待ち申請の保存</td>
+<td>店舗20件</td>
+<td>受付結果だけ返して保存しない</td>
+</tr>
+<tr>
+<td>問い合わせ</td>
+<td>Turnstile＋メール・IPハッシュ単位、global 100回/短時間</td>
+<td>送信拒否</td>
+</tr>
+<tr>
+<td>組織作成</td>
+<td>自作保持3件、作成10回/日</td>
+<td>拒否</td>
+</tr>
+<tr>
+<td>閲覧リンク再発行</td>
+<td>短時間の重複要求・連続試行を制限</td>
+<td>同一応答のまま抑止</td>
+</tr>
+<tr>
+<td>LINE OAuth callback</td>
+<td>無効state 100回/globalの照会抑止</td>
+<td>拒否</td>
+</tr>
+<tr>
+<td>Clerk確認コード送信・OAuth開始</td>
+<td>同一tab内で操作単位30秒</td>
+<td>連続送信を抑止（tab跨ぎはClerk serverが正本）</td>
+</tr>
+</tbody></table></div>
+<p>レート制限キーは生値ではなくSHA-256ハッシュを保存する。</p>
+<h2 id="authorization-s11">7. 冪等性・二重実行の契約</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>場面</th>
+<th>仕組み</th>
+<th>保証</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>通知のenqueue</td>
+<td><code>dedupeKey</code>（activeジョブと同一なら作らない）</td>
+<td>二重通知しない</td>
+</tr>
+<tr>
+<td>確定・再通知</td>
+<td>semantic key（店舗×募集×用途×スタッフ×文面値）＋世代（supersede）</td>
+<td>同じ内容を重複送信しない。旧世代はcancel</td>
+</tr>
+<tr>
+<td>メール送信</td>
+<td>Outbox ID由来のidempotency key（Resend）、<code>X-Line-Retry-Key</code>（LINE）</td>
+<td>provider側の重複を防ぐ</td>
+</tr>
+<tr>
+<td>店舗所属変更</td>
+<td><code>requestId</code>＋fingerprint＋preview</td>
+<td>同一要求は同一結果。<strong>別内容への<code>requestId</code>再利用は拒否</strong></td>
+</tr>
+<tr>
+<td>組織作成・削除、人物削除</td>
+<td><code>requestId</code>由来のcorrelationId</td>
+<td>重複作成・重複jobを防ぐ</td>
+</tr>
+<tr>
+<td>契約操作</td>
+<td>Stripe Event ID・operation idempotency key</td>
+<td>連続実行で契約・請求・通知を重複させない</td>
+</tr>
+<tr>
+<td>Webhook</td>
+<td>Event ID＋対象オブジェクトID＋種別で重複排除。順不同でも状態を過去へ戻さない</td>
+<td>巻き戻りなし</td>
+</tr>
+<tr>
+<td>シフト対象外トグル等のUI</td>
+<td>single-flight＋1000ms再操作無効</td>
+<td>連打を無害化</td>
+</tr>
+<tr>
+<td>通信結果が不明な操作</td>
+<td>同じ入力と<code>requestId</code>で再試行</td>
+<td>最初に確定した結果へ収束</td>
+</tr>
+</tbody></table></div>
+<h2 id="authorization-s12">8. 外部サービス障害時の挙動</h2>
+<div class="tbl"><table>
+<thead>
+<tr>
+<th>障害</th>
+<th>挙動</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Clerkの設定不足・一時障害・照会失敗（招待承認）</td>
+<td>承認を完了せず<strong>招待を未使用のまま</strong>残し、再試行可能な結果を返す</td>
+</tr>
+<tr>
+<td>Stripe Webhookの遅延・重複・順不同</td>
+<td>Event IDで重複排除し、必要ならStripeの最新状態を再取得。古いイベントで支払い済み・解約取消済みを巻き戻さない</td>
+</tr>
+<tr>
+<td>Stripe支払い結果を確認できない</td>
+<td>ローカル期限だけで状態を確定せず再照合する</td>
+</tr>
+<tr>
+<td>LINE 429／5xx</td>
+<td>再試行（fallbackしない）</td>
+</tr>
+<tr>
+<td>LINE quota超過</td>
+<td>fallbackメールがあればメールへ切替</td>
+</tr>
+<tr>
+<td>Resendの一時エラー</td>
+<td>retry headerに従い再試行。bounce・抑止は不達として要対応Inboxへ</td>
+</tr>
+<tr>
+<td>Turnstile検証不可</td>
+<td>公開フォームの受付を拒否</td>
+</tr>
+<tr>
+<td>Slack通知失敗（問い合わせ）</td>
+<td>メール受付が成功していれば利用者には受付完了を表示</td>
+</tr>
+</tbody></table></div>
+<h2 id="authorization-s13">9. ログ・応答に含めない情報</h2>
+<p>secret、token、magic link URL、メールアドレス、LINE user ID、通知本文、provider raw error／Webhook body、カード情報、パスワード、Clerk確認コードは、ログ・監査・通知履歴・無関係な応答へ出さない。<br>例外は認証成功時のCapability受け渡しで、<code>verifyToken</code>はmagic linkの検証に成功した本人の応答へ新しいsession tokenを意図的に返す（これがスタッフ認証の仕組みそのもの）。この場合もtokenをログ・監査・通知履歴へは残さない。<br>永続化するエラーは固定taxonomy（<code>line_rate_limited</code>等）だけとする。</p>
+<h2 id="authorization-s14">10. テスト観点への変換メモ</h2>
+<ul>
+<li>2章の各行は「正当な要求」と「不正な要求」の応答を突き合わせ、<strong>status・bodyが同一</strong>であることを検証する。</li>
+<li>4章のマトリクスは「イベント発生→旧リンクでアクセス→拒否」の形で全セルを消化できる。</li>
+<li>6章は上限ちょうど／+1の境界と、「actor・宛先を替えた回避が組織quotaで止まる」ことを検証する。</li>
+<li>7章は同一<code>requestId</code>再実行（同一結果）と別内容再利用（拒否）を対にする。</li>
+<li>8章はfake providerで障害を注入し、「消費しない・巻き戻さない・重複しない」の3不変条件を確認する。</li>
+</ul>
+
+</section>
+<footer>生成元: doc/features/OVERVIEW.md, behavior-staff.md, behavior-organization.md, behavior-shift.md, behavior-notification.md, behavior-authorization.md（基準commit b318dc8）</footer>
+</main>
+</div>
+<script type="module">
+try {
+  const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs");
+  mermaid.initialize({ startOnLoad: false, theme: "neutral", securityLevel: "strict" });
+  await mermaid.run({ querySelector: ".mermaid" });
+} catch {
+  document.body.classList.add("no-mermaid");
+}
+</script>
+<noscript><style>.mermaid-offline-note { display: block; } pre.mermaid { display: block; }</style></noscript>
+</body>
+</html>

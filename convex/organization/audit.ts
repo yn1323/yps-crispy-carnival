@@ -9,24 +9,24 @@ export type OrganizationAuditAction =
   | "organization.name_changed"
   | "organization.billing_email_changed"
   | "organization.shop_added"
-  | "organization.shop_archived"
   | "organization.shop_deleted"
-  | "organization.shop_reactivated"
   | "organization.person_removed_from_shop"
+  | "organization.person_shop_memberships_changed"
+  | "organization.shop_staff_memberships_changed"
   | "organization.person_removed"
   | "organization.person_reactivated"
   | "organization.person_profile_updated"
+  | "organization.person_line_disconnected"
   | "organization.account_email_synced"
   | "organization.staff_added"
   | "organization.manager_role_removed"
-  | "organization.recovery_managers_changed"
   | "organization.manager_invited"
   | "organization.manager_invitation_resent"
   | "organization.manager_invitation_revoked"
   | "organization.manager_invitation_accepted"
   | "organization.manager_invitation_linked"
+  | "organization.staff_registration_link_rotated"
   | "organization.free_selection_changed"
-  | "organization.billing_grace_shortened"
   | "organization.billing_state_changed";
 
 export async function recordOrganizationAuditEvent(
@@ -90,21 +90,9 @@ async function inferAnalyticsEvent(
   if (
     args.targetKind === "shop" &&
     args.targetId &&
-    [
-      "organization.shop_added",
-      "organization.shop_archived",
-      "organization.shop_reactivated",
-      "organization.shop_deleted",
-    ].includes(args.action)
+    (args.action === "organization.shop_added" || args.action === "organization.shop_deleted")
   ) {
-    const change =
-      args.action === "organization.shop_added"
-        ? "created"
-        : args.action === "organization.shop_archived"
-          ? "archived"
-          : args.action === "organization.shop_reactivated"
-            ? "reactivated"
-            : "deleted";
+    const change = args.action === "organization.shop_added" ? "created" : "deleted";
     return {
       eventType: "shop.changed",
       shopId: args.targetId as Id<"shops">,

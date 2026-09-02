@@ -2,9 +2,11 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { seedManagerShop, seedShop, seedUser } from "../_test/seed";
+import { seedStaff } from "../_test/scenarioBuilders";
+import { seedManagerShop, seedOrganizationManagerShop, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { runAccountDeletionJob } from "./actions";
+import { ACCOUNT_DELETION_SHARED_CLEANUP_POLL_MS } from "./constants";
 import { type AccountDeletionProvider, AccountDeletionProviderError } from "./provider";
 
 const ISSUER = "https://convex.test";
@@ -168,6 +170,205 @@ describe("accountDeletion", () => {
       status: "actionRequired",
       lastErrorCode: "association_found_before_provider_delete",
     });
+    expect(provider.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it("provider削除直前に共有所属の通知履歴が残っていれば削除を再kickして待機へ戻す", async () => {
+    const t = createAccountDeletionTest();
+    const ids = await t.run(async (ctx) => {
+      const owner = await seedOrganizationManagerShop(ctx, {
+        subject: "shared_cleanup_owner",
+        email: "shared-cleanup-owner@example.com",
+        shopName: "共有cleanup店舗",
+        complimentary: true,
+      });
+      const userId = await seedUser(ctx, "shared_cleanup_subject", "shared-cleanup-subject@example.com");
+      const staffId = await seedStaff(ctx, {
+        shopId: owner.shopId,
+        userId,
+        name: "削除済みスタッフ",
+        email: "shared-cleanup-staff@example.com",
+        isDeleted: true,
+      });
+      const outboxId = await ctx.db.insert("notificationOutbox", {
+        channel: "email",
+        status: "sent",
+        dedupeKey: "email:account-deletion:prepare-shared-cleanup",
+        shopId: owner.shopId,
+        organizationId: owner.organizationId,
+        staffId,
+        payload: {
+          kind: "email",
+          from: "シフトリ <noreply@example.com>",
+          to: "shared-cleanup-subject@example.com",
+          subject: "共有cleanup待機",
+          html: "<p>共有cleanup待機</p>",
+          context: "test.accountDeletion.prepareSharedCleanup",
+        },
+        attemptCount: 1,
+        nextRunAt: Date.now(),
+        sentAt: Date.now(),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      const historyId = await ctx.db.insert("notificationHistory", {
+        outboxId,
+        shopId: owner.shopId,
+        staffId,
+        channel: "email",
+        notificationKind: "test.accountDeletion.prepareSharedCleanup",
+        displayTitle: "共有cleanup待機",
+        sendStatus: "sent",
+        deliveryStatus: "unknown",
+        requestedAt: Date.now(),
+        sentAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      const jobId = await ctx.db.insert("accountDeletionJobs", {
+        userId,
+        requestId: REQUEST_ID,
+        clerkUserId: "shared_cleanup_subject",
+        expectedIssuer: ISSUER,
+        status: "processing",
+        phase: "deleteProviderUser",
+        sharedCleanup: {
+          organizationId: owner.organizationId,
+          targets: [{ shopId: owner.shopId, staffId }],
+        },
+        version: 3,
+        attemptCount: 1,
+        nextRunAt: Date.now(),
+        leaseId: "shared-cleanup-lease",
+        leaseExpiresAt: Date.now() + 60_000,
+        providerUserVerifiedAt: Date.now() - 1_000,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      return { historyId, jobId };
+    });
+
+    await expect(
+      t.mutation(internal.accountDeletion.mutations.prepareProviderDeletion, {
+        jobId: ids.jobId,
+        leaseId: "shared-cleanup-lease",
+        expectedVersion: 3,
+      }),
+    ).resolves.toEqual({ status: "blocked" });
+
+    const state = await t.run(async (ctx) => ({
+      history: await ctx.db.get(ids.historyId),
+      job: await ctx.db.get(ids.jobId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.history).not.toBeNull();
+    expect(state.job).toMatchObject({
+      status: "queued",
+      phase: "waitForSharedCleanup",
+      version: 4,
+      nextRunAt: Date.now() + ACCOUNT_DELETION_SHARED_CLEANUP_POLL_MS,
+    });
+    expect(state.job).not.toHaveProperty("providerUserVerifiedAt");
+    expect(
+      state.scheduled
+        .map((scheduled) => scheduled.name)
+        .filter(
+          (name) =>
+            name === "notificationOutbox/mutations:deleteStaffNotificationHistoryBatch" ||
+            name === "accountDeletion/actions:processJob",
+        )
+        .sort(),
+    ).toEqual([
+      "accountDeletion/actions:processJob",
+      "notificationOutbox/mutations:deleteStaffNotificationHistoryBatch",
+    ]);
+  });
+
+  it("shared cleanup targetがaccountまたはtenantと一致しなければ履歴を削除せず停止する", async () => {
+    const t = createAccountDeletionTest();
+    const ids = await t.run(async (ctx) => {
+      const owner = await seedOrganizationManagerShop(ctx, {
+        subject: "shared_cleanup_corrupt_owner",
+        email: "shared-cleanup-corrupt-owner@example.com",
+        shopName: "共有cleanup破損店舗",
+        complimentary: true,
+      });
+      const userId = await seedUser(ctx, "shared_cleanup_corrupt_subject", "shared-cleanup-corrupt@example.com");
+      const staffId = await seedStaff(ctx, {
+        shopId: owner.shopId,
+        userId: owner.userId,
+        name: "別アカウントの削除済みスタッフ",
+        email: "shared-cleanup-corrupt-staff@example.com",
+        isDeleted: true,
+      });
+      const outboxId = await ctx.db.insert("notificationOutbox", {
+        channel: "email",
+        status: "sent",
+        dedupeKey: "email:account-deletion:corrupt-shared-cleanup",
+        shopId: owner.shopId,
+        organizationId: owner.organizationId,
+        staffId,
+        payload: {
+          kind: "email",
+          from: "noreply@example.com",
+          to: "shared-cleanup-corrupt-staff@example.com",
+          subject: "削除してはいけない履歴",
+          html: "<p>削除してはいけない履歴</p>",
+          context: "test.accountDeletion.corruptSharedCleanup",
+        },
+        attemptCount: 1,
+        nextRunAt: Date.now(),
+        sentAt: Date.now(),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      const historyId = await ctx.db.insert("notificationHistory", {
+        outboxId,
+        shopId: owner.shopId,
+        staffId,
+        channel: "email",
+        notificationKind: "test.accountDeletion.corruptSharedCleanup",
+        displayTitle: "削除してはいけない履歴",
+        sendStatus: "sent",
+        deliveryStatus: "unknown",
+        requestedAt: Date.now(),
+        sentAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      const jobId = await ctx.db.insert("accountDeletionJobs", {
+        userId,
+        requestId: REQUEST_ID,
+        clerkUserId: "shared_cleanup_corrupt_subject",
+        expectedIssuer: ISSUER,
+        status: "queued",
+        phase: "waitForSharedCleanup",
+        sharedCleanup: {
+          organizationId: owner.organizationId,
+          targets: [{ shopId: owner.shopId, staffId }],
+        },
+        version: 1,
+        attemptCount: 0,
+        nextRunAt: Date.now(),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      return { historyId, jobId };
+    });
+    const provider = fakeProvider();
+
+    await runAccountDeletionJob(workerCtx(t), provider, ids.jobId);
+
+    const state = await t.run(async (ctx) => ({
+      history: await ctx.db.get(ids.historyId),
+      job: await ctx.db.get(ids.jobId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(state.history).not.toBeNull();
+    expect(state.job).toMatchObject({ status: "actionRequired", lastErrorCode: "shared_cleanup_invalid" });
+    expect(state.scheduled.map((scheduled) => scheduled.name)).not.toContain(
+      "notificationOutbox/mutations:deleteStaffNotificationHistoryBatch",
+    );
+    expect(provider.assertReady).not.toHaveBeenCalled();
+    expect(provider.getUser).not.toHaveBeenCalled();
     expect(provider.deleteUser).not.toHaveBeenCalled();
   });
 

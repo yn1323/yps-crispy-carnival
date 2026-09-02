@@ -1,10 +1,12 @@
+import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import { useRef, useState } from "react";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import { createDeferred } from "@/src/devtools/createDeferred";
-import { CreateRecruitmentForm } from "./index.tsx";
+import { CreateRecruitmentForm, type CreateRecruitmentSelectableShop } from "./index.tsx";
+import { RecruitmentShopSelection } from "./RecruitmentShopSelection";
 
 const meta = {
   title: "Features/CreateRecruitmentForm",
@@ -21,17 +23,65 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const STORY_TODAY = "2026-05-01";
+const FIXED_SHOP = { shopId: "shop-main", shopName: "本店" };
+const SELECTABLE_SHOPS: CreateRecruitmentSelectableShop[] = [
+  { ...FIXED_SHOP, regularClosedDays: ["mon"] },
+  { shopId: "shop-station", shopName: "駅前店", regularClosedDays: ["tue"] },
+];
 const LONG_WEEKDAYS = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"] as const;
 const storyToday = () => dayjs(STORY_TODAY);
 
-const DoubleSubmitGuardHarness = () => {
-  const [submitCount, setSubmitCount] = useState(0);
-  const pendingSubmission = useRef<ReturnType<typeof createDeferred> | null>(null);
+const ShopSelectionHarness = () => {
+  const [submittedShopName, setSubmittedShopName] = useState("");
+  const [shops, setShops] = useState(SELECTABLE_SHOPS);
 
   return (
     <>
       <StepperDialog title="新しい募集をつくる" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
         <CreateRecruitmentForm
+          today={STORY_TODAY}
+          shopTarget={{ mode: "select", shops }}
+          onSubmit={(_, selectedShop) => setSubmittedShopName(selectedShop?.shopName ?? "")}
+          onCancel={() => {}}
+        />
+      </StepperDialog>
+      <output hidden data-testid="submitted-shop-name">
+        {submittedShopName}
+      </output>
+      <button
+        type="button"
+        hidden
+        data-testid="remove-station-shop"
+        onClick={() => setShops((current) => current.filter((shop) => shop.shopId !== "shop-station"))}
+      >
+        駅前店を候補から外す
+      </button>
+    </>
+  );
+};
+
+const DoubleSubmitGuardHarness = () => {
+  const [submitCount, setSubmitCount] = useState(0);
+  const [closeCount, setCloseCount] = useState(0);
+  const [isOpen, setIsOpen] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sessionRevision, setSessionRevision] = useState(0);
+  const pendingSubmission = useRef<ReturnType<typeof createDeferred> | null>(null);
+
+  return (
+    <>
+      <StepperDialog
+        title="新しい募集をつくる"
+        isOpen={isOpen}
+        onOpenChange={({ open }) => setIsOpen(open)}
+        onClose={() => {
+          setCloseCount((current) => current + 1);
+          setIsOpen(false);
+        }}
+        preventClose={isSubmitting}
+      >
+        <CreateRecruitmentForm
+          key={sessionRevision}
           today={STORY_TODAY}
           onSubmit={async () => {
             setSubmitCount((current) => current + 1);
@@ -39,11 +89,21 @@ const DoubleSubmitGuardHarness = () => {
             pendingSubmission.current = submission;
             await submission.promise;
             if (pendingSubmission.current === submission) pendingSubmission.current = null;
+            setIsOpen(false);
           }}
-          onCancel={() => {}}
+          onCancel={() => setIsOpen(false)}
+          onSubmittingChange={setIsSubmitting}
         />
       </StepperDialog>
-      <output data-testid="submit-call-count">{submitCount}</output>
+      <output hidden data-testid="submit-call-count">
+        {submitCount}
+      </output>
+      <output hidden data-testid="create-close-count">
+        {closeCount}
+      </output>
+      <output hidden data-testid="create-submitting-state">
+        {String(isSubmitting)}
+      </output>
       <button
         type="button"
         hidden
@@ -52,6 +112,17 @@ const DoubleSubmitGuardHarness = () => {
       >
         募集作成処理を完了する
       </button>
+      <button
+        type="button"
+        hidden
+        data-testid="reopen-recruitment-dialog"
+        onClick={() => {
+          setSessionRevision((revision) => revision + 1);
+          setIsOpen(true);
+        }}
+      >
+        募集作成を再度開く
+      </button>
     </>
   );
 };
@@ -59,7 +130,12 @@ const DoubleSubmitGuardHarness = () => {
 export const InDialog: Story = {
   render: () => (
     <StepperDialog title="新しい募集をつくる" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
-      <CreateRecruitmentForm today={STORY_TODAY} onSubmit={() => {}} onCancel={() => {}} />
+      <CreateRecruitmentForm
+        today={STORY_TODAY}
+        shopTarget={{ mode: "fixed", shop: FIXED_SHOP }}
+        onSubmit={() => {}}
+        onCancel={() => {}}
+      />
     </StepperDialog>
   ),
 };
@@ -71,8 +147,33 @@ export const MobileFullScreen: Story = {
   },
   render: () => (
     <StepperDialog title="新しい募集をつくる" isOpen={true} onOpenChange={() => {}} onClose={() => {}}>
-      <CreateRecruitmentForm today={STORY_TODAY} onSubmit={() => {}} onCancel={() => {}} />
+      <CreateRecruitmentForm
+        today={STORY_TODAY}
+        shopTarget={{ mode: "fixed", shop: FIXED_SHOP }}
+        onSubmit={() => {}}
+        onCancel={() => {}}
+      />
     </StepperDialog>
+  ),
+};
+
+export const ShopSelectionInDialog: Story = {
+  render: () => <ShopSelectionHarness />,
+};
+
+export const ShopSelectionMobile: Story = {
+  tags: ["vrt-mobile1"],
+  globals: {
+    viewport: { value: "mobile1", isRotated: false },
+  },
+  render: () => <ShopSelectionHarness />,
+};
+
+export const ShopSelectionSelected: Story = {
+  render: () => (
+    <Box maxW="760px">
+      <RecruitmentShopSelection shops={SELECTABLE_SHOPS} selectedShopId={FIXED_SHOP.shopId} onChange={() => {}} />
+    </Box>
   ),
 };
 
@@ -196,24 +297,118 @@ export const InteractiveBasicFlow: Story = {
     const periodEnd = today.add(5, "day");
     const deadline = periodStart.subtract(1, "day");
 
+    expect(canvas.queryByText("対象店舗を選択")).not.toBeInTheDocument();
+    await canvas.findByText("シフト期間を選択");
     expectDateDisabled(root, today, "期間カレンダーで今日以前は選択不可");
     await clickDate(root, periodStart);
     await clickDate(root, periodEnd);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     await clickButton(root, "次へ");
 
-    await canvas.findByText("提出締切日を選択");
+    await canvas.findByText("提出期限を選択");
     await clickDate(root, deadline);
     await clickButton(root, "確認へ");
 
     await canvas.findByText("内容を確認");
-    expect(canvas.getByText("お店のお休み")).toBeTruthy();
+    expect(canvas.getByText("対象店舗")).toBeTruthy();
+    expect(canvas.getByText("本店")).toBeTruthy();
+    expect(canvas.getByText("定休日")).toBeTruthy();
     expect(canvas.getByText("なし")).toBeTruthy();
-    expect(canvas.getAllByText("提出締切").length).toBeGreaterThan(0);
-    expect(canvas.getByText("通知")).toBeTruthy();
-    expect(await canvas.findByText("スタッフにシフト提出案内を送ります")).toBeTruthy();
+    expect(canvas.getAllByText("提出期限").length).toBeGreaterThan(0);
+    expect(canvas.getByText("通知方法")).toBeTruthy();
+    expect(await canvas.findByText("メール・LINEで通知します")).toBeTruthy();
+  },
+};
+
+export const InteractiveShopSelectionFlow: Story = {
+  parameters: {
+    screenshot: { skip: true },
+  },
+  render: () => <ShopSelectionHarness />,
+  play: async ({ canvasElement }) => {
+    const root = await getTestRoot(canvasElement);
+    const canvas = within(root);
+    const story = within(canvasElement);
+    const periodStart = dayjs("2026-05-04");
+    const periodEnd = dayjs("2026-05-06");
+    const monday = periodStart;
+    const tuesday = periodStart.add(1, "day");
+
+    await canvas.findByText("対象店舗を選択");
+    await expect(canvas.getByRole("button", { name: "次へ" })).toBeDisabled();
+    await userEvent.click(canvas.getByRole("radio", { name: "本店を選択" }));
+    await expect(canvas.getByRole("radio", { name: "本店を選択" })).toBeChecked();
+    await clickButton(root, "次へ");
+
+    await canvas.findByText("シフト期間を選択");
+    await clickDate(root, periodStart);
+    await clickDate(root, periodEnd);
+    await clickButton(root, "次へ");
+
+    await canvas.findByText("定休日を選択(任意)");
+    await expect(getDateButton(root, monday)).toHaveAttribute("data-selected");
+    await clickButton(root, "戻る");
+    await canvas.findByText("シフト期間を選択");
+    await clickButton(root, "戻る");
+
+    await canvas.findByText("対象店舗を選択");
+    await userEvent.click(canvas.getByRole("radio", { name: "駅前店を選択" }));
+    await expect(canvas.getByRole("radio", { name: "駅前店を選択" })).toBeChecked();
+    await clickButton(root, "次へ");
+    await canvas.findByText("シフト期間を選択");
+    await clickButton(root, "次へ");
+
+    await canvas.findByText("定休日を選択(任意)");
+    await waitFor(() => expect(getDateButton(root, monday)).not.toHaveAttribute("data-selected"));
+    await expect(getDateButton(root, tuesday)).toHaveAttribute("data-selected");
+    await clickButton(root, "次へ");
+
+    await canvas.findByText("提出期限を選択");
+    await clickDate(root, periodStart.subtract(1, "day"));
+    await clickButton(root, "確認へ");
+
+    await canvas.findByText("内容を確認");
+    expect(canvas.getByText("対象店舗")).toBeTruthy();
+    expect(canvas.getByText("駅前店")).toBeTruthy();
+    expect(canvas.getByText(formatDatePreview(tuesday))).toBeTruthy();
+    expect(canvas.queryByText(formatDatePreview(monday))).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "募集をつくる" }));
+    await waitFor(() => expect(story.getByTestId("submitted-shop-name")).toHaveTextContent("駅前店"));
+  },
+};
+
+export const InteractiveSelectedShopInvalidation: Story = {
+  parameters: {
+    screenshot: { skip: true },
+  },
+  render: () => <ShopSelectionHarness />,
+  play: async ({ canvasElement }) => {
+    const root = await getTestRoot(canvasElement);
+    const canvas = within(root);
+    const story = within(canvasElement);
+    const periodStart = dayjs("2026-05-04");
+
+    await userEvent.click(await canvas.findByRole("radio", { name: "駅前店を選択" }));
+    await clickButton(root, "次へ");
+    await clickDate(root, periodStart);
+    await clickDate(root, periodStart.add(2, "day"));
+    await clickButton(root, "次へ");
+    await canvas.findByText("定休日を選択(任意)");
+    await clickButton(root, "次へ");
+    await canvas.findByText("提出期限を選択");
+    await clickDate(root, periodStart.subtract(1, "day"));
+    await clickButton(root, "確認へ");
+    await canvas.findByText("内容を確認");
+    expect(canvas.getByText("駅前店")).toBeTruthy();
+
+    fireEvent.click(story.getByTestId("remove-station-shop"));
+
+    await canvas.findByText("対象店舗を選択");
+    expect(canvas.queryByText("内容を確認")).not.toBeInTheDocument();
+    expect(canvas.queryByRole("radio", { name: "駅前店を選択" })).not.toBeInTheDocument();
+    await expect(canvas.getByRole("button", { name: "次へ" })).toBeDisabled();
   },
 };
 
@@ -234,7 +429,7 @@ export const InteractiveHolidayEdgeCases: Story = {
     await clickDate(root, periodEnd);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     for (const holiday of holidays) {
       await clickDate(root, holiday);
     }
@@ -244,7 +439,7 @@ export const InteractiveHolidayEdgeCases: Story = {
     await clickDate(root, periodEnd, false);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("提出締切日を選択");
+    await canvas.findByText("提出期限を選択");
     await clickDate(root, periodStart.subtract(1, "day"));
     await clickButton(root, "確認へ");
 
@@ -274,10 +469,10 @@ export const InteractiveDefaultRegularClosedDays: Story = {
     await clickDate(root, periodEnd);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     await clickButton(root, "次へ");
 
-    await canvas.findByText("提出締切日を選択");
+    await canvas.findByText("提出期限を選択");
     await clickDate(root, deadline);
     await clickButton(root, "確認へ");
 
@@ -302,13 +497,13 @@ export const InteractiveDeadlineRestriction: Story = {
     await clickDate(root, periodEnd);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     await clickButton(root, "次へ");
 
-    await canvas.findByText("提出締切日を選択");
+    await canvas.findByText("提出期限を選択");
     expectDateDisabled(root, periodStart, "提出期限カレンダーで開始日当日は選択不可");
     await clickButton(root, "確認へ");
-    await canvas.findByText("提出締切日を選択してください");
+    await canvas.findByText("提出期限を選択してください");
 
     await clickDate(root, periodStart.subtract(1, "day"));
     await clickButton(root, "確認へ");
@@ -334,7 +529,7 @@ export const InteractiveNextMonthOnlyFlow: Story = {
     await clickDate(root, periodEnd);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     expect(getDesktopMonthLabels(getCalendarRoot(root))).toEqual([nextMonth.format("YYYY年M月")]);
 
     await clickButton(root, "戻る");
@@ -347,11 +542,11 @@ export const InteractiveNextMonthOnlyFlow: Story = {
     );
 
     await clickButton(root, "次へ");
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     expect(getDesktopMonthLabels(getCalendarRoot(root))).toEqual([nextMonth.format("YYYY年M月")]);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("提出締切日を選択");
+    await canvas.findByText("提出期限を選択");
     await clickDate(root, deadline);
     await clickButton(root, "確認へ");
 
@@ -381,10 +576,10 @@ export const InteractiveMobileBasicFlow: Story = {
     await clickDate(root, periodEnd);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     await clickButton(root, "次へ");
 
-    await canvas.findByText("提出締切日を選択");
+    await canvas.findByText("提出期限を選択");
     await clickDate(root, periodStart.subtract(1, "day"));
     await clickButton(root, "確認へ");
 
@@ -401,6 +596,7 @@ export const InteractiveDoubleSubmitGuard: Story = {
   play: async ({ canvasElement }) => {
     const root = await getTestRoot(canvasElement);
     const canvas = within(root);
+    const body = within(canvasElement.ownerDocument.body);
     const story = within(canvasElement);
     const periodStart = storyToday().add(2, "day");
     const periodEnd = storyToday().add(4, "day");
@@ -409,10 +605,10 @@ export const InteractiveDoubleSubmitGuard: Story = {
     await clickDate(root, periodEnd);
     await clickButton(root, "次へ");
 
-    await canvas.findByText("お店のお休みを選択");
+    await canvas.findByText("定休日を選択(任意)");
     await clickButton(root, "次へ");
 
-    await canvas.findByText("提出締切日を選択");
+    await canvas.findByText("提出期限を選択");
     await clickDate(root, periodStart.subtract(1, "day"));
     await clickButton(root, "確認へ");
 
@@ -422,10 +618,48 @@ export const InteractiveDoubleSubmitGuard: Story = {
     fireEvent.click(submitButton);
 
     await waitFor(() => expect(story.getByTestId("submit-call-count")).toHaveTextContent("1"));
+    await waitFor(() => expect(root).toHaveAttribute("aria-busy", "true"));
+    await expect(canvas.getByRole("button", { name: "戻る" })).toBeDisabled();
     await expect(submitButton).toBeDisabled();
+    await expect(canvas.queryByRole("button", { name: "閉じる" })).not.toBeInTheDocument();
+
+    await userEvent.keyboard("{Escape}");
+    await expect(root).toBeVisible();
+    await expect(story.getByTestId("create-close-count")).toHaveTextContent("0");
 
     fireEvent.click(story.getByTestId("release-recruitment-submission"));
-    await waitFor(() => expect(submitButton).toBeEnabled());
+    await waitFor(() => expect(body.queryByRole("dialog", { name: "新しい募集をつくる" })).not.toBeInTheDocument());
+    await waitFor(() => expect(story.getByTestId("create-submitting-state")).toHaveTextContent("false"));
+
+    fireEvent.click(story.getByTestId("reopen-recruitment-dialog"));
+    const reopenedRoot = await getTestRoot(canvasElement);
+    const reopenedCanvas = within(reopenedRoot);
+    await expect(reopenedRoot).not.toHaveAttribute("aria-busy");
+    await expect(reopenedCanvas.getByRole("button", { name: "キャンセル" })).toBeEnabled();
+    await expect(reopenedCanvas.getByRole("button", { name: "次へ" })).toBeEnabled();
+  },
+};
+
+export const Submitting: Story = {
+  name: "募集作成中",
+  render: () => <DoubleSubmitGuardHarness />,
+  play: async ({ canvasElement }) => {
+    const root = await getTestRoot(canvasElement);
+    const canvas = within(root);
+    const periodStart = storyToday().add(2, "day");
+    const periodEnd = storyToday().add(4, "day");
+
+    await clickDate(root, periodStart);
+    await clickDate(root, periodEnd);
+    await clickButton(root, "次へ");
+    await canvas.findByText("定休日を選択(任意)");
+    await clickButton(root, "次へ");
+    await canvas.findByText("提出期限を選択");
+    await clickDate(root, periodStart.subtract(1, "day"));
+    await clickButton(root, "確認へ");
+    await canvas.findByText("内容を確認");
+    await userEvent.click(canvas.getByRole("button", { name: "募集をつくる" }));
+    await waitFor(() => expect(root).toHaveAttribute("aria-busy", "true"));
   },
 };
 

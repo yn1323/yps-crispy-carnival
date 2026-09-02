@@ -1,5 +1,6 @@
 import { lstat, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { stripVTControlCharacters } from "node:util";
 import { inflateRawSync } from "node:zlib";
 
 const MEBIBYTE = 1024 * 1024;
@@ -78,6 +79,8 @@ const FORBIDDEN_FILE_PATTERNS = [
   { label: "access log", pattern: /(^|\/)(?:access|nginx[-_.]?access)[-_.]?(?:log|jsonl)(?:\.[^/]*)?$/i },
 ];
 const UUID_TOKEN_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+const DERIVED_CAPABILITY_TOKEN_PATTERN = "[A-Za-z0-9_-]{43}";
+const BEARER_CAPABILITY_TOKEN_PATTERN = `(?:${UUID_TOKEN_PATTERN}|${DERIVED_CAPABILITY_TOKEN_PATTERN})`;
 const SENSITIVE_CONTENT_PATTERNS = [
   {
     label: "private key",
@@ -104,24 +107,34 @@ const SENSITIVE_CONTENT_PATTERNS = [
   },
   { label: "Clerk session identifier", pattern: /\b(?:dvb|sess)_[A-Za-z0-9_-]{8,}\b/ },
   {
+    label: "Clerk testing credential",
+    pattern: /\b__clerk_(?:db_jwt|testing_token)=[A-Za-z0-9_-]{8,}\b/,
+  },
+  {
     label: "bearer capability URL",
     pattern: new RegExp(
-      `/(?:legal/staff/consent|manager-invite|shifts/(?:submit|view)|staff/register)\\?[^\\s"'<>]{0,512}\\btoken=${UUID_TOKEN_PATTERN}`,
+      `/(?:legal/staff/consent|manager-invite|shifts/(?:submit|view)|staff/register)\\?[^\\s"'<>]{0,512}\\btoken=${BEARER_CAPABILITY_TOKEN_PATTERN}`,
       "i",
     ),
   },
   {
     label: "bearer capability field",
     pattern: new RegExp(
-      `[\\\\]?["'](?:capability|sessionToken|token)[\\\\]?["']\\s*[:=]\\s*[\\\\]?["']${UUID_TOKEN_PATTERN}[\\\\]?["']`,
+      `[\\\\]?["'](?:capability|sessionToken|token)[\\\\]?["']\\s*[:=]\\s*[\\\\]?["']${BEARER_CAPABILITY_TOKEN_PATTERN}[\\\\]?["']`,
       "i",
     ),
   },
   { label: "inline source map", pattern: /sourceMappingURL\s*=/ },
 ];
 const EMAIL_LOCAL_SUFFIX_PATTERN = /[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}$/;
-const EMAIL_DOMAIN_PREFIX_PATTERN = /^([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)/;
+const EMAIL_DOMAIN_PREFIX_PATTERN =
+  /^([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.(?:[A-Za-z]{2,63}|xn--[A-Za-z0-9-]{2,59}))(?![A-Za-z0-9-])/;
 const PLAYWRIGHT_STORAGE_PATTERN = /"cookies"\s*:\s*\[[\s\S]*?"origins"\s*:\s*\[/;
+const EMBEDDED_ZIP_DATA_URL_PREFIX = "data:application/zip;base64,";
+const CONFIGURED_SENSITIVE_VALUES = [
+  process.env.E2E_CLERK_PASSWORD,
+  ...(process.env.E2E_CLERK_USERS ?? "").split(",").map((value) => value.trim()),
+].filter((value) => typeof value === "string" && value.length >= 8);
 
 function parseArguments(argv) {
   if (argv.length === 0 || argv.length % 2 !== 0) {
@@ -148,19 +161,26 @@ function assertSafeDisplayPath(relativePath) {
 }
 
 function findSensitiveContent(contents, includeEmail) {
-  for (const candidate of SENSITIVE_CONTENT_PATTERNS) {
-    if (candidate.pattern.test(contents)) return candidate.label;
+  // Playwrightのmatcherが値の途中へANSI装飾を挿入しても、公開直前の検査で再結合して検出する。
+  const normalizedContents = stripVTControlCharacters(contents);
+  if (CONFIGURED_SENSITIVE_VALUES.some((value) => normalizedContents.includes(value))) {
+    return "configured E2E identity or credential";
   }
-  if (PLAYWRIGHT_STORAGE_PATTERN.test(contents)) return "authenticated browser storage state";
+  for (const candidate of SENSITIVE_CONTENT_PATTERNS) {
+    if (candidate.pattern.test(normalizedContents)) return candidate.label;
+  }
+  if (PLAYWRIGHT_STORAGE_PATTERN.test(normalizedContents)) return "authenticated browser storage state";
 
   if (includeEmail) {
     let searchFrom = 0;
-    while (searchFrom < contents.length) {
-      const atIndex = contents.indexOf("@", searchFrom);
+    while (searchFrom < normalizedContents.length) {
+      const atIndex = normalizedContents.indexOf("@", searchFrom);
       if (atIndex === -1) break;
-      const localPart = contents.slice(Math.max(0, atIndex - 64), atIndex).match(EMAIL_LOCAL_SUFFIX_PATTERN)?.[0];
-      const domain = contents
-        .slice(atIndex + 1, Math.min(contents.length, atIndex + 255))
+      const localPart = normalizedContents
+        .slice(Math.max(0, atIndex - 64), atIndex)
+        .match(EMAIL_LOCAL_SUFFIX_PATTERN)?.[0];
+      const domain = normalizedContents
+        .slice(atIndex + 1, Math.min(normalizedContents.length, atIndex + 255))
         .match(EMAIL_DOMAIN_PREFIX_PATTERN)?.[1]
         ?.toLowerCase();
       if (
@@ -339,6 +359,28 @@ function scanZipContents(contents, archivePath, state, depth = 0) {
   }
 }
 
+function scanEmbeddedZipDataUrls(contents, artifactPath, state) {
+  let searchFrom = 0;
+  let archiveIndex = 0;
+  while (searchFrom < contents.length) {
+    const prefixIndex = contents.indexOf(EMBEDDED_ZIP_DATA_URL_PREFIX, searchFrom);
+    if (prefixIndex === -1) break;
+    const encodedStart = prefixIndex + EMBEDDED_ZIP_DATA_URL_PREFIX.length;
+    let encodedEnd = encodedStart;
+    while (encodedEnd < contents.length && /[A-Za-z0-9+/=]/.test(contents[encodedEnd] ?? "")) encodedEnd += 1;
+    const encodedArchive = contents.slice(encodedStart, encodedEnd);
+    const archiveContents = Buffer.from(encodedArchive, "base64");
+    const normalizedInput = encodedArchive.replace(/=+$/, "");
+    const normalizedOutput = archiveContents.toString("base64").replace(/=+$/, "");
+    if (!encodedArchive || normalizedInput !== normalizedOutput) {
+      throw new Error(`Artifact privacy gate found invalid embedded ZIP data: ${JSON.stringify(artifactPath)}`);
+    }
+    scanZipContents(archiveContents, `${artifactPath}!/embedded-report-${archiveIndex}.zip`, state);
+    archiveIndex += 1;
+    searchFrom = encodedEnd;
+  }
+}
+
 async function collectFiles(rootArgument) {
   const workingDirectory = path.resolve(process.cwd());
   const rootPath = path.resolve(workingDirectory, rootArgument);
@@ -406,6 +448,10 @@ async function scanArtifacts(rootArguments) {
       scanZipContents(contents, normalizedPath, archiveState);
     } else {
       scanRegularContents(contents, normalizedPath);
+      if (path.extname(normalizedPath).toLowerCase() === ".html") {
+        const html = decodeUtf8(contents);
+        if (html) scanEmbeddedZipDataUrls(html, normalizedPath, archiveState);
+      }
     }
   }
   return { archiveEntryCount: archiveState.entryCount, fileCount: files.length, totalBytes };

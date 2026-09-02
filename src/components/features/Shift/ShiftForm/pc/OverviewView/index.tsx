@@ -89,6 +89,10 @@ const WeekCard = ({ week, isOpen, onToggle, onDateClick }: WeekCardProps) => {
         onClick={onToggle}
         borderBottomWidth={isOpen ? "1px" : "0"}
         borderColor="gray.100"
+        bg="transparent"
+        transitionProperty="colors"
+        transitionDuration="faster"
+        _active={{ bg: "gray.100", transitionDuration: "0ms" }}
       >
         <Flex
           w="28px"
@@ -147,13 +151,20 @@ const WeekTable = ({ week, onDateClick }: WeekTableProps) => (
                 as="th"
                 key={date.iso}
                 onClick={date.isClickable ? () => onDateClick(date.iso) : undefined}
+                bg={date.isClosed ? "gray.100" : undefined}
+                transitionProperty="colors"
+                transitionDuration="faster"
+                _active={
+                  date.isClickable
+                    ? { bg: date.isClosed ? "gray.200" : "gray.100", transitionDuration: "0ms" }
+                    : undefined
+                }
                 style={{
                   padding: "10px 4px",
                   fontWeight: 600,
                   textAlign: "center",
                   cursor: date.isClickable ? "pointer" : "default",
                   opacity: date.inRange ? 1 : 0.35,
-                  background: date.isClosed ? "#f4f4f5" : undefined,
                 }}
               >
                 <Box display="inline-block" position="relative" px={date.warningCount > 0 ? 1 : 0}>

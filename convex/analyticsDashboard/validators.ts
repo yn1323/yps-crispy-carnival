@@ -1,10 +1,10 @@
 import { v } from "convex/values";
 import {
+  analyticsCanonicalPlanValidator,
   analyticsCompletenessValidator,
   analyticsHealthSignalCountsValidator,
   analyticsHealthSignalValidator,
   analyticsMilestoneCountsValidator,
-  analyticsPlanValidator,
   analyticsSegmentDimensionValidator,
 } from "../analytics/model";
 
@@ -156,7 +156,7 @@ export const analyticsOrganizationRowValidator = v.object({
   displayName: v.string(),
   registeredAt: v.number(),
   deletedAt: v.union(v.number(), v.null()),
-  currentPlan: v.union(analyticsPlanValidator, v.null()),
+  currentPlan: v.union(analyticsCanonicalPlanValidator, v.null()),
   firstShopAt: v.union(v.number(), v.null()),
   secondShopAt: v.union(v.number(), v.null()),
   secondShopFirstConfirmedAt: v.union(v.number(), v.null()),
@@ -205,12 +205,31 @@ export const analyticsShopRowValidator = v.object({
   displayName: v.string(),
   registeredAt: v.number(),
   deletedAt: v.union(v.number(), v.null()),
-  currentPlan: v.union(analyticsPlanValidator, v.null()),
+  currentPlan: v.union(analyticsCanonicalPlanValidator, v.null()),
   milestoneDates: analyticsMilestoneDatesValidator,
   latestActivityAt: v.union(v.number(), v.null()),
   nextCyclePeriodStart: v.union(v.string(), v.null()),
   cadence: analyticsCadenceValidator,
   kpis: v.union(analyticsShopKpiValidator, v.null()),
+});
+
+export const analyticsShopUsageLikelihoodValidator = v.union(
+  v.literal("high"),
+  v.literal("possible"),
+  v.literal("unknown"),
+);
+
+export const analyticsShopUsageReasonValidator = v.union(
+  v.literal("recentActivity"),
+  v.literal("hasUpcomingCycle"),
+  v.literal("observedActivity"),
+  v.literal("hasShiftTargets"),
+  v.literal("hasStaffMemberships"),
+);
+
+export const analyticsShopListRowValidator = analyticsShopRowValidator.extend({
+  usageLikelihood: analyticsShopUsageLikelihoodValidator,
+  usageReasons: v.array(analyticsShopUsageReasonValidator),
 });
 
 export const analyticsCycleRowValidator = v.object({
@@ -307,7 +326,7 @@ export const organizationDetailResponseValidator = v.object({
 export const shopsResponseValidator = v.object({
   kind: v.literal("shops"),
   metadata: analyticsResponseMetadataValidator,
-  rows: v.array(analyticsShopRowValidator),
+  rows: v.array(analyticsShopListRowValidator),
 });
 
 export const shopDetailResponseValidator = v.object({
@@ -338,7 +357,10 @@ export const segmentsResponseValidator = v.object({
 
 const featureRequestRowValidator = v.object({
   id: v.string(),
-  shopId: v.string(),
+  targetKind: v.union(v.literal("shop"), v.literal("organization")),
+  organizationId: v.union(v.string(), v.null()),
+  organizationName: v.union(v.string(), v.null()),
+  shopId: v.union(v.string(), v.null()),
   shopName: v.string(),
   senderType: v.union(v.literal("manager"), v.literal("staff")),
   comment: v.string(),

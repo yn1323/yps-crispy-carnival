@@ -1,4 +1,5 @@
-import { BREAK_POSITION, DEFAULT_POSITION } from "./constants";
+import { DEFAULT_POSITION } from "./constants";
+import { isCanonicalWorkPosition } from "./positions";
 import { minutesToTime } from "./time";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "./types";
 
@@ -16,7 +17,7 @@ export const getDateOnlyAssignmentRange = (timeRange: TimeRange): { start: strin
 });
 
 export const hasDateOnlyAssignment = (shift: ShiftData | undefined): boolean =>
-  shift?.positions.some((position) => position.positionId !== BREAK_POSITION.id) ?? false;
+  shift?.positions.some(isCanonicalWorkPosition) ?? false;
 
 export const hasDateOnlyRequest = (shift: ShiftData | undefined): boolean =>
   !!shift?.requestedTime || (shift?.requestedTimes?.length ?? 0) > 0;

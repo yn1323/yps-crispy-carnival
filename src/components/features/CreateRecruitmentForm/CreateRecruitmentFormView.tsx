@@ -1,12 +1,18 @@
 import { Box, type DateValue, Field, Text } from "@chakra-ui/react";
 import type { FormEventHandler } from "react";
 import type { UseFormRegisterReturn } from "react-hook-form";
-import { LuCalendarCheck, LuCalendarDays, LuStore, LuTimer } from "react-icons/lu";
+import { LuCalendarCheck, LuCalendarDays, LuCalendarX, LuStore, LuTimer } from "react-icons/lu";
 import { StepperDialogContent, type StepperDialogStep } from "@/src/components/ui/StepperDialog";
 import { CalendarPicker } from "./CalendarPicker";
 import { RecruitmentConfirmation } from "./RecruitmentConfirmation";
+import { RecruitmentShopSelection } from "./RecruitmentShopSelection";
 import { RecruitmentWizardActions } from "./RecruitmentWizardActions";
-import type { CreateRecruitmentStep } from "./types";
+import type { CreateRecruitmentSelectableShop, CreateRecruitmentStep } from "./types";
+
+type ShopViewModel = {
+  shops: readonly CreateRecruitmentSelectableShop[];
+  selectedShopId?: string;
+};
 
 type PeriodViewModel = {
   value: DateValue[];
@@ -38,6 +44,7 @@ type DeadlineViewModel = {
 };
 
 type ConfirmationViewModel = {
+  shopName?: string;
   periodLabel: string;
   holidaySummary: {
     value: string;
@@ -49,6 +56,8 @@ type ConfirmationViewModel = {
 type Props = {
   currentStep: CreateRecruitmentStep;
   isPeriodOnly: boolean;
+  hasShopStep: boolean;
+  canContinueFromShop: boolean;
   submitLoading: boolean;
   hiddenFields: {
     periodStart: UseFormRegisterReturn;
@@ -56,6 +65,7 @@ type Props = {
     deadline: UseFormRegisterReturn;
   };
   period: PeriodViewModel;
+  shop?: ShopViewModel;
   holidays: HolidaysViewModel;
   deadline: DeadlineViewModel;
   confirmation: ConfirmationViewModel;
@@ -64,49 +74,63 @@ type Props = {
   onPeriodChange: (value: DateValue[]) => void;
   onHolidayChange: (value: DateValue[]) => void;
   onDeadlineChange: (value: DateValue[]) => void;
+  onShopChange: (shopId: string) => void;
+  onGoToShop: () => void;
+  onGoToPeriodFromShop: () => void;
   onGoToPeriod: () => void;
   onGoToHolidays: () => void;
   onGoToDeadline: () => void;
   onGoToConfirm: () => void;
 };
 
-const steps: StepperDialogStep<CreateRecruitmentStep>[] = [
+const shopStep: StepperDialogStep<CreateRecruitmentStep> = {
+  value: "shop",
+  label: "店舗",
+  icon: LuStore,
+  title: "対象店舗を選択",
+  description: "対象店舗を選んでください。",
+};
+
+const recruitmentSteps: StepperDialogStep<CreateRecruitmentStep>[] = [
   {
     value: "period",
     label: "期間",
     icon: LuCalendarDays,
     title: "シフト期間を選択",
-    description: "募集するシフトの開始日と終了日を選んでください。",
+    description: "募集シフトの開始・終了日を選んでください。",
   },
   {
     value: "holidays",
     label: "お休み",
-    icon: LuStore,
-    title: "お店のお休みを選択",
-    description: "お休みの日を設定してください。",
+    icon: LuCalendarX,
+    title: "定休日を選択(任意)",
+    description: "定休日を設定してください。",
   },
   {
     value: "deadline",
-    label: "提出締切",
+    label: "提出期限",
     icon: LuTimer,
-    title: "提出締切日を選択",
-    description: "シフト提出の締切日を選んでください。",
+    title: "提出期限を選択",
+    description: "希望シフトの提出期限を選んでください。",
   },
   {
     value: "confirm",
     label: "確認",
     icon: LuCalendarCheck,
     title: "内容を確認",
-    description: "作成する募集の内容を確認してください。",
+    description: "作成する募集シフトの内容を確認してください。",
   },
 ];
 
 export const CreateRecruitmentFormView = ({
   currentStep,
   isPeriodOnly,
+  hasShopStep,
+  canContinueFromShop,
   submitLoading,
   hiddenFields,
   period,
+  shop,
   holidays,
   deadline,
   confirmation,
@@ -115,16 +139,24 @@ export const CreateRecruitmentFormView = ({
   onPeriodChange,
   onHolidayChange,
   onDeadlineChange,
+  onShopChange,
+  onGoToShop,
+  onGoToPeriodFromShop,
   onGoToPeriod,
   onGoToHolidays,
   onGoToDeadline,
   onGoToConfirm,
 }: Props) => {
+  const steps = hasShopStep ? [shopStep, ...recruitmentSteps] : recruitmentSteps;
   const actions = isPeriodOnly ? undefined : (
     <RecruitmentWizardActions
       currentStep={currentStep}
+      hasShopStep={hasShopStep}
+      canContinueFromShop={canContinueFromShop}
       submitLoading={submitLoading}
       onCancel={onCancel}
+      onGoToShop={onGoToShop}
+      onGoToPeriodFromShop={onGoToPeriodFromShop}
       onGoToPeriod={onGoToPeriod}
       onGoToHolidays={onGoToHolidays}
       onGoToDeadline={onGoToDeadline}
@@ -133,12 +165,23 @@ export const CreateRecruitmentFormView = ({
   );
 
   return (
-    <form id="create-recruitment-form" onSubmit={onSubmit}>
+    <form
+      id="create-recruitment-form"
+      onSubmit={onSubmit}
+      style={{ display: "flex", flex: 1, flexDirection: "column", minHeight: 0 }}
+    >
+      {/* biome-ignore lint/correctness/noRestrictedElements: Hidden form values are not user-editable fields. */}
       <input type="hidden" {...hiddenFields.periodStart} />
+      {/* biome-ignore lint/correctness/noRestrictedElements: Hidden form values are not user-editable fields. */}
       <input type="hidden" {...hiddenFields.periodEnd} />
+      {/* biome-ignore lint/correctness/noRestrictedElements: Hidden form values are not user-editable fields. */}
       <input type="hidden" {...hiddenFields.deadline} />
 
       <StepperDialogContent steps={steps} currentStep={currentStep} actions={actions} showSteps={!isPeriodOnly}>
+        {currentStep === "shop" && shop && (
+          <RecruitmentShopSelection shops={shop.shops} selectedShopId={shop.selectedShopId} onChange={onShopChange} />
+        )}
+
         {currentStep === "period" && (
           <>
             <CalendarPicker

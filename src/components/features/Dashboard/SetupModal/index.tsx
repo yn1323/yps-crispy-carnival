@@ -1,20 +1,25 @@
+import { Box } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCallback, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { LuChevronLeft, LuClock3, LuListChecks, LuStore, LuUserRound } from "react-icons/lu";
 import { createShopSchema as step1Schema } from "@/convex/setup/schemas";
+import { SubmissionPatternSettingsFields } from "@/src/components/shared/ShopSettingsFields";
 import { Button } from "@/src/components/ui/Button";
 import { StepperDialog, StepperDialogContent, type StepperDialogStep } from "@/src/components/ui/StepperDialog";
 import { DEFAULT_TIME_PATTERN, normalizeShiftTypeOptions } from "@/src/domains/shop/submissionPattern";
-import { SetupPatternSettingsStep, SetupShopInfoStep, type Step1Data } from "./SetupStep1";
+import { SetupShopInfoStep, type Step1Data } from "./SetupStep1";
 import { SetupStep2, type Step2Data } from "./SetupStep2";
+import type { SetupCompletionResult } from "./types";
 
 export type SetupData = Step1Data & Step2Data;
+export type { SetupCompletionResult } from "./types";
 
 type Props = {
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
-  onComplete: (data: SetupData) => void | Promise<void>;
+  onComplete: (data: SetupData) => SetupCompletionResult | undefined | Promise<SetupCompletionResult | undefined>;
+  onVerifyPromotionCode: (promotionCode: string) => boolean | Promise<boolean>;
   managerProfileDefaults?: Pick<Step2Data, "name" | "email">;
   isSubmitting?: boolean;
 };
@@ -41,7 +46,7 @@ const baseSteps: StepperDialogStep<Step>[] = [
     label: "あなた",
     icon: LuUserRound,
     title: "あなたの情報",
-    description: "管理者として表示する名前と、シフト連絡先メールアドレスを登録します。",
+    description: "管理者として表示する名前と、シフト通知先メールアドレスを登録します。",
   },
 ];
 
@@ -68,10 +73,12 @@ export const SetupModal = ({
   isOpen,
   onOpenChange,
   onComplete,
+  onVerifyPromotionCode,
   managerProfileDefaults,
   isSubmitting = false,
 }: Props) => {
   const [currentStep, setCurrentStep] = useState<Step>("shopInfo");
+  const [isPromotionCodePending, setIsPromotionCodePending] = useState(false);
   const {
     getValues,
     setValue,
@@ -120,7 +127,7 @@ export const SetupModal = ({
 
   const handleStep2Submit = useCallback(
     async (data: Step2Data) => {
-      await onComplete({ ...normalizeSetupData(getValues()), ...data });
+      return await onComplete({ ...normalizeSetupData(getValues()), ...data });
     },
     [getValues, onComplete],
   );
@@ -128,26 +135,26 @@ export const SetupModal = ({
   const actions =
     currentStep === "shopInfo" ? (
       <>
-        <Button type="button" variant="outline" onClick={close} flex={{ base: 1, md: "unset" }}>
-          閉じる
+        <Button type="button" variant="outline" onClick={close} disabled={isSubmitting}>
+          キャンセル
         </Button>
-        <Button type="button" colorPalette="teal" onClick={handleShopInfoNext} flex={{ base: 1, md: "unset" }}>
+        <Button type="button" colorPalette="teal" onClick={handleShopInfoNext} disabled={isSubmitting}>
           次へ
         </Button>
       </>
     ) : currentStep === "patternSettings" ? (
       <>
-        <Button type="button" variant="outline" onClick={handleBack} flex={{ base: 1, md: "unset" }}>
+        <Button type="button" variant="outline" onClick={handleBack} disabled={isSubmitting}>
           <LuChevronLeft />
           戻る
         </Button>
-        <Button type="button" colorPalette="teal" onClick={handlePatternSettingsNext} flex={{ base: 1, md: "unset" }}>
+        <Button type="button" colorPalette="teal" onClick={handlePatternSettingsNext} disabled={isSubmitting}>
           次へ
         </Button>
       </>
     ) : (
       <>
-        <Button type="button" variant="outline" onClick={handleBack} flex={{ base: 1, md: "unset" }}>
+        <Button type="button" variant="outline" onClick={handleBack} disabled={isSubmitting}>
           <LuChevronLeft />
           戻る
         </Button>
@@ -156,15 +163,22 @@ export const SetupModal = ({
           form="setup-step2"
           colorPalette="teal"
           loading={isSubmitting}
-          flex={{ base: 1, md: "unset" }}
+          loadingText="利用開始"
+          disabled={isSubmitting || isPromotionCodePending}
         >
-          お店を登録する
+          利用開始
         </Button>
       </>
     );
 
   return (
-    <StepperDialog title="初回登録" isOpen={isOpen} onOpenChange={onOpenChange} onClose={close}>
+    <StepperDialog
+      title="初回登録"
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      onClose={close}
+      preventClose={isSubmitting}
+    >
       <StepperDialogContent steps={steps} currentStep={currentStep} actions={actions}>
         {currentStep === "shopInfo" && (
           <SetupShopInfoStep
@@ -182,18 +196,21 @@ export const SetupModal = ({
         )}
 
         {currentStep === "patternSettings" && (
-          <SetupPatternSettingsStep
+          <SubmissionPatternSettingsFields
             submissionPattern={submissionPattern}
-            submissionPatternError={errors.submissionPattern}
-            onSubmissionPatternChange={(next) =>
-              setValue("submissionPattern", next, { shouldDirty: true, shouldValidate: true })
-            }
+            error={errors.submissionPattern}
+            onChange={(next) => setValue("submissionPattern", next, { shouldDirty: true, shouldValidate: true })}
           />
         )}
 
-        {currentStep === "manager" && (
-          <SetupStep2 defaultValues={managerProfileDefaults} onSubmit={handleStep2Submit} />
-        )}
+        <Box hidden={currentStep !== "manager"}>
+          <SetupStep2
+            defaultValues={managerProfileDefaults}
+            onSubmit={handleStep2Submit}
+            onVerifyPromotionCode={onVerifyPromotionCode}
+            onPromotionCodePendingChange={setIsPromotionCodePending}
+          />
+        </Box>
       </StepperDialogContent>
     </StepperDialog>
   );

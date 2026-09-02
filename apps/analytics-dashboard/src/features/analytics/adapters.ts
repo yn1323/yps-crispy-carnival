@@ -13,6 +13,7 @@ import type {
   AnalyticsSegmentRowDto,
   AnalyticsServiceKpiSnapshotDto,
   AnalyticsShopKpiDto,
+  AnalyticsShopListRowDto,
   AnalyticsShopRowDto,
   AnalyticsTrendMetric,
   AnalyticsTrendPointDto,
@@ -24,6 +25,7 @@ import type {
   KpiViewModel,
   OrganizationRowViewModel,
   SegmentRowViewModel,
+  ShopListRowViewModel,
   ShopRowViewModel,
 } from "./viewModels";
 
@@ -53,7 +55,7 @@ const TREND_LABELS: Record<AnalyticsTrendMetric, string> = {
   managerStaffCount: "管理者兼スタッフ数",
   managerMembershipCount: "管理者所属数",
   northStarRate: "開始前確定周期率",
-  organizationCount: "グループ数",
+  organizationCount: "組織数",
   personCount: "重複を除いた利用者数",
   kpiEligibleShopCount: "到達度対象店舗数",
   shiftTargetCount: "シフト対象人数",
@@ -66,7 +68,7 @@ const SEGMENT_DIMENSION_LABELS: Record<string, string> = {
   adoptionAge: "導入時期",
   cadence: "通常周期",
   lineUsage: "LINE利用",
-  organizationShopCount: "グループ店舗数",
+  organizationShopCount: "組織店舗数",
   plan: "プラン",
   registrationCohort: "登録時期",
   shopStaffSize: "店舗スタッフ規模",
@@ -310,6 +312,14 @@ export function shopRowModel(row: AnalyticsShopRowDto): ShopRowViewModel {
   };
 }
 
+export function shopListRowModel(row: AnalyticsShopListRowDto): ShopListRowViewModel {
+  return {
+    ...shopRowModel(row),
+    usageLikelihood: row.usageLikelihood,
+    usageReasons: row.usageReasons,
+  };
+}
+
 export function cycleRowModel(row: AnalyticsCycleRowDto): CycleRowViewModel {
   return {
     completeness: row.completeness,
@@ -409,7 +419,7 @@ export function organizationExpansionKpis(
       "secondShopDuration",
       "2店舗目まで",
       formatDurationMs(secondShopDuration),
-      `${organization.firstShopAt === null ? "グループ登録" : "初店舗登録"}から2店舗目登録まで`,
+      `${organization.firstShopAt === null ? "組織登録" : "初店舗登録"}から2店舗目登録まで`,
       "complete",
       secondShopDuration,
       null,

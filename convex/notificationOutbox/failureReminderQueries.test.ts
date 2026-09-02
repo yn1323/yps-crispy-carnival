@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { seedLegacyShopMembership, seedManagerShop, seedStaffLineAccount, seedUser } from "../_test/seed";
+import { seedCanonicalStaffLineRecipient, seedLegacyShopMembership, seedManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { DAY_MS, HOUR_MS } from "../constants";
 
@@ -220,7 +220,7 @@ describe("notificationOutbox/failureReminderQueries", () => {
   describe("getFailureReminderTargetForShop", () => {
     it("open failure があると manager 受信者を返し、manager staff の LINE 連携を付与する", async () => {
       const t = convexTest(schema, modules);
-      const { shopId } = await t.run(async (ctx) => {
+      const { organizationId, shopId } = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
           subject: "owner_line",
           email: "owner-line@example.com",
@@ -236,8 +236,7 @@ describe("notificationOutbox/failureReminderQueries", () => {
           emailNormalized: "owner-line@example.com",
           isDeleted: false,
         });
-        await seedStaffLineAccount(ctx, {
-          shopId: seeded.shopId,
+        await seedCanonicalStaffLineRecipient(ctx, {
           staffId: managerStaffId,
           lineUserId: "U_owner_line",
           following: true,
@@ -246,7 +245,7 @@ describe("notificationOutbox/failureReminderQueries", () => {
         const secondUserId = await seedUser(ctx, "owner_email", "owner-email@example.com");
         await seedLegacyShopMembership(ctx, { shopId: seeded.shopId, userId: secondUserId });
         await insertFailure(ctx, { shopId: seeded.shopId, status: "open" });
-        return { shopId: seeded.shopId };
+        return { organizationId: seeded.organizationId, shopId: seeded.shopId };
       });
 
       const result = await t.query(internal.notificationOutbox.failureReminderQueries.getFailureReminderTargetForShop, {
@@ -258,17 +257,18 @@ describe("notificationOutbox/failureReminderQueries", () => {
       if (!result) return;
       const dashboardUrl = new URL(result.dashboardUrl);
       expect(dashboardUrl.pathname).toBe("/dashboard");
-      expect([...dashboardUrl.searchParams.entries()]).toEqual([["shop", String(shopId)]]);
-      expect(result?.recipients).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            email: "owner-line@example.com",
-            lineUserId: "U_owner_line",
-            lineFollowing: true,
-          }),
-          expect.objectContaining({ email: "owner-email@example.com" }),
-        ]),
-      );
+      expect([...dashboardUrl.searchParams.entries()]).toEqual([
+        ["org", String(organizationId)],
+        ["shop", String(shopId)],
+      ]);
+      expect(result.recipients).toEqual([
+        expect.objectContaining({
+          email: "owner-line@example.com",
+          lineUserId: "U_owner_line",
+          lineFollowing: true,
+          lineRecipient: expect.objectContaining({ lineUserId: "U_owner_line", following: true }),
+        }),
+      ]);
     });
 
     it("種別「通知」(other) しかない店舗は null を返す", async () => {
@@ -283,6 +283,22 @@ describe("notificationOutbox/failureReminderQueries", () => {
         t.query(internal.notificationOutbox.failureReminderQueries.getFailureReminderTargetForShop, {
           shopId: otherKindShopId,
         }),
+      ).resolves.toBeNull();
+    });
+
+    it("対象店舗のstaffではないactive管理者には送らない", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: "failure_manager_without_shop_staff",
+          email: "manager-without-shop-staff@example.com",
+        });
+        await insertFailure(ctx, { shopId: seeded.shopId, status: "open" });
+        return seeded.shopId;
+      });
+
+      await expect(
+        t.query(internal.notificationOutbox.failureReminderQueries.getFailureReminderTargetForShop, { shopId }),
       ).resolves.toBeNull();
     });
 

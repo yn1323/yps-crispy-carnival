@@ -17,6 +17,19 @@ const OWNED_CONFLICT_CODES = Object.values(CONFLICT_CODES);
 const AUDIT_SUFFIX = ":migration:m022:to-complimentary-business";
 
 type M022ConflictCode = (typeof CONFLICT_CODES)[keyof typeof CONFLICT_CODES];
+type M022HistoricalBillingState =
+  | Doc<"organizationBillingStates">["state"]
+  | { kind: "complimentary"; plan: "business" }
+  | {
+      kind: "grace";
+      plan: "standard" | "pro" | "business";
+      startedAt: number;
+      endsAt: number;
+    };
+
+function historicalBillingState(state: M022HistoricalBillingState): Doc<"organizationBillingStates">["state"] {
+  return state as unknown as Doc<"organizationBillingStates">["state"];
+}
 
 /**
  * ダークローンチの支払い制限に合わせ、全グループの課金状態を支払い不要Businessへ寄せる。
@@ -31,7 +44,8 @@ type M022ConflictCode = (typeof CONFLICT_CODES)[keyof typeof CONFLICT_CODES];
 export const migration = migrations.define({
   table: "organizationBillingStates",
   migrateOne: async (ctx, billingState) => {
-    if (billingState.state.kind === "complimentary" && billingState.state.plan === "business") return;
+    const historicalState = billingState.state as M022HistoricalBillingState;
+    if (historicalState.kind === "complimentary" && historicalState.plan === "business") return;
 
     const organizationId = billingState.organizationId;
     const organization = await ctx.db.get(organizationId);
@@ -67,7 +81,7 @@ export const migration = migrations.define({
 
     const now = Date.now();
     await ctx.db.patch(billingState._id, {
-      state: { kind: "complimentary", plan: "business" },
+      state: historicalBillingState({ kind: "complimentary", plan: "business" }),
       // Free選択の結果は支払い不要Businessで意味を持たない。
       // 残すと、支払いを開けてFreeへ戻したときに古い選択が復活する。
       freeManagerPersonId: undefined,
@@ -80,7 +94,7 @@ export const migration = migrations.define({
       action: "organization.billing_state_changed",
       targetKind: "billing",
       targetId: billingState._id,
-      fromState: describeBillingState(billingState.state),
+      fromState: describeBillingState(historicalState),
       toState: "complimentary.business",
       correlationId: `${organizationId}${AUDIT_SUFFIX}`,
       occurredAt: now,
@@ -95,7 +109,7 @@ export const migration = migrations.define({
 });
 
 /** 監査へ残す移行前の状態。planを持つ状態だけ`kind.plan`で表す。 */
-function describeBillingState(state: Doc<"organizationBillingStates">["state"]): string {
+function describeBillingState(state: M022HistoricalBillingState): string {
   switch (state.kind) {
     case "active":
     case "complimentary":

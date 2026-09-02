@@ -2,32 +2,46 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { internalMutation } from "../_generated/server";
 import { APP_URL } from "../_lib/config";
-import { managerMutation } from "../_lib/functions";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
+import { managerLimitRecoveryMutation, managerMutation } from "../_lib/functions";
 import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { generateUUID } from "../_lib/uuid";
 import { normalizeEmail } from "../_lib/validation";
 import { STAFF_REGISTRATION_PENDING_LIMIT } from "../constants";
 import { getLegalConsentVersions } from "../legal/documents";
 import { recordStaffLegalConsentSnapshot } from "../legal/service";
+import { getOrganizationPersonLineState, resolveOrganizationPersonLineInheritanceRecipient } from "../line/service";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { recordOrganizationAuditEvent } from "../organization/audit";
-import { getOrganizationBillingPolicy, requireOrganizationCapacity } from "../organizationBilling/service";
+import { syncActivatedOrganizationStaffOrder } from "../organization/staffOrder";
+import { requireOrganizationCapacity } from "../organizationBilling/service";
 import {
   findActiveStaffByEmail,
   materializeOrganizationPeopleForStaffAddition,
   prepareOrganizationPeopleForStaffAddition,
   releasePendingInvitationReservationsForStaffAddition,
 } from "../staff/service";
+import { resolveStaffRegistrationCapability } from "./capability";
 import { staffRegistrationFormSchema } from "./schemas";
+import { resolveStaffRegistrationApprovalAvailability, STAFF_REGISTRATION_APPROVAL_DISABLED_REASON } from "./service";
 
 const registrationRequestResultValidator = v.object({ status: v.literal("accepted") });
 const registrationRequestHttpResultValidator = v.object({
   status: v.union(v.literal("accepted"), v.literal("unavailable")),
 });
-const registrationLinkResultValidator = v.object({ token: v.string(), registrationUrl: v.string() });
+const registrationLinkResultValidator = v.object({
+  linkId: v.id("shopRegistrationLinks"),
+  token: v.string(),
+  registrationUrl: v.string(),
+});
+const rotateRegistrationLinkResultValidator = v.object({
+  status: v.union(v.literal("rotated"), v.literal("current")),
+  linkId: v.id("shopRegistrationLinks"),
+  registrationUrl: v.string(),
+});
 const REGISTRATION_LINK_UNAVAILABLE_MESSAGE = "登録リンクの有効期限が切れています";
+const REGISTRATION_LINK_INCONSISTENT_MESSAGE = "登録リンクの状態を確認できません";
 
 type SubmitRegistrationRequestArgs = {
   token: string;
@@ -47,9 +61,10 @@ function buildRegistrationUrl(token: string) {
 async function findActiveRegistrationLink(ctx: { db: MutationCtx["db"]; shop: Doc<"shops"> }) {
   const links = await ctx.db
     .query("shopRegistrationLinks")
-    .withIndex("by_shopId", (q) => q.eq("shopId", ctx.shop._id))
-    .take(10);
-  return links.find((candidate) => !candidate.revokedAt) ?? null;
+    .withIndex("by_shopId_and_revokedAt", (q) => q.eq("shopId", ctx.shop._id).eq("revokedAt", undefined))
+    .take(2);
+  if (links.length > 1) throw new Error(REGISTRATION_LINK_INCONSISTENT_MESSAGE);
+  return links[0] ?? null;
 }
 
 async function submitRegistrationRequestImpl(
@@ -65,37 +80,8 @@ async function submitRegistrationRequestImpl(
     throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
   }
 
-  const links = await ctx.db
-    .query("shopRegistrationLinks")
-    .withIndex("by_token", (q) => q.eq("token", args.token))
-    .take(2);
-  if (links.length !== 1) {
-    throw registrationLinkUnavailableError();
-  }
-  const link = links[0];
-  if (link.revokedAt) {
-    throw registrationLinkUnavailableError();
-  }
-
-  const shop = await ctx.db.get(link.shopId);
-  if (!shop || shop.isDeleted) {
-    throw registrationLinkUnavailableError();
-  }
-  if (shop.organizationId) {
-    const organization = await ctx.db.get(shop.organizationId);
-    const billingPolicy = await getOrganizationBillingPolicy(ctx, shop.organizationId);
-    if (
-      !organization ||
-      organization.isDeleted ||
-      shop.operatingStatus !== "active" ||
-      (billingPolicy !== null && !billingPolicy.canWriteBusinessData)
-    ) {
-      // 公開Capabilityでは、店舗や契約の内部状態を区別できるエラーを返さない。
-      throw registrationLinkUnavailableError();
-    }
-  } else if (shop.operatingStatus === "archived" || shop.operatingStatus === "planSuspended") {
-    throw registrationLinkUnavailableError();
-  }
+  const shop = await resolveStaffRegistrationCapability(ctx, args.token);
+  if (!shop) throw registrationLinkUnavailableError();
 
   const name = parsed.data.name;
   const email = normalizeEmail(parsed.data.email);
@@ -126,6 +112,12 @@ async function submitRegistrationRequestImpl(
     return acceptedResult;
   }
 
+  // HTTP Actionの事前確認後に課金状態や利用数が変わっていても、PIIを書き込む直前の正本で閉じる。
+  const writableShop = await resolveStaffRegistrationCapability(ctx, args.token);
+  if (!writableShop || writableShop._id !== shop._id) {
+    throw registrationLinkUnavailableError();
+  }
+
   const versions = getLegalConsentVersions("staff");
   const now = Date.now();
   await ctx.db.insert("staffRegistrationRequests", {
@@ -148,19 +140,74 @@ export const ensureShopRegistrationLink = managerMutation({
     const existing = await findActiveRegistrationLink(ctx);
     if (existing) {
       return {
+        linkId: existing._id,
         token: existing.token,
         registrationUrl: buildRegistrationUrl(existing.token),
       };
     }
 
     const token = generateUUID();
-    await ctx.db.insert("shopRegistrationLinks", {
+    const linkId = await ctx.db.insert("shopRegistrationLinks", {
       shopId: ctx.shop._id,
       token,
       createdAt: Date.now(),
     });
     return {
+      linkId,
       token,
+      registrationUrl: buildRegistrationUrl(token),
+    };
+  },
+});
+
+export const rotateShopRegistrationLink = managerMutation({
+  args: { expectedLinkId: v.id("shopRegistrationLinks") },
+  returns: rotateRegistrationLinkResultValidator,
+  handler: async (ctx, { expectedLinkId }) => {
+    const expected = await ctx.db.get(expectedLinkId);
+    if (!expected || expected.shopId !== ctx.shop._id) throw new ConvexError("Not found");
+
+    const active = await findActiveRegistrationLink(ctx);
+    if (expected.revokedAt) {
+      if (!active) throw new Error(REGISTRATION_LINK_INCONSISTENT_MESSAGE);
+      return {
+        status: "current" as const,
+        linkId: active._id,
+        registrationUrl: buildRegistrationUrl(active.token),
+      };
+    }
+    if (!active || active._id !== expected._id) {
+      throw new Error(REGISTRATION_LINK_INCONSISTENT_MESSAGE);
+    }
+
+    const rotatedAt = Date.now();
+    const token = generateUUID();
+    await ctx.db.patch(expected._id, { revokedAt: rotatedAt });
+    const linkId = await ctx.db.insert("shopRegistrationLinks", {
+      shopId: ctx.shop._id,
+      token,
+      createdAt: rotatedAt,
+    });
+
+    if (ctx.organization) {
+      await recordOrganizationAuditEvent(ctx, {
+        organizationId: ctx.organization._id,
+        actorUserId: ctx.user._id,
+        actorPersonId: ctx.organizationMember?.personId,
+        action: "organization.staff_registration_link_rotated",
+        targetKind: "shop",
+        targetId: ctx.shop._id,
+        fromState: expected._id,
+        toState: linkId,
+        correlationId: `${ctx.organization._id}:staff-registration-link:${expected._id}:${linkId}`,
+        occurredAt: rotatedAt,
+        suppressAnalyticsEvent: true,
+      });
+    }
+
+    return {
+      status: "rotated" as const,
+      linkId,
       registrationUrl: buildRegistrationUrl(token),
     };
   },
@@ -201,13 +248,9 @@ export const checkSubmissionRateLimit = internalMutation({
   },
   returns: v.object({ status: v.union(v.literal("allowed"), v.literal("rate_limited"), v.literal("unavailable")) }),
   handler: async (ctx, args) => {
-    const links = await ctx.db
-      .query("shopRegistrationLinks")
-      .withIndex("by_token", (q) => q.eq("token", args.token))
-      .take(2);
-    const hasActiveUniqueLink = links.length === 1 && !links[0]?.revokedAt;
-    // 無効tokenごとにrate-limit stateを作らせない。link固有budgetはDBで有効性を確認できたtokenにだけ使う。
-    if (!hasActiveUniqueLink) return { status: "unavailable" as const };
+    const shop = await resolveStaffRegistrationCapability(ctx, args.token);
+    // 利用不能なcapabilityごとにrate-limit stateを作らせず、link固有budgetは申請可能な店舗だけに使う。
+    if (!shop) return { status: "unavailable" as const };
     const budgets = [
       { name: "staffRegistrationEmailShort" as const, key: args.emailKey },
       { name: "staffRegistrationEmailDaily" as const, key: args.emailKey },
@@ -268,63 +311,89 @@ export const approveRequest = managerMutation({
       throw new ConvexError("Not found");
     }
 
+    const organizationId = ctx.shop.organizationId;
+    if (!organizationId || ctx.organization?._id !== organizationId) {
+      throw new ConvexError("Not found");
+    }
+    const approvalAvailability = await resolveStaffRegistrationApprovalAvailability(ctx, {
+      organizationId,
+      targetShopId: ctx.shop._id,
+      emailNormalized: request.emailNormalized,
+    });
+    if (!approvalAvailability.canApprove) {
+      throw new ConvexError(approvalAvailability.approveDisabledReason ?? STAFF_REGISTRATION_APPROVAL_DISABLED_REASON);
+    }
+
     const existingStaff = await findActiveStaffByEmail(ctx, ctx.shop._id, request.emailNormalized);
     if (existingStaff) {
       throw new ConvexError("このメールアドレスはすでに使用されています。");
     }
 
-    const organizationId = ctx.shop.organizationId;
-    let organizationPersonId: Id<"organizationPeople"> | undefined;
+    let organizationPersonId: Id<"organizationPeople">;
     let reactivatedPersonId: Id<"organizationPeople"> | undefined;
     let staffSourceState: "new" | "activePerson" | "removedPerson" = "new";
     let staffName = request.name;
     let staffEmail = request.email;
     let staffEmailNormalized = request.emailNormalized;
-    if (organizationId) {
-      if (ctx.organization?._id !== organizationId) {
-        throw new ConvexError("Not found");
-      }
-      const prepared = await prepareOrganizationPeopleForStaffAddition(ctx, {
-        organizationId,
-        shopId: ctx.shop._id,
-        entries: [{ name: request.name, email: request.emailNormalized }],
-        allowRemovedPeople: true,
-        deferCapacityCheck: true,
-      });
-      // 同じ人物へのmanager招待が予約した枠を解放してから、実人物を加えた見込み人数を再検証する。
-      // 後続が失敗すればmutation全体がrollbackされ、予約状態だけが変わることはない。
-      await releasePendingInvitationReservationsForStaffAddition(ctx, organizationId, prepared);
-      const additionalPeople = prepared.filter((entry) => entry.addsPersonToUsage).length;
-      if (additionalPeople > 0) {
-        await requireOrganizationCapacity(ctx, { organizationId, additionalPeople });
-      }
-      const [materialized] = await materializeOrganizationPeopleForStaffAddition(ctx, organizationId, prepared);
-      if (!materialized) {
-        throw new ConvexError("Not found");
-      }
-      organizationPersonId = materialized.personId;
-      reactivatedPersonId = materialized.reactivated ? materialized.personId : undefined;
-      staffSourceState = materialized.reactivated
-        ? "removedPerson"
-        : materialized.personState === "active"
-          ? "activePerson"
-          : "new";
-      staffName = materialized.name;
-      staffEmail = materialized.email;
-      staffEmailNormalized = materialized.email;
+    const prepared = await prepareOrganizationPeopleForStaffAddition(ctx, {
+      organizationId,
+      shopId: ctx.shop._id,
+      entries: [{ name: request.name, email: request.emailNormalized }],
+      deferCapacityCheck: true,
+    });
+    // 同じ人物へのmanager招待が予約した枠を解放してから、実人物を加えた見込み人数を再検証する。
+    // 後続が失敗すればmutation全体がrollbackされ、予約状態だけが変わることはない。
+    await releasePendingInvitationReservationsForStaffAddition(ctx, organizationId, prepared);
+    const additionalPeople = prepared.filter((entry) => entry.addsPersonToUsage).length;
+    if (additionalPeople > 0) {
+      await requireOrganizationCapacity(ctx, { organizationId, additionalPeople });
+    }
+    const [materialized] = await materializeOrganizationPeopleForStaffAddition(ctx, organizationId, prepared);
+    if (!materialized) {
+      throw new ConvexError("Not found");
+    }
+    organizationPersonId = materialized.personId;
+    reactivatedPersonId = materialized.reactivated ? materialized.personId : undefined;
+    staffSourceState = materialized.reactivated
+      ? "removedPerson"
+      : materialized.personState === "active"
+        ? "activePerson"
+        : "new";
+    staffName = materialized.name;
+    staffEmail = materialized.email;
+    staffEmailNormalized = materialized.email;
+
+    const lineRecipient = await resolveOrganizationPersonLineInheritanceRecipient(ctx, {
+      organizationId,
+      organizationPersonId,
+    });
+    const lineState = await getOrganizationPersonLineState(ctx, { organizationId, organizationPersonId });
+    if (!lineState) {
+      throw new ConvexError("スタッフのLINE連携状態を確認できません。\n画面を更新して、もう一度お試しください。");
+    }
+    const expectedStatus = lineRecipient
+      ? lineRecipient.following
+        ? "linked_following"
+        : "linked_unfollowed"
+      : "unlinked";
+    if (
+      lineState.status !== expectedStatus ||
+      (lineRecipient !== null && lineRecipient.authority !== lineState.authority)
+    ) {
+      throw new ConvexError("スタッフのLINE連携状態を確認できません。\n画面を更新して、もう一度お試しください。");
     }
 
-    // TODO[narrow]: 全deploymentでm025/m027完走・staff readiness 0確認後、canonical IDsを必須にする。
     const staffId = await ctx.db.insert("staffs", {
       shopId: ctx.shop._id,
-      ...(organizationId && organizationPersonId ? { organizationId, organizationPersonId } : {}),
+      organizationId,
+      organizationPersonId,
       name: staffName,
       email: staffEmail,
       emailNormalized: staffEmailNormalized,
       excludedFromShift: false,
       isDeleted: false,
     });
-
+    await syncActivatedOrganizationStaffOrder(ctx, { organizationId });
     await recordStaffLegalConsentSnapshot(ctx, {
       staffId,
       shopId: ctx.shop._id,
@@ -346,59 +415,61 @@ export const approveRequest = managerMutation({
       reviewedByUserId: ctx.user._id,
     });
 
-    if (organizationId) {
-      const correlationBase = `${organizationId}:staff-registration:${request._id}`;
+    const correlationBase = `${organizationId}:staff-registration:${request._id}`;
+    await recordOrganizationAuditEvent(ctx, {
+      organizationId,
+      actorUserId: ctx.user._id,
+      actorPersonId: ctx.organizationMember?.personId,
+      action: "organization.staff_added",
+      targetKind: "staff",
+      targetId: staffId,
+      fromState: staffSourceState,
+      toState: `active:${ctx.shop._id}:batch:1`,
+      correlationId: `${correlationBase}:staff`,
+      occurredAt: reviewedAt,
+      analyticsEvent: {
+        eventType: "staffMembership.changed",
+        shopId: ctx.shop._id,
+        subjectId: staffId,
+        payload: {
+          kind: "staffMembership",
+          staffId,
+          organizationPersonId,
+          personFirstObservedAt: reviewedAt,
+          status: "active",
+          isShiftTarget: true,
+          validFrom: reviewedAt,
+          lineLinked: lineState.status !== "unlinked",
+          lineFollowing: lineState.status === "linked_following",
+        },
+      },
+    });
+    if (reactivatedPersonId) {
       await recordOrganizationAuditEvent(ctx, {
         organizationId,
         actorUserId: ctx.user._id,
         actorPersonId: ctx.organizationMember?.personId,
-        action: "organization.staff_added",
-        targetKind: "staff",
-        targetId: staffId,
-        fromState: staffSourceState,
-        toState: `active:${ctx.shop._id}:batch:1`,
-        correlationId: `${correlationBase}:staff`,
+        action: "organization.person_reactivated",
+        targetKind: "person",
+        targetId: reactivatedPersonId,
+        fromState: "removed",
+        toState: "active",
+        correlationId: `${correlationBase}:person:${reactivatedPersonId}`,
         occurredAt: reviewedAt,
-        analyticsEvent: {
-          eventType: "staffMembership.changed",
-          shopId: ctx.shop._id,
-          subjectId: staffId,
-          payload: {
-            kind: "staffMembership",
-            staffId,
-            ...(organizationPersonId ? { organizationPersonId } : {}),
-            ...(organizationPersonId ? { personFirstObservedAt: reviewedAt } : {}),
-            status: "active",
-            isShiftTarget: true,
-            validFrom: reviewedAt,
-            lineLinked: false,
-            lineFollowing: false,
-          },
-        },
+        suppressAnalyticsEvent: true,
       });
-      if (reactivatedPersonId) {
-        await recordOrganizationAuditEvent(ctx, {
-          organizationId,
-          actorUserId: ctx.user._id,
-          actorPersonId: ctx.organizationMember?.personId,
-          action: "organization.person_reactivated",
-          targetKind: "person",
-          targetId: reactivatedPersonId,
-          fromState: "removed",
-          toState: "active",
-          correlationId: `${correlationBase}:person:${reactivatedPersonId}`,
-          occurredAt: reviewedAt,
-          suppressAnalyticsEvent: true,
-        });
-      }
     }
     const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
 
-    await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
-      staffId,
-      context: "registration_approved",
-      ...notificationOrigin,
-    });
+    if (!lineRecipient) {
+      await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {
+        staffId,
+        organizationPersonId,
+        lineLinkGenerationAtSchedule: lineState.generation,
+        context: "registration_approved",
+        ...notificationOrigin,
+      });
+    }
     await ctx.scheduler.runAfter(0, internal.notification.actions.sendOpenRecruitmentNotificationEmailsForStaff, {
       staffId,
       ...notificationOrigin,
@@ -408,7 +479,7 @@ export const approveRequest = managerMutation({
   },
 });
 
-export const rejectRequest = managerMutation({
+export const rejectRequest = managerLimitRecoveryMutation("rejectStaffRegistrationRequest")({
   args: { requestId: v.id("staffRegistrationRequests") },
   returns: v.null(),
   handler: async (ctx, { requestId }) => {

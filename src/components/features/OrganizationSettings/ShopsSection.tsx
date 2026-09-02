@@ -1,57 +1,43 @@
-import { Box, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Heading, HStack, Stack } from "@chakra-ui/react";
 import { LuPlus, LuStore } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { DrilldownRow } from "@/src/components/ui/DrilldownRow";
 import { Empty } from "@/src/components/ui/Empty";
-import type { OrganizationShopView } from "./types";
+import type { BillingUsageView, OrganizationShopView } from "./types";
 
 type Props = {
   shops: OrganizationShopView[];
-  /** 店舗追加が公開されているか。未公開ではボタンと理由の両方を描画しない。 */
-  showAddShop: boolean;
+  shopUsage: BillingUsageView;
   canAddShop: boolean;
   addShopDisabledReason?: string;
   onAddShop: () => void;
   onOpenShop: (shopId: string) => void;
 };
 
-export const ShopsSection = ({
-  shops,
-  showAddShop,
-  canAddShop,
-  addShopDisabledReason,
-  onAddShop,
-  onOpenShop,
-}: Props) => (
+export const ShopsSection = ({ shops, shopUsage, canAddShop, addShopDisabledReason, onAddShop, onOpenShop }: Props) => (
   <Stack as="section" gap={4} aria-labelledby="organization-shops-heading">
     <Flex justify="space-between" align={{ base: "flex-start", md: "center" }} gap={3} wrap="wrap">
       <HStack gap={2}>
         <LuStore aria-hidden />
         <Heading id="organization-shops-heading" as="h2" fontSize="lg">
-          グループの店舗
+          全店舗{shopUsage.max > 0 ? ` (${shopUsage.current}/${shopUsage.max})` : ""}
         </Heading>
       </HStack>
-      {showAddShop && (
-        <Button
-          size="sm"
-          colorPalette="teal"
-          onClick={onAddShop}
-          disabled={!canAddShop}
-          title={!canAddShop ? addShopDisabledReason : undefined}
-          aria-describedby={!canAddShop && addShopDisabledReason ? "organization-shop-add-disabled-reason" : undefined}
-          gap={1.5}
-        >
-          <LuPlus aria-hidden />
-          店舗を追加
-        </Button>
-      )}
+      <Button
+        variant="ghost"
+        size="sm"
+        colorPalette="teal"
+        onClick={onAddShop}
+        disabled={!canAddShop}
+        title={!canAddShop ? addShopDisabledReason : undefined}
+        aria-describedby={!canAddShop && addShopDisabledReason ? "organization-shop-add-disabled-reason" : undefined}
+        gap={1.5}
+        fontWeight="semibold"
+      >
+        <LuPlus aria-hidden />
+        店舗を追加する
+      </Button>
     </Flex>
-
-    {showAddShop && !canAddShop && addShopDisabledReason && (
-      <Text id="organization-shop-add-disabled-reason" fontSize="sm" color="orange.700">
-        {addShopDisabledReason}
-      </Text>
-    )}
 
     {shops.length === 0 ? (
       <Empty icon={LuStore} title="登録されている店舗はありません。" titleAs="h3" variant="section" py={6} />
@@ -77,7 +63,7 @@ function ShopRow({ shop, onOpenShop }: { shop: OrganizationShopView; onOpenShop:
         <Flex
           boxSize="40px"
           borderRadius="lg"
-          bg="teal.100"
+          bg="teal.50"
           color="teal.700"
           align="center"
           justify="center"

@@ -2,7 +2,8 @@ import { makeFunctionReference } from "convex/server";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import type { Id } from "../_generated/dataModel";
-import { seedManagerShop, seedShop } from "../_test/seed";
+import { seedStaff } from "../_test/scenarioBuilders";
+import { seedManagerShop, seedOrganizationMembership, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { FEATURE_REQUEST_COMMENT_MAX_LENGTH } from "../constants";
 
@@ -18,6 +19,17 @@ const submitFeatureRequestFromStaff = makeFunctionReference<
   { comment: string; requestId: string; sessionToken: string; accessKind: "submit" | "view" },
   { status: "accepted" }
 >("featureRequest/mutations:submitFromStaff");
+
+const submitFeatureRequestForOrganization = makeFunctionReference<
+  "mutation",
+  {
+    expectedOrganizationId: Id<"organizations">;
+    shopId?: Id<"shops">;
+    comment: string;
+    requestId: string;
+  },
+  { status: "accepted" }
+>("featureRequest/mutations:submitForOrganization");
 
 describe("featureRequest/mutations", () => {
   it("未認証では要望を登録できない", async () => {
@@ -50,6 +62,7 @@ describe("featureRequest/mutations", () => {
       shopId: seeded.shopId,
       userId: seeded.userId,
     });
+    expect(requests[0]).not.toHaveProperty("organizationId");
   });
 
   it("同じrequestIdの再送は登録を増やさない", async () => {
@@ -129,15 +142,232 @@ describe("featureRequest/mutations", () => {
     ).rejects.toThrow("少し時間をおいて");
   });
 
+  it("canonicalな組織と有効店舗を明示して店舗scopeの要望を登録する", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run((ctx) =>
+      seedManagerShop(ctx, {
+        subject: "app_feature_request_manager",
+        email: "app-feature-request@example.com",
+        shopName: "アプリ要望店舗",
+      }),
+    );
+
+    await expect(
+      t.withIdentity({ subject: "app_feature_request_manager" }).mutation(submitFeatureRequestForOrganization, {
+        expectedOrganizationId: seeded.organizationId,
+        shopId: seeded.shopId,
+        comment: "  この店舗への要望を送りたい  ",
+        requestId: REQUEST_ID,
+      }),
+    ).resolves.toEqual({ status: "accepted" });
+
+    const requests = await t.run((ctx) => ctx.db.query("featureRequests").collect());
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      shopId: seeded.shopId,
+      userId: seeded.userId,
+      comment: "この店舗への要望を送りたい",
+      requestId: REQUEST_ID,
+    });
+    expect(requests[0]).not.toHaveProperty("organizationId");
+  });
+
+  it("現在店舗が未確定ならcanonicalな組織scopeで要望を登録する", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run((ctx) =>
+      seedManagerShop(ctx, {
+        subject: "app_feature_request_organization",
+        email: "app-feature-request-organization@example.com",
+        shopName: "組織scope要望店舗",
+      }),
+    );
+
+    await expect(
+      t.withIdentity({ subject: "app_feature_request_organization" }).mutation(submitFeatureRequestForOrganization, {
+        expectedOrganizationId: seeded.organizationId,
+        comment: "  組織全体への要望を送りたい  ",
+        requestId: REQUEST_ID,
+      }),
+    ).resolves.toEqual({ status: "accepted" });
+
+    const requests = await t.run((ctx) => ctx.db.query("featureRequests").collect());
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      organizationId: seeded.organizationId,
+      userId: seeded.userId,
+      comment: "組織全体への要望を送りたい",
+      requestId: REQUEST_ID,
+    });
+    expect(requests[0]).not.toHaveProperty("shopId");
+  });
+
+  it("非削除店舗がなくてもcanonicalな組織scopeで要望を登録する", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const result = await seedManagerShop(ctx, {
+        subject: "app_feature_request_without_non_deleted_shop",
+        email: "app-feature-request-without-non-deleted-shop@example.com",
+        shopName: "削除済み組織scope店舗",
+      });
+      await ctx.db.patch(result.shopId, { isDeleted: true });
+      return result;
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: "app_feature_request_without_non_deleted_shop" })
+        .mutation(submitFeatureRequestForOrganization, {
+          expectedOrganizationId: seeded.organizationId,
+          comment: "店舗がなくても伝えたい要望",
+          requestId: REQUEST_ID,
+        }),
+    ).resolves.toEqual({ status: "accepted" });
+
+    const requests = await t.run((ctx) => ctx.db.query("featureRequests").collect());
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      organizationId: seeded.organizationId,
+      userId: seeded.userId,
+      comment: "店舗がなくても伝えたい要望",
+    });
+    expect(requests[0]).not.toHaveProperty("shopId");
+  });
+
+  it("削除済み店舗scopeでは要望を登録できない", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const result = await seedManagerShop(ctx, {
+        subject: "app_feature_request_deleted_shop",
+        email: "app-feature-request-deleted-shop@example.com",
+        shopName: "削除済み要望店舗",
+      });
+      await ctx.db.patch(result.shopId, { isDeleted: true });
+      return result;
+    });
+
+    await expect(
+      t.withIdentity({ subject: "app_feature_request_deleted_shop" }).mutation(submitFeatureRequestForOrganization, {
+        expectedOrganizationId: seeded.organizationId,
+        shopId: seeded.shopId,
+        comment: "削除済み店舗への要望",
+        requestId: REQUEST_ID,
+      }),
+    ).rejects.toThrow("Not found");
+    expect(await t.run((ctx) => ctx.db.query("featureRequests").collect())).toEqual([]);
+  });
+
+  it("同じrequestIdのapp再送は登録を増やさない", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run((ctx) =>
+      seedManagerShop(ctx, {
+        subject: "app_feature_request_retry",
+        email: "app-feature-request-retry@example.com",
+        shopName: "アプリ再送店舗",
+      }),
+    );
+    const asManager = t.withIdentity({ subject: "app_feature_request_retry" });
+
+    await asManager.mutation(submitFeatureRequestForOrganization, {
+      expectedOrganizationId: seeded.organizationId,
+      shopId: seeded.shopId,
+      comment: "最初の要望",
+      requestId: REQUEST_ID,
+    });
+    await expect(
+      asManager.mutation(submitFeatureRequestForOrganization, {
+        expectedOrganizationId: seeded.organizationId,
+        shopId: seeded.shopId,
+        comment: "再送された要望",
+        requestId: REQUEST_ID,
+      }),
+    ).resolves.toEqual({ status: "accepted" });
+
+    const requests = await t.run((ctx) => ctx.db.query("featureRequests").collect());
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.comment).toBe("最初の要望");
+  });
+
+  it("URLの組織と異なる組織の店舗では要望を登録できない", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const primary = await seedManagerShop(ctx, {
+        subject: "app_feature_request_cross_org",
+        email: "app-feature-request-cross-org@example.com",
+        shopName: "表示中の組織店舗",
+      });
+      const otherShopId = await seedShop(ctx, "別組織店舗");
+      await seedOrganizationMembership(ctx, { userId: primary.userId, shopId: otherShopId });
+      return { ...primary, otherShopId };
+    });
+
+    await expect(
+      t.withIdentity({ subject: "app_feature_request_cross_org" }).mutation(submitFeatureRequestForOrganization, {
+        expectedOrganizationId: seeded.organizationId,
+        shopId: seeded.otherShopId,
+        comment: "別組織店舗名義の要望",
+        requestId: REQUEST_ID,
+      }),
+    ).rejects.toThrow("Not found");
+    expect(await t.run((ctx) => ctx.db.query("featureRequests").collect())).toEqual([]);
+  });
+
+  it("所属していない組織scopeでは要望を登録できない", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const primary = await seedManagerShop(ctx, {
+        subject: "app_feature_request_other_org",
+        email: "app-feature-request-other-org@example.com",
+        shopName: "所属組織店舗",
+      });
+      const other = await seedManagerShop(ctx, {
+        subject: "app_feature_request_other_org_owner",
+        email: "app-feature-request-other-org-owner@example.com",
+        shopName: "未所属組織店舗",
+      });
+      return { primary, other };
+    });
+
+    await expect(
+      t.withIdentity({ subject: "app_feature_request_other_org" }).mutation(submitFeatureRequestForOrganization, {
+        expectedOrganizationId: seeded.other.organizationId,
+        comment: "未所属組織名義の要望",
+        requestId: REQUEST_ID,
+      }),
+    ).rejects.toThrow("Not found");
+    expect(await t.run((ctx) => ctx.db.query("featureRequests").collect())).toEqual([]);
+  });
+
+  it("removedの組織所属ではapp要望を登録できない", async () => {
+    const status = "removed" as const;
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const result = await seedManagerShop(ctx, {
+        subject: `app_feature_request_${status}`,
+        email: `app-feature-request-${status.toLowerCase()}@example.com`,
+        shopName: `${status}店舗`,
+      });
+      await ctx.db.patch(result.memberId, { status, updatedAt: Date.now() });
+      return result;
+    });
+
+    await expect(
+      t.withIdentity({ subject: `app_feature_request_${status}` }).mutation(submitFeatureRequestForOrganization, {
+        expectedOrganizationId: seeded.organizationId,
+        comment: "権限のない要望",
+        requestId: REQUEST_ID,
+      }),
+    ).rejects.toThrow("Not found");
+    expect(await t.run((ctx) => ctx.db.query("featureRequests").collect())).toEqual([]);
+  });
+
   it("スタッフセッションから店舗とstaffIdを確定して要望を登録する", async () => {
     const t = convexTest(schema, modules);
     const seeded = await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, "スタッフ要望店舗");
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "スタッフ",
         email: "staff@example.com",
-        isDeleted: false,
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
@@ -185,6 +415,7 @@ describe("featureRequest/mutations", () => {
       staffId: seeded.staffId,
       comment: "提出画面でも要望を送りたい",
     });
+    expect(requests[0]).not.toHaveProperty("organizationId");
     expect(requests[0]).not.toHaveProperty("userId");
   });
 
@@ -193,11 +424,10 @@ describe("featureRequest/mutations", () => {
     const sessionToken = "staff-feature-request-view-session";
     await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, "閲覧session要望店舗");
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "閲覧スタッフ",
         email: "viewer@example.com",
-        isDeleted: false,
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,

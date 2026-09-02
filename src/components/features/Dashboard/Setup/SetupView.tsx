@@ -18,6 +18,7 @@ type Props = {
   };
   showAccountDeletion: boolean;
   isSubmitting: boolean;
+  onVerifyPromotionCode: Parameters<typeof SetupModal>[0]["onVerifyPromotionCode"];
   onComplete: Parameters<typeof SetupModal>[0]["onComplete"];
 };
 
@@ -27,6 +28,7 @@ export function SetupView({
   managerProfileDefaults,
   showAccountDeletion,
   isSubmitting,
+  onVerifyPromotionCode,
   onComplete,
 }: Props) {
   return (
@@ -44,6 +46,7 @@ export function SetupView({
         onComplete={onComplete}
         managerProfileDefaults={managerProfileDefaults}
         isSubmitting={isSubmitting}
+        onVerifyPromotionCode={onVerifyPromotionCode}
       />
     </>
   );

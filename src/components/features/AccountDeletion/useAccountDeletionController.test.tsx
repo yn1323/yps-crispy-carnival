@@ -65,6 +65,98 @@ beforeEach(() => {
 });
 
 describe("useAccountDeletionController", () => {
+  it("所属を含む削除ではdialogを開いた時点のpreviewを明示payloadへ固定する", async () => {
+    const submitRequest = vi.fn<typeof submitAccountDeletionRequest>().mockResolvedValue({
+      status: "rejected",
+      reason: "networkError",
+    });
+    const preview = {
+      status: "ready",
+      action: "leaveOrganization",
+      previewFingerprint: "preview-1",
+      organization: { name: "テスト組織", shopCount: 2 },
+      futureAssignmentCount: 3,
+    } as const;
+    const { result } = renderHook(() =>
+      useAccountDeletionController({
+        submitRequest,
+        createRequestId: () => "request-1",
+        replaceLocation: vi.fn(),
+        currentPreview: preview,
+        requiresPreview: true,
+      }),
+    );
+
+    act(() => result.current.open());
+    act(() => result.current.onSubmit());
+
+    await waitFor(() => expect(submitRequest).toHaveBeenCalledOnce());
+    expect(submitRequest).toHaveBeenCalledWith({
+      requestId: "request-1",
+      token: "fresh-token",
+      scope: "accountAndAssociations",
+      previewFingerprint: "preview-1",
+    });
+    expect(result.current.preview).toEqual(preview);
+  });
+
+  it("dialogを開いた後にpreviewが変わった場合は送信せず、最新内容の再確認を求める", async () => {
+    const submitRequest = vi.fn<typeof submitAccountDeletionRequest>();
+    const firstPreview = {
+      status: "ready",
+      action: "leaveOrganization",
+      previewFingerprint: "preview-1",
+      organization: { name: "テスト組織", shopCount: 1 },
+      futureAssignmentCount: 0,
+    } as const;
+    const nextPreview = {
+      status: "ready",
+      action: "deleteOrganization",
+      previewFingerprint: "preview-2",
+      organization: { name: "テスト組織", shopCount: 1 },
+    } as const;
+    const { result, rerender } = renderHook(
+      ({ currentPreview }) =>
+        useAccountDeletionController({
+          submitRequest,
+          createRequestId: () => "request-1",
+          replaceLocation: vi.fn(),
+          currentPreview,
+          requiresPreview: true,
+        }),
+      { initialProps: { currentPreview: firstPreview as typeof firstPreview | typeof nextPreview } },
+    );
+
+    act(() => result.current.open());
+    rerender({ currentPreview: nextPreview });
+    expect(result.current.isPreviewStale).toBe(true);
+
+    act(() => result.current.onSubmit());
+
+    expect(submitRequest).not.toHaveBeenCalled();
+    expect(result.current.error).toEqual({
+      message: "所属情報が更新されたため、アカウントを削除できません。\n画面を更新して、最新の内容をご確認ください。",
+      showContactLink: false,
+    });
+    expect(result.current.preview).toEqual(firstPreview);
+  });
+
+  it("previewがblockedの間は削除dialogを開かない", () => {
+    const createRequestId = vi.fn(() => "request-1");
+    const { result } = renderHook(() =>
+      useAccountDeletionController({
+        createRequestId,
+        currentPreview: { status: "blocked", reason: "multipleOrganizations" },
+        requiresPreview: true,
+      }),
+    );
+
+    act(() => result.current.open());
+
+    expect(result.current.isOpen).toBe(false);
+    expect(createRequestId).not.toHaveBeenCalled();
+  });
+
   it("同じdialogの再試行ではrequest IDを固定し、閉じて開き直した場合だけ更新する", async () => {
     const submitRequest = vi.fn<typeof submitAccountDeletionRequest>().mockResolvedValue({
       status: "rejected",

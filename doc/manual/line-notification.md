@@ -30,8 +30,8 @@ developmentとproductionの設定を同じ証跡や変数値として扱わな�
 | `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN` | Push、Reply、quota取得に使う |
 | `LINE_MESSAGING_CHANNEL_SECRET` | Webhook署名を検証する |
 
-`pnpm convex:env:setup`は、現行の`scripts/setupEnv.ts`ではこの4変数を同期しない。
-LINE用の値は、Convex Dashboardまたは完全修飾deployment名を指定したCLIで個別に設定する。
+`pnpm convex:env:setup`は、この4変数を同期しない。
+LINE用のsecretは、Convex Dashboardまたは完全修飾deployment名を指定したCLIで個別に設定する。
 CLIでは値を引数へ書かず、次のように対話入力する。
 
 ```bash
@@ -52,6 +52,43 @@ pnpm exec convex env list --names-only --deployment <fully-qualified-deployment>
 LINE Login設定がない場合、通知メール内のLINE連携CTAは省略される。
 一方、管理画面のLINE連携操作を隠す全体feature gateはなく、既存のLINE連携状態も環境変数の有無だけでは解除されない。
 Messaging API設定がないまま既存連携先へのLINE送信を受け付けるとworkerが失敗し得るため、LINE機能を使うdeploymentでは4変数を一組で設定する。
+
+現在のrepository artifactは、通知、画面、Outboxで組織人物単位のcanonicalなLINE正本を常に読む。
+店舗追加と既存人物の複数店舗所属も常時利用でき、組織境界、契約状態、プラン上限、OCCをserver-sideで確認する。
+
+## 組織共通LINE連携artifactの反映
+
+既存の`staffLineAccounts`があるdeploymentへ、常時canonical readを含むartifactを反映するときは、次の順序を固定する。
+LINEのread authorityはruntime環境変数で旧readへ戻せないため、migration、readiness、旧非同期処理のdrainを反映前の停止条件として扱う。店舗追加と複数店舗所属も、artifact反映後のcanary対象に含める。
+
+1. 対象artifactのSHAと完全修飾deployment名を記録し、変更前のexportまたはbackupを取得する。
+2. exportへ`pnpm convex:verify-line-common-readiness -- --path <export.zip>`を実行する。`ok: false`または`rolloutPath: blocked`なら停止する。
+3. 専用runnerとdual-writeを含むWiden互換artifactが対象deploymentへ反映済みであることを、artifactとcommitの証跡で確認する。証跡がない場合は停止し、常時canonical readのartifactを先に反映しない。
+4. counterpart欠損がある`staged`経路だけ、専用runnerを最初は`dryRun`で実行する。完全ゼロ経路では実行しない。
+5. 実変換後はmigration componentのstatusと、export verifier、全ページのbounded readiness queryを別々に確認する。
+6. 旧token、旧scheduled caller、世代snapshotのない処理中LINE Outboxが0件になるまで、互換readとdual-writeを維持する。
+7. canonical不整合、`actionRequired` fan-out、旧非同期caller、互換Outboxがすべて0件であることを再確認する。1件でも残る場合はartifactを反映しない。
+8. 常時canonical readを含むartifactを反映し、通知、Webhook fan-out、Analytics、人物詳細、店舗詳細、店舗追加、複数店舗所属のcanary結果を記録する。
+
+専用backfillは固定migration seriesへ含まれない。
+対象deploymentを完全修飾し、次のrunnerだけを使う。
+
+```bash
+pnpm exec convex run migrations/index:runLineCommonLinkBackfill \
+  '{"dryRun":true}' \
+  --deployment <fully-qualified-deployment>
+
+pnpm exec convex run migrations/index:runLineCommonLinkBackfill \
+  '{}' \
+  --deployment <fully-qualified-deployment>
+
+pnpm exec convex run --component migrations lib:getStatus \
+  --deployment <fully-qualified-deployment>
+```
+
+Productionのbackfill実行とdeployは、それぞれ対象と直前のreadinessを示して明示承認を得てから行う。
+常時canonical readのartifactから旧artifactへ戻すのは、dual-writeが継続し、互換投影の完全一致を確認できる間に限る。
+legacy writeを停止した後は、canonical側を修復するforward recoveryだけを行う。
 
 ## Provider側の設定
 
@@ -105,7 +142,7 @@ legacyまたは互換用の管理者招待LINE payloadをworkerが処理する�
 
 障害調査では、次を順に切り分ける。
 
-1. 対象staffの連携が有効で、`lineFollowing`が`true`か確認する。
+1. 対象組織人物の連携が有効で、友だち状態が有効か確認する。
 2. LINE quotaが`normal`か`exceeded`か確認する。
 3. Outboxが`pending`、`processing`、`sent`、`failed`、`cancelled`のどこにあるか確認する。
    `final_failed`はDeliveryEventの種別であり、Outboxのstatusではない。
@@ -120,7 +157,7 @@ raw provider response、authorization header、LINE user ID、token、スタッ�
 再発行すると以前の未使用tokenは失効するため、古いQRを案内し続けない。
 
 unfollow後はメール通知へ切り替わる。
-再度followされた場合はWebhookで同じLINE user IDに紐づく全店舗の連携状態を更新する。
+再度followされた場合はWebhookで、同じLINE利用者へ明示連携した全組織人物と、その全所属店舗の状態を再開可能なjobで更新する。
 
 保存済みquotaの超過ではLINEを無理に再送せず、fallback用メールの有無と、別jobが追加されたかを確認する。
 LINE APIの429ではOutboxの再試行回数と最終失敗を確認する。
@@ -138,7 +175,8 @@ rotation前後の値は記録せず、実施日時、対象channel、対象deplo
 - token再発行後は最新tokenだけが使える。
 - チャネル選択時にquota超過が判明している場合、未連携、unfollowではメールを選ぶ。
 - Outbox送信直前にquota超過が判明した場合、fallback用メールがある通知だけをメールへ切り替える。
-- 同じLINE user IDを別店舗で利用する契約を壊していない。
+- 同じ組織人物の全所属店舗が一つの連携を共通利用し、別組織には連携を自動作成していない。
+- 友だち解除と再追加が、同じLINE利用者へ明示連携した全組織人物へ反映され、fan-out jobが`actionRequired`に残っていない。
 - Outboxの再試行とredactionを迂回していない。
 
 実環境確認には、exact commit SHA、完全修飾deployment名、LINE channelの識別可能な名称、実施日時、結果、アクセス制限済み証跡を記録する。

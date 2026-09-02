@@ -4,6 +4,7 @@ import type { MutationCtx } from "../_generated/server";
 import { type OrganizationBillingState, resolveOrganizationBillingPlans } from "../organizationBilling/policy";
 import { getAnalyticsSourceCaptureStartAt } from "./config";
 import {
+  ANALYTICS_PAYLOAD_VERSION,
   ANALYTICS_SCHEMA_VERSION,
   type analyticsSourceEventPayloadValidator,
   type analyticsSourceEventTypeValidator,
@@ -61,7 +62,6 @@ function expectedEventType(payload: AnalyticsSourceEventPayload): AnalyticsSourc
     case "person":
       return "person.changed";
     case "managerMembership":
-    case "managerMembershipExchange":
       return "managerMembership.changed";
     case "staffMembership":
     case "staffMembershipBatch":
@@ -134,7 +134,7 @@ async function insertAnalyticsSourceEvent(ctx: MutationCtx, args: AnalyticsSourc
     ...(args.shopId ? { shopId: args.shopId } : {}),
     ...(args.recruitmentId ? { recruitmentId: args.recruitmentId } : {}),
     ...(args.subjectId ? { subjectId: args.subjectId } : {}),
-    payloadVersion: 1,
+    payloadVersion: ANALYTICS_PAYLOAD_VERSION,
     payload: args.payload,
     createdAt: Date.now(),
   });
@@ -142,6 +142,6 @@ async function insertAnalyticsSourceEvent(ctx: MutationCtx, args: AnalyticsSourc
 
 export function analyticsPlanForBillingState(
   state: OrganizationBillingState,
-): "trial" | "free" | "pro" | "business" | undefined {
+): "trial" | "free" | "standard" | "pro" | undefined {
   return resolveOrganizationBillingPlans(state).targetingPlan ?? undefined;
 }

@@ -4,32 +4,15 @@ import { createStore, Provider } from "jotai";
 import { expect, userEvent, within } from "storybook/test";
 import { UserMenu } from "@/src/components/features/UserMenu";
 import { Button } from "@/src/components/ui/Button";
-import { selectedShopAtom } from "@/src/stores/shop";
 import { userAtom } from "@/src/stores/user";
 import { Header, type HeaderProps } from "./index";
 
-const createStoreWithUser = (
-  featureVisibility = {
-    organizationSettingsNavigation: true,
-    billing: true,
-    shopMembershipAddition: true,
-  },
-) => {
+const createStoreWithUser = () => {
   const store = createStore();
   store.set(userAtom, {
     authId: "test",
     name: "田中太郎",
     email: "tanaka@example.com",
-    featureVisibility,
-  });
-  store.set(selectedShopAtom, {
-    shopId: "shop-a",
-    shopName: "A店舗",
-    shopStatus: "active",
-    organizationId: "organization-a",
-    organizationName: "Aグループ",
-    organizationPlan: "pro",
-    memberStatus: "active",
   });
   return store;
 };
@@ -77,45 +60,12 @@ export const UserWithoutShopDeletionEntry: Story = {
     const contactLink = await screen.findByRole("menuitem", { name: "お問い合わせ" });
     await expect(contactLink).toHaveAttribute("href", "/contact");
     await expect(contactLink).toHaveAttribute("target", "_blank");
-    await expect(screen.getByRole("menuitem", { name: "グループ設定" })).toHaveAttribute(
-      "href",
-      "/settings?shop=shop-a",
-    );
+    await expect(screen.queryByRole("menuitem", { name: "組織設定" })).toBeNull();
     await expect(screen.getByRole("menuitem", { name: "アカウント設定" })).toHaveAttribute("href", "/account");
     await screen.findByRole("menuitem", { name: "ログアウト" });
     await expect(screen.queryByText("login@example.com")).toBeNull();
     await expect(screen.queryByText("tanaka@example.com")).toBeNull();
     await expect(screen.queryByRole("menuitem", { name: "店舗削除" })).toBeNull();
-    await userEvent.keyboard("{Escape}");
-  },
-};
-
-export const UserWithoutSettingsEntry: Story = {
-  args: {
-    userActions: <UserMenu tone="light" />,
-  },
-  render: (args: HeaderProps) => (
-    <Provider
-      store={createStoreWithUser({
-        organizationSettingsNavigation: false,
-        billing: false,
-        shopMembershipAddition: false,
-      })}
-    >
-      <Header {...args} />
-    </Provider>
-  ),
-  parameters: {
-    screenshot: { skip: true },
-  },
-  play: async () => {
-    const screen = within(document.body);
-    const trigger = await screen.findByRole("button", { name: "ユーザーメニュー" });
-    await userEvent.click(trigger);
-
-    await expect(screen.queryByRole("menuitem", { name: "グループ設定" })).toBeNull();
-    await screen.findByRole("menuitem", { name: "お問い合わせ" });
-    await screen.findByRole("menuitem", { name: "ログアウト" });
     await userEvent.keyboard("{Escape}");
   },
 };
@@ -153,6 +103,20 @@ export const MobileUserWithAction: Story = {
 export const Public: Story = {
   args: {
     variant: "public",
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    for (const [label, href] of [
+      ["機能", "/#features"],
+      ["導入事例", "/#use-cases"],
+      ["料金", "/#pricing"],
+      ["よくある質問", "/#faq"],
+      ["お役立ち記事", "/#articles"],
+    ]) {
+      await expect(canvas.getByRole("link", { name: label })).toHaveAttribute("href", href);
+    }
+    await expect(canvas.getByRole("link", { name: "ログイン" })).toHaveAttribute("href", "/login");
+    await expect(canvas.getByRole("link", { name: "シフトリをはじめる" })).toHaveAttribute("href", "/signup");
   },
 };
 

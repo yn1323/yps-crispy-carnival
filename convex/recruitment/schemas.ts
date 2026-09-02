@@ -34,7 +34,7 @@ export const createRecruitmentSchema = z
     if (data.deadline >= data.periodStart) {
       ctx.addIssue({
         code: "custom",
-        message: "締切日は開始日より前にしてください",
+        message: "提出期限はシフト開始日より前にしてください",
         path: ["deadline"],
       });
     }

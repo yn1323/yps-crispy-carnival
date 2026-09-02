@@ -19,6 +19,7 @@ import type {
   AnalyticsSegmentDimension,
   AnalyticsShopSizeFilter,
   AnalyticsShopSort,
+  AnalyticsShopUsageFilter,
 } from "@/api/analyticsTypes";
 
 export type AnalyticsGranularity = "day" | "week" | "month";
@@ -32,12 +33,13 @@ export type AnalyticsSearchState = {
   granularity: AnalyticsGranularity;
   organizationId?: string;
   shopId?: string;
-  plan?: string;
+  plan?: AnalyticsPlanKey;
   shopSize?: string;
   cohort?: string;
   cadence?: string;
   lineUsage?: string;
   health?: string;
+  usage?: AnalyticsShopUsageFilter;
   completeness?: string;
   dimension?: string;
   sort?: string;
@@ -46,11 +48,12 @@ export type AnalyticsSearchState = {
   segmentCursor?: string;
 };
 
-const PLANS = ["trial", "free", "pro", "business"] as const;
+const PLANS = ["trial", "free", "standard", "pro"] as const satisfies readonly AnalyticsPlanKey[];
 const COMPLETENESS = ["complete", "partial", "unavailable"] as const;
 const ORGANIZATION_SORTS = ["registeredAt", "currentPlan"] as const;
 const SHOP_SORTS = ["registeredAt", "currentPlan", "latestActivityAt"] as const;
 const SHOP_SIZES = ["1-4", "5-9", "10-19", "20-49", "50+"] as const;
+const SHOP_USAGE = ["candidate", "high", "possible", "unknown"] as const;
 const CADENCES = ["weekly", "biweekly", "monthly", "other", "insufficientData"] as const;
 const LINE_USAGE = ["none", "low", "medium", "high"] as const;
 const HEALTH = [
@@ -82,7 +85,6 @@ function valueIn<const Values extends readonly string[]>(value: string | undefin
 const OPTIONAL_KEYS = [
   "organizationId",
   "shopId",
-  "plan",
   "shopSize",
   "cohort",
   "cadence",
@@ -139,6 +141,7 @@ function defaultRange() {
 }
 
 function parseSearch(search: string) {
+  const originalParams = new URLSearchParams(search);
   const params = new URLSearchParams(search);
   const defaults = defaultRange();
   const from = params.get("from") ?? defaults.from;
@@ -163,10 +166,38 @@ function parseSearch(search: string) {
     const value = params.get(key);
     if (value) result[key] = value;
   }
+  const rawPlan = params.get("plan") ?? undefined;
+  const plan = valueIn(rawPlan, PLANS);
+  if (plan) result.plan = plan;
+  if (params.has("plan") && plan === undefined) {
+    delete result.cursor;
+    params.delete("cursor");
+    params.delete("plan");
+  }
+  const rawUsage = params.get("usage") ?? undefined;
+  const usage = valueIn(rawUsage, SHOP_USAGE);
+  if (usage) result.usage = usage;
+  const hasInvalidUsage = params.has("usage") && usage === undefined;
+  if (hasInvalidUsage) {
+    delete result.cursor;
+    params.delete("cursor");
+    params.delete("usage");
+  }
+  const normalizedSearch = params.toString();
   return {
     hasExplicitRange: params.has("from") && params.has("to"),
+    needsUrlNormalization: normalizedSearch !== originalParams.toString(),
+    normalizedSearch,
     search: result,
   };
+}
+
+function replaceNormalizedSearchUrl(normalizedSearch: string) {
+  window.history.replaceState(
+    null,
+    "",
+    normalizedSearch ? `${window.location.pathname}?${normalizedSearch}` : window.location.pathname,
+  );
 }
 
 export function overviewParams(search: AnalyticsSearchState): OverviewParams {
@@ -181,7 +212,11 @@ export function overviewParams(search: AnalyticsSearchState): OverviewParams {
 }
 
 export function seriesParams(search: AnalyticsSearchState): OrganizationParams | ShopParams {
-  return { from: search.from, granularity: search.granularity, to: search.to };
+  return {
+    from: search.from,
+    granularity: search.granularity,
+    to: search.to,
+  };
 }
 
 export function organizationDetailParams(search: AnalyticsSearchState): OrganizationParams {
@@ -210,7 +245,7 @@ export function organizationsParams(search: AnalyticsSearchState): Organizations
     direction: search.direction,
     from: search.from,
     limit: 50,
-    plan: valueIn(search.plan, PLANS) as AnalyticsPlanKey | undefined,
+    plan: search.plan,
     sort: valueIn(search.sort, ORGANIZATION_SORTS) as AnalyticsOrganizationSort | undefined,
     to: search.to,
   };
@@ -226,10 +261,11 @@ export function shopsParams(search: AnalyticsSearchState): ShopsParams {
     limit: 50,
     lineUsage: valueIn(search.lineUsage, LINE_USAGE) as AnalyticsLineUsageFilter | undefined,
     organizationId: search.organizationId,
-    plan: valueIn(search.plan, PLANS) as AnalyticsPlanKey | undefined,
+    plan: search.plan,
     shopSize: valueIn(search.shopSize, SHOP_SIZES) as AnalyticsShopSizeFilter | undefined,
     sort: valueIn(search.sort, SHOP_SORTS) as AnalyticsShopSort | undefined,
     to: search.to,
+    usage: search.usage,
   };
 }
 
@@ -265,8 +301,13 @@ export function useAnalyticsSearch() {
   const hasExplicitRange = useRef(initial.current.hasExplicitRange);
 
   useEffect(() => {
+    if (initial.current?.needsUrlNormalization) {
+      replaceNormalizedSearchUrl(initial.current.normalizedSearch);
+    }
+
     const handlePopState = () => {
       const parsed = parseSearch(window.location.search);
+      if (parsed.needsUrlNormalization) replaceNormalizedSearchUrl(parsed.normalizedSearch);
       hasExplicitRange.current = parsed.hasExplicitRange;
       setSearch(parsed.search);
     };

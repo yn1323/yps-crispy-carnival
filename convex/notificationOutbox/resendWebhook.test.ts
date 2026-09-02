@@ -1,9 +1,10 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Id } from "../_generated/dataModel";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
-import { RESEND_WEBHOOK_BODY_MAX_BYTES } from "../constants";
+import { RESEND_DELAYED_FAILURE_GRACE_MS, RESEND_WEBHOOK_BODY_MAX_BYTES } from "../constants";
 
 const RAW_SECRET = "test-resend-webhook-secret";
 const WEBHOOK_SECRET = `whsec_${bytesToBase64(new TextEncoder().encode(RAW_SECRET))}`;
@@ -137,7 +138,7 @@ describe("notificationOutbox/resendWebhook", () => {
     await expectProviderStateEmpty(t);
   });
 
-  it("署名済みdelivery_delayedはoutboxから店舗とスタッフを復元してFailureInboxに出す", async () => {
+  it("署名済みdelivery_delayedは履歴を即時更新し、FailureInboxに出さず30分の期限を作る", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedSentEmailOutbox(t, "email_delayed");
     const rawBody = JSON.stringify(providerEmailEvent("email.delivery_delayed", "email_delayed", ids.outboxId));
@@ -150,18 +151,56 @@ describe("notificationOutbox/resendWebhook", () => {
     });
 
     expect(response.status).toBe(200);
-    const failures = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
-    expect(failures).toHaveLength(1);
-    expect(failures[0]).toMatchObject({
-      sourceType: "provider",
-      status: "open",
-      shopId: ids.shopId,
-      staffId: ids.staffId,
-      outboxId: ids.outboxId,
-      channel: "email",
-    });
-    const history = await t.run(async (ctx) => (ids.historyId ? await ctx.db.get(ids.historyId) : null));
+    const state = await t.run(async (ctx) => ({
+      failures: await ctx.db.query("notificationFailureInbox").collect(),
+      deadlines: await ctx.db.query("notificationResendDelayedFailureDeadlines").collect(),
+      history: ids.historyId ? await ctx.db.get(ids.historyId) : null,
+    }));
+    expect(state.failures).toEqual([]);
+    expect(state.deadlines).toEqual([
+      expect.objectContaining({
+        outboxId: ids.outboxId,
+        dueAt: NOW + RESEND_DELAYED_FAILURE_GRACE_MS,
+        createdAt: NOW,
+      }),
+    ]);
+    const history = state.history;
     expect(history).toMatchObject({ deliveryStatus: "delayed", deliveryStatusAt: NOW });
+  });
+
+  it("署名済みhard failureは猶予期限を消して即時にFailureInboxへ出す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedSentEmailOutbox(t, "email_delayed_then_bounced");
+    await postProviderEvent(
+      t,
+      "svix_delayed_before_bounced",
+      providerEmailEvent("email.delivery_delayed", "email_delayed_then_bounced", ids.outboxId),
+    );
+    const response = await postProviderEvent(
+      t,
+      "svix_bounced_after_delayed",
+      providerEmailEvent("email.bounced", "email_delayed_then_bounced", ids.outboxId, "2026-06-22T05:24:00.000Z"),
+    );
+
+    expect(response.status).toBe(200);
+    const state = await t.run(async (ctx) => ({
+      failures: await ctx.db.query("notificationFailureInbox").collect(),
+      deadlines: await ctx.db.query("notificationResendDelayedFailureDeadlines").collect(),
+      history: ids.historyId ? await ctx.db.get(ids.historyId) : null,
+    }));
+    expect(state.deadlines).toEqual([]);
+    expect(state.failures).toEqual([
+      expect.objectContaining({
+        sourceType: "provider",
+        status: "open",
+        outboxId: ids.outboxId,
+        lastError: "email_delivery_bounced",
+      }),
+    ]);
+    expect(state.history).toMatchObject({
+      deliveryStatus: "bounced",
+      deliveryStatusAt: Date.parse("2026-06-22T05:24:00.000Z"),
+    });
   });
 
   it("署名済みdeliveredは履歴を配信済みにし、成功eventへerrorMessageを保存しない", async () => {
@@ -219,13 +258,25 @@ describe("notificationOutbox/resendWebhook", () => {
     const afterOlder = await t.run(async (ctx) => ({
       history: ids.historyId ? await ctx.db.get(ids.historyId) : null,
       failures: await ctx.db.query("notificationFailureInbox").collect(),
+      deadlines: await ctx.db.query("notificationResendDelayedFailureDeadlines").collect(),
+      outbox: await ctx.db.get(ids.outboxId),
     }));
     expect(afterOlder.history).toMatchObject({
       deliveryStatus: "delayed",
       deliveryStatusAt: Date.parse("2026-06-22T05:24:00.000Z"),
     });
-    expect(afterOlder.failures).toHaveLength(1);
-    expect(afterOlder.failures[0].status).toBe("open");
+    expect(afterOlder.failures).toEqual([]);
+    expect(afterOlder.deadlines).toEqual([
+      expect.objectContaining({
+        outboxId: ids.outboxId,
+        dueAt: Date.parse("2026-06-22T05:24:00.000Z") + RESEND_DELAYED_FAILURE_GRACE_MS,
+      }),
+    ]);
+    expect(afterOlder.outbox).toMatchObject({
+      resendLastEventType: "email.delivery_delayed",
+      resendLastEventAt: Date.parse("2026-06-22T05:24:00.000Z"),
+      resendDeliveryStatus: "delivery_delayed",
+    });
 
     await postProviderEvent(
       t,
@@ -236,12 +287,18 @@ describe("notificationOutbox/resendWebhook", () => {
     const afterNewer = await t.run(async (ctx) => ({
       history: ids.historyId ? await ctx.db.get(ids.historyId) : null,
       failures: await ctx.db.query("notificationFailureInbox").collect(),
+      deadlines: await ctx.db.query("notificationResendDelayedFailureDeadlines").collect(),
+      outbox: await ctx.db.get(ids.outboxId),
     }));
     expect(afterNewer.history).toMatchObject({
       deliveryStatus: "delivered",
       deliveredAt: Date.parse("2026-06-22T05:25:00.000Z"),
     });
-    expect(afterNewer.failures[0]).toMatchObject({ status: "resolved", resolutionKind: "sent" });
+    expect(afterNewer.failures).toEqual([]);
+    expect(afterNewer.deadlines).toEqual([]);
+    expect(afterNewer.outbox).not.toHaveProperty("resendLastEventType");
+    expect(afterNewer.outbox).not.toHaveProperty("resendDeliveryStatus");
+    expect(afterNewer.outbox?.resendLastEventAt).toBe(Date.parse("2026-06-22T05:25:00.000Z"));
   });
 
   it("履歴のない既存Outboxでも新しいdeliveredはprovider由来の警告を解消する", async () => {
@@ -269,13 +326,15 @@ describe("notificationOutbox/resendWebhook", () => {
       providerEmailEvent("email.failed", "email_legacy_without_history", ids.outboxId, "2026-06-22T05:23:30.000Z"),
     );
 
-    const [histories, failures, outbox] = await Promise.all([
+    const [histories, failures, deadlines, outbox] = await Promise.all([
       t.run(async (ctx) => await ctx.db.query("notificationHistory").collect()),
       t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect()),
+      t.run(async (ctx) => await ctx.db.query("notificationResendDelayedFailureDeadlines").collect()),
       t.run(async (ctx) => await ctx.db.get(ids.outboxId)),
     ]);
     expect(histories).toEqual([]);
-    expect(failures[0]).toMatchObject({ status: "resolved", resolutionKind: "sent" });
+    expect(failures).toEqual([]);
+    expect(deadlines).toEqual([]);
     expect(outbox?.resendLastEventAt).toBe(Date.parse("2026-06-22T05:25:00.000Z"));
   });
 });
@@ -291,7 +350,7 @@ async function seedSentEmailOutbox(
       email: "manager@example.com",
       shopName: "Resend Webhook店舗",
     });
-    const staffId = await ctx.db.insert("staffs", {
+    const staffId = await seedStaff(ctx, {
       shopId,
       name: "メールスタッフ",
       email: "mail-staff@example.com",
@@ -394,12 +453,14 @@ async function signedHeaders(id: string, rawBody: string) {
 }
 
 async function expectProviderStateEmpty(t: TestConvex<typeof schema>) {
-  const [events, failures] = await Promise.all([
+  const [events, failures, deadlines] = await Promise.all([
     t.run(async (ctx) => await ctx.db.query("notificationDeliveryEvents").collect()),
     t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect()),
+    t.run(async (ctx) => await ctx.db.query("notificationResendDelayedFailureDeadlines").collect()),
   ]);
   expect(events).toEqual([]);
   expect(failures).toEqual([]);
+  expect(deadlines).toEqual([]);
 }
 
 async function sign(id: string, timestamp: string, rawBody: string) {

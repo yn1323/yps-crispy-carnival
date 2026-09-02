@@ -1,19 +1,7 @@
-import {
-  Box,
-  Card,
-  Container,
-  Flex,
-  Grid,
-  Heading,
-  Image,
-  Separator,
-  Skeleton,
-  Stack,
-  Text,
-  VStack,
-} from "@chakra-ui/react";
+import { Box, Card, Container, Grid, Heading, Image, Stack, Text, VStack } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
+import { ShiftoriLoading } from "@/src/components/ui/ShiftoriLoading";
 import loginIllustration from "./login.webp";
 
 type AuthShellProps = {
@@ -26,7 +14,7 @@ type AuthShellProps = {
 export function AuthShell({ children, description, isInitialLoading, title }: AuthShellProps) {
   return (
     <Box minH="100dvh" bgGradient="to-b" gradientFrom="#E6F7F5" gradientVia="#F3FBFA" gradientTo="white">
-      <Header variant="public" showLinks={false} showLogin={false} />
+      <Header variant="public" showLogin={false} showSignup={false} />
       <Container
         as="main"
         maxW="7xl"
@@ -66,7 +54,15 @@ export function AuthShell({ children, description, isInitialLoading, title }: Au
                     </Text>
                   )}
                 </Stack>
-                {isInitialLoading ? <AuthInitialLoading /> : children}
+                {isInitialLoading ? (
+                  <ShiftoriLoading
+                    variant="section"
+                    aria-label="認証情報を確認中"
+                    minH={{ base: "340px", md: "360px" }}
+                  />
+                ) : (
+                  children
+                )}
               </VStack>
             </Card.Body>
           </Card.Root>
@@ -75,26 +71,6 @@ export function AuthShell({ children, description, isInitialLoading, title }: Au
     </Box>
   );
 }
-
-const AuthInitialLoading = () => (
-  <Stack role="status" aria-label="認証情報を確認中" minH={{ base: "340px", md: "360px" }} gap={5}>
-    <Text color="gray.600" textStyle="sm">
-      認証情報を確認しています
-    </Text>
-    <Skeleton h="48px" w="full" borderRadius="lg" />
-    <Flex align="center" gap={4}>
-      <Separator flex={1} />
-      <Skeleton h="14px" w="48px" />
-      <Separator flex={1} />
-    </Flex>
-    <Stack gap={4}>
-      <Skeleton h="72px" w="full" borderRadius="lg" />
-      <Skeleton h="72px" w="full" borderRadius="lg" />
-    </Stack>
-    <Skeleton h="48px" w="full" borderRadius="lg" />
-    <Skeleton h="16px" w="160px" mx="auto" />
-  </Stack>
-);
 
 const AuthIllustrationPanel = () => (
   <Box display={{ base: "none", lg: "block" }}>

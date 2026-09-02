@@ -1,4 +1,4 @@
-import { useSignIn } from "@clerk/react";
+import { useSignIn, useSignUp } from "@clerk/react";
 import { useEffect, useState } from "react";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { buildSsoCallbackUrl } from "@/src/lib/auth/redirect";
@@ -26,12 +26,17 @@ type UseLoginFlowControllerParams = {
 
 export function useLoginFlowController({ redirectTo, initialErrorMessage }: UseLoginFlowControllerParams) {
   const { fetchStatus, signIn } = useSignIn();
+  const { fetchStatus: signUpFetchStatus, signUp } = useSignUp();
   const [errorMessage, setErrorMessage] = useState(initialErrorMessage);
   const [loginStep, setLoginStep] = useState<LoginStep>("credentials");
   const [loginSafeIdentifier, setLoginSafeIdentifier] = useState<string>();
   const [verificationInfoMessage, setVerificationInfoMessage] = useState<string>();
   const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0);
-  const { run: runAuthAction, isRunning } = useSingleFlight(async (action: () => Promise<void>) => {
+  const {
+    run: runAuthAction,
+    isRunning,
+    release: releaseAuthAction,
+  } = useSingleFlight(async (action: () => Promise<void>) => {
     await action();
   });
   const { handleGoogle, isLineBrowser } = useGoogleOAuthController({
@@ -43,8 +48,11 @@ export function useLoginFlowController({ redirectTo, initialErrorMessage }: UseL
       });
       throwIfClerkOperationFailed(result);
     },
-    isResourceLoaded: fetchStatus === "idle",
+    isResourceLoaded: fetchStatus === "idle" && signUpFetchStatus === "idle",
+    releaseAuthAction,
     runAuthAction,
+    signIn,
+    signUp,
     onErrorMessage: setErrorMessage,
   });
 
@@ -139,7 +147,7 @@ export function useLoginFlowController({ redirectTo, initialErrorMessage }: UseL
 
       try {
         await prepareClientTrustEmailCode(signIn);
-        setVerificationInfoMessage("新しい確認コードを送りました。");
+        setVerificationInfoMessage("新しい確認コードを再送しました。");
         setResendCooldownSeconds(RESEND_COOLDOWN_SECONDS);
       } catch (error) {
         setErrorMessage(getClerkErrorMessage(error));
@@ -163,7 +171,7 @@ export function useLoginFlowController({ redirectTo, initialErrorMessage }: UseL
   return {
     errorMessage,
     isLineBrowser,
-    isSubmitting: isRunning || fetchStatus === "fetching",
+    isSubmitting: isRunning || fetchStatus === "fetching" || signUpFetchStatus === "fetching",
     loginSafeIdentifier,
     loginStep,
     resendCooldownSeconds,

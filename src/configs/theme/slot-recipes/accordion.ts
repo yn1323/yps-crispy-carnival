@@ -20,6 +20,12 @@ export const accordionSlotRecipe = defineSlotRecipe({
       gap: "3",
       fontWeight: "medium",
       borderRadius: "var(--accordion-radius)",
+      transitionProperty: "background-color",
+      transitionDuration: "faster",
+      "&:is(:active, [data-active]):not(:disabled, [data-disabled])": {
+        bg: "gray.100",
+        transitionDuration: "0ms",
+      },
       _focusVisible: {
         outline: "2px solid",
         outlineColor: "colorPalette.focusRing",

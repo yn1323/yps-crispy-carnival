@@ -1,5 +1,8 @@
 import { ConvexError, v } from "convex/values";
-import { internalMutation, internalQuery } from "../_generated/server";
+import {
+  observedInternalMutation as internalMutation,
+  observedInternalQuery as internalQuery,
+} from "../_lib/errorObservability";
 
 const RETIRED_MESSAGE = "Analytics legacy pipeline is retired; use analytics/reset or analytics/nightly";
 

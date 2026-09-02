@@ -5,10 +5,8 @@ import {
 } from "@/src/domains/shop/context";
 
 export type OperationContextModel = {
-  groups: ShopOrganizationGroup[];
   selectedGroup: ShopOrganizationGroup;
   selectedShop: ShopContextOption;
-  hasMultipleGroups: boolean;
   canSwitchShop: boolean;
 };
 
@@ -23,10 +21,8 @@ export function buildOperationContextModel(
   if (!selectedGroup || !selectedShop) return null;
 
   return {
-    groups,
     selectedGroup,
     selectedShop,
-    hasMultipleGroups: groups.length > 1,
-    canSwitchShop: shops.length > 1,
+    canSwitchShop: selectedGroup.shops.length > 1,
   };
 }

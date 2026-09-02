@@ -1,32 +1,25 @@
 import { describe, expect, it } from "vitest";
-import {
-  groupShopsByOrganization,
-  isSelectableShop,
-  normalizeSelectedShop,
-  normalizeShopContextOptions,
-} from "./context";
+import { groupShopsByOrganization, normalizeSelectedShop, normalizeShopContextOptions } from "./context";
 
 describe("shop context", () => {
-  it("旧selected-shop DTOをactive所属として読み込める", () => {
+  it("状態値がない旧selected-shop DTOを読み込める", () => {
     expect(normalizeSelectedShop({ shopId: "shop-1", shopName: "渋谷店" })).toEqual({
       shopId: "shop-1",
       shopName: "渋谷店",
-      shopStatus: "active",
       organizationId: null,
       organizationName: null,
       organizationPlan: null,
-      memberStatus: "active",
     });
   });
 
-  it("現行の契約プランをBusinessを含めて保持する", () => {
+  it("canonicalな契約プランだけを保持する", () => {
     const shops = normalizeShopContextOptions([
-      { shopId: "1", shopName: "Pro店", organizationPlan: "pro" },
-      { shopId: "2", shopName: "旧Business店", organizationPlan: "business" },
+      { shopId: "1", shopName: "Standard店", organizationPlan: "standard" },
+      { shopId: "2", shopName: "Pro店", organizationPlan: "pro" },
       { shopId: "3", shopName: "未知店", organizationPlan: "enterprise" },
     ]);
 
-    expect(shops.map((shop) => shop.organizationPlan)).toEqual(["pro", "business", null]);
+    expect(shops.map((shop) => shop.organizationPlan)).toEqual(["standard", "pro", null]);
   });
 
   it("壊れた保存値と不正なquery行を除外する", () => {
@@ -36,18 +29,27 @@ describe("shop context", () => {
     );
   });
 
-  it("アーカイブ店舗は閲覧候補へ残し、削除済み所属だけを選択候補から外す", () => {
-    const [active, suspended, archived, removed] = normalizeShopContextOptions([
+  it("旧active値だけを互換入力として受理し、archivedと未知値は除外する", () => {
+    const shops = normalizeShopContextOptions([
       { shopId: "1", shopName: "A", shopStatus: "active" },
-      { shopId: "2", shopName: "B", shopStatus: "planSuspended", memberStatus: "readOnly" },
-      { shopId: "3", shopName: "C", shopStatus: "archived" },
-      { shopId: "4", shopName: "D", shopStatus: "active", memberStatus: "removed" },
+      { shopId: "2", shopName: "B", shopStatus: "archived" },
+      { shopId: "3", shopName: "C", shopStatus: "unknown" },
+      { shopId: "4", shopName: "D", operatingStatus: "archived" },
     ]);
 
-    expect([active, suspended, archived, removed].map(isSelectableShop)).toEqual([true, true, true, false]);
+    expect(shops).toEqual([
+      {
+        shopId: "1",
+        shopName: "A",
+        organizationId: null,
+        organizationName: null,
+        organizationPlan: null,
+      },
+    ]);
+    expect(normalizeSelectedShop({ shopId: "2", shopName: "B", shopStatus: "archived" })).toBeNull();
   });
 
-  it("店舗をグループごとにまとめて安定した順序で返す", () => {
+  it("店舗を組織ごとにまとめて安定した順序で返す", () => {
     const shops = normalizeShopContextOptions([
       { shopId: "3", shopName: "横浜店", organizationId: "org-b", organizationName: "B社" },
       { shopId: "2", shopName: "新宿店", organizationId: "org-a", organizationName: "A社" },
@@ -62,7 +64,7 @@ describe("shop context", () => {
     ]);
   });
 
-  it("グループIDがない移行中店舗を表示名だけで同じグループにまとめない", () => {
+  it("組織IDがない移行中店舗を表示名だけで同じ組織にまとめない", () => {
     const shops = normalizeShopContextOptions([
       { shopId: "legacy-a", shopName: "渋谷店" },
       { shopId: "legacy-b", shopName: "新宿店" },
@@ -75,8 +77,8 @@ describe("shop context", () => {
         shopIds: group.shops.map((shop) => shop.shopId),
       })),
     ).toEqual([
-      { key: "legacy:legacy-a", organizationName: "渋谷店のグループ", shopIds: ["legacy-a"] },
-      { key: "legacy:legacy-b", organizationName: "新宿店のグループ", shopIds: ["legacy-b"] },
+      { key: "legacy:legacy-a", organizationName: "渋谷店の組織", shopIds: ["legacy-a"] },
+      { key: "legacy:legacy-b", organizationName: "新宿店の組織", shopIds: ["legacy-b"] },
     ]);
   });
 });

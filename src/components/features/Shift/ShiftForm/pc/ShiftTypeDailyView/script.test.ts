@@ -54,6 +54,7 @@ describe("buildShiftTypeDailyViewModel", () => {
       { key: "early", timeLabel: "09:00〜13:00", countLabel: "1人" },
       { key: "late", timeLabel: "13:00〜18:00", countLabel: "0人" },
     ]);
+    expect(Object.keys(viewModel.optionColumns[0]).sort()).toEqual(["color", "countLabel", "key", "name", "timeLabel"]);
     expect(viewModel.minimumTableWidth).toBe(670);
     expect(viewModel.columnWidths).toEqual({ staff: 220, request: 150, option: 150 });
     expect(viewModel.rows.map(({ key }) => key)).toEqual(["staff-submitted", "staff-unsubmitted"]);

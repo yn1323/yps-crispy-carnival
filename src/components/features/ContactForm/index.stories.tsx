@@ -23,7 +23,7 @@ export const TroubleGuidance: Story = {
     await userEvent.selectOptions(canvas.getByRole("combobox", { name: "問い合わせ種別" }), "trouble");
     await expect(canvas.getByRole("textbox", { name: "問い合わせ内容" })).toHaveAttribute(
       "placeholder",
-      "例：シフトを確定しようとすると「○○」と表示されます。\n再読み込みしても同じ状態です。",
+      "シフトを確定しようとすると「○○」と表示されます。\n再読み込みしても同じ状態です。",
     );
     await expect(
       canvas.getByText("エラーメッセージや直前の操作もご記載いただくと、より早く確認できます。"),

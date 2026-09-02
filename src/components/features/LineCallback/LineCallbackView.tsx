@@ -16,40 +16,39 @@ const COPY: Record<
   loading: {
     icon: LuClock,
     tone: "neutral",
-    title: "連携中です",
-    description: "LINE連携を確認しています",
+    title: "LINE連携中です",
+    description: "そのままページを開いたままお待ちください。",
   },
   ok: {
     icon: LuCircleCheck,
     tone: "success",
-    title: "シフト通知をLINEで受け取れます",
-    description: "シフト確定や提出依頼をLINEへ送ります。\nこのページは閉じて構いません。",
+    title: "LINE連携が完了しました。",
+    description: "シフトや募集依頼がLINEに届きます。\nこのページは閉じて構いません。",
   },
   needs_follow: {
     icon: LuCircleAlert,
     tone: "warning",
-    title: "LINE連携は完了しました",
+    title: "シフトリ公式アカウントを友達に追加してください。",
     description:
-      "シフト通知をLINEで受け取るには、シフトリ公式アカウントを友だち追加してください。\n募集中のシフトがある場合は、友だち追加後にLINEで案内します。",
+      "シフトリの設定が完了しましたが、通知が届かない状態になっています。\nシフト通知をLINEで受け取るには、シフトリ公式アカウントを友だち追加してください。",
   },
   expired: {
     icon: LuClock,
     tone: "warning",
-    title: "このリンクではLINE連携できません",
-    description:
-      "このリンクは無効か、すでに使用された可能性があります。\nシフト作成担当者に、新しい連携リンクの発行を依頼してください。",
+    title: "リンクが無効です",
+    description: "シフト作成担当者に新しいLINE連携リンクの発行を依頼してください。",
   },
   rate_limited: {
     icon: LuCircleAlert,
     tone: "warning",
     title: "アクセスが集中しています",
-    description: "少し時間をおいてから、もう一度お試しください。",
+    description: "少し時間をおいてから、再度お試しください。",
   },
   error: {
     icon: LuCircleAlert,
     tone: "danger",
     title: "LINE連携を完了できませんでした",
-    description: "通信が切れた可能性があります。\n少し待ってから、もう一度お試しください。",
+    description: "ネットワークエラー。\n少し待ってから、再度お試しください。",
   },
 };
 

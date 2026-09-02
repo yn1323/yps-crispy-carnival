@@ -77,7 +77,7 @@ export const Select = ({
       maxW={maxW}
       {...restProps}
     >
-      <SelectHiddenSelect />
+      <SelectHiddenSelect autoComplete="off" />
       {label && <SelectLabel>{label}</SelectLabel>}
       {note && (
         <SelectLabel fontSize={"xs"} fontWeight="normal">

@@ -1,7 +1,7 @@
 # 分析KPI可視化アプリ
 
 分析projectionと日次snapshotを、内部担当者だけが閲覧する分離Dashboardです。  
-サービス全体からグループ、店舗、シフト周期へ移動し、導入到達度と要確認状態を別々に確認できます。
+サービス全体から組織、店舗、シフト周期へ移動し、導入到達度と要確認状態を別々に確認できます。
 
 顧客向け本体アプリとは別のCloudflare WorkerとStatic Assetsで配信します。  
 実環境での公開状態は[リリース状態](../manual/release-status.md)を参照してください。
@@ -13,15 +13,21 @@ stage別tabは使わず、分析対象ごとにrouteを分けます。
 | route | 用途 |
 |---|---|
 | `/` | 要確認店舗、現在の利用状況、KPI推移、導入到達度、要確認状態、詳細分析 |
-| `/organizations` | グループの利用状況と要確認状態の比較、並び替え、絞り込み、pagination |
-| `/organizations/:organizationId` | グループの主要値、人員内訳、多店舗展開、所属店舗、KPI推移 |
-| `/shops` | 店舗の導入到達、次回シフト、提出率、要確認状態の比較、pagination |
+| `/organizations` | 組織の利用状況と要確認状態の比較、並び替え、絞り込み、pagination |
+| `/organizations/:organizationId` | 組織の主要値、人員内訳、多店舗展開、所属店舗、KPI推移 |
+| `/shops` | 最新集計から推定した利用候補、導入到達、次回シフト、提出率、要確認状態の比較、pagination |
 | `/shops/:shopId` | 店舗の現在値、導入到達履歴、要確認状態、KPI推移、シフト周期一覧 |
 | `/shops/:shopId/cycles/:recruitmentId` | 一つのシフト周期の提出、通知、確定、集計状態 |
 | `/requests` | Analytics runと分けた要望一覧 |
 
 期間、集計単位、filter、sort、cursorはURL query parameterへ保存します。  
 行を選ぶと詳細routeへ遷移し、戻る操作と共有URLで分析状態を再現できます。
+
+Analyticsの共有URLでは、プランfilterに`standard`と`pro`を使用します。
+
+店舗一覧の利用可能性filterは`usage`へ保存し、`candidate`、`high`、`possible`、`unknown`を受け付けます。
+
+未指定時は全店舗を表示し、不正な値は有効な条件として扱いません。
 
 URLに`from`と`to`がない初回表示では、responseの`dataStartDate`と`latestCompleteSnapshotDate`を使って期間を補正します。  
 開始日は蓄積開始日より前へ広げず、同じ長さの直前期間がすべて蓄積範囲へ収まる場合だけ比較期間を設定します。  
@@ -31,9 +37,9 @@ URLに`from`と`to`がある場合は、蓄積開始前を含んでいても指�
 一覧画面では比較期間と集計単位を表示せず、店舗詳細の周期集計状態は周期一覧内で指定します。  
 適用中の条件を一行で示し、入力欄は「条件を変更」を選んだ場合だけ開きます。
 
-サマリーは要確認店舗を最初に表示し、グループ比較表を初期表示しません。  
+サマリーは要確認店舗を最初に表示し、組織比較表を初期表示しません。
 segment比較は「詳細分析」を開いた場合だけ取得し、一度に一つの比較軸を表示します。  
-グループ一覧と店舗一覧への導線はサマリー末尾に残します。
+組織一覧と店舗一覧への導線はサマリー末尾に残します。
 
 数値と表を正確な値の正本として残し、比較、推移、段階、分布を把握する箇所にはグラフを併記します。
 グラフは`Recharts`と`@chakra-ui/charts`で描画し、独自実装の棒や比率バーを表内へ配置しません。
@@ -44,20 +50,36 @@ segment比較は「詳細分析」を開いた場合だけ取得し、一度に�
 選択した比較軸がプラン、LINE利用、通常周期、最近の提出傾向の場合は、区分が互いに重ならないため店舗構成をドーナツでも表示します。
 各グラフの後に表を残し、個別の正確な値を確認できるようにします。
 
-グループ一覧は6列、店舗一覧は最大7列で主要情報を比較します。  
+組織一覧は6列、店舗一覧は最大7列で主要情報を比較します。
 デスクトップでは表、モバイルでは対象名、要確認状態、主要値、詳細導線を縦に並べたカードを表示します。  
 最大50行を表示する一覧表にはグラフを埋め込まず、数値比較と詳細対象の選択へ役割を絞ります。
 単独の日時、ID、個別状態、比較対象のない一つの値もグラフ化しません。
 現在の接続環境を示す`env.label`は、各ページ本文ではなく共通headerへ表示します。
 
-サマリーの`データを書き出す`では、現在適用中の期間、比較期間、集計単位、グループ・店舗scope、segmentの比較軸を固定し、全pageを一つのJSON Linesファイルへまとめてローカル保存します。  
-全体KPI、全trend指標、milestone、health、segment、グループ、店舗、店舗別推移、cycleを含みます。  
+店舗一覧では、サービス全体の最新complete snapshotにある次回シフト、シフト対象者、スタッフ所属と、そのrunまでに観測した店舗活動から、利用の可能性を次の3段階で表示します。
+
+- `利用の可能性が高い`：最近の活動または次回シフトを確認できる
+- `利用の可能性あり`：古い活動、シフト対象者、スタッフ所属のいずれかを確認できる
+- `状態不明`：肯定材料を確認できない
+
+これは利用中または未利用を確定する判定ではありません。
+
+`状態不明`は未利用を意味せず、一覧の既定表示からも除外しません。
+
+候補区分と「最新集計の根拠」は店舗名と同じ領域へ表示し、選択期間末の既存KPIとは基準時点を分けます。
+
+店舗名は店舗詳細、組織名は組織詳細への導線です。
+
+サマリーの`データを書き出す`では、現在適用中の期間、比較期間、集計単位、組織・店舗scope、segmentの比較軸を固定し、全pageを一つのJSON Linesファイルへまとめてローカル保存します。
+全体KPI、全trend指標、milestone、health、segment、組織、店舗、店舗別推移、cycleを含みます。
 途中pageの取得失敗、出力中のsnapshot更新、安全上限の超過時は、欠けたJSONLを保存せずerrorとして表示します。
 
 JSONLは先頭行をmanifest、以降を`recordType`付きの1行1recordとし、AIが行単位で分割して読める形にします。  
+manifestの`schemaVersion: 2`はJSONLの記録形式を示します。
+プラン値の世代を表す項目ではありません。
 関連recordは`organizationId`、`shopId`、`recruitmentId`で結合します。  
-グループまたは店舗scopeでは、scope非対応のsegmentを混在させず、非出力理由をrecordに残します。  
-グループと店舗は`organizationId`、`shopId`で識別し、グループ名と店舗名は除外します。  
+組織または店舗scopeでは、scope非対応のsegmentを混在させず、非出力理由をrecordに残します。
+組織と店舗は`organizationId`、`shopId`で識別し、組織名と店舗名は除外します。
 スタッフ氏名、email、電話番号、LINE user ID、シフト提出内容、通知本文、要望一覧・要望本文、service credentialも含めません。  
 Dashboardから外部AIへ自動送信せず、保存後のファイルをどこへ渡すかは利用者が判断します。
 
@@ -69,6 +91,8 @@ Dashboardから外部AIへ自動送信せず、保存後のファイルをどこ
 reset完了日の初回partialも通常の`complete`日次として期間集計と比較へ含め、専用の注記や警告は表示しません。
 `/requests`はAnalytics runの状態を画面表示せず、現在の要望を独立した一覧として表示します。
 
+要望の対象には店舗名、または「組織名（組織全体）」を表示します。
+
 | 状態 | 表示 |
 |---|---|
 | 正確な0 | `0`または`0%` |
@@ -78,6 +102,7 @@ reset完了日の初回partialも通常の`complete`日次として期間集計�
 | 選択期間に失敗日または未起動日がある | 欠損日の警告を表示し、期間集計を算出しない |
 | filter結果が0件 | 条件に一致するデータなし |
 | 現在のraw pageに一致せず次cursorあり | このページには一致なし。次の候補あり |
+| 利用可能性の肯定材料がない | 状態不明。未利用または非稼働とは表示しない |
 | API失敗 | 取得失敗。0へ置換しない |
 
 後の日次runが成功すると、直前の失敗日を埋めずに`available`へ戻ります。
@@ -98,7 +123,7 @@ cronが起動せず新しいrunが存在しない場合は、最後の成功値�
 
 分母が0または値が欠損している場合は0へ置換せず、描画可能な値が一つもない場合だけグラフを省略します。
 
-グループ詳細は主要値と人員内訳を分け、人員内訳を初期状態で閉じます。  
+組織詳細は主要値と人員内訳を分け、人員内訳を初期状態で閉じます。
 全店舗を稼働中と非稼働へ分けたドーナツ、要確認状態の横棒、多店舗展開に要した時間の横棒をKPIカードと併記します。
 所属店舗が1店舗の場合は多店舗展開の「算出できません」カードを並べず、2店舗目の登録後に表示することを案内します。
 
@@ -147,9 +172,9 @@ Workerはrequestを検証し、固定されたConvex route `POST /analytics-dash
 | `GET` | `/api/analytics/trends` | 日、週、月のKPI推移 |
 | `GET` | `/api/analytics/milestones` | 導入到達数と転換 |
 | `GET` | `/api/analytics/health` | health signal別店舗数 |
-| `GET` | `/api/analytics/organizations` | グループ一覧 |
-| `GET` | `/api/analytics/organizations/:organizationId` | グループ詳細 |
-| `GET` | `/api/analytics/shops` | 店舗一覧 |
+| `GET` | `/api/analytics/organizations` | 組織一覧 |
+| `GET` | `/api/analytics/organizations/:organizationId` | 組織詳細 |
+| `GET` | `/api/analytics/shops` | 店舗一覧。`usage`で最新集計基準の利用可能性を絞り込む |
 | `GET` | `/api/analytics/shops/:shopId` | 店舗詳細 |
 | `GET` | `/api/analytics/shops/:shopId/cycles` | cycle一覧 |
 | `GET` | `/api/analytics/shops/:shopId/cycles/:recruitmentId` | cycle詳細 |
@@ -172,6 +197,10 @@ overviewに比較期間がある場合は、表示期間と比較期間の合計
 
 複合filterはindexで狭めた一page最大100件の候補へ適用します。現在pageの一致が0件でもraw cursorに続きがあれば確定0件にせず、warningと次cursorを返します。
 
+店舗一覧の`usage`もraw page取得後に適用します。
+
+`candidate`は「利用の可能性が高い」と「利用の可能性あり」を含みますが、現在pageから候補総数を推計しません。
+
 query parameterはendpointごとのallowlistで検証します。  
 任意のConvex function名、index名、field式は受け取らず、存在しないIDは詳細を漏らさない同一のnot found responseにします。
 
@@ -180,15 +209,23 @@ query parameterはendpointごとのallowlistで検証します。
 `/requests`以外のAnalytics queryは、先にcompleteな日次runを解決し、日次行の`runId`がそのrunと一致することを確認してから返します。
 `running`または`failed`のrunが残した途中行、organizations、shops、staffs、recruitments、notificationOutboxなどの運用table、旧Analytics tableを直接読みません。
 
-グループ・店舗・segmentの日次detailは25か月だけ保持します。
+店舗一覧の既存KPIは選択期間末のcomplete runを使い、利用可能性だけはサービス全体の最新complete runを基準にします。
+
+候補判定は最新runの店舗KPIと、そのcutoffより前にprojectionされた`analyticsShops.latestActivityAt`を使います。
+
+cutoff以後の活動値と日次KPIの`hasRecentActivity`、`activeShopCount`は候補判定へ使いません。
+
+組織・店舗・segmentの日次detailは25か月だけ保持します。
 保持下限は最新のcompleteなsnapshot日を基準に計算します。
 これより前の期間を詳細scopeで指定した場合は保持下限へ丸め、選択期間がすべて保持期限外なら値を返しません。
 現在のdimensionは保持するため、登録日が`dataStartDate`やdetail保持下限より前でも、現在の一覧と詳細では登録日を表示できます。
 切替前から存在する店舗も、切替後の現在値、health、完全なcycle rateを表示します。
 切替前には正確に復元できない初回募集以降のmilestoneは、未達ではなく「算出対象外」と表示します。
 
-要望一覧はAnalytics runへ混ぜず、独立した`/requests`契約として残します。これはDashboard queryが運用tableを読まない原則の唯一の例外で、`featureRequests`と現在の`shops`を直接読み、一page最大50件を返します。
-グループ名と店舗名は内部識別のため返しますが、staff email、manager email、token、通知本文、provider raw errorはDTOへ含めません。
+要望一覧はAnalytics runへ混ぜず、独立した`/requests`契約として残します。
+
+これはDashboard queryが運用tableを読まない原則の唯一の例外で、`featureRequests`と現在の`organizations`または`shops`を直接読み、一page最大50件を返します。
+組織名と店舗名は内部識別のため返しますが、staff email、manager email、token、通知本文、provider raw errorはDTOへ含めません。
 
 ## セキュリティと運用
 

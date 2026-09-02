@@ -1,3 +1,4 @@
+import type { WithoutSystemFields } from "convex/server";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
@@ -13,11 +14,22 @@ const m021Migration = internal.migrations.m021_organization_billing_complimentar
 const correlationId = (organizationId: Id<"organizations">) =>
   `${organizationId}:migration:m021:complimentary-pro-to-business`;
 
-const legacyComplimentaryProState = () =>
+const historicalComplimentaryProState = () =>
   ({ kind: "complimentary", plan: "pro" }) as unknown as Doc<"organizationBillingStates">["state"];
+const historicalComplimentaryBusinessState = () =>
+  ({ kind: "complimentary", plan: "business" }) as unknown as Doc<"organizationBillingStates">["state"];
+
+type CurrentStripeSubscriptionInsert = WithoutSystemFields<Doc<"organizationStripeSubscriptions">>;
+type M021HistoricalStripeSubscriptionInsert = Omit<CurrentStripeSubscriptionInsert, "plan">;
+
+function historicalStripeSubscription(
+  subscription: M021HistoricalStripeSubscriptionInsert,
+): CurrentStripeSubscriptionInsert {
+  return subscription as unknown as CurrentStripeSubscriptionInsert;
+}
 
 describe("m021 complimentary Pro to Business migration", () => {
-  it("現行schemaはcomplimentary.proを拒否する", async () => {
+  it("現行schemaはcomplimentary.proだけを受け付ける", async () => {
     const t = createConvexTestWithMigrations();
     const seeded = await t.run(async (ctx) =>
       seedOrganizationManagerShop(ctx, {
@@ -26,16 +38,22 @@ describe("m021 complimentary Pro to Business migration", () => {
       }),
     );
 
+    const billingState = await t.run(async (ctx) =>
+      ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique(),
+    );
+    if (!billingState) throw new Error("billing state not found");
+
     await expect(
-      t.run(
-        async (ctx) =>
-          await ctx.db.insert("organizationBillingStates", {
-            organizationId: seeded.organizationId,
-            state: legacyComplimentaryProState(),
-            version: 1,
-            createdAt: 1,
-            updatedAt: 1,
-          }),
+      t.run(async (ctx) => ctx.db.patch(billingState._id, { state: { kind: "complimentary", plan: "pro" } })),
+    ).resolves.toBeNull();
+    await expect(
+      t.run(async (ctx) =>
+        ctx.db.patch(billingState._id, {
+          state: { kind: "complimentary", plan: "business" } as unknown as Doc<"organizationBillingStates">["state"],
+        }),
       ),
     ).rejects.toThrow("Validator error");
   });
@@ -61,7 +79,7 @@ describe("m021 complimentary Pro to Business migration", () => {
         .unique();
       if (!targetState) throw new Error("target billing state not found");
       await ctx.db.patch(targetState._id, {
-        state: legacyComplimentaryProState(),
+        state: historicalComplimentaryProState(),
         version: 4,
         updatedAt: 10,
       });
@@ -71,7 +89,7 @@ describe("m021 complimentary Pro to Business migration", () => {
         .unique();
       if (!existingBusinessState) throw new Error("existing Business billing state not found");
       await ctx.db.patch(existingBusinessState._id, {
-        state: { kind: "complimentary", plan: "business" },
+        state: historicalComplimentaryBusinessState(),
         version: 7,
       });
       return {
@@ -142,7 +160,7 @@ describe("m021 complimentary Pro to Business migration", () => {
           .withIndex("by_organizationId", (q) => q.eq("organizationId", target.organizationId))
           .unique();
         if (!billingState) throw new Error("billing state not found");
-        await ctx.db.patch(billingState._id, { state: legacyComplimentaryProState() });
+        await ctx.db.patch(billingState._id, { state: historicalComplimentaryProState() });
         return { ...target, billingStateId: billingState._id };
       };
       const missing = await createTarget("m021_missing_organization");
@@ -158,7 +176,7 @@ describe("m021 complimentary Pro to Business migration", () => {
       await ctx.db.delete(missing.organizationId);
       await ctx.db.insert("organizationBillingStates", {
         organizationId: duplicate.organizationId,
-        state: legacyComplimentaryProState(),
+        state: historicalComplimentaryProState(),
         version: 9,
         createdAt: now,
         updatedAt: now,
@@ -170,19 +188,22 @@ describe("m021 complimentary Pro to Business migration", () => {
         createdAt: now,
         updatedAt: now,
       });
-      await ctx.db.insert("organizationStripeSubscriptions", {
-        organizationId: subscription.organizationId,
-        stripeCustomerId: "cus_m021_subscription",
-        stripeSubscriptionId: "sub_m021_evidence",
-        stripePriceId: "price_m021_evidence",
-        livemode: false,
-        status: "canceled",
-        providerGeneration: 1,
-        cancelAtPeriodEnd: false,
-        syncedAt: now,
-        createdAt: now,
-        updatedAt: now,
-      });
+      await ctx.db.insert(
+        "organizationStripeSubscriptions",
+        historicalStripeSubscription({
+          organizationId: subscription.organizationId,
+          stripeCustomerId: "cus_m021_subscription",
+          stripeSubscriptionId: "sub_m021_evidence",
+          stripePriceId: "price_m021_evidence",
+          livemode: false,
+          status: "canceled",
+          providerGeneration: 1,
+          cancelAtPeriodEnd: false,
+          syncedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
       await ctx.db.insert("organizationStripeOperations", {
         organizationId: operation.organizationId,
         kind: "reconcileSubscription",
@@ -330,7 +351,7 @@ describe("m021 complimentary Pro to Business migration", () => {
         .withIndex("by_organizationId", (q) => q.eq("organizationId", target.organizationId))
         .unique();
       if (!billingState) throw new Error("billing state not found");
-      await ctx.db.patch(billingState._id, { state: legacyComplimentaryProState() });
+      await ctx.db.patch(billingState._id, { state: historicalComplimentaryProState() });
       const operationId = await ctx.db.insert("organizationStripeOperations", {
         organizationId: target.organizationId,
         kind: "reconcileSubscription",

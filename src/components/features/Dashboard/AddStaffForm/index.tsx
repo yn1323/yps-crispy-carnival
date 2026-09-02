@@ -1,10 +1,11 @@
-import { Box, Field, Flex, Input, Stack, Text } from "@chakra-ui/react";
+import { Box, Field, Flex, Link, Stack, Text } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useFieldArray, useForm } from "react-hook-form";
 import { LuPlus, LuX } from "react-icons/lu";
 import { EMAIL_MAX_LENGTH, PERSON_NAME_MAX_LENGTH, STAFF_ADD_ENTRIES_MAX } from "@/convex/constants";
 import { Button, IconButton } from "@/src/components/ui/Button";
-import { STAFF_ADDITION_EMAIL_NOTICE } from "../staffAdditionCopy";
+import { Input } from "@/src/components/ui/FormControls";
+import { STAFF_ADDITION_EMAIL_NOTICE, STAFF_ADDITION_EMAIL_NOTICE_HREF } from "../staffAdditionCopy";
 import { type AddStaffFormData, addStaffSchema } from "./script";
 
 export type { AddStaffFormData } from "./script";
@@ -43,6 +44,15 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
       <Stack gap={4}>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall" whiteSpace="pre-line">
           {STAFF_ADDITION_EMAIL_NOTICE}
+          <Link
+            href={STAFF_ADDITION_EMAIL_NOTICE_HREF}
+            target="_blank"
+            rel="noopener noreferrer"
+            color="teal.700"
+            textDecoration="underline"
+          >
+            こちら
+          </Link>
         </Text>
 
         {entriesErrorMessage && (
@@ -77,7 +87,7 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
               <Flex gap={3} direction={{ base: "column", lg: "row" }} align={{ lg: "flex-start" }}>
                 <Field.Root w={{ lg: "200px" }} flexShrink={0} invalid={!!nameError} minH={{ lg: "60px" }}>
                   <Input
-                    placeholder="例：田中 花子"
+                    placeholder="サンプル スタッフ"
                     maxLength={PERSON_NAME_MAX_LENGTH}
                     {...register(`entries.${index}.name`)}
                   />
@@ -87,7 +97,7 @@ export const AddStaffForm = ({ onSubmit }: Props) => {
                 <Field.Root invalid={!!emailError} flex={1} minH={{ lg: "60px" }}>
                   <Input
                     type="email"
-                    placeholder="例：hanako@example.com"
+                    placeholder="staff@example.com"
                     maxLength={EMAIL_MAX_LENGTH}
                     {...register(`entries.${index}.email`)}
                   />

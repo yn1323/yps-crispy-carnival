@@ -6,7 +6,7 @@ import { resetResendEmailQueueForTest } from "../_lib/resend";
 import type { ScenarioTest } from "../_test/scenarioBuilders";
 import { MANAGER_SUBJECT, SCENARIO_NOW, scenarioDate, seedStaff } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
-import { seedManagerShop, seedStaffLineAccount } from "../_test/seed";
+import { seedCanonicalStaffLineRecipient, seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
   MAGIC_LINK_DEFAULT_TTL_MS,
@@ -14,6 +14,7 @@ import {
   NOTIFICATION_FANOUT_PROCESSING_LEASE_MS,
   NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
   NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS,
+  RESEND_DELAYED_FAILURE_GRACE_MS,
   RESEND_EMAIL_SEND_INTERVAL_MS,
 } from "../constants";
 import { buildConfirmationSnapshotSignature } from "../notification/confirmationSnapshots";
@@ -65,8 +66,7 @@ describe("通知配送outboxシナリオ", () => {
         name: "LINEスタッフ",
         email: "line-staff@example.com",
       });
-      await seedStaffLineAccount(ctx, {
-        shopId,
+      await seedCanonicalStaffLineRecipient(ctx, {
         staffId: lineStaffId,
         lineUserId: "U_recruitment_line",
         following: true,
@@ -276,8 +276,7 @@ describe("通知配送outboxシナリオ", () => {
 
     // 再開前に優先channelがemailからLINEへ変わっても、operation×staff identityは変えない。
     await t.run(async (ctx) => {
-      await seedStaffLineAccount(ctx, {
-        shopId: ids.shopId,
+      await seedCanonicalStaffLineRecipient(ctx, {
         staffId: ids.staffId,
         lineUserId: "U_fanout_terminal_dedupe",
         following: true,
@@ -524,8 +523,7 @@ describe("通知配送outboxシナリオ", () => {
         name: "fallback scopeスタッフ",
         email: "fallback-scope@example.com",
       });
-      await seedStaffLineAccount(ctx, {
-        shopId,
+      await seedCanonicalStaffLineRecipient(ctx, {
         staffId,
         lineUserId: "U_fallback_scope",
         following: true,
@@ -697,7 +695,7 @@ describe("通知配送outboxシナリオ", () => {
     expect(job?.leaseExpiresAt).toBeUndefined();
   });
 
-  it("Resend provider delayedは既存の不達通知一覧にメール失敗として表示される", async () => {
+  it("Resend provider delayedは履歴へ即時反映し30分猶予後だけ不達通知に昇格する", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
@@ -735,20 +733,49 @@ describe("通知配送outboxシナリオ", () => {
       resendEmailId: "email_provider_delayed",
     });
 
-    await t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
-      providerEventId: "svix_provider_delayed",
-      providerEventType: "email.delivery_delayed",
-      providerEmailId: "email_provider_delayed",
-      occurredAt: SCENARIO_NOW + 1000,
-      errorMessage: "Resend reported email delivery delayed",
-    });
+    const firstDelayedAt = SCENARIO_NOW + 1_000;
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+        providerEventId: "svix_provider_delayed_first",
+        providerEventType: "email.delivery_delayed",
+        providerEmailId: "email_provider_delayed",
+        occurredAt: firstDelayedAt,
+        errorMessage: "Resend reported email delivery delayed",
+      }),
+    ).resolves.toEqual({ recorded: true, inboxed: false, reason: "delayedGrace" });
 
-    const openPage = await t
-      .withIdentity({ subject: MANAGER_SUBJECT })
-      .query(api.notificationOutbox.queries.listOpenFailures, {
+    const manager = t.withIdentity({ subject: MANAGER_SUBJECT });
+    const [historyDuringGrace, failuresDuringGrace] = await Promise.all([
+      manager.query(api.notificationOutbox.queries.listStaffNotificationHistory, {
+        shopId: ids.shopId,
+        staffId: ids.staffId,
+        paginationOpts: { numItems: 10, cursor: null },
+      }),
+      manager.query(api.notificationOutbox.queries.listOpenFailures, {
         paginationOpts: { numItems: 10, cursor: null },
         shopId: ids.shopId,
-      });
+      }),
+    ]);
+    expect(historyDuringGrace.page.map(({ displayStatus }) => displayStatus)).toEqual(["delayed"]);
+    expect(failuresDuringGrace.page).toEqual([]);
+
+    await expect(
+      t.mutation(internal.notificationOutbox.mutations.recordResendProviderIssue, {
+        providerEventId: "svix_provider_delayed_repeat",
+        providerEventType: "email.delivery_delayed",
+        providerEmailId: "email_provider_delayed",
+        occurredAt: firstDelayedAt + 10 * 60 * 1_000,
+        errorMessage: "Resend reported email delivery delayed again",
+      }),
+    ).resolves.toEqual({ recorded: true, inboxed: false, reason: "delayedGrace" });
+
+    vi.setSystemTime(firstDelayedAt + RESEND_DELAYED_FAILURE_GRACE_MS + 60_000);
+    await t.mutation(internal.notificationOutbox.mutations.recoverOverdueResendDelayedFailures, {});
+
+    const openPage = await manager.query(api.notificationOutbox.queries.listOpenFailures, {
+      paginationOpts: { numItems: 10, cursor: null },
+      shopId: ids.shopId,
+    });
     expect(openPage.page).toHaveLength(1);
     expect(openPage.page[0]).toMatchObject({
       sourceType: "provider",
@@ -763,7 +790,7 @@ describe("通知配送outboxシナリオ", () => {
     });
   });
 
-  it("手動の募集通知再送はopenかつ開始前・締切前の募集を1スタッフへ送る", async () => {
+  it("手動の募集通知再送はopenかつ開始前・提出期限前の募集を1スタッフへ送る", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
@@ -830,6 +857,80 @@ describe("通知配送outboxシナリオ", () => {
     ).toBe(true);
   });
 
+  it("自動送信で作られた募集通知・LINE案内履歴が直後の手動再送を拒否する", async () => {
+    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "");
+    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "");
+    vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-line-channel");
+    const t = convexTest(schema, modules);
+    const scenario = createScenario(t);
+    const asManager = scenario.manager(MANAGER_SUBJECT);
+    const ids = await t.run(async (ctx) => {
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: MANAGER_SUBJECT,
+        email: "cooldown-manager@example.com",
+        shopName: "クールダウン通知店舗",
+      });
+      const staffId = await seedStaff(ctx, {
+        shopId,
+        name: "クールダウン対象スタッフ",
+        email: "cooldown-staff@example.com",
+      });
+      const staff = await ctx.db.get(staffId);
+      if (!staff?.organizationPersonId) throw new Error("canonical staff was not created");
+      const person = await ctx.db.get(staff.organizationPersonId);
+      if (!person) throw new Error("organization person was not created");
+      return {
+        shopId,
+        staffId,
+        organizationPersonId: person._id,
+        lineLinkGeneration: person.lineLinkGeneration ?? 0,
+      };
+    });
+    const recruitmentId = await asManager.createRecruitment({
+      periodStart: scenarioDate(7),
+      periodEnd: scenarioDate(13),
+      deadline: scenarioDate(3),
+    });
+
+    await t.action(internal.notification.actions.sendRecruitmentNotificationEmails, { recruitmentId });
+    await t.action(internal.line.actions.sendInviteEmail, {
+      staffId: ids.staffId,
+      organizationPersonId: ids.organizationPersonId,
+      lineLinkGenerationAtSchedule: ids.lineLinkGeneration,
+    });
+
+    const beforeRejection = await t.run(async (ctx) => ({
+      fanoutOperations: await ctx.db.query("notificationFanoutOperations").collect(),
+      magicLinks: await ctx.db.query("magicLinks").collect(),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+      rateLimits: await ctx.db.query("rateLimits").collect(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    const manager = t.withIdentity({ subject: MANAGER_SUBJECT });
+
+    await expect(
+      manager.mutation(api.staff.mutations.sendOpenRecruitmentNotifications, {
+        shopId: ids.shopId,
+        staffId: ids.staffId,
+      }),
+    ).resolves.toEqual({ scheduled: false, reason: "recentlySent" });
+    await expect(
+      manager.mutation(api.line.mutations.sendInvite, {
+        shopId: ids.shopId,
+        staffId: ids.staffId,
+      }),
+    ).resolves.toEqual({ scheduled: false, reason: "recentlySent" });
+    await expect(
+      t.run(async (ctx) => ({
+        fanoutOperations: await ctx.db.query("notificationFanoutOperations").collect(),
+        magicLinks: await ctx.db.query("magicLinks").collect(),
+        outbox: await ctx.db.query("notificationOutbox").collect(),
+        rateLimits: await ctx.db.query("rateLimits").collect(),
+        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      })),
+    ).resolves.toEqual(beforeRejection);
+  });
+
   it("自動催促actionは未提出者だけに通常submitリンクを再利用して通知する", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
@@ -856,8 +957,7 @@ describe("通知配送outboxシナリオ", () => {
         name: "催促LINEスタッフ",
         email: "reminder-line@example.com",
       });
-      await seedStaffLineAccount(ctx, {
-        shopId,
+      await seedCanonicalStaffLineRecipient(ctx, {
         staffId: lineStaffId,
         lineUserId: "U_reminder_line",
         following: true,
@@ -952,8 +1052,7 @@ describe("通知配送outboxシナリオ", () => {
         name: "確定LINEスタッフ",
         email: "confirmation-line@example.com",
       });
-      await seedStaffLineAccount(ctx, {
-        shopId,
+      await seedCanonicalStaffLineRecipient(ctx, {
         staffId: lineStaffId,
         lineUserId: "U_confirmation_line",
         following: true,
@@ -1979,12 +2078,11 @@ describe("通知配送outboxシナリオ", () => {
         name: "失敗確認スタッフ",
         email: "failure-staff@example.com",
       });
-      await seedStaffLineAccount(ctx, {
-        shopId,
+      const lineRecipient = await seedCanonicalStaffLineRecipient(ctx, {
         staffId,
         lineUserId: "U_failure",
       });
-      return { shopId, staffId };
+      return { shopId, staffId, lineRecipient };
     });
     await t.mutation(internal.notificationOutbox.mutations.enqueue, {
       channel: "line",
@@ -1994,6 +2092,8 @@ describe("通知配送outboxシナリオ", () => {
         notificationKind: "test.failureInbox",
         displayTitle: "シフト募集のお知らせ",
       },
+      organizationPersonLineLinkId: ids.lineRecipient.organizationPersonLineLinkId,
+      organizationPersonLineGenerationAtEnqueue: ids.lineRecipient.generation,
       dedupeKey: "line:failure-inbox:scenario",
       payload: {
         kind: "line",
@@ -2074,6 +2174,12 @@ describe("通知配送outboxシナリオ", () => {
         subject: MANAGER_SUBJECT,
         email: "owner-digest@example.com",
         shopName: "参加申請通知店舗",
+      });
+      await seedStaff(ctx, {
+        shopId: seeded.shopId,
+        userId: seeded.userId,
+        name: "管理者",
+        email: "owner-digest@example.com",
       });
       return seeded.shopId;
     });

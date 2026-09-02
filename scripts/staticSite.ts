@@ -1,6 +1,11 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { articleSlugAliases, resolveArticleSlug } from "../src/components/features/ArticleSite/articleAliases";
+import { legacyHelpGuideRedirects } from "../src/components/features/HelpCenter/helpAliases";
+import { SHIFT_MANAGEMENT_SCENARIO } from "../src/components/features/HelpCenter/helpScenario";
+import { HELP_TASK_IDS } from "../src/components/features/HelpCenter/helpTasks";
+import { NOTIFICATION_BASICS_HELP } from "../src/components/features/HelpCenter/notificationBasicsHelp";
+import { ORGANIZATION_STRUCTURE_HELP } from "../src/components/features/HelpCenter/organizationStructureHelp";
 
 export const STATIC_CLIENT_OUTPUT_DIR = "dist/client";
 export const STATIC_404_BUILD_PATH = "/__static-404";
@@ -10,12 +15,14 @@ export const FIXED_PUBLIC_ROUTES = [
   "/account-deletion-accepted",
   "/articles",
   "/cache-reset",
+  "/commercial-transactions",
   "/contact",
-  "/demo/flow",
   "/demo/shiftboard",
-  "/faq",
   "/features",
-  "/howto",
+  "/help",
+  NOTIFICATION_BASICS_HELP.href,
+  ORGANIZATION_STRUCTURE_HELP.href,
+  SHIFT_MANAGEMENT_SCENARIO.href,
   "/privacy",
   "/privacy/manager",
   "/privacy/staff",
@@ -27,6 +34,7 @@ export const FIXED_PUBLIC_ROUTES = [
 export const NOINDEX_PUBLIC_ROUTES = new Set<string>([
   "/account-deletion-accepted",
   "/cache-reset",
+  "/commercial-transactions",
   "/privacy",
   "/privacy/manager",
   "/privacy/staff",
@@ -35,34 +43,71 @@ export const NOINDEX_PUBLIC_ROUTES = new Set<string>([
   "/terms/staff",
 ]);
 
+export const HELP_TASK_ROUTES = HELP_TASK_IDS.map((taskId) => `/help/tasks/${taskId}`);
+
+export const LEGACY_HELP_ROUTE_REDIRECTS = Object.entries(legacyHelpGuideRedirects).flatMap(([slug, target]) => [
+  { source: `/help/${slug}`, target, status: 301 as const },
+  { source: `/help/${slug}/`, target, status: 301 as const },
+]);
+
+export const RETIRED_PUBLIC_ROUTE_REDIRECTS = [
+  { source: "/demo/flow", target: SHIFT_MANAGEMENT_SCENARIO.href, status: 301 as const },
+  { source: "/demo/flow/", target: SHIFT_MANAGEMENT_SCENARIO.href, status: 301 as const },
+] as const;
+
 /** Queryを含めず、指定されたpathだけをCSR shellへ渡す。 */
 export const CSR_SHELL_STATIC_ROUTES = [
   "/account",
+  "/actions",
+  "/app",
+  "/app/actions",
+  "/app/manage",
+  "/app/manage/billing",
+  "/app/manage/managers",
+  "/app/manage/managers/invite-new",
+  "/app/manage/managers/invite-staff",
+  "/app/manage/organization",
+  "/app/shifts",
+  "/app/staff",
   "/dashboard",
   "/forgot-password",
   "/legal/staff/consent",
   "/line/callback",
   "/login",
+  "/manage",
+  "/manage/billing",
+  "/manage/managers",
+  "/manage/managers/invite-new",
+  "/manage/managers/invite-staff",
+  "/manage/organization",
   "/manager-invite",
-  "/settings",
+  "/shifts",
   "/shifts/reissue",
   "/shifts/submit",
   "/shifts/submit/completed",
   "/shifts/view",
   "/signup",
   "/sso-callback",
+  "/staff",
   "/staff/register",
 ] as const;
 
 /** Cloudflare Pagesのnamed placeholder。長いpathを先に評価する。 */
 export const CSR_SHELL_DYNAMIC_ROUTES = [
-  "/users/:personId/shops/:targetShopId",
-  "/shiftboard/:recruitmentId",
-  "/shops/:shopId",
-  "/users/:personId",
+  "/staff/:personId/shops/:shopId",
+  "/manage/shops/:shopId",
+  "/shifts/:recruitmentId/board",
+  "/staff/:personId",
+  "/app/staff/:personId/shops/:shopId",
+  "/app/manage/shops/:shopId",
+  "/app/shifts/:recruitmentId/board",
+  "/app/staff/:personId",
 ] as const;
 
+const CSR_SHELL_HEADER_PREFIX_ROUTES = ["/app", "/manage", "/shifts", "/staff"] as const;
+
 const ARTICLE_CONTENT_DIR = join("src", "components", "features", "ArticleSite", "content");
+const HELP_GUIDE_CONTENT_DIR = join("src", "components", "features", "HelpCenter", "content", "guides");
 const LOOPBACK_URL_PATTERN = /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|\[::1\])(?::\d+)?(?:\/[^\s"'<>]*)?/i;
 
 export function assertNoLoopbackUrls(route: string, html: string): void {
@@ -83,6 +128,14 @@ function listPublishedContentSlugs(repoRoot: string, kind: "articles" | "categor
     .sort((left, right) => left.localeCompare(right));
 }
 
+function listPublishedHelpGuideSlugs(repoRoot: string): string[] {
+  const directory = resolve(repoRoot, HELP_GUIDE_CONTENT_DIR);
+  return readdirSync(directory, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".mdx") && !entry.name.startsWith("_"))
+    .map((entry) => entry.name.slice(0, -".mdx".length))
+    .sort((left, right) => left.localeCompare(right));
+}
+
 /** SSG対象は公開routeのallowlistだけから構築し、認証・Capability routeを自動探索しない。 */
 export function collectPublicRoutes(repoRoot = process.cwd()): string[] {
   const articleSlugs = listPublishedContentSlugs(repoRoot, "articles");
@@ -99,10 +152,32 @@ export function collectPublicRoutes(repoRoot = process.cwd()): string[] {
   const categoryRoutes = listPublishedContentSlugs(repoRoot, "categories").map(
     (slug) => `/articles/categories/${slug}`,
   );
+  const helpGuideRoutes = listPublishedHelpGuideSlugs(repoRoot).map((slug) => `/help/${slug}`);
 
-  return Array.from(new Set([...FIXED_PUBLIC_ROUTES, ...articleRoutes, ...categoryRoutes])).sort((left, right) =>
-    left.localeCompare(right),
-  );
+  const publicRoutes = Array.from(
+    new Set([...FIXED_PUBLIC_ROUTES, ...HELP_TASK_ROUTES, ...articleRoutes, ...categoryRoutes, ...helpGuideRoutes]),
+  ).sort((left, right) => left.localeCompare(right));
+
+  for (const [slug, target] of Object.entries(legacyHelpGuideRedirects)) {
+    const source = `/help/${slug}`;
+    if (!publicRoutes.includes(target)) {
+      throw new Error(`Help alias "${source}" points to an unpublished route "${target}"`);
+    }
+    if (publicRoutes.includes(source)) {
+      throw new Error(`Help alias "${source}" conflicts with a published guide`);
+    }
+  }
+
+  for (const { source, target } of RETIRED_PUBLIC_ROUTE_REDIRECTS.filter(({ source }) => !source.endsWith("/"))) {
+    if (!publicRoutes.includes(target)) {
+      throw new Error(`Retired public route "${source}" points to an unpublished route "${target}"`);
+    }
+    if (publicRoutes.includes(source)) {
+      throw new Error(`Retired public route "${source}" conflicts with a published route`);
+    }
+  }
+
+  return publicRoutes;
 }
 
 /** 互換URLを含め、検索エンジンへ示すno-slash canonical pathを返す。 */
@@ -128,6 +203,12 @@ function withOptionalTrailingSlash(route: string): string[] {
 }
 
 export function createCloudflareRedirects(publicRoutes: readonly string[]): string {
+  const legacyHelpRedirects = LEGACY_HELP_ROUTE_REDIRECTS.map(
+    ({ source, target, status }) => `${source} ${target} ${status}`,
+  );
+  const retiredPublicRedirects = RETIRED_PUBLIC_ROUTE_REDIRECTS.map(
+    ({ source, target, status }) => `${source} ${target} ${status}`,
+  );
   const publicAliases = publicRoutes
     .filter((route) => route !== "/")
     .sort((left, right) => right.split("/").length - left.split("/").length || left.localeCompare(right))
@@ -142,6 +223,10 @@ export function createCloudflareRedirects(publicRoutes: readonly string[]): stri
 
   return [
     "# Generated by scripts/prepareStaticDeployment.ts. Do not edit the build artifact.",
+    "# Published URLs that moved to a current scenario or task page.",
+    ...legacyHelpRedirects,
+    ...retiredPublicRedirects,
+    "",
     "# Existing public URLs with a trailing slash terminate legacy cached 308 redirects with a 200 proxy.",
     ...publicAliases,
     "",
@@ -179,7 +264,14 @@ export function createCloudflareHeaders(publicRoutes: readonly string[]): string
     blocks.push([`${route}/`, `  Link: <https://shiftori.app${getCanonicalRoute(route)}>; rel="canonical"`]);
   }
 
-  for (const route of [...CSR_SHELL_STATIC_ROUTES, ...CSR_SHELL_DYNAMIC_ROUTES].flatMap(withOptionalTrailingSlash)) {
+  const explicitShellHeaderRoutes = [...CSR_SHELL_STATIC_ROUTES, ...CSR_SHELL_DYNAMIC_ROUTES]
+    .filter(
+      (route) => !CSR_SHELL_HEADER_PREFIX_ROUTES.some((prefix) => route === prefix || route.startsWith(`${prefix}/`)),
+    )
+    .flatMap(withOptionalTrailingSlash);
+  const prefixShellHeaderRoutes = CSR_SHELL_HEADER_PREFIX_ROUTES.flatMap((prefix) => [prefix, `${prefix}/*`]);
+  // 同じprefix配下のshellは2ルールへ集約し、Cloudflare Pagesの100 header rules制限を守る。
+  for (const route of [...prefixShellHeaderRoutes, ...explicitShellHeaderRoutes]) {
     blocks.push([route, ...SHELL_HEADERS]);
   }
 

@@ -1,18 +1,12 @@
 import { Box, Container, Flex, Grid, Heading, Icon, Image, SimpleGrid, Stack, Text, VStack } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import {
-  LuBell,
-  LuCalendarCheck,
-  LuChevronRight,
-  LuClipboardCheck,
-  LuMail,
-  LuMousePointerClick,
-  LuSmartphone,
-} from "react-icons/lu";
+import { LuBell, LuCalendarCheck, LuChevronRight, LuMail, LuMousePointerClick, LuSmartphone } from "react-icons/lu";
 import { SiLine } from "react-icons/si";
 import heroPcImage from "@/src/assets/hero-pc.webp";
 import heroSpImage from "@/src/assets/hero-sp.webp";
+import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
 import { Button } from "@/src/components/ui/Button";
+import { TrialReassurance } from "../TrialReassurance";
 
 const heroBenefits: Array<{ icon: IconType; label: string }> = [
   { icon: SiLine, label: "LINEで希望シフト回収" },
@@ -38,21 +32,6 @@ export const HeroSection = () => (
           textAlign={{ base: "center", lg: "start" }}
         >
           <VStack align={{ base: "center", lg: "start" }} gap={{ base: 4, md: 5 }}>
-            <Flex
-              align="center"
-              gap={2}
-              bg="teal.50"
-              color="teal.700"
-              borderRadius="full"
-              px={{ base: 3, md: 4 }}
-              py={2}
-              textStyle={{ base: "xs", md: "sm" }}
-              fontWeight="bold"
-            >
-              <Icon as={LuClipboardCheck} boxSize={4} flexShrink={0} />
-              LINEで使える無料のシフト管理
-            </Flex>
-
             <Heading
               as="h1"
               fontSize={{ base: "3xl", sm: "2xl", md: "3xl", xl: "4xl" }}
@@ -79,20 +58,28 @@ export const HeroSection = () => (
               <br />
               毎月くり返すやりとりをシフトリがまとめて担当
               <br />
-              スタッフはアプリ不要、無料で始められます
+              専用アプリインストールはなし
             </Text>
           </VStack>
 
-          <Stack
-            direction={{ base: "column", md: "row" }}
-            align={{ base: "stretch", md: "center", lg: "flex-start" }}
-            justify={{ base: "center", lg: "flex-start" }}
-            gap={4}
-            w={{ base: "full", md: "auto" }}
-          >
-            <HeroButton href="/signup" label="無料で試してみる" tone="primary" />
-            <HeroButton href="/demo/flow" label="登録不要でデモを見る" tone="secondary" />
-          </Stack>
+          <VStack align={{ base: "center", lg: "start" }} gap={3} w={{ base: "full", md: "auto" }}>
+            <Stack
+              direction={{ base: "column", md: "row" }}
+              align={{ base: "stretch", md: "center", lg: "flex-start" }}
+              justify={{ base: "center", lg: "flex-start" }}
+              gap={4}
+              w={{ base: "full", md: "auto" }}
+            >
+              <HeroButton href="/signup" label="シフトリをはじめる" tone="primary" measurementCtaId="hero_signup" />
+              <HeroButton
+                href="/help/scenarios/shift-management"
+                label="基本の使い方を見る"
+                tone="secondary"
+                measurementCtaId="hero_help"
+              />
+            </Stack>
+            <TrialReassurance />
+          </VStack>
         </VStack>
 
         <HeroVisual />
@@ -118,7 +105,17 @@ export const HeroSection = () => (
   </Box>
 );
 
-const HeroButton = ({ href, label, tone }: { href: string; label: string; tone: "primary" | "secondary" }) => {
+const HeroButton = ({
+  href,
+  label,
+  measurementCtaId,
+  tone,
+}: {
+  href: string;
+  label: string;
+  measurementCtaId: "hero_signup" | "hero_help";
+  tone: "primary" | "secondary";
+}) => {
   const isPrimary = tone === "primary";
 
   return (
@@ -135,10 +132,10 @@ const HeroButton = ({ href, label, tone }: { href: string; label: string; tone: 
       fontWeight="bold"
       fontSize="md"
     >
-      <a href={href}>
+      <MeasurementBoundaryLink href={href} measurementCtaId={measurementCtaId}>
         {label}
         <Icon as={LuChevronRight} boxSize={5} />
-      </a>
+      </MeasurementBoundaryLink>
     </Button>
   );
 };

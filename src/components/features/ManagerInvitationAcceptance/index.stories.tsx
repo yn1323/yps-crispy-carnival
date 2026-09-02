@@ -17,7 +17,17 @@ const actions: ManagerInvitationAcceptanceViewProps["actions"] = {
   onVerifyCode: noop,
   onResendCode: noop,
   onBackToVerificationInput: noop,
+  onLogout: noop,
   onGoToDashboard: noop,
+};
+
+const verificationEmailAlreadyRegisteredState: ManagerInvitationAcceptanceViewState = {
+  kind: "verificationRequired",
+  step: "input",
+  errorMessage:
+    "このメールアドレスはすでに登録されています。\n一度ログアウトしてから招待リンクを再度クリックしてください。",
+  requiresLogout: true,
+  isBusy: false,
 };
 
 const meta = {
@@ -65,8 +75,14 @@ export const VerificationRequired: Story = {
       kind: "verificationRequired",
       step: "input",
       errorMessage: null,
+      requiresLogout: false,
       isBusy: false,
     },
+  },
+};
+export const VerificationEmailAlreadyRegistered: Story = {
+  args: {
+    state: verificationEmailAlreadyRegisteredState,
   },
 };
 export const VerificationCode: Story = {
@@ -89,6 +105,7 @@ export const VerificationRequiredMobile: Story = {
       kind: "verificationRequired",
       step: "input",
       errorMessage: null,
+      requiresLogout: false,
       isBusy: false,
     },
   },
@@ -119,11 +136,92 @@ export const AcceptedWithoutDestination: Story = {
   },
 };
 
+function VerificationEmailAlreadyRegisteredBehaviorStory({
+  actions: storyActions,
+}: ManagerInvitationAcceptanceViewProps) {
+  const [didRequestLogout, setDidRequestLogout] = useState(false);
+
+  return (
+    <>
+      <ManagerInvitationAcceptanceView
+        state={verificationEmailAlreadyRegisteredState}
+        actions={{ ...storyActions, onLogout: () => setDidRequestLogout(true) }}
+      />
+      {didRequestLogout && <output>ログアウトを要求しました</output>}
+    </>
+  );
+}
+
+export const VerificationEmailAlreadyRegisteredBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: (args) => <VerificationEmailAlreadyRegisteredBehaviorStory {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.queryByRole("textbox", { name: "メールアドレス" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "確認コードを送信" })).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "ログアウトする" }));
+    await expect(canvas.getByText("ログアウトを要求しました")).toBeInTheDocument();
+  },
+};
+
+function RetryBehaviorStory({ actions: storyActions }: ManagerInvitationAcceptanceViewProps) {
+  const [didRetry, setDidRetry] = useState(false);
+  return (
+    <>
+      <ManagerInvitationAcceptanceView
+        state={{ kind: "retryableError", isRetrying: false }}
+        actions={{ ...storyActions, onAccept: () => setDidRetry(true) }}
+      />
+      {didRetry && <output>招待の再確認を要求しました</output>}
+    </>
+  );
+}
+
+export const RetryActionBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: (args) => <RetryBehaviorStory {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "再実行する" }));
+    await expect(canvas.getByText("招待の再確認を要求しました")).toBeInTheDocument();
+  },
+};
+
+function AcceptedWithoutDestinationBehaviorStory({ actions: storyActions }: ManagerInvitationAcceptanceViewProps) {
+  const [didRequestDashboard, setDidRequestDashboard] = useState(false);
+  return (
+    <>
+      <ManagerInvitationAcceptanceView
+        state={{
+          kind: "accepted",
+          organizationName: "株式会社さくらダイニング",
+          isPreparingDestination: false,
+          hasDestination: false,
+        }}
+        actions={{ ...storyActions, onGoToDashboard: () => setDidRequestDashboard(true) }}
+      />
+      {didRequestDashboard && <output>ダッシュボードへの遷移を要求しました</output>}
+    </>
+  );
+}
+
+export const AcceptedWithoutDestinationBehavior: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: (args) => <AcceptedWithoutDestinationBehaviorStory {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "シフトリを確認する" }));
+    await expect(canvas.getByText("ダッシュボードへの遷移を要求しました")).toBeInTheDocument();
+  },
+};
+
 function VerificationFlowStory({ actions: storyActions }: ManagerInvitationAcceptanceViewProps) {
   const [state, setState] = useState<ManagerInvitationAcceptanceViewState>({
     kind: "verificationRequired",
     step: "input",
     errorMessage: null,
+    requiresLogout: false,
     isBusy: false,
   });
 
@@ -160,7 +258,7 @@ export const VerificationFlowBehavior: Story = {
   render: (args) => <VerificationFlowStory {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.type(canvas.getByRole("textbox", { name: "招待先メールアドレス" }), "invite@example.com");
+    await userEvent.type(canvas.getByRole("textbox", { name: "メールアドレス" }), "invite@example.com");
     await userEvent.click(canvas.getByRole("button", { name: "確認コードを送信" }));
     await expect(await canvas.findByRole("textbox", { name: "確認コード" })).toBeInTheDocument();
     await expect(canvas.queryByText("invite@example.com", { exact: false })).not.toBeInTheDocument();
@@ -199,7 +297,11 @@ export const LoginBehavior: Story = {
   render: (args) => <LoginBehaviorStory {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "ログインして続ける" }));
+    const header = within(canvas.getByRole("banner"));
+
+    await expect(header.queryByRole("link", { name: "ログイン" })).not.toBeInTheDocument();
+    await expect(header.queryByRole("link", { name: "シフトリをはじめる" })).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "すでにアカウントを持っている" }));
     await expect(canvas.getByText("ログイン画面への遷移を要求しました")).toBeInTheDocument();
   },
 };

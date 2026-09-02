@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
@@ -28,7 +29,7 @@ describe("notification fanout", () => {
       const staffIds: Id<"staffs">[] = [];
       for (let index = 0; index < NOTIFICATION_FANOUT_BATCH_SIZE + 1; index++) {
         staffIds.push(
-          await ctx.db.insert("staffs", {
+          await seedStaff(ctx, {
             shopId,
             name: `スタッフ${index}`,
             email: `fanout-${index}@example.com`,
@@ -132,7 +133,7 @@ describe("notification fanout", () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, "fanout coexist店舗");
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "fanout coexistスタッフ",
         email: "fanout-coexist@example.com",
@@ -299,7 +300,7 @@ describe("notification fanout", () => {
         email: "fanout-many-manager@example.com",
         shopName: "fanout many店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "fanout manyスタッフ",
         email: "fanout-many@example.com",
@@ -373,7 +374,7 @@ describe("notification fanout", () => {
     const ids = await t.run(async (ctx) => {
       const seedOperation = async (label: string, status: "pending" | "processing", leaseExpiresAt?: number) => {
         const shopId = await seedShop(ctx, `${label}店舗`);
-        const staffId = await ctx.db.insert("staffs", {
+        const staffId = await seedStaff(ctx, {
           shopId,
           name: `${label}スタッフ`,
           email: `${label}@example.com`,
@@ -453,7 +454,7 @@ describe("notification fanout", () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, "legacy fanout店舗");
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "旧job対象",
         email: "legacy-fanout@example.com",

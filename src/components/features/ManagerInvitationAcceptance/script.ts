@@ -1,4 +1,4 @@
-import { isSelectableShop, type ShopContextOption } from "@/src/domains/shop/context";
+import type { ShopContextOption } from "@/src/domains/shop/context";
 import { normalizeAuthRedirect } from "@/src/lib/auth/redirect";
 
 export function buildManagerInvitationRedirect(token: string | undefined): string {
@@ -25,8 +25,9 @@ export function findAcceptedShopContext(
   shops: readonly ShopContextOption[],
   target: { organizationId: string; shopId: string },
 ): ShopContextOption | null {
-  const shop = shops.find(
-    (candidate) => candidate.shopId === target.shopId && candidate.organizationId === target.organizationId,
+  return (
+    shops.find(
+      (candidate) => candidate.shopId === target.shopId && candidate.organizationId === target.organizationId,
+    ) ?? null
   );
-  return shop && isSelectableShop(shop) ? shop : null;
 }

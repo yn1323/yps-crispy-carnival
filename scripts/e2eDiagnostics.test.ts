@@ -1,10 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   classifyE2EFailure,
   getSafePathname,
   installSafeClerkTestingConsole,
   sanitizeDiagnosticMessage,
+  sanitizeE2EArtifactErrors,
 } from "../e2e/helpers/diagnostics";
+
+afterEach(() => vi.unstubAllEnvs());
 
 describe("E2E safe diagnostics", () => {
   it("URL query、email、JWT、authorization、token値を出力しない", () => {
@@ -80,11 +83,70 @@ describe("E2E safe diagnostics", () => {
     expect(logged).not.toContain("private");
   });
 
+  it("Playwrightの直列化済み失敗からARIA snapshotと機密値を再帰的に除く", () => {
+    const errors = [
+      {
+        message: "expected reserved-user@example.com to be visible",
+        stack: "at https://example.test/dashboard?shop=private-shop",
+        errorContext: '- textbox "reserved-user@example.com"',
+        cause: { value: "authorization:BearerValue" },
+      },
+    ];
+
+    sanitizeE2EArtifactErrors(errors);
+
+    expect(errors[0]).not.toHaveProperty("errorContext");
+    expect(errors[0]?.message).toBe("expected [email-redacted] to be visible");
+    expect(errors[0]?.stack).toBe("at https://example.test/dashboard?[redacted]");
+    expect(errors[0]?.cause.value).toBe("authorization=[redacted]");
+  });
+
+  it("error fieldの出力上限をまたぐcredentialとemailも切断前にredactする", () => {
+    const configuredPassword = "boundary-sensitive-password";
+    const email = "boundary-person@example.com";
+    vi.stubEnv("E2E_CLERK_PASSWORD", configuredPassword);
+    const errors = [
+      {
+        message: `${"x".repeat(19_990)}${configuredPassword}`,
+        stack: `${"y".repeat(19_990)}${email}`,
+      },
+    ];
+
+    sanitizeE2EArtifactErrors(errors);
+
+    expect(errors[0]?.message).not.toContain(configuredPassword.slice(0, 10));
+    expect(errors[0]?.stack).not.toContain("boundary-person");
+    expect(errors[0]?.message?.length).toBeLessThanOrEqual(20_000);
+    expect(errors[0]?.stack?.length).toBeLessThanOrEqual(20_000);
+  });
+
+  it("matcherが値の途中へANSI装飾を入れてもcredentialとemailをredactする", () => {
+    const configuredPassword = "ansi-sensitive-password";
+    vi.stubEnv("E2E_CLERK_PASSWORD", configuredPassword);
+    const errors = [
+      {
+        message: 'Received: \u001b[31m"ansi-\u001b[7msensitive-password\u001b[27m"\u001b[39m',
+        stack: 'Expected: \u001b[32m"ansi-\u001b[7mperson@example.com\u001b[27m"\u001b[39m',
+      },
+    ];
+
+    sanitizeE2EArtifactErrors(errors);
+
+    expect(errors[0]?.message).toContain("[configured-value-redacted]");
+    expect(errors[0]?.message).not.toContain("sensitive-password");
+    expect(errors[0]?.stack).toContain("[email-redacted]");
+    expect(errors[0]?.stack).not.toContain("person@example.com");
+    expect(errors[0]?.message).not.toContain("\u001b");
+    expect(errors[0]?.stack).not.toContain("\u001b");
+  });
+
   it.each([
     ["E2E poll deadline exceeded: token", "capability-deadline"],
     ["E2E Convex command failed: testing:getLatestMagicLinkToken (invalid-json, abc)", "capability-deadline"],
     ["locator expected to be visible", "selector-state"],
     ["OptimisticConcurrencyControlFailure", "occ"],
+    ["E2E browser runtime signals detected (console-error=1)", "browser-runtime"],
+    ["E2E browser runtime signals detected (same-origin-5xx=1)", "browser-runtime"],
     ["unclassified failure", "unknown"],
   ] as const)("失敗を安全な分類へ寄せる: %s", (message, expected) => {
     expect(classifyE2EFailure(message)).toBe(expected);

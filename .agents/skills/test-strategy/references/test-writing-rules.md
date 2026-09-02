@@ -279,7 +279,7 @@ E2Eは、ブラウザ、認証、フロントエンド、実バックエンド�
 
 - E2Eを削除または統合するときは、件数をcoverageの根拠にせず、契約ID、移管先、残るbrowser-onlyの失敗境界を記録する。
 - 匿名の保護route redirectとlogout後の保護route再アクセスは、coreまたは独立browser smokeで確認する。storageStateの生成やFunction、Scenario、Behaviorの成功だけをlogout契約の代替にしない。
-- a11y検査をcoreから分離する場合は、独立a11y smokeまたはStorybook accessibilityを主担当として明示し、見た目をVRT、操作後の状態をBehaviorへ分ける。代替検査がない削除は未完了として扱う。
+- アクセシビリティ専用suiteやaxe走査は追加しない。この方針をUIのrole、label、accessible nameや通常の機能契約を省く理由にせず、利用者の操作を表すselectorは維持する。
 - feature flagでskipされたtestをpassまたはcoverage済みとして数えない。公開条件のenabled環境で実行するtestと、閉状態を守るtestを分けて記録する。
 
 ### Scenarioとselector
@@ -357,7 +357,7 @@ E2Eは、ブラウザ、認証、フロントエンド、実バックエンド�
 
 - 変更した契約を、最も速く安定した層で保証しているか。
 - E2E や broad integration test に寄せすぎていないか。
-- E2Eを削減した場合、契約IDの移管先、logout後の認証境界、a11yの代替検査、feature flagのenabled条件を説明できるか。
+- E2Eを削減した場合、契約IDの移管先、logout後の認証境界、feature flagのenabled条件を説明できるか。
 - 正常系だけでなく、壊れると運用影響が大きい派生を見ているか。
 - テスト名から業務上の意味が分かるか。
 - assertion が「何を保証しているか」を読み取れるか。

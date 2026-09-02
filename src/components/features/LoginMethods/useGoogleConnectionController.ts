@@ -19,6 +19,7 @@ import {
   GOOGLE_OAUTH_COOLDOWN_SCOPE,
   type LoginMethodOperationCooldown,
 } from "./operationCooldown";
+import { reloadActorUser } from "./reloadActorUser";
 import type { LoginMethodOperationOptions } from "./reverificationTypes";
 
 export type GoogleConnectionErrorKind =
@@ -87,12 +88,11 @@ const GOOGLE_CONNECTION_REVERIFICATION_OPTIONS: LoginMethodOperationOptions = {
 
 const ERROR_PRESENTATION: Record<GoogleConnectionErrorKind, string> = {
   providerCancelled: "Googleアカウントの追加をキャンセルしました。現在のログイン方法は変更されていません。",
-  accountCollision:
-    "このGoogleアカウントは追加できません。別のGoogleアカウントを選んでください。現在のログイン方法は変更されていません。",
-  alreadyConnected: "このGoogleアカウントはすでに接続されています。画面を再読み込みして最新の状態を確認してください。",
+  accountCollision: "このGoogleアカウントは追加できません。別のGoogleアカウントを選んでください。",
+  alreadyConnected: "このGoogleアカウントはすでに接続済みです。画面を再読み込みして最新の状態を確認してください。",
   clerkConflict: "Google連携の状態が変わりました。画面を再読み込みしてからやり直してください。",
-  cooldown: "Googleの確認を開始した直後です。しばらく待ってから再試行してください。",
-  retryable: "Googleログインを追加できませんでした。現在のログイン方法は変更されていません。もう一度お試しください。",
+  cooldown: "再実行エラー。しばらく待ってから再試行してください。",
+  retryable: "Googleログインを追加できませんでした。",
 };
 
 export function useGoogleConnectionController({
@@ -143,8 +143,12 @@ export function useGoogleConnectionController({
     let cancelled = false;
     const activatingUserId = currentUser.id;
     setState(loadingState());
-    void currentUser
-      .reload()
+    void reloadActorUser({
+      isLoaded,
+      user: currentUser,
+      actorUserId: activatingUserId,
+      getCurrentActorId,
+    })
       .then(() => {
         const latestUser = userRef.current;
         if (!cancelled && getCurrentActorId() === activatingUserId && latestUser?.id === activatingUserId) {
@@ -159,14 +163,7 @@ export function useGoogleConnectionController({
     };
   }, [active, actorUserId, getCurrentActorId, isLoaded, oauthReturn]);
 
-  const reloadUser = async () => {
-    if (!isLoaded || !user || !actorUserId || user.id !== actorUserId || getCurrentActorId() !== actorUserId) {
-      throw new Error("Unauthenticated");
-    }
-    await user.reload();
-    if (user.id !== actorUserId || getCurrentActorId() !== actorUserId) throw new Error("Unauthenticated");
-    return user;
-  };
+  const reloadUser = () => reloadActorUser({ isLoaded, user, actorUserId, getCurrentActorId });
 
   const createExternalAccountWithReverification = useReverification(
     async (baseline: OAuthBaseline) => {
@@ -659,7 +656,7 @@ function methodReadyState(announceCompletion = false): GoogleConnectionState {
     phase: "methodReady",
     errorKind: null,
     feedback: announceCompletion
-      ? { status: "success", message: "Googleログインを追加しました。" }
+      ? { status: "success", message: "Google認証ログインを追加しました。" }
       : { status: "idle", message: null },
   };
 }
@@ -686,7 +683,7 @@ function cooldownState(retryAfterSeconds: number): GoogleConnectionState {
     errorKind: "cooldown",
     feedback: {
       status: "error",
-      message: `Googleの確認を開始した直後です。あと${retryAfterSeconds}秒ほど待ってから再試行してください。`,
+      message: `再実行エラー。\nあと${retryAfterSeconds}秒ほど待ってから再試行してください。`,
     },
   };
 }

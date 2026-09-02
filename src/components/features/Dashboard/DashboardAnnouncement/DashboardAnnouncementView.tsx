@@ -35,8 +35,10 @@ export const DashboardAnnouncementView = ({ announcement, defaultOpen = false }:
         py={{ base: 2.5, md: 3 }}
         textAlign="left"
         cursor="pointer"
-        transition="background-color 0.15s ease, border-color 0.15s ease"
+        transitionProperty="background-color, border-color"
+        transitionDuration="faster"
         _hover={{ bg: "orange.50", borderColor: "orange.300" }}
+        _active={{ bg: "orange.100", borderColor: "orange.300", transitionDuration: "0ms" }}
         _focusVisible={{ outline: "2px solid", outlineColor: "teal.500", outlineOffset: "2px" }}
         onClick={dialog.open}
         aria-label={`${displayDate} ${announcement.title}を開く`}
@@ -63,14 +65,9 @@ export const DashboardAnnouncementView = ({ announcement, defaultOpen = false }:
         onOpenChange={dialog.onOpenChange}
         onClose={dialog.close}
         closeLabel="閉じる"
-        maxW={{ base: "100vw", md: "640px" }}
-        maxH={{ base: "100dvh", md: "85dvh" }}
-        contentProps={{
-          w: "100%",
-          h: { base: "100dvh", md: "auto" },
-          my: { base: 0, md: "auto" },
-          borderRadius: { base: 0, md: "l3" },
-        }}
+        mobileFullScreen
+        maxW={{ md: "640px" }}
+        maxH={{ md: "85dvh" }}
       >
         <Text fontSize="xs" color="fg.muted" mb={4}>
           {displayDate}

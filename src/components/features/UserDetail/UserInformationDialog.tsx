@@ -1,106 +1,49 @@
-import { Flex } from "@chakra-ui/react";
+import { Stack } from "@chakra-ui/react";
 import type { PersonProfileFormData } from "@/src/components/shared/PersonProfileForm";
-import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
-import type { UserDetailData, UserDetailDialog } from "./types";
+import type { UserDetailData } from "./types";
 import { UserInformationTab } from "./UserInformationTab";
-import { UserManagerSettings } from "./UserSettingsTab";
 
 type Props = {
   data: UserDetailData;
   isOpen: boolean;
   isUpdatingProfile: boolean;
-  managerDialog: UserDetailDialog;
-  isManagerAssignmentConfirmationOpen: boolean;
-  isAssigningManager: boolean;
-  isRemovingManagerSetting: boolean;
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;
   onUpdateProfile: (data: PersonProfileFormData) => void | Promise<void>;
-  onRequestManagerAssignment: () => void;
-  onCancelManagerAssignment: () => void;
-  onAssignManager: () => void | Promise<void>;
-  onRequestRemoveManagerRole: () => void;
-  onConfirmManagerSetting: () => void | Promise<void>;
-  onCancelManagerSetting: () => void;
 };
 
 export function UserInformationDialog({
   data,
   isOpen,
   isUpdatingProfile,
-  managerDialog,
-  isManagerAssignmentConfirmationOpen,
-  isAssigningManager,
-  isRemovingManagerSetting,
   onOpenChange,
   onClose,
   onUpdateProfile,
-  onRequestManagerAssignment,
-  onCancelManagerAssignment,
-  onAssignManager,
-  onRequestRemoveManagerRole,
-  onConfirmManagerSetting,
-  onCancelManagerSetting,
 }: Props) {
   const formId = `user-profile-${data.person.id}`;
 
   return (
     <Dialog
       title="スタッフ情報"
+      role="dialog"
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       onClose={onClose}
       onBackGuardRemoved={onClose}
-      footer={
-        <Flex justify="space-between" gap={3} w="full">
-          <Button type="button" variant="outline" onClick={onClose}>
-            キャンセル
-          </Button>
-          <Button
-            type="submit"
-            form={formId}
-            colorPalette="teal"
-            loading={isUpdatingProfile}
-            disabled={!data.canWrite || isUpdatingProfile}
-          >
-            変更を保存
-          </Button>
-        </Flex>
-      }
-      maxW={{ base: "100vw", lg: "720px" }}
-      maxH={{ base: "100dvh", lg: "86dvh" }}
-      contentProps={{
-        w: "100%",
-        h: { base: "100dvh", lg: "auto" },
-        my: { base: 0, lg: "auto" },
-        borderRadius: { base: 0, lg: "l3" },
-      }}
+      closeLabel={data.canWrite ? "キャンセル" : "閉じる"}
+      formId={data.canWrite ? formId : undefined}
+      submitLabel="変更を保存"
+      isLoading={isUpdatingProfile}
+      isSubmitDisabled={!data.canWrite || isUpdatingProfile}
+      mobileFullScreen
+      maxW={{ lg: "720px" }}
+      maxH={{ lg: "86dvh" }}
       bodyProps={{ px: { base: 4, lg: 6 }, pt: 2, pb: { base: 6, lg: 6 } }}
     >
-      <UserInformationTab
-        data={data}
-        formId={formId}
-        isReadOnly={!data.canWrite}
-        managerSettings={
-          data.managerInvitationState.kind === "hidden" ? null : (
-            <UserManagerSettings
-              data={data}
-              isAssignmentConfirmationOpen={isManagerAssignmentConfirmationOpen}
-              isAssigningManager={isAssigningManager}
-              onRequestManagerAssignment={onRequestManagerAssignment}
-              onCancelManagerAssignment={onCancelManagerAssignment}
-              onAssignManager={onAssignManager}
-              onRequestRemoveManagerRole={onRequestRemoveManagerRole}
-              isRemovalConfirmationOpen={managerDialog?.kind === "removeManagerRole"}
-              isRemovingManagerRole={isRemovingManagerSetting}
-              onCancelRemoveManagerRole={onCancelManagerSetting}
-              onConfirmRemoveManagerRole={onConfirmManagerSetting}
-            />
-          )
-        }
-        onUpdate={onUpdateProfile}
-      />
+      <Stack>
+        <UserInformationTab data={data} formId={formId} isReadOnly={!data.canWrite} onUpdate={onUpdateProfile} />
+      </Stack>
     </Dialog>
   );
 }

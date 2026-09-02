@@ -4,8 +4,14 @@ import { DataTable, type DataTableColumn } from "@/components/DataTable";
 import { routePath, withCurrentSearch } from "@/routes/appRoute";
 import { CompletenessBadge, type DataCompleteness } from "./DataStatus";
 import { formatCount, formatDate, formatDateTime, formatRate } from "./format";
-import { HealthSignals } from "./Presentation";
-import type { CycleRowViewModel, OrganizationRowViewModel, SegmentRowViewModel, ShopRowViewModel } from "./viewModels";
+import { HealthSignals, ShopUsageSummary } from "./Presentation";
+import type {
+  CycleRowViewModel,
+  OrganizationRowViewModel,
+  SegmentRowViewModel,
+  ShopListRowViewModel,
+  ShopRowViewModel,
+} from "./viewModels";
 
 function RowStatus({ completeness }: { completeness: DataCompleteness }) {
   return completeness === "complete" ? null : (
@@ -38,7 +44,7 @@ function formatCountPair(numerator: number | null, denominator: number | null, c
 const organizationColumns: DataTableColumn<OrganizationRowViewModel>[] = [
   {
     key: "name",
-    header: "グループ",
+    header: "組織",
     width: "20%",
     render: (row) => (
       <Stack gap={1}>
@@ -143,7 +149,7 @@ export function OrganizationsTable({
   return (
     <DataTable
       columns={organizationColumns}
-      emptyText={emptyText ?? "この条件に一致するグループはありません"}
+      emptyText={emptyText ?? "この条件に一致する組織はありません"}
       getRowHref={(row) => withCurrentSearch(routePath({ name: "organization", organizationId: row.organizationId }))}
       getRowKey={(row) => row.organizationId}
       getRowLabel={(row) => row.displayName}
@@ -169,6 +175,41 @@ const shopNameColumn: DataTableColumn<ShopRowViewModel> = {
         </Text>
         <RowStatus completeness={row.completeness} />
       </HStack>
+    </Stack>
+  ),
+};
+
+function isShopListRow(row: ShopRowViewModel): row is ShopListRowViewModel {
+  return "usageLikelihood" in row && "usageReasons" in row;
+}
+
+const shopListNameColumn: DataTableColumn<ShopRowViewModel> = {
+  key: "shop",
+  header: "店舗",
+  width: "20%",
+  render: (row) => (
+    <Stack gap={2}>
+      <Stack gap={1}>
+        <Link fontWeight="bold" href={withCurrentSearch(routePath({ name: "shop", shopId: row.shopId }))}>
+          {row.displayName}
+        </Link>
+        <HStack gap={1} wrap="wrap">
+          <Link
+            color="gray.600"
+            fontSize="xs"
+            href={withCurrentSearch(routePath({ name: "organization", organizationId: row.organizationId }), {
+              dropSort: true,
+            })}
+          >
+            {row.organizationName}
+          </Link>
+          <Text color="gray.500" fontSize="xs">
+            · {row.plan}
+          </Text>
+          <RowStatus completeness={row.completeness} />
+        </HStack>
+      </Stack>
+      {isShopListRow(row) ? <ShopUsageSummary likelihood={row.usageLikelihood} reasons={row.usageReasons} /> : null}
     </Stack>
   ),
 };
@@ -226,7 +267,7 @@ const shopActivityColumn: DataTableColumn<ShopRowViewModel> = {
 const shopColumnsByVariant = {
   attention: [shopNameColumn, shopNextCycleColumn, shopHealthColumn, shopActivityColumn],
   comparison: [
-    shopNameColumn,
+    shopListNameColumn,
     shopMilestoneColumn,
     shopStaffColumn,
     shopNextCycleColumn,
@@ -252,12 +293,32 @@ function ShopMobileRow({ row, variant }: { row: ShopRowViewModel; variant: Shops
       <HStack align="start" justify="space-between">
         <Stack gap={0.5} minW={0}>
           <Text fontWeight="bold">{row.displayName}</Text>
-          <Text color="gray.500" fontSize="xs">
-            {row.organizationName} · {row.plan}
-          </Text>
+          {variant === "comparison" ? (
+            <HStack gap={1} wrap="wrap">
+              <Link
+                color="gray.600"
+                fontSize="xs"
+                href={withCurrentSearch(routePath({ name: "organization", organizationId: row.organizationId }), {
+                  dropSort: true,
+                })}
+              >
+                {row.organizationName}
+              </Link>
+              <Text color="gray.500" fontSize="xs">
+                · {row.plan}
+              </Text>
+            </HStack>
+          ) : (
+            <Text color="gray.500" fontSize="xs">
+              {row.organizationName} · {row.plan}
+            </Text>
+          )}
         </Stack>
         <RowStatus completeness={row.completeness} />
       </HStack>
+      {variant === "comparison" && isShopListRow(row) ? (
+        <ShopUsageSummary likelihood={row.usageLikelihood} reasons={row.usageReasons} />
+      ) : null}
       <Stack gap={1.5}>
         <Text color="gray.500" fontSize="xs">
           要確認状態

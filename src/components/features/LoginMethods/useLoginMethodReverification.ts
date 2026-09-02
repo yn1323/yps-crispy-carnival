@@ -47,7 +47,7 @@ type InternalFactor =
     };
 
 const GENERAL_FAILURE_MESSAGE = "本人確認を完了できませんでした。変更は行っていません。もう一度お試しください。";
-const UNAVAILABLE_MESSAGE = "このアカウントで利用できる本人確認方法がありません。変更は行っていません。";
+const UNAVAILABLE_MESSAGE = "このアカウントで利用できる本人確認方法がありません。";
 
 export function useLoginMethodReverification({
   operationCooldown,

@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import { internal } from "../_generated/api";
 import { httpAction } from "../_generated/server";
-import { readBoundedJsonBody } from "../_lib/httpBody";
+import { boundedJsonBodyErrorResponse, readBoundedJsonBody } from "../_lib/httpBody";
 import { STRIPE_WEBHOOK_BODY_MAX_BYTES, STRIPE_WEBHOOK_SIGNATURE_MAX_LENGTH } from "../constants";
 import { getStripeSafetyConfiguration, STRIPE_API_VERSION } from "./config";
 import { isSupportedStripeWebhookEventType, type StripeWebhookEventType } from "./validators";
@@ -37,7 +37,7 @@ export const webhookHandler = httpAction(async (ctx, request) => {
   }
 
   const bodyResult = await readBoundedJsonBody(request, STRIPE_WEBHOOK_BODY_MAX_BYTES);
-  if (!bodyResult.ok) return bodyErrorResponse(bodyResult.error);
+  if (!bodyResult.ok) return boundedJsonBodyErrorResponse(bodyResult.error);
 
   const stripe = new Stripe(safetyConfiguration.secretKey, {
     apiVersion: STRIPE_API_VERSION,
@@ -131,10 +131,4 @@ function invalidWebhookResponse() {
 
 function okResponse() {
   return new Response("OK", { status: 200 });
-}
-
-function bodyErrorResponse(error: "unsupported_media_type" | "body_too_large" | "invalid_body") {
-  if (error === "unsupported_media_type") return new Response("Unsupported media type", { status: 415 });
-  if (error === "body_too_large") return new Response("Request body too large", { status: 413 });
-  return new Response("Invalid request body", { status: 400 });
 }

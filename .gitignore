@@ -24,6 +24,7 @@ node_modules/
 /playwright-report-deployed/
 test-results.json
 test-results-deployed.json
+test-results-measurement.json
 /blob-report/
 /playwright/.cache/
 
@@ -44,4 +45,8 @@ CLAUDE.local.md
 character.md
 .cognac/
 .pnpm-store/
-.codex
+.codex/*
+!.codex/agents/
+.codex/agents/*
+!.codex/agents/luna-evidence-collector.toml
+!.codex/agents/luna-validation-runner.toml

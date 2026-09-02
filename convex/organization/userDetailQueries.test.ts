@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
@@ -41,6 +41,7 @@ async function seedStaff(
     email?: string;
     excludedFromShift?: boolean;
     isDeleted?: boolean;
+    userId?: Id<"users">;
   },
 ) {
   const email = args.email ?? "detail-person@example.com";
@@ -51,73 +52,126 @@ async function seedStaff(
     name: args.name ?? "詳細対象ユーザー",
     email,
     emailNormalized: email,
+    ...(args.userId ? { userId: args.userId } : {}),
     excludedFromShift: args.excludedFromShift ?? false,
     isDeleted: args.isDeleted ?? false,
   });
 }
 
 describe("organization/userDetailQueries.getUserDetail", () => {
-  beforeEach(() => {
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it("管理者招待のダークローンチ中は管理者操作の状態をhiddenへ投影する", async () => {
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "");
+  it.each([
+    ["参照切れ", "dangling"],
+    ["削除済み", "deleted"],
+    ["削除受付済み", "requested"],
+  ] as const)("linked userが%sの人物詳細はPIIを返さずnullにする", async (_label, state) => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
-        subject: "user_detail_hidden_actor",
-        plan: "pro",
+        subject: `user_detail_linked_user_${state}`,
+        plan: "standard",
       });
+      const linkedUserId = await seedUser(
+        ctx,
+        `user_detail_target_${state}`,
+        `user-detail-target-${state}@example.com`,
+      );
       const personId = await seedPerson(ctx, {
         organizationId: base.organizationId,
-        email: "hidden-person@example.com",
+        email: `user-detail-target-${state}@example.com`,
+        userId: linkedUserId,
       });
+      await seedStaff(ctx, {
+        organizationId: base.organizationId,
+        personId,
+        shopId: base.shopId,
+        email: `user-detail-target-${state}@example.com`,
+        userId: linkedUserId,
+      });
+      if (state === "dangling") await ctx.db.delete(linkedUserId);
+      else if (state === "deleted") await ctx.db.patch(linkedUserId, { isDeleted: true });
+      else await ctx.db.patch(linkedUserId, { accountDeletionRequestedAt: NOW });
       return { ...base, personId };
     });
 
+    await expect(
+      t
+        .withIdentity({ subject: `user_detail_linked_user_${state}` })
+        .query(api.organization.userDetailQueries.getUserDetail, {
+          shopId: ids.shopId,
+          personId: ids.personId,
+          now: NOW,
+        }),
+    ).resolves.toBeNull();
+  });
+
+  it("active.freeの利用人数超過中は人物削除だけを許可し、通常編集と店舗所属変更を閉じる", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "user_detail_usage_over_limit",
+        plan: "free",
+      });
+      const personIds = [];
+      for (let index = 0; index < 5; index += 1) {
+        const personId = await seedPerson(ctx, {
+          organizationId: base.organizationId,
+          name: `上限超過スタッフ${index}`,
+          email: `user-detail-over-limit-${index}@example.com`,
+        });
+        await seedStaff(ctx, {
+          organizationId: base.organizationId,
+          personId,
+          shopId: base.shopId,
+          name: `上限超過スタッフ${index}`,
+          email: `user-detail-over-limit-${index}@example.com`,
+        });
+        personIds.push(personId);
+      }
+      return { ...base, targetPersonId: personIds[0] };
+    });
+
     const result = await t
-      .withIdentity({ subject: "user_detail_hidden_actor" })
+      .withIdentity({ subject: "user_detail_usage_over_limit" })
       .query(api.organization.userDetailQueries.getUserDetail, {
         shopId: ids.shopId,
-        personId: ids.personId,
+        personId: ids.targetPersonId,
         now: NOW,
       });
 
-    expect(result?.managerInvitationState).toEqual({ kind: "hidden" });
+    expect(result).toMatchObject({
+      canWrite: false,
+      writeDisabledReason: expect.stringContaining("プラン上限を超過"),
+      canRemove: true,
+      canRemoveManagerRole: false,
+      shops: [{ shopId: ids.shopId, canChangeMembership: false }],
+      memberships: [{ shopId: ids.shopId, canRemove: false }],
+    });
   });
 
-  it("グループ人物と有効店舗所属を最小DTOで返し、招待状態を同じ契約で更新する", async () => {
+  it("組織人物と未削除店舗所属を最小DTOで返し、管理者招待の有無を更新する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_actor",
         shopName: "青山店",
-        plan: "pro",
+        plan: "standard",
       });
       const secondShopId = await ctx.db.insert("shops", {
         organizationId: base.organizationId,
-        operatingStatus: "active",
         name: "赤坂店",
         regularClosedDays: [],
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         isDeleted: false,
       });
-      const archivedShopId = await ctx.db.insert("shops", {
+      const thirdShopId = await ctx.db.insert("shops", {
         organizationId: base.organizationId,
-        operatingStatus: "archived",
-        name: "旧店舗",
+        name: "上野店",
         regularClosedDays: [],
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         isDeleted: false,
       });
       await ctx.db.insert("shops", {
         organizationId: base.organizationId,
-        operatingStatus: "active",
         name: "削除済み店舗",
         regularClosedDays: [],
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
@@ -126,7 +180,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_other_organization_shop",
         shopName: "別グループ店舗",
-        plan: "pro",
+        plan: "standard",
       });
       const personId = await seedPerson(ctx, { organizationId: base.organizationId });
       const firstStaffId = await seedStaff(ctx, {
@@ -140,10 +194,10 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         personId,
         shopId: secondShopId,
       });
-      const archivedStaffId = await seedStaff(ctx, {
+      const thirdStaffId = await seedStaff(ctx, {
         organizationId: base.organizationId,
         personId,
-        shopId: archivedShopId,
+        shopId: thirdShopId,
       });
       await seedStaff(ctx, {
         organizationId: base.organizationId,
@@ -151,23 +205,23 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         shopId: secondShopId,
         isDeleted: true,
       });
-      await ctx.db.insert("staffLineAccounts", {
-        staffId: firstStaffId,
-        shopId: base.shopId,
+      const lineProviderUserId = await ctx.db.insert("lineProviderUsers", {
         lineUserId: "never-return-line-user-id",
-        linkedAt: NOW,
         following: true,
+        stateVersion: 1,
+        friendshipObservedAt: NOW,
+        friendshipObservationSource: "oauth",
         isDeleted: false,
       });
-      await ctx.db.insert("staffLineAccounts", {
-        staffId: secondStaffId,
-        shopId: base.shopId,
-        lineUserId: "mismatched-shop-line-user-id",
+      await ctx.db.insert("organizationPersonLineLinks", {
+        organizationId: base.organizationId,
+        organizationPersonId: personId,
+        lineProviderUserId,
+        generation: 0,
         linkedAt: NOW,
-        following: true,
         isDeleted: false,
       });
-      return { ...base, personId, firstStaffId, secondStaffId, archivedShopId, archivedStaffId, secondShopId };
+      return { ...base, personId, firstStaffId, secondStaffId, secondShopId, thirdShopId, thirdStaffId };
     });
     const actor = t.withIdentity({ subject: "user_detail_actor" });
 
@@ -187,11 +241,6 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       isSelf: false,
       managerRole: "none",
       hasManagerInvitation: false,
-      managerInvitationState: {
-        kind: "available",
-        mode: "addition",
-        replacesStaleInvitation: false,
-      },
       canRemoveManagerRole: false,
       canRemove: true,
       removalPreview: {
@@ -201,29 +250,41 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         fingerprint: expect.any(String),
       },
       canWrite: true,
+      line: {
+        status: "linked_following",
+        actionShopId: ids.shopId,
+        sourceStaffId: ids.thirdStaffId,
+        sourceShopId: ids.thirdShopId,
+        canLink: true,
+        canDisconnect: true,
+      },
+      membershipFingerprint: expect.stringMatching(/^[0-9a-f]{64}$/),
       shops: [
         {
-          shopId: ids.archivedShopId,
-          shopName: "旧店舗",
-          shopStatus: "archived",
+          shopId: ids.thirdShopId,
+          shopName: "上野店",
+          shopStatus: "active",
+          canChangeMembership: true,
         },
         {
           shopId: ids.shopId,
           shopName: "青山店",
           shopStatus: "active",
+          canChangeMembership: true,
         },
         {
           shopId: ids.secondShopId,
           shopName: "赤坂店",
           shopStatus: "active",
+          canChangeMembership: true,
         },
       ],
       memberships: [
         {
-          staffId: ids.archivedStaffId,
-          shopId: ids.archivedShopId,
-          shopName: "旧店舗",
-          shopStatus: "archived",
+          staffId: ids.thirdStaffId,
+          shopId: ids.thirdShopId,
+          shopName: "上野店",
+          shopStatus: "active",
           excludedFromShift: false,
           canRemove: true,
           removalPreview: {
@@ -232,7 +293,6 @@ describe("organization/userDetailQueries.getUserDetail", () => {
             assignmentCount: 0,
             fingerprint: expect.any(String),
           },
-          line: { isLinked: false, isFollowing: false },
         },
         {
           staffId: ids.firstStaffId,
@@ -247,7 +307,6 @@ describe("organization/userDetailQueries.getUserDetail", () => {
             assignmentCount: 0,
             fingerprint: expect.any(String),
           },
-          line: { isLinked: true, isFollowing: true },
         },
         {
           staffId: ids.secondStaffId,
@@ -262,28 +321,26 @@ describe("organization/userDetailQueries.getUserDetail", () => {
             assignmentCount: 0,
             fingerprint: expect.any(String),
           },
-          line: { isLinked: false, isFollowing: false },
         },
       ],
     });
     expect(JSON.stringify(result)).not.toContain("never-return-line-user-id");
-    expect(JSON.stringify(result)).not.toContain("mismatched-shop-line-user-id");
 
-    const fromArchivedShop = await actor.query(api.organization.userDetailQueries.getUserDetail, {
-      shopId: ids.archivedShopId,
+    const fromThirdShop = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      shopId: ids.thirdShopId,
       personId: ids.personId,
       now: NOW,
     });
-    expect(fromArchivedShop?.canWrite).toBe(true);
+    expect(fromThirdShop?.canWrite).toBe(true);
 
     await t.run(async (ctx) => {
       await ctx.db.insert("organizationInvitations", {
         organizationId: ids.organizationId,
+        invitedName: "詳細対象",
         email: "detail-person@example.com",
         emailNormalized: "detail-person@example.com",
         tokenDigest: "never-return-invitation-token",
         status: "issued",
-        purpose: "managerAddition",
         inviterMemberId: ids.memberId,
         targetPersonId: ids.personId,
         reservedSeat: false,
@@ -300,16 +357,170 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     });
     expect(pending).toMatchObject({
       hasManagerInvitation: true,
-      managerInvitationState: { kind: "pending", mode: "addition" },
     });
     expect(JSON.stringify(pending)).not.toContain("never-return-invitation-token");
   });
 
-  it("壊れたID、他グループ人物、removed人物を同じnullへ寄せる", async () => {
+  it("組織人物のcanonical LINE状態を全店舗で共通の最小DTOへ射影する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const actor = await seedOrganizationManagerShop(ctx, { subject: "user_detail_boundary", plan: "pro" });
-      const other = await seedOrganizationManagerShop(ctx, { subject: "user_detail_other", plan: "pro" });
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "user_detail_common_line",
+        shopName: "青山店",
+        plan: "standard",
+      });
+      const secondShopId = await ctx.db.insert("shops", {
+        organizationId: base.organizationId,
+        name: "赤坂店",
+        regularClosedDays: [],
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        isDeleted: false,
+      });
+      const personId = await seedPerson(ctx, { organizationId: base.organizationId });
+      const firstStaffId = await seedStaff(ctx, {
+        organizationId: base.organizationId,
+        personId,
+        shopId: base.shopId,
+      });
+      await seedStaff(ctx, {
+        organizationId: base.organizationId,
+        personId,
+        shopId: secondShopId,
+      });
+      const providerId = await ctx.db.insert("lineProviderUsers", {
+        lineUserId: "never-return-canonical-line-user-id",
+        following: true,
+        stateVersion: 1,
+        friendshipObservedAt: NOW,
+        friendshipObservationSource: "oauth",
+        isDeleted: false,
+      });
+      await ctx.db.insert("organizationPersonLineLinks", {
+        organizationId: base.organizationId,
+        organizationPersonId: personId,
+        lineProviderUserId: providerId,
+        generation: 0,
+        linkedAt: NOW,
+        isDeleted: false,
+      });
+      return { ...base, personId, firstStaffId, providerId };
+    });
+    const actor = t.withIdentity({ subject: "user_detail_common_line" });
+
+    const linked = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      shopId: ids.shopId,
+      personId: ids.personId,
+      now: NOW,
+    });
+
+    expect(linked?.line).toEqual({
+      status: "linked_following",
+      actionShopId: ids.shopId,
+      sourceStaffId: ids.firstStaffId,
+      sourceShopId: ids.shopId,
+      canLink: true,
+      canDisconnect: true,
+    });
+    expect(linked?.memberships).toHaveLength(2);
+    expect(linked?.memberships.every((membership) => !("line" in membership))).toBe(true);
+    expect(JSON.stringify(linked)).not.toContain("never-return-canonical-line-user-id");
+
+    await t.run(async (ctx) => await ctx.db.patch(ids.providerId, { following: false, stateVersion: 2 }));
+    const unfollowed = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      shopId: ids.shopId,
+      personId: ids.personId,
+      now: NOW,
+    });
+    expect(unfollowed?.line.status).toBe("linked_unfollowed");
+  });
+
+  it("canonical LINE linkの重複またはgeneration不整合を人物詳細ごとfail closedにする", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "user_detail_line_inconsistent",
+        plan: "standard",
+      });
+      const personId = await seedPerson(ctx, { organizationId: base.organizationId });
+      await seedStaff(ctx, { organizationId: base.organizationId, personId, shopId: base.shopId });
+      const providerId = await ctx.db.insert("lineProviderUsers", {
+        lineUserId: "line-inconsistent",
+        following: true,
+        stateVersion: 1,
+        friendshipObservedAt: NOW,
+        friendshipObservationSource: "oauth",
+        isDeleted: false,
+      });
+      const linkId = await ctx.db.insert("organizationPersonLineLinks", {
+        organizationId: base.organizationId,
+        organizationPersonId: personId,
+        lineProviderUserId: providerId,
+        generation: 1,
+        linkedAt: NOW,
+        isDeleted: false,
+      });
+      return { ...base, personId, providerId, linkId };
+    });
+    const actor = t.withIdentity({ subject: "user_detail_line_inconsistent" });
+    const args = { shopId: ids.shopId, personId: ids.personId, now: NOW };
+
+    await expect(actor.query(api.organization.userDetailQueries.getUserDetail, args)).resolves.toBeNull();
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.linkId, { generation: 0 });
+      await ctx.db.insert("organizationPersonLineLinks", {
+        organizationId: ids.organizationId,
+        organizationPersonId: ids.personId,
+        lineProviderUserId: ids.providerId,
+        generation: 0,
+        linkedAt: NOW + 1,
+        isDeleted: false,
+      });
+    });
+    await expect(actor.query(api.organization.userDetailQueries.getUserDetail, args)).resolves.toBeNull();
+  });
+
+  it("canonical read authorityではlegacy LINE行へfallbackしない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "user_detail_canonical_no_fallback",
+        plan: "standard",
+      });
+      const personId = await seedPerson(ctx, { organizationId: base.organizationId });
+      const staffId = await seedStaff(ctx, {
+        organizationId: base.organizationId,
+        personId,
+        shopId: base.shopId,
+      });
+      await ctx.db.insert("staffLineAccounts", {
+        staffId,
+        shopId: base.shopId,
+        lineUserId: "legacy-only-line-user-id",
+        linkedAt: NOW,
+        following: true,
+        isDeleted: false,
+      });
+      return { ...base, personId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "user_detail_canonical_no_fallback" })
+      .query(api.organization.userDetailQueries.getUserDetail, {
+        shopId: ids.shopId,
+        personId: ids.personId,
+        now: NOW,
+      });
+
+    expect(result?.line.status).toBe("unlinked");
+    expect(JSON.stringify(result)).not.toContain("legacy-only-line-user-id");
+  });
+
+  it("壊れたID、他組織人物、removed人物を同じnullへ寄せる", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const actor = await seedOrganizationManagerShop(ctx, { subject: "user_detail_boundary", plan: "standard" });
+      const other = await seedOrganizationManagerShop(ctx, { subject: "user_detail_other", plan: "standard" });
       const removedPersonId = await seedPerson(ctx, {
         organizationId: actor.organizationId,
         email: "removed-detail@example.com",
@@ -348,7 +559,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_member_identity",
-        plan: "pro",
+        plan: "standard",
       });
       const memberUserId = await seedUser(ctx, "user_detail_member_identity_target");
       const otherUserId = await seedUser(ctx, "user_detail_member_identity_other");
@@ -383,12 +594,12 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     await expect(actor.query(api.organization.userDetailQueries.getUserDetail, args)).resolves.toBeNull();
   });
 
-  it("店舗未所属のグループ管理者もユーザー詳細として返す", async () => {
+  it("店舗未所属の組織管理者もユーザー詳細として返す", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_manager_without_shop",
-        plan: "pro",
+        plan: "standard",
       });
       const targetUserId = await seedUser(
         ctx,
@@ -408,6 +619,22 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         createdAt: NOW,
         updatedAt: NOW,
       });
+      const providerId = await ctx.db.insert("lineProviderUsers", {
+        lineUserId: "manager-without-shop-line-id",
+        following: true,
+        stateVersion: 1,
+        friendshipObservedAt: NOW,
+        friendshipObservationSource: "oauth",
+        isDeleted: false,
+      });
+      await ctx.db.insert("organizationPersonLineLinks", {
+        organizationId: base.organizationId,
+        organizationPersonId: personId,
+        lineProviderUserId: providerId,
+        generation: 0,
+        linkedAt: NOW,
+        isDeleted: false,
+      });
       return { ...base, targetPersonId: personId };
     });
 
@@ -422,10 +649,25 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     expect(result).toMatchObject({
       isSelf: false,
       managerRole: "active",
-      managerInvitationState: { kind: "unavailable", reason: "このユーザーはすでに管理者です。" },
       canRemoveManagerRole: true,
-      canRemove: true,
+      canRemove: false,
+      removeDisabledReason: "先に管理者権限を外してください。",
+      shops: [
+        {
+          shopId: ids.shopId,
+          canChangeMembership: true,
+        },
+      ],
       memberships: [],
+      line: {
+        status: "linked_following",
+        actionShopId: ids.shopId,
+        sourceStaffId: null,
+        sourceShopId: null,
+        canLink: false,
+        linkDisabledReason: "LINE連携を設定するには、店舗へ所属を追加してください。",
+        canDisconnect: true,
+      },
     });
 
     await expect(
@@ -450,12 +692,66 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     expect(self?.person.hasLinkedAccount).toBe(true);
   });
 
+  it("active管理者の店舗所属は解除可能と返し、人物削除と管理者role解除の契約を分離する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, {
+        subject: "user_detail_manager_membership",
+        plan: "standard",
+      });
+      const targetUserId = await seedUser(
+        ctx,
+        "user_detail_manager_membership_target",
+        "manager-membership@example.com",
+      );
+      const targetPersonId = await seedPerson(ctx, {
+        organizationId: base.organizationId,
+        email: "manager-membership@example.com",
+        userId: targetUserId,
+      });
+      await ctx.db.insert("organizationMembers", {
+        organizationId: base.organizationId,
+        personId: targetPersonId,
+        userId: targetUserId,
+        status: "active",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      const targetStaffId = await seedStaff(ctx, {
+        organizationId: base.organizationId,
+        personId: targetPersonId,
+        shopId: base.shopId,
+        email: "manager-membership@example.com",
+      });
+      return { ...base, targetPersonId, targetStaffId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "user_detail_manager_membership" })
+      .query(api.organization.userDetailQueries.getUserDetail, {
+        shopId: ids.shopId,
+        personId: ids.targetPersonId,
+        now: NOW,
+      });
+
+    expect(result).toMatchObject({
+      managerRole: "active",
+      canRemoveManagerRole: true,
+      canRemove: false,
+      removeDisabledReason: "先に管理者権限を外してください。",
+      shops: [{ shopId: ids.shopId, canChangeMembership: true }],
+      memberships: [{ staffId: ids.targetStaffId, canRemove: true }],
+    });
+    expect(result?.shops[0]).not.toHaveProperty("membershipChangeDisabledReason");
+    expect(result?.memberships[0]).not.toHaveProperty("removeDisabledReason");
+  });
+
   it("本人性を確認できないactive memberを有効な後任管理者として数えない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_last_valid_manager",
-        plan: "pro",
+        plan: "standard",
       });
       await ctx.db.patch(base.organizationId, {
         billingEmail: "billing@example.com",
@@ -490,85 +786,9 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     expect(result).toMatchObject({
       isSelf: true,
       canRemoveManagerRole: false,
-      managerRoleRemovalDisabledReason: "最後の有効管理者の管理者権限は外せません。",
+      managerRoleRemovalDisabledReason: "少なくとも管理者が1名必要です。",
       canRemove: false,
-      removeDisabledReason: "最後の有効管理者は削除できません。",
-    });
-  });
-
-  it("本人性を確認できない復旧候補を引継ぎ先として数えない", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, {
-        subject: "user_detail_last_recovery_manager",
-        plan: "pro",
-      });
-      await ctx.db.patch(base.organizationId, {
-        billingEmail: "billing@example.com",
-        billingEmailNormalized: "billing@example.com",
-      });
-
-      const validUserId = await seedUser(ctx, "user_detail_valid_successor", "valid-successor@example.com");
-      const validPersonId = await seedPerson(ctx, {
-        organizationId: base.organizationId,
-        email: "valid-successor@example.com",
-        userId: validUserId,
-      });
-      await ctx.db.insert("organizationMembers", {
-        organizationId: base.organizationId,
-        personId: validPersonId,
-        userId: validUserId,
-        status: "active",
-        createdAt: NOW,
-        updatedAt: NOW,
-      });
-
-      const invalidUserId = await seedUser(ctx, "user_detail_invalid_recovery", "invalid-recovery@example.com");
-      const invalidPersonId = await seedPerson(ctx, {
-        organizationId: base.organizationId,
-        email: "invalid-recovery@example.com",
-        userId: invalidUserId,
-      });
-      for (let index = 0; index < 2; index += 1) {
-        await ctx.db.insert("organizationMembers", {
-          organizationId: base.organizationId,
-          personId: invalidPersonId,
-          userId: invalidUserId,
-          status: "active",
-          createdAt: NOW + index,
-          updatedAt: NOW + index,
-        });
-      }
-
-      const billingState = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", base.organizationId))
-        .unique();
-      if (!billingState) throw new Error("billing state not found");
-      await ctx.db.patch(billingState._id, {
-        state: {
-          kind: "restricted",
-          reason: "freeConditionsNotMet",
-          previousPlan: "pro",
-          recoveryManagerPersonIds: [base.personId, invalidPersonId],
-          previousActiveShopIds: [base.shopId],
-          restrictedAt: NOW,
-        },
-      });
-      return base;
-    });
-
-    const result = await t
-      .withIdentity({ subject: "user_detail_last_recovery_manager" })
-      .query(api.organization.userDetailQueries.getUserDetail, {
-        shopId: ids.shopId,
-        personId: ids.personId,
-        now: NOW,
-      });
-
-    expect(result).toMatchObject({
-      canRemove: false,
-      removeDisabledReason: "最後の復旧担当者は、引き継ぎまたは契約の復旧が完了するまで削除できません。",
+      removeDisabledReason: "先に管理者権限を外してください。",
     });
   });
 
@@ -577,11 +797,11 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_duplicates",
-        plan: "pro",
+        plan: "standard",
       });
       const other = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_duplicates_other",
-        plan: "pro",
+        plan: "standard",
       });
       const targetUserId = await seedUser(ctx, "user_detail_target_manager", "target-manager@example.com");
       const personId = await seedPerson(ctx, {
@@ -637,7 +857,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
           organizationId: ids.organizationId,
           personId: ids.personId,
           userId: ids.targetUserId,
-          status: "readOnly",
+          status: "active",
           createdAt: NOW,
           updatedAt: NOW,
         }),
@@ -661,11 +881,10 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_assignment",
-        plan: "pro",
+        plan: "standard",
       });
       const secondShopId = await ctx.db.insert("shops", {
         organizationId: base.organizationId,
-        operatingStatus: "active",
         name: "別店舗",
         regularClosedDays: [],
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
@@ -760,27 +979,41 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     });
   });
 
-  it("閲覧専用actorと課金state欠落では書き込み不可を返す", async () => {
+  it("課金state欠落では書き込み不可を返す", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
         subject: "user_detail_read_only",
-        plan: "pro",
+        plan: "standard",
       });
       const personId = await seedPerson(ctx, { organizationId: base.organizationId });
-      await ctx.db.patch(base.memberId, { status: "readOnly" });
-      return { ...base, personId };
+      const staffId = await seedStaff(ctx, {
+        organizationId: base.organizationId,
+        personId,
+        shopId: base.shopId,
+      });
+      const providerId = await ctx.db.insert("lineProviderUsers", {
+        lineUserId: "user-detail-read-only-line-id",
+        following: true,
+        stateVersion: 1,
+        friendshipObservedAt: NOW,
+        friendshipObservationSource: "oauth",
+        isDeleted: false,
+      });
+      await ctx.db.insert("organizationPersonLineLinks", {
+        organizationId: base.organizationId,
+        organizationPersonId: personId,
+        lineProviderUserId: providerId,
+        generation: 0,
+        linkedAt: NOW,
+        isDeleted: false,
+      });
+      return { ...base, personId, staffId };
     });
     const actor = t.withIdentity({ subject: "user_detail_read_only" });
     const args = { shopId: ids.shopId, personId: ids.personId, now: NOW };
 
-    expect(await actor.query(api.organization.userDetailQueries.getUserDetail, args)).toMatchObject({
-      canWrite: false,
-      writeDisabledReason: "閲覧のみの管理者は、ユーザー情報を変更できません。",
-    });
-
     await t.run(async (ctx) => {
-      await ctx.db.patch(ids.memberId, { status: "active" });
       const billingState = await ctx.db
         .query("organizationBillingStates")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
@@ -789,7 +1022,12 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     });
     expect(await actor.query(api.organization.userDetailQueries.getUserDetail, args)).toMatchObject({
       canWrite: false,
-      writeDisabledReason: "グループの契約情報を確認中のため、ユーザー情報を変更できません。",
+      writeDisabledReason: "組織の契約情報を確認中のため、ユーザー情報を変更できません。",
+      line: {
+        canLink: false,
+        linkDisabledReason: "組織の契約情報を確認中のため、ユーザー情報を変更できません。",
+        canDisconnect: true,
+      },
     });
   });
 });

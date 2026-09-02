@@ -8,12 +8,12 @@ const OPTIONS: Array<{
   label: string;
   description: string;
 }> = [
-  { kind: "dateOnly", label: "日ごと", description: "出勤できる日付だけを集めます。" },
-  { kind: "time", label: "時間指定", description: "日ごとに働ける時間を、スタッフが自由に入力します。" },
+  { kind: "dateOnly", label: "日ごと", description: "出勤日のみ提出します" },
+  { kind: "time", label: "時間指定", description: "出勤日と時間をスタッフが入力して提出します" },
   {
     kind: "shiftType",
     label: "勤務区分",
-    description: "早番・遅番など、あらかじめ決めた時間帯から選んでもらいます。",
+    description: "出勤日と事前に設定した時間帯から選んで提出します。（早番・遅番など）",
   },
 ];
 

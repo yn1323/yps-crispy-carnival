@@ -4,7 +4,8 @@ export type AnalyticsAvailability = "available" | "unavailable";
 
 export type AnalyticsGranularity = "day" | "week" | "month";
 
-export type AnalyticsPlanKey = "trial" | "free" | "pro" | "business";
+export type CanonicalAnalyticsPlanKey = "trial" | "free" | "standard" | "pro";
+export type AnalyticsPlanKey = CanonicalAnalyticsPlanKey;
 
 export type AnalyticsDirection = "asc" | "desc";
 
@@ -252,6 +253,20 @@ export type AnalyticsShopRowDto = {
   kpis: AnalyticsShopKpiDto | null;
 };
 
+export type AnalyticsShopUsageLikelihood = "high" | "possible" | "unknown";
+
+export type AnalyticsShopUsageReason =
+  | "recentActivity"
+  | "hasUpcomingCycle"
+  | "observedActivity"
+  | "hasShiftTargets"
+  | "hasStaffMemberships";
+
+export type AnalyticsShopListRowDto = AnalyticsShopRowDto & {
+  usageLikelihood: AnalyticsShopUsageLikelihood;
+  usageReasons: AnalyticsShopUsageReason[];
+};
+
 export type AnalyticsCycleRowDto = {
   recruitmentId: string;
   organizationId: string;
@@ -346,7 +361,7 @@ export type OrganizationDetailResponse = {
 export type ShopsResponse = {
   kind: "shops";
   metadata: AnalyticsResponseMetadata;
-  rows: AnalyticsShopRowDto[];
+  rows: AnalyticsShopListRowDto[];
 };
 
 export type ShopDetailResponse = {
@@ -377,7 +392,11 @@ export type SegmentsResponse = {
 
 export type FeatureRequestRowDto = {
   id: string;
-  shopId: string;
+  targetKind: "shop" | "organization";
+  organizationId: string | null;
+  organizationName: string | null;
+  shopId: string | null;
+  // 既存Analytics UIの表示契約を維持し、組織scopeでは「組織名（組織全体）」を返す。
   shopName: string;
   senderType: "manager" | "staff";
   comment: string;

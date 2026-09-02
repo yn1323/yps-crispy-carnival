@@ -30,6 +30,9 @@ source eventはstableな`eventKey`で重複を排除し、projectionはbusiness 
 氏名、email、電話番号、LINE user ID、提出内容、通知本文、provider raw errorはAnalytics tableへ保存しません。
 個人に対応するfactには、既存のopaque IDだけを保持します。
 
+LINE連携の正本は組織人物単位ですが、`lineLinkedCount`と`lineFollowingCount`は従来どおり店舗のstaff membership数を数えます。
+同じ人物が同じ組織の複数店舗へ所属する場合、共通のLINE状態を各active membershipへ投影し、人物数へ集約しません。
+
 ## 夜間日次run
 
 通常の日次処理は、一日につき一行の**run manifest**を`analyticsRuns`へ作り、次のstageを直列に進めます。
@@ -72,9 +75,9 @@ resetは許可されたAnalytics派生tableを有界削除し、現在の運用t
 
 resetは次の事実だけを切替前から引き継ぎます。
 
-- `organizations.createdAt`に基づくグループ登録日
+- `organizations.createdAt`に基づく組織登録日
 - `shops._creationTime`に基づく店舗登録日
-- 現在のグループ、店舗、plan、所属
+- 現在の組織、店舗、plan、所属
 - reset時点で継続しているcycleの文脈
 
 切替前の初回募集、初回提出、初回・2回目確定、通常周期、health、終了済みcycleの率は復元しません。
@@ -82,7 +85,7 @@ reset rowの`dataStartDate`はreset終了後の最初の完全なJST日、`dataS
 初回partialを公開するdaily manifestでは`dataStartDate`をreset完了日へ広げ、後続dailyもこの公開履歴の起点を引き継ぎます。
 reset rowと`dataStartAt`は変更しません。
 
-切替前から存在するグループと店舗も、登録日と現在の人数を表示できます。
+切替前から存在する組織と店舗も、登録日と現在の人数を表示できます。
 店舗日次行の`kpiEligible`は、切替後に観測を始めた導入到達度の対象かどうかだけを表します。
 既存店舗では`false`になりますが、切替後の現在値、health、完全なcycle rateは日次KPIへ含めます。
 切替前の到達を未達として数えないため、milestone到達率の分子と分母からだけ除外します。
@@ -99,15 +102,15 @@ Dashboardでは既存店舗の登録日を表示し、切替前には正確に�
 |---|---|
 | `analyticsRuns` | 排他、stale page拒否、日付単位の公開marker |
 | `analyticsSourceEvents` | 業務変更と夜間projectionのdurable boundary |
-| `analyticsOrganizations` | グループの現在dimensionとmilestone |
+| `analyticsOrganizations` | 組織の現在dimensionとmilestone |
 | `analyticsShops` | 店舗の現在dimension、milestone、最新活動、通常周期 |
-| `analyticsPeople` | PIIを持たないグループ内unique person |
+| `analyticsPeople` | PIIを持たない組織内unique person |
 | `analyticsMemberships` | managerとstaffの有効期間、シフト対象、LINE状態 |
 | `analyticsShiftCycles` | cycle単位の期間、確定、提出、通知、完全性 |
 | `analyticsShiftCycleOpportunities` | cutoff時点の対象者集合と初回提出事実 |
 | `analyticsDailyServiceKpis` | サービス全体の日次KPI |
 | `analyticsDailyNotificationKpis` | service、shop、recruitment単位の日次通知送信・失敗数 |
-| `analyticsDailyOrganizationKpis` | グループ単位の日次KPI |
+| `analyticsDailyOrganizationKpis` | 組織単位の日次KPI |
 | `analyticsDailyShopKpis` | 店舗単位の日次KPIとhealth signal |
 | `analyticsDailySegmentKpis` | segment別の日次比較 |
 
@@ -179,7 +182,7 @@ opportunityの本人参照は、400日のhard deadlineを越えないよう期�
 | failed runの途中出力 | 14日 |
 | run manifest | 5年 |
 
-グループまたは店舗を削除した場合、表示名は分析projectionから削除し、集計値はretention契約に従います。
+組織または店舗を削除した場合、表示名は分析projectionから削除し、集計値はretention契約に従います。
 
 ## 負荷上限
 

@@ -1,0 +1,20 @@
+import { Badge } from "@chakra-ui/react";
+import type { HelpAudience } from "./helpTasks";
+
+export function HelpAudienceBadge({ audience }: { audience: HelpAudience }) {
+  const label = audience === "manager" ? "管理者" : audience === "staff" ? "スタッフ" : "すべて";
+  const colorPalette = audience === "manager" ? "teal" : audience === "staff" ? "blue" : "gray";
+
+  return (
+    <Badge
+      colorPalette={colorPalette}
+      variant="subtle"
+      alignSelf="flex-start"
+      bg={audience === "manager" ? "teal.100" : undefined}
+      borderRadius="full"
+      px={2.5}
+    >
+      {label}
+    </Badge>
+  );
+}

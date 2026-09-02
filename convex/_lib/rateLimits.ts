@@ -56,7 +56,7 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     capacity: 1,
   },
 
-  // シフト希望提出: staffId をキーに
+  // 希望シフト提出: staffId をキーに
   // 5回/分 — 連打防止
   submitShiftRequests: {
     kind: "token bucket",
@@ -205,7 +205,7 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     capacity: 5,
   },
 
-  // 新しいグループの作成: userId 単位
+  // 新しい組織の作成: userId 単位
   // 1回/分 — 連打と、requestIdを替えた二重作成を抑止する。
   organizationCreateShort: {
     kind: "token bucket",
@@ -214,7 +214,7 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
     capacity: 1,
   },
 
-  // 新しいグループの作成: userId 単位
+  // 新しい組織の作成: userId 単位
   // 同時に保持できる数は ORGANIZATION_SELF_CREATED_LIMIT が決めるため、
   // ここでは削除と再作成を繰り返して通知予約とメールを積む操作だけを抑える。
   organizationCreateDaily: {
@@ -225,11 +225,12 @@ export const { checkRateLimit, rateLimit, resetRateLimit } = defineRateLimits({
   },
 
   // 店舗・プラン・所属を変える事業者設定操作の同期的な連打防止。
+  // 同じ画面で内容を確認しながら行う2回の変更は許し、3回目以降を抑止する。
   organizationSettingsMutationShort: {
     kind: "token bucket",
-    rate: 1,
+    rate: 2,
     period: MINUTE_MS,
-    capacity: 1,
+    capacity: 2,
   },
 
   // 明示的なアカウント削除受付: issuer+subjectのSHA-256 hash単位。

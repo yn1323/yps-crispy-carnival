@@ -4,7 +4,7 @@ import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
 
 export function ContactPage() {
   return (
-    <PublicPageLayout bg="gray.50" headerProps={{ showLinks: false }}>
+    <PublicPageLayout bg="gray.50">
       <Container maxW="640px" px={{ base: 4, md: 6 }} py={{ base: 8, md: 14 }}>
         <Stack gap={{ base: 6, md: 8 }}>
           <Box>

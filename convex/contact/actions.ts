@@ -1,10 +1,11 @@
 "use node";
 
 import { v } from "convex/values";
-import { internalAction } from "../_generated/server";
 import { getContactRecipientEmail, getContactSlackWebhookUrl, RESEND_FROM_EMAIL } from "../_lib/config";
+import { observedInternalAction as internalAction } from "../_lib/errorObservability";
 import { isNotificationDeliverySuppressed, logSuppressedNotification } from "../_lib/notificationDelivery";
 import { getResendClient, sendResendEmail } from "../_lib/resend";
+import { buildContactEmailSubject, buildContactEmailText } from "./email";
 import { type ContactDeliveryInput, getContactTypeLabel } from "./schemas";
 
 const contactTypeValidator = v.union(
@@ -13,19 +14,6 @@ const contactTypeValidator = v.union(
   v.literal("trouble"),
   v.literal("other"),
 );
-
-function contactEmailText(input: ContactDeliveryInput): string {
-  return [
-    `問い合わせ種別: ${getContactTypeLabel(input.type)}`,
-    `氏名: ${input.name}`,
-    `メールアドレス: ${input.email}`,
-    `店舗名または会社名: ${input.organization || "未入力"}`,
-    `リクエストID: ${input.requestId}`,
-    "",
-    "問い合わせ内容:",
-    input.message,
-  ].join("\n");
-}
 
 function escapeSlackMrkdwn(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
@@ -100,8 +88,8 @@ export const deliver = internalAction({
           from: `シフトリ <${RESEND_FROM_EMAIL}>`,
           to: recipient,
           replyTo: input.email,
-          subject: `【シフトリ】${getContactTypeLabel(input.type)}の問い合わせ`,
-          text: contactEmailText(input),
+          subject: buildContactEmailSubject(input.type),
+          text: buildContactEmailText(input),
         },
         "contact.submit",
         { idempotencyKey: `contact-${input.requestId}` },

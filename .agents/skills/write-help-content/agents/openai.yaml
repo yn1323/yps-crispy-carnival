@@ -1,4 +1,4 @@
 interface:
-  display_name: "HowTo記事作成"
-  short_description: "シフトリのHowTo記事を実装事実に沿って作成・更新する"
-  default_prompt: "Use $write-help-content to create or revise a Shiftori HowTo article from the current implementation."
+  display_name: "ヘルプコンテンツ作成"
+  short_description: "シフトリのFAQ・使い方を現在の実装に沿って作成・校正する"
+  default_prompt: "Use $write-help-content to create, proofread, or revise Shiftori HelpCenter FAQ or guide content from the current implementation."

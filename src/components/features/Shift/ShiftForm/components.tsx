@@ -1,4 +1,4 @@
-import { Box, Flex, Icon, Stack, Text } from "@chakra-ui/react";
+import { Box, chakra, Flex, Icon, Stack, Text } from "@chakra-ui/react";
 import { LuSave, LuTriangleAlert } from "react-icons/lu";
 import { Tooltip } from "@/src/components/ui/tooltip";
 import type { StaffType, ViewMode } from "@/src/domains/shift/types";
@@ -125,7 +125,10 @@ export const StaffWarningIcon = ({ messages }: { messages: string[] }) => {
             event.stopPropagation();
           }
         }}
+        transitionProperty="colors"
+        transitionDuration="faster"
         _hover={{ bg: "orange.100", color: "orange.700" }}
+        _active={{ bg: "orange.200", transitionDuration: "0ms" }}
         _focusVisible={{ outline: "2px solid", outlineColor: "orange.400", outlineOffset: "1px" }}
       >
         <Icon boxSize={3.5}>
@@ -157,7 +160,15 @@ export const Avatar = ({ staff, size = 28 }: { staff: StaffType; size?: number }
   </Box>
 );
 
-export const ViewTabs = ({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) => {
+export const ViewTabs = ({
+  value,
+  onChange,
+  compactSpacing = false,
+}: {
+  value: ViewMode;
+  onChange: (v: ViewMode) => void;
+  compactSpacing?: boolean;
+}) => {
   const tabs: { k: ViewMode; label: string }[] = [
     { k: "daily", label: "日別" },
     { k: "overview", label: "一覧" },
@@ -175,13 +186,17 @@ export const ViewTabs = ({ value, onChange }: { value: ViewMode; onChange: (v: V
             onClick={() => onChange(t.k)}
             cursor="pointer"
             py="10px"
-            px={{ base: "14px", lg: "18px" }}
+            px={compactSpacing ? "6px" : { base: "14px", lg: "18px" }}
             textStyle="sm"
             fontWeight={active ? 700 : 500}
             color={active ? "teal.700" : "gray.500"}
+            bg="transparent"
             borderBottomWidth="2px"
             borderColor={active ? "teal.600" : "transparent"}
             mb="-1px"
+            transitionProperty="colors"
+            transitionDuration="faster"
+            _active={{ bg: "gray.100", transitionDuration: "0ms" }}
           >
             {t.label}
           </Box>
@@ -197,10 +212,12 @@ type UnsubmittedStripProps = {
   onOpenDetails?: () => void;
 };
 
-export type ReminderStatus = {
-  kind: "scheduled" | "sent" | "none";
-  label: string;
-};
+export type ReminderStatus =
+  | {
+      kind: "scheduled" | "sent" | "none";
+      label: string;
+    }
+  | { kind: "unconfirmed" };
 
 export const UnsubmittedStrip = ({ names, reminderStatus, onOpenDetails }: UnsubmittedStripProps) => {
   const statusColor =
@@ -238,37 +255,42 @@ export const UnsubmittedStrip = ({ names, reminderStatus, onOpenDetails }: Unsub
             </Box>
           ))}
         </Flex>
-        <Box textStyle="caption" flexShrink={0} style={{ color: statusColor }}>
-          {reminderStatus.label}
-        </Box>
+        {reminderStatus.kind !== "unconfirmed" && (
+          <Box textStyle="caption" flexShrink={0} style={{ color: statusColor }}>
+            {reminderStatus.label}
+          </Box>
+        )}
       </Flex>
       <Box display={{ base: "block", lg: "none" }} flexShrink={0}>
-        <button
+        <chakra.button
           type="button"
           onClick={onOpenDetails}
-          style={{
-            width: "100%",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "12px 16px",
-            textAlign: "left",
-            background: "#fffbeb",
-            borderTop: "1px solid #fde68a",
-            borderLeft: "none",
-            borderRight: "none",
-            borderBottom: "none",
-            cursor: onOpenDetails ? "pointer" : "default",
-            fontFamily: "inherit",
-          }}
+          w="100%"
+          display="flex"
+          alignItems="center"
+          gap="8px"
+          p="12px 16px"
+          textAlign="left"
+          bg="#fffbeb"
+          borderTop="1px solid #fde68a"
+          borderLeft="none"
+          borderRight="none"
+          borderBottom="none"
+          cursor={onOpenDetails ? "pointer" : "default"}
+          fontFamily="inherit"
+          transitionProperty="colors"
+          transitionDuration="faster"
+          _active={onOpenDetails ? { bg: "#fef3c7", transitionDuration: "0ms" } : undefined}
         >
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#d97706", flexShrink: 0 }} />
           <span style={{ fontSize: "var(--chakra-font-sizes-sm)", fontWeight: 700, color: "#b45309" }}>
             未提出 {names.length}人
           </span>
-          <span style={{ fontSize: "var(--chakra-font-sizes-xs)", color: "#b45309", opacity: 0.8 }}>
-            {reminderStatus.label}
-          </span>
+          {reminderStatus.kind !== "unconfirmed" && (
+            <span style={{ fontSize: "var(--chakra-font-sizes-xs)", color: "#b45309", opacity: 0.8 }}>
+              {reminderStatus.label}
+            </span>
+          )}
           {onOpenDetails && (
             <span
               style={{ marginLeft: "auto", fontSize: "var(--chakra-font-sizes-md)", color: "#b45309", flexShrink: 0 }}
@@ -276,7 +298,7 @@ export const UnsubmittedStrip = ({ names, reminderStatus, onOpenDetails }: Unsub
               ›
             </span>
           )}
-        </button>
+        </chakra.button>
       </Box>
     </>
   );
@@ -285,16 +307,19 @@ export const UnsubmittedStrip = ({ names, reminderStatus, onOpenDetails }: Unsub
 type SaveButtonProps = { compact?: boolean; isSaving?: boolean; onClick?: () => void };
 
 export const SaveButton = ({ compact = false, isSaving = false, onClick }: SaveButtonProps) => (
-  <button
+  <chakra.button
     type="button"
     onClick={isSaving ? undefined : onClick}
     disabled={isSaving}
     aria-busy={isSaving}
     aria-label="下書き保存"
+    bg="white"
+    transitionProperty="colors"
+    transitionDuration="faster"
+    _active={isSaving ? undefined : { bg: "gray.100", transitionDuration: "0ms" }}
     style={{
       height: compact ? 28 : 32,
       padding: compact ? "0 8px" : "0 14px",
-      background: "white",
       color: "#3f3f46",
       border: "1px solid #d4d4d8",
       borderRadius: 6,
@@ -308,7 +333,7 @@ export const SaveButton = ({ compact = false, isSaving = false, onClick }: SaveB
     }}
   >
     {compact ? <LuSave size={14} /> : isSaving ? "保存中" : "下書き保存"}
-  </button>
+  </chakra.button>
 );
 
 type ConfirmButtonProps = {
@@ -336,16 +361,19 @@ export const ConfirmButton = ({
         ? "もう一度通知"
         : "シフトを確定して通知";
   return (
-    <button
+    <chakra.button
       type="button"
       data-tour="confirm-button"
       onClick={isConfirming ? undefined : onClick}
       disabled={isConfirming}
       aria-busy={isConfirming}
+      bg={isConfirmed ? "white" : "#0d9488"}
+      transitionProperty="colors"
+      transitionDuration="faster"
+      _active={isConfirming ? undefined : { bg: isConfirmed ? "gray.100" : "#0f766e", transitionDuration: "0ms" }}
       style={{
         height: compact ? 28 : 32,
         padding: compact ? "0 12px" : "0 16px",
-        background: isConfirmed ? "white" : "#0d9488",
         color: isConfirmed ? "#0f766e" : "white",
         border: isConfirmed ? "1px solid #0d9488" : "none",
         borderRadius: 6,
@@ -357,6 +385,6 @@ export const ConfirmButton = ({
       }}
     >
       {label}
-    </button>
+    </chakra.button>
   );
 };

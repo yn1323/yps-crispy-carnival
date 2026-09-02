@@ -57,6 +57,8 @@ Dialog表示中のブラウザ戻るは、ページ遷移ではなく最前面�
 Dialog、tab、長いページの下位sectionは、初回利用まで内容のmount、module取得、データ取得を遅らせてよい。
 遅延表示する領域には大きさと意味が対応するLoadingを置き、操作後に画面全体が空白になる状態を作らない。
 Loadingは対象領域の見出しまたはlandmarkと対応させ、支援技術と自動テストが処理中と完了を識別できる状態にする。
+ページ全体、Card、sectionなど一定の面積を占めるLoadingには、`src/components/ui/ShiftoriLoading`のシフトリアイコンと`Loading...`を使う。
+ボタン内や小さなinline処理のLoadingは対象外とし、操作対象に対応する局所的な進行表示を使う。
 
 moduleまたはデータの取得に失敗した場合は、失敗した領域だけをErrorへ切り替え、取得済みの兄弟sectionとnavigationは操作可能なままにする。
 再試行または再読み込みが必要な場合は、その理由と操作をErrorの近くへ示す。
@@ -91,6 +93,105 @@ Loading、Empty、Error、Success、処理中を別の状態として設計す�
 
 スタッフ向け画面で操作を続けられない場合は、状態だけで終えず、「シフト作成担当者に連絡してください」など次の行動を示す。
 
+押下可能なbutton、navigation、list row、selection cardは、pointerを押している間に背景または背景上のstate layerを即時に変え、短いtapでも押下を知覚できるようにする。
+押下のfeedbackで位置、寸法、scaleを変えず、解除時だけ短い色transitionを使う。
+一時的な押下とselected、current、open、loadingを同じ見た目にせず、disabledとread-onlyには押下feedbackを出さない。
+
+## モバイルのフォーム入力
+
+幅768px未満、または横向きで幅1024px未満かつ高さ768px未満の表示では、文字入力を受ける`input`（type未指定、`text`、`email`、`password`、`search`、`tel`、`url`、`number`）、`textarea`、nativeとcustomの`select`の実効フォントサイズを16px以上にする。  iOSブラウザがフォーカス時にページを自動拡大せず、入力中も周囲の操作を確認できる状態を保つためである。
+
+ラベル、補足、エラー、ボタンなど、フォーカスされるフォームコントロール以外の文字は16px未満でもよい。  対象外のviewportではcomponentのsize recipeを維持し、viewportの`user-scalable`や`maximum-scale`で利用者のズーム操作を禁止しない。
+
+## Dialogのアクション
+
+Dialogのボタンは、**意味**、**配置スロット**、**閉じられる状態**を分けて決める。
+右端の最終アクション位置にあることだけを理由に、Primaryの配色へ変えない。
+
+### 意味と配色
+
+| 意味 | 用途 | 見た目 | 配置 |
+|---|---|---|---|
+| Primary | 保存、変更、送信、作成など、Dialogの主作業を完了する | tealのsolid | 最終アクションとして右端 |
+| Destructive | 削除、解除、無視など、取り消せないか影響の大きい操作を完了する | redのsolidまたは既存の破壊操作variant | 最終アクションとして右端 |
+| Secondary | キャンセル、閉じる、前の段階へ戻る | neutralのoutline | PrimaryまたはDestructiveより前 |
+
+一つのDialogで強く見せるアクションは一つにする。
+footerに置くDialog全体のアクションは最大二つにする。
+三つ以上の判断が必要に見える場合は、状態を分けるか、対象の近くで完結する局所操作を本文へ残し、第三のグローバルアクションをfooterへ追加しない。
+閲覧専用、完了結果、通知、ErrorのDialogにも、footerへ明示的な「閉じる」を置く。
+この「閉じる」は最終アクション位置を占めるが、意味と配色はSecondaryのままにする。
+ヘッダーの閉じるアイコン、Escape、外側click、ブラウザバックは補助的な終了経路であり、footerの「閉じる」の代わりにしない。
+
+### 文言
+
+| 文言 | 使う場面 |
+|---|---|
+| `保存する`、`変更する`、`送信する`、`作成する`、`削除する` | 対象と結果が分かる具体的な動詞で主作業を完了する |
+| `次へ` | 保存や送信をせず、次の段階へ進む |
+| `確認へ` | 次の段階で対象と結果を確認してから実行する |
+| `戻る` | 同じDialogの前の段階または選択へ戻る |
+| `キャンセル` | 未確定の編集または実行意思を取りやめる |
+| `閉じる` | 閲覧、結果、通知、Errorを終了し、未確定の作業を破棄しない |
+
+`Submit`、`OK`、`確定`のように対象と結果が分からない語は、具体的な操作名へ置き換える。
+「戻る」をDialog全体の終了に使わず、「閉じる」を未確定の編集破棄に使わない。
+
+### デスクトップとモバイル
+
+DOM順と見た目の順を一致させ、CSSの`order`や`row-reverse`で逆転させない。
+Secondaryを先、PrimaryまたはDestructiveを最後に置く。
+
+| 状況 | デスクトップ | モバイル |
+|---|---|---|
+| 単一アクション | 最終アクション位置へ右寄せ | footer幅いっぱい |
+| 標準の二アクション | 右側へまとめ、Secondary、最終アクションの順 | ラベルの長さにかかわらず同幅の横並び |
+| Stepper | 「戻る」または「キャンセル」を左端、`次へ`、`確認へ`、完了操作を右端 | ラベルの長さにかかわらず同幅の横並び |
+
+モバイルの二アクションは縦積みに切り替えず、ラベルを省略またはtruncateせずに複数行へ折り返す。
+片方のラベルだけが長い場合も、二つのボタンを同じ幅と高さに揃え、必要な分だけfooterの高さを広げる。
+モバイルの操作領域は高さ44px以上を確保する。
+
+### Footerとscroll
+
+Dialogを完了、終了、または前の段階へ移動するボタンはfooterのaction areaへ置く。
+本文内の局所操作と、Dialog全体のアクションを同じ見た目で混在させない。
+
+短い標準Dialogではfooterをcontent flowに置く。
+本文がviewportを超えるDialog、モバイル全画面Dialog、StepperDialogでは、headerとfooterを残して本文だけをscrollさせる。
+このfooterはDialog内の下端に留め、モバイルでは`safe-area-inset-bottom`を一度だけ含める。
+折り返したaction labelでfooterが高くなった場合も、safe areaを維持し、本文だけをscrollさせる。
+viewport基準の独自なfixed footerを各featureへ追加しない。
+
+モバイルのフォームで文字入力を開始した場合は、実際に見えているviewportを基準に入力領域を優先する。
+footer、header、Stepperの進行表示など、フォームの前後に残るUIの実高を除いても十分な入力領域を確保できる間は、headerを本文と一緒にscrollさせ、footerをキーボード直上のDialog下端に留める。
+footerを残すと入力領域が共通の最小高を下回る場合は、header、本文、footerを同じscroll領域へ置き、footerを本文の後から操作できるようにする。
+この切替ではinputとactionを再mountせず、focus、入力値、DOM順を維持する。
+
+### 閉じる操作とclose lock
+
+通常時は、footerの終了操作、ヘッダーの閉じるアイコン、Escape、外側click、ブラウザバックを、同じclose要求として扱う。
+閉じた後は、Dialogを開いた操作要素へfocusを戻す。
+
+処理の中断によって結果が不明になる、同じ副作用を再実行するおそれがある、または本人確認の途中状態を壊す場合に限り、処理中のcloseをlockしてよい。
+close lock中は、footer、ヘッダー、Escape、外側click、ブラウザバックをまとめて無効にし、経路ごとに挙動を分けない。
+実行ボタンには処理中表示を残し、前後移動と別操作も無効にする。
+成功または再試行可能な失敗へ遷移したらlockを解除する。
+serverが処理を受け付けた後にDialogを閉じても結果を追跡できる場合は、待機時間全体をlockしない。
+
+### Dialog内の確認
+
+開いているDialogの上へ、別のDialogまたはAlertDialogを重ねない。
+Dialog内の操作に確認が必要な場合は、同じDialogを**inline confirmation**へ切り替える。
+
+inline confirmationでは、現在のDialog shellを維持し、title、本文、footer、必要な`alertdialog` roleを確認状態へ一緒に切り替える。
+本文には対象、実行結果、元に戻せるかを示し、footerには「キャンセル」または「戻る」と、具体的な実行ボタンを置く。
+確認を取りやめた場合は直前のDialog状態と入力を復元し、確認を開始した操作へfocusを戻す。
+実行中はclose lockを適用し、完了前に元の状態へ戻れないようにする。
+
+独立した次の作業を別のDialogで行う必要がある場合は、現在のDialogを閉じてから次を開く。
+Select、Menu、Popover、Tooltip、ToastはDialogの入れ子に数えないが、それらの操作によってDialogが意図せず閉じないことを確認する。
+
 ## 配色の強弱
 
 低階調のtealは、情報のまとまりや状態領域を示す背景fillに使ってよい。ページ、section、card、callout、icon、avatar、badge、selection card、カレンダーの日付範囲など、内容を載せる面へ限定する。opacity付きの色やgradientも、背景fillとして使う場合は同じ扱いにする。
@@ -121,7 +222,7 @@ ShiftBoardの日付選択と日ごとの勤務あり表示は、この組み合�
 ## 一貫性と検証
 
 既存のUI部品、語彙、色の意味を優先し、新しい表現を局所的に増やさない。
-文言を変更したら、同じ事実を説明するStory、テスト、FAQ、HowTo、通知文面を確認する。
+文言を変更したら、同じ事実を説明するStory、テスト、ヘルプのFAQ・使い方、通知文面を確認する。
 
 実装と文言が食い違う場合は、コードを現在事実として文言を直す。
 望ましい将来像を、現在の挙動として先に説明しない。

@@ -107,7 +107,10 @@ export const DayCard = ({
         borderColor="border.default"
         cursor="pointer"
         onClick={onToggleWorking}
+        transitionProperty="colors"
+        transitionDuration="faster"
         _hover={{ bg: "gray.50" }}
+        _active={{ bg: "gray.100", transitionDuration: "0ms" }}
       >
         <Text fontSize="sm" fontWeight="medium" color={dateColor}>
           {dateLabel}
@@ -143,7 +146,6 @@ export const DayCard = ({
           items={timeOptions}
           value={entry.startTime}
           onChange={(v) => onTimeChange("startTime", v)}
-          placeholder=""
           size="xs"
           w="80px"
         />
@@ -154,7 +156,6 @@ export const DayCard = ({
           items={timeOptions}
           value={entry.endTime}
           onChange={(v) => onTimeChange("endTime", v)}
-          placeholder=""
           size="xs"
           w="80px"
         />

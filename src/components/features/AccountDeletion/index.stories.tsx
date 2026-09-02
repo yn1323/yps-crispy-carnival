@@ -6,13 +6,15 @@ import { createDeferred } from "@/src/devtools/createDeferred";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { AccountDeletionDialog } from "./AccountDeletionDialog";
 import { AccountDeletionTrigger, type AccountDeletionVariant } from "./AccountDeletionTrigger";
-import type { AccountDeletionErrorState } from "./types";
+import type { AccountDeletionErrorState, AccountDeletionReadyPreview } from "./types";
 
 type PreviewProps = {
   variant: AccountDeletionVariant;
   initialOpen?: boolean;
   isRunning?: boolean;
   error?: AccountDeletionErrorState | null;
+  preview?: AccountDeletionReadyPreview;
+  isPreviewStale?: boolean;
   showTrigger?: boolean;
   countSubmissions?: boolean;
 };
@@ -22,6 +24,8 @@ function AccountDeletionPreview({
   initialOpen = false,
   isRunning = false,
   error = null,
+  preview,
+  isPreviewStale = false,
   showTrigger = true,
   countSubmissions = false,
 }: PreviewProps) {
@@ -59,6 +63,8 @@ function AccountDeletionPreview({
       <AccountDeletionDialog
         isOpen={isOpen}
         isRunning={effectiveRunning}
+        isPreviewStale={isPreviewStale}
+        preview={preview}
         error={error}
         onClose={close}
         onOpenChange={({ open }) => {
@@ -100,6 +106,40 @@ export const DialogReady: Story = {
   args: { initialOpen: true, showTrigger: false },
 };
 
+export const DialogLeaveOrganization: Story = {
+  args: {
+    initialOpen: true,
+    showTrigger: false,
+    preview: {
+      status: "ready",
+      action: "leaveOrganization",
+      previewFingerprint: "preview-leave",
+      organization: { name: "サンプル運営会社", shopCount: 3 },
+      futureAssignmentCount: 4,
+    },
+  },
+};
+
+export const DialogDeleteOrganization: Story = {
+  args: {
+    initialOpen: true,
+    showTrigger: false,
+    preview: {
+      status: "ready",
+      action: "deleteOrganization",
+      previewFingerprint: "preview-delete",
+      organization: { name: "サンプル運営会社", shopCount: 3 },
+    },
+  },
+};
+
+export const DialogPreviewStale: Story = {
+  args: {
+    ...DialogLeaveOrganization.args,
+    isPreviewStale: true,
+  },
+};
+
 export const DialogRunning: Story = {
   args: { initialOpen: true, isRunning: true, showTrigger: false },
 };
@@ -137,7 +177,7 @@ export const GeneralErrorContactBehavior: Story = {
 };
 
 export const DialogMobile: Story = {
-  args: { initialOpen: true, showTrigger: false },
+  args: DialogDeleteOrganization.args,
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
 };
@@ -181,9 +221,9 @@ export const RunningCloseLockBehavior: Story = {
     const body = within(document.body);
     const dialog = await body.findByRole("alertdialog", { name: "アカウントを削除" });
 
-    await userEvent.click(within(dialog).getByRole("button", { name: "閉じる" }));
-    await expect(body.getByRole("alertdialog", { name: "アカウントを削除" })).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "キャンセル" }));
+    await expect(within(dialog).queryByRole("button", { name: "閉じる" })).not.toBeInTheDocument();
+    await expect(within(dialog).getByRole("button", { name: "キャンセル" })).toBeDisabled();
+    await expect(within(dialog).getByRole("button", { name: "アカウントを削除" })).toBeDisabled();
     await expect(body.getByRole("alertdialog", { name: "アカウントを削除" })).toBeInTheDocument();
   },
 };

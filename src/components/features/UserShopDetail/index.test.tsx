@@ -1,43 +1,26 @@
 // @vitest-environment jsdom
 
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { UserShopDetailData, UserShopDetailMembership } from "./types";
 
 const mocks = vi.hoisted(() => ({
-  featureVisibilityAtom: Symbol("featureVisibilityAtom"),
-  featureVisibility: { shopMembershipAddition: true },
-  useLineActions: vi.fn(),
   useNotificationActions: vi.fn(),
   useMembershipActions: vi.fn(),
-  confirmRemoveMembership: vi.fn(),
-  historyProps: undefined as undefined | { shopId: string; staffId: string; enabled: boolean },
-  notificationSectionActive: true,
-  notificationSectionRef: vi.fn(),
-  activateNotificationSection: vi.fn(),
-}));
-
-vi.mock("jotai", () => ({
-  useAtomValue: (target: unknown) => {
-    if (target === mocks.featureVisibilityAtom) return mocks.featureVisibility;
-    throw new Error("Unexpected atom");
-  },
-}));
-
-vi.mock("@/src/stores/user", () => ({ featureVisibilityAtom: mocks.featureVisibilityAtom }));
-
-vi.mock("@/src/hooks/useViewportActivation", () => ({
-  useViewportActivation: () => ({
-    ref: mocks.notificationSectionRef,
-    isActive: mocks.notificationSectionActive,
-    activate: mocks.activateNotificationSection,
-  }),
+  historyProps: undefined as
+    | undefined
+    | { shopId: string; staffId: string; enabled: boolean; lineConnectionStatus: "linked" | "unlinked" },
 }));
 
 vi.mock("@/src/components/features/StaffNotificationHistory", () => ({
-  StaffNotificationHistory: (props: { shopId: string; staffId: string; enabled: boolean }) => {
+  StaffNotificationHistory: (props: {
+    shopId: string;
+    staffId: string;
+    enabled: boolean;
+    lineConnectionStatus: "linked" | "unlinked";
+  }) => {
     mocks.historyProps = props;
     return <output data-testid="history-shop">{props.shopId}</output>;
   },
@@ -53,7 +36,7 @@ vi.mock("./UserShopDetailView", () => ({
     isStoreReadOnly: boolean;
     membership: UserShopDetailMembership;
     notificationHistory: ReactNode;
-    actions: { onBack: () => void; onConfirmRemoveMembership: () => void };
+    actions: { onBack: () => void };
   }) => (
     <div>
       <output data-testid="read-only">{String(isStoreReadOnly)}</output>
@@ -62,15 +45,8 @@ vi.mock("./UserShopDetailView", () => ({
       <button type="button" onClick={actions.onBack}>
         戻る
       </button>
-      <button type="button" onClick={actions.onConfirmRemoveMembership}>
-        削除を確定する
-      </button>
     </div>
   ),
-}));
-
-vi.mock("./useUserShopLineActions", () => ({
-  useUserShopLineActions: mocks.useLineActions,
 }));
 
 vi.mock("./useUserShopNotificationActions", () => ({
@@ -93,27 +69,13 @@ const membership = {
 const data = {
   person: { id: "person-target", name: "田中 花子" },
   canWrite: true,
+  line: { status: "unlinked" },
 } as unknown as UserShopDetailData;
 
 beforeEach(() => {
-  mocks.useLineActions.mockReset();
   mocks.useNotificationActions.mockReset();
   mocks.useMembershipActions.mockReset();
-  mocks.confirmRemoveMembership.mockReset();
-  mocks.confirmRemoveMembership.mockResolvedValue(true);
   mocks.historyProps = undefined;
-  mocks.notificationSectionActive = true;
-  mocks.notificationSectionRef.mockReset();
-  mocks.activateNotificationSection.mockReset();
-  mocks.featureVisibility.shopMembershipAddition = true;
-  mocks.useLineActions.mockReturnValue({
-    authorizeUrl: null,
-    showQr: false,
-    isQrLoading: false,
-    isSendingInvite: false,
-    onShowQr: vi.fn(),
-    onSendInvite: vi.fn(),
-  });
   mocks.useNotificationActions.mockReturnValue({
     openRecruitments: [],
     currentRecruitments: [],
@@ -124,30 +86,16 @@ beforeEach(() => {
     isSendingCurrentShift: false,
   });
   mocks.useMembershipActions.mockReturnValue({
-    dialog: { kind: "removeMembership" },
     excludedFromShift: membership.excludedFromShift,
     isChangingShiftTarget: false,
-    isRemovingMembership: false,
     onChangeShiftTarget: vi.fn(),
-    onRequestRemoveMembership: vi.fn(),
-    onConfirmRemoveMembership: mocks.confirmRemoveMembership,
-    onCloseDialog: vi.fn(),
   });
 });
 
 describe("UserShopDetail", () => {
-  it("全controllerと通知履歴へpathのtargetShopIdを渡す", () => {
-    render(
-      <UserShopDetail
-        data={data}
-        membership={membership}
-        targetShopId={targetShopId}
-        onBack={vi.fn()}
-        onMembershipRemoved={vi.fn()}
-      />,
-    );
+  it("店舗別controllerと通知履歴へpathのtargetShopIdを渡す", () => {
+    render(<UserShopDetail data={data} membership={membership} targetShopId={targetShopId} onBack={vi.fn()} />);
 
-    expect(mocks.useLineActions).toHaveBeenCalledWith({ targetShopId, membership, isReadOnly: false });
     expect(mocks.useNotificationActions).toHaveBeenCalledWith({
       targetShopId,
       membership,
@@ -158,96 +106,37 @@ describe("UserShopDetail", () => {
       targetShopId,
       membership,
       isReadOnly: false,
-      canRemoveMembership: true,
     });
-    expect(mocks.historyProps).toEqual({ shopId: targetShopId, staffId: membership.staffId, enabled: true });
+    expect(mocks.historyProps).toEqual({
+      shopId: targetShopId,
+      staffId: membership.staffId,
+      enabled: true,
+      lineConnectionStatus: "unlinked",
+    });
     expect(screen.getByTestId("history-shop").textContent).toBe("shop-target");
   });
 
-  it("通知sectionがviewport外の間は通知queryと履歴を開始しない", () => {
-    mocks.notificationSectionActive = false;
+  it("組織の更新が制限されている場合は閲覧専用として全controllerへ渡す", () => {
+    const readOnlyData = { ...data, canWrite: false } as UserShopDetailData;
+    render(<UserShopDetail data={readOnlyData} membership={membership} targetShopId={targetShopId} onBack={vi.fn()} />);
 
-    render(
-      <UserShopDetail
-        data={data}
-        membership={membership}
-        targetShopId={targetShopId}
-        onBack={vi.fn()}
-        onMembershipRemoved={vi.fn()}
-      />,
-    );
-
+    expect(screen.getByTestId("read-only").textContent).toBe("true");
     expect(mocks.useNotificationActions).toHaveBeenCalledWith({
       targetShopId,
       membership,
-      isReadOnly: false,
-      enabled: false,
-    });
-    expect(mocks.historyProps).toBeUndefined();
-    expect(screen.queryByTestId("history-shop")).toBeNull();
-  });
-
-  it("店舗所属の削除成功後にユーザー詳細への復帰callbackを呼ぶ", async () => {
-    const onMembershipRemoved = vi.fn();
-    render(
-      <UserShopDetail
-        data={data}
-        membership={membership}
-        targetShopId={targetShopId}
-        onBack={vi.fn()}
-        onMembershipRemoved={onMembershipRemoved}
-      />,
-    );
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "削除を確定する" }));
-    });
-
-    expect(mocks.confirmRemoveMembership).toHaveBeenCalledOnce();
-    expect(onMembershipRemoved).toHaveBeenCalledOnce();
-  });
-
-  it("停止中店舗は閲覧専用として全controllerへ渡す", () => {
-    const archivedMembership = { ...membership, shopStatus: "archived" } as UserShopDetailMembership;
-    render(
-      <UserShopDetail
-        data={data}
-        membership={archivedMembership}
-        targetShopId={targetShopId}
-        onBack={vi.fn()}
-        onMembershipRemoved={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByTestId("read-only").textContent).toBe("true");
-    expect(mocks.useLineActions).toHaveBeenCalledWith({
-      targetShopId,
-      membership: archivedMembership,
       isReadOnly: true,
+      enabled: true,
     });
   });
 
   it("シフト対象設定の楽観値を画面全体へ反映する", () => {
     mocks.useMembershipActions.mockReturnValue({
-      dialog: null,
       excludedFromShift: true,
       isChangingShiftTarget: true,
-      isRemovingMembership: false,
       onChangeShiftTarget: vi.fn(),
-      onRequestRemoveMembership: vi.fn(),
-      onConfirmRemoveMembership: vi.fn(),
-      onCloseDialog: vi.fn(),
     });
 
-    render(
-      <UserShopDetail
-        data={data}
-        membership={membership}
-        targetShopId={targetShopId}
-        onBack={vi.fn()}
-        onMembershipRemoved={vi.fn()}
-      />,
-    );
+    render(<UserShopDetail data={data} membership={membership} targetShopId={targetShopId} onBack={vi.fn()} />);
 
     expect(screen.getByTestId("excluded-from-shift").textContent).toBe("true");
   });

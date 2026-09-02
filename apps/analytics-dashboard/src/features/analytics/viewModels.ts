@@ -1,3 +1,4 @@
+import type { AnalyticsShopUsageLikelihood, AnalyticsShopUsageReason } from "@/api/analyticsTypes";
 import type { ChartDatum } from "@/components/TrendChart";
 import type { AnalyticsMetadata, DataCompleteness } from "./DataStatus";
 import type { HealthSignalKey, MilestoneItem } from "./Presentation";
@@ -65,6 +66,11 @@ export type ShopRowViewModel = {
   healthCompleteness: DataCompleteness;
   latestActivityAt: string | number | null;
   completeness: DataCompleteness;
+};
+
+export type ShopListRowViewModel = ShopRowViewModel & {
+  usageLikelihood: AnalyticsShopUsageLikelihood;
+  usageReasons: AnalyticsShopUsageReason[];
 };
 
 export type CycleRowViewModel = {

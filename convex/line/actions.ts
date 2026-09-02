@@ -2,9 +2,9 @@
 
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
-import { action, internalAction } from "../_generated/server";
 import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
+import { observedAction as action, observedInternalAction as internalAction } from "../_lib/errorObservability";
 import {
   buildLineAuthorizeUrl,
   exchangeAuthorizationCode,
@@ -16,6 +16,7 @@ import {
 } from "../_lib/lineClient";
 import { buildLineDefaultReplyText, buildLineInviteEmailHtml } from "../notification/templates";
 import { emailPayload, enqueueEmail } from "../notificationOutbox/enqueue";
+import { LINE_INVITE_NOTIFICATION_KIND } from "../notificationOutbox/historyKinds";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
 
 function getLoginChannelId(): string {
@@ -34,8 +35,6 @@ const PLAN_BY_QUOTA: Record<number, "communication" | "light" | "standard"> = {
   5000: "light",
   30000: "standard",
 };
-
-const LINE_INVITE_NOTIFICATION_KIND = "line.invite";
 
 /**
  * LINE OAuth コールバックから呼ばれる公開 action
@@ -65,19 +64,26 @@ export const redeemLineToken = action({
       channelId: getLoginChannelId(),
       channelSecret: getLoginChannelSecret(),
     });
-    const [profile, friendship] = await Promise.all([
+    const [profile, friendshipObservation] = await Promise.all([
       fetchLineProfile(accessToken),
-      fetchLineFriendshipStatus(accessToken),
+      fetchLineFriendshipStatus(accessToken).then((friendship) => ({
+        friendship,
+        // providerへ問い合わせた結果が有効だった時点。mutation開始時刻で代用すると、
+        // この後に受け取ったWebhookをstale OAuth結果で巻き戻し得る。
+        observedAt: Date.now(),
+      })),
     ]);
 
     const finalized = await ctx.runMutation(internal.line.mutations.finalizeLinking, {
       staffId: validation.staffId,
       tokenDocId: validation.tokenDocId,
       lineUserId: profile.userId,
-      lineFollowing: friendship.friendFlag,
+      lineFollowing: friendshipObservation.friendship.friendFlag,
+      lineFriendshipObservedAt: friendshipObservation.observedAt,
     });
     if (finalized.status !== "ok") return { status: finalized.status };
-    return { status: friendship.friendFlag ? "ok" : "needs_follow" };
+    if (!("following" in finalized)) throw new Error("LINE friendship result was unavailable");
+    return { status: finalized.following ? "ok" : "needs_follow" };
   },
 });
 
@@ -124,13 +130,30 @@ export const refreshQuotaStatus = internalAction({
 export const sendInviteEmail = internalAction({
   args: {
     staffId: v.id("staffs"),
+    organizationPersonId: v.optional(v.id("organizationPeople")),
+    lineLinkGenerationAtSchedule: v.optional(v.number()),
     context: v.optional(v.union(v.literal("default"), v.literal("registration_approved"))),
     ...businessNotificationOriginArgs,
   },
-  handler: async (ctx, { staffId, context, organizationBillingVersionAtOrigin }) => {
+  handler: async (
+    ctx,
+    { staffId, organizationPersonId, lineLinkGenerationAtSchedule, context, organizationBillingVersionAtOrigin },
+  ) => {
+    if ((organizationPersonId === undefined) !== (lineLinkGenerationAtSchedule === undefined)) return;
     const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.line.queries.getInviteEmailData, { staffId });
     if (!data) return;
+    const hasCanonicalSnapshot = organizationPersonId !== undefined;
+    if (
+      (hasCanonicalSnapshot &&
+        (data.organizationPersonId !== organizationPersonId ||
+          data.lineLinkGeneration !== lineLinkGenerationAtSchedule)) ||
+      // Widen前callerは人物世代を固定できない。canonical scopeへ移行済みなら、連携後の解除で
+      // unlinkedへ戻っていても古い予約から新capabilityを復活させない。
+      (!hasCanonicalSnapshot && data.organizationPersonId !== undefined)
+    ) {
+      return;
+    }
     const suppressDelivery = await ctx.runQuery(
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
       { shopId: data.shopId },

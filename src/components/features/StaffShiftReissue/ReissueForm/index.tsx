@@ -1,9 +1,10 @@
-import { Field, Input, Separator, Text, VStack } from "@chakra-ui/react";
+import { Field, Separator, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { EMAIL_MAX_LENGTH } from "@/convex/constants";
 import { type ReissueFormValues, reissueSchema } from "@/convex/staffAuth/schemas";
 import { Button } from "@/src/components/ui/Button";
+import { Input } from "@/src/components/ui/FormControls";
 
 type Props = {
   onSubmit: (values: ReissueFormValues) => void | Promise<void>;
@@ -23,14 +24,14 @@ export const ReissueForm = ({ onSubmit, isSubmitting }: Props) => {
     <form onSubmit={handleSubmit(onSubmit)}>
       <VStack gap={5} align="stretch">
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          登録時に使ったメールアドレスを入力してください。
+          スタッフとして登録したメールアドレスを入力してください。
           <br />
-          再発行の申込みを受け付けます。
+          シフト閲覧リンクを再発行します。
         </Text>
 
         <Field.Root invalid={!!errors.email}>
           <Field.Label>メールアドレス</Field.Label>
-          <Input type="email" placeholder="example@email.com" maxLength={EMAIL_MAX_LENGTH} {...register("email")} />
+          <Input type="email" placeholder="staff@example.com" maxLength={EMAIL_MAX_LENGTH} {...register("email")} />
           {errors.email && <Field.ErrorText>{errors.email.message}</Field.ErrorText>}
         </Field.Root>
 

@@ -1,4 +1,5 @@
 import { dateToUtcMs, formatUtcDate } from "../_lib/dateFormat";
+import { DAY_MS } from "../constants";
 import type {
   AnalyticsCompleteness,
   AnalyticsDirection,
@@ -12,7 +13,6 @@ import type {
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const OPAQUE_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const COHORT_PATTERN = /^\d{4}-(?:0[1-9]|1[0-2])$/;
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export const ANALYTICS_DASHBOARD_MAX_BODY_BYTES = 16 * 1024;
 export const ANALYTICS_DASHBOARD_MAX_RESPONSE_BYTES = 512 * 1024;
@@ -24,7 +24,7 @@ export const ANALYTICS_DASHBOARD_MAX_SCAN_ROWS = 500;
 export const FEATURE_REQUEST_MAX_PAGE_SIZE = 50;
 
 const granularities: readonly AnalyticsGranularity[] = ["day", "week", "month"];
-const plans: readonly AnalyticsPlanKey[] = ["trial", "free", "pro", "business"];
+const plans: readonly AnalyticsPlanKey[] = ["trial", "free", "standard", "pro"];
 const completenessValues: readonly AnalyticsCompleteness[] = ["complete", "partial", "unavailable"];
 const directions: readonly AnalyticsDirection[] = ["asc", "desc"];
 const healthSignals: readonly AnalyticsHealthSignalKey[] = [
@@ -71,6 +71,7 @@ const shopSizeFilters = ["1-4", "5-9", "10-19", "20-49", "50+"] as const;
 const cadenceFilters = ["weekly", "biweekly", "monthly", "other", "insufficientData"] as const;
 const lineUsageFilters = ["none", "low", "medium", "high"] as const;
 const shopHealthFilters = [...healthSignals, "needsAttention"] as const;
+const shopUsageFilters = ["candidate", "high", "possible", "unknown"] as const;
 
 export type AnalyticsOrganizationSort = (typeof organizationSorts)[number];
 export type AnalyticsShopSort = (typeof shopSorts)[number];
@@ -79,6 +80,7 @@ export type AnalyticsSegmentSort = (typeof segmentSorts)[number];
 export type AnalyticsShopSizeFilter = (typeof shopSizeFilters)[number];
 export type AnalyticsCadenceFilter = (typeof cadenceFilters)[number];
 export type AnalyticsLineUsageFilter = (typeof lineUsageFilters)[number];
+export type AnalyticsShopUsageFilter = (typeof shopUsageFilters)[number];
 
 type DateRange = { from: string; to: string };
 type SeriesRange = DateRange & { granularity: AnalyticsGranularity };
@@ -142,6 +144,7 @@ export type AnalyticsShopsRequest = DateRange &
     cadence: AnalyticsCadenceFilter | null;
     lineUsage: AnalyticsLineUsageFilter | null;
     health: AnalyticsHealthSignalKey | "needsAttention" | null;
+    usage: AnalyticsShopUsageFilter | null;
     completeness: AnalyticsCompleteness | null;
   };
 
@@ -220,7 +223,7 @@ function readDateRange(input: Record<string, unknown>, series: boolean): ParseRe
   if (!from.ok) return from;
   const to = parseDate(input.to, "to");
   if (!to.ok) return to;
-  const dayCount = Math.floor((to.value.utcMs - from.value.utcMs) / MS_PER_DAY) + 1;
+  const dayCount = Math.floor((to.value.utcMs - from.value.utcMs) / DAY_MS) + 1;
   if (dayCount < 1) return { ok: false, message: "fromはto以前にしてください" };
   if (dayCount > ANALYTICS_DASHBOARD_MAX_RANGE_DAYS) {
     return { ok: false, message: "取得期間は5年以内にしてください" };
@@ -249,7 +252,7 @@ function readNullableDateRange(
   if (!from.ok) return from;
   const to = parseDate(toValue, toKey);
   if (!to.ok) return to;
-  const dayCount = Math.floor((to.value.utcMs - from.value.utcMs) / MS_PER_DAY) + 1;
+  const dayCount = Math.floor((to.value.utcMs - from.value.utcMs) / DAY_MS) + 1;
   if (dayCount < 1) return { ok: false, message: `${fromKey}は${toKey}以前にしてください` };
   if (dayCount > ANALYTICS_DASHBOARD_MAX_RANGE_DAYS) {
     return { ok: false, message: "比較期間は5年以内にしてください" };
@@ -371,9 +374,9 @@ export function parseAnalyticsDashboardRequest(inputValue: unknown): ParseResult
     const comparison = readNullableDateRange(input, "compareFrom", "compareTo");
     if (!comparison.ok) return comparison;
     if (comparison.value.from && comparison.value.to) {
-      const currentDays = Math.floor((dateToUtcMs(range.value.to) - dateToUtcMs(range.value.from)) / MS_PER_DAY) + 1;
+      const currentDays = Math.floor((dateToUtcMs(range.value.to) - dateToUtcMs(range.value.from)) / DAY_MS) + 1;
       const comparisonDays =
-        Math.floor((dateToUtcMs(comparison.value.to) - dateToUtcMs(comparison.value.from)) / MS_PER_DAY) + 1;
+        Math.floor((dateToUtcMs(comparison.value.to) - dateToUtcMs(comparison.value.from)) / DAY_MS) + 1;
       if (currentDays + comparisonDays > ANALYTICS_DASHBOARD_MAX_RANGE_DAYS) {
         return { ok: false, message: "表示期間と比較期間の合計は5年以内にしてください" };
       }
@@ -460,7 +463,12 @@ export function parseAnalyticsDashboardRequest(inputValue: unknown): ParseResult
     if (!pagination.ok) return pagination;
     return {
       ok: true,
-      value: { endpoint: "organization", ...series.value, ...pagination.value, organizationId: organizationId.value },
+      value: {
+        endpoint: "organization",
+        ...series.value,
+        ...pagination.value,
+        organizationId: organizationId.value,
+      },
     };
   }
 
@@ -480,6 +488,7 @@ export function parseAnalyticsDashboardRequest(inputValue: unknown): ParseResult
       "cadence",
       "lineUsage",
       "health",
+      "usage",
       "completeness",
     ]);
     if (!keys.ok) return keys;
@@ -505,6 +514,9 @@ export function parseAnalyticsDashboardRequest(inputValue: unknown): ParseResult
     if (!lineUsage.ok) return lineUsage;
     const health = readEnum(input.health, "health", shopHealthFilters, null);
     if (!health.ok) return health;
+    // Older BFF requests do not include this newly added optional filter.
+    const usage = readEnum(input.usage ?? null, "usage", shopUsageFilters, null);
+    if (!usage.ok) return usage;
     const completeness = readEnum(input.completeness, "completeness", completenessValues, null);
     if (!completeness.ok) return completeness;
     return {
@@ -523,6 +535,7 @@ export function parseAnalyticsDashboardRequest(inputValue: unknown): ParseResult
         cadence: cadence.value,
         lineUsage: lineUsage.value,
         health: health.value,
+        usage: usage.value,
         completeness: completeness.value,
       },
     };
@@ -533,7 +546,14 @@ export function parseAnalyticsDashboardRequest(inputValue: unknown): ParseResult
     if (!series.ok) return series;
     const shopId = readOpaqueId(input.shopId, "shopId", true);
     if (!shopId.ok) return shopId;
-    return { ok: true, value: { endpoint: "shop", ...series.value, shopId: shopId.value } };
+    return {
+      ok: true,
+      value: {
+        endpoint: "shop",
+        ...series.value,
+        shopId: shopId.value,
+      },
+    };
   }
 
   if (input.endpoint === "shopCycles") {
@@ -694,6 +714,7 @@ export function normalizeBrowserRequestInput(
     raw.cadence ??= null;
     raw.lineUsage ??= null;
     raw.health ??= null;
+    raw.usage ??= null;
   }
   if (endpoint === "segments") raw.dimension ??= null;
   if (endpoint === "trends") {

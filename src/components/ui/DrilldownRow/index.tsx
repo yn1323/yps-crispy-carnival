@@ -1,5 +1,5 @@
-import { chakra, Flex, HStack, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
-import type { ReactNode } from "react";
+import { chakra, Flex, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
+import { type ReactNode, useId } from "react";
 import { LuChevronRight } from "react-icons/lu";
 
 type Props = {
@@ -11,6 +11,7 @@ type Props = {
   secondary?: ReactNode;
   accessibleDescription?: ReactNode;
   highlighted?: boolean;
+  disabled?: boolean;
   onClick: () => void;
 };
 
@@ -23,9 +24,11 @@ export function DrilldownRow({
   secondary,
   accessibleDescription,
   highlighted = false,
+  disabled = false,
   onClick,
 }: Props) {
-  const descriptionId = accessibleDescription && id ? `${id}-summary` : undefined;
+  const generatedDescriptionId = useId();
+  const descriptionId = accessibleDescription ? (id ? `${id}-summary` : generatedDescriptionId) : undefined;
 
   return (
     <chakra.button
@@ -33,6 +36,7 @@ export function DrilldownRow({
       id={id}
       aria-label={ariaLabel}
       aria-describedby={descriptionId}
+      disabled={disabled}
       gap={3}
       px={{ base: 3, md: 4 }}
       py={3.5}
@@ -42,9 +46,12 @@ export function DrilldownRow({
       textAlign="left"
       bg={highlighted ? "teal.50/50" : "transparent"}
       borderWidth={0}
-      cursor="pointer"
-      transition="background-color 150ms ease"
-      _hover={{ bg: "teal.50" }}
+      cursor={disabled ? "not-allowed" : "pointer"}
+      opacity={disabled ? 0.64 : 1}
+      transitionProperty="background-color"
+      transitionDuration="faster"
+      _hover={disabled ? undefined : { bg: "teal.50" }}
+      _active={disabled ? undefined : { bg: highlighted ? "teal.100" : "gray.100", transitionDuration: "0ms" }}
       _focusVisible={{
         outlineWidth: "2px",
         outlineStyle: "solid",
@@ -55,15 +62,15 @@ export function DrilldownRow({
     >
       {leading}
 
-      <Stack gap={secondary ? 1 : 0} flex={1} minW={0}>
-        <HStack gap={2} align="center" wrap="wrap" minW={0}>
+      <Flex gap={2} align="center" flex={1} minW={0}>
+        <Stack gap={secondary ? 1 : 0} flex="1 1 10rem" minW={0} overflow="hidden">
           <Text fontWeight="semibold" color="gray.900" truncate minW={0}>
             {title}
           </Text>
-          {badges}
-        </HStack>
-        {secondary}
-      </Stack>
+          {secondary}
+        </Stack>
+        {badges}
+      </Flex>
 
       <Flex color="fg.muted" fontSize="lg" flexShrink={0} aria-hidden>
         <LuChevronRight />

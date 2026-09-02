@@ -23,16 +23,17 @@ type Story = StoryObj<typeof meta>;
 const sampleNames = ["田中次郎", "小林大輔", "佐藤花子"];
 const scheduledStatus = {
   kind: "scheduled" as const,
-  label: "提出締切の前日17:00に未提出者へ自動で催促します",
+  label: "提出期限の前日17:00に催促通知を自動で送ります",
 };
 const sentStatus = {
   kind: "sent" as const,
-  label: "5/5(月) 14:30 催促通知済み",
+  label: "5/5(月) 14:30に催促通知を送りました",
 };
 const noneStatus = {
   kind: "none" as const,
-  label: "自動催促の送信予定はありません",
+  label: "自動催促の予定はありません",
 };
+const unconfirmedStatus = { kind: "unconfirmed" as const };
 
 const baseArgs = {
   names: sampleNames,
@@ -55,6 +56,22 @@ export const ReminderNone: Story = {
   args: {
     ...baseArgs,
     reminderStatus: noneStatus,
+  },
+};
+
+export const ReminderUnconfirmed: Story = {
+  args: {
+    ...baseArgs,
+    reminderStatus: unconfirmedStatus,
+  },
+};
+
+export const ReminderUnconfirmedMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  args: {
+    ...baseArgs,
+    reminderStatus: unconfirmedStatus,
   },
 };
 

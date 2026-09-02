@@ -5,8 +5,10 @@ import { ConvexError, v } from "convex/values";
 import Stripe from "stripe";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
-import { type ActionCtx, action, internalAction } from "../_generated/server";
+import type { ActionCtx } from "../_generated/server";
 import { getAppUrl } from "../_lib/config";
+import { observedAction as action, observedInternalAction as internalAction } from "../_lib/errorObservability";
+import type { CanonicalOrganizationBillingState } from "../organizationBilling/policy";
 import {
   getConfiguredStripePriceId,
   getStripeBillingConfiguration,
@@ -41,6 +43,21 @@ const availableUrlResultValidator = v.union(
   v.object({ status: v.literal("unavailable"), reason: unavailableReasonValidator }),
 );
 
+const checkoutCancellationResultValidator = v.union(
+  v.object({ status: v.literal("cancelled") }),
+  v.object({ status: v.literal("pending") }),
+  v.object({ status: v.literal("unchanged") }),
+  v.object({ status: v.literal("unavailable"), reason: unavailableReasonValidator }),
+);
+
+const pendingCheckoutInspectionResultValidator = v.union(
+  v.object({ status: v.literal("open"), url: v.string() }),
+  v.object({ status: v.literal("cancelled") }),
+  v.object({ status: v.literal("pending") }),
+  v.object({ status: v.literal("unchanged") }),
+  v.object({ status: v.literal("unavailable"), reason: unavailableReasonValidator }),
+);
+
 const prorationPreviewResultValidator = v.union(
   v.object({ status: v.literal("unavailable"), reason: unavailableReasonValidator }),
   v.object({
@@ -60,12 +77,27 @@ const priceResultValidator = v.union(
     unitAmount: v.number(),
     interval: v.union(v.literal("day"), v.literal("week"), v.literal("month"), v.literal("year")),
     intervalCount: v.number(),
+    taxBehavior: v.union(v.literal("inclusive"), v.literal("exclusive")),
+  }),
+);
+
+const currentSubscriptionPriceResultValidator = v.union(
+  v.object({ status: v.literal("unavailable"), reason: unavailableReasonValidator }),
+  v.object({
+    status: v.literal("available"),
+    currency: v.string(),
+    unitAmount: v.number(),
+    interval: v.union(v.literal("day"), v.literal("week"), v.literal("month"), v.literal("year")),
+    intervalCount: v.number(),
+    taxBehavior: v.optional(v.union(v.literal("inclusive"), v.literal("exclusive"))),
   }),
 );
 
 type ActionPurpose =
   | "price"
+  | "currentSubscriptionPrice"
   | "startCheckout"
+  | "cancelCheckout"
   | "portal"
   | "scheduleFree"
   | "cancelFreeSchedule"
@@ -83,6 +115,17 @@ type UnavailableResult = { status: "unavailable"; reason: UnavailableReason };
 type RedirectResult = { status: "redirect"; url: string } | UnavailableResult;
 type ChangeResult = { status: "accepted" } | UnavailableResult;
 type AvailableUrlResult = { status: "available"; url: string } | UnavailableResult;
+type CheckoutCancellationResult =
+  | { status: "cancelled" }
+  | { status: "pending" }
+  | { status: "unchanged" }
+  | UnavailableResult;
+type PendingCheckoutInspectionResult =
+  | { status: "open"; url: string }
+  | { status: "cancelled" }
+  | { status: "pending" }
+  | { status: "unchanged" }
+  | UnavailableResult;
 type ProrationPreviewResult =
   | UnavailableResult
   | {
@@ -100,8 +143,24 @@ type PriceResult =
       unitAmount: number;
       interval: "day" | "week" | "month" | "year";
       intervalCount: number;
+      taxBehavior: "inclusive" | "exclusive";
     };
-type BillingStateSnapshot = { state: Doc<"organizationBillingStates">["state"]; version: number };
+type CurrentSubscriptionPriceResult =
+  | UnavailableResult
+  | {
+      status: "available";
+      currency: string;
+      unitAmount: number;
+      interval: "day" | "week" | "month" | "year";
+      intervalCount: number;
+      taxBehavior?: "inclusive" | "exclusive";
+    };
+type StripeBillingCadence = {
+  interval: "day" | "week" | "month" | "year";
+  intervalCount: number;
+};
+type BillingStateSnapshot = { state: CanonicalOrganizationBillingState; version: number };
+type BillingActionScope = { shopId: Id<"shops"> } | { organizationId: Id<"organizations"> };
 
 const BILLING_EMAIL_CONVERGENCE_LIMIT = 4;
 const INACTIVE_PRICE_RECOVERY_MAX_RECHECKS = 3;
@@ -139,12 +198,11 @@ type ResolvedOrganization = {
   latestStripeSubscriptionScheduleId?: string;
   latestStripeSubscriptionTerminal: boolean;
   currentStripeSubscriptionId?: string;
-  restoreManagerPersonIds?: Id<"organizationPeople">[];
-  restoreShopIds?: Id<"shops">[];
 };
 type SynchronizedSubscription = {
   organization: ResolvedOrganization;
   providerGeneration: number;
+  plan: StripePaidPlan;
   snapshotStale: boolean;
 };
 type WebhookProcessResult =
@@ -153,14 +211,14 @@ type WebhookProcessResult =
   | { kind: "retry" | "failed" | "actionRequired"; errorCode: string };
 type StripeSafetyContext = {
   organizationId: Id<"organizations">;
-  billingState: Doc<"organizationBillingStates">["state"];
+  billingState: CanonicalOrganizationBillingState;
   billingVersion: number;
   stripeCustomerId: string;
   livemode: boolean;
   subscription: {
     stripeSubscriptionId: string;
     stripePriceId: string;
-    plan?: StripePaidPlan;
+    plan: StripePaidPlan;
     stripeSubscriptionItemId?: string;
     currentPeriodStartsAt?: number;
     currentPeriodEndsAt?: number;
@@ -173,255 +231,519 @@ type StripeSafetyContext = {
   };
 };
 
-/** 認証済みactorへ、サーバー側allowlistから選んだ月額Priceだけを返す。 */
+/** 認証済みactorへ、サーバー側allowlistから選んだrecurring Priceだけを返す。 */
 export const getPlanPrice = action({
   args: {
     shopId: v.id("shops"),
-    targetPlan: v.union(v.literal("pro"), v.literal("business")),
+    targetPlan: v.union(v.literal("standard"), v.literal("pro")),
   },
   returns: priceResultValidator,
   handler: async (ctx, args): Promise<PriceResult> => {
-    const configuration = getStripeBillingConfiguration();
-    if (configuration.status !== "ready") return unavailable("configuration_pending");
-    const context = await getAuthorizedContext(ctx, args.shopId, "price");
+    return await getPlanPriceForScope(ctx, { shopId: args.shopId }, args.targetPlan);
+  },
+});
+
+export const getPlanPriceForOrganization = action({
+  args: {
+    organizationId: v.id("organizations"),
+    targetPlan: v.union(v.literal("standard"), v.literal("pro")),
+  },
+  returns: priceResultValidator,
+  handler: async (ctx, args): Promise<PriceResult> => {
+    return await getPlanPriceForScope(ctx, { organizationId: args.organizationId }, args.targetPlan);
+  },
+});
+
+async function getPlanPriceForScope(
+  ctx: ActionCtx,
+  scope: BillingActionScope,
+  targetPlan: StripePaidPlan,
+): Promise<PriceResult> {
+  const configuration = getStripeBillingConfiguration();
+  if (configuration.status !== "ready") return unavailable("configuration_pending");
+  const context = await getAuthorizedContext(ctx, scope, "price");
+  if (!context) return unavailable("not_allowed");
+  const priceId = getConfiguredStripePriceId(configuration, targetPlan);
+  if (!priceId) return unavailable("price_unavailable");
+
+  try {
+    const stripe = createStripeClient(configuration.secretKey);
+    const price = await retrieveAllowedPrice(stripe, priceId, configuration.livemode);
+    if (!price) return unavailable("price_unavailable");
+    if (targetPlan === "pro") {
+      const standardPrice = await retrieveAllowedPrice(stripe, configuration.standardPriceId, configuration.livemode);
+      if (!standardPrice || standardPrice.currency !== price.currency || !hasSameBillingCadence(standardPrice, price)) {
+        return unavailable("price_unavailable");
+      }
+    }
+    return { status: "available", ...price };
+  } catch {
+    return unavailable("provider_unavailable");
+  }
+}
+
+/** 認可済みactorへ、DBに保存済みの現在契約Priceの表示用金額だけを返す。 */
+export const getCurrentSubscriptionPrice = action({
+  args: { shopId: v.id("shops") },
+  returns: currentSubscriptionPriceResultValidator,
+  handler: async (ctx, args): Promise<CurrentSubscriptionPriceResult> => {
+    const configuration = getStripeProviderSafetyConfiguration();
+    if (!configuration) return unavailable("configuration_pending");
+
+    const context = await getAuthorizedContext(ctx, { shopId: args.shopId }, "currentSubscriptionPrice");
     if (!context) return unavailable("not_allowed");
-    const priceId = getConfiguredStripePriceId(configuration, args.targetPlan);
-    if (!priceId) return unavailable("price_unavailable");
+    const displayedPaidPlan = getDisplayedPaidPlanForCurrentSubscriptionPrice(context.billingState.state);
+    if (
+      !displayedPaidPlan ||
+      !context.currentStripeSubscriptionId ||
+      !context.currentStripePriceId ||
+      context.currentStripePlan !== displayedPaidPlan
+    ) {
+      return unavailable("price_unavailable");
+    }
+    if (context.currentStripeSubscriptionLivemode !== configuration.livemode) {
+      return unavailable("configuration_pending");
+    }
 
     try {
       const stripe = createStripeClient(configuration.secretKey);
-      const price = await retrieveAllowedPrice(stripe, priceId, configuration.livemode);
-      if (!price) return unavailable("price_unavailable");
-      if (args.targetPlan === "business") {
-        const proPrice = await retrieveAllowedPrice(stripe, configuration.proPriceId, configuration.livemode);
-        if (!proPrice || proPrice.currency !== price.currency) return unavailable("price_unavailable");
-      }
-      return { status: "available", ...price };
+      const price = await retrieveExistingRecurringPrice(stripe, context.currentStripePriceId, configuration.livemode);
+      return price ? { status: "available", ...price } : unavailable("price_unavailable");
     } catch {
       return unavailable("provider_unavailable");
     }
   },
 });
 
-/** TODO[narrow]: 旧client配布終了を確認後、targetPlan付きgetPlanPriceへ一本化して削除する。 */
-export const getProPrice = action({
-  args: { shopId: v.id("shops") },
-  returns: priceResultValidator,
-  handler: async (ctx, args): Promise<PriceResult> => {
-    const configuration = getStripeBillingConfiguration();
-    if (configuration.status !== "ready") return unavailable("configuration_pending");
-
-    const context = await getAuthorizedContext(ctx, args.shopId, "price");
-    if (!context) return unavailable("not_allowed");
-
-    const stripe = createStripeClient(configuration.secretKey);
-    const price = await retrieveAllowedPrice(stripe, configuration.proPriceId, configuration.livemode);
-    if (!price) return unavailable("price_unavailable");
-    return {
-      status: "available" as const,
-      currency: price.currency,
-      unitAmount: price.unitAmount,
-      interval: price.interval,
-      intervalCount: price.intervalCount,
-    };
-  },
-});
-
 export const startPaidCheckout = action({
   args: {
     shopId: v.id("shops"),
-    targetPlan: v.union(v.literal("pro"), v.literal("business")),
+    targetPlan: v.union(v.literal("standard"), v.literal("pro")),
     requestId: v.string(),
   },
   returns: availableUrlResultValidator,
-  handler: async (ctx, args): Promise<AvailableUrlResult> => await startPaidCheckoutForPlan(ctx, args),
+  handler: async (ctx, args): Promise<AvailableUrlResult> => {
+    return await startPaidCheckoutForPlan(ctx, { ...args, scope: { shopId: args.shopId } });
+  },
+});
+
+export const startPaidCheckoutForOrganization = action({
+  args: {
+    organizationId: v.id("organizations"),
+    targetPlan: v.union(v.literal("standard"), v.literal("pro")),
+    requestId: v.string(),
+  },
+  returns: availableUrlResultValidator,
+  handler: async (ctx, args): Promise<AvailableUrlResult> => {
+    return await startPaidCheckoutForPlan(ctx, { ...args, scope: { organizationId: args.organizationId } });
+  },
 });
 
 /**
- * Trialの継続登録とFree/制限中からのPro開始を、現在状態からサーバー側で振り分ける。
- * TODO[narrow]: 旧client配布終了とimmediateProCheckout row 0を確認後、startPaidCheckoutへ一本化して削除する。
+ * pendingActivationに対応するCheckoutをproviderで照合し、画面復帰後に利用者が選べる安全な状態だけを返す。
+ * Sessionがopenでも、この確認だけでは支払いを取り消さない。
  */
-export const startProCheckout = action({
-  args: { shopId: v.id("shops"), requestId: v.string() },
-  returns: redirectResultValidator,
-  handler: async (ctx, args): Promise<RedirectResult> => {
+export const inspectPendingCheckoutForOrganization = action({
+  args: {
+    organizationId: v.id("organizations"),
+  },
+  returns: pendingCheckoutInspectionResultValidator,
+  handler: async (ctx, args): Promise<PendingCheckoutInspectionResult> => {
     const configuration = getStripeBillingConfiguration();
     if (configuration.status !== "ready") return unavailable("configuration_pending");
-
-    const context = await getAuthorizedContext(ctx, args.shopId, "startCheckout");
+    const context = await getAuthorizedContext(ctx, { organizationId: args.organizationId }, "cancelCheckout");
     if (!context) return unavailable("not_allowed");
-    const livemode = configuration.livemode;
-    if (
-      (context.stripeCustomerLivemode !== undefined && context.stripeCustomerLivemode !== livemode) ||
-      (context.currentStripeSubscriptionLivemode !== undefined &&
-        context.currentStripeSubscriptionLivemode !== livemode)
-    ) {
+    if (context.billingState.state.kind !== "pendingActivation") return { status: "unchanged" };
+    if (!context.stripeCustomerId || context.stripeCustomerLivemode !== configuration.livemode) {
       return unavailable("configuration_pending");
     }
 
-    const billingState = context.billingState.state;
-    const isTrial = billingState.kind === "trial";
-    if (isTrial && (billingState.selectedPaidPlan || context.currentStripeSubscriptionId)) {
-      return unavailable("not_allowed");
-    }
-    if (!isTrial && context.currentStripeSubscriptionId) return unavailable("not_allowed");
-
-    const kind = isTrial ? ("trialSetupCheckout" as const) : ("immediateProCheckout" as const);
-    const providerGeneration = context.providerGeneration + 1;
-    const beginArgs = {
-      organizationId: context.organizationId,
-      kind,
-      requestKey: args.requestId,
-      livemode,
-      expectedBillingVersion: context.billingState.version,
-      providerGeneration,
-      stripePriceIdSnapshot: configuration.proPriceId,
-    };
-    let operation = await ctx.runMutation(internal.organizationStripe.mutations.beginOperation, beginArgs);
-    const stripe = createStripeClient(configuration.secretKey);
-    if (operation.conflict || !operation.created) {
-      if (operation.status === "succeeded" && operation.stripeObjectId) {
-        const existing = await stripe.checkout.sessions.retrieve(operation.stripeObjectId);
-        assertCheckoutSession(existing, {
-          organizationId: context.organizationId,
-          operationId: operation.operationId,
-          stripeSessionId: existing.id,
-          providerGeneration,
-          livemode,
-          customerId: context.stripeCustomerId,
-          priceId: operation.stripePriceIdSnapshot ?? configuration.proPriceId,
-        });
-        if (existing.status === "expired") {
-          await ctx.runMutation(internal.organizationStripe.mutations.releaseExpiredCheckoutOperation, {
-            operationId: operation.operationId,
-            stripeSessionId: existing.id,
-          });
-          operation = await ctx.runMutation(internal.organizationStripe.mutations.beginOperation, beginArgs);
-        } else if (existing.status !== "complete" && existing.url) {
-          return { status: "redirect" as const, url: existing.url };
-        } else {
-          return unavailable("request_already_used");
-        }
-      }
-      if (!operation.created) {
-        return unavailable(
-          operation.conflict || operation.status === "processing" ? "in_progress" : "request_already_used",
-        );
-      }
-    }
-    const operationLease = requireOperationLease(operation);
-    const checkoutPriceId = operation.stripePriceIdSnapshot;
-    if (!checkoutPriceId) throw new Error("checkout_price_snapshot_missing");
-
-    let pendingActivationStarted = false;
-    try {
-      const price = await retrieveAllowedPrice(stripe, checkoutPriceId, livemode);
-      if (!price) {
-        await finishOperation(ctx, operation.operationId, operationLease, "failed", undefined, "price_invalid");
-        return unavailable("price_unavailable");
-      }
-      const stripeCustomerId = await ensureStripeCustomer(stripe, ctx, {
+    const operation = await ctx.runQuery(
+      internal.organizationStripe.queries.getPendingCheckoutOperationForOrganization,
+      {
         organizationId: context.organizationId,
-        organizationName: context.organizationName,
-        billingEmail: context.billingEmail,
-        existingCustomerId: context.stripeCustomerId,
-        livemode,
-        idempotencyKey: `${operation.stripeIdempotencyKey}:customer`,
-      });
-
-      if (!isTrial && billingState.kind !== "pendingActivation") {
-        const fallback = billingState.kind === "restricted" ? ("restricted" as const) : ("free" as const);
-        const transition = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
-          organizationId: context.organizationId,
-          expectedVersion: context.billingState.version,
-          state: { kind: "pendingActivation", plan: "pro", fallback },
-          correlationId: `stripe:${operation.operationId}:pending-activation`,
-        });
-        if (!transition.changed) {
-          await finishOperation(
-            ctx,
-            operation.operationId,
-            operationLease,
-            "failed",
-            undefined,
-            "billing_version_conflict",
-          );
-          return unavailable("in_progress");
-        }
-        pendingActivationStarted = true;
+        providerGeneration: context.providerGeneration + 1,
+        livemode: configuration.livemode,
+      },
+    );
+    if (!operation) {
+      if (context.billingState.state.plan === "pro" && context.billingState.state.fallback === "standard") {
+        return await inspectPendingImmediatePaidPlanChange(ctx, context, configuration, "inspect");
       }
+      return { status: "unchanged" };
+    }
 
-      const settingsUrl = billingSettingsUrl();
-      const metadata = stripeMetadata({
+    const stripe = createStripeClient(configuration.secretKey);
+    try {
+      const session = await stripe.checkout.sessions.retrieve(operation.stripeSessionId);
+      assertCheckoutSession(session, {
         organizationId: context.organizationId,
         operationId: operation.operationId,
-        providerGeneration,
-        priceId: checkoutPriceId,
+        stripeSessionId: operation.stripeSessionId,
+        providerGeneration: operation.providerGeneration,
+        livemode: configuration.livemode,
+        customerId: context.stripeCustomerId,
+        priceId: operation.stripePriceIdSnapshot,
+        mode: "subscription",
       });
-      const session = await stripe.checkout.sessions.create(
-        isTrial
-          ? {
-              mode: "setup",
-              customer: stripeCustomerId,
-              payment_method_types: ["card"],
-              client_reference_id: String(context.organizationId),
-              metadata,
-              setup_intent_data: { metadata },
-              success_url: withStripeResult(settingsUrl, "returned"),
-              cancel_url: withStripeResult(settingsUrl, "cancelled"),
-              locale: "ja",
-            }
-          : {
-              mode: "subscription",
-              customer: stripeCustomerId,
-              payment_method_types: ["card"],
-              client_reference_id: String(context.organizationId),
-              line_items: [{ price: checkoutPriceId, quantity: 1 }],
-              metadata,
-              subscription_data: { metadata },
-              success_url: withStripeResult(settingsUrl, "returned"),
-              cancel_url: withStripeResult(settingsUrl, "cancelled"),
-              locale: "ja",
-            },
-        { idempotencyKey: operation.stripeIdempotencyKey },
-      );
-      if (!session.url || session.livemode !== livemode) {
-        throw new Error("checkout_session_invalid");
+
+      if (session.status === "open") {
+        return session.url ? { status: "open", url: session.url } : unavailable("provider_unavailable");
       }
-      await finishOperation(ctx, operation.operationId, operationLease, "succeeded", session.id);
-      return { status: "redirect" as const, url: session.url };
-    } catch (error) {
-      if (pendingActivationStarted) {
-        await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
-          organizationId: context.organizationId,
-          expectedVersion: context.billingState.version + 1,
-          state: { kind: "paymentFailed" },
-          correlationId: `stripe:${operation.operationId}:checkout-create-failed`,
-        });
-      }
-      await finishOperation(
-        ctx,
-        operation.operationId,
-        operationLease,
-        "retrying",
-        undefined,
-        safeStripeErrorCode(error),
-      );
-      return unavailable("configuration_pending");
+      if (session.status !== "expired") return { status: "pending" };
+
+      return await convergeExpiredPendingCheckout(ctx, {
+        organizationId: context.organizationId,
+        billingVersion: context.billingState.version,
+        fallback: context.billingState.state.fallback,
+        operationId: operation.operationId,
+        stripeSessionId: operation.stripeSessionId,
+        livemode: configuration.livemode,
+        correlationSuffix: "checkout-expired",
+        releaseReason: "checkout_session_expired",
+      });
+    } catch {
+      return unavailable("provider_unavailable");
     }
   },
 });
 
+/**
+ * Checkoutのキャンセル戻りを、Stripe側のSessionがexpiredになったことを確認してからfallbackへ収束させる。
+ * 戻りURLやclientのstateだけでは支払い結果を確定しない。
+ */
+export const cancelPendingCheckoutForOrganization = action({
+  args: {
+    organizationId: v.id("organizations"),
+  },
+  returns: checkoutCancellationResultValidator,
+  handler: async (ctx, args): Promise<CheckoutCancellationResult> => {
+    const configuration = getStripeBillingConfiguration();
+    if (configuration.status !== "ready") {
+      return { status: "unavailable" as const, reason: "configuration_pending" as const };
+    }
+    const context = await getAuthorizedContext(ctx, { organizationId: args.organizationId }, "cancelCheckout");
+    if (!context) return { status: "unavailable" as const, reason: "not_allowed" as const };
+    if (context.billingState.state.kind !== "pendingActivation") {
+      return { status: "unchanged" as const };
+    }
+    if (!context.stripeCustomerId || context.stripeCustomerLivemode !== configuration.livemode) {
+      return { status: "unavailable" as const, reason: "configuration_pending" as const };
+    }
+
+    const operation = await ctx.runQuery(
+      internal.organizationStripe.queries.getPendingCheckoutOperationForOrganization,
+      {
+        organizationId: context.organizationId,
+        providerGeneration: context.providerGeneration + 1,
+        livemode: configuration.livemode,
+      },
+    );
+    if (!operation) {
+      if (context.billingState.state.plan === "pro" && context.billingState.state.fallback === "standard") {
+        return await inspectPendingImmediatePaidPlanChange(ctx, context, configuration, "cancel");
+      }
+      return { status: "unchanged" as const };
+    }
+
+    const stripe = createStripeClient(configuration.secretKey);
+    try {
+      let session = await stripe.checkout.sessions.retrieve(operation.stripeSessionId);
+      assertCheckoutSession(session, {
+        organizationId: context.organizationId,
+        operationId: operation.operationId,
+        stripeSessionId: operation.stripeSessionId,
+        providerGeneration: operation.providerGeneration,
+        livemode: configuration.livemode,
+        customerId: context.stripeCustomerId,
+        priceId: operation.stripePriceIdSnapshot,
+        mode: "subscription",
+      });
+
+      if (session.status === "complete") return { status: "pending" as const };
+      if (session.status === "open") {
+        session = await expireOpenCheckoutSession(stripe, session);
+        assertCheckoutSession(session, {
+          organizationId: context.organizationId,
+          operationId: operation.operationId,
+          stripeSessionId: operation.stripeSessionId,
+          providerGeneration: operation.providerGeneration,
+          livemode: configuration.livemode,
+          customerId: context.stripeCustomerId,
+          priceId: operation.stripePriceIdSnapshot,
+          mode: "subscription",
+        });
+      }
+      if (session.status !== "expired") return { status: "pending" as const };
+
+      return await convergeExpiredPendingCheckout(ctx, {
+        organizationId: context.organizationId,
+        billingVersion: context.billingState.version,
+        fallback: context.billingState.state.fallback,
+        operationId: operation.operationId,
+        stripeSessionId: operation.stripeSessionId,
+        livemode: configuration.livemode,
+        correlationSuffix: "checkout-cancelled",
+        releaseReason: "checkout_session_cancelled",
+      });
+    } catch {
+      return { status: "unavailable" as const, reason: "provider_unavailable" as const };
+    }
+  },
+});
+
+type ReadyStripeBillingConfiguration = Extract<ReturnType<typeof getStripeBillingConfiguration>, { status: "ready" }>;
+
+type PendingImmediatePaidPlanChangeEvidence = {
+  operationId: Id<"organizationStripeOperations">;
+  targetStripePriceId: string;
+  subscription: Stripe.Subscription;
+  invoice: Stripe.Invoice;
+  currentPlan: "standard" | "pro";
+  hasExpectedPendingUpdate: boolean;
+};
+
+/** Checkoutを使わないStandard→Proの未完了支払いを、既存の画面復帰APIへ収束させる。 */
+function inspectPendingImmediatePaidPlanChange(
+  ctx: ActionCtx,
+  context: AuthorizedActionContext,
+  configuration: ReadyStripeBillingConfiguration,
+  mode: "inspect",
+): Promise<PendingCheckoutInspectionResult>;
+function inspectPendingImmediatePaidPlanChange(
+  ctx: ActionCtx,
+  context: AuthorizedActionContext,
+  configuration: ReadyStripeBillingConfiguration,
+  mode: "cancel",
+): Promise<CheckoutCancellationResult>;
+async function inspectPendingImmediatePaidPlanChange(
+  ctx: ActionCtx,
+  context: AuthorizedActionContext,
+  configuration: ReadyStripeBillingConfiguration,
+  mode: "inspect" | "cancel",
+): Promise<PendingCheckoutInspectionResult | CheckoutCancellationResult> {
+  try {
+    const stripe = createStripeClient(configuration.secretKey);
+    let evidence = await retrievePendingImmediatePaidPlanChangeEvidence(ctx, stripe, context, configuration.livemode);
+
+    if (evidence.currentPlan === "pro" && evidence.invoice.status === "paid") {
+      const activated = await activateVerifiedImmediatePaidPlanChange(ctx, context, evidence.subscription);
+      return activated ? { status: "pending" } : unavailable("provider_unavailable");
+    }
+
+    if (!evidence.hasExpectedPendingUpdate) {
+      if (evidence.currentPlan === "standard" && evidence.invoice.status === "void") {
+        const cancelled = await convergeCancelledImmediatePaidPlanChange(ctx, context, evidence.subscription);
+        return cancelled ? { status: "cancelled" } : unavailable("provider_unavailable");
+      }
+      return unavailable("provider_unavailable");
+    }
+
+    if (mode === "inspect") {
+      if (evidence.invoice.status !== "open") return { status: "pending" };
+      return evidence.invoice.hosted_invoice_url
+        ? { status: "open", url: evidence.invoice.hosted_invoice_url }
+        : { status: "pending" };
+    }
+
+    if (evidence.invoice.status !== "open") return { status: "pending" };
+    const voided = await stripe.invoices.voidInvoice(evidence.invoice.id, undefined, {
+      idempotencyKey: immediatePaidPlanChangeIdempotencyKey(
+        configuration.livemode,
+        evidence.operationId,
+        evidence.invoice.id,
+        "cancel",
+      ),
+    });
+    assertImmediatePaidPlanChangeInvoice(voided, context, evidence.subscription.id);
+    if (voided.id !== evidence.invoice.id || voided.status !== "void") {
+      throw new Error("pending_update_invoice_void_not_confirmed");
+    }
+
+    evidence = await retrievePendingImmediatePaidPlanChangeEvidence(ctx, stripe, context, configuration.livemode);
+    if (
+      evidence.currentPlan === "standard" &&
+      !evidence.hasExpectedPendingUpdate &&
+      evidence.invoice.status === "void" &&
+      evidence.invoice.id === voided.id
+    ) {
+      const cancelled = await convergeCancelledImmediatePaidPlanChange(ctx, context, evidence.subscription);
+      return cancelled ? { status: "cancelled" } : unavailable("provider_unavailable");
+    }
+    if (evidence.currentPlan === "pro" && evidence.invoice.status === "paid") {
+      const activated = await activateVerifiedImmediatePaidPlanChange(ctx, context, evidence.subscription);
+      return activated ? { status: "pending" } : unavailable("provider_unavailable");
+    }
+    return unavailable("provider_unavailable");
+  } catch {
+    return unavailable("provider_unavailable");
+  }
+}
+
+async function retrievePendingImmediatePaidPlanChangeEvidence(
+  ctx: ActionCtx,
+  stripe: Stripe,
+  context: AuthorizedActionContext,
+  livemode: boolean,
+): Promise<PendingImmediatePaidPlanChangeEvidence> {
+  if (
+    context.billingState.state.kind !== "pendingActivation" ||
+    context.billingState.state.plan !== "pro" ||
+    context.billingState.state.fallback !== "standard" ||
+    context.billingState.version < 1 ||
+    !context.stripeCustomerId ||
+    !context.currentStripeSubscriptionId ||
+    !context.currentStripeSubscriptionItemId ||
+    !context.currentStripePriceId ||
+    context.currentStripePlan !== "standard" ||
+    context.currentStripeSubscriptionLivemode !== livemode
+  ) {
+    throw new Error("pending_paid_plan_change_context_invalid");
+  }
+  const operation = await ctx.runQuery(
+    internal.organizationStripe.queries.getPendingActivationImmediatePaidPlanChangeOperation,
+    {
+      organizationId: context.organizationId,
+      livemode,
+      providerGeneration: context.providerGeneration,
+      sourceBillingVersion: context.billingState.version - 1,
+      stripeSubscriptionId: context.currentStripeSubscriptionId,
+      stripeSubscriptionItemId: context.currentStripeSubscriptionItemId,
+      sourceStripePriceId: context.currentStripePriceId,
+    },
+  );
+  if (operation?.status !== "succeeded") {
+    throw new Error("pending_paid_plan_change_operation_missing");
+  }
+
+  const subscription = await stripe.subscriptions.retrieve(context.currentStripeSubscriptionId, {
+    expand: ["latest_invoice"],
+  });
+  const currentItem = requireSingleLicensedSubscriptionItem(subscription);
+  if (
+    subscription.id !== context.currentStripeSubscriptionId ||
+    subscription.livemode !== livemode ||
+    stripeObjectId(subscription.customer) !== context.stripeCustomerId ||
+    currentItem.id !== context.currentStripeSubscriptionItemId ||
+    !matchesSubscriptionMetadata(subscription, context.organizationId, context.providerGeneration) ||
+    (currentItem.price.id !== context.currentStripePriceId && currentItem.price.id !== operation.targetStripePriceId)
+  ) {
+    throw new Error("pending_paid_plan_change_subscription_invalid");
+  }
+  const invoice = await retrieveLatestSubscriptionInvoice(stripe, subscription, {
+    stripeCustomerId: context.stripeCustomerId,
+    livemode,
+    subscription: { stripeSubscriptionId: subscription.id },
+  });
+  assertImmediatePaidPlanChangeInvoice(invoice, context, subscription.id);
+  return {
+    operationId: operation.operationId,
+    targetStripePriceId: operation.targetStripePriceId,
+    subscription,
+    invoice,
+    currentPlan: currentItem.price.id === operation.targetStripePriceId ? "pro" : "standard",
+    hasExpectedPendingUpdate: pendingUpdateMatchesImmediatePaidPlanChange(
+      subscription,
+      currentItem.id,
+      operation.targetStripePriceId,
+    ),
+  };
+}
+
+function pendingUpdateMatchesImmediatePaidPlanChange(
+  subscription: Stripe.Subscription,
+  subscriptionItemId: string,
+  targetStripePriceId: string,
+) {
+  const pendingItems = subscription.pending_update?.subscription_items;
+  if (pendingItems?.length !== 1) return false;
+  const pendingItem = pendingItems[0];
+  return (
+    pendingItem?.id === subscriptionItemId &&
+    stripeObjectId(pendingItem.price) === targetStripePriceId &&
+    (pendingItem.quantity ?? 1) === 1
+  );
+}
+
+function assertImmediatePaidPlanChangeInvoice(
+  invoice: Stripe.Invoice,
+  context: Pick<AuthorizedActionContext, "stripeCustomerId" | "currentStripeSubscriptionLivemode">,
+  stripeSubscriptionId: string,
+) {
+  if (
+    !context.stripeCustomerId ||
+    context.currentStripeSubscriptionLivemode === undefined ||
+    invoice.livemode !== context.currentStripeSubscriptionLivemode ||
+    stripeObjectId(invoice.customer) !== context.stripeCustomerId ||
+    invoiceSubscriptionId(invoice) !== stripeSubscriptionId
+  ) {
+    throw new Error("pending_paid_plan_change_invoice_invalid");
+  }
+}
+
+async function convergeCancelledImmediatePaidPlanChange(
+  ctx: ActionCtx,
+  context: AuthorizedActionContext,
+  subscription: Stripe.Subscription,
+) {
+  const item = requireSingleLicensedSubscriptionItem(subscription);
+  if (item.price.id !== context.currentStripePriceId || subscription.pending_update) return false;
+  await saveVerifiedSubscriptionSnapshot(ctx, context, subscription, { plan: "standard" });
+  const changed = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
+    organizationId: context.organizationId,
+    expectedVersion: context.billingState.version,
+    state: { kind: "activationFailed" },
+    correlationId: `stripe:${subscription.id}:pending-upgrade-cancelled`,
+  });
+  return await billingMutationConverged(
+    ctx,
+    context.organizationId,
+    changed.changed,
+    (state) => state.kind === "active" && state.plan === "standard",
+  );
+}
+
+async function activateVerifiedImmediatePaidPlanChange(
+  ctx: ActionCtx,
+  context: AuthorizedActionContext,
+  subscription: Stripe.Subscription,
+) {
+  if (subscription.status !== "active" || subscription.pending_update) return false;
+  await saveVerifiedSubscriptionSnapshot(ctx, context, subscription, { plan: "pro" });
+  const changed = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
+    organizationId: context.organizationId,
+    expectedVersion: context.billingState.version,
+    state: { kind: "active", plan: "pro" },
+    correlationId: `stripe:${subscription.id}:pending-upgrade-paid`,
+  });
+  return await billingMutationConverged(
+    ctx,
+    context.organizationId,
+    changed.changed,
+    (state) => state.kind === "active" && state.plan === "pro",
+  );
+}
+
+function immediatePaidPlanChangeIdempotencyKey(
+  livemode: boolean,
+  operationId: Id<"organizationStripeOperations">,
+  invoiceId: string,
+  purpose: "cancel" | "failure",
+) {
+  const digest = createHash("sha256").update(`${operationId}:${invoiceId}:${purpose}`).digest("base64url");
+  return `shiftori:${livemode ? "live" : "test"}:pending-upgrade:${purpose}:${digest}`;
+}
+
 async function startPaidCheckoutForPlan(
   ctx: ActionCtx,
-  args: { shopId: Id<"shops">; targetPlan: StripePaidPlan; requestId: string },
+  args: { scope: BillingActionScope; targetPlan: StripePaidPlan; requestId: string },
 ): Promise<AvailableUrlResult> {
   const configuration = getStripeBillingConfiguration();
   if (configuration.status !== "ready") return unavailable("configuration_pending");
   const targetPriceId = getConfiguredStripePriceId(configuration, args.targetPlan);
   if (!targetPriceId) return unavailable("price_unavailable");
 
-  const context = await getAuthorizedContext(ctx, args.shopId, "startCheckout");
+  const context = await getAuthorizedContext(ctx, args.scope, "startCheckout");
   if (!context) return unavailable("not_allowed");
   const livemode = configuration.livemode;
   if (
@@ -498,16 +820,16 @@ async function startPaidCheckoutForPlan(
       await finishOperation(ctx, operation.operationId, operationLease, "failed", undefined, "price_invalid");
       return unavailable("price_unavailable");
     }
-    if (args.targetPlan === "business") {
-      const proPrice = await retrieveAllowedPrice(stripe, configuration.proPriceId, livemode);
-      if (!proPrice || proPrice.currency !== price.currency) {
+    if (args.targetPlan === "pro") {
+      const standardPrice = await retrieveAllowedPrice(stripe, configuration.standardPriceId, livemode);
+      if (!standardPrice || standardPrice.currency !== price.currency || !hasSameBillingCadence(standardPrice, price)) {
         await finishOperation(
           ctx,
           operation.operationId,
           operationLease,
           "failed",
           undefined,
-          "price_currency_invalid",
+          "price_compatibility_invalid",
         );
         return unavailable("price_unavailable");
       }
@@ -522,11 +844,10 @@ async function startPaidCheckoutForPlan(
     });
 
     if (!isTrial && billingState.kind !== "pendingActivation") {
-      const fallback = billingState.kind === "restricted" ? ("restricted" as const) : ("free" as const);
       const transition = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: context.organizationId,
         expectedVersion: context.billingState.version,
-        state: { kind: "pendingActivation", plan: args.targetPlan, fallback },
+        state: { kind: "pendingActivation", plan: args.targetPlan, fallback: "free" },
         correlationId: `stripe:${operation.operationId}:pending-activation`,
       });
       if (!transition.changed) {
@@ -543,7 +864,7 @@ async function startPaidCheckoutForPlan(
       pendingActivationStarted = true;
     }
 
-    const settingsUrl = billingSettingsUrl();
+    const settingsUrl = billingSettingsUrl(context.organizationId);
     const metadata = stripeMetadata({
       organizationId: context.organizationId,
       operationId: operation.operationId,
@@ -585,7 +906,7 @@ async function startPaidCheckoutForPlan(
       await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: context.organizationId,
         expectedVersion: context.billingState.version + 1,
-        state: { kind: "paymentFailed" },
+        state: { kind: "activationFailed" },
         correlationId: `stripe:${operation.operationId}:checkout-create-failed`,
       });
     }
@@ -604,137 +925,201 @@ async function startPaidCheckoutForPlan(
 export const previewPaidPlanChange = action({
   args: {
     shopId: v.id("shops"),
-    targetPlan: v.literal("business"),
+    targetPlan: v.literal("pro"),
     requestId: v.string(),
   },
   returns: prorationPreviewResultValidator,
-  handler: async (ctx, args): Promise<ProrationPreviewResult> => await previewImmediatePaidPlanChange(ctx, args),
+  handler: async (ctx, args): Promise<ProrationPreviewResult> => {
+    return await previewImmediatePaidPlanChange(ctx, { ...args, scope: { shopId: args.shopId } });
+  },
+});
+
+export const previewPaidPlanChangeForOrganization = action({
+  args: {
+    organizationId: v.id("organizations"),
+    targetPlan: v.literal("pro"),
+    requestId: v.string(),
+  },
+  returns: prorationPreviewResultValidator,
+  handler: async (ctx, args): Promise<ProrationPreviewResult> => {
+    return await previewImmediatePaidPlanChange(ctx, { ...args, scope: { organizationId: args.organizationId } });
+  },
 });
 
 export const changePaidPlanNow = action({
   args: {
     shopId: v.id("shops"),
-    targetPlan: v.literal("business"),
+    targetPlan: v.literal("pro"),
     requestId: v.string(),
     prorationDate: v.number(),
   },
   returns: changeResultValidator,
-  handler: async (ctx, args): Promise<ChangeResult> => await applyImmediatePaidPlanChange(ctx, args),
+  handler: async (ctx, args): Promise<ChangeResult> => {
+    return await applyImmediatePaidPlanChange(ctx, { ...args, scope: { shopId: args.shopId } });
+  },
+});
+
+export const changePaidPlanNowForOrganization = action({
+  args: {
+    organizationId: v.id("organizations"),
+    targetPlan: v.literal("pro"),
+    requestId: v.string(),
+    prorationDate: v.number(),
+  },
+  returns: changeResultValidator,
+  handler: async (ctx, args): Promise<ChangeResult> => {
+    return await applyImmediatePaidPlanChange(ctx, { ...args, scope: { organizationId: args.organizationId } });
+  },
 });
 
 export const schedulePaidPlanChange = action({
   args: {
     shopId: v.id("shops"),
-    targetPlan: v.union(v.literal("pro"), v.literal("free")),
+    targetPlan: v.union(v.literal("standard"), v.literal("free")),
     requestId: v.string(),
   },
   returns: changeResultValidator,
   handler: async (ctx, args): Promise<ChangeResult> => {
     if (args.targetPlan === "free") {
-      return await updateCancelAtPeriodEnd(ctx, {
-        shopId: args.shopId,
-        requestId: args.requestId,
-        purpose: "scheduleFree",
-        cancelAtPeriodEnd: true,
-      });
+      return unavailable("not_allowed");
     }
-    return await scheduleBusinessToPro(ctx, { ...args, targetPlan: "pro" });
+    return await scheduleProToStandard(ctx, { ...args, targetPlan: "standard", scope: { shopId: args.shopId } });
   },
+});
+
+export const schedulePaidPlanChangeForOrganization = action({
+  args: {
+    organizationId: v.id("organizations"),
+    targetPlan: v.union(v.literal("standard"), v.literal("free")),
+    requestId: v.string(),
+  },
+  returns: changeResultValidator,
+  handler: async (ctx, args): Promise<ChangeResult> => {
+    if (args.targetPlan === "free") return unavailable("not_allowed");
+    return await scheduleProToStandard(ctx, {
+      ...args,
+      targetPlan: "standard",
+      scope: { organizationId: args.organizationId },
+    });
+  },
+});
+
+/** 現在の支払い済み期間の終了時に解約し、データを保持した契約制限状態へ移す。 */
+export const scheduleServiceStopAtPeriodEnd = action({
+  args: { shopId: v.id("shops"), requestId: v.string() },
+  returns: changeResultValidator,
+  handler: async (ctx, args): Promise<ChangeResult> =>
+    await updateCancelAtPeriodEnd(ctx, {
+      scope: { shopId: args.shopId },
+      requestId: args.requestId,
+      purpose: "scheduleFree",
+      cancelAtPeriodEnd: true,
+      restrictAtPeriodEnd: true,
+    }),
+});
+
+export const scheduleServiceStopAtPeriodEndForOrganization = action({
+  args: { organizationId: v.id("organizations"), requestId: v.string() },
+  returns: changeResultValidator,
+  handler: async (ctx, args): Promise<ChangeResult> =>
+    await updateCancelAtPeriodEnd(ctx, {
+      scope: { organizationId: args.organizationId },
+      requestId: args.requestId,
+      purpose: "scheduleFree",
+      cancelAtPeriodEnd: true,
+      restrictAtPeriodEnd: true,
+    }),
 });
 
 export const cancelScheduledPlanChange = action({
   args: { shopId: v.id("shops"), requestId: v.string() },
   returns: changeResultValidator,
-  handler: async (ctx, args): Promise<ChangeResult> => await cancelAnyScheduledPlanChange(ctx, args),
+  handler: async (ctx, args): Promise<ChangeResult> =>
+    await cancelAnyScheduledPlanChange(ctx, { ...args, scope: { shopId: args.shopId } }),
+});
+
+export const cancelScheduledPlanChangeForOrganization = action({
+  args: { organizationId: v.id("organizations"), requestId: v.string() },
+  returns: changeResultValidator,
+  handler: async (ctx, args): Promise<ChangeResult> =>
+    await cancelAnyScheduledPlanChange(ctx, { ...args, scope: { organizationId: args.organizationId } }),
 });
 
 export const openCustomerPortal = action({
   args: { shopId: v.id("shops"), requestId: v.string() },
   returns: redirectResultValidator,
-  handler: async (ctx, args): Promise<RedirectResult> => {
-    const configuration = getStripeBillingConfiguration();
-    if (configuration.status !== "ready") return unavailable("configuration_pending");
-    const context = await getAuthorizedContext(ctx, args.shopId, "portal");
-    if (!context?.stripeCustomerId) return unavailable("not_allowed");
+  handler: async (ctx, args): Promise<RedirectResult> =>
+    await openCustomerPortalForScope(ctx, { scope: { shopId: args.shopId }, requestId: args.requestId }),
+});
 
-    const livemode = configuration.livemode;
-    if (context.stripeCustomerLivemode !== livemode) return unavailable("configuration_pending");
-    const operation = await ctx.runMutation(internal.organizationStripe.mutations.beginOperation, {
-      organizationId: context.organizationId,
-      kind: "portalSession",
-      requestKey: args.requestId,
-      livemode,
-      expectedBillingVersion: context.billingState.version,
-      providerGeneration: context.providerGeneration || undefined,
-    });
-    if (!operation.created) return unavailable(operation.conflict ? "in_progress" : "request_already_used");
-    const operationLease = requireOperationLease(operation);
+export const openCustomerPortalForOrganization = action({
+  args: { organizationId: v.id("organizations"), requestId: v.string() },
+  returns: redirectResultValidator,
+  handler: async (ctx, args): Promise<RedirectResult> =>
+    await openCustomerPortalForScope(ctx, {
+      scope: { organizationId: args.organizationId },
+      requestId: args.requestId,
+    }),
+});
 
-    try {
-      const stripe = createStripeClient(configuration.secretKey);
-      await verifyMappedCustomer(stripe, context.stripeCustomerId, context.organizationId, livemode);
-      const portalConfiguration = await stripe.billingPortal.configurations.retrieve(
-        configuration.portalConfigurationId,
-      );
-      if (
-        !portalConfiguration.active ||
-        !portalConfiguration.features.payment_method_update.enabled ||
-        !portalConfiguration.features.invoice_history.enabled ||
-        portalConfiguration.features.subscription_cancel.enabled ||
-        portalConfiguration.features.subscription_update.enabled ||
-        portalConfiguration.features.customer_update.enabled
-      ) {
-        throw new Error("portal_configuration_unsafe");
-      }
-      const session = await stripe.billingPortal.sessions.create(
-        {
-          customer: context.stripeCustomerId,
-          configuration: configuration.portalConfigurationId,
-          return_url: billingSettingsUrl(),
-        },
-        { idempotencyKey: operation.stripeIdempotencyKey },
-      );
-      await finishOperation(ctx, operation.operationId, operationLease, "succeeded", session.id);
-      return { status: "redirect" as const, url: session.url };
-    } catch (error) {
-      await finishOperation(
-        ctx,
-        operation.operationId,
-        operationLease,
-        "retrying",
-        undefined,
-        safeStripeErrorCode(error),
-      );
-      return unavailable("configuration_pending");
+async function openCustomerPortalForScope(
+  ctx: ActionCtx,
+  args: { scope: BillingActionScope; requestId: string },
+): Promise<RedirectResult> {
+  const configuration = getStripeBillingConfiguration();
+  if (configuration.status !== "ready") return unavailable("configuration_pending");
+  const context = await getAuthorizedContext(ctx, args.scope, "portal");
+  if (!context?.stripeCustomerId) return unavailable("not_allowed");
+
+  const livemode = configuration.livemode;
+  if (context.stripeCustomerLivemode !== livemode) return unavailable("configuration_pending");
+  const operation = await ctx.runMutation(internal.organizationStripe.mutations.beginOperation, {
+    organizationId: context.organizationId,
+    kind: "portalSession",
+    requestKey: args.requestId,
+    livemode,
+    expectedBillingVersion: context.billingState.version,
+    providerGeneration: context.providerGeneration || undefined,
+  });
+  if (!operation.created) return unavailable(operation.conflict ? "in_progress" : "request_already_used");
+  const operationLease = requireOperationLease(operation);
+
+  try {
+    const stripe = createStripeClient(configuration.secretKey);
+    await verifyMappedCustomer(stripe, context.stripeCustomerId, context.organizationId, livemode);
+    const portalConfiguration = await stripe.billingPortal.configurations.retrieve(configuration.portalConfigurationId);
+    if (
+      !portalConfiguration.active ||
+      !portalConfiguration.features.payment_method_update.enabled ||
+      !portalConfiguration.features.invoice_history.enabled ||
+      portalConfiguration.features.subscription_cancel.enabled ||
+      portalConfiguration.features.subscription_update.enabled ||
+      portalConfiguration.features.customer_update.enabled
+    ) {
+      throw new Error("portal_configuration_unsafe");
     }
-  },
-});
-
-/** TODO[narrow]: 旧client配布終了を確認後、schedulePaidPlanChange(targetPlan: free)へ一本化して削除する。 */
-export const scheduleFreeAtPeriodEnd = action({
-  args: { shopId: v.id("shops"), requestId: v.string() },
-  returns: changeResultValidator,
-  handler: async (ctx, args): Promise<ChangeResult> =>
-    await updateCancelAtPeriodEnd(ctx, {
-      shopId: args.shopId,
-      requestId: args.requestId,
-      purpose: "scheduleFree",
-      cancelAtPeriodEnd: true,
-    }),
-});
-
-/** TODO[narrow]: 旧client配布終了を確認後、cancelScheduledPlanChangeへ一本化して削除する。 */
-export const cancelScheduledFree = action({
-  args: { shopId: v.id("shops"), requestId: v.string() },
-  returns: changeResultValidator,
-  handler: async (ctx, args): Promise<ChangeResult> =>
-    await updateCancelAtPeriodEnd(ctx, {
-      shopId: args.shopId,
-      requestId: args.requestId,
-      purpose: "cancelFreeSchedule",
-      cancelAtPeriodEnd: false,
-    }),
-});
+    const session = await stripe.billingPortal.sessions.create(
+      {
+        customer: context.stripeCustomerId,
+        configuration: configuration.portalConfigurationId,
+        return_url: billingSettingsUrl(context.organizationId),
+      },
+      { idempotencyKey: operation.stripeIdempotencyKey },
+    );
+    await finishOperation(ctx, operation.operationId, operationLease, "succeeded", session.id);
+    return { status: "redirect" as const, url: session.url };
+  } catch (error) {
+    await finishOperation(
+      ctx,
+      operation.operationId,
+      operationLease,
+      "retrying",
+      undefined,
+      safeStripeErrorCode(error),
+    );
+    return unavailable("configuration_pending");
+  }
+}
 
 /** cancel_at_period_end のprovider反映後に停止しても、同じoperationで最新状態へ収束する。 */
 export const reconcileCancelAtPeriodEndChange = internalAction({
@@ -799,6 +1184,7 @@ export const reconcileCancelAtPeriodEndChange = internalAction({
         : {}),
       ...(persisted.prorationDate !== undefined ? { prorationDate: persisted.prorationDate } : {}),
       effectiveAt: persisted.effectiveAt,
+      ...(persisted.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
     });
     if (!operation.created) return null;
     const leaseToken = requireOperationLease(operation);
@@ -898,6 +1284,7 @@ export const reconcileCancelAtPeriodEndChange = internalAction({
         billingState: context.billingState,
         cancelAtPeriodEnd: subscription.cancel_at_period_end,
         periodEndsAt,
+        ...(persisted.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
       });
       await finishOperation(
         ctx,
@@ -917,92 +1304,108 @@ export const reconcileCancelAtPeriodEndChange = internalAction({
 export const cancelTrialContinuation = action({
   args: { shopId: v.id("shops"), requestId: v.string() },
   returns: changeResultValidator,
-  handler: async (ctx, args): Promise<ChangeResult> => {
-    const configuration = getStripeBillingConfiguration();
-    if (configuration.status !== "ready") return unavailable("configuration_pending");
-    const context = await getAuthorizedContext(ctx, args.shopId, "portal");
+  handler: async (ctx, args): Promise<ChangeResult> =>
+    await cancelTrialContinuationForScope(ctx, { scope: { shopId: args.shopId }, requestId: args.requestId }),
+});
+
+export const cancelTrialContinuationForOrganization = action({
+  args: { organizationId: v.id("organizations"), requestId: v.string() },
+  returns: changeResultValidator,
+  handler: async (ctx, args): Promise<ChangeResult> =>
+    await cancelTrialContinuationForScope(ctx, {
+      scope: { organizationId: args.organizationId },
+      requestId: args.requestId,
+    }),
+});
+
+async function cancelTrialContinuationForScope(
+  ctx: ActionCtx,
+  args: { scope: BillingActionScope; requestId: string },
+): Promise<ChangeResult> {
+  const configuration = getStripeBillingConfiguration();
+  if (configuration.status !== "ready") return unavailable("configuration_pending");
+  const context = await getAuthorizedContext(ctx, args.scope, "portal");
+  if (
+    !context?.currentStripeSubscriptionId ||
+    context.billingState.state.kind !== "trial" ||
+    !context.billingState.state.selectedPaidPlan
+  ) {
+    return unavailable("not_allowed");
+  }
+  const livemode = configuration.livemode;
+  const operation = await ctx.runMutation(internal.organizationStripe.mutations.beginOperation, {
+    organizationId: context.organizationId,
+    kind: "cancelSubscription",
+    requestKey: args.requestId,
+    livemode,
+    expectedBillingVersion: context.billingState.version,
+    providerGeneration: context.providerGeneration,
+    recoveryPurpose: "trialContinuationCancellation",
+  });
+  if (!operation.created) return unavailable(operation.conflict ? "in_progress" : "request_already_used");
+  const operationLease = requireOperationLease(operation);
+
+  try {
+    const stripe = createStripeClient(configuration.secretKey);
+    const current = await stripe.subscriptions.retrieve(context.currentStripeSubscriptionId, {
+      expand: ["latest_invoice"],
+    });
+    assertActionSubscription(current, {
+      organizationId: context.organizationId,
+      customerId: context.stripeCustomerId,
+      subscriptionId: context.currentStripeSubscriptionId,
+      priceId: context.currentStripePriceId,
+      providerGeneration: context.providerGeneration,
+      livemode,
+    });
+    const latestContext = await ctx.runQuery(internal.organizationStripe.queries.getSafetyContextByOrganization, {
+      organizationId: context.organizationId,
+    });
+    if (!latestContext || latestContext.subscription.stripeSubscriptionId !== current.id) {
+      throw new Error("billing_version_conflict");
+    }
     if (
-      !context?.currentStripeSubscriptionId ||
-      context.billingState.state.kind !== "trial" ||
-      !context.billingState.state.selectedPaidPlan
+      await preservePaidTrialContinuation(ctx, stripe, latestContext, current, {
+        operationId: operation.operationId,
+        operationLease,
+      })
     ) {
       return unavailable("not_allowed");
     }
-    const livemode = configuration.livemode;
-    const operation = await ctx.runMutation(internal.organizationStripe.mutations.beginOperation, {
-      organizationId: context.organizationId,
-      kind: "cancelSubscription",
-      requestKey: args.requestId,
-      livemode,
-      expectedBillingVersion: context.billingState.version,
-      providerGeneration: context.providerGeneration,
-      recoveryPurpose: "trialContinuationCancellation",
-    });
-    if (!operation.created) return unavailable(operation.conflict ? "in_progress" : "request_already_used");
-    const operationLease = requireOperationLease(operation);
-
-    try {
-      const stripe = createStripeClient(configuration.secretKey);
-      const current = await stripe.subscriptions.retrieve(context.currentStripeSubscriptionId, {
-        expand: ["latest_invoice"],
-      });
-      assertActionSubscription(current, {
-        organizationId: context.organizationId,
-        customerId: context.stripeCustomerId,
-        subscriptionId: context.currentStripeSubscriptionId,
-        priceId: context.currentStripePriceId,
-        providerGeneration: context.providerGeneration,
-        livemode,
-      });
-      const latestContext = await ctx.runQuery(internal.organizationStripe.queries.getSafetyContextByOrganization, {
-        organizationId: context.organizationId,
-      });
-      if (!latestContext || latestContext.subscription.stripeSubscriptionId !== current.id) {
-        throw new Error("billing_version_conflict");
-      }
-      if (
-        await preservePaidTrialContinuation(ctx, stripe, latestContext, current, {
-          operationId: operation.operationId,
-          operationLease,
-        })
-      ) {
-        return unavailable("not_allowed");
-      }
-      if (latestContext.billingState.kind !== "trial" && latestContext.billingState.kind !== "initialPaymentPending") {
-        throw new Error("billing_version_conflict");
-      }
-      const subscription = await stripe.subscriptions.cancel(current.id, undefined, {
-        idempotencyKey: operation.stripeIdempotencyKey,
-      });
-      if (subscription.status !== "canceled" || subscription.livemode !== livemode) {
-        throw new Error("subscription_cancel_not_confirmed");
-      }
-      await saveSubscriptionFromSafetyAction(ctx, latestContext, subscription);
-      await convergeCancelledTrialContinuation(ctx, {
-        organizationId: context.organizationId,
-        stripeCustomerId: latestContext.stripeCustomerId,
-        livemode,
-        providerGeneration: latestContext.subscription.providerGeneration,
-        correlationId: `operation-${operation.operationId}`,
-      });
-      await finishOperation(ctx, operation.operationId, operationLease, "succeeded", subscription.id);
-      return { status: "accepted" as const };
-    } catch (error) {
-      await retryTrialContinuationCancellation(
-        ctx,
-        {
-          organizationId: context.organizationId,
-          expectedBillingVersion: context.billingState.version,
-          requestId: args.requestId,
-        },
-        operation.operationId,
-        operationLease,
-        safeStripeErrorCode(error),
-      );
-      return unavailable("configuration_pending");
+    if (latestContext.billingState.kind !== "trial" && latestContext.billingState.kind !== "initialPaymentPending") {
+      throw new Error("billing_version_conflict");
     }
-  },
-});
+    const subscription = await stripe.subscriptions.cancel(current.id, undefined, {
+      idempotencyKey: operation.stripeIdempotencyKey,
+    });
+    if (subscription.status !== "canceled" || subscription.livemode !== livemode) {
+      throw new Error("subscription_cancel_not_confirmed");
+    }
+    await saveSubscriptionFromSafetyAction(ctx, latestContext, subscription);
+    await convergeCancelledTrialContinuation(ctx, {
+      organizationId: context.organizationId,
+      stripeCustomerId: latestContext.stripeCustomerId,
+      livemode,
+      providerGeneration: latestContext.subscription.providerGeneration,
+      correlationId: `operation-${operation.operationId}`,
+    });
+    await finishOperation(ctx, operation.operationId, operationLease, "succeeded", subscription.id);
+    return { status: "accepted" as const };
+  } catch (error) {
+    await retryTrialContinuationCancellation(
+      ctx,
+      {
+        organizationId: context.organizationId,
+        expectedBillingVersion: context.billingState.version,
+        requestId: args.requestId,
+      },
+      operation.operationId,
+      operationLease,
+      safeStripeErrorCode(error),
+    );
+    return unavailable("configuration_pending");
+  }
+}
 
 /** Trial継続取消のprovider成功後にlocal更新が落ちても、同じoperationで再取得して終端まで収束する。 */
 export const reconcileTrialContinuationCancellation = internalAction({
@@ -1196,7 +1599,7 @@ export const reconcileScheduledFreeDeadline = internalAction({
     });
     if (
       context?.billingState.kind !== "scheduledChange" ||
-      (context.billingState.currentPlan !== "pro" && context.billingState.currentPlan !== "business") ||
+      (context.billingState.currentPlan !== "standard" && context.billingState.currentPlan !== "pro") ||
       context.billingState.targetPlan !== "free"
     ) {
       await ctx.runMutation(internal.organizationStripe.mutations.settleResolvedSafetyOperations, {
@@ -1268,7 +1671,7 @@ export const reconcileScheduledFreeDeadline = internalAction({
             ctx,
             args.organizationId,
             confirmed.changed,
-            (state) => state.kind === "restricted" || (state.kind === "active" && state.plan === "free"),
+            (state) => state.kind === "active" && state.plan === "free",
           ))
         ) {
           throw new Error("billing_version_conflict");
@@ -1307,6 +1710,7 @@ export const reconcileScheduledFreeDeadline = internalAction({
             currentPlan,
             targetPlan: "free",
             effectiveAt: periodEndsAt,
+            restrictAtPeriodEnd: true,
           },
           correlationId: `stripe:${operation.operationId}:scheduled-free-rescheduled`,
         });
@@ -1328,7 +1732,7 @@ export const reconcileScheduledFreeDeadline = internalAction({
   },
 });
 
-/** Stripe Scheduleのphase移行と請求結果を再取得し、BusinessからProへの期間末変更を確定する。 */
+/** Stripe Scheduleのphase移行と請求結果を再取得し、ProからStandardへの期間末変更を確定する。 */
 export const reconcileScheduledPaidPlanDeadline = internalAction({
   args: {
     organizationId: v.id("organizations"),
@@ -1342,8 +1746,8 @@ export const reconcileScheduledPaidPlanDeadline = internalAction({
     });
     if (
       context?.billingState.kind !== "scheduledChange" ||
-      context.billingState.currentPlan !== "business" ||
-      context.billingState.targetPlan !== "pro"
+      context.billingState.currentPlan !== "pro" ||
+      context.billingState.targetPlan !== "standard"
     ) {
       await ctx.runMutation(internal.organizationStripe.mutations.settleResolvedSafetyOperations, {
         organizationId: args.organizationId,
@@ -1378,8 +1782,8 @@ export const reconcileScheduledPaidPlanDeadline = internalAction({
       expectedBillingVersion: context.billingVersion,
       providerGeneration: context.subscription.providerGeneration,
       recoveryPurpose: "scheduledPaidPlanDeadline",
-      sourcePlan: "business",
-      targetPlan: "pro",
+      sourcePlan: "pro",
+      targetPlan: "standard",
       changeMode: "periodEnd",
       stripeSubscriptionIdSnapshot: context.subscription.stripeSubscriptionId,
       stripeSubscriptionItemIdSnapshot: context.subscription.stripeSubscriptionItemId,
@@ -1416,7 +1820,7 @@ export const reconcileScheduledPaidPlanDeadline = internalAction({
 
       const invoice = await retrieveLatestSubscriptionInvoice(stripe, subscription, context);
       await saveSubscriptionFromSafetyAction(ctx, context, subscription, {
-        plan: "pro",
+        plan: "standard",
       });
       assertScheduledPaidPlanInvoice(invoice, {
         targetStripePriceId: scheduledChangeOperation.targetStripePriceId,
@@ -1436,20 +1840,17 @@ export const reconcileScheduledPaidPlanDeadline = internalAction({
         expectedDeadlineAt: effectiveAt,
         result,
         ...(result === "failed" ? { firstFailureAt: authoritativeInvoiceFailureAt(invoice) } : {}),
-        ...(result === "paid" ? { amountDue: invoice.amount_paid, currency: invoice.currency } : {}),
         correlationId: `stripe:${operation.operationId}:scheduled-paid-${result}`,
       });
       if (
         !(await billingMutationConverged(ctx, args.organizationId, confirmed.changed, (state) =>
-          result === "paid"
-            ? state.kind === "active" || state.kind === "restricted"
-            : state.kind === "grace" || state.kind === "restricted",
+          result === "paid" ? state.kind === "active" : state.kind === "paymentTerminationPending",
         ))
       ) {
         throw new Error("billing_version_conflict");
       }
       await saveSubscriptionFromSafetyAction(ctx, context, subscription, {
-        plan: "pro",
+        plan: "standard",
         clearStripeSubscriptionScheduleId: true,
       });
       await finishOperation(ctx, operation.operationId, leaseToken, "succeeded", subscription.id);
@@ -1605,7 +2006,7 @@ export const reconcileInitialPaymentPending = internalAction({
     const leaseToken = requireOperationLease(operation);
     const configuration = getStripeProviderSafetyConfiguration();
     if (!configuration || configuration.livemode !== context.livemode) {
-      await retryExpiredGraceSafetyOperation(
+      await retryPaymentTerminationSafetyOperation(
         ctx,
         effectiveArgs,
         operation.operationId,
@@ -1636,10 +2037,9 @@ export const reconcileInitialPaymentPending = internalAction({
                 organizationId: args.organizationId,
                 expectedVersion: effectiveArgs.expectedBillingVersion,
                 state: {
-                  kind: "grace",
-                  plan: "pro",
-                  ...(targetPlan === "business" ? { targetPlan: "business" as const } : {}),
-                  firstFailureAt: authoritativeInvoiceFailureAt(invoice),
+                  kind: "paymentTerminationPending",
+                  previousPlan: "trial",
+                  startedAt: authoritativeInvoiceFailureAt(invoice),
                 },
                 correlationId: `stripe:${operation.operationId}:initial-payment-unpaid`,
               })
@@ -1648,7 +2048,7 @@ export const reconcileInitialPaymentPending = internalAction({
       await saveSubscriptionFromSafetyAction(ctx, context, subscription, { plan: targetPlan });
       await finishOperation(ctx, operation.operationId, leaseToken, "succeeded", subscription.id);
     } catch (error) {
-      await retryExpiredGraceSafetyOperation(
+      await retryPaymentTerminationSafetyOperation(
         ctx,
         effectiveArgs,
         operation.operationId,
@@ -1798,8 +2198,8 @@ function billingEmailSyncRequestKey(context: {
     .digest("base64url");
 }
 
-/** 猶予終了時に最新請求を再照合し、未払い確認後だけ制限・取消・請求停止へ進める。 */
-export const stopExpiredGraceCollection = internalAction({
+/** 支払い失敗確定後、契約取消と請求停止の両方をprovider証拠付きで完了してからFreeへ確定する。 */
+export const finishPaymentTermination = internalAction({
   args: {
     organizationId: v.id("organizations"),
     expectedBillingVersion: v.number(),
@@ -1807,98 +2207,27 @@ export const stopExpiredGraceCollection = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    let context = await ctx.runQuery(internal.organizationStripe.queries.getSafetyContextByOrganization, {
+    const context = await ctx.runQuery(internal.organizationStripe.queries.getSafetyContextByOrganization, {
       organizationId: args.organizationId,
+      expectedBillingVersion: args.expectedBillingVersion,
     });
-    if (
-      !context ||
-      (context.billingState.kind !== "grace" &&
-        !(context.billingState.kind === "restricted" && context.billingState.reason === "paymentGraceExpired"))
-    ) {
+    if (context?.billingState.kind !== "paymentTerminationPending") {
       await ctx.runMutation(internal.organizationStripe.mutations.settleResolvedSafetyOperations, {
         organizationId: args.organizationId,
         requestKey: args.requestId,
       });
       return null;
     }
-    const effectiveArgs = { ...args, expectedBillingVersion: context.billingVersion };
     const configuration = getStripeProviderSafetyConfiguration();
     const stripe =
       configuration && configuration.livemode === context.livemode ? createStripeClient(configuration.secretKey) : null;
-
-    if (context.billingState.kind === "grace") {
-      const reconcileOperation = await ctx.runMutation(internal.organizationStripe.mutations.beginOperation, {
-        organizationId: args.organizationId,
-        kind: "reconcileSubscription",
-        requestKey: args.requestId,
-        livemode: context.livemode,
-        expectedBillingVersion: effectiveArgs.expectedBillingVersion,
-        providerGeneration: context.subscription.providerGeneration,
-      });
-      if (!reconcileOperation.created) return null;
-      const leaseToken = requireOperationLease(reconcileOperation);
-      if (!stripe) {
-        await retryExpiredGraceSafetyOperation(
-          ctx,
-          effectiveArgs,
-          reconcileOperation.operationId,
-          leaseToken,
-          configuration ? "stripe_livemode_mismatch" : "stripe_configuration_unavailable",
-          "expiredGrace",
-        );
-        return null;
-      }
-      try {
-        const subscription = await stripe.subscriptions.retrieve(context.subscription.stripeSubscriptionId, {
-          expand: ["latest_invoice"],
-        });
-        assertSafetySubscription(subscription, context);
-        const invoice = await retrieveLatestSubscriptionInvoice(stripe, subscription, context);
-        if (invoice.status === "paid" && subscription.status === "active") {
-          const targetPlan = context.billingState.targetPlan ?? context.billingState.plan;
-          const recovered = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
-            organizationId: args.organizationId,
-            expectedVersion: effectiveArgs.expectedBillingVersion,
-            state: { kind: "active", plan: targetPlan },
-            correlationId: `stripe:${reconcileOperation.operationId}:grace-paid`,
-          });
-          if (!recovered.changed) throw new Error("billing_version_conflict");
-          await saveSubscriptionFromSafetyAction(ctx, context, subscription, { plan: targetPlan });
-          await finishOperation(ctx, reconcileOperation.operationId, leaseToken, "succeeded", subscription.id);
-          return null;
-        }
-        if (!isConfirmedUnpaid(subscription, invoice)) throw new Error("billing_reconciliation_pending");
-        const expired = await ctx.runMutation(internal.organizationBilling.mutations.expireVerifiedPaymentGrace, {
-          organizationId: args.organizationId,
-          expectedVersion: effectiveArgs.expectedBillingVersion,
-          expectedEndsAt: context.billingState.endsAt,
-          correlationId: `stripe:${reconcileOperation.operationId}:grace-expired`,
-        });
-        if (!expired.changed || expired.billingVersion === undefined) throw new Error("billing_version_conflict");
-        await finishOperation(ctx, reconcileOperation.operationId, leaseToken, "succeeded", subscription.id);
-        context = await ctx.runQuery(internal.organizationStripe.queries.getSafetyContextByOrganization, {
-          organizationId: args.organizationId,
-          expectedBillingVersion: expired.billingVersion,
-        });
-        if (!context) return null;
-      } catch (error) {
-        await retryExpiredGraceSafetyOperation(
-          ctx,
-          effectiveArgs,
-          reconcileOperation.operationId,
-          leaseToken,
-          safeStripeErrorCode(error),
-          "expiredGrace",
-        );
-        return null;
-      }
-    }
-    if (context.billingState.kind !== "restricted" || context.billingState.reason !== "paymentGraceExpired")
-      return null;
-    await stopRestrictedStripeCollection(ctx, stripe, context, {
-      ...args,
-      expectedBillingVersion: context.billingVersion,
-    });
+    await finishPaymentTerminationStripeCollection(
+      ctx,
+      stripe,
+      context,
+      args,
+      configuration ? "stripe_livemode_mismatch" : "stripe_configuration_unavailable",
+    );
     return null;
   },
 });
@@ -1949,8 +2278,8 @@ export const processWebhookEvent = internalAction({
         webhookLeaseToken: claim.leaseToken,
         eventCreatedAt: event.created * 1000,
         livemode: event.livemode,
+        standardPriceId: configuration.standardPriceId,
         proPriceId: configuration.proPriceId,
-        businessPriceId: configuration.businessPriceId,
       });
       await finishWebhook(ctx, claim, result);
     } catch (error) {
@@ -1970,8 +2299,8 @@ async function processVerifiedStripeEvent(
     webhookLeaseToken: string;
     eventCreatedAt: number;
     livemode: boolean;
+    standardPriceId?: string;
     proPriceId?: string;
-    businessPriceId?: string;
   },
 ): Promise<WebhookProcessResult> {
   if (event.type === "checkout.session.completed" || event.type === "checkout.session.expired") {
@@ -2000,12 +2329,12 @@ async function processVerifiedStripeEvent(
     const billing = synchronizedResult.organization.billingState;
     if (
       billing.state.kind === "scheduledChange" &&
-      billing.state.currentPlan === "business" &&
-      billing.state.targetPlan === "pro"
+      billing.state.currentPlan === "pro" &&
+      billing.state.targetPlan === "standard"
     ) {
       const item = requireSingleLicensedSubscriptionItem(subscription);
       const providerPlan = configuredPlanForPrice(item.price.id, event);
-      if (providerPlan === "pro" && event.eventCreatedAt >= billing.state.effectiveAt) {
+      if (providerPlan === "standard" && event.eventCreatedAt >= billing.state.effectiveAt) {
         const invoice = await retrieveLatestSubscriptionInvoice(stripe, subscription, {
           stripeCustomerId: customerId,
           livemode: event.livemode,
@@ -2021,7 +2350,7 @@ async function processVerifiedStripeEvent(
         );
         if (applied) return applied;
       } else if (
-        providerPlan === "business" &&
+        providerPlan === "pro" &&
         (event.type === "subscription_schedule.canceled" || event.type === "subscription_schedule.released")
       ) {
         const canceled = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
@@ -2035,7 +2364,7 @@ async function processVerifiedStripeEvent(
             ctx,
             organization.organizationId,
             canceled.changed,
-            (state) => state.kind === "active" && state.plan === "business",
+            (state) => state.kind === "active" && state.plan === "pro",
           ))
         ) {
           return { kind: "retry" as const, errorCode: "billing_version_conflict" };
@@ -2067,10 +2396,14 @@ async function processVerifiedStripeEvent(
       expandedInvoice && typeof expandedInvoice === "object" && !expandedInvoice.deleted ? expandedInvoice : null;
 
     if (event.type === "customer.subscription.pending_update_expired" && billing.state.kind === "pendingActivation") {
+      if (billing.state.plan === "pro" && billing.state.fallback === "standard") {
+        if (!invoice) return { kind: "retry" as const, errorCode: "pending_update_invoice_missing" };
+        return await convergeVoidedImmediatePaidPlanChange(ctx, event, synchronized, subscription, invoice);
+      }
       const changed = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: synchronized.organization.organizationId,
         expectedVersion: billing.version,
-        state: { kind: "paymentFailed" },
+        state: { kind: "activationFailed" },
         correlationId: `stripe:${event.stripeEventId}:pending-update-expired`,
       });
       if (
@@ -2078,7 +2411,7 @@ async function processVerifiedStripeEvent(
           ctx,
           synchronized.organization.organizationId,
           changed.changed,
-          isSafeAfterSubscriptionCancellation,
+          isSafeAfterActivationFailure,
         ))
       ) {
         return { kind: "retry" as const, errorCode: "billing_version_conflict" };
@@ -2089,7 +2422,7 @@ async function processVerifiedStripeEvent(
       if (invoice?.status !== "paid" || subscription.status !== "active") {
         return { kind: "retry" as const, errorCode: "pending_update_payment_unconfirmed" };
       }
-      return (await applyVerifiedPaidEntitlement(ctx, event, synchronized, invoice)) ?? processedResult(synchronized);
+      return (await applyVerifiedPaidEntitlement(ctx, event, synchronized)) ?? processedResult(synchronized);
     }
 
     if (invoice && billing.state.kind === "scheduledChange") {
@@ -2097,20 +2430,14 @@ async function processVerifiedStripeEvent(
       if (scheduled) return scheduled;
     }
     if (invoice && isConfirmedUnpaid(subscription, invoice)) {
-      const tightened = await tightenGraceFromVerifiedFailure(
-        ctx,
-        { ...event, eventCreatedAt: authoritativeInvoiceFailureAt(invoice, event.eventCreatedAt) },
-        synchronized,
-      );
-      if (tightened) return tightened;
       if (billing.state.kind === "active" && billing.state.plan !== "free") {
         const changed = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
           organizationId: synchronized.organization.organizationId,
           expectedVersion: billing.version,
           state: {
-            kind: "grace",
-            plan: billing.state.plan,
-            firstFailureAt: authoritativeInvoiceFailureAt(invoice, event.eventCreatedAt),
+            kind: "paymentTerminationPending",
+            previousPlan: billing.state.plan,
+            startedAt: authoritativeInvoiceFailureAt(invoice, event.eventCreatedAt),
           },
           correlationId: `stripe:${event.stripeEventId}:subscription-unpaid`,
         });
@@ -2119,7 +2446,7 @@ async function processVerifiedStripeEvent(
             ctx,
             synchronized.organization.organizationId,
             changed.changed,
-            isGraceOrRestricted,
+            isPaymentTerminationPending,
           ))
         ) {
           return { kind: "retry" as const, errorCode: "billing_version_conflict" };
@@ -2129,10 +2456,9 @@ async function processVerifiedStripeEvent(
           organizationId: synchronized.organization.organizationId,
           expectedVersion: billing.version,
           state: {
-            kind: "grace",
-            plan: "pro",
-            ...(billing.state.plan === "business" ? { targetPlan: "business" as const } : {}),
-            firstFailureAt: authoritativeInvoiceFailureAt(invoice, event.eventCreatedAt),
+            kind: "paymentTerminationPending",
+            previousPlan: "trial",
+            startedAt: authoritativeInvoiceFailureAt(invoice, event.eventCreatedAt),
           },
           correlationId: `stripe:${event.stripeEventId}:initial-subscription-unpaid`,
         });
@@ -2141,7 +2467,7 @@ async function processVerifiedStripeEvent(
             ctx,
             synchronized.organization.organizationId,
             changed.changed,
-            isGraceOrRestricted,
+            isPaymentTerminationPending,
           ))
         ) {
           return { kind: "retry" as const, errorCode: "billing_version_conflict" };
@@ -2174,6 +2500,14 @@ async function processVerifiedStripeEvent(
   }
 
   const current = synchronized.organization.billingState;
+  if (
+    current.state.kind === "pendingActivation" &&
+    current.state.plan === "pro" &&
+    current.state.fallback === "standard" &&
+    invoice.status === "void"
+  ) {
+    return await convergeVoidedImmediatePaidPlanChange(ctx, event, synchronized, subscription, invoice);
+  }
   const invoiceIsPaid = invoice.status === "paid";
   if (invoiceIsPaid) {
     if (subscription.status !== "active") return processedResult(synchronized);
@@ -2202,15 +2536,21 @@ async function processVerifiedStripeEvent(
         return { kind: "retry" as const, errorCode: "billing_version_conflict" };
       return processedResult(synchronized);
     }
-    return (await applyVerifiedPaidEntitlement(ctx, event, synchronized, invoice)) ?? processedResult(synchronized);
+    return (await applyVerifiedPaidEntitlement(ctx, event, synchronized)) ?? processedResult(synchronized);
   }
 
   if (event.type === "invoice.payment_failed" || event.type === "invoice.payment_action_required") {
-    if (!isConfirmedUnpaid(subscription, invoice)) {
+    const isPendingImmediateUpgradeFailure =
+      current.state.kind === "pendingActivation" &&
+      current.state.plan === "pro" &&
+      current.state.fallback === "standard" &&
+      invoice.status === "open" &&
+      invoice.amount_remaining > 0 &&
+      subscription.status === "active" &&
+      subscription.pending_update !== null;
+    if (!isConfirmedUnpaid(subscription, invoice) && !isPendingImmediateUpgradeFailure) {
       return { kind: "ignored" as const, errorCode: "invoice_no_longer_unpaid" };
     }
-    const tightened = await tightenGraceFromVerifiedFailure(ctx, event, synchronized);
-    if (tightened) return tightened;
     if (synchronized.snapshotStale) return { kind: "ignored" as const, errorCode: "subscription_snapshot_stale" };
     const scheduled = await applyScheduledPaidInvoiceResult(ctx, stripe, event, synchronized, subscription, invoice);
     if (scheduled) return scheduled;
@@ -2231,19 +2571,33 @@ async function processVerifiedStripeEvent(
           ctx,
           synchronized.organization.organizationId,
           changed.changed,
-          isGraceOrRestricted,
+          isPaymentTerminationPending,
         ))
       )
         return { kind: "retry" as const, errorCode: "billing_version_conflict" };
       return processedResult(synchronized);
     }
     if (current.state.kind === "pendingActivation") {
-      // 追加認証待ちは失敗の終端ではない。pendingActivationを維持し、後続のinvoice.paidでのみProへ進める。
+      // 追加認証は利用者がHosted Invoice Pageで続行できるため、pendingActivationを維持する。
       if (event.type === "invoice.payment_action_required") return processedResult(synchronized);
+      if (current.state.plan === "pro" && current.state.fallback === "standard") {
+        const resolution = await cancelFailedImmediatePaidPlanChange(
+          ctx,
+          stripe,
+          event,
+          synchronized,
+          subscription,
+          invoice,
+        );
+        if (resolution.kind === "retry" || resolution.kind === "actionRequired") return resolution;
+        if (resolution.kind === "paid") {
+          return (await applyVerifiedPaidEntitlement(ctx, event, synchronized)) ?? processedResult(synchronized);
+        }
+      }
       const changed = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: synchronized.organization.organizationId,
         expectedVersion: current.version,
-        state: { kind: "paymentFailed" },
+        state: { kind: "activationFailed" },
         correlationId: `stripe:${event.stripeEventId}:activation-failed`,
       });
       if (
@@ -2251,7 +2605,7 @@ async function processVerifiedStripeEvent(
           ctx,
           synchronized.organization.organizationId,
           changed.changed,
-          isSafeAfterSubscriptionCancellation,
+          isSafeAfterActivationFailure,
         ))
       )
         return { kind: "retry" as const, errorCode: "billing_version_conflict" };
@@ -2260,9 +2614,9 @@ async function processVerifiedStripeEvent(
         organizationId: synchronized.organization.organizationId,
         expectedVersion: current.version,
         state: {
-          kind: "grace",
-          plan: current.state.plan,
-          firstFailureAt: authoritativeInvoiceFailureAt(invoice, event.eventCreatedAt),
+          kind: "paymentTerminationPending",
+          previousPlan: current.state.plan,
+          startedAt: authoritativeInvoiceFailureAt(invoice, event.eventCreatedAt),
         },
         correlationId: `stripe:${event.stripeEventId}:renewal-failed`,
       });
@@ -2271,7 +2625,7 @@ async function processVerifiedStripeEvent(
           ctx,
           synchronized.organization.organizationId,
           changed.changed,
-          isGraceOrRestricted,
+          isPaymentTerminationPending,
         ))
       )
         return { kind: "retry" as const, errorCode: "billing_version_conflict" };
@@ -2280,10 +2634,9 @@ async function processVerifiedStripeEvent(
         organizationId: synchronized.organization.organizationId,
         expectedVersion: current.version,
         state: {
-          kind: "grace",
-          plan: "pro",
-          ...(current.state.plan === "business" ? { targetPlan: "business" as const } : {}),
-          firstFailureAt: authoritativeInvoiceFailureAt(invoice, event.eventCreatedAt),
+          kind: "paymentTerminationPending",
+          previousPlan: "trial",
+          startedAt: authoritativeInvoiceFailureAt(invoice, event.eventCreatedAt),
         },
         correlationId: `stripe:${event.stripeEventId}:initial-payment-failed`,
       });
@@ -2292,7 +2645,7 @@ async function processVerifiedStripeEvent(
           ctx,
           synchronized.organization.organizationId,
           changed.changed,
-          isGraceOrRestricted,
+          isPaymentTerminationPending,
         ))
       )
         return { kind: "retry" as const, errorCode: "billing_version_conflict" };
@@ -2304,16 +2657,11 @@ async function processVerifiedStripeEvent(
     : processedResult(synchronized);
 }
 
-function paidPlanAfterVerifiedPayment(state: Doc<"organizationBillingStates">["state"]): StripePaidPlan | null {
+function paidPlanAfterVerifiedPayment(state: CanonicalOrganizationBillingState): StripePaidPlan | null {
   switch (state.kind) {
     case "initialPaymentPending":
     case "pendingActivation":
       return state.plan;
-    case "grace":
-      return state.targetPlan ?? state.plan;
-    case "restricted":
-      if (state.targetPlan) return state.targetPlan;
-      return state.previousPlan === "pro" || state.previousPlan === "business" ? state.previousPlan : null;
     default:
       return null;
   }
@@ -2321,54 +2669,248 @@ function paidPlanAfterVerifiedPayment(state: Doc<"organizationBillingStates">["s
 
 async function applyVerifiedPaidEntitlement(
   ctx: ActionCtx,
-  event: { stripeEventId: string; eventCreatedAt: number },
+  event: { stripeEventId: string },
   synchronized: SynchronizedSubscription,
-  invoice?: Stripe.Invoice | null,
 ): Promise<WebhookProcessResult | null> {
   const billing = synchronized.organization.billingState;
-  if (billing.state.kind === "restricted" && synchronized.organization.latestStripeSubscriptionTerminal) {
-    return null;
-  }
   const targetPlan = paidPlanAfterVerifiedPayment(billing.state);
   if (!targetPlan) return null;
-  const needsRestoration =
-    billing.state.kind === "restricted" ||
-    (billing.state.kind === "pendingActivation" && billing.state.fallback !== "pro");
-  if (
-    needsRestoration &&
-    (!synchronized.organization.restoreManagerPersonIds || !synchronized.organization.restoreShopIds)
-  ) {
-    return { kind: "actionRequired", errorCode: "restoration_selection_missing" };
-  }
   const changed = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
     organizationId: synchronized.organization.organizationId,
     expectedVersion: billing.version,
     state: { kind: "active", plan: targetPlan },
-    ...(invoice?.status === "paid"
-      ? {
-          notificationDetails: {
-            targetPlan,
-            amountDue: invoice.amount_paid,
-            currency: invoice.currency,
-            effectiveAt: event.eventCreatedAt,
-          },
-        }
-      : {}),
-    ...(needsRestoration
-      ? {
-          restoreManagerPersonIds: synchronized.organization.restoreManagerPersonIds,
-          restoreShopIds: synchronized.organization.restoreShopIds,
-        }
-      : {}),
     correlationId: `stripe:${event.stripeEventId}:invoice-paid`,
   });
   const converged = await billingMutationConverged(
     ctx,
     synchronized.organization.organizationId,
     changed.changed,
-    (state) => (state.kind === "active" && state.plan === targetPlan) || state.kind === "restricted",
+    (state) => state.kind === "active" && state.plan === targetPlan,
   );
   return converged ? processedResult(synchronized) : { kind: "retry" as const, errorCode: "billing_version_conflict" };
+}
+
+/** Standard→Proの確定失敗は、pending updateのInvoiceをvoidしてからだけStandardへ戻す。 */
+async function cancelFailedImmediatePaidPlanChange(
+  ctx: ActionCtx,
+  stripe: Stripe,
+  event: { stripeEventId: string; livemode: boolean },
+  synchronized: SynchronizedSubscription,
+  subscription: Stripe.Subscription,
+  invoice: Stripe.Invoice,
+): Promise<
+  | { kind: "cancelled" }
+  | { kind: "paid" }
+  | { kind: "retry"; errorCode: string }
+  | { kind: "actionRequired"; errorCode: string }
+> {
+  const organization = synchronized.organization;
+  const billing = organization.billingState;
+  const item = subscription.items.data[0];
+  if (
+    billing.state.kind !== "pendingActivation" ||
+    billing.state.plan !== "pro" ||
+    billing.state.fallback !== "standard" ||
+    billing.version < 1 ||
+    organization.latestStripeSubscriptionId !== subscription.id ||
+    organization.latestStripeSubscriptionItemId !== item?.id ||
+    !organization.latestStripePriceId ||
+    organization.latestStripePlan !== "standard" ||
+    item.price.id !== organization.latestStripePriceId ||
+    stripeObjectId(subscription.latest_invoice) !== invoice.id
+  ) {
+    return { kind: "actionRequired", errorCode: "pending_paid_plan_change_relationship_invalid" };
+  }
+  const operation = await ctx.runQuery(
+    internal.organizationStripe.queries.getPendingActivationImmediatePaidPlanChangeOperation,
+    {
+      organizationId: organization.organizationId,
+      livemode: event.livemode,
+      providerGeneration: synchronized.providerGeneration,
+      sourceBillingVersion: billing.version - 1,
+      stripeSubscriptionId: subscription.id,
+      stripeSubscriptionItemId: item.id,
+      sourceStripePriceId: item.price.id,
+    },
+  );
+  if (operation?.status === "inFlight") {
+    return { kind: "retry", errorCode: "paid_plan_change_operation_pending" };
+  }
+  if (
+    !operation ||
+    !pendingUpdateMatchesImmediatePaidPlanChange(subscription, item.id, operation.targetStripePriceId)
+  ) {
+    return { kind: "actionRequired", errorCode: "pending_paid_plan_change_operation_invalid" };
+  }
+  assertImmediatePaidPlanChangeInvoice(
+    invoice,
+    {
+      stripeCustomerId: stripeObjectId(subscription.customer) ?? undefined,
+      currentStripeSubscriptionLivemode: event.livemode,
+    },
+    subscription.id,
+  );
+
+  try {
+    const voided = await stripe.invoices.voidInvoice(invoice.id, undefined, {
+      idempotencyKey: immediatePaidPlanChangeIdempotencyKey(
+        event.livemode,
+        operation.operationId,
+        invoice.id,
+        "failure",
+      ),
+    });
+    assertImmediatePaidPlanChangeInvoice(
+      voided,
+      {
+        stripeCustomerId: stripeObjectId(subscription.customer) ?? undefined,
+        currentStripeSubscriptionLivemode: event.livemode,
+      },
+      subscription.id,
+    );
+    if (voided.status !== "void") return { kind: "retry", errorCode: "pending_update_invoice_void_unconfirmed" };
+  } catch {
+    // 支払いとvoidが競合した場合だけ、再取得したpaid証拠を勝者として扱う。
+  }
+
+  const verified = await stripe.subscriptions.retrieve(subscription.id, { expand: ["latest_invoice"] });
+  const verifiedItem = requireSingleLicensedSubscriptionItem(verified);
+  const customerId = stripeObjectId(verified.customer);
+  if (
+    verified.id !== subscription.id ||
+    verified.livemode !== event.livemode ||
+    !customerId ||
+    customerId !== stripeObjectId(subscription.customer) ||
+    verifiedItem.id !== item.id ||
+    !matchesSubscriptionMetadata(verified, organization.organizationId, synchronized.providerGeneration)
+  ) {
+    return { kind: "actionRequired", errorCode: "pending_paid_plan_change_relationship_invalid" };
+  }
+  const verifiedInvoice = await retrieveLatestSubscriptionInvoice(stripe, verified, {
+    stripeCustomerId: customerId,
+    livemode: event.livemode,
+    subscription: { stripeSubscriptionId: verified.id },
+  });
+  if (verifiedInvoice.id !== invoice.id) {
+    return { kind: "actionRequired", errorCode: "pending_paid_plan_change_invoice_replaced" };
+  }
+  if (
+    verifiedItem.price.id === organization.latestStripePriceId &&
+    verified.pending_update === null &&
+    verifiedInvoice.status === "void"
+  ) {
+    await saveSubscriptionFromSafetyAction(
+      ctx,
+      {
+        organizationId: organization.organizationId,
+        stripeCustomerId: customerId,
+        livemode: event.livemode,
+        subscription: { providerGeneration: synchronized.providerGeneration, plan: "standard" },
+      },
+      verified,
+      { plan: "standard" },
+    );
+    return { kind: "cancelled" };
+  }
+  if (
+    verifiedItem.price.id === operation.targetStripePriceId &&
+    verified.pending_update === null &&
+    verified.status === "active" &&
+    verifiedInvoice.status === "paid"
+  ) {
+    await saveSubscriptionFromSafetyAction(
+      ctx,
+      {
+        organizationId: organization.organizationId,
+        stripeCustomerId: customerId,
+        livemode: event.livemode,
+        subscription: { providerGeneration: synchronized.providerGeneration, plan: "pro" },
+      },
+      verified,
+      { plan: "pro" },
+    );
+    return { kind: "paid" };
+  }
+  return { kind: "retry", errorCode: "pending_update_invoice_void_unconfirmed" };
+}
+
+/** void成功後にActionが中断しても、再送されたprovider証拠からStandardへ収束する。 */
+async function convergeVoidedImmediatePaidPlanChange(
+  ctx: ActionCtx,
+  event: { stripeEventId: string; livemode: boolean },
+  synchronized: SynchronizedSubscription,
+  subscription: Stripe.Subscription,
+  invoice: Stripe.Invoice,
+): Promise<WebhookProcessResult> {
+  const organization = synchronized.organization;
+  const billing = organization.billingState;
+  const item = subscription.items.data[0];
+  const customerId = stripeObjectId(subscription.customer);
+  if (
+    billing.state.kind !== "pendingActivation" ||
+    billing.state.plan !== "pro" ||
+    billing.state.fallback !== "standard" ||
+    billing.version < 1 ||
+    organization.latestStripeSubscriptionId !== subscription.id ||
+    organization.latestStripeSubscriptionItemId !== item?.id ||
+    !organization.latestStripePriceId ||
+    organization.latestStripePlan !== "standard" ||
+    item.price.id !== organization.latestStripePriceId ||
+    subscription.pending_update !== null ||
+    subscription.status !== "active" ||
+    !customerId ||
+    stripeObjectId(subscription.latest_invoice) !== invoice.id ||
+    invoice.status !== "void"
+  ) {
+    return { kind: "actionRequired", errorCode: "voided_pending_paid_plan_change_invalid" };
+  }
+  const operation = await ctx.runQuery(
+    internal.organizationStripe.queries.getPendingActivationImmediatePaidPlanChangeOperation,
+    {
+      organizationId: organization.organizationId,
+      livemode: event.livemode,
+      providerGeneration: synchronized.providerGeneration,
+      sourceBillingVersion: billing.version - 1,
+      stripeSubscriptionId: subscription.id,
+      stripeSubscriptionItemId: item.id,
+      sourceStripePriceId: item.price.id,
+    },
+  );
+  if (operation?.status === "inFlight") {
+    return { kind: "retry", errorCode: "paid_plan_change_operation_pending" };
+  }
+  if (!operation) {
+    return { kind: "actionRequired", errorCode: "pending_paid_plan_change_operation_invalid" };
+  }
+  assertImmediatePaidPlanChangeInvoice(
+    invoice,
+    { stripeCustomerId: customerId, currentStripeSubscriptionLivemode: event.livemode },
+    subscription.id,
+  );
+  await saveSubscriptionFromSafetyAction(
+    ctx,
+    {
+      organizationId: organization.organizationId,
+      stripeCustomerId: customerId,
+      livemode: event.livemode,
+      subscription: { providerGeneration: synchronized.providerGeneration, plan: "standard" },
+    },
+    subscription,
+    { plan: "standard" },
+  );
+  const changed = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
+    organizationId: organization.organizationId,
+    expectedVersion: billing.version,
+    state: { kind: "activationFailed" },
+    correlationId: `stripe:${event.stripeEventId}:pending-upgrade-voided`,
+  });
+  const converged = await billingMutationConverged(
+    ctx,
+    organization.organizationId,
+    changed.changed,
+    (state) => state.kind === "active" && state.plan === "standard",
+  );
+  return converged ? processedResult(synchronized) : { kind: "retry", errorCode: "billing_version_conflict" };
 }
 
 async function applyScheduledPaidInvoiceResult(
@@ -2382,8 +2924,8 @@ async function applyScheduledPaidInvoiceResult(
   const billing = synchronized.organization.billingState;
   if (
     billing.state.kind !== "scheduledChange" ||
-    billing.state.currentPlan !== "business" ||
-    billing.state.targetPlan !== "pro" ||
+    billing.state.currentPlan !== "pro" ||
+    billing.state.targetPlan !== "standard" ||
     event.eventCreatedAt < billing.state.effectiveAt
   ) {
     return null;
@@ -2397,8 +2939,8 @@ async function applyScheduledPaidInvoiceResult(
     context.livemode !== event.livemode ||
     context.subscription.providerGeneration !== synchronized.providerGeneration ||
     context.billingState.kind !== "scheduledChange" ||
-    context.billingState.currentPlan !== "business" ||
-    context.billingState.targetPlan !== "pro" ||
+    context.billingState.currentPlan !== "pro" ||
+    context.billingState.targetPlan !== "standard" ||
     context.billingState.effectiveAt !== billing.state.effectiveAt
   ) {
     return { kind: "retry", errorCode: "billing_version_conflict" };
@@ -2458,21 +3000,17 @@ async function applyScheduledPaidInvoiceResult(
     expectedDeadlineAt: billing.state.effectiveAt,
     result,
     ...(result === "failed" ? { firstFailureAt: authoritativeInvoiceFailureAt(invoice, event.eventCreatedAt) } : {}),
-    ...(result === "paid" ? { amountDue: invoice.amount_paid, currency: invoice.currency } : {}),
     correlationId: `stripe:${event.stripeEventId}:scheduled-paid-${result}`,
   });
   const converged = await billingMutationConverged(
     ctx,
     synchronized.organization.organizationId,
     changed.changed,
-    (state) =>
-      result === "paid"
-        ? state.kind === "active" || state.kind === "restricted"
-        : state.kind === "grace" || state.kind === "restricted",
+    (state) => (result === "paid" ? state.kind === "active" : state.kind === "paymentTerminationPending"),
   );
   if (!converged) return { kind: "retry" as const, errorCode: "billing_version_conflict" };
   await saveSubscriptionFromSafetyAction(ctx, context, subscription, {
-    plan: "pro",
+    plan: "standard",
     clearStripeSubscriptionScheduleId: true,
   });
   return processedResult(synchronized);
@@ -2488,7 +3026,7 @@ class ScheduledPaidPlanDeadlineVerificationError extends Error {
   readonly errorCode = "scheduled_paid_subscription_not_applied";
 }
 
-/** 期限ActionとWebhookが同じprovider証拠を満たす場合だけBusiness→Proを確定する。 */
+/** 期限ActionとWebhookが同じprovider証拠を満たす場合だけPro→Standardを確定する。 */
 async function verifyScheduledPaidPlanDeadlineProviderState(
   stripe: Stripe,
   args: {
@@ -2577,8 +3115,8 @@ async function processCheckoutEvent(
     webhookLeaseToken: string;
     eventCreatedAt: number;
     livemode: boolean;
+    standardPriceId?: string;
     proPriceId?: string;
-    businessPriceId?: string;
   },
 ): Promise<WebhookProcessResult> {
   const session = await stripe.checkout.sessions.retrieve(event.objectId);
@@ -2597,17 +3135,21 @@ async function processCheckoutEvent(
     livemode: event.livemode,
   });
   if (!operation) return { kind: "actionRequired" as const, errorCode: "checkout_operation_missing" };
+  const isCancelledExpiredCheckoutOperation =
+    event.type === "checkout.session.expired" &&
+    operation.status === "cancelled" &&
+    (operation.lastErrorCode === "checkout_session_cancelled" ||
+      operation.lastErrorCode === "checkout_session_expired_webhook" ||
+      operation.lastErrorCode === "checkout_session_expired");
   if (
-    operation.status !== "succeeded" ||
-    (operation.kind !== "trialSetupCheckout" &&
-      operation.kind !== "immediateProCheckout" &&
-      operation.kind !== "immediatePaidCheckout") ||
+    (operation.status !== "succeeded" && !isCancelledExpiredCheckoutOperation) ||
+    (operation.kind !== "trialSetupCheckout" && operation.kind !== "immediatePaidCheckout") ||
     operation.providerGeneration === undefined ||
     !operation.stripePriceIdSnapshot
   ) {
     return { kind: "actionRequired" as const, errorCode: "checkout_operation_invalid" };
   }
-  const targetPlan = operation.targetPlan === "business" ? "business" : "pro";
+  const targetPlan = operation.targetPlan === "pro" ? "pro" : "standard";
   try {
     assertCheckoutSession(session, {
       organizationId: organization.organizationId,
@@ -2626,21 +3168,26 @@ async function processCheckoutEvent(
     if (session.status !== "expired") {
       return { kind: "retry" as const, errorCode: "checkout_expiration_not_confirmed" };
     }
-    if (
-      (operation.kind === "immediateProCheckout" || operation.kind === "immediatePaidCheckout") &&
-      organization.billingState.state.kind === "pendingActivation"
-    ) {
+    if (isCancelledExpiredCheckoutOperation) {
+      return {
+        kind: "processed" as const,
+        organizationId: organization.organizationId,
+        providerGeneration: operation.providerGeneration,
+      };
+    }
+    if (operation.kind === "immediatePaidCheckout" && organization.billingState.state.kind === "pendingActivation") {
+      const fallbackPlan = organization.billingState.state.fallback;
       const changed = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: organization.organizationId,
         expectedVersion: organization.billingState.version,
-        state: { kind: "paymentFailed" },
+        state: { kind: "activationFailed" },
         correlationId: `stripe:${event.stripeEventId}:checkout-expired`,
       });
       const converged = await billingMutationConverged(
         ctx,
         organization.organizationId,
         changed.changed,
-        (state) => (state.kind === "active" && state.plan === "free") || state.kind === "restricted",
+        (state) => state.kind === "active" && state.plan === fallbackPlan,
       );
       if (!converged) return { kind: "retry" as const, errorCode: "billing_version_conflict" };
     }
@@ -2717,12 +3264,11 @@ async function processCheckoutEvent(
         return { kind: "retry" as const, errorCode: "billing_version_conflict" };
       }
     }
-    if ((state.kind === "active" && state.plan === "free") || state.kind === "restricted") {
-      const fallback = state.kind === "restricted" ? ("restricted" as const) : ("free" as const);
+    if (state.kind === "active" && state.plan === "free") {
       const pending = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: organization.organizationId,
         expectedVersion: organization.billingState.version,
-        state: { kind: "pendingActivation", plan: targetPlan, fallback },
+        state: { kind: "pendingActivation", plan: targetPlan, fallback: "free" },
         correlationId: `stripe:${event.stripeEventId}:late-setup-pending`,
       });
       if (!pending.changed) return { kind: "retry" as const, errorCode: "billing_version_conflict" };
@@ -2765,13 +3311,15 @@ async function processCheckoutEvent(
       subscriptionOperation.status === "actionRequired" &&
       subscriptionOperation.stripeObjectId &&
       subscriptionOperation.providerGeneration !== undefined &&
-      subscriptionOperation.stripePriceIdSnapshot
+      subscriptionOperation.stripePriceIdSnapshot &&
+      (subscriptionOperation.targetPlan === "standard" || subscriptionOperation.targetPlan === "pro")
     ) {
       const rejected = await rejectCreatedTrialSubscription(ctx, stripe, undefined, {
         organizationId: organization.organizationId,
         customerId,
         providerGeneration: subscriptionOperation.providerGeneration,
         priceId: subscriptionOperation.stripePriceIdSnapshot,
+        plan: subscriptionOperation.targetPlan,
         livemode: event.livemode,
         operationId: subscriptionOperation.operationId,
         stripeSubscriptionId: subscriptionOperation.stripeObjectId,
@@ -2819,6 +3367,7 @@ async function processCheckoutEvent(
         customerId,
         providerGeneration: subscriptionOperation.providerGeneration ?? organization.providerGeneration + 1,
         priceId: checkoutPriceId,
+        plan: targetPlan,
         livemode: event.livemode,
         operationId: subscriptionOperation.operationId,
         ...(subscriptionLease ? { operationLease: subscriptionLease } : {}),
@@ -2840,6 +3389,7 @@ async function processCheckoutEvent(
         customerId,
         providerGeneration: subscriptionOperation.providerGeneration ?? organization.providerGeneration + 1,
         priceId: checkoutPriceId,
+        plan: targetPlan,
         livemode: event.livemode,
         operationId: subscriptionOperation.operationId,
         ...(subscriptionLease ? { operationLease: subscriptionLease } : {}),
@@ -2857,6 +3407,7 @@ async function processCheckoutEvent(
         customerId,
         providerGeneration: synchronized.providerGeneration,
         priceId: checkoutPriceId,
+        plan: targetPlan,
         livemode: event.livemode,
         operationId: subscriptionOperation.operationId,
         ...(subscriptionLease ? { operationLease: subscriptionLease } : {}),
@@ -2877,8 +3428,6 @@ async function processCheckoutEvent(
             organizationId: organization.organizationId,
             expectedVersion: organization.billingState.version,
             state: { kind: "active", plan: targetPlan },
-            restoreManagerPersonIds: organization.restoreManagerPersonIds,
-            restoreShopIds: organization.restoreShopIds,
             correlationId: `stripe:${event.stripeEventId}:late-setup-paid`,
           });
           if (!activated.changed) return { kind: "retry" as const, errorCode: "billing_version_conflict" };
@@ -2889,11 +3438,11 @@ async function processCheckoutEvent(
       }
       return processedResult(synchronized);
     }
-    const selected = await ctx.runMutation(internal.organizationBilling.mutations.selectTrialPro, {
+    const selected = await ctx.runMutation(internal.organizationBilling.mutations.selectTrialPaidPlan, {
       organizationId: organization.organizationId,
       expectedVersion: organization.billingState.version,
       plan: targetPlan,
-      correlationId: `stripe:${event.stripeEventId}:trial-pro-selected`,
+      correlationId: `stripe:${event.stripeEventId}:trial-paid-plan-selected`,
     });
     if (!selected.changed && selected.stateKind !== "trial") {
       const rejected = await rejectCreatedTrialSubscription(ctx, stripe, subscription, {
@@ -2901,6 +3450,7 @@ async function processCheckoutEvent(
         customerId,
         providerGeneration: synchronized.providerGeneration,
         priceId: checkoutPriceId,
+        plan: targetPlan,
         livemode: event.livemode,
         operationId: subscriptionOperation.operationId,
         ...(subscriptionLease ? { operationLease: subscriptionLease } : {}),
@@ -2915,10 +3465,7 @@ async function processCheckoutEvent(
     return processedResult(synchronized);
   }
 
-  if (
-    (operation.kind !== "immediateProCheckout" && operation.kind !== "immediatePaidCheckout") ||
-    session.mode !== "subscription"
-  ) {
+  if (operation.kind !== "immediatePaidCheckout" || session.mode !== "subscription") {
     return { kind: "actionRequired" as const, errorCode: "subscription_checkout_invalid" };
   }
   const subscriptionId = stripeObjectId(session.subscription);
@@ -2947,8 +3494,8 @@ async function synchronizeSubscription(
     stripeEventId: string;
     eventCreatedAt: number;
     livemode: boolean;
+    standardPriceId?: string;
     proPriceId?: string;
-    businessPriceId?: string;
   },
   subscription: Stripe.Subscription,
   expectedCustomerId?: string,
@@ -2986,7 +3533,7 @@ async function synchronizeSubscription(
     subscription.items.data.length !== 1 ||
     !item ||
     item.price.livemode !== event.livemode ||
-    !item.price.recurring
+    !getStripeBillingCadence(item.price)
   ) {
     return { ok: false, result: { kind: "actionRequired", errorCode: "subscription_price_invalid" } };
   }
@@ -3000,12 +3547,14 @@ async function synchronizeSubscription(
     }
     if (item.price.id !== organization.latestStripePriceId) {
       const state = organization.billingState.state;
-      let providerChangeAuthorized = isAuthorizedProviderPlanChange(state, item.price.id, event);
+      const isImmediatePendingActivation =
+        state.kind === "pendingActivation" && state.plan === "pro" && state.fallback === "standard";
+      let providerChangeAuthorized = isImmediatePendingActivation
+        ? false
+        : isAuthorizedProviderPlanChange(state, item.price.id, event);
       if (
         !providerChangeAuthorized &&
-        state.kind === "pendingActivation" &&
-        state.plan === "business" &&
-        state.fallback === "pro" &&
+        isImmediatePendingActivation &&
         organization.billingState.version > 0 &&
         organization.latestStripeSubscriptionItemId === item.id
       ) {
@@ -3022,16 +3571,18 @@ async function synchronizeSubscription(
             targetStripePriceId: item.price.id,
           },
         );
-        if (source) {
+        if (source?.status === "succeeded") {
           providerChangeAuthorized = true;
-          operationAuthorizedPlan = "business";
+          operationAuthorizedPlan = "pro";
+        } else if (source?.status === "inFlight") {
+          return { ok: false, result: { kind: "retry", errorCode: "paid_plan_change_operation_pending" } };
         }
       }
       if (
         !providerChangeAuthorized &&
         state.kind === "scheduledChange" &&
-        state.currentPlan === "business" &&
-        state.targetPlan === "pro" &&
+        state.currentPlan === "pro" &&
+        state.targetPlan === "standard" &&
         event.eventCreatedAt >= state.effectiveAt &&
         organization.latestStripeSubscriptionScheduleId &&
         organization.latestStripeSubscriptionItemId === item.id
@@ -3050,7 +3601,7 @@ async function synchronizeSubscription(
           source.targetStripePriceId === item.price.id
         ) {
           providerChangeAuthorized = true;
-          operationAuthorizedPlan = "pro";
+          operationAuthorizedPlan = "standard";
         }
       }
       if (!organization.latestStripeSubscriptionItemId || item.id !== organization.latestStripeSubscriptionItemId) {
@@ -3083,7 +3634,7 @@ async function synchronizeSubscription(
     if (!matchesSubscriptionMetadata(subscription, organization.organizationId, providerGeneration, priceSnapshot)) {
       return { ok: false, result: { kind: "actionRequired", errorCode: "subscription_generation_invalid" } };
     }
-    if (operation.kind === "immediateProCheckout" || operation.kind === "immediatePaidCheckout") {
+    if (operation.kind === "immediatePaidCheckout") {
       if (operation.status === "processing") {
         return { ok: false, result: { kind: "retry", errorCode: "checkout_operation_pending" } };
       }
@@ -3159,8 +3710,8 @@ async function synchronizeSubscription(
       : organization.latestStripeSubscriptionScheduleId &&
           !(
             organization.billingState.state.kind === "scheduledChange" &&
-            organization.billingState.state.currentPlan === "business" &&
-            organization.billingState.state.targetPlan === "pro"
+            organization.billingState.state.currentPlan === "pro" &&
+            organization.billingState.state.targetPlan === "standard"
           )
         ? { clearStripeSubscriptionScheduleId: true }
         : {}),
@@ -3174,7 +3725,7 @@ async function synchronizeSubscription(
       ? { trialCreationOperationLeaseToken: options.trialCreationOperationLeaseToken }
       : {}),
   });
-  return { ok: true, organization, providerGeneration, snapshotStale: saved.stale };
+  return { ok: true, organization, providerGeneration, plan: snapshotPlan, snapshotStale: saved.stale };
 }
 
 async function reconcileAuthoritativeSubscriptionState(
@@ -3204,7 +3755,7 @@ async function reconcileAuthoritativeSubscriptionState(
         organizationId: synchronized.organization.organizationId,
         stripeCustomerId,
         livemode: event.livemode,
-        subscription: { providerGeneration: synchronized.providerGeneration },
+        subscription: { providerGeneration: synchronized.providerGeneration, plan: synchronized.plan },
       },
       canceled,
     );
@@ -3251,6 +3802,7 @@ async function reconcileAuthoritativeSubscriptionState(
         currentPlan: currentPaidPlan,
         targetPlan: "free",
         effectiveAt: periodEndsAt,
+        restrictAtPeriodEnd: true,
       },
       correlationId: `stripe:${event.stripeEventId}:provider-cancel-at-period-end`,
     });
@@ -3263,7 +3815,8 @@ async function reconcileAuthoritativeSubscriptionState(
           state.kind === "scheduledChange" &&
           state.currentPlan === currentPaidPlan &&
           state.targetPlan === "free" &&
-          state.effectiveAt === periodEndsAt,
+          state.effectiveAt === periodEndsAt &&
+          state.restrictAtPeriodEnd === true,
       ))
     ) {
       return { ok: false, result: { kind: "retry", errorCode: "billing_version_conflict" } };
@@ -3302,33 +3855,6 @@ async function reconcileAuthoritativeSubscriptionState(
   return { ok: true, synchronized: { ...synchronized, organization }, reconciled: true };
 }
 
-async function tightenGraceFromVerifiedFailure(
-  ctx: ActionCtx,
-  event: { stripeEventId: string; eventCreatedAt: number },
-  synchronized: SynchronizedSubscription,
-): Promise<WebhookProcessResult | null> {
-  const billing = synchronized.organization.billingState;
-  if (billing.state.kind !== "grace") return null;
-  if (event.eventCreatedAt >= billing.state.startedAt) return processedResult(synchronized);
-  const tightened = await ctx.runMutation(internal.organizationBilling.mutations.tightenVerifiedPaymentGrace, {
-    organizationId: synchronized.organization.organizationId,
-    expectedVersion: billing.version,
-    firstFailureAt: event.eventCreatedAt,
-    correlationId: `stripe:${event.stripeEventId}:grace-shortened`,
-  });
-  if (
-    !(await billingMutationConverged(
-      ctx,
-      synchronized.organization.organizationId,
-      tightened.changed,
-      (state) => state.kind === "restricted" || (state.kind === "grace" && state.startedAt <= event.eventCreatedAt),
-    ))
-  ) {
-    return { kind: "retry", errorCode: "billing_version_conflict" };
-  }
-  return processedResult(synchronized);
-}
-
 async function applySubscriptionCancellation(
   ctx: ActionCtx,
   event: { stripeEventId: string; eventCreatedAt: number },
@@ -3339,7 +3865,7 @@ async function applySubscriptionCancellation(
 ): Promise<WebhookProcessResult> {
   const billing = synchronized.organization.billingState;
   if (billing.state.kind === "trial" && billing.state.selectedPaidPlan) {
-    const changed = await ctx.runMutation(internal.organizationBilling.mutations.clearTrialPro, {
+    const changed = await ctx.runMutation(internal.organizationBilling.mutations.clearTrialPaidPlan, {
       organizationId: synchronized.organization.organizationId,
       expectedVersion: billing.version,
       correlationId: `stripe:${event.stripeEventId}:trial-subscription-cancelled`,
@@ -3372,7 +3898,7 @@ async function applySubscriptionCancellation(
     const changed = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
       organizationId: synchronized.organization.organizationId,
       expectedVersion: billing.version,
-      state: { kind: "paymentFailed" },
+      state: { kind: "activationFailed" },
       correlationId: `stripe:${event.stripeEventId}:activation-cancelled`,
     });
     if (
@@ -3380,7 +3906,7 @@ async function applySubscriptionCancellation(
         ctx,
         synchronized.organization.organizationId,
         changed.changed,
-        isSafeAfterSubscriptionCancellation,
+        isSafeAfterActivationFailure,
       ))
     )
       return { kind: "retry", errorCode: "billing_version_conflict" };
@@ -3403,9 +3929,11 @@ async function applySubscriptionCancellation(
       ))
     )
       return { kind: "retry", errorCode: "billing_version_conflict" };
+  } else if (billing.state.kind === "paymentTerminationPending") {
+    // 自身の終了workflowによるdeleted eventでは、provider証拠が揃うまでpendingを維持する。
+    return processedResult(synchronized);
   } else if (
     (billing.state.kind === "active" && billing.state.plan !== "free") ||
-    billing.state.kind === "grace" ||
     billing.state.kind === "scheduledChange"
   ) {
     const changed = await ctx.runMutation(internal.organizationBilling.mutations.applyUnexpectedCancellation, {
@@ -3433,8 +3961,8 @@ type PaidPlanChangeRecoverySnapshot = {
   kind: "changePaidPlanNow" | "schedulePaidPlanChange" | "cancelScheduledPlanChange";
   expectedBillingVersion?: number;
   providerGeneration: number;
-  sourcePlan: "pro" | "business";
-  targetPlan: "free" | "pro" | "business";
+  sourcePlan: "standard" | "pro";
+  targetPlan: "free" | "standard" | "pro";
   changeMode: "checkout" | "immediate" | "periodEnd";
   stripeSubscriptionIdSnapshot: string;
   stripeSubscriptionItemIdSnapshot: string;
@@ -3462,29 +3990,29 @@ async function recoverImmediatePaidPlanChange(
   leaseToken: string,
 ) {
   if (
-    persisted.sourcePlan !== "pro" ||
-    persisted.targetPlan !== "business" ||
+    persisted.sourcePlan !== "standard" ||
+    persisted.targetPlan !== "pro" ||
     persisted.changeMode !== "immediate" ||
     persisted.prorationDate === undefined
   ) {
     throw new Error("paid_plan_change_intent_invalid");
   }
   let billingVersion = context.billingVersion;
-  if (context.billingState.kind === "active" && context.billingState.plan === "pro") {
+  if (context.billingState.kind === "active" && context.billingState.plan === "standard") {
     const pending = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
       organizationId: context.organizationId,
       expectedVersion: billingVersion,
-      state: { kind: "pendingActivation", plan: "business", fallback: "pro" },
-      correlationId: `stripe:${operation.operationId}:pending-business-upgrade`,
+      state: { kind: "pendingActivation", plan: "pro", fallback: "standard" },
+      correlationId: `stripe:${operation.operationId}:pending-pro-upgrade`,
     });
     if (!pending.changed) throw new Error("billing_version_conflict");
     billingVersion += 1;
   } else if (
     !(
       (context.billingState.kind === "pendingActivation" &&
-        context.billingState.plan === "business" &&
-        context.billingState.fallback === "pro") ||
-      (context.billingState.kind === "active" && context.billingState.plan === "business")
+        context.billingState.plan === "pro" &&
+        context.billingState.fallback === "standard") ||
+      (context.billingState.kind === "active" && context.billingState.plan === "pro")
     )
   ) {
     await finishOperation(ctx, operation.operationId, leaseToken, "cancelled", undefined, "billing_already_converged");
@@ -3525,29 +4053,23 @@ async function recoverImmediatePaidPlanChange(
   ) {
     throw new Error("subscription_update_relationship_invalid");
   }
-  const appliedPlan = updatedItem.price.id === persisted.targetStripePriceIdSnapshot ? "business" : "pro";
+  const appliedPlan = updatedItem.price.id === persisted.targetStripePriceIdSnapshot ? "pro" : "standard";
   await saveSubscriptionFromSafetyAction(ctx, context, updated, { plan: appliedPlan });
-  if (appliedPlan === "business" && updated.status === "active") {
+  if (appliedPlan === "pro" && updated.status === "active") {
     const invoice = await retrieveLatestSubscriptionInvoice(stripe, updated, context);
     if (invoice.status === "paid") {
       const activated = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: context.organizationId,
         expectedVersion: billingVersion,
-        state: { kind: "active", plan: "business" },
-        notificationDetails: {
-          targetPlan: "business",
-          amountDue: invoice.amount_paid,
-          currency: invoice.currency,
-          effectiveAt: persisted.prorationDate * 1000,
-        },
-        correlationId: `stripe:${operation.operationId}:business-activated`,
+        state: { kind: "active", plan: "pro" },
+        correlationId: `stripe:${operation.operationId}:pro-activated`,
       });
       if (
         !(await billingMutationConverged(
           ctx,
           context.organizationId,
           activated.changed,
-          (state) => state.kind === "active" && state.plan === "business",
+          (state) => state.kind === "active" && state.plan === "pro",
         ))
       ) {
         throw new Error("billing_version_conflict");
@@ -3565,15 +4087,15 @@ async function recoverScheduledPaidPlanChange(
   operation: ClaimedPaidPlanChangeOperation,
   leaseToken: string,
 ) {
-  if (persisted.sourcePlan !== "business" || persisted.targetPlan !== "pro" || persisted.changeMode !== "periodEnd") {
+  if (persisted.sourcePlan !== "pro" || persisted.targetPlan !== "standard" || persisted.changeMode !== "periodEnd") {
     throw new Error("paid_plan_change_intent_invalid");
   }
   const isAlreadyScheduled =
     context.billingState.kind === "scheduledChange" &&
-    context.billingState.currentPlan === "business" &&
-    context.billingState.targetPlan === "pro" &&
+    context.billingState.currentPlan === "pro" &&
+    context.billingState.targetPlan === "standard" &&
     context.billingState.effectiveAt === persisted.effectiveAt;
-  if (!(context.billingState.kind === "active" && context.billingState.plan === "business") && !isAlreadyScheduled) {
+  if (!(context.billingState.kind === "active" && context.billingState.plan === "pro") && !isAlreadyScheduled) {
     await finishOperation(ctx, operation.operationId, leaseToken, "cancelled", undefined, "billing_already_converged");
     return;
   }
@@ -3596,24 +4118,23 @@ async function recoverScheduledPaidPlanChange(
     throw new Error("paid_plan_change_period_invalid");
   }
 
-  let scheduleId =
-    operation.stripeObjectId ?? stripeObjectId(current.schedule) ?? context.subscription.stripeSubscriptionScheduleId;
+  let scheduleId = operation.stripeObjectId;
   let schedule = scheduleId
     ? await stripe.subscriptionSchedules.retrieve(scheduleId)
     : await stripe.subscriptionSchedules.create(
-        {
-          from_subscription: current.id,
-          metadata: stripeMetadata({
-            organizationId: context.organizationId,
-            operationId: operation.operationId,
-            providerGeneration: persisted.providerGeneration,
-            priceId: persisted.targetStripePriceIdSnapshot,
-          }),
-        },
+        { from_subscription: current.id },
         { idempotencyKey: `${operation.stripeIdempotencyKey}:create` },
       );
   scheduleId = schedule.id;
-  assertPaidPlanChangeSchedule(schedule, context, persisted, operation.operationId, scheduleId);
+  assertPaidPlanChangeScheduleConfigurable(schedule, {
+    scheduleId,
+    subscriptionId: persisted.stripeSubscriptionIdSnapshot,
+    organizationId: context.organizationId,
+    sourceOperationId: operation.operationId,
+    providerGeneration: persisted.providerGeneration,
+    targetStripePriceId: persisted.targetStripePriceIdSnapshot,
+    livemode: persisted.livemode,
+  });
   if (schedule.status === "released" && currentItem.price.id !== persisted.targetStripePriceIdSnapshot) {
     throw new Error("released_schedule_target_not_applied");
   }
@@ -3634,6 +4155,15 @@ async function recoverScheduledPaidPlanChange(
     if (schedule.status === "released") throw new Error("subscription_schedule_not_confirmed");
     if (currentItem.price.id !== persisted.sourceStripePriceIdSnapshot) {
       throw new Error("subscription_schedule_not_confirmed");
+    }
+    const currentCadence = getStripeBillingCadence(currentItem.price);
+    const targetPrice = await retrieveExistingRecurringPrice(
+      stripe,
+      persisted.targetStripePriceIdSnapshot,
+      context.livemode,
+    );
+    if (!currentCadence || !targetPrice || !hasSameBillingCadence(currentCadence, targetPrice)) {
+      throw new Error("paid_plan_change_target_price_invalid");
     }
     const phaseStart = schedule.current_phase?.start_date ?? currentItem.current_period_start;
     schedule = await stripe.subscriptionSchedules.update(
@@ -3656,7 +4186,7 @@ async function recoverScheduledPaidPlanChange(
           },
           {
             start_date: Math.floor(persisted.effectiveAt / 1000),
-            duration: { interval: "month", interval_count: 1 },
+            duration: subscriptionScheduleDuration(targetPrice),
             items: [{ price: persisted.targetStripePriceIdSnapshot, quantity: 1 }],
             proration_behavior: "none",
           },
@@ -3664,8 +4194,8 @@ async function recoverScheduledPaidPlanChange(
       },
       { idempotencyKey: `${operation.stripeIdempotencyKey}:configure` },
     );
-    assertPaidPlanChangeSchedule(schedule, context, persisted, operation.operationId, scheduleId);
   }
+  assertPaidPlanChangeSchedule(schedule, context, persisted, operation.operationId, scheduleId);
   if (
     !schedule.phases.some(
       (phase) =>
@@ -3677,7 +4207,7 @@ async function recoverScheduledPaidPlanChange(
     throw new Error("subscription_schedule_not_confirmed");
   }
   await saveSubscriptionFromSafetyAction(ctx, context, current, {
-    plan: currentItem.price.id === persisted.targetStripePriceIdSnapshot ? "pro" : "business",
+    plan: currentItem.price.id === persisted.targetStripePriceIdSnapshot ? "standard" : "pro",
     stripeSubscriptionScheduleId: schedule.id,
   });
   if (!isAlreadyScheduled) {
@@ -3686,11 +4216,11 @@ async function recoverScheduledPaidPlanChange(
       expectedVersion: context.billingVersion,
       state: {
         kind: "scheduledChange",
-        currentPlan: "business",
-        targetPlan: "pro",
+        currentPlan: "pro",
+        targetPlan: "standard",
         effectiveAt: persisted.effectiveAt,
       },
-      correlationId: `stripe:${operation.operationId}:business-to-pro-scheduled`,
+      correlationId: `stripe:${operation.operationId}:pro-to-standard-scheduled`,
     });
     if (!transition.changed) throw new Error("billing_version_conflict");
   }
@@ -3705,15 +4235,15 @@ async function recoverCanceledPaidPlanChange(
   operation: ClaimedPaidPlanChangeOperation,
   leaseToken: string,
 ) {
-  if (persisted.sourcePlan !== "business" || persisted.targetPlan !== "pro" || persisted.changeMode !== "periodEnd") {
+  if (persisted.sourcePlan !== "pro" || persisted.targetPlan !== "standard" || persisted.changeMode !== "periodEnd") {
     throw new Error("paid_plan_change_intent_invalid");
   }
   const isScheduled =
     context.billingState.kind === "scheduledChange" &&
-    context.billingState.currentPlan === "business" &&
-    context.billingState.targetPlan === "pro" &&
+    context.billingState.currentPlan === "pro" &&
+    context.billingState.targetPlan === "standard" &&
     context.billingState.effectiveAt === persisted.effectiveAt;
-  const isAlreadyCanceled = context.billingState.kind === "active" && context.billingState.plan === "business";
+  const isAlreadyCanceled = context.billingState.kind === "active" && context.billingState.plan === "pro";
   if (!isScheduled && !isAlreadyCanceled) {
     await finishOperation(ctx, operation.operationId, leaseToken, "cancelled", undefined, "billing_already_converged");
     return;
@@ -3774,7 +4304,7 @@ async function recoverCanceledPaidPlanChange(
   }
 
   await saveSubscriptionFromSafetyAction(ctx, context, current, {
-    plan: "business",
+    plan: "pro",
     clearStripeSubscriptionScheduleId: true,
   });
   if (isScheduled) {
@@ -3782,7 +4312,7 @@ async function recoverCanceledPaidPlanChange(
       organizationId: context.organizationId,
       expectedVersion: context.billingVersion,
       state: { kind: "scheduledChangeCanceled" },
-      correlationId: `stripe:${operation.operationId}:business-to-pro-canceled`,
+      correlationId: `stripe:${operation.operationId}:pro-to-standard-canceled`,
     });
     if (!transition.changed) throw new Error("billing_version_conflict");
   }
@@ -3825,28 +4355,68 @@ function assertPaidPlanChangeSchedule(
   });
 }
 
-function assertPaidPlanChangeScheduleEvidence(
+type PaidPlanChangeScheduleEvidence = {
+  scheduleId: string;
+  subscriptionId: string;
+  organizationId: Id<"organizations">;
+  sourceOperationId: Id<"organizationStripeOperations">;
+  providerGeneration: number;
+  targetStripePriceId: string;
+  livemode: boolean;
+};
+
+const PAID_PLAN_CHANGE_SCHEDULE_METADATA_KEYS = [
+  "shiftori_organization_id",
+  "shiftori_operation_id",
+  "shiftori_provider_generation",
+  "shiftori_price_id",
+] as const;
+
+function assertPaidPlanChangeScheduleRelationship(
   schedule: Stripe.SubscriptionSchedule,
-  expected: {
-    scheduleId: string;
-    subscriptionId: string;
-    organizationId: Id<"organizations">;
-    sourceOperationId: Id<"organizationStripeOperations">;
-    providerGeneration: number;
-    targetStripePriceId: string;
-    livemode: boolean;
-  },
+  expected: PaidPlanChangeScheduleEvidence,
 ) {
   if (
     schedule.id !== expected.scheduleId ||
     schedule.livemode !== expected.livemode ||
     schedule.status === "canceled" ||
-    subscriptionScheduleSubscriptionId(schedule) !== expected.subscriptionId ||
-    schedule.metadata?.shiftori_organization_id !== String(expected.organizationId) ||
-    schedule.metadata?.shiftori_operation_id !== String(expected.sourceOperationId) ||
-    schedule.metadata?.shiftori_provider_generation !== String(expected.providerGeneration) ||
-    schedule.metadata?.shiftori_price_id !== expected.targetStripePriceId
+    subscriptionScheduleSubscriptionId(schedule) !== expected.subscriptionId
   ) {
+    throw new Error("subscription_schedule_relationship_invalid");
+  }
+}
+
+function hasPaidPlanChangeScheduleMetadataEvidence(
+  schedule: Stripe.SubscriptionSchedule,
+  expected: PaidPlanChangeScheduleEvidence,
+) {
+  return (
+    schedule.metadata?.shiftori_organization_id === String(expected.organizationId) &&
+    schedule.metadata?.shiftori_operation_id === String(expected.sourceOperationId) &&
+    schedule.metadata?.shiftori_provider_generation === String(expected.providerGeneration) &&
+    schedule.metadata?.shiftori_price_id === expected.targetStripePriceId
+  );
+}
+
+function assertPaidPlanChangeScheduleConfigurable(
+  schedule: Stripe.SubscriptionSchedule,
+  expected: PaidPlanChangeScheduleEvidence,
+) {
+  assertPaidPlanChangeScheduleRelationship(schedule, expected);
+  const hasAnyOwnershipMetadata = PAID_PLAN_CHANGE_SCHEDULE_METADATA_KEYS.some(
+    (key) => schedule.metadata?.[key] !== undefined,
+  );
+  if (hasAnyOwnershipMetadata && !hasPaidPlanChangeScheduleMetadataEvidence(schedule, expected)) {
+    throw new Error("subscription_schedule_relationship_invalid");
+  }
+}
+
+function assertPaidPlanChangeScheduleEvidence(
+  schedule: Stripe.SubscriptionSchedule,
+  expected: PaidPlanChangeScheduleEvidence,
+) {
+  assertPaidPlanChangeScheduleRelationship(schedule, expected);
+  if (!hasPaidPlanChangeScheduleMetadataEvidence(schedule, expected)) {
     throw new Error("subscription_schedule_relationship_invalid");
   }
 }
@@ -3868,18 +4438,18 @@ async function retryPaidPlanChangeOperation(
 
 async function previewImmediatePaidPlanChange(
   ctx: ActionCtx,
-  args: { shopId: Id<"shops">; targetPlan: "business"; requestId: string },
+  args: { scope: BillingActionScope; targetPlan: "pro"; requestId: string },
 ): Promise<ProrationPreviewResult> {
   const configuration = getStripeBillingConfiguration();
   if (configuration.status !== "ready") return unavailable("configuration_pending");
   const targetPriceId = getConfiguredStripePriceId(configuration, args.targetPlan);
   if (!targetPriceId) return unavailable("price_unavailable");
-  const context = await getAuthorizedContext(ctx, args.shopId, "changePaidPlan");
+  const context = await getAuthorizedContext(ctx, args.scope, "changePaidPlan");
   if (
     !context?.currentStripeSubscriptionId ||
     !context.currentStripePriceId ||
     context.billingState.state.kind !== "active" ||
-    context.billingState.state.plan !== "pro"
+    context.billingState.state.plan !== "standard"
   ) {
     return unavailable("not_allowed");
   }
@@ -3905,8 +4475,11 @@ async function previewImmediatePaidPlanChange(
       livemode: configuration.livemode,
     });
     const item = requireSingleLicensedSubscriptionItem(subscription);
+    const currentCadence = getStripeBillingCadence(item.price);
     if (
+      !currentCadence ||
       item.price.currency !== targetPrice.currency ||
+      !hasSameBillingCadence(currentCadence, targetPrice) ||
       item.price.id === targetPriceId ||
       subscription.pending_update ||
       stripeObjectId(subscription.schedule)
@@ -3924,8 +4497,8 @@ async function previewImmediatePaidPlanChange(
       livemode: configuration.livemode,
       expectedBillingVersion: context.billingState.version,
       providerGeneration: context.providerGeneration,
-      sourcePlan: "pro",
-      targetPlan: "business",
+      sourcePlan: "standard",
+      targetPlan: "pro",
       changeMode: "immediate",
       stripeSubscriptionIdSnapshot: subscription.id,
       stripeSubscriptionItemIdSnapshot: item.id,
@@ -3969,23 +4542,23 @@ async function previewImmediatePaidPlanChange(
 
 async function applyImmediatePaidPlanChange(
   ctx: ActionCtx,
-  args: { shopId: Id<"shops">; targetPlan: "business"; requestId: string; prorationDate: number },
+  args: { scope: BillingActionScope; targetPlan: "pro"; requestId: string; prorationDate: number },
 ): Promise<ChangeResult> {
   if (!Number.isSafeInteger(args.prorationDate) || args.prorationDate < 0) return unavailable("not_allowed");
   const configuration = getStripeBillingConfiguration();
   if (configuration.status !== "ready") return unavailable("configuration_pending");
   const targetPriceId = getConfiguredStripePriceId(configuration, args.targetPlan);
   if (!targetPriceId) return unavailable("price_unavailable");
-  const context = await getAuthorizedContext(ctx, args.shopId, "changePaidPlan");
+  const context = await getAuthorizedContext(ctx, args.scope, "changePaidPlan");
   if (
     !context?.currentStripeSubscriptionId ||
     !context.currentStripePriceId ||
     !context.stripeCustomerId ||
     !(
-      (context.billingState.state.kind === "active" && context.billingState.state.plan === "pro") ||
+      (context.billingState.state.kind === "active" && context.billingState.state.plan === "standard") ||
       (context.billingState.state.kind === "pendingActivation" &&
-        context.billingState.state.plan === "business" &&
-        context.billingState.state.fallback === "pro")
+        context.billingState.state.plan === "pro" &&
+        context.billingState.state.fallback === "standard")
     )
   ) {
     return unavailable("not_allowed");
@@ -4012,8 +4585,11 @@ async function applyImmediatePaidPlanChange(
       livemode: configuration.livemode,
     });
     const currentItem = requireSingleLicensedSubscriptionItem(current);
+    const currentCadence = getStripeBillingCadence(currentItem.price);
     if (
+      !currentCadence ||
       currentItem.price.currency !== targetPrice.currency ||
+      !hasSameBillingCadence(currentCadence, targetPrice) ||
       args.prorationDate < currentItem.current_period_start ||
       args.prorationDate > currentItem.current_period_end ||
       current.pending_update ||
@@ -4041,8 +4617,8 @@ async function applyImmediatePaidPlanChange(
       livemode: configuration.livemode,
       expectedBillingVersion: context.billingState.version,
       providerGeneration: context.providerGeneration,
-      sourcePlan: "pro",
-      targetPlan: "business",
+      sourcePlan: "standard",
+      targetPlan: "pro",
       changeMode: "immediate",
       stripeSubscriptionIdSnapshot: current.id,
       stripeSubscriptionItemIdSnapshot: currentItem.id,
@@ -4061,8 +4637,8 @@ async function applyImmediatePaidPlanChange(
       const pending = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: context.organizationId,
         expectedVersion: expectedBillingVersion,
-        state: { kind: "pendingActivation", plan: "business", fallback: "pro" },
-        correlationId: `stripe:${operation.operationId}:pending-business-upgrade`,
+        state: { kind: "pendingActivation", plan: "pro", fallback: "standard" },
+        correlationId: `stripe:${operation.operationId}:pending-pro-upgrade`,
       });
       if (!pending.changed) throw new Error("billing_version_conflict");
       expectedBillingVersion += 1;
@@ -4091,7 +4667,7 @@ async function applyImmediatePaidPlanChange(
       throw new Error("subscription_update_relationship_invalid");
     }
     await saveVerifiedSubscriptionSnapshot(ctx, context, updated, {
-      plan: updatedItem.price.id === targetPriceId ? "business" : "pro",
+      plan: updatedItem.price.id === targetPriceId ? "pro" : "standard",
     });
     const invoice =
       updated.latest_invoice && typeof updated.latest_invoice === "object" && !updated.latest_invoice.deleted
@@ -4101,14 +4677,8 @@ async function applyImmediatePaidPlanChange(
       const activated = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: context.organizationId,
         expectedVersion: expectedBillingVersion,
-        state: { kind: "active", plan: "business" },
-        notificationDetails: {
-          targetPlan: "business",
-          amountDue: invoice.amount_paid,
-          currency: invoice.currency,
-          effectiveAt: args.prorationDate * 1000,
-        },
-        correlationId: `stripe:${operation.operationId}:business-activated`,
+        state: { kind: "active", plan: "pro" },
+        correlationId: `stripe:${operation.operationId}:pro-activated`,
       });
       if (!activated.changed) throw new Error("billing_version_conflict");
     }
@@ -4128,19 +4698,19 @@ async function applyImmediatePaidPlanChange(
   }
 }
 
-async function scheduleBusinessToPro(
+async function scheduleProToStandard(
   ctx: ActionCtx,
-  args: { shopId: Id<"shops">; targetPlan: "pro"; requestId: string },
+  args: { scope: BillingActionScope; targetPlan: "standard"; requestId: string },
 ): Promise<ChangeResult> {
   const configuration = getStripeBillingConfiguration();
   if (configuration.status !== "ready") return unavailable("configuration_pending");
-  const context = await getAuthorizedContext(ctx, args.shopId, "schedulePaidPlanChange");
+  const context = await getAuthorizedContext(ctx, args.scope, "schedulePaidPlanChange");
   if (
     !context?.stripeCustomerId ||
     !context.currentStripeSubscriptionId ||
     !context.currentStripePriceId ||
     context.billingState.state.kind !== "active" ||
-    context.billingState.state.plan !== "business"
+    context.billingState.state.plan !== "pro"
   ) {
     return unavailable("not_allowed");
   }
@@ -4153,11 +4723,11 @@ async function scheduleBusinessToPro(
   let scheduleId: string | undefined;
   try {
     const stripe = createStripeClient(configuration.secretKey);
-    const [proPrice, current] = await Promise.all([
-      retrieveAllowedPrice(stripe, configuration.proPriceId, configuration.livemode),
+    const [standardPrice, current] = await Promise.all([
+      retrieveAllowedPrice(stripe, configuration.standardPriceId, configuration.livemode),
       stripe.subscriptions.retrieve(context.currentStripeSubscriptionId, { expand: ["latest_invoice"] }),
     ]);
-    if (!proPrice) return unavailable("price_unavailable");
+    if (!standardPrice) return unavailable("price_unavailable");
     assertActionSubscription(current, {
       organizationId: context.organizationId,
       customerId: context.stripeCustomerId,
@@ -4167,7 +4737,15 @@ async function scheduleBusinessToPro(
       livemode: configuration.livemode,
     });
     const currentItem = requireSingleLicensedSubscriptionItem(current);
-    if (currentItem.price.currency !== proPrice.currency || current.pending_update) return unavailable("not_allowed");
+    const currentCadence = getStripeBillingCadence(currentItem.price);
+    if (
+      !currentCadence ||
+      currentItem.price.currency !== standardPrice.currency ||
+      !hasSameBillingCadence(currentCadence, standardPrice) ||
+      current.pending_update
+    ) {
+      return unavailable("not_allowed");
+    }
     const effectiveAt = currentItem.current_period_end * 1000;
     operation = await ctx.runMutation(internal.organizationStripe.mutations.beginOperation, {
       organizationId: context.organizationId,
@@ -4176,32 +4754,24 @@ async function scheduleBusinessToPro(
       livemode: configuration.livemode,
       expectedBillingVersion: context.billingState.version,
       providerGeneration: context.providerGeneration,
-      sourcePlan: "business",
-      targetPlan: "pro",
+      sourcePlan: "pro",
+      targetPlan: "standard",
       changeMode: "periodEnd",
       stripeSubscriptionIdSnapshot: current.id,
       stripeSubscriptionItemIdSnapshot: currentItem.id,
       sourceStripePriceIdSnapshot: currentItem.price.id,
-      targetStripePriceIdSnapshot: configuration.proPriceId,
+      targetStripePriceIdSnapshot: configuration.standardPriceId,
       effectiveAt,
     });
     if (!operation.created) {
       return unavailable(operation.conflict ? "in_progress" : "request_already_used");
     }
     leaseToken = requireOperationLease(operation);
-    scheduleId = operation.stripeObjectId ?? stripeObjectId(current.schedule) ?? undefined;
+    scheduleId = operation.stripeObjectId ?? undefined;
     let schedule = scheduleId
       ? await stripe.subscriptionSchedules.retrieve(scheduleId)
       : await stripe.subscriptionSchedules.create(
-          {
-            from_subscription: current.id,
-            metadata: stripeMetadata({
-              organizationId: context.organizationId,
-              operationId: operation.operationId,
-              providerGeneration: context.providerGeneration,
-              priceId: configuration.proPriceId,
-            }),
-          },
+          { from_subscription: current.id },
           { idempotencyKey: `${operation.stripeIdempotencyKey}:create` },
         );
     scheduleId = schedule.id;
@@ -4211,11 +4781,11 @@ async function scheduleBusinessToPro(
       organizationId: context.organizationId,
       sourceOperationId: operation.operationId,
       providerGeneration: context.providerGeneration,
-      targetStripePriceId: configuration.proPriceId,
+      targetStripePriceId: configuration.standardPriceId,
       livemode: configuration.livemode,
     };
-    // 既存Scheduleはmetadataでこのoperationの所有物と確認できる場合だけ再利用する。
-    assertPaidPlanChangeScheduleEvidence(schedule, expectedSchedule);
+    // create直後はmetadataが未設定なので、関係と競合metadataを検証してからoperationへ固定する。
+    assertPaidPlanChangeScheduleConfigurable(schedule, expectedSchedule);
     if (schedule.status === "released") throw new Error("subscription_schedule_already_released");
     const bound = await ctx.runMutation(internal.organizationStripe.mutations.bindPlanChangeProviderObject, {
       operationId: operation.operationId,
@@ -4234,7 +4804,7 @@ async function scheduleBusinessToPro(
           organizationId: context.organizationId,
           operationId: operation.operationId,
           providerGeneration: context.providerGeneration,
-          priceId: configuration.proPriceId,
+          priceId: configuration.standardPriceId,
         }),
         phases: [
           {
@@ -4245,8 +4815,8 @@ async function scheduleBusinessToPro(
           },
           {
             start_date: currentItem.current_period_end,
-            duration: { interval: "month", interval_count: 1 },
-            items: [{ price: configuration.proPriceId, quantity: 1 }],
+            duration: subscriptionScheduleDuration(standardPrice),
+            items: [{ price: configuration.standardPriceId, quantity: 1 }],
             proration_behavior: "none",
           },
         ],
@@ -4260,20 +4830,20 @@ async function scheduleBusinessToPro(
         (phase) =>
           phase.start_date === currentItem.current_period_end &&
           phase.items.length === 1 &&
-          stripeObjectId(phase.items[0]?.price) === configuration.proPriceId,
+          stripeObjectId(phase.items[0]?.price) === configuration.standardPriceId,
       )
     ) {
       throw new Error("subscription_schedule_not_confirmed");
     }
     await saveVerifiedSubscriptionSnapshot(ctx, context, current, {
-      plan: "business",
+      plan: "pro",
       stripeSubscriptionScheduleId: schedule.id,
     });
     const transition = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
       organizationId: context.organizationId,
       expectedVersion: context.billingState.version,
-      state: { kind: "scheduledChange", currentPlan: "business", targetPlan: "pro", effectiveAt },
-      correlationId: `stripe:${operation.operationId}:business-to-pro-scheduled`,
+      state: { kind: "scheduledChange", currentPlan: "pro", targetPlan: "standard", effectiveAt },
+      correlationId: `stripe:${operation.operationId}:pro-to-standard-scheduled`,
     });
     if (!transition.changed) throw new Error("billing_version_conflict");
     await finishOperation(ctx, operation.operationId, leaseToken, "succeeded", schedule.id);
@@ -4294,15 +4864,15 @@ async function scheduleBusinessToPro(
 
 async function cancelAnyScheduledPlanChange(
   ctx: ActionCtx,
-  args: { shopId: Id<"shops">; requestId: string },
+  args: { scope: BillingActionScope; requestId: string },
 ): Promise<ChangeResult> {
-  const preliminary = await getAuthorizedContext(ctx, args.shopId, "portal");
+  const preliminary = await getAuthorizedContext(ctx, args.scope, "portal");
   if (preliminary?.billingState.state.kind !== "scheduledChange") {
     return unavailable("not_allowed");
   }
   if (preliminary.billingState.state.targetPlan === "free") {
     return await updateCancelAtPeriodEnd(ctx, {
-      shopId: args.shopId,
+      scope: args.scope,
       requestId: args.requestId,
       purpose: "cancelFreeSchedule",
       cancelAtPeriodEnd: false,
@@ -4311,14 +4881,14 @@ async function cancelAnyScheduledPlanChange(
 
   const configuration = getStripeBillingConfiguration();
   if (configuration.status !== "ready") return unavailable("configuration_pending");
-  const context = await getAuthorizedContext(ctx, args.shopId, "cancelScheduledPlanChange");
+  const context = await getAuthorizedContext(ctx, args.scope, "cancelScheduledPlanChange");
   if (
     !context?.stripeCustomerId ||
     !context.currentStripeSubscriptionId ||
     !context.currentStripePriceId ||
     context.billingState.state.kind !== "scheduledChange" ||
-    context.billingState.state.currentPlan !== "business" ||
-    context.billingState.state.targetPlan !== "pro"
+    context.billingState.state.currentPlan !== "pro" ||
+    context.billingState.state.targetPlan !== "standard"
   ) {
     return unavailable("not_allowed");
   }
@@ -4360,8 +4930,8 @@ async function cancelAnyScheduledPlanChange(
       livemode: configuration.livemode,
       expectedBillingVersion: context.billingState.version,
       providerGeneration: context.providerGeneration,
-      sourcePlan: "business",
-      targetPlan: "pro",
+      sourcePlan: "pro",
+      targetPlan: "standard",
       changeMode: "periodEnd",
       stripeSubscriptionIdSnapshot: current.id,
       stripeSubscriptionItemIdSnapshot: item.id,
@@ -4407,14 +4977,14 @@ async function cancelAnyScheduledPlanChange(
     const verifiedItem = requireSingleLicensedSubscriptionItem(verified);
     if (verifiedItem.price.id !== item.price.id) throw new Error("subscription_price_changed_during_cancel");
     await saveVerifiedSubscriptionSnapshot(ctx, context, verified, {
-      plan: "business",
+      plan: "pro",
       clearStripeSubscriptionScheduleId: true,
     });
     const transition = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
       organizationId: context.organizationId,
       expectedVersion: context.billingState.version,
       state: { kind: "scheduledChangeCanceled" },
-      correlationId: `stripe:${operation.operationId}:business-to-pro-canceled`,
+      correlationId: `stripe:${operation.operationId}:pro-to-standard-canceled`,
     });
     if (!transition.changed) throw new Error("billing_version_conflict");
     await finishOperation(ctx, operation.operationId, leaseToken, "succeeded", schedule.id);
@@ -4436,15 +5006,16 @@ async function cancelAnyScheduledPlanChange(
 async function updateCancelAtPeriodEnd(
   ctx: ActionCtx,
   args: {
-    shopId: Id<"shops">;
+    scope: BillingActionScope;
     requestId: string;
     purpose: "scheduleFree" | "cancelFreeSchedule";
     cancelAtPeriodEnd: boolean;
+    restrictAtPeriodEnd?: true;
   },
 ): Promise<ChangeResult> {
   const configuration = getStripeBillingConfiguration();
   if (configuration.status !== "ready") return unavailable("configuration_pending");
-  const context = await getAuthorizedContext(ctx, args.shopId, args.purpose);
+  const context = await getAuthorizedContext(ctx, args.scope, args.purpose);
   if (
     !context?.currentStripeSubscriptionId ||
     !context.currentStripeSubscriptionItemId ||
@@ -4463,6 +5034,13 @@ async function updateCancelAtPeriodEnd(
   const livemode = configuration.livemode;
   if (context.currentStripeSubscriptionLivemode !== livemode) return unavailable("configuration_pending");
   const kind = args.cancelAtPeriodEnd ? ("scheduleFree" as const) : ("cancelFreeSchedule" as const);
+  const restrictAtPeriodEnd = args.cancelAtPeriodEnd
+    ? args.restrictAtPeriodEnd
+    : context.billingState.state.kind === "scheduledChange" &&
+        context.billingState.state.targetPlan === "free" &&
+        context.billingState.state.restrictAtPeriodEnd === true
+      ? (true as const)
+      : undefined;
   const operation = await ctx.runMutation(internal.organizationStripe.mutations.beginOperation, {
     organizationId: context.organizationId,
     kind,
@@ -4472,6 +5050,7 @@ async function updateCancelAtPeriodEnd(
     providerGeneration: context.providerGeneration,
     sourcePlan: currentPlan,
     targetPlan: "free",
+    ...(restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
     changeMode: "periodEnd",
     stripeSubscriptionIdSnapshot: context.currentStripeSubscriptionId,
     stripeSubscriptionItemIdSnapshot: context.currentStripeSubscriptionItemId,
@@ -4553,6 +5132,7 @@ async function updateCancelAtPeriodEnd(
             currentPlan,
             targetPlan: "free" as const,
             effectiveAt: periodEndsAt,
+            restrictAtPeriodEnd: true as const,
           }
         : { kind: "scheduledChangeCanceled" as const };
     const transition = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
@@ -4595,6 +5175,7 @@ async function resolveOrganizationForSubscription(
 function assertSafetySubscription(
   subscription: Stripe.Subscription,
   context: {
+    organizationId: Id<"organizations">;
     stripeCustomerId: string;
     livemode: boolean;
     subscription: { stripeSubscriptionId: string; stripePriceId: string; providerGeneration: number };
@@ -4607,17 +5188,20 @@ function assertSafetySubscription(
     stripeObjectId(subscription.customer) !== context.stripeCustomerId ||
     subscription.items.data.length !== 1 ||
     !item ||
-    item.price.id !== context.subscription.stripePriceId
+    item.price.id !== context.subscription.stripePriceId ||
+    subscription.metadata.shiftori_organization_id !== String(context.organizationId) ||
+    subscription.metadata.shiftori_provider_generation !== String(context.subscription.providerGeneration)
   ) {
     throw new Error("subscription_relationship_invalid");
   }
 }
 
-async function stopRestrictedStripeCollection(
+async function finishPaymentTerminationStripeCollection(
   ctx: ActionCtx,
   stripe: Stripe | null,
   context: StripeSafetyContext,
   args: { organizationId: Id<"organizations">; expectedBillingVersion: number; requestId: string },
+  configurationErrorCode: "stripe_livemode_mismatch" | "stripe_configuration_unavailable",
 ) {
   let latestInvoiceId = context.subscription.latestInvoiceId;
   const cancelOperation = await ctx.runMutation(internal.organizationStripe.mutations.beginOperation, {
@@ -4627,19 +5211,20 @@ async function stopRestrictedStripeCollection(
     livemode: context.livemode,
     expectedBillingVersion: args.expectedBillingVersion,
     providerGeneration: context.subscription.providerGeneration,
+    recoveryPurpose: "paymentTermination",
   });
   if (cancelOperation.status === "actionRequired") return;
   if (cancelOperation.status !== "succeeded" && !cancelOperation.created) return;
   if (cancelOperation.status !== "succeeded") {
     const leaseToken = requireOperationLease(cancelOperation);
     if (!stripe) {
-      await retryExpiredGraceSafetyOperation(
+      await retryPaymentTerminationSafetyOperation(
         ctx,
         args,
         cancelOperation.operationId,
         leaseToken,
-        "stripe_configuration_unavailable",
-        "expiredGrace",
+        configurationErrorCode,
+        "paymentTermination",
       );
       return;
     }
@@ -4649,42 +5234,27 @@ async function stopRestrictedStripeCollection(
       });
       assertSafetySubscription(current, context);
       const latestInvoice = await retrieveLatestSubscriptionInvoice(stripe, current, context);
-      if (latestInvoice.status === "paid" && current.status === "active") {
-        const restricted = context.billingState.kind === "restricted" ? context.billingState : null;
-        if (!restricted) throw new Error("billing_version_conflict");
-        const targetPlan = paidPlanAfterVerifiedPayment(restricted);
-        if (!targetPlan) throw new Error("billing_recovery_plan_missing");
-        const recovered = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
-          organizationId: args.organizationId,
-          expectedVersion: args.expectedBillingVersion,
-          state: { kind: "active", plan: targetPlan },
-          restoreManagerPersonIds: restricted.recoveryManagerPersonIds,
-          restoreShopIds: restricted.previousActiveShopIds,
-          correlationId: `stripe:${cancelOperation.operationId}:late-payment-recovered`,
-        });
-        if (!recovered.changed) throw new Error("billing_version_conflict");
-        await saveSubscriptionFromSafetyAction(ctx, context, current, { plan: targetPlan });
-        await finishOperation(ctx, cancelOperation.operationId, leaseToken, "succeeded", current.id);
-        return;
-      }
       const subscription =
-        current.status === "canceled"
+        current.status === "canceled" || current.status === "incomplete_expired"
           ? current
           : await stripe.subscriptions.cancel(current.id, undefined, {
               idempotencyKey: cancelOperation.stripeIdempotencyKey,
             });
-      if (subscription.status !== "canceled") throw new Error("subscription_cancel_not_confirmed");
+      assertSafetySubscription(subscription, context);
+      if (subscription.status !== "canceled" && subscription.status !== "incomplete_expired") {
+        throw new Error("subscription_cancel_not_confirmed");
+      }
       await saveSubscriptionFromSafetyAction(ctx, context, subscription);
-      latestInvoiceId = stripeObjectId(subscription.latest_invoice) ?? latestInvoiceId;
+      latestInvoiceId = stripeObjectId(subscription.latest_invoice) ?? latestInvoice.id ?? latestInvoiceId;
       await finishOperation(ctx, cancelOperation.operationId, leaseToken, "succeeded", subscription.id);
     } catch (error) {
-      await retryExpiredGraceSafetyOperation(
+      await retryPaymentTerminationSafetyOperation(
         ctx,
         args,
         cancelOperation.operationId,
         leaseToken,
         safeStripeErrorCode(error),
-        "expiredGrace",
+        "paymentTermination",
       );
       return;
     }
@@ -4697,61 +5267,76 @@ async function stopRestrictedStripeCollection(
     livemode: context.livemode,
     expectedBillingVersion: args.expectedBillingVersion,
     providerGeneration: context.subscription.providerGeneration,
+    recoveryPurpose: "paymentTermination",
   });
-  if (invoiceOperation.status === "succeeded" || invoiceOperation.status === "actionRequired") return;
-  if (!invoiceOperation.created) return;
-  const invoiceLease = requireOperationLease(invoiceOperation);
-  if (!stripe) {
-    await retryExpiredGraceSafetyOperation(
-      ctx,
-      args,
-      invoiceOperation.operationId,
-      invoiceLease,
-      "stripe_configuration_unavailable",
-      "expiredGrace",
-    );
-    return;
-  }
-  try {
-    const [openInvoices, draftInvoices] = await Promise.all([
-      stripe.invoices.list({ customer: context.stripeCustomerId, status: "open", limit: 100 }),
-      stripe.invoices.list({ customer: context.stripeCustomerId, status: "draft", limit: 100 }),
-    ]);
-    if (openInvoices.has_more || draftInvoices.has_more) throw new Error("invoice_collection_unbounded");
-    const invoices = [...openInvoices.data, ...draftInvoices.data].filter(
-      (invoice) => invoiceSubscriptionId(invoice) === context.subscription.stripeSubscriptionId,
-    );
-    for (const candidate of invoices) {
-      if (candidate.livemode !== context.livemode || stripeObjectId(candidate.customer) !== context.stripeCustomerId) {
-        throw new Error("invoice_relationship_invalid");
-      }
-      const invoice =
-        candidate.auto_advance === false
-          ? candidate
-          : await stripe.invoices.update(
-              candidate.id,
-              { auto_advance: false },
-              { idempotencyKey: `${invoiceOperation.stripeIdempotencyKey}:${candidate.id}` },
-            );
-      if (invoice.auto_advance !== false) throw new Error("invoice_collection_not_stopped");
+  if (invoiceOperation.status === "actionRequired") return;
+  if (invoiceOperation.status !== "succeeded") {
+    if (!invoiceOperation.created) return;
+    const invoiceLease = requireOperationLease(invoiceOperation);
+    if (!stripe) {
+      await retryPaymentTerminationSafetyOperation(
+        ctx,
+        args,
+        invoiceOperation.operationId,
+        invoiceLease,
+        configurationErrorCode,
+        "paymentTermination",
+      );
+      return;
     }
-    await finishOperation(
-      ctx,
-      invoiceOperation.operationId,
-      invoiceLease,
-      "succeeded",
-      latestInvoiceId ?? invoices[0]?.id,
-    );
-  } catch (error) {
-    await retryExpiredGraceSafetyOperation(
-      ctx,
-      args,
-      invoiceOperation.operationId,
-      invoiceLease,
-      safeStripeErrorCode(error),
-      "expiredGrace",
-    );
+    try {
+      const [openInvoices, draftInvoices] = await Promise.all([
+        stripe.invoices.list({ customer: context.stripeCustomerId, status: "open", limit: 100 }),
+        stripe.invoices.list({ customer: context.stripeCustomerId, status: "draft", limit: 100 }),
+      ]);
+      if (openInvoices.has_more || draftInvoices.has_more) throw new Error("invoice_collection_unbounded");
+      const invoices = [...openInvoices.data, ...draftInvoices.data].filter(
+        (invoice) => invoiceSubscriptionId(invoice) === context.subscription.stripeSubscriptionId,
+      );
+      for (const candidate of invoices) {
+        if (
+          candidate.livemode !== context.livemode ||
+          stripeObjectId(candidate.customer) !== context.stripeCustomerId
+        ) {
+          throw new Error("invoice_relationship_invalid");
+        }
+        const invoice =
+          candidate.auto_advance === false
+            ? candidate
+            : await stripe.invoices.update(
+                candidate.id,
+                { auto_advance: false },
+                { idempotencyKey: `${invoiceOperation.stripeIdempotencyKey}:${candidate.id}` },
+              );
+        if (invoice.auto_advance !== false) throw new Error("invoice_collection_not_stopped");
+      }
+      await finishOperation(
+        ctx,
+        invoiceOperation.operationId,
+        invoiceLease,
+        "succeeded",
+        latestInvoiceId ?? invoices[0]?.id,
+      );
+    } catch (error) {
+      await retryPaymentTerminationSafetyOperation(
+        ctx,
+        args,
+        invoiceOperation.operationId,
+        invoiceLease,
+        safeStripeErrorCode(error),
+        "paymentTermination",
+      );
+      return;
+    }
   }
+
+  await ctx.runMutation(internal.organizationBilling.mutations.completePaymentTermination, {
+    organizationId: args.organizationId,
+    expectedVersion: args.expectedBillingVersion,
+    cancelOperationId: cancelOperation.operationId,
+    stopInvoiceCollectionOperationId: invoiceOperation.operationId,
+    correlationId: `stripe:${invoiceOperation.operationId}:payment-terminated`,
+  });
 }
 
 async function retrieveLatestSubscriptionInvoice(
@@ -4783,7 +5368,7 @@ function isConfirmedUnpaid(subscription: Stripe.Subscription, invoice: Stripe.In
   );
 }
 
-/** Stripeが確定したinvoice時刻だけを猶予開始の根拠に使う。 */
+/** Stripeが確定したinvoice時刻だけを支払い失敗時刻の根拠に使う。 */
 function authoritativeInvoiceFailureAt(invoice: Stripe.Invoice, fallbackAt = Date.now()) {
   const finalizedAt = invoice.status_transitions?.finalized_at;
   const providerTimestamp = finalizedAt ?? invoice.created;
@@ -4805,40 +5390,35 @@ function matchesSubscriptionMetadata(
 
 function configuredPlanForPrice(
   priceId: string,
-  configuration: { proPriceId?: string; businessPriceId?: string },
+  configuration: { standardPriceId?: string; proPriceId?: string },
 ): StripePaidPlan | null {
+  if (configuration.standardPriceId === priceId) return "standard";
   if (configuration.proPriceId === priceId) return "pro";
-  if (configuration.businessPriceId === priceId) return "business";
   return null;
 }
 
 /** provider側のPrice差し替えは、先に永続化した業務状態が対象planを明示する場合だけ受け入れる。 */
 function isAuthorizedProviderPlanChange(
-  state: Doc<"organizationBillingStates">["state"],
+  state: CanonicalOrganizationBillingState,
   providerPriceId: string,
-  configuration: { proPriceId?: string; businessPriceId?: string },
+  configuration: { standardPriceId?: string; proPriceId?: string },
 ) {
   const providerPlan = configuredPlanForPrice(providerPriceId, configuration);
   if (!providerPlan) return false;
   if (state.kind === "pendingActivation") return state.plan === providerPlan;
   if (state.kind === "scheduledChange") return state.targetPlan === providerPlan;
-  if (state.kind === "grace") return (state.targetPlan ?? state.plan) === providerPlan;
-  if (state.kind === "restricted") return state.targetPlan === providerPlan;
   return state.kind === "active" && state.plan === providerPlan;
 }
 
 function resolveSubscriptionSnapshotPlan(
   organization: ResolvedOrganization,
   providerPriceId: string,
-  configuration: { proPriceId?: string; businessPriceId?: string },
+  configuration: { standardPriceId?: string; proPriceId?: string },
 ): StripePaidPlan | null {
   const configuredPlan = configuredPlanForPrice(providerPriceId, configuration);
   if (configuredPlan) return configuredPlan;
   if (providerPriceId === organization.latestStripePriceId) {
-    // plan field追加前の保存済みSubscriptionは、Business再導入前のPro契約だけである。
-    // TODO[narrow]: 全deploymentでSubscription planをprovider snapshotから補完し、
-    //   verifyStripeSubscriptionsのmissingPlanが0件になった後に`?? "pro"`を削除する。
-    return organization.latestStripePlan ?? "pro";
+    return organization.latestStripePlan ?? null;
   }
   return null;
 }
@@ -4914,6 +5494,7 @@ async function recoverTrialCreationAfterInactivePrice(
     webhookLeaseToken: string;
     eventCreatedAt: number;
     livemode: boolean;
+    standardPriceId?: string;
     proPriceId?: string;
   },
   customerId: string,
@@ -4942,8 +5523,10 @@ async function recoverTrialCreationAfterInactivePrice(
     operationLeaseToken: string,
     subscription?: Stripe.Subscription,
   ): Promise<WebhookProcessResult> => {
-    // TODO[narrow]: 旧trialSetupCheckoutのtargetPlan欠損0と旧scheduler drainを確認後にfallbackを削除する。
-    const targetPlan = source.targetPlan ?? "pro";
+    if (!source.targetPlan) {
+      return { kind: "actionRequired", errorCode: "price_inactive_recovery_invalid" };
+    }
+    const targetPlan = source.targetPlan;
     const snapshot = source.trialSubscriptionCreateSnapshot;
     if (
       !source.stripeObjectId ||
@@ -4995,6 +5578,7 @@ async function recoverTrialCreationAfterInactivePrice(
         customerId,
         providerGeneration: source.providerGeneration as number,
         priceId: source.stripePriceIdSnapshot as string,
+        plan: targetPlan,
         livemode: event.livemode,
         operationId: source.operationId,
         stripeSubscriptionId: source.stripeObjectId,
@@ -5029,11 +5613,11 @@ async function recoverTrialCreationAfterInactivePrice(
         return { kind: "actionRequired", errorCode: "trial_subscription_billing_state_invalid" };
       }
       if (!billing.state.selectedPaidPlan) {
-        const selected = await ctx.runMutation(internal.organizationBilling.mutations.selectTrialPro, {
+        const selected = await ctx.runMutation(internal.organizationBilling.mutations.selectTrialPaidPlan, {
           organizationId: organization.organizationId,
           expectedVersion: billing.version,
           plan: targetPlan,
-          correlationId: `stripe:${event.stripeEventId}:inactive-price-trial-pro-selected`,
+          correlationId: `stripe:${event.stripeEventId}:inactive-price-trial-paid-plan-selected`,
         });
         if (!selected.changed && selected.stateKind !== "trial") {
           return { kind: "retry", errorCode: "billing_version_conflict" };
@@ -5099,12 +5683,11 @@ async function recoverTrialCreationAfterInactivePrice(
     if (billingStateReferencesPaidPlan(currentState, targetPlan)) {
       return processedResult(reconciled);
     }
-    if ((currentState.kind === "active" && currentState.plan === "free") || currentState.kind === "restricted") {
-      const fallback = currentState.kind === "restricted" ? ("restricted" as const) : ("free" as const);
+    if (currentState.kind === "active" && currentState.plan === "free") {
       const pending = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
         organizationId: organization.organizationId,
         expectedVersion: latestOrganization.billingState.version,
-        state: { kind: "pendingActivation", plan: targetPlan, fallback },
+        state: { kind: "pendingActivation", plan: targetPlan, fallback: "free" },
         correlationId: `stripe:${event.stripeEventId}:inactive-price-late-setup-pending`,
       });
       if (!pending.changed) return { kind: "retry", errorCode: "billing_version_conflict" };
@@ -5117,8 +5700,7 @@ async function recoverTrialCreationAfterInactivePrice(
     }
     if (
       (latestOrganization.billingState.state.kind !== "pendingActivation" &&
-        latestOrganization.billingState.state.kind !== "initialPaymentPending" &&
-        latestOrganization.billingState.state.kind !== "grace") ||
+        latestOrganization.billingState.state.kind !== "initialPaymentPending") ||
       !billingStateReferencesPaidPlan(latestOrganization.billingState.state, targetPlan)
     ) {
       return { kind: "actionRequired", errorCode: "subscription_billing_state_invalid" };
@@ -5127,8 +5709,6 @@ async function recoverTrialCreationAfterInactivePrice(
       organizationId: organization.organizationId,
       expectedVersion: latestOrganization.billingState.version,
       state: { kind: "active", plan: targetPlan },
-      restoreManagerPersonIds: latestOrganization.restoreManagerPersonIds,
-      restoreShopIds: latestOrganization.restoreShopIds,
       correlationId: `stripe:${event.stripeEventId}:inactive-price-late-setup-paid`,
     });
     if (!activated.changed) return { kind: "retry", errorCode: "billing_version_conflict" };
@@ -5144,6 +5724,7 @@ async function recoverTrialCreationAfterInactivePrice(
       !source.stripeObjectId ||
       source.providerGeneration === undefined ||
       !source.stripePriceIdSnapshot ||
+      !source.targetPlan ||
       !["processing", "retrying", "succeeded", "actionRequired"].includes(source.status)
     ) {
       return { kind: "actionRequired", errorCode: "price_inactive_recovery_invalid" };
@@ -5203,6 +5784,7 @@ async function recoverTrialCreationAfterInactivePrice(
       customerId,
       providerGeneration: source.providerGeneration,
       priceId: source.stripePriceIdSnapshot,
+      plan: source.targetPlan,
       livemode: event.livemode,
       operationId: source.operationId,
       stripeSubscriptionId: source.stripeObjectId,
@@ -5396,6 +5978,7 @@ async function executeInvalidTrialSubscriptionCleanup(
     customerId: string;
     providerGeneration: number;
     priceId: string;
+    plan: StripePaidPlan;
     livemode: boolean;
     operationId: Id<"organizationStripeOperations">;
     stripeSubscriptionId: string;
@@ -5440,6 +6023,7 @@ async function executeInvalidTrialSubscriptionCleanup(
         stripeSubscriptionId: expected.stripeSubscriptionId,
         stripeCustomerId: expected.customerId,
         stripePriceId: expected.priceId,
+        targetPlan: expected.plan,
         providerGeneration: expected.providerGeneration,
         livemode: expected.livemode,
       },
@@ -5475,6 +6059,7 @@ async function rejectCreatedTrialSubscription(
     customerId: string;
     providerGeneration: number;
     priceId: string;
+    plan: StripePaidPlan;
     livemode: boolean;
     operationId: Id<"organizationStripeOperations">;
     stripeSubscriptionId?: string;
@@ -5498,6 +6083,7 @@ async function rejectCreatedTrialSubscription(
     customerId: expected.customerId,
     providerGeneration: expected.providerGeneration,
     priceId: expected.priceId,
+    plan: expected.plan,
     livemode: expected.livemode,
     operationId: expected.operationId,
     stripeSubscriptionId,
@@ -5516,6 +6102,7 @@ async function cancelInvalidTrialSubscription(
     stripeSubscriptionId: string;
     stripeCustomerId: string;
     stripePriceId: string;
+    targetPlan: StripePaidPlan;
     providerGeneration: number;
     livemode: boolean;
   },
@@ -5545,6 +6132,7 @@ async function cancelInvalidTrialSubscription(
       subscription: { providerGeneration: expected.providerGeneration },
     },
     cancelled,
+    { plan: expected.targetPlan },
   );
   await convergeCancelledTrialContinuation(ctx, {
     organizationId: expected.organizationId,
@@ -5598,22 +6186,19 @@ function hasInactivePriceRecoveryMarker(lastErrorCode?: string) {
   );
 }
 
-function billingStateReferencesPaidPlan(state: Doc<"organizationBillingStates">["state"], targetPlan: StripePaidPlan) {
+function billingStateReferencesPaidPlan(state: CanonicalOrganizationBillingState, targetPlan: StripePaidPlan) {
   switch (state.kind) {
     case "trial":
       return state.selectedPaidPlan === targetPlan;
     case "initialPaymentPending":
     case "pendingActivation":
       return state.plan === targetPlan;
-    case "grace":
-      return (state.targetPlan ?? state.plan) === targetPlan;
     case "scheduledChange":
       return state.currentPlan === targetPlan || state.targetPlan === targetPlan;
     case "active":
       return state.plan === targetPlan;
-    case "restricted":
-      return state.previousPlan === targetPlan || state.targetPlan === targetPlan;
     case "complimentary":
+    case "paymentTerminationPending":
       return false;
   }
 }
@@ -5624,7 +6209,7 @@ async function saveSubscriptionFromSafetyAction(
     organizationId: Id<"organizations">;
     stripeCustomerId: string;
     livemode: boolean;
-    subscription: { providerGeneration: number };
+    subscription: { providerGeneration: number; plan?: StripePaidPlan };
   },
   subscription: Stripe.Subscription,
   options: {
@@ -5635,6 +6220,8 @@ async function saveSubscriptionFromSafetyAction(
 ) {
   const item = subscription.items.data[0];
   if (!item) throw new Error("subscription_item_missing");
+  const plan = options.plan ?? context.subscription.plan;
+  if (!plan) throw new Error("subscription_plan_missing");
   const latestInvoiceId = stripeObjectId(subscription.latest_invoice);
   const periodEndsAt = subscriptionPeriodEnd(subscription);
   await ctx.runMutation(internal.organizationStripe.mutations.saveSubscriptionSnapshot, {
@@ -5643,7 +6230,7 @@ async function saveSubscriptionFromSafetyAction(
     stripeSubscriptionId: subscription.id,
     stripeSubscriptionItemId: item.id,
     stripePriceId: item.price.id,
-    ...(options.plan ? { plan: options.plan } : {}),
+    plan,
     livemode: context.livemode,
     status: subscription.status,
     providerGeneration: context.subscription.providerGeneration,
@@ -5667,9 +6254,7 @@ function requireSingleLicensedSubscriptionItem(subscription: Stripe.Subscription
     subscription.items.data.length !== 1 ||
     !item ||
     (item.quantity ?? 1) !== 1 ||
-    !item.price.recurring ||
-    item.price.recurring.interval !== "month" ||
-    item.price.recurring.interval_count !== 1
+    !getStripeBillingCadence(item.price)
   ) {
     throw new Error("subscription_item_invalid");
   }
@@ -5745,8 +6330,7 @@ async function preservePaidTrialContinuation(
       : context.billingState.kind === "initialPaymentPending"
         ? context.billingState.plan
         : undefined;
-  // TODO[narrow]: Subscription plan補完と旧trial operationのtargetPlan欠損0を確認後、Pro fallbackを削除する。
-  const targetPlan = context.subscription.plan ?? billingPlan ?? "pro";
+  const targetPlan = context.subscription.plan;
   if (billingPlan && billingPlan !== targetPlan) throw new Error("subscription_plan_mismatch");
 
   await saveSubscriptionFromSafetyAction(ctx, context, subscription, { plan: targetPlan });
@@ -5832,7 +6416,7 @@ async function retryTrialContinuationCancellation(
   leaseToken: string,
   errorCode: string,
 ) {
-  await ctx.runMutation(internal.organizationStripe.mutations.retryExpiredGraceSafetyOperation, {
+  await ctx.runMutation(internal.organizationStripe.mutations.retryPaymentTerminationSafetyOperation, {
     operationId,
     leaseToken,
     organizationId: args.organizationId,
@@ -5854,7 +6438,7 @@ async function retryInvalidTrialSubscriptionCleanup(
   leaseToken: string,
   errorCode: string,
 ) {
-  await ctx.runMutation(internal.organizationStripe.mutations.retryExpiredGraceSafetyOperation, {
+  await ctx.runMutation(internal.organizationStripe.mutations.retryPaymentTerminationSafetyOperation, {
     operationId,
     leaseToken,
     organizationId: args.organizationId,
@@ -5876,7 +6460,7 @@ async function retryScheduledFreeDeadline(
   leaseToken: string,
   errorCode: string,
 ) {
-  await ctx.runMutation(internal.organizationStripe.mutations.retryExpiredGraceSafetyOperation, {
+  await ctx.runMutation(internal.organizationStripe.mutations.retryPaymentTerminationSafetyOperation, {
     operationId,
     leaseToken,
     organizationId: args.organizationId,
@@ -5898,7 +6482,7 @@ async function retryScheduledPaidPlanDeadline(
   leaseToken: string,
   errorCode: string,
 ) {
-  await ctx.runMutation(internal.organizationStripe.mutations.retryExpiredGraceSafetyOperation, {
+  await ctx.runMutation(internal.organizationStripe.mutations.retryPaymentTerminationSafetyOperation, {
     operationId,
     leaseToken,
     organizationId: args.organizationId,
@@ -5921,7 +6505,7 @@ async function retryCancelAtPeriodEndChange(
   leaseToken: string,
   errorCode: string,
 ) {
-  await ctx.runMutation(internal.organizationStripe.mutations.retryExpiredGraceSafetyOperation, {
+  await ctx.runMutation(internal.organizationStripe.mutations.retryPaymentTerminationSafetyOperation, {
     operationId,
     leaseToken,
     organizationId: args.organizationId,
@@ -5939,9 +6523,10 @@ async function convergeCancelAtPeriodEndState(
     organizationId: Id<"organizations">;
     expectedBillingVersion: number;
     operationId: Id<"organizationStripeOperations">;
-    billingState: Doc<"organizationBillingStates">["state"];
+    billingState: CanonicalOrganizationBillingState;
     cancelAtPeriodEnd: boolean;
     periodEndsAt?: number;
+    restrictAtPeriodEnd?: true;
   },
 ) {
   const currentPlan =
@@ -5958,7 +6543,8 @@ async function convergeCancelAtPeriodEndState(
       args.billingState.kind === "scheduledChange" &&
       args.billingState.currentPlan === currentPlan &&
       args.billingState.targetPlan === "free" &&
-      args.billingState.effectiveAt === args.periodEndsAt
+      args.billingState.effectiveAt === args.periodEndsAt &&
+      (args.billingState.restrictAtPeriodEnd === true) === (args.restrictAtPeriodEnd === true)
     ) {
       return;
     }
@@ -5973,6 +6559,7 @@ async function convergeCancelAtPeriodEndState(
         currentPlan,
         targetPlan: "free",
         effectiveAt: args.periodEndsAt,
+        restrictAtPeriodEnd: true,
       },
       correlationId: `stripe:${args.operationId}:scheduleFree-recovered`,
     });
@@ -5985,7 +6572,8 @@ async function convergeCancelAtPeriodEndState(
           state.kind === "scheduledChange" &&
           state.currentPlan === currentPlan &&
           state.targetPlan === "free" &&
-          state.effectiveAt === args.periodEndsAt,
+          state.effectiveAt === args.periodEndsAt &&
+          state.restrictAtPeriodEnd === true,
       ))
     ) {
       throw new Error("billing_version_conflict");
@@ -6019,7 +6607,7 @@ async function convergeCancelAtPeriodEndState(
   }
 }
 
-async function retryExpiredGraceSafetyOperation(
+async function retryPaymentTerminationSafetyOperation(
   ctx: ActionCtx,
   args: {
     organizationId: Id<"organizations">;
@@ -6029,9 +6617,9 @@ async function retryExpiredGraceSafetyOperation(
   operationId: Id<"organizationStripeOperations">,
   leaseToken: string,
   errorCode: string,
-  action: "expiredGrace" | "initialPayment",
+  action: "paymentTermination" | "initialPayment",
 ) {
-  await ctx.runMutation(internal.organizationStripe.mutations.retryExpiredGraceSafetyOperation, {
+  await ctx.runMutation(internal.organizationStripe.mutations.retryPaymentTerminationSafetyOperation, {
     operationId,
     leaseToken,
     organizationId: args.organizationId,
@@ -6044,16 +6632,22 @@ async function retryExpiredGraceSafetyOperation(
 
 async function getAuthorizedContext(
   ctx: ActionCtx,
-  shopId: Id<"shops">,
+  scope: BillingActionScope,
   purpose: ActionPurpose,
 ): Promise<AuthorizedActionContext | null> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new ConvexError("Unauthenticated");
-  return await ctx.runQuery(internal.organizationStripe.queries.getActionContext, {
-    tokenIdentifier: identity.tokenIdentifier,
-    shopId,
-    purpose,
-  });
+  return "organizationId" in scope
+    ? await ctx.runQuery(internal.organizationStripe.queries.getActionContextForOrganization, {
+        tokenIdentifier: identity.tokenIdentifier,
+        organizationId: scope.organizationId,
+        purpose,
+      })
+    : await ctx.runQuery(internal.organizationStripe.queries.getActionContext, {
+        tokenIdentifier: identity.tokenIdentifier,
+        shopId: scope.shopId,
+        purpose,
+      });
 }
 
 async function ensureStripeCustomer(
@@ -6115,6 +6709,7 @@ function assertCheckoutSession(
     livemode: boolean;
     customerId?: string;
     priceId: string;
+    mode?: "setup" | "subscription";
   },
 ) {
   if (
@@ -6125,10 +6720,64 @@ function assertCheckoutSession(
     session.metadata?.shiftori_operation_id !== String(expected.operationId) ||
     session.metadata?.shiftori_provider_generation !== String(expected.providerGeneration) ||
     session.metadata?.shiftori_price_id !== expected.priceId ||
+    (expected.mode !== undefined && session.mode !== expected.mode) ||
     (expected.customerId !== undefined && stripeObjectId(session.customer) !== expected.customerId)
   ) {
     throw new Error("checkout_session_relationship_invalid");
   }
+}
+
+async function expireOpenCheckoutSession(stripe: Stripe, session: Stripe.Checkout.Session) {
+  try {
+    return await stripe.checkout.sessions.expire(session.id);
+  } catch (error) {
+    // 完了との競合ではexpireが拒否されるため、providerの現在値を再取得して成功扱いを誤らせない。
+    const latest = await stripe.checkout.sessions.retrieve(session.id);
+    if (latest.status === "complete" || latest.status === "expired") return latest;
+    throw error;
+  }
+}
+
+async function convergeExpiredPendingCheckout(
+  ctx: ActionCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    billingVersion: number;
+    fallback: "free" | "standard";
+    operationId: Id<"organizationStripeOperations">;
+    stripeSessionId: string;
+    livemode: boolean;
+    correlationSuffix: "checkout-cancelled" | "checkout-expired";
+    releaseReason: "checkout_session_cancelled" | "checkout_session_expired";
+  },
+): Promise<{ status: "cancelled" } | { status: "pending" }> {
+  const changed = await ctx.runMutation(internal.organizationBilling.mutations.setStateFromVerifiedBilling, {
+    organizationId: args.organizationId,
+    expectedVersion: args.billingVersion,
+    state: { kind: "activationFailed" },
+    correlationId: `stripe:${args.operationId}:${args.correlationSuffix}`,
+  });
+  const converged = await billingMutationConverged(ctx, args.organizationId, changed.changed, (state) =>
+    args.fallback === "standard"
+      ? state.kind === "active" && state.plan === args.fallback
+      : state.kind === "active" && state.plan === "free",
+  );
+  if (!converged) return { status: "pending" };
+
+  const released = await ctx.runMutation(internal.organizationStripe.mutations.releaseExpiredCheckoutOperation, {
+    operationId: args.operationId,
+    stripeSessionId: args.stripeSessionId,
+    reason: args.releaseReason,
+  });
+  if (!released.changed) {
+    const latestOperation = await ctx.runQuery(internal.organizationStripe.queries.getCheckoutOperationBySession, {
+      organizationId: args.organizationId,
+      stripeSessionId: args.stripeSessionId,
+      livemode: args.livemode,
+    });
+    if (latestOperation?.status !== "cancelled") return { status: "pending" };
+  }
+  return { status: "cancelled" };
 }
 
 async function retrieveAllowedPrice(stripe: Stripe, priceId: string, livemode: boolean) {
@@ -6136,15 +6785,52 @@ async function retrieveAllowedPrice(stripe: Stripe, priceId: string, livemode: b
   return result.status === "available" ? result.price : null;
 }
 
+function getDisplayedPaidPlanForCurrentSubscriptionPrice(
+  state: CanonicalOrganizationBillingState,
+): StripePaidPlan | null {
+  switch (state.kind) {
+    case "active":
+      return state.plan === "standard" || state.plan === "pro" ? state.plan : null;
+    case "scheduledChange":
+      return state.currentPlan;
+    case "trial":
+    case "initialPaymentPending":
+    case "pendingActivation":
+    case "complimentary":
+    case "paymentTerminationPending":
+      return null;
+  }
+}
+
+/**
+ * 既存契約または開始済みoperationが参照するPriceは、販売終了後も照合に必要なためactiveを要求しない。
+ * Price IDは認可済みのsubscriptionまたはoperation snapshotからのみ受け取る。
+ */
+async function retrieveExistingRecurringPrice(stripe: Stripe, priceId: string, livemode: boolean) {
+  const price = await stripe.prices.retrieve(priceId);
+  const cadence = getStripeBillingCadence(price);
+  if (price.id !== priceId || price.livemode !== livemode || !cadence || price.unit_amount === null) {
+    return null;
+  }
+  const taxBehavior =
+    price.tax_behavior === "inclusive" || price.tax_behavior === "exclusive" ? price.tax_behavior : undefined;
+  return {
+    currency: price.currency,
+    unitAmount: price.unit_amount,
+    ...cadence,
+    ...(taxBehavior ? { taxBehavior } : {}),
+  };
+}
+
 async function retrieveConfiguredPrice(stripe: Stripe, priceId: string, livemode: boolean) {
   const price = await stripe.prices.retrieve(priceId);
+  const cadence = getStripeBillingCadence(price);
   if (
     price.id !== priceId ||
     price.livemode !== livemode ||
-    !price.recurring ||
-    price.recurring.interval !== "month" ||
-    price.recurring.interval_count !== 1 ||
-    price.unit_amount === null
+    !cadence ||
+    price.unit_amount === null ||
+    (price.tax_behavior !== "inclusive" && price.tax_behavior !== "exclusive")
   ) {
     return { status: "invalid" as const };
   }
@@ -6154,10 +6840,35 @@ async function retrieveConfiguredPrice(stripe: Stripe, priceId: string, livemode
     price: {
       currency: price.currency,
       unitAmount: price.unit_amount,
-      interval: price.recurring.interval,
-      intervalCount: price.recurring.interval_count,
+      ...cadence,
+      taxBehavior: price.tax_behavior,
     },
   };
+}
+
+function getStripeBillingCadence(price: Stripe.Price): StripeBillingCadence | null {
+  const recurring = price.recurring;
+  if (
+    !recurring ||
+    !isStripeBillingInterval(recurring.interval) ||
+    !Number.isSafeInteger(recurring.interval_count) ||
+    recurring.interval_count < 1
+  ) {
+    return null;
+  }
+  return { interval: recurring.interval, intervalCount: recurring.interval_count };
+}
+
+function isStripeBillingInterval(value: unknown): value is StripeBillingCadence["interval"] {
+  return value === "day" || value === "week" || value === "month" || value === "year";
+}
+
+function hasSameBillingCadence(left: StripeBillingCadence, right: StripeBillingCadence) {
+  return left.interval === right.interval && left.intervalCount === right.intervalCount;
+}
+
+function subscriptionScheduleDuration(cadence: StripeBillingCadence) {
+  return { interval: cadence.interval, interval_count: cadence.intervalCount };
 }
 
 function createStripeClient(secretKey: string) {
@@ -6168,9 +6879,9 @@ function createStripeClient(secretKey: string) {
   });
 }
 
-function billingSettingsUrl() {
-  const url = new URL("/settings", getAppUrl());
-  url.searchParams.set("tab", "billing");
+function billingSettingsUrl(organizationId: Id<"organizations">) {
+  const url = new URL("/manage/billing", getAppUrl());
+  url.searchParams.set("org", organizationId);
   return url.toString();
 }
 
@@ -6311,7 +7022,7 @@ async function billingMutationConverged(
   ctx: ActionCtx,
   organizationId: Id<"organizations">,
   changed: boolean,
-  isTargetState: (state: Doc<"organizationBillingStates">["state"]) => boolean,
+  isTargetState: (state: CanonicalOrganizationBillingState) => boolean,
 ) {
   if (changed) return true;
   const latest = await ctx.runQuery(internal.organizationStripe.queries.getBillingStateForConvergence, {
@@ -6320,16 +7031,19 @@ async function billingMutationConverged(
   return latest !== null && isTargetState(latest.state);
 }
 
-function isSafeAfterSubscriptionCancellation(state: Doc<"organizationBillingStates">["state"]) {
+function isSafeAfterSubscriptionCancellation(state: CanonicalOrganizationBillingState) {
   return (
-    state.kind === "restricted" ||
     (state.kind === "active" && state.plan === "free") ||
     (state.kind === "trial" && state.selectedPaidPlan === undefined)
   );
 }
 
-function isGraceOrRestricted(state: Doc<"organizationBillingStates">["state"]) {
-  return state.kind === "grace" || state.kind === "restricted";
+function isSafeAfterActivationFailure(state: CanonicalOrganizationBillingState) {
+  return state.kind === "active" && (state.plan === "free" || state.plan === "standard");
+}
+
+function isPaymentTerminationPending(state: CanonicalOrganizationBillingState) {
+  return state.kind === "paymentTerminationPending";
 }
 
 function safeStripeErrorCode(error: unknown) {

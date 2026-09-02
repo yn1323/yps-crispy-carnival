@@ -37,6 +37,27 @@ export const Email: Story = {
   ),
 };
 
+export const EmailAllRest: Story = {
+  name: "メール（全日休み）",
+  render: () => (
+    <NotificationPreviewStoryFrame>
+      <EmailNotificationPreview
+        label="シフト変更通知・全日休み"
+        subject={subject(`${fixtures.periodLabel} シフト変更のお知らせ`)}
+        html={buildConfirmationEmailHtml({
+          staffName: fixtures.staffName,
+          periodLabel: fixtures.periodLabel,
+          shifts: fixtures.shiftsAllRest,
+          magicLinkUrl: fixtures.magicLinkUrl,
+          reissueUrl: fixtures.reissueUrl,
+          isResend: true,
+          lineCtaHtml,
+        })}
+      />
+    </NotificationPreviewStoryFrame>
+  ),
+};
+
 export const LINE: Story = {
   render: () => (
     <NotificationPreviewStoryFrame>
@@ -47,6 +68,25 @@ export const LINE: Story = {
           shopName: fixtures.shopName,
           periodLabel: fixtures.periodLabel,
           shifts: fixtures.shifts,
+          magicLinkUrl: fixtures.magicLinkUrl,
+          isResend: true,
+        })}
+      />
+    </NotificationPreviewStoryFrame>
+  ),
+};
+
+export const LINEAllRest: Story = {
+  name: "LINE（全日休み）",
+  render: () => (
+    <NotificationPreviewStoryFrame>
+      <FlexLineNotificationPreview
+        label="シフト変更通知・全日休み"
+        message={buildShiftConfirmationLineFlexMessage({
+          staffName: fixtures.staffName,
+          shopName: fixtures.shopName,
+          periodLabel: fixtures.periodLabel,
+          shifts: fixtures.shiftsAllRest,
           magicLinkUrl: fixtures.magicLinkUrl,
           isResend: true,
         })}

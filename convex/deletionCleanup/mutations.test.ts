@@ -32,7 +32,7 @@ describe("deletionCleanup worker", () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, { name: "削除対象店舗", isDeleted: true });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedCleanupStaff(ctx, {
         shopId,
         name: "残存スタッフ",
         email: "remaining@example.com",
@@ -69,7 +69,7 @@ describe("deletionCleanup worker", () => {
     expect(detected.job).toMatchObject({
       status: "queued",
       phase: "shopVerification",
-      resource: "outboxPending",
+      resource: "staffOrderEntries",
     });
     expect(detected.job?.completedAt).toBeUndefined();
     expect(detected.staff).toMatchObject({ isDeleted: false, name: "残存スタッフ" });
@@ -100,7 +100,7 @@ describe("deletionCleanup worker", () => {
       const staffIds = [];
       for (let index = 0; index < 101; index += 1) {
         staffIds.push(
-          await ctx.db.insert("staffs", {
+          await seedCleanupStaff(ctx, {
             shopId,
             name: `スタッフ${index}`,
             email: `staff${index}@example.com`,
@@ -177,11 +177,200 @@ describe("deletionCleanup worker", () => {
     );
   });
 
+  it("店舗の並び順projectionを1回100件まで削除し、残りを継続してから完了する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const organizationId = await seedOrganization(ctx, "並び順削除グループ", undefined, false);
+      const shopId = await seedShop(ctx, { organizationId, name: "並び順削除店舗", isDeleted: true });
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId,
+        name: "並び順スタッフ",
+        email: "ordered@example.com",
+        emailNormalized: "ordered@example.com",
+        status: "active",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        organizationId,
+        organizationPersonId: personId,
+        shopId,
+        name: "並び順スタッフ",
+        email: "ordered@example.com",
+        emailNormalized: "ordered@example.com",
+        excludedFromShift: false,
+        isDeleted: true,
+      });
+      for (let displayOrder = 0; displayOrder < 101; displayOrder += 1) {
+        await ctx.db.insert("shopStaffOrderEntries", {
+          organizationId,
+          shopId,
+          staffId,
+          organizationPersonId: personId,
+          displayOrder,
+        });
+      }
+      const jobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "shop",
+        shopId,
+        organizationId,
+        requestId: "staff-order-entries-bounded",
+        status: "processing",
+        phase: "shopStaffOrderEntries",
+        version: 1,
+        attemptCount: 0,
+        nextRunAt: NOW,
+        leaseId: "staff-order-entries-lease",
+        leaseExpiresAt: NOW + 60_000,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      return { shopId, jobId };
+    });
+
+    await t.mutation(internal.deletionCleanup.mutations.process, {
+      jobId: ids.jobId,
+      leaseId: "staff-order-entries-lease",
+      expectedVersion: 1,
+    });
+
+    const firstBatch = await t.run(async (ctx) => ({
+      entries: await ctx.db
+        .query("shopStaffOrderEntries")
+        .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", ids.shopId))
+        .collect(),
+      job: await ctx.db.get(ids.jobId),
+    }));
+    expect(firstBatch.entries).toHaveLength(1);
+    expect(firstBatch.job).toMatchObject({ status: "queued", phase: "shopStaffOrderEntries" });
+
+    await finishDeletionCleanup(t);
+
+    await expect(
+      t.run(async (ctx) =>
+        ctx.db
+          .query("shopStaffOrderEntries")
+          .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", ids.shopId))
+          .collect(),
+      ),
+    ).resolves.toEqual([]);
+    await expect(t.run(async (ctx) => ctx.db.get(ids.jobId))).resolves.toMatchObject({
+      status: "completed",
+      phase: "shopVerification",
+    });
+  });
+
+  it("組織cleanupは並び順state・人物順・全店舗projectionを削除してから完了する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const organizationId = await seedOrganization(ctx, "並び順組織cleanupグループ", undefined, true);
+      const shopId = await seedShop(ctx, {
+        organizationId,
+        name: "並び順組織cleanup店舗",
+        isDeleted: true,
+      });
+      const personId = await ctx.db.insert("organizationPeople", {
+        organizationId,
+        name: "並び順組織cleanupスタッフ",
+        email: "organization-order-cleanup@example.com",
+        emailNormalized: "organization-order-cleanup@example.com",
+        status: "active",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      const staffId = await ctx.db.insert("staffs", {
+        organizationId,
+        organizationPersonId: personId,
+        shopId,
+        name: "並び順組織cleanupスタッフ",
+        email: "organization-order-cleanup@example.com",
+        emailNormalized: "organization-order-cleanup@example.com",
+        excludedFromShift: false,
+        isDeleted: true,
+      });
+      await ctx.db.insert("organizationStaffOrderStates", {
+        organizationId,
+        revision: 1,
+        activatedAt: NOW,
+        updatedAt: NOW,
+      });
+      await ctx.db.insert("organizationStaffOrderEntries", {
+        organizationId,
+        organizationPersonId: personId,
+        displayOrder: 0,
+      });
+      await ctx.db.insert("shopStaffOrderEntries", {
+        organizationId,
+        shopId,
+        staffId,
+        organizationPersonId: personId,
+        displayOrder: 0,
+      });
+      const danglingShopId = await seedShop(ctx, {
+        organizationId,
+        name: "物理削除済みの参照先店舗",
+        isDeleted: true,
+      });
+      await ctx.db.delete(danglingShopId);
+      await ctx.db.insert("shopStaffOrderEntries", {
+        organizationId,
+        shopId: danglingShopId,
+        staffId,
+        organizationPersonId: personId,
+        displayOrder: 1,
+      });
+      const jobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "organization",
+        organizationId,
+        requestId: "organization-staff-order-cleanup",
+        status: "processing",
+        phase: "organizationCore",
+        version: 1,
+        attemptCount: 0,
+        nextRunAt: NOW,
+        leaseId: "organization-staff-order-cleanup-lease",
+        leaseExpiresAt: NOW + 60_000,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      return { organizationId, personId, shopId, jobId };
+    });
+
+    await t.mutation(internal.deletionCleanup.mutations.process, {
+      jobId: ids.jobId,
+      leaseId: "organization-staff-order-cleanup-lease",
+      expectedVersion: 1,
+    });
+    await finishDeletionCleanup(t);
+
+    const completed = await t.run(async (ctx) => ({
+      job: await ctx.db.get(ids.jobId),
+      person: await ctx.db.get(ids.personId),
+      states: await ctx.db
+        .query("organizationStaffOrderStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+        .collect(),
+      peopleOrder: await ctx.db
+        .query("organizationStaffOrderEntries")
+        .withIndex("by_organizationId_and_displayOrder", (q) => q.eq("organizationId", ids.organizationId))
+        .collect(),
+      shopOrder: await ctx.db
+        .query("shopStaffOrderEntries")
+        .withIndex("by_organizationId_and_shopId", (q) => q.eq("organizationId", ids.organizationId))
+        .collect(),
+    }));
+    expect(completed.job).toMatchObject({ status: "completed", phase: "organizationVerification" });
+    expect(completed.person).toMatchObject({ status: "removed" });
+    expect(completed.states).toEqual([]);
+    expect(completed.peopleOrder).toEqual([]);
+    expect(completed.shopOrder).toEqual([]);
+  });
+
   it("店舗の通知履歴を1回100件まで削除し、残りを継続してから完了する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, { name: "通知履歴削除店舗", isDeleted: true });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedCleanupStaff(ctx, {
         shopId,
         name: "通知履歴スタッフ",
         email: "history@example.com",
@@ -247,8 +436,7 @@ describe("deletionCleanup worker", () => {
         name: "通知履歴削除店舗",
         isDeleted: true,
       });
-      const staffId = await ctx.db.insert("staffs", {
-        organizationId,
+      const staffId = await seedCleanupStaff(ctx, {
         shopId,
         name: "通知履歴スタッフ",
         email: "organization-history@example.com",
@@ -405,6 +593,176 @@ describe("deletionCleanup worker", () => {
     ).not.toContain("@example.com");
   });
 
+  it("linked jobは期待する削除対象と一致する最小状態だけを返す", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const organizationId = await seedOrganization(ctx, "削除対象組織", undefined, true);
+      const otherOrganizationId = await seedOrganization(ctx, "対象外組織", undefined, true);
+      const jobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "organization",
+        organizationId,
+        requestId: "linked-job-state",
+        status: "actionRequired",
+        phase: "organizationVerification",
+        version: 4,
+        attemptCount: 8,
+        nextRunAt: NOW,
+        lastErrorCode: "cleanup_lease_expired",
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      const missingJobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "organization",
+        organizationId,
+        requestId: "removed-linked-job",
+        status: "completed",
+        phase: "organizationVerification",
+        version: 2,
+        attemptCount: 0,
+        nextRunAt: NOW,
+        completedAt: NOW,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      await ctx.db.delete(missingJobId);
+      return { organizationId, otherOrganizationId, jobId, missingJobId };
+    });
+
+    await expect(
+      t.query(internal.deletionCleanup.queries.getLinkedJobState, {
+        jobId: ids.jobId,
+        target: { scope: "organization", organizationId: ids.organizationId },
+      }),
+    ).resolves.toEqual({ jobId: ids.jobId, status: "actionRequired", version: 4 });
+    await expect(
+      t.query(internal.deletionCleanup.queries.getLinkedJobState, {
+        jobId: ids.jobId,
+        target: { scope: "organization", organizationId: ids.otherOrganizationId },
+      }),
+    ).rejects.toThrowError("削除処理の対象を確認できません");
+    await expect(
+      t.query(internal.deletionCleanup.queries.getLinkedJobState, {
+        jobId: ids.missingJobId,
+        target: { scope: "organization", organizationId: ids.organizationId },
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it("operator retryはtargetとexpectedVersionが一致するactionRequiredだけを一度再投入する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const organizationId = await seedOrganization(ctx, "削除対象組織", undefined, true);
+      const otherOrganizationId = await seedOrganization(ctx, "対象外組織", undefined, true);
+      const jobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "organization",
+        organizationId,
+        requestId: "retry-action-required",
+        status: "actionRequired",
+        phase: "organizationVerification",
+        resource: "organizationCore",
+        cursor: "resume-cursor",
+        version: 7,
+        attemptCount: 8,
+        nextRunAt: NOW - 60_000,
+        lastErrorCode: "cleanup_lease_expired",
+        createdAt: NOW - 60_000,
+        updatedAt: NOW - 60_000,
+      });
+      const completedJobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "organization",
+        organizationId: otherOrganizationId,
+        requestId: "completed-job",
+        status: "completed",
+        phase: "organizationVerification",
+        version: 3,
+        attemptCount: 1,
+        nextRunAt: NOW,
+        completedAt: NOW,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      return { organizationId, otherOrganizationId, jobId, completedJobId };
+    });
+    const before = await t.run(async (ctx) => ({
+      job: await ctx.db.get(ids.jobId),
+      completedJob: await ctx.db.get(ids.completedJobId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+
+    await expect(
+      t.mutation(internal.deletionCleanup.mutations.retryActionRequired, {
+        jobId: ids.jobId,
+        target: { scope: "organization", organizationId: ids.organizationId },
+        expectedVersion: 6,
+      }),
+    ).rejects.toThrowError("削除処理の状態が更新されています");
+    await expect(
+      t.mutation(internal.deletionCleanup.mutations.retryActionRequired, {
+        jobId: ids.jobId,
+        target: { scope: "organization", organizationId: ids.otherOrganizationId },
+        expectedVersion: 7,
+      }),
+    ).rejects.toThrowError("削除処理の対象を確認できません");
+    await expect(
+      t.mutation(internal.deletionCleanup.mutations.retryActionRequired, {
+        jobId: ids.completedJobId,
+        target: { scope: "organization", organizationId: ids.otherOrganizationId },
+        expectedVersion: 3,
+      }),
+    ).rejects.toThrowError("削除処理の状態が更新されています");
+
+    const afterRejected = await t.run(async (ctx) => ({
+      job: await ctx.db.get(ids.jobId),
+      completedJob: await ctx.db.get(ids.completedJobId),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+    }));
+    expect(afterRejected).toEqual(before);
+
+    await expect(
+      t.mutation(internal.deletionCleanup.mutations.retryActionRequired, {
+        jobId: ids.jobId,
+        target: { scope: "organization", organizationId: ids.organizationId },
+        expectedVersion: 7,
+      }),
+    ).resolves.toEqual({ status: "scheduled", version: 8 });
+
+    const retried = await t.run(async (ctx) => ({
+      job: await ctx.db.get(ids.jobId),
+      scheduled: (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+        (scheduled) => scheduled.name === "deletionCleanup/mutations:kick",
+      ),
+    }));
+    expect(retried.job).toMatchObject({
+      status: "retrying",
+      phase: "organizationVerification",
+      resource: "organizationCore",
+      cursor: "resume-cursor",
+      version: 8,
+      attemptCount: 0,
+      nextRunAt: NOW,
+      updatedAt: NOW,
+    });
+    expect(retried.job).not.toHaveProperty("lastErrorCode");
+    expect(retried.job).not.toHaveProperty("completedAt");
+    expect(retried.scheduled).toHaveLength(1);
+    expect(retried.scheduled[0]?.args).toEqual([{ jobId: ids.jobId }]);
+
+    await expect(
+      t.mutation(internal.deletionCleanup.mutations.retryActionRequired, {
+        jobId: ids.jobId,
+        target: { scope: "organization", organizationId: ids.organizationId },
+        expectedVersion: 7,
+      }),
+    ).rejects.toThrowError("削除処理の状態が更新されています");
+    await expect(
+      t.run(async (ctx) =>
+        (await ctx.db.system.query("_scheduled_functions").collect()).filter(
+          (scheduled) => scheduled.name === "deletionCleanup/mutations:kick",
+        ),
+      ),
+    ).resolves.toHaveLength(1);
+  });
+
   it("組織jobのcurrentShopが別組織を指す不変条件違反では対象外店舗を変更しない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -525,6 +883,99 @@ describe("deletionCleanup worker", () => {
       name: "確認待ちユーザー",
       email: "association-unknown@example.com",
       emailNormalized: "association-unknown@example.com",
+    });
+  });
+
+  it("組織削除は対象の人物LINE linkだけを終了し、別組織が共有するprovider識別子を保持する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const targetOrganizationId = await seedOrganization(ctx, "削除対象グループ", undefined, true);
+      const otherOrganizationId = await seedOrganization(ctx, "別グループ");
+      const targetPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: targetOrganizationId,
+        name: "削除対象",
+        email: "target-line@example.com",
+        emailNormalized: "target-line@example.com",
+        status: "active",
+        lineLinkGeneration: 1,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      const otherPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: otherOrganizationId,
+        name: "維持対象",
+        email: "other-line@example.com",
+        emailNormalized: "other-line@example.com",
+        status: "active",
+        lineLinkGeneration: 1,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      const providerId = await ctx.db.insert("lineProviderUsers", {
+        lineUserId: "shared-provider-line-id",
+        following: true,
+        stateVersion: 1,
+        friendshipObservedAt: NOW,
+        friendshipObservationSource: "oauth",
+        isDeleted: false,
+      });
+      const targetLinkId = await ctx.db.insert("organizationPersonLineLinks", {
+        organizationId: targetOrganizationId,
+        organizationPersonId: targetPersonId,
+        lineProviderUserId: providerId,
+        generation: 1,
+        linkedAt: NOW,
+        isDeleted: false,
+      });
+      const otherLinkId = await ctx.db.insert("organizationPersonLineLinks", {
+        organizationId: otherOrganizationId,
+        organizationPersonId: otherPersonId,
+        lineProviderUserId: providerId,
+        generation: 1,
+        linkedAt: NOW,
+        isDeleted: false,
+      });
+      const jobId = await ctx.db.insert("deletionCleanupJobs", {
+        scope: "organization",
+        organizationId: targetOrganizationId,
+        requestId: "organization-line-link-cleanup",
+        status: "processing",
+        phase: "organizationLineLinks",
+        version: 1,
+        attemptCount: 0,
+        nextRunAt: NOW,
+        leaseId: "organization-line-link-lease",
+        leaseExpiresAt: NOW + 60_000,
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      return { targetPersonId, otherPersonId, providerId, targetLinkId, otherLinkId, jobId };
+    });
+
+    await t.mutation(internal.deletionCleanup.mutations.process, {
+      jobId: ids.jobId,
+      leaseId: "organization-line-link-lease",
+      expectedVersion: 1,
+    });
+    await finishDeletionCleanup(t);
+
+    const state = await t.run(async (ctx) => ({
+      job: await ctx.db.get(ids.jobId),
+      targetPerson: await ctx.db.get(ids.targetPersonId),
+      otherPerson: await ctx.db.get(ids.otherPersonId),
+      provider: await ctx.db.get(ids.providerId),
+      targetLink: await ctx.db.get(ids.targetLinkId),
+      otherLink: await ctx.db.get(ids.otherLinkId),
+    }));
+    expect(state.job).toMatchObject({ status: "completed" });
+    expect(state.targetPerson).toMatchObject({ status: "removed", lineLinkGeneration: 2 });
+    expect(state.targetLink).toMatchObject({ isDeleted: true, unlinkedAt: expect.any(Number) });
+    expect(state.otherPerson).toMatchObject({ status: "active", lineLinkGeneration: 1 });
+    expect(state.otherLink).toMatchObject({ isDeleted: false });
+    expect(state.provider).toMatchObject({
+      lineUserId: "shared-provider-line-id",
+      following: true,
+      isDeleted: false,
     });
   });
 
@@ -668,7 +1119,7 @@ describe("deletionCleanup worker", () => {
     await expect(t.run(async (ctx) => ctx.db.get(ids.jobId))).resolves.toMatchObject({
       status: "queued",
       phase: "organizationVerification",
-      resource: "organizationOutboxPending",
+      resource: "organizationStaffOrderState",
     });
 
     await finishDeletionCleanup(t);
@@ -699,8 +1150,7 @@ describe("deletionCleanup worker", () => {
     const ids = await t.run(async (ctx) => {
       const organizationId = await seedOrganization(ctx, "削除対象グループ", undefined, true);
       const shopId = await seedShop(ctx, { organizationId, name: "削除対象店舗", isDeleted: true });
-      const staffId = await ctx.db.insert("staffs", {
-        organizationId,
+      const staffId = await seedCleanupStaff(ctx, {
         shopId,
         name: "置換漏れスタッフ",
         email: "remaining-staff@example.com",
@@ -967,6 +1417,43 @@ describe("deletionCleanup operational status", () => {
   });
 });
 
+async function seedCleanupStaff(
+  ctx: MutationCtx,
+  args: {
+    shopId: Id<"shops">;
+    name: string;
+    email: string;
+    emailNormalized?: string;
+    isDeleted: boolean;
+  },
+) {
+  const shop = await ctx.db.get(args.shopId);
+  if (!shop) throw new Error("cleanup staff fixture shop was not found");
+  let organizationId = shop.organizationId;
+  if (!organizationId) {
+    organizationId = await seedOrganization(ctx, `${shop.name}事業者`);
+    await ctx.db.patch(shop._id, { organizationId });
+  }
+  const organizationPersonId = await ctx.db.insert("organizationPeople", {
+    organizationId,
+    name: args.name,
+    email: args.email,
+    emailNormalized: args.email.trim().toLowerCase(),
+    status: args.isDeleted ? "removed" : "active",
+    createdAt: NOW,
+    updatedAt: NOW,
+  });
+  return await ctx.db.insert("staffs", {
+    shopId: args.shopId,
+    organizationId,
+    organizationPersonId,
+    name: args.name,
+    email: args.email,
+    ...(args.emailNormalized === undefined ? {} : { emailNormalized: args.emailNormalized }),
+    isDeleted: args.isDeleted,
+  });
+}
+
 async function seedShop(
   ctx: MutationCtx,
   args: {
@@ -976,7 +1463,7 @@ async function seedShop(
   },
 ) {
   return await ctx.db.insert("shops", {
-    ...(args.organizationId ? { organizationId: args.organizationId, operatingStatus: "active" as const } : {}),
+    ...(args.organizationId ? { organizationId: args.organizationId } : {}),
     name: args.name,
     submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     regularClosedDays: [],

@@ -6,7 +6,7 @@ type TargetedAnnouncement = {
   organizationPlan?: string;
 };
 
-type AnnouncementContext = {
+export type AnnouncementContext = {
   organizationId: string | null;
   shopId: string;
   organizationPlan: OrganizationPlan | null;

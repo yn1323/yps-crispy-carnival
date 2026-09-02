@@ -1,34 +1,30 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery } from "convex/react";
 import { useState } from "react";
 import { LuStore } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { getUserShopDetailBackDestination, type UserDetailReturnTo } from "@/src/components/features/UserDetail";
 import { UserShopDetail, UserShopDetailSkeleton } from "@/src/components/features/UserShopDetail";
-import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
-import { HEADER_HEIGHT } from "@/src/components/templates/Header";
+import {
+  AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT,
+  AuthenticatedPageContent,
+} from "@/src/components/templates/AuthenticatedPageContent";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { DefaultErrorFallback, ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
-import { DEFAULT_USER_LIST_COUNT } from "@/src/lib/userListSearch";
 
 type Props = {
   personId: string;
   targetShopId: string;
-  selectedShopId?: string;
-  returnTo?: UserDetailReturnTo;
-  returnShopId?: string;
-  returnShopTo?: "dashboard";
-  visibleUserCount?: number;
+  appOrganizationId: Id<"organizations">;
 };
 
 export function UserShopDetailPage(props: Props) {
   return (
-    <AuthenticatedPageContent>
+    <AuthenticatedPageContent includeMobileNavigation>
       <ErrorBoundary
-        key={`${props.personId}:${props.targetShopId}`}
-        fallback={(error) => <DefaultErrorFallback error={error} minH={pageMinimumHeight} />}
+        key={`${props.appOrganizationId}:${props.personId}:${props.targetShopId}`}
+        fallback={(error) => <DefaultErrorFallback error={error} minH={AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT} />}
       >
         <ConnectedUserShopDetailPage {...props} />
       </ErrorBoundary>
@@ -36,16 +32,9 @@ export function UserShopDetailPage(props: Props) {
   );
 }
 
-function ConnectedUserShopDetailPage({
-  personId,
-  targetShopId,
-  selectedShopId,
-  returnTo = "dashboard",
-  returnShopId,
-  returnShopTo,
-  visibleUserCount = DEFAULT_USER_LIST_COUNT,
-}: Props) {
+function ConnectedUserShopDetailPage({ personId, targetShopId, appOrganizationId }: Props) {
   const navigate = useNavigate();
+  const router = useRouter();
   // 同じ画面を開いている間はcapability判定時刻を固定する。
   const [queryNow] = useState(() => Date.now());
   const typedTargetShopId = targetShopId as Id<"shops">;
@@ -54,19 +43,18 @@ function ConnectedUserShopDetailPage({
     personId,
     now: queryNow,
     requireTargetShopMembership: true,
+    expectedOrganizationId: appOrganizationId,
   });
   const membership = data?.memberships.find((candidate) => candidate.shopId === targetShopId);
-  const backDestination = getUserShopDetailBackDestination(
-    personId,
-    selectedShopId ?? null,
-    returnTo,
-    visibleUserCount,
-    returnShopId,
-    returnShopTo,
-  );
-  const handleBack = () => {
-    void navigate({ ...backDestination, replace: true });
+  const navigateToUserDetail = () => {
+    void navigate({
+      to: "/staff/$personId",
+      params: { personId },
+      search: { org: appOrganizationId },
+      replace: true,
+    });
   };
+  const handleBack = () => router.history.back();
 
   if (data === undefined) return <UserShopDetailSkeleton />;
 
@@ -77,9 +65,9 @@ function ConnectedUserShopDetailPage({
         title="店舗別設定を表示できません"
         description="ユーザーまたは店舗への所属が削除されたか、この店舗を表示する権限がありません。"
         tone="warning"
-        minH={pageMinimumHeight}
+        minH={AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT}
         action={
-          <Button colorPalette="teal" onClick={handleBack}>
+          <Button colorPalette="teal" onClick={navigateToUserDetail}>
             スタッフ詳細へ戻る
           </Button>
         }
@@ -92,13 +80,8 @@ function ConnectedUserShopDetailPage({
       data={data}
       membership={membership}
       targetShopId={typedTargetShopId}
+      expectedOrganizationId={appOrganizationId}
       onBack={handleBack}
-      onMembershipRemoved={handleBack}
     />
   );
 }
-
-const pageMinimumHeight = {
-  base: `calc(100dvh - ${HEADER_HEIGHT.base} - 32px)`,
-  md: `calc(100dvh - ${HEADER_HEIGHT.md} - 64px)`,
-};

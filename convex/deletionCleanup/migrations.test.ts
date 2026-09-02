@@ -101,7 +101,7 @@ async function seedShop(
   organizationId?: Awaited<ReturnType<typeof seedOrganization>>,
 ) {
   return await ctx.db.insert("shops", {
-    ...(organizationId ? { organizationId, operatingStatus: "active" as const } : {}),
+    ...(organizationId ? { organizationId } : {}),
     name,
     regularClosedDays: [],
     submissionPattern: { kind: "dateOnly" },

@@ -1,14 +1,16 @@
 User-agent: *
+Disallow: /app
+Disallow: /account$
+Disallow: /actions
 Disallow: /dashboard
-Disallow: /shiftboard
+Disallow: /manage
 Disallow: /shifts
-Disallow: /staff/register
+Disallow: /staff
 Disallow: /line/callback
 Disallow: /legal/staff/consent
 Disallow: /sso-callback
-Disallow: /welcome
 
-Allow: /howto
+Allow: /help
 Allow: /
 
 Sitemap: https://shiftori.app/sitemap.xml

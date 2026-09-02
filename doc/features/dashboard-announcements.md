@@ -1,6 +1,6 @@
 # Dashboardお知らせ
 
-有事の連絡やメンテナンス案内を、シフト担当者Dashboardに1件だけ表示する機能。全体、グループ、店舗、グループの契約プランを表示対象にできる。管理UIは持たず、Convex Dashboard から `dashboardAnnouncements` に直接登録して運用する。
+有事の連絡やメンテナンス案内を、シフト担当者Dashboardに1件だけ表示する機能。全体、組織、店舗、組織の契約プランを表示対象にできる。管理UIは持たず、Convex Dashboard から `dashboardAnnouncements` に直接登録して運用する。
 
 ## 関連ファイル
 
@@ -9,6 +9,7 @@
 - `src/components/features/Dashboard/DashboardContent/index.tsx` — 店舗登録済み/未登録のDashboardへお知らせ機能を合成する
 - `src/components/features/Dashboard/DashboardAnnouncement/` — お知らせquery、対象判定、行表示、詳細Dialog、HTML sanitizer、Storybookを所有する
 - `src/components/features/Dashboard/HeroSummary/index.tsx` — 店舗ヘッダー直下のお知らせ表示枠
+- `src/pages/dashboard/` — `/dashboard`のURLで検証済みの組織・店舗contextをDashboardへ渡す
 
 ### バックエンド（`convex/`）
 
@@ -21,6 +22,7 @@
 | 画面 | 役割 |
 |---|---|
 | シフト担当者ダッシュボード | 公開中のお知らせがある場合、日付とタイトルの行を表示し、押下で本文Dialogを開く |
+| `/dashboard?org=<organizationId>&shop=<shopId>` | `org`と`shop`から検証済みの現在contextを使い、browser storageの店舗IDを対象判定や認可へ流用しない |
 | 初回セットアップ前ダッシュボード | 店舗未登録でも、公開中の全体向けお知らせがあれば `WelcomeHero` の上に表示する |
 
 ## API 一覧
@@ -35,9 +37,9 @@
 
 ```json
 {
-  "organizationId": "対象グループID1,対象グループID2（任意）",
+  "organizationId": "対象組織ID1,対象組織ID2（任意）",
   "shopId": "対象店舗ID1,対象店舗ID2（任意）",
-  "organizationPlan": "business",
+  "organizationPlan": "pro",
   "title": "LINE通知の遅延について",
   "bodyHtml": "<p>現在、LINE通知の送信に遅延が発生しています。</p><p>復旧までメール通知をご確認ください。</p>",
   "displayDate": "2026-06-17",
@@ -51,16 +53,15 @@
 - 公開条件は `isPublished: true` と `isDeleted: false` のみ。終了時は `isPublished: false` にする。
 - `organizationId`、`shopId`、`organizationPlan` がすべて未設定なら全体向けとする。既存データも全体向けとして扱う。
 - 対象を複数指定するときは、各フィールドへ半角カンマ区切りで入力する。単一値もそのまま入力でき、値の前後の空白と空要素は無視する。
-- `organizationPlan`には`trial`、`free`、`pro`、`business`を指定できる。大文字と小文字は区別する。
-- 支払い不要Business（`complimentary.business`）は`business`へ解決するため、`organizationPlan: "business"`の対象に含める。
-- 旧`complimentary.pro`はm021のMigration Testにだけ残る履歴fixtureであり、現行runtimeの告知対象判定へ渡さない。
+- `organizationPlan`には`trial`、`free`、`standard`、`pro`を指定できる。大文字と小文字は区別する。
+- 支払い不要Pro相当（`complimentary.pro`）は`organizationPlan: "pro"`の対象に含める。
 - `organizationId`、`shopId`、`organizationPlan` のいずれか一つが選択中のコンテキストと一致すれば表示対象とする。複数フィールドを設定した場合もOR条件になる。
-- 契約プランは課金policyが用途別に導出する`targetingPlan`で判定する。Trialは`trial`、期間末変更予約中は変更前プラン、支払い猶予中は猶予中のプランとして扱う。Freeから有料プランへの支払い結果待ちはFree、ProからBusinessへの支払い結果待ちはProとして扱う。契約制限中で表示対象プランを安全に確定できない場合はプラン指定に一致しない。
+- 契約プランは課金policyが導出する`targetingPlan`で判定する。Trialは`trial`、初回支払い待ち（`initialPaymentPending`）はFree、期間末変更予約（`scheduledChange`）は変更前の現在プラン、支払い結果待ち（`pendingActivation`）はfallbackプランとして扱う。支払い失敗後の停止処理中（`paymentTerminationPending`）はFreeとして扱う。
 - フィールドを設定したのに有効な値がない場合は全体向けにせず、どの店舗にも表示しない。全体向けにする場合は3フィールド自体を未設定にする。
 - 店舗をまだ選択できない初回セットアップでは、全体向けだけを表示する。
 - 複数公開されている場合は、`displayDate` 降順、同日内は作成日時降順の候補から、最初に表示対象となる1件だけを表示する。対象範囲の狭さは優先度に使わない。
 - queryはbounded readのため最新100件だけを返す。公開中のお知らせは100件未満に保ち、終了したお知らせは非公開にする。
 - query読み込み中は何も表示しない。Dashboard全体のSkeleton表示条件には含めない。
-- 対象判定はフロントの表示制御であり認可ではない。公開中の本文、対象ID、対象プランは全認証ユーザーのclientへ返るため、店舗・グループの機密情報を本文へ登録しない。
+- 対象判定はフロントの表示制御であり認可ではない。公開中の本文、対象ID、対象プランは全認証ユーザーのclientへ返るため、店舗・組織の機密情報を本文へ登録しない。
 - 本文HTMLは表示前に許可タグだけへsanitizeし、`script`、inline style、event handler、iframe、画像は表示しない。
 - 既読管理、予約公開、管理UIは持たない。

@@ -1,42 +1,28 @@
-# トライアル終了前Dashboard案内
+# Dashboardの課金案内
 
-Pro継続を登録していないグループに対し、トライアル最終日の7日前からDashboardへCalloutを表示する。どの店舗を選択していても同じグループ課金stateを参照し、グループ設定の「プランと支払い」へ案内する。
+Dashboardには、現在プラン、組織全体の利用数、トライアル終了前Callout、「プランと支払い」への導線を表示しない。
+組織切替はPC・モバイル共通のアプリヘッダー、同じ組織内の店舗切替はDashboardの店舗セレクタ、契約確認と変更は`/manage/billing?org=<organizationId>`で扱う。
 
-ダークローンチ中、このCalloutは表示されない。`m022_organization_billing_to_complimentary_business`が全グループを支払い不要Businessへ寄せるため、トライアル状態のグループが存在しない。案内先の「プランと支払い」タブも公開していない。公開範囲は[グループ課金、複数店舗、複数管理者](organization-billing.md)を参照する。
+## 現在の表示境界
+
+`getDashboardShop`が返す`canWriteBusinessData`と`businessWriteBlockReason`は、Dashboardの業務操作可否と閲覧専用案内に使う。
+上限超過または利用上限評価不能でも、frontendの表示だけを認可根拠にせず、mutationが実行時の組織所属と課金policyを再検証する。
+
+課金stateに応じた現在プラン、料金、利用人数・店舗数・管理者数、契約操作は「プランと支払い」で表示する。
+トライアル終了前の案内はDashboardへ重複表示せず、契約画面と既存の通知経路を正本にする。
+
+## rolling deploy互換
+
+`getDashboardShop`の`planStatus`と`trialEndingNotice`、`getDashboardPlanUsage`、`PlanStatusCard`、`TrialEndingCallout`は旧frontendとのrolling deploy互換として残っている。
+現在のDashboardはこれらを購読・合成せず、DashboardContentとOperationContextのStoryにも課金表示を含めない。
+
+新旧frontendとbackendのdrainを確認した後、互換DTO、query、component、単体テストをNarrowで削除する。
+Productionへの反映済み判定はリポジトリ実装と分け、[組織課金、複数店舗、複数管理者](organization-billing.md)と[リリース状態](../manual/release-status.md)を参照する。
 
 ## 関連ファイル
 
-### フロントエンド（`src/`）
-
-- `src/pages/dashboard/index.tsx` — 選択中店舗の通知DTOと支払い設定への店舗コンテキストを渡す
-- `src/components/features/Dashboard/DashboardContent/index.tsx` — 法務再同意と通常の「TODO」の間へCalloutを合成する
-- `src/components/features/Dashboard/TrialEndingCallout/` — 表示期間、JST日付、時刻境界の再評価、Callout UI、Storybookを所有する
-
-### バックエンド（`convex/`）
-
-- `convex/dashboard/queries.ts` — 選択店舗から検証済みグループを解決し、トライアル終了通知の最小DTOを返す
-- `convex/organizationBilling/notification.ts` — メール通知と共通の7日前境界を定義する
-- `convex/organizationBilling/policy.ts` — トライアル終了境界とプランstateの契約を定義する
-
-## 画面一覧
-
-| 画面 | 役割 |
-|---|---|
-| シフト担当者ダッシュボード | トライアル終了日とFree移行後の制限を表示し、選択中店舗を保ったまま支払いタブへ移動する |
-| グループ設定 > プランと支払い | Pro継続の登録状態と利用可能な契約操作を表示する |
-
-## API 一覧
-
-| API | 種別 | 用途 |
-|---|---|---|
-| `api.dashboard.queries.getDashboardShop` | `managerQuery` | 店舗情報、業務更新可否、未登録トライアルの `visibleFrom` / `trialEndsAt` を返す |
-
-## 表示ルール
-
-- 課金stateが `trial` かつ `selectedPaidPlan` 未設定の場合だけ通知候補を返す。旧 `business` を含め、Pro継続が登録済みなら表示しない。
-- 表示期間は `[trialEndsAt - 7日, trialEndsAt)` の半開区間とする。
-- `trialEndsAt` は最終利用日の翌日0:00 JSTという排他的境界なので、画面には `trialEndsAt - 1ms` の月日を表示する。
-- Convex queryは現在時刻を読まず、ブラウザが開始・終了境界で表示を再評価する。
-- 同じグループの全非削除店舗で同じ通知を表示する。別グループの課金stateは、選択中店舗に対する `managerQuery` の認可境界を越えて返さない。
-- Calloutは手動で閉じられない。Pro継続登録またはトライアル終了という課金state・時刻の変化で自動的に消える。
-- 支払いリンクは選択中の `shop` と `tab=billing` を保持する。リンク自体は課金操作の権限を与えず、契約操作は既存のサーバー認可に従う。
+- `src/pages/dashboard/index.tsx` — 現在店舗、業務更新可否、閲覧専用案内をDashboardへ接続する
+- `src/components/features/Dashboard/DashboardContent/` — Dashboardの業務状態を合成し、課金表示は合成しない
+- `src/components/features/Dashboard/PlanStatusCard/` — Narrow待ちの旧frontend互換component
+- `src/components/features/Dashboard/TrialEndingCallout/` — Narrow待ちの旧frontend互換component
+- `convex/dashboard/queries.ts` — 店舗情報と業務更新可否を返し、rolling deploy用の旧DTOを互換提供する

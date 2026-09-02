@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
-import { internalMutation, mutation } from "../_generated/server";
-import { isShopParentActive } from "../_lib/activeShop";
+import { observedInternalMutation as internalMutation, observedMutation as mutation } from "../_lib/errorObservability";
 import { managerMutation } from "../_lib/functions";
+import { isShopAvailable } from "../_lib/shopAvailability";
 import { generateUUID } from "../_lib/uuid";
 import { LEGAL_CONSENT_TOKEN_TTL_MS } from "../constants";
 import type { LegalConsentMethod } from "./documents";
@@ -21,7 +21,7 @@ export const createStaffConsentToken = internalMutation({
   },
   handler: async (ctx, args) => {
     const [staff, shop] = await Promise.all([ctx.db.get(args.staffId), ctx.db.get(args.shopId)]);
-    if (!staff || staff.isDeleted || staff.shopId !== args.shopId || !(await isShopParentActive(ctx, shop))) {
+    if (!staff || staff.isDeleted || staff.shopId !== args.shopId || !(await isShopAvailable(ctx, shop))) {
       throw new ConvexError("Not found");
     }
     const token = generateUUID();
@@ -58,13 +58,7 @@ export const acceptStaffLegalConsent = mutation({
     }
 
     const [staff, shop] = await Promise.all([ctx.db.get(tokenDoc.staffId), ctx.db.get(tokenDoc.shopId)]);
-    if (
-      !staff ||
-      staff.isDeleted ||
-      staff.shopId !== tokenDoc.shopId ||
-      !shop ||
-      !(await isShopParentActive(ctx, shop))
-    ) {
+    if (!staff || staff.isDeleted || staff.shopId !== tokenDoc.shopId || !shop || !(await isShopAvailable(ctx, shop))) {
       return { status: "expired" as const };
     }
 
@@ -89,7 +83,7 @@ export const acceptStaffLegalConsentFromLine = internalMutation({
   },
   handler: async (ctx, args) => {
     const [staff, shop] = await Promise.all([ctx.db.get(args.staffId), ctx.db.get(args.shopId)]);
-    if (!staff || staff.isDeleted || staff.shopId !== args.shopId || !(await isShopParentActive(ctx, shop))) {
+    if (!staff || staff.isDeleted || staff.shopId !== args.shopId || !(await isShopAvailable(ctx, shop))) {
       throw new ConvexError("Not found");
     }
     if (await hasCurrentStaffLegalConsent(ctx, args.staffId)) return { status: "already_accepted" as const };

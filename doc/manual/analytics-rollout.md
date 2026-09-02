@@ -166,7 +166,7 @@ reset終了後に無効化するのは`ANALYTICS_RESET_ENABLED_UNTIL`だけで�
 
 ```bash
 pnpm exec convex run analytics/reset:dryRun \
-  '{"confirmed":true,"deploymentLabel":"<fully-qualified-deployment>","revision":"<widen-revision>","sourceCaptureStartAt":"<source-capture-start-yyyymmddhhmmss>","calculationVersion":1}' \
+  '{"confirmed":true,"deploymentLabel":"<fully-qualified-deployment>","revision":"<widen-revision>","sourceCaptureStartAt":"<source-capture-start-yyyymmddhhmmss>","calculationVersion":2}' \
   --deployment <fully-qualified-deployment>
 ```
 
@@ -189,7 +189,7 @@ dry runと同じ引数を一字も変えずに`analytics/reset:start`へ渡し�
 
 ```bash
 pnpm exec convex run analytics/reset:start \
-  '{"confirmed":true,"deploymentLabel":"<fully-qualified-deployment>","revision":"<widen-revision>","sourceCaptureStartAt":"<source-capture-start-yyyymmddhhmmss>","calculationVersion":1}' \
+  '{"confirmed":true,"deploymentLabel":"<fully-qualified-deployment>","revision":"<widen-revision>","sourceCaptureStartAt":"<source-capture-start-yyyymmddhhmmss>","calculationVersion":2}' \
   --deployment <fully-qualified-deployment>
 ```
 
@@ -203,7 +203,7 @@ pnpm exec convex env remove ANALYTICS_RESET_ENABLED_UNTIL \
 resetは次の順で進みます。
 
 1. 旧control table、旧日次table、日次KPI、canonical派生tableを固定allowlistで有界削除する。
-2. 現在のグループ、店舗、person、manager、staff、継続cycle候補を運用tableからseedする。
+2. 現在の組織、店舗、person、manager、staff、継続cycle候補を運用tableからseedする。
 3. full scan完了時刻を`resetWatermarkAt`へ固定する。
 4. `[sourceCaptureStartAt, resetWatermarkAt)`のsource eventを絶対値upsertで再適用する。
 5. 切替前に終了したcycle候補を削除し、milestone、通常周期、healthを切替後の事実だけへ制限する。
@@ -220,7 +220,7 @@ pnpm exec convex run analytics/runs:getStatus '{}' \
 `analyticsRuns`の対象rowをDashboardで開き、`sourceCaptureStartAt`、`resetWatermarkAt`、`dataStartAt`、`dataStartDate`、`terminalAt`を記録します。
 
 `dataStartAt`は`resetWatermarkAt`より後の最初のJST 00:00でなければなりません。
-グループ登録日は`organizations.createdAt`、店舗登録日は`shops._creationTime`から保たれ、切替前milestoneと終了済みcycle rateがseedされていないことを代表行で確認します。
+組織登録日は`organizations.createdAt`、店舗登録日は`shops._creationTime`から保たれ、切替前milestoneと終了済みcycle rateがseedされていないことを代表行で確認します。
 
 ## Narrow readiness確認
 

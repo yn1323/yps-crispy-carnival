@@ -1,24 +1,21 @@
 import { useMutation } from "convex/react";
-import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ShopFormData } from "@/src/components/features/ShopForm";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
-import { selectedShopAtom } from "@/src/stores/shop";
 import type { OrganizationCreationDialogState } from "./types";
 
 type Input = {
   canCreateOrganization: boolean;
-  onCreated: (shopId: string) => void;
+  createOrganizationDisabledReason?: string;
+  onCreated: (shopId: string, organizationId: Id<"organizations">) => void;
+  organizationId: Id<"organizations">;
 };
 
 export function useOrganizationCreationController(input: Input) {
-  // 新しいグループ自体は選択中店舗に属さないため、shop mutationにはしない。
-  // sourceShopIdは現在のcanonical personを安全に引き継ぐためだけに送る。
-  const createOrganization = useMutation(api.setup.mutations.createOrganization);
-  const selectedShop = useAtomValue(selectedShopAtom);
+  const createOrganizationForApp = useMutation(api.setup.mutations.createOrganizationForApp);
   const [dialog, setDialog] = useState<OrganizationCreationDialogState | null>(null);
   const latestRef = useRef(input);
   latestRef.current = input;
@@ -28,7 +25,8 @@ export function useOrganizationCreationController(input: Input) {
     if (!input.canCreateOrganization) setDialog(null);
   }, [dialog, input.canCreateOrganization]);
 
-  const { run } = useSingleFlight(async (data: ShopFormData) => {
+  const { run, isRunning } = useSingleFlight(async ({ data, requestId }: { data: ShopFormData; requestId: string }) => {
+    if (dialog?.requestId !== requestId) return;
     const latest = latestRef.current;
     if (!latest.canCreateOrganization) {
       setDialog(null);
@@ -36,16 +34,19 @@ export function useOrganizationCreationController(input: Input) {
     }
 
     try {
-      const { shopId } = await createOrganization({
+      const baseArgs = {
         shopName: data.shopName,
-        ...(selectedShop ? { sourceShopId: selectedShop.shopId as Id<"shops"> } : {}),
         regularClosedDays: data.regularClosedDays,
         submissionPattern: data.submissionPattern,
-        requestId: crypto.randomUUID(),
+        requestId,
+      };
+      const result = await createOrganizationForApp({
+        ...baseArgs,
+        organizationId: latest.organizationId,
       });
-      showSuccessToast({ title: "新しいグループを作りました" });
+      showSuccessToast({ title: "新しい組織を作りました" });
       setDialog(null);
-      latest.onCreated(shopId);
+      latest.onCreated(result.shopId, result.organizationId);
     } catch (error) {
       showErrorToast(error);
       throw error;
@@ -54,12 +55,25 @@ export function useOrganizationCreationController(input: Input) {
 
   return {
     createOrganization: () => {
-      if (latestRef.current.canCreateOrganization) setDialog({ kind: "createOrganization" });
+      if (!latestRef.current.canCreateOrganization) {
+        if (latestRef.current.createOrganizationDisabledReason) {
+          showErrorToast(new Error(latestRef.current.createOrganizationDisabledReason));
+        }
+        return;
+      }
+      setDialog({ kind: "createOrganization", requestId: crypto.randomUUID() });
     },
     dialog: {
       dialog,
+      isRunning,
       onClose: () => setDialog(null),
-      onSubmit: (data: ShopFormData) => run(data).catch(() => undefined),
+      onSubmit: (data: ShopFormData) => {
+        if (!dialog) return Promise.resolve();
+        return run({ data, requestId: dialog.requestId }).then(
+          () => undefined,
+          () => undefined,
+        );
+      },
     },
   };
 }

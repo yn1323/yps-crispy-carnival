@@ -13,9 +13,9 @@ export function getClerkErrorMessage(error: unknown) {
       return "このメールアドレスのアカウントが見つかりません。";
     case "form_password_incorrect":
     case "form_password_or_identifier_incorrect":
-      return "メールアドレスまたはパスワードが正しくありません。";
+      return "メールアドレスまたはパスワードが誤っています。";
     case "form_code_incorrect":
-      return "確認コードが正しくありません。";
+      return "確認コードが誤っています。";
     case "form_code_expired":
       return "確認コードの有効期限が切れています。\nもう一度お試しください。";
     case "form_password_length_too_short":
@@ -24,7 +24,7 @@ export function getClerkErrorMessage(error: unknown) {
     case "form_password_compromised":
       return "このパスワードは安全性に問題があります。\n別のパスワードを設定してください。";
     case "form_identifier_exists":
-      return "このメールアドレスはすでに登録されています。\nログインをお試しください。";
+      return "このメールアドレスはすでに登録されています。\n一度ログアウトしてから招待リンクを再度クリックしてください。";
     case "too_many_requests":
       return "試行回数が多すぎます。\n時間をおいて、もう一度お試しください。";
     default:

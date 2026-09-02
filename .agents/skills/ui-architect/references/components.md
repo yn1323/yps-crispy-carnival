@@ -127,7 +127,7 @@
 | 派生アクション複数 | `Menu`（…または下向き矢印付き） |
 | 連続的な追加 | `Button` を2個（Primary "保存" / Secondary "保存して続けて入力"） |
 | 即時破壊 | 確認なしで `IconButton` + Toast undo（5秒） |
-| 不可逆破壊 | `AlertDialog` で結果明示 |
+| 不可逆破壊 | `Dialog`を`role="alertdialog"`で使い、対象と結果を明示 |
 | 主要操作（モバイル） | 下部固定ボタン or `FAB` |
 
 ### サイズ
@@ -138,12 +138,12 @@
 - `lg` (48h)：強調・ヒーロー
 - モバイルのタップ対象：最小 44×44px
 
-### 配置
+### 配置（ページとインラインフォーム）
 
-- フォーム送信：右下（"キャンセル"はその左、Secondary）
-- ダイアログ：右下に Primary、左に Secondary
-  - ※ プラットフォーム慣習：iOS/Mac は Primary 右、Windows/Android も右が一般的
-- モバイル：プライマリーは下部固定 or FAB
+- ページ内フォームの送信：右下（「キャンセル」はその左、Secondary）
+- モバイルのページ主要操作：下部固定 or FAB
+
+Dialog固有の意味、文言、PC/SP配置、footer、close lockは[UI設計方針の「Dialogのアクション」](../../../../doc/rules/ui-design.md#dialogのアクション)を正本とする。
 
 ## ナビゲーション部品
 
@@ -184,8 +184,9 @@
 |---|---|
 | 既知の進捗 | `Progress` linear（%） |
 | 既知のステップ | `Stepper` |
-| 不明・短時間 | `Spinner`（最後の手段） |
-| 不明・コンテンツがある | `Skeleton`（レイアウト保持） |
+| 不明・ページ、Card、sectionなどまとまった領域 | `ShiftoriLoading`（シフトリアイコン + `Loading...`） |
+| 不明・表示済みの面にある局所コンテンツ | `Skeleton`（レイアウト保持） |
+| 不明・短時間の小さなinline処理 | `Spinner`（最後の手段） |
 | ボタン押下中 | ボタン内 spinner + disable |
 | ページ遷移 | TopBar progress（薄い線） |
 

@@ -1,10 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
-import { LuUserPlus } from "react-icons/lu";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { Button } from "@/src/components/ui/Button";
 import { Dialog } from "@/src/components/ui/Dialog";
-import { StaffRegistrationLinkPanel } from "../StaffRegistrationLinkPanel";
 import { AddStaffForm } from "./index.tsx";
 
 const meta = {
@@ -21,80 +17,34 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const sampleRegistrationUrl = "https://shiftori.example.com/staff/register/shop_123";
-
 export const InDialog: Story = {
   render: () => (
     <Dialog
-      title="スタッフを招待"
+      title="スタッフを追加"
       isOpen={true}
       onOpenChange={() => {}}
       formId="add-staff-form"
       submitLabel="スタッフを登録する"
       onClose={() => {}}
-      closeLabel="戻る"
+      closeLabel="閉じる"
     >
       <AddStaffForm onSubmit={() => {}} />
     </Dialog>
   ),
 };
 
-function StaffAdditionDialogFixture() {
-  const [mode, setMode] = useState<"qr" | "manual">("qr");
-
-  const handleBackOrClose = () => {
-    if (mode === "manual") {
-      setMode("qr");
-    }
-  };
-
-  return (
-    <Dialog
-      title="スタッフを招待"
-      isOpen={true}
-      onOpenChange={() => {}}
-      formId={mode === "manual" ? "add-staff-form" : undefined}
-      submitLabel={mode === "manual" ? "スタッフを登録する" : undefined}
-      onClose={handleBackOrClose}
-      closeLabel={mode === "manual" ? "戻る" : "閉じる"}
-      hideFooter={mode === "qr"}
-    >
-      {mode === "qr" ? (
-        <StaffRegistrationLinkPanel
-          registrationUrl={sampleRegistrationUrl}
-          manualEntryAction={
-            <Button onClick={() => setMode("manual")} size="sm" colorPalette="teal" gap={1.5}>
-              <LuUserPlus />
-              スタッフ情報を手入力する
-            </Button>
-          }
-        />
-      ) : (
-        <AddStaffForm onSubmit={() => {}} />
-      )}
-    </Dialog>
-  );
-}
-
-export const BackToQrFromManual: Story = {
+export const EmailNoticeHelpLinkBehavior: Story = {
   parameters: {
     screenshot: { skip: true },
   },
-  render: () => <StaffAdditionDialogFixture />,
   play: async ({ canvasElement }) => {
-    const page = within(canvasElement.ownerDocument.body);
+    const canvas = within(canvasElement);
+    const link = await canvas.findByRole("link", { name: "こちら" });
 
-    await expect(await page.findByText(/QRコードを対面で読み取ってもらうと/)).toBeInTheDocument();
-
-    await userEvent.click(await page.findByRole("button", { name: "スタッフ情報を手入力する" }));
-    await expect(await page.findByRole("button", { name: "戻る" })).toBeInTheDocument();
-    await expect(await page.findByRole("button", { name: "スタッフを登録する" })).toBeInTheDocument();
-    await expect(await page.findByText(/同意依頼とLINE連携の案内をメールで送信します/)).toBeInTheDocument();
-    await expect(await page.findByText(/シフトリからメールが届く旨を事前にお伝えいただく/)).toBeInTheDocument();
-
-    await userEvent.click(await page.findByRole("button", { name: "戻る" }));
-    await expect(await page.findByRole("button", { name: "スタッフ情報を手入力する" })).toBeInTheDocument();
-    expect(page.queryByRole("button", { name: "スタッフを登録する" })).not.toBeInTheDocument();
+    await expect(link.parentElement).toHaveTextContent("登録時にシフトリから送る案内メールについてはこちら");
+    await expect(link).toHaveAttribute("href", "/help/basics/notifications");
+    await expect(link).toHaveAttribute("target", "_blank");
+    await expect(link).toHaveAttribute("rel", "noopener noreferrer");
   },
 };
 
@@ -104,13 +54,13 @@ export const EmptySubmitShowsError: Story = {
   },
   render: () => (
     <Dialog
-      title="スタッフを招待"
+      title="スタッフを追加"
       isOpen={true}
       onOpenChange={() => {}}
       formId="add-staff-form"
       submitLabel="スタッフを登録する"
       onClose={() => {}}
-      closeLabel="戻る"
+      closeLabel="閉じる"
     >
       <AddStaffForm onSubmit={() => {}} />
     </Dialog>
@@ -133,21 +83,21 @@ export const ValidSubmitPassesNormalizedPayload: Story = {
   },
   render: (args) => (
     <Dialog
-      title="スタッフを招待"
+      title="スタッフを追加"
       isOpen={true}
       onOpenChange={() => {}}
       formId="add-staff-form"
       submitLabel="スタッフを登録する"
       onClose={() => {}}
-      closeLabel="戻る"
+      closeLabel="閉じる"
     >
       <AddStaffForm onSubmit={args.onSubmit} />
     </Dialog>
   ),
   play: async ({ args, canvasElement }) => {
     const page = within(canvasElement.ownerDocument.body);
-    const [nameInput] = await page.findAllByPlaceholderText("例：田中 花子");
-    const [emailInput] = await page.findAllByPlaceholderText("例：hanako@example.com");
+    const [nameInput] = await page.findAllByPlaceholderText("サンプル スタッフ");
+    const [emailInput] = await page.findAllByPlaceholderText("staff@example.com");
 
     await userEvent.type(nameInput, " 田中 花子 ");
     await userEvent.type(emailInput, " hanako@example.com ");

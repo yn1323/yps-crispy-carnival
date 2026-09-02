@@ -5,7 +5,9 @@ import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { isPastShiftPeriod } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
+import { sha256Hex } from "../_lib/sha256";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
+import { normalizeEmail } from "../_lib/validation";
 import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
 import { NOTIFICATION_FANOUT_SCOPE_LIMIT, SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
 import {
@@ -156,8 +158,7 @@ async function buildConfirmationNotificationOperationKey(args: {
     periodStart: args.periodStart,
     periodEnd: args.periodEnd,
   });
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(semanticInput));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return await sha256Hex(semanticInput);
 }
 
 async function scheduleSupplementalConfirmationResends(
@@ -367,7 +368,7 @@ export const confirmRecruitment = managerMutation({
     const isResend = recruitment.status === "confirmed";
     const intent = args.intent ?? "confirm";
     if (intent === "resend" && !isResend) {
-      throw new ConvexError("確定済みのシフトだけ再送できます");
+      throw new ConvexError("確定シフトだけ再送できます");
     }
     if (intent === "confirm" && isResend) {
       return null;
@@ -488,7 +489,7 @@ export const confirmRecruitment = managerMutation({
         .map((staff) => ({
           staffId: String(staff._id),
           name: staff.name,
-          email: staff.email.trim().toLowerCase(),
+          email: normalizeEmail(staff.email),
           snapshotSignature: currentSnapshotByStaffId.get(staff._id)?.signature ?? "",
         })),
     });

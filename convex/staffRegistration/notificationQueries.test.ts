@@ -3,7 +3,15 @@ import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { seedLegacyShopMembership, seedManagerShop, seedShop, seedStaffLineAccount, seedUser } from "../_test/seed";
+import { seedStaff } from "../_test/scenarioBuilders";
+import {
+  seedCanonicalStaffLineRecipient,
+  seedLegacyShopMembership,
+  seedManagerShop,
+  seedShop,
+  seedStaffLineAccount,
+  seedUser,
+} from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { DAY_MS, HOUR_MS } from "../constants";
 
@@ -24,6 +32,29 @@ async function insertPendingRequest(
     privacyDocumentVersion: "privacy-doc-v1",
     consentedAt: Date.now(),
     createdAt: args.createdAt ?? Date.now(),
+  });
+}
+
+async function insertCanonicalManagerStaff(
+  ctx: MutationCtx,
+  args: {
+    shopId: Id<"shops">;
+    organizationId: Id<"organizations">;
+    personId: Id<"organizationPeople">;
+    userId: Id<"users">;
+    email: string;
+    isDeleted?: boolean;
+  },
+) {
+  return await ctx.db.insert("staffs", {
+    shopId: args.shopId,
+    organizationId: args.organizationId,
+    organizationPersonId: args.personId,
+    userId: args.userId,
+    name: "管理スタッフ",
+    email: args.email,
+    emailNormalized: args.email,
+    isDeleted: args.isDeleted ?? false,
   });
 }
 
@@ -104,9 +135,9 @@ describe("staffRegistration/notificationQueries", () => {
   });
 
   describe("getOwnerDigestTargetForShop", () => {
-    it("canonical管理者はpersonの連絡先を使い、legacy管理者だけusersへfallbackする", async () => {
+    it("canonical管理者はpersonの連絡先を使い、personのないlegacy管理者は通知対象にしない", async () => {
       const t = convexTest(schema, modules);
-      const { shopId } = await t.run(async (ctx) => {
+      const { organizationId, shopId } = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
           subject: "owner_line",
           email: "owner-login@example.com",
@@ -127,8 +158,7 @@ describe("staffRegistration/notificationQueries", () => {
           emailNormalized: "owner-contact@example.com",
           isDeleted: false,
         });
-        await seedStaffLineAccount(ctx, {
-          shopId: seeded.shopId,
+        await seedCanonicalStaffLineRecipient(ctx, {
           staffId: managerStaffId,
           lineUserId: "U_owner_line",
           following: true,
@@ -137,7 +167,7 @@ describe("staffRegistration/notificationQueries", () => {
         const secondUserId = await seedUser(ctx, "owner_email", "owner-email@example.com");
         await seedLegacyShopMembership(ctx, { shopId: seeded.shopId, userId: secondUserId });
         await insertPendingRequest(ctx, { shopId: seeded.shopId, status: "pending" });
-        return { shopId: seeded.shopId };
+        return { organizationId: seeded.organizationId, shopId: seeded.shopId };
       });
 
       const result = await t.query(internal.staffRegistration.notificationQueries.getOwnerDigestTargetForShop, {
@@ -152,7 +182,10 @@ describe("staffRegistration/notificationQueries", () => {
       if (!result) return;
       const dashboardUrl = new URL(result.dashboardUrl);
       expect(dashboardUrl.pathname).toBe("/dashboard");
-      expect([...dashboardUrl.searchParams.entries()]).toEqual([["shop", String(shopId)]]);
+      expect([...dashboardUrl.searchParams.entries()]).toEqual([
+        ["org", String(organizationId)],
+        ["shop", String(shopId)],
+      ]);
       expect(
         result.recipients
           .map(({ name, email, lineUserId, lineFollowing }) => ({ name, email, lineUserId, lineFollowing }))
@@ -164,16 +197,7 @@ describe("staffRegistration/notificationQueries", () => {
           lineUserId: "U_owner_line",
           lineFollowing: true,
         },
-        {
-          name: "管理者",
-          email: "owner-email@example.com",
-          lineUserId: undefined,
-          lineFollowing: undefined,
-        },
       ]);
-      const emailRecipient = result?.recipients.find((recipient) => recipient.email === "owner-email@example.com");
-      expect(emailRecipient).not.toHaveProperty("lineUserId");
-      expect(emailRecipient).not.toHaveProperty("lineFollowing");
     });
 
     it("person作成後でorganizationMember作成前の管理者もperson連絡先とLINEを使う", async () => {
@@ -201,8 +225,7 @@ describe("staffRegistration/notificationQueries", () => {
           emailNormalized: "owner-contact@example.com",
           isDeleted: false,
         });
-        await seedStaffLineAccount(ctx, {
-          shopId: seeded.shopId,
+        await seedCanonicalStaffLineRecipient(ctx, {
           staffId,
           lineUserId: "U_owner_partial_person",
           following: true,
@@ -234,12 +257,17 @@ describe("staffRegistration/notificationQueries", () => {
           email: "target-manager@example.com",
           shopName: "対象店舗",
         });
-        await ctx.db.insert("staffs", {
+        await insertCanonicalManagerStaff(ctx, {
+          shopId: seeded.shopId,
+          organizationId: seeded.organizationId,
+          personId: seeded.personId,
+          userId: seeded.userId,
+          email: "target-manager@example.com",
+        });
+        await seedStaff(ctx, {
           shopId: seeded.shopId,
           name: "一般スタッフ",
           email: "staff-only@example.com",
-          emailNormalized: "staff-only@example.com",
-          isDeleted: false,
         });
         await seedManagerShop(ctx, {
           subject: "other_manager",
@@ -259,6 +287,22 @@ describe("staffRegistration/notificationQueries", () => {
       expect(result?.recipients.map((recipient) => recipient.email)).not.toContain("other-manager@example.com");
     });
 
+    it("対象店舗のstaffではないactive管理者には送らない", async () => {
+      const t = convexTest(schema, modules);
+      const shopId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: "digest_manager_without_shop_staff",
+          email: "manager-without-shop-staff@example.com",
+        });
+        await insertPendingRequest(ctx, { shopId: seeded.shopId });
+        return seeded.shopId;
+      });
+
+      await expect(
+        t.query(internal.staffRegistration.notificationQueries.getOwnerDigestTargetForShop, { shopId }),
+      ).resolves.toBeNull();
+    });
+
     it("同じmanager userが複数店舗に所属していても対象店舗のmanager staffだけでLINE連携を判定する", async () => {
       const t = convexTest(schema, modules);
       const { shopId } = await t.run(async (ctx) => {
@@ -267,18 +311,22 @@ describe("staffRegistration/notificationQueries", () => {
           email: "multi-shop@example.com",
           shopName: "対象店舗",
         });
+        await insertCanonicalManagerStaff(ctx, {
+          shopId: seeded.shopId,
+          organizationId: seeded.organizationId,
+          personId: seeded.personId,
+          userId: seeded.userId,
+          email: "multi-shop@example.com",
+        });
         const otherShopId = await seedShop(ctx, "別店舗");
         await seedLegacyShopMembership(ctx, { shopId: otherShopId, userId: seeded.userId });
-        const otherShopManagerStaffId = await ctx.db.insert("staffs", {
+        const otherShopManagerStaffId = await seedStaff(ctx, {
           shopId: otherShopId,
           userId: seeded.userId,
           name: "別店舗の管理スタッフ",
           email: "multi-shop@example.com",
-          emailNormalized: "multi-shop@example.com",
-          isDeleted: false,
         });
-        await seedStaffLineAccount(ctx, {
-          shopId: otherShopId,
+        await seedCanonicalStaffLineRecipient(ctx, {
           staffId: otherShopManagerStaffId,
           lineUserId: "U_other_shop",
           following: true,
@@ -297,7 +345,7 @@ describe("staffRegistration/notificationQueries", () => {
     });
 
     it.each(["duplicate", "organizationMismatch", "personMismatch", "userMismatch"] as const)(
-      "canonical管理者のLINE staffが%sなら任意の1件を選ばずメールへfallbackする",
+      "canonical管理者のstaffが%sなら任意の1件を選ばず通知対象外にする",
       async (kind) => {
         const t = convexTest(schema, modules);
         const shopId = await t.run(async (ctx) => {
@@ -365,11 +413,7 @@ describe("staffRegistration/notificationQueries", () => {
           shopId,
         });
 
-        expect(result?.recipients).toEqual([
-          expect.objectContaining({ email: `line-conflict-${kind.toLowerCase()}@example.com` }),
-        ]);
-        expect(result?.recipients[0]).not.toHaveProperty("lineUserId");
-        expect(result?.recipients[0]).not.toHaveProperty("lineFollowing");
+        expect(result).toBeNull();
       },
     );
 
@@ -417,48 +461,48 @@ describe("staffRegistration/notificationQueries", () => {
       ).resolves.toBeNull();
     });
 
-    it("manager staffやLINE連携が削除済みならメール候補として返す", async () => {
+    it("連携解除済みのmanager staffはメール対象に残し、削除済みstaffは対象外にする", async () => {
       const t = convexTest(schema, modules);
       const { deletedLineShopId, deletedStaffShopId } = await t.run(async (ctx) => {
         const deletedLine = await seedManagerShop(ctx, {
           subject: "deleted_line",
           email: "deleted-line@example.com",
         });
-        const managerStaffId = await ctx.db.insert("staffs", {
+        const managerStaffId = await insertCanonicalManagerStaff(ctx, {
           shopId: deletedLine.shopId,
+          organizationId: deletedLine.organizationId,
+          personId: deletedLine.personId,
           userId: deletedLine.userId,
-          name: "削除LINE担当",
           email: "deleted-line@example.com",
-          emailNormalized: "deleted-line@example.com",
-          isDeleted: false,
         });
-        const lineAccountId = await seedStaffLineAccount(ctx, {
-          shopId: deletedLine.shopId,
+        const lineRecipient = await seedCanonicalStaffLineRecipient(ctx, {
           staffId: managerStaffId,
           lineUserId: "U_deleted_line",
           following: true,
         });
-        await ctx.db.patch(lineAccountId, { isDeleted: true });
+        await ctx.db.patch(lineRecipient.organizationPersonLineLinkId, {
+          isDeleted: true,
+          unlinkedAt: Date.now(),
+        });
         await insertPendingRequest(ctx, { shopId: deletedLine.shopId });
 
         const deletedStaff = await seedManagerShop(ctx, {
           subject: "deleted_staff",
           email: "deleted-staff@example.com",
         });
-        const deletedStaffId = await ctx.db.insert("staffs", {
+        const deletedStaffId = await insertCanonicalManagerStaff(ctx, {
           shopId: deletedStaff.shopId,
+          organizationId: deletedStaff.organizationId,
+          personId: deletedStaff.personId,
           userId: deletedStaff.userId,
-          name: "削除スタッフ担当",
           email: "deleted-staff@example.com",
-          emailNormalized: "deleted-staff@example.com",
-          isDeleted: true,
         });
-        await seedStaffLineAccount(ctx, {
-          shopId: deletedStaff.shopId,
+        await seedCanonicalStaffLineRecipient(ctx, {
           staffId: deletedStaffId,
           lineUserId: "U_deleted_staff",
           following: true,
         });
+        await ctx.db.patch(deletedStaffId, { isDeleted: true });
         await insertPendingRequest(ctx, { shopId: deletedStaff.shopId });
 
         return { deletedLineShopId: deletedLine.shopId, deletedStaffShopId: deletedStaff.shopId };
@@ -480,9 +524,7 @@ describe("staffRegistration/notificationQueries", () => {
       expect(deletedLineResult?.recipients).toEqual([expect.objectContaining({ email: "deleted-line@example.com" })]);
       expect(deletedLineResult?.recipients[0]).not.toHaveProperty("lineUserId");
       expect(deletedLineResult?.recipients[0]).not.toHaveProperty("lineFollowing");
-      expect(deletedStaffResult?.recipients).toEqual([expect.objectContaining({ email: "deleted-staff@example.com" })]);
-      expect(deletedStaffResult?.recipients[0]).not.toHaveProperty("lineUserId");
-      expect(deletedStaffResult?.recipients[0]).not.toHaveProperty("lineFollowing");
+      expect(deletedStaffResult).toBeNull();
     });
   });
 });

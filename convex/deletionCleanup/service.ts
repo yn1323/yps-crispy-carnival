@@ -7,10 +7,47 @@ const USER_ASSOCIATION_SCAN_LIMIT = 20;
 
 export type DeletionCleanupScope = "shop" | "organization";
 
+export type DeletionCleanupTarget =
+  | {
+      scope: "shop";
+      shopId: Id<"shops">;
+      organizationId?: Id<"organizations">;
+    }
+  | {
+      scope: "organization";
+      organizationId: Id<"organizations">;
+    };
+
+export type DeletionCleanupJobState = {
+  jobId: Id<"deletionCleanupJobs">;
+  status: Doc<"deletionCleanupJobs">["status"];
+  version: number;
+};
+
 export const ACTIVE_DELETION_CLEANUP_STATUSES = ["queued", "processing", "retrying", "actionRequired"] as const;
 
 export function deletionCleanupRequestId(requestId: string) {
   return requestId;
+}
+
+/** linked jobをIDだけで信用せず、期待する削除対象と一致する最小状態だけを返す。 */
+export async function getDeletionCleanupJobForTarget(
+  ctx: DbCtx,
+  args: {
+    jobId: Id<"deletionCleanupJobs">;
+    target: DeletionCleanupTarget;
+  },
+): Promise<DeletionCleanupJobState | null> {
+  const job = await ctx.db.get(args.jobId);
+  if (!job) return null;
+  if (!matchesTarget(job, args.target)) {
+    throw new ConvexError("削除処理の対象を確認できません");
+  }
+  return {
+    jobId: job._id,
+    status: job.status,
+    version: job.version,
+  };
 }
 
 export async function ensureDeletionCleanupJob(
@@ -132,27 +169,22 @@ async function getActiveUserAssociationStatusForScope(
   userId: Id<"users">,
   excludedOrganizationId?: Id<"organizations">,
 ): Promise<ActiveUserAssociationStatus> {
-  for (const status of ["active", "readOnly"] as const) {
-    const memberQuery = ctx.db
-      .query("organizationMembers")
-      .withIndex("by_userId_and_status", (q) => q.eq("userId", userId).eq("status", status));
-    const members = await (excludedOrganizationId
-      ? memberQuery.filter((q) => q.neq(q.field("organizationId"), excludedOrganizationId))
-      : memberQuery
-    ).take(USER_ASSOCIATION_SCAN_LIMIT + 1);
-    if (members.length > USER_ASSOCIATION_SCAN_LIMIT) return "unknown";
-    for (const member of members) {
-      const [organization, person] = await Promise.all([
-        ctx.db.get(member.organizationId),
-        ctx.db.get(member.personId),
-      ]);
-      if (!organization) return "unknown";
-      if (organization.isDeleted) continue;
-      if (person?.status !== "active" || person.organizationId !== organization._id || person.userId !== userId) {
-        return "unknown";
-      }
-      return "found";
+  const memberQuery = ctx.db
+    .query("organizationMembers")
+    .withIndex("by_userId_and_status", (q) => q.eq("userId", userId).eq("status", "active"));
+  const members = await (excludedOrganizationId
+    ? memberQuery.filter((q) => q.neq(q.field("organizationId"), excludedOrganizationId))
+    : memberQuery
+  ).take(USER_ASSOCIATION_SCAN_LIMIT + 1);
+  if (members.length > USER_ASSOCIATION_SCAN_LIMIT) return "unknown";
+  for (const member of members) {
+    const [organization, person] = await Promise.all([ctx.db.get(member.organizationId), ctx.db.get(member.personId)]);
+    if (!organization) return "unknown";
+    if (organization.isDeleted) continue;
+    if (person?.status !== "active" || person.organizationId !== organization._id || person.userId !== userId) {
+      return "unknown";
     }
+    return "found";
   }
 
   const peopleQuery = ctx.db
@@ -182,7 +214,7 @@ async function getActiveUserAssociationStatusForScope(
     const shop = await ctx.db.get(staff.shopId);
     if (!shop) return "unknown";
     if (shop.isDeleted || (excludedOrganizationId && shop.organizationId === excludedOrganizationId)) continue;
-    if (staff.organizationId && staff.organizationId !== shop.organizationId) return "unknown";
+    if (staff.organizationId !== shop.organizationId) return "unknown";
     if (!shop.organizationId) return "found";
     const organization = await ctx.db.get(shop.organizationId);
     if (!organization) return "unknown";
@@ -214,7 +246,7 @@ export async function getActiveUserAssociationStatus(
   return await getActiveUserAssociationStatusForScope(ctx, userId);
 }
 
-/** 指定グループ以外に有効な所属が一つでもあるかをboundedに確認する。 */
+/** 指定組織以外に有効な所属が一つでもあるかをboundedに確認する。 */
 export async function getOtherActiveUserAssociationStatus(
   ctx: DbCtx,
   userId: Id<"users">,
@@ -236,16 +268,7 @@ export async function hasOtherActiveUserAssociation(
   return status === "found";
 }
 
-function matchesTarget(
-  job: Doc<"deletionCleanupJobs">,
-  args:
-    | {
-        scope: "shop";
-        shopId: Id<"shops">;
-        organizationId?: Id<"organizations">;
-      }
-    | { scope: "organization"; organizationId: Id<"organizations"> },
-) {
+function matchesTarget(job: Doc<"deletionCleanupJobs">, args: DeletionCleanupTarget) {
   if (job.scope !== args.scope) return false;
   if (args.scope === "shop") {
     return job.shopId === args.shopId && job.organizationId === args.organizationId;

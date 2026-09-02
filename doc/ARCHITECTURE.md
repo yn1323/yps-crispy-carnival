@@ -38,7 +38,7 @@ URLから業務処理へ向かう依存は、`route -> page -> feature -> domain
 route groupも責務を分けている。
 pathless route groupの`_auth`は`AuthProviders`、認証guard、店舗searchの正規化、認証済みheaderをまとめる。
 `_unregistered`はClerkアカウントを持たないスタッフ画面にもConvex接続を提供する。
-一方、TOP、FAQ、HowTo、記事、デモなどの公開サイトはこのgroupに入らず、初期表示でClerkとConvexのbundleを必要としない。
+一方、TOP、ヘルプ、記事、デモなどの公開サイトはこのgroupに入らず、初期表示でClerkとConvexのbundleを必要としない。
 
 pageはroute全体のデータを取得し、featureへ準備済みの値を渡す。
 たとえば`DashboardPage`は現在店舗、ユーザー、法務同意状態を購読し、`ShiftBoardRoutePage`は募集単位のシフト表データを取得する。
@@ -55,12 +55,12 @@ featureから切り離しても同じ業務用語で説明できる判定だけ�
 | 店舗選択とURLの店舗コンテキスト | `src/domains/shop/context.ts`、`src/components/features/AuthenticatedApp/` | `src/stores/shop/`、`src/hooks/useShopQuery.ts`、`api.dashboard.queries.getMyShops` |
 | 店舗の提出方法を編集する純粋処理 | `src/domains/shop/submissionPattern.ts` | `src/components/features/ShopForm/`、`Dashboard/SetupModal/`、`convex/shop/schemas.ts` |
 | プラン上限超過後の画面上の回復先 | `src/domains/organizationBilling/peopleCapacity.ts` | スタッフ追加や管理者追加を行う各feature、`convex/organizationBilling/` |
-| 募集期間、定休日、締切の入力 | `src/components/features/CreateRecruitmentForm/` | `Dashboard/RecruitmentManagement/`がmutationを接続し、`Demo/ShiftoriDemoFlow/`が登録不要デモとして再利用する |
+| シフト期間、定休日、提出期限の入力 | `src/components/features/CreateRecruitmentForm/` | `Dashboard/RecruitmentManagement/`と`OrganizationRecruitmentManagement/`がmutationを接続する |
 | 公開TOP | `src/routes/index.tsx` | `src/pages/home/` -> `src/components/features/LandingPage/` -> `PublicPageLayout` |
 | 汎用の利用規約とプライバシーポリシー | `src/routes/terms.tsx`、`src/routes/privacy.tsx` | `src/pages/terms/`、`src/pages/privacy/`から管理ユーザー向け文書を既定表示する。対象別routeは`/terms/manager`、`/terms/staff`、`/privacy/manager`、`/privacy/staff` |
 | 確定シフト閲覧リンクの再発行 | `src/routes/_unregistered/shifts.reissue.tsx` | `src/pages/staff-shift-reissue/` -> `StaffShiftReissue` -> `api.staffAuth.mutations.requestReissue`。失効した`/shifts/view`から遷移する |
 
-現在の公開サイトは [`features/public-pages.md`](features/public-pages.md)、希望提出と閲覧リンクは [`features/shift-submission.md`](features/shift-submission.md) にまとめている。
+現在の公開サイトは [`features/public-pages.md`](features/public-pages.md)、希望シフトの提出と閲覧リンクは [`features/shift-submission.md`](features/shift-submission.md) にまとめている。
 
 ## 2. Convex関数境界
 
@@ -77,7 +77,7 @@ Convexはユースケース単位のディレクトリとCQRSを基本にする�
 | migration | schemaの互換期間を保ちながら保存済みdocumentを段階的に移す | `convex/migrations/`、`convex/migrations/index.ts` |
 
 ブラウザから呼べるquery、mutation、actionはインターネットへ公開される。
-管理ユーザー向け関数は`convex/_lib/functions.ts`の`authenticatedQuery`、`authenticatedMutation`、`managerQuery`、`managerMutation`を使い、Clerk identity、ユーザー、店舗、グループ所属をサーバー側で解決する。
+管理ユーザー向け関数は`convex/_lib/functions.ts`の`authenticatedQuery`、`authenticatedMutation`、`managerQuery`、`managerMutation`を使い、Clerk identity、ユーザー、店舗、組織所属をサーバー側で解決する。
 スタッフ向けの提出と閲覧は、同じファイルのスタッフセッションwrapperがsession token、用途、期限、スタッフと店舗の有効性を検証する。
 
 raw public functionは、Clerk認証を使わないCapability入口や公開プレビューなど、匿名利用が必要な箇所に限られる。
@@ -141,7 +141,7 @@ outboxは`convex/notificationOutbox/`が所有する。
 Stripe Webhookは署名検証後に`stripeWebhookEvents`へ保存し、internal actionが処理する。
 Stripe operationとWebhook eventの予約漏れや期限切れleaseは`convex/organizationStripe/maintenance.ts`とcronが回収する。
 
-店舗、グループ、アカウントの削除は、受付transactionで利用停止状態とcleanup jobを先に保存する。
+店舗、組織、アカウントの削除は、受付transactionで論理削除状態とcleanup jobを先に保存する。
 `convex/deletionCleanup/`と`convex/accountDeletion/`がbounded batch、lease、recovery cronを使い、外部provider処理を含む長い削除を再開する。
 詳細は [`features/data-deletion.md`](features/data-deletion.md) と [`features/account-deletion.md`](features/account-deletion.md) を参照する。
 

@@ -4,7 +4,11 @@ import { api } from "../_generated/api";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
-async function seedRecruitment(t: TestConvex<typeof schema>, shopName: string) {
+async function seedRecruitment(
+  t: TestConvex<typeof schema>,
+  shopName: string,
+  options: { status?: "open" | "confirmed" } = {},
+) {
   return await t.run(async (ctx) => {
     const shopId = await seedShop(ctx, shopName);
     const recruitmentId = await ctx.db.insert("recruitments", {
@@ -13,7 +17,7 @@ async function seedRecruitment(t: TestConvex<typeof schema>, shopName: string) {
       periodEnd: "2026-08-31",
       deadline: "2026-07-25",
       shopClosedDates: ["2026-08-10"],
-      status: "open",
+      status: options.status ?? "confirmed",
       isDeleted: false,
       submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     });
@@ -33,10 +37,25 @@ describe("staffAuth/queries", () => {
       });
 
       expect(result).toEqual({
+        recruitmentId: first.recruitmentId,
         shopName: "対象店舗",
         periodStart: "2026-08-01",
         periodEnd: "2026-08-31",
       });
+    });
+
+    it.each(["", "x".repeat(129), "not-a-convex-id"])("不正な募集ID %j は null を返す", async (recruitmentId) => {
+      const t = convexTest(schema, modules);
+      await seedRecruitment(t, "対象店舗");
+
+      expect(await t.query(api.staffAuth.queries.getRecruitmentInfo, { recruitmentId })).toBeNull();
+    });
+
+    it("確定前の募集は null を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { recruitmentId } = await seedRecruitment(t, "募集中店舗", { status: "open" });
+
+      expect(await t.query(api.staffAuth.queries.getRecruitmentInfo, { recruitmentId })).toBeNull();
     });
 
     it("論理削除済み募集は null を返す", async () => {
@@ -61,6 +80,18 @@ describe("staffAuth/queries", () => {
       const result = await t.query(api.staffAuth.queries.getRecruitmentInfo, { recruitmentId });
 
       expect(result).toBeNull();
+    });
+
+    it("募集の所属組織が論理削除済みの場合は null を返す", async () => {
+      const t = convexTest(schema, modules);
+      const { shopId, recruitmentId } = await seedRecruitment(t, "削除済み組織店舗");
+      await t.run(async (ctx) => {
+        const shop = await ctx.db.get(shopId);
+        if (!shop?.organizationId) throw new Error("テスト用組織が見つかりません");
+        await ctx.db.patch(shop.organizationId, { isDeleted: true });
+      });
+
+      expect(await t.query(api.staffAuth.queries.getRecruitmentInfo, { recruitmentId })).toBeNull();
     });
   });
 });

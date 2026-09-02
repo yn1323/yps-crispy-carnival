@@ -2,18 +2,20 @@ import { Badge, Box, Flex, HStack, Skeleton, Stack, Text } from "@chakra-ui/reac
 import dayjs from "dayjs";
 import type { ReactNode } from "react";
 import { LuBell, LuCalendarCheck, LuCalendarClock, LuSend } from "react-icons/lu";
+import { NotificationResendCooldownNotice } from "@/src/components/shared/NotificationResendCooldownNotice";
 import { Button } from "@/src/components/ui/Button";
 import { formatDateShort } from "@/src/domains/shift/date";
-import type { UserShopDetailData, UserShopDetailMembership, UserShopDetailRecruitment } from "./types";
+import { getRecruitmentDeadlineDays, getRecruitmentLifecycleStatus } from "@/src/domains/shift/recruitmentLifecycle";
+import type { UserShopDetailMembership, UserShopDetailRecruitment } from "./types";
 
 type NotificationAction = {
   isDisabled: boolean;
+  isCooldownActive: boolean;
   isLoading: boolean;
   onAction: () => void | Promise<void>;
 };
 
 type Props = {
-  data: UserShopDetailData;
   membership: UserShopDetailMembership;
   isReadOnly: boolean;
   isLoading: boolean;
@@ -25,7 +27,6 @@ type Props = {
 };
 
 export function UserShopNotificationSection({
-  data,
   membership,
   isReadOnly,
   isLoading,
@@ -35,9 +36,7 @@ export function UserShopNotificationSection({
   sendRecruitmentsAction,
   sendCurrentShiftAction,
 }: Props) {
-  const isLineActive = membership.line.isLinked && membership.line.isFollowing;
-  const hasNotificationChannel = data.person.email.length > 0 || isLineActive;
-  const canSendNotification = !isReadOnly && !membership.excludedFromShift && hasNotificationChannel;
+  const canSendNotification = !isReadOnly && !membership.excludedFromShift;
 
   return (
     <Stack gap={10}>
@@ -50,52 +49,60 @@ export function UserShopNotificationSection({
           {membership.excludedFromShift && (
             <Box borderWidth="1px" borderColor="blackAlpha.100" bg="blackAlpha.50" borderRadius="md" p={3}>
               <Stack gap={1}>
-                <Text fontWeight="semibold">この店舗ではシフト対象外です</Text>
-                <Text fontSize="sm" color="fg.muted">
-                  シフト表、提出依頼、確定シフト通知の対象から外れています。
-                </Text>
-              </Stack>
-            </Box>
-          )}
-
-          {!membership.excludedFromShift && !hasNotificationChannel && (
-            <Box borderWidth="1px" borderColor="orange.200" bg="orange.50" borderRadius="md" p={3}>
-              <Stack gap={1}>
-                <Text fontWeight="semibold">通知手段がありません</Text>
-                <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-                  スタッフ情報にメールアドレスを登録するか、「LINE連携」からこの店舗向けのLINE連携を設定してください。
+                <Text fontWeight="semibold">シフト募集、確定を通知しません</Text>
+                <Text fontSize="xs" color="fg.muted">
+                  シフト表表示、提出依頼、確定シフト通知の対象から外れています。
+                  <br />
                 </Text>
               </Stack>
             </Box>
           )}
 
           {isLoading ? (
-            <NotificationSkeleton />
+            <UserShopNotificationSkeleton />
           ) : (
             <>
               <NotificationSection
-                title="現在の募集中シフト"
+                title="募集中シフト"
                 icon={<LuSend aria-hidden />}
                 recruitments={openRecruitments}
                 emptyText="送信できる募集中シフトはありません。"
-                actionLabel="募集中のシフトを再送する"
+                actionLabel="再送する"
                 action={{
                   ...sendRecruitmentsAction,
                   isDisabled:
-                    sendRecruitmentsAction.isDisabled || !canSendNotification || openRecruitments.length === 0,
+                    sendRecruitmentsAction.isDisabled ||
+                    sendRecruitmentsAction.isCooldownActive ||
+                    !canSendNotification ||
+                    openRecruitments.length === 0,
                 }}
+                showCooldownNotice={
+                  sendRecruitmentsAction.isCooldownActive &&
+                  !sendRecruitmentsAction.isDisabled &&
+                  canSendNotification &&
+                  openRecruitments.length > 0
+                }
               />
               <NotificationSection
                 title="確定シフト"
                 icon={<LuCalendarCheck aria-hidden />}
                 recruitments={currentRecruitments}
                 emptyText="送信できる確定シフトはありません。"
-                actionLabel="確定シフトを再送する"
+                actionLabel="再送する"
                 action={{
                   ...sendCurrentShiftAction,
                   isDisabled:
-                    sendCurrentShiftAction.isDisabled || !canSendNotification || currentRecruitments.length === 0,
+                    sendCurrentShiftAction.isDisabled ||
+                    sendCurrentShiftAction.isCooldownActive ||
+                    !canSendNotification ||
+                    currentRecruitments.length === 0,
                 }}
+                showCooldownNotice={
+                  sendCurrentShiftAction.isCooldownActive &&
+                  !sendCurrentShiftAction.isDisabled &&
+                  canSendNotification &&
+                  currentRecruitments.length > 0
+                }
               />
             </>
           )}
@@ -114,6 +121,7 @@ function NotificationSection({
   emptyText,
   actionLabel,
   action,
+  showCooldownNotice,
 }: {
   title: string;
   icon: ReactNode;
@@ -121,28 +129,38 @@ function NotificationSection({
   emptyText: string;
   actionLabel: string;
   action: NotificationAction;
+  showCooldownNotice: boolean;
 }) {
   return (
     <Stack gap={3}>
-      <Flex align={{ base: "flex-start", sm: "center" }} gap={3} justify="space-between">
+      <Flex
+        align={{ base: "flex-start", sm: "center" }}
+        direction={{ base: "column", sm: "row" }}
+        gap={3}
+        justify="space-between"
+      >
         <HStack gap={2} color="gray.900" minW={0}>
           {icon}
           <Text as="h3" fontSize="sm" fontWeight="semibold">
             {title}
           </Text>
         </HStack>
-        <Button
-          colorPalette="teal"
-          flexShrink={0}
-          gap={1.5}
-          disabled={action.isDisabled || action.isLoading}
-          loading={action.isLoading}
-          onClick={action.onAction}
-          size="sm"
-        >
-          <LuBell aria-hidden />
-          {actionLabel}
-        </Button>
+        <Stack align="flex-end" gap={1.5}>
+          <Button
+            colorPalette="teal"
+            flexShrink={0}
+            gap={1.5}
+            disabled={action.isDisabled || action.isLoading}
+            loading={action.isLoading}
+            onClick={action.onAction}
+            size="sm"
+            variant="outline"
+          >
+            <LuBell aria-hidden />
+            {actionLabel}
+          </Button>
+          {showCooldownNotice && <NotificationResendCooldownNotice />}
+        </Stack>
       </Flex>
       {recruitments.length > 0 ? (
         <Stack gap={2}>
@@ -161,14 +179,15 @@ function NotificationSection({
 
 function RecruitmentNotificationCard({ recruitment }: { recruitment: UserShopDetailRecruitment }) {
   const today = dayjs().format("YYYY-MM-DD");
-  const isActionRequired = recruitment.status === "open" && recruitment.deadline < today;
-  const isCurrent =
-    recruitment.status === "confirmed" && recruitment.periodStart <= today && today <= recruitment.periodEnd;
-  const colorPalette = isActionRequired ? "orange" : recruitment.status === "open" ? "green" : "blue";
-  const accent = isActionRequired ? "orange.400" : recruitment.status === "open" ? "green.400" : "blue.400";
+  const lifecycleStatus = getRecruitmentLifecycleStatus(recruitment, today);
+  const isActionRequired = lifecycleStatus === "action-required" || lifecycleStatus === "ended-unconfirmed";
+  const isCollecting = lifecycleStatus === "collecting";
+  const isCurrent = lifecycleStatus === "current";
+  const colorPalette = isActionRequired ? "orange" : isCollecting ? "green" : "blue";
+  const accent = isActionRequired ? "orange.400" : isCollecting ? "green.400" : "blue.400";
   const borderColor = isActionRequired ? "orange.200" : isCurrent ? "blue.200" : "blackAlpha.50";
   const bg = isActionRequired ? "orange.50/30" : isCurrent ? "blue.50/30" : "white";
-  const deadlineLabel = getRecruitmentMetaLabel(recruitment, today);
+  const deadlineLabel = getRecruitmentMetaLabel(recruitment, today, lifecycleStatus);
 
   return (
     <Flex
@@ -207,7 +226,7 @@ function RecruitmentNotificationCard({ recruitment }: { recruitment: UserShopDet
         >
           <HStack gap={2} flexShrink={0} wrap="wrap">
             <Badge colorPalette={colorPalette} variant="subtle" borderRadius="full" px={2.5} fontSize="xs">
-              {isActionRequired ? "要シフト調整" : recruitment.status === "open" ? "募集中" : "確定済み"}
+              {isActionRequired ? "要シフト調整" : isCollecting ? "募集中" : "確定済み"}
             </Badge>
             {isCurrent && (
               <Badge colorPalette="blue" variant="solid" borderRadius="full" px={2.5} fontSize="xs">
@@ -242,28 +261,35 @@ function RecruitmentNotificationCard({ recruitment }: { recruitment: UserShopDet
   );
 }
 
-function getRecruitmentMetaLabel(recruitment: UserShopDetailRecruitment, today: string) {
-  if (recruitment.status === "confirmed") {
+function getRecruitmentMetaLabel(
+  recruitment: UserShopDetailRecruitment,
+  today: string,
+  lifecycleStatus: ReturnType<typeof getRecruitmentLifecycleStatus>,
+) {
+  if (lifecycleStatus === "current" || lifecycleStatus === "confirmed" || lifecycleStatus === "ended") {
     return recruitment.confirmedAt
       ? `確定 ${formatDateShort(dayjs(recruitment.confirmedAt).format("YYYY-MM-DD"))}`
       : "確定済み";
   }
-  if (recruitment.deadline < today) return `${formatDateShort(recruitment.deadline)} 締切済み`;
+  if (recruitment.deadline < today) return `${formatDateShort(recruitment.deadline)} 提出期限超過`;
 
-  const days = dayjs(recruitment.deadline).startOf("day").diff(dayjs().startOf("day"), "day");
-  return days === 0 ? "今日が締切！" : `締切まで${days}日`;
+  const days = getRecruitmentDeadlineDays(recruitment.deadline, today);
+  return days === 0 ? "今日が提出期限！" : `提出期限まで${days}日`;
 }
 
-function NotificationSkeleton() {
+export function UserShopNotificationSkeleton() {
   return (
     <Stack gap={5} aria-label="通知情報を読み込み中" aria-busy="true">
       {Array.from({ length: 2 }).map((_, sectionIndex) => (
         <Stack key={sectionIndex} gap={3}>
-          <Flex justify="space-between" gap={4}>
-            <Skeleton h="20px" w="160px" />
-            <Skeleton h="32px" w="176px" borderRadius="md" />
+          <Flex align={{ base: "flex-start", sm: "center" }} justify="space-between" gap={3}>
+            <HStack gap={2} minW={0}>
+              <Skeleton boxSize={5} borderRadius="sm" flexShrink={0} />
+              <Skeleton h="20px" w={sectionIndex === 0 ? "112px" : "88px"} maxW="100%" />
+            </HStack>
+            <Skeleton h="32px" w="104px" borderRadius="md" flexShrink={0} />
           </Flex>
-          <Skeleton h="56px" w="full" borderRadius="lg" />
+          <Skeleton h={{ base: "76px", lg: "56px" }} w="full" borderRadius="lg" />
         </Stack>
       ))}
     </Stack>

@@ -3,48 +3,47 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Id } from "@/convex/_generated/dataModel";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
+  historyBack: vi.fn(),
   useQuery: vi.fn(),
   getUserDetailRef: Symbol("getUserDetail"),
-  getBackDestination: vi.fn(),
 }));
 
-vi.mock("@tanstack/react-router", () => ({ useNavigate: () => mocks.navigate }));
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => mocks.navigate,
+  useRouter: () => ({ history: { back: mocks.historyBack } }),
+}));
 vi.mock("convex/react", () => ({ useQuery: mocks.useQuery }));
 vi.mock("@/convex/_generated/api", () => ({
   api: { organization: { userDetailQueries: { getUserDetail: mocks.getUserDetailRef } } },
-}));
-
-vi.mock("@/src/components/features/UserDetail", () => ({
-  getUserShopDetailBackDestination: mocks.getBackDestination,
 }));
 
 vi.mock("@/src/components/features/UserShopDetail", () => ({
   UserShopDetailSkeleton: () => <output>loading</output>,
   UserShopDetail: ({
     targetShopId,
+    expectedOrganizationId,
     onBack,
-    onMembershipRemoved,
   }: {
     targetShopId: string;
+    expectedOrganizationId?: string;
     onBack: () => void;
-    onMembershipRemoved: () => void;
   }) => (
     <div>
       <output data-testid="target-shop">{targetShopId}</output>
+      <output data-testid="expected-organization">{expectedOrganizationId}</output>
       <button type="button" onClick={onBack}>
         戻る
-      </button>
-      <button type="button" onClick={onMembershipRemoved}>
-        所属削除完了
       </button>
     </div>
   ),
 }));
 
 vi.mock("@/src/components/templates/AuthenticatedPageContent", () => ({
+  AUTHENTICATED_APP_PAGE_CONTENT_HEIGHT: {},
   AuthenticatedPageContent: ({ children }: { children: ReactNode }) => <main>{children}</main>,
 }));
 vi.mock("@/src/components/templates/Header", () => ({ HEADER_HEIGHT: { base: "48px", md: "64px" } }));
@@ -63,17 +62,6 @@ vi.mock("@/src/components/ui/Empty", () => ({ Empty: () => <output>empty</output
 
 import { UserShopDetailPage } from ".";
 
-const backDestination = {
-  to: "/users/$personId",
-  params: { personId: "person-target" },
-  search: {
-    shop: "shop-source",
-    returnTo: "shopDetail",
-    returnShop: "shop-origin",
-    returnShopTo: "dashboard",
-    users: 30,
-  },
-};
 const data = {
   person: { id: "person-target", name: "田中 花子" },
   memberships: [{ shopId: "shop-target", staffId: "staff-target" }],
@@ -81,23 +69,18 @@ const data = {
 
 beforeEach(() => {
   mocks.navigate.mockReset();
+  mocks.historyBack.mockReset();
   mocks.useQuery.mockReset();
-  mocks.getBackDestination.mockReset();
   mocks.useQuery.mockReturnValue(data);
-  mocks.getBackDestination.mockReturnValue(backDestination);
 });
 
 describe("UserShopDetailPage", () => {
-  it("ユーザー詳細queryへpathのtargetShopIdを明示し、出発店舗は選択に使わない", () => {
+  it("pathのshopとcanonical organizationをread/write controllerへ渡す", () => {
     render(
       <UserShopDetailPage
         personId="person-target"
         targetShopId="shop-target"
-        selectedShopId="shop-source"
-        returnTo="shopDetail"
-        returnShopId="shop-origin"
-        returnShopTo="dashboard"
-        visibleUserCount={30}
+        appOrganizationId={"organization-a" as Id<"organizations">}
       />,
     );
 
@@ -106,33 +89,24 @@ describe("UserShopDetailPage", () => {
       personId: "person-target",
       now: expect.any(Number),
       requireTargetShopMembership: true,
+      expectedOrganizationId: "organization-a",
     });
     expect(screen.getByTestId("target-shop").textContent).toBe("shop-target");
-    expect(mocks.getBackDestination).toHaveBeenCalledWith(
-      "person-target",
-      "shop-source",
-      "shopDetail",
-      30,
-      "shop-origin",
-      "dashboard",
-    );
+    expect(screen.getByTestId("expected-organization").textContent).toBe("organization-a");
   });
 
-  it.each(["戻る", "所属削除完了"])("%sでは元の検索条件を持つユーザー詳細へreplaceで戻る", (buttonName) => {
+  it("戻るではブラウザ履歴へ戻る", () => {
     render(
       <UserShopDetailPage
         personId="person-target"
         targetShopId="shop-target"
-        selectedShopId="shop-source"
-        returnTo="shopDetail"
-        returnShopId="shop-origin"
-        returnShopTo="dashboard"
-        visibleUserCount={30}
+        appOrganizationId={"organization-a" as Id<"organizations">}
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: buttonName }));
+    fireEvent.click(screen.getByRole("button", { name: "戻る" }));
 
-    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({ ...backDestination, replace: true });
+    expect(mocks.historyBack).toHaveBeenCalledOnce();
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 });

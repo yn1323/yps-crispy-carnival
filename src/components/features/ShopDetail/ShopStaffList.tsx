@@ -1,26 +1,70 @@
-import { Accordion, Flex, HStack, Stack, Text } from "@chakra-ui/react";
-import { OrganizationPersonRow } from "@/src/components/shared/OrganizationPersonRow";
-import { Empty } from "@/src/components/ui/Empty";
+import { Accordion, Alert, Flex, HStack, Stack, Text } from "@chakra-ui/react";
+import type { Ref } from "react";
+import { LuPencil } from "react-icons/lu";
+import { StaffListRow } from "@/src/components/shared/StaffListRow";
+import { Button } from "@/src/components/ui/Button";
 import type { ShopDetailPerson } from "./types";
 
 type Props = {
   staffs: ShopDetailPerson[];
+  canChangeStaffs: boolean;
+  managerNotificationRecipientStatus?: "available" | "none" | "unknown";
+  changeButtonRef?: Ref<HTMLButtonElement>;
   onOpenUser: (personId: string) => void;
+  onChangeStaffs: () => void;
 };
 
-export function ShopStaffList({ staffs, onOpenUser }: Props) {
+export function ShopStaffList({
+  staffs,
+  canChangeStaffs,
+  managerNotificationRecipientStatus,
+  changeButtonRef,
+  onOpenUser,
+  onChangeStaffs,
+}: Props) {
   return (
     <Stack as="section" gap={3} aria-labelledby="shop-detail-staff-list-heading">
-      <Text
-        id="shop-detail-staff-list-heading"
-        as="h2"
-        fontSize={{ base: "lg", lg: "xl" }}
-        lineHeight={{ base: "1.75rem", lg: "1.875rem" }}
-        fontWeight="bold"
-        color="gray.900"
-      >
-        スタッフ
-      </Text>
+      <Flex align="center" justify="space-between" gap={3}>
+        <Text
+          id="shop-detail-staff-list-heading"
+          as="h2"
+          fontSize={{ base: "lg", lg: "xl" }}
+          lineHeight={{ base: "1.75rem", lg: "1.875rem" }}
+          fontWeight="bold"
+          color="gray.900"
+        >
+          スタッフ
+        </Text>
+        <Button
+          ref={changeButtonRef}
+          type="button"
+          variant="ghost"
+          colorPalette="teal"
+          size="sm"
+          gap={1.5}
+          fontWeight="semibold"
+          flexShrink={0}
+          disabled={!canChangeStaffs}
+          onClick={onChangeStaffs}
+        >
+          <LuPencil aria-hidden />
+          {staffs.length === 0 ? "所属スタッフを追加する" : "所属スタッフを変更する"}
+        </Button>
+      </Flex>
+
+      {managerNotificationRecipientStatus === "none" && (
+        <Alert.Root status="warning" borderRadius="lg">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>この店舗には管理者がいません。</Alert.Title>
+            <Alert.Description>
+              スタッフ申請、シフト確定、通知エラーなど、この店舗に関する管理者向け通知が送信されません。
+              <br />
+              管理者を所属させることをおすすめします。
+            </Alert.Description>
+          </Alert.Content>
+        </Alert.Root>
+      )}
 
       <Accordion.Root collapsible variant="plain">
         <Accordion.Item
@@ -59,19 +103,26 @@ export function ShopStaffList({ staffs, onOpenUser }: Props) {
           <Accordion.ItemContent borderTopWidth="1px" borderTopColor="blackAlpha.100">
             <Accordion.ItemBody p={0}>
               {staffs.length === 0 ? (
-                <Empty title="この店舗に所属するスタッフはいません。" titleAs="h3" variant="plain" minH="auto" py={5} />
+                <Flex justify="center" px={4} py={5}>
+                  <Text fontSize="sm" color="fg.muted">
+                    この店舗に所属するスタッフはいません。
+                  </Text>
+                </Flex>
               ) : (
                 <Stack gap={0} divideY="1px" divideColor="blackAlpha.100">
-                  {staffs.map((person) => (
-                    <OrganizationPersonRow
-                      key={person.id}
-                      person={person}
-                      idPrefix="shop-detail-user"
-                      showLineConnection={false}
-                      showShopNames={false}
-                      onOpen={() => onOpenUser(person.id)}
-                    />
-                  ))}
+                  {staffs.map((person) => {
+                    const isManager = person.managerRole !== "none";
+                    return (
+                      <StaffListRow
+                        key={person.id}
+                        id={`shop-detail-user-${person.id}`}
+                        name={person.name}
+                        role={isManager ? "manager" : "staff"}
+                        badges={[{ kind: "role" }]}
+                        onOpen={() => onOpenUser(person.id)}
+                      />
+                    );
+                  })}
                 </Stack>
               )}
             </Accordion.ItemBody>

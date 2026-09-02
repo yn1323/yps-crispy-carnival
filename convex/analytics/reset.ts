@@ -1,7 +1,10 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
-import { internalMutation, type MutationCtx } from "../_generated/server";
+import type { MutationCtx } from "../_generated/server";
 import { addDays, dateJST, getDeadlineCutoff, getSubmitLinkCutoff, jstDayRangeMs } from "../_lib/dateFormat";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
+import { resolveStaffLineRecipient } from "../line/service";
+import { hasCanonicalStaffIdentity } from "../staff/service";
 import { getAnalyticsResetConfiguration, parseAnalyticsSourceCaptureStartAt } from "./config";
 import { inspectCanonicalFactsPage } from "./invariants";
 import { ANALYTICS_CALCULATION_VERSION } from "./model";
@@ -283,7 +286,7 @@ async function seedShops(ctx: MutationCtx, run: Doc<"analyticsRuns">, cursor?: s
       .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
       .unique();
     if (!organization) throw new Error("analytics_reset_scope_invalid");
-    const inactive = shop.isDeleted || shop.operatingStatus === "archived" || shop.operatingStatus === "planSuspended";
+    const inactive = shop.isDeleted;
     await ctx.db.insert("analyticsShops", {
       organizationId,
       shopId: shop._id,
@@ -361,26 +364,27 @@ async function seedStaffs(ctx: MutationCtx, run: Doc<"analyticsRuns">, cursor?: 
   const page = await ctx.db.query("staffs").paginate({ numItems: PAGE_SIZE, cursor: cursor ?? null });
   for (const staff of page.page) {
     if (staff.isDeleted) continue;
+    if (!hasCanonicalStaffIdentity(staff)) throw new Error("analytics_reset_scope_invalid");
     const shop = await ctx.db.get(staff.shopId);
     if (!shop?.organizationId) throw new Error("analytics_reset_scope_invalid");
-    const organizationId = staff.organizationId ?? shop.organizationId;
+    const organizationId = staff.organizationId;
     if (organizationId !== shop.organizationId) throw new Error("analytics_reset_scope_invalid");
-    const lineAccount = await ctx.db
-      .query("staffLineAccounts")
-      .withIndex("by_staffId", (q) => q.eq("staffId", staff._id))
-      .filter((q) => q.eq(q.field("isDeleted"), false))
-      .first();
+    const person = await ctx.db.get(staff.organizationPersonId);
+    if (!person || person.organizationId !== organizationId || person.status !== "active") {
+      throw new Error("analytics_reset_scope_invalid");
+    }
+    const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: staff.shopId });
     await ctx.db.insert("analyticsMemberships", {
       membershipKey: `staff:${staff._id}`,
       organizationId,
       shopId: staff.shopId,
-      ...(staff.organizationPersonId ? { organizationPersonId: staff.organizationPersonId } : {}),
+      organizationPersonId: staff.organizationPersonId,
       staffId: staff._id,
       role: "staff",
       validFrom: sourceCaptureStartAt,
       isShiftTarget: !staff.excludedFromShift,
-      lineLinked: Boolean(lineAccount),
-      lineFollowing: Boolean(lineAccount?.following),
+      lineLinked: Boolean(lineRecipient),
+      lineFollowing: Boolean(lineRecipient?.following),
       updatedAt: sourceCaptureStartAt,
     });
   }

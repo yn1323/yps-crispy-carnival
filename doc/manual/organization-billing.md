@@ -1,40 +1,60 @@
-# グループ課金の運用
+# 組織課金の運用
 
 > 文書種別: manual
 >
-> コード照合基準: `b61100a680e80d154a74f576d03c53712846e062`
+> コード照合基準: 現在のcheckoutにある実装
 >
 > 実環境の公開・設定・migration状況: [リリース状態](release-status.md)
 
-この文書は、グループ課金に関する人の運用を扱う。
-Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotation、障害復旧を、実環境を推測せずに進めるための手順である。
+この文書は、組織課金に関する人の運用を扱う。
+Stripe設定、日常probe、販売停止、Price rotation、障害復旧を、実環境を推測せずに進めるための手順である。
 
-利用者向けの機能とコードの入口は[グループ課金、複数店舗、複数管理者](../features/organization-billing.md)、詳細な業務契約は[グループ課金の業務仕様](../specs/organization-billing-business-flow.md)を参照する。
+利用者向けの機能とコードの入口は[組織課金、複数店舗、複数管理者](../features/organization-billing.md)、詳細な業務要件は[組織課金の業務要件](../specs/organization-billing-business-flow.md)を参照する。
+
+## 支払い失敗処理の実環境確認
+
+検証済みの支払い失敗後は、Stripe契約の終了処理を開始すると同時にFree権限へ変更する。
+リポジトリの実装だけではStripe設定、Convex deployment、顧客向けメールの有効化を証明できないため、対象environmentごとに次の項目を確認する。
+
+プラン機能は未公開のため、旧プランIDのmigration、backfill、rolling互換は行わない。
+m042〜m047、`planIdVersion`、旧`pro | business`互換の運用手順は本書から削除した。対象migrationを実行しない。
+
+確認結果は[リリース状態](release-status.md)へ記録する。
+
+1. Webhook destinationに`invoice.payment_failed`と`invoice.payment_action_required`が登録され、署名検証からworkerの処理まで対象revisionで到達することを確認する。
+2. Stripe Dashboardのカード支払い失敗向け顧客メール設定を確認し、組織の請求通知先メールアドレスがStripe Customerの`email`へ同期されていることを確認する。
+3. Stripe Sandboxで、検証済みの未払いから`paymentTerminationPending`へ移り、終了処理中からFree権限だけが適用されることを確認する。
+4. Subscription終了とInvoiceの`auto_advance: false`が冪等に収束し、確認後に`active.free`と支払い失敗理由が保存されることを確認する。
+5. 終了処理中を含め、ダッシュボードと「プランと支払い」にAlertが表示され、処理完了までは再契約できないことを確認する。
+6. 新しい有料契約の支払い成功だけが支払い失敗理由を消し、旧Subscriptionの遅延eventで自動復帰しないことを確認する。
+
+Stripe顧客向けメールの有効化画面と実到着は外部設定の証跡であり、リポジトリの実装やWebhook canaryの成功だけで確認済みとしない。
 
 ## 作業目的から探す
 
 | 作業 | 参照する節 |
 |---|---|
+| 支払い失敗処理の実環境確認 | [支払い失敗処理の実環境確認](#支払い失敗処理の実環境確認) |
 | 実環境での完了条件と作業前確認 | [完了の判定](#完了の判定)、[作業前の共通確認](#作業前の共通確認) |
-| ダークローンチ機能の公開・停止 | [ダークローンチ公開フラグ](#ダークローンチ公開フラグ) |
+| repository artifactとProduction反映の境界 | [公開状態](#公開状態) |
 | Stripeの環境変数、Price、Portal、Webhook設定 | [Stripeの設定](#stripeの設定) |
+| Trial期限を開発用に短縮 | [Trial期限の開発用設定](#trial期限の開発用設定) |
+| 支払い失敗と下位プランへの移行 | [支払い失敗と下位active planへの移行](#支払い失敗と下位active-planへの移行) |
 | Webhook、operation、対応不整合の日常確認 | [日常probe](#日常probe) |
-| m021の履歴確認とNarrow deploy前ゲート | [m021の履歴とNarrow deploy前確認](#m021の履歴とnarrow-deploy前確認) |
 | 新規販売の停止と支払い不要プランのP0 | [販売停止](#販売停止) |
-| ProまたはBusinessのPrice切替 | [Price rotation](#price-rotation) |
+| StandardまたはProのPrice切替 | [Price rotation](#price-rotation) |
 | Webhookと安全operationの再開 | [Webhookとoperationの復旧](#webhookとoperationの復旧) |
 | 作業証跡と引き継ぎ | [証跡と引き継ぎ](#証跡と引き継ぎ) |
 
 ## 完了の判定
 
-リポジトリの実装、ローカルテスト、plan文書だけでは、Stripe設定、production公開、Convex deploy、migration完了を証明できない。
+リポジトリの実装、ローカルテスト、plan文書だけでは、Stripe設定、production公開、Convex deployを証明できない。
 実環境の作業は、対象revision、完全修飾deployment名、provider mode、実行結果、証跡が[リリース状態](release-status.md)に揃った時点で確認済みとする。
 
-次の三つを混同しない。
+次の二つを混同しない。
 
-1. export検証は、保存データの対象集合と不変条件を確認する。
-2. migration statusは、workerが対象deploymentで完走したことを確認する。
-3. provider canaryは、Stripeの実設定とdeployed artifactの組み合わせを確認する。
+1. repository検証は、変更後artifactの契約と自動テストを確認する。
+2. provider canaryは、Stripeの実設定とdeployed artifactの組み合わせを確認する。
 
 一つが成功しても、残りの成功を意味しない。
 
@@ -50,33 +70,13 @@ Stripe設定、日常probe、Narrow deploy前確認、販売停止、Price rotat
 `--deployment prod`のような短縮指定は使わない。
 短縮指定は現在選択中のConvex projectに依存し、別projectのdeploymentを選ぶおそれがある。
 
-## ダークローンチ公開フラグ
+## 公開状態
 
-次の公開フラグは、値が完全に`enabled`である場合だけ対象機能を開く。
-未設定、空文字、別の値は閉状態として扱う。
+現在のrepository artifactは、複数組織、複数店舗、複数管理者、支払いを公開切替用の環境変数なしで提供する。  初回Setupは所属0件の本人だけが1組織、1店舗、1管理者を作成し、プロモーションコードが空欄なら2か月のTrial、server-only設定と照合できた場合は期限・料金なしの支払い不要Pro相当を適用する。  追加組織はFreeで開始する。
 
-| 変数 | 開く対象 |
-|---|---|
-| `FEATURE_ORGANIZATION_CREATION` | 二つ目以降のグループ作成 |
-| `FEATURE_SHOP_ADDITION` | 店舗追加と既存人物の複数店舗所属UI |
-| `FEATURE_BILLING` | プランと支払いのUI |
-| `FEATURE_MANAGER_INVITATION` | 管理者の追加、Free管理者交代、再送、preview、受諾、招待通知、管理者連携完了通知 |
+公開判断はFeature Flagではなく、対象artifactの反映とcanaryで行う。  操作可否は認証・所属、契約状態、プラン上限、Stripe設定、rate limit、冪等性をサーバー側で判定する。  Productionへの反映状況はrepositoryから推測せず、[リリース状態](release-status.md)で証跡がある項目だけを確認済みとする。
 
-公開または停止は、対象commitのdeploy後に完全修飾deployment名を確認して実施する。
-値はコマンド行へ直接書かず、対象キーだけを指定して対話入力する。
-
-```bash
-pnpm exec convex env set --deployment <fully-qualified-deployment> FEATURE_MANAGER_INVITATION
-```
-
-管理者招待を開ける前に、追加とFree交代の両方について、発行、メールまたはLINE通知、preview、受諾、権限反映、再送、取消を対象環境で確認する。
-閉じるときは、発行・再送・受諾だけでなく、招待通知と管理者連携完了通知が新しくOutboxへ積まれず、投入済みOutboxも外部providerを呼ばず取消されることを確認する。
-E2Eは同じ`.env`の値を読み、閉状態では招待を前提とするシナリオを`test.skip`する。
-店舗所属追加を前提とするE2Eも、`FEATURE_SHOP_ADDITION`が閉じている間は`test.skip`する。
-公開FAQはフラグを購読しないため、管理者招待を開けるreleaseで追加・交代の操作手順を復元し、利用不可中の案内も公開状態へ戻す。
-
-作業後は`env list --names-only`でキーの存在だけを確認し、対象deployment、commit、確認日時、結果を[リリース状態](release-status.md)へ記録する。
-値そのものをログや証跡へ残さない。
+旧Feature Flagがdeploymentに残っていても現在のartifactは参照しない。  環境変数の整理を行う場合も、対象projectと完全修飾deployment名を確認し、値そのものをログや証跡へ残さない。
 
 ## Stripeの設定
 
@@ -87,19 +87,39 @@ E2Eは同じ`.env`の値を読み、閉状態では招待を前提とするシ�
 | `ORGANIZATION_INVITATION_SIGNING_SECRET` | 管理者招待tokenのHMAC導出に使う32文字以上の秘密値 | 既配信tokenの失効手段には使わない。rotation時は未送信・再試行中の招待を確認し、再発行する |
 | `STRIPE_SECRET_KEY` | Stripe APIへ接続するSecret key | `sk_test_`または`sk_live_`以外なら課金操作を開始しない |
 | `STRIPE_WEBHOOK_SECRET` | `POST /stripe/webhook`の署名検証 | `whsec_`形式でなければWebhookを受理せず、利用者起点の課金操作も開始しない |
-| `STRIPE_PRO_PRICE_ID` | Proの月額Price | 未設定または不正なら利用者起点の課金操作を開始しない |
-| `STRIPE_BUSINESS_PRICE_ID` | Businessの月額Price | 未設定、不正、Proと同一ならBusiness操作だけを停止する |
+| `STRIPE_STANDARD_PRICE_ID` | Standardのrecurring Priceを選ぶallowlist | 明示設定を必須とし、欠損、不正、Proと重複する場合は課金操作を開始しない |
+| `STRIPE_PRO_PRICE_ID` | Proのrecurring Priceを選ぶallowlist | 明示設定を必須とし、欠損、不正、Standardと重複する場合は課金操作を開始しない |
 | `STRIPE_PORTAL_CONFIGURATION_ID` | 支払い方法更新と請求履歴に限定したPortal設定 | 未設定または不正なら利用者起点の課金操作を開始しない |
 | `APP_URL` | CheckoutとPortalの戻り先 | サーバー側で戻り先を構築できない場合は開始しない |
+| `PROMOTION_COMPLIMENTARY_PRO_CODE` | 初回Setupで支払い不要Pro相当を適用する6桁英数字の照合値 | 未設定または不正でもコード空欄の通常登録はTrialで続ける。コードが入力された場合は支払い不要条件を適用せず、初回Setupを拒否する |
 
 値はブラウザへ公開しない。
 Stripe.jsをブラウザで直接使わないため、`VITE_STRIPE_PUBLISHABLE_KEY`は使わない。
+
+### 公開サイトBuild環境変数
+
+公開サイトは、ローカル、Preview、Develop、Productionの起動またはbuild時にStripeからStandard・Proの販売条件を取得し、公開可能な料金カタログだけを画面、SSG HTML、client bundleへ渡す。  ローカルとPreviewは同じStripe Sandboxを使い、Developは別のSandbox、Productionはliveを使う。
+
+| 変数 | 用途 | 保管先と不備時の扱い |
+|---|---|---|
+| `STRIPE_SECRET_KEY` | 公開するPriceを取得するStripe Secret key | ローカルは`.env.local`を`.env`より優先して読む。Preview、Develop、Productionは対応するGitHub Environment Secretから読み、未設定または環境不一致なら起動・buildを失敗させる |
+| `STRIPE_STANDARD_PRICE_ID` | 公開するStandardのrecurring Price | 対応するGitHub Environment Secretの明示値を必須とし、欠損、不正、Proと重複する場合は起動・buildを失敗させる |
+| `STRIPE_PRO_PRICE_ID` | 公開するProのrecurring Price | 対応するGitHub Environment Secretの明示値を必須とし、欠損、不正、Standardと重複する場合は起動・buildを失敗させる |
+
+ローカルで`.env.local`のSecret keyと`.env`のPrice IDを組み合わせる場合も、実際に選ばれるStandard・ProのPriceは必ず同じStripe Sandboxに属するものを使う。  別SandboxのPrice IDやactiveなPriceがない状態では、固定料金へ切り替えず起動・buildを失敗させる。
+
+`STRIPE_SECRET_KEY`へ`VITE_`prefixを付けず、ローカルのVite設定と、同一repositoryのPull Requestだけに限定したPreview、Develop、Productionのbuild stepだけへ渡す。  Viteへ渡すのは金額、通貨、請求周期、税区分だけであり、credential、Price ID、Stripeのraw responseは公開artifactへ含めない。  Build後はclient HTMLとJavaScriptに環境変数名、`sk_test_`、`sk_live_`、Price IDが含まれないことを検査する。
+
+`STRIPE_SECRET_KEY`をrotationした場合は、対象のConvex deployment、対応するGitHub Environment Secret、ローカルとPreviewの共通Sandboxであればローカル設定も同時に更新する。
+
+Storybookとtestは決定的なfixtureを使い、Stripe credentialを受け取らない。  ローカルとPreviewは同じSandboxの販売条件を確認できるが、DevelopまたはProductionへの反映済み証跡には使わない。
+Production buildは月1回のlicensed、per-unit Priceだけを受け付ける。  ローカル、Preview、DevelopはSandbox運用に合わせ、StandardとProで一致する日次または週次の検証用Priceも受け付ける。
 
 招待は発行時にtokenのdigestを保存するため、secretを変更しても既に配信したtokenは失効しない。
 一方、変更前に作成した招待を変更後のOutboxが初めて送信または再試行すると、現在のsecretで再導出したtokenと保存済みdigestが一致しない。
 rotationを失効操作として使わず、変更前の未送信・再試行jobを確認し、未連携招待を新しいsecretで再発行する。
 
-ローカルと開発用deploymentは、それぞれ専用のStripe Sandboxへ接続する。
+ローカルとPreviewは同じStripe Sandboxへ接続し、開発用deploymentは別のStripe Sandboxへ接続する。
 production deploymentへSandboxの実値を流用しない。
 実際にどの環境へ何が設定済みかは[リリース状態](release-status.md)で確認する。
 
@@ -118,24 +138,37 @@ deploymentを引数で固定できないため、Productionやほかのproject�
 pnpm exec convex env set --deployment <fully-qualified-deployment> <KEY>
 ```
 
-実行後のキー確認では、値を表示ず名前だけを取得する。
+実行後のキー確認では、値を表示せず名前だけを取得する。
 
 ```bash
 pnpm exec convex env list --names-only \
   --deployment <fully-qualified-deployment>
 ```
 
+### Price keyの設定とcanonical artifact確認
+
+この切替は課金プランの公開前に行い、Preview、Develop、Productionを別作業として扱う。  対象deploymentとGitHub Environmentを固定し、切替完了まで課金プランを公開しない。  Price自体は作り直さず、変更前にStandardとして使っていたPrice値を`STRIPE_STANDARD_PRICE_ID`へ、Proとして使っていたPrice値を`STRIPE_PRO_PRICE_ID`へ移す。
+
+1. 対象環境で課金プランが未公開であり、Checkoutやplan変更を開始できないことを確認する。
+2. StandardとProに使っている既存PriceをStripe Dashboardで照合し、値をログへ出さず運用担当者の安全な入力経路へ引き継ぐ。
+3. Convex deploymentと対応するGitHub Environment Secretへ`STRIPE_STANDARD_PRICE_ID`と`STRIPE_PRO_PRICE_ID`を設定する。  二つが明示され、異なるPrice IDであることを確認する。
+4. 2キー契約のartifactをbuild・deployし、実行中revisionと公開料金のStandard / Pro対応を確認する。
+5. canonical requestで料金取得、Checkout、plan変更のprovider canaryを行う。
+
+値の移動はDashboardまたは対話入力で行い、command、log、運用記録へsecretやPrice IDの実値を書かない。  設定の欠損、不正、二つのPrice IDの重複時は、サーバーの課金操作と公開サイトBuildをfail closedにする。
+
 ### Product、Price、Portal
 
-1. ProとBusinessに別々のrecurring Priceを用意する。
-2. どちらも月次、`interval_count: 1`とし、BusinessとProの通貨を一致させる。
+1. StandardとProに別々のrecurring Priceを用意する。
+2. StandardとProの通貨、`recurring.interval`、`recurring.interval_count`を一致させる。  本番は月次、開発用Sandboxでは必要に応じて日次や週次を選べる。
 3. 対象modeとPriceの`livemode`が一致することを確認する。
 4. Priceをactiveにし、対象IDを対応する環境変数へ設定する。
 5. Customer Portalは支払い方法更新と請求履歴だけを許可する設定を使う。
-6. `getPlanPrice`で、active、月次、通貨、金額をサーバーが取得できることを確認する。
+6. `getPlanPrice`で、active、請求周期、通貨、金額をサーバーが取得できることを確認する。
 
 アプリはPrice IDをクライアントから受け取らず、サーバー側allowlistから選ぶ。
-金額はコードへ固定せず、Stripe Priceから取得する。
+金額と請求周期はコードや別の環境変数へ固定せず、Stripe Priceから取得する。
+開発用に請求周期を短縮するときは、同じ周期のStandard PriceとPro PriceをStripe Sandboxで用意し、二つのPrice IDを切り替える。
 
 ### Webhook destination
 
@@ -165,6 +198,104 @@ Webhook destinationには、次の13イベントだけを登録する。
 登録後は[セキュリティ再検証](security-validation.md)の`ENV-STRIPE-01`と`ENV-STRIPE-02`に従い、対象revisionとprovider modeを固定したcanaryを行う。
 canaryの成功を確認するまで販売可能と判定しない。
 
+## 支払い不要条件の適用コード
+
+`PROMOTION_COMPLIMENTARY_PRO_CODE`は、所属0件からの初回Setupだけで支払い不要Pro相当を適用するserver-only環境変数である。  値は6桁の英数字とし、前後の空白を除いて大文字化した入力値と照合する。
+
+プロモーションコードが空欄なら通常どおり2か月のTrialを作成する。  入力値が設定と一致した場合は、Trialに代えて期限・料金なしの`complimentary.pro`を作成する。  二つ目以降の追加組織はコードの対象外であり、Freeで開始する。
+
+画面ではコード欄を初期表示で隠し、「プロモーションコードお持ちの方はこちら」から展開する。  「適用」の事前照合に成功すると読み取り専用で保持し、「変更する」で再編集、「入力をやめる」でコードを消してTrial経路へ戻す。  前のstepへ戻っても適用状態は保持する。
+
+事前照合は組織や課金状態を作らず、成功結果を永続化しない。  成功表示後も最終Setupが現在の設定値と所属0件を再確認するため、設定値が途中で変更・削除された場合は作成せず、Trialへfallbackしない。
+
+設定値はブラウザへ渡さず、入力値、設定値、照合結果の詳細をDB、audit、analytics、ログ、運用証跡へ残さない。  コードが入力されている状態で設定が未設定、不正、不一致の場合は、同じ利用者向けエラーで初回Setupを拒否する。
+
+画面の試行回数ロックは、同じtabで10回失敗すると10分間「適用」を止めるUX制御である。  残り回数は表示せず、不一致、通信失敗、設定不備は同じ「コードが誤っています。」に統一する。  public mutationの直接呼出しでは回避できるため安全境界やrate limitとして扱わず、配布先を限定し、漏洩が疑われる場合は設定値を変更する。
+
+設定値の変更または削除は、その後の初回Setupでの照合だけに影響する。  既に作成済みの`complimentary.pro`は維持され、設定値の変更や削除によってTrial、Free、有料プランへ移行しない。
+
+ローカルまたは現在選択中の開発deploymentには、`scripts/setupEnv.ts`のallowlistを通じて同期できる。  `.env`を複製せず、同期先を確認してから次を使う。
+
+```bash
+pnpm convex:env:setup
+```
+
+Productionまたは別projectではこのscriptを使わず、Dashboardまたは完全修飾deployment名を指定したCLIで設定する。  値をcommand引数へ書かず、対話入力する。
+
+```bash
+pnpm exec convex env set --deployment <fully-qualified-deployment> PROMOTION_COMPLIMENTARY_PRO_CODE
+```
+
+無効化するときも対象deploymentを明示する。
+
+```bash
+pnpm exec convex env remove --deployment <fully-qualified-deployment> PROMOTION_COMPLIMENTARY_PRO_CODE
+```
+
+作業後は`env list --names-only`でキーの有無だけを確認し、値を表示しない。
+
+## Trial期限の開発用設定
+
+開発deploymentでは、所属0件からの初回Setupで`calculateTrialEndsAt`が決める期限を、次の環境変数で短縮できる。  二つ目以降の追加組織はFreeで開始するため、この設定の対象外である。
+
+| 変数 | 用途 |
+|---|---|
+| `DEBUG_TRIAL_DURATION_DEPLOYMENT_URL` | 上書きを許可するConvex deploymentの`CONVEX_CLOUD_URL` |
+| `DEBUG_TRIAL_DURATION_DAYS` | 登録日の何暦日後を期限にするか。`1`から`30`までの整数 |
+
+両方のURLは前後の空白と末尾の`/`を除いて比較する。
+URLが未設定または一致しない場合と、日数が未設定または空白の場合は、通常どおり2か月後のJST 00:00を期限にする。
+対象URLが一致している状態で日数が不正な場合は、通常期間へ戻さず設定エラーにする。
+`1`は登録から24時間後ではなく、登録日の翌日00:00 JSTを表す。
+環境変数の変更は将来作成するTrialの計算にだけ反映し、保存済みの期限は更新しない。
+
+Productionにはこの2変数を設定しない。
+開発deploymentへ設定するときは、先に対象URL、次に日数を対話入力する。
+
+```bash
+pnpm exec convex env set --deployment <fully-qualified-deployment> DEBUG_TRIAL_DURATION_DEPLOYMENT_URL
+pnpm exec convex env set --deployment <fully-qualified-deployment> DEBUG_TRIAL_DURATION_DAYS
+```
+
+無効化するときは、日数を先に削除してから対象URLを削除する。
+
+```bash
+pnpm exec convex env remove --deployment <fully-qualified-deployment> DEBUG_TRIAL_DURATION_DAYS
+pnpm exec convex env remove --deployment <fully-qualified-deployment> DEBUG_TRIAL_DURATION_DEPLOYMENT_URL
+```
+
+この2変数は`scripts/setupEnv.ts`のallowlistへ含めない。
+対象を引数で固定できない`pnpm convex:env:setup`では設定せず、Dashboardまたは完全修飾deployment名を指定したCLIを使う。
+作業後は`env list --names-only`でキーの有無だけを確認し、値をログや証跡へ残さない。
+
+## 支払い失敗と下位active planへの移行
+
+未契約または継続予約取消済みのTrialが終了した場合は、管理者、店舗、人物、スタッフ所属、シフトを維持したまま`active.free`へ移行する。
+有料契約の解約は期間末に適用し、Stripe上の契約終了を確認した後に`active.free`へ移行する。
+ProからStandardへの期間末変更は、Stripe上のphase移行と支払い成功を確認した後に`active.standard`へ移行する。
+
+StandardからProへの即時変更はStripeの`pending_if_incomplete`を使う。  未払いの間はHosted Invoice URLから支払いを再開でき、利用者が取り消した場合または日割り支払いに失敗した場合は、その変更で作られたInvoiceだけを安定したidempotency keyで`void`する。  Subscriptionを再取得し、`pending_update`が消えてStandardのPriceが維持されていることを確認してから`active.standard`へ戻す。
+
+Trial終了時の初回請求、Standard / Proの通常更新、ProからStandardへの変更適用時の初回請求について検証済みの未払いを確認した場合は、`paymentTerminationPending`へ移行する。
+これは利用者向けのプランではなく、Subscription終了とInvoiceの自動回収停止を追跡する内部workflowである。
+開始時点からFreeの利用権限を適用し、支払い処理の再試行中も有料機能を許可しない。
+
+内部workerは同じidempotency keyでSubscriptionを終了し、対象となるopenまたはdraft Invoiceの`auto_advance: false`を確認する。
+Stripe側の停止を確認した後に、`active.free`と支払い失敗理由を同じ処理で保存する。
+途中で失敗した場合はFree権限のまま再試行し、上限到達時は`actionRequired`として運用確認へ送る。
+処理完了まで新しい有料契約を開始させない。
+
+`auto_advance: false`は自動再請求、Reminder、Stripe Billingによる自動処理を止めるための完了条件である。
+支払い失敗で有料契約全体を終了する本手順では、未払いInvoiceを`void`または`uncollectible`へ自動変更せず、別途確定した会計方針に従う。  StandardからProへの未完了変更だけは、変更を取り消してStandardを維持するため、当該日割りInvoiceを`void`する。
+旧Invoiceが後から支払い済みになっても自動復帰せず、運用上の要対応として扱う。
+
+上限状態は、未承認の管理者招待を除く実際の利用人数、未削除店舗数、有効管理者数と、現在適用中のFree / Standard / Proから導出する。
+上限超過と利用上限評価不能は課金状態として保存しない。
+利用実数が上限内へ戻ると、課金状態や上限フラグの更新なしで通常利用へ戻る。
+
+旧プランIDのmigration、backfill、rolling互換は行わない。
+対象environmentではcanonicalな変更後artifactとStripe Sandbox canaryだけを確認する。
+
 ## 日常probe
 
 完全修飾deployment名を指定して、read-onlyのinternal probeを実行する。
@@ -190,136 +321,22 @@ probeは全件集計ではなく、項目ごとに`observedCount`と`hasMore`を
 | `anomalies.complimentaryStripeMappingP0` | 支払い不要プランとStripe objectの対応。1件以上ならP0 |
 | `anomalies.activePaidWithoutCurrentSubscription` | 有料状態なのに現在のSubscriptionがない対応不整合 |
 | `anomalies.activeFreeWithCurrentSubscription` | Free状態なのに現在のSubscriptionがある対応不整合 |
-| `anomalies.organizationsWithMultipleNonterminalSubscriptions` | 一グループに複数の非terminal Subscriptionがある不整合 |
-| `anomalies.organizationsWithMultipleStripeCustomers` | 一グループに複数Customerがある不整合 |
+| `anomalies.organizationsWithMultipleNonterminalSubscriptions` | 一組織に複数の非terminal Subscriptionがある不整合 |
+| `anomalies.organizationsWithMultipleStripeCustomers` | 一組織に複数Customerがある不整合 |
 | `anomalies.subscriptionsWithoutMatchingLocalCustomer` | SubscriptionとローカルCustomerの対応不整合 |
 | `anomalies.stripeCustomersWithoutBillingState` | Customerに対応する課金状態の欠落 |
-| `anomalies.unresolvedM018MigrationConflicts` | Business廃止時の履歴migrationで未解消のconflict |
 
 いずれかの`observedCount`が0でも、対応する`hasMore`が`true`なら解消済みと判定しない。
 probeだけでは、Stripe上のPriceのactive状態、Subscription ItemのPrice、最新Invoiceの状態、`auto_advance`停止を証明できない。
 必要な項目はStripe APIの再取得結果とDashboardの対象objectを照合する。
 
-`verifyLegacyBusinessStates`はm018の履歴確認専用である。
-現行のBusinessやm021の履歴確認には使わない。
-
-`anomalies.complimentaryProAwaitingM021`はNarrow後のmaintenance probeから削除されている。
-probeにこの項目がないことはm021の完走や旧形式の残件0を証明しないため、Narrow deploy前はmigration statusとexportを別々に確認する。
-
-## m021の履歴とNarrow deploy前確認
-
-現行コードの保存契約は`complimentary.business`だけを許可する。
-`complimentary.pro`はm021のMigration Testとこの運用履歴だけに残し、通常runtimeでは読み書きしない。
-
-対象deploymentのm021 statusとexport検証状況は、[リリース状態](release-status.md)を正とする。
-対象revisionがNarrow済みでも、両方の証跡が未確認なら実環境の移行完了とは判定しない。
-完全修飾deployment名を固定したstatusとexport証跡が揃うまで、Narrow版をそのdeploymentへdeployしない。
-
-### 対象と停止条件
-
-`m021_organization_billing_complimentary_pro_to_business`は、Widen期間にStripeから隔離された旧`complimentary.pro`だけを`complimentary.business`へ変更するための履歴migrationである。
-グループ欠落、課金状態重複、Stripe Customer、Subscription、全statusのoperation、Webhook、課金通知、先行監査のいずれかがあれば変更せずconflictへ残す。
-
-未移行の旧形式が見つかった場合はNarrow版をdeployしない。
-Widen版の対象revisionへ戻ってm021と検証を完了し、その証跡を固定してからNarrow deployへ進む。
-
-事前検証で次のいずれかが起きたら、migrationを開始しない。
-
-- 対象件数が0件である。
-- 必須tableまたはmanifest dataがない。
-- JSONLを解釈できない。
-- Stripe証跡、先行監査、未解消m021 conflictがある。
-- 対象deployment、commit、snapshot取得時刻を一意に記録できない。
-
-### snapshot A、B、C
-
-| snapshot | 取得時点 | 用途 |
-|---|---|---|
-| A | 対象releaseを始める前 | 障害調査と最終手段のrestore判断に使う。日常的なrollback手段にはしない |
-| B | m021を含むreleaseの実行直前 | Go / No-Goのpre検証と対象集合の固定 |
-| C | m021 statusの成功確認後 | post検証と移行後の証明 |
-
-三つは別々のアクセス制限された一意なパスへ保存する。
-各snapshotにdeployment名、commit SHA、取得時刻、ZIPのSHA-256、対象件数、対象set hash、verifier結果を対応付ける。
-
-production snapshotには`pnpm convex:save`を使わない。
-このコマンドは既存のbackup領域を掃除して固定パスへコピーするため、production証跡の分離に適さない。
-Dashboard backupを優先し、CLIを使う場合は完全修飾deployment名と一意な保存先を指定する。
-
-```bash
-pnpm exec convex export --deployment <fully-qualified-deployment> \
-  --path <access-controlled-unique-path>.zip
-unzip -t <snapshot>.zip
-shasum -a 256 <snapshot>.zip
-```
-
-snapshot取得後に対象データが変わった可能性があれば、そのsnapshotをGo判定に使わず再取得する。
-
-### pre検証
-
-snapshot Bへpre verifierを実行する。
-
-```bash
-pnpm convex:verify-complimentary-m021-export -- \
-  --mode pre \
-  --path <snapshot-b.zip>
-```
-
-成功したreportから`targetCount`と`targetSetSha256`を記録する。
-この二つはpost検証へそのまま引き渡す。
-
-### migrationの実行とstatus確認
-
-`convex/migrations/index.ts`の固定seriesにはm021が登録されている。
-developmentへのdeployは`.github/workflows/deploy.yml`、production releaseは`.github/workflows/release.yml`がConvex deploy後に`migrations/index:run`を実行する。
-
-workflowで固定seriesを実行する場合、同じdeploymentへ手動の本実行を重ねない。
-実際にworkflowが実行済みか、どのrevisionが対象かは[リリース状態](release-status.md)で確認する。
-
-対象deploymentを完全指定し、m021が`isDone: true`、`state: "success"`、`error`なしになるまでstatusを確認する。
-
-```bash
-pnpm exec convex run --deployment <fully-qualified-deployment> \
-  --component migrations lib:getStatus \
-  '{"names":["migrations/m021_organization_billing_complimentary_pro_to_business:migration"]}' \
-  --watch
-```
-
-CLIが表示したdeployment名が意図した対象と一致しなければ、その結果を採用しない。
-
-### post検証
-
-m021のstatus成功後にsnapshot Cを取得し、preの件数とhashを指定してpost verifierを実行する。
-
-```bash
-pnpm convex:verify-complimentary-m021-export -- \
-  --mode post \
-  --path <snapshot-c.zip> \
-  --expected-target-count <pre-target-count> \
-  --expected-target-set-sha256 <pre-target-set-sha256>
-```
-
-reportの`migrationStatus: "not_verified_by_export"`は意図した値である。
-exportはworkerの完走を証明しないため、component statusとpost verifierの両方を証跡に残す。
-全対象deploymentの完走、旧形式の残件0、未解消conflict 0を[リリース状態](release-status.md)で確認するまで、Narrow版をdeployしない。
-
-### 失敗時の復旧
-
-- productionでm021をresetしない。
-- 課金証跡、監査、conflictを手動削除しない。
-- 旧`complimentary.pro`や`complimentary.business`を手動patchしない。
-- m021後にpre-Widen版へ戻さない。
-- snapshot Aを即時restoreする前提にせず、影響とprovider状態を確認する。
-- 修復が必要ならm022以降のforward migrationを作り、同じpre/status/postの証跡を設計する。
-
-失敗中も、既存契約の署名済みWebhook、取消、請求停止、再照合を止めない。
-支払い不要BusinessにStripe objectが対応した疑いがある場合は、次のP0手順へ進む。
+`anomalies.complimentaryProAwaitingM021`は現在のmaintenance probeから削除されている。
 
 ## 販売停止
 
 ### 対象プランの新規販売を止める
 
-1. 対象deployment、Stripe account、mode、ProまたはBusinessのPriceを特定する。
+1. 対象deployment、Stripe account、mode、StandardまたはProのPriceを特定する。
 2. Stripe Dashboardで対象Priceをアーカイブする。
 3. アーカイブ前に発行済みのopen Checkout Sessionを列挙し、すべて失効させる。
 4. `STRIPE_SECRET_KEY`と`STRIPE_WEBHOOK_SECRET`は削除しない。
@@ -333,10 +350,10 @@ Priceのアーカイブは新規販売を止めるが、既存Subscriptionを終
 
 `anomalies.complimentaryStripeMappingP0.observedCount`が1件以上なら、次の順で対応する。
 
-1. 対象environmentのPro PriceとBusiness Priceをアーカイブする。
+1. 対象environmentのStandard PriceとPro Priceをアーカイブする。
 2. 発行済みのopen Checkout Sessionをすべて失効させる。
 3. Webhook、取消、Invoice回収停止、再照合は継続する。
-4. 対象グループ、Customer、全Subscription世代、Invoiceを照合する。
+4. 対象組織、Customer、全Subscription世代、Invoiceを照合する。
 5. 誤請求の有無、返金、creditの要否を人が判断する。
 6. 原因とforward repairを決め、providerとローカルの対応を再検証する。
 
@@ -349,26 +366,30 @@ Priceのアーカイブは新規販売を止めるが、既存Subscriptionを終
 
 1. 変更対象の旧Priceをアーカイブし、open Checkout Sessionをすべて失効させる。
 2. probeの`safetyOperations.priceRotationBlocking`、取消、請求停止、`actionRequired`を確認する。
-3. Stripeで新しい月額Priceを作る。
-   BusinessではProと同じ通貨にする。
-4. `STRIPE_PRO_PRICE_ID`または`STRIPE_BUSINESS_PRICE_ID`の対象側だけを新Priceへ変更する。
-5. 現在のConvex設定が対象deploymentを指すことと、`.env`にある同期対象キーを確認する。
-6. 対象キーだけを、完全修飾deployment名を指定した`convex env set`で更新する。続けて`env list --names-only`でキーの存在だけを確認する。
-7. 新Priceの`livemode`、active、月次、通貨、金額を`getPlanPrice`とStripe Dashboardで確認する。
-8. 対象modeでCheckout、Subscription、Webhook、Invoiceをcanary確認する。
-9. 旧Priceを使う進行中のTrial・契約作成operationが0件までdrainしたことを確認する。
-10. 既存Subscriptionが保存済みの旧Priceで継続していることを確認する。
+3. Stripeで新しいrecurring Priceを作る。
+   ProではStandardと同じ通貨、`recurring.interval`、`recurring.interval_count`にする。
+4. 新Priceの`livemode`、active、licensed、per-unit、請求周期、通貨、金額、税区分をStripe Dashboardで確認する。
+5. 対応するGitHub Environment SecretのPrice IDを新Priceへ変更する。値をworkflow、log、文書へ書かない。
+6. 対象environmentで公開サイトをbuild・deployし、特定商取引法ページの金額、通貨、請求周期、税区分を確認する。ここまでは旧Priceをアーカイブしたままにし、新規販売を再開しない。
+7. 現在のConvex設定が対象deploymentを指すことと、`.env`にある同期対象キーを確認する。
+8. `STRIPE_STANDARD_PRICE_ID`または`STRIPE_PRO_PRICE_ID`の対象キーだけを、完全修飾deployment名を指定した`convex env set`で新Priceへ更新する。続けて`env list --names-only`でキーの存在だけを確認する。この切替後に新規販売を再開する。
+9. 新Priceの`livemode`、active、請求周期、通貨、金額を`getPlanPrice`とStripe Dashboardで照合する。
+10. 対象modeでCheckout、Subscription、Webhook、Invoiceをcanary確認する。
+11. 旧Priceを使う進行中のTrial・契約作成operationが0件までdrainしたことを確認する。
+12. 既存Subscriptionが保存済みの旧Priceで継続していることを確認する。
 
 新規operationは開始時のPrice snapshotを保持する。
 既存Subscriptionは保存済みPrice IDで照合するため、ローカルSubscriptionのPrice IDを一括書換えしない。
+請求周期を変更するrotationではStandardとProの両Priceを同じ周期で用意し、二つのPrice IDを一つの作業として切り替える。  周期が一致しない間はProの価格表示、Checkout、StandardとPro間の変更を再開しない。
 
 ### rollback
 
 1. 新Priceをアーカイブする。
 2. 新Priceで発行済みのopen Checkout Sessionをすべて失効させる。
-3. 旧Priceを再有効化できる場合だけ、対象の環境変数を旧Price IDへ戻す。
-4. 環境変数を同期し、probeとprovider canaryを再実行する。
-5. 旧Priceを再有効化できない場合は、新Priceのまま原因を修復する。
+3. 旧Priceを再有効化できる場合だけ再有効化し、GitHub Environment Secretの対象Price IDを旧Priceへ戻す。
+4. 公開サイトを再build・deployし、特定商取引法ページが旧Priceへ戻ったことを確認する。ここまでは新規販売を停止したままにする。
+5. Convex deploymentの対象Price IDを旧Priceへ戻し、probeとprovider canaryを再実行してから販売を再開する。
+6. 旧Priceを再有効化できない場合は、新Priceのまま原因を修復する。
 
 どちらの場合も、安全確認前に販売を再開しない。
 
@@ -398,7 +419,7 @@ Checkoutや新規Subscription作成を推測で再送しない。
 2. 予約したbatchが処理されるのを待ってからprobeを再実行する。
 3. `reachedBatchLimit: true`なら、先行batchの収束を確認してから次のbounded recoveryを判断する。
 4. `actionRequired`は自動削除せず、Customer、Subscription、Invoice、operationの対応をprovider再取得で確認する。
-5. 一意に対応できないobjectは推測で別グループへ結び付けず、手動対応またはforward repairへ残す。
+5. 一意に対応できないobjectは推測で別組織へ結び付けず、手動対応またはforward repairへ残す。
 
 復旧中もsecretとWebhookを単純に無効化しない。
 provider側の請求停止や取消が未完了なら、新規販売を止めたまま安全operationを完了させる。
@@ -411,7 +432,7 @@ provider側の請求停止や取消が未完了なら、新規販売を止めた
 - 確認日時、確認者、対象commit、artifact。
 - 環境、完全修飾deployment名、Stripe accountの識別情報とmode。
 - CLIが表示した実行対象。
-- probe、migration status、export verifier、provider canaryの結果。
+- probeとprovider canaryの結果。
 - snapshotまたはログのアクセス制限された保管先。
 - 販売停止の対象、停止時刻、未解決のoperation。
 - 復旧先と、販売再開または次工程へ進める条件。
@@ -420,19 +441,18 @@ provider側の請求停止や取消が未完了なら、新規販売を止めた
 
 ## 参照先
 
-- [グループ課金、複数店舗、複数管理者](../features/organization-billing.md)
-- [グループ課金の業務仕様](../specs/organization-billing-business-flow.md)
+- [組織課金、複数店舗、複数管理者](../features/organization-billing.md)
+- [組織課金の業務要件](../specs/organization-billing-business-flow.md)
 - [リリース状態](release-status.md)
 - [CI/CD運用](ci-cd.md)
 - [セキュリティ再検証](security-validation.md)
 - [セキュリティ戦略](../rules/security-strategy.md)
 - [Convex設計戦略](../rules/convex-design-strategy.md)
 - [テスト戦略](../rules/testing-strategy.md)
+- [Stripe: Subscriptionの解約](https://docs.stripe.com/billing/subscriptions/cancel)
+- [Stripe: Invoiceの自動回収停止](https://docs.stripe.com/api/invoices/update)
 - `convex/organizationStripe/config.ts`
 - `convex/organizationStripe/webhook.ts`
 - `convex/organizationStripe/maintenance.ts`
-- `convex/migrations/index.ts`
-- `convex/migrations/m021_organization_billing_complimentary_pro_to_business.ts`
-- `scripts/verifyComplimentaryBusinessM021Export.ts`
 - `.github/workflows/deploy.yml`
 - `.github/workflows/release.yml`

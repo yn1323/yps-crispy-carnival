@@ -4,9 +4,9 @@ import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
-import { internalAction } from "../_generated/server";
 import { RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
+import { observedInternalAction as internalAction } from "../_lib/errorObservability";
 import { selectChannel } from "../_lib/notification";
 import { STAFF_REGISTRATION_DAILY_DIGEST_PENDING_PAGE_SIZE } from "../constants";
 import {
@@ -16,6 +16,8 @@ import {
   STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT,
 } from "../notification/templates";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
+import { STAFF_REGISTRATION_OWNER_DIGEST_CONTEXT } from "../notificationOutbox/shopManagerNotification";
+import { lineRecipientOutboxSnapshot } from "../notificationOutbox/types";
 
 type PendingRequestShopIdsPage = {
   page: Id<"shops">[];
@@ -76,17 +78,22 @@ async function sendOwnerDigestForShop(ctx: ActionCtx, shopId: Id<"shops">) {
   ]);
 
   for (const recipient of data.recipients) {
-    const channel = selectChannel({ lineUserId: recipient.lineUserId, lineFollowing: recipient.lineFollowing }, quota);
+    const lineRecipient = recipient.lineRecipient;
+    const channel = selectChannel(
+      { lineUserId: lineRecipient?.lineUserId, lineFollowing: lineRecipient?.following },
+      quota,
+    );
 
-    if (channel === "line" && recipient.lineUserId) {
+    if (channel === "line" && lineRecipient) {
       await enqueueLine(ctx, {
         shopId: data.shopId,
         ...notificationOrigin,
+        ...lineRecipientOutboxSnapshot(lineRecipient),
         purpose: "business",
         userId: recipient.userId,
         dedupeKey: `line:staffRegistrationDailyDigest:${data.shopId}:${recipient.userId}`,
         payload: linePayload({
-          toUserId: recipient.lineUserId,
+          toUserId: lineRecipient.lineUserId,
           text: buildStaffRegistrationOwnerDigestLineText({
             dashboardUrl: data.dashboardUrl,
           }),
@@ -105,7 +112,7 @@ async function sendOwnerDigestForShop(ctx: ActionCtx, shopId: Id<"shops">) {
                 managerName: recipient.name,
                 dashboardUrl: data.dashboardUrl,
               }),
-              context: "staffRegistration.sendOwnerDailyDigest",
+              context: STAFF_REGISTRATION_OWNER_DIGEST_CONTEXT,
               suppressDelivery,
             }),
           },
@@ -128,7 +135,7 @@ async function sendOwnerDigestForShop(ctx: ActionCtx, shopId: Id<"shops">) {
           managerName: recipient.name,
           dashboardUrl: data.dashboardUrl,
         }),
-        context: "staffRegistration.sendOwnerDailyDigest",
+        context: STAFF_REGISTRATION_OWNER_DIGEST_CONTEXT,
         suppressDelivery,
       }),
     });

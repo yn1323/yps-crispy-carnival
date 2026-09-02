@@ -21,6 +21,35 @@ const FLEX_TEXT_COLOR = "#1A202C";
 const FLEX_MUTED_COLOR = "#718096";
 const CLOSED_DAY_COLOR = "#E53E3E";
 const FLEX_BORDER_COLOR = "#E2E8F0";
+const ALL_SHIFTS_VIEWING_PERIOD = "全員分のシフトは14日間閲覧可能です。";
+const SHIFT_CONFIRMATION_CTA = "全員のシフトを確認する";
+const SHIFT_SUBMISSION_CTA = "希望シフトを提出する";
+const SHIFT_SUBMISSION_REMINDER_CTA = "希望シフトを提出する";
+const SHIFT_SUBMISSION_REMINDER_PERIOD = (periodLabel: string) =>
+  `${periodLabel}の希望シフトの提出期限が近づいています。`;
+const SHIFT_SUBMISSION_REMINDER_PENDING = "提出期限までに提出をお願いします。";
+const SHIFT_SUBMISSION_CORRECTION_NOTE = "提出後も提出期限まではリンクから訂正が可能です。";
+const SHIFTORI_CONFIRMATION_CTA = "シフトリで確認する";
+const SHIFT_CONFIRMATION_REMINDER_PERIOD = (periodLabel: string) =>
+  `${periodLabel}の希望シフトは提出期限を過ぎました。`;
+const SHIFT_CONFIRMATION_REMINDER_ACTION = "シフトの調整・確定してください。";
+const SHOP_ACTIVATION_CTA = "シフトリでシフトを作成する";
+const SHOP_ACTIVATION_PERIOD = "店舗を登録してから1週間が経過しました。";
+const SHOP_ACTIVATION_ACTION = "スタッフを追加して実際にシフトを回収してみましょう！";
+const STAFF_REGISTRATION_OWNER_MESSAGE = "スタッフ登録申請が届いています。";
+const STAFF_REGISTRATION_OWNER_DETAIL = "シフトリで確認して承認してください。";
+const STAFF_REGISTRATION_OWNER_CTA = SHIFTORI_CONFIRMATION_CTA;
+export const STAFF_LEGAL_CONSENT_SUBJECT = "シフトリの使い方のご案内";
+const STAFF_LEGAL_CONSENT_CTA = "シフトリの使い方を確認する";
+const STAFF_LEGAL_CONSENT_DETAIL = "詳細はリンクから確認ください。";
+const staffLegalConsentUsage = (shopName: string) => `${shopName}では、シフトの回収・共有に「シフトリ」を利用します。`;
+const staffLegalConsentExpiry = (expiresAtLabel: string) => `このリンクは${expiresAtLabel}まで有効です。`;
+const recruitmentRequest = (periodLabel: string) => `${periodLabel}の希望シフトを提出してください。`;
+const reissueMessage = (periodLabel: string) => `${periodLabel}のシフト閲覧リンクを再発行しました。`;
+const REISSUE_CTA = "シフトを確認する";
+
+export const buildRecruitmentEmailSubject = (periodLabel: string) => `${periodLabel} 希望シフトの提出をお願いします`;
+export const buildReminderEmailSubject = (periodLabel: string) => `${periodLabel} 希望シフトの提出期限が近づいています`;
 
 export type LineTextMessage = {
   type: "text";
@@ -245,7 +274,7 @@ export function buildShiftConfirmationLineText(params: {
       return timeLabel ? `${s.date} ${timeLabel}` : `${s.date} 休み`;
     }),
     "",
-    "全員のシフトを確認する",
+    SHIFT_CONFIRMATION_CTA,
     withOpenExternalBrowser(params.magicLinkUrl),
   ];
   return lines.join("\n");
@@ -271,7 +300,7 @@ export function buildShiftConfirmationLineFlexMessage(params: {
       ),
       flexShiftRows(params.shifts),
     ],
-    cta: { label: "全員のシフトを確認する", uri: params.magicLinkUrl },
+    cta: { label: SHIFT_CONFIRMATION_CTA, uri: params.magicLinkUrl },
   });
 }
 
@@ -290,13 +319,13 @@ export function buildRecruitmentLineText(params: {
     "",
     `${params.staffName}さん`,
     "",
-    `${params.shopName}\n${params.periodLabel}のシフト希望を提出してください。`,
-    `提出締切：${params.deadline}`,
+    `${params.shopName}\n${recruitmentRequest(params.periodLabel)}`,
+    `提出期限：${params.deadline}`,
     "",
-    "シフト希望を提出する",
+    SHIFT_SUBMISSION_CTA,
     withOpenExternalBrowser(params.magicLinkUrl),
     "",
-    "提出・修正は締切までです。\n提出済みの内容は、締切後もシフト確定まで確認できます。",
+    SHIFT_SUBMISSION_CORRECTION_NOTE,
   ].join("\n");
 }
 
@@ -312,11 +341,11 @@ export function buildRecruitmentLineFlexMessage(params: {
     title: flexTitleWithShop(params.shopName, "📩 シフト提出のお願い"),
     body: [
       flexBodyText(`${params.staffName}さん`),
-      flexBodyText(`${params.periodLabel}のシフト希望を提出してください。`),
-      flexMetaText(`提出締切：${params.deadline}`),
-      flexMutedText("提出・修正は締切までです。\n提出済みの内容は、締切後もシフト確定まで確認できます。"),
+      flexBodyText(recruitmentRequest(params.periodLabel)),
+      flexMetaText(`提出期限：${params.deadline}`),
+      flexMutedText(SHIFT_SUBMISSION_CORRECTION_NOTE),
     ],
-    cta: { label: "シフト希望を提出する", uri: params.magicLinkUrl },
+    cta: { label: SHIFT_SUBMISSION_CTA, uri: params.magicLinkUrl },
   });
 }
 
@@ -334,9 +363,9 @@ export function buildReissueLineText(params: {
     "",
     `${params.staffName}さん`,
     "",
-    `${params.shopName}\n${params.periodLabel}のシフト閲覧リンクを再発行しました。`,
+    `${params.shopName}\n${reissueMessage(params.periodLabel)}`,
     "",
-    "シフトを確認する",
+    REISSUE_CTA,
     withOpenExternalBrowser(params.magicLinkUrl),
   ].join("\n");
 }
@@ -350,11 +379,8 @@ export function buildReissueLineFlexMessage(params: {
   return buildFlexMessage({
     altText: buildReissueLineText(params),
     title: flexTitleWithShop(params.shopName, "🔁 リンク再発行"),
-    body: [
-      flexBodyText(`${params.staffName}さん`),
-      flexBodyText(`${params.periodLabel}のシフト閲覧リンクを再発行しました。`),
-    ],
-    cta: { label: "シフトを確認する", uri: params.magicLinkUrl },
+    body: [flexBodyText(`${params.staffName}さん`), flexBodyText(reissueMessage(params.periodLabel))],
+    cta: { label: REISSUE_CTA, uri: params.magicLinkUrl },
   });
 }
 
@@ -369,18 +395,18 @@ export function buildReminderLineText(params: {
   magicLinkUrl: string;
 }): string {
   return [
-    "🔔 提出締切が近づいています",
+    "🔔 提出期限が近づいています",
     "",
     `${params.staffName}さん`,
     "",
-    `${params.shopName}\n${params.periodLabel}のシフト希望の提出締切が近づいています。`,
-    "まだ提出していない場合は、締切までにシフト希望を提出してください。",
-    `提出締切：${params.linkExpiresAtLabel}`,
+    `${params.shopName}\n${SHIFT_SUBMISSION_REMINDER_PERIOD(params.periodLabel)}`,
+    SHIFT_SUBMISSION_REMINDER_PENDING,
+    `提出期限：${params.linkExpiresAtLabel}`,
     "",
-    "シフト希望を提出する",
+    SHIFT_SUBMISSION_REMINDER_CTA,
     withOpenExternalBrowser(params.magicLinkUrl),
     "",
-    "提出・修正は締切までです。\n提出済みの内容は、締切後もシフト確定まで確認できます。",
+    SHIFT_SUBMISSION_CORRECTION_NOTE,
   ].join("\n");
 }
 
@@ -393,15 +419,15 @@ export function buildReminderLineFlexMessage(params: {
 }): NotificationLineFlexMessage {
   return buildFlexMessage({
     altText: buildReminderLineText(params),
-    title: flexTitleWithShop(params.shopName, "🔔 提出締切が近づいています"),
+    title: flexTitleWithShop(params.shopName, "🔔 提出期限が近づいています"),
     body: [
       flexBodyText(`${params.staffName}さん`),
-      flexBodyText(`${params.periodLabel}のシフト希望の提出締切が近づいています。`),
-      flexBodyText("まだ提出していない場合は、締切までにシフト希望を提出してください。"),
-      flexMetaText(`提出締切：${params.linkExpiresAtLabel}`),
-      flexMutedText("提出・修正は締切までです。\n提出済みの内容は、締切後もシフト確定まで確認できます。"),
+      flexBodyText(SHIFT_SUBMISSION_REMINDER_PERIOD(params.periodLabel)),
+      flexBodyText(SHIFT_SUBMISSION_REMINDER_PENDING),
+      flexMetaText(`提出期限：${params.linkExpiresAtLabel}`),
+      flexMutedText(SHIFT_SUBMISSION_CORRECTION_NOTE),
     ],
-    cta: { label: "シフト希望を提出する", uri: params.magicLinkUrl },
+    cta: { label: SHIFT_SUBMISSION_REMINDER_CTA, uri: params.magicLinkUrl },
   });
 }
 
@@ -441,33 +467,50 @@ function escapeEmailHtmlWithLineBreaks(value: string): string {
   return escapeEmailHtml(value).replaceAll("\n", "<br />");
 }
 
-type OrganizationBillingEmailParams = {
-  recipientName: string;
-  organizationName: string;
-  heading: string;
-  paragraphs: readonly string[];
-  action?: {
-    label: string;
-    url: string;
-  };
-};
+type EmailCtaVariant = "primary" | "billingPrimary" | "linePrimary";
 
-export const ORGANIZATION_MANAGER_INVITATION_SUBJECT = "管理者として招待されました";
+function renderEmailCta(params: { label: string; url: string; variant: EmailCtaVariant }): string {
+  const tableMargin = params.variant === "billingPrimary" ? "margin:8px 0 24px;" : "margin-bottom:24px;";
+  const backgroundColor = params.variant === "linePrimary" ? "#06c755" : "#319795";
+  return `<table width="100%" cellpadding="0" cellspacing="0" style="${tableMargin}">
+            <tr><td align="center">
+              <a href="${escapeEmailHtml(params.url)}" style="display:inline-block;padding:12px 32px;background-color:${backgroundColor};color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">${escapeEmailHtml(params.label)}</a>
+            </td></tr>
+          </table>`;
+}
 
-type OrganizationManagerInvitationEmailParams = {
-  organizationName: string;
-  inviterName: string;
-  invitationUrl: string;
-};
+type EmailFooterVariant =
+  | { kind: "managerNoReply" }
+  | { kind: "staffQuestions" }
+  | { kind: "staffQuestionsAndChanges" }
+  | { kind: "staffReplyOnly" }
+  | { kind: "lineInvite"; shopName: string };
 
-/**
- * 管理者招待の本文。invitationUrlはprovider呼び出し直前にactionのメモリ内で生成する。
- */
-export function buildOrganizationManagerInvitationEmailHtml(params: OrganizationManagerInvitationEmailParams): string {
-  const organizationName = escapeEmailHtml(params.organizationName);
-  const inviterName = escapeEmailHtml(params.inviterName);
-  const invitationUrl = escapeEmailHtml(params.invitationUrl);
+function renderEmailFooter(footer: EmailFooterVariant): string {
+  const separator = '<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />';
+  switch (footer.kind) {
+    case "managerNoReply":
+      return `${separator}
+          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールは送信専用です。<br />返信しても届きません。</p>`;
+    case "staffQuestions":
+      return `${separator}
+          <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">シフトに関する質問は、シフト作成担当者に連絡してください。</p>
+          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールに返信しても、シフト作成担当者には届きません。</p>`;
+    case "staffQuestionsAndChanges":
+      return `${separator}
+          <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">シフトに関する質問や変更希望は、シフト作成担当者に連絡してください。</p>
+          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールに返信しても、シフト作成担当者には届きません。</p>`;
+    case "staffReplyOnly":
+      return `${separator}
+          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールに返信しても、シフト作成担当者には届きません。</p>`;
+    case "lineInvite":
+      return `${separator}
+          <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">${escapeEmailHtml(footer.shopName)}が利用しているシフト管理サービスです。</p>
+          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールに返信しても、シフト作成担当者には届きません。</p>`;
+  }
+}
 
+function renderBrandedEmail(params: { content: string; footer: EmailFooterVariant }): string {
   return `<!DOCTYPE html>
 <html lang="ja">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -479,27 +522,99 @@ export function buildOrganizationManagerInvitationEmailHtml(params: Organization
           <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
         </td></tr>
         <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:18px;font-weight:700;color:#1a202c;">管理者として招待されました</p>
-          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${inviterName}さんから「${organizationName}」の管理者に招待されました。</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">管理者になると、このグループのすべての店舗を管理し、契約に関する操作を行えます。</p>
+          ${params.content}
 
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-            <tr><td align="center">
-              <a href="${invitationUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">招待を確認する</a>
-            </td></tr>
-          </table>
-
-          <p style="margin:0 0 8px;font-size:13px;color:#718096;">このリンクは7日間有効で、一度だけ使用できます。</p>
-          <p style="margin:0 0 24px;font-size:13px;color:#718096;">心当たりがない場合は、このメールを破棄してください。</p>
-
-          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールは送信専用です。<br />返信しても届きません。</p>
+          ${renderEmailFooter(params.footer)}
         </td></tr>
       </table>
     </td></tr>
   </table>
 </body>
 </html>`;
+}
+
+type OrganizationBillingEmailParams = {
+  recipientName: string;
+  organizationName: string;
+  heading: string;
+  headingSize?: "normal";
+  paragraphs: readonly string[];
+  action?: {
+    label: string;
+    url: string;
+  };
+};
+
+export const ORGANIZATION_MANAGER_INVITATION_SUBJECT = "管理者として招待されました";
+export const ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT = "管理者アカウント連携が完了しました";
+export const ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING = "管理者アカウント連携が完了しました。";
+export const ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA = "シフトリを確認する";
+
+type OrganizationManagerInvitationEmailParams = {
+  recipientName: string;
+  organizationName: string;
+  inviterName: string;
+  appUrl: string;
+  helpUrl: string;
+  invitationUrl: string;
+};
+
+export function buildOrganizationManagerInvitationLineText(params: {
+  organizationName: string;
+  invitationUrl: string;
+}): string {
+  return [
+    `${params.organizationName}の管理者として招待されました。`,
+    "ログインして、アカウント連携を完了してください。",
+    withOpenExternalBrowser(params.invitationUrl),
+  ].join("\n");
+}
+
+/**
+ * 管理者招待の本文。invitationUrlはprovider呼び出し直前にactionのメモリ内で生成する。
+ */
+export function buildOrganizationManagerInvitationEmailHtml(params: OrganizationManagerInvitationEmailParams): string {
+  const recipientName = escapeEmailHtml(params.recipientName);
+  const organizationName = escapeEmailHtml(params.organizationName);
+  const inviterName = escapeEmailHtml(params.inviterName);
+  const helpUrl = escapeEmailHtml(params.helpUrl);
+
+  return renderBrandedEmail({
+    content: `<p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${recipientName}さん</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${organizationName}の${inviterName}さんから、管理者として招待されました。</p>
+          <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#1a202c;">1. シフトリとは？</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">スタッフの希望収集からシフト作成・共有までを支えるシフト管理サービスです。</p>
+
+          ${renderEmailCta({ label: "シフトリを見る", url: params.appUrl, variant: "primary" })}
+
+          <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#1a202c;">2. 管理者になるとできること</p>
+          <ul style="margin:0 0 24px;padding-left:24px;font-size:15px;color:#1a202c;">
+            <li style="margin:0 0 8px;">希望シフトの募集</li>
+            <li style="margin:0 0 8px;">シフトの調整</li>
+            <li style="margin:0 0 8px;">シフトの確定</li>
+            <li style="margin:0 0 8px;">スタッフ管理</li>
+            <li>店舗作成など</li>
+          </ul>
+
+          <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#1a202c;">3. シフトリの管理者になる操作手順</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">管理者になるためには、アカウント登録が必要です。</p>
+          <ol style="margin:0 0 24px;padding-left:24px;font-size:15px;color:#1a202c;">
+            <li style="margin:0 0 8px;">「シフトリの管理者招待を受け取る」ボタンを押す</li>
+            <li>シフトリでアカウントを作成する<br />（すでにお持ちの場合はログインする）</li>
+          </ol>
+
+          ${renderEmailCta({
+            label: "シフトリの管理者招待を受け取る",
+            url: params.invitationUrl,
+            variant: "primary",
+          })}
+
+          <p style="margin:0 0 16px;font-size:13px;color:#718096;">このリンクは7日間有効です。</p>
+          <p style="margin:0 0 8px;font-size:15px;color:#1a202c;">気になる使い方は、シフトリのヘルプページをご確認ください。</p>
+          <p style="margin:0 0 24px;font-size:15px;"><a href="${helpUrl}" style="color:#2c7a7b;text-decoration:underline;" rel="noreferrer">シフトリのヘルプページを見る</a></p>
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">心当たりがない場合は、このメールを破棄してください。</p>`,
+    footer: { kind: "managerNoReply" },
+  });
 }
 
 /**
@@ -510,6 +625,7 @@ export function buildOrganizationBillingEmailHtml(params: OrganizationBillingEma
   const recipientName = escapeEmailHtml(params.recipientName);
   const organizationName = escapeEmailHtml(params.organizationName);
   const heading = escapeEmailHtml(params.heading);
+  const headingFontSize = params.headingSize === "normal" ? "15px" : "18px";
   const paragraphs = params.paragraphs
     .map(
       (paragraph) =>
@@ -517,38 +633,17 @@ export function buildOrganizationBillingEmailHtml(params: OrganizationBillingEma
     )
     .join("");
   const action = params.action
-    ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 24px;">
-            <tr><td align="center">
-              <a href="${escapeEmailHtml(params.action.url)}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">${escapeEmailHtml(params.action.label)}</a>
-            </td></tr>
-          </table>`
+    ? renderEmailCta({ label: params.action.label, url: params.action.url, variant: "billingPrimary" })
     : "";
 
-  return `<!DOCTYPE html>
-<html lang="ja">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f7fafc;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;padding:24px 0;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-        <tr><td style="background-color:#319795;padding:16px 24px;">
-          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
-        </td></tr>
-        <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${recipientName}さん</p>
+  return renderBrandedEmail({
+    content: `<p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${recipientName}さん</p>
           <p style="margin:0 0 8px;font-size:13px;color:#718096;">${organizationName}</p>
-          <p style="margin:0 0 24px;font-size:18px;font-weight:700;color:#1a202c;">${heading}</p>
+          <p style="margin:0 0 24px;font-size:${headingFontSize};font-weight:700;color:#1a202c;">${heading}</p>
           ${paragraphs}
-          ${action}
-
-          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールは送信専用です。<br />返信しても届きません。</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+          ${action}`,
+    footer: { kind: "managerNoReply" },
+  });
 }
 
 function shiftRow(shift: ShiftEntry): string {
@@ -571,26 +666,13 @@ export function buildConfirmationEmailHtml(params: ConfirmationEmailParams): str
   const shiftRows = params.shifts.map(shiftRow).join("");
   const staffName = escapeEmailHtml(params.staffName);
   const periodLabel = escapeEmailHtml(params.periodLabel);
-  const magicLinkUrl = escapeEmailHtml(params.magicLinkUrl);
   const reissueUrl = escapeEmailHtml(params.reissueUrl);
   const bodyMessage = params.isResend
     ? `${periodLabel}のシフトに変更がありました。<br />最新のシフトを確認してください。`
     : `${periodLabel}のシフトが確定しました。`;
 
-  return `<!DOCTYPE html>
-<html lang="ja">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f7fafc;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;padding:24px 0;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-        <!-- Header -->
-        <tr><td style="background-color:#319795;padding:16px 24px;">
-          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
-        </td></tr>
-        <!-- Body -->
-        <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${staffName}さん</p>
+  return renderBrandedEmail({
+    content: `<p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${staffName}さん</p>
           <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${bodyMessage}</p>
 
           <!-- Shift Table -->
@@ -600,28 +682,15 @@ export function buildConfirmationEmailHtml(params: ConfirmationEmailParams): str
           </table>
 
           <!-- CTA Button -->
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-            <tr><td align="center">
-              <a href="${magicLinkUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">全員のシフトを確認する</a>
-            </td></tr>
-          </table>
+          ${renderEmailCta({ label: SHIFT_CONFIRMATION_CTA, url: params.magicLinkUrl, variant: "primary" })}
 
           <p style="margin:0 0 8px;font-size:13px;color:#718096;">このリンクは24時間有効です。</p>
-          <p style="margin:0 0 8px;font-size:13px;color:#718096;">リンクを開くと14日間閲覧できます。</p>
+          <p style="margin:0 0 8px;font-size:13px;color:#718096;">${ALL_SHIFTS_VIEWING_PERIOD}</p>
           <p style="margin:0 0 24px;font-size:13px;color:#718096;">期限切れの場合は<a href="${reissueUrl}" style="color:#319795;" rel="noreferrer">こちら</a>から再発行できます。</p>
 
-          ${params.lineCtaHtml ?? ""}
-
-          <!-- Footer -->
-          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-          <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">シフトに関する質問や変更希望は、シフト作成担当者に連絡してください。</p>
-          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールに返信しても、シフト作成担当者には届きません。</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+          ${params.lineCtaHtml ?? ""}`,
+    footer: { kind: "staffQuestionsAndChanges" },
+  });
 }
 
 type RecruitmentEmailParams = {
@@ -636,52 +705,25 @@ export function buildRecruitmentEmailHtml(params: RecruitmentEmailParams): strin
   const staffName = escapeEmailHtml(params.staffName);
   const periodLabel = escapeEmailHtml(params.periodLabel);
   const deadline = escapeEmailHtml(params.deadline);
-  const magicLinkUrl = escapeEmailHtml(params.magicLinkUrl);
-  return `<!DOCTYPE html>
-<html lang="ja">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f7fafc;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;padding:24px 0;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-        <!-- Header -->
-        <tr><td style="background-color:#319795;padding:16px 24px;">
-          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
-        </td></tr>
-        <!-- Body -->
-        <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${staffName}さん</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${periodLabel}のシフト希望を提出してください。</p>
+  return renderBrandedEmail({
+    content: `<p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${staffName}さん</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${recruitmentRequest(periodLabel)}</p>
 
           <!-- Deadline -->
           <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px;">
             <tr><td style="padding:12px 16px;background-color:#f7fafc;font-size:14px;color:#1a202c;">
-              <strong>提出締切：</strong> ${deadline}
+              <strong>提出期限：</strong> ${deadline}
             </td></tr>
           </table>
 
           <!-- CTA Button -->
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-            <tr><td align="center">
-              <a href="${magicLinkUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフト希望を提出する</a>
-            </td></tr>
-          </table>
+          ${renderEmailCta({ label: SHIFT_SUBMISSION_CTA, url: params.magicLinkUrl, variant: "primary" })}
 
-          <p style="margin:0 0 8px;font-size:13px;color:#718096;">提出・修正は締切までです。</p>
-          <p style="margin:0 0 24px;font-size:13px;color:#718096;">提出済みの内容は、締切後もシフト確定までこのリンクから確認できます。</p>
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">${SHIFT_SUBMISSION_CORRECTION_NOTE}</p>
 
-          ${params.lineCtaHtml ?? ""}
-
-          <!-- Footer -->
-          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-          <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">シフトに関する質問は、シフト作成担当者に連絡してください。</p>
-          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールに返信しても、シフト作成担当者には届きません。</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+          ${params.lineCtaHtml ?? ""}`,
+    footer: { kind: "staffQuestions" },
+  });
 }
 
 type ReminderEmailParams = {
@@ -696,53 +738,26 @@ export function buildReminderEmailHtml(params: ReminderEmailParams): string {
   const staffName = escapeEmailHtml(params.staffName);
   const periodLabel = escapeEmailHtml(params.periodLabel);
   const linkExpiresAtLabel = escapeEmailHtml(params.linkExpiresAtLabel);
-  const magicLinkUrl = escapeEmailHtml(params.magicLinkUrl);
-  return `<!DOCTYPE html>
-<html lang="ja">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f7fafc;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;padding:24px 0;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-        <!-- Header -->
-        <tr><td style="background-color:#319795;padding:16px 24px;">
-          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
-        </td></tr>
-        <!-- Body -->
-        <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${staffName}さん</p>
-          <p style="margin:0 0 8px;font-size:15px;color:#1a202c;">${periodLabel}のシフト希望の提出締切が近づいています。</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">まだ提出していない場合は、締切までにシフト希望を提出してください。</p>
+  return renderBrandedEmail({
+    content: `<p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${staffName}さん</p>
+          <p style="margin:0 0 8px;font-size:15px;color:#1a202c;">${SHIFT_SUBMISSION_REMINDER_PERIOD(periodLabel)}</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${SHIFT_SUBMISSION_REMINDER_PENDING}</p>
 
           <!-- Deadline -->
           <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px;">
             <tr><td style="padding:12px 16px;background-color:#f7fafc;font-size:14px;color:#1a202c;">
-              <strong>提出締切：</strong> ${linkExpiresAtLabel}
+              <strong>提出期限：</strong> ${linkExpiresAtLabel}
             </td></tr>
           </table>
 
           <!-- CTA Button -->
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-            <tr><td align="center">
-              <a href="${magicLinkUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフト希望を提出する</a>
-            </td></tr>
-          </table>
+          ${renderEmailCta({ label: SHIFT_SUBMISSION_REMINDER_CTA, url: params.magicLinkUrl, variant: "primary" })}
 
-          <p style="margin:0 0 8px;font-size:13px;color:#718096;">提出・修正は締切までです。</p>
-          <p style="margin:0 0 24px;font-size:13px;color:#718096;">提出済みの内容は、締切後もシフト確定までリンクから確認できます。</p>
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">${SHIFT_SUBMISSION_CORRECTION_NOTE}</p>
 
-          ${params.lineCtaHtml ?? ""}
-
-          <!-- Footer -->
-          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-          <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">シフトに関する質問は、シフト作成担当者に連絡してください。</p>
-          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールに返信しても、シフト作成担当者には届きません。</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+          ${params.lineCtaHtml ?? ""}`,
+    footer: { kind: "staffQuestions" },
+  });
 }
 
 type LineInviteEmailParams = {
@@ -752,53 +767,32 @@ type LineInviteEmailParams = {
   context?: "default" | "registration_approved";
 };
 
+const LINE_INVITE_LEAD = "シフトのお知らせをLINEで受け取れます。";
+const LINE_INVITE_DESCRIPTION =
+  "下記ボタンからLINEと連携してください。\nメールで受け取りを希望される場合は、無視してください。";
+const LINE_INVITE_LINK_EXPIRY = "LINE連携リンクは72時間有効です。";
+const LINE_INVITE_EXPIRED = "シフト作成担当者に連絡してください。";
+const LINE_CTA_NOTE = "シフトのお知らせをLINEでも受け取れます。";
+
 export function buildLineInviteEmailHtml(params: LineInviteEmailParams): string {
   const staffName = escapeEmailHtml(params.staffName);
-  const shopName = escapeEmailHtml(params.shopName);
-  const authorizeUrl = escapeEmailHtml(params.authorizeUrl);
   const lead = escapeEmailHtmlWithLineBreaks(
-    params.context === "registration_approved"
-      ? "スタッフ登録が承認されました。\nLINEと連携すると、シフトのお知らせをLINEで受け取れます。"
-      : "シフトのお知らせをLINEで受け取れるようになります。",
+    [...(params.context === "registration_approved" ? ["スタッフ登録が承認されました。"] : []), LINE_INVITE_LEAD].join(
+      "\n",
+    ),
   );
-  const description =
-    params.context === "registration_approved"
-      ? "続けて、下のボタンからLINEと連携してください。"
-      : "下のボタンから連携できます。";
-  return `<!DOCTYPE html>
-<html lang="ja">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f7fafc;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;padding:24px 0;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-        <tr><td style="background-color:#319795;padding:16px 24px;">
-          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
-        </td></tr>
-        <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${staffName}さん</p>
+  const description = escapeEmailHtmlWithLineBreaks(LINE_INVITE_DESCRIPTION);
+  return renderBrandedEmail({
+    content: `<p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${staffName}さん</p>
           <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${lead}</p>
           <p style="margin:0 0 24px;font-size:14px;color:#4a5568;">${description}</p>
 
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-            <tr><td align="center">
-              <a href="${authorizeUrl}" style="display:inline-block;padding:12px 32px;background-color:#06c755;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">LINE連携する</a>
-            </td></tr>
-          </table>
+          ${renderEmailCta({ label: "LINE連携する", url: params.authorizeUrl, variant: "linePrimary" })}
 
-          <p style="margin:0 0 8px;font-size:13px;color:#718096;">このリンクは72時間有効です。</p>
-          <p style="margin:0 0 8px;font-size:13px;color:#718096;">期限が切れた場合は、シフト作成担当者に連絡してください。</p>
-          <p style="margin:0 0 24px;font-size:13px;color:#718096;">LINEと連携すると、シフトのお知らせをLINEで送ります。<br />LINEで送れない場合は、メールでお知らせすることがあります。</p>
-
-          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-          <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">${shopName}が利用しているシフト管理サービスです。</p>
-          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールに返信しても、シフト作成担当者には届きません。</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+          <p style="margin:0 0 8px;font-size:13px;color:#718096;">${LINE_INVITE_LINK_EXPIRY}</p>
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">${LINE_INVITE_EXPIRED}</p>`,
+    footer: { kind: "lineInvite", shopName: params.shopName },
+  });
 }
 
 /**
@@ -811,8 +805,8 @@ export function buildLineCtaSection(params: { authorizeUrl: string; reLink: bool
   const label = params.reLink ? "LINEを再連携する" : "LINE連携する";
   const note = escapeEmailHtmlWithLineBreaks(
     params.reLink
-      ? "シフトリ公式アカウントの友だち追加が解除されています。\nもう一度友だち追加すると、シフトのお知らせをLINEで受け取れます。\nLINEで送れない場合は、メールでお知らせすることがあります。"
-      : "LINEと連携すると、シフトのお知らせをLINEで送ります。\nLINEで送れない場合は、メールでお知らせすることがあります。",
+      ? "シフトリ公式アカウントの友だち追加が解除されています。\nLINE通知を受け取るには、友達してください。"
+      : LINE_CTA_NOTE,
   );
   return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;border-top:1px solid #e2e8f0;padding-top:24px;">
     <tr><td>
@@ -834,8 +828,8 @@ export function buildStaffRegistrationOwnerDigestLineText(params: StaffRegistrat
   return [
     "📝 スタッフ登録申請",
     "",
-    "スタッフ登録申請が届いています。",
-    "シフトリのダッシュボードで確認してください。",
+    STAFF_REGISTRATION_OWNER_MESSAGE,
+    STAFF_REGISTRATION_OWNER_DETAIL,
     "",
     withOpenExternalBrowser(params.dashboardUrl),
   ].join("\n");
@@ -847,11 +841,8 @@ export function buildStaffRegistrationOwnerDigestLineFlexMessage(
   return buildFlexMessage({
     altText: buildStaffRegistrationOwnerDigestLineText(params),
     title: flexTitleWithShop(params.shopName, "📝 スタッフ登録申請"),
-    body: [
-      flexBodyText("スタッフ登録申請が届いています。"),
-      flexBodyText("シフトリのダッシュボードで確認してください。"),
-    ],
-    cta: { label: "ダッシュボードを確認", uri: params.dashboardUrl },
+    body: [flexBodyText(STAFF_REGISTRATION_OWNER_MESSAGE), flexBodyText(STAFF_REGISTRATION_OWNER_DETAIL)],
+    cta: { label: STAFF_REGISTRATION_OWNER_CTA, uri: params.dashboardUrl },
   });
 }
 
@@ -859,38 +850,21 @@ export function buildStaffRegistrationOwnerDigestEmailHtml(
   params: StaffRegistrationOwnerDigestParams & { managerName: string },
 ): string {
   const managerName = escapeEmailHtml(params.managerName);
-  const dashboardUrl = escapeEmailHtml(params.dashboardUrl);
-  return `<!DOCTYPE html>
-<html lang="ja">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f7fafc;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;padding:24px 0;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-        <tr><td style="background-color:#319795;padding:16px 24px;">
-          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
-        </td></tr>
-        <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${managerName}さん</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">スタッフ登録申請が届いています。<br />シフトリのダッシュボードで確認してください。</p>
+  return renderBrandedEmail({
+    content: `<p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${managerName}さん</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${STAFF_REGISTRATION_OWNER_MESSAGE}<br />${STAFF_REGISTRATION_OWNER_DETAIL}</p>
 
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-            <tr><td align="center">
-              <a href="${dashboardUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">ダッシュボードを確認する</a>
-            </td></tr>
-          </table>
-
-          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールは送信専用です。<br />返信しても届きません。</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+          ${renderEmailCta({ label: STAFF_REGISTRATION_OWNER_CTA, url: params.dashboardUrl, variant: "primary" })}`,
+    footer: { kind: "managerNoReply" },
+  });
 }
 
 export const NOTIFICATION_FAILURE_REMINDER_SUBJECT = "送れなかった通知があります";
+
+const NOTIFICATION_FAILURE_TITLE = "⚠️ 一部通知に失敗";
+const NOTIFICATION_FAILURE_STAFF_MESSAGE = "正常に送信できなかった通知があります。";
+const NOTIFICATION_FAILURE_DETAIL = "詳細はシフトリを確認してください。";
+const NOTIFICATION_FAILURE_CTA = SHIFTORI_CONFIRMATION_CTA;
 
 type NotificationFailureReminderParams = {
   dashboardUrl: string;
@@ -898,10 +872,10 @@ type NotificationFailureReminderParams = {
 
 export function buildNotificationFailureReminderLineText(params: NotificationFailureReminderParams): string {
   return [
-    "⚠️ 送れなかった通知",
+    NOTIFICATION_FAILURE_TITLE,
     "",
-    "通知を送れなかったスタッフがいます。",
-    "シフトリのダッシュボードから再送してください。",
+    NOTIFICATION_FAILURE_STAFF_MESSAGE,
+    NOTIFICATION_FAILURE_DETAIL,
     "",
     withOpenExternalBrowser(params.dashboardUrl),
   ].join("\n");
@@ -912,12 +886,9 @@ export function buildNotificationFailureReminderLineFlexMessage(
 ): NotificationLineFlexMessage {
   return buildFlexMessage({
     altText: buildNotificationFailureReminderLineText(params),
-    title: flexTitleWithShop(params.shopName, "⚠️ 送れなかった通知"),
-    body: [
-      flexBodyText("通知を送れなかったスタッフがいます。"),
-      flexBodyText("シフトリのダッシュボードから再送してください。"),
-    ],
-    cta: { label: "ダッシュボードを確認", uri: params.dashboardUrl },
+    title: flexTitleWithShop(params.shopName, NOTIFICATION_FAILURE_TITLE),
+    body: [flexBodyText(NOTIFICATION_FAILURE_STAFF_MESSAGE), flexBodyText(NOTIFICATION_FAILURE_DETAIL)],
+    cta: { label: NOTIFICATION_FAILURE_CTA, uri: params.dashboardUrl },
   });
 }
 
@@ -925,35 +896,13 @@ export function buildNotificationFailureReminderEmailHtml(
   params: NotificationFailureReminderParams & { managerName: string },
 ): string {
   const managerName = escapeEmailHtml(params.managerName);
-  const dashboardUrl = escapeEmailHtml(params.dashboardUrl);
-  return `<!DOCTYPE html>
-<html lang="ja">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f7fafc;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;padding:24px 0;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-        <tr><td style="background-color:#319795;padding:16px 24px;">
-          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
-        </td></tr>
-        <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${managerName}さん</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">通知を送れなかったスタッフがいます。<br />シフトリのダッシュボードから再送してください。</p>
+  return renderBrandedEmail({
+    content: `<p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${managerName}さん</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${NOTIFICATION_FAILURE_STAFF_MESSAGE}<br />${NOTIFICATION_FAILURE_DETAIL}</p>
 
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-            <tr><td align="center">
-              <a href="${dashboardUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">ダッシュボードを確認する</a>
-            </td></tr>
-          </table>
-
-          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールは送信専用です。<br />返信しても届きません。</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+          ${renderEmailCta({ label: NOTIFICATION_FAILURE_CTA, url: params.dashboardUrl, variant: "primary" })}`,
+    footer: { kind: "managerNoReply" },
+  });
 }
 
 export const SHOP_ACTIVATION_REMINDER_SUBJECT = "最初のシフト募集をつくりましょう";
@@ -966,11 +915,11 @@ export function buildShopActivationReminderLineText(params: ShopActivationRemind
   return [
     "📅 シフト作成の続き",
     "",
-    "店舗を登録してから1週間が経過しました。",
+    SHOP_ACTIVATION_PERIOD,
     "",
-    "スタッフを追加して実際にシフトを回収してみましょう！",
+    SHOP_ACTIVATION_ACTION,
     "",
-    "シフト募集をつくる",
+    SHOP_ACTIVATION_CTA,
     withOpenExternalBrowser(params.dashboardUrl),
   ].join("\n");
 }
@@ -981,11 +930,8 @@ export function buildShopActivationReminderLineFlexMessage(
   return buildFlexMessage({
     altText: buildShopActivationReminderLineText(params),
     title: flexTitleWithShop(params.shopName, "📅 シフト作成の続き"),
-    body: [
-      flexBodyText("店舗を登録してから1週間が経過しました。"),
-      flexBodyText("スタッフを追加して実際にシフトを回収してみましょう！"),
-    ],
-    cta: { label: "シフト募集をつくる", uri: params.dashboardUrl },
+    body: [flexBodyText(SHOP_ACTIVATION_PERIOD), flexBodyText(SHOP_ACTIVATION_ACTION)],
+    cta: { label: SHOP_ACTIVATION_CTA, uri: params.dashboardUrl },
   });
 }
 
@@ -993,38 +939,14 @@ export function buildShopActivationReminderEmailHtml(
   params: ShopActivationReminderParams & { managerName: string },
 ): string {
   const managerName = escapeEmailHtml(params.managerName);
-  const dashboardUrl = escapeEmailHtml(params.dashboardUrl);
-  return `<!DOCTYPE html>
-<html lang="ja">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f7fafc;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;padding:24px 0;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-        <tr><td style="background-color:#319795;padding:16px 24px;">
-          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
-        </td></tr>
-        <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${managerName}さん</p>
-          <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#1a202c;">📅 シフト作成の続き</p>
-          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">店舗を登録してから1週間が経過しました。</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">スタッフを追加して実際にシフトを回収してみましょう！</p>
+  return renderBrandedEmail({
+    content: `<p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${managerName}さん</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${SHOP_ACTIVATION_PERIOD}</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${SHOP_ACTIVATION_ACTION}</p>
 
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-            <tr><td align="center">
-              <p style="margin:0 0 12px;font-size:15px;color:#1a202c;">シフト募集をつくる</p>
-              <a href="${dashboardUrl}" style="color:#319795;font-size:14px;font-weight:600;word-break:break-all;" rel="noreferrer">${dashboardUrl}</a>
-            </td></tr>
-          </table>
-
-          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールは送信専用です。<br />返信しても届きません。</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+          ${renderEmailCta({ label: SHOP_ACTIVATION_CTA, url: params.dashboardUrl, variant: "primary" })}`,
+    footer: { kind: "managerNoReply" },
+  });
 }
 
 export const SHIFT_CONFIRMATION_REMINDER_SUBJECT = "シフトの確定をお願いします";
@@ -1037,13 +959,13 @@ type ShiftConfirmationReminderParams = {
 
 export function buildShiftConfirmationReminderLineText(params: ShiftConfirmationReminderParams): string {
   return [
-    "⏰ 提出締切を過ぎています",
+    "⏰ 提出期限を過ぎています",
     "",
-    `${params.periodLabel}のシフトがまだ確定していません。`,
-    `提出締切（${params.deadlineLabel}）を過ぎています。`,
-    "スタッフの希望を確認し、シフトを調整して確定してください。",
+    SHIFT_CONFIRMATION_REMINDER_PERIOD(params.periodLabel),
+    `提出期限（${params.deadlineLabel}）を過ぎています。`,
+    SHIFT_CONFIRMATION_REMINDER_ACTION,
     "",
-    "シフトを確定する",
+    SHIFTORI_CONFIRMATION_CTA,
     withOpenExternalBrowser(params.dashboardUrl),
   ].join("\n");
 }
@@ -1053,13 +975,13 @@ export function buildShiftConfirmationReminderLineFlexMessage(
 ): NotificationLineFlexMessage {
   return buildFlexMessage({
     altText: buildShiftConfirmationReminderLineText(params),
-    title: flexTitleWithShop(params.shopName, "⏰ 提出締切を過ぎています"),
+    title: flexTitleWithShop(params.shopName, "⏰ 提出期限を過ぎています"),
     body: [
-      flexBodyText(`${params.periodLabel}のシフトがまだ確定していません。`),
-      flexMetaText(`提出締切（${params.deadlineLabel}）を過ぎています。`),
-      flexBodyText("スタッフの希望を確認し、シフトを調整して確定してください。"),
+      flexBodyText(SHIFT_CONFIRMATION_REMINDER_PERIOD(params.periodLabel)),
+      flexMetaText(`提出期限（${params.deadlineLabel}）を過ぎています。`),
+      flexBodyText(SHIFT_CONFIRMATION_REMINDER_ACTION),
     ],
-    cta: { label: "シフトを確定する", uri: params.dashboardUrl },
+    cta: { label: SHIFTORI_CONFIRMATION_CTA, uri: params.dashboardUrl },
   });
 }
 
@@ -1069,44 +991,22 @@ export function buildShiftConfirmationReminderEmailHtml(
   const managerName = escapeEmailHtml(params.managerName);
   const periodLabel = escapeEmailHtml(params.periodLabel);
   const deadlineLabel = escapeEmailHtml(params.deadlineLabel);
-  const dashboardUrl = escapeEmailHtml(params.dashboardUrl);
-  return `<!DOCTYPE html>
-<html lang="ja">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f7fafc;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;padding:24px 0;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-        <tr><td style="background-color:#319795;padding:16px 24px;">
-          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
-        </td></tr>
-        <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${managerName}さん</p>
-          <p style="margin:0 0 8px;font-size:15px;color:#1a202c;">${periodLabel}のシフトがまだ確定していません。</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">スタッフの希望を確認し、シフトを調整して確定してください。</p>
+  return renderBrandedEmail({
+    content: `<p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${managerName}さん</p>
+          <p style="margin:0 0 8px;font-size:15px;color:#1a202c;">${SHIFT_CONFIRMATION_REMINDER_PERIOD(periodLabel)}</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${SHIFT_CONFIRMATION_REMINDER_ACTION}</p>
 
           <!-- Deadline -->
           <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px;">
             <tr><td style="padding:12px 16px;background-color:#f7fafc;font-size:14px;color:#1a202c;">
-              <strong>提出締切：</strong> ${deadlineLabel}（締切済み）
+              <strong>提出期限：</strong> ${deadlineLabel}（期限超過）
             </td></tr>
           </table>
 
           <!-- CTA Button -->
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-            <tr><td align="center">
-              <a href="${dashboardUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフトを確定する</a>
-            </td></tr>
-          </table>
-
-          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールは送信専用です。<br />返信しても届きません。</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+          ${renderEmailCta({ label: SHIFTORI_CONFIRMATION_CTA, url: params.dashboardUrl, variant: "primary" })}`,
+    footer: { kind: "managerNoReply" },
+  });
 }
 
 type StaffLegalConsentEmailParams = {
@@ -1123,40 +1023,19 @@ type StaffLegalConsentEmailParams = {
 export function buildStaffLegalConsentEmailHtml(params: StaffLegalConsentEmailParams): string {
   const staffName = escapeEmailHtml(params.staffName);
   const shopName = escapeEmailHtml(params.shopName);
-  const consentUrl = escapeEmailHtml(params.consentUrl);
   const expiresAtLabel = escapeEmailHtml(formatDateTimeJa(params.expiresAt));
-  return `<!DOCTYPE html>
-<html lang="ja">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f7fafc;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;padding:24px 0;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-        <tr><td style="background-color:#319795;padding:16px 24px;">
-          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
-        </td></tr>
-        <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 20px;font-size:15px;color:#1a202c;">${staffName}さん</p>
-          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${shopName}では、シフト希望の提出依頼や確定シフトのお知らせにシフトリを利用します。</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">まず、使い方、利用規約、プライバシーポリシーを確認してください。</p>
+  const usageText = staffLegalConsentUsage(shopName);
+  const expiryText = staffLegalConsentExpiry(expiresAtLabel);
+  return renderBrandedEmail({
+    content: `<p style="margin:0 0 20px;font-size:15px;color:#1a202c;">${staffName}さん</p>
+          <p style="margin:0 0 16px;font-size:15px;color:#1a202c;">${usageText}</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${STAFF_LEGAL_CONSENT_DETAIL}</p>
 
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-            <tr><td align="center">
-              <a href="${consentUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">案内と規約を確認する</a>
-            </td></tr>
-          </table>
+          ${renderEmailCta({ label: STAFF_LEGAL_CONSENT_CTA, url: params.consentUrl, variant: "primary" })}
 
-          <p style="margin:0 0 8px;font-size:13px;color:#718096;">このリンクは${expiresAtLabel}まで有効です。</p>
-          <p style="margin:0 0 24px;font-size:13px;color:#718096;">このリンクの期限が切れても、次回のシフト提出時に確認して同意できます。<br />お知らせは同意前でも送られます。</p>
-
-          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールに返信しても、シフト作成担当者には届きません。</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">${expiryText}</p>`,
+    footer: { kind: "staffReplyOnly" },
+  });
 }
 
 export function buildStaffLegalConsentLineText(params: {
@@ -1166,18 +1045,17 @@ export function buildStaffLegalConsentLineText(params: {
   expiresAt: number;
 }): string {
   return [
-    "📄 シフトリの案内と規約",
+    `📄 ${STAFF_LEGAL_CONSENT_SUBJECT}`,
     "",
     `${params.staffName}さん`,
     "",
-    `${params.shopName}では、シフト希望の提出依頼や確定シフトのお知らせにシフトリを利用します。`,
-    "使い方、利用規約、プライバシーポリシーを確認してください。",
+    staffLegalConsentUsage(params.shopName),
+    STAFF_LEGAL_CONSENT_DETAIL,
     "",
-    "案内と規約を確認する",
+    STAFF_LEGAL_CONSENT_CTA,
     withOpenExternalBrowser(params.consentUrl),
     "",
-    `リンクの有効期限：${formatDateTimeJa(params.expiresAt)}`,
-    "このリンクの期限が切れても、次回のシフト提出時に確認して同意できます。\nお知らせは同意前でも送られます。",
+    staffLegalConsentExpiry(formatDateTimeJa(params.expiresAt)),
   ].join("\n");
 }
 
@@ -1189,56 +1067,28 @@ export function buildStaffLegalConsentLineFlexMessage(params: {
 }): NotificationLineFlexMessage {
   return buildFlexMessage({
     altText: buildStaffLegalConsentLineText(params),
-    title: flexTitleWithShop(params.shopName, "📄 シフトリの案内と規約"),
+    title: flexTitleWithShop(params.shopName, `📄 ${STAFF_LEGAL_CONSENT_SUBJECT}`),
     body: [
       flexBodyText(`${params.staffName}さん`),
-      flexBodyText("シフト希望の提出依頼や確定シフトのお知らせにシフトリを利用します。"),
-      flexBodyText("使い方、利用規約、プライバシーポリシーを確認してください。"),
-      flexMetaText(`リンクの有効期限：${formatDateTimeJa(params.expiresAt)}`),
-      flexMutedText(
-        "このリンクの期限が切れても、次回のシフト提出時に確認して同意できます。\nお知らせは同意前でも送られます。",
-      ),
+      flexBodyText(staffLegalConsentUsage(params.shopName)),
+      flexBodyText(STAFF_LEGAL_CONSENT_DETAIL),
+      flexMetaText(staffLegalConsentExpiry(formatDateTimeJa(params.expiresAt))),
     ],
-    cta: { label: "案内と規約を確認する", uri: params.consentUrl },
+    cta: { label: STAFF_LEGAL_CONSENT_CTA, uri: params.consentUrl },
   });
 }
 
 export function buildReissueEmailHtml(params: ReissueEmailParams): string {
   const staffName = escapeEmailHtml(params.staffName);
   const periodLabel = escapeEmailHtml(params.periodLabel);
-  const magicLinkUrl = escapeEmailHtml(params.magicLinkUrl);
-  return `<!DOCTYPE html>
-<html lang="ja">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f7fafc;font-family:'Helvetica Neue',Arial,'Hiragino Kaku Gothic ProN',sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7fafc;padding:24px 0;">
-    <tr><td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-        <!-- Header -->
-        <tr><td style="background-color:#319795;padding:16px 24px;">
-          <span style="color:#ffffff;font-size:16px;font-weight:700;">シフトリ</span>
-        </td></tr>
-        <!-- Body -->
-        <tr><td style="padding:32px 24px;">
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${staffName}さん</p>
-          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${periodLabel}のシフト閲覧リンクを再発行しました。</p>
+  return renderBrandedEmail({
+    content: `<p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${staffName}さん</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${reissueMessage(periodLabel)}</p>
 
           <!-- CTA Button -->
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-            <tr><td align="center">
-              <a href="${magicLinkUrl}" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフトを確認する</a>
-            </td></tr>
-          </table>
+          ${renderEmailCta({ label: REISSUE_CTA, url: params.magicLinkUrl, variant: "primary" })}
 
-          <p style="margin:0 0 24px;font-size:13px;color:#718096;">このリンクは24時間有効です。<br />リンクを開くと14日間閲覧できます。</p>
-
-          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
-          <p style="margin:0 0 4px;font-size:12px;color:#a0aec0;">シフトに関する質問や変更希望は、シフト作成担当者に連絡してください。</p>
-          <p style="margin:0;font-size:12px;color:#a0aec0;">このメールに返信しても、シフト作成担当者には届きません。</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+          <p style="margin:0 0 24px;font-size:13px;color:#718096;">このリンクは24時間有効です。<br />${ALL_SHIFTS_VIEWING_PERIOD}</p>`,
+    footer: { kind: "staffQuestionsAndChanges" },
+  });
 }

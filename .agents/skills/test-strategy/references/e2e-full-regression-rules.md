@@ -23,7 +23,7 @@ Full Regressionで守る契約:
 - reload、再アクセス、別browser context後の永続化。
 - 認証済み画面と匿名capabilityの境界。
 - 重要通知の受付、対象、channel、CTA、復旧。
-- 代表Mobile Chrome導線と主要ページのアクセシビリティ。
+- 代表Mobile Chrome導線。
 - デプロイ済み公開面の軽量Smoke。
 
 Full Regressionだけで総当たりしないもの:
@@ -92,7 +92,7 @@ reload / 再アクセス / 別context:
 余計に起きてはいけないこと:
 二重送信 / 競合 / 失敗復旧:
 締切 / 日付 / タイムゾーン境界:
-Mobile / a11y:
+Mobile:
 別層で保証する範囲:
 通常E2Eの対象外にする範囲:
 ```
@@ -211,13 +211,12 @@ E2Eは通知Outboxの集合を診断情報として取得しない。
 - 他店舗、削除済みstaff/shop、対象外staff、期限切れ、使用済み、用途違いはFunction / Scenarioを主担当にし、重大な匿名導線は代表E2Eも置く。
 - プライバシーポリシー等の公開routeと主要CTAはSmokeで守る。version更新、再同意、期限切れ、用途違いが業務を止める場合は、代表E2EとFunction / Scenarioへ契約を分解する。
 
-## 9. 永続化・Mobile・アクセシビリティ
+## 9. 永続化・Mobile
 
 - 保存成功だけで終えず、reload、再ログイン、再アクセス、別contextのいずれかで永続化を確認する。
 - Mobile Chromeは全シナリオを複製せず、スタッフ提出・閲覧・同意・登録など影響が大きい代表導線を選ぶ。
-- axe検査は主要ランドマークの表示を待ってから実行する。
-- a11y検査をcore E2Eから分離する場合は、独立a11y smokeまたはStorybook accessibilityを主担当にし、見た目はVRT、操作後の状態はBehaviorへ対応付ける。代替検査のない削除を完了扱いにしない。
-- 既知違反はrule全体を広く無効化せず、対象nodeと理由を限定し、修正後にallowlistを削除する。
+- Full Regressionへアクセシビリティ専用contract、axe走査、a11y gateを追加しない。
+- この方針をUIのrole、label、accessible nameや通常の機能契約を省く理由にしない。利用者の操作を表すselectorは維持するが、Full Regressionのアクセシビリティ保証として数えない。
 - `pageerror`、allowlist外の`console.error`、同一origin 5xxを見逃す構成なら、Full Regressionの残課題として記録する。
 
 ## 10. Deployed Smokeと外部challenge
@@ -254,10 +253,9 @@ E2Eは通知Outboxの集合を診断情報として取得しない。
 - [ ] 同時操作、通信再送、部分失敗からの復旧を検討した。
 - [ ] 締切、日付、タイムゾーン境界を下位層へ配置し、必要な代表E2Eだけを選んだ。
 - [ ] 境界値と容量をE2Eへ寄せすぎていない。
-- [ ] Desktop / Mobile / a11y / Deployed Smokeの担当を決めた。
+- [ ] Desktop / Mobile / Deployed Smokeの担当を決めた。
 - [ ] E2Eを削減または統合した場合、件数ではなく契約IDと移管先で削除理由を説明できる。
 - [ ] 匿名の保護route redirectとlogout後の保護route再アクセスを、coreまたは独立browser smokeで確認した。
-- [ ] coreから分離したa11yに代替suiteと完了条件がある。
 - [ ] feature flagでskipされた契約をcoverage済みと数えず、enabled環境での実行条件を記録した。
 - [ ] 外部サービスの実到着を通常E2Eの保証として扱っていない。
 - [ ] core E2Eのactor、認証状態、seed、cleanupがworker間で分離されている。

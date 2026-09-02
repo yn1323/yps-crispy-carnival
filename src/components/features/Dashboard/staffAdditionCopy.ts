@@ -1,2 +1,2 @@
-export const STAFF_ADDITION_EMAIL_NOTICE =
-  "登録後、同意依頼とLINE連携の案内をメールで送信します。\n募集中のシフトがある場合は、提出リンクもあわせて送信します。\nスタッフの方には、シフトリからメールが届く旨を事前にお伝えいただくとスムーズです。";
+export const STAFF_ADDITION_EMAIL_NOTICE = "登録時にシフトリから送る案内メールについては";
+export const STAFF_ADDITION_EMAIL_NOTICE_HREF = "/help/basics/notifications";

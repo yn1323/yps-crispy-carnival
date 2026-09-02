@@ -1,13 +1,10 @@
 import type { Recruitment, Staff } from "../types";
 
 // Storybook用モックデータ。_id は Convex ID の型だが、stories では文字列で代用する
-const withManagerInvitationStates = <T extends { _id: string; isManager: boolean }>(staffs: T[]) =>
+const withOrganizationPersonIds = <T extends { _id: string }>(staffs: T[]) =>
   staffs.map((staff) => ({
     ...staff,
     organizationPersonId: `person-${staff._id}`,
-    managerInvitationState: staff.isManager
-      ? ({ kind: "unavailable", reason: "このユーザーはすでに管理者です。" } as const)
-      : ({ kind: "available", mode: "addition", replacesStaleInvitation: false } as const),
   }));
 
 export const mockRecruitments = [
@@ -75,7 +72,7 @@ export const mockRecruitments = [
 
 export const mockCurrentRecruitments = [mockRecruitments[3]];
 
-export const mockStaffs = withManagerInvitationStates([
+export const mockStaffs = withOrganizationPersonIds([
   {
     _id: "s1",
     name: "田中太郎",
@@ -102,7 +99,7 @@ export const mockStaffs = withManagerInvitationStates([
   },
 ]) as unknown as Staff[];
 
-export const mockStaffsWithExcluded = withManagerInvitationStates([
+export const mockStaffsWithExcluded = withOrganizationPersonIds([
   {
     _id: "s1",
     name: "店舗共通アドレス",
@@ -132,7 +129,7 @@ export const mockStaffsWithExcluded = withManagerInvitationStates([
   },
 ]) as unknown as Staff[];
 
-export const mockStaffsMany = withManagerInvitationStates([
+export const mockStaffsMany = withOrganizationPersonIds([
   {
     _id: "s1",
     name: "田中太郎",

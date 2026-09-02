@@ -1,4 +1,8 @@
+import { ORGANIZATION_PLAN_LIMITS } from "@/convex/organizationBilling/planLimits";
+import { organizationPlanLabel } from "@/convex/organizationBilling/planPresentation";
+import { formatPricePresentationLine } from "@/src/domains/organizationBilling/pricePresentation";
 import type {
+  BillingPlan,
   BillingPlanPrice,
   BillingPlanPriceState,
   BillingProductPlan,
@@ -15,19 +19,13 @@ export type BillingUnavailableReason =
   | "request_already_used"
   | "provider_unavailable";
 
-export const BILLING_PLAN_LIMITS: Record<BillingProductPlan, { people: number; shops: number; managers: number }> = {
-  free: { people: 5, shops: 1, managers: 1 },
-  pro: { people: 20, shops: 5, managers: 5 },
-  business: { people: 40, shops: 5, managers: 5 },
-};
-
 export type BillingPlanAction =
   | { kind: "startPaidPlan"; targetPlan: PaidBillingPlan }
-  | { kind: "changePaidPlanNow"; targetPlan: "business" }
-  | { kind: "schedulePlanChange"; targetPlan: "free" | "pro" }
-  | { kind: "cancelScheduledPlanChange"; targetPlan: BillingProductPlan }
-  | { kind: "cancelTrialContinuation"; targetPlan: PaidBillingPlan }
-  | { kind: "openPortal"; targetPlan: PaidBillingPlan };
+  | { kind: "changePaidPlanNow"; targetPlan: "pro" }
+  | { kind: "schedulePlanChange"; targetPlan: "standard" }
+  | { kind: "scheduleServiceStop"; targetPlan: "free" }
+  | { kind: "cancelScheduledPlanChange"; targetPlan: BillingProductPlan; isServiceStop?: true }
+  | { kind: "cancelTrialContinuation"; targetPlan: PaidBillingPlan };
 
 export type BillingProrationPreview = {
   currency: string;
@@ -46,6 +44,7 @@ type BillingDialogBase = {
   intentKey: string;
   shopId: string;
   organizationName: string;
+  currentPlan: BillingPlan;
 };
 
 export type BillingActionDialogState =
@@ -58,24 +57,32 @@ export type BillingActionDialogState =
     })
   | (BillingDialogBase & {
       kind: "changePaidPlanNow";
-      targetPlan: "business";
+      targetPlan: "pro";
+      price: BillingPlanPriceState;
       preview: BillingProrationPreviewState;
     })
   | (BillingDialogBase & {
       kind: "cancelTrialContinuation";
       targetPlan: PaidBillingPlan;
-      trialEndsOn?: string;
+      effectiveOn?: string;
     })
   | (BillingDialogBase & {
       kind: "schedulePlanChange";
-      targetPlan: "free" | "pro";
+      targetPlan: "standard";
+      price: BillingPlanPriceState;
       effectiveOn?: string;
       requiredReductions: BillingRequiredReductions;
+    })
+  | (BillingDialogBase & {
+      kind: "scheduleServiceStop";
+      targetPlan: "free";
+      effectiveOn?: string;
     })
   | (BillingDialogBase & {
       kind: "cancelScheduledPlanChange";
       targetPlan: BillingProductPlan;
       effectiveOn?: string;
+      isServiceStop?: true;
     });
 
 export function resolveBillingPlanAction(
@@ -84,9 +91,13 @@ export function resolveBillingPlanAction(
 ): BillingPlanAction | null {
   if (billing.isComplimentary || !billing.stripeBillingAvailable || !billing.canManagePlan) return null;
 
-  if (billing.state === "scheduledChange" || billing.state === "scheduledFree") {
+  if (billing.state === "scheduledChange") {
     return targetPlan === billing.currentPlan && billing.targetPlan
-      ? { kind: "cancelScheduledPlanChange", targetPlan: billing.targetPlan }
+      ? {
+          kind: "cancelScheduledPlanChange",
+          targetPlan: billing.targetPlan,
+          ...(billing.restrictAtPeriodEnd === true ? { isServiceStop: true as const } : {}),
+        }
       : null;
   }
 
@@ -100,43 +111,25 @@ export function resolveBillingPlanAction(
       return isPaidPlan(targetPlan) ? { kind: "startPaidPlan", targetPlan } : null;
     case "free":
       return isPaidPlan(targetPlan) ? { kind: "startPaidPlan", targetPlan } : null;
+    case "standard":
+      if (targetPlan === "pro") return { kind: "changePaidPlanNow", targetPlan };
+      return targetPlan === "free" ? { kind: "scheduleServiceStop", targetPlan } : null;
     case "pro":
-      if (targetPlan === "business") return { kind: "changePaidPlanNow", targetPlan };
-      return targetPlan === "free" ? { kind: "schedulePlanChange", targetPlan } : null;
-    case "business":
-      return targetPlan === "pro" || targetPlan === "free" ? { kind: "schedulePlanChange", targetPlan } : null;
-    case "restricted":
-      // 支払い開始に失敗した旧状態だけを復旧対象にする。上限超過中は整理操作に限定する。
-      return !billing.limitPlan && billing.currentPlan === null && isPaidPlan(targetPlan)
-        ? { kind: "startPaidPlan", targetPlan }
-        : null;
+      if (targetPlan === "standard") return { kind: "schedulePlanChange", targetPlan };
+      return targetPlan === "free" ? { kind: "scheduleServiceStop", targetPlan } : null;
     case "pendingActivation":
       return billing.currentPlan === null && isPaidPlan(targetPlan) ? { kind: "startPaidPlan", targetPlan } : null;
-    case "grace":
-      return billing.currentPlan === targetPlan && isPaidPlan(targetPlan) ? { kind: "openPortal", targetPlan } : null;
     case "initialPaymentPending":
     case "migrationPending":
       return null;
   }
 }
 
-export function formatPlanPrice(price: BillingPlanPrice): { amount: string; interval: string } {
-  return {
-    amount: formatCurrencyAmount(price.currency, price.unitAmount),
-    interval: `${price.intervalCount}${intervalUnit(price.interval)}ごと`,
-  };
+export function formatPlanPriceLine(price: BillingPlanPrice): string {
+  return formatPricePresentationLine(price);
 }
 
-export function formatCurrencyAmount(currencyValue: string, amountInMinorUnit: number): string {
-  const currency = currencyValue.toUpperCase();
-  const formatter = new Intl.NumberFormat("ja-JP", {
-    style: "currency",
-    currency,
-    currencyDisplay: "code",
-  });
-  const fractionDigits = formatter.resolvedOptions().maximumFractionDigits ?? 0;
-  return formatter.format(amountInMinorUnit / 10 ** fractionDigits);
-}
+export { formatCurrencyAmount } from "@/src/domains/organizationBilling/pricePresentation";
 
 export function formatBillingBoundaryDate(timestamp: number): string {
   const parts = new Intl.DateTimeFormat("ja-JP", {
@@ -189,33 +182,21 @@ export function billingUnavailableMessage(reason: BillingUnavailableReason): {
   }
 }
 
-export function planLabel(plan: BillingProductPlan | "trial"): string {
-  if (plan === "trial") return "トライアル";
-  if (plan === "free") return "Free";
-  if (plan === "pro") return "Pro";
-  return "Business";
-}
+export const planLabel = organizationPlanLabel;
 
 export function getRequiredReductions(
   billing: OrganizationBillingView,
   targetPlan?: BillingProductPlan,
 ): BillingRequiredReductions {
   if (!targetPlan && billing.requiredReductions) return billing.requiredReductions;
-  const limits = targetPlan ? BILLING_PLAN_LIMITS[targetPlan] : undefined;
+  const limits = targetPlan ? ORGANIZATION_PLAN_LIMITS[targetPlan] : undefined;
   return {
-    people: Math.max(0, billing.peopleUsage.current - (limits?.people ?? billing.peopleUsage.max)),
-    shops: Math.max(0, billing.shopUsage.current - (limits?.shops ?? billing.shopUsage.max)),
-    managers: Math.max(0, billing.managerUsage.current - (limits?.managers ?? billing.managerUsage.max)),
+    people: Math.max(0, billing.peopleUsage.current - (limits?.maxPeople ?? billing.peopleUsage.max)),
+    shops: Math.max(0, billing.shopUsage.current - (limits?.maxShops ?? billing.shopUsage.max)),
+    managers: Math.max(0, billing.managerUsage.current - (limits?.maxActiveManagers ?? billing.managerUsage.max)),
   };
 }
 
 function isPaidPlan(plan: BillingProductPlan): plan is PaidBillingPlan {
-  return plan === "pro" || plan === "business";
-}
-
-function intervalUnit(interval: BillingPlanPrice["interval"]): string {
-  if (interval === "day") return "日";
-  if (interval === "week") return "週間";
-  if (interval === "month") return "か月";
-  return "年";
+  return plan === "standard" || plan === "pro";
 }

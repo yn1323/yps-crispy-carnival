@@ -1,6 +1,4 @@
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
+import { sha256Hex } from "../_lib/sha256";
 
 function bytesToBase64Url(bytes: Uint8Array): string {
   const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
@@ -31,8 +29,7 @@ export async function deriveInvitationToken(args: {
 }
 
 export async function digestInvitationToken(token: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
-  return bytesToHex(new Uint8Array(digest));
+  return await sha256Hex(token);
 }
 
 export function invitationRateLimitKey(tokenDigest: string): string {

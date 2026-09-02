@@ -1,8 +1,7 @@
 import { v } from "convex/values";
-import type { Id } from "../_generated/dataModel";
-import { internalQuery } from "../_generated/server";
 import { buildShopDashboardUrl } from "../_lib/dashboardUrl";
-import { loadShopManagerRecipients } from "../_lib/shopManagerRecipients";
+import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
+import { loadShopManagerRecipientResolution } from "../_lib/shopManagerRecipients";
 import { SHIFT_BOARD_STAFF_LIMIT, SHOP_ACTIVATION_REMINDER_MANAGER_LIMIT } from "../constants";
 import { isShiftTargetStaff } from "../staff/service";
 
@@ -15,30 +14,30 @@ export const getReminderTarget = internalQuery({
   handler: async (ctx, { shopId }) => {
     const shop = await ctx.db.get(shopId);
     if (!shop || shop.isDeleted) return null;
+    if (!shop.organizationId) return null;
+    const organization = await ctx.db.get(shop.organizationId);
+    if (!organization || organization.isDeleted) return null;
 
-    const [recipients, activeStaffs] = await Promise.all([
-      loadShopManagerRecipients(ctx, shopId, SHOP_ACTIVATION_REMINDER_MANAGER_LIMIT),
+    const [recipientResolution, activeStaffs] = await Promise.all([
+      loadShopManagerRecipientResolution(ctx, shopId, SHOP_ACTIVATION_REMINDER_MANAGER_LIMIT),
       ctx.db
         .query("staffs")
         .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
         .take(SHIFT_BOARD_STAFF_LIMIT + 1),
     ]);
-    if (recipients.length === 0) return null;
+    if (recipientResolution.recipients.length === 0) return null;
     if (activeStaffs.length > SHIFT_BOARD_STAFF_LIMIT) return null;
 
-    const activeManagerUserIds = new Set<Id<"users">>(recipients.map((recipient) => recipient.userId));
-    if (activeManagerUserIds.size === 0) return null;
-
     const hasStaffOtherThanManagers = activeStaffs.some(
-      (staff) => isShiftTargetStaff(staff) && (!staff.userId || !activeManagerUserIds.has(staff.userId)),
+      (staff) => isShiftTargetStaff(staff) && !recipientResolution.staffIds.has(staff._id),
     );
     if (hasStaffOtherThanManagers) return null;
 
     return {
       shopId,
       shopName: shop.name,
-      dashboardUrl: buildShopDashboardUrl(shopId),
-      recipients,
+      dashboardUrl: buildShopDashboardUrl({ organizationId: organization._id, shopId }),
+      recipients: recipientResolution.recipients,
     };
   },
 });

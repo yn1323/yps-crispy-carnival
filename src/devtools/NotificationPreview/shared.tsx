@@ -9,7 +9,9 @@ import { FlexMessagePreview } from "../FlexMessagePreview";
 
 export const notificationPreviewFixtures = {
   shopName: "居酒屋さくら",
+  organizationName: "さくらフードサービス",
   managerName: "佐藤 店長",
+  inviterName: "鈴木 花子",
   staffName: "山田 太郎",
   periodLabel: "2026年5月前半（5/1〜5/15）",
   deadline: "4/25(金)",
@@ -18,7 +20,13 @@ export const notificationPreviewFixtures = {
   reissueUrl: "https://example.com/shifts/reissue?recruitmentId=preview",
   consentUrl: "https://example.com/legal/staff/consent?token=preview-token",
   authorizeUrl: "https://example.com/line/callback?state=preview-token",
+  appUrl: "https://example.com",
+  helpUrl: "https://example.com/help",
   dashboardUrl: "https://example.com/dashboard",
+  managerInvitationUrl: "https://example.com/manager-invite?token=preview-token",
+  managerSettingsUrl: "https://example.com/manage/managers?org=preview-organization",
+  billingSettingsUrl: "https://example.com/manage/billing?org=preview-organization",
+  longFlexUrl: `https://example.com/shifts/view?token=${"a".repeat(1600)}`,
   expiresAt: new Date("2026-05-31T12:00:00+09:00").getTime(),
   shifts: [
     { date: "5/1(金)", startTime: "09:00", endTime: "13:00" },
@@ -31,6 +39,19 @@ export const notificationPreviewFixtures = {
     { date: "5/2(土)", startTime: null, endTime: null },
     { date: "5/3(日)", startTime: null, endTime: null },
   ],
+  shiftsWithClosedDay: [
+    { date: "5/1(金)", startTime: "09:00", endTime: "13:00" },
+    { date: "5/2(土)", timeLabel: "定休日" },
+    { date: "5/3(日)", startTime: null, endTime: null },
+  ],
+  shiftsByDay: [
+    { date: "5/1(金)", timeLabel: "出勤" },
+    { date: "5/2(土)", startTime: null, endTime: null },
+  ],
+  shiftsByWorkOption: [
+    { date: "5/1(金)", timeLabel: "遅番（15:00-22:00）" },
+    { date: "5/2(土)", startTime: null, endTime: null },
+  ],
 };
 
 export const legalDocuments = {
@@ -38,7 +59,7 @@ export const legalDocuments = {
     audience: "staff",
     kind: "terms",
     title: "スタッフ向け利用規約",
-    documentVersion: "staff-terms-doc-2026-05-09",
+    documentVersion: "staff-terms-doc-2026-08-26",
     path: "/terms/staff",
     requiredConsentVersion: "staff-terms-consent-2026-05-09",
   },
@@ -46,9 +67,9 @@ export const legalDocuments = {
     audience: "staff",
     kind: "privacy",
     title: "スタッフ向けプライバシーポリシー",
-    documentVersion: "staff-privacy-doc-2026-07-10",
+    documentVersion: "staff-privacy-doc-2026-08-26-2",
     path: "/privacy/staff",
-    requiredConsentVersion: "staff-privacy-consent-2026-05-09",
+    requiredConsentVersion: "staff-privacy-consent-2026-08-26",
   },
 } as const;
 
@@ -63,6 +84,10 @@ type TextLineNotificationPreview = {
   text: string;
 };
 
+type TextEmailNotificationPreview = TextLineNotificationPreview & {
+  subject: string;
+};
+
 type FlexLineNotificationPreview = {
   label: string;
   message: unknown;
@@ -73,9 +98,17 @@ type CopyState = "idle" | "copied" | "failed";
 export const notificationPreviewSubject = (text: string) =>
   formatResendSubject(notificationPreviewFixtures.shopName, text);
 
+export const notificationPreviewOrganizationSubject = (text: string) =>
+  formatResendSubject(notificationPreviewFixtures.organizationName, text);
+
 export const notificationPreviewLineCtaHtml = buildLineCtaSection({
   authorizeUrl: notificationPreviewFixtures.authorizeUrl,
   reLink: false,
+});
+
+export const notificationPreviewLineReCtaHtml = buildLineCtaSection({
+  authorizeUrl: notificationPreviewFixtures.authorizeUrl,
+  reLink: true,
 });
 
 export const NotificationPreviewStoryFrame = ({ children }: { children?: ReactNode }) => (
@@ -95,6 +128,36 @@ export const EmailNotificationPreview = ({ label, subject, html }: EmailNotifica
       </Text>
     </Box>
     <EmailPreview html={html} width="100%" />
+  </Flex>
+);
+
+export const TextEmailNotificationPreview = ({ label, subject, text }: TextEmailNotificationPreview) => (
+  <Flex direction="column" gap={3} width="480px" maxW="100%">
+    <Box>
+      <Text fontSize="xs" fontWeight="semibold" color="fg.muted">
+        {label}
+      </Text>
+      <Text mt={1} fontSize="sm" fontWeight="medium" color="gray.900" lineHeight="short">
+        {subject}
+      </Text>
+    </Box>
+    <Box
+      as="pre"
+      m={0}
+      p={4}
+      bg="white"
+      border="1px solid"
+      borderColor="gray.200"
+      borderRadius="md"
+      whiteSpace="pre-wrap"
+      fontFamily="body"
+      fontSize="sm"
+      lineHeight="1.8"
+      color="gray.900"
+      wordBreak="break-word"
+    >
+      {text}
+    </Box>
   </Flex>
 );
 

@@ -90,7 +90,7 @@ function EmailPasswordPreview({
     setCompleted(true);
     showSuccessToast({
       title: "メインのメールアドレスとパスワードを設定しました",
-      description: "Google認証とシフト連絡先メールアドレスは変わりません。",
+      description: "Google認証とシフト通知先メールアドレスは変わりません。",
     });
   });
 
@@ -179,13 +179,16 @@ type Story = StoryObj<typeof meta>;
 export const EmailPasswordInput: Story = {};
 
 export const EmailPasswordLoading: Story = {
-  args: { phase: "loading", feedbackStatus: "loading" },
+  args: { phase: "loading", feedbackStatus: "loading", onBackToOverview: fn() },
   parameters: { screenshot: { skip: true } },
-  play: async () => {
+  play: async ({ args }) => {
     const body = within(document.body);
 
     await expect(await body.findByLabelText("メールアドレス設定フォームを読み込み中")).toBeInTheDocument();
     await expect(body.queryByText("最新のログイン方法を確認しています")).not.toBeInTheDocument();
+    await expect(body.getAllByRole("button", { name: "閉じる" })).toHaveLength(2);
+    await userEvent.keyboard("{Escape}");
+    await expect(args.onBackToOverview).toHaveBeenCalledOnce();
   },
 };
 
@@ -223,8 +226,8 @@ export const EmailPasswordReverification: Story = {
 
 export const MobileEmailPasswordVerification: Story = {
   args: { phase: "verifyingEmail" },
-  tags: ["vrt-mobile2"],
-  globals: { viewport: { value: "mobile2", isRotated: false } },
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
 export const GoogleConnectionReady: Story = {
@@ -259,8 +262,7 @@ export const GoogleAccountCollision: Story = {
     phase: "unavailable",
     feedbackStatus: "error",
     googleErrorKind: "accountCollision",
-    feedbackMessage:
-      "このGoogleアカウントは追加できません。別のGoogleアカウントを選んでください。現在のログイン方法は変更されていません。",
+    feedbackMessage: "このGoogleアカウントは追加できません。別のGoogleアカウントを選んでください。",
   },
 };
 
@@ -270,7 +272,7 @@ export const GoogleAlreadyConnected: Story = {
     phase: "unavailable",
     feedbackStatus: "error",
     googleErrorKind: "alreadyConnected",
-    feedbackMessage: "このGoogleアカウントはすでに接続されています。画面を再読み込みして最新の状態を確認してください。",
+    feedbackMessage: "このGoogleアカウントはすでに接続済みです。画面を再読み込みして最新の状態を確認してください。",
   },
 };
 
@@ -290,8 +292,7 @@ export const GoogleRetryableError: Story = {
     phase: "unavailable",
     feedbackStatus: "error",
     googleErrorKind: "retryable",
-    feedbackMessage:
-      "Googleログインを追加できませんでした。現在のログイン方法は変更されていません。もう一度お試しください。",
+    feedbackMessage: "Googleログインを追加できませんでした。",
   },
 };
 
@@ -301,15 +302,14 @@ export const GoogleRetryFromErrorBehavior: Story = {
     phase: "unavailable",
     feedbackStatus: "error",
     googleErrorKind: "retryable",
-    feedbackMessage:
-      "Googleログインを追加できませんでした。現在のログイン方法は変更されていません。もう一度お試しください。",
+    feedbackMessage: "Googleログインを追加できませんでした。",
   },
   parameters: { screenshot: { skip: true } },
   play: async () => {
     const body = within(document.body);
     const dialog = within(await body.findByRole("dialog", { name: "Googleログインを追加" }));
 
-    await userEvent.click(dialog.getByRole("button", { name: "もう一度試す" }));
+    await userEvent.click(dialog.getByRole("button", { name: "再実行する" }));
 
     const skeleton = await dialog.findByLabelText("Googleログイン画面を読み込み中");
     await waitFor(() => expect(skeleton).toBeVisible());
@@ -319,8 +319,14 @@ export const GoogleRetryFromErrorBehavior: Story = {
 
 export const MobileGoogleOAuthWaiting: Story = {
   args: { flow: "connect-google", phase: "settling", feedbackStatus: "loading" },
-  tags: ["vrt-mobile2"],
-  globals: { viewport: { value: "mobile2", isRotated: false } },
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
+export const MobileGoogleConnectionReady: Story = {
+  args: { flow: "connect-google", phase: "readyToConnect" },
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
 export const AddEmailPasswordBehavior: Story = {
@@ -334,20 +340,16 @@ export const AddEmailPasswordBehavior: Story = {
     await expect(emailInput).toHaveValue("google@gmail.com");
     const cancelButton = inputDialog.getByRole("button", { name: "キャンセル" });
     await expect(cancelButton).toBeInTheDocument();
-    const submitButton = inputDialog.getByRole("button", { name: "決定" });
+    const submitButton = inputDialog.getByRole("button", { name: "続ける" });
     await expect(submitButton).toBeInTheDocument();
     await userEvent.clear(emailInput);
     await userEvent.type(emailInput, "login@example.com");
-    await userEvent.click(inputDialog.getByRole("button", { name: "決定" }));
+    await userEvent.click(inputDialog.getByRole("button", { name: "続ける" }));
 
     const codeDialog = within(await body.findByRole("dialog", { name: "メールアドレスとパスワードを設定" }));
-    await expect(
-      await codeDialog.findByText(
-        "login@example.comに確認コードを送りました。メールに届いたコードを入力してください。",
-      ),
-    ).toBeVisible();
+    await expect(codeDialog.getByText(/login@example\.com/)).toBeVisible();
     await userEvent.type(codeDialog.getByRole("textbox", { name: "確認コード" }), "123456");
-    await userEvent.click(codeDialog.getByRole("button", { name: "メールを確認" }));
+    await userEvent.click(codeDialog.getByRole("button", { name: "決定する" }));
 
     const passwordDialog = within(await body.findByRole("dialog", { name: "パスワード設定" }));
     await expect(
@@ -358,12 +360,12 @@ export const AddEmailPasswordBehavior: Story = {
     ).not.toBeInTheDocument();
     await userEvent.type(passwordDialog.getByLabelText("新しいパスワード"), "safe-password");
     await userEvent.type(passwordDialog.getByLabelText("新しいパスワード（確認）"), "safe-password");
-    await userEvent.click(passwordDialog.getByRole("button", { name: "決定" }));
+    await userEvent.click(passwordDialog.getByRole("button", { name: "設定する" }));
 
     await waitFor(() => expect(body.queryByRole("dialog", { name: "パスワード設定" })).not.toBeInTheDocument());
     const toastTitle = await body.findByText("メインのメールアドレスとパスワードを設定しました");
     await waitFor(() => expect(toastTitle).toBeVisible());
-    await expect(await body.findByText("Google認証とシフト連絡先メールアドレスは変わりません。")).toBeVisible();
+    await expect(await body.findByText("Google認証とシフト通知先メールアドレスは変わりません。")).toBeVisible();
     await waitFor(() => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
   },
 };
@@ -381,6 +383,37 @@ export const AddEmailPasswordCancelBehavior: Story = {
   },
 };
 
+export const EmailVerificationBackBehavior: Story = {
+  args: { phase: "verifyingEmail" },
+  parameters: { screenshot: { skip: true } },
+  play: async () => {
+    const body = within(document.body);
+    const dialog = within(await body.findByRole("dialog", { name: "メールアドレスとパスワードを設定" }));
+    const backButton = dialog.getByRole("button", { name: "戻る" });
+    const verifyButton = dialog.getByRole("button", { name: "決定する" });
+
+    await expect(backButton.compareDocumentPosition(verifyButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    await userEvent.click(backButton);
+    const emailInput = await dialog.findByRole("textbox", { name: "メールアドレス" });
+    await waitFor(() => expect(emailInput).toBeVisible());
+    await expect(body.getAllByRole("dialog")).toHaveLength(1);
+  },
+};
+
+export const MigrationReverificationSingleDialogBehavior: Story = {
+  args: { phase: "settingPassword", showReverification: true },
+  parameters: { screenshot: { skip: true } },
+  play: async () => {
+    const body = within(document.body);
+    const dialog = within(await body.findByRole("dialog", { name: "確認が必要です" }));
+
+    const codeInput = dialog.getByRole("textbox", { name: "確認コード" });
+    await waitFor(() => expect(codeInput).toBeVisible());
+    await expect(dialog.getByRole("button", { name: "続ける" })).toBeVisible();
+    await expect(body.getAllByRole("dialog")).toHaveLength(1);
+  },
+};
+
 export const EmailPasswordCodeMismatchBehavior: Story = {
   args: { phase: "verifyingEmail" },
   parameters: { screenshot: { skip: true } },
@@ -389,7 +422,7 @@ export const EmailPasswordCodeMismatchBehavior: Story = {
     const dialog = within(await body.findByRole("dialog", { name: "メールアドレスとパスワードを設定" }));
 
     await userEvent.type(dialog.getByRole("textbox", { name: "確認コード" }), "000000");
-    await userEvent.click(dialog.getByRole("button", { name: "メールを確認" }));
+    await userEvent.click(dialog.getByRole("button", { name: "決定する" }));
 
     await expect(await dialog.findByText("確認コードが一致しません。もう一度入力してください。")).toBeVisible();
     await expect(dialog.getByRole("textbox", { name: "確認コード" })).toBeEnabled();
@@ -403,7 +436,7 @@ export const ConnectGoogleBehavior: Story = {
     const body = within(document.body);
     const dialog = within(await body.findByRole("dialog", { name: "Googleログインを追加" }));
 
-    await userEvent.click(dialog.getByRole("button", { name: "Googleアカウントを選ぶ" }));
+    await userEvent.click(dialog.getByRole("button", { name: "選択する" }));
 
     const skeleton = await dialog.findByLabelText("Googleログイン画面を読み込み中");
     await waitFor(() => expect(skeleton).toBeVisible());

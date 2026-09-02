@@ -1,137 +1,113 @@
-import { useNavigate } from "@tanstack/react-router";
-import { useAtomValue } from "jotai";
-import { useRef } from "react";
-import { clearRequestedShopSearch } from "@/src/lib/authenticatedSearch";
-import { featureVisibilityAtom } from "@/src/stores/user";
-import {
-  getUserDetailBackDestination,
-  getUserDetailRemovedDestination,
-  getUserShopDetailDestination,
-  mergeUserDetailSearch,
-} from "./navigation";
-import type { UserDetailData, UserDetailPanel, UserDetailReturnTo } from "./types";
+import { useNavigate, useRouter } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import type { Id } from "@/convex/_generated/dataModel";
+import type { UserDetailData, UserDetailPanel } from "./types";
 import { UserDetailView } from "./UserDetailView";
-import { useUserManagerActions } from "./useUserManagerActions";
+import { useUserLineActions } from "./useUserLineActions";
 import { useUserMembershipActions } from "./useUserMembershipActions";
 import { useUserProfileUpdate } from "./useUserProfileUpdate";
+import { useUserRemovalActions } from "./useUserRemovalActions";
 
 type Props = {
   data: UserDetailData;
-  selectedShopId: string | null;
-  activePanel?: UserDetailPanel;
-  returnTo: UserDetailReturnTo;
-  returnShopId?: string;
-  returnShopTo?: "dashboard";
-  visibleUserCount: number;
+  organizationId: Id<"organizations">;
 };
 
-export function UserDetail({
-  data,
-  selectedShopId,
-  activePanel,
-  returnTo,
-  returnShopId,
-  returnShopTo,
-  visibleUserCount,
-}: Props) {
+export function UserDetail({ data, organizationId }: Props) {
   const navigate = useNavigate();
-  const featureVisibility = useAtomValue(featureVisibilityAtom);
-  const showShopMembershipAddition = featureVisibility.shopMembershipAddition;
-  const showShopMembershipAdditionRef = useRef(showShopMembershipAddition);
-  showShopMembershipAdditionRef.current = showShopMembershipAddition;
-  const activePanelRef = useRef(activePanel);
-  activePanelRef.current = activePanel;
+  const router = useRouter();
+  const [appPanel, setAppPanel] = useState<UserDetailPanel>();
+  const resolvedActivePanel = appPanel;
+  const appDetailScope = `${organizationId}:${data.person.id}`;
+  useEffect(() => {
+    if (appDetailScope) setAppPanel(undefined);
+  }, [appDetailScope]);
+  const canChangeMembershipRef = useRef(data.canWrite);
+  canChangeMembershipRef.current = data.canWrite;
+  const activePanelRef = useRef(resolvedActivePanel);
+  activePanelRef.current = resolvedActivePanel;
   const visiblePersonIdRef = useRef(data.person.id);
   visiblePersonIdRef.current = data.person.id;
 
-  const profile = useUserProfileUpdate({ data, selectedShopId });
-  const membership = useUserMembershipActions({
-    canAddMembership: data.canWrite && showShopMembershipAddition,
-  });
-  const manager = useUserManagerActions({
+  const operationShopId = data.line.actionShopId;
+  const profile = useUserProfileUpdate({
     data,
-    selectedShopId,
+    selectedShopId: operationShopId,
+    expectedOrganizationId: organizationId,
+  });
+  const line = useUserLineActions({
+    data,
+    enabled: resolvedActivePanel === "line",
+    expectedOrganizationId: organizationId,
+  });
+  const membership = useUserMembershipActions({
+    canChangeMembership: data.canWrite,
+    expectedOrganizationId: organizationId,
+  });
+  const removal = useUserRemovalActions({
+    data,
+    selectedShopId: operationShopId,
+    expectedOrganizationId: organizationId,
     onPersonRemoved: (removedPersonId) => {
       if (visiblePersonIdRef.current !== removedPersonId) return;
       if (data.isSelf) {
-        void navigate({ to: "/dashboard", search: clearRequestedShopSearch(), replace: true });
+        void navigate({ to: "/dashboard", search: {}, replace: true });
         return;
       }
-      const destination = getUserDetailRemovedDestination(
-        returnTo,
-        selectedShopId,
-        visibleUserCount,
-        returnShopId,
-        returnShopTo,
-      );
-      void navigate({ ...destination, replace: true });
+      void navigate({ to: "/staff", search: { org: organizationId }, replace: true });
     },
   });
 
   const updateSearch = (next: { panel?: UserDetailPanel }) => {
     if ("panel" in next) activePanelRef.current = next.panel;
-    void navigate({
-      to: ".",
-      search: (previous) => mergeUserDetailSearch(previous, next),
-      replace: true,
-      resetScroll: false,
-    });
+    setAppPanel(next.panel);
   };
 
   const handleBack = () => {
-    const destination = getUserDetailBackDestination(
-      returnTo,
-      selectedShopId,
-      visibleUserCount,
-      data.person.id,
-      returnShopId,
-      returnShopTo,
-    );
-    void navigate({ ...destination, replace: true });
+    router.history.back();
   };
 
   const handleClosePanel = () => {
-    manager.onCloseDialog();
-    manager.onCancelManagerAssignment();
     updateSearch({ panel: undefined });
   };
 
   return (
     <UserDetailView
       data={data}
-      showShopMembershipAddition={showShopMembershipAddition}
-      activePanel={activePanel}
+      activePanel={resolvedActivePanel}
       state={{
         isUpdatingProfile: profile.isUpdating,
-        membership: {
-          isAdding: membership.isAddingMembership,
-          addingShopId: membership.addingShopId,
+        line: {
+          authorizeUrl: line.authorizeUrl,
+          showQr: line.showQr,
+          isQrLoading: line.isQrLoading,
+          isSendingInvite: line.isSendingInvite,
+          isLineInviteCooldownActive: line.isLineInviteCooldownActive,
+          isLineInviteCooldownLoading: line.isLineInviteCooldownLoading,
+          isDisconnecting: line.isDisconnecting,
         },
-        manager: {
-          dialog: manager.dialog,
-          isAssignmentConfirmationOpen: manager.isAssignmentConfirmationOpen,
-          isAssigning: manager.isAssigningManager,
-          isRemoving: manager.isRemoving,
+        membership: {
+          isChanging: membership.isChangingMemberships,
+        },
+        removal: {
+          dialog: removal.dialog,
+          isRemoving: removal.isRemoving,
         },
       }}
       actions={{
         onBack: handleBack,
         onOpenBasic: () => updateSearch({ panel: "basic" }),
+        onOpenLine: () => updateSearch({ panel: "line" }),
         onOpenAddShop: () => {
-          if (!showShopMembershipAdditionRef.current) return;
+          if (!canChangeMembershipRef.current) return;
           updateSearch({ panel: "addShop" });
         },
         onOpenShop: (targetShopId) => {
-          const destination = getUserShopDetailDestination(
-            data.person.id,
-            targetShopId,
-            selectedShopId,
-            returnTo,
-            visibleUserCount,
-            returnShopId,
-            returnShopTo,
-          );
-          void navigate(destination);
+          void navigate({
+            to: "/staff/$personId/shops/$shopId",
+            params: { personId: data.person.id, shopId: targetShopId },
+            search: { org: organizationId },
+          });
         },
         onClosePanel: handleClosePanel,
         onUpdateProfile: async (formData) => {
@@ -140,31 +116,27 @@ export function UserDetail({
             handleClosePanel();
           }
         },
-        onAddMembership: async (shopId) => {
-          if (!showShopMembershipAdditionRef.current) return;
+        onShowLineQr: line.onShowQr,
+        onSendLineInvite: line.onSendInvite,
+        onDisconnectLine: line.onDisconnect,
+        onChangeMemberships: async (input) => {
+          if (!canChangeMembershipRef.current) return;
           const personId = data.person.id;
-          const added = await membership.onAddMembership(data.person.id, shopId);
-          if (added && activePanelRef.current === "addShop" && visiblePersonIdRef.current === personId) {
+          const changed = await membership.onChangeMemberships(personId, input);
+          if (changed && activePanelRef.current === "addShop" && visiblePersonIdRef.current === personId) {
             handleClosePanel();
           }
         },
-        onRequestManagerAssignment: manager.onRequestManagerAssignment,
-        onCancelManagerAssignment: manager.onCancelManagerAssignment,
-        onAssignManager: async () => {
-          await manager.onAssignManager();
+        onRequestRemovePerson: removal.onRequestRemovePerson,
+        onConfirmRemovePerson: async () => {
+          await removal.onConfirmRemoval();
         },
-        onRequestRemoveManagerRole: manager.onRequestRemoveManagerRole,
-        onRequestRemovePerson: manager.onRequestRemovePerson,
-        onConfirmManagerSetting: async () => {
-          await manager.onConfirmRemoval();
-        },
-        onCloseManagerDialog: manager.onCloseDialog,
+        onCloseRemovalDialog: removal.onCloseDialog,
       }}
     />
   );
 }
 
-export { getUserDetailBackDestination, getUserShopDetailBackDestination } from "./navigation";
-export type { UserDetailData, UserDetailPanel, UserDetailReturnTo } from "./types";
+export type { UserDetailData, UserDetailPanel } from "./types";
 export { UserDetailSkeleton } from "./UserDetailSkeleton";
 export { UserDetailView } from "./UserDetailView";

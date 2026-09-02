@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation } from "../_generated/server";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { rateLimit } from "../_lib/rateLimits";
 
 export const consumeServiceRequest = internalMutation({

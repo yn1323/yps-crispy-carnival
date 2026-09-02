@@ -1,10 +1,11 @@
-import { Badge, Box, Flex, HStack, Text } from "@chakra-ui/react";
+import { Badge, Box, Flex, HStack, Icon, Text } from "@chakra-ui/react";
 import dayjs from "dayjs";
 import type { ReactNode } from "react";
-import { LuCalendarClock } from "react-icons/lu";
+import { LuCalendarClock, LuStore } from "react-icons/lu";
 import { getDisplayStatus } from "@/src/components/features/Dashboard/script";
 import type { Recruitment, RecruitmentDisplayStatus } from "@/src/components/features/Dashboard/types";
 import { formatDateShort } from "@/src/domains/shift/date";
+import { getRecruitmentDeadlineDays } from "@/src/domains/shift/recruitmentLifecycle";
 
 type Props = {
   recruitment: Recruitment;
@@ -12,6 +13,7 @@ type Props = {
   onClick?: () => void;
   ariaLabel?: string;
   endSlot?: ReactNode;
+  shopName?: string;
 };
 
 const statusConfig: Record<
@@ -41,8 +43,17 @@ const statusConfig: Record<
   "ended-unconfirmed": { label: "未確定", colorPalette: "gray", accent: "gray.300" },
 };
 
-export function RecruitmentSummaryRow({ recruitment, dataTour, onClick, ariaLabel, endSlot }: Props) {
-  const { periodStart, periodEnd, deadline, confirmedAt, responseCount, totalStaffCount } = recruitment;
+export function RecruitmentSummaryRow({ recruitment, dataTour, onClick, ariaLabel, endSlot, shopName }: Props) {
+  const {
+    periodStart,
+    periodEnd,
+    deadline,
+    confirmedAt,
+    responseCount,
+    responseCountHasOverflow,
+    totalStaffCount,
+    totalStaffCountHasOverflow,
+  } = recruitment;
   const displayStatus = getDisplayStatus(recruitment);
   const { colorPalette, accent, borderColor } = statusConfig[displayStatus];
   const label = statusConfig[displayStatus].label;
@@ -79,6 +90,9 @@ export function RecruitmentSummaryRow({ recruitment, dataTour, onClick, ariaLabe
         align="stretch"
         gap={{ base: 1.5, lg: 3 }}
         cursor={onClick ? "pointer" : undefined}
+        transitionProperty={onClick ? "background" : undefined}
+        transitionDuration={onClick ? "faster" : undefined}
+        _active={onClick ? { bg: "gray.100", transitionDuration: "0ms" } : undefined}
         _focusVisible={onClick ? { outline: "2px solid", outlineColor: "teal.500", outlineOffset: "-2px" } : undefined}
       >
         <Flex
@@ -88,22 +102,65 @@ export function RecruitmentSummaryRow({ recruitment, dataTour, onClick, ariaLabe
           align={{ base: "stretch", lg: "center" }}
           gap={{ base: 1.5, lg: 4 }}
         >
-          <Flex align="center" gap={3} flexShrink={0} minW={{ lg: "140px" }}>
-            <Text fontSize="md" fontWeight="semibold" color={textColor} lineHeight="short" whiteSpace="nowrap">
+          <Flex align="center" justify="space-between" gap={2} minW={{ base: 0, lg: "140px" }} flexShrink={0}>
+            <Text
+              fontSize="md"
+              fontWeight="semibold"
+              color={textColor}
+              lineHeight="short"
+              whiteSpace="nowrap"
+              flexShrink={0}
+            >
               {periodLabel}
             </Text>
+            {shopName && (
+              <HStack
+                display={{ base: "flex", lg: "none" }}
+                gap={1}
+                minW={0}
+                flex={1}
+                justify="flex-end"
+                color="fg.muted"
+              >
+                <Icon as={LuStore} boxSize={4} flexShrink={0} aria-hidden />
+                <Text minW={0} fontSize="xs" lineHeight="short" truncate>
+                  {shopName}
+                </Text>
+              </HStack>
+            )}
           </Flex>
 
+          {shopName && (
+            <HStack
+              display={{ base: "none", lg: "flex" }}
+              gap={1.5}
+              minW={{ lg: "100px" }}
+              maxW={{ lg: "180px" }}
+              flex={{ lg: "0 1 140px" }}
+              color="fg.muted"
+            >
+              <Icon as={LuStore} boxSize={4} flexShrink={0} aria-hidden />
+              <Text minW={0} fontSize="sm" lineHeight="short" truncate>
+                {shopName}
+              </Text>
+            </HStack>
+          )}
+
           <Flex
-            flex={1}
+            flex={{ base: 1, lg: 2 }}
             minW={0}
-            direction="row"
-            align="center"
-            justify={{ base: "space-between", md: "flex-end" }}
-            gap={{ base: 2, md: 4 }}
-            wrap={{ base: "wrap", sm: "nowrap" }}
+            direction={{ base: "column", sm: "row" }}
+            align={{ base: "stretch", sm: "center" }}
+            justify={{ base: "flex-start", sm: "space-between", md: "flex-end" }}
+            gap={{ base: 2, md: shopName ? 3 : 4 }}
+            wrap="nowrap"
           >
-            <HStack minW={{ lg: isCurrent ? "176px" : "84px" }} flexShrink={0} gap={2} wrap="wrap">
+            <HStack
+              minW={{ lg: isCurrent ? (shopName ? "100px" : "176px") : "84px" }}
+              flexShrink={0}
+              gap={2}
+              wrap="wrap"
+            >
               <Badge colorPalette={colorPalette} variant="subtle" borderRadius="full" px={2.5} fontSize="xs">
                 {label}
               </Badge>
@@ -114,9 +171,10 @@ export function RecruitmentSummaryRow({ recruitment, dataTour, onClick, ariaLabe
               )}
             </HStack>
             <HStack
-              gap={{ base: 3, lg: 8 }}
-              flex={1}
-              justify="flex-end"
+              gap={{ base: 3, lg: shopName ? 3 : 8 }}
+              flex={{ base: "none", sm: 1 }}
+              w={{ base: "full", sm: "auto" }}
+              justify={{ base: "space-between", sm: "flex-end" }}
               align="center"
               color="fg.muted"
               fontSize="xs"
@@ -127,7 +185,7 @@ export function RecruitmentSummaryRow({ recruitment, dataTour, onClick, ariaLabe
                 gap={1}
                 justify="flex-end"
                 minW={0}
-                flexShrink={1}
+                flexShrink={0}
                 color={isActionRequired ? "orange.700" : undefined}
               >
                 <LuCalendarClock />
@@ -139,11 +197,13 @@ export function RecruitmentSummaryRow({ recruitment, dataTour, onClick, ariaLabe
                 fontSize="xs"
                 color="fg.muted"
                 whiteSpace="nowrap"
-                minW={{ lg: "96px" }}
+                minW={{ base: "84px", lg: "96px" }}
                 textAlign="right"
                 flexShrink={0}
               >
-                提出 {responseCount}/{totalStaffCount}人
+                {responseCountHasOverflow || totalStaffCountHasOverflow
+                  ? `提出 ${responseCount}人${responseCountHasOverflow ? "以上" : ""} / 対象 ${totalStaffCount}人${totalStaffCountHasOverflow ? "以上" : ""}`
+                  : `提出 ${responseCount}/${totalStaffCount}人`}
               </Text>
             </HStack>
           </Flex>
@@ -177,9 +237,9 @@ function relativeDeadline({
   }
   if (displayStatus === "action-required") {
     const today = dayjs().format("YYYY-MM-DD");
-    return deadline < today ? `${formatDateShort(deadline)} 締切済み` : `${formatDateShort(periodEnd)} 期間終了`;
+    return deadline < today ? `${formatDateShort(deadline)} 提出期限超過` : `${formatDateShort(periodEnd)} 期間終了`;
   }
-  const days = dayjs(deadline).startOf("day").diff(dayjs().startOf("day"), "day");
-  if (days === 0) return "今日が締切！";
-  return `締切まで${days}日`;
+  const days = getRecruitmentDeadlineDays(deadline, dayjs().format("YYYY-MM-DD"));
+  if (days === 0) return "今日が提出期限！";
+  return `提出期限まで${days}日`;
 }

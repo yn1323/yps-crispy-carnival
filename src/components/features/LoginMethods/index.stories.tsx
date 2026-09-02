@@ -33,7 +33,7 @@ type PreviewProps = {
   isLoaded?: boolean;
   disconnectGoogleError?: boolean;
   showLoginEmailChangeDialog?: "input" | "verification";
-  showPasswordChangeDialog?: "input" | "error";
+  showPasswordChangeDialog?: "input" | "error" | "loading";
   showReverification?: boolean;
   isMigrationDialogOpen?: boolean;
   onStartFlow: (flow: LoginMethodMigrationFlow) => void;
@@ -42,7 +42,7 @@ type PreviewProps = {
 type EmailChangeTargetStatus = "absent" | "unverified" | "verified";
 
 const GOOGLE_DISCONNECT_EMAIL_REQUIRED_MESSAGE =
-  "メールアドレス未設定時はGoogle認証を解除できません。先にメールアドレスとパスワードを設定してください。";
+  "Google認証を解除できません。先にメールアドレスとパスワードを設定してください。";
 
 const IDLE_REVERIFICATION_CONTROLLER: LoginMethodReverificationController = {
   state: IDLE_LOGIN_METHOD_REVERIFICATION_STATE,
@@ -96,7 +96,12 @@ function LoginMethodsPreview({
     showPasswordChangeDialog
       ? {
           isOpen: true,
-          status: showPasswordChangeDialog === "error" ? "error" : "idle",
+          status:
+            showPasswordChangeDialog === "error"
+              ? "error"
+              : showPasswordChangeDialog === "loading"
+                ? "loading"
+                : "idle",
           message:
             showPasswordChangeDialog === "error"
               ? "現在のパスワードが正しくありません。\n入力内容を確認してください。"
@@ -115,7 +120,7 @@ function LoginMethodsPreview({
     setEmailPasswordState(idle());
     setEmailChangeDialog({ isOpen: false });
     showSuccessToast({
-      title: "メインのメールアドレスを変更しました",
+      title: "メールアドレスを変更しました",
     });
   };
 
@@ -205,7 +210,7 @@ function LoginMethodsPreview({
       return true;
     },
     resendLoginEmailCode: async () => {
-      setEmailPasswordState({ status: "success", message: "新しい確認コードを送りました。" });
+      setEmailPasswordState({ status: "success", message: "新しい確認コードを再送しました。" });
       return true;
     },
   };
@@ -311,7 +316,13 @@ export const LongAddresses: Story = {
 };
 
 export const Loading: Story = {
-  args: { scenario: "passwordOnly", isLoaded: false },
+  args: { scenario: "bothDifferentEmail", isLoaded: false },
+};
+
+export const LoadingMobile: Story = {
+  args: { scenario: "bothDifferentEmail", isLoaded: false },
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
 export const Unavailable: Story = {
@@ -328,8 +339,8 @@ export const MainEmailVerificationDialog: Story = {
 
 export const MobileMainEmailVerificationDialog: Story = {
   args: { scenario: "passwordOnly", showLoginEmailChangeDialog: "verification" },
-  tags: ["vrt-mobile2"],
-  globals: { viewport: { value: "mobile2", isRotated: false } },
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
 export const PasswordChangeDialog: Story = {
@@ -342,8 +353,29 @@ export const PasswordChangeErrorDialog: Story = {
 
 export const MobilePasswordChangeDialog: Story = {
   args: { scenario: "passwordOnly", showPasswordChangeDialog: "input" },
-  tags: ["vrt-mobile2"],
-  globals: { viewport: { value: "mobile2", isRotated: false } },
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
+export const MainEmailVerificationBackBehavior: Story = {
+  args: { scenario: "passwordOnly", showLoginEmailChangeDialog: "verification" },
+  parameters: { screenshot: { skip: true } },
+  play: async () => {
+    const body = within(document.body);
+    const verificationDialog = within(await body.findByRole("dialog", { name: "確認コードを入力" }));
+    const backButton = verificationDialog.getByRole("button", { name: "戻る" });
+    const verifyButton = verificationDialog.getByRole("button", { name: "決定する" });
+
+    await expect(backButton.compareDocumentPosition(verifyButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    backButton.focus();
+    await userEvent.tab();
+    await expect(verifyButton).toHaveFocus();
+    await userEvent.click(backButton);
+
+    const inputDialog = within(await body.findByRole("dialog", { name: "メールアドレスを変更" }));
+    await expect(inputDialog.getByRole("textbox", { name: "新しいメールアドレス" })).toHaveFocus();
+    await expect(body.getAllByRole("dialog")).toHaveLength(1);
+  },
 };
 
 export const PasswordChangeBehavior: Story = {
@@ -353,8 +385,9 @@ export const PasswordChangeBehavior: Story = {
     toaster.dismiss();
     const canvas = within(canvasElement);
     const body = within(document.body);
+    const openButton = canvas.getByRole("button", { name: "パスワードを変更" });
 
-    await userEvent.click(canvas.getByRole("button", { name: "パスワードを変更" }));
+    await userEvent.click(openButton);
     const dialog = within(await body.findByRole("dialog", { name: "パスワードを変更" }));
     await userEvent.type(dialog.getByLabelText("現在のパスワード"), "current-password");
     await userEvent.type(dialog.getByLabelText("新しいパスワード"), "new-password");
@@ -362,6 +395,7 @@ export const PasswordChangeBehavior: Story = {
     await userEvent.click(dialog.getByRole("button", { name: "変更する" }));
 
     await waitFor(() => expect(body.queryByRole("dialog", { name: "パスワードを変更" })).not.toBeInTheDocument());
+    await expect(openButton).toHaveFocus();
     await expect(await body.findByText("パスワードを変更しました")).toBeVisible();
   },
 };
@@ -384,6 +418,23 @@ export const PasswordChangeValidationBehavior: Story = {
   },
 };
 
+export const PasswordChangeLoadingLockBehavior: Story = {
+  args: { scenario: "passwordOnly", showPasswordChangeDialog: "loading" },
+  parameters: { screenshot: { skip: true } },
+  play: async () => {
+    const body = within(document.body);
+    const dialogElement = await body.findByRole("dialog", { name: "パスワードを変更" });
+    const dialog = within(dialogElement);
+
+    await waitFor(() => expect(dialogElement).toBeVisible());
+    await expect(dialog.getByRole("button", { name: "キャンセル" })).toBeDisabled();
+    await expect(dialog.getByLabelText("現在のパスワード")).toBeDisabled();
+    await expect(dialog.queryByRole("button", { name: "閉じる" })).not.toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    await expect(dialogElement).toBeVisible();
+  },
+};
+
 export const GoogleDisconnectDialog: Story = {
   args: { scenario: "bothDifferentEmail" },
   play: async ({ canvasElement }) => {
@@ -396,7 +447,7 @@ export const GoogleDisconnectDialog: Story = {
     await waitFor(() => expect(within(dialog).getByRole("button", { name: "解除する" })).toBeVisible());
     const explanation = within(dialog).getByText(/このGoogleアカウントではログインできなくなります/);
     await expect(explanation).toHaveTextContent(
-      "このGoogleアカウントではログインできなくなります。メールアドレスとパスワードは残ります。",
+      "このGoogleアカウントではログインできなくなります。メール・パスワードのログインは残ります。",
     );
     await expect(within(dialog).queryByText("google@gmail.com")).not.toBeInTheDocument();
   },
@@ -414,7 +465,7 @@ export const GoogleDisconnectSameEmailDialog: Story = {
     await waitFor(() => expect(within(dialog).getByRole("button", { name: "解除する" })).toBeVisible());
     const explanation = within(dialog).getByText(/このGoogleアカウントではログインできなくなります/);
     await expect(explanation).toHaveTextContent(
-      "このGoogleアカウントではログインできなくなります。メールアドレスとパスワードは残ります。",
+      "このGoogleアカウントではログインできなくなります。メール・パスワードのログインは残ります。",
     );
     await expect(within(dialog).queryByText("google@gmail.com")).not.toBeInTheDocument();
   },
@@ -422,8 +473,8 @@ export const GoogleDisconnectSameEmailDialog: Story = {
 
 export const MobileGoogleDisconnectDialog: Story = {
   args: { scenario: "bothDifferentEmail" },
-  tags: ["vrt-mobile2"],
-  globals: { viewport: { value: "mobile2", isRotated: false } },
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const body = within(document.body);
@@ -452,7 +503,7 @@ export const GoogleDisconnectErrorBehavior: Story = {
     );
     const explanation = dialog.getByText(/このGoogleアカウントではログインできなくなります/);
     await expect(explanation.compareDocumentPosition(alert)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    const retryButton = await dialog.findByRole("button", { name: "もう一度試す" });
+    const retryButton = await dialog.findByRole("button", { name: "再実行する" });
     await expect(dialog.queryByRole("button", { name: "キャンセル" })).not.toBeInTheDocument();
     await expect(dialog.queryByRole("button", { name: "閉じる" })).not.toBeInTheDocument();
     await userEvent.click(retryButton);
@@ -538,10 +589,10 @@ async function primaryEmailChangeBehavior(
   await expect(instruction.closest('[data-scope="alert"]')).toBeNull();
   await expect(instruction).toBeVisible();
   await userEvent.type(codeDialog.getByRole("textbox", { name: "確認コード" }), "123456");
-  await userEvent.click(codeDialog.getByRole("button", { name: "メールを確認" }));
+  await userEvent.click(codeDialog.getByRole("button", { name: "決定する" }));
 
   await waitFor(() => expect(body.queryByRole("dialog", { name: "確認コードを入力" })).not.toBeInTheDocument());
-  const toastTitle = await body.findByText("メインのメールアドレスを変更しました");
+  const toastTitle = await body.findByText("メールアドレスを変更しました");
   await waitFor(() => expect(toastTitle).toBeVisible());
   await waitFor(() => expect(body.queryByRole("dialog")).not.toBeInTheDocument());
   const emailSection = canvas.getByRole("region", { name: "メールアドレス" });

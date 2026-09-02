@@ -2,19 +2,35 @@
 
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
-import { internalAction } from "../_generated/server";
 import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatDeadlineLabel, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
+import { observedInternalAction as internalAction } from "../_lib/errorObservability";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
+import { lineRecipientOutboxSnapshot, type NotificationLineRecipient } from "../notificationOutbox/types";
 import { recordNotificationPreparationFailure } from "./failureRecording";
-import { buildReminderEmailHtml, buildReminderLineFlexMessage, buildReminderLineText } from "./templates";
+import {
+  buildReminderEmailHtml,
+  buildReminderEmailSubject,
+  buildReminderLineFlexMessage,
+  buildReminderLineText,
+} from "./templates";
 
 const SHIFT_REMINDER_NOTIFICATION_KIND = "shift.reminder";
 const SHIFT_REMINDER_LINE_TITLE = "シフト提出のお願い";
+
+function selectLineRecipient(
+  recipient: NotificationLineRecipient | null,
+  quota: { status: "normal" | "exceeded" } | null,
+) {
+  if (!recipient) return null;
+  return selectChannel({ lineUserId: recipient.lineUserId, lineFollowing: recipient.following }, quota) === "line"
+    ? recipient
+    : null;
+}
 
 /**
  * 未提出スタッフ全員に催促を送信
@@ -35,12 +51,12 @@ export const sendReminderEmails = internalAction({
     );
     const expiresAt = getSubmitLinkCutoff(data.periodStart);
     const deadlineLabel = formatDeadlineLabel(data.deadline);
-    const subject = formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出締切が近づいています`);
+    const subject = formatResendSubject(data.shopName, buildReminderEmailSubject(data.periodLabel));
     let sentCount = 0;
 
     for (const staff of data.staffEntries) {
-      const channel = selectChannel({ lineUserId: staff.lineUserId, lineFollowing: staff.lineFollowing }, quota);
-      const selectedChannel = channel === "line" && staff.lineUserId ? "line" : "email";
+      const lineRecipient = selectLineRecipient(staff.lineRecipient, quota);
+      const selectedChannel = lineRecipient ? "line" : "email";
       const emailDedupeKey = `email:reminder:${recruitmentId}:${staff.staffId}`;
       const lineDedupeKey = `line:reminder:${recruitmentId}:${staff.staffId}`;
       const dedupeKey = selectedChannel === "line" ? lineDedupeKey : emailDedupeKey;
@@ -55,7 +71,7 @@ export const sendReminderEmails = internalAction({
         });
         const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 
-        if (selectedChannel === "line" && staff.lineUserId) {
+        if (lineRecipient) {
           const lineParams = {
             staffName: staff.name,
             shopName: data.shopName,
@@ -95,6 +111,7 @@ export const sendReminderEmails = internalAction({
           const result = await enqueueLine(ctx, {
             shopId: data.shopId,
             ...notificationOrigin,
+            ...lineRecipientOutboxSnapshot(lineRecipient),
             purpose: "business",
             recruitmentId,
             staffId: staff.staffId,
@@ -104,7 +121,7 @@ export const sendReminderEmails = internalAction({
             },
             dedupeKey: lineDedupeKey,
             payload: linePayload({
-              toUserId: staff.lineUserId,
+              toUserId: lineRecipient.lineUserId,
               text: buildReminderLineText(lineParams),
               message: buildReminderLineFlexMessage(lineParams),
               suppressDelivery,
@@ -201,12 +218,9 @@ export const sendReminderEmailForStaff = internalAction({
     );
     const expiresAt = getSubmitLinkCutoff(data.periodStart);
     const deadlineLabel = formatDeadlineLabel(data.deadline);
-    const subject = formatResendSubject(data.shopName, `${data.periodLabel} シフト希望の提出締切が近づいています`);
-    const channel = selectChannel(
-      { lineUserId: data.staff.lineUserId, lineFollowing: data.staff.lineFollowing },
-      quota,
-    );
-    const selectedChannel = channel === "line" && data.staff.lineUserId ? "line" : "email";
+    const subject = formatResendSubject(data.shopName, buildReminderEmailSubject(data.periodLabel));
+    const lineRecipient = selectLineRecipient(data.staff.lineRecipient, quota);
+    const selectedChannel = lineRecipient ? "line" : "email";
     const runId = notificationRunId ?? Date.now();
     const emailDedupeKey = `email:failureRetryReminder:${recruitmentId}:${staffId}:${runId}`;
     const lineDedupeKey = `line:failureRetryReminder:${recruitmentId}:${staffId}:${runId}`;
@@ -222,7 +236,7 @@ export const sendReminderEmailForStaff = internalAction({
       });
       const magicLinkUrl = `${APP_URL}/shifts/submit?token=${token}`;
 
-      if (selectedChannel === "line" && data.staff.lineUserId) {
+      if (lineRecipient) {
         const lineParams = {
           staffName: data.staff.name,
           shopName: data.shopName,
@@ -262,6 +276,7 @@ export const sendReminderEmailForStaff = internalAction({
         await enqueueLine(ctx, {
           shopId: data.shopId,
           ...notificationOrigin,
+          ...lineRecipientOutboxSnapshot(lineRecipient),
           purpose: "business",
           recruitmentId,
           staffId: data.staff.staffId,
@@ -271,7 +286,7 @@ export const sendReminderEmailForStaff = internalAction({
           },
           dedupeKey: lineDedupeKey,
           payload: linePayload({
-            toUserId: data.staff.lineUserId,
+            toUserId: lineRecipient.lineUserId,
             text: buildReminderLineText(lineParams),
             message: buildReminderLineFlexMessage(lineParams),
             suppressDelivery,

@@ -33,7 +33,7 @@ export function getShopBasicInformationRows(
   const rows: ShopBasicInformationRow[] = [
     { label: "店舗名", value: shop.name },
     {
-      label: "希望シフトの集め方",
+      label: "提出方法",
       value: SUBMISSION_PATTERN_LABELS[shop.submissionPattern.kind],
     },
   ];
@@ -50,7 +50,7 @@ export function getShopBasicInformationRows(
       label: "勤務区分",
       value: shop.submissionPattern.options
         .map((option) => `${option.name}（${formatShiftClockTimeRange(option.startTime, option.endTime)}）`)
-        .join("、"),
+        .join("\n"),
     });
   }
 

@@ -1,6 +1,7 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { withOpenExternalBrowser } from "@/convex/_lib/lineUrl";
 import { getClerkErrorMessage } from "./errorPresentation";
+import { type ResettableOAuthAttempt, resetOAuthAttempts } from "./resetOAuthAttempts";
 import { isLineInAppBrowser } from "./script";
 
 type RunAuthAction = (action: () => Promise<void>) => Promise<unknown>;
@@ -8,17 +9,38 @@ type RunAuthAction = (action: () => Promise<void>) => Promise<unknown>;
 type UseGoogleOAuthControllerParams = {
   authenticateWithRedirect?: () => Promise<unknown>;
   isResourceLoaded: boolean;
+  releaseAuthAction: () => void;
   runAuthAction: RunAuthAction;
+  signIn?: ResettableOAuthAttempt;
+  signUp?: ResettableOAuthAttempt;
   onErrorMessage: (message: string | undefined) => void;
 };
 
 export function useGoogleOAuthController({
   authenticateWithRedirect,
   isResourceLoaded,
+  releaseAuthAction,
   runAuthAction,
+  signIn,
+  signUp,
   onErrorMessage,
 }: UseGoogleOAuthControllerParams) {
   const isLineBrowser = isLineInAppBrowser(navigator.userAgent);
+  const oauthAttemptGenerationRef = useRef(0);
+  const isOAuthRedirectPendingRef = useRef(false);
+
+  useEffect(() => {
+    const releaseRestoredOAuthAction = (event: PageTransitionEvent) => {
+      if (!event.persisted || !isOAuthRedirectPendingRef.current) return;
+
+      oauthAttemptGenerationRef.current += 1;
+      isOAuthRedirectPendingRef.current = false;
+      releaseAuthAction();
+    };
+
+    window.addEventListener("pageshow", releaseRestoredOAuthAction);
+    return () => window.removeEventListener("pageshow", releaseRestoredOAuthAction);
+  }, [releaseAuthAction]);
 
   const handleGoogle = useCallback(async () => {
     await runAuthAction(async () => {
@@ -28,16 +50,25 @@ export function useGoogleOAuthController({
         return;
       }
 
-      if (!isResourceLoaded || !authenticateWithRedirect) return;
+      if (!isResourceLoaded || !authenticateWithRedirect || !signIn || !signUp) return;
 
+      const oauthAttemptGeneration = ++oauthAttemptGenerationRef.current;
       onErrorMessage(undefined);
       try {
+        await resetOAuthAttempts({ signIn, signUp });
+        isOAuthRedirectPendingRef.current = true;
         await authenticateWithRedirect();
       } catch (error) {
-        onErrorMessage(getClerkErrorMessage(error));
+        if (oauthAttemptGenerationRef.current === oauthAttemptGeneration) {
+          onErrorMessage(getClerkErrorMessage(error));
+        }
+      } finally {
+        if (oauthAttemptGenerationRef.current === oauthAttemptGeneration) {
+          isOAuthRedirectPendingRef.current = false;
+        }
       }
     });
-  }, [authenticateWithRedirect, isLineBrowser, isResourceLoaded, onErrorMessage, runAuthAction]);
+  }, [authenticateWithRedirect, isLineBrowser, isResourceLoaded, onErrorMessage, runAuthAction, signIn, signUp]);
 
   return { handleGoogle, isLineBrowser };
 }

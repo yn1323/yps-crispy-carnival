@@ -3,12 +3,13 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { type ActionCtx, action } from "../_generated/server";
+import type { ActionCtx } from "../_generated/server";
 import {
   type ClerkVerifiedEmailProvider,
   classifyClerkVerifiedEmailProviderError,
   createClerkVerifiedEmailProvider,
 } from "../_lib/clerkVerifiedEmailProvider";
+import { observedAction as action } from "../_lib/errorObservability";
 import { getAccountDeletionConfiguration, normalizeIssuer } from "../accountDeletion/config";
 
 const acceptanceActionResultValidator = v.union(
@@ -82,8 +83,7 @@ export async function runInvitationAcceptance(
     },
   });
   if (finalized.status === "unavailable") return { status: "unavailable", retryable: false };
-  // Proof付き経路ではemailMismatchは発生しない。旧DTOが型に残る間だけconflictへ閉じる。
-  if (finalized.status === "emailMismatch" || finalized.status === "conflict") return { status: "conflict" };
+  if (finalized.status === "conflict") return { status: "conflict" };
   if (finalized.status === "linked") {
     return {
       status: "linked",

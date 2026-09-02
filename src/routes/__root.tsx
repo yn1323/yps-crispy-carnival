@@ -1,12 +1,12 @@
-import { createRootRoute, HeadContent, Outlet, Scripts, useRouterState } from "@tanstack/react-router";
+import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { type ReactNode, useEffect } from "react";
+import { WebMeasurementConsent } from "@/src/components/features/WebMeasurementConsent";
 import { Toaster } from "@/src/components/ui/toaster";
-import { sendPageView } from "@/src/lib/gtm";
 import { buildMeta, jsonLdMeta } from "@/src/lib/seo";
 import { ChakraProvider } from "@/src/providers/ChakraProvider";
 
 const SITE_DESCRIPTION =
-  "LINEでスタッフにシフト希望を依頼し、提出状況の確認からシフト作成・確定共有まで進められます。\nスタッフはアプリ不要で、そのまま希望シフトを提出できます。";
+  "LINEでスタッフに希望シフトの提出を依頼し、提出状況の確認からシフト作成・確定共有まで進められます。\nスタッフはアプリ不要で、そのまま希望シフトを提出できます。";
 
 const softwareApplicationJsonLd = {
   "@context": "https://schema.org",
@@ -41,16 +41,6 @@ const webSiteJsonLd = {
   inLanguage: "ja-JP",
 };
 
-const PageViewTracker = () => {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-
-  useEffect(() => {
-    sendPageView(pathname);
-  }, [pathname]);
-
-  return null;
-};
-
 const HydrationReadyMarker = () => {
   useEffect(() => {
     // SSR本文が見えた段階と、操作できる段階をPreview smokeで区別する。
@@ -70,7 +60,7 @@ export const Route = createRootRoute({
       },
       { name: "theme-color", content: "#000000" },
       ...buildMeta({
-        title: "シフトリ｜LINEでシフト希望を集める無料シフト管理ツール",
+        title: "シフトリ｜LINEで希望シフトを集めるシフト管理ツール",
         description: SITE_DESCRIPTION,
       }),
       { property: "og:type", content: "website" },
@@ -104,9 +94,9 @@ function RootComponent() {
   return (
     <RootDocument>
       <ChakraProvider>
-        <PageViewTracker />
         <HydrationReadyMarker />
         <Outlet />
+        <WebMeasurementConsent />
         <Toaster />
       </ChakraProvider>
     </RootDocument>

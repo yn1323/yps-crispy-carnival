@@ -1,9 +1,15 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, useState } from "react";
+import dayjs from "dayjs";
+import { createStore, Provider } from "jotai";
+import { type ComponentProps, type ReactNode, useState } from "react";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
+import { AuthenticatedAppShell } from "@/src/components/templates/AuthenticatedAppShell";
+import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
+import { RootContentWrapper } from "@/src/components/templates/RootContentWrapper";
 import { Button } from "@/src/components/ui/Button";
-import type { DashboardNotificationFailure } from "../NotificationFailureDialog";
+import { userAtom } from "@/src/stores/user";
+import type { DashboardNotificationFailure } from "../NotificationFailureRecovery";
 import type { OperationContextData } from "../OperationContext";
 import { buildDashboardRecruitmentGroups } from "../script";
 import { mockCurrentRecruitments, mockRecruitments, mockStaffs } from "../stories/fixtures";
@@ -20,11 +26,9 @@ const shop = {
 const operationShop = {
   shopId: "shop-1",
   shopName: shop.name,
-  shopStatus: "active" as const,
   organizationId: "organization-1",
   organizationName: "たなかグループ",
-  organizationPlan: "pro" as const,
-  memberStatus: "active" as const,
+  organizationPlan: "standard" as const,
 };
 const operationContextData = {
   shops: [
@@ -34,14 +38,12 @@ const operationContextData = {
       shopId: "shop-2",
       shopName: "カフェたなか",
     },
-    {
-      ...operationShop,
-      shopId: "shop-3",
-      shopName: "ビストロ佐藤",
-      organizationId: "organization-2",
-      organizationName: "佐藤フードグループ",
-    },
   ],
+  selectedShop: operationShop,
+  onSelect: noop,
+} satisfies OperationContextData;
+const singleShopOperationContextData = {
+  shops: [operationShop],
   selectedShop: operationShop,
   onSelect: noop,
 } satisfies OperationContextData;
@@ -84,12 +86,16 @@ const pendingStaffRequests = [
     name: "田中 花子",
     email: "hanako@example.com",
     createdAt: Date.now(),
+    canApprove: true,
+    approveDisabledReason: null,
   },
   {
     _id: "staff-registration-request-2",
     name: "佐藤 太郎",
     email: "taro@example.com",
     createdAt: Date.now(),
+    canApprove: true,
+    approveDisabledReason: null,
   },
 ] as unknown as StaffRegistrationRequest[];
 
@@ -121,7 +127,28 @@ const notificationFailures = [
     canRetry: true,
   },
 ] as unknown as DashboardNotificationFailure[];
-const dashboardRecruitments = mockRecruitments;
+// 日付が進んでもVRTの表示状態が変わらないよう、期間は将来に固定し、提出期限の表示だけを「今日」に保つ。
+const dashboardStoryToday = dayjs().format("YYYY-MM-DD");
+const dashboardRecruitments = [
+  {
+    ...mockCurrentRecruitments[0],
+    periodStart: "2099-01-01",
+    periodEnd: "2099-01-15",
+    deadline: "2098-12-20",
+  },
+  {
+    ...mockRecruitments[0],
+    periodStart: "2099-02-01",
+    periodEnd: "2099-02-15",
+    deadline: dashboardStoryToday,
+  },
+  {
+    ...mockRecruitments[1],
+    periodStart: "2099-03-01",
+    periodEnd: "2099-03-15",
+    deadline: dashboardStoryToday,
+  },
+] satisfies Recruitment[];
 const dashboardRecruitmentGroups = buildDashboardRecruitmentGroups({ recruitments: dashboardRecruitments }).groups;
 
 const onboardingRecruitment = (overrides: Partial<Recruitment> = {}) =>
@@ -170,6 +197,46 @@ const dashboardBaseArgs = {
   | "loadMoreStaffs"
 >;
 
+const singleShopDashboardArgs = {
+  ...dashboardBaseArgs,
+  operationContextData: singleShopOperationContextData,
+  recruitments: dashboardRecruitments,
+  recruitmentGroups: dashboardRecruitmentGroups,
+  currentRecruitments: [dashboardRecruitments[0]],
+  hasPastRecruitments: false,
+  staffs: mockStaffs,
+  staffStatus: "Exhausted",
+  canLoadMoreStaffs: false,
+  isDashboardOnboardingDismissed: true,
+} satisfies ComponentProps<typeof DashboardContent>;
+
+const singleShopStoryStore = createStore();
+singleShopStoryStore.set(userAtom, {
+  authId: "dashboard-story-user",
+  name: "田中太郎",
+  email: "tanaka@example.com",
+});
+
+function DashboardPagePreview({ children }: { children: ReactNode }) {
+  return (
+    <Provider store={singleShopStoryStore}>
+      <Box minH="100vh" bg="gray.50">
+        <RootContentWrapper>{children}</RootContentWrapper>
+      </Box>
+    </Provider>
+  );
+}
+
+function DashboardAppShellPreview({ children }: { children: ReactNode }) {
+  return (
+    <Provider store={singleShopStoryStore}>
+      <AuthenticatedAppShell activeKey="home" activeOrganizationId="organization-1">
+        <AuthenticatedPageContent includeMobileNavigation>{children}</AuthenticatedPageContent>
+      </AuthenticatedAppShell>
+    </Provider>
+  );
+}
+
 const meta = {
   title: "Features/Dashboard/DashboardContent",
   component: DashboardContent,
@@ -203,6 +270,45 @@ export const Normal: Story = {
   },
 };
 
+export const MultiShopMobile: Story = {
+  ...Normal,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
+export const SingleShop: Story = {
+  args: singleShopDashboardArgs,
+  render: (args) => (
+    <DashboardPagePreview>
+      <DashboardContent {...args} />
+    </DashboardPagePreview>
+  ),
+};
+
+export const SingleShopMobile: Story = {
+  ...SingleShop,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
+export const HomeAppCompositionDesktop: Story = {
+  name: "ホーム・新shell・デスクトップ",
+  args: singleShopDashboardArgs,
+  parameters: { vrt: { releaseFixedHeader: true } },
+  render: (args) => (
+    <DashboardAppShellPreview>
+      <DashboardContent {...args} />
+    </DashboardAppShellPreview>
+  ),
+};
+
+export const HomeAppCompositionMobile: Story = {
+  ...HomeAppCompositionDesktop,
+  name: "ホーム・新shell・モバイル414px",
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
 export const ReadOnlyShop: Story = {
   args: {
     ...Normal.args,
@@ -213,8 +319,14 @@ export const ReadOnlyShop: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("button", { name: "店舗詳細を開く" })).toBeEnabled();
     await expect(canvas.getByRole("button", { name: "新しい募集をつくる" })).toBeDisabled();
-    await expect(canvas.getByRole("button", { name: "スタッフを招待する" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "スタッフを追加する" })).toBeDisabled();
   },
+};
+
+export const ReadOnlyShopMobile: Story = {
+  ...ReadOnlyShop,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
 export const ReadOnlyTransitionBehavior: Story = {
@@ -240,17 +352,23 @@ export const ReadOnlyTransitionBehavior: Story = {
     await body.findByRole("dialog", { name: "新しい募集をつくる" });
     await expectDialogClosedByReadOnly("新しい募集をつくる");
 
-    await userEvent.click(await canvas.findByRole("button", { name: "スタッフを招待する" }));
-    await body.findByRole("dialog", { name: "スタッフを招待" });
-    await expectDialogClosedByReadOnly("スタッフを招待");
+    await userEvent.click(await canvas.findByRole("button", { name: "スタッフを追加する" }));
+    await body.findByRole("dialog", { name: "スタッフを追加" });
+    await expectDialogClosedByReadOnly("スタッフを追加");
 
-    await userEvent.click(await canvas.findByRole("button", { name: "申請を確認" }));
-    await body.findByRole("dialog", { name: "スタッフ登録申請" });
-    await expectDialogClosedByReadOnly("スタッフ登録申請");
+    await userEvent.click(await canvas.findByRole("button", { name: /スタッフ登録申請が2件/ }));
+    await canvas.findByRole("region", { name: "スタッフ登録申請" });
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle).toHaveAttribute("aria-pressed", "true"));
+    await waitFor(() => expect(canvas.queryByRole("region", { name: "スタッフ登録申請" })).not.toBeInTheDocument());
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle).toHaveAttribute("aria-pressed", "false"));
 
-    await userEvent.click(await canvas.findByRole("button", { name: "通知を確認する" }));
-    await body.findByRole("dialog", { name: "送れなかった通知" });
-    await expectDialogClosedByReadOnly("送れなかった通知");
+    await userEvent.click(await canvas.findByRole("button", { name: /送れなかった通知が2件/ }));
+    await canvas.findByRole("region", { name: "送れなかった通知" });
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle).toHaveAttribute("aria-pressed", "true"));
+    await waitFor(() => expect(canvas.queryByRole("region", { name: "送れなかった通知" })).not.toBeInTheDocument());
   },
 };
 
@@ -285,27 +403,6 @@ function ReadOnlyTransitionStory() {
   );
 }
 
-export const LegacyStaffDetailFallbackBehavior: Story = {
-  args: {
-    ...Normal.args,
-    staffs: mockStaffs.map((staff) =>
-      staff._id === mockStaffs[1]._id ? { ...staff, organizationPersonId: null } : staff,
-    ),
-  },
-  parameters: {
-    screenshot: { skip: true },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(document.body);
-
-    await userEvent.click(canvas.getByRole("button", { name: "佐藤花子のスタッフ詳細を開く" }));
-    const staffDetailDialog = await body.findByRole("dialog", { name: "スタッフ詳細" });
-    await userEvent.click(within(staffDetailDialog).getByRole("button", { name: "閉じる" }));
-    await waitFor(() => expect(body.queryByRole("dialog", { name: "スタッフ詳細" })).not.toBeInTheDocument());
-  },
-};
-
 export const WithAnnouncement: Story = {
   args: {
     ...Normal.args,
@@ -321,24 +418,149 @@ export const WithNotificationFailures: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const body = within(document.body);
 
-    await expect(canvas.queryByText("佐藤 真由美")).not.toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("button", { name: "通知を確認する" }));
+    await expect(canvas.queryByRole("region", { name: "送れなかった通知" })).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: /送れなかった通知が2件/ }));
 
-    const dialog = await body.findByRole("dialog", { name: "送れなかった通知" });
-    const dialogView = within(dialog);
-    await expect(dialogView.getAllByText("佐藤 真由美").length).toBeGreaterThan(0);
+    const notificationItems = await canvas.findByRole("region", { name: "送れなかった通知" });
+    await waitFor(() => expect(within(notificationItems).getByText(/佐藤 真由美さんへシフト募集通知/)).toBeVisible());
+    await expect(within(notificationItems).getAllByRole("button", { name: "再送する" }).length).toBeGreaterThan(0);
 
-    await userEvent.click(dialogView.getAllByRole("button", { name: "メール通知について" })[0]);
-    await dialogView.findByText(/登録メールアドレスに誤りがないか/);
-
-    const closeButtons = dialogView.getAllByRole("button", { name: "閉じる" });
-    await userEvent.click(closeButtons[closeButtons.length - 1]);
-    await waitFor(() => expect(body.queryByRole("dialog", { name: "送れなかった通知" })).not.toBeInTheDocument());
-    await expect(body.queryByText("佐藤 真由美")).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: /送れなかった通知が2件/ }));
+    await waitFor(() => expect(canvas.queryByRole("region", { name: "送れなかった通知" })).not.toBeInTheDocument());
   },
 };
+
+export const MultipleOperationalTodoPanelsBehavior: Story = {
+  args: {
+    ...Normal.args,
+    pendingStaffRequests,
+    notificationFailures,
+    isDashboardOnboardingDismissed: true,
+  },
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.queryByRole("region", { name: "送れなかった通知" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("region", { name: "スタッフ登録申請" })).not.toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole("button", { name: /送れなかった通知が2件/ }));
+    await userEvent.click(canvas.getByRole("button", { name: /スタッフ登録申請が2件/ }));
+
+    const notificationItems = await canvas.findByRole("region", { name: "送れなかった通知" });
+    const registrationItems = await canvas.findByRole("region", { name: "スタッフ登録申請" });
+    await waitFor(() =>
+      expect(within(notificationItems).getAllByRole("button", { name: "再送する" })[0]).toBeVisible(),
+    );
+    await waitFor(() =>
+      expect(within(registrationItems).getAllByRole("button", { name: "承認する" })[0]).toBeVisible(),
+    );
+
+    await userEvent.click(canvas.getByRole("button", { name: /送れなかった通知が2件/ }));
+    await waitFor(() => expect(canvas.queryByRole("region", { name: "送れなかった通知" })).not.toBeInTheDocument());
+    await expect(canvas.getByRole("region", { name: "スタッフ登録申請" })).toBeVisible();
+  },
+};
+
+const expandedOperationalTodoPanelsArgs = {
+  ...Normal.args,
+  pendingStaffRequests,
+  notificationFailures,
+  isDashboardOnboardingDismissed: true,
+};
+
+const expandOperationalTodoPanels = async (canvasElement: HTMLElement) => {
+  const canvas = within(canvasElement);
+  await userEvent.click(canvas.getByRole("button", { name: /送れなかった通知が2件/ }));
+  await userEvent.click(canvas.getByRole("button", { name: /スタッフ登録申請が2件/ }));
+  await canvas.findByRole("region", { name: "送れなかった通知" });
+  await canvas.findByRole("region", { name: "スタッフ登録申請" });
+};
+
+export const ExpandedOperationalTodoPanelsDesktop: Story = {
+  args: expandedOperationalTodoPanelsArgs,
+  play: async ({ canvasElement }) => expandOperationalTodoPanels(canvasElement),
+};
+
+export const ExpandedOperationalTodoPanelsMobile: Story = {
+  args: expandedOperationalTodoPanelsArgs,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  play: async ({ canvasElement }) => expandOperationalTodoPanels(canvasElement),
+};
+
+export const OperationalTodoConfirmationFocusBehavior: Story = {
+  args: expandedOperationalTodoPanelsArgs,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: /スタッフ登録申請が2件/ }));
+    const registrationItems = await canvas.findByRole("region", { name: "スタッフ登録申請" });
+    const trigger = within(registrationItems).getAllByRole("button", { name: /その他の操作$/ })[0];
+    await userEvent.click(trigger);
+    await userEvent.click(await body.findByRole("menuitem", { name: "却下する" }));
+
+    const dialog = await body.findByRole("alertdialog", { name: "スタッフ登録申請を却下しますか？" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "やめる" }));
+    await waitFor(() => expect(trigger).toHaveFocus());
+  },
+};
+
+export const OperationalTodoScopeResetBehavior: Story = {
+  args: Normal.args,
+  parameters: { screenshot: { skip: true } },
+  render: () => <OperationalTodoScopeResetStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(canvas.getByRole("button", { name: /送れなかった通知が2件/ }));
+    await userEvent.click(canvas.getByRole("button", { name: /スタッフ登録申請が2件/ }));
+    await canvas.findByRole("region", { name: "送れなかった通知" });
+    await canvas.findByRole("region", { name: "スタッフ登録申請" });
+
+    await userEvent.click(canvas.getByRole("button", { name: "操作店舗を切り替える" }));
+
+    await waitFor(() => expect(canvas.queryByRole("region", { name: "送れなかった通知" })).not.toBeInTheDocument());
+    await expect(canvas.queryByRole("region", { name: "スタッフ登録申請" })).not.toBeInTheDocument();
+    await expect(canvas.getByRole("heading", { name: "カフェたなか", level: 1 })).toBeVisible();
+  },
+};
+
+function OperationalTodoScopeResetStory() {
+  const [selectedShopIndex, setSelectedShopIndex] = useState(0);
+  const selectedShop = operationContextData.shops[selectedShopIndex] ?? operationShop;
+  const selectedOperationContext = {
+    ...operationContextData,
+    selectedShop,
+  } satisfies OperationContextData;
+
+  return (
+    <>
+      <Button
+        position="fixed"
+        top={2}
+        left={2}
+        zIndex="tooltip"
+        onClick={() => setSelectedShopIndex((current) => (current === 0 ? 1 : 0))}
+      >
+        操作店舗を切り替える
+      </Button>
+      <DashboardContent
+        {...dashboardBaseArgs}
+        operationContextData={selectedOperationContext}
+        recruitments={dashboardRecruitments}
+        currentRecruitments={mockCurrentRecruitments}
+        staffs={mockStaffs}
+        pendingStaffRequests={pendingStaffRequests}
+        notificationFailures={notificationFailures}
+        isDashboardOnboardingDismissed
+      />
+    </>
+  );
+}
 
 export const LegalReconsentRequired: Story = {
   args: {
@@ -354,14 +576,18 @@ export const LegalReconsentRequired: Story = {
 };
 
 export const Loading: Story = {
-  args: {
-    ...Normal.args,
-  },
+  args: singleShopDashboardArgs,
   render: () => (
-    <Box minH="100vh" bg="gray.50" p={{ base: 4, lg: 8 }}>
+    <DashboardPagePreview>
       <DashboardContentSkeleton />
-    </Box>
+    </DashboardPagePreview>
   ),
+};
+
+export const LoadingMobile: Story = {
+  ...Loading,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
 export const StaffLoadingKeepsPrimaryContentBehavior: Story = {
@@ -420,6 +646,43 @@ export const Empty: Story = {
   },
 };
 
+export const RecruitmentCreateReopenResetsBehavior: Story = {
+  args: Empty.args,
+  parameters: { screenshot: { skip: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+    const periodStart = dayjs().add(2, "day");
+    const periodEnd = dayjs().add(4, "day");
+
+    await userEvent.click(canvas.getByRole("button", { name: "新しい募集をつくる" }));
+    const dialog = await body.findByRole("dialog", { name: "新しい募集をつくる" });
+    const dialogView = within(dialog);
+
+    for (const date of [periodStart, periodEnd]) {
+      const iso = date.format("YYYY-MM-DD");
+      const dateButton = Array.from(
+        dialog.querySelectorAll<HTMLButtonElement>('[data-part="table-cell-trigger"]'),
+      ).find((button) => Array.from(button.attributes).some((attribute) => attribute.value.includes(iso)));
+      expect(dateButton, `${iso} の日付ボタン`).toBeDefined();
+      await userEvent.click(dateButton as HTMLButtonElement);
+    }
+
+    await userEvent.click(dialogView.getByRole("button", { name: "次へ" }));
+    await dialogView.findByText("定休日を選択(任意)");
+    await userEvent.click(dialogView.getByRole("button", { name: "閉じる" }));
+    await waitFor(() => expect(body.queryByRole("dialog", { name: "新しい募集をつくる" })).not.toBeInTheDocument());
+
+    await userEvent.click(canvas.getByRole("button", { name: "新しい募集をつくる" }));
+    const reopenedDialog = await body.findByRole("dialog", { name: "新しい募集をつくる" });
+    const reopenedView = within(reopenedDialog);
+    await expect(reopenedView.getByText("シフト期間を選択")).toBeInTheDocument();
+    await expect(reopenedDialog.querySelector('input[name="periodStart"]')).toHaveValue("");
+    await expect(reopenedDialog.querySelector('input[name="periodEnd"]')).toHaveValue("");
+    await expect(reopenedDialog.querySelector("[data-selected]")).not.toBeInTheDocument();
+  },
+};
+
 export const OnboardingBeforeRecruitment: Story = {
   args: {
     ...dashboardBaseArgs,
@@ -465,7 +728,15 @@ export const OnboardingStaffAdded: Story = {
   },
 };
 
+export const OnboardingStaffAddedMobile: Story = {
+  ...OnboardingStaffAdded,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
 export const DismissedOnboardingShowsNextAction: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
   args: {
     ...dashboardBaseArgs,
     recruitments: [],
@@ -480,11 +751,17 @@ export const DismissedOnboardingShowsNextAction: Story = {
     const canvas = within(canvasElement);
 
     await expect(canvas.getByRole("region", { name: "シフトリへようこそ！" })).toBeVisible();
-    await expect(canvas.queryByRole("heading", { name: "TODO" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("heading", { name: "要対応" })).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("link", { name: "ホーム画面にシフトリを追加する（別タブで開きます）" }),
+    ).not.toBeInTheDocument();
 
     await userEvent.click(canvas.getByRole("button", { name: "シフトリへようこそを閉じる" }));
 
-    await expect(await canvas.findByRole("heading", { name: "TODO" })).toBeVisible();
+    await expect(await canvas.findByRole("heading", { name: "要対応" })).toBeVisible();
+    await expect(
+      await canvas.findByRole("link", { name: "ホーム画面にシフトリを追加する（別タブで開きます）" }),
+    ).toBeVisible();
     await expect(canvas.queryByRole("region", { name: "シフトリへようこそ！" })).not.toBeInTheDocument();
   },
 };
@@ -512,27 +789,17 @@ export const PendingRequestsShowNextActionDuringOnboarding: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const body = within(document.body);
-    const reviewButton = await canvas.findByRole("button", { name: "申請を確認" });
+    const reviewButton = await canvas.findByRole("button", { name: /スタッフ登録申請が2件/ });
 
-    await expect(canvas.queryByText("田中 花子")).not.toBeInTheDocument();
-    await expect(canvas.queryByText("hanako@example.com")).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("region", { name: "スタッフ登録申請" })).not.toBeInTheDocument();
     await expect(canvas.queryByRole("region", { name: "シフトリへようこそ！" })).not.toBeInTheDocument();
 
     await userEvent.click(reviewButton);
 
-    const dialog = await body.findByRole("dialog", { name: "スタッフ登録申請" });
-    const dialogView = within(dialog);
-    await expect((await dialogView.findAllByText("田中 花子")).length).toBeGreaterThan(0);
-    await expect((await dialogView.findAllByText("hanako@example.com")).length).toBeGreaterThan(0);
-    await expect(dialogView.getAllByRole("button", { name: "田中 花子を承認" }).length).toBeGreaterThan(0);
-    await expect(dialogView.getAllByRole("button", { name: "田中 花子を却下" }).length).toBeGreaterThan(0);
-
-    const closeButtons = dialogView.getAllByRole("button", { name: "閉じる" });
-    await userEvent.click(closeButtons[closeButtons.length - 1]);
-    await waitFor(() => expect(body.queryByRole("dialog", { name: "スタッフ登録申請" })).not.toBeInTheDocument());
-    await expect(body.queryByText("田中 花子")).not.toBeInTheDocument();
-    await expect(body.queryByText("hanako@example.com")).not.toBeInTheDocument();
+    const requestItems = await canvas.findByRole("region", { name: "スタッフ登録申請" });
+    await waitFor(() => expect(within(requestItems).getByText(/田中 花子さんからスタッフ登録申請/)).toBeVisible());
+    await expect(within(requestItems).queryByText("hanako@example.com")).not.toBeInTheDocument();
+    await expect(within(requestItems).getAllByRole("button", { name: "承認する" }).length).toBeGreaterThan(0);
   },
 };
 
@@ -598,6 +865,24 @@ export const SetupMobile: Story = {
   },
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
+export const SetupAppCompositionDesktop: Story = {
+  name: "初回Setup・新shell・デスクトップ",
+  args: Setup.args,
+  parameters: { vrt: { releaseFixedHeader: true } },
+  render: (args) => (
+    <DashboardAppShellPreview>
+      <DashboardContent {...args} />
+    </DashboardAppShellPreview>
+  ),
+};
+
+export const SetupAppCompositionMobile: Story = {
+  ...SetupAppCompositionDesktop,
+  name: "初回Setup・新shell・モバイル414px",
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
 export const SetupDialogBehavior: Story = {

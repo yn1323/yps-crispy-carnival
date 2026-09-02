@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { getDeadlineCutoff, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { staffSessionQuery } from "../_lib/functions";
 import { getPreviousDateOnlyPattern, getPreviousWeeklyPattern } from "../_lib/previousWeeklyPattern";
+import { sessionMatchesAccessKind } from "../_lib/staffAccess";
 import {
   getSubmissionPatternTimeRange,
   type ShiftSubmissionPattern,
@@ -9,24 +10,22 @@ import {
 } from "../_lib/submissionPattern";
 import { getLegalDocumentsForAudience } from "../legal/documents";
 import { hasCurrentStaffLegalConsent } from "../legal/service";
+import { staffLegalDocumentsValidator } from "../legal/validators";
+import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 
 type ExistingRequest = { date: string; startTime: string; endTime: string; optionId?: string };
-type SubmissionUnavailableReason = "invalid_link" | "recruitment_deleted" | "submission_closed";
+type SubmissionUnavailableReason =
+  | "invalid_link"
+  | "recruitment_deleted"
+  | "submission_closed"
+  | "usage_limit_exceeded"
+  | "usage_limit_evaluation_unavailable";
 
 const existingRequestValidator = v.object({
   date: v.string(),
   startTime: v.string(),
   endTime: v.string(),
   optionId: v.optional(v.string()),
-});
-
-const legalDocumentValidator = v.object({
-  audience: v.union(v.literal("manager"), v.literal("staff")),
-  kind: v.union(v.literal("terms"), v.literal("privacy")),
-  title: v.string(),
-  documentVersion: v.string(),
-  requiredConsentVersion: v.string(),
-  path: v.string(),
 });
 
 const submissionPageDataValidator = v.object({
@@ -54,10 +53,7 @@ const submissionPageDataValidator = v.object({
     }),
   ),
   legalConsentRequired: v.boolean(),
-  legalDocuments: v.object({
-    terms: legalDocumentValidator,
-    privacy: legalDocumentValidator,
-  }),
+  legalDocuments: staffLegalDocumentsValidator,
   timeRange: v.object({ startTime: v.string(), endTime: v.string() }),
   previousWeeklyPattern: v.union(
     v.object({
@@ -71,6 +67,10 @@ const submissionPageDataValidator = v.object({
 
 function unavailable(reason: SubmissionUnavailableReason) {
   return { status: "unavailable" as const, reason };
+}
+
+function submissionResultUnavailable() {
+  return { status: "unavailable" as const };
 }
 
 function buildExistingSelection(pattern: ShiftSubmissionPattern, requests: ExistingRequest[], dates: string[]) {
@@ -112,7 +112,13 @@ export const getSubmissionPageData = staffSessionQuery({
   returns: v.union(
     v.object({
       status: v.literal("unavailable"),
-      reason: v.union(v.literal("invalid_link"), v.literal("recruitment_deleted"), v.literal("submission_closed")),
+      reason: v.union(
+        v.literal("invalid_link"),
+        v.literal("recruitment_deleted"),
+        v.literal("submission_closed"),
+        v.literal("usage_limit_exceeded"),
+        v.literal("usage_limit_evaluation_unavailable"),
+      ),
     }),
     v.object({ status: v.literal("ok"), data: submissionPageDataValidator }),
   ),
@@ -133,6 +139,15 @@ export const getSubmissionPageData = staffSessionQuery({
     const now = Date.now();
     if (now >= getSubmitLinkCutoff(recruitment.periodStart)) {
       return unavailable("submission_closed");
+    }
+    const organizationAccess = ctx.shop.organizationId
+      ? await getOrganizationAccessPolicy(ctx, ctx.shop.organizationId)
+      : null;
+    if (organizationAccess?.usageLimitStatus?.kind === "overLimit") {
+      return unavailable("usage_limit_exceeded");
+    }
+    if (organizationAccess?.usageLimitStatus?.kind === "unknown") {
+      return unavailable("usage_limit_evaluation_unavailable");
     }
 
     const isBeforeDeadline = now < getDeadlineCutoff(recruitment.deadline);
@@ -196,5 +211,42 @@ export const getSubmissionPageData = staffSessionQuery({
             : null,
       },
     };
+  },
+});
+
+/** 提出完了画面で、保存済みsubmit sessionと提出済みの事実を照合する。 */
+export const getSubmissionResult = staffSessionQuery({
+  args: { recruitmentId: v.string() },
+  returns: v.union(
+    v.object({ status: v.literal("submitted"), shopName: v.string() }),
+    v.object({ status: v.literal("unavailable") }),
+  ),
+  handler: async (ctx, { recruitmentId }) => {
+    if (!ctx.staff || !ctx.shop || !ctx.session) return submissionResultUnavailable();
+    // staffSessionQueryのaccessKindはcaller入力なので、このqueryが要求する用途をhandlerでも固定する。
+    if (!sessionMatchesAccessKind(ctx.session, "submit")) return submissionResultUnavailable();
+
+    const normalizedInput = recruitmentId.trim();
+    if (normalizedInput.length === 0 || normalizedInput.length > 128) return submissionResultUnavailable();
+    const normalizedRecruitmentId = ctx.db.normalizeId("recruitments", normalizedInput);
+    if (!normalizedRecruitmentId || ctx.session.recruitmentId !== normalizedRecruitmentId) {
+      return submissionResultUnavailable();
+    }
+
+    const recruitment = await ctx.db.get(normalizedRecruitmentId);
+    if (!recruitment || recruitment.isDeleted || recruitment.shopId !== ctx.shop._id) {
+      return submissionResultUnavailable();
+    }
+
+    const staffId = ctx.staff._id;
+    const submission = await ctx.db
+      .query("shiftSubmissions")
+      .withIndex("by_recruitmentId_staffId", (q) =>
+        q.eq("recruitmentId", normalizedRecruitmentId).eq("staffId", staffId),
+      )
+      .first();
+    if (!submission) return submissionResultUnavailable();
+
+    return { status: "submitted" as const, shopName: ctx.shop.name };
   },
 });

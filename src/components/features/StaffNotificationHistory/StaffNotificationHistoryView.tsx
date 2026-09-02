@@ -16,6 +16,7 @@ export type StaffNotificationHistoryViewProps = {
   canLoadMore?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
+  lineConnectionStatus?: "linked" | "unlinked";
 };
 
 const STATUS_PALETTE: Record<StaffNotificationHistoryStatusTone, "gray" | "blue" | "green" | "orange" | "red"> = {
@@ -33,12 +34,27 @@ export function StaffNotificationHistoryView({
   canLoadMore = false,
   isLoadingMore = false,
   onLoadMore,
+  lineConnectionStatus,
 }: StaffNotificationHistoryViewProps) {
   return (
     <Stack as="section" aria-labelledby="staff-notification-history-heading" gap={4}>
-      <Heading id="staff-notification-history-heading" as="h3" fontSize="md" fontWeight="semibold">
-        通知履歴
-      </Heading>
+      <Flex align="center" justify="space-between" gap={3}>
+        <Heading id="staff-notification-history-heading" as="h3" fontSize="md" fontWeight="semibold">
+          通知履歴
+        </Heading>
+        {lineConnectionStatus && (
+          <Badge
+            colorPalette={lineConnectionStatus === "linked" ? "green" : "gray"}
+            variant="subtle"
+            borderRadius="full"
+            px={2.5}
+            py={1}
+            whiteSpace="nowrap"
+          >
+            {lineConnectionStatus === "linked" ? "LINE連携済み" : "LINE未連携"}
+          </Badge>
+        )}
+      </Flex>
 
       {isLoading ? (
         <StaffNotificationHistorySkeleton />

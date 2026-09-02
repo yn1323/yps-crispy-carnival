@@ -1,9 +1,10 @@
-import { Alert, Box, Flex, Icon, Input, Link, Separator, Text } from "@chakra-ui/react";
+import { Alert, Box, Flex, Icon, Link, Separator, Text } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { type ComponentProps, type ReactNode, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 import { LuEye, LuEyeOff } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
+import { Input } from "@/src/components/ui/FormControls";
 
 type AuthRoutePath = "/login" | "/signup" | "/forgot-password";
 
@@ -32,9 +33,9 @@ export const OAuthSection = ({ label, isLineBrowser, isSubmitting, onClick }: OA
       <Alert.Root status="warning" borderRadius="lg">
         <Alert.Indicator />
         <Alert.Description>
-          LINEアプリ内では、Googleログインを利用できません。
+          LINEアプリからGoogleログインを利用できません。
           <br />
-          Googleのボタンを押すと、このページを外部ブラウザで開き直します。
+          ブラウザで開き直してください。
         </Alert.Description>
       </Alert.Root>
     )}

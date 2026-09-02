@@ -11,12 +11,15 @@ import {
   buildNotificationFailureReminderLineText,
   buildOrganizationBillingEmailHtml,
   buildOrganizationManagerInvitationEmailHtml,
+  buildOrganizationManagerInvitationLineText,
   buildRecruitmentEmailHtml,
+  buildRecruitmentEmailSubject,
   buildRecruitmentLineFlexMessage,
   buildRecruitmentLineText,
   buildReissueEmailHtml,
   buildReissueLineFlexMessage,
   buildReminderEmailHtml,
+  buildReminderEmailSubject,
   buildReminderLineFlexMessage,
   buildReminderLineText,
   buildShiftConfirmationLineFlexMessage,
@@ -33,7 +36,11 @@ import {
   buildStaffRegistrationOwnerDigestLineFlexMessage,
   buildStaffRegistrationOwnerDigestLineText,
   type NotificationLineFlexMessage,
+  ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA,
+  ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING,
+  ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT,
   SHOP_ACTIVATION_REMINDER_SUBJECT,
+  STAFF_LEGAL_CONSENT_SUBJECT,
   STAFF_REGISTRATION_OWNER_DIGEST_SUBJECT,
 } from "./templates";
 
@@ -49,11 +56,29 @@ describe("notification/templates", () => {
       name: "事業者管理者招待",
       build: () =>
         buildOrganizationManagerInvitationEmailHtml({
+          recipientName: dangerousText,
           organizationName: dangerousText,
           inviterName: dangerousText,
+          appUrl: dangerousUrl,
+          helpUrl: dangerousUrl,
           invitationUrl: dangerousUrl,
         }),
-      staticMarkup: ["招待を確認する", "このリンクは7日間有効で、一度だけ使用できます。"],
+      staticMarkup: [
+        "1. シフトリとは？",
+        "スタッフの希望収集からシフト作成・共有までを支えるシフト管理サービスです。",
+        "シフトリを見る",
+        "2. 管理者になるとできること",
+        "希望シフトの募集",
+        "シフトの調整",
+        "シフトの確定",
+        "スタッフ管理",
+        "店舗作成など",
+        "3. シフトリの管理者になる操作手順",
+        "管理者になるためには、アカウント登録が必要です。",
+        "シフトリの管理者招待を受け取る",
+        "このリンクは7日間有効です。",
+        "シフトリのヘルプページを見る",
+      ],
     },
     {
       name: "事業者課金",
@@ -89,10 +114,10 @@ describe("notification/templates", () => {
           deadline: dangerousText,
           magicLinkUrl: dangerousUrl,
         }),
-      staticMarkup: ["<strong>提出締切：</strong>"],
+      staticMarkup: ["<strong>提出期限：</strong>"],
     },
     {
-      name: "提出締切案内",
+      name: "提出期限案内",
       build: () =>
         buildReminderEmailHtml({
           staffName: dangerousText,
@@ -100,7 +125,7 @@ describe("notification/templates", () => {
           linkExpiresAtLabel: dangerousText,
           magicLinkUrl: dangerousUrl,
         }),
-      staticMarkup: ["<strong>提出締切：</strong>"],
+      staticMarkup: ["<strong>提出期限：</strong>"],
     },
     {
       name: "LINE連携",
@@ -119,7 +144,7 @@ describe("notification/templates", () => {
           managerName: dangerousText,
           dashboardUrl: dangerousUrl,
         }),
-      staticMarkup: ["ダッシュボードを確認する"],
+      staticMarkup: ["シフトリで確認する"],
     },
     {
       name: "通知失敗",
@@ -128,7 +153,7 @@ describe("notification/templates", () => {
           managerName: dangerousText,
           dashboardUrl: dangerousUrl,
         }),
-      staticMarkup: ["通知を送れなかったスタッフがいます。"],
+      staticMarkup: ["正常に送信できなかった通知があります。", "詳細はシフトリを確認してください。"],
     },
     {
       name: "店舗登録後リマインド",
@@ -137,7 +162,7 @@ describe("notification/templates", () => {
           managerName: dangerousText,
           dashboardUrl: dangerousUrl,
         }),
-      staticMarkup: ["シフト募集をつくる"],
+      staticMarkup: ["シフトリでシフトを作成する"],
     },
     {
       name: "シフト確定リマインド",
@@ -148,7 +173,7 @@ describe("notification/templates", () => {
           deadlineLabel: dangerousText,
           dashboardUrl: dangerousUrl,
         }),
-      staticMarkup: ["<strong>提出締切：</strong>"],
+      staticMarkup: ["<strong>提出期限：</strong>"],
     },
     {
       name: "スタッフ法務同意",
@@ -160,7 +185,7 @@ describe("notification/templates", () => {
           expiresAt: new Date("2026-05-31T12:00:00+09:00").getTime(),
           documents: LEGAL_DOCUMENTS.staff,
         }),
-      staticMarkup: ["案内と規約を確認する"],
+      staticMarkup: ["シフトリの使い方を確認する"],
     },
     {
       name: "シフト閲覧リンク再発行",
@@ -184,9 +209,105 @@ describe("notification/templates", () => {
     expect(html).not.toContain("&amp;amp;next=");
     expect(html).toContain("店舗");
     expect(html).toContain("😀");
+    expect(html.match(/<!DOCTYPE html>/g)).toHaveLength(1);
+    expect(html.match(/max-width:480px/g)).toHaveLength(1);
+    expect(html.match(/background-color:#319795;padding:16px 24px/g)).toHaveLength(1);
     for (const markup of staticMarkup) {
       expect(html).toContain(markup);
     }
+  });
+
+  it("管理者招待メールは受取人から始まり、案内と各リンクを操作順に表示する", () => {
+    const html = buildOrganizationManagerInvitationEmailHtml({
+      recipientName: "佐藤 店長",
+      organizationName: "さくらフードサービス",
+      inviterName: "鈴木 花子",
+      appUrl: "https://shiftori.app",
+      helpUrl: "https://shiftori.app/help",
+      invitationUrl: "https://shiftori.app/manager-invite?token=test-token",
+    });
+
+    const recipientIndex = html.indexOf("佐藤 店長さん");
+    const invitationSourceIndex = html.indexOf("さくらフードサービスの鈴木 花子さんから、管理者として招待されました。");
+    const serviceDescriptionIndex = html.indexOf(
+      "スタッフの希望収集からシフト作成・共有までを支えるシフト管理サービスです。",
+    );
+    const appLinkIndex = html.indexOf(">シフトリを見る</a>");
+    const capabilityHeadingIndex = html.indexOf("2. 管理者になるとできること");
+    const capabilityListIndex = html.indexOf("希望シフトの募集");
+    const procedureHeadingIndex = html.indexOf("3. シフトリの管理者になる操作手順");
+    const accountRequirementIndex = html.indexOf("管理者になるためには、アカウント登録が必要です。");
+    const procedureStepIndex = html.indexOf("「シフトリの管理者招待を受け取る」ボタンを押す");
+
+    expect(recipientIndex).toBeGreaterThan(-1);
+    expect(recipientIndex).toBeLessThan(invitationSourceIndex);
+    expect(serviceDescriptionIndex).toBeLessThan(appLinkIndex);
+    expect(appLinkIndex).toBeLessThan(capabilityHeadingIndex);
+    expect(capabilityHeadingIndex).toBeLessThan(capabilityListIndex);
+    expect(capabilityListIndex).toBeLessThan(procedureHeadingIndex);
+    expect(procedureHeadingIndex).toBeLessThan(accountRequirementIndex);
+    expect(accountRequirementIndex).toBeLessThan(procedureStepIndex);
+    expect(html.match(/管理者として招待されました/g)).toHaveLength(1);
+    expect(html).toContain('font-weight:700;color:#1a202c;">1. シフトリとは？</p>');
+    expect(html).toContain('font-weight:700;color:#1a202c;">2. 管理者になるとできること</p>');
+    expect(html).toContain('font-weight:700;color:#1a202c;">3. シフトリの管理者になる操作手順</p>');
+    expect(html).toContain("シフトの調整");
+    expect(html).toContain("シフトの確定");
+    expect(html).toContain("スタッフ管理");
+    expect(html).toContain("店舗作成など");
+    expect(html).not.toContain("管理者はシフトリへのアカウント登録が必要となります。");
+    expect(html).not.toContain("すでに登録済みのアカウントがある場合は");
+    expect(html).toContain("「シフトリの管理者招待を受け取る」ボタンを押す");
+    expect(html).toContain("シフトリでアカウントを作成する<br />（すでにお持ちの場合はログインする）");
+    expect(html).toContain('href="https://shiftori.app"');
+    expect(html).toContain(">シフトリを見る</a>");
+    expect(html).toContain(
+      'href="https://shiftori.app/manager-invite?token=test-token" style="display:inline-block;padding:12px 32px;background-color:#319795;color:#ffffff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;" rel="noreferrer">シフトリの管理者招待を受け取る</a>',
+    );
+    expect(html).toContain('href="https://shiftori.app/help"');
+    expect(html).toContain("このリンクは7日間有効です。");
+    expect(html).not.toContain("一度だけ使用できます。");
+  });
+
+  it("管理者招待LINEは組織名と外部ブラウザ指定付き招待URLを表示する", () => {
+    expect(
+      buildOrganizationManagerInvitationLineText({
+        organizationName: "さくらフードサービス",
+        invitationUrl: "https://shiftori.app/manager-invite?token=test-token",
+      }),
+    ).toBe(
+      [
+        "さくらフードサービスの管理者として招待されました。",
+        "ログインして、アカウント連携を完了してください。",
+        "https://shiftori.app/manager-invite?token=test-token&openExternalBrowser=1",
+      ].join("\n"),
+    );
+  });
+
+  it("管理者連携完了メールは完了文を通常サイズで表示し、補足文を表示しない", () => {
+    const html = buildOrganizationBillingEmailHtml({
+      recipientName: "佐藤 店長",
+      organizationName: "さくらフードサービス",
+      heading: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING,
+      headingSize: "normal",
+      paragraphs: [],
+      action: { label: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA, url: "https://shiftori.app/manage/managers" },
+    });
+
+    expect(html).toContain(
+      `font-size:15px;font-weight:700;color:#1a202c;">${ORGANIZATION_MANAGER_INVITATION_ACCEPTED_HEADING}</p>`,
+    );
+    expect(html).not.toContain('font-size:18px;font-weight:700;color:#1a202c;">');
+    expect(html).not.toContain("新しい管理者のアカウントが組織に連携されました。");
+    expect(html).toContain(`>${ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA}</a>`);
+    expect(ORGANIZATION_MANAGER_INVITATION_ACCEPTED_SUBJECT).toBe("管理者アカウント連携が完了しました");
+  });
+
+  it("募集開始と未提出リマインダーの件名は本番とPreviewで共有できる文言を返す", () => {
+    expect(buildRecruitmentEmailSubject("7/2(木)〜7/30(木)")).toBe("7/2(木)〜7/30(木) 希望シフトの提出をお願いします");
+    expect(buildReminderEmailSubject("7/2(木)〜7/30(木)")).toBe(
+      "7/2(木)〜7/30(木) 希望シフトの提出期限が近づいています",
+    );
   });
 
   it("メール本文の文間改行はHTMLをescapeしたまま表示改行へ変換する", () => {
@@ -221,19 +342,16 @@ describe("notification/templates", () => {
 
     expect(billingHtml).toContain(`最初の文です。<br />${escapedText}`);
     expect(billingHtml).not.toContain("最初の文です。\n");
+    expect(inviteHtml).toContain("スタッフ登録が承認されました。<br />シフトのお知らせをLINEで受け取れます。");
     expect(inviteHtml).toContain(
-      "スタッフ登録が承認されました。<br />LINEと連携すると、シフトのお知らせをLINEで受け取れます。",
+      "下記ボタンからLINEと連携してください。<br />メールで受け取りを希望される場合は、無視してください。",
     );
     expect(reLinkCta).toContain(
-      "シフトリ公式アカウントの友だち追加が解除されています。<br />もう一度友だち追加すると、シフトのお知らせをLINEで受け取れます。<br />LINEで送れない場合は、メールでお知らせすることがあります。",
+      "シフトリ公式アカウントの友だち追加が解除されています。<br />LINE通知を受け取るには、友達してください。",
     );
-    expect(inviteHtml).toContain(
-      "LINEと連携すると、シフトのお知らせをLINEで送ります。<br />LINEで送れない場合は、メールでお知らせすることがあります。",
-    );
-    expect(legalConsentHtml).toContain(
-      "このリンクの期限が切れても、次回のシフト提出時に確認して同意できます。<br />お知らせは同意前でも送られます。",
-    );
-    expect(reissueHtml).toContain("このリンクは24時間有効です。<br />リンクを開くと14日間閲覧できます。");
+    expect(inviteHtml).not.toContain("LINE連携は同じ組織の所属店舗で共通です。");
+    expect(legalConsentHtml).toContain("詳細はリンクから確認ください。");
+    expect(reissueHtml).toContain("このリンクは24時間有効です。<br />全員分のシフトは14日間閲覧可能です。");
   });
 
   it("LINE CTAは内部生成したHTMLを維持し、authorizeUrlだけをescapeする", () => {
@@ -253,11 +371,130 @@ describe("notification/templates", () => {
     expect(emailHtml).not.toContain("&lt;table");
   });
 
-  it("LINE連携案内はLINEで送れない場合のメール通知を正確に伝える", () => {
+  it("募集開始通知は提出期限前の訂正文をメールとLINEで共通表示する", () => {
+    const params = {
+      staffName: "田中太郎",
+      shopName: "テスト店舗",
+      periodLabel: "7/2(木)〜7/30(木)",
+      deadline: "6/25(金) 23:59",
+      magicLinkUrl: "https://example.com/shifts/submit?token=test",
+    };
+    const emailHtml = buildRecruitmentEmailHtml(params);
+    const lineText = buildRecruitmentLineText(params);
+    const flex = buildRecruitmentLineFlexMessage(params);
+    const copy = `${emailHtml}\n${lineText}\n${flex.altText}\n${flexTexts(flex).join("\n")}`;
+
+    expect(copy).toContain("提出後も提出期限まではリンクから訂正が可能です。");
+    expect(copy).toContain("希望シフトを提出する");
+    expect(copy).not.toContain("上記リンク");
+    expect(copy).not.toContain("提出済みの内容は、");
+  });
+
+  it("提出期限リマインダーは指定文言とCTAをメールとLINEで共通表示する", () => {
+    const params = {
+      staffName: "田中太郎",
+      shopName: "テスト店舗",
+      periodLabel: "7/2(木)〜7/30(木)",
+      linkExpiresAtLabel: "6/25(金) 23:59",
+      magicLinkUrl: "https://example.com/shifts/submit?token=test",
+    };
+    const emailHtml = buildReminderEmailHtml(params);
+    const lineText = buildReminderLineText(params);
+    const flex = buildReminderLineFlexMessage(params);
+    const copy = `${emailHtml}\n${lineText}\n${flex.altText}\n${flexTexts(flex).join("\n")}`;
+
+    expect(copy).toContain("7/2(木)〜7/30(木)の希望シフトの提出期限が近づいています。");
+    expect(copy).toContain("提出期限までに提出をお願いします。");
+    expect(copy).toContain("希望シフトを提出する");
+    expect(copy).toContain("提出後も提出期限まではリンクから訂正が可能です。");
+    expect(copy).not.toContain("上記リンク");
+  });
+
+  it("シフト確定リマインダーは調整・確定の案内をメールとLINEで共通表示する", () => {
+    const params = {
+      periodLabel: "7/2(木)〜7/30(木)",
+      deadlineLabel: "6/30(火) 23:59",
+      dashboardUrl: "https://shiftori.app/dashboard",
+    };
+    const emailHtml = buildShiftConfirmationReminderEmailHtml({ managerName: "佐藤 店長", ...params });
+    const lineText = buildShiftConfirmationReminderLineText(params);
+    const flex = buildShiftConfirmationReminderLineFlexMessage({ shopName: "テスト店舗", ...params });
+    const copy = `${emailHtml}\n${lineText}\n${flex.altText}\n${flexTexts(flex).join("\n")}`;
+
+    expect(copy).toContain("7/2(木)〜7/30(木)の希望シフトは提出期限を過ぎました。");
+    expect(emailHtml).toContain("<strong>提出期限：</strong> 6/30(火) 23:59（期限超過）");
+    expect(copy).toContain("シフトの調整・確定してください。");
+    expect(copy).not.toContain("スタッフの希望を確認し、");
+  });
+
+  it("通知失敗案内は失敗内容とシフトリで確認するCTAを表示する", () => {
+    const emailHtml = buildNotificationFailureReminderEmailHtml({
+      managerName: "佐藤 店長",
+      dashboardUrl: "https://shiftori.app/dashboard",
+    });
+    const flex = buildNotificationFailureReminderLineFlexMessage({
+      shopName: "テスト店舗",
+      dashboardUrl: "https://shiftori.app/dashboard",
+    });
+
+    expect(emailHtml).toContain("正常に送信できなかった通知があります。<br />詳細はシフトリを確認してください。");
+    expect(emailHtml).toContain(">シフトリで確認する</a>");
+    expect(emailHtml).toContain("このメールは送信専用です。<br />返信しても届きません。");
+    expect(flexTexts(flex)).toEqual(
+      expect.arrayContaining([
+        "テスト店舗\n⚠️ 一部通知に失敗",
+        "正常に送信できなかった通知があります。",
+        "詳細はシフトリを確認してください。",
+      ]),
+    );
+    expect(flexButtonLabels(flex)).toContain("シフトリで確認する");
+  });
+
+  it("メールフッターは受信者と通知用途に応じた案内だけを表示する", () => {
+    const staffQuestions = buildRecruitmentEmailHtml({
+      staffName: "田中太郎",
+      periodLabel: "7/2(木)〜7/30(木)",
+      deadline: "6/25(金) 23:59",
+      magicLinkUrl: "https://example.com/shifts/submit?token=test",
+    });
+    const staffQuestionsAndChanges = buildReissueEmailHtml({
+      staffName: "田中太郎",
+      periodLabel: "7/2(木)〜7/30(木)",
+      magicLinkUrl: "https://example.com/shifts/view?token=test",
+    });
+    const staffReplyOnly = buildStaffLegalConsentEmailHtml({
+      staffName: "田中太郎",
+      shopName: "テスト店舗",
+      consentUrl: "https://example.com/legal/consent?token=test",
+      expiresAt: new Date("2026-05-31T12:00:00+09:00").getTime(),
+      documents: LEGAL_DOCUMENTS.staff,
+    });
+    const lineInvite = buildLineInviteEmailHtml({
+      staffName: "田中太郎",
+      shopName: "テスト店舗",
+      authorizeUrl: "https://example.com/line/authorize",
+    });
+
+    expect(staffQuestions).toContain("シフトに関する質問は、シフト作成担当者に連絡してください。");
+    expect(staffQuestions).not.toContain("質問や変更希望");
+    expect(staffQuestionsAndChanges).toContain("シフトに関する質問や変更希望は、シフト作成担当者に連絡してください。");
+    expect(staffReplyOnly).not.toContain("シフトに関する質問");
+    expect(staffReplyOnly).toContain("このメールに返信しても、シフト作成担当者には届きません。");
+    expect(lineInvite).toContain("テスト店舗が利用しているシフト管理サービスです。");
+    expect(lineInvite).toContain("このメールに返信しても、シフト作成担当者には届きません。");
+  });
+
+  it("LINE連携案内は共通文言とメール受け取りの選択肢を表示する", () => {
     const inviteHtml = buildLineInviteEmailHtml({
       staffName: "田中太郎",
       shopName: "テスト店舗",
       authorizeUrl: "https://example.com/line/authorize",
+    });
+    const approvedInviteHtml = buildLineInviteEmailHtml({
+      staffName: "田中太郎",
+      shopName: "テスト店舗",
+      authorizeUrl: "https://example.com/line/authorize",
+      context: "registration_approved",
     });
     const initialCta = buildLineCtaSection({
       authorizeUrl: "https://example.com/line/authorize",
@@ -268,14 +505,25 @@ describe("notification/templates", () => {
       reLink: true,
     });
 
-    for (const html of [inviteHtml, initialCta, reLinkCta]) {
-      expect(html).toContain("LINEで送れない場合は、メールでお知らせすることがあります。");
-      expect(html).not.toContain("次回からメールではなく");
+    for (const html of [inviteHtml, approvedInviteHtml]) {
+      expect(html).toContain("シフトのお知らせをLINEで受け取れます。");
+      expect(html).toContain(
+        "下記ボタンからLINEと連携してください。<br />メールで受け取りを希望される場合は、無視してください。",
+      );
+      expect(html).toContain("LINE連携リンクは72時間有効です。");
+      expect(html).toContain("シフト作成担当者に連絡してください。");
+      expect(html).not.toContain("LINE連携は同じ組織の所属店舗で共通です。");
     }
-    expect(reLinkCta).toContain("もう一度友だち追加すると、シフトのお知らせをLINEで受け取れます。");
+    expect(approvedInviteHtml).toContain("スタッフ登録が承認されました。<br />シフトのお知らせをLINEで受け取れます。");
+    expect(inviteHtml).not.toContain("スタッフ登録が承認されました。");
+    expect(initialCta).toContain("シフトのお知らせをLINEでも受け取れます。");
+    expect(initialCta).not.toContain("LINE連携は同じ組織の所属店舗で共通です。");
+    expect(reLinkCta).toContain(
+      "シフトリ公式アカウントの友だち追加が解除されています。<br />LINE通知を受け取るには、友達してください。",
+    );
   });
 
-  it("法務同意案内は通知用途、確認操作、期限後の同意方法を簡潔に伝える", () => {
+  it("法務同意案内は利用用途、確認操作、期限を簡潔に伝える", () => {
     const expiresAt = new Date("2026-05-31T12:00:00+09:00").getTime();
     const emailHtml = buildStaffLegalConsentEmailHtml({
       staffName: "田中太郎",
@@ -292,12 +540,14 @@ describe("notification/templates", () => {
     });
     const copy = `${emailHtml}\n${flex.altText}\n${flexTexts(flex).join("\n")}`;
 
-    expect(copy).toContain("シフト希望の提出依頼や確定シフトのお知らせにシフトリを利用します。");
-    expect(copy).toContain("次回のシフト提出時に確認して同意できます。");
-    expect(copy).toContain("お知らせは同意前でも送られます。");
+    expect(copy).toContain("テスト店舗では、シフトの回収・共有に「シフトリ」を利用します。");
+    expect(copy).toContain("詳細はリンクから確認ください。");
+    expect(copy).toContain("このリンクは2026/5/31 12:00まで有効です。");
     expect(copy).not.toContain("シフトリでは、メール・LINEで届くリンクから");
-    expect(emailHtml).toContain(">案内と規約を確認する</a>");
-    expect(flexButtonLabels(flex)).toContain("案内と規約を確認する");
+    expect(emailHtml).toContain(">シフトリの使い方を確認する</a>");
+    expect(flexTexts(flex)).toContain("テスト店舗\n📄 シフトリの使い方のご案内");
+    expect(STAFF_LEGAL_CONSENT_SUBJECT).toBe("シフトリの使い方のご案内");
+    expect(flexButtonLabels(flex)).toContain("シフトリの使い方を確認する");
   });
 
   it("magic linkを含む対象3リンクにnoreferrerを付ける", () => {
@@ -360,6 +610,7 @@ describe("notification/templates", () => {
     expect(emailHtml).toContain("遅番（15:00-22:00）");
     expect(emailHtml).toContain("21:00-翌1:00");
     expect(emailHtml).toContain("休み");
+    expect(emailHtml).toContain("全員分のシフトは14日間閲覧可能です。");
   });
 
   it("確定通知Flexはfallback textをaltTextにし、勤務行とCTA URLを保持する", () => {
@@ -482,19 +733,19 @@ describe("notification/templates", () => {
     const confirmationReminder = buildShiftConfirmationReminderLineText({
       periodLabel: "7/2(木)〜7/30(木)",
       deadlineLabel: "6/30(火) 23:59",
-      dashboardUrl: "https://shiftori.app/dashboard",
+      dashboardUrl: "https://shiftori.app/dashboard?org=org_target&shop=shop_target",
     });
     const failure = buildNotificationFailureReminderLineText({
-      dashboardUrl: "https://shiftori.app/dashboard",
+      dashboardUrl: "https://shiftori.app/dashboard?org=org_target&shop=shop_target",
     });
     const shopActivation = buildShopActivationReminderLineText({
-      dashboardUrl: "https://shiftori.app/dashboard",
+      dashboardUrl: "https://shiftori.app/dashboard?org=org_target&shop=shop_target",
     });
 
     expect(recruitment.startsWith("📩 シフト提出のお願い\n")).toBe(true);
-    expect(reminder.startsWith("🔔 提出締切が近づいています\n")).toBe(true);
-    expect(confirmationReminder.startsWith("⏰ 提出締切を過ぎています\n")).toBe(true);
-    expect(failure.startsWith("⚠️ 送れなかった通知\n")).toBe(true);
+    expect(reminder.startsWith("🔔 提出期限が近づいています\n")).toBe(true);
+    expect(confirmationReminder.startsWith("⏰ 提出期限を過ぎています\n")).toBe(true);
+    expect(failure.startsWith("⚠️ 一部通知に失敗\n")).toBe(true);
     expect(shopActivation.startsWith("📅 シフト作成の続き\n")).toBe(true);
     // ⚠️ は対応必須の通知失敗のみ。他の種別には使わない
     expect(recruitment).not.toContain("⚠️");
@@ -504,7 +755,7 @@ describe("notification/templates", () => {
   });
 
   it("各Flex通知はtype, altText, 主要文言, CTA URLを保持する", () => {
-    const dashboardUrl = "https://shiftori.app/dashboard?shop=shop_target";
+    const dashboardUrl = "https://shiftori.app/dashboard?org=org_target&shop=shop_target";
     const submitUrl = "https://example.com/shifts/submit?token=test";
     const flexMessages = [
       {
@@ -516,8 +767,8 @@ describe("notification/templates", () => {
           magicLinkUrl: submitUrl,
         }),
         title: "テスト店舗\n📩 シフト提出のお願い",
-        text: "提出締切：6/25(金) 23:59",
-        label: "シフト希望を提出する",
+        text: "提出期限：6/25(金) 23:59",
+        label: "希望シフトを提出する",
         uri: `${submitUrl}&openExternalBrowser=1`,
       },
       {
@@ -528,9 +779,9 @@ describe("notification/templates", () => {
           linkExpiresAtLabel: "6/25(金) 23:59",
           magicLinkUrl: submitUrl,
         }),
-        title: "テスト店舗\n🔔 提出締切が近づいています",
-        text: "まだ提出していない場合は、締切までにシフト希望を提出してください。",
-        label: "シフト希望を提出する",
+        title: "テスト店舗\n🔔 提出期限が近づいています",
+        text: "提出期限までに提出をお願いします。",
+        label: "希望シフトを提出する",
         uri: `${submitUrl}&openExternalBrowser=1`,
       },
       {
@@ -552,30 +803,30 @@ describe("notification/templates", () => {
           deadlineLabel: "6/30(火) 23:59",
           dashboardUrl,
         }),
-        title: "テスト店舗\n⏰ 提出締切を過ぎています",
-        text: "提出締切（6/30(火) 23:59）を過ぎています。",
-        label: "シフトを確定する",
+        title: "テスト店舗\n⏰ 提出期限を過ぎています",
+        text: "提出期限（6/30(火) 23:59）を過ぎています。",
+        label: "シフトリで確認する",
         uri: `${dashboardUrl}&openExternalBrowser=1`,
       },
       {
         message: buildNotificationFailureReminderLineFlexMessage({ shopName: "テスト店舗", dashboardUrl }),
-        title: "テスト店舗\n⚠️ 送れなかった通知",
-        text: "通知を送れなかったスタッフがいます。",
-        label: "ダッシュボードを確認",
+        title: "テスト店舗\n⚠️ 一部通知に失敗",
+        text: "正常に送信できなかった通知があります。",
+        label: "シフトリで確認する",
         uri: `${dashboardUrl}&openExternalBrowser=1`,
       },
       {
         message: buildShopActivationReminderLineFlexMessage({ shopName: "テスト店舗", dashboardUrl }),
         title: "テスト店舗\n📅 シフト作成の続き",
         text: "スタッフを追加して実際にシフトを回収してみましょう！",
-        label: "シフト募集をつくる",
+        label: "シフトリでシフトを作成する",
         uri: `${dashboardUrl}&openExternalBrowser=1`,
       },
       {
         message: buildStaffRegistrationOwnerDigestLineFlexMessage({ shopName: "テスト店舗", dashboardUrl }),
         title: "テスト店舗\n📝 スタッフ登録申請",
         text: "スタッフ登録申請が届いています。",
-        label: "ダッシュボードを確認",
+        label: "シフトリで確認する",
         uri: `${dashboardUrl}&openExternalBrowser=1`,
       },
       {
@@ -585,9 +836,9 @@ describe("notification/templates", () => {
           consentUrl: "https://shiftori.app/legal/staff/consent?token=test",
           expiresAt: new Date("2026-05-31T12:00:00+09:00").getTime(),
         }),
-        title: "テスト店舗\n📄 シフトリの案内と規約",
-        text: "使い方、利用規約、プライバシーポリシーを確認してください。",
-        label: "案内と規約を確認する",
+        title: `テスト店舗\n📄 ${STAFF_LEGAL_CONSENT_SUBJECT}`,
+        text: "詳細はリンクから確認ください。",
+        label: "シフトリの使い方を確認する",
         uri: "https://shiftori.app/legal/staff/consent?token=test&openExternalBrowser=1",
       },
     ];
@@ -597,17 +848,23 @@ describe("notification/templates", () => {
       expect(message.altText.length).toBeGreaterThan(0);
       expect(flexTexts(message)).toContain(title);
       expect(flexTexts(message)).toContain(text);
-      expect(flexBodyTextsWithoutTitle(message).join("\n")).not.toContain("テスト店舗");
+      if (title !== `テスト店舗\n📄 ${STAFF_LEGAL_CONSENT_SUBJECT}`) {
+        expect(flexBodyTextsWithoutTitle(message).join("\n")).not.toContain("テスト店舗");
+      }
       expect(flexButtonLabels(message)).toContain(label);
       expect(flexUris(message)).toContain(uri);
     }
   });
 
   it("スタッフ登録申請のオーナー通知はダッシュボードリンクのみを案内し、申請者情報を含めない", () => {
-    const dashboardUrl = "https://shiftori.app/dashboard?shop=shop_target";
+    const dashboardUrl = "https://shiftori.app/dashboard?org=org_target&shop=shop_target";
     const lineText = buildStaffRegistrationOwnerDigestLineText({ dashboardUrl });
     const emailHtml = buildStaffRegistrationOwnerDigestEmailHtml({
       managerName: "店長",
+      dashboardUrl,
+    });
+    const flex = buildStaffRegistrationOwnerDigestLineFlexMessage({
+      shopName: "テスト店舗",
       dashboardUrl,
     });
 
@@ -616,18 +873,21 @@ describe("notification/templates", () => {
     );
     expect(lineText.startsWith("📝 スタッフ登録申請\n")).toBe(true);
     expect(lineText).toContain("スタッフ登録申請が届いています。");
-    expect(lineText).toContain("シフトリのダッシュボードで確認してください。");
+    expect(lineText).toContain("シフトリで確認して承認してください。");
     expect(lineText).toContain(`${dashboardUrl}&openExternalBrowser=1`);
     expect(emailHtml).toContain("スタッフ登録申請が届いています。");
-    expect(emailHtml).toContain("シフトリのダッシュボードで確認してください。");
-    expect(emailHtml).toContain("ダッシュボードを確認する");
-    expect(emailHtml).toContain(dashboardUrl);
+    expect(emailHtml).toContain("シフトリで確認して承認してください。");
+    expect(emailHtml).toContain("シフトリで確認する");
+    expect(flexTexts(flex)).toEqual(
+      expect.arrayContaining(["スタッフ登録申請が届いています。", "シフトリで確認して承認してください。"]),
+    );
+    expect(emailHtml).toContain(dashboardUrl.replaceAll("&", "&amp;"));
     expect(`${lineText}\n${emailHtml}`).not.toContain("申請スタッフ");
     expect(`${lineText}\n${emailHtml}`).not.toContain("request@example.com");
   });
 
   it("店舗登録後の本番募集リマインダーはスタッフ追加と募集作成CTAを表示する", () => {
-    const dashboardUrl = "https://shiftori.app/dashboard?shop=shop_target";
+    const dashboardUrl = "https://shiftori.app/dashboard?org=org_target&shop=shop_target";
     const lineText = buildShopActivationReminderLineText({ dashboardUrl });
     const emailHtml = buildShopActivationReminderEmailHtml({
       managerName: "佐藤 店長",
@@ -645,16 +905,15 @@ describe("notification/templates", () => {
         "",
         "スタッフを追加して実際にシフトを回収してみましょう！",
         "",
-        "シフト募集をつくる",
+        "シフトリでシフトを作成する",
         `${dashboardUrl}&openExternalBrowser=1`,
       ].join("\n"),
     );
     expect(emailHtml).toContain("佐藤 店長さん");
-    expect(emailHtml).toContain("📅 シフト作成の続き");
     expect(emailHtml).toContain("店舗を登録してから1週間が経過しました。");
     expect(emailHtml).toContain("スタッフを追加して実際にシフトを回収してみましょう！");
-    expect(emailHtml).toContain("シフト募集をつくる");
-    expect(emailHtml).toContain(dashboardUrl);
+    expect(emailHtml).toContain("シフトリでシフトを作成する");
+    expect(emailHtml).toContain(dashboardUrl.replaceAll("&", "&amp;"));
     expect(emailHtml).not.toContain("openExternalBrowser=1");
   });
 

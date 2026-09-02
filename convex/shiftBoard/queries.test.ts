@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop, seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { SHIFT_ASSIGNMENT_LIMIT } from "../constants";
@@ -11,6 +12,68 @@ describe("shiftBoard/queries", () => {
   afterEach(() => {
     vi.useRealTimers();
   });
+
+  it("app用queryはURL組織と募集の店舗組織を再検証し、別組織の募集を返さない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const actor = await seedOrganizationManagerShop(ctx, {
+        subject: "app_shift_board_actor",
+        shopName: "対象店舗",
+      });
+      const other = await seedOrganizationManagerShop(ctx, {
+        subject: "app_shift_board_other",
+        shopName: "別組織店舗",
+      });
+      const createRecruitment = (shopId: typeof actor.shopId) =>
+        ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-08-17",
+          periodEnd: "2026-08-24",
+          deadline: "2026-08-12",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "22:00" },
+        });
+      return {
+        actor,
+        other,
+        actorRecruitmentId: await createRecruitment(actor.shopId),
+        otherRecruitmentId: await createRecruitment(other.shopId),
+      };
+    });
+    const actor = t.withIdentity({ subject: "app_shift_board_actor" });
+
+    await expect(
+      actor.query(api.shiftBoard.queries.getShiftBoardShopScopeForOrganization, {
+        organizationId: ids.actor.organizationId,
+        recruitmentId: ids.actorRecruitmentId,
+      }),
+    ).resolves.toEqual({ shopId: ids.actor.shopId, shopName: "対象店舗" });
+    await expect(
+      actor.query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId: ids.actor.shopId,
+        expectedOrganizationId: ids.actor.organizationId,
+        recruitmentId: ids.actorRecruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      }),
+    ).resolves.toMatchObject({
+      recruitment: { _id: ids.actorRecruitmentId },
+    });
+    await expect(
+      actor.query(api.shiftBoard.queries.getShiftBoardShopScopeForOrganization, {
+        organizationId: ids.actor.organizationId,
+        recruitmentId: ids.otherRecruitmentId,
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      actor.query(api.shiftBoard.queries.getShiftBoardShopScopeForOrganization, {
+        organizationId: ids.other.organizationId,
+        recruitmentId: ids.actorRecruitmentId,
+      }),
+    ).rejects.toThrow("Not found");
+  });
+
   it("削除済み募集は null を返す", async () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId } = await t.run(async (ctx) => {
@@ -43,11 +106,10 @@ describe("shiftBoard/queries", () => {
         subject: "manager_adjacent_projection",
         shopName: "隣接表示店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "隣接表示スタッフ",
         email: "adjacent-projection@example.com",
-        isDeleted: false,
       });
       const positionId = await ctx.db.insert("positions", {
         shopId,
@@ -143,11 +205,10 @@ describe("shiftBoard/queries", () => {
         subject: "manager_assignment_overflow",
         shopName: "割当上限店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "割当上限スタッフ",
         email: "assignment-overflow@example.com",
-        isDeleted: false,
       });
       const positionId = await ctx.db.insert("positions", {
         shopId,
@@ -189,15 +250,15 @@ describe("shiftBoard/queries", () => {
     ).rejects.toThrow("Shift assignment scope exceeds the supported limit");
   });
 
-  it("閲覧のみ管理者にはシフトデータを返しつつ書き込み不可理由を返す", async () => {
+  it("削除済み管理者にはシフトデータを返さない", async () => {
     const t = convexTest(schema, modules);
-    const { shopId, recruitmentId } = await t.run(async (ctx) => {
+    const { organizationId, shopId, recruitmentId } = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
-        subject: "readonly_shift_board",
+        subject: "removed_shift_board",
         shopName: "閲覧店舗",
-        plan: "pro",
+        plan: "standard",
       });
-      await ctx.db.patch(seeded.memberId, { status: "readOnly" });
+      await ctx.db.patch(seeded.memberId, { status: "removed" });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId: seeded.shopId,
         periodStart: "2026-08-01",
@@ -209,21 +270,125 @@ describe("shiftBoard/queries", () => {
         isDeleted: false,
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
-      return { shopId: seeded.shopId, recruitmentId };
+      return { organizationId: seeded.organizationId, shopId: seeded.shopId, recruitmentId };
+    });
+
+    const actor = t.withIdentity({ subject: "removed_shift_board" });
+    await expect(
+      actor.query(api.shiftBoard.queries.getShiftBoardShopScopeForOrganization, {
+        organizationId,
+        recruitmentId,
+      }),
+    ).rejects.toThrow("Not found");
+    await expect(
+      actor.query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId,
+        expectedOrganizationId: organizationId,
+        recruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it.each([
+    { kind: "overLimit" as const, subject: "over_limit_shift_board" },
+    { kind: "unknown" as const, subject: "unknown_usage_shift_board" },
+  ])("利用上限が$kindならシフトデータを返しつつ通常操作を有効表示しない", async ({ kind, subject }) => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject,
+        shopName: "利用上限シフト店舗",
+        plan: "free",
+      });
+      if (kind === "overLimit") {
+        for (let index = 0; index < 5; index += 1) {
+          await seedStaff(ctx, {
+            shopId: seeded.shopId,
+            name: `上限超過スタッフ${index + 1}`,
+            email: `shift-board-over-limit-${index + 1}@example.com`,
+          });
+        }
+      } else {
+        const now = Date.now();
+        for (let index = 0; index < 100; index += 1) {
+          const email = `shift-board-unknown-${index + 1}@example.com`;
+          await ctx.db.insert("organizationPeople", {
+            organizationId: seeded.organizationId,
+            name: `判定不能人物${index + 1}`,
+            email,
+            emailNormalized: email,
+            status: "active",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+      }
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId: seeded.shopId,
+        periodStart: "2026-08-01",
+        periodEnd: "2026-08-07",
+        deadline: "2026-07-28",
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      return { ...seeded, recruitmentId };
+    });
+
+    const result = await t.withIdentity({ subject }).query(api.shiftBoard.queries.getShiftBoardData, {
+      shopId: ids.shopId,
+      recruitmentId: ids.recruitmentId,
+      refreshDayKey: QUERY_REFRESH_DAY_KEY,
+    });
+
+    expect(result).toMatchObject({
+      canWriteBusinessData: false,
+      businessWriteBlockReason: kind === "unknown" ? "usageLimitEvaluationUnavailable" : "usageLimitExceeded",
+      recruitment: { _id: ids.recruitmentId },
+    });
+  });
+
+  it("billing state未移行中は従来どおりシフト操作を有効表示する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedOrganizationManagerShop(ctx, {
+        subject: "missing_billing_shift_board",
+        shopName: "billing移行中店舗",
+        plan: "free",
+      });
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billingState) throw new Error("テスト用billing stateが見つかりません");
+      await ctx.db.delete(billingState._id);
+      const recruitmentId = await ctx.db.insert("recruitments", {
+        shopId: seeded.shopId,
+        periodStart: "2026-08-01",
+        periodEnd: "2026-08-07",
+        deadline: "2026-07-28",
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      return { ...seeded, recruitmentId };
     });
 
     const result = await t
-      .withIdentity({ subject: "readonly_shift_board" })
+      .withIdentity({ subject: "missing_billing_shift_board" })
       .query(api.shiftBoard.queries.getShiftBoardData, {
-        shopId,
-        recruitmentId,
+        shopId: ids.shopId,
+        recruitmentId: ids.recruitmentId,
         refreshDayKey: QUERY_REFRESH_DAY_KEY,
       });
 
     expect(result).toMatchObject({
-      canWriteBusinessData: false,
-      businessWriteBlockReason: "memberReadOnly",
-      recruitment: { _id: recruitmentId },
+      canWriteBusinessData: true,
+      businessWriteBlockReason: null,
+      recruitment: { _id: ids.recruitmentId },
     });
   });
 
@@ -231,18 +396,16 @@ describe("shiftBoard/queries", () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId, includedStaffId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_excluded", shopName: "テスト店舗" });
-      const includedStaffId = await ctx.db.insert("staffs", {
+      const includedStaffId = await seedStaff(ctx, {
         shopId,
         name: "通常スタッフ",
         email: "normal@example.com",
-        isDeleted: false,
       });
-      await ctx.db.insert("staffs", {
+      await seedStaff(ctx, {
         shopId,
         name: "対象外スタッフ",
         email: "excluded@example.com",
         excludedFromShift: true,
-        isDeleted: false,
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
@@ -274,7 +437,7 @@ describe("shiftBoard/queries", () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_removed_history", shopName: "履歴店舗" });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "削除済みスタッフ",
         email: "removed-history@example.com",
@@ -341,11 +504,10 @@ describe("shiftBoard/queries", () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId, staffId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_all_off", shopName: "テスト店舗" });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "全休みスタッフ",
         email: "all-off@example.com",
-        isDeleted: false,
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
@@ -389,11 +551,10 @@ describe("shiftBoard/queries", () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId, staffId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_date_only_board", shopName: "テスト店舗" });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "日ごとスタッフ",
         email: "date-only@example.com",
-        isDeleted: false,
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
@@ -435,11 +596,10 @@ describe("shiftBoard/queries", () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId, staffId, positionId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_shift_type_board", shopName: "テスト店舗" });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "勤務区分スタッフ",
         email: "shift-type@example.com",
-        isDeleted: false,
       });
       const positionId = await ctx.db.insert("positions", {
         shopId,
@@ -518,17 +678,15 @@ describe("shiftBoard/queries", () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId, staffBeforeDraftId, staffAfterDraftId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_draft_status", shopName: "テスト店舗" });
-      const staffBeforeDraftId = await ctx.db.insert("staffs", {
+      const staffBeforeDraftId = await seedStaff(ctx, {
         shopId,
         name: "保存前提出",
         email: "before@example.com",
-        isDeleted: false,
       });
-      const staffAfterDraftId = await ctx.db.insert("staffs", {
+      const staffAfterDraftId = await seedStaff(ctx, {
         shopId,
         name: "保存後提出",
         email: "after@example.com",
-        isDeleted: false,
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
@@ -574,11 +732,10 @@ describe("shiftBoard/queries", () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId, staffId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_legacy_draft", shopName: "テスト店舗" });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "既存スタッフ",
         email: "legacy@example.com",
-        isDeleted: false,
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,

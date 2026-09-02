@@ -2,16 +2,18 @@
 
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
-import { internalAction } from "../_generated/server";
 import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
+import { observedInternalAction as internalAction } from "../_lib/errorObservability";
 import {
   buildStaffLegalConsentEmailHtml,
   buildStaffLegalConsentLineFlexMessage,
   buildStaffLegalConsentLineText,
+  STAFF_LEGAL_CONSENT_SUBJECT,
 } from "../notification/templates";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
+import { lineRecipientOutboxSnapshot } from "../notificationOutbox/types";
 
 const LEGAL_CONSENT_NOTIFICATION_KIND = "legal.consent";
 const LEGAL_CONSENT_LINE_TITLE = "利用規約への同意のお願い";
@@ -35,7 +37,7 @@ export const sendStaffConsentEmail = internalAction({
       method: "staff_email_link",
     });
     const consentUrl = `${APP_URL}/legal/staff/consent?token=${token}`;
-    const subject = formatResendSubject(data.shopName, "シフトリの使い方と利用規約・プライバシーポリシーの確認");
+    const subject = formatResendSubject(data.shopName, STAFF_LEGAL_CONSENT_SUBJECT);
 
     await enqueueEmail(ctx, {
       shopId: data.shopId,
@@ -70,7 +72,8 @@ export const sendStaffConsentLine = internalAction({
   handler: async (ctx, { staffId, organizationBillingVersionAtOrigin }) => {
     const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.legal.queries.getStaffConsentNotificationDataInternal, { staffId });
-    if (!data?.lineUserId || data.lineFollowing === false) return;
+    const lineRecipient = data?.lineRecipient;
+    if (!data || !lineRecipient?.following) return;
     const suppressDelivery = await ctx.runQuery(
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
       { shopId: data.shopId },
@@ -82,7 +85,7 @@ export const sendStaffConsentLine = internalAction({
       method: "line_link_notice",
     });
     const consentUrl = `${APP_URL}/legal/staff/consent?token=${token}`;
-    const subject = formatResendSubject(data.shopName, "シフトリの使い方と利用規約・プライバシーポリシーの確認");
+    const subject = formatResendSubject(data.shopName, STAFF_LEGAL_CONSENT_SUBJECT);
 
     try {
       const lineParams = {
@@ -117,6 +120,7 @@ export const sendStaffConsentLine = internalAction({
       await enqueueLine(ctx, {
         shopId: data.shopId,
         ...notificationOrigin,
+        ...lineRecipientOutboxSnapshot(lineRecipient),
         purpose: "business",
         staffId: data.staffId,
         history: {
@@ -125,7 +129,7 @@ export const sendStaffConsentLine = internalAction({
         },
         dedupeKey: `line:legalConsent:${staffId}`,
         payload: linePayload({
-          toUserId: data.lineUserId,
+          toUserId: lineRecipient.lineUserId,
           text: buildStaffLegalConsentLineText(lineParams),
           message: buildStaffLegalConsentLineFlexMessage(lineParams),
           suppressDelivery,

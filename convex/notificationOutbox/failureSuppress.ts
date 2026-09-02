@@ -3,13 +3,19 @@
  * 通知の context 文字列で判定する。配送イベントログ（notificationDeliveryEvents）には従来どおり記録される。
  */
 
-/** マネージャー向けシフト確定催促リマインダーの通知 context。 */
-export const SHIFT_CONFIRMATION_REMINDER_CONTEXT = "shiftConfirmationReminder.sendManagerConfirmationReminder";
-/** 通知不達の管理者向けリマインダー通知 context。 */
-export const NOTIFICATION_FAILURE_REMINDER_CONTEXT = "notificationOutbox.sendFailureReminderDigest";
+import {
+  NOTIFICATION_FAILURE_REMINDER_CONTEXT,
+  SHIFT_CONFIRMATION_REMINDER_CONTEXT,
+  SHOP_ACTIVATION_REMINDER_CONTEXT,
+} from "./shopManagerNotification";
+
+export {
+  NOTIFICATION_FAILURE_REMINDER_CONTEXT,
+  SHIFT_CONFIRMATION_REMINDER_CONTEXT,
+  SHOP_ACTIVATION_REMINDER_CONTEXT,
+} from "./shopManagerNotification";
+
 const NOTIFICATION_FAILURE_REMINDER_LINE_DEDUPE_CONTEXT = "line:notificationFailureReminder";
-/** 初回店舗登録後の本番募集リマインダー通知 context。 */
-export const SHOP_ACTIVATION_REMINDER_CONTEXT = "shopActivationReminder.sendReminder";
 
 const SUPPRESS_FAILURE_INBOX_CONTEXTS = new Set<string>([
   SHIFT_CONFIRMATION_REMINDER_CONTEXT,

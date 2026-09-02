@@ -61,50 +61,12 @@ function StaffShiftViewState({ state }: { state: StaffAccessState }) {
     );
   }
   if (state.status === "expired") {
-    return (
-      <StaffLayout shopName="シフト閲覧">
-        <StaffCenteredContent>
-          <Empty
-            icon={LuTriangleAlert}
-            title="このリンクではシフトを確認できません"
-            description="下のボタンから、新しい閲覧リンクを受け取ってください。"
-            tone="warning"
-            action={
-              state.recruitmentId ? (
-                <Link to="/shifts/reissue" search={{ recruitmentId: state.recruitmentId }}>
-                  <Button colorPalette="teal" size="md" borderRadius="lg" px={6}>
-                    新しい閲覧リンクを申し込む
-                  </Button>
-                </Link>
-              ) : undefined
-            }
-          />
-        </StaffCenteredContent>
-      </StaffLayout>
-    );
+    return <StaffShiftViewUnavailable recruitmentId={state.recruitmentId} />;
   }
 
   return (
     <ErrorBoundary
-      fallback={
-        <StaffLayout shopName="シフト閲覧">
-          <StaffCenteredContent>
-            <Empty
-              icon={LuTriangleAlert}
-              title="このリンクではシフトを確認できません"
-              description="下のボタンから、新しい閲覧リンクを受け取ってください。"
-              tone="warning"
-              action={
-                <Link to="/shifts/reissue" search={{ recruitmentId: state.session.recruitmentId }}>
-                  <Button colorPalette="teal" size="md" borderRadius="lg" px={6}>
-                    新しい閲覧リンクを申し込む
-                  </Button>
-                </Link>
-              }
-            />
-          </StaffCenteredContent>
-        </StaffLayout>
-      }
+      fallback={<StaffShiftViewUnavailable recruitmentId={state.session.recruitmentId} />}
       onError={(error) => {
         if (error.message?.includes("ArgumentValidationError")) {
           state.clearSession();
@@ -126,25 +88,7 @@ function ShiftViewContent({ session }: { session: { sessionToken: string; recrui
   if (data === undefined) return <FullPageSpinner />;
 
   if (data === null) {
-    return (
-      <StaffLayout shopName="シフト閲覧">
-        <StaffCenteredContent>
-          <Empty
-            icon={LuTriangleAlert}
-            title="このリンクではシフトを確認できません"
-            description="下のボタンから、新しい閲覧リンクを受け取ってください。"
-            tone="warning"
-            action={
-              <Link to="/shifts/reissue" search={{ recruitmentId: session.recruitmentId }}>
-                <Button colorPalette="teal" size="md" borderRadius="lg" px={6}>
-                  新しい閲覧リンクを申し込む
-                </Button>
-              </Link>
-            }
-          />
-        </StaffCenteredContent>
-      </StaffLayout>
-    );
+    return <StaffShiftViewUnavailable recruitmentId={session.recruitmentId} />;
   }
 
   return (
@@ -160,6 +104,34 @@ function ShiftViewContent({ session }: { session: { sessionToken: string; recrui
         assignments={data.assignments}
         timeRange={data.timeRange}
       />
+    </StaffLayout>
+  );
+}
+
+export function StaffShiftViewUnavailable({ recruitmentId }: { recruitmentId: string | null }) {
+  return (
+    <StaffLayout shopName="シフト閲覧">
+      <StaffCenteredContent>
+        <Empty
+          icon={LuTriangleAlert}
+          title="このリンクではシフトを確認できません"
+          description={
+            recruitmentId
+              ? "新しい閲覧リンクを申し込んでください。"
+              : "元のLINEまたはメールを開き直してください。\n解決しない場合は、シフト作成担当者に連絡してください。"
+          }
+          tone="warning"
+          action={
+            recruitmentId ? (
+              <Button asChild colorPalette="teal" size="md" borderRadius="lg" px={6}>
+                <Link to="/shifts/reissue" search={{ recruitmentId }}>
+                  新しい閲覧リンクを申し込む
+                </Link>
+              </Button>
+            ) : undefined
+          }
+        />
+      </StaffCenteredContent>
     </StaffLayout>
   );
 }

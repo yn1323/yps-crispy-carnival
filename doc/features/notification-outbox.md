@@ -8,7 +8,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 
 ### バックエンド（`convex/`）
 
-- `convex/schema.ts` — `notificationOutbox` / `notificationHistory` / `notificationDeliveryEvents` / `notificationFailureInbox` / `notificationUsage` テーブル定義
+- `convex/schema.ts` — `notificationOutbox` / `notificationHistory` / `notificationDeliveryEvents` / `notificationFailureInbox` / `notificationResendDelayedFailureDeadlines` / `notificationUsage` テーブル定義
 - `convex/notificationOutbox/schemas.ts` — outbox payload / status / channel validator
 - `convex/notificationOutbox/types.ts` — enqueue helper 用の型
 - `convex/notificationOutbox/enqueue.ts` — email / LINE ジョブ作成 helper
@@ -18,12 +18,13 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - `convex/notificationOutbox/safeError.ts` — LINE / Resend / 内部失敗を固定taxonomyへ変換
 - `convex/notificationOutbox/redaction.ts` — terminal payloadから宛先・本文・capability URLを除去
 - `convex/notificationOutbox/maintenance.ts` — migration / retentionの残件をPIIなしのbounded queryで確認
-- `convex/notificationOutbox/resendWebhook.ts` — Resend provider webhook を署名検証し、配信完了を履歴、配送遅延・失敗を履歴と要対応Inboxへ反映
-- `convex/crons.ts` — 1分ごとの outbox / fanout 回収、古い配送イベントログ削除、古いFailureInboxの期限切れ化
+- `convex/notificationOutbox/resendDelayedFailure.ts` — Resend配送遅延の猶予期限を作成・取得・削除する
+- `convex/notificationOutbox/resendWebhook.ts` — Resend provider webhook を署名検証し、配信完了・配送遅延・失敗を履歴と現在状態へ反映
+- `convex/crons.ts` — 1分ごとの outbox / fanout / 配送遅延期限回収、古い配送イベントログ削除、古いFailureInboxの期限切れ化
 - `convex/_lib/resend.ts` — Resend 送信間隔・retry header 対応・idempotency key 指定
 - `convex/_lib/resendWebhookSignature.ts` — Resend / Svix webhook 署名検証
 - `convex/_lib/lineClient.ts` — LINE Push message送信、`X-Line-Retry-Key` 付与、エラー分類
-- `convex/_lib/shopManagerRecipients.ts` — グループ人物を正本に店舗の有効管理者とLINE連携を解決する
+- `convex/_lib/shopManagerRecipients.ts` — 組織人物を正本に店舗の有効管理者とLINE連携を解決する
 - `convex/_lib/notificationDeliveryQueries.ts` — dry-run判定を現在の管理者連絡先で行う
 - `convex/_lib/shiftAssignmentNormalization.ts` — 時間入力方式の確定通知とsnapshotが使うread-time正規化
 - `convex/notification/templates.ts` — LINE Push payload の text / Flex message 型と通知文面builder
@@ -51,8 +52,9 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 | `internal.notificationOutbox.mutations.markRetry` | internalMutation | 一時エラーのジョブを `pending` に戻し、次回実行時刻を設定する |
 | `internal.notificationOutbox.mutations.markFailed` | internalMutation | 恒久エラーまたは上限到達ジョブを `failed` にする |
 | `internal.notificationOutbox.mutations.recordDeliveryEvent` | internalMutation | enqueue失敗・enqueue準備失敗・retry・最終失敗・fallback等の配送イベントを内部調査用に記録 |
-| `internal.notificationOutbox.mutations.recordResendProviderIssue` | internalMutation | Resend provider の配送遅延・失敗イベントを既存outboxに照合し、必要なら要対応Inboxへ反映する |
+| `internal.notificationOutbox.mutations.recordResendProviderIssue` | internalMutation | Resend provider の配送遅延・失敗イベントを既存outboxに照合する。初回遅延は猶予期限を作り、hard failureは要対応Inboxへ即時反映する |
 | `internal.notificationOutbox.mutations.recordResendProviderDeliveryUpdate` | internalMutation | Resend provider の配信完了イベントを既存outboxに照合し、通知履歴へ反映する |
+| `internal.notificationOutbox.mutations.recoverOverdueResendDelayedFailures` | internalMutation | 30分の猶予期限を過ぎた配送遅延をbounded batchで既存の失敗経路へ昇格する |
 | `internal.notificationOutbox.mutations.deleteStaffNotificationHistoryBatch` | internalMutation | 削除済みスタッフの通知履歴を100件ずつ削除する |
 | `internal.notificationOutbox.mutations.pruneExpiredEvents` | internalMutation | 保存期限を過ぎた配送イベントを少量ずつ削除 |
 | `internal.notificationOutbox.mutations.redactExpiredTerminalData` | internalMutation | terminal化から30日を過ぎたOutboxの宛先・本文・capability URL・生errorを少量ずつredact |
@@ -65,7 +67,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 | `notificationOutbox.mutations.resolveFailure` | managerMutation | 同一店舗の open かつDashboard表示対象の失敗を手動で `resolved/dismissed` にする |
 | `internal.notificationOutbox.actions.processPending` | internalAction | claim 済みジョブを配送し、成功・再試行・失敗へ分類する |
 | `internal.notification.mutations.recoverNotificationFanoutOperations` | internalMutation | 予約漏れのpending fanoutと期限切れprocessing leaseをboundedに再予約する |
-| `internal.notification.actions.sendCurrentShiftConfirmationForStaff` | internalAction | rolling deploy前に予約済みの旧個別通知を、新しい50件上限のdurable fanoutへ収束させる互換入口 |
+| `internal.notification.actions.sendCurrentShiftConfirmationForStaff` | internalAction | rolling deploy前に予約済みの旧個別通知を、新しい40件上限のdurable fanoutへ収束させる互換入口 |
 | `POST /resend/webhook` | HTTP action | Resend の `email.delivered` / `email.delivery_delayed` / `email.failed` / `email.bounced` / `email.suppressed` を受信する |
 
 ## 配送ルール
@@ -77,7 +79,16 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - Resend 送信成功時に返る `email_id` は `notificationOutbox.resendEmailId` に保存し、provider webhook の照合キーにする。
 - Resend の一時エラーや retry header 対応は `convex/_lib/resend.ts` に集約する。
 - Resend provider webhook はparameter付きの`application/json`を受け付け、raw bodyを64 KiBまでに制限する。`Content-Length`は早期拒否にだけ使い、request streamの実byte数も検査する。
-- `RESEND_WEBHOOK_SECRET` と `svix-*` headersで上限内のraw bodyを変更せずに署名検証し、検証後だけJSON objectをparseしてDBへ反映する。`email.delivered`はメールサーバー到達として履歴へ反映し、遅延・失敗・拒否・抑止は履歴と要対応Inboxへ反映する。
+- `RESEND_WEBHOOK_SECRET` と `svix-*` headersで上限内のraw bodyを変更せずに署名検証し、検証後だけJSON objectをparseしてDBへ反映する。
+  `email.delivered`はメールサーバー到達として履歴へ反映する。
+  `email.failed` / `email.bounced` / `email.suppressed`は要対応Inboxへ即時反映し、`email.delivery_delayed`は対応する履歴へ即時反映したうえで30分の猶予を開始する。
+- 配送遅延の猶予期限は最初の`email.delivery_delayed`の`occurredAt`から30分後で固定し、同じOutboxの遅延eventを再受信しても延長しない。
+  猶予中はFailureInboxや管理者招待の`sendFailed`を作らず、1分間隔cronが期限切れを回収した時点で既存の失敗経路へ昇格する。
+- 猶予中により新しい`email.delivered`を受信した場合は期限を削除して失敗扱いにしない。
+  hard failureは期限を削除して即時失敗へ移る。
+  専用期限行がない旧`email.delivery_delayed`状態は、導入前から失敗扱いだった既存データとの互換のため失敗として読む。
+- 猶予期限は新しい空の`notificationResendDelayedFailureDeadlines`テーブルへ保存し、Outboxごとの一意性と期限順のbounded回収をindexで守る。
+  既存の増加済みOutboxへ同一deployで新しい検索indexを追加しないための配置であり、利用者向けの30分猶予という契約は変わらない。
 - provider eventは`occurredAt`で順序を判定し、古いeventで新しい履歴状態やFailureInboxを上書きしない。
 - provider payload の店舗・スタッフ情報は信用しない。`resendEmailId` または `shiftori_outbox_id` tag から保存済み outbox を引き、`shopId` / `staffId` / `recruitmentId` / `notificationContext` を復元する。
 - `line` は `payload.message` があればそのmessageを、なければ既存 `payload.text` からtext messageを作って LINE Push API に配送する。どちらも `X-Line-Retry-Key` を付ける。
@@ -100,11 +111,15 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 
 ## 管理者通知の宛先
 
-- 現行のグループ所属では、`organizationPeople.name`と`organizationPeople.email`を管理者向け業務通知の正本とする。移行途中でperson作成後かつ`organizationMembers`作成前でも、同じuserとグループのpersonを一意に確認できる場合はpersonを使う。
-- person自体がまだ存在しない旧`shopMembers`だけ、移行互換として`users.name`と`users.email`へfallbackする。personが重複または不整合な場合はusersへ戻さずfail-closedにする。
-- LINE通知は、管理者と同じ人物に紐づく対象店舗の有効スタッフを一意に解決でき、現在のLINEアカウントと送信先が一致する場合だけ配送する。
-- 管理者向けメールはprovider呼び出し直前にグループ人物の現在のメールアドレスを再確認し、enqueue時の宛先が古い場合は`recipient_inactive`でcancelする。
-- シフトリから有効管理者へ送る課金関連メールもグループ人物の連絡先を使い、Stripeが請求書やカード関連を送る`organizations.billingEmail`とは分ける。
+- 店舗単位の管理通知は、スタッフ参加申請digest、シフト確定催促、店舗登録後の本番募集案内、通知不達digestを対象とする。
+- 店舗単位の管理通知は、activeな`organizationMembers`と、同じ組織人物に紐づく対象店舗のactiveな正規`staffs`を両方一意に解決できる人物だけへ送る。
+  該当者が0人ならメールとLINEのどちらも予約しない。
+- `organizationPeople.name`と`organizationPeople.email`を店舗管理通知の正本にする。
+  組織共通のLINE連携が有効かつ友だち状態ならLINEを優先し、それ以外は現在のシフト連絡先へメールで送る。
+- 店舗管理通知のメール、LINE、Quota超過時のfallbackメールは、provider呼び出し直前に管理者権限、店舗のstaff所属、現在の宛先を再確認する。
+  条件を満たさない場合は`recipient_inactive`でcancelする。
+- 課金通知と管理者招待は組織単位の通知のままとし、店舗のstaff所属を受信条件にしない。
+  シフトリから有効管理者へ送る課金関連メールは組織人物の連絡先を使い、Stripeが請求書やカード関連を送る`organizations.billingEmail`と分ける。
 - Clerkのログイン用メールアドレスは通知先の正本として参照しない。
 
 ## 配送イベントログ（`notificationDeliveryEvents`）
@@ -125,7 +140,8 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - `shopId` / `staffId` / `channel` / `notificationKind` / `displayTitle` / 送信・配信状態と各時刻だけを保持する。
 - 宛先、メールHTML、LINE本文、Flex Message、token URL、provider errorは保存しない。
 - dry-run、disabled、mockなど配送抑止中の通知は履歴を作成しない。
-- 店舗managerのdry-run判定はactive manager全員がallowlistに一致する場合だけ抑止する。走査上限を超えて全員を確認できない場合は抑止せず、通常配送へ倒す。
+- 店舗managerのdry-run判定は、対象店舗の受信条件を満たすactive manager全員がallowlistに一致する場合だけ抑止する。
+  走査上限を超えて全員を確認できない場合は抑止せず、通常配送へ倒す。
 - メールの`delivered`は受信側メールサーバーへの到達であり、開封を意味しない。LINEは個別到達を確認できない。
 - スタッフ削除時はmanager queryから直ちに隠し、履歴本体をbounded cleanupで削除する。店舗・組織削除は既存の削除workflowで完走を確認する。
 
@@ -135,7 +151,9 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 
 - `markFailed` が最終失敗した通知を `open` として upsert する。通知種別・募集・スタッフが同じ失敗はチャネルや再送runが違っても最新1件に寄せ、古いopen行は `resolved/superseded` にする。
 - `recordDeliveryEvent` は `enqueue_failed` / `enqueue_preparation_failed` かつ `shopId` と `dedupeKey` が分かる場合だけ `open` として upsert する。通知種別・募集・スタッフが分かる場合は配送最終失敗と同じFailureInbox行へまとまる。`retry_scheduled` / `fallback_enqueued` / `worker_failed` は要対応扱いにしない。
-- `recordResendProviderIssue` は `email.delivery_delayed` / `email.failed` / `email.bounced` / `email.suppressed` を `sourceType: "provider"` として `open` にする。outbox照合できない event はユーザー向けInboxに出さない。
+- `recordResendProviderIssue` は `email.failed` / `email.bounced` / `email.suppressed` を `sourceType: "provider"` として即時に `open` にする。
+  `email.delivery_delayed`は猶予期限が切れた後だけ同じ形で`open`へ昇格する。
+  outbox照合できないeventはユーザー向けInboxに出さない。
 - `enqueue_preparation_failed` は magic link 作成、LINE CTA 作成、メール/LINE payload 構築など、Outbox ジョブ作成前に落ちた失敗を表す。募集作成通知、現在募集中シフト通知、催促通知、確定シフト通知で staff ごとに記録する。
 - `markSent` は同じ outbox のInbox行を `resolved/sent` にする。
 - `retryFailure` は manager mutation として同一店舗の `open` な outbox 失敗だけを `retrying` にし、配送ジョブを `pending` に戻す。再失敗すれば `markFailed` が `open` に戻す。

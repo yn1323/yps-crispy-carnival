@@ -3,6 +3,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Doc, Id } from "../_generated/dataModel";
 import { addDays, jstDayRangeMs } from "../_lib/dateFormat";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { modules, schema } from "../_test/setup.test-helper";
 import { aggregateDailyOrganizationPage, aggregateDailyShopPage } from "./aggregation";
 import { type AnalyticsInvariantPageResult, inspectCanonicalFactsPage, inspectDailyOutputPage } from "./invariants";
@@ -214,7 +215,6 @@ describe("Analytics bounded invariants", () => {
       });
       const shopId = await ctx.db.insert("shops", {
         organizationId,
-        operatingStatus: "active",
         name: "legacy shop",
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         regularClosedDays: [],
@@ -373,7 +373,6 @@ describe("Analytics bounded invariants", () => {
       });
       const shopId = await ctx.db.insert("shops", {
         organizationId,
-        operatingStatus: "active",
         name: "cycle boundary shop",
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         regularClosedDays: [],
@@ -532,7 +531,6 @@ describe("Analytics bounded invariants", () => {
         });
         const shopId = await ctx.db.insert("shops", {
           organizationId,
-          operatingStatus: "active",
           name: "cycle scope limit shop",
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           regularClosedDays: [],
@@ -608,7 +606,6 @@ describe("Analytics bounded invariants", () => {
       });
       const shopId = await ctx.db.insert("shops", {
         organizationId,
-        operatingStatus: "active",
         name: "activity baseline shop",
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         regularClosedDays: [],
@@ -678,7 +675,6 @@ describe("Analytics bounded invariants", () => {
       });
       const shopId = await ctx.db.insert("shops", {
         organizationId,
-        operatingStatus: "active",
         name: "redaction shop",
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         regularClosedDays: [],
@@ -729,13 +725,10 @@ describe("Analytics bounded invariants", () => {
       });
       const ids = [];
       for (let index = 0; index < 51; index += 1) {
-        const staffId = await ctx.db.insert("staffs", {
-          organizationId,
+        const staffId = await seedStaff(ctx, {
           shopId,
           name: `redaction staff ${index}`,
           email: `redaction-${index}@example.com`,
-          emailNormalized: `redaction-${index}@example.com`,
-          isDeleted: false,
         });
         ids.push(
           await ctx.db.insert("analyticsShiftCycleOpportunities", {

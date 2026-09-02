@@ -304,7 +304,7 @@ describe("useLoginMethodsController", () => {
     if (googleAccount) expect(user.externalAccounts[0]).toBe(googleAccount);
     expect(result.current.emailChangeDialog).toEqual({ isOpen: false });
     expect(mocks.showSuccessToast).toHaveBeenCalledWith({
-      title: "メインのメールアドレスを変更しました",
+      title: "メールアドレスを変更しました",
     });
   });
 
@@ -491,7 +491,7 @@ describe("useLoginMethodsController", () => {
     expect(pendingEmail.prepareVerification).toHaveBeenCalledTimes(2);
     expect(result.current.emailPasswordState).toEqual({
       status: "success",
-      message: "新しい確認コードを送りました。",
+      message: "新しい確認コードを再送しました。",
     });
 
     now.mockRestore();
@@ -770,7 +770,7 @@ describe("useLoginMethodsController", () => {
     expect(user.externalAccounts).toEqual([googleAccount]);
     expect(result.current.emailChangeDialog).toEqual({ isOpen: false });
     expect(mocks.showSuccessToast).toHaveBeenCalledWith({
-      title: "メインのメールアドレスを変更しました",
+      title: "メールアドレスを変更しました",
     });
   });
 
@@ -946,8 +946,7 @@ describe("useLoginMethodsController", () => {
     expect(result.current.googleState).toEqual({ status: "idle", message: null });
     expect(mocks.showErrorToast).toHaveBeenCalledWith(
       expect.objectContaining({
-        message:
-          "メールアドレス未設定時はGoogle認証を解除できません。先にメールアドレスとパスワードを設定してください。",
+        message: "Google認証を解除できません。先にメールアドレスとパスワードを設定してください。",
       }),
     );
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();

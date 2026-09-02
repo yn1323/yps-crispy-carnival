@@ -10,55 +10,68 @@ const shop = (
 ): ShopContextOption => ({
   shopId,
   shopName,
-  shopStatus: "active",
   organizationId,
   organizationName,
-  organizationPlan: "pro",
-  memberStatus: "active",
+  organizationPlan: "standard",
 });
 
 describe("Dashboardの操作先", () => {
-  it("1グループ1店舗ではグループ名を隠して店舗を静的表示にする", () => {
+  it("1組織1店舗では選択組織を保持して店舗を静的表示にする", () => {
     const shops = [shop("shop-a", "A店", "org-a", "Aグループ")];
 
     const model = buildOperationContextModel(shops, "shop-a");
 
-    expect(model).toMatchObject({ hasMultipleGroups: false, canSwitchShop: false });
+    expect(model).toMatchObject({
+      canSwitchShop: false,
+      selectedGroup: { key: "org-a", organizationName: "Aグループ" },
+    });
   });
 
-  it("1グループ複数店舗ではグループ名を隠して店舗を切替可能にする", () => {
+  it("1組織複数店舗では選択組織を保持して店舗を切替可能にする", () => {
     const shops = [shop("shop-a", "A店", "org-a", "Aグループ"), shop("shop-b", "B店", "org-a", "Aグループ")];
 
     const model = buildOperationContextModel(shops, "shop-a");
 
-    expect(model).toMatchObject({ hasMultipleGroups: false, canSwitchShop: true });
+    expect(model).toMatchObject({
+      canSwitchShop: true,
+      selectedGroup: { key: "org-a", organizationName: "Aグループ" },
+    });
   });
 
-  it("複数グループでは選択グループが1店舗でも全店舗を切替可能にする", () => {
+  it("別組織に店舗があっても現在組織に1店舗なら店舗切替を表示しない", () => {
     const shops = [
       shop("shop-a", "A店", "org-a", "Aグループ"),
-      shop("shop-b", "B店", "org-b", "Bグループ"),
+      shop("shop-e", "E店", "org-c", "Cグループ"),
       shop("shop-c", "C店", "org-b", "Bグループ"),
+      shop("shop-b", "B店", "org-b", "Bグループ"),
+      shop("shop-d", "D店", "org-c", "Cグループ"),
     ];
 
     const model = buildOperationContextModel(shops, "shop-a");
 
-    expect(model).toMatchObject({ hasMultipleGroups: true, canSwitchShop: true });
+    expect(model).toMatchObject({
+      canSwitchShop: false,
+      selectedGroup: { key: "org-a", shops: [{ shopId: "shop-a" }] },
+    });
   });
 
-  it("複数グループでは選択中店舗のグループを表示モデルに保持する", () => {
+  it("選択中の組織にある店舗だけを表示モデルに保持する", () => {
     const shops = [
       shop("shop-a", "A店", "org-a", "Aグループ"),
       shop("shop-b", "B店", "org-a", "Aグループ"),
       shop("shop-c", "C店", "org-b", "Bグループ"),
+      shop("shop-d", "D店", "org-b", "Bグループ"),
     ];
 
     const model = buildOperationContextModel(shops, "shop-c");
 
     expect(model).toMatchObject({
-      hasMultipleGroups: true,
       canSwitchShop: true,
-      selectedGroup: { key: "org-b", organizationName: "Bグループ" },
+      selectedGroup: {
+        key: "org-b",
+        organizationName: "Bグループ",
+        shops: [{ shopId: "shop-c" }, { shopId: "shop-d" }],
+      },
       selectedShop: { shopId: "shop-c" },
     });
   });

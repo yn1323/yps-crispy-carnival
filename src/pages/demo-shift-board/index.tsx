@@ -1,4 +1,4 @@
-import { Alert, Box, Container, Heading, Link, List, Text, VStack } from "@chakra-ui/react";
+import { Alert, Box, Heading, Link, List, Text, VStack } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { DemoShiftBoardPage } from "@/src/components/features/Demo";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
@@ -6,21 +6,27 @@ import { PublicPageLayout } from "@/src/components/templates/PublicPageLayout";
 
 export function DemoShiftBoardRoutePage() {
   return (
-    <PublicPageLayout minH="100dvh" showFooter={false} headerProps={{ showLinks: false, showLogin: false }}>
-      <Container display={{ base: "block", lg: "none" }} maxW="640px" pb={4}>
-        <TopLink />
-      </Container>
-
-      <Box display={{ base: "none", lg: "block" }} h={`calc(100dvh - ${HEADER_HEIGHT.md})`} minH="560px">
-        <DemoShiftBoardPage headerStart={<TopLink />} height="100%" />
+    <PublicPageLayout minH="100dvh" showFooter={false}>
+      <Box h={{ base: "auto", lg: `calc(100dvh - ${HEADER_HEIGHT.md})` }} minH={{ lg: "560px" }}>
+        <DemoShiftBoardPage
+          headerStart={<TopLink />}
+          heading={
+            <Heading
+              as="h1"
+              fontSize={{ base: "2xl", lg: "sm" }}
+              fontWeight={700}
+              color="gray.800"
+              whiteSpace={{ base: "normal", lg: "nowrap" }}
+            >
+              勤務時間入力デモ
+            </Heading>
+          }
+          height="100%"
+        />
       </Box>
 
       <Box display={{ base: "block", lg: "none" }} px={6} pb={10} maxW="640px" mx="auto">
         <VStack align="stretch" gap={6}>
-          <Heading as="h1" size="xl">
-            勤務時間入力デモ
-          </Heading>
-
           <Alert.Root status="warning" borderRadius="md">
             <Alert.Indicator />
             <Box>
@@ -34,7 +40,7 @@ export function DemoShiftBoardRoutePage() {
           </Alert.Root>
 
           <Text color="fg.muted" lineHeight={1.7}>
-            シフトリは、シフト希望の回収から確定共有までをひとつにまとめる無料ツールです。
+            シフトリは、希望シフトの回収から確定シフトの共有までをひとつにまとめるシフト管理サービスです。
             <br />
             このデモでは、店長・シフト作成担当者の操作画面を会員登録なしで試せます。
           </Text>
@@ -44,10 +50,10 @@ export function DemoShiftBoardRoutePage() {
               シフトリでできること
             </Heading>
             <List.Root gap={2} color="fg.muted">
-              <List.Item>スタッフへのシフト希望募集をLINEやメールで完結</List.Item>
+              <List.Item>スタッフへのシフト募集をLINEやメールで完結</List.Item>
               <List.Item>スタッフはアプリのインストールもアカウント登録も不要</List.Item>
               <List.Item>集まった希望をガントチャートで一覧確認・調整</List.Item>
-              <List.Item>確定したシフトをワンクリックで全員に通知</List.Item>
+              <List.Item>確定シフトをワンクリックで全員に通知</List.Item>
               <List.Item>過去のシフトはすべて保存、いつでも参照可能</List.Item>
             </List.Root>
           </Box>

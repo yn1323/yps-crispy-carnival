@@ -1,7 +1,9 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { addDays, getMondayWeekStart, subtractCalendarMonths } from "../_lib/dateFormat";
+import { ANALYTICS_CALCULATION_VERSION } from "../analytics/model";
 import { ANALYTICS_POLICY } from "../analytics/registry";
+import { DAY_MS } from "../constants";
 import type {
   AnalyticsAvailability,
   AnalyticsCadenceDto,
@@ -16,7 +18,11 @@ import type {
   AnalyticsServiceKpiSnapshotDto,
   AnalyticsShopKpiDto,
   AnalyticsShopRowDto,
+  AnalyticsShopUsageLikelihood,
+  AnalyticsShopUsageReason,
+  CanonicalAnalyticsPlanKey,
 } from "./dto";
+import type { AnalyticsShopUsageFilter } from "./schemas";
 
 export type AnalyticsRun = Doc<"analyticsRuns">;
 
@@ -207,7 +213,7 @@ export function toOrganizationRowDto(
     displayName: doc.displayName,
     registeredAt: doc.registeredAt,
     deletedAt: doc.deletedAt ?? null,
-    currentPlan: doc.currentPlan ?? null,
+    currentPlan: projectAnalyticsPlan(doc.currentPlan),
     firstShopAt: doc.firstShopAt ?? null,
     secondShopAt: doc.secondShopAt ?? null,
     secondShopFirstConfirmedAt:
@@ -231,7 +237,7 @@ export function toShopRowDto(
     displayName: doc.displayName,
     registeredAt: doc.registeredAt,
     deletedAt: doc.deletedAt ?? null,
-    currentPlan: doc.currentPlan ?? null,
+    currentPlan: projectAnalyticsPlan(doc.currentPlan),
     milestoneDates: {
       registeredAt: doc.registeredAt,
       firstRecruitmentAt: milestoneEligible ? (doc.firstRecruitmentAt ?? null) : null,
@@ -244,6 +250,60 @@ export function toShopRowDto(
     cadence: kpis?.cadence ?? toDimensionCadenceDto(doc),
     kpis,
   };
+}
+
+function requireCanonicalAnalyticsPlan(plan: Doc<"analyticsOrganizations">["currentPlan"]): CanonicalAnalyticsPlanKey {
+  if (plan === "trial" || plan === "free" || plan === "standard" || plan === "pro") return plan;
+  throw new Error("analytics_plan_projection_not_canonical");
+}
+
+function projectAnalyticsPlan(plan: Doc<"analyticsOrganizations">["currentPlan"]): CanonicalAnalyticsPlanKey | null {
+  if (plan === undefined) return null;
+  return requireCanonicalAnalyticsPlan(plan);
+}
+
+type AnalyticsShopUsageKpiEvidence = Pick<
+  AnalyticsShopKpiDto,
+  "nextCyclePeriodStart" | "shiftTargetCount" | "staffMembershipCount"
+>;
+
+export function classifyShopUsage(args: {
+  cutoffAt: number;
+  latestActivityAt: number | null;
+  kpis: AnalyticsShopUsageKpiEvidence | null;
+}): { usageLikelihood: AnalyticsShopUsageLikelihood; usageReasons: AnalyticsShopUsageReason[] } {
+  const activityWindowStartAt = args.cutoffAt - ANALYTICS_POLICY.health.activityWindowDays * DAY_MS;
+  const latestActivityAt = args.latestActivityAt;
+  const hasPublishedActivity = latestActivityAt !== null && latestActivityAt < args.cutoffAt;
+  const hasRecentActivity = hasPublishedActivity && latestActivityAt >= activityWindowStartAt;
+  const hasObservedActivity = hasPublishedActivity && !hasRecentActivity;
+  const hasUpcomingCycle = args.kpis?.nextCyclePeriodStart !== null && args.kpis?.nextCyclePeriodStart !== undefined;
+  const hasShiftTargets = (args.kpis?.shiftTargetCount ?? 0) > 0;
+  const hasStaffMemberships = (args.kpis?.staffMembershipCount ?? 0) > 0;
+
+  const usageReasons: AnalyticsShopUsageReason[] = [];
+  if (hasRecentActivity) usageReasons.push("recentActivity");
+  if (hasUpcomingCycle) usageReasons.push("hasUpcomingCycle");
+  if (hasObservedActivity) usageReasons.push("observedActivity");
+  if (hasShiftTargets) usageReasons.push("hasShiftTargets");
+  if (hasStaffMemberships) usageReasons.push("hasStaffMemberships");
+
+  const usageLikelihood: AnalyticsShopUsageLikelihood =
+    hasRecentActivity || hasUpcomingCycle
+      ? "high"
+      : hasObservedActivity || hasShiftTargets || hasStaffMemberships
+        ? "possible"
+        : "unknown";
+  return { usageLikelihood, usageReasons };
+}
+
+export function usageMatches(
+  likelihood: AnalyticsShopUsageLikelihood,
+  filter: AnalyticsShopUsageFilter | null,
+): boolean {
+  if (filter === null) return true;
+  if (filter === "candidate") return likelihood === "high" || likelihood === "possible";
+  return likelihood === filter;
 }
 
 export function toCycleRowDto(
@@ -331,9 +391,11 @@ export async function getAnalyticsReadState(ctx: QueryCtx): Promise<AnalyticsRea
   ]);
   const latestDaily = laterRun(laterRun(runningDaily, completeDaily), failedDaily);
   const latestReset = laterRun(laterRun(runningReset, completeReset), failedReset);
+  const resetReady =
+    completeReset?.calculationVersion === ANALYTICS_CALCULATION_VERSION && completeReset.resetWatermarkAt !== undefined;
   const latestDailyAfterReset = startedAfter(latestDaily, latestReset) ? latestDaily : null;
   const latestCompleteRun =
-    completeDaily?.targetDate !== undefined && startedAfter(completeDaily, latestReset)
+    resetReady && completeDaily?.targetDate !== undefined && startedAfter(completeDaily, latestReset)
       ? (completeDaily as CompleteDailyRun)
       : null;
   const warnings: string[] = [];
@@ -345,18 +407,21 @@ export async function getAnalyticsReadState(ctx: QueryCtx): Promise<AnalyticsRea
   } else if (latestReset?.status === "failed") {
     availability = "unavailable";
     warnings.push("分析データの再構築に失敗しています");
+  } else if (!resetReady) {
+    availability = "unavailable";
+    warnings.push("分析データのプラン定義を再構築してください");
   } else if (latestDailyAfterReset?.status === "running") {
     availability = "unavailable";
     warnings.push("日次集計を実行中です");
   } else if (latestDailyAfterReset?.status === "failed") {
     availability = "unavailable";
     warnings.push("最新の日次集計に失敗しています");
-  } else if (!latestCompleteRun) {
+  } else if (!latestCompleteRun || latestCompleteRun.calculationVersion !== ANALYTICS_CALCULATION_VERSION) {
     availability = "unavailable";
     warnings.push("利用可能な日次集計がありません");
   }
 
-  const controlRun = latestDailyAfterReset ?? latestReset ?? latestDaily;
+  const controlRun = resetReady ? (latestDailyAfterReset ?? latestReset) : latestReset;
   return {
     availability,
     asOf: latestCompleteRun?.cutoffAt ?? null,

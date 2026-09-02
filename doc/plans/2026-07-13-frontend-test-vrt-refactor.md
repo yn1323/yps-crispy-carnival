@@ -382,7 +382,6 @@ third-party由来の既知ノイズは、理由と対象を完全一致でallowl
 7. `NotificationFailureDialog`の一括再送中、行loading、再送不可、全accepted。
 8. `RecruitmentBoard`の過去募集表示と追加読込callback。
 9. mobile E2Eの確定閲覧、法務同意、スタッフ登録。
-10. ShiftBoard、登録、確定閲覧、主要Dialog、validation error状態のa11y。
 
 容量境界は通常Full Regressionへ混ぜず、200スタッフ、2000割当、31日募集などを定期実行の`@capacity`へ分ける。
 
@@ -396,7 +395,7 @@ third-party由来の既知ノイズは、理由と対象を完全一致でallowl
 6. paint、resize、buildShiftData、提出往復契約を追加する。
 7. pollingをTesting Libraryへ置き換える。
 8. runtime error、production build、exact SHA、契約IDのFull Regressionゲートを有効にする。
-9. 不足するmobile、a11y、error、loading、二重送信状態を追加する。
+9. 不足するmobile、error、loading、二重送信状態を追加する。
 
 ## 完了条件
 

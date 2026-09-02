@@ -53,9 +53,31 @@ jobs:
       - name: Deploy Convex Preview
         id: convex
         run: |
-          npx convex deploy --preview-create "$CONVEX_PREVIEW_NAME" \
-            --cmd 'echo "PREVIEW_URL=$CONVEX_URL" >> "$GITHUB_OUTPUT"' \
-            --cmd-url-env-var-name CONVEX_URL
+          deploy_preview() {
+            local preview_option="$1"
+            npx convex deploy "$preview_option" "$CONVEX_PREVIEW_NAME" \
+              --cmd 'echo "PREVIEW_URL=$CONVEX_URL" >> "$GITHUB_OUTPUT"' \
+              --cmd-url-env-var-name CONVEX_URL
+          }
+
+          deploy_log="$(mktemp)"
+          trap 'rm -f "$deploy_log"' EXIT
+
+          set +e
+          deploy_preview --preview-create 2>&1 | tee "$deploy_log"
+          deploy_status="${PIPESTATUS[0]}"
+          set -e
+
+          if [[ "$deploy_status" -eq 0 ]]; then
+            exit 0
+          fi
+
+          if ! grep -Fq "/api/deploy2/start_push 408 Request Timeout" "$deploy_log"; then
+            exit "$deploy_status"
+          fi
+
+          echo "::warning::Convex preview creation timed out; retrying the claimed preview once"
+          deploy_preview --preview-name
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
       # NOTE: convex-seeds/seeds/db.zip is currently stale against the schema.
@@ -69,10 +91,20 @@ jobs:
       - name: Build
         run: pnpm build
         env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_STANDARD_PRICE_ID: ${{ secrets.STRIPE_STANDARD_PRICE_ID }}
+          STRIPE_PRO_PRICE_ID: ${{ secrets.STRIPE_PRO_PRICE_ID }}
+          VITE_APP_ENVIRONMENT: preview
           VITE_CONVEX_URL: ${{ steps.convex.outputs.PREVIEW_URL }}
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
           VITE_GTM_ID: ${{ secrets.VITE_GTM_ID }}
+          VITE_RELEASE_ID: ${{ github.event.pull_request.head.sha }}
           VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
+          VITE_WEB_MEASUREMENT_ENABLED: ${{ vars.VITE_WEB_MEASUREMENT_ENABLED }}
+          VITE_WEB_VITALS_SAMPLE_RATE: ${{ vars.VITE_WEB_VITALS_SAMPLE_RATE }}
+          VITE_COMMERCIAL_TRANSACTIONS_ADDRESS: ${{ vars.VITE_COMMERCIAL_TRANSACTIONS_ADDRESS }}
+          VITE_COMMERCIAL_TRANSACTIONS_NAME: ${{ vars.VITE_COMMERCIAL_TRANSACTIONS_NAME }}
+          VITE_COMMERCIAL_TRANSACTIONS_PHONE_NUMBER: ${{ vars.VITE_COMMERCIAL_TRANSACTIONS_PHONE_NUMBER }}
       - name: Deploy to Cloudflare Pages
         id: deploy
         run: |
@@ -107,6 +139,27 @@ jobs:
         run: pnpm smoke-test:deployed
         env:
           E2E_DEPLOYED_BASE_URL: ${{ steps.deploy.outputs.DEPLOY_URL }}
+      # 通常Previewのdeployとnegative smoke後にだけ、外部公開しないsynthetic buildへlocal distを置き換える。
+      - name: Build measurement-enabled browser contract
+        run: pnpm build
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_STANDARD_PRICE_ID: ${{ secrets.STRIPE_STANDARD_PRICE_ID }}
+          STRIPE_PRO_PRICE_ID: ${{ secrets.STRIPE_PRO_PRICE_ID }}
+          VITE_APP_ENVIRONMENT: preview
+          VITE_CONVEX_URL: ${{ steps.convex.outputs.PREVIEW_URL }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          VITE_GTM_ID: GTM-TEST1234
+          VITE_RELEASE_ID: measurement-contract
+          VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
+          VITE_WEB_MEASUREMENT_ENABLED: "true"
+          VITE_WEB_VITALS_SAMPLE_RATE: "0"
+      - name: Verify measurement-enabled browser contract
+        run: pnpm test:e2e:measurement
+        env:
+          # Playwright webServerはこのCI専用phaseだけでproduction buildを起動する。
+          E2E_MEASUREMENT_BASE_URL: http://127.0.0.1:4174
+          E2E_MEASUREMENT_START_SERVER: "true"
 
   cleanup-preview:
     if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
@@ -150,6 +203,24 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Setup
         uses: ./.github/actions/setup
+      # Stripeを含む公開artifactのBuildを先に完了し、失敗時はdeploymentを変更しない。
+      - name: Build
+        run: pnpm build
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_STANDARD_PRICE_ID: ${{ secrets.STRIPE_STANDARD_PRICE_ID }}
+          STRIPE_PRO_PRICE_ID: ${{ secrets.STRIPE_PRO_PRICE_ID }}
+          VITE_APP_ENVIRONMENT: develop
+          VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          VITE_GTM_ID: ${{ secrets.VITE_GTM_ID }}
+          VITE_RELEASE_ID: ${{ github.sha }}
+          VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
+          VITE_WEB_MEASUREMENT_ENABLED: ${{ vars.VITE_WEB_MEASUREMENT_ENABLED }}
+          VITE_WEB_VITALS_SAMPLE_RATE: ${{ vars.VITE_WEB_VITALS_SAMPLE_RATE }}
+          VITE_COMMERCIAL_TRANSACTIONS_ADDRESS: ${{ vars.VITE_COMMERCIAL_TRANSACTIONS_ADDRESS }}
+          VITE_COMMERCIAL_TRANSACTIONS_NAME: ${{ vars.VITE_COMMERCIAL_TRANSACTIONS_NAME }}
+          VITE_COMMERCIAL_TRANSACTIONS_PHONE_NUMBER: ${{ vars.VITE_COMMERCIAL_TRANSACTIONS_PHONE_NUMBER }}
       - name: Deploy Convex
         run: npx convex deploy
         env:
@@ -158,13 +229,6 @@ jobs:
         run: npx convex run migrations/index:run
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-      - name: Build
-        run: pnpm build
-        env:
-          VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
-          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
-          VITE_GTM_ID: ${{ secrets.VITE_GTM_ID }}
-          VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
       - name: Deploy to Cloudflare Pages
         run: |
           npx wrangler pages deploy dist/client \

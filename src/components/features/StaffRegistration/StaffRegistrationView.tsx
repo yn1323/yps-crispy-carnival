@@ -1,4 +1,4 @@
-import { Box, Checkbox, Circle, Field, HStack, Input, Stack, Text, VStack } from "@chakra-ui/react";
+import { Box, Checkbox, Circle, Field, HStack, Stack, Text, VStack } from "@chakra-ui/react";
 import type { FormEventHandler, ReactNode } from "react";
 import type { UseFormRegisterReturn } from "react-hook-form";
 import { LuCheck, LuClock, LuUserPlus } from "react-icons/lu";
@@ -8,6 +8,7 @@ import { StaffGuideContent } from "@/src/components/shared/StaffGuideContent";
 import { TurnstileWidget } from "@/src/components/shared/TurnstileWidget";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
+import { Input } from "@/src/components/ui/FormControls";
 
 type Props = {
   state:
@@ -51,9 +52,9 @@ export function StaffRegistrationView({ state }: Props) {
       <RegistrationShell centerContent>
         <PanelFrame tone="neutral" icon={<LuClock />} title="登録リンクを確認できません" headingAs="h1">
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            リンクが無効になっている可能性があります。
+            リンクが古くなっている可能性があります。
             <br />
-            シフト作成担当者に、新しい登録リンクの発行を依頼してください。
+            シフト作成担当者連絡し、新しい登録リンクの発行を依頼してください。
           </Text>
         </PanelFrame>
       </RegistrationShell>
@@ -65,9 +66,11 @@ export function StaffRegistrationView({ state }: Props) {
       <RegistrationGuideShell>
         <PanelFrame tone="success" icon={<LuCheck />} title="スタッフ登録申請を受け付けました">
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            申請内容を確認します。
+            管理者が承認するまでお待ちください。
             <br />
-            必要な場合は、入力したメールアドレスへ案内を送ります。
+            承認後は入力したメールアドレスに通知が届きます。
+            <br />
+            こちらのページは閉じて構いません。
           </Text>
         </PanelFrame>
       </RegistrationGuideShell>
@@ -80,7 +83,7 @@ export function StaffRegistrationView({ state }: Props) {
         <PanelFrame tone="action" icon={<LuUserPlus />} title="申請内容を確認してください">
           <VStack align="stretch" gap={5}>
             <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-              承認後、このメールアドレスへ登録完了とLINE連携の案内を送ります。
+              承認後、LINE未連携の場合はこのメールアドレスへ連携の案内を送ります。
               <br />
               募集中のシフトがある場合は、提出案内も送ります。
             </Text>
@@ -148,9 +151,9 @@ export function StaffRegistrationView({ state }: Props) {
       <PanelFrame tone="action" icon={<LuUserPlus />} title="スタッフ登録">
         <VStack align="stretch" gap={5}>
           <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-            名前とメールアドレスを入力して、スタッフ登録を申請します。
+            名前とメールアドレスを入力して、スタッフ登録申請します。
             <br />
-            確認後、必要な案内をメールで送ります。
+            管理者承認後、シフトの連絡が届くようになります。
           </Text>
           <form id="staff-registration-form" onSubmit={state.onConfirm} noValidate>
             <Stack gap={5}>
@@ -160,7 +163,7 @@ export function StaffRegistrationView({ state }: Props) {
                   {...state.nameRegistration}
                   bg="white"
                   maxLength={PERSON_NAME_MAX_LENGTH}
-                  placeholder="例：田中 花子"
+                  placeholder="サンプル スタッフ"
                 />
                 {state.nameError && <Field.ErrorText>{state.nameError}</Field.ErrorText>}
               </Field.Root>
@@ -172,7 +175,7 @@ export function StaffRegistrationView({ state }: Props) {
                   {...state.emailRegistration}
                   bg="white"
                   maxLength={EMAIL_MAX_LENGTH}
-                  placeholder="例：hanako@example.com"
+                  placeholder="staff@example.com"
                 />
                 {state.emailError && <Field.ErrorText>{state.emailError}</Field.ErrorText>}
                 {state.typoSuggestion && (

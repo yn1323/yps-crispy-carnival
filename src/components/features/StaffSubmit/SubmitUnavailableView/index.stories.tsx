@@ -33,3 +33,15 @@ export const SubmissionClosed: Story = {
     reason: "submission_closed",
   },
 };
+
+export const UsageLimitExceeded: Story = {
+  args: {
+    reason: "usage_limit_exceeded",
+  },
+};
+
+export const UsageLimitEvaluationUnavailable: Story = {
+  args: {
+    reason: "usage_limit_evaluation_unavailable",
+  },
+};

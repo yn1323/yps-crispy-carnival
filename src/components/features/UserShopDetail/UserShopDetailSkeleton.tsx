@@ -1,29 +1,45 @@
-import { Box, Flex, Skeleton, Stack } from "@chakra-ui/react";
+import { Flex, Skeleton, Stack } from "@chakra-ui/react";
+import { StaffNotificationHistoryView } from "@/src/components/features/StaffNotificationHistory";
+import { DetailPageHeaderSkeleton } from "@/src/components/ui/DetailPageHeader";
+import { UserShopDetailPageSection } from "./UserShopDetailPageSection";
+import { UserShopNotificationSkeleton } from "./UserShopNotificationSection";
 
 export function UserShopDetailSkeleton() {
   return (
-    <Stack gap={{ base: 4, md: 6 }} aria-label="店舗別設定を読み込み中">
-      <Flex align="center" gap={3}>
-        <Skeleton boxSize="32px" borderRadius="md" />
-        <Skeleton h="30px" w={{ base: "240px", md: "360px" }} maxW="80%" />
-      </Flex>
+    <Stack gap={{ base: 4, md: 6 }} aria-label="店舗別設定を読み込み中" aria-busy="true">
+      <DetailPageHeaderSkeleton titleWidth={{ base: "236px", md: "360px" }} />
 
-      {Array.from({ length: 3 }).map((_, index) => (
-        <Box
-          key={index}
-          borderWidth="1px"
-          borderColor="blackAlpha.100"
-          borderRadius="xl"
-          bg="white"
-          p={{ base: 4, md: 6 }}
-        >
-          <Stack gap={4}>
-            <Skeleton h="22px" w={index === 1 ? "80px" : "120px"} />
-            <Skeleton h="16px" w="440px" maxW="90%" />
-            <Skeleton h={index === 1 ? "120px" : "72px"} w="full" borderRadius="lg" />
+      <UserShopDetailPageSection>
+        <Stack gap={10}>
+          <Stack gap={6}>
+            <Skeleton h="24px" w="48px" />
+            <UserShopNotificationSkeleton />
           </Stack>
-        </Box>
-      ))}
+          <StaffNotificationHistoryView items={[]} isLoading />
+        </Stack>
+      </UserShopDetailPageSection>
+
+      <UserShopDetailPageSection>
+        <SettingsSectionSkeleton />
+      </UserShopDetailPageSection>
+    </Stack>
+  );
+}
+
+function SettingsSectionSkeleton() {
+  return (
+    <Stack gap={2}>
+      <Flex align="center" justify="space-between" gap={4}>
+        <Skeleton h="24px" w="264px" maxW="calc(100% - 60px)" />
+        <Skeleton h="24px" w="44px" borderRadius="full" flexShrink={0} />
+      </Flex>
+      <Stack gap={1}>
+        <Skeleton h="18px" w="full" />
+        <Skeleton display={{ base: "block", md: "none" }} h="18px" w="88%" />
+        <Skeleton h="18px" w="184px" maxW="72%" />
+        <Skeleton h="18px" w="232px" maxW="80%" ms={5} />
+        <Skeleton h="18px" w="272px" maxW="88%" ms={5} />
+      </Stack>
     </Stack>
   );
 }

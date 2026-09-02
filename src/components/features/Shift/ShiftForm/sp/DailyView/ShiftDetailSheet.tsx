@@ -1,9 +1,9 @@
 import { Box, Text, VStack } from "@chakra-ui/react";
 import { Dialog } from "@/src/components/ui/Dialog";
 import { formatDateWithWeekday } from "@/src/domains/shift/date";
+import { isLegacyCompatibleWorkPosition } from "@/src/domains/shift/positions";
 import { formatShiftClockTime } from "@/src/domains/shift/time";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
-import { BREAK_POSITION } from "../../constants";
 
 type ShiftDetailSheetProps = {
   staff: StaffType;
@@ -16,15 +16,15 @@ type ShiftDetailSheetProps = {
 export const ShiftDetailSheet = ({ staff, shift, selectedDate, isOpen, onOpenChange }: ShiftDetailSheetProps) => {
   const dateLabel = formatDateWithWeekday(selectedDate);
 
-  const visibleSegments = shift?.positions.filter((p) => p.positionName !== BREAK_POSITION.name) ?? [];
+  const visibleSegments = shift?.positions.filter(isLegacyCompatibleWorkPosition) ?? [];
 
   return (
     <Dialog
       title={`${staff.name}のシフト  ${dateLabel}`}
       isOpen={isOpen}
       onOpenChange={onOpenChange}
-      hideFooter
-      modal={false}
+      onClose={() => onOpenChange({ open: false })}
+      closeLabel="閉じる"
     >
       <VStack gap={4} align="stretch">
         {visibleSegments.length > 0 && (

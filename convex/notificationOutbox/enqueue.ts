@@ -73,6 +73,12 @@ async function enqueueNotification(ctx: EnqueueCtx, input: EnqueueNotificationIn
       ...(input.organizationInvitationVersion !== undefined
         ? { organizationInvitationVersion: input.organizationInvitationVersion }
         : {}),
+      ...(input.organizationPersonLineLinkId
+        ? { organizationPersonLineLinkId: input.organizationPersonLineLinkId }
+        : {}),
+      ...(input.organizationPersonLineGenerationAtEnqueue !== undefined
+        ? { organizationPersonLineGenerationAtEnqueue: input.organizationPersonLineGenerationAtEnqueue }
+        : {}),
       purpose: input.purpose,
       ...(input.recruitmentId ? { recruitmentId: input.recruitmentId } : {}),
       ...(input.staffId ? { staffId: input.staffId } : {}),

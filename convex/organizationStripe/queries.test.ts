@@ -7,6 +7,68 @@ import { modules, schema } from "../_test/setup.test-helper";
 const NOW = Date.parse("2026-07-20T00:00:00.000Z");
 
 describe("organizationStripe/queries", () => {
+  it("期間末解約は最新intentだけを使い、取消済み旧Free予約や証跡なしを解約扱いにする", async () => {
+    const t = convexTest(schema, modules);
+    const effectiveAt = NOW + 30 * 24 * 60 * 60_000;
+    const organizations = await t.run(async (ctx) => {
+      const seedCase = async (
+        subject: string,
+        intents: Array<{ kind: "scheduleFree" | "cancelFreeSchedule"; restrictAtPeriodEnd?: true }>,
+      ) => {
+        const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
+        for (const [index, intent] of intents.entries()) {
+          await ctx.db.insert("organizationStripeOperations", {
+            organizationId: seeded.organizationId,
+            kind: intent.kind,
+            requestKey: `${subject}-${index}`,
+            stripeIdempotencyKey: `test:${subject}:${index}`,
+            livemode: false,
+            status: "succeeded",
+            attemptCount: 1,
+            providerGeneration: 1,
+            sourcePlan: "pro",
+            targetPlan: "free",
+            ...(intent.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
+            changeMode: "periodEnd",
+            stripeSubscriptionIdSnapshot: "sub_intent",
+            stripeSubscriptionItemIdSnapshot: "si_intent",
+            effectiveAt,
+            completedAt: NOW,
+            expiresAt: effectiveAt + 24 * 60 * 60_000,
+            createdAt: NOW + index,
+            updatedAt: NOW + index,
+          });
+        }
+        return seeded.organizationId;
+      };
+      return {
+        legacyScheduled: await seedCase("intent_legacy_scheduled", [{ kind: "scheduleFree" }]),
+        restrictionScheduled: await seedCase("intent_restriction_scheduled", [
+          { kind: "scheduleFree", restrictAtPeriodEnd: true },
+        ]),
+        legacyCanceled: await seedCase("intent_legacy_canceled", [
+          { kind: "scheduleFree" },
+          { kind: "cancelFreeSchedule" },
+        ]),
+        noEvidence: (await seedOrganizationManagerShop(ctx, { subject: "intent_no_evidence", plan: "pro" }))
+          .organizationId,
+      };
+    });
+    const readIntent = async (organizationId: (typeof organizations)[keyof typeof organizations]) =>
+      await t.query(internal.organizationStripe.queries.getCancelAtPeriodEndRestrictionIntent, {
+        organizationId,
+        providerGeneration: 1,
+        stripeSubscriptionId: "sub_intent",
+        stripeSubscriptionItemId: "si_intent",
+        effectiveAt,
+      });
+
+    await expect(readIntent(organizations.legacyScheduled)).resolves.toEqual({ restrictAtPeriodEnd: false });
+    await expect(readIntent(organizations.restrictionScheduled)).resolves.toEqual({ restrictAtPeriodEnd: true });
+    await expect(readIntent(organizations.legacyCanceled)).resolves.toEqual({ restrictAtPeriodEnd: true });
+    await expect(readIntent(organizations.noEvidence)).resolves.toEqual({ restrictAtPeriodEnd: true });
+  });
+
   it("既知Webhook objectの対応が重複する場合は組織を推測しない", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
@@ -27,6 +89,7 @@ describe("organizationStripe/queries", () => {
           stripeCustomerId,
           stripeSubscriptionId: "sub_guard_duplicate",
           stripePriceId: "price_guard_duplicate",
+          plan: "standard",
           stripeSubscriptionScheduleId: "sub_sched_guard_duplicate",
           livemode: false,
           status: "active",
@@ -39,7 +102,7 @@ describe("organizationStripe/queries", () => {
         });
         await ctx.db.insert("organizationStripeOperations", {
           organizationId,
-          kind: "immediateProCheckout",
+          kind: "immediatePaidCheckout",
           requestKey: `guard-duplicate-${index}`,
           stripeIdempotencyKey: `test:guard-duplicate-${index}`,
           livemode: false,
@@ -84,14 +147,14 @@ describe("organizationStripe/queries", () => {
     ).resolves.toBeNull();
   });
 
-  it("Business Subscriptionの課金期間・item・schedule snapshotを保存し、Actionと安全処理に同じ値を返す", async () => {
+  it("Pro Subscriptionの課金期間・item・schedule snapshotを保存し、Actionと安全処理に同じ値を返す", async () => {
     const t = convexTest(schema, modules);
-    const subject = "stripe_business_subscription_snapshot";
+    const subject = "stripe_pro_subscription_snapshot";
     const ids = await t.run(async (ctx) => {
-      const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: "business" });
+      const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
       await ctx.db.insert("organizationStripeCustomers", {
         organizationId: seeded.organizationId,
-        stripeCustomerId: "cus_business_snapshot",
+        stripeCustomerId: "cus_pro_snapshot",
         livemode: false,
         createdAt: NOW,
         updatedAt: NOW,
@@ -99,20 +162,20 @@ describe("organizationStripe/queries", () => {
       return seeded;
     });
     const snapshot = {
-      stripeSubscriptionId: "sub_business_snapshot",
-      stripeSubscriptionItemId: "si_business_snapshot",
-      stripePriceId: "price_business_snapshot",
-      plan: "business" as const,
+      stripeSubscriptionId: "sub_pro_snapshot",
+      stripeSubscriptionItemId: "si_pro_snapshot",
+      stripePriceId: "price_pro_snapshot",
+      plan: "pro" as const,
       currentPeriodStartsAt: NOW - 10 * 24 * 60 * 60_000,
       currentPeriodEndsAt: NOW + 20 * 24 * 60 * 60_000,
       billingCycleAnchor: NOW - 10 * 24 * 60 * 60_000,
-      stripeSubscriptionScheduleId: "sub_sched_business_snapshot",
+      stripeSubscriptionScheduleId: "sub_sched_pro_snapshot",
     };
 
     await expect(
       t.mutation(internal.organizationStripe.mutations.saveSubscriptionSnapshot, {
         organizationId: ids.organizationId,
-        stripeCustomerId: "cus_business_snapshot",
+        stripeCustomerId: "cus_pro_snapshot",
         ...snapshot,
         livemode: false,
         status: "active",
@@ -161,7 +224,7 @@ describe("organizationStripe/queries", () => {
     expect(persisted).toMatchObject(snapshot);
   });
 
-  it("complimentary.businessの既知Subscription ScheduleはCustomer hintがなくてもprovider照合前に遮断する", async () => {
+  it("complimentary.proの既知Subscription ScheduleはCustomer hintがなくてもprovider照合前に遮断する", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
@@ -173,14 +236,14 @@ describe("organizationStripe/queries", () => {
         .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
         .unique();
       if (!billing) throw new Error("billing fixture missing");
-      await ctx.db.patch(billing._id, { state: { kind: "complimentary", plan: "business" } });
+      await ctx.db.patch(billing._id, { state: { kind: "complimentary", plan: "pro" } });
       await ctx.db.insert("organizationStripeSubscriptions", {
         organizationId: seeded.organizationId,
         stripeCustomerId: "cus_complimentary_schedule_guard",
         stripeSubscriptionId: "sub_complimentary_schedule_guard",
         stripeSubscriptionScheduleId: "sub_sched_complimentary_guard",
-        stripePriceId: "price_business_complimentary_guard",
-        plan: "business",
+        stripePriceId: "price_pro_complimentary_guard",
+        plan: "pro",
         livemode: false,
         status: "active",
         providerGeneration: 1,

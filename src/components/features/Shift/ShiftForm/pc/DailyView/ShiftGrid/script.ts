@@ -1,7 +1,7 @@
 import { computeVisualBreaks } from "@/src/domains/shift/operations";
+import { isLegacyCompatibleBreakPosition } from "@/src/domains/shift/positions";
 import { formatShiftClockTime, timeToMinutes } from "@/src/domains/shift/time";
-import type { LinkedResizeTarget, PositionSegment, ShiftData, TimeRange } from "@/src/domains/shift/types";
-import { BREAK_POSITION } from "../../../constants";
+import type { LinkedResizeTarget, ShiftData, TimeRange } from "@/src/domains/shift/types";
 import { minutesToPixel } from "../../../timelineGeometry";
 
 export type ShiftBarSegmentViewModel = {
@@ -39,9 +39,6 @@ export type ShiftBarViewModel = {
   workLabel: ShiftBarLabelViewModel | null;
 };
 
-const isBreakSegment = (position: PositionSegment): boolean =>
-  position.positionName === BREAK_POSITION.name || position.positionId === BREAK_POSITION.id;
-
 const getEdgeShape = (isAdjacentToPrev: boolean, isAdjacentToNext: boolean): ShiftBarSegmentViewModel["edgeShape"] => {
   if (!isAdjacentToPrev && !isAdjacentToNext) return "isolated";
   if (!isAdjacentToPrev) return "start";
@@ -70,7 +67,7 @@ export const buildShiftBarViewModel = ({
 
   const workPositions = [...shift.positions]
     .sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start))
-    .filter((position) => !isBreakSegment(position));
+    .filter((position) => !isLegacyCompatibleBreakPosition(position));
   const requestedStartMinutes = hasRequestedTime
     ? Math.min(...requestedTimes.map((request) => timeToMinutes(request.start)))
     : timeRange.start * 60;

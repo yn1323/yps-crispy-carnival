@@ -2,7 +2,9 @@ import type { FunctionReference } from "convex/server";
 import { makeFunctionReference } from "convex/server";
 import { httpAction } from "../_generated/server";
 import { getAppUrl, getContactAllowedOrigins } from "../_lib/config";
+import { sha256Hex } from "../_lib/sha256";
 import { verifyTurnstile } from "../_lib/turnstile";
+import { normalizeEmail } from "../_lib/validation";
 import { CONTACT_HTTP_BODY_MAX_BYTES } from "../constants";
 import { type ContactDeliveryInput, submitContactSchema } from "./schemas";
 
@@ -73,11 +75,6 @@ async function readJson(request: Request): Promise<unknown> {
   return JSON.parse(text) as unknown;
 }
 
-async function hashRateLimitKey(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 function clientIp(request: Request): string | undefined {
   return request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
 }
@@ -130,9 +127,9 @@ export const submit = httpAction(async (ctx, request) => {
     );
   }
 
-  const emailKey = await hashRateLimitKey(input.email.trim().toLowerCase());
+  const emailKey = await sha256Hex(normalizeEmail(input.email));
   const ip = clientIp(request);
-  const ipKey = ip ? await hashRateLimitKey(ip) : undefined;
+  const ipKey = ip ? await sha256Hex(ip) : undefined;
   const rateLimitResult = await ctx.runMutation(checkSubmissionRateLimitRef, { emailKey, ipKey });
   if (!rateLimitResult.allowed) {
     return jsonResponse(

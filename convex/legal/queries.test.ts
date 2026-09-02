@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { getLegalConsentVersions, getLegalDocumentsForAudience } from "./documents";
@@ -12,11 +13,10 @@ describe("legal/queries", () => {
       const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
       await t.run(async (ctx) => {
         const shopId = await seedShop(ctx, "同意対象店舗");
-        const staffId = await ctx.db.insert("staffs", {
+        const staffId = await seedStaff(ctx, {
           shopId,
           name: "同意対象スタッフ",
           email: "consent@example.com",
-          isDeleted: false,
         });
         await ctx.db.insert("legalConsentTokens", {
           staffId,
@@ -45,11 +45,10 @@ describe("legal/queries", () => {
       await t.run(async (ctx) => {
         for (const index of [1, 2]) {
           const shopId = await seedShop(ctx, `重複同意token対象店舗${index}`);
-          const staffId = await ctx.db.insert("staffs", {
+          const staffId = await seedStaff(ctx, {
             shopId,
             name: `重複同意token対象スタッフ${index}`,
             email: `duplicate-consent-${index}@example.com`,
-            isDeleted: false,
           });
           await ctx.db.insert("legalConsentTokens", {
             staffId,
@@ -73,11 +72,10 @@ describe("legal/queries", () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
         const shopId = await seedShop(ctx, "失効確認店舗");
-        const staffId = await ctx.db.insert("staffs", {
+        const staffId = await seedStaff(ctx, {
           shopId,
           name: "失効確認スタッフ",
           email: "expired@example.com",
-          isDeleted: false,
         });
         await ctx.db.insert("legalConsentTokens", {
           staffId,
@@ -121,11 +119,10 @@ describe("legal/queries", () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
         const shopId = await seedShop(ctx, "同意済み店舗");
-        const staffId = await ctx.db.insert("staffs", {
+        const staffId = await seedStaff(ctx, {
           shopId,
           name: "同意済みスタッフ",
           email: "accepted@example.com",
-          isDeleted: false,
         });
         await ctx.db.insert("legalConsentStates", {
           subjectType: "staff",
@@ -160,11 +157,10 @@ describe("legal/queries", () => {
       await t.run(async (ctx) => {
         const staffShopId = await seedShop(ctx, "スタッフ所属店舗");
         const tokenShopId = await seedShop(ctx, "token対象店舗");
-        const staffId = await ctx.db.insert("staffs", {
+        const staffId = await seedStaff(ctx, {
           shopId: staffShopId,
           name: "別店舗スタッフ",
           email: "cross-shop@example.com",
-          isDeleted: false,
         });
         await ctx.db.insert("legalConsentTokens", {
           staffId,

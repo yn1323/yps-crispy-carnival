@@ -1,7 +1,91 @@
-import { Alert, Field, Input, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Alert, Field, Skeleton, Stack, Text } from "@chakra-ui/react";
 import { useState } from "react";
 import { Button } from "@/src/components/ui/Button";
+import { DialogActionArea } from "@/src/components/ui/Dialog";
+import { Input } from "@/src/components/ui/FormControls";
 import type { LoginMethodReverificationController, LoginMethodReverificationFactor } from "./reverificationTypes";
+
+export const isLoginMethodReverificationBusy = (controller: LoginMethodReverificationController) =>
+  controller.state.status === "starting" ||
+  controller.state.status === "submitting" ||
+  controller.state.status === "completing";
+
+const reverificationFormId = (controller: LoginMethodReverificationController) =>
+  `login-method-reverification-${controller.state.operationId ?? "pending"}`;
+
+export function LoginMethodReverificationActions({ controller }: { controller: LoginMethodReverificationController }) {
+  const { state } = controller;
+  if (state.status === "idle") return null;
+
+  if (state.status === "error") {
+    return (
+      <DialogActionArea
+        layout="standard"
+        endAction={
+          <Button type="button" variant="outline" onClick={controller.cancel}>
+            閉じる
+          </Button>
+        }
+      />
+    );
+  }
+
+  if (isLoginMethodReverificationBusy(controller)) {
+    const isSubmittingFactor = state.status === "submitting" && state.selectedFactor !== null;
+    return (
+      <DialogActionArea
+        layout="standard"
+        startAction={
+          isSubmittingFactor ? (
+            <Button type="button" variant="outline" disabled>
+              キャンセル
+            </Button>
+          ) : undefined
+        }
+        endAction={
+          isSubmittingFactor ? (
+            <Button type="button" colorPalette="teal" loading loadingText="確認中">
+              続ける
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" disabled>
+              閉じる
+            </Button>
+          )
+        }
+      />
+    );
+  }
+
+  if (state.status === "awaiting_input" && state.selectedFactor) {
+    return (
+      <DialogActionArea
+        layout="standard"
+        startAction={
+          <Button type="button" variant="outline" onClick={controller.cancel}>
+            キャンセル
+          </Button>
+        }
+        endAction={
+          <Button type="submit" form={reverificationFormId(controller)} colorPalette="teal">
+            続ける
+          </Button>
+        }
+      />
+    );
+  }
+
+  return (
+    <DialogActionArea
+      layout="standard"
+      endAction={
+        <Button type="button" variant="outline" onClick={controller.cancel}>
+          キャンセル
+        </Button>
+      }
+    />
+  );
+}
 
 export function LoginMethodReverificationView({ controller }: { controller: LoginMethodReverificationController }) {
   const { state } = controller;
@@ -14,9 +98,6 @@ export function LoginMethodReverificationView({ controller }: { controller: Logi
           <Alert.Indicator />
           <Alert.Description>{state.message}</Alert.Description>
         </Alert.Root>
-        <Button type="button" variant="outline" alignSelf="flex-start" onClick={controller.cancel}>
-          閉じる
-        </Button>
       </Stack>
     );
   }
@@ -32,7 +113,7 @@ export function LoginMethodReverificationView({ controller }: { controller: Logi
           <Text fontWeight="semibold">
             {state.stage === "second" ? "二段階認証の方法を選択" : "本人確認方法を選択"}
           </Text>
-          <Text color="fg.muted">続行するため、利用できる方法から一つ選んでください。</Text>
+          <Text color="fg.muted">いずれか一つ選んでください。</Text>
         </Stack>
         {state.message ? (
           <Alert.Root status="info" borderRadius="lg" alignItems="flex-start" role="status" aria-live="polite">
@@ -55,9 +136,6 @@ export function LoginMethodReverificationView({ controller }: { controller: Logi
             </Button>
           ))}
         </Stack>
-        <Button type="button" variant="ghost" alignSelf="flex-start" onClick={controller.cancel}>
-          キャンセル
-        </Button>
       </Stack>
     );
   }
@@ -83,10 +161,6 @@ function ReverificationSkeleton() {
       </Stack>
       <Skeleton h="40px" w="full" borderRadius="md" />
       <Skeleton h="16px" w="128px" alignSelf="flex-end" />
-      <Stack direction={{ base: "column-reverse", sm: "row" }} justify="space-between" gap={3}>
-        <Skeleton h="40px" w="96px" borderRadius="md" />
-        <Skeleton h="40px" w="88px" borderRadius="md" />
-      </Stack>
     </Stack>
   );
 }
@@ -107,6 +181,7 @@ function FactorInput({
   return (
     <Stack
       as="form"
+      id={reverificationFormId(controller)}
       gap={5}
       onSubmit={(event) => {
         event.preventDefault();
@@ -130,7 +205,9 @@ function FactorInput({
         <Input
           type={isPassword ? "password" : "text"}
           inputMode={isPassword || factor.strategy === "backup_code" ? undefined : "numeric"}
+          autocompletePolicy="auth"
           autoComplete={isPassword ? "current-password" : "one-time-code"}
+          placeholder={isPassword || factor.strategy === "backup_code" ? "******" : "123456"}
           value={value}
           onChange={(event) => setValue(event.currentTarget.value)}
         />
@@ -147,17 +224,9 @@ function FactorInput({
             void controller.resend();
           }}
         >
-          確認コードを再送
+          確認コードを再送する
         </Button>
       ) : null}
-      <Stack direction={{ base: "column-reverse", sm: "row" }} justify="space-between" gap={3}>
-        <Button type="button" variant="outline" onClick={controller.cancel}>
-          キャンセル
-        </Button>
-        <Button type="submit" colorPalette="teal">
-          続ける
-        </Button>
-      </Stack>
     </Stack>
   );
 }
@@ -181,14 +250,14 @@ function factorLabel(factor: LoginMethodReverificationFactor) {
 }
 
 function factorHeading(factor: LoginMethodReverificationFactor): string | null {
-  if (factor.strategy === "password") return "現在のパスワードを入力";
+  if (factor.strategy === "password") return "";
   if (factor.strategy === "totp") return "認証アプリのコードを入力";
   if (factor.strategy === "backup_code") return "バックアップコードを入力";
   return null;
 }
 
 function factorDescription(factor: LoginMethodReverificationFactor) {
-  if (factor.strategy === "password") return "続行するには、現在のパスワードで本人確認してください。";
+  if (factor.strategy === "password") return "現在のパスワードを入力してください。";
   if (factor.strategy === "totp") return "認証アプリに表示されているコードを入力してください。";
   if (factor.strategy === "backup_code") return "保存している未使用のバックアップコードを入力してください。";
   return factor.displayIdentifier

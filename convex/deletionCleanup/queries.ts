@@ -1,7 +1,12 @@
 import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
-import { internalQuery } from "../_generated/server";
-import { deletionCleanupScopeValidator, deletionCleanupStatusValidator } from "./validators";
+import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
+import { getDeletionCleanupJobForTarget } from "./service";
+import {
+  deletionCleanupScopeValidator,
+  deletionCleanupStatusValidator,
+  deletionCleanupTargetValidator,
+} from "./validators";
 
 const STATUS_PROBE_LIMIT = 50;
 const PROBED_STATUSES = ["queued", "processing", "retrying", "actionRequired", "completed"] as const;
@@ -23,6 +28,25 @@ const statusSummaryValidator = v.object({
   hasMore: v.boolean(),
   oldestAt: v.optional(v.number()),
   jobs: v.array(jobStatusItemValidator),
+});
+
+/** coordinatorがlinked jobの対象と状態を、target IDやrequest payloadを追加露出せず確認する。 */
+export const getLinkedJobState = internalQuery({
+  args: {
+    jobId: v.id("deletionCleanupJobs"),
+    target: deletionCleanupTargetValidator,
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      jobId: v.id("deletionCleanupJobs"),
+      status: deletionCleanupStatusValidator,
+      version: v.number(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    return await getDeletionCleanupJobForTarget(ctx, args);
+  },
 });
 
 /** PIIを返さず、未完了jobと完了到達をstatusごとにboundedで確認する運用probe。 */

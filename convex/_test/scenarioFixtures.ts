@@ -2,6 +2,7 @@ import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { todayJST } from "../_lib/dateFormat";
 import { generateUUID } from "../_lib/uuid";
+import { runInvitationAcceptance } from "../organizationInvitation/acceptanceActions";
 import type { ScenarioTest } from "./scenarioBuilders";
 
 type ManagerIdentity =
@@ -82,6 +83,14 @@ export function createScenario(t: ScenarioTest) {
         selectedShopId = shopId;
         return shopId;
       };
+      const getSelectedOrganizationId = async () => {
+        const shopId = await getSelectedShopId();
+        return await t.run(async (ctx) => {
+          const shop = await ctx.db.get(shopId);
+          if (!shop?.organizationId) throw new Error("Scenario organization is not canonical");
+          return shop.organizationId;
+        });
+      };
 
       return {
         async setupShopAndManager(
@@ -102,9 +111,10 @@ export function createScenario(t: ScenarioTest) {
             shopName: args.shopName,
             submissionPattern: resolveSubmissionPattern(args),
             requestId: generateUUID(),
+            sourceShopId: await getSelectedShopId(),
           });
         },
-        // 複数グループのシナリオでは、操作対象の店舗を明示して選択中店舗の暗黙解決に依存しない。
+        // 複数組織のシナリオでは、操作対象の店舗を明示して選択中店舗の暗黙解決に依存しない。
         selectShop(shopId: Id<"shops">) {
           selectedShopId = shopId;
         },
@@ -120,6 +130,23 @@ export function createScenario(t: ScenarioTest) {
             submissionPattern: resolveSubmissionPattern(args),
             requestId: generateUUID(),
             shopId: await getSelectedShopId(),
+          });
+        },
+        async deleteOrganization() {
+          const shopId = await getSelectedShopId();
+          const organization = await t.run(async (ctx) => {
+            const shop = await ctx.db.get(shopId);
+            if (!shop?.organizationId) throw new Error("Scenario organization is not canonical");
+            const current = await ctx.db.get(shop.organizationId);
+            if (!current) throw new Error("Scenario organization is not found");
+            return current;
+          });
+          return asManager.mutation(api.organization.mutations.deleteOrganization, {
+            shopId,
+            organizationId: organization._id,
+            confirmOrganizationId: organization._id,
+            expectedOrganizationUpdatedAt: organization.updatedAt,
+            requestId: generateUUID(),
           });
         },
         async createRecruitment(args: RecruitmentInput) {
@@ -149,33 +176,85 @@ export function createScenario(t: ScenarioTest) {
             requestId: generateUUID(),
             shopId: await getSelectedShopId(),
           });
-          if (result.status !== "added") {
-            throw new Error("Scenario staff addition unexpectedly requires confirmation");
-          }
           return result.staffIds;
         },
         async inviteStaffAsManager(staffId: Id<"staffs">) {
-          return asManager.mutation(api.organizationInvitation.mutations.createForStaff, {
-            staffId,
+          const staff = await t.run((ctx) => ctx.db.get(staffId));
+          if (
+            !staff?.organizationId ||
+            !staff.organizationPersonId ||
+            staff.shopId !== (await getSelectedShopId()) ||
+            staff.organizationId !== (await getSelectedOrganizationId())
+          ) {
+            throw new Error("Scenario manager invitation target is not canonical");
+          }
+          return asManager.mutation(api.organizationInvitation.mutations.issueForOrganization, {
+            organizationId: await getSelectedOrganizationId(),
+            recipient: { kind: "existingStaff", personId: staff.organizationPersonId },
             requestId: generateUUID(),
-            shopId: await getSelectedShopId(),
           });
         },
-        acceptManagerInvitation(token: string) {
-          return asManager.mutation(api.organizationInvitation.mutations.accept, { token });
+        async issueExternalManagerInvitation(args: { invitedName: string; email: string }) {
+          return asManager.mutation(api.organizationInvitation.mutations.issueForOrganization, {
+            organizationId: await getSelectedOrganizationId(),
+            recipient: { kind: "external", invitedName: args.invitedName, email: args.email },
+            requestId: generateUUID(),
+          });
         },
-        linkManagerInvitationAccount(token: string) {
-          return asManager.mutation(api.organizationInvitation.mutations.linkAccount, { token });
+        acceptManagerInvitation(token: string, verifiedEmails: ReadonlySet<string>) {
+          return asManager.action(
+            async (ctx) =>
+              await runInvitationAcceptance(
+                ctx,
+                {
+                  assertReady: async () => undefined,
+                  getVerifiedEmails: async () => verifiedEmails,
+                },
+                {
+                  appOrigin: "https://app.example.test",
+                  secretKey: "sk_test_scenario",
+                  publishableKey: "pk_test_scenario",
+                  expectedIssuer: "https://convex.test",
+                },
+                token,
+              ),
+          );
         },
         async removeManagerRole(personId: Id<"organizationPeople">) {
-          return asManager.mutation(api.organization.mutations.removeManagerRole, {
-            shopId: await getSelectedShopId(),
+          return asManager.mutation(api.organization.mutations.removeManagerRoleForOrganization, {
+            organizationId: await getSelectedOrganizationId(),
             personId,
             requestId: generateUUID(),
           });
         },
         async editStaff(args: { staffId: Id<"staffs">; name: string; email: string }) {
-          return asManager.mutation(api.staff.mutations.editStaff, { ...args, shopId: await getSelectedShopId() });
+          const shopId = await getSelectedShopId();
+          const expectedOrganizationId = await getSelectedOrganizationId();
+          const personId = await t.run(async (ctx) => {
+            const staff = await ctx.db.get(args.staffId);
+            if (
+              !staff ||
+              staff.isDeleted ||
+              !staff.organizationPersonId ||
+              staff.shopId !== shopId ||
+              staff.organizationId !== expectedOrganizationId
+            ) {
+              throw new Error("Scenario staff profile target is not canonical");
+            }
+            const person = await ctx.db.get(staff.organizationPersonId);
+            if (!person || person.organizationId !== expectedOrganizationId || person.status !== "active") {
+              throw new Error("Scenario staff profile target is not canonical");
+            }
+            return person._id;
+          });
+          return asManager.mutation(api.organization.mutations.updatePersonProfile, {
+            shopId,
+            expectedOrganizationId,
+            personId,
+            name: args.name,
+            email: args.email,
+            requestId: generateUUID(),
+          });
         },
         async sendOpenRecruitmentNotifications(staffId: Id<"staffs">) {
           return asManager.mutation(api.staff.mutations.sendOpenRecruitmentNotifications, {

@@ -1,4 +1,4 @@
-import { createLandingFaqPageJsonLd } from "@/src/components/features/FaqSite/landingFaqContent";
+import { createLandingFaqPageJsonLd } from "@/src/components/features/LandingPage/faqs";
 import { buildLinks, buildMeta, jsonLdMeta } from "@/src/lib/seo";
 
 export function buildHomePageHead() {
@@ -6,9 +6,9 @@ export function buildHomePageHead() {
     links: buildLinks({ canonical: "/" }),
     meta: [
       ...buildMeta({
-        title: "LINEでシフト希望を集める無料シフト管理｜シフトリ",
+        title: "LINEで希望シフトを集めるシフト管理｜シフトリ",
         description:
-          "LINEやメールのリンクから、スタッフはアプリ登録なしでシフト希望を提出できます。\n自動集計・未提出リマインド・確定シフトの共有まで無料で使えます。",
+          "LINEやメールのリンクから、スタッフはアプリ登録なしで希望シフトを提出できます。\n複数店舗・複数担当者に対応し、2か月無料・クレジットカード登録不要で始められます。",
         canonical: "/",
       }),
       ...jsonLdMeta(createLandingFaqPageJsonLd()),

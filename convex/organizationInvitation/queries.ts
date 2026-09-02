@@ -1,6 +1,5 @@
 import { v } from "convex/values";
-import { internalQuery, query } from "../_generated/server";
-import { isManagerInvitationEnabled } from "../_lib/config";
+import { observedInternalQuery as internalQuery, observedQuery as query } from "../_lib/errorObservability";
 import { isOrganizationInvitationIssued, isOrganizationInvitationLinked } from "./lifecycle";
 import { resolveOrganizationInvitationEligibility } from "./service";
 import { digestInvitationToken } from "./token";
@@ -18,7 +17,6 @@ export const getPreview = query({
   args: { token: v.string() },
   returns: invitationPreviewValidator,
   handler: async (ctx, args) => {
-    if (!isManagerInvitationEnabled()) return { status: "unavailable" as const };
     if (args.token.length !== 43) return { status: "invalid" as const };
     const tokenDigest = await digestInvitationToken(args.token);
     const invitations = await ctx.db
@@ -55,7 +53,6 @@ export const getEnqueueData = internalQuery({
     }),
   ),
   handler: async (ctx, args) => {
-    if (!isManagerInvitationEnabled()) return null;
     const invitation = await ctx.db.get(args.invitationId);
     if (
       !invitation ||
@@ -88,7 +85,6 @@ export const getAcceptanceNotificationData = internalQuery({
     }),
   ),
   handler: async (ctx, args) => {
-    if (!isManagerInvitationEnabled()) return null;
     const invitation = await ctx.db.get(args.invitationId);
     if (!invitation || !isOrganizationInvitationLinked(invitation) || invitation.version !== args.expectedVersion) {
       return null;
@@ -96,7 +92,7 @@ export const getAcceptanceNotificationData = internalQuery({
     const organization = await ctx.db.get(invitation.organizationId);
     if (!organization || organization.isDeleted) return null;
 
-    const [members, shops] = await Promise.all([
+    const [members, representativeShop] = await Promise.all([
       ctx.db
         .query("organizationMembers")
         .withIndex("by_organizationId_and_status", (q) =>
@@ -105,13 +101,11 @@ export const getAcceptanceNotificationData = internalQuery({
         .collect(),
       ctx.db
         .query("shops")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", invitation.organizationId))
-        .collect(),
+        .withIndex("by_organizationId_and_isDeleted", (q) =>
+          q.eq("organizationId", invitation.organizationId).eq("isDeleted", false),
+        )
+        .first(),
     ]);
-    const representativeShop =
-      shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "active") ??
-      shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "planSuspended") ??
-      shops.find((shop) => !shop.isDeleted && shop.operatingStatus === "archived");
     const recipients = [];
     for (const member of members) {
       const [person, user] = await Promise.all([ctx.db.get(member.personId), ctx.db.get(member.userId)]);

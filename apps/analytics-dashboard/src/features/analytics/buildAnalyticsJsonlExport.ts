@@ -104,7 +104,7 @@ class ExportRequestGate {
   private async wait(milliseconds: number) {
     if (milliseconds <= 0) return;
     if (milliseconds >= this.remainingTime()) {
-      throw new AnalyticsExportError("出力に時間がかかりすぎています。期間またはグループ・店舗を絞ってください。");
+      throw new AnalyticsExportError("出力に時間がかかりすぎています。期間または組織・店舗を絞ってください。");
     }
     await delay(milliseconds);
   }
@@ -112,7 +112,7 @@ class ExportRequestGate {
   async run<Result>(request: () => Promise<Result>): Promise<Result> {
     for (let rateLimitRetry = 0; ; rateLimitRetry += 1) {
       if (this.requestCount >= EXPORT_MAX_REQUESTS || this.remainingTime() <= 0) {
-        throw new AnalyticsExportError("出力対象が大きすぎます。期間またはグループ・店舗を絞ってください。");
+        throw new AnalyticsExportError("出力対象が大きすぎます。期間または組織・店舗を絞ってください。");
       }
 
       const pacingWait = Math.max(0, this.lastRequestStartedAt + EXPORT_REQUEST_INTERVAL_MS - Date.now());
@@ -169,7 +169,7 @@ class JsonlWriter {
     const line = `${JSON.stringify(record)}\n`;
     const lineBytes = this.encoder.encode(line).byteLength;
     if (this.recordCount + 1 > EXPORT_MAX_RECORDS || this.byteLength + lineBytes > EXPORT_MAX_BYTES) {
-      throw new AnalyticsExportError("JSONLが安全な出力上限を超えました。期間またはグループ・店舗を絞ってください。");
+      throw new AnalyticsExportError("JSONLが安全な出力上限を超えました。期間または組織・店舗を絞ってください。");
     }
 
     this.parts.push(line);
@@ -352,9 +352,7 @@ async function walkPages<Data extends DataWithMetadata, Row>(args: {
     cursor = continueCursor;
   }
 
-  throw new AnalyticsExportError(
-    "一つの分析データがページ上限を超えました。期間またはグループ・店舗を絞ってください。",
-  );
+  throw new AnalyticsExportError("一つの分析データがページ上限を超えました。期間または組織・店舗を絞ってください。");
 }
 
 function manifestRecord(
@@ -367,7 +365,7 @@ function manifestRecord(
   return {
     recordType: "manifest",
     format: "shiftori.analytics.ai-jsonl",
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     timezone: "Asia/Tokyo",
     environment: { label: anchor.environmentLabel },
@@ -396,7 +394,7 @@ function manifestRecord(
       shop: "organizationIdとshopIdを適用",
       shopKpi: "organizationIdとshopIdを適用",
       shiftCycle: "organizationIdとshopIdとeffectivePeriodを適用",
-      segmentKpi: hasEntityScope ? "グループ・店舗scope非対応のため非出力" : "segmentDimensionを適用",
+      segmentKpi: hasEntityScope ? "組織・店舗scope非対応のため非出力" : "segmentDimensionを適用",
     },
     interpretation: {
       availability: "availableのrequestだけを出力します。unavailableな夜間集計や欠損期間は出力しません。",
@@ -405,7 +403,7 @@ function manifestRecord(
       joins: "organizationId、shopId、recruitmentIdで関連recordを結合してください。",
     },
     excludedData: [
-      "グループ名と店舗名",
+      "組織名と店舗名",
       "スタッフ氏名、メールアドレス、電話番号、LINE user ID",
       "シフト提出内容と通知本文",
       "要望一覧と要望本文",
@@ -533,7 +531,7 @@ export async function buildAnalyticsJsonlExport(
       }),
     );
     if (!response.data.organization) {
-      throw new AnalyticsExportError("指定されたグループの分析データが見つかりませんでした。");
+      throw new AnalyticsExportError("指定された組織の分析データが見つかりませんでした。");
     }
     appendOrganization(response.data.organization);
     appendMetadata(writer, includeKpis ? "organizationKpi" : "organization", response.data.metadata, {
@@ -566,11 +564,11 @@ export async function buildAnalyticsJsonlExport(
     return response.data.shop;
   };
 
-  onProgress("グループと店舗の分析データを取得しています");
+  onProgress("組織と店舗の分析データを取得しています");
   if (search.shopId) {
     const shop = await fetchShopDetail(search.shopId);
     if (search.organizationId && shop.organizationId !== search.organizationId) {
-      throw new AnalyticsExportError("指定されたグループと店舗の組み合わせが一致しません。");
+      throw new AnalyticsExportError("指定された組織と店舗の組み合わせが一致しません。");
     }
     await fetchOrganizationDetail(shop.organizationId, false);
   } else if (search.organizationId) {
@@ -596,7 +594,12 @@ export async function buildAnalyticsJsonlExport(
       anchor,
       dataset: "organization",
       fetchPage: (cursor) =>
-        fetchOrganizations({ cursor, from: search.from, limit: EXPORT_PAGE_SIZE, to: effectiveTo }),
+        fetchOrganizations({
+          cursor,
+          from: search.from,
+          limit: EXPORT_PAGE_SIZE,
+          to: effectiveTo,
+        }),
       gate,
       onRow: appendOrganization,
       rowsFrom: (data) => data.rows,
@@ -605,14 +608,20 @@ export async function buildAnalyticsJsonlExport(
     await walkPages({
       anchor,
       dataset: "shop",
-      fetchPage: (cursor) => fetchShops({ cursor, from: search.from, limit: EXPORT_PAGE_SIZE, to: effectiveTo }),
+      fetchPage: (cursor) =>
+        fetchShops({
+          cursor,
+          from: search.from,
+          limit: EXPORT_PAGE_SIZE,
+          to: effectiveTo,
+        }),
       gate,
       onRow: appendShop,
       rowsFrom: (data) => data.rows,
       writer,
     });
     for (const [index, organizationId] of organizationIds.entries()) {
-      onProgress(`グループ別推移を取得しています（${index + 1} / ${organizationIds.length}）`);
+      onProgress(`組織別推移を取得しています（${index + 1} / ${organizationIds.length}）`);
       await fetchOrganizationDetail(organizationId, true);
     }
   }
@@ -649,7 +658,7 @@ export async function buildAnalyticsJsonlExport(
       recordType: "datasetNotice",
       dataset: "segmentKpi",
       status: "omitted",
-      reason: "segment APIはグループ・店舗scopeに対応していないため",
+      reason: "segment APIは組織・店舗scopeに対応していないため",
     });
   } else {
     onProgress("セグメント比較を取得しています");

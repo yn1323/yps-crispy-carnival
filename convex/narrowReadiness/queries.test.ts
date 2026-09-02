@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
-import { createMigrationHistoryTestWithMigrations } from "../_test/migrations.test-helper";
+import {
+  createMigrationHistoryTestWithMigrations,
+  legacyStaffDocumentForMigrationHistory,
+} from "../_test/migrations.test-helper";
 
 const firstPage = { cursor: null, numItems: 100 };
 
@@ -13,11 +16,12 @@ describe("Narrow readiness queries", () => {
     const secretMissingPersonUserEmail = "missing-person-user@example.com";
     const secretPersonUserMismatchEmail = "person-user-mismatch@example.com";
     const secretDanglingStaffUserEmail = "dangling-staff-user@example.com";
+    const secretDeletedLinkedUserEmail = "deleted-linked-user@example.com";
+    const secretDeletionRequestedLinkedUserEmail = "deletion-requested-linked-user@example.com";
     const secretToken = "narrow-secret-token";
     const secretViewToken = "narrow-secret-view-token";
     const secretSessionToken = "narrow-secret-session";
     const secretFanoutTargetKey = "narrow-secret-fanout-target";
-    const secretStripeIdempotencyKey = "narrow-secret-stripe-idempotency";
     const ids = await t.run(async (ctx) => {
       const now = Date.now();
       const userId = await ctx.db.insert("users", {
@@ -43,6 +47,23 @@ describe("Narrow readiness queries", () => {
         emailNormalized: secretDanglingStaffUserEmail,
         role: "manager",
         isDeleted: false,
+      });
+      const deletedLinkedUserId = await ctx.db.insert("users", {
+        authTokenIdentifier: "https://convex.test|narrow_readiness_deleted_linked_user",
+        name: "削除済みlinked user",
+        email: secretDeletedLinkedUserEmail,
+        emailNormalized: secretDeletedLinkedUserEmail,
+        role: "manager",
+        isDeleted: true,
+      });
+      const deletionRequestedLinkedUserId = await ctx.db.insert("users", {
+        authTokenIdentifier: "https://convex.test|narrow_readiness_deletion_requested_linked_user",
+        name: "削除受付済みlinked user",
+        email: secretDeletionRequestedLinkedUserEmail,
+        emailNormalized: secretDeletionRequestedLinkedUserEmail,
+        role: "manager",
+        isDeleted: false,
+        accountDeletionRequestedAt: now,
       });
       await ctx.db.insert("users", {
         authTokenIdentifier: "https://convex.test|narrow_readiness_admin",
@@ -122,7 +143,27 @@ describe("Narrow readiness queries", () => {
         createdAt: now,
         updatedAt: now,
       });
-      const crossOrganizationPersonId = await ctx.db.insert("organizationPeople", {
+      const deletedLinkedUserPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId,
+        userId: deletedLinkedUserId,
+        name: "削除済みlinked user",
+        email: secretDeletedLinkedUserEmail,
+        emailNormalized: secretDeletedLinkedUserEmail,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const deletionRequestedLinkedUserPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId,
+        userId: deletionRequestedLinkedUserId,
+        name: "削除受付済みlinked user",
+        email: secretDeletionRequestedLinkedUserEmail,
+        emailNormalized: secretDeletionRequestedLinkedUserEmail,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("organizationPeople", {
         organizationId: legacyOrganizationId,
         name: "別グループ人物",
         email: "cross-organization-person@example.com",
@@ -141,7 +182,7 @@ describe("Narrow readiness queries", () => {
         updatedAt: now,
       });
       await ctx.db.delete(danglingPersonId);
-      const memberId = await ctx.db.insert("organizationMembers", {
+      await ctx.db.insert("organizationMembers", {
         organizationId,
         personId,
         userId,
@@ -163,12 +204,15 @@ describe("Narrow readiness queries", () => {
         regularClosedDays: [],
         isDeleted: false,
       });
-      const legacyStaffId = await ctx.db.insert("staffs", {
-        shopId: legacyShopId,
-        name: "旧形式スタッフ",
-        email: secretEmail,
-        isDeleted: false,
-      });
+      const legacyStaffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId: legacyShopId,
+          name: "旧形式スタッフ",
+          email: secretEmail,
+          isDeleted: false,
+        }),
+      );
       await ctx.db.insert("staffs", {
         shopId,
         organizationId,
@@ -191,6 +235,28 @@ describe("Narrow readiness queries", () => {
         isDeleted: false,
       });
       await ctx.db.delete(danglingStaffUserId);
+      await ctx.db.insert("staffs", {
+        shopId,
+        organizationId,
+        organizationPersonId: deletedLinkedUserPersonId,
+        userId: deletedLinkedUserId,
+        name: "削除済みlinked user",
+        email: secretDeletedLinkedUserEmail,
+        emailNormalized: secretDeletedLinkedUserEmail,
+        excludedFromShift: false,
+        isDeleted: false,
+      });
+      await ctx.db.insert("staffs", {
+        shopId,
+        organizationId,
+        organizationPersonId: deletionRequestedLinkedUserPersonId,
+        userId: deletionRequestedLinkedUserId,
+        name: "削除受付済みlinked user",
+        email: secretDeletionRequestedLinkedUserEmail,
+        emailNormalized: secretDeletionRequestedLinkedUserEmail,
+        excludedFromShift: false,
+        isDeleted: false,
+      });
       await ctx.db.insert("staffs", {
         shopId,
         organizationId,
@@ -243,72 +309,6 @@ describe("Narrow readiness queries", () => {
         createdAt: now,
         updatedAt: now,
       });
-      await ctx.db.insert("organizationInvitations", {
-        organizationId,
-        email: secretEmail,
-        emailNormalized: secretEmail,
-        tokenDigest: "secret-token-digest",
-        status: "accepted",
-        inviterMemberId: memberId,
-        reservedSeat: false,
-        version: 1,
-        expiresAt: now + 60_000,
-        targetPersonId: crossOrganizationPersonId,
-        acceptedAt: now,
-        acceptedByPersonId: crossOrganizationPersonId,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.insert("organizationInvitations", {
-        organizationId,
-        email: "linked-missing-evidence@example.com",
-        emailNormalized: "linked-missing-evidence@example.com",
-        invitedName: "連携証跡欠損",
-        tokenDigest: "linked-missing-evidence-digest",
-        status: "linked",
-        purpose: "managerAddition",
-        inviterMemberId: memberId,
-        reservedSeat: false,
-        version: 1,
-        expiresAt: now + 60_000,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.insert("organizationInvitations", {
-        organizationId,
-        email: "non-linked-evidence@example.com",
-        emailNormalized: "non-linked-evidence@example.com",
-        invitedName: "非連携状態の証跡",
-        tokenDigest: "non-linked-evidence-digest",
-        status: "issued",
-        purpose: "managerAddition",
-        inviterMemberId: memberId,
-        reservedSeat: false,
-        version: 1,
-        expiresAt: now + 60_000,
-        targetPersonId: danglingPersonId,
-        linkedAt: now,
-        linkedByPersonId: danglingPersonId,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.insert("organizationInvitations", {
-        organizationId,
-        email: "cross-linked-evidence@example.com",
-        emailNormalized: "cross-linked-evidence@example.com",
-        invitedName: "別グループ連携者",
-        tokenDigest: "cross-linked-evidence-digest",
-        status: "linked",
-        purpose: "managerAddition",
-        inviterMemberId: memberId,
-        reservedSeat: false,
-        version: 1,
-        expiresAt: now + 60_000,
-        linkedAt: now,
-        linkedByPersonId: crossOrganizationPersonId,
-        createdAt: now,
-        updatedAt: now,
-      });
       await ctx.db.insert("notificationOutbox", {
         channel: "email",
         status: "pending",
@@ -324,75 +324,7 @@ describe("Narrow readiness queries", () => {
         },
         attemptCount: 0,
         nextRunAt: now,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.insert("organizationStripeOperations", {
-        organizationId,
-        kind: "immediateProCheckout",
-        requestKey: "legacy-immediate-pro-checkout",
-        stripeIdempotencyKey: secretStripeIdempotencyKey,
-        livemode: false,
-        status: "succeeded",
-        attemptCount: 1,
-        expiresAt: now + 60_000,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.insert("organizationStripeOperations", {
-        organizationId,
-        kind: "trialSetupCheckout",
-        requestKey: "trial-setup-missing-target-plan",
-        stripeIdempotencyKey: "narrow-secret-trial-setup-idempotency",
-        livemode: false,
-        status: "queued",
-        attemptCount: 0,
-        expiresAt: now + 60_000,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.insert("organizationStripeSubscriptions", {
-        organizationId,
-        stripeCustomerId: "cus_narrow",
-        stripeSubscriptionId: "sub_narrow",
-        stripePriceId: "price_narrow",
-        livemode: false,
-        status: "active",
-        providerGeneration: 1,
-        cancelAtPeriodEnd: false,
-        syncedAt: now,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.insert("organizationBillingStates", {
-        organizationId,
-        state: {
-          kind: "restricted",
-          reason: "planLimitExceeded",
-          recoveryManagerPersonIds: [personId],
-          previousActiveShopIds: [shopId],
-          restrictedAt: now,
-        },
-        version: 1,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.insert("organizationBillingStates", {
-        organizationId,
-        state: {
-          kind: "pendingActivation",
-          plan: "pro",
-          fallback: "restricted",
-          restrictedFallbackState: {
-            kind: "restricted",
-            reason: "planLimitExceeded",
-            recoveryManagerPersonIds: [personId],
-            previousActiveShopIds: [shopId],
-            restrictedAt: now,
-          },
-          startedAt: now,
-        },
-        version: 2,
+        cancelReason: "shop_inactive",
         createdAt: now,
         updatedAt: now,
       });
@@ -504,7 +436,14 @@ describe("Narrow readiness queries", () => {
         code: "narrow_readiness_test",
         createdAt: now,
       });
-      return { conflictId, legacyShopId };
+      const staffConflictId = await ctx.db.insert("organizationMigrationConflicts", {
+        organizationId,
+        sourceType: "staff",
+        sourceId: legacyStaffId,
+        code: "email_name_mismatch",
+        createdAt: now,
+      });
+      return { conflictId, legacyShopId, legacyStaffId, staffConflictId };
     });
 
     const results = await Promise.all([
@@ -512,11 +451,7 @@ describe("Narrow readiness queries", () => {
       t.query(internal.narrowReadiness.queries.verifyUsers, { paginationOpts: firstPage }),
       t.query(internal.narrowReadiness.queries.verifyStaffs, { paginationOpts: firstPage }),
       t.query(internal.narrowReadiness.queries.verifyOrganizations, { paginationOpts: firstPage }),
-      t.query(internal.narrowReadiness.queries.verifyOrganizationInvitations, { paginationOpts: firstPage }),
       t.query(internal.narrowReadiness.queries.verifyNotificationOutbox, { paginationOpts: firstPage }),
-      t.query(internal.narrowReadiness.queries.verifyStripeSubscriptions, { paginationOpts: firstPage }),
-      t.query(internal.narrowReadiness.queries.verifyStripeOperations, { paginationOpts: firstPage }),
-      t.query(internal.narrowReadiness.queries.verifyOrganizationBillingStates, { paginationOpts: firstPage }),
       t.query(internal.narrowReadiness.queries.verifyNotificationFanoutOperations, {
         paginationOpts: firstPage,
       }),
@@ -532,7 +467,14 @@ describe("Narrow readiness queries", () => {
       }),
     ]);
 
-    expect(results[0].anomalies).toMatchObject({ missingOrganizationId: 1, missingOperatingStatus: 1 });
+    expect(results[0]).toMatchObject({
+      anomalies: {
+        missingOrganizationId: 1,
+        archivedOperatingStatus: 0,
+        unknownOperatingStatus: 0,
+      },
+      observations: { operatingStatusPresent: 1 },
+    });
     expect(results[1].anomalies).toEqual({
       missingEmailNormalized: 1,
       invalidEmailNormalization: 1,
@@ -547,31 +489,19 @@ describe("Narrow readiness queries", () => {
       activeStaffPersonEmailMismatch: 1,
       activeStaffLinkedRemovedPerson: 1,
       danglingStaffUser: 1,
+      danglingPersonUser: 1,
+      deletedLinkedUser: 1,
+      deletionRequestedLinkedUser: 1,
       missingPersonUserForLinkedStaff: 1,
       personUserMismatch: 1,
     });
     expect(results[3].anomalies).toMatchObject({
       missingBillingEmail: 1,
       missingBillingEmailNormalized: 1,
-      missingBillingState: 1,
-      ambiguousBillingStates: 1,
+      missingBillingState: 2,
+      ambiguousBillingStates: 0,
     });
     expect(results[4].anomalies).toEqual({
-      legacyStatus: 1,
-      missingInvitedName: 1,
-      missingPurpose: 1,
-      legacyAcceptedFields: 1,
-      linkedMissingLinkedAt: 1,
-      linkedMissingLinkedByPersonId: 1,
-      nonLinkedLinkEvidence: 1,
-      danglingTargetPerson: 1,
-      targetPersonOrganizationMismatch: 1,
-      danglingLinkedByPerson: 1,
-      linkedByPersonOrganizationMismatch: 1,
-      danglingAcceptedByPerson: 0,
-      acceptedByPersonOrganizationMismatch: 1,
-    });
-    expect(results[5].anomalies).toEqual({
       missingNotificationContext: 1,
       missingDeliverySuppressed: 1,
       missingPurpose: 1,
@@ -583,42 +513,35 @@ describe("Narrow readiness queries", () => {
       shopDanglingOrganizationId: 0,
       shopOrganizationMismatch: 0,
       incompleteFanoutLink: 1,
+      legacyShopInactiveCancelReason: 1,
     });
-    expect(results[6].anomalies.missingPlan).toBe(1);
-    expect(results[7].anomalies).toEqual({
-      legacyImmediateProCheckout: 1,
-      trialSetupCheckoutMissingTargetPlan: 1,
-    });
-    expect(results[8].anomalies).toEqual({
-      restrictedPlanLimitMissing: 2,
-      nestedRestrictedPlanLimitMissing: 1,
-    });
-    expect(results[9].anomalies).toEqual({
+    expect(results[5].anomalies).toEqual({
       missingSupersedesActiveOperations: 1,
       incompleteSupplementalBaseline: 1,
     });
-    expect(results[10].anomalies).toEqual({
+    expect(results[6].anomalies).toEqual({
       missingFirstSubmittedAt: 1,
       firstSubmittedAfterSubmittedAt: 1,
     });
-    expect(results[11].anomalies).toEqual({
+    expect(results[7].anomalies).toEqual({
       missingIsDefault: 1,
       defaultSelectionMismatch: 1,
       deletedDefaultTrue: 1,
     });
-    expect(results[12].anomalies).toEqual({ readerWindowOverflow: 0, multipleDefaultShops: 1 });
-    expect(results[12].observations).toEqual({ shopsWithoutActivePositions: 1 });
-    expect(results[13].anomalies).toEqual({
+    expect(results[8].anomalies).toEqual({ readerWindowOverflow: 0, multipleDefaultShops: 1 });
+    expect(results[8].observations).toEqual({ shopsWithoutActivePositions: 1 });
+    expect(results[9].anomalies).toEqual({
       missingAccessKind: 1,
       activeViewMissingNotificationOperationKey: 1,
     });
-    expect(results[14].anomalies).toEqual({ missingAccessKind: 1 });
-    expect(results[15].activeRows).toBe(1);
-    expect(results[15].totalRows).toBe(1);
-    expect(results[16].activeRows).toBe(1);
-    expect(results[16].totalRows).toBe(2);
-    expect(results[17].unresolvedRows).toBe(1);
-    expect(results[17].unresolvedNotificationOutboxScopeRows).toBe(0);
+    expect(results[10].anomalies).toEqual({ missingAccessKind: 1 });
+    expect(results[11].activeRows).toBe(1);
+    expect(results[11].totalRows).toBe(1);
+    expect(results[12].activeRows).toBe(2);
+    expect(results[12].totalRows).toBe(2);
+    expect(results[13].unresolvedRows).toBe(2);
+    expect(results[13].unresolvedStaffRows).toBe(1);
+    expect(results[13].unresolvedNotificationOutboxScopeRows).toBe(0);
 
     const serialized = JSON.stringify(results);
     expect(serialized).not.toContain(secretEmail);
@@ -627,13 +550,16 @@ describe("Narrow readiness queries", () => {
     expect(serialized).not.toContain(secretMissingPersonUserEmail);
     expect(serialized).not.toContain(secretPersonUserMismatchEmail);
     expect(serialized).not.toContain(secretDanglingStaffUserEmail);
+    expect(serialized).not.toContain(secretDeletedLinkedUserEmail);
+    expect(serialized).not.toContain(secretDeletionRequestedLinkedUserEmail);
     expect(serialized).not.toContain(secretToken);
     expect(serialized).not.toContain(secretViewToken);
     expect(serialized).not.toContain(secretSessionToken);
     expect(serialized).not.toContain(secretFanoutTargetKey);
-    expect(serialized).not.toContain(secretStripeIdempotencyKey);
     expect(serialized).not.toContain(ids.legacyShopId);
+    expect(serialized).not.toContain(ids.legacyStaffId);
     expect(serialized).not.toContain(ids.conflictId);
+    expect(serialized).not.toContain(ids.staffConflictId);
   });
 
   it("過大なpage sizeを拒否する", async () => {

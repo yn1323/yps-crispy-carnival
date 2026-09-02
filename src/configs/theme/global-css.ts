@@ -1,5 +1,19 @@
 import { defineGlobalStyles } from "@chakra-ui/react";
 
+const mobileTextInputSelector = [
+  "input:not([type])",
+  'input[type="text"]',
+  'input[type="email"]',
+  'input[type="password"]',
+  'input[type="search"]',
+  'input[type="tel"]',
+  'input[type="url"]',
+  'input[type="number"]',
+  "textarea",
+  "select",
+  '[data-scope="select"][data-part="trigger"]',
+].join(", ");
+
 export const globalCss = defineGlobalStyles({
   "*": {
     fontFeatureSettings: '"cv11"',
@@ -35,8 +49,16 @@ export const globalCss = defineGlobalStyles({
     bg: "bg",
     lineHeight: "1.5",
     colorPalette: "gray",
+    scrollbarGutter: "stable",
   },
   "*::placeholder, *[data-placeholder]": {
     color: "fg.muted/80",
+  },
+  [mobileTextInputSelector]: {
+    "@media screen and (max-width: 767px), screen and (orientation: landscape) and (max-width: 1023px) and (max-height: 767px)":
+      {
+        // Chakraのsize recipeや個別指定より優先し、iOSのフォーカス時ズームを防ぐ。
+        fontSize: "16px !important",
+      },
   },
 });

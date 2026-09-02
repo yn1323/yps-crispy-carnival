@@ -1,18 +1,24 @@
 import type { BoxProps, ContainerProps, FlexProps, ImageProps, TextProps } from "@chakra-ui/react";
-import { Box, Container, Flex, Image, Link, Text } from "@chakra-ui/react";
+import { Box, Container, Flex, Grid, Image, Link, Text } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
 import { Button } from "@/src/components/ui/Button";
 
 export const HEADER_HEIGHT = { base: "64px", md: "68px" } as const;
+export const AUTHENTICATED_APP_HEADER_HEIGHT = { base: "52px", md: "52px" } as const;
 export const STAFF_CONTENT_MAX_W = "1024px";
 export const STAFF_PAGE_PX = { base: 4, lg: 6 } as const;
 
+const GLASS_BACKDROP_FILTER = "blur(12px) saturate(135%)";
+const AUTHENTICATED_GLASS_BACKGROUND = "rgba(255, 255, 255, 0.08)";
+
 const publicNavItems = [
-  { label: "機能", href: "#features" },
-  { label: "導入事例", href: "#use-cases" },
-  { label: "よくある質問", href: "#faq" },
-  { label: "お役立ち記事", href: "#articles" },
+  { label: "機能", href: "/#features" },
+  { label: "導入事例", href: "/#use-cases" },
+  { label: "料金", href: "/#pricing" },
+  { label: "よくある質問", href: "/#faq" },
+  { label: "お役立ち記事", href: "/#articles" },
 ];
 
 type HeaderPosition = "fixed" | "sticky" | "static";
@@ -34,6 +40,10 @@ type UserHeaderVariantProps = {
   variant?: "user";
   position?: HeaderPosition;
   userActions?: ReactNode;
+  primaryNavigation?: ReactNode;
+  brandTo?: string;
+  brandSearch?: { org?: string };
+  brandAriaLabel?: string;
 };
 
 type StaffHeaderVariantProps = {
@@ -58,7 +68,7 @@ export const Header = (props: HeaderProps = {}) => {
         borderColor={props.borderColor}
         boxShadow={props.boxShadow}
       >
-        <HeaderBrand to="/" ariaLabel="シフトリのトップページへ" showTagline />
+        <HeaderBrand to="/" ariaLabel="シフトリのトップページへ" showTagline reloadDocument />
         <PublicHeaderActions
           showLinks={props.showLinks ?? true}
           showLogin={props.showLogin ?? true}
@@ -76,12 +86,46 @@ export const Header = (props: HeaderProps = {}) => {
     );
   }
 
+  const brand = (
+    <HeaderBrand
+      to={props.brandTo ?? "/dashboard"}
+      search={props.brandSearch}
+      ariaLabel={props.brandAriaLabel ?? "ダッシュボードへ"}
+      showTagline
+    />
+  );
+  const userActions = (
+    <Flex align="center" gap={{ base: 1, md: 2 }} flexShrink={0}>
+      {props.userActions}
+    </Flex>
+  );
+
+  if (props.primaryNavigation !== undefined) {
+    return (
+      <HeaderShell
+        position={props.position ?? "fixed"}
+        minH={AUTHENTICATED_APP_HEADER_HEIGHT}
+        py={0}
+        bg={AUTHENTICATED_GLASS_BACKGROUND}
+      >
+        <Grid templateColumns="auto minmax(0, 1fr) auto" alignItems="center" gap={{ base: 2, lg: 4 }} w="full" minW={0}>
+          {brand}
+          <Box minW={0}>{props.primaryNavigation}</Box>
+          {userActions}
+        </Grid>
+      </HeaderShell>
+    );
+  }
+
   return (
-    <HeaderShell position={props.position ?? "fixed"}>
-      <HeaderBrand to="/dashboard" ariaLabel="ダッシュボードへ" showTagline />
-      <Flex align="center" gap={{ base: 1, md: 2 }} flexShrink={0}>
-        {props.userActions}
-      </Flex>
+    <HeaderShell
+      position={props.position ?? "fixed"}
+      minH={AUTHENTICATED_APP_HEADER_HEIGHT}
+      py={0}
+      bg={AUTHENTICATED_GLASS_BACKGROUND}
+    >
+      {brand}
+      {userActions}
     </HeaderShell>
   );
 };
@@ -109,10 +153,10 @@ const HeaderShell = ({
   px,
   py = { base: 2, md: 2.5 },
   justify = "space-between",
-  bg = "whiteAlpha.950",
+  bg = "rgba(255, 255, 255, 0.82)",
   bgImage,
   borderBottomWidth = "1px",
-  borderColor = "blackAlpha.50",
+  borderColor = "rgba(15, 23, 42, 0.08)",
   boxShadow,
 }: HeaderShellProps) => (
   <Box
@@ -123,7 +167,8 @@ const HeaderShell = ({
     zIndex="sticky"
     bg={bg}
     bgImage={bgImage}
-    backdropFilter="blur(14px)"
+    backdropFilter={GLASS_BACKDROP_FILTER}
+    css={{ WebkitBackdropFilter: GLASS_BACKDROP_FILTER }}
     borderBottomWidth={borderBottomWidth}
     borderColor={borderColor}
     boxShadow={boxShadow}
@@ -139,17 +184,33 @@ const HeaderShell = ({
 
 type HeaderBrandProps = {
   to: string;
+  search?: { org?: string };
   ariaLabel?: string;
   logoSize?: ImageProps["boxSize"];
   fontSize?: TextProps["fontSize"];
+  reloadDocument?: boolean;
   showTagline?: boolean;
 };
 
-const HeaderBrand = ({ to, ariaLabel, logoSize, fontSize, showTagline = false }: HeaderBrandProps) => (
+const HeaderBrand = ({
+  to,
+  search,
+  ariaLabel,
+  logoSize,
+  fontSize,
+  reloadDocument = false,
+  showTagline = false,
+}: HeaderBrandProps) => (
   <Link asChild _hover={{ opacity: 0.82, textDecoration: "none" }} flexShrink={0}>
-    <RouterLink to={to} aria-label={ariaLabel}>
-      <HeaderBrandContent logoSize={logoSize} fontSize={fontSize} showTagline={showTagline} />
-    </RouterLink>
+    {reloadDocument ? (
+      <MeasurementBoundaryLink href={to} aria-label={ariaLabel}>
+        <HeaderBrandContent logoSize={logoSize} fontSize={fontSize} showTagline={showTagline} />
+      </MeasurementBoundaryLink>
+    ) : (
+      <RouterLink to={to} search={search} aria-label={ariaLabel}>
+        <HeaderBrandContent logoSize={logoSize} fontSize={fontSize} showTagline={showTagline} />
+      </RouterLink>
+    )}
   </Link>
 );
 
@@ -235,17 +296,17 @@ const PublicLoginButton = ({ display }: PublicLoginButtonProps) => (
     fontSize="sm"
     fontWeight="bold"
   >
-    <RouterLink to="/login" search={{ redirect: undefined }}>
+    <MeasurementBoundaryLink href="/login" measurementCtaId="header_login">
       ログイン
-    </RouterLink>
+    </MeasurementBoundaryLink>
   </Button>
 );
 
 const PublicSignupButton = () => (
   <Button asChild colorPalette="teal" h="38px" px={5} borderRadius="md" fontSize="sm" fontWeight="bold" hideBelow="md">
-    <RouterLink to="/signup" search={{ redirect: undefined }}>
-      無料で試してみる
-    </RouterLink>
+    <MeasurementBoundaryLink href="/signup" measurementCtaId="header_signup">
+      シフトリをはじめる
+    </MeasurementBoundaryLink>
   </Button>
 );
 

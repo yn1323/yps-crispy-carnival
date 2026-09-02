@@ -1,8 +1,13 @@
 import { v } from "convex/values";
-import { internalQuery } from "../_generated/server";
-import { isShopParentActive } from "../_lib/activeShop";
+import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { managerQuery } from "../_lib/functions";
-import { findStaffLineAccountByLineUserId, getStaffLineAccount } from "./service";
+import { isShopAvailable } from "../_lib/shopAvailability";
+import {
+  findStaffLineAccountByLineUserId,
+  getOrganizationPersonLineState,
+  resolveCanonicalStaffScope,
+  resolveStaffLineRecipient,
+} from "./service";
 
 /**
  * 店舗のスタッフごとのLINE連携状況を返す（シフト担当者UI用）
@@ -28,18 +33,21 @@ export const getLinkStatusByShop = managerQuery({
       .query("staffs")
       .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
       .collect();
-    return await Promise.all(
+    const entries = await Promise.all(
       staffs.map(async (s) => {
-        const account = await getStaffLineAccount(ctx, s._id);
+        const scope = await resolveCanonicalStaffScope(ctx, { staffId: s._id, shopId: shop._id });
+        if (!scope) return null;
+        const account = await resolveStaffLineRecipient(ctx, { staffId: s._id, shopId: shop._id });
         return {
           staffId: s._id,
-          name: s.name,
-          email: s.email,
+          name: scope.person.name,
+          email: scope.person.email,
           isLinked: Boolean(account?.lineUserId),
           isFollowing: Boolean(account?.following),
         };
       }),
     );
+    return entries.filter((entry): entry is NonNullable<(typeof entries)[number]> => entry !== null);
   },
 });
 
@@ -82,11 +90,10 @@ export const findStaffByLineUserId = internalQuery({
   args: { lineUserId: v.string() },
   handler: async (ctx, { lineUserId }) => {
     const account = await findStaffLineAccountByLineUserId(ctx, lineUserId);
-    const staff = account ? await ctx.db.get(account.staffId) : null;
-    if (!staff || staff.isDeleted) return null;
-    const shop = await ctx.db.get(staff.shopId);
-    if (!shop || !(await isShopParentActive(ctx, shop))) return null;
-    return { _id: staff._id, shopId: staff.shopId, name: staff.name };
+    if (!account) return null;
+    const scope = await resolveCanonicalStaffScope(ctx, { staffId: account.staffId });
+    if (!scope) return null;
+    return { _id: scope.staff._id, shopId: scope.shop._id, name: scope.person.name };
   },
 });
 
@@ -109,15 +116,25 @@ export const getInviteEmailData = internalQuery({
   args: { staffId: v.id("staffs") },
   handler: async (ctx, { staffId }) => {
     const staff = await ctx.db.get(staffId);
-    if (!staff || staff.isDeleted || !staff.email) return null;
+    if (!staff || staff.isDeleted) return null;
     const shop = await ctx.db.get(staff.shopId);
-    if (!shop || !(await isShopParentActive(ctx, shop))) return null;
+    if (!shop || !(await isShopAvailable(ctx, shop))) return null;
+    const canonicalScope = await resolveCanonicalStaffScope(ctx, { staffId: staff._id, shopId: shop._id });
+    if (!canonicalScope?.person.email) return null;
+    const lineState = await getOrganizationPersonLineState(ctx, {
+      organizationId: canonicalScope.organization._id,
+      organizationPersonId: canonicalScope.person._id,
+    });
+    if (!lineState) return null;
     return {
       staffId: staff._id,
       shopId: staff.shopId,
-      staffName: staff.name,
-      staffEmail: staff.email,
+      staffName: canonicalScope.person.name,
+      staffEmail: canonicalScope.person.email,
       shopName: shop.name,
+      organizationPersonId: canonicalScope.person._id,
+      lineLinkGeneration: lineState.generation,
+      isLineLinked: lineState.status !== "unlinked",
     };
   },
 });

@@ -4,7 +4,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ChakraProvider } from "@/src/providers/ChakraProvider";
-import { selectedShopAtom } from "@/src/stores/shop";
 import { userAtom } from "@/src/stores/user";
 
 const mocks = vi.hoisted(() => ({
@@ -47,19 +46,13 @@ describe("UserMenu", () => {
     );
   });
 
-  it("グループ設定が非公開でもアカウント設定を表示し、メニューにメールアドレスを表示しない", async () => {
+  it("本人設定だけをcanonical accountへ向け、メールアドレスと旧組織設定を表示しない", async () => {
     const store = createStore();
     store.set(userAtom, {
       authId: "user_actor",
       name: "管理者",
       email: "convex@example.com",
-      featureVisibility: {
-        organizationSettingsNavigation: false,
-        billing: false,
-        shopMembershipAddition: false,
-      },
     });
-    store.set(selectedShopAtom, null);
     render(
       <Provider store={store}>
         <ChakraProvider>
@@ -71,31 +64,17 @@ describe("UserMenu", () => {
     fireEvent.click(screen.getByRole("button", { name: "ユーザーメニュー" }));
 
     expect(await screen.findByText("アカウント設定")).not.toBeNull();
-    expect(screen.queryByText("グループ設定")).toBeNull();
+    expect(screen.queryByText("組織設定")).toBeNull();
     expect(screen.queryByText("convex@example.com")).toBeNull();
     expect(mocks.linkProps).toHaveBeenCalledWith({ to: "/account", search: undefined });
   });
 
-  it("アカウント設定には選択中の店舗を引き継がず、グループ設定だけに店舗を渡す", async () => {
+  it("ヘルプ・使い方と問い合わせは別タブで開く", async () => {
     const store = createStore();
     store.set(userAtom, {
       authId: "user_actor",
       name: "管理者",
       email: "convex@example.com",
-      featureVisibility: {
-        organizationSettingsNavigation: true,
-        billing: false,
-        shopMembershipAddition: false,
-      },
-    });
-    store.set(selectedShopAtom, {
-      shopId: "shop-a",
-      shopName: "A店",
-      shopStatus: "active",
-      organizationId: "organization-a",
-      organizationName: "A社",
-      organizationPlan: "free",
-      memberStatus: "active",
     });
     render(
       <Provider store={store}>
@@ -107,9 +86,9 @@ describe("UserMenu", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "ユーザーメニュー" }));
 
-    expect(await screen.findByText("アカウント設定")).not.toBeNull();
-    expect(screen.queryByText("グループ設定")).not.toBeNull();
-    expect(mocks.linkProps).toHaveBeenCalledWith({ to: "/account", search: undefined });
-    expect(mocks.linkProps).toHaveBeenCalledWith({ to: "/settings", search: { shop: "shop-a" } });
+    const helpLink = await screen.findByRole("menuitem", { name: "ヘルプ・使い方" });
+    expect(helpLink.getAttribute("href")).toBe("/help");
+    expect(helpLink.getAttribute("target")).toBe("_blank");
+    expect(screen.getByRole("menuitem", { name: "お問い合わせ" }).getAttribute("target")).toBe("_blank");
   });
 });

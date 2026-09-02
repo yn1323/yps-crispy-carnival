@@ -24,7 +24,7 @@ export function StaffSubmit({ data, session, headerAction }: StaffSubmitProps) {
   const { run: handleSubmit } = useSingleFlight(
     async (submission: SubmitShiftSelectionInput, acceptedLegal?: boolean) => {
       await submitShiftRequests(submission, acceptedLegal);
-      await navigate({ to: "/shifts/submit/completed", search: { shopName: data.shopName } });
+      await navigate({ to: "/shifts/submit/completed", search: { recruitmentId: session.recruitmentId } });
     },
   );
 

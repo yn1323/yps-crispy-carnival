@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { SHIFT_ASSIGNMENT_LIMIT } from "../constants";
@@ -13,15 +14,14 @@ describe("notification/queries", () => {
   afterEach(() => vi.useRealTimers());
 
   describe("getOpenRecruitmentNotificationDataForStaff", () => {
-    it("open募集は開始前かつ締切前の募集だけ通知対象にする", async () => {
+    it("open募集は開始前かつ提出期限前の募集だけ通知対象にする", async () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const shopId = await seedShop(ctx, "募集通知店舗");
-        const staffId = await ctx.db.insert("staffs", {
+        const staffId = await seedStaff(ctx, {
           shopId,
           name: "募集通知スタッフ",
           email: "join@example.com",
-          isDeleted: false,
         });
         const futureOpenRecruitmentId = await ctx.db.insert("recruitments", {
           shopId,
@@ -65,16 +65,93 @@ describe("notification/queries", () => {
       ]);
     });
 
+    it("通知宛先はstaff snapshotではなくactive personの氏名とメールを使う", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await t.run(async (ctx) => {
+        const shopId = await seedShop(ctx, "canonical宛先店舗");
+        const staffId = await seedStaff(ctx, {
+          shopId,
+          name: "正本スタッフ",
+          email: "canonical-recipient@example.com",
+        });
+        await ctx.db.patch(staffId, {
+          name: "古いstaff snapshot",
+          email: "stale-staff@example.com",
+          emailNormalized: "stale-staff@example.com",
+        });
+        await ctx.db.insert("recruitments", {
+          shopId,
+          periodStart: "2026-01-25",
+          periodEnd: "2026-01-28",
+          deadline: "2026-01-23",
+          shopClosedDates: [],
+          status: "open",
+          isDeleted: false,
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        });
+        return { staffId };
+      });
+
+      await expect(
+        t.query(internal.notification.queries.getOpenRecruitmentNotificationDataForStaff, {
+          staffId: ids.staffId,
+        }),
+      ).resolves.toMatchObject({
+        staff: {
+          name: "正本スタッフ",
+          email: "canonical-recipient@example.com",
+          emailNormalized: "canonical-recipient@example.com",
+        },
+      });
+    });
+
+    it("removed personのstaffには通知データを返さない", async () => {
+      const t = convexTest(schema, modules);
+      const staffId = await t.run(async (ctx) => {
+        const shopId = await seedShop(ctx, "removed person店舗");
+        const staffId = await seedStaff(ctx, {
+          shopId,
+          name: "removed personスタッフ",
+          email: "removed-person@example.com",
+        });
+        const staff = await ctx.db.get(staffId);
+        if (!staff?.organizationPersonId) throw new Error("canonical staff person not found");
+        await ctx.db.patch(staff.organizationPersonId, { status: "removed", updatedAt: Date.now() });
+        return staffId;
+      });
+
+      await expect(
+        t.query(internal.notification.queries.getOpenRecruitmentNotificationDataForStaff, { staffId }),
+      ).resolves.toBeNull();
+    });
+
+    it("両canonical ID欠損staffは保存済みメールがあっても新規通知データへ戻さない", async () => {
+      const t = convexTest(schema, modules);
+      const staffId = await t.run(async (ctx) => {
+        const shopId = await seedShop(ctx, "未解決staff通知店舗");
+        const staffId = await seedStaff(ctx, {
+          shopId,
+          name: "未解決staff",
+          email: "stored-unresolved@example.com",
+        });
+        await ctx.db.patch(staffId, { organizationId: undefined, organizationPersonId: undefined });
+        return staffId;
+      });
+
+      await expect(
+        t.query(internal.notification.queries.getOpenRecruitmentNotificationDataForStaff, { staffId }),
+      ).resolves.toBeNull();
+    });
+
     it("シフト対象外スタッフには募集通知データを返さない", async () => {
       const t = convexTest(schema, modules);
       const staffId = await t.run(async (ctx) => {
         const shopId = await seedShop(ctx, "募集通知店舗");
-        const staffId = await ctx.db.insert("staffs", {
+        const staffId = await seedStaff(ctx, {
           shopId,
           name: "対象外スタッフ",
           email: "excluded@example.com",
           excludedFromShift: true,
-          isDeleted: false,
         });
         await ctx.db.insert("recruitments", {
           shopId,
@@ -101,18 +178,16 @@ describe("notification/queries", () => {
       const t = convexTest(schema, modules);
       const recruitmentId = await t.run(async (ctx) => {
         const shopId = await seedShop(ctx, "募集メール店舗");
-        await ctx.db.insert("staffs", {
+        await seedStaff(ctx, {
           shopId,
           name: "通常スタッフ",
           email: "normal@example.com",
-          isDeleted: false,
         });
-        await ctx.db.insert("staffs", {
+        await seedStaff(ctx, {
           shopId,
           name: "対象外スタッフ",
           email: "excluded@example.com",
           excludedFromShift: true,
-          isDeleted: false,
         });
         return await ctx.db.insert("recruitments", {
           shopId,
@@ -136,11 +211,10 @@ describe("notification/queries", () => {
       const t = convexTest(schema, modules);
       const recruitmentId = await t.run(async (ctx) => {
         const shopId = await seedShop(ctx, "テスト店舗");
-        const staffId = await ctx.db.insert("staffs", {
+        const staffId = await seedStaff(ctx, {
           shopId,
           name: "田中太郎",
           email: "tanaka@example.com",
-          isDeleted: false,
         });
         const recruitmentId = await ctx.db.insert("recruitments", {
           shopId,
@@ -200,11 +274,10 @@ describe("notification/queries", () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const shopId = await seedShop(ctx, "通知割当上限店舗");
-        const staffId = await ctx.db.insert("staffs", {
+        const staffId = await seedStaff(ctx, {
           shopId,
           name: "通知割当上限スタッフ",
           email: "notification-assignment-overflow@example.com",
-          isDeleted: false,
         });
         const recruitmentId = await ctx.db.insert("recruitments", {
           shopId,
@@ -255,11 +328,10 @@ describe("notification/queries", () => {
       const t = convexTest(schema, modules);
       const recruitmentId = await t.run(async (ctx) => {
         const shopId = await seedShop(ctx, "テスト店舗");
-        const staffId = await ctx.db.insert("staffs", {
+        const staffId = await seedStaff(ctx, {
           shopId,
           name: "田中太郎",
           email: "tanaka@example.com",
-          isDeleted: false,
         });
         const recruitmentId = await ctx.db.insert("recruitments", {
           shopId,
@@ -305,11 +377,10 @@ describe("notification/queries", () => {
       const t = convexTest(schema, modules);
       const recruitmentId = await t.run(async (ctx) => {
         const shopId = await seedShop(ctx, "日ごと店舗");
-        const staffId = await ctx.db.insert("staffs", {
+        const staffId = await seedStaff(ctx, {
           shopId,
           name: "田中太郎",
           email: "tanaka@example.com",
-          isDeleted: false,
         });
         const recruitmentId = await ctx.db.insert("recruitments", {
           shopId,
@@ -352,11 +423,10 @@ describe("notification/queries", () => {
       const t = convexTest(schema, modules);
       const recruitmentId = await t.run(async (ctx) => {
         const shopId = await seedShop(ctx, "勤務区分店舗");
-        const staffId = await ctx.db.insert("staffs", {
+        const staffId = await seedStaff(ctx, {
           shopId,
           name: "田中太郎",
           email: "tanaka@example.com",
-          isDeleted: false,
         });
         const recruitmentId = await ctx.db.insert("recruitments", {
           shopId,
@@ -408,11 +478,10 @@ describe("notification/queries", () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const shopId = await seedShop(ctx, "rolling compatibility店舗");
-        const staffId = await ctx.db.insert("staffs", {
+        const staffId = await seedStaff(ctx, {
           shopId,
           name: "rolling compatibilityスタッフ",
           email: "rolling-compatibility@example.com",
-          isDeleted: false,
         });
         const positionId = await ctx.db.insert("positions", {
           shopId,

@@ -66,13 +66,13 @@ describe("募集作成ステップの表示値と入力判定", () => {
     ).toEqual({ field: "periodEnd", message: "募集期間は31日以内にしてください" });
   });
 
-  it("提出締切ステップでは期間開始日より前の日付だけを受け入れる", () => {
+  it("提出期限ステップでは期間開始日より前の日付だけを受け入れる", () => {
     expect(getDeadlineStepValidationError({ deadline: "", periodStart: "2026-06-03", today: "2026-06-01" })).toBe(
-      "提出締切日を選択してください",
+      "提出期限を選択してください",
     );
     expect(
       getDeadlineStepValidationError({ deadline: "2026-06-03", periodStart: "2026-06-03", today: "2026-06-01" }),
-    ).toBe("締切日は開始日より前にしてください");
+    ).toBe("提出期限はシフト開始日より前にしてください");
     expect(
       getDeadlineStepValidationError({ deadline: "2026-06-02", periodStart: "2026-06-03", today: "2026-06-01" }),
     ).toBeUndefined();
@@ -102,7 +102,7 @@ describe("createRecruitmentSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("締切日が空の場合エラー", () => {
+  it("提出期限が空の場合エラー", () => {
     const result = createRecruitmentSchema.safeParse({ ...validData, deadline: "" });
     expect(result.success).toBe(false);
   });
@@ -128,7 +128,7 @@ describe("createRecruitmentSchema", () => {
     }
   });
 
-  it("締切日が開始日より前なら有効", () => {
+  it("提出期限が開始日より前なら有効", () => {
     const result = createRecruitmentSchema.safeParse({
       ...validData,
       periodStart: "2026-04-01",
@@ -137,7 +137,7 @@ describe("createRecruitmentSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("締切日が開始日と同じ場合エラー", () => {
+  it("提出期限が開始日と同じ場合エラー", () => {
     const result = createRecruitmentSchema.safeParse({
       ...validData,
       periodStart: "2026-04-01",
@@ -149,7 +149,7 @@ describe("createRecruitmentSchema", () => {
     }
   });
 
-  it("締切日が開始日より後の場合エラー", () => {
+  it("提出期限が開始日より後の場合エラー", () => {
     const result = createRecruitmentSchema.safeParse({
       ...validData,
       periodStart: "2026-04-01",
@@ -229,7 +229,7 @@ describe("createRecruitmentFormSchema (フォームバリデーション)", () =
     expect(result.success).toBe(true);
   });
 
-  it("締切日が昨日の場合エラー", () => {
+  it("提出期限が昨日の場合エラー", () => {
     const result = createRecruitmentFormSchema.safeParse({ ...validData, deadline: yesterday });
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -237,7 +237,7 @@ describe("createRecruitmentFormSchema (フォームバリデーション)", () =
     }
   });
 
-  it("締切日が今日の場合は有効", () => {
+  it("提出期限が今日の場合は有効", () => {
     const result = createRecruitmentFormSchema.safeParse({ ...validData, deadline: today });
     expect(result.success).toBe(true);
   });

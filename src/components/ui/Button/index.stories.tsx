@@ -14,7 +14,31 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const variants = ["solid", "outline", "ghost", "plain"] as const;
+const variants = ["solid", "outline", "ghost", "plain", "subtle", "surface"] as const;
+const pressedStateCases = [
+  { label: "solid / teal", buttonProps: { variant: "solid", colorPalette: "teal" } },
+  { label: "solid / red", buttonProps: { variant: "solid", colorPalette: "red" } },
+  { label: "solid / gray", buttonProps: { variant: "solid", colorPalette: "gray" } },
+  { label: "outline", buttonProps: { variant: "outline", colorPalette: "teal" } },
+  { label: "ghost", buttonProps: { variant: "ghost", colorPalette: "teal" } },
+  { label: "plain", buttonProps: { variant: "plain", colorPalette: "teal" } },
+  { label: "subtle", buttonProps: { variant: "subtle", colorPalette: "teal" } },
+  { label: "surface", buttonProps: { variant: "surface", colorPalette: "teal" } },
+  {
+    label: "selected / outline",
+    buttonProps: {
+      variant: "outline",
+      colorPalette: "teal",
+      bg: "teal.600",
+      borderColor: "teal.600",
+      color: "white",
+    },
+  },
+  {
+    label: "selected / custom",
+    buttonProps: { variant: "solid", colorPalette: "gray", bg: "teal.600", color: "white" },
+  },
+] as const;
 const backgrounds = [
   { label: "white", bg: "white" },
   { label: "gray.50", bg: "gray.50" },
@@ -72,6 +96,35 @@ export const Variants: Story = {
           </HStack>
         </Surface>
       </Stack>
+    </Stack>
+  ),
+};
+
+export const PressedStates: Story = {
+  tags: ["vrt-mobile2"],
+  render: () => (
+    <Stack gap={3} maxW="xl">
+      <HStack ps="88px" gap={3}>
+        <Text flex="1" fontSize="xs" fontWeight="semibold" color="fg.muted">
+          通常
+        </Text>
+        <Text flex="1" fontSize="xs" fontWeight="semibold" color="fg.muted">
+          押下中
+        </Text>
+      </HStack>
+      {pressedStateCases.map(({ label, buttonProps }) => (
+        <HStack key={label} gap={3} align="center">
+          <Text w="76px" flexShrink="0" fontSize="xs" color="fg.muted">
+            {label}
+          </Text>
+          <Button flex="1" size="sm" {...buttonProps}>
+            希望を見る
+          </Button>
+          <Button flex="1" size="sm" data-active="" {...buttonProps}>
+            希望を見る
+          </Button>
+        </HStack>
+      ))}
     </Stack>
   ),
 };

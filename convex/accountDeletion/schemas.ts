@@ -1,11 +1,22 @@
 import { v } from "convex/values";
 import { z } from "zod";
 
-export const accountDeletionRequestSchema = z
-  .object({
-    requestId: z.string().max(64).uuid(),
-  })
-  .strict();
+const requestIdSchema = z.string().max(64).uuid();
+const previewFingerprintSchema = z
+  .string()
+  .length(64)
+  .regex(/^[a-f0-9]+$/);
+
+export const accountDeletionRequestSchema = z.union([
+  z.object({ requestId: requestIdSchema }).strict(),
+  z
+    .object({
+      requestId: requestIdSchema,
+      scope: z.literal("accountAndAssociations"),
+      previewFingerprint: previewFingerprintSchema,
+    })
+    .strict(),
+]);
 
 export const accountDeletionJobStatusValidator = v.union(
   v.literal("queued"),
@@ -16,12 +27,17 @@ export const accountDeletionJobStatusValidator = v.union(
 );
 
 export const accountDeletionJobPhaseValidator = v.union(
+  v.literal("waitForOrganizationCleanup"),
+  v.literal("waitForSharedCleanup"),
   v.literal("verifyProviderUser"),
   v.literal("deleteProviderUser"),
   v.literal("complete"),
 );
 
 export const accountDeletionErrorCodeValidator = v.union(
+  v.literal("organization_cleanup_action_required"),
+  v.literal("organization_cleanup_invalid"),
+  v.literal("shared_cleanup_invalid"),
   v.literal("association_found_before_provider_delete"),
   v.literal("association_scan_unknown_before_provider_delete"),
   v.literal("provider_configuration_missing"),
@@ -41,6 +57,9 @@ export const accountDeletionErrorCodeValidator = v.union(
 );
 
 export type AccountDeletionErrorCode =
+  | "organization_cleanup_action_required"
+  | "organization_cleanup_invalid"
+  | "shared_cleanup_invalid"
   | "association_found_before_provider_delete"
   | "association_scan_unknown_before_provider_delete"
   | "provider_configuration_missing"

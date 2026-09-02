@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { seedLegacyShopMembership, seedManagerShop, seedStaffLineAccount, seedUser } from "../_test/seed";
+import { seedStaff } from "../_test/scenarioBuilders";
+import { seedCanonicalStaffLineRecipient, seedLegacyShopMembership, seedManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 async function insertRecruitment(
@@ -26,7 +27,7 @@ describe("shiftConfirmationReminder/queries", () => {
   describe("getManagerConfirmationReminderTarget", () => {
     it("open募集では店舗のmanager全員を対象にし、manager staffのLINE連携を付与する", async () => {
       const t = convexTest(schema, modules);
-      const recruitmentId = await t.run(async (ctx) => {
+      const { organizationId, recruitmentId } = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
           subject: "reminder_line",
           email: "owner-line@example.com",
@@ -42,8 +43,7 @@ describe("shiftConfirmationReminder/queries", () => {
           emailNormalized: "owner-line@example.com",
           isDeleted: false,
         });
-        await seedStaffLineAccount(ctx, {
-          shopId: seeded.shopId,
+        await seedCanonicalStaffLineRecipient(ctx, {
           staffId: managerStaffId,
           lineUserId: "U_owner_line",
           following: true,
@@ -51,8 +51,17 @@ describe("shiftConfirmationReminder/queries", () => {
 
         const secondUserId = await seedUser(ctx, "reminder_email", "owner-email@example.com");
         await seedLegacyShopMembership(ctx, { shopId: seeded.shopId, userId: secondUserId });
+        await seedStaff(ctx, {
+          shopId: seeded.shopId,
+          userId: secondUserId,
+          name: "メール通知管理者",
+          email: "owner-email@example.com",
+        });
 
-        return await insertRecruitment(ctx, { shopId: seeded.shopId, status: "open" });
+        return {
+          organizationId: seeded.organizationId,
+          recruitmentId: await insertRecruitment(ctx, { shopId: seeded.shopId, status: "open" }),
+        };
       });
 
       const result = await t.query(internal.shiftConfirmationReminder.queries.getManagerConfirmationReminderTarget, {
@@ -68,10 +77,18 @@ describe("shiftConfirmationReminder/queries", () => {
       if (!result) return;
       const dashboardUrl = new URL(result.dashboardUrl);
       expect(dashboardUrl.pathname).toBe("/dashboard");
-      expect([...dashboardUrl.searchParams.entries()]).toEqual([["shop", String(result.shopId)]]);
+      expect([...dashboardUrl.searchParams.entries()]).toEqual([
+        ["org", String(organizationId)],
+        ["shop", String(result.shopId)],
+      ]);
       expect(result?.recipients).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ email: "owner-line@example.com", lineUserId: "U_owner_line", lineFollowing: true }),
+          expect.objectContaining({
+            email: "owner-line@example.com",
+            lineUserId: "U_owner_line",
+            lineFollowing: true,
+            lineRecipient: expect.objectContaining({ lineUserId: "U_owner_line", following: true }),
+          }),
           expect.objectContaining({ email: "owner-email@example.com" }),
         ]),
       );
@@ -96,6 +113,23 @@ describe("shiftConfirmationReminder/queries", () => {
       await expect(
         t.query(internal.shiftConfirmationReminder.queries.getManagerConfirmationReminderTarget, {
           recruitmentId: deletedId,
+        }),
+      ).resolves.toBeNull();
+    });
+
+    it("対象店舗のstaffではないactive管理者には送らない", async () => {
+      const t = convexTest(schema, modules);
+      const recruitmentId = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
+          subject: "reminder_manager_without_shop_staff",
+          email: "manager-without-shop-staff@example.com",
+        });
+        return await insertRecruitment(ctx, { shopId: seeded.shopId, status: "open" });
+      });
+
+      await expect(
+        t.query(internal.shiftConfirmationReminder.queries.getManagerConfirmationReminderTarget, {
+          recruitmentId,
         }),
       ).resolves.toBeNull();
     });

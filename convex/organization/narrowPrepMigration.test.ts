@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
-import { createMigrationHistoryTestWithMigrations, runMigrationToCompletion } from "../_test/migrations.test-helper";
+import {
+  createMigrationHistoryTestWithMigrations,
+  legacyStaffDocumentForMigrationHistory,
+  runMigrationToCompletion,
+} from "../_test/migrations.test-helper";
 
 const migrationArgs = { batchSize: 100, cursor: null, dryRun: false };
 
@@ -33,21 +37,27 @@ describe("organization Narrow preparation migrations", () => {
         role: "manager",
         isDeleted: false,
       });
-      const managerStaffId = await ctx.db.insert("staffs", {
-        userId,
-        shopId,
-        name: "後発管理者",
-        email: "late-manager@example.com",
-        emailNormalized: "late-manager@example.com",
-        isDeleted: false,
-      });
-      const staffId = await ctx.db.insert("staffs", {
-        shopId,
-        name: "後発スタッフ",
-        email: "late-staff@example.com",
-        emailNormalized: "late-staff@example.com",
-        isDeleted: false,
-      });
+      const managerStaffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          userId,
+          shopId,
+          name: "後発管理者",
+          email: "late-manager@example.com",
+          emailNormalized: "late-manager@example.com",
+          isDeleted: false,
+        }),
+      );
+      const staffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          name: "後発スタッフ",
+          email: "late-staff@example.com",
+          emailNormalized: "late-staff@example.com",
+          isDeleted: false,
+        }),
+      );
       return { managerStaffId, shopId, staffId, userId };
     });
 
@@ -270,14 +280,17 @@ describe("organization Narrow preparation migrations", () => {
         createdAt: now,
         updatedAt: now,
       });
-      const staffId = await ctx.db.insert("staffs", {
-        shopId,
-        organizationPersonId: personId,
-        name: "正規人物",
-        email: "duplicate@example.com",
-        emailNormalized: "duplicate@example.com",
-        isDeleted: false,
-      });
+      const staffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          organizationPersonId: personId,
+          name: "正規人物",
+          email: "duplicate@example.com",
+          emailNormalized: "duplicate@example.com",
+          isDeleted: false,
+        }),
+      );
       return { organizationId, personId, staffId };
     });
 
@@ -557,14 +570,17 @@ describe("organization Narrow preparation migrations", () => {
         createdAt: now,
         updatedAt: now,
       });
-      const staffId = await ctx.db.insert("staffs", {
-        shopId,
-        userId,
-        name: "削除済み人物",
-        email: "removed-person@example.com",
-        emailNormalized: "removed-person@example.com",
-        isDeleted: false,
-      });
+      const staffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          userId,
+          name: "削除済み人物",
+          email: "removed-person@example.com",
+          emailNormalized: "removed-person@example.com",
+          isDeleted: false,
+        }),
+      );
       return { personId, staffId };
     });
 
@@ -628,13 +644,16 @@ describe("organization Narrow preparation migrations", () => {
         role: "manager",
         isDeleted: false,
       });
-      const staffId = await ctx.db.insert("staffs", {
-        shopId,
-        name: "同名人物",
-        email: "canonical-staff@example.com",
-        emailNormalized: "stale-target@example.com",
-        isDeleted: false,
-      });
+      const staffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          name: "同名人物",
+          email: "canonical-staff@example.com",
+          emailNormalized: "stale-target@example.com",
+          isDeleted: false,
+        }),
+      );
       return { organizationId, shopMemberId, staffId, staleTargetPersonId, userId };
     });
 

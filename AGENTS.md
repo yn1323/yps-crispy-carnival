@@ -28,14 +28,17 @@
 - 指示の配置: `doc/rules/agent-instructions.md`
 - フロントエンド: `doc/rules/frontend-architecture.md` と `src/AGENTS.md`
 - UI/UX: `doc/rules/ui-design.md` と `ui-architect`
-- テストの層・配置・検証契約: `doc/rules/testing-strategy.md` と `test-strategy`
+- テストの層・配置: `doc/rules/testing-strategy.md` と `test-strategy`
+- 検証契約: `doc/specs/full-regression-contracts.md`
 - セキュリティ: `doc/rules/security-strategy.md` と `shiftori-security-review`
 - Convexの横断設計: `doc/rules/convex-design-strategy.md` と `convex-design-review`
 - Convex実装: `convex/_generated/ai/guidelines.md` と `convex/AGENTS.md`
 - 保存済みデータ形式の変更やbackfill: `convex-migration-helper`
 - E2E: `e2e/AGENTS.md`
 - CI/CD: `.github/AGENTS.md`
-- 現在の機能概要: `doc/features/` と `doc/features/INDEX.md`
+- 現行実装仕様: コードと設定、`doc/features/` と `doc/features/INDEX.md`
+- 業務要件: `doc/specs/organization-billing-business-flow.md`
+- 実環境状態: `doc/manual/release-status.md`
 - 文書全体の入口: `doc/INDEX.md`
 - 人が行う運用手順: `doc/manual/`
 
@@ -44,6 +47,8 @@
 
 ## Skillの発動条件
 
+- 通常実装から独立した大規模なread-only調査、対応表・棚卸し、巨大なlog・diffの圧縮、編集完了後の長時間な最終検証を境界明確なsubtaskへ分けられる場合は `delegate-bounded-repo-work` を使う。
+  通常の実装探索、原因診断、対象test・再実行には使わず、詳細な発動条件は同Skillを正本とする。
 - UI/UX、画面構造、レイアウト、状態、マイクロコピーを変更する場合は `ui-architect` を使う。
 - テスト層、配置、新しい検証契約を判断する場合は `test-strategy` を使う。
 - 認証、認可、IDOR、token、Capability、Webhook、外部副作用、billing、個人情報、retention、redactionに触れる相談・計画・設計・実装・レビューでは、プラン確定前に `shiftori-security-review` を使う。
@@ -110,6 +115,8 @@ pnpm build
 - 現在の機能概要を変えた場合は、対応する `doc/features/` を更新する。
 - 新しい機能文書を追加した場合は`doc/features/INDEX.md`にリンクする。
 - 詳細な実装仕様はコードと設定を正とし、文書へ複製しない。
+- 業務要件と現行実装が食い違う場合は、どちらかを暗黙に書き換えず、差分を「要件判断」として報告する。
+- Production、migration、外部サービス設定の状態は、実環境証跡のある`doc/manual/release-status.md`だけで確認済みとする。
 - `doc/plans/` は意思決定と実装計画の履歴であり、現在仕様の正本にしない。
 - `doc/plans/INDEX.md` で未決提案を `Proposed`、進行中を `Active`、完了済みを `History` に分類する。
 - 廃止、置換、棄却された資料と時点監査は `doc/archive/` へ移し、現行文書の正本にしない。

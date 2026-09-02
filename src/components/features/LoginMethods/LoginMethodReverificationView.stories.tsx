@@ -1,8 +1,13 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, userEvent, within } from "storybook/test";
-import { LoginMethodReverificationView } from "./LoginMethodReverificationView";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { Dialog } from "@/src/components/ui/Dialog";
+import {
+  isLoginMethodReverificationBusy,
+  LoginMethodReverificationActions,
+  LoginMethodReverificationView,
+} from "./LoginMethodReverificationView";
 import type {
   LoginMethodReverificationController,
   LoginMethodReverificationFactor,
@@ -45,7 +50,7 @@ const secondFactors = [secondPhoneFactor, totpFactor, backupCodeFactor];
 
 const meta = {
   title: "features/LoginMethods/LoginMethodReverificationView",
-  component: LoginMethodReverificationView,
+  component: ReverificationDialogPreview,
   decorators: [
     (Story) => (
       <Box maxW="560px" mx="auto" p={{ base: 4, md: 8 }}>
@@ -56,13 +61,10 @@ const meta = {
   args: {
     controller: staticController(selectingState("first", firstFactors)),
   },
-} satisfies Meta<typeof LoginMethodReverificationView>;
+} satisfies Meta<typeof ReverificationDialogPreview>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
-
-// Static stories are VRT fixtures. Interactive contracts live in the Behavior stories below.
-export const FactorSelection: Story = {};
 
 export const PasswordInput: Story = {
   args: {
@@ -102,22 +104,29 @@ export const BackupCodeInput: Story = {
 
 export const StartingSkeletonBehavior: Story = {
   args: {
-    controller: staticController({
-      status: "starting",
-      operationId: 1,
-      level: "first_factor",
-      stage: null,
-      factors: [],
-      selectedFactor: null,
-      message: null,
-    }),
+    controller: {
+      ...staticController({
+        status: "starting",
+        operationId: 1,
+        level: "first_factor",
+        stage: null,
+        factors: [],
+        selectedFactor: null,
+        message: null,
+      }),
+      cancel: fn(),
+    },
   },
   parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
+  play: async ({ args }) => {
+    const canvas = within(await within(document.body).findByRole("dialog", { name: "確認が必要です" }));
 
-    await expect(await canvas.findByLabelText("本人確認フォームを読み込み中")).toBeVisible();
+    const skeleton = await canvas.findByLabelText("本人確認フォームを読み込み中");
+    await waitFor(() => expect(skeleton).toBeVisible());
     await expect(canvas.queryByText("本人確認方法を確認しています。")).not.toBeInTheDocument();
+    await expect(canvas.getByRole("button", { name: "閉じる" })).toBeDisabled();
+    await userEvent.keyboard("{Escape}");
+    await expect(args.controller.cancel).not.toHaveBeenCalled();
   },
 };
 
@@ -130,15 +139,15 @@ export const NoSupportedFactorError: Story = {
       stage: null,
       factors: [],
       selectedFactor: null,
-      message: "このアカウントで利用できる本人確認方法がありません。変更は行っていません。",
+      message: "このアカウントで利用できる本人確認方法がありません。",
     }),
   },
 };
 
 export const MobileEmailOtpInput: Story = {
-  tags: ["vrt-mobile2"],
+  tags: ["vrt-mobile1"],
   globals: {
-    viewport: { value: "mobile2", isRotated: false },
+    viewport: { value: "mobile1", isRotated: false },
   },
   args: {
     controller: staticController(inputState(emailFactor, firstFactors)),
@@ -148,13 +157,16 @@ export const MobileEmailOtpInput: Story = {
 export const SelectFactorBehavior: Story = {
   render: () => <InteractiveReverificationPreview initialState={selectingState("first", firstFactors)} />,
   parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
+  play: async () => {
+    const body = within(document.body);
+    const canvas = within(await body.findByRole("dialog", { name: "確認が必要です" }));
 
     await userEvent.click(await canvas.findByRole("button", { name: "メールで確認（login@example.com）" }));
 
-    await expect(await canvas.findByRole("textbox", { name: "確認コード" })).toBeVisible();
+    const codeInput = await canvas.findByRole("textbox", { name: "確認コード" });
+    await waitFor(() => expect(codeInput).toBeVisible());
     await expect(await canvas.findByText("login@example.comに届いた確認コードを入力してください。")).toBeVisible();
+    await expect(body.getAllByRole("dialog")).toHaveLength(1);
   },
 };
 
@@ -166,12 +178,13 @@ export const FactorCooldownBehavior: Story = {
     }),
   },
   parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
+  play: async () => {
+    const canvas = within(await within(document.body).findByRole("dialog", { name: "確認が必要です" }));
 
-    await expect(
-      await canvas.findByText("確認コードを送信した直後です。あと30秒ほど待ってから再送してください。"),
-    ).toBeVisible();
+    const cooldownMessage = await canvas.findByText(
+      "確認コードを送信した直後です。あと30秒ほど待ってから再送してください。",
+    );
+    await waitFor(() => expect(cooldownMessage).toBeVisible());
     await expect(canvas.queryByText("確認コードを入力")).not.toBeInTheDocument();
     await expect(canvas.getByRole("textbox", { name: "確認コード" })).toBeVisible();
   },
@@ -180,11 +193,12 @@ export const FactorCooldownBehavior: Story = {
 export const ResendBehavior: Story = {
   render: () => <InteractiveReverificationPreview initialState={inputState(emailFactor, firstFactors)} />,
   parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
+  play: async () => {
+    const canvas = within(await within(document.body).findByRole("dialog", { name: "確認が必要です" }));
 
-    await userEvent.click(await canvas.findByRole("button", { name: "確認コードを再送" }));
-    await expect(await canvas.findByText("新しい確認コードを送信しました。")).toBeVisible();
+    await userEvent.click(await canvas.findByRole("button", { name: "確認コードを再送する" }));
+    const resendMessage = await canvas.findByText("新しい確認コードを送信しました。");
+    await waitFor(() => expect(resendMessage).toBeVisible());
     await expect(canvas.queryByRole("button", { name: "別の方法を使う" })).not.toBeInTheDocument();
   },
 };
@@ -192,12 +206,19 @@ export const ResendBehavior: Story = {
 export const PasswordSubmitBehavior: Story = {
   render: () => <InteractiveReverificationPreview initialState={inputState(passwordFactor, firstFactors)} />,
   parameters: { screenshot: { skip: true } },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
+  play: async () => {
+    const canvas = within(await within(document.body).findByRole("dialog", { name: "確認が必要です" }));
     const password = await canvas.findByLabelText("現在のパスワード");
+    const cancelButton = await canvas.findByRole("button", { name: "キャンセル" });
+    const continueButton = await canvas.findByRole("button", { name: "続ける" });
+
+    await expect(cancelButton.compareDocumentPosition(continueButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    cancelButton.focus();
+    await userEvent.tab();
+    await expect(continueButton).toHaveFocus();
 
     await userEvent.type(password, "current-password");
-    await userEvent.click(await canvas.findByRole("button", { name: "続ける" }));
+    await userEvent.click(continueButton);
 
     await expect(await canvas.findByLabelText("本人確認フォームを読み込み中")).toBeInTheDocument();
     await expect(canvas.queryByText("本人確認が完了しました。変更処理を続けています。")).not.toBeInTheDocument();
@@ -246,7 +267,30 @@ function InteractiveReverificationPreview({ initialState }: { initialState: Logi
     },
   };
 
-  return <LoginMethodReverificationView controller={controller} />;
+  return <ReverificationDialogPreview controller={controller} />;
+}
+
+function ReverificationDialogPreview({ controller }: { controller: LoginMethodReverificationController }) {
+  const isBusy = isLoginMethodReverificationBusy(controller);
+  return (
+    <Dialog
+      title="確認が必要です"
+      isOpen
+      onOpenChange={({ open }) => {
+        if (!open && !isBusy) controller.cancel();
+      }}
+      onClose={controller.cancel}
+      onBackGuardRemoved={controller.cancel}
+      preventClose={isBusy}
+      isLoading={isBusy}
+      footer={<LoginMethodReverificationActions controller={controller} />}
+      mobileFullScreen
+      maxW={{ md: "560px" }}
+      maxH={{ md: "86dvh" }}
+    >
+      <LoginMethodReverificationView controller={controller} />
+    </Dialog>
+  );
 }
 
 function staticController(state: LoginMethodReverificationState): LoginMethodReverificationController {

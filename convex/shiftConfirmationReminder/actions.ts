@@ -2,9 +2,9 @@
 
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
-import { internalAction } from "../_generated/server";
 import { RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
+import { observedInternalAction as internalAction } from "../_lib/errorObservability";
 import { selectChannel } from "../_lib/notification";
 import {
   buildShiftConfirmationReminderEmailHtml,
@@ -15,6 +15,7 @@ import {
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
 import { SHIFT_CONFIRMATION_REMINDER_CONTEXT } from "../notificationOutbox/failureSuppress";
 import { businessNotificationOriginArgs, businessNotificationOriginFrom } from "../notificationOutbox/origin";
+import { lineRecipientOutboxSnapshot } from "../notificationOutbox/types";
 
 /**
  * シフト締め切り日の翌日17時に発火。募集がまだ確定していなければ、店舗のマネージャー全員に
@@ -44,8 +45,9 @@ export const sendManagerConfirmationReminder = internalAction({
     const subject = formatResendSubject(data.shopName, SHIFT_CONFIRMATION_REMINDER_SUBJECT);
 
     for (const recipient of data.recipients) {
+      const lineRecipient = recipient.lineRecipient;
       const channel = selectChannel(
-        { lineUserId: recipient.lineUserId, lineFollowing: recipient.lineFollowing },
+        { lineUserId: lineRecipient?.lineUserId, lineFollowing: lineRecipient?.following },
         quota,
       );
       const dedupeBase = `shiftConfirmationReminder:${recruitmentId}:${recipient.userId}`;
@@ -66,7 +68,7 @@ export const sendManagerConfirmationReminder = internalAction({
         suppressDelivery,
       });
 
-      if (channel === "line" && recipient.lineUserId) {
+      if (channel === "line" && lineRecipient) {
         const lineParams = {
           shopName: data.shopName,
           periodLabel: data.periodLabel,
@@ -76,12 +78,13 @@ export const sendManagerConfirmationReminder = internalAction({
         await enqueueLine(ctx, {
           shopId: data.shopId,
           ...notificationOrigin,
+          ...lineRecipientOutboxSnapshot(lineRecipient),
           purpose: "business",
           recruitmentId,
           userId: recipient.userId,
           dedupeKey: lineDedupeKey,
           payload: linePayload({
-            toUserId: recipient.lineUserId,
+            toUserId: lineRecipient.lineUserId,
             text: buildShiftConfirmationReminderLineText(lineParams),
             message: buildShiftConfirmationReminderLineFlexMessage(lineParams),
             suppressDelivery,

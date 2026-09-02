@@ -48,6 +48,27 @@ describe("contact/httpActions", () => {
     vi.useRealTimers();
   });
 
+  it("OPTIONS routeは許可Originだけへ必要最小限のCORSを返す", async () => {
+    const t = convexTest(schema, modules);
+
+    const allowed = await t.fetch("/contact/submit", {
+      method: "OPTIONS",
+      headers: { origin: ORIGIN },
+    });
+    const denied = await t.fetch("/contact/submit", {
+      method: "OPTIONS",
+      headers: { origin: "https://evil.example" },
+    });
+
+    expect(allowed.status).toBe(204);
+    expect(allowed.headers.get("access-control-allow-origin")).toBe(ORIGIN);
+    expect(allowed.headers.get("access-control-allow-methods")).toBe("POST, OPTIONS");
+    expect(allowed.headers.get("access-control-allow-headers")).toBe("content-type");
+    expect(allowed.headers.get("vary")).toBe("Origin");
+    expect(denied.status).toBe(403);
+    expect(denied.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
   it("Turnstile検証後に問い合わせを受け付けてSlackへ通知する", async () => {
     vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "");
     const fetchMock = vi.fn(async (input: string | URL | Request) => {

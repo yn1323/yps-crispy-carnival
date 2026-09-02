@@ -4,8 +4,12 @@ import type { CreateRecruitmentStep } from "./types";
 
 type Props = {
   currentStep: CreateRecruitmentStep;
+  hasShopStep: boolean;
+  canContinueFromShop: boolean;
   submitLoading: boolean;
   onCancel?: () => void;
+  onGoToShop: () => void;
+  onGoToPeriodFromShop: () => void;
   onGoToPeriod: () => void;
   onGoToHolidays: () => void;
   onGoToDeadline: () => void;
@@ -14,20 +18,43 @@ type Props = {
 
 export const RecruitmentWizardActions = ({
   currentStep,
+  hasShopStep,
+  canContinueFromShop,
   submitLoading,
   onCancel,
+  onGoToShop,
+  onGoToPeriodFromShop,
   onGoToPeriod,
   onGoToHolidays,
   onGoToDeadline,
   onGoToConfirm,
 }: Props) => {
+  if (currentStep === "shop") {
+    return (
+      <>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={submitLoading}>
+          キャンセル
+        </Button>
+        <Button
+          type="button"
+          colorPalette="teal"
+          onClick={onGoToPeriodFromShop}
+          disabled={!canContinueFromShop || submitLoading}
+        >
+          次へ
+        </Button>
+      </>
+    );
+  }
+
   if (currentStep === "period") {
     return (
       <>
-        <Button type="button" variant="outline" onClick={onCancel} flex={{ base: 1, md: "unset" }}>
-          キャンセル
+        <Button type="button" variant="outline" onClick={hasShopStep ? onGoToShop : onCancel} disabled={submitLoading}>
+          {hasShopStep && <LuChevronLeft />}
+          {hasShopStep ? "戻る" : "キャンセル"}
         </Button>
-        <Button type="button" colorPalette="teal" onClick={onGoToHolidays} flex={{ base: 1, md: "unset" }}>
+        <Button type="button" colorPalette="teal" onClick={onGoToHolidays} disabled={submitLoading}>
           次へ
         </Button>
       </>
@@ -37,11 +64,11 @@ export const RecruitmentWizardActions = ({
   if (currentStep === "holidays") {
     return (
       <>
-        <Button type="button" variant="outline" onClick={onGoToPeriod} flex={{ base: 1, md: "unset" }}>
+        <Button type="button" variant="outline" onClick={onGoToPeriod} disabled={submitLoading}>
           <LuChevronLeft />
           戻る
         </Button>
-        <Button type="button" colorPalette="teal" onClick={onGoToDeadline} flex={{ base: 1, md: "unset" }}>
+        <Button type="button" colorPalette="teal" onClick={onGoToDeadline} disabled={submitLoading}>
           次へ
         </Button>
       </>
@@ -51,11 +78,11 @@ export const RecruitmentWizardActions = ({
   if (currentStep === "deadline") {
     return (
       <>
-        <Button type="button" variant="outline" onClick={onGoToHolidays} flex={{ base: 1, md: "unset" }}>
+        <Button type="button" variant="outline" onClick={onGoToHolidays} disabled={submitLoading}>
           <LuChevronLeft />
           戻る
         </Button>
-        <Button type="button" colorPalette="teal" onClick={onGoToConfirm} flex={{ base: 1, md: "unset" }}>
+        <Button type="button" colorPalette="teal" onClick={onGoToConfirm} disabled={submitLoading}>
           確認へ
         </Button>
       </>
@@ -64,11 +91,17 @@ export const RecruitmentWizardActions = ({
 
   return (
     <>
-      <Button type="button" variant="outline" onClick={onGoToDeadline} flex={{ base: 1, md: "unset" }}>
+      <Button type="button" variant="outline" onClick={onGoToDeadline} disabled={submitLoading}>
         <LuChevronLeft />
         戻る
       </Button>
-      <Button type="submit" colorPalette="teal" loading={submitLoading} flex={{ base: 1, md: "unset" }}>
+      <Button
+        type="submit"
+        colorPalette="teal"
+        loading={submitLoading}
+        loadingText="募集をつくる"
+        disabled={submitLoading}
+      >
         募集をつくる
       </Button>
     </>

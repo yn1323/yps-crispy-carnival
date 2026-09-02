@@ -4,8 +4,9 @@ export const DIALOG_VISUAL_VIEWPORT_HEIGHT = "var(--dialog-visual-viewport-heigh
 export const DIALOG_VISUAL_VIEWPORT_OFFSET_TOP = "var(--dialog-visual-viewport-offset-top, 0px)";
 
 type DialogVisualViewportMetrics = {
-  height: string;
-  offsetTop: string;
+  height: number;
+  offsetTop: number;
+  width: number;
 };
 
 type DialogVisualViewportStyle = CSSProperties & {
@@ -13,24 +14,28 @@ type DialogVisualViewportStyle = CSSProperties & {
   "--dialog-visual-viewport-offset-top": string;
 };
 
-const FALLBACK_METRICS: DialogVisualViewportMetrics = {
-  height: "100dvh",
-  offsetTop: "0px",
-};
-
 const toMetrics = (): DialogVisualViewportMetrics => {
   const viewport = window.visualViewport;
   const height = viewport?.height ?? window.innerHeight;
   const offsetTop = viewport?.offsetTop ?? 0;
+  const width = window.innerWidth;
 
   return {
-    height: `${Math.round(height)}px`,
-    offsetTop: `${Math.round(offsetTop)}px`,
+    height: Math.round(height),
+    offsetTop: Math.round(offsetTop),
+    width: Math.round(width),
   };
 };
 
-export const useDialogVisualViewportStyle = (enabled: boolean): DialogVisualViewportStyle | undefined => {
-  const [metrics, setMetrics] = useState<DialogVisualViewportMetrics>(FALLBACK_METRICS);
+export const useDialogVisualViewport = (
+  enabled: boolean,
+): {
+  height: number | undefined;
+  offsetTop: number | undefined;
+  width: number | undefined;
+  style: DialogVisualViewportStyle | undefined;
+} => {
+  const [metrics, setMetrics] = useState<DialogVisualViewportMetrics>();
 
   useEffect(() => {
     if (!enabled) return;
@@ -38,7 +43,11 @@ export const useDialogVisualViewportStyle = (enabled: boolean): DialogVisualView
     const updateMetrics = () => {
       const nextMetrics = toMetrics();
       setMetrics((current) =>
-        current.height === nextMetrics.height && current.offsetTop === nextMetrics.offsetTop ? current : nextMetrics,
+        current?.height === nextMetrics.height &&
+        current.offsetTop === nextMetrics.offsetTop &&
+        current.width === nextMetrics.width
+          ? current
+          : nextMetrics,
       );
     };
 
@@ -57,11 +66,19 @@ export const useDialogVisualViewportStyle = (enabled: boolean): DialogVisualView
   }, [enabled]);
 
   return useMemo(() => {
-    if (!enabled) return undefined;
+    if (!enabled) return { height: undefined, offsetTop: undefined, width: undefined, style: undefined };
 
     return {
-      "--dialog-visual-viewport-height": metrics.height,
-      "--dialog-visual-viewport-offset-top": metrics.offsetTop,
+      height: metrics?.height,
+      offsetTop: metrics?.offsetTop,
+      width: metrics?.width,
+      style: {
+        "--dialog-visual-viewport-height": metrics ? `${metrics.height}px` : "100dvh",
+        "--dialog-visual-viewport-offset-top": metrics ? `${metrics.offsetTop}px` : "0px",
+      },
     };
   }, [enabled, metrics]);
 };
+
+export const useDialogVisualViewportStyle = (enabled: boolean): DialogVisualViewportStyle | undefined =>
+  useDialogVisualViewport(enabled).style;

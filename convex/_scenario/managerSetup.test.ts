@@ -11,13 +11,26 @@ import { createScenario } from "../_test/scenarioFixtures";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const SETUP_MANAGER_SUBJECT = "scenario_setup_manager";
+const TRIAL_ENDS_AT = Date.parse("2026-07-09T15:00:00.000Z");
+const TRIAL_ENDING_VISIBLE_FROM = TRIAL_ENDS_AT - 7 * 24 * 60 * 60 * 1000;
 
 describe("管理者セットアップシナリオ", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_manager_setup");
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_manager_setup");
+    vi.stubEnv("STRIPE_STANDARD_PRICE_ID", "price_manager_setup_standard");
+    vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_manager_setup_pro");
+    vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "bpc_manager_setup");
+    vi.stubEnv("CONVEX_CLOUD_URL", "");
+    vi.stubEnv("DEBUG_TRIAL_DURATION_DEPLOYMENT_URL", "");
+    vi.stubEnv("DEBUG_TRIAL_DURATION_DAYS", "");
   });
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
 
   it("初回セットアップで店舗・管理者・manager staff・同意・初期positionが揃い、ダッシュボードに反映される", async () => {
     const t = convexTest(schema, modules);
@@ -49,9 +62,18 @@ describe("管理者セットアップシナリオ", () => {
       businessWriteBlockReason: null,
       canWriteBusinessData: true,
       name: "初回セットアップ店舗",
+      planStatus: {
+        canManagePlan: true,
+        canUpdatePaymentMethod: false,
+        kind: "trial",
+        trialEndsAt: TRIAL_ENDS_AT,
+      },
       regularClosedDays: [],
       submissionPattern: { kind: "dateOnly" },
-      trialEndingNotice: null,
+      trialEndingNotice: {
+        trialEndsAt: TRIAL_ENDS_AT,
+        visibleFrom: TRIAL_ENDING_VISIBLE_FROM,
+      },
     });
     expect(staffPage.page).toMatchObject([{ name: "山田 太郎", email: "manager@example.com", isManager: true }]);
     expect(consentStatus.required).toBe(false);

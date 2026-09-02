@@ -25,6 +25,8 @@ type Props = {
   /** 週の起点日（YYYY-MM-DD）。デフォルトは来週の月曜。VRT 安定化のため Story 側で固定値を差し込める */
   baseDate?: string;
   headerStart?: ReactNode;
+  /** route shellがページ固有のH1を渡す。feature単体ではsection見出しとしてH2を使う。 */
+  heading?: ReactNode;
   height?: string;
 };
 
@@ -68,7 +70,7 @@ function generatePeriodLabel(dates: string[]): string {
   return `${formatDateShort(first)}(${getWeekdayLabel(first)})〜${formatDateShort(last)}(${getWeekdayLabel(last)}) のシフト`;
 }
 
-export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }: Props = {}) => {
+export const DemoShiftBoardPage = ({ baseDate, headerStart, heading, height = "100dvh" }: Props = {}) => {
   const [confirmedAt, setConfirmedAt] = useState<number | null>(null);
   const isConfirmed = confirmedAt !== null;
 
@@ -111,7 +113,7 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
   return (
     <Flex direction="column" h={height} minH={0}>
       <Grid
-        templateColumns="minmax(0, 1fr) auto minmax(0, 1fr)"
+        templateColumns={{ base: "minmax(0, 1fr)", lg: "minmax(0, 1fr) auto minmax(0, 1fr)" }}
         alignItems="center"
         bg="white"
         px={{ base: 4, lg: 6 }}
@@ -121,14 +123,22 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
       >
         <Flex align="center" gap={4} minW={0}>
           {headerStart}
-          <Heading as="h1" fontSize={{ base: "xs", lg: "sm" }} fontWeight={700} color="gray.800" whiteSpace="nowrap">
-            勤務時間入力デモ
-          </Heading>
+          {heading ?? (
+            <Heading as="h2" fontSize={{ base: "xs", lg: "sm" }} fontWeight={700} color="gray.800" whiteSpace="nowrap">
+              勤務時間入力デモ
+            </Heading>
+          )}
         </Flex>
-        <Text fontSize={{ base: "sm", lg: "md" }} fontWeight={600} color="gray.900" textAlign="center">
+        <Text
+          display={{ base: "none", lg: "block" }}
+          fontSize={{ base: "sm", lg: "md" }}
+          fontWeight={600}
+          color="gray.900"
+          textAlign="center"
+        >
           {periodLabel}
         </Text>
-        <Flex align="center" justify="flex-end" gap={3} minW={0}>
+        <Flex display={{ base: "none", lg: "flex" }} align="center" justify="flex-end" gap={3} minW={0}>
           {isConfirmed && (
             <Flex align="center" gap={1} flexShrink={0}>
               <Icon color="green.600" boxSize={3.5}>
@@ -162,7 +172,7 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
         </Flex>
       </Grid>
 
-      <Box flex={1} minH={0}>
+      <Box display={{ base: "none", lg: "block" }} flex={1} minH={0}>
         <ShiftForm
           shopId={DEMO_SHOP_ID}
           staffs={mockStaffs}
@@ -179,38 +189,40 @@ export const DemoShiftBoardPage = ({ baseDate, headerStart, height = "100dvh" }:
         />
       </Box>
 
-      <Dialog
-        title={confirmTitle}
-        isOpen={confirmModal.isOpen}
-        onOpenChange={confirmModal.onOpenChange}
-        onSubmit={handleConfirm}
-        submitLabel={isConfirmed ? "再通知後の画面を見る" : "確定後の画面を見る"}
-        onClose={confirmModal.close}
-      >
-        <ConfirmShiftContent
-          staffCount={mockStaffs.length}
-          periodLabel={periodLabel}
-          notificationDescription="デモでの操作は保存されず、スタッフへの通知も送られません。"
-        />
-      </Dialog>
-
-      <ClientOnly>
-        {tourPhase === "idle" && viewMode === "daily" && (
-          <DemoLauncherFab onStart={() => setTourPhase("running")} onDismiss={() => setTourPhase("done")} />
-        )}
-
-        {/* idle/running はマウント継続で run だけトグル。done で unmount する前に
-            ref.skip() で portal を片付け済みにしておく（handleConfirm / handleTourCloseRequest） */}
-        {tourPhase !== "done" && (
-          <DemoIntroTour
-            ref={tourRef}
-            run={tourPhase === "running"}
-            shifts={shifts}
-            day1={day1}
-            onClose={handleTourCloseRequest}
+      <Box display={{ base: "none", lg: "block" }}>
+        <Dialog
+          title={confirmTitle}
+          isOpen={confirmModal.isOpen}
+          onOpenChange={confirmModal.onOpenChange}
+          onSubmit={handleConfirm}
+          submitLabel={isConfirmed ? "再通知後の画面を見る" : "確定後の画面を見る"}
+          onClose={confirmModal.close}
+        >
+          <ConfirmShiftContent
+            staffCount={mockStaffs.length}
+            periodLabel={periodLabel}
+            notificationDescription="デモでの操作は保存されず、スタッフへの通知も送られません。"
           />
-        )}
-      </ClientOnly>
+        </Dialog>
+
+        <ClientOnly>
+          {tourPhase === "idle" && viewMode === "daily" && (
+            <DemoLauncherFab onStart={() => setTourPhase("running")} onDismiss={() => setTourPhase("done")} />
+          )}
+
+          {/* idle/running はマウント継続で run だけトグル。done で unmount する前に
+              ref.skip() で portal を片付け済みにしておく（handleConfirm / handleTourCloseRequest） */}
+          {tourPhase !== "done" && (
+            <DemoIntroTour
+              ref={tourRef}
+              run={tourPhase === "running"}
+              shifts={shifts}
+              day1={day1}
+              onClose={handleTourCloseRequest}
+            />
+          )}
+        </ClientOnly>
+      </Box>
     </Flex>
   );
 };

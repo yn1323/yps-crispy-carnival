@@ -3,10 +3,9 @@ import { type ComponentProps, useMemo } from "react";
 import { LuCalendarDays, LuClock3, LuListChecks, LuStore } from "react-icons/lu";
 import {
   RegularClosedDaysField,
-  ShiftTypePatternFields,
   ShopNameField,
   SubmissionPatternField,
-  TimePatternFields,
+  SubmissionPatternSettingsFields,
 } from "@/src/components/shared/ShopSettingsFields";
 import { StepperDialogContent, type StepperDialogStep } from "@/src/components/ui/StepperDialog";
 import { ShopFormActions } from "./ShopFormActions";
@@ -15,24 +14,24 @@ import type { ShiftSubmissionPattern, ShopFormStep } from "./script";
 const BASE_STEPS: StepperDialogStep<ShopFormStep>[] = [
   {
     value: "shopName",
-    label: "店舗名",
+    label: "店舗名設定",
     icon: LuStore,
-    title: "店舗名",
-    description: "管理画面やスタッフへの案内に表示するお店の名前です。",
+    title: "店舗名設定",
+    description: "店舗名を入力してください",
   },
   {
     value: "submissionPattern",
-    label: "集め方",
+    label: "シフト提出方法",
     icon: LuListChecks,
-    title: "希望シフトの集め方",
-    description: "スタッフが希望シフトを提出する方法を設定します。\n今後作成するシフトに適用されます。",
+    title: "シフトの提出方法",
+    description: "スタッフがシフトを提出する方法を選んでください。",
   },
   {
     value: "patternSettings",
     label: "勤務時間",
     icon: LuClock3,
     title: "勤務時間",
-    description: "スタッフが選択できる時間帯を設定します。",
+    description: "スタッフが提出できる時間帯を設定します。",
   },
   {
     value: "regularClosedDays",
@@ -54,17 +53,12 @@ const getPatternSettingsStep = (kind: ShiftSubmissionPattern["kind"]): StepperDi
       : "スタッフが選択できる開始時間と終了時間の範囲を設定します。",
 });
 
-type PatternSettingsProps =
-  | { kind: "dateOnly" }
-  | { kind: "time"; props: ComponentProps<typeof TimePatternFields> }
-  | { kind: "shiftType"; props: ComponentProps<typeof ShiftTypePatternFields> };
-
 type Props = {
   currentStep: ShopFormStep;
   submissionPatternKind: ShiftSubmissionPattern["kind"];
   shopNameStep: ComponentProps<typeof ShopNameField>;
   submissionPatternStep: ComponentProps<typeof SubmissionPatternField>;
-  patternSettings: PatternSettingsProps;
+  patternSettings: ComponentProps<typeof SubmissionPatternSettingsFields>;
   regularClosedDaysStep: ComponentProps<typeof RegularClosedDaysField>;
   actions: ComponentProps<typeof ShopFormActions>;
 };
@@ -101,8 +95,7 @@ export const ShopFormView = ({
         {currentStep === "submissionPattern" && <SubmissionPatternField {...submissionPatternStep} />}
         {currentStep === "patternSettings" && (
           <Stack gap={3}>
-            {patternSettings.kind === "time" && <TimePatternFields {...patternSettings.props} />}
-            {patternSettings.kind === "shiftType" && <ShiftTypePatternFields {...patternSettings.props} />}
+            <SubmissionPatternSettingsFields {...patternSettings} />
           </Stack>
         )}
         {currentStep === "regularClosedDays" && <RegularClosedDaysField {...regularClosedDaysStep} />}

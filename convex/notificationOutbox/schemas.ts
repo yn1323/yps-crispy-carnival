@@ -7,12 +7,15 @@ import {
 
 export const notificationChannelValidator = v.union(v.literal("email"), v.literal("line"));
 
+export const NOTIFICATION_OUTBOX_ACTIVE_STATUSES = ["pending", "processing"] as const;
+export const NOTIFICATION_OUTBOX_TERMINAL_STATUSES = ["sent", "failed", "cancelled"] as const;
+export const NOTIFICATION_OUTBOX_STATUSES = [
+  ...NOTIFICATION_OUTBOX_ACTIVE_STATUSES,
+  ...NOTIFICATION_OUTBOX_TERMINAL_STATUSES,
+] as const;
+
 export const notificationOutboxStatusValidator = v.union(
-  v.literal("pending"),
-  v.literal("processing"),
-  v.literal("sent"),
-  v.literal("failed"),
-  v.literal("cancelled"),
+  ...NOTIFICATION_OUTBOX_STATUSES.map((status) => v.literal(status)),
 );
 
 export const notificationPurposeValidator = v.union(v.literal("business"), v.literal("billing"));
@@ -20,8 +23,10 @@ export const notificationPurposeValidator = v.union(v.literal("business"), v.lit
 // 永続化する理由は監査・運用に必要な安全な分類だけに限定し、宛先やtokenを含めない。
 export const notificationCancelReasonValidator = v.union(
   v.literal("organization_billing_changed"),
-  v.literal("organization_restricted"),
+  v.literal("organization_usage_limit_exceeded"),
   v.literal("organization_inactive"),
+  v.literal("shop_deleted"),
+  // TODO[narrow]: 全deploymentでm049完走・legacyShopInactiveCancelReason=0確認後に削除する。
   v.literal("shop_inactive"),
   v.literal("recruitment_inactive"),
   v.literal("notification_superseded"),

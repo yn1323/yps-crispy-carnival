@@ -1,8 +1,10 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
-import { internalMutation, type MutationCtx } from "../_generated/server";
+import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
+import { sha256Hex } from "../_lib/sha256";
 import {
   STRIPE_OPERATION_MAX_ATTEMPTS,
   STRIPE_OPERATION_PROCESSING_LEASE_MS,
@@ -10,6 +12,7 @@ import {
   STRIPE_WEBHOOK_EVENT_RETENTION_MS,
 } from "../constants";
 import { STRIPE_WEBHOOK_API_VERSION } from "./config";
+import type { CanonicalStripePaidPlan, CanonicalStripeTargetPlan } from "./planIds";
 import {
   organizationStripeOperationKindValidator,
   organizationStripeOperationStatusValidator,
@@ -36,7 +39,7 @@ const PLAN_CHANGE_OPERATION_KINDS = [
   "scheduleFree",
   "cancelFreeSchedule",
 ] as const;
-const PLAN_CHANGE_LOCKING_STATUSES = ["queued", "processing", "retrying", "actionRequired"] as const;
+const PROVIDER_OPERATION_LOCKING_STATUSES = ["queued", "processing", "retrying", "actionRequired"] as const;
 
 function hasInactivePriceRecoveryMarker(lastErrorCode?: string) {
   return (
@@ -56,8 +59,9 @@ const operationResultValidator = v.object({
   stripeObjectId: v.optional(v.string()),
   providerGeneration: v.optional(v.number()),
   stripePriceIdSnapshot: v.optional(v.string()),
-  sourcePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
-  targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+  sourcePlan: v.optional(v.union(v.literal("standard"), v.literal("pro"))),
+  targetPlan: v.optional(v.union(v.literal("free"), v.literal("standard"), v.literal("pro"))),
+  restrictAtPeriodEnd: v.optional(v.literal(true)),
   changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
   stripeSubscriptionIdSnapshot: v.optional(v.string()),
   stripeSubscriptionItemIdSnapshot: v.optional(v.string()),
@@ -301,11 +305,13 @@ export const beginOperation = internalMutation({
         v.literal("trialContinuationCancellation"),
         v.literal("scheduledFreeDeadline"),
         v.literal("scheduledPaidPlanDeadline"),
+        v.literal("paymentTermination"),
       ),
     ),
     stripePriceIdSnapshot: v.optional(v.string()),
-    sourcePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
-    targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+    sourcePlan: v.optional(v.union(v.literal("standard"), v.literal("pro"))),
+    targetPlan: v.optional(v.union(v.literal("free"), v.literal("standard"), v.literal("pro"))),
+    restrictAtPeriodEnd: v.optional(v.literal(true)),
     changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
     stripeSubscriptionIdSnapshot: v.optional(v.string()),
     stripeSubscriptionItemIdSnapshot: v.optional(v.string()),
@@ -323,13 +329,19 @@ export const beginOperation = internalMutation({
     if (
       (args.recoveryPurpose === "trialContinuationCancellation" && args.kind !== "cancelSubscription") ||
       ((args.recoveryPurpose === "scheduledFreeDeadline" || args.recoveryPurpose === "scheduledPaidPlanDeadline") &&
-        args.kind !== "reconcileSubscription")
+        args.kind !== "reconcileSubscription") ||
+      (args.recoveryPurpose === "paymentTermination" &&
+        args.kind !== "cancelSubscription" &&
+        args.kind !== "stopInvoiceCollection")
     ) {
       throw new ConvexError("Invalid recovery purpose");
     }
     const hasTrialCreateSnapshot = args.trialSubscriptionCreateSnapshot !== undefined;
     if ((args.kind === "createTrialSubscription") !== hasTrialCreateSnapshot) {
       throw new ConvexError("Invalid trial subscription create snapshot");
+    }
+    if (args.kind === "createTrialSubscription" && args.targetPlan !== "standard" && args.targetPlan !== "pro") {
+      throw new ConvexError("Invalid trial subscription target plan");
     }
     if (
       args.trialSubscriptionCreateSnapshot &&
@@ -361,6 +373,18 @@ export const beginOperation = internalMutation({
         q.eq("organizationId", args.organizationId).eq("kind", args.kind).eq("requestKey", args.requestKey),
       )
       .unique();
+    if (args.recoveryPurpose === "trialContinuationCancellation") {
+      if (args.providerGeneration === undefined) {
+        throw new ConvexError("Invalid recovery purpose");
+      }
+      const competing = await findTrialContinuationCancellationGenerationOwner(
+        ctx,
+        args.organizationId,
+        args.providerGeneration,
+        existing?._id,
+      );
+      if (competing) return operationResult(competing, false, true);
+    }
     if (existing) {
       const immutableIntentMismatch =
         existing.livemode !== args.livemode ||
@@ -369,6 +393,7 @@ export const beginOperation = internalMutation({
         existing.stripePriceIdSnapshot !== args.stripePriceIdSnapshot ||
         existing.sourcePlan !== args.sourcePlan ||
         existing.targetPlan !== args.targetPlan ||
+        existing.restrictAtPeriodEnd !== args.restrictAtPeriodEnd ||
         existing.changeMode !== args.changeMode ||
         existing.stripeSubscriptionIdSnapshot !== args.stripeSubscriptionIdSnapshot ||
         existing.stripeSubscriptionItemIdSnapshot !== args.stripeSubscriptionItemIdSnapshot ||
@@ -416,7 +441,7 @@ export const beginOperation = internalMutation({
         const generationOperations = (
           await Promise.all(
             PLAN_CHANGE_OPERATION_KINDS.flatMap((kind) =>
-              PLAN_CHANGE_LOCKING_STATUSES.map(
+              PROVIDER_OPERATION_LOCKING_STATUSES.map(
                 async (status) =>
                   await ctx.db
                     .query("organizationStripeOperations")
@@ -493,7 +518,7 @@ export const beginOperation = internalMutation({
       const generationOperations = (
         await Promise.all(
           PLAN_CHANGE_OPERATION_KINDS.flatMap((kind) =>
-            PLAN_CHANGE_LOCKING_STATUSES.map(
+            PROVIDER_OPERATION_LOCKING_STATUSES.map(
               async (status) =>
                 await ctx.db
                   .query("organizationStripeOperations")
@@ -517,14 +542,13 @@ export const beginOperation = internalMutation({
 
     if (
       args.kind === "trialSetupCheckout" ||
-      args.kind === "immediateProCheckout" ||
       args.kind === "immediatePaidCheckout" ||
       args.kind === "createTrialSubscription"
     ) {
       const competingKinds =
         args.kind === "createTrialSubscription"
           ? (["createTrialSubscription"] as const)
-          : (["trialSetupCheckout", "immediateProCheckout", "immediatePaidCheckout"] as const);
+          : (["trialSetupCheckout", "immediatePaidCheckout"] as const);
       const blockingStatuses = ["queued", "processing", "retrying", "succeeded", "actionRequired"] as const;
       const generationOperations = (
         await Promise.all(
@@ -592,6 +616,7 @@ export const beginOperation = internalMutation({
       ...(args.stripePriceIdSnapshot ? { stripePriceIdSnapshot: args.stripePriceIdSnapshot } : {}),
       ...(args.sourcePlan ? { sourcePlan: args.sourcePlan } : {}),
       ...(args.targetPlan ? { targetPlan: args.targetPlan } : {}),
+      ...(args.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
       ...(args.changeMode ? { changeMode: args.changeMode } : {}),
       ...(args.stripeSubscriptionIdSnapshot ? { stripeSubscriptionIdSnapshot: args.stripeSubscriptionIdSnapshot } : {}),
       ...(args.stripeSubscriptionItemIdSnapshot
@@ -850,21 +875,24 @@ export const resolveInactivePriceTrialSubscription = internalMutation({
         .query("organizationBillingStates")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", args.organizationId))
         .unique();
-      // TODO[narrow]: 旧trialSetupCheckoutのtargetPlan欠損0と旧scheduler drainを確認後にfallbackを削除する。
-      const targetPlan = source.targetPlan ?? "pro";
+      if (source.targetPlan !== "standard" && source.targetPlan !== "pro") {
+        return { kind: "conflict" as const };
+      }
+      const targetPlan = source.targetPlan;
+      const canonicalBillingState = billing?.state;
       const trialConverged =
         mapping.status === "trialing" &&
         mapping.terminalAt === undefined &&
         snapshot.trialEndsAt !== undefined &&
         mapping.trialEndsAt === snapshot.trialEndsAt &&
-        billing?.state.kind === "trial" &&
-        billing.state.selectedPaidPlan === targetPlan &&
-        billing.state.trialEndsAt === snapshot.trialEndsAt;
+        canonicalBillingState?.kind === "trial" &&
+        canonicalBillingState.selectedPaidPlan === targetPlan &&
+        canonicalBillingState.trialEndsAt === snapshot.trialEndsAt;
       const activePaidPlanConverged =
         mapping.status === "active" &&
         mapping.terminalAt === undefined &&
-        billing?.state.kind === "active" &&
-        billing.state.plan === targetPlan;
+        canonicalBillingState?.kind === "active" &&
+        canonicalBillingState.plan === targetPlan;
       const billingConverged = trialConverged || activePaidPlanConverged;
       if (billingConverged && source.status !== "succeeded") {
         await ctx.db.patch(source._id, {
@@ -1108,7 +1136,7 @@ export const finishOperation = internalMutation({
   },
 });
 
-export const retryExpiredGraceSafetyOperation = internalMutation({
+export const retryPaymentTerminationSafetyOperation = internalMutation({
   args: {
     operationId: v.id("organizationStripeOperations"),
     leaseToken: v.string(),
@@ -1116,17 +1144,14 @@ export const retryExpiredGraceSafetyOperation = internalMutation({
     expectedBillingVersion: v.number(),
     requestId: v.string(),
     errorCode: v.string(),
-    // TODO[narrow]: 全deploymentで旧scheduled argsがdrainし、対象operationの回復処理が収束した後にrequired化する。
-    action: v.optional(
-      v.union(
-        v.literal("expiredGrace"),
-        v.literal("initialPayment"),
-        v.literal("trialContinuation"),
-        v.literal("invalidTrialSubscription"),
-        v.literal("scheduledFree"),
-        v.literal("scheduledPaid"),
-        v.literal("cancelAtPeriodEnd"),
-      ),
+    action: v.union(
+      v.literal("paymentTermination"),
+      v.literal("initialPayment"),
+      v.literal("trialContinuation"),
+      v.literal("invalidTrialSubscription"),
+      v.literal("scheduledFree"),
+      v.literal("scheduledPaid"),
+      v.literal("cancelAtPeriodEnd"),
     ),
     operationKind: v.optional(v.union(v.literal("scheduleFree"), v.literal("cancelFreeSchedule"))),
   },
@@ -1142,6 +1167,10 @@ export const retryExpiredGraceSafetyOperation = internalMutation({
       (args.action === "invalidTrialSubscription" &&
         (operation.kind !== "cancelSubscription" ||
           operation.recoveryPurpose !== "invalidTrialSubscriptionCancellation")) ||
+      (args.action === "paymentTermination" &&
+        ((operation.kind !== "cancelSubscription" && operation.kind !== "stopInvoiceCollection") ||
+          operation.recoveryPurpose !== "paymentTermination" ||
+          operation.expectedBillingVersion !== args.expectedBillingVersion)) ||
       (args.action === "cancelAtPeriodEnd" && operation.kind !== args.operationKind) ||
       (args.action !== "cancelAtPeriodEnd" && args.operationKind !== undefined)
     ) {
@@ -1184,7 +1213,7 @@ export const retryExpiredGraceSafetyOperation = internalMutation({
                 ? internal.organizationStripe.actions.reconcileScheduledPaidPlanDeadline
                 : args.action === "cancelAtPeriodEnd"
                   ? internal.organizationStripe.actions.reconcileCancelAtPeriodEndChange
-                  : internal.organizationStripe.actions.stopExpiredGraceCollection,
+                  : internal.organizationStripe.actions.finishPaymentTermination,
       {
         organizationId: args.organizationId,
         expectedBillingVersion: args.expectedBillingVersion,
@@ -1468,11 +1497,6 @@ export const completeBillingEmailSyncOperation = internalMutation({
   },
 });
 
-async function sha256Hex(value: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 /** Stripe側でexpiredを確認したCheckoutだけをsingle-flight対象から解放する。 */
 export const releaseExpiredCheckoutOperation = internalMutation({
   args: {
@@ -1484,11 +1508,19 @@ export const releaseExpiredCheckoutOperation = internalMutation({
   handler: async (ctx, args) => {
     const operation = await ctx.db.get(args.operationId);
     if (
+      operation?.status === "cancelled" &&
+      (operation.kind === "trialSetupCheckout" || operation.kind === "immediatePaidCheckout") &&
+      operation.stripeObjectId === args.stripeSessionId &&
+      (operation.lastErrorCode === "checkout_session_cancelled" ||
+        operation.lastErrorCode === "checkout_session_expired_webhook" ||
+        operation.lastErrorCode === "checkout_session_expired")
+    ) {
+      return { changed: true };
+    }
+    if (
       operation?.status !== "succeeded" ||
       operation.stripeObjectId !== args.stripeSessionId ||
-      (operation.kind !== "trialSetupCheckout" &&
-        operation.kind !== "immediateProCheckout" &&
-        operation.kind !== "immediatePaidCheckout")
+      (operation.kind !== "trialSetupCheckout" && operation.kind !== "immediatePaidCheckout")
     ) {
       return { changed: false };
     }
@@ -1602,7 +1634,7 @@ export const saveSubscriptionSnapshot = internalMutation({
     stripeSubscriptionId: v.string(),
     stripeSubscriptionItemId: v.optional(v.string()),
     stripePriceId: v.string(),
-    plan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+    plan: v.union(v.literal("standard"), v.literal("pro")),
     livemode: v.boolean(),
     status: organizationStripeSubscriptionStatusValidator,
     providerGeneration: v.number(),
@@ -1712,7 +1744,7 @@ export const saveSubscriptionSnapshot = internalMutation({
       stripeSubscriptionId: args.stripeSubscriptionId,
       ...(args.stripeSubscriptionItemId ? { stripeSubscriptionItemId: args.stripeSubscriptionItemId } : {}),
       stripePriceId: args.stripePriceId,
-      ...(args.plan ? { plan: args.plan } : {}),
+      plan: args.plan,
       livemode: args.livemode,
       status: args.status,
       providerGeneration: args.providerGeneration,
@@ -1752,6 +1784,7 @@ function operationResult(operation: Doc<"organizationStripeOperations">, created
     ...(operation.stripePriceIdSnapshot ? { stripePriceIdSnapshot: operation.stripePriceIdSnapshot } : {}),
     ...(operation.sourcePlan ? { sourcePlan: operation.sourcePlan } : {}),
     ...(operation.targetPlan ? { targetPlan: operation.targetPlan } : {}),
+    ...(operation.restrictAtPeriodEnd === true ? { restrictAtPeriodEnd: true as const } : {}),
     ...(operation.changeMode ? { changeMode: operation.changeMode } : {}),
     ...(operation.stripeSubscriptionIdSnapshot
       ? { stripeSubscriptionIdSnapshot: operation.stripeSubscriptionIdSnapshot }
@@ -1779,6 +1812,32 @@ function isPlanChangeOperationKind(
   return PLAN_CHANGE_OPERATION_KINDS.includes(kind as (typeof PLAN_CHANGE_OPERATION_KINDS)[number]);
 }
 
+async function findTrialContinuationCancellationGenerationOwner(
+  ctx: Pick<MutationCtx, "db">,
+  organizationId: Doc<"organizations">["_id"],
+  providerGeneration: number,
+  excludeOperationId?: Doc<"organizationStripeOperations">["_id"],
+) {
+  const operations = (
+    await Promise.all(
+      PROVIDER_OPERATION_LOCKING_STATUSES.map(
+        async (status) =>
+          await ctx.db
+            .query("organizationStripeOperations")
+            .withIndex("by_organizationId_and_providerGeneration_and_kind_and_status", (q) =>
+              q
+                .eq("organizationId", organizationId)
+                .eq("providerGeneration", providerGeneration)
+                .eq("kind", "cancelSubscription")
+                .eq("status", status),
+            )
+            .take(2),
+      ),
+    )
+  ).flat();
+  return operations.find((operation) => operation._id !== excludeOperationId);
+}
+
 /** 見積もりから実適用へ進む同一intentだけは、同じrequestIdを引き継げる。 */
 function samePaidPlanChangeIntent(
   operation: Doc<"organizationStripeOperations">,
@@ -1786,8 +1845,8 @@ function samePaidPlanChangeIntent(
     livemode: boolean;
     expectedBillingVersion?: number;
     providerGeneration?: number;
-    sourcePlan?: "pro" | "business";
-    targetPlan?: "free" | "pro" | "business";
+    sourcePlan?: CanonicalStripePaidPlan;
+    targetPlan?: CanonicalStripeTargetPlan;
     changeMode?: "checkout" | "immediate" | "periodEnd";
     stripeSubscriptionIdSnapshot?: string;
     stripeSubscriptionItemIdSnapshot?: string;

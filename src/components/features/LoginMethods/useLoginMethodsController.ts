@@ -19,6 +19,7 @@ import {
   emailVerificationCooldownScope,
   type LoginMethodOperationCooldown,
 } from "./operationCooldown";
+import { reloadActorUser } from "./reloadActorUser";
 import type { LoginMethodOnNeedsReverification, LoginMethodOperationOptions } from "./reverificationTypes";
 import { buildLoginMethodsViewModel } from "./script";
 import type {
@@ -38,7 +39,7 @@ const GOOGLE_DISCONNECT_REVERIFICATION_OPTIONS: LoginMethodOperationOptions = {
   preferredFirstFactorStrategy: "password",
 };
 const GOOGLE_DISCONNECT_EMAIL_REQUIRED_MESSAGE =
-  "メールアドレス未設定時はGoogle認証を解除できません。先にメールアドレスとパスワードを設定してください。";
+  "Google認証を解除できません。先にメールアドレスとパスワードを設定してください。";
 const GOOGLE_DISCONNECT_STATE_CHANGED_MESSAGE =
   "ログイン方法の状態が変わったため、Google連携を解除していません。最新の状態を読み込んでください。";
 const GOOGLE_DISCONNECT_CLEANUP_PENDING_MESSAGE =
@@ -109,13 +110,9 @@ export function useLoginMethodsController({
   );
 
   const reloadUser = async (): Promise<UserResource> => {
-    if (!isLoaded || !user || !actorUserId || user.id !== actorUserId || getCurrentActorId() !== actorUserId) {
-      throw new Error("Unauthenticated");
-    }
-    await user.reload();
-    if (user.id !== actorUserId || getCurrentActorId() !== actorUserId) throw new Error("Unauthenticated");
+    const currentUser = await reloadActorUser({ isLoaded, user, actorUserId, getCurrentActorId });
     setResourceRevision((current) => current + 1);
-    return user;
+    return currentUser;
   };
 
   const reverificationOptions = { onNeedsReverification };
@@ -206,7 +203,7 @@ export function useLoginMethodsController({
     setEmailChangeDialog({ isOpen: false });
     setEmailPasswordState(IDLE_STATE);
     showSuccessToast({
-      title: "メインのメールアドレスを変更しました",
+      title: "メールアドレスを変更しました",
     });
   };
   const { run: reload } = useSingleFlight(async () => {
@@ -636,7 +633,7 @@ export function useLoginMethodsController({
               return false;
             }
             await target.prepareVerification({ strategy: "email_code" });
-            setEmailPasswordState({ status: "success", message: "新しい確認コードを送りました。" });
+            setEmailPasswordState({ status: "success", message: "新しい確認コードを再送しました。" });
             return true;
           }
           if (operation === "verifyLoginEmail" && (typeof payload !== "string" || !payload.trim())) {

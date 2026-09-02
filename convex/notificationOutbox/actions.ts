@@ -3,11 +3,11 @@
 import { createHash } from "node:crypto";
 import { internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
-import { type ActionCtx, internalAction } from "../_generated/server";
+import type { ActionCtx } from "../_generated/server";
 import { getAppUrl, getOrganizationInvitationSigningSecret, isDebugNotifyFailEnabled } from "../_lib/config";
 import { formatResendSubject } from "../_lib/emailFormat";
+import { observedInternalAction as internalAction } from "../_lib/errorObservability";
 import { LineApiError, pushLineMessage } from "../_lib/lineClient";
-import { withOpenExternalBrowser } from "../_lib/lineUrl";
 import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
 import { getResendClient, ResendEmailError, sendResendEmail } from "../_lib/resend";
 import {
@@ -18,6 +18,7 @@ import {
 } from "../constants";
 import {
   buildOrganizationManagerInvitationEmailHtml,
+  buildOrganizationManagerInvitationLineText,
   type LinePushMessage,
   ORGANIZATION_MANAGER_INVITATION_SUBJECT,
 } from "../notification/templates";
@@ -135,16 +136,21 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob): Promise<SendJobRes
       version: invitation.invitationVersion,
       signingSecret: getOrganizationInvitationSigningSecret(),
     });
-    const invitationUrl = new URL("/manager-invite", getAppUrl());
+    const appUrl = getAppUrl();
+    const invitationUrl = new URL("/manager-invite", appUrl);
     invitationUrl.searchParams.set("token", token);
+    const helpUrl = new URL("/help", appUrl);
 
     return await sendEmailJob(job, {
       from: job.payload.from,
       to: job.payload.to,
       subject: formatResendSubject(invitation.organizationName, ORGANIZATION_MANAGER_INVITATION_SUBJECT),
       html: buildOrganizationManagerInvitationEmailHtml({
+        recipientName: invitation.recipientName,
         organizationName: invitation.organizationName,
         inviterName: invitation.inviterName,
+        appUrl,
+        helpUrl: helpUrl.toString(),
         invitationUrl: invitationUrl.toString(),
       }),
       context: job.payload.context,
@@ -166,16 +172,16 @@ async function sendJob(ctx: ActionCtx, job: NotificationJob): Promise<SendJobRes
     });
     const invitationUrl = new URL("/manager-invite", getAppUrl());
     invitationUrl.searchParams.set("token", token);
-    const externalBrowserUrl = withOpenExternalBrowser(invitationUrl.toString());
     return await sendLineJob(ctx, job, {
       toUserId: job.payload.toUserId,
       suppressDelivery: job.payload.suppressDelivery,
       fallbackEmail: job.payload.fallbackEmail,
       message: {
         type: "text",
-        text: `${invitation.organizationName}の管理者として招待されました。
-ログインして、アカウント連携を完了してください。
-${externalBrowserUrl}`,
+        text: buildOrganizationManagerInvitationLineText({
+          organizationName: invitation.organizationName,
+          invitationUrl: invitationUrl.toString(),
+        }),
       },
     });
   }
@@ -201,6 +207,16 @@ async function sendLineJob(
     message: LinePushMessage;
   },
 ): Promise<SendJobResult> {
+  const preparedRecipient = await ctx.runMutation(
+    internal.notificationOutbox.mutations.prepareLineForProviderDelivery,
+    {
+      outboxId: job._id,
+      leaseToken: job.leaseToken,
+      now: Date.now(),
+    },
+  );
+  if (!preparedRecipient || preparedRecipient.toUserId !== input.toUserId) return { cancelled: true };
+
   if (isDebugNotifyFailEnabled()) {
     await pushLineJob(input.toUserId, input.message, {
       suppressDelivery: input.suppressDelivery,

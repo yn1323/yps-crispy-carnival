@@ -1,4 +1,5 @@
 import { ConvexError } from "convex/values";
+import { sha256Hex } from "./sha256";
 
 const REQUEST_ID_MIN_LENGTH = 8;
 const REQUEST_ID_MAX_LENGTH = 100;
@@ -10,6 +11,5 @@ export async function toAuditRequestKey(requestId: string): Promise<string> {
     throw new ConvexError("入力内容を確認してください。");
   }
 
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return await sha256Hex(value);
 }

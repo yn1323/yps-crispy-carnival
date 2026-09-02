@@ -1,13 +1,18 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
-import { internalMutation, type MutationCtx } from "../_generated/server";
+import type { MutationCtx } from "../_generated/server";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS } from "../constants";
+import { tombstoneLineProviderUserIfUnreferenced } from "../line/service";
 import {
+  cancelNotificationForDeletedShop,
   cancelNotificationForInactiveOrganization,
-  cancelNotificationForInactiveShop,
 } from "../notificationOutbox/mutations";
+import { safelyDeactivateOrganizationStaffOrder } from "../organization/staffOrder";
+import { type DeletionCleanupTarget, getDeletionCleanupJobForTarget } from "./service";
 import { deletedLineUserId } from "./tombstone";
+import { deletionCleanupTargetValidator } from "./validators";
 
 const CLEANUP_BATCH_SIZE = 100;
 const CLEANUP_JOB_LEASE_MS = 60_000;
@@ -17,6 +22,7 @@ const RECOVERY_PER_STATUS_BATCH_SIZE = Math.floor(RECOVERY_BATCH_SIZE / 3);
 
 const SHOP_PHASES = [
   "shopCore",
+  "shopStaffOrderEntries",
   "shopOutboxPending",
   "shopOutboxProcessing",
   "shopNotificationHistory",
@@ -32,6 +38,7 @@ const SHOP_PHASES = [
 ] as const;
 
 const ORGANIZATION_SHOP_PHASES = [
+  "organizationShopStaffOrderEntries",
   "organizationShopOutboxPending",
   "organizationShopOutboxProcessing",
   "organizationShopNotificationHistory",
@@ -48,19 +55,23 @@ const ORGANIZATION_SHOP_PHASES = [
 
 const ORGANIZATION_PHASES = [
   "organizationCore",
+  "organizationStaffOrderState",
+  "organizationStaffOrderEntries",
+  "organizationStaffOrderShopEntries",
   "organizationOutboxPending",
   "organizationOutboxProcessing",
   "organizationShops",
+  "organizationLineLinks",
   "organizationPeople",
   "organizationMembers",
   "organizationInvitationsIssued",
-  "organizationInvitationsPending",
   "organizationCreatedByUser",
   "organizationVerification",
 ] as const;
 
 const SHOP_VERIFICATION_RESOURCES = [
   "core",
+  "staffOrderEntries",
   "outboxPending",
   "outboxProcessing",
   "notificationHistory",
@@ -76,9 +87,13 @@ const SHOP_VERIFICATION_RESOURCES = [
 
 const ORGANIZATION_VERIFICATION_RESOURCES = [
   "organizationCore",
+  "organizationStaffOrderState",
+  "organizationStaffOrderEntries",
+  "organizationStaffOrderShopEntries",
   "organizationOutboxPending",
   "organizationOutboxProcessing",
   "organizationShopsCore",
+  "organizationShopStaffOrderEntries",
   "organizationShopOutboxPending",
   "organizationShopOutboxProcessing",
   "organizationShopNotificationHistory",
@@ -91,10 +106,10 @@ const ORGANIZATION_VERIFICATION_RESOURCES = [
   "organizationShopLineLinkTokens",
   "organizationShopLegalConsentTokens",
   "organizationShopRegistrationLinks",
+  "organizationLineLinks",
   "organizationPeople",
   "organizationMembers",
   "organizationInvitationsIssued",
-  "organizationInvitationsPending",
   "organizationCreatedByUser",
 ] as const;
 
@@ -103,6 +118,7 @@ type OrganizationShopPhase = (typeof ORGANIZATION_SHOP_PHASES)[number];
 type ShopVerificationResource = (typeof SHOP_VERIFICATION_RESOURCES)[number];
 type OrganizationVerificationResource = (typeof ORGANIZATION_VERIFICATION_RESOURCES)[number];
 type ShopResource =
+  | "staffOrderEntries"
   | "outboxPending"
   | "outboxProcessing"
   | "notificationHistory"
@@ -141,6 +157,52 @@ type ResourceResult = {
   cursor?: string;
   delayMs?: number;
 };
+
+/** operator/coordinator retryを、対象とversionが一致するactionRequired jobだけへ限定する。 */
+export async function retryActionRequiredDeletionCleanup(
+  ctx: Pick<MutationCtx, "db" | "scheduler">,
+  args: {
+    jobId: Id<"deletionCleanupJobs">;
+    target: DeletionCleanupTarget;
+    expectedVersion: number;
+  },
+) {
+  const job = await getDeletionCleanupJobForTarget(ctx, args);
+  if (!job) {
+    throw new ConvexError("削除処理を確認できません");
+  }
+  if (job.status !== "actionRequired" || job.version !== args.expectedVersion) {
+    throw new ConvexError("削除処理の状態が更新されています");
+  }
+
+  const now = Date.now();
+  const version = job.version + 1;
+  await ctx.db.patch(job.jobId, {
+    status: "retrying",
+    version,
+    attemptCount: 0,
+    nextRunAt: now,
+    leaseId: undefined,
+    leaseExpiresAt: undefined,
+    lastErrorCode: undefined,
+    completedAt: undefined,
+    updatedAt: now,
+  });
+  await ctx.scheduler.runAfter(0, internal.deletionCleanup.mutations.kick, { jobId: job.jobId });
+  return { status: "scheduled" as const, version };
+}
+
+export const retryActionRequired = internalMutation({
+  args: {
+    jobId: v.id("deletionCleanupJobs"),
+    target: deletionCleanupTargetValidator,
+    expectedVersion: v.number(),
+  },
+  returns: v.object({ status: v.literal("scheduled"), version: v.number() }),
+  handler: async (ctx, args) => {
+    return await retryActionRequiredDeletionCleanup(ctx, args);
+  },
+});
 
 export const kick = internalMutation({
   args: { jobId: v.id("deletionCleanupJobs") },
@@ -295,7 +357,7 @@ async function runStandaloneShopStep(
   if (job.phase === "shopCore") {
     const shop = await ctx.db.get(shopId);
     if (shop && !shop.isDeleted) await ctx.db.patch(shopId, { isDeleted: true });
-    return { phase: "shopOutboxPending" };
+    return { phase: "shopStaffOrderEntries" };
   }
   if (job.phase === "shopVerification") {
     return await verifyShopCleanup(ctx, job, shopId);
@@ -337,7 +399,36 @@ async function runOrganizationStep(
           });
         }
       }
-      return { phase: "organizationOutboxPending" };
+      await safelyDeactivateOrganizationStaffOrder(ctx, { organizationId });
+      return { phase: "organizationStaffOrderState" };
+    }
+    case "organizationStaffOrderState": {
+      const states = await ctx.db
+        .query("organizationStaffOrderStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+        .take(CLEANUP_BATCH_SIZE);
+      for (const state of states) await ctx.db.delete(state._id);
+      return states.length < CLEANUP_BATCH_SIZE ? { phase: "organizationStaffOrderEntries" } : { phase: job.phase };
+    }
+    case "organizationStaffOrderEntries": {
+      const entries = await ctx.db
+        .query("organizationStaffOrderEntries")
+        .withIndex("by_organizationId_and_displayOrder", (q) => q.eq("organizationId", organizationId))
+        .take(CLEANUP_BATCH_SIZE);
+      for (const entry of entries) await ctx.db.delete(entry._id);
+      return entries.length < CLEANUP_BATCH_SIZE
+        ? { phase: "organizationStaffOrderShopEntries" }
+        : { phase: job.phase };
+    }
+    case "organizationStaffOrderShopEntries": {
+      // shopIdがdanglingまたは別組織を指す不整合rowも、組織IDを正にして回収する。
+      // 後続の店舗単位phaseは、逆向きの不整合（別organizationId + 当該shopId）を引き続き回収する。
+      const entries = await ctx.db
+        .query("shopStaffOrderEntries")
+        .withIndex("by_organizationId_and_shopId", (q) => q.eq("organizationId", organizationId))
+        .take(CLEANUP_BATCH_SIZE);
+      for (const entry of entries) await ctx.db.delete(entry._id);
+      return entries.length < CLEANUP_BATCH_SIZE ? { phase: "organizationOutboxPending" } : { phase: job.phase };
     }
     case "organizationOutboxPending": {
       const result = await cancelOrganizationOutbox(ctx, organizationId, "pending");
@@ -357,7 +448,39 @@ async function runOrganizationStep(
       }
       return page.isDone ? { phase: ORGANIZATION_SHOP_PHASES[0] } : { phase: job.phase, cursor: page.continueCursor };
     }
+    case "organizationLineLinks": {
+      // isDeletedを更新するためcursorは持ち越さず、active先頭batchを0件まで繰り返す。
+      const links = await ctx.db
+        .query("organizationPersonLineLinks")
+        .withIndex("by_organizationId_and_isDeleted", (q) =>
+          q.eq("organizationId", organizationId).eq("isDeleted", false),
+        )
+        .take(CLEANUP_BATCH_SIZE);
+      const now = Date.now();
+      for (const link of links) {
+        const person = await ctx.db.get(link.organizationPersonId);
+        if (!person || person.organizationId !== organizationId) {
+          throw new Error("organization_line_link_tenant_mismatch");
+        }
+        await ctx.db.patch(link._id, { isDeleted: true, unlinkedAt: now });
+        await ctx.db.patch(person._id, {
+          lineLinkGeneration: Math.max(person.lineLinkGeneration ?? 0, link.generation) + 1,
+          updatedAt: now,
+        });
+        await tombstoneLineProviderUserIfUnreferenced(ctx, link.lineProviderUserId);
+      }
+      return links.length < CLEANUP_BATCH_SIZE ? { phase: "organizationPeople" } : { phase: job.phase };
+    }
     case "organizationPeople": {
+      // 旧deploymentでこのphaseまで進んだjobも、人物より先に組織共通LINE連携を終了する。
+      const activeLineLink = await ctx.db
+        .query("organizationPersonLineLinks")
+        .withIndex("by_organizationId_and_isDeleted", (q) =>
+          q.eq("organizationId", organizationId).eq("isDeleted", false),
+        )
+        .first();
+      if (activeLineLink) return { phase: "organizationLineLinks" };
+
       const page = await ctx.db
         .query("organizationPeople")
         .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
@@ -383,15 +506,10 @@ async function runOrganizationStep(
     }
     case "organizationInvitationsIssued": {
       const done = await revokeOrganizationInvitations(ctx, organizationId, "issued");
-      return done ? { phase: "organizationInvitationsPending" } : { phase: job.phase };
-    }
-    case "organizationInvitationsPending": {
-      const done = await revokeOrganizationInvitations(ctx, organizationId, "pending");
-      if (!done) return { phase: job.phase };
-      return { phase: "organizationCreatedByUser" };
+      return done ? { phase: "organizationCreatedByUser" } : { phase: job.phase };
     }
     case "organizationCreatedByUser": {
-      // 旧jobとの互換性のためphaseは維持するが、global userはグループ削除の対象外。
+      // 旧jobとの互換性のためphaseは維持するが、global userは組織削除の対象外。
       return { phase: "organizationVerification" };
     }
     case "organizationVerification": {
@@ -421,7 +539,7 @@ async function runOrganizationShopStep(
     const shop = shops.page[0];
     if (!shop) {
       const next = nextInSequence(ORGANIZATION_SHOP_PHASES, phase);
-      return next ? { phase: next } : { phase: "organizationPeople" };
+      return next ? { phase: next } : { phase: "organizationLineLinks" };
     }
     shopId = shop._id;
     nextShopCursor = shops.isDone ? undefined : shops.continueCursor;
@@ -442,7 +560,7 @@ async function runOrganizationShopStep(
   }
   if (nextShopCursor !== undefined) return { phase, shopCursor: nextShopCursor };
   const next = nextInSequence(ORGANIZATION_SHOP_PHASES, phase);
-  return next ? { phase: next } : { phase: "organizationPeople" };
+  return next ? { phase: next } : { phase: "organizationLineLinks" };
 }
 
 async function runShopResource(
@@ -452,13 +570,21 @@ async function runShopResource(
   cursor: string | null,
 ): Promise<ResourceResult> {
   switch (resource) {
+    case "staffOrderEntries": {
+      const entries = await ctx.db
+        .query("shopStaffOrderEntries")
+        .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", shopId))
+        .take(CLEANUP_BATCH_SIZE);
+      for (const entry of entries) await ctx.db.delete(entry._id);
+      return { done: entries.length < CLEANUP_BATCH_SIZE };
+    }
     case "outboxPending": {
       const jobs = await ctx.db
         .query("notificationOutbox")
         .withIndex("by_shopId_status", (q) => q.eq("shopId", shopId).eq("status", "pending"))
         .take(CLEANUP_BATCH_SIZE);
       const now = Date.now();
-      for (const job of jobs) await cancelNotificationForInactiveShop(ctx, job, now);
+      for (const job of jobs) await cancelNotificationForDeletedShop(ctx, job, now);
       return { done: jobs.length < CLEANUP_BATCH_SIZE };
     }
     case "outboxProcessing": {
@@ -497,7 +623,7 @@ async function runShopResource(
       return { done: members.length < CLEANUP_BATCH_SIZE };
     }
     case "memberUsers": {
-      // 旧jobとの互換性のためresourceは維持するが、global userはグループ削除の対象外。
+      // 旧jobとの互換性のためresourceは維持するが、global userは組織削除の対象外。
       return { done: true };
     }
     case "lineAccounts": {
@@ -553,7 +679,7 @@ async function cancelStaleProcessingOutbox(
   const pendingLeaseExpiries: number[] = [];
   for (const job of jobs) {
     if ((job.processingStartedAt ?? 0) <= staleBefore) {
-      if (scope === "shop") await cancelNotificationForInactiveShop(ctx, job, now);
+      if (scope === "shop") await cancelNotificationForDeletedShop(ctx, job, now);
       else await cancelNotificationForInactiveOrganization(ctx, job, now);
     } else {
       pendingLeaseExpiries.push((job.processingStartedAt ?? now) + NOTIFICATION_OUTBOX_PROCESSING_LEASE_MS);
@@ -582,11 +708,7 @@ async function revokeByShop(
   return pageResult(page);
 }
 
-async function revokeOrganizationInvitations(
-  ctx: MutationCtx,
-  organizationId: Id<"organizations">,
-  status: "issued" | "pending",
-) {
+async function revokeOrganizationInvitations(ctx: MutationCtx, organizationId: Id<"organizations">, status: "issued") {
   const invitations = await ctx.db
     .query("organizationInvitations")
     .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", status))
@@ -632,6 +754,27 @@ async function verifyOrganizationCleanup(
       if (organization && !organization.isDeleted) return { phase: "organizationCore" };
       return nextOrganizationVerificationStep(resource);
     }
+    case "organizationStaffOrderState": {
+      const state = await ctx.db
+        .query("organizationStaffOrderStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
+        .first();
+      return state ? { phase: "organizationStaffOrderState" } : nextOrganizationVerificationStep(resource);
+    }
+    case "organizationStaffOrderEntries": {
+      const entry = await ctx.db
+        .query("organizationStaffOrderEntries")
+        .withIndex("by_organizationId_and_displayOrder", (q) => q.eq("organizationId", organizationId))
+        .first();
+      return entry ? { phase: "organizationStaffOrderEntries" } : nextOrganizationVerificationStep(resource);
+    }
+    case "organizationStaffOrderShopEntries": {
+      const entry = await ctx.db
+        .query("shopStaffOrderEntries")
+        .withIndex("by_organizationId_and_shopId", (q) => q.eq("organizationId", organizationId))
+        .first();
+      return entry ? { phase: "organizationStaffOrderShopEntries" } : nextOrganizationVerificationStep(resource);
+    }
     case "organizationOutboxPending": {
       const active = await ctx.db
         .query("notificationOutbox")
@@ -657,6 +800,15 @@ async function verifyOrganizationCleanup(
       return page.isDone
         ? nextOrganizationVerificationStep(resource)
         : { phase: "organizationVerification", resource, cursor: page.continueCursor };
+    }
+    case "organizationLineLinks": {
+      const active = await ctx.db
+        .query("organizationPersonLineLinks")
+        .withIndex("by_organizationId_and_isDeleted", (q) =>
+          q.eq("organizationId", organizationId).eq("isDeleted", false),
+        )
+        .first();
+      return active ? { phase: "organizationLineLinks" } : nextOrganizationVerificationStep(resource);
     }
     case "organizationPeople": {
       const page = await ctx.db
@@ -688,15 +840,6 @@ async function verifyOrganizationCleanup(
         .withIndex("by_organizationId_and_status", (q) => q.eq("organizationId", organizationId).eq("status", "issued"))
         .first();
       return invitation ? { phase: "organizationInvitationsIssued" } : nextOrganizationVerificationStep(resource);
-    }
-    case "organizationInvitationsPending": {
-      const invitation = await ctx.db
-        .query("organizationInvitations")
-        .withIndex("by_organizationId_and_status", (q) =>
-          q.eq("organizationId", organizationId).eq("status", "pending"),
-        )
-        .first();
-      return invitation ? { phase: "organizationInvitationsPending" } : nextOrganizationVerificationStep(resource);
     }
     case "organizationCreatedByUser": {
       // 旧verification resourceとの互換性のため残し、global userは検証対象にしない。
@@ -766,6 +909,13 @@ async function verifyShopResource(
         done: true,
         ...(shop && !shop.isDeleted ? { violated: true } : {}),
       };
+    }
+    case "staffOrderEntries": {
+      const entry = await ctx.db
+        .query("shopStaffOrderEntries")
+        .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", shopId))
+        .first();
+      return { done: true, ...(entry ? { violated: true } : {}) };
     }
     case "outboxPending": {
       const active = await ctx.db

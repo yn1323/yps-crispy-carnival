@@ -13,6 +13,10 @@ import {
   FIXED_PUBLIC_ROUTES,
   getCanonicalRoute,
   getIndexableCanonicalRoutes,
+  HELP_TASK_ROUTES,
+  LEGACY_HELP_ROUTE_REDIRECTS,
+  NOINDEX_PUBLIC_ROUTES,
+  RETIRED_PUBLIC_ROUTE_REDIRECTS,
   routeToHtmlPath,
 } from "./staticSite";
 
@@ -34,6 +38,10 @@ describe("static site manifest", () => {
       ...FIXED_PUBLIC_ROUTES,
       "/articles/$slug",
       "/articles/categories/$categorySlug",
+      "/help/$slug",
+      "/help/tasks/$taskId",
+      "/app/staff/order",
+      "/staff/order",
       ...csrPatterns,
       "/$",
     ]);
@@ -41,9 +49,10 @@ describe("static site manifest", () => {
     expect([...actual].sort()).toEqual([...expected].sort());
   });
 
-  it("公開済みの記事とカテゴリだけをSSG対象へ追加する", () => {
+  it("公開済みの記事・カテゴリ・使い方だけをSSG対象へ追加する", () => {
     const repoRoot = mkdtempSync(join(tmpdir(), "shiftori-static-site-"));
     const contentRoot = join(repoRoot, "src/components/features/ArticleSite/content");
+    const helpRoot = join(repoRoot, "src/components/features/HelpCenter/content/guides");
 
     try {
       for (const path of [
@@ -55,18 +64,39 @@ describe("static site manifest", () => {
       ]) {
         mkdirSync(join(contentRoot, path), { recursive: true });
       }
+      mkdirSync(helpRoot, { recursive: true });
+      mkdirSync(join(helpRoot, "legacy-help"), { recursive: true });
       writeFileSync(join(contentRoot, "articles/published/index.mdx"), "# Published");
       writeFileSync(join(contentRoot, "articles/shiftori-line-workflow/index.mdx"), "# Current article");
       writeFileSync(join(contentRoot, "articles/_draft/index.mdx"), "# Draft");
       writeFileSync(join(contentRoot, "categories/operations/index.mdx"), "# Operations");
+      writeFileSync(join(helpRoot, "published-help.mdx"), "# Published help");
+      writeFileSync(join(helpRoot, "_draft.mdx"), "# Draft help");
+      writeFileSync(join(helpRoot, "legacy-help/index.mdx"), "# Legacy help");
 
       const routes = collectPublicRoutes(repoRoot);
 
       expect(routes).toContain("/articles/published");
       expect(routes).toContain("/articles/line-shift-collection-guide");
       expect(routes).toContain("/articles/categories/operations");
+      expect(routes).toContain("/help/published-help");
+      expect(routes).toContain("/help/basics/notifications");
+      expect(routes).toContain("/help/basics/organization-structure");
+      expect(routes).toContain("/help/scenarios/shift-management");
+      for (const taskRoute of HELP_TASK_ROUTES) {
+        expect(routes).toContain(taskRoute);
+      }
       expect(routes).not.toContain("/articles/missing-entry");
       expect(routes).not.toContain("/articles/_draft");
+      expect(routes).not.toContain("/help/missing-entry");
+      expect(routes).not.toContain("/help/_draft");
+      expect(routes).not.toContain("/help/legacy-help");
+      for (const { source } of [
+        ...LEGACY_HELP_ROUTE_REDIRECTS.filter(({ source }) => !source.endsWith("/")),
+        ...RETIRED_PUBLIC_ROUTE_REDIRECTS.filter(({ source }) => !source.endsWith("/")),
+      ]) {
+        expect(routes).not.toContain(source);
+      }
     } finally {
       rmSync(repoRoot, { recursive: true, force: true });
     }
@@ -80,6 +110,7 @@ describe("static site manifest", () => {
       for (const repoRoot of [missingTargetRoot, conflictRoot]) {
         mkdirSync(join(repoRoot, "src/components/features/ArticleSite/content/articles"), { recursive: true });
         mkdirSync(join(repoRoot, "src/components/features/ArticleSite/content/categories"), { recursive: true });
+        mkdirSync(join(repoRoot, "src/components/features/HelpCenter/content/guides"), { recursive: true });
       }
       for (const slug of ["shiftori-line-workflow", "line-shift-collection-guide"]) {
         const directory = join(conflictRoot, "src/components/features/ArticleSite/content/articles", slug);
@@ -102,14 +133,60 @@ describe("static site manifest", () => {
   });
 
   it("sitemap対象をindex可能なcanonical URLへ重複なく畳み込む", () => {
+    expect(FIXED_PUBLIC_ROUTES).toContain("/help");
+    expect(FIXED_PUBLIC_ROUTES).toContain("/help/basics/notifications");
+    expect(FIXED_PUBLIC_ROUTES).toContain("/help/basics/organization-structure");
+    expect(FIXED_PUBLIC_ROUTES).toContain("/help/scenarios/shift-management");
+    expect(FIXED_PUBLIC_ROUTES).not.toContain("/faq");
+    expect(FIXED_PUBLIC_ROUTES).not.toContain("/howto");
+    expect(FIXED_PUBLIC_ROUTES).toContain("/commercial-transactions");
+    expect(NOINDEX_PUBLIC_ROUTES.has("/commercial-transactions")).toBe(true);
     expect(
       getIndexableCanonicalRoutes([
         "/",
         "/cache-reset",
+        "/commercial-transactions",
         "/articles/line-shift-collection-guide",
         "/articles/shiftori-line-workflow",
       ]),
     ).toEqual(["/", "/articles/shiftori-line-workflow"]);
+  });
+
+  it("robots.txtのDisallowは実在するCSR routeだけを対象にし、公開SSG routeと重ならない", () => {
+    const robots = readFileSync(join(process.cwd(), "public/robots.txt"), "utf8");
+    const disallowRules = Array.from(robots.matchAll(/^Disallow:\s*(\S+)$/gm), (match) => match[1]).filter(
+      (rule): rule is string => rule !== undefined,
+    );
+    const csrRoutes = [...CSR_SHELL_STATIC_ROUTES, ...CSR_SHELL_DYNAMIC_ROUTES];
+    const matchesRobotsRule = (route: string, rule: string) => {
+      const exactMatch = rule.endsWith("$");
+      const rulePath = exactMatch ? rule.slice(0, -1) : rule;
+      return exactMatch ? route === rulePath : route.startsWith(rulePath);
+    };
+
+    expect(disallowRules).not.toContain("/welcome");
+    expect(disallowRules).toEqual([
+      "/app",
+      "/account$",
+      "/actions",
+      "/dashboard",
+      "/manage",
+      "/shifts",
+      "/staff",
+      "/line/callback",
+      "/legal/staff/consent",
+      "/sso-callback",
+    ]);
+    for (const rule of disallowRules) {
+      const exactMatch = rule.endsWith("$");
+      const rulePath = exactMatch ? rule.slice(0, -1) : rule;
+      expect(csrRoutes.some((route) => route === rulePath || (!exactMatch && route.startsWith(`${rulePath}/`)))).toBe(
+        true,
+      );
+    }
+    for (const route of collectPublicRoutes()) {
+      expect(disallowRules.some((rule) => matchesRobotsRule(route, rule))).toBe(false);
+    }
   });
 
   it.each([
@@ -120,9 +197,15 @@ describe("static site manifest", () => {
     expect(routeToHtmlPath(route)).toBe(expected);
   });
 
-  it("実在する公開slash aliasとCSR routeだけを200 proxyする", () => {
+  it("旧公開URLを301転送し、実在する公開slash aliasとCSR routeだけを200 proxyする", () => {
     const redirects = createCloudflareRedirects(["/", "/features", "/articles/known"]);
 
+    for (const { source, target, status } of LEGACY_HELP_ROUTE_REDIRECTS) {
+      expect(redirects).toContain(`${source} ${target} ${status}`);
+    }
+    for (const { source, target, status } of RETIRED_PUBLIC_ROUTE_REDIRECTS) {
+      expect(redirects).toContain(`${source} ${target} ${status}`);
+    }
     expect(redirects).toContain("/features/ /features 200");
     expect(redirects).toContain("/articles/known/ /articles/known 200");
     expect(redirects).not.toContain("/articles/:slug");
@@ -149,13 +232,27 @@ describe("static site manifest", () => {
       '/articles/line-shift-collection-guide/\n  Link: <https://shiftori.app/articles/shiftori-line-workflow>; rel="canonical"',
     );
 
-    for (const route of [...CSR_SHELL_STATIC_ROUTES, ...CSR_SHELL_DYNAMIC_ROUTES]) {
+    for (const route of ["/app", "/app/*", "/manage", "/manage/*", "/shifts", "/shifts/*", "/staff", "/staff/*"]) {
+      expect(headers).toContain(
+        `${route}\n  Cache-Control: no-store\n  X-Robots-Tag: noindex, nofollow\n  Referrer-Policy: no-referrer`,
+      );
+    }
+
+    for (const route of [...CSR_SHELL_STATIC_ROUTES, ...CSR_SHELL_DYNAMIC_ROUTES].filter(
+      (path) =>
+        !["/app", "/manage", "/shifts", "/staff"].some((prefix) => path === prefix || path.startsWith(`${prefix}/`)),
+    )) {
       for (const source of [route, `${route}/`]) {
         expect(headers).toContain(
           `${source}\n  Cache-Control: no-store\n  X-Robots-Tag: noindex, nofollow\n  Referrer-Policy: no-referrer`,
         );
       }
     }
+
+    const headerRuleCount = createCloudflareHeaders(collectPublicRoutes())
+      .split(/\r?\n/)
+      .filter((line) => line !== "" && !line.startsWith("#") && !/^\s/.test(line)).length;
+    expect(headerRuleCount).toBeLessThanOrEqual(100);
   });
 
   it("repository外やrepository rootをbuild出力として受け付けない", () => {

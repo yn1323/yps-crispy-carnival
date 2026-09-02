@@ -1,8 +1,9 @@
 import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { isPastShiftPeriod } from "../_lib/dateFormat";
-import { managerQuery } from "../_lib/functions";
+import { managerQuery, organizationQuery } from "../_lib/functions";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
+import { shiftAssignmentReadValidator } from "../_lib/shiftAssignmentValidators";
 import { getSubmissionPatternTimeRange, submissionPatternValidator } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import {
@@ -11,16 +12,14 @@ import {
   SHIFT_BOARD_STAFF_LIMIT,
   SHIFT_BOARD_TIME_UNIT_MINUTES,
 } from "../constants";
-import { getOrganizationBillingPolicy } from "../organizationBilling/service";
+import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
 import { isShiftTargetStaff } from "../staff/service";
 
 const shiftBoardWriteBlockReasonValidator = v.union(
-  v.literal("memberReadOnly"),
-  v.literal("shopArchived"),
-  v.literal("shopPlanSuspended"),
   v.literal("paymentResultPending"),
-  v.literal("restricted"),
+  v.literal("usageLimitExceeded"),
+  v.literal("usageLimitEvaluationUnavailable"),
   v.null(),
 );
 
@@ -62,16 +61,7 @@ const shiftBoardDataValidator = v.object({
     }),
   ),
   requestedDates: v.array(v.object({ staffId: v.id("staffs"), date: v.string() })),
-  shiftAssignments: v.array(
-    v.object({
-      staffId: v.id("staffs"),
-      date: v.string(),
-      startTime: v.string(),
-      endTime: v.string(),
-      positionId: v.id("positions"),
-      optionId: v.optional(v.string()),
-    }),
-  ),
+  shiftAssignments: v.array(shiftAssignmentReadValidator),
   timeRange: v.object({
     start: v.number(),
     end: v.number(),
@@ -158,17 +148,11 @@ export const getShiftBoardData = managerQuery({
     const editableEndMinutes = timeToMinutes(endTimeStr);
     const startHour = Math.floor(editableStartMinutes / 60);
     const endHour = Math.ceil(editableEndMinutes / 60);
-    // TODO[narrow]: 全deploymentでm025完走・verifyShopsのstatus残件0確認後にfallbackを削除する。
-    const shopStatus = shop.operatingStatus ?? "active";
-    const billingPolicy = ctx.organization ? await getOrganizationBillingPolicy(ctx, ctx.organization._id) : null;
+    const organizationAccess = ctx.organization ? await getOrganizationAccessPolicy(ctx, ctx.organization._id) : null;
     const businessWriteBlockReason =
-      shopStatus === "archived"
-        ? ("shopArchived" as const)
-        : shopStatus === "planSuspended"
-          ? ("shopPlanSuspended" as const)
-          : ctx.organizationMember?.status === "readOnly"
-            ? ("memberReadOnly" as const)
-            : (billingPolicy?.businessWriteBlockReason ?? null);
+      organizationAccess?.usageLimitStatus?.kind === "unknown"
+        ? ("usageLimitEvaluationUnavailable" as const)
+        : (organizationAccess?.businessWriteBlockReason ?? null);
 
     return {
       shopId: shop._id,
@@ -245,5 +229,20 @@ export const getShiftBoardData = managerQuery({
         editableEndMinutes,
       },
     };
+  },
+});
+
+/** 認証済みappの必須orgから募集→店舗→組織を再検証し、既存ShiftBoard queryへ渡す明示scopeを返す。 */
+export const getShiftBoardShopScopeForOrganization = organizationQuery({
+  args: { recruitmentId: v.id("recruitments") },
+  returns: v.union(v.object({ shopId: v.id("shops"), shopName: v.string() }), v.null()),
+  handler: async (ctx, { recruitmentId }) => {
+    const recruitment = await ctx.db.get(recruitmentId);
+    if (!recruitment || recruitment.isDeleted) return null;
+
+    const shop = await ctx.db.get(recruitment.shopId);
+    if (!shop || shop.isDeleted || shop.organizationId !== ctx.organization._id) return null;
+
+    return { shopId: shop._id, shopName: shop.name };
   },
 });

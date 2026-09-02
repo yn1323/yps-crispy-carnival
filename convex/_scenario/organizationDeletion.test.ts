@@ -9,7 +9,7 @@ import { deletedLineUserId } from "../deletionCleanup/tombstone";
 const NOW = Date.parse("2026-10-01T12:00:00+09:00");
 const submissionPattern = { kind: "time" as const, startTime: "09:00", endTime: "22:00" };
 
-describe("グループ削除シナリオ", () => {
+describe("組織削除シナリオ", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
@@ -26,7 +26,6 @@ describe("グループ削除シナリオ", () => {
       });
       const secondShopId = await ctx.db.insert("shops", {
         organizationId: target.organizationId,
-        operatingStatus: "active",
         name: "削除対象店B",
         submissionPattern,
         regularClosedDays: [],
@@ -151,7 +150,7 @@ describe("グループ削除シナリオ", () => {
       return job._id;
     });
     await expect(t.mutation(internal.deletionCleanup.mutations.recover, {})).resolves.toEqual({ scheduled: 1 });
-    for (let iteration = 0; iteration < 250; iteration += 1) {
+    for (let iteration = 0; iteration < 300; iteration += 1) {
       vi.advanceTimersByTime(0);
       await t.finishInProgressScheduledFunctions();
       const completed = await t.run(async (ctx) => (await ctx.db.get(interruptedJobId))?.status === "completed");

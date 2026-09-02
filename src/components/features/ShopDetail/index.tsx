@@ -1,4 +1,5 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
+import type { Id } from "@/convex/_generated/dataModel";
 import { ShopDetailView } from "./ShopDetailView";
 import { getShopStaffs } from "./script";
 import type { ShopDetailData, ShopDetailPerson } from "./types";
@@ -8,27 +9,23 @@ import { useShopSettingsController } from "./useShopSettingsController";
 type Props = {
   shop: ShopDetailData;
   people: ShopDetailPerson[];
-  selectedShopId: string | null;
-  returnTo?: "dashboard" | "settings";
+  organizationId: Id<"organizations">;
 };
 
-export function ShopDetail({ shop, people, selectedShopId, returnTo }: Props) {
+export function ShopDetail({ shop, people, organizationId }: Props) {
   const navigate = useNavigate();
-  const backToSettings = () =>
-    void navigate({
-      to: "/settings",
-      search: { shop: selectedShopId ?? undefined, tab: "shops" },
-      replace: true,
-    });
-  const backToDashboard = () =>
-    void navigate({
-      to: "/dashboard",
-      search: { shop: selectedShopId ?? undefined },
-      replace: true,
-    });
-  const returnToPreviousScreen = returnTo === "settings" ? backToSettings : backToDashboard;
-  const deletion = useShopDeletionController({ shop, onDeleted: returnToPreviousScreen });
-  const settings = useShopSettingsController(shop);
+  const router = useRouter();
+  const navigateBack = () => {
+    void navigate({ to: "/manage", search: { org: organizationId }, replace: true });
+  };
+  const returnToPreviousScreen = () => router.history.back();
+  const deletion = useShopDeletionController({
+    shop,
+    onDeleted: navigateBack,
+    expectedOrganizationId: organizationId,
+    clearLegacySelectedShop: false,
+  });
+  const settings = useShopSettingsController(shop, organizationId);
   const staffs = getShopStaffs(people, shop.id);
 
   return (
@@ -41,18 +38,14 @@ export function ShopDetail({ shop, people, selectedShopId, returnTo }: Props) {
       onBack={returnToPreviousScreen}
       onOpenUser={(personId) =>
         void navigate({
-          to: "/users/$personId",
+          to: "/staff/$personId",
           params: { personId },
-          search: {
-            shop: shop.id,
-            returnTo: "shopDetail",
-            returnShop: shop.id,
-            ...(returnTo !== "settings" ? { returnShopTo: "dashboard" as const } : {}),
-          },
+          search: { org: organizationId },
         })
       }
       onUpdateSettings={settings.updateSettings}
       onDelete={deletion.deleteShop}
+      expectedOrganizationId={organizationId}
     />
   );
 }

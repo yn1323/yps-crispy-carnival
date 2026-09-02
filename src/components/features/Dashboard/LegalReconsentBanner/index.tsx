@@ -32,12 +32,10 @@ export function LegalReconsentBanner({ documents, isSubmitting = false, onAccept
       <Flex gap={4} direction={{ base: "column", md: "row" }} align={{ base: "stretch", md: "center" }}>
         <Box flex={1}>
           <Text fontWeight="semibold" color="teal.900">
-            利用規約・プライバシーポリシーを更新しました
+            利用規約・プライバシーポリシーが更新されました
           </Text>
           <Text mt={1} fontSize="sm" color="teal.800" lineHeight={1.7}>
-            内容をご確認のうえ、同意をお願いします。
-            <br />
-            確認中でもダッシュボードの操作は続けられます。
+            内容をご確認のうえ同意をお願いします。
           </Text>
           <Box mt={3}>
             <Checkbox.Root
@@ -50,7 +48,12 @@ export function LegalReconsentBanner({ documents, isSubmitting = false, onAccept
               }}
             >
               <Checkbox.HiddenInput />
-              <Checkbox.Control cursor="pointer" />
+              <Checkbox.Control
+                bg="white"
+                borderColor="gray.300"
+                cursor="pointer"
+                _checked={{ bg: "teal.500", borderColor: "teal.500" }}
+              />
               <Checkbox.Label fontSize="sm" lineHeight={1.7} color="teal.950" cursor="pointer">
                 <LegalDocumentLink href={documents.terms.path}>利用規約</LegalDocumentLink>と
                 <LegalDocumentLink href={documents.privacy.path}>プライバシーポリシー</LegalDocumentLink>

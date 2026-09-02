@@ -1,7 +1,8 @@
-import { Field, Input } from "@chakra-ui/react";
+import { Field } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import { ORGANIZATION_NAME_MAX_LENGTH } from "@/convex/constants";
 import { Dialog } from "@/src/components/ui/Dialog";
+import { Input } from "@/src/components/ui/FormControls";
 
 type Props = {
   isOpen: boolean;
@@ -22,7 +23,7 @@ export function OrganizationNameDialog({ isOpen, organizationName, isRunning, on
 
   return (
     <Dialog
-      title="グループ名を変更"
+      title="組織名を変更"
       isOpen
       onOpenChange={({ open }) => {
         if (!open) onClose();
@@ -42,7 +43,7 @@ export function OrganizationNameDialog({ isOpen, organizationName, isRunning, on
         }}
       >
         <Field.Root required>
-          <Field.Label>グループ名</Field.Label>
+          <Field.Label>組織名</Field.Label>
           <Input
             value={name}
             maxLength={ORGANIZATION_NAME_MAX_LENGTH}

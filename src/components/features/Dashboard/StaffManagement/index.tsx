@@ -1,20 +1,12 @@
-import { useNavigate } from "@tanstack/react-router";
-import { useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { StaffNotificationHistory } from "@/src/components/features/StaffNotificationHistory";
 import { useShopPaginatedQuery } from "@/src/hooks/useShopPaginatedQuery";
-import { DEFAULT_USER_LIST_COUNT, toUserListCountSearch, USER_LIST_PAGE_SIZE } from "@/src/lib/userListSearch";
-import { selectedShopAtom } from "@/src/stores/shop";
-import { featureVisibilityAtom } from "@/src/stores/user";
-import type { PaginationStatus, Recruitment, Staff } from "../types";
+import { useShopQuery } from "@/src/hooks/useShopQuery";
+import { DEFAULT_USER_LIST_COUNT, USER_LIST_PAGE_SIZE } from "@/src/lib/userListSearch";
+import type { PaginationStatus, Staff } from "../types";
 import { StaffManagementView } from "./StaffManagementView";
 import { useStaffInvitation } from "./useStaffInvitation";
-import { useStaffLineConnection } from "./useStaffLineConnection";
-import { useStaffManagerInvitation } from "./useStaffManagerInvitation";
-import { useStaffNotificationDelivery } from "./useStaffNotificationDelivery";
-import { useStaffProfileManagement } from "./useStaffProfileManagement";
 
 export type StaffManagementData = {
   staffs: Staff[];
@@ -31,38 +23,45 @@ export type StaffManagementState = {
 
 type Props = {
   data?: StaffManagementData;
-  openRecruitments: Recruitment[];
-  currentRecruitments: Recruitment[];
   isReadOnly?: boolean;
+  organizationShopCount?: number;
   initialVisibleUserCount?: number;
   focusedPersonId?: string;
   onVisibleUserCountChange?: (count: number) => void;
+  onOpenStaffDetail?: (personId: Id<"organizationPeople">, visibleUserCount: number) => void;
+  onOpenBillingSettings?: () => void;
   children: (state: StaffManagementState) => ReactNode;
 };
 
 export function StaffManagement({
   data,
-  openRecruitments,
-  currentRecruitments,
   isReadOnly = false,
+  organizationShopCount,
   initialVisibleUserCount = DEFAULT_USER_LIST_COUNT,
   focusedPersonId,
   onVisibleUserCountChange,
+  onOpenStaffDetail,
+  onOpenBillingSettings,
   children,
 }: Props) {
-  const navigate = useNavigate();
-  const selectedShop = useAtomValue(selectedShopAtom);
-  const featureVisibility = useAtomValue(featureVisibilityAtom);
   const [visibleStaffCount, setVisibleStaffCount] = useState(initialVisibleUserCount);
-  const staffQuery = useShopPaginatedQuery(api.dashboard.queries.getDashboardStaffs, data ? "skip" : {}, {
-    initialNumItems: initialVisibleUserCount + 1,
-  });
+  const staffOrderScope = useShopQuery(api.dashboard.queries.getDashboardStaffOrderScope, data ? "skip" : {});
+  const orderRevision = staffOrderScope?.mode === "ordered" ? staffOrderScope.revision : null;
+  const staffQuery = useShopPaginatedQuery(
+    api.dashboard.queries.getDashboardStaffs,
+    data || staffOrderScope === undefined ? "skip" : { orderRevision },
+    {
+      initialNumItems: initialVisibleUserCount + 1,
+    },
+  );
 
   useEffect(() => {
     setVisibleStaffCount(initialVisibleUserCount);
   }, [initialVisibleUserCount]);
 
-  const staffs = data?.staffs ?? staffQuery.results.slice(0, visibleStaffCount);
+  const queryStaffs = staffQuery.results.slice(0, visibleStaffCount);
+  const staffs =
+    data?.staffs ?? (staffOrderScope?.mode === "legacy" ? sortManagersFirstStable(queryStaffs) : queryStaffs);
   const status = data?.status ?? staffQuery.status;
   const canLoadMore =
     data?.canLoadMore ??
@@ -81,26 +80,10 @@ export function StaffManagement({
       }
     });
 
-  const invitation = useStaffInvitation(isReadOnly, featureVisibility.shopMembershipAddition);
-  const lineConnection = useStaffLineConnection(isReadOnly);
-  const profile = useStaffProfileManagement(staffs, { onResetDetail: lineConnection.reset, isReadOnly });
-  const managerInvitation = useStaffManagerInvitation(profile.staff, { isReadOnly });
-  const notifications = useStaffNotificationDelivery(isReadOnly);
+  const showOrganizationPeopleAddition = organizationShopCount === undefined || organizationShopCount > 1;
+  const invitation = useStaffInvitation(isReadOnly, showOrganizationPeopleAddition, onOpenBillingSettings);
   const handleOpenDetail = (staff: Staff) => {
-    if (!staff.organizationPersonId) {
-      profile.onOpen(staff);
-      return;
-    }
-    if (!selectedShop?.shopId) return;
-    void navigate({
-      to: "/users/$personId",
-      params: { personId: staff.organizationPersonId },
-      search: {
-        shop: selectedShop.shopId,
-        returnTo: "dashboard",
-        users: toUserListCountSearch(visibleStaffCount),
-      },
-    });
+    onOpenStaffDetail?.(staff.organizationPersonId, visibleStaffCount);
   };
 
   const content = (
@@ -110,42 +93,9 @@ export function StaffManagement({
       canLoadMore={canLoadMore}
       onLoadMore={handleLoadMore}
       focusedPersonId={focusedPersonId}
-      openRecruitments={openRecruitments}
-      currentRecruitments={currentRecruitments}
       onOpenDetail={handleOpenDetail}
       isReadOnly={isReadOnly}
       invitation={invitation}
-      detail={{
-        staff: profile.staff,
-        dialog: profile.dialog,
-        onOpenChange: profile.onOpenChange,
-        onClose: profile.onClose,
-        onEdit: profile.onEdit,
-        isEditing: profile.isEditing,
-        onDelete: profile.onDelete,
-        isDeleting: profile.isDeleting,
-        onChangeShiftTarget: profile.onChangeShiftTarget,
-        isChangingShiftTarget: profile.isChangingShiftTarget,
-        onInviteManager: managerInvitation.onInvite,
-        isInvitingManager: managerInvitation.isInviting,
-        onShowLineQr: lineConnection.onShowQr,
-        lineQrState: lineConnection.qrState,
-        onSendLineInvite: lineConnection.onSendInvite,
-        isSendingLineInvite: lineConnection.isSendingInvite,
-        onSendRecruitments: notifications.onSendRecruitments,
-        isSendingRecruitments: notifications.isSendingRecruitments,
-        onSendCurrentShift: notifications.onSendCurrentShift,
-        isSendingCurrentShift: notifications.isSendingCurrentShift,
-        notificationHistory:
-          profile.staff && selectedShop ? (
-            <StaffNotificationHistory
-              key={profile.staff._id}
-              shopId={selectedShop.shopId as Id<"shops">}
-              staffId={profile.staff._id}
-              enabled={profile.dialog.isOpen}
-            />
-          ) : null,
-      }}
     />
   );
 
@@ -154,4 +104,11 @@ export function StaffManagement({
     staffs,
     content,
   });
+}
+
+function sortManagersFirstStable(staffs: Staff[]): Staff[] {
+  return staffs
+    .map((staff, index) => ({ staff, index }))
+    .sort((left, right) => Number(right.staff.isManager) - Number(left.staff.isManager) || left.index - right.index)
+    .map(({ staff }) => staff);
 }

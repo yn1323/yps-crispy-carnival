@@ -1,9 +1,10 @@
-import { Box, Flex, Text, useBreakpointValue } from "@chakra-ui/react";
+import { Box, Flex, Grid, Heading, Text, useBreakpointValue } from "@chakra-ui/react";
 import { Provider, useAtom, useAtomValue, useSetAtom } from "jotai";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { AssignmentIssue } from "@/convex/shiftBoard/validation";
 import type { ShiftSubmissionPattern } from "@/convex/shop/schemas";
+import { FocusedFlowBackButton } from "@/src/components/templates/FocusedFlowHeader";
 import { type DisplayIssue, toDisplayIssues } from "@/src/domains/shift/assignmentIssues";
 import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
 import type {
@@ -32,6 +33,13 @@ import { selectDateWithDailyStaffOrderAtom, shiftsAtom, viewModeAtom } from "./s
 import { ValidationErrorPanel } from "./ValidationErrorPanel";
 
 export type { ReminderStatus } from "./components";
+
+export type ShiftFormHeader = {
+  desktopTitle: string;
+  mobileTitle: string;
+  backLabel?: string;
+  backAriaLabel?: string;
+};
 
 type ShiftFormProps = {
   shopId: string;
@@ -62,6 +70,7 @@ type ShiftFormProps = {
   validationIssues?: AssignmentIssue[];
   validationWarnings?: AssignmentWarning[];
   onDismissValidationIssues?: () => void;
+  header?: ShiftFormHeader;
 };
 
 const ShiftFormInner = ({
@@ -93,6 +102,7 @@ const ShiftFormInner = ({
   validationIssues,
   validationWarnings,
   onDismissValidationIssues,
+  header,
 }: ShiftFormProps) => {
   useShiftFormInit({
     shopId,
@@ -172,6 +182,7 @@ const ShiftFormInner = ({
           validationIssues={displayIssues}
           onSelectIssue={handleSelectIssue}
           onDismissValidationIssues={onDismissValidationIssues}
+          header={header}
         >
           {isDateOnlyPattern ? (
             <DateOnlyView />
@@ -207,6 +218,7 @@ const ShiftFormInner = ({
         validationIssues={displayIssues}
         onSelectIssue={handleSelectIssue}
         onDismissValidationIssues={onDismissValidationIssues}
+        header={header}
       >
         {isDateOnlyPattern ? (
           viewMode === "daily" ? (
@@ -259,6 +271,7 @@ type ShellProps = {
   validationIssues: DisplayIssue[];
   onSelectIssue: (issue: DisplayIssue) => void;
   onDismissValidationIssues?: () => void;
+  header?: ShiftFormHeader;
   children: ReactNode;
 };
 
@@ -279,32 +292,54 @@ const Shell = ({
   validationIssues,
   onSelectIssue,
   onDismissValidationIssues,
+  header,
   children,
 }: ShellProps) => (
   <Flex direction="column" h="100%" minH={0}>
-    <Flex
+    <Grid
+      templateColumns={header ? "minmax(0, 1fr) auto minmax(0, 1fr)" : "minmax(0, 1fr) auto"}
       px={compact ? 3 : 5}
       bg="white"
       borderBottomWidth="1px"
       borderColor="gray.200"
-      align="center"
-      gap={compact ? 2 : 3}
+      alignItems="center"
       flexShrink={0}
     >
-      {singleViewLabel ? (
-        <Text py="10px" textStyle="sm" fontWeight={700} color="gray.800">
-          {singleViewLabel}
-        </Text>
-      ) : (
-        <ViewTabs value={viewMode} onChange={setViewMode} />
+      <Flex minW={0} align="center" alignSelf="stretch" gap={header ? { base: 3, lg: 4 } : undefined}>
+        {header && <FocusedFlowBackButton backLabel={header.backLabel} backAriaLabel={header.backAriaLabel} />}
+        {singleViewLabel ? (
+          <Text py="10px" textStyle="sm" fontWeight={700} color="gray.800">
+            {singleViewLabel}
+          </Text>
+        ) : (
+          <ViewTabs value={viewMode} onChange={setViewMode} compactSpacing={compact && Boolean(header)} />
+        )}
+      </Flex>
+      {header && (
+        <Heading
+          as="h1"
+          alignSelf="stretch"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          minW={0}
+          color="gray.950"
+          fontSize={compact ? "md" : "lg"}
+          textAlign="center"
+          truncate
+        >
+          {compact ? header.mobileTitle : header.desktopTitle}
+        </Heading>
       )}
-      {!isReadOnly && (
-        <Flex ml="auto" gap={2} align="center" py={2} flexShrink={0}>
+      {!isReadOnly ? (
+        <Flex justifySelf="end" gap={2} align="center" py={2} flexShrink={0}>
           <SaveButton compact={compact} isSaving={isSavingDraft} onClick={onSaveDraft} />
           <ConfirmButton compact={compact} isConfirmed={isConfirmed} isConfirming={isConfirming} onClick={onConfirm} />
         </Flex>
+      ) : (
+        header && <Box justifySelf="end" minW="44px" />
       )}
-    </Flex>
+    </Grid>
 
     {!isReadOnly && validationIssues.length > 0 && (
       <ValidationErrorPanel

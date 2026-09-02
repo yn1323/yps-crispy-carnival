@@ -1,6 +1,7 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { hasUnfinishedShopCleanupForOrganization } from "../deletionCleanup/service";
+import { hasUniqueTerminalSubscriptionEvidence } from "../organizationStripe/subscriptionEvidence";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
@@ -50,25 +51,17 @@ export async function getOrganizationDeletionEligibility(
     billingState: Doc<"organizationBillingStates"> | null;
   },
 ): Promise<OrganizationDeletionEligibility> {
-  const [activeMembers, readOnlyMembers] = await Promise.all([
-    ctx.db
-      .query("organizationMembers")
-      .withIndex("by_organizationId_and_status", (q) =>
-        q.eq("organizationId", args.organizationId).eq("status", "active"),
-      )
-      .take(2),
-    ctx.db
-      .query("organizationMembers")
-      .withIndex("by_organizationId_and_status", (q) =>
-        q.eq("organizationId", args.organizationId).eq("status", "readOnly"),
-      )
-      .first(),
-  ]);
-  if (activeMembers.length !== 1 || activeMembers[0]._id !== args.actorMemberId || readOnlyMembers) {
+  const activeMembers = await ctx.db
+    .query("organizationMembers")
+    .withIndex("by_organizationId_and_status", (q) =>
+      q.eq("organizationId", args.organizationId).eq("status", "active"),
+    )
+    .take(2);
+  if (activeMembers.length !== 1 || activeMembers[0]._id !== args.actorMemberId) {
     return {
       canDelete: false,
       code: "manager",
-      reason: "グループを削除するには、先にほかの管理者の権限を外してください。",
+      reason: "組織を削除するには、先にほかの管理者の権限を外してください。",
     };
   }
 
@@ -76,7 +69,7 @@ export async function getOrganizationDeletionEligibility(
     return {
       canDelete: false,
       code: "billing",
-      reason: "グループを削除するには、先に有料契約やプラン変更を終了してください。",
+      reason: "組織を削除するには、先に有料契約やプラン変更を終了してください。",
     };
   }
 
@@ -84,7 +77,7 @@ export async function getOrganizationDeletionEligibility(
     return {
       canDelete: false,
       code: "billing",
-      reason: "グループを削除するには、先にStripeの契約終了を確認してください。",
+      reason: "組織を削除するには、先にStripeの契約終了を確認してください。",
     };
   }
 
@@ -150,7 +143,7 @@ async function hasUnsafeStripeTrialSubscription(ctx: DbCtx, organizationId: Id<"
   }
   for (const cleanup of cleanupOperationGroups.flat()) {
     if (cleanup.status !== "succeeded" || !cleanup.sourceOperationId) return true;
-    if (!(await hasUniqueTerminalSubscriptionEvidence(ctx, organizationId, cleanup))) return true;
+    if (!(await hasUniqueTerminalSubscriptionEvidence(ctx, cleanup, organizationId))) return true;
     const source = await ctx.db.get(cleanup.sourceOperationId);
     if (
       source &&
@@ -182,33 +175,10 @@ async function hasUnsafeStripeTrialSubscription(ctx: DbCtx, organizationId: Id<"
   const providerObjectOperations = providerObjectOperationGroups.flat();
   const terminalProofs = await Promise.all(
     providerObjectOperations.map(
-      async (operation) => await hasUniqueTerminalSubscriptionEvidence(ctx, organizationId, operation),
+      async (operation) => await hasUniqueTerminalSubscriptionEvidence(ctx, operation, organizationId),
     ),
   );
   return terminalProofs.some((provedTerminal) => !provedTerminal);
-}
-
-async function hasUniqueTerminalSubscriptionEvidence(
-  ctx: DbCtx,
-  organizationId: Id<"organizations">,
-  operation: Doc<"organizationStripeOperations">,
-) {
-  if (!operation.stripeObjectId || operation.providerGeneration === undefined) return false;
-  const stripeSubscriptionId = operation.stripeObjectId;
-  const subscriptions = await ctx.db
-    .query("organizationStripeSubscriptions")
-    .withIndex("by_livemode_and_stripeSubscriptionId", (q) =>
-      q.eq("livemode", operation.livemode).eq("stripeSubscriptionId", stripeSubscriptionId),
-    )
-    .take(2);
-  if (subscriptions.length !== 1) return false;
-  const subscription = subscriptions[0];
-  return (
-    subscription.organizationId === organizationId &&
-    subscription.providerGeneration === operation.providerGeneration &&
-    (subscription.status === "canceled" || subscription.status === "incomplete_expired") &&
-    subscription.terminalAt !== undefined
-  );
 }
 
 export function isOrganizationBillingStateDeletable(state: Doc<"organizationBillingStates">["state"]) {

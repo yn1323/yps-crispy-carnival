@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import { DashboardContent, DashboardContentSkeleton } from "./DashboardContent";
+import type { DashboardNavigation } from "./types";
 
 type DashboardContentProps = ComponentProps<typeof DashboardContent>;
 
@@ -22,9 +23,7 @@ type Props = {
   focusedPersonId?: string;
   onVisibleUserCountChange?: (count: number) => void;
   operationContextData?: DashboardContentProps["operationContextData"];
-  trialEndingNotice?: DashboardContentProps["trialEndingNotice"];
-  billingSettingsShopId?: DashboardContentProps["billingSettingsShopId"];
-  isBillingFeatureVisible?: DashboardContentProps["isBillingFeatureVisible"];
+  navigation?: DashboardNavigation;
 };
 
 export function Dashboard({
@@ -36,9 +35,7 @@ export function Dashboard({
   focusedPersonId,
   onVisibleUserCountChange,
   operationContextData,
-  trialEndingNotice,
-  billingSettingsShopId,
-  isBillingFeatureVisible,
+  navigation,
 }: Props) {
   return (
     <DashboardContent
@@ -48,9 +45,7 @@ export function Dashboard({
       focusedPersonId={focusedPersonId}
       onVisibleUserCountChange={onVisibleUserCountChange}
       operationContextData={operationContextData}
-      trialEndingNotice={trialEndingNotice}
-      billingSettingsShopId={billingSettingsShopId}
-      isBillingFeatureVisible={isBillingFeatureVisible}
+      navigation={navigation}
       isDashboardOnboardingDismissed={Boolean(
         currentUser && !currentUser.isNewUser && currentUser.dashboardOnboardingDismissedAt,
       )}
@@ -65,3 +60,10 @@ export function Dashboard({
 }
 
 export const DashboardSkeleton = DashboardContentSkeleton;
+
+export { HeroSummary } from "./HeroSummary";
+export type { OperationContextModel } from "./OperationContext";
+export { buildOperationContextModel, OperationContextView } from "./OperationContext";
+export { RecruitmentBoard } from "./RecruitmentBoard";
+export { StaffRoster } from "./StaffRoster";
+export type { DashboardNavigation, DashboardRecruitmentGroup, Recruitment, Staff } from "./types";

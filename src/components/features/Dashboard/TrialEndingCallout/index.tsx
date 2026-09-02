@@ -1,40 +1,34 @@
 import { Alert, Flex, Stack, Text } from "@chakra-ui/react";
-import { Link as RouterLink } from "@tanstack/react-router";
 import { Button } from "@/src/components/ui/Button";
 import type { TrialEndingNoticeData } from "./script";
 import { useTrialEndingCallout } from "./useTrialEndingCallout";
 
 type Props = {
   notice: TrialEndingNoticeData | null;
-  shopId: string;
-  isBillingVisible: boolean;
+  onOpenBillingSettings: () => void;
 };
 
-export function TrialEndingCallout({ notice, shopId, isBillingVisible }: Props) {
-  if (!isBillingVisible) return null;
-
+export function TrialEndingCallout({ notice, onOpenBillingSettings }: Props) {
   const noticeKey = notice ? `${notice.visibleFrom}:${notice.trialEndsAt}` : "none";
-  return <TrialEndingCalloutController key={noticeKey} notice={notice} shopId={shopId} isBillingVisible />;
+  return <TrialEndingCalloutController key={noticeKey} notice={notice} onOpenBillingSettings={onOpenBillingSettings} />;
 }
 
-function TrialEndingCalloutController({ notice, shopId }: Props) {
+function TrialEndingCalloutController({ notice, onOpenBillingSettings }: Props) {
   const viewModel = useTrialEndingCallout(notice);
   if (!viewModel) return null;
 
-  return <TrialEndingCalloutView finalDateLabel={viewModel.finalDateLabel} shopId={shopId} isBillingVisible />;
+  return (
+    <TrialEndingCalloutView finalDateLabel={viewModel.finalDateLabel} onOpenBillingSettings={onOpenBillingSettings} />
+  );
 }
 
 export function TrialEndingCalloutView({
   finalDateLabel,
-  shopId,
-  isBillingVisible,
+  onOpenBillingSettings,
 }: {
   finalDateLabel: string;
-  shopId: string;
-  isBillingVisible: boolean;
+  onOpenBillingSettings: () => void;
 }) {
-  if (!isBillingVisible) return null;
-
   return (
     <Alert.Root
       as="section"
@@ -48,19 +42,18 @@ export function TrialEndingCalloutView({
         <Flex direction={{ base: "column", md: "row" }} align={{ base: "stretch", md: "center" }} gap={4}>
           <Stack gap={1} flex={1}>
             <Text>{finalDateLabel}にトライアルが終了します。</Text>
-            <Text>終了後は、利用人数が5名、店舗数が1店舗までに制限されます。</Text>
-            <Text>現在の利用人数・店舗数を維持するには、Proプランへの変更が必要です。</Text>
+            <Text>未契約のまま終了すると利用停止になりますが、組織のデータは削除されません。</Text>
+            <Text>継続して利用するには、StandardまたはProを選択してください。</Text>
           </Stack>
           <Button
-            asChild
+            type="button"
             colorPalette="teal"
             flexShrink={0}
             alignSelf={{ base: "stretch", md: "center" }}
             ms={{ base: 0, md: "auto" }}
+            onClick={onOpenBillingSettings}
           >
-            <RouterLink to="/settings" search={{ shop: shopId, tab: "billing" }}>
-              プランと支払いを見る
-            </RouterLink>
+            プランと支払いを見る
           </Button>
         </Flex>
       </Alert.Content>

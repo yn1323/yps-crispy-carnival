@@ -2,17 +2,8 @@ import { Box, Flex, Icon, Menu, Portal, Text } from "@chakra-ui/react";
 import { SignOutButton } from "@clerk/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
-import {
-  LuBookOpen,
-  LuBuilding2,
-  LuChevronDown,
-  LuLogOut,
-  LuMailQuestion,
-  LuShieldCheck,
-  LuUserRound,
-} from "react-icons/lu";
-import { selectedShopAtom } from "@/src/stores/shop";
-import { featureVisibilityAtom, userAtom } from "@/src/stores/user";
+import { LuBookOpen, LuChevronDown, LuLogOut, LuMailQuestion, LuShieldCheck, LuUserRound } from "react-icons/lu";
+import { userAtom } from "@/src/stores/user";
 
 type Props = {
   tone?: "dark" | "light";
@@ -20,11 +11,8 @@ type Props = {
 
 export const UserMenu = ({ tone = "dark" }: Props) => {
   const user = useAtomValue(userAtom);
-  const selectedShop = useAtomValue(selectedShopAtom);
-  const featureVisibility = useAtomValue(featureVisibilityAtom);
   const displayName = user.name || "ユーザー";
   const isLight = tone === "light";
-  const showGroupSettings = featureVisibility.organizationSettingsNavigation;
 
   return (
     <Menu.Root positioning={{ placement: "bottom-end" }}>
@@ -34,7 +22,15 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
           aria-label="ユーザーメニュー"
           cursor="pointer"
           _hover={{ opacity: 0.8 }}
-          transition="opacity 0.15s"
+          css={{
+            "&:is(:active, [data-active]):not(:disabled, [disabled], [data-disabled], [aria-disabled=true])": {
+              bg: isLight ? "blackAlpha.200" : "whiteAlpha.200",
+              opacity: 1,
+              transitionDuration: "0ms",
+            },
+          }}
+          transitionProperty="background-color, opacity"
+          transitionDuration="faster"
           display="flex"
           alignItems="center"
           gap={{ base: 0, md: 2 }}
@@ -91,18 +87,10 @@ export const UserMenu = ({ tone = "dark" }: Props) => {
                 アカウント設定
               </RouterLink>
             </Menu.Item>
-            {showGroupSettings && (
-              <Menu.Item asChild value="group-settings" cursor="pointer">
-                <RouterLink to="/settings" search={{ shop: selectedShop?.shopId }}>
-                  <LuBuilding2 aria-hidden />
-                  グループ設定
-                </RouterLink>
-              </Menu.Item>
-            )}
-            <Menu.Item asChild value="howto" cursor="pointer">
-              <a href="/howto" target="_blank" rel="noreferrer">
+            <Menu.Item asChild value="help" cursor="pointer">
+              <a href="/help" target="_blank" rel="noreferrer">
                 <LuBookOpen />
-                使い方・ヘルプ
+                ヘルプ・使い方
               </a>
             </Menu.Item>
             <Menu.Item asChild value="contact" cursor="pointer">

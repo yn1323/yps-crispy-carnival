@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ShopContextOption } from "@/src/domains/shop/context";
 import { ChakraProvider } from "@/src/providers/ChakraProvider";
@@ -8,19 +8,8 @@ import { ChakraProvider } from "@/src/providers/ChakraProvider";
 const mocks = vi.hoisted(() => ({
   getMyShops: Symbol("getMyShops"),
   selectedShopAtom: Symbol("selectedShopAtom"),
-  featureVisibilityAtom: Symbol("featureVisibilityAtom"),
-  featureVisibility: {
-    organizationSettingsNavigation: true,
-    billing: true,
-    shopMembershipAddition: true,
-  },
-  navigate: vi.fn(),
   useQuery: vi.fn(),
   useAtomValue: vi.fn(),
-}));
-
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => mocks.navigate,
 }));
 
 vi.mock("convex/react", () => ({
@@ -41,39 +30,29 @@ vi.mock("@/src/stores/shop", async (importOriginal) => ({
   selectedShopAtom: mocks.selectedShopAtom,
 }));
 
-vi.mock("@/src/stores/user", () => ({
-  featureVisibilityAtom: mocks.featureVisibilityAtom,
-}));
-
 import { OperationContext } from ".";
 
 const shops = [
   {
     shopId: "shop-a",
     shopName: "A店",
-    shopStatus: "active",
     organizationId: "organization-a",
     organizationName: "Aグループ",
-    organizationPlan: "pro",
-    memberStatus: "active",
+    organizationPlan: "standard",
   },
   {
     shopId: "shop-b",
     shopName: "B店",
-    shopStatus: "active",
     organizationId: "organization-a",
     organizationName: "Aグループ",
-    organizationPlan: "pro",
-    memberStatus: "active",
+    organizationPlan: "standard",
   },
   {
     shopId: "shop-c",
     shopName: "C店",
-    shopStatus: "active",
     organizationId: "organization-b",
     organizationName: "Bグループ",
-    organizationPlan: "pro",
-    memberStatus: "active",
+    organizationPlan: "standard",
   },
 ] as const;
 
@@ -96,93 +75,71 @@ beforeEach(() => {
     removeListener: vi.fn(),
     dispatchEvent: vi.fn(),
   }));
-  mocks.navigate.mockReset();
   mocks.useQuery.mockReturnValue(shops);
-  Object.assign(mocks.featureVisibility, {
-    organizationSettingsNavigation: true,
-    billing: true,
-    shopMembershipAddition: true,
-  });
-  mocks.useAtomValue.mockImplementation((target) =>
-    target === mocks.featureVisibilityAtom ? mocks.featureVisibility : shops[0],
-  );
+  mocks.useAtomValue.mockReturnValue(shops[0]);
 });
 
 const renderContext = (
   contextShops: readonly ShopContextOption[] = shops,
   selectedShop: ShopContextOption = contextShops[0] as ShopContextOption,
-) =>
-  render(
+  props: {
+    onOpenShopDetail?: (shopId: string) => void;
+    onSelect?: (shop: ShopContextOption) => void;
+  } = {},
+) => {
+  const { onSelect, ...contextProps } = props;
+  return render(
     <ChakraProvider>
-      <OperationContext data={{ shops: contextShops, selectedShop }} />
+      <OperationContext
+        data={{
+          shops: contextShops,
+          selectedShop,
+          ...(onSelect ? { onSelect } : {}),
+        }}
+        {...contextProps}
+      />
     </ChakraProvider>,
   );
+};
 
 describe("OperationContext", () => {
-  it("店舗セレクトで選んだ店舗をshop queryに指定してDashboardへ遷移する", async () => {
-    renderContext();
+  it("queryから店舗候補を読む場合はcanonical plan ID契約を指定する", () => {
+    render(
+      <ChakraProvider>
+        <OperationContext />
+      </ChakraProvider>,
+    );
 
-    fireEvent.click(screen.getByRole("button", { name: "店舗を切り替える（現在：A店）" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /B店/ }));
-
-    await waitFor(() => {
-      expect(mocks.navigate).toHaveBeenCalledWith({ to: "/dashboard", search: { shop: "shop-b" } });
-    });
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.getMyShops, {});
   });
 
-  it("別グループの店舗も同じ店舗セレクトから選べる", async () => {
-    renderContext();
+  it("店舗セレクトで選んだ店舗をcallbackへ返す", async () => {
+    const onSelect = vi.fn();
+    renderContext(shops, shops[0], { onSelect });
 
+    expect(screen.getByText("店舗", { exact: true })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "店舗を切り替える（現在：A店）" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /C店/ }));
+    const nextShop = await screen.findByRole("menuitem", { name: /B店/ });
+    expect(screen.queryByRole("menuitem", { name: /C店/ })).toBeNull();
+    fireEvent.click(nextShop);
 
-    await waitFor(() => {
-      expect(mocks.navigate).toHaveBeenCalledWith({ to: "/dashboard", search: { shop: "shop-c" } });
-    });
+    expect(onSelect).toHaveBeenCalledWith(shops[1]);
   });
 
-  it("現在店舗を表示対象とコンテキストにして店舗詳細へ遷移する", async () => {
-    renderContext();
+  it("app routeでは既存UIから渡された店舗詳細callbackを使う", () => {
+    const onOpenShopDetail = vi.fn();
+    renderContext(shops, shops[0], { onOpenShopDetail });
 
     fireEvent.click(screen.getByRole("button", { name: "店舗詳細を開く" }));
 
-    await waitFor(() => {
-      expect(mocks.navigate).toHaveBeenCalledWith({
-        to: "/shops/$shopId",
-        params: { shopId: "shop-a" },
-        search: { shop: "shop-a", returnTo: "dashboard" },
-      });
-    });
+    expect(onOpenShopDetail).toHaveBeenCalledWith("shop-a");
   });
 
-  it("現在店舗のグループ設定へ遷移する", async () => {
-    renderContext();
-
-    fireEvent.click(screen.getByRole("button", { name: "グループ設定" }));
-
-    await waitFor(() => {
-      expect(mocks.navigate).toHaveBeenCalledWith({ to: "/settings", search: { shop: "shop-a" } });
-    });
-  });
-
-  it("設定内の機能がすべて非公開ならグループ設定への導線を表示しない", () => {
-    Object.assign(mocks.featureVisibility, {
-      organizationSettingsNavigation: false,
-      billing: false,
-      shopMembershipAddition: false,
-    });
-
-    renderContext();
-
-    expect(screen.queryByRole("button", { name: "グループ設定" })).toBeNull();
-    expect(screen.getByRole("button", { name: "店舗詳細を開く" })).not.toBeNull();
-  });
-
-  it("1グループ1店舗ではグループ名と切替操作を表示しない", () => {
+  it("1組織1店舗では店舗切替を表示しない", () => {
     renderContext([shops[0]], shops[0]);
 
-    expect(screen.getByText("A店")).not.toBeNull();
-    expect(screen.queryByText("Aグループ")).toBeNull();
+    expect(screen.getByText("店舗", { exact: true })).not.toBeNull();
+    expect(screen.getAllByText("A店")).toHaveLength(2);
     expect(screen.queryByRole("button", { name: /店舗を切り替える/ })).toBeNull();
     expect(screen.getByRole("button", { name: "店舗詳細を開く" })).not.toBeNull();
   });

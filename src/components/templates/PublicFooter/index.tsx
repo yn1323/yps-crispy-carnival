@@ -5,14 +5,14 @@ type FooterColLink = { label: string; href: string };
 const productLinks: FooterColLink[] = [{ label: "できること", href: "/features" }];
 
 const supportLinks: FooterColLink[] = [
-  { label: "使い方・ヘルプ", href: "/howto" },
-  { label: "よくある質問", href: "/faq" },
+  { label: "ヘルプ・使い方", href: "/help" },
   { label: "お問い合わせ", href: "/contact" },
 ];
 
 const companyLinks: FooterColLink[] = [
   { label: "利用規約", href: "/terms" },
   { label: "プライバシー", href: "/privacy" },
+  { label: "特定商取引法に基づく表記", href: "/commercial-transactions" },
 ];
 
 export const PublicFooter = () => (
@@ -32,7 +32,7 @@ export const PublicFooter = () => (
           </HStack>
         </Link>
         <Text textStyle="bodySm" opacity={0.85} lineHeight={1.7} maxW="260px">
-          LINEで使える、アプリ不要のシフト管理
+          LINEで使えるシフト管理
         </Text>
       </VStack>
 

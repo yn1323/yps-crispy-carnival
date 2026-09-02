@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { api, internal } from "../_generated/api";
-import { createConvexTestWithMigrations } from "../_test/migrations.test-helper";
+import { internal } from "../_generated/api";
+import {
+  createMigrationHistoryTestWithMigrations,
+  legacyStaffDocumentForMigrationHistory,
+} from "../_test/migrations.test-helper";
 import { seedLegacyManagerShop, seedLegacyShopMembership } from "../_test/seed";
 
 function createOrganizationTest() {
-  return createConvexTestWithMigrations();
+  return createMigrationHistoryTestWithMigrations();
 }
 
 async function runOrganizationMigrations(t: ReturnType<typeof createOrganizationTest>) {
@@ -23,34 +26,46 @@ describe("organization migrations", () => {
         email: "manager@example.com",
         shopName: "移行対象店舗",
       });
-      const managerStaffId = await ctx.db.insert("staffs", {
-        shopId,
-        userId,
-        name: "管理者",
-        email: "manager@example.com",
-        emailNormalized: "manager@example.com",
-        isDeleted: false,
-      });
-      const firstSamePersonStaffId = await ctx.db.insert("staffs", {
-        shopId,
-        name: " 山田  太郎 ",
-        email: "SHARED@example.com",
-        isDeleted: false,
-      });
-      const secondSamePersonStaffId = await ctx.db.insert("staffs", {
-        shopId,
-        name: "山田 太郎",
-        email: "shared@example.com",
-        emailNormalized: "shared@example.com",
-        isDeleted: false,
-      });
-      const mismatchedStaffId = await ctx.db.insert("staffs", {
-        shopId,
-        name: "別の人物",
-        email: "shared@example.com",
-        emailNormalized: "shared@example.com",
-        isDeleted: false,
-      });
+      const managerStaffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          userId,
+          name: "管理者",
+          email: "manager@example.com",
+          emailNormalized: "manager@example.com",
+          isDeleted: false,
+        }),
+      );
+      const firstSamePersonStaffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          name: " 山田  太郎 ",
+          email: "SHARED@example.com",
+          isDeleted: false,
+        }),
+      );
+      const secondSamePersonStaffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          name: "山田 太郎",
+          email: "shared@example.com",
+          emailNormalized: "shared@example.com",
+          isDeleted: false,
+        }),
+      );
+      const mismatchedStaffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          name: "別の人物",
+          email: "shared@example.com",
+          emailNormalized: "shared@example.com",
+          isDeleted: false,
+        }),
+      );
       await ctx.db.insert("shopBillingStates", {
         shopId,
         planKey: "premium",
@@ -129,7 +144,7 @@ describe("organization migrations", () => {
     expect(result.organizationBillingStates).toEqual([]);
   });
 
-  it("m009はdangling organizationを修復しても既存店舗状態を保全し、conflictを解消する", async () => {
+  it("m009はdangling organizationを修復しても旧operatingStatusを保全し、conflictを解消する", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) => {
       const manager = await seedLegacyManagerShop(ctx, {
@@ -242,7 +257,7 @@ describe("organization migrations", () => {
     expect(resolved.conflict?.resolvedAt).toEqual(expect.any(Number));
   });
 
-  it("m009は紐付け済み店舗の再実行でも後発の移行元重複を見逃さず、修復まで店舗状態を保全する", async () => {
+  it("m009は紐付け済み店舗の再実行でも後発の移行元重複を見逃さず、修復まで旧operatingStatusを保全する", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) =>
       seedLegacyManagerShop(ctx, {
@@ -772,14 +787,17 @@ describe("organization migrations", () => {
         email: "duplicate-identity@example.com",
         shopName: "重複email識別",
       });
-      const managerStaffId = await ctx.db.insert("staffs", {
-        shopId: manager.shopId,
-        userId: manager.userId,
-        name: "管理者",
-        email: "duplicate-identity@example.com",
-        emailNormalized: "duplicate-identity@example.com",
-        isDeleted: false,
-      });
+      const managerStaffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId: manager.shopId,
+          userId: manager.userId,
+          name: "管理者",
+          email: "duplicate-identity@example.com",
+          emailNormalized: "duplicate-identity@example.com",
+          isDeleted: false,
+        }),
+      );
       return { ...manager, managerStaffId };
     });
     const args = { batchSize: 100, cursor: null, dryRun: false };
@@ -881,14 +899,17 @@ describe("organization migrations", () => {
         email: "lifecycle-manager@example.com",
         shopName: "ライフサイクル店舗",
       });
-      const managerStaffId = await ctx.db.insert("staffs", {
-        shopId: manager.shopId,
-        userId: manager.userId,
-        name: "管理者",
-        email: "lifecycle-manager@example.com",
-        emailNormalized: "lifecycle-manager@example.com",
-        isDeleted: false,
-      });
+      const managerStaffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId: manager.shopId,
+          userId: manager.userId,
+          name: "管理者",
+          email: "lifecycle-manager@example.com",
+          emailNormalized: "lifecycle-manager@example.com",
+          isDeleted: false,
+        }),
+      );
       return { ...manager, managerStaffId };
     });
     await runOrganizationMigrations(t);
@@ -916,7 +937,6 @@ describe("organization migrations", () => {
 
     await t.run(async (ctx) => {
       await ctx.db.patch(seeded.shopId, { operatingStatus: "archived" });
-      await ctx.db.patch(canonical.memberId, { status: "readOnly", updatedAt: Date.now() });
     });
     await runOrganizationMigrations(t);
     await runOrganizationMigrations(t);
@@ -928,7 +948,7 @@ describe("organization migrations", () => {
     }));
     expect(archivedState.shop?.operatingStatus).toBe("archived");
     expect(archivedState.person?.status).toBe("active");
-    expect(archivedState.member?.status).toBe("readOnly");
+    expect(archivedState.member?.status).toBe("active");
     expect(archivedState.staff).toMatchObject({
       organizationId: canonical.organizationId,
       organizationPersonId: canonical.personId,
@@ -936,7 +956,7 @@ describe("organization migrations", () => {
 
     await t.run(async (ctx) => {
       const now = Date.now();
-      await ctx.db.patch(seeded.shopId, { operatingStatus: "planSuspended" });
+      await ctx.db.patch(seeded.shopId, { operatingStatus: "active" });
       await ctx.db.patch(canonical.personId, { status: "removed", updatedAt: now });
       await ctx.db.patch(canonical.memberId, { status: "removed", updatedAt: now });
     });
@@ -949,7 +969,7 @@ describe("organization migrations", () => {
       shop: await ctx.db.get(seeded.shopId),
       staff: await ctx.db.get(seeded.managerStaffId),
     }));
-    expect(removedState.shop?.operatingStatus).toBe("planSuspended");
+    expect(removedState.shop?.operatingStatus).toBe("active");
     expect(removedState.person?.status).toBe("removed");
     expect(removedState.member?.status).toBe("removed");
     expect(removedState.staff).toMatchObject({
@@ -959,7 +979,7 @@ describe("organization migrations", () => {
     expect(removedState.conflicts).toEqual([]);
   });
 
-  it("人物を一意に解決できないstaffは部分移行せず、既存session導線を維持する", async () => {
+  it("人物を一意に解決できないstaffは部分移行せず、conflictを再実行で重複させない", async () => {
     const t = createOrganizationTest();
     const seeded = await t.run(async (ctx) => {
       const { shopId } = await seedLegacyManagerShop(ctx, {
@@ -967,47 +987,26 @@ describe("organization migrations", () => {
         email: "migration-owner@example.com",
         shopName: "衝突移行店舗",
       });
-      const missingEmailStaffId = await ctx.db.insert("staffs", {
-        shopId,
-        name: "メール未設定スタッフ",
-        email: "   ",
-        isDeleted: false,
-      });
-      const ambiguousStaffId = await ctx.db.insert("staffs", {
-        shopId,
-        name: "同姓同名スタッフ",
-        email: "ambiguous@example.com",
-        emailNormalized: "ambiguous@example.com",
-        isDeleted: false,
-      });
-      const recruitmentId = await ctx.db.insert("recruitments", {
-        shopId,
-        periodStart: "2099-01-01",
-        periodEnd: "2099-01-07",
-        deadline: "2098-12-31",
-        shopClosedDates: [],
-        status: "open",
-        isDeleted: false,
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-      });
-      const expiresAt = Date.now() + 86_400_000;
-      await ctx.db.insert("sessions", {
-        sessionToken: "missing-email-migration-session",
-        staffId: missingEmailStaffId,
-        shopId,
-        recruitmentId,
-        accessKind: "submit",
-        expiresAt,
-      });
-      await ctx.db.insert("sessions", {
-        sessionToken: "ambiguous-migration-session",
-        staffId: ambiguousStaffId,
-        shopId,
-        recruitmentId,
-        accessKind: "submit",
-        expiresAt,
-      });
-      return { ambiguousStaffId, missingEmailStaffId, recruitmentId, shopId };
+      const missingEmailStaffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          name: "メール未設定スタッフ",
+          email: "   ",
+          isDeleted: false,
+        }),
+      );
+      const ambiguousStaffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          name: "同姓同名スタッフ",
+          email: "ambiguous@example.com",
+          emailNormalized: "ambiguous@example.com",
+          isDeleted: false,
+        }),
+      );
+      return { ambiguousStaffId, missingEmailStaffId, shopId };
     });
     const migrationArgs = { batchSize: 100, cursor: null, dryRun: false };
     await t.mutation(internal.migrations.m009_shops_to_organizations.migration, migrationArgs);
@@ -1041,26 +1040,12 @@ describe("organization migrations", () => {
     await t.mutation(internal.migrations.m011_staffs_to_organization_people.migration, migrationArgs);
     await t.mutation(internal.migrations.m011_staffs_to_organization_people.migration, migrationArgs);
 
-    const [missingEmailPage, ambiguousPage, state] = await Promise.all([
-      t.query(api.shiftSubmission.queries.getSubmissionPageData, {
-        sessionToken: "missing-email-migration-session",
-        accessKind: "submit",
-        recruitmentId: seeded.recruitmentId,
-      }),
-      t.query(api.shiftSubmission.queries.getSubmissionPageData, {
-        sessionToken: "ambiguous-migration-session",
-        accessKind: "submit",
-        recruitmentId: seeded.recruitmentId,
-      }),
-      t.run(async (ctx) => ({
-        ambiguousStaff: await ctx.db.get(seeded.ambiguousStaffId),
-        conflicts: await ctx.db.query("organizationMigrationConflicts").collect(),
-        missingEmailStaff: await ctx.db.get(seeded.missingEmailStaffId),
-      })),
-    ]);
+    const state = await t.run(async (ctx) => ({
+      ambiguousStaff: await ctx.db.get(seeded.ambiguousStaffId),
+      conflicts: await ctx.db.query("organizationMigrationConflicts").collect(),
+      missingEmailStaff: await ctx.db.get(seeded.missingEmailStaffId),
+    }));
 
-    expect(missingEmailPage.status).toBe("ok");
-    expect(ambiguousPage.status).toBe("ok");
     expect(state.missingEmailStaff?.organizationId).toBeUndefined();
     expect(state.missingEmailStaff?.organizationPersonId).toBeUndefined();
     expect(state.ambiguousStaff?.organizationId).toBeUndefined();
@@ -1107,22 +1092,28 @@ describe("organization migrations", () => {
         role: "manager",
         isDeleted: false,
       });
-      const foreignEmailStaffId = await ctx.db.insert("staffs", {
-        shopId: manager.shopId,
-        userId: manager.userId,
-        name: "管理者",
-        email: "staff-user-identity@example.com",
-        emailNormalized: "staff-user-identity@example.com",
-        isDeleted: false,
-      });
-      const missingUserStaffId = await ctx.db.insert("staffs", {
-        shopId: manager.shopId,
-        userId: danglingUserId,
-        name: "user不明スタッフ",
-        email: "missing-staff-user@example.com",
-        emailNormalized: "missing-staff-user@example.com",
-        isDeleted: false,
-      });
+      const foreignEmailStaffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId: manager.shopId,
+          userId: manager.userId,
+          name: "管理者",
+          email: "staff-user-identity@example.com",
+          emailNormalized: "staff-user-identity@example.com",
+          isDeleted: false,
+        }),
+      );
+      const missingUserStaffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId: manager.shopId,
+          userId: danglingUserId,
+          name: "user不明スタッフ",
+          email: "missing-staff-user@example.com",
+          emailNormalized: "missing-staff-user@example.com",
+          isDeleted: false,
+        }),
+      );
       await ctx.db.delete(danglingUserId);
       return { ...manager, foreignEmailStaffId, foreignUserId, missingUserStaffId };
     });
@@ -1216,12 +1207,15 @@ describe("organization migrations", () => {
         subject: "organization_conflict_resolution_migration",
         shopName: "衝突修復店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
-        shopId: manager.shopId,
-        name: "修復対象スタッフ",
-        email: "   ",
-        isDeleted: false,
-      });
+      const staffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId: manager.shopId,
+          name: "修復対象スタッフ",
+          email: "   ",
+          isDeleted: false,
+        }),
+      );
       return { ...manager, staffId };
     });
     await runOrganizationMigrations(t);
@@ -1300,7 +1294,7 @@ describe("m012 complimentary business migration", () => {
   const args = { batchSize: 100, cursor: null, dryRun: false };
 
   it("削除済みを含む移行元markerがある事業者だけに課金状態と監査を一件作成し、再実行しても重複しない", async () => {
-    const t = createOrganizationTest();
+    const t = createMigrationHistoryTestWithMigrations();
     const seeded = await t.run(async (ctx) => {
       const migrated = await seedLegacyManagerShop(ctx, {
         subject: "complimentary_business_migration",
@@ -1369,7 +1363,7 @@ describe("m012 complimentary business migration", () => {
   });
 
   it("既存課金状態を上書きせず、修復後はm012所有のconflictだけを解消する", async () => {
-    const t = createOrganizationTest();
+    const t = createMigrationHistoryTestWithMigrations();
     const seeded = await t.run(async (ctx) =>
       seedLegacyManagerShop(ctx, {
         subject: "complimentary_business_existing_billing",
@@ -1387,7 +1381,7 @@ describe("m012 complimentary business migration", () => {
       const now = Date.now();
       const billingStateId = await ctx.db.insert("organizationBillingStates", {
         organizationId,
-        state: { kind: "active", plan: "business" },
+        state: { kind: "active", plan: "business" } as never,
         version: 7,
         createdAt: now - 100,
         updatedAt: now,
@@ -1473,7 +1467,7 @@ describe("m012 complimentary business migration", () => {
   });
 
   it("重複課金状態を任意に採用せず、一件のconflictとして再実行可能に停止する", async () => {
-    const t = createOrganizationTest();
+    const t = createMigrationHistoryTestWithMigrations();
     const seeded = await t.run(async (ctx) =>
       seedLegacyManagerShop(ctx, {
         subject: "complimentary_business_duplicate_billing",
@@ -1537,7 +1531,7 @@ describe("m012 complimentary business migration", () => {
   });
 
   it("移行元店舗の欠損・相互リンク不一致・marker重複をcode別conflictにして付与を止める", async () => {
-    const t = createOrganizationTest();
+    const t = createMigrationHistoryTestWithMigrations();
     const seeded = await t.run(async (ctx) => {
       const missing = await seedLegacyManagerShop(ctx, {
         subject: "complimentary_business_missing_source",

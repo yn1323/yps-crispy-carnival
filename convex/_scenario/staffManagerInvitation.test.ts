@@ -30,7 +30,6 @@ describe("既存スタッフの管理者招待シナリオ", () => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
     vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", SIGNING_SECRET);
-    vi.stubEnv("FEATURE_MANAGER_INVITATION", "enabled");
     vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-line-channel");
   });
 
@@ -55,7 +54,7 @@ describe("既存スタッフの管理者招待シナリオ", () => {
         subject: "staff_invitation_owner",
         email: "owner@example.com",
         shopName: "管理者招待テスト店舗",
-        plan: "pro",
+        plan: "standard",
       }),
     );
     const [staffId] = await owner.addStaffs([{ name: "招待対象スタッフ", email: "target@example.com" }]);
@@ -71,14 +70,13 @@ describe("既存スタッフの管理者招待シナリオ", () => {
     const personId = before.person._id;
 
     const created = await owner.inviteStaffAsManager(staffId);
-    expect(created.status).toBe("created");
+    expect(created.status).toBe("issued");
     const invitation = await t.run((ctx) => ctx.db.get(created.invitationId));
     if (!invitation) throw new Error("管理者招待が見つかりません");
     expect(invitation).toMatchObject({
       organizationId: seeded.organizationId,
       targetPersonId: personId,
       status: "issued",
-      purpose: "managerAddition",
     });
 
     const token = await deriveInvitationToken({
@@ -86,7 +84,7 @@ describe("既存スタッフの管理者招待シナリオ", () => {
       version: invitation.version,
       signingSecret: SIGNING_SECRET,
     });
-    await expect(target.linkManagerInvitationAccount(token)).resolves.toEqual({
+    await expect(target.acceptManagerInvitation(token, new Set(["target@example.com"]))).resolves.toEqual({
       status: "linked",
       organizationId: seeded.organizationId,
       shopId: seeded.shopId,
@@ -128,11 +126,11 @@ describe("既存スタッフの管理者招待シナリオ", () => {
     expect(dashboardStaffs.page.find((staff) => staff._id === staffId)).toMatchObject({
       _id: staffId,
       isManager: true,
-      isOrganizationLinked: true,
+      organizationPersonId: personId,
     });
   });
 
-  it("管理者連携と権限解除に4種digestの宛先が追従し、スタッフ通知だけは維持する", async () => {
+  it("4種digestは対象店舗所属の管理者だけに追従し、権限解除後もスタッフ通知は維持する", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const owner = scenario.manager({ subject: "digest_owner", email: "owner@example.com" });
@@ -148,7 +146,7 @@ describe("既存スタッフの管理者招待シナリオ", () => {
         subject: "digest_owner",
         email: "owner@example.com",
         shopName: "複数管理者通知店舗",
-        plan: "pro",
+        plan: "standard",
       });
       await ctx.db.insert("shopMembers", {
         shopId: organization.shopId,
@@ -171,7 +169,7 @@ describe("既存スタッフの管理者招待シナリオ", () => {
       version: invitation.version,
       signingSecret: SIGNING_SECRET,
     });
-    await expect(target.linkManagerInvitationAccount(token)).resolves.toEqual({
+    await expect(target.acceptManagerInvitation(token, new Set(["target@example.com"]))).resolves.toEqual({
       status: "linked",
       organizationId: seeded.organizationId,
       shopId: seeded.shopId,
@@ -251,7 +249,7 @@ describe("既存スタッフの管理者招待シナリオ", () => {
       });
     });
 
-    const managerUserIds = [seeded.userId, targetUserId].sort();
+    const managerUserIds = [targetUserId];
     await expect(readManagerDigestRecipientIds(t, seeded.shopId, recruitmentId)).resolves.toEqual({
       staffRegistration: managerUserIds,
       shiftConfirmation: managerUserIds,
@@ -262,22 +260,13 @@ describe("既存スタッフの管理者招待シナリオ", () => {
     await scheduleManagerDigests(t, seeded.shopId, recruitmentId);
     const activeManagerDigestOutbox = await readManagerDigestOutbox(t);
     expect(activeManagerDigestOutbox).toEqual(
-      [
-        ...expectedManagerDigestOutbox({
-          shopId: seeded.shopId,
-          recruitmentId,
-          userId: seeded.userId,
-          email: "owner@example.com",
-          status: "pending",
-        }),
-        ...expectedManagerDigestOutbox({
-          shopId: seeded.shopId,
-          recruitmentId,
-          userId: targetUserId,
-          email: shiftContactEmail,
-          status: "pending",
-        }),
-      ].sort(compareManagerDigestOutbox),
+      expectedManagerDigestOutbox({
+        shopId: seeded.shopId,
+        recruitmentId,
+        userId: targetUserId,
+        email: shiftContactEmail,
+        status: "pending",
+      }).sort(compareManagerDigestOutbox),
     );
     const staffNotificationBeforeRemoval = await readStaffNotificationOutbox(t, staffId);
     expect(staffNotificationBeforeRemoval).toEqual([
@@ -295,31 +284,22 @@ describe("既存スタッフの管理者招待シナリオ", () => {
 
     await expect(owner.removeManagerRole(personId)).resolves.toEqual({ changed: true });
     await expect(readManagerDigestRecipientIds(t, seeded.shopId, recruitmentId)).resolves.toEqual({
-      staffRegistration: [seeded.userId],
-      shiftConfirmation: [seeded.userId],
-      shopActivation: [seeded.userId],
-      failureReminder: [seeded.userId],
+      staffRegistration: [],
+      shiftConfirmation: [],
+      shopActivation: [],
+      failureReminder: [],
     });
     await scheduleManagerDigests(t, seeded.shopId, recruitmentId);
 
     expect(await readManagerDigestOutbox(t)).toEqual(
-      [
-        ...expectedManagerDigestOutbox({
-          shopId: seeded.shopId,
-          recruitmentId,
-          userId: seeded.userId,
-          email: "owner@example.com",
-          status: "pending",
-        }),
-        ...expectedManagerDigestOutbox({
-          shopId: seeded.shopId,
-          recruitmentId,
-          userId: targetUserId,
-          email: shiftContactEmail,
-          status: "cancelled",
-          cancelReason: "recipient_inactive",
-        }),
-      ].sort(compareManagerDigestOutbox),
+      expectedManagerDigestOutbox({
+        shopId: seeded.shopId,
+        recruitmentId,
+        userId: targetUserId,
+        email: shiftContactEmail,
+        status: "cancelled",
+        cancelReason: "recipient_inactive",
+      }).sort(compareManagerDigestOutbox),
     );
     await owner.setShiftExclusion(staffId, false);
     await expect(owner.sendOpenRecruitmentNotifications(staffId)).resolves.toEqual({ scheduled: true });

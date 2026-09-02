@@ -2,6 +2,7 @@
 
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Id } from "@/convex/_generated/dataModel";
 import type { ShopDetailData } from "./types";
 
 const mocks = vi.hoisted(() => ({
@@ -37,6 +38,28 @@ beforeEach(() => {
 });
 
 describe("店舗詳細の設定更新", () => {
+  it("app導線ではexpected organizationをmutationへ渡す", async () => {
+    mocks.mutation.mockResolvedValue(null);
+    const organizationId = "organization-a" as Id<"organizations">;
+    const { result } = renderHook(() => useShopSettingsController(shop, organizationId));
+
+    await act(async () => {
+      await result.current.updateSettings({
+        shopName: "新しい渋谷店",
+        regularClosedDays: ["mon"],
+        submissionPattern: { kind: "dateOnly" },
+      });
+    });
+
+    expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
+      shopId: "shop-target",
+      expectedOrganizationId: organizationId,
+      shopName: "新しい渋谷店",
+      regularClosedDays: ["mon"],
+      submissionPattern: { kind: "dateOnly" },
+    });
+  });
+
   it("表示中の対象店舗IDと一括編集した設定をmutationへ渡す", async () => {
     mocks.mutation.mockResolvedValue(null);
     const { result } = renderHook(() => useShopSettingsController(shop));
@@ -102,6 +125,7 @@ describe("店舗詳細の設定更新", () => {
     });
 
     await waitFor(() => expect(mocks.mutation).toHaveBeenCalledTimes(1));
+    expect(result.current.dialog.isUpdating).toBe(true);
     expect(mocks.mutation).toHaveBeenCalledWith({
       shopId: "shop-target",
       shopName: "一件目",
@@ -109,6 +133,7 @@ describe("店舗詳細の設定更新", () => {
       submissionPattern: { kind: "dateOnly" },
     });
     await act(async () => resolveMutation?.());
+    await waitFor(() => expect(result.current.dialog.isUpdating).toBe(false));
   });
 
   it("更新失敗をToastへ渡し、編集Dialogを開いたままにする", async () => {

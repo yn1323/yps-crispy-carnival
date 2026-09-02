@@ -1,7 +1,6 @@
-export type StaffLegalDocumentLinks = {
-  terms: { title: string; documentVersion: string; requiredConsentVersion: string; path: string };
-  privacy: { title: string; documentVersion: string; requiredConsentVersion: string; path: string };
-};
+import type { LegalDocumentLinks } from "@/convex/legal/documents";
+
+export type StaffLegalDocumentLinks = LegalDocumentLinks;
 
 export type StaffLegalConsentPageData =
   | {

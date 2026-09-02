@@ -1,6 +1,7 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { sha256Hex } from "../_lib/sha256";
 import { ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT } from "../constants";
 
 export const personRemovalPreviewValidator = v.union(
@@ -22,6 +23,12 @@ export const expectedPersonRemovalPreviewValidator = v.object({
   assignmentCount: v.number(),
   fingerprint: v.string(),
 });
+
+export const STALE_PERSON_REMOVAL_PREVIEW_ERROR =
+  "今日以降のシフトの割り当てが変更されました。\n内容を確認してから、もう一度削除してください。";
+
+// 店舗軸の一括変更では、通知・割当・統計更新と同じtransactionへ収まる範囲に抑える。
+export const BULK_STAFF_ACCESS_REVOCATION_RECORD_LIMIT = 200;
 
 export type PersonRemovalPreview =
   | {
@@ -102,6 +109,119 @@ export function toPublicPersonRemovalPreview(preview: PersonRemovalPreview) {
   return publicPreview;
 }
 
+export async function deletePersonRemovalAssignments(
+  ctx: Pick<MutationCtx, "db">,
+  assignmentIds: readonly Id<"shiftAssignments">[],
+) {
+  for (const assignmentId of assignmentIds) await ctx.db.delete(assignmentId);
+}
+
+export type StaffAccessRemovalRecords = {
+  sessions: Doc<"sessions">[];
+  magicLinks: Doc<"magicLinks">[];
+  lineLinkTokens: Doc<"lineLinkTokens">[];
+  lineAccounts: Doc<"staffLineAccounts">[];
+};
+
+type StaffAccessRemovalOptions = {
+  recordLimit?: number;
+  limitExceededError?: string;
+};
+
+const DEFAULT_STAFF_ACCESS_LIMIT_ERROR =
+  "スタッフのアクセス情報が多いため、一括で所属を変更できません。\n対象を分けて、もう一度お試しください。";
+
+/** account削除preflightでもapplyと同じindex・上限で確認できるread-only plan。 */
+export async function prepareStaffAccessForRemoval(
+  ctx: PersonRemovalDbCtx,
+  staffIds: readonly Id<"staffs">[],
+  options?: StaffAccessRemovalOptions,
+): Promise<StaffAccessRemovalRecords> {
+  const recordLimit = options?.recordLimit;
+  if (recordLimit !== undefined && (!Number.isSafeInteger(recordLimit) || recordLimit < 1)) {
+    throw new Error("Staff access revocation record limit must be a positive integer");
+  }
+
+  let recordCount = 0;
+  const records: StaffAccessRemovalRecords = {
+    sessions: [],
+    magicLinks: [],
+    lineLinkTokens: [],
+    lineAccounts: [],
+  };
+  const limitExceeded = () => new ConvexError(options?.limitExceededError ?? DEFAULT_STAFF_ACCESS_LIMIT_ERROR);
+
+  const collectWithLimit = async <T>(read: { collect: () => Promise<T[]>; take: (count: number) => Promise<T[]> }) => {
+    if (recordLimit === undefined) return await read.collect();
+    const remaining = recordLimit - recordCount;
+    if (remaining < 0) throw limitExceeded();
+    const rows = await read.take(remaining + 1);
+    recordCount += rows.length;
+    if (recordCount > recordLimit) throw limitExceeded();
+    return rows;
+  };
+
+  for (const staffId of staffIds) {
+    const reads = {
+      sessions: ctx.db.query("sessions").withIndex("by_staffId", (q) => q.eq("staffId", staffId)),
+      magicLinks: ctx.db.query("magicLinks").withIndex("by_staffId", (q) => q.eq("staffId", staffId)),
+      lineLinkTokens: ctx.db.query("lineLinkTokens").withIndex("by_staffId", (q) => q.eq("staffId", staffId)),
+      lineAccounts: ctx.db.query("staffLineAccounts").withIndex("by_staffId", (q) => q.eq("staffId", staffId)),
+    };
+    const [sessions, magicLinks, lineLinkTokens, lineAccounts] =
+      recordLimit === undefined
+        ? await Promise.all([
+            reads.sessions.collect(),
+            reads.magicLinks.collect(),
+            reads.lineLinkTokens.collect(),
+            reads.lineAccounts.collect(),
+          ])
+        : [
+            await collectWithLimit(reads.sessions),
+            await collectWithLimit(reads.magicLinks),
+            await collectWithLimit(reads.lineLinkTokens),
+            await collectWithLimit(reads.lineAccounts),
+          ];
+
+    records.sessions.push(...sessions);
+    records.magicLinks.push(...magicLinks);
+    records.lineLinkTokens.push(...lineLinkTokens);
+    records.lineAccounts.push(...lineAccounts);
+  }
+
+  return records;
+}
+
+export async function applyPreparedStaffAccessRemoval(
+  ctx: Pick<MutationCtx, "db">,
+  records: StaffAccessRemovalRecords,
+  now: number,
+) {
+  await Promise.all([
+    ...records.sessions
+      .filter((session) => !session.revokedAt)
+      .map((session) => ctx.db.patch(session._id, { revokedAt: now })),
+    ...records.magicLinks.filter((link) => !link.revokedAt).map((link) => ctx.db.patch(link._id, { revokedAt: now })),
+    ...records.lineLinkTokens
+      .filter((token) => !token.revokedAt)
+      .map((token) => ctx.db.patch(token._id, { revokedAt: now })),
+    ...records.lineAccounts
+      .filter((account) => !account.isDeleted || account.following)
+      .map((account) => ctx.db.patch(account._id, { isDeleted: true, following: false })),
+  ]);
+}
+
+export async function revokeStaffAccessForRemoval(
+  ctx: Pick<MutationCtx, "db">,
+  staffIds: readonly Id<"staffs">[],
+  now: number,
+  options?: StaffAccessRemovalOptions,
+) {
+  const records = await prepareStaffAccessForRemoval(ctx, staffIds, options);
+
+  await applyPreparedStaffAccessRemoval(ctx, records, now);
+}
+
 function isStaffInScope(staff: Doc<"staffs">, scope: PersonRemovalScope) {
   if (staff.organizationId !== scope.organizationId) return false;
   if (scope.kind === "organization") return staff.organizationPersonId === scope.personId;
@@ -114,6 +234,5 @@ async function createRemovalFingerprint(
   assignmentIds: readonly Id<"shiftAssignments">[],
 ) {
   const canonical = JSON.stringify({ version: 1, scope, asOfDate, assignmentIds });
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return await sha256Hex(canonical);
 }

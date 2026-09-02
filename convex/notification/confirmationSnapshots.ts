@@ -1,28 +1,17 @@
-import { v } from "convex/values";
+import { type Infer, v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
+import { shiftConfirmationSnapshotAssignmentValidator } from "../_lib/shiftAssignmentValidators";
 
-export const confirmationSnapshotAssignmentValidator = v.object({
-  date: v.string(),
-  startTime: v.string(),
-  endTime: v.string(),
-  positionId: v.id("positions"),
-  optionId: v.optional(v.string()),
-});
+export const confirmationSnapshotAssignmentValidator = shiftConfirmationSnapshotAssignmentValidator;
 
 export const confirmationSnapshotInputValidator = v.object({
   assignments: v.array(confirmationSnapshotAssignmentValidator),
   signature: v.string(),
 });
 
-export type ConfirmationSnapshotAssignment = {
-  date: string;
-  startTime: string;
-  endTime: string;
-  positionId: Id<"positions">;
-  optionId?: string;
-};
+export type ConfirmationSnapshotAssignment = Infer<typeof confirmationSnapshotAssignmentValidator>;
 
 export type ConfirmationSnapshot = {
   staffId: Id<"staffs">;

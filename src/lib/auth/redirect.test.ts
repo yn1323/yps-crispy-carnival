@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSsoCallbackUrl, normalizeAuthRedirect } from "./redirect";
+import { buildRestartAuthUrl, buildSsoCallbackUrl, normalizeAuthRedirect } from "./redirect";
 
 describe("normalizeAuthRedirect", () => {
   it("内部パスを維持する", () => {
@@ -25,6 +25,21 @@ describe("normalizeAuthRedirect", () => {
     expect(normalizeAuthRedirect("/forgot-password")).toBe("/dashboard");
     expect(normalizeAuthRedirect("/sso-callback")).toBe("/dashboard");
     expect(normalizeAuthRedirect("/safe/../login")).toBe("/dashboard");
+    expect(normalizeAuthRedirect("/login/")).toBe("/dashboard");
+    expect(normalizeAuthRedirect("/signup///?redirect=/staff")).toBe("/dashboard");
+    expect(normalizeAuthRedirect("/safe/../sso-callback/")).toBe("/dashboard");
+  });
+});
+
+describe("buildRestartAuthUrl", () => {
+  it("正規化したredirectをログイン画面へ保持する", () => {
+    expect(buildRestartAuthUrl("login", "/dashboard?tab=staff#list")).toBe(
+      "/login?redirect=%2Fdashboard%3Ftab%3Dstaff%23list",
+    );
+  });
+
+  it("外部URLはdashboardへ置き換えて新規登録画面へ保持する", () => {
+    expect(buildRestartAuthUrl("signup", "https://example.com/dashboard")).toBe("/signup?redirect=%2Fdashboard");
   });
 });
 

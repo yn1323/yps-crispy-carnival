@@ -1,7 +1,7 @@
 import type { ComponentType, ElementType } from "react";
 
 /**
- * MDXコンテンツ（FaqSite / HowToSite / ArticleSite / 法務文書）で共有する型とユーティリティ。
+ * MDXコンテンツ（HelpCenter / ArticleSite / 法務文書）で共有する型とユーティリティ。
  * `vite/mdxPlugin.ts` が `?mdx-component` で生成するコンポーネントの契約と、
  * frontmatter・目次の抽出ロジックをここに集約する（Node側のプラグイン・スクリプトからも使う）。
  */
@@ -27,6 +27,74 @@ export function getUnderscorePrefixedMdxSlugs(paths: Iterable<string>): Set<stri
   }
 
   return slugs;
+}
+
+export function createMdxImageSrcResolver(
+  documentPath: string | undefined,
+  imageModules: Readonly<Record<string, string>>,
+): (src: string) => string {
+  return (src) => resolveMdxImageSrc(src, documentPath, imageModules);
+}
+
+export function createMdxVideoSrcResolver(
+  documentPath: string | undefined,
+  videoModules: Readonly<Record<string, string>>,
+): (src: string) => string {
+  return (src) => resolveMdxVideoSrc(src, documentPath, videoModules);
+}
+
+export function resolveMdxImageSrc(
+  src: string,
+  documentPath: string | undefined,
+  imageModules: Readonly<Record<string, string>>,
+): string {
+  return resolveMdxAssetSrc(src, documentPath, imageModules, "画像");
+}
+
+export function resolveMdxVideoSrc(
+  src: string,
+  documentPath: string | undefined,
+  videoModules: Readonly<Record<string, string>>,
+): string {
+  return resolveMdxAssetSrc(src, documentPath, videoModules, "動画");
+}
+
+function resolveMdxAssetSrc(
+  src: string,
+  documentPath: string | undefined,
+  assetModules: Readonly<Record<string, string>>,
+  assetName: "画像" | "動画",
+): string {
+  if (/^(https?:)?\/\//.test(src) || /^(data|blob):/.test(src) || src.startsWith("/")) {
+    return src;
+  }
+
+  if (!documentPath) {
+    return src;
+  }
+
+  const documentDirectory = documentPath.replace(/\/[^/]*$/, "");
+  const normalizedPath = normalizeMdxContentPath(`${documentDirectory}/${src}`);
+  const resolved = assetModules[normalizedPath];
+  if (!resolved) {
+    throw new Error(`MDX「${documentPath}」の${assetName}「${src}」が見つかりません`);
+  }
+  return resolved;
+}
+
+function normalizeMdxContentPath(path: string): string {
+  const segments: string[] = [];
+
+  for (const segment of path.split("/")) {
+    if (!segment || segment === ".") continue;
+    if (segment === "..") {
+      segments.pop();
+      continue;
+    }
+    segments.push(segment);
+  }
+
+  return `./${segments.join("/")}`;
 }
 
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---/;

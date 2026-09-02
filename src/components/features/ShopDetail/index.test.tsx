@@ -8,10 +8,14 @@ import type { ShopDetailData } from "./types";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
+  historyBack: vi.fn(),
+  onDeleted: null as (() => void) | null,
+  deletionInput: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mocks.navigate,
+  useRouter: () => ({ history: { back: mocks.historyBack } }),
 }));
 
 vi.mock("./ShopDetailView", () => ({
@@ -28,7 +32,11 @@ vi.mock("./ShopDetailView", () => ({
 }));
 
 vi.mock("./useShopDeletionController", () => ({
-  useShopDeletionController: () => ({ isDeleting: false, deleteShop: vi.fn() }),
+  useShopDeletionController: (input: { onDeleted: () => void }) => {
+    mocks.deletionInput(input);
+    mocks.onDeleted = input.onDeleted;
+    return { isDeleting: false, deleteShop: vi.fn() };
+  },
 }));
 
 vi.mock("./useShopSettingsController", () => ({
@@ -48,62 +56,49 @@ const shop: ShopDetailData = {
   canUpdateSettings: true,
   canDelete: true,
 };
+const organizationId = "organization-app" as never;
 
 beforeEach(() => {
   mocks.navigate.mockReset();
+  mocks.historyBack.mockReset();
+  mocks.deletionInput.mockReset();
+  mocks.onDeleted = null;
 });
 
-describe("店舗詳細の戻り先", () => {
-  it("Dashboardから開いた場合は同じ店舗のDashboardへ戻る", () => {
-    render(<ShopDetail shop={shop} people={[]} selectedShopId="shop-context" returnTo="dashboard" />);
+describe("店舗詳細のapp navigation", () => {
+  it("タイトルの戻る操作はブラウザ履歴へ戻る", () => {
+    render(<ShopDetail shop={shop} people={[]} organizationId={organizationId} />);
 
     fireEvent.click(screen.getByRole("button", { name: "前の画面に戻る" }));
 
-    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
-      to: "/dashboard",
-      search: { shop: "shop-context" },
-      replace: true,
-    });
+    expect(mocks.historyBack).toHaveBeenCalledOnce();
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
-  it("戻り先の指定がない直URLではDashboardへ戻る", () => {
-    render(<ShopDetail shop={shop} people={[]} selectedShopId="shop-context" />);
-
-    fireEvent.click(screen.getByRole("button", { name: "前の画面に戻る" }));
-
-    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
-      to: "/dashboard",
-      search: { shop: "shop-context" },
-      replace: true,
-    });
-  });
-
-  it("グループ設定から開いた場合だけ同じグループ設定へ戻る", () => {
-    render(<ShopDetail shop={shop} people={[]} selectedShopId="shop-context" returnTo="settings" />);
-
-    fireEvent.click(screen.getByRole("button", { name: "前の画面に戻る" }));
-
-    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
-      to: "/settings",
-      search: { shop: "shop-context", tab: "shops" },
-      replace: true,
-    });
-  });
-
-  it("Dashboard起点をユーザー詳細との往復後も維持する", () => {
-    render(<ShopDetail shop={shop} people={[]} selectedShopId="shop-context" returnTo="dashboard" />);
+  it("スタッフ詳細を同じcanonical組織scopeで開く", () => {
+    render(<ShopDetail shop={shop} people={[]} organizationId={organizationId} />);
 
     fireEvent.click(screen.getByRole("button", { name: "スタッフ詳細を開く" }));
 
     expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
-      to: "/users/$personId",
+      to: "/staff/$personId",
       params: { personId: "person-a" },
-      search: {
-        shop: "shop-target",
-        returnTo: "shopDetail",
-        returnShop: "shop-target",
-        returnShopTo: "dashboard",
-      },
+      search: { org: organizationId },
+    });
+  });
+
+  it("削除後はlegacy店舗contextを使わず同じ組織の管理へ戻る", () => {
+    render(<ShopDetail shop={shop} people={[]} organizationId={organizationId} />);
+
+    expect(mocks.deletionInput).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedOrganizationId: organizationId, clearLegacySelectedShop: false }),
+    );
+    mocks.onDeleted?.();
+
+    expect(mocks.navigate).toHaveBeenCalledExactlyOnceWith({
+      to: "/manage",
+      search: { org: organizationId },
+      replace: true,
     });
   });
 });

@@ -1,6 +1,7 @@
 import { Badge, Box, Flex, HStack, Icon, Stack, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { LuCheck, LuCircleAlert, LuClock3 } from "react-icons/lu";
+import type { AnalyticsShopUsageLikelihood, AnalyticsShopUsageReason } from "@/api/analyticsTypes";
 import type { DataCompleteness } from "./DataStatus";
 import { formatCount, formatCountWithUnit, formatDate, formatRate } from "./format";
 
@@ -28,8 +29,49 @@ const HEALTH_LABELS: Record<string, { color: string; label: string }> = {
   longInactive: { color: "purple", label: "長期無活動" },
 };
 
+const SHOP_USAGE_PRESENTATION: Record<AnalyticsShopUsageLikelihood, { color: string; label: string }> = {
+  high: { color: "green", label: "利用の可能性が高い" },
+  possible: { color: "blue", label: "利用の可能性あり" },
+  unknown: { color: "gray", label: "状態不明" },
+};
+
+const SHOP_USAGE_REASON_LABELS: Record<AnalyticsShopUsageReason, string> = {
+  recentActivity: "最近の活動あり",
+  hasUpcomingCycle: "次回シフトあり",
+  observedActivity: "観測開始後の活動あり",
+  hasShiftTargets: "シフト対象者あり",
+  hasStaffMemberships: "スタッフ所属あり",
+};
+
 export function healthSignalPresentation(key: HealthSignalKey) {
   return HEALTH_LABELS[key] ?? { color: "gray", label: key };
+}
+
+export function ShopUsageSummary({
+  likelihood,
+  reasons,
+}: {
+  likelihood: AnalyticsShopUsageLikelihood;
+  reasons: AnalyticsShopUsageReason[];
+}) {
+  const presentation = SHOP_USAGE_PRESENTATION[likelihood];
+  return (
+    <Stack align="start" gap={1.5} minW={0}>
+      <Badge colorPalette={presentation.color} variant="subtle" whiteSpace="normal">
+        {presentation.label}
+      </Badge>
+      <Stack gap={0.5} minW={0}>
+        <Text color="gray.500" fontSize="2xs" fontWeight="bold">
+          最新集計の根拠
+        </Text>
+        <Text color="gray.600" fontSize="xs" lineHeight="1.5" overflowWrap="anywhere">
+          {reasons.length > 0
+            ? reasons.map((reason) => SHOP_USAGE_REASON_LABELS[reason]).join("・")
+            : "判定材料を確認できません"}
+        </Text>
+      </Stack>
+    </Stack>
+  );
 }
 
 export function HealthSignals({

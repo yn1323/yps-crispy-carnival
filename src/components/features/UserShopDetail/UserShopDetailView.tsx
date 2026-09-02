@@ -1,9 +1,10 @@
-import { Box, Stack } from "@chakra-ui/react";
-import type { FocusEventHandler, ReactNode, Ref } from "react";
+import { Stack } from "@chakra-ui/react";
+import type { ReactNode } from "react";
+import { LuStore } from "react-icons/lu";
 import { ReadOnlyNotice } from "@/src/components/shared/ReadOnlyNotice";
 import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 import type { UserShopDetailData, UserShopDetailMembership, UserShopDetailRecruitment } from "./types";
-import { UserShopLineSection } from "./UserShopLineSection";
+import { UserShopDetailPageSection } from "./UserShopDetailPageSection";
 import { UserShopNotificationSection } from "./UserShopNotificationSection";
 import { UserShopSettingsSection } from "./UserShopSettingsSection";
 
@@ -14,40 +15,27 @@ export type UserShopDetailViewProps = {
   membership: UserShopDetailMembership;
   isStoreReadOnly: boolean;
   storeDisabledReason?: string;
-  showMembershipRemoval: boolean;
-  notificationSectionRef?: Ref<HTMLDivElement>;
-  onNotificationSectionFocus?: FocusEventHandler<HTMLDivElement>;
   notificationHistory: ReactNode;
   state: {
-    line: {
-      authorizeUrl: string | null;
-      showQr: boolean;
-      isQrLoading: boolean;
-      isSendingInvite: boolean;
-    };
     notifications: {
       isLoading: boolean;
       openRecruitments: UserShopDetailRecruitment[];
       currentRecruitments: UserShopDetailRecruitment[];
       isSendingRecruitments: boolean;
       isSendingCurrentShift: boolean;
+      isCooldownLoading: boolean;
+      isRecruitmentCooldownActive: boolean;
+      isCurrentShiftCooldownActive: boolean;
     };
     membership: {
       isChangingShiftTarget: boolean;
-      isRemovalConfirmationOpen: boolean;
-      isRemoving: boolean;
     };
   };
   actions: {
     onBack: () => void;
-    onShowLineQr: AsyncAction;
-    onSendLineInvite: AsyncAction;
     onSendRecruitments: AsyncAction;
     onSendCurrentShift: AsyncAction;
     onChangeShiftTarget: (isShiftTarget: boolean) => void | Promise<void>;
-    onRequestRemoveMembership: () => void;
-    onCancelRemoveMembership: () => void;
-    onConfirmRemoveMembership: AsyncAction;
   };
 };
 
@@ -56,9 +44,6 @@ export function UserShopDetailView({
   membership,
   isStoreReadOnly,
   storeDisabledReason,
-  showMembershipRemoval,
-  notificationSectionRef,
-  onNotificationSectionFocus,
   notificationHistory,
   state,
   actions,
@@ -67,6 +52,7 @@ export function UserShopDetailView({
     <Stack gap={{ base: 4, md: 6 }}>
       <DetailPageHeader
         title={`${membership.shopName}：${data.person.name}さん`}
+        icon={LuStore}
         backLabel="スタッフ詳細へ戻る"
         onBack={actions.onBack}
       />
@@ -78,20 +64,8 @@ export function UserShopDetailView({
         />
       )}
 
-      <PageSection>
-        <UserShopLineSection
-          data={data}
-          membership={membership}
-          isReadOnly={isStoreReadOnly}
-          {...state.line}
-          onShowQr={actions.onShowLineQr}
-          onSendInvite={actions.onSendLineInvite}
-        />
-      </PageSection>
-
-      <PageSection sectionRef={notificationSectionRef} onFocusCapture={onNotificationSectionFocus}>
+      <UserShopDetailPageSection>
         <UserShopNotificationSection
-          data={data}
           membership={membership}
           isReadOnly={isStoreReadOnly}
           isLoading={state.notifications.isLoading}
@@ -99,59 +73,29 @@ export function UserShopDetailView({
           currentRecruitments={state.notifications.currentRecruitments}
           notificationHistory={notificationHistory}
           sendRecruitmentsAction={{
-            isDisabled: isStoreReadOnly,
+            isDisabled: isStoreReadOnly || state.notifications.isCooldownLoading,
+            isCooldownActive: state.notifications.isRecruitmentCooldownActive,
             isLoading: state.notifications.isSendingRecruitments,
             onAction: actions.onSendRecruitments,
           }}
           sendCurrentShiftAction={{
-            isDisabled: isStoreReadOnly,
+            isDisabled: isStoreReadOnly || state.notifications.isCooldownLoading,
+            isCooldownActive: state.notifications.isCurrentShiftCooldownActive,
             isLoading: state.notifications.isSendingCurrentShift,
             onAction: actions.onSendCurrentShift,
           }}
         />
-      </PageSection>
+      </UserShopDetailPageSection>
 
-      <PageSection>
+      <UserShopDetailPageSection>
         <UserShopSettingsSection
-          personName={data.person.name}
           membership={membership}
-          removalPreview={membership.removalPreview}
           isStoreReadOnly={isStoreReadOnly}
           storeDisabledReason={storeDisabledReason}
           isChangingShiftTarget={state.membership.isChangingShiftTarget}
-          showMembershipRemoval={showMembershipRemoval}
-          isRemovalConfirmationOpen={state.membership.isRemovalConfirmationOpen}
-          isRemovingMembership={state.membership.isRemoving}
           onChangeShiftTarget={actions.onChangeShiftTarget}
-          onRequestRemoveMembership={actions.onRequestRemoveMembership}
-          onCancelRemoveMembership={actions.onCancelRemoveMembership}
-          onConfirmRemoveMembership={actions.onConfirmRemoveMembership}
         />
-      </PageSection>
+      </UserShopDetailPageSection>
     </Stack>
-  );
-}
-
-function PageSection({
-  children,
-  sectionRef,
-  onFocusCapture,
-}: {
-  children: ReactNode;
-  sectionRef?: Ref<HTMLDivElement>;
-  onFocusCapture?: FocusEventHandler<HTMLDivElement>;
-}) {
-  return (
-    <Box
-      ref={sectionRef}
-      onFocusCapture={onFocusCapture}
-      borderWidth="1px"
-      borderColor="blackAlpha.100"
-      borderRadius="xl"
-      bg="white"
-      p={{ base: 4, md: 6 }}
-    >
-      {children}
-    </Box>
   );
 }

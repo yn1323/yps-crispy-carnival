@@ -1,6 +1,6 @@
 import { Box, Flex, HStack, Icon, Text } from "@chakra-ui/react";
 import { type ComponentProps, type ElementType, Fragment, type ReactNode } from "react";
-import { Dialog } from "@/src/components/ui/Dialog";
+import { Dialog, useDialogKeyboardLayoutContext } from "@/src/components/ui/Dialog";
 import { DIALOG_VISUAL_VIEWPORT_HEIGHT } from "@/src/hooks/useDialogVisualViewportStyle";
 
 export type StepperDialogStep<TStep extends string = string> = {
@@ -13,7 +13,7 @@ export type StepperDialogStep<TStep extends string = string> = {
 
 type StepperDialogProps = Omit<
   ComponentProps<typeof Dialog>,
-  "hideFooter" | "maxW" | "maxH" | "contentProps" | "bodyProps"
+  "hideFooter" | "maxW" | "maxH" | "contentProps" | "bodyProps" | "actionLayout" | "mobileFullScreen"
 > & {
   maxW?: ComponentProps<typeof Dialog>["maxW"];
   maxH?: ComponentProps<typeof Dialog>["maxH"];
@@ -61,6 +61,7 @@ export const StepperDialog = ({
   maxH = { base: DIALOG_VISUAL_VIEWPORT_HEIGHT, md: "90dvh" },
   minH = { base: DIALOG_VISUAL_VIEWPORT_HEIGHT, md: "min(480px, 90dvh)" },
   keyboardAwareViewport = true,
+  keyboardLayout = "adaptive",
   contentProps,
   bodyProps,
   ...dialogProps
@@ -68,7 +69,9 @@ export const StepperDialog = ({
   <Dialog
     {...dialogProps}
     hideFooter
+    mobileFullScreen
     keyboardAwareViewport={keyboardAwareViewport}
+    keyboardLayout={keyboardLayout}
     maxW={maxW}
     maxH={maxH}
     contentProps={{
@@ -83,6 +86,8 @@ export const StepperDialog = ({
       p: 0,
       display: "flex",
       flexDirection: "column",
+      flex: 1,
+      h: "full",
       minH: 0,
       overflowY: "hidden",
       ...bodyProps,
@@ -97,15 +102,16 @@ export const StepperDialogSteps = <TStep extends string>({ steps, currentStep }:
     steps.findIndex((step) => step.value === currentStep),
     0,
   );
+  const useCompactMobileSpacing = steps.length >= 5;
 
   return (
-    <Flex align="center" w="full" px={{ base: 4, md: 0 }}>
+    <Flex align="center" w="full" px={{ base: useCompactMobileSpacing ? 2 : 4, md: 0 }}>
       {steps.map((step, index) => {
         const isDone = index < currentIndex;
         const isCurrent = index === currentIndex;
         return (
           <Fragment key={step.value}>
-            <HStack gap={2} flexShrink={0} minW={0}>
+            <HStack gap={{ base: useCompactMobileSpacing ? 1.5 : 2, md: 2 }} flexShrink={0} minW={0}>
               <Flex
                 w="24px"
                 h="24px"
@@ -131,7 +137,13 @@ export const StepperDialogSteps = <TStep extends string>({ steps, currentStep }:
               </Text>
             </HStack>
             {index < steps.length - 1 && (
-              <Box flex={1} minW={{ base: 3, md: 8 }} h="1px" bg={isDone ? "teal.600" : "gray.200"} mx={4} />
+              <Box
+                flex={1}
+                minW={{ base: useCompactMobileSpacing ? 1 : 3, md: 8 }}
+                h="1px"
+                bg={isDone ? "teal.600" : "gray.200"}
+                mx={{ base: useCompactMobileSpacing ? 1.5 : 4, md: 4 }}
+              />
             )}
           </Fragment>
         );
@@ -141,13 +153,13 @@ export const StepperDialogSteps = <TStep extends string>({ steps, currentStep }:
 };
 
 export const StepperDialogStepTitle = ({ icon, title, description }: StepperDialogStepTitleProps) => (
-  <HStack gap={3} align="flex-start">
+  <HStack gap={3} align="flex-start" minW={0}>
     {icon && (
       <Flex w="36px" h="36px" borderRadius="full" bg="teal.50" color="teal.700" align="center" justify="center">
         <Icon as={icon} boxSize={5} />
       </Flex>
     )}
-    <Box>
+    <Box minW={0} overflowWrap="anywhere">
       {typeof title === "string" ? (
         <Text fontSize="md" fontWeight="bold" color="gray.900">
           {title}
@@ -160,22 +172,53 @@ export const StepperDialogStepTitle = ({ icon, title, description }: StepperDial
   </HStack>
 );
 
-export const StepperDialogActionBar = ({ children }: { children: ReactNode }) => (
-  <Box
-    position={{ base: "sticky", md: "static" }}
-    bottom={0}
-    px={{ base: 4, md: 6 }}
-    pt={4}
-    pb={{ base: "calc(env(safe-area-inset-bottom) + 1rem)", md: 4 }}
-    bg="white"
-    borderTopWidth={1}
-    borderColor="border.default"
-  >
-    <Flex justify="space-between" gap={3}>
-      {children}
-    </Flex>
-  </Box>
-);
+export const StepperDialogActionBar = ({ children }: { children: ReactNode }) => {
+  const { mode, registerFooter } = useDialogKeyboardLayoutContext();
+  const position = mode === "content-scroll" ? "static" : mode === "header-body-scroll" ? "sticky" : undefined;
+
+  return (
+    <Box
+      ref={registerFooter}
+      data-dialog-action-bar
+      position={position ?? { base: "sticky", md: "static" }}
+      bottom={0}
+      zIndex={1}
+      flexShrink={0}
+      px={{ base: 4, md: 6 }}
+      pt={4}
+      pb={{ base: "calc(env(safe-area-inset-bottom) + 1rem)", md: 4 }}
+      bg="white"
+      borderTopWidth={1}
+      borderColor="border.default"
+    >
+      <Flex
+        direction="row"
+        justify="space-between"
+        align="stretch"
+        gap={3}
+        flexWrap="nowrap"
+        css={{
+          "& > button": {
+            minWidth: 0,
+          },
+          "@media screen and (max-width: 47.997rem)": {
+            "& > button": {
+              flex: "1 1 0",
+              width: "auto",
+              minHeight: "44px",
+              height: "auto",
+              paddingBlock: "0.5rem",
+              whiteSpace: "normal",
+              overflowWrap: "anywhere",
+            },
+          },
+        }}
+      >
+        {children}
+      </Flex>
+    </Box>
+  );
+};
 
 export const StepperDialogContent = <TStep extends string>({
   steps,
@@ -184,20 +227,36 @@ export const StepperDialogContent = <TStep extends string>({
   actions,
   showSteps = true,
 }: StepperDialogContentProps<TStep>) => {
+  const { mode, registerLeadingRegion } = useDialogKeyboardLayoutContext();
+  const usesAdaptiveScroll = mode !== "body-scroll";
   const currentStepDetail = steps.find((step) => step.value === currentStep);
   const shouldShowStepTitle = Boolean(
     currentStepDetail?.icon || currentStepDetail?.title || currentStepDetail?.description,
   );
 
   return (
-    <Flex flex={1} minH={0} direction="column">
+    <Flex
+      flex={usesAdaptiveScroll ? "none" : 1}
+      h={usesAdaptiveScroll ? "auto" : "full"}
+      minH={0}
+      w="full"
+      overflow={usesAdaptiveScroll ? "visible" : "hidden"}
+      direction="column"
+    >
       {showSteps && (
-        <Box px={{ base: 0, md: 6 }} pt={{ base: 2, md: 0 }} pb={4}>
+        <Box ref={registerLeadingRegion} flexShrink={0} px={{ base: 0, md: 6 }} pt={{ base: 2, md: 0 }} pb={4}>
           <StepperDialogSteps steps={steps} currentStep={currentStep} />
         </Box>
       )}
 
-      <Box flex={1} minH={0} overflowY="auto" px={{ base: 4, md: 8 }} pb={{ base: 4, md: 6 }}>
+      <Box
+        flex={usesAdaptiveScroll ? "none" : 1}
+        minH={0}
+        overflowY={usesAdaptiveScroll ? "visible" : "auto"}
+        overscrollBehavior="contain"
+        px={{ base: 4, md: 8 }}
+        pb={{ base: 4, md: 6 }}
+      >
         <Flex direction="column" gap={5}>
           {shouldShowStepTitle && (
             <StepperDialogStepTitle

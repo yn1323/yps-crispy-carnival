@@ -1,21 +1,124 @@
 import type { GenericDatabaseReader } from "convex/server";
 import { ConvexError } from "convex/values";
 import type { DataModel, Id } from "../_generated/dataModel";
-import { getOrganizationBillingState, getOrganizationUsageSnapshot } from "../organization/service";
 import {
+  getOrganizationActualUsageProbe,
+  getOrganizationBillingState,
+  getOrganizationUsageSnapshot,
+  isValidOrganizationActiveManager,
+} from "../organization/service";
+import { organizationPaidPlanLabel } from "./planPresentation";
+import {
+  deriveOrganizationAccessPolicy,
   deriveOrganizationBillingPolicy,
-  evaluateOrganizationLimits,
-  getEffectiveRestrictedBillingState,
-  type RecoveryCapability,
+  evaluateOrganizationUsageLimits,
+  evaluatePlanLimits,
+  ORGANIZATION_PLAN_LIMITS,
+  type OrganizationAccessPolicy,
+  type OrganizationUsageLimitViolation,
+  type PlanLimitViolation,
+  resolveUsageLimitPlan,
 } from "./policy";
 
 type DbCtx = {
   db: GenericDatabaseReader<DataModel>;
 };
 
+export type LegacyPlanLimitViolation = Exclude<PlanLimitViolation, "shops"> | "activeShops";
+
+/** TODO[narrow]: 旧client drain後のPR2で削除し、公開DTOもcanonicalなshopsへ揃える。 */
+export function toLegacyPlanLimitViolation(violation: PlanLimitViolation): LegacyPlanLimitViolation {
+  return violation === "shops" ? "activeShops" : violation;
+}
+
+/** TODO[narrow]: 旧client drain後のPR2で削除する公開usage-limit DTO projection。 */
+export function toLegacyUsageLimitViolation(violation: OrganizationUsageLimitViolation) {
+  return { ...violation, kind: toLegacyPlanLimitViolation(violation.kind) };
+}
+
 export async function getOrganizationBillingPolicy(ctx: DbCtx, organizationId: Id<"organizations">) {
   const billingState = await getOrganizationBillingState(ctx, organizationId);
   return billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
+}
+
+export async function getOrganizationAccessPolicy(ctx: DbCtx, organizationId: Id<"organizations">) {
+  const billingState = await getOrganizationBillingState(ctx, organizationId);
+  if (!billingState) return null;
+
+  const billingPolicy = deriveOrganizationBillingPolicy(billingState.state);
+  const usagePlan = billingPolicy.canWriteBusinessData ? resolveUsageLimitPlan(billingState.state) : null;
+  const usageProbe = usagePlan
+    ? await getOrganizationActualUsageProbe(ctx, organizationId, ORGANIZATION_PLAN_LIMITS[usagePlan])
+    : null;
+  let usageLimitStatus: OrganizationAccessPolicy["usageLimitStatus"] = null;
+  if (usagePlan && usageProbe) {
+    const evaluation = evaluateOrganizationUsageLimits({ plan: usagePlan, usage: usageProbe.usage });
+    if (evaluation.kind === "overLimit") {
+      usageLimitStatus = {
+        ...evaluation,
+        violations: evaluation.violations.map((violation) =>
+          usageProbe.lowerBoundDimensions.includes(violation.kind)
+            ? { ...violation, isLowerBound: true as const }
+            : violation,
+        ),
+        ...(usageProbe.unknownDimensions.length > 0 ? { unknownDimensions: usageProbe.unknownDimensions } : {}),
+      };
+    } else if (usageProbe.unknownDimensions.length > 0) {
+      usageLimitStatus = {
+        kind: "unknown",
+        evaluatedPlan: usagePlan,
+        observedUsage: usageProbe.usage,
+        limits: ORGANIZATION_PLAN_LIMITS[usagePlan],
+        unknownDimensions: usageProbe.unknownDimensions,
+        knownViolations: [],
+      };
+    } else {
+      usageLimitStatus = evaluation;
+    }
+  }
+  const accessPolicy = deriveOrganizationAccessPolicy({ billingPolicy, usageLimitStatus });
+  return { billingState, usageProbe, ...accessPolicy };
+}
+
+export const LIMIT_RECOVERY_CAPABILITIES = [
+  "removeOrganizationPerson",
+  "removeManagerRole",
+  "deleteShop",
+  "cancelManagerInvitation",
+  "rejectStaffRegistrationRequest",
+  "resolveNotificationFailure",
+  "startOrUpgradePaidPlan",
+  "updateBillingEmail",
+  "deleteOrganization",
+] as const;
+
+export type LimitRecoveryCapability = (typeof LIMIT_RECOVERY_CAPABILITIES)[number];
+
+function usageLimitExceededError(access: OrganizationAccessPolicy) {
+  if (access.usageLimitStatus?.kind === "unknown") {
+    return new ConvexError({
+      code: "USAGE_LIMIT_EVALUATION_UNAVAILABLE" as const,
+      message:
+        "現在の利用数を安全に確認できないため、通常の業務操作を一時的に制限しています。利用人数・店舗・管理者を整理するか、プランを変更してください。",
+      plan: access.usageLimitStatus.evaluatedPlan,
+      unknownDimensions: access.usageLimitStatus.unknownDimensions.map(toLegacyPlanLimitViolation),
+    });
+  }
+  if (access.usageLimitStatus?.kind !== "overLimit") {
+    return new ConvexError("現在の利用状態では、通常の業務操作を行えません。");
+  }
+  return new ConvexError({
+    code: "USAGE_LIMIT_EXCEEDED" as const,
+    message: "現在のプラン上限を超えているため、利用人数・店舗・管理者を整理するか、プランを変更してください。",
+    plan: access.usageLimitStatus.evaluatedPlan,
+    violations: access.usageLimitStatus.violations.map(toLegacyUsageLimitViolation),
+  });
+}
+
+function requireBusinessWriteFromAccess(access: Awaited<ReturnType<typeof getOrganizationAccessPolicy>>) {
+  if (!access) return null;
+  if (access.accessMode === "normal") return access.billingPolicy;
+  throw usageLimitExceededError(access);
 }
 
 /**
@@ -23,16 +126,47 @@ export async function getOrganizationBillingPolicy(ctx: DbCtx, organizationId: I
  * TODO[narrow]: 全deploymentでm025完走・verifyOrganizationsのbilling state残件0確認後、state欠損を拒否する。
  */
 export async function requireOrganizationBusinessWrite(ctx: DbCtx, organizationId: Id<"organizations">) {
-  const policy = await getOrganizationBillingPolicy(ctx, organizationId);
-  if (!policy) return null;
-  if (!policy.canWriteBusinessData) {
-    throw new ConvexError(
-      policy.businessWriteBlockReason === "paymentResultPending"
-        ? "支払い結果を確認中のため、業務操作はまだ利用できません。"
-        : "契約状態を確認できるまで、閲覧と復旧に必要な操作のみ利用できます。",
-    );
+  return requireBusinessWriteFromAccess(await getOrganizationAccessPolicy(ctx, organizationId));
+}
+
+export async function requireOrganizationLimitRecoveryCapability(
+  ctx: DbCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    personId: Id<"organizationPeople">;
+    capability: LimitRecoveryCapability;
+  },
+) {
+  const access = await getOrganizationAccessPolicy(ctx, args.organizationId);
+  if (
+    access?.accessMode !== "limitRecoveryOnly" ||
+    !LIMIT_RECOVERY_CAPABILITIES.includes(args.capability) ||
+    !(await isValidOrganizationActiveManager(ctx, args.organizationId, args.personId))
+  ) {
+    throw new ConvexError("この整理操作を行う権限がありません");
   }
-  return policy;
+  return access;
+}
+
+export async function requireOrganizationBusinessWriteOrLimitRecoveryCapability(
+  ctx: DbCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    personId: Id<"organizationPeople">;
+    capability: LimitRecoveryCapability;
+  },
+) {
+  const access = await getOrganizationAccessPolicy(ctx, args.organizationId);
+  if (access?.accessMode !== "limitRecoveryOnly") {
+    return requireBusinessWriteFromAccess(access);
+  }
+  if (
+    !LIMIT_RECOVERY_CAPABILITIES.includes(args.capability) ||
+    !(await isValidOrganizationActiveManager(ctx, args.organizationId, args.personId))
+  ) {
+    throw new ConvexError("この整理操作を行う権限がありません");
+  }
+  return access.billingPolicy;
 }
 
 export async function requireOrganizationPaidFeature(ctx: DbCtx, organizationId: Id<"organizations">) {
@@ -41,7 +175,7 @@ export async function requireOrganizationPaidFeature(ctx: DbCtx, organizationId:
     throw new ConvexError(
       policy?.paidFeatureBlockReason === "paymentResultPending"
         ? "支払い結果が確定すると利用できます。"
-        : "この機能はトライアルまたはProで利用できます。",
+        : `この機能はトライアルまたは${organizationPaidPlanLabel("standard")}で利用できます。`,
     );
   }
   return policy;
@@ -52,14 +186,14 @@ export async function requireOrganizationCapacity(
   args: {
     organizationId: Id<"organizations">;
     additionalPeople?: number;
-    additionalActiveShops?: number;
+    additionalShops?: number;
     additionalActiveManagers?: number;
     excludedInvitationId?: Id<"organizationInvitations">;
   },
 ) {
   const billingState = await getOrganizationBillingState(ctx, args.organizationId);
   if (!billingState) {
-    throw new ConvexError("グループの契約情報を確認中のため、この追加操作はまだ利用できません。");
+    throw new ConvexError("組織の契約情報を確認中のため、この追加操作はまだ利用できません。");
   }
   const policy = deriveOrganizationBillingPolicy(billingState.state);
   if (!policy.entitlementPlan || !policy.limits || !policy.canWriteBusinessData) {
@@ -71,38 +205,17 @@ export async function requireOrganizationCapacity(
   });
   const projectedUsage = {
     peopleCount: usage.projectedPersonCount + (args.additionalPeople ?? 0),
-    activeShopCount: usage.activeShopCount + (args.additionalActiveShops ?? 0),
+    shopCount: usage.shopCount + (args.additionalShops ?? 0),
     activeManagerCount: usage.projectedActiveManagerCount + (args.additionalActiveManagers ?? 0),
   };
-  const evaluation = evaluateOrganizationLimits(policy.limits, projectedUsage);
+  const evaluation = evaluatePlanLimits(policy.entitlementPlan, projectedUsage);
   if (!evaluation.withinLimits) {
     const message = evaluation.violations.includes("people")
       ? `利用人数が現在のプラン上限を超えます。\n現在${usage.projectedPersonCount}名、上限${policy.limits.maxPeople}名です。`
-      : evaluation.violations.includes("activeShops")
+      : evaluation.violations.includes("shops")
         ? "店舗数が現在のプラン上限を超えます。"
         : "招待中を含めた管理者の合計が、現在のプラン上限を超えます。";
     throw new ConvexError(message);
   }
   return { billingState, policy, usage };
-}
-
-export async function requireRestrictedRecoveryCapability(
-  ctx: DbCtx,
-  args: {
-    organizationId: Id<"organizations">;
-    personId: Id<"organizationPeople">;
-    capability: RecoveryCapability;
-  },
-) {
-  const billingState = await getOrganizationBillingState(ctx, args.organizationId);
-  const restrictedState = billingState ? getEffectiveRestrictedBillingState(billingState.state) : null;
-  if (!billingState || !restrictedState) {
-    throw new ConvexError("契約制限中の復旧操作ではありません");
-  }
-  const isRecoveryManager = restrictedState.recoveryManagerPersonIds.some((personId) => personId === args.personId);
-  const policy = deriveOrganizationBillingPolicy(billingState.state);
-  if (!isRecoveryManager || !policy.allowedRecoveryCapabilities.includes(args.capability)) {
-    throw new ConvexError("この復旧操作を行う権限がありません");
-  }
-  return { billingState, policy };
 }

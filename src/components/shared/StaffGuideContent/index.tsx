@@ -19,42 +19,42 @@ type GuideItem = {
   body: string;
 };
 
-const shiftreeDescription = "勤務先の店舗が、シフト希望の受付と確定シフトの共有に使うサービスです。";
-const staffGuideLead = "勤務先から案内が届いたら、リンクを開いて内容を確認してください。";
+const shiftreeDescription = "LINE・メールでシフト募集連絡、シフト確定連絡が届くサービスです。";
+const staffGuideLead = "専用アプリダウンロード不要でかんたんに利用できます。";
 
 const quickPoints: QuickPoint[] = [
   { icon: LuTabletSmartphone, label: "専用アプリ不要" },
-  { icon: LuLink, label: "メールやLINEのリンクから操作" },
+  { icon: LuLink, label: "メール・LINEから操作" },
 ];
 
 const guideItems: GuideItem[] = [
   {
     icon: LuBell,
-    title: "シフト募集のお知らせ",
-    body: "シフト希望の受付が始まると、提出依頼が届きます。\nまだ提出していない場合は、締切前にもお知らせします。",
+    title: "シフト募集開始のお知らせ",
+    body: "希望シフトの受付が始まると、提出依頼が届きます。",
   },
   {
     icon: LuCalendarCheck,
-    title: "確定シフトのお知らせ",
-    body: "勤務先でシフトが確定すると、自分の勤務予定を確認できるリンクが届きます。",
+    title: "シフト確定のお知らせ",
+    body: "シフトが確定すると、自分の勤務予定を確認できるリンクが届きます。",
   },
   {
     icon: LuMail,
-    title: "メールまたはLINEでお知らせします",
-    body: "お知らせは、登録済みのメールアドレスまたは連携済みのLINEへ送られます。\nLINEで送れない場合は、メールでお知らせすることがあります。",
+    title: "メール・LINEでお知らせします",
+    body: "お知らせは登録いただいたメール・LINEに届きます。",
   },
   {
     icon: LuSmartphone,
-    title: "届いたリンクから操作できます",
-    body: "専用アプリをインストールしなくても、シフト希望の提出や確定シフトの確認ができます。",
+    title: "専用アプリが不要です",
+    body: "専用アプリなしでシフトの提出・閲覧が可能です。",
   },
 ];
 
 const flowItems = [
   { icon: LuMail, labelLines: ["提出依頼が届く"] },
-  { icon: LuLink, labelLines: ["案内のリンクを", "開く"] },
-  { icon: LuCalendarCheck, labelLines: ["希望シフトを提出"] },
-  { icon: LuBell, labelLines: ["確定シフトを確認"] },
+  { icon: LuLink, labelLines: ["リンクから", "希望シフトを提出"] },
+  { icon: LuBell, labelLines: ["確定シフトが届く"] },
+  { icon: LuCalendarCheck, labelLines: ["出勤日を確認"] },
 ];
 
 type StaffGuideContentProps = {

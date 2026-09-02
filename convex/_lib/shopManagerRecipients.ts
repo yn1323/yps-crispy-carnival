@@ -1,7 +1,8 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { SHIFT_BOARD_STAFF_LIMIT } from "../constants";
-import { getStaffLineAccount } from "../line/service";
+import { resolveStaffLineRecipient } from "../line/service";
+import { type NotificationLineRecipient, toNotificationLineRecipient } from "../notificationOutbox/types";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
@@ -11,6 +12,12 @@ export type ShopManagerRecipient = {
   email: string;
   lineUserId: string | undefined;
   lineFollowing: boolean | undefined;
+  lineRecipient: NotificationLineRecipient | null;
+};
+
+export type ShopManagerRecipientResolution = {
+  recipients: ShopManagerRecipient[];
+  staffIds: Set<Id<"staffs">>;
 };
 
 export type ShopManagerUsers = {
@@ -35,6 +42,21 @@ export type ShopManagerContact = CanonicalShopManagerContact | LegacyShopManager
 export type ShopManagerContacts = {
   contacts: ShopManagerContact[];
   candidateLimitExceeded: boolean;
+};
+
+type ShopManagerNotificationContact = {
+  contact: ShopManagerContact;
+  staff: Doc<"staffs">;
+};
+
+type ShopManagerNotificationContacts = {
+  contacts: ShopManagerNotificationContact[];
+  scanComplete: boolean;
+};
+
+export type ShopManagerNotificationRecipientStatus = {
+  activeRecipientCount: number;
+  scanComplete: boolean;
 };
 
 async function loadCanonicalManagerContacts(
@@ -183,33 +205,25 @@ export async function loadShopManagerUsers(
 
 function resolveManagerStaff(contact: ShopManagerContact, activeStaffs: Doc<"staffs">[], staffScanComplete: boolean) {
   if (!staffScanComplete) return null;
+  if (contact.kind !== "canonical") return null;
 
-  if (contact.kind === "canonical") {
-    const candidates = activeStaffs.filter(
-      (staff) => staff.organizationPersonId === contact.person._id || staff.userId === contact.user._id,
-    );
-    if (candidates.length !== 1) return null;
-
-    const [staff] = candidates;
-    if (
-      staff.organizationId !== contact.organizationId ||
-      staff.organizationPersonId !== contact.person._id ||
-      (staff.userId !== undefined && staff.userId !== contact.user._id)
-    ) {
-      return null;
-    }
-    return staff;
-  }
-
-  const candidates = activeStaffs.filter((staff) => staff.userId === contact.user._id);
+  const candidates = activeStaffs.filter(
+    (staff) => staff.organizationPersonId === contact.person._id || staff.userId === contact.user._id,
+  );
   if (candidates.length !== 1) return null;
+
   const [staff] = candidates;
-  // canonical情報が一部だけ入ったstaffは誤紐付けを避け、person所属が確定するまでメールへ倒す。
-  if (staff.organizationId !== undefined || staff.organizationPersonId !== undefined) return null;
+  if (
+    staff.organizationId !== contact.organizationId ||
+    staff.organizationPersonId !== contact.person._id ||
+    (staff.userId !== undefined && staff.userId !== contact.user._id)
+  ) {
+    return null;
+  }
   return staff;
 }
 
-/** 配送直前にも同じ整合条件でLINE用staffを一意に解決する。 */
+/** 配送直前にも同じ整合条件で店舗所属staffを一意に解決する。 */
 export async function loadShopManagerStaffForContact(ctx: DbCtx, shopId: Id<"shops">, contact: ShopManagerContact) {
   const staffCandidates = await ctx.db
     .query("staffs")
@@ -222,18 +236,12 @@ export async function loadShopManagerStaffForContact(ctx: DbCtx, shopId: Id<"sho
   );
 }
 
-/**
- * 店舗のcanonicalな管理者所属を優先して通知受信者を組み立てる。
- * 論理削除・メール未設定のユーザーは除外し、マネージャー本人がスタッフとして
- * LINE連携済みなら lineUserId / lineFollowing を付与する。
- * マネージャー宛の日次ダイジェスト系通知（承認依頼・失敗リマインダー等）で共有する。
- */
-export async function loadShopManagerRecipients(
+async function loadShopManagerNotificationContacts(
   ctx: DbCtx,
   shopId: Id<"shops">,
   managerLimit: number,
-): Promise<ShopManagerRecipient[]> {
-  const [{ contacts }, staffCandidates] = await Promise.all([
+): Promise<ShopManagerNotificationContacts> {
+  const [managers, staffCandidates] = await Promise.all([
     loadShopManagerContacts(ctx, shopId, managerLimit),
     ctx.db
       .query("staffs")
@@ -243,26 +251,104 @@ export async function loadShopManagerRecipients(
   const staffScanComplete = staffCandidates.length <= SHIFT_BOARD_STAFF_LIMIT;
   const activeStaffs = staffCandidates.slice(0, SHIFT_BOARD_STAFF_LIMIT);
 
-  const recipients = await Promise.all(
-    contacts.map(async (contact) => {
+  if (!staffScanComplete) {
+    return { contacts: [], scanComplete: false };
+  }
+
+  const contacts = managers.contacts.flatMap((contact) => {
+    const staff = resolveManagerStaff(contact, activeStaffs, true);
+    return staff ? [{ contact, staff }] : [];
+  });
+  return {
+    contacts,
+    scanComplete: !managers.candidateLimitExceeded,
+  };
+}
+
+/**
+ * 店舗通知を受け取れる active manager × active staff の状態をPIIなしで返す。
+ * scanComplete=false は上限超過により0人と断定できない状態を表す。
+ */
+export async function loadShopManagerNotificationRecipientStatus(
+  ctx: DbCtx,
+  shopId: Id<"shops">,
+  managerLimit: number,
+): Promise<ShopManagerNotificationRecipientStatus> {
+  const result = await loadShopManagerNotificationContacts(ctx, shopId, managerLimit);
+  return {
+    activeRecipientCount: result.contacts.filter(({ contact }) => {
+      const email = contact.kind === "canonical" ? contact.person.email : contact.user.email;
+      return email.length > 0;
+    }).length,
+    scanComplete: result.scanComplete,
+  };
+}
+
+/** dry-run判定に使う、店舗通知の有効な管理者連絡先を返す。 */
+export async function loadShopManagerNotificationRecipientContacts(
+  ctx: DbCtx,
+  shopId: Id<"shops">,
+  managerLimit: number,
+): Promise<{ contacts: ShopManagerContact[]; scanComplete: boolean }> {
+  const result = await loadShopManagerNotificationContacts(ctx, shopId, managerLimit);
+  return {
+    contacts: result.contacts
+      .map(({ contact }) => contact)
+      .filter((contact) => (contact.kind === "canonical" ? contact.person.email : contact.user.email).length > 0),
+    scanComplete: result.scanComplete,
+  };
+}
+
+/**
+ * 店舗のcanonicalな管理者所属を優先して通知受信者を組み立てる。
+ * 対象店舗に有効なstaff所属がない管理者と、メール未設定の管理者は除外する。
+ * 管理者本人がスタッフとして
+ * LINE連携済みなら lineUserId / lineFollowing を付与する。
+ * マネージャー宛の日次ダイジェスト系通知（承認依頼・失敗リマインダー等）で共有する。
+ */
+export async function loadShopManagerRecipientResolution(
+  ctx: DbCtx,
+  shopId: Id<"shops">,
+  managerLimit: number,
+): Promise<ShopManagerRecipientResolution> {
+  const { contacts } = await loadShopManagerNotificationContacts(ctx, shopId, managerLimit);
+
+  const entries = await Promise.all(
+    contacts.map(async ({ contact, staff }) => {
       const { user } = contact;
       const name = contact.kind === "canonical" ? contact.person.name : user.name;
       const email = contact.kind === "canonical" ? contact.person.email : user.email;
       if (!email) return null;
 
-      const managerStaff = resolveManagerStaff(contact, activeStaffs, staffScanComplete);
-      const lineAccount = managerStaff ? await getStaffLineAccount(ctx, managerStaff._id) : null;
-      const validLineAccount = lineAccount?.shopId === shopId ? lineAccount : null;
+      const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId });
 
       return {
-        userId: user._id,
-        name,
-        email,
-        lineUserId: validLineAccount?.lineUserId,
-        lineFollowing: validLineAccount?.following,
+        recipient: {
+          userId: user._id,
+          name,
+          email,
+          lineUserId: lineRecipient?.lineUserId,
+          lineFollowing: lineRecipient?.following,
+          lineRecipient: toNotificationLineRecipient(lineRecipient),
+        },
+        staffId: staff._id,
       };
     }),
   );
 
-  return recipients.filter((recipient): recipient is ShopManagerRecipient => recipient !== null);
+  const resolvedEntries = entries.filter(
+    (entry): entry is { recipient: ShopManagerRecipient; staffId: Id<"staffs"> } => entry !== null,
+  );
+  return {
+    recipients: resolvedEntries.map(({ recipient }) => recipient),
+    staffIds: new Set(resolvedEntries.map(({ staffId }) => staffId)),
+  };
+}
+
+export async function loadShopManagerRecipients(
+  ctx: DbCtx,
+  shopId: Id<"shops">,
+  managerLimit: number,
+): Promise<ShopManagerRecipient[]> {
+  return (await loadShopManagerRecipientResolution(ctx, shopId, managerLimit)).recipients;
 }

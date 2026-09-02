@@ -1,4 +1,5 @@
 import type { Id } from "@/convex/_generated/dataModel";
+import type { RecruitmentLifecycleStatus } from "@/src/domains/shift/recruitmentLifecycle";
 
 export type Recruitment = {
   _id: Id<"recruitments">;
@@ -10,16 +11,12 @@ export type Recruitment = {
   status: "open" | "confirmed";
   confirmedAt: number | null;
   responseCount: number;
+  responseCountHasOverflow?: boolean;
   totalStaffCount: number;
+  totalStaffCountHasOverflow?: boolean;
 };
 
-export type RecruitmentDisplayStatus =
-  | "collecting"
-  | "action-required"
-  | "current"
-  | "confirmed"
-  | "ended"
-  | "ended-unconfirmed";
+export type RecruitmentDisplayStatus = RecruitmentLifecycleStatus;
 export type DashboardRecruitmentGroupKey = "current" | "actionRequired" | "collecting" | "confirmed" | "past";
 
 export type DashboardRecruitmentGroup = {
@@ -34,36 +31,15 @@ export type DashboardRecruitmentGroupsResult = {
   totalCount: number;
 };
 
-export type StaffManagerInvitationState =
-  | {
-      kind: "hidden";
-    }
-  | {
-      kind: "available";
-      mode: "addition" | "freeManagerExchange";
-      replacesStaleInvitation: boolean;
-    }
-  | {
-      kind: "pending";
-      mode: "addition" | "freeManagerExchange";
-    }
-  | {
-      kind: "unavailable";
-      reason: string;
-    };
-
 export type Staff = {
   _id: Id<"staffs">;
-  organizationPersonId: Id<"organizationPeople"> | null;
+  organizationPersonId: Id<"organizationPeople">;
   name: string;
   email: string;
   isManager: boolean;
   isLineLinked: boolean;
   isLineFollowing: boolean;
   excludedFromShift: boolean;
-  /** 移行済みスタッフは、削除時に事業者人物を残して操作中店舗の所属だけを終了する。 */
-  isOrganizationLinked: boolean;
-  managerInvitationState: StaffManagerInvitationState;
 };
 
 export type StaffRegistrationRequest = {
@@ -71,6 +47,16 @@ export type StaffRegistrationRequest = {
   name: string;
   email: string;
   createdAt: number;
+  /** rolling deploy中に旧backendから欠損した場合は、承認不可として扱う。 */
+  canApprove?: boolean;
+  approveDisabledReason?: string | null;
+};
+
+export type DashboardNavigation = {
+  onOpenBillingSettings: () => void;
+  onOpenShopDetail: (shopId: string) => void;
+  onOpenShiftBoard: (recruitmentId: Recruitment["_id"]) => void;
+  onOpenStaffDetail: (personId: Id<"organizationPeople">, visibleUserCount: number) => void;
 };
 
 export type DashboardAnnouncement = {

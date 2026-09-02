@@ -1,56 +1,19 @@
-import {
-  Badge,
-  Box,
-  Flex,
-  Heading,
-  HStack,
-  Icon,
-  Menu,
-  Portal,
-  Skeleton,
-  Stack,
-  Text,
-  VisuallyHidden,
-} from "@chakra-ui/react";
-import { LuBuilding2, LuCheck, LuChevronDown, LuSettings } from "react-icons/lu";
+import { Box, Flex, HStack, Icon, Menu, Portal, Skeleton, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
+import { LuCheck, LuChevronDown, LuSettings, LuStore } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
-import type { ShopContextOption } from "@/src/domains/shop/context";
 import type { OperationContextModel } from "./script";
 
 export type OperationContextViewProps = {
   model: OperationContextModel;
   onShopSelect: (shopId: string) => void;
   onOpenShopDetail: () => void;
-  onOpenGroupSettings?: () => void;
 };
 
-export const OperationContextView = ({
-  model,
-  onShopSelect,
-  onOpenShopDetail,
-  onOpenGroupSettings,
-}: OperationContextViewProps) => {
+export const OperationContextView = ({ model, onShopSelect, onOpenShopDetail }: OperationContextViewProps) => {
   return (
-    <Stack gap={3} pb={{ base: 4, lg: 6 }} borderBottomWidth="1px" borderColor="gray.200">
-      {onOpenGroupSettings && (
-        <Flex justify="flex-end" minW={0}>
-          <Button
-            type="button"
-            variant="ghost"
-            colorPalette="teal"
-            size="sm"
-            gap={1.5}
-            fontWeight="semibold"
-            flexShrink={0}
-            onClick={onOpenGroupSettings}
-          >
-            <LuBuilding2 aria-hidden />
-            グループ設定
-          </Button>
-        </Flex>
-      )}
-
+    <Stack gap={{ base: 2, lg: 3 }}>
+      <VisuallyHidden as="h1">{model.selectedShop.shopName}</VisuallyHidden>
       <Flex align="center" justify="space-between" direction="row" gap={3} minW={0}>
         <ShopSelector model={model} onSelect={onShopSelect} />
         <ShopDetailButton onOpenShopDetail={onOpenShopDetail} />
@@ -81,18 +44,30 @@ const ShopDetailButton = ({ onOpenShopDetail }: { onOpenShopDetail: () => void }
 const ShopSelector = ({ model, onSelect }: { model: OperationContextModel; onSelect: (shopId: string) => void }) => {
   if (!model.canSwitchShop) {
     return (
-      <HStack gap={2} flex={1} minW={0}>
-        <Heading as="h1" textStyle={{ base: "sectionTitle", md: "pageTitle" }} color="gray.900" truncate minW={0}>
-          {model.selectedShop.shopName}
-        </Heading>
-        <ShopStatusBadges shop={model.selectedShop} />
-      </HStack>
+      <Stack
+        gap={0}
+        flex={1}
+        minW={0}
+        minH={{ base: "48px", md: "56px" }}
+        px={{ base: 3, md: 4 }}
+        py={2.5}
+        textAlign="left"
+      >
+        <Text as="span" ps={7} fontSize="xs" lineHeight="short" color="fg.muted">
+          店舗
+        </Text>
+        <HStack as="span" gap={2} minW={0}>
+          <Icon as={LuStore} boxSize={5} color="gray.700" flexShrink={0} aria-hidden />
+          <Text as="span" flex={1} minW={0} fontSize="lg" fontWeight="bold" color="gray.900" truncate>
+            {model.selectedShop.shopName}
+          </Text>
+        </HStack>
+      </Stack>
     );
   }
 
   return (
     <Box flex={1} minW={0}>
-      <VisuallyHidden as="h1">{model.selectedShop.shopName}</VisuallyHidden>
       <Menu.Root positioning={{ placement: "bottom-start", gutter: 8 }}>
         <Menu.Trigger asChild>
           <Button
@@ -115,12 +90,17 @@ const ShopSelector = ({ model, onSelect }: { model: OperationContextModel; onSel
             cursor="pointer"
             _hover={{ bg: "gray.50", borderColor: "gray.400" }}
           >
-            <HStack gap={2} minW={0} textAlign="left">
-              <Text textStyle={{ base: "sectionTitle", md: "pageTitle" }} fontWeight="bold" truncate minW={0}>
-                {model.selectedShop.shopName}
+            <Stack gap={0} flex={1} minW={0} textAlign="left">
+              <Text as="span" ps={7} fontSize="xs" lineHeight="short" color="fg.muted">
+                店舗
               </Text>
-              <ShopStatusBadges shop={model.selectedShop} />
-            </HStack>
+              <HStack as="span" gap={2} minW={0}>
+                <Icon as={LuStore} boxSize={5} color="gray.700" flexShrink={0} aria-hidden />
+                <Text as="span" flex={1} minW={0} fontSize="lg" fontWeight="bold" truncate>
+                  {model.selectedShop.shopName}
+                </Text>
+              </HStack>
+            </Stack>
             <Icon as={LuChevronDown} boxSize={5} color="gray.500" flexShrink={0} />
           </Button>
         </Menu.Trigger>
@@ -128,44 +108,33 @@ const ShopSelector = ({ model, onSelect }: { model: OperationContextModel; onSel
         <Portal>
           <Menu.Positioner>
             <Menu.Content w="min(340px, calc(100vw - 24px))" maxH="min(520px, calc(100dvh - 96px))" overflowY="auto">
-              {model.groups.map((group, groupIndex) => (
-                <Box key={group.key}>
-                  {model.hasMultipleGroups && groupIndex > 0 && <Menu.Separator />}
-                  <Menu.ItemGroup>
-                    {model.hasMultipleGroups && (
-                      <Menu.ItemGroupLabel px={3} pt={2.5} pb={1} fontSize="xs" color="fg.muted" fontWeight="bold">
-                        {group.organizationName}
-                      </Menu.ItemGroupLabel>
-                    )}
-                    {group.shops.map((shop) => {
-                      const isSelected = shop.shopId === model.selectedShop.shopId;
-                      return (
-                        <Menu.Item
-                          key={shop.shopId}
-                          value={`shop-${shop.shopId}`}
-                          aria-current={isSelected ? "true" : undefined}
-                          cursor="pointer"
-                          px={3}
-                          py={2.5}
-                          onClick={() => onSelect(shop.shopId)}
-                        >
-                          <HStack w="full" gap={2.5} minW={0}>
-                            <Box w="18px" color="teal.600" flexShrink={0}>
-                              {isSelected && <LuCheck aria-hidden />}
-                            </Box>
-                            <HStack gap={2} flex={1} minW={0}>
-                              <Text fontSize="sm" fontWeight={isSelected ? "bold" : "medium"} truncate minW={0}>
-                                {shop.shopName}
-                              </Text>
-                              <ShopStatusBadges shop={shop} />
-                            </HStack>
-                          </HStack>
-                        </Menu.Item>
-                      );
-                    })}
-                  </Menu.ItemGroup>
-                </Box>
-              ))}
+              <Menu.ItemGroup>
+                {model.selectedGroup.shops.map((shop) => {
+                  const isSelected = shop.shopId === model.selectedShop.shopId;
+                  return (
+                    <Menu.Item
+                      key={shop.shopId}
+                      value={`shop-${shop.shopId}`}
+                      aria-current={isSelected ? "true" : undefined}
+                      cursor="pointer"
+                      px={3}
+                      py={2.5}
+                      onClick={() => onSelect(shop.shopId)}
+                    >
+                      <HStack w="full" gap={2.5} minW={0}>
+                        <Box w="18px" color="teal.600" flexShrink={0}>
+                          {isSelected && <LuCheck aria-hidden />}
+                        </Box>
+                        <HStack gap={2} flex={1} minW={0}>
+                          <Text fontSize="sm" fontWeight={isSelected ? "bold" : "medium"} truncate minW={0}>
+                            {shop.shopName}
+                          </Text>
+                        </HStack>
+                      </HStack>
+                    </Menu.Item>
+                  );
+                })}
+              </Menu.ItemGroup>
             </Menu.Content>
           </Menu.Positioner>
         </Portal>
@@ -174,43 +143,29 @@ const ShopSelector = ({ model, onSelect }: { model: OperationContextModel; onSel
   );
 };
 
-const ShopStatusBadges = ({ shop }: { shop: ShopContextOption }) => {
-  if (shop.shopStatus === "active" && shop.memberStatus !== "readOnly") return null;
-
-  return (
-    <HStack gap={1} flexShrink={0}>
-      {shop.shopStatus === "planSuspended" && (
-        <Badge colorPalette="orange" variant="subtle" size="sm">
-          プラン停止中
-        </Badge>
-      )}
-      {shop.shopStatus === "archived" && (
-        <Badge colorPalette="gray" variant="subtle" size="sm">
-          アーカイブ済み
-        </Badge>
-      )}
-      {shop.memberStatus === "readOnly" && (
-        <Badge colorPalette="gray" variant="subtle" size="sm">
-          閲覧のみ
-        </Badge>
-      )}
-    </HStack>
-  );
-};
-
 export const OperationContextSkeleton = () => (
-  <Stack
-    gap={3}
-    pb={{ base: 4, lg: 6 }}
-    borderBottomWidth="1px"
-    borderColor="gray.200"
-    aria-label="現在の店舗を読み込み中"
-  >
-    <Flex justify="flex-end">
-      <Skeleton h="32px" w="120px" />
-    </Flex>
+  <Stack gap={{ base: 2, lg: 3 }} aria-label="現在の店舗を読み込み中">
     <Flex align="center" justify="space-between" gap={3}>
-      <Skeleton h={{ base: "28px", md: "40px" }} w={{ base: "160px", md: "240px" }} maxW="60%" />
+      <Flex
+        align="center"
+        gap={2}
+        flex={1}
+        minW={0}
+        minH="64px"
+        px={{ base: 3, md: 4 }}
+        borderWidth="1px"
+        borderColor="gray.200"
+        borderRadius="lg"
+        bg="white"
+      >
+        <Stack flex={1} minW={0} gap={1}>
+          <Skeleton h="12px" w={{ base: "44px", md: "56px" }} ms={7} />
+          <HStack gap={2}>
+            <Skeleton boxSize="20px" borderRadius="sm" flexShrink={0} />
+            <Skeleton h="22px" w={{ base: "140px", md: "220px" }} maxW="70%" />
+          </HStack>
+        </Stack>
+      </Flex>
       <Skeleton h="44px" w="44px" flexShrink={0} />
     </Flex>
   </Stack>

@@ -1,6 +1,10 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { rateLimitTables } from "convex-helpers/server/rateLimit";
+import {
+  persistedShiftAssignmentValidator,
+  shiftConfirmationSnapshotAssignmentValidator,
+} from "./_lib/shiftAssignmentValidators";
 import { submissionPatternValidator } from "./_lib/submissionPattern";
 import {
   analyticsCadenceValidator,
@@ -43,9 +47,10 @@ import {
 } from "./notificationOutbox/schemas";
 import {
   organizationBillingStateValidator,
-  organizationInvitationPurposeValidator,
   organizationInvitationStatusValidator,
+  organizationLastPlanChangeValidator,
   organizationMemberStatusValidator,
+  organizationPaidPlanValidator,
   organizationPersonStatusValidator,
   organizationShopOperatingStatusValidator,
 } from "./organization/validators";
@@ -68,9 +73,10 @@ const schema = defineSchema({
     //   前提: 全deploymentでm025が完走し、verifyShopsの全pageで欠損・danglingが0件であること。
     //   対応: v.optional() を外して v.id("organizations") にする。
     organizationId: v.optional(v.id("organizations")),
-    // TODO[narrow]: Widen -> Migrate -> Narrow の2段階目。
-    //   前提: 全deploymentでm025が完走し、verifyShopsの全pageで欠損・danglingが0件であること。
-    //   対応: v.optional() を外して organizationShopOperatingStatusValidator にする。
+    // TODO[narrow]: 店舗status廃止のWiden -> Migrate -> Narrow 2段階目。
+    //   通常runtimeはこのlegacy fieldを読み書きしない。
+    //   全deploymentでm048が完走し、verifyShopsの全pageでstatus残存・legacy eventが0件になった後、
+    //   field・validator・status indexをまとめて削除する。
     operatingStatus: v.optional(organizationShopOperatingStatusValidator),
     name: v.string(),
     // TODO[narrow]: 全deploymentでm039のshop workerが完走し、verifyShopsの
@@ -93,7 +99,8 @@ const schema = defineSchema({
   })
     .index("by_organizationId", ["organizationId"])
     .index("by_organizationId_and_isDeleted", ["organizationId", "isDeleted"])
-    .index("by_organizationId_and_operatingStatus", ["organizationId", "operatingStatus"]),
+    .index("by_organizationId_and_operatingStatus", ["organizationId", "operatingStatus"])
+    .index("by_organizationId_and_operatingStatus_and_isDeleted", ["organizationId", "operatingStatus", "isDeleted"]),
 
   // ========================================
   // 事業者・人物・管理者所属
@@ -129,6 +136,8 @@ const schema = defineSchema({
     email: v.string(),
     emailNormalized: v.string(),
     status: organizationPersonStatusValidator,
+    // LINE連携の解除・再連携ごとに進める世代。既存rowの欠損は0として読む。
+    lineLinkGeneration: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -137,6 +146,35 @@ const schema = defineSchema({
     .index("by_organizationId_and_status", ["organizationId", "status"])
     .index("by_organizationId_and_userId", ["organizationId", "userId"])
     .index("by_userId_and_status", ["userId", "status"]),
+
+  // スタッフ並び順は既存の人物・スタッフtableへindex backfillを要求しないよう、
+  // 空で追加できる派生tableへ保持する。stateがない組織は従来順を正とする。
+  organizationStaffOrderStates: defineTable({
+    organizationId: v.id("organizations"),
+    revision: v.number(),
+    activatedAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_organizationId", ["organizationId"]),
+
+  organizationStaffOrderEntries: defineTable({
+    organizationId: v.id("organizations"),
+    organizationPersonId: v.id("organizationPeople"),
+    displayOrder: v.number(),
+  })
+    .index("by_organizationId_and_displayOrder", ["organizationId", "displayOrder"])
+    .index("by_organizationId_and_organizationPersonId", ["organizationId", "organizationPersonId"]),
+
+  shopStaffOrderEntries: defineTable({
+    organizationId: v.id("organizations"),
+    shopId: v.id("shops"),
+    staffId: v.id("staffs"),
+    organizationPersonId: v.id("organizationPeople"),
+    displayOrder: v.number(),
+  })
+    .index("by_shopId_and_displayOrder", ["shopId", "displayOrder"])
+    .index("by_shopId_and_staffId", ["shopId", "staffId"])
+    .index("by_organizationId_and_organizationPersonId", ["organizationId", "organizationPersonId"])
+    .index("by_organizationId_and_shopId", ["organizationId", "shopId"]),
 
   organizationMembers: defineTable({
     organizationId: v.id("organizations"),
@@ -157,14 +195,9 @@ const schema = defineSchema({
     organizationId: v.id("organizations"),
     email: v.string(),
     emailNormalized: v.string(),
-    // TODO[narrow]: Make required after m023 and verifyOrganizationInvitations have completed everywhere.
-    invitedName: v.optional(v.string()),
+    invitedName: v.string(),
     tokenDigest: v.string(),
     status: organizationInvitationStatusValidator,
-    // TODO[narrow]: m023でWiden前の招待を補完し、全deploymentのstatusと
-    //   verifyOrganizationInvitations全pageのmissingPurposeが0件であることを確認後、v.optional()を外し、
-    //   organizationInvitation/service.tsのmanagerAddition fallbackも削除する。
-    purpose: v.optional(organizationInvitationPurposeValidator),
     inviterMemberId: v.id("organizationMembers"),
     // 人物詳細またはスタッフ詳細から発行した招待だけ、アカウント連携対象の人物を固定する。
     // 外部の新規人物向け招待では未設定が正しい。
@@ -176,9 +209,6 @@ const schema = defineSchema({
     sentAt: v.optional(v.number()),
     linkedAt: v.optional(v.number()),
     linkedByPersonId: v.optional(v.id("organizationPeople")),
-    // TODO[narrow]: Remove accepted* after m023 has copied and unset all legacy values in every deployment.
-    acceptedAt: v.optional(v.number()),
-    acceptedByPersonId: v.optional(v.id("organizationPeople")),
     revokedAt: v.optional(v.number()),
     expiredAt: v.optional(v.number()),
     createdAt: v.number(),
@@ -189,12 +219,14 @@ const schema = defineSchema({
     .index("by_organizationId_and_emailNormalized_and_status", ["organizationId", "emailNormalized", "status"])
     .index("by_organizationId_and_targetPersonId_and_status", ["organizationId", "targetPersonId", "status"])
     .index("by_organizationId_and_status", ["organizationId", "status"])
+    .index("by_organizationId_and_status_and_expiresAt", ["organizationId", "status", "expiresAt"])
     .index("by_inviterMemberId_and_status", ["inviterMemberId", "status"])
     .index("by_expiresAt", ["expiresAt"]),
 
   organizationBillingStates: defineTable({
     organizationId: v.id("organizations"),
     state: organizationBillingStateValidator,
+    lastPlanChange: v.optional(organizationLastPlanChangeValidator),
     freeManagerPersonId: v.optional(v.id("organizationPeople")),
     freeShopId: v.optional(v.id("shops")),
     businessNotificationCutoffAt: v.optional(v.number()),
@@ -204,7 +236,7 @@ const schema = defineSchema({
     updatedAt: v.number(),
   }).index("by_organizationId", ["organizationId"]),
 
-  // 通常課金グループだけが持つStripe Customer対応。支払い不要プランでは行を作らない。
+  // 通常課金組織だけが持つStripe Customer対応。支払い不要プランでは行を作らない。
   organizationStripeCustomers: defineTable({
     organizationId: v.id("organizations"),
     stripeCustomerId: v.string(),
@@ -222,9 +254,7 @@ const schema = defineSchema({
     stripeSubscriptionId: v.string(),
     stripeSubscriptionItemId: v.optional(v.string()),
     stripePriceId: v.string(),
-    // TODO[narrow]: verifyStripeSubscriptionsの全pageとprovider snapshotでPriceを照合し、必要なら新しい
-    //   forward migrationでplanを補完してからrequired化する。現在のPriceやproを推測値として使わない。
-    plan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
+    plan: organizationPaidPlanValidator,
     livemode: v.boolean(),
     status: organizationStripeSubscriptionStatusValidator,
     providerGeneration: v.number(),
@@ -258,8 +288,9 @@ const schema = defineSchema({
     livemode: v.boolean(),
     expectedBillingVersion: v.optional(v.number()),
     providerGeneration: v.optional(v.number()),
-    sourcePlan: v.optional(v.union(v.literal("pro"), v.literal("business"))),
-    targetPlan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("business"))),
+    sourcePlan: v.optional(organizationPaidPlanValidator),
+    targetPlan: v.optional(v.union(v.literal("free"), organizationPaidPlanValidator)),
+    restrictAtPeriodEnd: v.optional(v.literal(true)),
     changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
     stripeSubscriptionIdSnapshot: v.optional(v.string()),
     stripeSubscriptionItemIdSnapshot: v.optional(v.string()),
@@ -267,13 +298,14 @@ const schema = defineSchema({
     targetStripePriceIdSnapshot: v.optional(v.string()),
     prorationDate: v.optional(v.number()),
     effectiveAt: v.optional(v.number()),
-    // cancelSubscription / reconcileSubscription の回収先を識別する。既存operationは猶予終了回収として扱う。
+    // cancelSubscription / reconcileSubscription の回収先を識別する。
     recoveryPurpose: v.optional(
       v.union(
         v.literal("trialContinuationCancellation"),
         v.literal("invalidTrialSubscriptionCancellation"),
         v.literal("scheduledFreeDeadline"),
         v.literal("scheduledPaidPlanDeadline"),
+        v.literal("paymentTermination"),
       ),
     ),
     // 無効なTrial Subscriptionのcleanupでは、作成元operationとの所有関係を固定する。
@@ -422,7 +454,32 @@ const schema = defineSchema({
       v.literal("actionRequired"),
       v.literal("completed"),
     ),
-    phase: v.union(v.literal("verifyProviderUser"), v.literal("deleteProviderUser"), v.literal("complete")),
+    phase: v.union(
+      v.literal("waitForOrganizationCleanup"),
+      v.literal("waitForSharedCleanup"),
+      v.literal("verifyProviderUser"),
+      v.literal("deleteProviderUser"),
+      v.literal("complete"),
+    ),
+    // 組織削除を伴う要求だけが持つ。optional wideningのため既存jobのbackfillは不要。
+    organizationCleanup: v.optional(
+      v.object({
+        organizationId: v.id("organizations"),
+        jobId: v.id("deletionCleanupJobs"),
+      }),
+    ),
+    // 共有組織からの退出で削除する通知履歴を追跡する。optional wideningのため既存jobのbackfillは不要。
+    sharedCleanup: v.optional(
+      v.object({
+        organizationId: v.id("organizations"),
+        targets: v.array(
+          v.object({
+            shopId: v.id("shops"),
+            staffId: v.id("staffs"),
+          }),
+        ),
+      }),
+    ),
     version: v.number(),
     attemptCount: v.number(),
     nextRunAt: v.number(),
@@ -483,7 +540,10 @@ const schema = defineSchema({
     .index("by_userId_and_shopId_and_isDeleted", ["userId", "shopId", "isDeleted"]),
 
   featureRequests: defineTable({
-    shopId: v.id("shops"),
+    // 送信時点で店舗が確定していればshopId、組織全体の文脈ならorganizationIdを保存する。
+    // public mutationでどちらか一方を必須にし、旧documentはshopIdのまま互換維持する。
+    organizationId: v.optional(v.id("organizations")),
+    shopId: v.optional(v.id("shops")),
     // 管理者要望はuserId、スタッフ要望はstaffIdで送信者をサーバー側から確定する。
     userId: v.optional(v.id("users")),
     staffId: v.optional(v.id("staffs")),
@@ -491,6 +551,7 @@ const schema = defineSchema({
     requestId: v.string(),
   })
     .index("by_shopId", ["shopId"])
+    .index("by_organizationId", ["organizationId"])
     .index("by_userId_and_requestId", ["userId", "requestId"])
     .index("by_staffId_and_requestId", ["staffId", "requestId"]),
 
@@ -501,7 +562,7 @@ const schema = defineSchema({
     // 単一IDまたは半角カンマ区切りの複数ID。表示制御用であり認可には使わない。
     organizationId: v.optional(v.string()),
     shopId: v.optional(v.string()),
-    // 半角カンマ区切りでtrial,free,pro,businessを指定する。支払い不要Businessもbusinessへ解決する。
+    // 半角カンマ区切りのcanonical plan ID。
     organizationPlan: v.optional(v.string()),
     title: v.string(),
     bodyHtml: v.string(),
@@ -515,15 +576,10 @@ const schema = defineSchema({
   // ========================================
   staffs: defineTable({
     shopId: v.id("shops"),
-    // TODO[narrow]: Widen -> Migrate -> Narrow の2段階目。
-    //   前提: 全deploymentでm026/m027が完走し、verifyStaffsとverifyOrganizationMigrationConflictsの
-    //   全pageが0件であること。
-    //   対応: v.optional() を外して v.id("organizations") にする。
+    // TODO[narrow]: 全deploymentでm050が完走し、verifyStaffsの全pageでcanonical ID anomalyが0件、
+    //   verifyOrganizationMigrationConflictsの未解決staff conflictが0件になった後にrequired化する。
+    //   Widen中に許可する旧形式は両fieldとも未設定だけであり、片方だけのrowは常に不整合として扱う。
     organizationId: v.optional(v.id("organizations")),
-    // TODO[narrow]: Widen -> Migrate -> Narrow の2段階目。
-    //   前提: 全deploymentでm026/m027が完走し、verifyStaffsとverifyOrganizationMigrationConflictsの
-    //   全pageが0件であること。
-    //   対応: v.optional() を外して v.id("organizationPeople") にする。
     organizationPersonId: v.optional(v.id("organizationPeople")),
     name: v.string(),
     email: v.string(),
@@ -543,6 +599,11 @@ const schema = defineSchema({
     .index("by_userId_and_isDeleted", ["userId", "isDeleted"])
     .index("by_organizationId", ["organizationId"])
     .index("by_organizationId_and_organizationPersonId", ["organizationId", "organizationPersonId"])
+    .index("by_organizationId_and_organizationPersonId_and_isDeleted", [
+      "organizationId",
+      "organizationPersonId",
+      "isDeleted",
+    ])
     .index("by_email", ["email"])
     .index("by_emailNormalized", ["emailNormalized"]),
 
@@ -559,12 +620,77 @@ const schema = defineSchema({
     isDeleted: v.boolean(),
   })
     .index("by_staffId", ["staffId"])
+    .index("by_staffId_and_isDeleted", ["staffId", "isDeleted"])
     .index("by_shopId", ["shopId"])
     .index("by_shopId_and_isDeleted", ["shopId", "isDeleted"])
     .index("by_lineUserId", ["lineUserId"])
     .index("by_lineUserId_and_isDeleted", ["lineUserId", "isDeleted"])
     // 分析KPI: 日次窓（JST）でのLINE連携完了のレンジスキャン用（再連携でもlinkedAtは初回値を保持）
     .index("by_linkedAt", ["linkedAt"]),
+
+  // LINE provider上の友だち状態はorganizationをまたいで一つだけ保持する。
+  lineProviderUsers: defineTable({
+    lineUserId: v.string(),
+    following: v.boolean(),
+    stateVersion: v.number(),
+    friendshipObservedAt: v.number(),
+    friendshipObservationSource: v.union(v.literal("oauth"), v.literal("webhook")),
+    lastWebhookAt: v.optional(v.number()),
+    lastWebhookEventId: v.optional(v.string()),
+    lastWebhookEventTimestamp: v.optional(v.number()),
+    isDeleted: v.boolean(),
+  }).index("by_lineUserId_and_isDeleted", ["lineUserId", "isDeleted"]),
+
+  // organizationごとの明示連携。同じpersonの全店舗所属でこの一行を共有する。
+  organizationPersonLineLinks: defineTable({
+    organizationId: v.id("organizations"),
+    organizationPersonId: v.id("organizationPeople"),
+    lineProviderUserId: v.id("lineProviderUsers"),
+    generation: v.number(),
+    linkedAt: v.number(),
+    isDeleted: v.boolean(),
+    unlinkedAt: v.optional(v.number()),
+  })
+    .index("by_organizationPersonId_and_isDeleted", ["organizationPersonId", "isDeleted"])
+    .index("by_organizationId_and_lineProviderUserId_and_isDeleted", [
+      "organizationId",
+      "lineProviderUserId",
+      "isDeleted",
+    ])
+    .index("by_lineProviderUserId_and_isDeleted", ["lineProviderUserId", "isDeleted"])
+    .index("by_organizationId_and_isDeleted", ["organizationId", "isDeleted"]),
+
+  // 友だち状態変更をorganization link単位へboundedに反映する進捗。
+  // provider IDだけを保持し、raw LINE IDやtoken、人物PIIは保存しない。
+  lineFriendshipFanoutJobs: defineTable({
+    lineProviderUserId: v.id("lineProviderUsers"),
+    stateVersion: v.number(),
+    following: v.boolean(),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("processing"),
+      v.literal("retrying"),
+      v.literal("actionRequired"),
+      v.literal("completed"),
+      v.literal("superseded"),
+    ),
+    cursor: v.optional(v.string()),
+    version: v.number(),
+    attemptCount: v.number(),
+    nextRunAt: v.number(),
+    leaseId: v.optional(v.string()),
+    leaseExpiresAt: v.optional(v.number()),
+    lastErrorCode: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    expiresAt: v.number(),
+  })
+    .index("by_status_and_nextRunAt", ["status", "nextRunAt"])
+    .index("by_status_and_leaseExpiresAt", ["status", "leaseExpiresAt"])
+    .index("by_status_and_expiresAt", ["status", "expiresAt"])
+    .index("by_lineProviderUserId_and_stateVersion", ["lineProviderUserId", "stateVersion"])
+    .index("by_expiresAt", ["expiresAt"]),
 
   // message Webhookの外部Reply APIを一回だけ実行するためのreceipt。
   // reply token、送信元、message ID、本文は保存しない。
@@ -582,7 +708,8 @@ const schema = defineSchema({
     revokedAt: v.optional(v.number()),
   })
     .index("by_token", ["token"])
-    .index("by_shopId", ["shopId"]),
+    .index("by_shopId", ["shopId"])
+    .index("by_shopId_and_revokedAt", ["shopId", "revokedAt"]),
 
   staffRegistrationRequests: defineTable({
     shopId: v.id("shops"),
@@ -692,15 +819,7 @@ const schema = defineSchema({
   // ========================================
   // 確定シフト割当
   // ========================================
-  shiftAssignments: defineTable({
-    recruitmentId: v.id("recruitments"),
-    staffId: v.id("staffs"),
-    date: v.string(), // "2026-01-20"
-    startTime: v.string(), // "10:00"
-    endTime: v.string(), // "18:00"
-    positionId: v.id("positions"),
-    optionId: v.optional(v.string()), // 勤務区分募集で選択された区分ID
-  })
+  shiftAssignments: defineTable(persistedShiftAssignmentValidator)
     .index("by_recruitmentId", ["recruitmentId"])
     .index("by_recruitmentId_staffId", ["recruitmentId", "staffId"])
     .index("by_recruitmentId_date", ["recruitmentId", "date"])
@@ -710,15 +829,7 @@ const schema = defineSchema({
     recruitmentId: v.id("recruitments"),
     staffId: v.id("staffs"),
     signature: v.string(),
-    assignments: v.array(
-      v.object({
-        date: v.string(),
-        startTime: v.string(),
-        endTime: v.string(),
-        positionId: v.id("positions"),
-        optionId: v.optional(v.string()),
-      }),
-    ),
+    assignments: v.array(shiftConfirmationSnapshotAssignmentValidator),
     sentAt: v.number(),
     updatedAt: v.number(),
   })
@@ -819,6 +930,10 @@ const schema = defineSchema({
   lineLinkTokens: defineTable({
     staffId: v.id("staffs"),
     shopId: v.id("shops"),
+    // TODO[narrow]: canonical LINE切替と旧token drain完了後にrequired化する。
+    organizationId: v.optional(v.id("organizations")),
+    organizationPersonId: v.optional(v.id("organizationPeople")),
+    lineLinkGenerationAtIssue: v.optional(v.number()),
     token: v.string(), // UUID v4
     expiresAt: v.number(), // 発行から72時間
     usedAt: v.optional(v.number()),
@@ -827,6 +942,7 @@ const schema = defineSchema({
     .index("by_token", ["token"])
     .index("by_staffId", ["staffId"])
     .index("by_staffId_and_expiresAt", ["staffId", "expiresAt"])
+    .index("by_organizationPersonId_and_expiresAt", ["organizationPersonId", "expiresAt"])
     .index("by_shopId", ["shopId"])
     .index("by_expiresAt", ["expiresAt"]),
 
@@ -902,6 +1018,9 @@ const schema = defineSchema({
     purpose: v.optional(notificationPurposeValidator),
     recruitmentId: v.optional(v.id("recruitments")),
     staffId: v.optional(v.id("staffs")),
+    // canonical LINE recipientのenqueue時snapshot。LINE以外では未設定が正しい。
+    organizationPersonLineLinkId: v.optional(v.id("organizationPersonLineLinks")),
+    organizationPersonLineGenerationAtEnqueue: v.optional(v.number()),
     userId: v.optional(v.id("users")),
     notificationContext: v.optional(v.string()),
     deliverySuppressed: v.optional(v.boolean()),
@@ -943,6 +1062,16 @@ const schema = defineSchema({
     .index("by_status_failedAt", ["status", "failedAt"])
     .index("by_recruitmentId_and_status_and_sentAt", ["recruitmentId", "status", "sentAt"])
     .index("by_recruitmentId_and_status_and_failedAt", ["recruitmentId", "status", "failedAt"]),
+
+  // Resendの一時的なdelivery_delayedを、即時失敗へ昇格させず猶予するための運用状態。
+  // 既存Outboxへ新規indexを追加せず、新規の空tableで期限順のbounded recoveryを成立させる。
+  notificationResendDelayedFailureDeadlines: defineTable({
+    outboxId: v.id("notificationOutbox"),
+    dueAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_outboxId", ["outboxId"])
+    .index("by_dueAt", ["dueAt"]),
 
   notificationHistory: defineTable({
     outboxId: v.id("notificationOutbox"),

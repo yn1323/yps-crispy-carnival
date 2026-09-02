@@ -1,7 +1,7 @@
 import { Stack } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import type { ShopContextOption } from "@/src/domains/shop/context";
 import { buildOperationContextModel } from "./script";
 import { OperationContextView } from "./View";
@@ -9,20 +9,14 @@ import { OperationContextView } from "./View";
 const shop = (overrides: Partial<ShopContextOption>): ShopContextOption => ({
   shopId: "shop-a-1",
   shopName: "A店舗",
-  shopStatus: "active",
   organizationId: "org-a",
   organizationName: "東日本事業部",
-  organizationPlan: "pro",
-  memberStatus: "active",
+  organizationPlan: "standard",
   ...overrides,
 });
 
-const multipleShops = [
-  shop({}),
-  shop({ shopId: "shop-a-2", shopName: "B店舗" }),
-  shop({ shopId: "shop-b-1", shopName: "C店舗", organizationId: "org-b", organizationName: "関西事業部" }),
-  shop({ shopId: "shop-b-2", shopName: "D店舗", organizationId: "org-b", organizationName: "関西事業部" }),
-];
+const multipleShops = [shop({}), shop({ shopId: "shop-a-2", shopName: "B店舗" })];
+const longShopName = "駅前商業施設内レストランとても長い店舗名";
 
 const createModel = (shops: readonly ShopContextOption[], selectedShopId: string) => {
   const model = buildOperationContextModel(shops, selectedShopId);
@@ -46,7 +40,6 @@ const meta = {
   args: {
     onShopSelect: () => {},
     onOpenShopDetail: () => {},
-    onOpenGroupSettings: () => {},
   },
 } satisfies Meta<typeof OperationContextView>;
 
@@ -65,39 +58,9 @@ export const SingleGroupMultipleShops: Story = {
   },
 };
 
-export const MultipleGroupsMultipleShops: Story = {
+export const LongShopName: Story = {
   args: {
-    model: createModel(multipleShops, "shop-a-1"),
-  },
-};
-
-export const SettingsEntryHidden: Story = {
-  args: {
-    model: createModel(multipleShops, "shop-a-1"),
-    onOpenGroupSettings: undefined,
-  },
-  parameters: {
-    screenshot: { skip: true },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.queryByRole("button", { name: "グループ設定" })).toBeNull();
-    await expect(canvas.getByRole("button", { name: "店舗詳細を開く" })).toBeVisible();
-  },
-};
-
-export const LongNamesReadOnly: Story = {
-  args: {
-    model: createModel(
-      [
-        shop({
-          shopName: "駅前商業施設内レストランとても長い店舗名",
-          organizationName: "株式会社とても長い名前のフードサービスグループ",
-          memberStatus: "readOnly",
-        }),
-      ],
-      "shop-a-1",
-    ),
+    model: createModel([shop({ shopName: longShopName })], "shop-a-1"),
   },
 };
 
@@ -105,7 +68,7 @@ export const Mobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   args: {
-    model: createModel(multipleShops, "shop-a-1"),
+    model: createModel([shop({ shopName: longShopName }), shop({ shopId: "shop-a-2", shopName: "B店舗" })], "shop-a-1"),
   },
 };
 
@@ -122,12 +85,8 @@ export const SelectionBehavior: Story = {
     const body = within(document.body);
 
     await userEvent.click(canvas.getByRole("button", { name: "店舗を切り替える（現在：A店舗）" }));
-    await userEvent.click(await body.findByRole("menuitem", { name: /C店舗/ }));
-    await waitFor(() => expect(canvas.getByRole("button", { name: "店舗を切り替える（現在：C店舗）" })).toBeVisible());
-
-    await userEvent.click(canvas.getByRole("button", { name: "店舗を切り替える（現在：C店舗）" }));
-    await userEvent.click(await body.findByRole("menuitem", { name: /D店舗/ }));
-    await waitFor(() => expect(canvas.getByRole("button", { name: "店舗を切り替える（現在：D店舗）" })).toBeVisible());
+    await userEvent.click(await body.findByRole("menuitem", { name: /B店舗/ }));
+    await expect(await canvas.findByRole("button", { name: "店舗を切り替える（現在：B店舗）" })).toBeVisible();
   },
 };
 
@@ -137,10 +96,10 @@ const SelectionBehaviorStory = () => {
 
   return (
     <OperationContextView
+      key={model.selectedShop.shopId}
       model={model}
       onShopSelect={setSelectedShopId}
       onOpenShopDetail={() => {}}
-      onOpenGroupSettings={() => {}}
     />
   );
 };

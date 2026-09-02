@@ -11,6 +11,8 @@ import type { ShopDetailData } from "./types";
 type Input = {
   shop: ShopDetailData;
   onDeleted: () => void;
+  expectedOrganizationId?: Id<"organizations">;
+  clearLegacySelectedShop?: boolean;
 };
 
 export function useShopDeletionController(input: Input) {
@@ -33,9 +35,10 @@ export function useShopDeletionController(input: Input) {
         shopId: latest.shop.id as Id<"shops">,
         confirmShopId: latest.shop.id as Id<"shops">,
         requestId,
+        ...(latest.expectedOrganizationId ? { expectedOrganizationId: latest.expectedOrganizationId } : {}),
       });
       deleteRequestIdsRef.current.delete(latest.shop.id);
-      if (selectedShop?.shopId === latest.shop.id) setSelectedShop(null);
+      if (latest.clearLegacySelectedShop !== false && selectedShop?.shopId === latest.shop.id) setSelectedShop(null);
       showSuccessToast({ title: "店舗の削除を受け付けました" });
       latest.onDeleted();
       return true;

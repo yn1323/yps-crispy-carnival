@@ -1,4 +1,6 @@
+import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { modules, schema } from "../_test/setup.test-helper";
 import {
   type AccountDeletionAuthAdapter,
   type ClerkRequestStateLike,
@@ -69,6 +71,55 @@ describe("accountDeletion/httpActions", () => {
     expect(runMutation).not.toHaveBeenCalled();
   });
 
+  it("所属を含む削除ではscopeとpreview fingerprintだけを認証済みmutationへ渡す", async () => {
+    const runMutation = vi.fn(async () => ({ status: "accepted" as const }));
+    const previewFingerprint = "a".repeat(64);
+    const response = await handleAccountDeletionRequest(
+      { runMutation } as unknown as Parameters<typeof handleAccountDeletionRequest>[0],
+      validRequest({ scope: "accountAndAssociations", previewFingerprint }),
+      fakeAdapter(),
+    );
+
+    expect(response.status).toBe(202);
+    expect(runMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        requestId: REQUEST_ID,
+        scope: "accountAndAssociations",
+        previewFingerprint,
+      }),
+    );
+  });
+
+  it.each([
+    ["scopeだけ", { scope: "accountAndAssociations" }],
+    ["preview fingerprintだけ", { previewFingerprint: "a".repeat(64) }],
+    ["短いpreview fingerprint", { scope: "accountAndAssociations", previewFingerprint: "a".repeat(63) }],
+    ["非hexのpreview fingerprint", { scope: "accountAndAssociations", previewFingerprint: "g".repeat(64) }],
+    ["未知のscope", { scope: "accountOnly", previewFingerprint: "a".repeat(64) }],
+    [
+      "余分なtarget ID",
+      {
+        scope: "accountAndAssociations",
+        previewFingerprint: "a".repeat(64),
+        organizationId: "attacker-selected",
+      },
+    ],
+  ] as const)("不正なcombined payload（%s）は認証・mutation前に拒否する", async (_label, body) => {
+    const adapter = fakeAdapter();
+    const runMutation = vi.fn();
+    const response = await handleAccountDeletionRequest(
+      { runMutation } as unknown as Parameters<typeof handleAccountDeletionRequest>[0],
+      validRequest(body),
+      adapter,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: "invalid_request" });
+    expect(adapter.authenticate).not.toHaveBeenCalled();
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["POST以外", () => requestWith({ method: "GET", body: null }), 405],
     ["content-typeなし", () => requestWith({ omitContentType: true }), 400],
@@ -129,6 +180,49 @@ describe("accountDeletion/httpActions", () => {
     expect(response.headers.get("access-control-allow-methods")).toBe("POST, OPTIONS");
     expect(response.headers.get("access-control-allow-headers")).toBe("authorization, content-type");
     expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("HTTP routerがOPTIONSをaccount deletion handlerへ接続する", async () => {
+    const t = convexTest(schema, modules);
+
+    const optionsResponse = await t.fetch("/account-deletion/request", {
+      method: "OPTIONS",
+      headers: { origin: ORIGIN },
+    });
+
+    expect(optionsResponse.status).toBe(204);
+    expect(optionsResponse.headers.get("access-control-allow-origin")).toBe(ORIGIN);
+    expect(optionsResponse.headers.get("access-control-allow-methods")).toBe("POST, OPTIONS");
+    expect(optionsResponse.headers.get("access-control-allow-headers")).toBe("authorization, content-type");
+    expect(optionsResponse.headers.get("vary")).toBe("Origin");
+    expect(optionsResponse.headers.get("cache-control")).toBe("no-store");
+
+    const deniedResponse = await t.fetch("/account-deletion/request", {
+      method: "OPTIONS",
+      headers: { origin: "https://evil.example" },
+    });
+    expect(deniedResponse.status).toBe(403);
+    expect(deniedResponse.headers.get("access-control-allow-origin")).toBeNull();
+    expect(deniedResponse.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("HTTP routerがPOSTをaccount deletion handlerへ接続する", async () => {
+    const t = convexTest(schema, modules);
+
+    const postResponse = await t.fetch("/account-deletion/request", {
+      method: "POST",
+      headers: {
+        origin: ORIGIN,
+        authorization: "Bearer session-token-not-forwarded",
+        "content-type": "application/json",
+      },
+      body: "{",
+    });
+
+    expect(postResponse.status).toBe(400);
+    expect(postResponse.headers.get("access-control-allow-origin")).toBe(ORIGIN);
+    expect(postResponse.headers.get("cache-control")).toBe("no-store");
+    await expect(postResponse.json()).resolves.toEqual({ error: "invalid_request" });
   });
 
   it("不許可OriginをCORS許可せずno-storeで拒否する", async () => {

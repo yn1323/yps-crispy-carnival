@@ -1,14 +1,17 @@
 import { v } from "convex/values";
 
-export const ANALYTICS_SCHEMA_VERSION = 1;
-export const ANALYTICS_CALCULATION_VERSION = 1;
+export const ANALYTICS_SCHEMA_VERSION = 2;
+export const ANALYTICS_PAYLOAD_VERSION = 2;
+export const ANALYTICS_CALCULATION_VERSION = 2;
 
-export const analyticsPlanValidator = v.union(
+export const analyticsCanonicalPlanValidator = v.union(
   v.literal("trial"),
   v.literal("free"),
+  v.literal("standard"),
   v.literal("pro"),
-  v.literal("business"),
 );
+
+export const analyticsPlanValidator = analyticsCanonicalPlanValidator;
 
 export const analyticsCompletenessValidator = v.union(
   v.literal("complete"),
@@ -165,13 +168,6 @@ export const analyticsSourceEventPayloadValidator = v.union(
     validTo: v.optional(v.number()),
   }),
   v.object({
-    kind: v.literal("managerMembershipExchange"),
-    formerPersonId: v.id("organizationPeople"),
-    nextPersonId: v.id("organizationPeople"),
-    validFrom: v.number(),
-    nextPersonFirstObservedAt: v.number(),
-  }),
-  v.object({
     kind: v.literal("staffMembership"),
     staffId: v.id("staffs"),
     organizationPersonId: v.optional(v.id("organizationPeople")),
@@ -207,13 +203,13 @@ export const analyticsSourceEventPayloadValidator = v.union(
         v.object({
           kind: v.literal("shop"),
           shopId: v.id("shops"),
-          status: v.union(v.literal("active"), v.literal("archived"), v.literal("planSuspended")),
+          status: v.union(v.literal("active"), v.literal("archived")),
         }),
         v.object({
           kind: v.literal("manager"),
           memberId: v.id("organizationMembers"),
           personId: v.id("organizationPeople"),
-          status: v.union(v.literal("active"), v.literal("readOnly"), v.literal("removed")),
+          status: v.union(v.literal("active"), v.literal("removed")),
         }),
       ),
     ),

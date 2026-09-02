@@ -1,11 +1,13 @@
 import { Box, Container, Heading, Icon, Stack, Text, VStack } from "@chakra-ui/react";
-import { LuChevronRight, LuMousePointerClick } from "react-icons/lu";
+import { LuBookOpen, LuChevronRight } from "react-icons/lu";
+import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
 import { Button } from "@/src/components/ui/Button";
+import { TrialReassurance } from "../TrialReassurance";
 
 export const BottomCtaSection = () => (
   <Box as="section" bg="#eaf8f6" py={14} overflow="hidden">
     <Container maxW="7xl">
-      <VStack align="start" gap={6}>
+      <VStack align="center" gap={6} textAlign="center">
         <Heading as="h2" fontSize={{ base: "xl", sm: "2xl", md: "3xl" }} lineHeight="1.35" letterSpacing="0">
           シフトのやり取りを
           <Box as="span" display="block" color="teal.700">
@@ -15,12 +17,15 @@ export const BottomCtaSection = () => (
         <Text color="gray.800" fontSize="md" lineHeight="1.9" fontWeight="semibold" maxW="620px">
           希望シフトを集めるところから、確定を知らせるところまで。
           <br />
-          まずは無料で、毎月のシフト連絡をラクにしませんか。
+          まずは2か月、実際の店舗とスタッフで試してみませんか。
         </Text>
-        <Stack direction={{ base: "column", md: "row" }} gap={4} w={{ base: "full", md: "auto" }}>
-          <BottomButton href="/signup" label="無料で試してみる" primary />
-          <BottomButton href="/demo/flow" label="登録不要でデモを見る" />
-        </Stack>
+        <VStack align="center" gap={3} w={{ base: "full", md: "auto" }}>
+          <Stack direction={{ base: "column", md: "row" }} gap={4} w={{ base: "full", md: "auto" }}>
+            <BottomButton href="/signup" label="シフトリをはじめる" primary />
+            <BottomButton href="/help/scenarios/shift-management" label="基本の使い方を見る" />
+          </Stack>
+          <TrialReassurance />
+        </VStack>
       </VStack>
     </Container>
   </Box>
@@ -39,9 +44,18 @@ const BottomButton = ({ href, label, primary = false }: { href: string; label: s
     borderRadius="md"
     fontWeight="bold"
   >
-    <a href={href}>
-      {primary ? <Icon as={LuChevronRight} boxSize={5} /> : <Icon as={LuMousePointerClick} boxSize={5} />}
-      {label}
-    </a>
+    <MeasurementBoundaryLink href={href} measurementCtaId={primary ? "bottom_signup" : "bottom_help"}>
+      {primary ? (
+        <>
+          {label}
+          <Icon as={LuChevronRight} boxSize={5} />
+        </>
+      ) : (
+        <>
+          <Icon as={LuBookOpen} boxSize={5} />
+          {label}
+        </>
+      )}
+    </MeasurementBoundaryLink>
   </Button>
 );

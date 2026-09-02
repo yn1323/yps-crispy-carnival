@@ -1,4 +1,4 @@
-import { Field, Text, Textarea, VStack } from "@chakra-ui/react";
+import { Field, Text, VStack } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "convex/react";
 import { makeFunctionReference } from "convex/server";
@@ -11,8 +11,10 @@ import { featureRequestCommentSchema } from "@/convex/featureRequest/schemas";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Dialog, useDialog } from "@/src/components/ui/Dialog";
+import { Textarea } from "@/src/components/ui/FormControls";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { type AppFeatureRequestScope, resolveAppFeatureRequestShopId } from "./appScope";
 
 const formSchema = z.object({ comment: featureRequestCommentSchema });
 type FormData = z.infer<typeof formSchema>;
@@ -28,6 +30,17 @@ const submitStaffFeatureRequestRef = makeFunctionReference<
   { comment: string; requestId: string; sessionToken: string; accessKind: "submit" },
   { status: "accepted" }
 >("featureRequest/mutations:submitFromStaff");
+
+const submitOrganizationFeatureRequestRef = makeFunctionReference<
+  "mutation",
+  {
+    expectedOrganizationId: Id<"organizations">;
+    shopId?: Id<"shops">;
+    comment: string;
+    requestId: string;
+  },
+  { status: "accepted" }
+>("featureRequest/mutations:submitForOrganization");
 
 type FeatureRequestDialogProps = {
   onSubmit: (data: { comment: string; requestId: string }) => Promise<void>;
@@ -109,6 +122,7 @@ export function FeatureRequestDialog({ onSubmit }: FeatureRequestDialogProps) {
                 bg="white"
                 minH="120px"
                 maxLength={FEATURE_REQUEST_COMMENT_MAX_LENGTH}
+                placeholder="スタッフの希望シフトを一覧で確認したいです。"
                 resize="vertical"
               />
               <Text alignSelf="flex-end" color="fg.muted" fontSize="xs">
@@ -120,6 +134,40 @@ export function FeatureRequestDialog({ onSubmit }: FeatureRequestDialogProps) {
         </form>
       </Dialog>
     </>
+  );
+}
+
+type AppFeatureRequestDialogProps = {
+  scope: AppFeatureRequestScope;
+  onSubmit: (data: { shopId?: Id<"shops">; comment: string; requestId: string }) => Promise<void>;
+};
+
+/** 認証済みappの画面scopeは内部送信だけに使い、利用者には要望本文だけを入力してもらう。 */
+export function AppFeatureRequestDialog({ scope, onSubmit }: AppFeatureRequestDialogProps) {
+  const shopId = resolveAppFeatureRequestShopId(scope);
+
+  return (
+    <FeatureRequestDialog
+      onSubmit={async (data) => {
+        await onSubmit(shopId ? { ...data, shopId } : data);
+      }}
+    />
+  );
+}
+
+type AppFeatureRequestActionProps = {
+  expectedOrganizationId: Id<"organizations">;
+  scope: AppFeatureRequestScope;
+};
+
+/** canonicalな組織と内部scopeだけをapp用mutationへ渡すheader action。 */
+export function AppFeatureRequestAction({ expectedOrganizationId, scope }: AppFeatureRequestActionProps) {
+  const submit = useMutation(submitOrganizationFeatureRequestRef);
+  return (
+    <AppFeatureRequestDialog
+      scope={scope}
+      onSubmit={async (data) => void (await submit({ ...data, expectedOrganizationId }))}
+    />
   );
 }
 
@@ -136,3 +184,5 @@ export function StaffFeatureRequestAction({ sessionToken }: { sessionToken: stri
     />
   );
 }
+
+export type { AppFeatureRequestScope, AppFeatureRequestShop } from "./appScope";

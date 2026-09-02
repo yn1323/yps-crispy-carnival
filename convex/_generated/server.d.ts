@@ -22,9 +22,14 @@ import {
 import type { DataModel } from "./dataModel.js";
 
 /**
- * Typesafe environment variables declared in `convex.config.ts`.
+ * Typesafe environment variables.
+ *
+ * This includes platform-provided env vars and any variables declared in
+ * `convex.config.ts`.
  */
 type Env = {
+  readonly CONVEX_CLOUD_URL: string;
+  readonly CONVEX_SITE_URL: string;
   readonly ANALYTICS_DEPLOYMENT_LABEL: string | undefined;
   readonly ANALYTICS_EXPECTED_REVISION: string | undefined;
   readonly ANALYTICS_NIGHTLY_CRON_ENABLED: string | undefined;
@@ -33,10 +38,17 @@ type Env = {
   readonly APP_URL: string | undefined;
   readonly CLERK_JWT_ISSUER_DOMAIN: string | undefined;
   readonly CLERK_SECRET_KEY: string | undefined;
-  readonly STRIPE_BUSINESS_PRICE_ID: string | undefined;
+  readonly DEBUG_TRIAL_DURATION_DAYS: string | undefined;
+  readonly DEBUG_TRIAL_DURATION_DEPLOYMENT_URL: string | undefined;
+  readonly DEVELOPMENT_SEED_DEPLOYMENT_URL: string | undefined;
+  readonly DEVELOPMENT_SEED_ENABLED: string | undefined;
+  readonly DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER: string | undefined;
+  readonly NOTIFICATION_DELIVERY_MODE: string | undefined;
+  readonly PROMOTION_COMPLIMENTARY_PRO_CODE: string | undefined;
   readonly STRIPE_PORTAL_CONFIGURATION_ID: string | undefined;
   readonly STRIPE_PRO_PRICE_ID: string | undefined;
   readonly STRIPE_SECRET_KEY: string | undefined;
+  readonly STRIPE_STANDARD_PRICE_ID: string | undefined;
   readonly STRIPE_WEBHOOK_SECRET: string | undefined;
   readonly VITE_CLERK_PUBLISHABLE_KEY: string | undefined;
 };
@@ -116,7 +128,10 @@ export declare const internalAction: ActionBuilder<DataModel, "internal">;
 export declare const httpAction: HttpActionBuilder;
 
 /**
- * Typesafe environment variables declared in `convex.config.ts`.
+ * Typesafe environment variables.
+ *
+ * This includes platform-provided env vars and any variables declared in
+ * `convex.config.ts`.
  */
 export declare const env: Env;
 

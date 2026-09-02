@@ -8,7 +8,6 @@ import {
   Heading,
   HStack,
   Icon,
-  Input,
   Spinner,
   Stack,
   Text,
@@ -27,6 +26,8 @@ import {
 } from "@/src/components/features/AuthPage/EmailCodeVerificationForm";
 import { HEADER_HEIGHT, Header } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
+import { Input } from "@/src/components/ui/FormControls";
+import { ShiftoriLoading } from "@/src/components/ui/ShiftoriLoading";
 
 const invitationEmailSchema = z.object({ email: requiredEmailSchema });
 type InvitationEmailValues = z.infer<typeof invitationEmailSchema>;
@@ -49,6 +50,7 @@ export type ManagerInvitationAcceptanceViewState =
       kind: "verificationRequired";
       step: "input";
       errorMessage: string | null;
+      requiresLogout: boolean;
       isBusy: boolean;
     }
   | {
@@ -78,6 +80,7 @@ export type ManagerInvitationAcceptanceViewProps = {
     onVerifyCode: (values: EmailVerificationValues) => void | Promise<void>;
     onResendCode: () => void | Promise<void>;
     onBackToVerificationInput: () => void;
+    onLogout: () => void;
     onGoToDashboard: () => void;
   };
 };
@@ -85,7 +88,7 @@ export type ManagerInvitationAcceptanceViewProps = {
 export function ManagerInvitationAcceptanceView({ state, actions }: ManagerInvitationAcceptanceViewProps) {
   return (
     <Box minH="100dvh" bgGradient="to-b" gradientFrom="teal.50" gradientVia="gray.50" gradientTo="white">
-      <Header variant="public" showLinks={false} showLogin={false} showSignup={false} />
+      <Header variant="public" showLogin={false} showSignup={false} />
       <Container
         as="main"
         maxW="2xl"
@@ -108,19 +111,7 @@ export function ManagerInvitationAcceptanceView({ state, actions }: ManagerInvit
 
 function InvitationContent({ state, actions }: ManagerInvitationAcceptanceViewProps) {
   if (state.kind === "loading") {
-    return (
-      <VStack role="status" aria-label="招待情報を確認中" gap={5} py={{ base: 12, md: 16 }}>
-        <Spinner size="xl" color="teal.600" borderWidth="3px" />
-        <Stack gap={1} textAlign="center">
-          <Heading as="h1" size="lg">
-            招待情報を確認しています
-          </Heading>
-          <Text color="fg.muted" fontSize="sm">
-            このまましばらくお待ちください。
-          </Text>
-        </Stack>
-      </VStack>
-    );
+    return <ShiftoriLoading variant="section" aria-label="招待情報を確認中" />;
   }
 
   if (state.kind === "ready") {
@@ -156,19 +147,19 @@ function InvitationContent({ state, actions }: ManagerInvitationAcceptanceViewPr
 
       {state.kind === "retryableError" && (
         <Button colorPalette="teal" size="lg" minH="48px" loading={state.isRetrying} onClick={actions.onAccept}>
-          もう一度試す
+          再実行する
         </Button>
       )}
 
       {state.kind === "used" && (
         <Button colorPalette="teal" size="lg" minH="48px" onClick={actions.onGoToDashboard}>
-          ダッシュボードへ
+          シフトリを確認する
         </Button>
       )}
 
       {state.kind === "accepted" && !state.isPreparingDestination && !state.hasDestination && (
         <Button colorPalette="teal" size="lg" minH="48px" onClick={actions.onGoToDashboard}>
-          ダッシュボードへ
+          シフトリを確認する
         </Button>
       )}
     </VStack>
@@ -196,20 +187,36 @@ function VerificationRequired({
         </Circle>
         <Stack gap={2}>
           <Heading as="h1" size={{ base: "lg", md: "xl" }} color="gray.950">
-            招待先の確認が必要
+            本人確認が必要
           </Heading>
           <Text color="gray.700" fontSize="sm" lineHeight="tall">
-            このアカウントに招待先のメールアドレスを追加して確認します。確認後ログインにも使える場合があります。
+            管理者招待メール送信先と、シフトリのアカウントのメールアドレスが異なります。
+            <br />
+            確認コードから本人確認を行います。
           </Text>
         </Stack>
       </VStack>
 
-      {state.step === "input" ? (
+      {state.step === "input" && state.requiresLogout ? (
+        <Stack gap={5}>
+          {state.errorMessage && (
+            <Alert.Root status="error" borderRadius="lg">
+              <Alert.Indicator />
+              <Alert.Description whiteSpace="pre-line">{state.errorMessage}</Alert.Description>
+            </Alert.Root>
+          )}
+          <Button type="button" colorPalette="teal" size="lg" minH="48px" onClick={actions.onLogout}>
+            ログアウトする
+          </Button>
+        </Stack>
+      ) : state.step === "input" ? (
         <Stack as="form" gap={5} onSubmit={handleSubmit(({ email }) => actions.onStartVerification(email))}>
           <Alert.Root status="info" borderRadius="lg">
             <Alert.Indicator />
             <Alert.Description>
-              招待メールを受け取ったメールアドレスを入力してください。確認コードをその宛先へ送信します。
+              管理者招待メールを受け取ったメールアドレスを入力してください。
+              <br />
+              確認コードをその宛先へ送信します。
             </Alert.Description>
           </Alert.Root>
           {state.errorMessage && (
@@ -219,12 +226,13 @@ function VerificationRequired({
             </Alert.Root>
           )}
           <Field.Root invalid={!!errors.email}>
-            <Field.Label>招待先メールアドレス</Field.Label>
+            <Field.Label>メールアドレス</Field.Label>
             <Input
               type="email"
+              autocompletePolicy="auth"
               autoComplete="email"
               maxLength={EMAIL_MAX_LENGTH}
-              placeholder="example@email.com"
+              placeholder="manager@example.com"
               {...register("email")}
             />
             <Field.ErrorText>{errors.email?.message}</Field.ErrorText>
@@ -249,15 +257,24 @@ function VerificationRequired({
           submitLabel="確認して参加する"
           submittingLabel="確認しています"
           onSubmit={actions.onVerifyCode}
+          codeInputAction={
+            <Button
+              type="button"
+              variant="ghost"
+              colorPalette="teal"
+              size="sm"
+              fontWeight="semibold"
+              alignSelf="flex-end"
+              disabled={state.isBusy}
+              onClick={actions.onResendCode}
+            >
+              コードを再送する
+            </Button>
+          }
           secondaryActions={
-            <Stack gap={2}>
-              <Button type="button" variant="ghost" disabled={state.isBusy} onClick={actions.onResendCode}>
-                確認コードを再送する
-              </Button>
-              <Button type="button" variant="ghost" disabled={state.isBusy} onClick={actions.onBackToVerificationInput}>
-                メールアドレスを入力し直す
-              </Button>
-            </Stack>
+            <Button type="button" variant="outline" disabled={state.isBusy} onClick={actions.onBackToVerificationInput}>
+              戻る
+            </Button>
           }
         />
       )}
@@ -280,11 +297,8 @@ function ReadyInvitation({
         </Circle>
         <Stack gap={2}>
           <Heading as="h1" size={{ base: "lg", md: "xl" }} color="gray.950">
-            {state.organizationName}から管理者として招待されています
+            {state.organizationName}に参加します
           </Heading>
-          <Text color="gray.700" fontSize="sm" lineHeight="tall">
-            ログイン後、必要に応じて招待先メールアドレスの確認を行います。
-          </Text>
         </Stack>
       </VStack>
 
@@ -297,16 +311,14 @@ function ReadyInvitation({
         p={{ base: 4, md: 5 }}
       >
         <Text color="gray.900" fontSize="sm" fontWeight="bold">
-          参加後にできること
+          管理者ができること
         </Text>
         <Stack gap={3}>
-          <PermissionRow>グループに所属するすべての店舗の管理</PermissionRow>
-          <PermissionRow>プラン、支払い方法などの契約操作</PermissionRow>
+          <PermissionRow>店舗の管理</PermissionRow>
+          <PermissionRow>スタッフの管理</PermissionRow>
+          <PermissionRow>シフトの管理</PermissionRow>
+          <PermissionRow>シフトリへの支払い設定</PermissionRow>
         </Stack>
-        <HStack gap={2} color="gray.700">
-          <LuClock aria-hidden />
-          <Text fontSize="xs">有効期限：{state.expiresAtLabel}</Text>
-        </HStack>
       </Stack>
 
       {state.isSignedIn ? (
@@ -318,13 +330,16 @@ function ReadyInvitation({
         </VStack>
       ) : (
         <Stack gap={3}>
-          <Button colorPalette="teal" size="lg" minH="48px" onClick={actions.onLogin}>
-            <LuLogIn aria-hidden />
-            ログインして続ける
-          </Button>
+          <HStack gap={2} color="gray.700">
+            <Text fontSize="xs">シフトリに参加するには、アカウント登録が必要です。</Text>
+          </HStack>
           <Button variant="outline" colorPalette="teal" size="lg" minH="48px" onClick={actions.onSignup}>
             <LuUserPlus aria-hidden />
-            アカウントを作成する
+            はじめてシフトリを利用する
+          </Button>
+          <Button colorPalette="teal" size="lg" minH="48px" onClick={actions.onLogin}>
+            <LuLogIn aria-hidden />
+            すでにアカウントを持っている
           </Button>
         </Stack>
       )}
@@ -362,56 +377,56 @@ function getStatusContent(
   switch (state.kind) {
     case "expired":
       return {
-        title: "この招待は期限切れです",
-        description: "招待を送った管理者に、新しい招待URLの発行を依頼してください。",
+        title: "招待リンクの利用期限が切れています",
+        description: "担当者に新しい招待URLの発行を依頼してください。",
         icon: LuClock,
         iconBg: "orange.50",
         iconColor: "orange.700",
       };
     case "revoked":
       return {
-        title: "この招待は取り消されています",
-        description: "参加が必要な場合は、招待を送った管理者に最新の状況を確認してください。",
+        title: "招待リンクが無効です",
+        description: "担当者が招待を取り消した可能性があります。\n担当者に最新の状況を確認してください。",
         icon: LuCircleAlert,
         iconBg: "orange.50",
         iconColor: "orange.700",
       };
     case "used":
       return {
-        title: "この招待への参加は完了しています",
-        description: "招待を受けたアカウントでログインしている場合は、ダッシュボードから店舗を確認できます。",
+        title: "すでに参加済みです",
+        description: "シフトリを利用してみましょう。",
         icon: LuCheck,
         iconBg: "green.50",
         iconColor: "green.700",
       };
     case "unavailable":
       return {
-        title: "この招待は現在利用できません",
-        description: "グループの契約や利用状況が変わった可能性があります。\n招待を送った管理者に確認してください。",
+        title: "招待URLが現在利用できません",
+        description: "組織・店舗の契約状況が変わった可能性があります。\n担当者に確認してください。",
         icon: LuCircleAlert,
         iconBg: "orange.50",
         iconColor: "orange.700",
       };
     case "invalid":
       return {
-        title: "招待URLを確認できません",
-        description: "URLが途中で切れていないか確認し、招待メールに記載された最新のURLを開いてください。",
+        title: "招待URL無効です",
+        description: "招待URLが誤っています。\n担当者に確認してください。",
         icon: LuLink,
         iconBg: "gray.100",
         iconColor: "gray.700",
       };
     case "conflict":
       return {
-        title: "招待先の情報を確認できません",
-        description: "招待を送った管理者に登録内容を確認してもらってから、もう一度お試しください。",
+        title: "本人確認ができませんでした",
+        description: "担当者に登録内容の確認を依頼してください。",
         icon: LuRefreshCw,
         iconBg: "orange.50",
         iconColor: "orange.700",
       };
     case "retryableError":
       return {
-        title: "管理者として参加できませんでした",
-        description: "通信が一時的に不安定な可能性があります。\n時間をおいて、もう一度お試しください。",
+        title: "参加できませんでした",
+        description: "通信が一時的に不安定な可能性があります。\n時間をおいて、再度お試しください。",
         icon: LuRefreshCw,
         iconBg: "orange.50",
         iconColor: "orange.700",
@@ -421,10 +436,10 @@ function getStatusContent(
         ? `${state.organizationName}の管理者として参加しました。`
         : "管理者として参加しました。";
       const description = state.isPreparingDestination
-        ? `${participationLabel}\n対象店舗を開いています。`
+        ? `${participationLabel}\n店舗ページを開いています。`
         : state.hasDestination
-          ? `${participationLabel}\n対象店舗へ移動します。`
-          : `${participationLabel}\n現在、表示できる店舗がありません。\n案内を送った管理者に、店舗の登録状況を確認してください。`;
+          ? `${participationLabel}\n店舗ページへ移動します。`
+          : `${participationLabel}\n表示できる店舗がありません。\n案内を送った担当者に、店舗が存在するか確認してください。`;
       return {
         title: "管理者として参加しました",
         description,

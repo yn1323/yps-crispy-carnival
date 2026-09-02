@@ -6,7 +6,12 @@ import type { Id } from "@/convex/_generated/dataModel";
 const INITIAL_NOTIFICATION_HISTORY_COUNT = 3;
 const NOTIFICATION_HISTORY_PAGE_SIZE = 10;
 
-export function useStaffNotificationHistory(shopId: Id<"shops">, staffId: Id<"staffs">, enabled: boolean) {
+export function useStaffNotificationHistory(
+  shopId: Id<"shops">,
+  staffId: Id<"staffs">,
+  enabled: boolean,
+  expectedOrganizationId?: Id<"organizations">,
+) {
   const targetKey = `${shopId}:${staffId}:${enabled}`;
   const [displayState, setDisplayState] = useState({
     targetKey,
@@ -16,7 +21,7 @@ export function useStaffNotificationHistory(shopId: Id<"shops">, staffId: Id<"st
     displayState.targetKey === targetKey ? displayState.visibleCount : INITIAL_NOTIFICATION_HISTORY_COUNT;
   const query = usePaginatedQuery(
     api.notificationOutbox.queries.listStaffNotificationHistory,
-    enabled ? { shopId, staffId } : "skip",
+    enabled ? { shopId, staffId, ...(expectedOrganizationId ? { expectedOrganizationId } : {}) } : "skip",
     { initialNumItems: INITIAL_NOTIFICATION_HISTORY_COUNT + 1 },
   );
   const hasBufferedItem = query.results.length > visibleCount;

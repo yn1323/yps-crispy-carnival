@@ -1,5 +1,4 @@
 import { useBlocker } from "@tanstack/react-router";
-import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -25,9 +24,9 @@ import {
 } from "@/src/domains/shift/date";
 import { isAssignmentsEqual } from "@/src/domains/shift/isAssignmentsEqual";
 import type { ShiftData, StaffType } from "@/src/domains/shift/types";
+import { useDeadlineActive } from "@/src/hooks/useDeadlineActive";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
-import { featureVisibilityAtom } from "@/src/stores/user";
 import type { ShiftBoardData } from "../types";
 import { buildShiftData } from "./buildShiftData";
 import type { ShiftBoardPageViewProps } from "./types";
@@ -36,25 +35,49 @@ import { visibleAssignmentWarnings } from "./warningVisibility";
 const PAST_SHIFT_SAVE_ERROR = "過去のシフトは保存できません";
 const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知できません";
 
-function getReadOnlyReason(reason: ShiftBoardData["businessWriteBlockReason"], showGroupSettings: boolean): string {
+export function getShiftBoardReadOnlyReason(reason: ShiftBoardData["businessWriteBlockReason"]): string {
   switch (reason) {
-    case "memberReadOnly":
-      return "管理者権限が閲覧のみに制限されているため、シフトを変更できません。";
-    case "shopArchived":
-      return "アーカイブ済みの店舗のため、シフトを変更できません。";
-    case "shopPlanSuspended":
-      return showGroupSettings
-        ? "現在のプランでは、この店舗のシフトを変更できません。\nグループ設定で利用店舗を確認してください。"
-        : "現在のプランでは、この店舗のシフトを変更できません。";
     case "paymentResultPending":
       return "支払い結果を確認中のため、シフトを変更できません。";
-    case "restricted":
-      return showGroupSettings
-        ? "契約状態を確認できるまで、シフトを変更できません。\nグループ設定で契約状態を確認してください。"
-        : "契約状態を確認できるまで、シフトを変更できません。";
+    case "usageLimitExceeded":
+      return "現在のプラン上限を超えているため、シフトを変更できません。\n組織設定で利用人数・店舗・管理者を整理するか、プランを変更してください。";
+    case "usageLimitEvaluationUnavailable":
+      return "現在の利用数を安全に確認できないため、シフトを変更できません。\n組織設定で利用人数・店舗・管理者を確認してください。";
     case null:
       return "現在、このシフトは変更できません。";
   }
+}
+
+type ResolveReminderStatusInput = {
+  lastReminderSentAt: number | null;
+  reminderScheduledAt: number | null;
+  isReminderScheduleActive: boolean;
+};
+
+export function resolveReminderStatus({
+  lastReminderSentAt,
+  reminderScheduledAt,
+  isReminderScheduleActive,
+}: ResolveReminderStatusInput): ReminderStatus {
+  if (lastReminderSentAt !== null) {
+    return {
+      kind: "sent",
+      label: `${formatDateTimeWithWeekday(lastReminderSentAt)}に催促通知を送りました`,
+    };
+  }
+  if (reminderScheduledAt === null) {
+    return {
+      kind: "none",
+      label: "自動催促の予定はありません",
+    };
+  }
+  if (isReminderScheduleActive) {
+    return {
+      kind: "scheduled",
+      label: "提出期限の前日17:00に催促通知を自動で送ります",
+    };
+  }
+  return { kind: "unconfirmed" };
 }
 
 const generatePeriodLabel = (dates: string[]): string => {
@@ -66,16 +89,13 @@ export const useShiftBoardPageController = (
   data: ShiftBoardData,
   recruitmentId: Id<"recruitments">,
 ): ShiftBoardPageViewProps => {
-  const featureVisibility = useAtomValue(featureVisibilityAtom);
   const saveShiftAssignments = useShopMutation(api.shiftBoard.mutations.saveShiftAssignments);
   const confirmRecruitmentMutation = useShopMutation(api.shiftBoard.mutations.confirmRecruitment);
 
   const confirmedAt = data.recruitment.confirmedAt ? new Date(data.recruitment.confirmedAt) : null;
   const isConfirmed = data.recruitment.status === "confirmed";
   const isReadOnly = !data.canWriteBusinessData;
-  const readOnlyReason = isReadOnly
-    ? getReadOnlyReason(data.businessWriteBlockReason, featureVisibility.organizationSettingsNavigation)
-    : null;
+  const readOnlyReason = isReadOnly ? getShiftBoardReadOnlyReason(data.businessWriteBlockReason) : null;
   const isPastShiftNow = useCallback(() => isPastShiftPeriod(data.recruitment.periodEnd), [data.recruitment.periodEnd]);
 
   const dates = useMemo(
@@ -195,7 +215,7 @@ export const useShiftBoardPageController = (
       // initialShifts（参照一致）を受け取って初めてユーザー編集を検知できる状態になる
       if (shifts === baselineShiftsRef.current) {
         isFormInitializedRef.current = true;
-        // 確定済みシフトを開き直しただけなら、過去の確認事項を編集面に再掲しない。
+        // 確定シフトを開き直しただけなら、過去の確認事項を編集面に再掲しない。
         setValidationWarnings(computeVisibleWarnings(shifts));
         if (!hasAttemptedConfirmRef.current) return;
       }
@@ -237,24 +257,16 @@ export const useShiftBoardPageController = (
     () => data.staffs.filter((staff) => !staff.isSubmitted).map((staff) => staff.name),
     [data.staffs],
   );
-  const reminderStatus = useMemo<ReminderStatus>(() => {
-    if (data.recruitment.lastReminderSentAt) {
-      return {
-        kind: "sent",
-        label: `${formatDateTimeWithWeekday(data.recruitment.lastReminderSentAt)} 催促を送信済み`,
-      };
-    }
-    if (data.recruitment.reminderScheduledAt && data.recruitment.reminderScheduledAt > Date.now()) {
-      return {
-        kind: "scheduled",
-        label: "締切前日の17:00に、催促通知を自動で送ります。",
-      };
-    }
-    return {
-      kind: "none",
-      label: "自動催促は設定されていません",
-    };
-  }, [data.recruitment.lastReminderSentAt, data.recruitment.reminderScheduledAt]);
+  const isReminderScheduleActive = useDeadlineActive(data.recruitment.reminderScheduledAt);
+  const reminderStatus = useMemo<ReminderStatus>(
+    () =>
+      resolveReminderStatus({
+        lastReminderSentAt: data.recruitment.lastReminderSentAt,
+        reminderScheduledAt: data.recruitment.reminderScheduledAt,
+        isReminderScheduleActive,
+      }),
+    [data.recruitment.lastReminderSentAt, data.recruitment.reminderScheduledAt, isReminderScheduleActive],
+  );
 
   // 現在のシフトを保存し、dirty判定の基準（baseline）を保存時点に更新する
   const persistCurrentShifts = useCallback(async () => {
@@ -420,7 +432,7 @@ export const useShiftBoardPageController = (
       },
       confirmDialog: {
         isOpen: confirmModal.isOpen,
-        title: isConfirmed ? "確定済みのシフトをもう一度通知しますか？" : "このシフトをスタッフに通知しますか？",
+        title: isConfirmed ? "確定シフトをもう一度通知しますか？" : "このシフトをスタッフに通知しますか？",
         submitLabel: isConfirmed ? "変更があるスタッフに通知" : "シフトを確定して通知",
         staffCount: staffs.length,
         warnings: displayWarnings,

@@ -19,14 +19,14 @@ function addDays(date: string, days: number): string {
   return d.toISOString().split("T")[0];
 }
 
-describe("シフト希望回収シナリオ", () => {
+describe("希望シフト回収シナリオ", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
   });
   afterEach(() => vi.useRealTimers());
 
-  it("募集作成から提出リンク、希望提出、再提出、催促対象まで整合する", async () => {
+  it("募集作成から提出リンク、希望シフトの提出、再提出、催促対象まで整合する", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
@@ -416,7 +416,7 @@ describe("シフト希望回収シナリオ", () => {
     ]);
   });
 
-  it("提出リンクは締切後も開始日前なら閲覧でき、未提出は初回提出だけできる", async () => {
+  it("提出リンクは提出期限後も開始日前なら閲覧でき、未提出は初回提出だけできる", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
@@ -435,7 +435,7 @@ describe("シフト希望回収シナリオ", () => {
       });
       const unsubmittedStaffId = await seedStaff(ctx, {
         shopId: seeded.shopId,
-        name: "締切後未提出スタッフ",
+        name: "未提出スタッフ",
         email: "deadline-unsubmitted@example.com",
       });
       return { shopId: seeded.shopId, submittedStaffId, unsubmittedStaffId };

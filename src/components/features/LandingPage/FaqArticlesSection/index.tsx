@@ -1,11 +1,13 @@
 import { Accordion, Badge, Box, Container, Flex, Icon, Image, Link, SimpleGrid, Text, VStack } from "@chakra-ui/react";
+import { Fragment } from "react";
 import type { IconType } from "react-icons";
 import { LuArrowRight, LuBookOpen, LuFileSpreadsheet, LuMessageCircle, LuMonitorCheck } from "react-icons/lu";
 import type { ArticleMetadata } from "@/src/components/features/ArticleSite/articleMeta";
 import { articleMetas } from "@/src/components/features/ArticleSite/articleMeta";
-import { landingFaqs } from "@/src/components/features/FaqSite/landingFaqContent";
 import { LANDING_HEADER_SCROLL_MARGIN_TOP } from "../constants";
+import { landingFaqs } from "../faqs";
 import { SectionHeading } from "../SectionHeading";
+import { splitLandingFaqAnswerSentences } from "./script";
 
 const articleIcons = [LuMessageCircle, LuMonitorCheck, LuFileSpreadsheet, LuBookOpen];
 const previewArticles = articleMetas.slice(0, 4);
@@ -37,7 +39,12 @@ export const FaqArticlesSection = () => (
                   <Accordion.ItemContent borderTopWidth="1px" borderTopColor="gray.100">
                     <Accordion.ItemBody px={4} py={4}>
                       <Text color="gray.700" fontSize="sm" lineHeight="1.8" fontWeight="semibold">
-                        {faq.a}
+                        {splitLandingFaqAnswerSentences(faq.a).map((sentence, index) => (
+                          <Fragment key={`${faq.q}-${index}`}>
+                            {index > 0 && <br />}
+                            {sentence}
+                          </Fragment>
+                        ))}
                       </Text>
                     </Accordion.ItemBody>
                   </Accordion.ItemContent>
@@ -47,7 +54,7 @@ export const FaqArticlesSection = () => (
           </Accordion.Root>
           <Flex justify="flex-end" mt={4}>
             <Link
-              href="/faq"
+              href="/help"
               color="teal.700"
               fontSize="sm"
               fontWeight="bold"
@@ -56,7 +63,7 @@ export const FaqArticlesSection = () => (
               gap={2}
               _hover={{ textDecoration: "none", color: "teal.900" }}
             >
-              すべての質問を見る
+              ヘルプ・使い方を見る
               <Icon as={LuArrowRight} boxSize={4} />
             </Link>
           </Flex>
@@ -122,7 +129,16 @@ const ArticleCard = ({ article, icon }: { article: ArticleMetadata; icon: IconTy
         <Text mt={3} color="gray.950" fontSize="md" fontWeight="black" lineHeight="1.55" lineClamp={2}>
           {article.title}
         </Text>
-        <Flex align="center" gap={2} mt="auto" pt={4} color="teal.700" fontSize="sm" fontWeight="bold">
+        <Flex
+          align="center"
+          justify="flex-end"
+          gap={2}
+          mt="auto"
+          pt={4}
+          color="teal.700"
+          fontSize="sm"
+          fontWeight="bold"
+        >
           詳しく見る
           <Icon as={LuArrowRight} boxSize={4} />
         </Flex>

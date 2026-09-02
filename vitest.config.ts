@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig, defineProject } from "vitest/config";
+import { PUBLIC_PLAN_PRICE_FIXTURE } from "./src/domains/publicPricing/fixture";
 import { mdxPlugin } from "./vite/mdxPlugin";
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
@@ -13,8 +14,11 @@ const testBuildDateJst = "2026-01-13";
 const logicProject = defineConfig({
   plugins: [mdxPlugin()],
   define: {
+    __APP_ENVIRONMENT__: JSON.stringify("local"),
     __APP_VERSION__: JSON.stringify(storybookAppVersion),
     __BUILD_DATE_JST__: JSON.stringify(testBuildDateJst),
+    __PUBLIC_PLAN_PRICES__: JSON.stringify(PUBLIC_PLAN_PRICE_FIXTURE),
+    __RELEASE_ID__: JSON.stringify("test"),
   },
   resolve: {
     tsconfigPaths: true,
@@ -46,8 +50,11 @@ const uiProject = defineConfig({
     }),
   ],
   define: {
+    __APP_ENVIRONMENT__: JSON.stringify("local"),
     __APP_VERSION__: JSON.stringify(storybookAppVersion),
     __BUILD_DATE_JST__: JSON.stringify(testBuildDateJst),
+    __PUBLIC_PLAN_PRICES__: JSON.stringify(PUBLIC_PLAN_PRICE_FIXTURE),
+    __RELEASE_ID__: JSON.stringify("test"),
   },
   resolve: {
     tsconfigPaths: true,
@@ -60,6 +67,10 @@ const uiProject = defineConfig({
   },
   test: {
     name: "ui",
+    // Preview DOMとPortalを共有するstory同士を競合させず、実際の画面遷移を検証する。
+    fileParallelism: false,
+    // 遅延importを含むstoryを、CI負荷だけで失敗させない。
+    testTimeout: 30_000,
     // Enable browser mode
     browser: {
       enabled: true,

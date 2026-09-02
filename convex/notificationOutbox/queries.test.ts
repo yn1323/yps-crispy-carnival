@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { DatabaseWriter } from "../_generated/server";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
@@ -26,25 +27,25 @@ describe("notificationOutbox/queries", () => {
         email: "history-query-other@example.com",
         shopName: "履歴別店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId: primary.shopId,
         name: "履歴スタッフ",
         email: "history-staff@example.com",
         isDeleted: false,
       });
-      const otherStaffId = await ctx.db.insert("staffs", {
+      const otherStaffId = await seedStaff(ctx, {
         shopId: other.shopId,
         name: "別店舗スタッフ",
         email: "other-history-staff@example.com",
         isDeleted: false,
       });
-      const deletedStaffId = await ctx.db.insert("staffs", {
+      const deletedStaffId = await seedStaff(ctx, {
         shopId: primary.shopId,
         name: "削除済みスタッフ",
         email: "deleted-history-staff@example.com",
         isDeleted: true,
       });
-      const missingStaffId = await ctx.db.insert("staffs", {
+      const missingStaffId = await seedStaff(ctx, {
         shopId: primary.shopId,
         name: "物理削除スタッフ",
         email: "missing-history-staff@example.com",
@@ -139,7 +140,7 @@ describe("notificationOutbox/queries", () => {
         email: "history-query-status@example.com",
         shopName: "履歴状態店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "履歴状態スタッフ",
         email: "history-status-staff@example.com",
@@ -200,7 +201,7 @@ describe("notificationOutbox/queries", () => {
         email: "other@example.com",
         shopName: "別店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId: primary.shopId,
         name: "不達スタッフ",
         email: "failure@example.com",
@@ -317,7 +318,7 @@ describe("notificationOutbox/queries", () => {
         email: "pagination@example.com",
         shopName: "ページング店舗",
       });
-      const staffId = await ctx.db.insert("staffs", {
+      const staffId = await seedStaff(ctx, {
         shopId,
         name: "ページングスタッフ",
         email: "pagination-staff@example.com",

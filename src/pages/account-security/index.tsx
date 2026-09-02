@@ -1,10 +1,14 @@
-import { Heading, Stack } from "@chakra-ui/react";
+import { Stack } from "@chakra-ui/react";
+import { LuUserRound } from "react-icons/lu";
+import { AccountDeletionSection } from "@/src/components/features/AccountDeletion";
 import { type LoginMethodMigrationFlow, LoginMethods } from "@/src/components/features/LoginMethods";
 import { AuthenticatedPageContent } from "@/src/components/templates/AuthenticatedPageContent";
+import { DetailPageHeader } from "@/src/components/ui/DetailPageHeader";
 
 export type AccountSecurityPageFlow = LoginMethodMigrationFlow;
 
 type AccountSecurityPageProps = {
+  includeMobileNavigation?: boolean;
   flow?: AccountSecurityPageFlow;
   oauth?: "google";
   onStartFlow?: (flow: AccountSecurityPageFlow) => void;
@@ -13,6 +17,7 @@ type AccountSecurityPageProps = {
 };
 
 export function AccountSecurityPage({
+  includeMobileNavigation = false,
   flow,
   oauth,
   onStartFlow,
@@ -20,13 +25,9 @@ export function AccountSecurityPage({
   onGoogleOAuthReturnHandled,
 }: AccountSecurityPageProps) {
   return (
-    <AuthenticatedPageContent>
+    <AuthenticatedPageContent includeMobileNavigation={includeMobileNavigation}>
       <Stack gap={3}>
-        <Stack gap={2}>
-          <Heading as="h1" textStyle={{ base: "sectionTitle", md: "pageTitle" }} color="gray.900">
-            アカウント設定
-          </Heading>
-        </Stack>
+        <DetailPageHeader title="アカウント設定" icon={LuUserRound} onBack={() => window.history.back()} />
         <LoginMethods
           flow={flow}
           oauth={oauth}
@@ -34,6 +35,7 @@ export function AccountSecurityPage({
           onBackToOverview={onBackToOverview}
           onGoogleOAuthReturnHandled={onGoogleOAuthReturnHandled}
         />
+        <AccountDeletionSection />
       </Stack>
     </AuthenticatedPageContent>
   );

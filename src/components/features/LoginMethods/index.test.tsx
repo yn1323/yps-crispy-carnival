@@ -214,7 +214,7 @@ describe("ログイン方法のoverviewと追加Modal", () => {
   it("完了状態の再取得中にcurrent Userが切り替われば通知と画面遷移を行わない", async () => {
     Object.assign(mocks.googleController.state, {
       phase: "methodReady",
-      feedback: { status: "success", message: "Googleログインを追加しました。" },
+      feedback: { status: "success", message: "Google認証ログインを追加しました。" },
     });
     let resolveReload: ((value: boolean) => void) | undefined;
     const completionReload = new Promise<boolean>((resolve) => {
@@ -315,7 +315,7 @@ describe("ログイン方法のoverviewと追加Modal", () => {
     expect(mocks.overviewController.reload).toHaveBeenCalledOnce();
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
       title: "メインのメールアドレスとパスワードを設定しました",
-      description: "Google認証とシフト連絡先メールアドレスは変わりません。",
+      description: "Google認証とシフト通知先メールアドレスは変わりません。",
     });
     expect(screen.queryByText("設定が完了しました")).toBeNull();
   });
@@ -323,7 +323,7 @@ describe("ログイン方法のoverviewと追加Modal", () => {
   it("Google追加の成功時は完了Modalを挟まずSnackbarを出してoverviewへ戻す", async () => {
     Object.assign(mocks.googleController.state, {
       phase: "methodReady",
-      feedback: { status: "success", message: "Googleログインを追加しました。" },
+      feedback: { status: "success", message: "Google認証ログインを追加しました。" },
     });
     const onBackToOverview = vi.fn();
 
@@ -333,7 +333,7 @@ describe("ログイン方法のoverviewと追加Modal", () => {
     await waitFor(() => expect(onBackToOverview).toHaveBeenCalledOnce());
     expect(mocks.overviewController.reload).toHaveBeenCalledOnce();
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
-      title: "Googleログインを追加しました",
+      title: "Google認証ログインを追加しました",
     });
     expect(screen.queryByText("設定が完了しました")).toBeNull();
   });
@@ -341,7 +341,7 @@ describe("ログイン方法のoverviewと追加Modal", () => {
   it("overviewへ戻った後の2回目のGoogle追加もSnackbarと帰還を実行する", async () => {
     Object.assign(mocks.googleController.state, {
       phase: "methodReady",
-      feedback: { status: "success", message: "Googleログインを追加しました。" },
+      feedback: { status: "success", message: "Google認証ログインを追加しました。" },
     });
     const onBackToOverview = vi.fn();
     const view = render(<LoginMethods flow="connect-google" onBackToOverview={onBackToOverview} />);
@@ -356,7 +356,7 @@ describe("ログイン方法のoverviewと追加Modal", () => {
 
     Object.assign(mocks.googleController.state, {
       phase: "methodReady",
-      feedback: { status: "success", message: "Googleログインを追加しました。" },
+      feedback: { status: "success", message: "Google認証ログインを追加しました。" },
     });
     view.rerender(<LoginMethods flow="connect-google" onBackToOverview={onBackToOverview} />);
 

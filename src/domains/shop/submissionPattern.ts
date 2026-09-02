@@ -30,6 +30,9 @@ const SHIFT_END_TIME_OPTIONS = generateShiftTimeOptions({ endMinutes: MAX_SHIFT_
 export const createDefaultShiftTypeOptions = (): ShiftTypeOption[] =>
   DEFAULT_SHIFT_TYPE_OPTIONS.map((option) => ({ ...option }));
 
+export const getOrderedShiftTypeOptions = (pattern: ShiftSubmissionPattern): ShiftTypeOption[] =>
+  pattern.kind === "shiftType" ? [...pattern.options].sort((a, b) => a.sortOrder - b.sortOrder) : [];
+
 export const createShiftTypeOption = (index: number, timestamp = Date.now()): ShiftTypeOption => ({
   id: `shift-type-${timestamp}-${index}`,
   name: "",

@@ -126,8 +126,8 @@ E2Eの削減または統合は、テスト件数の減少だけで正当化し�
 認証E2Eを縮小しても、匿名で保護routeへ到達したときのredirectと、logout後に同じ保護routeへ再アクセスしたときの認証境界をcoreまたは独立browser smokeで維持する。
 Function、Scenario、Behaviorだけでの代替は、logout後のブラウザ境界の完了条件にしない。
 
-a11y検査をcore業務E2Eから分離する場合は、独立a11y smokeまたはStorybook accessibilityを主担当にし、見た目はVRT、操作後の状態はBehaviorへ対応付ける。
-代替検査の担当と完了条件がないa11y検査の削除は、完了扱いにしない。
+このリポジトリでは、アクセシビリティだけを目的とする専用suite、axeなどによる全画面自動走査、a11y release gateを設けない。
+この方針はUIのrole、label、accessible nameを省く理由にはしない。通常のUIテストではこれらをselectorとして使ってよいが、アクセシビリティ適合の保証とは表現しない。
 
 feature flagでskipされる契約はカバレッジ済みとみなさない。
 公開条件が変わるときにenabled環境で実行する契約を持ち、閉状態の拒否や非表示はFunction、Scenario、Behaviorで別に守る。

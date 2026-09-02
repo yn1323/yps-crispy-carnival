@@ -1,8 +1,8 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
-import { internalQuery } from "../_generated/server";
 import { monthJST } from "../_lib/dateFormat";
+import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
 import { FEATURE_REQUEST_LIST_LIMIT } from "../constants";
 import type {
   AnalyticsCompleteness,
@@ -14,15 +14,18 @@ import type {
   AnalyticsSegmentRowDto,
   AnalyticsServiceKpiSnapshotDto,
   AnalyticsShopKpiDto,
+  AnalyticsShopListRowDto,
   AnalyticsShopRowDto,
   AnalyticsTrendMetric,
   AnalyticsTrendPointDto,
   AnalyticsTrendValueDto,
+  CanonicalAnalyticsPlanKey,
 } from "./dto";
 import {
   type AnalyticsReadState,
   type AnalyticsRunRange,
   bucketDate,
+  classifyShopUsage,
   combineCompleteness,
   getAnalyticsReadState,
   getCompleteRunRange,
@@ -40,6 +43,7 @@ import {
   toRateDto,
   toShopKpiDto,
   toShopRowDto,
+  usageMatches,
 } from "./queryHelpers";
 import {
   ANALYTICS_DASHBOARD_MAX_RANGE_DAYS,
@@ -64,7 +68,7 @@ import {
 const analyticsCompletenessArg = v.union(v.literal("complete"), v.literal("partial"), v.literal("unavailable"));
 const granularityArg = v.union(v.literal("day"), v.literal("week"), v.literal("month"));
 const directionArg = v.union(v.literal("asc"), v.literal("desc"));
-const planArg = v.union(v.literal("trial"), v.literal("free"), v.literal("pro"), v.literal("business"));
+const planArg = v.union(v.literal("trial"), v.literal("free"), v.literal("standard"), v.literal("pro"));
 const nullableStringArg = v.union(v.string(), v.null());
 const nullableCompletenessArg = v.union(analyticsCompletenessArg, v.null());
 const PAGINATION_MAX_BYTES = 256 * 1024;
@@ -134,7 +138,7 @@ function rangeWarnings(state: AnalyticsReadState, requested: { from: string; to:
     range.missingDates,
   );
   if (range.retentionStartDate && requested.from < range.retentionStartDate) {
-    warnings.push(`グループ・店舗別の詳細データは${range.retentionStartDate}以降を保持しています`);
+    warnings.push(`組織・店舗別の詳細データは${range.retentionStartDate}以降を保持しています`);
   }
   return warnings;
 }
@@ -614,7 +618,7 @@ async function organizationPage(
     limit: number;
     sort: "registeredAt" | "currentPlan";
     direction: "asc" | "desc";
-    plan: "trial" | "free" | "pro" | "business" | null;
+    plan: CanonicalAnalyticsPlanKey | null;
   },
 ) {
   const options = paginationOptions(args.cursor, args.limit);
@@ -891,6 +895,11 @@ function shopRowMatches(
   return true;
 }
 
+type ShopListRowWithUsageComputedAt = {
+  row: AnalyticsShopListRowDto;
+  usageComputedAt: number | null;
+};
+
 async function shopPage(
   ctx: QueryCtx,
   args: {
@@ -899,7 +908,7 @@ async function shopPage(
     sort: "registeredAt" | "currentPlan" | "latestActivityAt";
     direction: "asc" | "desc";
     organizationId: Id<"organizations"> | null;
-    plan: "trial" | "free" | "pro" | "business" | null;
+    plan: CanonicalAnalyticsPlanKey | null;
   },
 ) {
   const options = paginationOptions(args.cursor, args.limit);
@@ -998,14 +1007,16 @@ export const getShops = internalQuery({
       v.literal("needsAttention"),
       v.null(),
     ),
+    usage: v.union(v.literal("candidate"), v.literal("high"), v.literal("possible"), v.literal("unknown"), v.null()),
     completeness: nullableCompletenessArg,
   },
   returns: v.union(shopsResponseValidator, v.null()),
   handler: async (ctx, args) => {
     const state = await getAnalyticsReadState(ctx);
     const range = await getCompleteRunRange(ctx, state, args, { detailRetention: true });
-    const latestRun = range.latestCompleteRun;
-    if (state.availability === "unavailable" || !latestRun) {
+    const displayRun = range.latestCompleteRun;
+    const usageRun = state.latestCompleteRun;
+    if (state.availability === "unavailable" || !displayRun || !usageRun) {
       return {
         kind: "shops" as const,
         metadata: responseMetadata({
@@ -1039,17 +1050,33 @@ export const getShops = internalQuery({
     );
     const mapped = await Promise.all(
       dimensionRows.map(async (shop) => {
-        const [organization, kpi] = await Promise.all([
+        const displayKpiPromise = getLatestShopKpi(ctx, displayRun, shop.shopId);
+        const usageKpiPromise =
+          displayRun._id === usageRun._id ? displayKpiPromise : getLatestShopKpi(ctx, usageRun, shop.shopId);
+        const [organization, displayKpiDoc, usageKpiDoc] = await Promise.all([
           getOrganization(shop.organizationId),
-          getLatestShopKpi(ctx, latestRun, shop.shopId),
+          displayKpiPromise,
+          usageKpiPromise,
         ]);
         if (!organization || organization.deletedAt !== undefined) return null;
-        return toShopRowDto(shop, organization.displayName, kpi ? toShopKpiDto(kpi) : null);
+        const displayKpis = displayKpiDoc ? toShopKpiDto(displayKpiDoc) : null;
+        const usageKpis =
+          displayRun._id === usageRun._id ? displayKpis : usageKpiDoc ? toShopKpiDto(usageKpiDoc) : null;
+        const row: AnalyticsShopListRowDto = {
+          ...toShopRowDto(shop, organization.displayName, displayKpis),
+          ...classifyShopUsage({
+            cutoffAt: usageRun.cutoffAt,
+            latestActivityAt: shop.latestActivityAt ?? null,
+            kpis: usageKpis,
+          }),
+        };
+        return { row, usageComputedAt: usageKpis?.computedAt ?? null } satisfies ShopListRowWithUsageComputedAt;
       }),
     );
-    const rows = mapped
-      .filter((row): row is AnalyticsShopRowDto => row !== null)
-      .filter((row) => shopRowMatches(row, args));
+    const matched = mapped
+      .filter((item): item is ShopListRowWithUsageComputedAt => item !== null)
+      .filter((item) => shopRowMatches(item.row, args) && usageMatches(item.row.usageLikelihood, args.usage));
+    const rows = matched.map((item) => item.row);
     const filteredInMemory =
       (args.sort !== "currentPlan" && args.plan !== null) ||
       args.cohort !== null ||
@@ -1057,13 +1084,19 @@ export const getShops = internalQuery({
       args.cadence !== null ||
       args.lineUsage !== null ||
       args.health !== null ||
+      args.usage !== null ||
       args.completeness !== null ||
-      mapped.some((row) => row === null);
+      mapped.some((item) => item === null);
     return {
       kind: "shops" as const,
       metadata: responseMetadata({
         state,
-        computedAt: maxComputedAt(rows),
+        computedAt: maxOrNull(
+          matched.flatMap((item) => [
+            ...(item.row.kpis ? [item.row.kpis.computedAt] : []),
+            ...(item.usageComputedAt === null ? [] : [item.usageComputedAt]),
+          ]),
+        ),
         pageInfo: pageInfo({
           cursor: args.cursor,
           continueCursor: page.continueCursor,
@@ -1107,7 +1140,12 @@ function rollupShopSeries(rows: Doc<"analyticsDailyShopKpis">[], granularity: "d
 }
 
 export const getShop = internalQuery({
-  args: { shopId: v.string(), from: v.string(), to: v.string(), granularity: granularityArg },
+  args: {
+    shopId: v.string(),
+    from: v.string(),
+    to: v.string(),
+    granularity: granularityArg,
+  },
   returns: v.union(shopDetailResponseValidator, v.null()),
   handler: async (ctx, args) => {
     const state = await getAnalyticsReadState(ctx);
@@ -1352,7 +1390,7 @@ export const getSegments = internalQuery({
       return {
         snapshotDate: row.snapshotDate,
         dimension: row.dimension,
-        bucket: row.bucket,
+        bucket: row.dimension === "plan" ? requireCanonicalSegmentPlan(row.bucket) : row.bucket,
         shopCount: row.shopCount,
         kpiEligibleShopCount: row.kpiEligibleShopCount,
         milestoneCounts: row.milestoneCounts,
@@ -1383,6 +1421,11 @@ export const getSegments = internalQuery({
   },
 });
 
+function requireCanonicalSegmentPlan(bucket: string): CanonicalAnalyticsPlanKey {
+  if (bucket === "trial" || bucket === "free" || bucket === "standard" || bucket === "pro") return bucket;
+  throw new Error("analytics_segment_plan_bucket_not_canonical");
+}
+
 export const getFeatureRequests = internalQuery({
   args: { cursor: nullableStringArg, limit: v.number() },
   returns: featureRequestsResponseValidator,
@@ -1391,11 +1434,30 @@ export const getFeatureRequests = internalQuery({
     const page = await ctx.db.query("featureRequests").order("desc").paginate(paginationOptions(args.cursor, limit));
     const rows = await Promise.all(
       page.page.map(async (request) => {
-        const shop = await ctx.db.get(request.shopId);
+        if (request.shopId) {
+          const shop = await ctx.db.get(request.shopId);
+          return {
+            id: request._id,
+            targetKind: "shop" as const,
+            organizationId: null,
+            organizationName: null,
+            shopId: request.shopId,
+            shopName: !shop || shop.isDeleted ? "削除済み店舗" : shop.name,
+            senderType: request.staffId === undefined ? ("manager" as const) : ("staff" as const),
+            comment: request.comment,
+            createdAt: request._creationTime,
+          };
+        }
+
+        const organization = request.organizationId ? await ctx.db.get(request.organizationId) : null;
+        const organizationName = !organization || organization.isDeleted ? "削除済み組織" : organization.name;
         return {
           id: request._id,
-          shopId: request.shopId,
-          shopName: !shop || shop.isDeleted ? "削除済み店舗" : shop.name,
+          targetKind: "organization" as const,
+          organizationId: request.organizationId ?? null,
+          organizationName,
+          shopId: null,
+          shopName: `${organizationName}（組織全体）`,
           senderType: request.staffId === undefined ? ("manager" as const) : ("staff" as const),
           comment: request.comment,
           createdAt: request._creationTime,

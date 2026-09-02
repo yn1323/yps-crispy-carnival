@@ -30,7 +30,6 @@ export async function seedShop(ctx: MutationCtx, name = "テスト店舗") {
   });
   return await ctx.db.insert("shops", {
     organizationId,
-    operatingStatus: "active",
     name,
     submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     regularClosedDays: [],
@@ -159,13 +158,13 @@ export async function seedOrganizationManagerShop(
     subject: string;
     email?: string;
     shopName?: string;
-    // Legacy `business` remains available to compatibility tests during m018.
-    plan?: "free" | "pro" | "business";
+    plan?: "free" | "standard" | "pro";
     complimentary?: boolean;
     shopDeleted?: boolean;
     membershipDeleted?: boolean;
   },
 ) {
+  const plan = args.plan ?? "free";
   const email = (args.email ?? `${args.subject}@example.com`).trim().toLowerCase();
   const userId = await seedUser(ctx, args.subject, email);
   const now = Date.now();
@@ -198,7 +197,6 @@ export async function seedOrganizationManagerShop(
   });
   const shopId = await ctx.db.insert("shops", {
     organizationId,
-    operatingStatus: args.shopDeleted ? "archived" : "active",
     name: args.shopName ?? "テスト店舗",
     submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     regularClosedDays: [],
@@ -206,9 +204,7 @@ export async function seedOrganizationManagerShop(
   });
   await ctx.db.insert("organizationBillingStates", {
     organizationId,
-    state: args.complimentary
-      ? { kind: "complimentary", plan: "business" }
-      : { kind: "active", plan: args.plan ?? "free" },
+    state: args.complimentary ? { kind: "complimentary", plan: "pro" } : { kind: "active", plan },
     ...(args.complimentary ? {} : { freeManagerPersonId: personId, freeShopId: shopId }),
     version: 1,
     createdAt: now,
@@ -229,4 +225,70 @@ export async function seedStaffLineAccount(
     following: args.following ?? true,
     isDeleted: false,
   });
+}
+
+/** organization person単位のLINE正本を作るfixture。legacy行は明示的に別helperで作る。 */
+export async function seedOrganizationPersonLineLink(
+  ctx: MutationCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    organizationPersonId: Id<"organizationPeople">;
+    lineUserId: string;
+    following?: boolean;
+    generation?: number;
+  },
+) {
+  const person = await ctx.db.get(args.organizationPersonId);
+  if (!person || person.organizationId !== args.organizationId) {
+    throw new Error("seedOrganizationPersonLineLink requires a person in the organization");
+  }
+  const now = Date.now();
+  const generation = args.generation ?? 1;
+  await ctx.db.patch(person._id, { lineLinkGeneration: generation, updatedAt: now });
+  const lineProviderUserId = await ctx.db.insert("lineProviderUsers", {
+    lineUserId: args.lineUserId,
+    following: args.following ?? true,
+    stateVersion: 1,
+    friendshipObservedAt: now,
+    friendshipObservationSource: "oauth",
+    isDeleted: false,
+  });
+  const organizationPersonLineLinkId = await ctx.db.insert("organizationPersonLineLinks", {
+    organizationId: args.organizationId,
+    organizationPersonId: args.organizationPersonId,
+    lineProviderUserId,
+    generation,
+    linkedAt: now,
+    isDeleted: false,
+  });
+  return { lineProviderUserId, organizationPersonLineLinkId, generation };
+}
+
+/** canonical staff recipientを組み立てるfixture。legacy staff projectionは作らない。 */
+export async function seedCanonicalStaffLineRecipient(
+  ctx: MutationCtx,
+  args: {
+    staffId: Id<"staffs">;
+    lineUserId: string;
+    following?: boolean;
+    generation?: number;
+  },
+) {
+  const staff = await ctx.db.get(args.staffId);
+  if (!staff || staff.isDeleted || !staff.organizationId || !staff.organizationPersonId) {
+    throw new Error("seedCanonicalStaffLineRecipient requires an active canonical staff");
+  }
+  const shop = await ctx.db.get(staff.shopId);
+  if (!shop?.organizationId || shop.isDeleted || staff.organizationId !== shop.organizationId) {
+    throw new Error("seedCanonicalStaffLineRecipient requires a non-deleted canonical shop");
+  }
+  const organizationPersonId = staff.organizationPersonId;
+  const recipient = await seedOrganizationPersonLineLink(ctx, {
+    organizationId: shop.organizationId,
+    organizationPersonId,
+    lineUserId: args.lineUserId,
+    following: args.following,
+    generation: args.generation,
+  });
+  return { organizationId: shop.organizationId, organizationPersonId, ...recipient };
 }

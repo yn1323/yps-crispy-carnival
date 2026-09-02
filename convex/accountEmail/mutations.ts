@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { internalMutation } from "../_generated/server";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { authenticatedMutation } from "../_lib/functions";
 
 const RETIRED_MESSAGE =

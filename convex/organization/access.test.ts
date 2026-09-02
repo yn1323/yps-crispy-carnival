@@ -15,8 +15,8 @@ async function seedOrganizationAccess(
   ctx: MutationCtx,
   args: {
     subject: string;
-    memberStatus: "active" | "readOnly" | "removed";
-    operatingStatus?: "active" | "archived" | "planSuspended";
+    memberStatus: "active" | "removed";
+    shopDeleted?: boolean;
     withLegacyMembership?: boolean;
   },
 ) {
@@ -33,11 +33,10 @@ async function seedOrganizationAccess(
   });
   const shopId = await ctx.db.insert("shops", {
     organizationId,
-    operatingStatus: args.operatingStatus ?? "active",
     name: "組織店舗",
     submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     regularClosedDays: [],
-    isDeleted: false,
+    isDeleted: args.shopDeleted ?? false,
   });
   const personId = await ctx.db.insert("organizationPeople", {
     organizationId,
@@ -64,8 +63,9 @@ async function seedOrganizationAccess(
 }
 
 describe("organization manager access", () => {
-  it.each(["active", "readOnly"] as const)("%s所属は組織店舗を参照できる", async (memberStatus) => {
+  it("active所属は組織店舗を参照できる", async () => {
     const t = convexTest(schema, modules);
+    const memberStatus = "active" as const;
     const subject = `organization_query_${memberStatus}`;
     const { shopId } = await t.run(async (ctx) => await seedOrganizationAccess(ctx, { subject, memberStatus }));
 
@@ -74,7 +74,7 @@ describe("organization manager access", () => {
     ).resolves.toMatchObject({ name: "組織店舗" });
   });
 
-  it("active所属はshopMembersなしでactive店舗を更新できる", async () => {
+  it("active所属はshopMembersなしで未削除店舗を更新できる", async () => {
     const t = convexTest(schema, modules);
     const subject = "organization_active_mutation";
     const { shopId } = await t.run(
@@ -109,15 +109,15 @@ describe("organization manager access", () => {
     await expect(t.run(async (ctx) => (await ctx.db.get(shopId))?.name)).resolves.toBe("組織店舗");
   });
 
-  it("readOnly所属は旧shopMembersが残っていてもmutationを実行できない", async () => {
+  it("active所属でも削除済み店舗はmutationを実行できない", async () => {
     const t = convexTest(schema, modules);
-    const subject = "organization_read_only_mutation";
+    const subject = "organization_deleted_shop";
     const { shopId } = await t.run(
       async (ctx) =>
         await seedOrganizationAccess(ctx, {
           subject,
-          memberStatus: "readOnly",
-          withLegacyMembership: true,
+          memberStatus: "active",
+          shopDeleted: true,
         }),
     );
 
@@ -128,29 +128,6 @@ describe("organization manager access", () => {
       }),
     ).rejects.toThrow("Not found");
   });
-
-  it.each(["archived", "planSuspended"] as const)(
-    "active所属でも%s店舗はmutationを実行できない",
-    async (operatingStatus) => {
-      const t = convexTest(schema, modules);
-      const subject = `organization_inactive_shop_${operatingStatus}`;
-      const { shopId } = await t.run(
-        async (ctx) =>
-          await seedOrganizationAccess(ctx, {
-            subject,
-            memberStatus: "active",
-            operatingStatus,
-          }),
-      );
-
-      await expect(
-        t.withIdentity({ subject }).mutation(api.shop.mutations.updateShopSettings, {
-          ...validShopUpdate,
-          shopId,
-        }),
-      ).rejects.toThrow("Not found");
-    },
-  );
 
   it("m009完了後m010前は所属行が0件の場合だけ旧shopMembersで参照できる", async () => {
     const t = convexTest(schema, modules);
@@ -166,7 +143,7 @@ describe("organization manager access", () => {
         createdAt: now,
         updatedAt: now,
       });
-      await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
+      await ctx.db.patch(shopId, { organizationId });
       await seedLegacyShopMembership(ctx, { userId, shopId });
       return shopId;
     });
@@ -190,7 +167,7 @@ describe("organization manager access", () => {
         createdAt: now,
         updatedAt: now,
       });
-      await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
+      await ctx.db.patch(shopId, { organizationId });
       await seedLegacyShopMembership(ctx, { userId, shopId });
       await seedLegacyShopMembership(ctx, { userId, shopId });
       return shopId;
@@ -251,13 +228,109 @@ describe("organization manager access", () => {
       });
       await ctx.db.patch(targetShopId, {
         organizationId: otherOrganizationId,
-        operatingStatus: "active",
       });
       return targetShopId;
     });
 
     await expect(
       t.withIdentity({ subject }).query(api.dashboard.queries.getDashboardShop, { shopId: targetShopId }),
+    ).resolves.toBeNull();
+  });
+
+  it("expectedOrganizationIdと明示店舗の組織が違う場合は、両組織のactive管理者でもfail-closedにする", async () => {
+    const t = convexTest(schema, modules);
+    const subject = "organization_expected_scope_mismatch";
+    const ids = await t.run(async (ctx) => {
+      const first = await seedOrganizationAccess(ctx, { subject, memberStatus: "active" });
+      const now = Date.now();
+      const secondOrganizationId = await ctx.db.insert("organizations", {
+        createdByUserId: first.userId,
+        name: "別組織",
+        billingEmail: `${subject}@example.com`,
+        billingEmailNormalized: `${subject}@example.com`,
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const secondShopId = await ctx.db.insert("shops", {
+        organizationId: secondOrganizationId,
+        name: "別組織店舗",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        isDeleted: false,
+      });
+      const secondPersonId = await ctx.db.insert("organizationPeople", {
+        organizationId: secondOrganizationId,
+        userId: first.userId,
+        name: "管理者",
+        email: `${subject}@example.com`,
+        emailNormalized: `${subject}@example.com`,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("organizationMembers", {
+        organizationId: secondOrganizationId,
+        personId: secondPersonId,
+        userId: first.userId,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      return { firstOrganizationId: first.organizationId, secondPersonId, secondShopId };
+    });
+    const actor = t.withIdentity({ subject });
+
+    await expect(
+      actor.query(api.dashboard.queries.getDashboardShop, {
+        shopId: ids.secondShopId,
+        expectedOrganizationId: ids.firstOrganizationId,
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      actor.mutation(api.shop.mutations.updateShopSettings, {
+        ...validShopUpdate,
+        shopId: ids.secondShopId,
+        expectedOrganizationId: ids.firstOrganizationId,
+      }),
+    ).rejects.toThrow("Not found");
+    await expect(
+      actor.mutation(api.organization.mutations.updatePersonProfile, {
+        shopId: ids.secondShopId,
+        personId: ids.secondPersonId,
+        name: "更新しない管理者",
+        email: `${subject}@example.com`,
+        requestId: "expected-scope-mismatch",
+        expectedOrganizationId: ids.firstOrganizationId,
+      }),
+    ).rejects.toThrow("Not found");
+    await expect(t.run(async (ctx) => (await ctx.db.get(ids.secondShopId))?.name)).resolves.toBe("別組織店舗");
+  });
+
+  it("expectedOrganizationId指定時はlegacy shopMembersをcanonical組織authorityに使わない", async () => {
+    const t = convexTest(schema, modules);
+    const subject = "organization_expected_scope_legacy_fallback";
+    const ids = await t.run(async (ctx) => {
+      const userId = await seedUser(ctx, subject);
+      const shopId = await seedLegacyShop(ctx, "移行途中店舗");
+      const now = Date.now();
+      const organizationId = await ctx.db.insert("organizations", {
+        migrationSourceShopId: shopId,
+        name: "移行途中事業者",
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.patch(shopId, { organizationId });
+      await seedLegacyShopMembership(ctx, { userId, shopId });
+      return { organizationId, shopId };
+    });
+
+    await expect(
+      t.withIdentity({ subject }).query(api.dashboard.queries.getDashboardShop, {
+        shopId: ids.shopId,
+        expectedOrganizationId: ids.organizationId,
+      }),
     ).resolves.toBeNull();
   });
 });

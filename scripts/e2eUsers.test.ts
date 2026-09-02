@@ -5,6 +5,7 @@ import {
   getE2EClerkUserForWorker,
   getE2EClerkUsers,
   getE2ECoreClerkUsers,
+  getE2EReservedMultiActorClerkUserForWorker,
   getE2EReservedMultiActorClerkUsers,
   getE2EWorkerCount,
   parseE2EClerkUserEmails,
@@ -79,6 +80,25 @@ describe("E2Eユーザー所有権", () => {
     expect(
       Array.from({ length: workerCount }, (_, index) => getE2EClerkUserForWorker(index, workerCount).index),
     ).toEqual(Array.from({ length: workerCount }, (_, index) => index));
+  });
+
+  it.each([1, 2, 3])("%s workerでparallelIndexとlogout専用ユーザーを固定対応させる", (workerCount) => {
+    vi.stubEnv("E2E_CLERK_USERS", E2E_USERS.join(","));
+
+    expect(
+      Array.from(
+        { length: workerCount },
+        (_, index) => getE2EReservedMultiActorClerkUserForWorker(index, workerCount).index,
+      ),
+    ).toEqual(Array.from({ length: workerCount }, (_, index) => index + 3));
+  });
+
+  it.each([0, 4, 7])("logout専用3ユーザーの範囲外となるworker数 %s を拒否する", (workerCount) => {
+    vi.stubEnv("E2E_CLERK_USERS", E2E_USERS.join(","));
+
+    expect(() => getE2EReservedMultiActorClerkUserForWorker(0, workerCount)).toThrow(
+      `E2E worker count must be an integer between 1 and 3: ${workerCount}`,
+    );
   });
 
   it.each([0, 4, 7])("通常用3ユーザーの範囲外となるworker数 %s を拒否する", (workerCount) => {

@@ -1,4 +1,4 @@
-import { useSignUp } from "@clerk/react";
+import { useSignIn, useSignUp } from "@clerk/react";
 import { useState } from "react";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { buildSsoCallbackUrl } from "@/src/lib/auth/redirect";
@@ -14,10 +14,15 @@ type UseSignupFlowControllerParams = {
 };
 
 export function useSignupFlowController({ redirectTo }: UseSignupFlowControllerParams) {
+  const { fetchStatus: signInFetchStatus, signIn } = useSignIn();
   const { fetchStatus, signUp } = useSignUp();
   const [errorMessage, setErrorMessage] = useState<string>();
   const [isVerificationStep, setIsVerificationStep] = useState(false);
-  const { run: runAuthAction, isRunning } = useSingleFlight(async (action: () => Promise<void>) => {
+  const {
+    run: runAuthAction,
+    isRunning,
+    release: releaseAuthAction,
+  } = useSingleFlight(async (action: () => Promise<void>) => {
     await action();
   });
   const { handleGoogle, isLineBrowser } = useGoogleOAuthController({
@@ -29,8 +34,11 @@ export function useSignupFlowController({ redirectTo }: UseSignupFlowControllerP
       });
       throwIfClerkOperationFailed(result);
     },
-    isResourceLoaded: fetchStatus === "idle",
+    isResourceLoaded: signInFetchStatus === "idle" && fetchStatus === "idle",
+    releaseAuthAction,
     runAuthAction,
+    signIn,
+    signUp,
     onErrorMessage: setErrorMessage,
   });
 
@@ -104,7 +112,7 @@ export function useSignupFlowController({ redirectTo }: UseSignupFlowControllerP
   return {
     errorMessage,
     isLineBrowser,
-    isSubmitting: isRunning || fetchStatus === "fetching",
+    isSubmitting: isRunning || signInFetchStatus === "fetching" || fetchStatus === "fetching",
     isVerificationStep,
     onGoogle: handleGoogle,
     onRestartSignup: handleRestartSignup,

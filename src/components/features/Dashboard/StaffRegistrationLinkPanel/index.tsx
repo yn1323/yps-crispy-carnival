@@ -1,15 +1,19 @@
-import { Box, Code, Flex, HStack, Separator, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Alert, Box, Code, HStack, Link, Skeleton, Stack, Text } from "@chakra-ui/react";
 import QRCode from "qrcode";
-import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
-import { LuCheck, LuCopy } from "react-icons/lu";
-import { IconButton } from "@/src/components/ui/Button";
+import type { ReactNode, Ref } from "react";
+import { useEffect, useRef, useState } from "react";
+import { LuCheck, LuCopy, LuRefreshCw } from "react-icons/lu";
+import { Button, IconButton } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
+import { STAFF_ADDITION_EMAIL_NOTICE, STAFF_ADDITION_EMAIL_NOTICE_HREF } from "../staffAdditionCopy";
 
 type Props = {
   registrationUrl: string | null;
   isLoading?: boolean;
-  manualEntryAction?: ReactNode;
+  hasError?: boolean;
+  onRetry?: () => void | Promise<void>;
+  onRequestRegistrationLinkRotation?: () => void;
+  rotationTriggerRef?: Ref<HTMLButtonElement>;
 };
 
 function InviteSection({ title, children }: { title: string; children: ReactNode }) {
@@ -26,9 +30,18 @@ function InviteSection({ title, children }: { title: string; children: ReactNode
   );
 }
 
-export function StaffRegistrationLinkPanel({ registrationUrl, isLoading, manualEntryAction }: Props) {
+export function StaffRegistrationLinkPanel({
+  registrationUrl,
+  isLoading,
+  hasError = false,
+  onRetry,
+  onRequestRegistrationLinkRotation,
+  rotationTriggerRef,
+}: Props) {
   const [qrSvg, setQrSvg] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copied = registrationUrl !== null && copiedUrl === registrationUrl;
 
   useEffect(() => {
     if (!registrationUrl) {
@@ -48,33 +61,49 @@ export function StaffRegistrationLinkPanel({ registrationUrl, isLoading, manualE
     };
   }, [registrationUrl]);
 
+  useEffect(
+    () => () => {
+      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
+    },
+    [],
+  );
+
   const handleCopy = async () => {
     if (!registrationUrl) return;
     try {
       await navigator.clipboard.writeText(registrationUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setCopiedUrl(registrationUrl);
+      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
+      copyResetTimerRef.current = setTimeout(() => {
+        setCopiedUrl((current) => (current === registrationUrl ? null : current));
+        copyResetTimerRef.current = null;
+      }, 1500);
     } catch {
       // コピーできない環境ではURL表示を見てもらう。
     }
   };
 
-  if (isLoading || !registrationUrl) {
-    return <StaffRegistrationLinkPanelSkeleton showManualEntryAction={Boolean(manualEntryAction)} />;
-  }
+  if (hasError) return <StaffRegistrationLinkPanelError onRetry={onRetry} />;
+
+  if (isLoading || !registrationUrl) return <StaffRegistrationLinkPanelSkeleton />;
 
   return (
     <Stack gap={5}>
       <Stack gap={2}>
         <Text fontSize="sm" color="gray.800" lineHeight="tall" whiteSpace="pre-line">
-          {
-            "QRコードを対面で読み取ってもらうと、スタッフ本人がその場で登録できます。\n人数が多い場合は、招待リンクをまとめて共有する方法が便利です。"
-          }
+          QRコード、または招待リンクを共有してください。
         </Text>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          登録申請を承認すると、スタッフにLINE連携の案内を送ります。
-          <br />
-          募集中のシフトがある場合は、シフト提出リンクもあわせて送ります。
+          {STAFF_ADDITION_EMAIL_NOTICE}
+          <Link
+            href={STAFF_ADDITION_EMAIL_NOTICE_HREF}
+            target="_blank"
+            rel="noopener noreferrer"
+            color="teal.700"
+            textDecoration="underline"
+          >
+            こちら
+          </Link>
         </Text>
       </Stack>
 
@@ -144,25 +173,49 @@ export function StaffRegistrationLinkPanel({ registrationUrl, isLoading, manualE
         </HStack>
       </InviteSection>
 
-      {manualEntryAction && (
-        <>
-          <Separator />
-          <Flex
-            direction={{ base: "column", sm: "row" }}
-            align={{ base: "stretch", sm: "center" }}
-            justify="flex-end"
-            gap={3}
-          >
-            <Text fontSize="sm" color="gray.800">
-              自分で追加したい場合はこちら
+      {onRequestRegistrationLinkRotation && (
+        <InviteSection title="登録リンクの再発行">
+          <Stack gap={3} align="flex-start">
+            <Text fontSize="sm" color="fg.muted" lineHeight="tall">
+              いたずら等防止目的でリンクを再発行します。
+              <br />
+              これまでのリンクは使えなくなります。
             </Text>
-            {manualEntryAction}
-          </Flex>
-        </>
+            <Button
+              ref={rotationTriggerRef}
+              type="button"
+              variant="outline"
+              colorPalette="red"
+              onClick={onRequestRegistrationLinkRotation}
+            >
+              <LuRefreshCw aria-hidden />
+              登録リンクを再発行
+            </Button>
+          </Stack>
+        </InviteSection>
       )}
     </Stack>
   );
 }
+
+const StaffRegistrationLinkPanelError = ({ onRetry }: { onRetry?: () => void | Promise<void> }) => (
+  <Alert.Root status="error" role="alert" alignItems="flex-start">
+    <Alert.Indicator />
+    <Alert.Content gap={3}>
+      <Stack gap={1}>
+        <Alert.Title>招待リンクを読み込めませんでした</Alert.Title>
+        <Alert.Description>もう一度お試しください。</Alert.Description>
+      </Stack>
+      {onRetry && (
+        <Box>
+          <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+            もう一度読み込む
+          </Button>
+        </Box>
+      )}
+    </Alert.Content>
+  </Alert.Root>
+);
 
 const QrSkeleton = () => (
   <Box width="200px" height="200px" borderRadius="md" borderWidth="1px" borderColor="blackAlpha.100" bg="white">
@@ -170,7 +223,7 @@ const QrSkeleton = () => (
   </Box>
 );
 
-const StaffRegistrationLinkPanelSkeleton = ({ showManualEntryAction }: { showManualEntryAction: boolean }) => (
+const StaffRegistrationLinkPanelSkeleton = () => (
   <Stack gap={5} aria-busy="true">
     <Stack gap={2}>
       <Skeleton h="16px" w="94%" />
@@ -191,16 +244,5 @@ const StaffRegistrationLinkPanelSkeleton = ({ showManualEntryAction }: { showMan
         <Skeleton boxSize="40px" borderRadius={0} />
       </HStack>
     </InviteSection>
-
-    {showManualEntryAction && (
-      <>
-        <Separator />
-        <Stack gap={3}>
-          <Skeleton h="16px" w="128px" />
-          <Skeleton h="16px" w="88%" />
-          <Skeleton h="36px" w="144px" borderRadius="md" />
-        </Stack>
-      </>
-    )}
   </Stack>
 );

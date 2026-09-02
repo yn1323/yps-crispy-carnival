@@ -1,164 +1,127 @@
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { Flex, Separator, Stack } from "@chakra-ui/react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { LuRefreshCw } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
-import { useDialog } from "@/src/components/ui/Dialog";
+import {
+  type ActionInboxConfirmation,
+  ActionInboxConfirmationDialog,
+  type ActionInboxItem,
+  ActionInboxView,
+  buildNotificationFailureActionInboxItem,
+} from "@/src/components/features/ActionInbox";
+import { showErrorToast } from "@/src/components/shared/feedback";
+import { Button } from "@/src/components/ui/Button";
 import { toaster } from "@/src/components/ui/toaster";
 import { useShopCustomPaginatedQuery } from "@/src/hooks/useShopCustomPaginatedQuery";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
-import type { DashboardNotificationFailure } from "../NotificationFailureDialog";
-import { NotificationFailureRecoveryView } from "./NotificationFailureRecoveryView";
 import { resendAllOpenNotificationFailuresBatches } from "./script";
+import type { DashboardNotificationFailure } from "./types";
+
+export type { DashboardNotificationFailure } from "./types";
 
 type Props = {
+  shopName: string;
   failures?: DashboardNotificationFailure[];
   isReadOnly?: boolean;
   children: (state: NotificationFailureRecoveryState) => ReactNode;
 };
 
 export type NotificationFailureRecoveryState = {
+  isInitialLoading: boolean;
   failures: DashboardNotificationFailure[];
-  openNotificationFailures: () => void;
+  actionItemCount: number;
   content: ReactNode;
 };
 
 const NOTIFICATION_FAILURE_PAGE_SIZE = 50;
+const actionItemId = (failureId: Id<"notificationFailureInbox">) => `notificationFailure:${failureId}`;
 
-export function NotificationFailureRecovery({ failures: failureOverrides, isReadOnly = false, children }: Props) {
-  const dialog = useDialog();
+export function NotificationFailureRecovery({
+  shopName,
+  failures: failureOverrides,
+  isReadOnly = false,
+  children,
+}: Props) {
   const failureQuery = useShopCustomPaginatedQuery(
     api.notificationOutbox.queries.listOpenFailures,
     failureOverrides ? "skip" : {},
     { initialNumItems: NOTIFICATION_FAILURE_PAGE_SIZE },
   );
   const failures = failureOverrides ?? failureQuery.results;
-  const [dismissedFailureIds, setDismissedFailureIds] = useState<Set<Id<"notificationFailureInbox">>>(() => new Set());
-  const visibleFailures = useMemo(
-    () => failures.filter((failure) => !dismissedFailureIds.has(failure._id)),
-    [dismissedFailureIds, failures],
+  const [processedFailureIds, setProcessedFailureIds] = useState<ReadonlySet<Id<"notificationFailureInbox">>>(
+    () => new Set(),
   );
-  const [dialogRows, setDialogRows] = useState<DashboardNotificationFailure[]>(visibleFailures);
-  const [acceptedFailureIds, setAcceptedFailureIds] = useState<Set<Id<"notificationFailureInbox">>>(() => new Set());
-  const [resendingFailureIds, setResendingFailureIds] = useState<Set<Id<"notificationFailureInbox">>>(() => new Set());
+  const visibleFailures = useMemo(
+    () => failures.filter((failure) => !processedFailureIds.has(failure._id)),
+    [failures, processedFailureIds],
+  );
+  const [visibleItemCount, setVisibleItemCount] = useState(visibleFailures.length);
+  const [completedItemIds, setCompletedItemIds] = useState<readonly string[]>([]);
   const [dismissTarget, setDismissTarget] = useState<DashboardNotificationFailure | null>(null);
+  const [confirmationError, setConfirmationError] = useState<string | null>(null);
+  const confirmationTriggerRef = useRef<HTMLElement | null>(null);
+  const isReadOnlyRef = useRef(isReadOnly);
+  isReadOnlyRef.current = isReadOnly;
   const resendFailure = useShopMutation(api.notificationOutbox.mutations.resendFailure);
   const resendOpenFailures = useShopMutation(api.notificationOutbox.mutations.resendOpenFailures);
   const resolveFailure = useShopMutation(api.notificationOutbox.mutations.resolveFailure);
 
   useEffect(() => {
     const openFailureIds = new Set(failures.map((failure) => failure._id));
-    setDismissedFailureIds((current) => {
-      const next = new Set(Array.from(current).filter((failureId) => openFailureIds.has(failureId)));
+    setProcessedFailureIds((current) => {
+      const next = new Set([...current].filter((failureId) => openFailureIds.has(failureId)));
       return next.size === current.size ? current : next;
     });
-  }, [failures]);
-
-  useEffect(() => {
-    if (!dialog.isOpen) {
-      setDialogRows(visibleFailures);
-      return;
+    if (dismissTarget && !openFailureIds.has(dismissTarget._id)) {
+      setDismissTarget(null);
+      setConfirmationError(null);
     }
-
-    setDialogRows((currentRows) => {
-      const nextRowsById = new Map(currentRows.map((failure) => [failure._id, failure]));
-      for (const failure of visibleFailures) {
-        nextRowsById.set(failure._id, failure);
-      }
-      return Array.from(nextRowsById.values()).filter(
-        (failure) =>
-          acceptedFailureIds.has(failure._id) || visibleFailures.some((openFailure) => openFailure._id === failure._id),
-      );
-    });
-  }, [acceptedFailureIds, dialog.isOpen, visibleFailures]);
+  }, [dismissTarget, failures]);
 
   useEffect(() => {
     if (!isReadOnly) return;
-    dialog.close();
-    setAcceptedFailureIds(new Set());
-    setResendingFailureIds(new Set());
     setDismissTarget(null);
-  }, [dialog.close, isReadOnly]);
+    setConfirmationError(null);
+    confirmationTriggerRef.current = null;
+  }, [isReadOnly]);
 
-  const resetDialogState = () => {
-    setDialogRows(visibleFailures);
-    setAcceptedFailureIds(new Set());
-    setResendingFailureIds(new Set());
-    setDismissTarget(null);
-  };
-
-  const handleOpenChange = (details: { open: boolean }) => {
-    if (details.open && isReadOnly) return;
-    dialog.onOpenChange(details);
-    if (!details.open) resetDialogState();
-  };
-
-  const handleClose = () => {
-    dialog.close();
-    resetDialogState();
-  };
-
-  const closeAfterAllProcessed = () => {
-    dialog.close();
-    setAcceptedFailureIds(new Set());
-    setResendingFailureIds(new Set());
-    setDismissTarget(null);
-  };
-
-  const handleResend = async (failureId: Id<"notificationFailureInbox">) => {
-    if (isReadOnly || acceptedFailureIds.has(failureId) || resendingFailureIds.has(failureId) || isResendingAll) return;
-
-    const allOtherFailuresProcessed = dialogRows.every(
-      (failure) => failure._id === failureId || acceptedFailureIds.has(failure._id),
-    );
-
-    setResendingFailureIds((current) => new Set(current).add(failureId));
-    try {
-      const result = await resendFailure({ failureId });
-      if (result.scheduled) {
-        setAcceptedFailureIds((current) => new Set(current).add(failureId));
-        showSuccessToast({ title: "通知を再送しました" });
-        if (allOtherFailuresProcessed) closeAfterAllProcessed();
-        return;
-      }
-      toaster.create({
-        title: result.reason === "rateLimited" ? "少し時間をおいてから再送してください" : "再送できませんでした",
-        type: result.reason === "rateLimited" ? "error" : "info",
-      });
-    } catch (error) {
-      showErrorToast(error);
-    } finally {
-      setResendingFailureIds((current) => {
-        const next = new Set(current);
-        next.delete(failureId);
-        return next;
-      });
+  const markProcessed = (failureIds: readonly Id<"notificationFailureInbox">[], announceCompletion: boolean) => {
+    setProcessedFailureIds((current) => {
+      const next = new Set(current);
+      for (const failureId of failureIds) next.add(failureId);
+      return next;
+    });
+    if (announceCompletion) {
+      setCompletedItemIds((current) => [...current, ...failureIds.map(actionItemId)]);
     }
   };
 
-  const { run: handleResendAll, isRunning: isResendingAll } = useSingleFlight(async () => {
-    if (isReadOnly) return;
-    const retryableFailures = dialogRows.filter((failure) => failure.canRetry && !acceptedFailureIds.has(failure._id));
-    if (retryableFailures.length === 0) return;
+  const handleResend = async (failure: DashboardNotificationFailure) => {
+    if (isReadOnly || !failure.canRetry) throw new Error("この通知は現在再送できません。");
+    const result = await resendFailure({ failureId: failure._id });
+    if (!result.scheduled) {
+      throw new Error(
+        result.reason === "rateLimited"
+          ? "少し時間をおいてから、もう一度お試しください。"
+          : "連絡先や募集の状態が変わったため、通知を再送できませんでした。",
+      );
+    }
+    markProcessed([failure._id], false);
+  };
 
+  const { run: handleResendAll, isRunning: isResendingAll } = useSingleFlight(async () => {
+    if (isReadOnly || !visibleFailures.some((failure) => failure.canRetry)) return;
     try {
       const result = await resendAllOpenNotificationFailuresBatches(() => resendOpenFailures({}));
       if (result.scheduledFailureIds.length > 0) {
-        const scheduledFailureIds = new Set(result.scheduledFailureIds);
-        setAcceptedFailureIds((current) => {
-          const next = new Set(current);
-          for (const failureId of result.scheduledFailureIds) next.add(failureId);
-          return next;
-        });
+        markProcessed(result.scheduledFailureIds, true);
         toaster.create({
           title: result.hasRemainingFailures ? "一部の通知を再送しました" : "送れなかった通知を再送しました",
           description: result.hasRemainingFailures ? "残りの通知は、少し時間をおいてから再送してください。" : undefined,
           type: result.hasRemainingFailures ? "warning" : "success",
         });
-        const allDialogRowsProcessed = dialogRows.every(
-          (failure) => acceptedFailureIds.has(failure._id) || scheduledFailureIds.has(failure._id),
-        );
-        if (!result.hasRemainingFailures && allDialogRowsProcessed) closeAfterAllProcessed();
         return;
       }
       toaster.create({
@@ -171,54 +134,114 @@ export function NotificationFailureRecovery({ failures: failureOverrides, isRead
     }
   });
 
+  const restoreConfirmationTriggerFocus = () => {
+    const trigger = confirmationTriggerRef.current;
+    window.requestAnimationFrame(() => {
+      if (trigger?.isConnected) trigger.focus();
+    });
+  };
+
+  const closeConfirmation = () => {
+    setDismissTarget(null);
+    setConfirmationError(null);
+    restoreConfirmationTriggerFocus();
+  };
+
   const { run: handleDismiss, isRunning: isDismissing } = useSingleFlight(async () => {
     if (isReadOnly || !dismissTarget) return;
-
-    const dismissedFailureId = dismissTarget._id;
-    const remainingRows = dialogRows.filter((failure) => failure._id !== dismissedFailureId);
-    const allRemainingFailuresProcessed = remainingRows.every((failure) => acceptedFailureIds.has(failure._id));
-
+    const target = dismissTarget;
     try {
-      await resolveFailure({ failureId: dismissedFailureId });
-      setDismissedFailureIds((current) => new Set(current).add(dismissedFailureId));
-      setDialogRows(remainingRows);
+      await resolveFailure({ failureId: target._id });
+      markProcessed([target._id], true);
       setDismissTarget(null);
-      showSuccessToast({ title: "送れなかった通知を無視しました" });
-      if (allRemainingFailuresProcessed) closeAfterAllProcessed();
-    } catch (error) {
-      showErrorToast(error);
+      setConfirmationError(null);
+      restoreConfirmationTriggerFocus();
+    } catch {
+      if (!isReadOnlyRef.current) {
+        setConfirmationError("送れなかった通知を破棄できませんでした。通知の状態を確認して、もう一度お試しください。");
+      }
     }
   });
 
+  const actionItems: readonly ActionInboxItem[] = visibleFailures.map((failure) =>
+    buildNotificationFailureActionInboxItem(
+      {
+        id: actionItemId(failure._id),
+        staffName: failure.staffName,
+        shopName,
+        notificationKindLabel: failure.notificationKindLabel,
+        channel: failure.channel,
+        lastFailedAt: failure.lastFailedAt,
+        canRetry: !isReadOnly && !isResendingAll && failure.canRetry,
+        canResolve: !isReadOnly && !isResendingAll,
+      },
+      {
+        retry: () => handleResend(failure),
+        resolve: (context) => {
+          confirmationTriggerRef.current = context?.triggerElement ?? null;
+          setConfirmationError(null);
+          setDismissTarget(failure);
+        },
+      },
+    ),
+  );
+
+  const confirmation: ActionInboxConfirmation = dismissTarget
+    ? {
+        kind: "resolveNotification",
+        itemId: actionItemId(dismissTarget._id),
+        staffName: dismissTarget.staffName,
+        notificationKindLabel: dismissTarget.notificationKindLabel,
+      }
+    : null;
+  const hasRetryableFailures = visibleFailures.some((failure) => !isReadOnly && failure.canRetry);
+  const actionItemCount = visibleItemCount > 0 ? visibleItemCount : actionItems.length;
   const content = (
-    <NotificationFailureRecoveryView
-      isOpen={dialog.isOpen}
-      isReadOnly={isReadOnly}
-      onOpenChange={handleOpenChange}
-      onClose={handleClose}
-      failures={dialogRows}
-      acceptedFailureIds={acceptedFailureIds}
-      resendingFailureIds={resendingFailureIds}
-      isResendingAll={isResendingAll}
-      dismissTarget={dismissTarget}
-      isDismissing={isDismissing}
-      onResend={handleResend}
-      onResendAll={handleResendAll}
-      onDismiss={(failure) => {
-        if (isReadOnly) return;
-        setDismissTarget(failure);
-      }}
-      onCancelDismiss={() => setDismissTarget(null)}
-      onConfirmDismiss={handleDismiss}
-    />
+    <Stack gap={4}>
+      <Flex
+        align={{ base: "flex-end", md: "center" }}
+        justify="flex-end"
+        gap={3}
+        direction={{ base: "column", md: "row" }}
+      >
+        <Button
+          size="sm"
+          colorPalette="teal"
+          variant="solid"
+          loading={isResendingAll}
+          disabled={isResendingAll || !hasRetryableFailures}
+          onClick={handleResendAll}
+          gap={1.5}
+          flexShrink={0}
+        >
+          <LuRefreshCw />
+          すべて再送する
+        </Button>
+      </Flex>
+      <Separator />
+      <ActionInboxView
+        items={actionItems}
+        completedItemIds={completedItemIds}
+        ariaLabel="送れなかった通知"
+        hideEmpty
+        itemVariant="list"
+        onVisibleItemCountChange={setVisibleItemCount}
+      />
+      <ActionInboxConfirmationDialog
+        confirmation={confirmation}
+        errorMessage={confirmationError}
+        isRunning={isDismissing}
+        onClose={closeConfirmation}
+        onConfirm={handleDismiss}
+        finalFocusEl={() => confirmationTriggerRef.current}
+      />
+    </Stack>
   );
 
   return children({
+    isInitialLoading: failureOverrides === undefined && failureQuery.status === "LoadingFirstPage",
     failures: visibleFailures,
-    openNotificationFailures: () => {
-      if (isReadOnly) return;
-      dialog.open();
-    },
+    actionItemCount,
     content,
   });
 }

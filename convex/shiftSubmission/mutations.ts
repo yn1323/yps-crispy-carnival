@@ -123,7 +123,7 @@ function normalizeSubmissionInput(
 }
 
 /**
- * シフト希望を提出（新規 or 修正）
+ * 希望シフトを提出（新規 or 修正）
  * requests が空配列 = 全日休み提出
  */
 export const submitShiftRequests = staffSessionMutation({
@@ -177,7 +177,7 @@ export const submitShiftRequests = staffSessionMutation({
       )
       .first();
 
-    // 締切後は未提出者の初回提出だけを救済し、提出済みの変更は止める。
+    // 提出期限後は未提出者の初回提出だけを救済し、提出済みの変更は止める。
     if (now >= getDeadlineCutoff(recruitment.deadline) && existingSubmission) {
       throw new ConvexError("Deadline passed");
     }

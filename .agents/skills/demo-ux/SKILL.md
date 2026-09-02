@@ -97,4 +97,4 @@ Work through these in order and record the reason for each exception.
 
 - This skill covers try-it-now demos, tours, onboarding, and sandboxes.
 - Use `$ui-architect` for ordinary application UI and microcopy.
-- Use `$write-help-content` for HowTo articles.
+- Use `$write-help-content` for HelpCenter FAQs and guides.

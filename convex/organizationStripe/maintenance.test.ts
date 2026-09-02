@@ -115,36 +115,38 @@ describe("organizationStripe/maintenance", () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
       const initial = await seedOrganizationManagerShop(ctx, { subject: "stripe_safe_initial", plan: "pro" });
-      const grace = await seedOrganizationManagerShop(ctx, { subject: "stripe_safe_grace", plan: "pro" });
-      const restricted = await seedOrganizationManagerShop(ctx, { subject: "stripe_safe_restricted", plan: "pro" });
+      const paymentTermination = await seedOrganizationManagerShop(ctx, {
+        subject: "stripe_safe_payment_termination",
+        plan: "standard",
+      });
+      const cancellationPaymentTermination = await seedOrganizationManagerShop(ctx, {
+        subject: "stripe_safe_cancellation_termination",
+        plan: "standard",
+      });
       const scheduledPaid = await seedOrganizationManagerShop(ctx, {
         subject: "stripe_safe_scheduled_paid",
-        plan: "business",
+        plan: "pro",
       });
       const unrelated = await seedOrganizationManagerShop(ctx, { subject: "stripe_safe_unrelated", plan: "pro" });
       await replaceBillingState(ctx, initial.organizationId, {
         kind: "initialPaymentPending",
-        plan: "pro",
+        plan: "standard",
         startedAt: NOW - DAY_MS,
       });
-      await replaceBillingState(ctx, grace.organizationId, {
-        kind: "grace",
-        plan: "pro",
-        startedAt: NOW - 15 * DAY_MS,
-        endsAt: NOW - DAY_MS,
+      await replaceBillingState(ctx, paymentTermination.organizationId, {
+        kind: "paymentTerminationPending",
+        previousPlan: "standard",
+        startedAt: NOW - DAY_MS,
       });
-      await replaceBillingState(ctx, restricted.organizationId, {
-        kind: "restricted",
-        reason: "paymentGraceExpired",
-        previousPlan: "pro",
-        recoveryManagerPersonIds: [],
-        previousActiveShopIds: [],
-        restrictedAt: NOW - DAY_MS,
+      await replaceBillingState(ctx, cancellationPaymentTermination.organizationId, {
+        kind: "paymentTerminationPending",
+        previousPlan: "standard",
+        startedAt: NOW - DAY_MS,
       });
       await replaceBillingState(ctx, scheduledPaid.organizationId, {
         kind: "scheduledChange",
-        currentPlan: "business",
-        targetPlan: "pro",
+        currentPlan: "pro",
+        targetPlan: "standard",
         effectiveAt: NOW,
       });
 
@@ -154,7 +156,7 @@ describe("organizationStripe/maintenance", () => {
         kind: "reconcileSubscription",
         status: "retrying",
         nextRunAt: NOW,
-        expectedBillingVersion: 0,
+        expectedBillingVersion: 1,
       });
       await insertOperation(ctx, {
         organizationId: scheduledPaid.organizationId,
@@ -162,28 +164,30 @@ describe("organizationStripe/maintenance", () => {
         kind: "reconcileSubscription",
         status: "retrying",
         nextRunAt: NOW,
-        expectedBillingVersion: 0,
+        expectedBillingVersion: 1,
         recoveryPurpose: "scheduledPaidPlanDeadline",
       });
       await insertOperation(ctx, {
-        organizationId: grace.organizationId,
-        requestKey: "safe-grace-reconcile",
-        kind: "reconcileSubscription",
+        organizationId: paymentTermination.organizationId,
+        requestKey: "safe-termination-reconcile",
+        kind: "stopInvoiceCollection",
         status: "processing",
-        leaseToken: "expired-grace",
+        leaseToken: "expired-termination",
         leaseExpiresAt: NOW,
-        expectedBillingVersion: 0,
+        expectedBillingVersion: 1,
+        recoveryPurpose: "paymentTermination",
       });
       await insertOperation(ctx, {
-        organizationId: restricted.organizationId,
-        requestKey: "safe-restricted-cancel",
+        organizationId: cancellationPaymentTermination.organizationId,
+        requestKey: "safe-termination-cancel",
         kind: "cancelSubscription",
         status: "retrying",
         nextRunAt: NOW,
-        expectedBillingVersion: 0,
+        expectedBillingVersion: 1,
+        recoveryPurpose: "paymentTermination",
       });
       await insertOperation(ctx, {
-        organizationId: restricted.organizationId,
+        organizationId: cancellationPaymentTermination.organizationId,
         requestKey: "future-stop-invoice",
         kind: "stopInvoiceCollection",
         status: "retrying",
@@ -193,14 +197,6 @@ describe("organizationStripe/maintenance", () => {
       await insertOperation(ctx, {
         organizationId: unrelated.organizationId,
         requestKey: "unsafe-checkout-retry",
-        kind: "immediateProCheckout",
-        status: "retrying",
-        nextRunAt: NOW,
-        expectedBillingVersion: 1,
-      });
-      await insertOperation(ctx, {
-        organizationId: unrelated.organizationId,
-        requestKey: "unsafe-business-checkout-retry",
         kind: "immediatePaidCheckout",
         status: "retrying",
         nextRunAt: NOW,
@@ -211,11 +207,11 @@ describe("organizationStripe/maintenance", () => {
     const probe = await t.query(internal.organizationStripe.maintenance.getProbe, {});
     expect(probe.safetyOperations).toEqual({
       unfinishedCancelSubscription: { observedCount: 1, hasMore: false },
-      unfinishedStopInvoiceCollection: { observedCount: 1, hasMore: false },
+      unfinishedStopInvoiceCollection: { observedCount: 2, hasMore: false },
       priceRotationBlocking: {
         trialSetupCheckout: { observedCount: 0, hasMore: false },
         createTrialSubscription: { observedCount: 0, hasMore: false },
-        immediatePaidCheckout: { observedCount: 2, hasMore: false },
+        immediatePaidCheckout: { observedCount: 1, hasMore: false },
       },
       reconcileSubscriptionActionRequired: { observedCount: 0, hasMore: false },
     });
@@ -223,9 +219,9 @@ describe("organizationStripe/maintenance", () => {
     await expect(t.mutation(internal.organizationStripe.maintenance.recoverSafeOperations, {})).resolves.toEqual({
       scheduledCount: 4,
       scheduledByKind: {
-        reconcileSubscription: 3,
+        reconcileSubscription: 2,
         cancelSubscription: 1,
-        stopInvoiceCollection: 0,
+        stopInvoiceCollection: 1,
         syncBillingEmail: 0,
         scheduleFree: 0,
         cancelFreeSchedule: 0,
@@ -256,19 +252,19 @@ describe("organizationStripe/maintenance", () => {
         },
       },
       {
-        name: "organizationStripe/actions:stopExpiredGraceCollection",
+        name: "organizationStripe/actions:finishPaymentTermination",
         args: {
           organizationId: expect.any(String),
           expectedBillingVersion: 1,
-          requestId: "safe-grace-reconcile",
+          requestId: "safe-termination-reconcile",
         },
       },
       {
-        name: "organizationStripe/actions:stopExpiredGraceCollection",
+        name: "organizationStripe/actions:finishPaymentTermination",
         args: {
           organizationId: expect.any(String),
           expectedBillingVersion: 1,
-          requestId: "safe-restricted-cancel",
+          requestId: "safe-termination-cancel",
         },
       },
     ]);
@@ -367,6 +363,7 @@ describe("organizationStripe/maintenance", () => {
         currentPlan: "pro",
         targetPlan: "free",
         effectiveAt: NOW + DAY_MS,
+        restrictAtPeriodEnd: true,
       });
       await insertOperation(ctx, {
         organizationId: schedule.organizationId,
@@ -444,22 +441,22 @@ describe("organizationStripe/maintenance", () => {
       });
       const schedule = await seedOrganizationManagerShop(ctx, {
         subject: "stripe_recover_schedule_paid_plan",
-        plan: "business",
+        plan: "pro",
       });
       const cancel = await seedOrganizationManagerShop(ctx, {
         subject: "stripe_recover_cancel_paid_plan",
-        plan: "business",
+        plan: "pro",
       });
       await replaceBillingState(ctx, immediate.organizationId, {
         kind: "pendingActivation",
-        plan: "business",
-        fallback: "pro",
+        plan: "pro",
+        fallback: "standard",
         startedAt: NOW - 1_000,
       });
       await replaceBillingState(ctx, cancel.organizationId, {
         kind: "scheduledChange",
-        currentPlan: "business",
-        targetPlan: "pro",
+        currentPlan: "pro",
+        targetPlan: "standard",
         effectiveAt: NOW + DAY_MS,
       });
       const immediateOperationId = await insertOperation(ctx, {
@@ -514,7 +511,7 @@ describe("organizationStripe/maintenance", () => {
     ).toEqual([ids.immediateOperationId, ids.scheduleOperationId, ids.cancelOperationId].sort());
   });
 
-  it("古いbilling versionとqueuedを最新状態で再評価し、解決済みの安全operationをcancelledへ収束させる", async () => {
+  it("古いbilling versionを再評価し、回復目的のない外部操作を再送せずactionRequiredへ収束させる", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
       const resolved = await seedOrganizationManagerShop(ctx, {
@@ -556,11 +553,11 @@ describe("organizationStripe/maintenance", () => {
     });
 
     await expect(t.mutation(internal.organizationStripe.maintenance.recoverSafeOperations, {})).resolves.toEqual({
-      scheduledCount: 3,
+      scheduledCount: 1,
       scheduledByKind: {
         reconcileSubscription: 1,
-        cancelSubscription: 1,
-        stopInvoiceCollection: 1,
+        cancelSubscription: 0,
+        stopInvoiceCollection: 0,
         syncBillingEmail: 0,
         scheduleFree: 0,
         cancelFreeSchedule: 0,
@@ -568,12 +565,12 @@ describe("organizationStripe/maintenance", () => {
         schedulePaidPlanChange: 0,
         cancelScheduledPlanChange: 0,
       },
-      terminalizedWithoutDispatchCount: 0,
+      terminalizedWithoutDispatchCount: 2,
       reachedBatchLimit: false,
     });
 
     const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
-    expect(scheduled.map((job) => job.args[0].expectedBillingVersion)).toEqual([1, 1, 1]);
+    expect(scheduled.map((job) => job.args[0].expectedBillingVersion)).toEqual([0]);
     await t.finishAllScheduledFunctions(vi.runAllTimers);
 
     const state = await stripeMaintenanceState(t);
@@ -588,8 +585,8 @@ describe("organizationStripe/maintenance", () => {
     ).toEqual([
       {
         requestKey: "resolved-old-version-cancel",
-        status: "cancelled",
-        lastErrorCode: "billing_already_converged",
+        status: "actionRequired",
+        lastErrorCode: "billing_binding_invalid",
       },
       {
         requestKey: "resolved-old-version-reconcile",
@@ -598,8 +595,8 @@ describe("organizationStripe/maintenance", () => {
       },
       {
         requestKey: "resolved-queued-stop",
-        status: "cancelled",
-        lastErrorCode: "billing_already_converged",
+        status: "actionRequired",
+        lastErrorCode: "billing_binding_invalid",
       },
     ]);
   });
@@ -1136,7 +1133,7 @@ describe("organizationStripe/maintenance", () => {
         subject: "stripe_probe_free_current",
         plan: "free",
       });
-      await seedOrganizationManagerShop(ctx, { subject: "stripe_probe_business", plan: "business" });
+      await seedOrganizationManagerShop(ctx, { subject: "stripe_probe_pro", plan: "pro" });
 
       await insertCustomer(ctx, complimentary.organizationId, "cus_complimentary");
       await insertSubscription(ctx, complimentary.organizationId, {
@@ -1211,7 +1208,7 @@ describe("organizationStripe/maintenance", () => {
       });
       await insertOperation(ctx, {
         organizationId: duplicated.organizationId,
-        kind: "immediateProCheckout",
+        kind: "immediatePaidCheckout",
         requestKey: "probe-completed-immediate-checkout",
         providerGeneration: 2,
         status: "succeeded",
@@ -1263,7 +1260,6 @@ describe("organizationStripe/maintenance", () => {
       organizationsWithMultipleStripeCustomers: { observedCount: 0, hasMore: false },
       subscriptionsWithoutMatchingLocalCustomer: { observedCount: 2, hasMore: false },
       stripeCustomersWithoutBillingState: { observedCount: 0, hasMore: false },
-      unresolvedM018MigrationConflicts: { observedCount: 0, hasMore: false },
     });
 
     const state = await stripeMaintenanceState(t);
@@ -1345,77 +1341,6 @@ describe("organizationStripe/maintenance", () => {
       observedCount: 1,
       hasMore: false,
     });
-  });
-
-  it("legacy Businessをnested状態まで共有判定し、全page走査できるcursorを返す", async () => {
-    const t = convexTest(schema, modules);
-    const expectedLegacyOrganizationIds = await t.run(async (ctx) => {
-      await seedOrganizationManagerShop(ctx, { subject: "stripe_legacy_clean", plan: "pro" });
-      const nested = await seedOrganizationManagerShop(ctx, { subject: "stripe_legacy_nested", plan: "pro" });
-      const scheduled = await seedOrganizationManagerShop(ctx, {
-        subject: "stripe_legacy_scheduled",
-        plan: "pro",
-      });
-      await replaceBillingState(ctx, nested.organizationId, {
-        kind: "pendingActivation",
-        plan: "pro",
-        fallback: "restricted",
-        restrictedFallbackState: {
-          kind: "restricted",
-          reason: "paymentActivationFailed",
-          previousPlan: "business",
-          recoveryManagerPersonIds: [],
-          previousActiveShopIds: [],
-          restrictedAt: NOW,
-        },
-        startedAt: NOW,
-      });
-      await replaceBillingState(ctx, scheduled.organizationId, {
-        kind: "scheduledChange",
-        currentPlan: "business",
-        targetPlan: "pro",
-        effectiveAt: NOW + DAY_MS,
-      });
-      await ctx.db.insert("organizationMigrationConflicts", {
-        organizationId: scheduled.organizationId,
-        sourceType: "organization",
-        sourceId: scheduled.organizationId,
-        code: "billing_business_to_pro_ambiguous_billing_states",
-        createdAt: NOW,
-      });
-      return [String(nested.organizationId), String(scheduled.organizationId)].sort();
-    });
-
-    const probe = await t.query(internal.organizationStripe.maintenance.getProbe, {});
-    expect(probe.anomalies.unresolvedM018MigrationConflicts).toEqual({ observedCount: 1, hasMore: false });
-
-    const observedLegacyOrganizationIds: string[] = [];
-    let cursor: string | null = null;
-    let isDone = false;
-    let scannedCount = 0;
-    while (!isDone) {
-      const page: {
-        legacyBusinessStates: Array<{
-          billingStateId: Id<"organizationBillingStates">;
-          organizationId: Id<"organizations">;
-          stateKind: string;
-        }>;
-        legacyBusinessCount: number;
-        scannedCount: number;
-        isDone: boolean;
-        continueCursor: string;
-      } = await t.query(internal.organizationStripe.maintenance.verifyLegacyBusinessStates, {
-        paginationOpts: { numItems: 1, cursor },
-      });
-      scannedCount += page.scannedCount;
-      expect(page.legacyBusinessCount).toBe(page.legacyBusinessStates.length);
-      observedLegacyOrganizationIds.push(...page.legacyBusinessStates.map((entry) => String(entry.organizationId)));
-      cursor = page.continueCursor;
-      isDone = page.isDone;
-    }
-
-    expect(scannedCount).toBe(3);
-    expect(observedLegacyOrganizationIds.sort()).toEqual(expectedLegacyOrganizationIds);
   });
 });
 
@@ -1535,6 +1460,7 @@ async function insertSubscription(
     stripeCustomerId: args.stripeCustomerId,
     stripeSubscriptionId: args.stripeSubscriptionId,
     stripePriceId: "price_pro_test",
+    plan: "pro",
     livemode: false,
     status: args.status,
     providerGeneration: args.providerGeneration,

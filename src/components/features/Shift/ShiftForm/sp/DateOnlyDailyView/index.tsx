@@ -201,6 +201,9 @@ const DateRail = ({
               bg={active ? "teal.500" : isClosed || !date.inRange ? "gray.50" : "white"}
               color={active ? "white" : !date.inRange || isClosed ? "gray.400" : "gray.800"}
               cursor="pointer"
+              transitionProperty="colors"
+              transitionDuration="faster"
+              _active={{ bg: active ? "teal.600" : "gray.100", transitionDuration: "0ms" }}
               _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
             >
               <DateIssueBadge issueCount={issueCount} warningCount={warningCount} />
@@ -276,6 +279,8 @@ const StaffToggleRow = ({
         fontSize="xl"
         fontWeight={row.assigned ? 700 : 500}
         cursor={isReadOnly ? "default" : "pointer"}
+        transitionProperty="colors"
+        transitionDuration="faster"
         _hover={
           isReadOnly
             ? undefined
@@ -285,6 +290,7 @@ const StaffToggleRow = ({
                 color: row.assigned ? "white" : "gray.500",
               }
         }
+        _active={isReadOnly ? undefined : { bg: row.assigned ? "teal.600" : "gray.100", transitionDuration: "0ms" }}
         _focusVisible={{ outline: "2px solid", outlineColor: "teal.600", outlineOffset: "1px" }}
       >
         {row.assigned ? "○" : "×"}

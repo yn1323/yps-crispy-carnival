@@ -24,7 +24,7 @@ export function OrganizationsView({
 }) {
   return (
     <Stack gap={{ base: 6, md: 8 }}>
-      <PageHeading description="グループごとの利用状況と要確認状態を比較します。" title="グループ" />
+      <PageHeading description="組織ごとの利用状況と要確認状態を比較します。" title="組織" />
       <DataStatus metadata={metadata} />
       <AnalysisControls
         advancedFilterKeys={["plan"]}
@@ -41,9 +41,9 @@ export function OrganizationsView({
         warnings={metadata.warnings}
       />
       <Stack bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" gap={4} p={{ base: 4, md: 5 }}>
-        <SectionHeading description="行を選ぶとグループ内の店舗とKPI推移を確認できます。" title="グループ一覧" />
+        <SectionHeading description="行を選ぶと組織内の店舗とKPI推移を確認できます。" title="組織一覧" />
         <OrganizationsTable
-          emptyText={analyticsEmptyText(metadata, "この条件に一致するグループはありません", pageInfo)}
+          emptyText={analyticsEmptyText(metadata, "この条件に一致する組織はありません", pageInfo)}
           navigate={navigate}
           rows={rows}
         />

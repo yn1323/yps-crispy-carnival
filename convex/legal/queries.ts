@@ -1,30 +1,18 @@
 import { v } from "convex/values";
-import { internalQuery, query } from "../_generated/server";
-import { isShopParentActive } from "../_lib/activeShop";
+import { observedInternalQuery as internalQuery, observedQuery as query } from "../_lib/errorObservability";
 import { authenticatedQuery } from "../_lib/functions";
-import { getStaffLineAccount } from "../line/service";
+import { isShopAvailable } from "../_lib/shopAvailability";
+import { resolveStaffLineRecipient } from "../line/service";
+import { toNotificationLineRecipient } from "../notificationOutbox/types";
 import { getLegalDocumentsForAudience } from "./documents";
 import { hasCurrentStaffLegalConsent, hasCurrentUserLegalConsent } from "./service";
-
-const legalDocumentValidator = v.object({
-  audience: v.union(v.literal("manager"), v.literal("staff")),
-  kind: v.union(v.literal("terms"), v.literal("privacy")),
-  title: v.string(),
-  documentVersion: v.string(),
-  requiredConsentVersion: v.string(),
-  path: v.string(),
-});
-
-const legalDocumentsValidator = v.object({
-  terms: legalDocumentValidator,
-  privacy: legalDocumentValidator,
-});
+import { managerLegalDocumentsValidator, staffLegalDocumentsValidator } from "./validators";
 
 export const getManagerConsentStatus = authenticatedQuery({
   args: {},
   returns: v.object({
     required: v.boolean(),
-    documents: legalDocumentsValidator,
+    documents: managerLegalDocumentsValidator,
   }),
   handler: async (ctx) => {
     const documents = getLegalDocumentsForAudience("manager");
@@ -45,19 +33,19 @@ export const getManagerConsentStatus = authenticatedQuery({
 export const getStaffConsentPageData = query({
   args: { token: v.string() },
   returns: v.union(
-    v.object({ status: v.literal("expired"), documents: legalDocumentsValidator }),
+    v.object({ status: v.literal("expired"), documents: staffLegalDocumentsValidator }),
     v.object({
       status: v.literal("accepted"),
       staffName: v.string(),
       shopName: v.string(),
-      documents: legalDocumentsValidator,
+      documents: staffLegalDocumentsValidator,
     }),
     v.object({
       status: v.literal("ok"),
       staffName: v.string(),
       shopName: v.string(),
       expiresAt: v.number(),
-      documents: legalDocumentsValidator,
+      documents: staffLegalDocumentsValidator,
     }),
   ),
   handler: async (ctx, { token }) => {
@@ -75,13 +63,7 @@ export const getStaffConsentPageData = query({
     }
 
     const [staff, shop] = await Promise.all([ctx.db.get(tokenDoc.staffId), ctx.db.get(tokenDoc.shopId)]);
-    if (
-      !staff ||
-      staff.isDeleted ||
-      staff.shopId !== tokenDoc.shopId ||
-      !shop ||
-      !(await isShopParentActive(ctx, shop))
-    ) {
+    if (!staff || staff.isDeleted || staff.shopId !== tokenDoc.shopId || !shop || !(await isShopAvailable(ctx, shop))) {
       return { status: "expired" as const, documents };
     }
 
@@ -116,15 +98,16 @@ export const getStaffConsentNotificationDataInternal = internalQuery({
     if (!includeConsented && (await hasCurrentStaffLegalConsent(ctx, staff._id))) return null;
 
     const shop = await ctx.db.get(staff.shopId);
-    if (!shop || !(await isShopParentActive(ctx, shop))) return null;
-    const lineAccount = await getStaffLineAccount(ctx, staff._id);
+    if (!shop || !(await isShopAvailable(ctx, shop))) return null;
+    const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId: staff.shopId });
 
     return {
       staffId: staff._id,
       staffName: staff.name,
       staffEmail: staff.email,
-      lineUserId: lineAccount?.lineUserId,
-      lineFollowing: lineAccount?.following,
+      lineUserId: lineRecipient?.lineUserId,
+      lineFollowing: lineRecipient?.following,
+      lineRecipient: toNotificationLineRecipient(lineRecipient),
       shopId: shop._id,
       shopName: shop.name,
       documents: getLegalDocumentsForAudience("staff"),

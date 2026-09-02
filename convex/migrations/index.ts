@@ -1,7 +1,7 @@
 import { Migrations } from "@convex-dev/migrations";
 import { components, internal } from "../_generated/api";
 import type { DataModel } from "../_generated/dataModel";
-import { internalMutation } from "../_generated/server";
+import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 
 export const migrations = new Migrations<DataModel>(components.migrations, {
   internalMutation,
@@ -55,6 +55,7 @@ export const run = migrations.runner([
   internal.migrations.m038_recruitments_draft_saved_at_narrow_prep.migration,
   internal.migrations.m039_shops_regular_closed_days_narrow_prep.migration,
   internal.migrations.m040_recruitments_shop_closed_dates_narrow_prep.migration,
+  internal.migrations.m049_notification_outbox_shop_deleted_reason.migration,
 ]);
 
 // Widen対応版の確認と、衝突修復後にm012だけを限定再実行するために使う。
@@ -92,7 +93,20 @@ export const runNarrowPreparation = migrations.runner([
   internal.migrations.m038_recruitments_draft_saved_at_narrow_prep.migration,
   internal.migrations.m039_shops_regular_closed_days_narrow_prep.migration,
   internal.migrations.m040_recruitments_shop_closed_dates_narrow_prep.migration,
+  internal.migrations.m049_notification_outbox_shop_deleted_reason.migration,
 ]);
+
+// 店舗lifecycle export preflightの全deployment成功後だけ、対象deploymentへ明示実行する。
+// deploy workflowの自動seriesには含めず、runtime切替前の異常検知をmigration後へ遅らせない。
+export const runShopsOperatingStatusRemoval = migrations.runner(
+  internal.migrations.m048_shops_unset_operating_status.migration,
+);
+
+// 両canonical ID欠損staffのdry runと、根拠を確認したdeploymentだけでの限定実行に使う。
+// fixed seriesや包括prepへ含めず、全ページreadinessと未解消staff conflictを実行前後に記録する。
+export const runStaffCanonicalLinkBackfill = migrations.runner(
+  internal.migrations.m050_staffs_canonical_links_backfill.migration,
+);
 
 // canonical authorityとconflictの運用確認後にだけ、旧shopMembersを論理削除する明示runner。
 // fixed seriesや包括prepへ含めず、dry runとreadinessを記録してから対象deploymentで実行する。
@@ -106,8 +120,6 @@ export const runNotificationTerminalRedaction = migrations.runner([
   internal.migrations.m020_notification_failure_inbox_redaction.migration,
 ]);
 
-// conflict裁定後は、この範囲だけをresetして安全に再評価する。
-export const runFormerManagerAccessCleanup = migrations.runner([
-  internal.migrations.m013_former_managers_remove_manager_access.migration,
-  internal.migrations.m014_removed_organization_members_delete_legacy_shop_members.migration,
-]);
+// LINE共通化のexport/readinessでcounterpart欠損が1件以上、異常0件の場合だけ実行する。
+// 完全ゼロ経路では実行しないため、fixed seriesには含めない。
+export const runLineCommonLinkBackfill = migrations.runner(internal.migrations.m041_line_common_links.migration);

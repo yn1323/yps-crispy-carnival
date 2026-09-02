@@ -1,9 +1,14 @@
 import { runToCompletion } from "@convex-dev/migrations";
 import migrationsComponent from "@convex-dev/migrations/test";
-import { defineSchema } from "convex/server";
+import { defineSchema, type WithoutSystemFields } from "convex/server";
 import { convexTest } from "convex-test";
 import { components } from "../_generated/api";
+import type { Doc } from "../_generated/dataModel";
 import { modules, schema } from "./setup.test-helper";
+
+type CurrentStaffInsert = WithoutSystemFields<Doc<"staffs">>;
+type LegacyStaffDocumentForMigrationHistory = Omit<CurrentStaffInsert, "organizationId" | "organizationPersonId"> &
+  Partial<Pick<CurrentStaffInsert, "organizationId" | "organizationPersonId">>;
 
 export function createConvexTestWithMigrations() {
   const t = convexTest(schema, modules);
@@ -17,6 +22,13 @@ export function createMigrationHistoryTestWithMigrations() {
   const t = convexTest(migrationHistorySchema, modules);
   migrationsComponent.register(t);
   return t;
+}
+
+/** schema validation無効のmigration履歴testで、旧staff shapeを投入する時だけ使う。 */
+export function legacyStaffDocumentForMigrationHistory(
+  document: LegacyStaffDocumentForMigrationHistory,
+): CurrentStaffInsert {
+  return document as CurrentStaffInsert;
 }
 
 export async function runMigrationToCompletion(

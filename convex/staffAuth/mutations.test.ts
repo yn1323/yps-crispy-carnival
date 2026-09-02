@@ -2,6 +2,8 @@ import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
@@ -32,12 +34,10 @@ async function setupTestData(
       isDeleted: false,
       submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     });
-    const staffId = await ctx.db.insert("staffs", {
+    const staffId = await seedStaff(ctx, {
       shopId,
       name: "鈴木太郎",
       email: "suzuki@example.com",
-      emailNormalized: "suzuki@example.com",
-      isDeleted: false,
     });
     await ctx.db.insert("magicLinks", {
       token: magicLinkToken,
@@ -52,6 +52,33 @@ async function setupTestData(
   });
 
   return { ...result, magicLinkToken };
+}
+
+async function invalidateCanonicalStaffLinkedUser(
+  t: TestConvex<typeof schema>,
+  staffId: Id<"staffs">,
+  state: "dangling" | "deleted" | "requested",
+) {
+  await t.run(async (ctx) => {
+    const staff = await ctx.db.get(staffId);
+    if (!staff?.organizationPersonId) throw new Error("canonical staff person not found");
+    const now = Date.now();
+    const linkedUserId = await ctx.db.insert("users", {
+      authTokenIdentifier: `https://convex.test|staff_auth_linked_user_${state}`,
+      name: "スタッフ認証対象",
+      email: `staff-auth-linked-user-${state}@example.com`,
+      emailNormalized: `staff-auth-linked-user-${state}@example.com`,
+      role: "manager",
+      isDeleted: false,
+    });
+    await Promise.all([
+      ctx.db.patch(staff.organizationPersonId, { userId: linkedUserId, updatedAt: now }),
+      ctx.db.patch(staffId, { userId: linkedUserId }),
+    ]);
+    if (state === "dangling") await ctx.db.delete(linkedUserId);
+    else if (state === "deleted") await ctx.db.patch(linkedUserId, { isDeleted: true });
+    else await ctx.db.patch(linkedUserId, { accountDeletionRequestedAt: now });
+  });
 }
 
 describe("staffAuth/mutations", () => {
@@ -94,6 +121,78 @@ describe("staffAuth/mutations", () => {
       if (result.status === "expired") {
         expect(result.reason).toBe("invalid_link");
       }
+    });
+
+    it.each([
+      { name: "両canonical ID欠損", patch: { organizationId: undefined, organizationPersonId: undefined } },
+      { name: "organizationIdだけ欠損", patch: { organizationId: undefined } },
+      { name: "organizationPersonIdだけ欠損", patch: { organizationPersonId: undefined } },
+    ])("$name staffの既存magic linkから新規sessionを発行しない", async ({ patch }) => {
+      const t = convexTest(schema, modules);
+      const { magicLinkToken, staffId, recruitmentId } = await setupTestData(t);
+      await t.run(async (ctx) => await ctx.db.patch(staffId, patch));
+
+      await expect(
+        t.mutation(api.staffAuth.mutations.verifyToken, { token: magicLinkToken, accessKind: "view" }),
+      ).resolves.toEqual({ status: "expired", reason: "invalid_link", recruitmentId });
+
+      const state = await t.run(async (ctx) => ({
+        sessions: await ctx.db.query("sessions").collect(),
+        magicLink: await ctx.db
+          .query("magicLinks")
+          .withIndex("by_token", (q) => q.eq("token", magicLinkToken))
+          .unique(),
+      }));
+      expect(state.sessions).toEqual([]);
+      expect(state.magicLink?.usedAt).toBeUndefined();
+    });
+
+    it("canonical IDが揃っていても人物がremovedなら新規sessionを発行しない", async () => {
+      const t = convexTest(schema, modules);
+      const { magicLinkToken, staffId, recruitmentId } = await setupTestData(t);
+      await t.run(async (ctx) => {
+        const staff = await ctx.db.get(staffId);
+        if (!staff?.organizationPersonId) throw new Error("canonical staff person not found");
+        await ctx.db.patch(staff.organizationPersonId, { status: "removed", updatedAt: Date.now() });
+      });
+
+      await expect(
+        t.mutation(api.staffAuth.mutations.verifyToken, { token: magicLinkToken, accessKind: "view" }),
+      ).resolves.toEqual({ status: "expired", reason: "invalid_link", recruitmentId });
+
+      const state = await t.run(async (ctx) => ({
+        sessions: await ctx.db.query("sessions").collect(),
+        magicLink: await ctx.db
+          .query("magicLinks")
+          .withIndex("by_token", (q) => q.eq("token", magicLinkToken))
+          .unique(),
+      }));
+      expect(state.sessions).toEqual([]);
+      expect(state.magicLink?.usedAt).toBeUndefined();
+    });
+
+    it.each([
+      ["参照切れ", "dangling"],
+      ["削除済み", "deleted"],
+      ["削除受付済み", "requested"],
+    ] as const)("linked userが%sなら既存magic linkから新規sessionを発行しない", async (_label, state) => {
+      const t = convexTest(schema, modules);
+      const { magicLinkToken, staffId, recruitmentId } = await setupTestData(t);
+      await invalidateCanonicalStaffLinkedUser(t, staffId, state);
+
+      await expect(
+        t.mutation(api.staffAuth.mutations.verifyToken, { token: magicLinkToken, accessKind: "view" }),
+      ).resolves.toEqual({ status: "expired", reason: "invalid_link", recruitmentId });
+
+      const stateAfter = await t.run(async (ctx) => ({
+        sessions: await ctx.db.query("sessions").collect(),
+        magicLink: await ctx.db
+          .query("magicLinks")
+          .withIndex("by_token", (q) => q.eq("token", magicLinkToken))
+          .unique(),
+      }));
+      expect(stateAfter.sessions).toEqual([]);
+      expect(stateAfter.magicLink?.usedAt).toBeUndefined();
     });
 
     it("有効なトークンでセッションが14日後に期限切れになる", async () => {
@@ -209,7 +308,7 @@ describe("staffAuth/mutations", () => {
       expect(result).toEqual({ status: "expired", reason: "recruitment_deleted", recruitmentId });
     });
 
-    it("accessKind未設定の使用済みsubmitトークンは締切前なら救済する", async () => {
+    it("accessKind未設定の使用済みsubmitトークンは提出期限前なら救済する", async () => {
       const t = convexTest(schema, modules);
       const { magicLinkToken, recruitmentId } = await setupTestData(t, {
         accessKind: "submit",
@@ -226,7 +325,7 @@ describe("staffAuth/mutations", () => {
       if (result.status === "ok") expect(result.recruitmentId).toBe(recruitmentId);
     });
 
-    it("submitトークンは募集締切後でもopenならセッションを発行できる", async () => {
+    it("submitトークンは募集の提出期限後でもopenならセッションを発行できる", async () => {
       const t = convexTest(schema, modules);
       const { magicLinkToken, recruitmentId } = await setupTestData(t, {
         accessKind: "submit",
@@ -596,12 +695,10 @@ describe("staffAuth/mutations", () => {
       const t = convexTest(schema, modules);
       const ids = await t.run(async (ctx) => {
         const otherShopId = await seedShop(ctx, "Other shop");
-        await ctx.db.insert("staffs", {
+        await seedStaff(ctx, {
           shopId: otherShopId,
           name: "Other staff",
           email: "shared@example.com",
-          emailNormalized: "shared@example.com",
-          isDeleted: false,
         });
 
         const shopId = await seedShop(ctx, "Target shop");
@@ -616,19 +713,16 @@ describe("staffAuth/mutations", () => {
           isDeleted: false,
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
-        await ctx.db.insert("staffs", {
+        await seedStaff(ctx, {
           shopId,
           name: "Deleted target staff",
           email: "shared@example.com",
-          emailNormalized: "shared@example.com",
           isDeleted: true,
         });
-        const staffId = await ctx.db.insert("staffs", {
+        const staffId = await seedStaff(ctx, {
           shopId,
           name: "Target staff",
           email: "shared@example.com",
-          emailNormalized: "shared@example.com",
-          isDeleted: false,
         });
 
         return { staffId, recruitmentId };
@@ -651,12 +745,10 @@ describe("staffAuth/mutations", () => {
       const t = convexTest(schema, modules);
       const ids = await setupTestData(t);
       await t.run(async (ctx) => {
-        await ctx.db.insert("staffs", {
+        await seedStaff(ctx, {
           shopId: ids.shopId,
           name: "重複スタッフ",
           email: "suzuki@example.com",
-          emailNormalized: "suzuki@example.com",
-          isDeleted: false,
         });
       });
 
@@ -669,6 +761,64 @@ describe("staffAuth/mutations", () => {
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
       expect(scheduled).toEqual([]);
+    });
+
+    it("両canonical ID欠損staffには再発行通知を予約しない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupTestData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(ids.staffId, { organizationId: undefined, organizationPersonId: undefined });
+      });
+
+      await expect(
+        t.mutation(api.staffAuth.mutations.requestReissue, {
+          email: "suzuki@example.com",
+          recruitmentId: ids.recruitmentId,
+        }),
+      ).resolves.toBeNull();
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(scheduled.filter((job) => job.name === "notification/actions:sendReissueEmail")).toEqual([]);
+    });
+
+    it("canonical IDが揃っていても人物がremovedなら再発行通知を予約しない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupTestData(t);
+      await t.run(async (ctx) => {
+        const staff = await ctx.db.get(ids.staffId);
+        if (!staff?.organizationPersonId) throw new Error("canonical staff person not found");
+        await ctx.db.patch(staff.organizationPersonId, { status: "removed", updatedAt: Date.now() });
+      });
+
+      await expect(
+        t.mutation(api.staffAuth.mutations.requestReissue, {
+          email: "suzuki@example.com",
+          recruitmentId: ids.recruitmentId,
+        }),
+      ).resolves.toBeNull();
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(scheduled.filter((job) => job.name === "notification/actions:sendReissueEmail")).toEqual([]);
+    });
+
+    it.each([
+      ["参照切れ", "dangling"],
+      ["削除済み", "deleted"],
+      ["削除受付済み", "requested"],
+    ] as const)("linked userが%sなら再発行通知を予約しない", async (_label, state) => {
+      const t = convexTest(schema, modules);
+      const ids = await setupTestData(t);
+      await invalidateCanonicalStaffLinkedUser(t, ids.staffId, state);
+
+      await expect(
+        t.mutation(api.staffAuth.mutations.requestReissue, {
+          email: "suzuki@example.com",
+          recruitmentId: ids.recruitmentId,
+        }),
+      ).resolves.toBeNull();
+
+      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+      expect(scheduled.filter((job) => job.name === "notification/actions:sendReissueEmail")).toEqual([]);
     });
 
     it("同じメールと募集の短時間連打では再発行通知予約を増やさない", async () => {

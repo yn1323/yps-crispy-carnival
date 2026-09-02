@@ -2,6 +2,7 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS } from "../constants";
@@ -235,7 +236,7 @@ async function setupStaff() {
       email: "manager@example.com",
       shopName: "通知履歴店舗",
     });
-    const staffId = await ctx.db.insert("staffs", {
+    const staffId = await seedStaff(ctx, {
       shopId,
       name: "通知履歴スタッフ",
       email: "staff@example.com",

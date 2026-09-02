@@ -13,7 +13,7 @@ import {
   seedStaff,
 } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
-import { seedManagerShop, seedShop, seedStaffLineAccount } from "../_test/seed";
+import { seedCanonicalStaffLineRecipient, seedManagerShop, seedShop, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("セキュリティ境界シナリオ", () => {
@@ -71,16 +71,18 @@ describe("セキュリティ境界シナリオ", () => {
         name: "別店舗スタッフ",
         email: "other-shop-staff@example.com",
       });
-      await seedStaffLineAccount(ctx, { staffId: lineStaffId, shopId, lineUserId: "U_confirm_line", following: true });
-      await seedStaffLineAccount(ctx, {
+      await seedCanonicalStaffLineRecipient(ctx, {
+        staffId: lineStaffId,
+        lineUserId: "U_confirm_line",
+        following: true,
+      });
+      await seedCanonicalStaffLineRecipient(ctx, {
         staffId: unfollowStaffId,
-        shopId,
         lineUserId: "U_confirm_unfollow",
         following: false,
       });
-      await seedStaffLineAccount(ctx, {
+      await seedCanonicalStaffLineRecipient(ctx, {
         staffId: otherShopStaffId,
-        shopId: otherShopId,
         lineUserId: "U_confirm_other_shop",
         following: true,
       });
@@ -230,7 +232,11 @@ describe("セキュリティ境界シナリオ", () => {
         name: "別店舗スタッフ",
         email: "other@example.com",
       });
-      await seedStaffLineAccount(ctx, { staffId: lineStaffId, shopId, lineUserId: "U_open_line", following: true });
+      await seedCanonicalStaffLineRecipient(ctx, {
+        staffId: lineStaffId,
+        lineUserId: "U_open_line",
+        following: true,
+      });
 
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
@@ -785,7 +791,7 @@ describe("セキュリティ境界シナリオ", () => {
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       await seedSession(ctx, { sessionToken: "deleted-target-session", staffId, shopId, recruitmentId });
-      await seedStaffLineAccount(ctx, { staffId, shopId, lineUserId: "U_deleted_target", following: true });
+      await seedCanonicalStaffLineRecipient(ctx, { staffId, lineUserId: "U_deleted_target", following: true });
       return { shopId, staffId, recruitmentId };
     });
     const { token: magicToken } = await t.mutation(internal.notification.mutations.createMagicLink, {
@@ -821,7 +827,7 @@ describe("セキュリティ境界シナリオ", () => {
     ).resolves.toBeNull();
   });
 
-  it("同じLINE userIdを再連携したら古いスタッフにはLINE通知対象が残らない", async () => {
+  it("同じorganizationの別人物へ同じLINE userIdを再連携できず、既存連携を奪わない", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
@@ -835,8 +841,13 @@ describe("セキュリティ境界シナリオ", () => {
       });
       const oldStaffId = await seedStaff(ctx, { shopId, name: "旧スタッフ", email: "old-line@example.com" });
       const newStaffId = await seedStaff(ctx, { shopId, name: "新スタッフ", email: "new-line@example.com" });
+      const oldRecipient = await seedCanonicalStaffLineRecipient(ctx, {
+        staffId: oldStaffId,
+        lineUserId: "U_relink_shared",
+        following: true,
+      });
       await seedStaffLineAccount(ctx, { staffId: oldStaffId, shopId, lineUserId: "U_relink_shared", following: true });
-      return { oldStaffId, newStaffId };
+      return { oldStaffId, newStaffId, oldRecipient };
     });
     await asManager.createRecruitment({
       periodStart: scenarioDate(7),
@@ -849,12 +860,14 @@ describe("セキュリティ境界シナリオ", () => {
     expect(validation.status).toBe("ok");
     if (validation.status !== "ok") throw new Error("LINE token validation failed");
 
-    await line.finalizeLinking({
-      staffId: ids.newStaffId,
-      tokenDocId: validation.tokenDocId,
-      lineUserId: "U_relink_shared",
-      lineFollowing: true,
-    });
+    await expect(
+      line.finalizeLinking({
+        staffId: ids.newStaffId,
+        tokenDocId: validation.tokenDocId,
+        lineUserId: "U_relink_shared",
+        lineFollowing: true,
+      }),
+    ).rejects.toThrow("LINE連携を完了できませんでした。");
 
     const accounts = await t.run(async (ctx) => {
       const oldAccount = await ctx.db
@@ -865,14 +878,25 @@ describe("セキュリティ境界シナリオ", () => {
         .query("staffLineAccounts")
         .withIndex("by_staffId", (q) => q.eq("staffId", ids.newStaffId))
         .first();
-      return { oldAccount, newAccount };
+      const oldLink = await ctx.db.get(ids.oldRecipient.organizationPersonLineLinkId);
+      const provider = await ctx.db.get(ids.oldRecipient.lineProviderUserId);
+      const token = await ctx.db.get(validation.tokenDocId);
+      return { oldAccount, newAccount, oldLink, provider, token };
     });
-    expect(accounts.oldAccount).toMatchObject({ isDeleted: true, following: false });
-    expect(accounts.newAccount).toMatchObject({
+    expect(accounts.oldAccount).toMatchObject({
       isDeleted: false,
       following: true,
       lineUserId: "U_relink_shared",
     });
+    expect(accounts.newAccount).toBeNull();
+    expect(accounts.oldLink).toMatchObject({
+      organizationPersonId: ids.oldRecipient.organizationPersonId,
+      lineProviderUserId: ids.oldRecipient.lineProviderUserId,
+      isDeleted: false,
+    });
+    expect(accounts.provider).toMatchObject({ lineUserId: "U_relink_shared", following: true, isDeleted: false });
+    expect(accounts.token?.usedAt).toBeUndefined();
+    expect(accounts.token?.revokedAt).toBeUndefined();
 
     const scheduled = await readScheduledFunctions(t);
     expect(
@@ -884,6 +908,6 @@ describe("セキュリティ境界シナリオ", () => {
       countScheduledJobs(scheduled, "notification/actions:sendOpenRecruitmentNotificationLinesForStaff", {
         staffId: ids.newStaffId,
       }),
-    ).toBe(1);
+    ).toBe(0);
   });
 });

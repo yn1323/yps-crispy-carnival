@@ -19,6 +19,7 @@ const COMPLETED_ONBOARDING_STAGES: DashboardOnboardingStage[] = [
 
 export type DashboardOnboardingRenderState = {
   content: ReactNode;
+  isDismissed: boolean;
   isVisible: boolean;
   onOpenRecruitment: (recruitmentId: Recruitment["_id"]) => void;
 };
@@ -83,6 +84,7 @@ export function DashboardOnboarding({
 
   return children({
     content: visibleState ? <DashboardOnboardingView state={visibleState} onDismiss={handleDismiss} /> : null,
+    isDismissed: state.kind === "hidden" && state.reason === "dismissed",
     isVisible: visibleState !== null,
     onOpenRecruitment: handleOpenRecruitment,
   });

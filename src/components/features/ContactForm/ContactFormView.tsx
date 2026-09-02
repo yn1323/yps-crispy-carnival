@@ -1,5 +1,4 @@
-import { Alert, Box, Checkbox, Field, Input, Link, NativeSelect, Stack, Text, Textarea } from "@chakra-ui/react";
-import { Link as RouterLink } from "@tanstack/react-router";
+import { Alert, Box, Checkbox, Field, Link, Stack, Text } from "@chakra-ui/react";
 import type { FormEventHandler } from "react";
 import type { UseFormRegisterReturn } from "react-hook-form";
 import { LuCheck } from "react-icons/lu";
@@ -9,8 +8,10 @@ import {
   CONTACT_ORGANIZATION_MAX_LENGTH,
 } from "@/convex/constants";
 import { CONTACT_TYPE_OPTIONS } from "@/convex/contact/schemas";
+import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
 import { TurnstileWidget } from "@/src/components/shared/TurnstileWidget";
 import { Button } from "@/src/components/ui/Button";
+import { Input, NativeSelect, Textarea } from "@/src/components/ui/FormControls";
 
 type ContactFormFields = {
   type: UseFormRegisterReturn<"type">;
@@ -64,11 +65,8 @@ export function ContactFormView(props: ContactFormViewProps) {
         <Text as="h2" color="gray.950" fontSize="xl" fontWeight="bold">
           お問い合わせを受け付けました
         </Text>
-        <Text color="fg.muted" fontSize="sm" lineHeight="tall">
-          内容を確認のうえ、ご連絡します。
-        </Text>
         <Button asChild colorPalette="teal" minW="160px" mt={2}>
-          <RouterLink to="/">TOPに戻る</RouterLink>
+          <MeasurementBoundaryLink href="/">TOPに戻る</MeasurementBoundaryLink>
         </Button>
       </Stack>
     );
@@ -105,21 +103,14 @@ export function ContactFormView(props: ContactFormViewProps) {
             {...props.fields.name}
             bg="white"
             maxLength={CONTACT_NAME_MAX_LENGTH}
-            autoComplete="name"
-            placeholder="例：山田 太郎"
+            placeholder="サンプル ユーザー"
           />
           {props.errors.name && <Field.ErrorText>{props.errors.name}</Field.ErrorText>}
         </Field.Root>
 
         <Field.Root invalid={!!props.errors.email}>
           <Field.Label>メールアドレス</Field.Label>
-          <Input
-            {...props.fields.email}
-            bg="white"
-            type="email"
-            autoComplete="email"
-            placeholder="例：yamada@example.com"
-          />
+          <Input {...props.fields.email} bg="white" type="email" placeholder="contact@example.com" />
           {props.errors.email && <Field.ErrorText>{props.errors.email}</Field.ErrorText>}
         </Field.Root>
 
@@ -129,8 +120,7 @@ export function ContactFormView(props: ContactFormViewProps) {
             {...props.fields.organization}
             bg="white"
             maxLength={CONTACT_ORGANIZATION_MAX_LENGTH}
-            autoComplete="organization"
-            placeholder="例：シフトリ渋谷店"
+            placeholder="サンプル組織"
           />
           {props.errors.organization && <Field.ErrorText>{props.errors.organization}</Field.ErrorText>}
         </Field.Root>

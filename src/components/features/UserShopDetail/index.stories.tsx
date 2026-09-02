@@ -30,12 +30,6 @@ const membership: UserShopDetailMembership = {
   excludedFromShift: false,
   canRemove: true,
   removalPreview,
-  line: { isLinked: false, isFollowing: false },
-};
-
-const lineLinkedMembership: UserShopDetailMembership = {
-  ...membership,
-  line: { isLinked: true, isFollowing: true },
 };
 
 const data: UserShopDetailData = {
@@ -48,14 +42,22 @@ const data: UserShopDetailData = {
   isSelf: false,
   managerRole: "none",
   hasManagerInvitation: false,
-  managerInvitationState: { kind: "available", mode: "addition", replacesStaleInvitation: false },
   canRemoveManagerRole: false,
   managerRoleRemovalDisabledReason: undefined,
   canRemove: true,
   removeDisabledReason: undefined,
   removalPreview,
   canWrite: true,
-  shops: [{ shopId, shopName: membership.shopName, shopStatus: membership.shopStatus }],
+  line: {
+    status: "unlinked",
+    actionShopId: shopId,
+    sourceStaffId: staffId,
+    sourceShopId: shopId,
+    canLink: true,
+    canDisconnect: false,
+  },
+  membershipFingerprint: "membership-fingerprint",
+  shops: [{ shopId, shopName: membership.shopName, shopStatus: membership.shopStatus, canChangeMembership: true }],
   memberships: [membership],
 };
 
@@ -78,15 +80,15 @@ const notificationItems: StaffNotificationHistoryItem[] = [
   },
 ];
 
-const notificationHistory = <StaffNotificationHistoryView items={notificationItems} />;
+const notificationHistory = (lineConnectionStatus: "linked" | "unlinked") => (
+  <StaffNotificationHistoryView items={notificationItems} lineConnectionStatus={lineConnectionStatus} />
+);
+
+const notificationHistoryLoading = (lineConnectionStatus: "linked" | "unlinked") => (
+  <StaffNotificationHistoryView items={[]} isLoading lineConnectionStatus={lineConnectionStatus} />
+);
 
 const baseState: UserShopDetailViewProps["state"] = {
-  line: {
-    authorizeUrl: null,
-    showQr: false,
-    isQrLoading: false,
-    isSendingInvite: false,
-  },
   notifications: {
     isLoading: false,
     openRecruitments: [
@@ -115,11 +117,12 @@ const baseState: UserShopDetailViewProps["state"] = {
     ],
     isSendingRecruitments: false,
     isSendingCurrentShift: false,
+    isCooldownLoading: false,
+    isRecruitmentCooldownActive: false,
+    isCurrentShiftCooldownActive: false,
   },
   membership: {
     isChangingShiftTarget: false,
-    isRemovalConfirmationOpen: false,
-    isRemoving: false,
   },
 };
 
@@ -128,14 +131,9 @@ const asyncNoop = async () => undefined;
 
 const baseActions: UserShopDetailViewProps["actions"] = {
   onBack: noop,
-  onShowLineQr: asyncNoop,
-  onSendLineInvite: asyncNoop,
   onSendRecruitments: asyncNoop,
   onSendCurrentShift: asyncNoop,
   onChangeShiftTarget: asyncNoop,
-  onRequestRemoveMembership: noop,
-  onCancelRemoveMembership: noop,
-  onConfirmRemoveMembership: asyncNoop,
 };
 
 const meta = {
@@ -155,8 +153,7 @@ const meta = {
     data,
     membership,
     isStoreReadOnly: false,
-    showMembershipRemoval: true,
-    notificationHistory,
+    notificationHistory: notificationHistory("unlinked"),
     state: baseState,
     actions: baseActions,
   },
@@ -167,42 +164,112 @@ type Story = StoryObj<typeof meta>;
 
 export const Desktop: Story = {};
 
+export const MainViewMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
+const initialDataLoadedState: UserShopDetailViewProps["state"] = {
+  ...baseState,
+  notifications: {
+    ...baseState.notifications,
+    isLoading: true,
+    openRecruitments: [],
+    currentRecruitments: [],
+  },
+};
+
+export const InitialDataLoaded: Story = {
+  args: {
+    notificationHistory: notificationHistoryLoading("unlinked"),
+    state: initialDataLoadedState,
+  },
+};
+
+export const InitialDataLoadedMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+  args: {
+    notificationHistory: notificationHistoryLoading("unlinked"),
+    state: initialDataLoadedState,
+  },
+};
+
 export const Mobile: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
   args: {
-    state: {
-      ...baseState,
-      line: {
-        ...baseState.line,
-        authorizeUrl: "https://example.com/line/authorize",
-        showQr: true,
-      },
+    data: {
+      ...data,
+      line: { ...data.line, status: "linked_unfollowed", canDisconnect: true },
     },
+    notificationHistory: notificationHistory("linked"),
   },
 };
 
-const readOnlyMembership: UserShopDetailMembership = {
-  ...membership,
-  shopStatus: "planSuspended",
+export const NotificationCooldown: Story = {
+  args: {
+    state: {
+      ...baseState,
+      notifications: {
+        ...baseState.notifications,
+        isRecruitmentCooldownActive: true,
+        isCurrentShiftCooldownActive: true,
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const resendButtons = canvas.getAllByRole("button", { name: "再送する" });
+
+    await expect(resendButtons).toHaveLength(2);
+    for (const button of resendButtons) await expect(button).toBeDisabled();
+  },
 };
 
-export const ReadOnly: Story = {
+export const NotificationCooldownMobile: Story = {
+  ...NotificationCooldown,
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
+const limitRecoveryMembership: UserShopDetailMembership = {
+  ...membership,
+  shopStatus: "active",
+};
+
+export const LimitRecoveryOnly: Story = {
   args: {
     data: {
       ...data,
       canWrite: false,
-      writeDisabledReason: "Proの利用上限を超えているため、契約制限中です。",
-      shops: [{ shopId, shopName: readOnlyMembership.shopName, shopStatus: readOnlyMembership.shopStatus }],
-      memberships: [readOnlyMembership],
+      writeDisabledReason:
+        "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。",
+      shops: [
+        {
+          shopId,
+          shopName: limitRecoveryMembership.shopName,
+          shopStatus: limitRecoveryMembership.shopStatus,
+          canChangeMembership: false,
+          membershipChangeDisabledReason: "現在の利用状態では、店舗所属を変更できません。",
+        },
+      ],
+      memberships: [limitRecoveryMembership],
     },
-    membership: readOnlyMembership,
+    membership: limitRecoveryMembership,
     isStoreReadOnly: true,
-    storeDisabledReason: "この店舗は契約制限中のため、設定を変更できません。",
+    storeDisabledReason:
+      "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。",
   },
 };
 
 export const Loading: Story = {
+  render: () => <UserShopDetailSkeleton />,
+};
+
+export const LoadingMobile: Story = {
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
   render: () => <UserShopDetailSkeleton />,
 };
 
@@ -218,8 +285,7 @@ function NotificationLoadingHarness() {
         data={data}
         membership={membership}
         isStoreReadOnly={false}
-        showMembershipRemoval
-        notificationHistory={isLoaded ? notificationHistory : null}
+        notificationHistory={isLoaded ? notificationHistory("unlinked") : notificationHistoryLoading("unlinked")}
         state={{
           ...baseState,
           notifications: {
@@ -241,67 +307,45 @@ export const NotificationLoadingBehavior: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvas.getByRole("heading", { name: "LINE連携" })).toBeInTheDocument();
+    await expect(canvas.getByRole("heading", { name: "通知" })).toBeInTheDocument();
     await expect(canvas.getByLabelText("通知情報を読み込み中")).toBeInTheDocument();
     await userEvent.click(canvas.getByRole("button", { name: "通知情報の取得を完了" }));
 
-    await expect(await canvas.findByRole("button", { name: "募集中のシフトを再送する" })).toBeEnabled();
+    const resendButtons = await canvas.findAllByRole("button", { name: "再送する" });
+    await expect(resendButtons).toHaveLength(2);
+    await expect(resendButtons[0]).toBeEnabled();
     await expect(canvas.queryByLabelText("通知情報を読み込み中")).not.toBeInTheDocument();
-    await expect(canvas.getByRole("heading", { name: "LINE連携" })).toBeInTheDocument();
+    await expect(canvas.getByRole("heading", { name: "通知" })).toBeInTheDocument();
   },
 };
 
 function InteractionHarness() {
-  const [showQr, setShowQr] = useState(false);
   const [isSendingRecruitments, setIsSendingRecruitments] = useState(false);
   const [recruitmentSendCount, setRecruitmentSendCount] = useState(0);
-  const [isRemovalConfirmationOpen, setIsRemovalConfirmationOpen] = useState(false);
-  const [isRemoving, setIsRemoving] = useState(false);
-  const [removalCount, setRemovalCount] = useState(0);
 
   return (
     <>
       <output hidden data-testid="recruitment-send-count">
         {recruitmentSendCount}
       </output>
-      <output hidden data-testid="membership-removal-count">
-        {removalCount}
-      </output>
       <UserShopDetailView
         data={data}
         membership={membership}
         isStoreReadOnly={false}
-        showMembershipRemoval
-        notificationHistory={notificationHistory}
+        notificationHistory={notificationHistory("unlinked")}
         state={{
           ...baseState,
-          line: {
-            ...baseState.line,
-            authorizeUrl: showQr ? "https://example.com/line/authorize" : null,
-            showQr,
-          },
           notifications: {
             ...baseState.notifications,
             isSendingRecruitments,
           },
-          membership: {
-            ...baseState.membership,
-            isRemovalConfirmationOpen,
-            isRemoving,
-          },
+          membership: baseState.membership,
         }}
         actions={{
           ...baseActions,
-          onShowLineQr: async () => setShowQr(true),
           onSendRecruitments: async () => {
             setRecruitmentSendCount((count) => count + 1);
             setIsSendingRecruitments(true);
-          },
-          onRequestRemoveMembership: () => setIsRemovalConfirmationOpen(true),
-          onCancelRemoveMembership: () => setIsRemovalConfirmationOpen(false),
-          onConfirmRemoveMembership: async () => {
-            setRemovalCount((count) => count + 1);
-            setIsRemoving(true);
           },
         }}
       />
@@ -309,30 +353,23 @@ function InteractionHarness() {
   );
 }
 
-export const LineQrDisplayBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  render: () => <InteractionHarness />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const showQrButton = canvas.getByRole("button", { name: "LINE連携リンクを表示" });
-
-    await expect(canvas.queryByText("田中 花子さん専用のURL（QRコード）です。")).not.toBeInTheDocument();
-    await expect(showQrButton).toBeEnabled();
-    await userEvent.click(showQrButton);
-    await expect(await canvas.findByText("田中 花子さん専用のURL（QRコード）です。")).toBeInTheDocument();
-    await expect(await canvas.findByRole("img", { name: "LINE連携用QRコード" })).toBeInTheDocument();
-    await expect(showQrButton).toBeDisabled();
+export const LineLinked: Story = {
+  args: {
+    data: {
+      ...data,
+      line: { ...data.line, status: "linked_following", canDisconnect: true },
+    },
+    notificationHistory: notificationHistory("linked"),
   },
 };
 
-export const LineLinked: Story = {
-  args: { membership: lineLinkedMembership },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const status = await canvas.findByText("LINE連携済み");
-
-    await expect(status).toBeVisible();
-    await expect(canvas.findByText("この店舗のシフト関連通知をLINEで受け取れます。")).resolves.toBeVisible();
+export const LineUnavailable: Story = {
+  args: {
+    data: {
+      ...data,
+      line: { ...data.line, status: "linked_unfollowed", canDisconnect: true },
+    },
+    notificationHistory: notificationHistory("linked"),
   },
 };
 
@@ -341,30 +378,11 @@ export const RecruitmentNotificationSendingBehavior: Story = {
   render: () => <InteractionHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const sendButton = canvas.getByRole("button", { name: "募集中のシフトを再送する" });
+    const sendButton = canvas.getAllByRole("button", { name: "再送する" })[0];
 
     await expect(sendButton).toBeEnabled();
     await userEvent.click(sendButton);
     await expect(canvas.getByTestId("recruitment-send-count")).toHaveTextContent("1");
     await expect(sendButton).toBeDisabled();
-  },
-};
-
-export const MembershipRemovalConfirmationBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  render: () => <InteractionHarness />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const page = within(canvasElement.ownerDocument.body);
-
-    await userEvent.click(canvas.getByRole("button", { name: "店舗から外す" }));
-    const confirmation = await page.findByRole("alertdialog", { name: "店舗から外す" });
-    const confirmationContent = within(confirmation);
-
-    await expect(confirmationContent.getByText("田中 花子さんを渋谷店から外しますか？")).toBeInTheDocument();
-    const confirmButton = confirmationContent.getByRole("button", { name: "店舗から外す" });
-    await userEvent.click(confirmButton);
-    await expect(canvas.getByTestId("membership-removal-count")).toHaveTextContent("1");
-    await expect(confirmButton).toBeDisabled();
   },
 };

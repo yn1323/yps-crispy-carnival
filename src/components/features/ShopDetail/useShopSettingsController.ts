@@ -8,7 +8,7 @@ import { useDialog } from "@/src/components/ui/Dialog";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import type { ShopDetailData } from "./types";
 
-export function useShopSettingsController(shop: ShopDetailData) {
+export function useShopSettingsController(shop: ShopDetailData, expectedOrganizationId?: Id<"organizations">) {
   const updateMutation = useMutation(api.shop.mutations.updateShopSettings);
   const dialog = useDialog();
   const latestShopRef = useRef(shop);
@@ -18,13 +18,14 @@ export function useShopSettingsController(shop: ShopDetailData) {
     if (!shop.canUpdateSettings) dialog.close();
   }, [dialog.close, shop.canUpdateSettings]);
 
-  const { run } = useSingleFlight(async (data: ShopFormData) => {
+  const { run, isRunning: isUpdating } = useSingleFlight(async (data: ShopFormData) => {
     const latestShop = latestShopRef.current;
     if (!latestShop.canUpdateSettings) return false;
 
     try {
       await updateMutation({
         shopId: latestShop.id as Id<"shops">,
+        ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
         ...data,
       });
       dialog.close();
@@ -47,6 +48,7 @@ export function useShopSettingsController(shop: ShopDetailData) {
       onOpenChange: dialog.onOpenChange,
       open: openSettings,
       close: dialog.close,
+      isUpdating,
     },
     updateSettings: async (data: ShopFormData) => {
       await run(data);

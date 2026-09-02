@@ -2,11 +2,11 @@ import { Box, Flex, Heading, HStack, Skeleton, Stack } from "@chakra-ui/react";
 import type { PaginationStatus } from "convex/browser";
 import { LuChevronDown, LuPlus, LuUsers } from "react-icons/lu";
 import type { Staff } from "@/src/components/features/Dashboard/types";
+import { StaffListRow, type StaffListRowBadge } from "@/src/components/shared/StaffListRow";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { useScrollToListItem } from "@/src/hooks/useScrollToListItem";
 import { DASHBOARD_TOUR_TARGET } from "../dashboardTourTargets";
-import { StaffRow } from "./StaffRow";
 
 type Props = {
   staffs: Staff[];
@@ -17,7 +17,6 @@ type Props = {
   onOpenDetail: (staff: Staff) => void;
   onLoadMore: () => void;
   onAddIntent?: () => void;
-  onOpenDetailIntent?: () => void;
   focusedPersonId?: string;
 };
 
@@ -30,14 +29,12 @@ export const StaffRoster = ({
   onOpenDetail,
   onLoadMore,
   onAddIntent,
-  onOpenDetailIntent,
   focusedPersonId,
 }: Props) => {
   const showLoadMore = canLoadMore && status !== "LoadingFirstPage";
-  const sorted = [...staffs].sort((a, b) => Number(b.isManager) - Number(a.isManager));
   const focusedItemId = focusedPersonId ? `dashboard-user-${focusedPersonId}` : undefined;
   const isFocusedItemRendered = Boolean(
-    focusedPersonId && sorted.some((staff) => staff.organizationPersonId === focusedPersonId),
+    focusedPersonId && staffs.some((staff) => staff.organizationPersonId === focusedPersonId),
   );
   useScrollToListItem(focusedItemId, isFocusedItemRendered);
 
@@ -70,25 +67,39 @@ export const StaffRoster = ({
             size="sm"
             onClick={onAddClick}
             disabled={isReadOnly}
-            title={isReadOnly ? "閲覧のみの店舗ではスタッフを招待できません" : undefined}
+            title={isReadOnly ? "現在、スタッフを追加できません" : undefined}
             gap={1.5}
             fontWeight="semibold"
             onPointerEnter={onAddIntent}
             onFocus={onAddIntent}
           >
             <LuPlus />
-            スタッフを招待する
+            スタッフを追加する
           </Button>
         </Flex>
       </Flex>
 
-      {sorted.length === 0 ? (
+      {staffs.length === 0 ? (
         <Empty
           icon={LuUsers}
-          title="まだスタッフはいません"
-          description="名前とメールアドレスでスタッフを追加できます。"
+          title="スタッフはいません"
           tone="brand"
           variant="section"
+          action={
+            <Button
+              colorPalette="teal"
+              size="md"
+              onClick={onAddClick}
+              disabled={isReadOnly}
+              title={isReadOnly ? "現在、スタッフを追加できません" : undefined}
+              gap={1.5}
+              onPointerEnter={onAddIntent}
+              onFocus={onAddIntent}
+            >
+              <LuPlus />
+              スタッフを追加する
+            </Button>
+          }
         />
       ) : (
         <Box
@@ -100,9 +111,26 @@ export const StaffRoster = ({
           overflow="hidden"
         >
           <Stack gap={0} divideY="1px" divideColor="blackAlpha.50">
-            {sorted.map((s) => (
-              <StaffRow key={s._id} staff={s} onOpenDetail={onOpenDetail} onOpenDetailIntent={onOpenDetailIntent} />
-            ))}
+            {staffs.map((staff) => {
+              const badges: StaffListRowBadge[] = [];
+              if (staff.isManager) badges.push({ kind: "role" });
+              if (staff.isLineLinked && staff.isLineFollowing) {
+                badges.push({ kind: "line", status: "linked_following" });
+              }
+              if (staff.excludedFromShift) badges.push({ kind: "shiftExcluded" });
+
+              return (
+                <StaffListRow
+                  key={staff._id}
+                  id={`dashboard-user-${staff.organizationPersonId}`}
+                  name={staff.name}
+                  role={staff.isManager ? "manager" : "staff"}
+                  detail={{ kind: "email", value: staff.email }}
+                  badges={badges}
+                  onOpen={() => onOpenDetail(staff)}
+                />
+              );
+            })}
           </Stack>
         </Box>
       )}
@@ -130,16 +158,16 @@ export const StaffRosterSkeleton = () => (
   <Stack as="section" aria-label="スタッフ一覧を読み込み中" aria-busy="true" gap={{ base: 4, lg: 5 }}>
     <Flex justify="space-between" align="flex-end" gap={3} wrap="wrap">
       <HStack gap={2.5} align="center">
-        <Skeleton boxSize={{ base: "24px", lg: "28px" }} borderRadius="full" />
+        <Skeleton boxSize={{ base: "20px", lg: "24px" }} borderRadius="full" />
         <Skeleton h={{ base: "28px", lg: "30px" }} w="112px" />
       </HStack>
-      <Skeleton h="32px" w={{ base: "120px", md: "132px" }} />
+      <Skeleton h="36px" w="176px" />
     </Flex>
 
     <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="blackAlpha.50" boxShadow="xs" overflow="hidden">
       <Stack gap={0} divideY="1px" divideColor="blackAlpha.50">
-        {Array.from({ length: 5 }).map((_, index) => (
-          <StaffRowSkeleton key={index} isManager={index === 0} showLineLinked={index === 0 || index === 2} />
+        {Array.from({ length: 3 }).map((_, index) => (
+          <StaffRowSkeleton key={index} isManager={index === 0} showLineLinked={index === 0} />
         ))}
       </Stack>
     </Box>
@@ -150,23 +178,23 @@ const StaffRowSkeleton = ({ isManager, showLineLinked }: { isManager: boolean; s
   <HStack
     as="article"
     gap={3}
-    px={{ base: 3, lg: 4 }}
+    px={{ base: 3, md: 4 }}
     py={3.5}
     align="center"
-    bg={isManager ? "gray.50" : "transparent"}
+    bg={isManager ? "teal.50/50" : "transparent"}
     minH="68px"
   >
     <Skeleton boxSize="40px" borderRadius="full" flexShrink={0} />
-    <Flex flex={1} minW={0} align="center" gap={1.5} wrap="wrap">
-      <Stack gap={0} flex="1 1 96px" minW={0}>
+    <Flex flex={1} minW={0} align="center" gap={2} wrap="wrap">
+      <Stack gap={1} flex="1 1 10rem" minW={0}>
         <Skeleton h="20px" w={{ base: "96px", lg: "112px" }} maxW="full" />
         <Skeleton h="16px" w="180px" maxW="full" display={{ base: "none", lg: "block" }} />
       </Stack>
-      <HStack gap={1.5} wrap="wrap" ms="auto" minW={0} maxW="full" justify="flex-end">
+      <HStack gap={1.5} wrap="wrap" ms="auto" w={{ base: "full", sm: "auto" }} minW={0} maxW="full" justify="flex-end">
         {isManager && <Skeleton h="20px" w="52px" borderRadius="full" />}
         {showLineLinked && <Skeleton h="20px" w="78px" borderRadius="full" />}
       </HStack>
     </Flex>
-    <Skeleton boxSize="32px" borderRadius="md" flexShrink={0} />
+    <Skeleton boxSize="20px" borderRadius="sm" flexShrink={0} />
   </HStack>
 );
