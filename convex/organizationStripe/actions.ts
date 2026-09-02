@@ -8,6 +8,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { getAppUrl } from "../_lib/config";
 import { observedAction as action, observedInternalAction as internalAction } from "../_lib/errorObservability";
+import { organizationPaidPlanLabel } from "../organizationBilling/planPresentation";
 import type { CanonicalOrganizationBillingState } from "../organizationBilling/policy";
 import {
   getConfiguredStripePriceId,
@@ -843,6 +844,7 @@ async function startPaidCheckoutForPlan(
     providerGeneration,
     targetPlan: args.targetPlan,
     changeMode: "checkout" as const,
+    ...(isTrial ? { checkoutCustomTextVersion: 1 as const } : {}),
     stripePriceIdSnapshot: targetPriceId,
     targetStripePriceIdSnapshot: targetPriceId,
   };
@@ -953,6 +955,15 @@ async function startPaidCheckoutForPlan(
             client_reference_id: String(context.organizationId),
             metadata,
             setup_intent_data: { metadata },
+            ...(operation.checkoutCustomTextVersion === 1
+              ? {
+                  custom_text: {
+                    submit: {
+                      message: trialSetupCheckoutSubmitMessage(args.targetPlan, price),
+                    },
+                  },
+                }
+              : {}),
             success_url: withStripeResult(settingsUrl, "returned"),
             cancel_url: withStripeResult(settingsUrl, "cancelled"),
             locale: "ja",
@@ -6875,6 +6886,49 @@ async function convergeExpiredPendingCheckout(
 async function retrieveAllowedPrice(stripe: Stripe, priceId: string, livemode: boolean) {
   const result = await retrieveConfiguredPrice(stripe, priceId, livemode);
   return result.status === "available" ? result.price : null;
+}
+
+function trialSetupCheckoutSubmitMessage(
+  plan: StripePaidPlan,
+  price: {
+    currency: string;
+    unitAmount: number;
+    interval: StripeBillingCadence["interval"];
+    intervalCount: number;
+    taxBehavior: "inclusive" | "exclusive";
+  },
+): string {
+  const taxLabel = price.taxBehavior === "inclusive" ? "税込" : "税別";
+  const amount = formatCheckoutCurrencyAmount(price.currency, price.unitAmount);
+  const priceDescription =
+    price.interval === "month" && price.intervalCount === 1
+      ? `月額${amount}・${taxLabel}`
+      : `${formatBillingCadenceLabel(price)}ごとに${amount}・${taxLabel}`;
+  return `トライアル終了後は${organizationPaidPlanLabel(plan)}プラン（${priceDescription}）に切り替えます。この画面では支払い方法のみ登録し、トライアル終了まで請求されません。`;
+}
+
+function formatCheckoutCurrencyAmount(currencyValue: string, amountInMinorUnit: number): string {
+  const currency = currencyValue.toUpperCase();
+  const formatter = new Intl.NumberFormat("ja-JP", {
+    style: "currency",
+    currency,
+    currencyDisplay: currency === "JPY" ? "name" : "code",
+  });
+  const fractionDigits = formatter.resolvedOptions().maximumFractionDigits ?? 0;
+  return formatter.format(amountInMinorUnit / 10 ** fractionDigits);
+}
+
+function formatBillingCadenceLabel(cadence: StripeBillingCadence): string {
+  switch (cadence.interval) {
+    case "day":
+      return `${cadence.intervalCount}日`;
+    case "week":
+      return `${cadence.intervalCount}週間`;
+    case "month":
+      return `${cadence.intervalCount}か月`;
+    case "year":
+      return `${cadence.intervalCount}年`;
+  }
 }
 
 function getDisplayedPaidPlanForCurrentSubscriptionPrice(
