@@ -702,7 +702,6 @@ describe("OrganizationSettings controllers", () => {
       }),
     );
 
-    const onBackGuardRemoved = result.current.dialog.onBackGuardRemoved;
     act(() => {
       result.current.dialog.onSubmit();
       result.current.dialog.onSubmit();
@@ -716,12 +715,6 @@ describe("OrganizationSettings controllers", () => {
     );
 
     await act(async () => resolveCheckout?.({ status: "available", url: "https://checkout.stripe.example/session" }));
-    expect(mocks.openBillingUrl).not.toHaveBeenCalled();
-
-    act(() => {
-      onBackGuardRemoved();
-      onBackGuardRemoved();
-    });
     expect(mocks.openBillingUrl).toHaveBeenCalledExactlyOnceWith("https://checkout.stripe.example/session");
   });
 
@@ -769,7 +762,6 @@ describe("OrganizationSettings controllers", () => {
       }),
     );
 
-    const onBackGuardRemoved = result.current.dialog.onBackGuardRemoved;
     act(() => result.current.dialog.onSubmit());
     await waitFor(() =>
       expect(mocks.actions.startPaidCheckout).toHaveBeenCalledExactlyOnceWith({
@@ -778,12 +770,10 @@ describe("OrganizationSettings controllers", () => {
         targetPlan: "standard",
       }),
     );
-    expect(mocks.openBillingUrl).not.toHaveBeenCalled();
-    act(() => onBackGuardRemoved());
     expect(mocks.openBillingUrl).toHaveBeenCalledExactlyOnceWith("https://checkout.stripe.example/trial-standard");
   });
 
-  it("Freeの課金状態が先に変わってDialog guardが解除されても、Checkout URL取得後に一度だけ遷移する", async () => {
+  it("Freeの課金状態が先に変わっても、Checkout URL取得後に一度だけ遷移する", async () => {
     mocks.actions.getPlanPrice.mockResolvedValue({
       status: "available",
       currency: "jpy",
@@ -819,7 +809,6 @@ describe("OrganizationSettings controllers", () => {
 
     await waitFor(() => expect(result.current.planPrices.standard.status).toBe("available"));
     act(() => result.current.managePlan("standard"));
-    const onBackGuardRemoved = result.current.dialog.onBackGuardRemoved;
     act(() => result.current.dialog.onSubmit());
     await waitFor(() => expect(mocks.actions.startPaidCheckout).toHaveBeenCalledTimes(1));
 
@@ -832,22 +821,15 @@ describe("OrganizationSettings controllers", () => {
       canManagePlan: false,
     });
     await waitFor(() => expect(result.current.dialog.dialog).toBeNull());
-    act(() => onBackGuardRemoved());
     expect(mocks.openBillingUrl).not.toHaveBeenCalled();
 
     await act(async () =>
       resolveCheckout?.({ status: "available", url: "https://checkout.stripe.example/state-first" }),
     );
     expect(mocks.openBillingUrl).toHaveBeenCalledExactlyOnceWith("https://checkout.stripe.example/state-first");
-    act(() => onBackGuardRemoved());
-    expect(mocks.openBillingUrl).toHaveBeenCalledTimes(1);
   });
 
-  it("旧Dialogの遅延guard callbackは、次のCheckout intentを遷移可能にしない", async () => {
-    let requestSequence = 0;
-    vi.mocked(crypto.randomUUID).mockImplementation(
-      () => `00000000-0000-4000-8000-${String(++requestSequence).padStart(12, "0")}`,
-    );
+  it("Checkout待機中に料金ページを離れた場合は、遅延結果でStripeへ遷移しない", async () => {
     mocks.actions.getPlanPrice.mockResolvedValue({
       status: "available",
       currency: "jpy",
@@ -856,11 +838,11 @@ describe("OrganizationSettings controllers", () => {
       intervalCount: 1,
       taxBehavior: "inclusive",
     });
-    const checkoutResolvers = new Map<string, (value: { status: "available"; url: string }) => void>();
+    let resolveCheckout: ((value: { status: "available"; url: string }) => void) | undefined;
     mocks.actions.startPaidCheckout.mockImplementation(
-      ({ requestId }: { requestId: string }) =>
+      () =>
         new Promise((resolve) => {
-          checkoutResolvers.set(requestId, resolve);
+          resolveCheckout = resolve;
         }),
     );
     const freeBilling: OrganizationBillingView = {
@@ -870,7 +852,7 @@ describe("OrganizationSettings controllers", () => {
       canUpdatePaymentMethod: false,
       canScheduleFree: false,
     };
-    const { result } = renderHook(() =>
+    const { result, unmount } = renderHook(() =>
       useStripeBillingController({
         organizationId,
         organizationName: "さくらダイニング",
@@ -880,42 +862,13 @@ describe("OrganizationSettings controllers", () => {
 
     await waitFor(() => expect(result.current.planPrices.standard.status).toBe("available"));
     act(() => result.current.managePlan("standard"));
-    const firstIntentKey = result.current.dialog.dialog?.intentKey;
-    const firstGuardRemoved = result.current.dialog.onBackGuardRemoved;
-    if (!firstIntentKey) throw new Error("first checkout intent was not created");
     act(() => result.current.dialog.onSubmit());
-    await waitFor(() => expect(checkoutResolvers.has(firstIntentKey)).toBe(true));
-    await act(async () =>
-      checkoutResolvers.get(firstIntentKey)?.({
-        status: "available",
-        url: "https://checkout.stripe.example/first-intent",
-      }),
-    );
-    await waitFor(() => {
-      expect(result.current.dialog.dialog).toBeNull();
-      expect(result.current.dialog.isRunning).toBe(false);
-    });
+    await waitFor(() => expect(mocks.actions.startPaidCheckout).toHaveBeenCalledTimes(1));
+
+    unmount();
+    await act(async () => resolveCheckout?.({ status: "available", url: "https://checkout.stripe.example/late" }));
+
     expect(mocks.openBillingUrl).not.toHaveBeenCalled();
-
-    act(() => result.current.managePlan("pro"));
-    const secondIntentKey = result.current.dialog.dialog?.intentKey;
-    const secondGuardRemoved = result.current.dialog.onBackGuardRemoved;
-    if (!secondIntentKey) throw new Error("second checkout intent was not created");
-    expect(secondIntentKey).not.toBe(firstIntentKey);
-    act(() => result.current.dialog.onSubmit());
-    await waitFor(() => expect(checkoutResolvers.has(secondIntentKey)).toBe(true));
-
-    act(() => firstGuardRemoved());
-    await act(async () =>
-      checkoutResolvers.get(secondIntentKey)?.({
-        status: "available",
-        url: "https://checkout.stripe.example/second-intent",
-      }),
-    );
-    expect(mocks.openBillingUrl).not.toHaveBeenCalled();
-
-    act(() => secondGuardRemoved());
-    expect(mocks.openBillingUrl).toHaveBeenCalledExactlyOnceWith("https://checkout.stripe.example/second-intent");
   });
 
   it("Checkout待機中に組織が変わった場合は、古い組織のURLへ遷移しない", async () => {
@@ -953,13 +906,11 @@ describe("OrganizationSettings controllers", () => {
 
     await waitFor(() => expect(result.current.planPrices.standard.status).toBe("available"));
     act(() => result.current.managePlan("standard"));
-    const onBackGuardRemoved = result.current.dialog.onBackGuardRemoved;
     act(() => result.current.dialog.onSubmit());
     await waitFor(() => expect(mocks.actions.startPaidCheckout).toHaveBeenCalledTimes(1));
 
     rerender({ activeOrganizationId: "organization-other" as Id<"organizations"> });
     await waitFor(() => expect(result.current.dialog.dialog).toBeNull());
-    act(() => onBackGuardRemoved());
     await act(async () =>
       resolveCheckout?.({ status: "available", url: "https://checkout.stripe.example/stale-organization" }),
     );
@@ -1063,7 +1014,6 @@ describe("OrganizationSettings controllers", () => {
       targetPlan: "pro",
       price: { status: "available", value: { unitAmount: 8000 } },
     });
-    const onBackGuardRemoved = result.current.dialog.onBackGuardRemoved;
     act(() => result.current.dialog.onSubmit());
 
     await waitFor(() =>
@@ -1073,8 +1023,6 @@ describe("OrganizationSettings controllers", () => {
         requestId: "request-1",
       }),
     );
-    expect(mocks.openBillingUrl).not.toHaveBeenCalled();
-    act(() => onBackGuardRemoved());
     expect(mocks.openBillingUrl).toHaveBeenCalledExactlyOnceWith("https://checkout.stripe.example/pro");
   });
 
@@ -1122,8 +1070,6 @@ describe("OrganizationSettings controllers", () => {
     );
     expect(mocks.openBillingUrl).not.toHaveBeenCalled();
     expect(result.current.dialog.dialog?.intentKey).toBe("request-1");
-    act(() => result.current.dialog.onBackGuardRemoved());
-    expect(mocks.openBillingUrl).not.toHaveBeenCalled();
   });
 
   it("Stripeのキャンセル戻りは組織を明示して一度だけ復旧Actionを呼び、完了後に戻り値を消費する", async () => {
