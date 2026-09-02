@@ -45,6 +45,7 @@ const meta = {
     onUpdatePaymentMethod: fn(),
     onUpdateBillingEmail: fn(),
     pendingCheckout: {
+      purpose: null,
       status: "idle",
       isCancelling: false,
       onContinue: fn(),
@@ -281,6 +282,7 @@ export const PendingCheckoutOpen: Story = {
       blockedReason: "有料プランの支払い結果を確認中です。無料の基本機能は引き続き利用できます。",
     },
     pendingCheckout: {
+      purpose: "paidCheckout",
       status: "open",
       isCancelling: false,
       onContinue: fn(),
@@ -305,6 +307,7 @@ export const PendingStandardUpgradeOpen: Story = {
       blockedReason: "支払い結果を確認しています。確認が終わるまで、契約状態を変更できません。",
     },
     pendingCheckout: {
+      purpose: "paidCheckout",
       status: "open",
       isCancelling: false,
       onContinue: fn(),
@@ -317,6 +320,24 @@ export const PendingStandardUpgradeOpen: Story = {
     await expect(canvas.getByText("Proプランへの変更結果を確認しています。", { exact: false })).toBeVisible();
     await expect(canvas.getByRole("button", { name: "支払いを続ける" })).toBeEnabled();
     await expect(canvas.getByRole("button", { name: "支払いをやめる" })).toBeEnabled();
+  },
+};
+
+export const TrialSetupCheckoutOpen: Story = {
+  name: "トライアル・支払い方法の登録が未完了",
+  args: {
+    billing: {
+      ...(Trial.args?.billing as OrganizationBillingView),
+      hasStripeCustomer: true,
+    },
+    pendingCheckout: {
+      purpose: "trialPaymentMethodSetup",
+      status: "open",
+      isCancelling: false,
+      onContinue: fn(),
+      onCancel: fn(),
+      onRetry: fn(),
+    },
   },
 };
 
@@ -414,6 +435,22 @@ export const PendingCheckoutActionsBehavior: Story = {
   },
 };
 
+export const TrialSetupCheckoutActionsBehavior: Story = {
+  name: "トライアルの支払い方法登録を続ける・やめる（操作確認）",
+  parameters: { screenshot: { skip: true } },
+  args: TrialSetupCheckoutOpen.args,
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("支払い方法の登録が途中です")).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: "Standardへ変更" })).not.toBeInTheDocument();
+    await expect(canvas.queryByRole("button", { name: "Proへ変更" })).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "登録をやめる" }));
+    await userEvent.click(canvas.getByRole("button", { name: "登録を続ける" }));
+    await expect(args.pendingCheckout?.onCancel).toHaveBeenCalledTimes(1);
+    await expect(args.pendingCheckout?.onContinue).toHaveBeenCalledTimes(1);
+  },
+};
+
 export const MobileFree: Story = {
   name: "Free・モバイル",
   tags: ["vrt-mobile1"],
@@ -447,4 +484,11 @@ export const MobilePendingCheckoutOpen: Story = {
   tags: ["vrt-mobile1"],
   globals: { viewport: { value: "mobile1", isRotated: false } },
   args: PendingCheckoutOpen.args,
+};
+
+export const MobileTrialSetupCheckoutOpen: Story = {
+  name: "トライアル・支払い方法の登録が未完了・モバイル",
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  args: TrialSetupCheckoutOpen.args,
 };

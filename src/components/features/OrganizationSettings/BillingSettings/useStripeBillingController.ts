@@ -7,6 +7,7 @@ import { toaster } from "@/src/components/ui/toaster";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { createBrowserUuid } from "@/src/lib/browserUuid";
 import type {
+  BillingPendingCheckoutPurpose,
   BillingPendingCheckoutStatus,
   BillingPlanPrices,
   BillingProductPlan,
@@ -38,7 +39,24 @@ type Input = {
   onStripeResultHandled?: () => void;
 };
 
-type PendingCheckoutState = { status: Exclude<BillingPendingCheckoutStatus, "open"> } | { status: "open"; url: string };
+type PendingCheckoutScope = {
+  key: string;
+  purpose: BillingPendingCheckoutPurpose;
+};
+
+type PendingCheckoutState =
+  | { scopeKey: null; purpose: null; status: "idle" }
+  | ({ scopeKey: string; purpose: BillingPendingCheckoutPurpose } & (
+      | { status: Exclude<BillingPendingCheckoutStatus, "open"> }
+      | { status: "open"; url: string }
+    ));
+
+type PendingStripeNavigation = {
+  organizationId: Id<"organizations">;
+  intentKey: string;
+  guardRemoved: boolean;
+  url?: string;
+};
 
 const INITIAL_PRICES: BillingPlanPrices = {
   standard: { status: "loading" },
@@ -72,7 +90,11 @@ export function useStripeBillingController(input: Input) {
     api.organizationStripe.actions.cancelTrialContinuationForOrganization,
   );
   const [planPrices, setPlanPrices] = useState<BillingPlanPrices>(INITIAL_PRICES);
-  const [pendingCheckout, setPendingCheckout] = useState<PendingCheckoutState>({ status: "idle" });
+  const [pendingCheckout, setPendingCheckout] = useState<PendingCheckoutState>({
+    scopeKey: null,
+    purpose: null,
+    status: "idle",
+  });
   const [pendingCheckoutInspectionRevision, setPendingCheckoutInspectionRevision] = useState(0);
   const [dialog, setDialog] = useState<BillingActionDialogState | null>(null);
   const latestRef = useRef(input);
@@ -84,16 +106,52 @@ export function useStripeBillingController(input: Input) {
   const handledStripeResultRef = useRef<string | null>(null);
   const inspectedPendingCheckoutRequestRef = useRef<string | null>(null);
   const skipPendingCheckoutInspectionRef = useRef<string | null>(null);
+  const pendingStripeNavigationRef = useRef<PendingStripeNavigation | null>(null);
   const priceRequestRef = useRef<Partial<Record<PaidBillingPlan, string>>>({});
   const previewRequestKeysRef = useRef(new Set<string>());
   latestRef.current = input;
   activeScopeIdRef.current = activeScopeId;
   dialogRef.current = dialog;
-  const pendingCheckoutKey =
-    input.billing.state === "pendingActivation" && input.canManagePendingCheckout !== false
-      ? `${activeScopeId}:${input.billing.targetPlan ?? "unknown"}`
-      : null;
+  const pendingCheckoutScope = resolvePendingCheckoutScope(input);
+  const pendingCheckoutKey = pendingCheckoutScope?.key ?? null;
+  const pendingCheckoutPurpose = pendingCheckoutScope?.purpose ?? null;
   const shouldInspectPendingCheckout = pendingCheckoutKey !== null && stripeResult !== "cancelled";
+  const visiblePendingCheckout: PendingCheckoutState = !pendingCheckoutScope
+    ? { scopeKey: null, purpose: null, status: "idle" }
+    : pendingCheckout.scopeKey === pendingCheckoutScope.key
+      ? pendingCheckout
+      : {
+          scopeKey: pendingCheckoutScope.key,
+          purpose: pendingCheckoutScope.purpose,
+          status: "checking",
+        };
+
+  const tryOpenPendingStripeNavigation = () => {
+    const pendingNavigation = pendingStripeNavigationRef.current;
+    if (!pendingNavigation?.url || !pendingNavigation.guardRemoved) return;
+
+    pendingStripeNavigationRef.current = null;
+    if (activeScopeIdRef.current !== pendingNavigation.organizationId) return;
+
+    try {
+      openBillingUrl(pendingNavigation.url);
+    } catch (error) {
+      const scope = resolvePendingCheckoutScope(latestRef.current);
+      if (scope) {
+        skipPendingCheckoutInspectionRef.current = null;
+        setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "checking" });
+        setPendingCheckoutInspectionRevision((revision) => revision + 1);
+      }
+      showErrorToast(error);
+    }
+  };
+
+  const clearPendingStripeNavigation = (organizationId: Id<"organizations">, intentKey: string) => {
+    const pendingNavigation = pendingStripeNavigationRef.current;
+    if (pendingNavigation?.organizationId === organizationId && pendingNavigation.intentKey === intentKey) {
+      pendingStripeNavigationRef.current = null;
+    }
+  };
 
   const loadPlanPrice = useCallback(
     async (targetPlan: PaidBillingPlan, scopeId: string) => {
@@ -171,6 +229,13 @@ export function useStripeBillingController(input: Input) {
   }, [activeScopeId, input.billing]);
 
   useEffect(() => {
+    const pendingNavigation = pendingStripeNavigationRef.current;
+    if (pendingNavigation && pendingNavigation.organizationId !== activeScopeId) {
+      pendingStripeNavigationRef.current = null;
+    }
+  }, [activeScopeId]);
+
+  useEffect(() => {
     if (!stripeResult) {
       handledStripeResultRef.current = null;
       return;
@@ -185,38 +250,47 @@ export function useStripeBillingController(input: Input) {
       return;
     }
 
+    const scope =
+      pendingCheckoutKey && pendingCheckoutPurpose
+        ? { key: pendingCheckoutKey, purpose: pendingCheckoutPurpose }
+        : null;
     let disposed = false;
-    if (pendingCheckoutKey) {
-      skipPendingCheckoutInspectionRef.current = pendingCheckoutKey;
-      setPendingCheckout({ status: "checking" });
+    if (scope) {
+      skipPendingCheckoutInspectionRef.current = scope.key;
+      setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "checking" });
     }
     void cancelPendingCheckoutForOrganization({ organizationId: input.organizationId })
       .then((result) => {
         if (disposed) return;
         if (result.status === "unavailable") {
-          setPendingCheckout({ status: "unavailable" });
+          if (scope && resolvePendingCheckoutScope(latestRef.current)?.key === scope.key) {
+            setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "unavailable" });
+          }
           showUnavailable(result.reason);
           return;
         }
         if (result.status === "cancelled") {
-          showSuccessToast({
-            title: "支払いをキャンセルしました",
-            description: "元のプランに戻しました。",
-          });
+          if (scope && resolvePendingCheckoutScope(latestRef.current)?.key === scope.key) {
+            setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "idle" });
+          }
+          showSuccessToast(cancelledCheckoutMessage(scope?.purpose ?? "paidCheckout"));
         } else if (result.status === "pending") {
-          setPendingCheckout({ status: "pending" });
-          showSuccessToast({
-            title: "支払い結果を確認中です",
-            description: "Stripeの状態が確定すると、プランが更新されます。",
-          });
+          if (scope && resolvePendingCheckoutScope(latestRef.current)?.key === scope.key) {
+            setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "pending" });
+          }
+          showSuccessToast(pendingCheckoutMessage(scope?.purpose ?? "paidCheckout"));
         } else {
-          setPendingCheckout({ status: "unavailable" });
+          if (scope && resolvePendingCheckoutScope(latestRef.current)?.key === scope.key) {
+            setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "idle" });
+          }
         }
         onStripeResultHandled?.();
       })
       .catch((error) => {
         if (!disposed) {
-          setPendingCheckout({ status: "unavailable" });
+          if (scope && resolvePendingCheckoutScope(latestRef.current)?.key === scope.key) {
+            setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "unavailable" });
+          }
           showErrorToast(error);
         }
       });
@@ -230,6 +304,7 @@ export function useStripeBillingController(input: Input) {
     input.organizationId,
     onStripeResultHandled,
     pendingCheckoutKey,
+    pendingCheckoutPurpose,
     stripeResult,
   ]);
 
@@ -237,9 +312,10 @@ export function useStripeBillingController(input: Input) {
     if (!pendingCheckoutKey) {
       inspectedPendingCheckoutRequestRef.current = null;
       skipPendingCheckoutInspectionRef.current = null;
-      setPendingCheckout({ status: "idle" });
+      setPendingCheckout({ scopeKey: null, purpose: null, status: "idle" });
       return;
     }
+    if (!pendingCheckoutPurpose) return;
     const inspectionRequestKey = `${pendingCheckoutKey}:${pendingCheckoutInspectionRevision}`;
     if (
       !shouldInspectPendingCheckout ||
@@ -250,27 +326,30 @@ export function useStripeBillingController(input: Input) {
     }
     inspectedPendingCheckoutRequestRef.current = inspectionRequestKey;
 
+    const scope = { key: pendingCheckoutKey, purpose: pendingCheckoutPurpose };
     let disposed = false;
-    setPendingCheckout({ status: "checking" });
+    setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "checking" });
     void inspectPendingCheckoutForOrganization({ organizationId: input.organizationId })
       .then((result) => {
-        if (disposed) return;
+        if (disposed || resolvePendingCheckoutScope(latestRef.current)?.key !== scope.key) return;
         if (result.status === "open") {
-          setPendingCheckout({ status: "open", url: result.url });
+          setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "open", url: result.url });
           return;
         }
         if (result.status === "pending") {
-          setPendingCheckout({ status: "pending" });
+          setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "pending" });
           return;
         }
-        if (result.status === "cancelled") {
-          setPendingCheckout({ status: "checking" });
+        if (result.status === "cancelled" || result.status === "unchanged") {
+          setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "idle" });
           return;
         }
-        setPendingCheckout({ status: "unavailable" });
+        setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "unavailable" });
       })
       .catch(() => {
-        if (!disposed) setPendingCheckout({ status: "unavailable" });
+        if (!disposed && resolvePendingCheckoutScope(latestRef.current)?.key === scope.key) {
+          setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "unavailable" });
+        }
       });
 
     return () => {
@@ -281,19 +360,14 @@ export function useStripeBillingController(input: Input) {
     inspectPendingCheckoutForOrganization,
     pendingCheckoutInspectionRevision,
     pendingCheckoutKey,
+    pendingCheckoutPurpose,
     shouldInspectPendingCheckout,
   ]);
 
   useEffect(() => {
     const inspectAfterHistoryRestore = (event: PageTransitionEvent) => {
       const current = latestRef.current;
-      if (
-        !event.persisted ||
-        current.billing.state !== "pendingActivation" ||
-        current.canManagePendingCheckout === false
-      ) {
-        return;
-      }
+      if (!event.persisted || !resolvePendingCheckoutScope(current)) return;
       skipPendingCheckoutInspectionRef.current = null;
       setPendingCheckoutInspectionRevision((revision) => revision + 1);
     };
@@ -304,29 +378,33 @@ export function useStripeBillingController(input: Input) {
 
   const { run: stopPendingCheckout, isRunning: isStoppingPendingCheckout } = useSingleFlight(async () => {
     const current = latestRef.current;
-    if (current.billing.state !== "pendingActivation" || current.billing.isComplimentary) return;
+    const scope = resolvePendingCheckoutScope(current);
+    if (!scope) return;
 
-    const scopeKey = `${current.organizationId}:${current.billing.targetPlan ?? "unknown"}`;
-    skipPendingCheckoutInspectionRef.current = scopeKey;
+    skipPendingCheckoutInspectionRef.current = scope.key;
     try {
       const result = await cancelPendingCheckoutForOrganization({ organizationId: current.organizationId });
+      if (resolvePendingCheckoutScope(latestRef.current)?.key !== scope.key) return;
       if (result.status === "unavailable") {
-        setPendingCheckout({ status: "unavailable" });
+        setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "unavailable" });
         showUnavailable(result.reason);
         return;
       }
       if (result.status === "cancelled") {
-        setPendingCheckout({ status: "checking" });
-        showSuccessToast({
-          title: "支払いをキャンセルしました",
-          description: "元のプランに戻しました。",
-        });
+        setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "idle" });
+        showSuccessToast(cancelledCheckoutMessage(scope.purpose));
         return;
       }
-      setPendingCheckout({ status: result.status === "pending" ? "pending" : "unavailable" });
+      if (result.status === "pending") {
+        setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "pending" });
+        return;
+      }
+      setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "idle" });
     } catch (error) {
-      setPendingCheckout({ status: "unavailable" });
-      showErrorToast(error);
+      if (resolvePendingCheckoutScope(latestRef.current)?.key === scope.key) {
+        setPendingCheckout({ scopeKey: scope.key, purpose: scope.purpose, status: "unavailable" });
+        showErrorToast(error);
+      }
     }
   });
 
@@ -389,6 +467,11 @@ export function useStripeBillingController(input: Input) {
 
     try {
       if (currentDialog.kind === "startPaidPlan") {
+        pendingStripeNavigationRef.current = {
+          organizationId,
+          intentKey: requestId,
+          guardRemoved: false,
+        };
         const result = asBillingUrlActionResult(
           await startPaidCheckoutForOrganization({
             organizationId,
@@ -396,10 +479,27 @@ export function useStripeBillingController(input: Input) {
             targetPlan: currentDialog.targetPlan,
           }),
         );
-        if (!result) throw new Error("Unexpected billing response");
-        if (result.status === "unavailable") return showUnavailable(result.reason);
+        if (!result) {
+          clearPendingStripeNavigation(organizationId, requestId);
+          throw new Error("Unexpected billing response");
+        }
+        if (result.status === "unavailable") {
+          clearPendingStripeNavigation(organizationId, requestId);
+          return showUnavailable(result.reason);
+        }
+
+        const pendingNavigation = pendingStripeNavigationRef.current;
+        if (
+          !pendingNavigation ||
+          pendingNavigation.organizationId !== organizationId ||
+          pendingNavigation.intentKey !== requestId ||
+          activeScopeIdRef.current !== organizationId
+        ) {
+          return;
+        }
+        pendingNavigation.url = result.url;
         setDialog(null);
-        openBillingUrl(result.url);
+        tryOpenPendingStripeNavigation();
         return;
       }
 
@@ -439,6 +539,7 @@ export function useStripeBillingController(input: Input) {
       setDialog(null);
       showSuccessToast({ title: acceptedMessage(currentDialog) });
     } catch (error) {
+      clearPendingStripeNavigation(organizationId, requestId);
       showErrorToast(error);
     }
   });
@@ -468,6 +569,8 @@ export function useStripeBillingController(input: Input) {
       const current = latestRef.current;
       const scopeId = activeScopeIdRef.current;
       if (current.billing.isComplimentary || !scopeId) return;
+      if (visiblePendingCheckout.status !== "idle") return;
+      pendingStripeNavigationRef.current = null;
       const action = resolveBillingPlanAction(current.billing, targetPlan);
       if (!action) return;
 
@@ -533,7 +636,7 @@ export function useStripeBillingController(input: Input) {
   };
 
   const retryPendingCheckoutInspection = () => {
-    if (latestRef.current.billing.state !== "pendingActivation") return;
+    if (!resolvePendingCheckoutScope(latestRef.current)) return;
     if (stripeResult === "cancelled") {
       void stopPendingCheckout();
       return;
@@ -541,14 +644,22 @@ export function useStripeBillingController(input: Input) {
     skipPendingCheckoutInspectionRef.current = null;
     setPendingCheckoutInspectionRevision((revision) => revision + 1);
   };
+  const dialogBackGuardIntent =
+    dialog?.kind === "startPaidPlan" ? { organizationId: dialog.shopId, intentKey: dialog.intentKey } : null;
 
   return {
     planPrices,
     pendingCheckout: {
-      status: pendingCheckout.status,
+      purpose: visiblePendingCheckout.purpose,
+      status: visiblePendingCheckout.status,
       isCancelling: isStoppingPendingCheckout,
       onContinue: () => {
-        if (pendingCheckout.status === "open") openBillingUrl(pendingCheckout.url);
+        if (
+          visiblePendingCheckout.status === "open" &&
+          resolvePendingCheckoutScope(latestRef.current)?.key === visiblePendingCheckout.scopeKey
+        ) {
+          openBillingUrl(visiblePendingCheckout.url);
+        }
       },
       onCancel: () => void stopPendingCheckout(),
       onRetry: retryPendingCheckoutInspection,
@@ -566,6 +677,19 @@ export function useStripeBillingController(input: Input) {
       isRunning,
       onClose: () => {
         if (!isRunning) setDialog(null);
+      },
+      onBackGuardRemoved: () => {
+        const pendingNavigation = pendingStripeNavigationRef.current;
+        if (
+          !pendingNavigation ||
+          !dialogBackGuardIntent ||
+          pendingNavigation.organizationId !== dialogBackGuardIntent.organizationId ||
+          pendingNavigation.intentKey !== dialogBackGuardIntent.intentKey
+        ) {
+          return;
+        }
+        pendingNavigation.guardRemoved = true;
+        tryOpenPendingStripeNavigation();
       },
       onRetryPrice: () => {
         const current = dialogRef.current;
@@ -599,6 +723,55 @@ function defaultTargetPlan(billing: OrganizationBillingView): BillingProductPlan
 
 function canOpenPortal(billing: OrganizationBillingView): boolean {
   return billing.stripeBillingAvailable && billing.canUpdatePaymentMethod;
+}
+
+function resolvePendingCheckoutScope(
+  input: Pick<Input, "organizationId" | "billing" | "canManagePendingCheckout">,
+): PendingCheckoutScope | null {
+  if (
+    input.canManagePendingCheckout === false ||
+    input.billing.isComplimentary ||
+    !input.billing.stripeBillingAvailable
+  ) {
+    return null;
+  }
+  if (input.billing.state === "pendingActivation") {
+    return {
+      key: `${input.organizationId}:paidCheckout:${input.billing.targetPlan ?? "unknown"}`,
+      purpose: "paidCheckout",
+    };
+  }
+  if (input.billing.state === "trial" && !input.billing.hasTrialContinuation && input.billing.hasStripeCustomer) {
+    return {
+      key: `${input.organizationId}:trialPaymentMethodSetup`,
+      purpose: "trialPaymentMethodSetup",
+    };
+  }
+  return null;
+}
+
+function cancelledCheckoutMessage(purpose: BillingPendingCheckoutPurpose) {
+  return purpose === "trialPaymentMethodSetup"
+    ? {
+        title: "支払い方法の登録をやめました",
+        description: "トライアルはそのまま利用できます。",
+      }
+    : {
+        title: "支払いをキャンセルしました",
+        description: "元のプランに戻しました。",
+      };
+}
+
+function pendingCheckoutMessage(purpose: BillingPendingCheckoutPurpose) {
+  return purpose === "trialPaymentMethodSetup"
+    ? {
+        title: "支払い方法の登録結果を確認中です",
+        description: "Stripeの状態が確定すると、継続登録が更新されます。",
+      }
+    : {
+        title: "支払い結果を確認中です",
+        description: "Stripeの状態が確定すると、プランが更新されます。",
+      };
 }
 
 function showUnavailable(reason: Parameters<typeof billingUnavailableMessage>[0]): void {

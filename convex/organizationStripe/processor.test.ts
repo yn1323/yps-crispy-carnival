@@ -297,6 +297,65 @@ describe("organizationStripe/processWebhookEvent", () => {
     }
   });
 
+  it.each([
+    { kind: "trialSetupCheckout", unexpectedMode: "subscription" },
+    { kind: "immediatePaidCheckout", unexpectedMode: "setup" },
+  ] as const)(
+    "$kindのexpired Checkoutで$unexpectedMode modeを拒否し課金状態とoperationを維持する",
+    async (testCase) => {
+      const t = convexTest(schema, modules);
+      const ids = await seedExpiredCheckout(t, testCase.kind);
+      const eventId = `evt_expired_mode_mismatch_${testCase.kind}`;
+      const sessionId = `cs_expired_${testCase.kind}`;
+      provider.retrieveEvent.mockResolvedValue({
+        id: eventId,
+        type: "checkout.session.expired",
+        livemode: false,
+        api_version: STRIPE_WEBHOOK_API_VERSION,
+        created: Math.floor(NOW / 1000),
+        data: { object: { id: sessionId } },
+      });
+      provider.retrieveCheckout.mockResolvedValue({
+        id: sessionId,
+        customer: CUSTOMER_ID,
+        livemode: false,
+        mode: testCase.unexpectedMode,
+        status: "expired",
+        client_reference_id: String(ids.organizationId),
+        metadata: {
+          shiftori_organization_id: String(ids.organizationId),
+          shiftori_operation_id: String(ids.operationId),
+          shiftori_provider_generation: "1",
+          shiftori_price_id: PRICE_ID,
+        },
+      });
+      await insertReceipt(t, eventId, "checkout.session.expired", sessionId, NOW);
+      const before = await t.run(async (ctx) => ({
+        billing: await ctx.db
+          .query("organizationBillingStates")
+          .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+          .unique(),
+        operation: await ctx.db.get(ids.operationId),
+      }));
+
+      await t.action(internal.organizationStripe.actions.processWebhookEvent, { stripeEventId: eventId });
+
+      await expect(receiptById(t, eventId)).resolves.toMatchObject({
+        status: "actionRequired",
+        lastErrorCode: "price_snapshot_mismatch",
+      });
+      await expect(
+        t.run(async (ctx) => ({
+          billing: await ctx.db
+            .query("organizationBillingStates")
+            .withIndex("by_organizationId", (q) => q.eq("organizationId", ids.organizationId))
+            .unique(),
+          operation: await ctx.db.get(ids.operationId),
+        })),
+      ).resolves.toEqual(before);
+    },
+  );
+
   it("ユーザーのキャンセル処理後に届くexpired webhookはactionRequiredへ戻さず冪等に処理する", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedExpiredCheckout(t, "immediatePaidCheckout");

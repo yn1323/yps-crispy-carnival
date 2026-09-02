@@ -68,6 +68,7 @@ export type BillingPlanPriceState =
 export type BillingPlanPrices = Record<PaidBillingPlan, BillingPlanPriceState>;
 
 export type BillingPendingCheckoutStatus = "idle" | "checking" | "open" | "pending" | "unavailable";
+export type BillingPendingCheckoutPurpose = "paidCheckout" | "trialPaymentMethodSetup";
 
 export type BillingRequiredReductions = {
   people: number;

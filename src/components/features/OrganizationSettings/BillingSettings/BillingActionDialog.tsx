@@ -12,13 +12,22 @@ import {
 type Props = {
   dialog: BillingActionDialogState | null;
   isRunning: boolean;
+  onBackGuardRemoved?: () => void;
   onClose: () => void;
   onRetryPrice: () => void;
   onRetryPreview: () => void;
   onSubmit: () => void;
 };
 
-export function BillingActionDialog({ dialog, isRunning, onClose, onRetryPrice, onRetryPreview, onSubmit }: Props) {
+export function BillingActionDialog({
+  dialog,
+  isRunning,
+  onBackGuardRemoved,
+  onClose,
+  onRetryPrice,
+  onRetryPreview,
+  onSubmit,
+}: Props) {
   if (!dialog) return null;
 
   const content = dialogContent(dialog);
@@ -34,6 +43,7 @@ export function BillingActionDialog({ dialog, isRunning, onClose, onRetryPrice, 
         if (!open && !isRunning) onClose();
       }}
       onClose={onClose}
+      onBackGuardRemoved={onBackGuardRemoved}
       onSubmit={onSubmit}
       submitLabel={content.submitLabel}
       submitColorPalette={content.submitColorPalette}
