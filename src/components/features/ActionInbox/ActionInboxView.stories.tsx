@@ -145,7 +145,13 @@ export const RetryGuidance: Story = {
   parameters: { screenshot: { skip: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getAllByText("※メールアドレスに誤りがないか確認ください", { exact: true })).toHaveLength(2);
+    const links = canvas.getAllByRole("link", { name: "こちら" });
+    await expect(links).toHaveLength(2);
+    for (const link of links) {
+      await expect(link).toHaveAttribute("href", "/help/tasks/notifications");
+      await expect(link).toHaveAttribute("target", "_blank");
+      await expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    }
   },
 };
 
