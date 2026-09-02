@@ -56,9 +56,7 @@ const actionContextValidator = v.union(
   }),
 );
 
-const paidCheckoutOperationKindValidator = v.literal("immediatePaidCheckout");
-
-const PAID_CHECKOUT_OPERATION_KINDS = ["immediatePaidCheckout"] as const;
+const paidCheckoutOperationKindValidator = v.union(v.literal("trialSetupCheckout"), v.literal("immediatePaidCheckout"));
 
 export const getActionContext = internalQuery({
   args: {
@@ -790,12 +788,14 @@ export const getCheckoutOperationBySession = internalQuery({
   },
 });
 
-/** 現在のpendingActivationに対応する未完了Checkoutだけを、組織・世代・modeへ束縛して返す。 */
+/** 現在の課金状態に対応する未完了Checkoutだけを、組織・世代・kindへ束縛して返す。 */
 export const getPendingCheckoutOperationForOrganization = internalQuery({
   args: {
     organizationId: v.id("organizations"),
     providerGeneration: v.number(),
     livemode: v.boolean(),
+    expectedKind: paidCheckoutOperationKindValidator,
+    expectedBillingVersion: v.optional(v.number()),
   },
   returns: v.union(
     v.null(),
@@ -810,26 +810,24 @@ export const getPendingCheckoutOperationForOrganization = internalQuery({
     }),
   ),
   handler: async (ctx, args) => {
-    const operations = (
-      await Promise.all(
-        PAID_CHECKOUT_OPERATION_KINDS.map((kind) =>
-          ctx.db
-            .query("organizationStripeOperations")
-            .withIndex("by_organizationId_and_providerGeneration_and_kind_and_status", (q) =>
-              q
-                .eq("organizationId", args.organizationId)
-                .eq("providerGeneration", args.providerGeneration)
-                .eq("kind", kind)
-                .eq("status", "succeeded"),
-            )
-            .take(2),
-        ),
+    const operations = await ctx.db
+      .query("organizationStripeOperations")
+      .withIndex("by_organizationId_and_providerGeneration_and_kind_and_status", (q) =>
+        q
+          .eq("organizationId", args.organizationId)
+          .eq("providerGeneration", args.providerGeneration)
+          .eq("kind", args.expectedKind)
+          .eq("status", "succeeded"),
       )
-    ).flat();
+      .take(2);
     const candidates = operations.filter(
       (operation) =>
         operation.livemode === args.livemode &&
         operation.providerGeneration === args.providerGeneration &&
+        operation.kind === args.expectedKind &&
+        operation.changeMode === "checkout" &&
+        (args.expectedBillingVersion === undefined ||
+          operation.expectedBillingVersion === args.expectedBillingVersion) &&
         operation.targetPlan !== undefined &&
         operation.targetPlan !== "free" &&
         operation.stripePriceIdSnapshot !== undefined &&
@@ -838,7 +836,7 @@ export const getPendingCheckoutOperationForOrganization = internalQuery({
     if (candidates.length !== 1) return null;
     const operation = candidates[0];
     if (
-      operation.kind !== "immediatePaidCheckout" ||
+      operation.kind !== args.expectedKind ||
       operation.targetPlan === undefined ||
       operation.targetPlan === "free" ||
       !operation.stripePriceIdSnapshot ||

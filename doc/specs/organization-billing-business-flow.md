@@ -544,6 +544,12 @@ ProからStandardへの変更予約にはStripe Subscription Scheduleを使い�
 
 継続予約、ProからStandardへの変更予約、解約予約の取消では、取り消す変更を`Before → After`で表示し、取消後に継続する現在プランを説明する。
 
+Checkout開始を受け付けた場合は、確認ダイアログのbrowser history guardを解除した後、検証済みURLへ一度だけ遷移する。
+
+Trialの支払い方法登録中にブラウザバックで課金画面へ戻った場合は、Stripe上のSetup Checkout Sessionを再照合する。  Sessionが`open`なら「登録を続ける」と「登録をやめる」を表示し、自動ではStripeへ戻さない。
+
+Trialで登録をやめた場合は、Stripe上のSessionを`expired`へ確定してから課金operationだけを解放する。  初回照合時点ですでに`expired`の場合も同じくoperationだけを解放する。  Trial状態、終了日時、利用権限は変更しない。  Sessionが`complete`の場合は取り消さず、Webhookによる継続予約の反映を待つ。
+
 ### 12.3 人数が増えない操作
 
 既存人物を別店舗へ追加する操作では、プラン変更を求めない。

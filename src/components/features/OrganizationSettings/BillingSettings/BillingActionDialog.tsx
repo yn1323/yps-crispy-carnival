@@ -34,6 +34,7 @@ export function BillingActionDialog({ dialog, isRunning, onClose, onRetryPrice, 
         if (!open && !isRunning) onClose();
       }}
       onClose={onClose}
+      closeOnBrowserBack={false}
       onSubmit={onSubmit}
       submitLabel={content.submitLabel}
       submitColorPalette={content.submitColorPalette}

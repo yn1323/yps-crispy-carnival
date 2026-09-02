@@ -155,6 +155,7 @@ export type DialogProps = {
   submitLabel?: string;
   onClose?: () => void;
   onBackGuardRemoved?: () => void;
+  closeOnBrowserBack?: boolean;
   closeLabel?: string;
   isLoading?: boolean;
   isSubmitDisabled?: boolean;
@@ -187,6 +188,7 @@ export const Dialog = ({
   submitLabel = "送信",
   onClose,
   onBackGuardRemoved,
+  closeOnBrowserBack = true,
   closeLabel,
   isLoading = false,
   isSubmitDisabled = false,
@@ -281,7 +283,12 @@ export const Dialog = ({
     }
     handleOpenChange({ open: false });
   }, [handleOpenChange, isBusy, onClose]);
-  useCloseDialogOnBrowserBack(isOpen, () => handleOpenChange({ open: false }), onBackGuardRemoved, !isBusy);
+  useCloseDialogOnBrowserBack(
+    isOpen && closeOnBrowserBack,
+    () => handleOpenChange({ open: false }),
+    onBackGuardRemoved,
+    !isBusy,
+  );
   const { style: positionerStyle, ...restPositionerProps } = positionerProps ?? {};
   const isHeaderBodyScroll = keyboardLayoutMode === "header-body-scroll";
   const isContentScroll = keyboardLayoutMode === "content-scroll";
