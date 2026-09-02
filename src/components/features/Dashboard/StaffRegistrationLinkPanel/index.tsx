@@ -1,10 +1,11 @@
-import { Alert, Box, Code, HStack, Skeleton, Stack, Text } from "@chakra-ui/react";
+import { Alert, Box, Code, HStack, Link, Skeleton, Stack, Text } from "@chakra-ui/react";
 import QRCode from "qrcode";
 import type { ReactNode, Ref } from "react";
 import { useEffect, useRef, useState } from "react";
 import { LuCheck, LuCopy, LuRefreshCw } from "react-icons/lu";
 import { Button, IconButton } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
+import { STAFF_ADDITION_EMAIL_NOTICE, STAFF_ADDITION_EMAIL_NOTICE_HREF } from "../staffAdditionCopy";
 
 type Props = {
   registrationUrl: string | null;
@@ -93,7 +94,16 @@ export function StaffRegistrationLinkPanel({
           QRコード、または招待リンクを共有してください。
         </Text>
         <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-          管理者が承認後、シフトリの案内メールと募集中シフトを送信します。
+          {STAFF_ADDITION_EMAIL_NOTICE}
+          <Link
+            href={STAFF_ADDITION_EMAIL_NOTICE_HREF}
+            target="_blank"
+            rel="noopener noreferrer"
+            color="teal.700"
+            textDecoration="underline"
+          >
+            こちら
+          </Link>
         </Text>
       </Stack>
 

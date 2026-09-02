@@ -1,4 +1,4 @@
-import { Badge, Box, Flex, HStack, Icon, Menu, Portal, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
+import { Badge, Box, Flex, HStack, Icon, Link, Menu, Portal, Stack, Text, VisuallyHidden } from "@chakra-ui/react";
 import { type SyntheticEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { IconType } from "react-icons";
 import {
@@ -431,7 +431,17 @@ function ActionCard({
 function RetryGuidance() {
   return (
     <Text flex="1" minW={0} fontSize="xs" color="fg.muted" lineHeight="short">
-      ※メールアドレスに誤りがないか確認ください
+      ※何度も失敗する場合は
+      <Link
+        href="/help/tasks/notifications"
+        target="_blank"
+        rel="noopener noreferrer"
+        color="teal.700"
+        textDecoration="underline"
+      >
+        こちら
+      </Link>
+      を確認ください
     </Text>
   );
 }

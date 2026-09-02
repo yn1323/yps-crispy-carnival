@@ -33,6 +33,21 @@ export const InDialog: Story = {
   ),
 };
 
+export const EmailNoticeHelpLinkBehavior: Story = {
+  parameters: {
+    screenshot: { skip: true },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const link = await canvas.findByRole("link", { name: "こちら" });
+
+    await expect(link.parentElement).toHaveTextContent("登録時にシフトリから送る案内メールについてはこちら");
+    await expect(link).toHaveAttribute("href", "/help/basics/notifications");
+    await expect(link).toHaveAttribute("target", "_blank");
+    await expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  },
+};
+
 export const EmptySubmitShowsError: Story = {
   parameters: {
     screenshot: { skip: true },

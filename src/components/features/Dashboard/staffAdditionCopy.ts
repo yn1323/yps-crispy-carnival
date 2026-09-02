@@ -1,2 +1,2 @@
-export const STAFF_ADDITION_EMAIL_NOTICE =
-  "登録時にシフトリの案内メールと募集中シフトを送信します。\nシフトリからメールが届く旨を事前にお伝えいただくことをおすすめします。";
+export const STAFF_ADDITION_EMAIL_NOTICE = "登録時にシフトリから送る案内メールについては";
+export const STAFF_ADDITION_EMAIL_NOTICE_HREF = "/help/basics/notifications";
