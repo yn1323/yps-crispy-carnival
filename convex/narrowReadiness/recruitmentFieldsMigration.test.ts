@@ -16,18 +16,21 @@ describe("recruitment fields Narrow preparation migrations", () => {
       const organizationId = await ctx.db.insert(
         "organizations",
         legacyDocument<WithoutSystemFields<Doc<"organizations">>>({
-        name: "募集field移行事業者",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
+          name: "募集field移行事業者",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
         }),
       );
-      const legacyShopId = await ctx.db.insert("shops", legacyDocument<WithoutSystemFields<Doc<"shops">>>({
-        organizationId,
-        name: "旧店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        isDeleted: false,
-      }));
+      const legacyShopId = await ctx.db.insert(
+        "shops",
+        legacyDocument<WithoutSystemFields<Doc<"shops">>>({
+          organizationId,
+          name: "旧店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          isDeleted: false,
+        }),
+      );
       const canonicalShopId = await ctx.db.insert("shops", {
         organizationId,
         name: "現行店舗",
@@ -63,16 +66,19 @@ describe("recruitment fields Narrow preparation migrations", () => {
         isDeleted: false,
       });
       const createRecruitment = async (fields: { shopClosedDates?: string[]; draftSavedAt?: number }) =>
-        await ctx.db.insert("recruitments", legacyDocument<WithoutSystemFields<Doc<"recruitments">>>({
-          shopId: legacyShopId,
-          periodStart: "2026-08-03",
-          periodEnd: "2026-08-09",
-          deadline: "2026-08-02",
-          status: "open",
-          isDeleted: false,
-          submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "18:00" },
-          ...fields,
-        }));
+        await ctx.db.insert(
+          "recruitments",
+          legacyDocument<WithoutSystemFields<Doc<"recruitments">>>({
+            shopId: legacyShopId,
+            periodStart: "2026-08-03",
+            periodEnd: "2026-08-09",
+            deadline: "2026-08-02",
+            status: "open",
+            isDeleted: false,
+            submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "18:00" },
+            ...fields,
+          }),
+        );
 
       const legacyWithAssignmentsId = await createRecruitment({});
       const legacyWithoutAssignmentsId = await createRecruitment({});

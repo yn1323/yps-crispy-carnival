@@ -328,12 +328,10 @@ describe("organization/queries.getSettings", () => {
       return base;
     });
 
-    const result = await t
-      .withIdentity({ subject: "settings_actor" })
-      .query(api.organization.queries.getSettings, {
-        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
-        shopId: ids.shopId,
-      });
+    const result = await t.withIdentity({ subject: "settings_actor" }).query(api.organization.queries.getSettings, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+      shopId: ids.shopId,
+    });
 
     expect(result).not.toBeNull();
     expect(Object.keys(result ?? {}).sort()).toEqual([
@@ -846,12 +844,10 @@ describe("organization/queries.getSettings", () => {
       async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "settings_deletable", plan: "free" }),
     );
 
-    const result = await t
-      .withIdentity({ subject: "settings_deletable" })
-      .query(api.organization.queries.getSettings, {
-        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
-        shopId: ids.shopId,
-      });
+    const result = await t.withIdentity({ subject: "settings_deletable" }).query(api.organization.queries.getSettings, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+      shopId: ids.shopId,
+    });
 
     expect(result).toMatchObject({
       organizationId: ids.organizationId,
@@ -1737,12 +1733,10 @@ describe("organization/queries.getSettings", () => {
     });
 
     await expect(
-      t
-        .withIdentity({ subject: "settings_idor_actor" })
-        .query(api.organization.queries.getSettings, {
-          expectedOrganizationId: await getTestOrganizationId(t, otherShopId),
-          shopId: otherShopId,
-        }),
+      t.withIdentity({ subject: "settings_idor_actor" }).query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, otherShopId),
+        shopId: otherShopId,
+      }),
     ).resolves.toBeNull();
   });
 });

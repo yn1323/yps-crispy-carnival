@@ -4266,14 +4266,12 @@ describe("staff/mutations", () => {
         return { adminStaffId, shopId };
       });
 
-      await t
-        .withIdentity({ subject: "user_mgr" })
-        .mutation(api.staff.mutations.setShiftExclusion, {
-          expectedOrganizationId: await getTestOrganizationId(t, shopId),
-          shopId,
-          staffId: adminStaffId,
-          excluded: true,
-        });
+      await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.setShiftExclusion, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+        staffId: adminStaffId,
+        excluded: true,
+      });
 
       expect(await t.run(async (ctx) => (await ctx.db.get(adminStaffId))?.excludedFromShift)).toBe(true);
     });
@@ -4293,14 +4291,12 @@ describe("staff/mutations", () => {
       });
 
       await expect(
-        t
-          .withIdentity({ subject: "user_mgr" })
-          .mutation(api.staff.mutations.setShiftExclusion, {
-            expectedOrganizationId: await getTestOrganizationId(t, shopId),
-            shopId,
-            staffId: otherStaffId,
-            excluded: true,
-          }),
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.setShiftExclusion, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+          staffId: otherStaffId,
+          excluded: true,
+        }),
       ).rejects.toThrow("Not found");
     });
 
@@ -4346,14 +4342,12 @@ describe("staff/mutations", () => {
       const before = await readState();
 
       await expect(
-        t
-          .withIdentity({ subject: "user_mgr" })
-          .mutation(api.staff.mutations.setShiftExclusion, {
-            expectedOrganizationId: await getTestOrganizationId(t, shopId),
-            shopId,
-            staffId,
-            excluded: true,
-          }),
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.setShiftExclusion, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+          staffId,
+          excluded: true,
+        }),
       ).rejects.toThrow("Not found");
 
       expect(await readState()).toEqual(before);
@@ -4393,14 +4387,12 @@ describe("staff/mutations", () => {
         return { sessionId, magicLinkId };
       });
 
-      await t
-        .withIdentity({ subject: "user_mgr" })
-        .mutation(api.staff.mutations.setShiftExclusion, {
-          expectedOrganizationId: await getTestOrganizationId(t, shopId),
-          shopId,
-          staffId,
-          excluded: true,
-        });
+      await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.setShiftExclusion, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+        staffId,
+        excluded: true,
+      });
 
       const { session, magicLink } = await t.run(async (ctx) => ({
         session: await ctx.db.get(sessionId),

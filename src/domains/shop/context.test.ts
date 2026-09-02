@@ -50,9 +50,7 @@ describe("shop context", () => {
 
   it("必須組織情報がない保存値と不正なquery行を除外する", () => {
     expect(normalizeSelectedShop({ shopName: "店舗IDなし" })).toBeNull();
-    expect(normalizeShopContextOptions([null, { shopId: "shop-1", shopName: "渋谷店" }, { shopId: 1 }])).toEqual(
-      [],
-    );
+    expect(normalizeShopContextOptions([null, { shopId: "shop-1", shopName: "渋谷店" }, { shopId: 1 }])).toEqual([]);
   });
 
   it("店舗を組織ごとにまとめて安定した順序で返す", () => {
@@ -87,5 +85,4 @@ describe("shop context", () => {
       ["B社", "横浜店"],
     ]);
   });
-
 });

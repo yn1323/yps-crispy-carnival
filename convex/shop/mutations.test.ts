@@ -85,13 +85,11 @@ describe("shop/mutations", () => {
         return seedShop(ctx);
       });
       await expect(
-        t
-          .withIdentity({ subject: "user_no_shop" })
-          .mutation(api.shop.mutations.updateShopSettings, {
-            ...validArgs,
-            expectedOrganizationId: await getTestOrganizationId(t, shopId),
-            shopId,
-          }),
+        t.withIdentity({ subject: "user_no_shop" }).mutation(api.shop.mutations.updateShopSettings, {
+          ...validArgs,
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+        }),
       ).rejects.toThrow();
     });
 
@@ -152,14 +150,12 @@ describe("shop/mutations", () => {
         return seeded.shopId;
       });
 
-      await t
-        .withIdentity({ subject: MANAGER_SUBJECT })
-        .mutation(api.shop.mutations.updateShopSettings, {
-          ...validArgs,
-          expectedOrganizationId: await getTestOrganizationId(t, shopId),
-          shopId,
-          shopName: "  スペース入り  ",
-        });
+      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
+        ...validArgs,
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+        shopName: "  スペース入り  ",
+      });
 
       const shop = await t.run(async (ctx) => ctx.db.get(shopId));
       expect(shop?.name).toBe("スペース入り");
@@ -177,14 +173,12 @@ describe("shop/mutations", () => {
       });
 
       await expect(
-        t
-          .withIdentity({ subject: MANAGER_SUBJECT })
-          .mutation(api.shop.mutations.updateShopSettings, {
-            ...validArgs,
-            expectedOrganizationId: await getTestOrganizationId(t, shopId),
-            shopId,
-            shopName: "   ",
-          }),
+        t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
+          ...validArgs,
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+          shopName: "   ",
+        }),
       ).rejects.toThrow(ConvexError);
     });
 
@@ -208,14 +202,12 @@ describe("shop/mutations", () => {
         }),
       ).rejects.toThrow("店舗名は80文字以内で入力してください");
       await expect(
-        t
-          .withIdentity({ subject: MANAGER_SUBJECT })
-          .mutation(api.shop.mutations.updateShopSettings, {
-            ...validArgs,
-            expectedOrganizationId: await getTestOrganizationId(t, shopId),
-            shopId,
-            shopName: "店舗\n名",
-          }),
+        t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
+          ...validArgs,
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+          shopName: "店舗\n名",
+        }),
       ).rejects.toThrow("店舗名に使用できない文字が含まれています");
     });
 
@@ -314,13 +306,11 @@ describe("shop/mutations", () => {
         return { shopId, recruitmentId };
       });
 
-      await t
-        .withIdentity({ subject: MANAGER_SUBJECT })
-        .mutation(api.shop.mutations.updateShopSettings, {
-          ...validArgs,
-          expectedOrganizationId: await getTestOrganizationId(t, shopId),
-          shopId,
-        });
+      await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
+        ...validArgs,
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
 
       const shop = await t.run(async (ctx) => ctx.db.get(shopId));
       const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));

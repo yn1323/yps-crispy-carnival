@@ -71,13 +71,16 @@ describe("Narrow readiness queries", () => {
         isDeleted: false,
         accountDeletionRequestedAt: now,
       });
-      await ctx.db.insert("users", legacyDocument<WithoutSystemFields<Doc<"users">>>({
-        authTokenIdentifier: "https://convex.test|narrow_readiness_admin",
-        name: "旧admin",
-        email: secretAdminEmail,
-        role: "admin",
-        isDeleted: false,
-      }));
+      await ctx.db.insert(
+        "users",
+        legacyDocument<WithoutSystemFields<Doc<"users">>>({
+          authTokenIdentifier: "https://convex.test|narrow_readiness_admin",
+          name: "旧admin",
+          email: secretAdminEmail,
+          role: "admin",
+          isDeleted: false,
+        }),
+      );
       await ctx.db.insert("users", {
         authTokenIdentifier: "https://convex.test|narrow_readiness_mismatch",
         name: "正規化不一致管理者",
@@ -98,10 +101,10 @@ describe("Narrow readiness queries", () => {
       const legacyOrganizationId = await ctx.db.insert(
         "organizations",
         legacyDocument<WithoutSystemFields<Doc<"organizations">>>({
-        name: "旧形式グループ",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
+          name: "旧形式グループ",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
         }),
       );
       const personId = await ctx.db.insert("organizationPeople", {
@@ -199,20 +202,26 @@ describe("Narrow readiness queries", () => {
         createdAt: now,
         updatedAt: now,
       });
-      const shopId = await ctx.db.insert("shops", legacyDocument<WithoutSystemFields<Doc<"shops">>>({
-        organizationId,
-        operatingStatus: "active",
-        name: "確認店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      }));
-      const legacyShopId = await ctx.db.insert("shops", legacyDocument<WithoutSystemFields<Doc<"shops">>>({
-        name: "旧形式店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      }));
+      const shopId = await ctx.db.insert(
+        "shops",
+        legacyDocument<WithoutSystemFields<Doc<"shops">>>({
+          organizationId,
+          operatingStatus: "active",
+          name: "確認店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
+      const legacyShopId = await ctx.db.insert(
+        "shops",
+        legacyDocument<WithoutSystemFields<Doc<"shops">>>({
+          name: "旧形式店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
       const legacyStaffId = await ctx.db.insert(
         "staffs",
         legacyStaffDocumentForMigrationHistory({
@@ -321,23 +330,23 @@ describe("Narrow readiness queries", () => {
       await ctx.db.insert(
         "notificationOutbox",
         legacyDocument<WithoutSystemFields<Doc<"notificationOutbox">>>({
-        channel: "email",
-        status: "pending",
-        dedupeKey: "email:narrow-readiness",
-        fanoutTargetKey: secretFanoutTargetKey,
-        payload: {
-          kind: "email",
-          from: "sender@example.com",
-          to: secretEmail,
-          subject: "secret subject",
-          html: "<p>secret</p>",
-          context: "narrow.readiness",
-        },
-        attemptCount: 0,
-        nextRunAt: now,
-        cancelReason: "shop_inactive",
-        createdAt: now,
-        updatedAt: now,
+          channel: "email",
+          status: "pending",
+          dedupeKey: "email:narrow-readiness",
+          fanoutTargetKey: secretFanoutTargetKey,
+          payload: {
+            kind: "email",
+            from: "sender@example.com",
+            to: secretEmail,
+            subject: "secret subject",
+            html: "<p>secret</p>",
+            context: "narrow.readiness",
+          },
+          attemptCount: 0,
+          nextRunAt: now,
+          cancelReason: "shop_inactive",
+          createdAt: now,
+          updatedAt: now,
         }),
       );
       const recruitmentId = await ctx.db.insert("recruitments", {
@@ -350,25 +359,31 @@ describe("Narrow readiness queries", () => {
         isDeleted: false,
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
-      await ctx.db.insert("shiftSubmissions", legacyDocument<WithoutSystemFields<Doc<"shiftSubmissions">>>({
-        recruitmentId,
-        staffId: legacyStaffId,
-        submittedAt: now,
-      }));
+      await ctx.db.insert(
+        "shiftSubmissions",
+        legacyDocument<WithoutSystemFields<Doc<"shiftSubmissions">>>({
+          recruitmentId,
+          staffId: legacyStaffId,
+          submittedAt: now,
+        }),
+      );
       await ctx.db.insert("shiftSubmissions", {
         recruitmentId,
         staffId: legacyStaffId,
         firstSubmittedAt: now + 1,
         submittedAt: now,
       });
-      await ctx.db.insert("positions", legacyDocument<WithoutSystemFields<Doc<"positions">>>({
-        shopId,
-        name: "既定A",
-        color: "#111111",
-        sortOrder: 0,
-        isDefault: true,
-        isDeleted: false,
-      }));
+      await ctx.db.insert(
+        "positions",
+        legacyDocument<WithoutSystemFields<Doc<"positions">>>({
+          shopId,
+          name: "既定A",
+          color: "#111111",
+          sortOrder: 0,
+          isDefault: true,
+          isDeleted: false,
+        }),
+      );
       await ctx.db.insert("positions", {
         shopId,
         name: "既定B",
@@ -377,13 +392,16 @@ describe("Narrow readiness queries", () => {
         isDefault: true,
         isDeleted: false,
       });
-      await ctx.db.insert("positions", legacyDocument<WithoutSystemFields<Doc<"positions">>>({
-        shopId,
-        name: "未補完",
-        color: "#333333",
-        sortOrder: 2,
-        isDeleted: false,
-      }));
+      await ctx.db.insert(
+        "positions",
+        legacyDocument<WithoutSystemFields<Doc<"positions">>>({
+          shopId,
+          name: "未補完",
+          color: "#333333",
+          sortOrder: 2,
+          isDeleted: false,
+        }),
+      );
       await ctx.db.insert("positions", {
         shopId,
         name: "削除済み既定",
@@ -392,13 +410,16 @@ describe("Narrow readiness queries", () => {
         isDefault: true,
         isDeleted: true,
       });
-      await ctx.db.insert("magicLinks", legacyDocument<WithoutSystemFields<Doc<"magicLinks">>>({
-        token: secretToken,
-        staffId: legacyStaffId,
-        shopId,
-        recruitmentId,
-        expiresAt: now + 60_000,
-      }));
+      await ctx.db.insert(
+        "magicLinks",
+        legacyDocument<WithoutSystemFields<Doc<"magicLinks">>>({
+          token: secretToken,
+          staffId: legacyStaffId,
+          shopId,
+          recruitmentId,
+          expiresAt: now + 60_000,
+        }),
+      );
       await ctx.db.insert("magicLinks", {
         token: secretViewToken,
         staffId: legacyStaffId,
@@ -407,27 +428,30 @@ describe("Narrow readiness queries", () => {
         accessKind: "view",
         expiresAt: now + 60_000,
       });
-      await ctx.db.insert("sessions", legacyDocument<WithoutSystemFields<Doc<"sessions">>>({
-        sessionToken: secretSessionToken,
-        staffId: legacyStaffId,
-        shopId,
-        recruitmentId,
-        expiresAt: now + 60_000,
-      }));
+      await ctx.db.insert(
+        "sessions",
+        legacyDocument<WithoutSystemFields<Doc<"sessions">>>({
+          sessionToken: secretSessionToken,
+          staffId: legacyStaffId,
+          shopId,
+          recruitmentId,
+          expiresAt: now + 60_000,
+        }),
+      );
       await ctx.db.insert(
         "notificationFanoutOperations",
         legacyDocument<WithoutSystemFields<Doc<"notificationFanoutOperations">>>({
-        operationKey: "fanout:narrow-readiness",
-        kind: "confirmation",
-        purpose: "confirmation",
-        recruitmentId,
-        shopId,
-        targetStaffIds: [],
-        cursor: 0,
-        status: "completed",
-        dedupeSuffix: "confirm",
-        createdAt: now,
-        updatedAt: now,
+          operationKey: "fanout:narrow-readiness",
+          kind: "confirmation",
+          purpose: "confirmation",
+          recruitmentId,
+          shopId,
+          targetStaffIds: [],
+          cursor: 0,
+          status: "completed",
+          dedupeSuffix: "confirm",
+          createdAt: now,
+          updatedAt: now,
         }),
       );
       await ctx.db.insert("notificationFanoutOperations", {

@@ -207,9 +207,7 @@ export async function loadShopManagerNotificationRecipientContacts(
 ): Promise<{ contacts: ShopManagerContact[]; scanComplete: boolean }> {
   const result = await loadShopManagerNotificationContacts(ctx, shopId, managerLimit);
   return {
-    contacts: result.contacts
-      .map(({ contact }) => contact)
-      .filter((contact) => contact.person.email.length > 0),
+    contacts: result.contacts.map(({ contact }) => contact).filter((contact) => contact.person.email.length > 0),
     scanComplete: result.scanComplete,
   };
 }

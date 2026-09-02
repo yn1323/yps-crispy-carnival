@@ -18,9 +18,7 @@ export function useShopQuery<Q extends ShopQueryReference>(
   const selectedShop = useAtomValue(selectedShopAtom);
   const scope =
     managerShopScope ??
-    (selectedShop
-      ? { shopId: selectedShop.shopId, expectedOrganizationId: selectedShop.organizationId }
-      : null);
+    (selectedShop ? { shopId: selectedShop.shopId, expectedOrganizationId: selectedShop.organizationId } : null);
   const queryArgs =
     args === "skip" || !scope
       ? "skip"

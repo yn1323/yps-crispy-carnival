@@ -49,12 +49,10 @@ async function createRegistrationLink(
     const seeded = await seedManagerShop(ctx, { subject, email: `${suffix}@example.com` });
     return seeded.shopId;
   });
-  const link = await t
-    .withIdentity({ subject })
-    .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
-      expectedOrganizationId: await getTestOrganizationId(t, shopId),
-      shopId,
-    });
+  const link = await t.withIdentity({ subject }).mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+    expectedOrganizationId: await getTestOrganizationId(t, shopId),
+    shopId,
+  });
   return { linkId: link.linkId, shopId, subject, token: link.token };
 }
 

@@ -111,10 +111,7 @@ export const getManageOverview = organizationQuery({
     const isActiveActor = memberStatus === "active";
     const canWriteBusinessData = access.canWriteBusinessData;
     const canAddShop = Boolean(
-      isActiveActor &&
-        canWriteBusinessData &&
-        policy.canUsePaidFeatures &&
-        usage.shopCount < limits.maxShops,
+      isActiveActor && canWriteBusinessData && policy.canUsePaidFeatures && usage.shopCount < limits.maxShops,
     );
     const deletionEligibility = await getOrganizationDeletionEligibility(ctx, {
       organizationId: ctx.organization._id,
@@ -150,12 +147,12 @@ export const getManageOverview = organizationQuery({
               addShopDisabledReason: !isActiveActor
                 ? "現在のアカウント状態では、店舗を追加できません。"
                 : access.businessWriteBlockReason === "usageLimitExceeded"
-                    ? "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。"
-                    : policy.paidFeatureBlockReason === "freePlan"
-                      ? "Freeプランでは、店舗を追加できません。\n有料プランを選択してください。"
-                      : policy.paidFeatureBlockReason === "paymentResultPending"
-                        ? "支払い結果が確定してから、店舗を追加できます。"
-                        : `店舗は、組織ごとに${limits.maxShops}件まで登録できます。`,
+                  ? "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。"
+                  : policy.paidFeatureBlockReason === "freePlan"
+                    ? "Freeプランでは、店舗を追加できません。\n有料プランを選択してください。"
+                    : policy.paidFeatureBlockReason === "paymentResultPending"
+                      ? "支払い結果が確定してから、店舗を追加できます。"
+                      : `店舗は、組織ごとに${limits.maxShops}件まで登録できます。`,
             }
           : {}),
         canDeleteOrganization: isActiveActor && deletionEligibility.canDelete,

@@ -1322,12 +1322,10 @@ describe("setup/mutations", () => {
       });
 
       await expect(
-        t
-          .withIdentity({ subject: "create_org_limit" })
-          .mutation(api.setup.mutations.createOrganizationForApp, {
-            ...createArgs,
-            organizationId: seed.organizationId,
-          }),
+        t.withIdentity({ subject: "create_org_limit" }).mutation(api.setup.mutations.createOrganizationForApp, {
+          ...createArgs,
+          organizationId: seed.organizationId,
+        }),
       ).rejects.toThrow("作成できる組織は3つまでです");
 
       const state = await t.run(async (ctx) => ({
@@ -1384,12 +1382,10 @@ describe("setup/mutations", () => {
       });
 
       await expect(
-        t
-          .withIdentity({ subject: "create_org_excluded" })
-          .mutation(api.setup.mutations.createOrganizationForApp, {
-            ...createArgs,
-            organizationId: seed.organizationId,
-          }),
+        t.withIdentity({ subject: "create_org_excluded" }).mutation(api.setup.mutations.createOrganizationForApp, {
+          ...createArgs,
+          organizationId: seed.organizationId,
+        }),
       ).resolves.toMatchObject({ created: true });
     });
 

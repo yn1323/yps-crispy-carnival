@@ -19,20 +19,23 @@ describe("shop lifecycle legacy readiness", () => {
       const organizationId = await ctx.db.insert(
         "organizations",
         legacyDocument<WithoutSystemFields<Doc<"organizations">>>({
-        name: "店舗ライフサイクルreadiness事業者",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
+          name: "店舗ライフサイクルreadiness事業者",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
         }),
       );
-      const shopId = await ctx.db.insert("shops", legacyDocument<WithoutSystemFields<Doc<"shops">>>({
-        organizationId,
-        operatingStatus: "active",
-        name: "店舗ライフサイクルreadiness店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      }));
+      const shopId = await ctx.db.insert(
+        "shops",
+        legacyDocument<WithoutSystemFields<Doc<"shops">>>({
+          organizationId,
+          operatingStatus: "active",
+          name: "店舗ライフサイクルreadiness店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
 
       for (const [index, action] of [
         "organization.shop_archived",
@@ -59,38 +62,38 @@ describe("shop lifecycle legacy readiness", () => {
       await ctx.db.insert(
         "analyticsSourceEvents",
         legacyDocument<WithoutSystemFields<Doc<"analyticsSourceEvents">>>({
-        ...baseEvent,
-        eventKey: "readiness:shop:archived",
-        eventType: "shop.changed",
-        payload: { kind: "shop", change: "archived" },
+          ...baseEvent,
+          eventKey: "readiness:shop:archived",
+          eventType: "shop.changed",
+          payload: { kind: "shop", change: "archived" },
         }),
       );
       await ctx.db.insert(
         "analyticsSourceEvents",
         legacyDocument<WithoutSystemFields<Doc<"analyticsSourceEvents">>>({
-        ...baseEvent,
-        eventKey: "readiness:shop:reactivated",
-        eventType: "shop.changed",
-        payload: { kind: "shop", change: "reactivated" },
+          ...baseEvent,
+          eventKey: "readiness:shop:reactivated",
+          eventType: "shop.changed",
+          payload: { kind: "shop", change: "reactivated" },
         }),
       );
       await ctx.db.insert(
         "analyticsSourceEvents",
         legacyDocument<WithoutSystemFields<Doc<"analyticsSourceEvents">>>({
-        ...baseEvent,
-        eventKey: "readiness:plan:archived-status",
-        eventType: "plan.changed",
-        payload: {
-          kind: "plan",
-          plan: "free",
-          billingVersion: 1,
-          effectiveAt: now,
-          statusDeltas: [
-            { kind: "shop", shopId, status: "archived" },
-            { kind: "shop", shopId, status: "active" },
-            { kind: "shop", shopId, status: "archived" },
-          ],
-        },
+          ...baseEvent,
+          eventKey: "readiness:plan:archived-status",
+          eventType: "plan.changed",
+          payload: {
+            kind: "plan",
+            plan: "free",
+            billingVersion: 1,
+            effectiveAt: now,
+            statusDeltas: [
+              { kind: "shop", shopId, status: "archived" },
+              { kind: "shop", shopId, status: "active" },
+              { kind: "shop", shopId, status: "archived" },
+            ],
+          },
         }),
       );
       await ctx.db.insert("analyticsSourceEvents", {

@@ -77,12 +77,10 @@ describe("organization manager access", () => {
     const { shopId } = await t.run(async (ctx) => await seedOrganizationAccess(ctx, { subject, memberStatus }));
 
     await expect(
-      t
-        .withIdentity({ subject })
-        .query(api.dashboard.queries.getDashboardShop, {
-          expectedOrganizationId: await getTestOrganizationId(t, shopId),
-          shopId,
-        }),
+      t.withIdentity({ subject }).query(api.dashboard.queries.getDashboardShop, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      }),
     ).resolves.toMatchObject({ name: "組織店舗" });
   });
 
@@ -162,12 +160,10 @@ describe("organization manager access", () => {
     );
 
     await expect(
-      t
-        .withIdentity({ subject })
-        .query(api.dashboard.queries.getDashboardShop, {
-          expectedOrganizationId: await getTestOrganizationId(t, shopId),
-          shopId,
-        }),
+      t.withIdentity({ subject }).query(api.dashboard.queries.getDashboardShop, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      }),
     ).resolves.toBeNull();
   });
 
@@ -193,12 +189,10 @@ describe("organization manager access", () => {
     });
 
     await expect(
-      t
-        .withIdentity({ subject })
-        .query(api.dashboard.queries.getDashboardShop, {
-          expectedOrganizationId: await getTestOrganizationId(t, targetShopId),
-          shopId: targetShopId,
-        }),
+      t.withIdentity({ subject }).query(api.dashboard.queries.getDashboardShop, {
+        expectedOrganizationId: await getTestOrganizationId(t, targetShopId),
+        shopId: targetShopId,
+      }),
     ).resolves.toBeNull();
   });
 

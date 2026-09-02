@@ -32,10 +32,10 @@ async function seedOrganization(t: ReturnType<typeof createMigrationHistoryTestW
     return await ctx.db.insert(
       "organizations",
       legacyOrganization({
-      name: "店舗status移行確認事業者",
-      isDeleted: false,
-      createdAt: now,
-      updatedAt: now,
+        name: "店舗status移行確認事業者",
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
       }),
     );
   });
@@ -46,22 +46,28 @@ describe("m048 shops operatingStatus removal", () => {
     const t = createMigrationHistoryTestWithMigrations();
     const organizationId = await seedOrganization(t);
     const ids = await t.run(async (ctx) => {
-      const activeShopId = await ctx.db.insert("shops", legacyShop({
-        organizationId,
-        operatingStatus: "active",
-        name: "移行対象店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      }));
-      const deletedActiveShopId = await ctx.db.insert("shops", legacyShop({
-        organizationId,
-        operatingStatus: "active",
-        name: "削除済み移行対象店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        regularClosedDays: [],
-        isDeleted: true,
-      }));
+      const activeShopId = await ctx.db.insert(
+        "shops",
+        legacyShop({
+          organizationId,
+          operatingStatus: "active",
+          name: "移行対象店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
+      const deletedActiveShopId = await ctx.db.insert(
+        "shops",
+        legacyShop({
+          organizationId,
+          operatingStatus: "active",
+          name: "削除済み移行対象店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          regularClosedDays: [],
+          isDeleted: true,
+        }),
+      );
       const unsetShopId = await ctx.db.insert("shops", {
         organizationId,
         name: "移行済み店舗",
@@ -106,22 +112,28 @@ describe("m048 shops operatingStatus removal", () => {
     const t = createMigrationHistoryTestWithMigrations();
     const organizationId = await seedOrganization(t);
     const ids = await t.run(async (ctx) => {
-      const activeShopId = await ctx.db.insert("shops", legacyShop({
-        organizationId,
-        operatingStatus: "active",
-        name: "rollback確認店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      }));
-      const archivedShopId = await ctx.db.insert("shops", legacyShop({
-        organizationId,
-        operatingStatus: "archived",
-        name: "想定外アーカイブ店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      }));
+      const activeShopId = await ctx.db.insert(
+        "shops",
+        legacyShop({
+          organizationId,
+          operatingStatus: "active",
+          name: "rollback確認店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
+      const archivedShopId = await ctx.db.insert(
+        "shops",
+        legacyShop({
+          organizationId,
+          operatingStatus: "archived",
+          name: "想定外アーカイブ店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
       return { activeShopId, archivedShopId };
     });
 
@@ -147,14 +159,17 @@ describe("m048 shops operatingStatus removal", () => {
     const t = createMigrationHistoryTestWithMigrations();
     const organizationId = await seedOrganization(t);
     const shopId = await t.run(async (ctx) => {
-      const id = await ctx.db.insert("shops", legacyShop({
-        organizationId,
-        operatingStatus: "active",
-        name: "未知status確認店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      }));
+      const id = await ctx.db.insert(
+        "shops",
+        legacyShop({
+          organizationId,
+          operatingStatus: "active",
+          name: "未知status確認店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
       await ctx.db.patch(id, legacyShopPatch({ operatingStatus: "paused" }));
       return id;
     });

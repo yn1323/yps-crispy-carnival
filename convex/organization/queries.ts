@@ -486,8 +486,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
       );
       const managerReservationAlreadyCounted = lifecycleStatus === "issued" && invitation.expiresAt > now;
       const canFitResentManager = Boolean(
-        projectedActiveManagerCount - (managerReservationAlreadyCounted ? 1 : 0) + 1 <=
-          policy.limits.maxActiveManagers,
+        projectedActiveManagerCount - (managerReservationAlreadyCounted ? 1 : 0) + 1 <= policy.limits.maxActiveManagers,
       );
       const hasTargetConflict = Boolean(
         canRetryStatus &&
@@ -782,100 +781,100 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
   let billing: BillingView;
   const state = billingState.state;
   switch (state.kind) {
-      case "trial":
-        billing = {
-          ...billingBase,
-          ...billingCapabilityReasons,
-          state: "trial",
-          currentPlan: "trial",
-          ...(state.selectedPaidPlan ? { targetPlan: state.selectedPaidPlan } : {}),
-          trialEndsAt: state.trialEndsAt,
-          // trialEndsAt は登録開始日の2か月後の同日（同日がなければ月末）の0:00 JSTを表す排他的な境界。
-          // 次の予定ではトライアルを利用できる最終日を表示する。
-          nextEvent: { label: "トライアル最終日", date: formatDateJa(state.trialEndsAt - 1) },
-        };
-        break;
-      case "initialPaymentPending":
-        billing = {
-          ...billingBase,
-          ...billingCapabilityReasons,
-          state: "initialPaymentPending",
-          currentPlan: "free",
-          targetPlan: state.plan,
-          nextEvent: { label: "支払い結果", date: "確認中" },
-        };
-        break;
-      case "pendingActivation":
-        billing = {
-          ...billingBase,
-          ...billingCapabilityReasons,
-          state: "pendingActivation",
-          currentPlan: state.fallback,
-          targetPlan: state.plan,
-          blockedReason:
-            state.fallback === "free"
-              ? "有料プランの支払い結果を確認中です。\n無料の基本機能は引き続き利用できます。"
-              : "支払い結果を確認しています。\n確認が終わるまで、契約状態を変更できません。",
-          nextEvent: { label: "支払い結果", date: "確認中" },
-        };
-        break;
-      case "active":
-        billing = {
-          ...billingBase,
-          ...billingCapabilityReasons,
-          state: state.plan,
-          currentPlan: state.plan,
-          ...(usageLimitBlockedReason ? { blockedReason: usageLimitBlockedReason } : {}),
-          ...(state.plan !== "free" &&
-          latestStripeSubscription?.terminalAt === undefined &&
-          latestStripeSubscription?.currentPeriodEndsAt !== undefined
-            ? {
-                nextEvent: {
-                  label: "次回更新日",
-                  date: formatDateJa(latestStripeSubscription.currentPeriodEndsAt),
-                },
-              }
-            : {}),
-        };
-        break;
-      case "complimentary":
-        billing = {
-          ...billingBase,
-          ...billingCapabilityReasons,
-          state: "pro",
-          currentPlan: "pro",
-        };
-        break;
-      case "scheduledChange":
-        billing = {
-          ...billingBase,
-          ...billingCapabilityReasons,
-          state: "scheduledChange",
-          currentPlan: state.currentPlan,
-          targetPlan: state.targetPlan,
-          ...(state.targetPlan === "free" && state.restrictAtPeriodEnd === true
-            ? { restrictAtPeriodEnd: true as const }
-            : {}),
-          nextEvent: {
-            label:
-              state.targetPlan === "free"
-                ? state.restrictAtPeriodEnd === true
-                  ? "契約終了日"
-                  : "無料適用予定日"
-                : "Standard適用予定日",
-            date: formatDateJa(state.effectiveAt),
-          },
-        };
-        break;
-      case "paymentTerminationPending":
-        billing = {
-          ...billingBase,
-          ...billingCapabilityReasons,
-          state: "free",
-          currentPlan: "free",
-          ...(usageLimitBlockedReason ? { blockedReason: usageLimitBlockedReason } : {}),
-        };
-        break;
+    case "trial":
+      billing = {
+        ...billingBase,
+        ...billingCapabilityReasons,
+        state: "trial",
+        currentPlan: "trial",
+        ...(state.selectedPaidPlan ? { targetPlan: state.selectedPaidPlan } : {}),
+        trialEndsAt: state.trialEndsAt,
+        // trialEndsAt は登録開始日の2か月後の同日（同日がなければ月末）の0:00 JSTを表す排他的な境界。
+        // 次の予定ではトライアルを利用できる最終日を表示する。
+        nextEvent: { label: "トライアル最終日", date: formatDateJa(state.trialEndsAt - 1) },
+      };
+      break;
+    case "initialPaymentPending":
+      billing = {
+        ...billingBase,
+        ...billingCapabilityReasons,
+        state: "initialPaymentPending",
+        currentPlan: "free",
+        targetPlan: state.plan,
+        nextEvent: { label: "支払い結果", date: "確認中" },
+      };
+      break;
+    case "pendingActivation":
+      billing = {
+        ...billingBase,
+        ...billingCapabilityReasons,
+        state: "pendingActivation",
+        currentPlan: state.fallback,
+        targetPlan: state.plan,
+        blockedReason:
+          state.fallback === "free"
+            ? "有料プランの支払い結果を確認中です。\n無料の基本機能は引き続き利用できます。"
+            : "支払い結果を確認しています。\n確認が終わるまで、契約状態を変更できません。",
+        nextEvent: { label: "支払い結果", date: "確認中" },
+      };
+      break;
+    case "active":
+      billing = {
+        ...billingBase,
+        ...billingCapabilityReasons,
+        state: state.plan,
+        currentPlan: state.plan,
+        ...(usageLimitBlockedReason ? { blockedReason: usageLimitBlockedReason } : {}),
+        ...(state.plan !== "free" &&
+        latestStripeSubscription?.terminalAt === undefined &&
+        latestStripeSubscription?.currentPeriodEndsAt !== undefined
+          ? {
+              nextEvent: {
+                label: "次回更新日",
+                date: formatDateJa(latestStripeSubscription.currentPeriodEndsAt),
+              },
+            }
+          : {}),
+      };
+      break;
+    case "complimentary":
+      billing = {
+        ...billingBase,
+        ...billingCapabilityReasons,
+        state: "pro",
+        currentPlan: "pro",
+      };
+      break;
+    case "scheduledChange":
+      billing = {
+        ...billingBase,
+        ...billingCapabilityReasons,
+        state: "scheduledChange",
+        currentPlan: state.currentPlan,
+        targetPlan: state.targetPlan,
+        ...(state.targetPlan === "free" && state.restrictAtPeriodEnd === true
+          ? { restrictAtPeriodEnd: true as const }
+          : {}),
+        nextEvent: {
+          label:
+            state.targetPlan === "free"
+              ? state.restrictAtPeriodEnd === true
+                ? "契約終了日"
+                : "無料適用予定日"
+              : "Standard適用予定日",
+          date: formatDateJa(state.effectiveAt),
+        },
+      };
+      break;
+    case "paymentTerminationPending":
+      billing = {
+        ...billingBase,
+        ...billingCapabilityReasons,
+        state: "free",
+        currentPlan: "free",
+        ...(usageLimitBlockedReason ? { blockedReason: usageLimitBlockedReason } : {}),
+      };
+      break;
   }
 
   const inviteManagerDisabledReason = canInviteManager
@@ -888,10 +887,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
           ? "支払い結果が確定してから、管理者を招待できます。"
           : `管理者と招待中の管理者は、組織全体で${policy.limits.maxActiveManagers}名までです。`;
   const canAddShop = Boolean(
-    isActiveActor &&
-      canWriteNormally &&
-      policy.canUsePaidFeatures &&
-      shopCount < policy.limits.maxShops,
+    isActiveActor && canWriteNormally && policy.canUsePaidFeatures && shopCount < policy.limits.maxShops,
   );
   const addShopDisabledReason = canAddShop
     ? undefined

@@ -762,11 +762,7 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
   },
   returns: shopMembershipChangeResultValidator,
   handler: async (ctx, args) => {
-    validateShopMembershipChangeInput(
-      args.desiredShopIds,
-      args.removalPreviews,
-      args.expectedMembershipFingerprint,
-    );
+    validateShopMembershipChangeInput(args.desiredShopIds, args.removalPreviews, args.expectedMembershipFingerprint);
     if (
       !ctx.organization ||
       !ctx.organizationMember ||

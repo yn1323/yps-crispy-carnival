@@ -17,21 +17,27 @@ describe("m028 shop billing Narrow preparation migration", () => {
     const ids = await t.run(async (ctx) => {
       const now = Date.now();
       const createOrganization = async (name: string) =>
-        await ctx.db.insert("organizations", legacyDocument<WithoutSystemFields<Doc<"organizations">>>({
-          name,
-          isDeleted: false,
-          createdAt: now,
-          updatedAt: now,
-        }));
+        await ctx.db.insert(
+          "organizations",
+          legacyDocument<WithoutSystemFields<Doc<"organizations">>>({
+            name,
+            isDeleted: false,
+            createdAt: now,
+            updatedAt: now,
+          }),
+        );
       const createShop = async (name: string, organizationId?: Awaited<ReturnType<typeof createOrganization>>) =>
-        await ctx.db.insert("shops", legacyDocument<WithoutSystemFields<Doc<"shops">>>({
-          organizationId,
-          operatingStatus: organizationId ? "active" : undefined,
-          name,
-          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-          regularClosedDays: [],
-          isDeleted: false,
-        }));
+        await ctx.db.insert(
+          "shops",
+          legacyDocument<WithoutSystemFields<Doc<"shops">>>({
+            organizationId,
+            operatingStatus: organizationId ? "active" : undefined,
+            name,
+            submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+            regularClosedDays: [],
+            isDeleted: false,
+          }),
+        );
       const createLegacyBilling = async (shopId: Awaited<ReturnType<typeof createShop>>) =>
         await ctx.db.insert("shopBillingStates", {
           shopId,

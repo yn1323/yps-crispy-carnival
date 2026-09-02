@@ -2187,12 +2187,10 @@ describe("通知配送outboxシナリオ", () => {
     inbox = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
     expect(inbox[0]).toMatchObject({ status: "resolved", resolutionKind: "sent" });
     await expect(
-      t
-        .withIdentity({ subject: MANAGER_SUBJECT })
-        .query(api.notificationOutbox.queries.hasOpenFailures, {
-          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
-          shopId: ids.shopId,
-        }),
+      t.withIdentity({ subject: MANAGER_SUBJECT }).query(api.notificationOutbox.queries.hasOpenFailures, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      }),
     ).resolves.toBe(false);
   });
 
