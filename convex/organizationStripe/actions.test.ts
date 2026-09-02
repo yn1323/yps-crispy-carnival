@@ -3562,7 +3562,7 @@ describe("organizationStripe/actions", () => {
       expectedCustomText: {
         submit: {
           message:
-            "トライアル終了後はStandardプラン（月額1,480円・税込）で継続します。この画面では支払い方法のみ登録し、現在は請求されません。",
+            "トライアル終了後はStandardプラン（月額1,480円・税込）に切り替えます。この画面では支払い方法のみ登録し、トライアル終了まで請求されません。",
         },
       },
     },
@@ -3574,7 +3574,7 @@ describe("organizationStripe/actions", () => {
       expectedCustomText: {
         submit: {
           message:
-            "トライアル終了後はProプラン（月額2,980円・税込）で継続します。この画面では支払い方法のみ登録し、現在は請求されません。",
+            "トライアル終了後はProプラン（月額2,980円・税込）に切り替えます。この画面では支払い方法のみ登録し、トライアル終了まで請求されません。",
         },
       },
     },
@@ -3586,7 +3586,7 @@ describe("organizationStripe/actions", () => {
       expectedCustomText: {
         submit: {
           message:
-            "トライアル終了後はStandardプラン（2日ごとに320円・税別）で継続します。この画面では支払い方法のみ登録し、現在は請求されません。",
+            "トライアル終了後はStandardプラン（2日ごとに320円・税別）に切り替えます。この画面では支払い方法のみ登録し、トライアル終了まで請求されません。",
         },
       },
     },

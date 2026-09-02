@@ -6904,7 +6904,7 @@ function trialSetupCheckoutSubmitMessage(
     price.interval === "month" && price.intervalCount === 1
       ? `月額${amount}・${taxLabel}`
       : `${formatBillingCadenceLabel(price)}ごとに${amount}・${taxLabel}`;
-  return `トライアル終了後に${organizationPaidPlanLabel(plan)}プラン（${priceDescription}）に切り替えます。この画面では支払い方法のみ登録し、トライアル終了まで請求されません。`;
+  return `トライアル終了後は${organizationPaidPlanLabel(plan)}プラン（${priceDescription}）に切り替えます。この画面では支払い方法のみ登録し、トライアル終了まで請求されません。`;
 }
 
 function formatCheckoutCurrencyAmount(currencyValue: string, amountInMinorUnit: number): string {
