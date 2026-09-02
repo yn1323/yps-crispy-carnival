@@ -79,7 +79,9 @@ direct routeとpublic mutation/actionは、画面表示とは独立して認証�
 - 店舗一覧は`listOrganizationShops`で非削除店舗をcursor paginationする。  プラン上限の5件を保存済み店舗の取得上限に流用せず、非削除店舗を欠落させない。
 - 組織名、現在店舗、組織削除は既存Dialogとcontrollerを再利用する。  組織作成、店舗追加、管理者招待、請求先変更、Stripe操作の入口は常時表示し、操作可否はサーバーが返すcapabilityに従う。
 - CheckoutとCustomer Portalを開始した場合、復帰先は`/manage/billing?org=<organizationId>`にする。  復帰URLだけで支払い成功とは判断せず、Webhookまたはprovider再取得結果を正本とする。
-- `pendingActivation`で課金ページを表示した場合は、戻りqueryの有無にかかわらず、サーバーが対象Sessionを組織、operation、Customer、Price、modeに照合する。  Sessionが`open`なら自動で取り消さず、「支払いを続ける」と「支払いをやめる」を表示する。  明示的に支払いをやめた場合だけStripeで`expired`へ確定してから、支払い失敗時のfallbackへ戻す。
+- 確認DialogからCheckoutを開始する場合は、Dialogが追加したbrowser history guardを先に解除し、解除完了と検証済みCheckout URLの両方が揃った時点で一度だけ遷移する。
+- `pendingActivation`または継続プラン未登録のTrialで課金ページを表示した場合は、戻りqueryの有無にかかわらず、サーバーが対象Sessionを組織、operation、Customer、Price、generation、livemode、modeに照合する。  Sessionが`open`なら自動で取り消さず、支払いまたは支払い方法の登録を続ける操作と、やめる操作を表示する。
+- `pendingActivation`で明示的に支払いをやめた場合は、Stripeで`expired`へ確定してから支払い失敗時のfallbackへ戻す。  Trialで明示的に登録をやめた場合、または初回照合時点でSessionが`expired`の場合は、operationだけを解放し、Trial状態、終了日時、versionを維持する。
 - Checkoutから`stripe=cancelled`で戻った場合も同じサーバー照合を行い、`open`なら明示キャンセルとして`expired`へ収束させる。  `complete`やprovider取得失敗では状態を変更せず、Webhookまたは再試行を待つ。  ブラウザバックは`cancel_url`を通らず、bfcache復元ではReactが再マウントされない場合もあるため、戻りqueryだけでなく課金ページの初回表示と`pageshow`復元を再照合の起点にする。
 - query errorはページ内で再試行できる。  上限超過中の整理操作は、課金policyが返すcapabilityに従う。
 
@@ -403,7 +405,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `api.organizationInvitation.acceptanceActions.accept` | 接続済み人物のアカウント一致、または未接続人物のClerk確認済みメールを検証して招待を承認 |
 | `api.organizationBilling.mutations.updateBillingEmail` | 認証、組織境界、管理者状態を確認して請求先メールを更新し、全有効管理者への変更通知とStripe同期を予約する |
 | `api.organizationStripe.actions.getPlanPrice` / `startPaidCheckout` | Stripe設定と販売Priceを検証して価格を取得し、契約を開始する |
-| `api.organizationStripe.actions.inspectPendingCheckoutForOrganization` / `cancelPendingCheckoutForOrganization` | `pendingActivation`に対応するCheckout SessionまたはStandardからProへの未完了変更を照合する。後者はStripeのHosted Invoice URLを返し、取消時は当該Invoiceの`void`と`pending_update`解消を確認してStandardへ戻す。URLやclient stateだけで課金状態を変更しない |
+| `api.organizationStripe.actions.inspectPendingCheckoutForOrganization` / `cancelPendingCheckoutForOrganization` | `pendingActivation`に対応するCheckout Session、Trialの未完了Setup Checkout、またはStandardからProへの未完了変更を照合する。Trialでは`open` Sessionの再開URLを返し、取消時はSessionを`expired`へ確定してoperationだけを解放する。StandardからProではStripeのHosted Invoice URLを返し、取消時は当該Invoiceの`void`と`pending_update`解消を確認してStandardへ戻す。URLやclient stateだけで課金状態を変更しない |
 | `api.organizationStripe.actions.getCurrentSubscriptionPrice` | 選択店舗を認可し、現在の非terminal Subscriptionに保存したPriceから金額、通貨、周期、明示された税区分だけを取得 |
 | `api.organizationStripe.actions.previewPaidPlanChange` / `changePaidPlanNow` | StandardからProへの日割りpreviewと即時変更 |
 | `api.organizationStripe.actions.schedulePaidPlanChange` | ProからStandardへの期間末変更。`targetPlan: "free"`は受け付けない |
@@ -430,7 +432,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 - `convex/setup/mutations.test.ts`：初回Setupが所属0件だけに許可され、コード空欄ではPro相当の2か月Trialとdeadline、有効なコードでは期限なしの`complimentary.pro`を作ること、不正なコードでは副作用を残さないこと、いずれもStripe objectを作らないことと、追加組織が認証、上限、rate limitを再確認することを検証する。
 - `convex/_scenario/organizationCreation.test.ts`：追加組織について、Free枠、冪等性、rate limit、初期Free状態、既存組織への非混入を検証する。
 - `src/pages/dashboard/index.stories.tsx`、`src/components/features/Dashboard/DashboardContent/index.stories.tsx`、`src/components/features/OrganizationSettings/OrganizationCreation/OrganizationCreationDialog.stories.tsx`、`src/components/features/OrganizationSettings/controllers.test.tsx`：初回Setupと追加組織作成について、代表状態、フォーム操作、失敗後も同じ`requestId`を保つ再試行、mutation引数、作成後の遷移を検証する。
-- `src/components/features/OrganizationSettings/PlanAndPaymentSection.stories.tsx`と`BillingSettings/`配下のStory・Logic Test：Free、Standard、Pro、未完了Checkoutの代表状態と主要変更操作を検証する。
+- `src/components/features/OrganizationSettings/PlanAndPaymentSection.stories.tsx`、`controllers.test.tsx`と`BillingSettings/`配下のStory・Logic Test：Free、Trial、Standard、Pro、未完了Checkoutの代表状態、Dialog履歴処理後の一度だけの遷移、再開と取消を検証する。
 - `src/components/features/Dashboard/PlanStatusCard/`のFrontend Unit・Logic Test：Trial、Free、Standard、Pro、変更予約の表示変換を検証する。支払い失敗はプラン状態へ混ぜない。
 - `src/components/features/Dashboard/DashboardContent/index.stories.tsx`：現在店舗、業務状態、閲覧専用、Loading、Empty、Setupの代表状態を検証する。
 - `src/components/features/ManagerSettings/`のStoryとFrontend Unit Test：専用ページ、既存スタッフの単一選択、新しい人物の入力、Freeの2名上限、再送、取消、Loading、Empty、Error、閲覧専用の代表状態を検証する。
