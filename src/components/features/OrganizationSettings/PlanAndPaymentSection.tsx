@@ -20,6 +20,7 @@ import {
 } from "./BillingSettings/script";
 import type {
   BillingDisplayState,
+  BillingPendingCheckoutPurpose,
   BillingPendingCheckoutStatus,
   BillingPlanPrices,
   BillingProductPlan,
@@ -35,6 +36,7 @@ type Props = {
   onUpdatePaymentMethod: () => void;
   onUpdateBillingEmail: () => void;
   pendingCheckout: {
+    purpose: BillingPendingCheckoutPurpose | null;
     status: BillingPendingCheckoutStatus;
     isCancelling: boolean;
     onContinue: () => void;
@@ -105,6 +107,10 @@ export const PlanAndPaymentSection = ({
 }: Props) => {
   const isServiceStopScheduled = isServiceStopScheduledState(billing);
   const isUsageLimitExceeded = isActivePlanUsageLimitExceeded(billing);
+  const showTrialPendingCheckoutRecovery =
+    billing.state === "trial" &&
+    pendingCheckout.purpose === "trialPaymentMethodSetup" &&
+    pendingCheckout.status !== "idle";
   const presentation = isServiceStopScheduled
     ? {
         ...STATE_PRESENTATION.scheduledChange,
@@ -176,6 +182,8 @@ export const PlanAndPaymentSection = ({
           isServiceStopScheduled={isServiceStopScheduled}
         />
 
+        {showTrialPendingCheckoutRecovery && <TrialPendingCheckoutAlert pendingCheckout={pendingCheckout} />}
+
         {isExceptionalState(billing.state) && !isServiceStopScheduled && (
           <BillingStateAlert billing={billing} presentation={presentation} pendingCheckout={pendingCheckout} />
         )}
@@ -191,7 +199,7 @@ export const PlanAndPaymentSection = ({
           </Box>
         )}
 
-        {shouldShowPlanComparison(billing) && (
+        {shouldShowPlanComparison(billing) && !showTrialPendingCheckoutRecovery && (
           <PlanComparisonCards
             billing={billing}
             prices={planPrices}
@@ -526,7 +534,8 @@ function BillingStateAlert({
   presentation: (typeof STATE_PRESENTATION)[BillingDisplayState];
   pendingCheckout: Props["pendingCheckout"];
 }) {
-  const showPendingCheckoutRecovery = billing.state === "pendingActivation" && !billing.isComplimentary;
+  const showPendingCheckoutRecovery =
+    billing.state === "pendingActivation" && !billing.isComplimentary && pendingCheckout.purpose === "paidCheckout";
   const reductions = getRequiredReductions(billing);
   const showReductions =
     billing.state === "scheduledChange" && (reductions.people > 0 || reductions.shops > 0 || reductions.managers > 0);
@@ -560,30 +569,89 @@ function BillingStateAlert({
               <Text>{presentation.description}</Text>
               {billing.blockedReason && <Text>{billing.blockedReason}</Text>}
               {showReductions && <ReductionGuidance reductions={reductions} />}
-              {showPendingCheckoutRecovery && <PendingCheckoutGuidance status={pendingCheckout.status} />}
+              {showPendingCheckoutRecovery && (
+                <PendingCheckoutGuidance purpose="paidCheckout" status={pendingCheckout.status} />
+              )}
             </Stack>
           </Alert.Description>
         </Alert.Content>
 
-        {showPendingCheckoutRecovery ? <PendingCheckoutActions pendingCheckout={pendingCheckout} /> : null}
+        {showPendingCheckoutRecovery ? (
+          <PendingCheckoutActions purpose="paidCheckout" pendingCheckout={pendingCheckout} />
+        ) : null}
       </Flex>
     </Alert.Root>
   );
 }
 
-function PendingCheckoutGuidance({ status }: { status: BillingPendingCheckoutStatus }) {
-  if (status === "checking") return <Text>Stripeの支払い状況を確認しています。</Text>;
-  if (status === "open") {
-    return <Text>支払い手続きはまだ完了していません。続けるか、支払いをやめるか選んでください。</Text>;
+function TrialPendingCheckoutAlert({ pendingCheckout }: { pendingCheckout: Props["pendingCheckout"] }) {
+  return (
+    <Alert.Root status="info" borderWidth="1px" borderRadius="xl" alignItems="flex-start" py={{ base: 3, md: 3 }}>
+      <Alert.Indicator mt={1} />
+      <Flex flex={1} minW={0} gap={3} direction={{ base: "column", md: "row" }} align={{ md: "center" }}>
+        <Alert.Content>
+          <Alert.Title>支払い方法の登録が途中です</Alert.Title>
+          <Alert.Description>
+            <PendingCheckoutGuidance purpose="trialPaymentMethodSetup" status={pendingCheckout.status} />
+          </Alert.Description>
+        </Alert.Content>
+        <PendingCheckoutActions purpose="trialPaymentMethodSetup" pendingCheckout={pendingCheckout} />
+      </Flex>
+    </Alert.Root>
+  );
+}
+
+function PendingCheckoutGuidance({
+  purpose,
+  status,
+}: {
+  purpose: BillingPendingCheckoutPurpose;
+  status: BillingPendingCheckoutStatus;
+}) {
+  const isTrialSetup = purpose === "trialPaymentMethodSetup";
+  if (status === "checking") {
+    return (
+      <Text>{isTrialSetup ? "Stripeでの登録状況を確認しています。" : "Stripeの支払い状況を確認しています。"}</Text>
+    );
   }
-  if (status === "pending") return <Text>支払い完了後の反映を待っています。この画面でお待ちください。</Text>;
+  if (status === "open") {
+    return isTrialSetup ? (
+      <Text>
+        支払い方法の登録はまだ完了していません。続けるか、登録をやめるか選んでください。トライアル期間中に請求は発生しません。
+      </Text>
+    ) : (
+      <Text>支払い手続きはまだ完了していません。続けるか、支払いをやめるか選んでください。</Text>
+    );
+  }
+  if (status === "pending") {
+    return (
+      <Text>
+        {isTrialSetup
+          ? "支払い方法の登録結果を確認しています。この画面でお待ちください。"
+          : "支払い完了後の反映を待っています。この画面でお待ちください。"}
+      </Text>
+    );
+  }
   if (status === "unavailable") {
-    return <Text>支払い状況を確認できませんでした。通信状態を確認して、もう一度お試しください。</Text>;
+    return (
+      <Text>
+        {isTrialSetup
+          ? "登録状況を確認できませんでした。通信状態を確認して、もう一度お試しください。"
+          : "支払い状況を確認できませんでした。通信状態を確認して、もう一度お試しください。"}
+      </Text>
+    );
   }
   return null;
 }
 
-function PendingCheckoutActions({ pendingCheckout }: { pendingCheckout: Props["pendingCheckout"] }) {
+function PendingCheckoutActions({
+  purpose,
+  pendingCheckout,
+}: {
+  purpose: BillingPendingCheckoutPurpose;
+  pendingCheckout: Props["pendingCheckout"];
+}) {
+  const isTrialSetup = purpose === "trialPaymentMethodSetup";
   if (pendingCheckout.status === "open") {
     return (
       <Flex
@@ -599,9 +667,9 @@ function PendingCheckoutActions({ pendingCheckout }: { pendingCheckout: Props["p
           minH={{ base: "44px", md: "36px" }}
           onClick={pendingCheckout.onCancel}
           loading={pendingCheckout.isCancelling}
-          loadingText="支払いをやめる"
+          loadingText={isTrialSetup ? "登録をやめる" : "支払いをやめる"}
         >
-          支払いをやめる
+          {isTrialSetup ? "登録をやめる" : "支払いをやめる"}
         </Button>
         <Button
           size="sm"
@@ -610,7 +678,7 @@ function PendingCheckoutActions({ pendingCheckout }: { pendingCheckout: Props["p
           onClick={pendingCheckout.onContinue}
           disabled={pendingCheckout.isCancelling}
         >
-          支払いを続ける
+          {isTrialSetup ? "登録を続ける" : "支払いを続ける"}
         </Button>
       </Flex>
     );

@@ -186,6 +186,17 @@ type AuthorizedActionContext = {
   billingCycleAnchor?: number;
   stripeSubscriptionScheduleId?: string;
 };
+type PendingCheckoutExpectation =
+  | {
+      kind: "trialSetupCheckout";
+      mode: "setup";
+      expectedBillingVersion: number;
+    }
+  | {
+      kind: "immediatePaidCheckout";
+      mode: "subscription";
+      fallback: "free" | "standard";
+    };
 type ResolvedOrganization = {
   organizationId: Id<"organizations">;
   livemode: boolean;
@@ -339,8 +350,23 @@ export const startPaidCheckoutForOrganization = action({
   },
 });
 
+function pendingCheckoutExpectation(context: AuthorizedActionContext): PendingCheckoutExpectation | null {
+  const state = context.billingState.state;
+  if (state.kind === "pendingActivation") {
+    return { kind: "immediatePaidCheckout", mode: "subscription", fallback: state.fallback };
+  }
+  if (state.kind === "trial" && state.selectedPaidPlan === undefined && !context.currentStripeSubscriptionId) {
+    return {
+      kind: "trialSetupCheckout",
+      mode: "setup",
+      expectedBillingVersion: context.billingState.version,
+    };
+  }
+  return null;
+}
+
 /**
- * pendingActivationに対応するCheckoutをproviderで照合し、画面復帰後に利用者が選べる安全な状態だけを返す。
+ * 未完了Checkoutをproviderで照合し、画面復帰後に利用者が選べる安全な状態だけを返す。
  * Sessionがopenでも、この確認だけでは支払いを取り消さない。
  */
 export const inspectPendingCheckoutForOrganization = action({
@@ -353,8 +379,12 @@ export const inspectPendingCheckoutForOrganization = action({
     if (configuration.status !== "ready") return unavailable("configuration_pending");
     const context = await getAuthorizedContext(ctx, { organizationId: args.organizationId }, "cancelCheckout");
     if (!context) return unavailable("not_allowed");
-    if (context.billingState.state.kind !== "pendingActivation") return { status: "unchanged" };
-    if (!context.stripeCustomerId || context.stripeCustomerLivemode !== configuration.livemode) {
+    const expectation = pendingCheckoutExpectation(context);
+    if (!expectation) return { status: "unchanged" };
+    if (!context.stripeCustomerId) {
+      return expectation.kind === "trialSetupCheckout" ? { status: "unchanged" } : unavailable("configuration_pending");
+    }
+    if (context.stripeCustomerLivemode !== configuration.livemode) {
       return unavailable("configuration_pending");
     }
 
@@ -364,10 +394,18 @@ export const inspectPendingCheckoutForOrganization = action({
         organizationId: context.organizationId,
         providerGeneration: context.providerGeneration + 1,
         livemode: configuration.livemode,
+        expectedKind: expectation.kind,
+        ...(expectation.kind === "trialSetupCheckout"
+          ? { expectedBillingVersion: expectation.expectedBillingVersion }
+          : {}),
       },
     );
     if (!operation) {
-      if (context.billingState.state.plan === "pro" && context.billingState.state.fallback === "standard") {
+      if (
+        context.billingState.state.kind === "pendingActivation" &&
+        context.billingState.state.plan === "pro" &&
+        context.billingState.state.fallback === "standard"
+      ) {
         return await inspectPendingImmediatePaidPlanChange(ctx, context, configuration, "inspect");
       }
       return { status: "unchanged" };
@@ -384,7 +422,7 @@ export const inspectPendingCheckoutForOrganization = action({
         livemode: configuration.livemode,
         customerId: context.stripeCustomerId,
         priceId: operation.stripePriceIdSnapshot,
-        mode: "subscription",
+        mode: expectation.mode,
       });
 
       if (session.status === "open") {
@@ -392,10 +430,20 @@ export const inspectPendingCheckoutForOrganization = action({
       }
       if (session.status !== "expired") return { status: "pending" };
 
+      if (expectation.kind === "trialSetupCheckout") {
+        return await releasePendingCheckoutOperation(ctx, {
+          organizationId: context.organizationId,
+          operationId: operation.operationId,
+          stripeSessionId: operation.stripeSessionId,
+          livemode: configuration.livemode,
+          reason: "checkout_session_expired",
+        });
+      }
+
       return await convergeExpiredPendingCheckout(ctx, {
         organizationId: context.organizationId,
         billingVersion: context.billingState.version,
-        fallback: context.billingState.state.fallback,
+        fallback: expectation.fallback,
         operationId: operation.operationId,
         stripeSessionId: operation.stripeSessionId,
         livemode: configuration.livemode,
@@ -424,10 +472,16 @@ export const cancelPendingCheckoutForOrganization = action({
     }
     const context = await getAuthorizedContext(ctx, { organizationId: args.organizationId }, "cancelCheckout");
     if (!context) return { status: "unavailable" as const, reason: "not_allowed" as const };
-    if (context.billingState.state.kind !== "pendingActivation") {
+    const expectation = pendingCheckoutExpectation(context);
+    if (!expectation) {
       return { status: "unchanged" as const };
     }
-    if (!context.stripeCustomerId || context.stripeCustomerLivemode !== configuration.livemode) {
+    if (!context.stripeCustomerId) {
+      return expectation.kind === "trialSetupCheckout"
+        ? { status: "unchanged" as const }
+        : { status: "unavailable" as const, reason: "configuration_pending" as const };
+    }
+    if (context.stripeCustomerLivemode !== configuration.livemode) {
       return { status: "unavailable" as const, reason: "configuration_pending" as const };
     }
 
@@ -437,10 +491,18 @@ export const cancelPendingCheckoutForOrganization = action({
         organizationId: context.organizationId,
         providerGeneration: context.providerGeneration + 1,
         livemode: configuration.livemode,
+        expectedKind: expectation.kind,
+        ...(expectation.kind === "trialSetupCheckout"
+          ? { expectedBillingVersion: expectation.expectedBillingVersion }
+          : {}),
       },
     );
     if (!operation) {
-      if (context.billingState.state.plan === "pro" && context.billingState.state.fallback === "standard") {
+      if (
+        context.billingState.state.kind === "pendingActivation" &&
+        context.billingState.state.plan === "pro" &&
+        context.billingState.state.fallback === "standard"
+      ) {
         return await inspectPendingImmediatePaidPlanChange(ctx, context, configuration, "cancel");
       }
       return { status: "unchanged" as const };
@@ -457,7 +519,7 @@ export const cancelPendingCheckoutForOrganization = action({
         livemode: configuration.livemode,
         customerId: context.stripeCustomerId,
         priceId: operation.stripePriceIdSnapshot,
-        mode: "subscription",
+        mode: expectation.mode,
       });
 
       if (session.status === "complete") return { status: "pending" as const };
@@ -471,15 +533,25 @@ export const cancelPendingCheckoutForOrganization = action({
           livemode: configuration.livemode,
           customerId: context.stripeCustomerId,
           priceId: operation.stripePriceIdSnapshot,
-          mode: "subscription",
+          mode: expectation.mode,
         });
       }
       if (session.status !== "expired") return { status: "pending" as const };
 
+      if (expectation.kind === "trialSetupCheckout") {
+        return await releasePendingCheckoutOperation(ctx, {
+          organizationId: context.organizationId,
+          operationId: operation.operationId,
+          stripeSessionId: operation.stripeSessionId,
+          livemode: configuration.livemode,
+          reason: "checkout_session_cancelled",
+        });
+      }
+
       return await convergeExpiredPendingCheckout(ctx, {
         organizationId: context.organizationId,
         billingVersion: context.billingState.version,
-        fallback: context.billingState.state.fallback,
+        fallback: expectation.fallback,
         operationId: operation.operationId,
         stripeSessionId: operation.stripeSessionId,
         livemode: configuration.livemode,
@@ -787,6 +859,7 @@ async function startPaidCheckoutForPlan(
         livemode,
         customerId: context.stripeCustomerId,
         priceId: operation.stripePriceIdSnapshot ?? targetPriceId,
+        mode: isTrial ? "setup" : "subscription",
       });
       if (existing.status === "expired") {
         await ctx.runMutation(internal.organizationStripe.mutations.releaseExpiredCheckoutOperation, {
@@ -3159,6 +3232,7 @@ async function processCheckoutEvent(
       livemode: event.livemode,
       customerId,
       priceId: operation.stripePriceIdSnapshot,
+      mode: operation.kind === "trialSetupCheckout" ? "setup" : "subscription",
     });
   } catch {
     return { kind: "actionRequired" as const, errorCode: "price_snapshot_mismatch" };
@@ -6738,6 +6812,32 @@ async function expireOpenCheckoutSession(stripe: Stripe, session: Stripe.Checkou
   }
 }
 
+async function releasePendingCheckoutOperation(
+  ctx: ActionCtx,
+  args: {
+    organizationId: Id<"organizations">;
+    operationId: Id<"organizationStripeOperations">;
+    stripeSessionId: string;
+    livemode: boolean;
+    reason: "checkout_session_cancelled" | "checkout_session_expired";
+  },
+): Promise<{ status: "cancelled" } | { status: "pending" }> {
+  const released = await ctx.runMutation(internal.organizationStripe.mutations.releaseExpiredCheckoutOperation, {
+    operationId: args.operationId,
+    stripeSessionId: args.stripeSessionId,
+    reason: args.reason,
+  });
+  if (!released.changed) {
+    const latestOperation = await ctx.runQuery(internal.organizationStripe.queries.getCheckoutOperationBySession, {
+      organizationId: args.organizationId,
+      stripeSessionId: args.stripeSessionId,
+      livemode: args.livemode,
+    });
+    if (latestOperation?.status !== "cancelled") return { status: "pending" };
+  }
+  return { status: "cancelled" };
+}
+
 async function convergeExpiredPendingCheckout(
   ctx: ActionCtx,
   args: {
@@ -6763,21 +6863,13 @@ async function convergeExpiredPendingCheckout(
       : state.kind === "active" && state.plan === "free",
   );
   if (!converged) return { status: "pending" };
-
-  const released = await ctx.runMutation(internal.organizationStripe.mutations.releaseExpiredCheckoutOperation, {
+  return await releasePendingCheckoutOperation(ctx, {
+    organizationId: args.organizationId,
     operationId: args.operationId,
     stripeSessionId: args.stripeSessionId,
+    livemode: args.livemode,
     reason: args.releaseReason,
   });
-  if (!released.changed) {
-    const latestOperation = await ctx.runQuery(internal.organizationStripe.queries.getCheckoutOperationBySession, {
-      organizationId: args.organizationId,
-      stripeSessionId: args.stripeSessionId,
-      livemode: args.livemode,
-    });
-    if (latestOperation?.status !== "cancelled") return { status: "pending" };
-  }
-  return { status: "cancelled" };
 }
 
 async function retrieveAllowedPrice(stripe: Stripe, priceId: string, livemode: boolean) {

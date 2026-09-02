@@ -715,9 +715,7 @@ describe("OrganizationSettings controllers", () => {
     );
 
     await act(async () => resolveCheckout?.({ status: "available", url: "https://checkout.stripe.example/session" }));
-    await waitFor(() =>
-      expect(mocks.openBillingUrl).toHaveBeenCalledExactlyOnceWith("https://checkout.stripe.example/session"),
-    );
+    expect(mocks.openBillingUrl).toHaveBeenCalledExactlyOnceWith("https://checkout.stripe.example/session");
   });
 
   it("トライアルのStandard継続登録では変更前後と請求開始日を確認する", async () => {
@@ -729,11 +727,16 @@ describe("OrganizationSettings controllers", () => {
       intervalCount: 1,
       taxBehavior: "inclusive",
     });
+    mocks.actions.startPaidCheckout.mockResolvedValue({
+      status: "available",
+      url: "https://checkout.stripe.example/trial-standard",
+    });
     const trialBilling: OrganizationBillingView = {
       ...billing,
       state: "trial",
       currentPlan: "trial",
       hasTrialContinuation: false,
+      hasStripeCustomer: false,
       trialEndsAt: Date.parse("2026-09-01T00:00:00+09:00"),
       nextEvent: { label: "トライアル最終日", date: "2026年8月31日" },
       canScheduleFree: false,
@@ -746,6 +749,7 @@ describe("OrganizationSettings controllers", () => {
       }),
     );
 
+    await waitFor(() => expect(result.current.planPrices.standard.status).toBe("available"));
     act(() => result.current.managePlan());
 
     await waitFor(() =>
@@ -757,6 +761,161 @@ describe("OrganizationSettings controllers", () => {
         billingStartsOn: "2026年9月1日",
       }),
     );
+
+    act(() => result.current.dialog.onSubmit());
+    await waitFor(() =>
+      expect(mocks.actions.startPaidCheckout).toHaveBeenCalledExactlyOnceWith({
+        organizationId: "organization-app",
+        requestId: "request-1",
+        targetPlan: "standard",
+      }),
+    );
+    expect(mocks.openBillingUrl).toHaveBeenCalledExactlyOnceWith("https://checkout.stripe.example/trial-standard");
+  });
+
+  it("Freeの課金状態が先に変わっても、Checkout URL取得後に一度だけ遷移する", async () => {
+    mocks.actions.getPlanPrice.mockResolvedValue({
+      status: "available",
+      currency: "jpy",
+      unitAmount: 3000,
+      interval: "month",
+      intervalCount: 1,
+      taxBehavior: "inclusive",
+    });
+    mocks.actions.inspectPendingCheckout.mockResolvedValue({ status: "unchanged" });
+    let resolveCheckout: ((value: { status: "available"; url: string }) => void) | undefined;
+    mocks.actions.startPaidCheckout.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCheckout = resolve;
+        }),
+    );
+    const freeBilling: OrganizationBillingView = {
+      ...billing,
+      state: "free",
+      currentPlan: "free",
+      canUpdatePaymentMethod: false,
+      canScheduleFree: false,
+    };
+    const { result, rerender } = renderHook(
+      (billingView: OrganizationBillingView) =>
+        useStripeBillingController({
+          organizationId,
+          organizationName: "さくらダイニング",
+          billing: billingView,
+        }),
+      { initialProps: freeBilling },
+    );
+
+    await waitFor(() => expect(result.current.planPrices.standard.status).toBe("available"));
+    act(() => result.current.managePlan("standard"));
+    act(() => result.current.dialog.onSubmit());
+    await waitFor(() => expect(mocks.actions.startPaidCheckout).toHaveBeenCalledTimes(1));
+
+    rerender({
+      ...freeBilling,
+      state: "pendingActivation",
+      currentPlan: "free",
+      targetPlan: "standard",
+      hasStripeCustomer: true,
+      canManagePlan: false,
+    });
+    await waitFor(() => expect(result.current.dialog.dialog).toBeNull());
+    expect(mocks.openBillingUrl).not.toHaveBeenCalled();
+
+    await act(async () =>
+      resolveCheckout?.({ status: "available", url: "https://checkout.stripe.example/state-first" }),
+    );
+    expect(mocks.openBillingUrl).toHaveBeenCalledExactlyOnceWith("https://checkout.stripe.example/state-first");
+  });
+
+  it("Checkout待機中に料金ページを離れた場合は、遅延結果でStripeへ遷移しない", async () => {
+    mocks.actions.getPlanPrice.mockResolvedValue({
+      status: "available",
+      currency: "jpy",
+      unitAmount: 3000,
+      interval: "month",
+      intervalCount: 1,
+      taxBehavior: "inclusive",
+    });
+    let resolveCheckout: ((value: { status: "available"; url: string }) => void) | undefined;
+    mocks.actions.startPaidCheckout.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCheckout = resolve;
+        }),
+    );
+    const freeBilling: OrganizationBillingView = {
+      ...billing,
+      state: "free",
+      currentPlan: "free",
+      canUpdatePaymentMethod: false,
+      canScheduleFree: false,
+    };
+    const { result, unmount } = renderHook(() =>
+      useStripeBillingController({
+        organizationId,
+        organizationName: "さくらダイニング",
+        billing: freeBilling,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.planPrices.standard.status).toBe("available"));
+    act(() => result.current.managePlan("standard"));
+    act(() => result.current.dialog.onSubmit());
+    await waitFor(() => expect(mocks.actions.startPaidCheckout).toHaveBeenCalledTimes(1));
+
+    unmount();
+    await act(async () => resolveCheckout?.({ status: "available", url: "https://checkout.stripe.example/late" }));
+
+    expect(mocks.openBillingUrl).not.toHaveBeenCalled();
+  });
+
+  it("Checkout待機中に組織が変わった場合は、古い組織のURLへ遷移しない", async () => {
+    mocks.actions.getPlanPrice.mockResolvedValue({
+      status: "available",
+      currency: "jpy",
+      unitAmount: 3000,
+      interval: "month",
+      intervalCount: 1,
+      taxBehavior: "inclusive",
+    });
+    let resolveCheckout: ((value: { status: "available"; url: string }) => void) | undefined;
+    mocks.actions.startPaidCheckout.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCheckout = resolve;
+        }),
+    );
+    const freeBilling: OrganizationBillingView = {
+      ...billing,
+      state: "free",
+      currentPlan: "free",
+      canUpdatePaymentMethod: false,
+      canScheduleFree: false,
+    };
+    const { result, rerender } = renderHook(
+      ({ activeOrganizationId }: { activeOrganizationId: Id<"organizations"> }) =>
+        useStripeBillingController({
+          organizationId: activeOrganizationId,
+          organizationName: "さくらダイニング",
+          billing: freeBilling,
+        }),
+      { initialProps: { activeOrganizationId: organizationId } },
+    );
+
+    await waitFor(() => expect(result.current.planPrices.standard.status).toBe("available"));
+    act(() => result.current.managePlan("standard"));
+    act(() => result.current.dialog.onSubmit());
+    await waitFor(() => expect(mocks.actions.startPaidCheckout).toHaveBeenCalledTimes(1));
+
+    rerender({ activeOrganizationId: "organization-other" as Id<"organizations"> });
+    await waitFor(() => expect(result.current.dialog.dialog).toBeNull());
+    await act(async () =>
+      resolveCheckout?.({ status: "available", url: "https://checkout.stripe.example/stale-organization" }),
+    );
+
+    expect(mocks.openBillingUrl).not.toHaveBeenCalled();
   });
 
   it("randomUUIDがないブラウザでも安全な乱数から課金Dialogを開く", async () => {
@@ -1022,6 +1181,146 @@ describe("OrganizationSettings controllers", () => {
       title: "支払いをキャンセルしました",
       description: "元のプランに戻しました。",
     });
+  });
+
+  it("Stripe Customer未作成のTrialではSetup Checkoutを照合しない", async () => {
+    mocks.actions.getPlanPrice.mockResolvedValue({
+      status: "available",
+      currency: "jpy",
+      unitAmount: 3000,
+      interval: "month",
+      intervalCount: 1,
+      taxBehavior: "inclusive",
+    });
+    const trialBilling: OrganizationBillingView = {
+      ...billing,
+      state: "trial",
+      currentPlan: "trial",
+      hasTrialContinuation: false,
+      hasStripeCustomer: false,
+      canScheduleFree: false,
+    };
+    const { result } = renderHook(() =>
+      useStripeBillingController({
+        organizationId,
+        organizationName: "さくらダイニング",
+        billing: trialBilling,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.planPrices.standard.status).toBe("available"));
+    expect(mocks.actions.inspectPendingCheckout).not.toHaveBeenCalled();
+    expect(result.current.pendingCheckout).toMatchObject({ purpose: null, status: "idle" });
+  });
+
+  it("Trialのopen Setup Checkoutをmountと履歴復元で照合し、継続または取消を選べる", async () => {
+    mocks.actions.getPlanPrice.mockResolvedValue({
+      status: "available",
+      currency: "jpy",
+      unitAmount: 3000,
+      interval: "month",
+      intervalCount: 1,
+      taxBehavior: "inclusive",
+    });
+    mocks.actions.inspectPendingCheckout.mockResolvedValue({
+      status: "open",
+      url: "https://checkout.stripe.example/trial-pending-session",
+    });
+    mocks.actions.cancelPendingCheckout.mockResolvedValue({ status: "cancelled" });
+    const trialBilling: OrganizationBillingView = {
+      ...billing,
+      state: "trial",
+      currentPlan: "trial",
+      hasTrialContinuation: false,
+      hasStripeCustomer: true,
+      canScheduleFree: false,
+    };
+    const { result } = renderHook(() =>
+      useStripeBillingController({
+        organizationId,
+        organizationName: "さくらダイニング",
+        billing: trialBilling,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.actions.inspectPendingCheckout).toHaveBeenCalledExactlyOnceWith({
+        organizationId: "organization-app",
+      }),
+    );
+    await waitFor(() =>
+      expect(result.current.pendingCheckout).toMatchObject({
+        purpose: "trialPaymentMethodSetup",
+        status: "open",
+      }),
+    );
+
+    act(() => {
+      const pageShow = new Event("pageshow");
+      Object.defineProperty(pageShow, "persisted", { value: true });
+      window.dispatchEvent(pageShow);
+    });
+    await waitFor(() => expect(mocks.actions.inspectPendingCheckout).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.pendingCheckout.status).toBe("open"));
+
+    act(() => result.current.pendingCheckout.onContinue());
+    expect(mocks.openBillingUrl).toHaveBeenCalledExactlyOnceWith(
+      "https://checkout.stripe.example/trial-pending-session",
+    );
+
+    act(() => {
+      result.current.pendingCheckout.onCancel();
+      result.current.pendingCheckout.onCancel();
+    });
+    await waitFor(() =>
+      expect(mocks.actions.cancelPendingCheckout).toHaveBeenCalledExactlyOnceWith({
+        organizationId: "organization-app",
+      }),
+    );
+    await waitFor(() =>
+      expect(result.current.pendingCheckout).toMatchObject({
+        purpose: "trialPaymentMethodSetup",
+        status: "idle",
+      }),
+    );
+    expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({
+      title: "支払い方法の登録をやめました",
+      description: "トライアルはそのまま利用できます。",
+    });
+
+    act(() => result.current.managePlan("standard"));
+    expect(result.current.dialog.dialog).toMatchObject({ kind: "startPaidPlan", currentPlan: "trial" });
+  });
+
+  it("TrialのSetup Checkout operationがなければidleへ戻り、プラン操作を再開できる", async () => {
+    mocks.actions.getPlanPrice.mockResolvedValue({
+      status: "available",
+      currency: "jpy",
+      unitAmount: 3000,
+      interval: "month",
+      intervalCount: 1,
+      taxBehavior: "inclusive",
+    });
+    mocks.actions.inspectPendingCheckout.mockResolvedValue({ status: "unchanged" });
+    const trialBilling: OrganizationBillingView = {
+      ...billing,
+      state: "trial",
+      currentPlan: "trial",
+      hasTrialContinuation: false,
+      hasStripeCustomer: true,
+      canScheduleFree: false,
+    };
+    const { result } = renderHook(() =>
+      useStripeBillingController({
+        organizationId,
+        organizationName: "さくらダイニング",
+        billing: trialBilling,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.pendingCheckout.status).toBe("idle"));
+    act(() => result.current.managePlan("standard"));
+    expect(result.current.dialog.dialog).toMatchObject({ kind: "startPaidPlan", currentPlan: "trial" });
   });
 
   it("閲覧のみのメンバーはpending CheckoutをStripeへ照合しない", async () => {
