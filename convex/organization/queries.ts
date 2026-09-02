@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { formatDateJa, formatDateTimeJa } from "../_lib/dateFormat";
@@ -25,8 +25,7 @@ import {
 } from "../organizationInvitation/lifecycle";
 import { resolveOrganizationInvitationEligibility } from "../organizationInvitation/service";
 import { getStripeBillingConfiguration } from "../organizationStripe/config";
-import { getOrganizationCreationAvailability, type OrganizationCreationAvailability } from "../setup/service";
-import { hasCanonicalStaffIdentity } from "../staff/service";
+import { getOrganizationCreationAvailability } from "../setup/service";
 import { getOrganizationDeletionEligibility } from "./deletion";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
 import { organizationPersonCountsTowardPeopleLimit } from "./service";
@@ -116,9 +115,8 @@ export const billingViewValidator = v.object({
     v.literal("initialPaymentPending"),
     v.literal("pendingActivation"),
     v.literal("scheduledChange"),
-    v.literal("migrationPending"),
   ),
-  currentPlan: v.union(billingPlanValidator, v.null()),
+  currentPlan: billingPlanValidator,
   isComplimentary: v.boolean(),
   hasTrialContinuation: v.boolean(),
   trialEndsAt: v.optional(v.number()),
@@ -144,8 +142,8 @@ export const billingViewValidator = v.object({
 });
 
 export const organizationSettingsValidator = v.object({
-  organizationId: v.optional(v.id("organizations")),
-  organizationUpdatedAt: v.optional(v.number()),
+  organizationId: v.id("organizations"),
+  organizationUpdatedAt: v.number(),
   organizationName: v.string(),
   people: v.array(organizationPersonViewValidator),
   managerInvitations: v.array(managerInvitationViewValidator),
@@ -166,8 +164,8 @@ export const organizationSettingsValidator = v.object({
 type BillingPlan = "trial" | "free" | "standard" | "pro";
 
 type BillingView = {
-  state: BillingPlan | "initialPaymentPending" | "pendingActivation" | "scheduledChange" | "migrationPending";
-  currentPlan: BillingPlan | null;
+  state: BillingPlan | "initialPaymentPending" | "pendingActivation" | "scheduledChange";
+  currentPlan: BillingPlan;
   isComplimentary: boolean;
   hasTrialContinuation: boolean;
   trialEndsAt?: number;
@@ -191,84 +189,6 @@ type BillingView = {
   paymentMethodDisabledReason?: string;
   billingEmailDisabledReason?: string;
 };
-
-function legacyMigrationPendingSettings(
-  user: Doc<"users">,
-  shop: Doc<"shops">,
-  creationAvailability: OrganizationCreationAvailability,
-) {
-  const migrationReason = "組織単位の設定を移行しています。\n完了するまで、既存データを閲覧できます。";
-  return {
-    organizationName: shop.name,
-    people: [
-      {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        managerRole: "active" as const,
-        isStaff: false,
-        isLineConnected: false,
-        lineStatus: "unlinked" as const,
-        hasManagerInvitation: false,
-        shopNames: [],
-        shopIds: [],
-        canRemoveManagerRole: false,
-        managerRoleRemovalDisabledReason: migrationReason,
-        canRemove: false,
-        removeDisabledReason: migrationReason,
-      },
-    ],
-    managerInvitations: [],
-    shops: [
-      {
-        id: shop._id,
-        name: shop.name,
-        // TODO[narrow]: 全deploymentでm039のshop workerが完走し、
-        // verifyShops.missingRegularClosedDaysが0件になった後にfallbackを削除する。
-        regularClosedDays: shop.regularClosedDays ?? [],
-        submissionPattern: shop.submissionPattern,
-        staffCount: 0,
-        managerNotificationRecipientStatus: "unknown" as const,
-        canUpdateSettings: false,
-        settingsDisabledReason: migrationReason,
-        canDelete: false,
-        deleteDisabledReason: migrationReason,
-      },
-    ],
-    billing: {
-      state: "migrationPending" as const,
-      currentPlan: null,
-      isComplimentary: false,
-      hasTrialContinuation: false,
-      stripeBillingAvailable: false,
-      hasStripeCustomer: false,
-      peopleUsage: { current: 1, max: 0, pendingInvitations: 0 },
-      shopUsage: { current: 1, max: 0, pendingInvitations: 0 },
-      managerUsage: { current: 1, max: 0, pendingInvitations: 0 },
-      requiredReductions: { people: 0, shops: 0, managers: 0 },
-      blockedReason: "組織単位のプラン設定を移行しています。\n完了後、利用状態を再確認します。",
-      billingEmail: user.email,
-      canManagePlan: false,
-      canUpdatePaymentMethod: false,
-      canUpdateBillingEmail: false,
-      canScheduleFree: false,
-      managePlanDisabledReason: "設定の移行が完了するまでお待ちください。",
-      paymentMethodDisabledReason: "設定の移行が完了するまでお待ちください。",
-      billingEmailDisabledReason: "設定の移行が完了するまでお待ちください。",
-    },
-    canInviteManager: false,
-    inviteManagerDisabledReason: migrationReason,
-    canUpdateOrganizationName: false,
-    updateOrganizationNameDisabledReason: migrationReason,
-    canAddShop: false,
-    addShopDisabledReason: migrationReason,
-    canDeleteOrganization: false,
-    deleteOrganizationDisabledReason: migrationReason,
-    // 組織作成は選択中組織の移行状態と独立しているため、移行待ちでも利用者単位で判定する。
-    canCreateOrganization: creationAvailability.canCreate,
-    ...(creationAvailability.canCreate ? {} : { createOrganizationDisabledReason: creationAvailability.reason }),
-  };
-}
 
 type CanonicalOrganizationSettingsCtx = QueryCtx & {
   user: Doc<"users">;
@@ -335,7 +255,8 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
       .order("desc")
       .first(),
   ]);
-  const billingState = accessPolicy?.billingState ?? null;
+  if (!accessPolicy) throw new ConvexError("組織の契約情報を確認できません。");
+  const billingState = accessPolicy.billingState;
   const people = peopleDocs.filter((person) => person.status === "active");
   const staffOrderScope = await getOrganizationStaffOrderScope(ctx, { organizationId: organization._id });
   let organizationStaffOrderRank: Map<string, number> | null = null;
@@ -381,7 +302,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
   }
   const staffRowsByPersonId = new Map<Id<"organizationPeople">, Doc<"staffs">[]>();
   for (const staff of staffDocs) {
-    if (!hasCanonicalStaffIdentity(staff) || staff.organizationId !== organization._id) continue;
+    if (staff.organizationId !== organization._id) continue;
     const current = staffRowsByPersonId.get(staff.organizationPersonId) ?? [];
     current.push(staff);
     staffRowsByPersonId.set(staff.organizationPersonId, current);
@@ -440,8 +361,8 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
   ).length;
   const usage = projectOrganizationUsage({ people: usageInputs, reservedPersonCount });
   const shopCount = shops.length;
-  const policy = accessPolicy?.billingPolicy ?? null;
-  const usageLimitStatus = accessPolicy?.usageLimitStatus ?? null;
+  const policy = accessPolicy.billingPolicy;
+  const usageLimitStatus = accessPolicy.usageLimitStatus;
   const usageLimitBlockedReason =
     usageLimitStatus?.kind === "overLimit"
       ? "現在のプランの利用上限を超えています。\n利用人数・店舗・有効管理者を上限内まで減らすと、業務操作は自動的に再開されます。"
@@ -450,24 +371,23 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
         : undefined;
   const stripeBillingConfiguration = getStripeBillingConfiguration();
   const stripeBillingAvailable = stripeBillingConfiguration.status === "ready";
-  const isComplimentary = billingState?.state.kind === "complimentary";
+  const isComplimentary = billingState.state.kind === "complimentary";
   const hasStripeCustomer = Boolean(!isComplimentary && stripeCustomer);
   const stripeCustomerMatchesConfiguration = Boolean(
     stripeBillingConfiguration.status === "ready" && stripeCustomer?.livemode === stripeBillingConfiguration.livemode,
   );
-  const isActiveActor = ctx.organizationMember?.status === "active";
-  const canWriteNormally = Boolean(isActiveActor && accessPolicy?.canWriteBusinessData);
-  const canRecoverUsageLimits = Boolean(isActiveActor && accessPolicy?.accessMode === "limitRecoveryOnly");
+  const isActiveActor = ctx.organizationMember.status === "active";
+  const canWriteNormally = Boolean(isActiveActor && accessPolicy.canWriteBusinessData);
+  const canRecoverUsageLimits = Boolean(isActiveActor && accessPolicy.accessMode === "limitRecoveryOnly");
   // 購入対象の表示ではなく、現在のentitlementを利用上限の根拠にする。
-  const usageLimits = policy?.limits;
+  const usageLimits = policy.limits;
   const activeManagerCount = usage.activeManagerCount;
   const pendingManagerInvitationCount = pendingInvitations.filter((invitation) => invitation.expiresAt > now).length;
   const projectedActiveManagerCount = activeManagerCount + pendingManagerInvitationCount;
   const canInviteManagerAddition = Boolean(
     isActiveActor &&
       canWriteNormally &&
-      policy?.canManageManagers &&
-      policy.limits &&
+      policy.canManageManagers &&
       projectedActiveManagerCount < policy.limits.maxActiveManagers,
   );
   const invitedPersonIds = new Set(
@@ -561,15 +481,13 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
       const personReservationAlreadyCounted =
         lifecycleStatus === "issued" && invitation.expiresAt > now && invitation.reservedSeat;
       const canFitResentPerson = Boolean(
-        policy?.limits &&
-          (existingPersonCounts ||
-            usage.projectedPeopleCount + (personReservationAlreadyCounted ? 0 : 1) <= policy.limits.maxPeople),
+        existingPersonCounts ||
+          usage.projectedPeopleCount + (personReservationAlreadyCounted ? 0 : 1) <= policy.limits.maxPeople,
       );
       const managerReservationAlreadyCounted = lifecycleStatus === "issued" && invitation.expiresAt > now;
       const canFitResentManager = Boolean(
-        policy?.limits &&
-          projectedActiveManagerCount - (managerReservationAlreadyCounted ? 1 : 0) + 1 <=
-            policy.limits.maxActiveManagers,
+        projectedActiveManagerCount - (managerReservationAlreadyCounted ? 1 : 0) + 1 <=
+          policy.limits.maxActiveManagers,
       );
       const hasTargetConflict = Boolean(
         canRetryStatus &&
@@ -710,13 +628,11 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
         const canUpdateSettings = canWriteNormally;
         const settingsDisabledReason = canUpdateSettings
           ? undefined
-          : !billingState
-            ? "組織単位の設定を移行しています。\n完了するまでお待ちください。"
-            : !isActiveActor
-              ? "現在のアカウント状態では、店舗設定を変更できません。"
-              : accessPolicy?.businessWriteBlockReason === "usageLimitExceeded"
-                ? usageLimitBlockedReason
-                : "支払い結果が確定するまで、店舗設定を変更できません。";
+          : !isActiveActor
+            ? "現在のアカウント状態では、店舗設定を変更できません。"
+            : accessPolicy.businessWriteBlockReason === "usageLimitExceeded"
+              ? usageLimitBlockedReason
+              : "支払い結果が確定するまで、店舗設定を変更できません。";
         const recipientStatus = await loadShopManagerNotificationRecipientStatus(
           ctx,
           shop._id,
@@ -731,9 +647,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
         return {
           id: shop._id,
           name: shop.name,
-          // TODO[narrow]: 全deploymentでm039のshop workerが完走し、
-          // verifyShops.missingRegularClosedDaysが0件になった後にfallbackを削除する。
-          regularClosedDays: shop.regularClosedDays ?? [],
+          regularClosedDays: shop.regularClosedDays,
           submissionPattern: shop.submissionPattern,
           staffCount: staffCountByShopId.get(shop._id) ?? 0,
           managerNotificationRecipientStatus,
@@ -746,10 +660,9 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     )
   ).sort((a, b) => a.name.localeCompare(b.name, "ja"));
 
-  const runtimeBillingState = billingState?.state ?? null;
+  const runtimeBillingState = billingState.state;
   const canAccessCustomerPortal = Boolean(
     isActiveActor &&
-      billingState &&
       ((billingState.state.kind === "trial" && billingState.state.selectedPaidPlan !== undefined) ||
         billingState.state.kind === "scheduledChange" ||
         (billingState.state.kind === "active" && billingState.state.plan !== "free")),
@@ -759,7 +672,6 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
       stripeBillingAvailable &&
         !isComplimentary &&
         isActiveActor &&
-        billingState &&
         billingState.state.kind !== "initialPaymentPending" &&
         billingState.state.kind !== "pendingActivation" &&
         billingState.state.kind !== "paymentTerminationPending",
@@ -770,14 +682,13 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
     canUpdateBillingEmail: Boolean(
       !isComplimentary &&
         isActiveActor &&
-        billingState &&
         (billingState.state.kind !== "pendingActivation" || billingState.state.fallback === "free"),
     ),
     canScheduleFree: Boolean(
       stripeBillingAvailable &&
         !isComplimentary &&
         isActiveActor &&
-        runtimeBillingState?.kind === "active" &&
+        runtimeBillingState.kind === "active" &&
         runtimeBillingState.plan !== "free",
     ),
   };
@@ -787,7 +698,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
   const maxShops = usageLimits?.maxShops ?? 0;
   const maxManagers = usageLimits?.maxActiveManagers ?? 0;
   const requiredReductionLimits =
-    runtimeBillingState?.kind === "scheduledChange"
+    runtimeBillingState.kind === "scheduledChange"
       ? ORGANIZATION_PLAN_LIMITS[runtimeBillingState.targetPlan]
       : usageLimits;
   const billingBase = {
@@ -807,14 +718,14 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
       shops: Math.max(0, shopCount - (requiredReductionLimits?.maxShops ?? 0)),
       managers: Math.max(0, managerUsageCurrent - (requiredReductionLimits?.maxActiveManagers ?? 0)),
     },
-    billingEmail: organization.billingEmail ?? "",
+    billingEmail: organization.billingEmail,
     isComplimentary,
     stripeBillingAvailable,
     hasStripeCustomer,
     hasTrialContinuation: Boolean(
-      runtimeBillingState?.kind === "trial" && runtimeBillingState.selectedPaidPlan !== undefined,
+      runtimeBillingState.kind === "trial" && runtimeBillingState.selectedPaidPlan !== undefined,
     ),
-    ...(billingState?.lastPlanChange
+    ...(billingState.lastPlanChange
       ? {
           paymentFailure: {
             terminationPending: billingState.state.kind === "paymentTerminationPending",
@@ -829,45 +740,39 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
       ? undefined
       : !stripeBillingAvailable
         ? "有料プランの料金は準備中です。"
-        : !billingState
-          ? "設定の移行が完了するまでお待ちください。"
-          : (accessDisabledReason ??
-            (billingState.state.kind === "initialPaymentPending"
-              ? "初回支払いの結果を確認中のため、プランを変更できません。"
-              : billingState.state.kind === "pendingActivation"
-                ? "支払い結果を確認中のため、別のプランへは変更できません。"
-                : billingState.state.kind === "paymentTerminationPending"
-                  ? "支払い失敗後の契約終了処理中です。"
-                  : "現在の契約状態では、プランを変更できません。"));
+        : (accessDisabledReason ??
+          (billingState.state.kind === "initialPaymentPending"
+            ? "初回支払いの結果を確認中のため、プランを変更できません。"
+            : billingState.state.kind === "pendingActivation"
+              ? "支払い結果を確認中のため、別のプランへは変更できません。"
+              : billingState.state.kind === "paymentTerminationPending"
+                ? "支払い失敗後の契約終了処理中です。"
+                : "現在の契約状態では、プランを変更できません。"));
   const paymentMethodDisabledReason =
     billingCapabilities.canUpdatePaymentMethod || isComplimentary
       ? undefined
       : !stripeBillingAvailable
         ? "有料プランの料金は準備中です。"
-        : !billingState
-          ? "設定の移行が完了するまでお待ちください。"
-          : (accessDisabledReason ??
-            (!canAccessCustomerPortal
-              ? billingState.state.kind === "trial" && !billingState.state.selectedPaidPlan
-                ? "トライアル終了後の有料プラン継続を登録すると、Stripeで支払い情報を管理できます。"
-                : billingState.state.kind === "initialPaymentPending"
-                  ? "初回支払いの結果を確認中です。\n確定後に、Stripeで支払い情報を管理できます。"
-                  : billingState.state.kind === "active" && billingState.state.plan === "free"
-                    ? "Freeプランでは、支払い情報の管理は不要です。\n有料プランを契約するときに、Stripeで登録します。"
-                    : billingState.state.kind === "pendingActivation"
-                      ? "支払い結果を確認中です。\n確定後に、Stripeで支払い情報を管理できます。"
-                      : "現在の契約状態では、Stripeの支払い情報を管理できません。"
-              : !hasStripeCustomer
-                ? "Stripeの契約情報を準備中です。\nしばらくしてから、もう一度お試しください。"
-                : !stripeCustomerMatchesConfiguration
-                  ? "Stripeの契約情報と決済設定を確認中です。\nしばらくしてから、もう一度お試しください。"
-                  : "現在の契約状態では、Stripeの支払い情報を管理できません。"));
+        : (accessDisabledReason ??
+          (!canAccessCustomerPortal
+            ? billingState.state.kind === "trial" && !billingState.state.selectedPaidPlan
+              ? "トライアル終了後の有料プラン継続を登録すると、Stripeで支払い情報を管理できます。"
+              : billingState.state.kind === "initialPaymentPending"
+                ? "初回支払いの結果を確認中です。\n確定後に、Stripeで支払い情報を管理できます。"
+                : billingState.state.kind === "active" && billingState.state.plan === "free"
+                  ? "Freeプランでは、支払い情報の管理は不要です。\n有料プランを契約するときに、Stripeで登録します。"
+                  : billingState.state.kind === "pendingActivation"
+                    ? "支払い結果を確認中です。\n確定後に、Stripeで支払い情報を管理できます。"
+                    : "現在の契約状態では、Stripeの支払い情報を管理できません。"
+            : !hasStripeCustomer
+              ? "Stripeの契約情報を準備中です。\nしばらくしてから、もう一度お試しください。"
+              : !stripeCustomerMatchesConfiguration
+                ? "Stripeの契約情報と決済設定を確認中です。\nしばらくしてから、もう一度お試しください。"
+                : "現在の契約状態では、Stripeの支払い情報を管理できません。"));
   const billingEmailDisabledReason =
     billingCapabilities.canUpdateBillingEmail || isComplimentary
       ? undefined
-      : !billingState
-        ? "設定の移行が完了するまでお待ちください。"
-        : (accessDisabledReason ?? "現在の契約状態では、請求先メールアドレスを変更できません。");
+      : (accessDisabledReason ?? "現在の契約状態では、請求先メールアドレスを変更できません。");
   const billingCapabilityReasons = {
     ...(managePlanDisabledReason ? { managePlanDisabledReason } : {}),
     ...(paymentMethodDisabledReason ? { paymentMethodDisabledReason } : {}),
@@ -875,19 +780,8 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
   };
 
   let billing: BillingView;
-  // TODO[narrow]: 全deploymentでm025完走・verifyOrganizationsのbilling state残件0確認後、
-  //   migrationPending DTOと関連するUI fallbackを削除する。
-  if (!billingState) {
-    billing = {
-      ...billingBase,
-      ...billingCapabilityReasons,
-      state: "migrationPending",
-      currentPlan: null,
-      blockedReason: "組織単位のプラン設定を移行しています。\n完了後、利用状態を再確認します。",
-    };
-  } else {
-    const state = billingState.state;
-    switch (state.kind) {
+  const state = billingState.state;
+  switch (state.kind) {
       case "trial":
         billing = {
           ...billingBase,
@@ -916,7 +810,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
           ...billingBase,
           ...billingCapabilityReasons,
           state: "pendingActivation",
-          currentPlan: state.fallback === "free" || state.fallback === "standard" ? state.fallback : null,
+          currentPlan: state.fallback,
           targetPlan: state.plan,
           blockedReason:
             state.fallback === "free"
@@ -982,61 +876,48 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
           ...(usageLimitBlockedReason ? { blockedReason: usageLimitBlockedReason } : {}),
         };
         break;
-    }
   }
 
   const inviteManagerDisabledReason = canInviteManager
     ? undefined
-    : !billingState
-      ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
-      : !isActiveActor
-        ? "現在のアカウント状態では、管理者を招待できません。"
-        : accessPolicy?.businessWriteBlockReason === "usageLimitExceeded"
-          ? usageLimitBlockedReason
-          : policy?.paidFeatureBlockReason === "paymentResultPending"
-            ? "支払い結果が確定してから、管理者を招待できます。"
-            : `管理者と招待中の管理者は、組織全体で${policy?.limits?.maxActiveManagers ?? ORGANIZATION_PLAN_LIMITS.standard.maxActiveManagers}名までです。`;
+    : !isActiveActor
+      ? "現在のアカウント状態では、管理者を招待できません。"
+      : accessPolicy.businessWriteBlockReason === "usageLimitExceeded"
+        ? usageLimitBlockedReason
+        : policy.paidFeatureBlockReason === "paymentResultPending"
+          ? "支払い結果が確定してから、管理者を招待できます。"
+          : `管理者と招待中の管理者は、組織全体で${policy.limits.maxActiveManagers}名までです。`;
   const canAddShop = Boolean(
     isActiveActor &&
       canWriteNormally &&
-      policy?.canUsePaidFeatures &&
-      policy.limits &&
+      policy.canUsePaidFeatures &&
       shopCount < policy.limits.maxShops,
   );
   const addShopDisabledReason = canAddShop
     ? undefined
-    : !billingState
-      ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
-      : !isActiveActor
-        ? "現在のアカウント状態では、店舗を追加できません。"
-        : accessPolicy?.businessWriteBlockReason === "usageLimitExceeded"
-          ? usageLimitBlockedReason
-          : policy?.paidFeatureBlockReason === "freePlan"
-            ? "Freeプランでは、店舗を追加できません。\n有料プランを選択してください。"
-            : policy?.paidFeatureBlockReason === "paymentResultPending"
-              ? "支払い結果が確定してから、店舗を追加できます。"
-              : `店舗は、組織ごとに${policy?.limits?.maxShops ?? ORGANIZATION_PLAN_LIMITS.standard.maxShops}件まで登録できます。`;
-  const canUpdateOrganizationName = Boolean(isActiveActor && (!billingState || canWriteNormally));
+    : !isActiveActor
+      ? "現在のアカウント状態では、店舗を追加できません。"
+      : accessPolicy.businessWriteBlockReason === "usageLimitExceeded"
+        ? usageLimitBlockedReason
+        : policy.paidFeatureBlockReason === "freePlan"
+          ? "Freeプランでは、店舗を追加できません。\n有料プランを選択してください。"
+          : policy.paidFeatureBlockReason === "paymentResultPending"
+            ? "支払い結果が確定してから、店舗を追加できます。"
+            : `店舗は、組織ごとに${policy.limits.maxShops}件まで登録できます。`;
+  const canUpdateOrganizationName = Boolean(isActiveActor && canWriteNormally);
   const updateOrganizationNameDisabledReason = canUpdateOrganizationName
     ? undefined
-    : !ctx.organizationMember
-      ? "組織単位の設定を移行しています。\n完了するまでお待ちください。"
-      : !isActiveActor
-        ? "現在のアカウント状態では、組織名を変更できません。"
-        : accessPolicy?.businessWriteBlockReason === "usageLimitExceeded"
-          ? usageLimitBlockedReason
-          : "現在の契約状態では、組織名を変更できません。";
+    : !isActiveActor
+      ? "現在のアカウント状態では、組織名を変更できません。"
+      : accessPolicy.businessWriteBlockReason === "usageLimitExceeded"
+        ? usageLimitBlockedReason
+        : "現在の契約状態では、組織名を変更できません。";
 
-  const deletionEligibility = ctx.organizationMember
-    ? await getOrganizationDeletionEligibility(ctx, {
-        organizationId: organization._id,
-        actorMemberId: ctx.organizationMember._id,
-        billingState,
-      })
-    : {
-        canDelete: false as const,
-        reason: "組織単位の設定を移行しています。\n完了するまでお待ちください。",
-      };
+  const deletionEligibility = await getOrganizationDeletionEligibility(ctx, {
+    organizationId: organization._id,
+    actorMemberId: ctx.organizationMember._id,
+    billingState,
+  });
 
   return {
     organizationId: organization._id,
@@ -1063,11 +944,7 @@ export const getSettings = managerQuery({
   args: {},
   returns: v.union(organizationSettingsValidator, v.null()),
   handler: async (ctx) => {
-    if (!ctx.user || !ctx.shop) return null;
-    const creationAvailability = await getOrganizationCreationAvailability(ctx, ctx.user);
-    if (!ctx.organization || !ctx.organizationMember) {
-      return legacyMigrationPendingSettings(ctx.user, ctx.shop, creationAvailability);
-    }
+    if (!ctx.user || !ctx.shop || !ctx.organization || !ctx.organizationMember) return null;
     return await getCanonicalOrganizationSettings({
       ...ctx,
       user: ctx.user,

@@ -5,15 +5,15 @@ import {
 } from "./script";
 
 describe("resolveStaffRegistrationApprovalAvailability", () => {
-  it.each([{}, { canApprove: false }, { canApprove: false, approveDisabledReason: "" }])(
-    "旧backendの欠損を承認可能とみなさない: %o",
-    (request) => {
-      expect(resolveStaffRegistrationApprovalAvailability(request)).toEqual({
-        canApprove: false,
-        disabledReason: DEFAULT_STAFF_REGISTRATION_APPROVAL_DISABLED_REASON,
-      });
-    },
-  );
+  it.each([
+    { canApprove: false, approveDisabledReason: null },
+    { canApprove: false, approveDisabledReason: "" },
+  ])("承認不可理由が空の場合は共通案内を使う: %o", (request) => {
+    expect(resolveStaffRegistrationApprovalAvailability(request)).toEqual({
+      canApprove: false,
+      disabledReason: DEFAULT_STAFF_REGISTRATION_APPROVAL_DISABLED_REASON,
+    });
+  });
 
   it("backendが返した汎用理由を承認不可の説明に使う", () => {
     expect(

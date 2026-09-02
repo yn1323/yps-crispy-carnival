@@ -16,6 +16,7 @@ async function setupReminderTarget() {
       shopName: "通知店舗",
     });
     const managerStaffId = await ctx.db.insert("staffs", {
+      excludedFromShift: false,
       shopId,
       organizationId,
       organizationPersonId: personId,

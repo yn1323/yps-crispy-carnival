@@ -1,5 +1,7 @@
+import type { WithoutSystemFields } from "convex/server";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
+import type { Doc } from "../_generated/dataModel";
 import {
   createMigrationHistoryTestWithMigrations,
   legacyStaffDocumentForMigrationHistory,
@@ -7,26 +9,43 @@ import {
 } from "../_test/migrations.test-helper";
 import { ensureDefaultPosition } from "../position/service";
 
+type CurrentMagicLinkInsert = WithoutSystemFields<Doc<"magicLinks">>;
+type CurrentPositionInsert = WithoutSystemFields<Doc<"positions">>;
+type CurrentSessionInsert = WithoutSystemFields<Doc<"sessions">>;
+type CurrentShiftSubmissionInsert = WithoutSystemFields<Doc<"shiftSubmissions">>;
+type CurrentShopInsert = WithoutSystemFields<Doc<"shops">>;
+type CurrentUserInsert = WithoutSystemFields<Doc<"users">>;
+
+function legacyDocument<T>(document: unknown): T {
+  return document as T;
+}
+
 describe("pre-2026-06 narrow preparation migrations", () => {
   it("users/staffsの派生メールを現行の正規化規則へ収束させ、再実行しても変えない", async () => {
     const t = createMigrationHistoryTestWithMigrations();
     const ids = await t.run(async (ctx) => {
-      const userId = await ctx.db.insert("users", {
-        authTokenIdentifier: "https://convex.test|legacy_email",
-        name: "旧管理者",
-        email: " Legacy-Manager@Example.COM ",
-        role: "admin",
-        isDeleted: false,
-      });
+      const userId = await ctx.db.insert(
+        "users",
+        legacyDocument<CurrentUserInsert>({
+          authTokenIdentifier: "https://convex.test|legacy_email",
+          name: "旧管理者",
+          email: " Legacy-Manager@Example.COM ",
+          role: "admin",
+          isDeleted: false,
+        }),
+      );
       const staffId = await ctx.db.insert(
         "staffs",
         legacyStaffDocumentForMigrationHistory({
-          shopId: await ctx.db.insert("shops", {
-            name: "旧メール店舗",
-            submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-            regularClosedDays: [],
-            isDeleted: false,
-          }),
+          shopId: await ctx.db.insert(
+            "shops",
+            legacyDocument<CurrentShopInsert>({
+              name: "旧メール店舗",
+              submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+              regularClosedDays: [],
+              isDeleted: false,
+            }),
+          ),
           name: "旧スタッフ",
           email: " Legacy-Staff@Example.COM ",
           emailNormalized: "stale@example.com",
@@ -70,12 +89,15 @@ describe("pre-2026-06 narrow preparation migrations", () => {
   it("firstSubmittedAt欠損だけをsubmittedAtで補完し、既存の初回時刻を保持する", async () => {
     const t = createMigrationHistoryTestWithMigrations();
     const ids = await t.run(async (ctx) => {
-      const shopId = await ctx.db.insert("shops", {
-        name: "初回提出移行店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      });
+      const shopId = await ctx.db.insert(
+        "shops",
+        legacyDocument<CurrentShopInsert>({
+          name: "初回提出移行店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
       const staffId = await ctx.db.insert(
         "staffs",
         legacyStaffDocumentForMigrationHistory({
@@ -96,7 +118,10 @@ describe("pre-2026-06 narrow preparation migrations", () => {
         isDeleted: false,
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
       });
-      const legacyId = await ctx.db.insert("shiftSubmissions", { recruitmentId, staffId, submittedAt: 2000 });
+      const legacyId = await ctx.db.insert(
+        "shiftSubmissions",
+        legacyDocument<CurrentShiftSubmissionInsert>({ recruitmentId, staffId, submittedAt: 2000 }),
+      );
       const canonicalId = await ctx.db.insert("shiftSubmissions", {
         recruitmentId,
         staffId,
@@ -128,12 +153,15 @@ describe("pre-2026-06 narrow preparation migrations", () => {
     const t = createMigrationHistoryTestWithMigrations();
     const ids = await t.run(async (ctx) => {
       const createShop = async (name: string) =>
-        await ctx.db.insert("shops", {
-          name,
-          submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "18:00" },
-          regularClosedDays: [],
-          isDeleted: false,
-        });
+        await ctx.db.insert(
+          "shops",
+          legacyDocument<CurrentShopInsert>({
+            name,
+            submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "18:00" },
+            regularClosedDays: [],
+            isDeleted: false,
+          }),
+        );
       const fallbackShopId = await createShop("fallback店舗");
       const fallbackFirstId = await ctx.db.insert("positions", {
         shopId: fallbackShopId,
@@ -143,22 +171,28 @@ describe("pre-2026-06 narrow preparation migrations", () => {
         isDefault: false,
         isDeleted: false,
       });
-      const fallbackSecondId = await ctx.db.insert("positions", {
-        shopId: fallbackShopId,
-        name: "二番目",
-        color: "#222222",
-        sortOrder: 1,
-        isDeleted: false,
-      });
+      const fallbackSecondId = await ctx.db.insert(
+        "positions",
+        legacyDocument<CurrentPositionInsert>({
+          shopId: fallbackShopId,
+          name: "二番目",
+          color: "#222222",
+          sortOrder: 1,
+          isDeleted: false,
+        }),
+      );
 
       const explicitShopId = await createShop("explicit店舗");
-      const explicitFirstId = await ctx.db.insert("positions", {
-        shopId: explicitShopId,
-        name: "先頭",
-        color: "#333333",
-        sortOrder: 0,
-        isDeleted: false,
-      });
+      const explicitFirstId = await ctx.db.insert(
+        "positions",
+        legacyDocument<CurrentPositionInsert>({
+          shopId: explicitShopId,
+          name: "先頭",
+          color: "#333333",
+          sortOrder: 0,
+          isDeleted: false,
+        }),
+      );
       const explicitDefaultId = await ctx.db.insert("positions", {
         shopId: explicitShopId,
         name: "明示default",
@@ -185,13 +219,16 @@ describe("pre-2026-06 narrow preparation migrations", () => {
         isDefault: true,
         isDeleted: false,
       });
-      const deletedId = await ctx.db.insert("positions", {
-        shopId: duplicateShopId,
-        name: "削除済み",
-        color: "#777777",
-        sortOrder: 2,
-        isDeleted: true,
-      });
+      const deletedId = await ctx.db.insert(
+        "positions",
+        legacyDocument<CurrentPositionInsert>({
+          shopId: duplicateShopId,
+          name: "削除済み",
+          color: "#777777",
+          sortOrder: 2,
+          isDeleted: true,
+        }),
+      );
       return {
         fallbackFirstId,
         fallbackSecondId,
@@ -228,15 +265,18 @@ describe("pre-2026-06 narrow preparation migrations", () => {
     });
   });
 
-  it("ensureDefaultPositionはmigration完走前でも現行fallback先を明示defaultへ収束させる", async () => {
+  it("ensureDefaultPositionは明示defaultがなければ新しいdefaultを作る", async () => {
     const t = createMigrationHistoryTestWithMigrations();
     const state = await t.run(async (ctx) => {
-      const shopId = await ctx.db.insert("shops", {
-        name: "writer convergence店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      });
+      const shopId = await ctx.db.insert(
+        "shops",
+        legacyDocument<CurrentShopInsert>({
+          name: "writer convergence店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
       const positionId = await ctx.db.insert("positions", {
         shopId,
         name: "旧default",
@@ -246,21 +286,30 @@ describe("pre-2026-06 narrow preparation migrations", () => {
         isDeleted: false,
       });
       const selectedId = await ensureDefaultPosition(ctx, shopId);
-      return { positionId, selectedId, position: await ctx.db.get(positionId) };
+      return {
+        positionId,
+        selectedId,
+        originalPosition: await ctx.db.get(positionId),
+        selectedPosition: await ctx.db.get(selectedId),
+      };
     });
-    expect(state.selectedId).toBe(state.positionId);
-    expect(state.position?.isDefault).toBe(true);
+    expect(state.selectedId).not.toBe(state.positionId);
+    expect(state.originalPosition?.isDefault).toBe(false);
+    expect(state.selectedPosition?.isDefault).toBe(true);
   });
 
   it("accessKind欠損をsubmitだけへ補完し、明示viewを保持する", async () => {
     const t = createMigrationHistoryTestWithMigrations();
     const ids = await t.run(async (ctx) => {
-      const shopId = await ctx.db.insert("shops", {
-        name: "access kind移行店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      });
+      const shopId = await ctx.db.insert(
+        "shops",
+        legacyDocument<CurrentShopInsert>({
+          name: "access kind移行店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
       const staffId = await ctx.db.insert(
         "staffs",
         legacyStaffDocumentForMigrationHistory({
@@ -281,13 +330,16 @@ describe("pre-2026-06 narrow preparation migrations", () => {
         isDeleted: false,
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
       });
-      const legacyLinkId = await ctx.db.insert("magicLinks", {
-        token: "legacy-submit-link",
-        staffId,
-        shopId,
-        recruitmentId,
-        expiresAt: Date.now() + 60_000,
-      });
+      const legacyLinkId = await ctx.db.insert(
+        "magicLinks",
+        legacyDocument<CurrentMagicLinkInsert>({
+          token: "legacy-submit-link",
+          staffId,
+          shopId,
+          recruitmentId,
+          expiresAt: Date.now() + 60_000,
+        }),
+      );
       const viewLinkId = await ctx.db.insert("magicLinks", {
         token: "canonical-view-link",
         staffId,
@@ -297,13 +349,16 @@ describe("pre-2026-06 narrow preparation migrations", () => {
         notificationOperationKey: "canonical-view-operation",
         expiresAt: Date.now() + 60_000,
       });
-      const legacySessionId = await ctx.db.insert("sessions", {
-        sessionToken: "legacy-submit-session",
-        staffId,
-        shopId,
-        recruitmentId,
-        expiresAt: Date.now() + 60_000,
-      });
+      const legacySessionId = await ctx.db.insert(
+        "sessions",
+        legacyDocument<CurrentSessionInsert>({
+          sessionToken: "legacy-submit-session",
+          staffId,
+          shopId,
+          recruitmentId,
+          expiresAt: Date.now() + 60_000,
+        }),
+      );
       const viewSessionId = await ctx.db.insert("sessions", {
         sessionToken: "canonical-view-session",
         staffId,

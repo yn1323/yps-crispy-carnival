@@ -1,5 +1,7 @@
+import type { WithoutSystemFields } from "convex/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
+import type { Doc } from "../_generated/dataModel";
 import {
   createConvexTestWithMigrations,
   createMigrationHistoryTestWithMigrations,
@@ -57,7 +59,7 @@ describe("notification terminal redaction migrations", () => {
     const oldTerminalAt = now - NOTIFICATION_OUTBOX_TERMINAL_PAYLOAD_RETENTION_MS - 1;
     const oldFailureAt = now - NOTIFICATION_FAILURE_INBOX_RETENTION_MS - 1;
     const ids = await t.run(async (ctx) => {
-      const { shopId } = await seedManagerShop(ctx, {
+      const { organizationId, shopId } = await seedManagerShop(ctx, {
         subject: "notification_redaction_migration",
         email: "manager@example.com",
         shopName: "通知redaction移行店舗",
@@ -83,7 +85,11 @@ describe("notification terminal redaction migrations", () => {
           status,
           dedupeKey: `email:migration:${status}`,
           shopId,
+          organizationId,
           staffId,
+          purpose: "business",
+          notificationContext: payload.context,
+          deliverySuppressed: true,
           payload,
           attemptCount: 1,
           nextRunAt: oldTerminalAt,
@@ -239,7 +245,7 @@ describe("notification outbox narrow prep migration", () => {
         nextRunAt: 100,
         createdAt: 100,
         updatedAt: 100,
-      });
+      } as WithoutSystemFields<Doc<"notificationOutbox">>);
       const legacyLineId = await ctx.db.insert("notificationOutbox", {
         channel: "line",
         status: "pending",
@@ -265,7 +271,7 @@ describe("notification outbox narrow prep migration", () => {
         nextRunAt: 200,
         createdAt: 200,
         updatedAt: 200,
-      });
+      } as WithoutSystemFields<Doc<"notificationOutbox">>);
       const existingBillingId = await ctx.db.insert("notificationOutbox", {
         channel: "email",
         status: "pending",
@@ -287,7 +293,7 @@ describe("notification outbox narrow prep migration", () => {
         nextRunAt: 300,
         createdAt: 300,
         updatedAt: 300,
-      });
+      } as WithoutSystemFields<Doc<"notificationOutbox">>);
       return { existingBillingId, legacyEmailId, legacyLineId };
     });
     const beforeMigration = await outboxSnapshot(t);

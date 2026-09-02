@@ -5,7 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { seedStaff } from "../_test/scenarioBuilders";
-import { seedLegacyShopMembership, seedManagerShop, seedOrganizationManagerShop, seedUser } from "../_test/seed";
+import {
+  seedLegacyShopMembership,
+  seedManagerShop,
+  seedOrganizationManagerShop,
+  seedOrganizationMembership,
+  seedUser,
+} from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { SHIFT_ASSIGNMENT_LIMIT } from "../constants";
 import {
@@ -17,6 +23,14 @@ import { type AssignmentIssueCode, parseShiftAssignmentValidationError } from ".
 const CONFIRMATION_EMAIL_JOB = "notification/actions:sendShiftConfirmationEmails";
 const PAST_SHIFT_SAVE_ERROR = "過去のシフトは保存できません";
 const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知できません";
+
+async function getExpectedOrganizationId(t: TestConvex<typeof schema>, shopId: Id<"shops">) {
+  return await t.run(async (ctx) => {
+    const shop = await ctx.db.get(shopId);
+    if (!shop) throw new Error("canonical shop fixture is missing");
+    return shop.organizationId;
+  });
+}
 
 /** 構造化バリデーションエラーがthrowされ、期待したissuesを全件含むことを検証する */
 async function expectValidationIssues(
@@ -112,6 +126,8 @@ async function seedConfirmationEmailOutboxes(
     const recruitment = await ctx.db.get(recruitmentId);
     const operationKey = recruitment?.lastConfirmationNotificationOperationKey;
     if (!recruitment || !operationKey) throw new Error("previous confirmation operation was not recorded");
+    const shop = await ctx.db.get(recruitment.shopId);
+    if (!shop) throw new Error("confirmation shop was not found");
     const operation = await ctx.db
       .query("notificationFanoutOperations")
       .withIndex("by_operationKey", (q) => q.eq("operationKey", operationKey))
@@ -131,9 +147,12 @@ async function seedConfirmationEmailOutboxes(
           fanoutTargetKey: `fanout:${operationKey}:${staffId}`,
           fanoutOperationId: operation._id,
           shopId: recruitment.shopId,
+          organizationId: shop.organizationId,
           recruitmentId,
           staffId,
           purpose: "business",
+          notificationContext: "notification.sendConfirmationEmail",
+          deliverySuppressed: false,
           payload: {
             kind: "email",
             from: "シフトリ <noreply@example.com>",
@@ -170,7 +189,8 @@ async function seedLineConfirmationWithFallback(
       .withIndex("by_operationKey", (q) => q.eq("operationKey", operationKey))
       .unique();
     const staff = await ctx.db.get(staffId);
-    if (!operation || !staff) throw new Error("confirmation delivery target was not found");
+    const shop = await ctx.db.get(recruitment.shopId);
+    if (!operation || !staff || !shop) throw new Error("confirmation delivery target was not found");
     const now = Date.now();
     const fallbackDedupeKey = `email:confirmation:${recruitmentId}:${staffId}:${operation.dedupeSuffix}`;
     const emailPayload = {
@@ -189,9 +209,12 @@ async function seedLineConfirmationWithFallback(
       fanoutTargetKey: `fanout:${operationKey}:${staffId}`,
       fanoutOperationId: operation._id,
       shopId: recruitment.shopId,
+      organizationId: shop.organizationId,
       recruitmentId,
       staffId,
       purpose: "business",
+      notificationContext: "notification.sendConfirmationLine",
+      deliverySuppressed: false,
       payload: {
         kind: "line",
         toUserId: `U-${staffId}`,
@@ -212,9 +235,12 @@ async function seedLineConfirmationWithFallback(
       dedupeKey: fallbackDedupeKey,
       fanoutOperationId: operation._id,
       shopId: recruitment.shopId,
+      organizationId: shop.organizationId,
       recruitmentId,
       staffId,
       purpose: "business",
+      notificationContext: "notification.sendConfirmationEmail",
+      deliverySuppressed: false,
       payload: emailPayload,
       attemptCount: 1,
       nextRunAt: now,
@@ -371,6 +397,7 @@ describe("shiftBoard/mutations", () => {
         t.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           assignments: [],
         }),
       ).rejects.toThrow();
@@ -394,6 +421,7 @@ describe("shiftBoard/mutations", () => {
         t.withIdentity({ subject: "user_other" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           recruitmentId,
           shopId: otherShopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, otherShopId),
           assignments: [],
         }),
       ).rejects.toThrow(ConvexError);
@@ -406,6 +434,7 @@ describe("shiftBoard/mutations", () => {
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
       });
@@ -437,6 +466,7 @@ describe("shiftBoard/mutations", () => {
 
       await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [
           {
@@ -488,6 +518,7 @@ describe("shiftBoard/mutations", () => {
       await expect(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments: [
             {
@@ -545,6 +576,7 @@ describe("shiftBoard/mutations", () => {
       await expect(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments: [],
         }),
@@ -561,6 +593,7 @@ describe("shiftBoard/mutations", () => {
       await expect(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
         }),
       ).rejects.toThrow("保存済みシフト割当が上限を超えています");
@@ -589,6 +622,7 @@ describe("shiftBoard/mutations", () => {
       await expect(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments,
         }),
@@ -621,6 +655,7 @@ describe("shiftBoard/mutations", () => {
 
       await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [
           {
@@ -650,6 +685,7 @@ describe("shiftBoard/mutations", () => {
 
       await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "09:00", endTime: "12:00" },
@@ -675,6 +711,7 @@ describe("shiftBoard/mutations", () => {
       await expectValidationIssues(
         asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-02-31", startTime: "10:00", endTime: "18:00" }],
         }),
@@ -683,6 +720,7 @@ describe("shiftBoard/mutations", () => {
       await expectValidationIssues(
         asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments: [{ staffId: staffId2, date: "2026-01-20", startTime: "bad", endTime: "18:00" }],
         }),
@@ -705,6 +743,7 @@ describe("shiftBoard/mutations", () => {
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments: [
             {
@@ -734,6 +773,7 @@ describe("shiftBoard/mutations", () => {
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments: [
             {
@@ -764,6 +804,7 @@ describe("shiftBoard/mutations", () => {
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments: [
             {
@@ -791,6 +832,7 @@ describe("shiftBoard/mutations", () => {
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "05:30", endTime: "06:30" },
@@ -814,6 +856,7 @@ describe("shiftBoard/mutations", () => {
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [],
       });
@@ -836,6 +879,7 @@ describe("shiftBoard/mutations", () => {
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
       });
@@ -878,6 +922,7 @@ describe("shiftBoard/mutations", () => {
       await expect(
         asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-10", startTime: "11:00", endTime: "19:00" }],
         }),
@@ -932,6 +977,7 @@ describe("shiftBoard/mutations", () => {
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "09:00", endTime: "17:00" }],
       });
@@ -952,6 +998,7 @@ describe("shiftBoard/mutations", () => {
 
       await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "14:00" },
@@ -985,6 +1032,7 @@ describe("shiftBoard/mutations", () => {
 
       await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "09:00", endTime: "12:00", optionId: "early" },
@@ -1019,6 +1067,7 @@ describe("shiftBoard/mutations", () => {
 
       await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "15:00", optionId: "early" },
@@ -1043,6 +1092,7 @@ describe("shiftBoard/mutations", () => {
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments: [
             { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "15:00" },
@@ -1060,6 +1110,7 @@ describe("shiftBoard/mutations", () => {
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-27", startTime: "10:00", endTime: "18:00" }],
         }),
@@ -1074,6 +1125,7 @@ describe("shiftBoard/mutations", () => {
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-21", startTime: "10:00", endTime: "18:00" }],
         }),
@@ -1088,6 +1140,7 @@ describe("shiftBoard/mutations", () => {
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "18:00", endTime: "10:00" }],
         }),
@@ -1102,6 +1155,7 @@ describe("shiftBoard/mutations", () => {
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "10:00" }],
         }),
@@ -1116,6 +1170,7 @@ describe("shiftBoard/mutations", () => {
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "07:00", endTime: "15:00" }],
         }),
@@ -1135,6 +1190,7 @@ describe("shiftBoard/mutations", () => {
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "05:00", endTime: "06:30" }],
         }),
@@ -1154,6 +1210,7 @@ describe("shiftBoard/mutations", () => {
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "21:30", endTime: "23:00" }],
         }),
@@ -1170,6 +1227,7 @@ describe("shiftBoard/mutations", () => {
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments: [
             { staffId: staffId1, date: "2026-01-27", startTime: "10:00", endTime: "18:00" },
@@ -1209,6 +1267,7 @@ describe("shiftBoard/mutations", () => {
           name: "削除済み",
           email: "deleted@example.com",
           emailNormalized: "deleted@example.com",
+          excludedFromShift: false,
           isDeleted: true,
         });
       });
@@ -1216,6 +1275,7 @@ describe("shiftBoard/mutations", () => {
       await expect(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.saveShiftAssignments, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           assignments: [{ staffId: deletedStaffId, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
         }),
@@ -1242,6 +1302,7 @@ describe("shiftBoard/mutations", () => {
       await expect(
         t.mutation(api.shiftBoard.mutations.confirmRecruitment, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
         }),
       ).rejects.toThrow();
@@ -1251,9 +1312,11 @@ describe("shiftBoard/mutations", () => {
       const t = convexTest(schema, modules);
       const { shopId, recruitmentId } = await setupTestData(t);
 
-      await t
-        .withIdentity({ subject: "user_manager" })
-        .mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
+      await t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        recruitmentId,
+        shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+      });
 
       const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));
       expect(recruitment?.status).toBe("confirmed");
@@ -1280,6 +1343,7 @@ describe("shiftBoard/mutations", () => {
       await expect(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
         }),
       ).rejects.toThrow(PAST_SHIFT_NOTIFY_ERROR);
@@ -1296,10 +1360,15 @@ describe("shiftBoard/mutations", () => {
       const { shopId, recruitmentId } = await setupTestData(t);
       const asManager = t.withIdentity({ subject: "user_manager" });
 
-      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
       await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
         recruitmentId,
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+      });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        recruitmentId,
+        shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         intent: "confirm",
       });
 
@@ -1314,10 +1383,15 @@ describe("shiftBoard/mutations", () => {
       const { shopId, recruitmentId } = await setupTestData(t);
       const asManager = t.withIdentity({ subject: "user_manager" });
 
-      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
       await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
         recruitmentId,
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+      });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        recruitmentId,
+        shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         intent: "resend",
       });
 
@@ -1346,18 +1420,24 @@ describe("shiftBoard/mutations", () => {
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" },
           { staffId: staffId2, date: "2026-01-20", startTime: "12:00", endTime: "20:00" },
         ],
       });
-      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        recruitmentId,
+        shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+      });
       await seedCurrentConfirmationSnapshots(t, recruitmentId, [staffId1, staffId2]);
       await seedConfirmationEmailOutboxes(t, recruitmentId, [staffId1, staffId2], "sent");
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "11:00", endTime: "18:00" },
@@ -1366,6 +1446,7 @@ describe("shiftBoard/mutations", () => {
       });
       const result = await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         intent: "resend",
       });
@@ -1386,18 +1467,24 @@ describe("shiftBoard/mutations", () => {
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" },
           { staffId: staffId2, date: "2026-01-20", startTime: "12:00", endTime: "20:00" },
         ],
       });
-      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        recruitmentId,
+        shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+      });
       await seedCurrentConfirmationSnapshots(t, recruitmentId, [staffId1, staffId2]);
       await seedConfirmationEmailOutboxes(t, recruitmentId, [staffId1, staffId2], "pending");
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "11:00", endTime: "18:00" },
@@ -1406,6 +1493,7 @@ describe("shiftBoard/mutations", () => {
       });
       const result = await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         intent: "resend",
       });
@@ -1425,6 +1513,7 @@ describe("shiftBoard/mutations", () => {
       // 直前actionがまだOutboxを作っていなくても、さらに新しいoperationから対象を落とさない。
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "12:00", endTime: "18:00" },
@@ -1433,6 +1522,7 @@ describe("shiftBoard/mutations", () => {
       });
       const chainedResult = await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         intent: "resend",
       });
@@ -1455,6 +1545,7 @@ describe("shiftBoard/mutations", () => {
       const [processingOutboxId] = await seedConfirmationEmailOutboxes(t, recruitmentId, [staffId1], "processing");
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "13:00", endTime: "18:00" },
@@ -1465,6 +1556,7 @@ describe("shiftBoard/mutations", () => {
       await expect(
         asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           intent: "resend",
         }),
@@ -1497,6 +1589,7 @@ describe("shiftBoard/mutations", () => {
       await expect(
         asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           intent: "resend",
         }),
@@ -1514,18 +1607,20 @@ describe("shiftBoard/mutations", () => {
       const { shopId, recruitmentId, staffId1, staffId2 } = await setupTestData(t);
       await t.run(async (ctx) => {
         const secondManagerUserId = await seedUser(ctx, "user_manager_second", "manager-second@example.com");
-        await seedLegacyShopMembership(ctx, { userId: secondManagerUserId, shopId });
+        await seedOrganizationMembership(ctx, { userId: secondManagerUserId, shopId });
       });
       const firstManager = t.withIdentity({ subject: "user_manager" });
       const secondManager = t.withIdentity({ subject: "user_manager_second" });
 
       await firstManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
       });
       await firstManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         intent: "confirm",
         requestId: "confirmation-client-first",
@@ -1536,12 +1631,14 @@ describe("shiftBoard/mutations", () => {
 
       await firstManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "11:00", endTime: "18:00" }],
       });
       vi.setSystemTime(new Date("2026-01-20T01:00:00+09:00"));
       const first = await firstManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         intent: "resend",
         requestId: "resend-client-first",
@@ -1551,6 +1648,7 @@ describe("shiftBoard/mutations", () => {
       vi.setSystemTime(new Date("2026-01-20T02:00:00+09:00"));
       const duplicate = await secondManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         intent: "resend",
         requestId: "resend-client-second",
@@ -1576,6 +1674,7 @@ describe("shiftBoard/mutations", () => {
 
       await firstManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [
           { staffId: staffId1, date: "2026-01-20", startTime: "11:00", endTime: "18:00" },
@@ -1584,6 +1683,7 @@ describe("shiftBoard/mutations", () => {
       });
       const changedTarget = await secondManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         intent: "resend",
         requestId: "resend-client-target-changed",
@@ -1597,6 +1697,7 @@ describe("shiftBoard/mutations", () => {
       await t.run(async (ctx) => await ctx.db.patch(shopId, { name: "通知文面変更後の店舗" }));
       const changedMessage = await firstManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         intent: "resend",
         requestId: "resend-client-message-changed",
@@ -1623,16 +1724,22 @@ describe("shiftBoard/mutations", () => {
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
       });
-      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        recruitmentId,
+        shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+      });
       await seedCurrentConfirmationSnapshots(t, recruitmentId, [staffId1, staffId2]);
       await seedConfirmationEmailOutboxes(t, recruitmentId, [staffId1], "sent");
       await seedLineConfirmationWithFallback(t, recruitmentId, staffId2, "sent");
 
       const result = await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         intent: "resend",
       });
@@ -1652,22 +1759,29 @@ describe("shiftBoard/mutations", () => {
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
       });
-      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        recruitmentId,
+        shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+      });
       await seedCurrentConfirmationSnapshots(t, recruitmentId, [staffId1, staffId2]);
       await seedConfirmationEmailOutboxes(t, recruitmentId, [staffId1], "sent");
       await seedLineConfirmationWithFallback(t, recruitmentId, staffId2, "sent");
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "11:00", endTime: "18:00" }],
       });
       await expect(
         asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           intent: "resend",
         }),
@@ -1708,6 +1822,7 @@ describe("shiftBoard/mutations", () => {
       await expect(
         asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           intent: "resend",
         }),
@@ -1734,10 +1849,15 @@ describe("shiftBoard/mutations", () => {
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
       });
-      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        recruitmentId,
+        shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+      });
       await seedCurrentConfirmationSnapshots(t, recruitmentId, [staffId1, staffId2]);
       await seedConfirmationEmailOutboxes(t, recruitmentId, [staffId1], "sent");
       await seedLineConfirmationWithFallback(t, recruitmentId, staffId2, "sent");
@@ -1776,6 +1896,7 @@ describe("shiftBoard/mutations", () => {
       await expect(
         asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           intent: "resend",
         }),
@@ -1785,6 +1906,7 @@ describe("shiftBoard/mutations", () => {
       await expect(
         asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           intent: "resend",
         }),
@@ -1840,6 +1962,7 @@ describe("shiftBoard/mutations", () => {
       await expect(
         asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           intent: "resend",
         }),
@@ -1847,6 +1970,7 @@ describe("shiftBoard/mutations", () => {
       await expect(
         asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           intent: "resend",
         }),
@@ -1888,12 +2012,18 @@ describe("shiftBoard/mutations", () => {
 
       await asManager.mutation(api.shiftBoard.mutations.saveShiftAssignments, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         assignments: [{ staffId: staffId1, date: "2026-01-20", startTime: "10:00", endTime: "18:00" }],
       });
-      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId });
+      await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        recruitmentId,
+        shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+      });
       const result = await asManager.mutation(api.shiftBoard.mutations.confirmRecruitment, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         intent: "resend",
       });
@@ -1923,6 +2053,7 @@ describe("shiftBoard/mutations", () => {
       await expect(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           intent: "resend",
         }),
@@ -1942,6 +2073,7 @@ describe("shiftBoard/mutations", () => {
       await expect(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
           intent: "resend",
         }),
@@ -1975,6 +2107,7 @@ describe("shiftBoard/mutations", () => {
       await expectValidationIssues(
         t.withIdentity({ subject: "user_manager" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
           shopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
           recruitmentId,
         }),
         [{ code: "CLOSED_DAY", date: "2026-01-21", staffId: staffId1 }],
@@ -1995,9 +2128,11 @@ describe("shiftBoard/mutations", () => {
       });
 
       await expect(
-        t
-          .withIdentity({ subject: "user_other2" })
-          .mutation(api.shiftBoard.mutations.confirmRecruitment, { recruitmentId, shopId: otherShopId }),
+        t.withIdentity({ subject: "user_other2" }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          recruitmentId,
+          shopId: otherShopId,
+          expectedOrganizationId: await getExpectedOrganizationId(t, otherShopId),
+        }),
       ).rejects.toThrow(ConvexError);
     });
   });

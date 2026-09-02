@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { seedOrganizationManagerShop, seedUser } from "../_test/seed";
+import { getTestOrganizationId, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const NOW = Date.UTC(2026, 6, 19, 3);
@@ -97,6 +97,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       t
         .withIdentity({ subject: `user_detail_linked_user_${state}` })
         .query(api.organization.userDetailQueries.getUserDetail, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
           shopId: ids.shopId,
           personId: ids.personId,
           now: NOW,
@@ -133,6 +134,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const result = await t
       .withIdentity({ subject: "user_detail_usage_over_limit" })
       .query(api.organization.userDetailQueries.getUserDetail, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         personId: ids.targetPersonId,
         now: NOW,
@@ -226,6 +228,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const actor = t.withIdentity({ subject: "user_detail_actor" });
 
     const result = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
       personId: ids.personId,
       now: NOW,
@@ -263,19 +266,16 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         {
           shopId: ids.thirdShopId,
           shopName: "上野店",
-          shopStatus: "active",
           canChangeMembership: true,
         },
         {
           shopId: ids.shopId,
           shopName: "青山店",
-          shopStatus: "active",
           canChangeMembership: true,
         },
         {
           shopId: ids.secondShopId,
           shopName: "赤坂店",
-          shopStatus: "active",
           canChangeMembership: true,
         },
       ],
@@ -284,7 +284,6 @@ describe("organization/userDetailQueries.getUserDetail", () => {
           staffId: ids.thirdStaffId,
           shopId: ids.thirdShopId,
           shopName: "上野店",
-          shopStatus: "active",
           excludedFromShift: false,
           canRemove: true,
           removalPreview: {
@@ -298,7 +297,6 @@ describe("organization/userDetailQueries.getUserDetail", () => {
           staffId: ids.firstStaffId,
           shopId: ids.shopId,
           shopName: "青山店",
-          shopStatus: "active",
           excludedFromShift: true,
           canRemove: true,
           removalPreview: {
@@ -312,7 +310,6 @@ describe("organization/userDetailQueries.getUserDetail", () => {
           staffId: ids.secondStaffId,
           shopId: ids.secondShopId,
           shopName: "赤坂店",
-          shopStatus: "active",
           excludedFromShift: false,
           canRemove: true,
           removalPreview: {
@@ -327,6 +324,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     expect(JSON.stringify(result)).not.toContain("never-return-line-user-id");
 
     const fromThirdShop = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.thirdShopId),
       shopId: ids.thirdShopId,
       personId: ids.personId,
       now: NOW,
@@ -351,6 +349,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       });
     });
     const pending = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
       personId: ids.personId,
       now: NOW,
@@ -408,6 +407,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const actor = t.withIdentity({ subject: "user_detail_common_line" });
 
     const linked = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
       personId: ids.personId,
       now: NOW,
@@ -427,6 +427,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
 
     await t.run(async (ctx) => await ctx.db.patch(ids.providerId, { following: false, stateVersion: 2 }));
     const unfollowed = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
       personId: ids.personId,
       now: NOW,
@@ -462,7 +463,12 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       return { ...base, personId, providerId, linkId };
     });
     const actor = t.withIdentity({ subject: "user_detail_line_inconsistent" });
-    const args = { shopId: ids.shopId, personId: ids.personId, now: NOW };
+    const args = {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+      shopId: ids.shopId,
+      personId: ids.personId,
+      now: NOW,
+    };
 
     await expect(actor.query(api.organization.userDetailQueries.getUserDetail, args)).resolves.toBeNull();
 
@@ -507,6 +513,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const result = await t
       .withIdentity({ subject: "user_detail_canonical_no_fallback" })
       .query(api.organization.userDetailQueries.getUserDetail, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         personId: ids.personId,
         now: NOW,
@@ -531,21 +538,25 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const actor = t.withIdentity({ subject: "user_detail_boundary" });
 
     const invalid = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.actor.shopId),
       shopId: ids.actor.shopId,
       personId: "not-a-convex-id",
       now: NOW,
     });
     const crossOrganization = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.actor.shopId),
       shopId: ids.actor.shopId,
       personId: ids.other.personId,
       now: NOW,
     });
     const removed = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.actor.shopId),
       shopId: ids.actor.shopId,
       personId: ids.removedPersonId,
       now: NOW,
     });
     const unauthenticated = await t.query(api.organization.userDetailQueries.getUserDetail, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.actor.shopId),
       shopId: ids.actor.shopId,
       personId: ids.actor.personId,
       now: NOW,
@@ -578,7 +589,12 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       return { ...base, personId, memberUserId, otherUserId };
     });
     const actor = t.withIdentity({ subject: "user_detail_member_identity" });
-    const args = { shopId: ids.shopId, personId: ids.personId, now: NOW };
+    const args = {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+      shopId: ids.shopId,
+      personId: ids.personId,
+      now: NOW,
+    };
 
     await expect(actor.query(api.organization.userDetailQueries.getUserDetail, args)).resolves.toBeNull();
 
@@ -641,6 +657,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const result = await t
       .withIdentity({ subject: "user_detail_manager_without_shop" })
       .query(api.organization.userDetailQueries.getUserDetail, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         personId: ids.targetPersonId,
         now: NOW,
@@ -674,6 +691,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       t
         .withIdentity({ subject: "user_detail_manager_without_shop" })
         .query(api.organization.userDetailQueries.getUserDetail, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
           shopId: ids.shopId,
           personId: ids.targetPersonId,
           now: NOW,
@@ -684,6 +702,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const self = await t
       .withIdentity({ subject: "user_detail_manager_without_shop" })
       .query(api.organization.userDetailQueries.getUserDetail, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         personId: ids.personId,
         now: NOW,
@@ -729,6 +748,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const result = await t
       .withIdentity({ subject: "user_detail_manager_membership" })
       .query(api.organization.userDetailQueries.getUserDetail, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         personId: ids.targetPersonId,
         now: NOW,
@@ -778,6 +798,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     const result = await t
       .withIdentity({ subject: "user_detail_last_valid_manager" })
       .query(api.organization.userDetailQueries.getUserDetail, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         personId: ids.personId,
         now: NOW,
@@ -834,7 +855,12 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       return { ...base, targetUserId, personId, memberId, removedMemberId, staffId, otherShopId: other.shopId };
     });
     const actor = t.withIdentity({ subject: "user_detail_duplicates" });
-    const args = { shopId: ids.shopId, personId: ids.personId, now: NOW };
+    const args = {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+      shopId: ids.shopId,
+      personId: ids.personId,
+      now: NOW,
+    };
 
     expect(await actor.query(api.organization.userDetailQueries.getUserDetail, args)).toBeNull();
     await t.run(async (ctx) => await ctx.db.delete(ids.removedMemberId));
@@ -897,6 +923,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         shopId: base.shopId,
       });
       const positionId = await ctx.db.insert("positions", {
+        isDefault: false,
         shopId: base.shopId,
         name: "ホール",
         color: "#000000",
@@ -925,7 +952,12 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       return { ...base, personId, staffId, positionId, otherRecruitmentId };
     });
     const actor = t.withIdentity({ subject: "user_detail_assignment" });
-    const args = { shopId: ids.shopId, personId: ids.personId, now: NOW };
+    const args = {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+      shopId: ids.shopId,
+      personId: ids.personId,
+      now: NOW,
+    };
 
     const withCrossShopAssignment = await actor.query(api.organization.userDetailQueries.getUserDetail, args);
     expect(withCrossShopAssignment).toMatchObject({
@@ -979,7 +1011,7 @@ describe("organization/userDetailQueries.getUserDetail", () => {
     });
   });
 
-  it("課金state欠落では書き込み不可を返す", async () => {
+  it("課金state欠落では人物詳細をfail closedにする", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -1011,7 +1043,12 @@ describe("organization/userDetailQueries.getUserDetail", () => {
       return { ...base, personId, staffId };
     });
     const actor = t.withIdentity({ subject: "user_detail_read_only" });
-    const args = { shopId: ids.shopId, personId: ids.personId, now: NOW };
+    const args = {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+      shopId: ids.shopId,
+      personId: ids.personId,
+      now: NOW,
+    };
 
     await t.run(async (ctx) => {
       const billingState = await ctx.db
@@ -1020,14 +1057,6 @@ describe("organization/userDetailQueries.getUserDetail", () => {
         .unique();
       if (billingState) await ctx.db.delete(billingState._id);
     });
-    expect(await actor.query(api.organization.userDetailQueries.getUserDetail, args)).toMatchObject({
-      canWrite: false,
-      writeDisabledReason: "組織の契約情報を確認中のため、ユーザー情報を変更できません。",
-      line: {
-        canLink: false,
-        linkDisabledReason: "組織の契約情報を確認中のため、ユーザー情報を変更できません。",
-        canDisconnect: true,
-      },
-    });
+    await expect(actor.query(api.organization.userDetailQueries.getUserDetail, args)).resolves.toBeNull();
   });
 });

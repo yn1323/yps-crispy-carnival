@@ -6,10 +6,9 @@ export type OrganizationPersonView = {
   email: string | null;
   managerRole: "active" | "none";
   isStaff: boolean;
-  // TODO[narrow]: 対応queryの全deployment反映と旧frontendのdrain後にrequired化する。
-  isLineConnected?: boolean;
-  lineStatus?: "unlinked" | "linked_following" | "linked_unfollowed";
-  hasManagerInvitation?: boolean;
+  isLineConnected: boolean;
+  lineStatus: "unlinked" | "linked_following" | "linked_unfollowed";
+  hasManagerInvitation: boolean;
   shopNames: string[];
   shopIds: string[];
   canRemoveManagerRole: boolean;
@@ -37,14 +36,12 @@ export type BillingDisplayState =
   | "pro"
   | "initialPaymentPending"
   | "pendingActivation"
-  | "scheduledChange"
-  | "migrationPending";
+  | "scheduledChange";
 
 export type BillingUsageView = {
   current: number;
   max: number;
-  // TODO[narrow]: billing viewの全deployment反映と旧frontendのdrain後にrequired化する。
-  pendingInvitations?: number;
+  pendingInvitations: number;
 };
 
 export type BillingPlan = "trial" | "free" | "standard" | "pro";
@@ -78,7 +75,7 @@ export type BillingRequiredReductions = {
 
 export type OrganizationBillingView = {
   state: BillingDisplayState;
-  currentPlan: BillingPlan | null;
+  currentPlan: BillingPlan;
   isComplimentary: boolean;
   hasTrialContinuation: boolean;
   trialEndsAt?: number;
@@ -86,8 +83,7 @@ export type OrganizationBillingView = {
   hasStripeCustomer: boolean;
   targetPlan?: BillingProductPlan;
   restrictAtPeriodEnd?: true;
-  // TODO[narrow]: billing viewの全deployment反映と旧frontendのdrain後にrequired化する。
-  requiredReductions?: BillingRequiredReductions;
+  requiredReductions: BillingRequiredReductions;
   peopleUsage: BillingUsageView;
   shopUsage: BillingUsageView;
   managerUsage: BillingUsageView;

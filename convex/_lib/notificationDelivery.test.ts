@@ -31,6 +31,7 @@ async function seedNotificationManagerStaff(ctx: MutationCtx, args: { shopId: Id
   if (!organizationId || !person) throw new Error("manager staff fixture requires a canonical person");
   const email = person.email;
   return await ctx.db.insert("staffs", {
+    excludedFromShift: false,
     shopId: args.shopId,
     organizationId,
     organizationPersonId: person._id,

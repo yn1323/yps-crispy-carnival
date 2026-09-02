@@ -79,6 +79,8 @@ async function insertCompleteRun(ctx: MutationCtx, targetDate: string) {
 
 async function insertOrganization(ctx: MutationCtx, currentPlan: "trial" | "free" | "standard" | "pro" = "free") {
   const organizationId = await ctx.db.insert("organizations", {
+    billingEmail: "billing@example.com",
+    billingEmailNormalized: "billing@example.com",
     name: "利用候補テスト組織",
     isDeleted: false,
     createdAt: PAST_DAY.startMs - 2_000,

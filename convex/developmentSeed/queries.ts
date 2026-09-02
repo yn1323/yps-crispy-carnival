@@ -5,7 +5,6 @@ import { assertDevelopmentSeedEnabled } from "../_lib/config";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/planLimits";
 import schema from "../schema";
-import { hasCanonicalStaffIdentity } from "../staff/service";
 import { requireDevelopmentSeedWorkflowState } from "./audit";
 import {
   assertSeedDate,
@@ -275,8 +274,6 @@ export const verify = internalMutation({
     }
 
     for (const shop of shops) {
-      if (!shop.organizationId) throw new Error("Seed shop organization is missing");
-      if (shop.operatingStatus !== undefined) throw new Error("Seed shop contains a legacy operating status");
       if (shop.isDeleted) throw new Error("Seed shop must not be deleted");
       requireRecord(organizationMap, shop.organizationId, "shop organization");
     }
@@ -287,7 +284,6 @@ export const verify = internalMutation({
       if (person.organizationId !== member.organizationId) throw new Error("Seed member crosses organization boundary");
     }
     for (const staff of staffs) {
-      if (!hasCanonicalStaffIdentity(staff)) throw new Error("Seed staff canonical identity is missing");
       if (staff.isDeleted) throw new Error("Seed staff must not be deleted");
       const shop = requireRecord(shopMap, staff.shopId, "staff shop");
       const person = requireRecord(personMap, staff.organizationPersonId, "staff person");

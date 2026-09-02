@@ -7,6 +7,7 @@ import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { addDays, todayJST } from "../_lib/dateFormat";
 import {
+  getTestOrganizationId,
   seedLegacyShopMembership,
   seedOrganizationManagerShop,
   seedOrganizationPersonLineLink,
@@ -70,6 +71,7 @@ async function seedTargetPerson(
   for (const shopId of args.shopIds) {
     staffIds.push(
       await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId,
         organizationId: args.base.organizationId,
         organizationPersonId: personId,
@@ -90,6 +92,7 @@ async function seedAssignment(
   args: { shopId: Id<"shops">; staffId: Id<"staffs">; date: string; recruitmentDeleted?: boolean },
 ) {
   const positionId = await ctx.db.insert("positions", {
+    isDefault: false,
     shopId: args.shopId,
     name: "通常",
     color: "#000000",
@@ -119,12 +122,15 @@ async function seedAssignment(
 }
 
 async function seedStaffAccess(ctx: MutationCtx, args: { shopId: Id<"shops">; staffId: Id<"staffs"> }) {
+  const staff = await ctx.db.get(args.staffId);
+  if (!staff) throw new Error("staff not found");
   const { recruitmentId } = await seedAssignment(ctx, {
     shopId: args.shopId,
     staffId: args.staffId,
     date: addDays(todayJST(), -1),
   });
   const sessionId = await ctx.db.insert("sessions", {
+    accessKind: "submit",
     sessionToken: `session-${args.staffId}`,
     staffId: args.staffId,
     shopId: args.shopId,
@@ -132,6 +138,7 @@ async function seedStaffAccess(ctx: MutationCtx, args: { shopId: Id<"shops">; st
     expiresAt: NOW + 86_400_000,
   });
   const magicLinkId = await ctx.db.insert("magicLinks", {
+    accessKind: "submit",
     token: `magic-${args.staffId}`,
     staffId: args.staffId,
     shopId: args.shopId,
@@ -142,6 +149,9 @@ async function seedStaffAccess(ctx: MutationCtx, args: { shopId: Id<"shops">; st
     token: `line-${args.staffId}`,
     staffId: args.staffId,
     shopId: args.shopId,
+    organizationId: staff.organizationId,
+    organizationPersonId: staff.organizationPersonId,
+    lineLinkGenerationAtIssue: 0,
     expiresAt: NOW + 86_400_000,
   });
   const lineAccountId = await seedStaffLineAccount(ctx, {
@@ -173,6 +183,8 @@ async function seedOutbox(
     staffId: args.staffId,
     userId: args.userId,
     purpose: args.purpose ?? "business",
+    notificationContext: "organization-removal-test",
+    deliverySuppressed: false,
     payload: {
       kind: "email",
       from: "noreply@example.com",
@@ -457,6 +469,8 @@ describe("organization person removal", () => {
         organizationInvitationId: invitationId,
         organizationInvitationVersion: 1,
         purpose: "business",
+        notificationContext: "organization-manager-invitation",
+        deliverySuppressed: false,
         payload: {
           kind: "organizationManagerInvitationEmail",
           from: "noreply@example.com",
@@ -513,6 +527,7 @@ describe("organization person removal", () => {
       t
         .withIdentity({ subject: "org_remove_actor" })
         .mutation(api.organization.mutations.removePersonFromOrganization, {
+          expectedOrganizationId: ids.organizationId,
           shopId: ids.shopId,
           personId: ids.personId,
           requestId: "organization-remove-request",
@@ -542,6 +557,7 @@ describe("organization person removal", () => {
       t
         .withIdentity({ subject: "self_remove_actor" })
         .mutation(api.organization.mutations.removePersonFromOrganization, {
+          expectedOrganizationId: ids.organizationId,
           shopId: ids.shopId,
           personId: ids.personId,
           requestId: "self-remove-request",
@@ -570,6 +586,7 @@ describe("organization person removal", () => {
 
     const actor = t.withIdentity({ subject: `future_${scope}_actor` });
     const detail = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
       personId: ids.personId,
       now: NOW,
@@ -589,6 +606,7 @@ describe("organization person removal", () => {
             },
           })
         : actor.mutation(api.organization.mutations.removePersonFromOrganization, {
+            expectedOrganizationId: ids.organizationId,
             shopId: ids.shopId,
             personId: ids.personId,
             requestId: `future-${scope}`,
@@ -659,6 +677,7 @@ describe("organization person removal", () => {
     const actor = t.withIdentity({ subject: "stale_preview_actor" });
     const getPreview = async () => {
       const detail = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         personId: ids.personId,
         now: NOW,
@@ -679,6 +698,7 @@ describe("organization person removal", () => {
     const requestId = "stale-preview-removal";
     await expect(
       actor.mutation(api.organization.mutations.removePersonFromOrganization, {
+        expectedOrganizationId: ids.organizationId,
         shopId: ids.shopId,
         personId: ids.personId,
         requestId,
@@ -703,6 +723,7 @@ describe("organization person removal", () => {
     const confirmedPreview = await getPreview();
     expect(confirmedPreview.assignmentCount).toBe(3);
     const mutationArgs = {
+      expectedOrganizationId: ids.organizationId,
       shopId: ids.shopId,
       personId: ids.personId,
       requestId,
@@ -764,6 +785,7 @@ describe("organization person removal", () => {
       t
         .withIdentity({ subject: "billing_owner_actor" })
         .mutation(api.organization.mutations.removePersonFromOrganization, {
+          expectedOrganizationId: ids.organizationId,
           shopId: ids.shopId,
           personId: ids.personId,
           requestId: "billing-owner",
@@ -804,6 +826,7 @@ describe("organization person removal", () => {
 
     await expect(
       t.withIdentity({ subject: "last_manager" }).mutation(api.organization.mutations.removePersonFromOrganization, {
+        expectedOrganizationId: ids.organizationId,
         shopId: ids.shopId,
         personId: ids.personId,
         requestId: "last-manager",
@@ -843,6 +866,7 @@ describe("organization person removal", () => {
       t
         .withIdentity({ subject: "last_manager_duplicate_successor" })
         .mutation(api.organization.mutations.removePersonFromOrganization, {
+          expectedOrganizationId: ids.organizationId,
           shopId: ids.shopId,
           personId: ids.personId,
           requestId: "last-manager-duplicate-successor",
@@ -891,6 +915,7 @@ describe("organization person removal", () => {
       t
         .withIdentity({ subject: "last_manager_duplicate_user" })
         .mutation(api.organization.mutations.removePersonFromOrganization, {
+          expectedOrganizationId: ids.organizationId,
           shopId: ids.shopId,
           personId: ids.personId,
           requestId: "last-manager-duplicate-user",
@@ -939,6 +964,8 @@ describe("organization person removal", () => {
         organizationInvitationId: invitationId,
         organizationInvitationVersion: 1,
         purpose: "business",
+        notificationContext: "organization-manager-invitation",
+        deliverySuppressed: false,
         payload: {
           kind: "organizationManagerInvitationEmail",
           from: "noreply@example.com",
@@ -1020,7 +1047,7 @@ describe("organization person removal", () => {
     expect(state.staff?.isDeleted).toBe(false);
     expect(state.session?.revokedAt).toBeUndefined();
     expect(state.lineAccount).toMatchObject({ isDeleted: false, following: true });
-    expect(state.legacyMembership?.isDeleted).toBe(true);
+    expect(state.legacyMembership?.isDeleted).toBe(false);
     expect(state.invitation).toMatchObject({ status: "revoked", reservedSeat: false, version: 2 });
     expect(state.invitationOutbox).toMatchObject({ status: "cancelled", cancelReason: "invitation_inactive" });
     expect(state.managerBusinessOutbox).toMatchObject({ status: "cancelled", cancelReason: "recipient_inactive" });
@@ -1308,11 +1335,12 @@ describe("organization person removal", () => {
     await expect(requireBusinessWrite()).rejects.toMatchObject({
       data: {
         code: "USAGE_LIMIT_EXCEEDED",
-        violations: [{ kind: "activeShops", current: 2, max: 1, excess: 1 }],
+        violations: [{ kind: "shops", current: 2, max: 1, excess: 1 }],
       },
     });
     await expect(
       actor.mutation(api.organization.mutations.deleteShop, {
+        expectedOrganizationId: ids.organizationId,
         shopId: ids.excessShopId,
         confirmShopId: ids.excessShopId,
         requestId: "free-limit-recovery-delete-shop",
@@ -1342,6 +1370,7 @@ describe("organization person removal", () => {
     });
     await expect(
       actor.mutation(api.organization.mutations.removePersonFromOrganization, {
+        expectedOrganizationId: ids.organizationId,
         shopId: ids.shopId,
         personId: people[0].personId,
         requestId: "free-limit-recovery-person",
@@ -1432,11 +1461,12 @@ describe("organization person removal", () => {
     const ids = await t.run(async (ctx) => {
       const actor = await seedOrganizationManagerShop(ctx, { subject: "idor_actor", plan: "standard" });
       const other = await seedOrganizationManagerShop(ctx, { subject: "idor_other", plan: "standard" });
-      return { actorShopId: actor.shopId, otherPersonId: other.personId };
+      return { actorOrganizationId: actor.organizationId, actorShopId: actor.shopId, otherPersonId: other.personId };
     });
 
     await expect(
       t.withIdentity({ subject: "idor_actor" }).mutation(api.organization.mutations.removePersonFromOrganization, {
+        expectedOrganizationId: ids.actorOrganizationId,
         shopId: ids.actorShopId,
         personId: ids.otherPersonId,
         requestId: "idor-request",
@@ -1462,6 +1492,7 @@ describe("organization person profile update", () => {
         plan: "standard",
       });
       const activeStaffId = await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: base.shopId,
         organizationId: base.organizationId,
         organizationPersonId: base.personId,
@@ -1472,6 +1503,7 @@ describe("organization person profile update", () => {
         isDeleted: false,
       });
       const deletedStaffId = await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: base.shopId,
         organizationId: base.organizationId,
         organizationPersonId: base.personId,
@@ -1502,6 +1534,7 @@ describe("organization person profile update", () => {
         updatedAt: NOW,
       });
       const otherStaffId = await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: otherShopId,
         organizationId: otherOrganizationId,
         organizationPersonId: otherPersonId,
@@ -1516,6 +1549,7 @@ describe("organization person profile update", () => {
     const actor = t.withIdentity({ subject: "profile_self_actor" });
 
     const result = await actor.mutation(api.organization.mutations.updatePersonProfile, {
+      expectedOrganizationId: ids.organizationId,
       shopId: ids.shopId,
       personId: ids.personId,
       name: "更新後の管理者",
@@ -1623,6 +1657,7 @@ describe("organization person profile update", () => {
         [base.shopId, otherShopId].map(
           async (shopId) =>
             await ctx.db.insert("staffs", {
+              excludedFromShift: false,
               shopId,
               organizationId: base.organizationId,
               organizationPersonId: personId,
@@ -1640,6 +1675,7 @@ describe("organization person profile update", () => {
     await t
       .withIdentity({ subject: "profile_multi_shop_actor" })
       .mutation(api.organization.mutations.updatePersonProfile, {
+        expectedOrganizationId: ids.organizationId,
         shopId: ids.shopId,
         personId: ids.personId,
         name: "同期後",
@@ -1709,6 +1745,7 @@ describe("organization person profile update", () => {
       t
         .withIdentity({ subject: "profile_with_terminal_history_actor" })
         .mutation(api.organization.mutations.updatePersonProfile, {
+          expectedOrganizationId: ids.organizationId,
           shopId: ids.shopId,
           personId: ids.personId,
           name: "更新後の現役人物",
@@ -1762,6 +1799,7 @@ describe("organization person profile update", () => {
 
     await expect(
       t.withIdentity({ subject: "profile_duplicate_actor" }).mutation(api.organization.mutations.updatePersonProfile, {
+        expectedOrganizationId: ids.organizationId,
         shopId: ids.shopId,
         personId: ids.personId,
         name: "変更後",
@@ -1788,6 +1826,7 @@ describe("organization person profile update", () => {
 
     await expect(
       actor.mutation(api.organization.mutations.updatePersonProfile, {
+        expectedOrganizationId: ids.actor.organizationId,
         shopId: ids.actor.shopId,
         personId: ids.other.personId,
         name: "不正更新",
@@ -1799,6 +1838,7 @@ describe("organization person profile update", () => {
     await t.run(async (ctx) => await ctx.db.patch(ids.actor.memberId, { status: "removed" }));
     await expect(
       actor.mutation(api.organization.mutations.updatePersonProfile, {
+        expectedOrganizationId: ids.actor.organizationId,
         shopId: ids.actor.shopId,
         personId: ids.actor.personId,
         name: "削除済み更新",
@@ -1835,6 +1875,7 @@ describe("account deletion organization operations", () => {
         billingEmailNormalized: successor.email,
       });
       const staffId = await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: base.shopId,
         organizationId: base.organizationId,
         organizationPersonId: base.personId,

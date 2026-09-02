@@ -123,53 +123,6 @@ describe("スタッフsession期限の状態遷移", () => {
     await expect(snapshot()).resolves.toEqual(before);
   });
 
-  it("両canonical ID欠損staffも発行済みsessionと保存済み店舗が一致すれば閲覧を継続できる", async () => {
-    const { t, ids } = await seedShiftViewCapability();
-    const verified = await t.mutation(api.staffAuth.mutations.verifyToken, {
-      token: ids.token,
-      accessKind: "view",
-    });
-    expect(verified.status).toBe("ok");
-    if (verified.status !== "ok") throw new Error("session was not issued");
-
-    await t.run(async (ctx) => {
-      await ctx.db.patch(ids.staffId, { organizationId: undefined, organizationPersonId: undefined });
-    });
-
-    await expect(
-      t.query(api.shiftView.queries.getShiftViewData, {
-        sessionToken: verified.sessionToken,
-        accessKind: "view",
-        recruitmentId: ids.recruitmentId,
-      }),
-    ).resolves.not.toBeNull();
-  });
-
-  it.each(["organizationId", "organizationPersonId"] as const)(
-    "canonical IDが片側だけ欠損したstaffの発行済みsessionは拒否する: %s",
-    async (missingField) => {
-      const { t, ids } = await seedShiftViewCapability();
-      const verified = await t.mutation(api.staffAuth.mutations.verifyToken, {
-        token: ids.token,
-        accessKind: "view",
-      });
-      expect(verified.status).toBe("ok");
-      if (verified.status !== "ok") throw new Error("session was not issued");
-
-      await t.run(async (ctx) => {
-        await ctx.db.patch(ids.staffId, { [missingField]: undefined });
-      });
-
-      await expect(
-        t.query(api.shiftView.queries.getShiftViewData, {
-          sessionToken: verified.sessionToken,
-          accessKind: "view",
-          recruitmentId: ids.recruitmentId,
-        }),
-      ).resolves.toBeNull();
-    },
-  );
-
   it("期限予約のない既存sessionもrecoveryで物理削除される", async () => {
     const { t, ids } = await seedShiftViewCapability();
     const sessionToken = "legacy-session-without-expiry-job";

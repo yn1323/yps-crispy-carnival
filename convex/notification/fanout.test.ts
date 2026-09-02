@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import type { MutationCtx } from "../_generated/server";
 import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
@@ -11,6 +12,19 @@ import {
   NOTIFICATION_FANOUT_PROCESSING_LEASE_MS,
 } from "../constants";
 import { ensureNotificationFanoutOperation } from "./fanout";
+
+async function seedComplimentaryBillingState(ctx: MutationCtx, shopId: Id<"shops">) {
+  const shop = await ctx.db.get(shopId);
+  if (!shop) throw new Error("canonical shop fixture was not created");
+  const now = Date.now();
+  await ctx.db.insert("organizationBillingStates", {
+    organizationId: shop.organizationId,
+    state: { kind: "complimentary", plan: "pro" },
+    version: 1,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
 
 describe("notification fanout", () => {
   beforeEach(() => {
@@ -160,6 +174,7 @@ describe("notification fanout", () => {
         cursor: 0,
         status: "pending",
         dedupeSuffix: "confirm",
+        supersedesActiveOperations: true,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -182,7 +197,7 @@ describe("notification fanout", () => {
     );
     const legacyBeforeCanonical = await t.run(async (ctx) => ctx.db.get(ids.legacyCanonicalId));
     expect(legacyBeforeCanonical).toMatchObject({ status: "pending" });
-    expect(legacyBeforeCanonical?.supersedesActiveOperations).toBeUndefined();
+    expect(legacyBeforeCanonical?.supersedesActiveOperations).toBe(true);
 
     const canonical = await t.run(async (ctx) =>
       ensureNotificationFanoutOperation(ctx, {
@@ -219,6 +234,7 @@ describe("notification fanout", () => {
         cursor: 0,
         status: "processing",
         dedupeSuffix: "confirm",
+        supersedesActiveOperations: true,
         leaseToken: "stale-legacy-lease",
         leaseExpiresAt: Date.now() + NOTIFICATION_FANOUT_PROCESSING_LEASE_MS,
         createdAt: Date.now(),
@@ -335,7 +351,9 @@ describe("notification fanout", () => {
           updatedAt: Date.now(),
         });
       }
-      return { shopId, staffId, recruitmentId };
+      const shop = await ctx.db.get(shopId);
+      if (!shop) throw new Error("canonical shop fixture was not created");
+      return { organizationId: shop.organizationId, shopId, staffId, recruitmentId };
     });
 
     const canonicalOperationId = await t.mutation(
@@ -352,6 +370,7 @@ describe("notification fanout", () => {
     await expect(
       t.withIdentity({ subject: "fanout_many_manager" }).mutation(api.recruitment.mutations.deleteRecruitment, {
         shopId: ids.shopId,
+        expectedOrganizationId: ids.organizationId,
         recruitmentId: ids.recruitmentId,
       }),
     ).resolves.toBeNull();
@@ -374,6 +393,7 @@ describe("notification fanout", () => {
     const ids = await t.run(async (ctx) => {
       const seedOperation = async (label: string, status: "pending" | "processing", leaseExpiresAt?: number) => {
         const shopId = await seedShop(ctx, `${label}店舗`);
+        await seedComplimentaryBillingState(ctx, shopId);
         const staffId = await seedStaff(ctx, {
           shopId,
           name: `${label}スタッフ`,
@@ -400,6 +420,7 @@ describe("notification fanout", () => {
           cursor: 0,
           status,
           dedupeSuffix: "recruitment",
+          supersedesActiveOperations: true,
           ...(status === "processing" ? { leaseToken: `lease-${label}`, leaseExpiresAt: leaseExpiresAt ?? now } : {}),
           createdAt: now,
           updatedAt: now,
@@ -454,6 +475,7 @@ describe("notification fanout", () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, "legacy fanout店舗");
+      await seedComplimentaryBillingState(ctx, shopId);
       const staffId = await seedStaff(ctx, {
         shopId,
         name: "旧job対象",

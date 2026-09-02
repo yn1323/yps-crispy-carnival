@@ -211,6 +211,8 @@ describe("organization manager settings queries", () => {
         organizationInvitationId: failed,
         organizationInvitationVersion: 1,
         purpose: "business",
+        notificationContext: "manager-query-test",
+        deliverySuppressed: false,
         payload: {
           kind: "organizationManagerInvitationEmail",
           from: "noreply@example.com",
@@ -295,6 +297,8 @@ describe("organization manager settings queries", () => {
           organizationInvitationId: invitationId,
           organizationInvitationVersion: 1,
           purpose: "business",
+          notificationContext: "organizationInvitation.managerInvite",
+          deliverySuppressed: false,
           payload: {
             kind: "organizationManagerInvitationEmail",
             from: "noreply@example.com",
@@ -367,6 +371,8 @@ describe("organization manager settings queries", () => {
           organizationInvitationId: invitationId,
           organizationInvitationVersion: 1,
           purpose: "business",
+          notificationContext: "organizationInvitation.managerInvite",
+          deliverySuppressed: false,
           payload: {
             kind: "organizationManagerInvitationEmail",
             from: "noreply@example.com",

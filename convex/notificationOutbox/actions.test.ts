@@ -3,13 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import { resetResendEmailQueueForTest } from "../_lib/resend";
 import { seedStaff } from "../_test/scenarioBuilders";
-import {
-  seedCanonicalStaffLineRecipient,
-  seedLegacyManagerShop,
-  seedManagerShop,
-  seedOrganizationManagerShop,
-  seedUser,
-} from "../_test/seed";
+import { seedCanonicalStaffLineRecipient, seedManagerShop, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
   NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS,
@@ -55,7 +49,7 @@ async function setupLineJob(status: number, responseBody = "line error") {
 
   const t = convexTest(schema, modules);
   const ids = await t.run(async (ctx) => {
-    const { shopId } = await seedManagerShop(ctx, {
+    const { shopId, organizationId } = await seedManagerShop(ctx, {
       subject: "user_mgr",
       email: "manager@example.com",
       shopName: "LINE通知店舗",
@@ -70,7 +64,7 @@ async function setupLineJob(status: number, responseBody = "line error") {
       staffId,
       lineUserId: "U_test",
     });
-    return { shopId, staffId, recipient };
+    return { shopId, organizationId, staffId, recipient };
   });
   await t.mutation(internal.notificationOutbox.mutations.enqueue, {
     channel: "line",
@@ -109,6 +103,7 @@ async function setupLineRecipientRevalidationJob(scope: "staff" | "manager" = "s
             name: "LINE宛先再検証スタッフ",
             email: "line-revalidation@example.com",
             emailNormalized: "line-revalidation@example.com",
+            excludedFromShift: false,
             isDeleted: false,
           })
         : await seedStaff(ctx, {
@@ -291,6 +286,7 @@ describe("notificationOutbox/actions", () => {
         name: "重複した管理スタッフ",
         email: "line-revalidation-duplicate@example.com",
         emailNormalized: "line-revalidation-duplicate@example.com",
+        excludedFromShift: false,
         isDeleted: false,
       });
     });
@@ -361,13 +357,15 @@ describe("notificationOutbox/actions", () => {
   it("LINE失敗のprovider bodyをaction結果・console・永続化先へ出さない", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const { t } = await setupLineJob(400, PROVIDER_ERROR_SENTINEL);
+    const { t, shopId, organizationId } = await setupLineJob(400, PROVIDER_ERROR_SENTINEL);
 
     await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
     const actionResult = await t.action(internal.notificationOutbox.actions.processPending, {});
     const clientResponse = await t
       .withIdentity({ subject: "user_mgr" })
       .query(api.notificationOutbox.queries.listOpenFailures, {
+        shopId,
+        expectedOrganizationId: organizationId,
         paginationOpts: { cursor: null, numItems: 10 },
       });
     const persisted = await t.run(async (ctx) => ({
@@ -797,6 +795,7 @@ describe("notificationOutbox/actions", () => {
         name: "LINE招待先",
         email: invitation.email,
         emailNormalized: invitation.emailNormalized,
+        excludedFromShift: false,
         isDeleted: false,
       });
       const recipient = await seedCanonicalStaffLineRecipient(ctx, {
@@ -872,6 +871,8 @@ describe("notificationOutbox/actions", () => {
           organizationId: seeded.organizationId,
           purpose,
           userId: seeded.userId,
+          notificationContext: `test.usageLimitProvider.${purpose}`,
+          deliverySuppressed: false,
           payload: {
             kind: "email",
             from: "シフトリ <noreply@example.com>",
@@ -925,6 +926,8 @@ describe("notificationOutbox/actions", () => {
       const organizationId = await ctx.db.insert("organizations", {
         createdByUserId: userId,
         name: "Free通知事業者",
+        billingEmail: "manager@example.com",
+        billingEmailNormalized: "manager@example.com",
         isDeleted: false,
         createdAt: now,
         updatedAt: now,
@@ -969,6 +972,8 @@ describe("notificationOutbox/actions", () => {
           ...(args.billingVersion !== undefined ? { organizationBillingVersionAtEnqueue: args.billingVersion } : {}),
           purpose: args.purpose,
           userId,
+          notificationContext: `test.free.${args.purpose}`,
+          deliverySuppressed: false,
           payload: {
             kind: "email",
             from: "シフトリ <noreply@example.com>",
@@ -1028,6 +1033,8 @@ describe("notificationOutbox/actions", () => {
       const organizationId = await ctx.db.insert("organizations", {
         createdByUserId: userId,
         name: "復旧通知事業者",
+        billingEmail: "manager@example.com",
+        billingEmailNormalized: "manager@example.com",
         isDeleted: false,
         createdAt: now,
         updatedAt: now,
@@ -1067,6 +1074,8 @@ describe("notificationOutbox/actions", () => {
         organizationBillingVersionAtEnqueue: 1,
         purpose: "business",
         userId,
+        notificationContext: "test.paid-recovery.business",
+        deliverySuppressed: false,
         payload: {
           kind: "email",
           from: "シフトリ <noreply@example.com>",
@@ -1109,7 +1118,6 @@ describe("notificationOutbox/actions", () => {
   it.each([
     { label: "スタッフの所属人物", target: "staff" },
     { label: "事業者人物", target: "organizationPerson" },
-    { label: "旧管理者user", target: "legacyUser" },
   ] as const)("enqueue後に$labelのメールアドレスが変わった場合は旧宛先へ送らない", async ({ target }) => {
     vi.stubEnv("RESEND_API_KEY", "resend-token");
     const fetchMock = vi.fn<typeof globalThis.fetch>();
@@ -1311,7 +1319,7 @@ describe("notificationOutbox/actions", () => {
           ),
       ),
     );
-    const { t } = await setupEmailJob({
+    const { t, shopId, organizationId } = await setupEmailJob({
       dedupeKey: "email:test:provider-sentinel",
       context: "line.sendInviteEmail",
     });
@@ -1320,6 +1328,8 @@ describe("notificationOutbox/actions", () => {
     const clientResponse = await t
       .withIdentity({ subject: "user_mgr" })
       .query(api.notificationOutbox.queries.listOpenFailures, {
+        shopId,
+        expectedOrganizationId: organizationId,
         paginationOpts: { cursor: null, numItems: 10 },
       });
     const persisted = await t.run(async (ctx) => ({
@@ -1516,7 +1526,7 @@ async function setupEmailJob(options: { dedupeKey?: string; context?: string; su
   const context = options.context ?? "test.resendRetry";
   const t = convexTest(schema, modules);
   const ids = await t.run(async (ctx) => {
-    const { shopId } = await seedManagerShop(ctx, {
+    const { shopId, organizationId } = await seedManagerShop(ctx, {
       subject: "user_mgr",
       email: "manager@example.com",
       shopName: "メール通知店舗",
@@ -1532,7 +1542,11 @@ async function setupEmailJob(options: { dedupeKey?: string; context?: string; su
       status: "pending",
       dedupeKey,
       shopId,
+      organizationId,
+      purpose: "business",
       staffId,
+      notificationContext: context,
+      deliverySuppressed: options.suppressDelivery === true,
       payload: {
         kind: "email",
         from: "シフトリ <noreply@example.com>",
@@ -1547,7 +1561,7 @@ async function setupEmailJob(options: { dedupeKey?: string; context?: string; su
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
-    return { shopId, staffId };
+    return { shopId, organizationId, staffId };
   });
   return { t, ...ids };
 }
@@ -1564,6 +1578,8 @@ async function setupOrganizationEmailJob(removedTarget: "person" | "member") {
     const organizationId = await ctx.db.insert("organizations", {
       createdByUserId: userId,
       name: "所属確認事業者",
+      billingEmail: "manager@example.com",
+      billingEmailNormalized: "manager@example.com",
       isDeleted: false,
       createdAt: now,
       updatedAt: now,
@@ -1601,6 +1617,8 @@ async function setupOrganizationEmailJob(removedTarget: "person" | "member") {
       organizationId,
       purpose: "business",
       userId,
+      notificationContext: "test.organizationRecipient",
+      deliverySuppressed: false,
       payload: {
         kind: "email",
         from: "シフトリ <noreply@example.com>",
@@ -1618,7 +1636,7 @@ async function setupOrganizationEmailJob(removedTarget: "person" | "member") {
   return { t, outboxId };
 }
 
-async function setupStaleEmailJob(target: "staff" | "organizationPerson" | "legacyUser") {
+async function setupStaleEmailJob(target: "staff" | "organizationPerson") {
   const t = convexTest(schema, modules);
   const outboxId = await t.run(async (ctx) => {
     const seedArgs = {
@@ -1626,10 +1644,11 @@ async function setupStaleEmailJob(target: "staff" | "organizationPerson" | "lega
       email: "old-recipient@example.com",
       shopName: "宛先変更確認店舗",
     };
-    const seeded =
-      target === "legacyUser" ? await seedLegacyManagerShop(ctx, seedArgs) : await seedManagerShop(ctx, seedArgs);
+    const seeded = await seedManagerShop(ctx, seedArgs);
     const now = Date.now();
     if (target === "staff") {
+      const shop = await ctx.db.get(seeded.shopId);
+      if (!shop?.organizationId) throw new Error("canonical staff organization not found");
       const staffId = await seedStaff(ctx, {
         shopId: seeded.shopId,
         name: "宛先変更スタッフ",
@@ -1641,7 +1660,11 @@ async function setupStaleEmailJob(target: "staff" | "organizationPerson" | "lega
         status: "pending",
         dedupeKey: "email:test:stale-staff-address",
         shopId: seeded.shopId,
+        organizationId: shop.organizationId,
+        purpose: "business",
         staffId,
+        notificationContext: "test.staleEmail.staff",
+        deliverySuppressed: false,
         payload: {
           kind: "email",
           from: "シフトリ <noreply@example.com>",
@@ -1665,36 +1688,11 @@ async function setupStaleEmailJob(target: "staff" | "organizationPerson" | "lega
       return id;
     }
 
-    if (target === "legacyUser") {
-      const id = await ctx.db.insert("notificationOutbox", {
-        channel: "email",
-        status: "pending",
-        dedupeKey: "email:test:stale-legacy-user-address",
-        shopId: seeded.shopId,
-        userId: seeded.userId,
-        payload: {
-          kind: "email",
-          from: "シフトリ <noreply@example.com>",
-          to: "old-recipient@example.com",
-          subject: "宛先変更確認",
-          html: "<p>test</p>",
-          context: "test.staleEmail.legacyUser",
-        },
-        attemptCount: 0,
-        nextRunAt: now,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.patch(seeded.userId, {
-        email: "new-recipient@example.com",
-        emailNormalized: "new-recipient@example.com",
-      });
-      return id;
-    }
-
     const organizationId = await ctx.db.insert("organizations", {
       createdByUserId: seeded.userId,
       name: "宛先変更確認事業者",
+      billingEmail: "old-recipient@example.com",
+      billingEmailNormalized: "old-recipient@example.com",
       isDeleted: false,
       createdAt: now,
       updatedAt: now,
@@ -1732,6 +1730,8 @@ async function setupStaleEmailJob(target: "staff" | "organizationPerson" | "lega
       organizationId,
       purpose: "billing",
       userId: seeded.userId,
+      notificationContext: "test.staleEmail.organizationPerson",
+      deliverySuppressed: false,
       payload: {
         kind: "email",
         from: "シフトリ <noreply@example.com>",
@@ -1781,6 +1781,8 @@ async function setupOrganizationInvitationJob(variant: InvalidOrganizationInvita
     const organizationId = await ctx.db.insert("organizations", {
       createdByUserId: userId,
       name: "招待事業者",
+      billingEmail: "inviter@example.com",
+      billingEmailNormalized: "inviter@example.com",
       isDeleted: variant === "organizationDeleted",
       createdAt: now,
       updatedAt: now,
@@ -1859,6 +1861,8 @@ async function setupOrganizationInvitationJob(variant: InvalidOrganizationInvita
       organizationInvitationId: invitationId,
       organizationInvitationVersion: 1,
       purpose: "business",
+      notificationContext: "organizationInvitation.send",
+      deliverySuppressed: false,
       payload: {
         kind: "organizationManagerInvitationEmail",
         from: "シフトリ <noreply@example.com>",
@@ -1891,6 +1895,8 @@ async function setupOrganizationInvitationAcceptanceNotificationJob() {
       organizationId: seeded.organizationId,
       userId: seeded.userId,
       purpose: "business",
+      notificationContext: "organizationInvitation.linked",
+      deliverySuppressed: false,
       payload: {
         kind: "email",
         from: "シフトリ <noreply@example.com>",
@@ -1938,6 +1944,7 @@ async function setupOrganizationInvitationLineJob(options: { initialAttemptCount
       name: "LINE招待先",
       email: invitation.email,
       emailNormalized: invitation.emailNormalized,
+      excludedFromShift: false,
       isDeleted: false,
     });
     const recipient = await seedCanonicalStaffLineRecipient(ctx, {

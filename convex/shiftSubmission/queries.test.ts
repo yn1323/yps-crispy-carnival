@@ -10,10 +10,22 @@ import { modules, schema } from "../_test/setup.test-helper";
 
 async function setupSubmissionPageData(
   t: TestConvex<typeof schema>,
-  options?: { submissionPattern?: ShiftSubmissionPattern },
+  options?: { submissionPattern?: ShiftSubmissionPattern; billingState?: "canonical" | "missing" },
 ) {
   return await t.run(async (ctx) => {
     const shopId = await seedShop(ctx, "履歴テスト店舗");
+    const shop = await ctx.db.get(shopId);
+    if (!shop) throw new Error("テスト用店舗が見つかりません");
+    if (options?.billingState !== "missing") {
+      const now = Date.now();
+      await ctx.db.insert("organizationBillingStates", {
+        organizationId: shop.organizationId,
+        state: { kind: "complimentary", plan: "pro" },
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
     const staffId = await seedStaff(ctx, {
       shopId,
       name: "履歴スタッフ",
@@ -174,9 +186,9 @@ describe("shiftSubmission/queries", () => {
   afterEach(() => vi.useRealTimers());
 
   describe("getSubmissionPageData", () => {
-    it("billing state未移行中は従来どおり提出画面データを返す", async () => {
+    it("billing stateが欠損する場合は利用上限を判定できない", async () => {
       const t = convexTest(schema, modules);
-      const { sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+      const { sessionToken, recruitmentId } = await setupSubmissionPageData(t, { billingState: "missing" });
 
       const result = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {
         sessionToken,
@@ -184,7 +196,7 @@ describe("shiftSubmission/queries", () => {
         recruitmentId,
       });
 
-      expect(result.status).toBe("ok");
+      expect(result).toEqual({ status: "unavailable", reason: "usage_limit_evaluation_unavailable" });
     });
 
     it("同意要求版が古いスタッフには最新文書と再同意要否を返す", async () => {
@@ -221,7 +233,7 @@ describe("shiftSubmission/queries", () => {
       ["unknown", "usage_limit_evaluation_unavailable"],
     ] as const)("利用上限が%sなら受付終了と区別できる理由を返す", async (kind, reason) => {
       const t = convexTest(schema, modules);
-      const { shopId, sessionToken, recruitmentId } = await setupSubmissionPageData(t);
+      const { shopId, sessionToken, recruitmentId } = await setupSubmissionPageData(t, { billingState: "missing" });
       await seedSubmissionUsageRestriction(t, shopId, kind);
 
       const result = await t.query(api.shiftSubmission.queries.getSubmissionPageData, {

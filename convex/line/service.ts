@@ -10,19 +10,14 @@ import {
   LINE_PROVIDER_ACTIVE_ORGANIZATION_LINK_MAX,
 } from "../constants";
 import { deletedLineUserId } from "../deletionCleanup/tombstone";
-import {
-  type CanonicalStaff,
-  hasCanonicalStaffIdentity,
-  hasValidCanonicalStaffUserLifecycle,
-  hasValidOrganizationPersonUserLifecycle,
-} from "../staff/service";
+import { hasValidCanonicalStaffUserLifecycle, hasValidOrganizationPersonUserLifecycle } from "../staff/service";
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
 const LINE_LINK_ERROR = "LINE連携を完了できませんでした。";
 
 type CanonicalStaffScope = {
-  staff: CanonicalStaff;
+  staff: Doc<"staffs">;
   shop: Doc<"shops">;
   organization: Doc<"organizations">;
   person: Doc<"organizationPeople">;
@@ -62,11 +57,11 @@ export async function resolveCanonicalStaffScope(
   args: { staffId: Id<"staffs">; shopId?: Id<"shops"> },
 ): Promise<CanonicalStaffScope | null> {
   const staff = await ctx.db.get(args.staffId);
-  if (!staff || staff.isDeleted || !hasCanonicalStaffIdentity(staff) || (args.shopId && staff.shopId !== args.shopId)) {
+  if (!staff || staff.isDeleted || (args.shopId && staff.shopId !== args.shopId)) {
     return null;
   }
   const shop = await ctx.db.get(staff.shopId);
-  if (!shop || shop.isDeleted || !shop.organizationId || staff.organizationId !== shop.organizationId) {
+  if (!shop || shop.isDeleted || staff.organizationId !== shop.organizationId) {
     return null;
   }
   const [organization, person] = await Promise.all([
@@ -256,7 +251,7 @@ export async function listActiveStaffsForOrganizationPerson(
     if (!shop || shop.isDeleted || shop.organizationId !== args.organizationId) {
       continue;
     }
-    if (!hasCanonicalStaffIdentity(staff) || !(await hasValidCanonicalStaffUserLifecycle(ctx, staff, person))) {
+    if (!(await hasValidCanonicalStaffUserLifecycle(ctx, staff, person))) {
       throw new ConvexError(LINE_LINK_ERROR);
     }
     active.push(staff);
@@ -285,32 +280,19 @@ export async function listOrganizationPersonStaffHistory(
   return candidates;
 }
 
-/** Widen前tokenも含め、同じorganization personの未期限切れ候補をboundedに集める。 */
+/** 同じorganization personの未期限切れtokenをboundedに集める。 */
 export async function collectOrganizationPersonActiveLineTokens(
   ctx: DbCtx,
-  args: { organizationId: Id<"organizations">; organizationPersonId: Id<"organizationPeople">; now: number },
+  args: { organizationPersonId: Id<"organizationPeople">; now: number },
 ) {
-  const byId = new Map<Id<"lineLinkTokens">, Doc<"lineLinkTokens">>();
-  const canonicalTokens = await ctx.db
+  const tokens = await ctx.db
     .query("lineLinkTokens")
     .withIndex("by_organizationPersonId_and_expiresAt", (q) =>
       q.eq("organizationPersonId", args.organizationPersonId).gte("expiresAt", args.now),
     )
     .take(LINE_LINK_ACTIVE_TOKEN_SCAN_LIMIT + 1);
-  for (const token of canonicalTokens) byId.set(token._id, token);
-  if (byId.size > LINE_LINK_ACTIVE_TOKEN_SCAN_LIMIT) throw new ConvexError(LINE_LINK_ERROR);
-
-  const staffs = await listOrganizationPersonStaffHistory(ctx, args);
-  for (const staff of staffs) {
-    const remaining = LINE_LINK_ACTIVE_TOKEN_SCAN_LIMIT + 1 - byId.size;
-    const staffTokens = await ctx.db
-      .query("lineLinkTokens")
-      .withIndex("by_staffId_and_expiresAt", (q) => q.eq("staffId", staff._id).gte("expiresAt", args.now))
-      .take(remaining);
-    for (const token of staffTokens) byId.set(token._id, token);
-    if (byId.size > LINE_LINK_ACTIVE_TOKEN_SCAN_LIMIT) throw new ConvexError(LINE_LINK_ERROR);
-  }
-  return [...byId.values()];
+  if (tokens.length > LINE_LINK_ACTIVE_TOKEN_SCAN_LIMIT) throw new ConvexError(LINE_LINK_ERROR);
+  return tokens;
 }
 
 type ProviderObservation = {
@@ -554,7 +536,6 @@ export async function revokeOrganizationPersonLineTokens(
   const person = await ctx.db.get(args.organizationPersonId);
   if (!person) throw new ConvexError(LINE_LINK_ERROR);
   const candidates = await collectOrganizationPersonActiveLineTokens(ctx, {
-    organizationId: person.organizationId,
     organizationPersonId: person._id,
     now: args.occurredAt,
   });

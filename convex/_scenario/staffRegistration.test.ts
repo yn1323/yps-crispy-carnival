@@ -10,7 +10,7 @@ import {
   seedStaff,
 } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
-import { seedManagerShop, seedOrganizationPersonLineLink, seedUser } from "../_test/seed";
+import { getTestOrganizationId, seedManagerShop, seedOrganizationPersonLineLink, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("スタッフ参加QRシナリオ", () => {
@@ -47,7 +47,10 @@ describe("スタッフ参加QRシナリオ", () => {
 
     const link = await t
       .withIdentity({ subject: MANAGER_SUBJECT })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
     await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "QR申請スタッフ",
@@ -67,12 +70,19 @@ describe("スタッフ参加QRシナリオ", () => {
 
     const pending = await t
       .withIdentity({ subject: MANAGER_SUBJECT })
-      .query(api.staffRegistration.queries.getPendingRequests, { shopId });
+      .query(api.staffRegistration.queries.getPendingRequests, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
     expect(pending).toMatchObject([{ name: "QR申請スタッフ", email: "qr-staff@example.com" }]);
 
     const { staffId } = await t
       .withIdentity({ subject: MANAGER_SUBJECT })
-      .mutation(api.staffRegistration.mutations.approveRequest, { requestId: pending[0]._id, shopId });
+      .mutation(api.staffRegistration.mutations.approveRequest, {
+        requestId: pending[0]._id,
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
 
     const staffPage = await asManager.getDashboardStaffs();
     expect(staffPage.page.find((staff) => staff._id === staffId)).toMatchObject({
@@ -114,6 +124,7 @@ describe("スタッフ参加QRシナリオ", () => {
     );
     const manager = t.withIdentity({ subject: MANAGER_SUBJECT });
     const original = await manager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
     });
     await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
@@ -124,6 +135,7 @@ describe("スタッフ参加QRシナリオ", () => {
     });
 
     const rotated = await manager.mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
       expectedLinkId: original.linkId,
     });
@@ -148,12 +160,14 @@ describe("スタッフ参加QRシナリオ", () => {
     ).resolves.toEqual({ status: "accepted" });
 
     const pending = await manager.query(api.staffRegistration.queries.getPendingRequests, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
     });
     const beforeRotationRequest = pending.find((request) => request.email === "before-rotation@example.com");
     if (!beforeRotationRequest) throw new Error("pending request created before rotation not found");
     await expect(
       manager.mutation(api.staffRegistration.mutations.approveRequest, {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
         requestId: beforeRotationRequest._id,
       }),
@@ -210,6 +224,7 @@ describe("スタッフ参加QRシナリオ", () => {
         updatedAt: now - 10_000,
       });
       const oldStaffId = await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: manager.shopId,
         organizationId: manager.organizationId,
         organizationPersonId: personId,
@@ -248,6 +263,7 @@ describe("スタッフ参加QRシナリオ", () => {
       });
       const revokedAt = now - 5_000;
       const sessionId = await ctx.db.insert("sessions", {
+        accessKind: "submit",
         sessionToken: "removed-qr-session",
         staffId: oldStaffId,
         shopId: manager.shopId,
@@ -256,6 +272,7 @@ describe("スタッフ参加QRシナリオ", () => {
         revokedAt,
       });
       const magicLinkId = await ctx.db.insert("magicLinks", {
+        accessKind: "submit",
         token: "removed-qr-magic-link",
         staffId: oldStaffId,
         shopId: manager.shopId,
@@ -267,6 +284,9 @@ describe("スタッフ参加QRシナリオ", () => {
         token: "removed-qr-line-link",
         staffId: oldStaffId,
         shopId: manager.shopId,
+        organizationId: manager.organizationId,
+        organizationPersonId: personId,
+        lineLinkGenerationAtIssue: 0,
         expiresAt: now + 86_400_000,
         revokedAt,
       });
@@ -294,6 +314,7 @@ describe("スタッフ参加QRシナリオ", () => {
 
     const manager = t.withIdentity({ subject: MANAGER_SUBJECT });
     const link = await manager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
     });
     await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
@@ -303,7 +324,10 @@ describe("スタッフ参加QRシナリオ", () => {
       acceptedLegal: true,
     });
 
-    const pending = await manager.query(api.staffRegistration.queries.getPendingRequests, { shopId: seeded.shopId });
+    const pending = await manager.query(api.staffRegistration.queries.getPendingRequests, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
+      shopId: seeded.shopId,
+    });
     expect(pending).toMatchObject([
       {
         name: "再登録後の氏名",
@@ -315,6 +339,7 @@ describe("スタッフ参加QRシナリオ", () => {
 
     const { staffId } = await manager.mutation(api.staffRegistration.mutations.approveRequest, {
       requestId: pending[0]._id,
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
     });
     expect(staffId).not.toBe(seeded.oldStaffId);

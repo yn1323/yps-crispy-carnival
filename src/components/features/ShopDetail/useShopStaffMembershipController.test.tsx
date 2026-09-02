@@ -44,10 +44,11 @@ vi.mock("@/src/components/shared/feedback", () => ({
 import {
   buildShopStaffRemovalPreviewKey,
   type ShopStaffMembershipSubmitResult,
-  useShopStaffMembershipController,
+  useShopStaffMembershipController as useRawShopStaffMembershipController,
 } from "./useShopStaffMembershipController";
 
 const shopId = "shop-target" as Id<"shops">;
+const organizationId = "organization-a" as Id<"organizations">;
 const personId = "person-target" as Id<"organizationPeople">;
 const anotherPersonId = "person-another" as Id<"organizationPeople">;
 const staffId = "staff-target" as Id<"staffs">;
@@ -87,6 +88,10 @@ const input: ShopStaffMembershipChangeInput = {
   ],
   requestId: "00000000-0000-4000-8000-000000000001",
 };
+const mutationInput = { ...input, expectedOrganizationId: organizationId };
+const useShopStaffMembershipController = (
+  options: Omit<Parameters<typeof useRawShopStaffMembershipController>[0], "expectedOrganizationId">,
+) => useRawShopStaffMembershipController({ ...options, expectedOrganizationId: organizationId });
 
 beforeEach(() => {
   mocks.useQuery.mockReset();
@@ -120,7 +125,10 @@ describe("店舗詳細の所属スタッフ変更", () => {
 
     rerender({ isOpen: true });
 
-    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.membershipQueryRef, { shopId: "shop-target" });
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.membershipQueryRef, {
+      shopId: "shop-target",
+      expectedOrganizationId: organizationId,
+    });
     expect(mocks.useQuery).toHaveBeenLastCalledWith(mocks.previewQueryRef, "skip");
   });
 
@@ -139,6 +147,7 @@ describe("店舗詳細の所属スタッフ変更", () => {
         shopId: "shop-target",
         personIds: [personId],
         expectedMembershipFingerprint: data.membershipFingerprint,
+        expectedOrganizationId: organizationId,
         now: 1_786_406_400_000,
       }),
     );
@@ -162,6 +171,7 @@ describe("店舗詳細の所属スタッフ変更", () => {
         shopId: "shop-target",
         personIds: [anotherPersonId, personId],
         expectedMembershipFingerprint: data.membershipFingerprint,
+        expectedOrganizationId: organizationId,
         now: 1_786_406_400_000,
       }),
     );
@@ -323,7 +333,7 @@ describe("店舗詳細の所属スタッフ変更", () => {
       secondResult = result.current.submitChange({ ...input, requestId: "second-request" });
     });
 
-    await waitFor(() => expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith(input));
+    await waitFor(() => expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith(mutationInput));
     await expect(secondResult).resolves.toBeUndefined();
     await act(async () => resolveMutation?.());
     await expect(firstResult).resolves.toBe("succeeded");
@@ -352,8 +362,8 @@ describe("店舗詳細の所属スタッフ変更", () => {
     });
 
     expect(mocks.mutation).toHaveBeenCalledTimes(2);
-    expect(mocks.mutation).toHaveBeenNthCalledWith(1, input);
-    expect(mocks.mutation).toHaveBeenNthCalledWith(2, input);
+    expect(mocks.mutation).toHaveBeenNthCalledWith(1, mutationInput);
+    expect(mocks.mutation).toHaveBeenNthCalledWith(2, mutationInput);
     expect(onSucceeded).toHaveBeenCalledOnce();
   });
 
@@ -387,7 +397,7 @@ describe("店舗詳細の所属スタッフ変更", () => {
     act(() => {
       submission = result.current.submitChange(input);
     });
-    await waitFor(() => expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith(input));
+    await waitFor(() => expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith(mutationInput));
     unmount();
     await act(async () => resolveMutation?.());
 
@@ -416,7 +426,7 @@ describe("店舗詳細の所属スタッフ変更", () => {
       await expect(result.current.submitChange(input)).resolves.toBe("rejected");
     });
 
-    expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith(input);
+    expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith(mutationInput);
     expect(result.current.errorMessage).toContain("画面を再読み込みして");
   });
 

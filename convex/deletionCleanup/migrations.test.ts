@@ -1,11 +1,13 @@
+import type { WithoutSystemFields } from "convex/server";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
+import type { Doc } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { createConvexTestWithMigrations } from "../_test/migrations.test-helper";
+import { createMigrationHistoryTestWithMigrations } from "../_test/migrations.test-helper";
 
 describe("deletion cleanup backfill migrations", () => {
   it("m016とm017は決定的なrequest IDで一件だけ作り、削除済み親組織のshopをskipする", async () => {
-    const t = createConvexTestWithMigrations();
+    const t = createMigrationHistoryTestWithMigrations();
     const ids = await t.run(async (ctx) => {
       const activeOrganizationId = await seedOrganization(ctx, "有効組織", false);
       const deletedOrganizationId = await seedOrganization(ctx, "削除済み組織", true);
@@ -106,5 +108,5 @@ async function seedShop(
     regularClosedDays: [],
     submissionPattern: { kind: "dateOnly" },
     isDeleted,
-  });
+  } as unknown as WithoutSystemFields<Doc<"shops">>);
 }

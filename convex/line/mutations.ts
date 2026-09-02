@@ -69,8 +69,6 @@ function appendAnalyticsLineAccountChange(
 
 async function canRedeemLineLinkTokenForShop(ctx: Pick<MutationCtx, "db">, shop: Doc<"shops">) {
   const organizationId = shop.organizationId;
-  if (!organizationId) return true;
-
   const [organization, billingStates] = await Promise.all([
     ctx.db.get(organizationId),
     ctx.db
@@ -81,7 +79,7 @@ async function canRedeemLineLinkTokenForShop(ctx: Pick<MutationCtx, "db">, shop:
   if (!organization || organization.isDeleted || billingStates.length > 1) return false;
 
   const billingState = billingStates[0];
-  if (billingState === undefined) return true;
+  if (billingState === undefined) return false;
 
   const access = await getOrganizationAccessPolicy(ctx, organizationId);
   return access?.accessMode === "normal";
@@ -94,7 +92,6 @@ async function issueLinkToken(ctx: MutationCtx, args: { staffId: Id<"staffs">; s
     throw new ConvexError("LINE連携に必要な情報を発行できませんでした。");
   }
   const activeCandidates = await collectOrganizationPersonActiveLineTokens(ctx, {
-    organizationId: canonicalScope.organization._id,
     organizationPersonId: canonicalScope.person._id,
     now,
   });
@@ -173,16 +170,11 @@ async function resolveCanonicalTokenScope(ctx: MutationCtx, token: Doc<"lineLink
     staffId: token.staffId,
     shopId: token.shopId,
   });
-  const snapshotValues = [token.organizationId, token.organizationPersonId, token.lineLinkGenerationAtIssue];
-  const hasAnySnapshot = snapshotValues.some((value) => value !== undefined);
-  const hasCompleteSnapshot = snapshotValues.every((value) => value !== undefined);
-  if (hasAnySnapshot && !hasCompleteSnapshot) return { status: "invalid" as const };
   if (!canonicalScope) return { status: "invalid" as const };
   if (
-    hasCompleteSnapshot &&
-    (token.organizationId !== canonicalScope.organization._id ||
-      token.organizationPersonId !== canonicalScope.person._id ||
-      token.lineLinkGenerationAtIssue !== (canonicalScope.person.lineLinkGeneration ?? 0))
+    token.organizationId !== canonicalScope.organization._id ||
+    token.organizationPersonId !== canonicalScope.person._id ||
+    token.lineLinkGenerationAtIssue !== (canonicalScope.person.lineLinkGeneration ?? 0)
   ) {
     return { status: "invalid" as const };
   }
@@ -229,13 +221,9 @@ export const validateLinkToken = internalMutation({
       staffId: link.staffId,
       shopId: link.shopId,
       tokenDocId: link._id,
-      ...(canonical.status === "canonical"
-        ? {
-            organizationId: canonical.scope.organization._id,
-            organizationPersonId: canonical.scope.person._id,
-            lineLinkGenerationAtIssue: canonical.scope.person.lineLinkGeneration ?? 0,
-          }
-        : {}),
+      organizationId: canonical.scope.organization._id,
+      organizationPersonId: canonical.scope.person._id,
+      lineLinkGenerationAtIssue: canonical.scope.person.lineLinkGeneration ?? 0,
     };
   },
 });
@@ -958,7 +946,7 @@ export const upsertQuotaStatus = internalMutation({
 export const disconnectOrganizationPersonLine = authenticatedMutation({
   args: {
     shopId: v.id("shops"),
-    expectedOrganizationId: v.optional(v.id("organizations")),
+    expectedOrganizationId: v.id("organizations"),
     organizationPersonId: v.id("organizationPeople"),
     requestId: v.string(),
   },
@@ -969,7 +957,7 @@ export const disconnectOrganizationPersonLine = authenticatedMutation({
       user: ctx.user,
       shopId: args.shopId,
     });
-    if (args.expectedOrganizationId && actor.organization._id !== args.expectedOrganizationId) {
+    if (actor.organization._id !== args.expectedOrganizationId) {
       throw new ConvexError("Not found");
     }
     const person = await ctx.db.get(args.organizationPersonId);

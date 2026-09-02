@@ -15,7 +15,7 @@ export function useUserShopMembershipActions({
   targetShopId: Id<"shops">;
   membership: UserShopDetailMembership;
   isReadOnly: boolean;
-  expectedOrganizationId?: Id<"organizations">;
+  expectedOrganizationId: Id<"organizations">;
 }) {
   const [optimisticShiftExclusion, setOptimisticShiftExclusion] = useState<{
     targetShopId: Id<"shops">;
@@ -103,7 +103,7 @@ export function useUserShopMembershipActions({
           shopId: target.targetShopId,
           staffId: target.staffId,
           excluded,
-          ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+          expectedOrganizationId,
         });
         const current = currentTargetRef.current;
         if (current.targetShopId === target.targetShopId && current.staffId === target.staffId) {

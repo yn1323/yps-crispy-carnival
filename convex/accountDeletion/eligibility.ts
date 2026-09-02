@@ -9,7 +9,6 @@ import {
   prepareAccountDeletionOrganizationDeparture,
 } from "../organization/mutations";
 import { getOrganizationBillingState, getValidActiveOrganizationManagerPersonIds } from "../organization/service";
-import { hasCanonicalStaffIdentity } from "../staff/service";
 
 const ASSOCIATION_SCAN_LIMIT = 100;
 
@@ -102,7 +101,7 @@ async function derivePlanForExistingUser(
   user: Doc<"users">,
   asOfDate: string,
 ): Promise<AccountDeletionPlan> {
-  const [activeMembers, removedMembers, activePeople, activeStaffs, currentShopMemberships] = await Promise.all([
+  const [activeMembers, removedMembers, activePeople, activeStaffs] = await Promise.all([
     ctx.db
       .query("organizationMembers")
       .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", "active"))
@@ -119,15 +118,9 @@ async function derivePlanForExistingUser(
       .query("staffs")
       .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
       .take(ASSOCIATION_SCAN_LIMIT + 1),
-    ctx.db
-      .query("shopMembers")
-      .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false))
-      .take(ASSOCIATION_SCAN_LIMIT + 1),
   ]);
   if (
-    [activeMembers, removedMembers, activePeople, activeStaffs, currentShopMemberships].some(
-      (rows) => rows.length > ASSOCIATION_SCAN_LIMIT,
-    )
+    [activeMembers, removedMembers, activePeople, activeStaffs].some((rows) => rows.length > ASSOCIATION_SCAN_LIMIT)
   ) {
     return { status: "blocked", reason: "inconsistentAssociation" };
   }
@@ -155,9 +148,6 @@ async function derivePlanForExistingUser(
     organizationIds.add(organization._id);
   }
   for (const staff of activeStaffs) {
-    if (!hasCanonicalStaffIdentity(staff)) {
-      return { status: "blocked", reason: "inconsistentAssociation" };
-    }
     const [shop, person] = await Promise.all([ctx.db.get(staff.shopId), ctx.db.get(staff.organizationPersonId)]);
     if (
       !shop ||
@@ -176,18 +166,6 @@ async function derivePlanForExistingUser(
     }
     organizationIds.add(organization._id);
   }
-  for (const membership of currentShopMemberships) {
-    const shop = await ctx.db.get(membership.shopId);
-    if (!shop || shop.isDeleted || !shop.organizationId) {
-      return { status: "blocked", reason: "inconsistentAssociation" };
-    }
-    const organization = await ctx.db.get(shop.organizationId);
-    if (!organization || organization.isDeleted) {
-      return { status: "blocked", reason: "inconsistentAssociation" };
-    }
-    organizationIds.add(organization._id);
-  }
-
   if (organizationIds.size === 0) {
     return {
       status: "ready",

@@ -74,9 +74,7 @@ function normalizeSubmissionInput(
     throw new ConvexError("提出方法がこの募集の設定と一致しません");
   }
 
-  // TODO[narrow]: 全deploymentでm040が完走し、
-  // verifyRecruitments.missingShopClosedDatesが0件になった後にfallbackを削除する。
-  const shopClosedDateSet = new Set(recruitment.shopClosedDates ?? []);
+  const shopClosedDateSet = new Set(recruitment.shopClosedDates);
   const requestedDates = new Set<string>();
 
   if (input.kind === "time") {
@@ -130,18 +128,7 @@ export const submitShiftRequests = staffSessionMutation({
   args: {
     recruitmentId: v.id("recruitments"),
     acceptedLegal: v.optional(v.boolean()),
-    // TODO[narrow]: 新submission形式のfrontendが全deploymentへ反映され、旧clientがdrainした後に削除する。
-    requests: v.optional(
-      v.array(
-        v.object({
-          date: v.string(),
-          startTime: v.string(),
-          endTime: v.string(),
-        }),
-      ),
-    ),
-    // TODO[narrow]: 旧requests callerのdrain確認後にrequired化し、time形式への変換fallbackと同時に削除する。
-    submission: v.optional(shiftSubmissionInputValidator),
+    submission: shiftSubmissionInputValidator,
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -183,9 +170,7 @@ export const submitShiftRequests = staffSessionMutation({
     }
 
     const pattern = recruitment.submissionPattern;
-    // TODO[narrow]: 旧frontendのrequests callerが0になった後はargs.submissionを直接検証する。
-    const rawSubmission = args.submission ?? { kind: "time", requests: args.requests ?? [] };
-    const parsed = submitShiftSelectionSchema.safeParse(rawSubmission);
+    const parsed = submitShiftSelectionSchema.safeParse(args.submission);
     if (!parsed.success) {
       throw new ConvexError("Invalid request data");
     }
@@ -231,9 +216,7 @@ export const submitShiftRequests = staffSessionMutation({
     let submissionId: Id<"shiftSubmissions">;
     if (existingSubmission) {
       await ctx.db.patch(existingSubmission._id, {
-        // TODO[narrow]: 全deploymentでm033が完走し、verifyShiftSubmissionsの全pageが0になった後にfallbackを削除する。
-        // 既存データは firstSubmittedAt がないため、再提出直前の submittedAt を初回扱いにする。
-        firstSubmittedAt: existingSubmission.firstSubmittedAt ?? existingSubmission.submittedAt,
+        firstSubmittedAt: existingSubmission.firstSubmittedAt,
         submittedAt: now,
       });
       submissionId = existingSubmission._id;
@@ -244,21 +227,20 @@ export const submitShiftRequests = staffSessionMutation({
         firstSubmittedAt: now,
         submittedAt: now,
       });
-      if (ctx.shop.organizationId)
-        await recordAnalyticsSourceEvent(ctx, {
-          eventKey: `submissionFirst:${submissionId}`,
-          eventType: "submission.first",
-          occurredAt: now,
-          organizationId: ctx.shop.organizationId,
-          shopId: ctx.shop._id,
-          recruitmentId: args.recruitmentId,
-          subjectId: ctx.staff._id,
-          payload: {
-            kind: "submissionFirst",
-            staffId: ctx.staff._id,
-            firstSubmittedAt: now,
-          },
-        });
+      await recordAnalyticsSourceEvent(ctx, {
+        eventKey: `submissionFirst:${submissionId}`,
+        eventType: "submission.first",
+        occurredAt: now,
+        organizationId: ctx.shop.organizationId,
+        shopId: ctx.shop._id,
+        recruitmentId: args.recruitmentId,
+        subjectId: ctx.staff._id,
+        payload: {
+          kind: "submissionFirst",
+          staffId: ctx.staff._id,
+          firstSubmittedAt: now,
+        },
+      });
     }
 
     await Promise.all([

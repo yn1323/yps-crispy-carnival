@@ -14,9 +14,10 @@ const baseBilling: OrganizationBillingView = {
   hasTrialContinuation: false,
   stripeBillingAvailable: true,
   hasStripeCustomer: true,
-  peopleUsage: { current: 4, max: 25 },
-  shopUsage: { current: 1, max: 5 },
-  managerUsage: { current: 1, max: 5 },
+  requiredReductions: { people: 0, shops: 0, managers: 0 },
+  peopleUsage: { current: 4, max: 25, pendingInvitations: 0 },
+  shopUsage: { current: 1, max: 5, pendingInvitations: 0 },
+  managerUsage: { current: 1, max: 5, pendingInvitations: 0 },
   billingEmail: "billing@example.com",
   canManagePlan: true,
   canUpdatePaymentMethod: true,
@@ -60,13 +61,14 @@ describe("OrganizationSettings BillingSettings", () => {
     expect(formatBillingBoundaryDate(Date.parse("2026-09-01T00:00:00+09:00"))).toBe("2026年9月1日");
   });
 
-  it("serverの削減数がなければ利用数と現在上限から安全側に導出する", () => {
+  it("serverが返した現在プランの削減数を使う", () => {
     expect(
       getRequiredReductions({
         ...baseBilling,
-        peopleUsage: { current: 26, max: 25 },
-        shopUsage: { current: 5, max: 5 },
-        managerUsage: { current: 6, max: 5 },
+        requiredReductions: { people: 1, shops: 0, managers: 1 },
+        peopleUsage: { current: 26, max: 25, pendingInvitations: 0 },
+        shopUsage: { current: 5, max: 5, pendingInvitations: 0 },
+        managerUsage: { current: 6, max: 5, pendingInvitations: 0 },
       }),
     ).toEqual({ people: 1, shops: 0, managers: 1 });
   });
@@ -78,7 +80,7 @@ describe("OrganizationSettings BillingSettings", () => {
           ...baseBilling,
           state: "pro",
           currentPlan: "pro",
-          peopleUsage: { current: 26, max: 50 },
+          peopleUsage: { current: 26, max: 50, pendingInvitations: 0 },
           requiredReductions: { people: 0, shops: 0, managers: 0 },
         },
         "standard",

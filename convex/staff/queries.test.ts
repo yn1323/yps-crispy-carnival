@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { seedNotificationHistory } from "../_test/notificationHistory";
-import { seedOrganizationManagerShop } from "../_test/seed";
+import { getTestOrganizationId, seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { NOTIFICATION_RESEND_COOLDOWN_MS, ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT } from "../constants";
 import {
@@ -48,6 +48,7 @@ async function insertCanonicalStaff(
   },
 ) {
   return await ctx.db.insert("staffs", {
+    excludedFromShift: false,
     organizationId: args.organizationId,
     organizationPersonId: args.personId,
     shopId: args.shopId,
@@ -134,6 +135,7 @@ describe("staff/queries", () => {
         t
           .withIdentity({ subject: "notification_cooldown_manager" })
           .query(api.staff.queries.getNotificationResendCooldowns, {
+            expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
             shopId: ids.shopId,
             staffId: ids.currentStaffId,
           }),
@@ -192,10 +194,15 @@ describe("staff/queries", () => {
       const query = (staffId: Id<"staffs">) =>
         t
           .withIdentity({ subject: "notification_cooldown_scope_manager" })
-          .query(api.staff.queries.getNotificationResendCooldowns, { shopId: ids.shopId, staffId });
+          .query(api.staff.queries.getNotificationResendCooldowns, {
+            expectedOrganizationId: ids.organizationId,
+            shopId: ids.shopId,
+            staffId,
+          });
 
       await expect(
         t.query(api.staff.queries.getNotificationResendCooldowns, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
           shopId: ids.shopId,
           staffId: ids.activeStaffId,
         }),
@@ -212,7 +219,12 @@ describe("staff/queries", () => {
         async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "candidate_manager" }),
       );
 
-      await expect(t.query(api.staff.queries.listOrganizationPeopleAvailableForShop, { shopId })).resolves.toEqual([]);
+      await expect(
+        t.query(api.staff.queries.listOrganizationPeopleAvailableForShop, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+        }),
+      ).resolves.toEqual([]);
     });
 
     it("同じ組織の有効人物から対象店舗に未所属の人物だけを返す", async () => {
@@ -242,6 +254,7 @@ describe("staff/queries", () => {
           updatedAt: now,
         });
         await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: otherShopId,
           organizationId: base.organizationId,
           organizationPersonId: otherShopPersonId,
@@ -258,6 +271,7 @@ describe("staff/queries", () => {
           isDeleted: true,
         });
         await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: deletedShopId,
           organizationId: base.organizationId,
           organizationPersonId: otherShopPersonId,
@@ -276,6 +290,7 @@ describe("staff/queries", () => {
           updatedAt: now,
         });
         await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: base.shopId,
           organizationId: base.organizationId,
           organizationPersonId: currentPersonId,
@@ -325,7 +340,10 @@ describe("staff/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "candidate_manager" })
-        .query(api.staff.queries.listOrganizationPeopleAvailableForShop, { shopId: seeded.shopId });
+        .query(api.staff.queries.listOrganizationPeopleAvailableForShop, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
+          shopId: seeded.shopId,
+        });
 
       expect(result).toEqual([
         {
@@ -383,7 +401,10 @@ describe("staff/queries", () => {
       await expect(
         t
           .withIdentity({ subject: "candidate_shop_feature_closed_manager" })
-          .query(api.staff.queries.listOrganizationPeopleAvailableForShop, { shopId: ids.shopId }),
+          .query(api.staff.queries.listOrganizationPeopleAvailableForShop, {
+            expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+            shopId: ids.shopId,
+          }),
       ).resolves.toEqual([
         {
           personId: ids.personId,
@@ -433,7 +454,10 @@ describe("staff/queries", () => {
       await expect(
         t
           .withIdentity({ subject: "removed_candidate_manager" })
-          .query(api.staff.queries.listOrganizationPeopleAvailableForShop, { shopId: seeded.shopId }),
+          .query(api.staff.queries.listOrganizationPeopleAvailableForShop, {
+            expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
+            shopId: seeded.shopId,
+          }),
       ).resolves.toEqual([]);
     });
 
@@ -460,7 +484,10 @@ describe("staff/queries", () => {
       await expect(
         t
           .withIdentity({ subject: "invalid_candidate_manager" })
-          .query(api.staff.queries.listOrganizationPeopleAvailableForShop, { shopId: seeded.shopId }),
+          .query(api.staff.queries.listOrganizationPeopleAvailableForShop, {
+            expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
+            shopId: seeded.shopId,
+          }),
       ).resolves.toBeNull();
     });
 
@@ -490,7 +517,10 @@ describe("staff/queries", () => {
       await expect(
         t
           .withIdentity({ subject: "many_candidate_manager" })
-          .query(api.staff.queries.listOrganizationPeopleAvailableForShop, { shopId: seeded.shopId }),
+          .query(api.staff.queries.listOrganizationPeopleAvailableForShop, {
+            expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
+            shopId: seeded.shopId,
+          }),
       ).resolves.toBeNull();
     });
   });
@@ -578,7 +608,10 @@ describe("staff/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "shop_staff_membership_manager" })
-        .query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: seeded.shopId });
+        .query(api.staff.queries.getOrganizationShopStaffMembershipChange, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
+          shopId: seeded.shopId,
+        });
 
       expect(result).toEqual({
         membershipFingerprint: expect.stringMatching(/^[0-9a-f]{64}$/),
@@ -678,7 +711,10 @@ describe("staff/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "shop_staff_email_conflict_manager" })
-        .query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: seeded.shopId });
+        .query(api.staff.queries.getOrganizationShopStaffMembershipChange, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
+          shopId: seeded.shopId,
+        });
 
       expect(result?.people.find((person) => person.personId === seeded.candidatePersonId)).toMatchObject({
         isSelected: false,
@@ -702,12 +738,18 @@ describe("staff/queries", () => {
       });
 
       await expect(
-        t.query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: seeded.shopId }),
+        t.query(api.staff.queries.getOrganizationShopStaffMembershipChange, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
+          shopId: seeded.shopId,
+        }),
       ).resolves.toBeNull();
       await expect(
         t
           .withIdentity({ subject: "snapshot_scope_manager" })
-          .query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: seeded.foreignShopId }),
+          .query(api.staff.queries.getOrganizationShopStaffMembershipChange, {
+            expectedOrganizationId: await getTestOrganizationId(t, seeded.foreignShopId),
+            shopId: seeded.foreignShopId,
+          }),
       ).resolves.toBeNull();
     });
 
@@ -724,40 +766,12 @@ describe("staff/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "snapshot_removed_manager" })
-        .query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: seeded.shopId });
+        .query(api.staff.queries.getOrganizationShopStaffMembershipChange, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
+          shopId: seeded.shopId,
+        });
 
       expect(result).toBeNull();
-    });
-
-    it("両canonical ID未設定staffがある場合は所属snapshotと解除previewを返さない", async () => {
-      const t = convexTest(schema, modules);
-      const seeded = await t.run(async (ctx) => {
-        const base = await seedOrganizationManagerShop(ctx, {
-          subject: "snapshot_missing_canonical_staff_manager",
-          plan: "pro",
-        });
-        await ctx.db.insert("staffs", {
-          shopId: base.shopId,
-          name: "canonical ID未設定staff",
-          email: "missing-canonical@example.com",
-          emailNormalized: "missing-canonical@example.com",
-          isDeleted: false,
-        });
-        return base;
-      });
-      const actor = t.withIdentity({ subject: "snapshot_missing_canonical_staff_manager" });
-
-      await expect(
-        actor.query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: seeded.shopId }),
-      ).resolves.toBeNull();
-      await expect(
-        actor.query(api.staff.queries.previewOrganizationShopStaffMembershipRemovals, {
-          shopId: seeded.shopId,
-          personIds: [seeded.personId],
-          expectedMembershipFingerprint: "a".repeat(64),
-          now: 0,
-        }),
-      ).resolves.toBeNull();
     });
 
     it("別組織人物・削除人物・canonical重複では部分snapshotを返さない", async () => {
@@ -786,7 +800,10 @@ describe("staff/queries", () => {
       });
       const actor = t.withIdentity({ subject: "snapshot_corrupt_manager" });
       const query = async () =>
-        await actor.query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: seeded.shopId });
+        await actor.query(api.staff.queries.getOrganizationShopStaffMembershipChange, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
+          shopId: seeded.shopId,
+        });
 
       const foreignId = await t.run(
         async (ctx) =>
@@ -796,6 +813,8 @@ describe("staff/queries", () => {
             shopId: seeded.shopId,
             name: "別組織人物",
             email: "foreign-person@example.com",
+            emailNormalized: "foreign-person@example.com",
+            excludedFromShift: false,
             isDeleted: false,
           }),
       );
@@ -810,6 +829,8 @@ describe("staff/queries", () => {
             shopId: seeded.shopId,
             name: "削除済み人物staff",
             email: "snapshot-removed@example.com",
+            emailNormalized: "snapshot-removed@example.com",
+            excludedFromShift: false,
             isDeleted: false,
           }),
       );
@@ -870,6 +891,7 @@ describe("staff/queries", () => {
           email: "remove-b@example.com",
         });
         const positionId = await ctx.db.insert("positions", {
+          isDefault: false,
           shopId: base.shopId,
           name: "通常",
           color: "#000000",
@@ -905,11 +927,13 @@ describe("staff/queries", () => {
       });
       const actor = t.withIdentity({ subject: "removal_preview_manager" });
       const snapshot = await actor.query(api.staff.queries.getOrganizationShopStaffMembershipChange, {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
       });
       if (!snapshot) throw new Error("snapshot not found");
 
       const preview = await actor.query(api.staff.queries.previewOrganizationShopStaffMembershipRemovals, {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
         personIds: [seeded.secondPersonId, seeded.firstPersonId],
         expectedMembershipFingerprint: snapshot.membershipFingerprint,
@@ -962,12 +986,14 @@ describe("staff/queries", () => {
       });
       const actor = t.withIdentity({ subject: "removal_preview_stale_manager" });
       const snapshot = await actor.query(api.staff.queries.getOrganizationShopStaffMembershipChange, {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
       });
       if (!snapshot) throw new Error("snapshot not found");
 
       await expect(
         actor.query(api.staff.queries.previewOrganizationShopStaffMembershipRemovals, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
           shopId: seeded.shopId,
           personIds: [seeded.targetPersonId, seeded.targetPersonId],
           expectedMembershipFingerprint: snapshot.membershipFingerprint,
@@ -978,6 +1004,7 @@ describe("staff/queries", () => {
       await t.run(async (ctx) => await ctx.db.patch(seeded.targetPersonId, { name: "更新後" }));
       await expect(
         actor.query(api.staff.queries.previewOrganizationShopStaffMembershipRemovals, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
           shopId: seeded.shopId,
           personIds: [seeded.targetPersonId],
           expectedMembershipFingerprint: snapshot.membershipFingerprint,
@@ -1014,6 +1041,7 @@ describe("staff/queries", () => {
           );
         }
         const positionId = await ctx.db.insert("positions", {
+          isDefault: false,
           shopId: base.shopId,
           name: "通常",
           color: "#000000",
@@ -1045,11 +1073,13 @@ describe("staff/queries", () => {
       });
       const actor = t.withIdentity({ subject: "removal_preview_limit_manager" });
       const snapshot = await actor.query(api.staff.queries.getOrganizationShopStaffMembershipChange, {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
       });
       if (!snapshot) throw new Error("snapshot not found");
 
       const preview = await actor.query(api.staff.queries.previewOrganizationShopStaffMembershipRemovals, {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
         personIds: seeded.personIds,
         expectedMembershipFingerprint: snapshot.membershipFingerprint,

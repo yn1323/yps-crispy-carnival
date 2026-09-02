@@ -7,11 +7,7 @@ import { observedInternalMutation as internalMutation } from "../_lib/errorObser
 import { authenticatedMutation } from "../_lib/functions";
 import { normalizeEmail } from "../_lib/validation";
 import { type AnalyticsSourceEventPayload, analyticsPlanForBillingState } from "../analytics/sourceEvents";
-import {
-  type OrganizationReadActor,
-  requireOrganizationActorForShop,
-  requireOrganizationReadActor,
-} from "../organization/access";
+import { type OrganizationReadActor, requireOrganizationReadActor } from "../organization/access";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import {
   type CanonicalOrganizationBillingStateDocument,
@@ -1003,18 +999,6 @@ async function updateBillingEmailForActor(
   });
   return { changed: true };
 }
-
-export const updateBillingEmail = authenticatedMutation({
-  args: { shopId: v.id("shops"), email: v.string(), requestId: v.string() },
-  returns: v.object({ changed: v.boolean() }),
-  handler: async (ctx, args) => {
-    const actor = await requireOrganizationActorForShop(ctx, {
-      user: ctx.user,
-      shopId: args.shopId,
-    });
-    return await updateBillingEmailForActor(ctx, args, actor);
-  },
-});
 
 export const updateBillingEmailForOrganization = authenticatedMutation({
   args: { organizationId: v.id("organizations"), email: v.string(), requestId: v.string() },

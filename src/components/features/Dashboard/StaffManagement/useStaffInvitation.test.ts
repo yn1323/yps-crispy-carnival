@@ -84,22 +84,6 @@ describe("useStaffInvitation", () => {
     expect(mocks.showErrorToast).not.toHaveBeenCalled();
   });
 
-  it("旧backendの未確定responseを成功扱いせず、再読み込みを案内する", async () => {
-    mocks.addStaffs.mockResolvedValueOnce({ status: "legacy-unconfirmed", candidates: [] });
-    const { result } = renderHook(() => useStaffInvitation());
-
-    act(() => result.current.onOpen());
-    await act(async () => {
-      await result.current.onAddStaffs({ entries: [{ name: "入力名", email: "hanako@example.com" }] });
-    });
-
-    expect(result.current.dialog.isOpen).toBe(true);
-    expect(mocks.showSuccessToast).not.toHaveBeenCalled();
-    expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(
-      new Error("スタッフ追加の処理が更新されました。画面を再読み込みして、もう一度お試しください。"),
-    );
-  });
-
   it("閲覧専用へ切り替わると招待Dialogを閉じ、以後の追加処理を開始しない", async () => {
     const { result, rerender } = renderHook(({ isReadOnly }) => useStaffInvitation(isReadOnly), {
       initialProps: { isReadOnly: false },

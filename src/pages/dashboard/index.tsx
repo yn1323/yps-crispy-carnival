@@ -25,11 +25,18 @@ import {
 type Props = {
   organizationId: Id<"organizations">;
   organizationName: string;
+  organizationPlan: "trial" | "free" | "standard" | "pro";
   shops: DashboardShopOption[] | null;
   requestedShopId?: string;
 };
 
-export function DashboardRoutePage({ organizationId, organizationName, shops, requestedShopId }: Props) {
+export function DashboardRoutePage({
+  organizationId,
+  organizationName,
+  organizationPlan,
+  shops,
+  requestedShopId,
+}: Props) {
   const navigate = useNavigate();
   const storage = resolveBrowserLocalStorage();
   const preferredShopId = readDashboardShopPreference(storage, organizationId);
@@ -75,6 +82,7 @@ export function DashboardRoutePage({ organizationId, organizationName, shops, re
                 <ConnectedDashboard
                   organizationId={organizationId}
                   organizationName={organizationName}
+                  organizationPlan={organizationPlan}
                   shops={shops ?? []}
                   selectedShopId={resolution.shop.id}
                 />
@@ -90,11 +98,13 @@ export function DashboardRoutePage({ organizationId, organizationName, shops, re
 function ConnectedDashboard({
   organizationId,
   organizationName,
+  organizationPlan,
   shops,
   selectedShopId,
 }: {
   organizationId: Id<"organizations">;
   organizationName: string;
+  organizationPlan: "trial" | "free" | "standard" | "pro";
   shops: DashboardShopOption[];
   selectedShopId: string;
 }) {
@@ -107,8 +117,9 @@ function ConnectedDashboard({
       buildDashboardShopContexts(shops, {
         id: organizationId,
         name: organizationName,
+        plan: organizationPlan,
       }),
-    [shops, organizationId, organizationName],
+    [shops, organizationId, organizationName, organizationPlan],
   );
   const selectedShop = shopContexts.find((candidate) => candidate.shopId === selectedShopId);
   const navigation = useMemo<DashboardNavigation>(
@@ -145,15 +156,14 @@ function ConnectedDashboard({
   }
 
   const isReadOnly = !shop.canWriteBusinessData;
-  const canStartPaidPlan = shop.planStatus?.canManagePlan ?? true;
   return (
     <Stack gap={5}>
       {shop.paymentFailure && (
         <OrganizationPaymentFailureAlert
-          canStartPaidPlan={canStartPaidPlan}
+          canStartPaidPlan={shop.paymentFailure.canStartPaidPlan}
           terminationPending={shop.paymentFailure.terminationPending}
           startPaidPlanDisabledReason={
-            canStartPaidPlan
+            shop.paymentFailure.canStartPaidPlan
               ? undefined
               : "現在は有料プランを契約できません。「プランと支払い」で契約状態を確認してください。"
           }

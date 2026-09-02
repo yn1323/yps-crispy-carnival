@@ -204,7 +204,7 @@ describe("notificationOutbox/history", () => {
   });
 
   it("履歴のない既存Outboxの状態更新は従来どおり成功する", async () => {
-    const { t, shopId, staffId } = await setupStaff();
+    const { t, organizationId, shopId, staffId } = await setupStaff();
     const outboxId = await t.run(async (ctx) => {
       const now = Date.now();
       return await ctx.db.insert("notificationOutbox", {
@@ -212,7 +212,11 @@ describe("notificationOutbox/history", () => {
         status: "processing",
         dedupeKey: "email:test:predeploy",
         shopId,
+        organizationId,
         staffId,
+        purpose: "business",
+        notificationContext: "test.email",
+        deliverySuppressed: false,
         payload: emailPayload("staff@example.com"),
         attemptCount: 1,
         nextRunAt: now,
@@ -231,7 +235,7 @@ describe("notificationOutbox/history", () => {
 async function setupStaff() {
   const t = convexTest(schema, modules);
   const ids = await t.run(async (ctx) => {
-    const { shopId, userId } = await seedManagerShop(ctx, {
+    const { organizationId, shopId, userId } = await seedManagerShop(ctx, {
       subject: "history_manager",
       email: "manager@example.com",
       shopName: "通知履歴店舗",
@@ -242,7 +246,7 @@ async function setupStaff() {
       email: "staff@example.com",
       isDeleted: false,
     });
-    return { shopId, staffId, userId };
+    return { organizationId, shopId, staffId, userId };
   });
   return { t, ...ids };
 }

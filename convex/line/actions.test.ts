@@ -21,9 +21,16 @@ async function seedRedeemableToken(t: TestConvex<typeof schema>, token: string) 
       name: "LINE連携スタッフ",
       email: "line-staff@example.com",
     });
+    const staff = await ctx.db.get(staffId);
+    if (!staff) throw new Error("canonical staff fixture was not created");
+    const person = await ctx.db.get(staff.organizationPersonId);
+    if (!person) throw new Error("canonical person fixture was not created");
     const tokenDocId = await ctx.db.insert("lineLinkTokens", {
       staffId,
       shopId,
+      organizationId: staff.organizationId,
+      organizationPersonId: person._id,
+      lineLinkGenerationAtIssue: person.lineLinkGeneration ?? 0,
       token,
       expiresAt: Date.now() + 72 * 60 * 60 * 1000,
     });
@@ -57,6 +64,7 @@ async function seedOrganizationRedeemableToken(t: TestConvex<typeof schema>, tok
       name: "LINE連携スタッフ",
       email,
       emailNormalized: email,
+      excludedFromShift: false,
       isDeleted: false,
     });
     const tokenDocId = await ctx.db.insert("lineLinkTokens", {
@@ -103,6 +111,7 @@ async function blockOrganizationBusinessWritesByUsage(
           name: `利用状態変更${String(index)}`,
           email,
           emailNormalized: email,
+          excludedFromShift: false,
           isDeleted: false,
         });
       }
@@ -401,6 +410,8 @@ describe("line/actions", () => {
         organizationPersonId,
         name: "連携済みスタッフ",
         email: "old-shape-staff@example.com",
+        emailNormalized: "old-shape-staff@example.com",
+        excludedFromShift: false,
         isDeleted: false,
       });
       await seedOrganizationPersonLineLink(ctx, {
@@ -447,6 +458,8 @@ describe("line/actions", () => {
         organizationPersonId,
         name: "旧予約解除スタッフ",
         email: "old-shape-after-disconnect-staff@example.com",
+        emailNormalized: "old-shape-after-disconnect-staff@example.com",
+        excludedFromShift: false,
         isDeleted: false,
       });
       const linked = await seedOrganizationPersonLineLink(ctx, {
@@ -496,6 +509,8 @@ describe("line/actions", () => {
         organizationPersonId,
         name: "明示再連携スタッフ",
         email: `explicit-relink-staff-${following}@example.com`,
+        emailNormalized: `explicit-relink-staff-${following}@example.com`,
+        excludedFromShift: false,
         isDeleted: false,
       });
       const linked = await seedOrganizationPersonLineLink(ctx, {
@@ -551,6 +566,8 @@ describe("line/actions", () => {
         organizationPersonId,
         name: "世代競合スタッフ",
         email: "stale-relink-staff@example.com",
+        emailNormalized: "stale-relink-staff@example.com",
+        excludedFromShift: false,
         isDeleted: false,
       });
       const linked = await seedOrganizationPersonLineLink(ctx, {

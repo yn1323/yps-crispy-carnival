@@ -16,7 +16,7 @@ import { useRetainedShiftBoardData } from "./useRetainedShiftBoardData";
 import { useShiftBoardDayKey } from "./useShiftBoardDayKey";
 
 type Props = {
-  organizationId?: string;
+  organizationId: string;
   recruitmentId: string;
 };
 
@@ -24,21 +24,17 @@ export function AppShiftBoardRoutePage({ organizationId, recruitmentId }: Props)
   return (
     <Flex direction="column" h={AUTHENTICATED_APP_CONTENT_HEIGHT} minH={0}>
       <Box flex={1} minH={0}>
-        {!organizationId ? (
-          <ShiftoriLoading variant="section" message="組織を確認しています" minH="full" />
-        ) : (
-          <ErrorBoundary
-            fallback={
-              <ShiftBoardUnavailable
-                title="シフト表を読み込めませんでした"
-                description="通信状態を確認して、もう一度お試しください。"
-                retry
-              />
-            }
-          >
-            <AppShiftBoardQuery organizationId={organizationId} recruitmentId={recruitmentId} />
-          </ErrorBoundary>
-        )}
+        <ErrorBoundary
+          fallback={
+            <ShiftBoardUnavailable
+              title="シフト表を読み込めませんでした"
+              description="通信状態を確認して、もう一度お試しください。"
+              retry
+            />
+          }
+        >
+          <AppShiftBoardQuery organizationId={organizationId} recruitmentId={recruitmentId} />
+        </ErrorBoundary>
       </Box>
     </Flex>
   );

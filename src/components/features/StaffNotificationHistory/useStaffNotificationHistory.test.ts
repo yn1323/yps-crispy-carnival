@@ -24,6 +24,7 @@ import { useStaffNotificationHistory } from "./useStaffNotificationHistory";
 
 const shopId = "shop-target" as Id<"shops">;
 const staffId = "staff-1" as Id<"staffs">;
+const organizationId = "organization-a" as Id<"organizations">;
 
 beforeEach(() => {
   mocks.loadMore.mockReset();
@@ -42,11 +43,11 @@ describe("useStaffNotificationHistory", () => {
       status: "CanLoadMore",
       loadMore: mocks.loadMore,
     });
-    const { result } = renderHook(() => useStaffNotificationHistory(shopId, staffId, true));
+    const { result } = renderHook(() => useStaffNotificationHistory(shopId, staffId, true, organizationId));
 
     expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(
       mocks.historyRef,
-      { shopId: "shop-target", staffId: "staff-1" },
+      { shopId: "shop-target", staffId: "staff-1", expectedOrganizationId: organizationId },
       { initialNumItems: 4 },
     );
     expect(result.current.items).toHaveLength(3);
@@ -64,7 +65,7 @@ describe("useStaffNotificationHistory", () => {
       loadMore: mocks.loadMore,
     });
 
-    const { result } = renderHook(() => useStaffNotificationHistory(shopId, staffId, true));
+    const { result } = renderHook(() => useStaffNotificationHistory(shopId, staffId, true, organizationId));
 
     expect(result.current.items).toHaveLength(3);
     expect(result.current.canLoadMore).toBe(false);
@@ -77,7 +78,7 @@ describe("useStaffNotificationHistory", () => {
       loadMore: mocks.loadMore,
     });
 
-    const { result } = renderHook(() => useStaffNotificationHistory(shopId, staffId, true));
+    const { result } = renderHook(() => useStaffNotificationHistory(shopId, staffId, true, organizationId));
 
     expect(result.current.items).toHaveLength(3);
     expect(result.current.canLoadMore).toBe(true);
@@ -90,7 +91,7 @@ describe("useStaffNotificationHistory", () => {
   });
 
   it("無効時はtargetShopIdを含むqueryを送らずskipする", () => {
-    const { result } = renderHook(() => useStaffNotificationHistory(shopId, staffId, false));
+    const { result } = renderHook(() => useStaffNotificationHistory(shopId, staffId, false, organizationId));
 
     expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(mocks.historyRef, "skip", { initialNumItems: 4 });
     expect(result.current.items).toEqual([]);

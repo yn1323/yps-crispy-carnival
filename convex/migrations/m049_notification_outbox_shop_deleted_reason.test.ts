@@ -1,5 +1,7 @@
+import type { WithoutSystemFields } from "convex/server";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
+import type { Doc } from "../_generated/dataModel";
 import { createMigrationHistoryTestWithMigrations, runMigrationToCompletion } from "../_test/migrations.test-helper";
 
 const migration = internal.migrations.m049_notification_outbox_shop_deleted_reason.migration;
@@ -30,7 +32,7 @@ describe("m049 notification outbox shop deletion reason", () => {
           ...(cancelReason ? { cancelReason } : {}),
           createdAt: now,
           updatedAt: now,
-        });
+        } as unknown as WithoutSystemFields<Doc<"notificationOutbox">>);
       return {
         legacyId: await insertOutbox("m049:legacy", "shop_inactive"),
         canonicalId: await insertOutbox("m049:canonical", "shop_deleted"),

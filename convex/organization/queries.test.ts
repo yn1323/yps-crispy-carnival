@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import {
-  seedLegacyManagerShop,
+  getTestOrganizationId,
   seedOrganizationManagerShop,
   seedOrganizationMembership,
   seedOrganizationPersonLineLink,
@@ -47,6 +47,7 @@ describe("organization/queries.getSettings", () => {
         for (const shopId of args.shopIds) {
           staffIds.push(
             await ctx.db.insert("staffs", {
+              excludedFromShift: false,
               organizationId: base.organizationId,
               organizationPersonId: personId,
               shopId,
@@ -110,7 +111,10 @@ describe("organization/queries.getSettings", () => {
     });
     const actor = t.withIdentity({ subject });
 
-    const ordered = await actor.query(api.organization.queries.getSettings, { shopId: ids.base.shopId });
+    const ordered = await actor.query(api.organization.queries.getSettings, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.base.shopId),
+      shopId: ids.base.shopId,
+    });
     if (!ordered) throw new Error("settings not found");
     expect(ordered.people.map((person) => person.id)).toEqual(ids.orderedPersonIds);
     expect(
@@ -130,7 +134,10 @@ describe("organization/queries.getSettings", () => {
       await ctx.db.delete(entry._id);
     });
 
-    const legacy = await actor.query(api.organization.queries.getSettings, { shopId: ids.base.shopId });
+    const legacy = await actor.query(api.organization.queries.getSettings, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.base.shopId),
+      shopId: ids.base.shopId,
+    });
     if (!legacy) throw new Error("settings not found");
     expect(legacy.people.map((person) => person.id)).toEqual([
       ids.base.personId,
@@ -138,32 +145,6 @@ describe("organization/queries.getSettings", () => {
       ids.ibuki.personId,
       ids.umi.personId,
     ]);
-  });
-
-  it("両canonical ID未設定staffは人物へ投影せず、店舗のnondeleted staff件数には含める", async () => {
-    const t = convexTest(schema, modules);
-    const subject = "settings_missing_canonical_staff";
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject, complimentary: true });
-      await ctx.db.insert("staffs", {
-        shopId: base.shopId,
-        name: "移行中スタッフ",
-        email: "missing-canonical@example.com",
-        emailNormalized: "missing-canonical@example.com",
-        isDeleted: false,
-      });
-      return base;
-    });
-
-    const result = await t.withIdentity({ subject }).query(api.organization.queries.getSettings, {
-      shopId: ids.shopId,
-    });
-    if (!result) throw new Error("settings not found");
-
-    expect(result.people.map(({ id, name, isStaff, shopIds }) => ({ id, name, isStaff, shopIds }))).toEqual([
-      { id: ids.personId, name: "管理者", isStaff: false, shopIds: [] },
-    ]);
-    expect(result.shops.find((shop) => shop.id === ids.shopId)).toMatchObject({ staffCount: 1 });
   });
 
   afterEach(() => {
@@ -189,7 +170,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_trial_date" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.billing.state).toBe("trial");
     if (!result || !("nextEvent" in result.billing)) throw new Error("trial billing view not found");
@@ -232,7 +216,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_trial_continuation" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.billing).toMatchObject({
       state: "trial",
@@ -256,7 +243,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_customer_missing" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.billing).toMatchObject({
       state: "standard",
@@ -286,7 +276,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_customer_livemode_mismatch" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.billing).toMatchObject({
       state: "standard",
@@ -337,7 +330,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_actor" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result).not.toBeNull();
     expect(Object.keys(result ?? {}).sort()).toEqual([
@@ -504,7 +500,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_free_over_limit" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.billing).toMatchObject({
       state: "free",
@@ -563,7 +562,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_usage_unknown" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.billing).toMatchObject({
       state: "pro",
@@ -598,6 +600,7 @@ describe("organization/queries.getSettings", () => {
         plan: "standard",
       });
       await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: base.shopId,
         organizationId: base.organizationId,
         organizationPersonId: base.personId,
@@ -612,7 +615,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_local_manager_recipient" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.shops[0]?.managerNotificationRecipientStatus).toBe("available");
   });
@@ -639,6 +645,7 @@ describe("organization/queries.getSettings", () => {
       const [localPerson] = people;
       if (people.length !== 1 || !localPerson) throw new Error("overflow manager person not found");
       await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: base.shopId,
         organizationId: base.organizationId,
         organizationPersonId: localPerson._id,
@@ -653,7 +660,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_manager_recipient_overflow" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.shops[0]?.managerNotificationRecipientStatus).toBe("unknown");
   });
@@ -679,7 +689,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_stripe_off_trial" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.billing).toMatchObject({
       state: "trial",
@@ -718,7 +731,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_stripe_off_existing_customer" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.billing).toMatchObject({
       state: "standard",
@@ -760,30 +776,16 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_shop_usage" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.billing.shopUsage).toEqual({ current: 5, max: 5, pendingInvitations: 0 });
     expect(result?.shops).toHaveLength(5);
     expect(result?.shops.find((shop) => shop.id === ids.includedShopId)?.canUpdateSettings).toBe(true);
     expect(result?.shops.find((shop) => shop.id === ids.deletedShopId)).toBeUndefined();
     expect(result?.canAddShop).toBe(false);
-  });
-
-  it("組織移行前のDTOでは所属店舗IDを空配列で返す", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await t.run(
-      async (ctx) => await seedLegacyManagerShop(ctx, { subject: "settings_legacy_shop_ids", shopName: "移行前店舗" }),
-    );
-
-    const result = await t
-      .withIdentity({ subject: "settings_legacy_shop_ids" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
-
-    expect(result?.billing.state).toBe("migrationPending");
-    expect(result?.people).toEqual([expect.objectContaining({ id: ids.userId, shopIds: [] })]);
-    // 組織作成は選択中組織の移行状態に依存しない。移行前の店舗も上限へ1件として数える。
-    expect(result?.canCreateOrganization).toBe(true);
-    expect(result?.createOrganizationDisabledReason).toBeUndefined();
   });
 
   it("上限まで作成済みの利用者には組織作成不可と理由を返す", async () => {
@@ -793,6 +795,8 @@ describe("organization/queries.getSettings", () => {
       const now = Date.now();
       for (const name of ["二つ目", "三つ目"]) {
         await ctx.db.insert("organizations", {
+          billingEmail: "billing@example.com",
+          billingEmailNormalized: "billing@example.com",
           createdByUserId: base.userId,
           name,
           isDeleted: false,
@@ -805,7 +809,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_create_limit" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.canCreateOrganization).toBe(false);
     expect(result?.createOrganizationDisabledReason).toBe("作成できる組織は3つまでです");
@@ -824,7 +831,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_create_over_limit" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.canAddShop).toBe(false);
     expect(result?.canCreateOrganization).toBe(true);
@@ -838,7 +848,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_deletable" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result).toMatchObject({
       organizationId: ids.organizationId,
@@ -867,6 +880,7 @@ describe("organization/queries.getSettings", () => {
         updatedAt: now,
       });
       await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: base.shopId,
         organizationId: base.organizationId,
         organizationPersonId: unassignedPersonId,
@@ -889,7 +903,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_unassigned_staff" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.billing.peopleUsage).toEqual({ current: 2, max: 50, pendingInvitations: 0 });
     expect(
@@ -940,6 +957,7 @@ describe("organization/queries.getSettings", () => {
       });
       const insertStaff = async (shopId: Id<"shops">, isDeleted: boolean) =>
         await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId,
           organizationId: base.organizationId,
           organizationPersonId: staffPersonId,
@@ -957,7 +975,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_duplicate_shop_names" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     const person = result?.people.find((candidate) => candidate.id === ids.staffPersonId);
     expect(person?.shopNames).toEqual(["同名店舗"]);
@@ -984,6 +1005,7 @@ describe("organization/queries.getSettings", () => {
         updatedAt: now,
       });
       await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: base.shopId,
         organizationId: base.organizationId,
         organizationPersonId: personId,
@@ -1002,7 +1024,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_line_connected" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     const person = result?.people.find((candidate) => candidate.id === ids.personId);
     expect(person).toMatchObject({ isStaff: true, isLineConnected: true, lineStatus: "linked_following" });
@@ -1011,7 +1036,10 @@ describe("organization/queries.getSettings", () => {
     await t.run(async (ctx) => await ctx.db.patch(ids.lineProviderUserId, { following: false }));
     const unfollowedResult = await t
       .withIdentity({ subject: "settings_line_connected" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
     expect(unfollowedResult?.people.find((candidate) => candidate.id === ids.personId)).toMatchObject({
       isLineConnected: true,
       lineStatus: "linked_unfollowed",
@@ -1036,6 +1064,7 @@ describe("organization/queries.getSettings", () => {
         updatedAt: now,
       });
       await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: base.shopId,
         organizationId: base.organizationId,
         organizationPersonId: personId,
@@ -1064,7 +1093,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_manager_invitation" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
     expect(result?.people.find((person) => person.id === ids.personId)).toMatchObject({
       managerRole: "none",
       isStaff: true,
@@ -1076,7 +1108,10 @@ describe("organization/queries.getSettings", () => {
     });
     const expiredResult = await t
       .withIdentity({ subject: "settings_manager_invitation" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
     expect(expiredResult?.people.find((person) => person.id === ids.personId)).toMatchObject({
       managerRole: "none",
       isStaff: true,
@@ -1121,7 +1156,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_legacy_orphan_invitation" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.people.find((person) => person.id === ids.personId)).toBeUndefined();
     expect(result?.managerInvitations.find((invitation) => invitation.id === ids.invitationId)).toMatchObject({
@@ -1171,6 +1209,8 @@ describe("organization/queries.getSettings", () => {
           organizationInvitationId: invitationId,
           organizationInvitationVersion: 1,
           purpose: "business",
+          notificationContext: "organizationInvitation.managerInvite",
+          deliverySuppressed: false,
           payload: {
             kind: "organizationManagerInvitationEmail",
             from: "シフトリ <noreply@example.com>",
@@ -1199,7 +1239,10 @@ describe("organization/queries.getSettings", () => {
 
       const result = await t
         .withIdentity({ subject: `settings_provider_pair_${caseKey}` })
-        .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+        .query(api.organization.queries.getSettings, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+          shopId: ids.shopId,
+        });
 
       expect(result?.managerInvitations.find((invitation) => invitation.id === ids.invitationId)).toMatchObject({
         status: expectedStatus,
@@ -1226,7 +1269,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_complimentary_business" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result).toMatchObject({
       canAddShop: true,
@@ -1253,7 +1299,10 @@ describe("organization/queries.getSettings", () => {
 
     const canonicalResult = await t
       .withIdentity({ subject: "settings_complimentary_business" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
     expect(canonicalResult?.billing).toMatchObject({
       state: "pro",
       currentPlan: "pro",
@@ -1293,6 +1342,7 @@ describe("organization/queries.getSettings", () => {
         updatedAt: now,
       });
       await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: base.shopId,
         organizationId: base.organizationId,
         organizationPersonId: secondPersonId,
@@ -1306,7 +1356,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_role_removal_actor" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.people.find((person) => person.id === ids.secondPersonId)).toMatchObject({
       managerRole: "active",
@@ -1354,7 +1407,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_removed_invitee" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.managerInvitations.find((invitation) => invitation.id === ids.invitationId)).toMatchObject({
       status: "pending",
@@ -1408,7 +1464,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_duplicate_invitee" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.managerInvitations.find((invitation) => invitation.id === ids.invitationId)).toMatchObject({
       status: "conflict",
@@ -1417,7 +1476,7 @@ describe("organization/queries.getSettings", () => {
     });
   });
 
-  it("契約情報が未移行でもactive管理者には組織名変更を許可する", async () => {
+  it("契約情報が欠損している場合はsettingsをfail closedにする", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -1434,27 +1493,12 @@ describe("organization/queries.getSettings", () => {
       return base;
     });
 
-    const result = await t
-      .withIdentity({ subject: "settings_migration_pending" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
-
-    expect(result?.billing).toMatchObject({
-      state: "migrationPending",
-      currentPlan: null,
-      isComplimentary: false,
-      canManagePlan: false,
-      managePlanDisabledReason: "設定の移行が完了するまでお待ちください。",
-      canUpdatePaymentMethod: false,
-      paymentMethodDisabledReason: "設定の移行が完了するまでお待ちください。",
-      canUpdateBillingEmail: false,
-      billingEmailDisabledReason: "設定の移行が完了するまでお待ちください。",
-      canScheduleFree: false,
-    });
-    expect(result?.billing.blockedReason).toContain("移行");
-    expect(result?.canUpdateOrganizationName).toBe(true);
-    expect(result?.updateOrganizationNameDisabledReason).toBeUndefined();
-    expect(result?.canAddShop).toBe(false);
-    expect(result?.shops[0]).toMatchObject({ canDelete: false });
+    await expect(
+      t.withIdentity({ subject: "settings_migration_pending" }).query(api.organization.queries.getSettings, {
+        expectedOrganizationId: ids.organizationId,
+        shopId: ids.shopId,
+      }),
+    ).rejects.toThrow("組織の契約情報を確認できません。");
   });
 
   it("初回請求処理中はFree変更を案内しない", async () => {
@@ -1488,7 +1532,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_initial_payment_pending" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.billing).toMatchObject({
       state: "initialPaymentPending",
@@ -1523,7 +1570,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_pending_free" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.billing).toMatchObject({
       state: "pendingActivation",
@@ -1559,6 +1609,7 @@ describe("organization/queries.getSettings", () => {
         updatedAt: now,
       });
       const staffId = await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: base.shopId,
         organizationId: base.organizationId,
         organizationPersonId: personId,
@@ -1579,6 +1630,7 @@ describe("organization/queries.getSettings", () => {
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       const positionId = await ctx.db.insert("positions", {
+        isDefault: false,
         shopId: base.shopId,
         name: "ホール",
         color: "#0f766e",
@@ -1598,7 +1650,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_future_assignment" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.people.find((person) => person.id === ids.personId)).toMatchObject({ canRemove: true });
     expect(result?.people.find((person) => person.id === ids.personId)).not.toHaveProperty("removeDisabledReason");
@@ -1654,7 +1709,10 @@ describe("organization/queries.getSettings", () => {
 
     const result = await t
       .withIdentity({ subject: "settings_invitation_history_limit" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
 
     expect(result?.managerInvitations).toHaveLength(201);
     const returnedInvitationIds = new Set(result?.managerInvitations.map((invitation) => invitation.id));
@@ -1681,7 +1739,10 @@ describe("organization/queries.getSettings", () => {
     await expect(
       t
         .withIdentity({ subject: "settings_idor_actor" })
-        .query(api.organization.queries.getSettings, { shopId: otherShopId }),
+        .query(api.organization.queries.getSettings, {
+          expectedOrganizationId: await getTestOrganizationId(t, otherShopId),
+          shopId: otherShopId,
+        }),
     ).resolves.toBeNull();
   });
 });

@@ -1,5 +1,7 @@
+import type { WithoutSystemFields } from "convex/server";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
+import type { Doc } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { createMigrationHistoryTestWithMigrations, runMigrationToCompletion } from "../_test/migrations.test-helper";
 
@@ -24,7 +26,6 @@ async function seedLegacyLineScope(ctx: MutationCtx, suffix: string, lineUserId:
   });
   const shopId = await ctx.db.insert("shops", {
     organizationId,
-    operatingStatus: "active",
     name: `店舗${suffix}`,
     regularClosedDays: [],
     submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
@@ -112,7 +113,7 @@ describe("m041 LINE common link backfill", () => {
         regularClosedDays: [],
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
         isDeleted: false,
-      });
+      } as unknown as WithoutSystemFields<Doc<"shops">>);
       await ctx.db.insert("staffs", {
         shopId: archivedShopId,
         organizationId: seeded.organizationId,

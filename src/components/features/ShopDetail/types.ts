@@ -7,8 +7,7 @@ export type ShopDetailData = {
   name: string;
   regularClosedDays: RegularClosedDay[];
   submissionPattern: ShiftSubmissionPattern;
-  /** rolling deploy中の旧backendは未返却のためoptionalで受け、画面ではunknown相当として扱う。 */
-  managerNotificationRecipientStatus?: "available" | "none" | "unknown";
+  managerNotificationRecipientStatus: "available" | "none" | "unknown";
   canUpdateSettings: boolean;
   settingsDisabledReason?: string;
   canDelete: boolean;
@@ -33,6 +32,7 @@ export type ShopStaffMembershipRemovalPreview = NonNullable<
   FunctionReturnType<typeof api.staff.queries.previewOrganizationShopStaffMembershipRemovals>
 >;
 
-export type ShopStaffMembershipChangeInput = FunctionArgs<
-  typeof api.staff.mutations.changeOrganizationShopStaffMemberships
+export type ShopStaffMembershipChangeInput = Omit<
+  FunctionArgs<typeof api.staff.mutations.changeOrganizationShopStaffMemberships>,
+  "expectedOrganizationId"
 >;

@@ -12,7 +12,7 @@ export function useUserMembershipActions({
   expectedOrganizationId,
 }: {
   canChangeMembership: boolean;
-  expectedOrganizationId?: Id<"organizations">;
+  expectedOrganizationId: Id<"organizations">;
 }) {
   const canChangeMembershipRef = useRef(canChangeMembership);
   canChangeMembershipRef.current = canChangeMembership;
@@ -27,7 +27,7 @@ export function useUserMembershipActions({
         await changeOrganizationPersonShopMemberships({
           ...input,
           personId,
-          ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+          expectedOrganizationId,
         });
         if (!canChangeMembershipRef.current) return false;
         showSuccessToast({ title: "所属店舗を変更しました" });

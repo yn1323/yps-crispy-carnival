@@ -136,13 +136,7 @@ export const analyticsSourceEventPayloadValidator = v.union(
   }),
   v.object({
     kind: v.literal("shop"),
-    change: v.union(
-      v.literal("created"),
-      v.literal("updated"),
-      v.literal("archived"),
-      v.literal("reactivated"),
-      v.literal("deleted"),
-    ),
+    change: v.union(v.literal("created"), v.literal("updated"), v.literal("deleted")),
     displayName: v.optional(v.string()),
     registeredAt: v.optional(v.number()),
     initialStaff: v.optional(
@@ -199,19 +193,12 @@ export const analyticsSourceEventPayloadValidator = v.union(
     billingVersion: v.number(),
     effectiveAt: v.number(),
     statusDeltas: v.array(
-      v.union(
-        v.object({
-          kind: v.literal("shop"),
-          shopId: v.id("shops"),
-          status: v.union(v.literal("active"), v.literal("archived")),
-        }),
-        v.object({
-          kind: v.literal("manager"),
-          memberId: v.id("organizationMembers"),
-          personId: v.id("organizationPeople"),
-          status: v.union(v.literal("active"), v.literal("removed")),
-        }),
-      ),
+      v.object({
+        kind: v.literal("manager"),
+        memberId: v.id("organizationMembers"),
+        personId: v.id("organizationPeople"),
+        status: v.union(v.literal("active"), v.literal("removed")),
+      }),
     ),
   }),
   v.object({

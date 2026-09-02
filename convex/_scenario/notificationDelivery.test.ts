@@ -6,7 +6,7 @@ import { resetResendEmailQueueForTest } from "../_lib/resend";
 import type { ScenarioTest } from "../_test/scenarioBuilders";
 import { MANAGER_SUBJECT, SCENARIO_NOW, scenarioDate, seedStaff } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
-import { seedCanonicalStaffLineRecipient, seedManagerShop } from "../_test/seed";
+import { getTestOrganizationId, seedCanonicalStaffLineRecipient, seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
   MAGIC_LINK_DEFAULT_TTL_MS,
@@ -376,7 +376,7 @@ describe("通知配送outboxシナリオ", () => {
     vi.stubGlobal("fetch", fetchMock);
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const { shopId } = await seedManagerShop(ctx, {
+      const { organizationId, shopId } = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
         email: "confirmation-epoch-manager@example.com",
         shopName: "確定通知世代店舗",
@@ -402,6 +402,7 @@ describe("通知配送outboxシナリオ", () => {
       });
       const insertOperation = async (operationKey: string, dedupeSuffix: string) =>
         await ctx.db.insert("notificationFanoutOperations", {
+          supersedesActiveOperations: dedupeSuffix !== "resend:2",
           operationKey,
           kind: "confirmation",
           purpose: dedupeSuffix === "confirm" ? "confirmation" : "confirmation_resend",
@@ -411,6 +412,12 @@ describe("通知配送outboxシナリオ", () => {
           cursor: 1,
           status: "completed",
           dedupeSuffix,
+          ...(dedupeSuffix === "resend:2"
+            ? {
+                confirmationOperationKeyAtOrigin: latestOperationKey,
+                recruitmentDraftSavedAtAtOrigin: null,
+              }
+            : {}),
           completedAt: Date.now(),
           createdAt: Date.now(),
           updatedAt: Date.now(),
@@ -429,10 +436,13 @@ describe("通知配送outboxシナリオ", () => {
           dedupeKey: args.dedupeKey,
           ...(args.fanoutOperationId ? { fanoutOperationId: args.fanoutOperationId } : {}),
           ...(args.fanoutTargetKey ? { fanoutTargetKey: args.fanoutTargetKey } : {}),
+          organizationId,
           shopId,
           recruitmentId,
           staffId,
           purpose: "business",
+          notificationContext: "notification.sendConfirmationEmail",
+          deliverySuppressed: false,
           payload: {
             kind: "email",
             from: "シフトリ <noreply@example.com>",
@@ -492,7 +502,6 @@ describe("通知配送outboxシナリオ", () => {
 
     await t.action(internal.notificationOutbox.actions.processPending, {});
 
-    expect(fetchMock).toHaveBeenCalledOnce();
     const state = await t.run(async (ctx) => ({
       old: await ctx.db.get(ids.oldOutboxId),
       legacyOld: await ctx.db.get(ids.legacyOldOutboxId),
@@ -503,6 +512,7 @@ describe("通知配送outboxシナリオ", () => {
     expect(state.legacyOld).toMatchObject({ status: "cancelled", cancelReason: "notification_superseded" });
     expect(state.legacyManual).toMatchObject({ status: "cancelled", cancelReason: "notification_superseded" });
     expect(state.latest).toMatchObject({ status: "sent", resendEmailId: "email_latest_confirmation" });
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("LINE fallbackは募集とfanout世代を継承し、募集削除後はemail providerへ進まない", async () => {
@@ -747,12 +757,14 @@ describe("通知配送outboxシナリオ", () => {
     const manager = t.withIdentity({ subject: MANAGER_SUBJECT });
     const [historyDuringGrace, failuresDuringGrace] = await Promise.all([
       manager.query(api.notificationOutbox.queries.listStaffNotificationHistory, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         staffId: ids.staffId,
         paginationOpts: { numItems: 10, cursor: null },
       }),
       manager.query(api.notificationOutbox.queries.listOpenFailures, {
         paginationOpts: { numItems: 10, cursor: null },
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
       }),
     ]);
@@ -774,6 +786,7 @@ describe("通知配送outboxシナリオ", () => {
 
     const openPage = await manager.query(api.notificationOutbox.queries.listOpenFailures, {
       paginationOpts: { numItems: 10, cursor: null },
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
     });
     expect(openPage.page).toHaveLength(1);
@@ -910,12 +923,14 @@ describe("通知配送outboxシナリオ", () => {
 
     await expect(
       manager.mutation(api.staff.mutations.sendOpenRecruitmentNotifications, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         staffId: ids.staffId,
       }),
     ).resolves.toEqual({ scheduled: false, reason: "recentlySent" });
     await expect(
       manager.mutation(api.line.mutations.sendInvite, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         staffId: ids.staffId,
       }),
@@ -1346,6 +1361,7 @@ describe("通知配送outboxシナリオ", () => {
     for (const [index, recruitmentId] of [ids.currentRecruitmentId].entries()) {
       await expect(
         t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
           shopId: ids.shopId,
           recruitmentId,
           intent: "resend",
@@ -1504,6 +1520,7 @@ describe("通知配送outboxシナリオ", () => {
 
     await expect(
       t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         recruitmentId: ids.recruitmentId,
         intent: "resend",
@@ -1599,6 +1616,7 @@ describe("通知配送outboxシナリオ", () => {
     });
     await expect(
       t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         recruitmentId: ids.recruitmentId,
         intent: "resend",
@@ -1753,6 +1771,7 @@ describe("通知配送outboxシナリオ", () => {
     });
     await expect(
       t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shiftBoard.mutations.confirmRecruitment, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         recruitmentId: ids.recruitmentId,
         intent: "resend",
@@ -2030,13 +2049,17 @@ describe("通知配送outboxシナリオ", () => {
       .withIdentity({ subject: MANAGER_SUBJECT })
       .query(api.notificationOutbox.queries.listOpenFailures, {
         paginationOpts: { numItems: 10, cursor: null },
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
       });
     expect(openPage.page).toHaveLength(0);
 
     const result = await t
       .withIdentity({ subject: MANAGER_SUBJECT })
-      .mutation(api.notificationOutbox.mutations.resendOpenFailures, { shopId: ids.shopId });
+      .mutation(api.notificationOutbox.mutations.resendOpenFailures, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
     expect(result).toMatchObject({
       scheduled: false,
       scheduledCount: 0,
@@ -2049,6 +2072,7 @@ describe("通知配送outboxシナリオ", () => {
       t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect()),
       t.withIdentity({ subject: MANAGER_SUBJECT }).query(api.notificationOutbox.queries.listOpenFailures, {
         paginationOpts: { numItems: 10, cursor: null },
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
       }),
     ]);
@@ -2125,6 +2149,7 @@ describe("通知配送outboxシナリオ", () => {
       .withIdentity({ subject: MANAGER_SUBJECT })
       .query(api.notificationOutbox.queries.listOpenFailures, {
         paginationOpts: { numItems: 10, cursor: null },
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
       });
     expect(firstOpenPage.page).toHaveLength(1);
@@ -2139,6 +2164,7 @@ describe("通知配送outboxシナリオ", () => {
 
     await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.notificationOutbox.mutations.retryFailure, {
       failureId: firstOpenPage.page[0]._id,
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
     });
     let inbox = await t.run(async (ctx) => await ctx.db.query("notificationFailureInbox").collect());
@@ -2153,6 +2179,7 @@ describe("通知配送outboxシナリオ", () => {
     fetchMock.mockImplementationOnce(async () => ({ ok: true, status: 200, text: async () => "{}" }));
     await t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.notificationOutbox.mutations.retryFailure, {
       failureId: firstOpenPage.page[0]._id,
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
     });
     await t.action(internal.notificationOutbox.actions.processPending, {});
@@ -2162,7 +2189,10 @@ describe("通知配送outboxシナリオ", () => {
     await expect(
       t
         .withIdentity({ subject: MANAGER_SUBJECT })
-        .query(api.notificationOutbox.queries.hasOpenFailures, { shopId: ids.shopId }),
+        .query(api.notificationOutbox.queries.hasOpenFailures, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+          shopId: ids.shopId,
+        }),
     ).resolves.toBe(false);
   });
 
@@ -2185,6 +2215,7 @@ describe("通知配送outboxシナリオ", () => {
     });
     const asManager = t.withIdentity({ subject: MANAGER_SUBJECT });
     const registrationLink = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, shopId),
       shopId,
     });
     const request = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
@@ -2222,6 +2253,7 @@ describe("通知配送outboxシナリオ", () => {
 
     await asManager.mutation(api.staffRegistration.mutations.approveRequest, {
       requestId,
+      expectedOrganizationId: await getTestOrganizationId(t, shopId),
       shopId,
     });
     await t.action(internal.staffRegistration.actions.sendOwnerDailyDigest, {});

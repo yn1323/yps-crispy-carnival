@@ -3,7 +3,6 @@ import type { Doc, Id } from "../_generated/dataModel";
 import type { DatabaseReader, DatabaseWriter } from "../_generated/server";
 import { sha256Hex } from "../_lib/sha256";
 import { ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/planLimits";
-import { hasCanonicalStaffIdentity } from "../staff/service";
 
 export const ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT = ORGANIZATION_PLAN_LIMITS.pro.maxPeople;
 export const ORGANIZATION_STAFF_ORDER_SHOP_LIMIT = 5;
@@ -128,9 +127,6 @@ export async function getOrganizationStaffOrderSourceSnapshot(
     const canonicalStaffs: ShopStaff[] = [];
     const seenPersonIds = new Set<Id<"organizationPeople">>();
     for (const staff of staffs) {
-      if (!hasCanonicalStaffIdentity(staff)) {
-        return { availability: "legacyDataIncomplete", people: sortedPeople };
-      }
       const personId = staff.organizationPersonId;
       if (staff.organizationId !== organizationId || !peopleById.has(personId) || seenPersonIds.has(personId)) {
         return { availability: "legacyDataIncomplete", people: sortedPeople };
@@ -234,13 +230,12 @@ async function createOrderFingerprint(args: {
 }) {
   return await sha256Hex(
     JSON.stringify({
-      version: 1,
+      version: 2,
       organizationId: args.organizationId,
       stateRevision: args.stateRevision,
       orderedPersonIds: args.orderedPersonIds,
       activePeople: args.source.people.map((person) => person._id).sort(),
-      // v1 fingerprintのrolling互換を維持するため、serialized keyはPR2まで旧名を保持する。
-      activeShops: args.source.shops
+      shops: args.source.shops
         .map(({ shop, staffs }) => ({
           shopId: shop._id,
           staffs: staffs
@@ -266,7 +261,7 @@ export async function getOrganizationStaffOrderEditorSnapshot(
       source: null,
       orderedPersonIds,
       orderFingerprint: await sha256Hex(
-        JSON.stringify({ version: 1, organizationId, availability: sourceResult.availability, orderedPersonIds }),
+        JSON.stringify({ version: 2, organizationId, availability: sourceResult.availability, orderedPersonIds }),
       ),
       resolution: null,
     };
@@ -348,10 +343,7 @@ export async function getOrganizationStaffOrderScope(
   }
   const activePersonIds = new Set(personIds);
   const canonicalStaffs = staffs.every(
-    (staff) =>
-      hasCanonicalStaffIdentity(staff) &&
-      staff.organizationId === args.organizationId &&
-      activePersonIds.has(staff.organizationPersonId),
+    (staff) => staff.organizationId === args.organizationId && activePersonIds.has(staff.organizationPersonId),
   );
   const staffIds = staffs.map((staff) => staff._id);
   const entryStaffIds = shopEntries.map((entry) => entry.staffId);

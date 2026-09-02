@@ -11,8 +11,6 @@ import { createScenario } from "../_test/scenarioFixtures";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const SETUP_MANAGER_SUBJECT = "scenario_setup_manager";
-const TRIAL_ENDS_AT = Date.parse("2026-07-09T15:00:00.000Z");
-const TRIAL_ENDING_VISIBLE_FROM = TRIAL_ENDS_AT - 7 * 24 * 60 * 60 * 1000;
 
 describe("管理者セットアップシナリオ", () => {
   beforeEach(() => {
@@ -62,18 +60,8 @@ describe("管理者セットアップシナリオ", () => {
       businessWriteBlockReason: null,
       canWriteBusinessData: true,
       name: "初回セットアップ店舗",
-      planStatus: {
-        canManagePlan: true,
-        canUpdatePaymentMethod: false,
-        kind: "trial",
-        trialEndsAt: TRIAL_ENDS_AT,
-      },
       regularClosedDays: [],
       submissionPattern: { kind: "dateOnly" },
-      trialEndingNotice: {
-        trialEndsAt: TRIAL_ENDS_AT,
-        visibleFrom: TRIAL_ENDING_VISIBLE_FROM,
-      },
     });
     expect(staffPage.page).toMatchObject([{ name: "山田 太郎", email: "manager@example.com", isManager: true }]);
     expect(consentStatus.required).toBe(false);

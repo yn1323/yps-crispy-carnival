@@ -7,8 +7,9 @@ import type { Doc } from "../_generated/dataModel";
 import { modules, schema } from "./setup.test-helper";
 
 type CurrentStaffInsert = WithoutSystemFields<Doc<"staffs">>;
-type LegacyStaffDocumentForMigrationHistory = Omit<CurrentStaffInsert, "organizationId" | "organizationPersonId"> &
-  Partial<Pick<CurrentStaffInsert, "organizationId" | "organizationPersonId">>;
+type NarrowedStaffField = "emailNormalized" | "excludedFromShift" | "organizationId" | "organizationPersonId";
+type LegacyStaffDocumentForMigrationHistory = Omit<CurrentStaffInsert, NarrowedStaffField> &
+  Partial<Pick<CurrentStaffInsert, NarrowedStaffField>>;
 
 export function createConvexTestWithMigrations() {
   const t = convexTest(schema, modules);

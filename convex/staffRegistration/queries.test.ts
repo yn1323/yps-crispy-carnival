@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import {
+  getTestOrganizationId,
   seedManagerShop,
   seedOrganizationManagerShop,
   seedOrganizationPersonLineLink,
@@ -16,7 +17,11 @@ describe("staffRegistration/queries", () => {
     it("有効な登録tokenでは店舗名とスタッフ向け法務文書だけを返す", async () => {
       const t = convexTest(schema, modules);
       await t.run(async (ctx) => {
-        const shopId = await seedShop(ctx, "参加先店舗");
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: "registration_page_manager",
+          email: "registration-page-manager@example.com",
+          shopName: "参加先店舗",
+        });
         await ctx.db.insert("shopRegistrationLinks", {
           shopId,
           token: "active-registration-token",
@@ -124,12 +129,18 @@ describe("staffRegistration/queries", () => {
       });
 
       await expect(
-        t.query(api.staffRegistration.queries.getActiveRegistrationLink, { shopId: ownShopId }),
+        t.query(api.staffRegistration.queries.getActiveRegistrationLink, {
+          expectedOrganizationId: await getTestOrganizationId(t, ownShopId),
+          shopId: ownShopId,
+        }),
       ).resolves.toBeNull();
       await expect(
         t
           .withIdentity({ subject: "registration_manager" })
-          .query(api.staffRegistration.queries.getActiveRegistrationLink, { shopId: ownShopId }),
+          .query(api.staffRegistration.queries.getActiveRegistrationLink, {
+            expectedOrganizationId: await getTestOrganizationId(t, ownShopId),
+            shopId: ownShopId,
+          }),
       ).resolves.toEqual({
         linkId: ownLinkId,
         token: "active-own-token",
@@ -138,7 +149,10 @@ describe("staffRegistration/queries", () => {
       await expect(
         t
           .withIdentity({ subject: "registration_manager" })
-          .query(api.staffRegistration.queries.getActiveRegistrationLink, { shopId: otherShopId }),
+          .query(api.staffRegistration.queries.getActiveRegistrationLink, {
+            expectedOrganizationId: await getTestOrganizationId(t, otherShopId),
+            shopId: otherShopId,
+          }),
       ).resolves.toBeNull();
     });
 
@@ -167,7 +181,10 @@ describe("staffRegistration/queries", () => {
       const asManager = t.withIdentity({ subject: "registration_query_history_manager" });
 
       await expect(
-        asManager.query(api.staffRegistration.queries.getActiveRegistrationLink, { shopId }),
+        asManager.query(api.staffRegistration.queries.getActiveRegistrationLink, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+        }),
       ).resolves.toMatchObject({ linkId: activeLinkId, token: "active-registration-query-link" });
 
       await t.run(
@@ -179,7 +196,10 @@ describe("staffRegistration/queries", () => {
           }),
       );
       await expect(
-        asManager.query(api.staffRegistration.queries.getActiveRegistrationLink, { shopId }),
+        asManager.query(api.staffRegistration.queries.getActiveRegistrationLink, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+        }),
       ).rejects.toThrow("登録リンクの状態を確認できません");
     });
 
@@ -229,7 +249,10 @@ describe("staffRegistration/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "pending_request_manager" })
-        .query(api.staffRegistration.queries.getPendingRequests, { shopId: ownShopId });
+        .query(api.staffRegistration.queries.getPendingRequests, {
+          expectedOrganizationId: await getTestOrganizationId(t, ownShopId),
+          shopId: ownShopId,
+        });
 
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
@@ -373,7 +396,10 @@ describe("staffRegistration/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "registration_approval_visibility_manager" })
-        .query(api.staffRegistration.queries.getPendingRequests, { shopId: targetShopId });
+        .query(api.staffRegistration.queries.getPendingRequests, {
+          expectedOrganizationId: await getTestOrganizationId(t, targetShopId),
+          shopId: targetShopId,
+        });
 
       expect(
         result.map(({ _id, name, canApprove, approveDisabledReason }) => ({
@@ -437,7 +463,10 @@ describe("staffRegistration/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "removed_registration_person" })
-        .query(api.staffRegistration.queries.getPendingRequests, { shopId });
+        .query(api.staffRegistration.queries.getPendingRequests, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+        });
 
       expect(result).toEqual([
         expect.objectContaining({
@@ -490,6 +519,7 @@ describe("staffRegistration/queries", () => {
       });
 
       const result = await t.withIdentity({ subject }).query(api.staffRegistration.queries.getPendingRequests, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
         shopId,
       });
       expect(result).toEqual([
@@ -522,6 +552,7 @@ describe("staffRegistration/queries", () => {
         });
         if (state === "activeStaff") {
           await ctx.db.insert("staffs", {
+            excludedFromShift: false,
             shopId: seeded.shopId,
             organizationId: seeded.organizationId,
             organizationPersonId: personId,
@@ -565,6 +596,7 @@ describe("staffRegistration/queries", () => {
       });
 
       const result = await t.withIdentity({ subject }).query(api.staffRegistration.queries.getPendingRequests, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
         shopId,
       });
 
@@ -621,6 +653,7 @@ describe("staffRegistration/queries", () => {
       });
 
       const result = await t.withIdentity({ subject }).query(api.staffRegistration.queries.getPendingRequests, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
         shopId,
       });
 

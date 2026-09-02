@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { seedStaff } from "../_test/scenarioBuilders";
-import { seedManagerShop, seedShop } from "../_test/seed";
+import { getTestOrganizationId, seedManagerShop, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
   STAFF_REGISTRATION_EMAIL_SHORT_LIMIT,
@@ -51,7 +51,10 @@ async function createRegistrationLink(
   });
   const link = await t
     .withIdentity({ subject })
-    .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
+    .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, shopId),
+      shopId,
+    });
   return { linkId: link.linkId, shopId, subject, token: link.token };
 }
 
@@ -118,6 +121,7 @@ describe("staffRegistration/httpActions", () => {
     const t = convexTest(schema, modules);
     const { linkId, shopId, subject, token } = await createRegistrationLink(t, "rotated_link");
     await t.withIdentity({ subject }).mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, shopId),
       shopId,
       expectedLinkId: linkId,
     });
@@ -461,7 +465,11 @@ describe("staffRegistration/httpActions", () => {
     const tokens = await t.run(async (ctx) => {
       const values: string[] = [];
       for (let index = 0; index <= STAFF_REGISTRATION_IP_SHORT_LIMIT; index += 1) {
-        const shopId = await seedShop(ctx, `IP budget店舗${index}`);
+        const { shopId } = await seedManagerShop(ctx, {
+          subject: `ip_budget_manager_${index}`,
+          email: `ip-budget-manager-${index}@example.com`,
+          shopName: `IP budget店舗${index}`,
+        });
         const token = uuid(20_000 + index);
         await ctx.db.insert("shopRegistrationLinks", { shopId, token, createdAt: Date.now() });
         values.push(token);

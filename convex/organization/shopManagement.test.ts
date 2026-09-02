@@ -79,14 +79,14 @@ describe("organization shop management", () => {
     });
     const asActor = t.withIdentity({ subject: "add_shop_actor" });
 
-    const created = await asActor.mutation(api.organization.mutations.addShop, {
-      shopId: ids.shopId,
+    const created = await asActor.mutation(api.organization.mutations.addShopForOrganization, {
+      organizationId: ids.organizationId,
       shopName: "  新店舗  ",
       regularClosedDays: ["fri", "sun", "tue"],
       submissionPattern,
       requestId: "add-shop-request",
     });
-    expect(created).toMatchObject({ changed: true, shopStatus: "active" });
+    expect(created).toMatchObject({ changed: true });
 
     const requestKey = await toAuditRequestKey("add-shop-request");
     const state = await t.run(async (ctx) => ({
@@ -118,14 +118,14 @@ describe("organization shop management", () => {
     expect(state.audit).toMatchObject({ action: "organization.shop_added", targetId: created.shopId });
 
     await expect(
-      asActor.mutation(api.organization.mutations.addShop, {
-        shopId: ids.shopId,
+      asActor.mutation(api.organization.mutations.addShopForOrganization, {
+        organizationId: ids.organizationId,
         shopName: "新店舗",
         regularClosedDays: ["fri", "sun", "tue"],
         submissionPattern,
         requestId: "add-shop-request",
       }),
-    ).resolves.toEqual({ shopId: created.shopId, shopStatus: "active", changed: false });
+    ).resolves.toEqual({ shopId: created.shopId, changed: false });
   });
 
   it("追加済み店舗が削除された後は同じrequestIdの再送で削除済み店舗を返さない", async () => {
@@ -139,17 +139,17 @@ describe("organization shop management", () => {
     );
     const asActor = t.withIdentity({ subject: "add_deleted_shop_retry_actor" });
     const args = {
-      shopId: ids.shopId,
+      organizationId: ids.organizationId,
       shopName: "削除予定店",
       regularClosedDays: [],
       submissionPattern,
       requestId: "add-deleted-shop-retry",
     };
 
-    const created = await asActor.mutation(api.organization.mutations.addShop, args);
+    const created = await asActor.mutation(api.organization.mutations.addShopForOrganization, args);
     await t.run((ctx) => ctx.db.patch(created.shopId, { isDeleted: true }));
 
-    await expect(asActor.mutation(api.organization.mutations.addShop, args)).rejects.toThrow(
+    await expect(asActor.mutation(api.organization.mutations.addShopForOrganization, args)).rejects.toThrow(
       "以前の操作結果を確認できません",
     );
   });
@@ -172,19 +172,23 @@ describe("organization shop management", () => {
       return target;
     });
     const args = {
-      shopId: ids.shopId,
+      organizationId: ids.organizationId,
       shopName: "作成されない店舗",
       regularClosedDays: [],
       submissionPattern,
       requestId: "unauthorized-add-shop",
     };
 
-    await expect(t.mutation(api.organization.mutations.addShop, args)).rejects.toThrow("Unauthenticated");
+    await expect(t.mutation(api.organization.mutations.addShopForOrganization, args)).rejects.toThrow(
+      "Unauthenticated",
+    );
     await expect(
-      t.withIdentity({ subject: "add_shop_removed" }).mutation(api.organization.mutations.addShop, args),
+      t.withIdentity({ subject: "add_shop_removed" }).mutation(api.organization.mutations.addShopForOrganization, args),
     ).rejects.toThrow("Not found");
     await expect(
-      t.withIdentity({ subject: "add_shop_other_org" }).mutation(api.organization.mutations.addShop, args),
+      t
+        .withIdentity({ subject: "add_shop_other_org" })
+        .mutation(api.organization.mutations.addShopForOrganization, args),
     ).rejects.toThrow("Not found");
 
     await expect(
@@ -210,12 +214,15 @@ describe("organization shop management", () => {
     });
 
     await expect(
-      t.withIdentity({ subject: "requested_add_shop_actor" }).mutation(api.organization.mutations.addShop, {
-        shopId: ids.shopId,
-        shopName: "作成されない店舗",
-        submissionPattern,
-        requestId: "requested-add-shop",
-      }),
+      t
+        .withIdentity({ subject: "requested_add_shop_actor" })
+        .mutation(api.organization.mutations.addShopForOrganization, {
+          organizationId: ids.organizationId,
+          shopName: "作成されない店舗",
+          submissionPattern,
+          regularClosedDays: [],
+          requestId: "requested-add-shop",
+        }),
     ).rejects.toThrow("管理者所属を確認できません");
 
     const state = await t.run(async (ctx) => ({
@@ -245,8 +252,8 @@ describe("organization shop management", () => {
     });
 
     await expect(
-      t.withIdentity({ subject: "sixth_shop" }).mutation(api.organization.mutations.addShop, {
-        shopId: ids.shopId,
+      t.withIdentity({ subject: "sixth_shop" }).mutation(api.organization.mutations.addShopForOrganization, {
+        organizationId: ids.organizationId,
         shopName: "6店舗目",
         regularClosedDays: [],
         submissionPattern,
@@ -271,8 +278,8 @@ describe("organization shop management", () => {
     );
 
     await expect(
-      t.withIdentity({ subject: "free_add_shop" }).mutation(api.organization.mutations.addShop, {
-        shopId: ids.shopId,
+      t.withIdentity({ subject: "free_add_shop" }).mutation(api.organization.mutations.addShopForOrganization, {
+        organizationId: ids.organizationId,
         shopName: "Free追加店舗",
         regularClosedDays: [],
         submissionPattern,
@@ -328,6 +335,7 @@ describe("organization shop management", () => {
           updatedAt: now,
         });
         const staffId = await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: base.shopId,
           organizationId: base.organizationId,
           organizationPersonId: staffPersonId,
@@ -341,6 +349,7 @@ describe("organization shop management", () => {
       });
       const asActor = t.withIdentity({ subject: "delete_shop" });
       const args = {
+        expectedOrganizationId: ids.organizationId,
         shopId: ids.shopId,
         confirmShopId: ids.shopId,
         requestId: "delete-shop-request",
@@ -431,11 +440,13 @@ describe("organization shop management", () => {
 
       const results = await Promise.allSettled([
         asActor.mutation(api.organization.mutations.deleteShop, {
+          expectedOrganizationId: ids.organizationId,
           shopId: ids.shopId,
           confirmShopId: ids.shopId,
           requestId: "delete-concurrently-first",
         }),
         asActor.mutation(api.organization.mutations.deleteShop, {
+          expectedOrganizationId: ids.organizationId,
           shopId: ids.secondShopId,
           confirmShopId: ids.secondShopId,
           requestId: "delete-concurrently-second",
@@ -471,6 +482,7 @@ describe("organization shop management", () => {
 
       await expect(
         t.withIdentity({ subject: "delete_last_shop" }).mutation(api.organization.mutations.deleteShop, {
+          expectedOrganizationId: ids.organizationId,
           shopId: ids.shopId,
           confirmShopId: ids.shopId,
           requestId: "delete-last-shop",
@@ -504,6 +516,7 @@ describe("organization shop management", () => {
 
       await expect(
         t.withIdentity({ subject: "delete_confirm_mismatch" }).mutation(api.organization.mutations.deleteShop, {
+          expectedOrganizationId: ids.organizationId,
           shopId: ids.shopId,
           confirmShopId: ids.otherShopId,
           requestId: "delete-confirm-mismatch",
@@ -525,6 +538,7 @@ describe("organization shop management", () => {
 
       await expect(
         t.withIdentity({ subject: "delete_free_shop" }).mutation(api.organization.mutations.deleteShop, {
+          expectedOrganizationId: ids.organizationId,
           shopId: ids.shopId,
           confirmShopId: ids.shopId,
           requestId: "delete-free-shop",
@@ -579,6 +593,7 @@ describe("organization shop management", () => {
 
         await expect(
           t.withIdentity({ subject: "delete_deadline_shop" }).mutation(api.organization.mutations.deleteShop, {
+            expectedOrganizationId: ids.organizationId,
             shopId: ids.shopId,
             confirmShopId: ids.shopId,
             requestId: "delete-deadline-shop",
@@ -626,6 +641,7 @@ describe("organization shop management", () => {
         return { ...target, removed };
       });
       const args = {
+        expectedOrganizationId: ids.organizationId,
         shopId: ids.shopId,
         confirmShopId: ids.shopId,
         requestId: "delete-shop-unauthorized",

@@ -1,3 +1,4 @@
+import type { WithoutSystemFields } from "convex/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
@@ -197,7 +198,7 @@ describe("m018 organization billing Business to Pro migration", () => {
           ...(status === "processing" ? { processingStartedAt: now } : {}),
           createdAt: now,
           updatedAt: now,
-        });
+        } as unknown as WithoutSystemFields<Doc<"notificationOutbox">>);
       return {
         ...base,
         pendingBillingId: await insertNotification("billing", "pending"),

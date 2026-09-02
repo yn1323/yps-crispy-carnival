@@ -24,14 +24,12 @@ describe("classifyPeopleCapacityError", () => {
     expect(classifyPeopleCapacityError(undefined)).toBeNull();
   });
 
-  it("FreeとStandardの現行・旧上限は有料プラン選択へ変換する", () => {
+  it("FreeとStandardの現行上限は有料プラン選択へ変換する", () => {
     expect(resolvePeopleCapacityLimit(5, 5)).toEqual({ kind: "choosePaidPlan", current: 5, max: 5 });
-    expect(resolvePeopleCapacityLimit(4, 4)).toEqual({ kind: "choosePaidPlan", current: 4, max: 4 });
     expect(resolvePeopleCapacityLimit(25, 25)).toEqual({ kind: "choosePaidPlan", current: 25, max: 25 });
-    expect(resolvePeopleCapacityLimit(20, 20)).toEqual({ kind: "choosePaidPlan", current: 20, max: 20 });
   });
 
-  it("Proの現行・旧上限と未知の上限は追加不可へ変換する", () => {
+  it("Proの現行上限と未知の上限は追加不可へ変換する", () => {
     expect(resolvePeopleCapacityLimit(50, 50)).toEqual({ kind: "limitReached", current: 50, max: 50 });
     expect(resolvePeopleCapacityLimit(40, 40)).toEqual({ kind: "limitReached", current: 40, max: 40 });
     expect(resolvePeopleCapacityLimit(30, 30)).toEqual({ kind: "limitReached", current: 30, max: 30 });

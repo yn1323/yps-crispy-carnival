@@ -78,7 +78,6 @@ const makeSection = (shopId: string, shopName: string, item: Recruitment): Recru
   shop: {
     shopId: shopId as never,
     shopName,
-    operatingStatus: "active",
     regularClosedDays: [],
   },
   currentGroups: [

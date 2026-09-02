@@ -13,21 +13,6 @@ import { collectIssuedInvitationsByOrganization } from "../organizationInvitatio
 
 type DbCtx = Pick<QueryCtx | MutationCtx, "db">;
 
-export type CanonicalStaff = Doc<"staffs"> & {
-  organizationId: Id<"organizations">;
-  organizationPersonId: Id<"organizationPeople">;
-};
-
-/** Widen中もcanonical人物を扱う経路は、両IDが揃ったstaffだけを受け入れる。 */
-export function hasCanonicalStaffIdentity(staff: Doc<"staffs">): staff is CanonicalStaff {
-  return staff.organizationId !== undefined && staff.organizationPersonId !== undefined;
-}
-
-/** m050未解決row。表示上のroleや削除状態としては扱わない。 */
-export function isStaffMissingCanonicalIdentity(staff: Doc<"staffs">) {
-  return staff.organizationId === undefined && staff.organizationPersonId === undefined;
-}
-
 function isAvailableLinkedUser(user: Doc<"users"> | null): user is Doc<"users"> {
   return user !== null && !user.isDeleted && user.accountDeletionRequestedAt === undefined;
 }
@@ -41,7 +26,7 @@ export async function hasValidOrganizationPersonUserLifecycle(ctx: DbCtx, person
 /** staff/person双方のuser参照・一致・lifecycleをcanonical scopeとして検証する。 */
 export async function hasValidCanonicalStaffUserLifecycle(
   ctx: DbCtx,
-  staff: CanonicalStaff,
+  staff: Doc<"staffs">,
   person: Doc<"organizationPeople">,
 ) {
   if (staff.userId !== undefined && staff.userId !== person.userId) return false;
@@ -130,14 +115,6 @@ export async function collectOrganizationShopStaffMembershipSnapshot(
   ) {
     return null;
   }
-  const canonicalTargetShopStaffs = targetShopStaffs.filter(hasCanonicalStaffIdentity);
-  const canonicalOrganizationStaffRows = organizationStaffRows.filter(hasCanonicalStaffIdentity);
-  if (
-    canonicalTargetShopStaffs.length !== targetShopStaffs.length ||
-    canonicalOrganizationStaffRows.length !== organizationStaffRows.length
-  ) {
-    return null;
-  }
   if (people.some((person) => normalizeEmail(person.email) !== person.emailNormalized)) return null;
   const personIdsByEmail = new Map<string, Id<"organizationPeople">[]>();
   for (const person of people) {
@@ -157,13 +134,13 @@ export async function collectOrganizationShopStaffMembershipSnapshot(
   }
 
   const peopleById = new Map(people.map((person) => [person._id, person]));
-  for (const staff of canonicalOrganizationStaffRows) {
+  for (const staff of organizationStaffRows) {
     if (staff.isDeleted) continue;
     const person = peopleById.get(staff.organizationPersonId);
     if (!person || !(await hasValidCanonicalStaffUserLifecycle(ctx, staff, person))) return null;
   }
   const currentStaffByPersonId = new Map<Id<"organizationPeople">, Doc<"staffs">>();
-  for (const staff of canonicalTargetShopStaffs) {
+  for (const staff of targetShopStaffs) {
     if (staff.organizationId !== args.organizationId) return null;
     const person = peopleById.get(staff.organizationPersonId);
     if (!person || person.organizationId !== args.organizationId || person.status !== "active") return null;
@@ -176,7 +153,7 @@ export async function collectOrganizationShopStaffMembershipSnapshot(
     shops.filter((candidate) => candidate._id !== args.shopId).map((candidate) => [candidate._id, candidate]),
   );
   const otherShopNamesByPersonId = new Map<Id<"organizationPeople">, Set<string>>();
-  for (const staff of canonicalOrganizationStaffRows) {
+  for (const staff of organizationStaffRows) {
     if (staff.isDeleted || !peopleById.has(staff.organizationPersonId)) continue;
     const otherShop = otherShopsById.get(staff.shopId);
     if (!otherShop) continue;
@@ -187,9 +164,9 @@ export async function collectOrganizationShopStaffMembershipSnapshot(
 
   const managerMemberships = activeMembers;
   const activeManagerPersonIds = new Set(activeMembers.map((membership) => membership.personId));
-  const personIdsWithStaffHistory = new Set(canonicalOrganizationStaffRows.map((staff) => staff.organizationPersonId));
+  const personIdsWithStaffHistory = new Set(organizationStaffRows.map((staff) => staff.organizationPersonId));
   const canonicalStaffOwnerIdsByEmail = new Map<string, Set<Id<"organizationPeople">>>();
-  for (const staff of canonicalTargetShopStaffs) {
+  for (const staff of targetShopStaffs) {
     const email = normalizeEmail(staff.email);
     const ownerIds = canonicalStaffOwnerIdsByEmail.get(email) ?? new Set<Id<"organizationPeople">>();
     ownerIds.add(staff.organizationPersonId);
@@ -244,7 +221,7 @@ export async function collectOrganizationShopStaffMembershipSnapshot(
       emailNormalized: person.emailNormalized,
       staffId: currentStaff?._id ?? null,
     })),
-    activeStaffs: canonicalTargetShopStaffs.map((staff) => ({
+    activeStaffs: targetShopStaffs.map((staff) => ({
       staffId: staff._id,
       organizationId: staff.organizationId,
       organizationPersonId: staff.organizationPersonId,
@@ -268,7 +245,7 @@ export async function collectOrganizationShopStaffMembershipSnapshot(
  * シフト対象スタッフかどうか（論理削除されておらず、シフト対象外でもない）。
  * シフトボード表示・募集/催促/確定などシフト関連通知の対象判定に使う。
  */
-export function isShiftTargetStaff(staff: { isDeleted: boolean; excludedFromShift?: boolean }) {
+export function isShiftTargetStaff(staff: { isDeleted: boolean; excludedFromShift: boolean }) {
   return !staff.isDeleted && !staff.excludedFromShift;
 }
 
@@ -288,23 +265,7 @@ export async function findActiveStaffByEmail(
       q.eq("shopId", shopId).eq("emailNormalized", emailNormalized).eq("isDeleted", false),
     )
     .first();
-  if (byNormalized) return byNormalized;
-
-  // TODO[narrow]: 全deploymentでm032が完走し、verifyStaffsのemail残件が全pageで0になった後、
-  //   email indexと全staff走査による旧emailNormalized fallbackを削除する。
-  const byExactEmail = await ctx.db
-    .query("staffs")
-    .withIndex("by_shopId_email_isDeleted", (q) =>
-      q.eq("shopId", shopId).eq("email", emailNormalized).eq("isDeleted", false),
-    )
-    .first();
-  if (byExactEmail) return byExactEmail;
-
-  const shopStaffs = await ctx.db
-    .query("staffs")
-    .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
-    .collect();
-  return shopStaffs.find((staff) => normalizeEmail(staff.email) === emailNormalized) ?? null;
+  return byNormalized;
 }
 
 export type PreparedOrganizationStaffEntry = {
@@ -426,7 +387,7 @@ export async function prepareOrganizationPeopleForStaffAddition(
         throw new ConvexError("ユーザーの管理者権限を確認できません。\nユーザー画面で登録内容を確認してください。");
       }
       for (const staff of staffRows) {
-        if (!hasCanonicalStaffIdentity(staff) || !(await hasValidCanonicalStaffUserLifecycle(ctx, staff, person))) {
+        if (!(await hasValidCanonicalStaffUserLifecycle(ctx, staff, person))) {
           throw new ConvexError("ユーザーの店舗所属を確認できません。\n画面を更新して、もう一度お試しください。");
         }
       }

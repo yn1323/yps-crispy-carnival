@@ -26,7 +26,6 @@ const membership: UserShopDetailMembership = {
   staffId,
   shopId,
   shopName: "渋谷店",
-  shopStatus: "active",
   excludedFromShift: false,
   canRemove: true,
   removalPreview,
@@ -57,7 +56,7 @@ const data: UserShopDetailData = {
     canDisconnect: false,
   },
   membershipFingerprint: "membership-fingerprint",
-  shops: [{ shopId, shopName: membership.shopName, shopStatus: membership.shopStatus, canChangeMembership: true }],
+  shops: [{ shopId, shopName: membership.shopName, canChangeMembership: true }],
   memberships: [membership],
 };
 
@@ -233,10 +232,7 @@ export const NotificationCooldownMobile: Story = {
   globals: { viewport: { value: "mobile2", isRotated: false } },
 };
 
-const limitRecoveryMembership: UserShopDetailMembership = {
-  ...membership,
-  shopStatus: "active",
-};
+const limitRecoveryMembership: UserShopDetailMembership = membership;
 
 export const LimitRecoveryOnly: Story = {
   args: {
@@ -249,7 +245,6 @@ export const LimitRecoveryOnly: Story = {
         {
           shopId,
           shopName: limitRecoveryMembership.shopName,
-          shopStatus: limitRecoveryMembership.shopStatus,
           canChangeMembership: false,
           membershipChangeDisabledReason: "現在の利用状態では、店舗所属を変更できません。",
         },

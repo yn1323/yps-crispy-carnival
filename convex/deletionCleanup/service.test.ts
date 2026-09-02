@@ -1,13 +1,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { seedStaff } from "../_test/scenarioBuilders";
-import {
-  seedLegacyShop,
-  seedLegacyShopMembership,
-  seedOrganizationManagerShop,
-  seedShop,
-  seedUser,
-} from "../_test/seed";
+import { seedOrganizationManagerShop, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { getActiveUserAssociationStatus, getOtherActiveUserAssociationStatus } from "./service";
 
@@ -35,6 +29,8 @@ describe("deletionCleanup association scan", () => {
       const orphanPersonUserId = await seedUser(ctx, "association_orphan_person");
       const now = Date.now();
       const organizationId = await ctx.db.insert("organizations", {
+        billingEmail: "billing@example.com",
+        billingEmailNormalized: "billing@example.com",
         name: "親欠損グループ",
         isDeleted: false,
         createdAt: now,
@@ -58,7 +54,7 @@ describe("deletionCleanup association scan", () => {
     await expect(t.run((ctx) => getActiveUserAssociationStatus(ctx, ids.orphanPersonUserId))).resolves.toBe("unknown");
   });
 
-  it("nondeleted staff/shopMemberのshop・organization欠損や不整合はunknownにする", async () => {
+  it("nondeleted staffのshop・organization欠損や不整合はunknownにする", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const missingStaffShopUserId = await seedUser(ctx, "association_missing_staff_shop");
@@ -74,11 +70,6 @@ describe("deletionCleanup association scan", () => {
       await ctx.db.patch(missingStaff.organizationPersonId, { status: "removed", updatedAt: Date.now() });
       await ctx.db.delete(missingStaffShopId);
 
-      const missingMemberShopUserId = await seedUser(ctx, "association_missing_member_shop");
-      const missingMemberShopId = await seedLegacyShop(ctx, "削除するmember親店舗");
-      await seedLegacyShopMembership(ctx, { userId: missingMemberShopUserId, shopId: missingMemberShopId });
-      await ctx.db.delete(missingMemberShopId);
-
       const mismatchedStaffUserId = await seedUser(ctx, "association_mismatched_staff");
       const first = await seedOrganizationManagerShop(ctx, { subject: "association_staff_org_a", plan: "free" });
       const second = await seedOrganizationManagerShop(ctx, { subject: "association_staff_org_b", plan: "free" });
@@ -92,7 +83,7 @@ describe("deletionCleanup association scan", () => {
       if (!mismatchedStaff?.organizationPersonId) throw new Error("mismatched staff fixture was not canonical");
       await ctx.db.patch(mismatchedStaff.organizationPersonId, { status: "removed", updatedAt: Date.now() });
       await ctx.db.patch(mismatchedStaffId, { organizationId: second.organizationId });
-      return { missingStaffShopUserId, missingMemberShopUserId, mismatchedStaffUserId };
+      return { missingStaffShopUserId, mismatchedStaffUserId };
     });
 
     for (const userId of Object.values(ids)) {

@@ -11,7 +11,13 @@ const mocks = vi.hoisted(() => ({
   useMembershipActions: vi.fn(),
   historyProps: undefined as
     | undefined
-    | { shopId: string; staffId: string; enabled: boolean; lineConnectionStatus: "linked" | "unlinked" },
+    | {
+        shopId: string;
+        staffId: string;
+        enabled: boolean;
+        lineConnectionStatus: "linked" | "unlinked";
+        expectedOrganizationId: string;
+      },
 }));
 
 vi.mock("@/src/components/features/StaffNotificationHistory", () => ({
@@ -20,6 +26,7 @@ vi.mock("@/src/components/features/StaffNotificationHistory", () => ({
     staffId: string;
     enabled: boolean;
     lineConnectionStatus: "linked" | "unlinked";
+    expectedOrganizationId: string;
   }) => {
     mocks.historyProps = props;
     return <output data-testid="history-shop">{props.shopId}</output>;
@@ -60,11 +67,11 @@ vi.mock("./useUserShopMembershipActions", () => ({
 import { UserShopDetail } from ".";
 
 const targetShopId = "shop-target" as Id<"shops">;
+const organizationId = "organization-a" as Id<"organizations">;
 const membership = {
   staffId: "staff-target" as Id<"staffs">,
   shopId: targetShopId,
   shopName: "対象店舗",
-  shopStatus: "active",
 } as unknown as UserShopDetailMembership;
 const data = {
   person: { id: "person-target", name: "田中 花子" },
@@ -94,31 +101,50 @@ beforeEach(() => {
 
 describe("UserShopDetail", () => {
   it("店舗別controllerと通知履歴へpathのtargetShopIdを渡す", () => {
-    render(<UserShopDetail data={data} membership={membership} targetShopId={targetShopId} onBack={vi.fn()} />);
+    render(
+      <UserShopDetail
+        data={data}
+        membership={membership}
+        targetShopId={targetShopId}
+        expectedOrganizationId={organizationId}
+        onBack={vi.fn()}
+      />,
+    );
 
     expect(mocks.useNotificationActions).toHaveBeenCalledWith({
       targetShopId,
       membership,
       isReadOnly: false,
       enabled: true,
+      expectedOrganizationId: organizationId,
     });
     expect(mocks.useMembershipActions).toHaveBeenCalledWith({
       targetShopId,
       membership,
       isReadOnly: false,
+      expectedOrganizationId: organizationId,
     });
     expect(mocks.historyProps).toEqual({
       shopId: targetShopId,
       staffId: membership.staffId,
       enabled: true,
       lineConnectionStatus: "unlinked",
+      expectedOrganizationId: organizationId,
     });
     expect(screen.getByTestId("history-shop").textContent).toBe("shop-target");
   });
 
   it("組織の更新が制限されている場合は閲覧専用として全controllerへ渡す", () => {
     const readOnlyData = { ...data, canWrite: false } as UserShopDetailData;
-    render(<UserShopDetail data={readOnlyData} membership={membership} targetShopId={targetShopId} onBack={vi.fn()} />);
+    render(
+      <UserShopDetail
+        data={readOnlyData}
+        membership={membership}
+        targetShopId={targetShopId}
+        expectedOrganizationId={organizationId}
+        onBack={vi.fn()}
+      />,
+    );
 
     expect(screen.getByTestId("read-only").textContent).toBe("true");
     expect(mocks.useNotificationActions).toHaveBeenCalledWith({
@@ -126,6 +152,7 @@ describe("UserShopDetail", () => {
       membership,
       isReadOnly: true,
       enabled: true,
+      expectedOrganizationId: organizationId,
     });
   });
 
@@ -136,7 +163,15 @@ describe("UserShopDetail", () => {
       onChangeShiftTarget: vi.fn(),
     });
 
-    render(<UserShopDetail data={data} membership={membership} targetShopId={targetShopId} onBack={vi.fn()} />);
+    render(
+      <UserShopDetail
+        data={data}
+        membership={membership}
+        targetShopId={targetShopId}
+        expectedOrganizationId={organizationId}
+        onBack={vi.fn()}
+      />,
+    );
 
     expect(screen.getByTestId("excluded-from-shift").textContent).toBe("true");
   });

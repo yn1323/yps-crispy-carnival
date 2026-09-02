@@ -26,10 +26,10 @@ describe("OrganizationUsageSection", () => {
   it("有料プランの支払い確認中はFree上限を表示する", () => {
     const billing = {
       state: "pendingActivation",
-      currentPlan: null,
-      peopleUsage: { current: 5, max: 5 },
-      shopUsage: { current: 1, max: 1 },
-      managerUsage: { current: 1, max: 2 },
+      currentPlan: "free",
+      peopleUsage: { current: 5, max: 5, pendingInvitations: 0 },
+      shopUsage: { current: 1, max: 1, pendingInvitations: 0 },
+      managerUsage: { current: 1, max: 2, pendingInvitations: 0 },
     } satisfies OrganizationUsageSummary;
 
     render(

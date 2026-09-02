@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import { MANAGER_SUBJECT, SCENARIO_NOW, scenarioDate, seedStaff } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
-import { seedManagerShop } from "../_test/seed";
+import { getTestOrganizationId, seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("確定後スタッフ追加シナリオ", () => {
@@ -98,6 +98,7 @@ describe("確定後スタッフ追加シナリオ", () => {
       .mutation(api.shiftBoard.mutations.confirmRecruitment, {
         recruitmentId,
         intent: "resend",
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
         shopId,
       });
     expect(resendResult).toEqual({ status: "scheduled", notifiedStaffCount: 1 });

@@ -3,14 +3,14 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import type { Id } from "../_generated/dataModel";
 import { seedStaff } from "../_test/scenarioBuilders";
-import { seedManagerShop, seedOrganizationMembership, seedShop } from "../_test/seed";
+import { getTestOrganizationId, seedManagerShop, seedOrganizationMembership, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { FEATURE_REQUEST_COMMENT_MAX_LENGTH } from "../constants";
 
 const REQUEST_ID = "f4c8f39b-4dc1-4b97-b322-c1cc0f2dfe6f";
 const submitFeatureRequest = makeFunctionReference<
   "mutation",
-  { comment: string; requestId: string; shopId: Id<"shops"> },
+  { comment: string; expectedOrganizationId: Id<"organizations">; requestId: string; shopId: Id<"shops"> },
   { status: "accepted" }
 >("featureRequest/mutations:submit");
 
@@ -35,9 +35,15 @@ describe("featureRequest/mutations", () => {
   it("未認証では要望を登録できない", async () => {
     const t = convexTest(schema, modules);
     const shopId = await t.run((ctx) => seedShop(ctx, "未認証テスト店舗"));
+    const expectedOrganizationId = await getTestOrganizationId(t, shopId);
 
     await expect(
-      t.mutation(submitFeatureRequest, { comment: "一覧をCSVで出したい", requestId: REQUEST_ID, shopId }),
+      t.mutation(submitFeatureRequest, {
+        comment: "一覧をCSVで出したい",
+        expectedOrganizationId,
+        requestId: REQUEST_ID,
+        shopId,
+      }),
     ).rejects.toThrow();
   });
 
@@ -49,6 +55,7 @@ describe("featureRequest/mutations", () => {
 
     const result = await t.withIdentity({ subject: "feature_request_manager" }).mutation(submitFeatureRequest, {
       comment: "  一覧をCSVで出したい  ",
+      expectedOrganizationId: seeded.organizationId,
       requestId: REQUEST_ID,
       shopId: seeded.shopId,
     });
@@ -67,14 +74,24 @@ describe("featureRequest/mutations", () => {
 
   it("同じrequestIdの再送は登録を増やさない", async () => {
     const t = convexTest(schema, modules);
-    const { shopId } = await t.run((ctx) =>
+    const { organizationId, shopId } = await t.run((ctx) =>
       seedManagerShop(ctx, { subject: "feature_request_retry", email: "retry@example.com", shopName: "再送店舗" }),
     );
     const asManager = t.withIdentity({ subject: "feature_request_retry" });
 
-    await asManager.mutation(submitFeatureRequest, { comment: "最初の要望", requestId: REQUEST_ID, shopId });
+    await asManager.mutation(submitFeatureRequest, {
+      comment: "最初の要望",
+      expectedOrganizationId: organizationId,
+      requestId: REQUEST_ID,
+      shopId,
+    });
     await expect(
-      asManager.mutation(submitFeatureRequest, { comment: "再送された要望", requestId: REQUEST_ID, shopId }),
+      asManager.mutation(submitFeatureRequest, {
+        comment: "再送された要望",
+        expectedOrganizationId: organizationId,
+        requestId: REQUEST_ID,
+        shopId,
+      }),
     ).resolves.toEqual({ status: "accepted" });
 
     expect(await t.run((ctx) => ctx.db.query("featureRequests").collect())).toHaveLength(1);
@@ -82,8 +99,8 @@ describe("featureRequest/mutations", () => {
 
   it("別店舗のshopIdでは要望を登録できない", async () => {
     const t = convexTest(schema, modules);
-    const { otherShopId } = await t.run(async (ctx) => {
-      await seedManagerShop(ctx, {
+    const { expectedOrganizationId, otherShopId } = await t.run(async (ctx) => {
+      const actor = await seedManagerShop(ctx, {
         subject: "feature_request_scoped",
         email: "scoped@example.com",
         shopName: "所属店舗",
@@ -93,12 +110,13 @@ describe("featureRequest/mutations", () => {
         email: "other@example.com",
         shopName: "別店舗",
       });
-      return { otherShopId: other.shopId };
+      return { expectedOrganizationId: actor.organizationId, otherShopId: other.shopId };
     });
 
     await expect(
       t.withIdentity({ subject: "feature_request_scoped" }).mutation(submitFeatureRequest, {
         comment: "別店舗名義の要望",
+        expectedOrganizationId,
         requestId: REQUEST_ID,
         shopId: otherShopId,
       }),
@@ -108,17 +126,23 @@ describe("featureRequest/mutations", () => {
 
   it("空白だけと201文字の要望を拒否する", async () => {
     const t = convexTest(schema, modules);
-    const { shopId } = await t.run((ctx) =>
+    const { organizationId, shopId } = await t.run((ctx) =>
       seedManagerShop(ctx, { subject: "feature_request_validation", email: "valid@example.com", shopName: "検証店舗" }),
     );
     const asManager = t.withIdentity({ subject: "feature_request_validation" });
 
     await expect(
-      asManager.mutation(submitFeatureRequest, { comment: "   ", requestId: REQUEST_ID, shopId }),
+      asManager.mutation(submitFeatureRequest, {
+        comment: "   ",
+        expectedOrganizationId: organizationId,
+        requestId: REQUEST_ID,
+        shopId,
+      }),
     ).rejects.toThrow("要望を入力してください");
     await expect(
       asManager.mutation(submitFeatureRequest, {
         comment: "あ".repeat(FEATURE_REQUEST_COMMENT_MAX_LENGTH + 1),
+        expectedOrganizationId: organizationId,
         requestId: "842ff731-6646-49f7-ac47-cea4cf432a30",
         shopId,
       }),
@@ -127,15 +151,21 @@ describe("featureRequest/mutations", () => {
 
   it("異なる要望の短時間連続送信を拒否する", async () => {
     const t = convexTest(schema, modules);
-    const { shopId } = await t.run((ctx) =>
+    const { organizationId, shopId } = await t.run((ctx) =>
       seedManagerShop(ctx, { subject: "feature_request_limit", email: "limit@example.com", shopName: "制限店舗" }),
     );
     const asManager = t.withIdentity({ subject: "feature_request_limit" });
 
-    await asManager.mutation(submitFeatureRequest, { comment: "最初の要望", requestId: REQUEST_ID, shopId });
+    await asManager.mutation(submitFeatureRequest, {
+      comment: "最初の要望",
+      expectedOrganizationId: organizationId,
+      requestId: REQUEST_ID,
+      shopId,
+    });
     await expect(
       asManager.mutation(submitFeatureRequest, {
         comment: "次の要望",
+        expectedOrganizationId: organizationId,
         requestId: "6cf637aa-9b42-4027-a0c8-46872f7e4a22",
         shopId,
       }),
@@ -363,7 +393,11 @@ describe("featureRequest/mutations", () => {
   it("スタッフセッションから店舗とstaffIdを確定して要望を登録する", async () => {
     const t = convexTest(schema, modules);
     const seeded = await t.run(async (ctx) => {
-      const shopId = await seedShop(ctx, "スタッフ要望店舗");
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: "staff_feature_request_manager",
+        email: "staff-feature-request-manager@example.com",
+        shopName: "スタッフ要望店舗",
+      });
       const staffId = await seedStaff(ctx, {
         shopId,
         name: "スタッフ",
@@ -423,7 +457,11 @@ describe("featureRequest/mutations", () => {
     const t = convexTest(schema, modules);
     const sessionToken = "staff-feature-request-view-session";
     await t.run(async (ctx) => {
-      const shopId = await seedShop(ctx, "閲覧session要望店舗");
+      const { shopId } = await seedManagerShop(ctx, {
+        subject: "staff_feature_request_view_manager",
+        email: "staff-feature-request-view-manager@example.com",
+        shopName: "閲覧session要望店舗",
+      });
       const staffId = await seedStaff(ctx, {
         shopId,
         name: "閲覧スタッフ",

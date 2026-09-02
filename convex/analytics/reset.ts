@@ -4,7 +4,6 @@ import type { MutationCtx } from "../_generated/server";
 import { addDays, dateJST, getDeadlineCutoff, getSubmitLinkCutoff, jstDayRangeMs } from "../_lib/dateFormat";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { resolveStaffLineRecipient } from "../line/service";
-import { hasCanonicalStaffIdentity } from "../staff/service";
 import { getAnalyticsResetConfiguration, parseAnalyticsSourceCaptureStartAt } from "./config";
 import { inspectCanonicalFactsPage } from "./invariants";
 import { ANALYTICS_CALCULATION_VERSION } from "./model";
@@ -280,7 +279,6 @@ async function seedShops(ctx: MutationCtx, run: Doc<"analyticsRuns">, cursor?: s
   const page = await ctx.db.query("shops").paginate({ numItems: PAGE_SIZE, cursor: cursor ?? null });
   for (const shop of page.page) {
     const organizationId = shop.organizationId;
-    if (!organizationId) throw new Error("analytics_reset_scope_invalid");
     const organization = await ctx.db
       .query("analyticsOrganizations")
       .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
@@ -364,9 +362,8 @@ async function seedStaffs(ctx: MutationCtx, run: Doc<"analyticsRuns">, cursor?: 
   const page = await ctx.db.query("staffs").paginate({ numItems: PAGE_SIZE, cursor: cursor ?? null });
   for (const staff of page.page) {
     if (staff.isDeleted) continue;
-    if (!hasCanonicalStaffIdentity(staff)) throw new Error("analytics_reset_scope_invalid");
     const shop = await ctx.db.get(staff.shopId);
-    if (!shop?.organizationId) throw new Error("analytics_reset_scope_invalid");
+    if (!shop) throw new Error("analytics_reset_scope_invalid");
     const organizationId = staff.organizationId;
     if (organizationId !== shop.organizationId) throw new Error("analytics_reset_scope_invalid");
     const person = await ctx.db.get(staff.organizationPersonId);
@@ -402,7 +399,7 @@ async function seedCycles(ctx: MutationCtx, run: Doc<"analyticsRuns">, cursor?: 
     const closeAt = recruitment.confirmedAt ?? getSubmitLinkCutoff(recruitment.periodStart);
     if (recruitment.isDeleted || closeAt < sourceCaptureStartAt) continue;
     const shop = await ctx.db.get(recruitment.shopId);
-    if (!shop?.organizationId) throw new Error("analytics_reset_scope_invalid");
+    if (!shop) throw new Error("analytics_reset_scope_invalid");
     await ctx.db.insert("analyticsShiftCycles", {
       recruitmentId: recruitment._id,
       organizationId: shop.organizationId,

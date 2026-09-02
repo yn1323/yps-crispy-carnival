@@ -52,7 +52,6 @@ import {
   organizationMemberStatusValidator,
   organizationPaidPlanValidator,
   organizationPersonStatusValidator,
-  organizationShopOperatingStatusValidator,
 } from "./organization/validators";
 import {
   organizationStripeOperationKindValidator,
@@ -69,38 +68,24 @@ const schema = defineSchema({
   // 店舗情報
   // ========================================
   shops: defineTable({
-    // TODO[narrow]: Widen -> Migrate -> Narrow の2段階目。
-    //   前提: 全deploymentでm025が完走し、verifyShopsの全pageで欠損・danglingが0件であること。
-    //   対応: v.optional() を外して v.id("organizations") にする。
-    organizationId: v.optional(v.id("organizations")),
-    // TODO[narrow]: 店舗status廃止のWiden -> Migrate -> Narrow 2段階目。
-    //   通常runtimeはこのlegacy fieldを読み書きしない。
-    //   全deploymentでm048が完走し、verifyShopsの全pageでstatus残存・legacy eventが0件になった後、
-    //   field・validator・status indexをまとめて削除する。
-    operatingStatus: v.optional(organizationShopOperatingStatusValidator),
+    organizationId: v.id("organizations"),
     name: v.string(),
-    // TODO[narrow]: 全deploymentでm039のshop workerが完走し、verifyShopsの
-    // missingRegularClosedDaysが0件になった後にrequiredへ戻す。
-    regularClosedDays: v.optional(
-      v.array(
-        v.union(
-          v.literal("sun"),
-          v.literal("mon"),
-          v.literal("tue"),
-          v.literal("wed"),
-          v.literal("thu"),
-          v.literal("fri"),
-          v.literal("sat"),
-        ),
+    regularClosedDays: v.array(
+      v.union(
+        v.literal("sun"),
+        v.literal("mon"),
+        v.literal("tue"),
+        v.literal("wed"),
+        v.literal("thu"),
+        v.literal("fri"),
+        v.literal("sat"),
       ),
     ),
     submissionPattern: submissionPatternValidator,
     isDeleted: v.boolean(),
   })
     .index("by_organizationId", ["organizationId"])
-    .index("by_organizationId_and_isDeleted", ["organizationId", "isDeleted"])
-    .index("by_organizationId_and_operatingStatus", ["organizationId", "operatingStatus"])
-    .index("by_organizationId_and_operatingStatus_and_isDeleted", ["organizationId", "operatingStatus", "isDeleted"]),
+    .index("by_organizationId_and_isDeleted", ["organizationId", "isDeleted"]),
 
   // ========================================
   // 事業者・人物・管理者所属
@@ -109,16 +94,8 @@ const schema = defineSchema({
     createdByUserId: v.optional(v.id("users")),
     migrationSourceShopId: v.optional(v.id("shops")),
     name: v.string(),
-    // TODO[narrow]: Widen -> Migrate -> Narrow の2段階目。
-    //   前提: 既存事業者の初期請求連絡先を運用確認して補完し、develop/prodの未設定件数が
-    //   0件であること（確認: verifyOrganizationsの全page）。
-    //   対応: v.optional() を外して v.string() にする。
-    billingEmail: v.optional(v.string()),
-    // TODO[narrow]: Widen -> Migrate -> Narrow の2段階目。
-    //   前提: billingEmail と同じ補完が完了し、develop/prodの未設定件数が0件であること
-    //   （確認: verifyOrganizationsの全page）。
-    //   対応: v.optional() を外して v.string() にする。
-    billingEmailNormalized: v.optional(v.string()),
+    billingEmail: v.string(),
+    billingEmailNormalized: v.string(),
     // Stripe Customer同期の世代を識別する非PIIのopaque key。既存行は未設定を許容する。
     billingEmailSyncKey: v.optional(v.string()),
     isDeleted: v.boolean(),
@@ -517,11 +494,8 @@ const schema = defineSchema({
     name: v.string(),
     // 初回bootstrapとcanonical personを持たないlegacy経路のsnapshot。Clerkやシフト連絡先とは同期しない。
     email: v.string(),
-    // TODO[narrow]: 全deploymentでm031が完走し、verifyUsersのemail残件が全pageで0になった後にrequired化する。
-    emailNormalized: v.optional(v.string()),
-    // TODO[narrow]: verifyUsersのlegacyAdminRoleが全deployment・全pageで0と確認できた後にmanager literalだけへ狭める。
-    // adminをmanagerへ自動変換すると権限判断になるため、forward migrationでは推測しない。
-    role: v.union(v.literal("admin"), v.literal("manager")),
+    emailNormalized: v.string(),
+    role: v.literal("manager"),
     isDeleted: v.boolean(),
     // 明示的なaccount deletion受付だけに設定する。legacy tombstoneからbackfillしない。
     accountDeletionRequestedAt: v.optional(v.number()),
@@ -578,19 +552,14 @@ const schema = defineSchema({
   // ========================================
   staffs: defineTable({
     shopId: v.id("shops"),
-    // TODO[narrow]: 全deploymentでm050が完走し、verifyStaffsの全pageでcanonical ID anomalyが0件、
-    //   verifyOrganizationMigrationConflictsの未解決staff conflictが0件になった後にrequired化する。
-    //   Widen中に許可する旧形式は両fieldとも未設定だけであり、片方だけのrowは常に不整合として扱う。
-    organizationId: v.optional(v.id("organizations")),
-    organizationPersonId: v.optional(v.id("organizationPeople")),
+    organizationId: v.id("organizations"),
+    organizationPersonId: v.id("organizationPeople"),
     name: v.string(),
     email: v.string(),
-    // TODO[narrow]: 全deploymentでm032が完走し、verifyStaffsのemail残件が全pageで0になった後にrequired化する。
-    emailNormalized: v.optional(v.string()),
+    emailNormalized: v.string(),
     userId: v.optional(v.id("users")),
-    // TODO[narrow]: 全deploymentでm027が完走し、verifyStaffsのmissingExcludedFromShiftが0件になった後にrequired化する。
-    // シフト対象外フラグ（店舗共通アドレス等、シフトを出さないスタッフ）。旧rowの未定義は false 扱い。
-    excludedFromShift: v.optional(v.boolean()),
+    // シフト対象外フラグ（店舗共通アドレス等、シフトを出さないスタッフ）。
+    excludedFromShift: v.boolean(),
     isDeleted: v.boolean(),
   })
     .index("by_shopId", ["shopId"])
@@ -759,9 +728,7 @@ const schema = defineSchema({
     periodStart: v.string(), // "2026-01-20"
     periodEnd: v.string(), // "2026-01-26"
     deadline: v.string(), // "2026-01-17"
-    // TODO[narrow]: 全deploymentでm040が完走し、verifyRecruitmentsの
-    // missingShopClosedDatesが0件になった後にrequiredへ戻す。
-    shopClosedDates: v.optional(v.array(v.string())), // 募集期間内でお店を開けない日
+    shopClosedDates: v.array(v.string()), // 募集期間内でお店を開けない日
     status: v.union(v.literal("open"), v.literal("confirmed")),
     confirmedAt: v.optional(v.number()), // Unix ms
     isDeleted: v.boolean(),
@@ -772,8 +739,6 @@ const schema = defineSchema({
     lastReminderSentAt: v.optional(v.number()),
     // シフト表の下書き保存時刻。保存後の希望表示優先順位判定に使う。
     // assignmentがない募集では未設定が正しいためoptionalを維持する。
-    // TODO[narrow]: 全deploymentでm038が完走し、verifyRecruitmentsの
-    // assignmentsWithoutDraftSavedAtが0件になった後はreader fallbackだけを削除する。
     draftSavedAt: v.optional(v.number()),
     // 確定・再送通知の最新semantic operation。optional wideningのため既存行のbackfillは不要。
     lastConfirmationNotificationOperationKey: v.optional(v.string()),
@@ -844,8 +809,7 @@ const schema = defineSchema({
   shiftSubmissions: defineTable({
     recruitmentId: v.id("recruitments"),
     staffId: v.id("staffs"),
-    // TODO[narrow]: 全deploymentでm033が完走し、verifyShiftSubmissionsの全pageが0になった後にrequired化する。
-    firstSubmittedAt: v.optional(v.number()), // Unix ms（初回提出日時、既存データは submittedAt にフォールバック）
+    firstSubmittedAt: v.number(), // Unix ms（初回提出日時）
     submittedAt: v.number(), // Unix ms（最終提出日時）
   })
     .index("by_recruitmentId", ["recruitmentId"])
@@ -869,8 +833,7 @@ const schema = defineSchema({
     name: v.string(),
     color: v.string(), // "#3b82f6"
     sortOrder: v.number(),
-    // TODO[narrow]: 全deploymentでm034が完走し、verifyPositionsの全pageが0になった後にrequired化する。
-    isDefault: v.optional(v.boolean()),
+    isDefault: v.boolean(),
     isDeleted: v.boolean(),
   })
     .index("by_shopId", ["shopId"])
@@ -884,8 +847,7 @@ const schema = defineSchema({
     staffId: v.id("staffs"),
     shopId: v.id("shops"),
     recruitmentId: v.id("recruitments"),
-    // TODO[narrow]: 全deploymentでm035が完走し、verifyMagicLinksの全pageが0になった後にrequired化する。
-    accessKind: v.optional(v.union(v.literal("submit"), v.literal("view"))),
+    accessKind: v.union(v.literal("submit"), v.literal("view")),
     // resumable fanoutで同じbatchを再実行してもview capabilityを増やさないためのsemantic key。
     // fanout由来のview linkだけが持つ条件付きfieldで、submit linkは未設定が正しい。
     // 旧view linkには安全に導出できないため、期限内欠損をreadinessで確認して互換readerだけをNarrowする。
@@ -914,8 +876,7 @@ const schema = defineSchema({
     staffId: v.id("staffs"),
     shopId: v.id("shops"),
     recruitmentId: v.id("recruitments"),
-    // TODO[narrow]: 全deploymentでm036が完走し、verifySessionsの全pageが0になった後にrequired化する。
-    accessKind: v.optional(v.union(v.literal("submit"), v.literal("view"))),
+    accessKind: v.union(v.literal("submit"), v.literal("view")),
     expiresAt: v.number(), // Unix ms（14日後）
     revokedAt: v.optional(v.number()),
   })
@@ -932,10 +893,9 @@ const schema = defineSchema({
   lineLinkTokens: defineTable({
     staffId: v.id("staffs"),
     shopId: v.id("shops"),
-    // TODO[narrow]: canonical LINE切替と旧token drain完了後にrequired化する。
-    organizationId: v.optional(v.id("organizations")),
-    organizationPersonId: v.optional(v.id("organizationPeople")),
-    lineLinkGenerationAtIssue: v.optional(v.number()),
+    organizationId: v.id("organizations"),
+    organizationPersonId: v.id("organizationPeople"),
+    lineLinkGenerationAtIssue: v.number(),
     token: v.string(), // UUID v4
     expiresAt: v.number(), // 発行から72時間
     usedAt: v.optional(v.number()),
@@ -972,11 +932,10 @@ const schema = defineSchema({
     cursor: v.number(),
     status: notificationFanoutStatusValidator,
     dedupeSuffix: v.string(),
-    // TODO[narrow]: 全deploymentでm030が完走し、fanout readinessの欠損が0件になった後にrequired化する。
     // falseの個別再送は、同じ募集で進行中の全体fanoutを置き換えず並行して配る。
     // rollbackはmanual受付停止後、false operation/Outboxのdrain・cancelと欠落0確認までcompat reader/provider gateを維持する。
     // その確認後にだけbehaviorを戻し、optional field/indexは互換期間中そのまま残す。
-    supersedesActiveOperations: v.optional(v.boolean()),
+    supersedesActiveOperations: v.boolean(),
     // 個別再送受付時のbaseline。nullは値なし、undefinedは途中deploy等の不正rowとしてfail closedする。
     confirmationOperationKeyAtOrigin: v.optional(v.union(v.string(), v.null())),
     recruitmentDraftSavedAtAtOrigin: v.optional(v.union(v.number(), v.null())),
@@ -1008,24 +967,20 @@ const schema = defineSchema({
     fanoutOperationId: v.optional(v.id("notificationFanoutOperations")),
     // shopIdはbilling等のorganization-only通知では業務上optionalのまま維持する。
     shopId: v.optional(v.id("shops")),
-    // TODO[narrow]: 全deploymentでm025/m037が完走し、verifyNotificationOutboxのscope異常と
-    //   notificationOutbox所有の未解消conflictが0件になった後にrequired化する。
-    organizationId: v.optional(v.id("organizations")),
+    organizationId: v.id("organizations"),
     // enqueue時点のbilling versionであり、現在値から安全にbackfillできないためoptionalのまま維持する。
     organizationBillingVersionAtEnqueue: v.optional(v.number()),
     organizationInvitationId: v.optional(v.id("organizationInvitations")),
     organizationInvitationVersion: v.optional(v.number()),
-    // TODO[narrow]: 全deploymentでm024_notification_outbox_narrow_prepが完走し、
-    //   purpose / notificationContext / deliverySuppressedの欠損が0件であることを確認後、3 fieldをrequired化する。
-    purpose: v.optional(notificationPurposeValidator),
+    purpose: notificationPurposeValidator,
     recruitmentId: v.optional(v.id("recruitments")),
     staffId: v.optional(v.id("staffs")),
     // canonical LINE recipientのenqueue時snapshot。LINE以外では未設定が正しい。
     organizationPersonLineLinkId: v.optional(v.id("organizationPersonLineLinks")),
     organizationPersonLineGenerationAtEnqueue: v.optional(v.number()),
     userId: v.optional(v.id("users")),
-    notificationContext: v.optional(v.string()),
-    deliverySuppressed: v.optional(v.boolean()),
+    notificationContext: v.string(),
+    deliverySuppressed: v.boolean(),
     payload: notificationPayloadValidator,
     attemptCount: v.number(),
     nextRunAt: v.number(),

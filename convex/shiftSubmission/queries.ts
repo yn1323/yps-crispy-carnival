@@ -140,13 +140,14 @@ export const getSubmissionPageData = staffSessionQuery({
     if (now >= getSubmitLinkCutoff(recruitment.periodStart)) {
       return unavailable("submission_closed");
     }
-    const organizationAccess = ctx.shop.organizationId
-      ? await getOrganizationAccessPolicy(ctx, ctx.shop.organizationId)
-      : null;
-    if (organizationAccess?.usageLimitStatus?.kind === "overLimit") {
+    const organizationAccess = await getOrganizationAccessPolicy(ctx, ctx.shop.organizationId);
+    if (!organizationAccess) {
+      return unavailable("usage_limit_evaluation_unavailable");
+    }
+    if (organizationAccess.usageLimitStatus?.kind === "overLimit") {
       return unavailable("usage_limit_exceeded");
     }
-    if (organizationAccess?.usageLimitStatus?.kind === "unknown") {
+    if (organizationAccess.usageLimitStatus?.kind === "unknown") {
       return unavailable("usage_limit_evaluation_unavailable");
     }
 
@@ -186,9 +187,7 @@ export const getSubmissionPageData = staffSessionQuery({
         periodStart: recruitment.periodStart,
         periodEnd: recruitment.periodEnd,
         deadline: recruitment.deadline,
-        // TODO[narrow]: 全deploymentでm040が完走し、
-        // verifyRecruitments.missingShopClosedDatesが0件になった後にfallbackを削除する。
-        shopClosedDates: recruitment.shopClosedDates ?? [],
+        shopClosedDates: recruitment.shopClosedDates,
         submissionPattern,
         isBeforeDeadline,
         hasSubmitted: submission !== null,

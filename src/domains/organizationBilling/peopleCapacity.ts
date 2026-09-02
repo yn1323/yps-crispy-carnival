@@ -33,13 +33,7 @@ export function classifyPeopleCapacityError(message: string | undefined): People
 }
 
 export function resolvePeopleCapacityLimit(current: number, max: number): PeopleCapacityResolution {
-  // rolling更新中の旧Free・旧internal pro上限も、選択可能な有料プランへ案内する。
-  if (
-    max === 4 ||
-    max === ORGANIZATION_PLAN_LIMITS.free.maxPeople ||
-    max === 20 ||
-    max === ORGANIZATION_PLAN_LIMITS.standard.maxPeople
-  ) {
+  if (max === ORGANIZATION_PLAN_LIMITS.free.maxPeople || max === ORGANIZATION_PLAN_LIMITS.standard.maxPeople) {
     return { kind: "choosePaidPlan", current, max };
   }
   return { kind: "limitReached", current, max };

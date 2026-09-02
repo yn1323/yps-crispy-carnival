@@ -21,12 +21,20 @@ export async function seedNotificationHistory(
     deliveryStatus = "unknown",
   }: NotificationHistoryFixture,
 ) {
+  const [shop, staff] = await Promise.all([ctx.db.get(shopId), ctx.db.get(staffId)]);
+  if (!shop || !staff || staff.shopId !== shopId || staff.organizationId !== shop.organizationId) {
+    throw new Error("notification history fixture requires a canonical shop staff");
+  }
   const outboxId = await ctx.db.insert("notificationOutbox", {
     channel: "email",
     status: "sent",
     dedupeKey: `email:test:resendCooldown:${staffId}:${notificationKind}:${requestedAt}`,
+    organizationId: shop.organizationId,
     shopId,
     staffId,
+    purpose: "business",
+    notificationContext: "test.notificationResendCooldown",
+    deliverySuppressed: false,
     payload: {
       kind: "email",
       from: "シフトリ <noreply@example.com>",

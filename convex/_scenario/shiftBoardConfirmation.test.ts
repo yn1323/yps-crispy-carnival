@@ -71,7 +71,10 @@ describe("シフト表作成・確定シナリオ", () => {
       sessionToken: "scenario-before-draft-session",
       recruitmentId,
       acceptedLegal: true,
-      requests: [{ date: recruitmentInput.periodStart, startTime: "10:00", endTime: "18:00" }],
+      submission: {
+        kind: "time",
+        requests: [{ date: recruitmentInput.periodStart, startTime: "10:00", endTime: "18:00" }],
+      },
     });
 
     // Act: シフト担当者が提出済み希望を元に下書き保存する。
@@ -90,12 +93,18 @@ describe("シフト表作成・確定シナリオ", () => {
       sessionToken: "scenario-after-draft-session",
       recruitmentId,
       acceptedLegal: true,
-      requests: [{ date: recruitmentInput.periodStart, startTime: "12:00", endTime: "20:00" }],
+      submission: {
+        kind: "time",
+        requests: [{ date: recruitmentInput.periodStart, startTime: "12:00", endTime: "20:00" }],
+      },
     });
     await staff.submitShiftRequests({
       sessionToken: "scenario-before-draft-session",
       recruitmentId,
-      requests: [{ date: recruitmentInput.periodStart, startTime: "13:00", endTime: "21:00" }],
+      submission: {
+        kind: "time",
+        requests: [{ date: recruitmentInput.periodStart, startTime: "13:00", endTime: "21:00" }],
+      },
     });
 
     // Assert: 下書き時点の提出済み判定と最新希望がシフト表に反映される。

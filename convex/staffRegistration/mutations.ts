@@ -312,7 +312,7 @@ export const approveRequest = managerMutation({
     }
 
     const organizationId = ctx.shop.organizationId;
-    if (!organizationId || ctx.organization?._id !== organizationId) {
+    if (ctx.organization?._id !== organizationId) {
       throw new ConvexError("Not found");
     }
     const approvalAvailability = await resolveStaffRegistrationApprovalAvailability(ctx, {

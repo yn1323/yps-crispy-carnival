@@ -36,7 +36,7 @@ export type PositionType = {
   id: string;
   name: string;
   color: string;
-  isDefault?: boolean;
+  isDefault: boolean;
 };
 
 // スタッフ定義

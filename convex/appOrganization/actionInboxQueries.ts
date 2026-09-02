@@ -27,20 +27,21 @@ const actionKindValidator = v.union(
   v.literal("managerInvitation"),
 );
 
-const actionScopeValidator = v.union(
-  v.object({
-    kind: v.literal("shop"),
-    organizationId: v.id("organizations"),
-    shopId: v.id("shops"),
-  }),
-  v.object({ kind: v.literal("organization"), organizationId: v.id("organizations") }),
-);
+const shopActionScopeValidator = v.object({
+  kind: v.literal("shop"),
+  organizationId: v.id("organizations"),
+  shopId: v.id("shops"),
+});
+const organizationActionScopeValidator = v.object({
+  kind: v.literal("organization"),
+  organizationId: v.id("organizations"),
+});
 
 const actionItemValidator = v.union(
   v.object({
     id: v.string(),
     kind: v.literal("shift"),
-    scope: actionScopeValidator,
+    scope: shopActionScopeValidator,
     recruitmentId: v.id("recruitments"),
     shopName: v.string(),
     periodStart: v.string(),
@@ -54,7 +55,7 @@ const actionItemValidator = v.union(
   v.object({
     id: v.string(),
     kind: v.literal("staffRegistration"),
-    scope: actionScopeValidator,
+    scope: shopActionScopeValidator,
     requestId: v.id("staffRegistrationRequests"),
     shopName: v.string(),
     applicantName: v.string(),
@@ -67,7 +68,7 @@ const actionItemValidator = v.union(
   v.object({
     id: v.string(),
     kind: v.literal("notificationFailure"),
-    scope: actionScopeValidator,
+    scope: shopActionScopeValidator,
     failureId: v.id("notificationFailureInbox"),
     shopName: v.string(),
     staffName: v.string(),
@@ -81,7 +82,7 @@ const actionItemValidator = v.union(
   v.object({
     id: v.string(),
     kind: v.literal("managerInvitation"),
-    scope: actionScopeValidator,
+    scope: organizationActionScopeValidator,
     invitationId: v.id("organizationInvitations"),
     inviteeName: v.string(),
     invitedEmail: v.string(),
@@ -249,10 +250,10 @@ async function resolveActionCapabilities(ctx: OrganizationActionQueryCtx): Promi
     return { canWriteNormally: false, canRecoverUsageLimits: false };
   }
   const access = await getOrganizationAccessPolicy(ctx, ctx.organization._id);
-  // billing rowがない移行中組織は既存managerMutationと同じ互換動作を維持する。
+  if (!access) throw new ConvexError("Billing state not found");
   return {
-    canWriteNormally: access?.canWriteBusinessData ?? true,
-    canRecoverUsageLimits: access?.accessMode === "limitRecoveryOnly",
+    canWriteNormally: access.canWriteBusinessData,
+    canRecoverUsageLimits: access.accessMode === "limitRecoveryOnly",
   };
 }
 

@@ -23,6 +23,7 @@ const shop: ShopDetailData = {
   name: "スーパー美味しいカフェ新宿店",
   regularClosedDays: ["sun"],
   submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+  managerNotificationRecipientStatus: "available",
   canUpdateSettings: true,
   canDelete: true,
 };

@@ -99,9 +99,7 @@ export const verifyToken = mutation({
       return expired(magicLink.recruitmentId, "invalid_link");
     }
 
-    // TODO[narrow]: 全deploymentでm035が完走し、verifyMagicLinksの全pageが0になった後にmissing fallbackを削除する。
-    // accessKind導入前のlinkはsubmit専用として扱い、確定後のview権限へ昇格させない。
-    if ((magicLink.accessKind ?? "submit") !== accessKind) {
+    if (magicLink.accessKind !== accessKind) {
       return expired(magicLink.recruitmentId, "invalid_link");
     }
     if (!recruitmentMatchesAccessKind(recruitment.status, accessKind)) {

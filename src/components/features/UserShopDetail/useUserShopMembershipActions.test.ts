@@ -25,16 +25,20 @@ vi.mock("@/src/components/shared/feedback", () => ({
   showSuccessToast: mocks.showSuccessToast,
 }));
 
-import { useUserShopMembershipActions } from "./useUserShopMembershipActions";
+import { useUserShopMembershipActions as useRawUserShopMembershipActions } from "./useUserShopMembershipActions";
 
 const targetShopId = "shop-target" as Id<"shops">;
 const organizationId = "organization-a" as Id<"organizations">;
+const useUserShopMembershipActions = (
+  options: Omit<Parameters<typeof useRawUserShopMembershipActions>[0], "expectedOrganizationId"> & {
+    expectedOrganizationId?: Id<"organizations">;
+  },
+) => useRawUserShopMembershipActions({ expectedOrganizationId: organizationId, ...options });
 const staffId = "staff-target" as Id<"staffs">;
 const membership = {
   staffId,
   shopId: targetShopId,
   shopName: "対象店舗",
-  shopStatus: "active",
   excludedFromShift: false,
   line: { isLinked: false, isFollowing: false },
 } as unknown as UserShopDetailMembership;
@@ -91,6 +95,7 @@ describe("useUserShopMembershipActions", () => {
       shopId: targetShopId,
       staffId,
       excluded: true,
+      expectedOrganizationId: organizationId,
     });
     expect(result.current.excludedFromShift).toBe(true);
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "シフト対象外にしました" });

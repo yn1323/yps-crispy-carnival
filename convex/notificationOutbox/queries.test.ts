@@ -77,6 +77,7 @@ describe("notificationOutbox/queries", () => {
       });
 
       return {
+        organizationId: primary.organizationId,
         shopId: primary.shopId,
         staffId,
         otherStaffId,
@@ -87,6 +88,7 @@ describe("notificationOutbox/queries", () => {
     });
 
     const unauthenticated = await t.query(api.notificationOutbox.queries.listStaffNotificationHistory, {
+      expectedOrganizationId: ids.organizationId,
       shopId: ids.shopId,
       staffId: ids.staffId,
       paginationOpts: { numItems: 20, cursor: null },
@@ -96,6 +98,7 @@ describe("notificationOutbox/queries", () => {
     const first = await t
       .withIdentity({ subject: "history_query_primary" })
       .query(api.notificationOutbox.queries.listStaffNotificationHistory, {
+        expectedOrganizationId: ids.organizationId,
         shopId: ids.shopId,
         staffId: ids.staffId,
         paginationOpts: { numItems: 20, cursor: null },
@@ -112,6 +115,7 @@ describe("notificationOutbox/queries", () => {
     const second = await t
       .withIdentity({ subject: "history_query_primary" })
       .query(api.notificationOutbox.queries.listStaffNotificationHistory, {
+        expectedOrganizationId: ids.organizationId,
         shopId: ids.shopId,
         staffId: ids.staffId,
         paginationOpts: { numItems: 20, cursor: first.continueCursor },
@@ -124,6 +128,7 @@ describe("notificationOutbox/queries", () => {
       const page = await t
         .withIdentity({ subject: "history_query_primary" })
         .query(api.notificationOutbox.queries.listStaffNotificationHistory, {
+          expectedOrganizationId: ids.organizationId,
           shopId: ids.shopId,
           staffId: inaccessibleStaffId,
           paginationOpts: { numItems: 20, cursor: null },
@@ -135,7 +140,7 @@ describe("notificationOutbox/queries", () => {
   it("listStaffNotificationHistoryは送信・配信状態を表示用の機械値へ優先順どおり正規化する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
-      const { shopId } = await seedManagerShop(ctx, {
+      const { organizationId, shopId } = await seedManagerShop(ctx, {
         subject: "history_query_status",
         email: "history-query-status@example.com",
         shopName: "履歴状態店舗",
@@ -167,12 +172,13 @@ describe("notificationOutbox/queries", () => {
           ...status,
         });
       }
-      return { shopId, staffId };
+      return { organizationId, shopId, staffId };
     });
 
     const page = await t
       .withIdentity({ subject: "history_query_status" })
       .query(api.notificationOutbox.queries.listStaffNotificationHistory, {
+        expectedOrganizationId: ids.organizationId,
         shopId: ids.shopId,
         staffId: ids.staffId,
         paginationOpts: { numItems: 20, cursor: null },
@@ -283,12 +289,18 @@ describe("notificationOutbox/queries", () => {
         status: "open",
         dedupeKey: "email:test:other",
       });
-      return { oldFailureId, newFailureId, shopId: primary.shopId };
+      return {
+        oldFailureId,
+        newFailureId,
+        organizationId: primary.organizationId,
+        shopId: primary.shopId,
+      };
     });
 
     const page = await t
       .withIdentity({ subject: "manager_primary" })
       .query(api.notificationOutbox.queries.listOpenFailures, {
+        expectedOrganizationId: ids.organizationId,
         shopId: ids.shopId,
         paginationOpts: { numItems: 10, cursor: null },
       });
@@ -312,8 +324,8 @@ describe("notificationOutbox/queries", () => {
 
   it("listOpenFailuresは非表示失敗を挟んでも対応可能な失敗を欠落なくページングする", async () => {
     const t = convexTest(schema, modules);
-    const { actionableId, olderActionableId, shopId } = await t.run(async (ctx) => {
-      const { shopId } = await seedManagerShop(ctx, {
+    const { actionableId, olderActionableId, organizationId, shopId } = await t.run(async (ctx) => {
+      const { organizationId, shopId } = await seedManagerShop(ctx, {
         subject: "manager_pagination",
         email: "pagination@example.com",
         shopName: "ページング店舗",
@@ -388,12 +400,13 @@ describe("notificationOutbox/queries", () => {
           notificationContext: "test.email",
         });
       }
-      return { actionableId: id, olderActionableId: olderId, shopId };
+      return { actionableId: id, olderActionableId: olderId, organizationId, shopId };
     });
 
     const first = await t
       .withIdentity({ subject: "manager_pagination" })
       .query(api.notificationOutbox.queries.listOpenFailures, {
+        expectedOrganizationId: organizationId,
         shopId,
         paginationOpts: { numItems: 1, cursor: null },
       });
@@ -404,6 +417,7 @@ describe("notificationOutbox/queries", () => {
     const second = await t
       .withIdentity({ subject: "manager_pagination" })
       .query(api.notificationOutbox.queries.listOpenFailures, {
+        expectedOrganizationId: organizationId,
         shopId,
         paginationOpts: { numItems: 1, cursor: first.continueCursor },
       });
@@ -414,6 +428,7 @@ describe("notificationOutbox/queries", () => {
     const last = await t
       .withIdentity({ subject: "manager_pagination" })
       .query(api.notificationOutbox.queries.listOpenFailures, {
+        expectedOrganizationId: organizationId,
         shopId,
         paginationOpts: { numItems: 1, cursor: second.continueCursor },
       });
@@ -480,32 +495,36 @@ describe("notificationOutbox/queries", () => {
         notificationContext: "notification.sendRecruitmentNotificationEmails",
       });
       return {
-        active: active.shopId,
-        empty: empty.shopId,
-        otherKind: otherKindOnly.shopId,
-        closedOnly: closedOnly.shopId,
+        active,
+        empty,
+        otherKind: otherKindOnly,
+        closedOnly,
       };
     });
 
     await expect(
-      t
-        .withIdentity({ subject: "manager_active" })
-        .query(api.notificationOutbox.queries.hasOpenFailures, { shopId: shopIds.active }),
+      t.withIdentity({ subject: "manager_active" }).query(api.notificationOutbox.queries.hasOpenFailures, {
+        expectedOrganizationId: shopIds.active.organizationId,
+        shopId: shopIds.active.shopId,
+      }),
     ).resolves.toBe(true);
     await expect(
-      t
-        .withIdentity({ subject: "manager_empty" })
-        .query(api.notificationOutbox.queries.hasOpenFailures, { shopId: shopIds.empty }),
+      t.withIdentity({ subject: "manager_empty" }).query(api.notificationOutbox.queries.hasOpenFailures, {
+        expectedOrganizationId: shopIds.empty.organizationId,
+        shopId: shopIds.empty.shopId,
+      }),
     ).resolves.toBe(false);
     await expect(
-      t
-        .withIdentity({ subject: "manager_other_kind" })
-        .query(api.notificationOutbox.queries.hasOpenFailures, { shopId: shopIds.otherKind }),
+      t.withIdentity({ subject: "manager_other_kind" }).query(api.notificationOutbox.queries.hasOpenFailures, {
+        expectedOrganizationId: shopIds.otherKind.organizationId,
+        shopId: shopIds.otherKind.shopId,
+      }),
     ).resolves.toBe(false);
     await expect(
-      t
-        .withIdentity({ subject: "manager_closed_only" })
-        .query(api.notificationOutbox.queries.hasOpenFailures, { shopId: shopIds.closedOnly }),
+      t.withIdentity({ subject: "manager_closed_only" }).query(api.notificationOutbox.queries.hasOpenFailures, {
+        expectedOrganizationId: shopIds.closedOnly.organizationId,
+        shopId: shopIds.closedOnly.shopId,
+      }),
     ).resolves.toBe(false);
   });
 });
@@ -554,12 +573,18 @@ async function insertNotificationHistoryFixture(
     deliveryStatus: Doc<"notificationHistory">["deliveryStatus"];
   },
 ) {
+  const shop = await ctx.db.get(args.shopId);
+  if (!shop) throw new Error("shop fixture was not found");
   const outboxId = await ctx.db.insert("notificationOutbox", {
     channel: "email",
     status: "sent",
     dedupeKey: `email:test:history-query:${args.displayTitle}:${args.requestedAt}`,
     shopId: args.shopId,
+    organizationId: shop.organizationId,
     staffId: args.staffId,
+    purpose: "business",
+    notificationContext: "test.historyQuery",
+    deliverySuppressed: false,
     payload: {
       kind: "email",
       from: "シフトリ <noreply@example.com>",

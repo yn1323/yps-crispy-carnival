@@ -152,7 +152,10 @@ describe("シフト対象スタッフの状態遷移シナリオ", () => {
       sessionToken: restoredAuthentication.sessionToken,
       recruitmentId,
       acceptedLegal: true,
-      requests: [{ date: scenarioDate(7), startTime: "12:00", endTime: "20:00" }],
+      submission: {
+        kind: "time",
+        requests: [{ date: scenarioDate(7), startTime: "12:00", endTime: "20:00" }],
+      },
     });
     const boardAfterSubmission = await asManager.getShiftBoardData(recruitmentId);
     expect(boardAfterSubmission?.staffs).toEqual([expect.objectContaining({ _id: staffId, isSubmitted: true })]);

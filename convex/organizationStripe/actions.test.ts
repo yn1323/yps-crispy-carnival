@@ -138,7 +138,7 @@ describe("organizationStripe/actions", () => {
         }),
     );
 
-    const results = await invokeBillingActions(t.withIdentity({ subject: "stripe_complimentary" }), ids.shopId);
+    const results = await invokeBillingActions(t.withIdentity({ subject: "stripe_complimentary" }), ids.organizationId);
 
     expect(results).toEqual([
       { status: "unavailable", reason: "not_allowed" },
@@ -212,19 +212,9 @@ describe("organizationStripe/actions", () => {
     const beforeScheduled = await scheduledFunctionIds(t);
 
     const results = await Promise.all([
-      actor.action(api.organizationStripe.actions.getPlanPrice, {
-        shopId: ids.shopId,
-        targetPlan: "pro",
-      }),
       actor.action(api.organizationStripe.actions.getPlanPriceForOrganization, {
         organizationId: ids.organizationId,
         targetPlan: "pro",
-      }),
-      actor.action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
-      actor.action(api.organizationStripe.actions.startPaidCheckout, {
-        shopId: ids.shopId,
-        targetPlan: "pro",
-        requestId: "complimentary-pro-shop-checkout",
       }),
       actor.action(api.organizationStripe.actions.startPaidCheckoutForOrganization, {
         organizationId: ids.organizationId,
@@ -237,21 +227,10 @@ describe("organizationStripe/actions", () => {
       actor.action(api.organizationStripe.actions.cancelPendingCheckoutForOrganization, {
         organizationId: ids.organizationId,
       }),
-      actor.action(api.organizationStripe.actions.previewPaidPlanChange, {
-        shopId: ids.shopId,
-        targetPlan: "pro",
-        requestId: "complimentary-pro-shop-preview",
-      }),
       actor.action(api.organizationStripe.actions.previewPaidPlanChangeForOrganization, {
         organizationId: ids.organizationId,
         targetPlan: "pro",
         requestId: "complimentary-pro-organization-preview",
-      }),
-      actor.action(api.organizationStripe.actions.changePaidPlanNow, {
-        shopId: ids.shopId,
-        targetPlan: "pro",
-        requestId: "complimentary-pro-shop-change",
-        prorationDate: Math.floor(NOW / 1000),
       }),
       actor.action(api.organizationStripe.actions.changePaidPlanNowForOrganization, {
         organizationId: ids.organizationId,
@@ -259,43 +238,22 @@ describe("organizationStripe/actions", () => {
         requestId: "complimentary-pro-organization-change",
         prorationDate: Math.floor(NOW / 1000),
       }),
-      actor.action(api.organizationStripe.actions.schedulePaidPlanChange, {
-        shopId: ids.shopId,
-        targetPlan: "standard",
-        requestId: "complimentary-pro-shop-schedule",
-      }),
       actor.action(api.organizationStripe.actions.schedulePaidPlanChangeForOrganization, {
         organizationId: ids.organizationId,
         targetPlan: "standard",
         requestId: "complimentary-pro-organization-schedule",
       }),
-      actor.action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd, {
-        shopId: ids.shopId,
-        requestId: "complimentary-pro-shop-service-stop",
-      }),
       actor.action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEndForOrganization, {
         organizationId: ids.organizationId,
         requestId: "complimentary-pro-organization-service-stop",
-      }),
-      actor.action(api.organizationStripe.actions.cancelScheduledPlanChange, {
-        shopId: ids.shopId,
-        requestId: "complimentary-pro-shop-cancel-scheduled",
       }),
       actor.action(api.organizationStripe.actions.cancelScheduledPlanChangeForOrganization, {
         organizationId: ids.organizationId,
         requestId: "complimentary-pro-organization-cancel-scheduled",
       }),
-      actor.action(api.organizationStripe.actions.openCustomerPortal, {
-        shopId: ids.shopId,
-        requestId: "complimentary-pro-shop-portal",
-      }),
       actor.action(api.organizationStripe.actions.openCustomerPortalForOrganization, {
         organizationId: ids.organizationId,
         requestId: "complimentary-pro-organization-portal",
-      }),
-      actor.action(api.organizationStripe.actions.cancelTrialContinuation, {
-        shopId: ids.shopId,
-        requestId: "complimentary-pro-shop-cancel-trial",
       }),
       actor.action(api.organizationStripe.actions.cancelTrialContinuationForOrganization, {
         organizationId: ids.organizationId,
@@ -303,7 +261,7 @@ describe("organizationStripe/actions", () => {
       }),
     ]);
 
-    expect(results).toEqual(Array.from({ length: 21 }, () => ({ status: "unavailable", reason: "not_allowed" })));
+    expect(results).toEqual(Array.from({ length: 11 }, () => ({ status: "unavailable", reason: "not_allowed" })));
     expect(await scheduledFunctionIds(t)).toEqual(beforeScheduled);
     await expectNoStripeSideEffects(t);
   });
@@ -314,7 +272,7 @@ describe("organizationStripe/actions", () => {
       const ids = await t.run(
         async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "stripe_unauthenticated", plan: "free" }),
       );
-      expect((await settleBillingActions(t, ids.shopId)).map((result) => result.status)).toEqual([
+      expect((await settleBillingActions(t, ids.organizationId)).map((result) => result.status)).toEqual([
         "rejected",
         "rejected",
         "rejected",
@@ -330,7 +288,7 @@ describe("organizationStripe/actions", () => {
         return seeded;
       });
       expect(
-        (await settleBillingActions(t.withIdentity({ subject: "stripe_removed" }), ids.shopId)).map(
+        (await settleBillingActions(t.withIdentity({ subject: "stripe_removed" }), ids.organizationId)).map(
           (result) => result.status,
         ),
       ).toEqual(["rejected", "rejected", "rejected"]);
@@ -344,7 +302,7 @@ describe("organizationStripe/actions", () => {
         return await seedOrganizationManagerShop(ctx, { subject: "stripe_other_org_target", plan: "free" });
       });
       expect(
-        (await settleBillingActions(t.withIdentity({ subject: "stripe_other_org_actor" }), ids.shopId)).map(
+        (await settleBillingActions(t.withIdentity({ subject: "stripe_other_org_actor" }), ids.organizationId)).map(
           (result) => result.status,
         ),
       ).toEqual(["rejected", "rejected", "rejected"]);
@@ -440,7 +398,10 @@ describe("organizationStripe/actions", () => {
       async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "stripe_config_missing", plan: "free" }),
     );
 
-    const results = await invokeBillingActions(t.withIdentity({ subject: "stripe_config_missing" }), ids.shopId);
+    const results = await invokeBillingActions(
+      t.withIdentity({ subject: "stripe_config_missing" }),
+      ids.organizationId,
+    );
 
     expect(results).toEqual([
       { status: "unavailable", reason: "configuration_pending" },
@@ -497,10 +458,12 @@ describe("organizationStripe/actions", () => {
       });
     });
     await expect(
-      t.withIdentity({ subject: "stripe_pro_price" }).action(api.organizationStripe.actions.getPlanPrice, {
-        shopId: ids.shopId,
-        targetPlan: "pro",
-      }),
+      t
+        .withIdentity({ subject: "stripe_pro_price" })
+        .action(api.organizationStripe.actions.getPlanPriceForOrganization, {
+          organizationId: ids.organizationId,
+          targetPlan: "pro",
+        }),
     ).resolves.toEqual({ status: "unavailable", reason: "price_unavailable" });
     expect(requestedPriceIds).toEqual([PRO_PRICE_ID]);
 
@@ -516,10 +479,12 @@ describe("organizationStripe/actions", () => {
       });
     });
     await expect(
-      t.withIdentity({ subject: "stripe_pro_price" }).action(api.organizationStripe.actions.getPlanPrice, {
-        shopId: ids.shopId,
-        targetPlan: "pro",
-      }),
+      t
+        .withIdentity({ subject: "stripe_pro_price" })
+        .action(api.organizationStripe.actions.getPlanPriceForOrganization, {
+          organizationId: ids.organizationId,
+          targetPlan: "pro",
+        }),
     ).resolves.toEqual({ status: "unavailable", reason: "price_unavailable" });
     expect(requestedPriceIds).toEqual([PRO_PRICE_ID, READY_TEST_CONFIGURATION.standardPriceId]);
 
@@ -536,67 +501,26 @@ describe("organizationStripe/actions", () => {
       });
     });
     await expect(
-      t.withIdentity({ subject: "stripe_pro_price" }).action(api.organizationStripe.actions.getPlanPrice, {
-        shopId: ids.shopId,
-        targetPlan: "pro",
-      }),
+      t
+        .withIdentity({ subject: "stripe_pro_price" })
+        .action(api.organizationStripe.actions.getPlanPriceForOrganization, {
+          organizationId: ids.organizationId,
+          targetPlan: "pro",
+        }),
     ).resolves.toEqual({ status: "unavailable", reason: "price_unavailable" });
     expect(requestedPriceIds).toEqual([PRO_PRICE_ID, READY_TEST_CONFIGURATION.standardPriceId]);
 
     configurationMock.mockReturnValue({ status: "misconfigured", missing: ["STRIPE_PRO_PRICE_ID"] });
     providerFetchMock.mockClear();
     await expect(
-      t.withIdentity({ subject: "stripe_pro_price" }).action(api.organizationStripe.actions.getPlanPrice, {
-        shopId: ids.shopId,
-        targetPlan: "pro",
-      }),
+      t
+        .withIdentity({ subject: "stripe_pro_price" })
+        .action(api.organizationStripe.actions.getPlanPriceForOrganization, {
+          organizationId: ids.organizationId,
+          targetPlan: "pro",
+        }),
     ).resolves.toEqual({ status: "unavailable", reason: "configuration_pending" });
     expect(providerFetchMock).not.toHaveBeenCalled();
-  });
-
-  it("現在契約は保存済みの旧inactive PriceをID非公開で返し、明示された税区分だけを含める", async () => {
-    const t = convexTest(schema, modules);
-    const persistedPriceId = "price_archived_current_subscription";
-    const ids = await seedCurrentSubscriptionPriceContext(t, {
-      subject: "stripe_current_subscription_price",
-      priceId: persistedPriceId,
-    });
-    const requestedPriceIds: string[] = [];
-    providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").pop() ?? "";
-      if (resource !== "prices.retrieve") throw new Error(`Unexpected Stripe provider call: ${resource}`);
-      const [priceId] = JSON.parse(String(init?.body ?? "[]")) as [string];
-      requestedPriceIds.push(priceId);
-      return providerResponse({
-        ...priceFixtureFor(priceId),
-        active: false,
-        unit_amount: 1680,
-        tax_behavior: requestedPriceIds.length === 1 ? "exclusive" : "unspecified",
-        recurring: { interval: "week", interval_count: 2 },
-      });
-    });
-    const actor = t.withIdentity({ subject: "stripe_current_subscription_price" });
-
-    await expect(
-      actor.action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
-    ).resolves.toEqual({
-      status: "available",
-      currency: "jpy",
-      unitAmount: 1680,
-      interval: "week",
-      intervalCount: 2,
-      taxBehavior: "exclusive",
-    });
-    await expect(
-      actor.action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
-    ).resolves.toEqual({
-      status: "available",
-      currency: "jpy",
-      unitAmount: 1680,
-      interval: "week",
-      intervalCount: 2,
-    });
-    expect(requestedPriceIds).toEqual([persistedPriceId, persistedPriceId]);
   });
 
   it.each([
@@ -621,147 +545,11 @@ describe("organizationStripe/actions", () => {
     await expect(
       t
         .withIdentity({ subject: `stripe_invalid_recurring_${subjectSuffix}` })
-        .action(api.organizationStripe.actions.getPlanPrice, {
-          shopId: ids.shopId,
+        .action(api.organizationStripe.actions.getPlanPriceForOrganization, {
+          organizationId: ids.organizationId,
           targetPlan: "standard",
         }),
     ).resolves.toEqual({ status: "unavailable", reason: "price_unavailable" });
-  });
-
-  it("別organizationのactorは対象shopの契約Priceを取得できずprovider通信しない", async () => {
-    const t = convexTest(schema, modules);
-    await t.run(
-      async (ctx) =>
-        await seedOrganizationManagerShop(ctx, {
-          subject: "stripe_current_subscription_other_org_actor",
-          plan: "pro",
-        }),
-    );
-    const target = await seedCurrentSubscriptionPriceContext(t, {
-      subject: "stripe_current_subscription_other_org_target",
-    });
-
-    await expect(
-      t
-        .withIdentity({ subject: "stripe_current_subscription_other_org_actor" })
-        .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: target.shopId }),
-    ).rejects.toThrow();
-    expect(providerFetchMock).not.toHaveBeenCalled();
-  });
-
-  it("保存済みsubscriptionとsecretのlivemodeが不一致ならprovider通信しない", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await seedCurrentSubscriptionPriceContext(t, {
-      subject: "stripe_current_subscription_livemode_mismatch",
-      subscriptionLivemode: true,
-    });
-
-    await expect(
-      t
-        .withIdentity({ subject: "stripe_current_subscription_livemode_mismatch" })
-        .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
-    ).resolves.toEqual({ status: "unavailable", reason: "configuration_pending" });
-    expect(providerFetchMock).not.toHaveBeenCalled();
-  });
-
-  it.each(["active.free", "trial"] as const)(
-    "%sに古いsubscription snapshotが残っても現在契約Priceを返さない",
-    async (stateKind) => {
-      const t = convexTest(schema, modules);
-      const subject = `stripe_stale_current_subscription_${stateKind.replace(".", "_")}`;
-      const ids = await seedCurrentSubscriptionPriceContext(t, {
-        subject,
-        billingState:
-          stateKind === "active.free"
-            ? () => ({ kind: "active", plan: "free" })
-            : () => ({ kind: "trial", trialEndsAt: NOW + 7 * 24 * 60 * 60_000 }),
-      });
-
-      await expect(
-        t
-          .withIdentity({ subject })
-          .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
-      ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
-      expect(providerFetchMock).not.toHaveBeenCalled();
-    },
-  );
-
-  it("canonical有料planとsubscription snapshotのplanが不一致ならprovider通信しない", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await seedCurrentSubscriptionPriceContext(t, {
-      subject: "stripe_current_subscription_plan_mismatch",
-      subscriptionPlan: "pro",
-    });
-
-    await expect(
-      t
-        .withIdentity({ subject: "stripe_current_subscription_plan_mismatch" })
-        .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
-    ).resolves.toEqual({ status: "unavailable", reason: "price_unavailable" });
-    expect(providerFetchMock).not.toHaveBeenCalled();
-  });
-
-  it("終了済みsubscription snapshotだけなら現在契約Priceを返さずprovider通信しない", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await seedCurrentSubscriptionPriceContext(t, {
-      subject: "stripe_terminal_current_subscription",
-      terminalAt: NOW,
-    });
-
-    await expect(
-      t
-        .withIdentity({ subject: "stripe_terminal_current_subscription" })
-        .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
-    ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
-    expect(providerFetchMock).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    {
-      label: "scheduledChange",
-      state: () => ({
-        kind: "scheduledChange" as const,
-        currentPlan: "standard" as const,
-        targetPlan: "free" as const,
-        effectiveAt: NOW + 30 * 24 * 60 * 60_000,
-        restrictAtPeriodEnd: true as const,
-      }),
-    },
-  ])("$labelでも現在表示中の有料契約Priceを取得できる", async ({ label, state }) => {
-    const t = convexTest(schema, modules);
-    const subject = `stripe_current_subscription_${label}`;
-    const ids = await seedCurrentSubscriptionPriceContext(t, {
-      subject,
-      billingState: state,
-    });
-    providerFetchMock.mockImplementation(async (input, init) => {
-      const resource = String(input).split("/").pop() ?? "";
-      if (resource !== "prices.retrieve") throw new Error(`Unexpected Stripe provider call: ${resource}`);
-      const [priceId] = JSON.parse(String(init?.body ?? "[]")) as [string];
-      return providerResponse(priceFixtureFor(priceId));
-    });
-
-    await expect(
-      t.withIdentity({ subject }).action(api.organizationStripe.actions.getCurrentSubscriptionPrice, {
-        shopId: ids.shopId,
-      }),
-    ).resolves.toMatchObject({ status: "available", unitAmount: 1480 });
-    expect(providerFetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("removed actorは有料契約Priceを取得できずprovider通信しない", async () => {
-    const t = convexTest(schema, modules);
-    const ids = await seedCurrentSubscriptionPriceContext(t, {
-      subject: "stripe_current_subscription_removed",
-    });
-    await t.run(async (ctx) => await ctx.db.patch(ids.memberId, { status: "removed" }));
-
-    await expect(
-      t
-        .withIdentity({ subject: "stripe_current_subscription_removed" })
-        .action(api.organizationStripe.actions.getCurrentSubscriptionPrice, { shopId: ids.shopId }),
-    ).rejects.toThrow("Not found");
-    expect(providerFetchMock).not.toHaveBeenCalled();
   });
 
   it("Freeから日次Pro Checkoutを開始しても支払確認前はpendingActivationを維持する", async () => {
@@ -790,11 +578,13 @@ describe("organizationStripe/actions", () => {
     });
 
     await expect(
-      t.withIdentity({ subject: "stripe_free_to_pro" }).action(api.organizationStripe.actions.startPaidCheckout, {
-        shopId: ids.shopId,
-        targetPlan: "pro",
-        requestId: "free-to-pro-checkout",
-      }),
+      t
+        .withIdentity({ subject: "stripe_free_to_pro" })
+        .action(api.organizationStripe.actions.startPaidCheckoutForOrganization, {
+          organizationId: ids.organizationId,
+          targetPlan: "pro",
+          requestId: "free-to-pro-checkout",
+        }),
     ).resolves.toEqual({ status: "available", url: "https://checkout.stripe.test/free-to-pro" });
 
     expect(checkoutCalls).toHaveLength(1);
@@ -967,8 +757,8 @@ describe("organizationStripe/actions", () => {
     await expect(
       t
         .withIdentity({ subject: `stripe_paid_plan_preview_required_${testCase.previewProrationOffset ?? "missing"}` })
-        .action(api.organizationStripe.actions.changePaidPlanNow, {
-          shopId: ids.shopId,
+        .action(api.organizationStripe.actions.changePaidPlanNowForOrganization, {
+          organizationId: ids.organizationId,
           targetPlan: "pro",
           requestId,
           prorationDate: requestedProrationDate,
@@ -1012,8 +802,8 @@ describe("organizationStripe/actions", () => {
     await expect(
       t
         .withIdentity({ subject: "stripe_pro_to_standard_pending" })
-        .action(api.organizationStripe.actions.changePaidPlanNow, {
-          shopId: ids.shopId,
+        .action(api.organizationStripe.actions.changePaidPlanNowForOrganization, {
+          organizationId: ids.organizationId,
           targetPlan: "pro",
           requestId: "apply-pro-to-pro-pending",
           prorationDate: Math.floor(NOW / 1000),
@@ -1096,8 +886,8 @@ describe("organizationStripe/actions", () => {
 
     const actor = t.withIdentity({ subject });
     await expect(
-      actor.action(api.organizationStripe.actions.changePaidPlanNow, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.changePaidPlanNowForOrganization, {
+        organizationId: ids.organizationId,
         targetPlan: "pro",
         requestId,
         prorationDate: Math.floor(NOW / 1000),
@@ -1195,8 +985,8 @@ describe("organizationStripe/actions", () => {
       throw new Error(`Unexpected Stripe provider call: ${resource}`);
     });
 
-    await t.withIdentity({ subject }).action(api.organizationStripe.actions.changePaidPlanNow, {
-      shopId: ids.shopId,
+    await t.withIdentity({ subject }).action(api.organizationStripe.actions.changePaidPlanNowForOrganization, {
+      organizationId: ids.organizationId,
       targetPlan: "pro",
       requestId,
       prorationDate: Math.floor(NOW / 1000),
@@ -1445,15 +1235,15 @@ describe("organizationStripe/actions", () => {
       throw new Error(`Unexpected Stripe provider call: ${resource}`);
     });
     const actor = t.withIdentity({ subject });
-    const preview = await actor.action(api.organizationStripe.actions.previewPaidPlanChange, {
-      shopId: ids.shopId,
+    const preview = await actor.action(api.organizationStripe.actions.previewPaidPlanChangeForOrganization, {
+      organizationId: ids.organizationId,
       targetPlan: "pro",
       requestId,
     });
     if (preview.status !== "available") throw new Error("paid plan preview unavailable");
     await expect(
-      actor.action(api.organizationStripe.actions.changePaidPlanNow, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.changePaidPlanNowForOrganization, {
+        organizationId: ids.organizationId,
         targetPlan: "pro",
         requestId,
         prorationDate: preview.prorationDate,
@@ -1647,8 +1437,8 @@ describe("organizationStripe/actions", () => {
     await expect(
       t
         .withIdentity({ subject: "stripe_pro_to_standard_existing_pending" })
-        .action(api.organizationStripe.actions.changePaidPlanNow, {
-          shopId: ids.shopId,
+        .action(api.organizationStripe.actions.changePaidPlanNowForOrganization, {
+          organizationId: ids.organizationId,
           targetPlan: "pro",
           requestId: "apply-existing-pending-update",
           prorationDate: Math.floor(NOW / 1000),
@@ -1682,8 +1472,8 @@ describe("organizationStripe/actions", () => {
     await expect(
       t
         .withIdentity({ subject: "stripe_paid_plan_preview_failure" })
-        .action(api.organizationStripe.actions.previewPaidPlanChange, {
-          shopId: ids.shopId,
+        .action(api.organizationStripe.actions.previewPaidPlanChangeForOrganization, {
+          organizationId: ids.organizationId,
           targetPlan: "pro",
           requestId: "preview-provider-failure",
         }),
@@ -1770,22 +1560,22 @@ describe("organizationStripe/actions", () => {
     }
     const invoke = async () => {
       if (testCase.kind === "changePaidPlanNow") {
-        return await actor.action(api.organizationStripe.actions.changePaidPlanNow, {
-          shopId: ids.shopId,
+        return await actor.action(api.organizationStripe.actions.changePaidPlanNowForOrganization, {
+          organizationId: ids.organizationId,
           targetPlan: "pro",
           requestId: "durable-paid-plan-retry",
           prorationDate: Math.floor(NOW / 1000),
         });
       }
       if (testCase.kind === "schedulePaidPlanChange") {
-        return await actor.action(api.organizationStripe.actions.schedulePaidPlanChange, {
-          shopId: ids.shopId,
+        return await actor.action(api.organizationStripe.actions.schedulePaidPlanChangeForOrganization, {
+          organizationId: ids.organizationId,
           targetPlan: "standard",
           requestId: "durable-paid-plan-retry",
         });
       }
-      return await actor.action(api.organizationStripe.actions.cancelScheduledPlanChange, {
-        shopId: ids.shopId,
+      return await actor.action(api.organizationStripe.actions.cancelScheduledPlanChangeForOrganization, {
+        organizationId: ids.organizationId,
         requestId: "durable-paid-plan-retry",
       });
     };
@@ -2556,8 +2346,8 @@ describe("organizationStripe/actions", () => {
     const actor = t.withIdentity({ subject });
 
     await expect(
-      actor.action(api.organizationStripe.actions.schedulePaidPlanChange, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.schedulePaidPlanChangeForOrganization, {
+        organizationId: ids.organizationId,
         targetPlan: "standard",
         requestId: "foreign-schedule-owner-1",
       }),
@@ -2582,8 +2372,8 @@ describe("organizationStripe/actions", () => {
       lastErrorCode: "attempt_limit_exceeded",
     });
     await expect(
-      actor.action(api.organizationStripe.actions.schedulePaidPlanChange, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.schedulePaidPlanChangeForOrganization, {
+        organizationId: ids.organizationId,
         targetPlan: "standard",
         requestId: "foreign-schedule-owner-2",
       }),
@@ -2637,8 +2427,8 @@ describe("organizationStripe/actions", () => {
     });
 
     await expect(
-      t.withIdentity({ subject }).action(api.organizationStripe.actions.schedulePaidPlanChange, {
-        shopId: ids.shopId,
+      t.withIdentity({ subject }).action(api.organizationStripe.actions.schedulePaidPlanChangeForOrganization, {
+        organizationId: ids.organizationId,
         targetPlan: "standard",
         requestId: "created-released-schedule",
       }),
@@ -2696,8 +2486,8 @@ describe("organizationStripe/actions", () => {
     await expect(
       t
         .withIdentity({ subject: "stripe_pro_to_standard_already_released" })
-        .action(api.organizationStripe.actions.cancelScheduledPlanChange, {
-          shopId: ids.shopId,
+        .action(api.organizationStripe.actions.cancelScheduledPlanChangeForOrganization, {
+          organizationId: ids.organizationId,
           requestId: "cancel-already-released-schedule",
         }),
     ).resolves.toEqual({ status: "accepted" });
@@ -2765,8 +2555,8 @@ describe("organizationStripe/actions", () => {
     await expect(
       t
         .withIdentity({ subject: "stripe_pro_to_standard_rotated_price_cancel" })
-        .action(api.organizationStripe.actions.cancelScheduledPlanChange, {
-          shopId: ids.shopId,
+        .action(api.organizationStripe.actions.cancelScheduledPlanChangeForOrganization, {
+          organizationId: ids.organizationId,
           requestId: "cancel-schedule-after-pro-price-rotation",
         }),
     ).resolves.toEqual({ status: "accepted" });
@@ -2814,8 +2604,8 @@ describe("organizationStripe/actions", () => {
     await expect(
       t
         .withIdentity({ subject: "stripe_pro_to_standard_foreign_schedule" })
-        .action(api.organizationStripe.actions.cancelScheduledPlanChange, {
-          shopId: ids.shopId,
+        .action(api.organizationStripe.actions.cancelScheduledPlanChangeForOrganization, {
+          organizationId: ids.organizationId,
           requestId: "cancel-foreign-schedule",
         }),
     ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
@@ -3531,14 +3321,14 @@ describe("organizationStripe/actions", () => {
     const actor = t.withIdentity({ subject: "stripe_price_archived" });
 
     await expect(
-      actor.action(api.organizationStripe.actions.getPlanPrice, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.getPlanPriceForOrganization, {
+        organizationId: ids.organizationId,
         targetPlan: "standard",
       }),
     ).resolves.toEqual({ status: "unavailable", reason: "price_unavailable" });
     await expect(
-      actor.action(api.organizationStripe.actions.startPaidCheckout, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.startPaidCheckoutForOrganization, {
+        organizationId: ids.organizationId,
         targetPlan: "standard",
         requestId: "archived-price-checkout",
       }),
@@ -3655,8 +3445,8 @@ describe("organizationStripe/actions", () => {
       await expect(
         t
           .withIdentity({ subject: `stripe_checkout_payload_${testCase.kind}` })
-          .action(api.organizationStripe.actions.startPaidCheckout, {
-            shopId: ids.shopId,
+          .action(api.organizationStripe.actions.startPaidCheckoutForOrganization, {
+            organizationId: ids.organizationId,
             targetPlan: testCase.targetPlan,
             requestId: `checkout-payload-${testCase.kind}`,
           }),
@@ -3753,8 +3543,8 @@ describe("organizationStripe/actions", () => {
     await expect(
       t
         .withIdentity({ subject: "stripe_checkout_legacy_custom_text" })
-        .action(api.organizationStripe.actions.startPaidCheckout, {
-          shopId: ids.shopId,
+        .action(api.organizationStripe.actions.startPaidCheckoutForOrganization, {
+          organizationId: ids.organizationId,
           targetPlan: "standard",
           requestId,
         }),
@@ -4678,8 +4468,8 @@ describe("organizationStripe/actions", () => {
 
     const result = await t
       .withIdentity({ subject: "stripe_error_redaction" })
-      .action(api.organizationStripe.actions.startPaidCheckout, {
-        shopId: ids.shopId,
+      .action(api.organizationStripe.actions.startPaidCheckoutForOrganization, {
+        organizationId: ids.organizationId,
         targetPlan: "standard",
         requestId: "stripe-error-redaction",
       });
@@ -7527,8 +7317,8 @@ describe("organizationStripe/actions", () => {
     const before = await trialContinuationBoundaryState(t, ids.organizationId);
 
     await expect(
-      t.action(api.organizationStripe.actions.cancelTrialContinuation, {
-        shopId: ids.shopId,
+      t.action(api.organizationStripe.actions.cancelTrialContinuationForOrganization, {
+        organizationId: ids.organizationId,
         requestId: "trial-cancel-unauthenticated",
       }),
     ).rejects.toThrowError("Unauthenticated");
@@ -7546,10 +7336,12 @@ describe("organizationStripe/actions", () => {
     const before = await trialContinuationBoundaryState(t, ids.organizationId);
 
     await expect(
-      t.withIdentity({ subject: ids.subject }).action(api.organizationStripe.actions.cancelTrialContinuation, {
-        shopId: ids.shopId,
-        requestId: "trial-cancel-removed",
-      }),
+      t
+        .withIdentity({ subject: ids.subject })
+        .action(api.organizationStripe.actions.cancelTrialContinuationForOrganization, {
+          organizationId: ids.organizationId,
+          requestId: "trial-cancel-removed",
+        }),
     ).rejects.toThrow("Not found");
 
     expect(await trialContinuationBoundaryState(t, ids.organizationId)).toEqual(before);
@@ -7573,8 +7365,8 @@ describe("organizationStripe/actions", () => {
     await expect(
       t
         .withIdentity({ subject: "stripe_trial_cancel_other_org_actor" })
-        .action(api.organizationStripe.actions.cancelTrialContinuation, {
-          shopId: target.shopId,
+        .action(api.organizationStripe.actions.cancelTrialContinuationForOrganization, {
+          organizationId: target.organizationId,
           requestId: "trial-cancel-other-org",
         }),
     ).rejects.toThrowError("Not found");
@@ -7607,10 +7399,12 @@ describe("organizationStripe/actions", () => {
       const before = await trialContinuationBoundaryState(t, ids.organizationId);
 
       await expect(
-        t.withIdentity({ subject: ids.subject }).action(api.organizationStripe.actions.cancelTrialContinuation, {
-          shopId: ids.shopId,
-          requestId: `trial-cancel-${stateKind.replace(".", "-")}`,
-        }),
+        t
+          .withIdentity({ subject: ids.subject })
+          .action(api.organizationStripe.actions.cancelTrialContinuationForOrganization, {
+            organizationId: ids.organizationId,
+            requestId: `trial-cancel-${stateKind.replace(".", "-")}`,
+          }),
       ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
 
       expect(await trialContinuationBoundaryState(t, ids.organizationId)).toEqual(before);
@@ -7628,10 +7422,12 @@ describe("organizationStripe/actions", () => {
     const before = await trialContinuationBoundaryState(t, ids.organizationId);
 
     await expect(
-      t.withIdentity({ subject: ids.subject }).action(api.organizationStripe.actions.cancelTrialContinuation, {
-        shopId: ids.shopId,
-        requestId,
-      }),
+      t
+        .withIdentity({ subject: ids.subject })
+        .action(api.organizationStripe.actions.cancelTrialContinuationForOrganization, {
+          organizationId: ids.organizationId,
+          requestId,
+        }),
     ).resolves.toEqual({ status: "unavailable", reason: "request_already_used" });
 
     expect(await trialContinuationBoundaryState(t, ids.organizationId)).toEqual(before);
@@ -7699,10 +7495,12 @@ describe("organizationStripe/actions", () => {
       const before = await trialContinuationBoundaryState(t, ids.organizationId);
 
       await expect(
-        t.withIdentity({ subject: ids.subject }).action(api.organizationStripe.actions.cancelTrialContinuation, {
-          shopId: ids.shopId,
-          requestId: `trial-cancel-generation-second-${status}`,
-        }),
+        t
+          .withIdentity({ subject: ids.subject })
+          .action(api.organizationStripe.actions.cancelTrialContinuationForOrganization, {
+            organizationId: ids.organizationId,
+            requestId: `trial-cancel-generation-second-${status}`,
+          }),
       ).resolves.toEqual({ status: "unavailable", reason: "in_progress" });
 
       expect(await trialContinuationBoundaryState(t, ids.organizationId)).toEqual(before);
@@ -7727,10 +7525,12 @@ describe("organizationStripe/actions", () => {
     const before = await trialContinuationBoundaryState(t, ids.organizationId);
 
     await expect(
-      t.withIdentity({ subject: ids.subject }).action(api.organizationStripe.actions.cancelTrialContinuation, {
-        shopId: ids.shopId,
-        requestId,
-      }),
+      t
+        .withIdentity({ subject: ids.subject })
+        .action(api.organizationStripe.actions.cancelTrialContinuationForOrganization, {
+          organizationId: ids.organizationId,
+          requestId,
+        }),
     ).resolves.toEqual({ status: "unavailable", reason: "in_progress" });
 
     expect(await trialContinuationBoundaryState(t, ids.organizationId)).toEqual(before);
@@ -7829,10 +7629,12 @@ describe("organizationStripe/actions", () => {
     });
 
     await expect(
-      t.withIdentity({ subject: ids.subject }).action(api.organizationStripe.actions.cancelTrialContinuation, {
-        shopId: ids.shopId,
-        requestId: "trial-cancel-public-pro",
-      }),
+      t
+        .withIdentity({ subject: ids.subject })
+        .action(api.organizationStripe.actions.cancelTrialContinuationForOrganization, {
+          organizationId: ids.organizationId,
+          requestId: "trial-cancel-public-pro",
+        }),
     ).resolves.toEqual({ status: "accepted" });
 
     const state = await trialContinuationBoundaryState(t, ids.organizationId);
@@ -7889,10 +7691,12 @@ describe("organizationStripe/actions", () => {
     });
 
     await expect(
-      t.withIdentity({ subject: ids.subject }).action(api.organizationStripe.actions.cancelTrialContinuation, {
-        shopId: ids.shopId,
-        requestId: "trial-cancel-public-paid-race",
-      }),
+      t
+        .withIdentity({ subject: ids.subject })
+        .action(api.organizationStripe.actions.cancelTrialContinuationForOrganization, {
+          organizationId: ids.organizationId,
+          requestId: "trial-cancel-public-paid-race",
+        }),
     ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });
 
     const state = await trialContinuationBoundaryState(t, ids.organizationId);
@@ -7930,10 +7734,12 @@ describe("organizationStripe/actions", () => {
     });
 
     await expect(
-      t.withIdentity({ subject: ids.subject }).action(api.organizationStripe.actions.cancelTrialContinuation, {
-        shopId: ids.shopId,
-        requestId,
-      }),
+      t
+        .withIdentity({ subject: ids.subject })
+        .action(api.organizationStripe.actions.cancelTrialContinuationForOrganization, {
+          organizationId: ids.organizationId,
+          requestId,
+        }),
     ).resolves.toEqual({ status: "unavailable", reason: "configuration_pending" });
 
     const state = await trialContinuationBoundaryState(t, ids.organizationId);
@@ -8355,16 +8161,16 @@ describe("organizationStripe/actions", () => {
     });
 
     await expect(
-      t.action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd, {
-        shopId: ids.shopId,
+      t.action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEndForOrganization, {
+        organizationId: ids.organizationId,
         requestId: "service-stop-unauthenticated",
       }),
     ).rejects.toThrow();
     await expect(
       t
         .withIdentity({ subject: "stripe_service_stop_other" })
-        .action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd, {
-          shopId: ids.shopId,
+        .action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEndForOrganization, {
+          organizationId: ids.organizationId,
           requestId: "service-stop-other-organization",
         }),
     ).rejects.toThrow();
@@ -8372,8 +8178,8 @@ describe("organizationStripe/actions", () => {
     await expect(
       t
         .withIdentity({ subject: "stripe_service_stop_target" })
-        .action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd, {
-          shopId: ids.shopId,
+        .action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEndForOrganization, {
+          organizationId: ids.organizationId,
           requestId: "service-stop-removed",
         }),
     ).rejects.toThrow("Not found");
@@ -9271,8 +9077,8 @@ describe("organizationStripe/actions", () => {
     });
     const actor = t.withIdentity({ subject: "stripe_portal_safety" });
     await expect(
-      actor.action(api.organizationStripe.actions.openCustomerPortal, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.openCustomerPortalForOrganization, {
+        organizationId: ids.organizationId,
         requestId: "portal-unsafe-configuration",
       }),
     ).resolves.toEqual({ status: "unavailable", reason: "configuration_pending" });
@@ -9347,8 +9153,8 @@ describe("organizationStripe/actions", () => {
     const actor = t.withIdentity({ subject: "stripe_paused_restart" });
 
     await expect(
-      actor.action(api.organizationStripe.actions.startPaidCheckout, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.startPaidCheckoutForOrganization, {
+        organizationId: ids.organizationId,
         targetPlan: "standard",
         requestId: "paused-before-provider-cancel",
       }),
@@ -9392,8 +9198,8 @@ describe("organizationStripe/actions", () => {
     });
 
     await expect(
-      actor.action(api.organizationStripe.actions.startPaidCheckout, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.startPaidCheckoutForOrganization, {
+        organizationId: ids.organizationId,
         targetPlan: "standard",
         requestId: "paused-after-provider-cancel",
       }),
@@ -9509,37 +9315,37 @@ function organizationScopedBillingActionInvocations(
   ];
 }
 
-async function invokeBillingActions(runner: ActionRunner, shopId: Id<"shops">) {
+async function invokeBillingActions(runner: ActionRunner, organizationId: Id<"organizations">) {
   return await Promise.all([
-    runner.action(api.organizationStripe.actions.getPlanPrice, {
-      shopId,
+    runner.action(api.organizationStripe.actions.getPlanPriceForOrganization, {
+      organizationId,
       targetPlan: "standard",
     }),
-    runner.action(api.organizationStripe.actions.startPaidCheckout, {
-      shopId,
+    runner.action(api.organizationStripe.actions.startPaidCheckoutForOrganization, {
+      organizationId,
       targetPlan: "standard",
       requestId: "checkout_boundary_request",
     }),
-    runner.action(api.organizationStripe.actions.openCustomerPortal, {
-      shopId,
+    runner.action(api.organizationStripe.actions.openCustomerPortalForOrganization, {
+      organizationId,
       requestId: "portal_boundary_request",
     }),
   ]);
 }
 
-async function settleBillingActions(runner: ActionRunner, shopId: Id<"shops">) {
+async function settleBillingActions(runner: ActionRunner, organizationId: Id<"organizations">) {
   return await Promise.allSettled([
-    runner.action(api.organizationStripe.actions.getPlanPrice, {
-      shopId,
+    runner.action(api.organizationStripe.actions.getPlanPriceForOrganization, {
+      organizationId,
       targetPlan: "standard",
     }),
-    runner.action(api.organizationStripe.actions.startPaidCheckout, {
-      shopId,
+    runner.action(api.organizationStripe.actions.startPaidCheckoutForOrganization, {
+      organizationId,
       targetPlan: "standard",
       requestId: "checkout_boundary_request",
     }),
-    runner.action(api.organizationStripe.actions.openCustomerPortal, {
-      shopId,
+    runner.action(api.organizationStripe.actions.openCustomerPortalForOrganization, {
+      organizationId,
       requestId: "portal_boundary_request",
     }),
   ]);
@@ -10116,57 +9922,6 @@ async function seedSucceededPaidPlanPreview(
   );
 }
 
-async function seedCurrentSubscriptionPriceContext(
-  t: TestConvex<typeof schema>,
-  args: {
-    subject: string;
-    priceId?: string;
-    subscriptionPlan?: "standard" | "pro";
-    subscriptionStatus?: Doc<"organizationStripeSubscriptions">["status"];
-    subscriptionLivemode?: boolean;
-    terminalAt?: number;
-    billingState?: (ids: {
-      personId: Id<"organizationPeople">;
-      shopId: Id<"shops">;
-    }) => Doc<"organizationBillingStates">["state"];
-  },
-) {
-  return await t.run(async (ctx) => {
-    const seeded = await seedOrganizationManagerShop(ctx, { subject: args.subject, plan: "standard" });
-    if (args.billingState) {
-      const billing = await ctx.db
-        .query("organizationBillingStates")
-        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-        .unique();
-      if (!billing) throw new Error("billing state was not seeded");
-      await ctx.db.patch(billing._id, {
-        state: args.billingState({ personId: seeded.personId, shopId: seeded.shopId }),
-        version: billing.version + 1,
-        updatedAt: NOW,
-      });
-    }
-    await ctx.db.insert("organizationStripeSubscriptions", {
-      organizationId: seeded.organizationId,
-      stripeCustomerId: `cus_${args.subject}`,
-      stripeSubscriptionId: `sub_${args.subject}`,
-      stripeSubscriptionItemId: `si_${args.subject}`,
-      stripePriceId: args.priceId ?? READY_TEST_CONFIGURATION.standardPriceId,
-      plan: args.subscriptionPlan ?? "standard",
-      livemode: args.subscriptionLivemode ?? false,
-      status: args.subscriptionStatus ?? "active",
-      providerGeneration: 1,
-      currentPeriodStartsAt: NOW,
-      currentPeriodEndsAt: NOW + 30 * 24 * 60 * 60_000,
-      cancelAtPeriodEnd: false,
-      ...(args.terminalAt !== undefined ? { terminalAt: args.terminalAt } : {}),
-      syncedAt: NOW,
-      createdAt: NOW,
-      updatedAt: NOW,
-    });
-    return seeded;
-  });
-}
-
 function priceFixtureFor(
   priceId: string,
   recurring: { interval: "day" | "week" | "month" | "year"; interval_count: number } = {
@@ -10322,6 +10077,7 @@ async function seedAdditionalOrganizationStaff(
         updatedAt: NOW,
       });
       await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         organizationId: ids.organizationId,
         organizationPersonId: personId,
         shopId: ids.shopId,

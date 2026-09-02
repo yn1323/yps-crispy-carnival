@@ -2,7 +2,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import type { MutationCtx } from "../_generated/server";
-import { seedLegacyShop, seedLegacyShopMembership, seedShop, seedUser } from "../_test/seed";
+import { getTestOrganizationId, seedLegacyShopMembership, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const validShopUpdate = {
@@ -56,6 +56,13 @@ async function seedOrganizationAccess(
     createdAt: now,
     updatedAt: now,
   });
+  await ctx.db.insert("organizationBillingStates", {
+    organizationId,
+    state: { kind: "complimentary", plan: "pro" },
+    version: 1,
+    createdAt: now,
+    updatedAt: now,
+  });
   if (args.withLegacyMembership) {
     await seedLegacyShopMembership(ctx, { userId, shopId });
   }
@@ -70,7 +77,12 @@ describe("organization manager access", () => {
     const { shopId } = await t.run(async (ctx) => await seedOrganizationAccess(ctx, { subject, memberStatus }));
 
     await expect(
-      t.withIdentity({ subject }).query(api.dashboard.queries.getDashboardShop, { shopId }),
+      t
+        .withIdentity({ subject })
+        .query(api.dashboard.queries.getDashboardShop, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+        }),
     ).resolves.toMatchObject({ name: "組織店舗" });
   });
 
@@ -83,6 +95,7 @@ describe("organization manager access", () => {
 
     await t.withIdentity({ subject }).mutation(api.shop.mutations.updateShopSettings, {
       ...validShopUpdate,
+      expectedOrganizationId: await getTestOrganizationId(t, shopId),
       shopId,
     });
 
@@ -99,10 +112,16 @@ describe("organization manager access", () => {
     });
     const actor = t.withIdentity({ subject });
 
-    await expect(actor.query(api.dashboard.queries.getDashboardShop, { shopId })).resolves.toBeNull();
+    await expect(
+      actor.query(api.dashboard.queries.getDashboardShop, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      }),
+    ).resolves.toBeNull();
     await expect(
       actor.mutation(api.shop.mutations.updateShopSettings, {
         ...validShopUpdate,
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
         shopId,
       }),
     ).rejects.toThrow("Not found");
@@ -124,76 +143,10 @@ describe("organization manager access", () => {
     await expect(
       t.withIdentity({ subject }).mutation(api.shop.mutations.updateShopSettings, {
         ...validShopUpdate,
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
         shopId,
       }),
     ).rejects.toThrow("Not found");
-  });
-
-  it("m009完了後m010前は所属行が0件の場合だけ旧shopMembersで参照できる", async () => {
-    const t = convexTest(schema, modules);
-    const subject = "organization_widen_fallback";
-    const shopId = await t.run(async (ctx) => {
-      const userId = await seedUser(ctx, subject);
-      const shopId = await seedLegacyShop(ctx, "移行途中店舗");
-      const now = Date.now();
-      const organizationId = await ctx.db.insert("organizations", {
-        migrationSourceShopId: shopId,
-        name: "移行途中事業者",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.patch(shopId, { organizationId });
-      await seedLegacyShopMembership(ctx, { userId, shopId });
-      return shopId;
-    });
-
-    await expect(
-      t.withIdentity({ subject }).query(api.dashboard.queries.getDashboardShop, { shopId }),
-    ).resolves.toMatchObject({ name: "移行途中店舗" });
-  });
-
-  it("m009完了後m010前の旧shopMembersが重複する場合は参照も更新もfail-closedにする", async () => {
-    const t = convexTest(schema, modules);
-    const subject = "organization_duplicate_widen_membership";
-    const shopId = await t.run(async (ctx) => {
-      const userId = await seedUser(ctx, subject);
-      const shopId = await seedLegacyShop(ctx, "重複移行途中店舗");
-      const now = Date.now();
-      const organizationId = await ctx.db.insert("organizations", {
-        migrationSourceShopId: shopId,
-        name: "重複移行途中事業者",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.patch(shopId, { organizationId });
-      await seedLegacyShopMembership(ctx, { userId, shopId });
-      await seedLegacyShopMembership(ctx, { userId, shopId });
-      return shopId;
-    });
-    const actor = t.withIdentity({ subject });
-
-    await expect(actor.query(api.dashboard.queries.getDashboardShop, { shopId })).resolves.toBeNull();
-    await expect(actor.mutation(api.shop.mutations.updateShopSettings, { ...validShopUpdate, shopId })).rejects.toThrow(
-      "Not found",
-    );
-  });
-
-  it("legacy店舗の旧shopMembersが重複する場合も参照をfail-closedにする", async () => {
-    const t = convexTest(schema, modules);
-    const subject = "legacy_duplicate_membership";
-    const shopId = await t.run(async (ctx) => {
-      const userId = await seedUser(ctx, subject);
-      const shopId = await seedLegacyShop(ctx, "重複legacy店舗");
-      await seedLegacyShopMembership(ctx, { userId, shopId });
-      await seedLegacyShopMembership(ctx, { userId, shopId });
-      return shopId;
-    });
-
-    await expect(
-      t.withIdentity({ subject }).query(api.dashboard.queries.getDashboardShop, { shopId }),
-    ).resolves.toBeNull();
   });
 
   it("removed所属が存在する場合は旧shopMembersへfallbackしない", async () => {
@@ -209,7 +162,12 @@ describe("organization manager access", () => {
     );
 
     await expect(
-      t.withIdentity({ subject }).query(api.dashboard.queries.getDashboardShop, { shopId }),
+      t
+        .withIdentity({ subject })
+        .query(api.dashboard.queries.getDashboardShop, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+        }),
     ).resolves.toBeNull();
   });
 
@@ -221,6 +179,8 @@ describe("organization manager access", () => {
       const targetShopId = await seedShop(ctx, "別事業者店舗");
       const now = Date.now();
       const otherOrganizationId = await ctx.db.insert("organizations", {
+        billingEmail: "billing@example.com",
+        billingEmailNormalized: "billing@example.com",
         name: "別事業者",
         isDeleted: false,
         createdAt: now,
@@ -233,7 +193,12 @@ describe("organization manager access", () => {
     });
 
     await expect(
-      t.withIdentity({ subject }).query(api.dashboard.queries.getDashboardShop, { shopId: targetShopId }),
+      t
+        .withIdentity({ subject })
+        .query(api.dashboard.queries.getDashboardShop, {
+          expectedOrganizationId: await getTestOrganizationId(t, targetShopId),
+          shopId: targetShopId,
+        }),
     ).resolves.toBeNull();
   });
 
@@ -312,18 +277,11 @@ describe("organization manager access", () => {
     const subject = "organization_expected_scope_legacy_fallback";
     const ids = await t.run(async (ctx) => {
       const userId = await seedUser(ctx, subject);
-      const shopId = await seedLegacyShop(ctx, "移行途中店舗");
-      const now = Date.now();
-      const organizationId = await ctx.db.insert("organizations", {
-        migrationSourceShopId: shopId,
-        name: "移行途中事業者",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.patch(shopId, { organizationId });
+      const shopId = await seedShop(ctx, "canonical店舗");
+      const shop = await ctx.db.get(shopId);
+      if (!shop) throw new Error("shop not found");
       await seedLegacyShopMembership(ctx, { userId, shopId });
-      return { organizationId, shopId };
+      return { organizationId: shop.organizationId, shopId };
     });
 
     await expect(

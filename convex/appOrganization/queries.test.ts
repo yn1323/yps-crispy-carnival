@@ -5,7 +5,7 @@ import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { seedStaff } from "../_test/scenarioBuilders";
-import { seedLegacyManagerShop, seedLegacyShopMembership, seedOrganizationManagerShop, seedUser } from "../_test/seed";
+import { seedLegacyShopMembership, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 type OrganizationContext = FunctionReturnType<
@@ -59,6 +59,13 @@ async function seedOrganizationForUser(
           createdAt: NOW,
           updatedAt: NOW,
         });
+  await ctx.db.insert("organizationBillingStates", {
+    organizationId,
+    state: { kind: "complimentary", plan: "pro" },
+    version: 1,
+    createdAt: NOW,
+    updatedAt: NOW,
+  });
   return { organizationId, personId, memberId };
 }
 
@@ -184,7 +191,12 @@ describe("appOrganization organization context queries", () => {
     });
     expect(first.page).toHaveLength(1);
     expect(first.isDone).toBe(false);
-    expect(Object.keys(first.page[0] ?? {}).sort()).toEqual(["memberStatus", "organizationId", "organizationName"]);
+    expect(Object.keys(first.page[0] ?? {}).sort()).toEqual([
+      "memberStatus",
+      "organizationId",
+      "organizationName",
+      "organizationPlan",
+    ]);
 
     const notFetchedOrganizationId =
       first.page[0]?.organizationId === ids.active.organizationId
@@ -199,11 +211,13 @@ describe("appOrganization organization context queries", () => {
         ? {
             organizationId: ids.active.organizationId,
             organizationName: "Active組織",
+            organizationPlan: "free",
             memberStatus: "active",
           }
         : {
             organizationId: ids.secondActive.organizationId,
             organizationName: "Second組織",
+            organizationPlan: "pro",
             memberStatus: "active",
           },
     );
@@ -217,17 +231,19 @@ describe("appOrganization organization context queries", () => {
       {
         organizationId: ids.active.organizationId,
         organizationName: "Active組織",
+        organizationPlan: "free",
         memberStatus: "active",
       },
       {
         organizationId: ids.secondActive.organizationId,
         organizationName: "Second組織",
+        organizationPlan: "pro",
         memberStatus: "active",
       },
     ]);
   });
 
-  it("removed所属やlegacy shopMembersだけでは組織authorityを得られない", async () => {
+  it("removed所属にlegacy shopMembersが残っていても組織authorityを得られない", async () => {
     const t = convexTest(schema, modules);
     const subject = "organization_context_removed";
     const removed = await t.run(async (ctx) => {
@@ -251,18 +267,6 @@ describe("appOrganization organization context queries", () => {
         organizationId: "not-an-organization-id" as Id<"organizations">,
       }),
     ).rejects.toThrow();
-
-    const legacy = convexTest(schema, modules);
-    await legacy.run(async (ctx) => {
-      await seedLegacyManagerShop(ctx, { subject: "organization_context_legacy_only" });
-    });
-    await expect(
-      legacy
-        .withIdentity({ subject: "organization_context_legacy_only" })
-        .query(api.appOrganization.queries.listMyOrganizationContexts, {
-          paginationOpts: firstPage(),
-        }),
-    ).resolves.toMatchObject({ page: [], isDone: true });
   });
 
   it("canonical不整合で空の中間pageになってもcursorから後続組織へ到達できる", async () => {
@@ -388,6 +392,7 @@ describe("appOrganization organization context queries", () => {
       {
         organizationId: ids.actor.organizationId,
         organizationName: "テスト店舗事業者",
+        organizationPlan: "free",
         memberStatus: "active",
       },
     ]);
@@ -476,7 +481,7 @@ describe("appOrganization organization context queries", () => {
     ).rejects.toThrow("Not found");
   });
 
-  it("非削除店舗のcanonical APIと旧API名が同じ結果を返し、危険なpage sizeは拒否する", async () => {
+  it("非削除店舗のcanonical APIを返し、危険なpage sizeは拒否する", async () => {
     const t = convexTest(schema, modules);
     const subject = "organization_context_shops";
     const ids = await t.run(async (ctx) => {
@@ -485,18 +490,11 @@ describe("appOrganization organization context queries", () => {
     });
     const actor = t.withIdentity({ subject });
 
-    const [canonical, legacy] = await Promise.all([
-      actor.query(api.appOrganization.queries.listOrganizationShops, {
-        organizationId: ids.organizationId,
-        paginationOpts: firstPage(),
-      }),
-      actor.query(api.appOrganization.queries.listOrganizationActiveShops, {
-        organizationId: ids.organizationId,
-        paginationOpts: firstPage(),
-      }),
-    ]);
+    const canonical = await actor.query(api.appOrganization.queries.listOrganizationShops, {
+      organizationId: ids.organizationId,
+      paginationOpts: firstPage(),
+    });
     expect(canonical).toMatchObject({ page: [{ shopId: ids.shopId, shopName: "テスト店舗" }], isDone: true });
-    expect(legacy).toEqual(canonical);
     await expect(
       actor.query(api.appOrganization.queries.listMyOrganizationContexts, { paginationOpts: firstPage(51) }),
     ).rejects.toThrow("numItems must be between 1 and 50");
@@ -584,7 +582,7 @@ describe("appOrganization organization context queries", () => {
     expect(sections).toHaveLength(8);
     expect(pageSizes.every((size) => size <= 1)).toBe(true);
     expect(sections[0]).toMatchObject({
-      shop: { shopName: "店舗A", operatingStatus: "active", regularClosedDays: [] },
+      shop: { shopName: "店舗A", regularClosedDays: [] },
       actions: {
         canCreate: false,
         createDisabledReason: expect.stringContaining("プラン上限を超過"),
@@ -713,6 +711,7 @@ describe("appOrganization organization context queries", () => {
         });
         personIds.push(personId);
         await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           organizationId: base.organizationId,
           organizationPersonId: personId,
           shopId: base.shopId,
@@ -723,6 +722,7 @@ describe("appOrganization organization context queries", () => {
         });
         if (index < 2) {
           await ctx.db.insert("staffs", {
+            excludedFromShift: false,
             organizationId: base.organizationId,
             organizationPersonId: personId,
             shopId: secondShopId,
@@ -733,6 +733,7 @@ describe("appOrganization organization context queries", () => {
           });
           if (index === 0) {
             await ctx.db.insert("staffs", {
+              excludedFromShift: false,
               organizationId: base.organizationId,
               organizationPersonId: personId,
               shopId: secondShopId,
@@ -810,6 +811,7 @@ describe("appOrganization organization context queries", () => {
       visibleCount: 2,
       visibleCountHasOverflow: false,
       maxPeople: 5,
+      pendingInvitations: 0,
       canAddStaff: false,
       addStaffDisabledReason:
         "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。",
@@ -817,43 +819,5 @@ describe("appOrganization organization context queries", () => {
       changeStaffOrderDisabledReason:
         "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。",
     });
-  });
-
-  it("両canonical ID未設定staffを店舗の人物一覧と表示件数へ投影しない", async () => {
-    const t = convexTest(schema, modules);
-    const subject = "app_organization_missing_canonical_staff";
-    const ids = await t.run(async (ctx) => {
-      const base = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
-      await ctx.db.insert("staffs", {
-        shopId: base.shopId,
-        name: "移行中スタッフ",
-        email: "missing-canonical@example.com",
-        emailNormalized: "missing-canonical@example.com",
-        isDeleted: false,
-      });
-      return base;
-    });
-    const actor = t.withIdentity({ subject });
-
-    const [filtered, all, summary] = await Promise.all([
-      actor.query(api.appOrganization.queries.listOrganizationPeople, {
-        organizationId: ids.organizationId,
-        shopFilter: ids.shopId,
-        paginationOpts: firstPage(),
-      }),
-      actor.query(api.appOrganization.queries.listOrganizationPeople, {
-        organizationId: ids.organizationId,
-        shopFilter: "all",
-        paginationOpts: firstPage(),
-      }),
-      actor.query(api.appOrganization.queries.getOrganizationPeopleSummary, {
-        organizationId: ids.organizationId,
-        shopFilter: ids.shopId,
-      }),
-    ]);
-
-    expect(filtered.page).toEqual([]);
-    expect(all.page.map(({ id, name }) => ({ id, name }))).toEqual([{ id: ids.personId, name: "管理者" }]);
-    expect(summary).toMatchObject({ totalCount: 1, visibleCount: 0 });
   });
 });

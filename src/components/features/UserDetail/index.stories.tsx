@@ -26,7 +26,6 @@ const shibuyaMembership: UserDetailData["memberships"][number] = {
   staffId: shibuyaStaffId,
   shopId: shibuyaShopId,
   shopName: "渋谷店",
-  shopStatus: "active",
   excludedFromShift: false,
   canRemove: true,
   removalPreview: removalPreview(2, "shibuya-preview"),
@@ -36,7 +35,6 @@ const shinjukuMembership: UserDetailData["memberships"][number] = {
   staffId: shinjukuStaffId,
   shopId: shinjukuShopId,
   shopName: "新宿店",
-  shopStatus: "active",
   excludedFromShift: true,
   canRemove: true,
   removalPreview: removalPreview(0, "shinjuku-preview"),
@@ -45,28 +43,24 @@ const shinjukuMembership: UserDetailData["memberships"][number] = {
 const shibuyaShop: UserDetailData["shops"][number] = {
   shopId: shibuyaShopId,
   shopName: "渋谷店",
-  shopStatus: "active",
   canChangeMembership: true,
 };
 
 const shinjukuShop: UserDetailData["shops"][number] = {
   shopId: shinjukuShopId,
   shopName: "新宿店",
-  shopStatus: "active",
   canChangeMembership: true,
 };
 
 const ikebukuroShop: UserDetailData["shops"][number] = {
   shopId: "shop-ikebukuro" as Id<"shops">,
   shopName: "池袋店",
-  shopStatus: "active",
   canChangeMembership: true,
 };
 
 const yokohamaShop: UserDetailData["shops"][number] = {
   shopId: "shop-yokohama" as Id<"shops">,
   shopName: "横浜店",
-  shopStatus: "active",
   canChangeMembership: true,
 };
 const storyRequestId = "00000000-0000-4000-8000-000000000001";
@@ -807,7 +801,7 @@ export const ShopMembershipChangeFlowBehavior: Story = {
     await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("1");
     await expect(canvas.getByTestId("membership-change-input")).toHaveTextContent(`"shopId":"${ikebukuroShop.shopId}"`);
     await expect(canvas.getByTestId("membership-change-input")).toHaveTextContent(
-      `"desiredActiveShopIds":["${shibuyaShopId}","${shinjukuShop.shopId}","${ikebukuroShop.shopId}"]`,
+      `"desiredShopIds":["${shibuyaShopId}","${shinjukuShop.shopId}","${ikebukuroShop.shopId}"]`,
     );
   },
 };
@@ -850,7 +844,7 @@ export const ShopMembershipRemovalBehavior: Story = {
     await expect(canvas.getByTestId("membership-change-call-count")).toHaveTextContent("1");
     await expect(canvas.getByTestId("membership-change-input")).toHaveTextContent(`"staffId":"${shibuyaStaffId}"`);
     await expect(canvas.getByTestId("membership-change-input")).toHaveTextContent(
-      `"desiredActiveShopIds":["${shinjukuShop.shopId}","${ikebukuroShop.shopId}"]`,
+      `"desiredShopIds":["${shinjukuShop.shopId}","${ikebukuroShop.shopId}"]`,
     );
     await expect(page.queryAllByRole("alertdialog")).toHaveLength(0);
   },
@@ -900,7 +894,6 @@ const aggregateRemovalLimitData: UserDetailData = {
     shibuyaShop,
     {
       ...shinjukuShop,
-      shopStatus: "active",
       canChangeMembership: true,
       membershipChangeDisabledReason: undefined,
     },
@@ -912,7 +905,6 @@ const aggregateRemovalLimitData: UserDetailData = {
     },
     {
       ...shinjukuMembership,
-      shopStatus: "active",
       canRemove: true,
       removeDisabledReason: undefined,
       removalPreview: removalPreview(250, "shinjuku-large-preview"),

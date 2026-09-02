@@ -16,7 +16,7 @@ export function useUserRemovalActions({
   data: UserDetailData;
   selectedShopId: string | null;
   onPersonRemoved: (personId: UserDetailData["person"]["id"]) => void;
-  expectedOrganizationId?: Id<"organizations">;
+  expectedOrganizationId: Id<"organizations">;
 }) {
   const [dialog, setDialog] = useState<UserDetailDialog>(null);
   const removePerson = useMutation(api.organization.mutations.removePersonFromOrganization);
@@ -44,7 +44,7 @@ export function useUserRemovalActions({
           assignmentCount: dialog.removalPreview.assignmentCount,
           fingerprint: dialog.removalPreview.fingerprint,
         },
-        ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+        expectedOrganizationId,
       });
       setDialog(null);
       showSuccessToast({

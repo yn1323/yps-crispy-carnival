@@ -24,7 +24,7 @@ describe("notificationOutbox redaction readiness", () => {
     const expiredTerminalAt = now - NOTIFICATION_OUTBOX_TERMINAL_PAYLOAD_RETENTION_MS - 1;
     const expiredFailureAt = now - NOTIFICATION_FAILURE_INBOX_RETENTION_MS - 1;
     const ids = await t.run(async (ctx) => {
-      const { shopId } = await seedManagerShop(ctx, {
+      const { organizationId, shopId } = await seedManagerShop(ctx, {
         subject: "notification_redaction_readiness",
         email: "manager@example.com",
         shopName: "通知redaction readiness店舗",
@@ -42,6 +42,8 @@ describe("notificationOutbox redaction readiness", () => {
         status: "sent",
         dedupeKey: "email:readiness:sent-missing-terminal",
         shopId,
+        organizationId,
+        purpose: "business",
         notificationContext: "test.email",
         deliverySuppressed: false,
         payload,
@@ -56,6 +58,8 @@ describe("notificationOutbox redaction readiness", () => {
         status: "failed",
         dedupeKey: "email:readiness:failed-expired",
         shopId,
+        organizationId,
+        purpose: "business",
         notificationContext: "test.email",
         deliverySuppressed: false,
         payload,

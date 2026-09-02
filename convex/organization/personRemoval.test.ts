@@ -14,6 +14,7 @@ describe("organization/personRemoval", () => {
         plan: "standard",
       });
       const staffId = await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         organizationId: base.organizationId,
         organizationPersonId: base.personId,
         shopId: base.shopId,
@@ -25,6 +26,7 @@ describe("organization/personRemoval", () => {
       const staff = await ctx.db.get(staffId);
       if (!staff) throw new Error("staff not found");
       const positionId = await ctx.db.insert("positions", {
+        isDefault: false,
         shopId: base.shopId,
         name: "通常",
         color: "#000000",

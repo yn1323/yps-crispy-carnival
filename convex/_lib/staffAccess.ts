@@ -13,11 +13,8 @@ export function recruitmentMatchesAccessKind(status: "open" | "confirmed", acces
 }
 
 export function sessionMatchesAccessKind(
-  session: { accessKind?: StaffAccessKind },
+  session: { accessKind: StaffAccessKind },
   expectedAccessKind: StaffAccessKind,
 ): boolean {
-  if (session.accessKind) return session.accessKind === expectedAccessKind;
-  // TODO[narrow]: 全deploymentでm036が完走し、verifySessionsの全pageが0になった後にmissing fallbackを削除する。
-  // accessKind 導入前の session は提出リンクの救済だけに使い、確定シフト閲覧には流用しない。
-  return expectedAccessKind === "submit";
+  return session.accessKind === expectedAccessKind;
 }

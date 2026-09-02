@@ -234,6 +234,7 @@ describe("notificationOutbox/failureReminderQueries", () => {
           name: "管理スタッフ",
           email: "owner-line@example.com",
           emailNormalized: "owner-line@example.com",
+          excludedFromShift: false,
           isDeleted: false,
         });
         await seedCanonicalStaffLineRecipient(ctx, {

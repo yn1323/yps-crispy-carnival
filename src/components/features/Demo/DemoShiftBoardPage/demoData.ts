@@ -13,9 +13,9 @@ export const mockDates = [
 export const mockTimeRange: TimeRange = { start: 9, end: 22, unit: 30 };
 
 export const mockPositions: PositionType[] = [
-  { id: "pos-1", name: "ホール", color: "#3b82f6" },
-  { id: "pos-2", name: "キッチン", color: "#f59e0b" },
-  { id: "pos-3", name: "レジ", color: "#10b981" },
+  { id: "pos-1", name: "ホール", color: "#3b82f6", isDefault: true },
+  { id: "pos-2", name: "キッチン", color: "#f59e0b", isDefault: false },
+  { id: "pos-3", name: "レジ", color: "#10b981", isDefault: false },
 ];
 
 export const mockStaffs: StaffType[] = [

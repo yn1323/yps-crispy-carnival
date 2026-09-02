@@ -104,6 +104,7 @@ describe("buildDashboardShopContexts", () => {
       buildDashboardShopContexts(SHOPS, {
         id: "organization-a",
         name: "Aグループ",
+        plan: "standard",
       }),
     ).toEqual([
       {
@@ -111,14 +112,14 @@ describe("buildDashboardShopContexts", () => {
         shopName: "A店舗",
         organizationId: "organization-a",
         organizationName: "Aグループ",
-        organizationPlan: null,
+        organizationPlan: "standard",
       },
       {
         shopId: "shop-b",
         shopName: "B店舗",
         organizationId: "organization-a",
         organizationName: "Aグループ",
-        organizationPlan: null,
+        organizationPlan: "standard",
       },
     ]);
   });

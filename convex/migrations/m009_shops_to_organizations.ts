@@ -1,9 +1,15 @@
+import type { Doc } from "../_generated/dataModel";
 import { ORGANIZATION_NAME_SUFFIX } from "../constants";
 import { migrations } from "./index";
 import {
   recordOrganizationMigrationConflict,
   resolveOrganizationMigrationConflicts,
 } from "./organizationMigrationHelpers";
+
+type HistoricalShop = Omit<Doc<"shops">, "organizationId"> & {
+  organizationId?: Doc<"organizations">["_id"];
+  operatingStatus?: "active" | "archived";
+};
 
 /**
  * 既存店舗を一店舗一事業者で移行する。
@@ -14,10 +20,11 @@ import {
 export const migration = migrations.define({
   table: "shops",
   migrateOne: async (ctx, shop) => {
-    const initialOperatingStatus = shop.isDeleted ? ("archived" as const) : ("active" as const);
+    const historicalShop = shop as HistoricalShop;
+    const initialOperatingStatus = historicalShop.isDeleted ? ("archived" as const) : ("active" as const);
 
-    if (shop.organizationId) {
-      const organization = await ctx.db.get(shop.organizationId);
+    if (historicalShop.organizationId) {
+      const organization = await ctx.db.get(historicalShop.organizationId);
       if (organization) {
         const migrationSourceOrganizations = await ctx.db
           .query("organizations")
@@ -36,8 +43,8 @@ export const migration = migrations.define({
           return;
         }
         // canonical lifecycleは課金・運用mutationの正本。migrationは未設定だけを補完する。
-        if (shop.operatingStatus === undefined)
-          await ctx.db.patch(shop._id, { operatingStatus: initialOperatingStatus });
+        if (historicalShop.operatingStatus === undefined)
+          await ctx.db.patch(shop._id, { operatingStatus: initialOperatingStatus } as never);
         await resolveOrganizationMigrationConflicts(ctx, { sourceType: "shop", sourceId: shop._id });
         return;
       }
@@ -64,8 +71,8 @@ export const migration = migrations.define({
     if (existingOrganization) {
       await ctx.db.patch(shop._id, {
         organizationId: existingOrganization._id,
-        ...(shop.operatingStatus === undefined ? { operatingStatus: initialOperatingStatus } : {}),
-      });
+        ...(historicalShop.operatingStatus === undefined ? { operatingStatus: initialOperatingStatus } : {}),
+      } as never);
       await resolveOrganizationMigrationConflicts(ctx, { sourceType: "shop", sourceId: shop._id });
       return;
     }
@@ -90,12 +97,12 @@ export const migration = migrations.define({
       isDeleted: shop.isDeleted,
       createdAt: now,
       updatedAt: now,
-    });
+    } as never);
 
     await ctx.db.patch(shop._id, {
       organizationId,
-      ...(shop.operatingStatus === undefined ? { operatingStatus: initialOperatingStatus } : {}),
-    });
+      ...(historicalShop.operatingStatus === undefined ? { operatingStatus: initialOperatingStatus } : {}),
+    } as never);
     await resolveOrganizationMigrationConflicts(ctx, { sourceType: "shop", sourceId: shop._id });
   },
 });

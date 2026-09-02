@@ -10,6 +10,7 @@ import { rateLimit } from "../_lib/rateLimits";
 import { seedNotificationHistory } from "../_test/notificationHistory";
 import { seedStaff } from "../_test/scenarioBuilders";
 import {
+  getTestOrganizationId,
   seedManagerShop,
   seedOrganizationManagerShop,
   seedOrganizationPersonLineLink,
@@ -93,6 +94,7 @@ async function getMembershipChangeDetail(
   const detail = await t
     .withIdentity({ subject: args.subject })
     .query(api.organization.userDetailQueries.getUserDetail, {
+      expectedOrganizationId: await getTestOrganizationId(t, args.shopId),
       shopId: args.shopId,
       personId: args.personId,
       now: Date.now(),
@@ -120,7 +122,10 @@ async function getShopStaffMembershipChange(
 ) {
   const snapshot = await t
     .withIdentity({ subject: args.subject })
-    .query(api.staff.queries.getOrganizationShopStaffMembershipChange, { shopId: args.shopId });
+    .query(api.staff.queries.getOrganizationShopStaffMembershipChange, {
+      expectedOrganizationId: await getTestOrganizationId(t, args.shopId),
+      shopId: args.shopId,
+    });
   if (!snapshot) throw new Error("店舗の所属スタッフsnapshotを取得できませんでした");
   return snapshot;
 }
@@ -137,6 +142,7 @@ async function getShopStaffRemovalPreviews(
   const preview = await t
     .withIdentity({ subject: args.subject })
     .query(api.staff.queries.previewOrganizationShopStaffMembershipRemovals, {
+      expectedOrganizationId: await getTestOrganizationId(t, args.shopId),
       shopId: args.shopId,
       personIds: args.personIds,
       expectedMembershipFingerprint: args.expectedMembershipFingerprint,
@@ -160,6 +166,7 @@ describe("staff/mutations", () => {
       const shopId = await t.run(async (ctx) => await seedShop(ctx, "テスト店舗"));
       await expect(
         t.mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
           shopId,
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "テスト", email: "test@example.com" }],
@@ -181,6 +188,7 @@ describe("staff/mutations", () => {
 
       const ids = addedStaffIds(
         await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
           shopId,
           requestId: nextStaffAddRequestId(),
           entries: [
@@ -231,6 +239,7 @@ describe("staff/mutations", () => {
 
       const [staffId] = addedStaffIds(
         await t.withIdentity({ subject: "organization_manager" }).mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
           shopId,
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "事業者スタッフ", email: "  Staff@Example.com  " }],
@@ -282,43 +291,6 @@ describe("staff/mutations", () => {
       ]);
     });
 
-    it("receiptのstaffがcanonical人物との片側linkになった場合は成功復旧しない", async () => {
-      const t = convexTest(schema, modules);
-      const seeded = await t.run(
-        async (ctx) =>
-          await seedOrganizationManagerShop(ctx, {
-            subject: "partial_receipt_staff_manager",
-            email: "partial-receipt-manager@example.com",
-          }),
-      );
-      const request = {
-        shopId: seeded.shopId,
-        requestId: nextStaffAddRequestId(),
-        entries: [{ name: "追加済みスタッフ", email: "partial-receipt-staff@example.com" }],
-      };
-      const actor = t.withIdentity({ subject: "partial_receipt_staff_manager" });
-
-      const [staffId] = addedStaffIds(await actor.mutation(api.staff.mutations.addStaffs, request));
-      await t.run(async (ctx) => await ctx.db.patch(staffId, { organizationPersonId: undefined }));
-
-      await expect(actor.mutation(api.staff.mutations.addStaffs, request)).rejects.toThrow(
-        "以前のスタッフ追加結果を確認できません。\n画面を更新して、もう一度お試しください。",
-      );
-
-      const state = await t.run(async (ctx) => ({
-        audits: (await ctx.db.query("organizationAuditEvents").collect()).filter(
-          (audit) => audit.action === "organization.staff_added",
-        ),
-        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-        staff: await ctx.db.get(staffId),
-      }));
-      if (!state.staff) throw new Error("追加済みstaffを取得できませんでした");
-      expect(state.staff.organizationId).toBe(seeded.organizationId);
-      expect(state.staff.organizationPersonId).toBeUndefined();
-      expect(state.audits).toHaveLength(1);
-      expect(state.scheduled).toHaveLength(3);
-    });
-
     it("order entryが安全上限を超えてもスタッフ追加を完了し、並び順だけをlegacyへ戻す", async () => {
       const t = convexTest(schema, modules);
       const subject = "staff_order_fail_safe_addition";
@@ -347,6 +319,7 @@ describe("staff/mutations", () => {
 
       const [staffId] = addedStaffIds(
         await actor.mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, base.shopId),
           shopId: base.shopId,
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "追加できるスタッフ", email: "staff-order-fail-safe-added@example.com" }],
@@ -412,6 +385,7 @@ describe("staff/mutations", () => {
           updatedAt: now,
         });
         await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: organization.shopId,
           organizationId: organization.organizationId,
           organizationPersonId: existingPersonId,
@@ -433,6 +407,7 @@ describe("staff/mutations", () => {
             updatedAt: now,
           });
           await ctx.db.insert("staffs", {
+            excludedFromShift: false,
             shopId: organization.shopId,
             organizationId: organization.organizationId,
             organizationPersonId: personId,
@@ -447,6 +422,7 @@ describe("staff/mutations", () => {
 
       const [staffId] = addedStaffIds(
         await t.withIdentity({ subject: "reuse_manager" }).mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.secondShopId),
           shopId: seeded.secondShopId,
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "2号店の表示名", email: "Shared@Example.com" }],
@@ -482,6 +458,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "capacity_manager" }).mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
           shopId,
           requestId: nextStaffAddRequestId(),
           entries: Array.from({ length: 5 }, (_, index) => ({
@@ -528,6 +505,7 @@ describe("staff/mutations", () => {
             updatedAt: now,
           });
           await ctx.db.insert("staffs", {
+            excludedFromShift: false,
             shopId: organization.shopId,
             organizationId: organization.organizationId,
             organizationPersonId: personId,
@@ -561,6 +539,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "removed_staff_capacity_manager" }).mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
           shopId: seeded.shopId,
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "入力名", email: "removed-target@example.com" }],
@@ -598,6 +577,7 @@ describe("staff/mutations", () => {
             updatedAt: now,
           });
           await ctx.db.insert("staffs", {
+            excludedFromShift: false,
             shopId: organization.shopId,
             organizationId: organization.organizationId,
             organizationPersonId: personId,
@@ -625,6 +605,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "scheduled_pro_staff_manager" }).mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
           shopId: seeded.shopId,
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "31人目", email: "scheduled-pro-over-limit@example.com" }],
@@ -667,6 +648,7 @@ describe("staff/mutations", () => {
             updatedAt: now,
           });
           await ctx.db.insert("staffs", {
+            excludedFromShift: false,
             shopId: organization.shopId,
             organizationId: organization.organizationId,
             organizationPersonId: personId,
@@ -696,6 +678,7 @@ describe("staff/mutations", () => {
       const entries = [{ name: "予約済みスタッフ", email: "reserved-staff@example.com" }];
       const asManager = t.withIdentity({ subject: "reserved_invitation_staff_manager" });
       const result = await asManager.mutation(api.staff.mutations.addStaffs, {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
         requestId,
         entries,
@@ -703,6 +686,7 @@ describe("staff/mutations", () => {
       const staffIds = addedStaffIds(result);
       await expect(
         asManager.mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
           shopId: seeded.shopId,
           requestId,
           entries,
@@ -770,6 +754,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "ambiguous_reserved_invitation_manager" }).mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
           shopId: seeded.shopId,
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "追加対象", email: "duplicate-reservation@example.com" }],
@@ -834,6 +819,7 @@ describe("staff/mutations", () => {
           isDeleted: false,
         });
         const oldTargetStaffId = await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: organization.shopId,
           organizationId: organization.organizationId,
           organizationPersonId: removedPersonId,
@@ -844,6 +830,7 @@ describe("staff/mutations", () => {
           isDeleted: true,
         });
         const oldOtherStaffId = await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: otherShopId,
           organizationId: organization.organizationId,
           organizationPersonId: removedPersonId,
@@ -865,6 +852,7 @@ describe("staff/mutations", () => {
         });
         const revokedAt = now - 1_000;
         const sessionId = await ctx.db.insert("sessions", {
+          accessKind: "submit",
           sessionToken: "removed-person-session",
           staffId: oldTargetStaffId,
           shopId: organization.shopId,
@@ -873,6 +861,7 @@ describe("staff/mutations", () => {
           revokedAt,
         });
         const magicLinkId = await ctx.db.insert("magicLinks", {
+          accessKind: "submit",
           token: "removed-person-magic-link",
           staffId: oldTargetStaffId,
           shopId: organization.shopId,
@@ -884,6 +873,9 @@ describe("staff/mutations", () => {
           token: "removed-person-line-link",
           staffId: oldTargetStaffId,
           shopId: organization.shopId,
+          organizationId: organization.organizationId,
+          organizationPersonId: removedPersonId,
+          lineLinkGenerationAtIssue: 0,
           expiresAt: now + 86_400_000,
           revokedAt,
         });
@@ -929,6 +921,7 @@ describe("staff/mutations", () => {
       const requestId = nextStaffAddRequestId();
       const asManager = t.withIdentity({ subject: "removed_manager" });
       const added = await asManager.mutation(api.staff.mutations.addStaffs, {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
         requestId,
         entries,
@@ -937,15 +930,7 @@ describe("staff/mutations", () => {
       expect(addedIds).toHaveLength(1);
       await expect(
         asManager.mutation(api.staff.mutations.addStaffs, {
-          shopId: seeded.shopId,
-          requestId,
-          entries,
-          // rolling deploy中に古い画面から届く互換入力は、追加結果を変えずに受理する。
-          confirmReactivationPersonIds: [seeded.removedPersonId],
-        }),
-      ).resolves.toEqual(added);
-      await expect(
-        asManager.mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
           shopId: seeded.shopId,
           requestId,
           entries: [{ name: "異なる再送名", email: "removed@example.com" }],
@@ -1028,6 +1013,7 @@ describe("staff/mutations", () => {
       const requestId = nextStaffAddRequestId();
       const entries = [{ name: "再追加入力", email: "requested-person@example.com" }];
       const added = await actor.mutation(api.staff.mutations.addStaffs, {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
         requestId,
         entries,
@@ -1122,6 +1108,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "stale_manager_membership_owner" }).mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
           shopId: seeded.shopId,
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "再追加", email: "stale-manager@example.com" }],
@@ -1169,6 +1156,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "stale_line_link_owner" }).mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
           shopId: seeded.shopId,
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "通常追加", email: "stale-line-person@example.com" }],
@@ -1215,6 +1203,7 @@ describe("staff/mutations", () => {
             updatedAt: now,
           });
           await ctx.db.insert("staffs", {
+            excludedFromShift: false,
             shopId: organization.shopId,
             organizationId: organization.organizationId,
             organizationPersonId: personId,
@@ -1254,6 +1243,7 @@ describe("staff/mutations", () => {
       const asManager = t.withIdentity({ subject: "reactivation_capacity_manager" });
       await expect(
         asManager.mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
           shopId: seeded.shopId,
           requestId,
           entries,
@@ -1293,6 +1283,7 @@ describe("staff/mutations", () => {
           updatedAt: now,
         });
         await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: organization.shopId,
           organizationId: organization.organizationId,
           organizationPersonId: personId,
@@ -1306,6 +1297,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "person_duplicate_manager" }).mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
           shopId: seeded.shopId,
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "重複人物", email: "person@example.com" }],
@@ -1335,6 +1327,7 @@ describe("staff/mutations", () => {
 
       const [staffId] = addedStaffIds(
         await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
           shopId,
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "田中太郎", email: "tanaka@example.com" }],
@@ -1396,6 +1389,7 @@ describe("staff/mutations", () => {
 
       const ids = addedStaffIds(
         await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
           shopId,
           requestId: nextStaffAddRequestId(),
           entries: [
@@ -1422,6 +1416,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
           shopId,
           requestId: nextStaffAddRequestId(),
           entries: Array.from({ length: STAFF_ADD_ENTRIES_MAX + 1 }, (_, index) => ({
@@ -1450,6 +1445,7 @@ describe("staff/mutations", () => {
 
       const ids = addedStaffIds(
         await t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
           shopId,
           requestId: nextStaffAddRequestId(),
           entries,
@@ -1480,6 +1476,7 @@ describe("staff/mutations", () => {
 
       await expect(
         asManager.mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
           shopId,
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "あ".repeat(PERSON_NAME_MAX_LENGTH + 1), email: "too-long@example.com" }],
@@ -1487,6 +1484,7 @@ describe("staff/mutations", () => {
       ).rejects.toThrow("名前は80文字以内で入力してください");
       await expect(
         asManager.mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
           shopId,
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "田中\n太郎", email: "control@example.com" }],
@@ -1494,6 +1492,7 @@ describe("staff/mutations", () => {
       ).rejects.toThrow("名前に使用できない文字が含まれています");
       await expect(
         asManager.mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
           shopId,
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "不正メール", email: "not-email" }],
@@ -1521,6 +1520,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
           shopId,
           requestId: nextStaffAddRequestId(),
           entries: [
@@ -1554,6 +1554,7 @@ describe("staff/mutations", () => {
 
       const firstIds = addedStaffIds(
         await asManager.mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
           shopId,
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "田中太郎", email: "tanaka@example.com" }],
@@ -1561,6 +1562,7 @@ describe("staff/mutations", () => {
       );
       await expect(
         asManager.mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
           shopId,
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "田中太郎", email: "Tanaka@Example.com" }],
@@ -1584,33 +1586,6 @@ describe("staff/mutations", () => {
           (job) => job.name === "notification/actions:sendOpenRecruitmentNotificationEmailsForStaff",
         ),
       ).toHaveLength(1);
-    });
-
-    it("emailNormalizedがない既存スタッフもメール重複としてエラーにする", async () => {
-      const t = convexTest(schema, modules);
-
-      const shopId = await t.run(async (ctx) => {
-        const { shopId } = await seedManagerShop(ctx, {
-          subject: "user_mgr",
-          email: "mgr@example.com",
-          shopName: "テスト店舗",
-        });
-        const existingStaffId = await seedStaff(ctx, {
-          shopId,
-          name: "既存スタッフ",
-          email: "legacy@example.com",
-        });
-        await ctx.db.patch(existingStaffId, { emailNormalized: undefined });
-        return shopId;
-      });
-
-      await expect(
-        t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
-          shopId,
-          requestId: nextStaffAddRequestId(),
-          entries: [{ name: "新規スタッフ", email: "legacy@example.com" }],
-        }),
-      ).rejects.toThrow("このメールアドレスはすでに登録されています。");
     });
 
     it("承認待ち申請と同じメールアドレスはエラーにする", async () => {
@@ -1639,6 +1614,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
           shopId,
           requestId: nextStaffAddRequestId(),
           entries: [{ name: "新規スタッフ", email: "Pending@Example.com" }],
@@ -1741,7 +1717,11 @@ describe("staff/mutations", () => {
 
       const result = await t
         .withIdentity({ subject: "user_mgr" })
-        .mutation(api.staff.mutations.sendOpenRecruitmentNotifications, { shopId, staffId });
+        .mutation(api.staff.mutations.sendOpenRecruitmentNotifications, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+          staffId,
+        });
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
       expect(result).toEqual({ scheduled: false, reason: "noEligibleRecruitments" });
@@ -1780,7 +1760,11 @@ describe("staff/mutations", () => {
 
       const result = await t
         .withIdentity({ subject: "user_mgr" })
-        .mutation(api.staff.mutations.sendOpenRecruitmentNotifications, { shopId, staffId });
+        .mutation(api.staff.mutations.sendOpenRecruitmentNotifications, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+          staffId,
+        });
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
       expect(result).toEqual({ scheduled: true });
@@ -1822,7 +1806,11 @@ describe("staff/mutations", () => {
         return { managerShopId, staffId };
       });
 
-      const request = { shopId: managerShopId, staffId };
+      const request = {
+        expectedOrganizationId: await getTestOrganizationId(t, managerShopId),
+        shopId: managerShopId,
+        staffId,
+      };
       const mutation =
         scenario === "unauthenticated"
           ? t.mutation(api.staff.mutations.sendOpenRecruitmentNotifications, request)
@@ -1872,6 +1860,7 @@ describe("staff/mutations", () => {
           updatedAt: now,
         });
         const sourceStaffId = await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: base.shopId,
           organizationId: base.organizationId,
           organizationPersonId: targetPersonId,
@@ -1897,6 +1886,7 @@ describe("staff/mutations", () => {
         return { ...base, sourceStaffId, targetPersonId, targetShopId };
       });
       const args = {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.targetShopId),
         shopId: seeded.targetShopId,
         personId: seeded.targetPersonId,
         requestId: "organization-person-add",
@@ -1990,6 +1980,7 @@ describe("staff/mutations", () => {
           email: "organization-person-same-shop-readd@example.com",
         });
         const removedStaffId = await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: base.shopId,
           organizationId: base.organizationId,
           organizationPersonId: personId,
@@ -2003,6 +1994,7 @@ describe("staff/mutations", () => {
       const result = await t
         .withIdentity({ subject: "organization_person_same_shop_readd_manager" })
         .mutation(api.staff.mutations.addOrganizationPersonToShop, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
           shopId: ids.shopId,
           personId: ids.personId,
           requestId: "organization-person-same-shop-readd",
@@ -2041,6 +2033,7 @@ describe("staff/mutations", () => {
           email: "retained-readd@example.com",
         });
         const sourceStaffId = await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: base.shopId,
           organizationId: base.organizationId,
           organizationPersonId: personId,
@@ -2065,6 +2058,7 @@ describe("staff/mutations", () => {
         requestId: "retained-line-remove-last",
       });
       const added = await actor.mutation(api.staff.mutations.addStaffs, {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.targetShopId),
         shopId: seeded.targetShopId,
         requestId: "retained-line-readd",
         entries: [{ name: "再追加表示名", email: "retained-readd@example.com" }],
@@ -2125,6 +2119,7 @@ describe("staff/mutations", () => {
           email: "canonical-generation-mismatch@example.com",
         });
         const sourceStaffId = await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: base.shopId,
           organizationId: base.organizationId,
           organizationPersonId: personId,
@@ -2145,6 +2140,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject: "canonical_generation_mismatch_manager" }).mutation(api.staff.mutations.addStaffs, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.targetShopId),
           shopId: seeded.targetShopId,
           requestId: "canonical-generation-mismatch-add",
           entries: [{ name: "追加されない表示名", email: "canonical-generation-mismatch@example.com" }],
@@ -2188,6 +2184,7 @@ describe("staff/mutations", () => {
         t
           .withIdentity({ subject: "organization_person_idor_owner" })
           .mutation(api.staff.mutations.addOrganizationPersonToShop, {
+            expectedOrganizationId: await getTestOrganizationId(t, seeded.owner.shopId),
             shopId: seeded.owner.shopId,
             personId: seeded.foreignPersonId,
             requestId: "organization-person-idor",
@@ -2231,6 +2228,7 @@ describe("staff/mutations", () => {
         t
           .withIdentity({ subject: "organization_person_invalid_email_manager" })
           .mutation(api.staff.mutations.addOrganizationPersonToShop, {
+            expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
             shopId: seeded.shopId,
             personId: seeded.targetPersonId,
             requestId: "organization-person-invalid-email",
@@ -2311,9 +2309,10 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject }).mutation(api.staff.mutations.changeOrganizationPersonShopMemberships, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
           shopId: ids.shopId,
           personId: ids.personId,
-          desiredActiveShopIds: [],
+          desiredShopIds: [],
           expectedMembershipFingerprint: detail.membershipFingerprint,
           removalPreviews: [readyRemovalPreview(detail, ids.shopId)],
           requestId: `membership-change-linked-user-${state}`,
@@ -2395,6 +2394,7 @@ describe("staff/mutations", () => {
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
         const submissionId = await ctx.db.insert("shiftSubmissions", {
+          firstSubmittedAt: Date.now(),
           recruitmentId,
           staffId: sourceStaffId,
           submittedAt: Date.now(),
@@ -2407,6 +2407,7 @@ describe("staff/mutations", () => {
           updatedAt: Date.now(),
         });
         const positionId = await ctx.db.insert("positions", {
+          isDefault: false,
           shopId: base.shopId,
           name: "通常",
           color: "#000000",
@@ -2422,6 +2423,7 @@ describe("staff/mutations", () => {
           positionId,
         });
         const sessionId = await ctx.db.insert("sessions", {
+          accessKind: "submit",
           sessionToken: "membership-change-old-session",
           staffId: sourceStaffId,
           shopId: base.shopId,
@@ -2429,6 +2431,7 @@ describe("staff/mutations", () => {
           expiresAt: Date.now() + 86_400_000,
         });
         const magicLinkId = await ctx.db.insert("magicLinks", {
+          accessKind: "submit",
           token: "membership-change-old-magic",
           staffId: sourceStaffId,
           shopId: base.shopId,
@@ -2439,6 +2442,9 @@ describe("staff/mutations", () => {
           token: "membership-change-old-line-token",
           staffId: sourceStaffId,
           shopId: base.shopId,
+          organizationId: base.organizationId,
+          organizationPersonId: personId,
+          lineLinkGenerationAtIssue: 0,
           expiresAt: Date.now() + 86_400_000,
         });
         const lineAccountId = await ctx.db.insert("staffLineAccounts", {
@@ -2478,9 +2484,10 @@ describe("staff/mutations", () => {
         personId: ids.otherPersonId,
       });
       const request = {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         personId: ids.personId,
-        desiredActiveShopIds: [ids.addedShopId, ids.retainedShopId],
+        desiredShopIds: [ids.addedShopId, ids.retainedShopId],
         expectedMembershipFingerprint: detail.membershipFingerprint,
         removalPreviews: [readyRemovalPreview(detail, ids.shopId)],
         requestId: "membership-change-mixed-request",
@@ -2499,9 +2506,10 @@ describe("staff/mutations", () => {
       ).rejects.toThrow("以前の店舗所属変更と内容が一致しません");
       await expect(
         actor.mutation(api.staff.mutations.changeOrganizationPersonShopMemberships, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
           shopId: ids.shopId,
           personId: ids.otherPersonId,
-          desiredActiveShopIds: [],
+          desiredShopIds: [],
           expectedMembershipFingerprint: otherDetail.membershipFingerprint,
           removalPreviews: [],
           requestId: request.requestId,
@@ -2582,6 +2590,7 @@ describe("staff/mutations", () => {
           email: "membership-change-noop@example.com",
         });
         const staffId = await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: base.shopId,
           organizationId: base.organizationId,
           organizationPersonId: personId,
@@ -2599,9 +2608,10 @@ describe("staff/mutations", () => {
       });
       const actor = t.withIdentity({ subject: "membership_change_noop_actor" });
       const request = {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         personId: ids.personId,
-        desiredActiveShopIds: [ids.shopId],
+        desiredShopIds: [ids.shopId],
         expectedMembershipFingerprint: detail.membershipFingerprint,
         removalPreviews: [],
         requestId: "membership-change-noop-request",
@@ -2660,6 +2670,7 @@ describe("staff/mutations", () => {
       const insertedAfterSnapshot = await t.run(
         async (ctx) =>
           await ctx.db.insert("staffs", {
+            excludedFromShift: false,
             shopId: ids.secondShopId,
             organizationId: ids.organizationId,
             organizationPersonId: ids.personId,
@@ -2674,9 +2685,10 @@ describe("staff/mutations", () => {
         t
           .withIdentity({ subject: "membership_change_stale_membership_actor" })
           .mutation(api.staff.mutations.changeOrganizationPersonShopMemberships, {
+            expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
             shopId: ids.shopId,
             personId: ids.personId,
-            desiredActiveShopIds: [],
+            desiredShopIds: [],
             expectedMembershipFingerprint: detail.membershipFingerprint,
             removalPreviews: [],
             requestId: "membership-change-stale-membership-request",
@@ -2705,6 +2717,7 @@ describe("staff/mutations", () => {
           email: "membership-change-stale-removal@example.com",
         });
         const staffId = await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: base.shopId,
           organizationId: base.organizationId,
           organizationPersonId: personId,
@@ -2732,6 +2745,7 @@ describe("staff/mutations", () => {
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
         const positionId = await ctx.db.insert("positions", {
+          isDefault: false,
           shopId: ids.shopId,
           name: "通常",
           color: "#000000",
@@ -2752,9 +2766,10 @@ describe("staff/mutations", () => {
         t
           .withIdentity({ subject: "membership_change_stale_removal_actor" })
           .mutation(api.staff.mutations.changeOrganizationPersonShopMemberships, {
+            expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
             shopId: ids.shopId,
             personId: ids.personId,
-            desiredActiveShopIds: [],
+            desiredShopIds: [],
             expectedMembershipFingerprint: detail.membershipFingerprint,
             removalPreviews: [readyRemovalPreview(detail, ids.shopId)],
             requestId: "membership-change-stale-removal-request",
@@ -2799,6 +2814,7 @@ describe("staff/mutations", () => {
       });
       const actor = t.withIdentity({ subject: "membership_change_boundary_actor" });
       const baseRequest = {
+        expectedOrganizationId: ids.owner.organizationId,
         shopId: ids.owner.shopId,
         personId: ids.personId,
         expectedMembershipFingerprint: detail.membershipFingerprint,
@@ -2808,21 +2824,21 @@ describe("staff/mutations", () => {
       await expect(
         actor.mutation(api.staff.mutations.changeOrganizationPersonShopMemberships, {
           ...baseRequest,
-          desiredActiveShopIds: [ids.foreign.shopId],
+          desiredShopIds: [ids.foreign.shopId],
           requestId: "membership-change-foreign-shop",
         }),
       ).rejects.toThrow("Not found");
       await expect(
         actor.mutation(api.staff.mutations.changeOrganizationPersonShopMemberships, {
           ...baseRequest,
-          desiredActiveShopIds: [ids.deletedShopId],
+          desiredShopIds: [ids.deletedShopId],
           requestId: "membership-change-deleted-shop",
         }),
       ).rejects.toThrow("Not found");
       await expect(
         actor.mutation(api.staff.mutations.changeOrganizationPersonShopMemberships, {
           ...baseRequest,
-          desiredActiveShopIds: [ids.owner.shopId, ids.owner.shopId],
+          desiredShopIds: [ids.owner.shopId, ids.owner.shopId],
           requestId: "membership-change-duplicate-shop",
         }),
       ).rejects.toThrow("入力内容を確認してください");
@@ -2830,14 +2846,14 @@ describe("staff/mutations", () => {
         actor.mutation(api.staff.mutations.changeOrganizationPersonShopMemberships, {
           ...baseRequest,
           personId: ids.foreign.personId,
-          desiredActiveShopIds: [],
+          desiredShopIds: [],
           requestId: "membership-change-foreign-person",
         }),
       ).rejects.toThrow("Not found");
       await expect(
         actor.mutation(api.staff.mutations.changeOrganizationPersonShopMemberships, {
           ...baseRequest,
-          desiredActiveShopIds: [],
+          desiredShopIds: [],
           expectedMembershipFingerprint: "not-a-fingerprint",
           requestId: "membership-change-bad-fingerprint",
         }),
@@ -2941,9 +2957,10 @@ describe("staff/mutations", () => {
         t
           .withIdentity({ subject: "membership_change_stats_limit_actor" })
           .mutation(api.staff.mutations.changeOrganizationPersonShopMemberships, {
+            expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
             shopId: ids.shopId,
             personId: ids.personId,
-            desiredActiveShopIds: ids.targetShopIds,
+            desiredShopIds: ids.targetShopIds,
             expectedMembershipFingerprint: detail.membershipFingerprint,
             removalPreviews: [],
             requestId: "membership-change-stats-limit-request",
@@ -3001,9 +3018,10 @@ describe("staff/mutations", () => {
         t
           .withIdentity({ subject: "membership_change_add_stats_actor" })
           .mutation(api.staff.mutations.changeOrganizationPersonShopMemberships, {
+            expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
             shopId: ids.shopId,
             personId: ids.personId,
-            desiredActiveShopIds: [ids.targetShopId],
+            desiredShopIds: [ids.targetShopId],
             expectedMembershipFingerprint: detail.membershipFingerprint,
             removalPreviews: [],
             requestId: "membership-change-add-stats-request",
@@ -3072,6 +3090,7 @@ describe("staff/mutations", () => {
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
         const oldSubmissionId = await ctx.db.insert("shiftSubmissions", {
+          firstSubmittedAt: Date.now(),
           recruitmentId,
           staffId: oldStaffId,
           submittedAt: Date.now(),
@@ -3084,6 +3103,7 @@ describe("staff/mutations", () => {
           updatedAt: Date.now(),
         });
         const oldSessionId = await ctx.db.insert("sessions", {
+          accessKind: "submit",
           sessionToken: "membership-change-readd-old-session",
           staffId: oldStaffId,
           shopId: base.shopId,
@@ -3091,6 +3111,7 @@ describe("staff/mutations", () => {
           expiresAt: Date.now() + 86_400_000,
         });
         const oldMagicLinkId = await ctx.db.insert("magicLinks", {
+          accessKind: "submit",
           token: "membership-change-readd-old-magic",
           staffId: oldStaffId,
           shopId: base.shopId,
@@ -3118,9 +3139,10 @@ describe("staff/mutations", () => {
 
       await expect(
         actor.mutation(api.staff.mutations.changeOrganizationPersonShopMemberships, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
           shopId: ids.shopId,
           personId: ids.personId,
-          desiredActiveShopIds: [],
+          desiredShopIds: [],
           expectedMembershipFingerprint: beforeRemoval.membershipFingerprint,
           removalPreviews: [readyRemovalPreview(beforeRemoval, ids.shopId)],
           requestId: "membership-change-remove-before-readd",
@@ -3150,6 +3172,7 @@ describe("staff/mutations", () => {
 
       await expect(
         actor.query(api.organization.userDetailQueries.getUserDetail, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
           shopId: ids.shopId,
           personId: ids.personId,
           now: Date.now(),
@@ -3198,6 +3221,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject }).mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
           shopId: ids.shopId,
           desiredActivePersonIds: [ids.personId],
           expectedMembershipFingerprint: snapshot.membershipFingerprint,
@@ -3286,6 +3310,7 @@ describe("staff/mutations", () => {
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
         const submissionId = await ctx.db.insert("shiftSubmissions", {
+          firstSubmittedAt: Date.now(),
           recruitmentId,
           staffId: removedStaffId,
           submittedAt: Date.now(),
@@ -3298,6 +3323,7 @@ describe("staff/mutations", () => {
           updatedAt: Date.now(),
         });
         const positionId = await ctx.db.insert("positions", {
+          isDefault: false,
           shopId: base.shopId,
           name: "通常",
           color: "#000000",
@@ -3321,6 +3347,7 @@ describe("staff/mutations", () => {
           positionId,
         });
         const sessionId = await ctx.db.insert("sessions", {
+          accessKind: "submit",
           sessionToken: "shop-staff-membership-old-session",
           staffId: removedStaffId,
           shopId: base.shopId,
@@ -3328,6 +3355,7 @@ describe("staff/mutations", () => {
           expiresAt: Date.now() + 86_400_000,
         });
         const magicLinkId = await ctx.db.insert("magicLinks", {
+          accessKind: "submit",
           token: "shop-staff-membership-old-magic-link",
           staffId: removedStaffId,
           shopId: base.shopId,
@@ -3338,6 +3366,9 @@ describe("staff/mutations", () => {
           token: "shop-staff-membership-old-line-link",
           staffId: removedStaffId,
           shopId: base.shopId,
+          organizationId: base.organizationId,
+          organizationPersonId: removedPersonId,
+          lineLinkGenerationAtIssue: 0,
           expiresAt: Date.now() + 86_400_000,
         });
         const lineAccountId = await ctx.db.insert("staffLineAccounts", {
@@ -3356,6 +3387,8 @@ describe("staff/mutations", () => {
           shopId: base.shopId,
           staffId: removedStaffId,
           purpose: "business",
+          notificationContext: "test.shop-staff-membership-before-removal",
+          deliverySuppressed: false,
           payload: {
             kind: "email",
             from: "noreply@example.com",
@@ -3399,6 +3432,7 @@ describe("staff/mutations", () => {
         expectedMembershipFingerprint: snapshot.membershipFingerprint,
       });
       const request = {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         desiredActivePersonIds: [ids.addedPersonId],
         expectedMembershipFingerprint: snapshot.membershipFingerprint,
@@ -3485,6 +3519,7 @@ describe("staff/mutations", () => {
       const actor = t.withIdentity({ subject });
       const snapshot = await getShopStaffMembershipChange(t, { subject, shopId: ids.shopId });
       const request = {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         desiredActivePersonIds: [ids.addedPersonId],
         expectedMembershipFingerprint: snapshot.membershipFingerprint,
@@ -3573,6 +3608,7 @@ describe("staff/mutations", () => {
 
       await expect(
         actor.mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
           shopId: ids.shopId,
           desiredActivePersonIds: [ids.personId],
           expectedMembershipFingerprint: firstSnapshot.membershipFingerprint,
@@ -3590,6 +3626,7 @@ describe("staff/mutations", () => {
       });
       await expect(
         actor.mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
           shopId: ids.shopId,
           desiredActivePersonIds: [],
           expectedMembershipFingerprint: secondSnapshot.membershipFingerprint,
@@ -3625,6 +3662,7 @@ describe("staff/mutations", () => {
 
       await expect(
         actor.mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
           shopId: ids.shopId,
           desiredActivePersonIds: [ids.personId],
           expectedMembershipFingerprint: thirdSnapshot.membershipFingerprint,
@@ -3648,6 +3686,7 @@ describe("staff/mutations", () => {
           email: "shop-staff-membership-current@example.com",
         });
         const currentStaffId = await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: base.shopId,
           organizationId: base.organizationId,
           organizationPersonId: currentPersonId,
@@ -3690,6 +3729,7 @@ describe("staff/mutations", () => {
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
         const positionId = await ctx.db.insert("positions", {
+          isDefault: false,
           shopId: base.shopId,
           name: "通常",
           color: "#000000",
@@ -3716,6 +3756,7 @@ describe("staff/mutations", () => {
         expectedMembershipFingerprint: snapshot.membershipFingerprint,
       });
       const baseRequest = {
+        expectedOrganizationId: ids.organizationId,
         shopId: ids.shopId,
         expectedMembershipFingerprint: snapshot.membershipFingerprint,
         removalPreviews: [],
@@ -3813,6 +3854,7 @@ describe("staff/mutations", () => {
           personIds.push(personId);
           staffIds.push(
             await ctx.db.insert("staffs", {
+              excludedFromShift: false,
               shopId: base.shopId,
               organizationId: base.organizationId,
               organizationPersonId: personId,
@@ -3837,6 +3879,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject }).mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
           shopId: ids.shopId,
           desiredActivePersonIds: [],
           expectedMembershipFingerprint: snapshot.membershipFingerprint,
@@ -3891,6 +3934,7 @@ describe("staff/mutations", () => {
       const requestId = "shop-staff-membership-noop-request";
       const actor = t.withIdentity({ subject });
       const request = {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         desiredActivePersonIds: [],
         expectedMembershipFingerprint: snapshot.membershipFingerprint,
@@ -3988,6 +4032,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject }).mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
           shopId: ids.shopId,
           desiredActivePersonIds: ids.personIds,
           expectedMembershipFingerprint: snapshot.membershipFingerprint,
@@ -4034,6 +4079,7 @@ describe("staff/mutations", () => {
 
       await expect(
         t.withIdentity({ subject }).mutation(api.staff.mutations.changeOrganizationShopStaffMemberships, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
           shopId: ids.shopId,
           desiredActivePersonIds: ids.personIds,
           expectedMembershipFingerprint: snapshot.membershipFingerprint,
@@ -4121,8 +4167,18 @@ describe("staff/mutations", () => {
         });
         const asManager = t.withIdentity({ subject: "analytics_shift_target_manager" });
 
-        await asManager.mutation(api.staff.mutations.setShiftExclusion, { shopId, staffId, excluded: true });
-        await asManager.mutation(api.staff.mutations.setShiftExclusion, { shopId, staffId, excluded: false });
+        await asManager.mutation(api.staff.mutations.setShiftExclusion, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+          staffId,
+          excluded: true,
+        });
+        await asManager.mutation(api.staff.mutations.setShiftExclusion, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+          staffId,
+          excluded: false,
+        });
 
         const events = await t.run(async (ctx) =>
           ctx.db
@@ -4160,7 +4216,12 @@ describe("staff/mutations", () => {
       const { t, data } = setupShopWithStaff();
       const { shopId, staffId } = await data;
       await expect(
-        t.mutation(api.staff.mutations.setShiftExclusion, { shopId, staffId, excluded: true }),
+        t.mutation(api.staff.mutations.setShiftExclusion, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+          staffId,
+          excluded: true,
+        }),
       ).rejects.toThrow();
     });
 
@@ -4169,10 +4230,20 @@ describe("staff/mutations", () => {
       const { shopId, staffId } = await data;
       const asManager = t.withIdentity({ subject: "user_mgr" });
 
-      await asManager.mutation(api.staff.mutations.setShiftExclusion, { shopId, staffId, excluded: true });
+      await asManager.mutation(api.staff.mutations.setShiftExclusion, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+        staffId,
+        excluded: true,
+      });
       expect(await t.run(async (ctx) => (await ctx.db.get(staffId))?.excludedFromShift)).toBe(true);
 
-      await asManager.mutation(api.staff.mutations.setShiftExclusion, { shopId, staffId, excluded: false });
+      await asManager.mutation(api.staff.mutations.setShiftExclusion, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+        staffId,
+        excluded: false,
+      });
       expect(await t.run(async (ctx) => (await ctx.db.get(staffId))?.excludedFromShift)).toBe(false);
     });
 
@@ -4197,7 +4268,12 @@ describe("staff/mutations", () => {
 
       await t
         .withIdentity({ subject: "user_mgr" })
-        .mutation(api.staff.mutations.setShiftExclusion, { shopId, staffId: adminStaffId, excluded: true });
+        .mutation(api.staff.mutations.setShiftExclusion, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+          staffId: adminStaffId,
+          excluded: true,
+        });
 
       expect(await t.run(async (ctx) => (await ctx.db.get(adminStaffId))?.excludedFromShift)).toBe(true);
     });
@@ -4219,7 +4295,12 @@ describe("staff/mutations", () => {
       await expect(
         t
           .withIdentity({ subject: "user_mgr" })
-          .mutation(api.staff.mutations.setShiftExclusion, { shopId, staffId: otherStaffId, excluded: true }),
+          .mutation(api.staff.mutations.setShiftExclusion, {
+            expectedOrganizationId: await getTestOrganizationId(t, shopId),
+            shopId,
+            staffId: otherStaffId,
+            excluded: true,
+          }),
       ).rejects.toThrow("Not found");
     });
 
@@ -4267,7 +4348,12 @@ describe("staff/mutations", () => {
       await expect(
         t
           .withIdentity({ subject: "user_mgr" })
-          .mutation(api.staff.mutations.setShiftExclusion, { shopId, staffId, excluded: true }),
+          .mutation(api.staff.mutations.setShiftExclusion, {
+            expectedOrganizationId: await getTestOrganizationId(t, shopId),
+            shopId,
+            staffId,
+            excluded: true,
+          }),
       ).rejects.toThrow("Not found");
 
       expect(await readState()).toEqual(before);
@@ -4309,7 +4395,12 @@ describe("staff/mutations", () => {
 
       await t
         .withIdentity({ subject: "user_mgr" })
-        .mutation(api.staff.mutations.setShiftExclusion, { shopId, staffId, excluded: true });
+        .mutation(api.staff.mutations.setShiftExclusion, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+          staffId,
+          excluded: true,
+        });
 
       const { session, magicLink } = await t.run(async (ctx) => ({
         session: await ctx.db.get(sessionId),
@@ -4417,42 +4508,13 @@ describe("staff/mutations", () => {
       const { shopId, staffId } = await setupCurrentShiftNotification(t);
 
       await expect(
-        t.mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId }),
+        t.mutation(api.staff.mutations.sendCurrentShiftNotification, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+          staffId,
+        }),
       ).rejects.toThrowError();
       expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
-    });
-
-    it.each([
-      ["canonical IDが両方ない", "missingBoth"],
-      ["organizationPersonIdだけない", "missingPerson"],
-    ] as const)("%s staffは新規通知intentを作らない", async (_label, identityState) => {
-      const t = convexTest(schema, modules);
-      const { shopId, staffId } = await setupCurrentShiftNotification(t);
-      await t.run(async (ctx) => {
-        await ctx.db.patch(
-          staffId,
-          identityState === "missingBoth"
-            ? { organizationId: undefined, organizationPersonId: undefined }
-            : { organizationPersonId: undefined },
-        );
-      });
-
-      await expect(
-        t
-          .withIdentity({ subject: "current_shift_manager" })
-          .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId }),
-      ).resolves.toEqual({ scheduled: false, reason: "noCurrentShift" });
-      await expect(
-        t.mutation(internal.staff.mutations.prepareLegacyCurrentShiftConfirmationFanout, { staffId }),
-      ).resolves.toEqual({ status: "skipped", reason: "noCurrentShift" });
-
-      const state = await t.run(async (ctx) => ({
-        fanoutOperations: await ctx.db.query("notificationFanoutOperations").collect(),
-        outbox: await ctx.db.query("notificationOutbox").collect(),
-        rateLimits: await ctx.db.query("rateLimits").collect(),
-        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-      }));
-      expect(state).toEqual({ fanoutOperations: [], outbox: [], rateLimits: [], scheduled: [] });
     });
 
     it.each([
@@ -4486,7 +4548,11 @@ describe("staff/mutations", () => {
       await expect(
         t
           .withIdentity({ subject: "current_shift_manager" })
-          .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId }),
+          .mutation(api.staff.mutations.sendCurrentShiftNotification, {
+            expectedOrganizationId: await getTestOrganizationId(t, shopId),
+            shopId,
+            staffId,
+          }),
       ).resolves.toEqual({ scheduled: false, reason: "noCurrentShift" });
       await expect(
         t.mutation(internal.staff.mutations.prepareLegacyCurrentShiftConfirmationFanout, { staffId }),
@@ -4509,7 +4575,11 @@ describe("staff/mutations", () => {
 
       const result = await t
         .withIdentity({ subject: "current_shift_manager" })
-        .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId });
+        .mutation(api.staff.mutations.sendCurrentShiftNotification, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+          staffId,
+        });
       const jobs = await getScheduledCurrentShiftNotifications(t);
       const operations = await getCurrentShiftNotificationOperations(t);
       const operationByRecruitmentId = new Map(operations.map((operation) => [operation.recruitmentId, operation]));
@@ -4564,7 +4634,11 @@ describe("staff/mutations", () => {
 
       const result = await t
         .withIdentity({ subject: "current_shift_manager" })
-        .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId });
+        .mutation(api.staff.mutations.sendCurrentShiftNotification, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+          staffId,
+        });
       const operations = await getCurrentShiftNotificationOperations(t);
       const jobs = await getScheduledCurrentShiftNotifications(t);
 
@@ -4592,7 +4666,11 @@ describe("staff/mutations", () => {
       await expect(
         t
           .withIdentity({ subject: "current_shift_manager" })
-          .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId }),
+          .mutation(api.staff.mutations.sendCurrentShiftNotification, {
+            expectedOrganizationId: await getTestOrganizationId(t, shopId),
+            shopId,
+            staffId,
+          }),
       ).resolves.toEqual({ scheduled: false, reason: "tooManyCurrentShifts" });
       await expect(
         t.run(async (ctx) => ({
@@ -4622,7 +4700,11 @@ describe("staff/mutations", () => {
       ).resolves.toEqual({ status: "skipped", reason: "unconfirmedChanges" });
       const result = await t
         .withIdentity({ subject: "current_shift_manager" })
-        .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId });
+        .mutation(api.staff.mutations.sendCurrentShiftNotification, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+          staffId,
+        });
       const state = await t.run(async (ctx) => ({
         operations: await ctx.db.query("notificationFanoutOperations").collect(),
         jobs: await ctx.db.system.query("_scheduled_functions").collect(),
@@ -4639,7 +4721,11 @@ describe("staff/mutations", () => {
 
       const result = await t
         .withIdentity({ subject: "current_shift_manager" })
-        .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId });
+        .mutation(api.staff.mutations.sendCurrentShiftNotification, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+          staffId,
+        });
 
       expect(result).toEqual({ scheduled: false, reason: "noCurrentShift" });
       expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
@@ -4652,7 +4738,11 @@ describe("staff/mutations", () => {
       await expect(
         t
           .withIdentity({ subject: "current_shift_manager" })
-          .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId }),
+          .mutation(api.staff.mutations.sendCurrentShiftNotification, {
+            expectedOrganizationId: await getTestOrganizationId(t, shopId),
+            shopId,
+            staffId,
+          }),
       ).rejects.toThrowError("Not found");
       expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
     });
@@ -4664,7 +4754,11 @@ describe("staff/mutations", () => {
       await expect(
         t
           .withIdentity({ subject: "current_shift_manager" })
-          .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId }),
+          .mutation(api.staff.mutations.sendCurrentShiftNotification, {
+            expectedOrganizationId: await getTestOrganizationId(t, shopId),
+            shopId,
+            staffId,
+          }),
       ).rejects.toThrowError("Not found");
       expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
     });
@@ -4675,7 +4769,11 @@ describe("staff/mutations", () => {
 
       const result = await t
         .withIdentity({ subject: "current_shift_manager" })
-        .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId });
+        .mutation(api.staff.mutations.sendCurrentShiftNotification, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+          staffId,
+        });
 
       expect(result).toEqual({ scheduled: false, reason: "noCurrentShift" });
       expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
@@ -4688,7 +4786,11 @@ describe("staff/mutations", () => {
       await expect(
         t
           .withIdentity({ subject: "current_shift_manager" })
-          .mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId }),
+          .mutation(api.staff.mutations.sendCurrentShiftNotification, {
+            expectedOrganizationId: await getTestOrganizationId(t, shopId),
+            shopId,
+            staffId,
+          }),
       ).rejects.toThrowError("メールアドレスの登録またはLINE連携が必要です。");
       expect(await getScheduledCurrentShiftNotifications(t)).toHaveLength(0);
     });
@@ -4698,8 +4800,13 @@ describe("staff/mutations", () => {
       const { shopId, staffId } = await setupCurrentShiftNotification(t);
       const asManager = t.withIdentity({ subject: "current_shift_manager" });
 
-      const first = await asManager.mutation(api.staff.mutations.sendCurrentShiftNotification, { shopId, staffId });
+      const first = await asManager.mutation(api.staff.mutations.sendCurrentShiftNotification, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+        staffId,
+      });
       const second = await asManager.mutation(api.staff.mutations.sendCurrentShiftNotification, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
         shopId,
         staffId,
       });
@@ -4816,14 +4923,14 @@ describe("staff/mutations", () => {
       );
       const beforeRejection = await getNotificationSideEffects(t);
 
-      await expect(sendNotification(t, ids, 0)).resolves.toEqual({
+      await expect(sendNotification(t, ids)).resolves.toEqual({
         scheduled: false,
         reason: "recentlySent",
       });
       expect(await getNotificationSideEffects(t)).toEqual(beforeRejection);
 
       vi.advanceTimersByTime(NOTIFICATION_RESEND_COOLDOWN_MS);
-      await expect(sendNotification(t, ids, 1)).resolves.toEqual({ scheduled: true });
+      await expect(sendNotification(t, ids)).resolves.toEqual({ scheduled: true });
     });
 
     it.each(["failed", "cancelled"] as const)("%sの送信履歴は再送を止めない", async (sendStatus) => {
@@ -4841,37 +4948,33 @@ describe("staff/mutations", () => {
           }),
       );
 
-      await expect(sendNotification(t, ids, 0)).resolves.toEqual({ scheduled: true });
+      await expect(sendNotification(t, ids)).resolves.toEqual({ scheduled: true });
     });
 
-    async function sendNotification(
-      t: TestConvex<typeof schema>,
-      ids: { shopId: Id<"shops">; staffId: Id<"staffs"> },
-      requestSequence: number,
-    ) {
+    async function sendNotification(t: TestConvex<typeof schema>, ids: { shopId: Id<"shops">; staffId: Id<"staffs"> }) {
       const actor = t.withIdentity({ subject: "staff_resend_manager_1" });
       const args = {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         staffId: ids.staffId,
-        requestId: `staff-resend-cooldown-${kind}-${requestSequence}`,
       };
       return kind === "openRecruitments"
         ? await actor.mutation(api.staff.mutations.sendOpenRecruitmentNotifications, args)
         : await actor.mutation(api.staff.mutations.sendCurrentShiftNotification, args);
     }
 
-    it("fresh request IDでもactor短期・日次と組織日次を迂回できず、拒否時の副作用は0になる", async () => {
+    it("反復送信でもactor短期・日次と組織日次を迂回できず、拒否時の副作用は0になる", async () => {
       const t = convexTest(schema, modules);
       const ids = await setupNotificationQuotaTest(t);
       const providerCall = vi.fn();
       vi.stubGlobal("fetch", providerCall);
 
-      const send = async (managerNumber: number, requestSequence: number) => {
+      const send = async (managerNumber: number) => {
         const actor = t.withIdentity({ subject: `staff_resend_manager_${managerNumber}` });
         const args = {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
           shopId: ids.shopId,
           staffId: ids.staffId,
-          requestId: `staff-resend-${kind}-${managerNumber}-${requestSequence}`,
         };
         return kind === "openRecruitments"
           ? await actor.mutation(api.staff.mutations.sendOpenRecruitmentNotifications, args)
@@ -4879,32 +4982,32 @@ describe("staff/mutations", () => {
       };
       const movePastShortLimit = () => vi.setSystemTime(new Date(Date.now() + 61_000));
 
-      await expect(send(1, 0)).resolves.toEqual({ scheduled: true });
+      await expect(send(1)).resolves.toEqual({ scheduled: true });
       const afterFirst = await getNotificationSideEffects(t);
-      await expect(send(1, 1)).resolves.toEqual({ scheduled: false, reason: "rateLimited" });
+      await expect(send(1)).resolves.toEqual({ scheduled: false, reason: "rateLimited" });
       expect(await getNotificationSideEffects(t)).toEqual(afterFirst);
 
       for (let request = 1; request < STAFF_NOTIFICATION_RESEND_ACTOR_DAILY_LIMIT; request += 1) {
         movePastShortLimit();
-        await expect(send(1, request + 1)).resolves.toEqual({ scheduled: true });
+        await expect(send(1)).resolves.toEqual({ scheduled: true });
       }
       movePastShortLimit();
       const beforeActorDailyRejection = await getNotificationSideEffects(t);
-      await expect(send(1, 100)).resolves.toEqual({ scheduled: false, reason: "rateLimited" });
+      await expect(send(1)).resolves.toEqual({ scheduled: false, reason: "rateLimited" });
       expect(await getNotificationSideEffects(t)).toEqual(beforeActorDailyRejection);
 
       // actor側の上限で拒否された操作は組織bucketを消費せず、別managerは通常どおり送れる。
-      await expect(send(2, 0)).resolves.toEqual({ scheduled: true });
+      await expect(send(2)).resolves.toEqual({ scheduled: true });
       const remainingOrganizationBudget =
         STAFF_NOTIFICATION_RESEND_ORGANIZATION_DAILY_LIMIT - STAFF_NOTIFICATION_RESEND_ACTOR_DAILY_LIMIT - 1;
       for (let request = 0; request < remainingOrganizationBudget; request += 1) {
         movePastShortLimit();
-        await expect(send(2, request + 1)).resolves.toEqual({ scheduled: true });
+        await expect(send(2)).resolves.toEqual({ scheduled: true });
       }
 
       movePastShortLimit();
       const beforeOrganizationDailyRejection = await getNotificationSideEffects(t);
-      await expect(send(3, 0)).resolves.toEqual({ scheduled: false, reason: "rateLimited" });
+      await expect(send(3)).resolves.toEqual({ scheduled: false, reason: "rateLimited" });
       expect(await getNotificationSideEffects(t)).toEqual(beforeOrganizationDailyRejection);
       expect(beforeOrganizationDailyRejection).toMatchObject({
         scheduledJobs: STAFF_NOTIFICATION_RESEND_ORGANIZATION_DAILY_LIMIT,
@@ -4960,11 +5063,11 @@ describe("staff/mutations", () => {
         return { organizationId: base.organizationId, shopId: base.shopId, staffIds };
       });
       const actor = t.withIdentity({ subject: `staff_target_quota_${kind}` });
-      const send = async (staffId: Id<"staffs">, index: number) => {
+      const send = async (staffId: Id<"staffs">) => {
         const args = {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
           shopId: ids.shopId,
           staffId,
-          requestId: `staff-target-quota-${kind}-${index}`,
         };
         return kind === "openRecruitments"
           ? await actor.mutation(api.staff.mutations.sendOpenRecruitmentNotifications, args)
@@ -4983,7 +5086,7 @@ describe("staff/mutations", () => {
 
       const acceptedStaffId = ids.staffIds[0];
       if (!acceptedStaffId) throw new Error("target quota staff was not created");
-      await expect(send(acceptedStaffId, 0)).resolves.toEqual({ scheduled: true });
+      await expect(send(acceptedStaffId)).resolves.toEqual({ scheduled: true });
       await t.run(async (ctx) => {
         const consumed = await rateLimit(ctx, {
           name: "staffNotificationResendScopeTargetShort",
@@ -4995,7 +5098,7 @@ describe("staff/mutations", () => {
       const beforeRejection = await getState();
       const rejectedStaffId = ids.staffIds[1];
       if (!rejectedStaffId) throw new Error("target quota rejection staff was not created");
-      await expect(send(rejectedStaffId, 1)).resolves.toEqual({
+      await expect(send(rejectedStaffId)).resolves.toEqual({
         scheduled: false,
         reason: "rateLimited",
       });

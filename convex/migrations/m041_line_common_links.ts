@@ -103,7 +103,9 @@ export const migration = migrations.define({
         personStaffShop !== null &&
         !personStaffShop.isDeleted &&
         personStaffShop.organizationId === organizationId &&
-        legacyOrganizationShopOperatingStatus(personStaffShop.operatingStatus) === "active"
+        legacyOrganizationShopOperatingStatus(
+          (personStaffShop as typeof personStaffShop & { operatingStatus?: "active" | "archived" }).operatingStatus,
+        ) === "active"
       );
     });
     if (activePersonStaffs.length !== 1 || activePersonStaffs[0]._id !== staff._id) {

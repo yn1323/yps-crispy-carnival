@@ -97,6 +97,7 @@ export function buildDashboardShopContexts(
   organization: {
     id: string;
     name: string;
+    plan: ShopContextOption["organizationPlan"];
   },
 ): ShopContextOption[] {
   return shops.map((shop) => ({
@@ -104,6 +105,6 @@ export function buildDashboardShopContexts(
     shopName: shop.name,
     organizationId: organization.id,
     organizationName: organization.name,
-    organizationPlan: null,
+    organizationPlan: organization.plan,
   }));
 }

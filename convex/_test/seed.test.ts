@@ -1,14 +1,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { seedStaff } from "./scenarioBuilders";
-import {
-  seedLegacyManagerShop,
-  seedLegacyShop,
-  seedManagerShop,
-  seedOrganizationMembership,
-  seedShop,
-  seedUser,
-} from "./seed";
+import { seedManagerShop, seedOrganizationMembership, seedShop, seedUser } from "./seed";
 import { modules, schema } from "./setup.test-helper";
 
 describe("test seed contracts", () => {
@@ -68,32 +61,5 @@ describe("test seed contracts", () => {
       status: "active",
     });
     expect(snapshot.legacyMemberships).toEqual([]);
-  });
-
-  it("旧店舗形式は明示的なlegacy fixtureでだけ作る", async () => {
-    const t = convexTest(schema, modules);
-    const seeded = await t.run(async (ctx) => {
-      const manager = await seedLegacyManagerShop(ctx, {
-        subject: "legacy_fixture_manager",
-        shopName: "旧管理店舗",
-      });
-      const standaloneShopId = await seedLegacyShop(ctx, "旧単独店舗");
-      return { ...manager, standaloneShopId };
-    });
-
-    const snapshot = await t.run(async (ctx) => ({
-      managerShop: await ctx.db.get(seeded.shopId),
-      standaloneShop: await ctx.db.get(seeded.standaloneShopId),
-      memberships: await ctx.db
-        .query("shopMembers")
-        .withIndex("by_userId_and_shopId", (q) => q.eq("userId", seeded.userId).eq("shopId", seeded.shopId))
-        .collect(),
-    }));
-
-    expect(snapshot.managerShop?.organizationId).toBeUndefined();
-    expect(snapshot.managerShop?.operatingStatus).toBeUndefined();
-    expect(snapshot.standaloneShop?.organizationId).toBeUndefined();
-    expect(snapshot.standaloneShop?.operatingStatus).toBeUndefined();
-    expect(snapshot.memberships).toHaveLength(1);
   });
 });

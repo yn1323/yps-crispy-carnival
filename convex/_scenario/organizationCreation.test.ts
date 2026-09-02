@@ -208,7 +208,6 @@ describe("組織追加作成シナリオ", () => {
         {
           shopId: firstShopId,
           shopName: FIRST_SHOP_NAME,
-          shopStatus: "active",
           organizationId: organizationIds.first,
           organizationName: `${FIRST_SHOP_NAME}グループ`,
           organizationPlan: "trial",
@@ -217,7 +216,6 @@ describe("組織追加作成シナリオ", () => {
         {
           shopId: invitedShopId,
           shopName: "招待元店舗",
-          shopStatus: "active",
           organizationId: invitation.organizationId,
           organizationName: "招待元店舗グループ",
           organizationPlan: "trial",
@@ -226,7 +224,6 @@ describe("組織追加作成シナリオ", () => {
         {
           shopId: second.shopId,
           shopName: SECOND_SHOP_NAME,
-          shopStatus: "active",
           organizationId: organizationIds.second,
           organizationName: `${SECOND_SHOP_NAME}グループ`,
           organizationPlan: "free",
@@ -235,7 +232,6 @@ describe("組織追加作成シナリオ", () => {
         {
           shopId: third.shopId,
           shopName: "三つ目の店舗",
-          shopStatus: "active",
           organizationId: organizationIds.third,
           organizationName: "三つ目の店舗グループ",
           organizationPlan: "free",

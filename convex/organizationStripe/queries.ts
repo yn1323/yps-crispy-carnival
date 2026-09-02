@@ -2,11 +2,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
-import {
-  type OrganizationReadActor,
-  requireOrganizationActorForShop,
-  requireOrganizationReadActor,
-} from "../organization/access";
+import { type OrganizationReadActor, requireOrganizationReadActor } from "../organization/access";
 import { organizationCanonicalBillingStateValidator } from "../organization/validators";
 import {
   organizationStripeOperationKindValidator,
@@ -17,7 +13,6 @@ import {
 
 const actionPurposeValidator = v.union(
   v.literal("price"),
-  v.literal("currentSubscriptionPrice"),
   v.literal("startCheckout"),
   v.literal("cancelCheckout"),
   v.literal("portal"),
@@ -57,28 +52,6 @@ const actionContextValidator = v.union(
 );
 
 const paidCheckoutOperationKindValidator = v.union(v.literal("trialSetupCheckout"), v.literal("immediatePaidCheckout"));
-
-export const getActionContext = internalQuery({
-  args: {
-    tokenIdentifier: v.string(),
-    shopId: v.id("shops"),
-    purpose: actionPurposeValidator,
-  },
-  returns: actionContextValidator,
-  handler: async (ctx, args) => {
-    const users = await ctx.db
-      .query("users")
-      .withIndex("by_authTokenIdentifier", (q) => q.eq("authTokenIdentifier", args.tokenIdentifier))
-      .take(2);
-    if (users.length !== 1) return null;
-
-    const actor = await requireOrganizationActorForShop(ctx, {
-      user: users[0],
-      shopId: args.shopId,
-    });
-    return await getActionContextForActor(ctx, actor, args.purpose);
-  },
-});
 
 /** app管理画面用。店舗anchorを経由せずcanonical組織所属から課金対象を確定する。 */
 export const getActionContextForOrganization = internalQuery({
@@ -120,7 +93,6 @@ async function getActionContextForActor(ctx: QueryCtx, actor: OrganizationReadAc
       .first(),
   ]);
   if (!billingState) return null;
-  if (purpose === "currentSubscriptionPrice" && latestSubscription?.terminalAt !== undefined) return null;
   const canonicalBillingState = billingState.state;
   const isActiveManager = actor.member.status === "active";
   if (!isActiveManager || !isPurposeAllowed(purpose, canonicalBillingState, isActiveManager)) return null;
@@ -128,7 +100,7 @@ async function getActionContextForActor(ctx: QueryCtx, actor: OrganizationReadAc
   return {
     organizationId: actor.organization._id,
     organizationName: actor.organization.name,
-    billingEmail: actor.organization.billingEmail ?? actor.person.email,
+    billingEmail: actor.organization.billingEmail,
     personId: actor.person._id,
     billingState: { state: canonicalBillingState, version: billingState.version },
     ...(customer ? { stripeCustomerId: customer.stripeCustomerId } : {}),
@@ -1082,7 +1054,6 @@ export const getBillingEmailSyncContext = internalQuery({
     if (
       !organization ||
       organization.isDeleted ||
-      !organization.billingEmail ||
       !billingState ||
       billingState.state.kind === "complimentary" ||
       !customer
@@ -1167,7 +1138,6 @@ export const getKnownWebhookObjectGuard = internalQuery({
 function isPurposeAllowed(
   purpose:
     | "price"
-    | "currentSubscriptionPrice"
     | "startCheckout"
     | "cancelCheckout"
     | "portal"
@@ -1183,10 +1153,6 @@ function isPurposeAllowed(
   switch (purpose) {
     case "price":
       return isActiveManager;
-    case "currentSubscriptionPrice":
-      if (state.kind === "active") return isActiveManager && state.plan !== "free";
-      if (state.kind === "scheduledChange") return isActiveManager;
-      return false;
     case "startCheckout":
       if (state.kind === "pendingActivation") return isActiveManager;
       return isActiveManager && (state.kind === "trial" || (state.kind === "active" && state.plan === "free"));
