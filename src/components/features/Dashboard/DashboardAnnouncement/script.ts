@@ -21,29 +21,27 @@ function parseTargets(value: string | undefined): string[] {
   );
 }
 
-export function selectDashboardAnnouncementForContext<T extends TargetedAnnouncement>(
+export function selectDashboardAnnouncementsForContext<T extends TargetedAnnouncement>(
   announcements: readonly T[] | undefined,
   context: AnnouncementContext,
-): T | null {
-  if (!announcements) return null;
+): T[] {
+  if (!announcements) return [];
 
-  return (
-    announcements.find((announcement) => {
-      const isGlobal =
-        announcement.organizationId === undefined &&
-        announcement.shopId === undefined &&
-        announcement.organizationPlan === undefined;
-      if (isGlobal) return true;
-      if (!context) return false;
+  return announcements.filter((announcement) => {
+    const isGlobal =
+      announcement.organizationId === undefined &&
+      announcement.shopId === undefined &&
+      announcement.organizationPlan === undefined;
+    if (isGlobal) return true;
+    if (!context) return false;
 
-      const organizationIds = parseTargets(announcement.organizationId);
-      const shopIds = parseTargets(announcement.shopId);
-      const organizationPlans = parseTargets(announcement.organizationPlan);
-      const matchesOrganization = context.organizationId !== null && organizationIds.includes(context.organizationId);
-      const matchesShop = shopIds.includes(context.shopId);
-      const matchesOrganizationPlan =
-        context.organizationPlan !== null && organizationPlans.includes(context.organizationPlan);
-      return matchesOrganization || matchesShop || matchesOrganizationPlan;
-    }) ?? null
-  );
+    const organizationIds = parseTargets(announcement.organizationId);
+    const shopIds = parseTargets(announcement.shopId);
+    const organizationPlans = parseTargets(announcement.organizationPlan);
+    const matchesOrganization = context.organizationId !== null && organizationIds.includes(context.organizationId);
+    const matchesShop = shopIds.includes(context.shopId);
+    const matchesOrganizationPlan =
+      context.organizationPlan !== null && organizationPlans.includes(context.organizationPlan);
+    return matchesOrganization || matchesShop || matchesOrganizationPlan;
+  });
 }
