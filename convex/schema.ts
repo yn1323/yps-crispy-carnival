@@ -292,6 +292,8 @@ const schema = defineSchema({
     targetPlan: v.optional(v.union(v.literal("free"), organizationPaidPlanValidator)),
     restrictAtPeriodEnd: v.optional(v.literal(true)),
     changeMode: v.optional(v.union(v.literal("checkout"), v.literal("immediate"), v.literal("periodEnd"))),
+    // Checkout createの表示payloadを再試行時も固定する。欠損は導入前のpayloadを維持する旧operation。
+    checkoutCustomTextVersion: v.optional(v.literal(1)),
     stripeSubscriptionIdSnapshot: v.optional(v.string()),
     stripeSubscriptionItemIdSnapshot: v.optional(v.string()),
     sourceStripePriceIdSnapshot: v.optional(v.string()),
