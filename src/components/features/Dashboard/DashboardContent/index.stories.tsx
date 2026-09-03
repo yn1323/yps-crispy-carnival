@@ -105,6 +105,13 @@ const dashboardAnnouncement = {
   bodyHtml: "<p>現在、LINE通知の送信に遅延が発生しています。</p><p>復旧までメール通知をご確認ください。</p>",
   displayDate: "2026-06-17",
 } as unknown as DashboardAnnouncement;
+const organizationDashboardAnnouncement = {
+  _id: "dashboard-announcement-organization",
+  organizationId: operationShop.organizationId,
+  title: "現在の事業者向けのお知らせ",
+  bodyHtml: "<p>このお知らせは、現在選択している事業者を対象にしています。</p>",
+  displayDate: "2026-06-16",
+} as unknown as DashboardAnnouncement;
 const notificationFailures = [
   {
     _id: "notification-failure-1",
@@ -406,7 +413,14 @@ function ReadOnlyTransitionStory() {
 export const WithAnnouncement: Story = {
   args: {
     ...Normal.args,
-    announcement: dashboardAnnouncement,
+    announcements: [dashboardAnnouncement],
+  },
+};
+
+export const WithMultipleAnnouncements: Story = {
+  args: {
+    ...Normal.args,
+    announcements: [dashboardAnnouncement, organizationDashboardAnnouncement],
   },
 };
 
@@ -854,7 +868,7 @@ export const SetupWithAnnouncement: Story = {
   args: {
     ...Setup.args,
     showAccountDeletion: true,
-    announcement: dashboardAnnouncement,
+    announcements: [dashboardAnnouncement],
   },
 };
 

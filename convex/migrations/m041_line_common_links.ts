@@ -51,7 +51,8 @@ function compareFriendshipEvidence(left: LegacyFriendshipEvidence, right: Legacy
 
 /**
  * readinessで単店舗・一人物一LINEを証明したdeploymentだけで使う条件付き変換。
- * 対象を推測で修復せず、不変条件違反はPIIを含まない有限codeで停止する。
+ * 削除済みstaffに残った旧投影は通常の所属削除と同じ状態へ収束させ、
+ * activeな対象を推測で修復せず、不変条件違反はPIIを含まない有限codeで停止する。
  */
 export const migration = migrations.define({
   table: "staffLineAccounts",
@@ -59,7 +60,11 @@ export const migration = migrations.define({
     if (legacy.isDeleted) return;
 
     const staff = await ctx.db.get(legacy.staffId);
-    if (!staff || staff.isDeleted || staff.shopId !== legacy.shopId) throw migrationError("invalid_active_staff");
+    if (!staff || staff.shopId !== legacy.shopId) throw migrationError("invalid_active_staff");
+    if (staff.isDeleted) {
+      await ctx.db.patch(legacy._id, { isDeleted: true, following: false });
+      return;
+    }
     if (!staff.organizationId || !staff.organizationPersonId) throw migrationError("missing_canonical_staff_scope");
     const organizationId = staff.organizationId;
     const organizationPersonId = staff.organizationPersonId;
