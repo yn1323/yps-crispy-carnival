@@ -83,7 +83,7 @@ baseline取得、build、capture、比較、report snapshotのpublish失敗はbl
 ## Productionリリース
 
 Productionリリースは、`main` 向けPull Requestをmergeしたときに `.github/workflows/release.yml` が判定する。
-release label、version更新、ローカルrelease commit、TanStack Start build、Convex deploy、migration、Cloudflare Pages deploy、tagとpush、GitHub Releaseの順序はworkflowを正とする。  release commitとtagはすべてのdeploymentが成功した後に同時にremoteへpushする。
+release label、version更新、ローカルrelease commit、TanStack Start build、Convex deploy、固定migration、Cloudflare Pages deploy、tagとpush、GitHub Releaseの順序はworkflowを正とする。  m041 LINE共通link migrationはrelease workflowへ含めず、事前検証と明示承認の後にConvex Dashboardから手動実行する。  release commitとtagはすべてのdeploymentが成功した後に同時にremoteへpushする。
 
 buildがStripeの販売条件を取得または検証できない場合、release commitとtagをremoteへpushせず、ConvexとCloudflareも変更しない。  Convex deploy以降で失敗した場合、それ以前に完了したProduction変更は自動では戻らないが、`Tag and push`が始まるまではrelease commitとtagをremoteへ公開しない。
 
@@ -101,6 +101,7 @@ merge前に次を確認する。
 - Production Environment Variablesに、特定商取引法表記の`VITE_COMMERCIAL_TRANSACTIONS_NAME`、`VITE_COMMERCIAL_TRANSACTIONS_ADDRESS`、`VITE_COMMERCIAL_TRANSACTIONS_PHONE_NUMBER`が設定されている。所在地を改行する場合は値に`\n`を含める。
 - Production Environmentに、ProductionのConvex deploymentと同じ`STRIPE_SECRET_KEY`、`STRIPE_STANDARD_PRICE_ID`、`STRIPE_PRO_PRICE_ID`がEnvironment Secretとして設定されている。二つのPrice IDは異なる値にする。
 - schemaまたは保存済みデータ形式を変更した場合は、migration計画と復旧手順がある。
+- m041が未完了の場合は、LINE共通化exportと全ページreadinessで、m041対象のcanonical counterpart欠損以外の異常が0件であることを手動実行の承認前に確認する。
 
 リリース後は、GitHub Release、production deployment、migration結果、主要導線を確認する。
 
