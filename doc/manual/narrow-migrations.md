@@ -64,12 +64,12 @@ statusが`success`でも、その後に旧writerが旧形式を作ればreadines
 | m038 | `recruitments` | assignmentがある旧募集だけ、現行readerと同じ最大`_creationTime`を`draftSavedAt`へ補完 |
 | m039 | `shops` | 欠損した`regularClosedDays`を、現行fallbackと同じ空配列へ補完 |
 | m040 | `recruitments` | 欠損した`shopClosedDates`を、現行fallbackと同じ空配列へ補完 |
-| m041 | `staffLineAccounts` | LINE共通化の事前検証を満たすactive旧連携だけを、provider userとorganization person linkへ変換 |
+| m041 | `staffLineAccounts` | 削除済みstaffに残る旧連携を解除済みへ収束し、事前検証を満たすactive旧連携だけをprovider userとorganization person linkへ変換 |
 | m048 | `shops` | 旧`operatingStatus: "active"`だけをunset。`archived`または未知値は推測変換せず停止 |
 | m049 | `notificationOutbox` | 店舗削除による旧`shop_inactive`取消理由を`shop_deleted`へ置換 |
 | m050 | `staffs` | 両canonical ID欠損rowを、同一組織の一意な既存active人物へ厳格に照合してlink |
 
-m023からm028、m030からm040、m049は固定seriesの末尾へ追加します。  m029、m041、m048、m050は固定seriesと包括runnerへ含めません。  m029は後述する権限移行gate、m041はLINE共通化のexportと全ページreadiness、m048は店舗ライフサイクルのdeploy前export検証、m050はstaff canonical linkのdry runと未解消conflict確認を満たしたdeploymentで、それぞれ専用runnerを明示実行します。
+m023からm028、m030からm040、m049は固定seriesの末尾へ追加します。  m029、m041、m048、m050は固定seriesと包括runnerへ含めません。  m029は後述する権限移行gate、m041はLINE共通化のexportと全ページreadiness、m048は店舗ライフサイクルのdeploy前export検証、m050はstaff canonical linkのdry runと未解消conflict確認を満たしたdeploymentで、それぞれ専用runnerを明示実行します。  Productionのm041もrelease CIへ含めず、Convex Dashboardから手動実行します。
 
 過去のmigrationをresetして完了扱いを書き換える運用は行いません。
 
@@ -197,7 +197,9 @@ LINE共通化では、対象deploymentのexportを`pnpm convex:verify-line-commo
 
 ### LINE共通化の条件付き変換
 
-m041の初回実行は専用runnerだけを使います。  次は実行例であり、この文書だけを根拠にProduction操作は行いません。
+m041は固定seriesとProduction release CIから分離し、Convex Dashboardで専用runnerを手動実行します。  次はDevelopでの事前確認またはconflict修復後にCLIから確認する例であり、この文書だけを根拠にProduction操作は行いません。
+
+旧連携のstaffが削除済みなら、その旧行を`isDeleted: true`、`following: false`へ収束させてcanonical linkへの変換をスキップします。  staffがactiveのままcanonical IDを欠損する場合や、旧行とstaffの店舗が一致しない場合は推測で除外せず停止します。
 
 ```bash
 pnpm exec convex run migrations/index:runLineCommonLinkBackfill \

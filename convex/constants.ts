@@ -40,8 +40,8 @@ export const NOTIFICATION_FAILURE_INBOX_RETENTION_MS = 30 * DAY_MS;
 export const NOTIFICATION_FAILURE_INBOX_EXPIRE_BATCH_SIZE = 100;
 export const NOTIFICATION_OUTBOX_TERMINAL_PAYLOAD_RETENTION_MS = 30 * DAY_MS;
 export const NOTIFICATION_OUTBOX_TERMINAL_REDACTION_BATCH_SIZE = 100;
-// dry-run判定で一店舗から読み取るactive manager上限。超過時は通常配送へfail-safeする。
-export const NOTIFICATION_DRY_RUN_MANAGER_SCAN_LIMIT = 20;
+// 店舗の通知可能manager状態を判定するために読み取るactive manager上限。
+export const SHOP_MANAGER_NOTIFICATION_RECIPIENT_SCAN_LIMIT = 20;
 // 募集・確定通知は対象を永続化し、この件数ずつcursorを進める。
 export const NOTIFICATION_FANOUT_BATCH_SIZE = 10;
 export const NOTIFICATION_FANOUT_SCOPE_LIMIT = ORGANIZATION_PLAN_LIMITS.pro.maxPeople;

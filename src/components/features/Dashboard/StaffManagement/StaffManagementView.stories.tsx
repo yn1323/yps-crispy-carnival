@@ -64,11 +64,11 @@ export const MethodNavigationBehavior: Story = {
     await userEvent.click(await page.findByRole("button", { name: "戻る" }));
     await waitFor(() => expect(page.getByRole("button", { name: "あなたが情報を入力する" })).toHaveFocus());
 
-    const organizationCard = page.getByRole("button", { name: "別店舗のスタッフを追加する" });
+    const organizationCard = page.getByRole("button", { name: "組織から探して追加する" });
     await userEvent.click(organizationCard);
-    const organizationHeading = await page.findByRole("heading", { name: "別店舗のスタッフを追加する" });
+    const organizationHeading = await page.findByRole("heading", { name: "組織から探して追加する" });
     await waitFor(() => expect(organizationHeading).toHaveFocus());
-    await page.findByLabelText("他店舗スタッフを読み込み中");
+    await page.findByLabelText("登録済みスタッフを読み込み中");
     const organizationDialog = page.getByRole("dialog", { name: "スタッフを追加" });
     const organizationActionArea = getActionArea(organizationDialog);
     const organizationActions = within(organizationActionArea).getAllByRole("button");
@@ -77,7 +77,7 @@ export const MethodNavigationBehavior: Story = {
     await expect(organizationActions).toHaveLength(1);
     await expect(organizationActions[0]).toHaveAccessibleName("戻る");
     await userEvent.click(await page.findByRole("button", { name: "戻る" }));
-    await waitFor(() => expect(page.getByRole("button", { name: "別店舗のスタッフを追加する" })).toHaveFocus());
+    await waitFor(() => expect(page.getByRole("button", { name: "組織から探して追加する" })).toHaveFocus());
   },
 };
 

@@ -45,7 +45,7 @@ RepositoryまたはDevelopmentの確認を明記した行を含め、Production�
 | `/commercial-transactions`の事業者名、運営責任者、所在地、電話番号 | **要対応（Production設定・公開未確認）** | 2026-08-23 | Repository | release buildはProduction GitHub Environment Variablesから3項目を取得し、欠落時に失敗する。実値とProduction表示は未確認 |
 | Resendの`email.delivered` Webhook | 未確認 | 未確認 | 未確認 | 未登録 |
 | Clerk、Cloudflare、Stripeのセキュリティ設定とprovider canary | 未確認 | 未確認 | 未確認 | 未登録 |
-| 公開Web計測のGTM container、GA4 property、Clarity、Consent、Production request | 未確認 | 未確認 | 未確認 | 未登録 |
+| 全ページWeb計測のGTM container、GA4 property、Clarity、Production request | 未確認 | 未確認 | 未確認 | 未登録 |
 | `ENV-CLERK-02`のログイン方法・シフト連絡先分離canary | 未確認 | 未確認 | 未確認 | 未登録 |
 | `verifyStaffs.activeStaffPersonEmailMismatch`の全ページ合計0件 | Development確認済み・Production未確認 | 2026-08-04 09:18 JST | `dev:fortunate-mallard-809` | 本文のDevelopment確認記録 |
 

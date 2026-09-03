@@ -62,7 +62,8 @@ Playwrightのproject dependencyを含む一括`repeat-each`では依存側のdes
 Full Regressionは認証付きE2Eだけで担わず、Logic、Frontend Unit、Behavior、VRT、Convex Function、Convex Scenario、Deployed Smokeへ分担する。
 
 Playwright用Convex Previewでも、追加組織、店舗追加、管理者招待、課金を通常artifactと同じ常時公開の経路で検証する。  Previewの成功をProductionへのartifact反映済み証跡へ流用しない。
-通知配送は`NOTIFICATION_DELIVERY_MODE=dry-run`のまま維持する。
+Playwright用Previewは`DEBUG_MODE=true`かつ`DEBUG_NOTIFICATION_DELIVERY_MODE=dry-run`とし、通知providerを呼ばない。
+Debug設定の契約は[デバッグ環境変数の運用](debug-mode.md)を参照する。
 `E2E-MANAGER-01`は招待の発行・再読込・取消というアプリ内状態を検証し、受取人による招待受諾を成功条件にしない。
 `E2E-MANAGER-02`は予約済みの別Clerk actorが招待を受諾し、管理者権限を取得した後に権限を外され、管理画面へ戻れなくてもスタッフ所属が残ることを検証する。
 招待capability、Clerk session、氏名、メールアドレスを扱うscenarioはtrace、screenshot、videoを無効にする。
@@ -83,7 +84,7 @@ baseline取得、build、capture、比較、report snapshotのpublish失敗はbl
 ## Productionリリース
 
 Productionリリースは、`main` 向けPull Requestをmergeしたときに `.github/workflows/release.yml` が判定する。
-release label、version更新、ローカルrelease commit、TanStack Start build、Convex deploy、migration、Cloudflare Pages deploy、tagとpush、GitHub Releaseの順序はworkflowを正とする。  release commitとtagはすべてのdeploymentが成功した後に同時にremoteへpushする。
+release label、version更新、ローカルrelease commit、TanStack Start build、Convex deploy、固定migration、Cloudflare Pages deploy、tagとpush、GitHub Releaseの順序はworkflowを正とする。  m041 LINE共通link migrationはrelease workflowへ含めず、事前検証と明示承認の後にConvex Dashboardから手動実行する。  release commitとtagはすべてのdeploymentが成功した後に同時にremoteへpushする。
 
 buildがStripeの販売条件を取得または検証できない場合、release commitとtagをremoteへpushせず、ConvexとCloudflareも変更しない。  Convex deploy以降で失敗した場合、それ以前に完了したProduction変更は自動では戻らないが、`Tag and push`が始まるまではrelease commitとtagをremoteへ公開しない。
 
@@ -101,6 +102,7 @@ merge前に次を確認する。
 - Production Environment Variablesに、特定商取引法表記の`VITE_COMMERCIAL_TRANSACTIONS_NAME`、`VITE_COMMERCIAL_TRANSACTIONS_ADDRESS`、`VITE_COMMERCIAL_TRANSACTIONS_PHONE_NUMBER`が設定されている。所在地を改行する場合は値に`\n`を含める。
 - Production Environmentに、ProductionのConvex deploymentと同じ`STRIPE_SECRET_KEY`、`STRIPE_STANDARD_PRICE_ID`、`STRIPE_PRO_PRICE_ID`がEnvironment Secretとして設定されている。二つのPrice IDは異なる値にする。
 - schemaまたは保存済みデータ形式を変更した場合は、migration計画と復旧手順がある。
+- m041が未完了の場合は、LINE共通化exportと全ページreadinessで、m041対象のcanonical counterpart欠損以外の異常が0件であることを手動実行の承認前に確認する。
 
 リリース後は、GitHub Release、production deployment、migration結果、主要導線を確認する。
 

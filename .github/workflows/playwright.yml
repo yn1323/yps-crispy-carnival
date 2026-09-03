@@ -47,13 +47,11 @@ jobs:
         id: configure
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-          PREVIEW_URL: ${{ steps.preview.outputs.PREVIEW_URL }}
         run: |
           E2E_INVITATION_SIGNING_SECRET="$(openssl rand -hex 32)"
           echo "::add-mask::$E2E_INVITATION_SIGNING_SECRET"
-          npx convex env set E2E_TESTING_DEPLOYMENT_URL "$PREVIEW_URL" --deployment "preview/$CONVEX_PREVIEW_NAME"
-          npx convex env set E2E_TESTING_ENABLED true --deployment "preview/$CONVEX_PREVIEW_NAME"
-          npx convex env set NOTIFICATION_DELIVERY_MODE dry-run --deployment "preview/$CONVEX_PREVIEW_NAME"
+          npx convex env set DEBUG_MODE true --deployment "preview/$CONVEX_PREVIEW_NAME"
+          npx convex env set DEBUG_NOTIFICATION_DELIVERY_MODE dry-run --deployment "preview/$CONVEX_PREVIEW_NAME"
           npx convex env set ORGANIZATION_INVITATION_SIGNING_SECRET "$E2E_INVITATION_SIGNING_SECRET" --deployment "preview/$CONVEX_PREVIEW_NAME"
       # NOTE: convex-seeds/seeds/db.zip is currently stale against the schema.
       # E2E scenarios seed their own data via convex/testing.ts helpers.
@@ -72,8 +70,6 @@ jobs:
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
           VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
-          E2E_TESTING_ENABLED: "true"
-          NOTIFICATION_DELIVERY_MODE: dry-run
       - name: Verify Playwright artifact privacy
         id: privacy
         if: ${{ !cancelled() && hashFiles('playwright-report/index.html') != '' }}

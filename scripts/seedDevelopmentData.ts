@@ -25,7 +25,6 @@ type DevelopmentSeedLogger = Pick<Console, "log">;
 
 type DevelopmentSeedDependencies = {
   commandRunner?: DevelopmentSeedCommandRunner;
-  environmentRunner?: DevelopmentSeedCommandRunner;
   fileReader?: DevelopmentSeedFileReader;
   logger?: DevelopmentSeedLogger;
 };
@@ -333,35 +332,6 @@ function buildDevelopmentSeedChildEnv(
   return Object.freeze(childEnv);
 }
 
-function enableDevelopmentSeedGuard(
-  environmentRunner: DevelopmentSeedCommandRunner,
-  childEnv: Readonly<NodeJS.ProcessEnv>,
-): void {
-  try {
-    environmentRunner(["exec", "convex", "env", "set", "DEVELOPMENT_SEED_ENABLED", "true"], childEnv);
-  } catch {
-    throw new DevelopmentSeedError("破壊操作guardの一時有効化に失敗しました。シード処理は開始していません。");
-  }
-}
-
-function disableAndVerifyDevelopmentSeedGuard(
-  environmentRunner: DevelopmentSeedCommandRunner,
-  childEnv: Readonly<NodeJS.ProcessEnv>,
-): boolean {
-  try {
-    environmentRunner(["exec", "convex", "env", "set", "DEVELOPMENT_SEED_ENABLED", "false"], childEnv);
-  } catch {
-    // A timed-out command may still have updated the remote value, so verify independently below.
-  }
-
-  try {
-    const value = environmentRunner(["exec", "convex", "env", "get", "DEVELOPMENT_SEED_ENABLED"], childEnv);
-    return value.trim() === "false";
-  } catch {
-    return false;
-  }
-}
-
 export function parseDevelopmentSeedCliArgs(args: readonly string[]): DevelopmentSeedTarget {
   if (args.length === 1 && args[0] === "local") return "local";
   if (args.length === 2 && args[0] === "dev" && args[1] === "--yes") return "dev";
@@ -597,7 +567,6 @@ export function runDevelopmentSeed(
 ): DevelopmentSeedSummary {
   const config = TARGET_CONFIGS[target];
   const commandRunner = dependencies.commandRunner ?? defaultCommandRunner;
-  const environmentRunner = dependencies.environmentRunner ?? defaultCommandRunner;
   const fileReader = dependencies.fileReader ?? defaultFileReader;
   const logger = dependencies.logger ?? console;
 
@@ -609,39 +578,7 @@ export function runDevelopmentSeed(
   }
   const validatedDeployment = validateDevelopmentSeedDeployment(target, envContents);
   const childEnv = buildDevelopmentSeedChildEnv(validatedDeployment);
-
-  let summary: DevelopmentSeedSummary | undefined;
-  let operationError: unknown;
-  let guardEnableAttempted = false;
-  let guardDisabled = false;
-  try {
-    guardEnableAttempted = true;
-    enableDevelopmentSeedGuard(environmentRunner, childEnv);
-    summary = executeDevelopmentSeedWorkflow(
-      target,
-      commandRunner,
-      logger,
-      childEnv,
-      validatedDeployment.deploymentName,
-    );
-  } catch (error) {
-    operationError = error;
-  } finally {
-    if (guardEnableAttempted) {
-      guardDisabled = disableAndVerifyDevelopmentSeedGuard(environmentRunner, childEnv);
-      if (guardDisabled) logger.log("[development-seed] 破壊操作guardの無効化を確認しました。");
-    }
-  }
-
-  if (!guardDisabled) {
-    const operationMessage = operationError ? `${formatDevelopmentSeedError(operationError)} ` : "";
-    throw new DevelopmentSeedError(
-      `${operationMessage}破壊操作guardの無効化を確認できません。対象deploymentでDEVELOPMENT_SEED_ENABLED=falseを確認してください。`,
-    );
-  }
-  if (operationError) throw operationError;
-  if (!summary) throw new DevelopmentSeedError("開発シードの完了状態を確認できませんでした。");
-  return summary;
+  return executeDevelopmentSeedWorkflow(target, commandRunner, logger, childEnv, validatedDeployment.deploymentName);
 }
 
 export function formatDevelopmentSeedError(error: unknown): string {

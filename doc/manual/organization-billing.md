@@ -236,37 +236,20 @@ pnpm exec convex env remove --deployment <fully-qualified-deployment> PROMOTION_
 
 ## Trial期限の開発用設定
 
-開発deploymentでは、所属0件からの初回Setupで`calculateTrialEndsAt`が決める期限を、次の環境変数で短縮できる。  二つ目以降の追加組織はFreeで開始するため、この設定の対象外である。
+開発deploymentでは、`DEBUG_MODE=true`と`DEBUG_TRIAL_DURATION_DAYS`を設定すると、所属0件からの初回Setupで`calculateTrialEndsAt`が決める期限を短縮できる。  二つ目以降の追加組織はFreeで開始するため、この設定の対象外である。
 
 | 変数 | 用途 |
 |---|---|
-| `DEBUG_TRIAL_DURATION_DEPLOYMENT_URL` | 上書きを許可するConvex deploymentの`CONVEX_CLOUD_URL` |
+| `DEBUG_MODE` | Trial期間のデバッグを有効にする。`true`だけが有効 |
 | `DEBUG_TRIAL_DURATION_DAYS` | 登録日の何暦日後を期限にするか。`1`から`30`までの整数 |
 
-両方のURLは前後の空白と末尾の`/`を除いて比較する。
-URLが未設定または一致しない場合と、日数が未設定または空白の場合は、通常どおり2か月後のJST 00:00を期限にする。
-対象URLが一致している状態で日数が不正な場合は、通常期間へ戻さず設定エラーにする。
+日数が未設定の場合は、`DEBUG_MODE=true`でも通常どおり2か月後のJST 00:00を期限にする。
+Debugが無効な状態で日数を指定した場合や、日数が範囲外・整数でない場合は、通常期間へ戻さず設定エラーにする。
 `1`は登録から24時間後ではなく、登録日の翌日00:00 JSTを表す。
 環境変数の変更は将来作成するTrialの計算にだけ反映し、保存済みの期限は更新しない。
 
-Productionにはこの2変数を設定しない。
-開発deploymentへ設定するときは、先に対象URL、次に日数を対話入力する。
-
-```bash
-pnpm exec convex env set --deployment <fully-qualified-deployment> DEBUG_TRIAL_DURATION_DEPLOYMENT_URL
-pnpm exec convex env set --deployment <fully-qualified-deployment> DEBUG_TRIAL_DURATION_DAYS
-```
-
-無効化するときは、日数を先に削除してから対象URLを削除する。
-
-```bash
-pnpm exec convex env remove --deployment <fully-qualified-deployment> DEBUG_TRIAL_DURATION_DAYS
-pnpm exec convex env remove --deployment <fully-qualified-deployment> DEBUG_TRIAL_DURATION_DEPLOYMENT_URL
-```
-
-この2変数は`scripts/setupEnv.ts`のallowlistへ含めない。
-対象を引数で固定できない`pnpm convex:env:setup`では設定せず、Dashboardまたは完全修飾deployment名を指定したCLIを使う。
-作業後は`env list --names-only`でキーの有無だけを確認し、値をログや証跡へ残さない。
+Productionでは`DEBUG_MODE`を設定しない。
+開発deploymentへの設定・無効化と旧変数からの移行は[デバッグ環境変数の運用](debug-mode.md)に従う。
 
 ## 支払い失敗と下位active planへの移行
 

@@ -370,7 +370,7 @@ describe("setup/mutations", () => {
       vi.setSystemTime(now);
       vi.stubEnv("PROMOTION_COMPLIMENTARY_PRO_CODE", "ABC123");
       vi.stubEnv("CONVEX_CLOUD_URL", "");
-      vi.stubEnv("DEBUG_TRIAL_DURATION_DEPLOYMENT_URL", "");
+      vi.stubEnv("DEBUG_MODE", "");
       vi.stubEnv("DEBUG_TRIAL_DURATION_DAYS", "");
       const asUser = t.withIdentity({
         subject: "user_new",

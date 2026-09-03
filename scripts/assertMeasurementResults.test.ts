@@ -13,7 +13,7 @@ function report() {
       {
         title: "measurement browser contract",
         specs: [...EXPECTED_MEASUREMENT_CONTRACTS].map(([contractId, projectName]) => ({
-          title: `[${contractId}] measurement boundary`,
+          title: `[${contractId}] always-on measurement`,
           tests: [
             {
               projectName,

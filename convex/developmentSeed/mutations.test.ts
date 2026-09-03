@@ -55,12 +55,10 @@ const seedActorsRef = makeFunctionReference<
 >;
 
 function configureDevelopmentSeed() {
-  vi.stubEnv("DEVELOPMENT_SEED_ENABLED", "true");
+  vi.stubEnv("DEBUG_MODE", "true");
   vi.stubEnv("CONVEX_CLOUD_URL", "https://seed-development.convex.cloud");
-  vi.stubEnv("DEVELOPMENT_SEED_DEPLOYMENT_URL", "https://seed-development.convex.cloud/");
-  vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "dry-run");
   vi.stubEnv("CLERK_JWT_ISSUER_DOMAIN", CLERK_ISSUER);
-  vi.stubEnv("DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER", PRIMARY_AUTH_TOKEN_IDENTIFIER);
+  vi.stubEnv("DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER", PRIMARY_AUTH_TOKEN_IDENTIFIER);
 }
 
 async function completeScheduledFunctionAudit(t: TestConvex<typeof schema>): Promise<string> {
@@ -99,21 +97,21 @@ describe("development seed internal mutations", () => {
     vi.unstubAllEnvs();
   });
 
-  it("deployment guardが揃わなければ最初のwrite前に拒否する", async () => {
+  it("DEBUG_MODEが無効なら最初のwrite前に拒否する", async () => {
     const t = convexTest(schema, modules);
     configureDevelopmentSeed();
-    vi.stubEnv("DEVELOPMENT_SEED_DEPLOYMENT_URL", "https://other.convex.cloud");
+    vi.stubEnv("DEBUG_MODE", "false");
 
     await expect(
       t.mutation(seedActorsRef, { today: "2026-08-20", auditToken: "guard-stops-before-audit" }),
-    ).rejects.toThrowError(/deployment does not match/);
+    ).rejects.toThrowError(/Development seed is disabled/);
     await expect(t.run(async (ctx) => await ctx.db.query("users").collect())).resolves.toEqual([]);
   });
 
   it("主利用者識別子が未設定ならpreflightで既存データを残して拒否する", async () => {
     const t = convexTest(schema, modules);
     configureDevelopmentSeed();
-    vi.stubEnv("DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER", "");
+    vi.stubEnv("DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER", "");
     await t.run(async (ctx) => {
       await ctx.db.insert("users", {
         authTokenIdentifier: "seed-preflight-sentinel",

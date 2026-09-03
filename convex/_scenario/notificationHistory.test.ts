@@ -16,8 +16,8 @@ describe("スタッフ通知履歴シナリオ", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
-    vi.stubEnv("DEBUG_NOTIFY_FAIL", "");
-    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "");
+    vi.stubEnv("DEBUG_MODE", "false");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "");
     vi.stubEnv("RESEND_API_KEY", "resend-token");
     vi.stubEnv("RESEND_WEBHOOK_SECRET", WEBHOOK_SECRET);
     resetResendEmailQueueForTest();

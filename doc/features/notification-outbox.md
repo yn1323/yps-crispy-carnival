@@ -25,7 +25,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - `convex/_lib/resendWebhookSignature.ts` — Resend / Svix webhook 署名検証
 - `convex/_lib/lineClient.ts` — LINE Push message送信、`X-Line-Retry-Key` 付与、エラー分類
 - `convex/_lib/shopManagerRecipients.ts` — 組織人物を正本に店舗の有効管理者とLINE連携を解決する
-- `convex/_lib/notificationDeliveryQueries.ts` — dry-run判定を現在の管理者連絡先で行う
+- `convex/_lib/notificationDeliveryQueries.ts` — actionから共通の通知dry-run判定を参照するinternal query
 - `convex/_lib/shiftAssignmentNormalization.ts` — 時間入力方式の確定通知とsnapshotが使うread-time正規化
 - `convex/notification/templates.ts` — LINE Push payload の text / Flex message 型と通知文面builder
 - `convex/notification/actions.ts` / `convex/notification/reminderActions.ts` — 募集開始・確定・再発行・催促通知の enqueue
@@ -96,7 +96,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - LINE の 429 / 5xx は再試行し、恒久的な 4xx は `failed` にする。
 - provider response body、email、token、capability URL、生例外messageはconsole、Outbox、配送event、FailureInbox、client responseへ出さない。永続化・ログには`line_rate_limited`、`email_recipient_rejected`等の固定taxonomyだけを残す。
 - LINE quota が `exceeded` の場合、fallback email があれば email ジョブを enqueue して LINE ジョブは `failed` にする。
-- `DEBUG_NOTIFY_FAIL` に空でない値がある場合、メール/LINE送信は dry-run より優先して非リトライの失敗にする。FailureInbox の確認用デバッグスイッチとして扱い、実送信は行わない。
+- `DEBUG_MODE=true`かつ`DEBUG_NOTIFICATION_DELIVERY_MODE=dry-run`の場合、メールとLINEをproviderへ送信しない。`force-failure`の場合もproviderを呼ばず、非リトライの失敗にする。設定方法は[デバッグ環境変数の運用](../manual/debug-mode.md)を参照する。
 - `dedupeKey` が同じ active ジョブ（`pending` / `processing`）は重複作成しない。
 - 募集・確定fanoutは対象スタッフを最大50人で固定し、10人ずつ処理する。確定通知の各batchは`targetStaffIds`ごとの`by_recruitmentId_staffId` indexだけを読み、募集全体のassignmentを毎回走査しない。
 - 時間入力方式の新しい確定通知は、同一スタッフ・同一日・同一ポジションの完全隣接assignmentだけをread-timeで一つの時間帯へ統合する。  正の空白、異なるポジション、option付き割当、overlap、不正値は自動統合しない。  この読み込みで既存`shiftAssignments`は書き換えない。
@@ -139,9 +139,7 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 - 実装後に新しくenqueueしたスタッフ向け実通知だけを記録し、過去のOutboxはbackfillしない。
 - `shopId` / `staffId` / `channel` / `notificationKind` / `displayTitle` / 送信・配信状態と各時刻だけを保持する。
 - 宛先、メールHTML、LINE本文、Flex Message、token URL、provider errorは保存しない。
-- dry-run、disabled、mockなど配送抑止中の通知は履歴を作成しない。
-- 店舗managerのdry-run判定は、対象店舗の受信条件を満たすactive manager全員がallowlistに一致する場合だけ抑止する。
-  走査上限を超えて全員を確認できない場合は抑止せず、通常配送へ倒す。
+- dry-run中の通知は履歴を作成しない。
 - メールの`delivered`は受信側メールサーバーへの到達であり、開封を意味しない。LINEは個別到達を確認できない。
 - スタッフ削除時はmanager queryから直ちに隠し、履歴本体をbounded cleanupで削除する。店舗・組織削除は既存の削除workflowで完走を確認する。
 

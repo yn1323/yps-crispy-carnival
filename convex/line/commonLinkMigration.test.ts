@@ -102,6 +102,53 @@ describe("m041 LINE common link backfill", () => {
     expect(state).toEqual({ providers: [], links: [] });
   });
 
+  it("削除済みstaffに残るactive legacy行を解除済みへ収束させてスキップする", async () => {
+    const t = createMigrationHistoryTestWithMigrations();
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedLegacyLineScope(ctx, "deleted-staff", "deleted-staff-line-user");
+      await ctx.db.patch(seeded.staffId, {
+        organizationId: undefined,
+        organizationPersonId: undefined,
+        isDeleted: true,
+      });
+      return seeded;
+    });
+
+    await runMigrationToCompletion(t, internal.migrations.m041_line_common_links.migration);
+    const state = await t.run(async (ctx) => ({
+      legacy: await ctx.db.get(ids.legacyAccountId),
+      providers: await ctx.db.query("lineProviderUsers").collect(),
+      links: await ctx.db.query("organizationPersonLineLinks").collect(),
+    }));
+    expect(state.legacy).toMatchObject({ isDeleted: true, following: false });
+    expect(state.providers).toEqual([]);
+    expect(state.links).toEqual([]);
+  });
+
+  it("active staffのcanonical scope欠損はスキップせず停止する", async () => {
+    const t = createMigrationHistoryTestWithMigrations();
+    const ids = await t.run(async (ctx) => {
+      const seeded = await seedLegacyLineScope(ctx, "active-unscoped", "active-unscoped-line-user");
+      await ctx.db.patch(seeded.staffId, {
+        organizationId: undefined,
+        organizationPersonId: undefined,
+      });
+      return seeded;
+    });
+
+    await expect(runMigrationToCompletion(t, internal.migrations.m041_line_common_links.migration)).rejects.toThrow(
+      "line_common_link_migration:missing_canonical_staff_scope",
+    );
+    const state = await t.run(async (ctx) => ({
+      legacy: await ctx.db.get(ids.legacyAccountId),
+      providers: await ctx.db.query("lineProviderUsers").collect(),
+      links: await ctx.db.query("organizationPersonLineLinks").collect(),
+    }));
+    expect(state.legacy).toMatchObject({ isDeleted: false, following: true });
+    expect(state.providers).toEqual([]);
+    expect(state.links).toEqual([]);
+  });
+
   it("archived店舗のnondeleted所属履歴をactive membershipへ数えず変換する", async () => {
     const t = createMigrationHistoryTestWithMigrations();
     const target = await t.run(async (ctx) => {

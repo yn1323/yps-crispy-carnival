@@ -89,12 +89,10 @@ const verifyRef = makeFunctionReference<"mutation", { today: string; auditToken:
 type SeedTest = TestConvex<typeof schema>;
 
 function configureDevelopmentSeed() {
-  vi.stubEnv("DEVELOPMENT_SEED_ENABLED", "true");
+  vi.stubEnv("DEBUG_MODE", "true");
   vi.stubEnv("CONVEX_CLOUD_URL", "https://seed-development.convex.cloud");
-  vi.stubEnv("DEVELOPMENT_SEED_DEPLOYMENT_URL", "https://seed-development.convex.cloud");
-  vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "dry-run");
   vi.stubEnv("CLERK_JWT_ISSUER_DOMAIN", CLERK_ISSUER);
-  vi.stubEnv("DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER", PRIMARY_AUTH_TOKEN_IDENTIFIER);
+  vi.stubEnv("DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER", PRIMARY_AUTH_TOKEN_IDENTIFIER);
 }
 
 async function cancelAllScheduledFunctions(t: SeedTest): Promise<string> {

@@ -31,7 +31,8 @@ describe("通知配送outboxシナリオ", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(SCENARIO_NOW);
-    vi.stubEnv("DEBUG_NOTIFY_FAIL", "");
+    vi.stubEnv("DEBUG_MODE", "false");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "");
     resetResendEmailQueueForTest();
   });
   afterEach(() => {
@@ -44,8 +45,6 @@ describe("通知配送outboxシナリオ", () => {
   });
 
   it("募集作成通知actionはスタッフごとのemail/LINE outboxと提出リンクを作る", async () => {
-    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "");
-    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "");
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
@@ -871,8 +870,6 @@ describe("通知配送outboxシナリオ", () => {
   });
 
   it("自動送信で作られた募集通知・LINE案内履歴が直後の手動再送を拒否する", async () => {
-    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "");
-    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "");
     vi.stubEnv("LINE_LOGIN_CHANNEL_ID", "test-line-channel");
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
@@ -1045,8 +1042,6 @@ describe("通知配送outboxシナリオ", () => {
   });
 
   it("シフト確定通知actionは確定シフト閲覧用outboxとviewリンクを作る", async () => {
-    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "");
-    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "");
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
@@ -1138,8 +1133,6 @@ describe("通知配送outboxシナリオ", () => {
   });
 
   it("手動の確定シフト通知はdurableに再開しても同じ内容を重複しない", async () => {
-    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "");
-    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "");
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
@@ -1982,7 +1975,8 @@ describe("通知配送outboxシナリオ", () => {
   });
 
   it("確定済み募集の配送失敗はFailureInboxに残すが再送モーダルには出さない", async () => {
-    vi.stubEnv("DEBUG_NOTIFY_FAIL", "1");
+    vi.stubEnv("DEBUG_MODE", "true");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "force-failure");
     const t = convexTest(schema, modules);
 
     const ids = await t.run(async (ctx) => {

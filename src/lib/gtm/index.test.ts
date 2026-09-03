@@ -33,7 +33,7 @@ describe("GTM transport", () => {
     expect(document.body.querySelector("noscript")).toBeNull();
   });
 
-  it("同意前にdataLayerへ積まれた値を破棄してから初期化する", () => {
+  it("初期化前にdataLayerへ積まれた値を破棄してから開始する", () => {
     window.dataLayer = [pageView];
 
     expect(initGTM("GTM-TEST123")).toBe(true);
@@ -55,7 +55,7 @@ describe("GTM transport", () => {
     expect(document.querySelector('script[src*="googletagmanager"]')).toBeNull();
   });
 
-  it("同意・初期化前のeventをbufferせず破棄する", () => {
+  it("初期化前のeventをbufferせず破棄する", () => {
     expect(pushGtmEvent(pageView)).toBe(false);
     expect(window.dataLayer).toEqual([]);
 

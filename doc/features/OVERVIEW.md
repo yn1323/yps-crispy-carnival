@@ -81,7 +81,7 @@ repository artifactでは、複数組織、複数店舗、複数管理者（招�
 | [通知配送outbox](notification-outbox.md) | 全メール・LINE通知を`pending`ジョブ化してworkerが非同期配送する基盤。重複排除、再試行、LINE quota超過時のメールfallback、送信直前の宛先・権限再確認、30日後のpayload redaction | なし（基盤） |
 | [スタッフ通知履歴](notification-history.md) | スタッフごとの通知の日時・チャネル・タイトル・送信/配信状況を表示する（本文・宛先は保存しない） | スタッフ店舗別設定 |
 | [通知不達Dashboard](notification-failure-dashboard.md) | 不達通知カード、個別・一斉再通知、「再送せず破棄する」、open不達がある店舗への日次リマインダー | Dashboard「要対応」 |
-| [Dashboardお知らせ](dashboard-announcements.md) | 全体・組織・店舗・プラン単位を対象にお知らせを1件表示する。管理UIはなくConvex Dashboardから登録する | Dashboard |
+| [Dashboardお知らせ](dashboard-announcements.md) | 全体・組織・店舗・プラン単位を対象に、該当するお知らせを新しい順で複数表示する。管理UIはなくConvex Dashboardから登録する | Dashboard |
 
 ### 3.5 課金・解約・削除
 
@@ -98,7 +98,7 @@ repository artifactでは、複数組織、複数店舗、複数管理者（招�
 | [公開サイト](public-pages.md) | TOP、機能紹介、無料トライアル条件、記事、登録不要のシフトボードデモ、特定商取引法表記。認証・Convex不要の静的生成 | `/`、`/features`、`/articles`、`/demo/shiftboard`、`/commercial-transactions` |
 | [ヘルプセンター](help-center.md) | FAQと使い方を共通のMDX形式で管理し、やりたいことと検索から探せるようにする | `/help`、`/help/tasks/:taskId`、`/help/:slug` |
 | [問い合わせ](contact.md) | 未ログイン可の問い合わせフォーム。Turnstile・レート制限後にResendでメール送信し、Slackへ社内通知する | `/contact` |
-| [公開サイトのWeb計測](web-measurement.md) | 同意した端末に限り、公開ページの導線・Web VitalsをGTM/GA4へ低cardinalityで送る | 公開ページ |
+| [全ページのWeb計測](web-measurement.md) | 同意・認証・route種別にかかわらずGTMからGA・Clarityを起動し、有限route familyのpage viewとWeb Vitalsを送る | 全ページ |
 | [要望受付](feature-requests.md) | 管理ユーザーと提出中スタッフがヘッダーから200文字以内の要望を送る | 認証済みヘッダー、提出画面ヘッダー |
 
 ### 3.7 内部分析（利用者非公開）

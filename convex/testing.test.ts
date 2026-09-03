@@ -15,18 +15,15 @@ const DATES = {
 
 describe("E2E testing helpers", () => {
   beforeEach(() => {
-    vi.stubEnv("CONVEX_CLOUD_URL", "https://e2e-test.convex.cloud");
-    vi.stubEnv("E2E_TESTING_DEPLOYMENT_URL", "https://e2e-test.convex.cloud");
-    vi.stubEnv("E2E_TESTING_ENABLED", "true");
-    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "dry-run");
+    vi.stubEnv("DEBUG_MODE", "true");
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it("明示enableがないdeploymentでは破壊的helperを拒否する", async () => {
-    vi.stubEnv("E2E_TESTING_ENABLED", "");
+  it("DEBUG_MODEが無効なdeploymentでは破壊的helperを拒否する", async () => {
+    vi.stubEnv("DEBUG_MODE", "false");
     const t = convexTest(schema, modules);
 
     await expect(t.mutation(internal.testing.clearAllTables, {})).rejects.toThrow(
@@ -34,21 +31,8 @@ describe("E2E testing helpers", () => {
     );
   });
 
-  it("許可URLと現在deploymentが一致しない場合もhelperを拒否する", async () => {
-    vi.stubEnv("E2E_TESTING_DEPLOYMENT_URL", "https://another.convex.cloud");
-    const t = convexTest(schema, modules);
-
-    await expect(
-      t.mutation(internal.testing.seedNotificationSubmitScenario, {
-        managerAuthTokenIdentifier: "issuer|mismatch",
-        managerEmail: "mismatch@example.com",
-        dates: DATES,
-      }),
-    ).rejects.toThrow("E2E testing helpers are disabled for this deployment.");
-  });
-
-  it("許可deployment以外では新しいactor所有seedも拒否する", async () => {
-    vi.stubEnv("E2E_TESTING_ENABLED", "");
+  it("DEBUG_MODEが無効ならactor所有seedとcapability取得も拒否する", async () => {
+    vi.stubEnv("DEBUG_MODE", "false");
     const t = convexTest(schema, modules);
 
     await expect(
@@ -110,6 +94,7 @@ describe("E2E testing helpers", () => {
   });
 
   it("通常manager seedはowner graphを再利用せず、通知をdry-runへ閉じる", async () => {
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "dry-run");
     const t = convexTest(schema, modules);
     const args = {
       managerAuthTokenIdentifier: "issuer|core-owner",
@@ -701,6 +686,7 @@ describe("E2E testing helpers", () => {
   });
 
   it("recipient safety probeは個人情報を返さず抑止状態だけを返す", async () => {
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "dry-run");
     const t = convexTest(schema, modules);
 
     const result = await t.query(internal.testing.getE2ERecipientSafetyState, {

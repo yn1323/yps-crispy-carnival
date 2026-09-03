@@ -142,7 +142,8 @@ describe("notificationOutbox/actions", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
-    vi.stubEnv("DEBUG_NOTIFY_FAIL", "");
+    vi.stubEnv("DEBUG_MODE", "false");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "");
     resetResendEmailQueueForTest();
   });
   afterEach(() => {
@@ -386,8 +387,9 @@ describe("notificationOutbox/actions", () => {
     expect(persisted.failures[0]?.lastError).toBe("line_recipient_rejected");
   });
 
-  it("DEBUG_NOTIFY_FAIL はLINEを非リトライ失敗としてFailureInboxに出す", async () => {
-    vi.stubEnv("DEBUG_NOTIFY_FAIL", "1");
+  it("通知force-failureはLINEを非リトライ失敗としてFailureInboxに出す", async () => {
+    vi.stubEnv("DEBUG_MODE", "true");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "force-failure");
     const { t, shopId, staffId, fetchMock } = await setupLineJob(400);
 
     await vi.advanceTimersByTimeAsync(NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS);
@@ -433,8 +435,9 @@ describe("notificationOutbox/actions", () => {
     expect(failures[0].lastError).toBe("line_recipient_rejected");
   });
 
-  it("DEBUG_NOTIFY_FAIL はLINE quota fallbackより優先される", async () => {
-    vi.stubEnv("DEBUG_NOTIFY_FAIL", "1");
+  it("通知force-failureはLINE quota fallbackより優先される", async () => {
+    vi.stubEnv("DEBUG_MODE", "true");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "force-failure");
     const fetchMock = vi.fn<typeof globalThis.fetch>();
     vi.stubGlobal("fetch", fetchMock);
     const t = convexTest(schema, modules);
@@ -1248,8 +1251,9 @@ describe("notificationOutbox/actions", () => {
     expect(events[0].errorMessage).toBe("email_rate_limited");
   });
 
-  it("DEBUG_NOTIFY_FAIL はメールを非リトライ失敗としてFailureInboxに出す", async () => {
-    vi.stubEnv("DEBUG_NOTIFY_FAIL", "1");
+  it("通知force-failureはメールを非リトライ失敗としてFailureInboxに出す", async () => {
+    vi.stubEnv("DEBUG_MODE", "true");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "force-failure");
     vi.spyOn(console, "error").mockImplementation(() => {});
     const fetchMock = vi.fn<typeof globalThis.fetch>();
     vi.stubGlobal("fetch", fetchMock);

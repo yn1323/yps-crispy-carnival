@@ -1,8 +1,8 @@
-import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import { createRootRoute, HeadContent, Outlet, Scripts, useRouterState } from "@tanstack/react-router";
 import { type ReactNode, useEffect } from "react";
-import { WebMeasurementConsent } from "@/src/components/features/WebMeasurementConsent";
 import { Toaster } from "@/src/components/ui/toaster";
 import { buildMeta, jsonLdMeta } from "@/src/lib/seo";
+import { trackPageView } from "@/src/lib/webMeasurement";
 import { ChakraProvider } from "@/src/providers/ChakraProvider";
 
 const SITE_DESCRIPTION =
@@ -46,6 +46,16 @@ const HydrationReadyMarker = () => {
     // SSR本文が見えた段階と、操作できる段階をPreview smokeで区別する。
     document.documentElement.dataset.appHydrated = "true";
   }, []);
+
+  return null;
+};
+
+const PageViewTracker = () => {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+
+  useEffect(() => {
+    trackPageView(pathname);
+  }, [pathname]);
 
   return null;
 };
@@ -95,8 +105,8 @@ function RootComponent() {
     <RootDocument>
       <ChakraProvider>
         <HydrationReadyMarker />
+        <PageViewTracker />
         <Outlet />
-        <WebMeasurementConsent />
         <Toaster />
       </ChakraProvider>
     </RootDocument>
