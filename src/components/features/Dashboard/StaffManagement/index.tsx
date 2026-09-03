@@ -24,7 +24,6 @@ export type StaffManagementState = {
 type Props = {
   data?: StaffManagementData;
   isReadOnly?: boolean;
-  organizationShopCount?: number;
   initialVisibleUserCount?: number;
   focusedPersonId?: string;
   onVisibleUserCountChange?: (count: number) => void;
@@ -36,7 +35,6 @@ type Props = {
 export function StaffManagement({
   data,
   isReadOnly = false,
-  organizationShopCount,
   initialVisibleUserCount = DEFAULT_USER_LIST_COUNT,
   focusedPersonId,
   onVisibleUserCountChange,
@@ -80,8 +78,7 @@ export function StaffManagement({
       }
     });
 
-  const showOrganizationPeopleAddition = organizationShopCount === undefined || organizationShopCount > 1;
-  const invitation = useStaffInvitation(isReadOnly, showOrganizationPeopleAddition, onOpenBillingSettings);
+  const invitation = useStaffInvitation(isReadOnly, true, onOpenBillingSettings);
   const handleOpenDetail = (staff: Staff) => {
     onOpenStaffDetail?.(staff.organizationPersonId, visibleStaffCount);
   };

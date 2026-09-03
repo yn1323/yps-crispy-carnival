@@ -479,7 +479,7 @@ describe("useStaffInvitation", () => {
     });
   });
 
-  it("他店舗スタッフの連打を一度の追加にまとめ、成功時だけモーダルを閉じる", async () => {
+  it("登録済みスタッフの連打を一度の追加にまとめ、成功時だけモーダルを閉じる", async () => {
     let resolveAddition: ((value: { staffId: string }) => void) | undefined;
     mocks.addOrganizationPersonToShop.mockImplementation(
       () =>
@@ -523,7 +523,7 @@ describe("useStaffInvitation", () => {
     });
   });
 
-  it("他店舗スタッフの追加に失敗した場合はモーダルを閉じない", async () => {
+  it("登録済みスタッフの追加に失敗した場合はモーダルを閉じない", async () => {
     const error = new Error("追加できませんでした");
     mocks.addOrganizationPersonToShop.mockRejectedValue(error);
     const { result } = renderHook(() => useStaffInvitation(false, true));
@@ -541,7 +541,7 @@ describe("useStaffInvitation", () => {
     expect(mocks.showSuccessToast).not.toHaveBeenCalled();
   });
 
-  it("他店舗スタッフ追加が表示対象から外れたら方法選択と古い追加handlerを無効化する", async () => {
+  it("登録済みスタッフ追加が表示対象から外れたら方法選択と古い追加handlerを無効化する", async () => {
     const { result, rerender } = renderHook(
       ({ showOrganizationPeopleAddition }) => useStaffInvitation(false, showOrganizationPeopleAddition),
       { initialProps: { showOrganizationPeopleAddition: true } },
@@ -566,7 +566,7 @@ describe("useStaffInvitation", () => {
     expect(mocks.addOrganizationPersonToShop).not.toHaveBeenCalled();
   });
 
-  it("他店舗スタッフ追加の処理中に表示対象から外れた場合はDialogを閉じずtoastを表示しない", async () => {
+  it("登録済みスタッフ追加の処理中に表示対象から外れた場合はDialogを閉じずtoastを表示しない", async () => {
     let resolveAddition: ((value: { staffId: string }) => void) | undefined;
     mocks.addOrganizationPersonToShop.mockImplementation(
       () =>
