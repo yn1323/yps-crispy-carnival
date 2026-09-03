@@ -3,7 +3,7 @@
 import { v } from "convex/values";
 import { getContactRecipientEmail, getContactSlackWebhookUrl, RESEND_FROM_EMAIL } from "../_lib/config";
 import { observedInternalAction as internalAction } from "../_lib/errorObservability";
-import { isNotificationDeliverySuppressed, logSuppressedNotification } from "../_lib/notificationDelivery";
+import { getNotificationDeliveryBehavior, logSuppressedNotification } from "../_lib/notificationDelivery";
 import { getResendClient, sendResendEmail } from "../_lib/resend";
 import { buildContactEmailSubject, buildContactEmailText } from "./email";
 import { type ContactDeliveryInput, getContactTypeLabel } from "./schemas";
@@ -41,7 +41,15 @@ export function buildContactSlackPayload(input: ContactDeliveryInput) {
 }
 
 async function notifySlack(input: ContactDeliveryInput, suppressDelivery: boolean): Promise<void> {
-  if (isNotificationDeliverySuppressed({ suppressDelivery })) {
+  const deliveryBehavior = getNotificationDeliveryBehavior({ suppressDelivery });
+  if (deliveryBehavior === "force-failure") {
+    console.error("Contact Slack notification intentionally failed", {
+      requestId: input.requestId,
+      status: "debug_force_failure",
+    });
+    return;
+  }
+  if (deliveryBehavior === "dry-run") {
     logSuppressedNotification("contact.slack", { requestIdPresent: input.requestId.length > 0 });
     return;
   }
@@ -76,9 +84,10 @@ export const deliver = internalAction({
     }),
   },
   handler: async (_ctx, { input }) => {
-    const suppressDelivery = isNotificationDeliverySuppressed();
+    const deliveryBehavior = getNotificationDeliveryBehavior();
+    const suppressDelivery = deliveryBehavior === "dry-run";
     const configuredRecipient = getContactRecipientEmail();
-    if (!configuredRecipient && !suppressDelivery) return { status: "not_configured" as const };
+    if (!configuredRecipient && deliveryBehavior === "live") return { status: "not_configured" as const };
     const recipient = configuredRecipient || "e2e-contact@shiftori.invalid";
 
     try {

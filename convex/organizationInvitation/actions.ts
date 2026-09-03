@@ -4,7 +4,6 @@ import type { Id } from "../_generated/dataModel";
 import { getAppUrl, RESEND_FROM_EMAIL } from "../_lib/config";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { observedInternalAction as internalAction } from "../_lib/errorObservability";
-import { isDryRunManagerEmail } from "../_lib/notificationDelivery";
 import {
   buildOrganizationBillingEmailHtml,
   ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA,
@@ -51,7 +50,6 @@ export const enqueueManagerInvitation = internalAction({
         from,
         to: data.email,
         context: "organizationInvitation.enqueueManagerInvitation",
-        suppressDelivery: isDryRunManagerEmail(data.email),
       }),
     });
     return { enqueued: result !== null };
@@ -95,7 +93,6 @@ export const enqueueAcceptanceNotifications = internalAction({
             action: { label: ORGANIZATION_MANAGER_INVITATION_ACCEPTED_CTA, url: settingsUrl.toString() },
           }),
           context: "organizationInvitation.linked",
-          suppressDelivery: isDryRunManagerEmail(recipient.email),
         }),
       });
       if (result) enqueuedCount += 1;

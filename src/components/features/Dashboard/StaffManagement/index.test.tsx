@@ -138,14 +138,8 @@ describe("StaffManagement staff order scope", () => {
     expect(screen.getByTestId("staff-management-view").textContent).toBe("一般スタッフA,管理者A,一般スタッフB,管理者B");
   });
 
-  it("組織の店舗が1つだけなら別店舗スタッフ追加を表示対象にしない", () => {
-    render(<StaffManagement organizationShopCount={1}>{(state) => state.content}</StaffManagement>);
-
-    expect(mocks.useStaffInvitation).toHaveBeenLastCalledWith(false, false, undefined);
-  });
-
-  it("組織の店舗が2つ以上なら別店舗スタッフ追加を表示対象にする", () => {
-    render(<StaffManagement organizationShopCount={2}>{(state) => state.content}</StaffManagement>);
+  it("登録済みスタッフの追加を常に表示対象にする", () => {
+    render(<StaffManagement>{(state) => state.content}</StaffManagement>);
 
     expect(mocks.useStaffInvitation).toHaveBeenLastCalledWith(false, true, undefined);
   });

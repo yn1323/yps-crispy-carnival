@@ -17,7 +17,8 @@ describe("notificationOutbox/history", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-19T03:00:00.000Z"));
-    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "");
+    vi.stubEnv("DEBUG_MODE", "false");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "");
   });
 
   afterEach(() => {
@@ -92,16 +93,29 @@ describe("notificationOutbox/history", () => {
     });
     await expect(collectHistories(explicit.t)).resolves.toEqual([]);
 
-    for (const mode of ["dry-run", "disabled", "mock"]) {
-      vi.stubEnv("NOTIFICATION_DELIVERY_MODE", mode);
-      const current = await setupStaff();
-      await enqueueStaffEmail(current.t, {
-        shopId: current.shopId,
-        staffId: current.staffId,
-        dedupeKey: `email:test:history-suppressed-${mode}`,
-      });
-      await expect(collectHistories(current.t)).resolves.toEqual([]);
-    }
+    vi.stubEnv("DEBUG_MODE", "true");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "dry-run");
+    const current = await setupStaff();
+    await enqueueStaffEmail(current.t, {
+      shopId: current.shopId,
+      staffId: current.staffId,
+      dedupeKey: "email:test:history-suppressed-dry-run",
+    });
+    await expect(collectHistories(current.t)).resolves.toEqual([]);
+  });
+
+  it("force-failureは明示抑止より優先して配送失敗用の履歴を作る", async () => {
+    vi.stubEnv("DEBUG_MODE", "true");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "force-failure");
+    const current = await setupStaff();
+    await enqueueStaffEmail(current.t, {
+      shopId: current.shopId,
+      staffId: current.staffId,
+      dedupeKey: "email:test:history-force-failure",
+      suppressDelivery: true,
+    });
+
+    await expect(collectHistories(current.t)).resolves.toHaveLength(1);
   });
 
   it("非スタッフ通知と旧fallback互換分岐は履歴を作らない", async () => {

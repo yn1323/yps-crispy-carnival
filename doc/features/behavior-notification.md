@@ -2,7 +2,7 @@
 
 > 文書種別: 現行実装仕様（behavior。条件→結果の詳細を機能文書・業務要件・コードから導出）
 >
-> コード照合日: 2026-08-28
+> コード照合日: 2026-09-03
 >
 > 正本: [通知配送outbox](notification-outbox.md)、[LINE通知連携](line-notification.md)、[スタッフ通知履歴](notification-history.md)、[通知不達Dashboard](notification-failure-dashboard.md)、[業務要件4.4・21章](../specs/organization-billing-business-flow.md)
 
@@ -87,8 +87,8 @@ Outboxに入った後でも、provider呼び出しの**直前**に次を再確�
 | メール変更時の再送 | シフト連絡先の変更 | **LINEを受信できない**スタッフのみ、新宛先へ | 受付中募集（未削除・open・開始前・提出期限以前）がない | 載る |
 | LINE連携完了・follow時の追送 | 連携完了またはfollow受信 | 対象スタッフへ受付中募集をLINEで | 受付中募集がない | 載る |
 | 閲覧リンク再発行 | スタッフの再発行要求 | 本人（メール一致時のみ実送信。**応答は一致有無で同一**） | メール不一致／対象外／確定済み募集でない／レート制限 | 載る |
-| 法務同意依頼 | スタッフ追加時 | 未同意スタッフ | **QR申請で同意済み**／別店舗追加の再利用人物 | 記録のみ（`other`種別のため表示されない） |
-| LINE連携依頼 | スタッフ追加時、または管理者の手動送信 | 組織人物が**LINE未連携**の場合のみ | 連携済み（別店舗追加でも重ねて送らない）／メール未登録／同一組織人物への送信受付から10分未満 | 載る（再通知は**毎回新しい連携トークン**を発行） |
+| 法務同意依頼 | スタッフ追加時 | 未同意スタッフ | **QR申請で同意済み**／登録済み人物の追加 | 記録のみ（`other`種別のため表示されない） |
+| LINE連携依頼 | スタッフ追加時、または管理者の手動送信 | 組織人物が**LINE未連携**の場合のみ | 連携済み（登録済み人物の追加でも重ねて送らない）／メール未登録／同一組織人物への送信受付から10分未満 | 載る（再通知は**毎回新しい連携トークン**を発行） |
 
 募集、確定シフト、LINE連携依頼の個別再送は、自動送信と手動再送を区別せず、履歴の`requestedAt`から10分間停止する。  `queued`、`sent`、`delivered`、`delayed`は対象とし、`failed`、`cancelled`、`bounced`、`suppressed`は対象外とする。10分ちょうどで再送を許可する。
 
@@ -125,14 +125,15 @@ Outboxに入った後でも、provider呼び出しの**直前**に次を再確�
 
 | # | 条件 | 挙動 |
 |---|---|---|
-| 1 | `NOTIFICATION_DELIVERY_MODE`がdry-run／disabled／mock | 外部配送を抑止。**通知履歴も作成しない**。使用量にも数えない |
-| 2 | `DEBUG_NOTIFY_FAIL`設定時 | dry-runより優先して非リトライ失敗にする（FailureInbox確認用。実送信しない） |
+| 1 | `DEBUG_MODE=true`かつ`DEBUG_NOTIFICATION_DELIVERY_MODE=dry-run` | メール、LINE、問い合わせSlackの外部配送を抑止。**通知履歴も作成しない**。使用量にも数えない |
+| 2 | `DEBUG_MODE=true`かつ`DEBUG_NOTIFICATION_DELIVERY_MODE=force-failure` | providerを呼ばず、非リトライ失敗にする（FailureInbox確認用） |
 | 3 | 上限超過または利用上限評価不能 | **判定時刻以降に送信予定だった業務通知を停止**。外部送信直前にも現在プランと実利用数から再判定する |
 | 4 | Trial未契約終了・解約適用・検証済み支払い失敗・想定外解約によるFree権限への移行、ProからStandardへの`active.standard`への移行、Trialから初回請求処理中または有料プランへの移行 | 状態遷移だけを理由に業務通知を停止しない。移行後の上限内外を別に判定する |
 | 5 | 停止された過去の業務通知 | 再契約後も**自動再送しない** |
 | 6 | 同じ`dedupeKey`のactiveジョブ（pending/processing）が存在 | 重複作成しない |
 | 7 | 店舗・組織・人物・staffの削除、店舗所属解除 | 対象scopeの未送信通知を停止 |
-| 8 | dry-run判定（管理者宛）で対象店舗のactive管理者全員がallowlist一致 | 抑止。走査上限超過で全員を確認できない場合は**抑止せず通常配送**（fail-safe） |
+
+`DEBUG_NOTIFICATION_DELIVERY_MODE`が未設定ならlive配送する。  この変数を`DEBUG_MODE`が無効な状態で指定した場合や、許可されていない値を指定した場合は、provider呼び出し前に設定エラーとする。  設定方法は[デバッグ環境変数の運用](../manual/debug-mode.md)を参照する。
 
 ## 6. 配送の状態と再試行
 

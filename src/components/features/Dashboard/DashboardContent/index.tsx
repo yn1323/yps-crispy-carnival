@@ -253,7 +253,6 @@ export const DashboardContent = ({
               onStageChange={reportStaffStage}
               data={staffData}
               isReadOnly={isReadOnly}
-              organizationShopCount={operationContextData?.shops.length}
               initialVisibleUserCount={visibleUserCount}
               focusedPersonId={focusedPersonId}
               onVisibleUserCountChange={onVisibleUserCountChange}

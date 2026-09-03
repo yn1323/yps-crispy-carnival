@@ -39,16 +39,30 @@ export function getStaffRegistrationTrustedIpHeader(): "cf-connecting-ip" | null
     : null;
 }
 
-export function isDebugNotifyFailEnabled(): boolean {
-  return (process.env.DEBUG_NOTIFY_FAIL ?? "").trim().length > 0;
+export type DebugNotificationDeliveryMode = "live" | "dry-run" | "force-failure";
+
+export function isDebugModeEnabled(): boolean {
+  const rawDebugMode = env.DEBUG_MODE?.trim() ?? "";
+  if (!rawDebugMode || rawDebugMode === "false") return false;
+  if (rawDebugMode === "true") return true;
+  throw new Error("DEBUG_MODE must be either true or false");
 }
 
 function normalizeDeploymentUrl(value: string | undefined): string {
   return value?.trim().replace(/\/+$/, "") ?? "";
 }
 
-export function getNotificationDeliveryMode(): string {
-  return (process.env.NOTIFICATION_DELIVERY_MODE ?? "").trim().toLowerCase();
+export function getDebugNotificationDeliveryMode(): DebugNotificationDeliveryMode {
+  const debugModeEnabled = isDebugModeEnabled();
+  const rawDeliveryMode = env.DEBUG_NOTIFICATION_DELIVERY_MODE?.trim() ?? "";
+  if (!rawDeliveryMode) return "live";
+  if (!debugModeEnabled) {
+    throw new Error("DEBUG_NOTIFICATION_DELIVERY_MODE requires DEBUG_MODE=true");
+  }
+  if (rawDeliveryMode !== "dry-run" && rawDeliveryMode !== "force-failure") {
+    throw new Error("DEBUG_NOTIFICATION_DELIVERY_MODE must be dry-run or force-failure");
+  }
+  return rawDeliveryMode;
 }
 
 export function getPromotionComplimentaryProCode(): string | undefined {
@@ -59,8 +73,6 @@ export function getPromotionComplimentaryProCode(): string | undefined {
 export type DevelopmentSeedConfiguration = {
   enabled: boolean;
   currentDeploymentUrl: string;
-  targetDeploymentUrl: string;
-  notificationDeliveryMode: string;
   primaryAuthTokenIdentifier: string;
 };
 
@@ -102,11 +114,9 @@ function assertDevelopmentSeedPrimaryAuthTokenIdentifier(value: string): string 
  */
 export function getDevelopmentSeedConfiguration(): DevelopmentSeedConfiguration {
   return {
-    enabled: env.DEVELOPMENT_SEED_ENABLED === "true",
+    enabled: isDebugModeEnabled(),
     currentDeploymentUrl: normalizeDeploymentUrl(env.CONVEX_CLOUD_URL),
-    targetDeploymentUrl: normalizeDeploymentUrl(env.DEVELOPMENT_SEED_DEPLOYMENT_URL),
-    notificationDeliveryMode: (env.NOTIFICATION_DELIVERY_MODE ?? "").trim().toLowerCase(),
-    primaryAuthTokenIdentifier: (env.DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER ?? "").trim(),
+    primaryAuthTokenIdentifier: (env.DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER ?? "").trim(),
   };
 }
 
@@ -114,16 +124,6 @@ export function assertDevelopmentSeedEnabled(): DevelopmentSeedConfiguration {
   const configuration = getDevelopmentSeedConfiguration();
   if (!configuration.enabled) {
     throw new Error("Development seed is disabled");
-  }
-  if (
-    !configuration.currentDeploymentUrl ||
-    !configuration.targetDeploymentUrl ||
-    configuration.currentDeploymentUrl !== configuration.targetDeploymentUrl
-  ) {
-    throw new Error("Development seed deployment does not match");
-  }
-  if (configuration.notificationDeliveryMode !== "dry-run") {
-    throw new Error("Development seed requires notification dry-run mode");
   }
   if (!configuration.primaryAuthTokenIdentifier) {
     throw new Error("Development seed primary auth token identifier is not configured");
@@ -137,19 +137,16 @@ export function assertDevelopmentSeedEnabled(): DevelopmentSeedConfiguration {
 }
 
 /**
- * 対象deploymentへ明示的に結び付けた、開発用Trial期間だけを返す。
- * URL不一致では日数を解釈せず、通常のTrial期間へ戻す。
+ * DEBUG_MODEで明示的に有効化した、開発用Trial期間だけを返す。
  */
 export function getDebugTrialDurationDays(): number | undefined {
-  const currentDeploymentUrl = normalizeDeploymentUrl(process.env.CONVEX_CLOUD_URL);
-  const debugDeploymentUrl = normalizeDeploymentUrl(env.DEBUG_TRIAL_DURATION_DEPLOYMENT_URL);
-  if (!currentDeploymentUrl || !debugDeploymentUrl || currentDeploymentUrl !== debugDeploymentUrl) {
-    return undefined;
-  }
-
+  const debugModeEnabled = isDebugModeEnabled();
   const rawDurationDays = env.DEBUG_TRIAL_DURATION_DAYS?.trim();
   if (!rawDurationDays) {
     return undefined;
+  }
+  if (!debugModeEnabled) {
+    throw new Error("DEBUG_TRIAL_DURATION_DAYS requires DEBUG_MODE=true");
   }
 
   const durationDays = Number(rawDurationDays);

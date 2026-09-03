@@ -17,7 +17,7 @@ describe("組織追加作成シナリオ", () => {
     vi.setSystemTime(SCENARIO_NOW);
     vi.stubEnv("ORGANIZATION_INVITATION_SIGNING_SECRET", SIGNING_SECRET);
     vi.stubEnv("CONVEX_CLOUD_URL", "");
-    vi.stubEnv("DEBUG_TRIAL_DURATION_DEPLOYMENT_URL", "");
+    vi.stubEnv("DEBUG_MODE", "");
     vi.stubEnv("DEBUG_TRIAL_DURATION_DAYS", "");
   });
   afterEach(() => {
