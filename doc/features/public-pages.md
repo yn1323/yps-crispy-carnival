@@ -107,7 +107,7 @@ Productionの設定値と公開表示の確認状況は、[リリース状態](.
 
 このページはfooterから到達できる一方、`noindex, nofollow`とし、sitemapと`llms.txt`には含めない。
 `robots.txt`でDisallowにはせず、crawlerがrobots metaを取得できる状態を維持する。
-利用規約・プライバシーポリシーと同じ`public_unmeasured`面に分類し、GTM・GA4のpage viewを送らない。
+利用規約・プライバシーポリシーと同じ`legal` route familyに分類し、全ページ共通のGTM・GA4・Clarity計測を起動する。
 
 ## コンテンツと導線の分担
 

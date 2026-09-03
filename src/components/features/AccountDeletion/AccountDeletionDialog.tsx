@@ -1,6 +1,6 @@
 import { Alert, Link, Stack, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
-import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
+import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
 import { Dialog } from "@/src/components/ui/Dialog";
 import type { AccountDeletionAction, AccountDeletionErrorState, AccountDeletionReadyPreview } from "./types";
 
@@ -73,7 +73,7 @@ export function AccountDeletionDialog({
                 <Alert.Description whiteSpace="pre-line">{error.message}</Alert.Description>
                 {error.showContactLink ? (
                   <Link asChild alignSelf="flex-start" color="red.700" fontSize="sm" fontWeight="semibold">
-                    <MeasurementBoundaryLink href="/contact">お問い合わせへ</MeasurementBoundaryLink>
+                    <MeasurementLink href="/contact">お問い合わせへ</MeasurementLink>
                   </Link>
                 ) : null}
               </Alert.Content>

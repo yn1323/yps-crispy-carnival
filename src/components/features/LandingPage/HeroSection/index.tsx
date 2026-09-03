@@ -4,7 +4,7 @@ import { LuBell, LuCalendarCheck, LuChevronRight, LuMail, LuMousePointerClick, L
 import { SiLine } from "react-icons/si";
 import heroPcImage from "@/src/assets/hero-pc.webp";
 import heroSpImage from "@/src/assets/hero-sp.webp";
-import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
+import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
 import { Button } from "@/src/components/ui/Button";
 import { TrialReassurance } from "../TrialReassurance";
 
@@ -132,10 +132,10 @@ const HeroButton = ({
       fontWeight="bold"
       fontSize="md"
     >
-      <MeasurementBoundaryLink href={href} measurementCtaId={measurementCtaId}>
+      <MeasurementLink href={href} measurementCtaId={measurementCtaId}>
         {label}
         <Icon as={LuChevronRight} boxSize={5} />
-      </MeasurementBoundaryLink>
+      </MeasurementLink>
     </Button>
   );
 };

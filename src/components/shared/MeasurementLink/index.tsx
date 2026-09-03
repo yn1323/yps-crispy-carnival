@@ -7,12 +7,12 @@ type Props = Omit<ComponentPropsWithoutRef<"a">, "href"> & {
   measurementCtaId?: PublicCtaId;
 };
 
-/** 計測対象と非対象のdocument境界を、third-party scriptが残らない通常navigationで越える。 */
-export function MeasurementBoundaryLink({ href, measurementCtaId, onClick, ...props }: Props) {
+/** 通常のdocument navigationを使い、登録済みCTAがあれば遷移前に記録する。 */
+export function MeasurementLink({ href, measurementCtaId, onClick, ...props }: Props) {
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
     onClick?.(event);
     if (!event.defaultPrevented && measurementCtaId) trackPublicCta(measurementCtaId);
   };
 
-  return <a {...props} href={href} data-measurement-boundary onClick={handleClick} />;
+  return <a {...props} href={href} data-measurement-link onClick={handleClick} />;
 }

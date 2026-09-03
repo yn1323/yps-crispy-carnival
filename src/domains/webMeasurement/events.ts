@@ -1,5 +1,5 @@
 import type { Metric } from "web-vitals";
-import type { MeasuredPublicRouteFamily } from "./routePolicy";
+import type { WebMeasurementRouteFamily } from "./routePolicy";
 
 export const webMeasurementEnvironments = ["local", "develop", "preview", "production"] as const;
 export type WebMeasurementEnvironment = (typeof webMeasurementEnvironments)[number];
@@ -24,16 +24,16 @@ export type WebMeasurementContext = {
 export type WebMeasurementEvent =
   | {
       kind: "page_view";
-      routeFamily: MeasuredPublicRouteFamily;
+      routeFamily: WebMeasurementRouteFamily;
     }
   | {
       kind: "public_cta";
       ctaId: PublicCtaId;
-      routeFamily: MeasuredPublicRouteFamily;
+      routeFamily: WebMeasurementRouteFamily;
     }
   | {
       kind: "web_vital";
-      documentRouteFamily: MeasuredPublicRouteFamily;
+      documentRouteFamily: WebMeasurementRouteFamily;
       metricName: "CLS" | "FCP" | "INP" | "LCP" | "TTFB";
       metricValue: number;
       navigationType: Metric["navigationType"];
@@ -46,7 +46,7 @@ export type SerializedWebMeasurementEvent =
       event: "page_view";
       app_environment: WebMeasurementEnvironment;
       release_id: string;
-      route_family: MeasuredPublicRouteFamily;
+      route_family: WebMeasurementRouteFamily;
     }
   | {
       event: "select_content";
@@ -54,12 +54,12 @@ export type SerializedWebMeasurementEvent =
       content_id: PublicCtaId;
       content_type: "public_cta";
       release_id: string;
-      route_family: MeasuredPublicRouteFamily;
+      route_family: WebMeasurementRouteFamily;
     }
   | {
       event: "web_vital";
       app_environment: WebMeasurementEnvironment;
-      document_route_family: MeasuredPublicRouteFamily;
+      document_route_family: WebMeasurementRouteFamily;
       metric_name: "CLS" | "FCP" | "INP" | "LCP" | "TTFB";
       metric_value: number;
       metric_rating: Metric["rating"];
@@ -95,7 +95,7 @@ export function getViewportClass(width: number): ViewportClass {
 
 export function buildWebVitalEvent(
   metric: Pick<Metric, "name" | "navigationType" | "rating" | "value">,
-  documentRouteFamily: MeasuredPublicRouteFamily,
+  documentRouteFamily: WebMeasurementRouteFamily,
   viewportClass: ViewportClass,
 ): Extract<WebMeasurementEvent, { kind: "web_vital" }> | null {
   if (

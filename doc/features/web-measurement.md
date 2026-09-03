@@ -1,80 +1,76 @@
-# 公開サイトのWeb計測
+# 全ページのWeb計測
 
 ## 対象と目的
 
-公開サイトのWeb計測は、同意した端末に限り、公開ページの導線と表示性能を低cardinalityのイベントとして記録する。  実人数、店舗単位の業務成果、スタッフの提出事実は表さない。
+Web計測は、公開ページ、認証画面、Dashboard、管理画面、スタッフ画面、Capability・callback、法務ページ、未知URLを含む全documentでGTMを起動する。  GTM containerからGoogle AnalyticsとMicrosoft Clarityを読み込み、初回表示とSPA遷移を計測する。
 
-スタッフの提出、募集、確定、継続利用は、既存のConvex Analyticsを正本とする。  Web計測の欠測を業務上の失敗として扱わず、計測失敗でフォーム送信や画面遷移を止めない。
+同意状態、認証状態、route種別は起動条件にしない。  アクセス解析の同意UIと保存済みdecisionは使用せず、旧localStorage値が`denied`でも計測を止めない。
 
-## 読み込み条件
+スタッフの提出、募集、確定、継続利用などの業務成果は、既存のConvex Analyticsを正本とする。  Web計測の欠測を業務上の失敗として扱わず、計測失敗でフォーム送信や画面遷移を止めない。
 
-GTMは、次の条件をすべて満たすdocumentでだけ読み込む。
+## Runtimeの起動条件
 
-1. build時にWeb計測が明示的に有効化されている。
-2. 有効なGTM container IDが設定されている。
-3. 利用者が公開サイト上でアクセス解析を許可している。
-4. 初回documentと現在routeが、どちらも計測対象の公開routeである。
+GTMは、次の設定がそろったdeploy artifactで起動する。
 
-許可前の行動はbufferせず、後から送信しない。  初めて許可した場合は同じURLを再読み込みし、同意済みで開始した新しいdocumentからだけ計測する。  これにより、同意前に生成されたWeb Vitalsのbuffered entryも送らない。
+1. `VITE_GTM_ID`が有効な`GTM-...`である。
+2. environmentが`develop`、`preview`、`production`のいずれかである。
+3. release IDが`unknown`または`local`ではない。
 
-許可を取り消した場合は新しいイベントを止め、documentを再読み込みする。  これは、一度読み込まれたGTM container内の第三者codeをSPA上だけで完全にunloadできないためである。
+`VITE_WEB_MEASUREMENT_ENABLED`のような停止用feature flagは使用しない。  `src/client.tsx`がhydration判定より前に初期化するため、Reactをhydrateしない静的404でもGTMを起動する。  同じdocumentでは既存loaderを検出し、GTM scriptを一件だけにする。
 
-取り消しの保存に失敗した場合は、古い`granted`を次documentで再利用しない同一tab guardを残し、確定した「不許可」とは表示しない。  別tabで許可、拒否、削除、不正値への変更を検出した場合も、現在documentを停止して新documentだけで状態を再評価する。
+local build、GTM ID欠落、不正なreleaseでは第三者URLを組み立てない。  これは同意gateではなく、誤設定と二重loaderを防ぐruntime検証である。
 
-## Route surface
+## Page viewとroute family
 
-| Surface | 対象 | 第三者script |
-|---|---|---|
-| 計測する公開面 | TOP、機能、ヘルプTOP・タスク・使い方詳細・動画シナリオ、問い合わせ、記事一覧・詳細・カテゴリ、シフトボードデモ | 条件を満たした場合だけ読み込む |
-| 計測しない公開面 | 法務文書、削除受付、cache reset | 読み込まない |
-| 非公開面 | 認証、Dashboard、店舗・人物・ShiftBoard、Capability、staff、callback、未知URL | 読み込まない |
+初回page viewはclient起動時に送り、SPA遷移はrootのpathname変更から送る。  同じpathnameの重複とqueryだけの変更は送らない。  異なる動的IDへの遷移は別page viewとして扱うが、ID自体はpayloadへ含めない。
 
-ヘルプTOPとタスクページは`help_index`、使い方詳細と動画シナリオはslugにかかわらず`help_guide`へ写像する。
-その他の動的URLも有限のroute familyへ写像し、ヘルプ・記事のslug、店舗ID、人物ID、募集ID、query、hash、raw URLは送らない。
+Applicationの`page_view`は、raw pathnameではなく有限の`route_family`を送る。  主な分類は次のとおりであり、完全な一覧と判定順は`src/domains/webMeasurement/routePolicy.ts`を正本とする。
 
-公開面と非公開面を越えるlinkは、通常のdocument navigationを使う。  一度読み込まれた第三者scriptをSPA遷移先へ残さないためである。
+| 画面 | route family例 |
+|---|---|
+| TOP、機能、ヘルプ、問い合わせ、記事、デモ | `home`、`features`、`help_*`、`contact`、`article_*`、`demo_shiftboard` |
+| 利用規約、プライバシーポリシー、特定商取引法 | `legal` |
+| ログイン、登録、パスワード再設定 | `auth` |
+| Dashboard、アカウント、要対応一覧 | `dashboard`、`account`、`actions` |
+| 組織、課金、管理者、店舗 | `organization_management`、`billing`、`manager_management`、`shop_detail` |
+| シフト、ShiftBoard、スタッフ | `shift_management`、`shiftboard`、`staff_*` |
+| token付き導線、OAuth callback | `capability`、`callback` |
+| 未知URL・404 | `not_found` |
 
 ## Event contract
 
-初期実装は次のイベントだけを扱う。
+ApplicationがdataLayerへ追加するイベントは次に限定する。
 
 | 種類 | 発火条件 | 主な有限値 |
 |---|---|---|
-| page view | 計測対象の公開routeを表示したとき | route family、environment、release |
-| 公開CTA | 登録、ヘルプ、ログインなど、登録済みCTAを選んだとき | CTA ID、route family |
+| page view | 初回documentとpathnameが変わるSPA遷移 | route family、environment、release |
+| 公開CTA | 登録、ヘルプ、ログインなど登録済みCTAの選択 | CTA ID、route family |
 | Web Vitals | sampling対象documentでcallbackを受けたとき | metric、rating、navigation type、viewport、初回document route family |
 
-Event unionとserializerは`src/domains/webMeasurement/`を正本とする。  Featureから任意のevent名やparameterをGTMへ渡すAPIは公開しない。
+Event unionとserializerは`src/domains/webMeasurement/`を正本とする。  任意のevent名やparameterをGTMへ渡すAPIは公開しない。  Web Vitalsはdocument lifecycleに属し、callback時点で別routeへSPA遷移していても初回documentのroute familyを保持する。
 
-既存GTM loaderを検出したdocumentはdataLayerとloaderをbest-effortで破棄し、再利用も再初期化もしない。  実行済みcodeの完全なunloadは保証できないため、外部設定またはartifactの異常としてenableをoffに戻す。
+## GTM、GA、Clarityの責務
 
-## Web Vitalsの帰属
+Repositoryが保証するのは、GTM loaderと有限dataLayer eventを全routeで開始するところまでである。  GAとClarityのtag、trigger、property、project、masking、publish状態は外部GTM設定が所有する。
 
-Web Vitalsはdocument lifecycleに属する。  callback時点で別の公開routeへSPA遷移していても、初回documentのroute familyを保持する。
-
-初期documentのviewportを`mobile`または`desktop`へ分類し、releaseとenvironmentを付ける。  CSR遷移の待ち時間はWeb Vitalsへ混ぜず、別の性能指標として扱う。
+GTMの`gtm.js`でGoogle tagとClarityを一度だけ初期化する。  Clarityは同じdocumentのSPA遷移中も継続する。  GAのpage viewは、Google tagの自動page viewとApplicationのCustom Event `page_view`を併用すると重複するため、外部設定で発火元を一つに固定する。  exact contractと確認手順は[GA4・GTM・Clarity運用](../manual/ga4-gtm.md)を正本とする。
 
 ## Privacyとlimitations
 
-次の値は送信しない。
+ApplicationのdataLayer payloadには、query、hash、raw URL、raw referrer、page title、動的ID、token、OAuth `code`・`state`、氏名、連絡先、店舗名、組織名、自由入力、`user_id`を含めない。
 
-- token、OAuth `code`・`state`、認証情報。
-- query、hash、raw URL、raw referrer、page title。
-- 氏名、メール、電話番号、店舗名、組織名、問い合わせ本文、検索語。
-- Clerk ID、店舗ID、人物ID、スタッフID、募集IDなどの内部ID。
-- `user_id`、user property、生の件数。
+ただし、GTM container内の第三者tagがbrowserのURL、referrer、title、DOMを独自取得することはApplication serializerでは防げない。  全route計測には、bearer tokenやOAuth値をURLに持つ認証前画面と、業務情報を表示する認証後画面も含まれる。  ClarityのURL parameter masking、DOM masking、権限、保持期間は補助防御として外部設定で管理し、この収集範囲を受容したProduct判断を前提とする。
 
-Application serializerだけでは、GTM・GA4がbrowserのURL、referrer、titleを独自取得することを防げない。  Google tagの自動page viewとEnhanced Measurementを無効にし、page contextを有限のsynthetic値へ上書きする外部設定を公開前の必須gateとする。  Clarityはraw referrer・clicked URL禁止を満たす別判断とnetwork検証が終わるまで初期publish対象外とする。
-
-Web計測は、同意拒否、ad blocker、通信失敗、別端末によって欠測する。  そのため、全訪問者率、実人数、店舗単位のactivation、cross-device funnelとは呼ばない。
+Web計測は、ad blocker、通信失敗、provider障害、別端末によって欠測する。  実人数、店舗単位のactivation、cross-device funnelの正本にはしない。
 
 ## 実装の入口
 
-- `src/domains/webMeasurement/`：route policy、event union、exact serializer。
-- `src/components/features/WebMeasurementConsent/`：同意の保存、設定変更、runtime接続。
+- `src/client.tsx`：全documentの初回GTM起動。
+- `src/routes/__root.tsx`：SPA page view。
+- `src/domains/webMeasurement/`：全routeの有限family、event union、exact serializer。
 - `src/lib/webMeasurement/`：document lifecycle、page view、Web Vitals。
 - `src/lib/gtm/`：GTM scriptとdataLayerのtransport。
-- `src/components/shared/MeasurementBoundaryLink/`：計測surface境界のdocument navigation。
-- `src/configs/webMeasurement.ts`：build時のdefault-closed設定。
+- `src/components/shared/MeasurementLink/`：document navigation直前の登録済みCTA計測。
+- `src/configs/webMeasurement.ts`：deploy artifactのruntime設定。
 
-外部GTM container、GA4 property、Clarity projectの設定はリポジトリでは確認できない。  設定と検証は[GA4・GTM運用](../manual/ga4-gtm.md)、実環境への反映は[リリース状態](../manual/release-status.md)へ分けて記録する。
+外部GTM container、GA4 property、Clarity projectの設定はリポジトリ実装と分ける。  設定と検証は[GA4・GTM・Clarity運用](../manual/ga4-gtm.md)、実環境への反映は[リリース状態](../manual/release-status.md)へ記録する。

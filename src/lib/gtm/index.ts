@@ -28,7 +28,7 @@ export function initGTM(gtmId: string): boolean {
   if (!isValidGtmId(gtmId) || initialized || transportBlocked) return false;
 
   try {
-    // 同意前に別codeが積んだ値を後からflushしない。既存GTMがあるdocumentも安全に再利用できないため閉じる。
+    // 予期しない既存GTMがあるdocumentは二重発火を避けるため再利用しない。
     if (hasGtmScript()) {
       stopGTM();
       transportBlocked = true;
@@ -66,22 +66,21 @@ export function pushGtmEvent(payload: SerializedWebMeasurementEvent): boolean {
 }
 
 /**
- * revoke直後の新規送信を止める。すでに実行済みのthird-party codeは完全にはunloadできないため、
- * 呼び出し側は同意状態を保存した直後にdocumentをreloadする。
+ * testと異常時のbest-effort cleanup。実行済みのthird-party codeを完全にはunloadできない。
  */
 export function stopGTM(): void {
   initialized = false;
   try {
     window.dataLayer = [];
   } catch {
-    // revoke後のreloadを妨げない。
+    // cleanup失敗を製品操作へ伝播させない。
   }
   try {
     for (const script of document.querySelectorAll('script[src^="https://www.googletagmanager.com/gtm.js"]')) {
       script.remove();
     }
   } catch {
-    // 一度実行済みのthird-party codeはreloadで破棄する。ここでは新規送信の停止を優先する。
+    // 一度実行済みのthird-party codeは完全には破棄できない。ここでは新規送信の停止を優先する。
   }
 }
 

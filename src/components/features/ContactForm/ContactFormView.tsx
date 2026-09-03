@@ -8,7 +8,7 @@ import {
   CONTACT_ORGANIZATION_MAX_LENGTH,
 } from "@/convex/constants";
 import { CONTACT_TYPE_OPTIONS } from "@/convex/contact/schemas";
-import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
+import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
 import { TurnstileWidget } from "@/src/components/shared/TurnstileWidget";
 import { Button } from "@/src/components/ui/Button";
 import { Input, NativeSelect, Textarea } from "@/src/components/ui/FormControls";
@@ -66,7 +66,7 @@ export function ContactFormView(props: ContactFormViewProps) {
           お問い合わせを受け付けました
         </Text>
         <Button asChild colorPalette="teal" minW="160px" mt={2}>
-          <MeasurementBoundaryLink href="/">TOPに戻る</MeasurementBoundaryLink>
+          <MeasurementLink href="/">TOPに戻る</MeasurementLink>
         </Button>
       </Stack>
     );

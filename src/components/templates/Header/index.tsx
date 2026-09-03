@@ -2,7 +2,7 @@ import type { BoxProps, ContainerProps, FlexProps, ImageProps, TextProps } from 
 import { Box, Container, Flex, Grid, Image, Link, Text } from "@chakra-ui/react";
 import { Link as RouterLink } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
+import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
 import { Button } from "@/src/components/ui/Button";
 
 export const HEADER_HEIGHT = { base: "64px", md: "68px" } as const;
@@ -203,9 +203,9 @@ const HeaderBrand = ({
 }: HeaderBrandProps) => (
   <Link asChild _hover={{ opacity: 0.82, textDecoration: "none" }} flexShrink={0}>
     {reloadDocument ? (
-      <MeasurementBoundaryLink href={to} aria-label={ariaLabel}>
+      <MeasurementLink href={to} aria-label={ariaLabel}>
         <HeaderBrandContent logoSize={logoSize} fontSize={fontSize} showTagline={showTagline} />
-      </MeasurementBoundaryLink>
+      </MeasurementLink>
     ) : (
       <RouterLink to={to} search={search} aria-label={ariaLabel}>
         <HeaderBrandContent logoSize={logoSize} fontSize={fontSize} showTagline={showTagline} />
@@ -296,17 +296,17 @@ const PublicLoginButton = ({ display }: PublicLoginButtonProps) => (
     fontSize="sm"
     fontWeight="bold"
   >
-    <MeasurementBoundaryLink href="/login" measurementCtaId="header_login">
+    <MeasurementLink href="/login" measurementCtaId="header_login">
       ログイン
-    </MeasurementBoundaryLink>
+    </MeasurementLink>
   </Button>
 );
 
 const PublicSignupButton = () => (
   <Button asChild colorPalette="teal" h="38px" px={5} borderRadius="md" fontSize="sm" fontWeight="bold" hideBelow="md">
-    <MeasurementBoundaryLink href="/signup" measurementCtaId="header_signup">
+    <MeasurementLink href="/signup" measurementCtaId="header_signup">
       シフトリをはじめる
-    </MeasurementBoundaryLink>
+    </MeasurementLink>
   </Button>
 );
 

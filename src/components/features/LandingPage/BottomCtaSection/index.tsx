@@ -1,6 +1,6 @@
 import { Box, Container, Heading, Icon, Stack, Text, VStack } from "@chakra-ui/react";
 import { LuBookOpen, LuChevronRight } from "react-icons/lu";
-import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
+import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
 import { Button } from "@/src/components/ui/Button";
 import { TrialReassurance } from "../TrialReassurance";
 
@@ -44,7 +44,7 @@ const BottomButton = ({ href, label, primary = false }: { href: string; label: s
     borderRadius="md"
     fontWeight="bold"
   >
-    <MeasurementBoundaryLink href={href} measurementCtaId={primary ? "bottom_signup" : "bottom_help"}>
+    <MeasurementLink href={href} measurementCtaId={primary ? "bottom_signup" : "bottom_help"}>
       {primary ? (
         <>
           {label}
@@ -56,6 +56,6 @@ const BottomButton = ({ href, label, primary = false }: { href: string; label: s
           {label}
         </>
       )}
-    </MeasurementBoundaryLink>
+    </MeasurementLink>
   </Button>
 );
