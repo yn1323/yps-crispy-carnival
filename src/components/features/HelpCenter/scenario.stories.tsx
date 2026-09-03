@@ -41,7 +41,7 @@ export const Desktop: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(canvas.getByRole("heading", { level: 1, name: "毎回のシフト管理を進める" })).toBeVisible();
+    await expect(canvas.getByRole("heading", { level: 1, name: "シフト募集〜作成の流れを知りたい" })).toBeVisible();
     await expect(canvas.getByText("シフトリの基本的な使い方を紹介します。")).toBeVisible();
     await expect(canvas.getByRole("heading", { level: 2, name: "シフト回収の流れ" })).toBeVisible();
     await expect(canvas.getByRole("navigation", { name: "シフト回収の流れ" })).toBeVisible();
