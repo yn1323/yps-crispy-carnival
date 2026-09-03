@@ -43,6 +43,7 @@ describe("notification/reminderQueries", () => {
         await ctx.db.insert("shiftSubmissions", {
           recruitmentId,
           staffId: submittedStaffId,
+          firstSubmittedAt: Date.now(),
           submittedAt: Date.now(),
         });
         return { recruitmentId, submittedStaffId, unsubmittedStaffId };

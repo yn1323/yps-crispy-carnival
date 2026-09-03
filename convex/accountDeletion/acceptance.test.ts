@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
-import { seedShop, seedUser } from "../_test/seed";
+import { seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { checkAccountDeletionReadiness } from "./actions";
 import { getAccountDeletionConfiguration } from "./config";
@@ -144,8 +144,12 @@ describe("accountDeletion acceptance boundary", () => {
     const userId = await t.run((ctx) => seedUser(ctx, "unknown_scan", "untouched@example.com"));
     await t.run(async (ctx) => {
       for (let index = 0; index < 21; index += 1) {
-        const shopId = await seedShop(ctx, `店舗${index}`);
-        await ctx.db.insert("shopMembers", { shopId, userId, role: "manager", isDeleted: false });
+        const organization = await seedOrganizationManagerShop(ctx, {
+          subject: `unknown_scan_source_${index}`,
+          shopName: `店舗${index}`,
+        });
+        await ctx.db.patch(organization.personId, { userId, updatedAt: Date.now() });
+        await ctx.db.patch(organization.memberId, { userId, updatedAt: Date.now() });
       }
     });
 

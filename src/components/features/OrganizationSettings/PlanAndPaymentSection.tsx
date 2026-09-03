@@ -89,11 +89,6 @@ const STATE_PRESENTATION: Record<
     status: "warning",
     description: "現在の支払い済み期間が終わるまでは、現在のプランを利用できます。",
   },
-  migrationPending: {
-    label: "設定を移行中",
-    status: "info",
-    description: "組織単位のプラン設定を準備しています。\n完了するまでは、既存データを閲覧できます。",
-  },
 };
 
 export const PlanAndPaymentSection = ({
@@ -136,24 +131,15 @@ export const PlanAndPaymentSection = ({
               description: "Proプランへの変更結果を確認しています。\n確認中も、Standardプランを利用できます。",
             }
           : STATE_PRESENTATION[billing.state];
-  const currentPlan = billing.currentPlan ?? (isPlanState(billing.state) ? billing.state : null);
-  const currentPlanPresentation = currentPlan ? STATE_PRESENTATION[currentPlan] : null;
+  const currentPlan = billing.currentPlan;
+  const currentPlanPresentation = STATE_PRESENTATION[currentPlan];
   const currentPlanDescription = billing.isComplimentary
     ? `利用人数${billing.peopleUsage.max}名・店舗${billing.shopUsage.max}件・管理者${billing.managerUsage.max}名まで利用できます。`
     : isPlanState(billing.state)
       ? currentPlanPresentation?.description
       : undefined;
-  const planSummaryHeading =
-    billing.state === "migrationPending" || (billing.state === "pendingActivation" && billing.currentPlan === null)
-      ? "現在の利用状態"
-      : "現在のプラン";
-  const planSummaryLabel =
-    currentPlanPresentation?.label ??
-    (billing.state === "migrationPending"
-      ? "設定移行中"
-      : billing.state === "pendingActivation"
-        ? "契約状態の確認が必要"
-        : "確認中");
+  const planSummaryHeading = "現在のプラン";
+  const planSummaryLabel = currentPlanPresentation.label;
   const paymentFailure = billing.currentPlan === "free" ? billing.paymentFailure : undefined;
   return (
     <Stack gap={{ base: 6, md: 7 }}>

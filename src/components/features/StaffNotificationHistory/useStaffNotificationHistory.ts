@@ -10,7 +10,7 @@ export function useStaffNotificationHistory(
   shopId: Id<"shops">,
   staffId: Id<"staffs">,
   enabled: boolean,
-  expectedOrganizationId?: Id<"organizations">,
+  expectedOrganizationId: Id<"organizations">,
 ) {
   const targetKey = `${shopId}:${staffId}:${enabled}`;
   const [displayState, setDisplayState] = useState({
@@ -21,7 +21,7 @@ export function useStaffNotificationHistory(
     displayState.targetKey === targetKey ? displayState.visibleCount : INITIAL_NOTIFICATION_HISTORY_COUNT;
   const query = usePaginatedQuery(
     api.notificationOutbox.queries.listStaffNotificationHistory,
-    enabled ? { shopId, staffId, ...(expectedOrganizationId ? { expectedOrganizationId } : {}) } : "skip",
+    enabled ? { shopId, staffId, expectedOrganizationId } : "skip",
     { initialNumItems: INITIAL_NOTIFICATION_HISTORY_COUNT + 1 },
   );
   const hasBufferedItem = query.results.length > visibleCount;

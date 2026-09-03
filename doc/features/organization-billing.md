@@ -219,8 +219,8 @@ Stripe Productionの顧客メール設定と実到着は未確認であり、rep
 二つ目以降の組織作成では、画面が選択中の店舗を`sourceShopId`として渡す。
 サーバーは、その店舗の組織で操作本人が有効な管理者であることを確認し、同じuserのactive personを一意に解決できれば、その氏名とシフト連絡先だけを新しい組織人物、最初の店舗スタッフ、初期請求先へsnapshotする。
 別人物の情報、既存スタッフ所属、店舗、シフトは引き継がない。
-旧frontendが`sourceShopId`を送らない場合、またはsourceに一意な旧`shopMembers`だけがありcanonical personがまだない移行途中の場合は、`users`のsnapshotへfallbackする。canonical personやmembershipが重複・不整合な場合はfallbackせず拒否する。
-作成時の非PII auditには`managerProfile.canonicalPerson`、`managerProfile.legacySourceUserSnapshot`、`managerProfile.omittedSourceUserSnapshot`のいずれかを記録し、旧clientと移行fallbackの収束をメール値なしで確認できるようにする。互換期間終了後の`sourceShopId` required化とfallback削除は別変更で行う。
+`sourceShopId`とcanonical personを一意に確認できない場合は作成を拒否し、`users`や旧`shopMembers`へfallbackしない。
+作成時の非PII auditには`managerProfile.canonicalPerson`を記録する。
 
 ## 支払い不要Pro相当
 
@@ -358,7 +358,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `convex/dashboard/queries.ts` | 選択店舗の認可境界で業務更新可否、現在プラン、支払い失敗の表示情報、組織利用状況の最小DTOを返す |
 | `convex/organization/` | 組織、店舗、人物、管理者、利用状況、削除可否を扱う |
 | `convex/organizationBilling/` | プラン上限、利用実数から導出するaccess policy、期限、解約、支払い失敗後のFree移行、請求先メール、請求先変更通知を扱う |
-| `convex/organizationStripe/` | Stripe API、現在Subscriptionの保存済みPriceのread-only取得、Checkout、Portal、Webhook、再照合、probeを扱う |
+| `convex/organizationStripe/` | Stripe API、Checkout、Portal、Webhook、再照合、probeを扱う |
 | `convex/organizationInvitation/mutations.ts` | 管理者招待の発行、再送、取消、承認準備、proof付き確定を扱う |
 | `convex/organizationInvitation/acceptanceActions.ts` / `convex/_lib/clerkVerifiedEmailProvider.ts` | 未接続人物のClerk確認済みメールをNode runtimeで照合し、provider失敗時は招待を消費せず返す |
 | `convex/migrations/m023_organization_invitations_narrow_prep.ts` | 旧招待lifecycleと欠損fieldをNarrow前に補完する |
@@ -392,10 +392,9 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 |---|---|
 | `api.setup.mutations.verifyPromotionCode` | 所属0件の初回登録対象者について、プロモーションコードを作成副作用なしで事前照合する。成功結果だけを返し、コード値は保存しない |
 | `api.setup.mutations.setupShopAndManager` | 所属0件の初期設定と、1組織、1店舗、管理者本人を作成する。任意のプロモーションコードが空欄ならPro相当の2か月Trialとdeadline、有効なら期限なしの`complimentary.pro`を作り、どちらもStripe objectは作らない |
-| `api.setup.mutations.createOrganization` | 既存管理者による追加組織作成。認証、作成上限、rate limit、冪等性を確認し`active.free`を作る |
+| `api.setup.mutations.createOrganizationForApp` | 既存管理者による追加組織作成。認証、作成上限、rate limit、冪等性を確認し`active.free`を作る |
 | `api.dashboard.queries.getMyShops` | 利用可能な店舗、組織、所属状態の取得 |
-| `api.dashboard.queries.getDashboardShop` | 選択店舗を認可し、Dashboard用の`planStatus`、支払い失敗の表示情報、`trialEndingNotice`を取得 |
-| `api.dashboard.queries.getDashboardPlanUsage` | 選択店舗を認可し、明示された時刻を基準にスタッフ・店舗・管理者の現在値と上限を取得 |
+| `api.dashboard.queries.getDashboardShop` | 選択店舗を認可し、店舗設定、業務更新可否、利用上限状態、支払い失敗時の再契約可否を最小DTOで取得 |
 | `api.organization.queries.getSettings` | 組織設定、利用状況、課金状態、操作可否の取得 |
 | `api.appOrganization.manageQueries.getManagerSettingsOverview` | URLの`org`をcanonical membershipで検証し、管理者数、招待中件数、現在の管理者、期限内の招待、操作可否を`integrityError` / `ready` unionで取得 |
 | `api.appOrganization.manageQueries.getManagerCandidates` | URLの`org`をcanonical membershipで検証し、既存スタッフの単一選択候補と選択不可理由を`integrityError` / `ready` unionで取得。候補サブページを開いた間だけ購読する |
@@ -404,15 +403,14 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 | `api.organizationInvitation.mutations.issueForOrganization` | canonical active管理者と組織境界、人物上限、管理者上限、予約枠を確認して管理者招待を発行する |
 | `api.organizationInvitation.mutations.resendForOrganization` / `revokeForOrganization` | canonical active管理者と組織境界を再検証して招待を再送または取り消す |
 | `api.organizationInvitation.acceptanceActions.accept` | 接続済み人物のアカウント一致、または未接続人物のClerk確認済みメールを検証して招待を承認 |
-| `api.organizationBilling.mutations.updateBillingEmail` | 認証、組織境界、管理者状態を確認して請求先メールを更新し、全有効管理者への変更通知とStripe同期を予約する |
-| `api.organizationStripe.actions.getPlanPrice` / `startPaidCheckout` | Stripe設定と販売Priceを検証して価格を取得し、契約を開始する |
+| `api.organizationBilling.mutations.updateBillingEmailForOrganization` | 認証、組織境界、管理者状態を確認して請求先メールを更新し、全有効管理者への変更通知とStripe同期を予約する |
+| `api.organizationStripe.actions.getPlanPriceForOrganization` / `startPaidCheckoutForOrganization` | 組織境界、Stripe設定、販売Priceを検証して価格を取得し、契約を開始する |
 | `api.organizationStripe.actions.inspectPendingCheckoutForOrganization` / `cancelPendingCheckoutForOrganization` | `pendingActivation`に対応するCheckout Session、Trialの未完了Setup Checkout、またはStandardからProへの未完了変更を照合する。Trialでは`open` Sessionの再開URLを返し、取消時はSessionを`expired`へ確定してoperationだけを解放する。StandardからProではStripeのHosted Invoice URLを返し、取消時は当該Invoiceの`void`と`pending_update`解消を確認してStandardへ戻す。URLやclient stateだけで課金状態を変更しない |
-| `api.organizationStripe.actions.getCurrentSubscriptionPrice` | 選択店舗を認可し、現在の非terminal Subscriptionに保存したPriceから金額、通貨、周期、明示された税区分だけを取得 |
-| `api.organizationStripe.actions.previewPaidPlanChange` / `changePaidPlanNow` | StandardからProへの日割りpreviewと即時変更 |
-| `api.organizationStripe.actions.schedulePaidPlanChange` | ProからStandardへの期間末変更。`targetPlan: "free"`は受け付けない |
-| `api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd` / `cancelScheduledPlanChange` | 有料契約の期間末解約と、その予約取消 |
-| `api.organizationStripe.actions.openCustomerPortal` | 支払い方法と請求履歴を扱う一時Portal URLの作成 |
-| `api.organizationStripe.actions.cancelTrialContinuation` | Trial後の継続予約取消 |
+| `api.organizationStripe.actions.previewPaidPlanChangeForOrganization` / `changePaidPlanNowForOrganization` | StandardからProへの日割りpreviewと即時変更 |
+| `api.organizationStripe.actions.schedulePaidPlanChangeForOrganization` | ProからStandardへの期間末変更。`targetPlan: "free"`は受け付けない |
+| `api.organizationStripe.actions.scheduleServiceStopAtPeriodEndForOrganization` / `cancelScheduledPlanChangeForOrganization` | 有料契約の期間末解約と、その予約取消 |
+| `api.organizationStripe.actions.openCustomerPortalForOrganization` | 支払い方法と請求履歴を扱う一時Portal URLの作成 |
+| `api.organizationStripe.actions.cancelTrialContinuationForOrganization` | Trial後の継続予約取消 |
 | `POST /stripe/webhook` | 署名済みStripeイベントの受信 |
 | `internal.organizationBilling.mutations.processDeadline` | Trialと期間末変更の期限処理 |
 | `internal.organizationBilling.mutations.setStateFromVerifiedBilling` | 検証済みの課金結果を状態へ反映する唯一の接続点 |
@@ -424,8 +422,8 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 ## 検証の入口
 
 - `convex/organizationBilling/*.test.ts`：プラン上限、利用実数からのaccess導出、Trial終了と解約後のFree移行、ProからStandardへの適用、支払い失敗後の即時Free権限、期限を検証する。通知は請求先メールアドレス変更時の全有効管理者へのメールだけを許可し、課金状態遷移ではOutboxと予約jobが0件であることを検証する。
-- `convex/dashboard/queries.test.ts`：選択店舗の認可境界、全課金状態の`planStatus`投影、利用状況の現在値・上限、不要な識別子の非露出を検証する。
-- `convex/organizationStripe/*.test.ts`：新規販売用Price、現在Subscriptionの保存済みPrice、Checkout、期間末解約と取消、Webhook、再照合、支払い不要Pro相当のStripe隔離、probeを検証する。
+- `convex/dashboard/queries.test.ts`：選択店舗の認可境界、業務更新可否、利用上限状態、支払い失敗時の再契約可否、不要な識別子の非露出を検証する。
+- `convex/organizationStripe/*.test.ts`：新規販売用Price、Checkout、期間末解約と取消、Webhook、再照合、支払い不要Pro相当のStripe隔離、probeを検証する。
 - `convex/organizationInvitation/*.test.ts`：token、期限、接続済み人物のアカウント一致、未接続人物のClerk確認済みメール、provider失敗時の非消費、予約枠、再送、連携を検証する。
 - `convex/organization/managerSettingsQueries.test.ts`：管理者設定のbounded read、currentとprojectedの分離、`integrityError` / `ready`、候補の選択不可理由を検証する。
 - `convex/_scenario/organizationBillingLifecycle.test.ts`と`organizationPaidPlanChanges.test.ts`：時間と複数APIをまたぐ課金ライフサイクルを検証する。
@@ -434,7 +432,7 @@ Productionでの公開状態は未確認であり、実装やローカルテス�
 - `convex/_scenario/organizationCreation.test.ts`：追加組織について、Free枠、冪等性、rate limit、初期Free状態、既存組織への非混入を検証する。
 - `src/pages/dashboard/index.stories.tsx`、`src/components/features/Dashboard/DashboardContent/index.stories.tsx`、`src/components/features/OrganizationSettings/OrganizationCreation/OrganizationCreationDialog.stories.tsx`、`src/components/features/OrganizationSettings/controllers.test.tsx`：初回Setupと追加組織作成について、代表状態、フォーム操作、失敗後も同じ`requestId`を保つ再試行、mutation引数、作成後の遷移を検証する。
 - `src/components/features/OrganizationSettings/PlanAndPaymentSection.stories.tsx`、`controllers.test.tsx`と`BillingSettings/`配下のStory・Logic Test：Free、Trial、Standard、Pro、未完了Checkoutの代表状態、プラン操作Dialogのhistory非登録、Checkout URL取得後の一度だけの遷移、ページ離脱後の遅延遷移防止、再開と取消を検証する。
-- `src/components/features/Dashboard/PlanStatusCard/`のFrontend Unit・Logic Test：Trial、Free、Standard、Pro、変更予約の表示変換を検証する。支払い失敗はプラン状態へ混ぜない。
+- `src/pages/dashboard/index.test.tsx`：支払い失敗時の案内、再契約可否、組織の「プランと支払い」への遷移を検証する。
 - `src/components/features/Dashboard/DashboardContent/index.stories.tsx`：現在店舗、業務状態、閲覧専用、Loading、Empty、Setupの代表状態を検証する。
 - `src/components/features/ManagerSettings/`のStoryとFrontend Unit Test：専用ページ、既存スタッフの単一選択、新しい人物の入力、Freeの2名上限、再送、取消、Loading、Empty、Error、閲覧専用の代表状態を検証する。
 - `e2e/scenarios/organization-lifecycle.test.ts`：専用Preview deploymentで、2組織目の作成、改名、切り替えと、組織削除後の残存組織への復帰を検証する。

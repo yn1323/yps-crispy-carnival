@@ -54,9 +54,13 @@ vi.mock("@/src/components/shared/feedback", () => ({
 
 vi.mock("@/src/components/ui/toaster", () => ({ toaster: { create: mocks.createToast } }));
 
-import { useUserShopNotificationActions } from "./useUserShopNotificationActions";
+import { useUserShopNotificationActions as useRawUserShopNotificationActions } from "./useUserShopNotificationActions";
 
 const targetShopId = "shop-target" as Id<"shops">;
+const organizationId = "organization-a" as Id<"organizations">;
+const useUserShopNotificationActions = (
+  options: Omit<Parameters<typeof useRawUserShopNotificationActions>[0], "expectedOrganizationId">,
+) => useRawUserShopNotificationActions({ ...options, expectedOrganizationId: organizationId });
 const staffId = "staff-target" as Id<"staffs">;
 const membership = {
   shopId: targetShopId,
@@ -103,13 +107,17 @@ describe("useUserShopNotificationActions", () => {
 
     expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(
       mocks.recruitmentsRef,
-      { shopId: targetShopId },
+      { shopId: targetShopId, expectedOrganizationId: organizationId },
       { initialNumItems: 100 },
     );
-    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.currentRecruitmentsRef, { shopId: targetShopId });
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.currentRecruitmentsRef, {
+      shopId: targetShopId,
+      expectedOrganizationId: organizationId,
+    });
     expect(mocks.useQuery).toHaveBeenCalledWith(mocks.cooldownsRef, {
       shopId: targetShopId,
       staffId,
+      expectedOrganizationId: organizationId,
     });
     expect(result.current.openRecruitments).toEqual([openRecruitment]);
     expect(result.current.currentRecruitments).toEqual([currentRecruitment]);
@@ -121,8 +129,16 @@ describe("useUserShopNotificationActions", () => {
       await result.current.sendCurrentShift();
     });
 
-    expect(mocks.sendOpen).toHaveBeenCalledExactlyOnceWith({ shopId: targetShopId, staffId });
-    expect(mocks.sendCurrent).toHaveBeenCalledExactlyOnceWith({ shopId: targetShopId, staffId });
+    expect(mocks.sendOpen).toHaveBeenCalledExactlyOnceWith({
+      shopId: targetShopId,
+      staffId,
+      expectedOrganizationId: organizationId,
+    });
+    expect(mocks.sendCurrent).toHaveBeenCalledExactlyOnceWith({
+      shopId: targetShopId,
+      staffId,
+      expectedOrganizationId: organizationId,
+    });
     expect(mocks.showSuccessToast.mock.calls).toEqual([
       [{ title: "シフト募集通知を再送しました" }],
       [{ title: "確定シフト通知を再送しました" }],
@@ -207,7 +223,11 @@ describe("useUserShopNotificationActions", () => {
     expect(result.current.isRecruitmentCooldownActive).toBe(true);
     expect(result.current.isCurrentShiftCooldownActive).toBe(false);
     expect(mocks.sendOpen).not.toHaveBeenCalled();
-    expect(mocks.sendCurrent).toHaveBeenCalledExactlyOnceWith({ shopId: targetShopId, staffId });
+    expect(mocks.sendCurrent).toHaveBeenCalledExactlyOnceWith({
+      shopId: targetShopId,
+      staffId,
+      expectedOrganizationId: organizationId,
+    });
   });
 
   it("クールダウン取得中は2種類とも再送しない", async () => {
@@ -265,13 +285,17 @@ describe("useUserShopNotificationActions", () => {
     rerender({ enabled: true });
     expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(
       mocks.recruitmentsRef,
-      { shopId: targetShopId },
+      { shopId: targetShopId, expectedOrganizationId: organizationId },
       { initialNumItems: 100 },
     );
-    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.currentRecruitmentsRef, { shopId: targetShopId });
+    expect(mocks.useQuery).toHaveBeenCalledWith(mocks.currentRecruitmentsRef, {
+      shopId: targetShopId,
+      expectedOrganizationId: organizationId,
+    });
     expect(mocks.useQuery).toHaveBeenCalledWith(mocks.cooldownsRef, {
       shopId: targetShopId,
       staffId,
+      expectedOrganizationId: organizationId,
     });
 
     rerender({ enabled: false });

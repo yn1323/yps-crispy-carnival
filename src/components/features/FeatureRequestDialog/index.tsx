@@ -21,7 +21,12 @@ type FormData = z.infer<typeof formSchema>;
 
 const submitFeatureRequestRef = makeFunctionReference<
   "mutation",
-  { comment: string; requestId: string; shopId: Id<"shops"> },
+  {
+    comment: string;
+    requestId: string;
+    shopId: Id<"shops">;
+    expectedOrganizationId: Id<"organizations">;
+  },
   { status: "accepted" }
 >("featureRequest/mutations:submit");
 

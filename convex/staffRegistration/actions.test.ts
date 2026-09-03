@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../_generated/api";
-import { seedManagerShop } from "../_test/seed";
+import { getTestOrganizationId, seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 describe("staffRegistration/actions", () => {
@@ -14,6 +14,7 @@ describe("staffRegistration/actions", () => {
         shopName: "参加申請通知店舗",
       });
       await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: manager.shopId,
         organizationId: manager.organizationId,
         organizationPersonId: manager.personId,
@@ -27,6 +28,7 @@ describe("staffRegistration/actions", () => {
     });
     const asManager = t.withIdentity({ subject: "user_mgr" });
     const registrationLink = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, shopId),
       shopId,
     });
     await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {

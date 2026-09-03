@@ -43,17 +43,19 @@ describe("organizationBilling/mutations 請求先メール", () => {
     );
     const requestId = "billing-email-sensitive-request";
     const args = {
-      shopId: ids.shopId,
+      organizationId: ids.organizationId,
       email: "  Billing@Example.com  ",
       requestId,
     };
     const actor = t.withIdentity({ subject: "billing_email_idempotent" });
 
-    await expect(actor.mutation(api.organizationBilling.mutations.updateBillingEmail, args)).resolves.toEqual({
+    await expect(
+      actor.mutation(api.organizationBilling.mutations.updateBillingEmailForOrganization, args),
+    ).resolves.toEqual({
       changed: true,
     });
     await expect(
-      actor.mutation(api.organizationBilling.mutations.updateBillingEmail, {
+      actor.mutation(api.organizationBilling.mutations.updateBillingEmailForOrganization, {
         ...args,
         email: "billing@example.COM",
         requestId: "billing-email-another-request",
@@ -100,8 +102,8 @@ describe("organizationBilling/mutations 請求先メール", () => {
     await expect(
       t
         .withIdentity({ subject: "billing_email_short_request" })
-        .mutation(api.organizationBilling.mutations.updateBillingEmail, {
-          shopId: ids.shopId,
+        .mutation(api.organizationBilling.mutations.updateBillingEmailForOrganization, {
+          organizationId: ids.organizationId,
           email: "billing@example.com",
           requestId: "short",
         }),
@@ -129,8 +131,8 @@ describe("organizationBilling/mutations 請求先メール", () => {
     await expect(
       t
         .withIdentity({ subject: "billing_email_missing_state" })
-        .mutation(api.organizationBilling.mutations.updateBillingEmail, {
-          shopId: ids.shopId,
+        .mutation(api.organizationBilling.mutations.updateBillingEmailForOrganization, {
+          organizationId: ids.organizationId,
           email: "new-billing@example.com",
           requestId: "billing-email-missing-state",
         }),
@@ -167,8 +169,8 @@ describe("organizationBilling/mutations 請求先メール", () => {
     await expect(
       t
         .withIdentity({ subject: "complimentary_billing_email" })
-        .mutation(api.organizationBilling.mutations.updateBillingEmail, {
-          shopId: ids.shopId,
+        .mutation(api.organizationBilling.mutations.updateBillingEmailForOrganization, {
+          organizationId: ids.organizationId,
           email: "must-not-change@example.com",
           requestId: "complimentary-billing-email",
         }),
@@ -219,8 +221,8 @@ describe("organizationBilling/mutations 請求先メール", () => {
     await expect(
       t
         .withIdentity({ subject: "billing_email_pending_activation" })
-        .mutation(api.organizationBilling.mutations.updateBillingEmail, {
-          shopId: ids.shopId,
+        .mutation(api.organizationBilling.mutations.updateBillingEmailForOrganization, {
+          organizationId: ids.organizationId,
           email: "new-billing@example.com",
           requestId: "billing-email-payment-pending",
         }),

@@ -345,7 +345,7 @@ async function seedSentEmailOutbox(
   options: { withHistory?: boolean } = {},
 ) {
   return await t.run(async (ctx) => {
-    const { shopId } = await seedManagerShop(ctx, {
+    const { organizationId, shopId } = await seedManagerShop(ctx, {
       subject: "user_mgr",
       email: "manager@example.com",
       shopName: "Resend Webhook店舗",
@@ -362,7 +362,11 @@ async function seedSentEmailOutbox(
       status: "sent",
       dedupeKey: "email:test:resend-webhook",
       shopId,
+      organizationId,
       staffId,
+      purpose: "business",
+      notificationContext: "test.resendWebhook",
+      deliverySuppressed: false,
       payload: {
         kind: "email",
         from: "シフトリ <noreply@example.com>",

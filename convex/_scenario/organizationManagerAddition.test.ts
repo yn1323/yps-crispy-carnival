@@ -3,7 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import { readScheduledFunctions, SCENARIO_NOW, scenarioDate } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
-import { seedCanonicalStaffLineRecipient, seedOrganizationManagerShop, seedStaffLineAccount } from "../_test/seed";
+import {
+  getTestOrganizationId,
+  seedCanonicalStaffLineRecipient,
+  seedOrganizationManagerShop,
+  seedStaffLineAccount,
+} from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { deriveInvitationToken } from "../organizationInvitation/token";
 
@@ -43,6 +48,7 @@ describe("Free管理者追加シナリオ", () => {
         plan: "free",
       });
       const ownerStaffId = await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: organization.shopId,
         organizationId: organization.organizationId,
         organizationPersonId: organization.personId,
@@ -128,6 +134,7 @@ describe("Free管理者追加シナリオ", () => {
         isDeleted: false,
       });
       const otherStaffId = await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: otherShopId,
         organizationId: otherOrganizationId,
         organizationPersonId: otherPersonId,
@@ -309,6 +316,7 @@ describe("Free管理者追加シナリオ", () => {
 
     await expect(
       ownerIdentity.mutation(api.shop.mutations.updateShopSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
         shopName: "既存管理者が変更した店舗名",
         regularClosedDays: ["sun"],
@@ -326,6 +334,7 @@ describe("Free管理者追加シナリオ", () => {
         emailVerified: true,
       })
       .mutation(api.recruitment.mutations.createRecruitment, {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
         periodStart: scenarioDate(7),
         periodEnd: scenarioDate(13),

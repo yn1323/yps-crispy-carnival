@@ -22,8 +22,8 @@ export const mockStaffs: StaffType[] = [
 ];
 
 export const mockPositions: PositionType[] = [
-  { id: "default", name: "シフト", color: "#3b82f6" },
-  { id: "break", name: "休憩", color: "#6b7280" },
+  { id: "default", name: "シフト", color: "#3b82f6", isDefault: true },
+  { id: "break", name: "休憩", color: "#6b7280", isDefault: false },
 ];
 
 export const mockDates = [

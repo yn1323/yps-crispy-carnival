@@ -13,9 +13,12 @@ const mocks = vi.hoisted(() => ({
   createRef: Symbol("createRecruitment"),
   deleteRef: Symbol("deleteRecruitment"),
   pastRef: Symbol("getDashboardPastRecruitments"),
+  organizationPastPreviewRef: Symbol("listOrganizationPastRecruitmentPreviews"),
   createRecruitment: vi.fn(),
   deleteRecruitment: vi.fn(),
+  usePaginatedQuery: vi.fn(),
   useShopPaginatedQuery: vi.fn(),
+  loadMoreOrganizationPastPreviews: vi.fn(),
   loadMorePast: vi.fn(),
   showErrorToast: vi.fn(),
   showSuccessToast: vi.fn(),
@@ -25,6 +28,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("convex/react", () => ({
   useMutation: (reference: symbol) =>
     reference === mocks.createRef ? mocks.createRecruitment : mocks.deleteRecruitment,
+  usePaginatedQuery: mocks.usePaginatedQuery,
 }));
 
 vi.mock("@/convex/_generated/api", () => ({
@@ -38,6 +42,11 @@ vi.mock("@/convex/_generated/api", () => ({
     dashboard: {
       queries: {
         getDashboardPastRecruitments: mocks.pastRef,
+      },
+    },
+    appOrganization: {
+      queries: {
+        listOrganizationPastRecruitmentPreviews: mocks.organizationPastPreviewRef,
       },
     },
   },
@@ -231,6 +240,34 @@ const pastRecruitment: Recruitment = {
   periodEnd: "2026-07-07",
 };
 
+const pastRecruitmentForPreview = (id: string, periodEnd: string, createdAt: number): Recruitment => ({
+  ...pastRecruitment,
+  _id: id as Id<"recruitments">,
+  createdAt,
+  periodEnd,
+});
+
+const organizationPastPreviewSections = [
+  {
+    shop: { shopId: "shop-a" as Id<"shops">, shopName: "本店" },
+    recruitments: [
+      pastRecruitmentForPreview("past-a-recent", "2026-08-13", 6),
+      pastRecruitmentForPreview("past-a-middle", "2026-08-10", 3),
+      pastRecruitmentForPreview("past-a-oldest", "2026-08-07", 1),
+    ],
+    hasMoreRecruitments: false,
+  },
+  {
+    shop: { shopId: "shop-b" as Id<"shops">, shopName: "休止中の店舗" },
+    recruitments: [
+      pastRecruitmentForPreview("past-b-recent", "2026-08-12", 5),
+      pastRecruitmentForPreview("past-b-middle", "2026-08-11", 4),
+      pastRecruitmentForPreview("past-b-older", "2026-08-09", 2),
+    ],
+    hasMoreRecruitments: false,
+  },
+];
+
 const groups: DashboardRecruitmentGroup[] = [
   { key: "collecting", title: "募集中", recruitments: [recruitmentA, recruitmentB], totalCount: 2 },
 ];
@@ -261,6 +298,7 @@ const recruitmentShopById = new Map<Recruitment["_id"], OrganizationRecruitmentS
 const buildFeature = (props?: {
   organizationId?: Id<"organizations">;
   shopFilter?: "all" | Id<"shops">;
+  isSingleShop?: boolean;
   groups?: DashboardRecruitmentGroup[];
   shops?: OrganizationRecruitmentShop[];
 }) => (
@@ -268,6 +306,7 @@ const buildFeature = (props?: {
     <OrganizationRecruitmentManagement
       organizationId={props?.organizationId ?? ("organization-a" as Id<"organizations">)}
       shopFilter={props?.shopFilter ?? "all"}
+      isSingleShop={props?.isSingleShop ?? (props?.shops ?? shops).length === 1}
       groups={props?.groups ?? groups}
       shops={props?.shops ?? shops}
       getRecruitmentShop={(recruitment) => recruitmentShopById.get(recruitment._id)}
@@ -301,7 +340,17 @@ beforeEach(() => {
   mocks.deleteRecruitment.mockReset().mockResolvedValue(null);
   mocks.showErrorToast.mockReset();
   mocks.showSuccessToast.mockReset();
+  mocks.loadMoreOrganizationPastPreviews.mockReset();
   mocks.loadMorePast.mockReset();
+  mocks.usePaginatedQuery.mockReset().mockImplementation((_reference, args) =>
+    args === "skip"
+      ? { results: [], status: "LoadingFirstPage", loadMore: mocks.loadMoreOrganizationPastPreviews }
+      : {
+          results: organizationPastPreviewSections,
+          status: "Exhausted",
+          loadMore: mocks.loadMoreOrganizationPastPreviews,
+        },
+  );
   mocks.useShopPaginatedQuery
     .mockReset()
     .mockImplementation((_reference, args) =>
@@ -386,15 +435,52 @@ describe("OrganizationRecruitmentManagement", () => {
     expect((screen.getByRole("textbox", { name: "入力中の募集" }) as HTMLInputElement).value).toBe("");
   });
 
-  it("全店舗では過去募集の確認方法を案内し、店舗filter時だけ明示scopeで過去募集を読む", () => {
-    const view = renderFeature();
-    expect(screen.getByText("過去のシフトは、店舗で絞り込むと確認できます。")).not.toBeNull();
+  it("全店舗では操作後に組織scopeで過去募集を読み、店舗横断の直近5件を表示する", () => {
+    renderFeature();
+    expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(mocks.organizationPastPreviewRef, "skip", {
+      initialNumItems: 1,
+    });
     expect(mocks.useShopPaginatedQuery).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "past-a-recentを開く" })).toBeNull();
 
-    view.rerender(buildFeature({ shops: shops.map((shop) => ({ ...shop, hasPastRecruitments: false })) }));
-    expect(screen.queryByText("過去のシフトは、店舗で絞り込むと確認できます。")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "過去のシフトを見る" }));
 
-    view.rerender(buildFeature({ shopFilter: "shop-a" as Id<"shops"> }));
+    expect(mocks.usePaginatedQuery).toHaveBeenLastCalledWith(
+      mocks.organizationPastPreviewRef,
+      { organizationId: "organization-a" },
+      { initialNumItems: 1 },
+    );
+    expect(screen.getAllByRole("button", { name: /past-.*を開く/ }).map((button) => button.textContent)).toEqual([
+      "past-a-recentを開く",
+      "past-b-recentを開く",
+      "past-b-middleを開く",
+      "past-a-middleを開く",
+      "past-b-olderを開く",
+    ]);
+    expect(screen.queryByRole("button", { name: "past-a-oldestを開く" })).toBeNull();
+    expect(
+      screen.getByText("直近5件を表示しています。さらに過去を見るには、店舗で絞り込んでください。"),
+    ).not.toBeNull();
+    expect(screen.getAllByText("本店").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("休止中の店舗").length).toBeGreaterThan(0);
+  });
+
+  it("全店舗previewの追加店舗pageを最後まで自動取得する", async () => {
+    mocks.usePaginatedQuery.mockImplementation((_reference, args) =>
+      args === "skip"
+        ? { results: [], status: "LoadingFirstPage", loadMore: mocks.loadMoreOrganizationPastPreviews }
+        : { results: [], status: "CanLoadMore", loadMore: mocks.loadMoreOrganizationPastPreviews },
+    );
+    renderFeature();
+
+    fireEvent.click(screen.getByRole("button", { name: "過去のシフトを見る" }));
+
+    await waitFor(() => expect(mocks.loadMoreOrganizationPastPreviews).toHaveBeenCalledExactlyOnceWith(1));
+  });
+
+  it("店舗filter時は明示した店舗scopeで過去募集を5件ずつ読む", () => {
+    renderFeature({ shopFilter: "shop-a" as Id<"shops"> });
+
     const scope = screen.getByTestId("manager-shop-scope");
     expect(scope.getAttribute("data-shop-id")).toBe("shop-a");
     expect(scope.getAttribute("data-organization-id")).toBe("organization-a");
@@ -408,16 +494,37 @@ describe("OrganizationRecruitmentManagement", () => {
     expect(mocks.useShopPaginatedQuery).toHaveBeenLastCalledWith(mocks.pastRef, {}, { initialNumItems: 5 });
   });
 
-  it("全店舗で過去の募集だけがある場合は、未作成と誤認させず店舗filterを案内する", () => {
-    renderFeature({ groups: [] });
+  it("店舗が1つならfilter未指定でも店舗scopeの過去募集を5件ずつ読める", () => {
+    renderFeature({ groups: [], shops: [shops[0]] });
 
-    expect(screen.getByText("表示中のシフトはありません")).not.toBeNull();
-    expect(screen.getByText("過去のシフトは、店舗で絞り込むと確認できます。")).not.toBeNull();
-    expect(mocks.boardProps?.emptyState).toEqual({
-      title: "表示中のシフトはありません",
-      description: "過去のシフトは、店舗で絞り込むと確認できます。",
-      actionLabel: "新しい募集をつくる",
+    const scope = screen.getByTestId("manager-shop-scope");
+    expect(scope.getAttribute("data-shop-id")).toBe("shop-a");
+    expect(mocks.usePaginatedQuery).not.toHaveBeenCalled();
+    expect(mocks.useShopPaginatedQuery).toHaveBeenLastCalledWith(mocks.pastRef, "skip", { initialNumItems: 5 });
+
+    fireEvent.click(screen.getByRole("button", { name: "過去のシフトを見る" }));
+    expect(screen.getByRole("button", { name: "recruitment-pastを開く" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "もっと見る" }));
+    expect(mocks.loadMorePast).toHaveBeenCalledExactlyOnceWith(5);
+  });
+
+  it("全店舗previewの過去募集を、その募集の店舗scopeで削除する", async () => {
+    const writableShopB = { ...shops[1], canCreate: true, createDisabledReason: undefined };
+    renderFeature({
+      groups: [{ ...groups[0], recruitments: [recruitmentA], totalCount: 1 }],
+      shops: [shops[0], writableShopB],
     });
+    fireEvent.click(screen.getByRole("button", { name: "過去のシフトを見る" }));
+    fireEvent.click(screen.getByRole("button", { name: "past-b-recentを削除" }));
+    fireEvent.click(screen.getByRole("button", { name: "この募集を削除" }));
+
+    await waitFor(() =>
+      expect(mocks.deleteRecruitment).toHaveBeenCalledExactlyOnceWith({
+        recruitmentId: "past-b-recent",
+        shopId: "shop-b",
+        expectedOrganizationId: "organization-a",
+      }),
+    );
   });
 
   it("作成不可なら店舗の作成不可理由を表示する", () => {

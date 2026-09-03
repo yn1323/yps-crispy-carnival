@@ -100,7 +100,10 @@ describe("法務同意シナリオ", () => {
       sessionToken: "scenario-submit-legal-session",
       recruitmentId: ids.recruitmentId,
       acceptedLegal: true,
-      requests: [{ date: scenarioDate(7), startTime: "10:00", endTime: "18:00" }],
+      submission: {
+        kind: "time",
+        requests: [{ date: scenarioDate(7), startTime: "10:00", endTime: "18:00" }],
+      },
     });
 
     // Assert: 同意 state と event が提出由来として記録される。

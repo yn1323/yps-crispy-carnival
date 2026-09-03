@@ -125,24 +125,6 @@ describe("notification/queries", () => {
       ).resolves.toBeNull();
     });
 
-    it("両canonical ID欠損staffは保存済みメールがあっても新規通知データへ戻さない", async () => {
-      const t = convexTest(schema, modules);
-      const staffId = await t.run(async (ctx) => {
-        const shopId = await seedShop(ctx, "未解決staff通知店舗");
-        const staffId = await seedStaff(ctx, {
-          shopId,
-          name: "未解決staff",
-          email: "stored-unresolved@example.com",
-        });
-        await ctx.db.patch(staffId, { organizationId: undefined, organizationPersonId: undefined });
-        return staffId;
-      });
-
-      await expect(
-        t.query(internal.notification.queries.getOpenRecruitmentNotificationDataForStaff, { staffId }),
-      ).resolves.toBeNull();
-    });
-
     it("シフト対象外スタッフには募集通知データを返さない", async () => {
       const t = convexTest(schema, modules);
       const staffId = await t.run(async (ctx) => {

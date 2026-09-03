@@ -84,78 +84,32 @@ export type CanonicalLineRecipientSnapshot = {
   organizationPersonLineGenerationAtEnqueue: number;
 };
 
-export type NotificationLineRecipient =
-  | ({
-      authority: "legacy";
-      lineUserId: string;
-      following: boolean;
-    } & (
-      | {
-          organizationPersonLineLinkId: Id<"organizationPersonLineLinks">;
-          generation: number;
-        }
-      | {
-          organizationPersonLineLinkId?: never;
-          generation?: never;
-        }
-    ))
-  | {
-      authority: "canonical";
-      organizationPersonLineLinkId: Id<"organizationPersonLineLinks">;
-      generation: number;
-      lineUserId: string;
-      following: boolean;
-    };
+export type NotificationLineRecipient = {
+  authority: "canonical";
+  organizationPersonLineLinkId: Id<"organizationPersonLineLinks">;
+  generation: number;
+  lineUserId: string;
+  following: boolean;
+};
 
 export function toNotificationLineRecipient(
-  recipient:
-    | null
-    | ({
-        authority: "legacy";
-        organizationPersonLineLinkId?: Id<"organizationPersonLineLinks">;
-        generation?: number;
-      } & Pick<NotificationLineRecipient, "lineUserId" | "following">)
-    | Extract<NotificationLineRecipient, { authority: "canonical" }>,
+  recipient: NotificationLineRecipient | null,
 ): NotificationLineRecipient | null {
   if (!recipient) return null;
-  if (
-    recipient.authority === "legacy" &&
-    (recipient.organizationPersonLineLinkId === undefined) !== (recipient.generation === undefined)
-  ) {
-    return null;
-  }
-  return recipient.authority === "canonical"
-    ? {
-        authority: "canonical",
-        organizationPersonLineLinkId: recipient.organizationPersonLineLinkId,
-        generation: recipient.generation,
-        lineUserId: recipient.lineUserId,
-        following: recipient.following,
-      }
-    : recipient.organizationPersonLineLinkId !== undefined && recipient.generation !== undefined
-      ? {
-          authority: "legacy",
-          organizationPersonLineLinkId: recipient.organizationPersonLineLinkId,
-          generation: recipient.generation,
-          lineUserId: recipient.lineUserId,
-          following: recipient.following,
-        }
-      : {
-          authority: "legacy",
-          lineUserId: recipient.lineUserId,
-          following: recipient.following,
-        };
+  return {
+    authority: "canonical",
+    organizationPersonLineLinkId: recipient.organizationPersonLineLinkId,
+    generation: recipient.generation,
+    lineUserId: recipient.lineUserId,
+    following: recipient.following,
+  };
 }
 
-export function lineRecipientOutboxSnapshot(
-  recipient: NotificationLineRecipient,
-): CanonicalLineRecipientSnapshot | Record<string, never> {
-  return recipient.organizationPersonLineLinkId !== undefined
-    ? {
-        organizationPersonLineLinkId: recipient.organizationPersonLineLinkId,
-        organizationPersonLineGenerationAtEnqueue: recipient.generation,
-      }
-    : {};
+export function lineRecipientOutboxSnapshot(recipient: NotificationLineRecipient): CanonicalLineRecipientSnapshot {
+  return {
+    organizationPersonLineLinkId: recipient.organizationPersonLineLinkId,
+    organizationPersonLineGenerationAtEnqueue: recipient.generation,
+  };
 }
 
 export type NotificationCancelReason =
@@ -163,8 +117,6 @@ export type NotificationCancelReason =
   | "organization_usage_limit_exceeded"
   | "organization_inactive"
   | "shop_deleted"
-  // TODO[narrow]: 全deploymentでm049完走・legacyShopInactiveCancelReason=0確認後に削除する。
-  | "shop_inactive"
   | "recruitment_inactive"
   | "notification_superseded"
   | "recipient_inactive"

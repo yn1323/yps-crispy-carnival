@@ -8,7 +8,7 @@ type Props = {
   staffId: Id<"staffs">;
   enabled: boolean;
   lineConnectionStatus?: "linked" | "unlinked";
-  expectedOrganizationId?: Id<"organizations">;
+  expectedOrganizationId: Id<"organizations">;
 };
 
 export function StaffNotificationHistory({

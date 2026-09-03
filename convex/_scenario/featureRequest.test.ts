@@ -8,7 +8,12 @@ import { getFeatureRequestsRef } from "../analyticsDashboard/refs";
 
 const submitFeatureRequest = makeFunctionReference<
   "mutation",
-  { comment: string; requestId: string; shopId: Id<"shops"> },
+  {
+    expectedOrganizationId: Id<"organizations">;
+    comment: string;
+    requestId: string;
+    shopId: Id<"shops">;
+  },
   { status: "accepted" }
 >("featureRequest/mutations:submit");
 
@@ -40,11 +45,13 @@ describe("要望受付シナリオ", () => {
     const asManager = t.withIdentity({ subject });
 
     await asManager.mutation(submitFeatureRequest, {
+      expectedOrganizationId: seeded.organizationId,
       comment: "スタッフ一覧を絞り込みたい",
       requestId,
       shopId: seeded.shopId,
     });
     await asManager.mutation(submitFeatureRequest, {
+      expectedOrganizationId: seeded.organizationId,
       comment: "再送された要望",
       requestId,
       shopId: seeded.shopId,

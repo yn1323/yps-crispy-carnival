@@ -53,6 +53,7 @@ const shop: ShopDetailData = {
   name: "新宿店",
   regularClosedDays: [],
   submissionPattern: { kind: "dateOnly" },
+  managerNotificationRecipientStatus: "available",
   canUpdateSettings: true,
   canDelete: true,
 };

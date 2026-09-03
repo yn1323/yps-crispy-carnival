@@ -29,7 +29,7 @@ vi.mock("@/src/components/features/UserShopDetail", () => ({
     onBack,
   }: {
     targetShopId: string;
-    expectedOrganizationId?: string;
+    expectedOrganizationId: string;
     onBack: () => void;
   }) => (
     <div>

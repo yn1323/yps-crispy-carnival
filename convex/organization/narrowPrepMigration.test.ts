@@ -1,5 +1,7 @@
+import type { WithoutSystemFields } from "convex/server";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
+import type { Doc } from "../_generated/dataModel";
 import {
   createMigrationHistoryTestWithMigrations,
   legacyStaffDocumentForMigrationHistory,
@@ -7,6 +9,25 @@ import {
 } from "../_test/migrations.test-helper";
 
 const migrationArgs = { batchSize: 100, cursor: null, dryRun: false };
+
+type CurrentOrganizationInsert = WithoutSystemFields<Doc<"organizations">>;
+type CurrentShopInsert = WithoutSystemFields<Doc<"shops">>;
+
+function legacyOrganization(document: unknown): CurrentOrganizationInsert {
+  return document as CurrentOrganizationInsert;
+}
+
+function legacyShop(document: unknown): CurrentShopInsert {
+  return document as CurrentShopInsert;
+}
+
+function legacyShopPatch(document: unknown): Partial<CurrentShopInsert> {
+  return document as Partial<CurrentShopInsert>;
+}
+
+function operatingStatusOf(shop: Doc<"shops"> | null): string | undefined {
+  return (shop as unknown as { operatingStatus?: string } | null)?.operatingStatus;
+}
 
 describe("organization Narrow preparation migrations", () => {
   it("m009〜m011完了後に再流入した旧shapeを再処理し、再実行でも重複を作らない", async () => {
@@ -25,12 +46,15 @@ describe("organization Narrow preparation migrations", () => {
         role: "manager",
         isDeleted: false,
       });
-      const shopId = await ctx.db.insert("shops", {
-        name: "後発旧形式店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      });
+      const shopId = await ctx.db.insert(
+        "shops",
+        legacyShop({
+          name: "後発旧形式店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
       await ctx.db.insert("shopMembers", {
         userId,
         shopId,
@@ -124,7 +148,7 @@ describe("organization Narrow preparation migrations", () => {
       });
 
     const first = await snapshot();
-    expect(first.shop).toMatchObject({ operatingStatus: "active" });
+    expect(operatingStatusOf(first.shop)).toBe("active");
     expect(first.shop?.organizationId).toBeDefined();
     expect(first.peopleIds).toHaveLength(2);
     expect(first.memberIds).toHaveLength(1);
@@ -158,12 +182,15 @@ describe("organization Narrow preparation migrations", () => {
         role: "manager",
         isDeleted: false,
       });
-      const shopId = await ctx.db.insert("shops", {
-        name: "競合所有確認店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      });
+      const shopId = await ctx.db.insert(
+        "shops",
+        legacyShop({
+          name: "競合所有確認店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
       const shopMemberId = await ctx.db.insert("shopMembers", {
         userId,
         shopId,
@@ -200,20 +227,26 @@ describe("organization Narrow preparation migrations", () => {
     const t = createMigrationHistoryTestWithMigrations();
     const ids = await t.run(async (ctx) => {
       const now = Date.now();
-      const shopId = await ctx.db.insert("shops", {
-        name: "既存課金保全店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      });
-      const organizationId = await ctx.db.insert("organizations", {
-        migrationSourceShopId: shopId,
-        name: "既存課金保全グループ",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.patch(shopId, { organizationId, operatingStatus: "active" });
+      const shopId = await ctx.db.insert(
+        "shops",
+        legacyShop({
+          name: "既存課金保全店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
+      const organizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          migrationSourceShopId: shopId,
+          name: "既存課金保全グループ",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
+      await ctx.db.patch(shopId, legacyShopPatch({ organizationId, operatingStatus: "active" }));
       const billingStateId = await ctx.db.insert("organizationBillingStates", {
         organizationId,
         state: { kind: "active", plan: "pro" },
@@ -248,20 +281,26 @@ describe("organization Narrow preparation migrations", () => {
     const t = createMigrationHistoryTestWithMigrations();
     const ids = await t.run(async (ctx) => {
       const now = Date.now();
-      const organizationId = await ctx.db.insert("organizations", {
-        name: "staff link保全グループ",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-      const shopId = await ctx.db.insert("shops", {
-        organizationId,
-        operatingStatus: "active",
-        name: "staff link保全店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      });
+      const organizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          name: "staff link保全グループ",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
+      const shopId = await ctx.db.insert(
+        "shops",
+        legacyShop({
+          organizationId,
+          operatingStatus: "active",
+          name: "staff link保全店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
       const personId = await ctx.db.insert("organizationPeople", {
         organizationId,
         name: "正規人物",
@@ -325,20 +364,26 @@ describe("organization Narrow preparation migrations", () => {
         role: "manager",
         isDeleted: false,
       });
-      const organizationId = await ctx.db.insert("organizations", {
-        name: "本人確認グループ",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-      const shopId = await ctx.db.insert("shops", {
-        organizationId,
-        operatingStatus: "active",
-        name: "本人確認店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      });
+      const organizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          name: "本人確認グループ",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
+      const shopId = await ctx.db.insert(
+        "shops",
+        legacyShop({
+          organizationId,
+          operatingStatus: "active",
+          name: "本人確認店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
       const personId = await ctx.db.insert("organizationPeople", {
         organizationId,
         name: "本人確認スタッフ",
@@ -348,16 +393,19 @@ describe("organization Narrow preparation migrations", () => {
         createdAt: now,
         updatedAt: now,
       });
-      const staffId = await ctx.db.insert("staffs", {
-        shopId,
-        organizationId,
-        organizationPersonId: personId,
-        userId,
-        name: "本人確認スタッフ",
-        email: "linked-person-user-backfill@example.com",
-        emailNormalized: "linked-person-user-backfill@example.com",
-        isDeleted: false,
-      });
+      const staffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          organizationId,
+          organizationPersonId: personId,
+          userId,
+          name: "本人確認スタッフ",
+          email: "linked-person-user-backfill@example.com",
+          emailNormalized: "linked-person-user-backfill@example.com",
+          isDeleted: false,
+        }),
+      );
       return { personId, staffId, userId };
     });
 
@@ -403,20 +451,26 @@ describe("organization Narrow preparation migrations", () => {
         role: "manager",
         isDeleted: false,
       });
-      const organizationId = await ctx.db.insert("organizations", {
-        name: "本人不一致グループ",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-      const shopId = await ctx.db.insert("shops", {
-        organizationId,
-        operatingStatus: "active",
-        name: "本人不一致店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      });
+      const organizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          name: "本人不一致グループ",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
+      const shopId = await ctx.db.insert(
+        "shops",
+        legacyShop({
+          organizationId,
+          operatingStatus: "active",
+          name: "本人不一致店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
       const personId = await ctx.db.insert("organizationPeople", {
         organizationId,
         userId: personUserId,
@@ -427,16 +481,19 @@ describe("organization Narrow preparation migrations", () => {
         createdAt: now,
         updatedAt: now,
       });
-      const staffId = await ctx.db.insert("staffs", {
-        shopId,
-        organizationId,
-        organizationPersonId: personId,
-        userId: staffUserId,
-        name: "スタッフ側人物",
-        email: "staff-user-mismatch@example.com",
-        emailNormalized: "staff-user-mismatch@example.com",
-        isDeleted: false,
-      });
+      const staffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          organizationId,
+          organizationPersonId: personId,
+          userId: staffUserId,
+          name: "スタッフ側人物",
+          email: "staff-user-mismatch@example.com",
+          emailNormalized: "staff-user-mismatch@example.com",
+          isDeleted: false,
+        }),
+      );
       return { personId, personUserId, staffId };
     });
 
@@ -474,20 +531,26 @@ describe("organization Narrow preparation migrations", () => {
         role: "manager",
         isDeleted: false,
       });
-      const organizationId = await ctx.db.insert("organizations", {
-        name: "参照切れ利用者グループ",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-      const shopId = await ctx.db.insert("shops", {
-        organizationId,
-        operatingStatus: "active",
-        name: "参照切れ利用者店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      });
+      const organizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          name: "参照切れ利用者グループ",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
+      const shopId = await ctx.db.insert(
+        "shops",
+        legacyShop({
+          organizationId,
+          operatingStatus: "active",
+          name: "参照切れ利用者店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
       const personId = await ctx.db.insert("organizationPeople", {
         organizationId,
         userId: deletedUserId,
@@ -498,16 +561,19 @@ describe("organization Narrow preparation migrations", () => {
         createdAt: now,
         updatedAt: now,
       });
-      const staffId = await ctx.db.insert("staffs", {
-        shopId,
-        organizationId,
-        organizationPersonId: personId,
-        userId: deletedUserId,
-        name: "削除済み利用者",
-        email: "dangling-staff-user@example.com",
-        emailNormalized: "dangling-staff-user@example.com",
-        isDeleted: false,
-      });
+      const staffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          organizationId,
+          organizationPersonId: personId,
+          userId: deletedUserId,
+          name: "削除済み利用者",
+          email: "dangling-staff-user@example.com",
+          emailNormalized: "dangling-staff-user@example.com",
+          isDeleted: false,
+        }),
+      );
       await ctx.db.delete(deletedUserId);
       return { deletedUserId, personId, staffId };
     });
@@ -546,20 +612,26 @@ describe("organization Narrow preparation migrations", () => {
         role: "manager",
         isDeleted: false,
       });
-      const organizationId = await ctx.db.insert("organizations", {
-        name: "再有効化防止グループ",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-      const shopId = await ctx.db.insert("shops", {
-        organizationId,
-        operatingStatus: "active",
-        name: "再有効化防止店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      });
+      const organizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          name: "再有効化防止グループ",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
+      const shopId = await ctx.db.insert(
+        "shops",
+        legacyShop({
+          organizationId,
+          operatingStatus: "active",
+          name: "再有効化防止店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
       const personId = await ctx.db.insert("organizationPeople", {
         organizationId,
         userId,
@@ -607,20 +679,26 @@ describe("organization Narrow preparation migrations", () => {
     const t = createMigrationHistoryTestWithMigrations();
     const ids = await t.run(async (ctx) => {
       const now = Date.now();
-      const organizationId = await ctx.db.insert("organizations", {
-        name: "派生値保全グループ",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-      const shopId = await ctx.db.insert("shops", {
-        organizationId,
-        operatingStatus: "active",
-        name: "派生値保全店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      });
+      const organizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          name: "派生値保全グループ",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
+      const shopId = await ctx.db.insert(
+        "shops",
+        legacyShop({
+          organizationId,
+          operatingStatus: "active",
+          name: "派生値保全店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
       const staleTargetPersonId = await ctx.db.insert("organizationPeople", {
         organizationId,
         name: "同名人物",

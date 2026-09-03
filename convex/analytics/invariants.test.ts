@@ -140,6 +140,8 @@ describe("Analytics bounded invariants", () => {
       });
       for (let index = 0; index < 501; index += 1) {
         const organizationId = await ctx.db.insert("organizations", {
+          billingEmail: "billing@example.com",
+          billingEmailNormalized: "billing@example.com",
           name: `organization-${index}`,
           isDeleted: false,
           createdAt: NOW - 10_000,
@@ -208,6 +210,8 @@ describe("Analytics bounded invariants", () => {
     const t = convexTest(schema, modules);
     const result = await t.run(async (ctx) => {
       const organizationId = await ctx.db.insert("organizations", {
+        billingEmail: "billing@example.com",
+        billingEmailNormalized: "billing@example.com",
         name: "legacy shop organization",
         isDeleted: false,
         createdAt: DAY.startMs - 10_000,
@@ -366,6 +370,8 @@ describe("Analytics bounded invariants", () => {
     const t = convexTest(schema, modules);
     const fixture = await t.run(async (ctx) => {
       const organizationId = await ctx.db.insert("organizations", {
+        billingEmail: "billing@example.com",
+        billingEmailNormalized: "billing@example.com",
         name: "cycle boundary organization",
         isDeleted: false,
         createdAt: DAY.startMs - 10_000,
@@ -524,6 +530,8 @@ describe("Analytics bounded invariants", () => {
     await expect(
       t.run(async (ctx) => {
         const organizationId = await ctx.db.insert("organizations", {
+          billingEmail: "billing@example.com",
+          billingEmailNormalized: "billing@example.com",
           name: "cycle scope limit organization",
           isDeleted: false,
           createdAt: DAY.startMs - 10_000,
@@ -599,6 +607,8 @@ describe("Analytics bounded invariants", () => {
     const fixture = await t.run(async (ctx) => {
       const oldRegisteredAt = DAY.startMs - 100 * 24 * 60 * 60 * 1_000;
       const organizationId = await ctx.db.insert("organizations", {
+        billingEmail: "billing@example.com",
+        billingEmailNormalized: "billing@example.com",
         name: "activity baseline organization",
         isDeleted: false,
         createdAt: oldRegisteredAt,
@@ -668,6 +678,8 @@ describe("Analytics bounded invariants", () => {
     vi.stubEnv("ANALYTICS_NIGHTLY_CRON_ENABLED", "true");
     const opportunityIds = await t.run(async (ctx) => {
       const organizationId = await ctx.db.insert("organizations", {
+        billingEmail: "billing@example.com",
+        billingEmailNormalized: "billing@example.com",
         name: "redaction organization",
         isDeleted: false,
         createdAt: NOW - 10_000,

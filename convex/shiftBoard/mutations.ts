@@ -135,7 +135,7 @@ async function getUndeliveredPreviousConfirmationStaffIds(
 }
 
 async function buildConfirmationNotificationOperationKey(args: {
-  organizationId?: string;
+  organizationId: string;
   shopId: string;
   shopName: string;
   recruitmentId: string;
@@ -146,7 +146,7 @@ async function buildConfirmationNotificationOperationKey(args: {
 }) {
   const semanticInput = JSON.stringify({
     version: SHIFT_CONFIRMATION_OPERATION_VERSION,
-    organizationId: args.organizationId ?? null,
+    organizationId: args.organizationId,
     shopId: args.shopId,
     shopName: args.shopName,
     recipient: {
@@ -266,9 +266,7 @@ export const saveShiftAssignments = managerMutation({
       assignments: args.assignments,
       periodStart: recruitment.periodStart,
       periodEnd: recruitment.periodEnd,
-      // TODO[narrow]: 全deploymentでm040が完走し、
-      // verifyRecruitments.missingShopClosedDatesが0件になった後にfallbackを削除する。
-      closedDates: recruitment.shopClosedDates ?? [],
+      closedDates: recruitment.shopClosedDates,
       pattern: submissionPattern,
     });
     if (issues.length > 0) {
@@ -374,9 +372,7 @@ export const confirmRecruitment = managerMutation({
       return null;
     }
 
-    // TODO[narrow]: 全deploymentでm040が完走し、
-    // verifyRecruitments.missingShopClosedDatesが0件になった後にfallbackを削除する。
-    const shopClosedDateSet = new Set(recruitment.shopClosedDates ?? []);
+    const shopClosedDateSet = new Set(recruitment.shopClosedDates);
     const existingAssignments = await ctx.db
       .query("shiftAssignments")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
@@ -477,7 +473,7 @@ export const confirmRecruitment = managerMutation({
     const targetStaffIdSet = new Set(targetStaffIds);
     const currentSnapshotByStaffId = new Map(currentSnapshots.map((snapshot) => [snapshot.staffId, snapshot]));
     const operationKey = await buildConfirmationNotificationOperationKey({
-      ...(ctx.organization ? { organizationId: String(ctx.organization._id) } : {}),
+      organizationId: String(ctx.shop.organizationId),
       shopId: String(ctx.shop._id),
       shopName: ctx.shop.name,
       recruitmentId: String(args.recruitmentId),
@@ -528,24 +524,23 @@ export const confirmRecruitment = managerMutation({
       lastConfirmationNotificationOperationKey: operationKey,
       lastConfirmationNotificationRunId: notificationRunId,
     });
-    if (ctx.shop.organizationId)
-      await recordAnalyticsSourceEvent(ctx, {
-        eventKey: `cycle:${args.recruitmentId}:confirmed:run:${notificationRunId}`,
-        eventType: "cycle.changed",
-        occurredAt: confirmedAt,
-        organizationId: ctx.shop.organizationId,
-        shopId: ctx.shop._id,
-        recruitmentId: args.recruitmentId,
-        payload: {
-          kind: "cycle",
-          status: "confirmed",
-          createdAt: recruitment._creationTime,
-          periodStart: recruitment.periodStart,
-          periodEnd: recruitment.periodEnd,
-          deadline: recruitment.deadline,
-          confirmedAt,
-        },
-      });
+    await recordAnalyticsSourceEvent(ctx, {
+      eventKey: `cycle:${args.recruitmentId}:confirmed:run:${notificationRunId}`,
+      eventType: "cycle.changed",
+      occurredAt: confirmedAt,
+      organizationId: ctx.shop.organizationId,
+      shopId: ctx.shop._id,
+      recruitmentId: args.recruitmentId,
+      payload: {
+        kind: "cycle",
+        status: "confirmed",
+        createdAt: recruitment._creationTime,
+        periodStart: recruitment.periodStart,
+        periodEnd: recruitment.periodEnd,
+        deadline: recruitment.deadline,
+        confirmedAt,
+      },
+    });
     const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
     const { operation: fanoutOperation } = await ensureNotificationFanoutOperation(ctx, {
       operationKey,

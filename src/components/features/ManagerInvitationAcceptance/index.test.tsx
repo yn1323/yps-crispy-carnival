@@ -308,7 +308,6 @@ describe("ManagerInvitationAcceptance controller", () => {
       {
         shopId: "shop-invited",
         shopName: "招待先店舗",
-        shopStatus: "active",
         organizationId: "organization-invited",
         organizationName: "招待先組織",
         organizationPlan: "pro",

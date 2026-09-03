@@ -124,6 +124,7 @@ function ConnectedAppShifts({
         <OrganizationRecruitmentManagement
           organizationId={organizationId}
           shopFilter={shopFilter}
+          isSingleShop={shops.length === 1}
           shops={overview.shops}
           groups={overview.groups}
           getRecruitmentShop={(recruitment) => overview.recruitmentShops.get(recruitment._id)}

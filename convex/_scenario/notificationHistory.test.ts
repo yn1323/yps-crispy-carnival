@@ -5,7 +5,7 @@ import type { Id } from "../_generated/dataModel";
 import { resetResendEmailQueueForTest } from "../_lib/resend";
 import { MANAGER_SUBJECT, SCENARIO_NOW, type ScenarioTest, seedStaff } from "../_test/scenarioBuilders";
 import { createScenario } from "../_test/scenarioFixtures";
-import { seedCanonicalStaffLineRecipient, seedManagerShop } from "../_test/seed";
+import { getTestOrganizationId, seedCanonicalStaffLineRecipient, seedManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { NOTIFICATION_OUTBOX_ENQUEUE_DELAY_MS } from "../constants";
 
@@ -206,7 +206,7 @@ describe("スタッフ通知履歴シナリオ", () => {
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
     const ids = await t.run(async (ctx) => {
-      const { shopId } = await seedManagerShop(ctx, {
+      const { organizationId, shopId } = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
         email: "cleanup-manager@example.com",
         shopName: "履歴削除店舗",
@@ -221,8 +221,12 @@ describe("スタッフ通知履歴シナリオ", () => {
           channel: "email",
           status: "sent",
           dedupeKey: `email:test:history-cleanup:${index}`,
+          organizationId,
           shopId,
           staffId,
+          purpose: "business",
+          notificationContext: "test.historyCleanup",
+          deliverySuppressed: false,
           payload: {
             kind: "email",
             from: "シフトリ <noreply@example.com>",
@@ -270,6 +274,7 @@ async function listHistory(t: ScenarioTest, ids: { shopId: Id<"shops">; staffId:
   return await t
     .withIdentity({ subject: MANAGER_SUBJECT })
     .query(api.notificationOutbox.queries.listStaffNotificationHistory, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
       staffId: ids.staffId,
       paginationOpts: { numItems: 20, cursor: null },

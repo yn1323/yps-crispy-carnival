@@ -2,6 +2,7 @@ import { type FunctionReference, makeFunctionReference } from "convex/server";
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
+import { getTestOrganizationId } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { DEVELOPMENT_SEED_SCENARIO_KEYS, type DevelopmentSeedScenarioKey } from "../developmentSeed/catalog";
 import { hasCurrentStaffLegalConsent } from "../legal/service";
@@ -188,9 +189,6 @@ describe("development seed rebuild", () => {
         return "planIdVersion" in state || state.kind === "grace" || Object.values(state).includes("business");
       }).length,
       legacyShopBillingStateCount: (await ctx.db.query("shopBillingStates").collect()).length,
-      legacyShopOperatingStatusCount: (await ctx.db.query("shops").collect()).filter(
-        (shop) => shop.operatingStatus !== undefined,
-      ).length,
       deletedShopCount: (await ctx.db.query("shops").collect()).filter((shop) => shop.isDeleted).length,
       deletedStaffCount: (await ctx.db.query("staffs").collect()).filter((staff) => staff.isDeleted).length,
       delayedDeadlines: await ctx.db.query("notificationResendDelayedFailureDeadlines").collect(),
@@ -205,7 +203,6 @@ describe("development seed rebuild", () => {
       failureStatuses: ["open", "resolved"],
       legacyBillingShapeCount: 0,
       legacyShopBillingStateCount: 0,
-      legacyShopOperatingStatusCount: 0,
       deletedShopCount: 0,
       deletedStaffCount: 0,
       delayedDeadlines: [],
@@ -407,6 +404,7 @@ describe("development seed rebuild", () => {
     expect(productScopes.confirmationNotificationGraphMatches).toBe(true);
     const primaryManager = t.withIdentity({ tokenIdentifier: PRIMARY_AUTH_TOKEN_IDENTIFIER });
     const visibleFailures = await primaryManager.query(api.notificationOutbox.queries.listOpenFailures, {
+      expectedOrganizationId: await getTestOrganizationId(t, productScopes.businessShopId),
       shopId: productScopes.businessShopId,
       paginationOpts: { numItems: 10, cursor: null },
     });
@@ -418,8 +416,14 @@ describe("development seed rebuild", () => {
     });
 
     const [freeRequests, trialRequests] = await Promise.all([
-      primaryManager.query(api.staffRegistration.queries.getPendingRequests, { shopId: productScopes.freeShopId }),
-      primaryManager.query(api.staffRegistration.queries.getPendingRequests, { shopId: productScopes.trialShopId }),
+      primaryManager.query(api.staffRegistration.queries.getPendingRequests, {
+        expectedOrganizationId: await getTestOrganizationId(t, productScopes.freeShopId),
+        shopId: productScopes.freeShopId,
+      }),
+      primaryManager.query(api.staffRegistration.queries.getPendingRequests, {
+        expectedOrganizationId: await getTestOrganizationId(t, productScopes.trialShopId),
+        shopId: productScopes.trialShopId,
+      }),
     ]);
     expect(freeRequests).toEqual([expect.objectContaining({ name: "[SEED] 上限で承認不可", canApprove: true })]);
     expect(trialRequests).toEqual([
@@ -428,6 +432,7 @@ describe("development seed rebuild", () => {
     ]);
     await expect(
       primaryManager.mutation(api.staffRegistration.mutations.approveRequest, {
+        expectedOrganizationId: await getTestOrganizationId(t, productScopes.freeShopId),
         shopId: productScopes.freeShopId,
         requestId: freeRequests[0]._id,
       }),
@@ -435,6 +440,7 @@ describe("development seed rebuild", () => {
     const approvableTrialRequest = trialRequests.find((request) => request.canApprove);
     if (!approvableTrialRequest) throw new Error("Missing approvable Trial request");
     await primaryManager.mutation(api.staffRegistration.mutations.approveRequest, {
+      expectedOrganizationId: await getTestOrganizationId(t, productScopes.trialShopId),
       shopId: productScopes.trialShopId,
       requestId: approvableTrialRequest._id,
     });
@@ -456,8 +462,14 @@ describe("development seed rebuild", () => {
       expect.objectContaining({ required: false }),
     );
     const [scheduledStopSettings, policyOverLimitSettings] = await Promise.all([
-      primaryManager.query(api.organization.queries.getSettings, { shopId: productScopes.scheduledStopShopId }),
-      primaryManager.query(api.organization.queries.getSettings, { shopId: productScopes.policyOverLimitShopId }),
+      primaryManager.query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, productScopes.scheduledStopShopId),
+        shopId: productScopes.scheduledStopShopId,
+      }),
+      primaryManager.query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, productScopes.policyOverLimitShopId),
+        shopId: productScopes.policyOverLimitShopId,
+      }),
     ]);
     expect(scheduledStopSettings?.billing).toMatchObject({
       state: "scheduledChange",

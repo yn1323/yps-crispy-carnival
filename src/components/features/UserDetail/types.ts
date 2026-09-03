@@ -7,7 +7,7 @@ export type UserDetailData = NonNullable<FunctionReturnType<typeof api.organizat
 
 export type UserMembershipChangeInput = Omit<
   FunctionArgs<typeof api.staff.mutations.changeOrganizationPersonShopMemberships>,
-  "personId"
+  "personId" | "expectedOrganizationId"
 >;
 
 export type UserDetailRemovalPreview = UserDetailData["removalPreview"];

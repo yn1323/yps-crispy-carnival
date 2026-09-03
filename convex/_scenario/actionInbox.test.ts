@@ -4,7 +4,7 @@ import { api, internal } from "../_generated/api";
 import { getDeadlineCutoff } from "../_lib/dateFormat";
 import { seedActionInboxSources } from "../_test/actionInboxFixtures";
 import { readScheduledFunctions } from "../_test/scenarioBuilders";
-import { seedOrganizationManagerShop } from "../_test/seed";
+import { getTestOrganizationId, seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { RESEND_DELAYED_FAILURE_GRACE_MS } from "../constants";
 
@@ -101,6 +101,7 @@ describe("組織の対応一覧シナリオ", () => {
     });
 
     await manager.mutation(api.staffRegistration.mutations.rejectRequest, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
       requestId: ids.registrationRequestId,
     });
@@ -116,6 +117,7 @@ describe("組織の対応一覧シナリオ", () => {
     ]);
 
     await manager.mutation(api.notificationOutbox.mutations.resolveFailure, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
       failureId: ids.notificationFailureId,
     });
@@ -204,6 +206,8 @@ describe("組織の対応一覧シナリオ", () => {
         organizationInvitationId: invitationId,
         organizationInvitationVersion: 1,
         purpose: "business",
+        notificationContext: "organizationInvitation.managerInvite",
+        deliverySuppressed: false,
         payload: {
           kind: "organizationManagerInvitationEmail",
           from: "noreply@example.com",
@@ -323,6 +327,8 @@ describe("組織の対応一覧シナリオ", () => {
         organizationInvitationId: invitationId,
         organizationInvitationVersion: 1,
         purpose: "business",
+        notificationContext: "organizationInvitation.managerInvite",
+        deliverySuppressed: false,
         payload: {
           kind: "organizationManagerInvitationEmail",
           from: "noreply@example.com",

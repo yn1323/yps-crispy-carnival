@@ -165,10 +165,10 @@ LINE / メール通知を同期送信せず、Convex の `notificationOutbox` �
 
 - `sent` / `failed` / `cancelled` は`terminalAt`から30日間だけ配送payloadを保持し、期限後はkind・`notificationContext`・`deliverySuppressed`・dedupe・監査ID・状態時刻だけを残す。
 - `pending` / `processing` は送信に必要なためretention対象外にする。
-- schema Widenでは`organizationId` / `purpose` / `notificationContext` / `deliverySuppressed` / `terminalAt` / `payloadRedactedAt` / `sensitiveDataRedactedAt`をoptionalで追加する。旧Outbox rowはtop-level fieldがなければ現行business rule、`shop.organizationId`、既存payloadからdual-readする。
-- 新規enqueueは`purpose`を常に明示し、canonical店舗の`organizationId`を保存する。新しいterminal遷移は`terminalAt`を保存する。narrowは対象deploymentの補完完了を確認するまで行わない。
+- `organizationId` / `purpose` / `notificationContext` / `deliverySuppressed`はrequiredである。  現行readerは保存済みOutboxを店舗所属やpayloadへ戻して補完しない。
+- 新規enqueueは`purpose`を明示し、canonicalな`organizationId`を保存する。  旧scheduled引数に限り、互換stubが必須値へ正規化してから保存する。
 - m037は、`organizationId`が欠損し、参照店舗とその事業者が実在するrowだけを店舗の所属へ補完する。両scope欠損、dangling参照、保存済み事業者と店舗所属の不一致はtenant scopeを推測せず、`organizationMigrationConflicts`へPIIなしで記録する。`organizationBillingVersionAtEnqueue`はenqueue時点のsnapshotなので現在値から補完せず、業務上optionalのまま維持する。
-- `notificationFanoutOperations.supersedesActiveOperations`は個別再送導入時のoptional wideningである。旧rowは従来挙動を表す`true`へm030で補完する。`false`の個別再送だけが持つ二つのbaselineは条件付きfieldのまま維持し、欠損rowはreadinessでfail closedに確認する。
+- `notificationFanoutOperations.supersedesActiveOperations`はrequiredである。  `false`の個別再送だけが持つ二つのbaselineは条件付きfieldのまま維持し、欠損rowはreadinessでfail closedに確認する。
 - `magicLinks.notificationOperationKey` と `notificationOutbox.fanoutTargetKey` / `fanoutOperationId` はoptional wideningとする。旧view linkへ誤ったoperationを割り当てる方が危険なため一括backfillは行わず、旧Outboxは再開時にemail/LINE両方の既存dedupe keyを照合してtarget keyとoperation IDをlazy付与する。旧scheduled actionが残っていないことと、optional field未設定の新規fanout link/Outboxが0件であることを確認できた後にだけnarrowを検討する。
 - `notificationFanoutOperations.scheduledFunctionId`もoptional wideningとし、既存operationに一括backfillしない。回復cronが予約漏れ・失敗済みscheduler rowだけを再予約してIDを保存し、生存中のpending / in-progress scheduler rowは重ねない。batch完了時はlease回収予約をcancelしてから次batchを予約する。
 - rolling deployでは旧`sendCurrentShiftConfirmationForStaff` action名・旧query return shape・旧`upsertConfirmationSnapshot` mutation名を1互換期間残す。pendingの旧actionは新しいdurable fanoutへ移す。in-progress旧actionのsnapshot mutationは、渡されたraw assignmentsと従来signatureの整合性を先に検証する。  時間入力方式はその後に保存済みと現在の割当をsemantic canonicalizeし、splitとmergedの表現差だけなら同値とする。  壊れたsignatureは同値とせず、新しいsnapshotはcanonical assignmentsから従来方式のsignatureを再計算して保存する。  最新確定operation×staffのcanonical Outboxが実在する場合だけ互換snapshotを保存し、受付時baselineを復元できない旧`manualConfirmation` Outboxは、enqueue時とprovider呼び出し直前の両方で`notification_superseded`へfail closedする。  作成済みOutboxのpayload、dedupe key、fanout operation、provider idempotency keyは書き換えない。
@@ -183,9 +183,9 @@ npx convex run --component migrations lib:getStatus --watch --deployment <fully-
 npx convex run notificationOutbox/maintenance:getRedactionReadiness --deployment <fully-qualified-deployment>
 ```
 
-`lib:getStatus`はmigrationのcursor完走を確認する正とする。`getRedactionReadiness`はindexでboundedに走査し、terminal時刻欠落、期限切れterminal未redact、期限切れFailureInbox未redactがすべて0で`ready: true`になることを別に確認する。`purpose` / `notificationContext` / `deliverySuppressed`のrequired化と旧payload fallback削除は、これらのredaction条件に加え、全deploymentでm024が`isDone: true`かつ`state: "success"`となり、3 fieldの欠損が0件であることを確認した後の別deployでだけ検討する。
-
-`organizationId`のrequired化は、全deploymentでm025 / m037が完走し、`verifyNotificationOutbox`のscope異常と`verifyOrganizationMigrationConflicts.unresolvedNotificationOutboxScopeRows`がすべて0件になった後の別deployで行う。そのdeployで`purpose ?? "business"`、purpose未設定を読むindex分岐、Widen前shop-scoped scan、保存済みOutboxを店舗所属へ戻して判定するfallbackをまとめて削除する。Productionのstatusと全ページreadinessを確認していない現在の変更では、schema optionalとreader fallbackを維持する。
+`lib:getStatus`はmigrationのcursor完走を確認する正とする。
+`getRedactionReadiness`はindexでboundedに走査し、terminal時刻欠落、期限切れterminal未redact、期限切れFailureInbox未redactがすべて0で`ready: true`になることを別に確認する。
+Narrow artifactの反映前には、m024 / m025 / m037の成功、`verifyNotificationOutbox`の全scope異常0件、`verifyOrganizationMigrationConflicts.unresolvedNotificationOutboxScopeRows: 0`を対象deploymentごとに確認する。
 
 個別再送behaviorをrollbackする場合は、最初にmanual受付を停止する。`supersedesActiveOperations: false`のoperationと参照Outboxをdrainまたはcancelし、欠落0を確認するまではundefinedを旧canonicalとして読むcompat readerとprovider直前gateを維持する。false operation / Outboxの残件と通知欠落が0になった後にだけbehaviorを戻し、optional fieldは互換期間が終わるまで残す。
 

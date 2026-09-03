@@ -13,7 +13,7 @@ const shopFilterValidator = v.union(v.literal("all"), v.id("shops"));
 const availabilityValidator = v.union(
   v.literal("ready"),
   v.literal("tooManyPeople"),
-  v.literal("tooManyActiveShops"),
+  v.literal("tooManyShops"),
   v.literal("legacyDataIncomplete"),
 );
 
@@ -37,22 +37,11 @@ const organizationStaffOrderEditorValidator = v.object({
   availability: availabilityValidator,
 });
 
-function projectAvailability(availability: OrganizationStaffOrderAvailability): typeof availabilityValidator.type {
-  switch (availability) {
-    case "tooManyShops":
-      return "tooManyActiveShops";
-    case "ready":
-    case "tooManyPeople":
-    case "legacyDataIncomplete":
-      return availability;
-  }
-}
-
 function availabilityDisabledReason(availability: typeof availabilityValidator.type) {
   switch (availability) {
     case "tooManyPeople":
       return `利用人数が${ORGANIZATION_STAFF_ORDER_PEOPLE_LIMIT}名を超えているため、並び順を変更できません。`;
-    case "tooManyActiveShops":
+    case "tooManyShops":
       return "店舗が5店舗を超えているため、並び順を変更できません。";
     case "legacyDataIncomplete":
       return "スタッフ情報を確認できないため、並び順を変更できません。";
@@ -67,10 +56,11 @@ export const getOrganizationStaffOrderEditor = organizationQuery({
   handler: async (ctx) => {
     const snapshot = await getOrganizationStaffOrderEditorSnapshot(ctx, ctx.organization._id);
     const policy = await getOrganizationBillingPolicy(ctx, ctx.organization._id);
-    const availability = projectAvailability(snapshot.availability);
+    if (!policy) throw new Error("Billing state not found");
+    const availability: OrganizationStaffOrderAvailability = snapshot.availability;
     const availabilityReason = availabilityDisabledReason(availability);
     const memberCanWrite = ctx.organizationMember.status === "active";
-    const billingCanWrite = policy?.canWriteBusinessData ?? true;
+    const billingCanWrite = policy.canWriteBusinessData;
     const canWrite = memberCanWrite && billingCanWrite && snapshot.availability === "ready";
     const peopleById = new Map((snapshot.source?.people ?? []).map((person) => [person._id, person] as const));
     const shopNamesByPersonId = new Map<string, string[]>();

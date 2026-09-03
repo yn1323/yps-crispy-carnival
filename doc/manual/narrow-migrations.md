@@ -1,7 +1,32 @@
 # Narrow Migrationの運用
 
 この手順は、過去にWidenした保存形式をNarrowする前に、対象deploymentのデータ収束を確認するためのものです。
-Production Migrationの実行や旧tableの物理削除は、この文書を追加した変更では行いません。
+Production Migrationの実行や旧tableの物理削除は、このNarrow変更では行いません。
+
+## RepositoryのNarrow状態
+
+2026年9月のNarrow変更では、既存のm023からm050とreadinessを前提に、保存documentの必須field、現行reader、writer、DTOを同じ契約へ揃えます。
+新しいMigrationは追加しません。
+
+次の保存fieldはrequiredへ戻し、欠損fallbackと旧writerを削除します。
+
+- `shops.organizationId`、`shops.regularClosedDays`
+- `organizations.billingEmail`、`organizations.billingEmailNormalized`
+- `users.emailNormalized`、`staffs`のcanonical ID・正規化メール・シフト対象外flag
+- `recruitments.shopClosedDates`、`shiftSubmissions.firstSubmittedAt`、`positions.isDefault`
+- `magicLinks.accessKind`、`sessions.accessKind`、LINE token、fanout、OutboxのNarrow対象field
+
+`shops.operatingStatus`と関連index、旧店舗単位の管理者authority、課金欠損時の許可扱い、旧DTO・旧APIは削除します。
+`recruitments.draftSavedAt`など、業務上未設定が正しい条件付きfieldはoptionalを維持します。
+
+旧tableは、この変更で物理削除しません。
+`shopBillingStates`と`shopMembers`は保持件数とretention判断、`staffLineAccounts`は現行dual-write、`organizationMigrationConflicts`は未解決件数と運用履歴の確認が必要です。
+
+旧scheduled function名と旧scheduled引数は、`_scheduled_functions`のdrainを確認できるまで互換stubを残します。
+この互換は新しい保存documentへ必須値を補ってから書き込むため、保存schemaのNarrowとは分けて管理します。
+
+このrepository状態を対象deploymentへ反映できるかは、後述するDry Runと全ページreadinessで判定します。
+リポジトリの型検査やテスト成功だけでは、Productionへの反映完了を示しません。
 
 ## 判定に必要な二つの証拠
 
@@ -83,7 +108,6 @@ pnpm exec convex run narrowReadiness/queries:verifyShops \
 - `verifyStaffs`
 - `verifyOrganizations`
 - `verifyNotificationOutbox`
-- `verifyOrganizationBillingStates`
 - `verifyNotificationFanoutOperations`
 - `verifyRecruitments`
 - `verifyShiftSubmissions`
@@ -301,9 +325,11 @@ pnpm exec convex run migrations/index:runShopMembersNarrowPreparation \
 - スタッフ提出画面の旧versionが`submitShiftRequests.requests`を送っておらず、全callerがrequiredな`submission` discriminated unionを送る。
 - 旧API名、旧literal、optional argsを利用する外部callerがないことを、deploy履歴とアクセス記録で確認する。
 - 店舗ライフサイクルのPR2では、`listOrganizationActiveShops`、`desiredActiveShopIds`、固定値の`operatingStatus` / `shopStatus: "active"`、利用上限の`activeShops`、スタッフ並び順の`tooManyActiveShops`とv1 fingerprintの`activeShops`、旧localStorage statusを使うclientが残っていないことを確認する。
-- LINE共通化では、旧shapeの未使用token、generation snapshotのないactive LINE Outbox、旧shapeの予約済み`sendInviteEmail`が0件である。常時canonical readのartifact反映後も、旧shapeを新規作成するwriterがない。
+- LINE共通化では、全tokenのcanonical snapshot欠損、旧shapeの未使用token、generation snapshotのないactive LINE Outbox、旧shapeの予約済み`sendInviteEmail`が0件である。常時canonical readのartifact反映後も、旧shapeを新規作成するwriterがない。
 
-このgateを確認できない場合、保存schemaだけを先にrequired化しません。  runtime fallbackには削除条件を示す`TODO[narrow]`を残し、次のNarrow deployでschema、validator、reader、writerを同時に削除します。
+このgateを確認できない互換APIとscheduled functionには、削除条件を示す`TODO[narrow]`を残します。
+旧引数を現行の必須保存形式へ正規化できる場合は、保存schemaのNarrowと互換stubの削除を分けます。
+旧引数から必須値を安全に導けない場合は、validator、reader、writerをNarrowせず、callerのdrainまで停止します。
 
 ## Schema Narrowと旧authority削除
 
@@ -328,7 +354,7 @@ Narrow deploy後も、旧形式を投入するMigration Testはschema validation
 
 `shops`、`shopMembers`、`shopBillingStates`はm025からm029の関係するstatusとreadinessを満たしてから、optionalなcanonical IDとlegacy authority fallbackを削除します。  m029を実行していないdeploymentでは`shopMembers` fallbackを削除しません。
 
-`notificationOutbox`は、m024 / m025 / m030 / m037のstatus、全ページreadiness、Outbox所有conflictの未解消0件、旧scheduled callerのdrainが揃った後にだけNarrowします。  `organizationId` / `purpose` / `notificationContext` / `deliverySuppressed`をrequired化し、`purpose ?? "business"`、purpose未設定のindex分岐、Widen前shop-scoped scan、店舗所属へ戻すreader fallbackを同じ契約変更で削除します。  `shopId`はbilling等のorganization-only通知で、`organizationBillingVersionAtEnqueue`は履歴snapshotとして、どちらもoptionalのまま維持します。
+`notificationOutbox`は、m024 / m025 / m030 / m037のstatus、全ページreadiness、Outbox所有conflictの未解消0件を確認してNarrowします。  `organizationId` / `purpose` / `notificationContext` / `deliverySuppressed`をrequired化し、purpose未設定の保存documentを読むindex分岐、Widen前shop-scoped scan、店舗所属へ戻すreader fallbackを同じ契約変更で削除します。  旧scheduled callerを受けるinternal enqueue引数の`purpose ?? "business"`正規化と旧dedupe key互換だけは、保存schemaのNarrowと分け、予約のdrain確認後に削除します。  `shopId`はbilling等のorganization-only通知で、`organizationBillingVersionAtEnqueue`は履歴snapshotとして、どちらもoptionalのまま維持します。
 
 LINE共通化のlegacy readを削除したartifactは、m041を実行した場合のstatus、全LINE readiness、旧token・scheduled caller・generation欠損Outboxのdrainを確認してから対象deploymentへ反映します。  dual-writeの停止と`staffLineAccounts`の物理削除は別の保持判断とcleanupに分け、常時canonical readへの変更と同時には行いません。
 

@@ -1,7 +1,12 @@
+import type { WithoutSystemFields } from "convex/server";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import { createMigrationHistoryTestWithMigrations, runMigrationToCompletion } from "../_test/migrations.test-helper";
+
+function legacyDocument<T>(document: unknown): T {
+  return document as T;
+}
 
 describe("m029 shopMembers Narrow preparation migration", () => {
   it("canonical所属へ収束した旧rowだけ失効し、未移行rowと再実行結果を保全する", async () => {
@@ -18,20 +23,26 @@ describe("m029 shopMembers Narrow preparation migration", () => {
           isDeleted: false,
         });
       const createShop = async (name: string, organizationId?: Id<"organizations">) =>
-        await ctx.db.insert("shops", {
-          ...(organizationId ? { organizationId, operatingStatus: "active" as const } : {}),
-          name,
-          submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "22:00" },
-          regularClosedDays: [],
-          isDeleted: false,
-        });
+        await ctx.db.insert(
+          "shops",
+          legacyDocument<WithoutSystemFields<Doc<"shops">>>({
+            ...(organizationId ? { organizationId, operatingStatus: "active" as const } : {}),
+            name,
+            submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "22:00" },
+            regularClosedDays: [],
+            isDeleted: false,
+          }),
+        );
       const createOrganization = async (name: string) =>
-        await ctx.db.insert("organizations", {
-          name,
-          isDeleted: false,
-          createdAt: now,
-          updatedAt: now,
-        });
+        await ctx.db.insert(
+          "organizations",
+          legacyDocument<WithoutSystemFields<Doc<"organizations">>>({
+            name,
+            isDeleted: false,
+            createdAt: now,
+            updatedAt: now,
+          }),
+        );
       const createLegacyMembership = async (userId: Id<"users">, shopId: Id<"shops">) =>
         await ctx.db.insert("shopMembers", { userId, shopId, role: "manager", isDeleted: false });
 
@@ -143,20 +154,26 @@ describe("m029 shopMembers Narrow preparation migration", () => {
         role: "manager",
         isDeleted: false,
       });
-      const organizationId = await ctx.db.insert("organizations", {
-        name: "事業者",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-      const shopId = await ctx.db.insert("shops", {
-        organizationId,
-        operatingStatus: "active",
-        name: "店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-        regularClosedDays: [],
-        isDeleted: false,
-      });
+      const organizationId = await ctx.db.insert(
+        "organizations",
+        legacyDocument<WithoutSystemFields<Doc<"organizations">>>({
+          name: "事業者",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
+      const shopId = await ctx.db.insert(
+        "shops",
+        legacyDocument<WithoutSystemFields<Doc<"shops">>>({
+          organizationId,
+          operatingStatus: "active",
+          name: "店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        }),
+      );
       const shopMemberId = await ctx.db.insert("shopMembers", {
         userId,
         shopId,

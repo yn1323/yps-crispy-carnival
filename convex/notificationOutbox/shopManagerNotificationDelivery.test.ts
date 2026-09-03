@@ -38,6 +38,7 @@ describe("店舗管理通知の配送直前検証", () => {
         name: "店舗通知管理者",
         email: "shop-manager-email@example.com",
         emailNormalized: "shop-manager-email@example.com",
+        excludedFromShift: false,
         isDeleted: false,
       });
       return { ...seeded, staffId };
@@ -94,6 +95,7 @@ describe("店舗管理通知の配送直前検証", () => {
         name: "LINE店舗通知管理者",
         email: "shop-manager-line@example.com",
         emailNormalized: "shop-manager-line@example.com",
+        excludedFromShift: false,
         isDeleted: false,
       });
       const recipient = await seedCanonicalStaffLineRecipient(ctx, {

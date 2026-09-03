@@ -97,12 +97,12 @@ const data = {
   isSelf: false,
   canWrite: true,
   line: { actionShopId: "shop-a" },
-  shops: [{ shopId: "shop-a", shopStatus: "active" }],
+  shops: [{ shopId: "shop-a" }],
   memberships: [],
 } as unknown as UserDetailData;
 const membershipChangeInput = {
   shopId: "shop-c",
-  desiredActiveShopIds: ["shop-c"],
+  desiredShopIds: ["shop-c"],
   expectedMembershipFingerprint: "membership-fingerprint",
   removalPreviews: [],
   requestId: "change-request",

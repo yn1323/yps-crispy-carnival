@@ -20,7 +20,17 @@ import {
 
 const WEEKDAY_ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 const PRIOR_OPERATION_ERROR = "以前の操作結果を確認できません。";
-const MANAGER_AUTHORITY_SCAN_LIMIT = 50;
+const regularClosedDaysValidator = v.array(
+  v.union(
+    v.literal("sun"),
+    v.literal("mon"),
+    v.literal("tue"),
+    v.literal("wed"),
+    v.literal("thu"),
+    v.literal("fri"),
+    v.literal("sat"),
+  ),
+);
 
 function invalidPromotionCode(): never {
   throw new ConvexError({ code: PROMOTION_CODE_INVALID_ERROR_CODE });
@@ -79,23 +89,6 @@ async function assertInitialSetupEligibility(ctx: InitialSetupCtx): Promise<void
   if (selfCreatedOrganizations.length === 1) {
     throw new ConvexError("自分で作成できる組織は1つまでです。");
   }
-
-  // TODO[narrow]: 全deploymentでm025/m029が完走し、verifyShops/verifyLegacyShopMembersの
-  //   全pageが0件になった後、このlegacy shopMembers guardを削除する。
-  const legacyMemberships = ctx.db
-    .query("shopMembers")
-    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", currentUser._id).eq("isDeleted", false));
-  for await (const membership of legacyMemberships) {
-    const legacyShop = await ctx.db.get(membership.shopId);
-    if (!legacyShop || legacyShop.isDeleted) continue;
-    if (!legacyShop.organizationId) {
-      throw new ConvexError("すでに店舗が登録されています。");
-    }
-    const organization = await ctx.db.get(legacyShop.organizationId);
-    if (organization && !organization.isDeleted) {
-      throw new ConvexError("すでに組織へ所属しています。");
-    }
-  }
 }
 
 export const verifyPromotionCode = authenticatedMutation({
@@ -108,50 +101,17 @@ export const verifyPromotionCode = authenticatedMutation({
   },
 });
 
-const additionalOrganizationArgs = {
-  shopName: v.string(),
-  sourceShopId: v.optional(v.id("shops")),
-  regularClosedDays: v.optional(
-    v.array(
-      v.union(
-        v.literal("sun"),
-        v.literal("mon"),
-        v.literal("tue"),
-        v.literal("wed"),
-        v.literal("thu"),
-        v.literal("fri"),
-        v.literal("sat"),
-      ),
-    ),
-  ),
-  submissionPattern: submissionPatternValidator,
-  requestId: v.string(),
-};
-
 const appAdditionalOrganizationArgs = {
   organizationId: v.id("organizations"),
   shopName: v.string(),
-  regularClosedDays: v.optional(
-    v.array(
-      v.union(
-        v.literal("sun"),
-        v.literal("mon"),
-        v.literal("tue"),
-        v.literal("wed"),
-        v.literal("thu"),
-        v.literal("fri"),
-        v.literal("sat"),
-      ),
-    ),
-  ),
+  regularClosedDays: regularClosedDaysValidator,
   submissionPattern: submissionPatternValidator,
   requestId: v.string(),
 };
 
 type AdditionalOrganizationArgs = {
   shopName: string;
-  sourceShopId?: Id<"shops">;
-  regularClosedDays?: (typeof WEEKDAY_ORDER)[number][];
+  regularClosedDays: (typeof WEEKDAY_ORDER)[number][];
   submissionPattern: typeof submissionPatternValidator.type;
   requestId: string;
 };
@@ -218,23 +178,6 @@ export const setupShopAndManager = authenticatedMutation({
   },
 });
 
-/**
- * 既に管理者として利用している人が、二つ目以降の組織を作る。
- *
- * 初回セットアップと違い、users行と利用規約の同意状態は既にあるため変更しない。
- * 追加組織はフリープランで始める。
- */
-export const createOrganization = authenticatedMutation({
-  args: additionalOrganizationArgs,
-  returns: v.object({ shopId: v.id("shops"), created: v.boolean() }),
-  handler: async (ctx, args) => {
-    const user = ctx.user;
-    if (!user) throw new ConvexError("組織を作成する前に、初期設定を完了してください。");
-    const result = await createAdditionalOrganization(ctx, user, args);
-    return { shopId: result.shopId, created: result.created };
-  },
-});
-
 /** app navigation用。作成した組織をURL authorityへ採用できるようorganizationIdも返す。 */
 export const createOrganizationForApp = authenticatedMutation({
   args: appAdditionalOrganizationArgs,
@@ -273,7 +216,7 @@ async function createAdditionalOrganization(
   ctx: MutationCtx,
   user: Doc<"users">,
   args: AdditionalOrganizationArgs,
-  managerProfileOverride?: {
+  managerProfile: {
     name: string;
     email: string;
     source: "canonicalPerson";
@@ -283,8 +226,6 @@ async function createAdditionalOrganization(
     throw new ConvexError(ORGANIZATION_CREATE_UNAVAILABLE_MESSAGE);
   }
 
-  const managerProfile =
-    managerProfileOverride ?? (await resolveOrganizationCreationManagerProfile(ctx, user, args.sourceShopId));
   const requestKey = await toAuditRequestKey(args.requestId);
   const correlationId = `user:${user._id}:organization:create:${requestKey}`;
   const prior = await findPriorCreatedOrganizationShop(ctx, { correlationId, userId: user._id });
@@ -302,7 +243,7 @@ async function createAdditionalOrganization(
   if (!availability.canCreate) throw new ConvexError(availability.reason);
   const parsed = updateShopSettingsSchema.safeParse({
     shopName: args.shopName,
-    regularClosedDays: args.regularClosedDays ?? [],
+    regularClosedDays: args.regularClosedDays,
     submissionPattern: args.submissionPattern,
   });
   if (!parsed.success) throw new ConvexError(parsed.error.issues[0]?.message ?? "入力内容を確認してください。");
@@ -320,179 +261,6 @@ async function createAdditionalOrganization(
     now: Date.now(),
   });
   return { organizationId: created.organizationId, shopId: created.shopId, created: true };
-}
-
-async function resolveOrganizationCreationManagerProfile(
-  ctx: MutationCtx,
-  user: { _id: Id<"users">; name: string; email: string },
-  sourceShopId: Id<"shops"> | undefined,
-): Promise<{
-  name: string;
-  email: string;
-  source: "canonicalPerson" | "legacySourceUserSnapshot" | "omittedSourceUserSnapshot";
-}> {
-  if (!sourceShopId) {
-    // 旧frontendのsource省略は連絡先だけusers snapshotへfallbackする。
-    // 組織を追加できるauthorityまでusers行の存在へfallbackさせない。
-    if (!(await hasOrganizationCreationManagerAuthority(ctx, user._id))) throw new ConvexError("Not found");
-    return { name: user.name, email: user.email, source: "omittedSourceUserSnapshot" };
-  }
-
-  const shop = await ctx.db.get(sourceShopId);
-  if (!shop || shop.isDeleted) throw new ConvexError("Not found");
-
-  const sourceOrganizationId = shop.organizationId;
-  if (!sourceOrganizationId) {
-    const legacyMemberships = await ctx.db
-      .query("shopMembers")
-      .withIndex("by_userId_and_shopId_and_isDeleted", (q) =>
-        q.eq("userId", user._id).eq("shopId", sourceShopId).eq("isDeleted", false),
-      )
-      .take(2);
-    if (legacyMemberships.length !== 1) throw new ConvexError("Not found");
-    return { name: user.name, email: user.email, source: "legacySourceUserSnapshot" };
-  }
-
-  const [organization, memberships, people, legacyMemberships] = await Promise.all([
-    ctx.db.get(sourceOrganizationId),
-    ctx.db
-      .query("organizationMembers")
-      .withIndex("by_userId_and_organizationId", (q) =>
-        q.eq("userId", user._id).eq("organizationId", sourceOrganizationId),
-      )
-      .take(2),
-    ctx.db
-      .query("organizationPeople")
-      .withIndex("by_organizationId_and_userId", (q) =>
-        q.eq("organizationId", sourceOrganizationId).eq("userId", user._id),
-      )
-      .take(2),
-    ctx.db
-      .query("shopMembers")
-      .withIndex("by_userId_and_shopId_and_isDeleted", (q) =>
-        q.eq("userId", user._id).eq("shopId", sourceShopId).eq("isDeleted", false),
-      )
-      .take(2),
-  ]);
-  if (!organization || organization.isDeleted) {
-    throw new ConvexError("Not found");
-  }
-
-  if (memberships.length === 0) {
-    if (legacyMemberships.length !== 1 || people.length > 1) throw new ConvexError("Not found");
-    const person = people[0];
-    if (!person) {
-      return { name: user.name, email: user.email, source: "legacySourceUserSnapshot" };
-    }
-    if (
-      person.organizationId !== organization._id ||
-      person.userId !== user._id ||
-      person.status !== "active" ||
-      normalizeEmail(person.email) !== person.emailNormalized
-    ) {
-      throw new ConvexError("Not found");
-    }
-    return { name: person.name, email: person.email, source: "canonicalPerson" };
-  }
-  if (memberships.length !== 1 || memberships[0].status !== "active" || people.length !== 1) {
-    throw new ConvexError("Not found");
-  }
-
-  const person = await ctx.db.get(memberships[0].personId);
-  if (
-    !person ||
-    people[0]._id !== person._id ||
-    person.organizationId !== organization._id ||
-    person.userId !== user._id ||
-    person.status !== "active" ||
-    normalizeEmail(person.email) !== person.emailNormalized
-  ) {
-    throw new ConvexError("Not found");
-  }
-  return { name: person.name, email: person.email, source: "canonicalPerson" };
-}
-
-async function hasOrganizationCreationManagerAuthority(ctx: MutationCtx, userId: Id<"users">): Promise<boolean> {
-  const activeMemberships = await ctx.db
-    .query("organizationMembers")
-    .withIndex("by_userId_and_status", (q) => q.eq("userId", userId).eq("status", "active"))
-    .take(MANAGER_AUTHORITY_SCAN_LIMIT + 1);
-  if (activeMemberships.length > MANAGER_AUTHORITY_SCAN_LIMIT) return false;
-
-  for (const membership of activeMemberships) {
-    const [organization, person, membershipsForOrganization, peopleForOrganization] = await Promise.all([
-      ctx.db.get(membership.organizationId),
-      ctx.db.get(membership.personId),
-      ctx.db
-        .query("organizationMembers")
-        .withIndex("by_userId_and_organizationId", (q) =>
-          q.eq("userId", userId).eq("organizationId", membership.organizationId),
-        )
-        .take(2),
-      ctx.db
-        .query("organizationPeople")
-        .withIndex("by_organizationId_and_userId", (q) =>
-          q.eq("organizationId", membership.organizationId).eq("userId", userId),
-        )
-        .take(2),
-    ]);
-    if (
-      organization &&
-      !organization.isDeleted &&
-      person &&
-      person.organizationId === organization._id &&
-      person.userId === userId &&
-      person.status === "active" &&
-      membershipsForOrganization.length === 1 &&
-      membershipsForOrganization[0]._id === membership._id &&
-      peopleForOrganization.length === 1 &&
-      peopleForOrganization[0]._id === person._id
-    ) {
-      return true;
-    }
-  }
-
-  // TODO[narrow]: 全deploymentでm025/m029が完走し、旧frontend互換期間も終了した後に削除する。
-  const legacyMemberships = await ctx.db
-    .query("shopMembers")
-    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", userId).eq("isDeleted", false))
-    .take(MANAGER_AUTHORITY_SCAN_LIMIT + 1);
-  if (legacyMemberships.length > MANAGER_AUTHORITY_SCAN_LIMIT) return false;
-  const membershipCountByShopId = new Map<Id<"shops">, number>();
-  for (const membership of legacyMemberships) {
-    membershipCountByShopId.set(membership.shopId, (membershipCountByShopId.get(membership.shopId) ?? 0) + 1);
-  }
-  for (const membership of legacyMemberships) {
-    if (membershipCountByShopId.get(membership.shopId) !== 1) continue;
-    const shop = await ctx.db.get(membership.shopId);
-    if (!shop || shop.isDeleted) continue;
-    if (!shop.organizationId) return true;
-    const organizationId = shop.organizationId;
-
-    const [organization, canonicalMemberships, canonicalPeople] = await Promise.all([
-      ctx.db.get(organizationId),
-      ctx.db
-        .query("organizationMembers")
-        .withIndex("by_userId_and_organizationId", (q) => q.eq("userId", userId).eq("organizationId", organizationId))
-        .take(2),
-      ctx.db
-        .query("organizationPeople")
-        .withIndex("by_organizationId_and_userId", (q) => q.eq("organizationId", organizationId).eq("userId", userId))
-        .take(2),
-    ]);
-    if (!organization || organization.isDeleted || canonicalMemberships.length !== 0 || canonicalPeople.length > 1) {
-      continue;
-    }
-    const person = canonicalPeople[0];
-    if (
-      person &&
-      (person.organizationId !== organization._id || person.userId !== userId || person.status !== "active")
-    ) {
-      continue;
-    }
-    return true;
-  }
-  return false;
 }
 
 /**

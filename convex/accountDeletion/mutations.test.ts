@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { seedStaff } from "../_test/scenarioBuilders";
-import { seedManagerShop, seedOrganizationManagerShop, seedShop, seedUser } from "../_test/seed";
+import { seedManagerShop, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { runAccountDeletionJob } from "./actions";
 import { ACCOUNT_DELETION_SHARED_CLEANUP_POLL_MS } from "./constants";
@@ -153,14 +153,18 @@ describe("accountDeletion", () => {
     expect(provider.deleteUser).not.toHaveBeenCalled();
   });
 
-  it("削除直前に所属が作られた場合はproviderを呼ばずactionRequiredへ止める", async () => {
+  it("削除直前にcanonical所属が作られた場合はproviderを呼ばずactionRequiredへ止める", async () => {
     const t = createAccountDeletionTest();
     const userId = await t.run((ctx) => seedUser(ctx, "late_association", "late@example.com"));
     await t.mutation(internal.accountDeletion.mutations.accept, acceptArgs("late_association"));
     const jobId = await onlyJobId(t);
     await t.run(async (ctx) => {
-      const shopId = await seedShop(ctx, "遅延所属店舗");
-      await ctx.db.insert("shopMembers", { shopId, userId, role: "manager", isDeleted: false });
+      const organization = await seedOrganizationManagerShop(ctx, {
+        subject: "late_association_source",
+        shopName: "遅延所属店舗",
+      });
+      await ctx.db.patch(organization.personId, { userId, updatedAt: Date.now() });
+      await ctx.db.patch(organization.memberId, { userId, updatedAt: Date.now() });
     });
     const provider = fakeProvider();
 
@@ -197,6 +201,9 @@ describe("accountDeletion", () => {
         shopId: owner.shopId,
         organizationId: owner.organizationId,
         staffId,
+        purpose: "business",
+        notificationContext: "test.accountDeletion.prepareSharedCleanup",
+        deliverySuppressed: false,
         payload: {
           kind: "email",
           from: "シフトリ <noreply@example.com>",
@@ -307,6 +314,9 @@ describe("accountDeletion", () => {
         shopId: owner.shopId,
         organizationId: owner.organizationId,
         staffId,
+        purpose: "business",
+        notificationContext: "test.accountDeletion.corruptSharedCleanup",
+        deliverySuppressed: false,
         payload: {
           kind: "email",
           from: "noreply@example.com",

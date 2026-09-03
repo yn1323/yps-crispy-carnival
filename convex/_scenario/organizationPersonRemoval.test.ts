@@ -5,7 +5,12 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { MANAGER_SUBJECT, SCENARIO_NOW, scenarioDate } from "../_test/scenarioBuilders";
-import { seedOrganizationManagerShop, seedOrganizationPersonLineLink, seedStaffLineAccount } from "../_test/seed";
+import {
+  getTestOrganizationId,
+  seedOrganizationManagerShop,
+  seedOrganizationPersonLineLink,
+  seedStaffLineAccount,
+} from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const TARGET_SUBJECT = "organization_removal_target";
@@ -86,6 +91,7 @@ describe("割当付き組織人物削除・再追加シナリオ", () => {
       const targetStaffIds = await Promise.all(
         [primary.shopId, secondaryShopId].map((shopId) =>
           ctx.db.insert("staffs", {
+            excludedFromShift: false,
             organizationId: primary.organizationId,
             organizationPersonId: targetPersonId,
             userId: alternate.userId,
@@ -107,6 +113,7 @@ describe("割当付き組織人物削除・再追加シナリオ", () => {
         updatedAt: SCENARIO_NOW,
       });
       const otherStaffId = await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         organizationId: primary.organizationId,
         organizationPersonId: otherPersonId,
         shopId: primary.shopId,
@@ -182,6 +189,7 @@ describe("割当付き組織人物削除・再追加シナリオ", () => {
         positionId: primaryPositionId,
       });
       const sessionId = await ctx.db.insert("sessions", {
+        accessKind: "submit",
         sessionToken: "organization-removal-session",
         staffId: targetStaffIds[0],
         shopId: primary.shopId,
@@ -189,6 +197,7 @@ describe("割当付き組織人物削除・再追加シナリオ", () => {
         expiresAt: SCENARIO_NOW + 86_400_000,
       });
       const magicLinkId = await ctx.db.insert("magicLinks", {
+        accessKind: "submit",
         token: "organization-removal-magic-link",
         staffId: targetStaffIds[0],
         shopId: primary.shopId,
@@ -229,6 +238,8 @@ describe("割当付き組織人物削除・再追加シナリオ", () => {
         staffId: targetStaffIds[0],
         userId: alternate.userId,
         purpose: "business",
+        notificationContext: "organization-removal-scenario",
+        deliverySuppressed: false,
         payload: {
           kind: "email",
           from: "noreply@example.com",
@@ -266,6 +277,7 @@ describe("割当付き組織人物削除・再追加シナリオ", () => {
     const manager = t.withIdentity({ subject: MANAGER_SUBJECT });
     const targetActor = t.withIdentity({ subject: TARGET_SUBJECT });
     const detail = await manager.query(api.organization.userDetailQueries.getUserDetail, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
       personId: ids.targetPersonId,
       now: SCENARIO_NOW,
@@ -276,6 +288,7 @@ describe("割当付き組織人物削除・再追加シナリオ", () => {
 
     const requestId = "organization-person-removal-scenario";
     const mutationArgs = {
+      expectedOrganizationId: ids.organizationId,
       shopId: ids.shopId,
       personId: ids.targetPersonId,
       requestId,
@@ -349,11 +362,13 @@ describe("割当付き組織人物削除・再追加シナリオ", () => {
     expect(state.audits).toHaveLength(1);
 
     const pastBoard = await manager.query(api.shiftBoard.queries.getShiftBoardData, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
       recruitmentId: ids.pastRecruitmentId,
       refreshDayKey: scenarioDate(0),
     });
     const currentBoard = await manager.query(api.shiftBoard.queries.getShiftBoardData, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
       recruitmentId: ids.todayRecruitmentId,
       refreshDayKey: scenarioDate(0),
@@ -364,6 +379,7 @@ describe("割当付き組織人物削除・再追加シナリオ", () => {
     expect(currentBoard?.staffs.map((staff) => staff._id)).not.toContain(ids.targetStaffIds[0]);
 
     const readded = await manager.mutation(api.staff.mutations.addStaffs, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
       requestId: "organization-person-readdition-scenario",
       entries: [{ name: "今回入力された名前", email: "removal-target@example.com" }],
@@ -431,9 +447,17 @@ describe("割当付き組織人物削除・再追加シナリオ", () => {
       ),
     ).toHaveLength(1);
 
-    await expect(targetActor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toBeNull();
     await expect(
-      targetActor.query(api.organization.queries.getSettings, { shopId: ids.alternate.shopId }),
+      targetActor.query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      targetActor.query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.alternate.shopId),
+        shopId: ids.alternate.shopId,
+      }),
     ).resolves.toMatchObject({ organizationId: ids.alternate.organizationId });
   });
 });

@@ -37,6 +37,8 @@ async function setupPerson(t: TestConvex<typeof schema>, suffix: string) {
       organizationPersonId,
       name: `スタッフ${suffix}`,
       email: `staff_${suffix}@example.com`,
+      emailNormalized: `staff_${suffix}@example.com`,
+      excludedFromShift: false,
       isDeleted: false,
     });
     return { ...seeded, organizationPersonId, staffId };
@@ -237,6 +239,8 @@ describe("line/service canonical read authority", () => {
           organizationPersonId: target.organizationPersonId,
           name: `削除済み${index}`,
           email: `deleted-${index}@example.com`,
+          emailNormalized: `deleted-${index}@example.com`,
+          excludedFromShift: false,
           isDeleted: true,
         });
       }
@@ -269,6 +273,8 @@ describe("line/service canonical read authority", () => {
           organizationPersonId: target.organizationPersonId,
           name: `削除済み店舗所属${index}`,
           email: `deleted-shop-${index}@example.com`,
+          emailNormalized: `deleted-shop-${index}@example.com`,
+          excludedFromShift: false,
           isDeleted: false,
         });
       }
@@ -301,6 +307,8 @@ describe("line/service canonical read authority", () => {
           organizationPersonId: target.organizationPersonId,
           name: `非削除所属${index}`,
           email: `nondeleted-overflow-${index}@example.com`,
+          emailNormalized: `nondeleted-overflow-${index}@example.com`,
+          excludedFromShift: false,
           isDeleted: false,
         });
       }

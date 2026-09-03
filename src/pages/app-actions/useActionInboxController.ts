@@ -83,7 +83,7 @@ export function useActionInboxController({
         }),
       approveRegistration: async (item) => {
         await approveRequest({
-          shopId: item.scope.kind === "shop" ? item.scope.shopId : undefined,
+          shopId: item.scope.shopId,
           expectedOrganizationId: organizationId,
           requestId: item.requestId,
         });
@@ -103,7 +103,7 @@ export function useActionInboxController({
       },
       resendNotification: async (item) => {
         const result = await resendFailure({
-          shopId: item.scope.kind === "shop" ? item.scope.shopId : undefined,
+          shopId: item.scope.shopId,
           expectedOrganizationId: organizationId,
           failureId: item.failureId,
         });
@@ -166,14 +166,14 @@ export function useActionInboxController({
       if (pendingConfirmation.kind === "rejectRegistration") {
         const { item } = pendingConfirmation;
         await rejectRequest({
-          shopId: item.scope.kind === "shop" ? item.scope.shopId : undefined,
+          shopId: item.scope.shopId,
           expectedOrganizationId: organizationId,
           requestId: item.requestId,
         });
       } else if (pendingConfirmation.kind === "resolveNotification") {
         const { item } = pendingConfirmation;
         await resolveFailure({
-          shopId: item.scope.kind === "shop" ? item.scope.shopId : undefined,
+          shopId: item.scope.shopId,
           expectedOrganizationId: organizationId,
           failureId: item.failureId,
         });

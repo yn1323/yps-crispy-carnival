@@ -16,7 +16,7 @@ export function useUserLineActions({
 }: {
   data: UserDetailData;
   enabled: boolean;
-  expectedOrganizationId?: Id<"organizations">;
+  expectedOrganizationId: Id<"organizations">;
 }) {
   const [authorizeUrl, setAuthorizeUrl] = useState<string | null>(null);
   const [qrTargetKey, setQrTargetKey] = useState<string | null>(null);
@@ -33,7 +33,7 @@ export function useUserLineActions({
       ? {
           shopId: data.line.sourceShopId,
           staffId: data.line.sourceStaffId,
-          ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+          expectedOrganizationId,
         }
       : "skip",
   );
@@ -59,7 +59,7 @@ export function useUserLineActions({
       const result = await generateLineLinkToken({
         shopId: target.sourceShopId,
         staffId: target.sourceStaffId,
-        ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+        expectedOrganizationId,
       });
       if (isSameLineLinkTarget(currentTargetRef.current, target)) {
         setAuthorizeUrl(result.authorizeUrl);
@@ -89,7 +89,7 @@ export function useUserLineActions({
       const result = await sendLineInvite({
         shopId: target.sourceShopId,
         staffId: target.sourceStaffId,
-        ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+        expectedOrganizationId,
       });
       if (isSameLineLinkTarget(currentTargetRef.current, target)) {
         if (!result.scheduled) {
@@ -117,7 +117,7 @@ export function useUserLineActions({
         shopId: target.actionShopId,
         organizationPersonId: target.personId,
         requestId,
-        ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+        expectedOrganizationId,
       });
       if (isSameLinePersonTarget(currentTargetRef.current, target)) {
         setAuthorizeUrl(null);

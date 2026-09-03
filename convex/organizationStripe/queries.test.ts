@@ -186,9 +186,9 @@ describe("organizationStripe/queries", () => {
     ).resolves.toEqual({ changed: true, stale: false });
 
     const [actionContext, safetyContext, scheduleGuard, persisted] = await Promise.all([
-      t.query(internal.organizationStripe.queries.getActionContext, {
+      t.query(internal.organizationStripe.queries.getActionContextForOrganization, {
         tokenIdentifier: testAuthTokenIdentifier(subject),
-        shopId: ids.shopId,
+        organizationId: ids.organizationId,
         purpose: "schedulePaidPlanChange",
       }),
       t.query(internal.organizationStripe.queries.getSafetyContextByOrganization, {

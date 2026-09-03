@@ -136,7 +136,7 @@ async function insertPersonAndMember(
     userId: user._id,
     name: displayName,
     email: user.email,
-    emailNormalized: user.emailNormalized ?? user.email.toLowerCase(),
+    emailNormalized: user.emailNormalized,
     status: "active",
     lineLinkGeneration: 0,
     createdAt: now,

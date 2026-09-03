@@ -2,10 +2,9 @@ import { ConvexError } from "convex/values";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import { getShopActivationReminderAt } from "../_lib/dateFormat";
 import {
-  seedLegacyManagerShop,
-  seedLegacyShop,
   seedLegacyShopMembership,
   seedManagerShop,
   seedOrganizationManagerShop,
@@ -277,6 +276,8 @@ describe("setup/mutations", () => {
         const now = Date.now();
         for (const name of ["重複グループA", "重複グループB"]) {
           await ctx.db.insert("organizations", {
+            billingEmail: "billing@example.com",
+            billingEmailNormalized: "billing@example.com",
             createdByUserId: userId,
             name,
             isDeleted: false,
@@ -710,67 +711,6 @@ describe("setup/mutations", () => {
       ).rejects.toThrow(ConvexError);
     });
 
-    it("削除済みmembershipや削除済み店舗は既存店舗として扱わない", async () => {
-      const t = convexTest(schema, modules);
-
-      await t.run(async (ctx) => {
-        await seedLegacyManagerShop(ctx, {
-          subject: "user_deleted_membership",
-          email: "deleted-membership@example.com",
-          shopName: "削除済みmembership店舗",
-          membershipDeleted: true,
-        });
-        await seedLegacyManagerShop(ctx, {
-          subject: "user_deleted_shop",
-          email: "deleted-shop@example.com",
-          shopName: "削除済み店舗",
-          shopDeleted: true,
-        });
-      });
-
-      await expect(
-        t
-          .withIdentity({ subject: "user_deleted_membership" })
-          .mutation(api.setup.mutations.setupShopAndManager, setupArgs),
-      ).resolves.toBeDefined();
-      await expect(
-        t.withIdentity({ subject: "user_deleted_shop" }).mutation(api.setup.mutations.setupShopAndManager, setupArgs),
-      ).resolves.toBeDefined();
-    });
-
-    it("shopMembersはuserIdとshopIdとisDeletedでactive所属を引ける", async () => {
-      const t = convexTest(schema, modules);
-
-      const { userId, activeShopId, deletedShopId } = await t.run(async (ctx) => {
-        const userId = await seedUser(ctx, "membership_lookup", "lookup@example.com");
-        const activeShopId = await seedLegacyShop(ctx, "Active店舗");
-        const deletedShopId = await seedLegacyShop(ctx, "Deleted membership店舗");
-        await seedLegacyShopMembership(ctx, { userId, shopId: activeShopId });
-        await seedLegacyShopMembership(ctx, { userId, shopId: deletedShopId, isDeleted: true });
-        return { userId, activeShopId, deletedShopId };
-      });
-
-      const activeMembership = await t.run(async (ctx) =>
-        ctx.db
-          .query("shopMembers")
-          .withIndex("by_userId_and_shopId_and_isDeleted", (q) =>
-            q.eq("userId", userId).eq("shopId", activeShopId).eq("isDeleted", false),
-          )
-          .first(),
-      );
-      const deletedMembership = await t.run(async (ctx) =>
-        ctx.db
-          .query("shopMembers")
-          .withIndex("by_userId_and_shopId_and_isDeleted", (q) =>
-            q.eq("userId", userId).eq("shopId", deletedShopId).eq("isDeleted", false),
-          )
-          .first(),
-      );
-
-      expect(activeMembership?.shopId).toBe(activeShopId);
-      expect(deletedMembership).toBeNull();
-    });
-
     it("既存ユーザーレコードがある場合は名前・メールと同意を更新する", async () => {
       const t = convexTest(schema, modules);
 
@@ -805,6 +745,8 @@ describe("setup/mutations", () => {
     const createArgs = {
       shopName: "二つ目の店舗",
       submissionPattern: { kind: "dateOnly" as const },
+      regularClosedDays: [],
+      organizationId: "invalid_source_organization" as Id<"organizations">,
       requestId: "create-organization-request-1",
     };
 
@@ -831,13 +773,6 @@ describe("setup/mutations", () => {
         label: "removedのcanonical所属",
         corrupt: async (t, seed) => {
           await t.run(async (ctx) => ctx.db.patch(seed.memberId, { status: "removed" }));
-        },
-      },
-      {
-        key: "deleted_shop",
-        label: "削除済みsource店舗",
-        corrupt: async (t, seed) => {
-          await t.run(async (ctx) => ctx.db.patch(seed.shopId, { isDeleted: true }));
         },
       },
       {
@@ -895,28 +830,39 @@ describe("setup/mutations", () => {
 
     it("未認証の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
-      await expect(t.mutation(api.setup.mutations.createOrganization, createArgs)).rejects.toThrow();
+      const source = await seedExistingManager(t, "create_org_unauthenticated_source");
+      await expect(
+        t.mutation(api.setup.mutations.createOrganizationForApp, {
+          ...createArgs,
+          organizationId: source.organizationId,
+        }),
+      ).rejects.toThrow("Unauthenticated");
     });
 
     it("users未登録の認証主体は組織を作成しない", async () => {
       const t = convexTest(schema, modules);
+      const source = await seedExistingManager(t, "create_org_unregistered_source");
+      const readProtectedState = () =>
+        t.run(async (ctx) => ({
+          organizations: await ctx.db.query("organizations").collect(),
+          shops: await ctx.db.query("shops").collect(),
+          scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+        }));
+      const beforeRejected = await readProtectedState();
 
       await expect(
-        t.withIdentity({ subject: "user_without_record" }).mutation(api.setup.mutations.createOrganization, createArgs),
+        t.withIdentity({ subject: "user_without_record" }).mutation(api.setup.mutations.createOrganizationForApp, {
+          ...createArgs,
+          organizationId: source.organizationId,
+        }),
       ).rejects.toThrow("組織を作成する前に、初期設定を完了してください。");
 
-      const state = await t.run(async (ctx) => ({
-        organizations: await ctx.db.query("organizations").collect(),
-        shops: await ctx.db.query("shops").collect(),
-        scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-      }));
-      expect(state.organizations).toEqual([]);
-      expect(state.shops).toEqual([]);
-      expect(state.scheduled).toEqual([]);
+      expect(await readProtectedState()).toEqual(beforeRejected);
     });
 
-    it("users行だけで管理者所属がない認証主体は、旧frontend互換のsource省略でも組織を作成しない", async () => {
+    it("users行だけで管理者所属がない認証主体は組織を作成しない", async () => {
       const t = convexTest(schema, modules);
+      const source = await seedExistingManager(t, "create_org_without_manager_source");
       await t.run(async (ctx) => {
         await seedUser(ctx, "create_org_without_manager_authority", "without-manager-authority@example.com");
       });
@@ -939,43 +885,13 @@ describe("setup/mutations", () => {
       await expect(
         t
           .withIdentity({ subject: "create_org_without_manager_authority" })
-          .mutation(api.setup.mutations.createOrganization, createArgs),
+          .mutation(api.setup.mutations.createOrganizationForApp, {
+            ...createArgs,
+            organizationId: source.organizationId,
+          }),
       ).rejects.toThrow("Not found");
 
       expect(await readProtectedState()).toEqual(beforeRejected);
-    });
-
-    it("activeなlegacy管理者所属があれば、旧frontend互換のsource省略でもusers snapshotで作成できる", async () => {
-      const t = convexTest(schema, modules);
-      const legacy = await t.run(async (ctx) =>
-        seedLegacyManagerShop(ctx, {
-          subject: "create_org_legacy_omitted_source",
-          email: "legacy-omitted-source@example.com",
-          shopName: "移行前店舗",
-        }),
-      );
-
-      const result = await t
-        .withIdentity({ subject: "create_org_legacy_omitted_source" })
-        .mutation(api.setup.mutations.createOrganization, {
-          ...createArgs,
-          requestId: "create-organization-legacy-omitted-source",
-        });
-
-      const created = await t.run(async (ctx) => {
-        const shop = await ctx.db.get(result.shopId);
-        if (!shop?.organizationId) throw new Error("organization not found");
-        const organizationId = shop.organizationId;
-        const audit = await ctx.db
-          .query("organizationAuditEvents")
-          .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", organizationId))
-          .unique();
-        return { shop, organization: await ctx.db.get(organizationId), audit };
-      });
-      expect(result.created).toBe(true);
-      expect(created.shop).toMatchObject({ name: "二つ目の店舗", isDeleted: false });
-      expect(created.organization).toMatchObject({ createdByUserId: legacy.userId, isDeleted: false });
-      expect(created.audit?.fromState).toBe("managerProfile.omittedSourceUserSnapshot");
     });
 
     it.each([
@@ -1003,7 +919,7 @@ describe("setup/mutations", () => {
           });
         },
       },
-    ])("$labelがlegacy所属に残っていても、source省略で管理者authorityにfallbackしない", async ({ corrupt }) => {
+    ])("$labelがlegacy所属に残っていてもmanager authorityにfallbackしない", async ({ corrupt }) => {
       const t = convexTest(schema, modules);
       const seed = await seedExistingManager(t, "create_org_invalid_legacy_omitted_source");
       await t.run(async (ctx) => {
@@ -1026,8 +942,9 @@ describe("setup/mutations", () => {
       await expect(
         t
           .withIdentity({ subject: "create_org_invalid_legacy_omitted_source" })
-          .mutation(api.setup.mutations.createOrganization, {
+          .mutation(api.setup.mutations.createOrganizationForApp, {
             ...createArgs,
+            organizationId: seed.organizationId,
             requestId: "create-organization-invalid-legacy-omitted-source",
           }),
       ).rejects.toThrow("Not found");
@@ -1043,7 +960,10 @@ describe("setup/mutations", () => {
       await expect(
         t
           .withIdentity({ subject: "create_org_deletion_requested" })
-          .mutation(api.setup.mutations.createOrganization, createArgs),
+          .mutation(api.setup.mutations.createOrganizationForApp, {
+            ...createArgs,
+            organizationId: seed.organizationId,
+          }),
       ).rejects.toThrow("無効になったアカウントでは、組織を作成できません。");
 
       const state = await t.run(async (ctx) => ({
@@ -1066,9 +986,9 @@ describe("setup/mutations", () => {
 
       const result = await t
         .withIdentity({ subject: "create_org_success" })
-        .mutation(api.setup.mutations.createOrganization, createArgs);
+        .mutation(api.setup.mutations.createOrganizationForApp, { ...createArgs, organizationId: seed.organizationId });
       expect(result.created).toBe(true);
-      expect(Object.keys(result).sort()).toEqual(["created", "shopId"]);
+      expect(Object.keys(result).sort()).toEqual(["created", "organizationId", "shopId"]);
 
       const state = await t.run(async (ctx) => {
         const shop = await ctx.db.get(result.shopId);
@@ -1119,7 +1039,7 @@ describe("setup/mutations", () => {
         action: "organization.created",
         targetKind: "organization",
         actorUserId: seed.userId,
-        fromState: "managerProfile.omittedSourceUserSnapshot",
+        fromState: "managerProfile.canonicalPerson",
         toState: "active.free",
       });
       expect(state.scheduled).toHaveLength(2);
@@ -1163,9 +1083,9 @@ describe("setup/mutations", () => {
 
       const result = await t
         .withIdentity({ subject: "create_org_contact_source" })
-        .mutation(api.setup.mutations.createOrganization, {
+        .mutation(api.setup.mutations.createOrganizationForApp, {
           ...createArgs,
-          sourceShopId: seed.shopId,
+          organizationId: seed.organizationId,
           requestId: "create-organization-contact-source",
         });
 
@@ -1200,114 +1120,6 @@ describe("setup/mutations", () => {
       expect(created.audit?.fromState).toBe("managerProfile.canonicalPerson");
     });
 
-    it("organizationMember作成前でもlegacy所属と一意なactive personがあればperson snapshotを使う", async () => {
-      const t = convexTest(schema, modules);
-      const seed = await seedExistingManager(t, "create_org_partial_person_source");
-      await t.run(async (ctx) => {
-        await ctx.db.delete(seed.memberId);
-        await seedLegacyShopMembership(ctx, { userId: seed.userId, shopId: seed.shopId });
-        await ctx.db.patch(seed.userId, {
-          name: "古いユーザー名",
-          email: "partial-person-login@example.com",
-          emailNormalized: "partial-person-login@example.com",
-        });
-        await ctx.db.patch(seed.personId, {
-          name: "移行途中の現在名",
-          email: "partial-person-contact@example.com",
-          emailNormalized: "partial-person-contact@example.com",
-        });
-      });
-
-      const result = await t
-        .withIdentity({ subject: "create_org_partial_person_source" })
-        .mutation(api.setup.mutations.createOrganization, {
-          ...createArgs,
-          sourceShopId: seed.shopId,
-          requestId: "create-organization-partial-person-source",
-        });
-
-      const created = await t.run(async (ctx) => {
-        const shop = await ctx.db.get(result.shopId);
-        if (!shop?.organizationId) throw new Error("organization not found");
-        const organizationId = shop.organizationId;
-        return {
-          organization: await ctx.db.get(organizationId),
-          people: await ctx.db
-            .query("organizationPeople")
-            .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
-            .collect(),
-          audit: await ctx.db
-            .query("organizationAuditEvents")
-            .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", organizationId))
-            .first(),
-        };
-      });
-      expect(created.organization?.billingEmail).toBe("partial-person-contact@example.com");
-      expect(created.people).toEqual([
-        expect.objectContaining({ name: "移行途中の現在名", email: "partial-person-contact@example.com" }),
-      ]);
-      expect(created.audit?.fromState).toBe("managerProfile.canonicalPerson");
-    });
-
-    it("organization付きsourceがlegacy所属だけの移行途中ならusers snapshotで作成し、再送を同じ店舗へ収束させる", async () => {
-      const t = convexTest(schema, modules);
-      const seed = await seedExistingManager(t, "create_org_partial_legacy_source");
-      await t.run(async (ctx) => {
-        await ctx.db.delete(seed.memberId);
-        await ctx.db.delete(seed.personId);
-        await seedLegacyShopMembership(ctx, { userId: seed.userId, shopId: seed.shopId });
-        await ctx.db.patch(seed.userId, {
-          name: "移行途中管理者",
-          email: "partial-legacy-contact@example.com",
-          emailNormalized: "partial-legacy-contact@example.com",
-        });
-      });
-      const args = {
-        ...createArgs,
-        sourceShopId: seed.shopId,
-        requestId: "create-organization-partial-legacy-source",
-      };
-      const asUser = t.withIdentity({ subject: "create_org_partial_legacy_source" });
-
-      const first = await asUser.mutation(api.setup.mutations.createOrganization, args);
-      const second = await asUser.mutation(api.setup.mutations.createOrganization, args);
-
-      expect(first.created).toBe(true);
-      expect(second).toEqual({ shopId: first.shopId, created: false });
-      const created = await t.run(async (ctx) => {
-        const shop = await ctx.db.get(first.shopId);
-        if (!shop?.organizationId) throw new Error("organization not found");
-        const organizationId = shop.organizationId;
-        const [organization, people, staffs, audit] = await Promise.all([
-          ctx.db.get(organizationId),
-          ctx.db
-            .query("organizationPeople")
-            .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
-            .collect(),
-          ctx.db
-            .query("staffs")
-            .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", first.shopId).eq("isDeleted", false))
-            .collect(),
-          ctx.db
-            .query("organizationAuditEvents")
-            .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", organizationId))
-            .first(),
-        ]);
-        return { organization, people, staffs, audit };
-      });
-      expect(created.organization).toMatchObject({
-        billingEmail: "partial-legacy-contact@example.com",
-        billingEmailNormalized: "partial-legacy-contact@example.com",
-      });
-      expect(created.people).toEqual([
-        expect.objectContaining({ name: "移行途中管理者", email: "partial-legacy-contact@example.com" }),
-      ]);
-      expect(created.staffs).toEqual([
-        expect.objectContaining({ name: "移行途中管理者", email: "partial-legacy-contact@example.com" }),
-      ]);
-      expect(created.audit?.fromState).toBe("managerProfile.legacySourceUserSnapshot");
-    });
-
     it("canonical membershipが壊れている場合はlegacy所属が残っていてもusersへfallbackしない", async () => {
       const t = convexTest(schema, modules);
       const seed = await seedExistingManager(t, "create_org_broken_canonical_source");
@@ -1319,9 +1131,9 @@ describe("setup/mutations", () => {
       await expect(
         t
           .withIdentity({ subject: "create_org_broken_canonical_source" })
-          .mutation(api.setup.mutations.createOrganization, {
+          .mutation(api.setup.mutations.createOrganizationForApp, {
             ...createArgs,
-            sourceShopId: seed.shopId,
+            organizationId: seed.organizationId,
             requestId: "create-organization-broken-canonical-source",
           }),
       ).rejects.toThrow("Not found");
@@ -1342,9 +1154,9 @@ describe("setup/mutations", () => {
       const other = await seedExistingManager(t, "create_org_source_other");
 
       await expect(
-        t.withIdentity({ subject: "create_org_source_actor" }).mutation(api.setup.mutations.createOrganization, {
+        t.withIdentity({ subject: "create_org_source_actor" }).mutation(api.setup.mutations.createOrganizationForApp, {
           ...createArgs,
-          sourceShopId: other.shopId,
+          organizationId: other.organizationId,
           requestId: "create-organization-invalid-source",
         }),
       ).rejects.toThrow("Not found");
@@ -1380,9 +1192,9 @@ describe("setup/mutations", () => {
       const beforeRejected = await readProtectedState();
 
       await expect(
-        t.withIdentity({ subject }).mutation(api.setup.mutations.createOrganization, {
+        t.withIdentity({ subject }).mutation(api.setup.mutations.createOrganizationForApp, {
           ...createArgs,
-          sourceShopId: seed.shopId,
+          organizationId: seed.organizationId,
           requestId: `create-organization-source-integrity-${key}`,
         }),
       ).rejects.toThrow("Not found");
@@ -1410,7 +1222,7 @@ describe("setup/mutations", () => {
 
       await t
         .withIdentity({ subject: "create_org_keeps_user" })
-        .mutation(api.setup.mutations.createOrganization, createArgs);
+        .mutation(api.setup.mutations.createOrganizationForApp, { ...createArgs, organizationId: seed.organizationId });
 
       const after = await t.run(async (ctx) => ({
         user: await ctx.db.get(seed.userId),
@@ -1427,14 +1239,15 @@ describe("setup/mutations", () => {
 
     it("同じrequestIdの再実行は同じ店舗を返し、組織を増やさない", async () => {
       const t = convexTest(schema, modules);
-      await seedExistingManager(t, "create_org_idempotent");
+      const seed = await seedExistingManager(t, "create_org_idempotent");
       const asUser = t.withIdentity({ subject: "create_org_idempotent" });
+      const args = { ...createArgs, organizationId: seed.organizationId };
 
-      const first = await asUser.mutation(api.setup.mutations.createOrganization, createArgs);
-      const second = await asUser.mutation(api.setup.mutations.createOrganization, createArgs);
+      const first = await asUser.mutation(api.setup.mutations.createOrganizationForApp, args);
+      const second = await asUser.mutation(api.setup.mutations.createOrganizationForApp, args);
 
-      expect(first).toEqual({ shopId: first.shopId, created: true });
-      expect(second).toEqual({ shopId: first.shopId, created: false });
+      expect(first).toEqual({ organizationId: first.organizationId, shopId: first.shopId, created: true });
+      expect(second).toEqual({ organizationId: first.organizationId, shopId: first.shopId, created: false });
 
       const state = await t.run(async (ctx) => ({
         organizations: await ctx.db.query("organizations").collect(),
@@ -1466,11 +1279,11 @@ describe("setup/mutations", () => {
       const seed = await seedExistingManager(t, "create_org_stale_idempotency_authority");
       const args = {
         ...createArgs,
-        sourceShopId: seed.shopId,
+        organizationId: seed.organizationId,
         requestId: "create-organization-stale-idempotency-authority",
       };
       const asUser = t.withIdentity({ subject: "create_org_stale_idempotency_authority" });
-      await expect(asUser.mutation(api.setup.mutations.createOrganization, args)).resolves.toMatchObject({
+      await expect(asUser.mutation(api.setup.mutations.createOrganizationForApp, args)).resolves.toMatchObject({
         created: true,
       });
       await invalidate(t, seed);
@@ -1486,7 +1299,7 @@ describe("setup/mutations", () => {
         }));
       const beforeRejected = await readProtectedState();
 
-      await expect(asUser.mutation(api.setup.mutations.createOrganization, args)).rejects.toThrow(expectedError);
+      await expect(asUser.mutation(api.setup.mutations.createOrganizationForApp, args)).rejects.toThrow(expectedError);
 
       expect(await readProtectedState()).toEqual(beforeRejected);
     });
@@ -1497,6 +1310,8 @@ describe("setup/mutations", () => {
       await t.run(async (ctx) => {
         for (const name of ["二つ目", "三つ目"]) {
           await ctx.db.insert("organizations", {
+            billingEmail: "billing@example.com",
+            billingEmailNormalized: "billing@example.com",
             createdByUserId: seed.userId,
             name,
             isDeleted: false,
@@ -1507,7 +1322,10 @@ describe("setup/mutations", () => {
       });
 
       await expect(
-        t.withIdentity({ subject: "create_org_limit" }).mutation(api.setup.mutations.createOrganization, createArgs),
+        t.withIdentity({ subject: "create_org_limit" }).mutation(api.setup.mutations.createOrganizationForApp, {
+          ...createArgs,
+          organizationId: seed.organizationId,
+        }),
       ).rejects.toThrow("作成できる組織は3つまでです");
 
       const state = await t.run(async (ctx) => ({
@@ -1526,6 +1344,8 @@ describe("setup/mutations", () => {
       await t.run(async (ctx) => {
         const now = Date.now();
         await ctx.db.insert("organizations", {
+          billingEmail: "billing@example.com",
+          billingEmailNormalized: "billing@example.com",
           createdByUserId: seed.userId,
           name: "削除済みグループ",
           isDeleted: true,
@@ -1533,6 +1353,8 @@ describe("setup/mutations", () => {
           updatedAt: now,
         });
         const invitedOrganizationId = await ctx.db.insert("organizations", {
+          billingEmail: "billing@example.com",
+          billingEmailNormalized: "billing@example.com",
           createdByUserId: await seedUser(ctx, "other_owner", "other-owner@example.com"),
           name: "招待されたグループ",
           isDeleted: false,
@@ -1560,45 +1382,27 @@ describe("setup/mutations", () => {
       });
 
       await expect(
-        t.withIdentity({ subject: "create_org_excluded" }).mutation(api.setup.mutations.createOrganization, createArgs),
+        t.withIdentity({ subject: "create_org_excluded" }).mutation(api.setup.mutations.createOrganizationForApp, {
+          ...createArgs,
+          organizationId: seed.organizationId,
+        }),
       ).resolves.toMatchObject({ created: true });
-    });
-
-    it("移行前の組織未所属店舗も上限に数える", async () => {
-      const t = convexTest(schema, modules);
-      const userId = await t.run(async (ctx) => {
-        const userId = await seedUser(ctx, "create_org_legacy", "create-org-legacy@example.com");
-        const legacyShopId = await seedLegacyShop(ctx, "移行前店舗");
-        await seedLegacyShopMembership(ctx, { userId, shopId: legacyShopId });
-        const now = Date.now();
-        for (const name of ["一つ目", "二つ目"]) {
-          await ctx.db.insert("organizations", {
-            createdByUserId: userId,
-            name,
-            isDeleted: false,
-            createdAt: now,
-            updatedAt: now,
-          });
-        }
-        return userId;
-      });
-      expect(userId).toBeDefined();
-
-      await expect(
-        t.withIdentity({ subject: "create_org_legacy" }).mutation(api.setup.mutations.createOrganization, createArgs),
-      ).rejects.toThrow("作成できる組織は3つまでです");
     });
 
     it("連続作成はrate limitで拒否し、副作用を増やさない", async () => {
       const t = convexTest(schema, modules);
       vi.setSystemTime(new Date("2026-07-25T10:00:00+09:00"));
-      await seedExistingManager(t, "create_org_rate_limit");
+      const seed = await seedExistingManager(t, "create_org_rate_limit");
       const asUser = t.withIdentity({ subject: "create_org_rate_limit" });
 
-      await asUser.mutation(api.setup.mutations.createOrganization, createArgs);
+      await asUser.mutation(api.setup.mutations.createOrganizationForApp, {
+        ...createArgs,
+        organizationId: seed.organizationId,
+      });
       await expect(
-        asUser.mutation(api.setup.mutations.createOrganization, {
+        asUser.mutation(api.setup.mutations.createOrganizationForApp, {
           ...createArgs,
+          organizationId: seed.organizationId,
           requestId: "create-organization-request-2",
         }),
       ).rejects.toThrow("組織の作成処理が進行中です。\n少し時間をおいてから、もう一度お試しください。");
@@ -1624,9 +1428,9 @@ describe("setup/mutations", () => {
       for (let index = 0; index < 10; index += 1) {
         // 1分ごとに進めて短時間limitを回復させ、日次budgetだけを消費する。
         vi.setSystemTime(startedAt + index * 60_000);
-        const created = await asUser.mutation(api.setup.mutations.createOrganization, {
+        const created = await asUser.mutation(api.setup.mutations.createOrganizationForApp, {
           ...createArgs,
-          sourceShopId: seed.shopId,
+          organizationId: seed.organizationId,
           requestId: `create-organization-daily-${index + 1}`,
         });
         createdShopIds.push(created.shopId);
@@ -1663,9 +1467,9 @@ describe("setup/mutations", () => {
       expect(beforeRejected.audits).toHaveLength(10);
 
       await expect(
-        asUser.mutation(api.setup.mutations.createOrganization, {
+        asUser.mutation(api.setup.mutations.createOrganizationForApp, {
           ...createArgs,
-          sourceShopId: seed.shopId,
+          organizationId: seed.organizationId,
           requestId: "create-organization-daily-11",
         }),
       ).rejects.toThrow("組織の作成処理が進行中です。\n少し時間をおいてから、もう一度お試しください。");
@@ -1675,16 +1479,19 @@ describe("setup/mutations", () => {
 
     it("店舗名をサーバー側でも検証する", async () => {
       const t = convexTest(schema, modules);
-      await seedExistingManager(t, "create_org_validation");
+      const source = await seedExistingManager(t, "create_org_validation");
 
       await expect(
-        t
-          .withIdentity({ subject: "create_org_validation" })
-          .mutation(api.setup.mutations.createOrganization, { ...createArgs, shopName: "   " }),
+        t.withIdentity({ subject: "create_org_validation" }).mutation(api.setup.mutations.createOrganizationForApp, {
+          ...createArgs,
+          organizationId: source.organizationId,
+          shopName: "   ",
+        }),
       ).rejects.toThrow(ConvexError);
       await expect(
-        t.withIdentity({ subject: "create_org_validation" }).mutation(api.setup.mutations.createOrganization, {
+        t.withIdentity({ subject: "create_org_validation" }).mutation(api.setup.mutations.createOrganizationForApp, {
           ...createArgs,
+          organizationId: source.organizationId,
           shopName: "あ".repeat(SHOP_NAME_MAX_LENGTH + 1),
         }),
       ).rejects.toThrow(ConvexError);

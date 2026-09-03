@@ -250,7 +250,7 @@ describe("m021 complimentary Pro to Business migration", () => {
         sentAt: now,
         createdAt: now,
         updatedAt: now,
-      });
+      } as unknown as WithoutSystemFields<Doc<"notificationOutbox">>);
       await ctx.db.insert("organizationAuditEvents", {
         organizationId: audit.organizationId,
         action: "organization.billing_state_changed",

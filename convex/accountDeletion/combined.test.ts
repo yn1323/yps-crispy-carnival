@@ -379,6 +379,7 @@ describe("所属を含むアカウント削除", () => {
       const fixture = await seedSharedDepartureFixture(ctx);
       for (let index = 0; index < 49; index += 1) {
         await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           organizationId: fixture.organizationId,
           organizationPersonId: fixture.personId,
           userId: fixture.userId,
@@ -400,6 +401,7 @@ describe("所属を含むアカウント削除", () => {
     }
     await t.run(async (ctx) => {
       await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         organizationId: ids.organizationId,
         organizationPersonId: ids.personId,
         userId: ids.userId,
@@ -452,6 +454,7 @@ describe("所属を含むアカウント削除", () => {
         complimentary: true,
       });
       const corruptedStaffId = await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         organizationId: fixture.organizationId,
         organizationPersonId: fixture.personId,
         userId: fixture.userId,
@@ -501,6 +504,7 @@ describe("所属を含むアカウント削除", () => {
         if (recordKind === "staffAccess") {
           for (let index = 0; index < 198; index += 1) {
             await ctx.db.insert("sessions", {
+              accessKind: "submit",
               sessionToken: `shared-departure-overflow-${index}`,
               staffId: fixture.staffId,
               shopId: fixture.shopId,
@@ -556,6 +560,8 @@ describe("所属を含むアカウント削除", () => {
             staffId: fixture.staffId,
             organizationInvitationId,
             purpose: "business",
+            notificationContext: "test.accountDeletion.recordLimit",
+            deliverySuppressed: false,
             payload: {
               kind: "email",
               from: "noreply@example.com",
@@ -676,7 +682,7 @@ describe("所属を含むアカウント削除", () => {
     expect(state.targetPerson).toMatchObject({ status: "removed", name: "管理者" });
     expect(state.targetMember).toMatchObject({ status: "removed" });
     expect(state.targetStaff).toMatchObject({ isDeleted: true, name: "退会する管理者" });
-    expect(state.targetLegacyMember).toMatchObject({ isDeleted: true });
+    expect(state.targetLegacyMember).toMatchObject({ isDeleted: scenario.historicalDeletedShop });
     expect(state.successorUser).toMatchObject({ isDeleted: false });
     expect(state.successorPerson).toMatchObject({ status: "active", name: "後任管理者" });
     expect(state.successorMember).toMatchObject({ status: "active" });
@@ -959,6 +965,7 @@ async function seedFormerManagerDepartureFixture(
   await ctx.db.patch(target.memberId, { status: "removed", updatedAt: NOW + 1 });
   const staffId = args.hasStaff
     ? await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         organizationId: target.organizationId,
         organizationPersonId: target.personId,
         userId: target.userId,
@@ -994,6 +1001,7 @@ async function seedSharedDepartureFixture(ctx: MutationCtx) {
     billingEmailNormalized: "shared-departure-successor@example.com",
   });
   const staffId = await ctx.db.insert("staffs", {
+    excludedFromShift: false,
     organizationId: target.organizationId,
     organizationPersonId: target.personId,
     userId: target.userId,
@@ -1045,6 +1053,7 @@ async function seedSharedDepartureFixture(ctx: MutationCtx) {
     positionId,
   });
   const sessionId = await ctx.db.insert("sessions", {
+    accessKind: "submit",
     sessionToken: "shared-departure-session",
     staffId,
     shopId: target.shopId,
@@ -1052,6 +1061,7 @@ async function seedSharedDepartureFixture(ctx: MutationCtx) {
     expiresAt: NOW + 86_400_000,
   });
   const magicLinkId = await ctx.db.insert("magicLinks", {
+    accessKind: "submit",
     token: "shared-departure-magic-link",
     staffId,
     shopId: target.shopId,
@@ -1073,6 +1083,9 @@ async function seedSharedDepartureFixture(ctx: MutationCtx) {
     shopId: target.shopId,
     organizationId: target.organizationId,
     staffId,
+    purpose: "business",
+    notificationContext: "test.accountDeletion.sharedCleanup",
+    deliverySuppressed: false,
     payload: {
       kind: "email",
       from: "シフトリ <noreply@example.com>",

@@ -110,6 +110,9 @@ const shopNamesByRecruitmentId = new Map<Recruitment["_id"], string>([
   [collectingSoonRecruitment._id, "とても長い店舗名の中央駅前店"],
   [collectingLaterRecruitment._id, "yn1323店舗"],
   [futureConfirmed._id, "駅前店"],
+  [unconfirmedPastRecruitment._id, "駅前店"],
+  [recentPastRecruitment._id, "yn1323店舗"],
+  [olderPastRecruitment._id, "駅前店"],
 ]);
 const getRecruitmentShopName = (recruitment: Recruitment) => shopNamesByRecruitmentId.get(recruitment._id);
 const groupsFor = (
@@ -244,19 +247,17 @@ export const Empty: Story = {
 
 export const AllShopsPastOnly: Story = {
   args: {
-    groups: [],
-    hasPastRecruitments: false,
-    isPastRecruitmentsVisible: false,
-    emptyState: {
-      title: "利用可能なシフトはありません",
-      description: "店舗で絞り込むと過去シフトを確認できます。",
-      actionLabel: "新しい募集をつくる",
-    },
+    groups: groupsFor([unconfirmedPastRecruitment, recentPastRecruitment, olderPastRecruitment]),
+    hasPastRecruitments: true,
+    isPastRecruitmentsVisible: true,
+    getRecruitmentShopName,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    await expect(await canvas.findByText("利用可能なシフトはありません")).toBeInTheDocument();
+    await expect(await canvas.findByRole("region", { name: "過去のシフト" })).toBeInTheDocument();
+    await expect(canvas.getAllByText("yn1323店舗").length).toBeGreaterThan(0);
+    await expect(canvas.getAllByText("駅前店").length).toBeGreaterThan(0);
     await expect(canvas.queryByText("シフト一覧はまだありません")).not.toBeInTheDocument();
   },
 };
@@ -330,6 +331,7 @@ export const PastLoadedCanLoadMore: Story = {
     isPastRecruitmentsVisible: true,
     pastStatus: "CanLoadMore",
     canLoadMorePastRecruitments: true,
+    getRecruitmentShopName,
   },
   parameters: {
     viewport: { value: "mobile1", isRotated: false },
@@ -348,6 +350,7 @@ export const PastLoadedExhausted: Story = {
     isPastRecruitmentsVisible: true,
     pastStatus: "Exhausted",
     canLoadMorePastRecruitments: false,
+    getRecruitmentShopName,
   },
 };
 

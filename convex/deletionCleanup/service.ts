@@ -215,26 +215,11 @@ async function getActiveUserAssociationStatusForScope(
     if (!shop) return "unknown";
     if (shop.isDeleted || (excludedOrganizationId && shop.organizationId === excludedOrganizationId)) continue;
     if (staff.organizationId !== shop.organizationId) return "unknown";
-    if (!shop.organizationId) return "found";
     const organization = await ctx.db.get(shop.organizationId);
     if (!organization) return "unknown";
     if (!organization.isDeleted) return "found";
   }
 
-  const shopMembers = await ctx.db
-    .query("shopMembers")
-    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", userId).eq("isDeleted", false))
-    .take(USER_ASSOCIATION_SCAN_LIMIT + 1);
-  if (shopMembers.length > USER_ASSOCIATION_SCAN_LIMIT) return "unknown";
-  for (const membership of shopMembers) {
-    const shop = await ctx.db.get(membership.shopId);
-    if (!shop) return "unknown";
-    if (shop.isDeleted || (excludedOrganizationId && shop.organizationId === excludedOrganizationId)) continue;
-    if (!shop.organizationId) return "found";
-    const organization = await ctx.db.get(shop.organizationId);
-    if (!organization) return "unknown";
-    if (!organization.isDeleted) return "found";
-  }
   return "none";
 }
 

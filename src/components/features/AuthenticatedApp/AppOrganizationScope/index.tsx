@@ -12,6 +12,7 @@ const PAGE_SIZE = 50;
 export type AppOrganizationScope = {
   organizationId: Id<"organizations">;
   organizationName: string;
+  organizationPlan: "trial" | "free" | "standard" | "pro";
   /** nullの間は全cursorを走査中。Headerの組織切替へ部分的な一覧を公開しない。 */
   organizations: AppOrganizationOption[] | null;
   /** nullの間は全cursorを走査中。部分的な店舗一覧を選択肢として公開しない。 */
@@ -148,6 +149,7 @@ function VerifiedOrganizationScope({
       value={{
         organizationId: organization.organizationId,
         organizationName: organization.organizationName,
+        organizationPlan: organization.organizationPlan,
         organizations: organizationOptions,
         shops,
       }}

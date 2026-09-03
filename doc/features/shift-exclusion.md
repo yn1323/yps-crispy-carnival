@@ -21,7 +21,7 @@ LINE連携依頼や規約同意など、シフト以外の通知は従来どお�
 
 ### バックエンド（`convex/`）
 
-- `convex/schema.ts` — `staffs.excludedFromShift`（`v.optional(v.boolean())`）
+- `convex/schema.ts` — `staffs.excludedFromShift`（`v.boolean()`）
 - `convex/staff/service.ts` — `isShiftTargetStaff`（対象判定の純粋関数）
 - `convex/staff/mutations.ts` — `setShiftExclusion`（フラグ切り替え＋対象外時にセッション/マジックリンク失効）
 - `convex/_lib/functions.ts` — `staffSessionQuery` / `staffSessionMutation` で対象外を弾く

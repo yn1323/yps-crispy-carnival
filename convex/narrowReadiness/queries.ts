@@ -159,7 +159,9 @@ export const verifyUsers = internalQuery({
           (user) => user.emailNormalized !== undefined && user.emailNormalized !== normalizeEmail(user.email),
         ).length,
         // adminは現行writer・権限判定で使っていないが、自動manager化はせず運用判断を要求する。
-        legacyAdminRole: result.page.filter((user) => user.role === "admin").length,
+        legacyAdminRole: result.page.filter(
+          (user) => (user as Omit<typeof user, "role"> & { role?: unknown }).role === "admin",
+        ).length,
       },
     };
   },
@@ -370,7 +372,8 @@ export const verifyNotificationOutbox = internalQuery({
       if ((outbox.fanoutTargetKey === undefined) !== (outbox.fanoutOperationId === undefined)) {
         anomalies.incompleteFanoutLink += 1;
       }
-      if (outbox.cancelReason === "shop_inactive") anomalies.legacyShopInactiveCancelReason += 1;
+      const historicalCancelReason = (outbox as unknown as { cancelReason?: string }).cancelReason;
+      if (historicalCancelReason === "shop_inactive") anomalies.legacyShopInactiveCancelReason += 1;
     }
     return { ...pageMetadata(result), anomalies };
   },
@@ -883,21 +886,23 @@ export const verifyLineCommonAsyncCompatibility = internalQuery({
     const now = Date.now();
     if (table === "tokens") {
       const result = await ctx.db.query("lineLinkTokens").paginate(paginationOpts);
+      let missingTokenSnapshots = 0;
       let oldUnusedTokens = 0;
       let incompleteUnusedTokenSnapshots = 0;
       for (const token of result.page) {
-        if (token.expiresAt <= now || token.usedAt !== undefined || token.revokedAt !== undefined) continue;
         const snapshotCount = [
           token.organizationId,
           token.organizationPersonId,
           token.lineLinkGenerationAtIssue,
         ].filter((value) => value !== undefined).length;
+        if (snapshotCount < 3) missingTokenSnapshots += 1;
+        if (token.expiresAt <= now || token.usedAt !== undefined || token.revokedAt !== undefined) continue;
         if (snapshotCount < 3) oldUnusedTokens += 1;
         if (snapshotCount > 0 && snapshotCount < 3) incompleteUnusedTokenSnapshots += 1;
       }
       return {
         ...pageMetadata(result),
-        anomalies: { incompleteUnusedTokenSnapshots, incompleteActiveLineOutboxSnapshots: 0 },
+        anomalies: { missingTokenSnapshots, incompleteUnusedTokenSnapshots, incompleteActiveLineOutboxSnapshots: 0 },
         observations: { oldUnusedTokens, activeLineOutboxWithoutGeneration: 0 },
       };
     }
@@ -913,7 +918,7 @@ export const verifyLineCommonAsyncCompatibility = internalQuery({
     }
     return {
       ...pageMetadata(result),
-      anomalies: { incompleteUnusedTokenSnapshots: 0, incompleteActiveLineOutboxSnapshots },
+      anomalies: { missingTokenSnapshots: 0, incompleteUnusedTokenSnapshots: 0, incompleteActiveLineOutboxSnapshots },
       observations: { oldUnusedTokens: 0, activeLineOutboxWithoutGeneration },
     };
   },

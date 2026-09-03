@@ -130,6 +130,8 @@ export const refreshQuotaStatus = internalAction({
 export const sendInviteEmail = internalAction({
   args: {
     staffId: v.id("staffs"),
+    // TODO[narrow]: 全deploymentでverifyLineCommonScheduledCallersのoldLiveLineInviteCallersが0件になり、
+    // 旧予約のdrain期間が終わった後に、人物IDと世代snapshotを同時にrequired化する。
     organizationPersonId: v.optional(v.id("organizationPeople")),
     lineLinkGenerationAtSchedule: v.optional(v.number()),
     context: v.optional(v.union(v.literal("default"), v.literal("registration_approved"))),

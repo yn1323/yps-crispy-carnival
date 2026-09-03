@@ -12,7 +12,6 @@ async function setupTestData(
   t: TestConvex<typeof schema>,
   options: {
     accessKind?: "submit" | "view";
-    legacyAccessKind?: boolean;
     expiresAt?: number;
     usedAt?: number;
   } = {},
@@ -44,7 +43,7 @@ async function setupTestData(
       staffId,
       shopId,
       recruitmentId,
-      ...(options.legacyAccessKind ? {} : { accessKind }),
+      accessKind,
       expiresAt: options.expiresAt ?? Date.now() + 24 * 60 * 60 * 1000,
       ...(options.usedAt === undefined ? {} : { usedAt: options.usedAt }),
     });
@@ -121,30 +120,6 @@ describe("staffAuth/mutations", () => {
       if (result.status === "expired") {
         expect(result.reason).toBe("invalid_link");
       }
-    });
-
-    it.each([
-      { name: "両canonical ID欠損", patch: { organizationId: undefined, organizationPersonId: undefined } },
-      { name: "organizationIdだけ欠損", patch: { organizationId: undefined } },
-      { name: "organizationPersonIdだけ欠損", patch: { organizationPersonId: undefined } },
-    ])("$name staffの既存magic linkから新規sessionを発行しない", async ({ patch }) => {
-      const t = convexTest(schema, modules);
-      const { magicLinkToken, staffId, recruitmentId } = await setupTestData(t);
-      await t.run(async (ctx) => await ctx.db.patch(staffId, patch));
-
-      await expect(
-        t.mutation(api.staffAuth.mutations.verifyToken, { token: magicLinkToken, accessKind: "view" }),
-      ).resolves.toEqual({ status: "expired", reason: "invalid_link", recruitmentId });
-
-      const state = await t.run(async (ctx) => ({
-        sessions: await ctx.db.query("sessions").collect(),
-        magicLink: await ctx.db
-          .query("magicLinks")
-          .withIndex("by_token", (q) => q.eq("token", magicLinkToken))
-          .unique(),
-      }));
-      expect(state.sessions).toEqual([]);
-      expect(state.magicLink?.usedAt).toBeUndefined();
     });
 
     it("canonical IDが揃っていても人物がremovedなら新規sessionを発行しない", async () => {
@@ -308,23 +283,6 @@ describe("staffAuth/mutations", () => {
       expect(result).toEqual({ status: "expired", reason: "recruitment_deleted", recruitmentId });
     });
 
-    it("accessKind未設定の使用済みsubmitトークンは提出期限前なら救済する", async () => {
-      const t = convexTest(schema, modules);
-      const { magicLinkToken, recruitmentId } = await setupTestData(t, {
-        accessKind: "submit",
-        legacyAccessKind: true,
-        usedAt: Date.now() - 1000,
-      });
-
-      const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
-        token: magicLinkToken,
-        accessKind: "submit",
-      });
-
-      expect(result.status).toBe("ok");
-      if (result.status === "ok") expect(result.recruitmentId).toBe(recruitmentId);
-    });
-
     it("submitトークンは募集の提出期限後でもopenならセッションを発行できる", async () => {
       const t = convexTest(schema, modules);
       const { magicLinkToken, recruitmentId } = await setupTestData(t, {
@@ -416,63 +374,6 @@ describe("staffAuth/mutations", () => {
       });
 
       expect(result).toEqual({ status: "expired", reason: "submission_closed", recruitmentId });
-    });
-
-    it("accessKind未設定のsubmitトークンも募集確定後ならsubmission_closed reasonでexpiredが返る", async () => {
-      const t = convexTest(schema, modules);
-      const { magicLinkToken, recruitmentId } = await setupTestData(t, {
-        accessKind: "submit",
-        legacyAccessKind: true,
-        expiresAt: Date.now() + 24 * 60 * 60 * 1000,
-      });
-      await t.run(async (ctx) => {
-        await ctx.db.patch(recruitmentId, { status: "confirmed", confirmedAt: Date.now() });
-      });
-
-      const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
-        token: magicLinkToken,
-        accessKind: "submit",
-      });
-
-      expect(result).toEqual({ status: "expired", reason: "submission_closed", recruitmentId });
-    });
-
-    it("accessKind未設定のlegacy submitトークンは募集確定後もviewへ昇格せず副作用を起こさない", async () => {
-      const t = convexTest(schema, modules);
-      const { magicLinkToken, recruitmentId, staffId, shopId } = await setupTestData(t, {
-        accessKind: "submit",
-        legacyAccessKind: true,
-        expiresAt: Date.now() + 24 * 60 * 60 * 1000,
-      });
-      await t.run(async (ctx) => {
-        await ctx.db.patch(recruitmentId, { status: "confirmed", confirmedAt: Date.now() });
-      });
-      const before = await t.run(async (ctx) => ({
-        staff: await ctx.db.get(staffId),
-        shop: await ctx.db.get(shopId),
-      }));
-
-      const result = await t.mutation(api.staffAuth.mutations.verifyToken, {
-        token: magicLinkToken,
-        accessKind: "view",
-      });
-
-      expect(result).toEqual({ status: "expired", reason: "invalid_link", recruitmentId });
-      const state = await t.run(async (ctx) => ({
-        sessions: await ctx.db.query("sessions").collect(),
-        link: await ctx.db
-          .query("magicLinks")
-          .withIndex("by_token", (q) => q.eq("token", magicLinkToken))
-          .unique(),
-        staff: await ctx.db.get(staffId),
-        shop: await ctx.db.get(shopId),
-      }));
-      expect(state.sessions).toEqual([]);
-      expect(state.link).not.toBeNull();
-      if (!state.link) throw new Error("legacy magic link not found");
-      expect(state.link.usedAt).toBeUndefined();
-      expect(state.staff).toEqual(before.staff);
-      expect(state.shop).toEqual(before.shop);
     });
 
     it("期限切れトークンでexpiredが返る", async () => {
@@ -761,24 +662,6 @@ describe("staffAuth/mutations", () => {
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
       expect(scheduled).toEqual([]);
-    });
-
-    it("両canonical ID欠損staffには再発行通知を予約しない", async () => {
-      const t = convexTest(schema, modules);
-      const ids = await setupTestData(t);
-      await t.run(async (ctx) => {
-        await ctx.db.patch(ids.staffId, { organizationId: undefined, organizationPersonId: undefined });
-      });
-
-      await expect(
-        t.mutation(api.staffAuth.mutations.requestReissue, {
-          email: "suzuki@example.com",
-          recruitmentId: ids.recruitmentId,
-        }),
-      ).resolves.toBeNull();
-
-      const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
-      expect(scheduled.filter((job) => job.name === "notification/actions:sendReissueEmail")).toEqual([]);
     });
 
     it("canonical IDが揃っていても人物がremovedなら再発行通知を予約しない", async () => {

@@ -1,5 +1,18 @@
-import type { Id } from "../_generated/dataModel";
+import type { WithoutSystemFields } from "convex/server";
+import type { TestConvex } from "convex-test";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import type { schema } from "./setup.test-helper";
+
+type CurrentShopInsert = WithoutSystemFields<Doc<"shops">>;
+
+export async function getTestOrganizationId(t: TestConvex<typeof schema>, shopId: Id<"shops">) {
+  return await t.run(async (ctx) => {
+    const shop = await ctx.db.get(shopId);
+    if (!shop) throw new Error("test shop not found");
+    return shop.organizationId;
+  });
+}
 
 export function testAuthTokenIdentifier(subject: string) {
   return `https://convex.test|${subject}`;
@@ -44,7 +57,7 @@ export async function seedLegacyShop(ctx: MutationCtx, name = "テスト店舗")
     submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     regularClosedDays: [],
     isDeleted: false,
-  });
+  } as unknown as CurrentShopInsert);
 }
 
 export async function seedOrganizationMembership(

@@ -1,3 +1,4 @@
+import type { WithoutSystemFields } from "convex/server";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
@@ -6,27 +7,37 @@ import { createMigrationHistoryTestWithMigrations, runMigrationToCompletion } fr
 const historicalComplimentaryBusinessState = () =>
   ({ kind: "complimentary", plan: "business" }) as unknown as Doc<"organizationBillingStates">["state"];
 
+function legacyDocument<T>(document: unknown): T {
+  return document as T;
+}
+
 describe("m028 shop billing Narrow preparation migration", () => {
   it("旧rowを削除せずcanonical対応の異常だけを記録し、再実行でconflictを重複させない", async () => {
     const t = createMigrationHistoryTestWithMigrations();
     const ids = await t.run(async (ctx) => {
       const now = Date.now();
       const createOrganization = async (name: string) =>
-        await ctx.db.insert("organizations", {
-          name,
-          isDeleted: false,
-          createdAt: now,
-          updatedAt: now,
-        });
+        await ctx.db.insert(
+          "organizations",
+          legacyDocument<WithoutSystemFields<Doc<"organizations">>>({
+            name,
+            isDeleted: false,
+            createdAt: now,
+            updatedAt: now,
+          }),
+        );
       const createShop = async (name: string, organizationId?: Awaited<ReturnType<typeof createOrganization>>) =>
-        await ctx.db.insert("shops", {
-          organizationId,
-          operatingStatus: organizationId ? "active" : undefined,
-          name,
-          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-          regularClosedDays: [],
-          isDeleted: false,
-        });
+        await ctx.db.insert(
+          "shops",
+          legacyDocument<WithoutSystemFields<Doc<"shops">>>({
+            organizationId,
+            operatingStatus: organizationId ? "active" : undefined,
+            name,
+            submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+            regularClosedDays: [],
+            isDeleted: false,
+          }),
+        );
       const createLegacyBilling = async (shopId: Awaited<ReturnType<typeof createShop>>) =>
         await ctx.db.insert("shopBillingStates", {
           shopId,

@@ -3,7 +3,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "../_generated/api";
 import { seedStaff } from "../_test/scenarioBuilders";
-import { seedCanonicalStaffLineRecipient, seedManagerShop, seedShop } from "../_test/seed";
+import { getTestOrganizationId, seedCanonicalStaffLineRecipient, seedManagerShop, seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { getLegalConsentVersions } from "./documents";
 
@@ -198,7 +198,11 @@ describe("legal/mutations", () => {
 
     const result = await t
       .withIdentity({ subject: "manager_1" })
-      .mutation(api.legal.mutations.acceptManagerLegalConsent, { acceptedLegal: true, shopId });
+      .mutation(api.legal.mutations.acceptManagerLegalConsent, {
+        acceptedLegal: true,
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
 
     expect(result.status).toBe("ok");
     const [state, events] = await t.run(async (ctx) => {

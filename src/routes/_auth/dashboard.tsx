@@ -18,6 +18,7 @@ function DashboardRoute() {
     <DashboardRoutePage
       organizationId={organization.organizationId}
       organizationName={organization.organizationName}
+      organizationPlan={organization.organizationPlan}
       shops={organization.shops}
       requestedShopId={shop}
     />

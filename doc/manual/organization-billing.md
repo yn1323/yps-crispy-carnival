@@ -164,7 +164,7 @@ pnpm exec convex env list --names-only \
 3. 対象modeとPriceの`livemode`が一致することを確認する。
 4. Priceをactiveにし、対象IDを対応する環境変数へ設定する。
 5. Customer Portalは支払い方法更新と請求履歴だけを許可する設定を使う。
-6. `getPlanPrice`で、active、請求周期、通貨、金額をサーバーが取得できることを確認する。
+6. `getPlanPriceForOrganization`で、active、請求周期、通貨、金額をサーバーが取得できることを確認する。
 
 アプリはPrice IDをクライアントから受け取らず、サーバー側allowlistから選ぶ。
 金額と請求周期はコードや別の環境変数へ固定せず、Stripe Priceから取得する。
@@ -356,7 +356,7 @@ Priceのアーカイブは新規販売を止めるが、既存Subscriptionを終
 6. 対象environmentで公開サイトをbuild・deployし、特定商取引法ページの金額、通貨、請求周期、税区分を確認する。ここまでは旧Priceをアーカイブしたままにし、新規販売を再開しない。
 7. 現在のConvex設定が対象deploymentを指すことと、`.env`にある同期対象キーを確認する。
 8. `STRIPE_STANDARD_PRICE_ID`または`STRIPE_PRO_PRICE_ID`の対象キーだけを、完全修飾deployment名を指定した`convex env set`で新Priceへ更新する。続けて`env list --names-only`でキーの存在だけを確認する。この切替後に新規販売を再開する。
-9. 新Priceの`livemode`、active、請求周期、通貨、金額を`getPlanPrice`とStripe Dashboardで照合する。
+9. 新Priceの`livemode`、active、請求周期、通貨、金額を`getPlanPriceForOrganization`とStripe Dashboardで照合する。
 10. 対象modeでCheckout、Subscription、Webhook、Invoiceをcanary確認する。
 11. 旧Priceを使う進行中のTrial・契約作成operationが0件までdrainしたことを確認する。
 12. 既存Subscriptionが保存済みの旧Priceで継続していることを確認する。

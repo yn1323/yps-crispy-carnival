@@ -43,7 +43,6 @@ const SAFE_ERROR_CODES = new Set([
   "analytics_organization_shop_scope_too_large",
   "analytics_organization_shop_snapshot_mismatch",
   "analytics_organization_staff_scope_too_large",
-  "analytics_plan_shop_delta_scope_missing",
   "analytics_plan_status_delta_batch_too_large",
   "analytics_projection_cycle_scope_invalid",
   "analytics_projection_cycle_shop_missing",

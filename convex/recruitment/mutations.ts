@@ -83,9 +83,7 @@ export const createRecruitment = managerMutation({
         candidate.periodStart === input.periodStart &&
         candidate.periodEnd === input.periodEnd &&
         candidate.deadline === input.deadline &&
-        // TODO[narrow]: 全deploymentでm040が完走し、
-        // verifyRecruitments.missingShopClosedDatesが0件になった後にfallbackを削除する。
-        sameStringArray(candidate.shopClosedDates ?? [], shopClosedDates),
+        sameStringArray(candidate.shopClosedDates, shopClosedDates),
     );
     if (duplicate) throw new ConvexError(RECRUITMENT_DUPLICATE_ERROR_CODE);
 
@@ -105,23 +103,22 @@ export const createRecruitment = managerMutation({
       submissionPattern: ctx.shop.submissionPattern,
       ...(shouldScheduleReminder ? { reminderScheduledAt } : {}),
     });
-    if (ctx.shop.organizationId)
-      await recordAnalyticsSourceEvent(ctx, {
-        eventKey: `cycle:${recruitmentId}:created`,
-        eventType: "cycle.changed",
-        occurredAt: now,
-        organizationId: ctx.shop.organizationId,
-        shopId: ctx.shop._id,
-        recruitmentId,
-        payload: {
-          kind: "cycle",
-          status: "open",
-          createdAt: now,
-          periodStart: input.periodStart,
-          periodEnd: input.periodEnd,
-          deadline: input.deadline,
-        },
-      });
+    await recordAnalyticsSourceEvent(ctx, {
+      eventKey: `cycle:${recruitmentId}:created`,
+      eventType: "cycle.changed",
+      occurredAt: now,
+      organizationId: ctx.shop.organizationId,
+      shopId: ctx.shop._id,
+      recruitmentId,
+      payload: {
+        kind: "cycle",
+        status: "open",
+        createdAt: now,
+        periodStart: input.periodStart,
+        periodEnd: input.periodEnd,
+        deadline: input.deadline,
+      },
+    });
     const activeStaffs = await ctx.db
       .query("staffs")
       .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", ctx.shop._id).eq("isDeleted", false))
@@ -194,24 +191,23 @@ export const deleteRecruitment = managerMutation({
     // 周辺データは監査・集計のため残し、募集を失効させることで提出/閲覧/通知導線から外す。
     const now = Date.now();
     await ctx.db.patch(args.recruitmentId, { isDeleted: true });
-    if (ctx.shop.organizationId)
-      await recordAnalyticsSourceEvent(ctx, {
-        eventKey: `cycle:${args.recruitmentId}:deleted:${now}`,
-        eventType: "cycle.changed",
-        occurredAt: now,
-        organizationId: ctx.shop.organizationId,
-        shopId: ctx.shop._id,
-        recruitmentId: args.recruitmentId,
-        payload: {
-          kind: "cycle",
-          status: "deleted",
-          createdAt: recruitment._creationTime,
-          periodStart: recruitment.periodStart,
-          periodEnd: recruitment.periodEnd,
-          deadline: recruitment.deadline,
-          ...(recruitment.confirmedAt ? { confirmedAt: recruitment.confirmedAt } : {}),
-        },
-      });
+    await recordAnalyticsSourceEvent(ctx, {
+      eventKey: `cycle:${args.recruitmentId}:deleted:${now}`,
+      eventType: "cycle.changed",
+      occurredAt: now,
+      organizationId: ctx.shop.organizationId,
+      shopId: ctx.shop._id,
+      recruitmentId: args.recruitmentId,
+      payload: {
+        kind: "cycle",
+        status: "deleted",
+        createdAt: recruitment._creationTime,
+        periodStart: recruitment.periodStart,
+        periodEnd: recruitment.periodEnd,
+        deadline: recruitment.deadline,
+        ...(recruitment.confirmedAt ? { confirmedAt: recruitment.confirmedAt } : {}),
+      },
+    });
     await cancelNotificationFanoutOperationsForRecruitment(ctx, args.recruitmentId);
     return null;
   },

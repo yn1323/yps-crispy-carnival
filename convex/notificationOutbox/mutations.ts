@@ -22,12 +22,7 @@ import {
   RESEND_DELAYED_FAILURE_GRACE_MS,
   RESEND_DELAYED_FAILURE_RECOVERY_BATCH_SIZE,
 } from "../constants";
-import {
-  getOrganizationPersonLineState,
-  getStaffLineAccount,
-  resolveCanonicalStaffScope,
-  resolveStaffLineRecipient,
-} from "../line/service";
+import { getOrganizationPersonLineState, resolveCanonicalStaffScope, resolveStaffLineRecipient } from "../line/service";
 import {
   buildConfirmationSnapshotSignature,
   confirmationSnapshotInputValidator,
@@ -256,6 +251,7 @@ export const enqueue = internalMutation({
       }
       throw new ConvexError("Notification cannot be enqueued");
     }
+    if (!eligibility.organizationId) throw new ConvexError("Notification organization scope is missing");
 
     // worker が別ジョブの status を高頻度に更新するため、enqueue の読み取りは dedupeKey 単位に絞る。
     // TODO[narrow]: 全deploymentで旧schedulerが消え、fanout linkの不完全rowが0件になった後はcanonical keyだけを見る。
@@ -338,7 +334,7 @@ export const enqueue = internalMutation({
         }
         if (
           purpose === "business" &&
-          existingBelongsToNotificationScope(existing, args, eligibility.organizationId) &&
+          existingBelongsToNotificationScope(existing, eligibility.organizationId) &&
           predatesBusinessNotificationCutoff(existing, eligibility)
         ) {
           await cancelActiveNotification(ctx, existing, "organization_billing_changed", now);
@@ -357,7 +353,7 @@ export const enqueue = internalMutation({
       ...(args.fanoutTargetKey ? { fanoutTargetKey: args.fanoutTargetKey } : {}),
       ...(args.fanoutOperationId ? { fanoutOperationId: args.fanoutOperationId } : {}),
       ...(args.shopId ? { shopId: args.shopId } : {}),
-      ...(eligibility.organizationId ? { organizationId: eligibility.organizationId } : {}),
+      organizationId: eligibility.organizationId,
       ...(organizationBillingVersionAtEnqueue !== undefined ? { organizationBillingVersionAtEnqueue } : {}),
       ...(args.organizationInvitationId ? { organizationInvitationId: args.organizationInvitationId } : {}),
       ...(args.organizationInvitationVersion !== undefined
@@ -969,7 +965,7 @@ export async function cancelOrganizationRecipientBusinessNotifications(
   let cancelledCount = 0;
   const now = Date.now();
   for (const job of candidates) {
-    if (!(await notificationBelongsToOrganization(ctx, job, args.organizationId))) continue;
+    if (!notificationBelongsToOrganization(job, args.organizationId)) continue;
 
     const invitationInactive =
       job.organizationInvitationId !== undefined && invitationIds.has(job.organizationInvitationId);
@@ -992,16 +988,8 @@ export async function cancelOrganizationRecipientBusinessNotifications(
   return { cancelledCount };
 }
 
-async function notificationBelongsToOrganization(
-  ctx: MutationCtx,
-  job: Doc<"notificationOutbox">,
-  organizationId: Id<"organizations">,
-) {
-  // TODO[narrow]: 全deploymentでm037完走・scope readiness異常0確認後はorganizationIdだけを比較する。
-  if (job.organizationId !== undefined) return job.organizationId === organizationId;
-  if (!job.shopId) return false;
-  const shop = await ctx.db.get(job.shopId);
-  return shop?.organizationId === organizationId;
+function notificationBelongsToOrganization(job: Doc<"notificationOutbox">, organizationId: Id<"organizations">) {
+  return job.organizationId === organizationId;
 }
 
 export const markSent = internalMutation({
@@ -1075,7 +1063,7 @@ type NotificationEligibilityInput = {
   organizationInvitationVersion?: number;
   organizationPersonLineLinkId?: Id<"organizationPersonLineLinks">;
   organizationPersonLineGenerationAtEnqueue?: number;
-  purpose?: NotificationPurpose;
+  purpose: NotificationPurpose;
   dedupeKey?: string;
   recruitmentId?: Id<"recruitments">;
   fanoutTargetKey?: string;
@@ -1096,40 +1084,17 @@ type NotificationEligibility = {
 
 function lineRecipientSnapshotMatches(
   notification: NotificationEligibilityInput,
-  recipient:
-    | {
-        authority: "legacy";
-        organizationPersonLineLinkId?: Id<"organizationPersonLineLinks">;
-        generation?: number;
-        lineUserId: string;
-      }
-    | {
-        authority: "canonical";
-        organizationPersonLineLinkId: Id<"organizationPersonLineLinks">;
-        generation: number;
-        lineUserId: string;
-      },
+  recipient: {
+    authority: "canonical";
+    organizationPersonLineLinkId: Id<"organizationPersonLineLinks">;
+    generation: number;
+    lineUserId: string;
+  },
 ) {
   if (notification.payload.kind !== "line" && notification.payload.kind !== "organizationManagerInvitationLine") {
     return false;
   }
   if (notification.payload.toUserId !== recipient.lineUserId) return false;
-  if (recipient.authority === "legacy") {
-    const notificationHasLinkId = notification.organizationPersonLineLinkId !== undefined;
-    const notificationHasGeneration = notification.organizationPersonLineGenerationAtEnqueue !== undefined;
-    if (notificationHasLinkId !== notificationHasGeneration) return false;
-    // m041前に作られたsnapshot欠損jobは、backfill後にcounterpart metadataが現れても
-    // deployment-wide legacy authority中はraw宛先ID一致の互換契約を維持する。
-    if (!notificationHasLinkId) return true;
-    const recipientHasLinkId = recipient.organizationPersonLineLinkId !== undefined;
-    const recipientHasGeneration = recipient.generation !== undefined;
-    return (
-      recipientHasLinkId &&
-      recipientHasGeneration &&
-      notification.organizationPersonLineLinkId === recipient.organizationPersonLineLinkId &&
-      notification.organizationPersonLineGenerationAtEnqueue === recipient.generation
-    );
-  }
   return (
     notification.organizationPersonLineLinkId !== undefined &&
     notification.organizationPersonLineGenerationAtEnqueue !== undefined &&
@@ -1142,7 +1107,6 @@ function lineRecipientSnapshotMatches(
 
 /**
  * 同じdedupe keyでも、未送信LINEの宛先世代が変わった場合は別配送として扱う。
- * legacy authorityはsnapshotを持たないため、snapshot欠損と宛先IDの一致を互換条件にする。
  */
 function lineDedupeRecipientSnapshotMatches(
   existing: Pick<
@@ -1178,18 +1142,8 @@ function lineDedupeRecipientSnapshotMatches(
   );
 }
 
-function existingBelongsToNotificationScope(
-  existing: Doc<"notificationOutbox">,
-  notification: { shopId?: Id<"shops"> },
-  organizationId?: Id<"organizations">,
-) {
-  if (organizationId && existing.organizationId === organizationId) return true;
-  // TODO[narrow]: 全deploymentでm037完走・missingOrganizationId=0確認後にshop-only比較を削除する。
-  return (
-    existing.organizationId === undefined &&
-    notification.shopId !== undefined &&
-    existing.shopId === notification.shopId
-  );
+function existingBelongsToNotificationScope(existing: Doc<"notificationOutbox">, organizationId?: Id<"organizations">) {
+  return organizationId !== undefined && existing.organizationId === organizationId;
 }
 
 function predatesBusinessNotificationCutoff(
@@ -1258,8 +1212,7 @@ async function getFanoutCancellationReason(
   const expectedRecruitmentStatus = operation.kind === "recruitment" ? "open" : "confirmed";
   if (recruitment.status !== expectedRecruitmentStatus) return "recruitment_inactive";
   if (
-    // TODO[narrow]: 全deploymentでm030完走・missingSupersedesActiveOperations=0確認後にfallbackを外す。
-    (operation.supersedesActiveOperations ?? true) &&
+    operation.supersedesActiveOperations &&
     operation.kind === "confirmation" &&
     recruitment.lastConfirmationNotificationOperationKey !== undefined &&
     recruitment.lastConfirmationNotificationOperationKey !== operation.operationKey
@@ -1312,8 +1265,7 @@ async function getNotificationEligibility(
   notification: NotificationEligibilityInput,
   now: number,
 ): Promise<NotificationEligibility> {
-  // TODO[narrow]: 全deploymentでm024完走・missingPurpose=0確認後は保存済みjobのpurpose fallbackを削除する。
-  const purpose = notification.purpose ?? "business";
+  const purpose = notification.purpose;
   if (notification.channel !== notificationChannelForPayload(notification.payload)) {
     return { cancelReason: "unsupported_channel" };
   }
@@ -1359,10 +1311,7 @@ async function getNotificationEligibility(
   const fanoutReason = await getFanoutCancellationReason(ctx, notification, recruitment);
   if (fanoutReason) return { organizationId, cancelReason: fanoutReason };
   if (!organizationId) {
-    // TODO[narrow]: 全deploymentでm025/m037完走・scope readiness異常0確認後にlegacy eligibilityを削除する。
-    return notification.shopId
-      ? await getLegacyShopRecipientEligibility(ctx, notification)
-      : { cancelReason: "invalid_scope" };
+    return { cancelReason: "invalid_scope" };
   }
 
   const organization = await ctx.db.get(organizationId);
@@ -1378,7 +1327,10 @@ async function getNotificationEligibility(
     return { organizationId, cancelReason: "invalid_scope" };
   }
   const billingState = billingStates[0] ?? null;
-  if (purpose === "business" && billingState) {
+  if (purpose === "business") {
+    if (!billingState) {
+      return { organizationId, cancelReason: "invalid_scope" };
+    }
     const access = await getOrganizationAccessPolicy(ctx, organizationId);
     if (!access) {
       return { organizationId, cancelReason: "invalid_scope" };
@@ -1430,24 +1382,6 @@ async function getNotificationEligibility(
   }
 
   return billingContext;
-}
-
-async function getLegacyShopRecipientEligibility(
-  ctx: MutationCtx,
-  notification: NotificationEligibilityInput,
-): Promise<NotificationEligibility> {
-  if (notification.organizationInvitationId || notification.organizationInvitationVersion !== undefined) {
-    return { cancelReason: "invalid_scope" };
-  }
-  if (notification.staffId) {
-    const reason = await getStaffRecipientCancellationReason(ctx, notification);
-    if (reason) return { cancelReason: reason };
-  }
-  if (notification.userId) {
-    const reason = await getUserRecipientCancellationReason(ctx, notification);
-    if (reason) return { cancelReason: reason };
-  }
-  return { cancelReason: notification.staffId || notification.userId ? undefined : "invalid_scope" };
 }
 
 async function getInvitationCancellationReason(
@@ -1510,7 +1444,7 @@ async function getInvitationCancellationReason(
 async function getStaffRecipientCancellationReason(
   ctx: MutationCtx,
   notification: NotificationEligibilityInput,
-  organizationId?: Id<"organizations">,
+  organizationId: Id<"organizations">,
 ): Promise<NotificationCancelReason | undefined> {
   if (!notification.staffId) return undefined;
   const staff = await ctx.db.get(notification.staffId);
@@ -1518,55 +1452,8 @@ async function getStaffRecipientCancellationReason(
     !staff ||
     staff.isDeleted ||
     (notification.recruitmentId !== undefined && !isShiftTargetStaff(staff)) ||
-    (notification.shopId !== undefined && staff.shopId !== notification.shopId) ||
-    organizationId === undefined
+    (notification.shopId !== undefined && staff.shopId !== notification.shopId)
   ) {
-    return "recipient_inactive";
-  }
-
-  const isUnresolvedStaff = staff.organizationId === undefined && staff.organizationPersonId === undefined;
-  if (isUnresolvedStaff) {
-    // TODO[narrow]: 全deploymentでm050完走・verifyStaffs全異常0・未解消staff conflict 0を確認後、
-    //   保存済みOutboxだけに許可する旧staff宛先の送信直前互換を削除する。
-    // enqueue入力にはcreatedAtがないため、新規通知や再発行はこの分岐を通れない。
-    if (
-      notification.createdAt === undefined ||
-      notification.shopId === undefined ||
-      (notification.purpose ?? "business") !== "business" ||
-      isLineInviteResendContext(notificationContextForPayload(notification.payload, notification.dedupeKey ?? ""))
-    ) {
-      return "recipient_inactive";
-    }
-    const shop = await ctx.db.get(notification.shopId);
-    if (!shop || shop.isDeleted || shop.organizationId !== organizationId) {
-      return "recipient_inactive";
-    }
-    if (notification.payload.kind === "email") {
-      return staff.email.length > 0 && notification.payload.to === staff.email ? undefined : "recipient_inactive";
-    }
-    if (notification.payload.kind === "line") {
-      let lineAccount: Doc<"staffLineAccounts"> | null = null;
-      try {
-        lineAccount = await getStaffLineAccount(ctx, staff._id);
-      } catch {
-        return "recipient_inactive";
-      }
-      if (
-        !lineAccount ||
-        lineAccount.shopId !== notification.shopId ||
-        !lineAccount.following ||
-        !lineRecipientSnapshotMatches(notification, {
-          authority: "legacy",
-          lineUserId: lineAccount.lineUserId,
-        })
-      ) {
-        return "recipient_inactive";
-      }
-      return undefined;
-    }
-    return "recipient_inactive";
-  }
-  if (staff.organizationId === undefined || staff.organizationPersonId === undefined) {
     return "recipient_inactive";
   }
 
@@ -1596,7 +1483,7 @@ async function getStaffRecipientCancellationReason(
 async function getUserRecipientCancellationReason(
   ctx: MutationCtx,
   notification: NotificationEligibilityInput,
-  organizationId?: Id<"organizations">,
+  organizationId: Id<"organizations">,
 ): Promise<NotificationCancelReason | undefined> {
   const userId = notification.userId;
   if (!userId) return undefined;
@@ -1605,47 +1492,31 @@ async function getUserRecipientCancellationReason(
 
   const shopId = notification.shopId;
 
-  let person: Doc<"organizationPeople"> | null = null;
-  let member: Doc<"organizationMembers"> | null = null;
-  if (organizationId) {
-    const [people, members] = await Promise.all([
-      ctx.db
-        .query("organizationPeople")
-        .withIndex("by_organizationId_and_userId", (q) => q.eq("organizationId", organizationId).eq("userId", userId))
-        .take(2),
-      ctx.db
-        .query("organizationMembers")
-        .withIndex("by_userId_and_organizationId", (q) => q.eq("userId", userId).eq("organizationId", organizationId))
-        .take(2),
-    ]);
-    if (people.length > 1 || members.length > 1) return "recipient_inactive";
-    person = people[0] ?? null;
-    member = members[0] ?? null;
-
-    if (member) {
-      if (person && person._id !== member.personId) return "recipient_inactive";
-      if (!person) {
-        person = await ctx.db.get(member.personId);
-      }
-      if (
-        !person ||
-        person.organizationId !== organizationId ||
-        person.userId !== userId ||
-        person.status !== "active"
-      ) {
-        return "recipient_inactive";
-      }
-    } else if (person && (person.organizationId !== organizationId || person.status !== "active")) {
-      return "recipient_inactive";
-    }
-
-    if (member && member.status !== "active") {
-      return "recipient_inactive";
-    }
+  const [people, members] = await Promise.all([
+    ctx.db
+      .query("organizationPeople")
+      .withIndex("by_organizationId_and_userId", (q) => q.eq("organizationId", organizationId).eq("userId", userId))
+      .take(2),
+    ctx.db
+      .query("organizationMembers")
+      .withIndex("by_userId_and_organizationId", (q) => q.eq("userId", userId).eq("organizationId", organizationId))
+      .take(2),
+  ]);
+  if (people.length !== 1 || members.length !== 1) return "recipient_inactive";
+  const person = people[0];
+  const member = members[0];
+  if (
+    person._id !== member.personId ||
+    person.organizationId !== organizationId ||
+    person.userId !== userId ||
+    person.status !== "active" ||
+    member.personId !== person._id ||
+    member.status !== "active"
+  ) {
+    return "recipient_inactive";
   }
 
-  const managerContact: ShopManagerContact =
-    organizationId && person ? { kind: "canonical", user, person, organizationId } : { kind: "legacy", user };
+  const managerContact: ShopManagerContact = { kind: "canonical", user, person, organizationId };
   const notificationContext = notificationContextForPayload(notification.payload, notification.dedupeKey ?? "");
   const requiresShopStaff = isShopManagerNotificationContext(notificationContext);
   const managerStaff =
@@ -1657,8 +1528,7 @@ async function getUserRecipientCancellationReason(
   }
 
   if (notification.payload.kind === "email") {
-    const currentEmail = person?.email ?? user.email;
-    if (normalizeEmail(notification.payload.to) !== normalizeEmail(currentEmail)) {
+    if (normalizeEmail(notification.payload.to) !== normalizeEmail(person.email)) {
       return "recipient_inactive";
     }
   }
@@ -1671,16 +1541,6 @@ async function getUserRecipientCancellationReason(
     }
   }
 
-  const legacyShopMembers =
-    !member && shopId
-      ? await ctx.db
-          .query("shopMembers")
-          .withIndex("by_userId_and_shopId_and_isDeleted", (q) =>
-            q.eq("userId", userId).eq("shopId", shopId).eq("isDeleted", false),
-          )
-          .take(2)
-      : [];
-  if (!member && legacyShopMembers.length !== 1) return "recipient_inactive";
   return undefined;
 }
 
@@ -1693,51 +1553,22 @@ async function findOrganizationBusinessNotificationsToCancel(
   },
 ): Promise<Doc<"notificationOutbox">[]> {
   const jobs: Doc<"notificationOutbox">[] = [];
-  const seen = new Set<Id<"notificationOutbox">>();
   const cutoff = {
     businessNotificationCutoffAt: args.cutoffAt,
     businessNotificationCutoffVersion: args.cutoffVersion,
   };
 
-  // TODO[narrow]: 全deploymentでm024完走・missingPurpose=0確認後はbusiness indexだけを読む。
-  for (const purpose of ["business", undefined] as const) {
-    for (const status of ACTIVE_STATUSES) {
-      const remaining = ORGANIZATION_NOTIFICATION_CANCEL_BATCH_SIZE - jobs.length;
-      if (remaining === 0) return jobs;
-      const candidates = await ctx.db
-        .query("notificationOutbox")
-        .withIndex("by_organizationId_purpose_status", (q) =>
-          q.eq("organizationId", args.organizationId).eq("purpose", purpose).eq("status", status),
-        )
-        .take(remaining);
-      for (const candidate of candidates) {
-        if (seen.has(candidate._id) || !predatesBusinessNotificationCutoff(candidate, cutoff)) continue;
-        seen.add(candidate._id);
-        jobs.push(candidate);
-      }
-    }
-  }
-
-  // TODO[narrow]: 全deploymentでm037完走・scope readiness異常0確認後に、このWiden前shop scanを削除する。
-  // Widen前に作られたshop-scoped行にはorganizationId/purposeがないため、店舗indexでも拾う。
-  const shops = await ctx.db
-    .query("shops")
-    .withIndex("by_organizationId", (q) => q.eq("organizationId", args.organizationId))
-    .take(ORGANIZATION_NOTIFICATION_CANCEL_BATCH_SIZE);
-  for (const shop of shops) {
-    for (const status of ACTIVE_STATUSES) {
-      const remaining = ORGANIZATION_NOTIFICATION_CANCEL_BATCH_SIZE - jobs.length;
-      if (remaining === 0) return jobs;
-      const candidates = await ctx.db
-        .query("notificationOutbox")
-        .withIndex("by_shopId_status", (q) => q.eq("shopId", shop._id).eq("status", status))
-        .filter((q) => q.and(q.eq(q.field("organizationId"), undefined), q.neq(q.field("purpose"), "billing")))
-        .take(remaining);
-      for (const candidate of candidates) {
-        if (seen.has(candidate._id) || !predatesBusinessNotificationCutoff(candidate, cutoff)) continue;
-        seen.add(candidate._id);
-        jobs.push(candidate);
-      }
+  for (const status of ACTIVE_STATUSES) {
+    const remaining = ORGANIZATION_NOTIFICATION_CANCEL_BATCH_SIZE - jobs.length;
+    if (remaining === 0) return jobs;
+    const candidates = await ctx.db
+      .query("notificationOutbox")
+      .withIndex("by_organizationId_purpose_status", (q) =>
+        q.eq("organizationId", args.organizationId).eq("purpose", "business").eq("status", status),
+      )
+      .take(remaining);
+    for (const candidate of candidates) {
+      if (predatesBusinessNotificationCutoff(candidate, cutoff)) jobs.push(candidate);
     }
   }
   return jobs;
@@ -2728,13 +2559,11 @@ function deliveryEventFromJob(
 
 // 分析KPIのbounded集計でも通知種別の分類に再利用する
 export function notificationContextForJob(job: Doc<"notificationOutbox">) {
-  // TODO[narrow]: 全deploymentのm024完走と3 field欠損0確認後にpayload fallbackを削除する。
-  return job.notificationContext ?? notificationContextForPayload(job.payload, job.dedupeKey);
+  return job.notificationContext;
 }
 
 export function notificationDeliverySuppressedForJob(job: Doc<"notificationOutbox">) {
-  // TODO[narrow]: 全deploymentのm024完走と3 field欠損0確認後にpayload fallbackを削除する。
-  return job.deliverySuppressed ?? notificationDeliverySuppressedForPayload(job.payload);
+  return job.deliverySuppressed;
 }
 
 function dedupeContext(dedupeKey: string) {

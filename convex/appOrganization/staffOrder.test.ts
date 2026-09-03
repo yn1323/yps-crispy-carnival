@@ -42,6 +42,7 @@ async function insertPerson(
   for (const shopId of args.shopIds ?? []) {
     staffIds.push(
       await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         organizationId: args.organizationId,
         organizationPersonId: personId,
         shopId,
@@ -551,6 +552,7 @@ describe("organization staff order", () => {
       if (!actorPerson) throw new Error("actor person not found");
       for (const shopId of shopIds) {
         await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           organizationId: base.organizationId,
           organizationPersonId: base.personId,
           shopId,
@@ -669,9 +671,8 @@ describe("organization staff order", () => {
 
   it.each([
     { kind: "people" as const, expected: "tooManyPeople" as const },
-    { kind: "shops" as const, expected: "tooManyActiveShops" as const },
+    { kind: "shops" as const, expected: "tooManyShops" as const },
     { kind: "inactivePerson" as const, expected: "legacyDataIncomplete" as const },
-    { kind: "missingCanonical" as const, expected: "legacyDataIncomplete" as const },
   ])("$kindの安全上限・canonical不整合では部分一覧を返さず有効化しない", async ({ kind, expected }) => {
     const t = convexTest(schema, modules);
     const subject = `staff_order_unavailable_${kind}`;
@@ -703,20 +704,13 @@ describe("organization staff order", () => {
           updatedAt: now,
         });
         await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           organizationId: seeded.organizationId,
           organizationPersonId: removedPersonId,
           shopId: seeded.shopId,
           name: "削除済み人物参照スタッフ",
           email: "removed-person@example.com",
           emailNormalized: "removed-person@example.com",
-          isDeleted: false,
-        });
-      } else {
-        await ctx.db.insert("staffs", {
-          shopId: seeded.shopId,
-          name: "canonical ID未設定staff",
-          email: "missing-canonical@example.com",
-          emailNormalized: "missing-canonical@example.com",
           isDeleted: false,
         });
       }

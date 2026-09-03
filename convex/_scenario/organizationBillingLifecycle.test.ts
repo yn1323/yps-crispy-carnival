@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { seedOrganizationManagerShop, seedUser } from "../_test/seed";
+import { getTestOrganizationId, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const stripeProviderMock = vi.hoisted(() => ({
@@ -74,6 +74,7 @@ async function addStaffPerson(
     updatedAt: now,
   });
   await ctx.db.insert("staffs", {
+    excludedFromShift: false,
     organizationId,
     organizationPersonId: personId,
     shopId,
@@ -248,9 +249,10 @@ describe("事業者課金ライフサイクル", () => {
     });
 
     const [settings, result] = await Promise.all([
-      t
-        .withIdentity({ subject: "trial_free_over_limits" })
-        .query(api.organization.queries.getSettings, { shopId: ids.shopId }),
+      t.withIdentity({ subject: "trial_free_over_limits" }).query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      }),
       t.run(async (ctx) => ({
         billingState: await ctx.db.get(ids.billingStateId),
         members: await ctx.db
@@ -409,9 +411,10 @@ describe("事業者課金ライフサイクル", () => {
     await t.finishInProgressScheduledFunctions();
 
     const [settings, result] = await Promise.all([
-      t
-        .withIdentity({ subject: "pro_to_free_over_limits" })
-        .query(api.organization.queries.getSettings, { shopId: ids.shopId }),
+      t.withIdentity({ subject: "pro_to_free_over_limits" }).query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      }),
       t.run(async (ctx) => ({
         billingState: await ctx.db.get(ids.billingStateId),
         people: await ctx.db
@@ -498,16 +501,17 @@ describe("事業者課金ライフサイクル", () => {
 
     for (let index = 2; index <= 5; index += 1) {
       await expect(
-        actor.mutation(api.organization.mutations.addShop, {
-          shopId: ids.shopId,
+        actor.mutation(api.organization.mutations.addShopForOrganization, {
+          organizationId: ids.organizationId,
           shopName: `第${index}店舗`,
           regularClosedDays: [],
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           requestId: `complimentary-pro-shop-${index}`,
         }),
-      ).resolves.toMatchObject({ changed: true, shopStatus: "active" });
+      ).resolves.toMatchObject({ changed: true });
     }
     const settings = await actor.query(api.organization.queries.getSettings, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
     });
 
@@ -558,8 +562,8 @@ describe("事業者課金ライフサイクル", () => {
     await expect(
       t
         .withIdentity({ subject: "grandfathered_active_free" })
-        .action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd, {
-          shopId: ids.shopId,
+        .action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEndForOrganization, {
+          organizationId: ids.organizationId,
           requestId: "grandfathered-free-service-stop",
         }),
     ).resolves.toEqual({ status: "unavailable", reason: "not_allowed" });

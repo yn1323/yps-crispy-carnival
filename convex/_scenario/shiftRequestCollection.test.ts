@@ -105,7 +105,10 @@ describe("希望シフト回収シナリオ", () => {
       sessionToken: verified.sessionToken,
       recruitmentId,
       acceptedLegal: true,
-      requests: [{ date: recruitmentInput.periodStart, startTime: "10:00", endTime: "18:00" }],
+      submission: {
+        kind: "time",
+        requests: [{ date: recruitmentInput.periodStart, startTime: "10:00", endTime: "18:00" }],
+      },
     });
     await t.run(async (ctx) => {
       await seedSession(ctx, {
@@ -119,12 +122,15 @@ describe("希望シフト回収シナリオ", () => {
       sessionToken: "scenario-all-off-session",
       recruitmentId,
       acceptedLegal: true,
-      requests: [],
+      submission: { kind: "time", requests: [] },
     });
     await staff.submitShiftRequests({
       sessionToken: verified.sessionToken,
       recruitmentId,
-      requests: [{ date: recruitmentInput.periodStart, startTime: "12:00", endTime: "20:00" }],
+      submission: {
+        kind: "time",
+        requests: [{ date: recruitmentInput.periodStart, startTime: "12:00", endTime: "20:00" }],
+      },
     });
 
     // Assert: 提出集計、シフト表、催促対象が提出状態を正しく反映する。
@@ -201,7 +207,10 @@ describe("希望シフト回収シナリオ", () => {
       sessionToken: "scenario-snapshot-session",
       recruitmentId,
       acceptedLegal: true,
-      requests: [{ date: recruitmentInput.periodStart, startTime: "10:00", endTime: "18:00" }],
+      submission: {
+        kind: "time",
+        requests: [{ date: recruitmentInput.periodStart, startTime: "10:00", endTime: "18:00" }],
+      },
     });
 
     // Assert: シフト表も募集作成時点の時間範囲を保持する。
@@ -479,12 +488,18 @@ describe("希望シフト回収シナリオ", () => {
       sessionToken: firstBrowser.sessionToken,
       recruitmentId,
       acceptedLegal: true,
-      requests: [{ date: recruitmentInput.periodStart, startTime: "10:00", endTime: "18:00" }],
+      submission: {
+        kind: "time",
+        requests: [{ date: recruitmentInput.periodStart, startTime: "10:00", endTime: "18:00" }],
+      },
     });
     await staff.submitShiftRequests({
       sessionToken: secondBrowser.sessionToken,
       recruitmentId,
-      requests: [{ date: recruitmentInput.periodStart, startTime: "12:00", endTime: "20:00" }],
+      submission: {
+        kind: "time",
+        requests: [{ date: recruitmentInput.periodStart, startTime: "12:00", endTime: "20:00" }],
+      },
     });
 
     const board = await asManager.getShiftBoardData(recruitmentId);
@@ -515,7 +530,10 @@ describe("希望シフト回収シナリオ", () => {
       staff.submitShiftRequests({
         sessionToken: secondBrowser.sessionToken,
         recruitmentId,
-        requests: [{ date: recruitmentInput.periodStart, startTime: "14:00", endTime: "21:00" }],
+        submission: {
+          kind: "time",
+          requests: [{ date: recruitmentInput.periodStart, startTime: "14:00", endTime: "21:00" }],
+        },
       }),
     ).rejects.toThrow("Deadline passed");
 
@@ -534,7 +552,10 @@ describe("希望シフト回収シナリオ", () => {
       sessionToken: unsubmittedAfterDeadline.sessionToken,
       recruitmentId,
       acceptedLegal: true,
-      requests: [{ date: recruitmentInput.periodStart, startTime: "09:00", endTime: "17:00" }],
+      submission: {
+        kind: "time",
+        requests: [{ date: recruitmentInput.periodStart, startTime: "09:00", endTime: "17:00" }],
+      },
     });
     await expect(
       staff.getSubmissionPageData({ sessionToken: unsubmittedAfterDeadline.sessionToken, recruitmentId }),
@@ -550,7 +571,10 @@ describe("希望シフト回収シナリオ", () => {
       staff.submitShiftRequests({
         sessionToken: unsubmittedAfterDeadline.sessionToken,
         recruitmentId,
-        requests: [{ date: recruitmentInput.periodStart, startTime: "10:00", endTime: "18:00" }],
+        submission: {
+          kind: "time",
+          requests: [{ date: recruitmentInput.periodStart, startTime: "10:00", endTime: "18:00" }],
+        },
       }),
     ).rejects.toThrow("Deadline passed");
 
@@ -630,15 +654,18 @@ describe("希望シフト回収シナリオ", () => {
       sessionToken: "scenario-reuse-worked-session",
       recruitmentId: workedRecruitmentId,
       acceptedLegal: true,
-      requests: [
-        { date: workedWeekInput.periodStart, startTime: "10:00", endTime: "18:00" },
-        { date: addDays(workedWeekInput.periodStart, 2), startTime: "12:00", endTime: "20:00" },
-      ],
+      submission: {
+        kind: "time",
+        requests: [
+          { date: workedWeekInput.periodStart, startTime: "10:00", endTime: "18:00" },
+          { date: addDays(workedWeekInput.periodStart, 2), startTime: "12:00", endTime: "20:00" },
+        ],
+      },
     });
     await staff.submitShiftRequests({
       sessionToken: "scenario-reuse-all-off-session",
       recruitmentId: allOffRecruitmentId,
-      requests: [],
+      submission: { kind: "time", requests: [] },
     });
 
     // Assert: 次の募集では全休み週を飛ばし、シフトあり週の曜日パターンが返る。
@@ -666,7 +693,7 @@ describe("希望シフト回収シナリオ", () => {
     await staff.submitShiftRequests({
       sessionToken: "scenario-reuse-current-session",
       recruitmentId: currentRecruitmentId,
-      requests: repeatedRequests,
+      submission: { kind: "time", requests: repeatedRequests },
     });
 
     // Assert: 提出集計とシフト表の希望スロットも、再利用後の提出内容として整合する。

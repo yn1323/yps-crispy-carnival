@@ -38,7 +38,7 @@ describe("appOrganization/manageQueries", () => {
       organizationName: "対象組織",
       memberStatus: "active",
       usage: { state: "pro", shopUsage: { current: 1 } },
-      shopCounts: { active: 1, archived: 0, hasOverflow: false },
+      shopCounts: { total: 1, hasOverflow: false },
       capabilities: { canAddShop: true, canCreateOrganization: true },
     });
     await expect(
@@ -150,7 +150,7 @@ describe("appOrganization/manageQueries", () => {
     });
   });
 
-  it("legacy statusに関係なく非削除店舗をcursor paginationし、旧archived filterは空にする", async () => {
+  it("非削除店舗をcursor paginationする", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const actor = await seedOrganizationManagerShop(ctx, {
@@ -161,7 +161,6 @@ describe("appOrganization/manageQueries", () => {
       for (let index = 2; index <= 4; index += 1) {
         await ctx.db.insert("shops", {
           organizationId: actor.organizationId,
-          operatingStatus: "active",
           name: `利用中 ${index}`,
           submissionPattern: { kind: "dateOnly" },
           regularClosedDays: [],
@@ -171,7 +170,6 @@ describe("appOrganization/manageQueries", () => {
       for (let index = 1; index <= 4; index += 1) {
         await ctx.db.insert("shops", {
           organizationId: actor.organizationId,
-          operatingStatus: "archived",
           name: `アーカイブ ${index}`,
           submissionPattern: { kind: "dateOnly" },
           regularClosedDays: [],
@@ -188,25 +186,15 @@ describe("appOrganization/manageQueries", () => {
     });
     const second = await actor.query(api.appOrganization.manageQueries.listOrganizationShops, {
       organizationId: ids.organizationId,
-      status: "all",
       paginationOpts: page(3, first.continueCursor),
     });
     const third = await actor.query(api.appOrganization.manageQueries.listOrganizationShops, {
       organizationId: ids.organizationId,
-      status: "all",
       paginationOpts: page(3, second.continueCursor),
     });
     const all = [...first.page, ...second.page, ...third.page];
     expect(all).toHaveLength(8);
     expect(new Set(all.map((shop) => shop.shopId)).size).toBe(8);
     expect(third.isDone).toBe(true);
-    expect(all.every((shop) => shop.operatingStatus === "active")).toBe(true);
-
-    const archived = await actor.query(api.appOrganization.manageQueries.listOrganizationShops, {
-      organizationId: ids.organizationId,
-      status: "archived",
-      paginationOpts: page(10),
-    });
-    expect(archived).toMatchObject({ page: [], isDone: true });
   });
 });

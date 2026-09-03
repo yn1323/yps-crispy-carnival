@@ -1,7 +1,6 @@
 import type { GenericDatabaseReader } from "convex/server";
 import { ConvexError } from "convex/values";
 import type { DataModel, Doc, Id } from "../_generated/dataModel";
-import type { MutationCtx } from "../_generated/server";
 import type { CanonicalOrganizationBillingState } from "../organizationBilling/policy";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
 import { MANAGER_PERSON_REMOVAL_DISABLED_REASON } from "./personCapabilities";
@@ -222,31 +221,6 @@ export async function organizationPersonCountsTowardPeopleLimit(
       .first(),
   ]);
   return Boolean(staff) || memberships.some((membership) => membership.status === "active");
-}
-
-/** canonicalな管理者権限の失効時に、同じ組織の旧店舗所属から権限が復活しないようにする。 */
-export async function removeLegacyOrganizationManagerAccess(
-  ctx: Pick<MutationCtx, "db">,
-  organizationId: Id<"organizations">,
-  userId: Id<"users">,
-) {
-  const shops = await ctx.db
-    .query("shops")
-    .withIndex("by_organizationId", (q) => q.eq("organizationId", organizationId))
-    .collect();
-  let removedCount = 0;
-  for (const shop of shops) {
-    const memberships = await ctx.db
-      .query("shopMembers")
-      .withIndex("by_userId_and_shopId", (q) => q.eq("userId", userId).eq("shopId", shop._id))
-      .collect();
-    for (const membership of memberships) {
-      if (membership.isDeleted) continue;
-      await ctx.db.patch(membership._id, { isDeleted: true });
-      removedCount += 1;
-    }
-  }
-  return removedCount;
 }
 
 export async function getOrganizationUsageSnapshot(

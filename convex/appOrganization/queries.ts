@@ -6,6 +6,7 @@ import type { QueryCtx } from "../_generated/server";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedQuery, organizationQuery } from "../_lib/functions";
 import {
+  APP_ORGANIZATION_PAST_RECRUITMENT_PREVIEW_LIMIT,
   APP_ORGANIZATION_RECRUITMENT_LEGACY_SUBMISSION_COUNT_LIMIT,
   APP_ORGANIZATION_RECRUITMENT_SHOP_PAGE_SIZE,
   DASHBOARD_RECRUITMENT_CANDIDATE_GROUP_LIMIT,
@@ -19,10 +20,10 @@ import {
 import { getOrganizationPersonLineState } from "../line/service";
 import { type OrganizationReadActor, resolveOrganizationReadActor } from "../organization/access";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "../organization/personCapabilities";
+import { getOrganizationUsageSnapshot } from "../organization/service";
 import { getOrganizationStaffOrderScope } from "../organization/staffOrder";
 import type { OrganizationBillingPolicy } from "../organizationBilling/policy";
-import { getOrganizationAccessPolicy } from "../organizationBilling/service";
-import { hasCanonicalStaffIdentity } from "../staff/service";
+import { getOrganizationAccessPolicy, getOrganizationBillingPolicy } from "../organizationBilling/service";
 
 const MAX_PAGE_SIZE = 50;
 const MAX_ROWS_READ = 100;
@@ -31,6 +32,7 @@ const ORGANIZATION_PEOPLE_SUMMARY_LIMIT = 1000;
 const organizationContextValidator = v.object({
   organizationId: v.id("organizations"),
   organizationName: v.string(),
+  organizationPlan: v.union(v.literal("trial"), v.literal("free"), v.literal("standard"), v.literal("pro")),
   memberStatus: v.literal("active"),
 });
 
@@ -68,7 +70,6 @@ const organizationRecruitmentSectionValidator = v.object({
   shop: v.object({
     shopId: v.id("shops"),
     shopName: v.string(),
-    operatingStatus: v.literal("active"),
     regularClosedDays: regularClosedDaysValidator,
   }),
   currentGroups: v.array(dashboardRecruitmentGroupValidator),
@@ -79,6 +80,12 @@ const organizationRecruitmentSectionValidator = v.object({
   }),
 });
 
+const organizationPastRecruitmentPreviewSectionValidator = v.object({
+  shop: shopContextValidator,
+  recruitments: v.array(dashboardRecruitmentValidator),
+  hasMoreRecruitments: v.boolean(),
+});
+
 const organizationPersonListItemValidator = v.object({
   id: v.id("organizationPeople"),
   name: v.string(),
@@ -87,6 +94,7 @@ const organizationPersonListItemValidator = v.object({
   isStaff: v.boolean(),
   isLineConnected: v.boolean(),
   lineStatus: v.union(v.literal("unlinked"), v.literal("linked_following"), v.literal("linked_unfollowed")),
+  hasManagerInvitation: v.boolean(),
   shopNames: v.array(v.string()),
   shopIds: v.array(v.id("shops")),
   canRemoveManagerRole: v.boolean(),
@@ -101,6 +109,7 @@ const organizationPeopleSummaryValidator = v.object({
   visibleCount: v.number(),
   visibleCountHasOverflow: v.boolean(),
   maxPeople: v.number(),
+  pendingInvitations: v.number(),
   canAddStaff: v.boolean(),
   addStaffDisabledReason: v.optional(v.string()),
   canChangeStaffOrder: v.boolean(),
@@ -149,13 +158,16 @@ function boundedPaginationOptions(
   };
 }
 
-function toOrganizationContext(actor: OrganizationReadActor) {
+async function toOrganizationContext(ctx: QueryCtx, actor: OrganizationReadActor) {
   if (actor.member.status !== "active") {
     throw new ConvexError("Not found");
   }
+  const billingPolicy = await getOrganizationBillingPolicy(ctx, actor.organization._id);
+  if (!billingPolicy) throw new ConvexError("Billing state not found");
   return {
     organizationId: actor.organization._id,
     organizationName: actor.organization.name,
+    organizationPlan: billingPolicy.targetingPlan,
     memberStatus: actor.member.status,
   };
 }
@@ -181,7 +193,7 @@ export const listMyOrganizationContexts = authenticatedQuery({
           user,
           organizationId: member.organizationId,
         });
-        return actor?.member._id === member._id ? toOrganizationContext(actor) : null;
+        return actor?.member._id === member._id ? await toOrganizationContext(ctx, actor) : null;
       }),
     );
 
@@ -203,7 +215,7 @@ export const getOrganizationContext = authenticatedQuery({
       user: ctx.user,
       organizationId,
     });
-    return actor ? toOrganizationContext(actor) : null;
+    return actor ? await toOrganizationContext(ctx, actor) : null;
   },
 });
 
@@ -223,13 +235,6 @@ async function listOrganizationShopsPage(ctx: AppOrganizationQueryCtx, paginatio
 
 /** Homeの店舗selector向けに、認可済み組織の非削除店舗だけを返すcanonical API。 */
 export const listOrganizationShops = organizationQuery({
-  args: { paginationOpts: paginationOptsValidator },
-  returns: paginationResultValidator(shopContextValidator),
-  handler: async (ctx, { paginationOpts }) => await listOrganizationShopsPage(ctx, paginationOpts),
-});
-
-/** TODO[narrow]: 旧client drain後のPR2で削除する旧API名。返却契約はcanonical APIと同一。 */
-export const listOrganizationActiveShops = organizationQuery({
   args: { paginationOpts: paginationOptsValidator },
   returns: paginationResultValidator(shopContextValidator),
   handler: async (ctx, { paginationOpts }) => await listOrganizationShopsPage(ctx, paginationOpts),
@@ -354,13 +359,13 @@ export const listOrganizationRecruitments = organizationQuery({
         }),
       );
     const access = await getOrganizationAccessPolicy(ctx, ctx.organization._id);
+    if (!access) throw new ConvexError("Billing state not found");
     const memberStatus = ctx.organizationMember.status;
     if (memberStatus !== "active") throw new ConvexError("Not found");
     const writeCapability = resolveBusinessWriteCapability({
       memberStatus,
-      // billing state未作成の移行中組織は既存managerMutationと同じく許可扱いにする。
-      canWriteBusinessData: access?.canWriteBusinessData ?? true,
-      businessWriteBlockReason: access?.businessWriteBlockReason ?? null,
+      canWriteBusinessData: access.canWriteBusinessData,
+      businessWriteBlockReason: access.businessWriteBlockReason,
     });
     const today = todayJST();
 
@@ -392,13 +397,70 @@ export const listOrganizationRecruitments = organizationQuery({
             shop: {
               shopId: shop._id,
               shopName: shop.name,
-              operatingStatus: "active" as const,
-              // TODO[narrow]: m039完走後にfallbackを削除する。
-              regularClosedDays: shop.regularClosedDays ?? [],
+              regularClosedDays: shop.regularClosedDays,
             },
             currentGroups: buildCurrentRecruitmentGroups(recruitments, today),
             hasPastRecruitments: pastRecruitment !== null,
             actions: writeCapability,
+          };
+        }),
+      ),
+    };
+  },
+});
+
+/** 全店舗表示向けに、過去募集の直近候補を未削除店舗単位のcursor familyで返す。 */
+export const listOrganizationPastRecruitmentPreviews = organizationQuery({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(organizationPastRecruitmentPreviewSectionValidator),
+  handler: async (ctx, { paginationOpts }) => {
+    const shops = await ctx.db
+      .query("shops")
+      .withIndex("by_organizationId_and_isDeleted", (q) =>
+        q.eq("organizationId", ctx.organization._id).eq("isDeleted", false),
+      )
+      .paginate(
+        boundedPaginationOptions(paginationOpts, {
+          maxPageSize: APP_ORGANIZATION_RECRUITMENT_SHOP_PAGE_SIZE,
+          maxRowsRead: APP_ORGANIZATION_RECRUITMENT_SHOP_PAGE_SIZE,
+        }),
+      );
+    const today = todayJST();
+
+    return {
+      ...shops,
+      page: await Promise.all(
+        shops.page.map(async (shop) => {
+          const pastRecruitmentDocs = await ctx.db
+            .query("recruitments")
+            .withIndex("by_shopId_and_isDeleted_and_periodEnd", (q) =>
+              q.eq("shopId", shop._id).eq("isDeleted", false).lt("periodEnd", today),
+            )
+            .order("desc")
+            .take(APP_ORGANIZATION_PAST_RECRUITMENT_PREVIEW_LIMIT + 1);
+          if (pastRecruitmentDocs.length === 0) {
+            return {
+              shop: { shopId: shop._id, shopName: shop.name },
+              recruitments: [],
+              hasMoreRecruitments: false,
+            };
+          }
+
+          const totalStaffCount = await getBoundedTotalStaffCount(ctx, shop._id);
+          const previewDocs = pastRecruitmentDocs.slice(0, APP_ORGANIZATION_PAST_RECRUITMENT_PREVIEW_LIMIT);
+          const recruitments = await Promise.all(
+            previewDocs.map(async (recruitment) => ({
+              ...(await toDashboardRecruitment(ctx, recruitment, totalStaffCount.count, {
+                legacySubmissionCountLimit: APP_ORGANIZATION_RECRUITMENT_LEGACY_SUBMISSION_COUNT_LIMIT,
+              })),
+              totalStaffCountHasOverflow: totalStaffCount.hasOverflow,
+            })),
+          );
+
+          return {
+            shop: { shopId: shop._id, shopName: shop.name },
+            recruitments,
+            hasMoreRecruitments: pastRecruitmentDocs.length > APP_ORGANIZATION_PAST_RECRUITMENT_PREVIEW_LIMIT,
           };
         }),
       ),
@@ -437,13 +499,13 @@ async function projectOrganizationPerson(
   args: {
     person: Doc<"organizationPeople">;
     activeManagerCount: number;
-    policy: OrganizationBillingPolicy | null;
+    policy: OrganizationBillingPolicy;
     canWriteBusinessData: boolean;
     canRecoverUsageLimits: boolean;
   },
 ) {
   const organization = ctx.organization;
-  const [managerRole, staffRows, lineState] = await Promise.all([
+  const [managerRole, staffRows, lineState, managerInvitation] = await Promise.all([
     getCanonicalManagerRole(ctx, organization._id, args.person),
     ctx.db
       .query("staffs")
@@ -455,6 +517,12 @@ async function projectOrganizationPerson(
       organizationId: organization._id,
       organizationPersonId: args.person._id,
     }),
+    ctx.db
+      .query("organizationInvitations")
+      .withIndex("by_organizationId_and_targetPersonId_and_status", (q) =>
+        q.eq("organizationId", organization._id).eq("targetPersonId", args.person._id).eq("status", "issued"),
+      )
+      .first(),
   ]);
   const shops = (
     await Promise.all(
@@ -484,6 +552,7 @@ async function projectOrganizationPerson(
     isStaff,
     isLineConnected: lineStatus !== "unlinked",
     lineStatus,
+    hasManagerInvitation: Boolean(managerInvitation && managerInvitation.expiresAt > Date.now()),
     shopNames: shops.map((shop) => shop.name),
     shopIds: shops.map((shop) => shop._id),
     ...capabilities,
@@ -500,11 +569,12 @@ async function getOrganizationPeopleProjectionContext(ctx: AppOrganizationQueryC
       )
       .take(MAX_ROWS_READ),
   ]);
+  if (!access) throw new ConvexError("Billing state not found");
   return {
     activeManagerCount: activeManagers.length,
-    policy: access?.billingPolicy ?? null,
-    canWriteBusinessData: access?.canWriteBusinessData ?? true,
-    canRecoverUsageLimits: access?.accessMode === "limitRecoveryOnly",
+    policy: access.billingPolicy,
+    canWriteBusinessData: access.canWriteBusinessData,
+    canRecoverUsageLimits: access.accessMode === "limitRecoveryOnly",
   };
 }
 
@@ -614,7 +684,7 @@ export const listOrganizationPeople = organizationQuery({
     const people = (
       await Promise.all(
         staffs.page.map(async (staff) => {
-          if (!hasCanonicalStaffIdentity(staff) || staff.organizationId !== ctx.organization._id) {
+          if (staff.organizationId !== ctx.organization._id) {
             return null;
           }
           const canonicalStaff = await ctx.db
@@ -662,11 +732,7 @@ async function countVisibleOrganizationPeople(ctx: AppOrganizationQueryCtx, shop
     .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", filterShop._id).eq("isDeleted", false))
     .take(ORGANIZATION_PEOPLE_SUMMARY_LIMIT + 1);
   const peopleIds = new Set(
-    staffs.flatMap((staff) =>
-      hasCanonicalStaffIdentity(staff) && staff.organizationId === ctx.organization._id
-        ? [staff.organizationPersonId]
-        : [],
-    ),
+    staffs.flatMap((staff) => (staff.organizationId === ctx.organization._id ? [staff.organizationPersonId] : [])),
   );
   return {
     count: Math.min(peopleIds.size, ORGANIZATION_PEOPLE_SUMMARY_LIMIT),
@@ -680,31 +746,33 @@ export const getOrganizationPeopleSummary = organizationQuery({
   returns: organizationPeopleSummaryValidator,
   handler: async (ctx, { shopFilter }) => {
     const totalPromise = countVisibleOrganizationPeople(ctx, "all");
-    const [total, visible, access] = await Promise.all([
+    const [total, visible, access, usage] = await Promise.all([
       totalPromise,
       shopFilter === "all" ? totalPromise : countVisibleOrganizationPeople(ctx, shopFilter),
       getOrganizationAccessPolicy(ctx, ctx.organization._id),
+      getOrganizationUsageSnapshot(ctx, ctx.organization._id),
     ]);
-    const policy = access?.billingPolicy ?? null;
-    const limits = policy?.limits;
+    if (!access) throw new ConvexError("Billing state not found");
+    const limits = access.billingPolicy.limits;
     const memberStatus = ctx.organizationMember.status;
     if (memberStatus !== "active") throw new ConvexError("Not found");
     const capability = resolveStaffAdditionCapability({
       memberStatus,
-      canWriteBusinessData: access?.canWriteBusinessData ?? true,
-      businessWriteBlockReason: access?.businessWriteBlockReason ?? null,
+      canWriteBusinessData: access.canWriteBusinessData,
+      businessWriteBlockReason: access.businessWriteBlockReason,
     });
     const staffOrderCapability = resolveStaffOrderChangeCapability({
       memberStatus,
-      canWriteBusinessData: access?.canWriteBusinessData ?? true,
-      businessWriteBlockReason: access?.businessWriteBlockReason ?? null,
+      canWriteBusinessData: access.canWriteBusinessData,
+      businessWriteBlockReason: access.businessWriteBlockReason,
     });
     return {
       totalCount: total.count,
       totalCountHasOverflow: total.hasOverflow,
       visibleCount: visible.count,
       visibleCountHasOverflow: visible.hasOverflow,
-      maxPeople: limits?.maxPeople ?? 0,
+      maxPeople: limits.maxPeople,
+      pendingInvitations: usage.reservedSeatCount,
       ...capability,
       ...staffOrderCapability,
     };

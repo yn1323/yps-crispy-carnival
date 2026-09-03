@@ -30,9 +30,9 @@ export type VerifiedBillingTransitionCause = "stateUpdate" | "activationFailed" 
 
 export type OrganizationBillingPlanResolution = {
   paidPlan: OrganizationPaidPlan | null;
-  entitlementPlan: OrganizationEntitlementPlan | null;
-  displayPlan: OrganizationDisplayPlan | null;
-  targetingPlan: OrganizationDisplayPlan | null;
+  entitlementPlan: OrganizationEntitlementPlan;
+  displayPlan: OrganizationDisplayPlan;
+  targetingPlan: OrganizationDisplayPlan;
 };
 
 /** 通常runtime用。履歴migrationのBusiness→Pro正規化とは分離する。 */
@@ -98,7 +98,7 @@ export function resolveOrganizationBillingPlans(
 /**
  * 現在の利用数へ適用するプランを、課金ライフサイクルとは独立して解決する。
  */
-export function resolveUsageLimitPlan(state: PersistedOrganizationBillingState): OrganizationEntitlementPlan | null {
+export function resolveUsageLimitPlan(state: PersistedOrganizationBillingState): OrganizationEntitlementPlan {
   switch (state.kind) {
     case "trial":
       return "pro";
@@ -192,10 +192,10 @@ export type OrganizationAccessBlockReason = BusinessWriteBlockReason | "usageLim
 
 export type OrganizationBillingPolicy = {
   paidPlan: OrganizationPaidPlan | null;
-  entitlementPlan: OrganizationEntitlementPlan | null;
-  displayPlan: OrganizationDisplayPlan | null;
-  targetingPlan: OrganizationDisplayPlan | null;
-  limits: OrganizationPlanLimits | null;
+  entitlementPlan: OrganizationEntitlementPlan;
+  displayPlan: OrganizationDisplayPlan;
+  targetingPlan: OrganizationDisplayPlan;
+  limits: OrganizationPlanLimits;
   canReadExistingData: true;
   canWriteBusinessData: true;
   businessWriteBlockReason: BusinessWriteBlockReason | null;
@@ -238,7 +238,6 @@ export function deriveOrganizationBillingPolicy(state: PersistedOrganizationBill
 }
 
 function enabledPolicy(plans: OrganizationBillingPlanResolution, deadlineAt: number | null): OrganizationBillingPolicy {
-  if (!plans.entitlementPlan) throw new Error("enabled_policy_requires_entitlement");
   return {
     ...plans,
     limits: ORGANIZATION_PLAN_LIMITS[plans.entitlementPlan],

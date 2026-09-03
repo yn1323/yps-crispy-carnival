@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { seedOrganizationManagerShop } from "../_test/seed";
+import { getTestOrganizationId, seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 
 const NOW = new Date("2026-08-20T00:00:00.000Z").getTime();
@@ -105,6 +105,7 @@ describe("スタッフ並び順のライフサイクルシナリオ", () => {
     expect(activated.revision).toBe(1);
 
     const initialDetail = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
       personId: ids.targetPersonId,
       now: NOW,
@@ -112,9 +113,10 @@ describe("スタッフ並び順のライフサイクルシナリオ", () => {
     if (!initialDetail) throw new Error("initial staff detail is missing");
     await expect(
       actor.mutation(api.staff.mutations.changeOrganizationPersonShopMemberships, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         personId: ids.targetPersonId,
-        desiredActiveShopIds: [ids.shopId, ids.secondaryShopId],
+        desiredShopIds: [ids.shopId, ids.secondaryShopId],
         expectedMembershipFingerprint: initialDetail.membershipFingerprint,
         removalPreviews: [],
         requestId: "staff-order-add-secondary-shop",
@@ -131,6 +133,7 @@ describe("スタッフ並び順のライフサイクルシナリオ", () => {
     ).toEqual([[ids.targetPersonId], [ids.targetPersonId]]);
 
     const detailBeforeRemoval = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
       personId: ids.targetPersonId,
       now: NOW,
@@ -141,9 +144,10 @@ describe("スタッフ並び順のライフサイクルシナリオ", () => {
     }
     await expect(
       actor.mutation(api.staff.mutations.changeOrganizationPersonShopMemberships, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         personId: ids.targetPersonId,
-        desiredActiveShopIds: [ids.secondaryShopId],
+        desiredShopIds: [ids.secondaryShopId],
         expectedMembershipFingerprint: detailBeforeRemoval.membershipFingerprint,
         removalPreviews: [
           {
@@ -168,6 +172,7 @@ describe("スタッフ並び順のライフサイクルシナリオ", () => {
     ]);
 
     const detailBeforePersonRemoval = await actor.query(api.organization.userDetailQueries.getUserDetail, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
       personId: ids.targetPersonId,
       now: NOW,
@@ -177,6 +182,7 @@ describe("スタッフ並び順のライフサイクルシナリオ", () => {
     }
     await expect(
       actor.mutation(api.organization.mutations.removePersonFromOrganization, {
+        expectedOrganizationId: ids.organizationId,
         shopId: ids.shopId,
         personId: ids.targetPersonId,
         requestId: "staff-order-remove-person",

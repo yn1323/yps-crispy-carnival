@@ -110,8 +110,7 @@ export async function ensureNotificationFanoutOperation(
       previousOperation.kind === args.kind &&
       previousOperation.recruitmentId === args.recruitmentId &&
       previousOperation.shopId === args.shopId &&
-      // TODO[narrow]: 全deploymentでm030完走・missingSupersedesActiveOperations=0確認後はbooleanを直接読む。
-      previousOperation.supersedesActiveOperations !== false &&
+      previousOperation.supersedesActiveOperations &&
       (previousOperation.status === "pending" || previousOperation.status === "processing")
     ) {
       await cancelNotificationFanoutSchedule(ctx, previousOperation);

@@ -24,42 +24,44 @@ describe("recruitment/mutations", () => {
     });
 
     it("未認証の場合エラーをthrow", async () => {
-      const { t, shopId } = await setupShop();
+      const { t, shopId, expectedOrganizationId } = await setupShop();
       await expect(
-        t.mutation(api.recruitment.mutations.createRecruitment, { ...validArgs(), shopId }),
+        t.mutation(api.recruitment.mutations.createRecruitment, { ...validArgs(), shopId, expectedOrganizationId }),
       ).rejects.toThrow();
     });
 
     it("店舗未登録の場合エラーをthrow", async () => {
       const t = convexTest(schema, modules);
-      const shopId = await t.run(async (ctx) => {
+      const seeded = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
           subject: "user_other_shop",
           email: "other-shop@example.com",
           shopName: "別店舗",
         });
         await seedUser(ctx, "user_no_shop", "no@example.com");
-        return seeded.shopId;
+        return seeded;
       });
 
       await expect(
-        t
-          .withIdentity({ subject: "user_no_shop" })
-          .mutation(api.recruitment.mutations.createRecruitment, { ...validArgs(), shopId }),
+        t.withIdentity({ subject: "user_no_shop" }).mutation(api.recruitment.mutations.createRecruitment, {
+          ...validArgs(),
+          shopId: seeded.shopId,
+          expectedOrganizationId: seeded.organizationId,
+        }),
       ).rejects.toThrow();
     });
 
     async function setupShop() {
       const t = convexTest(schema, modules);
-      const shopId = await t.run(async (ctx) => {
+      const seeded = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
           subject: "user_mgr",
           email: "mgr@example.com",
           shopName: "テスト店舗",
         });
-        return seeded.shopId;
+        return seeded;
       });
-      return { t, shopId };
+      return { t, shopId: seeded.shopId, expectedOrganizationId: seeded.organizationId };
     }
 
     // scheduler.runAfter(0, ...) による "use node" アクションがテスト環境で
@@ -68,12 +70,12 @@ describe("recruitment/mutations", () => {
     afterEach(() => vi.useRealTimers());
 
     it("募集を作成できる", async () => {
-      const { t, shopId } = await setupShop();
+      const { t, shopId, expectedOrganizationId } = await setupShop();
       const args = validArgs();
 
       const recruitmentId = await t
         .withIdentity({ subject: "user_mgr" })
-        .mutation(api.recruitment.mutations.createRecruitment, { ...args, shopId });
+        .mutation(api.recruitment.mutations.createRecruitment, { ...args, shopId, expectedOrganizationId });
 
       expect(recruitmentId).toBeDefined();
 
@@ -107,6 +109,7 @@ describe("recruitment/mutations", () => {
         t.withIdentity({ subject: "recruitment_usage_limit" }).mutation(api.recruitment.mutations.createRecruitment, {
           ...validArgs(),
           shopId: ids.shopId,
+          expectedOrganizationId: ids.organizationId,
         }),
       ).rejects.toMatchObject({ data: { code: "USAGE_LIMIT_EXCEEDED", plan: "free" } });
 
@@ -148,6 +151,7 @@ describe("recruitment/mutations", () => {
           name: "管理者",
           email: "notification_origin_race@example.com",
           emailNormalized: "notification_origin_race@example.com",
+          excludedFromShift: false,
           isDeleted: false,
         });
         return seeded;
@@ -157,6 +161,7 @@ describe("recruitment/mutations", () => {
         .withIdentity({ subject: "notification_origin_race" })
         .mutation(api.recruitment.mutations.createRecruitment, {
           shopId: ids.shopId,
+          expectedOrganizationId: ids.organizationId,
           periodStart: "2026-01-10",
           periodEnd: "2026-01-16",
           deadline: "2026-01-05",
@@ -193,15 +198,20 @@ describe("recruitment/mutations", () => {
     });
 
     it("同一内容の募集作成はエラーにし、統計と通知予約を増やさない", async () => {
-      const { t, shopId } = await setupShop();
+      const { t, shopId, expectedOrganizationId } = await setupShop();
       const args = { ...validArgs(), shopClosedDates: [futureDate(8), futureDate(10)] };
       const asManager = t.withIdentity({ subject: "user_mgr" });
 
-      await asManager.mutation(api.recruitment.mutations.createRecruitment, { ...args, shopId });
+      await asManager.mutation(api.recruitment.mutations.createRecruitment, {
+        ...args,
+        shopId,
+        expectedOrganizationId,
+      });
       await expect(
         asManager.mutation(api.recruitment.mutations.createRecruitment, {
           ...args,
           shopId,
+          expectedOrganizationId,
           shopClosedDates: [...args.shopClosedDates].reverse(),
         }),
       ).rejects.toThrow("RECRUITMENT_DUPLICATE");
@@ -231,11 +241,12 @@ describe("recruitment/mutations", () => {
 
     it("提出期限前日17:00が未来なら自動催促を予約する", async () => {
       vi.setSystemTime(new Date("2026-01-01T00:00:00+09:00"));
-      const { t, shopId } = await setupShop();
+      const { t, shopId, expectedOrganizationId } = await setupShop();
       const recruitmentId = await t
         .withIdentity({ subject: "user_mgr" })
         .mutation(api.recruitment.mutations.createRecruitment, {
           shopId,
+          expectedOrganizationId,
           periodStart: "2026-01-10",
           periodEnd: "2026-01-16",
           deadline: "2026-01-05",
@@ -261,11 +272,12 @@ describe("recruitment/mutations", () => {
 
     it("提出期限前日17:00を過ぎている募集では自動催促を予約しない", async () => {
       vi.setSystemTime(new Date("2026-01-05T00:00:00+09:00"));
-      const { t, shopId } = await setupShop();
+      const { t, shopId, expectedOrganizationId } = await setupShop();
       const recruitmentId = await t
         .withIdentity({ subject: "user_mgr" })
         .mutation(api.recruitment.mutations.createRecruitment, {
           shopId,
+          expectedOrganizationId,
           periodStart: "2026-01-10",
           periodEnd: "2026-01-16",
           deadline: "2026-01-05",
@@ -290,17 +302,19 @@ describe("recruitment/mutations", () => {
     });
 
     it("同じ期間でも定休日が違う募集は別に作成できる", async () => {
-      const { t, shopId } = await setupShop();
+      const { t, shopId, expectedOrganizationId } = await setupShop();
       const asManager = t.withIdentity({ subject: "user_mgr" });
 
       const firstId = await asManager.mutation(api.recruitment.mutations.createRecruitment, {
         ...validArgs(),
         shopId,
+        expectedOrganizationId,
         shopClosedDates: [futureDate(8)],
       });
       const secondId = await asManager.mutation(api.recruitment.mutations.createRecruitment, {
         ...validArgs(),
         shopId,
+        expectedOrganizationId,
         shopClosedDates: [futureDate(9)],
       });
 
@@ -308,19 +322,31 @@ describe("recruitment/mutations", () => {
     });
 
     it("削除済みの同一募集がある場合は新しく作成できる", async () => {
-      const { t, shopId } = await setupShop();
+      const { t, shopId, expectedOrganizationId } = await setupShop();
       const asManager = t.withIdentity({ subject: "user_mgr" });
       const args = validArgs();
-      const firstId = await asManager.mutation(api.recruitment.mutations.createRecruitment, { ...args, shopId });
-      await asManager.mutation(api.recruitment.mutations.deleteRecruitment, { recruitmentId: firstId, shopId });
+      const firstId = await asManager.mutation(api.recruitment.mutations.createRecruitment, {
+        ...args,
+        shopId,
+        expectedOrganizationId,
+      });
+      await asManager.mutation(api.recruitment.mutations.deleteRecruitment, {
+        recruitmentId: firstId,
+        shopId,
+        expectedOrganizationId,
+      });
 
-      const secondId = await asManager.mutation(api.recruitment.mutations.createRecruitment, { ...args, shopId });
+      const secondId = await asManager.mutation(api.recruitment.mutations.createRecruitment, {
+        ...args,
+        shopId,
+        expectedOrganizationId,
+      });
 
       expect(secondId).not.toBe(firstId);
     });
 
     it("店舗の提出方法を募集作成時点でスナップショットする", async () => {
-      const { t, shopId } = await setupShop();
+      const { t, shopId, expectedOrganizationId } = await setupShop();
       await t.run(async (ctx) => {
         await ctx.db.patch(shopId, {
           submissionPattern: {
@@ -335,7 +361,7 @@ describe("recruitment/mutations", () => {
 
       const recruitmentId = await t
         .withIdentity({ subject: "user_mgr" })
-        .mutation(api.recruitment.mutations.createRecruitment, { ...validArgs(), shopId });
+        .mutation(api.recruitment.mutations.createRecruitment, { ...validArgs(), shopId, expectedOrganizationId });
       await t.run(async (ctx) => {
         await ctx.db.patch(shopId, { submissionPattern: { kind: "dateOnly" } });
       });
@@ -351,7 +377,7 @@ describe("recruitment/mutations", () => {
     });
 
     it("定休日を昇順ユニークにして保存できる", async () => {
-      const { t, shopId } = await setupShop();
+      const { t, shopId, expectedOrganizationId } = await setupShop();
       const args = {
         ...validArgs(),
         shopClosedDates: [futureDate(10), futureDate(8), futureDate(10)],
@@ -359,30 +385,32 @@ describe("recruitment/mutations", () => {
 
       const recruitmentId = await t
         .withIdentity({ subject: "user_mgr" })
-        .mutation(api.recruitment.mutations.createRecruitment, { ...args, shopId });
+        .mutation(api.recruitment.mutations.createRecruitment, { ...args, shopId, expectedOrganizationId });
 
       const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));
       expect(recruitment?.shopClosedDates).toEqual([futureDate(8), futureDate(10)]);
     });
 
     it("期間外の定休日はエラー", async () => {
-      const { t, shopId } = await setupShop();
+      const { t, shopId, expectedOrganizationId } = await setupShop();
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.recruitment.mutations.createRecruitment, {
           ...validArgs(),
           shopId,
+          expectedOrganizationId,
           shopClosedDates: [futureDate(15)],
         }),
       ).rejects.toThrow("定休日は募集期間内の日付から選んでください。");
     });
 
     it("募集期間のすべてを定休日にするとエラー", async () => {
-      const { t, shopId } = await setupShop();
+      const { t, shopId, expectedOrganizationId } = await setupShop();
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.recruitment.mutations.createRecruitment, {
           shopId,
+          expectedOrganizationId,
           periodStart: futureDate(7),
           periodEnd: futureDate(8),
           deadline: futureDate(3),
@@ -392,25 +420,27 @@ describe("recruitment/mutations", () => {
     });
 
     it("日付形式が不正な定休日はエラー", async () => {
-      const { t, shopId } = await setupShop();
+      const { t, shopId, expectedOrganizationId } = await setupShop();
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.recruitment.mutations.createRecruitment, {
           ...validArgs(),
           shopId,
+          expectedOrganizationId,
           shopClosedDates: ["2026/04/01"],
         }),
       ).rejects.toThrow("定休日の日付形式が正しくありません");
     });
 
     it("募集日付の形式不正・実在しない日付はエラー", async () => {
-      const { t, shopId } = await setupShop();
+      const { t, shopId, expectedOrganizationId } = await setupShop();
       const asManager = t.withIdentity({ subject: "user_mgr" });
 
       await expect(
         asManager.mutation(api.recruitment.mutations.createRecruitment, {
           ...validArgs(),
           shopId,
+          expectedOrganizationId,
           periodStart: "2026/04/01",
         }),
       ).rejects.toThrow("日付の形式が正しくありません");
@@ -418,6 +448,7 @@ describe("recruitment/mutations", () => {
         asManager.mutation(api.recruitment.mutations.createRecruitment, {
           ...validArgs(),
           shopId,
+          expectedOrganizationId,
           periodEnd: "2026-02-31",
         }),
       ).rejects.toThrow("日付の形式が正しくありません");
@@ -425,16 +456,18 @@ describe("recruitment/mutations", () => {
         asManager.mutation(api.recruitment.mutations.createRecruitment, {
           ...validArgs(),
           shopId,
+          expectedOrganizationId,
           deadline: "2026-13-01",
         }),
       ).rejects.toThrow("日付の形式が正しくありません");
     });
 
     it("募集期間が31日を超える場合はエラー", async () => {
-      const { t, shopId } = await setupShop();
+      const { t, shopId, expectedOrganizationId } = await setupShop();
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.recruitment.mutations.createRecruitment, {
           shopId,
+          expectedOrganizationId,
           periodStart: futureDate(7),
           periodEnd: futureDate(7 + RECRUITMENT_PERIOD_DAYS_MAX),
           deadline: futureDate(3),
@@ -444,11 +477,12 @@ describe("recruitment/mutations", () => {
     });
 
     it("募集期間が上限ちょうど31日なら作成できる", async () => {
-      const { t, shopId } = await setupShop();
+      const { t, shopId, expectedOrganizationId } = await setupShop();
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.recruitment.mutations.createRecruitment, {
           shopId,
+          expectedOrganizationId,
           periodStart: futureDate(7),
           periodEnd: futureDate(7 + RECRUITMENT_PERIOD_DAYS_MAX - 1),
           deadline: futureDate(3),
@@ -458,23 +492,25 @@ describe("recruitment/mutations", () => {
     });
 
     it("提出期限が過去の場合エラーをthrow", async () => {
-      const { t, shopId } = await setupShop();
+      const { t, shopId, expectedOrganizationId } = await setupShop();
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.recruitment.mutations.createRecruitment, {
           ...validArgs(),
           shopId,
+          expectedOrganizationId,
           deadline: futureDate(-1),
         }),
       ).rejects.toThrow("提出期限は今日以降にしてください");
     });
 
     it("開始日が今日以前で提出期限も開始日以降の場合は日付関係エラーをthrow", async () => {
-      const { t, shopId } = await setupShop();
+      const { t, shopId, expectedOrganizationId } = await setupShop();
 
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.recruitment.mutations.createRecruitment, {
           shopId,
+          expectedOrganizationId,
           periodStart: todayJST(),
           periodEnd: futureDate(14),
           deadline: futureDate(3),
@@ -491,7 +527,7 @@ describe("recruitment/mutations", () => {
       const t = convexTest(schema, modules);
       const subject = options.subject ?? "user_delete_mgr";
       const seeded = await t.run(async (ctx) => {
-        const { shopId } = await seedManagerShop(ctx, {
+        const { shopId, organizationId } = await seedManagerShop(ctx, {
           subject,
           email: `${subject}@example.com`,
           shopName: "削除テスト店舗",
@@ -507,49 +543,53 @@ describe("recruitment/mutations", () => {
           isDeleted: options.isDeleted ?? false,
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
-        return { recruitmentId, shopId };
+        return { recruitmentId, shopId, expectedOrganizationId: organizationId };
       });
       return { t, ...seeded, subject };
     }
 
     it("未認証の場合エラーをthrow", async () => {
-      const { t, recruitmentId, shopId } = await setupRecruitment();
+      const { t, recruitmentId, shopId, expectedOrganizationId } = await setupRecruitment();
 
       await expect(
-        t.mutation(api.recruitment.mutations.deleteRecruitment, { recruitmentId, shopId }),
+        t.mutation(api.recruitment.mutations.deleteRecruitment, { recruitmentId, shopId, expectedOrganizationId }),
       ).rejects.toThrow();
     });
 
     it("店舗未登録の場合エラーをthrow", async () => {
-      const { t, recruitmentId, shopId } = await setupRecruitment();
+      const { t, recruitmentId, shopId, expectedOrganizationId } = await setupRecruitment();
       await t.run(async (ctx) => {
         await seedUser(ctx, "user_no_shop_delete", "no-shop-delete@example.com");
       });
 
       await expect(
-        t
-          .withIdentity({ subject: "user_no_shop_delete" })
-          .mutation(api.recruitment.mutations.deleteRecruitment, { recruitmentId, shopId }),
+        t.withIdentity({ subject: "user_no_shop_delete" }).mutation(api.recruitment.mutations.deleteRecruitment, {
+          recruitmentId,
+          shopId,
+          expectedOrganizationId,
+        }),
       ).rejects.toThrow();
     });
 
     it("募集中の募集を論理削除できる", async () => {
-      const { t, recruitmentId, shopId, subject } = await setupRecruitment({ status: "open" });
+      const { t, recruitmentId, shopId, expectedOrganizationId, subject } = await setupRecruitment({ status: "open" });
 
       await t
         .withIdentity({ subject })
-        .mutation(api.recruitment.mutations.deleteRecruitment, { recruitmentId, shopId });
+        .mutation(api.recruitment.mutations.deleteRecruitment, { recruitmentId, shopId, expectedOrganizationId });
 
       const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));
       expect(recruitment?.isDeleted).toBe(true);
     });
 
     it("確定済みの募集を論理削除できる", async () => {
-      const { t, recruitmentId, shopId, subject } = await setupRecruitment({ status: "confirmed" });
+      const { t, recruitmentId, shopId, expectedOrganizationId, subject } = await setupRecruitment({
+        status: "confirmed",
+      });
 
       await t
         .withIdentity({ subject })
-        .mutation(api.recruitment.mutations.deleteRecruitment, { recruitmentId, shopId });
+        .mutation(api.recruitment.mutations.deleteRecruitment, { recruitmentId, shopId, expectedOrganizationId });
 
       const recruitment = await t.run(async (ctx) => ctx.db.get(recruitmentId));
       expect(recruitment).toMatchObject({ status: "confirmed", isDeleted: true });
@@ -557,37 +597,42 @@ describe("recruitment/mutations", () => {
 
     it("他店舗の募集は削除できない", async () => {
       const { t, recruitmentId } = await setupRecruitment({ subject: "user_delete_manager" });
-      const otherShopId = await t.run(async (ctx) => {
+      const other = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
           subject: "user_delete_other",
           email: "delete-other@example.com",
           shopName: "別店舗",
         });
-        return seeded.shopId;
+        return seeded;
       });
 
       await expect(
-        t
-          .withIdentity({ subject: "user_delete_other" })
-          .mutation(api.recruitment.mutations.deleteRecruitment, { recruitmentId, shopId: otherShopId }),
+        t.withIdentity({ subject: "user_delete_other" }).mutation(api.recruitment.mutations.deleteRecruitment, {
+          recruitmentId,
+          shopId: other.shopId,
+          expectedOrganizationId: other.organizationId,
+        }),
       ).rejects.toThrow("Not found");
     });
 
     it("削除済みの募集は削除できない", async () => {
-      const { t, recruitmentId, shopId, subject } = await setupRecruitment({ isDeleted: true });
+      const { t, recruitmentId, shopId, expectedOrganizationId, subject } = await setupRecruitment({ isDeleted: true });
 
       await expect(
-        t.withIdentity({ subject }).mutation(api.recruitment.mutations.deleteRecruitment, { recruitmentId, shopId }),
+        t
+          .withIdentity({ subject })
+          .mutation(api.recruitment.mutations.deleteRecruitment, { recruitmentId, shopId, expectedOrganizationId }),
       ).rejects.toThrow("Not found");
     });
 
     it("存在しない募集IDは削除できない", async () => {
-      const { t, shopId, subject } = await setupRecruitment();
+      const { t, shopId, expectedOrganizationId, subject } = await setupRecruitment();
 
       await expect(
         t.withIdentity({ subject }).mutation(api.recruitment.mutations.deleteRecruitment, {
           recruitmentId: "missing" as Id<"recruitments">,
           shopId,
+          expectedOrganizationId,
         }),
       ).rejects.toThrow();
     });

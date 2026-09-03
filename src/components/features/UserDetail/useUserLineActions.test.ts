@@ -44,13 +44,18 @@ vi.mock("@/src/components/shared/feedback", () => ({
 }));
 vi.mock("@/src/components/ui/toaster", () => ({ toaster: { create: mocks.createToast } }));
 
-import { useUserLineActions } from "./useUserLineActions";
+import { useUserLineActions as useRawUserLineActions } from "./useUserLineActions";
 
 const personId = "person-target" as Id<"organizationPeople">;
 const sourceStaffId = "staff-source" as Id<"staffs">;
 const sourceShopId = "shop-source" as Id<"shops">;
 const actionShopId = "shop-action" as Id<"shops">;
 const organizationId = "organization-a" as Id<"organizations">;
+const useUserLineActions = (
+  options: Omit<Parameters<typeof useRawUserLineActions>[0], "expectedOrganizationId"> & {
+    expectedOrganizationId?: Id<"organizations">;
+  },
+) => useRawUserLineActions({ expectedOrganizationId: organizationId, ...options });
 
 const data = {
   person: { id: personId },
@@ -138,12 +143,21 @@ describe("useUserLineActions", () => {
       await result.current.onDisconnect("disconnect-request");
     });
 
-    expect(mocks.generateLinkToken).toHaveBeenCalledExactlyOnceWith({ shopId: sourceShopId, staffId: sourceStaffId });
-    expect(mocks.sendInvite).toHaveBeenCalledExactlyOnceWith({ shopId: sourceShopId, staffId: sourceStaffId });
+    expect(mocks.generateLinkToken).toHaveBeenCalledExactlyOnceWith({
+      shopId: sourceShopId,
+      staffId: sourceStaffId,
+      expectedOrganizationId: organizationId,
+    });
+    expect(mocks.sendInvite).toHaveBeenCalledExactlyOnceWith({
+      shopId: sourceShopId,
+      staffId: sourceStaffId,
+      expectedOrganizationId: organizationId,
+    });
     expect(mocks.disconnect).toHaveBeenCalledExactlyOnceWith({
       shopId: actionShopId,
       organizationPersonId: personId,
       requestId: "disconnect-request",
+      expectedOrganizationId: organizationId,
     });
     expect(result.current.authorizeUrl).toBeNull();
     expect(mocks.showSuccessToast).toHaveBeenCalledTimes(2);
@@ -190,7 +204,11 @@ describe("useUserLineActions", () => {
       second = result.current.onSendInvite();
     });
 
-    expect(mocks.sendInvite).toHaveBeenCalledExactlyOnceWith({ shopId: sourceShopId, staffId: sourceStaffId });
+    expect(mocks.sendInvite).toHaveBeenCalledExactlyOnceWith({
+      shopId: sourceShopId,
+      staffId: sourceStaffId,
+      expectedOrganizationId: organizationId,
+    });
     await act(async () => {
       resolveInvite?.({ scheduled: true });
       await Promise.all([first, second]);
@@ -282,6 +300,7 @@ describe("useUserLineActions", () => {
     expect(mocks.generateLinkToken).toHaveBeenCalledExactlyOnceWith({
       shopId: sourceShopId,
       staffId: sourceStaffId,
+      expectedOrganizationId: organizationId,
     });
     expect(result.current.showQr).toBe(true);
   });

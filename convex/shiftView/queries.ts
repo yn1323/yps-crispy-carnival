@@ -82,8 +82,7 @@ export const getShiftViewData = staffSessionQuery({
       periodStart: recruitment.periodStart,
       periodEnd: recruitment.periodEnd,
       staffs: staffs.filter(isShiftTargetStaff).map((s) => ({ _id: s._id, name: s.name })),
-      // TODO[narrow]: 全deploymentでm034が完走し、verifyPositionsの全pageが0になった後にBoolean fallbackを削除する。
-      positions: positions.map((p) => ({ _id: p._id, name: p.name, color: p.color, isDefault: Boolean(p.isDefault) })),
+      positions: positions.map((p) => ({ _id: p._id, name: p.name, color: p.color, isDefault: p.isDefault })),
       assignments: projectedAssignments.map((a) => ({
         staffId: a.staffId,
         date: a.date,
@@ -92,9 +91,7 @@ export const getShiftViewData = staffSessionQuery({
         positionId: a.positionId,
         ...(a.optionId !== undefined ? { optionId: a.optionId } : {}),
       })),
-      // TODO[narrow]: 全deploymentでm040が完走し、
-      // verifyRecruitments.missingShopClosedDatesが0件になった後にfallbackを削除する。
-      shopClosedDates: recruitment.shopClosedDates ?? [],
+      shopClosedDates: recruitment.shopClosedDates,
       submissionPattern,
       timeRange: {
         start: Math.floor(editableStartMinutes / 60),

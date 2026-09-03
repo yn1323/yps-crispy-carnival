@@ -41,8 +41,8 @@ type ManagerAccessMode = "query" | "mutation";
 
 type ManagerShopAccess = {
   shop: Doc<"shops">;
-  organization: Doc<"organizations"> | null;
-  organizationMember: Doc<"organizationMembers"> | null;
+  organization: Doc<"organizations">;
+  organizationMember: Doc<"organizationMembers">;
 };
 
 async function resolveOrganizationShopAccess(
@@ -50,7 +50,7 @@ async function resolveOrganizationShopAccess(
   user: Doc<"users">,
   shop: Doc<"shops">,
 ): Promise<ManagerShopAccess | null> {
-  if (!shop.organizationId || shop.isDeleted) return null;
+  if (shop.isDeleted) return null;
 
   const organization = await ctx.db.get(shop.organizationId);
   if (!organization || organization.isDeleted) return null;
@@ -59,17 +59,6 @@ async function resolveOrganizationShopAccess(
     .query("organizationMembers")
     .withIndex("by_userId_and_organizationId", (q) => q.eq("userId", user._id).eq("organizationId", organization._id))
     .take(2);
-  if (memberships.length === 0) {
-    // TODO[narrow]: 全deploymentでm029が完走し、verifyLegacyShopMembersの全pageが0件になった後、
-    //   このshopMembers fallbackを削除する。organizationMemberが1件でも存在する場合は使用しない。
-    const legacyMemberships = await ctx.db
-      .query("shopMembers")
-      .withIndex("by_userId_and_shopId_and_isDeleted", (q) =>
-        q.eq("userId", user._id).eq("shopId", shop._id).eq("isDeleted", false),
-      )
-      .take(2);
-    return legacyMemberships.length === 1 ? { shop, organization, organizationMember: null } : null;
-  }
   if (memberships.length !== 1) return null;
 
   const organizationMember = memberships[0];
@@ -88,72 +77,18 @@ async function resolveOrganizationShopAccess(
   return { shop, organization, organizationMember };
 }
 
-async function resolveLegacyShopAccess(
-  ctx: DbCtx,
-  user: Doc<"users">,
-  shop: Doc<"shops">,
-): Promise<ManagerShopAccess | null> {
-  if (shop.organizationId || shop.isDeleted) return null;
-
-  // TODO[narrow]: 全deploymentでm025/m029が完走し、verifyShops/verifyLegacyShopMembersの
-  //   全pageが0件になった後、このshopMembers fallbackを削除する。
-  const memberships = await ctx.db
-    .query("shopMembers")
-    .withIndex("by_userId_and_shopId_and_isDeleted", (q) =>
-      q.eq("userId", user._id).eq("shopId", shop._id).eq("isDeleted", false),
-    )
-    .take(2);
-  return memberships.length === 1 ? { shop, organization: null, organizationMember: null } : null;
-}
-
 async function resolveExplicitShopForUser(ctx: DbCtx, user: Doc<"users">, shopId: Id<"shops">) {
   const shop = await ctx.db.get(shopId);
   if (!shop) return null;
-  if (shop.organizationId) return await resolveOrganizationShopAccess(ctx, user, shop);
-  return await resolveLegacyShopAccess(ctx, user, shop);
+  return await resolveOrganizationShopAccess(ctx, user, shop);
 }
 
 /**
  * 操作対象の店舗を解決する。
- * - shopId 指定あり: 指定店舗と事業者所属を検証する。
- * - shopId 未指定: 旧クライアント互換として、先頭の利用可能な店舗を返す。
+ * 指定店舗とcanonicalな事業者所属を検証する。
  */
-async function resolveShopForUser(
-  ctx: DbCtx,
-  user: Doc<"users">,
-  shopId: Id<"shops"> | undefined,
-): Promise<ManagerShopAccess | null> {
-  if (shopId) return await resolveExplicitShopForUser(ctx, user, shopId);
-
-  const allowedStatuses = ["active"] as const;
-  for (const status of allowedStatuses) {
-    const memberships = ctx.db
-      .query("organizationMembers")
-      .withIndex("by_userId_and_status", (q) => q.eq("userId", user._id).eq("status", status));
-    for await (const membership of memberships) {
-      const shop = await ctx.db
-        .query("shops")
-        .withIndex("by_organizationId_and_isDeleted", (q) =>
-          q.eq("organizationId", membership.organizationId).eq("isDeleted", false),
-        )
-        .first();
-      if (shop) {
-        const access = await resolveOrganizationShopAccess(ctx, user, shop);
-        if (access) return access;
-      }
-    }
-  }
-
-  // TODO[narrow]: 全deploymentでm025/m029が完走し、verifyShops/verifyLegacyShopMembersの全pageが0件、
-  //   shopId必須のクライアント配布も完了した後、このshopMembers探索を削除する。
-  const legacyMemberships = ctx.db
-    .query("shopMembers")
-    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", false));
-  for await (const membership of legacyMemberships) {
-    const access = await resolveExplicitShopForUser(ctx, user, membership.shopId);
-    if (access) return access;
-  }
-  return null;
+async function resolveShopForUser(ctx: DbCtx, user: Doc<"users">, shopId: Id<"shops">) {
+  return await resolveExplicitShopForUser(ctx, user, shopId);
 }
 
 // Query用: 全フィールド nullable（throw しないため）
@@ -192,8 +127,8 @@ type OrganizationMutationCtx = {
 type ManagerMutationCtx = {
   user: Doc<"users">;
   shop: Doc<"shops">;
-  organization: Doc<"organizations"> | null;
-  organizationMember: Doc<"organizationMembers"> | null;
+  organization: Doc<"organizations">;
+  organizationMember: Doc<"organizationMembers">;
 };
 
 /**
@@ -306,18 +241,17 @@ export const organizationMutation = customMutation(mutation, {
  * - 用途: createRecruitment, addStaffs 等の shop スコープ操作
  */
 export const managerQuery = customQuery(query, {
-  // optional は旧フロントとの段階リリース互換。現行フロントは必ず shopId を指定する。
   args: {
-    shopId: v.optional(v.id("shops")),
-    expectedOrganizationId: v.optional(v.id("organizations")),
+    shopId: v.id("shops"),
+    expectedOrganizationId: v.id("organizations"),
   },
   input: async (
     ctx,
     { shopId, expectedOrganizationId },
   ): Promise<{ ctx: ManagerQueryCtx; args: Record<string, never> }> => {
     registerConvexFunctionErrorContext(ctx, {
-      ...(shopId ? { requestedShopId: shopId } : {}),
-      ...(expectedOrganizationId ? { requestedExpectedOrganizationId: expectedOrganizationId } : {}),
+      requestedShopId: shopId,
+      requestedExpectedOrganizationId: expectedOrganizationId,
     });
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -329,24 +263,21 @@ export const managerQuery = customQuery(query, {
     if (!user || user.isDeleted || !access) {
       return { ctx: { user: null, shop: null, organization: null, organizationMember: null }, args: {} };
     }
-    if (
-      expectedOrganizationId &&
-      (access.organization?._id !== expectedOrganizationId || access.organizationMember === null)
-    ) {
+    if (access.organization._id !== expectedOrganizationId) {
       return { ctx: { user: null, shop: null, organization: null, organizationMember: null }, args: {} };
     }
     registerConvexFunctionErrorContext(ctx, {
       shopId: access.shop._id,
-      ...(access.organization ? { organizationId: access.organization._id } : {}),
-      ...(access.organizationMember ? { actorPersonId: access.organizationMember.personId } : {}),
+      organizationId: access.organization._id,
+      actorPersonId: access.organizationMember.personId,
     });
     return { ctx: { user, ...access }, args: {} };
   },
 });
 
 type ManagerMutationScope = {
-  shopId?: Id<"shops">;
-  expectedOrganizationId?: Id<"organizations">;
+  shopId: Id<"shops">;
+  expectedOrganizationId: Id<"organizations">;
 };
 
 async function resolveManagerMutationInput(
@@ -355,8 +286,8 @@ async function resolveManagerMutationInput(
   limitRecoveryCapability?: LimitRecoveryCapability,
 ): Promise<{ ctx: ManagerMutationCtx; args: Record<string, never> }> {
   registerConvexFunctionErrorContext(ctx, {
-    ...(shopId ? { requestedShopId: shopId } : {}),
-    ...(expectedOrganizationId ? { requestedExpectedOrganizationId: expectedOrganizationId } : {}),
+    requestedShopId: shopId,
+    requestedExpectedOrganizationId: expectedOrganizationId,
   });
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
@@ -368,49 +299,43 @@ async function resolveManagerMutationInput(
   if (!user || user.isDeleted || !access) {
     throw new ConvexError("Not found");
   }
-  if (
-    expectedOrganizationId &&
-    (access.organization?._id !== expectedOrganizationId || access.organizationMember === null)
-  ) {
+  if (access.organization._id !== expectedOrganizationId) {
     throw new ConvexError("Not found");
   }
-  if (access.organization) {
-    if (limitRecoveryCapability && access.organizationMember) {
-      await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
-        organizationId: access.organization._id,
-        personId: access.organizationMember.personId,
-        capability: limitRecoveryCapability,
-      });
-    } else {
-      await requireOrganizationBusinessWrite(ctx, access.organization._id);
-    }
+  if (limitRecoveryCapability) {
+    await requireOrganizationBusinessWriteOrLimitRecoveryCapability(ctx, {
+      organizationId: access.organization._id,
+      personId: access.organizationMember.personId,
+      capability: limitRecoveryCapability,
+    });
+  } else {
+    await requireOrganizationBusinessWrite(ctx, access.organization._id);
   }
   registerConvexFunctionErrorContext(ctx, {
     shopId: access.shop._id,
-    ...(access.organization ? { organizationId: access.organization._id } : {}),
-    ...(access.organizationMember ? { actorPersonId: access.organizationMember.personId } : {}),
+    organizationId: access.organization._id,
+    actorPersonId: access.organizationMember.personId,
   });
   return { ctx: { user, ...access }, args: {} };
 }
 
 export const managerMutation = customMutation(mutation, {
-  // optional は旧フロントとの段階リリース互換。現行フロントは必ず shopId を指定する。
   args: {
-    shopId: v.optional(v.id("shops")),
-    expectedOrganizationId: v.optional(v.id("organizations")),
+    shopId: v.id("shops"),
+    expectedOrganizationId: v.id("organizations"),
   },
   input: async (ctx, scope) => await resolveManagerMutationInput(ctx, scope),
 });
 
 /**
  * 利用上限の超過・評価不能中でも、利用量を増やさない指定済みの整理操作だけを許可する。
- * canonical organization memberを解決できない旧shopMembership経路は、通常writeの互換判定へ閉じる。
+ * canonical organization memberを解決したうえで、指定済みの整理操作だけを許可する。
  */
 export function managerLimitRecoveryMutation(capability: LimitRecoveryCapability) {
   return customMutation(mutation, {
     args: {
-      shopId: v.optional(v.id("shops")),
-      expectedOrganizationId: v.optional(v.id("organizations")),
+      shopId: v.id("shops"),
+      expectedOrganizationId: v.id("organizations"),
     },
     input: async (ctx, scope) => await resolveManagerMutationInput(ctx, scope, capability),
   });
@@ -463,33 +388,21 @@ async function resolveStaffSession(
     return { status: "notFound" };
   }
 
-  if (!shop.organizationId) {
-    return { status: "notFound" };
-  }
   const organization = await ctx.db.get(shop.organizationId);
   if (!organization || organization.isDeleted) {
     return { status: "notFound" };
   }
 
-  // TODO[narrow]: 全deploymentでm050完走・verifyStaffs全異常0・未解消staff conflict 0を確認後、
-  //   両canonical ID欠損staffの既存session互換を削除する。片側だけの欠損は常にfail closed。
-  const isUnresolvedStaff = staff.organizationId === undefined && staff.organizationPersonId === undefined;
-  if (!isUnresolvedStaff) {
-    if (
-      staff.organizationId === undefined ||
-      staff.organizationPersonId === undefined ||
-      staff.organizationId !== organization._id
-    ) {
-      return { status: "notFound" };
-    }
-    const person = await ctx.db.get(staff.organizationPersonId);
-    if (
-      person?.status !== "active" ||
-      person.organizationId !== organization._id ||
-      (staff.userId !== undefined && person.userId !== staff.userId)
-    ) {
-      return { status: "notFound" };
-    }
+  if (staff.organizationId !== organization._id) {
+    return { status: "notFound" };
+  }
+  const person = await ctx.db.get(staff.organizationPersonId);
+  if (
+    person?.status !== "active" ||
+    person.organizationId !== organization._id ||
+    (staff.userId !== undefined && person.userId !== staff.userId)
+  ) {
+    return { status: "notFound" };
   }
 
   if (mode === "mutation") {
@@ -519,8 +432,8 @@ export const staffSessionQuery = customQuery(query, {
       actorKind: "staff",
       staffId: result.ctx.staff._id,
       shopId: result.ctx.shop._id,
-      ...(result.ctx.shop.organizationId ? { organizationId: result.ctx.shop.organizationId } : {}),
-      ...(result.ctx.staff.organizationPersonId ? { actorPersonId: result.ctx.staff.organizationPersonId } : {}),
+      organizationId: result.ctx.shop.organizationId,
+      actorPersonId: result.ctx.staff.organizationPersonId,
     });
     return { ctx: result.ctx, args: {} };
   },
@@ -545,8 +458,8 @@ export const staffSessionMutation = customMutation(mutation, {
       actorKind: "staff",
       staffId: result.ctx.staff._id,
       shopId: result.ctx.shop._id,
-      ...(result.ctx.shop.organizationId ? { organizationId: result.ctx.shop.organizationId } : {}),
-      ...(result.ctx.staff.organizationPersonId ? { actorPersonId: result.ctx.staff.organizationPersonId } : {}),
+      organizationId: result.ctx.shop.organizationId,
+      actorPersonId: result.ctx.staff.organizationPersonId,
     });
     return { ctx: result.ctx, args: {} };
   },

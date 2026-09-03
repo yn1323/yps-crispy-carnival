@@ -6,11 +6,7 @@ import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { normalizeSubmissionPattern } from "../_lib/submissionPattern";
 import { normalizeEmail } from "../_lib/validation";
 import { analyticsPlanForBillingState } from "../analytics/sourceEvents";
-import {
-  ORGANIZATION_LEGACY_SHOP_SCAN_LIMIT,
-  ORGANIZATION_NAME_SUFFIX,
-  ORGANIZATION_SELF_CREATED_LIMIT,
-} from "../constants";
+import { ORGANIZATION_NAME_SUFFIX, ORGANIZATION_SELF_CREATED_LIMIT } from "../constants";
 import { recordStaffLegalConsent } from "../legal/service";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import { scheduleOrganizationBillingStateDeadline } from "../organizationBilling/deadline";
@@ -30,28 +26,13 @@ export type OrganizationCreationAvailability = { canCreate: true } | { canCreate
  * 自分で作成して保持している組織数を数える。
  *
  * 招待で所属している組織は契約主体が別人のため数えない。
- * 移行前の組織未所属店舗は、1店舗を1組織として同じ上限へ含める。
  */
 async function countSelfCreatedOrganizations(ctx: DbCtx, userId: Id<"users">): Promise<number> {
   const selfCreated = await ctx.db
     .query("organizations")
     .withIndex("by_createdByUserId_and_isDeleted", (q) => q.eq("createdByUserId", userId).eq("isDeleted", false))
     .take(ORGANIZATION_SELF_CREATED_LIMIT + 1);
-  if (selfCreated.length > ORGANIZATION_SELF_CREATED_LIMIT) return selfCreated.length;
-
-  // TODO[narrow]: 全deploymentでm025/m029が完走し、verifyShops/verifyLegacyShopMembersの
-  //   全pageが0件になった後、このlegacy shopMembers走査を削除する。
-  const legacyMemberships = await ctx.db
-    .query("shopMembers")
-    .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", userId).eq("isDeleted", false))
-    .take(ORGANIZATION_LEGACY_SHOP_SCAN_LIMIT);
-  const legacyShopIds = new Set<Id<"shops">>();
-  for (const membership of legacyMemberships) {
-    const legacyShop = await ctx.db.get(membership.shopId);
-    if (legacyShop && !legacyShop.isDeleted && !legacyShop.organizationId) legacyShopIds.add(legacyShop._id);
-  }
-
-  return selfCreated.length + legacyShopIds.size;
+  return selfCreated.length;
 }
 
 /**
@@ -77,7 +58,7 @@ export type CreateOrganizationWithFirstShopArgs = {
   userId: Id<"users">;
   managerName: string;
   managerEmail: string;
-  managerProfileSource?: "canonicalPerson" | "legacySourceUserSnapshot" | "omittedSourceUserSnapshot";
+  managerProfileSource?: "canonicalPerson";
   shopName: string;
   regularClosedDays: RegularClosedDay[];
   submissionPattern: ShiftSubmissionPattern;

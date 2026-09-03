@@ -1,9 +1,15 @@
+import type { WithoutSystemFields } from "convex/server";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
+import type { Doc } from "../_generated/dataModel";
 import { createMigrationHistoryTestWithMigrations } from "../_test/migrations.test-helper";
 import { inspectLiveLineInviteCaller } from "./queries";
 
 const page = { cursor: null, numItems: 100 };
+
+function legacyDocument<T>(document: unknown): T {
+  return document as T;
+}
 
 describe("LINE common link readiness queries", () => {
   it("公開を停める複数店舗・複数所属・legacy counterpart欠損をPIIなしで数える", async () => {
@@ -117,19 +123,34 @@ describe("LINE common link readiness queries", () => {
         excludedFromShift: false,
         isDeleted: false,
       });
-      await ctx.db.insert("lineLinkTokens", {
-        staffId,
-        shopId,
-        token: "secret-old-token",
-        expiresAt: now + 60_000,
-      });
-      await ctx.db.insert("lineLinkTokens", {
-        staffId,
-        shopId,
-        organizationId,
-        token: "secret-incomplete-token",
-        expiresAt: now + 60_000,
-      });
+      await ctx.db.insert(
+        "lineLinkTokens",
+        legacyDocument<WithoutSystemFields<Doc<"lineLinkTokens">>>({
+          staffId,
+          shopId,
+          token: "secret-old-token",
+          expiresAt: now + 60_000,
+        }),
+      );
+      await ctx.db.insert(
+        "lineLinkTokens",
+        legacyDocument<WithoutSystemFields<Doc<"lineLinkTokens">>>({
+          staffId,
+          shopId,
+          organizationId,
+          token: "secret-incomplete-token",
+          expiresAt: now + 60_000,
+        }),
+      );
+      await ctx.db.insert(
+        "lineLinkTokens",
+        legacyDocument<WithoutSystemFields<Doc<"lineLinkTokens">>>({
+          staffId,
+          shopId,
+          token: "secret-expired-old-token",
+          expiresAt: now - 1,
+        }),
+      );
       await ctx.db.insert("notificationOutbox", {
         channel: "line",
         status: "pending",
@@ -176,6 +197,7 @@ describe("LINE common link readiness queries", () => {
       }),
     ]);
     expect(tokens.observations.oldUnusedTokens).toBe(2);
+    expect(tokens.anomalies.missingTokenSnapshots).toBe(3);
     expect(tokens.anomalies.incompleteUnusedTokenSnapshots).toBe(1);
     expect(outbox.observations.activeLineOutboxWithoutGeneration).toBe(2);
     expect(outbox.anomalies.incompleteActiveLineOutboxSnapshots).toBe(1);

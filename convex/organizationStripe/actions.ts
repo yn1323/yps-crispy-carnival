@@ -82,21 +82,8 @@ const priceResultValidator = v.union(
   }),
 );
 
-const currentSubscriptionPriceResultValidator = v.union(
-  v.object({ status: v.literal("unavailable"), reason: unavailableReasonValidator }),
-  v.object({
-    status: v.literal("available"),
-    currency: v.string(),
-    unitAmount: v.number(),
-    interval: v.union(v.literal("day"), v.literal("week"), v.literal("month"), v.literal("year")),
-    intervalCount: v.number(),
-    taxBehavior: v.optional(v.union(v.literal("inclusive"), v.literal("exclusive"))),
-  }),
-);
-
 type ActionPurpose =
   | "price"
-  | "currentSubscriptionPrice"
   | "startCheckout"
   | "cancelCheckout"
   | "portal"
@@ -146,22 +133,12 @@ type PriceResult =
       intervalCount: number;
       taxBehavior: "inclusive" | "exclusive";
     };
-type CurrentSubscriptionPriceResult =
-  | UnavailableResult
-  | {
-      status: "available";
-      currency: string;
-      unitAmount: number;
-      interval: "day" | "week" | "month" | "year";
-      intervalCount: number;
-      taxBehavior?: "inclusive" | "exclusive";
-    };
 type StripeBillingCadence = {
   interval: "day" | "week" | "month" | "year";
   intervalCount: number;
 };
 type BillingStateSnapshot = { state: CanonicalOrganizationBillingState; version: number };
-type BillingActionScope = { shopId: Id<"shops"> } | { organizationId: Id<"organizations"> };
+type BillingActionScope = { organizationId: Id<"organizations"> };
 
 const BILLING_EMAIL_CONVERGENCE_LIMIT = 4;
 const INACTIVE_PRICE_RECOVERY_MAX_RECHECKS = 3;
@@ -244,17 +221,6 @@ type StripeSafetyContext = {
 };
 
 /** 認証済みactorへ、サーバー側allowlistから選んだrecurring Priceだけを返す。 */
-export const getPlanPrice = action({
-  args: {
-    shopId: v.id("shops"),
-    targetPlan: v.union(v.literal("standard"), v.literal("pro")),
-  },
-  returns: priceResultValidator,
-  handler: async (ctx, args): Promise<PriceResult> => {
-    return await getPlanPriceForScope(ctx, { shopId: args.shopId }, args.targetPlan);
-  },
-});
-
 export const getPlanPriceForOrganization = action({
   args: {
     organizationId: v.id("organizations"),
@@ -293,51 +259,6 @@ async function getPlanPriceForScope(
     return unavailable("provider_unavailable");
   }
 }
-
-/** 認可済みactorへ、DBに保存済みの現在契約Priceの表示用金額だけを返す。 */
-export const getCurrentSubscriptionPrice = action({
-  args: { shopId: v.id("shops") },
-  returns: currentSubscriptionPriceResultValidator,
-  handler: async (ctx, args): Promise<CurrentSubscriptionPriceResult> => {
-    const configuration = getStripeProviderSafetyConfiguration();
-    if (!configuration) return unavailable("configuration_pending");
-
-    const context = await getAuthorizedContext(ctx, { shopId: args.shopId }, "currentSubscriptionPrice");
-    if (!context) return unavailable("not_allowed");
-    const displayedPaidPlan = getDisplayedPaidPlanForCurrentSubscriptionPrice(context.billingState.state);
-    if (
-      !displayedPaidPlan ||
-      !context.currentStripeSubscriptionId ||
-      !context.currentStripePriceId ||
-      context.currentStripePlan !== displayedPaidPlan
-    ) {
-      return unavailable("price_unavailable");
-    }
-    if (context.currentStripeSubscriptionLivemode !== configuration.livemode) {
-      return unavailable("configuration_pending");
-    }
-
-    try {
-      const stripe = createStripeClient(configuration.secretKey);
-      const price = await retrieveExistingRecurringPrice(stripe, context.currentStripePriceId, configuration.livemode);
-      return price ? { status: "available", ...price } : unavailable("price_unavailable");
-    } catch {
-      return unavailable("provider_unavailable");
-    }
-  },
-});
-
-export const startPaidCheckout = action({
-  args: {
-    shopId: v.id("shops"),
-    targetPlan: v.union(v.literal("standard"), v.literal("pro")),
-    requestId: v.string(),
-  },
-  returns: availableUrlResultValidator,
-  handler: async (ctx, args): Promise<AvailableUrlResult> => {
-    return await startPaidCheckoutForPlan(ctx, { ...args, scope: { shopId: args.shopId } });
-  },
-});
 
 export const startPaidCheckoutForOrganization = action({
   args: {
@@ -1006,18 +927,6 @@ async function startPaidCheckoutForPlan(
   }
 }
 
-export const previewPaidPlanChange = action({
-  args: {
-    shopId: v.id("shops"),
-    targetPlan: v.literal("pro"),
-    requestId: v.string(),
-  },
-  returns: prorationPreviewResultValidator,
-  handler: async (ctx, args): Promise<ProrationPreviewResult> => {
-    return await previewImmediatePaidPlanChange(ctx, { ...args, scope: { shopId: args.shopId } });
-  },
-});
-
 export const previewPaidPlanChangeForOrganization = action({
   args: {
     organizationId: v.id("organizations"),
@@ -1027,19 +936,6 @@ export const previewPaidPlanChangeForOrganization = action({
   returns: prorationPreviewResultValidator,
   handler: async (ctx, args): Promise<ProrationPreviewResult> => {
     return await previewImmediatePaidPlanChange(ctx, { ...args, scope: { organizationId: args.organizationId } });
-  },
-});
-
-export const changePaidPlanNow = action({
-  args: {
-    shopId: v.id("shops"),
-    targetPlan: v.literal("pro"),
-    requestId: v.string(),
-    prorationDate: v.number(),
-  },
-  returns: changeResultValidator,
-  handler: async (ctx, args): Promise<ChangeResult> => {
-    return await applyImmediatePaidPlanChange(ctx, { ...args, scope: { shopId: args.shopId } });
   },
 });
 
@@ -1053,21 +949,6 @@ export const changePaidPlanNowForOrganization = action({
   returns: changeResultValidator,
   handler: async (ctx, args): Promise<ChangeResult> => {
     return await applyImmediatePaidPlanChange(ctx, { ...args, scope: { organizationId: args.organizationId } });
-  },
-});
-
-export const schedulePaidPlanChange = action({
-  args: {
-    shopId: v.id("shops"),
-    targetPlan: v.union(v.literal("standard"), v.literal("free")),
-    requestId: v.string(),
-  },
-  returns: changeResultValidator,
-  handler: async (ctx, args): Promise<ChangeResult> => {
-    if (args.targetPlan === "free") {
-      return unavailable("not_allowed");
-    }
-    return await scheduleProToStandard(ctx, { ...args, targetPlan: "standard", scope: { shopId: args.shopId } });
   },
 });
 
@@ -1089,19 +970,6 @@ export const schedulePaidPlanChangeForOrganization = action({
 });
 
 /** 現在の支払い済み期間の終了時に解約し、データを保持した契約制限状態へ移す。 */
-export const scheduleServiceStopAtPeriodEnd = action({
-  args: { shopId: v.id("shops"), requestId: v.string() },
-  returns: changeResultValidator,
-  handler: async (ctx, args): Promise<ChangeResult> =>
-    await updateCancelAtPeriodEnd(ctx, {
-      scope: { shopId: args.shopId },
-      requestId: args.requestId,
-      purpose: "scheduleFree",
-      cancelAtPeriodEnd: true,
-      restrictAtPeriodEnd: true,
-    }),
-});
-
 export const scheduleServiceStopAtPeriodEndForOrganization = action({
   args: { organizationId: v.id("organizations"), requestId: v.string() },
   returns: changeResultValidator,
@@ -1115,25 +983,11 @@ export const scheduleServiceStopAtPeriodEndForOrganization = action({
     }),
 });
 
-export const cancelScheduledPlanChange = action({
-  args: { shopId: v.id("shops"), requestId: v.string() },
-  returns: changeResultValidator,
-  handler: async (ctx, args): Promise<ChangeResult> =>
-    await cancelAnyScheduledPlanChange(ctx, { ...args, scope: { shopId: args.shopId } }),
-});
-
 export const cancelScheduledPlanChangeForOrganization = action({
   args: { organizationId: v.id("organizations"), requestId: v.string() },
   returns: changeResultValidator,
   handler: async (ctx, args): Promise<ChangeResult> =>
     await cancelAnyScheduledPlanChange(ctx, { ...args, scope: { organizationId: args.organizationId } }),
-});
-
-export const openCustomerPortal = action({
-  args: { shopId: v.id("shops"), requestId: v.string() },
-  returns: redirectResultValidator,
-  handler: async (ctx, args): Promise<RedirectResult> =>
-    await openCustomerPortalForScope(ctx, { scope: { shopId: args.shopId }, requestId: args.requestId }),
 });
 
 export const openCustomerPortalForOrganization = action({
@@ -1383,13 +1237,6 @@ export const reconcileCancelAtPeriodEndChange = internalAction({
     }
     return null;
   },
-});
-
-export const cancelTrialContinuation = action({
-  args: { shopId: v.id("shops"), requestId: v.string() },
-  returns: changeResultValidator,
-  handler: async (ctx, args): Promise<ChangeResult> =>
-    await cancelTrialContinuationForScope(ctx, { scope: { shopId: args.shopId }, requestId: args.requestId }),
 });
 
 export const cancelTrialContinuationForOrganization = action({
@@ -6722,17 +6569,11 @@ async function getAuthorizedContext(
 ): Promise<AuthorizedActionContext | null> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new ConvexError("Unauthenticated");
-  return "organizationId" in scope
-    ? await ctx.runQuery(internal.organizationStripe.queries.getActionContextForOrganization, {
-        tokenIdentifier: identity.tokenIdentifier,
-        organizationId: scope.organizationId,
-        purpose,
-      })
-    : await ctx.runQuery(internal.organizationStripe.queries.getActionContext, {
-        tokenIdentifier: identity.tokenIdentifier,
-        shopId: scope.shopId,
-        purpose,
-      });
+  return await ctx.runQuery(internal.organizationStripe.queries.getActionContextForOrganization, {
+    tokenIdentifier: identity.tokenIdentifier,
+    organizationId: scope.organizationId,
+    purpose,
+  });
 }
 
 async function ensureStripeCustomer(
@@ -6928,23 +6769,6 @@ function formatBillingCadenceLabel(cadence: StripeBillingCadence): string {
       return `${cadence.intervalCount}か月`;
     case "year":
       return `${cadence.intervalCount}年`;
-  }
-}
-
-function getDisplayedPaidPlanForCurrentSubscriptionPrice(
-  state: CanonicalOrganizationBillingState,
-): StripePaidPlan | null {
-  switch (state.kind) {
-    case "active":
-      return state.plan === "standard" || state.plan === "pro" ? state.plan : null;
-    case "scheduledChange":
-      return state.currentPlan;
-    case "trial":
-    case "initialPaymentPending":
-    case "pendingActivation":
-    case "complimentary":
-    case "paymentTerminationPending":
-      return null;
   }
 }
 

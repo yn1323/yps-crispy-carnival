@@ -1,6 +1,7 @@
+import type { WithoutSystemFields } from "convex/server";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import { createMigrationHistoryTestWithMigrations, runMigrationToCompletion } from "../_test/migrations.test-helper";
 import { seedLegacyShop, seedShop } from "../_test/seed";
 
@@ -34,6 +35,8 @@ describe("notification outbox scope narrow prep migration", () => {
       const now = Date.now();
       const danglingOrganizationId = await ctx.db.insert("organizations", {
         name: "削除済み事業者",
+        billingEmail: "deleted-organization@example.com",
+        billingEmailNormalized: "deleted-organization@example.com",
         isDeleted: false,
         createdAt: now,
         updatedAt: now,
@@ -71,7 +74,7 @@ describe("notification outbox scope narrow prep migration", () => {
           nextRunAt: now,
           createdAt: now,
           updatedAt: now,
-        });
+        } as WithoutSystemFields<Doc<"notificationOutbox">>);
 
       return {
         canonicalShopId,
@@ -197,7 +200,7 @@ describe("notification outbox scope narrow prep migration", () => {
         nextRunAt: 1,
         createdAt: 1,
         updatedAt: 1,
-      });
+      } as WithoutSystemFields<Doc<"notificationOutbox">>);
       const unrelatedConflictId = await ctx.db.insert("organizationMigrationConflicts", {
         sourceType: "notificationOutbox",
         sourceId: outboxId,
