@@ -57,7 +57,7 @@ flowchart LR
 | 項目 | 条件 |
 |---|---|
 | 対象環境 | Productionではない、対象を一意に特定したConvex deployment |
-| Trial短縮 | [Trial期限の開発用設定](organization-billing.md#trial期限の開発用設定)に従い、対象deployment URLと1日から4日を設定できる |
+| Trial短縮 | [Trial期限の開発用設定](organization-billing.md#trial期限の開発用設定)と[デバッグ環境変数の運用](debug-mode.md)に従い、`DEBUG_MODE=true`と1日から4日を設定できる |
 | プロモーション | 支払い不要Pro相当の確認用コードが対象deploymentに設定済みで、値を証跡へ残さず利用できる |
 | Price | StandardとProが別Price IDで、同じ通貨、`day × 1`、active、recurring、licensed、per-unitである |
 | Webhook | 対象deploymentの直接Webhook endpointがStripe Sandboxで有効である |

@@ -4,11 +4,11 @@ import { createHash } from "node:crypto";
 import { internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
-import { getAppUrl, getOrganizationInvitationSigningSecret, isDebugNotifyFailEnabled } from "../_lib/config";
+import { getAppUrl, getOrganizationInvitationSigningSecret } from "../_lib/config";
 import { formatResendSubject } from "../_lib/emailFormat";
 import { observedInternalAction as internalAction } from "../_lib/errorObservability";
 import { LineApiError, pushLineMessage } from "../_lib/lineClient";
-import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
+import { getNotificationDeliveryBehavior, isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
 import { getResendClient, ResendEmailError, sendResendEmail } from "../_lib/resend";
 import {
   NOTIFICATION_OUTBOX_MAX_ATTEMPTS,
@@ -217,7 +217,7 @@ async function sendLineJob(
   );
   if (!preparedRecipient || preparedRecipient.toUserId !== input.toUserId) return { cancelled: true };
 
-  if (isDebugNotifyFailEnabled()) {
+  if (getNotificationDeliveryBehavior({ suppressDelivery: input.suppressDelivery }) !== "live") {
     await pushLineJob(input.toUserId, input.message, {
       suppressDelivery: input.suppressDelivery,
       retryKey: lineRetryKey(job._id),

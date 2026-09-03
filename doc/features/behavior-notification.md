@@ -125,14 +125,15 @@ Outboxに入った後でも、provider呼び出しの**直前**に次を再確�
 
 | # | 条件 | 挙動 |
 |---|---|---|
-| 1 | `NOTIFICATION_DELIVERY_MODE`がdry-run／disabled／mock | 外部配送を抑止。**通知履歴も作成しない**。使用量にも数えない |
-| 2 | `DEBUG_NOTIFY_FAIL`設定時 | dry-runより優先して非リトライ失敗にする（FailureInbox確認用。実送信しない） |
+| 1 | `DEBUG_MODE=true`かつ`DEBUG_NOTIFICATION_DELIVERY_MODE=dry-run` | メール、LINE、問い合わせSlackの外部配送を抑止。**通知履歴も作成しない**。使用量にも数えない |
+| 2 | `DEBUG_MODE=true`かつ`DEBUG_NOTIFICATION_DELIVERY_MODE=force-failure` | providerを呼ばず、非リトライ失敗にする（FailureInbox確認用） |
 | 3 | 上限超過または利用上限評価不能 | **判定時刻以降に送信予定だった業務通知を停止**。外部送信直前にも現在プランと実利用数から再判定する |
 | 4 | Trial未契約終了・解約適用・検証済み支払い失敗・想定外解約によるFree権限への移行、ProからStandardへの`active.standard`への移行、Trialから初回請求処理中または有料プランへの移行 | 状態遷移だけを理由に業務通知を停止しない。移行後の上限内外を別に判定する |
 | 5 | 停止された過去の業務通知 | 再契約後も**自動再送しない** |
 | 6 | 同じ`dedupeKey`のactiveジョブ（pending/processing）が存在 | 重複作成しない |
 | 7 | 店舗・組織・人物・staffの削除、店舗所属解除 | 対象scopeの未送信通知を停止 |
-| 8 | dry-run判定（管理者宛）で対象店舗のactive管理者全員がallowlist一致 | 抑止。走査上限超過で全員を確認できない場合は**抑止せず通常配送**（fail-safe） |
+
+`DEBUG_NOTIFICATION_DELIVERY_MODE`が未設定ならlive配送する。  この変数を`DEBUG_MODE`が無効な状態で指定した場合や、許可されていない値を指定した場合は、provider呼び出し前に設定エラーとする。  設定方法は[デバッグ環境変数の運用](../manual/debug-mode.md)を参照する。
 
 ## 6. 配送の状態と再試行
 

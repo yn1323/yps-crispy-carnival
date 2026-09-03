@@ -7,7 +7,7 @@ import { resolveOrganizationPersonEmailForManagerAddition } from "../_lib/person
 import { loadShopManagerNotificationRecipientStatus } from "../_lib/shopManagerRecipients";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
 import { normalizeEmail, requiredEmailSchema } from "../_lib/validation";
-import { NOTIFICATION_DRY_RUN_MANAGER_SCAN_LIMIT } from "../constants";
+import { SHOP_MANAGER_NOTIFICATION_RECIPIENT_SCAN_LIMIT } from "../constants";
 import { getOrganizationPersonLineState } from "../line/service";
 import { getResendDelayedFailureDeadline } from "../notificationOutbox/resendDelayedFailure";
 import {
@@ -720,7 +720,7 @@ export async function getCanonicalOrganizationSettings(ctx: CanonicalOrganizatio
         const recipientStatus = await loadShopManagerNotificationRecipientStatus(
           ctx,
           shop._id,
-          NOTIFICATION_DRY_RUN_MANAGER_SCAN_LIMIT,
+          SHOP_MANAGER_NOTIFICATION_RECIPIENT_SCAN_LIMIT,
         );
         const managerNotificationRecipientStatus =
           recipientStatus.activeRecipientCount > 0

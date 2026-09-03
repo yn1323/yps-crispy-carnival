@@ -50,6 +50,7 @@ Convexコードはユースケース単位とCQRSを基本とする。
 - 外部副作用はmutationからinternal actionへ渡し、再実行時の重複を防ぐ。
 - schedulerの一回実行だけに、回復が必要なworkflowの完了を依存させない。
 - secret、token、個人情報、provider payloadをログへ出さない。
+- デバッグ専用のConvex環境変数名は`DEBUG_`で始める。
 - `convex-billing`は、新規の単純なStripe課金を検討するための参考資料であり、このリポジトリの課金設計・実装の正本ではない。既存課金では`organizationBilling`、`organizationStripe`と関連するFeature・業務仕様・運用文書を優先し、`@convex-dev/stripe`の導入や置換は、明示的な再設計とmigration判断なしに行わない。
 
 ## 日付と時刻

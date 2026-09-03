@@ -1,14 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { type LineApiError, pushLineMessage, pushTextMessage, replyTextMessage } from "./lineClient";
+import {
+  getMessageQuota,
+  getMessageQuotaConsumption,
+  type LineApiError,
+  pushLineMessage,
+  pushTextMessage,
+  replyTextMessage,
+} from "./lineClient";
 
 describe("lineClient", () => {
   beforeEach(() => {
-    vi.stubEnv("DEBUG_NOTIFY_FAIL", "");
+    vi.stubEnv("DEBUG_MODE", "false");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "");
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
+    vi.restoreAllMocks();
   });
 
   it("push送信時にX-Line-Retry-Keyを付与できる", async () => {
@@ -70,15 +79,47 @@ describe("lineClient", () => {
     } satisfies Partial<LineApiError>);
   });
 
-  it("DEBUG_NOTIFY_FAILはLINE replyを止めない", async () => {
-    vi.stubEnv("DEBUG_NOTIFY_FAIL", "1");
-    vi.stubEnv("LINE_MESSAGING_CHANNEL_ACCESS_TOKEN", "line-token");
-    const fetchMock = vi.fn<typeof globalThis.fetch>(async () => new Response(null, { status: 200 }));
+  it("dry-runはLINE PushとReplyをproviderへ送信しない", async () => {
+    vi.stubEnv("DEBUG_MODE", "true");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "dry-run");
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
     vi.stubGlobal("fetch", fetchMock);
 
+    await pushTextMessage("U_test", "hello");
     await replyTextMessage("reply-token", "hello");
 
-    expect(fetchMock).toHaveBeenCalledOnce();
-    expect(String(fetchMock.mock.calls[0][0])).toContain("/v2/bot/message/reply");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("force-failureはLINE PushとReplyを同じ模擬失敗にしproviderへ送信しない", async () => {
+    vi.stubEnv("DEBUG_MODE", "true");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "force-failure");
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(pushTextMessage("U_test", "hello", { suppressDelivery: true })).rejects.toMatchObject({
+      name: "LineApiError",
+      status: 400,
+      body: expect.stringContaining("force-failure"),
+    });
+    await expect(replyTextMessage("reply-token", "hello")).rejects.toMatchObject({
+      name: "LineApiError",
+      status: 400,
+      body: expect.stringContaining("force-failure"),
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each(["dry-run", "force-failure"] as const)("%sでは通知用LINE quota APIへ接続しない", async (mode) => {
+    vi.stubEnv("DEBUG_MODE", "true");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", mode);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchMock = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getMessageQuota()).resolves.toEqual({ type: "limited", value: 200 });
+    await expect(getMessageQuotaConsumption()).resolves.toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

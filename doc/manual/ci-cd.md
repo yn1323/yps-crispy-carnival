@@ -62,7 +62,8 @@ Playwrightのproject dependencyを含む一括`repeat-each`では依存側のdes
 Full Regressionは認証付きE2Eだけで担わず、Logic、Frontend Unit、Behavior、VRT、Convex Function、Convex Scenario、Deployed Smokeへ分担する。
 
 Playwright用Convex Previewでも、追加組織、店舗追加、管理者招待、課金を通常artifactと同じ常時公開の経路で検証する。  Previewの成功をProductionへのartifact反映済み証跡へ流用しない。
-通知配送は`NOTIFICATION_DELIVERY_MODE=dry-run`のまま維持する。
+Playwright用Previewは`DEBUG_MODE=true`かつ`DEBUG_NOTIFICATION_DELIVERY_MODE=dry-run`とし、通知providerを呼ばない。
+Debug設定の契約は[デバッグ環境変数の運用](debug-mode.md)を参照する。
 `E2E-MANAGER-01`は招待の発行・再読込・取消というアプリ内状態を検証し、受取人による招待受諾を成功条件にしない。
 `E2E-MANAGER-02`は予約済みの別Clerk actorが招待を受諾し、管理者権限を取得した後に権限を外され、管理画面へ戻れなくてもスタッフ所属が残ることを検証する。
 招待capability、Clerk session、氏名、メールアドレスを扱うscenarioはtrace、screenshot、videoを無効にする。

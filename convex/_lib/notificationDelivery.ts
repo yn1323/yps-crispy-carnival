@@ -1,11 +1,21 @@
-import { getNotificationDeliveryMode } from "./config";
-import { normalizeEmail } from "./validation";
-
-const SUPPRESSED_DELIVERY_MODES = new Set(["dry-run", "disabled", "mock"]);
+import { getDebugNotificationDeliveryMode } from "./config";
 
 type SuppressionOptions = {
   suppressDelivery?: boolean;
 };
+
+export type NotificationDeliveryBehavior = "live" | "dry-run" | "force-failure";
+
+/**
+ * 通知送信時の動作を一意に決める。
+ * force-failure は既存jobの明示抑止より優先し、失敗経路を必ず再現する。
+ */
+export function getNotificationDeliveryBehavior(options: SuppressionOptions = {}): NotificationDeliveryBehavior {
+  const debugMode = getDebugNotificationDeliveryMode();
+  if (debugMode === "force-failure") return "force-failure";
+  if (options.suppressDelivery || debugMode === "dry-run") return "dry-run";
+  return "live";
+}
 
 /**
  * 通知送信の最終ゲート。
@@ -13,23 +23,16 @@ type SuppressionOptions = {
  * Resend / LINE クライアント側で送信直前に同じ判定を使う。
  */
 export function isNotificationDeliverySuppressed(options: SuppressionOptions = {}): boolean {
-  return Boolean(options.suppressDelivery) || SUPPRESSED_DELIVERY_MODES.has(getNotificationDeliveryMode());
+  return getNotificationDeliveryBehavior(options) === "dry-run";
 }
 
-/**
- * dry-run 対象店舗の判定。
- * E2E や検証用アカウントでは manager email にランダム suffix が付くことがあるため、
- * 完全一致ではなく部分一致で運用側の allowlist に寄せる。
- */
-export function isDryRunManagerEmail(managerEmail: string | undefined | null): boolean {
-  const normalizedManagerEmail = managerEmail ? normalizeEmail(managerEmail) : undefined;
-  if (!normalizedManagerEmail) return false;
+export function isNotificationDeliveryFailureForced(options: SuppressionOptions = {}): boolean {
+  return getNotificationDeliveryBehavior(options) === "force-failure";
+}
 
-  return (process.env.NOTIFICATION_DRY_RUN_USER_EMAILS ?? "")
-    .split(",")
-    .map((entry) => entry.trim().toLowerCase())
-    .filter(Boolean)
-    .some((entry) => normalizedManagerEmail.includes(entry));
+/** 通知送信に付随するprovider参照もDebug中は外部へ出さない。 */
+export function isNotificationProviderAccessSuppressed(): boolean {
+  return getNotificationDeliveryBehavior() !== "live";
 }
 
 export function logSuppressedNotification(kind: string, metadata: Record<string, unknown>): void {

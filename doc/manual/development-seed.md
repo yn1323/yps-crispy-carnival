@@ -36,28 +36,30 @@ localでは、Convex CLIへログインした状態で、個人用dev deployment
 
 ### 破壊的helperの環境guard
 
-対象Convex deploymentへ、次の四つのseed設定に加え、対象Clerk instanceの`CLERK_JWT_ISSUER_DOMAIN`を設定します。  値はDashboardまたは対象を固定した対話入力で設定し、コマンド履歴、文書、Issue、ログへ残しません。
+対象Convex deploymentへ、次の設定に加え、対象Clerk instanceの`CLERK_JWT_ISSUER_DOMAIN`を設定します。
+[デバッグ環境変数の運用](debug-mode.md)に従って完全修飾deploymentを指定し、値は対話入力します。
 
-| 変数 | 必須値 |
-|---|---|
-| `DEVELOPMENT_SEED_ENABLED` | 平常時は`false`。CLI実行中だけ自動で`true` |
-| `DEVELOPMENT_SEED_DEPLOYMENT_URL` | 同じdeploymentの`CONVEX_CLOUD_URL`と正規化後に一致するURL |
-| `NOTIFICATION_DELIVERY_MODE` | `dry-run` |
-| `DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER` | 専用Clerk Development利用者の`identity.tokenIdentifier`と完全一致する値 |
+| 変数 | 値 | 扱い |
+|---|---|---|
+| `DEBUG_MODE` | `true` | seedの全削除helperを有効にするため必須 |
+| `DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER` | 専用Clerk Development利用者の`identity.tokenIdentifier`と完全一致する値 | seedデータへ保存する主利用者として必須 |
+| `DEBUG_NOTIFICATION_DELIVERY_MODE` | `dry-run` | seedデータで外部通知を送らないために設定。seed実行そのものの必須条件ではない |
 
-`DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER`はlocalとDevelopmentの各Convex deploymentへ個別に設定します。  両方が同じClerk instanceの同じ利用者を使う場合は、同じ値を設定できます。  設定済みの`CLERK_JWT_ISSUER_DOMAIN`と識別子のissuerが一致することも確認します。
+`DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER`はlocalとDevelopmentの各Convex deploymentへ個別に設定します。
+両方が同じClerk instanceの同じ利用者を使う場合は、同じ値を設定できます。
+設定済みの`CLERK_JWT_ISSUER_DOMAIN`と識別子のissuerが一致することも確認します。
 
-preflightは、識別子が未設定、不正、または`CLERK_JWT_ISSUER_DOMAIN`と不一致の場合、scheduled functionの取消やtable削除より前に停止します。  `convex/developmentSeed/`の各internal functionも、呼び出しごとに環境guardを再確認します。  CLI側の固定target確認だけでは、backendの削除権限を有効にできません。
+preflightは、Debugが無効、識別子が未設定・不正、または`CLERK_JWT_ISSUER_DOMAIN`と不一致の場合、scheduled functionの取消やtable削除より前に停止します。
+`convex/developmentSeed/`の各internal functionも、呼び出しごとにDebugの有効性を再確認します。
 
-CLIは固定したselectorを一度だけ検証し、同じdeploymentへ`DEVELOPMENT_SEED_ENABLED=true`を設定してからpreflightを開始します。  成功・失敗にかかわらず`finally`で`false`へ戻し、対象deploymentから再取得した値が`false`であることを確認してから終了します。  一時有効化に失敗した場合はpreflightを開始せず、無効化と再確認だけを行います。
+CLIはConvex環境変数を設定・削除しません。
+操作者が事前に`DEBUG_MODE=true`を設定し、作業終了後に削除します。
 
-強制終了、電源断、CLIの通信断などで無効化を確認できなかった場合、コマンドはnonzeroで終了します。  表示された対象deploymentで`DEVELOPMENT_SEED_ENABLED=false`を手動確認するまで、再実行や通常利用を行いません。
+`DEBUG_MODE=true`はE2E helperも有効にします。
+`DEBUG_NOTIFICATION_DELIVERY_MODE=dry-run`を維持してseedデータを利用する間もDebugを無効にできないため、対象をlocalまたは固定したDevelopmentに限定します。
 
-`NOTIFICATION_DELIVERY_MODE=dry-run`は、シードデータを利用している間も維持します。  `DEVELOPMENT_SEED_ENABLED`の無効化と一緒に配送modeを戻しません。
-
-`DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER`もtableの全削除では消えないため、同じ専用利用者を使う間は維持します。  Clerk利用者を削除または作り直した場合は、対象deploymentの値を更新してからseedを再実行します。
-
-追加組織、店舗追加、管理者招待、課金画面の確認に、機能ごとの環境変数は不要です。  通知は`dry-run`のまま確認します。  実際のメールやLINEを送るために配送modeを変えると、シード用functionのguardが失敗します。
+`DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER`はtableの全削除では消えません。
+同じ専用利用者を使う間は維持でき、Clerk利用者を削除または作り直した場合は、対象deploymentの値を更新してからseedを再実行します。
 
 ## 作成する九つのシナリオ
 
@@ -95,24 +97,23 @@ pnpm convex:seed:dev
 
 CLIは、次の順番で処理します。  一つの段階が失敗した場合はnonzeroで終了し、後続段階を実行しません。
 
-1. 固定targetへ`DEVELOPMENT_SEED_ENABLED=true`を一時設定する。
-2. target、deployment URL、反映済みbackendの契約version・catalog fingerprint、四つのseed設定とClerk issuerをpreflightで確認する。
-3. `pending`のscheduled functionをbounded pageで取り消す。
-4. `inProgress`が0件であることを確認する。
-5. 全テーブルをbounded batchで削除する。
-6. 共通actorと九つのシナリオを順番に作る。
-7. table coverage、シナリオ件数、参照整合性、実行可能な非同期処理が0件であることを検証し、同じtransactionで一時的なaudit証跡を削除する。
-8. `finally`で`DEVELOPMENT_SEED_ENABLED=false`へ戻し、再取得した値を照合する。
+1. target、deployment URL、反映済みbackendの契約version・catalog fingerprint、Debug設定、主利用者の識別子とClerk issuerをpreflightで確認する。
+2. `pending`のscheduled functionをbounded pageで取り消す。
+3. `inProgress`が0件であることを確認する。
+4. 全テーブルをbounded batchで削除する。
+5. 共通actorと九つのシナリオを順番に作る。
+6. table coverage、シナリオ件数、参照整合性、実行可能な非同期処理が0件であることを検証し、同じtransactionで一時的なaudit証跡を削除する。
 
 各phaseは、起動時に一度だけ検証したselectorを子processの固定環境へ渡します。  localでは個人用`CONVEX_DEPLOYMENT`だけを、Developmentではdeploy keyだけを渡し、競合するselectorを空にします。  preflightが返すURLとselector内のdeployment名が完全一致しない場合は、scheduled functionの取消や削除を開始しません。  実行途中にenv fileが変更されても、別deploymentへ切り替えません。
 
 標準出力には、段階、件数、完了状態だけを表示します。  Clerk識別子、メールアドレス、token、Convex CLIの生エラー、parseできなかった応答本文は表示しません。
 
-コマンドが正常終了した場合、CLIは`DEVELOPMENT_SEED_ENABLED=false`の再取得確認まで完了しています。  無効化を確認できないというエラーでは、対象deploymentを再確認し、Dashboardまたは対象を固定したConvex CLIで`false`へ戻します。
+CLIの終了時もDebug設定は変わりません。
+続けてseedデータを使わない場合は、[デバッグ機能の無効化](debug-mode.md#デバッグ機能の無効化)に従って`DEBUG_MODE`を削除します。
 
 ## Clerk Development利用者との紐付け
 
-seedは`DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER`を主利用者の`users.authTokenIdentifier`として保存し、その利用者を九つの組織すべてのactive managerとして作成します。  seed後にConvex Dashboardで`users`を手動置換する必要はありません。
+seedは`DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER`を主利用者の`users.authTokenIdentifier`として保存し、その利用者を九つの組織すべてのactive managerとして作成します。  seed後にConvex Dashboardで`users`を手動置換する必要はありません。
 
 localとDevelopmentが同じClerk instanceを参照し、同じ専用利用者でログインする場合は、両deploymentへ同じ識別子を設定します。  ログイン後は、九つの組織と対象店舗を切り替えられることを確認します。
 
@@ -124,12 +125,14 @@ Clerk User ID、JWT、session token、`identity.tokenIdentifier`の値は、Git�
 
 | 停止位置 | deploymentの状態 | 対応 |
 |---|---|---|
-| preflight前、またはtarget不一致 | データ変更なし | env file、反映済みfunction、四つのseed設定とClerk issuerを確認してから再実行する |
+| preflight前、またはtarget不一致 | データ変更なし | env file、反映済みfunction、Debug設定、主利用者の識別子とClerk issuerを確認してから再実行する |
 | scheduled function確認中 | `pending`の予約だけが一部取り消されている可能性がある | `inProgress`の終了を待ち、通常workflowへの影響を確認してから再実行する |
 | 全テーブル削除以降、完了検証より前 | 開発画面で利用できない部分状態 | 利用を止め、原因を修正して同じコマンドを先頭から再実行する |
 | 完了検証の失敗 | データは存在するが完成条件を満たさない | 完了扱いにせず、検証エラーの分類後に再実行する |
 
-通常の失敗ではCLIが`DEVELOPMENT_SEED_ENABLED=false`へ戻して再確認します。  無効化確認自体が失敗した場合だけ、調査前に対象deploymentで`false`を手動確認します。  原因を解消し、対象deploymentと`dry-run`を再確認した後、同じコマンドを再実行します。
+失敗後もCLIはDebug設定を変更しません。
+追加の破壊的操作を止める場合は、原因調査の前に対象deploymentから`DEBUG_MODE`を削除します。
+原因を解消し、固定target、Debug、主利用者の識別子、必要に応じて通知dry-runを再設定した後、同じコマンドを先頭から実行します。
 
 実行前のデータへ戻す場合は、事前に取得したbackupまたはexportを使います。  シードを逆向きに実行して復元することはできません。
 
@@ -147,8 +150,8 @@ CLIが完了を表示した後、次を確認します。
 - catalog対象の全tableがseedまたは意図的な空tableとして検証される。
 - activeなOutbox、fan-out、遅延deadline、scheduled functionが0件である。
 - Convex deployment環境変数でClerkと紐付けた主利用者が、九つの組織すべてでactive managerとなり、対象店舗を切り替えられる。
-- `DEVELOPMENT_SEED_ENABLED`が`false`または未設定へ戻っている。
-- `NOTIFICATION_DELIVERY_MODE=dry-run`が維持されている。
+- seedデータを続けて利用する場合は、`DEBUG_MODE=true`と`DEBUG_NOTIFICATION_DELIVERY_MODE=dry-run`が維持されている。
+- 作業を終了する場合は、`DEBUG_MODE`と`DEBUG_NOTIFICATION_DELIVERY_MODE`が削除されている。
 - secret、token、メールアドレス、Clerk識別子を実行ログへ記録していない。
 
 この確認はlocalまたはDevelopmentへのシード完了を示します。  Productionへの反映、migration、provider疎通、実配送の完了を意味しません。

@@ -35,10 +35,8 @@ describe("contact/httpActions", () => {
     vi.stubEnv("SLACK_CONTACT_WEBHOOK_URL", SLACK_URL);
     vi.stubEnv("RESEND_API_KEY", "re_test_contact");
     vi.stubEnv("TURNSTILE_SECRET_KEY", "turnstile-secret");
-    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "mock");
-    vi.stubEnv("NOTIFICATION_DRY_RUN_USER_EMAILS", "");
-    vi.stubEnv("E2E_TESTING_ENABLED", "");
-    vi.stubEnv("DEBUG_NOTIFY_FAIL", "");
+    vi.stubEnv("DEBUG_MODE", "true");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "dry-run");
   });
 
   afterEach(() => {
@@ -70,7 +68,7 @@ describe("contact/httpActions", () => {
   });
 
   it("Turnstile検証後に問い合わせを受け付けてSlackへ通知する", async () => {
-    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "");
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
       if (url.includes("turnstile")) {
@@ -96,7 +94,7 @@ describe("contact/httpActions", () => {
   });
 
   it("通知dry-run環境でもTurnstile検証を通して外部配送だけを抑止する", async () => {
-    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "dry-run");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "dry-run");
     vi.stubEnv("CONTACT_RECIPIENT_EMAIL", "");
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
@@ -207,8 +205,8 @@ describe("contact/httpActions", () => {
     expect(fetchMock).toHaveBeenCalledTimes(CONTACT_TURNSTILE_GLOBAL_SHORT_LIMIT);
   });
 
-  it("メール送信に失敗した場合はSlackへ通知しない", async () => {
-    vi.stubEnv("DEBUG_NOTIFY_FAIL", "1");
+  it("通知force-failureはメールとSlackへ接続せず配送失敗を返す", async () => {
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "force-failure");
     const fetchMock = vi.fn(async (_input: string | URL | Request) =>
       responseJson({ success: true, action: "contact", hostname: "shiftori.app" }),
     );
@@ -222,11 +220,13 @@ describe("contact/httpActions", () => {
     });
 
     expect(response.status).toBe(502);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls.some(([url]) => String(url) === SLACK_URL)).toBe(false);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("api.resend.com"))).toBe(false);
   });
 
   it("Slack通知に失敗してもメール受付成功を維持する", async () => {
-    vi.stubEnv("NOTIFICATION_DELIVERY_MODE", "");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "");
     vi.spyOn(console, "error").mockImplementation(() => {});
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);

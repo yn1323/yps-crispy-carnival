@@ -4,8 +4,7 @@ import {
   RESEND_EMAIL_SEND_TIMEOUT_MS,
   RESEND_RETRY_DELAY_PADDING_MS,
 } from "../constants";
-import { isDebugNotifyFailEnabled } from "./config";
-import { isNotificationDeliverySuppressed, logSuppressedNotification } from "./notificationDelivery";
+import { getNotificationDeliveryBehavior, logSuppressedNotification } from "./notificationDelivery";
 
 type ResendClientOptions = {
   suppressDelivery?: boolean;
@@ -17,7 +16,8 @@ type SendEmailRequestOptions = CreateEmailRequestOptions & { signal?: AbortSigna
 type SendResendEmailOptions = {
   idempotencyKey?: string;
 };
-const DEBUG_NOTIFY_FAIL_EMAIL_ERROR = "DEBUG_NOTIFY_FAIL is set; email notification intentionally failed";
+const DEBUG_NOTIFICATION_FORCE_FAILURE_EMAIL_ERROR =
+  "DEBUG_NOTIFICATION_DELIVERY_MODE=force-failure; email notification intentionally failed";
 
 export class ResendEmailError extends Error {
   constructor(
@@ -36,15 +36,16 @@ let resendEmailSendQueue: Promise<void> = Promise.resolve();
 let nextResendEmailSendAt = 0;
 
 export function getResendClient(options: ResendClientOptions = {}): Resend {
-  if (isDebugNotifyFailEnabled()) {
+  const deliveryBehavior = getNotificationDeliveryBehavior(options);
+  if (deliveryBehavior === "force-failure") {
     return {
       emails: {
         send: async () => ({
           data: null,
           error: {
-            name: "debug_notify_fail",
+            name: "debug_notification_force_failure",
             statusCode: 400,
-            message: DEBUG_NOTIFY_FAIL_EMAIL_ERROR,
+            message: DEBUG_NOTIFICATION_FORCE_FAILURE_EMAIL_ERROR,
           },
           headers: null,
         }),
@@ -52,7 +53,7 @@ export function getResendClient(options: ResendClientOptions = {}): Resend {
     } as unknown as Resend;
   }
 
-  if (isNotificationDeliverySuppressed(options)) {
+  if (deliveryBehavior === "dry-run") {
     return {
       emails: {
         send: async (payload: unknown) => {

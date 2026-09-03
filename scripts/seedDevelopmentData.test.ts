@@ -107,28 +107,6 @@ function createSuccessfulRunner(events?: string[]) {
   });
 }
 
-function createSuccessfulEnvironmentRunner(events?: string[]) {
-  let enabled = "false";
-  return vi.fn((args: readonly string[], _env: Readonly<NodeJS.ProcessEnv>) => {
-    expect(args.slice(0, 3)).toEqual(["exec", "convex", "env"]);
-    const operation = args[3];
-    const name = args[4];
-    expect(name).toBe("DEVELOPMENT_SEED_ENABLED");
-    if (operation === "set") {
-      const value = args[5];
-      if (value !== "true" && value !== "false") throw new Error("unexpected guard value");
-      enabled = value;
-      events?.push(`env:set:${value}`);
-      return "";
-    }
-    if (operation === "get") {
-      events?.push("env:get");
-      return `${enabled}\n`;
-    }
-    throw new Error("unexpected environment command");
-  });
-}
-
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -228,11 +206,10 @@ describe("seedDevelopmentData CLI", () => {
   it("preflightから検証までを固定Development deploy keyで順番に実行する", () => {
     const events: string[] = [];
     const commandRunner = createSuccessfulRunner(events);
-    const environmentRunner = createSuccessfulEnvironmentRunner(events);
     const fileReader = vi.fn(() => SHARED_DEVELOPMENT_ENV);
     const log = vi.fn();
 
-    const summary = runDevelopmentSeed("dev", { commandRunner, environmentRunner, fileReader, logger: { log } });
+    const summary = runDevelopmentSeed("dev", { commandRunner, fileReader, logger: { log } });
 
     expect(summary).toEqual({
       target: "dev",
@@ -263,17 +240,11 @@ describe("seedDevelopmentData CLI", () => {
         .filter(({ functionName }) => functionName === "developmentSeed/mutations:seedScenario")
         .map(({ payload }) => payload.scenarioKey),
     ).toEqual(DEVELOPMENT_SEED_SCENARIO_KEYS);
-    expect(events).toEqual([
-      "env:set:true",
-      ...invocations.map(({ functionName }) => functionName),
-      "env:set:false",
-      "env:get",
-    ]);
+    expect(events).toEqual(invocations.map(({ functionName }) => functionName));
 
     const childEnvironments = new Set<Readonly<NodeJS.ProcessEnv>>();
-    for (const [args, env] of [...commandRunner.mock.calls, ...environmentRunner.mock.calls]) {
-      expect(args.slice(0, 2)).toEqual(["exec", "convex"]);
-      expect(["run", "env"]).toContain(args[2]);
+    for (const [args, env] of commandRunner.mock.calls) {
+      expect(args.slice(0, 3)).toEqual(["exec", "convex", "run"]);
       expect(args).not.toContain("--deployment");
       expect(args).not.toContain("--push");
       expect(args).not.toContain("--env-file");
@@ -290,7 +261,6 @@ describe("seedDevelopmentData CLI", () => {
     const output = JSON.stringify(log.mock.calls);
     expect(output).not.toContain("test-deploy-key");
     expect(output).not.toContain("primary-manager@seed.example.test");
-    expect(log).toHaveBeenCalledWith("[development-seed] 破壊操作guardの無効化を確認しました。");
   });
 
   it.each([
@@ -305,12 +275,9 @@ describe("seedDevelopmentData CLI", () => {
     const commandRunner = vi.fn((_args: readonly string[], _env: Readonly<NodeJS.ProcessEnv>) =>
       JSON.stringify(preflight),
     );
-    const environmentRunner = createSuccessfulEnvironmentRunner();
-
     expect(() =>
       runDevelopmentSeed("dev", {
         commandRunner,
-        environmentRunner,
         fileReader: () => SHARED_DEVELOPMENT_ENV,
         logger: { log: vi.fn() },
       }),
@@ -319,23 +286,15 @@ describe("seedDevelopmentData CLI", () => {
     expect(readInvocation(commandRunner.mock.calls[0]?.[0] ?? []).functionName).toBe(
       "developmentSeed/mutations:preflight",
     );
-    expect(environmentRunner.mock.calls.map(([args]) => args.slice(3))).toEqual([
-      ["set", "DEVELOPMENT_SEED_ENABLED", "true"],
-      ["set", "DEVELOPMENT_SEED_ENABLED", "false"],
-      ["get", "DEVELOPMENT_SEED_ENABLED"],
-    ]);
   });
 
   it("個人用dev selectorとpreflight URLが違えば削除前に停止する", () => {
     const commandRunner = vi.fn(() =>
       JSON.stringify({ ...PREFLIGHT, deploymentUrl: "https://other-development.convex.cloud" }),
     );
-    const environmentRunner = createSuccessfulEnvironmentRunner();
-
     expect(() =>
       runDevelopmentSeed("local", {
         commandRunner,
-        environmentRunner,
         fileReader: () => PERSONAL_DEV_ENV,
         logger: { log: vi.fn() },
       }),
@@ -350,17 +309,12 @@ describe("seedDevelopmentData CLI", () => {
       envContents = "CONVEX_DEPLOY_KEY=prod:production-project|other-secret\n";
       return successfulRunner(args, env);
     });
-    const successfulEnvironmentRunner = createSuccessfulEnvironmentRunner();
-    const environmentRunner = vi.fn((args: readonly string[], env: Readonly<NodeJS.ProcessEnv>) => {
-      envContents = "CONVEX_DEPLOY_KEY=prod:production-project|other-secret\n";
-      return successfulEnvironmentRunner(args, env);
-    });
     const fileReader = vi.fn(() => envContents);
 
-    runDevelopmentSeed("dev", { commandRunner, environmentRunner, fileReader, logger: { log: vi.fn() } });
+    runDevelopmentSeed("dev", { commandRunner, fileReader, logger: { log: vi.fn() } });
 
     expect(fileReader).toHaveBeenCalledTimes(1);
-    for (const [, env] of [...commandRunner.mock.calls, ...environmentRunner.mock.calls]) {
+    for (const [, env] of commandRunner.mock.calls) {
       expect(env.CONVEX_DEPLOYMENT).toBe("");
       expect(env.CONVEX_DEPLOY_KEY).toBe("prod:team-project|test-deploy-key");
     }
@@ -381,13 +335,11 @@ describe("seedDevelopmentData CLI", () => {
       }
       throw new Error("clear must not run");
     });
-    const environmentRunner = createSuccessfulEnvironmentRunner();
     const fileReader = vi.fn(() => PERSONAL_DEV_ENV);
 
     expect(() =>
       runDevelopmentSeed("local", {
         commandRunner,
-        environmentRunner,
         fileReader,
         logger: { log: vi.fn() },
       }),
@@ -418,13 +370,10 @@ describe("seedDevelopmentData CLI", () => {
       }
       return successfulRunner(args, env);
     });
-    const environmentRunner = createSuccessfulEnvironmentRunner();
-
     let failure: unknown;
     try {
       runDevelopmentSeed("dev", {
         commandRunner,
-        environmentRunner,
         fileReader: () => SHARED_DEVELOPMENT_ENV,
         logger: { log: vi.fn() },
       });
@@ -440,21 +389,14 @@ describe("seedDevelopmentData CLI", () => {
       "developmentSeed/queries:verify",
     );
     expect(scenarioCallCount).toBe(3);
-    expect(environmentRunner.mock.calls.map(([args]) => args.slice(3))).toEqual([
-      ["set", "DEVELOPMENT_SEED_ENABLED", "true"],
-      ["set", "DEVELOPMENT_SEED_ENABLED", "false"],
-      ["get", "DEVELOPMENT_SEED_ENABLED"],
-    ]);
   });
 
   it("不正なJSON応答を出力へ複製せず、後続処理を止める", () => {
     const rawOutput = "token=secret-token primary-manager@seed.example.test";
-    const environmentRunner = createSuccessfulEnvironmentRunner();
     let failure: unknown;
     try {
       runDevelopmentSeed("local", {
         commandRunner: () => rawOutput,
-        environmentRunner,
         fileReader: () => PERSONAL_DEV_ENV,
         logger: { log: vi.fn() },
       });
@@ -466,82 +408,6 @@ describe("seedDevelopmentData CLI", () => {
     expect(safeError).toContain("応答形式を確認できません");
     expect(safeError).not.toContain("secret-token");
     expect(safeError).not.toContain("primary-manager@seed.example.test");
-  });
-
-  it("guardの有効化に失敗してもseedを開始せず無効化を確認する", () => {
-    const commandRunner = vi.fn();
-    const environmentRunner = vi.fn((args: readonly string[]) => {
-      const operation = args[3];
-      const value = args[5];
-      if (operation === "set" && value === "true") {
-        throw new Error("token=secret-deploy-key primary-manager@seed.example.test");
-      }
-      if (operation === "set" && value === "false") return "";
-      if (operation === "get") return "false\n";
-      throw new Error("unexpected environment command");
-    });
-
-    let failure: unknown;
-    try {
-      runDevelopmentSeed("local", {
-        commandRunner,
-        environmentRunner,
-        fileReader: () => PERSONAL_DEV_ENV,
-        logger: { log: vi.fn() },
-      });
-    } catch (error) {
-      failure = error;
-    }
-
-    const safeError = formatDevelopmentSeedError(failure);
-    expect(safeError).toContain("一時有効化に失敗");
-    expect(safeError).not.toContain("secret-deploy-key");
-    expect(safeError).not.toContain("primary-manager@seed.example.test");
-    expect(commandRunner).not.toHaveBeenCalled();
-    expect(environmentRunner.mock.calls.map(([args]) => args.slice(3))).toEqual([
-      ["set", "DEVELOPMENT_SEED_ENABLED", "true"],
-      ["set", "DEVELOPMENT_SEED_ENABLED", "false"],
-      ["get", "DEVELOPMENT_SEED_ENABLED"],
-    ]);
-  });
-
-  it("guardのfalse設定が失敗してもgetでfalseなら完了扱いにする", () => {
-    const commandRunner = createSuccessfulRunner();
-    const environmentRunner = vi.fn((args: readonly string[]) => {
-      const operation = args[3];
-      const value = args[5];
-      if (operation === "set" && value === "true") return "";
-      if (operation === "set" && value === "false") throw new Error("ambiguous timeout");
-      if (operation === "get") return "false\n";
-      throw new Error("unexpected environment command");
-    });
-
-    expect(
-      runDevelopmentSeed("local", {
-        commandRunner,
-        environmentRunner,
-        fileReader: () => PERSONAL_DEV_ENV,
-        logger: { log: vi.fn() },
-      }),
-    ).toMatchObject({ target: "local", scenarioCount: 9 });
-  });
-
-  it("seed完了後もguardがfalseと確認できなければnonzeroにする", () => {
-    const commandRunner = createSuccessfulRunner();
-    const environmentRunner = vi.fn((args: readonly string[]) => {
-      if (args[3] === "set") return "";
-      if (args[3] === "get") return "true\n";
-      throw new Error("unexpected environment command");
-    });
-
-    expect(() =>
-      runDevelopmentSeed("local", {
-        commandRunner,
-        environmentRunner,
-        fileReader: () => PERSONAL_DEV_ENV,
-        logger: { log: vi.fn() },
-      }),
-    ).toThrow("DEVELOPMENT_SEED_ENABLED=falseを確認してください");
   });
 
   it("引数エラーをnonzeroにし、安全なusageだけを表示する", () => {
@@ -563,12 +429,10 @@ describe("seedDevelopmentData CLI", () => {
     const previousExitCode = process.exitCode;
     process.exitCode = undefined;
     const commandRunner = createSuccessfulRunner();
-    const environmentRunner = createSuccessfulEnvironmentRunner();
 
     try {
       main(["dev", "--yes"], {
         commandRunner,
-        environmentRunner,
         fileReader: () => SHARED_DEVELOPMENT_ENV,
         logger: { log: vi.fn() },
       });
