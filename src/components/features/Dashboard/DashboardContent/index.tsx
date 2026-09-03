@@ -80,7 +80,7 @@ type Props = {
   notificationFailures?: DashboardNotificationFailure[];
   isDashboardOnboardingDismissed?: boolean;
   showAccountDeletion?: boolean;
-  announcement?: DashboardAnnouncementData | null;
+  announcements?: readonly DashboardAnnouncementData[] | null;
   operationContextData?: OperationContextData;
   navigation?: DashboardNavigation;
 };
@@ -111,7 +111,7 @@ export const DashboardContent = ({
   notificationFailures,
   isDashboardOnboardingDismissed = false,
   showAccountDeletion = false,
-  announcement,
+  announcements,
   operationContextData,
   navigation,
 }: Props) => {
@@ -223,7 +223,7 @@ export const DashboardContent = ({
 
   return (
     <DashboardAnnouncement
-      announcement={usesInjectedData ? (announcement ?? null) : undefined}
+      announcements={usesInjectedData ? (announcements ?? null) : undefined}
       context={operationContextData?.selectedShop}
     >
       {({ content: announcementContent }) => {

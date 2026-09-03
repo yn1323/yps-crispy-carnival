@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectDashboardAnnouncementForContext } from "./script";
+import { selectDashboardAnnouncementsForContext } from "./script";
 
 type Announcement = {
   key: string;
@@ -15,13 +15,24 @@ const currentContext = {
   organizationPlan: "standard" as const,
 };
 
-describe("selectDashboardAnnouncementForContext", () => {
+describe("selectDashboardAnnouncementsForContext", () => {
   it("queryの読み込み中はお知らせを選ばない", () => {
-    expect(selectDashboardAnnouncementForContext(undefined, currentContext)).toBeNull();
+    expect(selectDashboardAnnouncementsForContext(undefined, currentContext)).toEqual([]);
   });
 
-  it("店舗未選択でも全体向けのお知らせを選ぶ", () => {
-    expect(selectDashboardAnnouncementForContext([globalAnnouncement], null)).toBe(globalAnnouncement);
+  it("店舗未選択でも全体向けのお知らせをすべて選ぶ", () => {
+    const olderGlobalAnnouncement: Announcement = { key: "global-older" };
+
+    expect(
+      selectDashboardAnnouncementsForContext(
+        [
+          globalAnnouncement,
+          { key: "organization", organizationId: currentContext.organizationId },
+          olderGlobalAnnouncement,
+        ],
+        null,
+      ),
+    ).toEqual([globalAnnouncement, olderGlobalAnnouncement]);
   });
 
   it.each([
@@ -53,7 +64,7 @@ describe("selectDashboardAnnouncementForContext", () => {
       target: { organizationId: "organization-other", shopId: currentContext.shopId },
       label: "店舗または事業者の片方",
     },
-  ])("$labelが現在の選択先と一致する最新のお知らせを選ぶ", ({ target }) => {
+  ])("$labelが現在の選択先と一致するお知らせを選ぶ", ({ target }) => {
     const targetedAnnouncement: Announcement = { key: "targeted", ...target };
     const announcements: Announcement[] = [
       { key: "other", organizationId: "organization-other", shopId: "shop-other" },
@@ -61,7 +72,10 @@ describe("selectDashboardAnnouncementForContext", () => {
       globalAnnouncement,
     ];
 
-    expect(selectDashboardAnnouncementForContext(announcements, currentContext)).toBe(targetedAnnouncement);
+    expect(selectDashboardAnnouncementsForContext(announcements, currentContext)).toEqual([
+      targetedAnnouncement,
+      globalAnnouncement,
+    ]);
   });
 
   it("空白と空要素を無視して対象値を完全一致で判定する", () => {
@@ -72,25 +86,38 @@ describe("selectDashboardAnnouncementForContext", () => {
       { key: "matched", shopId: ` , ${currentContext.shopId}, , ` },
     ];
 
-    expect(selectDashboardAnnouncementForContext(announcements, currentContext)?.key).toBe("matched");
+    expect(selectDashboardAnnouncementsForContext(announcements, currentContext).map(({ key }) => key)).toEqual([
+      "matched",
+    ]);
   });
 
-  it("対象が一致しなければ次の全体向けお知らせを選ぶ", () => {
+  it("対象が一致しないお知らせを除外して全体向けを選ぶ", () => {
     const announcements: Announcement[] = [
       { key: "other", organizationId: "organization-other", shopId: "shop-other" },
       { key: "other-plan", organizationPlan: "trial" },
       globalAnnouncement,
     ];
 
-    expect(selectDashboardAnnouncementForContext(announcements, currentContext)).toBe(globalAnnouncement);
+    expect(selectDashboardAnnouncementsForContext(announcements, currentContext)).toEqual([globalAnnouncement]);
   });
 
-  it("複数が対象なら対象範囲より候補の新しい順を優先する", () => {
-    const targetedAnnouncement: Announcement = { key: "targeted", shopId: currentContext.shopId };
-
-    expect(selectDashboardAnnouncementForContext([globalAnnouncement, targetedAnnouncement], currentContext)).toBe(
+  it("全体向けと現在の組織・店舗・契約プラン向けを候補順のまますべて選ぶ", () => {
+    const announcements: Announcement[] = [
       globalAnnouncement,
-    );
+      { key: "organization", organizationId: currentContext.organizationId },
+      { key: "other", organizationId: "organization-other" },
+      { key: "shop", shopId: currentContext.shopId },
+      { key: "plan", organizationPlan: currentContext.organizationPlan },
+      { key: "global-older" },
+    ];
+
+    expect(selectDashboardAnnouncementsForContext(announcements, currentContext).map(({ key }) => key)).toEqual([
+      "global",
+      "organization",
+      "shop",
+      "plan",
+      "global-older",
+    ]);
   });
 
   it("店舗未選択では対象指定のあるお知らせを表示しない", () => {
@@ -101,7 +128,7 @@ describe("selectDashboardAnnouncementForContext", () => {
       { key: "empty", organizationId: " , ", organizationPlan: "" },
     ];
 
-    expect(selectDashboardAnnouncementForContext(announcements, null)).toBeNull();
+    expect(selectDashboardAnnouncementsForContext(announcements, null)).toEqual([]);
   });
 
   it("有効な契約プランがない事業者ではプラン指定のお知らせを表示しない", () => {
@@ -111,6 +138,6 @@ describe("selectDashboardAnnouncementForContext", () => {
     ];
     const contextWithoutPlan = { ...currentContext, organizationPlan: null };
 
-    expect(selectDashboardAnnouncementForContext(announcements, contextWithoutPlan)).toBe(globalAnnouncement);
+    expect(selectDashboardAnnouncementsForContext(announcements, contextWithoutPlan)).toEqual([globalAnnouncement]);
   });
 });

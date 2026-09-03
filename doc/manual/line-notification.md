@@ -70,8 +70,8 @@ LINEのread authorityはruntime環境変数で旧readへ戻せないため、mig
 7. canonical不整合、`actionRequired` fan-out、旧非同期caller、互換Outboxがすべて0件であることを再確認する。1件でも残る場合はartifactを反映しない。
 8. 常時canonical readを含むartifactを反映し、通知、Webhook fan-out、Analytics、人物詳細、店舗詳細、店舗追加、複数店舗所属のcanary結果を記録する。
 
-専用backfillは固定migration seriesへ含まれない。
-対象deploymentを完全修飾し、次のrunnerだけを使う。
+専用backfillは固定migration seriesとProduction release CIへ含めない。  Productionでは事前検証と明示承認の後、Convex Dashboardから`migrations/index:runLineCommonLinkBackfill`を手動実行する。
+Developでの事前確認やCLIからの限定確認でも、対象deploymentを完全修飾して同じrunnerを使う。
 
 ```bash
 pnpm exec convex run migrations/index:runLineCommonLinkBackfill \
@@ -87,6 +87,7 @@ pnpm exec convex run --component migrations lib:getStatus \
 ```
 
 Productionのbackfill実行とdeployは、それぞれ対象と直前のreadinessを示して明示承認を得てから行う。
+m041が失敗した場合はstatusとcursorを確認し、データを裁定・修復してからDashboardで同じrunnerを再実行する。series全体のresetや不整合行の推測変換は行わない。
 常時canonical readのartifactから旧artifactへ戻すのは、dual-writeが継続し、互換投影の完全一致を確認できる間に限る。
 legacy writeを停止した後は、canonical側を修復するforward recoveryだけを行う。
 

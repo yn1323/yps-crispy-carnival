@@ -81,7 +81,7 @@ repository artifactでは、複数組織、複数店舗、複数管理者（招�
 | [通知配送outbox](notification-outbox.md) | 全メール・LINE通知を`pending`ジョブ化してworkerが非同期配送する基盤。重複排除、再試行、LINE quota超過時のメールfallback、送信直前の宛先・権限再確認、30日後のpayload redaction | なし（基盤） |
 | [スタッフ通知履歴](notification-history.md) | スタッフごとの通知の日時・チャネル・タイトル・送信/配信状況を表示する（本文・宛先は保存しない） | スタッフ店舗別設定 |
 | [通知不達Dashboard](notification-failure-dashboard.md) | 不達通知カード、個別・一斉再通知、「再送せず破棄する」、open不達がある店舗への日次リマインダー | Dashboard「要対応」 |
-| [Dashboardお知らせ](dashboard-announcements.md) | 全体・組織・店舗・プラン単位を対象にお知らせを1件表示する。管理UIはなくConvex Dashboardから登録する | Dashboard |
+| [Dashboardお知らせ](dashboard-announcements.md) | 全体・組織・店舗・プラン単位を対象に、該当するお知らせを新しい順で複数表示する。管理UIはなくConvex Dashboardから登録する | Dashboard |
 
 ### 3.5 課金・解約・削除
 
