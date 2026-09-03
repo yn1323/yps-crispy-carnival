@@ -1,15 +1,14 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { getOrganizationInvitationSigningSecret } from "./_lib/config";
+import { getOrganizationInvitationSigningSecret, isDebugModeEnabled } from "./_lib/config";
 import { getReminderScheduledAt, getSubmitLinkCutoff } from "./_lib/dateFormat";
 import {
   observedInternalMutation as internalMutation,
   observedInternalQuery as internalQuery,
 } from "./_lib/errorObservability";
-import { isDryRunManagerEmail, isNotificationDeliverySuppressed } from "./_lib/notificationDelivery";
+import { isNotificationDeliverySuppressed } from "./_lib/notificationDelivery";
 import { resetRateLimit } from "./_lib/rateLimits";
-import { loadShopManagerContacts } from "./_lib/shopManagerRecipients";
 import { normalizeSubmissionPattern } from "./_lib/submissionPattern";
 import { generateUUID } from "./_lib/uuid";
 import { MAGIC_LINK_DEFAULT_TTL_MS, ORGANIZATION_NAME_SUFFIX } from "./constants";
@@ -87,19 +86,8 @@ const DELETION_CLEANUP_JOB_STATUSES: DeletionCleanupJobStatus[] = [
 ];
 const E2E_GRAPH_CLEANUP_JOB_LIMIT_PER_STATUS = 100;
 
-function normalizeDeploymentUrl(value: string | undefined) {
-  return value?.trim().replace(/\/+$/, "") ?? "";
-}
-
 function assertE2EHelpersEnabled() {
-  const currentDeploymentUrl = normalizeDeploymentUrl(process.env.CONVEX_CLOUD_URL);
-  const allowedDeploymentUrl = normalizeDeploymentUrl(process.env.E2E_TESTING_DEPLOYMENT_URL);
-  if (
-    process.env.E2E_TESTING_ENABLED !== "true" ||
-    !currentDeploymentUrl ||
-    !allowedDeploymentUrl ||
-    currentDeploymentUrl !== allowedDeploymentUrl
-  ) {
+  if (!isDebugModeEnabled()) {
     throw new Error("E2E testing helpers are disabled for this deployment.");
   }
 }
@@ -1613,31 +1601,20 @@ export const getManagerInvitationCapability = internalQuery({
 
 export const getE2ERecipientSafetyState = internalQuery({
   args: { email: v.string() },
-  handler: async (_ctx, { email }) => {
+  handler: async () => {
     assertE2EHelpersEnabled();
     return {
-      notificationDeliverySuppressed: isNotificationDeliverySuppressed() || isDryRunManagerEmail(email),
+      notificationDeliverySuppressed: isNotificationDeliverySuppressed(),
     };
   },
 });
 
 export const getE2EShopSafetyState = internalQuery({
   args: { shopId: v.id("shops") },
-  handler: async (ctx, { shopId }) => {
+  handler: async () => {
     assertE2EHelpersEnabled();
-    const shop = await ctx.db.get(shopId);
-    if (!shop || shop.isDeleted) return { notificationDeliverySuppressed: false };
-
-    const managers = await loadShopManagerContacts(ctx, shopId, 10);
-    const allManagersAreDryRun =
-      !managers.candidateLimitExceeded &&
-      managers.contacts.length > 0 &&
-      managers.contacts.every((manager) =>
-        isDryRunManagerEmail(manager.kind === "canonical" ? manager.person.email : manager.user.email),
-      );
-
     return {
-      notificationDeliverySuppressed: isNotificationDeliverySuppressed() || allManagersAreDryRun,
+      notificationDeliverySuppressed: isNotificationDeliverySuppressed(),
     };
   },
 });

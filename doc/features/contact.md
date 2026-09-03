@@ -66,7 +66,7 @@ Slack通知だけが失敗した場合も、メールの送信受付が成功し
 - Cloudflare公式のalways-passテストキーは、localhostからの開発時だけテスト用hostnameを許可する。
 - HTTP actionは明示したOriginだけを許可する。
 - HTTP actionは本文をUTF-8換算16 KiB以下に制限し、超過時はTurnstile検証や外部送信の前に拒否する。
-- `NOTIFICATION_DELIVERY_MODE`がdry-run、disabled、mockの場合は、ResendとSlackの外部配送を抑止する。
+- `DEBUG_MODE=true`かつ`DEBUG_NOTIFICATION_DELIVERY_MODE=dry-run`の場合は、ResendとSlackの外部配送を抑止する。`force-failure`の場合も外部配送せず、問い合わせの配送失敗を再現する。設定方法は[デバッグ環境変数の運用](../manual/debug-mode.md)を参照する。
 - 氏名、メールアドレス、問い合わせ本文、Turnstile token、Slack Webhook URLをログへ出さない。
 - Slackのmrkdwnに埋め込む利用者入力はエスケープし、意図しないメンションを防ぐ。
 - レート制限キーにはメールアドレスやIPの生値ではなくSHA-256 hashを使う。

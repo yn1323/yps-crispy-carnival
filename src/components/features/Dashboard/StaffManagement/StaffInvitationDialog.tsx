@@ -230,8 +230,8 @@ const METHOD_OPTIONS: MethodOption[] = [
   },
   {
     method: "organization",
-    title: "別店舗のスタッフを追加する",
-    description: "別の店舗に登録済みのスタッフを追加します",
+    title: "組織から探して追加する",
+    description: "別店舗、店舗未所属のスタッフを追加します",
     icon: LuUsersRound,
   },
 ];
@@ -329,7 +329,7 @@ function StaffInvitationMethodMenu({
 const METHOD_TITLES: Record<StaffInvitationMethod, string> = {
   link: "スタッフ本人に登録してもらう",
   manual: "管理者が情報を入力して追加する",
-  organization: "別店舗のスタッフを追加する",
+  organization: "組織から探して追加する",
 };
 
 type DetailHeaderProps = {

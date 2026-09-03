@@ -155,3 +155,19 @@ Convex agent skills for common tasks can be installed by running
 `npx convex ai-files install`.
 
 <!-- convex-ai-end -->
+
+## 禁止事項
+### 各Convex環境への接続
+
+1. ローカル環境：https://fortunate-mallard-809.convex.cloud
+  - 閲覧：許可
+  - データ編集：許可
+  - 環境変数編集：許可
+2. 開発環境：https://knowing-chihuahua-595.convex.cloud
+  - 閲覧：要確認
+  - データ編集：要確認
+  - 環境変数編集：許可
+2. 本番環境：https://proficient-kookabura-834.convex.cloud
+  - 閲覧：禁止
+  - データ編集：禁止
+  - 環境変数編集：禁止

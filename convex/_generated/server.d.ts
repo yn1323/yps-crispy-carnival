@@ -38,12 +38,10 @@ type Env = {
   readonly APP_URL: string | undefined;
   readonly CLERK_JWT_ISSUER_DOMAIN: string | undefined;
   readonly CLERK_SECRET_KEY: string | undefined;
+  readonly DEBUG_MODE: string | undefined;
+  readonly DEBUG_NOTIFICATION_DELIVERY_MODE: string | undefined;
+  readonly DEBUG_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER: string | undefined;
   readonly DEBUG_TRIAL_DURATION_DAYS: string | undefined;
-  readonly DEBUG_TRIAL_DURATION_DEPLOYMENT_URL: string | undefined;
-  readonly DEVELOPMENT_SEED_DEPLOYMENT_URL: string | undefined;
-  readonly DEVELOPMENT_SEED_ENABLED: string | undefined;
-  readonly DEVELOPMENT_SEED_PRIMARY_AUTH_TOKEN_IDENTIFIER: string | undefined;
-  readonly NOTIFICATION_DELIVERY_MODE: string | undefined;
   readonly PROMOTION_COMPLIMENTARY_PRO_CODE: string | undefined;
   readonly STRIPE_PORTAL_CONFIGURATION_ID: string | undefined;
   readonly STRIPE_PRO_PRICE_ID: string | undefined;

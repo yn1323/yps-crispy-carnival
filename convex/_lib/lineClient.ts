@@ -8,16 +8,20 @@
  *   LINE_LOGIN_CHANNEL_ID
  *   LINE_LOGIN_CHANNEL_SECRET
  *   LINE_MESSAGING_CHANNEL_ACCESS_TOKEN
- *   DEBUG_NOTIFY_FAIL
+ *   DEBUG_NOTIFICATION_DELIVERY_MODE
  */
 
 import type { LinePushMessage, LineTextMessage } from "../notification/templates";
-import { isDebugNotifyFailEnabled } from "./config";
-import { isNotificationDeliverySuppressed, logSuppressedNotification } from "./notificationDelivery";
+import {
+  getNotificationDeliveryBehavior,
+  isNotificationProviderAccessSuppressed,
+  logSuppressedNotification,
+} from "./notificationDelivery";
 
 const LINE_API_BASE = "https://api.line.me";
-const DEBUG_NOTIFY_FAIL_LINE_STATUS = 400;
-const DEBUG_NOTIFY_FAIL_LINE_BODY = "DEBUG_NOTIFY_FAIL is set; LINE notification intentionally failed";
+const DEBUG_NOTIFICATION_FORCE_FAILURE_LINE_STATUS = 400;
+const DEBUG_NOTIFICATION_FORCE_FAILURE_LINE_BODY =
+  "DEBUG_NOTIFICATION_DELIVERY_MODE=force-failure; LINE notification intentionally failed";
 
 function getMessagingAccessToken(): string {
   const token = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN;
@@ -47,11 +51,10 @@ export async function pushLineMessage(
   message: LinePushMessage,
   options: LineDeliveryOptions = {},
 ): Promise<void> {
-  if (isDebugNotifyFailEnabled()) {
-    throwDebugNotifyFailLineError("push");
-  }
+  const deliveryBehavior = getNotificationDeliveryBehavior(options);
+  if (deliveryBehavior === "force-failure") throwDebugNotificationFailure("push");
 
-  if (isNotificationDeliverySuppressed(options)) {
+  if (deliveryBehavior === "dry-run") {
     logSuppressedNotification("line.push", {
       toUserIdLength: toUserId.length,
       ...(message.type === "text" ? { textLength: message.text.length } : { altTextLength: message.altText.length }),
@@ -88,7 +91,10 @@ export async function replyTextMessage(
   text: string,
   options: LineDeliveryOptions = {},
 ): Promise<void> {
-  if (isNotificationDeliverySuppressed(options)) {
+  const deliveryBehavior = getNotificationDeliveryBehavior(options);
+  if (deliveryBehavior === "force-failure") throwDebugNotificationFailure("reply");
+
+  if (deliveryBehavior === "dry-run") {
     logSuppressedNotification("line.reply", { replyTokenLength: replyToken.length, textLength: text.length });
     return;
   }
@@ -110,7 +116,7 @@ export async function replyTextMessage(
 
 /** Quota（当月上限）取得 */
 export async function getMessageQuota(): Promise<{ type: "limited" | "none"; value: number }> {
-  if (isNotificationDeliverySuppressed()) {
+  if (isNotificationProviderAccessSuppressed()) {
     logSuppressedNotification("line.quota", {});
     return { type: "limited", value: 200 };
   }
@@ -125,7 +131,7 @@ export async function getMessageQuota(): Promise<{ type: "limited" | "none"; val
 
 /** 当月消費通数を取得 */
 export async function getMessageQuotaConsumption(): Promise<number> {
-  if (isNotificationDeliverySuppressed()) {
+  if (isNotificationProviderAccessSuppressed()) {
     logSuppressedNotification("line.quotaConsumption", {});
     return 0;
   }
@@ -200,10 +206,10 @@ export function buildLineAuthorizeUrl(params: { channelId: string; redirectUri: 
   return url.toString();
 }
 
-function throwDebugNotifyFailLineError(kind: "push"): never {
+function throwDebugNotificationFailure(kind: "push" | "reply"): never {
   throw new LineApiError(
-    `LINE ${kind} failed: ${DEBUG_NOTIFY_FAIL_LINE_STATUS} ${DEBUG_NOTIFY_FAIL_LINE_BODY}`,
-    DEBUG_NOTIFY_FAIL_LINE_STATUS,
-    DEBUG_NOTIFY_FAIL_LINE_BODY,
+    `LINE ${kind} failed: ${DEBUG_NOTIFICATION_FORCE_FAILURE_LINE_STATUS} ${DEBUG_NOTIFICATION_FORCE_FAILURE_LINE_BODY}`,
+    DEBUG_NOTIFICATION_FORCE_FAILURE_LINE_STATUS,
+    DEBUG_NOTIFICATION_FORCE_FAILURE_LINE_BODY,
   );
 }

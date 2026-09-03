@@ -107,7 +107,7 @@ export function StaffRegistrationLinkPanel({
         </Text>
       </Stack>
 
-      <InviteSection title="QRコードで招待">
+      <InviteSection title="店舗のQRコードで招待">
         <Stack align="center" gap={2}>
           {qrSvg ? (
             <Box
@@ -129,7 +129,7 @@ export function StaffRegistrationLinkPanel({
         </Stack>
       </InviteSection>
 
-      <InviteSection title="招待リンクを共有">
+      <InviteSection title="店舗の招待リンクを共有">
         <HStack
           gap={0}
           align="stretch"
@@ -231,14 +231,14 @@ const StaffRegistrationLinkPanelSkeleton = () => (
       <Skeleton h="16px" w="86%" />
     </Stack>
 
-    <InviteSection title="QRコードで招待">
+    <InviteSection title="店舗のQRコードで招待">
       <Stack align="center" gap={2}>
         <QrSkeleton />
         <Skeleton h="14px" w="172px" />
       </Stack>
     </InviteSection>
 
-    <InviteSection title="招待リンクを共有">
+    <InviteSection title="店舗の招待リンクを共有">
       <HStack gap={0} align="stretch" minW={0} borderWidth="1px" borderColor="border.default" borderRadius="md">
         <Skeleton h="40px" flex={1} borderRadius={0} />
         <Skeleton boxSize="40px" borderRadius={0} />

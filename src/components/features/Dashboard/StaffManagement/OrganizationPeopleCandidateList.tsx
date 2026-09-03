@@ -92,7 +92,7 @@ export function OrganizationPeopleCandidateListView({
   return (
     <Stack gap={4}>
       <Text fontSize="sm" color="fg.muted" lineHeight="tall">
-        同じ組織に所属し、この店舗にはまだ登録されていないスタッフです。
+        同じ組織に登録済みで、この店舗にはまだ所属していないスタッフです。
         <br />
         追加するスタッフを押してください。
       </Text>
@@ -190,7 +190,7 @@ export function OrganizationPeopleCandidateListView({
 
 function CandidateListSkeleton() {
   return (
-    <Stack gap={4} aria-label="他店舗スタッフを読み込み中" aria-busy="true">
+    <Stack gap={4} aria-label="登録済みスタッフを読み込み中" aria-busy="true">
       <Stack gap={2}>
         <Skeleton h="16px" w="96%" />
         <Skeleton h="16px" w="72%" />

@@ -30,6 +30,13 @@ const candidates: OrganizationPersonCandidate[] = [
     shopNames: ["新宿店"],
     isManager: false,
   },
+  {
+    personId: personId("person-3"),
+    name: "鈴木 美咲",
+    email: "misaki.suzuki@example.com",
+    shopNames: [],
+    isManager: false,
+  },
 ];
 
 const noop = () => {};
@@ -84,12 +91,6 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const MethodSelection: Story = {};
-
-export const MethodSelectionWithoutOrganizationPeople: Story = {
-  args: {
-    invitation: createInvitation(null, { showOrganizationPeopleAddition: false }),
-  },
-};
 
 export const LinkInvitation: Story = {
   args: {
@@ -171,20 +172,6 @@ export const ManualRegistration: Story = {
 export const OrganizationPeople: Story = {
   args: {
     invitation: createInvitation("organization"),
-  },
-};
-
-export const OrganizationPeopleDarkLaunchBehavior: Story = {
-  parameters: { screenshot: { skip: true } },
-  args: {
-    invitation: createInvitation("organization", { showOrganizationPeopleAddition: false }),
-  },
-  play: async ({ canvasElement }) => {
-    const page = within(canvasElement.ownerDocument.body);
-
-    await expect(page.queryByRole("button", { name: "別店舗のスタッフを追加する" })).not.toBeInTheDocument();
-    await expect(page.queryByRole("button", { name: "佐藤 真由美をこの店舗に追加" })).not.toBeInTheDocument();
-    await page.findByRole("button", { name: "スタッフ本人に登録してもらう" });
   },
 };
 

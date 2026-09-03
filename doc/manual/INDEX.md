@@ -6,6 +6,7 @@
 
 | 実行場面 | 手順 | 確認するもの |
 |---|---|---|
+| local、Development、Previewでデバッグ機能を有効化・無効化する | [デバッグ環境変数の運用](debug-mode.md) | 共通スイッチ、通知モード、Trial短縮、seed入力、旧環境変数の移行 |
 | localまたはDevelopmentへ網羅的な開発データを作る | [開発用網羅シード](development-seed.md) | 全削除の対象、環境guard、9シナリオ、Clerk紐付け、再実行と復旧 |
 | Pull Request、Preview、Develop、Productionを運用する | [CI/CD運用](ci-cd.md) | 対象commit、workflow結果、approval、デプロイ後確認 |
 | 利用規約・プライバシーポリシーを更新する | [法務文書のバージョン更新](legal-versioning.md) | 本文版、再同意版、更新日、対象利用者 |
