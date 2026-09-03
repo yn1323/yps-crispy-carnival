@@ -23,10 +23,14 @@ vi.mock("@/src/components/shared/feedback", () => ({
   showSuccessToast: mocks.showSuccessToast,
 }));
 
-import { useUserRemovalActions } from "./useUserRemovalActions";
+import { useUserRemovalActions as useRawUserRemovalActions } from "./useUserRemovalActions";
 
 const personId = "person-target" as Id<"organizationPeople">;
 const shopId = "shop-current" as Id<"shops">;
+const organizationId = "organization-a" as Id<"organizations">;
+const useUserRemovalActions = (
+  options: Omit<Parameters<typeof useRawUserRemovalActions>[0], "expectedOrganizationId">,
+) => useRawUserRemovalActions({ ...options, expectedOrganizationId: organizationId });
 const requestId = "2b79a222-176c-44d6-9b39-d090c1f72efb";
 const nextRequestId = "ec0e5a86-c413-401d-af1f-e2dd654124c4";
 const removalPreview = {
@@ -55,7 +59,7 @@ const removablePersonData = {
     canDisconnect: false,
   },
   membershipFingerprint: "membership-fingerprint",
-  shops: [{ shopId, shopName: "渋谷店", shopStatus: "active", canChangeMembership: true }],
+  shops: [{ shopId, shopName: "渋谷店", canChangeMembership: true }],
   memberships: [],
 } as UserDetailData;
 
@@ -84,6 +88,7 @@ describe("useUserRemovalActions", () => {
       personId,
       requestId,
       removalPreview: { assignmentCount: 2, fingerprint: "preview-fingerprint" },
+      expectedOrganizationId: organizationId,
     });
     expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);
   });
@@ -105,6 +110,7 @@ describe("useUserRemovalActions", () => {
       personId,
       requestId,
       removalPreview: { assignmentCount: 2, fingerprint: "preview-fingerprint" },
+      expectedOrganizationId: organizationId,
     };
     expect(mocks.removePerson.mock.calls).toEqual([[args], [args]]);
     expect(onPersonRemoved).toHaveBeenCalledOnce();
@@ -152,10 +158,7 @@ describe("useUserRemovalActions", () => {
       data: {
         ...removablePersonData,
         person: { ...removablePersonData.person, id: otherPersonId },
-        shops: [
-          ...removablePersonData.shops,
-          { shopId: otherShopId, shopName: "別店舗", shopStatus: "active", canChangeMembership: true },
-        ],
+        shops: [...removablePersonData.shops, { shopId: otherShopId, shopName: "別店舗", canChangeMembership: true }],
       },
       selectedShopId: otherShopId,
     });

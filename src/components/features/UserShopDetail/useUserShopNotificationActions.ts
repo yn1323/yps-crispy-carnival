@@ -21,16 +21,16 @@ export function useUserShopNotificationActions({
   membership: UserShopDetailMembership;
   isReadOnly: boolean;
   enabled: boolean;
-  expectedOrganizationId?: Id<"organizations">;
+  expectedOrganizationId: Id<"organizations">;
 }) {
   const recruitments = usePaginatedQuery(
     api.dashboard.queries.getDashboardRecruitments,
-    enabled ? { shopId: targetShopId, ...(expectedOrganizationId ? { expectedOrganizationId } : {}) } : "skip",
+    enabled ? { shopId: targetShopId, expectedOrganizationId } : "skip",
     { initialNumItems: RECRUITMENT_QUERY_PAGE_SIZE },
   );
   const currentRecruitments = useQuery(
     api.dashboard.queries.getDashboardCurrentRecruitments,
-    enabled ? { shopId: targetShopId, ...(expectedOrganizationId ? { expectedOrganizationId } : {}) } : "skip",
+    enabled ? { shopId: targetShopId, expectedOrganizationId } : "skip",
   );
   const cooldowns = useQuery(
     api.staff.queries.getNotificationResendCooldowns,
@@ -38,7 +38,7 @@ export function useUserShopNotificationActions({
       ? {
           shopId: targetShopId,
           staffId: membership.staffId,
-          ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+          expectedOrganizationId,
         }
       : "skip",
   );
@@ -62,7 +62,7 @@ export function useUserShopNotificationActions({
       const result = await sendOpenRecruitmentNotifications({
         shopId: targetShopId,
         staffId: membership.staffId,
-        ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+        expectedOrganizationId,
       });
       if (result.scheduled) {
         showSuccessToast({ title: "シフト募集通知を再送しました" });
@@ -96,7 +96,7 @@ export function useUserShopNotificationActions({
       const result = await sendCurrentShiftNotification({
         shopId: targetShopId,
         staffId: membership.staffId,
-        ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+        expectedOrganizationId,
       });
       if (result.scheduled) {
         showSuccessToast({ title: "確定シフト通知を再送しました" });

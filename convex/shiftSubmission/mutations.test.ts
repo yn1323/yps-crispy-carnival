@@ -21,6 +21,16 @@ async function setupTestData(
 ) {
   return await t.run(async (ctx) => {
     const shopId = await seedShop(ctx, "テスト店舗");
+    const shop = await ctx.db.get(shopId);
+    if (!shop) throw new Error("テスト用shopが見つかりません");
+    const now = Date.now();
+    await ctx.db.insert("organizationBillingStates", {
+      organizationId: shop.organizationId,
+      state: { kind: "complimentary", plan: "pro" },
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
     const staffId = await seedStaff(ctx, {
       shopId,
       name: "鈴木太郎",
@@ -102,7 +112,7 @@ describe("shiftSubmission/mutations", () => {
           sessionToken,
           accessKind: "submit",
           recruitmentId: otherRecruitmentId,
-          requests: [],
+          submission: { kind: "time", requests: [] },
         }),
       ).rejects.toThrowError(ConvexError);
 
@@ -144,7 +154,7 @@ describe("shiftSubmission/mutations", () => {
           sessionToken: expiredToken,
           accessKind: "submit",
           recruitmentId,
-          requests: [],
+          submission: { kind: "time", requests: [] },
         }),
       ).rejects.toThrow("Session expired");
     });
@@ -184,7 +194,7 @@ describe("shiftSubmission/mutations", () => {
           sessionToken,
           accessKind: "submit",
           recruitmentId,
-          requests: validRequests,
+          submission: { kind: "time", requests: validRequests },
         }),
       ).rejects.toThrow("Session expired");
       const submissions = await t.run((ctx) => ctx.db.query("shiftSubmissions").collect());
@@ -213,7 +223,7 @@ describe("shiftSubmission/mutations", () => {
           sessionToken,
           accessKind: "submit",
           recruitmentId: otherRecruitmentId,
-          requests: [],
+          submission: { kind: "time", requests: [] },
         }),
       ).rejects.toThrow(ConvexError);
     });
@@ -227,7 +237,7 @@ describe("shiftSubmission/mutations", () => {
           sessionToken,
           accessKind: "submit",
           recruitmentId,
-          requests: validRequests,
+          submission: { kind: "time", requests: validRequests },
         }),
       ).resolves.toBeNull();
 
@@ -236,7 +246,7 @@ describe("shiftSubmission/mutations", () => {
           sessionToken,
           accessKind: "submit",
           recruitmentId,
-          requests: [],
+          submission: { kind: "time", requests: [] },
         }),
       ).rejects.toThrow("Deadline passed");
     });
@@ -253,7 +263,7 @@ describe("shiftSubmission/mutations", () => {
           sessionToken,
           accessKind: "submit",
           recruitmentId,
-          requests: [],
+          submission: { kind: "time", requests: [] },
         }),
       ).rejects.toThrow("Not found");
     });
@@ -266,7 +276,7 @@ describe("shiftSubmission/mutations", () => {
         sessionToken,
         accessKind: "submit",
         recruitmentId,
-        requests: validRequests,
+        submission: { kind: "time", requests: validRequests },
       });
 
       const [slots, submission] = await t.run(async (ctx) => {
@@ -288,31 +298,6 @@ describe("shiftSubmission/mutations", () => {
       expect(submission?.submittedAt).toBeTypeOf("number");
     });
 
-    it("両canonical ID欠損staffも発行済みsessionと保存済み店舗が一致すれば提出を継続できる", async () => {
-      const t = convexTest(schema, modules);
-      const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
-      await t.run(async (ctx) => {
-        await ctx.db.patch(staffId, { organizationId: undefined, organizationPersonId: undefined });
-      });
-
-      await expect(
-        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
-          sessionToken,
-          accessKind: "submit",
-          recruitmentId,
-          requests: validRequests,
-        }),
-      ).resolves.toBeNull();
-      await expect(
-        t.run(async (ctx) =>
-          ctx.db
-            .query("shiftSubmissions")
-            .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
-            .unique(),
-        ),
-      ).resolves.not.toBeNull();
-    });
-
     it("希望枠は上限31件を受理し、32件目を拒否して既存提出を保持する", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId, staffId } = await setupTestData(t, { periodEnd: "2026-05-08" });
@@ -326,7 +311,7 @@ describe("shiftSubmission/mutations", () => {
           sessionToken,
           accessKind: "submit",
           recruitmentId,
-          requests: requests.slice(0, SHIFT_REQUESTS_PER_SUBMISSION_LIMIT),
+          submission: { kind: "time", requests: requests.slice(0, SHIFT_REQUESTS_PER_SUBMISSION_LIMIT) },
         }),
       ).resolves.toBeNull();
 
@@ -335,7 +320,7 @@ describe("shiftSubmission/mutations", () => {
           sessionToken,
           accessKind: "submit",
           recruitmentId,
-          requests,
+          submission: { kind: "time", requests },
         }),
       ).rejects.toThrow("Invalid request data");
 
@@ -357,7 +342,7 @@ describe("shiftSubmission/mutations", () => {
           sessionToken,
           accessKind: "submit",
           recruitmentId,
-          requests: [{ date: "2026-02-31", startTime: "09:00", endTime: "18:00" }],
+          submission: { kind: "time", requests: [{ date: "2026-02-31", startTime: "09:00", endTime: "18:00" }] },
         }),
       ).rejects.toThrow("Invalid request data");
       await expect(
@@ -365,7 +350,7 @@ describe("shiftSubmission/mutations", () => {
           sessionToken,
           accessKind: "submit",
           recruitmentId,
-          requests: [{ date: "2026-04-07", startTime: "bad", endTime: "18:00" }],
+          submission: { kind: "time", requests: [{ date: "2026-04-07", startTime: "bad", endTime: "18:00" }] },
         }),
       ).rejects.toThrow("Invalid request data");
       await expect(
@@ -373,7 +358,7 @@ describe("shiftSubmission/mutations", () => {
           sessionToken,
           accessKind: "submit",
           recruitmentId,
-          requests: [{ date: "2026-04-07", startTime: "09:00", endTime: "36:30" }],
+          submission: { kind: "time", requests: [{ date: "2026-04-07", startTime: "09:00", endTime: "36:30" }] },
         }),
       ).rejects.toThrow("Invalid request data");
     });
@@ -387,7 +372,7 @@ describe("shiftSubmission/mutations", () => {
           sessionToken,
           accessKind: "submit",
           recruitmentId,
-          requests: [{ date: "2026-04-09", startTime: "10:00", endTime: "15:00" }],
+          submission: { kind: "time", requests: [{ date: "2026-04-09", startTime: "10:00", endTime: "15:00" }] },
         }),
       ).rejects.toThrow("定休日には希望シフトを提出できません");
     });
@@ -597,7 +582,7 @@ describe("shiftSubmission/mutations", () => {
         sessionToken,
         accessKind: "submit",
         recruitmentId,
-        requests: [],
+        submission: { kind: "time", requests: [] },
       });
 
       const [slots, submission] = await t.run(async (ctx) => {
@@ -635,7 +620,7 @@ describe("shiftSubmission/mutations", () => {
         sessionToken,
         accessKind: "submit",
         recruitmentId,
-        requests: validRequests,
+        submission: { kind: "time", requests: validRequests },
       });
 
       const submission = await t.run(async (ctx) =>
@@ -666,7 +651,7 @@ describe("shiftSubmission/mutations", () => {
           sessionToken,
           accessKind: "submit",
           recruitmentId,
-          requests: validRequests,
+          submission: { kind: "time", requests: validRequests },
         }),
       ).rejects.toThrow("Legal consent required");
 
@@ -697,7 +682,7 @@ describe("shiftSubmission/mutations", () => {
           sessionToken,
           accessKind: "submit",
           recruitmentId,
-          requests: validRequests,
+          submission: { kind: "time", requests: validRequests },
         }),
       ).rejects.toThrow("Legal consent required");
     });
@@ -719,7 +704,7 @@ describe("shiftSubmission/mutations", () => {
         sessionToken,
         accessKind: "submit",
         recruitmentId,
-        requests: validRequests,
+        submission: { kind: "time", requests: validRequests },
         acceptedLegal: true,
       });
 
@@ -782,7 +767,7 @@ describe("shiftSubmission/mutations", () => {
         sessionToken,
         accessKind: "submit",
         recruitmentId,
-        requests: [{ date: "2026-04-10", startTime: "10:00", endTime: "20:00" }],
+        submission: { kind: "time", requests: [{ date: "2026-04-10", startTime: "10:00", endTime: "20:00" }] },
       });
 
       const [slots, submission] = await t.run(async (ctx) => {
@@ -803,34 +788,6 @@ describe("shiftSubmission/mutations", () => {
       expect(submission?.submittedAt).toBeGreaterThanOrEqual(firstSubmission?.submittedAt ?? 0);
     });
 
-    it("firstSubmittedAtがない既存提出の再提出では以前のsubmittedAtを初回提出時刻として保持する", async () => {
-      const t = convexTest(schema, modules);
-      const { sessionToken, recruitmentId, staffId } = await setupTestData(t);
-      await t.run(async (ctx) => {
-        await ctx.db.insert("shiftSubmissions", {
-          recruitmentId,
-          staffId,
-          submittedAt: 1000,
-        });
-      });
-
-      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
-        sessionToken,
-        accessKind: "submit",
-        recruitmentId,
-        requests: validRequests,
-      });
-
-      const submission = await t.run(async (ctx) =>
-        ctx.db
-          .query("shiftSubmissions")
-          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
-          .first(),
-      );
-      expect(submission?.firstSubmittedAt).toBe(1000);
-      expect(submission?.submittedAt).toBeGreaterThan(1000);
-    });
-
     it("募集期間外の日付でエラー", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId } = await setupTestData(t);
@@ -840,7 +797,7 @@ describe("shiftSubmission/mutations", () => {
           sessionToken,
           accessKind: "submit",
           recruitmentId,
-          requests: [{ date: "2026-04-14", startTime: "09:00", endTime: "18:00" }],
+          submission: { kind: "time", requests: [{ date: "2026-04-14", startTime: "09:00", endTime: "18:00" }] },
         }),
       ).rejects.toThrow("Date out of range");
     });
@@ -854,7 +811,7 @@ describe("shiftSubmission/mutations", () => {
           sessionToken,
           accessKind: "submit",
           recruitmentId,
-          requests: [{ date: "2026-04-07", startTime: "18:00", endTime: "09:00" }],
+          submission: { kind: "time", requests: [{ date: "2026-04-07", startTime: "18:00", endTime: "09:00" }] },
         }),
       ).rejects.toThrow("Invalid time range");
     });
@@ -868,10 +825,13 @@ describe("shiftSubmission/mutations", () => {
           sessionToken,
           accessKind: "submit",
           recruitmentId,
-          requests: [
-            { date: "2026-04-07", startTime: "09:00", endTime: "12:00" },
-            { date: "2026-04-07", startTime: "13:00", endTime: "18:00" },
-          ],
+          submission: {
+            kind: "time",
+            requests: [
+              { date: "2026-04-07", startTime: "09:00", endTime: "12:00" },
+              { date: "2026-04-07", startTime: "13:00", endTime: "18:00" },
+            ],
+          },
         }),
       ).rejects.toThrow("同じ日に登録できる希望シフトは1件だけです。");
     });

@@ -3,23 +3,21 @@ export type OrganizationPlan = "trial" | "free" | "standard" | "pro";
 export type ShopContextOption = {
   shopId: string;
   shopName: string;
-  // TODO[narrow]: 全deploymentでm025/m026が完走し、shop/member readinessが0件になった後にnullを外す。
-  organizationId: string | null;
-  organizationName: string | null;
-  organizationPlan: OrganizationPlan | null;
+  organizationId: string;
+  organizationName: string;
+  organizationPlan: OrganizationPlan;
 };
 
 export type SelectedShopType = ShopContextOption | null;
 
 export function normalizeShopContextOption(value: unknown): ShopContextOption | null {
-  if (!isRecord(value) || typeof value.shopId !== "string" || typeof value.shopName !== "string") {
-    return null;
-  }
-  // 旧保存値やrolling deploymentから状態値を受け取った場合も、
-  // archivedや未知の値を現行店舗へ黙って読み替えない。
   if (
-    (value.shopStatus !== undefined && value.shopStatus !== "active") ||
-    (value.operatingStatus !== undefined && value.operatingStatus !== "active")
+    !isRecord(value) ||
+    typeof value.shopId !== "string" ||
+    typeof value.shopName !== "string" ||
+    typeof value.organizationId !== "string" ||
+    typeof value.organizationName !== "string" ||
+    !isOrganizationPlan(value.organizationPlan)
   ) {
     return null;
   }
@@ -27,9 +25,9 @@ export function normalizeShopContextOption(value: unknown): ShopContextOption | 
   return {
     shopId: value.shopId,
     shopName: value.shopName,
-    organizationId: typeof value.organizationId === "string" ? value.organizationId : null,
-    organizationName: typeof value.organizationName === "string" ? value.organizationName : null,
-    organizationPlan: isOrganizationPlan(value.organizationPlan) ? value.organizationPlan : null,
+    organizationId: value.organizationId,
+    organizationName: value.organizationName,
+    organizationPlan: value.organizationPlan,
   };
 }
 
@@ -72,11 +70,8 @@ export function groupShopsByOrganization(shops: readonly ShopContextOption[]): S
   const groups = new Map<string, ShopOrganizationGroup>();
 
   for (const shop of shops) {
-    const organizationName = shop.organizationName ?? `${shop.shopName}の組織`;
-    // TODO[narrow]: backendのgetMyShopsからlegacy fallbackを外した後、このlegacy keyも削除する。
-    // organizationId がまだない移行中店舗を、表示名だけで同一組織と誤認しない。
-    const key = shop.organizationId ?? `legacy:${shop.shopId}`;
-    const group = groups.get(key) ?? { key, organizationName, shops: [] };
+    const key = shop.organizationId;
+    const group = groups.get(key) ?? { key, organizationName: shop.organizationName, shops: [] };
     group.shops.push(shop);
     groups.set(key, group);
   }

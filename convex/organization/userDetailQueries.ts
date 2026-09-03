@@ -8,11 +8,7 @@ import { getOrganizationPersonLineState } from "../line/service";
 import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { collectIssuedInvitationsByOrganization } from "../organizationInvitation/lifecycle";
-import {
-  hasCanonicalStaffIdentity,
-  hasValidCanonicalStaffUserLifecycle,
-  hasValidOrganizationPersonUserLifecycle,
-} from "../staff/service";
+import { hasValidCanonicalStaffUserLifecycle, hasValidOrganizationPersonUserLifecycle } from "../staff/service";
 import { deriveOrganizationPersonCapabilities, type ManagerRole } from "./personCapabilities";
 import {
   collectPersonRemovalPreview,
@@ -54,8 +50,6 @@ export const userDetailValidator = v.object({
     v.object({
       shopId: v.id("shops"),
       shopName: v.string(),
-      // 旧frontendとのrolling compatibility。非削除店舗だけを返す。
-      shopStatus: v.literal("active"),
       canChangeMembership: v.boolean(),
       membershipChangeDisabledReason: v.optional(v.string()),
     }),
@@ -65,7 +59,6 @@ export const userDetailValidator = v.object({
       staffId: v.id("staffs"),
       shopId: v.id("shops"),
       shopName: v.string(),
-      shopStatus: v.literal("active"),
       excludedFromShift: v.boolean(),
       canRemove: v.boolean(),
       removeDisabledReason: v.optional(v.string()),
@@ -146,10 +139,11 @@ export async function getOrganizationUserDetail(
     getValidActiveOrganizationManagerPersonIds(ctx, organization._id),
     collectIssuedInvitationsByOrganization(ctx, organization._id),
   ]);
-  const billingState = access?.billingState ?? null;
+  if (!access) return null;
+  const billingState = access.billingState;
   const isActiveActor = organizationMember.status === "active";
-  const canWriteNormally = isActiveActor && access?.canWriteBusinessData === true;
-  const canRecoverUsageLimits = isActiveActor && access?.accessMode === "limitRecoveryOnly";
+  const canWriteNormally = isActiveActor && access.canWriteBusinessData;
+  const canRecoverUsageLimits = isActiveActor && access.accessMode === "limitRecoveryOnly";
   if (
     personMembers.length > 1 ||
     staffDocs.length > ORGANIZATION_USER_DETAIL_STAFF_SCAN_LIMIT ||
@@ -158,10 +152,7 @@ export async function getOrganizationUserDetail(
     return null;
   }
   const staffUserLifecycleChecks = await Promise.all(
-    staffDocs.map(async (staff) => {
-      if (!hasCanonicalStaffIdentity(staff)) return false;
-      return await hasValidCanonicalStaffUserLifecycle(ctx, staff, person);
-    }),
+    staffDocs.map(async (staff) => await hasValidCanonicalStaffUserLifecycle(ctx, staff, person)),
   );
   if (staffUserLifecycleChecks.some((isValid) => !isValid)) return null;
 
@@ -208,9 +199,7 @@ export async function getOrganizationUserDetail(
             staffId: staff._id,
             shopId: targetShop._id,
             shopName: targetShop.name,
-            shopStatus: "active" as const,
-            // TODO[narrow]: 全deploymentでm027完走・missingExcludedFromShift=0確認後にfallbackを外す。
-            excludedFromShift: staff.excludedFromShift ?? false,
+            excludedFromShift: staff.excludedFromShift,
             canRemove: canWriteNormally,
             ...(!canWriteNormally ? { removeDisabledReason: "現在の利用状態では、店舗所属を変更できません。" } : {}),
             removalPreview: toPublicPersonRemovalPreview(membershipRemovalPreview),
@@ -247,7 +236,6 @@ export async function getOrganizationUserDetail(
       return {
         shopId: targetShop._id,
         shopName: targetShop.name,
-        shopStatus: "active" as const,
         canChangeMembership: canWriteNormally,
         ...(!canWriteNormally
           ? { membershipChangeDisabledReason: "現在の利用状態では、店舗所属を変更できません。" }

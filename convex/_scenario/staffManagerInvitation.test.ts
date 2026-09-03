@@ -213,6 +213,8 @@ describe("既存スタッフの管理者招待シナリオ", () => {
         recruitmentId,
         staffId,
         purpose: "business",
+        notificationContext: "notification.sendRecruitmentNotificationEmails",
+        deliverySuppressed: false,
         payload: {
           kind: "email",
           from: "scenario@shiftori.invalid",

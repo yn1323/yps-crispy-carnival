@@ -22,8 +22,7 @@ type Props = {
   periodLabel: string;
   periodStart: string;
   periodEnd: string;
-  // TODO[narrow]: m040とverifyRecruitmentsが全deploymentで完了し、backend fallback削除後にrequired化する。
-  shopClosedDates?: string[];
+  shopClosedDates: string[];
   submissionPattern: ShiftSubmissionPattern;
   staffs: { _id: Id<"staffs">; name: string }[];
   positions: { _id: Id<"positions">; name: string; color: string; isDefault: boolean }[];
@@ -46,8 +45,7 @@ function buildShiftData(
   positions: { _id: Id<"positions">; name: string; color: string; isDefault: boolean }[],
   submissionPattern: ShiftSubmissionPattern,
 ): ShiftData[] {
-  // TODO[narrow]: m034とposition readinessが全deploymentで完了後、先頭positionへの旧fallbackを削除する。
-  const fallbackPosition = positions.find((position) => position.isDefault) ?? positions[0];
+  const fallbackPosition = positions.find((position) => position.isDefault);
   const positionById = new Map(
     positions.map((position) => [position._id, { name: position.name, color: position.color }]),
   );
@@ -105,8 +103,7 @@ export function ShiftViewPage({
   periodLabel,
   periodStart,
   periodEnd,
-  // TODO[narrow]: backendのshopClosedDates fallback削除と同時に、このfrontend fallbackも削除する。
-  shopClosedDates = [],
+  shopClosedDates,
   submissionPattern,
   staffs,
   positions,
@@ -123,7 +120,12 @@ export function ShiftViewPage({
   const displayPositions = useMemo(
     () =>
       positions.length > 0
-        ? positions.map((position) => ({ id: position._id, name: position.name, color: position.color }))
+        ? positions.map((position) => ({
+            id: position._id,
+            name: position.name,
+            color: position.color,
+            isDefault: position.isDefault,
+          }))
         : POSITIONS,
     [positions],
   );

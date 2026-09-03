@@ -172,7 +172,7 @@ describe("E2E testing helpers", () => {
       }
       const now = Date.now();
       const insertDelayedOutbox = async (
-        scope: { shopId?: Id<"shops">; organizationId?: Id<"organizations"> },
+        scope: { shopId?: Id<"shops">; organizationId: Id<"organizations"> },
         key: string,
       ) => {
         const outboxId = await ctx.db.insert("notificationOutbox", {
@@ -180,6 +180,9 @@ describe("E2E testing helpers", () => {
           status: "sent",
           dedupeKey: `email:e2e-delayed-reset:${key}`,
           ...scope,
+          purpose: "business",
+          notificationContext: "testing.delayedReset",
+          deliverySuppressed: true,
           payload: {
             kind: "email",
             from: "シフトリ <noreply@example.com>",
@@ -206,12 +209,18 @@ describe("E2E testing helpers", () => {
         });
         return { outboxId, deadlineId };
       };
-      const ownerAShopScoped = await insertDelayedOutbox({ shopId: ownerA.shopId }, "owner-a-shop");
+      const ownerAShopScoped = await insertDelayedOutbox(
+        { organizationId: ownerAShop.organizationId, shopId: ownerA.shopId },
+        "owner-a-shop",
+      );
       const ownerAOrganizationScoped = await insertDelayedOutbox(
         { organizationId: ownerAShop.organizationId },
         "owner-a-organization",
       );
-      const ownerBShopScoped = await insertDelayedOutbox({ shopId: ownerB.shopId }, "owner-b-shop");
+      const ownerBShopScoped = await insertDelayedOutbox(
+        { organizationId: ownerBShop.organizationId, shopId: ownerB.shopId },
+        "owner-b-shop",
+      );
       return { ownerAShopScoped, ownerAOrganizationScoped, ownerBShopScoped };
     });
 
@@ -609,33 +618,16 @@ describe("E2E testing helpers", () => {
     expect(withoutViewLink).toEqual({ token: null });
 
     await t.run(async (ctx) => {
-      const link = await ctx.db
-        .query("magicLinks")
-        .withIndex("by_token", (q) => q.eq("token", submitLink.token))
-        .unique();
-      if (!link) throw new Error("submit link was not created");
-      await ctx.db.patch(link._id, { accessKind: undefined });
-    });
-    const withLegacySubmitLink = await t.query(internal.testing.getLatestMagicLinkToken, {
-      shopId: seed.shopId,
-      recruitmentId: seed.recruitmentId,
-      staffEmail: managerEmail,
-      purpose: "view",
-    });
-
-    expect(withLegacySubmitLink).toEqual({ token: null });
-
-    await t.run(async (ctx) => {
       await ctx.db.patch(seed.recruitmentId, { status: "open", confirmedAt: undefined });
     });
-    const legacySubmitLink = await t.query(internal.testing.getLatestMagicLinkToken, {
+    const reopenedSubmitLink = await t.query(internal.testing.getLatestMagicLinkToken, {
       shopId: seed.shopId,
       recruitmentId: seed.recruitmentId,
       staffEmail: managerEmail,
       purpose: "submit",
     });
 
-    expect(legacySubmitLink).toMatchObject({
+    expect(reopenedSubmitLink).toMatchObject({
       token: submitLink.token,
       staffId: seed.staffId,
       recruitmentId: seed.recruitmentId,

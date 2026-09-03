@@ -12,7 +12,7 @@
 - `src/components/shared/ShopSettingsFields/` — 店舗編集モーダルと店舗詳細で共有する入力UI
 - `src/components/shared/StaffListRow/` — Dashboard、組織設定、店舗詳細で共有するスタッフ一覧行
 - `convex/organization/mutations.ts` — 組織所属店舗の追加、状態変更、削除受付
-- `convex/shop/mutations.ts` — 店舗設定更新と旧店舗モデル向け削除互換API
+- `convex/shop/mutations.ts` — canonicalな店舗scopeでの店舗設定更新
 - `convex/staff/queries.ts` と `convex/staff/mutations.ts` — 表示中の店舗に対する所属スタッフのsnapshot、解除影響preview、一括変更
 - `convex/deletionCleanup/` — 削除店舗の所属、session、token、LINE連携、未送信通知の終了処理
 - `convex/dashboard/queries.ts` — ダッシュボード用の店舗設定取得
@@ -40,9 +40,7 @@
 | `api.staff.queries.previewOrganizationShopStaffMembershipRemovals` | query | 店舗から外す人物とsnapshotを指定し、今日以降のシフト割り当てへの影響を取得する。snapshotが更新済みなら`stale`を返す |
 | `api.staff.mutations.changeOrganizationShopStaffMemberships` | mutation | 希望する人物ID一覧、fingerprint、解除preview、request IDを検証し、1店舗の所属スタッフを一括変更する |
 | `api.shop.mutations.updateShopSettings` | mutation | 店舗詳細の編集Dialogから、店舗名、希望シフトの提出方法、定休日を一括更新する |
-| `api.shop.mutations.updateShopSetting` | mutation | 旧店舗詳細UIとの互換用に、指定した設定だけを更新する |
 | `api.organization.mutations.deleteShop` | mutation | 組織所属と確認IDを再検証し、店舗を論理削除して永続cleanup jobを開始する |
-| `api.shop.mutations.deleteShop` | mutation | 旧店舗モデル向け互換API。現行の組織所属店舗UIからは呼ばない |
 | `api.setup.mutations.setupShopAndManager` | mutation | 初回セットアップ時に店舗を作成する |
 
 ## 仕様メモ

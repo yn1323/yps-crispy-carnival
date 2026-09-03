@@ -1,10 +1,36 @@
+import type { WithoutSystemFields } from "convex/server";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
+import type { Doc } from "../_generated/dataModel";
 import {
   createMigrationHistoryTestWithMigrations,
   legacyStaffDocumentForMigrationHistory,
 } from "../_test/migrations.test-helper";
 import { seedLegacyManagerShop, seedLegacyShopMembership } from "../_test/seed";
+
+type CurrentOrganizationInsert = WithoutSystemFields<Doc<"organizations">>;
+type CurrentShopInsert = WithoutSystemFields<Doc<"shops">>;
+type CurrentUserInsert = WithoutSystemFields<Doc<"users">>;
+
+function legacyOrganization(document: unknown): CurrentOrganizationInsert {
+  return document as CurrentOrganizationInsert;
+}
+
+function legacyShop(document: unknown): CurrentShopInsert {
+  return document as CurrentShopInsert;
+}
+
+function legacyShopPatch(document: unknown): Partial<CurrentShopInsert> {
+  return document as Partial<CurrentShopInsert>;
+}
+
+function legacyUser(document: unknown): CurrentUserInsert {
+  return document as CurrentUserInsert;
+}
+
+function operatingStatusOf(shop: Doc<"shops"> | null): string | undefined {
+  return (shop as unknown as { operatingStatus?: string } | null)?.operatingStatus;
+}
 
 function createOrganizationTest() {
   return createMigrationHistoryTestWithMigrations();
@@ -152,16 +178,22 @@ describe("organization migrations", () => {
         shopName: "店舗衝突修復",
       });
       const now = Date.now();
-      const danglingOrganizationId = await ctx.db.insert("organizations", {
-        name: "削除済み事業者",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await ctx.db.patch(manager.shopId, {
-        organizationId: danglingOrganizationId,
-        operatingStatus: "archived",
-      });
+      const danglingOrganizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          name: "削除済み事業者",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
+      await ctx.db.patch(
+        manager.shopId,
+        legacyShopPatch({
+          organizationId: danglingOrganizationId,
+          operatingStatus: "archived",
+        }),
+      );
       await ctx.db.delete(danglingOrganizationId);
       return manager;
     });
@@ -177,7 +209,7 @@ describe("organization migrations", () => {
       shop: await ctx.db.get(seeded.shopId),
     }));
     expect(first.shop?.organizationId).toBeDefined();
-    expect(first.shop?.operatingStatus).toBe("archived");
+    expect(operatingStatusOf(first.shop)).toBe("archived");
     expect(first.conflicts).toHaveLength(1);
     expect(first.conflicts[0].resolvedAt).toEqual(expect.any(Number));
 
@@ -188,7 +220,8 @@ describe("organization migrations", () => {
       conflict: await ctx.db.get(first.conflicts[0]._id),
       shop: await ctx.db.get(seeded.shopId),
     }));
-    expect(rerun.shop).toMatchObject({ organizationId, operatingStatus: "archived" });
+    expect(rerun.shop?.organizationId).toBe(organizationId);
+    expect(operatingStatusOf(rerun.shop)).toBe("archived");
     expect(rerun.conflict?.resolvedAt).toBe(resolvedAt);
   });
 
@@ -201,20 +234,26 @@ describe("organization migrations", () => {
       });
       const now = Date.now();
       const organizationIds = [
-        await ctx.db.insert("organizations", {
-          migrationSourceShopId: manager.shopId,
-          name: "移行先事業者A",
-          isDeleted: false,
-          createdAt: now,
-          updatedAt: now,
-        }),
-        await ctx.db.insert("organizations", {
-          migrationSourceShopId: manager.shopId,
-          name: "移行先事業者B",
-          isDeleted: false,
-          createdAt: now,
-          updatedAt: now,
-        }),
+        await ctx.db.insert(
+          "organizations",
+          legacyOrganization({
+            migrationSourceShopId: manager.shopId,
+            name: "移行先事業者A",
+            isDeleted: false,
+            createdAt: now,
+            updatedAt: now,
+          }),
+        ),
+        await ctx.db.insert(
+          "organizations",
+          legacyOrganization({
+            migrationSourceShopId: manager.shopId,
+            name: "移行先事業者B",
+            isDeleted: false,
+            createdAt: now,
+            updatedAt: now,
+          }),
+        ),
       ];
       return { ...manager, organizationIds };
     });
@@ -234,7 +273,7 @@ describe("organization migrations", () => {
       shop: await ctx.db.get(seeded.shopId),
     }));
     expect(blocked.shop?.organizationId).toBeUndefined();
-    expect(blocked.shop?.operatingStatus).toBeUndefined();
+    expect(operatingStatusOf(blocked.shop)).toBeUndefined();
     expect(blocked.conflicts).toHaveLength(1);
     expect(blocked.conflicts[0]?.resolvedAt).toBeUndefined();
 
@@ -250,10 +289,8 @@ describe("organization migrations", () => {
       shop: await ctx.db.get(seeded.shopId),
     }));
     expect(resolved.organizations.map((organization) => organization._id)).toEqual([seeded.organizationIds[0]]);
-    expect(resolved.shop).toMatchObject({
-      organizationId: seeded.organizationIds[0],
-      operatingStatus: "active",
-    });
+    expect(resolved.shop?.organizationId).toBe(seeded.organizationIds[0]);
+    expect(operatingStatusOf(resolved.shop)).toBe("active");
     expect(resolved.conflict?.resolvedAt).toEqual(expect.any(Number));
   });
 
@@ -270,15 +307,18 @@ describe("organization migrations", () => {
     const prepared = await t.run(async (ctx) => {
       const shop = await ctx.db.get(seeded.shopId);
       if (!shop?.organizationId) throw new Error("organization migration failed");
-      await ctx.db.patch(shop._id, { operatingStatus: "archived" });
+      await ctx.db.patch(shop._id, legacyShopPatch({ operatingStatus: "archived" }));
       const now = Date.now();
-      const duplicateOrganizationId = await ctx.db.insert("organizations", {
-        migrationSourceShopId: shop._id,
-        name: "後発の重複事業者",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
+      const duplicateOrganizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          migrationSourceShopId: shop._id,
+          name: "後発の重複事業者",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
       return { canonicalOrganizationId: shop.organizationId, duplicateOrganizationId };
     });
 
@@ -479,14 +519,17 @@ describe("organization migrations", () => {
       const shop = await ctx.db.get(seeded.shopId);
       if (!shop?.organizationId) throw new Error("organization migration failed");
       const now = Date.now();
-      const foreignUserId = await ctx.db.insert("users", {
-        authTokenIdentifier: "https://convex.test|foreign_email_identity",
-        name: "別利用者",
-        email: "foreign-user@example.com",
-        emailNormalized: "foreign-user@example.com",
-        role: "manager",
-        isDeleted: false,
-      });
+      const foreignUserId = await ctx.db.insert(
+        "users",
+        legacyUser({
+          authTokenIdentifier: "https://convex.test|foreign_email_identity",
+          name: "別利用者",
+          email: "foreign-user@example.com",
+          emailNormalized: "foreign-user@example.com",
+          role: "manager",
+          isDeleted: false,
+        }),
+      );
       const personInput = {
         organizationId: shop.organizationId,
         name: "管理者",
@@ -591,13 +634,16 @@ describe("organization migrations", () => {
     const prepared = await t.run(async (ctx) => {
       const shop = await ctx.db.get(seeded.shopId);
       if (!shop?.organizationId) throw new Error("organization migration failed");
-      const foreignUserId = await ctx.db.insert("users", {
-        authTokenIdentifier: "https://convex.test|member_partial_write_foreign",
-        name: "別利用者",
-        email: "member-partial-write-foreign@example.com",
-        role: "manager",
-        isDeleted: false,
-      });
+      const foreignUserId = await ctx.db.insert(
+        "users",
+        legacyUser({
+          authTokenIdentifier: "https://convex.test|member_partial_write_foreign",
+          name: "別利用者",
+          email: "member-partial-write-foreign@example.com",
+          role: "manager",
+          isDeleted: false,
+        }),
+      );
       const now = Date.now();
       const personId = await ctx.db.insert("organizationPeople", {
         organizationId: shop.organizationId,
@@ -936,7 +982,7 @@ describe("organization migrations", () => {
     });
 
     await t.run(async (ctx) => {
-      await ctx.db.patch(seeded.shopId, { operatingStatus: "archived" });
+      await ctx.db.patch(seeded.shopId, legacyShopPatch({ operatingStatus: "archived" }));
     });
     await runOrganizationMigrations(t);
     await runOrganizationMigrations(t);
@@ -946,7 +992,7 @@ describe("organization migrations", () => {
       shop: await ctx.db.get(seeded.shopId),
       staff: await ctx.db.get(seeded.managerStaffId),
     }));
-    expect(archivedState.shop?.operatingStatus).toBe("archived");
+    expect(operatingStatusOf(archivedState.shop)).toBe("archived");
     expect(archivedState.person?.status).toBe("active");
     expect(archivedState.member?.status).toBe("active");
     expect(archivedState.staff).toMatchObject({
@@ -956,7 +1002,7 @@ describe("organization migrations", () => {
 
     await t.run(async (ctx) => {
       const now = Date.now();
-      await ctx.db.patch(seeded.shopId, { operatingStatus: "active" });
+      await ctx.db.patch(seeded.shopId, legacyShopPatch({ operatingStatus: "active" }));
       await ctx.db.patch(canonical.personId, { status: "removed", updatedAt: now });
       await ctx.db.patch(canonical.memberId, { status: "removed", updatedAt: now });
     });
@@ -969,7 +1015,7 @@ describe("organization migrations", () => {
       shop: await ctx.db.get(seeded.shopId),
       staff: await ctx.db.get(seeded.managerStaffId),
     }));
-    expect(removedState.shop?.operatingStatus).toBe("active");
+    expect(operatingStatusOf(removedState.shop)).toBe("active");
     expect(removedState.person?.status).toBe("removed");
     expect(removedState.member?.status).toBe("removed");
     expect(removedState.staff).toMatchObject({
@@ -1260,12 +1306,15 @@ describe("organization migrations", () => {
         subject: "organization_multi_shop_migration",
         shopName: "既存店舗A",
       });
-      const secondShopId = await ctx.db.insert("shops", {
-        name: "既存店舗B",
-        regularClosedDays: [],
-        submissionPattern: { kind: "dateOnly" },
-        isDeleted: false,
-      });
+      const secondShopId = await ctx.db.insert(
+        "shops",
+        legacyShop({
+          name: "既存店舗B",
+          regularClosedDays: [],
+          submissionPattern: { kind: "dateOnly" },
+          isDeleted: false,
+        }),
+      );
       await ctx.db.insert("shopMembers", {
         shopId: secondShopId,
         userId,
@@ -1301,12 +1350,15 @@ describe("m012 complimentary business migration", () => {
         shopName: "無償Business移行店舗",
       });
       const now = Date.now();
-      const newOrganizationId = await ctx.db.insert("organizations", {
-        name: "新規事業者",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
+      const newOrganizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          name: "新規事業者",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
       return { ...migrated, newOrganizationId };
     });
     await t.mutation(internal.migrations.m009_shops_to_organizations.migration, args);
@@ -1561,13 +1613,16 @@ describe("m012 complimentary business migration", () => {
       await getOrganizationId(seeded.mismatch.shopId);
       const duplicateOrganizationId = await getOrganizationId(seeded.duplicate.shopId);
       const now = Date.now();
-      const duplicateMarkerOrganizationId = await ctx.db.insert("organizations", {
-        migrationSourceShopId: seeded.duplicate.shopId,
-        name: "重複marker事業者",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
+      const duplicateMarkerOrganizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          migrationSourceShopId: seeded.duplicate.shopId,
+          name: "重複marker事業者",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
       await ctx.db.insert("organizationMigrationConflicts", {
         organizationId: duplicateOrganizationId,
         sourceType: "shop",

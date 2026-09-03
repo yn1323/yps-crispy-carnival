@@ -1,8 +1,5 @@
 import { v } from "convex/values";
 
-// TODO[narrow]: shops.operatingStatusとlegacy event decoderの除去までschema互換のためだけに保持する。
-export const organizationShopOperatingStatusValidator = v.union(v.literal("active"), v.literal("archived"));
-
 export const organizationPersonStatusValidator = v.union(v.literal("active"), v.literal("removed"));
 
 export const organizationMemberStatusValidator = v.union(v.literal("active"), v.literal("removed"));

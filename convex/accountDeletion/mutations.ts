@@ -12,7 +12,6 @@ import {
   applyAccountDeletionOrganizationDeparture,
   beginAccountDeletionOrganizationDeletion,
 } from "../organization/mutations";
-import { hasCanonicalStaffIdentity } from "../staff/service";
 import { getAccountDeletionConfiguration, hasRequiredAccountDeletionConfiguration, normalizeIssuer } from "./config";
 import {
   ACCOUNT_DELETION_JOB_LEASE_MS,
@@ -669,7 +668,6 @@ async function hasValidSharedCleanupTargets(ctx: Pick<MutationCtx, "db">, job: D
       shop.organizationId !== cleanup.organizationId ||
       !staff ||
       !staff.isDeleted ||
-      !hasCanonicalStaffIdentity(staff) ||
       staff.shopId !== target.shopId ||
       staff.organizationId !== cleanup.organizationId
     ) {

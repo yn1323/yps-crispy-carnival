@@ -107,8 +107,6 @@ const shop = {
   submissionPattern: { kind: "dateOnly" },
   canWriteBusinessData: true,
   businessWriteBlockReason: null,
-  planStatus: null,
-  trialEndingNotice: null,
 };
 
 const shops = [
@@ -166,6 +164,7 @@ const renderPage = (overrides: Partial<ComponentProps<typeof DashboardRoutePage>
         shops={shops}
         requestedShopId="shop-b"
         {...overrides}
+        organizationPlan={overrides.organizationPlan ?? "standard"}
       />
     </ChakraProvider>,
   );
@@ -204,6 +203,7 @@ describe("DashboardRoutePage", () => {
         <DashboardRoutePage
           organizationId={"organization-a" as never}
           organizationName="Aグループ"
+          organizationPlan="standard"
           shops={shops}
           requestedShopId="shop-b"
         />
@@ -226,6 +226,7 @@ describe("DashboardRoutePage", () => {
         <DashboardRoutePage
           organizationId={"organization-a" as never}
           organizationName="Aグループ"
+          organizationPlan="standard"
           shops={shops}
           requestedShopId="shop-b"
         />
@@ -255,6 +256,7 @@ describe("DashboardRoutePage", () => {
         <DashboardRoutePage
           organizationId={"organization-a" as never}
           organizationName="Aグループ"
+          organizationPlan="standard"
           shops={shops}
           requestedShopId="shop-b"
         />
@@ -293,6 +295,7 @@ describe("DashboardRoutePage", () => {
         <DashboardRoutePage
           organizationId={"organization-b" as never}
           organizationName="Bグループ"
+          organizationPlan="free"
           shops={[{ id: "shop-c", name: "C店舗" }]}
           requestedShopId="shop-a"
         />
@@ -340,7 +343,7 @@ describe("DashboardRoutePage", () => {
   it("支払い失敗でFreeへ変更された場合は再契約導線を表示し、プランと支払いへ進める", () => {
     mocks.useShopQuery.mockReturnValue({
       ...shop,
-      paymentFailure: { terminationPending: false },
+      paymentFailure: { terminationPending: false, canStartPaidPlan: true },
     });
 
     renderPage();
@@ -355,7 +358,7 @@ describe("DashboardRoutePage", () => {
   it("支払い終了処理中は同じAlertを表示し、再契約操作を無効にする", () => {
     mocks.useShopQuery.mockReturnValue({
       ...shop,
-      paymentFailure: { terminationPending: true },
+      paymentFailure: { terminationPending: true, canStartPaidPlan: false },
     });
 
     renderPage();
@@ -367,14 +370,7 @@ describe("DashboardRoutePage", () => {
   it("支払い失敗が残るプラン操作不可状態では、理由を表示して再契約操作を無効にする", () => {
     mocks.useShopQuery.mockReturnValue({
       ...shop,
-      paymentFailure: { terminationPending: false },
-      planStatus: {
-        kind: "paymentPending",
-        currentPlan: "free",
-        targetPlan: "standard",
-        canManagePlan: false,
-        canUpdatePaymentMethod: false,
-      },
+      paymentFailure: { terminationPending: false, canStartPaidPlan: false },
     });
 
     renderPage();

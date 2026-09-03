@@ -54,7 +54,10 @@ describe("シフト募集削除シナリオ", () => {
       sessionToken: submitAuth.sessionToken,
       recruitmentId,
       acceptedLegal: true,
-      requests: [{ date: recruitmentInput.periodStart, startTime: "10:00", endTime: "18:00" }],
+      submission: {
+        kind: "time",
+        requests: [{ date: recruitmentInput.periodStart, startTime: "10:00", endTime: "18:00" }],
+      },
     });
     await asManager.saveShiftAssignments({
       recruitmentId,
@@ -93,7 +96,10 @@ describe("シフト募集削除シナリオ", () => {
       staff.submitShiftRequests({
         sessionToken: submitAuth.sessionToken,
         recruitmentId,
-        requests: [{ date: recruitmentInput.periodStart, startTime: "12:00", endTime: "19:00" }],
+        submission: {
+          kind: "time",
+          requests: [{ date: recruitmentInput.periodStart, startTime: "12:00", endTime: "19:00" }],
+        },
       }),
     ).rejects.toThrow("Not found");
     expect(await staff.verifyMagicLink(submitToken)).toMatchObject({

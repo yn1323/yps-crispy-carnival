@@ -27,17 +27,22 @@ vi.mock("@/src/components/shared/feedback", () => ({
   showSuccessToast: mocks.showSuccessToast,
 }));
 
-import { useUserMembershipActions } from "./useUserMembershipActions";
+import { useUserMembershipActions as useRawUserMembershipActions } from "./useUserMembershipActions";
 
 const personId = "person-target" as Id<"organizationPeople">;
 const organizationId = "organization-a" as Id<"organizations">;
+const useUserMembershipActions = (
+  options: Omit<Parameters<typeof useRawUserMembershipActions>[0], "expectedOrganizationId"> & {
+    expectedOrganizationId?: Id<"organizations">;
+  },
+) => useRawUserMembershipActions({ expectedOrganizationId: organizationId, ...options });
 const shopId = "shop-target" as Id<"shops">;
 const addedShopId = "shop-added" as Id<"shops">;
 const removedShopId = "shop-removed" as Id<"shops">;
 const removedStaffId = "staff-removed" as Id<"staffs">;
 const input: UserMembershipChangeInput = {
   shopId,
-  desiredActiveShopIds: [shopId, addedShopId],
+  desiredShopIds: [shopId, addedShopId],
   expectedMembershipFingerprint: "membership-fingerprint",
   removalPreviews: [
     {
@@ -95,7 +100,11 @@ describe("useUserMembershipActions", () => {
     });
 
     expect(mocks.useMutation).toHaveBeenCalledWith(mocks.changeMembershipsRef);
-    expect(mocks.changeMemberships).toHaveBeenCalledExactlyOnceWith({ ...input, personId });
+    expect(mocks.changeMemberships).toHaveBeenCalledExactlyOnceWith({
+      ...input,
+      personId,
+      expectedOrganizationId: organizationId,
+    });
     expect(firstResult).toBe(true);
     expect(secondResult).toBeUndefined();
     expect(mocks.showSuccessToast).toHaveBeenCalledExactlyOnceWith({ title: "所属店舗を変更しました" });

@@ -13,7 +13,7 @@ const options = [
   { id: "late", name: "遅番", startTime: "17:00", endTime: "21:00" },
 ];
 
-const position: PositionType = { id: "default", name: "シフト", color: "#0d9488" };
+const position: PositionType = { id: "default", name: "シフト", color: "#0d9488", isDefault: true };
 const staff: StaffType = { id: "staff1", name: "田中 太郎", isSubmitted: true };
 
 const shift = (overrides: Partial<ShiftData>): ShiftData => ({

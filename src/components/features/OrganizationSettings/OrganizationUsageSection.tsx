@@ -15,8 +15,6 @@ export function OrganizationUsageSection({
   billing: OrganizationUsageSummary;
   showCurrentPlan?: boolean;
 }) {
-  if (billing.state === "migrationPending") return null;
-
   const appliedLimitLabel = getAppliedLimitLabel(billing);
   const pendingInvitationLabel = getPendingInvitationLabel(billing);
   const notes = [appliedLimitLabel, pendingInvitationLabel].filter((note): note is string => Boolean(note));
@@ -144,8 +142,7 @@ export function OrganizationUsageSectionSkeleton({ showCurrentPlan = false }: { 
 }
 
 function CurrentPlanSummary({ billing }: { billing: OrganizationUsageSummary }) {
-  const currentPlan = billing.currentPlan ?? (isPlanState(billing.state) ? billing.state : null);
-  const label = currentPlan ? planLabel(currentPlan) : billing.state === "migrationPending" ? "設定移行中" : "確認中";
+  const label = planLabel(billing.currentPlan);
 
   return (
     <Box
@@ -222,7 +219,7 @@ function UsageDivider() {
 }
 
 function getAppliedLimitLabel(billing: OrganizationUsageSummary) {
-  return billing.state === "pendingActivation" && billing.currentPlan === null
+  return billing.state === "pendingActivation" && billing.currentPlan === "free"
     ? "現在はFreeの上限が適用されています"
     : undefined;
 }
@@ -233,8 +230,4 @@ function getPendingInvitationLabel(billing: OrganizationUsageSummary) {
     billing.managerUsage.pendingInvitations ? `管理者 ${billing.managerUsage.pendingInvitations}名` : null,
   ].filter((part): part is string => part !== null);
   return parts.length > 0 ? `招待中: ${parts.join("・")}` : undefined;
-}
-
-function isPlanState(state: OrganizationBillingView["state"]): state is "trial" | "free" | "standard" | "pro" {
-  return state === "trial" || state === "free" || state === "standard" || state === "pro";
 }

@@ -322,6 +322,7 @@ describe("セキュリティ境界シナリオ", () => {
         isDeleted: false,
       });
       const deletedPositionId = await ctx.db.insert("positions", {
+        isDefault: false,
         shopId,
         name: "削除済みポジション",
         color: "#64748b",
@@ -816,7 +817,10 @@ describe("セキュリティ境界シナリオ", () => {
         sessionToken: "deleted-target-session",
         recruitmentId: ids.recruitmentId,
         acceptedLegal: true,
-        requests: [{ date: scenarioDate(7), startTime: "10:00", endTime: "18:00" }],
+        submission: {
+          kind: "time",
+          requests: [{ date: scenarioDate(7), startTime: "10:00", endTime: "18:00" }],
+        },
       }),
     ).rejects.toThrow("Session expired");
     await expect(

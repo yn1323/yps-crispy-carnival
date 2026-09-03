@@ -6,10 +6,7 @@ import type { LinkedResizeTarget, PositionSegment, PositionType, ShiftData } fro
 // requestedTime はスタッフ提出の原本なので、シフト担当者の編集操作では positions だけを更新する。
 
 export const resolveDefaultPosition = (positions: readonly PositionType[]): PositionType =>
-  positions.find((position) => position.isDefault) ??
-  positions.find((position) => position.id === DEFAULT_POSITION.id) ??
-  positions[0] ??
-  DEFAULT_POSITION;
+  positions.find((position) => position.isDefault) ?? DEFAULT_POSITION;
 
 // === シフト検索ユーティリティ ===
 

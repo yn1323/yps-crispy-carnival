@@ -141,7 +141,7 @@ export function UserShopMembershipDialog({
 
     const input: UserMembershipChangeInput = {
       shopId: authorizationShop.shopId,
-      desiredActiveShopIds: selectedShopIds,
+      desiredShopIds: selectedShopIds,
       expectedMembershipFingerprint: session.expectedMembershipFingerprint,
       removalPreviews,
       requestId: session.requestId,

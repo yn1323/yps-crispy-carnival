@@ -3,15 +3,9 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { seedNotificationHistory } from "../_test/notificationHistory";
+import type { MutationCtx } from "../_generated/server";
 import { seedStaff } from "../_test/scenarioBuilders";
-import {
-  seedLegacyShopMembership,
-  seedManagerShop,
-  seedOrganizationManagerShop,
-  seedShop,
-  seedStaffLineAccount,
-} from "../_test/seed";
+import { seedManagerShop, seedOrganizationManagerShop, seedShop, seedStaffLineAccount } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
   LINE_LINK_REDEEM_GLOBAL_LIMIT,
@@ -22,19 +16,62 @@ import { LINE_INVITE_NOTIFICATION_KIND } from "../notificationOutbox/historyKind
 import { ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT } from "../organization/service";
 import { resolveStaffLineRecipient } from "./service";
 
+async function seedLineInviteNotificationHistory(
+  ctx: Pick<MutationCtx, "db">,
+  args: { shopId: Id<"shops">; staffId: Id<"staffs">; requestedAt: number },
+) {
+  const shop = await ctx.db.get(args.shopId);
+  if (!shop) throw new Error("notification history shop fixture was not found");
+  const outboxId = await ctx.db.insert("notificationOutbox", {
+    channel: "email",
+    status: "sent",
+    dedupeKey: `email:test:resendCooldown:${args.staffId}:${LINE_INVITE_NOTIFICATION_KIND}:${args.requestedAt}`,
+    shopId: args.shopId,
+    organizationId: shop.organizationId,
+    staffId: args.staffId,
+    purpose: "business",
+    notificationContext: "test.notificationResendCooldown",
+    deliverySuppressed: false,
+    payload: {
+      kind: "email",
+      from: "シフトリ <noreply@example.com>",
+      to: "cooldown-test@example.com",
+      subject: "通知クールダウンテスト",
+      html: "<p>本文</p>",
+      context: "test.notificationResendCooldown",
+    },
+    attemptCount: 1,
+    nextRunAt: args.requestedAt,
+    createdAt: args.requestedAt,
+    updatedAt: args.requestedAt,
+  });
+  return await ctx.db.insert("notificationHistory", {
+    outboxId,
+    shopId: args.shopId,
+    staffId: args.staffId,
+    channel: "email",
+    notificationKind: LINE_INVITE_NOTIFICATION_KIND,
+    displayTitle: "通知クールダウンテスト",
+    sendStatus: "queued",
+    deliveryStatus: "unknown",
+    requestedAt: args.requestedAt,
+    updatedAt: args.requestedAt,
+  });
+}
+
 async function setupShop(t: TestConvex<typeof schema>) {
   return await t.run(async (ctx) => {
-    const { shopId } = await seedManagerShop(ctx, {
+    const seeded = await seedManagerShop(ctx, {
       subject: "user_mgr",
       email: "mgr@example.com",
       shopName: "テスト店舗",
     });
     const staffId = await seedStaff(ctx, {
-      shopId,
+      shopId: seeded.shopId,
       name: "鈴木太郎",
       email: "suzuki@example.com",
     });
-    return { shopId, staffId };
+    return { ...seeded, staffId };
   });
 }
 
@@ -65,6 +102,8 @@ async function setupOrganizationShop(
       organizationPersonId: staffPersonId,
       name: "事業者店舗スタッフ",
       email: `${subject}-staff@example.com`,
+      emailNormalized: `${subject}-staff@example.com`,
+      excludedFromShift: false,
       isDeleted: false,
     });
     return { ...seeded, personId: staffPersonId, staffId };
@@ -102,6 +141,8 @@ async function setupOrganizationPersonTwoShops(t: TestConvex<typeof schema>, sub
       organizationPersonId: staffPersonId,
       name: "共通スタッフ",
       email: `${subject}-staff@example.com`,
+      emailNormalized: `${subject}-staff@example.com`,
+      excludedFromShift: false,
       isDeleted: false,
     });
     const staffBId = await ctx.db.insert("staffs", {
@@ -110,6 +151,8 @@ async function setupOrganizationPersonTwoShops(t: TestConvex<typeof schema>, sub
       organizationPersonId: staffPersonId,
       name: "共通スタッフ",
       email: `${subject}-staff@example.com`,
+      emailNormalized: `${subject}-staff@example.com`,
+      excludedFromShift: false,
       isDeleted: false,
     });
     return { ...seeded, personId: staffPersonId, shopBId, staffAId, staffBId };
@@ -120,8 +163,14 @@ async function finalizeForStaff(
   t: TestConvex<typeof schema>,
   args: { subject: string; shopId: Id<"shops">; staffId: Id<"staffs">; lineUserId: string; following?: boolean },
 ) {
+  const expectedOrganizationId = await t.run(async (ctx) => {
+    const staff = await ctx.db.get(args.staffId);
+    if (!staff) throw new Error("canonical staff fixture was not created");
+    return staff.organizationId;
+  });
   const { token } = await t.withIdentity({ subject: args.subject }).mutation(api.line.mutations.generateLinkToken, {
     shopId: args.shopId,
+    expectedOrganizationId,
     staffId: args.staffId,
   });
   const tokenDocId = await t.run(async (ctx) => {
@@ -153,17 +202,17 @@ async function seedLineLinkToken(
   const token = args.token ?? "line-link-token";
   const tokenDocId = await t.run(async (ctx) => {
     const staff = await ctx.db.get(args.staffId);
-    const person = staff?.organizationPersonId ? await ctx.db.get(staff.organizationPersonId) : null;
+    if (!staff) throw new Error("canonical staff fixture was not created");
+    const person = await ctx.db.get(staff.organizationPersonId);
+    if (!person || person.organizationId !== staff.organizationId) {
+      throw new Error("canonical person fixture was not created");
+    }
     const tokenDoc = {
       staffId: args.staffId,
       shopId: args.shopId,
-      ...(staff?.organizationId && person
-        ? {
-            organizationId: staff.organizationId,
-            organizationPersonId: person._id,
-            lineLinkGenerationAtIssue: person.lineLinkGeneration ?? 0,
-          }
-        : {}),
+      organizationId: staff.organizationId,
+      organizationPersonId: person._id,
+      lineLinkGenerationAtIssue: person.lineLinkGeneration ?? 0,
       token,
       expiresAt: args.expiresAt ?? Date.now() + 72 * 60 * 60 * 1000,
       ...(args.usedAt === undefined ? {} : { usedAt: args.usedAt }),
@@ -177,6 +226,7 @@ async function issueOrganizationLineLinkToken(t: TestConvex<typeof schema>, subj
   const target = await setupOrganizationShop(t, subject, "free");
   const { token } = await t.withIdentity({ subject }).mutation(api.line.mutations.generateLinkToken, {
     shopId: target.shopId,
+    expectedOrganizationId: target.organizationId,
     staffId: target.staffId,
   });
   const tokenDocId = await t.run(async (ctx) => {
@@ -221,6 +271,7 @@ async function blockOrganizationBusinessWritesByUsage(
           name: `利用状態変更${String(index)}`,
           email,
           emailNormalized: email,
+          excludedFromShift: false,
           isDeleted: false,
         });
       }
@@ -295,6 +346,8 @@ async function seedFriendshipFanoutJob(
             organizationPersonId: personId,
             name: `fanoutスタッフ${index}-${staffIndex}`,
             email: `fanout-staff-${args.suffix}-${index}@example.com`,
+            emailNormalized: `fanout-staff-${args.suffix}-${index}@example.com`,
+            excludedFromShift: false,
             isDeleted: false,
           }),
         );
@@ -335,18 +388,26 @@ describe("line/mutations", () => {
   describe("generateLinkToken", () => {
     it("未認証なら拒否", async () => {
       const t = convexTest(schema, modules);
-      const { shopId, staffId } = await setupShop(t);
-      await expect(t.mutation(api.line.mutations.generateLinkToken, { shopId, staffId })).rejects.toThrow();
+      const { organizationId, shopId, staffId } = await setupShop(t);
+      await expect(
+        t.mutation(api.line.mutations.generateLinkToken, {
+          shopId,
+          expectedOrganizationId: organizationId,
+          staffId,
+        }),
+      ).rejects.toThrow();
       expect(await t.run(async (ctx) => await ctx.db.query("lineLinkTokens").collect())).toEqual([]);
     });
 
     it("認証済みシフト担当者は自店舗スタッフにトークンを発行できる", async () => {
       const t = convexTest(schema, modules);
-      const { shopId, staffId } = await setupShop(t);
+      const { organizationId, shopId, staffId } = await setupShop(t);
 
-      const { token } = await t
-        .withIdentity({ subject: "user_mgr" })
-        .mutation(api.line.mutations.generateLinkToken, { shopId, staffId });
+      const { token } = await t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.generateLinkToken, {
+        shopId,
+        expectedOrganizationId: organizationId,
+        staffId,
+      });
       expect(token).toMatch(/^[0-9a-f-]{36}$/);
 
       const link = await t.run(async (ctx) =>
@@ -361,7 +422,7 @@ describe("line/mutations", () => {
 
     it("他店舗スタッフへのトークン発行は拒否（IDOR）", async () => {
       const t = convexTest(schema, modules);
-      const { shopId } = await setupShop(t);
+      const { organizationId, shopId } = await setupShop(t);
       const otherStaffId = await t.run(async (ctx) => {
         const otherShopId = await seedShop(ctx, "他店舗");
         return await seedStaff(ctx, {
@@ -374,6 +435,7 @@ describe("line/mutations", () => {
       await expect(
         t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.generateLinkToken, {
           shopId,
+          expectedOrganizationId: organizationId,
           staffId: otherStaffId,
         }),
       ).rejects.toThrow("Not found");
@@ -382,7 +444,7 @@ describe("line/mutations", () => {
 
     it("削除済みスタッフへのトークン発行を拒否し、既存トークンも変更しない", async () => {
       const t = convexTest(schema, modules);
-      const { shopId, staffId } = await setupShop(t);
+      const { organizationId, shopId, staffId } = await setupShop(t);
       await seedLineLinkToken(t, { shopId, staffId, token: "deleted-staff-existing-token" });
       await t.run(async (ctx) => await ctx.db.patch(staffId, { isDeleted: true }));
       const before = await t.run(async (ctx) =>
@@ -393,7 +455,11 @@ describe("line/mutations", () => {
       );
 
       await expect(
-        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.generateLinkToken, { shopId, staffId }),
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.generateLinkToken, {
+          shopId,
+          expectedOrganizationId: organizationId,
+          staffId,
+        }),
       ).rejects.toThrow("Not found");
 
       const after = await t.run(async (ctx) =>
@@ -407,7 +473,7 @@ describe("line/mutations", () => {
 
     it("removed personへのトークン発行を拒否し、既存トークンを失効しない", async () => {
       const t = convexTest(schema, modules);
-      const { shopId, staffId } = await setupShop(t);
+      const { organizationId, shopId, staffId } = await setupShop(t);
       await seedLineLinkToken(t, { shopId, staffId, token: "removed-person-existing-token" });
       await t.run(async (ctx) => {
         const staff = await ctx.db.get(staffId);
@@ -417,7 +483,11 @@ describe("line/mutations", () => {
       const before = await t.run(async (ctx) => await ctx.db.query("lineLinkTokens").collect());
 
       await expect(
-        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.generateLinkToken, { shopId, staffId }),
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.generateLinkToken, {
+          shopId,
+          expectedOrganizationId: organizationId,
+          staffId,
+        }),
       ).rejects.toThrow("LINE連携に必要な情報を発行できませんでした");
 
       await expect(t.run(async (ctx) => await ctx.db.query("lineLinkTokens").collect())).resolves.toEqual(before);
@@ -461,6 +531,7 @@ describe("line/mutations", () => {
       await expect(
         t.withIdentity({ subject: `line_token_linked_user_${state}` }).mutation(api.line.mutations.generateLinkToken, {
           shopId: target.shopId,
+          expectedOrganizationId: target.organizationId,
           staffId: target.staffId,
         }),
       ).rejects.toThrow("LINE連携に必要な情報を発行できませんでした");
@@ -471,32 +542,41 @@ describe("line/mutations", () => {
 
     it("複数店舗マネージャーは shopId 指定でその店舗のスタッフにトークンを発行できる", async () => {
       const t = convexTest(schema, modules);
-      const { shopAId, shopBId, staffBId } = await t.run(async (ctx) => {
-        const { userId, shopId: shopAId } = await seedManagerShop(ctx, {
+      const { organizationId, shopAId, shopBId, staffBId } = await t.run(async (ctx) => {
+        const seeded = await seedManagerShop(ctx, {
           subject: "user_mgr",
           email: "mgr@example.com",
           shopName: "店舗A",
         });
-        const shopBId = await seedShop(ctx, "店舗B");
-        await seedLegacyShopMembership(ctx, { userId, shopId: shopBId });
+        const shopBId = await ctx.db.insert("shops", {
+          organizationId: seeded.organizationId,
+          name: "店舗B",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        });
         const staffBId = await seedStaff(ctx, {
           shopId: shopBId,
           name: "B店スタッフ",
           email: "b@example.com",
         });
-        return { shopAId, shopBId, staffBId };
+        return { organizationId: seeded.organizationId, shopAId: seeded.shopId, shopBId, staffBId };
       });
 
       // 店舗Aを明示した場合、店舗Bスタッフは店舗境界の外なので参照できない
       await expect(
-        t
-          .withIdentity({ subject: "user_mgr" })
-          .mutation(api.line.mutations.generateLinkToken, { shopId: shopAId, staffId: staffBId }),
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.generateLinkToken, {
+          shopId: shopAId,
+          expectedOrganizationId: organizationId,
+          staffId: staffBId,
+        }),
       ).rejects.toThrow("Not found");
 
-      const { token } = await t
-        .withIdentity({ subject: "user_mgr" })
-        .mutation(api.line.mutations.generateLinkToken, { shopId: shopBId, staffId: staffBId });
+      const { token } = await t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.generateLinkToken, {
+        shopId: shopBId,
+        expectedOrganizationId: organizationId,
+        staffId: staffBId,
+      });
       const link = await t.run(async (ctx) =>
         ctx.db
           .query("lineLinkTokens")
@@ -510,12 +590,19 @@ describe("line/mutations", () => {
     it("未所属の shopId 指定は拒否（IDOR）", async () => {
       const t = convexTest(schema, modules);
       const { staffId } = await setupShop(t);
-      const foreignShopId = await t.run(async (ctx) => await seedShop(ctx, "無関係店舗"));
+      const foreign = await t.run(async (ctx) => {
+        const shopId = await seedShop(ctx, "無関係店舗");
+        const shop = await ctx.db.get(shopId);
+        if (!shop) throw new Error("foreign shop fixture was not created");
+        return { shopId, organizationId: shop.organizationId };
+      });
 
       await expect(
-        t
-          .withIdentity({ subject: "user_mgr" })
-          .mutation(api.line.mutations.generateLinkToken, { staffId, shopId: foreignShopId }),
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.generateLinkToken, {
+          staffId,
+          shopId: foreign.shopId,
+          expectedOrganizationId: foreign.organizationId,
+        }),
       ).rejects.toThrow("Not found");
       expect(await t.run(async (ctx) => await ctx.db.query("lineLinkTokens").collect())).toEqual([]);
     });
@@ -542,11 +629,19 @@ describe("line/mutations", () => {
 
     it("managerとinternalの両発行入口で旧tokenを失効し、最新tokenだけを一度利用できる", async () => {
       const t = convexTest(schema, modules);
-      const { staffId, shopId } = await setupShop(t);
+      const { organizationId, staffId, shopId } = await setupShop(t);
       const manager = t.withIdentity({ subject: "user_mgr" });
 
-      const first = await manager.mutation(api.line.mutations.generateLinkToken, { shopId, staffId });
-      const second = await manager.mutation(api.line.mutations.generateLinkToken, { shopId, staffId });
+      const first = await manager.mutation(api.line.mutations.generateLinkToken, {
+        shopId,
+        expectedOrganizationId: organizationId,
+        staffId,
+      });
+      const second = await manager.mutation(api.line.mutations.generateLinkToken, {
+        shopId,
+        expectedOrganizationId: organizationId,
+        staffId,
+      });
       const afterManagerIssue = await t.run(async (ctx) =>
         ctx.db
           .query("lineLinkTokens")
@@ -746,54 +841,6 @@ describe("line/mutations", () => {
       });
     });
 
-    it("Widen前tokenは現在のcanonical scopeを一意に導出できる場合だけ互換受理する", async () => {
-      const t = convexTest(schema, modules);
-      const target = await setupOrganizationShop(t, "old_token_compat");
-      const token = "old-shape-canonical-token";
-      const tokenDocId = await t.run(async (ctx) =>
-        ctx.db.insert("lineLinkTokens", {
-          staffId: target.staffId,
-          shopId: target.shopId,
-          token,
-          expiresAt: Date.now() + 60_000,
-        }),
-      );
-
-      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toEqual({
-        status: "ok",
-        staffId: target.staffId,
-        shopId: target.shopId,
-        tokenDocId,
-        organizationId: target.organizationId,
-        organizationPersonId: target.personId,
-        lineLinkGenerationAtIssue: 0,
-      });
-    });
-
-    it("両canonical ID欠損staffのWiden前tokenはexpiredへfail closedする", async () => {
-      const t = convexTest(schema, modules);
-      const target = await setupOrganizationShop(t, "unresolved_old_token");
-      const token = "unresolved-old-shape-token";
-      const tokenDocId = await t.run(async (ctx) => {
-        const id = await ctx.db.insert("lineLinkTokens", {
-          staffId: target.staffId,
-          shopId: target.shopId,
-          token,
-          expiresAt: Date.now() + 60_000,
-        });
-        await ctx.db.patch(target.staffId, { organizationId: undefined, organizationPersonId: undefined });
-        return id;
-      });
-
-      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toEqual({
-        status: "expired",
-      });
-      const storedToken = await t.run(async (ctx) => await ctx.db.get(tokenDocId));
-      expect(storedToken).not.toBeNull();
-      expect(storedToken).not.toHaveProperty("usedAt");
-      await expect(t.run(async (ctx) => ctx.db.query("staffLineAccounts").collect())).resolves.toEqual([]);
-    });
-
     it("canonical tokenのgenerationが現在人物とずれた場合はexpiredへfail closedする", async () => {
       const t = convexTest(schema, modules);
       const target = await setupOrganizationShop(t, "stale_generation");
@@ -803,25 +850,6 @@ describe("line/mutations", () => {
         token: "stale-generation-token",
       });
       await t.run(async (ctx) => await ctx.db.patch(target.personId, { lineLinkGeneration: 1 }));
-
-      await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toEqual({
-        status: "expired",
-      });
-    });
-
-    it("canonical snapshotが一部だけのtokenは旧shapeとみなさずexpiredへfail closedする", async () => {
-      const t = convexTest(schema, modules);
-      const target = await setupOrganizationShop(t, "partial_snapshot");
-      const token = "partial-canonical-snapshot-token";
-      await t.run(async (ctx) => {
-        await ctx.db.insert("lineLinkTokens", {
-          staffId: target.staffId,
-          shopId: target.shopId,
-          organizationId: target.organizationId,
-          token,
-          expiresAt: Date.now() + 60_000,
-        });
-      });
 
       await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toEqual({
         status: "expired",
@@ -967,30 +995,7 @@ describe("line/mutations", () => {
       },
     );
 
-    it("token検証後にstaffの両canonical IDが欠損した場合は永続化直前に拒否する", async () => {
-      const t = convexTest(schema, modules);
-      const target = await issueOrganizationLineLinkToken(t, "finalize_after_canonical_loss");
-      await expect(
-        t.mutation(internal.line.mutations.validateLinkToken, { state: target.token }),
-      ).resolves.toMatchObject({ status: "ok" });
-      await t.run(async (ctx) => {
-        await ctx.db.patch(target.staffId, { organizationId: undefined, organizationPersonId: undefined });
-      });
-      const before = await readLineLinkingBusinessState(t, target.tokenDocId);
-
-      await expect(
-        t.mutation(internal.line.mutations.finalizeLinking, {
-          staffId: target.staffId,
-          tokenDocId: target.tokenDocId,
-          lineUserId: "U_finalize_after_canonical_loss",
-          lineFollowing: true,
-        }),
-      ).resolves.toEqual({ status: "expired" });
-
-      expect(await readLineLinkingBusinessState(t, target.tokenDocId)).toEqual(before);
-    });
-
-    it("事業者移行中で課金状態が未作成でも非削除店舗ならvalidateと連携を継続できる", async () => {
+    it("課金状態が欠損した事業者ではvalidateと連携をfail-closedにし、副作用を残さない", async () => {
       const t = convexTest(schema, modules);
       const { organizationId, staffId, shopId } = await setupOrganizationShop(t, "line_widen_without_billing");
       const { token, tokenDocId } = await seedLineLinkToken(t, {
@@ -1006,9 +1011,10 @@ describe("line/mutations", () => {
         if (!billingState) throw new Error("missing billing state");
         await ctx.db.delete(billingState._id);
       });
+      const before = await readLineLinkingBusinessState(t, tokenDocId);
 
       await expect(t.mutation(internal.line.mutations.validateLinkToken, { state: token })).resolves.toMatchObject({
-        status: "ok",
+        status: "expired",
       });
       await expect(
         t.mutation(internal.line.mutations.finalizeLinking, {
@@ -1017,15 +1023,8 @@ describe("line/mutations", () => {
           lineUserId: "U_widen_without_billing",
           lineFollowing: false,
         }),
-      ).resolves.toEqual({ status: "ok" });
-
-      const account = await t.run(async (ctx) =>
-        ctx.db
-          .query("staffLineAccounts")
-          .withIndex("by_staffId", (q) => q.eq("staffId", staffId))
-          .unique(),
-      );
-      expect(account?.lineUserId).toBe("U_widen_without_billing");
+      ).resolves.toEqual({ status: "expired" });
+      expect(await readLineLinkingBusinessState(t, tokenDocId)).toEqual(before);
     });
 
     it("使用済み tokenDocId は expired を返し、スタッフを上書きしない", async () => {
@@ -1164,6 +1163,16 @@ describe("line/mutations", () => {
       // 店舗Bの別 staff レコード（同一人物）
       const { shopBId, staffBId } = await t.run(async (ctx) => {
         const shopBId = await seedShop(ctx, "店舗B");
+        const shopB = await ctx.db.get(shopBId);
+        if (!shopB) throw new Error("shop B fixture was not created");
+        const now = Date.now();
+        await ctx.db.insert("organizationBillingStates", {
+          organizationId: shopB.organizationId,
+          state: { kind: "active", plan: "pro" },
+          version: 1,
+          createdAt: now,
+          updatedAt: now,
+        });
         const staffBId = await seedStaff(ctx, {
           shopId: shopBId,
           name: "鈴木太郎",
@@ -1208,12 +1217,14 @@ describe("line/mutations", () => {
         .withIdentity({ subject: "canonical_shared" })
         .mutation(api.line.mutations.generateLinkToken, {
           shopId: target.shopId,
+          expectedOrganizationId: target.organizationId,
           staffId: target.staffAId,
         });
       const second = await t
         .withIdentity({ subject: "canonical_shared" })
         .mutation(api.line.mutations.generateLinkToken, {
           shopId: target.shopBId,
+          expectedOrganizationId: target.organizationId,
           staffId: target.staffBId,
         });
 
@@ -1274,7 +1285,11 @@ describe("line/mutations", () => {
 
       const { token } = await t
         .withIdentity({ subject: "nondeleted_shop" })
-        .mutation(api.line.mutations.generateLinkToken, { shopId: target.shopId, staffId: target.staffId });
+        .mutation(api.line.mutations.generateLinkToken, {
+          shopId: target.shopId,
+          expectedOrganizationId: target.organizationId,
+          staffId: target.staffId,
+        });
       const tokenDoc = await t.run(async (ctx) =>
         ctx.db
           .query("lineLinkTokens")
@@ -1587,6 +1602,8 @@ describe("line/mutations", () => {
           organizationPersonId: personId,
           name: "別人物",
           email: "other-person@example.com",
+          emailNormalized: "other-person@example.com",
+          excludedFromShift: false,
           isDeleted: false,
         });
         return { personId, staffId };
@@ -1660,6 +1677,7 @@ describe("line/mutations", () => {
       });
       const request = {
         shopId: target.shopId,
+        expectedOrganizationId: target.organizationId,
         organizationPersonId: target.personId,
         requestId: "canonical-disconnect-request",
       };
@@ -1703,7 +1721,7 @@ describe("line/mutations", () => {
       expect(state.audits.filter((audit) => audit.action === "organization.person_line_disconnected")).toHaveLength(1);
     });
 
-    it("論理削除済み所属で発行した旧shape tokenも別の非削除所属からの解除で失効する", async () => {
+    it("論理削除済み所属で発行したtokenも別の非削除所属からの解除で失効する", async () => {
       const t = convexTest(schema, modules);
       const target = await setupOrganizationPersonTwoShops(t, "deleted_old_token_revoke");
       const oldToken = "deleted-old-shape-token";
@@ -1711,6 +1729,9 @@ describe("line/mutations", () => {
         const tokenId = await ctx.db.insert("lineLinkTokens", {
           staffId: target.staffAId,
           shopId: target.shopId,
+          organizationId: target.organizationId,
+          organizationPersonId: target.personId,
+          lineLinkGenerationAtIssue: 0,
           token: oldToken,
           expiresAt: Date.now() + 60_000,
         });
@@ -1729,6 +1750,7 @@ describe("line/mutations", () => {
           .withIdentity({ subject: "deleted_old_token_revoke" })
           .mutation(api.line.mutations.disconnectOrganizationPersonLine, {
             shopId: target.shopBId,
+            expectedOrganizationId: target.organizationId,
             organizationPersonId: target.personId,
             requestId: "disconnect-deleted-old-token",
           }),
@@ -1766,6 +1788,7 @@ describe("line/mutations", () => {
           .withIdentity({ subject: "disconnect_foreign" })
           .mutation(api.line.mutations.disconnectOrganizationPersonLine, {
             shopId: foreign.shopId,
+            expectedOrganizationId: foreign.organizationId,
             organizationPersonId: target.personId,
             requestId: "foreign-disconnect-request",
           }),
@@ -1774,6 +1797,7 @@ describe("line/mutations", () => {
       await expect(
         t.withIdentity({ subject: "disconnect_target" }).mutation(api.line.mutations.disconnectOrganizationPersonLine, {
           shopId: target.shopId,
+          expectedOrganizationId: target.organizationId,
           organizationPersonId: target.personId,
           requestId: "removed-disconnect-request",
         }),
@@ -2261,21 +2285,26 @@ describe("line/mutations", () => {
 
     it("自店舗スタッフへの送信が成功する", async () => {
       const t = convexTest(schema, modules);
-      const { shopId, staffId } = await setupShop(t);
+      const { organizationId, shopId, staffId } = await setupShop(t);
       await expect(
-        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.sendInvite, { shopId, staffId }),
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.sendInvite, {
+          shopId,
+          expectedOrganizationId: organizationId,
+          staffId,
+        }),
       ).resolves.toEqual({ scheduled: true });
     });
 
     it("同じスタッフへの短時間連打では送信予約を増やさない", async () => {
       const t = convexTest(schema, modules);
-      const { shopId, staffId } = await setupShop(t);
+      const { organizationId, shopId, staffId } = await setupShop(t);
       const asManager = t.withIdentity({ subject: "user_mgr" });
 
-      await expect(asManager.mutation(api.line.mutations.sendInvite, { shopId, staffId })).resolves.toEqual({
+      const input = { shopId, expectedOrganizationId: organizationId, staffId };
+      await expect(asManager.mutation(api.line.mutations.sendInvite, input)).resolves.toEqual({
         scheduled: true,
       });
-      await expect(asManager.mutation(api.line.mutations.sendInvite, { shopId, staffId })).resolves.toEqual({
+      await expect(asManager.mutation(api.line.mutations.sendInvite, input)).resolves.toEqual({
         scheduled: false,
         reason: "rateLimited",
       });
@@ -2286,13 +2315,12 @@ describe("line/mutations", () => {
 
     it("有効な送信履歴から10分間は副作用とquota消費なしで拒否し、10分ちょうどで許可する", async () => {
       const t = convexTest(schema, modules);
-      const { shopId, staffId } = await setupShop(t);
+      const { organizationId, shopId, staffId } = await setupShop(t);
       await t.run(
         async (ctx) =>
-          await seedNotificationHistory(ctx, {
+          await seedLineInviteNotificationHistory(ctx, {
             shopId,
             staffId,
-            notificationKind: LINE_INVITE_NOTIFICATION_KIND,
             requestedAt: Date.now(),
           }),
       );
@@ -2303,7 +2331,8 @@ describe("line/mutations", () => {
       }));
       const asManager = t.withIdentity({ subject: "user_mgr" });
 
-      await expect(asManager.mutation(api.line.mutations.sendInvite, { shopId, staffId })).resolves.toEqual({
+      const input = { shopId, expectedOrganizationId: organizationId, staffId };
+      await expect(asManager.mutation(api.line.mutations.sendInvite, input)).resolves.toEqual({
         scheduled: false,
         reason: "recentlySent",
       });
@@ -2316,7 +2345,7 @@ describe("line/mutations", () => {
       ).resolves.toEqual(beforeRejection);
 
       vi.advanceTimersByTime(NOTIFICATION_RESEND_COOLDOWN_MS);
-      await expect(asManager.mutation(api.line.mutations.sendInvite, { shopId, staffId })).resolves.toEqual({
+      await expect(asManager.mutation(api.line.mutations.sendInvite, input)).resolves.toEqual({
         scheduled: true,
       });
     });
@@ -2326,24 +2355,25 @@ describe("line/mutations", () => {
       const ids = await setupOrganizationPersonTwoShops(t, "line_invite_cooldown_person");
       await t.run(
         async (ctx) =>
-          await seedNotificationHistory(ctx, {
+          await seedLineInviteNotificationHistory(ctx, {
             shopId: ids.shopBId,
             staffId: ids.staffBId,
-            notificationKind: LINE_INVITE_NOTIFICATION_KIND,
             requestedAt: Date.now(),
           }),
       );
 
       await expect(
-        t
-          .withIdentity({ subject: "line_invite_cooldown_person" })
-          .mutation(api.line.mutations.sendInvite, { shopId: ids.shopId, staffId: ids.staffAId }),
+        t.withIdentity({ subject: "line_invite_cooldown_person" }).mutation(api.line.mutations.sendInvite, {
+          shopId: ids.shopId,
+          expectedOrganizationId: ids.organizationId,
+          staffId: ids.staffAId,
+        }),
       ).resolves.toEqual({ scheduled: false, reason: "recentlySent" });
     });
 
     it("1店舗で31人へ連続してLINE招待を予約できる", async () => {
       const t = convexTest(schema, modules);
-      const { shopId } = await setupShop(t);
+      const { organizationId, shopId } = await setupShop(t);
       const staffIds = await t.run(async (ctx) => {
         const ids: Id<"staffs">[] = [];
         for (let i = 0; i < 31; i++) {
@@ -2360,7 +2390,13 @@ describe("line/mutations", () => {
       const asManager = t.withIdentity({ subject: "user_mgr" });
 
       for (const staffId of staffIds) {
-        await expect(asManager.mutation(api.line.mutations.sendInvite, { shopId, staffId })).resolves.not.toThrow();
+        await expect(
+          asManager.mutation(api.line.mutations.sendInvite, {
+            shopId,
+            expectedOrganizationId: organizationId,
+            staffId,
+          }),
+        ).resolves.not.toThrow();
       }
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
@@ -2369,7 +2405,7 @@ describe("line/mutations", () => {
 
     it("他店舗スタッフへの送信は拒否（IDOR）", async () => {
       const t = convexTest(schema, modules);
-      const { shopId } = await setupShop(t);
+      const { organizationId, shopId } = await setupShop(t);
       const otherStaffId = await t.run(async (ctx) => {
         const sid = await seedShop(ctx, "他店舗");
         return await seedStaff(ctx, {
@@ -2379,9 +2415,11 @@ describe("line/mutations", () => {
         });
       });
       await expect(
-        t
-          .withIdentity({ subject: "user_mgr" })
-          .mutation(api.line.mutations.sendInvite, { shopId, staffId: otherStaffId }),
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.sendInvite, {
+          shopId,
+          expectedOrganizationId: organizationId,
+          staffId: otherStaffId,
+        }),
       ).rejects.toThrow("Not found");
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
       expect(scheduled.filter((job) => job.name === "line/actions:sendInviteEmail")).toHaveLength(0);
@@ -2389,11 +2427,15 @@ describe("line/mutations", () => {
 
     it("削除済みスタッフへの送信を拒否し、メール送信を予約しない", async () => {
       const t = convexTest(schema, modules);
-      const { shopId, staffId } = await setupShop(t);
+      const { organizationId, shopId, staffId } = await setupShop(t);
       await t.run(async (ctx) => await ctx.db.patch(staffId, { isDeleted: true }));
 
       await expect(
-        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.sendInvite, { shopId, staffId }),
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.sendInvite, {
+          shopId,
+          expectedOrganizationId: organizationId,
+          staffId,
+        }),
       ).rejects.toThrow("Not found");
 
       const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
@@ -2402,14 +2444,18 @@ describe("line/mutations", () => {
 
     it("personのメールアドレスが未登録ならstaff snapshotにメールがあっても副作用なしで拒否する", async () => {
       const t = convexTest(schema, modules);
-      const { shopId, staffId } = await setupShop(t);
+      const { organizationId, shopId, staffId } = await setupShop(t);
       await t.run(async (ctx) => {
         const staff = await ctx.db.get(staffId);
         if (!staff?.organizationPersonId) throw new Error("canonical staff not found");
         await ctx.db.patch(staff.organizationPersonId, { email: "", emailNormalized: "", updatedAt: Date.now() });
       });
       await expect(
-        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.sendInvite, { shopId, staffId }),
+        t.withIdentity({ subject: "user_mgr" }).mutation(api.line.mutations.sendInvite, {
+          shopId,
+          expectedOrganizationId: organizationId,
+          staffId,
+        }),
       ).rejects.toThrow("メールアドレスが未登録");
       await expect(
         t.run(async (ctx) => ({

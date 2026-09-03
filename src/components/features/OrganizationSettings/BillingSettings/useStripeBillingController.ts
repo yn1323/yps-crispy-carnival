@@ -521,8 +521,7 @@ export function useStripeBillingController(input: Input) {
         intentKey: createBrowserUuid(),
         shopId: scopeId,
         organizationName: current.organizationName,
-        currentPlan:
-          current.billing.currentPlan ?? (current.billing.state === "trial" ? ("trial" as const) : ("free" as const)),
+        currentPlan: current.billing.currentPlan,
       };
       if (action.kind === "startPaidPlan") {
         const trialBillingStartsOn =
@@ -640,7 +639,7 @@ export function useStripeBillingController(input: Input) {
 }
 
 function defaultTargetPlan(billing: OrganizationBillingView): BillingProductPlan {
-  if (billing.state === "free" || billing.state === "trial" || billing.currentPlan === null) return "standard";
+  if (billing.state === "free" || billing.state === "trial") return "standard";
   if (billing.state === "scheduledChange") {
     return billing.currentPlan === "trial" ? "standard" : billing.currentPlan;
   }

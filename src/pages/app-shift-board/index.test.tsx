@@ -104,13 +104,6 @@ beforeEach(() => {
 });
 
 describe("AppShiftBoardRoutePage", () => {
-  it("org欠落中はqueryを開始せず、組織scopeの確定を待つ", () => {
-    render(<AppShiftBoardRoutePage recruitmentId="recruitment-1" />);
-
-    expect(screen.getByText("組織を確認しています")).not.toBeNull();
-    expect(mocks.useQuery).not.toHaveBeenCalled();
-  });
-
   it("URLのorgと募集IDでqueryし、店舗名と募集期間をヘッダーへ表示する", async () => {
     mocks.queryResults.scope = { shopId: "shop-1", shopName: "yn1323店舗" };
     mocks.queryResults.data = {

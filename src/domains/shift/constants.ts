@@ -2,12 +2,14 @@ export const DEFAULT_POSITION = {
   id: "default",
   name: "シフト",
   color: "#3b82f6", // blue-500
+  isDefault: true,
 } as const;
 
 export const BREAK_POSITION = {
   id: "break",
   name: "休憩",
   color: "#6b7280", // gray-500
+  isDefault: false,
 } as const;
 
 // アラート閾値

@@ -48,6 +48,7 @@ describe("組織削除シナリオ", () => {
           updatedAt: NOW,
         });
         const staffId = await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId,
           organizationId: target.organizationId,
           organizationPersonId: personId,
@@ -81,6 +82,7 @@ describe("組織削除シナリオ", () => {
         updatedAt: NOW,
       });
       const sharedStaffId = await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: target.shopId,
         organizationId: target.organizationId,
         organizationPersonId: sharedPersonId,
@@ -131,8 +133,7 @@ describe("組織削除シナリオ", () => {
 
     await t
       .withIdentity({ subject: "organization_deletion_owner" })
-      .mutation(api.organization.mutations.deleteOrganization, {
-        shopId: ids.target.shopId,
+      .mutation(api.organization.mutations.deleteOrganizationForOrganization, {
         organizationId: ids.target.organizationId,
         confirmOrganizationId: ids.target.organizationId,
         expectedOrganizationUpdatedAt: ids.organizationUpdatedAt,

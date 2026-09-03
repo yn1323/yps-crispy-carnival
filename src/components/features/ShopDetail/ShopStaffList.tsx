@@ -8,7 +8,7 @@ import type { ShopDetailPerson } from "./types";
 type Props = {
   staffs: ShopDetailPerson[];
   canChangeStaffs: boolean;
-  managerNotificationRecipientStatus?: "available" | "none" | "unknown";
+  managerNotificationRecipientStatus: "available" | "none" | "unknown";
   changeButtonRef?: Ref<HTMLButtonElement>;
   onOpenUser: (personId: string) => void;
   onChangeStaffs: () => void;

@@ -12,7 +12,7 @@ type TestQuery = FunctionReference<
   {
     label: string;
     shopId: string;
-    expectedOrganizationId?: string;
+    expectedOrganizationId: string;
     paginationOpts: { numItems: number; cursor: string | null };
   },
   PaginationResult<{ name: string }>
@@ -20,7 +20,7 @@ type TestQuery = FunctionReference<
 
 const mocks = vi.hoisted(() => ({
   usePaginatedQuery: vi.fn(() => ({ results: [], status: "LoadingFirstPage", loadMore: vi.fn() })),
-  selectedShop: null as { shopId: string; shopName: string } | null,
+  selectedShop: null as { shopId: string; shopName: string; organizationId: string } | null,
 }));
 
 vi.mock("convex/react", () => ({
@@ -44,11 +44,15 @@ beforeEach(() => {
 
 describe("useShopPaginatedQuery", () => {
   it("選択中の店舗IDをpaginated query引数へ注入する", () => {
-    mocks.selectedShop = { shopId: "shop-1", shopName: "渋谷店" };
+    mocks.selectedShop = { shopId: "shop-1", shopName: "渋谷店", organizationId: "organization-1" };
 
     renderHook(() => useShopPaginatedQuery(queryRef, { label: "募集A" }, options));
 
-    expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(queryRef, { label: "募集A", shopId: "shop-1" }, options);
+    expect(mocks.usePaginatedQuery).toHaveBeenCalledWith(
+      queryRef,
+      { label: "募集A", shopId: "shop-1", expectedOrganizationId: "organization-1" },
+      options,
+    );
   });
 
   it("店舗が未選択ならpaginated queryをskipする", () => {
@@ -58,7 +62,11 @@ describe("useShopPaginatedQuery", () => {
   });
 
   it("app routeの明示scopeを保存済み店舗より優先する", () => {
-    mocks.selectedShop = { shopId: "stale-shop", shopName: "別組織の店舗" };
+    mocks.selectedShop = {
+      shopId: "stale-shop",
+      shopName: "別組織の店舗",
+      organizationId: "stale-organization",
+    };
 
     renderHook(() => useShopPaginatedQuery(queryRef, { label: "募集A" }, options), {
       wrapper: ({ children }: { children: ReactNode }) =>
@@ -77,7 +85,7 @@ describe("useShopPaginatedQuery", () => {
   });
 
   it("呼び出し側のskipを維持する", () => {
-    mocks.selectedShop = { shopId: "shop-1", shopName: "渋谷店" };
+    mocks.selectedShop = { shopId: "shop-1", shopName: "渋谷店", organizationId: "organization-1" };
 
     renderHook(() => useShopPaginatedQuery(queryRef, "skip", options));
 
@@ -85,13 +93,23 @@ describe("useShopPaginatedQuery", () => {
   });
 
   it("店舗選択が変わった後は最新の店舗IDを使う", () => {
-    mocks.selectedShop = { shopId: "shop-1", shopName: "渋谷店" };
+    mocks.selectedShop = { shopId: "shop-1", shopName: "渋谷店", organizationId: "organization-1" };
     const { rerender } = renderHook(() => useShopPaginatedQuery(queryRef, { label: "募集A" }, options));
 
-    mocks.selectedShop = { shopId: "shop-2", shopName: "新宿店" };
+    mocks.selectedShop = { shopId: "shop-2", shopName: "新宿店", organizationId: "organization-2" };
     rerender();
 
-    expect(mocks.usePaginatedQuery).toHaveBeenNthCalledWith(1, queryRef, { label: "募集A", shopId: "shop-1" }, options);
-    expect(mocks.usePaginatedQuery).toHaveBeenNthCalledWith(2, queryRef, { label: "募集A", shopId: "shop-2" }, options);
+    expect(mocks.usePaginatedQuery).toHaveBeenNthCalledWith(
+      1,
+      queryRef,
+      { label: "募集A", shopId: "shop-1", expectedOrganizationId: "organization-1" },
+      options,
+    );
+    expect(mocks.usePaginatedQuery).toHaveBeenNthCalledWith(
+      2,
+      queryRef,
+      { label: "募集A", shopId: "shop-2", expectedOrganizationId: "organization-2" },
+      options,
+    );
   });
 });

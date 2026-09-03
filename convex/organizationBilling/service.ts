@@ -15,26 +15,12 @@ import {
   evaluatePlanLimits,
   ORGANIZATION_PLAN_LIMITS,
   type OrganizationAccessPolicy,
-  type OrganizationUsageLimitViolation,
-  type PlanLimitViolation,
   resolveUsageLimitPlan,
 } from "./policy";
 
 type DbCtx = {
   db: GenericDatabaseReader<DataModel>;
 };
-
-export type LegacyPlanLimitViolation = Exclude<PlanLimitViolation, "shops"> | "activeShops";
-
-/** TODO[narrow]: 旧client drain後のPR2で削除し、公開DTOもcanonicalなshopsへ揃える。 */
-export function toLegacyPlanLimitViolation(violation: PlanLimitViolation): LegacyPlanLimitViolation {
-  return violation === "shops" ? "activeShops" : violation;
-}
-
-/** TODO[narrow]: 旧client drain後のPR2で削除する公開usage-limit DTO projection。 */
-export function toLegacyUsageLimitViolation(violation: OrganizationUsageLimitViolation) {
-  return { ...violation, kind: toLegacyPlanLimitViolation(violation.kind) };
-}
 
 export async function getOrganizationBillingPolicy(ctx: DbCtx, organizationId: Id<"organizations">) {
   const billingState = await getOrganizationBillingState(ctx, organizationId);
@@ -101,7 +87,7 @@ function usageLimitExceededError(access: OrganizationAccessPolicy) {
       message:
         "現在の利用数を安全に確認できないため、通常の業務操作を一時的に制限しています。利用人数・店舗・管理者を整理するか、プランを変更してください。",
       plan: access.usageLimitStatus.evaluatedPlan,
-      unknownDimensions: access.usageLimitStatus.unknownDimensions.map(toLegacyPlanLimitViolation),
+      unknownDimensions: access.usageLimitStatus.unknownDimensions,
     });
   }
   if (access.usageLimitStatus?.kind !== "overLimit") {
@@ -111,20 +97,19 @@ function usageLimitExceededError(access: OrganizationAccessPolicy) {
     code: "USAGE_LIMIT_EXCEEDED" as const,
     message: "現在のプラン上限を超えているため、利用人数・店舗・管理者を整理するか、プランを変更してください。",
     plan: access.usageLimitStatus.evaluatedPlan,
-    violations: access.usageLimitStatus.violations.map(toLegacyUsageLimitViolation),
+    violations: access.usageLimitStatus.violations,
   });
 }
 
 function requireBusinessWriteFromAccess(access: Awaited<ReturnType<typeof getOrganizationAccessPolicy>>) {
-  if (!access) return null;
+  if (!access) {
+    throw new ConvexError("組織の契約情報を確認できません。");
+  }
   if (access.accessMode === "normal") return access.billingPolicy;
   throw usageLimitExceededError(access);
 }
 
-/**
- * 通常の店舗業務mutationから呼ぶ。
- * TODO[narrow]: 全deploymentでm025完走・verifyOrganizationsのbilling state残件0確認後、state欠損を拒否する。
- */
+/** 通常の店舗業務mutationから呼ぶ。 */
 export async function requireOrganizationBusinessWrite(ctx: DbCtx, organizationId: Id<"organizations">) {
   return requireBusinessWriteFromAccess(await getOrganizationAccessPolicy(ctx, organizationId));
 }
@@ -196,7 +181,7 @@ export async function requireOrganizationCapacity(
     throw new ConvexError("組織の契約情報を確認中のため、この追加操作はまだ利用できません。");
   }
   const policy = deriveOrganizationBillingPolicy(billingState.state);
-  if (!policy.entitlementPlan || !policy.limits || !policy.canWriteBusinessData) {
+  if (!policy.canWriteBusinessData) {
     throw new ConvexError("現在の契約状態では、この追加操作を行えません。");
   }
 

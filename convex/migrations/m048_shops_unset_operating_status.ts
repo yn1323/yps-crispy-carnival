@@ -17,6 +17,7 @@ export const migration = migrations.define({
     if (operatingStatus === "archived") throw migrationError("archived_not_allowed");
     if (operatingStatus !== "active") throw migrationError("unknown_status");
 
-    return { operatingStatus: undefined };
+    const cleared: LegacyOperatingStatus = { operatingStatus: undefined };
+    return cleared as Partial<typeof shop>;
   },
 });

@@ -57,7 +57,6 @@ import {
   collectOrganizationShopStaffMembershipSnapshot,
   findActiveStaffByEmail,
   getActiveStaffInShop,
-  hasCanonicalStaffIdentity,
   hasValidCanonicalStaffUserLifecycle,
   hasValidOrganizationPersonUserLifecycle,
   isShiftTargetStaff,
@@ -189,13 +188,6 @@ async function allowStaffNotificationResend(
   return true;
 }
 
-async function validateOptionalNotificationRequestId(requestId: string | undefined) {
-  if (requestId !== undefined) {
-    // client request IDは入力契約だけ検証し、quotaや通知operationのidentityには使わない。
-    await toAuditRequestKey(requestId);
-  }
-}
-
 type CurrentShiftNotificationScope =
   | { recruitments: Doc<"recruitments">[] }
   | { reason: "noCurrentShift" | "tooManyCurrentShifts" | "unconfirmedChanges" };
@@ -276,8 +268,6 @@ async function createCurrentShiftNotificationFanouts(
 
 type AddStaffEntriesArgs = {
   entries: Array<{ name: string; email: string }>;
-  // TODO[narrow]: 旧frontendが配信されなくなった後、互換入力をpublic validatorとともに削除する。
-  confirmReactivationPersonIds?: Array<Id<"organizationPeople">>;
   prevalidatedActiveOrganizationPeople?: Array<{
     personId: Id<"organizationPeople">;
     name: string;
@@ -300,7 +290,7 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
     .filter((e) => e.name !== "");
 
   const organizationId = ctx.shop.organizationId;
-  if (!organizationId || ctx.organization?._id !== organizationId) {
+  if (ctx.organization?._id !== organizationId) {
     throw new ConvexError("Not found");
   }
   const prevalidatedActivePeople = args.prevalidatedActiveOrganizationPeople;
@@ -553,8 +543,6 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
 export const addStaffs = managerMutation({
   args: {
     entries: v.array(v.object({ name: v.string(), email: v.string() })),
-    // TODO[narrow]: 旧frontendが配信されなくなった後に削除するrolling deploy互換入力。
-    confirmReactivationPersonIds: v.optional(v.array(v.id("organizationPeople"))),
     requestId: v.string(),
   },
   returns: staffAddResultValidator,
@@ -667,7 +655,7 @@ function validateShopMembershipChangeInput(
 
 async function createShopMembershipChangeIntentHash(args: {
   personId: Id<"organizationPeople">;
-  desiredActiveShopIds: readonly Id<"shops">[];
+  desiredShopIds: readonly Id<"shops">[];
   expectedMembershipFingerprint: string;
   removalPreviews: readonly ShopMembershipRemovalPreviewInput[];
 }) {
@@ -676,7 +664,8 @@ async function createShopMembershipChangeIntentHash(args: {
       version: 1,
       personId: args.personId,
       expectedMembershipFingerprint: args.expectedMembershipFingerprint,
-      desiredActiveShopIds: sortShopIds(args.desiredActiveShopIds),
+      // 保存済みv1 receiptとの再送整合を保つため、serialized keyだけは変更しない。
+      desiredActiveShopIds: sortShopIds(args.desiredShopIds),
       removalPreviews: canonicalRemovalPreviews(args.removalPreviews),
     }),
   );
@@ -766,19 +755,14 @@ async function recoverCompletedShopMembershipChange(
 export const changeOrganizationPersonShopMemberships = managerMutation({
   args: {
     personId: v.id("organizationPeople"),
-    // rolling client互換のfield名。値はすべての未削除店舗のdesired-setとして扱う。
-    desiredActiveShopIds: v.array(v.id("shops")),
+    desiredShopIds: v.array(v.id("shops")),
     expectedMembershipFingerprint: v.string(),
     removalPreviews: v.array(shopMembershipRemovalPreviewValidator),
     requestId: v.string(),
   },
   returns: shopMembershipChangeResultValidator,
   handler: async (ctx, args) => {
-    validateShopMembershipChangeInput(
-      args.desiredActiveShopIds,
-      args.removalPreviews,
-      args.expectedMembershipFingerprint,
-    );
+    validateShopMembershipChangeInput(args.desiredShopIds, args.removalPreviews, args.expectedMembershipFingerprint);
     if (
       !ctx.organization ||
       !ctx.organizationMember ||
@@ -821,7 +805,7 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
       throw new ConvexError("ユーザーの店舗所属を確認できません。\n画面を更新して、もう一度お試しください。");
     }
     for (const staff of staffDocs) {
-      if (!hasCanonicalStaffIdentity(staff) || !(await hasValidCanonicalStaffUserLifecycle(ctx, staff, person))) {
+      if (!(await hasValidCanonicalStaffUserLifecycle(ctx, staff, person))) {
         throw new ConvexError("ユーザーの店舗所属を確認できません。\n画面を更新して、もう一度お試しください。");
       }
     }
@@ -850,7 +834,7 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
       throw new ConvexError(STALE_SHOP_MEMBERSHIP_CHANGE_ERROR);
     }
 
-    const desiredShopIds = sortShopIds(args.desiredActiveShopIds);
+    const desiredShopIds = sortShopIds(args.desiredShopIds);
     const desiredShops = await Promise.all(
       desiredShopIds.map(async (shopId) => {
         const shop = await ctx.db.get(shopId);
@@ -1454,7 +1438,6 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
 export const sendOpenRecruitmentNotifications = managerMutation({
   args: {
     staffId: v.id("staffs"),
-    requestId: v.optional(v.string()),
   },
   returns: v.union(
     v.object({ scheduled: v.literal(true) }),
@@ -1464,7 +1447,6 @@ export const sendOpenRecruitmentNotifications = managerMutation({
     }),
   ),
   handler: async (ctx, args) => {
-    await validateOptionalNotificationRequestId(args.requestId);
     const staff = await getSendableStaff(ctx, args.staffId);
     const notificationData = await ctx.runQuery(
       internal.notification.queries.getOpenRecruitmentNotificationDataForStaff,
@@ -1501,7 +1483,6 @@ export const sendOpenRecruitmentNotifications = managerMutation({
 export const sendCurrentShiftNotification = managerMutation({
   args: {
     staffId: v.id("staffs"),
-    requestId: v.optional(v.string()),
   },
   returns: v.union(
     v.object({ scheduled: v.literal(true) }),
@@ -1517,7 +1498,6 @@ export const sendCurrentShiftNotification = managerMutation({
     }),
   ),
   handler: async (ctx, args) => {
-    await validateOptionalNotificationRequestId(args.requestId);
     const staff = await getActiveStaffInShop(ctx, ctx.shop._id, args.staffId);
     if (!staff) {
       throw new ConvexError("Not found");

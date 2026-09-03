@@ -47,9 +47,8 @@ export type StaffRegistrationRequest = {
   name: string;
   email: string;
   createdAt: number;
-  /** rolling deploy中に旧backendから欠損した場合は、承認不可として扱う。 */
-  canApprove?: boolean;
-  approveDisabledReason?: string | null;
+  canApprove: boolean;
+  approveDisabledReason: string | null;
 };
 
 export type DashboardNavigation = {

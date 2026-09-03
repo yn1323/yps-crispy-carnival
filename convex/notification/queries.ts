@@ -108,9 +108,7 @@ async function buildConfirmationStaffEntries(
   knownLineRecipient?: NotificationLineRecipient | null,
 ): Promise<ConfirmationStaffEntry[]> {
   const dates = generateDateRange(recruitment.periodStart, recruitment.periodEnd);
-  // TODO[narrow]: 全deploymentでm040が完走し、
-  // verifyRecruitments.missingShopClosedDatesが0件になった後にfallbackを削除する。
-  const shopClosedDateSet = new Set(recruitment.shopClosedDates ?? []);
+  const shopClosedDateSet = new Set(recruitment.shopClosedDates);
   const submissionPattern = recruitment.submissionPattern;
   const projectedAssignments =
     submissionPattern.kind === "time" ? normalizeExactAdjacentTimeAssignments(assignments) : assignments;

@@ -23,14 +23,12 @@ export async function resolveStaffRegistrationCapability(
   const shop = await ctx.db.get(links[0].shopId);
   if (!shop || shop.isDeleted) return null;
 
-  if (shop.organizationId) {
-    const [organization, accessPolicy] = await Promise.all([
-      ctx.db.get(shop.organizationId),
-      getOrganizationAccessPolicy(ctx, shop.organizationId),
-    ]);
-    if (!organization || organization.isDeleted || (accessPolicy !== null && accessPolicy.accessMode !== "normal")) {
-      return null;
-    }
+  const [organization, accessPolicy] = await Promise.all([
+    ctx.db.get(shop.organizationId),
+    getOrganizationAccessPolicy(ctx, shop.organizationId),
+  ]);
+  if (!organization || organization.isDeleted || accessPolicy?.accessMode !== "normal") {
+    return null;
   }
 
   return shop;

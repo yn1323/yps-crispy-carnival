@@ -127,7 +127,7 @@ export const useShiftBoardPageController = (
     [data.positions],
   );
   const assignmentBuildOptions = useMemo<BuildAssignmentsOptions<Id<"positions">>>(() => {
-    const defaultPositionId = data.positions.find((position) => position.isDefault)?._id ?? data.positions[0]?._id;
+    const defaultPositionId = data.positions.find((position) => position.isDefault)?._id;
     return {
       submissionPatternKind: data.submissionPattern.kind,
       ...(defaultPositionId ? { defaultPositionId } : {}),

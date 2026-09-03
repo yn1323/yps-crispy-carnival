@@ -240,7 +240,6 @@ describe("organizationBilling/service access policy", () => {
       for (let index = 0; index < 101; index += 1) {
         await ctx.db.insert("shops", {
           organizationId: base.organizationId,
-          operatingStatus: "active",
           name: `削除済み店舗${index + 1}`,
           regularClosedDays: [],
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
@@ -278,7 +277,6 @@ describe("organizationBilling/service access policy", () => {
       for (let index = 0; index < 3; index += 1) {
         await ctx.db.insert("shops", {
           organizationId: base.organizationId,
-          operatingStatus: "active",
           name: `店舗${index + 2}`,
           regularClosedDays: [],
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
@@ -310,7 +308,6 @@ describe("organizationBilling/service access policy", () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("shops", {
         organizationId: ids.organizationId,
-        operatingStatus: "active",
         name: "上限超過店舗",
         regularClosedDays: [],
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
@@ -329,7 +326,7 @@ describe("organizationBilling/service access policy", () => {
       data: {
         code: "USAGE_LIMIT_EXCEEDED",
         plan: "standard",
-        violations: [{ kind: "activeShops", current: 6, max: 5, excess: 1 }],
+        violations: [{ kind: "shops", current: 6, max: 5, excess: 1 }],
       },
     });
   });

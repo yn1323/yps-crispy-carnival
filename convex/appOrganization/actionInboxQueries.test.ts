@@ -10,7 +10,7 @@ import {
   seedPendingRegistrationRequests,
 } from "../_test/actionInboxFixtures";
 import { seedStaff } from "../_test/scenarioBuilders";
-import { seedOrganizationManagerShop, seedOrganizationPersonLineLink } from "../_test/seed";
+import { getTestOrganizationId, seedOrganizationManagerShop, seedOrganizationPersonLineLink } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { DASHBOARD_RESPONSE_COUNT_LIMIT } from "../constants";
 
@@ -71,15 +71,13 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
     expect(filtered.items.every(({ scope }) => scope.kind === "shop" && scope.shopId === ids.actor.shopId)).toBe(true);
   });
 
-  it("legacy statusに関係なく非削除店舗を扱い、削除済み履歴を走査上限へ含めない", async () => {
+  it("非削除店舗を扱い、削除済み履歴を走査上限へ含めない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedActionInboxSources(ctx, { subject: "action_legacy_active_shop", now: NOW });
-      await ctx.db.patch(base.shopId, { operatingStatus: undefined });
       for (let index = 0; index < 51; index += 1) {
         await ctx.db.insert("shops", {
           organizationId: base.organizationId,
-          operatingStatus: "active",
           name: `削除済み店舗履歴${index}`,
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           regularClosedDays: [],
@@ -195,7 +193,7 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
     });
   });
 
-  it("billing rowがない移行中組織は従来どおり通常操作を表示する", async () => {
+  it("billing rowがない組織は操作一覧をfail closedにする", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedActionInboxSources(ctx, { subject: "action_missing_billing", now: NOW });
@@ -208,23 +206,15 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
       return base;
     });
 
-    const result = await t
-      .withIdentity({ subject: "action_missing_billing" })
-      .query(api.appOrganization.actionInboxQueries.getActionInbox, {
-        organizationId: ids.organizationId,
-        shopFilter: ids.shopId,
-        refreshBucket: 0,
-      });
-
-    expect(result.items.find((item) => item.kind === "staffRegistration")).toMatchObject({
-      canApprove: true,
-      approveDisabledReason: null,
-      canReject: true,
-    });
-    expect(result.items.find((item) => item.kind === "notificationFailure")).toMatchObject({
-      canRetry: true,
-      canResolve: true,
-    });
+    await expect(
+      t
+        .withIdentity({ subject: "action_missing_billing" })
+        .query(api.appOrganization.actionInboxQueries.getActionInbox, {
+          organizationId: ids.organizationId,
+          shopFilter: ids.shopId,
+          refreshBucket: 0,
+        }),
+    ).rejects.toThrow("Billing state not found");
   });
 
   it("登録申請の承認可否と理由をDashboardと同じ判定で返す", async () => {
@@ -279,7 +269,10 @@ describe("appOrganization/actionInboxQueries.getActionInbox", () => {
       shopFilter: ids.shopId,
       refreshBucket: 0,
     });
-    const dashboard = await actor.query(api.staffRegistration.queries.getPendingRequests, { shopId: ids.shopId });
+    const dashboard = await actor.query(api.staffRegistration.queries.getPendingRequests, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+      shopId: ids.shopId,
+    });
     const inboxEligibility = inbox.items
       .filter((item) => item.kind === "staffRegistration")
       .map(({ requestId, applicantName, canApprove, approveDisabledReason }) => ({

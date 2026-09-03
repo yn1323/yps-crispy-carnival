@@ -1,18 +1,16 @@
+import type { WithoutSystemFields } from "convex/server";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
+import type { Doc } from "../_generated/dataModel";
 import { createMigrationHistoryTestWithMigrations, runMigrationToCompletion } from "../_test/migrations.test-helper";
+import { seedShop } from "../_test/seed";
 
 describe("m030 notification fanout operations narrow preparation", () => {
   it("旧operationだけをsupersede=trueへ補完し、再実行しても値を変えない", async () => {
     const t = createMigrationHistoryTestWithMigrations();
     const ids = await t.run(async (ctx) => {
       const now = Date.now();
-      const shopId = await ctx.db.insert("shops", {
-        name: "fanout narrow店舗",
-        regularClosedDays: [],
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        isDeleted: false,
-      });
+      const shopId = await seedShop(ctx, "fanout narrow店舗");
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
         periodStart: "2026-08-01",
@@ -38,7 +36,7 @@ describe("m030 notification fanout operations narrow preparation", () => {
       const legacyId = await ctx.db.insert("notificationFanoutOperations", {
         operationKey: "fanout:narrow:legacy",
         ...base,
-      });
+      } as unknown as WithoutSystemFields<Doc<"notificationFanoutOperations">>);
       const supplementalId = await ctx.db.insert("notificationFanoutOperations", {
         operationKey: "fanout:narrow:supplemental",
         ...base,

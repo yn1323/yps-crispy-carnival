@@ -74,9 +74,8 @@ const shiftBoardDataValidator = v.object({
 export const getShiftBoardData = managerQuery({
   args: {
     recruitmentId: v.id("recruitments"),
-    // rolling deploy中の旧client（引数なし / asOfDate）も受け入れる。どちらも表示判定の時計としては信用しない。
-    refreshDayKey: v.optional(v.string()),
-    asOfDate: v.optional(v.string()),
+    // 日付変更時にfrontendが再購読するためのkey。表示判定にはserver時刻だけを使う。
+    refreshDayKey: v.string(),
   },
   returns: v.union(shiftBoardDataValidator, v.null()),
   handler: async (ctx, args) => {
@@ -132,12 +131,7 @@ export const getShiftBoardData = managerQuery({
     }
     const submissionByStaffId = new Map(submissions.map((s) => [s.staffId, s]));
     const submittedStaffIds = new Set(submissions.map((s) => s.staffId));
-    // draftSavedAt 導入前の既存データは、保存済み assignment の作成時刻を暫定の保存時刻として扱う。
-    // TODO[narrow]: 全deploymentでm038が完走し、
-    // verifyRecruitments.assignmentsWithoutDraftSavedAtが0件になった後にfallbackを削除する。
-    const effectiveDraftSavedAt =
-      recruitment.draftSavedAt ??
-      (shiftAssignments.length > 0 ? Math.max(...shiftAssignments.map((a) => a._creationTime)) : null);
+    const draftSavedAt = recruitment.draftSavedAt ?? null;
 
     // TimeRange.start/end は「時」の数値を期待（9, 22 等）
     const submissionPattern = recruitment.submissionPattern;
@@ -150,9 +144,9 @@ export const getShiftBoardData = managerQuery({
     const endHour = Math.ceil(editableEndMinutes / 60);
     const organizationAccess = ctx.organization ? await getOrganizationAccessPolicy(ctx, ctx.organization._id) : null;
     const businessWriteBlockReason =
-      organizationAccess?.usageLimitStatus?.kind === "unknown"
+      !organizationAccess || organizationAccess.usageLimitStatus?.kind === "unknown"
         ? ("usageLimitEvaluationUnavailable" as const)
-        : (organizationAccess?.businessWriteBlockReason ?? null);
+        : organizationAccess.businessWriteBlockReason;
 
     return {
       shopId: shop._id,
@@ -163,22 +157,18 @@ export const getShiftBoardData = managerQuery({
         periodStart: recruitment.periodStart,
         periodEnd: recruitment.periodEnd,
         deadline: recruitment.deadline,
-        // TODO[narrow]: 全deploymentでm040が完走し、
-        // verifyRecruitments.missingShopClosedDatesが0件になった後にfallbackを削除する。
-        shopClosedDates: recruitment.shopClosedDates ?? [],
+        shopClosedDates: recruitment.shopClosedDates,
         status: recruitment.status,
         confirmedAt: recruitment.confirmedAt ?? null,
         reminderScheduledAt: recruitment.reminderScheduledAt ?? null,
         lastReminderSentAt: recruitment.lastReminderSentAt ?? null,
-        draftSavedAt: effectiveDraftSavedAt,
+        draftSavedAt,
       },
       submissionPattern,
       staffs: [
         ...activeShiftTargetStaffs.map((s) => {
           const submission = submissionByStaffId.get(s._id);
-          // firstSubmittedAt がない既存 submission は submittedAt を初回提出時刻として扱う。
-          // TODO[narrow]: 全deploymentでm033が完走し、verifyShiftSubmissionsの全pageが0になった後にsubmittedAt fallbackを削除する。
-          const firstSubmittedAt = submission ? (submission.firstSubmittedAt ?? submission.submittedAt) : null;
+          const firstSubmittedAt = submission?.firstSubmittedAt ?? null;
           return {
             _id: s._id,
             name: s.name,
@@ -186,9 +176,7 @@ export const getShiftBoardData = managerQuery({
             isSubmitted: submittedStaffIds.has(s._id),
             createdAt: s._creationTime,
             wasSubmittedAtDraft:
-              effectiveDraftSavedAt !== null && firstSubmittedAt !== null
-                ? firstSubmittedAt <= effectiveDraftSavedAt
-                : false,
+              draftSavedAt !== null && firstSubmittedAt !== null ? firstSubmittedAt <= draftSavedAt : false,
           };
         }),
         ...historicalRemovedStaffs.map((staff) => ({
@@ -200,8 +188,7 @@ export const getShiftBoardData = managerQuery({
           wasSubmittedAtDraft: false,
         })),
       ],
-      // TODO[narrow]: 全deploymentでm034が完走し、verifyPositionsの全pageが0になった後にBoolean fallbackを削除する。
-      positions: positions.map((p) => ({ _id: p._id, name: p.name, color: p.color, isDefault: Boolean(p.isDefault) })),
+      positions: positions.map((p) => ({ _id: p._id, name: p.name, color: p.color, isDefault: p.isDefault })),
       requestedSlots: shiftSlots.map((r) => ({
         staffId: r.staffId,
         date: r.date,

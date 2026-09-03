@@ -18,6 +18,7 @@ const people: OrganizationPersonView[] = [
     isStaff: true,
     isLineConnected: true,
     lineStatus: "linked_following",
+    hasManagerInvitation: false,
     shopNames: ["本店", "駅前店"],
     shopIds: ["shop-preview-a", "shop-preview-b"],
     canRemoveManagerRole: true,
@@ -31,6 +32,7 @@ const people: OrganizationPersonView[] = [
     isStaff: true,
     isLineConnected: false,
     lineStatus: "unlinked",
+    hasManagerInvitation: false,
     shopNames: ["本店"],
     shopIds: ["shop-preview-a"],
     canRemoveManagerRole: false,
@@ -83,7 +85,7 @@ function StaffReadyPreview({
       />
       <PeopleSection
         people={visiblePeople}
-        peopleUsage={{ current: empty ? 0 : singlePerson ? 1 : 12, max: 50 }}
+        peopleUsage={{ current: empty ? 0 : singlePerson ? 1 : 12, max: 50, pendingInvitations: 0 }}
         onManageManagers={() => {}}
         onOpenUser={() => {}}
         staffOrder={

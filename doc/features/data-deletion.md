@@ -106,7 +106,7 @@ LINE IDの置換値は`deleted:<documentId>`として行IDから決定的に作�
 | --- | --- | --- |
 | `api.organization.queries.getSettings` | `managerQuery` | 組織ID、更新時刻、削除可否と拒否理由を返す |
 | `api.organization.mutations.deleteShop` | `authenticatedMutation` | 店舗を即時に論理削除し、shop scopeのcleanup jobを開始する |
-| `api.organization.mutations.deleteOrganization` | `authenticatedMutation` | 組織を即時停止し、organization scopeのcleanup jobを開始する |
+| `api.organization.mutations.deleteOrganizationForOrganization` | `authenticatedMutation` | canonicalな組織所属を再検証し、組織を即時停止してorganization scopeのcleanup jobを開始する |
 | `api.accountDeletion.queries.getDeletionPreview` | `authenticatedQuery` | 本人の所属と管理者構成から、アカウント削除時の範囲とfingerprintを返す |
 | `POST /account-deletion/request` | HTTP Action | strict再認証と最新fingerprintを確認し、本人所属の終了または組織cleanupとaccount deletion jobを同時に受け付ける |
 | `api.dashboard.queries.getCurrentUser` | `authenticatedQuery` | 削除済みuserへ個人情報を含まない終了状態を返す |

@@ -671,21 +671,6 @@ async function resetManagerScenarioDataForAuth(
       await deleteOrganizationGraph(ctx, organization._id, options);
     }
 
-    const legacyMembershipPages = await Promise.all(
-      ([false, true] as const).map((isDeleted) =>
-        ctx.db
-          .query("shopMembers")
-          .withIndex("by_userId_and_isDeleted", (q) => q.eq("userId", user._id).eq("isDeleted", isDeleted))
-          .collect(),
-      ),
-    );
-    const legacyShopIds = new Set<Id<"shops">>();
-    for (const membership of legacyMembershipPages.flat()) {
-      const shop = await ctx.db.get(membership.shopId);
-      if (shop && !shop.organizationId) legacyShopIds.add(shop._id);
-    }
-    for (const shopId of legacyShopIds) await deleteShopGraph(ctx, shopId, options);
-
     await deleteUserIfScenarioOrphaned(ctx, user._id);
   }
 }
@@ -786,7 +771,7 @@ async function createScenarioUser(
     .filter((q) => q.eq(q.field("isDeleted"), false))
     .first();
   if (current) {
-    if (normalizeScenarioEmail(current.emailNormalized ?? current.email) !== emailNormalized) {
+    if (normalizeScenarioEmail(current.emailNormalized) !== emailNormalized) {
       throw new Error("E2E actor email does not match the existing authenticated user");
     }
     return current._id;
@@ -1545,7 +1530,7 @@ export const getLatestMagicLinkToken = internalQuery({
 
     for (const link of links) {
       if (args.recruitmentId && link.recruitmentId !== args.recruitmentId) continue;
-      if ((link.accessKind ?? "submit") !== args.purpose) continue;
+      if (link.accessKind !== args.purpose) continue;
       const recruitment = await ctx.db.get(link.recruitmentId);
       if (!recruitment || recruitment.isDeleted || !matchesPurpose(recruitment.status, args.purpose)) continue;
       return {

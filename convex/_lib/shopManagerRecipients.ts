@@ -25,19 +25,12 @@ export type ShopManagerUsers = {
   candidateLimitExceeded: boolean;
 };
 
-type CanonicalShopManagerContact = {
+export type ShopManagerContact = {
   kind: "canonical";
   user: Doc<"users">;
   person: Doc<"organizationPeople">;
   organizationId: Id<"organizations">;
 };
-
-type LegacyShopManagerContact = {
-  kind: "legacy";
-  user: Doc<"users">;
-};
-
-export type ShopManagerContact = CanonicalShopManagerContact | LegacyShopManagerContact;
 
 export type ShopManagerContacts = {
   contacts: ShopManagerContact[];
@@ -97,12 +90,12 @@ async function loadCanonicalManagerContacts(
     }),
   );
   return {
-    contacts: contacts.filter((contact): contact is CanonicalShopManagerContact => contact !== null),
+    contacts: contacts.filter((contact): contact is ShopManagerContact => contact !== null),
     candidateLimitExceeded: candidates.length > managerLimit,
   };
 }
 
-/** 店舗の有効な管理者をcanonical所属優先で解決する。 */
+/** 店舗の有効な管理者をcanonical所属から解決する。 */
 export async function loadShopManagerContacts(
   ctx: DbCtx,
   shopId: Id<"shops">,
@@ -110,85 +103,9 @@ export async function loadShopManagerContacts(
 ): Promise<ShopManagerContacts> {
   const shop = await ctx.db.get(shopId);
   if (!shop || shop.isDeleted) return { contacts: [], candidateLimitExceeded: false };
-  const organizationId = shop.organizationId;
-
-  let canonical: ShopManagerContacts = { contacts: [], candidateLimitExceeded: false };
-  if (organizationId) {
-    const organization = await ctx.db.get(organizationId);
-    if (!organization || organization.isDeleted) return canonical;
-    canonical = await loadCanonicalManagerContacts(ctx, organization._id, managerLimit);
-  }
-
-  // TODO[narrow]: 全deploymentでm029が完走し、verifyLegacyShopMembersの全pageが0件になった後に削除する。
-  // m009完了後/m010・m026完了前はuser単位で移行が混在するため、canonical所属がないuserだけを補う。
-  // personだけ先に作成済みなら、旧users snapshotへ戻さずpersonの連絡先を使う。
-  const candidates = await ctx.db
-    .query("shopMembers")
-    .withIndex("by_shopId_and_isDeleted", (q) => q.eq("shopId", shopId).eq("isDeleted", false))
-    .take(managerLimit + 1);
-  const legacyContacts = await Promise.all(
-    candidates.slice(0, managerLimit).map(async (membership) => {
-      const [user, activeMemberships, canonicalMemberships, canonicalPeople] = await Promise.all([
-        ctx.db.get(membership.userId),
-        ctx.db
-          .query("shopMembers")
-          .withIndex("by_userId_and_shopId_and_isDeleted", (q) =>
-            q.eq("userId", membership.userId).eq("shopId", shopId).eq("isDeleted", false),
-          )
-          .take(2),
-        organizationId
-          ? ctx.db
-              .query("organizationMembers")
-              .withIndex("by_userId_and_organizationId", (q) =>
-                q.eq("userId", membership.userId).eq("organizationId", organizationId),
-              )
-              .take(2)
-          : Promise.resolve([]),
-        organizationId
-          ? ctx.db
-              .query("organizationPeople")
-              .withIndex("by_organizationId_and_userId", (q) =>
-                q.eq("organizationId", organizationId).eq("userId", membership.userId),
-              )
-              .take(2)
-          : Promise.resolve([]),
-      ]);
-      if (
-        canonicalMemberships.length > 0 ||
-        canonicalPeople.length > 1 ||
-        activeMemberships.length !== 1 ||
-        activeMemberships[0]._id !== membership._id ||
-        !user ||
-        user.isDeleted ||
-        user.accountDeletionRequestedAt !== undefined
-      ) {
-        return null;
-      }
-      const person = canonicalPeople[0];
-      if (person) {
-        if (
-          !organizationId ||
-          person.organizationId !== organizationId ||
-          person.userId !== membership.userId ||
-          person.status !== "active"
-        ) {
-          return null;
-        }
-        return { kind: "canonical" as const, user, person, organizationId };
-      }
-      return { kind: "legacy" as const, user };
-    }),
-  );
-  const contactsByUserId = new Map(canonical.contacts.map((contact) => [contact.user._id, contact]));
-  for (const contact of legacyContacts) {
-    if (contact) contactsByUserId.set(contact.user._id, contact);
-  }
-  const contacts = [...contactsByUserId.values()];
-  return {
-    contacts: contacts.slice(0, managerLimit),
-    candidateLimitExceeded:
-      canonical.candidateLimitExceeded || candidates.length > managerLimit || contacts.length > managerLimit,
-  };
+  const organization = await ctx.db.get(shop.organizationId);
+  if (!organization || organization.isDeleted) return { contacts: [], candidateLimitExceeded: false };
+  return await loadCanonicalManagerContacts(ctx, organization._id, managerLimit);
 }
 
 export async function loadShopManagerUsers(
@@ -205,7 +122,6 @@ export async function loadShopManagerUsers(
 
 function resolveManagerStaff(contact: ShopManagerContact, activeStaffs: Doc<"staffs">[], staffScanComplete: boolean) {
   if (!staffScanComplete) return null;
-  if (contact.kind !== "canonical") return null;
 
   const candidates = activeStaffs.filter(
     (staff) => staff.organizationPersonId === contact.person._id || staff.userId === contact.user._id,
@@ -277,8 +193,7 @@ export async function loadShopManagerNotificationRecipientStatus(
   const result = await loadShopManagerNotificationContacts(ctx, shopId, managerLimit);
   return {
     activeRecipientCount: result.contacts.filter(({ contact }) => {
-      const email = contact.kind === "canonical" ? contact.person.email : contact.user.email;
-      return email.length > 0;
+      return contact.person.email.length > 0;
     }).length,
     scanComplete: result.scanComplete,
   };
@@ -292,9 +207,7 @@ export async function loadShopManagerNotificationRecipientContacts(
 ): Promise<{ contacts: ShopManagerContact[]; scanComplete: boolean }> {
   const result = await loadShopManagerNotificationContacts(ctx, shopId, managerLimit);
   return {
-    contacts: result.contacts
-      .map(({ contact }) => contact)
-      .filter((contact) => (contact.kind === "canonical" ? contact.person.email : contact.user.email).length > 0),
+    contacts: result.contacts.map(({ contact }) => contact).filter((contact) => contact.person.email.length > 0),
     scanComplete: result.scanComplete,
   };
 }
@@ -316,8 +229,8 @@ export async function loadShopManagerRecipientResolution(
   const entries = await Promise.all(
     contacts.map(async ({ contact, staff }) => {
       const { user } = contact;
-      const name = contact.kind === "canonical" ? contact.person.name : user.name;
-      const email = contact.kind === "canonical" ? contact.person.email : user.email;
+      const name = contact.person.name;
+      const email = contact.person.email;
       if (!email) return null;
 
       const lineRecipient = await resolveStaffLineRecipient(ctx, { staffId: staff._id, shopId });

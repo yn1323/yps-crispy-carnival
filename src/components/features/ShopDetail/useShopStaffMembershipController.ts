@@ -57,7 +57,7 @@ type RetainedReadyRemovalPreview = {
 
 type Options = {
   shopId: ShopId;
-  expectedOrganizationId?: Id<"organizations">;
+  expectedOrganizationId: Id<"organizations">;
   isOpen: boolean;
   onSucceeded: () => void;
 };
@@ -65,7 +65,7 @@ type Options = {
 export function useShopStaffMembershipController({ shopId, expectedOrganizationId, isOpen, onSucceeded }: Options) {
   const membershipData = useQuery(
     api.staff.queries.getOrganizationShopStaffMembershipChange,
-    isOpen ? { shopId, ...(expectedOrganizationId ? { expectedOrganizationId } : {}) } : "skip",
+    isOpen ? { shopId, expectedOrganizationId } : "skip",
   );
   const [previewRequest, setPreviewRequest] = useState<PreviewRequest | null>(null);
   const queriedRemovalPreview = useQuery(
@@ -76,7 +76,7 @@ export function useShopStaffMembershipController({ shopId, expectedOrganizationI
           personIds: previewRequest.personIds,
           expectedMembershipFingerprint: previewRequest.expectedMembershipFingerprint,
           now: previewRequest.now,
-          ...(expectedOrganizationId ? { expectedOrganizationId } : {}),
+          expectedOrganizationId,
         }
       : "skip",
   );
@@ -192,7 +192,7 @@ export function useShopStaffMembershipController({ shopId, expectedOrganizationI
       }
       setPreviewRequest(null);
       try {
-        await changeMemberships({ ...input, ...(expectedOrganizationId ? { expectedOrganizationId } : {}) });
+        await changeMemberships({ ...input, expectedOrganizationId });
         if (isMountedRef.current) setRetainedReadyRemovalPreview(undefined);
         const latest = latestStateRef.current;
         if (isMountedRef.current && latest.isOpen && latest.shopId === input.shopId) {

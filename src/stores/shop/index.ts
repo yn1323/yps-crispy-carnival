@@ -4,7 +4,7 @@ import { normalizeSelectedShop, type SelectedShopType } from "@/src/domains/shop
 
 const rawStorage = createJSONStorage<unknown>();
 type SelectedShopStorageEnvelope = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   selectedShop: SelectedShopType;
 };
 
@@ -12,11 +12,11 @@ const selectedShopStorage = {
   getItem: (key: string, initialValue: SelectedShopType) => {
     const stored = rawStorage.getItem(key, initialValue);
     if (isSelectedShopStorageEnvelope(stored)) return normalizeSelectedShop(stored.selectedShop);
-    return normalizeSelectedShop(stored);
+    return null;
   },
   setItem: (key: string, value: SelectedShopType) =>
     rawStorage.setItem(key, {
-      schemaVersion: 2,
+      schemaVersion: 3,
       selectedShop: value,
     } satisfies SelectedShopStorageEnvelope),
   removeItem: (key: string) => rawStorage.removeItem(key),
@@ -27,7 +27,7 @@ function isSelectedShopStorageEnvelope(value: unknown): value is SelectedShopSto
     typeof value === "object" &&
     value !== null &&
     "schemaVersion" in value &&
-    value.schemaVersion === 2 &&
+    value.schemaVersion === 3 &&
     "selectedShop" in value
   );
 }

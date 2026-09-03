@@ -26,6 +26,7 @@ async function addCountedOrganizationPeople(
         updatedAt: now,
       });
       await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: args.shopId,
         organizationId: args.organizationId,
         organizationPersonId: personId,
@@ -59,7 +60,7 @@ async function overflowOrganizationPeopleProbe(
   });
 }
 
-describe("organization.mutations.updateOrganizationName", () => {
+describe("organization.mutations.updateOrganizationNameForOrganization", () => {
   it("店舗を選択中に事業者名を変更し、同じrequestIdを冪等に扱う", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
@@ -74,8 +75,8 @@ describe("organization.mutations.updateOrganizationName", () => {
     const call = () =>
       t
         .withIdentity({ subject: "organization_name_actor" })
-        .mutation(api.organization.mutations.updateOrganizationName, {
-          shopId: ids.shopId,
+        .mutation(api.organization.mutations.updateOrganizationNameForOrganization, {
+          organizationId: ids.organizationId,
           name: "株式会社 変更後",
           requestId,
         });
@@ -118,8 +119,8 @@ describe("organization.mutations.updateOrganizationName", () => {
     await expect(
       t
         .withIdentity({ subject: "organization_name_remove_suffix" })
-        .mutation(api.organization.mutations.updateOrganizationName, {
-          shopId: ids.shopId,
+        .mutation(api.organization.mutations.updateOrganizationNameForOrganization, {
+          organizationId: ids.organizationId,
           name: "編集対象店舗",
           requestId: "organization-name-remove-suffix",
         }),
@@ -143,15 +144,15 @@ describe("organization.mutations.updateOrganizationName", () => {
     await expect(
       t
         .withIdentity({ subject: "organization_name_removed" })
-        .mutation(api.organization.mutations.updateOrganizationName, {
-          shopId: ids.shopId,
+        .mutation(api.organization.mutations.updateOrganizationNameForOrganization, {
+          organizationId: ids.organizationId,
           name: "変更不可",
           requestId: "organization-name-removed",
         }),
     ).rejects.toThrowError("Not found");
   });
 
-  it("active Freeの利用上限超過中はlegacy入口からの組織名変更を拒否し、副作用を残さない", async () => {
+  it("active Freeの利用上限超過中は組織名変更を拒否し、副作用を残さない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(
       async (ctx) =>
@@ -171,8 +172,8 @@ describe("organization.mutations.updateOrganizationName", () => {
     await expect(
       t
         .withIdentity({ subject: "organization_name_over_limit" })
-        .mutation(api.organization.mutations.updateOrganizationName, {
-          shopId: ids.shopId,
+        .mutation(api.organization.mutations.updateOrganizationNameForOrganization, {
+          organizationId: ids.organizationId,
           name: "変更されない組織名",
           requestId: "organization-name-over-limit",
         }),
@@ -186,7 +187,7 @@ describe("organization.mutations.updateOrganizationName", () => {
     expect(state.audits).toEqual([]);
   });
 
-  it("active Proの利用数を安全に確定できない場合はlegacy入口からの組織名変更を拒否し、副作用を残さない", async () => {
+  it("active Proの利用数を安全に確定できない場合は組織名変更を拒否し、副作用を残さない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(
       async (ctx) =>
@@ -204,8 +205,8 @@ describe("organization.mutations.updateOrganizationName", () => {
     await expect(
       t
         .withIdentity({ subject: "organization_name_usage_unknown" })
-        .mutation(api.organization.mutations.updateOrganizationName, {
-          shopId: ids.shopId,
+        .mutation(api.organization.mutations.updateOrganizationNameForOrganization, {
+          organizationId: ids.organizationId,
           name: "変更されない組織名",
           requestId: "organization-name-usage-unknown",
         }),
@@ -219,7 +220,7 @@ describe("organization.mutations.updateOrganizationName", () => {
     expect(state.audits).toEqual([]);
   });
 
-  it("課金状態が未移行でもactive管理者は組織名を変更できる", async () => {
+  it("課金状態が欠損している場合は組織名変更を拒否し、副作用を残さない", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -238,14 +239,18 @@ describe("organization.mutations.updateOrganizationName", () => {
     await expect(
       t
         .withIdentity({ subject: "organization_name_missing_billing" })
-        .mutation(api.organization.mutations.updateOrganizationName, {
-          shopId: ids.shopId,
+        .mutation(api.organization.mutations.updateOrganizationNameForOrganization, {
+          organizationId: ids.organizationId,
           name: "課金移行中の変更後グループ",
           requestId: "organization-name-missing-billing",
         }),
-    ).resolves.toEqual({ changed: true });
+    ).rejects.toThrowError("組織の契約情報を確認できません。");
 
-    const organization = await t.run(async (ctx) => await ctx.db.get(ids.organizationId));
-    expect(organization?.name).toBe("課金移行中の変更後グループ");
+    const state = await t.run(async (ctx) => ({
+      organization: await ctx.db.get(ids.organizationId),
+      audits: await ctx.db.query("organizationAuditEvents").collect(),
+    }));
+    expect(state.organization?.name).not.toBe("課金移行中の変更後グループ");
+    expect(state.audits).toEqual([]);
   });
 });

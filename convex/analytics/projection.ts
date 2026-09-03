@@ -189,8 +189,8 @@ async function applyShopEvent(
     throw new Error("analytics_projection_shop_organization_mismatch");
   }
   if (existing && existing.updatedAt > occurredAt) return;
-  const inactive = payload.change === "deleted" || payload.change === "archived";
-  const statusChanged = payload.change === "created" || payload.change === "reactivated" || inactive;
+  const inactive = payload.change === "deleted";
+  const statusChanged = payload.change === "created" || inactive;
   const value = {
     organizationId,
     shopId,
@@ -198,7 +198,7 @@ async function applyShopEvent(
     registeredAt: payload.registeredAt ?? existing?.registeredAt ?? occurredAt,
     ...(inactive
       ? { deletedAt: occurredAt }
-      : payload.change === "reactivated" || payload.change === "created"
+      : payload.change === "created"
         ? {}
         : existing?.deletedAt !== undefined
           ? { deletedAt: existing.deletedAt }
@@ -728,19 +728,6 @@ async function applyPlanStatusDeltas(
   }
   const deltas = event.payload.statusDeltas.slice(offset, offset + PROJECTION_PAGE_SIZE);
   for (const delta of deltas) {
-    if (delta.kind === "shop") {
-      const shop = await getShop(ctx, delta.shopId);
-      if (!shop || shop.organizationId !== event.organizationId) {
-        throw new Error("analytics_plan_shop_delta_scope_missing");
-      }
-      if ((shop.statusEffectiveAt ?? Number.NEGATIVE_INFINITY) > event.payload.effectiveAt) continue;
-      await ctx.db.patch(shop._id, {
-        deletedAt: delta.status === "active" ? undefined : event.payload.effectiveAt,
-        statusEffectiveAt: event.payload.effectiveAt,
-        updatedAt: Math.max(shop.updatedAt, event.occurredAt),
-      });
-      continue;
-    }
     await applyManagerMembership(
       ctx,
       event.organizationId,
@@ -909,7 +896,7 @@ async function collectCutoffOpportunities(ctx: MutationCtx, cycle: Doc<"analytic
     });
   }
   for (const submission of submissions) {
-    const firstSubmittedAt = submission.firstSubmittedAt ?? submission.submittedAt;
+    const firstSubmittedAt = submission.firstSubmittedAt;
     if (firstSubmittedAt >= at) continue;
     const current = values.get(submission.staffId);
     values.set(submission.staffId, {

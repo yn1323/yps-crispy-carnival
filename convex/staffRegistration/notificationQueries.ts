@@ -28,7 +28,6 @@ export const getOwnerDigestTargetForShop = internalQuery({
   handler: async (ctx, { shopId }) => {
     const shop = await ctx.db.get(shopId);
     if (!shop || !(await isShopAvailable(ctx, shop))) return null;
-    if (!shop.organizationId) return null;
     const organization = await ctx.db.get(shop.organizationId);
     if (!organization || organization.isDeleted) return null;
 

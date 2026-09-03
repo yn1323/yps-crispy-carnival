@@ -57,7 +57,7 @@ repository artifactでは、複数組織、複数店舗、複数管理者（招�
 | 機能 | 概要 | 主な画面 |
 |---|---|---|
 | [組織課金、複数店舗、複数管理者](organization-billing.md) | 組織単位の契約・利用上限・課金状態の管理。組織名変更、組織削除、管理者招待、プランと支払い | `/manage`、`/manage/organization`、`/manage/billing`、`/manage/managers` |
-| [店舗単位管理者所属の移行互換](manager-shop-membership.md) | 旧`shopMembers`から`organizationMembers`への移行互換と、店舗コンテキスト解決（URL`?shop=`の検証・fallback規則） | `/dashboard` |
+| [組織管理者所属と店舗選択](manager-shop-membership.md) | `organizationMembers`による管理権限と、店舗コンテキスト解決（URL`?shop=`の検証・fallback規則） | `/dashboard` |
 | [店舗設定](shop-settings.md) | 店舗名、希望シフトの提出方法（時間指定・日ごと・勤務区分）、定休日、所属スタッフの一括変更、店舗削除 | `/manage/shops/<shopId>` |
 | [スタッフ詳細](user-detail.md) | 組織人物（`organizationPeople`）を正本に、氏名・シフト連絡先、所属店舗、LINE連携、管理者権限バッジ、組織からの削除を扱う。店舗別設定で通知・通知履歴・シフト対象設定を扱う | `/staff`、`/staff/<personId>`、`/staff/<personId>/shops/<shopId>` |
 
@@ -87,7 +87,7 @@ repository artifactでは、複数組織、複数店舗、複数管理者（招�
 
 | 機能 | 概要 | 主な画面 |
 |---|---|---|
-| [Dashboardの課金案内](trial-ending-dashboard-callout.md) | Dashboardでは課金情報を表示せず、契約確認・変更を「プランと支払い」へ集約する。旧DTOとcomponentはrolling deploy互換として残す | Dashboard、プランと支払い |
+| [Dashboardの課金案内](trial-ending-dashboard-callout.md) | 課金情報と契約操作は「プランと支払い」へ集約し、Dashboardには支払い失敗後の再契約案内だけを表示する | Dashboard、プランと支払い |
 | [店舗・組織削除](data-deletion.md) | 店舗・組織の論理削除と、session・token・LINE連携・未送信通知を止める永続cleanup。業務識別情報（氏名・店舗名など）は保持し、個人情報の完全消去とは扱わない | 店舗詳細、組織設定 |
 | [アカウント削除](account-deletion.md) | strict再認証を経たアカウント削除依頼。所属構成に応じて本人所属の終了または組織全体の終了を行い、cleanup完了後にClerkユーザーを削除する | アカウント設定、`/account-deletion-accepted` |
 
@@ -248,7 +248,7 @@ repository artifactでは、複数組織、複数店舗、複数管理者（招�
 | 募集作成〜提出期限前（`open`） | シフト表で割当編集・下書き保存。確定も日付・状態条件を満たせば可能（提出期限前の確定を禁止する条件はない） | 提出リンクから提出・再提出（提出期限当日23:59 JSTまで）。提出済み内容の確認 |
 | **提出期限後〜確定前（`open`のまま）** | 編集・保存・確定が可能。Dashboardで「要シフト調整」、`/actions`に表示。提出期限の翌日17:00に確定催促が届く | **提出リンクは引き続き開ける（シフト開始日0:00 JSTまで）。提出済みなら閲覧のみ、未提出なら確認ダイアログ後に初回提出だけ可能** |
 | 確定後（`confirmed`） | シフト終了日までは再編集・再確定できる。再確定時は前回通知との差分があるスタッフと、前回の確定通知が未配送のスタッフへ再通知。個別再送も可能 | 確定通知の閲覧リンクから確定シフトを閲覧。リンクを失った場合は再発行画面（登録メール一致で新リンク送付）。提出画面は「提出受付終了」 |
-| シフト終了日の翌日以降 | 保存・確定・再通知は不可。過去のシフトとして閲覧のみ（Dashboardでは店舗filter時に遅延取得） | 確定シフトの個別再送対象外（再送は終了日が今日以降の募集のみ） |
+| シフト終了日の翌日以降 | 保存・確定・再通知は不可。過去のシフトとして閲覧のみ（Dashboardと`/shifts`で遅延取得。`/shifts`の全店舗表示は直近5件） | 確定シフトの個別再送対象外（再送は終了日が今日以降の募集のみ） |
 | 削除済み | 一覧から消える。進行中の通知fanoutは同一transactionで停止 | 提出・閲覧リンクは「募集削除済み」の利用不可状態になる |
 
 未提出スタッフへの割当、休み希望日への割当、希望時間外・希望外区分の割当は、確定を拒否しない「確認事項」として表示する。  

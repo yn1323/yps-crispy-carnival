@@ -92,7 +92,7 @@ export async function requireOrganizationActorForShop(
   const shop = await ctx.db.get(args.shopId);
   if (!shop) throw new ConvexError("Not found");
   const { organizationId } = shop;
-  if (!organizationId || shop.isDeleted) throw new ConvexError("Not found");
+  if (shop.isDeleted) throw new ConvexError("Not found");
   const organization = await ctx.db.get(organizationId);
   if (!organization || organization.isDeleted) throw new ConvexError("Not found");
 

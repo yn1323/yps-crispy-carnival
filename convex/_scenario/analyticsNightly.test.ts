@@ -602,6 +602,7 @@ describe("Analytics夜間バッチシナリオ", () => {
         shopName: "保持境界検証店舗",
       });
       const staffId = await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         organizationId: operational.organizationId,
         organizationPersonId: operational.personId,
         shopId: operational.shopId,

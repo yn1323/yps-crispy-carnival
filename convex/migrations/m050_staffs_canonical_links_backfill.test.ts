@@ -1,12 +1,24 @@
+import type { WithoutSystemFields } from "convex/server";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
-import { createConvexTestWithMigrations, runMigrationToCompletion } from "../_test/migrations.test-helper";
+import type { Doc } from "../_generated/dataModel";
+import {
+  createMigrationHistoryTestWithMigrations,
+  legacyStaffDocumentForMigrationHistory,
+  runMigrationToCompletion,
+} from "../_test/migrations.test-helper";
 
 const migration = internal.migrations.m050_staffs_canonical_links_backfill.migration;
 
+type CurrentOrganizationInsert = WithoutSystemFields<Doc<"organizations">>;
+
+function legacyOrganization(document: unknown): CurrentOrganizationInsert {
+  return document as CurrentOrganizationInsert;
+}
+
 describe("m050 staffs canonical links backfill", () => {
   it("同一組織の一意なactive人物へだけ結び、active staffのprofileだけをcanonical化する", async () => {
-    const t = createConvexTestWithMigrations();
+    const t = createMigrationHistoryTestWithMigrations();
     const seeded = await t.run(async (ctx) => {
       const now = Date.now();
       const userId = await ctx.db.insert("users", {
@@ -17,12 +29,15 @@ describe("m050 staffs canonical links backfill", () => {
         role: "manager",
         isDeleted: false,
       });
-      const organizationId = await ctx.db.insert("organizations", {
-        name: "m050確認組織",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
+      const organizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          name: "m050確認組織",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
       const shopId = await ctx.db.insert("shops", {
         organizationId,
         name: "m050確認店舗",
@@ -40,15 +55,18 @@ describe("m050 staffs canonical links backfill", () => {
         createdAt: now,
         updatedAt: now,
       });
-      const staffId = await ctx.db.insert("staffs", {
-        shopId,
-        userId,
-        name: "旧スタッフ名",
-        email: " Canonical@Example.COM ",
-        emailNormalized: "stale@example.com",
-        excludedFromShift: false,
-        isDeleted: false,
-      });
+      const staffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          userId,
+          name: "旧スタッフ名",
+          email: " Canonical@Example.COM ",
+          emailNormalized: "stale@example.com",
+          excludedFromShift: false,
+          isDeleted: false,
+        }),
+      );
       const conflictId = await ctx.db.insert("organizationMigrationConflicts", {
         organizationId,
         sourceType: "staff",
@@ -127,15 +145,18 @@ describe("m050 staffs canonical links backfill", () => {
   });
 
   it("削除済みstaffは一意なactive人物へ結んでも保存済み表示profileを変更しない", async () => {
-    const t = createConvexTestWithMigrations();
+    const t = createMigrationHistoryTestWithMigrations();
     const seeded = await t.run(async (ctx) => {
       const now = Date.now();
-      const organizationId = await ctx.db.insert("organizations", {
-        name: "m050履歴組織",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
+      const organizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          name: "m050履歴組織",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
       const shopId = await ctx.db.insert("shops", {
         organizationId,
         name: "m050履歴店舗",
@@ -152,14 +173,17 @@ describe("m050 staffs canonical links backfill", () => {
         createdAt: now,
         updatedAt: now,
       });
-      const staffId = await ctx.db.insert("staffs", {
-        shopId,
-        name: "履歴に残す旧氏名",
-        email: " Historical@Example.COM ",
-        emailNormalized: "stored-history@example.com",
-        excludedFromShift: false,
-        isDeleted: true,
-      });
+      const staffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          name: "履歴に残す旧氏名",
+          email: " Historical@Example.COM ",
+          emailNormalized: "stored-history@example.com",
+          excludedFromShift: false,
+          isDeleted: true,
+        }),
+      );
       return { organizationId, personId, staffId };
     });
 
@@ -181,15 +205,18 @@ describe("m050 staffs canonical links backfill", () => {
   });
 
   it("空メールidentityは一意なactive人物が存在してもlinkせず専用conflictへ残す", async () => {
-    const t = createConvexTestWithMigrations();
+    const t = createMigrationHistoryTestWithMigrations();
     const seeded = await t.run(async (ctx) => {
       const now = Date.now();
-      const organizationId = await ctx.db.insert("organizations", {
-        name: "m050空メール組織",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
+      const organizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          name: "m050空メール組織",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
       const shopId = await ctx.db.insert("shops", {
         organizationId,
         name: "m050空メール店舗",
@@ -206,14 +233,17 @@ describe("m050 staffs canonical links backfill", () => {
         createdAt: now,
         updatedAt: now,
       });
-      const staffId = await ctx.db.insert("staffs", {
-        shopId,
-        name: "空メールstaff",
-        email: "   ",
-        emailNormalized: "stale@example.com",
-        excludedFromShift: false,
-        isDeleted: false,
-      });
+      const staffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          name: "空メールstaff",
+          email: "   ",
+          emailNormalized: "stale@example.com",
+          excludedFromShift: false,
+          isDeleted: false,
+        }),
+      );
       return {
         personBefore: await ctx.db.get(personId),
         personId,
@@ -242,15 +272,18 @@ describe("m050 staffs canonical links backfill", () => {
   });
 
   it("同一userの重複人物と別人物membershipをどちらもidentity conflictへ残す", async () => {
-    const t = createConvexTestWithMigrations();
+    const t = createMigrationHistoryTestWithMigrations();
     const seeded = await t.run(async (ctx) => {
       const now = Date.now();
-      const organizationId = await ctx.db.insert("organizations", {
-        name: "m050user曖昧組織",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
+      const organizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          name: "m050user曖昧組織",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
       const shopId = await ctx.db.insert("shops", {
         organizationId,
         name: "m050user曖昧店舗",
@@ -321,24 +354,30 @@ describe("m050 staffs canonical links backfill", () => {
         createdAt: now,
         updatedAt: now,
       });
-      const duplicateStaffId = await ctx.db.insert("staffs", {
-        shopId,
-        userId: duplicateUserId,
-        name: "重複人物staff",
-        email: "duplicate-candidate@example.com",
-        emailNormalized: "duplicate-candidate@example.com",
-        excludedFromShift: false,
-        isDeleted: false,
-      });
-      const membershipStaffId = await ctx.db.insert("staffs", {
-        shopId,
-        userId: membershipUserId,
-        name: "別membership staff",
-        email: "membership-candidate@example.com",
-        emailNormalized: "membership-candidate@example.com",
-        excludedFromShift: false,
-        isDeleted: false,
-      });
+      const duplicateStaffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          userId: duplicateUserId,
+          name: "重複人物staff",
+          email: "duplicate-candidate@example.com",
+          emailNormalized: "duplicate-candidate@example.com",
+          excludedFromShift: false,
+          isDeleted: false,
+        }),
+      );
+      const membershipStaffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          userId: membershipUserId,
+          name: "別membership staff",
+          email: "membership-candidate@example.com",
+          emailNormalized: "membership-candidate@example.com",
+          excludedFromShift: false,
+          isDeleted: false,
+        }),
+      );
       const personIds = [duplicateCandidateId, duplicateOtherId, membershipCandidateId, membershipOtherId];
       return {
         immutableBefore: {
@@ -374,21 +413,27 @@ describe("m050 staffs canonical links backfill", () => {
   });
 
   it("removed人物・user欠損/不一致・同一店舗重複・他tenant候補を推測せずconflictへ残す", async () => {
-    const t = createConvexTestWithMigrations();
+    const t = createMigrationHistoryTestWithMigrations();
     const seeded = await t.run(async (ctx) => {
       const now = Date.now();
-      const organizationId = await ctx.db.insert("organizations", {
-        name: "m050拒否組織",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-      const otherOrganizationId = await ctx.db.insert("organizations", {
-        name: "m050別組織",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
+      const organizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          name: "m050拒否組織",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
+      const otherOrganizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          name: "m050別組織",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
       const shopId = await ctx.db.insert("shops", {
         organizationId,
         name: "m050拒否店舗",
@@ -469,29 +514,35 @@ describe("m050 staffs canonical links backfill", () => {
         isDeleted: false,
       });
       const insertLegacy = async (email: string, userId?: typeof staffUserId) =>
-        await ctx.db.insert("staffs", {
-          shopId,
-          ...(userId ? { userId } : {}),
-          name: email,
-          email,
-          emailNormalized: email,
-          excludedFromShift: false,
-          isDeleted: false,
-        });
+        await ctx.db.insert(
+          "staffs",
+          legacyStaffDocumentForMigrationHistory({
+            shopId,
+            ...(userId ? { userId } : {}),
+            name: email,
+            email,
+            emailNormalized: email,
+            excludedFromShift: false,
+            isDeleted: false,
+          }),
+        );
       const removedStaffId = await insertLegacy("removed@example.com");
       const userMismatchStaffId = await insertLegacy("user-mismatch@example.com", staffUserId);
       const userMissingStaffId = await insertLegacy("user-missing@example.com", staffUserId);
       const duplicateStaffId = await insertLegacy("duplicate@example.com");
       const crossTenantStaffId = await insertLegacy("cross-tenant@example.com");
-      const partialStaffId = await ctx.db.insert("staffs", {
-        shopId,
-        organizationId,
-        name: "partial@example.com",
-        email: "partial@example.com",
-        emailNormalized: "partial@example.com",
-        excludedFromShift: false,
-        isDeleted: false,
-      });
+      const partialStaffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId,
+          organizationId,
+          name: "partial@example.com",
+          email: "partial@example.com",
+          emailNormalized: "partial@example.com",
+          excludedFromShift: false,
+          isDeleted: false,
+        }),
+      );
       return {
         crossTenantStaffId,
         duplicateStaffId,
@@ -550,21 +601,27 @@ describe("m050 staffs canonical links backfill", () => {
   });
 
   it("削除済みshopまたはorganizationからtenantを推測しない", async () => {
-    const t = createConvexTestWithMigrations();
+    const t = createMigrationHistoryTestWithMigrations();
     const seeded = await t.run(async (ctx) => {
       const now = Date.now();
-      const activeOrganizationId = await ctx.db.insert("organizations", {
-        name: "m050有効組織",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-      const deletedOrganizationId = await ctx.db.insert("organizations", {
-        name: "m050削除組織",
-        isDeleted: true,
-        createdAt: now,
-        updatedAt: now,
-      });
+      const activeOrganizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          name: "m050有効組織",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
+      const deletedOrganizationId = await ctx.db.insert(
+        "organizations",
+        legacyOrganization({
+          name: "m050削除組織",
+          isDeleted: true,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
       const deletedShopId = await ctx.db.insert("shops", {
         organizationId: activeOrganizationId,
         name: "m050削除店舗",
@@ -579,18 +636,24 @@ describe("m050 staffs canonical links backfill", () => {
         regularClosedDays: [],
         isDeleted: false,
       });
-      const deletedShopStaffId = await ctx.db.insert("staffs", {
-        shopId: deletedShopId,
-        name: "deleted-shop@example.com",
-        email: "deleted-shop@example.com",
-        isDeleted: false,
-      });
-      const deletedOrganizationStaffId = await ctx.db.insert("staffs", {
-        shopId: deletedOrganizationShopId,
-        name: "deleted-organization@example.com",
-        email: "deleted-organization@example.com",
-        isDeleted: false,
-      });
+      const deletedShopStaffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId: deletedShopId,
+          name: "deleted-shop@example.com",
+          email: "deleted-shop@example.com",
+          isDeleted: false,
+        }),
+      );
+      const deletedOrganizationStaffId = await ctx.db.insert(
+        "staffs",
+        legacyStaffDocumentForMigrationHistory({
+          shopId: deletedOrganizationShopId,
+          name: "deleted-organization@example.com",
+          email: "deleted-organization@example.com",
+          isDeleted: false,
+        }),
+      );
       return { deletedOrganizationStaffId, deletedShopStaffId };
     });
 

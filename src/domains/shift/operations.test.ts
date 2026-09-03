@@ -45,13 +45,8 @@ describe("resolveDefaultPosition", () => {
     expect(resolveDefaultPosition(positions)).toEqual(positions[1]);
   });
 
-  test("旧仮想default、先頭、標準ポジションの順で互換fallbackする", () => {
-    const virtualDefault = { id: "default", name: "旧シフト", color: "#3b82f6" };
-    const first = { id: "position-1", name: "ホール", color: "#0d9488" };
-
-    expect(resolveDefaultPosition([first, virtualDefault])).toEqual(virtualDefault);
-    expect(resolveDefaultPosition([first])).toEqual(first);
-    expect(resolveDefaultPosition([])).toEqual({ id: "default", name: "シフト", color: "#3b82f6" });
+  test("ポジションが空なら標準ポジションを返す", () => {
+    expect(resolveDefaultPosition([])).toEqual({ id: "default", name: "シフト", color: "#3b82f6", isDefault: true });
   });
 });
 

@@ -210,7 +210,11 @@ function ConnectedAppStaff({
         <PeopleSection
           key={shopFilter}
           people={staffOrder.people}
-          peopleUsage={{ current: summary.totalCount, max: summary.maxPeople }}
+          peopleUsage={{
+            current: summary.totalCount,
+            max: summary.maxPeople,
+            pendingInvitations: summary.pendingInvitations,
+          }}
           peopleUsageHasOverflow={summary.totalCountHasOverflow}
           filterResultCount={shopFilter === "all" ? undefined : summary.visibleCount}
           filterResultCountHasOverflow={shopFilter === "all" ? false : summary.visibleCountHasOverflow}

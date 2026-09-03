@@ -5,6 +5,7 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { seedStaff } from "../_test/scenarioBuilders";
 import {
+  getTestOrganizationId,
   seedLegacyShopMembership,
   seedManagerShop,
   seedOrganizationManagerShop,
@@ -58,6 +59,7 @@ async function seedBlockedAnonymousRegistrationUsage(
     });
     if (args.usageState === "overLimit") {
       await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: args.shopId,
         organizationId: args.organizationId,
         organizationPersonId: personId,
@@ -88,10 +90,16 @@ describe("staffRegistration/mutations", () => {
 
     const first = await t
       .withIdentity({ subject: "manager_link" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
     const second = await t
       .withIdentity({ subject: "manager_link" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
 
     expect(first.token).toBe(second.token);
     expect(first.linkId).toBe(second.linkId);
@@ -109,10 +117,12 @@ describe("staffRegistration/mutations", () => {
     );
     const asManager = t.withIdentity({ subject: "registration_link_rotation_manager" });
     const original = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
     });
 
     const rotated = await asManager.mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
       expectedLinkId: original.linkId,
     });
@@ -163,6 +173,7 @@ describe("staffRegistration/mutations", () => {
     ).resolves.toMatchObject({ status: "ok" });
 
     const retried = await asManager.mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
       expectedLinkId: original.linkId,
     });
@@ -193,6 +204,7 @@ describe("staffRegistration/mutations", () => {
     );
     const asManager = t.withIdentity({ subject: "registration_link_rotation_denied_manager" });
     const original = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
     });
     const otherLinkId = await t.run(async (ctx) => {
@@ -206,12 +218,14 @@ describe("staffRegistration/mutations", () => {
 
     await expect(
       t.mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
         expectedLinkId: original.linkId,
       }),
     ).rejects.toThrow("Unauthenticated");
     await expect(
       asManager.mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
         expectedLinkId: otherLinkId,
       }),
@@ -220,6 +234,7 @@ describe("staffRegistration/mutations", () => {
     await t.run(async (ctx) => await ctx.db.patch(seeded.memberId, { status: "removed", updatedAt: Date.now() }));
     await expect(
       asManager.mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
         expectedLinkId: original.linkId,
       }),
@@ -262,7 +277,10 @@ describe("staffRegistration/mutations", () => {
     const asManager = t.withIdentity({ subject: "registration_link_history_manager" });
 
     await expect(
-      asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId }),
+      asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      }),
     ).resolves.toMatchObject({ linkId: activeLinkId, token: "active-registration-link-after-history" });
 
     const duplicateLinkId = await t.run(
@@ -274,10 +292,14 @@ describe("staffRegistration/mutations", () => {
         }),
     );
     await expect(
-      asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId }),
+      asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      }),
     ).rejects.toThrow("登録リンクの状態を確認できません");
     await expect(
       asManager.mutation(api.staffRegistration.mutations.rotateShopRegistrationLink, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
         shopId,
         expectedLinkId: activeLinkId,
       }),
@@ -300,7 +322,10 @@ describe("staffRegistration/mutations", () => {
     });
     const link = await t
       .withIdentity({ subject: "manager_submit" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
 
     await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
@@ -311,7 +336,10 @@ describe("staffRegistration/mutations", () => {
 
     const requests = await t
       .withIdentity({ subject: "manager_submit" })
-      .query(api.staffRegistration.queries.getPendingRequests, { shopId });
+      .query(api.staffRegistration.queries.getPendingRequests, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
     expect(requests).toMatchObject([{ name: "申請スタッフ", email: "request@example.com" }]);
   });
 
@@ -398,7 +426,10 @@ describe("staffRegistration/mutations", () => {
     });
     const link = await t
       .withIdentity({ subject: "manager_validation" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
 
     await expect(
       t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
@@ -463,7 +494,10 @@ describe("staffRegistration/mutations", () => {
       );
       const link = await t
         .withIdentity({ subject: `registration_${usageState}_submit_manager` })
-        .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId: seeded.shopId });
+        .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
+          shopId: seeded.shopId,
+        });
 
       await expect(
         t.mutation(internal.staffRegistration.mutations.checkSubmissionRateLimit, {
@@ -523,6 +557,57 @@ describe("staffRegistration/mutations", () => {
     },
   );
 
+  it("組織の契約情報が欠損している場合、発行済みlinkの事前確認と最終writeを副作用なしで拒否する", async () => {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(
+      async (ctx) =>
+        await seedOrganizationManagerShop(ctx, {
+          subject: "registration_missing_billing_submit_manager",
+          plan: "free",
+        }),
+    );
+    const link = await t
+      .withIdentity({ subject: "registration_missing_billing_submit_manager" })
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+        expectedOrganizationId: seeded.organizationId,
+        shopId: seeded.shopId,
+      });
+
+    await t.run(async (ctx) => {
+      const billingState = await ctx.db
+        .query("organizationBillingStates")
+        .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
+        .unique();
+      if (!billingState) throw new Error("billing state not found");
+      await ctx.db.delete(billingState._id);
+    });
+
+    await expect(
+      t.mutation(internal.staffRegistration.mutations.checkSubmissionRateLimit, {
+        token: link.token,
+        emailKey: "missing-billing-email",
+        linkKey: "missing-billing-link",
+      }),
+    ).resolves.toEqual({ status: "unavailable" });
+    await expect(
+      t.mutation(internal.staffRegistration.mutations.submitRegistrationRequestFromHttp, {
+        token: link.token,
+        name: "契約情報欠損後の申請者",
+        email: "missing-billing-request@example.com",
+        acceptedLegal: true,
+      }),
+    ).resolves.toEqual({ status: "unavailable" });
+
+    const state = await t.run(async (ctx) => ({
+      requests: await ctx.db.query("staffRegistrationRequests").collect(),
+      audits: await ctx.db.query("organizationAuditEvents").collect(),
+      outbox: await ctx.db.query("notificationOutbox").collect(),
+      scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
+      rateLimitRows: await ctx.db.query("rateLimits").collect(),
+    }));
+    expect(state).toEqual({ requests: [], audits: [], outbox: [], scheduled: [], rateLimitRows: [] });
+  });
+
   it("新規・申請済み・登録済みの公開応答を統一し、重複時は副作用を作らない", async () => {
     const t = convexTest(schema, modules);
     const shopId = await t.run(async (ctx) => {
@@ -530,17 +615,19 @@ describe("staffRegistration/mutations", () => {
         subject: "manager_duplicate",
         email: "manager-duplicate@example.com",
       });
-      const existingStaffId = await seedStaff(ctx, {
+      await seedStaff(ctx, {
         shopId: seeded.shopId,
         name: "既存スタッフ",
         email: "Existing@Example.com",
       });
-      await ctx.db.patch(existingStaffId, { emailNormalized: undefined });
       return seeded.shopId;
     });
     const link = await t
       .withIdentity({ subject: "manager_duplicate" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
 
     const newResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
@@ -616,7 +703,10 @@ describe("staffRegistration/mutations", () => {
     });
     const link = await t
       .withIdentity({ subject: "manager_pending_cap" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
 
     const beforeCap = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
@@ -662,7 +752,10 @@ describe("staffRegistration/mutations", () => {
     });
     const link = await t
       .withIdentity({ subject: "manager_manager" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId: managerShopId });
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+        expectedOrganizationId: await getTestOrganizationId(t, managerShopId),
+        shopId: managerShopId,
+      });
     const submitResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "承認待ちスタッフ",
@@ -674,17 +767,22 @@ describe("staffRegistration/mutations", () => {
 
     const otherShopRequests = await t
       .withIdentity({ subject: "manager_other" })
-      .query(api.staffRegistration.queries.getPendingRequests, { shopId: otherShopId });
+      .query(api.staffRegistration.queries.getPendingRequests, {
+        expectedOrganizationId: await getTestOrganizationId(t, otherShopId),
+        shopId: otherShopId,
+      });
     expect(otherShopRequests).toEqual([]);
     await expect(
       t.withIdentity({ subject: "manager_other" }).mutation(api.staffRegistration.mutations.approveRequest, {
         requestId,
+        expectedOrganizationId: await getTestOrganizationId(t, otherShopId),
         shopId: otherShopId,
       }),
     ).rejects.toThrow("Not found");
     await expect(
       t.withIdentity({ subject: "manager_other" }).mutation(api.staffRegistration.mutations.rejectRequest, {
         requestId,
+        expectedOrganizationId: await getTestOrganizationId(t, otherShopId),
         shopId: otherShopId,
       }),
     ).rejects.toThrow("Not found");
@@ -702,6 +800,7 @@ describe("staffRegistration/mutations", () => {
     );
     const asManager = t.withIdentity({ subject: `registration_${blockedState}_approve_manager` });
     const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
     });
     const submitted = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
@@ -720,6 +819,7 @@ describe("staffRegistration/mutations", () => {
     await expect(
       asManager.mutation(api.staffRegistration.mutations.approveRequest, {
         requestId,
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
       }),
     ).rejects.toThrow();
@@ -752,6 +852,7 @@ describe("staffRegistration/mutations", () => {
     );
     const asManager = t.withIdentity({ subject: "registration_deleted_shop_approve_manager" });
     const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
     });
     await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
@@ -766,6 +867,7 @@ describe("staffRegistration/mutations", () => {
     await expect(
       asManager.mutation(api.staffRegistration.mutations.approveRequest, {
         requestId,
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
       }),
     ).rejects.toThrow("Not found");
@@ -787,18 +889,19 @@ describe("staffRegistration/mutations", () => {
     expect(state.scheduled).toEqual([]);
   });
 
-  it("削除済み店舗とは別の非削除所属店舗を指定すると、その店舗の承認待ち申請を返す", async () => {
+  it("削除済みlegacy所属が残っていても、別のcanonical所属店舗の承認待ち申請を返す", async () => {
     const t = convexTest(schema, modules);
-    const remainingShopId = await t.run(async (ctx) => {
-      const userId = await seedUser(ctx, "manager_deleted_first", "manager-deleted-first@example.com");
+    const seeded = await t.run(async (ctx) => {
+      const canonical = await seedOrganizationManagerShop(ctx, {
+        subject: "manager_deleted_first",
+        plan: "standard",
+      });
       const deletedShopId = await seedShop(ctx, "削除済み店舗");
       await ctx.db.patch(deletedShopId, { isDeleted: true });
-      await seedLegacyShopMembership(ctx, { userId, shopId: deletedShopId });
+      await seedLegacyShopMembership(ctx, { userId: canonical.userId, shopId: deletedShopId });
 
-      const remainingShopId = await seedShop(ctx, "残っている店舗");
-      await seedLegacyShopMembership(ctx, { userId, shopId: remainingShopId });
       await ctx.db.insert("staffRegistrationRequests", {
-        shopId: remainingShopId,
+        shopId: canonical.shopId,
         name: "承認待ちスタッフ",
         email: "pending-remaining@example.com",
         emailNormalized: "pending-remaining@example.com",
@@ -810,12 +913,15 @@ describe("staffRegistration/mutations", () => {
         consentedAt: Date.now(),
         createdAt: Date.now(),
       });
-      return remainingShopId;
+      return canonical;
     });
 
     const requests = await t
       .withIdentity({ subject: "manager_deleted_first" })
-      .query(api.staffRegistration.queries.getPendingRequests, { shopId: remainingShopId });
+      .query(api.staffRegistration.queries.getPendingRequests, {
+        expectedOrganizationId: seeded.organizationId,
+        shopId: seeded.shopId,
+      });
 
     expect(requests).toMatchObject([{ name: "承認待ちスタッフ", email: "pending-remaining@example.com" }]);
   });
@@ -838,7 +944,10 @@ describe("staffRegistration/mutations", () => {
     });
     const link = await t
       .withIdentity({ subject: "manager_approve" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
     const submitResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "承認スタッフ",
@@ -850,7 +959,11 @@ describe("staffRegistration/mutations", () => {
 
     const { staffId } = await t
       .withIdentity({ subject: "manager_approve" })
-      .mutation(api.staffRegistration.mutations.approveRequest, { requestId, shopId });
+      .mutation(api.staffRegistration.mutations.approveRequest, {
+        requestId,
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
 
     const state = await t.run(async (ctx) => {
       const staff = await ctx.db.get(staffId);
@@ -939,7 +1052,10 @@ describe("staffRegistration/mutations", () => {
       });
     });
     const asManager = t.withIdentity({ subject: "organization_approve_manager" });
-    const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
+    const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, shopId),
+      shopId,
+    });
     const submitResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "承認対象スタッフ",
@@ -951,11 +1067,13 @@ describe("staffRegistration/mutations", () => {
 
     const { staffId } = await asManager.mutation(api.staffRegistration.mutations.approveRequest, {
       requestId,
+      expectedOrganizationId: await getTestOrganizationId(t, shopId),
       shopId,
     });
     await expect(
       asManager.mutation(api.staffRegistration.mutations.approveRequest, {
         requestId,
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
         shopId,
       }),
     ).rejects.toThrow("Not found");
@@ -1089,6 +1207,7 @@ describe("staffRegistration/mutations", () => {
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       const sessionId = await ctx.db.insert("sessions", {
+        accessKind: "submit",
         sessionToken: "registration-safe-reactivation-session",
         staffId: oldStaffId,
         shopId: organization.shopId,
@@ -1097,6 +1216,7 @@ describe("staffRegistration/mutations", () => {
         revokedAt,
       });
       const magicLinkId = await ctx.db.insert("magicLinks", {
+        accessKind: "submit",
         token: "registration-safe-reactivation-magic",
         staffId: oldStaffId,
         shopId: organization.shopId,
@@ -1149,6 +1269,7 @@ describe("staffRegistration/mutations", () => {
     });
     const actor = t.withIdentity({ subject: "registration_safe_reactivation_manager" });
     const link = await actor.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
     });
     await expect(
@@ -1163,6 +1284,7 @@ describe("staffRegistration/mutations", () => {
 
     const { staffId } = await actor.mutation(api.staffRegistration.mutations.approveRequest, {
       requestId,
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
     });
 
@@ -1303,6 +1425,7 @@ describe("staffRegistration/mutations", () => {
           updatedAt: now,
         });
         await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: organization.shopId,
           organizationId: organization.organizationId,
           organizationPersonId: personId,
@@ -1330,6 +1453,7 @@ describe("staffRegistration/mutations", () => {
     });
     const asManager = t.withIdentity({ subject: "registration_reserved_invitation_manager" });
     const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
     });
     const submitted = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
@@ -1343,6 +1467,7 @@ describe("staffRegistration/mutations", () => {
 
     const { staffId } = await asManager.mutation(api.staffRegistration.mutations.approveRequest, {
       requestId,
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
     });
 
@@ -1416,6 +1541,7 @@ describe("staffRegistration/mutations", () => {
           updatedAt: now,
         });
         await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: organization.shopId,
           organizationId: organization.organizationId,
           organizationPersonId: personId,
@@ -1443,6 +1569,7 @@ describe("staffRegistration/mutations", () => {
     });
     const asManager = t.withIdentity({ subject: "registration_reservation_rollback_manager" });
     const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
     });
     const submitted = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
@@ -1457,6 +1584,7 @@ describe("staffRegistration/mutations", () => {
     await expect(
       asManager.mutation(api.staffRegistration.mutations.approveRequest, {
         requestId,
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
       }),
     ).rejects.toThrow("利用人数が現在のプラン上限を超えます。\n現在25名、上限25名です。");
@@ -1506,6 +1634,7 @@ describe("staffRegistration/mutations", () => {
         updatedAt: now,
       });
       await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: organization.shopId,
         organizationId: organization.organizationId,
         organizationPersonId: existingPersonId,
@@ -1524,6 +1653,7 @@ describe("staffRegistration/mutations", () => {
     });
     const asManager = t.withIdentity({ subject: "registration_reuse_manager" });
     const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.secondShopId),
       shopId: seeded.secondShopId,
     });
     const submitResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
@@ -1537,6 +1667,7 @@ describe("staffRegistration/mutations", () => {
 
     const { staffId } = await asManager.mutation(api.staffRegistration.mutations.approveRequest, {
       requestId,
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.secondShopId),
       shopId: seeded.secondShopId,
     });
 
@@ -1599,6 +1730,7 @@ describe("staffRegistration/mutations", () => {
         updatedAt: now,
       });
       const sourceStaffId = await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: organization.shopId,
         organizationId: organization.organizationId,
         organizationPersonId: personId,
@@ -1623,6 +1755,7 @@ describe("staffRegistration/mutations", () => {
       requestId: "registration-retained-remove-last",
     });
     const link = await actor.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.secondShopId),
       shopId: seeded.secondShopId,
     });
     await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
@@ -1634,6 +1767,7 @@ describe("staffRegistration/mutations", () => {
     const requestId = await getPendingRequestId(t, seeded.secondShopId, "registration-retained-readd@example.com");
     const { staffId } = await actor.mutation(api.staffRegistration.mutations.approveRequest, {
       requestId,
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.secondShopId),
       shopId: seeded.secondShopId,
     });
 
@@ -1710,6 +1844,7 @@ describe("staffRegistration/mutations", () => {
         updatedAt: now,
       });
       const sourceStaffId = await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: organization.shopId,
         organizationId: organization.organizationId,
         organizationPersonId: personId,
@@ -1729,6 +1864,7 @@ describe("staffRegistration/mutations", () => {
     });
     const actor = t.withIdentity({ subject: "registration_generation_mismatch_manager" });
     const link = await actor.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.secondShopId),
       shopId: seeded.secondShopId,
     });
     await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
@@ -1742,6 +1878,7 @@ describe("staffRegistration/mutations", () => {
     await expect(
       actor.mutation(api.staffRegistration.mutations.approveRequest, {
         requestId,
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.secondShopId),
         shopId: seeded.secondShopId,
       }),
     ).rejects.toThrow("スタッフのLINE連携状態を確認できません。");
@@ -1803,6 +1940,7 @@ describe("staffRegistration/mutations", () => {
         updatedAt: now,
       });
       const oldStaffId = await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: organization.shopId,
         organizationId: organization.organizationId,
         organizationPersonId: oldPersonId,
@@ -1816,6 +1954,7 @@ describe("staffRegistration/mutations", () => {
     });
     const actor = t.withIdentity({ subject: seeded.subject });
     const link = await actor.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
     });
     await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
@@ -1827,6 +1966,7 @@ describe("staffRegistration/mutations", () => {
     const requestId = await getPendingRequestId(t, seeded.shopId, seeded.email);
     const { staffId } = await actor.mutation(api.staffRegistration.mutations.approveRequest, {
       requestId,
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
     });
 
@@ -1903,6 +2043,7 @@ describe("staffRegistration/mutations", () => {
         });
         if (state === "activeStaff") {
           await ctx.db.insert("staffs", {
+            excludedFromShift: false,
             shopId: organization.shopId,
             organizationId: organization.organizationId,
             organizationPersonId: removedPersonId,
@@ -1933,6 +2074,7 @@ describe("staffRegistration/mutations", () => {
       });
       const actor = t.withIdentity({ subject: seeded.subject });
       const link = await actor.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
       });
       await expect(
@@ -1996,6 +2138,7 @@ describe("staffRegistration/mutations", () => {
       await expect(
         actor.mutation(api.staffRegistration.mutations.approveRequest, {
           requestId,
+          expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
           shopId: seeded.shopId,
         }),
       ).rejects.toThrow("この申請は現在承認できません。不要な申請は却下できます。");
@@ -2031,6 +2174,7 @@ describe("staffRegistration/mutations", () => {
           updatedAt: now,
         });
         await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: organization.shopId,
           organizationId: organization.organizationId,
           organizationPersonId: personId,
@@ -2044,6 +2188,7 @@ describe("staffRegistration/mutations", () => {
     });
     const asManager = t.withIdentity({ subject: "registration_capacity_manager" });
     const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
     });
     const submitResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
@@ -2058,6 +2203,7 @@ describe("staffRegistration/mutations", () => {
     await expect(
       asManager.mutation(api.staffRegistration.mutations.approveRequest, {
         requestId,
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
       }),
     ).rejects.toThrow("利用人数が現在のプラン上限を超えます。\n現在5名、上限5名です。");
@@ -2102,6 +2248,7 @@ describe("staffRegistration/mutations", () => {
           updatedAt: now,
         });
         await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: organization.shopId,
           organizationId: organization.organizationId,
           organizationPersonId: personId,
@@ -2128,6 +2275,7 @@ describe("staffRegistration/mutations", () => {
     });
     const asManager = t.withIdentity({ subject: "scheduled_pro_registration_manager" });
     const link = await asManager.mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+      expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
       shopId: seeded.shopId,
     });
     const submitResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
@@ -2142,6 +2290,7 @@ describe("staffRegistration/mutations", () => {
     await expect(
       asManager.mutation(api.staffRegistration.mutations.approveRequest, {
         requestId,
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
       }),
     ).resolves.toMatchObject({ staffId: expect.any(String) });
@@ -2170,7 +2319,10 @@ describe("staffRegistration/mutations", () => {
     });
     const link = await t
       .withIdentity({ subject: "manager_reject" })
-      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, { shopId });
+      .mutation(api.staffRegistration.mutations.ensureShopRegistrationLink, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
     const submitResult = await t.mutation(internal.staffRegistration.mutations.submitRegistrationRequest, {
       token: link.token,
       name: "却下スタッフ",
@@ -2182,6 +2334,7 @@ describe("staffRegistration/mutations", () => {
 
     await t.withIdentity({ subject: "manager_reject" }).mutation(api.staffRegistration.mutations.rejectRequest, {
       requestId,
+      expectedOrganizationId: await getTestOrganizationId(t, shopId),
       shopId,
     });
 
@@ -2232,6 +2385,7 @@ describe("staffRegistration/mutations", () => {
 
     await expect(
       asManager.mutation(api.staffRegistration.mutations.approveRequest, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         requestId: ids.requestId,
       }),
@@ -2243,6 +2397,7 @@ describe("staffRegistration/mutations", () => {
 
     await expect(
       asManager.mutation(api.staffRegistration.mutations.rejectRequest, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
         requestId: ids.requestId,
       }),

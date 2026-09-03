@@ -27,9 +27,11 @@ const shop: ShopDetailData = {
   name: "渋谷店",
   regularClosedDays: ["sun"],
   submissionPattern: { kind: "dateOnly" },
+  managerNotificationRecipientStatus: "available",
   canUpdateSettings: true,
   canDelete: true,
 };
+const organizationId = "organization-a" as Id<"organizations">;
 
 beforeEach(() => {
   mocks.mutation.mockReset();
@@ -40,7 +42,6 @@ beforeEach(() => {
 describe("店舗詳細の設定更新", () => {
   it("app導線ではexpected organizationをmutationへ渡す", async () => {
     mocks.mutation.mockResolvedValue(null);
-    const organizationId = "organization-a" as Id<"organizations">;
     const { result } = renderHook(() => useShopSettingsController(shop, organizationId));
 
     await act(async () => {
@@ -62,7 +63,7 @@ describe("店舗詳細の設定更新", () => {
 
   it("表示中の対象店舗IDと一括編集した設定をmutationへ渡す", async () => {
     mocks.mutation.mockResolvedValue(null);
-    const { result } = renderHook(() => useShopSettingsController(shop));
+    const { result } = renderHook(() => useShopSettingsController(shop, organizationId));
 
     act(() => result.current.dialog.open());
     await act(async () => {
@@ -75,6 +76,7 @@ describe("店舗詳細の設定更新", () => {
 
     expect(mocks.mutation).toHaveBeenCalledExactlyOnceWith({
       shopId: "shop-target",
+      expectedOrganizationId: organizationId,
       shopName: "新しい渋谷店",
       regularClosedDays: ["mon"],
       submissionPattern: { kind: "time", startTime: "10:00", endTime: "22:00" },
@@ -84,9 +86,10 @@ describe("店舗詳細の設定更新", () => {
   });
 
   it("更新権限を失った後は古いcallbackからmutationを呼ばない", async () => {
-    const { result, rerender } = renderHook(({ currentShop }) => useShopSettingsController(currentShop), {
-      initialProps: { currentShop: shop },
-    });
+    const { result, rerender } = renderHook(
+      ({ currentShop }) => useShopSettingsController(currentShop, organizationId),
+      { initialProps: { currentShop: shop } },
+    );
     const staleUpdate = result.current.updateSettings;
 
     act(() => rerender({ currentShop: { ...shop, canUpdateSettings: false } }));
@@ -109,7 +112,7 @@ describe("店舗詳細の設定更新", () => {
           resolveMutation = () => resolve(null);
         }),
     );
-    const { result } = renderHook(() => useShopSettingsController(shop));
+    const { result } = renderHook(() => useShopSettingsController(shop, organizationId));
 
     act(() => {
       void result.current.updateSettings({
@@ -128,6 +131,7 @@ describe("店舗詳細の設定更新", () => {
     expect(result.current.dialog.isUpdating).toBe(true);
     expect(mocks.mutation).toHaveBeenCalledWith({
       shopId: "shop-target",
+      expectedOrganizationId: organizationId,
       shopName: "一件目",
       regularClosedDays: [],
       submissionPattern: { kind: "dateOnly" },
@@ -139,7 +143,7 @@ describe("店舗詳細の設定更新", () => {
   it("更新失敗をToastへ渡し、編集Dialogを開いたままにする", async () => {
     const error = new Error("network error");
     mocks.mutation.mockRejectedValue(error);
-    const { result } = renderHook(() => useShopSettingsController(shop));
+    const { result } = renderHook(() => useShopSettingsController(shop, organizationId));
 
     act(() => result.current.dialog.open());
     await act(async () => {

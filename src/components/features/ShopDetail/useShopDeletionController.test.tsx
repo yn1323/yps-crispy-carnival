@@ -2,6 +2,7 @@
 
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Id } from "@/convex/_generated/dataModel";
 import type { ShopDetailData } from "./types";
 
 const mocks = vi.hoisted(() => ({
@@ -39,9 +40,11 @@ const shop: ShopDetailData = {
   name: "渋谷店",
   regularClosedDays: ["sun"],
   submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+  managerNotificationRecipientStatus: "available",
   canUpdateSettings: true,
   canDelete: true,
 };
+const organizationId = "organization-1" as Id<"organizations">;
 
 beforeEach(() => {
   mocks.mutation.mockReset();
@@ -59,7 +62,8 @@ describe("店舗詳細の削除操作", () => {
   it("削除権限を失った後の古い確定操作を拒否する", async () => {
     const onDeleted = vi.fn();
     const { result, rerender } = renderHook(
-      ({ currentShop }) => useShopDeletionController({ shop: currentShop, onDeleted }),
+      ({ currentShop }) =>
+        useShopDeletionController({ shop: currentShop, onDeleted, expectedOrganizationId: organizationId }),
       { initialProps: { currentShop: shop } },
     );
     const staleDelete = result.current.deleteShop;
@@ -82,7 +86,9 @@ describe("店舗詳細の削除操作", () => {
         }),
     );
     const onDeleted = vi.fn();
-    const { result } = renderHook(() => useShopDeletionController({ shop, onDeleted }));
+    const { result } = renderHook(() =>
+      useShopDeletionController({ shop, onDeleted, expectedOrganizationId: organizationId }),
+    );
     let firstDelete: Promise<boolean> | undefined;
     let secondDelete: Promise<boolean> | undefined;
 
@@ -96,6 +102,7 @@ describe("店舗詳細の削除操作", () => {
         shopId: shop.id,
         confirmShopId: shop.id,
         requestId: "request-1",
+        expectedOrganizationId: organizationId,
       }),
     );
     await expect(secondDelete).resolves.toBe(false);
@@ -112,7 +119,9 @@ describe("店舗詳細の削除操作", () => {
     const error = new Error("network error");
     mocks.mutation.mockRejectedValueOnce(error).mockResolvedValueOnce({ changed: true, accepted: true });
     const onDeleted = vi.fn();
-    const { result } = renderHook(() => useShopDeletionController({ shop, onDeleted }));
+    const { result } = renderHook(() =>
+      useShopDeletionController({ shop, onDeleted, expectedOrganizationId: organizationId }),
+    );
 
     await act(async () => {
       await expect(result.current.deleteShop()).resolves.toBe(false);
@@ -126,11 +135,13 @@ describe("店舗詳細の削除操作", () => {
       shopId: shop.id,
       confirmShopId: shop.id,
       requestId: "request-1",
+      expectedOrganizationId: organizationId,
     });
     expect(mocks.mutation).toHaveBeenNthCalledWith(2, {
       shopId: shop.id,
       confirmShopId: shop.id,
       requestId: "request-1",
+      expectedOrganizationId: organizationId,
     });
     expect(crypto.randomUUID).toHaveBeenCalledTimes(1);
     expect(mocks.showErrorToast).toHaveBeenCalledExactlyOnceWith(error);

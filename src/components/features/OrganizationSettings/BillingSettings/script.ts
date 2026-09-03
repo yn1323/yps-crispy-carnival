@@ -118,9 +118,8 @@ export function resolveBillingPlanAction(
       if (targetPlan === "standard") return { kind: "schedulePlanChange", targetPlan };
       return targetPlan === "free" ? { kind: "scheduleServiceStop", targetPlan } : null;
     case "pendingActivation":
-      return billing.currentPlan === null && isPaidPlan(targetPlan) ? { kind: "startPaidPlan", targetPlan } : null;
+      return billing.currentPlan === "free" && isPaidPlan(targetPlan) ? { kind: "startPaidPlan", targetPlan } : null;
     case "initialPaymentPending":
-    case "migrationPending":
       return null;
   }
 }
@@ -188,7 +187,7 @@ export function getRequiredReductions(
   billing: OrganizationBillingView,
   targetPlan?: BillingProductPlan,
 ): BillingRequiredReductions {
-  if (!targetPlan && billing.requiredReductions) return billing.requiredReductions;
+  if (!targetPlan) return billing.requiredReductions;
   const limits = targetPlan ? ORGANIZATION_PLAN_LIMITS[targetPlan] : undefined;
   return {
     people: Math.max(0, billing.peopleUsage.current - (limits?.maxPeople ?? billing.peopleUsage.max)),

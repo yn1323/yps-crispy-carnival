@@ -1,4 +1,4 @@
-# 店舗単位管理者所属の移行互換
+# 組織管理者所属と店舗選択
 
 この文書名は既存リンクを維持するために残している。
 現在の組織所属と店舗選択は[組織課金、複数店舗、複数管理者](organization-billing.md)を参照する。
@@ -27,17 +27,15 @@
 - URLとlocalStorageは認可根拠にせず、候補照合後の店舗だけを管理者向けhookへ渡し、管理者APIでも所属と店舗境界を再検証する。
 - 購読更新で保存済み店舗の管理権限が消えた場合は、選択状態を正規化するまで旧店舗の子画面を描画しない。
 
-## 移行互換
+## 旧所属データの扱い
 
 - 新しい管理者所属は`organizationMembers`だけへ保存し、`shopMembers`への互換書き込みは行わない。
-- `shopMembers`は、canonical所属がまだない利用者を移行中も締め出さないためのread fallbackとしてだけ使う。canonical所属が1件でもあれば、状態にかかわらず旧所属を認可根拠にしない。
+- 管理者APIは`shopMembers`をread fallbackや認可根拠に使わない。
 - `m029_shop_members_narrow_prep`は、canonical所属と一意に対応するactiveな旧所属を論理削除する。  権限を変えるため固定seriesには含めず、dry run、m025からm028のstatus、readiness、未解消conflict 0件を確認したdeploymentだけで専用runnerを明示実行する。  未移行または対応が曖昧な旧所属は削除せず、migration conflictへ記録する。
-- 管理者権限の解除では対応する旧`shopMembers`も削除済みにし、legacy fallbackから管理権限が復活しないようにする。
 - `m013_former_managers_remove_manager_access`と`m014_removed_organization_members_delete_legacy_shop_members`は、既存の権限解除済み管理者にも同じ権限失効を適用する。
-- `shops.organizationId`はWiden期間中だけoptionalである。  対象deploymentで`m009_shops_to_organizations`の完走と互換readの安定を確認した後にだけNarrowする。
-- 店舗のライフサイクルは`isDeleted: false`から`true`への論理削除だけで表す。  旧`shops.operatingStatus`は通常処理で読み書きせず、runtime反映前の全deployment export検証、専用runnerによる`m048_shops_unset_operating_status`、post-readinessが完了してからschema、index、legacy decoderをNarrowする。
-- 店舗一覧のcanonical APIは`listOrganizationShops`とする。  旧`listOrganizationActiveShops`はrolling client互換としてPR2まで同じ非削除店舗DTOを返す。
-- 固定seriesへの登録から実環境でのmigration完了、Narrow、旧所属データの物理削除を推測しない。対象deploymentの確認結果は[リリース状態](../manual/release-status.md)を参照する。
+- `shops.organizationId`はrequiredであり、店舗のライフサイクルは`isDeleted: false`から`true`への論理削除だけで表す。  旧`shops.operatingStatus`、関連index、旧店舗一覧APIは現行schemaとruntimeから削除済みである。
+- `shopMembers`の物理rowは権限履歴として残る。  table削除はretention判断と物理cleanup後の`totalRows: 0`を条件に、別変更で行う。
+- リポジトリのNarrowから対象deploymentでのmigration完了や旧所属データの物理削除を推測しない。  対象deploymentの確認結果は[リリース状態](../manual/release-status.md)を参照する。
 
 ## 参考ファイル
 

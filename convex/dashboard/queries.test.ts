@@ -1,26 +1,26 @@
+import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
-import type { Doc, Id } from "../_generated/dataModel";
+import type { Id } from "../_generated/dataModel";
 import { seedStaff } from "../_test/scenarioBuilders";
 import {
-  seedLegacyManagerShop,
-  seedLegacyShop,
-  seedLegacyShopMembership,
+  getTestOrganizationId,
   seedManagerShop,
   seedOrganizationManagerShop,
-  seedOrganizationMembership,
   seedShop,
   seedUser,
   testAuthTokenIdentifier,
 } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { ORGANIZATION_USAGE_ACCESS_ACTIVE_PEOPLE_SCAN_LIMIT } from "../organization/service";
-import { TRIAL_ENDING_NOTICE_LEAD_MS } from "./queries";
 
 const PAGINATION_FIRST_PAGE = { paginationOpts: { numItems: 10, cursor: null } };
-const firstPageArgs = (shopId: Id<"shops">) => ({ ...PAGINATION_FIRST_PAGE, shopId });
-const TRIAL_ENDS_AT = Date.parse("2026-09-01T00:00:00+09:00");
+const firstPageArgs = async (t: TestConvex<typeof schema>, shopId: Id<"shops">) => ({
+  ...PAGINATION_FIRST_PAGE,
+  shopId,
+  expectedOrganizationId: await getTestOrganizationId(t, shopId),
+});
 
 describe("dashboard/queries", () => {
   describe("getDashboardShop", () => {
@@ -39,16 +39,20 @@ describe("dashboard/queries", () => {
     it("未認証の場合 null を返す", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => await seedShop(ctx, "対象店舗"));
-      const result = await t.query(api.dashboard.queries.getDashboardShop, { shopId });
+      const result = await t.query(api.dashboard.queries.getDashboardShop, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
       expect(result).toBeNull();
     });
 
     it("認証済みだが店舗未登録の場合 null を返す", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => await seedShop(ctx, "未所属店舗"));
-      const result = await t
-        .withIdentity({ subject: "user_123" })
-        .query(api.dashboard.queries.getDashboardShop, { shopId });
+      const result = await t.withIdentity({ subject: "user_123" }).query(api.dashboard.queries.getDashboardShop, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
       expect(result).toBeNull();
     });
 
@@ -58,169 +62,48 @@ describe("dashboard/queries", () => {
         async (ctx) => await seedManagerShop(ctx, { subject: "user_123", shopName: "テスト店舗" }),
       );
 
-      const result = await t
-        .withIdentity({ subject: "user_123" })
-        .query(api.dashboard.queries.getDashboardShop, { shopId });
+      const result = await t.withIdentity({ subject: "user_123" }).query(api.dashboard.queries.getDashboardShop, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
       expect(result).toEqual({
         name: "テスト店舗",
         regularClosedDays: [],
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         canWriteBusinessData: true,
         businessWriteBlockReason: null,
-        planStatus: {
-          canManagePlan: false,
-          canUpdatePaymentMethod: false,
-          isComplimentary: true,
-          kind: "paidPlan",
-          plan: "pro",
-        },
-        trialEndingNotice: null,
       });
     });
 
-    it("Pro継続未登録のトライアルは終了7日前から使う通知境界を返す", async () => {
+    it("同一事業者の複数店舗は明示shopIdに応じて返し分ける", async () => {
       const t = convexTest(schema, modules);
-      const { shopId } = await t.run(async (ctx) => {
+      const { organizationId, firstShopId, secondShopId } = await t.run(async (ctx) => {
         const seeded = await seedOrganizationManagerShop(ctx, {
-          subject: "dashboard_trial_unregistered",
-          plan: "free",
-        });
-        const billingState = await ctx.db
-          .query("organizationBillingStates")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-          .unique();
-        if (!billingState) throw new Error("billing state not found");
-        await ctx.db.patch(billingState._id, {
-          state: { kind: "trial", trialEndsAt: TRIAL_ENDS_AT },
-        });
-        return seeded;
-      });
-
-      const result = await t
-        .withIdentity({ subject: "dashboard_trial_unregistered" })
-        .query(api.dashboard.queries.getDashboardShop, { shopId });
-
-      expect(result?.trialEndingNotice).toEqual({
-        visibleFrom: TRIAL_ENDS_AT - TRIAL_ENDING_NOTICE_LEAD_MS,
-        trialEndsAt: TRIAL_ENDS_AT,
-      });
-    });
-
-    it.each(["standard", "pro"] as const)("%s継続登録済みのトライアルは終了通知を返さない", async (plan) => {
-      const t = convexTest(schema, modules);
-      const subject = `dashboard_trial_registered_${plan}`;
-      const { shopId } = await t.run(async (ctx) => {
-        const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: "free" });
-        const billingState = await ctx.db
-          .query("organizationBillingStates")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-          .unique();
-        if (!billingState) throw new Error("billing state not found");
-        await ctx.db.patch(billingState._id, {
-          state: { kind: "trial", trialEndsAt: TRIAL_ENDS_AT, selectedPaidPlan: plan },
-        });
-        return seeded;
-      });
-
-      const result = await t.withIdentity({ subject }).query(api.dashboard.queries.getDashboardShop, { shopId });
-
-      expect(result?.trialEndingNotice).toBeNull();
-    });
-
-    it("同じ組織の全店舗で同じトライアル終了通知を返す", async () => {
-      const t = convexTest(schema, modules);
-      const { firstShopId, secondShopId } = await t.run(async (ctx) => {
-        const seeded = await seedOrganizationManagerShop(ctx, {
-          subject: "dashboard_trial_multi_shop",
-          shopName: "トライアル店舗A",
-          plan: "free",
-        });
-        const billingState = await ctx.db
-          .query("organizationBillingStates")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-          .unique();
-        if (!billingState) throw new Error("billing state not found");
-        await ctx.db.patch(billingState._id, {
-          state: { kind: "trial", trialEndsAt: TRIAL_ENDS_AT },
+          subject: "multi_shop_dashboard_user",
+          shopName: "有効店舗A",
         });
         const secondShopId = await ctx.db.insert("shops", {
           organizationId: seeded.organizationId,
-          name: "トライアル店舗B",
+          name: "有効店舗B",
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
           regularClosedDays: [],
           isDeleted: false,
         });
-        return { firstShopId: seeded.shopId, secondShopId };
-      });
-      const asManager = t.withIdentity({ subject: "dashboard_trial_multi_shop" });
-
-      const [firstShop, secondShop] = await Promise.all([
-        asManager.query(api.dashboard.queries.getDashboardShop, { shopId: firstShopId }),
-        asManager.query(api.dashboard.queries.getDashboardShop, { shopId: secondShopId }),
-      ]);
-
-      expect(firstShop?.trialEndingNotice).toEqual(secondShop?.trialEndingNotice);
-      expect(firstShop?.trialEndingNotice).toEqual({
-        visibleFrom: TRIAL_ENDS_AT - TRIAL_ENDING_NOTICE_LEAD_MS,
-        trialEndsAt: TRIAL_ENDS_AT,
-      });
-    });
-
-    it("同一managerの複数店舗は明示shopIdに応じて返し分ける", async () => {
-      const t = convexTest(schema, modules);
-      const { firstShopId, secondShopId } = await t.run(async (ctx) => {
-        const userId = await seedUser(ctx, "multi_shop_dashboard_user");
-        const firstShopId = await seedLegacyShop(ctx, "有効店舗A");
-        const secondShopId = await seedLegacyShop(ctx, "有効店舗B");
-        await seedLegacyShopMembership(ctx, { userId, shopId: firstShopId });
-        await seedLegacyShopMembership(ctx, { userId, shopId: secondShopId });
-        return { firstShopId, secondShopId };
+        return { organizationId: seeded.organizationId, firstShopId: seeded.shopId, secondShopId };
       });
       const asManager = t.withIdentity({ subject: "multi_shop_dashboard_user" });
 
-      const firstShop = await asManager.query(api.dashboard.queries.getDashboardShop, { shopId: firstShopId });
-      const secondShop = await asManager.query(api.dashboard.queries.getDashboardShop, { shopId: secondShopId });
+      const firstShop = await asManager.query(api.dashboard.queries.getDashboardShop, {
+        expectedOrganizationId: organizationId,
+        shopId: firstShopId,
+      });
+      const secondShop = await asManager.query(api.dashboard.queries.getDashboardShop, {
+        expectedOrganizationId: organizationId,
+        shopId: secondShopId,
+      });
 
       expect(firstShop?.name).toBe("有効店舗A");
       expect(secondShop?.name).toBe("有効店舗B");
-    });
-
-    it("shopId省略時は旧クライアント互換で先頭の有効所属店舗を返す", async () => {
-      const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
-        const userId = await seedUser(ctx, "legacy_multi_shop_dashboard_user");
-
-        const deletedShopId = await seedLegacyShop(ctx, "削除済み店舗");
-        await ctx.db.patch(deletedShopId, { isDeleted: true });
-        await seedLegacyShopMembership(ctx, { userId, shopId: deletedShopId });
-
-        const firstActiveShopId = await seedLegacyShop(ctx, "先頭の有効店舗");
-        const secondActiveShopId = await seedLegacyShop(ctx, "2件目の有効店舗");
-        await seedLegacyShopMembership(ctx, { userId, shopId: firstActiveShopId });
-        await seedLegacyShopMembership(ctx, { userId, shopId: secondActiveShopId });
-      });
-
-      const result = await t
-        .withIdentity({ subject: "legacy_multi_shop_dashboard_user" })
-        .query(api.dashboard.queries.getDashboardShop, {});
-
-      expect(result?.name).toBe("先頭の有効店舗");
-    });
-
-    it("shopId省略時は旧所属よりcanonical所属店舗を優先する", async () => {
-      const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
-        const userId = await seedUser(ctx, "canonical_first_dashboard_user");
-        const legacyShopId = await seedLegacyShop(ctx, "旧所属店舗");
-        await seedLegacyShopMembership(ctx, { userId, shopId: legacyShopId });
-
-        const canonicalShopId = await seedShop(ctx, "canonical所属店舗");
-        await seedOrganizationMembership(ctx, { userId, shopId: canonicalShopId });
-      });
-
-      await expect(
-        t.withIdentity({ subject: "canonical_first_dashboard_user" }).query(api.dashboard.queries.getDashboardShop, {}),
-      ).resolves.toMatchObject({ name: "canonical所属店舗" });
     });
 
     it("論理削除された店舗は null を返す", async () => {
@@ -230,28 +113,37 @@ describe("dashboard/queries", () => {
           await seedManagerShop(ctx, { subject: "user_deleted", shopName: "削除済み店舗", shopDeleted: true }),
       );
 
-      const result = await t
-        .withIdentity({ subject: "user_deleted" })
-        .query(api.dashboard.queries.getDashboardShop, { shopId });
+      const result = await t.withIdentity({ subject: "user_deleted" }).query(api.dashboard.queries.getDashboardShop, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
       expect(result).toBeNull();
     });
 
     it("指定した店舗が削除済みの場合、別の有効店舗へフォールバックしない", async () => {
       const t = convexTest(schema, modules);
-      const deletedShopId = await t.run(async (ctx) => {
-        const userId = await seedUser(ctx, "user_deleted_first");
-        const deletedShopId = await seedLegacyShop(ctx, "削除済み店舗");
-        await ctx.db.patch(deletedShopId, { isDeleted: true });
-        await seedLegacyShopMembership(ctx, { userId, shopId: deletedShopId });
-
-        const activeShopId = await seedLegacyShop(ctx, "残っている店舗");
-        await seedLegacyShopMembership(ctx, { userId, shopId: activeShopId });
-        return deletedShopId;
+      const { deletedShopId, organizationId } = await t.run(async (ctx) => {
+        const seeded = await seedOrganizationManagerShop(ctx, {
+          subject: "user_deleted_first",
+          shopName: "削除済み店舗",
+          shopDeleted: true,
+        });
+        await ctx.db.insert("shops", {
+          organizationId: seeded.organizationId,
+          name: "残っている店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          regularClosedDays: [],
+          isDeleted: false,
+        });
+        return { deletedShopId: seeded.shopId, organizationId: seeded.organizationId };
       });
 
       const result = await t
         .withIdentity({ subject: "user_deleted_first" })
-        .query(api.dashboard.queries.getDashboardShop, { shopId: deletedShopId });
+        .query(api.dashboard.queries.getDashboardShop, {
+          expectedOrganizationId: organizationId,
+          shopId: deletedShopId,
+        });
 
       expect(result).toBeNull();
     });
@@ -269,7 +161,10 @@ describe("dashboard/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "user_deleted_membership" })
-        .query(api.dashboard.queries.getDashboardShop, { shopId });
+        .query(api.dashboard.queries.getDashboardShop, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+        });
       expect(result).toBeNull();
     });
 
@@ -285,7 +180,10 @@ describe("dashboard/queries", () => {
       });
 
       await expect(
-        t.withIdentity({ subject: "deleted_dashboard_user" }).query(api.dashboard.queries.getDashboardShop, { shopId }),
+        t.withIdentity({ subject: "deleted_dashboard_user" }).query(api.dashboard.queries.getDashboardShop, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+        }),
       ).resolves.toBeNull();
     });
 
@@ -295,17 +193,16 @@ describe("dashboard/queries", () => {
         async (ctx) => await seedManagerShop(ctx, { subject: "user_fields", shopName: "店舗" }),
       );
 
-      const result = await t
-        .withIdentity({ subject: "user_fields" })
-        .query(api.dashboard.queries.getDashboardShop, { shopId });
+      const result = await t.withIdentity({ subject: "user_fields" }).query(api.dashboard.queries.getDashboardShop, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
+      });
       expect(Object.keys(result ?? {}).sort()).toEqual([
         "businessWriteBlockReason",
         "canWriteBusinessData",
         "name",
-        "planStatus",
         "regularClosedDays",
         "submissionPattern",
-        "trialEndingNotice",
       ]);
     });
 
@@ -329,12 +226,15 @@ describe("dashboard/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "dashboard_pending_free" })
-        .query(api.dashboard.queries.getDashboardShop, { shopId });
+        .query(api.dashboard.queries.getDashboardShop, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+        });
 
       expect(result).toMatchObject({ canWriteBusinessData: true, businessWriteBlockReason: null });
     });
 
-    it("active.freeの利用人数が上限を超えた場合もFree表示を維持して業務操作を閲覧専用にする", async () => {
+    it("active.freeの利用人数が上限を超えた場合は業務操作を閲覧専用にする", async () => {
       const t = convexTest(schema, modules);
       const { shopId } = await t.run(async (ctx) => {
         const seeded = await seedOrganizationManagerShop(ctx, {
@@ -353,16 +253,14 @@ describe("dashboard/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "dashboard_active_free_over_limit" })
-        .query(api.dashboard.queries.getDashboardShop, { shopId });
+        .query(api.dashboard.queries.getDashboardShop, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+        });
 
       expect(result).toMatchObject({
         canWriteBusinessData: false,
         businessWriteBlockReason: "usageLimitExceeded",
-        planStatus: {
-          kind: "freePlan",
-          canManagePlan: false,
-          canUpdatePaymentMethod: false,
-        },
         usageLimitStatus: {
           kind: "overLimit",
           evaluatedPlan: "free",
@@ -396,7 +294,10 @@ describe("dashboard/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "dashboard_usage_limit_unknown" })
-        .query(api.dashboard.queries.getDashboardShop, { shopId });
+        .query(api.dashboard.queries.getDashboardShop, {
+          expectedOrganizationId: await getTestOrganizationId(t, shopId),
+          shopId,
+        });
 
       expect(result).toMatchObject({
         canWriteBusinessData: false,
@@ -407,96 +308,51 @@ describe("dashboard/queries", () => {
 
     it.each([
       {
-        label: "trial",
-        state: { kind: "trial", trialEndsAt: TRIAL_ENDS_AT, selectedPaidPlan: "pro" },
-        expected: { kind: "trial", trialEndsAt: TRIAL_ENDS_AT, selectedPaidPlan: "pro" },
-      },
-      {
-        label: "initialPaymentPending",
-        state: { kind: "initialPaymentPending", plan: "pro", startedAt: 1 },
-        expected: { kind: "paymentPending", currentPlan: "free", targetPlan: "pro" },
-      },
-      {
-        label: "pendingActivation",
-        state: { kind: "pendingActivation", plan: "standard", fallback: "free", startedAt: 1 },
-        expected: { kind: "paymentPending", currentPlan: "free", targetPlan: "standard" },
-      },
-      {
-        label: "active.free",
-        state: { kind: "active", plan: "free" },
-        expected: { kind: "freePlan" },
-      },
-      {
-        label: "active.standard",
-        state: { kind: "active", plan: "standard" },
-        expected: { kind: "paidPlan", plan: "standard", isComplimentary: false },
-      },
-      {
-        label: "active.pro",
-        state: { kind: "active", plan: "pro" },
-        expected: { kind: "paidPlan", plan: "pro", isComplimentary: false },
-      },
-      {
-        label: "complimentary.pro",
-        state: { kind: "complimentary", plan: "pro" },
-        expected: { kind: "paidPlan", plan: "pro", isComplimentary: true },
-      },
-      {
-        label: "scheduledChange",
-        state: { kind: "scheduledChange", currentPlan: "pro", targetPlan: "standard", effectiveAt: 2 },
-        expected: {
-          kind: "paidPlan",
-          plan: "pro",
-          isComplimentary: false,
-          scheduledChange: { targetPlan: "standard", effectiveAt: 2 },
-        },
-      },
-      {
-        label: "paymentTerminationPending",
-        state: { kind: "paymentTerminationPending", previousPlan: "pro", startedAt: 1 },
-        expected: { kind: "freePlan" },
-      },
-    ] satisfies ReadonlyArray<{
-      label: string;
-      state: Doc<"organizationBillingStates">["state"];
-      expected: Record<string, unknown>;
-    }>)("$labelを表示専用planStatusへ変換する", async ({ label, state, expected }) => {
-      const t = convexTest(schema, modules);
-      const subject = `dashboard_plan_status_${label.replaceAll(".", "_")}`;
-      const { shopId } = await t.run(async (ctx) => {
-        const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
-        const billingState = await ctx.db
-          .query("organizationBillingStates")
-          .withIndex("by_organizationId", (q) => q.eq("organizationId", seeded.organizationId))
-          .unique();
-        if (!billingState) throw new Error("billing state not found");
-        await ctx.db.patch(billingState._id, { state });
-        return seeded;
-      });
-
-      const result = await t.withIdentity({ subject }).query(api.dashboard.queries.getDashboardShop, { shopId });
-
-      expect(result?.planStatus).toEqual({
-        ...expected,
-        canManagePlan: false,
-        canUpdatePaymentMethod: false,
-      });
-    });
-
-    it.each([
-      {
-        label: "Stripeでの終了処理中",
-        state: { kind: "paymentTerminationPending", previousPlan: "pro", startedAt: 1 } as const,
-        terminationPending: true,
+        label: "Stripe設定不備",
+        state: { kind: "active", plan: "free" } as const,
+        stripeReady: false,
+        expected: { terminationPending: false, canStartPaidPlan: false },
       },
       {
         label: "Freeへの変更完了後",
         state: { kind: "active", plan: "free" } as const,
-        terminationPending: false,
+        stripeReady: true,
+        expected: { terminationPending: false, canStartPaidPlan: true },
       },
-    ])("支払い失敗は$labelも画面表示用の事実を返す", async ({ state, terminationPending }) => {
+      {
+        label: "complimentary",
+        state: { kind: "complimentary", plan: "pro" } as const,
+        stripeReady: true,
+        expected: { terminationPending: false, canStartPaidPlan: false },
+      },
+      {
+        label: "initialPaymentPending",
+        state: { kind: "initialPaymentPending", plan: "pro", startedAt: 1 } as const,
+        stripeReady: true,
+        expected: { terminationPending: false, canStartPaidPlan: false },
+      },
+      {
+        label: "pendingActivation",
+        state: { kind: "pendingActivation", plan: "pro", fallback: "free", startedAt: 1 } as const,
+        stripeReady: true,
+        expected: { terminationPending: false, canStartPaidPlan: false },
+      },
+      {
+        label: "paymentTerminationPending",
+        state: { kind: "paymentTerminationPending", previousPlan: "pro", startedAt: 1 } as const,
+        stripeReady: true,
+        expected: { terminationPending: true, canStartPaidPlan: false },
+      },
+    ])("支払い失敗の$labelでは再契約可否を最小DTOで返す", async ({ label, state, stripeReady, expected }) => {
+      if (stripeReady) {
+        vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_dashboard_payment_failure");
+        vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_dashboard_payment_failure");
+        vi.stubEnv("STRIPE_STANDARD_PRICE_ID", "price_dashboard_standard");
+        vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_dashboard_pro");
+        vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "bpc_dashboard_payment_failure");
+      }
       const t = convexTest(schema, modules);
-      const subject = `dashboard_payment_failure_${String(terminationPending)}`;
+      const subject = `dashboard_payment_failure_${label}`;
       const { shopId } = await t.run(async (ctx) => {
         const seeded = await seedOrganizationManagerShop(ctx, { subject, plan: "pro" });
         const billingState = await ctx.db
@@ -511,177 +367,14 @@ describe("dashboard/queries", () => {
         return seeded;
       });
 
-      const result = await t.withIdentity({ subject }).query(api.dashboard.queries.getDashboardShop, { shopId });
-
-      expect(result).toMatchObject({
-        planStatus: { kind: "freePlan" },
-        paymentFailure: { terminationPending },
-      });
-    });
-
-    it("有料契約では保存済み期間と利用可能な操作だけを返す", async () => {
-      vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_dashboard_plan_status");
-      vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_dashboard_plan_status");
-      vi.stubEnv("STRIPE_STANDARD_PRICE_ID", "price_dashboard_standard");
-      vi.stubEnv("STRIPE_PRO_PRICE_ID", "price_dashboard_pro");
-      vi.stubEnv("STRIPE_PORTAL_CONFIGURATION_ID", "bpc_dashboard_plan_status");
-      const t = convexTest(schema, modules);
-      const currentPeriodEndsAt = TRIAL_ENDS_AT + 30 * 24 * 60 * 60_000;
-      const { shopId } = await t.run(async (ctx) => {
-        const seeded = await seedOrganizationManagerShop(ctx, {
-          subject: "dashboard_active_paid_status",
-          plan: "pro",
-        });
-        await ctx.db.insert("organizationStripeCustomers", {
-          organizationId: seeded.organizationId,
-          stripeCustomerId: "cus_dashboard_active_paid",
-          livemode: false,
-          createdAt: 1,
-          updatedAt: 1,
-        });
-        await ctx.db.insert("organizationStripeSubscriptions", {
-          organizationId: seeded.organizationId,
-          stripeCustomerId: "cus_dashboard_active_paid",
-          stripeSubscriptionId: "sub_dashboard_active_paid",
-          stripePriceId: "price_archived_dashboard_pro",
-          plan: "pro",
-          livemode: false,
-          status: "active",
-          providerGeneration: 1,
-          currentPeriodEndsAt,
-          cancelAtPeriodEnd: false,
-          syncedAt: 1,
-          createdAt: 1,
-          updatedAt: 1,
-        });
-        return seeded;
+      const result = await t.withIdentity({ subject }).query(api.dashboard.queries.getDashboardShop, {
+        expectedOrganizationId: await getTestOrganizationId(t, shopId),
+        shopId,
       });
 
-      const result = await t
-        .withIdentity({ subject: "dashboard_active_paid_status" })
-        .query(api.dashboard.queries.getDashboardShop, { shopId });
-
-      expect(result?.planStatus).toEqual({
-        kind: "paidPlan",
-        plan: "pro",
-        isComplimentary: false,
-        currentPeriodEndsAt,
-        canManagePlan: true,
-        canUpdatePaymentMethod: true,
-      });
-    });
-  });
-
-  describe("getDashboardPlanUsage", () => {
-    it("未認証または他事業者の店舗では利用状況を返さない", async () => {
-      const t = convexTest(schema, modules);
-      const { shopId: targetShopId } = await t.run(
-        async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "dashboard_usage_target", plan: "pro" }),
-      );
-      await t.run(
-        async (ctx) => await seedOrganizationManagerShop(ctx, { subject: "dashboard_usage_foreign", plan: "pro" }),
-      );
-
-      await expect(
-        t.query(api.dashboard.queries.getDashboardPlanUsage, { shopId: targetShopId, now: TRIAL_ENDS_AT }),
-      ).resolves.toBeNull();
-      await expect(
-        t
-          .withIdentity({ subject: "dashboard_usage_foreign" })
-          .query(api.dashboard.queries.getDashboardPlanUsage, { shopId: targetShopId, now: TRIAL_ENDS_AT }),
-      ).resolves.toBeNull();
-    });
-
-    it("事業者全体の利用人数と店舗を重複なく数え、Pro上限を返す", async () => {
-      const t = convexTest(schema, modules);
-      const { shopId } = await t.run(async (ctx) => {
-        const seeded = await seedOrganizationManagerShop(ctx, {
-          subject: "dashboard_usage_counts",
-          plan: "pro",
-        });
-        const now = TRIAL_ENDS_AT - 1;
-        const secondShopId = await ctx.db.insert("shops", {
-          organizationId: seeded.organizationId,
-          name: "2店舗目",
-          submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-          regularClosedDays: [],
-          isDeleted: false,
-        });
-        const staffPersonId = await ctx.db.insert("organizationPeople", {
-          organizationId: seeded.organizationId,
-          name: "店舗横断スタッフ",
-          email: "shared-staff@example.com",
-          emailNormalized: "shared-staff@example.com",
-          status: "active",
-          createdAt: now,
-          updatedAt: now,
-        });
-        for (const targetShopId of [seeded.shopId, secondShopId]) {
-          await ctx.db.insert("staffs", {
-            shopId: targetShopId,
-            organizationId: seeded.organizationId,
-            organizationPersonId: staffPersonId,
-            name: "店舗横断スタッフ",
-            email: "shared-staff@example.com",
-            emailNormalized: "shared-staff@example.com",
-            isDeleted: false,
-          });
-        }
-        return seeded;
-      });
-
-      const result = await t
-        .withIdentity({ subject: "dashboard_usage_counts" })
-        .query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now: TRIAL_ENDS_AT });
-
-      expect(result).toEqual({
-        peopleUsage: { current: 2, max: 50 },
-        shopUsage: { current: 2, max: 5 },
-        managerUsage: { current: 1, max: 5 },
-        pendingManagerInvitations: 0,
-      });
-    });
-
-    it("明示された時刻を基準に、期限内の管理者招待を実利用数と分けて返す", async () => {
-      const t = convexTest(schema, modules);
-      const now = TRIAL_ENDS_AT;
-      const { shopId } = await t.run(async (ctx) => {
-        const seeded = await seedOrganizationManagerShop(ctx, {
-          subject: "dashboard_usage_reservation_expiry",
-          plan: "pro",
-        });
-        await ctx.db.insert("organizationInvitations", {
-          organizationId: seeded.organizationId,
-          invitedName: "予約対象",
-          email: "reserved-seat@example.com",
-          emailNormalized: "reserved-seat@example.com",
-          tokenDigest: "dashboard-usage-reserved-seat",
-          status: "issued",
-          inviterMemberId: seeded.memberId,
-          reservedSeat: true,
-          version: 1,
-          expiresAt: now + 1,
-          createdAt: now - 1,
-          updatedAt: now - 1,
-        });
-        return seeded;
-      });
-      const actor = t.withIdentity({ subject: "dashboard_usage_reservation_expiry" });
-
-      await expect(actor.query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now })).resolves.toEqual({
-        peopleUsage: { current: 1, max: 50 },
-        shopUsage: { current: 1, max: 5 },
-        managerUsage: { current: 1, max: 5 },
-        pendingManagerInvitations: 1,
-      });
-      await expect(actor.query(api.dashboard.queries.getDashboardPlanUsage, { shopId, now: now + 1 })).resolves.toEqual(
-        {
-          peopleUsage: { current: 1, max: 50 },
-          shopUsage: { current: 1, max: 5 },
-          managerUsage: { current: 1, max: 5 },
-          pendingManagerInvitations: 0,
-        },
-      );
+      expect(result?.paymentFailure).toEqual(expected);
+      expect(result).not.toHaveProperty("planStatus");
+      expect(result).not.toHaveProperty("trialEndingNotice");
     });
   });
 
@@ -694,83 +387,6 @@ describe("dashboard/queries", () => {
       await expect(
         unregistered.withIdentity({ subject: "unregistered_user" }).query(api.dashboard.queries.getMyShops, {}),
       ).resolves.toEqual([]);
-    });
-
-    it("本人の有効な所属店舗だけを最小DTOで返す", async () => {
-      const t = convexTest(schema, modules);
-      const { activeShopIds } = await t.run(async (ctx) => {
-        const userId = await seedUser(ctx, "multi_shop_user");
-        const firstShopId = await seedLegacyShop(ctx, "有効店舗A");
-        const secondShopId = await seedLegacyShop(ctx, "有効店舗B");
-        await seedLegacyShopMembership(ctx, { userId, shopId: firstShopId });
-        await seedLegacyShopMembership(ctx, { userId, shopId: secondShopId });
-
-        const deletedShopId = await seedLegacyShop(ctx, "削除済み店舗");
-        await ctx.db.patch(deletedShopId, { isDeleted: true });
-        await seedLegacyShopMembership(ctx, { userId, shopId: deletedShopId });
-
-        const deletedMembershipShopId = await seedLegacyShop(ctx, "所属解除済み店舗");
-        await seedLegacyShopMembership(ctx, {
-          userId,
-          shopId: deletedMembershipShopId,
-          isDeleted: true,
-        });
-
-        const otherUserId = await seedUser(ctx, "other_shop_user");
-        const otherShopId = await seedLegacyShop(ctx, "他ユーザーの店舗");
-        await seedLegacyShopMembership(ctx, { userId: otherUserId, shopId: otherShopId });
-
-        return { activeShopIds: [firstShopId, secondShopId] };
-      });
-
-      const result = await t.withIdentity({ subject: "multi_shop_user" }).query(api.dashboard.queries.getMyShops, {});
-
-      expect([...result].sort((a, b) => a.shopName.localeCompare(b.shopName, "ja"))).toEqual([
-        {
-          shopId: activeShopIds[0],
-          shopName: "有効店舗A",
-          shopStatus: "active",
-          organizationId: null,
-          organizationName: null,
-          organizationPlan: null,
-          memberStatus: "active",
-        },
-        {
-          shopId: activeShopIds[1],
-          shopName: "有効店舗B",
-          shopStatus: "active",
-          organizationId: null,
-          organizationName: null,
-          organizationPlan: null,
-          memberStatus: "active",
-        },
-      ]);
-      expect(Object.keys(result[0] ?? {}).sort()).toEqual([
-        "memberStatus",
-        "organizationId",
-        "organizationName",
-        "organizationPlan",
-        "shopId",
-        "shopName",
-        "shopStatus",
-      ]);
-    });
-
-    it("旧shopMembersが同じ店舗で重複する場合は店舗切替候補にも表示しない", async () => {
-      const t = convexTest(schema, modules);
-      await t.run(async (ctx) => {
-        const { shopId, userId } = await seedLegacyManagerShop(ctx, {
-          subject: "duplicate_legacy_shop_memberships_in_switcher",
-          shopName: "重複旧所属店舗",
-        });
-        await seedLegacyShopMembership(ctx, { userId, shopId });
-      });
-
-      const result = await t
-        .withIdentity({ subject: "duplicate_legacy_shop_memberships_in_switcher" })
-        .query(api.dashboard.queries.getMyShops, {});
-
-      expect(result).toEqual([]);
     });
 
     it.each(["active"] as const)("事業者の%s管理者には同じ事業者の全非削除店舗だけを返す", async (memberStatus) => {
@@ -811,7 +427,6 @@ describe("dashboard/queries", () => {
         {
           shopId: ids.shopId,
           shopName: "事業者店舗A",
-          shopStatus: "active",
           organizationId: ids.organizationId,
           organizationName: "事業者店舗A事業者",
           organizationPlan: "pro",
@@ -820,7 +435,6 @@ describe("dashboard/queries", () => {
         {
           shopId: ids.secondShopId,
           shopName: "事業者店舗B",
-          shopStatus: "active",
           organizationId: ids.organizationId,
           organizationName: "事業者店舗A事業者",
           organizationPlan: "pro",
@@ -925,7 +539,6 @@ describe("dashboard/queries", () => {
             memberStatus: shop.memberStatus,
             shopId: shop.shopId,
             shopName: shop.shopName,
-            shopStatus: shop.shopStatus,
           }))
           .sort(
             (a, b) =>
@@ -940,7 +553,6 @@ describe("dashboard/queries", () => {
           memberStatus: "active",
           shopId: ids.organizationAShopId,
           shopName: "組織A店舗",
-          shopStatus: "active",
         },
         {
           organizationId: ids.organizationBId,
@@ -949,7 +561,6 @@ describe("dashboard/queries", () => {
           memberStatus: "active",
           shopId: ids.organizationBShopId,
           shopName: "組織B店舗",
-          shopStatus: "active",
         },
       ]);
     });
@@ -1025,6 +636,8 @@ describe("dashboard/queries", () => {
       const globalAnnouncementId = await t.run(async (ctx) => {
         const now = Date.now();
         const organizationId = await ctx.db.insert("organizations", {
+          billingEmail: "billing@example.com",
+          billingEmailNormalized: "billing@example.com",
           name: "互換確認事業者",
           isDeleted: false,
           createdAt: now,
@@ -1200,6 +813,8 @@ describe("dashboard/queries", () => {
       const ids = await t.run(async (ctx) => {
         const now = Date.now();
         const organizationId = await ctx.db.insert("organizations", {
+          billingEmail: "billing@example.com",
+          billingEmailNormalized: "billing@example.com",
           name: "対象事業者",
           isDeleted: false,
           createdAt: now,
@@ -1213,6 +828,8 @@ describe("dashboard/queries", () => {
           isDeleted: false,
         });
         const otherOrganizationId = await ctx.db.insert("organizations", {
+          billingEmail: "billing@example.com",
+          billingEmailNormalized: "billing@example.com",
           name: "別の対象事業者",
           isDeleted: false,
           createdAt: now,
@@ -1399,7 +1016,7 @@ describe("dashboard/queries", () => {
     it("未認証の場合、空ページを返す（ログアウト時の再実行でエラーにしない）", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => await seedShop(ctx, "対象店舗"));
-      const result = await t.query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
+      const result = await t.query(api.dashboard.queries.getDashboardRecruitments, await firstPageArgs(t, shopId));
       expect(result.page).toEqual([]);
       expect(result.isDone).toBe(true);
     });
@@ -1409,7 +1026,7 @@ describe("dashboard/queries", () => {
       const shopId = await t.run(async (ctx) => await seedShop(ctx, "未所属店舗"));
       const result = await t
         .withIdentity({ subject: "user_no_shop" })
-        .query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
+        .query(api.dashboard.queries.getDashboardRecruitments, await firstPageArgs(t, shopId));
       expect(result.page).toEqual([]);
       expect(result.isDone).toBe(true);
     });
@@ -1441,7 +1058,7 @@ describe("dashboard/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "user_rec" })
-        .query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
+        .query(api.dashboard.queries.getDashboardRecruitments, await firstPageArgs(t, shopId));
 
       expect(result.page).toHaveLength(1);
       expect(result.page[0].status).toBe("open");
@@ -1483,7 +1100,7 @@ describe("dashboard/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "user_rec_deleted" })
-        .query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
+        .query(api.dashboard.queries.getDashboardRecruitments, await firstPageArgs(t, shopId));
 
       expect(result.page).toHaveLength(1);
       expect(result.page[0].periodStart).toBe("2026-04-01");
@@ -1561,7 +1178,7 @@ describe("dashboard/queries", () => {
 
         const result = await t
           .withIdentity({ subject: "user_rec_dashboard_order" })
-          .query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
+          .query(api.dashboard.queries.getDashboardRecruitments, await firstPageArgs(t, shopId));
 
         expect(result.page.map((recruitment) => recruitment.periodStart)).toEqual([
           "2026-06-01",
@@ -1599,12 +1216,21 @@ describe("dashboard/queries", () => {
       });
       const asManager = t.withIdentity({ subject: "user_open_ended" });
 
-      const onPeriodEnd = await asManager.query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
+      const onPeriodEnd = await asManager.query(
+        api.dashboard.queries.getDashboardRecruitments,
+        await firstPageArgs(t, shopId),
+      );
       expect(onPeriodEnd.page.map((recruitment) => recruitment._id)).toEqual([recruitmentId]);
 
       vi.setSystemTime(new Date("2026-07-08T00:00:00+09:00"));
-      const nextDay = await asManager.query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
-      const past = await asManager.query(api.dashboard.queries.getDashboardPastRecruitments, firstPageArgs(shopId));
+      const nextDay = await asManager.query(
+        api.dashboard.queries.getDashboardRecruitments,
+        await firstPageArgs(t, shopId),
+      );
+      const past = await asManager.query(
+        api.dashboard.queries.getDashboardPastRecruitments,
+        await firstPageArgs(t, shopId),
+      );
 
       expect(nextDay.page).toEqual([]);
       expect(past.page.map((recruitment) => recruitment._id)).toEqual([recruitmentId]);
@@ -1633,8 +1259,14 @@ describe("dashboard/queries", () => {
       });
       const asManager = t.withIdentity({ subject: "user_ended_before_deadline" });
 
-      const active = await asManager.query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
-      const past = await asManager.query(api.dashboard.queries.getDashboardPastRecruitments, firstPageArgs(shopId));
+      const active = await asManager.query(
+        api.dashboard.queries.getDashboardRecruitments,
+        await firstPageArgs(t, shopId),
+      );
+      const past = await asManager.query(
+        api.dashboard.queries.getDashboardPastRecruitments,
+        await firstPageArgs(t, shopId),
+      );
 
       expect(active.page).toEqual([]);
       expect(past.page.map((recruitment) => recruitment._id)).toEqual([recruitmentId]);
@@ -1695,7 +1327,10 @@ describe("dashboard/queries", () => {
 
         const result = await t
           .withIdentity({ subject: "user_current_rec" })
-          .query(api.dashboard.queries.getDashboardCurrentRecruitments, { shopId });
+          .query(api.dashboard.queries.getDashboardCurrentRecruitments, {
+            expectedOrganizationId: await getTestOrganizationId(t, shopId),
+            shopId,
+          });
 
         expect(result.map((recruitment) => recruitment.periodEnd)).toEqual(["2026-06-20", "2026-06-30", "2026-07-31"]);
         expect(result.every((recruitment) => recruitment.status === "confirmed")).toBe(true);
@@ -1739,6 +1374,7 @@ describe("dashboard/queries", () => {
           submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
         });
         const submission1 = await ctx.db.insert("shiftSubmissions", {
+          firstSubmittedAt: Date.now(),
           recruitmentId,
           staffId: staff1,
           submittedAt: Date.now(),
@@ -1760,6 +1396,7 @@ describe("dashboard/queries", () => {
           endTime: "17:00",
         });
         const submission2 = await ctx.db.insert("shiftSubmissions", {
+          firstSubmittedAt: Date.now(),
           recruitmentId,
           staffId: staff2,
           submittedAt: Date.now(),
@@ -1777,7 +1414,7 @@ describe("dashboard/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "user_rc" })
-        .query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
+        .query(api.dashboard.queries.getDashboardRecruitments, await firstPageArgs(t, shopId));
       expect(result.page[0].responseCount).toBe(2);
       expect(result.page[0].totalStaffCount).toBe(2);
     });
@@ -1833,7 +1470,7 @@ describe("dashboard/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "user_stats" })
-        .query(api.dashboard.queries.getDashboardRecruitments, firstPageArgs(shopId));
+        .query(api.dashboard.queries.getDashboardRecruitments, await firstPageArgs(t, shopId));
       expect(result.page[0].responseCount).toBe(2);
       expect(result.page[0].totalStaffCount).toBe(3);
     });
@@ -1884,7 +1521,10 @@ describe("dashboard/queries", () => {
 
         const result = await t
           .withIdentity({ subject: "user_has_past" })
-          .query(api.dashboard.queries.hasDashboardPastRecruitments, { shopId });
+          .query(api.dashboard.queries.hasDashboardPastRecruitments, {
+            expectedOrganizationId: await getTestOrganizationId(t, shopId),
+            shopId,
+          });
 
         expect(result).toBe(true);
       } finally {
@@ -1919,7 +1559,10 @@ describe("dashboard/queries", () => {
 
         const result = await t
           .withIdentity({ subject: "user_no_past" })
-          .query(api.dashboard.queries.hasDashboardPastRecruitments, { shopId });
+          .query(api.dashboard.queries.hasDashboardPastRecruitments, {
+            expectedOrganizationId: await getTestOrganizationId(t, shopId),
+            shopId,
+          });
 
         expect(result).toBe(false);
       } finally {
@@ -1973,12 +1616,14 @@ describe("dashboard/queries", () => {
         const firstPage = await t
           .withIdentity({ subject: "user_past_page" })
           .query(api.dashboard.queries.getDashboardPastRecruitments, {
+            expectedOrganizationId: await getTestOrganizationId(t, shopId),
             shopId,
             paginationOpts: { numItems: 2, cursor: null },
           });
         const secondPage = await t
           .withIdentity({ subject: "user_past_page" })
           .query(api.dashboard.queries.getDashboardPastRecruitments, {
+            expectedOrganizationId: await getTestOrganizationId(t, shopId),
             shopId,
             paginationOpts: { numItems: 2, cursor: firstPage.continueCursor },
           });
@@ -1997,7 +1642,7 @@ describe("dashboard/queries", () => {
     it("未認証の場合、空ページを返す（ログアウト時の再実行でエラーにしない）", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => await seedShop(ctx, "対象店舗"));
-      const result = await t.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(shopId));
+      const result = await t.query(api.dashboard.queries.getDashboardStaffs, await firstPageArgs(t, shopId));
       expect(result.page).toEqual([]);
       expect(result.isDone).toBe(true);
     });
@@ -2007,12 +1652,12 @@ describe("dashboard/queries", () => {
       const shopId = await t.run(async (ctx) => await seedShop(ctx, "未所属店舗"));
       const result = await t
         .withIdentity({ subject: "user_no_shop" })
-        .query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(shopId));
+        .query(api.dashboard.queries.getDashboardStaffs, await firstPageArgs(t, shopId));
       expect(result.page).toEqual([]);
       expect(result.isDone).toBe(true);
     });
 
-    it("スタッフをページネーションで返し、削除済みと両canonical ID未設定rowは除外する", async () => {
+    it("スタッフをページネーションで返し、削除済みrowは除外する", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
         const { shopId } = await seedManagerShop(ctx, {
@@ -2031,19 +1676,12 @@ describe("dashboard/queries", () => {
           email: "deleted@example.com",
           isDeleted: true,
         });
-        await ctx.db.insert("staffs", {
-          shopId,
-          name: "移行中スタッフ",
-          email: "missing-canonical@example.com",
-          emailNormalized: "missing-canonical@example.com",
-          isDeleted: false,
-        });
         return shopId;
       });
 
       const result = await t
         .withIdentity({ subject: "user_staff" })
-        .query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(shopId));
+        .query(api.dashboard.queries.getDashboardStaffs, await firstPageArgs(t, shopId));
 
       expect(result.page.map((staff) => staff.name)).toEqual(["田中太郎"]);
     });
@@ -2069,7 +1707,7 @@ describe("dashboard/queries", () => {
       await expect(
         t
           .withIdentity({ subject: "dashboard_dangling_staff_person" })
-          .query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(shopId)),
+          .query(api.dashboard.queries.getDashboardStaffs, await firstPageArgs(t, shopId)),
       ).rejects.toThrowError("Not found");
     });
 
@@ -2097,7 +1735,7 @@ describe("dashboard/queries", () => {
       await expect(
         t
           .withIdentity({ subject: "dashboard_removed_staff_person" })
-          .query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(shopId)),
+          .query(api.dashboard.queries.getDashboardStaffs, await firstPageArgs(t, shopId)),
       ).rejects.toThrowError("Not found");
     });
 
@@ -2124,7 +1762,7 @@ describe("dashboard/queries", () => {
       await expect(
         t
           .withIdentity({ subject: "dashboard_mismatched_staff_person" })
-          .query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(shopId)),
+          .query(api.dashboard.queries.getDashboardStaffs, await firstPageArgs(t, shopId)),
       ).rejects.toThrowError("Not found");
     });
 
@@ -2148,6 +1786,7 @@ describe("dashboard/queries", () => {
           updatedAt: now,
         });
         const targetStaffId = await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: base.shopId,
           organizationId: base.organizationId,
           organizationPersonId: targetPersonId,
@@ -2177,6 +1816,7 @@ describe("dashboard/queries", () => {
           updatedAt: now,
         });
         await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: base.shopId,
           organizationId: base.organizationId,
           organizationPersonId: otherManagerPersonId,
@@ -2190,7 +1830,7 @@ describe("dashboard/queries", () => {
       });
       const owner = t.withIdentity({ subject: "dashboard_manager_state_owner" });
 
-      const before = await owner.query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(ids.shopId));
+      const before = await owner.query(api.dashboard.queries.getDashboardStaffs, await firstPageArgs(t, ids.shopId));
       expect(before.page.find((staff) => staff.name === "別の管理者")).toMatchObject({
         isManager: true,
       });
@@ -2217,7 +1857,7 @@ describe("dashboard/queries", () => {
 
       const result = await t
         .withIdentity({ subject: "user_sf" })
-        .query(api.dashboard.queries.getDashboardStaffs, firstPageArgs(shopId));
+        .query(api.dashboard.queries.getDashboardStaffs, await firstPageArgs(t, shopId));
       expect(Object.keys(result.page[0]).sort()).toEqual([
         "_id",
         "email",
@@ -2257,6 +1897,7 @@ describe("dashboard/queries", () => {
           authTokenIdentifier: testAuthTokenIdentifier("existing_user"),
           name: "既存ユーザー",
           email: "existing@example.com",
+          emailNormalized: "existing@example.com",
           role: "manager",
           isDeleted: false,
         });

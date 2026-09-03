@@ -1,12 +1,22 @@
+import type { TestConvex } from "convex-test";
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import { seedStaff } from "../_test/scenarioBuilders";
 import { seedManagerShop, seedOrganizationManagerShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { SHIFT_ASSIGNMENT_LIMIT } from "../constants";
 
 const QUERY_REFRESH_DAY_KEY = "2026-07-22";
+
+async function getExpectedOrganizationId(t: TestConvex<typeof schema>, shopId: Id<"shops">) {
+  return await t.run(async (ctx) => {
+    const shop = await ctx.db.get(shopId);
+    if (!shop) throw new Error("canonical shop fixture is missing");
+    return shop.organizationId;
+  });
+}
 
 describe("shiftBoard/queries", () => {
   afterEach(() => {
@@ -94,7 +104,12 @@ describe("shiftBoard/queries", () => {
 
     const result = await t
       .withIdentity({ subject: "manager_deleted_recruitment" })
-      .query(api.shiftBoard.queries.getShiftBoardData, { shopId, recruitmentId });
+      .query(api.shiftBoard.queries.getShiftBoardData, {
+        shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
+        recruitmentId,
+        refreshDayKey: QUERY_REFRESH_DAY_KEY,
+      });
 
     expect(result).toBeNull();
   });
@@ -149,6 +164,7 @@ describe("shiftBoard/queries", () => {
       .withIdentity({ subject: "manager_adjacent_projection" })
       .query(api.shiftBoard.queries.getShiftBoardData, {
         shopId: ids.shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
         recruitmentId: ids.recruitmentId,
         refreshDayKey: QUERY_REFRESH_DAY_KEY,
       });
@@ -176,6 +192,7 @@ describe("shiftBoard/queries", () => {
       .withIdentity({ subject: "manager_adjacent_projection" })
       .query(api.shiftBoard.queries.getShiftBoardData, {
         shopId: ids.shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
         recruitmentId: ids.recruitmentId,
         refreshDayKey: QUERY_REFRESH_DAY_KEY,
       });
@@ -244,6 +261,7 @@ describe("shiftBoard/queries", () => {
     await expect(
       t.withIdentity({ subject: "manager_assignment_overflow" }).query(api.shiftBoard.queries.getShiftBoardData, {
         shopId: ids.shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
         recruitmentId: ids.recruitmentId,
         refreshDayKey: QUERY_REFRESH_DAY_KEY,
       }),
@@ -339,6 +357,7 @@ describe("shiftBoard/queries", () => {
 
     const result = await t.withIdentity({ subject }).query(api.shiftBoard.queries.getShiftBoardData, {
       shopId: ids.shopId,
+      expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
       recruitmentId: ids.recruitmentId,
       refreshDayKey: QUERY_REFRESH_DAY_KEY,
     });
@@ -350,7 +369,7 @@ describe("shiftBoard/queries", () => {
     });
   });
 
-  it("billing state未移行中は従来どおりシフト操作を有効表示する", async () => {
+  it("billing stateがない場合はシフト操作をfail closedにする", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const seeded = await seedOrganizationManagerShop(ctx, {
@@ -381,13 +400,14 @@ describe("shiftBoard/queries", () => {
       .withIdentity({ subject: "missing_billing_shift_board" })
       .query(api.shiftBoard.queries.getShiftBoardData, {
         shopId: ids.shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
         recruitmentId: ids.recruitmentId,
         refreshDayKey: QUERY_REFRESH_DAY_KEY,
       });
 
     expect(result).toMatchObject({
-      canWriteBusinessData: true,
-      businessWriteBlockReason: null,
+      canWriteBusinessData: false,
+      businessWriteBlockReason: "usageLimitEvaluationUnavailable",
       recruitment: { _id: ids.recruitmentId },
     });
   });
@@ -424,6 +444,7 @@ describe("shiftBoard/queries", () => {
       .withIdentity({ subject: "manager_excluded" })
       .query(api.shiftBoard.queries.getShiftBoardData, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         refreshDayKey: QUERY_REFRESH_DAY_KEY,
       });
@@ -448,6 +469,7 @@ describe("shiftBoard/queries", () => {
         name: "通常",
         color: "#000000",
         sortOrder: 0,
+        isDefault: false,
         isDeleted: false,
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
@@ -475,13 +497,14 @@ describe("shiftBoard/queries", () => {
 
     const current = await actor.query(api.shiftBoard.queries.getShiftBoardData, {
       shopId: ids.shopId,
+      expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
       recruitmentId: ids.recruitmentId,
-      // rolling deploy中の旧clientが未来のasOfDateを渡しても、server時刻より早くtombstoneを取得できない。
-      asOfDate: "2026-07-21",
+      refreshDayKey: "2026-07-20:current",
     });
     vi.setSystemTime(Date.parse("2026-07-20T15:00:00.000Z"));
     const past = await actor.query(api.shiftBoard.queries.getShiftBoardData, {
       shopId: ids.shopId,
+      expectedOrganizationId: await getExpectedOrganizationId(t, ids.shopId),
       recruitmentId: ids.recruitmentId,
       // 実subscriptionと同様、server側の日付変更後は別keyで再購読する。
       refreshDayKey: "2026-07-21:safe",
@@ -522,6 +545,7 @@ describe("shiftBoard/queries", () => {
       await ctx.db.insert("shiftSubmissions", {
         recruitmentId,
         staffId,
+        firstSubmittedAt: Date.now(),
         submittedAt: Date.now(),
       });
       return { shopId, recruitmentId, staffId };
@@ -531,6 +555,7 @@ describe("shiftBoard/queries", () => {
       .withIdentity({ subject: "manager_all_off" })
       .query(api.shiftBoard.queries.getShiftBoardData, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         refreshDayKey: QUERY_REFRESH_DAY_KEY,
       });
@@ -569,6 +594,7 @@ describe("shiftBoard/queries", () => {
       const submissionId = await ctx.db.insert("shiftSubmissions", {
         recruitmentId,
         staffId,
+        firstSubmittedAt: Date.now(),
         submittedAt: Date.now(),
       });
       await ctx.db.insert("shiftSubmissionDates", {
@@ -584,6 +610,7 @@ describe("shiftBoard/queries", () => {
       .withIdentity({ subject: "manager_date_only_board" })
       .query(api.shiftBoard.queries.getShiftBoardData, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         refreshDayKey: QUERY_REFRESH_DAY_KEY,
       });
@@ -628,6 +655,7 @@ describe("shiftBoard/queries", () => {
       const submissionId = await ctx.db.insert("shiftSubmissions", {
         recruitmentId,
         staffId,
+        firstSubmittedAt: Date.now(),
         submittedAt: Date.now(),
       });
       await ctx.db.insert("shiftSubmissionSlots", {
@@ -655,6 +683,7 @@ describe("shiftBoard/queries", () => {
       .withIdentity({ subject: "manager_shift_type_board" })
       .query(api.shiftBoard.queries.getShiftBoardData, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         refreshDayKey: QUERY_REFRESH_DAY_KEY,
       });
@@ -718,6 +747,7 @@ describe("shiftBoard/queries", () => {
       .withIdentity({ subject: "manager_draft_status" })
       .query(api.shiftBoard.queries.getShiftBoardData, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         refreshDayKey: QUERY_REFRESH_DAY_KEY,
       });
@@ -726,61 +756,6 @@ describe("shiftBoard/queries", () => {
     expect(staffById.get(staffBeforeDraftId)?.wasSubmittedAtDraft).toBe(true);
     expect(staffById.get(staffAfterDraftId)?.wasSubmittedAtDraft).toBe(false);
     expect(result?.recruitment.draftSavedAt).toBe(2000);
-  });
-
-  it("draftSavedAtがない既存データは保存済み割当の作成時刻を使う", async () => {
-    const t = convexTest(schema, modules);
-    const { shopId, recruitmentId, staffId } = await t.run(async (ctx) => {
-      const { shopId } = await seedManagerShop(ctx, { subject: "manager_legacy_draft", shopName: "テスト店舗" });
-      const staffId = await seedStaff(ctx, {
-        shopId,
-        name: "既存スタッフ",
-        email: "legacy@example.com",
-      });
-      const recruitmentId = await ctx.db.insert("recruitments", {
-        shopId,
-        periodStart: "2026-04-01",
-        periodEnd: "2026-04-07",
-        deadline: "2026-03-28",
-        shopClosedDates: [],
-        status: "open",
-        isDeleted: false,
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-      });
-      const positionId = await ctx.db.insert("positions", {
-        shopId,
-        name: "シフト",
-        color: "#3b82f6",
-        sortOrder: 0,
-        isDefault: true,
-        isDeleted: false,
-      });
-      await ctx.db.insert("shiftSubmissions", {
-        recruitmentId,
-        staffId,
-        submittedAt: 1,
-      });
-      await ctx.db.insert("shiftAssignments", {
-        recruitmentId,
-        staffId,
-        date: "2026-04-01",
-        startTime: "10:00",
-        endTime: "18:00",
-        positionId,
-      });
-      return { shopId, recruitmentId, staffId };
-    });
-
-    const result = await t
-      .withIdentity({ subject: "manager_legacy_draft" })
-      .query(api.shiftBoard.queries.getShiftBoardData, {
-        shopId,
-        recruitmentId,
-        refreshDayKey: QUERY_REFRESH_DAY_KEY,
-      });
-
-    expect(result?.recruitment.draftSavedAt).toBeTypeOf("number");
-    expect(result?.staffs.find((s) => s._id === staffId)?.wasSubmittedAtDraft).toBe(true);
   });
 
   it("分つきシフト時間は表示用に丸めつつ編集可能境界を分で返す", async () => {
@@ -804,6 +779,7 @@ describe("shiftBoard/queries", () => {
       .withIdentity({ subject: "manager_half_hour" })
       .query(api.shiftBoard.queries.getShiftBoardData, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         refreshDayKey: QUERY_REFRESH_DAY_KEY,
       });
@@ -838,6 +814,7 @@ describe("shiftBoard/queries", () => {
       .withIdentity({ subject: "manager_snapshot" })
       .query(api.shiftBoard.queries.getShiftBoardData, {
         shopId,
+        expectedOrganizationId: await getExpectedOrganizationId(t, shopId),
         recruitmentId,
         refreshDayKey: QUERY_REFRESH_DAY_KEY,
       });

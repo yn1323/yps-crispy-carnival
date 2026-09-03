@@ -12,7 +12,7 @@ import {
   managerSettingsOverviewValidator,
 } from "../organization/queries";
 import { type CanonicalOrganizationBillingStateDocument, getOrganizationUsageSnapshot } from "../organization/service";
-import { deriveOrganizationBillingPolicy, ORGANIZATION_PLAN_LIMITS } from "../organizationBilling/policy";
+import { deriveOrganizationBillingPolicy } from "../organizationBilling/policy";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { getOrganizationCreationAvailability } from "../setup/service";
 
@@ -28,7 +28,6 @@ const manageBillingStateValidator = v.union(
   v.literal("initialPaymentPending"),
   v.literal("pendingActivation"),
   v.literal("scheduledChange"),
-  v.literal("migrationPending"),
 );
 
 const manageUsageItemValidator = v.object({
@@ -39,7 +38,7 @@ const manageUsageItemValidator = v.object({
 
 const manageUsageValidator = v.object({
   state: manageBillingStateValidator,
-  currentPlan: v.union(v.literal("trial"), v.literal("free"), v.literal("standard"), v.literal("pro"), v.null()),
+  currentPlan: v.union(v.literal("trial"), v.literal("free"), v.literal("standard"), v.literal("pro")),
   peopleUsage: manageUsageItemValidator,
   shopUsage: manageUsageItemValidator,
   managerUsage: manageUsageItemValidator,
@@ -53,8 +52,7 @@ const manageOverviewValidator = v.object({
   memberStatus: v.literal("active"),
   usage: manageUsageValidator,
   shopCounts: v.object({
-    active: v.number(),
-    archived: v.number(),
+    total: v.number(),
     hasOverflow: v.boolean(),
   }),
   capabilities: v.object({
@@ -72,12 +70,7 @@ const manageOverviewValidator = v.object({
 const organizationShopListItemValidator = v.object({
   shopId: v.id("shops"),
   shopName: v.string(),
-  // rolling deploy中の旧client互換field。非削除店舗だけをactive固定で返す。
-  operatingStatus: v.literal("active"),
 });
-
-// rolling deploy中の旧clientはstatusを送る。新clientは未指定で全非削除店舗を読む。
-const shopStatusFilterValidator = v.optional(v.union(v.literal("all"), v.literal("active"), v.literal("archived")));
 
 function boundedPaginationOptions(paginationOpts: PaginationOptions): PaginationOptions {
   if (
@@ -111,18 +104,14 @@ export const getManageOverview = organizationQuery({
         )
         .take(SHOP_COUNT_LIMIT + 1),
     ]);
-    const billingState = access?.billingState ?? null;
-    const policy = billingState ? deriveOrganizationBillingPolicy(billingState.state) : null;
-    const limits = policy?.limits;
+    if (!access) throw new ConvexError("Billing state not found");
+    const billingState = access.billingState;
+    const policy = deriveOrganizationBillingPolicy(billingState.state);
+    const limits = policy.limits;
     const isActiveActor = memberStatus === "active";
-    // billing state欠損中はm025 rolling migration互換としてserver guardと同じくfail-openにする。
-    const canWriteBusinessData = access?.canWriteBusinessData ?? true;
+    const canWriteBusinessData = access.canWriteBusinessData;
     const canAddShop = Boolean(
-      isActiveActor &&
-        canWriteBusinessData &&
-        policy?.canUsePaidFeatures &&
-        limits &&
-        usage.shopCount < limits.maxShops,
+      isActiveActor && canWriteBusinessData && policy.canUsePaidFeatures && usage.shopCount < limits.maxShops,
     );
     const deletionEligibility = await getOrganizationDeletionEligibility(ctx, {
       organizationId: ctx.organization._id,
@@ -137,10 +126,8 @@ export const getManageOverview = organizationQuery({
       organizationUpdatedAt: ctx.organization.updatedAt,
       memberStatus,
       usage: projectManageUsage(billingState, usage, limits),
-      // 旧client互換。archive廃止後は全非削除店舗をactiveへ投影し、archivedは常に0にする。
       shopCounts: {
-        active: Math.min(shops.length, SHOP_COUNT_LIMIT),
-        archived: 0,
+        total: Math.min(shops.length, SHOP_COUNT_LIMIT),
         hasOverflow: shops.length > SHOP_COUNT_LIMIT,
       },
       capabilities: {
@@ -149,7 +136,7 @@ export const getManageOverview = organizationQuery({
           ? {
               updateOrganizationNameDisabledReason: !isActiveActor
                 ? "現在のアカウント状態では、組織名を変更できません。"
-                : access?.businessWriteBlockReason === "usageLimitExceeded"
+                : access.businessWriteBlockReason === "usageLimitExceeded"
                   ? "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。"
                   : "現在の契約状態では、組織名を変更できません。",
             }
@@ -159,15 +146,13 @@ export const getManageOverview = organizationQuery({
           ? {
               addShopDisabledReason: !isActiveActor
                 ? "現在のアカウント状態では、店舗を追加できません。"
-                : !billingState
-                  ? "組織単位のプラン設定を移行しています。\n完了するまでお待ちください。"
-                  : access?.businessWriteBlockReason === "usageLimitExceeded"
-                    ? "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。"
-                    : policy?.paidFeatureBlockReason === "freePlan"
-                      ? "Freeプランでは、店舗を追加できません。\n有料プランを選択してください。"
-                      : policy?.paidFeatureBlockReason === "paymentResultPending"
-                        ? "支払い結果が確定してから、店舗を追加できます。"
-                        : `店舗は、組織ごとに${limits?.maxShops ?? ORGANIZATION_PLAN_LIMITS.standard.maxShops}件まで登録できます。`,
+                : access.businessWriteBlockReason === "usageLimitExceeded"
+                  ? "プラン上限を超過しているため、利用人数・店舗・管理者を上限内に減らすか、プランを変更してください。"
+                  : policy.paidFeatureBlockReason === "freePlan"
+                    ? "Freeプランでは、店舗を追加できません。\n有料プランを選択してください。"
+                    : policy.paidFeatureBlockReason === "paymentResultPending"
+                      ? "支払い結果が確定してから、店舗を追加できます。"
+                      : `店舗は、組織ごとに${limits.maxShops}件まで登録できます。`,
             }
           : {}),
         canDeleteOrganization: isActiveActor && deletionEligibility.canDelete,
@@ -194,9 +179,9 @@ export const getManageOverview = organizationQuery({
 type ManageUsageSnapshot = Awaited<ReturnType<typeof getOrganizationUsageSnapshot>>;
 
 function projectManageUsage(
-  billingState: CanonicalOrganizationBillingStateDocument | null,
+  billingState: CanonicalOrganizationBillingStateDocument,
   usage: ManageUsageSnapshot,
-  limits: { maxPeople: number; maxShops: number; maxActiveManagers: number } | null | undefined,
+  limits: { maxPeople: number; maxShops: number; maxActiveManagers: number },
 ) {
   const state = manageBillingState(billingState);
   const currentPlan = manageCurrentPlan(billingState);
@@ -205,24 +190,23 @@ function projectManageUsage(
     currentPlan,
     peopleUsage: {
       current: usage.personCount,
-      max: limits?.maxPeople ?? 0,
+      max: limits.maxPeople,
       pendingInvitations: usage.reservedSeatCount,
     },
     shopUsage: {
       current: usage.shopCount,
-      max: limits?.maxShops ?? 0,
+      max: limits.maxShops,
       pendingInvitations: 0,
     },
     managerUsage: {
       current: usage.activeManagerCount,
-      max: limits?.maxActiveManagers ?? 0,
+      max: limits.maxActiveManagers,
       pendingInvitations: usage.pendingManagerInvitationCount,
     },
   };
 }
 
-function manageBillingState(billingState: CanonicalOrganizationBillingStateDocument | null) {
-  if (!billingState) return "migrationPending" as const;
+function manageBillingState(billingState: CanonicalOrganizationBillingStateDocument) {
   const state = billingState.state;
   if (state.kind === "active") return state.plan;
   if (state.kind === "complimentary") return "pro" as const;
@@ -230,8 +214,7 @@ function manageBillingState(billingState: CanonicalOrganizationBillingStateDocum
   return state.kind;
 }
 
-function manageCurrentPlan(billingState: CanonicalOrganizationBillingStateDocument | null) {
-  if (!billingState) return null;
+function manageCurrentPlan(billingState: CanonicalOrganizationBillingStateDocument) {
   const state = billingState.state;
   switch (state.kind) {
     case "trial":
@@ -250,18 +233,12 @@ function manageCurrentPlan(billingState: CanonicalOrganizationBillingStateDocume
   }
 }
 
-/** 非削除店舗をcursor paginationする。旧clientのarchived指定には空結果を返す。 */
+/** 非削除店舗をcursor paginationする。 */
 export const listOrganizationShops = organizationQuery({
-  args: {
-    status: shopStatusFilterValidator,
-    paginationOpts: paginationOptsValidator,
-  },
+  args: { paginationOpts: paginationOptsValidator },
   returns: paginationResultValidator(organizationShopListItemValidator),
-  handler: async (ctx, { status, paginationOpts }) => {
+  handler: async (ctx, { paginationOpts }) => {
     const bounded = boundedPaginationOptions(paginationOpts);
-    if (status === "archived") {
-      return { page: [], isDone: true, continueCursor: "" };
-    }
     const result = await ctx.db
       .query("shops")
       .withIndex("by_organizationId_and_isDeleted", (q) =>
@@ -274,8 +251,6 @@ export const listOrganizationShops = organizationQuery({
       page: result.page.map((shop) => ({
         shopId: shop._id,
         shopName: shop.name,
-        // rolling deploy中の旧client互換。DBのlegacy fieldは参照しない。
-        operatingStatus: "active" as const,
       })),
     };
   },

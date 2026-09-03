@@ -78,10 +78,7 @@ export function useStaffInvitation(
     setPeopleCapacityResolution(null);
     try {
       const requestId = crypto.randomUUID();
-      const result = await addStaffs({ entries: data.entries, requestId });
-      if ((result as { status: string }).status !== "added") {
-        throw new Error("スタッフ追加の処理が更新されました。画面を再読み込みして、もう一度お試しください。");
-      }
+      await addStaffs({ entries: data.entries, requestId });
       closeDialogSession();
       showSuccessToast({
         title: "スタッフを追加しました",

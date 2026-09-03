@@ -1,6 +1,6 @@
 import { Box, Checkbox, Flex, Icon, Text, VStack } from "@chakra-ui/react";
 import type { ReactNode } from "react";
-import { LuPointer, LuRefreshCw } from "react-icons/lu";
+import { LuCircleCheck, LuPointer, LuRefreshCw } from "react-icons/lu";
 import { LegalDocumentLink } from "@/src/components/shared/LegalDocumentLink";
 import { STAFF_CONTENT_MAX_W } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
@@ -71,8 +71,8 @@ export function SubmitFormView({
       <SubmitPageHeader shopName={data.shopName} actions={headerAction} />
 
       <Box bg="white" w="full" borderBottomWidth={1} borderColor="border.default">
-        <Flex maxW={STAFF_CONTENT_MAX_W} mx="auto" px={4} py={3} align="center">
-          <Box>
+        <Flex maxW={STAFF_CONTENT_MAX_W} mx="auto" px={4} py={3} align="center" justify="space-between" gap={3}>
+          <Box minW={0}>
             <Text fontSize="sm" fontWeight="semibold">
               {formatDatePeriodWithWeekday(data.periodStart, data.periodEnd)}
             </Text>
@@ -80,6 +80,16 @@ export function SubmitFormView({
               提出期限：{formatDateWithWeekday(data.deadline)} 23:59
             </Text>
           </Box>
+          {data.hasSubmitted && (
+            <Flex align="center" gap={1} flexShrink={0} color="green.600">
+              <Icon boxSize={3.5}>
+                <LuCircleCheck aria-hidden />
+              </Icon>
+              <Text fontSize="xs" fontWeight="semibold" whiteSpace="nowrap">
+                提出済み
+              </Text>
+            </Flex>
+          )}
         </Flex>
       </Box>
 

@@ -155,6 +155,8 @@ async function insertServiceKpi(
 
 async function insertAnalyticsOrganizationFixture(ctx: MutationCtx, suffix: string) {
   const organizationId = await ctx.db.insert("organizations", {
+    billingEmail: "billing@example.com",
+    billingEmailNormalized: "billing@example.com",
     name: `fixture-${suffix}`,
     isDeleted: false,
     createdAt: SCENARIO_NOW - 1,
@@ -238,6 +240,7 @@ describe("Analytics simplified control plane", () => {
         subject: "analytics_reset_line_canonical",
       });
       const staffId = await ctx.db.insert("staffs", {
+        excludedFromShift: false,
         shopId: seeded.shopId,
         organizationId: seeded.organizationId,
         organizationPersonId: seeded.personId,
@@ -488,6 +491,8 @@ describe("Analytics simplified control plane", () => {
     const t = convexTest(schema, modules);
     const runId = await t.run(async (ctx) => {
       const organizationId = await ctx.db.insert("organizations", {
+        billingEmail: "billing@example.com",
+        billingEmailNormalized: "billing@example.com",
         name: "参照不整合事業者",
         isDeleted: false,
         createdAt: DATA_START_AT,
@@ -814,7 +819,7 @@ describe("Analytics simplified control plane", () => {
     ).toBe(ANALYTICS_POLICY.batch.cleanup + 1);
   });
 
-  it("plan status deltaは配列offsetで固定pageへ分割し、50件超もsource writerをrollbackしない", async () => {
+  it("plan manager status deltaは配列offsetで固定pageへ分割し、50件超もsource writerをrollbackしない", async () => {
     const t = convexTest(schema, modules);
     vi.stubEnv("ANALYTICS_SOURCE_CAPTURE_START_AT", DATA_START_JST);
     const fixture = await t.run(async (ctx) => {
@@ -825,13 +830,21 @@ describe("Analytics simplified control plane", () => {
         registeredAt: DATA_START_AT,
         updatedAt: DATA_START_AT,
       });
-      await ctx.db.insert("analyticsShops", {
+      await ctx.db.insert("analyticsPeople", {
         organizationId: seeded.organizationId,
-        shopId: seeded.shopId,
-        displayName: "プラン変更店舗",
-        registeredAt: DATA_START_AT,
-        statusEffectiveAt: DATA_START_AT,
-        cadenceConfidence: "insufficientData",
+        organizationPersonId: seeded.personId,
+        firstObservedAt: DATA_START_AT,
+        updatedAt: DATA_START_AT,
+      });
+      const membershipId = await ctx.db.insert("analyticsMemberships", {
+        membershipKey: `manager:${seeded.organizationId}:${seeded.personId}`,
+        organizationId: seeded.organizationId,
+        organizationPersonId: seeded.personId,
+        role: "manager",
+        validFrom: DATA_START_AT,
+        isShiftTarget: false,
+        lineLinked: false,
+        lineFollowing: false,
         updatedAt: DATA_START_AT,
       });
       const eventId = await recordAnalyticsSourceEvent(ctx, {
@@ -845,16 +858,22 @@ describe("Analytics simplified control plane", () => {
           effectiveAt: DATA_START_AT + 10_000,
           statusDeltas: [
             ...Array.from({ length: ANALYTICS_POLICY.batch.cleanup }, () => ({
-              kind: "shop" as const,
-              shopId: seeded.shopId,
-              status: "archived" as const,
+              kind: "manager" as const,
+              memberId: seeded.memberId,
+              personId: seeded.personId,
+              status: "active" as const,
             })),
-            { kind: "shop" as const, shopId: seeded.shopId, status: "active" as const },
+            {
+              kind: "manager" as const,
+              memberId: seeded.memberId,
+              personId: seeded.personId,
+              status: "removed" as const,
+            },
           ],
         },
       });
       if (!eventId) throw new Error("source event was not recorded");
-      return { eventId, shopId: seeded.shopId };
+      return { eventId, membershipId };
     });
 
     const root = await t.run(async (ctx) => {
@@ -871,16 +890,11 @@ describe("Analytics simplified control plane", () => {
     });
     expect(firstPage).toEqual({ done: false, substage: "planStatusDeltas", cursor: "50" });
     expect(
-      await t.run(
-        async (ctx) =>
-          (
-            await ctx.db
-              .query("analyticsShops")
-              .withIndex("by_shopId", (q) => q.eq("shopId", fixture.shopId))
-              .unique()
-          )?.deletedAt,
-      ),
-    ).toBe(DATA_START_AT + 10_000);
+      await t.run(async (ctx) => {
+        const membership = await ctx.db.get(fixture.membershipId);
+        return { updatedAt: membership?.updatedAt, validTo: membership?.validTo };
+      }),
+    ).toEqual({ updatedAt: DATA_START_AT + 10_000, validTo: undefined });
 
     if (firstPage.done) throw new Error("plan continuation unexpectedly completed");
     const completed = await t.run(async (ctx) => {
@@ -889,15 +903,7 @@ describe("Analytics simplified control plane", () => {
       return await applySourceEventPage(ctx, event, DATA_START_AT, firstPage.substage, firstPage.cursor);
     });
     expect(completed).toEqual({ done: true });
-    expect(
-      await t.run(async (ctx) => {
-        const shop = await ctx.db
-          .query("analyticsShops")
-          .withIndex("by_shopId", (q) => q.eq("shopId", fixture.shopId))
-          .unique();
-        return shop?.deletedAt === undefined;
-      }),
-    ).toBe(true);
+    expect(await t.run(async (ctx) => (await ctx.db.get(fixture.membershipId))?.validTo)).toBe(DATA_START_AT + 10_000);
   });
 
   it("cycle cutoff境界はvalidFromを除外し、同時刻のvalidToを含める", async () => {

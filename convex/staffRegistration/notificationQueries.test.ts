@@ -47,6 +47,7 @@ async function insertCanonicalManagerStaff(
   },
 ) {
   return await ctx.db.insert("staffs", {
+    excludedFromShift: false,
     shopId: args.shopId,
     organizationId: args.organizationId,
     organizationPersonId: args.personId,
@@ -150,6 +151,7 @@ describe("staffRegistration/notificationQueries", () => {
           emailNormalized: "owner-contact@example.com",
         });
         const managerStaffId = await ctx.db.insert("staffs", {
+          excludedFromShift: false,
           shopId: seeded.shopId,
           organizationId: seeded.organizationId,
           organizationPersonId: seeded.personId,
@@ -197,55 +199,6 @@ describe("staffRegistration/notificationQueries", () => {
           lineUserId: "U_owner_line",
           lineFollowing: true,
         },
-      ]);
-    });
-
-    it("person作成後でorganizationMember作成前の管理者もperson連絡先とLINEを使う", async () => {
-      const t = convexTest(schema, modules);
-      const ids = await t.run(async (ctx) => {
-        const seeded = await seedManagerShop(ctx, {
-          subject: "owner_partial_person",
-          email: "owner-login@example.com",
-          shopName: "移行途中店舗",
-        });
-        await ctx.db.delete(seeded.memberId);
-        await seedLegacyShopMembership(ctx, { shopId: seeded.shopId, userId: seeded.userId });
-        await ctx.db.patch(seeded.personId, {
-          name: "移行途中連絡先",
-          email: "owner-contact@example.com",
-          emailNormalized: "owner-contact@example.com",
-        });
-        const staffId = await ctx.db.insert("staffs", {
-          shopId: seeded.shopId,
-          organizationId: seeded.organizationId,
-          organizationPersonId: seeded.personId,
-          userId: seeded.userId,
-          name: "移行途中連絡先",
-          email: "owner-contact@example.com",
-          emailNormalized: "owner-contact@example.com",
-          isDeleted: false,
-        });
-        await seedCanonicalStaffLineRecipient(ctx, {
-          staffId,
-          lineUserId: "U_owner_partial_person",
-          following: true,
-        });
-        await insertPendingRequest(ctx, { shopId: seeded.shopId, status: "pending" });
-        return seeded;
-      });
-
-      const result = await t.query(internal.staffRegistration.notificationQueries.getOwnerDigestTargetForShop, {
-        shopId: ids.shopId,
-      });
-
-      expect(result?.recipients).toEqual([
-        expect.objectContaining({
-          userId: ids.userId,
-          name: "移行途中連絡先",
-          email: "owner-contact@example.com",
-          lineUserId: "U_owner_partial_person",
-          lineFollowing: true,
-        }),
       ]);
     });
 
@@ -379,6 +332,7 @@ describe("staffRegistration/notificationQueries", () => {
           }
 
           const managerStaffId = await ctx.db.insert("staffs", {
+            excludedFromShift: false,
             shopId: seeded.shopId,
             organizationId,
             organizationPersonId,
@@ -396,6 +350,7 @@ describe("staffRegistration/notificationQueries", () => {
           });
           if (kind === "duplicate") {
             await ctx.db.insert("staffs", {
+              excludedFromShift: false,
               shopId: seeded.shopId,
               organizationId: seeded.organizationId,
               organizationPersonId: seeded.personId,

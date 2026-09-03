@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { seedOrganizationManagerShop, seedStaffLineAccount, seedUser } from "../_test/seed";
+import { getTestOrganizationId, seedOrganizationManagerShop, seedStaffLineAccount, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { deletedLineUserId } from "../deletionCleanup/tombstone";
 
@@ -34,6 +34,7 @@ async function seedDeletionScope(ctx: MutationCtx, subject: string) {
     updatedAt: now,
   });
   const staffId = await ctx.db.insert("staffs", {
+    excludedFromShift: false,
     shopId: base.shopId,
     organizationId: base.organizationId,
     organizationPersonId: staffPersonId,
@@ -59,6 +60,7 @@ async function seedDeletionScope(ctx: MutationCtx, subject: string) {
     submissionPattern,
   });
   const sessionId = await ctx.db.insert("sessions", {
+    accessKind: "submit",
     sessionToken: `session-${subject}`,
     staffId,
     shopId: base.shopId,
@@ -66,6 +68,7 @@ async function seedDeletionScope(ctx: MutationCtx, subject: string) {
     expiresAt: now + 86_400_000,
   });
   const magicLinkId = await ctx.db.insert("magicLinks", {
+    accessKind: "submit",
     token: `magic-${subject}`,
     staffId,
     shopId: base.shopId,
@@ -76,6 +79,9 @@ async function seedDeletionScope(ctx: MutationCtx, subject: string) {
     token: `line-link-${subject}`,
     staffId,
     shopId: base.shopId,
+    organizationId: base.organizationId,
+    organizationPersonId: staffPersonId,
+    lineLinkGenerationAtIssue: 0,
     expiresAt: now + 86_400_000,
   });
   const legalConsentTokenId = await ctx.db.insert("legalConsentTokens", {
@@ -232,7 +238,12 @@ describe("organization deletion", () => {
     });
     const actor = t.withIdentity({ subject: "delete_stripe_guard" });
 
-    await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
+    await expect(
+      actor.query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      }),
+    ).resolves.toMatchObject({
       canDeleteOrganization: false,
       deleteOrganizationDisabledReason: "組織を削除するには、先にStripeの契約終了を確認してください。",
     });
@@ -247,7 +258,12 @@ describe("organization deletion", () => {
         updatedAt: now,
       });
     });
-    await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
+    await expect(
+      actor.query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      }),
+    ).resolves.toMatchObject({
       canDeleteOrganization: false,
     });
 
@@ -268,20 +284,29 @@ describe("organization deletion", () => {
         updatedAt: now,
       }),
     );
-    await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
+    await expect(
+      actor.query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      }),
+    ).resolves.toMatchObject({
       canDeleteOrganization: true,
     });
 
     await t.run(async (ctx) => {
       await ctx.db.patch(subscriptionId, { status: "active", terminalAt: undefined, updatedAt: now + 1 });
     });
-    await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
+    await expect(
+      actor.query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      }),
+    ).resolves.toMatchObject({
       canDeleteOrganization: false,
       deleteOrganizationDisabledReason: "組織を削除するには、先にStripeの契約終了を確認してください。",
     });
     await expect(
-      actor.mutation(api.organization.mutations.deleteOrganization, {
-        shopId: ids.shopId,
+      actor.mutation(api.organization.mutations.deleteOrganizationForOrganization, {
         organizationId: ids.organizationId,
         confirmOrganizationId: ids.organizationId,
         expectedOrganizationUpdatedAt: ids.organizationUpdatedAt,
@@ -340,7 +365,12 @@ describe("organization deletion", () => {
     });
     const actor = t.withIdentity({ subject: "delete_invalid_trial_cleanup_guard" });
     const expectDeletionBlocked = async () => {
-      await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
+      await expect(
+        actor.query(api.organization.queries.getSettings, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+          shopId: ids.shopId,
+        }),
+      ).resolves.toMatchObject({
         canDeleteOrganization: false,
         deleteOrganizationDisabledReason: "組織を削除するには、先にStripeの契約終了を確認してください。",
       });
@@ -384,7 +414,12 @@ describe("organization deletion", () => {
     await t.run(async (ctx) => {
       await ctx.db.patch(ids.cleanupOperationId, { status: "succeeded", updatedAt: now });
     });
-    await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
+    await expect(
+      actor.query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      }),
+    ).resolves.toMatchObject({
       canDeleteOrganization: true,
     });
   });
@@ -427,6 +462,7 @@ describe("organization deletion", () => {
 
     await expect(
       t.withIdentity({ subject: "delete_old_current_subscription_guard" }).query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
       }),
     ).resolves.toMatchObject({
@@ -465,6 +501,7 @@ describe("organization deletion", () => {
 
     await expect(
       t.withIdentity({ subject: "delete_unknown_trial_creation_guard" }).query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
         shopId: ids.shopId,
       }),
     ).resolves.toMatchObject({
@@ -532,19 +569,18 @@ describe("organization deletion", () => {
       email: "clerk-remains@example.com",
     });
     const args = {
-      shopId: ids.shopId,
       organizationId: ids.organizationId,
       confirmOrganizationId: ids.organizationId,
       expectedOrganizationUpdatedAt: ids.organizationUpdatedAt,
       requestId: "delete-organization-request",
     };
 
-    await expect(actor.mutation(api.organization.mutations.deleteOrganization, args)).resolves.toEqual({
+    await expect(actor.mutation(api.organization.mutations.deleteOrganizationForOrganization, args)).resolves.toEqual({
       organizationId: ids.organizationId,
       changed: true,
       accepted: true,
     });
-    await expect(actor.mutation(api.organization.mutations.deleteOrganization, args)).resolves.toEqual({
+    await expect(actor.mutation(api.organization.mutations.deleteOrganizationForOrganization, args)).resolves.toEqual({
       organizationId: ids.organizationId,
       changed: false,
       accepted: true,
@@ -655,13 +691,14 @@ describe("organization deletion", () => {
       return { target, other };
     });
 
-    await t.withIdentity({ subject: "shared_owner" }).mutation(api.organization.mutations.deleteOrganization, {
-      shopId: ids.target.shopId,
-      organizationId: ids.target.organizationId,
-      confirmOrganizationId: ids.target.organizationId,
-      expectedOrganizationUpdatedAt: ids.target.organizationUpdatedAt,
-      requestId: "delete-shared-organization",
-    });
+    await t
+      .withIdentity({ subject: "shared_owner" })
+      .mutation(api.organization.mutations.deleteOrganizationForOrganization, {
+        organizationId: ids.target.organizationId,
+        confirmOrganizationId: ids.target.organizationId,
+        expectedOrganizationUpdatedAt: ids.target.organizationUpdatedAt,
+        requestId: "delete-shared-organization",
+      });
     const cleanupJobId = await t.run(async (ctx) => (await ctx.db.query("deletionCleanupJobs").first())?._id);
     if (!cleanupJobId) throw new Error("cleanup job not found");
     await finishDeletionCleanupJob(t, cleanupJobId);
@@ -709,6 +746,7 @@ describe("organization deletion", () => {
             updatedAt: Date.now(),
           });
           await ctx.db.insert("staffs", {
+            excludedFromShift: false,
             shopId: other.shopId,
             organizationId: other.organizationId,
             organizationPersonId,
@@ -731,8 +769,7 @@ describe("organization deletion", () => {
 
       await t
         .withIdentity({ subject: `shared_${associationKind}` })
-        .mutation(api.organization.mutations.deleteOrganization, {
-          shopId: ids.target.shopId,
+        .mutation(api.organization.mutations.deleteOrganizationForOrganization, {
           organizationId: ids.target.organizationId,
           confirmOrganizationId: ids.target.organizationId,
           expectedOrganizationUpdatedAt: ids.target.organizationUpdatedAt,
@@ -766,8 +803,7 @@ describe("organization deletion", () => {
     const actor = t.withIdentity({ subject: "delete_rejected" });
 
     await expect(
-      actor.mutation(api.organization.mutations.deleteOrganization, {
-        shopId: ids.shopId,
+      actor.mutation(api.organization.mutations.deleteOrganizationForOrganization, {
         organizationId: ids.organizationId,
         confirmOrganizationId: ids.organizationId,
         expectedOrganizationUpdatedAt: ids.updatedAt,
@@ -784,8 +820,7 @@ describe("organization deletion", () => {
       await ctx.db.patch(billing._id, { state: { kind: "active", plan: "free" } });
     });
     await expect(
-      actor.mutation(api.organization.mutations.deleteOrganization, {
-        shopId: ids.shopId,
+      actor.mutation(api.organization.mutations.deleteOrganizationForOrganization, {
         organizationId: ids.organizationId,
         confirmOrganizationId: ids.organizationId,
         expectedOrganizationUpdatedAt: ids.updatedAt + 1,
@@ -793,8 +828,7 @@ describe("organization deletion", () => {
       }),
     ).rejects.toThrow("組織の状態が変わりました");
     await expect(
-      actor.mutation(api.organization.mutations.deleteOrganization, {
-        shopId: ids.shopId,
+      actor.mutation(api.organization.mutations.deleteOrganizationForOrganization, {
         organizationId: ids.organizationId,
         confirmOrganizationId: ids.otherOrganizationId,
         expectedOrganizationUpdatedAt: ids.updatedAt,
@@ -834,19 +868,24 @@ describe("organization deletion", () => {
       return { ...base, organizationUpdatedAt: organization.updatedAt };
     });
     const args = {
-      shopId: ids.shopId,
       organizationId: ids.organizationId,
       confirmOrganizationId: ids.organizationId,
       expectedOrganizationUpdatedAt: ids.organizationUpdatedAt,
       requestId: "delete-manager-rejected",
     };
 
-    await expect(t.mutation(api.organization.mutations.deleteOrganization, args)).rejects.toThrow("Unauthenticated");
+    await expect(t.mutation(api.organization.mutations.deleteOrganizationForOrganization, args)).rejects.toThrow(
+      "Unauthenticated",
+    );
     await expect(
-      t.withIdentity({ subject: "delete_other_manager" }).mutation(api.organization.mutations.deleteOrganization, args),
+      t
+        .withIdentity({ subject: "delete_other_manager" })
+        .mutation(api.organization.mutations.deleteOrganizationForOrganization, args),
     ).rejects.toThrow("組織を削除するには、先にほかの管理者の権限を外してください。");
     await expect(
-      t.withIdentity({ subject: "delete_with_managers" }).mutation(api.organization.mutations.deleteOrganization, args),
+      t
+        .withIdentity({ subject: "delete_with_managers" })
+        .mutation(api.organization.mutations.deleteOrganizationForOrganization, args),
     ).rejects.toThrow("組織を削除するには、先にほかの管理者の権限を外してください。");
 
     const state = await t.run(async (ctx) => ({
@@ -882,12 +921,16 @@ describe("organization deletion", () => {
     });
     const actor = t.withIdentity({ subject: "delete_association_unknown" });
 
-    await expect(actor.query(api.organization.queries.getSettings, { shopId: ids.shopId })).resolves.toMatchObject({
+    await expect(
+      actor.query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      }),
+    ).resolves.toMatchObject({
       canDeleteOrganization: true,
     });
     await expect(
-      actor.mutation(api.organization.mutations.deleteOrganization, {
-        shopId: ids.shopId,
+      actor.mutation(api.organization.mutations.deleteOrganizationForOrganization, {
         organizationId: ids.organizationId,
         confirmOrganizationId: ids.organizationId,
         expectedOrganizationUpdatedAt: ids.organizationUpdatedAt,

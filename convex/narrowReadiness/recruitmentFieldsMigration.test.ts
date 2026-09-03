@@ -1,24 +1,36 @@
+import type { WithoutSystemFields } from "convex/server";
 import { describe, expect, it } from "vitest";
 import { internal } from "../_generated/api";
+import type { Doc } from "../_generated/dataModel";
 import { createMigrationHistoryTestWithMigrations, runMigrationToCompletion } from "../_test/migrations.test-helper";
+
+function legacyDocument<T>(document: unknown): T {
+  return document as T;
+}
 
 describe("recruitment fields Narrow preparation migrations", () => {
   it("旧募集と店舗を現行fallback値へ補完し、条件付きoptionalと既存値を保持して再実行できる", async () => {
     const t = createMigrationHistoryTestWithMigrations();
     const ids = await t.run(async (ctx) => {
       const now = Date.now();
-      const organizationId = await ctx.db.insert("organizations", {
-        name: "募集field移行事業者",
-        isDeleted: false,
-        createdAt: now,
-        updatedAt: now,
-      });
-      const legacyShopId = await ctx.db.insert("shops", {
-        organizationId,
-        name: "旧店舗",
-        submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
-        isDeleted: false,
-      });
+      const organizationId = await ctx.db.insert(
+        "organizations",
+        legacyDocument<WithoutSystemFields<Doc<"organizations">>>({
+          name: "募集field移行事業者",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+        }),
+      );
+      const legacyShopId = await ctx.db.insert(
+        "shops",
+        legacyDocument<WithoutSystemFields<Doc<"shops">>>({
+          organizationId,
+          name: "旧店舗",
+          submissionPattern: { kind: "time", startTime: "09:00", endTime: "18:00" },
+          isDeleted: false,
+        }),
+      );
       const canonicalShopId = await ctx.db.insert("shops", {
         organizationId,
         name: "現行店舗",
@@ -54,16 +66,19 @@ describe("recruitment fields Narrow preparation migrations", () => {
         isDeleted: false,
       });
       const createRecruitment = async (fields: { shopClosedDates?: string[]; draftSavedAt?: number }) =>
-        await ctx.db.insert("recruitments", {
-          shopId: legacyShopId,
-          periodStart: "2026-08-03",
-          periodEnd: "2026-08-09",
-          deadline: "2026-08-02",
-          status: "open",
-          isDeleted: false,
-          submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "18:00" },
-          ...fields,
-        });
+        await ctx.db.insert(
+          "recruitments",
+          legacyDocument<WithoutSystemFields<Doc<"recruitments">>>({
+            shopId: legacyShopId,
+            periodStart: "2026-08-03",
+            periodEnd: "2026-08-09",
+            deadline: "2026-08-02",
+            status: "open",
+            isDeleted: false,
+            submissionPattern: { kind: "time" as const, startTime: "09:00", endTime: "18:00" },
+            ...fields,
+          }),
+        );
 
       const legacyWithAssignmentsId = await createRecruitment({});
       const legacyWithoutAssignmentsId = await createRecruitment({});

@@ -253,7 +253,7 @@ export function ManageShopsSection({
 }: {
   organizationId: Id<"organizations">;
   shops: OrganizationShopView[];
-  shopUsage: { current: number; max: number };
+  shopUsage: { current: number; max: number; pendingInvitations: number };
   canAddShop: boolean;
   addShopDisabledReason?: string;
   canLoadMore: boolean;
@@ -871,7 +871,6 @@ function billingStateLabel(state: string) {
     standard: `${organizationPlanLabel("standard")}プラン`,
     pro: `${organizationPlanLabel("pro")}プラン`,
     scheduledChange: "プラン変更予定",
-    migrationPending: "設定移行中",
     initialPaymentPending: "初回請求を確認中",
     pendingActivation: "支払い結果を確認中",
   };

@@ -54,7 +54,7 @@ export function ConnectedShopStaffMembershipDialog({
   onClose,
 }: {
   shop: ShopDetailData;
-  expectedOrganizationId?: Id<"organizations">;
+  expectedOrganizationId: Id<"organizations">;
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
   onClose: () => void;

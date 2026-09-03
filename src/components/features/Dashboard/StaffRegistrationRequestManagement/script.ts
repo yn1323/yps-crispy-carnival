@@ -6,7 +6,7 @@ export const DEFAULT_STAFF_REGISTRATION_APPROVAL_DISABLED_REASON =
 export function resolveStaffRegistrationApprovalAvailability(
   request: Pick<StaffRegistrationRequest, "canApprove" | "approveDisabledReason">,
 ) {
-  if (request.canApprove === true) {
+  if (request.canApprove) {
     return { canApprove: true as const, disabledReason: null };
   }
 

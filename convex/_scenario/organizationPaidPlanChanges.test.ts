@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { seedOrganizationManagerShop, seedUser } from "../_test/seed";
+import { getTestOrganizationId, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { STRIPE_WEBHOOK_API_VERSION, type StripeBillingConfiguration } from "../organizationStripe/config";
 import type { StripeWebhookEventType } from "../organizationStripe/validators";
@@ -116,6 +116,7 @@ async function addStaffPerson(
     updatedAt: now,
   });
   const staffId = await ctx.db.insert("staffs", {
+    excludedFromShift: false,
     organizationId,
     organizationPersonId: personId,
     shopId,
@@ -666,8 +667,8 @@ describe("有料プラン変更シナリオ", () => {
       const actor = t.withIdentity({ subject });
 
       await expect(
-        actor.action(api.organizationStripe.actions.startPaidCheckout, {
-          shopId: seeded.shopId,
+        actor.action(api.organizationStripe.actions.startPaidCheckoutForOrganization, {
+          organizationId: seeded.organizationId,
 
           targetPlan,
           requestId: `scenario-free-to-${targetPlan}-checkout`,
@@ -675,6 +676,7 @@ describe("有料プラン変更シナリオ", () => {
       ).resolves.toEqual({ status: "available", url: `https://checkout.stripe.test/free-to-${targetPlan}` });
       expect(requestedPriceIds).toEqual(targetPlan === "pro" ? [PRO_PRICE_ID, STANDARD_PRICE_ID] : [STANDARD_PRICE_ID]);
       const pendingSettings = await actor.query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
       });
       expect(pendingSettings?.billing).toMatchObject({
@@ -708,6 +710,7 @@ describe("有料プラン変更シナリオ", () => {
       await finishZeroDelayJobs(t);
 
       const activeSettings = await actor.query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, seeded.shopId),
         shopId: seeded.shopId,
       });
       expect(activeSettings?.billing).toMatchObject({
@@ -778,8 +781,8 @@ describe("有料プラン変更シナリオ", () => {
     const actor = t.withIdentity({ subject: "scenario_standard_to_pro" });
     const requestId = "scenario-standard-to-pro-change";
 
-    const preview = await actor.action(api.organizationStripe.actions.previewPaidPlanChange, {
-      shopId: ids.shopId,
+    const preview = await actor.action(api.organizationStripe.actions.previewPaidPlanChangeForOrganization, {
+      organizationId: ids.organizationId,
 
       targetPlan: "pro",
       requestId,
@@ -788,15 +791,22 @@ describe("有料プラン変更シナリオ", () => {
     if (preview.status !== "available") throw new Error("paid plan preview unavailable");
 
     await expect(
-      actor.action(api.organizationStripe.actions.changePaidPlanNow, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.changePaidPlanNowForOrganization, {
+        organizationId: ids.organizationId,
 
         targetPlan: "pro",
         requestId,
         prorationDate: preview.prorationDate,
       }),
     ).resolves.toEqual({ status: "accepted" });
-    expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
+    expect(
+      (
+        await actor.query(api.organization.queries.getSettings, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+          shopId: ids.shopId,
+        })
+      )?.billing,
+    ).toMatchObject({
       state: "pendingActivation",
       currentPlan: "standard",
       targetPlan: "pro",
@@ -816,7 +826,14 @@ describe("有料プラン変更シナリオ", () => {
       eventCreatedAt: SCENARIO_NOW,
     });
     await finishZeroDelayJobs(t);
-    expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
+    expect(
+      (
+        await actor.query(api.organization.queries.getSettings, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+          shopId: ids.shopId,
+        })
+      )?.billing,
+    ).toMatchObject({
       state: "pro",
       currentPlan: "pro",
       peopleUsage: { current: 1, max: 50, pendingInvitations: 0 },
@@ -878,12 +895,19 @@ describe("有料プラン変更シナリオ", () => {
     const actor = t.withIdentity({ subject: "scenario_standard_to_free" });
 
     await expect(
-      actor.action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEnd, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.scheduleServiceStopAtPeriodEndForOrganization, {
+        organizationId: ids.organizationId,
         requestId: "scenario-standard-service-stop-schedule",
       }),
     ).resolves.toEqual({ status: "accepted" });
-    expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
+    expect(
+      (
+        await actor.query(api.organization.queries.getSettings, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+          shopId: ids.shopId,
+        })
+      )?.billing,
+    ).toMatchObject({
       state: "scheduledChange",
       currentPlan: "standard",
       targetPlan: "free",
@@ -895,7 +919,14 @@ describe("有料プラン変更シナリオ", () => {
     await t.finishInProgressScheduledFunctions();
     await finishZeroDelayJobs(t);
 
-    expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
+    expect(
+      (
+        await actor.query(api.organization.queries.getSettings, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+          shopId: ids.shopId,
+        })
+      )?.billing,
+    ).toMatchObject({
       state: "free",
       currentPlan: "free",
       peopleUsage: { current: 1, max: 5, pendingInvitations: 0 },
@@ -978,14 +1009,21 @@ describe("有料プラン変更シナリオ", () => {
     const actor = t.withIdentity({ subject: "scenario_pro_to_standard" });
 
     await expect(
-      actor.action(api.organizationStripe.actions.schedulePaidPlanChange, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.schedulePaidPlanChangeForOrganization, {
+        organizationId: ids.organizationId,
 
         targetPlan: "standard",
         requestId: "scenario-pro-to-standard-schedule",
       }),
     ).resolves.toEqual({ status: "accepted" });
-    expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
+    expect(
+      (
+        await actor.query(api.organization.queries.getSettings, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+          shopId: ids.shopId,
+        })
+      )?.billing,
+    ).toMatchObject({
       state: "scheduledChange",
       currentPlan: "pro",
       targetPlan: "standard",
@@ -997,7 +1035,14 @@ describe("有料プラン変更シナリオ", () => {
     await t.finishInProgressScheduledFunctions();
     await finishZeroDelayJobs(t);
 
-    expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
+    expect(
+      (
+        await actor.query(api.organization.queries.getSettings, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+          shopId: ids.shopId,
+        })
+      )?.billing,
+    ).toMatchObject({
       state: "standard",
       currentPlan: "standard",
       peopleUsage: { current: 1, max: 25, pendingInvitations: 0 },
@@ -1020,6 +1065,7 @@ describe("有料プラン変更シナリオ", () => {
     const actor = t.withIdentity({ subject: "trial_pro_paid" });
 
     const trialSettings = await actor.query(api.organization.queries.getSettings, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
     });
     expect(trialSettings?.billing).toMatchObject({
@@ -1040,6 +1086,7 @@ describe("有料プラン変更シナリオ", () => {
     ).resolves.toEqual({ changed: true, stateKind: "initialPaymentPending" });
 
     const pendingSettings = await actor.query(api.organization.queries.getSettings, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
     });
     expect(pendingSettings?.billing).toMatchObject({
@@ -1062,6 +1109,7 @@ describe("有料プラン変更シナリオ", () => {
     ).resolves.toEqual({ changed: true, stateKind: "pro" });
 
     const activeSettings = await actor.query(api.organization.queries.getSettings, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
     });
     expect(activeSettings?.billing).toMatchObject({
@@ -1148,6 +1196,7 @@ describe("有料プラン変更シナリオ", () => {
     ).resolves.toEqual({ changed: true, stateKind: "paymentTerminationPending" });
 
     const failedSettings = await actor.query(api.organization.queries.getSettings, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
     });
     expect(failedSettings?.billing).toMatchObject({
@@ -1176,6 +1225,7 @@ describe("有料プラン変更シナリオ", () => {
     await finishZeroDelayJobs(t);
 
     const completedSettings = await actor.query(api.organization.queries.getSettings, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
     });
     expect(completedSettings?.billing).toMatchObject({
@@ -1236,8 +1286,8 @@ describe("有料プラン変更シナリオ", () => {
     });
     const actor = t.withIdentity({ subject: "standard_pro_provider_retry" });
     const requestId = "standard-pro-provider-retry";
-    const preview = await actor.action(api.organizationStripe.actions.previewPaidPlanChange, {
-      shopId: ids.shopId,
+    const preview = await actor.action(api.organizationStripe.actions.previewPaidPlanChangeForOrganization, {
+      organizationId: ids.organizationId,
 
       targetPlan: "pro",
       requestId,
@@ -1246,15 +1296,22 @@ describe("有料プラン変更シナリオ", () => {
     if (preview.status !== "available") throw new Error("paid plan preview unavailable");
 
     await expect(
-      actor.action(api.organizationStripe.actions.changePaidPlanNow, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.changePaidPlanNowForOrganization, {
+        organizationId: ids.organizationId,
 
         targetPlan: "pro",
         requestId,
         prorationDate: preview.prorationDate,
       }),
     ).resolves.toEqual({ status: "unavailable", reason: "provider_unavailable" });
-    expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
+    expect(
+      (
+        await actor.query(api.organization.queries.getSettings, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+          shopId: ids.shopId,
+        })
+      )?.billing,
+    ).toMatchObject({
       state: "pendingActivation",
       currentPlan: "standard",
       targetPlan: "pro",
@@ -1271,7 +1328,14 @@ describe("有料プラン変更シナリオ", () => {
     await vi.advanceTimersByTimeAsync(30_000);
     await t.finishInProgressScheduledFunctions();
 
-    expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
+    expect(
+      (
+        await actor.query(api.organization.queries.getSettings, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+          shopId: ids.shopId,
+        })
+      )?.billing,
+    ).toMatchObject({
       state: "pro",
       currentPlan: "pro",
       peopleUsage: { current: 1, max: 50, pendingInvitations: 0 },
@@ -1347,8 +1411,8 @@ describe("有料プラン変更シナリオ", () => {
     });
     const actor = t.withIdentity({ subject: "standard_pro_pending_expiry" });
     const requestId = "standard-pro-pending-expiry";
-    const preview = await actor.action(api.organizationStripe.actions.previewPaidPlanChange, {
-      shopId: ids.shopId,
+    const preview = await actor.action(api.organizationStripe.actions.previewPaidPlanChangeForOrganization, {
+      organizationId: ids.organizationId,
 
       targetPlan: "pro",
       requestId,
@@ -1357,8 +1421,8 @@ describe("有料プラン変更シナリオ", () => {
     if (preview.status !== "available") throw new Error("paid plan preview unavailable");
 
     await expect(
-      actor.action(api.organizationStripe.actions.changePaidPlanNow, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.changePaidPlanNowForOrganization, {
+        organizationId: ids.organizationId,
 
         targetPlan: "pro",
         requestId,
@@ -1377,7 +1441,14 @@ describe("有料プラン変更シナリオ", () => {
       }),
     ).resolves.toEqual({ created: true, processable: true });
     await finishZeroDelayJobs(t);
-    expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
+    expect(
+      (
+        await actor.query(api.organization.queries.getSettings, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+          shopId: ids.shopId,
+        })
+      )?.billing,
+    ).toMatchObject({
       state: "pendingActivation",
       currentPlan: "standard",
       targetPlan: "pro",
@@ -1423,7 +1494,14 @@ describe("有料プラン変更シナリオ", () => {
         },
       ].sort((left, right) => left.stripeEventId.localeCompare(right.stripeEventId)),
     );
-    expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
+    expect(
+      (
+        await actor.query(api.organization.queries.getSettings, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+          shopId: ids.shopId,
+        })
+      )?.billing,
+    ).toMatchObject({
       state: "standard",
       currentPlan: "standard",
       peopleUsage: { current: 1, max: 25, pendingInvitations: 0 },
@@ -1441,14 +1519,21 @@ describe("有料プラン変更シナリオ", () => {
     const actor = t.withIdentity({ subject: "pro_standard_schedule_retry" });
 
     await expect(
-      actor.action(api.organizationStripe.actions.schedulePaidPlanChange, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.schedulePaidPlanChangeForOrganization, {
+        organizationId: ids.organizationId,
 
         targetPlan: "standard",
         requestId: "pro-standard-schedule-provider-retry",
       }),
     ).resolves.toEqual({ status: "unavailable", reason: "provider_unavailable" });
-    expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
+    expect(
+      (
+        await actor.query(api.organization.queries.getSettings, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+          shopId: ids.shopId,
+        })
+      )?.billing,
+    ).toMatchObject({
       state: "pro",
       currentPlan: "pro",
     });
@@ -1463,7 +1548,14 @@ describe("有料プラン変更シナリオ", () => {
     await vi.advanceTimersByTimeAsync(30_000);
     await t.finishInProgressScheduledFunctions();
 
-    expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
+    expect(
+      (
+        await actor.query(api.organization.queries.getSettings, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+          shopId: ids.shopId,
+        })
+      )?.billing,
+    ).toMatchObject({
       state: "scheduledChange",
       currentPlan: "pro",
       targetPlan: "standard",
@@ -1506,16 +1598,16 @@ describe("有料プラン変更シナリオ", () => {
     const actor = t.withIdentity({ subject: "pro_standard_public_cancel" });
 
     await expect(
-      actor.action(api.organizationStripe.actions.schedulePaidPlanChange, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.schedulePaidPlanChangeForOrganization, {
+        organizationId: ids.organizationId,
 
         targetPlan: "standard",
         requestId: "pro-standard-public-schedule",
       }),
     ).resolves.toEqual({ status: "accepted" });
     await expect(
-      actor.action(api.organizationStripe.actions.cancelScheduledPlanChange, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.cancelScheduledPlanChangeForOrganization, {
+        organizationId: ids.organizationId,
         requestId: "pro-standard-public-cancel",
       }),
     ).resolves.toEqual({ status: "accepted" });
@@ -1524,7 +1616,14 @@ describe("有料プラン変更シナリオ", () => {
     await t.finishInProgressScheduledFunctions();
     await finishZeroDelayJobs(t);
 
-    expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
+    expect(
+      (
+        await actor.query(api.organization.queries.getSettings, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+          shopId: ids.shopId,
+        })
+      )?.billing,
+    ).toMatchObject({
       state: "pro",
       currentPlan: "pro",
       peopleUsage: { current: 1, max: 50, pendingInvitations: 0 },
@@ -1576,14 +1675,21 @@ describe("有料プラン変更シナリオ", () => {
     const actor = t.withIdentity({ subject: "pro_standard_over_limit" });
 
     await expect(
-      actor.action(api.organizationStripe.actions.schedulePaidPlanChange, {
-        shopId: ids.shopId,
+      actor.action(api.organizationStripe.actions.schedulePaidPlanChangeForOrganization, {
+        organizationId: ids.organizationId,
 
         targetPlan: "standard",
         requestId: "pro-standard-over-limit-schedule",
       }),
     ).resolves.toEqual({ status: "accepted" });
-    expect((await actor.query(api.organization.queries.getSettings, { shopId: ids.shopId }))?.billing).toMatchObject({
+    expect(
+      (
+        await actor.query(api.organization.queries.getSettings, {
+          expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+          shopId: ids.shopId,
+        })
+      )?.billing,
+    ).toMatchObject({
       state: "scheduledChange",
       currentPlan: "pro",
       targetPlan: "standard",
@@ -1596,6 +1702,7 @@ describe("有料プラン変更シナリオ", () => {
     await finishZeroDelayJobs(t);
 
     const overLimitSettings = await actor.query(api.organization.queries.getSettings, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
     });
     expect(overLimitSettings?.billing).toMatchObject({
@@ -1608,8 +1715,8 @@ describe("有料プラン変更シナリオ", () => {
     const overLimitState = await t.run((ctx) => ctx.db.get(seeded.billingStateId));
     expect(overLimitState?.state).toEqual({ kind: "active", plan: "standard" });
     await expect(
-      actor.mutation(api.organization.mutations.updateOrganizationName, {
-        shopId: ids.shopId,
+      actor.mutation(api.organization.mutations.updateOrganizationNameForOrganization, {
+        organizationId: ids.organizationId,
         name: "上限超過中の更新",
         requestId: "pro-standard-over-limit-name",
       }),
@@ -1617,6 +1724,7 @@ describe("有料プラン変更シナリオ", () => {
 
     await expect(
       actor.mutation(api.organization.mutations.removePersonFromOrganization, {
+        expectedOrganizationId: ids.organizationId,
         shopId: ids.shopId,
         personId: removalTarget.personId,
         requestId: "pro-standard-remove-one-person",
@@ -1626,6 +1734,7 @@ describe("有料プラン変更シナリオ", () => {
     await t.finishInProgressScheduledFunctions();
 
     const restoredSettings = await actor.query(api.organization.queries.getSettings, {
+      expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
       shopId: ids.shopId,
     });
     expect(restoredSettings?.billing).toMatchObject({
@@ -1651,7 +1760,10 @@ describe("有料プラン変更シナリオ", () => {
 
     const settings = await t
       .withIdentity({ subject: "complimentary_pro" })
-      .query(api.organization.queries.getSettings, { shopId: ids.shopId });
+      .query(api.organization.queries.getSettings, {
+        expectedOrganizationId: await getTestOrganizationId(t, ids.shopId),
+        shopId: ids.shopId,
+      });
     expect(settings?.billing).toMatchObject({
       state: "pro",
       currentPlan: "pro",

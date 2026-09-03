@@ -1157,6 +1157,8 @@ describe("deletionCleanup worker", () => {
         emailNormalized: "remaining-staff@example.com",
         isDeleted: true,
       });
+      const staff = await ctx.db.get(staffId);
+      if (!staff) throw new Error("cleanup staff fixture was not found");
       const lineAccountId = await ctx.db.insert("staffLineAccounts", {
         staffId,
         shopId,
@@ -1176,6 +1178,7 @@ describe("deletionCleanup worker", () => {
         submissionPattern: { kind: "dateOnly" },
       });
       const sessionId = await ctx.db.insert("sessions", {
+        accessKind: "submit",
         sessionToken: "remaining-session",
         staffId,
         shopId,
@@ -1183,6 +1186,7 @@ describe("deletionCleanup worker", () => {
         expiresAt: NOW + 86_400_000,
       });
       const magicLinkId = await ctx.db.insert("magicLinks", {
+        accessKind: "submit",
         token: "remaining-magic",
         staffId,
         shopId,
@@ -1193,6 +1197,9 @@ describe("deletionCleanup worker", () => {
         token: "remaining-line-link",
         staffId,
         shopId,
+        organizationId,
+        organizationPersonId: staff.organizationPersonId,
+        lineLinkGenerationAtIssue: 0,
         expiresAt: NOW + 86_400_000,
       });
       const legalConsentTokenId = await ctx.db.insert("legalConsentTokens", {
@@ -1429,11 +1436,7 @@ async function seedCleanupStaff(
 ) {
   const shop = await ctx.db.get(args.shopId);
   if (!shop) throw new Error("cleanup staff fixture shop was not found");
-  let organizationId = shop.organizationId;
-  if (!organizationId) {
-    organizationId = await seedOrganization(ctx, `${shop.name}事業者`);
-    await ctx.db.patch(shop._id, { organizationId });
-  }
+  const organizationId = shop.organizationId;
   const organizationPersonId = await ctx.db.insert("organizationPeople", {
     organizationId,
     name: args.name,
@@ -1444,12 +1447,13 @@ async function seedCleanupStaff(
     updatedAt: NOW,
   });
   return await ctx.db.insert("staffs", {
+    excludedFromShift: false,
     shopId: args.shopId,
     organizationId,
     organizationPersonId,
     name: args.name,
     email: args.email,
-    ...(args.emailNormalized === undefined ? {} : { emailNormalized: args.emailNormalized }),
+    emailNormalized: args.emailNormalized ?? args.email.trim().toLowerCase(),
     isDeleted: args.isDeleted,
   });
 }
@@ -1462,8 +1466,9 @@ async function seedShop(
     isDeleted: boolean;
   },
 ) {
+  const organizationId = args.organizationId ?? (await seedOrganization(ctx, `${args.name}事業者`));
   return await ctx.db.insert("shops", {
-    ...(args.organizationId ? { organizationId: args.organizationId } : {}),
+    organizationId,
     name: args.name,
     submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
     regularClosedDays: [],
@@ -1488,14 +1493,20 @@ async function seedNotificationHistories(
   ctx: MutationCtx,
   args: { shopId: Id<"shops">; staffId: Id<"staffs">; count: number },
 ) {
+  const shop = await ctx.db.get(args.shopId);
+  if (!shop) throw new Error("notification history fixture shop was not found");
   for (let index = 0; index < args.count; index += 1) {
     const requestedAt = NOW + index;
     const outboxId = await ctx.db.insert("notificationOutbox", {
       channel: "email",
       status: "sent",
       dedupeKey: `email:cleanup-history:${args.staffId}:${index}`,
+      organizationId: shop.organizationId,
       shopId: args.shopId,
       staffId: args.staffId,
+      purpose: "business",
+      notificationContext: "test.notificationHistoryCleanup",
+      deliverySuppressed: true,
       payload: {
         kind: "email",
         from: "シフトリ <noreply@example.com>",

@@ -9,13 +9,13 @@ import { ManagerShopScopeProvider } from "@/src/providers/ManagerShopScopeProvid
 type TestQuery = FunctionReference<
   "query",
   "public",
-  { label: string; shopId: string; expectedOrganizationId?: string },
+  { label: string; shopId: string; expectedOrganizationId: string },
   { name: string }
 >;
 
 const mocks = vi.hoisted(() => ({
   useQuery: vi.fn(),
-  selectedShop: null as { shopId: string; shopName: string } | null,
+  selectedShop: null as { shopId: string; shopName: string; organizationId: string } | null,
 }));
 
 vi.mock("convex/react", () => ({
@@ -38,11 +38,15 @@ beforeEach(() => {
 
 describe("useShopQuery", () => {
   it("選択中の店舗IDをquery引数へ注入する", () => {
-    mocks.selectedShop = { shopId: "shop-1", shopName: "渋谷店" };
+    mocks.selectedShop = { shopId: "shop-1", shopName: "渋谷店", organizationId: "organization-1" };
 
     renderHook(() => useShopQuery(queryRef, { label: "募集A" }));
 
-    expect(mocks.useQuery).toHaveBeenCalledWith(queryRef, { label: "募集A", shopId: "shop-1" });
+    expect(mocks.useQuery).toHaveBeenCalledWith(queryRef, {
+      label: "募集A",
+      shopId: "shop-1",
+      expectedOrganizationId: "organization-1",
+    });
   });
 
   it("店舗が未選択ならqueryをskipする", () => {
@@ -52,7 +56,11 @@ describe("useShopQuery", () => {
   });
 
   it("app routeの明示scopeを保存済み店舗より優先する", () => {
-    mocks.selectedShop = { shopId: "stale-shop", shopName: "別組織の店舗" };
+    mocks.selectedShop = {
+      shopId: "stale-shop",
+      shopName: "別組織の店舗",
+      organizationId: "stale-organization",
+    };
 
     renderHook(() => useShopQuery(queryRef, { label: "募集A" }), {
       wrapper: ({ children }: { children: ReactNode }) =>
@@ -71,7 +79,7 @@ describe("useShopQuery", () => {
   });
 
   it("呼び出し側のskipを維持する", () => {
-    mocks.selectedShop = { shopId: "shop-1", shopName: "渋谷店" };
+    mocks.selectedShop = { shopId: "shop-1", shopName: "渋谷店", organizationId: "organization-1" };
 
     renderHook(() => useShopQuery(queryRef, "skip"));
 
@@ -79,13 +87,21 @@ describe("useShopQuery", () => {
   });
 
   it("店舗選択が変わった後は最新の店舗IDを使う", () => {
-    mocks.selectedShop = { shopId: "shop-1", shopName: "渋谷店" };
+    mocks.selectedShop = { shopId: "shop-1", shopName: "渋谷店", organizationId: "organization-1" };
     const { rerender } = renderHook(() => useShopQuery(queryRef, { label: "募集A" }));
 
-    mocks.selectedShop = { shopId: "shop-2", shopName: "新宿店" };
+    mocks.selectedShop = { shopId: "shop-2", shopName: "新宿店", organizationId: "organization-2" };
     rerender();
 
-    expect(mocks.useQuery).toHaveBeenNthCalledWith(1, queryRef, { label: "募集A", shopId: "shop-1" });
-    expect(mocks.useQuery).toHaveBeenNthCalledWith(2, queryRef, { label: "募集A", shopId: "shop-2" });
+    expect(mocks.useQuery).toHaveBeenNthCalledWith(1, queryRef, {
+      label: "募集A",
+      shopId: "shop-1",
+      expectedOrganizationId: "organization-1",
+    });
+    expect(mocks.useQuery).toHaveBeenNthCalledWith(2, queryRef, {
+      label: "募集A",
+      shopId: "shop-2",
+      expectedOrganizationId: "organization-2",
+    });
   });
 });

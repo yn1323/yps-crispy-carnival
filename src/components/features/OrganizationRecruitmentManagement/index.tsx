@@ -7,9 +7,14 @@ import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedba
 import { useDialog } from "@/src/components/ui/Dialog";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { OrganizationRecruitmentPastConnection } from "./OrganizationRecruitmentPastConnection";
-import type { OrganizationRecruitmentManagementProps } from "./types";
+import type { OrganizationRecruitmentManagementProps, OrganizationRecruitmentShopMetadata } from "./types";
 
 const TARGET_SHOP_UNAVAILABLE_MESSAGE = "対象の店舗を確認できません。\nシフト一覧を再読み込みしてください。";
+
+type DeleteTarget = {
+  recruitment: Recruitment;
+  shop: OrganizationRecruitmentShopMetadata;
+};
 
 export type {
   OrganizationRecruitmentManagementProps,
@@ -20,6 +25,7 @@ export type {
 export function OrganizationRecruitmentManagement({
   organizationId,
   shopFilter,
+  isSingleShop,
   groups,
   shops,
   getRecruitmentShop,
@@ -31,15 +37,16 @@ export function OrganizationRecruitmentManagement({
   const deleteDialog = useDialog();
   const [createSessionRevision, setCreateSessionRevision] = useState(0);
   const [isCreateFormSubmitting, setIsCreateFormSubmitting] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Recruitment | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const interactionScopeKey = `${organizationId}:${shopFilter}`;
   const previousInteractionScopeKeyRef = useRef(interactionScopeKey);
   const activeInteractionScopeKeyRef = useRef(interactionScopeKey);
   activeInteractionScopeKeyRef.current = interactionScopeKey;
   const writableShops = useMemo(() => shops.filter((shop) => shop.canCreate), [shops]);
   const filteredShop = useMemo(
-    () => (shopFilter === "all" ? undefined : shops.find((shop) => shop.shopId === shopFilter)),
-    [shopFilter, shops],
+    () =>
+      shopFilter === "all" ? (isSingleShop ? shops[0] : undefined) : shops.find((shop) => shop.shopId === shopFilter),
+    [isSingleShop, shopFilter, shops],
   );
   const resolveRecruitmentShop = useCallback(
     (recruitment: Recruitment) =>
@@ -130,14 +137,14 @@ export function OrganizationRecruitmentManagement({
   }, [canCreateRecruitments, createDialog.open]);
 
   const handleDeleteClick = useCallback(
-    (recruitment: Recruitment) => {
+    (recruitment: Recruitment, recruitmentShop?: OrganizationRecruitmentShopMetadata) => {
       if (!canDeleteRecruitments) return;
-      const targetShop = resolveRecruitmentShop(recruitment);
+      const targetShop = recruitmentShop ?? resolveRecruitmentShop(recruitment);
       if (!targetShop || !writableShops.some((shop) => shop.shopId === targetShop.shopId)) {
         showErrorToast(new Error(TARGET_SHOP_UNAVAILABLE_MESSAGE));
         return;
       }
-      setDeleteTarget(recruitment);
+      setDeleteTarget({ recruitment, shop: targetShop });
       deleteDialog.open();
     },
     [canDeleteRecruitments, deleteDialog.open, resolveRecruitmentShop, writableShops],
@@ -145,8 +152,7 @@ export function OrganizationRecruitmentManagement({
 
   const { run: handleDelete, isRunning: isDeleting } = useSingleFlight(async () => {
     if (!canDeleteRecruitments || !deleteTarget) return;
-    const targetShop = resolveRecruitmentShop(deleteTarget);
-    if (!targetShop || !shops.some((shop) => shop.canCreate && shop.shopId === targetShop.shopId)) {
+    if (!shops.some((shop) => shop.canCreate && shop.shopId === deleteTarget.shop.shopId)) {
       deleteDialog.close();
       setDeleteTarget(null);
       showErrorToast(new Error(TARGET_SHOP_UNAVAILABLE_MESSAGE));
@@ -157,8 +163,8 @@ export function OrganizationRecruitmentManagement({
     const requestedInteractionScopeKey = interactionScopeKey;
     try {
       await deleteRecruitment({
-        recruitmentId: deleteTarget._id,
-        shopId: targetShop.shopId,
+        recruitmentId: deleteTarget.recruitment._id,
+        shopId: deleteTarget.shop.shopId,
         expectedOrganizationId: requestedOrganizationId,
       });
       if (activeInteractionScopeKeyRef.current !== requestedInteractionScopeKey) return;
@@ -175,6 +181,7 @@ export function OrganizationRecruitmentManagement({
     <OrganizationRecruitmentPastConnection
       organizationId={organizationId}
       shopFilter={shopFilter}
+      isSingleShop={isSingleShop}
       groups={groups}
       shops={shops}
       canCreateRecruitments={canCreateRecruitments}
@@ -184,7 +191,7 @@ export function OrganizationRecruitmentManagement({
       createSessionKey={`${organizationId}:${createSessionRevision}`}
       createDialog={createDialog}
       deleteDialog={deleteDialog}
-      deleteTarget={deleteTarget}
+      deleteTarget={deleteTarget?.recruitment ?? null}
       isCreateBusy={isCreating || isCreateFormSubmitting}
       isDeleting={isDeleting}
       getRecruitmentShop={resolveRecruitmentShop}

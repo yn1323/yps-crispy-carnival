@@ -9,7 +9,7 @@ import { collectNotificationResendCooldowns } from "../notificationOutbox/resend
 import { collectPersonRemovalPreview } from "../organization/personRemoval";
 import { ORGANIZATION_SHOP_STAFF_MEMBERSHIP_CHANGE_TARGET_LIMIT } from "../organization/shopMembershipChange";
 import { getOrganizationBillingPolicy } from "../organizationBilling/service";
-import { collectOrganizationShopStaffMembershipSnapshot, hasCanonicalStaffIdentity } from "./service";
+import { collectOrganizationShopStaffMembershipSnapshot } from "./service";
 
 const ORGANIZATION_PERSON_LIST_LIMIT = 100;
 
@@ -332,20 +332,16 @@ export const listOrganizationPeopleAvailableForShop = managerQuery({
           .take(ORGANIZATION_PERSON_LIST_LIMIT + 1),
       })),
     );
-    if (staffRowsByShop.some(({ staffs }) => staffs.length > ORGANIZATION_PERSON_LIST_LIMIT)) return null;
-    const canonicalStaffRowsByShop = staffRowsByShop.map(({ shop, staffs }) => ({
-      shop,
-      staffs: staffs.filter(hasCanonicalStaffIdentity),
-    }));
     if (
-      canonicalStaffRowsByShop.some(
-        ({ staffs }, index) => staffs.length !== (staffRowsByShop[index]?.staffs.length ?? 0),
+      staffRowsByShop.some(
+        ({ staffs }) =>
+          staffs.length > ORGANIZATION_PERSON_LIST_LIMIT ||
+          staffs.some((staff) => staff.organizationId !== organizationId),
       )
     ) {
       return null;
     }
-
-    const currentShopStaffs = canonicalStaffRowsByShop.find(({ shop }) => shop._id === shopId)?.staffs ?? [];
+    const currentShopStaffs = staffRowsByShop.find(({ shop }) => shop._id === shopId)?.staffs ?? [];
     const currentPersonIds = new Set(currentShopStaffs.map((staff) => staff.organizationPersonId));
     const currentEmails = new Set(currentShopStaffs.map((staff) => normalizeEmail(staff.email)));
 
@@ -357,7 +353,7 @@ export const listOrganizationPeopleAvailableForShop = managerQuery({
     }
 
     const shopNamesByPersonId = new Map<Id<"organizationPeople">, Set<string>>();
-    for (const { shop, staffs } of canonicalStaffRowsByShop) {
+    for (const { shop, staffs } of staffRowsByShop) {
       for (const staff of staffs) {
         const current = shopNamesByPersonId.get(staff.organizationPersonId) ?? new Set<string>();
         current.add(shop.name);

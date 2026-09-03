@@ -9,7 +9,7 @@ type Props = {
   data: UserShopDetailData;
   membership: UserShopDetailMembership;
   targetShopId: Id<"shops">;
-  expectedOrganizationId?: Id<"organizations">;
+  expectedOrganizationId: Id<"organizations">;
   onBack: () => void;
 };
 
