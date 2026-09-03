@@ -100,7 +100,6 @@ jobs:
           VITE_GTM_ID: ${{ secrets.VITE_GTM_ID }}
           VITE_RELEASE_ID: ${{ github.event.pull_request.head.sha }}
           VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
-          VITE_WEB_MEASUREMENT_ENABLED: ${{ vars.VITE_WEB_MEASUREMENT_ENABLED }}
           VITE_WEB_VITALS_SAMPLE_RATE: ${{ vars.VITE_WEB_VITALS_SAMPLE_RATE }}
           VITE_COMMERCIAL_TRANSACTIONS_ADDRESS: ${{ vars.VITE_COMMERCIAL_TRANSACTIONS_ADDRESS }}
           VITE_COMMERCIAL_TRANSACTIONS_NAME: ${{ vars.VITE_COMMERCIAL_TRANSACTIONS_NAME }}
@@ -139,8 +138,8 @@ jobs:
         run: pnpm smoke-test:deployed
         env:
           E2E_DEPLOYED_BASE_URL: ${{ steps.deploy.outputs.DEPLOY_URL }}
-      # 通常Previewのdeployとnegative smoke後にだけ、外部公開しないsynthetic buildへlocal distを置き換える。
-      - name: Build measurement-enabled browser contract
+      # 通常Previewのdeployと常時発火smoke後にだけ、外部公開しないsynthetic buildへlocal distを置き換える。
+      - name: Build always-on measurement browser contract
         run: pnpm build
         env:
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
@@ -152,9 +151,8 @@ jobs:
           VITE_GTM_ID: GTM-TEST1234
           VITE_RELEASE_ID: measurement-contract
           VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
-          VITE_WEB_MEASUREMENT_ENABLED: "true"
           VITE_WEB_VITALS_SAMPLE_RATE: "0"
-      - name: Verify measurement-enabled browser contract
+      - name: Verify always-on measurement browser contract
         run: pnpm test:e2e:measurement
         env:
           # Playwright webServerはこのCI専用phaseだけでproduction buildを起動する。
@@ -216,7 +214,6 @@ jobs:
           VITE_GTM_ID: ${{ secrets.VITE_GTM_ID }}
           VITE_RELEASE_ID: ${{ github.sha }}
           VITE_TURNSTILE_SITE_KEY: ${{ secrets.VITE_TURNSTILE_SITE_KEY }}
-          VITE_WEB_MEASUREMENT_ENABLED: ${{ vars.VITE_WEB_MEASUREMENT_ENABLED }}
           VITE_WEB_VITALS_SAMPLE_RATE: ${{ vars.VITE_WEB_VITALS_SAMPLE_RATE }}
           VITE_COMMERCIAL_TRANSACTIONS_ADDRESS: ${{ vars.VITE_COMMERCIAL_TRANSACTIONS_ADDRESS }}
           VITE_COMMERCIAL_TRANSACTIONS_NAME: ${{ vars.VITE_COMMERCIAL_TRANSACTIONS_NAME }}

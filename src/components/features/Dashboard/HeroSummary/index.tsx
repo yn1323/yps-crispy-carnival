@@ -2,7 +2,7 @@ import { Alert, Box, Heading, HStack, Link, Stack } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { LuCircleCheck } from "react-icons/lu";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
-import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
+import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
 import { Button } from "@/src/components/ui/Button";
 import { ActionTaskList } from "./ActionTaskList";
 import { pickNextAction } from "./pickNextAction";
@@ -91,7 +91,7 @@ export const HeroSummary = ({
                   <Alert.Description>
                     取得できた要対応項目だけを表示しています。時間をおいて再試行してください。解消しない場合は、
                     <Link asChild color="teal.800" textDecoration="underline">
-                      <MeasurementBoundaryLink href="/contact">お問い合わせフォーム</MeasurementBoundaryLink>
+                      <MeasurementLink href="/contact">お問い合わせフォーム</MeasurementLink>
                     </Link>
                     からご連絡ください。
                   </Alert.Description>

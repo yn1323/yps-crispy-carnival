@@ -103,7 +103,7 @@ describe("static build measurement boundary", () => {
     expect(() =>
       assertNoBakedMeasurementScripts(
         "/help",
-        "<html><body><p>googletagmanager.comへの通信は同意後だけ許可します。</p></body></html>",
+        "<html><body><p>googletagmanager.comへの通信はruntimeで開始します。</p></body></html>",
       ),
     ).not.toThrow();
   });

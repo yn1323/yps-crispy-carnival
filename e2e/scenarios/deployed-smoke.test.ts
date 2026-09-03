@@ -6,18 +6,12 @@ import { expectAppHydrated } from "../helpers/appReadiness";
 const ANDROID_CHROME_USER_AGENT =
   "Mozilla/5.0 (Linux; Android 15; Pixel 8 Pro Build/AP3A.241105.008) " +
   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Mobile Safari/537.36";
-const WEB_MEASUREMENT_CONSENT_STORAGE_KEY = "shiftori_web_measurement_consent_v1";
+const THIRD_PARTY_MEASUREMENT_URL =
+  /^https:\/\/(?:[^/.]+\.)*(?:googletagmanager\.com|google-analytics\.com|clarity\.ms)\//i;
 
-function isThirdPartyMeasurementRequest(requestUrl: string): boolean {
-  const hostname = new URL(requestUrl).hostname;
-  return (
-    hostname === "googletagmanager.com" ||
-    hostname.endsWith(".googletagmanager.com") ||
-    hostname === "google-analytics.com" ||
-    hostname.endsWith(".google-analytics.com") ||
-    hostname === "clarity.ms" ||
-    hostname.endsWith(".clarity.ms")
-  );
+function isGtmLoaderRequest(requestUrl: string): boolean {
+  const url = new URL(requestUrl);
+  return url.hostname === "www.googletagmanager.com" && url.pathname === "/gtm.js" && url.searchParams.has("id");
 }
 
 function getHead(html: string): string {
@@ -109,10 +103,19 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
     const runtimeErrors: string[] = [];
     const thirdPartyMeasurementRequests: string[] = [];
 
-    page.on("pageerror", (error) => runtimeErrors.push(error.message));
-    page.on("request", (request) => {
-      if (isThirdPartyMeasurementRequest(request.url())) thirdPartyMeasurementRequests.push(request.url());
+    await page.route(THIRD_PARTY_MEASUREMENT_URL, async (route, request) => {
+      thirdPartyMeasurementRequests.push(request.url());
+      if (isGtmLoaderRequest(request.url())) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/javascript",
+          body: "window.__deployedSmokeGtmLoaded = true;",
+        });
+        return;
+      }
+      await route.fulfill({ status: 204, body: "" });
     });
+    page.on("pageerror", (error) => runtimeErrors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error" && /hydrat|server rendered|validateDOMNesting/i.test(message.text())) {
         runtimeErrors.push(message.text());
@@ -128,29 +131,39 @@ test.describe("デプロイ済み静的サイト", { tag: ["@release", "@deploye
     await expect(basicHelpLink).toHaveAttribute("href", "/help/scenarios/shift-management");
     await expectAppHydrated(page);
 
-    expect(thirdPartyMeasurementRequests).toEqual([]);
+    await expect
+      .poll(() => thirdPartyMeasurementRequests.filter(isGtmLoaderRequest), { timeout: 10_000 })
+      .toHaveLength(1);
+    expect(thirdPartyMeasurementRequests).toHaveLength(1);
 
     await page.evaluate(() => {
       (window as typeof window & { measurementBoundaryProbe?: string }).measurementBoundaryProbe = "present";
     });
+    thirdPartyMeasurementRequests.length = 0;
     await page.getByRole("link", { name: "ログイン" }).click();
     await expect(page).toHaveURL((url) => url.origin === expectedOrigin && url.pathname === "/login");
+    await expectAppHydrated(page);
+    await expect
+      .poll(() => thirdPartyMeasurementRequests.filter(isGtmLoaderRequest), { timeout: 10_000 })
+      .toHaveLength(1);
+    expect(thirdPartyMeasurementRequests).toHaveLength(1);
     expect(
       await page.evaluate(
         () => (window as typeof window & { measurementBoundaryProbe?: string }).measurementBoundaryProbe,
       ),
     ).toBeUndefined();
 
-    await page.addInitScript((storageKey) => {
-      window.localStorage.setItem(storageKey, "granted");
-    }, WEB_MEASUREMENT_CONSENT_STORAGE_KEY);
+    thirdPartyMeasurementRequests.length = 0;
     await page.goto("/manager-invite?token=preview-dummy");
     await expect(page).toHaveURL(
       (url) => url.origin === expectedOrigin && url.pathname === "/manager-invite" && url.searchParams.has("token"),
     );
     await expectAppHydrated(page);
 
-    expect(thirdPartyMeasurementRequests).toEqual([]);
+    await expect
+      .poll(() => thirdPartyMeasurementRequests.filter(isGtmLoaderRequest), { timeout: 10_000 })
+      .toHaveLength(1);
+    expect(thirdPartyMeasurementRequests).toHaveLength(1);
     expect(runtimeErrors).toEqual([]);
   });
 });

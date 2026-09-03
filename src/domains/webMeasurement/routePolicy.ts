@@ -1,4 +1,4 @@
-export const measuredPublicRouteFamilies = [
+export const webMeasurementRouteFamilies = [
   "home",
   "features",
   "help_index",
@@ -8,36 +8,61 @@ export const measuredPublicRouteFamilies = [
   "article_detail",
   "article_category",
   "demo_shiftboard",
+  "legal",
+  "utility",
+  "auth",
+  "dashboard",
+  "account",
+  "actions",
+  "organization_management",
+  "billing",
+  "manager_management",
+  "shop_detail",
+  "shift_management",
+  "shiftboard",
+  "staff_management",
+  "staff_detail",
+  "staff_shop",
+  "capability",
+  "callback",
+  "not_found",
 ] as const;
 
-export type MeasuredPublicRouteFamily = (typeof measuredPublicRouteFamilies)[number];
+export type WebMeasurementRouteFamily = (typeof webMeasurementRouteFamilies)[number];
 
-export type WebMeasurementRoute =
-  | { surface: "measured_public"; routeFamily: MeasuredPublicRouteFamily }
-  | { surface: "public_unmeasured" }
-  | { surface: "closed" };
-
-const fixedMeasuredRoutes = new Map<string, MeasuredPublicRouteFamily>([
+const fixedRouteFamilies = new Map<string, WebMeasurementRouteFamily>([
   ["/", "home"],
+  ["/account", "account"],
+  ["/account-deletion-accepted", "utility"],
+  ["/actions", "actions"],
+  ["/app", "dashboard"],
   ["/articles", "articles_index"],
+  ["/cache-reset", "utility"],
+  ["/commercial-transactions", "legal"],
   ["/contact", "contact"],
   ["/demo/shiftboard", "demo_shiftboard"],
   ["/features", "features"],
+  ["/forgot-password", "auth"],
   ["/help", "help_index"],
   ["/help/basics/organization-structure", "help_guide"],
   ["/help/scenarios/shift-management", "help_guide"],
-]);
-
-const publicUnmeasuredRoutes = new Set([
-  "/account-deletion-accepted",
-  "/cache-reset",
-  "/commercial-transactions",
-  "/privacy",
-  "/privacy/manager",
-  "/privacy/staff",
-  "/terms",
-  "/terms/manager",
-  "/terms/staff",
+  ["/legal/staff/consent", "capability"],
+  ["/line/callback", "callback"],
+  ["/login", "auth"],
+  ["/manager-invite", "capability"],
+  ["/privacy", "legal"],
+  ["/privacy/manager", "legal"],
+  ["/privacy/staff", "legal"],
+  ["/shifts/reissue", "capability"],
+  ["/shifts/submit", "capability"],
+  ["/shifts/submit/completed", "capability"],
+  ["/shifts/view", "capability"],
+  ["/signup", "auth"],
+  ["/sso-callback", "callback"],
+  ["/staff/register", "capability"],
+  ["/terms", "legal"],
+  ["/terms/manager", "legal"],
+  ["/terms/staff", "legal"],
 ]);
 
 export function normalizeMeasurementPathname(value: string): string {
@@ -46,29 +71,36 @@ export function normalizeMeasurementPathname(value: string): string {
   return pathname.replace(/\/+$/, "") || "/";
 }
 
-export function classifyWebMeasurementRoute(value: string): WebMeasurementRoute {
+export function getWebMeasurementRouteFamily(value: string): WebMeasurementRouteFamily {
   const pathname = normalizeMeasurementPathname(value);
-  const fixedFamily = fixedMeasuredRoutes.get(pathname);
-  if (fixedFamily) return { surface: "measured_public", routeFamily: fixedFamily };
-
-  if (publicUnmeasuredRoutes.has(pathname)) return { surface: "public_unmeasured" };
+  const fixedFamily = fixedRouteFamilies.get(pathname);
+  if (fixedFamily) return fixedFamily;
 
   if (/^\/articles\/categories\/[^/]+$/.test(pathname)) {
-    return { surface: "measured_public", routeFamily: "article_category" };
+    return "article_category";
   }
   if (/^\/articles\/[^/]+$/.test(pathname)) {
-    return { surface: "measured_public", routeFamily: "article_detail" };
+    return "article_detail";
   }
   if (/^\/help\/tasks\/[^/]+$/.test(pathname)) {
-    return { surface: "measured_public", routeFamily: "help_index" };
+    return "help_index";
   }
   if (/^\/help\/[^/]+$/.test(pathname)) {
-    return { surface: "measured_public", routeFamily: "help_guide" };
+    return "help_guide";
   }
 
-  return { surface: "closed" };
-}
+  const appPathname = pathname.startsWith("/app/") ? pathname.slice(4) : pathname;
+  if (appPathname === "/dashboard") return "dashboard";
+  if (appPathname === "/actions") return "actions";
+  if (appPathname === "/manage" || appPathname === "/manage/organization") return "organization_management";
+  if (appPathname === "/manage/billing") return "billing";
+  if (/^\/manage\/managers(?:\/invite-(?:new|staff))?$/.test(appPathname)) return "manager_management";
+  if (/^\/manage\/shops\/[^/]+$/.test(appPathname)) return "shop_detail";
+  if (appPathname === "/shifts") return "shift_management";
+  if (/^\/shifts\/[^/]+\/board$/.test(appPathname)) return "shiftboard";
+  if (appPathname === "/staff" || appPathname === "/staff/order") return "staff_management";
+  if (/^\/staff\/[^/]+\/shops\/[^/]+$/.test(appPathname)) return "staff_shop";
+  if (/^\/staff\/[^/]+$/.test(appPathname)) return "staff_detail";
 
-export function isPublicMeasurementDocument(value: string): boolean {
-  return classifyWebMeasurementRoute(value).surface !== "closed";
+  return "not_found";
 }

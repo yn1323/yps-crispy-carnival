@@ -1,6 +1,6 @@
 import { Link, Stack } from "@chakra-ui/react";
 import { LuTriangleAlert } from "react-icons/lu";
-import { MeasurementBoundaryLink } from "@/src/components/shared/MeasurementBoundaryLink";
+import { MeasurementLink } from "@/src/components/shared/MeasurementLink";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 
@@ -22,7 +22,7 @@ export function DashboardSectionUnavailable({ title, onRetry, onReload = reloadP
         <>
           解消しない場合は、
           <Link asChild color="teal.700" textDecoration="underline">
-            <MeasurementBoundaryLink href="/contact">お問い合わせフォーム</MeasurementBoundaryLink>
+            <MeasurementLink href="/contact">お問い合わせフォーム</MeasurementLink>
           </Link>
           からご連絡ください。
         </>

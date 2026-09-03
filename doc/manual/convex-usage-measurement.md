@@ -79,11 +79,11 @@ read totalが増えた場合は、calls、run reason、per-callの順に確認�
 
 この結果だけを根拠にschema、index、denormalized counter、pagination、public APIを変更しません。  functionのcode pathと対象tableの増加特性を確認し、schema・index・保存形式の変更が必要ならmigrationとrehearsalを別作業にして停止します。  固定予算、自動合否、自動最適化はこのtoolへ追加しません。
 
-## 公開Web Vitalsとの関係
+## Web Vitalsとの関係
 
-公開サイトのWeb Vitalsには既存の`release_id`があります。  Convex集計と同じcommit SHA・期間へ揃えると、公開ページの表示性能とbackend function利用量をrelease単位で並べて確認できます。
+全ページのWeb Vitalsには既存の`release_id`があります。  Convex集計と同じcommit SHA・期間へ揃えると、画面の表示性能とbackend function利用量をrelease単位で並べて確認できます。
 
-Web Vitalsは同意済みの公開routeだけを対象とし、認証後画面、全利用者、特定店舗の操作を表しません。  両計測をuser単位で結合せず、それぞれの欠測と対象surfaceを分けて解釈します。  詳細は[公開サイトのWeb計測](../features/web-measurement.md)を参照してください。
+Web Vitalsは同意・認証状態にかかわらず全routeを対象としますが、有限のroute familyだけを送り、特定店舗や利用者の操作を表しません。  両計測をuser単位で結合せず、それぞれの欠測と対象を分けて解釈します。  詳細は[全ページのWeb計測](../features/web-measurement.md)を参照してください。
 
 ## 対象外
 
