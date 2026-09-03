@@ -239,7 +239,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 
 ## Public Convex surface inventory
 
-2026-09-03時点のpublic query、mutation、actionは114個である。
+2026-09-03時点のpublic query、mutation、actionは115個である。
 同じ業務境界のAPIは一行へまとめるが、公開export名は省略しない。
 
 | Module | Public exports | 対応契約 / 状態 |
@@ -250,7 +250,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 | `appOrganization/actionInboxQueries` | `getActionInbox` | `RECRUITMENT-01`、`STAFF-REGISTRATION-01`、`NOTIFY-FAILURE-01`、`MANAGER-INVITATION-01`。canonical組織と店舗filterで未解決の対応を投影する |
 | `appOrganization/detailQueries` | `getUserDetail` | `PERSON-MEMBERSHIP-01`、`PERSON-ROLE-01`。canonical組織をauthority anchorに人物詳細を返す |
 | `appOrganization/manageQueries` | `getManageOverview`、`listOrganizationShops`、`getBillingOverview`、`getManagerSettingsOverview`、`getManagerCandidates` | `ORG-CONTEXT-01`、`SHOP-LIFECYCLE-01`、`BILLING-ENTITLEMENT-01`、`MANAGER-INVITATION-01`。組織を明示したManage配下の表示DTOを返す |
-| `appOrganization/queries` | `listMyOrganizationContexts`、`getOrganizationContext`、`listOrganizationShops`、`listOrganizationRecruitments`、`listOrganizationPeople`、`getOrganizationPeopleSummary` | `AUTH-TENANT-01`、`ORG-CONTEXT-01`、`RECRUITMENT-01`、`PERSON-MEMBERSHIP-01`。新app shellの組織、店舗、募集、人物をbounded paginationで返す |
+| `appOrganization/queries` | `listMyOrganizationContexts`、`getOrganizationContext`、`listOrganizationShops`、`listOrganizationRecruitments`、`listOrganizationPastRecruitmentPreviews`、`listOrganizationPeople`、`getOrganizationPeopleSummary` | `AUTH-TENANT-01`、`ORG-CONTEXT-01`、`RECRUITMENT-01`、`PERSON-MEMBERSHIP-01`。新app shellの組織、店舗、募集、人物をbounded paginationで返す |
 | `appOrganization/staffOrderMutations` | `saveOrganizationStaffOrder` | `STAFF-ORDER-01`。actor、契約状態、人物集合、fingerprintを再確認して組織共通順を保存する |
 | `appOrganization/staffOrderQueries` | `getOrganizationStaffOrderEditor`、`getOrganizationStaffOrderScope` | `STAFF-ORDER-01`。完全な人物集合と全店舗または店舗部分列をboundedに返し、不整合では既存順へ戻す |
 | `dashboard/mutations` | `dismissOnboarding` | `DASHBOARD-ONBOARDING-01` |

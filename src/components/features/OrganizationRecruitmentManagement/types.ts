@@ -16,6 +16,7 @@ export type OrganizationRecruitmentShopMetadata = Pick<OrganizationRecruitmentSh
 export type OrganizationRecruitmentManagementProps = {
   organizationId: Id<"organizations">;
   shopFilter: "all" | Id<"shops">;
+  isSingleShop: boolean;
   groups: DashboardRecruitmentGroup[];
   shops: readonly OrganizationRecruitmentShop[];
   getRecruitmentShop: (recruitment: Recruitment) => OrganizationRecruitmentShopMetadata | undefined;

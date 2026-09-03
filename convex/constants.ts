@@ -60,6 +60,9 @@ export const DASHBOARD_RECRUITMENT_CANDIDATE_GROUP_LIMIT = 100;
 // 組織横断シフト一覧は一店舗でも募集・staff・legacy提出を合わせて多数読むため、
 // 店舗cursorを一件ずつ進めて単一queryのworkを固定上限内に保つ。
 export const APP_ORGANIZATION_RECRUITMENT_SHOP_PAGE_SIZE = 1;
+// 全店舗表示の過去シフトは、各店舗からこの件数だけ候補を取得して組織内の直近分へ絞る。
+// 直近N件の全体候補は各店舗の直近N件に必ず含まれるため、schemaのdenormalizeなしでboundedに取得できる。
+export const APP_ORGANIZATION_PAST_RECRUITMENT_PREVIEW_LIMIT = 5;
 // recruitmentStats欠損時は正確な提出数ではなく、安全に確認できた下限値を返す。
 // 一募集あたり1件とoverflow検知用1件に絞り、最悪時も単一queryのdocument read上限内に収める。
 export const APP_ORGANIZATION_RECRUITMENT_LEGACY_SUBMISSION_COUNT_LIMIT = 1;

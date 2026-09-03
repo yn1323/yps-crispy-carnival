@@ -6,6 +6,7 @@ import type { QueryCtx } from "../_generated/server";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedQuery, organizationQuery } from "../_lib/functions";
 import {
+  APP_ORGANIZATION_PAST_RECRUITMENT_PREVIEW_LIMIT,
   APP_ORGANIZATION_RECRUITMENT_LEGACY_SUBMISSION_COUNT_LIMIT,
   APP_ORGANIZATION_RECRUITMENT_SHOP_PAGE_SIZE,
   DASHBOARD_RECRUITMENT_CANDIDATE_GROUP_LIMIT,
@@ -77,6 +78,12 @@ const organizationRecruitmentSectionValidator = v.object({
     canCreate: v.boolean(),
     createDisabledReason: v.optional(v.string()),
   }),
+});
+
+const organizationPastRecruitmentPreviewSectionValidator = v.object({
+  shop: shopContextValidator,
+  recruitments: v.array(dashboardRecruitmentValidator),
+  hasMoreRecruitments: v.boolean(),
 });
 
 const organizationPersonListItemValidator = v.object({
@@ -395,6 +402,65 @@ export const listOrganizationRecruitments = organizationQuery({
             currentGroups: buildCurrentRecruitmentGroups(recruitments, today),
             hasPastRecruitments: pastRecruitment !== null,
             actions: writeCapability,
+          };
+        }),
+      ),
+    };
+  },
+});
+
+/** 全店舗表示向けに、過去募集の直近候補を未削除店舗単位のcursor familyで返す。 */
+export const listOrganizationPastRecruitmentPreviews = organizationQuery({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(organizationPastRecruitmentPreviewSectionValidator),
+  handler: async (ctx, { paginationOpts }) => {
+    const shops = await ctx.db
+      .query("shops")
+      .withIndex("by_organizationId_and_isDeleted", (q) =>
+        q.eq("organizationId", ctx.organization._id).eq("isDeleted", false),
+      )
+      .paginate(
+        boundedPaginationOptions(paginationOpts, {
+          maxPageSize: APP_ORGANIZATION_RECRUITMENT_SHOP_PAGE_SIZE,
+          maxRowsRead: APP_ORGANIZATION_RECRUITMENT_SHOP_PAGE_SIZE,
+        }),
+      );
+    const today = todayJST();
+
+    return {
+      ...shops,
+      page: await Promise.all(
+        shops.page.map(async (shop) => {
+          const pastRecruitmentDocs = await ctx.db
+            .query("recruitments")
+            .withIndex("by_shopId_and_isDeleted_and_periodEnd", (q) =>
+              q.eq("shopId", shop._id).eq("isDeleted", false).lt("periodEnd", today),
+            )
+            .order("desc")
+            .take(APP_ORGANIZATION_PAST_RECRUITMENT_PREVIEW_LIMIT + 1);
+          if (pastRecruitmentDocs.length === 0) {
+            return {
+              shop: { shopId: shop._id, shopName: shop.name },
+              recruitments: [],
+              hasMoreRecruitments: false,
+            };
+          }
+
+          const totalStaffCount = await getBoundedTotalStaffCount(ctx, shop._id);
+          const previewDocs = pastRecruitmentDocs.slice(0, APP_ORGANIZATION_PAST_RECRUITMENT_PREVIEW_LIMIT);
+          const recruitments = await Promise.all(
+            previewDocs.map(async (recruitment) => ({
+              ...(await toDashboardRecruitment(ctx, recruitment, totalStaffCount.count, {
+                legacySubmissionCountLimit: APP_ORGANIZATION_RECRUITMENT_LEGACY_SUBMISSION_COUNT_LIMIT,
+              })),
+              totalStaffCountHasOverflow: totalStaffCount.hasOverflow,
+            })),
+          );
+
+          return {
+            shop: { shopId: shop._id, shopName: shop.name },
+            recruitments,
+            hasMoreRecruitments: pastRecruitmentDocs.length > APP_ORGANIZATION_PAST_RECRUITMENT_PREVIEW_LIMIT,
           };
         }),
       ),

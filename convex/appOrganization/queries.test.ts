@@ -7,6 +7,7 @@ import type { MutationCtx } from "../_generated/server";
 import { seedStaff } from "../_test/scenarioBuilders";
 import { seedLegacyShopMembership, seedOrganizationManagerShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
+import { APP_ORGANIZATION_PAST_RECRUITMENT_PREVIEW_LIMIT } from "../constants";
 
 type OrganizationContext = FunctionReturnType<
   typeof api.appOrganization.queries.listMyOrganizationContexts
@@ -607,7 +608,134 @@ describe("appOrganization organization context queries", () => {
     ).rejects.toThrow("numItems must be between 1 and 1");
   });
 
-  it("募集一覧endpointは未認証・他組織・removed所属・削除済み組織を拒否する", async () => {
+  it("全店舗表示向けの過去募集候補を店舗ごとに固定上限で返す", async () => {
+    const t = convexTest(schema, modules);
+    const subject = "app_organization_past_recruitment_previews";
+    const ids = await t.run(async (ctx) => {
+      const base = await seedOrganizationManagerShop(ctx, { subject, shopName: "店舗A", complimentary: true });
+      const secondShopId = await ctx.db.insert("shops", {
+        organizationId: base.organizationId,
+        name: "店舗B",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        isDeleted: false,
+      });
+      const deletedShopId = await ctx.db.insert("shops", {
+        organizationId: base.organizationId,
+        name: "削除済み店舗",
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+        regularClosedDays: [],
+        isDeleted: true,
+      });
+      const firstShopPastIds: Id<"recruitments">[] = [];
+
+      for (const day of [7, 8, 9, 10, 11, 12]) {
+        firstShopPastIds.push(
+          await ctx.db.insert("recruitments", {
+            shopId: base.shopId,
+            periodStart: `2026-08-${String(day - 1).padStart(2, "0")}`,
+            periodEnd: `2026-08-${String(day).padStart(2, "0")}`,
+            deadline: "2026-08-01",
+            shopClosedDates: [],
+            status: "confirmed",
+            confirmedAt: NOW - day,
+            isDeleted: false,
+            submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+          }),
+        );
+      }
+      const secondShopPastId = await ctx.db.insert("recruitments", {
+        shopId: secondShopId,
+        periodStart: "2026-08-12",
+        periodEnd: "2026-08-13",
+        deadline: "2026-08-01",
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: NOW - 1,
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      await ctx.db.insert("recruitments", {
+        shopId: base.shopId,
+        periodStart: "2026-08-12",
+        periodEnd: "2026-08-13",
+        deadline: "2026-08-01",
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: NOW,
+        isDeleted: true,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      await ctx.db.insert("recruitments", {
+        shopId: deletedShopId,
+        periodStart: "2026-08-12",
+        periodEnd: "2026-08-13",
+        deadline: "2026-08-01",
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: NOW,
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+      await ctx.db.insert("recruitments", {
+        shopId: base.shopId,
+        periodStart: "2026-08-13",
+        periodEnd: "2026-08-14",
+        deadline: "2026-08-01",
+        shopClosedDates: [],
+        status: "confirmed",
+        confirmedAt: NOW,
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      });
+
+      return { ...base, secondShopId, firstShopPastIds, secondShopPastId };
+    });
+    const actor = t.withIdentity({ subject });
+    const firstPageResult = await actor.query(api.appOrganization.queries.listOrganizationPastRecruitmentPreviews, {
+      organizationId: ids.organizationId,
+      paginationOpts: firstPage(1),
+    });
+
+    expect(firstPageResult.page).toHaveLength(1);
+    expect(firstPageResult.page[0]).toMatchObject({
+      shop: { shopId: ids.shopId, shopName: "店舗A" },
+      hasMoreRecruitments: true,
+    });
+    expect(firstPageResult.page[0]?.recruitments.map((recruitment) => recruitment._id)).toEqual(
+      ids.firstShopPastIds.slice(1).reverse(),
+    );
+    expect(firstPageResult.page[0]?.recruitments).toHaveLength(APP_ORGANIZATION_PAST_RECRUITMENT_PREVIEW_LIMIT);
+
+    const secondPageResult = await actor.query(api.appOrganization.queries.listOrganizationPastRecruitmentPreviews, {
+      organizationId: ids.organizationId,
+      paginationOpts: { numItems: 1, cursor: firstPageResult.continueCursor },
+    });
+    expect(secondPageResult).toMatchObject({
+      page: [
+        {
+          shop: { shopId: ids.secondShopId, shopName: "店舗B" },
+          hasMoreRecruitments: false,
+          recruitments: [{ _id: ids.secondShopPastId }],
+        },
+      ],
+    });
+    if (!secondPageResult.isDone) {
+      const terminalPage = await actor.query(api.appOrganization.queries.listOrganizationPastRecruitmentPreviews, {
+        organizationId: ids.organizationId,
+        paginationOpts: { numItems: 1, cursor: secondPageResult.continueCursor },
+      });
+      expect(terminalPage).toMatchObject({ page: [], isDone: true });
+    }
+    await expect(
+      actor.query(api.appOrganization.queries.listOrganizationPastRecruitmentPreviews, {
+        organizationId: ids.organizationId,
+        paginationOpts: firstPage(2),
+      }),
+    ).rejects.toThrow("numItems must be between 1 and 1");
+  });
+
+  it("募集一覧と過去previewは未認証・他組織・removed所属・削除済み組織を拒否する", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const base = await seedOrganizationManagerShop(ctx, {
@@ -626,10 +754,18 @@ describe("appOrganization organization context queries", () => {
     };
 
     await expect(t.query(api.appOrganization.queries.listOrganizationRecruitments, args)).rejects.toThrow("Not found");
+    await expect(t.query(api.appOrganization.queries.listOrganizationPastRecruitmentPreviews, args)).rejects.toThrow(
+      "Not found",
+    );
     await expect(
       t
         .withIdentity({ subject: "app_organization_recruitment_boundary_other" })
         .query(api.appOrganization.queries.listOrganizationRecruitments, args),
+    ).rejects.toThrow("Not found");
+    await expect(
+      t
+        .withIdentity({ subject: "app_organization_recruitment_boundary_other" })
+        .query(api.appOrganization.queries.listOrganizationPastRecruitmentPreviews, args),
     ).rejects.toThrow("Not found");
 
     const actor = t.withIdentity({ subject: "app_organization_recruitment_boundary" });
@@ -637,6 +773,9 @@ describe("appOrganization organization context queries", () => {
     await expect(actor.query(api.appOrganization.queries.listOrganizationRecruitments, args)).rejects.toThrow(
       "Not found",
     );
+    await expect(
+      actor.query(api.appOrganization.queries.listOrganizationPastRecruitmentPreviews, args),
+    ).rejects.toThrow("Not found");
 
     await t.run(async (ctx) => {
       await ctx.db.patch(ids.memberId, { status: "active" });
@@ -645,6 +784,9 @@ describe("appOrganization organization context queries", () => {
     await expect(actor.query(api.appOrganization.queries.listOrganizationRecruitments, args)).rejects.toThrow(
       "Not found",
     );
+    await expect(
+      actor.query(api.appOrganization.queries.listOrganizationPastRecruitmentPreviews, args),
+    ).rejects.toThrow("Not found");
   });
 
   it("提出率のスタッフscan上限到達を正確な分母として黙って切り捨てない", async () => {

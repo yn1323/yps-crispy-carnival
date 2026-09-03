@@ -168,6 +168,7 @@ describe("AppShiftsRoutePage", () => {
       shopName: "駅前店",
     });
     expect(props.shops).toHaveLength(2);
+    expect(props.isSingleShop).toBe(false);
 
     fireEvent.click(screen.getByRole("button", { name: "シフト表を開く" }));
     expect(mocks.navigate).toHaveBeenCalledWith({
@@ -187,6 +188,7 @@ describe("AppShiftsRoutePage", () => {
     renderPage(<AppShiftsRoutePage organizationId={"organization-1" as never} shops={shops.slice(0, 1)} />);
 
     expect(screen.queryByRole("button", { name: "店舗で絞り込む（現在：すべて）" })).toBeNull();
+    expect(mocks.managementProps[0]?.isSingleShop).toBe(true);
   });
 
   it("店舗filterは一覧だけへ適用し、募集作成候補には全店舗を残す", () => {

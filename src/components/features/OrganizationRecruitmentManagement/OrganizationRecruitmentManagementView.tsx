@@ -31,13 +31,13 @@ type Props = {
   hasPastRecruitments: boolean;
   isPastRecruitmentsVisible: boolean;
   canLoadMorePastRecruitments: boolean;
-  showPastFilterHint: boolean;
+  pastListNotice?: string;
   getRecruitmentShop: (recruitment: Recruitment) => OrganizationRecruitmentShopMetadata | undefined;
   onOpenCreate: () => void;
   onCreate: (data: CreateRecruitmentData, selectedShop?: CreateRecruitmentShop) => void | Promise<void>;
   onCreateSubmittingChange: (isSubmitting: boolean) => void;
   onOpenShiftBoard: (recruitmentId: Recruitment["_id"]) => void;
-  onDeleteClick: (recruitment: Recruitment) => void;
+  onDeleteClick: (recruitment: Recruitment, shop?: OrganizationRecruitmentShopMetadata) => void;
   onDeleteConfirm: () => void | Promise<void>;
   onShowPastRecruitments: () => void;
   onLoadMorePastRecruitments: () => void;
@@ -60,7 +60,7 @@ export function OrganizationRecruitmentManagementView({
   hasPastRecruitments,
   isPastRecruitmentsVisible,
   canLoadMorePastRecruitments,
-  showPastFilterHint,
+  pastListNotice,
   getRecruitmentShop,
   onOpenCreate,
   onCreate,
@@ -81,13 +81,6 @@ export function OrganizationRecruitmentManagementView({
     ? `${formatDateShort(deleteTarget.periodStart)}〜${formatDateShort(deleteTarget.periodEnd)}のシフト募集を削除`
     : "シフト募集を削除";
   const hasVisibleRecruitments = groups.some((group) => group.recruitments.length > 0);
-  const allShopsPastOnlyEmptyState = showPastFilterHint
-    ? {
-        title: "表示中のシフトはありません",
-        description: "過去のシフトは、店舗で絞り込むと確認できます。",
-        actionLabel: "新しい募集をつくる",
-      }
-    : undefined;
 
   return (
     <>
@@ -99,7 +92,6 @@ export function OrganizationRecruitmentManagementView({
         showRecruitmentMenus
         canDeleteRecruitments={canDeleteRecruitments}
         deleteRecruitmentDisabledReason={deleteDisabledReason}
-        emptyState={allShopsPastOnlyEmptyState}
         pastStatus={pastStatus}
         hasPastRecruitments={hasPastRecruitments}
         isPastRecruitmentsVisible={isPastRecruitmentsVisible}
@@ -107,14 +99,14 @@ export function OrganizationRecruitmentManagementView({
         getRecruitmentShopName={(recruitment) => getRecruitmentShop(recruitment)?.shopName}
         onCreateClick={onOpenCreate}
         onOpenShiftBoard={(recruitmentId) => onOpenShiftBoard(recruitmentId as Recruitment["_id"])}
-        onDeleteRecruitment={onDeleteClick}
+        onDeleteRecruitment={(recruitment) => onDeleteClick(recruitment, getRecruitmentShop(recruitment))}
         onShowPastRecruitments={onShowPastRecruitments}
         onLoadMorePastRecruitments={onLoadMorePastRecruitments}
       />
 
-      {showPastFilterHint && hasVisibleRecruitments && (
+      {pastListNotice && isPastRecruitmentsVisible && hasVisibleRecruitments && (
         <Text fontSize="sm" color="fg.muted" textAlign={{ base: "left", md: "center" }}>
-          過去のシフトは、店舗で絞り込むと確認できます。
+          {pastListNotice}
         </Text>
       )}
 

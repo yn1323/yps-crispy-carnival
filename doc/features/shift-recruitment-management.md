@@ -40,9 +40,10 @@ Dashboardは募集を次の順で表示し、空の分類は表示しない。
 店舗filterの初期値は「すべて」であり、特定店舗へ絞っても募集作成時の候補には利用可能な全店舗を残す。
 一覧カードでは店舗名を表示するが、対象店舗が固定されているDashboardでは表示しない。
 
-過去の募集は特定店舗へ絞ったときだけ、既存の店舗単位queryで遅延取得する。
-「すべて」の表示で過去募集が存在する場合は、店舗へ絞ると確認できることを案内する。
-全店舗の過去募集を一度に読み込まないため、初期表示の購読数とread量を増やさない。
+過去の募集は、利用者が「過去のシフトを見る」を選んだ後に遅延取得する。
+特定店舗へ絞った場合は既存の店舗単位queryで5件ずつページングする。店舗が1つだけの場合も、その店舗を固定scopeとして同じ導線を使う。
+「すべて」では、組織内の未削除店舗を一つのcursor familyで読み、各店舗の直近5件から全店舗横断の直近5件だけを表示する。カードには店舗名を表示し、それより古い履歴は店舗へ絞って確認する。
+このpreviewにより、初期表示の購読数を増やさず、過去募集を開いた後も1回のqueryが扱う店舗数と募集数を固定上限内に保つ。
 
 プランの店舗上限は新規作成可否に使い、既存の上限超過店舗をread上限として隠さない。
 提出率のスタッフscanが安全上限へ達した場合は分母を確定値として表示せず、下限件数とoverflowを明示する。
@@ -78,6 +79,7 @@ lease、cursor、dedupe、再開、保持期限は[Notification Outbox](notifica
 | `api.dashboard.queries.getDashboardPastRecruitments` | 過去の募集を終了日の新しい順でページングして返す |
 | `api.dashboard.queries.getDashboardCurrentRecruitments` | 現在日付が期間内にある確定シフトを返す |
 | `api.appOrganization.queries.listOrganizationRecruitments` | canonicalな組織所属を検証し、未削除店舗と現在募集を店舗単位でページングして返す |
+| `api.appOrganization.queries.listOrganizationPastRecruitmentPreviews` | canonicalな組織所属を検証し、全店舗preview用の過去募集候補を店舗単位の固定上限で返す |
 
 管理者APIは選択店舗と所属をサーバー側で確認する。
 削除済み募集は一覧とスタッフ向けデータ取得から除外する。
@@ -99,7 +101,7 @@ lease、cursor、dedupe、再開、保持期限は[Notification Outbox](notifica
 |---|---|---|
 | 未認証、他組織、removed所属、削除済み組織を拒否し、未削除店舗を固定page上限のcursorで取得でき、legacy集計とスタッフscanの上限到達を黙って正確な値にしない | Convex Function Test | `convex/appOrganization/queries.test.ts` |
 | 一つの組織query familyを最後まで取得し、全店舗の募集を状態別に統合し、filterとシフト表遷移を接続する | Frontend Unit Test | `src/pages/app-shifts/index.test.tsx` |
-| 選択した店舗IDと組織IDを作成・削除mutationへ渡し、店舗filter時だけ過去募集を遅延取得し、組織またはfilter変更前の完了結果を現在のDialogへ反映しない | Frontend Unit Test | `src/components/features/OrganizationRecruitmentManagement/index.test.tsx` |
+| 選択した店舗IDと組織IDを作成・削除mutationへ渡し、全店舗previewまたは店舗別paginationで過去募集を遅延取得し、組織またはfilter変更前の完了結果を現在のDialogへ反映しない | Frontend Unit Test | `src/components/features/OrganizationRecruitmentManagement/index.test.tsx` |
 | `/shifts`では店舗選択Stepを表示し、Dashboardでは省略する一方、どちらの確認Stepにも店舗名を表示する | Storybook Behavior / VRT | `src/components/features/CreateRecruitmentForm/index.stories.tsx` |
 | 全店舗カードのPC・SP配置、店舗filter、Loading・Empty・QueryErrorを表示する | Storybook Behavior / VRT | `src/pages/app-shifts/index.stories.tsx`, `src/components/features/Dashboard/RecruitmentBoard/index.stories.tsx` |
 | `/shifts`の初期filterが「すべて」で、対象店舗の選択から実募集作成、店舗名付きカード、共通ヘッダー付きシフト表まで実frontendとConvexを接続する | E2E | `e2e/pages/AppShiftsPage.ts`, `e2e/scenarios/first-shift-delivery.test.ts`（`E2E-SHIFT-01`） |
