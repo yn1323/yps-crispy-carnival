@@ -143,7 +143,7 @@ describe("staffRegistration/mutations", () => {
         .withIndex("by_shopId", (q) => q.eq("shopId", seeded.shopId))
         .collect(),
       audits: await ctx.db.query("organizationAuditEvents").collect(),
-      analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+      analytics: await ctx.db.query("analyticsShopDays").collect(),
     }));
     expect(afterRotation.original?.revokedAt).toEqual(expect.any(Number));
     expect(afterRotation.current?.revokedAt).toBeUndefined();
@@ -244,7 +244,7 @@ describe("staffRegistration/mutations", () => {
       original: await ctx.db.get(original.linkId),
       links: await ctx.db.query("shopRegistrationLinks").collect(),
       audits: await ctx.db.query("organizationAuditEvents").collect(),
-      analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+      analytics: await ctx.db.query("analyticsShopDays").collect(),
     }));
     expect(state.original?.revokedAt).toBeUndefined();
     expect(state.links).toHaveLength(2);
@@ -1680,7 +1680,7 @@ describe("staffRegistration/mutations", () => {
         people,
         staff: await ctx.db.get(staffId),
         scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-        analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+        analytics: await ctx.db.query("analyticsShopDays").collect(),
       };
     });
     expect(state.people).toHaveLength(2);
@@ -1782,7 +1782,7 @@ describe("staffRegistration/mutations", () => {
         .withIndex("by_staffId_and_isDeleted", (q) => q.eq("staffId", staffId).eq("isDeleted", false))
         .collect(),
       scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-      analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+      analytics: await ctx.db.query("analyticsShopDays").collect(),
     }));
     expect(state.request).toMatchObject({ status: "approved", approvedStaffId: staffId });
     expect(state.sourceStaff?.isDeleted).toBe(true);
@@ -1893,7 +1893,7 @@ describe("staffRegistration/mutations", () => {
       lineAccounts: await ctx.db.query("staffLineAccounts").collect(),
       consents: await ctx.db.query("legalConsentStates").collect(),
       audits: await ctx.db.query("organizationAuditEvents").collect(),
-      analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+      analytics: await ctx.db.query("analyticsShopDays").collect(),
       scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
     }));
     expect(state.request?.status).toBe("pending");
@@ -2107,7 +2107,7 @@ describe("staffRegistration/mutations", () => {
           : await getPendingRequestId(t, seeded.shopId, seeded.email);
       const readProtectedState = () =>
         t.run(async (ctx) => ({
-          analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+          analytics: await ctx.db.query("analyticsShopDays").collect(),
           audits: await ctx.db.query("organizationAuditEvents").collect(),
           consents: await ctx.db.query("legalConsentStates").collect(),
           lineLinks: await ctx.db

@@ -126,7 +126,7 @@ async function readLineLinkingBusinessState(t: TestConvex<typeof schema>, tokenD
     providers: await ctx.db.query("lineProviderUsers").collect(),
     links: await ctx.db.query("organizationPersonLineLinks").collect(),
     fanoutJobs: await ctx.db.query("lineFriendshipFanoutJobs").collect(),
-    analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+    analytics: await ctx.db.query("analyticsShopDays").collect(),
     notificationOutbox: await ctx.db.query("notificationOutbox").collect(),
     scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
   }));

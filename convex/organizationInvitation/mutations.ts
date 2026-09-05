@@ -297,7 +297,6 @@ async function createManagerInvitation(
       toState: "alreadyPending",
       correlationId,
       occurredAt: now,
-      suppressAnalyticsEvent: true,
     });
   };
   if (currentEmailInvitation) {
@@ -597,7 +596,6 @@ async function revokeInvitationForActor(
       fromState: "revoked",
       toState: "revoked",
       correlationId,
-      suppressAnalyticsEvent: true,
     });
     return { status: "revoked" as const, invitationId: invitation._id };
   }
@@ -742,7 +740,6 @@ async function resendInvitationForActor(
       toState: "alreadyPending",
       correlationId,
       occurredAt: now,
-      suppressAnalyticsEvent: true,
     });
     return { status: "alreadyPending" as const, invitationId: otherPending._id };
   }
@@ -1096,7 +1093,6 @@ async function linkAccountWithToken(
 
   const now = Date.now();
   const reactivatesPerson = people[0]?.status === "removed";
-  const nextPersonFirstObservedAt = people[0]?.createdAt ?? now;
   const personId = people[0]
     ? people[0]._id
     : await ctx.db.insert("organizationPeople", {
@@ -1155,7 +1151,6 @@ async function linkAccountWithToken(
       toState: "active",
       correlationId: `${invitation._id}:person-reactivated:${invitation.version}`,
       occurredAt: now,
-      suppressAnalyticsEvent: true,
     });
   }
 
@@ -1185,17 +1180,6 @@ async function linkAccountWithToken(
     toState: "linked",
     correlationId: `${invitation._id}:link:${invitation.version}`,
     occurredAt: now,
-    analyticsEvent: {
-      eventType: "managerMembership.changed",
-      subjectId: personId,
-      payload: {
-        kind: "managerMembership",
-        personId,
-        personFirstObservedAt: nextPersonFirstObservedAt,
-        status: "active",
-        validFrom: now,
-      },
-    },
   });
   await ctx.scheduler.runAfter(0, internal.organizationInvitation.actions.enqueueAcceptanceNotifications, {
     invitationId: invitation._id,

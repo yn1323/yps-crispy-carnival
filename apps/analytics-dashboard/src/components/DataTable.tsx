@@ -80,7 +80,7 @@ export function DataTable<T>({
                 role={href ? "link" : undefined}
                 tabIndex={href ? 0 : undefined}
                 _focusVisible={href ? { outline: "2px solid", outlineColor: "blue.500" } : undefined}
-                _hover={href ? { bg: "blue.50", borderColor: "blue.200" } : undefined}
+                _hover={href ? { bg: "gray.50", borderColor: "gray.300" } : undefined}
               >
                 {renderMobileRow(row)}
               </Box>
@@ -144,7 +144,7 @@ export function DataTable<T>({
                   }
                   role={href ? "link" : undefined}
                   tabIndex={href ? 0 : undefined}
-                  _hover={href ? { bg: "blue.50" } : undefined}
+                  _hover={href ? { bg: "gray.50" } : undefined}
                   _focusVisible={
                     href ? { outline: "2px solid", outlineColor: "blue.500", outlineOffset: "-2px" } : undefined
                   }

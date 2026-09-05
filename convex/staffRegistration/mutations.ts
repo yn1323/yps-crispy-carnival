@@ -201,7 +201,6 @@ export const rotateShopRegistrationLink = managerMutation({
         toState: linkId,
         correlationId: `${ctx.organization._id}:staff-registration-link:${expected._id}:${linkId}`,
         occurredAt: rotatedAt,
-        suppressAnalyticsEvent: true,
       });
     }
 
@@ -427,22 +426,6 @@ export const approveRequest = managerMutation({
       toState: `active:${ctx.shop._id}:batch:1`,
       correlationId: `${correlationBase}:staff`,
       occurredAt: reviewedAt,
-      analyticsEvent: {
-        eventType: "staffMembership.changed",
-        shopId: ctx.shop._id,
-        subjectId: staffId,
-        payload: {
-          kind: "staffMembership",
-          staffId,
-          organizationPersonId,
-          personFirstObservedAt: reviewedAt,
-          status: "active",
-          isShiftTarget: true,
-          validFrom: reviewedAt,
-          lineLinked: lineState.status !== "unlinked",
-          lineFollowing: lineState.status === "linked_following",
-        },
-      },
     });
     if (reactivatedPersonId) {
       await recordOrganizationAuditEvent(ctx, {
@@ -456,7 +439,6 @@ export const approveRequest = managerMutation({
         toState: "active",
         correlationId: `${correlationBase}:person:${reactivatedPersonId}`,
         occurredAt: reviewedAt,
-        suppressAnalyticsEvent: true,
       });
     }
     const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });

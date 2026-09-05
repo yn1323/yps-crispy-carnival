@@ -1,78 +1,43 @@
-import type { AnalyticsPlanKey } from "@/api/analyticsTypes";
-import type { DataCompleteness } from "./DataStatus";
+export const METRICS = [
+  { key: "registered", label: "新規登録店舗", description: "その日に新しく登録された店舗" },
+  { key: "submitted", label: "提出があった店舗", description: "希望シフトの提出・再提出があった店舗" },
+  { key: "confirmed", label: "確定した店舗", description: "シフトの確定・再確定があった店舗" },
+] as const;
 
-const numberFormatter = new Intl.NumberFormat("ja-JP");
-const percentFormatter = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 1, style: "percent" });
-const PLAN_LABELS: Record<AnalyticsPlanKey, string> = {
-  free: "Free",
-  pro: "Pro",
-  standard: "Standard",
-  trial: "Trial",
-};
-
-export function formatPlan(value: AnalyticsPlanKey | null | undefined) {
-  if (!value) return "未設定";
-  return PLAN_LABELS[value];
+export function formatCount(value: number | null | undefined) {
+  return value == null ? "—" : new Intl.NumberFormat("ja-JP").format(value);
 }
-
-export function formatCount(value: number | null | undefined, completeness: DataCompleteness = "complete") {
-  if (completeness === "partial") {
-    return value === null || value === undefined ? "一部のみ集計" : `${numberFormatter.format(value)}（一部）`;
-  }
-  if (completeness === "unavailable") return "算出できません";
-  if (completeness === "error") return "取得失敗";
-  if (value !== null && value !== undefined) return numberFormatter.format(value);
-  return "算出できません";
-}
-
-export function formatCountWithUnit(
-  value: number | null | undefined,
-  unit: string,
-  completeness: DataCompleteness = "complete",
-) {
-  const formatted = formatCount(value, completeness);
-  if (value === null || value === undefined || completeness === "unavailable" || completeness === "error") {
-    return formatted;
-  }
-  return `${formatted}${unit}`;
-}
-
-export function formatRate(value: number | null | undefined, completeness: DataCompleteness = "complete") {
-  if (completeness === "partial") return "一部のみ集計";
-  if (completeness === "unavailable") return "算出できません";
-  if (completeness === "error") return "取得失敗";
-  if (value !== null && value !== undefined) return percentFormatter.format(value);
-  return "算出できません";
-}
-
-export function rateFromCounts(numerator: number | null, denominator: number | null, completeness: DataCompleteness) {
-  if (completeness !== "complete" || numerator === null || denominator === null || denominator === 0) return null;
-  return numerator / denominator;
-}
-
 export function formatDate(value: string | number | null | undefined) {
-  if (value === null || value === undefined || value === "") return "未集計";
-  const date = typeof value === "number" ? new Date(value) : new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeZone: "Asia/Tokyo" }).format(date);
+  if (value == null || value === "") return "記録なし";
+  return new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeZone: "Asia/Tokyo" }).format(new Date(value));
 }
-
 export function formatDateTime(value: string | number | null | undefined) {
-  if (value === null || value === undefined || value === "") return "未集計";
-  const date = typeof value === "number" ? new Date(value) : new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return new Intl.DateTimeFormat("ja-JP", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Asia/Tokyo",
-  }).format(date);
+  if (value == null || value === "") return "記録なし";
+  return new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Tokyo" }).format(
+    new Date(value),
+  );
 }
-
-export function formatDurationMs(value: number | null | undefined, completeness: DataCompleteness = "complete") {
-  if (completeness === "partial") return "一部のみ集計";
-  if (completeness === "unavailable") return "算出できません";
-  if (completeness === "error") return "取得失敗";
-  if (value === null || value === undefined) return "算出できません";
-  const days = value / 86_400_000;
-  return days >= 1 ? `${days.toFixed(1)}日` : `${(value / 3_600_000).toFixed(1)}時間`;
+export function shopPath(shopId: string) {
+  return `/shops/${encodeURIComponent(shopId)}`;
+}
+export function staffPath(shopId: string, staffId: string) {
+  return `${shopPath(shopId)}/staff/${encodeURIComponent(staffId)}`;
+}
+export function cyclePath(shopId: string, recruitmentId: string) {
+  return `${shopPath(shopId)}/cycles/${encodeURIComponent(recruitmentId)}`;
+}
+export function dayShopsPath(date: string, metric: string) {
+  return `/shops?${new URLSearchParams({ date, metric })}`;
+}
+export function lineStatusLabel(status: string) {
+  return (
+    (
+      {
+        linked_following: "連携済み・友だち",
+        linked_unfollowed: "連携済み・友だち解除",
+        unlinked: "未連携",
+        unavailable: "確認できません",
+      } as Record<string, string>
+    )[status] ?? "確認できません"
+  );
 }

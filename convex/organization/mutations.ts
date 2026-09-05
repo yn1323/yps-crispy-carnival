@@ -334,16 +334,6 @@ async function addShopForActor(
     targetId: shopId,
     correlationId,
     occurredAt: now,
-    analyticsEvent: {
-      eventType: "shop.changed",
-      shopId,
-      payload: {
-        kind: "shop",
-        change: "created",
-        displayName: parsed.data.shopName,
-        registeredAt: now,
-      },
-    },
   });
   return shopMutationResult(shopId, true);
 }
@@ -1192,15 +1182,6 @@ async function applyFullOrganizationPersonRemoval(
     toState: args.auditToState,
     correlationId: args.correlationId,
     occurredAt: args.now,
-    analyticsEvent: {
-      eventType: "person.changed",
-      subjectId: args.plan.person._id,
-      payload: {
-        kind: "person",
-        status: "removed",
-        firstObservedAt: args.plan.person.createdAt,
-      },
-    },
   });
 }
 
@@ -1379,22 +1360,6 @@ export const removePersonFromShop = authenticatedMutation({
       toState: `removed:${actor.shop._id}`,
       correlationId,
       occurredAt: now,
-      analyticsEvent: {
-        eventType: "staffMembership.changed",
-        shopId: actor.shop._id,
-        subjectId: staff._id,
-        payload: {
-          kind: "staffMembership",
-          staffId: staff._id,
-          organizationPersonId: staff.organizationPersonId,
-          status: "removed",
-          isShiftTarget: !staff.excludedFromShift,
-          validFrom: now,
-          validTo: now,
-          lineLinked: false,
-          lineFollowing: false,
-        },
-      },
     });
     return { changed: true };
   },

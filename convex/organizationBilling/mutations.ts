@@ -6,7 +6,6 @@ import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { authenticatedMutation } from "../_lib/functions";
 import { normalizeEmail } from "../_lib/validation";
-import { type AnalyticsSourceEventPayload, analyticsPlanForBillingState } from "../analytics/sourceEvents";
 import { type OrganizationReadActor, requireOrganizationReadActor } from "../organization/access";
 import { recordOrganizationAuditEvent } from "../organization/audit";
 import {
@@ -22,7 +21,6 @@ import {
   decideScheduledTransition,
   evaluateOrganizationUsageLimits,
   isVerifiedBillingTransitionAllowed,
-  type OrganizationBillingState,
   type OrganizationPaidPlan,
 } from "./policy";
 
@@ -32,29 +30,6 @@ const transitionResultValidator = v.object({
 });
 
 const INITIAL_PAYMENT_RECONCILE_DELAY_MS = 15 * 60 * 1000;
-
-type AnalyticsPlanPayload = Extract<AnalyticsSourceEventPayload, { kind: "plan" }>;
-type AnalyticsBillingStatusDelta = AnalyticsPlanPayload["statusDeltas"][number];
-
-function billingAnalyticsEvent(
-  state: OrganizationBillingState,
-  billingVersion: number,
-  effectiveAt: number,
-  statusDeltas: AnalyticsBillingStatusDelta[],
-) {
-  const plan = analyticsPlanForBillingState(state);
-  if (!plan) return undefined;
-  return {
-    eventType: "plan.changed" as const,
-    payload: {
-      kind: "plan" as const,
-      plan,
-      billingVersion,
-      effectiveAt,
-      statusDeltas,
-    },
-  };
-}
 
 function previousPlan(state: CanonicalOrganizationBillingState): "free" | OrganizationPaidPlan | undefined {
   switch (state.kind) {
@@ -145,7 +120,6 @@ async function beginPaymentTermination(
       cutoffVersion: nextVersion,
     });
   }
-  const analyticsEvent = billingAnalyticsEvent(nextState, nextVersion, args.startedAt, []);
   await recordOrganizationAuditEvent(ctx, {
     organizationId: args.billingState.organizationId,
     action: "organization.billing_state_changed",
@@ -155,7 +129,6 @@ async function beginPaymentTermination(
     toState: "paymentTerminationPending",
     correlationId: args.correlationId,
     occurredAt: now,
-    ...(analyticsEvent ? { analyticsEvent } : {}),
   });
   await ctx.scheduler.runAfter(0, internal.organizationStripe.actions.finishPaymentTermination, {
     organizationId: args.billingState.organizationId,
@@ -209,7 +182,6 @@ async function applyFreePlanAfterEntitlementEnd(
       cutoffVersion: nextVersion,
     });
   }
-  const analyticsEvent = billingAnalyticsEvent(nextState, nextVersion, now, []);
   await recordOrganizationAuditEvent(ctx, {
     organizationId: billingState.organizationId,
     action: "organization.billing_state_changed",
@@ -219,7 +191,6 @@ async function applyFreePlanAfterEntitlementEnd(
     toState: "free",
     correlationId: args.correlationId,
     occurredAt: now,
-    ...(analyticsEvent ? { analyticsEvent } : {}),
   });
   return { changed: true, stateKind: "free", billingVersion: nextVersion, usageLimitExceeded };
 }
@@ -927,7 +898,6 @@ export const setStateFromVerifiedBilling = internalMutation({
         cutoffVersion: nextVersion,
       });
     }
-    const analyticsEvent = billingAnalyticsEvent(nextState, nextVersion, now, []);
     await recordOrganizationAuditEvent(ctx, {
       organizationId: args.organizationId,
       action: "organization.billing_state_changed",
@@ -937,7 +907,6 @@ export const setStateFromVerifiedBilling = internalMutation({
       toState: nextState.kind === "active" ? nextState.plan : nextState.kind,
       correlationId: args.correlationId,
       occurredAt: now,
-      ...(analyticsEvent ? { analyticsEvent } : {}),
     });
     const updated = { ...billingState, state: nextState, version: nextVersion, updatedAt: now };
     await scheduleOrganizationBillingStateDeadline(ctx, updated);

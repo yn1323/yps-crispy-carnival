@@ -65,6 +65,7 @@ describe("featureRequest/mutations", () => {
     expect(requests).toHaveLength(1);
     expect(requests[0]).toMatchObject({
       comment: "一覧をCSVで出したい",
+      isDeleted: false,
       requestId: REQUEST_ID,
       shopId: seeded.shopId,
       userId: seeded.userId,
@@ -85,6 +86,12 @@ describe("featureRequest/mutations", () => {
       requestId: REQUEST_ID,
       shopId,
     });
+    const requestId = await t.run(async (ctx) => {
+      const request = await ctx.db.query("featureRequests").unique();
+      if (!request) throw new Error("fixture_missing");
+      await ctx.db.patch(request._id, { isDeleted: true });
+      return request._id;
+    });
     await expect(
       asManager.mutation(submitFeatureRequest, {
         comment: "再送された要望",
@@ -94,7 +101,9 @@ describe("featureRequest/mutations", () => {
       }),
     ).resolves.toEqual({ status: "accepted" });
 
-    expect(await t.run((ctx) => ctx.db.query("featureRequests").collect())).toHaveLength(1);
+    const requests = await t.run((ctx) => ctx.db.query("featureRequests").collect());
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({ _id: requestId, isDeleted: true, comment: "最初の要望" });
   });
 
   it("別店舗のshopIdでは要望を登録できない", async () => {
@@ -433,6 +442,12 @@ describe("featureRequest/mutations", () => {
         accessKind: "submit",
       }),
     ).resolves.toEqual({ status: "accepted" });
+    await t.run(async (ctx) => {
+      const request = await ctx.db.query("featureRequests").unique();
+      if (!request) throw new Error("fixture_missing");
+      expect(request.isDeleted).toBe(false);
+      await ctx.db.patch(request._id, { isDeleted: true });
+    });
     await expect(
       t.mutation(submitFeatureRequestFromStaff, {
         comment: "同じ要望の再送",
@@ -448,6 +463,7 @@ describe("featureRequest/mutations", () => {
       shopId: seeded.shopId,
       staffId: seeded.staffId,
       comment: "提出画面でも要望を送りたい",
+      isDeleted: true,
     });
     expect(requests[0]).not.toHaveProperty("organizationId");
     expect(requests[0]).not.toHaveProperty("userId");

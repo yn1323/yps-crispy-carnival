@@ -1,8 +1,10 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin } from "vite";
-import { handleAnalyticsApi } from "./src/server/analyticsProxy";
+import { ANALYTICS_DASHBOARD_MAX_BODY_BYTES } from "../../convex/analyticsDashboard/schemas";
+import { handleAnalyticsApi, jsonResponse } from "./src/server/analyticsProxy";
 
 type AnalyticsDevEnv = {
   convexHttpUrl?: string;
@@ -34,11 +36,6 @@ function getConvexHttpUrl(convexUrl?: string) {
 }
 
 function resolveAnalyticsDevEnv(env: RawAnalyticsDevEnv, envLabel: string): AnalyticsDevEnv {
-  console.log({
-    convexHttpUrl: env.VITE_CONVEX_SITE_URL ?? getConvexHttpUrl(env.VITE_CONVEX_URL),
-    envLabel,
-    internalApiSecret: env.SHIFTORI_INTERNAL_API_SECRET ? "[set]" : undefined,
-  });
   return {
     convexHttpUrl: env.VITE_CONVEX_SITE_URL ?? getConvexHttpUrl(env.VITE_CONVEX_URL),
     envLabel,
@@ -64,39 +61,69 @@ function getEnvLabel(mode: string, env: RawAnalyticsDevEnv) {
 }
 
 function analyticsLocalApiPlugin(env: AnalyticsDevEnv): Plugin {
-  return {
-    name: "analytics-local-api",
-    configureServer(server) {
-      server.middlewares.use(async (req, res, next) => {
-        const requestUrl = new URL(req.url ?? "/", "http://analytics.local");
-        if (!requestUrl.pathname.startsWith("/api/analytics/") && requestUrl.pathname !== "/api/requests") {
-          next();
-          return;
-        }
-
-        const headers = new Headers();
-        for (const [name, value] of Object.entries(req.headers)) {
-          if (Array.isArray(value)) {
-            for (const item of value) headers.append(name, item);
-          } else if (value !== undefined) {
-            headers.set(name, value);
+  const middleware = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    // Origin判定にはブラウザが開いている実際のhostを使う。
+    const requestUrl = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost:3001"}`);
+    if (
+      !requestUrl.pathname.startsWith("/api/analytics/") &&
+      requestUrl.pathname !== "/api/requests" &&
+      requestUrl.pathname !== "/api/requests/update"
+    ) {
+      next();
+      return;
+    }
+    const send = async (response: Response) => {
+      res.statusCode = response.status;
+      response.headers.forEach((value, name) => res.setHeader(name, value));
+      res.end(Buffer.from(await response.arrayBuffer()));
+    };
+    try {
+      const headers = new Headers();
+      for (const [name, value] of Object.entries(req.headers)) {
+        if (Array.isArray(value)) for (const item of value) headers.append(name, item);
+        else if (value !== undefined) headers.set(name, value);
+      }
+      let body: Buffer | undefined;
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        const chunks: Buffer[] = [];
+        let bytes = 0;
+        for await (const chunk of req) {
+          const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          bytes += buffer.byteLength;
+          if (bytes > ANALYTICS_DASHBOARD_MAX_BODY_BYTES) {
+            await send(jsonResponse({ error: { message: "送信内容が大きすぎます" } }, { status: 413 }));
+            return;
           }
+          chunks.push(buffer);
         }
-        const response = await handleAnalyticsApi(
-          new Request(requestUrl, { method: req.method, headers }),
+        body = Buffer.concat(chunks);
+      }
+      await send(
+        await handleAnalyticsApi(
+          new Request(requestUrl, {
+            method: req.method,
+            headers,
+            body: body === undefined ? undefined : new Uint8Array(body),
+          }),
           {
             ANALYTICS_ENV_LABEL: env.envLabel,
             SHIFTORI_INTERNAL_API_SECRET: env.internalApiSecret,
             VITE_CONVEX_SITE_URL: env.convexHttpUrl,
           },
           env.envLabel,
-        );
-        res.statusCode = response.status;
-        response.headers.forEach((value, name) => {
-          res.setHeader(name, value);
-        });
-        res.end(Buffer.from(await response.arrayBuffer()));
-      });
+        ),
+      );
+    } catch {
+      await send(jsonResponse({ error: { message: "リクエストを読み取れませんでした" } }, { status: 400 }));
+    }
+  };
+  return {
+    name: "analytics-local-api",
+    configureServer(server) {
+      server.middlewares.use(middleware);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(middleware);
     },
   };
 }
