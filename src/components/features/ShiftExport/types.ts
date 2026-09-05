@@ -22,7 +22,7 @@ export type ShiftExportData = {
   confirmationState: "unconfirmed" | "confirmed";
   contentComparison: "notApplicable" | "same" | "different" | "unknown";
   notificationState: "notApplicable" | "pending" | "failed" | "sent" | "unknown";
-  exportBlockReason: "noSavedShifts" | "noStaffs" | "excludedStaffAssignments" | null;
+  exportBlockReason: "noStaffs" | "excludedStaffAssignments" | null;
 };
 
 export type ExportDate = {

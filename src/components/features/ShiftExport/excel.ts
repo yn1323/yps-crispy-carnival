@@ -1,5 +1,6 @@
 import type { Cell, Worksheet } from "exceljs";
 import { fitExportText, getExportLayout } from "./layout";
+import { getExportTitle } from "./script";
 import type { ExportSchedule } from "./types";
 
 const BLACK = "FF000000";
@@ -116,12 +117,11 @@ export const createShiftExcel = async (schedule: ExportSchedule): Promise<Blob> 
   worksheet.mergeCells(1, 1, 1, lastColumn);
   worksheet.mergeCells(2, 1, 2, lastColumn);
   worksheet.getRow(1).height = 26;
-  worksheet.getCell("A1").value = `${schedule.shopName} シフト表`;
+  worksheet.getCell("A1").value = getExportTitle(schedule);
   worksheet.getCell("A1").font = { name: "Noto Sans JP", size: 16, bold: true, color: { argb: BLACK } };
   worksheet.getRow(2).height = 22;
   worksheet.getCell("A2").value =
-    `${schedule.periodStart.replaceAll("-", "/")} 〜 ${schedule.periodEnd.replaceAll("-", "/")}　${schedule.statusLabel}` +
-    (schedule.notificationLabel ? `\n${schedule.notificationLabel}` : "");
+    schedule.statusLabel + (schedule.notificationLabel ? `\n${schedule.notificationLabel}` : "");
   worksheet.getCell("A2").font = { name: "Noto Sans JP", size: 9, color: { argb: BLACK } };
   worksheet.getCell("A2").alignment = { vertical: "middle", wrapText: true };
   addScheduleRows(worksheet, schedule);

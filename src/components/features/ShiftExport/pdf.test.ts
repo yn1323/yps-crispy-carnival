@@ -71,13 +71,12 @@ describe("PDFの実ファイル", () => {
         }
         pages.push(text);
       }
-      expect(pages[0]).toContain("シフトリ駅前店 シフト表");
-      expect(pages[0]).toContain("2026/08/01 〜 2026/08/31");
+      expect(pages[0]).toContain("2026/08/01~08/31 シフトリ駅前店");
       expect(pages[0]).toContain(schedule.statusLabel);
       expect(pages[0]).toContain(schedule.notificationLabel);
       expect(pages[0]).toContain("○");
       expect(pages[0]).toContain("長い…");
-      expect(pages[1]).not.toContain("シフトリ駅前店 シフト表");
+      expect(pages[1]).not.toContain("2026/08/01~08/31 シフトリ駅前店");
       expect(pages.join("").match(/合成スタッフ\d{3}/g)).toEqual(schedule.rows.map((row) => row.staffName));
     } finally {
       await document.loadingTask.destroy();

@@ -2,6 +2,7 @@ import { Box, Flex, Text } from "@chakra-ui/react";
 import { LuDownload } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import { fitExportText, getExportLayout } from "./layout";
+import { getExportTitle } from "./script";
 import type { ExportSchedule } from "./types";
 import type { useExportDownload } from "./useExportDownload";
 import "./styles.css";
@@ -10,10 +11,11 @@ type Props = { schedule: ExportSchedule; download: ReturnType<typeof useExportDo
 
 export function ShiftExportView({ schedule, download }: Props) {
   const layout = getExportLayout(schedule);
+  const title = getExportTitle(schedule);
   return (
     <Box minH="100dvh" bg="gray.100">
       <Box as="header" p={4} bg="white" borderBottomWidth="1px">
-        <Flex gap={3} flexWrap="wrap" align="center">
+        <Flex gap={3} flexWrap="wrap" align="center" justify="flex-end">
           <Button
             colorPalette="teal"
             onClick={() => void download.generate("pdf")}
@@ -21,7 +23,7 @@ export function ShiftExportView({ schedule, download }: Props) {
             loading={download.isGenerating && download.generatingFormat === "pdf"}
           >
             <LuDownload />
-            PDFダウンロード
+            PDF
           </Button>
           <Button
             variant="outline"
@@ -30,11 +32,8 @@ export function ShiftExportView({ schedule, download }: Props) {
             loading={download.isGenerating && download.generatingFormat === "xlsx"}
           >
             <LuDownload />
-            Excelダウンロード
+            Excel
           </Button>
-          <Text fontSize="sm" color="fg.muted">
-            保存済みのシフト表を出力します。Excelでの編集内容はシフトリには反映されません。
-          </Text>
         </Flex>
         {download.error && (
           <Text role="alert" mt={3} color="fg.error">
@@ -43,15 +42,15 @@ export function ShiftExportView({ schedule, download }: Props) {
         )}
         {download.download && (
           <Text role="status" mt={3} fontSize="sm">
-            ダウンロードが始まらない場合は、
+            ダウンロードが始まらない場合、
             <a
               className="shift-export-download-link"
               href={download.download.url}
               download={download.download.fileName}
             >
-              作成した{download.download.format === "pdf" ? "PDF" : "Excel"}を保存
+              ここ
             </a>
-            してください。
+            を押して保存してください。
           </Text>
         )}
       </Box>
@@ -71,9 +70,8 @@ export function ShiftExportView({ schedule, download }: Props) {
           >
             {pageIndex === 0 && (
               <div style={{ height: `${layout.titleHeightPt}pt` }}>
-                <h1 className="shift-export-title">{schedule.shopName} シフト表</h1>
+                <h1 className="shift-export-title">{title}</h1>
                 <p>
-                  {schedule.periodStart.replaceAll("-", "/")} 〜 {schedule.periodEnd.replaceAll("-", "/")}　
                   {schedule.statusLabel}
                   {schedule.notificationLabel ? ` ／ ${schedule.notificationLabel}` : ""}
                 </p>

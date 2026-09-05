@@ -18,7 +18,7 @@ type Story = StoryObj<typeof meta>;
 export const Time31Days: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("heading", { name: "シフトリ駅前店 シフト表" })).toBeVisible();
+    await expect(canvas.getByRole("heading", { name: "2026/08/01~08/31 シフトリ駅前店" })).toBeVisible();
     await expect(canvas.getAllByRole("columnheader")).toHaveLength(32);
     await expect(canvas.getByRole("cell", { name: "09:00 17:00" })).toBeVisible();
     await expect(canvas.queryByRole("navigation")).not.toBeInTheDocument();
@@ -31,8 +31,8 @@ export const Mobile31Days: Story = {
   globals: { viewport: { value: "mobile1", isRotated: false } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("button", { name: "PDFダウンロード" })).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Excelダウンロード" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "PDF" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Excel" })).toBeVisible();
     const preview = canvas.getByRole("region", { name: "シフト表プレビュー" });
     await expect(preview.scrollWidth).toBeGreaterThan(preview.clientWidth);
   },
@@ -84,7 +84,7 @@ export const RetryAfterFailure: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const button = canvas.getByRole("button", { name: "PDFダウンロード" });
+    const button = canvas.getByRole("button", { name: "PDF" });
     await expect(canvas.getByRole("alert")).toHaveTextContent("もう一度お試しください");
     await userEvent.click(button);
     await expect(requestedFormat).toBe("pdf");
@@ -108,9 +108,6 @@ export const SaveLink: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByRole("link", { name: "作成したPDFを保存" })).toHaveAttribute(
-      "download",
-      "シフト表.pdf",
-    );
+    await expect(within(canvasElement).getByRole("link", { name: "ここ" })).toHaveAttribute("download", "シフト表.pdf");
   },
 };

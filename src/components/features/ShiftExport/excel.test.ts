@@ -43,7 +43,7 @@ describe("Excelの実ファイル", () => {
     expect(workbook.querySelectorAll("sheet")).toHaveLength(1);
     expect(sheet.querySelector("dimension")?.getAttribute("ref")).toBe("A1:AF203");
     expect(sheet.querySelectorAll("sheetData > row")).toHaveLength(203);
-    expect(value("A1")).toBe(`${schedule.shopName} シフト表`);
+    expect(value("A1")).toBe("2026/08/01~08/31 シフトリ駅前店");
     expect(value("A2")).toContain(schedule.statusLabel);
     expect(value("A2")).toContain(`\n${schedule.notificationLabel}`);
     expect(value("A4")).toBe(formulaLikeName);

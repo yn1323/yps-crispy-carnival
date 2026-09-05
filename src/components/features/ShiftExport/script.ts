@@ -116,10 +116,16 @@ export function getExportFileName(schedule: ExportSchedule, format: "pdf" | "xls
   return `${shopName}_シフト表_${schedule.periodStart}_${schedule.periodEnd}.${format}`;
 }
 
+export function getExportTitle(schedule: ExportSchedule): string {
+  const periodStart = schedule.periodStart.replaceAll("-", "/");
+  const periodEnd = schedule.periodEnd.replaceAll("-", "/");
+  const displayedPeriodEnd =
+    schedule.periodStart.slice(0, 4) === schedule.periodEnd.slice(0, 4) ? periodEnd.slice(5) : periodEnd;
+  return `${periodStart}~${displayedPeriodEnd} ${schedule.shopName}`;
+}
+
 export function getExportBlockMessage(reason: NonNullable<ShiftExportData["exportBlockReason"]>): string {
   switch (reason) {
-    case "noSavedShifts":
-      return "シフト表で保存してから出力してください。";
     case "noStaffs":
       return "出力対象のスタッフがいません。";
     case "excludedStaffAssignments":

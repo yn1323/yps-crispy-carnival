@@ -1,4 +1,5 @@
 import { fitExportText, getExportLayout } from "./layout";
+import { getExportTitle } from "./script";
 import type { ExportSchedule } from "./types";
 
 const FONT_FAMILY = "Noto Sans JP";
@@ -40,10 +41,11 @@ export const createShiftPdf = async (schedule: ExportSchedule): Promise<Blob> =>
     flexShrink: 0,
   };
   const dateCellWidth = layout.dateColumnWidthPt - layout.cellPaddingPt * 2;
-  const title = fitExportText(`${schedule.shopName} シフト表`, layout.pageWidthPt - layout.marginPt * 2, 16);
+  const titleText = getExportTitle(schedule);
+  const title = fitExportText(titleText, layout.pageWidthPt - layout.marginPt * 2, 16);
 
   return pdf(
-    <Document title={`${schedule.shopName} シフト表`} author="シフトリ" language="ja">
+    <Document title={titleText} author="シフトリ" language="ja">
       {layout.pages.map((staffs, pageIndex) => (
         <Page
           key={staffs[0]?.staffId ?? "empty"}
@@ -62,12 +64,7 @@ export const createShiftPdf = async (schedule: ExportSchedule): Promise<Blob> =>
           {pageIndex === 0 && (
             <View style={{ height: layout.titleHeightPt, flexShrink: 0 }}>
               <Text style={{ fontSize: title.fontSizePt, maxLines: 1, marginBottom: 5 }}>{title.text}</Text>
-              <View style={{ flexDirection: "row", fontSize: 9 }}>
-                <Text style={{ maxLines: 1 }}>
-                  {schedule.periodStart.replaceAll("-", "/")} 〜 {schedule.periodEnd.replaceAll("-", "/")}
-                </Text>
-                <Text style={{ maxLines: 1, marginLeft: 12 }}>{schedule.statusLabel}</Text>
-              </View>
+              <Text style={{ maxLines: 1, fontSize: 9 }}>{schedule.statusLabel}</Text>
               {schedule.notificationLabel && (
                 <Text style={{ fontSize: 8, maxLines: 1, marginTop: 2 }}>{schedule.notificationLabel}</Text>
               )}
