@@ -5,13 +5,20 @@ import { dateToUtcMs, formatUtcDate, isPastShiftPeriod } from "../_lib/dateForma
 import { managerQuery } from "../_lib/functions";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
-import { DAY_MS, RECRUITMENT_PERIOD_DAYS_MAX, SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
+import {
+  DAY_MS,
+  NOTIFICATION_FANOUT_SCOPE_LIMIT,
+  RECRUITMENT_PERIOD_DAYS_MAX,
+  SHIFT_ASSIGNMENT_LIMIT,
+  SHIFT_BOARD_STAFF_LIMIT,
+} from "../constants";
 import { getPreviousConfirmationDelivery } from "../notification/confirmationDelivery";
 import {
   buildConfirmationSnapshotsForStaffs,
   confirmationSnapshotMatchesAssignments,
   hasValidConfirmationSnapshotSignature,
 } from "../notification/confirmationSnapshots";
+import { isSupplementalConfirmationFanoutStale } from "../notification/fanout";
 import { getOrganizationStaffOrderScope } from "../organization/staffOrder";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
 import { isShiftTargetStaff } from "../staff/service";
@@ -129,18 +136,71 @@ async function getNotificationState(ctx: QueryCtx, recruitment: Doc<"recruitment
   ) {
     return "unknown" as const;
   }
-  const states = await Promise.all(
+  const canonicalStates = await Promise.all(
     operation.targetStaffIds.map((staffId) => getPreviousConfirmationDelivery(ctx, operation, staffId)),
   );
-  if (states.some(({ summary }) => summary === "failed")) return "failed" as const;
-  if (
-    operation.status === "pending" ||
-    operation.status === "processing" ||
-    states.some(({ summary }) => summary === "pending")
-  ) {
+  let summaries = canonicalStates.map(({ summary }) => summary);
+  if (!summaries.every((summary) => summary === "sent")) {
+    // 現在の全体通知と、その後の個別再送だけを有界に読む。履歴を取り切れなければ確認不能とする。
+    const operationLimit = NOTIFICATION_FANOUT_SCOPE_LIMIT + 1;
+    const recentOperations = (
+      await Promise.all(
+        (["pending", "processing", "completed"] as const).map((status) =>
+          ctx.db
+            .query("notificationFanoutOperations")
+            .withIndex("by_recruitmentId_status", (q) =>
+              q.eq("recruitmentId", recruitment._id).eq("status", status).gte("_creationTime", operation._creationTime),
+            )
+            .take(operationLimit + 1),
+        ),
+      )
+    ).flat();
+    if (recentOperations.length > operationLimit) return "unknown" as const;
+    const targetStaffIds = new Set(operation.targetStaffIds);
+    const supplementalByStaff = new Map<Id<"staffs">, Doc<"notificationFanoutOperations">[]>();
+    for (const candidate of recentOperations) {
+      const [staffId] = candidate.targetStaffIds;
+      if (
+        candidate.kind !== "confirmation" ||
+        candidate.purpose !== "confirmation_resend" ||
+        candidate.shopId !== recruitment.shopId ||
+        candidate.supersedesActiveOperations !== false ||
+        candidate.targetStaffIds.length !== 1 ||
+        !targetStaffIds.has(staffId) ||
+        isSupplementalConfirmationFanoutStale(candidate, recruitment)
+      ) {
+        continue;
+      }
+      const attempts = supplementalByStaff.get(staffId) ?? [];
+      attempts.push(candidate);
+      supplementalByStaff.set(staffId, attempts);
+    }
+    summaries = await Promise.all(
+      operation.targetStaffIds.map(async (staffId, index) => {
+        const canonical = canonicalStates[index].summary;
+        if (canonical === "sent") return "sent" as const;
+        const attempts = supplementalByStaff.get(staffId) ?? [];
+        const deliveries = await Promise.all(
+          attempts.map((attempt) => getPreviousConfirmationDelivery(ctx, attempt, staffId)),
+        );
+        const staffSummaries = [canonical, ...deliveries.map(({ summary }) => summary)];
+        // 同じ対象へ一度でも実送信できた証拠は、別attemptの失敗で取り消さない。
+        if (staffSummaries.includes("sent")) return "sent" as const;
+        if (
+          staffSummaries.includes("pending") ||
+          attempts.some((attempt) => attempt.status === "pending" || attempt.status === "processing")
+        ) {
+          return "pending" as const;
+        }
+        return staffSummaries.includes("failed") ? ("failed" as const) : ("unknown" as const);
+      }),
+    );
+  }
+  if (summaries.includes("failed")) return "failed" as const;
+  if (operation.status === "pending" || operation.status === "processing" || summaries.includes("pending")) {
     return "pending" as const;
   }
-  return states.every(({ summary }) => summary === "sent") ? ("sent" as const) : ("unknown" as const);
+  return summaries.every((summary) => summary === "sent") ? ("sent" as const) : ("unknown" as const);
 }
 
 /** 認可済みの保存内容だけを、ブラウザで帳票生成するための最小DTOへ射影する。 */

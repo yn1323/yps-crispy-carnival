@@ -76,6 +76,63 @@ async function seedSnapshot(
   });
 }
 
+async function seedConfirmationDelivery(
+  ctx: MutationCtx,
+  ids: Fixture,
+  options: {
+    operationKey: string;
+    status: Doc<"notificationOutbox">["status"];
+    staffId?: Id<"staffs">;
+    operation?: Partial<Doc<"notificationFanoutOperations">>;
+    outbox?: Partial<Doc<"notificationOutbox">>;
+  },
+) {
+  const staffId = options.staffId ?? ids.staffId;
+  const operationId = await ctx.db.insert("notificationFanoutOperations", {
+    operationKey: options.operationKey,
+    kind: "confirmation",
+    purpose: "confirmation",
+    recruitmentId: ids.recruitmentId,
+    shopId: ids.shopId,
+    targetStaffIds: [staffId],
+    cursor: 1,
+    status: "completed",
+    dedupeSuffix: options.operationKey,
+    supersedesActiveOperations: true,
+    createdAt: 1000,
+    updatedAt: 1000,
+    ...options.operation,
+  });
+  await ctx.db.insert("notificationOutbox", {
+    channel: "email",
+    status: options.status,
+    dedupeKey: `primary:${options.operationKey}:${staffId}`,
+    fanoutTargetKey: `fanout:${options.operationKey}:${staffId}`,
+    fanoutOperationId: operationId,
+    shopId: ids.shopId,
+    organizationId: ids.organizationId,
+    purpose: "business",
+    recruitmentId: ids.recruitmentId,
+    staffId,
+    notificationContext: "confirmation fixture",
+    deliverySuppressed: false,
+    payload: {
+      kind: "email",
+      from: "sender@example.com",
+      to: "staff@example.com",
+      context: "fixture",
+      subject: "fixture",
+      html: "fixture",
+    },
+    attemptCount: 1,
+    nextRunAt: 1000,
+    createdAt: 1000,
+    updatedAt: 1000,
+    ...options.outbox,
+  });
+  return operationId;
+}
+
 describe("shiftExport/queries", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -474,4 +531,175 @@ describe("shiftExport/queries", () => {
       );
     },
   );
+
+  it.each([
+    ["sent", "sent"],
+    ["failed", "failed"],
+    ["pending", "pending"],
+    ["processing", "pending"],
+  ] as const)("同じ確定内容の補助再送が%sならcanonicalの失敗を%sとして集約する", async (status, expected) => {
+    const t = convexTest(schema, modules);
+    const ids = await seedExport(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.recruitmentId, {
+        status: "confirmed",
+        draftSavedAt: 1000,
+        lastConfirmationNotificationOperationKey: "canonical",
+      });
+      await seedConfirmationDelivery(ctx, ids, { operationKey: "canonical", status: "failed" });
+      await seedConfirmationDelivery(ctx, ids, {
+        operationKey: "supplemental",
+        status,
+        operation: {
+          purpose: "confirmation_resend",
+          supersedesActiveOperations: false,
+          confirmationOperationKeyAtOrigin: "canonical",
+          recruitmentDraftSavedAtAtOrigin: 1000,
+        },
+      });
+    });
+    expect((await query(t, ids))?.notificationState).toBe(expected);
+  });
+
+  it("補助fanoutがOutbox作成前なら元の失敗を処理中として表示する", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedExport(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.recruitmentId, {
+        status: "confirmed",
+        draftSavedAt: 1000,
+        lastConfirmationNotificationOperationKey: "canonical",
+      });
+      await seedConfirmationDelivery(ctx, ids, { operationKey: "canonical", status: "failed" });
+      await seedConfirmationDelivery(ctx, ids, {
+        operationKey: "supplemental",
+        status: "pending",
+        operation: {
+          status: "pending",
+          cursor: 0,
+          purpose: "confirmation_resend",
+          supersedesActiveOperations: false,
+          confirmationOperationKeyAtOrigin: "canonical",
+          recruitmentDraftSavedAtAtOrigin: 1000,
+        },
+      });
+      const outbox = await ctx.db
+        .query("notificationOutbox")
+        .withIndex("by_fanoutTargetKey", (q) => q.eq("fanoutTargetKey", `fanout:supplemental:${ids.staffId}`))
+        .unique();
+      if (!outbox) throw new Error("Missing supplemental outbox fixture");
+      await ctx.db.delete(outbox._id);
+    });
+    expect((await query(t, ids))?.notificationState).toBe("pending");
+  });
+
+  it("同じ内容を補助再送で実送信済みなら後の再送失敗で完了を取り消さない", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedExport(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.recruitmentId, {
+        status: "confirmed",
+        draftSavedAt: 1000,
+        lastConfirmationNotificationOperationKey: "canonical",
+      });
+      await seedConfirmationDelivery(ctx, ids, { operationKey: "canonical", status: "failed" });
+      for (const status of ["sent", "failed"] as const) {
+        await seedConfirmationDelivery(ctx, ids, {
+          operationKey: `supplemental-${status}`,
+          status,
+          operation: {
+            purpose: "confirmation_resend",
+            supersedesActiveOperations: false,
+            confirmationOperationKeyAtOrigin: "canonical",
+            recruitmentDraftSavedAtAtOrigin: 1000,
+          },
+        });
+      }
+    });
+    expect((await query(t, ids))?.notificationState).toBe("sent");
+  });
+
+  it.each([
+    "oldConfirmation",
+    "oldDraft",
+    "missingOrigin",
+    "otherStaff",
+    "otherShop",
+    "cancelled",
+    "suppressed",
+  ] as const)("%sの補助再送成功を現在の対象staffへの送信完了と扱わない", async (kind) => {
+    const t = convexTest(schema, modules);
+    const ids = await seedExport(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.recruitmentId, {
+        status: "confirmed",
+        draftSavedAt: 1000,
+        lastConfirmationNotificationOperationKey: "canonical",
+      });
+      await seedConfirmationDelivery(ctx, ids, { operationKey: "canonical", status: "failed" });
+      const otherStaffId = await seedStaff(ctx, { shopId: ids.shopId, name: "対象外staff" });
+      const otherShopId =
+        kind === "otherShop" ? (await seedManagerShop(ctx, { subject: "other_delivery_manager" })).shopId : ids.shopId;
+      await seedConfirmationDelivery(ctx, ids, {
+        operationKey: "supplemental",
+        status: "sent",
+        staffId: kind === "otherStaff" ? otherStaffId : ids.staffId,
+        operation: {
+          purpose: "confirmation_resend",
+          supersedesActiveOperations: false,
+          confirmationOperationKeyAtOrigin:
+            kind === "oldConfirmation" ? "older-canonical" : kind === "missingOrigin" ? undefined : "canonical",
+          recruitmentDraftSavedAtAtOrigin: kind === "oldDraft" ? 999 : 1000,
+          shopId: otherShopId,
+          status: kind === "cancelled" ? "cancelled" : "completed",
+        },
+        outbox: { deliverySuppressed: kind === "suppressed" },
+      });
+    });
+    expect((await query(t, ids))?.notificationState).toBe("failed");
+  });
+
+  it("別staffの未送信を一人の補助再送成功で覆わず、全対象が送信できた時点で完了にする", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seedExport(t);
+    const otherStaffId = await t.run(async (ctx) => {
+      await ctx.db.patch(ids.recruitmentId, {
+        status: "confirmed",
+        draftSavedAt: 1000,
+        lastConfirmationNotificationOperationKey: "canonical",
+      });
+      const staffId = await seedStaff(ctx, { shopId: ids.shopId, name: "対象staff B" });
+      await seedConfirmationDelivery(ctx, ids, {
+        operationKey: "canonical",
+        status: "failed",
+        operation: { targetStaffIds: [ids.staffId, staffId] },
+      });
+      await seedConfirmationDelivery(ctx, ids, {
+        operationKey: "supplemental-a",
+        status: "sent",
+        operation: {
+          purpose: "confirmation_resend",
+          supersedesActiveOperations: false,
+          confirmationOperationKeyAtOrigin: "canonical",
+          recruitmentDraftSavedAtAtOrigin: 1000,
+        },
+      });
+      return staffId;
+    });
+    expect((await query(t, ids))?.notificationState).toBe("unknown");
+    await t.run(async (ctx) => {
+      await seedConfirmationDelivery(ctx, ids, {
+        operationKey: "supplemental-b",
+        staffId: otherStaffId,
+        status: "sent",
+        operation: {
+          purpose: "confirmation_resend",
+          supersedesActiveOperations: false,
+          confirmationOperationKeyAtOrigin: "canonical",
+          recruitmentDraftSavedAtAtOrigin: 1000,
+        },
+      });
+    });
+    expect((await query(t, ids))?.notificationState).toBe("sent");
+  });
 });
