@@ -159,28 +159,65 @@ describe("公開コメントの集計", () => {
       log.mockRestore();
     }
   });
-  it("旧hostingのbotコメントをR2リンクへ更新し、人のコメントを変更しない", async () => {
+  it.each(["vrt", "playwright"] as const)("%sの旧botコメントだけを全件削除して新規投稿する", async (reportType) => {
+    const title = reportType === "vrt" ? "VRT Report" : "Playwright Test Report";
+    const marker = `<!-- r2-report:${reportType} -->`;
+    const otherMarker = `<!-- r2-report:${reportType === "vrt" ? "playwright" : "vrt"} -->`;
     const api = vi
       .fn()
       .mockResolvedValueOnce([
-        { id: 1, user: { login: "user" }, body: "## VRT Report\nuser content" },
-        { id: 2, user: { login: "github-actions[bot]" }, body: "## VRT Report\nold hosting link" },
+        { id: 1, user: { login: "user" }, body: marker },
+        { id: 2, user: { login: "github-actions[bot]" }, body: `## ${title}\nold hosting link` },
+        { id: 3, user: { login: "github-actions[bot]" }, body: marker },
+        { id: 4, user: { login: "github-actions[bot]" }, body: otherMarker },
       ])
-      .mockResolvedValueOnce({});
-    await commentOnReport(request, "https://pub-test.r2.dev/vrt/pr-900/100-2/index.html", api);
-    expect(api).toHaveBeenLastCalledWith(`/repos/${SOURCE_REPOSITORY}/issues/comments/2`, {
-      method: "PATCH",
-      body: expect.stringContaining("https://pub-test.r2.dev/vrt/pr-900/100-2/index.html"),
-    });
+      .mockResolvedValue({});
+    const url = `https://pub-test.r2.dev/${reportType}/pr-900/100-2/index.html`;
+    await commentOnReport({ ...request, reportType }, url, api);
+    expect(api.mock.calls.slice(1)).toEqual([
+      [`/repos/${SOURCE_REPOSITORY}/issues/comments/2`, { method: "DELETE" }],
+      [`/repos/${SOURCE_REPOSITORY}/issues/comments/3`, { method: "DELETE" }],
+      [`/repos/${SOURCE_REPOSITORY}/issues/900/comments`, { method: "POST", body: expect.stringContaining(url) }],
+    ]);
+    const { body } = JSON.parse(api.mock.calls.at(-1)?.[1].body);
+    expect(body.includes(`[VRTの承認画面を開く](https://github.com/${SOURCE_REPOSITORY}/actions/runs/100)`)).toBe(
+      reportType === "vrt",
+    );
+  });
+  it("全ページ取得が終わるまで削除を始めず、2ページ目の旧コメントも削除する", async () => {
+    const comment = { id: 1, user: { login: "github-actions[bot]" }, body: "<!-- r2-report:vrt -->" };
+    const api = vi
+      .fn()
+      .mockResolvedValueOnce([comment, ...Array.from({ length: 99 }, () => ({ user: { login: "user" } }))])
+      .mockResolvedValueOnce([{ ...comment, id: 101 }])
+      .mockResolvedValue({});
+    await commentOnReport(request, "https://pub-test.r2.dev/report", api);
+    expect(api.mock.calls.slice(0, 4)).toEqual([
+      [`/repos/${SOURCE_REPOSITORY}/issues/900/comments?per_page=100&page=1`],
+      [`/repos/${SOURCE_REPOSITORY}/issues/900/comments?per_page=100&page=2`],
+      [`/repos/${SOURCE_REPOSITORY}/issues/comments/1`, { method: "DELETE" }],
+      [`/repos/${SOURCE_REPOSITORY}/issues/comments/101`, { method: "DELETE" }],
+    ]);
+    expect(api).toHaveBeenCalledTimes(5);
+  });
+  it("旧コメントの削除に失敗した場合は新規投稿しない", async () => {
+    const api = vi
+      .fn()
+      .mockResolvedValueOnce([{ id: 1, user: { login: "github-actions[bot]" }, body: "<!-- r2-report:vrt -->" }])
+      .mockRejectedValueOnce(new Error("deletion failed"));
+    await expect(commentOnReport(request, "https://pub-test.r2.dev/report", api)).rejects.toThrow("deletion failed");
+    expect(api).toHaveBeenCalledTimes(2);
   });
   it("動画を削除しても失敗と件数を隠さない", () => {
     expect(
       resultSummary("playwright", { stats: { expected: 8, unexpected: 1, flaky: 2, skipped: 3 } }, "failure"),
-    ).toBe("**テスト失敗**\n\n| 成功 | 失敗 | 不安定 | スキップ |\n| ---: | ---: | ---: | ---: |\n| 8 | 1 | 2 | 3 |");
+    ).toBe(
+      "**テスト失敗**\n\n| ✅ 成功 | ❌ 失敗 | ⚠️ 不安定 | ⏭️ スキップ |\n| ---: | ---: | ---: | ---: |\n| 8 | 1 | 2 | 3 |",
+    );
   });
   it("画像を省いた変更なし件数も残す", () => {
     expect(resultSummary("vrt", { failedItems: ["a"], newItems: [], deletedItems: [], passedItems: ["b", "c"] })).toBe(
-      "| 変更 | 追加 | 削除 | 変更なし |\n| ---: | ---: | ---: | ---: |\n| 1 | 0 | 0 | 2 |",
+      "| 🔄 変更 | 🆕 追加 | 🗑️ 削除 | ✅ 変更なし |\n| ---: | ---: | ---: | ---: |\n| 1 | 0 | 0 | 2 |",
     );
   });
 });

@@ -208,7 +208,7 @@ export function resultSummary(reportType, result, testResult) {
     const fields = ["failedItems", "newItems", "deletedItems", "passedItems"];
     if (fields.some((field) => !Array.isArray(result[field]))) throw new Error("Invalid VRT result counts");
     const [changed, added, deleted, passed] = fields.map((field) => result[field].length);
-    return `| 変更 | 追加 | 削除 | 変更なし |\n| ---: | ---: | ---: | ---: |\n| ${changed} | ${added} | ${deleted} | ${passed} |`;
+    return `| 🔄 変更 | 🆕 追加 | 🗑️ 削除 | ✅ 変更なし |\n| ---: | ---: | ---: | ---: |\n| ${changed} | ${added} | ${deleted} | ${passed} |`;
   }
   const fields = ["expected", "unexpected", "flaky", "skipped"];
   if (
@@ -217,7 +217,7 @@ export function resultSummary(reportType, result, testResult) {
   )
     throw new Error("Invalid Playwright result counts");
   const [passed, failed, flaky, skipped] = fields.map((field) => result.stats[field]);
-  return `**${testResult === "success" ? "テスト成功" : "テスト失敗"}**\n\n| 成功 | 失敗 | 不安定 | スキップ |\n| ---: | ---: | ---: | ---: |\n| ${passed} | ${failed} | ${flaky} | ${skipped} |`;
+  return `**${testResult === "success" ? "テスト成功" : "テスト失敗"}**\n\n| ✅ 成功 | ❌ 失敗 | ⚠️ 不安定 | ⏭️ スキップ |\n| ---: | ---: | ---: | ---: |\n| ${passed} | ${failed} | ${flaky} | ${skipped} |`;
 }
 
 async function prepareRequest(request, source, output, baselineSource, summary) {
@@ -256,25 +256,30 @@ export async function commentOnReport(request, reportUrl, api, { summary } = {})
   if (request.pullRequest === null) return;
   const marker = `<!-- r2-report:${request.reportType} -->`;
   const title = request.reportType === "vrt" ? "VRT Report" : "Playwright Test Report";
-  const body = `${marker}\n### ${title}\n\n[公開レポートを開く](${reportUrl})\n\n${summary ? `${summary}\n\n` : ""}完全版は[GitHub ActionsのArtifacts](https://github.com/${SOURCE_REPOSITORY}/actions/runs/${request.runId})からダウンロードできます。`;
-  let existing;
+  const runUrl = `https://github.com/${SOURCE_REPOSITORY}/actions/runs/${request.runId}`;
+  const approvalLink = request.reportType === "vrt" ? `[VRTの承認画面を開く](${runUrl})\n\n` : "";
+  const body = `${marker}\n### ${title}\n\n[公開レポートを開く](${reportUrl})\n\n${approvalLink}${summary ? `${summary}\n\n` : ""}完全版は[GitHub ActionsのArtifacts](${runUrl})からダウンロードできます。`;
+  const existing = [];
   for (let page = 1; ; page += 1) {
     const comments = await api(
       `/repos/${SOURCE_REPOSITORY}/issues/${request.pullRequest}/comments?per_page=100&page=${page}`,
     );
-    existing ??= comments.find(
-      (comment) =>
-        comment.user?.login === "github-actions[bot]" &&
-        (comment.body?.startsWith(marker) || comment.body?.startsWith(`## ${title}\n`)),
+    existing.push(
+      ...comments.filter(
+        (comment) =>
+          comment.user?.login === "github-actions[bot]" &&
+          (comment.body?.startsWith(marker) || comment.body?.startsWith(`## ${title}\n`)),
+      ),
     );
     if (comments.length < 100) break;
   }
-  await api(
-    existing
-      ? `/repos/${SOURCE_REPOSITORY}/issues/comments/${existing.id}`
-      : `/repos/${SOURCE_REPOSITORY}/issues/${request.pullRequest}/comments`,
-    { method: existing ? "PATCH" : "POST", body: JSON.stringify({ body }) },
-  );
+  // Collect every page before deleting, so changing the list cannot skip an older comment.
+  for (const comment of existing)
+    await api(`/repos/${SOURCE_REPOSITORY}/issues/comments/${comment.id}`, { method: "DELETE" });
+  await api(`/repos/${SOURCE_REPOSITORY}/issues/${request.pullRequest}/comments`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
 }
 
 async function publishPrepared(output, api, { bootstrap = false } = {}) {
