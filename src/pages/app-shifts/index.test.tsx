@@ -84,7 +84,7 @@ const makeSection = (shopId: string, shopName: string, item: Recruitment): Recru
     {
       key: "collecting",
       title: "募集中",
-      recruitments: [item],
+      recruitments: [{ ...item, editVersion: item.editVersion ?? 0 }],
       totalCount: 1,
     },
   ],

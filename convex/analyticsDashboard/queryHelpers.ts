@@ -2,8 +2,19 @@ import type { PaginationOptions } from "convex/server";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { getOrganizationPersonLineState, resolveCanonicalStaffScope } from "../line/service";
-import type { AnalyticsPageInfoDto, AnalyticsShopRowDto, CycleRowDto, StaffRowDto } from "./dto";
+import { hasValidCanonicalStaffUserLifecycle } from "../staff/service";
+import type {
+  AnalyticsPageInfoDto,
+  AnalyticsShopListRowDto,
+  AnalyticsShopRowDto,
+  CycleRowDto,
+  StaffRowDto,
+} from "./dto";
 import { ANALYTICS_DASHBOARD_MAX_SCAN_ROWS } from "./schemas";
+
+// 一店舗あたりstaff 201件、person/user各200件まで。店舗走査も20件に抑える。
+export const SHOP_LIST_SCAN_LIMIT = 20;
+export const SHOP_LIST_STAFF_SCAN_LIMIT = 200;
 
 export function paginationOptions(cursor: string | null, limit: number, maximum = 100): PaginationOptions {
   if (
@@ -48,6 +59,39 @@ export function shopRow(shop: Doc<"shops">, organization: Doc<"organizations">):
     organizationName: organization.name,
     registeredAt: shop._creationTime,
     isDeleted: false,
+  };
+}
+export async function shopListRow(
+  ctx: QueryCtx,
+  shop: Doc<"shops">,
+  organization: Doc<"organizations">,
+): Promise<AnalyticsShopListRowDto> {
+  const [staffs, latestShift] = await Promise.all([
+    ctx.db
+      .query("staffs")
+      .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+      .take(SHOP_LIST_STAFF_SCAN_LIMIT + 1),
+    ctx.db
+      .query("recruitments")
+      .withIndex("by_shopId_and_isDeleted_and_periodStart", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+      .order("desc")
+      .first(),
+  ]);
+  let staffCount: number | null = null;
+  if (staffs.length <= SHOP_LIST_STAFF_SCAN_LIMIT) {
+    staffCount = 0;
+    for (const staff of staffs) {
+      if (staff.organizationId !== organization._id) continue;
+      const person = await ctx.db.get(staff.organizationPersonId);
+      if (person?.status !== "active" || person.organizationId !== organization._id) continue;
+      if (!(await hasValidCanonicalStaffUserLifecycle(ctx, staff, person))) continue;
+      staffCount += 1;
+    }
+  }
+  return {
+    ...shopRow(shop, organization),
+    staffCount,
+    latestShift: latestShift ? { periodStart: latestShift.periodStart, periodEnd: latestShift.periodEnd } : null,
   };
 }
 export function deletedShopRow(shopId: string): AnalyticsShopRowDto {

@@ -1,14 +1,17 @@
 import dayjs from "dayjs";
 import { getInclusiveIsoDateSpanDays, isValidIsoDateString } from "@/convex/_lib/validation";
 import { RECRUITMENT_PERIOD_DAYS_MAX } from "@/convex/constants";
-import { createRecruitmentSchema } from "@/convex/recruitment/schemas";
+import { type CreateRecruitmentInput, createRecruitmentSchema } from "@/convex/recruitment/schemas";
 import type { RegularClosedDay } from "@/convex/shop/schemas";
 import {
   getInclusiveDateCount as countInclusiveDates,
   deriveDatesFromWeekdays,
   formatCompactDateListWithWeekday,
+  formatDateWithWeekday,
   pruneDatesInRange,
+  todayJST,
 } from "@/src/domains/shift/date";
+import type { RecruitmentComparisonRow } from "./types";
 
 export {
   type CreateRecruitmentInput as CreateRecruitmentData,
@@ -27,6 +30,19 @@ export const deriveShopClosedDatesFromRegularDays = (
   regularClosedDays: RegularClosedDay[],
 ): string[] => {
   return deriveDatesFromWeekdays(startDate, endDate, regularClosedDays);
+};
+
+export const preserveEditedClosedDates = (
+  previous: { periodStart: string; periodEnd: string; shopClosedDates: string[] },
+  periodStart: string,
+  periodEnd: string,
+  regularClosedDays: RegularClosedDay[],
+): string[] => {
+  const retained = pruneHolidaysInRange(previous.shopClosedDates, periodStart, periodEnd);
+  const added = deriveShopClosedDatesFromRegularDays(periodStart, periodEnd, regularClosedDays).filter(
+    (date) => date < previous.periodStart || date > previous.periodEnd,
+  );
+  return [...new Set([...retained, ...added])].sort();
 };
 
 export const getCalendarMonthCount = (startDate?: string, endDate?: string): 1 | 2 => {
@@ -49,6 +65,40 @@ export const getHolidaySummary = (holidays: string[]): { value: string; detail?:
     value: `${sortedHolidays.length}日`,
     detail: hiddenCount > 0 ? `${visibleHolidays} ほか${hiddenCount}日` : visibleHolidays,
   };
+};
+
+export const buildRecruitmentComparison = (
+  previous: CreateRecruitmentInput,
+  next: CreateRecruitmentInput,
+): RecruitmentComparisonRow[] => {
+  const formatPeriod = ({ periodStart, periodEnd }: CreateRecruitmentInput) =>
+    periodStart && periodEnd
+      ? `${formatDateWithWeekday(periodStart)} 〜 ${formatDateWithWeekday(periodEnd)}`
+      : "未選択";
+  const formatDeadline = (deadline: string) => (deadline ? `${formatDateWithWeekday(deadline)} 23:59` : "未選択");
+  const beforeClosedDates = [...previous.shopClosedDates].sort();
+  const afterClosedDates = [...next.shopClosedDates].sort();
+
+  return [
+    {
+      label: "シフト期間",
+      before: formatPeriod(previous),
+      after: formatPeriod(next),
+      changed: previous.periodStart !== next.periodStart || previous.periodEnd !== next.periodEnd,
+    },
+    {
+      label: "定休日",
+      before: formatCompactDateListWithWeekday(beforeClosedDates) || "なし",
+      after: formatCompactDateListWithWeekday(afterClosedDates) || "なし",
+      changed: beforeClosedDates.join(",") !== afterClosedDates.join(","),
+    },
+    {
+      label: "提出期限",
+      before: formatDeadline(previous.deadline),
+      after: formatDeadline(next.deadline),
+      changed: previous.deadline !== next.deadline,
+    },
+  ];
 };
 
 type PeriodStepValidationInput = {
@@ -107,7 +157,7 @@ export const isDeadlineInRange = (deadline: string, today: string, periodStart?:
   !getDeadlineStepValidationError({ deadline, periodStart, today });
 
 export const createRecruitmentFormSchema = createRecruitmentSchema.superRefine((data, ctx) => {
-  const today = dayjs().format("YYYY-MM-DD");
+  const today = todayJST();
   if (isValidIsoDateString(data.deadline) && data.deadline < today) {
     ctx.addIssue({
       code: "custom",

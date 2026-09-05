@@ -1,6 +1,7 @@
 import { ConvexError } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { isCurrentSubmission } from "../_lib/recruitmentEditing";
 import {
   SHOP_MEMBERSHIP_STATS_ACTIVE_STAFF_LIMIT,
   SHOP_MEMBERSHIP_STATS_OPEN_RECRUITMENT_LIMIT,
@@ -81,7 +82,7 @@ export async function recalculateOpenRecruitmentStatsForShops(
           .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitment._id).eq("staffId", staff._id))
           .take(2);
         if (submissions.length > 1) throw new ConvexError(RECRUITMENT_STATS_INCONSISTENCY_ERROR);
-        if (submissions.length === 1) submittedCount += 1;
+        if (isCurrentSubmission(submissions[0])) submittedCount += 1;
       }
 
       const activeStaffCountSnapshot = scope.activeShiftTargetStaffs.length;

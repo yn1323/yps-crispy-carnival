@@ -83,6 +83,82 @@ describe("shiftSubmission/mutations", () => {
   afterEach(() => vi.useRealTimers());
 
   describe("submitShiftRequests", () => {
+    it("編集前の画面からの提出を拒否し、保存済み希望と提出状態を変えない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupTestData(t);
+      const args = {
+        sessionToken: ids.sessionToken,
+        accessKind: "submit" as const,
+        recruitmentId: ids.recruitmentId,
+        acceptedLegal: true,
+        submission: { kind: "time" as const, requests: validRequests },
+      };
+      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, args);
+      await t.run(async (ctx) => await ctx.db.patch(ids.recruitmentId, { editVersion: 1 }));
+      const before = await t.run(async (ctx) => ({
+        submissions: await ctx.db.query("shiftSubmissions").collect(),
+        slots: await ctx.db.query("shiftSubmissionSlots").collect(),
+        stats: await ctx.db.query("recruitmentStats").collect(),
+      }));
+      for (const expectedEditVersion of [undefined, 0]) {
+        await expect(
+          t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+            ...args,
+            expectedEditVersion,
+            submission: { kind: "time", requests: [] },
+          }),
+        ).rejects.toThrow("RECRUITMENT_CHANGED");
+      }
+      expect(
+        await t.run(async (ctx) => ({
+          submissions: await ctx.db.query("shiftSubmissions").collect(),
+          slots: await ctx.db.query("shiftSubmissionSlots").collect(),
+          stats: await ctx.db.query("recruitmentStats").collect(),
+        })),
+      ).toEqual(before);
+    });
+
+    it("未提出に戻った人は締切後も一度だけ再提出でき、初回履歴を保持して人数を戻す", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupTestData(t);
+      const args = {
+        sessionToken: ids.sessionToken,
+        accessKind: "submit" as const,
+        recruitmentId: ids.recruitmentId,
+        acceptedLegal: true,
+        submission: { kind: "time" as const, requests: validRequests },
+      };
+      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, args);
+      const firstSubmittedAt = Date.now();
+      await t.run(async (ctx) => {
+        await ctx.db.patch(ids.recruitmentId, { editVersion: 1, deadline: "2026-03-31" });
+        const submission = await ctx.db.query("shiftSubmissions").first();
+        const stats = await ctx.db.query("recruitmentStats").first();
+        if (!submission || !stats) throw new Error("missing submission state");
+        await ctx.db.patch(submission._id, { needsResubmission: true });
+        await ctx.db.patch(stats._id, { submittedCount: 0 });
+      });
+      vi.setSystemTime(firstSubmittedAt + 1000);
+      await t.mutation(api.shiftSubmission.mutations.submitShiftRequests, {
+        ...args,
+        expectedEditVersion: 1,
+        submission: { kind: "time", requests: [] },
+      });
+      const result = await t.run(async (ctx) => ({
+        submissions: await ctx.db.query("shiftSubmissions").collect(),
+        slots: await ctx.db.query("shiftSubmissionSlots").collect(),
+        stats: await ctx.db.query("recruitmentStats").collect(),
+      }));
+      expect(result.submissions).toHaveLength(1);
+      expect(result.submissions[0]).toMatchObject({ firstSubmittedAt, submittedAt: Date.now() });
+      expect(result.submissions[0].needsResubmission).toBeUndefined();
+      expect(result.slots).toEqual([]);
+      expect(result.stats[0].submittedCount).toBe(1);
+      await expect(
+        t.mutation(api.shiftSubmission.mutations.submitShiftRequests, { ...args, expectedEditVersion: 1 }),
+      ).rejects.toThrow("Deadline passed");
+    });
+
     it("スタッフ所属店舗と異なる店舗を指すsessionでは提出できない", async () => {
       const t = convexTest(schema, modules);
       const { staffId, sessionToken } = await setupTestData(t);

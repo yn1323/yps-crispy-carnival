@@ -251,20 +251,34 @@ describe("既存スタッフの管理者招待シナリオ", () => {
       });
     });
 
+    // 確定催促は締切後の募集を使い、後半のスタッフ向け募集通知は締切前の募集で検証する。
+    const confirmationRecruitmentId = await t.run((ctx) =>
+      ctx.db.insert("recruitments", {
+        shopId: seeded.shopId,
+        periodStart: scenarioDate(7),
+        periodEnd: scenarioDate(13),
+        deadline: scenarioDate(-2),
+        shopClosedDates: [],
+        status: "open",
+        isDeleted: false,
+        submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
+      }),
+    );
+
     const managerUserIds = [targetUserId];
-    await expect(readManagerDigestRecipientIds(t, seeded.shopId, recruitmentId)).resolves.toEqual({
+    await expect(readManagerDigestRecipientIds(t, seeded.shopId, confirmationRecruitmentId)).resolves.toEqual({
       staffRegistration: managerUserIds,
       shiftConfirmation: managerUserIds,
       shopActivation: managerUserIds,
       failureReminder: managerUserIds,
     });
 
-    await scheduleManagerDigests(t, seeded.shopId, recruitmentId);
+    await scheduleManagerDigests(t, seeded.shopId, confirmationRecruitmentId);
     const activeManagerDigestOutbox = await readManagerDigestOutbox(t);
     expect(activeManagerDigestOutbox).toEqual(
       expectedManagerDigestOutbox({
         shopId: seeded.shopId,
-        recruitmentId,
+        recruitmentId: confirmationRecruitmentId,
         userId: targetUserId,
         email: shiftContactEmail,
         status: "pending",
@@ -285,18 +299,18 @@ describe("既存スタッフの管理者招待シナリオ", () => {
     ]);
 
     await expect(owner.removeManagerRole(personId)).resolves.toEqual({ changed: true });
-    await expect(readManagerDigestRecipientIds(t, seeded.shopId, recruitmentId)).resolves.toEqual({
+    await expect(readManagerDigestRecipientIds(t, seeded.shopId, confirmationRecruitmentId)).resolves.toEqual({
       staffRegistration: [],
       shiftConfirmation: [],
       shopActivation: [],
       failureReminder: [],
     });
-    await scheduleManagerDigests(t, seeded.shopId, recruitmentId);
+    await scheduleManagerDigests(t, seeded.shopId, confirmationRecruitmentId);
 
     expect(await readManagerDigestOutbox(t)).toEqual(
       expectedManagerDigestOutbox({
         shopId: seeded.shopId,
-        recruitmentId,
+        recruitmentId: confirmationRecruitmentId,
         userId: targetUserId,
         email: shiftContactEmail,
         status: "cancelled",

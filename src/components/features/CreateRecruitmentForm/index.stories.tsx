@@ -1,12 +1,16 @@
-import { Box } from "@chakra-ui/react";
+import { Box, parseDate } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import { useRef, useState } from "react";
+import { useForm } from "react-hook-form";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import { StepperDialog } from "@/src/components/ui/StepperDialog";
 import { createDeferred } from "@/src/devtools/createDeferred";
+import { addDays, formatDateWithWeekday, todayJST } from "@/src/domains/shift/date";
+import { CreateRecruitmentFormView } from "./CreateRecruitmentFormView";
 import { CreateRecruitmentForm, type CreateRecruitmentSelectableShop } from "./index.tsx";
 import { RecruitmentShopSelection } from "./RecruitmentShopSelection";
+import { buildRecruitmentComparison, type CreateRecruitmentData, getHolidaySummary } from "./script";
 
 const meta = {
   title: "Features/CreateRecruitmentForm",
@@ -30,6 +34,170 @@ const SELECTABLE_SHOPS: CreateRecruitmentSelectableShop[] = [
 ];
 const LONG_WEEKDAYS = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"] as const;
 const storyToday = () => dayjs(STORY_TODAY);
+
+const editToday = todayJST();
+const editInitialValues = {
+  periodStart: addDays(editToday, 4),
+  periodEnd: addDays(editToday, 8),
+  deadline: addDays(editToday, 3),
+  shopClosedDates: [addDays(editToday, 5)],
+};
+
+const EditFlowHarness = () => {
+  const [saved, setSaved] = useState(false);
+  return saved ? (
+    <div role="status">変更を保存しました</div>
+  ) : (
+    <StepperDialog title="シフト募集を編集" isOpen onClose={() => {}} onOpenChange={() => {}}>
+      <CreateRecruitmentForm
+        mode="edit"
+        defaultValues={editInitialValues}
+        shopTarget={{ mode: "fixed", shop: FIXED_SHOP }}
+        onSubmit={() => setSaved(true)}
+        onCancel={() => {}}
+      />
+    </StepperDialog>
+  );
+};
+
+export const EditRecruitmentFlow: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <EditFlowHarness />,
+  play: async ({ canvasElement }) => {
+    const root = await getTestRoot(canvasElement, "シフト募集を編集");
+    const canvas = within(root);
+    await clickButton(root, "次へ");
+    await clickDate(root, dayjs(editInitialValues.shopClosedDates[0]), false);
+    await clickDate(root, dayjs(addDays(editToday, 6)));
+    await clickButton(root, "次へ");
+    await clickButton(root, "確認へ");
+    await expect(canvas.getByText("対象スタッフ全員に変更を通知します")).toBeVisible();
+    await expect(canvas.getAllByText("変更前").length).toBeGreaterThan(0);
+    await expect(canvas.getAllByText("変更後").length).toBeGreaterThan(0);
+    await expect(canvas.getByText(formatDateWithWeekday(editInitialValues.shopClosedDates[0]))).toBeVisible();
+    await expect(canvas.getByText(formatDateWithWeekday(addDays(editToday, 6)))).toBeVisible();
+    await expect(canvas.queryByText("提出状況")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("対象外になる日")).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "変更を保存" }));
+    await within(canvasElement).findByRole("status");
+  },
+};
+
+const editConfirmationInitialValues = {
+  periodStart: addDays(STORY_TODAY, 4),
+  periodEnd: addDays(STORY_TODAY, 7),
+  deadline: addDays(STORY_TODAY, 2),
+  shopClosedDates: [addDays(STORY_TODAY, 5)],
+};
+
+export const EditRecruitmentConfirmation: Story = {
+  name: "編集内容の確認",
+  args: {
+    mode: "edit",
+    defaultValues: {
+      periodStart: addDays(STORY_TODAY, 4),
+      periodEnd: addDays(STORY_TODAY, 8),
+      deadline: addDays(STORY_TODAY, 3),
+      shopClosedDates: [addDays(STORY_TODAY, 6)],
+    },
+  },
+  render: function Render(args) {
+    const values = args.defaultValues ?? editConfirmationInitialValues;
+    const { register } = useForm<CreateRecruitmentData>({ defaultValues: values });
+    const today = parseDate(STORY_TODAY);
+    const periodStart = parseDate(values.periodStart);
+    const periodEnd = parseDate(values.periodEnd);
+    const deadline = parseDate(values.deadline);
+    const periodLabel = `${formatDateWithWeekday(values.periodStart)} 〜 ${formatDateWithWeekday(values.periodEnd)}`;
+
+    return (
+      <StepperDialog title="シフト募集を編集" isOpen onClose={() => {}} onOpenChange={() => {}}>
+        <CreateRecruitmentFormView
+          currentStep="confirm"
+          isEditing
+          isPeriodOnly={false}
+          hasShopStep={false}
+          canContinueFromShop
+          submitLoading={false}
+          hiddenFields={{
+            periodStart: register("periodStart"),
+            periodEnd: register("periodEnd"),
+            deadline: register("deadline"),
+          }}
+          period={{
+            value: [periodStart, periodEnd],
+            min: today.add({ days: 1 }),
+            max: periodEnd,
+            initialFocus: periodStart,
+            label: periodLabel,
+            dayCount: dayjs(values.periodEnd).diff(dayjs(values.periodStart), "day") + 1,
+          }}
+          holidays={{
+            value: parseDate(values.shopClosedDates),
+            min: periodStart,
+            max: periodEnd,
+            desktopMonths: 1,
+            allPeriodDaysAreHolidays: false,
+          }}
+          deadline={{ value: [deadline], min: today, initialFocus: deadline, desktopMonths: 1 }}
+          confirmation={{
+            comparison: buildRecruitmentComparison(editConfirmationInitialValues, values),
+            shopName: FIXED_SHOP.shopName,
+            periodLabel,
+            holidaySummary: getHolidaySummary(values.shopClosedDates),
+            deadlineLabel: `${formatDateWithWeekday(values.deadline)} 23:59`,
+            reminderDescription: "提出期限の前日17:00に、未提出のスタッフへ自動催促通知を送ります。",
+          }}
+          onSubmit={(event) => event.preventDefault()}
+          onCancel={() => {}}
+          onPeriodChange={() => {}}
+          onHolidayChange={() => {}}
+          onDeadlineChange={() => {}}
+          onShopChange={() => {}}
+          onGoToShop={() => {}}
+          onGoToPeriodFromShop={() => {}}
+          onGoToPeriod={() => {}}
+          onGoToHolidays={() => {}}
+          onGoToDeadline={() => {}}
+          onGoToConfirm={() => {}}
+        />
+      </StepperDialog>
+    );
+  },
+};
+
+export const EditRecruitmentConfirmationDeadlineOnly: Story = {
+  ...EditRecruitmentConfirmation,
+  name: "編集内容の確認（提出期限だけ変更）",
+  args: {
+    ...EditRecruitmentConfirmation.args,
+    defaultValues: { ...editConfirmationInitialValues, deadline: addDays(STORY_TODAY, 3) },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(await getTestRoot(canvasElement, "シフト募集を編集"));
+    await expect(canvas.getAllByText("変更なし")).toHaveLength(2);
+    await expect(canvas.getAllByText("変更前")).toHaveLength(1);
+    await expect(canvas.getAllByText("変更後")).toHaveLength(1);
+    await expect(canvas.getByText("対象スタッフ全員に変更を通知します")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "変更を保存" })).toBeEnabled();
+  },
+};
+
+export const EditRecruitmentConfirmationUnchanged: Story = {
+  ...EditRecruitmentConfirmation,
+  name: "編集内容の確認（すべて変更なし）",
+  args: { ...EditRecruitmentConfirmation.args, defaultValues: editConfirmationInitialValues },
+  play: async ({ canvasElement }) => {
+    const canvas = within(await getTestRoot(canvasElement, "シフト募集を編集"));
+    await expect(canvas.getAllByText("変更なし")).toHaveLength(3);
+    await expect(canvas.queryByText("変更前")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("変更後")).not.toBeInTheDocument();
+    await expect(canvas.getByText("変更がないため、通知は送りません。")).toBeVisible();
+    await expect(canvas.getByText("現在の自動催促の予定は変わりません。")).toBeVisible();
+    await expect(canvas.queryByText("対象スタッフ全員に変更を通知します")).not.toBeInTheDocument();
+    await expect(canvas.getByRole("button", { name: "変更を保存" })).toBeDisabled();
+  },
+};
 
 const ShopSelectionHarness = () => {
   const [submittedShopName, setSubmittedShopName] = useState("");
@@ -663,13 +831,13 @@ export const Submitting: Story = {
   },
 };
 
-async function getTestRoot(canvasElement: HTMLElement): Promise<HTMLElement> {
+async function getTestRoot(canvasElement: HTMLElement, title = "新しい募集をつくる"): Promise<HTMLElement> {
   const body = within(canvasElement.ownerDocument.body);
 
   // 前のStoryの閉じかけたPortalを固定参照せず、現在表示中のDialogを待つ。
   return waitFor(
     () => {
-      const dialog = body.getByRole("dialog", { name: "新しい募集をつくる" });
+      const dialog = body.getByRole("dialog", { name: title });
       expect(dialog).toBeVisible();
       return dialog;
     },

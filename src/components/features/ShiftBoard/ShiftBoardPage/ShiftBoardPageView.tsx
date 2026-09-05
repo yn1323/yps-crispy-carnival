@@ -2,6 +2,7 @@ import { Alert, Box, Flex, Grid, Icon, Text } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
 import { LuChevronLeft, LuCircleCheck, LuExternalLink, LuFileDown } from "react-icons/lu";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
+import { RecruitmentChangedNotice } from "@/src/components/shared/RecruitmentChangedNotice";
 import { ConfirmShiftContent } from "@/src/components/shared/ShiftConfirmationContent";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
 import { Button } from "@/src/components/ui/Button";
@@ -12,6 +13,9 @@ import type { ShiftBoardPageViewProps } from "./types";
 
 export const ShiftBoardPageView = ({ viewModel, intents, layout = "legacy", header }: ShiftBoardPageViewProps) => {
   const { shiftForm, confirmDialog, unsubmittedDialog, unsavedChangesDialog } = viewModel;
+  if (viewModel.isRecruitmentChanged) {
+    return <RecruitmentChangedNotice onReload={intents.onReload ?? (() => window.location.reload())} />;
+  }
 
   return (
     <Flex

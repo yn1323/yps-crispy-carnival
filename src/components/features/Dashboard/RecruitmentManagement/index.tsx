@@ -6,6 +6,7 @@ import type {
   CreateRecruitmentData,
   CreateRecruitmentShopTarget,
 } from "@/src/components/features/CreateRecruitmentForm";
+import { EditRecruitmentDialog } from "@/src/components/features/EditRecruitmentDialog";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { toaster } from "@/src/components/ui/toaster";
@@ -13,6 +14,7 @@ import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useShopPaginatedQuery } from "@/src/hooks/useShopPaginatedQuery";
 import { useShopQuery } from "@/src/hooks/useShopQuery";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { useManagerShopScope } from "@/src/providers/ManagerShopScopeProvider";
 import { selectedShopAtom } from "@/src/stores/shop";
 import { buildDashboardRecruitmentGroups, sortRecruitmentsByCreatedAt } from "../script";
 import type { DashboardRecruitmentGroup, PaginationStatus, Recruitment } from "../types";
@@ -80,6 +82,8 @@ export function RecruitmentManagement({
   children,
 }: Props) {
   const selectedShop = useAtomValue(selectedShopAtom);
+  const managerShopScope = useManagerShopScope();
+  const [editTargetId, setEditTargetId] = useState<Recruitment["_id"] | null>(null);
   const createDialog = useDialog();
   const deleteDialog = useDialog();
   const [createSessionRevision, setCreateSessionRevision] = useState(0);
@@ -124,6 +128,7 @@ export function RecruitmentManagement({
     createDialog.close();
     deleteDialog.close();
     setDeleteTarget(null);
+    setEditTargetId(null);
   }, [createDialog.close, deleteDialog.close, isReadOnly]);
 
   const { run: handleCreate } = useSingleFlight(async (formData: CreateRecruitmentData) => {
@@ -176,41 +181,57 @@ export function RecruitmentManagement({
     createDialog.open();
   };
 
+  const editShop = shopTarget?.shop ?? selectedShop;
+  const editOrganizationId = managerShopScope?.expectedOrganizationId ?? selectedShop?.organizationId;
   const renderContent = ({ onBeforeOpenShiftBoard }: RenderContentOptions = {}) => (
-    <RecruitmentManagementView
-      regularClosedDays={regularClosedDays}
-      shopTarget={
-        shopTarget ??
-        (selectedShop
-          ? { mode: "fixed", shop: { shopId: selectedShop.shopId, shopName: selectedShop.shopName } }
-          : undefined)
-      }
-      title={title}
-      groups={groups}
-      isReadOnly={isReadOnly}
-      showRecruitmentMenus={showRecruitmentMenus}
-      canDeleteRecruitments={canDeleteRecruitments}
-      deleteRecruitmentDisabledReason={deleteRecruitmentDisabledReason}
-      pastStatus={resolvedPastStatus}
-      hasPastRecruitments={resolvedHasPastRecruitments}
-      isPastRecruitmentsVisible={data?.isPastRecruitmentsVisible ?? isPastRecruitmentsVisible}
-      canLoadMorePastRecruitments={resolvedCanLoadMorePastRecruitments}
-      tourRecruitmentId={knownRecruitments[0]?._id}
-      createSessionKey={String(createSessionRevision)}
-      createDialog={createDialog}
-      deleteDialog={deleteDialog}
-      deleteTarget={deleteTarget}
-      isDeleting={isDeleting}
-      onOpenCreate={handleOpenCreate}
-      onCreate={handleCreate}
-      onOpenShiftBoard={(recruitmentId) =>
-        handleOpenShiftBoard(recruitmentId as Recruitment["_id"], onBeforeOpenShiftBoard)
-      }
-      onDeleteClick={handleDeleteClick}
-      onDeleteConfirm={handleDelete}
-      onShowPastRecruitments={handleShowPastRecruitments}
-      onLoadMorePastRecruitments={handleLoadMorePastRecruitments}
-    />
+    <>
+      <RecruitmentManagementView
+        regularClosedDays={regularClosedDays}
+        shopTarget={
+          shopTarget ??
+          (selectedShop
+            ? { mode: "fixed", shop: { shopId: selectedShop.shopId, shopName: selectedShop.shopName } }
+            : undefined)
+        }
+        title={title}
+        groups={groups}
+        isReadOnly={isReadOnly}
+        showRecruitmentMenus={showRecruitmentMenus}
+        canDeleteRecruitments={canDeleteRecruitments}
+        deleteRecruitmentDisabledReason={deleteRecruitmentDisabledReason}
+        pastStatus={resolvedPastStatus}
+        hasPastRecruitments={resolvedHasPastRecruitments}
+        isPastRecruitmentsVisible={data?.isPastRecruitmentsVisible ?? isPastRecruitmentsVisible}
+        canLoadMorePastRecruitments={resolvedCanLoadMorePastRecruitments}
+        tourRecruitmentId={knownRecruitments[0]?._id}
+        createSessionKey={String(createSessionRevision)}
+        createDialog={createDialog}
+        deleteDialog={deleteDialog}
+        deleteTarget={deleteTarget}
+        isDeleting={isDeleting}
+        onOpenCreate={handleOpenCreate}
+        onCreate={handleCreate}
+        onOpenShiftBoard={(recruitmentId) =>
+          handleOpenShiftBoard(recruitmentId as Recruitment["_id"], onBeforeOpenShiftBoard)
+        }
+        onDeleteClick={handleDeleteClick}
+        onEditClick={(recruitment) => {
+          if (!isReadOnly) setEditTargetId(recruitment._id);
+        }}
+        onDeleteConfirm={handleDelete}
+        onShowPastRecruitments={handleShowPastRecruitments}
+        onLoadMorePastRecruitments={handleLoadMorePastRecruitments}
+      />
+      {editTargetId && editShop && editOrganizationId && !isReadOnly && (
+        <EditRecruitmentDialog
+          key={`${editShop.shopId}:${editTargetId}`}
+          recruitment={knownRecruitments.find((item) => item._id === editTargetId) ?? null}
+          shop={{ shopId: editShop.shopId, shopName: editShop.shopName, regularClosedDays }}
+          expectedOrganizationId={editOrganizationId}
+          onClose={() => setEditTargetId(null)}
+        />
+      )}
+    </>
   );
 
   return children({

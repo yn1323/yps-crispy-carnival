@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { CreateRecruitmentData, CreateRecruitmentShop } from "@/src/components/features/CreateRecruitmentForm";
 import type { Recruitment } from "@/src/components/features/Dashboard/types";
+import { EditRecruitmentDialog } from "@/src/components/features/EditRecruitmentDialog";
 import { showErrorToast, showSuccessToast } from "@/src/components/shared/feedback";
 import { useDialog } from "@/src/components/ui/Dialog";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
@@ -38,6 +39,7 @@ export function OrganizationRecruitmentManagement({
   const [createSessionRevision, setCreateSessionRevision] = useState(0);
   const [isCreateFormSubmitting, setIsCreateFormSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [editTarget, setEditTarget] = useState<DeleteTarget | null>(null);
   const interactionScopeKey = `${organizationId}:${shopFilter}`;
   const previousInteractionScopeKeyRef = useRef(interactionScopeKey);
   const activeInteractionScopeKeyRef = useRef(interactionScopeKey);
@@ -87,6 +89,7 @@ export function OrganizationRecruitmentManagement({
     setCreateSessionRevision((revision) => revision + 1);
     setIsCreateFormSubmitting(false);
     setDeleteTarget(null);
+    setEditTarget(null);
   }, [closeCreateDialog, closeDeleteDialog, interactionScopeKey]);
 
   useEffect(() => {
@@ -178,29 +181,50 @@ export function OrganizationRecruitmentManagement({
   });
 
   return (
-    <OrganizationRecruitmentPastConnection
-      organizationId={organizationId}
-      shopFilter={shopFilter}
-      isSingleShop={isSingleShop}
-      groups={groups}
-      shops={shops}
-      canCreateRecruitments={canCreateRecruitments}
-      createDisabledReason={createDisabledReason}
-      canDeleteRecruitments={canDeleteRecruitments}
-      deleteDisabledReason={deleteDisabledReason}
-      createSessionKey={`${organizationId}:${createSessionRevision}`}
-      createDialog={createDialog}
-      deleteDialog={deleteDialog}
-      deleteTarget={deleteTarget?.recruitment ?? null}
-      isCreateBusy={isCreating || isCreateFormSubmitting}
-      isDeleting={isDeleting}
-      getRecruitmentShop={resolveRecruitmentShop}
-      onOpenCreate={handleOpenCreate}
-      onCreate={handleCreate}
-      onCreateSubmittingChange={setIsCreateFormSubmitting}
-      onOpenShiftBoard={onOpenShiftBoard}
-      onDeleteClick={handleDeleteClick}
-      onDeleteConfirm={handleDelete}
-    />
+    <>
+      <OrganizationRecruitmentPastConnection
+        organizationId={organizationId}
+        shopFilter={shopFilter}
+        isSingleShop={isSingleShop}
+        groups={groups}
+        shops={shops}
+        canCreateRecruitments={canCreateRecruitments}
+        createDisabledReason={createDisabledReason}
+        canDeleteRecruitments={canDeleteRecruitments}
+        deleteDisabledReason={deleteDisabledReason}
+        createSessionKey={`${organizationId}:${createSessionRevision}`}
+        createDialog={createDialog}
+        deleteDialog={deleteDialog}
+        deleteTarget={deleteTarget?.recruitment ?? null}
+        isCreateBusy={isCreating || isCreateFormSubmitting}
+        isDeleting={isDeleting}
+        getRecruitmentShop={resolveRecruitmentShop}
+        onOpenCreate={handleOpenCreate}
+        onCreate={handleCreate}
+        onCreateSubmittingChange={setIsCreateFormSubmitting}
+        onOpenShiftBoard={onOpenShiftBoard}
+        onDeleteClick={handleDeleteClick}
+        onEditClick={(recruitment) => {
+          const shop = resolveRecruitmentShop(recruitment);
+          if (shop && writableShops.some((item) => item.shopId === shop.shopId)) setEditTarget({ recruitment, shop });
+        }}
+        onDeleteConfirm={handleDelete}
+      />
+      {editTarget && writableShops.some((shop) => shop.shopId === editTarget.shop.shopId) && (
+        <EditRecruitmentDialog
+          key={`${organizationId}:${editTarget.recruitment._id}`}
+          recruitment={
+            groups.flatMap((group) => group.recruitments).find((item) => item._id === editTarget.recruitment._id) ??
+            null
+          }
+          shop={{
+            ...editTarget.shop,
+            regularClosedDays: shops.find((shop) => shop.shopId === editTarget.shop.shopId)?.regularClosedDays ?? [],
+          }}
+          expectedOrganizationId={organizationId}
+          onClose={() => setEditTarget(null)}
+        />
+      )}
+    </>
   );
 }

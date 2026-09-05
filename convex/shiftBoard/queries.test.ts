@@ -703,7 +703,7 @@ describe("shiftBoard/queries", () => {
     ]);
   });
 
-  it("下書き保存時点で提出済みだったスタッフを返す", async () => {
+  it("再提出待ちでも下書き保存時点の提出履歴を維持する", async () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId, staffBeforeDraftId, staffAfterDraftId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_draft_status", shopName: "テスト店舗" });
@@ -726,6 +726,7 @@ describe("shiftBoard/queries", () => {
         status: "open",
         isDeleted: false,
         draftSavedAt: 2000,
+        editVersion: 1,
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
       await ctx.db.insert("shiftSubmissions", {
@@ -733,6 +734,7 @@ describe("shiftBoard/queries", () => {
         staffId: staffBeforeDraftId,
         firstSubmittedAt: 1000,
         submittedAt: 3000,
+        needsResubmission: true,
       });
       await ctx.db.insert("shiftSubmissions", {
         recruitmentId,
@@ -753,9 +755,12 @@ describe("shiftBoard/queries", () => {
       });
 
     const staffById = new Map(result?.staffs.map((s) => [s._id, s]));
+    expect(staffById.get(staffBeforeDraftId)?.isSubmitted).toBe(false);
     expect(staffById.get(staffBeforeDraftId)?.wasSubmittedAtDraft).toBe(true);
+    expect(staffById.get(staffAfterDraftId)?.isSubmitted).toBe(true);
     expect(staffById.get(staffAfterDraftId)?.wasSubmittedAtDraft).toBe(false);
     expect(result?.recruitment.draftSavedAt).toBe(2000);
+    expect(result?.recruitment.editVersion).toBe(1);
   });
 
   it("分つきシフト時間は表示用に丸めつつ編集可能境界を分で返す", async () => {

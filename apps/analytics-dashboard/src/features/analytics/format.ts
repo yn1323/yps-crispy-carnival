@@ -15,6 +15,13 @@ export function formatDate(value: string | number | null | undefined) {
   if (!Number.isFinite(date.getTime())) return "日付を確認してください";
   return new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeZone: "Asia/Tokyo" }).format(date);
 }
+export function formatShiftPeriod(period: { periodStart: string; periodEnd: string } | null | undefined) {
+  if (!period) return "シフトなし";
+  const [startYear, startMonth, startDay] = period.periodStart.split("-").map(Number);
+  const [endYear, endMonth, endDay] = period.periodEnd.split("-").map(Number);
+  const end = startYear === endYear ? `${endMonth}/${endDay}` : `${endYear}/${endMonth}/${endDay}`;
+  return `${startYear}/${startMonth}/${startDay}-${end}`;
+}
 export function formatDateTime(value: string | number | null | undefined) {
   if (value == null || value === "") return "記録なし";
   const date = new Date(value);

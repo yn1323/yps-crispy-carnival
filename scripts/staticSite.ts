@@ -7,6 +7,8 @@ import { HELP_TASK_IDS } from "../src/components/features/HelpCenter/helpTasks";
 import { NOTIFICATION_BASICS_HELP } from "../src/components/features/HelpCenter/notificationBasicsHelp";
 import { ORGANIZATION_STRUCTURE_HELP } from "../src/components/features/HelpCenter/organizationStructureHelp";
 
+import { SHIFT_EXPORT_HELP } from "../src/components/features/HelpCenter/shiftExportHelp";
+
 export const STATIC_CLIENT_OUTPUT_DIR = "dist/client";
 export const STATIC_404_BUILD_PATH = "/__static-404";
 
@@ -23,6 +25,7 @@ export const FIXED_PUBLIC_ROUTES = [
   NOTIFICATION_BASICS_HELP.href,
   ORGANIZATION_STRUCTURE_HELP.href,
   SHIFT_MANAGEMENT_SCENARIO.href,
+  SHIFT_EXPORT_HELP.href,
   "/privacy",
   "/privacy/manager",
   "/privacy/staff",

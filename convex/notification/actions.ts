@@ -5,12 +5,13 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
 import { APP_URL, RESEND_FROM_EMAIL } from "../_lib/config";
-import { formatDeadlineLabel, getSubmitLinkCutoff } from "../_lib/dateFormat";
+import { formatDeadlineLabel, formatPeriodLabel, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { formatResendFrom, formatResendSubject } from "../_lib/emailFormat";
 import { observedInternalAction as internalAction } from "../_lib/errorObservability";
 import { buildLineCtaForStaff } from "../_lib/lineCta";
 import { selectChannel } from "../_lib/notification";
 import { emailPayload, enqueueEmail, enqueueLine, linePayload } from "../notificationOutbox/enqueue";
+import { RECRUITMENT_UPDATE_NOTIFICATION_CONTEXT } from "../notificationOutbox/failureResend";
 import {
   SHIFT_CONFIRMATION_NOTIFICATION_KIND,
   SHIFT_RECRUITMENT_NOTIFICATION_KIND,
@@ -25,6 +26,7 @@ import {
 import type { ConfirmationSnapshotAssignment } from "./confirmationSnapshots";
 import { recordNotificationPreparationFailure } from "./failureRecording";
 import { buildNotificationFanoutTargetKey } from "./fanout";
+import type { RecruitmentUpdate } from "./recruitmentUpdate";
 import {
   buildConfirmationEmailHtml,
   buildRecruitmentEmailHtml,
@@ -518,7 +520,12 @@ export const sendRecruitmentNotificationEmails = internalAction({
     const notificationOrigin = businessNotificationOriginFrom({
       organizationBillingVersionAtOrigin: batch.organizationBillingVersionAtOrigin,
     });
+    const isUpdate = batch.purpose === "recruitment_update";
+    const notificationContext = isUpdate
+      ? RECRUITMENT_UPDATE_NOTIFICATION_CONTEXT
+      : "notification.sendRecruitmentNotificationEmails";
     const data = await ctx.runQuery(internal.notification.queries.getRecruitmentEmailData, {
+      isUpdate,
       recruitmentId,
       targetStaffIds: batch.targetStaffIds,
     });
@@ -532,15 +539,25 @@ export const sendRecruitmentNotificationEmails = internalAction({
       internal._lib.notificationDeliveryQueries.isNotificationDeliverySuppressedForShop,
       { shopId: data.shopId },
     );
+    // 表示は編集時の条件、宛先と提出URLの有効期限は現在の募集で判定する。
+    const recruitmentUpdate = isUpdate ? batch.recruitmentUpdate : undefined;
+    const periodLabel = recruitmentUpdate
+      ? formatPeriodLabel(recruitmentUpdate.after.periodStart, recruitmentUpdate.after.periodEnd)
+      : data.periodLabel;
+    const deadline = recruitmentUpdate?.after.deadline ?? data.deadline;
+    const shopClosedDates = recruitmentUpdate?.after.shopClosedDates ?? data.shopClosedDates;
     const expiresAt = getSubmitLinkCutoff(data.periodStart);
 
     for (const staff of data.staffEntries) {
       const lineRecipient = selectLineRecipient(staff.lineRecipient, quota);
       const selectedChannel = lineRecipient ? "line" : "email";
-      const emailDedupeKey = `email:recruitment:${recruitmentId}:${staff.staffId}`;
-      const lineDedupeKey = `line:recruitment:${recruitmentId}:${staff.staffId}`;
+      const dedupeBase = isUpdate
+        ? `recruitmentUpdate:${recruitmentId}:${staff.staffId}:${batch.dedupeSuffix}`
+        : `recruitment:${recruitmentId}:${staff.staffId}`;
+      const emailDedupeKey = `email:${dedupeBase}`;
+      const lineDedupeKey = `line:${dedupeBase}`;
       const fanoutTargetKey = buildNotificationFanoutTargetKey(batch.operationKey, staff.staffId);
-      const legacyFanoutDedupeKeys = [emailDedupeKey, lineDedupeKey];
+      const legacyFanoutDedupeKeys = isUpdate ? [] : [emailDedupeKey, lineDedupeKey];
       const dedupeKey = selectedChannel === "line" ? lineDedupeKey : emailDedupeKey;
       if (selectedChannel === "email" && !staff.email) continue;
 
@@ -557,8 +574,11 @@ export const sendRecruitmentNotificationEmails = internalAction({
           const lineParams = {
             staffName: staff.name,
             shopName: data.shopName,
-            periodLabel: data.periodLabel,
-            deadline: formatDeadlineLabel(data.deadline),
+            periodLabel,
+            deadline: formatDeadlineLabel(deadline),
+            isUpdate,
+            shopClosedDates,
+            recruitmentUpdate,
             magicLinkUrl,
           };
           const fallbackEmail = staff.email
@@ -568,11 +588,14 @@ export const sendRecruitmentNotificationEmails = internalAction({
                 shopName: data.shopName,
                 staff,
                 recruitmentId,
-                periodLabel: data.periodLabel,
-                deadline: data.deadline,
+                periodLabel,
+                deadline,
+                isUpdate,
+                shopClosedDates,
+                recruitmentUpdate,
                 magicLinkUrl,
                 suppressDelivery,
-                context: "notification.sendRecruitmentNotificationEmails",
+                context: notificationContext,
                 dedupeKey: emailDedupeKey,
               })
             : null;
@@ -585,7 +608,10 @@ export const sendRecruitmentNotificationEmails = internalAction({
             staffId: staff.staffId,
             history: {
               notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
-              displayTitle: formatShiftPeriodHistoryTitle("シフト募集のお知らせ", data.periodLabel),
+              displayTitle: formatShiftPeriodHistoryTitle(
+                isUpdate ? "シフト募集変更のお知らせ" : "シフト募集のお知らせ",
+                periodLabel,
+              ),
             },
             dedupeAcrossTerminal: true,
             fanoutTargetKey,
@@ -610,11 +636,14 @@ export const sendRecruitmentNotificationEmails = internalAction({
           shopName: data.shopName,
           staff,
           recruitmentId,
-          periodLabel: data.periodLabel,
-          deadline: data.deadline,
+          periodLabel,
+          deadline,
+          isUpdate,
+          shopClosedDates,
+          recruitmentUpdate,
           magicLinkUrl,
           suppressDelivery,
-          context: "notification.sendRecruitmentNotificationEmails",
+          context: notificationContext,
           dedupeKey: emailDedupeKey,
         });
         if (email) {
@@ -643,7 +672,7 @@ export const sendRecruitmentNotificationEmails = internalAction({
             staffId: staff.staffId,
             channel: selectedChannel,
             dedupeKey,
-            notificationContext: "notification.sendRecruitmentNotificationEmails",
+            notificationContext,
           },
           e,
           "Recruitment notification preparation failed",
@@ -667,6 +696,9 @@ async function buildRecruitmentEmail(opts: {
   };
   recruitmentId: Id<"recruitments">;
   periodLabel: string;
+  isUpdate?: boolean;
+  recruitmentUpdate?: RecruitmentUpdate;
+  shopClosedDates?: string[];
   deadline: string;
   magicLinkUrl: string;
   suppressDelivery: boolean;
@@ -684,6 +716,9 @@ async function buildRecruitmentEmail(opts: {
     staff,
     recruitmentId,
     periodLabel,
+    isUpdate,
+    recruitmentUpdate,
+    shopClosedDates,
     deadline,
     magicLinkUrl,
     suppressDelivery,
@@ -700,7 +735,7 @@ async function buildRecruitmentEmail(opts: {
     appUrl: APP_URL,
   });
 
-  const subject = formatResendSubject(shopName, buildRecruitmentEmailSubject(periodLabel));
+  const subject = formatResendSubject(shopName, buildRecruitmentEmailSubject(periodLabel, isUpdate));
 
   return {
     dedupeKey: dedupeKey ?? `email:recruitment:${recruitmentId}:${staff.staffId}`,
@@ -715,6 +750,9 @@ async function buildRecruitmentEmail(opts: {
       html: buildRecruitmentEmailHtml({
         staffName: staff.name,
         periodLabel,
+        isUpdate,
+        recruitmentUpdate,
+        shopClosedDates,
         deadline: formatDeadlineLabel(deadline),
         magicLinkUrl,
         lineCtaHtml,
@@ -740,12 +778,20 @@ export const sendRecruitmentNotificationForStaff = internalAction({
     ctx,
     { recruitmentId, staffId, notificationContext, notificationRunId, organizationBillingVersionAtOrigin },
   ) => {
+    const isUpdate = notificationContext === RECRUITMENT_UPDATE_NOTIFICATION_CONTEXT;
     const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.notification.queries.getRecruitmentNotificationDataForStaff, {
+      isUpdate,
       recruitmentId,
       staffId,
     });
     if (!data) return;
+    const recruitmentUpdate = isUpdate ? data.recruitmentUpdate : undefined;
+    const periodLabel = recruitmentUpdate
+      ? formatPeriodLabel(recruitmentUpdate.after.periodStart, recruitmentUpdate.after.periodEnd)
+      : data.recruitment.periodLabel;
+    const deadline = recruitmentUpdate?.after.deadline ?? data.recruitment.deadline;
+    const shopClosedDates = recruitmentUpdate?.after.shopClosedDates ?? data.recruitment.shopClosedDates;
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
     const suppressDelivery = await ctx.runQuery(
@@ -755,8 +801,9 @@ export const sendRecruitmentNotificationForStaff = internalAction({
     const lineRecipient = selectLineRecipient(data.staff.lineRecipient, quota);
     const selectedChannel = lineRecipient ? "line" : "email";
     const runId = notificationRunId ?? Date.now();
-    const emailDedupeKey = `email:failureRetryRecruitment:${recruitmentId}:${staffId}:${runId}`;
-    const lineDedupeKey = `line:failureRetryRecruitment:${recruitmentId}:${staffId}:${runId}`;
+    const dedupeBase = `${isUpdate ? "failureRetryRecruitmentUpdate" : "failureRetryRecruitment"}:${recruitmentId}:${staffId}:${runId}`;
+    const emailDedupeKey = `email:${dedupeBase}`;
+    const lineDedupeKey = `line:${dedupeBase}`;
     const dedupeKey = selectedChannel === "line" ? lineDedupeKey : emailDedupeKey;
     if (selectedChannel === "email" && !data.staff.email) return;
 
@@ -773,8 +820,11 @@ export const sendRecruitmentNotificationForStaff = internalAction({
         const lineParams = {
           staffName: data.staff.name,
           shopName: data.shopName,
-          periodLabel: data.recruitment.periodLabel,
-          deadline: formatDeadlineLabel(data.recruitment.deadline),
+          periodLabel,
+          deadline: formatDeadlineLabel(deadline),
+          isUpdate,
+          shopClosedDates,
+          recruitmentUpdate,
           magicLinkUrl,
         };
         const fallbackEmail = data.staff.email
@@ -784,8 +834,11 @@ export const sendRecruitmentNotificationForStaff = internalAction({
               shopName: data.shopName,
               staff: data.staff,
               recruitmentId,
-              periodLabel: data.recruitment.periodLabel,
-              deadline: data.recruitment.deadline,
+              periodLabel,
+              deadline,
+              isUpdate,
+              shopClosedDates,
+              recruitmentUpdate,
               magicLinkUrl,
               suppressDelivery,
               context: notificationContext,
@@ -801,7 +854,10 @@ export const sendRecruitmentNotificationForStaff = internalAction({
           staffId: data.staff.staffId,
           history: {
             notificationKind: SHIFT_RECRUITMENT_NOTIFICATION_KIND,
-            displayTitle: formatShiftPeriodHistoryTitle("シフト募集のお知らせ", data.recruitment.periodLabel),
+            displayTitle: formatShiftPeriodHistoryTitle(
+              isUpdate ? "シフト募集変更のお知らせ" : "シフト募集のお知らせ",
+              periodLabel,
+            ),
           },
           dedupeKey: lineDedupeKey,
           payload: linePayload({
@@ -821,8 +877,11 @@ export const sendRecruitmentNotificationForStaff = internalAction({
         shopName: data.shopName,
         staff: data.staff,
         recruitmentId,
-        periodLabel: data.recruitment.periodLabel,
-        deadline: data.recruitment.deadline,
+        periodLabel,
+        deadline,
+        isUpdate,
+        shopClosedDates,
+        recruitmentUpdate,
         magicLinkUrl,
         suppressDelivery,
         context: notificationContext,

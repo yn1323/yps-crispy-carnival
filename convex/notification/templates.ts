@@ -1,7 +1,8 @@
-import { formatDateTimeJa } from "../_lib/dateFormat";
+import { formatDateLabel, formatDateTimeJa, formatDeadlineLabel, formatPeriodLabel } from "../_lib/dateFormat";
 import { withOpenExternalBrowser } from "../_lib/lineUrl";
 import { formatShiftClockTimeRange } from "../_lib/time";
 import type { LegalDocumentInfo } from "../legal/documents";
+import type { RecruitmentUpdate } from "./recruitmentUpdate";
 
 type ShiftEntry = {
   date: string;
@@ -28,6 +29,9 @@ const SHIFT_SUBMISSION_REMINDER_CTA = "希望シフトを提出する";
 const SHIFT_SUBMISSION_REMINDER_PERIOD = (periodLabel: string) =>
   `${periodLabel}の希望シフトの提出期限が近づいています。`;
 const SHIFT_SUBMISSION_REMINDER_PENDING = "提出期限までに提出をお願いします。";
+const SHIFT_RECRUITMENT_UPDATE_NOTE = "変更内容を確認し、希望シフトを再確認してください。";
+const SHIFT_RECRUITMENT_UPDATE_CTA = "希望シフトを再確認する";
+const SHIFT_RECRUITMENT_UPDATE_MESSAGE = "シフト募集の条件が変更されました。";
 const SHIFT_SUBMISSION_CORRECTION_NOTE = "提出後も提出期限まではリンクから訂正が可能です。";
 const SHIFTORI_CONFIRMATION_CTA = "シフトリで確認する";
 const SHIFT_CONFIRMATION_REMINDER_PERIOD = (periodLabel: string) =>
@@ -44,11 +48,48 @@ const STAFF_LEGAL_CONSENT_CTA = "シフトリの使い方を確認する";
 const STAFF_LEGAL_CONSENT_DETAIL = "詳細はリンクから確認ください。";
 const staffLegalConsentUsage = (shopName: string) => `${shopName}では、シフトの回収・共有に「シフトリ」を利用します。`;
 const staffLegalConsentExpiry = (expiresAtLabel: string) => `このリンクは${expiresAtLabel}まで有効です。`;
-const recruitmentRequest = (periodLabel: string) => `${periodLabel}の希望シフトを提出してください。`;
+const recruitmentRequest = (periodLabel: string, isUpdate?: boolean) =>
+  isUpdate ? `${periodLabel}のシフト募集の条件が変更されました。` : `${periodLabel}の希望シフトを提出してください。`;
+const recruitmentClosedDatesLabel = (dates: string[] = []) =>
+  dates.length > 0 ? dates.map(formatDateLabel).join("、") : "なし";
+
+function recruitmentUpdateRows(params: { deadline: string; recruitmentUpdate?: RecruitmentUpdate }) {
+  const update = params.recruitmentUpdate;
+  if (!update) {
+    const deadline = params.deadline.includes("23:59") ? params.deadline : `${params.deadline} 23:59`;
+    return [{ label: "提出期限", value: deadline }];
+  }
+
+  const { before, after } = update;
+  const rows: { label: string; value: string }[] = [];
+  if (before.periodStart !== after.periodStart || before.periodEnd !== after.periodEnd) {
+    rows.push({
+      label: "シフト期間",
+      value: `${formatPeriodLabel(before.periodStart, before.periodEnd)}\n→ ${formatPeriodLabel(after.periodStart, after.periodEnd)}`,
+    });
+  }
+  const closedDatesBefore = [...new Set(before.shopClosedDates)].sort();
+  const closedDatesAfter = [...new Set(after.shopClosedDates)].sort();
+  if (closedDatesBefore.join(",") !== closedDatesAfter.join(",")) {
+    rows.push({
+      label: "定休日",
+      value: `${recruitmentClosedDatesLabel(closedDatesBefore)}\n→ ${recruitmentClosedDatesLabel(closedDatesAfter)}`,
+    });
+  }
+  rows.push({
+    label: "提出期限",
+    value:
+      before.deadline === after.deadline
+        ? formatDeadlineLabel(after.deadline)
+        : `${formatDeadlineLabel(before.deadline)}\n→ ${formatDeadlineLabel(after.deadline)}`,
+  });
+  return rows;
+}
 const reissueMessage = (periodLabel: string) => `${periodLabel}のシフト閲覧リンクを再発行しました。`;
 const REISSUE_CTA = "シフトを確認する";
 
-export const buildRecruitmentEmailSubject = (periodLabel: string) => `${periodLabel} 希望シフトの提出をお願いします`;
+export const buildRecruitmentEmailSubject = (periodLabel: string, isUpdate?: boolean) =>
+  isUpdate ? `${periodLabel} シフト募集の条件が変更されました` : `${periodLabel} 希望シフトの提出をお願いします`;
 export const buildReminderEmailSubject = (periodLabel: string) => `${periodLabel} 希望シフトの提出期限が近づいています`;
 
 export type LineTextMessage = {
@@ -308,12 +349,32 @@ export function buildShiftConfirmationLineFlexMessage(params: {
  * 募集開始通知（LINE 用テキスト）
  */
 export function buildRecruitmentLineText(params: {
+  isUpdate?: boolean;
+  recruitmentUpdate?: RecruitmentUpdate;
+  shopClosedDates?: string[];
   staffName: string;
   shopName: string;
   periodLabel: string;
   deadline: string;
   magicLinkUrl: string;
 }): string {
+  if (params.isUpdate) {
+    return [
+      "📩 シフト募集変更のお知らせ",
+      "",
+      `${params.staffName}さん`,
+      "",
+      params.shopName,
+      params.recruitmentUpdate ? SHIFT_RECRUITMENT_UPDATE_MESSAGE : recruitmentRequest(params.periodLabel, true),
+      "",
+      ...recruitmentUpdateRows(params).map((row) => `${row.label}：\n${row.value}`),
+      "",
+      SHIFT_RECRUITMENT_UPDATE_NOTE,
+      "",
+      SHIFT_RECRUITMENT_UPDATE_CTA,
+      withOpenExternalBrowser(params.magicLinkUrl),
+    ].join("\n");
+  }
   return [
     "📩 シフト提出のお願い",
     "",
@@ -330,12 +391,32 @@ export function buildRecruitmentLineText(params: {
 }
 
 export function buildRecruitmentLineFlexMessage(params: {
+  isUpdate?: boolean;
+  recruitmentUpdate?: RecruitmentUpdate;
+  shopClosedDates?: string[];
   staffName: string;
   shopName: string;
   periodLabel: string;
   deadline: string;
   magicLinkUrl: string;
 }): NotificationLineFlexMessage {
+  if (params.isUpdate) {
+    return buildFlexMessage({
+      altText: buildRecruitmentLineText(params),
+      title: flexTitleWithShop(params.shopName, "📩 シフト募集変更のお知らせ"),
+      body: [
+        flexBodyText(`${params.staffName}さん`),
+        flexBodyText(
+          params.recruitmentUpdate ? SHIFT_RECRUITMENT_UPDATE_MESSAGE : recruitmentRequest(params.periodLabel, true),
+        ),
+        ...recruitmentUpdateRows(params).map((row) =>
+          flexBox("vertical", [flexMetaText(row.label), flexBodyText(row.value)], { spacing: "sm" }),
+        ),
+        flexBodyText(SHIFT_RECRUITMENT_UPDATE_NOTE),
+      ],
+      cta: { label: SHIFT_RECRUITMENT_UPDATE_CTA, uri: params.magicLinkUrl },
+    });
+  }
   return buildFlexMessage({
     altText: buildRecruitmentLineText(params),
     title: flexTitleWithShop(params.shopName, "📩 シフト提出のお願い"),
@@ -694,6 +775,9 @@ export function buildConfirmationEmailHtml(params: ConfirmationEmailParams): str
 }
 
 type RecruitmentEmailParams = {
+  isUpdate?: boolean;
+  recruitmentUpdate?: RecruitmentUpdate;
+  shopClosedDates?: string[];
   staffName: string;
   periodLabel: string;
   deadline: string; // フォーマット済み（例: "1/17(金)"）
@@ -703,6 +787,29 @@ type RecruitmentEmailParams = {
 
 export function buildRecruitmentEmailHtml(params: RecruitmentEmailParams): string {
   const staffName = escapeEmailHtml(params.staffName);
+  if (params.isUpdate) {
+    const rows = recruitmentUpdateRows(params)
+      .map(
+        (
+          row,
+        ) => `<tr><td style="padding:12px 16px;font-size:14px;color:#1a202c;overflow-wrap:anywhere;word-break:break-word;">
+          <strong>${escapeEmailHtml(row.label)}</strong><br />
+          ${escapeEmailHtml(row.value).replaceAll("\n", "<br />")}
+        </td></tr>`,
+      )
+      .join("");
+    return renderBrandedEmail({
+      content: `<p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${staffName}さん</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${params.recruitmentUpdate ? SHIFT_RECRUITMENT_UPDATE_MESSAGE : escapeEmailHtml(recruitmentRequest(params.periodLabel, true))}</p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px;">
+            ${rows}
+          </table>
+          <p style="margin:0 0 24px;font-size:15px;color:#1a202c;">${SHIFT_RECRUITMENT_UPDATE_NOTE}</p>
+          ${renderEmailCta({ label: SHIFT_RECRUITMENT_UPDATE_CTA, url: params.magicLinkUrl, variant: "primary" })}
+          ${params.lineCtaHtml ?? ""}`,
+      footer: { kind: "staffQuestions" },
+    });
+  }
   const periodLabel = escapeEmailHtml(params.periodLabel);
   const deadline = escapeEmailHtml(params.deadline);
   return renderBrandedEmail({

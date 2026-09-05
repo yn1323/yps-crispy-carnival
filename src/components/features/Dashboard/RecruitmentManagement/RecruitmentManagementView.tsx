@@ -44,6 +44,7 @@ type Props = {
   onCreate: (data: CreateRecruitmentData, selectedShop?: CreateRecruitmentShop) => void | Promise<void>;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onDeleteClick: (recruitment: Recruitment) => void;
+  onEditClick?: (recruitment: Recruitment) => void;
   onDeleteConfirm: () => void | Promise<void>;
   onShowPastRecruitments: () => void;
   onLoadMorePastRecruitments: () => void;
@@ -72,6 +73,7 @@ export function RecruitmentManagementView({
   onCreate,
   onOpenShiftBoard,
   onDeleteClick,
+  onEditClick,
   onDeleteConfirm,
   onShowPastRecruitments,
   onLoadMorePastRecruitments,
@@ -98,6 +100,7 @@ export function RecruitmentManagementView({
         onCreateClick={onOpenCreate}
         onOpenShiftBoard={onOpenShiftBoard}
         onDeleteRecruitment={onDeleteClick}
+        onEditRecruitment={onEditClick}
         onShowPastRecruitments={onShowPastRecruitments}
         onLoadMorePastRecruitments={onLoadMorePastRecruitments}
       />

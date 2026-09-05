@@ -390,6 +390,138 @@ describe("notification/templates", () => {
     expect(copy).not.toContain("提出済みの内容は、");
   });
 
+  describe("募集条件変更", () => {
+    const conditions = {
+      periodStart: "2026-05-01",
+      periodEnd: "2026-05-15",
+      deadline: "2026-04-25",
+      shopClosedDates: ["2026-05-04", "2026-05-11"],
+    };
+    const params = {
+      isUpdate: true,
+      staffName: "田中太郎",
+      shopName: "テスト店舗",
+      periodLabel: "5/1(金)〜5/15(金)",
+      deadline: "4/25(土)",
+      magicLinkUrl: "https://example.com/shifts/submit?token=test",
+      recruitmentUpdate: { before: conditions, after: conditions },
+    };
+
+    it("期限だけの変更では期間・定休日を省き、変更前後の23:59と再確認CTAを全媒体に載せる", () => {
+      const changedParams = {
+        ...params,
+        recruitmentUpdate: {
+          before: { ...conditions, deadline: "2026-04-24", shopClosedDates: [...conditions.shopClosedDates].reverse() },
+          after: conditions,
+        },
+      };
+      const flex = buildRecruitmentLineFlexMessage(changedParams);
+      const copies = [
+        buildRecruitmentEmailHtml(changedParams),
+        buildRecruitmentLineText(changedParams),
+        `${flexTexts(flex).join("\n")}\n${flexButtonLabels(flex).join("\n")}`,
+      ];
+      for (const copy of copies) {
+        expect(copy).toContain("シフト募集の条件が変更されました。");
+        expect(copy).toContain("提出期限");
+        expect(copy).toContain("4/24(金) 23:59");
+        expect(copy).toContain("→ 4/25(土) 23:59");
+        expect(copy).not.toContain("シフト期間");
+        expect(copy).not.toContain("定休日");
+        expect(copy).toContain("変更内容を確認し、希望シフトを再確認してください。");
+        expect(copy).toContain("希望シフトを再確認する");
+        expect(copy).not.toContain("希望シフトを提出する");
+        expect(copy.indexOf("4/24(金) 23:59")).toBeLessThan(copy.indexOf("変更内容を確認し"));
+      }
+      expect(flexButtonLabels(flex)).toEqual(["希望シフトを再確認する"]);
+    });
+
+    it("定休日だけの変更でも現在の提出期限を23:59付きで1回表示する", () => {
+      const changedParams = {
+        ...params,
+        recruitmentUpdate: { before: { ...conditions, shopClosedDates: [] }, after: conditions },
+      };
+      const flex = buildRecruitmentLineFlexMessage(changedParams);
+      for (const copy of [
+        buildRecruitmentEmailHtml(changedParams),
+        buildRecruitmentLineText(changedParams),
+        flexTexts(flex).join("\n"),
+      ]) {
+        expect(copy).toContain("定休日");
+        expect(copy).toContain("なし");
+        expect(copy).toContain("→ 5/4(月)、5/11(月)");
+        expect(copy.match(/4\/25\(土\) 23:59/g)).toHaveLength(1);
+        expect(copy).not.toContain("→ 4/25(土)");
+        expect(copy).not.toContain("シフト期間");
+      }
+    });
+
+    it("期間の変更前後を表示し、変わらない定休日は省く", () => {
+      const changedParams = {
+        ...params,
+        recruitmentUpdate: { before: { ...conditions, periodEnd: "2026-05-10" }, after: conditions },
+      };
+      for (const copy of [
+        buildRecruitmentEmailHtml(changedParams),
+        buildRecruitmentLineText(changedParams),
+        flexTexts(buildRecruitmentLineFlexMessage(changedParams)).join("\n"),
+      ]) {
+        expect(copy).toContain("シフト期間");
+        expect(copy).toContain("5/1(金)〜5/10(日)");
+        expect(copy).toContain("→ 5/1(金)〜5/15(金)");
+        expect(copy).toContain("4/25(土) 23:59");
+        expect(copy).not.toContain("定休日");
+      }
+    });
+
+    it("比較情報がない既存通知では募集を特定して現期限を示し、比較を作らない", () => {
+      const legacyParams = { ...params, recruitmentUpdate: undefined };
+      for (const copy of [
+        buildRecruitmentEmailHtml(legacyParams),
+        buildRecruitmentLineText(legacyParams),
+        flexTexts(buildRecruitmentLineFlexMessage(legacyParams)).join("\n"),
+      ]) {
+        expect(copy).toContain("5/1(金)〜5/15(金)のシフト募集の条件が変更されました。");
+        expect(copy).toContain("4/25(土) 23:59");
+        expect(copy).not.toContain("→");
+        expect(copy).not.toContain("定休日");
+      }
+      const formattedDeadline = buildRecruitmentLineText({ ...legacyParams, deadline: "4/25(土) 23:59" });
+      expect(formattedDeadline.match(/23:59/g)).toHaveLength(1);
+    });
+
+    it("変更通知のメールも受信者名・期限・募集名・URLをescapeする", () => {
+      const html = buildRecruitmentEmailHtml({
+        ...params,
+        recruitmentUpdate: undefined,
+        staffName: dangerousText,
+        periodLabel: dangerousText,
+        deadline: dangerousText,
+        magicLinkUrl: dangerousUrl,
+      });
+      expect(html).toContain(escapedText);
+      expect(html).toContain(`${escapedText} 23:59`);
+      expect(html).toContain(`href="${escapedUrl}"`);
+      expect(html).not.toContain("<script>");
+      expect(html).not.toContain(dangerousText);
+    });
+
+    it("長い定休日の変更前後はLINEで折り返し、31日分でもaltText上限に収める", () => {
+      const dates = Array.from({ length: 31 }, (_, index) => `2026-05-${String(index + 1).padStart(2, "0")}`);
+      const flex = buildRecruitmentLineFlexMessage({
+        ...params,
+        recruitmentUpdate: {
+          before: { ...conditions, shopClosedDates: dates.slice(0, 30) },
+          after: { ...conditions, shopClosedDates: dates },
+        },
+      });
+      const closedDatesText = flexTextComponents(flex).find((component) => String(component.text).includes("5/31(日)"));
+      expect(closedDatesText).toMatchObject({ wrap: true });
+      expect(flex.altText.length).toBeLessThanOrEqual(1500);
+      expect(flexButtonLabels(flex)).toEqual(["希望シフトを再確認する"]);
+    });
+  });
+
   it("提出期限リマインダーは指定文言とCTAをメールとLINEで共通表示する", () => {
     const params = {
       staffName: "田中太郎",

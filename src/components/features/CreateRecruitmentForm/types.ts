@@ -2,6 +2,13 @@ import type { RegularClosedDay } from "@/convex/shop/schemas";
 
 export type CreateRecruitmentStep = "shop" | "period" | "holidays" | "deadline" | "confirm";
 
+export type RecruitmentComparisonRow = {
+  label: string;
+  before: string;
+  after: string;
+  changed: boolean;
+};
+
 export type CreateRecruitmentShop = {
   shopId: string;
   shopName: string;

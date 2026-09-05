@@ -38,10 +38,17 @@ function selectLineRecipient(
  * - それ以外 → メール（未連携なら CTA を末尾に挿入）
  */
 export const sendReminderEmails = internalAction({
-  args: { recruitmentId: v.id("recruitments"), ...businessNotificationOriginArgs },
-  handler: async (ctx, { recruitmentId, organizationBillingVersionAtOrigin }) => {
+  args: {
+    recruitmentId: v.id("recruitments"),
+    recruitmentVersionAtOrigin: v.optional(v.number()),
+    ...businessNotificationOriginArgs,
+  },
+  handler: async (ctx, { recruitmentId, recruitmentVersionAtOrigin, organizationBillingVersionAtOrigin }) => {
     const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
-    const data = await ctx.runQuery(internal.notification.reminderQueries.getReminderEmailData, { recruitmentId });
+    const data = await ctx.runQuery(internal.notification.reminderQueries.getReminderEmailData, {
+      recruitmentId,
+      recruitmentVersionAtOrigin,
+    });
     if (!data || data.staffEntries.length === 0) return;
 
     const quota = await ctx.runQuery(internal.line.queries.getQuotaStatusInternal, {});
@@ -57,8 +64,9 @@ export const sendReminderEmails = internalAction({
     for (const staff of data.staffEntries) {
       const lineRecipient = selectLineRecipient(staff.lineRecipient, quota);
       const selectedChannel = lineRecipient ? "line" : "email";
-      const emailDedupeKey = `email:reminder:${recruitmentId}:${staff.staffId}`;
-      const lineDedupeKey = `line:reminder:${recruitmentId}:${staff.staffId}`;
+      const versionSuffix = recruitmentVersionAtOrigin ? `:v${recruitmentVersionAtOrigin}` : "";
+      const emailDedupeKey = `email:reminder:${recruitmentId}:${staff.staffId}${versionSuffix}`;
+      const lineDedupeKey = `line:reminder:${recruitmentId}:${staff.staffId}${versionSuffix}`;
       const dedupeKey = selectedChannel === "line" ? lineDedupeKey : emailDedupeKey;
       if (selectedChannel === "email" && !staff.email) continue;
 
@@ -111,6 +119,7 @@ export const sendReminderEmails = internalAction({
           const result = await enqueueLine(ctx, {
             shopId: data.shopId,
             ...notificationOrigin,
+            recruitmentVersionAtOrigin: recruitmentVersionAtOrigin ?? 0,
             ...lineRecipientOutboxSnapshot(lineRecipient),
             purpose: "business",
             recruitmentId,
@@ -143,6 +152,7 @@ export const sendReminderEmails = internalAction({
         const result = await enqueueEmail(ctx, {
           shopId: data.shopId,
           ...notificationOrigin,
+          recruitmentVersionAtOrigin: recruitmentVersionAtOrigin ?? 0,
           purpose: "business",
           recruitmentId,
           staffId: staff.staffId,
@@ -188,6 +198,7 @@ export const sendReminderEmails = internalAction({
       await ctx.runMutation(internal.notification.mutations.markReminderSent, {
         recruitmentId,
         sentAt: Date.now(),
+        recruitmentVersionAtOrigin,
       });
     }
   },
@@ -201,12 +212,17 @@ export const sendReminderEmailForStaff = internalAction({
     recruitmentId: v.id("recruitments"),
     staffId: v.id("staffs"),
     notificationRunId: v.optional(v.number()),
+    recruitmentVersionAtOrigin: v.optional(v.number()),
     ...businessNotificationOriginArgs,
   },
-  handler: async (ctx, { recruitmentId, staffId, notificationRunId, organizationBillingVersionAtOrigin }) => {
+  handler: async (
+    ctx,
+    { recruitmentId, staffId, notificationRunId, recruitmentVersionAtOrigin, organizationBillingVersionAtOrigin },
+  ) => {
     const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.notification.reminderQueries.getReminderEmailDataForStaff, {
       recruitmentId,
+      recruitmentVersionAtOrigin,
       staffId,
     });
     if (!data) return;
@@ -222,8 +238,9 @@ export const sendReminderEmailForStaff = internalAction({
     const lineRecipient = selectLineRecipient(data.staff.lineRecipient, quota);
     const selectedChannel = lineRecipient ? "line" : "email";
     const runId = notificationRunId ?? Date.now();
-    const emailDedupeKey = `email:failureRetryReminder:${recruitmentId}:${staffId}:${runId}`;
-    const lineDedupeKey = `line:failureRetryReminder:${recruitmentId}:${staffId}:${runId}`;
+    const versionSuffix = recruitmentVersionAtOrigin ? `:v${recruitmentVersionAtOrigin}` : "";
+    const emailDedupeKey = `email:failureRetryReminder:${recruitmentId}:${staffId}:${runId}${versionSuffix}`;
+    const lineDedupeKey = `line:failureRetryReminder:${recruitmentId}:${staffId}:${runId}${versionSuffix}`;
     const dedupeKey = selectedChannel === "line" ? lineDedupeKey : emailDedupeKey;
     if (selectedChannel === "email" && !data.staff.email) return;
 
@@ -276,6 +293,7 @@ export const sendReminderEmailForStaff = internalAction({
         await enqueueLine(ctx, {
           shopId: data.shopId,
           ...notificationOrigin,
+          recruitmentVersionAtOrigin: recruitmentVersionAtOrigin ?? 0,
           ...lineRecipientOutboxSnapshot(lineRecipient),
           purpose: "business",
           recruitmentId,
@@ -306,6 +324,7 @@ export const sendReminderEmailForStaff = internalAction({
       await enqueueEmail(ctx, {
         shopId: data.shopId,
         ...notificationOrigin,
+        recruitmentVersionAtOrigin: recruitmentVersionAtOrigin ?? 0,
         purpose: "business",
         recruitmentId,
         staffId: data.staff.staffId,
