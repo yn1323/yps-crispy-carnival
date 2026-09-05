@@ -11,7 +11,7 @@ type OpenRecruitmentSeed = { shopId: string; recruitmentId: string; staffId: str
 // スタッフの勤務予定を扱うため、別タブを含めbrowser artifactへ保存しない。
 test.use({ trace: "off", screenshot: "off", video: "off" });
 
-test.describe("シフト表出力", { tag: ["@shift-export"] }, () => {
+test.describe("シフト表出力", { tag: ["@e2e-core", "@shift-export"] }, () => {
   test.describe("管理者のダウンロード", () => {
     test.afterEach(async () => {
       await resetCurrentManagerScenarioData();

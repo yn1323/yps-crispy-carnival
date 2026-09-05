@@ -23,11 +23,11 @@ function report(overrides: Record<string, { projectName?: string; status?: strin
 }
 
 describe("E2E core result gate", () => {
-  it("desktop 13件、mobile 1件の14契約を固定する", () => {
+  it("desktop 15件、mobile 1件の16契約を固定する", () => {
     const projects = [...EXPECTED_CORE_CONTRACTS.values()];
 
-    expect(EXPECTED_CORE_CONTRACTS.size).toBe(14);
-    expect(projects.filter((projectName) => projectName === "desktop-chromium")).toHaveLength(13);
+    expect(EXPECTED_CORE_CONTRACTS.size).toBe(16);
+    expect(projects.filter((projectName) => projectName === "desktop-chromium")).toHaveLength(15);
     expect(projects.filter((projectName) => projectName === "mobile-chrome")).toHaveLength(1);
   });
 
@@ -47,6 +47,17 @@ describe("E2E core result gate", () => {
     ["skip", { "E2E-SHIFT-01": { status: "skipped" } }, "must be expected"],
     ["retry", { "E2E-AUTH-01": { results: [{ duration: 10 }, { duration: 20 }] } }, "first attempt"],
     ["wrong project", { "E2E-MOBILE-01": { projectName: "desktop-chromium" } }, "mobile-chrome"],
+    ["export skip", { "E2E-EXPORT-01": { status: "skipped" } }, "E2E-EXPORT-01 must be expected"],
+    [
+      "export retry",
+      { "E2E-EXPORT-02": { results: [{ duration: 10 }, { duration: 20 }] } },
+      "E2E-EXPORT-02 must pass on the first attempt",
+    ],
+    [
+      "export wrong project",
+      { "E2E-EXPORT-01": { projectName: "mobile-chrome" } },
+      "E2E-EXPORT-01 must run in desktop-chromium",
+    ],
   ])("%sを拒否する", (_label, overrides, expectedMessage) => {
     expect(() => assertE2ECoreResults(report(overrides))).toThrow(expectedMessage);
   });
@@ -56,6 +67,27 @@ describe("E2E core result gate", () => {
     missing.suites[0].specs = missing.suites[0].specs.filter((spec) => !spec.title.includes("E2E-MANAGER-01"));
 
     expect(() => assertE2ECoreResults(missing)).toThrow("E2E-MANAGER-01 must run exactly once");
+  });
+
+  it.each(["E2E-EXPORT-01", "E2E-EXPORT-02"])("%sの欠落と重複を拒否する", (contractId) => {
+    const missing = report();
+    missing.suites[0].specs = missing.suites[0].specs.filter((spec) => !spec.title.includes(contractId));
+    expect(() => assertE2ECoreResults(missing)).toThrow(`${contractId} must run exactly once (actual: 0)`);
+
+    const duplicate = report();
+    const scenario = duplicate.suites[0].specs.find((spec) => spec.title.includes(contractId));
+    if (!scenario) throw new Error("Missing export fixture");
+    duplicate.suites[0].specs.push(scenario);
+    expect(() => assertE2ECoreResults(duplicate)).toThrow(`${contractId} must run exactly once (actual: 2)`);
+  });
+
+  it("登録済みの出力契約が成功していても未知の契約を拒否する", () => {
+    const unknown = report();
+    unknown.suites[0].specs.push({
+      title: "[E2E-UNKNOWN-01] unregistered browser boundary",
+      tests: [{ projectName: "desktop-chromium", status: "expected", results: [{ duration: 100 }] }],
+    });
+    expect(() => assertE2ECoreResults(unknown)).toThrow("unknown core contracts: E2E-UNKNOWN-01");
   });
 
   it("setup以外の契約IDなしテストを拒否する", () => {
