@@ -147,6 +147,12 @@ Historyの本文には、現在と異なる名称、パス、状態、上限、�
 | [Analytics画面情報設計改善](2026-08-03_Analytics画面情報設計改善_実装計画.md) | 初期期間、状態表示、一覧・詳細の縮退表示、mobile表示、navigation、要望画面をfrontendへ実装し、静的検証を完了 | [分析KPI可視化アプリ](../features/analytics-dashboard.md)、[UI設計方針](../rules/ui-design.md) |
 | [CSR画面遷移パフォーマンス改善](2026-08-03_CSR画面遷移パフォーマンス改善_実装計画.md) | 4導線のfrontend実装、Unit・Behavior Test、production bundle比較を完了 | [フロントエンドアーキテクチャ](../rules/frontend-architecture.md)、[UI設計方針](../rules/ui-design.md)、[テスト方針](../rules/testing-strategy.md) |
 
+### 2026年9月
+
+| 計画 | 分類根拠 | 現在の正本 |
+|---|---|---|
+| [シフト表のPDF・Excel出力](2026-09-05_シフト表PDF_Excel出力_実装計画.md) | PDF・Excel出力、権限制御、共通モデル、文字幅調整を実装し、自動テスト・lint・型検査・buildとローカルE2E 2件を完了。CI VRT・実機での保存・物理印刷・Productionは未確認として運用文書へ引き渡す | [シフト表](../features/shift-board.md)、[リリース状態](../manual/release-status.md) |
+
 ### 日付形式が異なる既存計画
 
 | 計画 | 分類根拠 | 現在の正本 |

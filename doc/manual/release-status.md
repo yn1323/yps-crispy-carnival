@@ -2,7 +2,7 @@
 
 > 文書種別: 実環境状態
 >
-> 最終更新: 2026-08-29
+> 最終更新: 2026-09-05
 >
 > 実環境確認: 未確認
 
@@ -22,6 +22,7 @@ RepositoryまたはDevelopmentの確認を明記した行を含め、Production�
 | Productionのフロントエンドartifactとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | ProductionのConvex deployとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | Productionのmigration seriesと各migrationの完了 | 未確認 | 未確認 | 未確認 | 未登録 |
+| シフト表出力のローカルE2Eと通知抑止設定 | Local確認済み・Production未確認 | 2026-09-05 11:40 JST | `dev:fortunate-mallard-809` | 本文のシフト表出力のローカル確認記録 |
 | 店舗status廃止のdeploy前export検証、m048 / m049完了、全ページpost-readiness、旧client drain | **Development PR1例外承認・runtime未反映・Production未確認** | 2026-08-29 10:15 JST | `dev:fortunate-mallard-809` | 削除済み`archived` 1件を変更せずPR1 runtime切替を進めるDevelopment限定の例外承認を得た。公開Function metadataは旧runtimeの140件で、`archiveShop` / `reactivateShop`が残る。m048、PR2、Productionとほかのdeploymentは未確認 |
 | `staffs.organizationId` / `organizationPersonId` required Narrowと旧staff fallback削除 | **Development deploy停止・Production未確認** | 2026-08-29 10:23 JST | `dev:fortunate-mallard-809` | `verifyStaffs`全5ページ・497件で両ID欠損が各355件。欠損staffは未削除54店舗に分布し、未解消migration conflictも356件あるため、共有artifactの反映を停止した |
 | `/dashboard`新shell反映前に`resolveOrganizationReadActor`と同じ一意性・active状態・相互リンク一致を満たす管理者所属と、legacyな`shopMembers`だけで利用できる管理者が0件であること | 未確認 | 未確認 | 未確認 | 未登録 |
@@ -101,6 +102,21 @@ artifactのProduction反映と反映後canaryも別の証跡とし、ローカ�
 - 停止位置・復旧先:
 - 次の確認条件:
 ```
+
+### 2026-09-05 11:40 JST：シフト表出力と通知抑止設定（Local）
+
+| 項目 | 確認内容 |
+|---|---|
+| 状態・確認者 | Local確認済み・Production未確認。Codexによる自動検証 |
+| 対象 | ローカル開発用 `dev:fortunate-mallard-809` と起動済みの `http://localhost:3000` |
+| artifact | `369102c2e70998d8e8bdc561843120a85b224ef8` をbaseとする未コミットcheckout。deploymentへ反映済みのcommit SHAは未確認 |
+| 環境設定 | `pnpm exec convex env set DEBUG_NOTIFICATION_DELIVERY_MODE dry-run --deployment fortunate-mallard-809` が成功。CLIの対象表示は `dev deployment fortunate-mallard-809`。同じ対象への `env get` で `dry-run` を再確認 |
+| E2E | `e2e/scenarios/shift-export.test.ts` の `E2E-EXPORT-01` と `E2E-EXPORT-02` がdesktop Chromium、1 worker、retryなしで成功。01は保存した全休シフトから別タブを開き、PDFとExcelのダウンロード、再読み込み後の出力を確認。02は未ログインの直接アクセスがログインへ遷移することを確認 |
+| 証跡 | 現タスクのConvex CLI成功結果、`env get` の結果、Playwrightの各契約のpassed結果。氏名・勤務情報を含むtrace・動画・スクリーンショットは保存しない設定 |
+| 復旧・残る確認 | 最初のHTTP 500は既存Viteが200へ回復したため再起動せず再検証。通知抑止の事前検査は無効な設定値で停止したため、上記の `dry-run` 設定後に01を再実行した。新しいサーバーは起動していない。Production、実機での保存、物理印刷は未確認 |
+
+E2Eは専用テスト利用者のデータを初期化し、管理者シナリオの終了時にその利用者のテストデータを片付けた。  
+検証用の一時Playwright設定で `webServer` を無効にし、既存サーバーだけを使用した。通知抑止設定はローカル環境のみに適用した。
 
 ### 2026-08-29 05:57 JST：店舗ライフサイクルdeploy前export（Development）
 
