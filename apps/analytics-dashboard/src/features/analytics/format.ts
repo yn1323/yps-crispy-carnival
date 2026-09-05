@@ -11,12 +11,16 @@ export function formatCount(value: number | null | undefined) {
 }
 export function formatDate(value: string | number | null | undefined) {
   if (value == null || value === "") return "記録なし";
-  return new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeZone: "Asia/Tokyo" }).format(new Date(value));
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "日付を確認してください";
+  return new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeZone: "Asia/Tokyo" }).format(date);
 }
 export function formatDateTime(value: string | number | null | undefined) {
   if (value == null || value === "") return "記録なし";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "日時を確認してください";
   return new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Tokyo" }).format(
-    new Date(value),
+    date,
   );
 }
 /** 期限日はJST翌日0:00の直前まで提出可能。分単位の表示では23:59になる。 */
