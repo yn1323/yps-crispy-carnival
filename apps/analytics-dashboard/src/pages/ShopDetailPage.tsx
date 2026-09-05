@@ -8,6 +8,7 @@ import {
   cyclePath,
   formatDate,
   formatDateTime,
+  formatDeadline,
   lineStatusLabel,
   METRICS,
   staffPath,
@@ -147,7 +148,7 @@ export function ShopDetailPage({ shopId, navigate }: { shopId: string; navigate:
                 </Link>
               ),
             },
-            { key: "deadline", header: "提出締切", render: (row) => formatDateTime(row.deadline) },
+            { key: "deadline", header: "提出締切", render: (row) => formatDeadline(row.deadline) },
             {
               key: "status",
               header: "状態",
@@ -159,7 +160,7 @@ export function ShopDetailPage({ shopId, navigate }: { shopId: string; navigate:
               <Text fontWeight="bold">
                 {formatDate(row.periodStart)}〜{formatDate(row.periodEnd)}
               </Text>
-              <Text fontSize="sm">締切：{formatDateTime(row.deadline)}</Text>
+              <Text fontSize="sm">締切：{formatDeadline(row.deadline)}</Text>
               <Badge alignSelf="start">{row.status === "confirmed" ? "確定済み" : "未確定"}</Badge>
             </Stack>
           )}

@@ -1,3 +1,5 @@
+import { getDeadlineCutoff } from "@convex/_lib/dateFormat";
+
 export const METRICS = [
   { key: "registered", label: "新規登録店舗", description: "その日に新しく登録された店舗" },
   { key: "submitted", label: "提出があった店舗", description: "希望シフトの提出・再提出があった店舗" },
@@ -16,6 +18,10 @@ export function formatDateTime(value: string | number | null | undefined) {
   return new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Tokyo" }).format(
     new Date(value),
   );
+}
+/** 期限日はJST翌日0:00の直前まで提出可能。分単位の表示では23:59になる。 */
+export function formatDeadline(deadline: string) {
+  return formatDateTime(getDeadlineCutoff(deadline) - 1);
 }
 export function shopPath(shopId: string) {
   return `/shops/${encodeURIComponent(shopId)}`;
