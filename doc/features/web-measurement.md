@@ -33,7 +33,7 @@ Applicationの`page_view`は、raw pathnameではなく有限の`route_family`�
 | ログイン、登録、パスワード再設定 | `auth` |
 | Dashboard、アカウント、要対応一覧 | `dashboard`、`account`、`actions` |
 | 組織、課金、管理者、店舗 | `organization_management`、`billing`、`manager_management`、`shop_detail` |
-| シフト、ShiftBoard、スタッフ | `shift_management`、`shiftboard`、`staff_*` |
+| シフト、ShiftBoard、シフト出力、スタッフ | `shift_management`、`shiftboard`、`shift_export`、`staff_*` |
 | token付き導線、OAuth callback | `capability`、`callback` |
 | 未知URL・404 | `not_found` |
 
