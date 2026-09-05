@@ -7,23 +7,21 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
 jobs:
   test:
     if: github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       contents: read
-      issues: write
-      pull-requests: write
     timeout-minutes: 75
     runs-on: ubuntu-latest
     environment: Preview
+    concurrency:
+      group: playwright-test-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    outputs:
+      report_ready: ${{ steps.report_artifact.outcome == 'success' && steps.result_artifact.outcome == 'success' }}
+      test_result: ${{ steps.playwright.outcome }}
     env:
-      REPORT_DIR: yps-crispy-carnival
-      PR_NUMBER: ${{ github.event.pull_request.number }}
       CONVEX_PREVIEW_NAME: pr-${{ github.event.pull_request.number }}-e2e
       E2E_WORKERS: "3"
       PLAYWRIGHT_NO_COPY_PROMPT: "1"
@@ -77,195 +75,87 @@ jobs:
           E2E_CLERK_USERS: ${{ secrets.E2E_CLERK_USERS }}
           E2E_CLERK_PASSWORD: ${{ secrets.E2E_CLERK_PASSWORD }}
         run: node scripts/assertNoSensitiveArtifacts.mjs --root playwright-report --root test-results.json --root test-results
-      - name: Upload Playwright report
+      - name: Upload complete Playwright report
+        id: report_artifact
         if: ${{ !cancelled() && steps.privacy.outcome == 'success' }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: playwright-report
+          name: playwright-report-${{ github.run_attempt }}
           path: playwright-report/
-          if-no-files-found: warn
-          overwrite: true
+          if-no-files-found: error
           retention-days: 30
-      - name: Checkout hosted report snapshot
-        if: ${{ !cancelled() && steps.privacy.outcome == 'success' && hashFiles('playwright-report/index.html') != '' }}
+      - name: Upload Playwright result summary
+        id: result_artifact
+        if: ${{ !cancelled() && steps.privacy.outcome == 'success' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: playwright-result-summary-${{ github.run_attempt }}
+          path: test-results.json
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs: [test]
+    if: >-
+      !cancelled() &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      needs.test.outputs.report_ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: Preview
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      issues: write
+    concurrency:
+      group: hosted-reports-r2-write
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - name: Checkout trusted report publisher
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          repository: yn1323/hosting-pages
-          ref: yps-reports
-          path: hosting-pages
-          token: ${{ secrets.HOSTING_PAGES_TOKEN }}
-          persist-credentials: true
-          fetch-depth: 1
-          filter: blob:none
-          sparse-checkout: ${{ env.REPORT_DIR }}/${{ env.PR_NUMBER }}
-      - name: Publish Playwright report snapshot
-        id: publish
-        if: ${{ !cancelled() && steps.privacy.outcome == 'success' && hashFiles('playwright-report/index.html') != '' }}
+          ref: c7bec73da548fe4753fb7bc76a2ed76cde8101a5
+          path: trusted-tools
+          persist-credentials: false
+      - name: Install Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Install trusted report dependencies
+        working-directory: trusted-tools
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile --ignore-scripts
+      - name: Download complete Playwright report
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: playwright-report-${{ github.run_attempt }}
+          path: report-input
+      - name: Download Playwright result summary
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: playwright-result-summary-${{ github.run_attempt }}
+          path: result-input
+      - name: Prepare public Playwright report
+        id: prepare_report
+        working-directory: trusted-tools
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          HOSTING_PAGES_TOKEN: ${{ secrets.HOSTING_PAGES_TOKEN }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
-          RUN_ID: ${{ github.run_id }}
-          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          node scripts/publishHostingReport.mjs \
-            --repository hosting-pages \
-            --source playwright-report \
-            --target "${REPORT_DIR}/${PR_NUMBER}" \
-            --report-type playwright \
-            --pull-request "${PR_NUMBER}" \
-            --source-sha "${SOURCE_SHA}" \
-            --run-id "${RUN_ID}" \
-            --run-attempt "${RUN_ATTEMPT}"
-      - name: Comment PR while report is deploying
-        id: report_comment
-        if: ${{ !cancelled() && (steps.publish.outputs.status == 'published' || steps.publish.outputs.status == 'noop') }}
-        continue-on-error: true
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+          TEST_RESULT: ${{ needs.test.outputs.test_result }}
+        run: >-
+          node scripts/hostedReportCi.mjs prepare --type playwright
+          --source ../report-input --summary ../result-input/test-results.json
+          --output ../prepared-report
+      - name: Publish Playwright report to R2
+        if: steps.prepare_report.outputs.status == 'prepared'
+        working-directory: trusted-tools
         env:
-          TEST_RESULT: ${{ steps.playwright.outcome }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
-          RUN_ID: ${{ github.run_id }}
-        with:
-          script: |
-            const fs = require('node:fs');
-            const reportUrl = `https://yn1323.github.io/hosting-pages/${process.env.REPORT_DIR}/${process.env.PR_NUMBER}/`;
-            const actionsUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const testResult = process.env.TEST_RESULT;
-            const statusText = testResult === 'success' ? 'Passed' : 'Failed';
-
-            let passedCount = 'unknown';
-            let failedCount = 'unknown';
-            let skippedCount = 'unknown';
-            let testDetails = '';
-            try {
-              const json = JSON.parse(fs.readFileSync('test-results.json', 'utf8'));
-              let passed = 0;
-              let failed = 0;
-              let skipped = 0;
-              const allRows = [];
-              const failedRows = [];
-
-              function collectTests(suites) {
-                for (const suite of suites || []) {
-                  for (const spec of suite.specs || []) {
-                    for (const test of spec.tests || []) {
-                      const status = test.status;
-                      if (status === 'expected') passed += 1;
-                      else if (status === 'unexpected' || status === 'flaky') failed += 1;
-                      else if (status === 'skipped') skipped += 1;
-                      const icon = status === 'expected' ? '✅' : status === 'unexpected' || status === 'flaky' ? '❌' : '⏭';
-                      const title = String(spec.title).replaceAll('|', '\\|').replace(/[\r\n]+/g, ' ');
-                      const project = String(test.projectName || 'unknown').replaceAll('|', '\\|');
-                      const retries = Math.max(0, (test.results || []).length - 1);
-                      const duration = (test.results || []).reduce((total, result) => total + Number(result.duration || 0), 0);
-                      const category = (test.annotations || []).find((annotation) => annotation.type === 'failure-category')?.description || (status === 'expected' ? '-' : 'unknown');
-                      const row = `| ${icon} | ${title} | ${project} | ${retries} | ${duration}ms | ${category} |`;
-                      allRows.push(row);
-                      if (status === 'unexpected' || status === 'flaky') failedRows.push(row);
-                    }
-                  }
-                  collectTests(suite.suites);
-                }
-              }
-              collectTests(json.suites);
-
-              passedCount = String(passed);
-              failedCount = String(failed);
-              skippedCount = String(skipped);
-              if (failedRows.length > 0) {
-                testDetails += `\n\n### 失敗したテスト\n\n| Status | Test | Project | Retry | Duration | Category |\n|---|---|---|---:|---:|---|\n${failedRows.join('\n')}`;
-              }
-              if (allRows.length > 0) {
-                testDetails += `\n\n<details>\n<summary>すべてのテスト結果を表示</summary>\n\n| Status | Test | Project | Retry | Duration | Category |\n|---|---|---|---:|---:|---|\n${allRows.join('\n')}\n\n</details>`;
-              }
-            } catch {
-              testDetails = '\n\n⚠️ テスト結果JSONの読み込みに失敗しました';
-            }
-
-            const buildBody = (reportCell) => [
-              '## Playwright Test Report',
-              '',
-              `Status: ${statusText}`,
-              `Results: Passed ${passedCount} / Failed ${failedCount} / Skipped ${skippedCount}`,
-              `Head SHA: ${process.env.HEAD_SHA}`,
-              `Run: ${process.env.RUN_ID} (attempt ${process.env.RUN_ATTEMPT})`,
-              '',
-              '| Action | Link |',
-              '|---|---|',
-              `| レポート確認 | ${reportCell} |`,
-              `| Actions | [実行ログを見る](${actionsUrl}) |`,
-            ].join('\n') + testDetails;
-
-            const pendingBody = buildBody('レポートをデプロイ中です…');
-            const finalBody = buildBody(`[Playwrightレポートを見る](${reportUrl}?v=${process.env.RUN_ID}-${process.env.RUN_ATTEMPT})`);
-            fs.writeFileSync('playwright-comment-final.md', finalBody);
-            await core.summary.addRaw(finalBody).write();
-
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              per_page: 100,
-            });
-            for (const comment of comments) {
-              if (comment.user?.login === 'github-actions[bot]' && comment.body?.includes('## Playwright Test Report')) {
-                await github.rest.issues.deleteComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  comment_id: comment.id,
-                });
-              }
-            }
-            const { data: comment } = await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: pendingBody,
-            });
-            core.setOutput('comment_id', String(comment.id));
-      - name: Wait for hosted Playwright report
-        id: wait_deploy
-        if: ${{ !cancelled() && (steps.publish.outputs.status == 'published' || steps.publish.outputs.status == 'noop') }}
-        env:
-          MARKER_NAME: ${{ steps.publish.outputs.marker_name }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
-          RUN_ID: ${{ github.run_id }}
-        run: |
-          MARKER_URL="https://yn1323.github.io/hosting-pages/${REPORT_DIR}/${PR_NUMBER}/${MARKER_NAME}"
-          EXPECTED="${RUN_ID}-${RUN_ATTEMPT}"
-          for i in $(seq 1 90); do
-            VALUE="$(curl -fsSL "${MARKER_URL}?t=$(date +%s)" || true)"
-            if [ "${VALUE}" = "${EXPECTED}" ]; then
-              echo "deploy_status=success" >> "$GITHUB_OUTPUT"
-              echo "Deploy confirmed after $((i * 10))s"
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "deploy_status=timeout" >> "$GITHUB_OUTPUT"
-      - name: Update PR comment with Playwright report
-        if: ${{ always() && steps.report_comment.outputs.comment_id != '' }}
-        continue-on-error: true
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
-        env:
-          COMMENT_ID: ${{ steps.report_comment.outputs.comment_id }}
-          DEPLOY_STATUS: ${{ steps.wait_deploy.outputs.deploy_status }}
-        with:
-          script: |
-            const fs = require('node:fs');
-            let body = fs.readFileSync('playwright-comment-final.md', 'utf8');
-            if (process.env.DEPLOY_STATUS !== 'success') {
-              body += '\n\n> ⚠️ レポートの公開確認がタイムアウトしました。テスト結果はActionsログとartifactを確認してください。';
-            }
-            await github.rest.issues.updateComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: Number(process.env.COMMENT_ID),
-              body,
-            });
-      - name: Warn when Playwright report is unavailable
-        if: ${{ always() && (steps.publish.outputs.status == 'published' || steps.publish.outputs.status == 'noop') && steps.wait_deploy.outputs.deploy_status != 'success' }}
-        run: |
-          echo "::warning::hosting-pages deploy could not be confirmed within 15 minutes; Playwright tests and artifact checks remain authoritative"
+          GITHUB_TOKEN: ${{ github.token }}
+          REPORT_R2_ACCESS_KEY_ID: ${{ secrets.REPORT_R2_ACCESS_KEY_ID }}
+          REPORT_R2_SECRET_ACCESS_KEY: ${{ secrets.REPORT_R2_SECRET_ACCESS_KEY }}
+          REPORT_R2_ENDPOINT: ${{ vars.REPORT_R2_ENDPOINT }}
+          REPORT_R2_PUBLIC_BUCKET: ${{ vars.REPORT_R2_PUBLIC_BUCKET }}
+          REPORT_PUBLIC_BASE_URL: ${{ vars.REPORT_PUBLIC_BASE_URL }}
+        run: node scripts/hostedReportCi.mjs publish --prepared ../prepared-report

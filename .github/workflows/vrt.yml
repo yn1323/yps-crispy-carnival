@@ -9,13 +9,7 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
 env:
-  VRT_REPORT_DIR: yps-crispy-carnival-vrt
-  VRT_BASELINE_DIR: yps-crispy-carnival-vrt-baselines
   # Storybookでは外部サービスをモックするため、公開設定は決定的なテスト値を使う。
   VITE_CLERK_PUBLISHABLE_KEY: pk_test_storybook
   VITE_CONVEX_URL: https://storybook.convex.cloud
@@ -25,16 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
     outputs:
-      pull_number: ${{ steps.destination.outputs.pull_number }}
-      report_key: ${{ steps.destination.outputs.report_key }}
       baseline_ref: ${{ steps.destination.outputs.baseline_ref }}
-      report_url: ${{ steps.destination.outputs.report_url }}
       should_update_baseline: ${{ steps.destination.outputs.should_update_baseline }}
       should_fail_on_diff: ${{ steps.destination.outputs.should_fail_on_diff }}
-      source_branch: ${{ steps.destination.outputs.source_branch }}
-      source_sha: ${{ steps.destination.outputs.source_sha }}
       trusted: ${{ steps.destination.outputs.trusted }}
     steps:
       - name: Resolve VRT destination
@@ -42,43 +30,26 @@ jobs:
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
           script: |
-            const { owner, repo } = context.repo;
-            const eventPull = context.payload.pull_request;
-            const branch = eventPull?.head?.ref ?? context.ref.replace('refs/heads/', '');
-            const branchSlug = branch.replace(/[^A-Za-z0-9._-]/g, '-');
-            const isBasePush = !eventPull && (branch === 'develop' || branch === 'main');
-            let pull = eventPull;
-
-            if (!pull && !isBasePush) {
-              const { data: pulls } = await github.rest.pulls.list({
-                owner,
-                repo,
-                head: `${owner}:${branch}`,
-                state: 'open',
-                per_page: 1,
-              });
-              pull = pulls[0];
+            const pull = context.payload.pull_request;
+            const branch = context.ref.replace('refs/heads/', '');
+            const isBasePush = context.eventName === 'push' && ['develop', 'main'].includes(branch);
+            const trusted = pull
+              ? pull.head.repo.full_name === `${context.repo.owner}/${context.repo.repo}`
+              : isBasePush;
+            const baselineRef = pull?.base?.ref ?? branch;
+            if (!['develop', 'main'].includes(baselineRef)) {
+              throw new Error('Unsupported VRT baseline branch.');
             }
-
-            const reportKey = pull ? `pr-${pull.number}` : `branches/${branchSlug}`;
-            const baselineRef = pull?.base?.ref ?? (branch === 'main' ? 'main' : 'develop');
-            const trusted = !eventPull || eventPull.head.repo.full_name === `${owner}/${repo}`;
-
-            core.setOutput('pull_number', pull?.number ?? '');
-            core.setOutput('report_key', reportKey);
             core.setOutput('baseline_ref', baselineRef);
-            core.setOutput('should_update_baseline', isBasePush ? 'true' : 'false');
-            core.setOutput('should_fail_on_diff', isBasePush ? 'false' : 'true');
-            core.setOutput('source_branch', branch);
-            core.setOutput('source_sha', eventPull?.head?.sha ?? context.sha);
-            core.setOutput('trusted', trusted ? 'true' : 'false');
-            core.setOutput(
-              'report_url',
-              `https://yn1323.github.io/hosting-pages/${process.env.VRT_REPORT_DIR}/${reportKey}/`,
-            );
+            core.setOutput('should_update_baseline', String(isBasePush));
+            core.setOutput('should_fail_on_diff', String(!isBasePush));
+            core.setOutput('trusted', String(trusted));
 
   build:
     runs-on: ubuntu-latest
+    concurrency:
+      group: vrt-build-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -94,6 +65,9 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
+    concurrency:
+      group: vrt-capture-${{ matrix.shard }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -116,27 +90,26 @@ jobs:
       - name: Upload VRT screenshots
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: vrt-actual-${{ matrix.shard }}
+          name: vrt-actual-${{ github.run_attempt }}-${{ matrix.shard }}
           path: vrt-actual/
           if-no-files-found: error
           retention-days: 3
 
   compare:
-    needs:
-      - prepare
-      - build
-      - capture
+    needs: [prepare, build, capture]
     if: needs.prepare.outputs.trusted == 'true'
     timeout-minutes: 45
     runs-on: ubuntu-latest
     environment: Preview
+    concurrency:
+      group: vrt-compare-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
     permissions:
       contents: read
-      issues: write
-      pull-requests: write
+      actions: read
     outputs:
       has_diff: ${{ steps.diff_check.outputs.has_diff }}
-      publish_status: ${{ steps.publish.outputs.status }}
+      capture_artifact_ids: ${{ steps.capture_artifacts.outputs.ids }}
     env:
       REG_SUIT_CLIENT_ID: ${{ secrets.REG_SUIT_CLIENT_ID }}
     steps:
@@ -146,251 +119,148 @@ jobs:
           persist-credentials: false
       - name: Setup
         uses: ./.github/actions/setup
-      - name: Checkout hosted VRT snapshot
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Verify all VRT capture artifacts
+        id: capture_artifacts
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          RUN_ATTEMPT: ${{ github.run_attempt }}
         with:
-          repository: yn1323/hosting-pages
-          ref: yps-reports
-          path: hosting-pages
-          token: ${{ secrets.HOSTING_PAGES_TOKEN }}
-          persist-credentials: true
-          fetch-depth: 1
-          filter: blob:none
-          sparse-checkout: |
-            ${{ env.VRT_BASELINE_DIR }}/${{ needs.prepare.outputs.baseline_ref }}
-            ${{ env.VRT_REPORT_DIR }}/${{ needs.prepare.outputs.report_key }}
+          script: |
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              ...context.repo,
+              run_id: context.runId,
+              per_page: 100,
+            });
+            const ids = [1, 2, 3, 4].map((shard) => {
+              const name = `vrt-actual-${process.env.RUN_ATTEMPT}-${shard}`;
+              const matches = artifacts.filter((artifact) => artifact.name === name && !artifact.expired);
+              if (matches.length !== 1) {
+                throw new Error(`Missing or duplicate current-attempt capture shard ${shard}; rerun all jobs.`);
+              }
+              return matches[0].id;
+            });
+            core.setOutput('ids', ids.join(','));
       - name: Download VRT screenshots
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
-          pattern: vrt-actual-*
+          artifact-ids: ${{ steps.capture_artifacts.outputs.ids }}
           path: vrt-actual
           merge-multiple: true
-      - name: Prepare RegSuit baseline
-        id: baseline
+      - name: Download public VRT baseline
         env:
           BASELINE_REF: ${{ needs.prepare.outputs.baseline_ref }}
-        run: |
-          mkdir -p vrt-work/baseline
-          if [ -d "hosting-pages/${VRT_BASELINE_DIR}/${BASELINE_REF}" ]; then
-            cp -R "hosting-pages/${VRT_BASELINE_DIR}/${BASELINE_REF}/." vrt-work/baseline/
-            echo "found=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "found=false" >> "$GITHUB_OUTPUT"
-          fi
+          REPORT_PUBLIC_BASE_URL: ${{ vars.REPORT_PUBLIC_BASE_URL }}
+        run: >-
+          node scripts/hostedReportBaseline.mjs download
+          --base-url "$REPORT_PUBLIC_BASE_URL"
+          --branch "$BASELINE_REF"
+          --destination vrt-work/baseline
       - name: Build VRT report
         run: pnpm vrt:report
         env:
-          REGSUIT_REQUIRE_BASELINE: ${{ needs.prepare.outputs.should_fail_on_diff }}
+          REGSUIT_REQUIRE_BASELINE: 'true'
       - name: Assert VRT result
         id: regsuit
-        if: ${{ steps.baseline.outputs.found == 'true' }}
         continue-on-error: true
         run: pnpm vrt:assert
-      - name: Publish VRT report snapshot
-        id: publish
-        if: ${{ !cancelled() && hashFiles('vrt-work/reg/index.html') != '' }}
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          HOSTING_PAGES_TOKEN: ${{ secrets.HOSTING_PAGES_TOKEN }}
-          PULL_NUMBER: ${{ needs.prepare.outputs.pull_number }}
-          REPORT_KEY: ${{ needs.prepare.outputs.report_key }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
-          RUN_ID: ${{ github.run_id }}
-          SHOULD_UPDATE_BASELINE: ${{ needs.prepare.outputs.should_update_baseline }}
-          SOURCE_BRANCH: ${{ needs.prepare.outputs.source_branch }}
-          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
-        run: |
-          ARGS=(
-            --repository hosting-pages
-            --source vrt-work/reg
-            --target "${VRT_REPORT_DIR}/${REPORT_KEY}"
-            --report-type vrt
-            --source-sha "${SOURCE_SHA}"
-            --run-id "${RUN_ID}"
-            --run-attempt "${RUN_ATTEMPT}"
-          )
-          if [ "${PULL_NUMBER}" != "" ]; then
-            ARGS+=(--pull-request "${PULL_NUMBER}")
-          else
-            ARGS+=(--source-branch "${SOURCE_BRANCH}")
-          fi
-          if [ "${SHOULD_UPDATE_BASELINE}" = "true" ]; then
-            ARGS+=(
-              --baseline-source vrt-actual
-              --baseline-target "${VRT_BASELINE_DIR}/${SOURCE_BRANCH}"
-            )
-          fi
-          node scripts/publishHostingReport.mjs "${ARGS[@]}"
-      - name: Build VRT report comment
-        if: ${{ !cancelled() && needs.prepare.outputs.pull_number != '' && (steps.publish.outputs.status == 'published' || steps.publish.outputs.status == 'noop') }}
-        env:
-          ACTIONS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          BASELINE_FOUND: ${{ steps.baseline.outputs.found }}
-          COMPARE_RESULT: ${{ steps.regsuit.outcome }}
-          REPORT_URL: ${{ needs.prepare.outputs.report_url }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
-          RUN_ID: ${{ github.run_id }}
-          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
-        run: |
-          node <<'NODE'
-            const fs = require("node:fs");
-            const reportUrl = process.env.REPORT_URL;
-            const baselineFound = process.env.BASELINE_FOUND === 'true';
-            const compareResult = baselineFound ? process.env.COMPARE_RESULT : 'success';
-            const statusText = baselineFound ? (compareResult === 'success' ? 'Passed' : 'Failed') : 'No baseline';
-
-            let changedCount = 'unknown';
-            let newCount = 'unknown';
-            let deletedCount = 'unknown';
-            let passedCount = 'unknown';
-            try {
-              const json = JSON.parse(fs.readFileSync('vrt-work/reg/out.json', 'utf8'));
-              const items = json.failedItems || json.changedItems || json.items || [];
-              const newItems = json.newItems || [];
-              const deletedItems = json.deletedItems || [];
-              const passedItems = json.passedItems || [];
-              changedCount = String(items.length);
-              newCount = String(newItems.length);
-              deletedCount = String(deletedItems.length);
-              passedCount = String(passedItems.length);
-            } catch (error) {
-              console.warn('RegSuit result JSON の読み込みに失敗しました', error);
-            }
-
-            const actionsUrl = process.env.ACTIONS_URL;
-            const hasDiff = compareResult !== 'success' && baselineFound;
-            const buildBody = (reportCell) => {
-              const actionRows = [
-                `| 差分確認 | ${reportCell} |`,
-                ...(hasDiff ? [`| 承認 | [承認ワークフローを開く](${actionsUrl}) |`] : []),
-              ].join('\n');
-
-              return [
-                '## VRT Report',
-                '',
-                `Status: ${statusText}`,
-                `差分: Changed ${changedCount} / New ${newCount} / Deleted ${deletedCount}`,
-                `Passed: ${passedCount}`,
-                `Head SHA: ${process.env.SOURCE_SHA}`,
-                `Run: ${process.env.RUN_ID} (attempt ${process.env.RUN_ATTEMPT})`,
-                '',
-                '| Action | Link |',
-                '|---|---|',
-                actionRows,
-                '',
-                'Details:',
-                'デプロイ先: [yn1323/hosting-pages:yps-reports](https://github.com/yn1323/hosting-pages/commits/yps-reports/)',
-                '',
-              ].join('\n');
-            };
-
-            fs.writeFileSync('vrt-comment-pending.md', buildBody('レポートをデプロイ中です…'));
-            fs.writeFileSync(
-              'vrt-comment-final.md',
-              buildBody(`[差分レポートを見る](${reportUrl}?v=${process.env.RUN_ID}-${process.env.RUN_ATTEMPT})`),
-            );
-          NODE
-          cat vrt-comment-final.md >> "$GITHUB_STEP_SUMMARY"
-      - name: Comment PR while VRT report is deploying
-        id: report_comment
-        if: ${{ !cancelled() && hashFiles('vrt-comment-pending.md') != '' }}
-        continue-on-error: true
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
-        env:
-          PULL_NUMBER: ${{ needs.prepare.outputs.pull_number }}
-        with:
-          script: |
-            const fs = require('node:fs');
-            const marker = '## VRT Report';
-            const issue_number = Number(process.env.PULL_NUMBER);
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number,
-              per_page: 100,
-            });
-            for (const comment of comments) {
-              if (comment.user?.login === 'github-actions[bot]' && comment.body?.includes(marker)) {
-                await github.rest.issues.deleteComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  comment_id: comment.id,
-                });
-              }
-            }
-            const { data: comment } = await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number,
-              body: fs.readFileSync('vrt-comment-pending.md', 'utf8'),
-            });
-            core.setOutput('comment_id', String(comment.id));
-      - name: Wait for hosted VRT report
-        id: wait_deploy
-        if: ${{ !cancelled() && (steps.publish.outputs.status == 'published' || steps.publish.outputs.status == 'noop') }}
-        env:
-          MARKER_NAME: ${{ steps.publish.outputs.marker_name }}
-          REPORT_URL: ${{ needs.prepare.outputs.report_url }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
-          RUN_ID: ${{ github.run_id }}
-        run: |
-          MARKER_URL="${REPORT_URL}${MARKER_NAME}"
-          EXPECTED="${RUN_ID}-${RUN_ATTEMPT}"
-          for i in $(seq 1 90); do
-            VALUE="$(curl -fsSL "${MARKER_URL}?t=$(date +%s)" || true)"
-            if [ "${VALUE}" = "${EXPECTED}" ]; then
-              echo "deploy_status=success" >> "$GITHUB_OUTPUT"
-              echo "Deploy confirmed after $((i * 10))s"
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "deploy_status=timeout" >> "$GITHUB_OUTPUT"
-      - name: Update PR comment with VRT report
-        if: ${{ always() && steps.report_comment.outputs.comment_id != '' }}
-        continue-on-error: true
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
-        env:
-          COMMENT_ID: ${{ steps.report_comment.outputs.comment_id }}
-          DEPLOY_STATUS: ${{ steps.wait_deploy.outputs.deploy_status }}
-        with:
-          script: |
-            const fs = require('node:fs');
-            let body = fs.readFileSync('vrt-comment-final.md', 'utf8');
-            if (process.env.DEPLOY_STATUS !== 'success') {
-              body += '\n\n> ⚠️ レポートの公開確認がタイムアウトしました。差分結果はActionsログとartifactを確認してください。';
-            }
-            await github.rest.issues.updateComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: Number(process.env.COMMENT_ID),
-              body,
-            });
-      - name: Warn when VRT report is unavailable
-        if: ${{ always() && (steps.publish.outputs.status == 'published' || steps.publish.outputs.status == 'noop') && steps.wait_deploy.outputs.deploy_status != 'success' }}
-        run: |
-          echo "::warning::hosting-pages deploy could not be confirmed within 15 minutes; VRT comparison and artifact checks remain authoritative"
       - name: Set diff output
         id: diff_check
-        if: always()
         env:
-          BASELINE_FOUND: ${{ steps.baseline.outputs.found }}
-          PUBLISH_STATUS: ${{ steps.publish.outputs.status }}
           REGSUIT_OUTCOME: ${{ steps.regsuit.outcome }}
         run: |
-          if [[ "${BASELINE_FOUND}" == "true" && "${REGSUIT_OUTCOME}" == "failure" && ( "${PUBLISH_STATUS}" == "published" || "${PUBLISH_STATUS}" == "noop" ) ]]; then
-            echo "has_diff=true" >> "$GITHUB_OUTPUT"
+          if [ "$REGSUIT_OUTCOME" = 'failure' ]; then
+            echo 'has_diff=true' >> "$GITHUB_OUTPUT"
           else
-            echo "has_diff=false" >> "$GITHUB_OUTPUT"
+            echo 'has_diff=false' >> "$GITHUB_OUTPUT"
           fi
+      - name: Upload complete VRT report
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: vrt-report-${{ github.run_attempt }}
+          path: vrt-work/reg/
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    needs: [prepare, compare]
+    if: needs.prepare.outputs.trusted == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: Preview
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      issues: write
+    concurrency:
+      group: hosted-reports-r2-write
+      cancel-in-progress: false
+      queue: max
+    outputs:
+      status: ${{ steps.publish.outputs.status }}
+      report_url: ${{ steps.publish.outputs.report_url }}
+    steps:
+      # 公開資格情報を渡すのは、レビュー済みcommitのscriptだけに限定する。
+      - name: Checkout trusted report publisher
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: c7bec73da548fe4753fb7bc76a2ed76cde8101a5
+          path: trusted-tools
+          persist-credentials: false
+      - name: Install Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Install trusted report dependencies
+        working-directory: trusted-tools
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile --ignore-scripts
+      - name: Download complete VRT report
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: vrt-report-${{ github.run_attempt }}
+          path: report-input
+      - name: Download baseline source images
+        if: needs.prepare.outputs.should_update_baseline == 'true'
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          artifact-ids: ${{ needs.compare.outputs.capture_artifact_ids }}
+          path: baseline-input
+          merge-multiple: true
+      - name: Prepare public VRT report
+        id: prepare_report
+        working-directory: trusted-tools
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SHOULD_UPDATE_BASELINE: ${{ needs.prepare.outputs.should_update_baseline }}
+        run: |
+          ARGS=(--type vrt --source ../report-input --output ../prepared-report)
+          if [ "$SHOULD_UPDATE_BASELINE" = 'true' ]; then
+            ARGS+=(--baseline-source ../baseline-input)
+          fi
+          node scripts/hostedReportCi.mjs prepare "${ARGS[@]}"
+      - name: Publish VRT report to R2
+        if: steps.prepare_report.outputs.status == 'prepared'
+        id: publish
+        working-directory: trusted-tools
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPORT_R2_ACCESS_KEY_ID: ${{ secrets.REPORT_R2_ACCESS_KEY_ID }}
+          REPORT_R2_SECRET_ACCESS_KEY: ${{ secrets.REPORT_R2_SECRET_ACCESS_KEY }}
+          REPORT_R2_ENDPOINT: ${{ vars.REPORT_R2_ENDPOINT }}
+          REPORT_R2_PUBLIC_BUCKET: ${{ vars.REPORT_R2_PUBLIC_BUCKET }}
+          REPORT_PUBLIC_BASE_URL: ${{ vars.REPORT_PUBLIC_BASE_URL }}
+        run: node scripts/hostedReportCi.mjs publish --prepared ../prepared-report
 
   approve:
-    needs: [prepare, compare]
+    needs: [prepare, compare, publish]
     if: |
       always() &&
       needs.compare.result == 'success' &&
+      needs.publish.result == 'success' &&
       needs.prepare.outputs.should_fail_on_diff == 'true' &&
-      (needs.compare.outputs.publish_status == 'published' || needs.compare.outputs.publish_status == 'noop') &&
+      (needs.publish.outputs.status == 'published' || needs.publish.outputs.status == 'noop') &&
       needs.compare.outputs.has_diff == 'true'
     environment: vrt-approval
     runs-on: ubuntu-latest

@@ -2,70 +2,132 @@ name: Maintain hosted report retention
 
 on:
   workflow_dispatch:
+    inputs:
+      operation:
+        description: R2の接続確認・初回baseline移行・不要レポート削除
+        type: choice
+        required: true
+        default: check
+        options: [check, bootstrap, cleanup]
+  pull_request_target:
+    branches: [develop, main]
+    types: [closed]
   schedule:
     - cron: '30 18 * * *'
 
 permissions:
   contents: read
 
-concurrency:
-  group: maintain-hosted-reports
-  cancel-in-progress: false
-
 jobs:
   prune:
+    if: >-
+      github.event_name != 'pull_request_target' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     environment: Preview
     permissions:
       contents: read
+      actions: read
       pull-requests: read
+    concurrency:
+      group: hosted-reports-r2-write
+      cancel-in-progress: false
+      queue: max
     steps:
-      - name: Checkout maintenance scripts
+      # pull_request_targetでもPR headは実行せず、固定commitのhelperだけを使う。
+      - name: Checkout trusted report maintenance
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          repository: yn1323/hosting-pages
-          ref: main
-          path: hosting-main
-          token: ${{ secrets.HOSTING_PAGES_TOKEN }}
+          ref: c7bec73da548fe4753fb7bc76a2ed76cde8101a5
+          path: trusted-tools
           persist-credentials: false
-          sparse-checkout: |
-            .github/scripts/**
-          sparse-checkout-cone-mode: false
-
-      - name: Checkout hosted reports
+      - name: Install Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Install trusted report dependencies
+        working-directory: trusted-tools
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile --ignore-scripts
+      - name: Check R2 configuration and public access
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'check'
+        working-directory: trusted-tools
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPORT_R2_ACCESS_KEY_ID: ${{ secrets.REPORT_R2_ACCESS_KEY_ID }}
+          REPORT_R2_SECRET_ACCESS_KEY: ${{ secrets.REPORT_R2_SECRET_ACCESS_KEY }}
+          REPORT_R2_ENDPOINT: ${{ vars.REPORT_R2_ENDPOINT }}
+          REPORT_R2_PUBLIC_BUCKET: ${{ vars.REPORT_R2_PUBLIC_BUCKET }}
+          REPORT_PUBLIC_BASE_URL: ${{ vars.REPORT_PUBLIC_BASE_URL }}
+        run: node scripts/hostedReportCi.mjs preflight
+      - name: Resolve legacy baseline snapshot
+        id: legacy_snapshot
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'bootstrap'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          github-token: ${{ secrets.REPORT_PUBLISHER_HOSTING_PAGES_TOKEN }}
+          script: |
+            const { data } = await github.rest.repos.getCommit({
+              owner: 'yn1323',
+              repo: 'hosting-pages',
+              ref: 'yps-reports',
+            });
+            if (!/^[a-f0-9]{40}$/.test(data.sha)) {
+              throw new Error('Could not resolve the legacy baseline snapshot.');
+            }
+            core.setOutput('sha', data.sha);
+      - name: Checkout legacy baseline data
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'bootstrap'
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: yn1323/hosting-pages
-          ref: yps-reports
-          path: hosting-reports
-          token: ${{ secrets.HOSTING_PAGES_TOKEN }}
+          ref: ${{ steps.legacy_snapshot.outputs.sha }}
+          path: legacy-reports
+          token: ${{ secrets.REPORT_PUBLISHER_HOSTING_PAGES_TOKEN }}
+          persist-credentials: false
           fetch-depth: 1
           filter: blob:none
-          persist-credentials: false
           sparse-checkout: |
-            yps-crispy-carnival/*/.report-meta.json
-            yps-crispy-carnival-vrt/pr-*/.report-meta.json
+            yps-crispy-carnival-vrt-baselines/
+            yps-crispy-carnival-vrt/branches/develop/
+            yps-crispy-carnival-vrt/branches/main/
           sparse-checkout-cone-mode: false
-
-      - name: Prune expired reports with compare-and-swap
-        id: prune
+      - name: Prepare initial VRT baselines
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'bootstrap'
+        working-directory: trusted-tools
         env:
-          GIT_ASKPASS: ${{ github.workspace }}/hosting-main/.github/scripts/git-askpass.sh
-          GIT_AUTH_TOKEN: ${{ secrets.HOSTING_PAGES_TOKEN }}
-          GIT_TERMINAL_PROMPT: '0'
-          LEGACY_DELETE_AFTER: '2026-09-06T00:00:00Z'
-          SOURCE_REPOSITORY_TOKEN: ${{ github.token }}
-        run: bash hosting-main/.github/scripts/maintain-yps-reports.sh hosting-reports
-
-      - name: Request a Pages deployment
-        if: steps.prune.outputs.changed == 'true'
+          GITHUB_TOKEN: ${{ github.token }}
+          LEGACY_SNAPSHOT_SHA: ${{ steps.legacy_snapshot.outputs.sha }}
+        run: >-
+          node scripts/hostedReportCi.mjs prepare-bootstrap
+          --legacy-root ../legacy-reports --output ../prepared-baselines
+      - name: Publish initial VRT baselines to R2
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'bootstrap'
+        working-directory: trusted-tools
         env:
-          HOSTING_PAGES_TOKEN: ${{ secrets.HOSTING_PAGES_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          REPORT_R2_ACCESS_KEY_ID: ${{ secrets.REPORT_R2_ACCESS_KEY_ID }}
+          REPORT_R2_SECRET_ACCESS_KEY: ${{ secrets.REPORT_R2_SECRET_ACCESS_KEY }}
+          REPORT_R2_ENDPOINT: ${{ vars.REPORT_R2_ENDPOINT }}
+          REPORT_R2_PUBLIC_BUCKET: ${{ vars.REPORT_R2_PUBLIC_BUCKET }}
+          REPORT_PUBLIC_BASE_URL: ${{ vars.REPORT_PUBLIC_BASE_URL }}
+        run: node scripts/hostedReportCi.mjs publish-bootstrap --prepared ../prepared-baselines
+      - name: Delete closed PR reports and expired generations
+        if: github.event_name != 'workflow_dispatch' || inputs.operation == 'cleanup'
+        working-directory: trusted-tools
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TARGET_PR: ${{ github.event.pull_request.number }}
+          REPORT_R2_ACCESS_KEY_ID: ${{ secrets.REPORT_R2_ACCESS_KEY_ID }}
+          REPORT_R2_SECRET_ACCESS_KEY: ${{ secrets.REPORT_R2_SECRET_ACCESS_KEY }}
+          REPORT_R2_ENDPOINT: ${{ vars.REPORT_R2_ENDPOINT }}
+          REPORT_R2_PUBLIC_BUCKET: ${{ vars.REPORT_R2_PUBLIC_BUCKET }}
+          REPORT_PUBLIC_BASE_URL: ${{ vars.REPORT_PUBLIC_BASE_URL }}
         run: |
-          curl --fail-with-body --silent --show-error \
-            --request POST \
-            --header "Accept: application/vnd.github+json" \
-            --header "Authorization: Bearer ${HOSTING_PAGES_TOKEN}" \
-            --header "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/yn1323/hosting-pages/dispatches \
-            --data '{"event_type":"yps-report-published","client_payload":{"source":"retention"}}'
+          ARGS=()
+          if [ -n "$TARGET_PR" ]; then
+            ARGS+=(--pr "$TARGET_PR")
+          fi
+          node scripts/hostedReportCi.mjs cleanup "${ARGS[@]}"
