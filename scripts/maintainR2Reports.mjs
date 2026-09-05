@@ -36,19 +36,20 @@ export async function deleteClosedReport(input, { store, verifySource }) {
   if ((await verifyPullRequest(target, verifySource)) === "open") return { status: "open", deletedFiles: 0 };
   const paths = reportTargetPaths(target);
   // Validate provenance before removing a state document, even if the PR is already closed.
-  await readReportManifest(store, target);
+  const published = await readReportManifest(store, target);
   const objects = await store.list(paths.reportRoot);
+  const keys = objects.map(({ key }) => {
+    if (!key.startsWith(paths.reportRoot)) throw new Error("PR deletion escaped its report prefix");
+    return key;
+  });
+  if ((await verifyPullRequest(target, verifySource)) === "open") return { status: "open", deletedFiles: 0 };
   let deletedFiles = 0;
-  for (let index = 0; index < objects.length; index += 1_000) {
-    if ((await verifyPullRequest(target, verifySource)) === "open") return { status: "open", deletedFiles };
-    const keys = objects.slice(index, index + 1_000).map(({ key }) => {
-      if (!key.startsWith(paths.reportRoot)) throw new Error("PR deletion escaped its report prefix");
-      return key;
-    });
-    deletedFiles += await store.delete(keys);
+  // Remove the publication pointer before its files. Once deletion starts, finish under the shared writer lock;
+  // a reopened PR's queued publisher creates a fresh generation after cleanup completes.
+  if (published) deletedFiles += await store.delete([paths.manifestKey]);
+  for (let index = 0; index < keys.length; index += 1_000) {
+    deletedFiles += await store.delete(keys.slice(index, index + 1_000));
   }
-  if ((await verifyPullRequest(target, verifySource)) === "open") return { status: "open", deletedFiles };
-  if (await store.get(paths.manifestKey)) deletedFiles += await store.delete([paths.manifestKey]);
   return { status: "closed", deletedFiles };
 }
 
