@@ -16,6 +16,7 @@ describe("app route search policy", () => {
     ["/dashboard", "?org=org-a&shop=shop-a"],
     ["/shifts", "?org=org-a&shopFilter=shop-a"],
     ["/shifts/recruitment-a/board", "?org=org-a"],
+    ["/shifts/recruitment-a/export", "?org=org-a"],
     ["/staff", "?org=org-a&shopFilter=shop-a"],
     ["/staff/order", "?org=org-a"],
     ["/staff/person-a", "?org=org-a"],
@@ -106,6 +107,7 @@ describe("app route search policy", () => {
     "/staff/order",
     "/staff/person-a/shops/shop-a",
     "/shifts/recruitment-a/board",
+    "/shifts/recruitment-a/export",
     "/manage/shops/shop-a",
     "/app/staff/person-a",
     "/app/staff/order",
@@ -130,6 +132,15 @@ describe("app route search policy", () => {
 });
 
 describe("app shell route policy", () => {
+  it("出力専用routeのbare宣言を親のnavigationより優先する", () => {
+    expect(
+      resolveAppShellRouteData([
+        { staticData: { appShell: { mode: "navigation", activeKey: "shifts" } } },
+        { staticData: { appShell: { mode: "bare" } } },
+      ]),
+    ).toEqual({ mode: "bare" });
+  });
+
   it("最も深いmatchのshell宣言を採用する", () => {
     expect(
       resolveAppShellRouteData([

@@ -30,6 +30,7 @@ describe("app route matching", () => {
     ["/manage/shops/shop-a", "/_auth/manage_/shops/$shopId"],
     ["/shifts", "/_auth/shifts"],
     ["/shifts/recruitment-a/board", "/_auth/shifts_/$recruitmentId_/board"],
+    ["/shifts/recruitment-a/export", "/_auth/shifts_/$recruitmentId_/export"],
     ["/staff", "/_auth/staff"],
     ["/staff/order", "/_auth/staff_/order"],
     ["/staff/person-a", "/_auth/staff_/$personId"],

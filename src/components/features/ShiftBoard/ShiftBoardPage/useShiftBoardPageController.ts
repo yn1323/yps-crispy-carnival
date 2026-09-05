@@ -27,6 +27,7 @@ import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { useDeadlineActive } from "@/src/hooks/useDeadlineActive";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { useManagerShopScope } from "@/src/providers/ManagerShopScopeProvider";
 import type { ShiftBoardData } from "../types";
 import { buildShiftData } from "./buildShiftData";
 import type { ShiftBoardPageViewProps } from "./types";
@@ -89,6 +90,9 @@ export const useShiftBoardPageController = (
   data: ShiftBoardData,
   recruitmentId: Id<"recruitments">,
 ): ShiftBoardPageViewProps => {
+  const managerShopScope = useManagerShopScope();
+  const exportOrganizationId =
+    managerShopScope?.shopId === data.shopId ? managerShopScope.expectedOrganizationId : undefined;
   const saveShiftAssignments = useShopMutation(api.shiftBoard.mutations.saveShiftAssignments);
   const confirmRecruitmentMutation = useShopMutation(api.shiftBoard.mutations.confirmRecruitment);
 
@@ -142,6 +146,7 @@ export const useShiftBoardPageController = (
   // 下書き保存でdirty基準が更新されても、再通知までは確認対象を維持する
   const confirmedWarningBaselineRef = useRef<ShiftData[]>(initialShifts);
   const isFormInitializedRef = useRef(false);
+  const pendingWriteCountRef = useRef(0);
   const canWriteBusinessDataRef = useRef(data.canWriteBusinessData);
   const shopClosedDateSet = useMemo(
     () => new Set(data.recruitment.shopClosedDates),
@@ -279,9 +284,14 @@ export const useShiftBoardPageController = (
       return false;
     }
     const shiftsAtSave = shiftsRef.current;
-    await saveShiftAssignments({ recruitmentId, assignments: buildSaveAssignments(shiftsAtSave) });
-    baselineShiftsRef.current = shiftsAtSave;
-    return true;
+    pendingWriteCountRef.current += 1;
+    try {
+      await saveShiftAssignments({ recruitmentId, assignments: buildSaveAssignments(shiftsAtSave) });
+      baselineShiftsRef.current = shiftsAtSave;
+      return true;
+    } finally {
+      pendingWriteCountRef.current -= 1;
+    }
   }, [buildSaveAssignments, isPastShiftNow, isReadOnly, readOnlyReason, recruitmentId, saveShiftAssignments]);
 
   // 確定ボタン押下時: フロントで全件評価する。
@@ -313,6 +323,7 @@ export const useShiftBoardPageController = (
       return;
     }
     const shiftsAtSave = shiftsRef.current;
+    pendingWriteCountRef.current += 1;
     try {
       await saveShiftAssignments({ recruitmentId, assignments: buildSaveAssignments(shiftsAtSave) });
       // 保存はこの時点で完了している。後続のconfirmが失敗しても未保存扱い（離脱ブロック）にしない
@@ -336,6 +347,8 @@ export const useShiftBoardPageController = (
       if (handleMutationError(error)) {
         confirmModal.close();
       }
+    } finally {
+      pendingWriteCountRef.current -= 1;
     }
   });
 
@@ -407,6 +420,26 @@ export const useShiftBoardPageController = (
     }
   });
 
+  const handleOpenExport = useCallback(() => {
+    if (!exportOrganizationId) return;
+    if (!isFormInitializedRef.current) {
+      toaster.create({ title: "シフト表の読み込みが完了してから出力してください", type: "info" });
+      return;
+    }
+    // stateの再描画前に保存や確定が始まっても、保存途中の内容を別タブで読み込ませない。
+    if (pendingWriteCountRef.current > 0 || isSavingDraft || isConfirming || isSavingAndLeaving) {
+      toaster.create({ title: "保存・確定の処理が完了してから出力してください", type: "info" });
+      return;
+    }
+    if (hasUnsavedChanges()) {
+      toaster.create({ title: "変更を保存してから出力してください", type: "info" });
+      return;
+    }
+
+    const search = new URLSearchParams({ org: exportOrganizationId });
+    window.open(`/shifts/${encodeURIComponent(recruitmentId)}/export?${search}`, "_blank", "noopener,noreferrer");
+  }, [exportOrganizationId, hasUnsavedChanges, isConfirming, isSavingAndLeaving, isSavingDraft, recruitmentId]);
+
   return {
     viewModel: {
       periodLabel,
@@ -414,6 +447,7 @@ export const useShiftBoardPageController = (
       isConfirmed,
       isReadOnly,
       readOnlyReason,
+      exportAction: exportOrganizationId ? { isDisabled: isSavingDraft || isConfirming || isSavingAndLeaving } : null,
       showTimeInputGuide: data.submissionPattern.kind === "time",
       shiftForm: {
         shopId: data.shopId,
@@ -448,6 +482,7 @@ export const useShiftBoardPageController = (
       },
     },
     intents: {
+      onOpenExport: handleOpenExport,
       onShiftsChange: handleShiftsChange,
       onSaveDraft: performSaveDraft,
       onConfirmRequest: handleConfirmRequest,

@@ -11,6 +11,7 @@ export type ShiftBoardPageViewModel = {
   isConfirmed: boolean;
   isReadOnly: boolean;
   readOnlyReason: string | null;
+  exportAction: { isDisabled: boolean } | null;
   showTimeInputGuide: boolean;
   shiftForm: {
     shopId: string;
@@ -46,6 +47,7 @@ export type ShiftBoardPageViewModel = {
 };
 
 export type ShiftBoardPageIntents = {
+  onOpenExport: () => void;
   onShiftsChange: (shifts: ShiftData[]) => void;
   onSaveDraft: () => void;
   onConfirmRequest: () => void;
