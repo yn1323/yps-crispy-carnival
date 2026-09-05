@@ -98,6 +98,70 @@ describe("R2レポートの公開確定", () => {
     expect([...fixture.objects.entries()]).toEqual(before);
   });
 
+  it("並列転送の失敗時は遅い転送の完了後に回収し、未確定画像が復活しない", async () => {
+    const fixture = createMemoryReportStore();
+    const request = await report();
+    await publishHostedReport(request, { store: fixture.store, verifySource: current });
+    const before = [...fixture.objects.entries()];
+    for (const name of ["a-fast.txt", "b-slow.txt", "c.txt", "d.txt"]) {
+      await writeFile(path.join(request.source, name), name);
+    }
+    let releaseSlow = () => {};
+    let signalSlowStarted = () => {};
+    let signalSlowFinished = () => {};
+    const slowStarted = new Promise<void>((resolve) => {
+      signalSlowStarted = resolve;
+    });
+    const slowFinished = new Promise<void>((resolve) => {
+      signalSlowFinished = resolve;
+    });
+    const slowRelease = new Promise<void>((resolve) => {
+      releaseSlow = resolve;
+    });
+    const attempted: string[] = [];
+    let cleanupStarted = false;
+    fixture.state.beforePut = async (key) => {
+      attempted.push(key);
+      if (key.endsWith("/a-fast.txt")) {
+        await slowStarted;
+        throw new Error("parallel transfer failed");
+      }
+      if (key.endsWith("/b-slow.txt")) {
+        signalSlowStarted();
+        await slowRelease;
+      }
+    };
+    const head = fixture.store.head;
+    fixture.store.head = async (key) => {
+      const object = await head(key);
+      if (key.endsWith("/b-slow.txt")) signalSlowFinished();
+      return object;
+    };
+    fixture.state.beforeDelete = async () => {
+      cleanupStarted = true;
+    };
+    const publication = publishHostedReport(
+      { ...request, runId: 101 },
+      { store: fixture.store, verifySource: current },
+    ).catch((error: unknown) => error);
+    await slowStarted;
+    // Allow the fast rejection to propagate while the other upload remains explicitly blocked.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const cleanedWhileUploading = cleanupStarted;
+    releaseSlow();
+    await slowFinished;
+    expect(await publication).toEqual(new Error("parallel transfer failed"));
+    expect(cleanedWhileUploading).toBe(false);
+    expect(cleanupStarted).toBe(true);
+    expect(attempted.sort()).toEqual([
+      "vrt/pr-9/101-1/a-fast.txt",
+      "vrt/pr-9/101-1/b-slow.txt",
+      "vrt/pr-9/101-1/c.txt",
+      "vrt/pr-9/101-1/d.txt",
+    ]);
+    expect([...fixture.objects.entries()]).toEqual(before);
+  });
+
   it("確定直前にPR headが変わった場合は今回の公開を破棄する", async () => {
     const { store, objects } = createMemoryReportStore();
     const request = await report();

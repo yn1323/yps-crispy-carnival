@@ -199,15 +199,22 @@ export async function publishHostedReport(input, { store, verifySource, afterCom
   validateReportManifest(manifest, request);
   let committed = false;
   try {
-    for (const file of files) {
-      const contents = await readFile(file.path);
-      if (contents.length !== file.bytes) throw new Error("Report source changed during publication");
-      await uploadImmutable(
-        store,
-        `${reportPrefix}${file.name}`,
-        contents,
-        CONTENT_TYPES[path.extname(file.name).toLowerCase()] ?? "application/octet-stream",
+    for (let index = 0; index < files.length; index += 4) {
+      const transfers = await Promise.allSettled(
+        files.slice(index, index + 4).map(async (file) => {
+          const contents = await readFile(file.path);
+          if (contents.length !== file.bytes) throw new Error("Report source changed during publication");
+          await uploadImmutable(
+            store,
+            `${reportPrefix}${file.name}`,
+            contents,
+            CONTENT_TYPES[path.extname(file.name).toLowerCase()] ?? "application/octet-stream",
+          );
+        }),
       );
+      // Drain every in-flight upload before cleanup, so late writes cannot restore an abandoned generation.
+      const failed = transfers.find((transfer) => transfer.status === "rejected");
+      if (failed) throw failed.reason;
     }
     if (baselineContents) await uploadImmutable(store, manifest.baseline.key, baselineContents, "application/zip");
     const finalState = await verify();
