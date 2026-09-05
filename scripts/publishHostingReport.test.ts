@@ -2,9 +2,14 @@ import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMemoryReportStore } from "./hostedReportStore.fixture";
-import { ReportStoreConflictError, readReportManifest, reportTargetPaths } from "./hostedReportStore.mjs";
+import {
+  R2ConfigurationError,
+  ReportStoreConflictError,
+  readReportManifest,
+  reportTargetPaths,
+} from "./hostedReportStore.mjs";
 import { maintainR2Reports } from "./maintainR2Reports.mjs";
 import { normalizePublishRequest, type PublishRequest, publishHostedReport } from "./publishHostingReport.mjs";
 
@@ -82,6 +87,54 @@ describe("R2レポートの公開確定", () => {
       publishHostedReport({ ...request, sourceSha: "b".repeat(40), runAttempt: 2 }, { store, verifySource: current }),
     ).rejects.toThrow("identity collision");
     expect([...objects.entries()]).toEqual(before);
+  });
+
+  it("コメント投稿失敗後は同じrunの再実行で再通知し、R2へ重複転送しない", async () => {
+    const fixture = createMemoryReportStore();
+    const request = await report();
+    const afterCommit = vi.fn().mockRejectedValueOnce(new Error("GitHub POST failed")).mockResolvedValue(undefined);
+    const options = { store: fixture.store, verifySource: current, afterCommit };
+    const first = await publishHostedReport(request, options);
+    expect(first.warnings).toEqual(["Report is published; its notification or HTTP verification failed"]);
+    const before = [...fixture.objects.entries()];
+    fixture.state.beforePut = async () => {
+      throw new Error("Must not upload an already published report");
+    };
+    const retry = await publishHostedReport(request, options);
+    expect([retry.status, retry.uploadedFiles, retry.deletedFiles, retry.warnings]).toEqual(["noop", 0, 0, []]);
+    expect(afterCommit).toHaveBeenCalledTimes(2);
+    expect(afterCommit).toHaveBeenLastCalledWith(first.manifest, first.reportUrl);
+    expect([...fixture.objects.entries()]).toEqual(before);
+  });
+
+  it.each(["stale", "closed"] as const)("公開済みでもGitHubで%sになったrunのコメントは再投稿しない", async (status) => {
+    const { store } = createMemoryReportStore();
+    const request = await report();
+    await publishHostedReport(request, { store, verifySource: current });
+    const afterCommit = vi.fn();
+    const result = await publishHostedReport(request, {
+      store,
+      verifySource: async () => ({ status }),
+      afterCommit,
+    });
+    expect(result.status).toBe(status);
+    expect(afterCommit).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("公開後の設定エラーをwarningで隠さず停止する（公開済み: %s）", async (published) => {
+    const { store } = createMemoryReportStore();
+    const request = await report();
+    if (published) await publishHostedReport(request, { store, verifySource: current });
+    const error = new R2ConfigurationError("Invalid public report URL");
+    await expect(
+      publishHostedReport(request, {
+        store,
+        verifySource: current,
+        afterCommit: async () => {
+          throw error;
+        },
+      }),
+    ).rejects.toBe(error);
   });
 
   it("途中の転送失敗では旧確定世代を残し、今回だけを回収する", async () => {

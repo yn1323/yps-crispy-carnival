@@ -136,6 +136,18 @@ export async function publishHostedReport(input, { store, verifySource, afterCom
   const reportPrefix = `${paths.reportRoot}${request.runId}-${request.runAttempt}/`;
   const reportUrl = publicReportUrl(store.publicBaseUrl, `${reportPrefix}index.html`);
   const warnings = [];
+  const warning = (error, label) => {
+    if (error instanceof R2ConfigurationError) throw error;
+    warnings.push(label);
+  };
+  const notify = async (manifest) => {
+    if (!afterCommit) return;
+    try {
+      await afterCommit(manifest, publicReportUrl(store.publicBaseUrl, `${manifest.reportPrefix}index.html`));
+    } catch (error) {
+      warning(error, "Report is published; its notification or HTTP verification failed");
+    }
+  };
   const result = (status, manifest = null, extra = {}) => ({
     status,
     reportUrl: manifest ? publicReportUrl(store.publicBaseUrl, `${manifest.reportPrefix}index.html`) : reportUrl,
@@ -164,7 +176,12 @@ export async function publishHostedReport(input, { store, verifySource, afterCom
   if (initialState === "stale") return result("stale");
   const observed = await readReportManifest(store, request);
   const comparison = comparePublishedRun(observed?.manifest, request);
-  if (comparison !== "newer") return result(comparison === "same" ? "noop" : "stale", observed.manifest);
+  if (comparison === "stale") return result("stale", observed.manifest);
+  if (comparison === "same") {
+    // A previous publication may have committed successfully but failed to post its comment.
+    await notify(observed.manifest);
+    return result("noop", observed.manifest);
+  }
   const files = await reportFiles(request.source, request.reportType);
   const manifest = {
     schemaVersion: 1,
@@ -247,10 +264,6 @@ export async function publishHostedReport(input, { store, verifySource, afterCom
       }
     }
   }
-  const warning = (error, label) => {
-    if (error instanceof R2ConfigurationError) throw error;
-    warnings.push(label);
-  };
   if (observed?.manifest.baseline && observed.manifest.baseline.key !== manifest.baseline?.key) {
     try {
       await recordRetiredBaseline(store, request, observed.manifest.baseline.key, now());
@@ -258,13 +271,7 @@ export async function publishHostedReport(input, { store, verifySource, afterCom
       warning(error, "Previous baseline retirement will be retried by maintenance");
     }
   }
-  if (afterCommit) {
-    try {
-      await afterCommit(manifest, reportUrl);
-    } catch (error) {
-      warning(error, "Report is published; its notification or HTTP verification failed");
-    }
-  }
+  await notify(manifest);
   let deletedFiles = 0;
   if (observed && observed.manifest.reportPrefix !== reportPrefix) {
     try {
