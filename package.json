@@ -140,9 +140,9 @@
     "@types/unzipper": "0.10.11",
     "@typescript/native": "catalog:",
     "@vitejs/plugin-react": "catalog:",
-    "@vitest/browser": "4.1.10",
-    "@vitest/browser-playwright": "4.1.10",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/browser": "5.0.0",
+    "@vitest/browser-playwright": "5.0.0",
+    "@vitest/coverage-v8": "5.0.0",
     "@yn1323/cognac": "^0.3.2",
     "chromatic": "18.0.1",
     "concurrently": "^10.0.3",
@@ -161,7 +161,7 @@
     "tsx": "4.23.1",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitest": "4.1.10",
+    "vitest": "5.0.0",
     "web-vitals": "5.3.0",
     "yaml": "^2.9.0"
   }
