@@ -54,6 +54,7 @@ privacy gateがtoken、credential、非placeholder email、認証storage、検�
 Playwright本体、result gate、privacy gate、R2への転送・公開確定の失敗はworkflowを失敗させる。
 テストが失敗した場合も、レポート生成とprivacy検査が成功していれば結果を公開する。
 公開確定後のHTTP到達確認とPRコメントの失敗はwarningとして分け、公開URLを確認できない場合はActionsのArtifactで結果を確認する。
+PRコメントは同じレポート種別の既存Botコメントを削除してから新規投稿する。VRTコメントには対象runの承認画面へのリンクを付ける。
 
 flake調査はretryを無効にした次のcommandで行う。
 
