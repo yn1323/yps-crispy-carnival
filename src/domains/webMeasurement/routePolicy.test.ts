@@ -34,6 +34,7 @@ describe("Web計測route policy", () => {
     ["/shifts", "shift_management"],
     ["/app/shifts/recruitment_internal_id/board", "shiftboard"],
     ["/shifts/recruitment_internal_id/export", "shift_export"],
+    ["/Shifts/recruitment_internal_id/Export", "shift_export"],
     ["/staff", "staff_management"],
     ["/app/staff/order", "staff_management"],
     ["/staff/person_internal_id", "staff_detail"],

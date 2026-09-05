@@ -74,7 +74,7 @@ export function normalizeMeasurementPathname(value: string): string {
 }
 
 export function getWebMeasurementRouteFamily(value: string): WebMeasurementRouteFamily {
-  const pathname = normalizeMeasurementPathname(value);
+  const pathname = normalizeMeasurementPathname(value).toLowerCase();
   const fixedFamily = fixedRouteFamilies.get(pathname);
   if (fixedFamily) return fixedFamily;
 

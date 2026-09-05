@@ -16,10 +16,14 @@ describe("app route matching", () => {
   it("catch-all以外の実routeをnot_foundへ分類しない", () => {
     const unclassifiedRoutes = [...new Set(Object.values(router.routesById).map((route) => route.fullPath))]
       .filter((fullPath) => fullPath !== "/$")
-      .map((fullPath) => ({
-        fullPath,
-        routeFamily: getWebMeasurementRouteFamily(getRepresentativePathname(fullPath)),
-      }))
+      .flatMap((fullPath) => {
+        const pathname = getRepresentativePathname(fullPath);
+        return [pathname, pathname.toUpperCase()].map((candidatePathname) => ({
+          fullPath,
+          pathname: candidatePathname,
+          routeFamily: getWebMeasurementRouteFamily(candidatePathname),
+        }));
+      })
       .filter(({ routeFamily }) => routeFamily === "not_found");
 
     expect(unclassifiedRoutes).toEqual([]);
