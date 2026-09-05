@@ -22,6 +22,7 @@ RepositoryまたはDevelopmentの確認を明記した行を含め、Production�
 | Productionのフロントエンドartifactとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | ProductionのConvex deployとcommit SHA | 未確認 | 未確認 | 未確認 | 未登録 |
 | Productionのmigration seriesと各migrationの完了 | 未確認 | 未確認 | 未確認 | 未登録 |
+| VRT・E2E用R2の認証・公開URL・削除権限 | CI接続確認済み・アプリProductionは対象外 | 2026-09-05 13:25 JST | R2 `yps-crispy-carnival`、GitHub Environment `Preview` | 本文のR2接続確認記録 |
 | シフト表出力のローカルE2Eと通知抑止設定 | Local確認済み・Production未確認 | 2026-09-05 11:40 JST | `dev:fortunate-mallard-809` | 本文のシフト表出力のローカル確認記録 |
 | 店舗status廃止のdeploy前export検証、m048 / m049完了、全ページpost-readiness、旧client drain | **Development PR1例外承認・runtime未反映・Production未確認** | 2026-08-29 10:15 JST | `dev:fortunate-mallard-809` | 削除済み`archived` 1件を変更せずPR1 runtime切替を進めるDevelopment限定の例外承認を得た。公開Function metadataは旧runtimeの140件で、`archiveShop` / `reactivateShop`が残る。m048、PR2、Productionとほかのdeploymentは未確認 |
 | `staffs.organizationId` / `organizationPersonId` required Narrowと旧staff fallback削除 | **Development deploy停止・Production未確認** | 2026-08-29 10:23 JST | `dev:fortunate-mallard-809` | `verifyStaffs`全5ページ・497件で両ID欠損が各355件。欠損staffは未削除54店舗に分布し、未解消migration conflictも356件あるため、共有artifactの反映を停止した |
@@ -102,6 +103,17 @@ artifactのProduction反映と反映後canaryも別の証跡とし、ローカ�
 - 停止位置・復旧先:
 - 次の確認条件:
 ```
+
+### 2026-09-05 13:25 JST：レポート用R2接続確認（CI）
+
+| 項目 | 確認内容 |
+|---|---|
+| 状態・確認者 | CIから実R2への接続を確認済み。Codexによる自動検証。アプリのProductionは対象外 |
+| 対象 | R2バケット`yps-crispy-carnival`と、その`r2.dev`公開URL。GitHub Environmentは`Preview`、設定はrepository scope |
+| artifact | workflow head `7479ea761edaf94488a71191d01cdae9a8189183`、固定helper `7aff4a01f749873dbc6ed0bffd5946f01c4fcc36` |
+| 実行・結果 | `Maintain hosted report retention`の`operation: check`が成功。確認用ファイルの保存、取得、一覧、ETag条件付き更新、公開GET、匿名PUT拒否、削除、削除後の公開404を確認 |
+| 証跡 | [接続確認run 33944491792](https://github.com/yn1323/yps-crispy-carnival/actions/runs/33944491792) |
+| 設定変更・残る範囲 | 登録済みのSecrets二つ・Variables三つを使用し、設定値は変更していない。確認用ファイルは削除済み。baseline移行とPRレポート公開の結果は、この接続確認とは別に検証する |
 
 ### 2026-09-05 11:40 JST：シフト表出力と通知抑止設定（Local）
 
