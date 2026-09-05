@@ -205,7 +205,11 @@ async function getNotificationState(ctx: QueryCtx, recruitment: Doc<"recruitment
 
 /** 認可済みの保存内容だけを、ブラウザで帳票生成するための最小DTOへ射影する。 */
 export const getShiftExportData = managerQuery({
-  args: { recruitmentId: v.id("recruitments") },
+  args: {
+    recruitmentId: v.id("recruitments"),
+    // 日付変更時にfrontendが再購読するためのkey。表示判定にはserver時刻だけを使う。
+    refreshDayKey: v.string(),
+  },
   returns: v.union(shiftExportDataValidator, v.null()),
   handler: async (ctx, { recruitmentId }) => {
     const { shop, organization } = ctx;

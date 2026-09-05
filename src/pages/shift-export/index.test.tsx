@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { type ReactNode, useEffect } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createExportFixture } from "@/src/components/features/ShiftExport/fixtures";
 
 const mocks = vi.hoisted(() => ({
@@ -62,9 +62,14 @@ import { ShiftExportRoutePage } from ".";
 
 const scope = { shopId: "verified-shop", shopName: "出力店舗" };
 const routeProps = { organizationId: "organization-a", recruitmentId: "recruitment-a" };
+const SESSION_ID = "00000000-0000-4000-8000-00000000000a";
+const INITIAL_DAY_KEY = `2026-09-30:${SESSION_ID}:0`;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.useFakeTimers();
+  vi.setSystemTime(Date.parse("2026-09-30T23:59:59.900+09:00"));
+  vi.spyOn(crypto, "randomUUID").mockReturnValue(SESSION_ID);
   mocks.scope = undefined;
   mocks.data = undefined;
   mocks.errorQuery = null;
@@ -80,6 +85,11 @@ beforeEach(() => {
     }
     throw new Error("unexpected query reference");
   });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe("ShiftExportRoutePage", () => {
@@ -102,6 +112,7 @@ describe("ShiftExportRoutePage", () => {
       shopId: "verified-shop",
       expectedOrganizationId: "organization-a",
       recruitmentId: "recruitment-a",
+      refreshDayKey: INITIAL_DAY_KEY,
     });
     expect(mocks.mounted).not.toHaveBeenCalled();
 
@@ -124,6 +135,33 @@ describe("ShiftExportRoutePage", () => {
     expect(screen.getByRole("heading", { name: "シフト表が見つかりません" })).toBeTruthy();
     expect(mocks.mounted).not.toHaveBeenCalled();
     if (missing === "scope") expect(mocks.useQuery).toHaveBeenCalledWith(mocks.exportQuery, "skip");
+  });
+
+  it("JST日付変更後に帳票queryを再取得し、削除staff割当による出力停止を再評価する", async () => {
+    mocks.scope = scope;
+    const data = createExportFixture();
+    mocks.useQuery.mockImplementation((reference: unknown, args: { refreshDayKey?: string } | "skip") => {
+      if (reference === mocks.scopeQuery) return scope;
+      if (args === "skip") return undefined;
+      return args.refreshDayKey === `2026-10-01:${SESSION_ID}:1`
+        ? data
+        : { ...data, exportBlockReason: "excludedStaffAssignments" };
+    });
+    render(<ShiftExportRoutePage {...routeProps} />);
+    expect(screen.getByRole("heading", { name: "シフト表を出力できません" })).toBeTruthy();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_101);
+    });
+
+    expect(mocks.useQuery).toHaveBeenLastCalledWith(mocks.exportQuery, {
+      shopId: "verified-shop",
+      expectedOrganizationId: "organization-a",
+      recruitmentId: "recruitment-a",
+      refreshDayKey: `2026-10-01:${SESSION_ID}:1`,
+    });
+    expect(screen.queryByRole("heading", { name: "シフト表を出力できません" })).toBeNull();
+    expect(screen.getByTestId("export-page").textContent).toBe(data.shopName);
   });
 
   it.each(["noSavedShifts", "noStaffs", "excludedStaffAssignments"] as const)(
@@ -178,6 +216,7 @@ describe("ShiftExportRoutePage", () => {
         shopId: "next-verified-shop",
         expectedOrganizationId: nextProps.organizationId,
         recruitmentId: nextProps.recruitmentId,
+        refreshDayKey: INITIAL_DAY_KEY,
       });
       expect(mocks.unmounted).toHaveBeenCalledTimes(1);
       expect(mocks.mounted).toHaveBeenCalledTimes(2);

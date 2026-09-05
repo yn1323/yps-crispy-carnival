@@ -7,6 +7,7 @@ import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { ShiftoriLoading } from "@/src/components/ui/ShiftoriLoading";
+import { useShiftBoardDayKey } from "@/src/hooks/useShiftBoardDayKey";
 
 type Props = { organizationId: string; recruitmentId: string };
 
@@ -21,6 +22,7 @@ export function ShiftExportRoutePage(props: Props) {
 function ShiftExportQuery({ organizationId, recruitmentId }: Props) {
   const organizationDocumentId = organizationId as Id<"organizations">;
   const recruitmentDocumentId = recruitmentId as Id<"recruitments">;
+  const refreshDayKey = useShiftBoardDayKey();
   const scope = useQuery(api.shiftBoard.queries.getShiftBoardShopScopeForOrganization, {
     organizationId: organizationDocumentId,
     recruitmentId: recruitmentDocumentId,
@@ -28,7 +30,12 @@ function ShiftExportQuery({ organizationId, recruitmentId }: Props) {
   const data = useQuery(
     api.shiftExport.queries.getShiftExportData,
     scope
-      ? { shopId: scope.shopId, expectedOrganizationId: organizationDocumentId, recruitmentId: recruitmentDocumentId }
+      ? {
+          shopId: scope.shopId,
+          expectedOrganizationId: organizationDocumentId,
+          recruitmentId: recruitmentDocumentId,
+          refreshDayKey,
+        }
       : "skip",
   );
   if (scope === null || data === null) return <ExportUnavailable />;

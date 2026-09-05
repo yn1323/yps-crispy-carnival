@@ -40,11 +40,12 @@ async function seedExport(t: TestConvex<typeof schema>) {
 
 type Fixture = Awaited<ReturnType<typeof seedExport>>;
 
-function query(t: TestConvex<typeof schema>, ids: Fixture) {
+function query(t: TestConvex<typeof schema>, ids: Fixture, refreshDayKey = "2026-09-05:test") {
   return t.withIdentity({ subject: SUBJECT }).query(api.shiftExport.queries.getShiftExportData, {
     shopId: ids.shopId,
     expectedOrganizationId: ids.organizationId,
     recruitmentId: ids.recruitmentId,
+    refreshDayKey,
   });
 }
 
@@ -157,6 +158,7 @@ describe("shiftExport/queries", () => {
       shopId: ids.shopId,
       expectedOrganizationId: ids.organizationId,
       recruitmentId: ids.recruitmentId,
+      refreshDayKey: "2026-09-05:test",
     };
     await t.run(async (ctx) => {
       if (kind === "staff") {
@@ -351,6 +353,28 @@ describe("shiftExport/queries", () => {
       assignments: [{ staffId: removedId }],
       exportBlockReason: null,
     });
+  });
+
+  it("JST日付変更後の再取得で削除staffの保存割当を出力し、clientの日付キーでは過去判定を変えない", async () => {
+    vi.setSystemTime(Date.parse("2026-09-30T23:59:59+09:00"));
+    const t = convexTest(schema, modules);
+    const ids = await seedExport(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.staffId, { isDeleted: true });
+      await ctx.db.insert("shiftAssignments", assignment(ids));
+    });
+
+    const current = await query(t, ids, "2099-01-01:client-ahead");
+    expect(current).toMatchObject({ staffs: [], assignments: [], exportBlockReason: "excludedStaffAssignments" });
+
+    vi.setSystemTime(Date.parse("2026-10-01T00:00:00+09:00"));
+    const past = await query(t, ids, "2026-10-01:refreshed");
+    expect(past).not.toBeNull();
+    expect(past?.staffs).toEqual([{ id: ids.staffId, name: "スタッフA", isRemoved: true }]);
+    expect(past?.assignments).toEqual([
+      { staffId: ids.staffId, date: "2026-09-01", startTime: "09:00", endTime: "17:00", optionId: null },
+    ]);
+    expect(past?.exportBlockReason).toBeNull();
   });
 
   it.each(["period", "staffs", "assignments", "historicalStaffs"] as const)(
