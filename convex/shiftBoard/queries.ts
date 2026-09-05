@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { isPastShiftPeriod } from "../_lib/dateFormat";
 import { managerQuery, organizationQuery } from "../_lib/functions";
+import { getRecruitmentEditVersion, isCurrentSubmission } from "../_lib/recruitmentEditing";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
 import { shiftAssignmentReadValidator } from "../_lib/shiftAssignmentValidators";
 import { getSubmissionPatternTimeRange, submissionPatternValidator } from "../_lib/submissionPattern";
@@ -29,6 +30,7 @@ const shiftBoardDataValidator = v.object({
   businessWriteBlockReason: shiftBoardWriteBlockReasonValidator,
   recruitment: v.object({
     _id: v.id("recruitments"),
+    editVersion: v.number(),
     periodStart: v.string(),
     periodEnd: v.string(),
     deadline: v.string(),
@@ -130,7 +132,7 @@ export const getShiftBoardData = managerQuery({
       }
     }
     const submissionByStaffId = new Map(submissions.map((s) => [s.staffId, s]));
-    const submittedStaffIds = new Set(submissions.map((s) => s.staffId));
+    const submittedStaffIds = new Set(submissions.filter(isCurrentSubmission).map((s) => s.staffId));
     const draftSavedAt = recruitment.draftSavedAt ?? null;
 
     // TimeRange.start/end は「時」の数値を期待（9, 22 等）
@@ -154,6 +156,7 @@ export const getShiftBoardData = managerQuery({
       businessWriteBlockReason,
       recruitment: {
         _id: recruitment._id,
+        editVersion: getRecruitmentEditVersion(recruitment),
         periodStart: recruitment.periodStart,
         periodEnd: recruitment.periodEnd,
         deadline: recruitment.deadline,

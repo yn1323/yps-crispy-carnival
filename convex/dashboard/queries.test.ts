@@ -1109,6 +1109,7 @@ describe("dashboard/queries", () => {
         "confirmedAt",
         "createdAt",
         "deadline",
+        "editVersion",
         "periodEnd",
         "periodStart",
         "responseCount",

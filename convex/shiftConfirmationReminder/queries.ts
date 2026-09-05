@@ -1,7 +1,8 @@
 import { v } from "convex/values";
 import { buildShopDashboardUrl } from "../_lib/dashboardUrl";
-import { formatDeadlineLabel, formatPeriodLabel } from "../_lib/dateFormat";
+import { formatDeadlineLabel, formatPeriodLabel, getDeadlineCutoff } from "../_lib/dateFormat";
 import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
+import { getRecruitmentEditVersion } from "../_lib/recruitmentEditing";
 import { loadShopManagerRecipients } from "../_lib/shopManagerRecipients";
 import { SHIFT_CONFIRMATION_REMINDER_MANAGER_LIMIT } from "../constants";
 
@@ -10,10 +11,12 @@ import { SHIFT_CONFIRMATION_REMINDER_MANAGER_LIMIT } from "../constants";
  * 募集が削除済み / 確定済み（status !== "open"）の場合は null を返し、発火時のガードとする。
  */
 export const getManagerConfirmationReminderTarget = internalQuery({
-  args: { recruitmentId: v.id("recruitments") },
-  handler: async (ctx, { recruitmentId }) => {
+  args: { recruitmentId: v.id("recruitments"), recruitmentVersionAtOrigin: v.optional(v.number()) },
+  handler: async (ctx, { recruitmentId, recruitmentVersionAtOrigin }) => {
     const recruitment = await ctx.db.get(recruitmentId);
     if (!recruitment || recruitment.isDeleted || recruitment.status !== "open") return null;
+    if (getRecruitmentEditVersion(recruitment) !== (recruitmentVersionAtOrigin ?? 0)) return null;
+    if (Date.now() < getDeadlineCutoff(recruitment.deadline)) return null;
 
     const shop = await ctx.db.get(recruitment.shopId);
     if (!shop || shop.isDeleted) return null;

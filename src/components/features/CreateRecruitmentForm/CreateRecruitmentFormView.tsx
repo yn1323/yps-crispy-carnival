@@ -7,7 +7,7 @@ import { CalendarPicker } from "./CalendarPicker";
 import { RecruitmentConfirmation } from "./RecruitmentConfirmation";
 import { RecruitmentShopSelection } from "./RecruitmentShopSelection";
 import { RecruitmentWizardActions } from "./RecruitmentWizardActions";
-import type { CreateRecruitmentSelectableShop, CreateRecruitmentStep } from "./types";
+import type { CreateRecruitmentSelectableShop, CreateRecruitmentStep, RecruitmentComparisonRow } from "./types";
 
 type ShopViewModel = {
   shops: readonly CreateRecruitmentSelectableShop[];
@@ -44,6 +44,7 @@ type DeadlineViewModel = {
 };
 
 type ConfirmationViewModel = {
+  comparison?: RecruitmentComparisonRow[];
   shopName?: string;
   periodLabel: string;
   holidaySummary: {
@@ -51,10 +52,12 @@ type ConfirmationViewModel = {
     detail?: string;
   };
   deadlineLabel: string;
+  reminderDescription: string;
 };
 
 type Props = {
   currentStep: CreateRecruitmentStep;
+  isEditing?: boolean;
   isPeriodOnly: boolean;
   hasShopStep: boolean;
   canContinueFromShop: boolean;
@@ -124,6 +127,7 @@ const recruitmentSteps: StepperDialogStep<CreateRecruitmentStep>[] = [
 
 export const CreateRecruitmentFormView = ({
   currentStep,
+  isEditing = false,
   isPeriodOnly,
   hasShopStep,
   canContinueFromShop,
@@ -147,13 +151,20 @@ export const CreateRecruitmentFormView = ({
   onGoToDeadline,
   onGoToConfirm,
 }: Props) => {
-  const steps = hasShopStep ? [shopStep, ...recruitmentSteps] : recruitmentSteps;
+  const formSteps = isEditing
+    ? recruitmentSteps.map((step) =>
+        step.value === "confirm" ? { ...step, description: "変更前と変更後の内容を確認してください。" } : step,
+      )
+    : recruitmentSteps;
+  const steps = hasShopStep ? [shopStep, ...formSteps] : formSteps;
   const actions = isPeriodOnly ? undefined : (
     <RecruitmentWizardActions
       currentStep={currentStep}
+      isEditing={isEditing}
       hasShopStep={hasShopStep}
       canContinueFromShop={canContinueFromShop}
       submitLoading={submitLoading}
+      submitDisabled={isEditing && confirmation.comparison?.every((row) => !row.changed)}
       onCancel={onCancel}
       onGoToShop={onGoToShop}
       onGoToPeriodFromShop={onGoToPeriodFromShop}
@@ -248,7 +259,7 @@ export const CreateRecruitmentFormView = ({
           </Field.Root>
         )}
 
-        {currentStep === "confirm" && <RecruitmentConfirmation {...confirmation} />}
+        {currentStep === "confirm" && <RecruitmentConfirmation {...confirmation} isEditing={isEditing} />}
       </StepperDialogContent>
     </form>
   );

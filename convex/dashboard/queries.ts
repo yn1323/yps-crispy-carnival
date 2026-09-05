@@ -4,6 +4,7 @@ import { ConvexError, v } from "convex/values";
 import type { DataModel, Doc } from "../_generated/dataModel";
 import { todayJST } from "../_lib/dateFormat";
 import { authenticatedQuery, managerQuery } from "../_lib/functions";
+import { getRecruitmentEditVersion, isCurrentSubmission } from "../_lib/recruitmentEditing";
 import { submissionPatternValidator } from "../_lib/submissionPattern";
 import {
   DASHBOARD_ANNOUNCEMENT_CANDIDATE_LIMIT,
@@ -40,6 +41,7 @@ const dashboardStaffValidator = v.object({
 
 export const dashboardRecruitmentValidator = v.object({
   _id: v.id("recruitments"),
+  editVersion: v.number(),
   createdAt: v.number(),
   periodStart: v.string(),
   periodEnd: v.string(),
@@ -179,6 +181,7 @@ export async function toDashboardRecruitment(
   const responseCountHasOverflow = !stats && submissions.length > legacySubmissionCountLimit;
   return {
     _id: recruitment._id,
+    editVersion: getRecruitmentEditVersion(recruitment),
     createdAt: recruitment._creationTime,
     periodStart: recruitment.periodStart,
     periodEnd: recruitment.periodEnd,
@@ -189,7 +192,7 @@ export async function toDashboardRecruitment(
     // 提出数は対象外スタッフの提出も含みうるため、母数（対象外を除いた総数）を上限にクランプし、
     // 「3/2人」のような不可能な比率が表示されないようにする。
     responseCount: Math.min(
-      stats?.submittedCount ?? Math.min(submissions.length, legacySubmissionCountLimit),
+      stats?.submittedCount ?? Math.min(submissions.filter(isCurrentSubmission).length, legacySubmissionCountLimit),
       totalStaffCount,
     ),
     ...(responseCountHasOverflow ? { responseCountHasOverflow: true } : {}),

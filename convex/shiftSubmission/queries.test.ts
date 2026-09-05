@@ -186,6 +186,39 @@ describe("shiftSubmission/queries", () => {
   afterEach(() => vi.useRealTimers());
 
   describe("getSubmissionPageData", () => {
+    it("未提出化後も保存済み希望を返し、提出完了としては扱わない", async () => {
+      const t = convexTest(schema, modules);
+      const ids = await setupSubmissionPageData(t);
+      await t.run(async (ctx) => {
+        await ctx.db.patch(ids.recruitmentId, { editVersion: 2 });
+        const submissionId = await ctx.db.insert("shiftSubmissions", {
+          recruitmentId: ids.recruitmentId,
+          staffId: ids.staffId,
+          firstSubmittedAt: Date.now(),
+          submittedAt: Date.now(),
+          needsResubmission: true,
+        });
+        await ctx.db.insert("shiftSubmissionSlots", {
+          recruitmentId: ids.recruitmentId,
+          staffId: ids.staffId,
+          submissionId,
+          date: "2026-04-21",
+          startTime: "09:00",
+          endTime: "17:00",
+        });
+      });
+      const args = { sessionToken: ids.sessionToken, accessKind: "submit" as const, recruitmentId: ids.recruitmentId };
+      const result = await t.query(api.shiftSubmission.queries.getSubmissionPageData, args);
+      expect(result.status).toBe("ok");
+      if (result.status !== "ok") throw new Error("submission page unavailable");
+      expect(result.data).toMatchObject({
+        editVersion: 2,
+        hasSubmitted: false,
+        existingRequests: [{ date: "2026-04-21", startTime: "09:00", endTime: "17:00" }],
+      });
+      expect(await t.query(api.shiftSubmission.queries.getSubmissionResult, args)).toEqual({ status: "unavailable" });
+    });
+
     it("billing stateが欠損する場合は利用上限を判定できない", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId } = await setupSubmissionPageData(t, { billingState: "missing" });

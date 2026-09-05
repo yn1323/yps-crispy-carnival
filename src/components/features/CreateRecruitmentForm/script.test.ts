@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 import { describe, expect, it } from "vitest";
 import { RECRUITMENT_PERIOD_DAYS_MAX } from "@/convex/constants";
 import {
+  buildRecruitmentComparison,
   createRecruitmentFormSchema,
   createRecruitmentSchema,
   deriveShopClosedDatesFromRegularDays,
@@ -10,7 +11,52 @@ import {
   getHolidaySummary,
   getPeriodSelectionMaxDate,
   getPeriodStepValidationError,
+  preserveEditedClosedDates,
 } from "./script";
+
+describe("募集条件の変更前後", () => {
+  const previous = {
+    periodStart: "2026-06-01",
+    periodEnd: "2026-06-14",
+    deadline: "2026-05-31",
+    shopClosedDates: ["2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04"],
+  };
+
+  it("定休日の4日目以降の変更も省略せず表示し、変更した項目だけを区別する", () => {
+    const comparison = buildRecruitmentComparison(previous, {
+      ...previous,
+      shopClosedDates: ["2026-06-01", "2026-06-02", "2026-06-03", "2026-06-05"],
+    });
+    expect(comparison.map((row) => row.changed)).toEqual([false, true, false]);
+    expect(comparison[1]).toMatchObject({
+      before: "6/1(月), 2(火), 3(水), 4(木)",
+      after: "6/1(月), 2(火), 3(水), 5(金)",
+    });
+  });
+
+  it("定休日の並び順だけが違う場合は変更扱いにしない", () => {
+    const comparison = buildRecruitmentComparison(previous, {
+      ...previous,
+      shopClosedDates: [...previous.shopClosedDates].reverse(),
+    });
+    expect(comparison.every((row) => !row.changed && row.before === row.after)).toBe(true);
+  });
+});
+
+describe("編集時の定休日", () => {
+  const previous = { periodStart: "2026-06-01", periodEnd: "2026-06-07", shopClosedDates: ["2026-06-03"] };
+
+  it("既存期間の臨時休業と通常営業日の例外を維持し、延長した日の曜日設定だけを初期選択する", () => {
+    expect(preserveEditedClosedDates(previous, "2026-06-01", "2026-06-14", ["mon"])).toEqual([
+      "2026-06-03",
+      "2026-06-08",
+    ]);
+  });
+
+  it("縮小で範囲外になった定休日を除く", () => {
+    expect(preserveEditedClosedDates(previous, "2026-06-04", "2026-06-07", ["mon"])).toEqual([]);
+  });
+});
 
 describe("deriveShopClosedDatesFromRegularDays", () => {
   it("期間内の定休日曜日を日付リストに展開する", () => {

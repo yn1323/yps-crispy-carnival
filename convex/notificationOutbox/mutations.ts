@@ -2,11 +2,12 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { monthJST } from "../_lib/dateFormat";
+import { getDeadlineCutoff, monthJST } from "../_lib/dateFormat";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { managerLimitRecoveryMutation, managerMutation } from "../_lib/functions";
 import { isNotificationDeliverySuppressed } from "../_lib/notificationDelivery";
 import { rateLimit } from "../_lib/rateLimits";
+import { getRecruitmentEditVersion, isCurrentSubmission } from "../_lib/recruitmentEditing";
 import { loadShopManagerStaffForContact, type ShopManagerContact } from "../_lib/shopManagerRecipients";
 import { normalizeEmail } from "../_lib/validation";
 import {
@@ -29,6 +30,7 @@ import {
   upsertConfirmationSnapshotRecord,
 } from "../notification/confirmationSnapshots";
 import { buildNotificationFanoutTargetKey, isSupplementalConfirmationFanoutStale } from "../notification/fanout";
+import { canSendRecruitmentNotification } from "../notification/recruitmentPolicy";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { isOrganizationInvitationIssued } from "../organizationInvitation/lifecycle";
 import { resolveOrganizationInvitationEligibility } from "../organizationInvitation/service";
@@ -39,8 +41,12 @@ import {
   getNotificationFailureIdentityForDoc,
   supersededFailureKey,
 } from "./failureIdentity";
-import { getNotificationFailureResendKind, isLineInviteResendContext } from "./failureResend";
-import { shouldSuppressNotificationFailureInbox } from "./failureSuppress";
+import {
+  getNotificationFailureResendKind,
+  isLineInviteResendContext,
+  RECRUITMENT_UPDATE_NOTIFICATION_CONTEXT,
+} from "./failureResend";
+import { SHIFT_CONFIRMATION_REMINDER_CONTEXT, shouldSuppressNotificationFailureInbox } from "./failureSuppress";
 import {
   insertNotificationHistory,
   NOTIFICATION_HISTORY_DELETE_BATCH_SIZE,
@@ -164,6 +170,7 @@ export const enqueue = internalMutation({
     shopId: v.optional(v.id("shops")),
     organizationId: v.optional(v.id("organizations")),
     organizationBillingVersionAtOrigin: v.optional(v.number()),
+    recruitmentVersionAtOrigin: v.optional(v.number()),
     organizationInvitationId: v.optional(v.id("organizationInvitations")),
     organizationInvitationVersion: v.optional(v.number()),
     organizationPersonLineLinkId: v.optional(v.id("organizationPersonLineLinks")),
@@ -365,6 +372,9 @@ export const enqueue = internalMutation({
         : {}),
       purpose,
       ...(args.recruitmentId ? { recruitmentId: args.recruitmentId } : {}),
+      ...(args.recruitmentVersionAtOrigin !== undefined
+        ? { recruitmentVersionAtOrigin: args.recruitmentVersionAtOrigin }
+        : {}),
       ...(args.staffId ? { staffId: args.staffId } : {}),
       ...(args.userId ? { userId: args.userId } : {}),
       notificationContext: notificationContextForPayload(payload, args.dedupeKey),
@@ -1054,6 +1064,7 @@ async function incrementNotificationUsage(
 }
 
 type NotificationEligibilityInput = {
+  recruitmentVersionAtOrigin?: number;
   channel: NotificationChannel;
   shopId?: Id<"shops">;
   organizationId?: Id<"organizations">;
@@ -1306,6 +1317,35 @@ async function getNotificationEligibility(
     }
     if (notification.shopId !== undefined && recruitment.shopId !== notification.shopId) {
       return { organizationId, cancelReason: "invalid_scope" };
+    }
+  }
+  if (recruitment) {
+    const context = notificationContextForPayload(notification.payload, notification.dedupeKey ?? "");
+    if (
+      context === RECRUITMENT_UPDATE_NOTIFICATION_CONTEXT &&
+      !canSendRecruitmentNotification(recruitment, true, now)
+    ) {
+      return { organizationId, cancelReason: "recruitment_inactive" };
+    }
+    const isStaffReminder = context === "notification.sendReminderEmails";
+    const isManagerReminder = context === SHIFT_CONFIRMATION_REMINDER_CONTEXT;
+    if (isStaffReminder || isManagerReminder) {
+      if (getRecruitmentEditVersion(recruitment) !== (notification.recruitmentVersionAtOrigin ?? 0)) {
+        return { organizationId, cancelReason: "notification_superseded" };
+      }
+      const deadlinePassed = now >= getDeadlineCutoff(recruitment.deadline);
+      if (recruitment.status !== "open" || (isStaffReminder ? deadlinePassed : !deadlinePassed)) {
+        return { organizationId, cancelReason: "recruitment_inactive" };
+      }
+      if (isStaffReminder) {
+        const staffId = notification.staffId;
+        if (!staffId) return { organizationId, cancelReason: "invalid_scope" };
+        const submission = await ctx.db
+          .query("shiftSubmissions")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitment._id).eq("staffId", staffId))
+          .first();
+        if (isCurrentSubmission(submission)) return { organizationId, cancelReason: "notification_superseded" };
+      }
     }
   }
   const fanoutReason = await getFanoutCancellationReason(ctx, notification, recruitment);
@@ -1870,14 +1910,18 @@ async function requestFailureResend(
         ...notificationOrigin,
       });
       break;
-    case "reminder":
+    case "reminder": {
+      const recruitment = await ctx.db.get(failure.recruitmentId);
+      if (!recruitment) return { scheduled: false, reason: "notRetryable" as const };
       await ctx.scheduler.runAfter(0, internal.notification.reminderActions.sendReminderEmailForStaff, {
         recruitmentId: failure.recruitmentId,
         staffId: failure.staffId,
         notificationRunId: now,
+        recruitmentVersionAtOrigin: getRecruitmentEditVersion(recruitment),
         ...notificationOrigin,
       });
       break;
+    }
     case "confirmation":
       await ctx.scheduler.runAfter(0, internal.notification.actions.sendShiftConfirmationEmails, {
         recruitmentId: failure.recruitmentId,

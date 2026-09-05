@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { addDays, dateJST, jstDayRangeMs, subtractCalendarMonths } from "../_lib/dateFormat";
 import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
+import { isCurrentSubmission } from "../_lib/recruitmentEditing";
 import { ANALYTICS_DEFINITION_VERSION, analyticsMetricValidator } from "../analytics/model";
 import { listActiveStaffsForOrganizationPerson, resolveCanonicalStaffScope } from "../line/service";
 import type {
@@ -380,7 +381,7 @@ export const getCycle = internalQuery({
           .query("shiftSubmissions")
           .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", cycle._id).eq("staffId", staff._id))
           .unique();
-        if (submission) numerator += 1;
+        if (isCurrentSubmission(submission)) numerator += 1;
       }
     }
     return {

@@ -25,11 +25,16 @@ import { lineRecipientOutboxSnapshot } from "../notificationOutbox/types";
  * 補助的な通知のため、失敗しても failureInbox には載せない（context で抑止）。
  */
 export const sendManagerConfirmationReminder = internalAction({
-  args: { recruitmentId: v.id("recruitments"), ...businessNotificationOriginArgs },
-  handler: async (ctx, { recruitmentId, organizationBillingVersionAtOrigin }) => {
+  args: {
+    recruitmentId: v.id("recruitments"),
+    recruitmentVersionAtOrigin: v.optional(v.number()),
+    ...businessNotificationOriginArgs,
+  },
+  handler: async (ctx, { recruitmentId, recruitmentVersionAtOrigin, organizationBillingVersionAtOrigin }) => {
     const notificationOrigin = businessNotificationOriginFrom({ organizationBillingVersionAtOrigin });
     const data = await ctx.runQuery(internal.shiftConfirmationReminder.queries.getManagerConfirmationReminderTarget, {
       recruitmentId,
+      recruitmentVersionAtOrigin,
     });
     if (!data) return;
 
@@ -50,7 +55,8 @@ export const sendManagerConfirmationReminder = internalAction({
         { lineUserId: lineRecipient?.lineUserId, lineFollowing: lineRecipient?.following },
         quota,
       );
-      const dedupeBase = `shiftConfirmationReminder:${recruitmentId}:${recipient.userId}`;
+      const versionSuffix = recruitmentVersionAtOrigin ? `:v${recruitmentVersionAtOrigin}` : "";
+      const dedupeBase = `shiftConfirmationReminder:${recruitmentId}:${recipient.userId}${versionSuffix}`;
       const emailDedupeKey = `email:${dedupeBase}`;
       const lineDedupeKey = `line:${dedupeBase}`;
 
@@ -78,6 +84,7 @@ export const sendManagerConfirmationReminder = internalAction({
         await enqueueLine(ctx, {
           shopId: data.shopId,
           ...notificationOrigin,
+          recruitmentVersionAtOrigin: recruitmentVersionAtOrigin ?? 0,
           ...lineRecipientOutboxSnapshot(lineRecipient),
           purpose: "business",
           recruitmentId,
@@ -97,6 +104,7 @@ export const sendManagerConfirmationReminder = internalAction({
       await enqueueEmail(ctx, {
         shopId: data.shopId,
         ...notificationOrigin,
+        recruitmentVersionAtOrigin: recruitmentVersionAtOrigin ?? 0,
         purpose: "business",
         recruitmentId,
         userId: recipient.userId,

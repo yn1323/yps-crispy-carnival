@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { getDeadlineCutoff, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { staffSessionQuery } from "../_lib/functions";
 import { getPreviousDateOnlyPattern, getPreviousWeeklyPattern } from "../_lib/previousWeeklyPattern";
+import { getRecruitmentEditVersion, isCurrentSubmission } from "../_lib/recruitmentEditing";
 import { sessionMatchesAccessKind } from "../_lib/staffAccess";
 import {
   getSubmissionPatternTimeRange,
@@ -34,6 +35,7 @@ const submissionPageDataValidator = v.object({
   periodStart: v.string(),
   periodEnd: v.string(),
   deadline: v.string(),
+  editVersion: v.number(),
   shopClosedDates: v.array(v.string()),
   submissionPattern: submissionPatternValidator,
   isBeforeDeadline: v.boolean(),
@@ -187,10 +189,11 @@ export const getSubmissionPageData = staffSessionQuery({
         periodStart: recruitment.periodStart,
         periodEnd: recruitment.periodEnd,
         deadline: recruitment.deadline,
+        editVersion: getRecruitmentEditVersion(recruitment),
         shopClosedDates: recruitment.shopClosedDates,
         submissionPattern,
         isBeforeDeadline,
-        hasSubmitted: submission !== null,
+        hasSubmitted: isCurrentSubmission(submission),
         existingRequests,
         existingSelection: buildExistingSelection(submissionPattern, existingRequests, existingDates),
         legalConsentRequired: !(await hasCurrentStaffLegalConsent(ctx, ctx.staff._id)),
@@ -244,7 +247,7 @@ export const getSubmissionResult = staffSessionQuery({
         q.eq("recruitmentId", normalizedRecruitmentId).eq("staffId", staffId),
       )
       .first();
-    if (!submission) return submissionResultUnavailable();
+    if (!isCurrentSubmission(submission)) return submissionResultUnavailable();
 
     return { status: "submitted" as const, shopName: ctx.shop.name };
   },

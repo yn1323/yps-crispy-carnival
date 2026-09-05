@@ -490,6 +490,14 @@ describe("analyticsDashboardの問い合わせ境界", () => {
       const recruitmentId = await seedRecruitment(ctx, { shopId });
       const staffId = await seedStaff(ctx, { shopId, name: "対象" });
       await seedStaff(ctx, { shopId, name: "未提出" });
+      const resubmitting = await seedStaff(ctx, { shopId, name: "再提出待ち" });
+      await ctx.db.insert("shiftSubmissions", {
+        recruitmentId,
+        staffId: resubmitting,
+        firstSubmittedAt: AS_OF - 200,
+        submittedAt: AS_OF - 100,
+        needsResubmission: true,
+      });
       const excluded = await seedStaff(ctx, { shopId, name: "対象外", excludedFromShift: true });
       for (const id of [staffId, excluded])
         await ctx.db.insert("shiftSubmissions", {
@@ -501,7 +509,7 @@ describe("analyticsDashboardの問い合わせ境界", () => {
       return { shopId, recruitmentId };
     });
     const result = await t.query(getCycleRef, { ...ids, asOf: AS_OF });
-    expect(result?.currentSubmission).toEqual({ numerator: 1, denominator: 2, rate: 0.5 });
+    expect(result?.currentSubmission).toEqual({ numerator: 1, denominator: 3, rate: 1 / 3 });
     expect(result?.deadlineSubmissionRate).toBeNull();
   });
 });

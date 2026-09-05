@@ -38,6 +38,7 @@ type Props = {
   onCreateSubmittingChange: (isSubmitting: boolean) => void;
   onOpenShiftBoard: (recruitmentId: Recruitment["_id"]) => void;
   onDeleteClick: (recruitment: Recruitment, shop?: OrganizationRecruitmentShopMetadata) => void;
+  onEditClick: (recruitment: Recruitment) => void;
   onDeleteConfirm: () => void | Promise<void>;
   onShowPastRecruitments: () => void;
   onLoadMorePastRecruitments: () => void;
@@ -67,6 +68,7 @@ export function OrganizationRecruitmentManagementView({
   onCreateSubmittingChange,
   onOpenShiftBoard,
   onDeleteClick,
+  onEditClick,
   onDeleteConfirm,
   onShowPastRecruitments,
   onLoadMorePastRecruitments,
@@ -97,9 +99,14 @@ export function OrganizationRecruitmentManagementView({
         isPastRecruitmentsVisible={isPastRecruitmentsVisible}
         canLoadMorePastRecruitments={canLoadMorePastRecruitments}
         getRecruitmentShopName={(recruitment) => getRecruitmentShop(recruitment)?.shopName}
+        getCanEditRecruitment={(recruitment) => {
+          const target = getRecruitmentShop(recruitment);
+          return !!target && shops.some((shop) => shop.shopId === target.shopId && shop.canCreate);
+        }}
         onCreateClick={onOpenCreate}
         onOpenShiftBoard={(recruitmentId) => onOpenShiftBoard(recruitmentId as Recruitment["_id"])}
         onDeleteRecruitment={(recruitment) => onDeleteClick(recruitment, getRecruitmentShop(recruitment))}
+        onEditRecruitment={onEditClick}
         onShowPastRecruitments={onShowPastRecruitments}
         onLoadMorePastRecruitments={onLoadMorePastRecruitments}
       />

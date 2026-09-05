@@ -7,7 +7,10 @@ export const LINE_INVITE_NOTIFICATION_CONTEXT = "line.sendInviteEmail";
 
 export type NotificationFailureLogicalKind = NotificationFailureResendKind;
 
+export const RECRUITMENT_UPDATE_NOTIFICATION_CONTEXT = "notification.sendRecruitmentUpdateNotification";
+
 const RECRUITMENT_CONTEXTS = new Set([
+  RECRUITMENT_UPDATE_NOTIFICATION_CONTEXT,
   "notification.sendRecruitmentNotificationEmails",
   "notification.sendOpenRecruitmentNotificationEmailsForStaff",
   "notification.sendOpenRecruitmentNotificationEmailsForStaffEmailChange",

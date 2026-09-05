@@ -1,6 +1,7 @@
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import type { ActionCtx } from "../_generated/server";
+import { notificationContextForPayload } from "./redaction";
 import { safeNotificationError } from "./safeError";
 import type {
   EnqueueNotificationInput,
@@ -81,6 +82,9 @@ async function enqueueNotification(ctx: EnqueueCtx, input: EnqueueNotificationIn
         : {}),
       purpose: input.purpose,
       ...(input.recruitmentId ? { recruitmentId: input.recruitmentId } : {}),
+      ...(input.recruitmentVersionAtOrigin !== undefined
+        ? { recruitmentVersionAtOrigin: input.recruitmentVersionAtOrigin }
+        : {}),
       ...(input.staffId ? { staffId: input.staffId } : {}),
       ...(input.history ? { history: input.history } : {}),
       ...(input.historyMode ? { historyMode: input.historyMode } : {}),
@@ -125,7 +129,5 @@ async function recordEnqueueFailure(ctx: EnqueueCtx, input: EnqueueNotificationI
 }
 
 function notificationContext(input: EnqueueNotificationInput) {
-  if (input.payload.kind === "organizationManagerInvitationLine") return input.payload.context;
-  if (input.payload.kind !== "line") return input.payload.context;
-  return input.payload.fallbackEmail?.payload.context ?? input.dedupeKey.split(":").slice(0, 2).join(":");
+  return notificationContextForPayload(input.payload, input.dedupeKey);
 }
