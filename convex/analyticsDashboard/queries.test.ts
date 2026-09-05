@@ -4,10 +4,11 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { addDays, jstDayRangeMs } from "../_lib/dateFormat";
 import { seedStaff } from "../_test/scenarioBuilders";
-import { seedShop } from "../_test/seed";
+import { seedOrganizationMembership, seedShop, seedUser } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { ANALYTICS_DEFINITION_VERSION, emptyAnalyticsResultCounts } from "../analytics/model";
 import type { ShopsResponse } from "./dto";
+import { SHOP_LIST_STAFF_SCAN_LIMIT } from "./queryHelpers";
 import {
   getCycleRef,
   getFeatureRequestsRef,
@@ -78,6 +79,7 @@ describe("analyticsDashboardの日次結果", () => {
     expect(overview.series.every((row) => row.status === "pending" && row.counts === null)).toBe(true);
     const shops = await t.query(getShopsRef, { ...PAGE, search: "", date: null, metric: null });
     expect(shops.rows.map((row) => row.shopId)).toEqual([ids.shopId]);
+    expect(shops.rows[0]).toMatchObject({ staffCount: 1, latestShift: null });
     const detail = await t.query(getShopRef, { ...PAGE, shopId: ids.shopId });
     expect(detail?.staff).toHaveLength(1);
     expect(detail?.staff[0].name).toBe("問い合わせ担当");
@@ -159,6 +161,10 @@ describe("analyticsDashboardの日次結果", () => {
       const active = await seedShop(ctx, "現在店舗");
       const deleted = await seedShop(ctx, "消去前店舗名");
       const other = await seedShop(ctx, "対象外店舗");
+      for (const shopId of [active, deleted]) {
+        await seedStaff(ctx, { shopId, name: "所属スタッフ" });
+        await seedRecruitment(ctx, { shopId });
+      }
       await ctx.db.patch(deleted, { isDeleted: true });
       await daily(ctx, "2026-09-08", { submitted: 2 });
       for (const shopId of [active, deleted])
@@ -187,6 +193,12 @@ describe("analyticsDashboardの日次結果", () => {
       organizationName: null,
       registeredAt: null,
       isDeleted: true,
+      staffCount: null,
+      latestShift: null,
+    });
+    expect(response.rows.find((row) => row.shopId === ids.active)).toMatchObject({
+      staffCount: 1,
+      latestShift: { periodStart: "2026-09-10", periodEnd: "2026-09-16" },
     });
     expect(JSON.stringify(response)).not.toContain("消去前店舗名");
     const missing = await t.query(getShopsRef, { ...PAGE, search: "", date: "2026-09-07", metric: "submitted" });
@@ -195,6 +207,122 @@ describe("analyticsDashboardの日次結果", () => {
 });
 
 describe("analyticsDashboardの問い合わせ境界", () => {
+  it("店舗スタッフ数は管理者とシフト対象外を含み、削除状態とcanonical所属不整合を除く", async () => {
+    const t = convexTest(schema, modules);
+    const shopId = await t.run(async (ctx) => {
+      const shopId = await seedShop(ctx, "集計店舗");
+      const otherShopId = await seedShop(ctx, "別店舗");
+      const otherShop = await ctx.db.get(otherShopId);
+      if (!otherShop) throw new Error("missing fixture shop");
+      const managerId = await seedUser(ctx, "analytics_count_manager");
+      await seedOrganizationMembership(ctx, { shopId, userId: managerId });
+      await seedStaff(ctx, { shopId, userId: managerId, name: "管理者" });
+      await seedStaff(ctx, { shopId, name: "通常スタッフ" });
+      await seedStaff(ctx, { shopId, name: "シフト対象外", excludedFromShift: true });
+      await seedStaff(ctx, { shopId, name: "削除スタッフ", isDeleted: true });
+      const removedPersonStaff = await ctx.db.get(await seedStaff(ctx, { shopId, name: "削除人物" }));
+      if (!removedPersonStaff) throw new Error("missing fixture staff");
+      await ctx.db.patch(removedPersonStaff.organizationPersonId, { status: "removed" });
+      const mismatchedStaffId = await seedStaff(ctx, { shopId, name: "staff組織不一致" });
+      await ctx.db.patch(mismatchedStaffId, { organizationId: otherShop.organizationId });
+      const mismatchedPersonStaff = await ctx.db.get(await seedStaff(ctx, { shopId, name: "person組織不一致" }));
+      if (!mismatchedPersonStaff) throw new Error("missing fixture staff");
+      await ctx.db.patch(mismatchedPersonStaff.organizationPersonId, { organizationId: otherShop.organizationId });
+      const deletedUserId = await seedUser(ctx, "analytics_count_deleted_user");
+      await seedStaff(ctx, { shopId, userId: deletedUserId, name: "削除アカウント" });
+      await ctx.db.patch(deletedUserId, { isDeleted: true });
+      await seedStaff(ctx, { shopId: otherShopId, name: "別店舗スタッフ" });
+      return shopId;
+    });
+    const response = await t.query(getShopsRef, { ...PAGE, search: "集計店舗", date: null, metric: null });
+    expect(response.rows).toHaveLength(1);
+    expect(response.rows[0]).toEqual({
+      shopId,
+      name: "集計店舗",
+      organizationId: expect.any(String),
+      organizationName: "集計店舗事業者",
+      registeredAt: expect.any(Number),
+      isDeleted: false,
+      staffCount: 3,
+      latestShift: null,
+    });
+  });
+
+  it("直近シフトは作成順によらず開始日が最新の有効募集を返し、未来の未確定募集も含む", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      const shopId = await seedShop(ctx, "対象店舗");
+      await seedRecruitment(ctx, { shopId, periodStart: "2026-10-01", periodEnd: "2026-10-15" });
+      await seedRecruitment(ctx, { shopId, periodStart: "2026-09-01", periodEnd: "2026-09-15" });
+      const deletedId = await seedRecruitment(ctx, {
+        shopId,
+        periodStart: "2026-11-01",
+        periodEnd: "2026-11-15",
+      });
+      await ctx.db.patch(deletedId, { isDeleted: true });
+      const otherShopId = await seedShop(ctx, "別店舗");
+      await seedRecruitment(ctx, { shopId: otherShopId, periodStart: "2026-12-01", periodEnd: "2026-12-15" });
+    });
+    const response = await t.query(getShopsRef, { ...PAGE, search: "対象店舗", date: null, metric: null });
+    expect(response.rows).toHaveLength(1);
+    expect(response.rows[0]).toMatchObject({
+      staffCount: 0,
+      latestShift: { periodStart: "2026-10-01", periodEnd: "2026-10-15" },
+    });
+  });
+
+  it("スタッフ走査上限を超えた店舗は部分件数を返さず、上限以内なら正確な件数を返す", async () => {
+    const t = convexTest(schema, modules);
+    const overflowStaffId = await t.run(async (ctx) => {
+      const shopId = await seedShop(ctx, "大人数店舗");
+      for (let index = 0; index < SHOP_LIST_STAFF_SCAN_LIMIT; index += 1)
+        await seedStaff(ctx, { shopId, name: `スタッフ${index}` });
+      return await seedStaff(ctx, { shopId, name: "上限超過スタッフ" });
+    });
+    const args = { ...PAGE, search: "", date: null, metric: null };
+    expect((await t.query(getShopsRef, args)).rows[0].staffCount).toBeNull();
+    await t.run(async (ctx) => await ctx.db.patch(overflowStaffId, { isDeleted: true }));
+    expect((await t.query(getShopsRef, args)).rows[0].staffCount).toBe(SHOP_LIST_STAFF_SCAN_LIMIT);
+  });
+
+  it("店舗一覧の関連データ取得をページ単位に制限し、全店舗をcursorで辿れる", async () => {
+    const t = convexTest(schema, modules);
+    const shopIds = await t.run(async (ctx) => {
+      const shopIds = [];
+      for (let index = 0; index < 21; index += 1) {
+        const shopId = await seedShop(ctx, `ページ店舗${index}`);
+        await seedStaff(ctx, { shopId, name: "スタッフ" });
+        await seedRecruitment(ctx, { shopId });
+        shopIds.push(shopId);
+      }
+      return shopIds;
+    });
+    let cursor: string | null = null;
+    const found: string[] = [];
+    do {
+      const page: ShopsResponse = await t.query(getShopsRef, {
+        ...PAGE,
+        limit: 100,
+        cursor,
+        search: "",
+        date: null,
+        metric: null,
+      });
+      expect(page.pageInfo.pageSize).toBe(20);
+      expect(page.rows.length).toBeLessThanOrEqual(20);
+      for (const row of page.rows)
+        expect(row).toMatchObject({
+          staffCount: 1,
+          latestShift: { periodStart: "2026-09-10", periodEnd: "2026-09-16" },
+        });
+      found.push(...page.rows.map((row) => row.shopId));
+      cursor = page.pageInfo.continueCursor;
+    } while (cursor !== null && found.length <= shopIds.length);
+    expect(found).toHaveLength(shopIds.length);
+    expect(new Set(found)).toEqual(new Set(shopIds));
+    expect(cursor).toBeNull();
+  });
+
   it("絞り込みに一致しないページでも続きを返し、一致店舗を欠落させない", async () => {
     const t = convexTest(schema, modules);
     const target = await t.run(async (ctx) => {

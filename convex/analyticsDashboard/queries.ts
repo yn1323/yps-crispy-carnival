@@ -6,7 +6,7 @@ import { ANALYTICS_DEFINITION_VERSION, analyticsMetricValidator } from "../analy
 import { listActiveStaffsForOrganizationPerson, resolveCanonicalStaffScope } from "../line/service";
 import type {
   AnalyticsDayDto,
-  AnalyticsShopRowDto,
+  AnalyticsShopListRowDto,
   CycleDetailResponse,
   OverviewResponse,
   ShopDetailResponse,
@@ -21,6 +21,8 @@ import {
   pageInfo,
   paginationOptions,
   recentCycles,
+  SHOP_LIST_SCAN_LIMIT,
+  shopListRow,
   shopRow,
   staffRow,
 } from "./queryHelpers";
@@ -129,6 +131,8 @@ export const getShops = internalQuery({
   returns: shopsResponseValidator,
   handler: async (ctx, args): Promise<ShopsResponse> => {
     const options = paginationOptions(args.cursor, args.limit);
+    options.numItems = Math.min(options.numItems, SHOP_LIST_SCAN_LIMIT);
+    options.maximumRowsRead = SHOP_LIST_SCAN_LIMIT;
     if (
       args.search.length > 100 ||
       (args.date === null) !== (args.metric === null) ||
@@ -154,7 +158,7 @@ export const getShops = internalQuery({
           kind: "shops",
           asOf: args.asOf,
           rows: [],
-          pageInfo: emptyPageInfo(args.cursor, args.limit),
+          pageInfo: emptyPageInfo(args.cursor, options.numItems),
           scope,
           scopeStatus,
         };
@@ -163,17 +167,22 @@ export const getShops = internalQuery({
         .withIndex("by_date_and_shopId", (q) => q.eq("date", scope.date))
         .filter((q) => q.eq(q.field(scope.metric), true))
         .paginate(options);
-      const rows: AnalyticsShopRowDto[] = [];
+      const rows: AnalyticsShopListRowDto[] = [];
       for (const day of page.page) {
         const current = await currentShop(ctx, day.shopId);
         const row = current ? shopRow(current.shop, current.organization) : deletedShopRow(day.shopId);
-        if (!search || row.name.toLocaleLowerCase("ja").includes(search)) rows.push(row);
+        if (search && !row.name.toLocaleLowerCase("ja").includes(search)) continue;
+        rows.push(
+          current
+            ? await shopListRow(ctx, current.shop, current.organization)
+            : { ...row, staffCount: null, latestShift: null },
+        );
       }
       return {
         kind: "shops",
         asOf: args.asOf,
         rows,
-        pageInfo: pageInfo(args.cursor, args.limit, page, rows.length),
+        pageInfo: pageInfo(args.cursor, options.numItems, page, rows.length),
         scope,
         scopeStatus,
       };
@@ -183,18 +192,18 @@ export const getShops = internalQuery({
       .filter((q) => q.eq(q.field("isDeleted"), false))
       .order("desc")
       .paginate(options);
-    const rows: AnalyticsShopRowDto[] = [];
+    const rows: AnalyticsShopListRowDto[] = [];
     for (const shop of page.page) {
       if (search && !shop.name.toLocaleLowerCase("ja").includes(search)) continue;
       const organization = await ctx.db.get(shop.organizationId);
       if (!organization || organization.isDeleted) continue;
-      rows.push(shopRow(shop, organization));
+      rows.push(await shopListRow(ctx, shop, organization));
     }
     return {
       kind: "shops",
       asOf: args.asOf,
       rows,
-      pageInfo: pageInfo(args.cursor, args.limit, page, rows.length),
+      pageInfo: pageInfo(args.cursor, options.numItems, page, rows.length),
       scope: null,
       scopeStatus: "current",
     };
