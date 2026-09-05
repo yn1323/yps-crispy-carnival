@@ -34,7 +34,13 @@ export function githubClient(token = process.env.GITHUB_TOKEN, fetchImpl = fetch
         ...(options.body ? { "Content-Type": "application/json" } : {}),
       },
     });
-    if (!response.ok) throw new Error(`GitHub source verification failed (HTTP ${response.status})`);
+    if (!response.ok) {
+      // Publication remains committed after a notification failure. Keep the failed API operation visible
+      // without logging request credentials, comment content, or a provider response body.
+      const message = `GitHub API ${options.method ?? "GET"} failed (HTTP ${response.status})`;
+      console.error(message);
+      throw new Error(message);
+    }
     return response.status === 204 ? null : response.json();
   };
 }

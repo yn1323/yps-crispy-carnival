@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   checkPublicObject,
   commentOnReport,
+  githubClient,
   preflight,
   requestFromEvent,
   resultSummary,
@@ -143,6 +144,21 @@ describe("レポートのGitHub出所検証", () => {
 });
 
 describe("公開コメントの集計", () => {
+  it("GitHubの拒否理由は操作とHTTP statusだけを記録し、tokenや応答本文を出さない", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const api = githubClient(
+        "test-token",
+        vi.fn().mockResolvedValue(new Response("private provider response", { status: 403 })),
+      );
+      await expect(
+        api(`/repos/${SOURCE_REPOSITORY}/issues/900/comments`, { method: "POST", body: '{"body":"report"}' }),
+      ).rejects.toThrow("GitHub API POST failed (HTTP 403)");
+      expect(log.mock.calls).toEqual([["GitHub API POST failed (HTTP 403)"]]);
+    } finally {
+      log.mockRestore();
+    }
+  });
   it("旧hostingのbotコメントをR2リンクへ更新し、人のコメントを変更しない", async () => {
     const api = vi
       .fn()
