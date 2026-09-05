@@ -4,6 +4,7 @@ export type AppOrganizationScopedNavigationPath =
   | "/dashboard"
   | "/shifts"
   | `/shifts/${string}/board`
+  | `/shifts/${string}/export`
   | "/staff"
   | "/staff/order"
   | `/staff/${string}`
@@ -74,6 +75,9 @@ const PUBLIC_CANONICAL_PATHS = new Set([
 ]);
 
 export type AppShellRouteData =
+  | {
+      mode: "bare";
+    }
   | {
       mode: "navigation";
       activeKey: AppNavigationKey | null;
@@ -193,7 +197,7 @@ function resolveAppRouteSearchPolicy(pathname: string): AppRouteSearchPolicy | n
     return "organization";
   }
   if (
-    /^\/shifts\/[^/]+\/board$/i.test(routePathname) ||
+    /^\/shifts\/[^/]+\/(?:board|export)$/i.test(routePathname) ||
     /^\/staff\/[^/]+$/i.test(routePathname) ||
     /^\/staff\/[^/]+\/shops\/[^/]+$/i.test(routePathname) ||
     /^\/manage\/shops\/[^/]+$/i.test(routePathname) ||

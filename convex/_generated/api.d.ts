@@ -167,6 +167,7 @@ import type * as migrations_m050_staffs_canonical_links_backfill from "../migrat
 import type * as migrations_organizationMigrationHelpers from "../migrations/organizationMigrationHelpers.js";
 import type * as narrowReadiness_queries from "../narrowReadiness/queries.js";
 import type * as notification_actions from "../notification/actions.js";
+import type * as notification_confirmationDelivery from "../notification/confirmationDelivery.js";
 import type * as notification_confirmationSnapshots from "../notification/confirmationSnapshots.js";
 import type * as notification_failureRecording from "../notification/failureRecording.js";
 import type * as notification_fanout from "../notification/fanout.js";
@@ -254,6 +255,7 @@ import type * as shiftBoard_queries from "../shiftBoard/queries.js";
 import type * as shiftBoard_validation from "../shiftBoard/validation.js";
 import type * as shiftConfirmationReminder_actions from "../shiftConfirmationReminder/actions.js";
 import type * as shiftConfirmationReminder_queries from "../shiftConfirmationReminder/queries.js";
+import type * as shiftExport_queries from "../shiftExport/queries.js";
 import type * as shiftSubmission_mutations from "../shiftSubmission/mutations.js";
 import type * as shiftSubmission_queries from "../shiftSubmission/queries.js";
 import type * as shiftSubmission_schemas from "../shiftSubmission/schemas.js";
@@ -446,6 +448,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/organizationMigrationHelpers": typeof migrations_organizationMigrationHelpers;
   "narrowReadiness/queries": typeof narrowReadiness_queries;
   "notification/actions": typeof notification_actions;
+  "notification/confirmationDelivery": typeof notification_confirmationDelivery;
   "notification/confirmationSnapshots": typeof notification_confirmationSnapshots;
   "notification/failureRecording": typeof notification_failureRecording;
   "notification/fanout": typeof notification_fanout;
@@ -533,6 +536,7 @@ declare const fullApi: ApiFromModules<{
   "shiftBoard/validation": typeof shiftBoard_validation;
   "shiftConfirmationReminder/actions": typeof shiftConfirmationReminder_actions;
   "shiftConfirmationReminder/queries": typeof shiftConfirmationReminder_queries;
+  "shiftExport/queries": typeof shiftExport_queries;
   "shiftSubmission/mutations": typeof shiftSubmission_mutations;
   "shiftSubmission/queries": typeof shiftSubmission_queries;
   "shiftSubmission/schemas": typeof shiftSubmission_schemas;

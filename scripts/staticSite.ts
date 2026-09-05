@@ -97,6 +97,7 @@ export const CSR_SHELL_DYNAMIC_ROUTES = [
   "/staff/:personId/shops/:shopId",
   "/manage/shops/:shopId",
   "/shifts/:recruitmentId/board",
+  "/shifts/:recruitmentId/export",
   "/staff/:personId",
   "/app/staff/:personId/shops/:shopId",
   "/app/manage/shops/:shopId",

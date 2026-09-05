@@ -71,6 +71,7 @@ import { Route as AuthManageManagersInviteNewRouteImport } from './routes/_auth/
 import { Route as AuthManageManagersInviteStaffRouteImport } from './routes/_auth/manage_.managers_.invite-staff'
 import { Route as AuthManageShopsShopIdRouteImport } from './routes/_auth/manage_.shops.$shopId'
 import { Route as AuthShiftsRecruitmentIdBoardRouteImport } from './routes/_auth/shifts_.$recruitmentId_.board'
+import { Route as AuthShiftsRecruitmentIdExportRouteImport } from './routes/_auth/shifts_.$recruitmentId_.export'
 import { Route as UnregisteredLegalStaffConsentRouteImport } from './routes/_unregistered/legal.staff.consent'
 import { Route as UnregisteredShiftsSubmitCompletedRouteImport } from './routes/_unregistered/shifts.submit_.completed'
 import { Route as AuthAppManageManagersInviteNewRouteImport } from './routes/_auth/app_.manage_.managers_.invite-new'
@@ -399,6 +400,12 @@ const AuthShiftsRecruitmentIdBoardRoute =
     path: '/shifts/$recruitmentId/board',
     getParentRoute: () => AuthRoute,
   } as any)
+const AuthShiftsRecruitmentIdExportRoute =
+  AuthShiftsRecruitmentIdExportRouteImport.update({
+    id: '/shifts_/$recruitmentId_/export',
+    path: '/shifts/$recruitmentId/export',
+    getParentRoute: () => AuthRoute,
+  } as any)
 const UnregisteredLegalStaffConsentRoute =
   UnregisteredLegalStaffConsentRouteImport.update({
     id: '/legal/staff/consent',
@@ -509,6 +516,7 @@ export interface FileRoutesByFullPath {
   '/manage/managers/invite-staff': typeof AuthManageManagersInviteStaffRoute
   '/manage/shops/$shopId': typeof AuthManageShopsShopIdRoute
   '/shifts/$recruitmentId/board': typeof AuthShiftsRecruitmentIdBoardRoute
+  '/shifts/$recruitmentId/export': typeof AuthShiftsRecruitmentIdExportRoute
   '/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/shifts/submit/completed': typeof UnregisteredShiftsSubmitCompletedRoute
   '/app/manage/managers/invite-new': typeof AuthAppManageManagersInviteNewRoute
@@ -577,6 +585,7 @@ export interface FileRoutesByTo {
   '/manage/managers/invite-staff': typeof AuthManageManagersInviteStaffRoute
   '/manage/shops/$shopId': typeof AuthManageShopsShopIdRoute
   '/shifts/$recruitmentId/board': typeof AuthShiftsRecruitmentIdBoardRoute
+  '/shifts/$recruitmentId/export': typeof AuthShiftsRecruitmentIdExportRoute
   '/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/shifts/submit/completed': typeof UnregisteredShiftsSubmitCompletedRoute
   '/app/manage/managers/invite-new': typeof AuthAppManageManagersInviteNewRoute
@@ -650,6 +659,7 @@ export interface FileRoutesById {
   '/_auth/manage_/managers_/invite-staff': typeof AuthManageManagersInviteStaffRoute
   '/_auth/manage_/shops/$shopId': typeof AuthManageShopsShopIdRoute
   '/_auth/shifts_/$recruitmentId_/board': typeof AuthShiftsRecruitmentIdBoardRoute
+  '/_auth/shifts_/$recruitmentId_/export': typeof AuthShiftsRecruitmentIdExportRoute
   '/_unregistered/legal/staff/consent': typeof UnregisteredLegalStaffConsentRoute
   '/_unregistered/shifts/submit_/completed': typeof UnregisteredShiftsSubmitCompletedRoute
   '/_auth/app_/manage_/managers_/invite-new': typeof AuthAppManageManagersInviteNewRoute
@@ -722,6 +732,7 @@ export interface FileRouteTypes {
     | '/manage/managers/invite-staff'
     | '/manage/shops/$shopId'
     | '/shifts/$recruitmentId/board'
+    | '/shifts/$recruitmentId/export'
     | '/legal/staff/consent'
     | '/shifts/submit/completed'
     | '/app/manage/managers/invite-new'
@@ -790,6 +801,7 @@ export interface FileRouteTypes {
     | '/manage/managers/invite-staff'
     | '/manage/shops/$shopId'
     | '/shifts/$recruitmentId/board'
+    | '/shifts/$recruitmentId/export'
     | '/legal/staff/consent'
     | '/shifts/submit/completed'
     | '/app/manage/managers/invite-new'
@@ -862,6 +874,7 @@ export interface FileRouteTypes {
     | '/_auth/manage_/managers_/invite-staff'
     | '/_auth/manage_/shops/$shopId'
     | '/_auth/shifts_/$recruitmentId_/board'
+    | '/_auth/shifts_/$recruitmentId_/export'
     | '/_unregistered/legal/staff/consent'
     | '/_unregistered/shifts/submit_/completed'
     | '/_auth/app_/manage_/managers_/invite-new'
@@ -1334,6 +1347,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthShiftsRecruitmentIdBoardRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/shifts_/$recruitmentId_/export': {
+      id: '/_auth/shifts_/$recruitmentId_/export'
+      path: '/shifts/$recruitmentId/export'
+      fullPath: '/shifts/$recruitmentId/export'
+      preLoaderRoute: typeof AuthShiftsRecruitmentIdExportRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_unregistered/legal/staff/consent': {
       id: '/_unregistered/legal/staff/consent'
       path: '/legal/staff/consent'
@@ -1419,6 +1439,7 @@ interface AuthRouteChildren {
   AuthManageManagersInviteStaffRoute: typeof AuthManageManagersInviteStaffRoute
   AuthManageShopsShopIdRoute: typeof AuthManageShopsShopIdRoute
   AuthShiftsRecruitmentIdBoardRoute: typeof AuthShiftsRecruitmentIdBoardRoute
+  AuthShiftsRecruitmentIdExportRoute: typeof AuthShiftsRecruitmentIdExportRoute
   AuthAppManageManagersInviteNewRoute: typeof AuthAppManageManagersInviteNewRoute
   AuthAppManageManagersInviteStaffRoute: typeof AuthAppManageManagersInviteStaffRoute
   AuthAppManageShopsShopIdRoute: typeof AuthAppManageShopsShopIdRoute
@@ -1453,6 +1474,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthManageManagersInviteStaffRoute: AuthManageManagersInviteStaffRoute,
   AuthManageShopsShopIdRoute: AuthManageShopsShopIdRoute,
   AuthShiftsRecruitmentIdBoardRoute: AuthShiftsRecruitmentIdBoardRoute,
+  AuthShiftsRecruitmentIdExportRoute: AuthShiftsRecruitmentIdExportRoute,
   AuthAppManageManagersInviteNewRoute: AuthAppManageManagersInviteNewRoute,
   AuthAppManageManagersInviteStaffRoute: AuthAppManageManagersInviteStaffRoute,
   AuthAppManageShopsShopIdRoute: AuthAppManageShopsShopIdRoute,

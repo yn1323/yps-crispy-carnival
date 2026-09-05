@@ -30,7 +30,7 @@ const mocks = vi.hoisted(() => ({
     name: "管理者",
     email: "manager@example.com",
   } as CurrentUser,
-  matches: [] as Array<{ staticData: { appShell?: { mode: "navigation" | "focused" } } }>,
+  matches: [] as Array<{ staticData: { appShell?: { mode: "navigation" | "focused" | "bare" } } }>,
   user: {
     authId: "manager-user",
     name: "管理者",
@@ -72,10 +72,11 @@ vi.mock("@/convex/_generated/api", () => ({
 }));
 
 vi.mock("@/src/components/templates/FullPageSpinner", () => ({
-  FullPageSpinner: (props: { showHeader?: boolean; mobileNavigationHeight?: string }) => (
+  FullPageSpinner: (props: { showHeader?: boolean; reserveHeaderSpace?: boolean; mobileNavigationHeight?: string }) => (
     <div
       data-testid="full-page-spinner"
       data-show-header={props.showHeader ? "true" : "false"}
+      data-reserve-header-space={props.reserveHeaderSpace === false ? "false" : "true"}
       data-mobile-navigation-height={props.mobileNavigationHeight ?? ""}
     />
   ),
@@ -166,6 +167,29 @@ beforeEach(() => {
 });
 
 describe("AuthGuard", () => {
+  it.each(["auth", "current-user", "user-context"])("bare画面の%s待機でヘッダーを表示せず認証を待つ", (waiting) => {
+    mocks.matches = [{ staticData: { appShell: { mode: "bare" } } }];
+    if (waiting === "auth") {
+      mocks.useAuth.mockReturnValue({ isLoaded: false, isSignedIn: undefined, userId: null });
+    } else if (waiting === "current-user") {
+      mocks.currentUser = undefined;
+    } else {
+      mocks.user = { ...mocks.user, authId: "previous-user" };
+    }
+
+    render(
+      <AuthGuard>
+        <ManagerChild />
+      </AuthGuard>,
+    );
+
+    const spinner = screen.getByTestId("full-page-spinner");
+    expect(spinner.getAttribute("data-show-header")).toBe("false");
+    expect(spinner.getAttribute("data-reserve-header-space")).toBe("false");
+    expect(spinner.getAttribute("data-mobile-navigation-height")).toBe("");
+    expect(screen.queryByTestId("manager-child")).toBeNull();
+  });
+
   it("navigation appの認証待機ではSP下部ナビの余白を予約する", () => {
     mocks.matches = [{ staticData: { appShell: { mode: "navigation" } } }];
     mocks.useAuth.mockReturnValue({ isLoaded: false, isSignedIn: undefined, userId: null });

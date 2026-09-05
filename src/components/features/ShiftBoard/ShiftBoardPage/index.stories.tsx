@@ -258,12 +258,20 @@ export const AppOrganizationScoped: Story = {
   },
   parameters: { vrt: { releaseFixedHeader: true } },
   render: renderAppShiftBoard,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByRole("button", { name: "PDF・Excel出力（別タブで開きます）" })).toBeEnabled();
+  },
 };
 
 export const AppOrganizationScopedDesktop: Story = {
   name: "App Organization Scoped Desktop",
   parameters: { vrt: { releaseFixedHeader: true } },
   render: renderAppShiftBoard,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByRole("button", { name: "PDF・Excel出力（別タブで開きます）" })).toBeEnabled();
+  },
 };
 
 export const SPDialogInteraction: Story = {

@@ -135,6 +135,20 @@ export const ShiftBoardPageView = ({ viewModel, intents, layout = "legacy", head
           validationWarnings={shiftForm.validationWarnings}
           onDismissValidationIssues={intents.onDismissValidationIssues}
           header={layout === "app" ? header : undefined}
+          action={
+            viewModel.exportAction ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={intents.onOpenExport}
+                disabled={viewModel.exportAction.isDisabled}
+                aria-label="PDF・Excel出力（別タブで開きます）"
+              >
+                PDF・Excel出力
+                <LuExternalLink aria-hidden="true" focusable="false" />
+              </Button>
+            ) : undefined
+          }
         />
       </Box>
 

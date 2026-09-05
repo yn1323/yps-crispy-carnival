@@ -1,72 +1,44 @@
-export type ReportType = "playwright" | "vrt";
+import type { ReportManifest, ReportStore, ReportTarget, ReportTargetInput } from "./hostedReportStore.mjs";
 
-export interface PublishRequest {
-  repository: string;
+export type { ReportType } from "./hostedReportStore.mjs";
+export { SOURCE_REPOSITORY } from "./hostedReportStore.mjs";
+export interface PublishRequest extends ReportTargetInput {
   source: string;
-  target: string;
-  reportType: ReportType;
-  pullRequest?: number | string | null;
-  sourceBranch?: "develop" | "main" | null;
   sourceSha: string;
+  sourceRepository?: string;
   runId: number | string;
   runAttempt: number | string;
   updatedAt?: string;
-  branch?: string;
-  baselineSource?: string | null;
-  baselineTarget?: string | null;
+  baselineArchive?: { path: string; checksum: string; imageCount: number; bytes: number } | null;
 }
-
-export interface NormalizedPublishRequest
-  extends Omit<PublishRequest, "pullRequest" | "runId" | "runAttempt" | "updatedAt"> {
-  pullRequest: number | null;
-  sourceBranch: "develop" | "main" | null;
+export interface NormalizedPublishRequest extends ReportTarget {
+  source: string;
+  sourceSha: string;
   runId: number;
   runAttempt: number;
   updatedAt: string;
-  branch: string;
-  baselineSource: string | null;
-  baselineTarget: string | null;
-  markerName: string;
+  baselineArchive: { path: string; checksum: string; imageCount: number; bytes: number } | null;
 }
-
 export interface PublishResult {
-  status: "published" | "noop" | "stale";
-  commit: string;
-  markerName: string;
-  reason?: string;
+  status: "published" | "noop" | "stale" | "closed";
+  reportUrl: string;
+  manifest: ReportManifest | null;
+  uploadedFiles: number;
+  uploadedBytes: number;
+  deletedFiles: number;
+  warnings: string[];
 }
-
-export interface PublishOptions {
-  maxAttempts?: number;
-  sleep?: (milliseconds: number) => Promise<void>;
-  verifyBeforePush?: () => boolean | Promise<boolean>;
-  beforePush?: (value: { attempt: number; observed: string; commit: string }) => void | Promise<void>;
-}
-
-export const SOURCE_REPOSITORY: string;
-export const HOSTING_REPOSITORY: string;
-export const REPORT_BRANCH: string;
-
-export function normalizePublishRequest(input: PublishRequest | NormalizedPublishRequest): NormalizedPublishRequest;
+export function normalizePublishRequest(input: PublishRequest): NormalizedPublishRequest;
 export function comparePublishedRun(
-  existing: Record<string, unknown> | null,
+  existing: ReportManifest | null | undefined,
   incoming: NormalizedPublishRequest,
 ): "newer" | "same" | "stale";
-export function publishReportSnapshot(
-  input: PublishRequest | NormalizedPublishRequest,
-  options?: PublishOptions,
+export function publishHostedReport(
+  input: PublishRequest,
+  options: {
+    store: ReportStore;
+    verifySource: (request: NormalizedPublishRequest) => Promise<{ status: "current" | "stale" | "closed" }>;
+    afterCommit?: (manifest: ReportManifest, reportUrl: string) => Promise<void>;
+    now?: () => Date;
+  },
 ): Promise<PublishResult>;
-export function verifyCurrentSource(input: {
-  token: string;
-  sourceSha: string;
-  pullRequest: number | null;
-  sourceBranch: "develop" | "main" | null;
-  fetchImpl?: typeof fetch;
-}): Promise<{ current: boolean; currentSha: string | null }>;
-export function dispatchPagesDeployment(input: {
-  token: string;
-  reportCommit: string;
-  target: string;
-  markerName: string;
-  fetchImpl?: typeof fetch;
-}): Promise<void>;

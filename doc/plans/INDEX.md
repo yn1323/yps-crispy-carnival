@@ -28,6 +28,7 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [VRT・E2EレポートのR2移行](2026-09-05_VRT_E2Eレポート_R2移行_実装計画.md) | `implementing` | 1公開bucket・キー1組・r2.devで実装済み。実認証・公開URL・削除権限とdevelop/mainのbaseline初期移行を確認。PR #900の検証・承認を経てdevelopへ反映する | [CI/CD運用](../manual/ci-cd.md)、[実環境の証跡](../manual/release-status.md) |
 | [プラン遷移簡素化と支払い失敗対応](2026-08-29_プラン遷移簡素化と支払い失敗対応_変更計画.md) | `rollout verification` | Repository実装と主担当の自動テスト、lint、type-check、buildは完了。Stripe Sandbox canary、顧客向けメール設定と実到着、Production artifact・Convex deployment、CI VRTは未確認 | [課金業務フロー](../specs/organization-billing-business-flow.md)、[グループ課金](../features/organization-billing.md)、[グループ課金の運用](../manual/organization-billing.md)、[リリース状態](../manual/release-status.md) |
 | [認証済み新ページ正式切替と旧ページ削除](2026-08-15_認証済み新ページ正式切替と旧ページ削除_実装計画.md) | `rollout verification` | repository実装、目的別commit、Pull Request更新、最新head SHAの全test・build・全E2E・VRT captureとcompare開始は確認済み。Productionのcanonical所属readiness、artifact反映、canaryは未確認 | 現行仕様は[機能インデックス](../features/INDEX.md)、実環境証跡は[リリース状態](../manual/release-status.md)、設計と検証は[フロントエンド方針](../rules/frontend-architecture.md)、[テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md) |
 | [LINE連携のグループ内共通化](2026-08-13_LINE連携のグループ内共通化_実装計画.md) | `rollout verification` | repository artifactのcanonical readは更新済み。店舗・所属追加は常時公開契約へ移行済み。Production artifactとdeploymentの確定、exportとbackup、必要なmigration、非同期処理のdrain、反映後canary、Preview E2E、CI VRT、法務確認と実環境証跡は未実施 | [LINE通知連携](../features/line-notification.md)、[ユーザー詳細](../features/user-detail.md)、[通知配送outbox](../features/notification-outbox.md)、[リリース状態](../manual/release-status.md) |
@@ -146,6 +147,12 @@ Historyの本文には、現在と異なる名称、パス、状態、上限、�
 | [管理者メールアドレス変更とClerk同期](2026-08-03_管理者メールアドレス変更_実装計画.md) | ログイン方法とシフト連絡先を分離する後続仕様で置換。全所属同期と不一致復旧UIは撤去し、直前の旧Primary EmailAddress削除だけを現行のログインメール変更へ再導入 | [認証画面](../features/auth-pages.md)、[ユーザー詳細](../features/user-detail.md) |
 | [Analytics画面情報設計改善](2026-08-03_Analytics画面情報設計改善_実装計画.md) | 初期期間、状態表示、一覧・詳細の縮退表示、mobile表示、navigation、要望画面をfrontendへ実装し、静的検証を完了 | [分析KPI可視化アプリ](../features/analytics-dashboard.md)、[UI設計方針](../rules/ui-design.md) |
 | [CSR画面遷移パフォーマンス改善](2026-08-03_CSR画面遷移パフォーマンス改善_実装計画.md) | 4導線のfrontend実装、Unit・Behavior Test、production bundle比較を完了 | [フロントエンドアーキテクチャ](../rules/frontend-architecture.md)、[UI設計方針](../rules/ui-design.md)、[テスト方針](../rules/testing-strategy.md) |
+
+### 2026年9月
+
+| 計画 | 分類根拠 | 現在の正本 |
+|---|---|---|
+| [シフト表のPDF・Excel出力](2026-09-05_シフト表PDF_Excel出力_実装計画.md) | PDF・Excel出力、権限制御、共通モデル、文字幅調整を実装し、自動テスト・lint・型検査・buildとローカルE2E 2件を完了。CI VRT・実機での保存・物理印刷・Productionは未確認として運用文書へ引き渡す | [シフト表](../features/shift-board.md)、[リリース状態](../manual/release-status.md) |
 
 ### 日付形式が異なる既存計画
 

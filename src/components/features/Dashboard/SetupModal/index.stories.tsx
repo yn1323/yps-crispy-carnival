@@ -4,6 +4,7 @@ import { expect, fireEvent, fn, userEvent, waitFor, within } from "storybook/tes
 import { createDeferred } from "@/src/devtools/createDeferred";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { type SetupCompletionResult, type SetupData, SetupModal } from "./index";
+import { createPromotionCodeAttemptLimit } from "./promotionCodeAttemptLimit";
 
 const completeSetup = async (_data: SetupData): Promise<SetupCompletionResult> => ({ kind: "completed" });
 
@@ -22,6 +23,9 @@ const meta = {
       name: "山田 太郎",
       email: "yamada@example.com",
     },
+  },
+  beforeEach: () => {
+    createPromotionCodeAttemptLimit().reset();
   },
 } satisfies Meta<typeof SetupModal>;
 
@@ -179,16 +183,19 @@ export const PromotionCodeRevalidationFailure: Story = {
     await userEvent.click(dialog.getByRole("button", { name: "プロモーションコードお持ちの方はこちら" }));
     await userEvent.type(dialog.getByRole("textbox", { name: "プロモーションコード（任意）" }), "ABC123");
     await userEvent.click(dialog.getByRole("button", { name: "適用" }));
-    await userEvent.click(dialog.getByRole("button", { name: "利用開始" }));
+    await expect(await dialog.findByText("無料のProプランを適用")).toBeVisible();
+    const submit = dialog.getByRole("button", { name: "利用開始" });
+    await waitFor(() => expect(submit).toBeEnabled());
+    await userEvent.click(submit);
 
     const promotionCode = dialog.getByRole("textbox", { name: "プロモーションコード（任意）" });
-    await expect(dialog.getByText("コードが誤っています。")).toBeVisible();
+    await expect(await dialog.findByText("コードが誤っています。")).toBeVisible();
     await expect(promotionCode).not.toHaveAttribute("readonly");
-    await expect(dialog.getByRole("button", { name: "利用開始" })).toBeDisabled();
+    await waitFor(() => expect(submit).toBeDisabled());
 
     // 最終照合で失敗しても、同じ画面で再適用できる。
     await userEvent.click(dialog.getByRole("button", { name: "適用" }));
-    await expect(dialog.getByText("無料のProプランを適用")).toBeVisible();
+    await expect(await dialog.findByText("無料のProプランを適用")).toBeVisible();
   },
 };
 
@@ -211,22 +218,27 @@ export const PromotionCodeAttemptLockout: Story = {
     await userEvent.type(promotionCode, "ZZ9999");
     const apply = dialog.getByRole("button", { name: "適用" });
     await userEvent.click(apply);
-    await expect(promotionCode).toBeEnabled();
-    await expect(dialog.getByText("コードが誤っています。")).toBeVisible();
+    await expect(await dialog.findByText("コードが誤っています。")).toBeVisible();
+    await waitFor(() => expect(promotionCode).toBeEnabled());
     await expect(dialog.queryByText(/残り\d+回/)).not.toBeInTheDocument();
 
-    for (let attempt = 0; attempt < 8; attempt += 1) await userEvent.click(apply);
-    await expect(promotionCode).toBeEnabled();
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await userEvent.click(apply);
+      await waitFor(() => {
+        expect(args.onVerifyPromotionCode).toHaveBeenCalledTimes(attempt + 2);
+        expect(promotionCode).toBeEnabled();
+      });
+    }
     await expect(dialog.getByText("コードが誤っています。")).toBeVisible();
     await expect(dialog.queryByText(/残り\d+回/)).not.toBeInTheDocument();
 
     await userEvent.click(apply);
 
+    await expect(
+      await dialog.findByText("プロモーションコードの確認回数が上限に達しました。10分後にもう一度お試しください。"),
+    ).toBeVisible();
     await expect(promotionCode).toBeDisabled();
     await expect(promotionCode).toHaveValue("");
-    await expect(
-      dialog.getByText("プロモーションコードの確認回数が上限に達しました。10分後にもう一度お試しください。"),
-    ).toBeVisible();
     const storage = canvasElement.ownerDocument.defaultView?.sessionStorage;
     const storedEntries = Array.from({ length: storage?.length ?? 0 }, (_, index) => {
       const key = storage?.key(index) ?? "";

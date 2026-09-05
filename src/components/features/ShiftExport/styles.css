@@ -1,0 +1,56 @@
+@font-face {
+  font-family: "Noto Sans JP";
+  src: url("/fonts/shift-export/NotoSansJP-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+
+.shift-export-preview {
+  overflow: auto;
+  padding: 16px;
+}
+.shift-export-page {
+  position: relative;
+  box-sizing: border-box;
+  background: white;
+  color: #111;
+  margin: 0 auto 16px;
+  font-family: "Noto Sans JP", sans-serif;
+}
+.shift-export-title {
+  font-size: 15pt;
+  line-height: 24pt;
+  font-weight: normal;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.shift-export-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+}
+.shift-export-table th,
+.shift-export-table td {
+  border: 0.5pt solid #000;
+  /* Match the PDF padding, including the 0.5 pt border in the text-fit budget. */
+  padding: 2pt 1.75pt;
+  text-align: center;
+  vertical-align: middle;
+  overflow: hidden;
+  white-space: nowrap;
+  font-weight: normal;
+}
+.shift-export-table tbody th {
+  text-align: left;
+}
+.shift-export-table .shift-export-closed {
+  background: #f0f0f0;
+}
+.shift-export-page-number {
+  position: absolute;
+  bottom: 24pt;
+  right: 24pt;
+}
+.shift-export-download-link {
+  text-decoration: underline;
+}
