@@ -8,7 +8,7 @@ import {
 import { isSupportedShiftTime, minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { ExportSchedule, ShiftExportData } from "./types";
 
-export function buildExportSchedule(data: ShiftExportData): ExportSchedule {
+export function buildExportSchedule(data: ShiftExportData, splitPeriod = false): ExportSchedule {
   const { recruitment } = data;
   const count = getInclusiveDateCount(recruitment.periodStart, recruitment.periodEnd);
   if (
@@ -101,6 +101,7 @@ export function buildExportSchedule(data: ShiftExportData): ExportSchedule {
     statusLabel,
     notificationLabel: notificationLabels[data.notificationState],
     mode: pattern.kind,
+    splitPeriod: splitPeriod && count >= 15,
     bodyLineCount,
     dates,
     rows,
@@ -116,10 +117,16 @@ export function getExportFileName(schedule: ExportSchedule, format: "pdf" | "xls
   return `${shopName}_シフト表_${schedule.periodStart}_${schedule.periodEnd}.${format}`;
 }
 
+export function getExportTitle(schedule: ExportSchedule): string {
+  const periodStart = schedule.periodStart.replaceAll("-", "/");
+  const periodEnd = schedule.periodEnd.replaceAll("-", "/");
+  const displayedPeriodEnd =
+    schedule.periodStart.slice(0, 4) === schedule.periodEnd.slice(0, 4) ? periodEnd.slice(5) : periodEnd;
+  return `${periodStart}~${displayedPeriodEnd} ${schedule.shopName}`;
+}
+
 export function getExportBlockMessage(reason: NonNullable<ShiftExportData["exportBlockReason"]>): string {
   switch (reason) {
-    case "noSavedShifts":
-      return "シフト表で保存してから出力してください。";
     case "noStaffs":
       return "出力対象のスタッフがいません。";
     case "excludedStaffAssignments":

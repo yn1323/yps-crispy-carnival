@@ -1,6 +1,6 @@
 import { Alert, Box, Flex, Grid, Icon, Text } from "@chakra-ui/react";
 import { Link } from "@tanstack/react-router";
-import { LuChevronLeft, LuCircleCheck, LuExternalLink } from "react-icons/lu";
+import { LuChevronLeft, LuCircleCheck, LuExternalLink, LuFileDown } from "react-icons/lu";
 import { ShiftForm } from "@/src/components/features/Shift/ShiftForm";
 import { ConfirmShiftContent } from "@/src/components/shared/ShiftConfirmationContent";
 import { HEADER_HEIGHT } from "@/src/components/templates/Header";
@@ -142,10 +142,17 @@ export const ShiftBoardPageView = ({ viewModel, intents, layout = "legacy", head
                 variant="outline"
                 onClick={intents.onOpenExport}
                 disabled={viewModel.exportAction.isDisabled}
-                aria-label="PDF・Excel出力（別タブで開きます）"
+                aria-label="PDF・Excel（別タブで開きます）"
+                h={{ base: "28px", lg: "32px" }}
+                minW={{ base: "28px", lg: "auto" }}
+                px={{ base: 2, lg: 3 }}
               >
-                PDF・Excel出力
-                <LuExternalLink aria-hidden="true" focusable="false" />
+                <Icon boxSize={4} aria-hidden="true">
+                  <LuFileDown focusable="false" />
+                </Icon>
+                <Text as="span" display={{ base: "none", lg: "inline" }}>
+                  PDF・Excel
+                </Text>
               </Button>
             ) : undefined
           }

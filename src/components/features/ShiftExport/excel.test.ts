@@ -43,7 +43,7 @@ describe("Excelの実ファイル", () => {
     expect(workbook.querySelectorAll("sheet")).toHaveLength(1);
     expect(sheet.querySelector("dimension")?.getAttribute("ref")).toBe("A1:AF203");
     expect(sheet.querySelectorAll("sheetData > row")).toHaveLength(203);
-    expect(value("A1")).toBe(`${schedule.shopName} シフト表`);
+    expect(value("A1")).toBe("2026/08/01~08/31 シフトリ駅前店");
     expect(value("A2")).toContain(schedule.statusLabel);
     expect(value("A2")).toContain(`\n${schedule.notificationLabel}`);
     expect(value("A4")).toBe(formulaLikeName);
@@ -119,5 +119,66 @@ describe("Excelの実ファイル", () => {
     expect(firstHeight).toBeLessThanOrEqual(409);
     expect(sheet.querySelector('row[r="5"]')?.getAttribute("ht")).toBe(String(firstHeight));
     expect(sheet.querySelectorAll("sheetData > row")).toHaveLength(schedule.rows.length + 3);
+  });
+
+  it("期間を分けると前半・後半の順に全スタッフを出力し、それぞれの日付と印刷設定を保持する", async () => {
+    const schedule = buildExportSchedule(createExportFixture(), true);
+    schedule.mode = "shiftType";
+    schedule.bodyLineCount = 1;
+    schedule.rows = Array.from({ length: 50 }, (_, staffIndex) => ({
+      staffId: `staff-${staffIndex}`,
+      staffName: `スタッフ${staffIndex + 1}`,
+      cells: schedule.dates.map((_, dateIndex) => ({ lines: [`勤務区分${staffIndex + 1}-${dateIndex + 1}`] })),
+    }));
+    const blob = await createShiftExcel(schedule);
+    const files = unzipSync(new Uint8Array(await blob.arrayBuffer()));
+    const workbook = parseXml(files["xl/workbook.xml"]);
+    const sharedStrings = Array.from(
+      parseXml(files["xl/sharedStrings.xml"]).querySelectorAll("si"),
+      (item) => item.textContent,
+    );
+    expect(Array.from(workbook.querySelectorAll("sheet"), (sheet) => sheet.getAttribute("name"))).toEqual([
+      "シフト表（前半）",
+      "シフト表（後半）",
+    ]);
+
+    const widths: number[] = [];
+    for (const [index, start, end, lastColumn, title] of [
+      [0, 0, 16, "Q", "2026/08/01~08/16 シフトリ駅前店"],
+      [1, 16, 31, "P", "2026/08/17~08/31 シフトリ駅前店"],
+    ] as const) {
+      const sheet = parseXml(files[`xl/worksheets/sheet${index + 1}.xml`]);
+      const cellValue = (cell: Element) => sharedStrings[Number(cell.querySelector("v")?.textContent)];
+      const rows = Array.from(sheet.querySelectorAll("sheetData > row"), (row) =>
+        Array.from(row.querySelectorAll("c"), cellValue),
+      );
+      const dates = schedule.dates.slice(start, end);
+      const expectedRows = schedule.rows.map((staff) => [
+        staff.staffName,
+        ...staff.cells
+          .slice(start, end)
+          .map((cell, dateIndex) => (dates[dateIndex].isClosed ? "-" : cell.lines.join("\n"))),
+      ]);
+      expect(rows[0][0]).toBe(title);
+      expect(rows[2]).toEqual(["スタッフ", ...dates.map((date) => date.label)]);
+      expect(rows.slice(3)).toEqual(expectedRows);
+      expect(sheet.querySelector("dimension")?.getAttribute("ref")).toBe(`A1:${lastColumn}53`);
+      expect(sheet.querySelector("pane")?.getAttribute("xSplit")).toBe("1");
+      expect(sheet.querySelector("pane")?.getAttribute("ySplit")).toBe("3");
+      expect(sheet.querySelector("pane")?.getAttribute("topLeftCell")).toBe("B4");
+      expect(sheet.querySelector("pageSetup")?.getAttribute("fitToWidth")).toBe("1");
+      expect(sheet.querySelector("pageSetup")?.getAttribute("fitToHeight")).toBe("0");
+      const sheetName = index === 0 ? "シフト表（前半）" : "シフト表（後半）";
+      expect(workbook.querySelector(`definedName[name="_xlnm.Print_Area"][localSheetId="${index}"]`)?.textContent).toBe(
+        `'${sheetName}'!$A1:$${lastColumn}53`,
+      );
+      expect(
+        workbook.querySelector(`definedName[name="_xlnm.Print_Titles"][localSheetId="${index}"]`)?.textContent,
+      ).toBe(`'${sheetName}'!$3:$3`);
+      widths.push(Number(sheet.querySelector('col[min="2"]')?.getAttribute("width")));
+    }
+    const fullWidth = ((getExportLayout(schedule).dateColumnWidthPt * 4) / 3 - 5) / 7;
+    expect(widths[0]).toBeGreaterThan(fullWidth);
+    expect(widths[1]).toBeGreaterThan(widths[0]);
   });
 });

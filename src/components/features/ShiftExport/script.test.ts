@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createExportFixture } from "./fixtures";
-import { buildExportSchedule, getExportFileName } from "./script";
+import { buildExportSchedule, getExportFileName, getExportTitle } from "./script";
 
 describe("buildExportSchedule", () => {
   it("31日をJSTの日付と保存順で並べ、割当なし・定休日を - にする", () => {
@@ -94,5 +94,15 @@ describe("buildExportSchedule", () => {
     );
     expect(getExportFileName(schedule, "xlsx")).toBe("=店舗_本店__シフト表_2026-08-01_2026-08-31.xlsx");
     expect(schedule.rows[0].staffName).toBe("=SUM(1,2)");
+  });
+  it.each([
+    ["同じ", "2026-08-01", "2026-08-31", "2026/08/01~08/31 シフトリ駅前店"],
+    ["異なる", "2026-12-28", "2027-01-03", "2026/12/28~2027/01/03 シフトリ駅前店"],
+  ])("開始・終了年が%s場合の期間と店舗名を帳票タイトルへ整形する", (_, periodStart, periodEnd, expected) => {
+    const data = createExportFixture({ assignments: [] });
+    data.recruitment.periodStart = periodStart;
+    data.recruitment.periodEnd = periodEnd;
+
+    expect(getExportTitle(buildExportSchedule(data))).toBe(expected);
   });
 });

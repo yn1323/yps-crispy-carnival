@@ -22,7 +22,7 @@ export type ShiftExportData = {
   confirmationState: "unconfirmed" | "confirmed";
   contentComparison: "notApplicable" | "same" | "different" | "unknown";
   notificationState: "notApplicable" | "pending" | "failed" | "sent" | "unknown";
-  exportBlockReason: "noSavedShifts" | "noStaffs" | "excludedStaffAssignments" | null;
+  exportBlockReason: "noStaffs" | "excludedStaffAssignments" | null;
 };
 
 export type ExportDate = {
@@ -46,6 +46,7 @@ export type ExportSchedule = {
   statusLabel: string;
   notificationLabel: string | null;
   mode: ShiftSubmissionPattern["kind"];
+  splitPeriod: boolean;
   bodyLineCount: number;
   dates: ExportDate[];
   rows: ExportStaffRow[];

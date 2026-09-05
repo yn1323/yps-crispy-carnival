@@ -58,12 +58,7 @@ const shiftExportDataValidator = v.object({
     v.literal("sent"),
     v.literal("unknown"),
   ),
-  exportBlockReason: v.union(
-    v.null(),
-    v.literal("noSavedShifts"),
-    v.literal("noStaffs"),
-    v.literal("excludedStaffAssignments"),
-  ),
+  exportBlockReason: v.union(v.null(), v.literal("noStaffs"), v.literal("excludedStaffAssignments")),
 });
 
 function assertPeriodWithinLimit(recruitment: Doc<"recruitments">) {
@@ -287,11 +282,9 @@ export const getShiftExportData = managerQuery({
       : ["notApplicable" as const, "notApplicable" as const];
     const exportBlockReason = hasExcludedAssignments
       ? ("excludedStaffAssignments" as const)
-      : recruitment.draftSavedAt === undefined && !isConfirmed && assignments.length === 0
-        ? ("noSavedShifts" as const)
-        : staffs.length === 0
-          ? ("noStaffs" as const)
-          : null;
+      : staffs.length === 0
+        ? ("noStaffs" as const)
+        : null;
     // 対象外・別店舗の参照がある場合は出力停止を明示し、部分的な割当DTOも返さない。
     const exportAssignments = hasExcludedAssignments
       ? []

@@ -164,7 +164,7 @@ describe("ShiftExportRoutePage", () => {
     expect(screen.getByTestId("export-page").textContent).toBe(data.shopName);
   });
 
-  it.each(["noSavedShifts", "noStaffs", "excludedStaffAssignments"] as const)(
+  it.each(["noStaffs", "excludedStaffAssignments"] as const)(
     "出力停止理由%sを案内し、生成画面をmountしない",
     (reason) => {
       mocks.scope = scope;

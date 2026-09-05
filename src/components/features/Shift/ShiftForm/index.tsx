@@ -303,7 +303,9 @@ const Shell = ({
 }: ShellProps) => (
   <Flex direction="column" h="100%" minH={0}>
     <Grid
-      templateColumns={header ? "minmax(0, 1fr) auto minmax(0, 1fr)" : "minmax(0, 1fr) auto"}
+      templateColumns={
+        header ? (compact ? "minmax(0, 1fr) auto minmax(0, 1fr)" : "auto minmax(0, 1fr) auto") : "minmax(0, 1fr) auto"
+      }
       px={compact ? 3 : 5}
       bg="white"
       borderBottomWidth="1px"
@@ -337,9 +339,9 @@ const Shell = ({
           {compact ? header.mobileTitle : header.desktopTitle}
         </Heading>
       )}
-      {!isReadOnly || (!compact && action) ? (
+      {!isReadOnly || action ? (
         <Flex justifySelf="end" gap={2} align="center" py={2} flexShrink={0}>
-          {!compact && action}
+          {action}
           {!isReadOnly && (
             <>
               <SaveButton compact={compact} isSaving={isSavingDraft} onClick={onSaveDraft} />
@@ -356,12 +358,6 @@ const Shell = ({
         header && <Box justifySelf="end" minW="44px" />
       )}
     </Grid>
-
-    {compact && action && (
-      <Flex justify="end" px={3} py={2} bg="white" borderBottomWidth="1px" borderColor="gray.200" flexShrink={0}>
-        {action}
-      </Flex>
-    )}
 
     {!isReadOnly && validationIssues.length > 0 && (
       <ValidationErrorPanel

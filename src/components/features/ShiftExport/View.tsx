@@ -1,40 +1,62 @@
-import { Box, Flex, Text } from "@chakra-ui/react";
+import { Box, Checkbox, Flex, Text } from "@chakra-ui/react";
 import { LuDownload } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
-import { fitExportText, getExportLayout } from "./layout";
+import { fitExportText, getExportPages } from "./layout";
+import { getExportTitle } from "./script";
 import type { ExportSchedule } from "./types";
 import type { useExportDownload } from "./useExportDownload";
 import "./styles.css";
 
-type Props = { schedule: ExportSchedule; download: ReturnType<typeof useExportDownload> };
+type Props = {
+  schedule: ExportSchedule;
+  download: ReturnType<typeof useExportDownload>;
+  onSplitPeriodChange: (checked: boolean) => void;
+};
 
-export function ShiftExportView({ schedule, download }: Props) {
-  const layout = getExportLayout(schedule);
+export function ShiftExportView({ schedule, download, onSplitPeriodChange }: Props) {
+  const pages = getExportPages(schedule);
   return (
     <Box minH="100dvh" bg="gray.100">
       <Box as="header" p={4} bg="white" borderBottomWidth="1px">
-        <Flex gap={3} flexWrap="wrap" align="center">
-          <Button
-            colorPalette="teal"
-            onClick={() => void download.generate("pdf")}
-            disabled={download.isGenerating}
-            loading={download.isGenerating && download.generatingFormat === "pdf"}
-          >
-            <LuDownload />
-            PDFダウンロード
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => void download.generate("xlsx")}
-            disabled={download.isGenerating}
-            loading={download.isGenerating && download.generatingFormat === "xlsx"}
-          >
-            <LuDownload />
-            Excelダウンロード
-          </Button>
-          <Text fontSize="sm" color="fg.muted">
-            保存済みのシフト表を出力します。Excelでの編集内容はシフトリには反映されません。
-          </Text>
+        <Flex gap={3} flexWrap="wrap" align="center" justify="space-between">
+          {schedule.dates.length >= 15 && (
+            <Box>
+              <Checkbox.Root
+                checked={schedule.splitPeriod}
+                onCheckedChange={({ checked }) => onSplitPeriodChange(checked === true)}
+                disabled={download.isGenerating}
+                colorPalette="teal"
+                minH="44px"
+                cursor={download.isGenerating ? "not-allowed" : "pointer"}
+              >
+                <Checkbox.HiddenInput />
+                <Checkbox.Control>
+                  <Checkbox.Indicator />
+                </Checkbox.Control>
+                <Checkbox.Label>期間を前半・後半に分ける</Checkbox.Label>
+              </Checkbox.Root>
+            </Box>
+          )}
+          <Flex gap={3} marginStart="auto">
+            <Button
+              colorPalette="teal"
+              onClick={() => void download.generate("pdf")}
+              disabled={download.isGenerating}
+              loading={download.isGenerating && download.generatingFormat === "pdf"}
+            >
+              <LuDownload />
+              PDF
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void download.generate("xlsx")}
+              disabled={download.isGenerating}
+              loading={download.isGenerating && download.generatingFormat === "xlsx"}
+            >
+              <LuDownload />
+              Excel
+            </Button>
+          </Flex>
         </Flex>
         {download.error && (
           <Text role="alert" mt={3} color="fg.error">
@@ -43,25 +65,25 @@ export function ShiftExportView({ schedule, download }: Props) {
         )}
         {download.download && (
           <Text role="status" mt={3} fontSize="sm">
-            ダウンロードが始まらない場合は、
+            ダウンロードが始まらない場合、
             <a
               className="shift-export-download-link"
               href={download.download.url}
               download={download.download.fileName}
             >
-              作成した{download.download.format === "pdf" ? "PDF" : "Excel"}を保存
+              ここ
             </a>
-            してください。
+            を押して保存してください。
           </Text>
         )}
       </Box>
       {/* biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard users need to scroll the fixed-width preview. */}
       <section className="shift-export-preview" aria-label="シフト表プレビュー" tabIndex={0}>
-        {layout.pages.map((rows, pageIndex) => (
+        {pages.map(({ period, layout, rows, isFirstPage }, pageIndex) => (
           <section
             className="shift-export-page"
             aria-label={`${pageIndex + 1}ページ目`}
-            key={rows[0]?.staffId ?? pageIndex}
+            key={`${period.periodStart}:${rows[0]?.staffId ?? "empty"}`}
             style={{
               width: `${layout.pageWidthPt}pt`,
               height: `${layout.pageHeightPt}pt`,
@@ -69,11 +91,10 @@ export function ShiftExportView({ schedule, download }: Props) {
               fontSize: `${layout.fontSizePt}pt`,
             }}
           >
-            {pageIndex === 0 && (
+            {isFirstPage && (
               <div style={{ height: `${layout.titleHeightPt}pt` }}>
-                <h1 className="shift-export-title">{schedule.shopName} シフト表</h1>
+                <h1 className="shift-export-title">{getExportTitle(period)}</h1>
                 <p>
-                  {schedule.periodStart.replaceAll("-", "/")} 〜 {schedule.periodEnd.replaceAll("-", "/")}　
                   {schedule.statusLabel}
                   {schedule.notificationLabel ? ` ／ ${schedule.notificationLabel}` : ""}
                 </p>
@@ -82,14 +103,14 @@ export function ShiftExportView({ schedule, download }: Props) {
             <table className="shift-export-table" aria-label="シフト表">
               <colgroup>
                 <col style={{ width: `${layout.staffColumnWidthPt}pt` }} />
-                {schedule.dates.map(({ date }) => (
+                {period.dates.map(({ date }) => (
                   <col key={date} style={{ width: `${layout.dateColumnWidthPt}pt` }} />
                 ))}
               </colgroup>
               <thead>
                 <tr style={{ height: `${layout.headerHeightPt}pt` }}>
                   <th scope="col">スタッフ</th>
-                  {schedule.dates.map((date) => (
+                  {period.dates.map((date) => (
                     <th
                       scope="col"
                       key={date.date}
@@ -117,8 +138,8 @@ export function ShiftExportView({ schedule, download }: Props) {
                     </th>
                     {row.cells.map((cell, index) => (
                       <td
-                        key={schedule.dates[index].date}
-                        className={schedule.dates[index].isClosed ? "shift-export-closed" : undefined}
+                        key={period.dates[index].date}
+                        className={period.dates[index].isClosed ? "shift-export-closed" : undefined}
                         title={cell.lines.join("\n")}
                       >
                         {cell.lines.map((line, lineIndex) => {
@@ -144,7 +165,7 @@ export function ShiftExportView({ schedule, download }: Props) {
               </tbody>
             </table>
             <p className="shift-export-page-number">
-              {pageIndex + 1} / {layout.pages.length}
+              {pageIndex + 1} / {pages.length}
             </p>
           </section>
         ))}

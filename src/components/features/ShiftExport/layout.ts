@@ -1,5 +1,22 @@
 import type { ExportSchedule, ExportStaffRow } from "./types";
 
+export const getExportPeriods = (schedule: ExportSchedule): ExportSchedule[] => {
+  if (!schedule.splitPeriod || schedule.dates.length < 15) return [schedule];
+  const midpoint = Math.ceil(schedule.dates.length / 2);
+  return [0, midpoint].map((start, index) => {
+    const end = index === 0 ? midpoint : schedule.dates.length;
+    const dates = schedule.dates.slice(start, end);
+    return {
+      ...schedule,
+      splitPeriod: false,
+      periodStart: dates[0].date,
+      periodEnd: dates[dates.length - 1].date,
+      dates,
+      rows: schedule.rows.map((row) => ({ ...row, cells: row.cells.slice(start, end) })),
+    };
+  });
+};
+
 export const getExportLayout = (schedule: ExportSchedule) => {
   const pageWidthPt = 841.89;
   const pageHeightPt = 595.28;
@@ -38,6 +55,12 @@ export const getExportLayout = (schedule: ExportSchedule) => {
     pages,
   };
 };
+
+export const getExportPages = (schedule: ExportSchedule) =>
+  getExportPeriods(schedule).flatMap((period) => {
+    const layout = getExportLayout(period);
+    return layout.pages.map((rows, index) => ({ period, layout, rows, isFirstPage: index === 0 }));
+  });
 
 // These estimates keep the Japanese font and time labels on one line without loading the PDF font in the preview.
 const characterWidth = (character: string) => {

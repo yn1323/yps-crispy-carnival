@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { createExportFixture } from "./fixtures";
+import { ShiftExportPage } from "./index";
 import { buildExportSchedule } from "./script";
 import { ShiftExportView } from "./View";
 
@@ -10,7 +11,7 @@ const meta = {
   title: "features/ShiftExport",
   component: ShiftExportView,
   parameters: { layout: "fullscreen" },
-  args: { schedule, download },
+  args: { schedule, download, onSplitPeriodChange: () => {} },
 } satisfies Meta<typeof ShiftExportView>;
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -18,7 +19,7 @@ type Story = StoryObj<typeof meta>;
 export const Time31Days: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("heading", { name: "シフトリ駅前店 シフト表" })).toBeVisible();
+    await expect(canvas.getByRole("heading", { name: "2026/08/01~08/31 シフトリ駅前店" })).toBeVisible();
     await expect(canvas.getAllByRole("columnheader")).toHaveLength(32);
     await expect(canvas.getByRole("cell", { name: "09:00 17:00" })).toBeVisible();
     await expect(canvas.queryByRole("navigation")).not.toBeInTheDocument();
@@ -31,8 +32,8 @@ export const Mobile31Days: Story = {
   globals: { viewport: { value: "mobile1", isRotated: false } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole("button", { name: "PDFダウンロード" })).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Excelダウンロード" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "PDF" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Excel" })).toBeVisible();
     const preview = canvas.getByRole("region", { name: "シフト表プレビュー" });
     await expect(preview.scrollWidth).toBeGreaterThan(preview.clientWidth);
   },
@@ -68,11 +69,98 @@ shiftTypes.recruitment.submissionPattern = {
 shiftTypes.assignments = ["late", "early"].map((optionId) => ({ ...shiftTypes.assignments[0], optionId }));
 export const LongShiftTypeNames: Story = { args: { schedule: buildExportSchedule(shiftTypes) } };
 
+export const SplitShiftTypePeriod: Story = { args: { schedule: buildExportSchedule(shiftTypes, true) } };
+
+export const MobileSplitShiftTypePeriod: Story = {
+  ...SplitShiftTypePeriod,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
+const multiplePageTime = createExportFixture({ staffs: dateOnly.staffs.slice(0, 20) });
+export const ToggleSplitPeriod: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <ShiftExportPage data={multiplePageTime} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const checkbox = canvas.getByRole("checkbox", { name: "期間を前半・後半に分ける" });
+    await expect(checkbox).not.toBeChecked();
+
+    await userEvent.click(checkbox);
+
+    await expect(checkbox).toBeChecked();
+    await waitFor(() => expect(canvas.getAllByRole("table")).toHaveLength(4));
+    const splitTables = canvas.getAllByRole("table");
+    await expect(splitTables.map((table) => within(table).getAllByRole("columnheader").length)).toEqual([
+      17, 17, 16, 16,
+    ]);
+    await expect(canvas.getAllByRole("heading").map((heading) => heading.textContent)).toEqual([
+      "2026/08/01~08/16 シフトリ駅前店",
+      "2026/08/17~08/31 シフトリ駅前店",
+    ]);
+    const staffNames = multiplePageTime.staffs.map(({ name }) => name);
+    for (const periodTables of [splitTables.slice(0, 2), splitTables.slice(2)]) {
+      await expect(
+        periodTables.flatMap((table) =>
+          within(table)
+            .getAllByRole("rowheader")
+            .map((header) => header.textContent),
+        ),
+      ).toEqual(staffNames);
+    }
+
+    await userEvent.click(checkbox);
+
+    await expect(checkbox).not.toBeChecked();
+    await waitFor(() => expect(canvas.getAllByRole("table")).toHaveLength(2));
+    await expect(
+      canvas.getAllByRole("table").map((table) => within(table).getAllByRole("columnheader").length),
+    ).toEqual([32, 32]);
+    await expect(canvas.getAllByRole("heading").map((heading) => heading.textContent)).toEqual([
+      "2026/08/01~08/31 シフトリ駅前店",
+    ]);
+  },
+};
+
+const fifteenDayDateOnly = createExportFixture();
+fifteenDayDateOnly.recruitment.periodEnd = "2026-08-15";
+fifteenDayDateOnly.recruitment.submissionPattern = { kind: "dateOnly" };
+export const SplitFifteenDayPeriod: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <ShiftExportPage data={fifteenDayDateOnly} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("checkbox", { name: "期間を前半・後半に分ける" }));
+
+    await waitFor(() => expect(canvas.getAllByRole("table")).toHaveLength(2));
+    await expect(
+      canvas.getAllByRole("table").map((table) => within(table).getAllByRole("columnheader").length),
+    ).toEqual([9, 8]);
+    await expect(canvas.getAllByRole("heading").map((heading) => heading.textContent)).toEqual([
+      "2026/08/01~08/08 シフトリ駅前店",
+      "2026/08/09~08/15 シフトリ駅前店",
+    ]);
+  },
+};
+
+const fourteenDayPeriod = createExportFixture();
+fourteenDayPeriod.recruitment.periodEnd = "2026-08-14";
+export const FourteenDayPeriod: Story = {
+  parameters: { screenshot: { skip: true } },
+  render: () => <ShiftExportPage data={fourteenDayPeriod} />,
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).queryByRole("checkbox", { name: "期間を前半・後半に分ける" }),
+    ).not.toBeInTheDocument();
+  },
+};
+
 export const Generating: Story = {
   args: { download: { ...download, isGenerating: true, generatingFormat: "pdf" } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     for (const button of canvas.getAllByRole("button")) await expect(button).toBeDisabled();
+    await expect(canvas.getByRole("checkbox", { name: "期間を前半・後半に分ける" })).toBeDisabled();
   },
 };
 
@@ -84,7 +172,7 @@ export const RetryAfterFailure: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const button = canvas.getByRole("button", { name: "PDFダウンロード" });
+    const button = canvas.getByRole("button", { name: "PDF" });
     await expect(canvas.getByRole("alert")).toHaveTextContent("もう一度お試しください");
     await userEvent.click(button);
     await expect(requestedFormat).toBe("pdf");
@@ -108,9 +196,6 @@ export const SaveLink: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByRole("link", { name: "作成したPDFを保存" })).toHaveAttribute(
-      "download",
-      "シフト表.pdf",
-    );
+    await expect(within(canvasElement).getByRole("link", { name: "ここ" })).toHaveAttribute("download", "シフト表.pdf");
   },
 };

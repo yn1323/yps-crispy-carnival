@@ -208,12 +208,14 @@ describe("shiftExport/queries", () => {
     expect(await actor.query(api.shiftExport.queries.getShiftExportData, deniedArgs)).toBeNull();
   });
 
-  it("保存済み割当と募集の設定だけを最小DTOで返し、希望・PII・ポジションを含めない", async () => {
+  it.each([false, true])("下書き保存=%sでも出力を許可し、希望・PII・ポジションを含めない", async (hasSavedDraft) => {
     const t = convexTest(schema, modules);
     const ids = await seedExport(t);
     await t.run(async (ctx) => {
-      await ctx.db.patch(ids.recruitmentId, { draftSavedAt: 3000 });
-      await ctx.db.insert("shiftAssignments", assignment(ids));
+      if (hasSavedDraft) {
+        await ctx.db.patch(ids.recruitmentId, { draftSavedAt: 3000 });
+        await ctx.db.insert("shiftAssignments", assignment(ids));
+      }
       const submissionId = await ctx.db.insert("shiftSubmissions", {
         recruitmentId: ids.recruitmentId,
         staffId: ids.staffId,
@@ -241,12 +243,14 @@ describe("shiftExport/queries", () => {
         periodEnd: "2026-09-30",
         shopClosedDates: ["2026-09-06"],
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
-        draftSavedAt: 3000,
+        draftSavedAt: hasSavedDraft ? 3000 : null,
         confirmedAt: null,
         isConfirmed: false,
       },
       staffs: [{ id: ids.staffId, name: "スタッフA", isRemoved: false }],
-      assignments: [{ staffId: ids.staffId, date: "2026-09-01", startTime: "09:00", endTime: "17:00", optionId: null }],
+      assignments: hasSavedDraft
+        ? [{ staffId: ids.staffId, date: "2026-09-01", startTime: "09:00", endTime: "17:00", optionId: null }]
+        : [],
       confirmationState: "unconfirmed",
       contentComparison: "notApplicable",
       notificationState: "notApplicable",
@@ -254,10 +258,10 @@ describe("shiftExport/queries", () => {
     });
   });
 
-  it("未保存・全員非出勤の保存・スタッフ0件を区別し、閲覧は書き込み制限に依存しない", async () => {
+  it("全員非出勤の保存とスタッフ0件を区別し、閲覧は書き込み制限に依存しない", async () => {
     const t = convexTest(schema, modules);
     const ids = await seedExport(t);
-    expect((await query(t, ids))?.exportBlockReason).toBe("noSavedShifts");
+    expect(await query(t, ids)).toMatchObject({ assignments: [], exportBlockReason: null });
     await t.run(async (ctx) => {
       await ctx.db.patch(ids.recruitmentId, { draftSavedAt: 1000 });
       const billing = await ctx.db

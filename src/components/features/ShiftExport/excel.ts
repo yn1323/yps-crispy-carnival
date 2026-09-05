@@ -1,5 +1,6 @@
 import type { Cell, Worksheet } from "exceljs";
-import { fitExportText, getExportLayout } from "./layout";
+import { fitExportText, getExportLayout, getExportPeriods } from "./layout";
+import { getExportTitle } from "./script";
 import type { ExportSchedule } from "./types";
 
 const BLACK = "FF000000";
@@ -93,40 +94,45 @@ export const createShiftExcel = async (schedule: ExportSchedule): Promise<Blob> 
   const { default: ExcelJS } = await import("exceljs");
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "シフトリ";
-  const layout = getExportLayout(schedule);
-  const worksheet = workbook.addWorksheet("シフト表", {
-    views: [{ state: "frozen", xSplit: 1, ySplit: 3, topLeftCell: "B4", showGridLines: false }],
-    pageSetup: {
-      paperSize: 9,
-      orientation: "landscape",
-      fitToPage: true,
-      fitToWidth: 1,
-      fitToHeight: 0,
-      horizontalCentered: true,
-      margins: { left: 1 / 3, right: 1 / 3, top: 1 / 3, bottom: 1 / 3, header: 0, footer: 1 / 6 },
-    },
-    headerFooter: { oddFooter: "&C&P / &N" },
+  const periods = getExportPeriods(schedule);
+  periods.forEach((period, periodIndex) => {
+    const layout = getExportLayout(period);
+    const worksheet = workbook.addWorksheet(
+      periods.length === 1 ? "シフト表" : periodIndex === 0 ? "シフト表（前半）" : "シフト表（後半）",
+      {
+        views: [{ state: "frozen", xSplit: 1, ySplit: 3, topLeftCell: "B4", showGridLines: false }],
+        pageSetup: {
+          paperSize: 9,
+          orientation: "landscape",
+          fitToPage: true,
+          fitToWidth: 1,
+          fitToHeight: 0,
+          horizontalCentered: true,
+          margins: { left: 1 / 3, right: 1 / 3, top: 1 / 3, bottom: 1 / 3, header: 0, footer: 1 / 6 },
+        },
+        headerFooter: { oddFooter: "&C&P / &N" },
+      },
+    );
+    // Excel column widths include 5 px of padding in addition to 7 px per character at the default font.
+    worksheet.getColumn(1).width = ((layout.staffColumnWidthPt * 4) / 3 - 5) / 7;
+    period.dates.forEach((_, index) => {
+      worksheet.getColumn(index + 2).width = ((layout.dateColumnWidthPt * 4) / 3 - 5) / 7;
+    });
+    const lastColumn = period.dates.length + 1;
+    worksheet.mergeCells(1, 1, 1, lastColumn);
+    worksheet.mergeCells(2, 1, 2, lastColumn);
+    worksheet.getRow(1).height = 26;
+    worksheet.getCell("A1").value = getExportTitle(period);
+    worksheet.getCell("A1").font = { name: "Noto Sans JP", size: 16, bold: true, color: { argb: BLACK } };
+    worksheet.getRow(2).height = 22;
+    worksheet.getCell("A2").value =
+      period.statusLabel + (period.notificationLabel ? `\n${period.notificationLabel}` : "");
+    worksheet.getCell("A2").font = { name: "Noto Sans JP", size: 9, color: { argb: BLACK } };
+    worksheet.getCell("A2").alignment = { vertical: "middle", wrapText: true };
+    addScheduleRows(worksheet, period);
+    worksheet.pageSetup.printArea = `A1:${worksheet.getColumn(lastColumn).letter}${period.rows.length + 3}`;
+    worksheet.pageSetup.printTitlesRow = "3:3";
   });
-  // Excel column widths include 5 px of padding in addition to 7 px per character at the default font.
-  worksheet.getColumn(1).width = ((layout.staffColumnWidthPt * 4) / 3 - 5) / 7;
-  schedule.dates.forEach((_, index) => {
-    worksheet.getColumn(index + 2).width = ((layout.dateColumnWidthPt * 4) / 3 - 5) / 7;
-  });
-  const lastColumn = schedule.dates.length + 1;
-  worksheet.mergeCells(1, 1, 1, lastColumn);
-  worksheet.mergeCells(2, 1, 2, lastColumn);
-  worksheet.getRow(1).height = 26;
-  worksheet.getCell("A1").value = `${schedule.shopName} シフト表`;
-  worksheet.getCell("A1").font = { name: "Noto Sans JP", size: 16, bold: true, color: { argb: BLACK } };
-  worksheet.getRow(2).height = 22;
-  worksheet.getCell("A2").value =
-    `${schedule.periodStart.replaceAll("-", "/")} 〜 ${schedule.periodEnd.replaceAll("-", "/")}　${schedule.statusLabel}` +
-    (schedule.notificationLabel ? `\n${schedule.notificationLabel}` : "");
-  worksheet.getCell("A2").font = { name: "Noto Sans JP", size: 9, color: { argb: BLACK } };
-  worksheet.getCell("A2").alignment = { vertical: "middle", wrapText: true };
-  addScheduleRows(worksheet, schedule);
-  worksheet.pageSetup.printArea = `A1:${worksheet.getColumn(lastColumn).letter}${schedule.rows.length + 3}`;
-  worksheet.pageSetup.printTitlesRow = "3:3";
   const bytes = await workbook.xlsx.writeBuffer();
   return new Blob([new Uint8Array(bytes)], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

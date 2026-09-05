@@ -39,32 +39,44 @@ describe("useExportDownload", () => {
     unmount();
     expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
   });
-  it.each(["unmount", "change"] as const)("生成中の %s 後に完了してもファイルを公開しない", async (action) => {
-    let resolve!: (blob: Blob) => void;
-    exporters.pdf.mockImplementation(
-      () =>
-        new Promise<Blob>((done) => {
-          resolve = done;
-        }),
-    );
-    const { result, rerender, unmount } = renderHook(({ schedule }) => useExportDownload(schedule), {
-      initialProps: { schedule: buildExportSchedule(createExportFixture()) },
-    });
-    let running!: ReturnType<typeof result.current.generate>;
-    await act(async () => {
-      running = result.current.generate("pdf");
-      await vi.dynamicImportSettled();
-    });
-    if (action === "unmount") unmount();
-    else rerender({ schedule: buildExportSchedule(createExportFixture({ shopName: "変更後" })) });
-    await act(async () => {
-      resolve(new Blob(["old data"]));
-      await running;
-    });
-    expect(URL.createObjectURL).not.toHaveBeenCalled();
-    expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled();
-    if (action === "change") expect(result.current.download).toBeNull();
-  });
+  it.each(["unmount", "change", "splitPeriod"] as const)(
+    "生成中の %s 後に完了してもファイルを公開しない",
+    async (action) => {
+      let resolve!: (blob: Blob) => void;
+      exporters.pdf.mockImplementation(
+        () =>
+          new Promise<Blob>((done) => {
+            resolve = done;
+          }),
+      );
+      const { result, rerender, unmount } = renderHook(({ schedule }) => useExportDownload(schedule), {
+        initialProps: { schedule: buildExportSchedule(createExportFixture()) },
+      });
+      let running!: ReturnType<typeof result.current.generate>;
+      await act(async () => {
+        running = result.current.generate("pdf");
+        await vi.dynamicImportSettled();
+      });
+      if (action === "unmount") unmount();
+      else if (action === "splitPeriod") rerender({ schedule: buildExportSchedule(createExportFixture(), true) });
+      else rerender({ schedule: buildExportSchedule(createExportFixture({ shopName: "変更後" })) });
+      await act(async () => {
+        resolve(new Blob(["old data"]));
+        await running;
+      });
+      expect(URL.createObjectURL).not.toHaveBeenCalled();
+      expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled();
+      if (action !== "unmount") expect(result.current.download).toBeNull();
+      if (action === "splitPeriod") {
+        exporters.pdf.mockResolvedValue(new Blob(["split data"]));
+        await act(async () => {
+          await result.current.generate("pdf");
+        });
+        expect(exporters.pdf).toHaveBeenLastCalledWith(expect.objectContaining({ splitPeriod: true }));
+        expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1);
+      }
+    },
+  );
   it("失敗後に再試行でき、例外の内部情報を表示しない", async () => {
     exporters.pdf.mockRejectedValueOnce(new Error("private staff details"));
     const schedule = buildExportSchedule(createExportFixture());
