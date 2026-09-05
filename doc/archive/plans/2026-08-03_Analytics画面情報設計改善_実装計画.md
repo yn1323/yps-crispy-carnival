@@ -1,5 +1,11 @@
 # Analytics画面情報設計改善 実装計画
 
+> Archive日: 2026-09-05
+>
+> 理由: `superseded`
+>
+> 後継: [日次利用指標](../../features/analytics.md)、[問い合わせ閲覧](../../features/analytics-dashboard.md)
+
 作成日: 2026-08-03  
 状態: completed  
 対象: `apps/analytics-dashboard/`の情報設計、表示状態、文言、一覧、詳細画面  
@@ -193,7 +199,7 @@ LINE連携と人物内訳は補助情報として同じsection内にまとめる
 ### 5.6 要望画面
 
 `/requests`から`DataStatus`を削除する。  
-これは[分析KPI可視化アプリ](../features/analytics-dashboard.md)の「pipeline状態を表示しない」という現行仕様との不一致修正でもある。
+これは[分析KPI可視化アプリ](../../features/analytics-dashboard.md)の「pipeline状態を表示しない」という現行仕様との不一致修正でもある。
 
 見出しは「届いた要望」、説明は「要望フォームから届いた内容を新しい順に表示します」とする。  
 現在の受付日時、店舗、送信者区分、本文は維持する。

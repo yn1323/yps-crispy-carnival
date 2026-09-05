@@ -119,7 +119,6 @@ pnpm exec convex run narrowReadiness/queries:verifyShops \
 - `verifyLegacyShopBillingStates`
 - `verifyOrganizationMigrationConflicts`
 - `verifyOrganizationAuditShopLifecycle`
-- `verifyAnalyticsShopLifecycle`
 
 LINE共通化では、上の既存queryとは別に次も全ページ走査します。
 
@@ -137,7 +136,7 @@ Outbox scopeのNarrowでは`unresolvedNotificationOutboxScopeRows`も全ペー�
 合計が0でない項目は、次のNarrow deployを止める理由と修復方法を記録します。
 `verifyPositionShops.observations.shopsWithoutActivePositions`は、positionが不要な店舗もあり得るため観測値です。  `anomalies`とは分けて記録し、この値だけではNarrowを止めません。
 
-店舗ライフサイクルのNarrowでは、`verifyShops.observations.operatingStatusPresent`も全ページ合計します。  m048実行前に`archivedOperatingStatus`または`unknownOperatingStatus`が1件でもあればmigrationを実行せず、対象deploymentと件数を記録して個別判断へ分けます。  m048成功後は`operatingStatusPresent`と、旧監査action・旧analytics change・`active`を含む全shop status deltaを数える二つのlifecycle readinessがすべて0件であることを確認してから、schema field、index、validator、互換DTOを削除します。
+店舗ライフサイクルのNarrowでは、`verifyShops.observations.operatingStatusPresent`も全ページ合計します。  m048実行前に`archivedOperatingStatus`または`unknownOperatingStatus`が1件でもあればmigrationを実行せず、対象deploymentと件数を記録して個別判断へ分けます。  m048成功後は`operatingStatusPresent`と、旧監査action・`active`を含む全shop status deltaを数える監査lifecycle readinessがすべて0件であることを確認してから、schema field、index、validator、互換DTOを削除します。
 
 ### 店舗ライフサイクルruntime切替前のexport検証
 
@@ -368,3 +367,5 @@ LINE共通化のlegacy readを削除したartifactは、m041を実行した場�
 - Production documentの手動更新または削除。
 - `shopMembers`と`shopBillingStates` rowの物理削除。
 - Productionの完了を、ローカルテストやDevelopmentの結果から推測して記録すること。
+
+Analytics再設計後のschemaには旧source event tableがないため、現行readinessは業務tableと監査eventを対象にする。旧source eventを含むexportは引き続きexport検証で検査する。新しい4つのAnalytics tableをschema metadataで確認できるexportだけは、旧source event tableの不在を許容する。

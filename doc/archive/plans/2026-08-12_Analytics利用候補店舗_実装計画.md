@@ -1,5 +1,11 @@
 # Analytics利用候補店舗 実装計画
 
+> Archive日: 2026-09-05
+>
+> 理由: `superseded`
+>
+> 後継: [日次利用指標](../../features/analytics.md)、[問い合わせ閲覧](../../features/analytics-dashboard.md)
+
 作成日: 2026-08-12
 状態: completed
 対象: `convex/analyticsDashboard/`、`apps/analytics-dashboard/`の店舗一覧と既存詳細導線
@@ -77,7 +83,7 @@ flowchart LR
 - モバイルカードでの候補区分と根拠
 - 店舗一覧から既存店舗詳細と既存組織詳細を開く導線
 - Convex Logic、Function Testとrequest schema test
-- [分析KPI可視化アプリ](../features/analytics-dashboard.md)の更新
+- [分析KPI可視化アプリ](../../features/analytics-dashboard.md)の更新
 
 ### 4.2 対象外
 
@@ -452,7 +458,7 @@ git diff --check
 - 新table、index、migration、backfill、public function、export変更を追加しない
 - 新しいPIIと秘密値をresponse、log、文書へ追加しない
 - 対象testと必須検証が成功する
-- [分析KPI可視化アプリ](../features/analytics-dashboard.md)を実装後の現在仕様へ更新する
+- [分析KPI可視化アプリ](../../features/analytics-dashboard.md)を実装後の現在仕様へ更新する
 - ローカル実装完了とProduction反映を分けて報告する
 
 ## 14. リスクと緩和
@@ -623,7 +629,7 @@ Convex、Vite、Storybookの開発serverを新規起動せず、convex/_generate
 - raw page後のfilter、cursor、warning、返却行だけを対象とする`computedAt`を維持した
 - `/shops`の店舗名領域とモバイルカードへ区分と「最新集計の根拠」を表示した
 - 店舗詳細と組織詳細への既存導線を維持し、組織linkと店舗rowのkeyboard操作を分離した
-- [分析KPI可視化アプリ](../features/analytics-dashboard.md)を現在仕様へ更新した
+- [分析KPI可視化アプリ](../../features/analytics-dashboard.md)を現在仕様へ更新した
 
 Convex schema、table、index、migration、backfill、public Convex function、外部route、JSONL exportは変更していない。
 Production deployment、Function Runner、環境変数、実データの操作も行っていない。

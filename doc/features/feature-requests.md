@@ -40,6 +40,7 @@ SPの要望Dialogは入力が1項目だけなので、フルスクリーンに�
 - `comment`
 - `requestId`
 - `_creationTime`
+- `isDeleted`（新規保存はfalse、既存の未設定はfalseとして扱う）
 
 `/dashboard`や認証済みの組織スコープ画面では、Homeや店舗詳細など画面から未削除店舗を一意に特定できる場合だけ、内部で`shopId`を付ける。  店舗を特定できない場合は先頭店舗へfallbackせず、`organizationId`を付ける。  どちらの場合もDialogに対象選択UIは出さない。
 
@@ -51,8 +52,8 @@ SPの要望Dialogは入力が1項目だけなので、フルスクリーンに�
 
 `organizationId`の追加と`shopId`のoptional化は、既存の店舗付きレコードをそのまま許容するWiden変更である。  public mutationは`organizationId`または`shopId`のどちらか一方だけを保存する。  backfillやデータ移行は不要である。
 
-`/requests`は、analytics-dashboardが運用tableを直接読む唯一の例外である。  
-internal queryは`featureRequests`を新しい順に読み、店舗対象は現在の`shops`、組織対象は現在の`organizations`から表示名を解決する。  一pageの上限は50件で、Analytics generationや日次snapshotには取り込まない。
+`/requests`は、日次集計から独立して現在の要望を表示する。  
+internal queryは`featureRequests`を新しい順に読み、店舗対象は現在の`shops`、組織対象は現在の`organizations`から表示名を解決する。  一pageの上限は50件で、日次集計には取り込まない。
 
 ## API一覧
 
@@ -67,4 +68,9 @@ internal queryは`featureRequests`を新しい順に読み、店舗対象は現�
 
 要望送信ではメールとSlack通知を行わない。
 
-analytics DTOには管理ユーザーのメールアドレスを含めない。`/requests`のmetadataはpipelineとは独立した現在値であることをwarningで示す。
+要望DTOには管理ユーザーのメールアドレスを含めない。`asOf`は現在値の参照時刻であり、日次集計とは独立している。
+
+一覧のチェックを付けると`isDeleted: true`、外すと`false`を保存する。削除扱いの行も一覧に含め、本文に打ち消し線を付ける。  
+このflagはoptionalなので既存行のmigrationは不要である。送信の冪等性による再要求で、既存のflagをfalseへ戻さない。
+
+変更は同一originの`POST` `/api/requests/update`から、service credentialで保護された要望専用HTTP Actionとinternal mutationを通す。指定できるのは要望IDとbooleanだけで、物理削除や他の業務データ更新は行わない。
