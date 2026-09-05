@@ -170,6 +170,24 @@ describe("verifyShopLifecycleReadinessExport", () => {
     );
   });
 
+  it("日次実績の4tableへ置換したexportでは旧source tableを要求しない", async () => {
+    const zipPath = await createExportZip({
+      tableSources: {
+        shops: "",
+        organizationAuditEvents: "",
+        analyticsState: "",
+        analyticsShopDays: "",
+        analyticsCycleEvidence: "",
+        analyticsDailyResults: "",
+      },
+    });
+
+    await expect(verifyShopLifecycleReadinessExport(zipPath)).resolves.toMatchObject({
+      ready: true,
+      scannedRows: { shops: 0, organizationAuditEvents: 0, analyticsSourceEvents: 0 },
+    });
+  });
+
   it("不正JSONをfail closedする", async () => {
     const zipPath = await createExportZip({
       tableSources: {

@@ -45,6 +45,7 @@ async function submitManagerFeatureRequest(
     userId: args.userId,
     comment: parsed.data.comment,
     requestId: parsed.data.requestId,
+    isDeleted: false,
   });
 
   return { status: "accepted" as const };
@@ -152,6 +153,7 @@ export const submitFromStaff = staffSessionMutation({
       staffId: ctx.staff._id,
       comment: parsed.data.comment,
       requestId: parsed.data.requestId,
+      isDeleted: false,
     });
 
     return { status: "accepted" as const };

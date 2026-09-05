@@ -8,11 +8,8 @@ import { observedInternalMutation as internalMutation } from "../_lib/errorObser
 import { authenticatedMutation, managerMutation } from "../_lib/functions";
 import { buildLineAuthorizeUrl } from "../_lib/lineClient";
 import { rateLimit } from "../_lib/rateLimits";
-import { sha256Hex } from "../_lib/sha256";
 import { isShopAvailable } from "../_lib/shopAvailability";
 import { generateUUID } from "../_lib/uuid";
-import { ANALYTICS_POLICY } from "../analytics/registry";
-import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
 import {
   LINE_FRIENDSHIP_FANOUT_BATCH_SIZE,
   LINE_FRIENDSHIP_FANOUT_LEASE_MS,
@@ -50,22 +47,6 @@ import {
   upsertOrganizationPersonLineLink,
   upsertStaffLineAccount,
 } from "./service";
-
-type AnalyticsLineAccountChange = {
-  staffId: Id<"staffs">;
-  linked: boolean;
-  following: boolean;
-  occurredAt: number;
-};
-
-function appendAnalyticsLineAccountChange(
-  changes: AnalyticsLineAccountChange[],
-  change: AnalyticsLineAccountChange,
-): boolean {
-  if (changes.length >= ANALYTICS_POLICY.batch.sourceEvents) return false;
-  changes.push(change);
-  return true;
-}
 
 async function canRedeemLineLinkTokenForShop(ctx: Pick<MutationCtx, "db">, shop: Doc<"shops">) {
   const organizationId = shop.organizationId;
@@ -338,22 +319,6 @@ async function finalizeCanonicalLinking(
   if (fanoutJobId) {
     await ctx.scheduler.runAfter(0, internal.line.mutations.kickFriendshipFanoutJob, { jobId: fanoutJobId });
   } else {
-    const analyticsAccounts: AnalyticsLineAccountChange[] = activeStaffs.map((staff) => ({
-      staffId: staff._id,
-      linked: true,
-      following: effectiveFollowing,
-      occurredAt: linkedAt,
-    }));
-    await recordAnalyticsSourceEvent(ctx, {
-      eventKey: `lineAccountBatch:${link.linkId}:linked:${linkedAt}`,
-      eventType: "lineAccount.changed",
-      occurredAt: linkedAt,
-      payload: {
-        kind: "lineAccountBatch",
-        isComplete: analyticsAccounts.length <= ANALYTICS_POLICY.batch.sourceEvents,
-        accounts: analyticsAccounts.slice(0, ANALYTICS_POLICY.batch.sourceEvents),
-      },
-    });
     if (effectiveFollowing) {
       const includeOpenRecruitments = priorRecipient?.following !== true;
       for (const staff of activeStaffs) {
@@ -415,18 +380,6 @@ export const markFollowing = internalMutation({
     const occurredAt = Date.now();
     if (account && !account.isDeleted) {
       await ctx.db.patch(account._id, { following: args.following, lastWebhookAt: occurredAt });
-      await recordAnalyticsSourceEvent(ctx, {
-        eventKey: `lineAccount:${account._id}:following:${occurredAt}`,
-        eventType: "lineAccount.changed",
-        occurredAt,
-        subjectId: args.staffId,
-        payload: {
-          kind: "lineAccount",
-          staffId: args.staffId,
-          linked: true,
-          following: args.following,
-        },
-      });
     }
     const wasFollowing = Boolean(account?.following);
     if (args.following && staff && !wasFollowing && !staff.isDeleted) {
@@ -486,8 +439,6 @@ async function processWebhookStateEvent(ctx: MutationCtx, event: WebhookStateEve
   }
 
   const notificationOriginByShopId = new Map<Id<"shops">, BusinessNotificationOrigin>();
-  const analyticsAccounts: AnalyticsLineAccountChange[] = [];
-  let analyticsAccountsComplete = true;
   for (const account of accounts) {
     const staff = await ctx.db.get(account.staffId);
     if (!staff || staff.isDeleted) continue;
@@ -516,16 +467,6 @@ async function processWebhookStateEvent(ctx: MutationCtx, event: WebhookStateEve
       : null;
     const handledByCanonicalFanout =
       fanoutJobId !== null && canonicalRecipient?.lineProviderUserId === providerObservation.provider._id;
-    if (!handledByCanonicalFanout) {
-      analyticsAccountsComplete =
-        appendAnalyticsLineAccountChange(analyticsAccounts, {
-          staffId: staff._id,
-          linked: true,
-          following: event.following,
-          // Provider時刻は順序判定だけに使い、分析上の変更は受理時刻から有効にする。
-          occurredAt: webhookReceivedAt,
-        }) && analyticsAccountsComplete;
-    }
     if (event.following && !wasFollowing && !handledByCanonicalFanout) {
       let notificationOrigin = notificationOriginByShopId.get(staff.shopId);
       if (!notificationOrigin) {
@@ -541,16 +482,6 @@ async function processWebhookStateEvent(ctx: MutationCtx, event: WebhookStateEve
         ...notificationOrigin,
       });
     }
-  }
-
-  if (analyticsAccounts.length > 0 || !analyticsAccountsComplete) {
-    const eventKey = await sha256Hex(event.webhookEventId);
-    await recordAnalyticsSourceEvent(ctx, {
-      eventKey: `lineAccountBatch:webhook:${eventKey}`,
-      eventType: "lineAccount.changed",
-      occurredAt: webhookReceivedAt,
-      payload: { kind: "lineAccountBatch", isComplete: analyticsAccountsComplete, accounts: analyticsAccounts },
-    });
   }
 }
 
@@ -664,7 +595,6 @@ export const processFriendshipFanoutJob = internalMutation({
         cursor: job.cursor ?? null,
         maximumRowsRead: LINE_FRIENDSHIP_FANOUT_BATCH_SIZE,
       });
-    const occurredAt = provider.lastWebhookAt ?? provider.friendshipObservedAt;
     for (const link of page.page) {
       const [organization, person] = await Promise.all([
         ctx.db.get(link.organizationId),
@@ -683,21 +613,6 @@ export const processFriendshipFanoutJob = internalMutation({
       const staffs = await listActiveStaffsForOrganizationPerson(ctx, {
         organizationId: organization._id,
         organizationPersonId: person._id,
-      });
-      await recordAnalyticsSourceEvent(ctx, {
-        eventKey: `lineAccountBatch:fanout:${job._id}:${job.stateVersion}:${link._id}`,
-        eventType: "lineAccount.changed",
-        occurredAt,
-        payload: {
-          kind: "lineAccountBatch",
-          isComplete: true,
-          accounts: staffs.map((staff) => ({
-            staffId: staff._id,
-            linked: true,
-            following: job.following,
-            occurredAt,
-          })),
-        },
       });
       if (job.following) {
         for (const staff of staffs) {
@@ -984,10 +899,6 @@ export const disconnectOrganizationPersonLine = authenticatedMutation({
     }
 
     const occurredAt = Date.now();
-    const activeStaffs = await listActiveStaffsForOrganizationPerson(ctx, {
-      organizationId: actor.organization._id,
-      organizationPersonId: person._id,
-    });
     const staffHistory = await listOrganizationPersonStaffHistory(ctx, {
       organizationId: actor.organization._id,
       organizationPersonId: person._id,
@@ -1026,25 +937,7 @@ export const disconnectOrganizationPersonLine = authenticatedMutation({
       toState: "unlinked",
       correlationId,
       occurredAt,
-      suppressAnalyticsEvent: true,
     });
-    if (activeStaffs.length > 0) {
-      await recordAnalyticsSourceEvent(ctx, {
-        eventKey: `lineAccountBatch:disconnect:${correlationId}`,
-        eventType: "lineAccount.changed",
-        occurredAt,
-        payload: {
-          kind: "lineAccountBatch",
-          isComplete: true,
-          accounts: activeStaffs.map((staff) => ({
-            staffId: staff._id,
-            linked: false,
-            following: false,
-            occurredAt,
-          })),
-        },
-      });
-    }
     return { changed: true };
   },
 });

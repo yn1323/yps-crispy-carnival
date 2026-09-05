@@ -3,18 +3,19 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
-import { isPastShiftPeriod } from "../_lib/dateFormat";
+import { isPastShiftPeriod, jstDayRangeMs } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { sha256Hex } from "../_lib/sha256";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
 import { normalizeEmail } from "../_lib/validation";
-import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
+import { recordAnalyticsUsage } from "../analytics/record";
 import { NOTIFICATION_FANOUT_SCOPE_LIMIT, SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
+import { getPreviousConfirmationDelivery } from "../notification/confirmationDelivery";
 import {
   buildConfirmationSnapshotsForStaffs,
   confirmationSnapshotMatchesAssignments,
 } from "../notification/confirmationSnapshots";
-import { buildNotificationFanoutTargetKey, ensureNotificationFanoutOperation } from "../notification/fanout";
+import { ensureNotificationFanoutOperation } from "../notification/fanout";
 import { getBusinessNotificationOrigin } from "../notificationOutbox/origin";
 import { ensureDefaultPosition } from "../position/service";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
@@ -26,62 +27,6 @@ const PAST_SHIFT_NOTIFY_ERROR = "過去のシフトはスタッフに通知で�
 const PREVIOUS_CONFIRMATION_NOTIFICATION_PROCESSING_ERROR =
   "前回の確定シフト通知を送信中です。\n少し時間をおいて、もう一度お試しください。";
 const SHIFT_CONFIRMATION_OPERATION_VERSION = 1;
-
-type PreviousConfirmationDeliveryState = "delivered" | "queued" | "undelivered" | "processing";
-
-function belongsToConfirmationOperation(
-  outbox: Doc<"notificationOutbox"> | null,
-  operation: Doc<"notificationFanoutOperations">,
-  staffId: Id<"staffs">,
-) {
-  return (
-    outbox?.fanoutOperationId === operation._id &&
-    outbox.recruitmentId === operation.recruitmentId &&
-    outbox.shopId === operation.shopId &&
-    outbox.staffId === staffId
-  );
-}
-
-async function getPreviousConfirmationDeliveryState(
-  ctx: MutationCtx,
-  operation: Doc<"notificationFanoutOperations">,
-  staffId: Id<"staffs">,
-): Promise<PreviousConfirmationDeliveryState> {
-  const emailDedupeKey = `email:confirmation:${operation.recruitmentId}:${staffId}:${operation.dedupeSuffix}`;
-  const [primaryOutbox, sentEmail, processingEmail, pendingEmail] = await Promise.all([
-    ctx.db
-      .query("notificationOutbox")
-      .withIndex("by_fanoutTargetKey", (q) =>
-        q.eq("fanoutTargetKey", buildNotificationFanoutTargetKey(operation.operationKey, staffId)),
-      )
-      .first(),
-    ctx.db
-      .query("notificationOutbox")
-      .withIndex("by_dedupeKey_status", (q) => q.eq("dedupeKey", emailDedupeKey).eq("status", "sent"))
-      .first(),
-    ctx.db
-      .query("notificationOutbox")
-      .withIndex("by_dedupeKey_status", (q) => q.eq("dedupeKey", emailDedupeKey).eq("status", "processing"))
-      .first(),
-    ctx.db
-      .query("notificationOutbox")
-      .withIndex("by_dedupeKey_status", (q) => q.eq("dedupeKey", emailDedupeKey).eq("status", "pending"))
-      .first(),
-  ]);
-  const primaryStatus = belongsToConfirmationOperation(primaryOutbox, operation, staffId)
-    ? primaryOutbox?.status
-    : undefined;
-  if (primaryStatus === "sent" || belongsToConfirmationOperation(sentEmail, operation, staffId)) {
-    return "delivered";
-  }
-  if (primaryStatus === "processing" || belongsToConfirmationOperation(processingEmail, operation, staffId)) {
-    return "processing";
-  }
-  if (primaryStatus === "pending" || belongsToConfirmationOperation(pendingEmail, operation, staffId)) {
-    return "queued";
-  }
-  return "undelivered";
-}
 
 async function getUndeliveredPreviousConfirmationStaffIds(
   ctx: MutationCtx,
@@ -119,7 +64,7 @@ async function getUndeliveredPreviousConfirmationStaffIds(
   const deliveryStates = await Promise.all(
     args.staffIds.flatMap((staffId) =>
       operationStaffIds.has(staffId)
-        ? [getPreviousConfirmationDeliveryState(ctx, operation, staffId).then((state) => ({ staffId, state }))]
+        ? [getPreviousConfirmationDelivery(ctx, operation, staffId).then(({ state }) => ({ staffId, state }))]
         : [],
     ),
   );
@@ -524,23 +469,15 @@ export const confirmRecruitment = managerMutation({
       lastConfirmationNotificationOperationKey: operationKey,
       lastConfirmationNotificationRunId: notificationRunId,
     });
-    await recordAnalyticsSourceEvent(ctx, {
-      eventKey: `cycle:${args.recruitmentId}:confirmed:run:${notificationRunId}`,
-      eventType: "cycle.changed",
-      occurredAt: confirmedAt,
-      organizationId: ctx.shop.organizationId,
-      shopId: ctx.shop._id,
-      recruitmentId: args.recruitmentId,
-      payload: {
-        kind: "cycle",
-        status: "confirmed",
-        createdAt: recruitment._creationTime,
-        periodStart: recruitment.periodStart,
-        periodEnd: recruitment.periodEnd,
-        deadline: recruitment.deadline,
-        confirmedAt,
-      },
-    });
+    // 配送だけの再送は利用実績へ加えない。確定後に保存したシフトの再確定は記録する。
+    if (!isResend || (recruitment.draftSavedAt ?? 0) > (recruitment.confirmedAt ?? 0)) {
+      await recordAnalyticsUsage(ctx, {
+        shopId: ctx.shop._id,
+        metric: "confirmed",
+        recruitmentId: args.recruitmentId,
+        confirmedPeriodStartAt: jstDayRangeMs(recruitment.periodStart).startMs,
+      });
+    }
     const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
     const { operation: fanoutOperation } = await ensureNotificationFanoutOperation(ctx, {
       operationKey,

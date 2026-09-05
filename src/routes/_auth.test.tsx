@@ -3,6 +3,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentType, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AppOrganizationState } from "@/src/components/features/AuthenticatedApp";
 
 const mocks = vi.hoisted(() => ({
   currentNavigate: vi.fn(),
@@ -20,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   getCanonicalAppHref: vi.fn(),
   appShell: null as
     | null
+    | { mode: "bare" }
     | {
         mode: "navigation";
         activeKey: "home" | "shifts" | "staff" | "actions" | "manage" | null;
@@ -30,11 +32,13 @@ const mocks = vi.hoisted(() => ({
         backLabel: string;
       },
   pathname: "/dashboard",
-  organizationState: null as null | { kind: "empty" | "loading" },
+  organizationState: null as null | AppOrganizationState,
 }));
 
 vi.mock("@chakra-ui/react", () => ({
-  Box: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Box: ({ children, minH }: { children: ReactNode; minH?: string | object }) => (
+    <div data-min-height={minH === undefined ? undefined : JSON.stringify(minH)}>{children}</div>
+  ),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -59,7 +63,7 @@ vi.mock("@/src/components/features/AuthenticatedApp", () => ({
   }: {
     children: ReactNode;
     requestedOrganizationId?: string;
-    renderState: (state: { kind: "empty" | "loading" }) => ReactNode;
+    renderState: (state: AppOrganizationState) => ReactNode;
   }) => {
     mocks.organizationProviderProps({ requestedOrganizationId });
     return mocks.organizationState ? renderState(mocks.organizationState) : children;
@@ -268,6 +272,48 @@ describe("認証済み親route", () => {
       reserveHeaderSpace: true,
       mobileNavigationHeight: "56px",
     });
+  });
+
+  it("出力routeのpendingではヘッダーと下部ナビの余白を予約しない", () => {
+    mocks.appShell = { mode: "bare" };
+    const PendingComponent = Route.options.pendingComponent as ComponentType;
+
+    render(<PendingComponent />);
+
+    expect(mocks.fullPageSpinnerProps).toHaveBeenCalledWith({
+      reserveHeaderSpace: false,
+      mobileNavigationHeight: undefined,
+    });
+  });
+
+  it.each<AppOrganizationState | null>([
+    null,
+    { kind: "loading" },
+    { kind: "empty" },
+    { kind: "error", reason: "inaccessible" },
+    { kind: "error", reason: "query" },
+  ])("出力routeでは組織状態 %j もbare表示し、認証・組織guardを維持する", (state) => {
+    mocks.pathname = "/shifts/recruitment-a/export";
+    mocks.appShell = { mode: "bare" };
+    mocks.organizationState = state;
+    mocks.useSearch.mockReturnValue({ org: "organization-a" });
+    const RouteComponent = Route.options.component;
+    if (!RouteComponent) throw new Error("Route component is required");
+
+    const { container } = render(<RouteComponent />);
+
+    expect(mocks.authGuardProps).toHaveBeenCalled();
+    expect(mocks.organizationProviderProps).toHaveBeenCalledWith({ requestedOrganizationId: "organization-a" });
+    expect(mocks.authenticatedAppShellProps).not.toHaveBeenCalled();
+    expect(mocks.focusedFlowHeaderProps).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "要望を送る" })).toBeNull();
+    expect(container.querySelector('[data-min-height*="calc("]')).toBeNull();
+    if (state) {
+      expect(screen.getByTestId("organization-state")).toBeTruthy();
+      expect(screen.queryByTestId("outlet")).toBeNull();
+    } else {
+      expect(screen.getByTestId("outlet")).toBeTruthy();
+    }
   });
 
   it("アカウント設定は本文を組織scopeに依存させず、canonical組織の要望送信を表示する", () => {

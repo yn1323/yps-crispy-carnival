@@ -15,6 +15,8 @@ export const E2E_BURN_IN_PHASES = new Map([
         "E2E-SETUP-01",
         "E2E-STAFF-01",
         "E2E-SHIFT-01",
+        "E2E-EXPORT-01",
+        "E2E-EXPORT-02",
         "E2E-TENANT-01",
         "E2E-MEMBERSHIP-01",
         "E2E-SHOP-01",

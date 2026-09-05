@@ -82,5 +82,5 @@
 
 | 対象利用者 | 主な画面・利用場面 | 機能文書 |
 |---|---|---|
-| 開発・運用担当 | source event、分析projection、cycle fact、日次snapshotの運用 | [分析KPI蓄積基盤](analytics.md) |
-| 内部BIの閲覧者 | 全体から組織、店舗、cycleへ掘り下げる分離Dashboard | [分析KPI可視化アプリ](analytics-dashboard.md) |
+| 開発・運用担当 | 登録・提出・確定の自動日次計測と復旧 | [分析KPI蓄積基盤](analytics.md) |
+| 内部BIの閲覧者 | 日次指標と店舗・スタッフの問い合わせ閲覧 | [分析KPI可視化アプリ](analytics-dashboard.md) |

@@ -74,7 +74,8 @@ const createVrtProject = (
       name,
       browser: {
         enabled: true,
-        provider: playwright(),
+        // browser.viewportはiframeだけを変えるため、撮影する外側pageにも同じ寸法を渡す。
+        provider: playwright({ contextOptions: { viewport } }),
         headless: true,
         viewport,
         instances: [{ browser: "chromium" }],

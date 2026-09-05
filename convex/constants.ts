@@ -167,14 +167,5 @@ export const NOTIFICATION_FAILURE_REMINDER_WINDOW_MS = DAY_MS;
 export const NOTIFICATION_FAILURE_REMINDER_PENDING_PAGE_SIZE = 100;
 export const NOTIFICATION_FAILURE_REMINDER_MANAGER_LIMIT = 20;
 
-// 分析KPI日次集計のページサイズ。イベント走査は1行=1読み取りなので大きめでよい
-export const ANALYTICS_AGGREGATION_PAGE_SIZE = 100;
-// 店舗スナップショット集計は店舗ごとにスタッフ・LINE連携・募集を読むため小さめにする
-export const ANALYTICS_SHOP_SNAPSHOT_PAGE_SIZE = 10;
-// 分析internalQueryが一度に返す時系列行数の上限（約2年分）
-export const ANALYTICS_QUERY_RANGE_LIMIT = 731;
-// 店舗ステージ判定で1店舗あたり走査する募集・提出統計・通知失敗の上限
-export const ANALYTICS_SHOP_STAGE_SCAN_LIMIT = 200;
-
 export const DEFAULT_POSITION_NAME = "シフト";
 export const DEFAULT_POSITION_COLOR = "#3b82f6";

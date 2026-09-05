@@ -3,7 +3,6 @@ import { internal } from "../_generated/api";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
 import { managerMutation } from "../_lib/functions";
 import { normalizeSubmissionPattern, submissionPatternValidator } from "../_lib/submissionPattern";
-import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
 import { ensureDeletionCleanupJob } from "../deletionCleanup/service";
 import { updateShopSettingsSchema } from "./schemas";
 
@@ -47,19 +46,10 @@ export const updateShopSettings = managerMutation({
     }
     const input = parsed.data;
     const submissionPattern = normalizeSubmissionPattern(input.submissionPattern);
-    const occurredAt = Date.now();
     await ctx.db.patch(ctx.shop._id, {
       name: input.shopName,
       regularClosedDays: WEEKDAY_ORDER.filter((day) => input.regularClosedDays.includes(day)),
       submissionPattern,
-    });
-    await recordAnalyticsSourceEvent(ctx, {
-      eventKey: `shop:${ctx.shop._id}:updated:${crypto.randomUUID()}`,
-      eventType: "shop.changed",
-      occurredAt,
-      organizationId: ctx.shop.organizationId,
-      shopId: ctx.shop._id,
-      payload: { kind: "shop", change: "updated", displayName: input.shopName },
     });
     return null;
   },

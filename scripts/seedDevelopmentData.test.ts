@@ -16,14 +16,14 @@ const PREFLIGHT = {
   deploymentUrl: "https://team-project.convex.cloud",
   today: "2026-08-20",
   scenarioKeys: [...DEVELOPMENT_SEED_SCENARIO_KEYS],
-  tableCount: 66,
+  tableCount: 57,
 };
 
 const VERIFY_RESULT = {
   contractVersion: DEVELOPMENT_SEED_CONTRACT_VERSION,
   contractFingerprint: DEVELOPMENT_SEED_CONTRACT_FINGERPRINT,
   scenarioCount: 9,
-  tableCount: 66,
+  tableCount: 57,
   organizationCount: 9,
   shopCount: 12,
   staffCount: 169,
@@ -88,7 +88,7 @@ function createSuccessfulRunner(events?: string[]) {
         return JSON.stringify({ done: false, nextTableIndex: 1, deletedCount: 2, tableName: "shops" });
       }
       expect(payload).toEqual({ tableIndex: 1, auditToken: AUDIT_TOKEN });
-      return JSON.stringify({ done: true, nextTableIndex: 66, deletedCount: 3, tableName: null });
+      return JSON.stringify({ done: true, nextTableIndex: 57, deletedCount: 3, tableName: null });
     }
     if (functionName === "developmentSeed/mutations:seedActors") {
       expect(payload).toEqual({ today: PREFLIGHT.today, auditToken: AUDIT_TOKEN });
@@ -215,7 +215,7 @@ describe("seedDevelopmentData CLI", () => {
       target: "dev",
       today: "2026-08-20",
       scenarioCount: 9,
-      tableCount: 66,
+      tableCount: 57,
       cancelledScheduledFunctionCount: 3,
       deletedDocumentCount: 505,
       insertedDocumentCount: 93,

@@ -1,6 +1,9 @@
 import { httpRouter } from "convex/server";
 import { options as accountDeletionOptions, requestAccountDeletion } from "./accountDeletion/httpActions";
-import { query as analyticsDashboardQuery } from "./analyticsDashboard/httpActions";
+import {
+  mutation as analyticsDashboardMutation,
+  query as analyticsDashboardQuery,
+} from "./analyticsDashboard/httpActions";
 import { options as contactOptions, submit as contactSubmit } from "./contact/httpActions";
 import { webhookHandler } from "./line/webhook";
 import { webhookHandler as resendWebhookHandler } from "./notificationOutbox/resendWebhook";
@@ -70,6 +73,12 @@ http.route({
   path: "/analytics-dashboard/query",
   method: "POST",
   handler: analyticsDashboardQuery,
+});
+
+http.route({
+  path: "/analytics-dashboard/mutation",
+  method: "POST",
+  handler: analyticsDashboardMutation,
 });
 
 export default http;

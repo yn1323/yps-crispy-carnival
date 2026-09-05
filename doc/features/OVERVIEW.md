@@ -105,8 +105,8 @@ repository artifactでは、複数組織、複数店舗、複数管理者（招�
 
 | 機能 | 概要 |
 |---|---|
-| [分析KPI蓄積基盤](analytics.md) | 業務mutationと同一transactionでsource eventを追記し、JST 03:00の夜間batchで導入到達度・運用健全性・日次snapshotを集計する |
-| [分析KPI可視化アプリ](analytics-dashboard.md) | 別のCloudflare Workerで配信する内部BI。全体→組織→店舗→シフト周期へ掘り下げ、`/requests`で要望を確認する |
+| [分析KPI蓄積基盤](analytics.md) | 登録・提出・確定を当日から自動記録し、JST 03:00に前日と固定期間の店舗数を集計する |
+| [分析KPI可視化アプリ](analytics-dashboard.md) | 本人認証付き内部BI。日次指標、現在の店舗→スタッフ→募集を閲覧し、要望をチェックしても一覧に残す |
 
 ## 4. 制限一覧
 

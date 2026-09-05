@@ -2,16 +2,16 @@
 
 > 文書種別: feature
 >
-> 最終コード照合: 2026-09-01
+> 最終コード照合: 2026-09-05
 >
-> 基準commit: `d13631c816e5cdad7a9fe68282388ef4700faf34`
+> 基準commit: `369102c2e70998d8e8bdc561843120a85b224ef8` と出力機能の作業ツリー
 
 シフト担当者がスタッフの希望を見ながら割当を編集し、下書きを保存して、対象期間のシフトを確定する機能である。
 募集の作成、一覧、削除は[シフト募集管理](shift-recruitment-management.md)が所有する。
 
 ## 保証する範囲
 
-シフト表は、募集方式に対応した割当編集、未保存変更の確認、確定前validation、希望との食い違いの表示、保存と確定を扱う。
+シフト表は、募集方式に対応した割当編集、未保存変更の確認、確定前validation、希望との食い違いの表示、保存と確定、保存済みの内容のPDF・Excel出力を扱う。
 通知の配送完了は保証せず、確定時に永続的な通知処理を予約するところまでを扱う。
 
 シフト終了日を過ぎた募集は、下書き保存、確定、再通知を受け付けない。
@@ -22,6 +22,7 @@
 | 画面 | 利用者ができること |
 |---|---|
 | `/shifts/<recruitmentId>/board?org=<organizationId>` | canonicalな組織所属と募集の店舗を照合したうえで、同じシフト表を操作する |
+| `/shifts/<recruitmentId>/export?org=<organizationId>` | 管理者が保存済みシフトの帳票をプレビューし、PDF・Excelをダウンロードする |
 
 シフト表は共通アプリヘッダーとメインナビゲーションを維持し、その下に一覧へ戻る操作と「シフトを調整」の見出しを表示する。  募集状態、提出人数、店舗名は一覧カードで確認し、シフト表ではフォーム直上へ重複表示しない。
 
@@ -88,6 +89,41 @@ routeは最初に募集から店舗を解決してURLの組織と一致するこ
 同じ内容の確定または再通知は、対象店舗、募集、用途、スタッフ、文面に影響する値から作るsemantic keyへ収束する。
 fanoutのcursor、lease、対象上限、再開、provider呼出し前の再確認は[Notification Outbox](notification-outbox.md)を参照する。
 
+## PDF・Excel出力
+
+管理者はPC・SPのシフト表から、出力専用ページを別タブで開く。  
+未保存の変更がある場合は先に保存を案内し、保存・確定の処理中も出力ページを開かない。  
+出力ページは共通アプリヘッダーを表示せず、URLを直接開いた場合も管理者の所属と対象店舗を再確認する。
+
+帳票は保存済みの割当、募集時点の勤務区分・定休日、スタッフの保存順を使う。  
+下書きが未保存でも出力でき、保存済みの割当がなければスタッフ名と日付を残して勤務欄をすべて `-` にする。希望を割当として出力しない。  
+全員非出勤として保存した内容も同じ表示にし、スタッフ0件は出力を止める。  
+過去募集は割当のある同一店舗の削除済みスタッフを末尾へ含める。  
+出力対象外スタッフに割当が残る場合や取得上限を超える場合は、一部を省いた帳票を作らず確認を案内する。
+
+| 募集方式 | 帳票の表示 |
+|---|---|
+| 日付のみ | 出勤日に `○`、非出勤日に `-` |
+| 時間入力 | 最も早い開始・最も遅い終了を2行で表示する。複数区間の中抜けは表現しない |
+| 勤務区分 | 募集時点の設定順に区分名を表示し、複数区分に合わせて行高をそろえる |
+
+定休日列は薄いグレーと `-` で表示する。  
+プレビュー、PDF、Excelの見出しは、同一年なら `yyyy/mm/dd~mm/dd 店舗名`、年をまたぐなら `yyyy/mm/dd~yyyy/mm/dd 店舗名` の順で統一する。  
+既定ではA4横に全期間を最大31日まで収め、スタッフ方向へ改ページする。  
+15日以上のシフトでは、すべての募集方式で「期間を前半・後半に分ける」を選べる。期間をほぼ半分に分け、奇数日数の端数は前半へ含める。  
+チェックの切替はプレビューと出力へ即時反映し、PDFは前半の全スタッフ分を出力してから後半へ進む。各期間の先頭に対象期間と店舗名を表示し、ページ番号はファイル全体で通しにする。  
+Excelは正式名称を文字列セルに保持し、見出し・スタッフ列の固定と横1ページの印刷設定を持つ。期間を分ける場合は、前半・後半の順に2シートへ出力する。  
+長い勤務区分名はExcelでは折り返し、全スタッフ行に必要な高さを確保する。PDFとプレビューは縮小・末尾省略で行数を固定する。  
+Excel上の変更をシフトリへ取り込む機能は持たない。
+
+確定履歴、前回通知snapshotとの内容比較、通知処理の状況は分けて表示する。  
+保存時刻だけでは変更ありと判定せず、比較情報の欠落・不正は確認不能として扱う。  
+「前回の通知処理は送信完了」は最新の全体通知処理の対象集合についての表示であり、全スタッフの端末への到着を保証しない。
+
+ファイルはブラウザ内で生成する。  
+生成中のデータ更新、分割設定の変更、権限失効、ページ離脱で古い生成結果を破棄し、失敗時は再試行できる。  
+スマートフォン実機の保存操作と物理印刷の確認状況は、実装・自動テストの保証範囲と分ける。
+
 ## Public API
 
 | API | 用途 |
@@ -96,16 +132,20 @@ fanoutのcursor、lease、対象上限、再開、provider呼出し前の再確�
 | `api.shiftBoard.queries.getShiftBoardData` | 募集、スタッフ、提出、割当をシフト表向けに返す。削除済み募集は`null`を返す |
 | `api.shiftBoard.mutations.saveShiftAssignments` | 割当を検証して下書き保存する |
 | `api.shiftBoard.mutations.confirmRecruitment` | 保存済み割当の休業日を再確認して確定し、必要な確定通知を予約する |
+| `api.shiftExport.queries.getShiftExportData` | 管理者の組織・店舗・募集を照合し、帳票用の保存内容と状態だけを上限付きで返す。取得不可は`null`、対象外割当などは出力停止理由を返す |
 
 ## コードの入口
 
 | 責務 | 主な入口 |
 |---|---|
 | RouteとPage | `src/routes/_auth/shifts_.$recruitmentId_.board.tsx`, `src/pages/app-shift-board/` |
+| 出力ページと帳票生成 | `src/pages/shift-export/`, `src/components/features/ShiftExport/` |
+| ExcelJS処理 | `src/components/features/ShiftExport/excel.ts` |
 | 画面の状態遷移 | `src/components/features/ShiftBoard/` |
 | 割当UI | `src/components/features/Shift/ShiftForm/` |
 | 画面非依存の割当処理 | `src/domains/shift/` |
 | queryとmutation | `convex/shiftBoard/queries.ts`, `convex/shiftBoard/mutations.ts` |
+| 帳票用query | `convex/shiftExport/queries.ts` |
 | 割当のread-time・保存境界正規化 | `convex/_lib/shiftAssignmentNormalization.ts` |
 | 共通validation | `convex/shiftBoard/validation.ts` |
 | 通知fanout | `convex/notification/fanout.ts`, `convex/notification/actions.ts` |

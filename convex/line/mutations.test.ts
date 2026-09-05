@@ -286,7 +286,7 @@ async function readLineLinkingBusinessState(t: TestConvex<typeof schema>, tokenD
     providers: await ctx.db.query("lineProviderUsers").collect(),
     links: await ctx.db.query("organizationPersonLineLinks").collect(),
     fanoutJobs: await ctx.db.query("lineFriendshipFanoutJobs").collect(),
-    analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+    analytics: await ctx.db.query("analyticsShopDays").collect(),
     notificationOutbox: await ctx.db.query("notificationOutbox").collect(),
     scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
   }));
@@ -1423,16 +1423,11 @@ describe("line/mutations", () => {
       ).resolves.toEqual({ status: "completed" });
       const state = await t.run(async (ctx) => ({
         provider: await ctx.db.get(seeded.providerId),
-        analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+        analytics: await ctx.db.query("analyticsShopDays").collect(),
         scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
       }));
       expect(state.provider).toMatchObject({ following: true, stateVersion: 2 });
-      const fanoutAccounts = state.analytics
-        .filter((event) => event.eventKey.startsWith(`lineAccountBatch:fanout:${job._id}:2:`))
-        .flatMap((event) => (event.payload.kind === "lineAccountBatch" ? event.payload.accounts : []));
-      expect(fanoutAccounts.map((account) => account.staffId)).toEqual(
-        expect.arrayContaining([first.staffAId, first.staffBId, second.staffAId, second.staffBId]),
-      );
+      expect(state.analytics).toEqual([]);
       expect(
         state.scheduled.filter(
           (scheduled) =>
@@ -1824,7 +1819,7 @@ describe("line/mutations", () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());
 
-    it("followをcursorで再開し、全非削除membershipのanalyticsと通知を一度だけ予約する", async () => {
+    it("followをcursorで再開し、全非削除membershipの通知を一度だけ予約する", async () => {
       const t = convexTest(schema, modules);
       const seeded = await seedFriendshipFanoutJob(t, {
         suffix: "follow",
@@ -1842,12 +1837,12 @@ describe("line/mutations", () => {
       ).resolves.toEqual({ status: "advanced" });
       const afterFirst = await t.run(async (ctx) => ({
         job: await ctx.db.get(seeded.jobId),
-        analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+        analytics: await ctx.db.query("analyticsShopDays").collect(),
         scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
       }));
       expect(afterFirst.job).toMatchObject({ status: "queued", attemptCount: 0 });
       expect(afterFirst.job?.cursor).toEqual(expect.any(String));
-      expect(afterFirst.analytics).toHaveLength(5);
+      expect(afterFirst.analytics).toEqual([]);
       const firstNotificationCount = afterFirst.scheduled.filter(
         (job) =>
           job.name === "legal/actions:sendStaffConsentLine" ||
@@ -1863,10 +1858,10 @@ describe("line/mutations", () => {
         }),
       ).resolves.toEqual({ status: "ignored" });
       const afterReplay = await t.run(async (ctx) => ({
-        analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+        analytics: await ctx.db.query("analyticsShopDays").collect(),
         scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
       }));
-      expect(afterReplay.analytics).toHaveLength(5);
+      expect(afterReplay.analytics).toEqual([]);
       expect(
         afterReplay.scheduled.filter(
           (job) =>
@@ -1884,17 +1879,12 @@ describe("line/mutations", () => {
       ).resolves.toEqual({ status: "completed" });
       const completed = await t.run(async (ctx) => ({
         job: await ctx.db.get(seeded.jobId),
-        analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+        analytics: await ctx.db.query("analyticsShopDays").collect(),
         scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
       }));
       expect(completed.job).toMatchObject({ status: "completed", attemptCount: 0 });
       expect(completed.job?.leaseId).toBeUndefined();
-      expect(completed.analytics).toHaveLength(6);
-      expect(
-        completed.analytics.flatMap((event) =>
-          event.payload.kind === "lineAccountBatch" ? event.payload.accounts.map((account) => account.staffId) : [],
-        ),
-      ).toEqual(expect.arrayContaining(seeded.staffIds));
+      expect(completed.analytics).toEqual([]);
       expect(
         completed.scheduled.filter(
           (job) =>
@@ -1904,7 +1894,7 @@ describe("line/mutations", () => {
       ).toHaveLength(seeded.staffIds.length * 2);
     });
 
-    it("unfollowも全非削除membershipへanalyticsを残すが通知は予約しない", async () => {
+    it("unfollowは状態を更新し、通知や日次利用実績を増やさない", async () => {
       const t = convexTest(schema, modules);
       const seeded = await seedFriendshipFanoutJob(t, {
         suffix: "unfollow",
@@ -1918,14 +1908,10 @@ describe("line/mutations", () => {
         t.mutation(internal.line.mutations.processFriendshipFanoutJob, { jobId: seeded.jobId, ...claim }),
       ).resolves.toEqual({ status: "completed" });
       const state = await t.run(async (ctx) => ({
-        analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+        analytics: await ctx.db.query("analyticsShopDays").collect(),
         scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
       }));
-      const accounts = state.analytics.flatMap((event) =>
-        event.payload.kind === "lineAccountBatch" ? event.payload.accounts : [],
-      );
-      expect(accounts.map((account) => account.staffId)).toEqual(expect.arrayContaining(seeded.staffIds));
-      expect(accounts.every((account) => account.linked && !account.following)).toBe(true);
+      expect(state.analytics).toEqual([]);
       expect(
         state.scheduled.filter(
           (job) =>
@@ -1948,7 +1934,7 @@ describe("line/mutations", () => {
       ).resolves.toEqual({ status: "superseded" });
       const state = await t.run(async (ctx) => ({
         job: await ctx.db.get(seeded.jobId),
-        analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+        analytics: await ctx.db.query("analyticsShopDays").collect(),
         scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
       }));
       expect(state.job).toMatchObject({ status: "superseded", completedAt: expect.any(Number) });

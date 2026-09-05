@@ -105,6 +105,8 @@ describe("artifact privacy gate", () => {
     ["private key", "-----BEGIN PRIVATE KEY-----"],
     ["secret identifier", "STRIPE_WEBHOOK_SECRET"],
     ["publisher secret identifier", "REPORT_PUBLISHER_HOSTING_PAGES_TOKEN"],
+    ["R2 access key identifier", "REPORT_R2_ACCESS_KEY_ID"],
+    ["R2 secret key identifier", "REPORT_R2_SECRET_ACCESS_KEY"],
     ["session token", "eyJabcdefghijklmnop.qrstuvwxyzABCDEFGHIJ.klmnopqrstuvwxyzABCDEF"],
     ["Clerk session identifier", CLERK_SESSION_ID_FIXTURE],
     ["capability URL", `/shifts/submit?token=${CAPABILITY_TOKEN_FIXTURE}`],

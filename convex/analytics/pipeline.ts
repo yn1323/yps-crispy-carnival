@@ -4,7 +4,7 @@ import {
   observedInternalQuery as internalQuery,
 } from "../_lib/errorObservability";
 
-const RETIRED_MESSAGE = "Analytics legacy pipeline is retired; use analytics/reset or analytics/nightly";
+const RETIRED_MESSAGE = "Analytics legacy pipeline is retired; daily collection starts automatically";
 
 function retiredScheduledCall(entrypoint: string) {
   console.info(JSON.stringify({ event: "analytics_legacy_call_ignored", entrypoint }));

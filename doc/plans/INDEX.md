@@ -28,6 +28,9 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [Analyticsの日次利用指標と問い合わせ閲覧](2026-09-05_Analytics日次利用指標と問い合わせ閲覧_設計実装計画.md) | `実装済み・反映待ち` | 日次3指標の自動記録・集計、店舗／スタッフ閲覧、要望の論理削除と打ち消し線、画面置換・テスト・文書更新は実装済み。PR #902で検証し、実環境への反映と翌日の集計確認は別作業 | [分析KPI蓄積基盤](../features/analytics.md)、[分析KPI可視化アプリ](../features/analytics-dashboard.md)、[要望受付](../features/feature-requests.md) |
+| [シフト募集の編集仕様](2026-09-05_シフト募集編集_仕様.md)・[実装計画](2026-09-05_シフト募集編集_実装計画.md) | `主要仕様合意済み・実装計画作成済み・未実装` | 提出状態・古い画面からの保存防止・変更通知と催促を既存基盤へ接続する。実装・検証と通知文言の決定は未完了 | [シフト募集管理](../features/shift-recruitment-management.md)、[希望シフト提出](../features/shift-submission.md)、[シフト表](../features/shift-board.md) |
+| [VRT・E2EレポートのR2移行](2026-09-05_VRT_E2Eレポート_R2移行_実装計画.md) | `implementing` | 1公開bucket・キー1組・r2.devで実装済み。実認証・公開URL・削除権限とdevelop/mainのbaseline初期移行を確認。PR #900の検証・承認を経てdevelopへ反映する | [CI/CD運用](../manual/ci-cd.md)、[実環境の証跡](../manual/release-status.md) |
 | [プラン遷移簡素化と支払い失敗対応](2026-08-29_プラン遷移簡素化と支払い失敗対応_変更計画.md) | `rollout verification` | Repository実装と主担当の自動テスト、lint、type-check、buildは完了。Stripe Sandbox canary、顧客向けメール設定と実到着、Production artifact・Convex deployment、CI VRTは未確認 | [課金業務フロー](../specs/organization-billing-business-flow.md)、[グループ課金](../features/organization-billing.md)、[グループ課金の運用](../manual/organization-billing.md)、[リリース状態](../manual/release-status.md) |
 | [認証済み新ページ正式切替と旧ページ削除](2026-08-15_認証済み新ページ正式切替と旧ページ削除_実装計画.md) | `rollout verification` | repository実装、目的別commit、Pull Request更新、最新head SHAの全test・build・全E2E・VRT captureとcompare開始は確認済み。Productionのcanonical所属readiness、artifact反映、canaryは未確認 | 現行仕様は[機能インデックス](../features/INDEX.md)、実環境証跡は[リリース状態](../manual/release-status.md)、設計と検証は[フロントエンド方針](../rules/frontend-architecture.md)、[テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md) |
 | [LINE連携のグループ内共通化](2026-08-13_LINE連携のグループ内共通化_実装計画.md) | `rollout verification` | repository artifactのcanonical readは更新済み。店舗・所属追加は常時公開契約へ移行済み。Production artifactとdeploymentの確定、exportとbackup、必要なmigration、非同期処理のdrain、反映後canary、Preview E2E、CI VRT、法務確認と実環境証跡は未実施 | [LINE通知連携](../features/line-notification.md)、[ユーザー詳細](../features/user-detail.md)、[通知配送outbox](../features/notification-outbox.md)、[リリース状態](../manual/release-status.md) |
@@ -35,7 +38,6 @@
 | [UI・UX・SEO監査残件 実装計画](2026-08-12_UI_UX_SEO監査残件_実装計画.md) | `rollout verification` | 確定不具合のrepository実装と主担当testは完了。外部GTM・GA4・Clarity設定、Production deploy・canary、Preview Deployed Smoke、計測browser契約の実走、CI VRT、GSC・RUM・Product判断gateは未実施。gate未成立項目とユーザー指定の除外二項目は現行維持 | [公開Web計測](../features/web-measurement.md)、[希望シフト提出](../features/shift-submission.md)、[公開サイト](../features/public-pages.md)、[リリース状態](../manual/release-status.md) |
 | [テスト充足度監査と改善計画](2026-08-12_テスト充足度監査_改善計画.md) | `rollout verification` | リポジトリ内の不足テスト、Trial継続取消の別requestId排他、全機能契約表、内部BI・VRT・Deployed SmokeのCI gateは実装済み。管理者招待の契約と主担当層は[管理者設定ページ計画](2026-08-13_管理者設定ページ_実装計画.md)へ移管済み。GitHub Actions上のVRT・Analytics CI・管理者設定E2E、Preview Deployed Smoke、実Convex・Stripe到達は未確認 | [テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md)、[CI/CD運用](../manual/ci-cd.md) |
 | [ShiftForm PC・SP時間編集不具合](2026-08-08_ShiftForm_PC_SP時間編集不具合_実装計画.md) | `rollout` | code・tests・現行文書は完了。deploy後canaryでPCの完全隣接枠、SPの短縮・複数区間案内、新しい確定通知の時間表示を確認する。既存DBの一括migrationは行わない | [シフト表](../features/shift-board.md)、[希望シフト提出](../features/shift-submission.md)、[通知配送outbox](../features/notification-outbox.md)、[リリース状態](../manual/release-status.md) |
-| [Analytics夜間バッチ簡素化](2026-08-08_Analytics夜間バッチ簡素化_実装計画.md) | `rollout` | code・tests・現行文書とNarrow revisionへの実装は完了。対象deploymentへNarrow deploy → 初回partialを通常のcompleteとして即時公開 → cron有効化 → 翌日03:00のno-op → 翌々日03:00の完全日次 → 外部alertの実環境証跡まで確認する | [分析KPI蓄積基盤](../features/analytics.md)、[分析KPI可視化アプリ](../features/analytics-dashboard.md)、[Analytics rollout](../manual/analytics-rollout.md) |
 | [E2E安定性改善・スコープ再設計](2026-08-03_E2E安定性改善_実行計画.md) | `rollout` | code、local contract test、50回burn-inは完了。同一SHA 3回、workflow cancel、30%短縮をActionsで確認 | [テスト方針](../rules/testing-strategy.md)、[セキュリティ方針](../rules/security-strategy.md)、[CI/CD運用](../manual/ci-cd.md) |
 | [別端末ログイン本人確認](2026-07-11_別端末ログイン本人確認_実装計画.md) | `rollout` | Production相当のClerk設定、返却status、メール確認の実環境証跡 | [認証画面](../features/auth-pages.md)、[リリース状態](../manual/release-status.md) |
 | [フロントエンド単体テスト、Storybook、VRTリファクタ](2026-07-13-frontend-test-vrt-refactor.md) | `approved` | 完了記録がないため、各完了条件を現行テストとCIへ再照合する | [テスト方針](../rules/testing-strategy.md) |
@@ -110,9 +112,7 @@ Historyの本文には、現在と異なる名称、パス、状態、上限、�
 |---|---|---|
 | [E2E Full Regression](2026-07-13-e2e-full-regression.md) | E2E単独でFull Regressionを担う方針を終了し、代表導線と下位層への契約分担を後続計画へ移管 | [E2E安定性改善・スコープ再設計](2026-08-03_E2E安定性改善_実行計画.md)、[テスト方針](../rules/testing-strategy.md) |
 | [複数店舗・複数マネージャー旧設計](2026-07-03_複数店舗・複数マネージャー設計.md) | グループ単位課金と現行招待設計により置換 | [グループ課金](../features/organization-billing.md)、[課金業務フロー](../specs/organization-billing-business-flow.md) |
-| [分析KPI蓄積基盤 設計](2026-07-04_分析KPI蓄積基盤_設計.md) | 現行基盤を実装済み | [分析KPI蓄積基盤](../features/analytics.md) |
 | [スタッフ詳細モーダル設計](2026-07-05_スタッフ詳細モーダル設計.md) | 後続のユーザー詳細機能へ置換 | [ユーザー詳細](../features/user-detail.md) |
-| [分析KPI可視化アプリ設計](2026-07-05_分析KPI可視化アプリ_設計.md) | 現行の内部BIを実装済み | [分析KPI可視化アプリ](../features/analytics-dashboard.md) |
 | [問い合わせと要望受付](2026-07-10_問い合わせと要望受付機能_実装計画.md) | 実装完了を本文で確認 | [問い合わせ](../features/contact.md)、[要望受付](../features/feature-requests.md) |
 | [Webhook受信制約とメールHTMLエスケープ](2026-07-15_Webhook受信制約とメールHTMLエスケープ_実装計画.md) | 安全対策の実装履歴 | [セキュリティ設計方針](../rules/security-strategy.md)、[LINE通知の運用](../manual/line-notification.md) |
 | [店舗とアカウント削除の旧計画](2026-07-16_店舗とアカウント削除_実装計画.md) | 本文で廃止を明示し、後続計画へ置換 | [店舗・グループ削除](../features/data-deletion.md)、[アカウント削除](../features/account-deletion.md) |
@@ -136,16 +136,19 @@ Historyの本文には、現在と異なる名称、パス、状態、上限、�
 | [レスポンシブナビゲーションと固定画面遷移 Phase 1](2026-08-14_レスポンシブナビゲーションと固定画面遷移_Phase1実装計画.md) | 固定15画面とnavigation shellを実装し、実データ接続と正式切替を後続計画へ移管 | [認証済み新ページ正式切替と旧ページ削除](2026-08-15_認証済み新ページ正式切替と旧ページ削除_実装計画.md)、[機能インデックス](../features/INDEX.md) |
 | [レスポンシブナビゲーションの実データ・操作接続 Phase 2](2026-08-14_レスポンシブナビゲーション実データ操作接続_Phase2実装計画.md) | Phase 2-0から2-7を実装し、未着手のPhase 2-8を2026-08-15計画へ移管 | [認証済み新ページ正式切替と旧ページ削除](2026-08-15_認証済み新ページ正式切替と旧ページ削除_実装計画.md)、[機能インデックス](../features/INDEX.md) |
 | [UI・UX・SEO全体監査 最終報告・改善計画](2026-08-12_UI_UX_SEO全体監査_最終報告・改善計画.md) | Dashboard、非ログインページ、公開SSG、CSR shell、SEO、性能、計測を時点監査し、採用する残件を[UI・UX・SEO監査残件 実装計画](2026-08-12_UI_UX_SEO監査残件_実装計画.md)へ移管。ShiftBoardデモの終了・SP代替導線とDashboardのcontext-first順序は今回の修正対象外と判断した | [UI設計方針](../rules/ui-design.md)、[希望シフト提出](../features/shift-submission.md)、[公開サイト](../features/public-pages.md)、[ログイン後オンボーディング](../features/dashboard-onboarding.md) |
-| [Analytics利用候補店舗](2026-08-12_Analytics利用候補店舗_実装計画.md) | 最新complete run基準の候補分類、`usage` filter、一覧の根拠表示、店舗・組織詳細への導線、Logic・Function Testを実装し、必須検証を完了。Production反映と実データ負荷計測は未実施 | [分析KPI可視化アプリ](../features/analytics-dashboard.md)、[分析KPI蓄積基盤](../features/analytics.md) |
 | [UI・UX・SEO全体監査 調査計画とゴールプロンプト](2026-08-12_UI_UX_SEO全体監査_調査計画.md) | Dashboard中心journeyと公開獲得journeyをPC/SPで実操作し、公開33 URL、CSR shell、D1〜D7、SEO・性能を証拠レイヤー別に監査して[最終報告・改善計画](2026-08-12_UI_UX_SEO全体監査_最終報告・改善計画.md)へ引き渡した | [UI設計方針](../rules/ui-design.md)、[公開サイト](../features/public-pages.md) |
 | [Dialogアクション統一](2026-08-12_Dialogアクション統一_実装計画.md) | feature側production 38宣言と共通fallbackを統一し、nested確認3件をinline化。PC/SP配置、閲覧専用のSecondary「閉じる」、scroll・safe area、処理中close lock、Behavior Testと必須検証を完了。VRT差分確認はGitHub Actionsへ委ねる | [UI設計方針](../rules/ui-design.md)、[テスト方針](../rules/testing-strategy.md) |
 | [Dashboardプランカードの利用状況表示と配色統一](2026-08-11_Dashboardプランカード_利用状況表示と配色統一_実装計画.md) | 承認済みUI、展開時だけの利用状況query、管理者flag、全課金状態のButton配色、Function・Unit・Story、機能文書を実装し、必須検証を完了。VRT差分確認はGitHub Actionsへ委ねる | [グループ課金](../features/organization-billing.md)、[UI設計方針](../rules/ui-design.md)、[テスト方針](../rules/testing-strategy.md) |
 | [スタッフ追加モーダルの方法選択UI](2026-08-10_スタッフ追加モーダル_方法選択UI_実装計画.md) | 方法選択カード、既存詳細への遷移、遅延query、状態・focus・mutation guard、Unit・Behavior・現行文書を実装し、必須検証を完了。VRT差分確認はGitHub Actionsへ委ねる | [スタッフ参加QR・承認導線](../features/staff-registration.md)、[UI設計方針](../rules/ui-design.md) |
-| [分析KPIと内部BI再設計](2026-08-02_分析KPIと内部BI再設計_実装計画.md) | KPI、画面、source factの設計は維持する。generation、bootstrap、job recovery、cutover、rollout方式は後続の夜間バッチ簡素化計画で置換 | [Analytics夜間バッチ簡素化](2026-08-08_Analytics夜間バッチ簡素化_実装計画.md)、[分析KPI蓄積基盤](../features/analytics.md)、[分析KPI可視化アプリ](../features/analytics-dashboard.md) |
 | [teal低階調token用途制限](2026-08-06_teal低階調token用途制限_実装計画.md) | 初期の全面廃止方針を改訂し、低階調tealを背景fillとスタッフ・店舗drilldown list cardのhover限定例外へ制限。その他の操作面、境界、focus、foregroundの禁止を維持し、VRTは利用者確認へ引き渡す | [UI設計方針](../rules/ui-design.md)、[ルートAgent指示](../../AGENTS.md) |
 | [管理者メールアドレス変更とClerk同期](2026-08-03_管理者メールアドレス変更_実装計画.md) | ログイン方法とシフト連絡先を分離する後続仕様で置換。全所属同期と不一致復旧UIは撤去し、直前の旧Primary EmailAddress削除だけを現行のログインメール変更へ再導入 | [認証画面](../features/auth-pages.md)、[ユーザー詳細](../features/user-detail.md) |
-| [Analytics画面情報設計改善](2026-08-03_Analytics画面情報設計改善_実装計画.md) | 初期期間、状態表示、一覧・詳細の縮退表示、mobile表示、navigation、要望画面をfrontendへ実装し、静的検証を完了 | [分析KPI可視化アプリ](../features/analytics-dashboard.md)、[UI設計方針](../rules/ui-design.md) |
 | [CSR画面遷移パフォーマンス改善](2026-08-03_CSR画面遷移パフォーマンス改善_実装計画.md) | 4導線のfrontend実装、Unit・Behavior Test、production bundle比較を完了 | [フロントエンドアーキテクチャ](../rules/frontend-architecture.md)、[UI設計方針](../rules/ui-design.md)、[テスト方針](../rules/testing-strategy.md) |
+
+### 2026年9月
+
+| 計画 | 分類根拠 | 現在の正本 |
+|---|---|---|
+| [シフト表のPDF・Excel出力](2026-09-05_シフト表PDF_Excel出力_実装計画.md) | PDF・Excel出力、権限制御、共通モデル、文字幅調整を実装し、自動テスト・lint・型検査・buildとローカルE2E 2件を完了。CI VRT・実機での保存・物理印刷・Productionは未確認として運用文書へ引き渡す | [シフト表](../features/shift-board.md)、[リリース状態](../manual/release-status.md) |
 
 ### 日付形式が異なる既存計画
 

@@ -76,7 +76,7 @@ function AuthenticatedRoutePending() {
 
   return (
     <FullPageSpinner
-      reserveHeaderSpace
+      reserveHeaderSpace={appShell?.mode !== "bare"}
       mobileNavigationHeight={appShell?.mode === "navigation" ? MOBILE_APP_NAVIGATION_HEIGHT : undefined}
     />
   );
@@ -246,17 +246,19 @@ function AppOrganizationRouteState({
       {state.kind === "loading" ? (
         <Box
           minH={
-            appShell.mode === "navigation"
-              ? {
-                  base: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.base} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
-                  md: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.md} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
-                  lg: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.md})`,
-                }
-              : {
-                  base: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.base})`,
-                  md: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.md})`,
-                  lg: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.md})`,
-                }
+            appShell.mode === "bare"
+              ? "100dvh"
+              : appShell.mode === "navigation"
+                ? {
+                    base: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.base} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
+                    md: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.md} - ${MOBILE_APP_NAVIGATION_HEIGHT} - env(safe-area-inset-bottom))`,
+                    lg: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.md})`,
+                  }
+                : {
+                    base: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.base})`,
+                    md: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.md})`,
+                    lg: `calc(100dvh - ${AUTHENTICATED_APP_HEADER_HEIGHT.md})`,
+                  }
           }
           display="flex"
           alignItems="center"
@@ -295,6 +297,14 @@ function AppLayoutFrame({
   featureRequest?: FeatureRequestTarget;
   children: ReactNode;
 }) {
+  if (appShell.mode === "bare") {
+    return (
+      <Box w="full" minH="100dvh" bg="white">
+        {children}
+      </Box>
+    );
+  }
+
   if (appShell.mode === "navigation") {
     return (
       <AuthenticatedAppShell

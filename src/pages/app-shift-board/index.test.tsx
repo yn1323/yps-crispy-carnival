@@ -71,7 +71,7 @@ vi.mock("@/src/components/ui/ErrorBoundary", () => ({
 vi.mock("@/src/components/ui/ShiftoriLoading", () => ({
   ShiftoriLoading: ({ message }: { message?: ReactNode }) => <output>{message}</output>,
 }));
-vi.mock("./useShiftBoardDayKey", () => ({
+vi.mock("@/src/hooks/useShiftBoardDayKey", () => ({
   useShiftBoardDayKey: () => "2026-08-14:test",
 }));
 vi.mock("@/src/providers/ManagerShopScopeProvider", () => ({

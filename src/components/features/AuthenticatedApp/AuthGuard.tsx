@@ -77,16 +77,14 @@ export const AuthGuard = ({ children }: Props) => {
 
   const mobileNavigationHeight = appShell?.mode === "navigation" ? MOBILE_APP_NAVIGATION_HEIGHT : undefined;
 
-  if (!isLoaded) {
-    return <FullPageSpinner showHeader mobileNavigationHeight={mobileNavigationHeight} />;
-  }
-
-  if (currentUser === undefined) {
-    return <FullPageSpinner showHeader mobileNavigationHeight={mobileNavigationHeight} />;
-  }
-
-  if (!isUserContextReady) {
-    return <FullPageSpinner showHeader mobileNavigationHeight={mobileNavigationHeight} />;
+  if (!isLoaded || currentUser === undefined || !isUserContextReady) {
+    return (
+      <FullPageSpinner
+        showHeader={appShell?.mode !== "bare"}
+        reserveHeaderSpace={appShell?.mode !== "bare"}
+        mobileNavigationHeight={mobileNavigationHeight}
+      />
+    );
   }
 
   return children;

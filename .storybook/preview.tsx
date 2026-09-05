@@ -2,6 +2,7 @@ import type { Preview } from "@storybook/react-vite";
 // biome-ignore lint/correctness/noUnusedImports: temp
 import React from "react";
 import { z } from "zod";
+import { toaster } from "../src/components/ui/toaster";
 import { customErrorMap } from "../src/configs/zod/zop-setup";
 import { ChakraProvider } from "../src/providers/ChakraProvider";
 import { applyFixedStorybookDate } from "./fixedDate";
@@ -40,6 +41,13 @@ applyFixedStorybookDate();
 applyStorybookDocumentDefaults();
 
 const preview: Preview = {
+  // 通知storeはmodule singletonなので、前のStoryの通知と待機queueを引き継がない。
+  beforeEach: () => {
+    toaster.remove();
+    return () => {
+      toaster.remove();
+    };
+  },
   // Storybook 10.5 instruments focus with an instance-only getter. Zag reads the
   // prototype while initializing focus-visible, so make that access safe after
   // Storybook's core loaders have installed their instrumentation.

@@ -8,7 +8,6 @@ import {
 } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { isValidIsoDateString } from "../_lib/validation";
-import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
 import { NOTIFICATION_FANOUT_SCOPE_LIMIT, RECRUITMENT_DUPLICATE_SCAN_LIMIT } from "../constants";
 import {
   cancelNotificationFanoutOperationsForRecruitment,
@@ -103,22 +102,6 @@ export const createRecruitment = managerMutation({
       submissionPattern: ctx.shop.submissionPattern,
       ...(shouldScheduleReminder ? { reminderScheduledAt } : {}),
     });
-    await recordAnalyticsSourceEvent(ctx, {
-      eventKey: `cycle:${recruitmentId}:created`,
-      eventType: "cycle.changed",
-      occurredAt: now,
-      organizationId: ctx.shop.organizationId,
-      shopId: ctx.shop._id,
-      recruitmentId,
-      payload: {
-        kind: "cycle",
-        status: "open",
-        createdAt: now,
-        periodStart: input.periodStart,
-        periodEnd: input.periodEnd,
-        deadline: input.deadline,
-      },
-    });
     const activeStaffs = await ctx.db
       .query("staffs")
       .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", ctx.shop._id).eq("isDeleted", false))
@@ -188,26 +171,8 @@ export const deleteRecruitment = managerMutation({
       throw new ConvexError("Not found");
     }
 
-    // 周辺データは監査・集計のため残し、募集を失効させることで提出/閲覧/通知導線から外す。
-    const now = Date.now();
+    // 周辺データは監査のため残し、募集を失効させて提出/閲覧/通知導線から外す。
     await ctx.db.patch(args.recruitmentId, { isDeleted: true });
-    await recordAnalyticsSourceEvent(ctx, {
-      eventKey: `cycle:${args.recruitmentId}:deleted:${now}`,
-      eventType: "cycle.changed",
-      occurredAt: now,
-      organizationId: ctx.shop.organizationId,
-      shopId: ctx.shop._id,
-      recruitmentId: args.recruitmentId,
-      payload: {
-        kind: "cycle",
-        status: "deleted",
-        createdAt: recruitment._creationTime,
-        periodStart: recruitment.periodStart,
-        periodEnd: recruitment.periodEnd,
-        deadline: recruitment.deadline,
-        ...(recruitment.confirmedAt ? { confirmedAt: recruitment.confirmedAt } : {}),
-      },
-    });
     await cancelNotificationFanoutOperationsForRecruitment(ctx, args.recruitmentId);
     return null;
   },

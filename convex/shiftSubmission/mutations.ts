@@ -5,7 +5,7 @@ import { staffSessionMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
-import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
+import { recordAnalyticsUsage } from "../analytics/record";
 import { hasCurrentStaffLegalConsent, recordStaffLegalConsent } from "../legal/service";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
 import { type SubmitShiftSelection, submitShiftRequestsSchema, submitShiftSelectionSchema } from "./schemas";
@@ -227,21 +227,9 @@ export const submitShiftRequests = staffSessionMutation({
         firstSubmittedAt: now,
         submittedAt: now,
       });
-      await recordAnalyticsSourceEvent(ctx, {
-        eventKey: `submissionFirst:${submissionId}`,
-        eventType: "submission.first",
-        occurredAt: now,
-        organizationId: ctx.shop.organizationId,
-        shopId: ctx.shop._id,
-        recruitmentId: args.recruitmentId,
-        subjectId: ctx.staff._id,
-        payload: {
-          kind: "submissionFirst",
-          staffId: ctx.staff._id,
-          firstSubmittedAt: now,
-        },
-      });
     }
+
+    await recordAnalyticsUsage(ctx, { shopId: ctx.shop._id, metric: "submitted", recruitmentId: args.recruitmentId });
 
     await Promise.all([
       ...normalizedSubmission.slots.map((r) =>

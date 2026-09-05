@@ -6,23 +6,7 @@ import {
   shiftConfirmationSnapshotAssignmentValidator,
 } from "./_lib/shiftAssignmentValidators";
 import { submissionPatternValidator } from "./_lib/submissionPattern";
-import {
-  analyticsCadenceValidator,
-  analyticsCompletenessValidator,
-  analyticsHealthSignalCountsValidator,
-  analyticsHealthSignalStateValidator,
-  analyticsMilestoneCountsValidator,
-  analyticsMilestoneDatesValidator,
-  analyticsNotificationKindValidator,
-  analyticsPlanValidator,
-  analyticsRatePairValidator,
-  analyticsRunKindValidator,
-  analyticsRunStageValidator,
-  analyticsRunStatusValidator,
-  analyticsSegmentDimensionValidator,
-  analyticsSourceEventPayloadValidator,
-  analyticsSourceEventTypeValidator,
-} from "./analytics/model";
+import { analyticsResultCountsValidator, analyticsRunStatusValidator } from "./analytics/model";
 import {
   notificationFanoutCancelReasonValidator,
   notificationFanoutKindValidator,
@@ -516,6 +500,7 @@ const schema = defineSchema({
     .index("by_userId_and_shopId_and_isDeleted", ["userId", "shopId", "isDeleted"]),
 
   featureRequests: defineTable({
+    isDeleted: v.optional(v.boolean()),
     // 送信時点で店舗が確定していればshopId、組織全体の文脈ならorganizationIdを保存する。
     // public mutationでどちらか一方を必須にし、旧documentはshopIdのまま互換維持する。
     organizationId: v.optional(v.id("organizations")),
@@ -1130,366 +1115,64 @@ const schema = defineSchema({
     .index("by_month", ["month"]),
 
   // ========================================
-  // Analytics夜間batch
+  // Analyticsの日次利用実績
   // ========================================
-  analyticsRuns: defineTable({
-    runKey: v.string(),
-    kind: analyticsRunKindValidator,
-    status: analyticsRunStatusValidator,
-    calculationVersion: v.number(),
-    dataStartDate: v.string(),
-    dataStartAt: v.number(),
-    targetDate: v.optional(v.string()),
-    inputFromAt: v.number(),
-    cutoffAt: v.number(),
-    sourceCaptureStartAt: v.optional(v.number()),
-    resetWatermarkAt: v.optional(v.number()),
-    stage: analyticsRunStageValidator,
-    stepVersion: v.number(),
+  analyticsState: defineTable({
+    key: v.literal("usage"),
+    definitionVersion: v.number(),
     startedAt: v.number(),
-    terminalAt: v.optional(v.number()),
-    updatedAt: v.number(),
-  })
-    .index("by_runKey", ["runKey"])
-    .index("by_kind_and_status_and_targetDate", ["kind", "status", "targetDate"])
-    .index("by_status", ["status"])
-    .index("by_status_and_terminalAt", ["status", "terminalAt"])
-    .index("by_terminalAt", ["terminalAt"]),
+    nextRecoveryDate: v.string(),
+  }).index("by_key", ["key"]),
 
-  analyticsSourceEvents: defineTable({
-    schemaVersion: v.number(),
-    eventKey: v.string(),
-    eventType: analyticsSourceEventTypeValidator,
-    occurredAt: v.number(),
-    organizationId: v.optional(v.id("organizations")),
-    shopId: v.optional(v.id("shops")),
-    recruitmentId: v.optional(v.id("recruitments")),
-    subjectId: v.optional(v.union(v.id("organizationPeople"), v.id("organizationMembers"), v.id("staffs"))),
-    payloadVersion: v.number(),
-    payload: analyticsSourceEventPayloadValidator,
-    createdAt: v.number(),
-  })
-    .index("by_eventKey", ["eventKey"])
-    .index("by_occurredAt", ["occurredAt"])
-    .index("by_organizationId_and_occurredAt", ["organizationId", "occurredAt"])
-    .index("by_shopId_and_occurredAt", ["shopId", "occurredAt"]),
-
-  analyticsOrganizations: defineTable({
-    organizationId: v.id("organizations"),
-    displayName: v.string(),
-    registeredAt: v.number(),
-    deletedAt: v.optional(v.number()),
-    currentPlan: v.optional(analyticsPlanValidator),
-    planEffectiveAt: v.optional(v.number()),
-    firstShopId: v.optional(v.id("shops")),
-    secondShopId: v.optional(v.id("shops")),
-    firstShopAt: v.optional(v.number()),
-    secondShopAt: v.optional(v.number()),
-    secondShopFirstConfirmedAt: v.optional(v.number()),
-    updatedAt: v.number(),
-  })
-    .index("by_organizationId", ["organizationId"])
-    .index("by_registeredAt", ["registeredAt"])
-    .index("by_deletedAt_and_registeredAt", ["deletedAt", "registeredAt"])
-    .index("by_deletedAt_and_currentPlan_and_registeredAt", ["deletedAt", "currentPlan", "registeredAt"])
-    .index("by_currentPlan", ["currentPlan"]),
-
-  analyticsShops: defineTable({
-    organizationId: v.id("organizations"),
+  analyticsShopDays: defineTable({
     shopId: v.id("shops"),
-    displayName: v.string(),
-    registeredAt: v.number(),
-    deletedAt: v.optional(v.number()),
-    currentPlan: v.optional(analyticsPlanValidator),
-    planEffectiveAt: v.optional(v.number()),
-    statusEffectiveAt: v.optional(v.number()),
-    firstRecruitmentAt: v.optional(v.number()),
-    firstSubmissionAt: v.optional(v.number()),
-    firstConfirmedRecruitmentId: v.optional(v.id("recruitments")),
-    secondConfirmedRecruitmentId: v.optional(v.id("recruitments")),
-    firstConfirmedAt: v.optional(v.number()),
-    secondConfirmedAt: v.optional(v.number()),
-    latestActivityAt: v.optional(v.number()),
-    estimatedCadenceDays: v.optional(v.number()),
-    cadenceConfidence: v.union(v.literal("insufficientData"), v.literal("low"), v.literal("medium"), v.literal("high")),
-    updatedAt: v.number(),
+    date: v.string(),
+    registered: v.boolean(),
+    submitted: v.boolean(),
+    confirmed: v.boolean(),
   })
-    .index("by_shopId", ["shopId"])
-    .index("by_organizationId", ["organizationId"])
-    .index("by_registeredAt", ["registeredAt"])
-    .index("by_deletedAt_and_registeredAt", ["deletedAt", "registeredAt"])
-    .index("by_deletedAt_and_currentPlan_and_registeredAt", ["deletedAt", "currentPlan", "registeredAt"])
-    .index("by_deletedAt_and_latestActivityAt_and_registeredAt", ["deletedAt", "latestActivityAt", "registeredAt"])
-    .index("by_organizationId_and_deletedAt_and_registeredAt", ["organizationId", "deletedAt", "registeredAt"])
-    .index("by_organizationId_and_deletedAt_and_currentPlan_and_registeredAt", [
-      "organizationId",
-      "deletedAt",
-      "currentPlan",
-      "registeredAt",
-    ])
-    .index("by_organizationId_deletedAt_latestActivityAt_registeredAt", [
-      "organizationId",
-      "deletedAt",
-      "latestActivityAt",
-      "registeredAt",
-    ])
-    .index("by_currentPlan", ["currentPlan"])
-    .index("by_latestActivityAt", ["latestActivityAt"]),
+    .index("by_shopId_and_date", ["shopId", "date"])
+    .index("by_date_and_shopId", ["date", "shopId"]),
 
-  analyticsPeople: defineTable({
-    organizationId: v.id("organizations"),
-    organizationPersonId: v.id("organizationPeople"),
-    firstObservedAt: v.number(),
-    deletedAt: v.optional(v.number()),
-    updatedAt: v.number(),
-  })
-    .index("by_organizationPersonId", ["organizationPersonId"])
-    .index("by_organizationId", ["organizationId"]),
-
-  analyticsMemberships: defineTable(
-    v.union(
-      v.object({
-        membershipKey: v.string(),
-        organizationId: v.id("organizations"),
-        organizationPersonId: v.id("organizationPeople"),
-        role: v.literal("manager"),
-        validFrom: v.number(),
-        validTo: v.optional(v.number()),
-        isShiftTarget: v.literal(false),
-        lineLinked: v.literal(false),
-        lineFollowing: v.literal(false),
-        updatedAt: v.number(),
-      }),
-      v.object({
-        membershipKey: v.string(),
-        organizationId: v.id("organizations"),
-        shopId: v.id("shops"),
-        organizationPersonId: v.optional(v.id("organizationPeople")),
-        staffId: v.id("staffs"),
-        role: v.literal("staff"),
-        validFrom: v.number(),
-        validTo: v.optional(v.number()),
-        isShiftTarget: v.boolean(),
-        lineLinked: v.boolean(),
-        lineFollowing: v.boolean(),
-        updatedAt: v.number(),
-      }),
-    ),
-  )
-    .index("by_membershipKey_and_validFrom", ["membershipKey", "validFrom"])
-    .index("by_organizationId_and_role_and_validFrom", ["organizationId", "role", "validFrom"])
-    .index("by_shopId_and_role_and_validFrom", ["shopId", "role", "validFrom"])
-    .index("by_shopId_and_organizationPersonId_and_validFrom", ["shopId", "organizationPersonId", "validFrom"])
-    .index("by_organizationPersonId_and_validFrom", ["organizationPersonId", "validFrom"]),
-
-  analyticsShiftCycles: defineTable({
+  analyticsCycleEvidence: defineTable({
+    shopId: v.id("shops"),
     recruitmentId: v.id("recruitments"),
-    organizationId: v.id("organizations"),
-    shopId: v.id("shops"),
-    sequenceNumber: v.optional(v.number()),
-    createdAt: v.number(),
-    submitDeadlineAt: v.number(),
-    periodStart: v.string(),
-    periodEnd: v.string(),
-    confirmedAt: v.optional(v.number()),
-    deletedAt: v.optional(v.number()),
-    closedAt: v.optional(v.number()),
-    targetAtDeadline: v.optional(v.number()),
-    submittedAtDeadline: v.optional(v.number()),
-    targetAtClose: v.optional(v.number()),
-    submittedAtClose: v.optional(v.number()),
-    notificationSentCount: v.number(),
-    notificationFailedCount: v.number(),
-    lastNotificationFailedAt: v.optional(v.number()),
-    reminderSentCount: v.number(),
-    creationLeadTimeMs: v.optional(v.number()),
-    confirmationLeadTimeMs: v.optional(v.number()),
-    confirmationSlackMs: v.optional(v.number()),
-    confirmedBeforeStart: v.optional(v.boolean()),
-    completeness: analyticsCompletenessValidator,
-    needsFinalizationAt: v.optional(v.number()),
-    finalizedAt: v.optional(v.number()),
-    updatedAt: v.number(),
-  })
-    .index("by_recruitmentId", ["recruitmentId"])
-    .index("by_shopId_and_periodStart", ["shopId", "periodStart"])
-    .index("by_shopId_and_deletedAt_and_periodStart", ["shopId", "deletedAt", "periodStart"])
-    .index("by_shopId_and_deletedAt_and_completeness_and_periodStart", [
-      "shopId",
-      "deletedAt",
-      "completeness",
-      "periodStart",
-    ])
-    .index("by_shopId_and_completeness_and_confirmationLeadTimeMs", [
-      "shopId",
-      "completeness",
-      "confirmationLeadTimeMs",
-    ])
-    .index("by_organizationId_and_periodStart", ["organizationId", "periodStart"])
-    .index("by_periodStart", ["periodStart"])
-    .index("by_completeness_and_periodStart", ["completeness", "periodStart"])
-    .index("by_completeness_and_submitDeadlineAt", ["completeness", "submitDeadlineAt"])
-    .index("by_needsFinalizationAt", ["needsFinalizationAt"]),
-
-  analyticsShiftCycleOpportunities: defineTable({
-    recruitmentId: v.id("recruitments"),
-    organizationId: v.id("organizations"),
-    shopId: v.id("shops"),
-    staffId: v.optional(v.id("staffs")),
-    organizationPersonId: v.optional(v.id("organizationPeople")),
-    targetedAtDeadline: v.boolean(),
-    targetedAtClose: v.boolean(),
     firstSubmittedAt: v.optional(v.number()),
-    lineLinkedAtCutoff: v.optional(v.boolean()),
-    reminderCount: v.number(),
-    completeness: analyticsCompletenessValidator,
-    identityState: v.union(v.literal("active"), v.literal("redacted")),
-    expiresAt: v.number(),
+    lastSubmittedAt: v.optional(v.number()),
+    firstConfirmedAt: v.optional(v.number()),
+    lastConfirmedAt: v.optional(v.number()),
+    confirmedPeriodStartAt: v.optional(v.number()),
+    lastObservedAt: v.number(),
   })
-    .index("by_recruitmentId", ["recruitmentId"])
-    .index("by_recruitmentId_and_staffId", ["recruitmentId", "staffId"])
-    .index("by_shopId_and_firstSubmittedAt", ["shopId", "firstSubmittedAt"])
-    .index("by_identityState_and_expiresAt", ["identityState", "expiresAt"])
-    .index("by_expiresAt", ["expiresAt"]),
+    .index("by_shopId_and_recruitmentId", ["shopId", "recruitmentId"])
+    .index("by_shopId_and_lastObservedAt", ["shopId", "lastObservedAt"])
+    .index("by_lastObservedAt", ["lastObservedAt"]),
 
-  analyticsDailyServiceKpis: defineTable({
-    runId: v.id("analyticsRuns"),
-    snapshotDate: v.string(),
-    organizationCount: v.number(),
-    shopCount: v.number(),
-    kpiEligibleShopCount: v.number(),
-    activeShopCount: v.number(),
-    personCount: v.number(),
-    staffMembershipCount: v.number(),
-    unlinkedStaffCount: v.number(),
-    shiftTargetCount: v.number(),
-    managerMembershipCount: v.number(),
-    managerStaffCount: v.number(),
-    milestoneCounts: analyticsMilestoneCountsValidator,
-    healthSignalCounts: analyticsHealthSignalCountsValidator,
-    northStar: analyticsRatePairValidator,
-    deadlineSubmission: analyticsRatePairValidator,
-    finalSubmission: analyticsRatePairValidator,
-    completeness: analyticsCompletenessValidator,
-    computedAt: v.number(),
+  analyticsDailyResults: defineTable({
+    date: v.string(),
+    status: analyticsRunStatusValidator,
+    definitionVersion: v.number(),
+    observationStartAt: v.number(),
+    observationEndAt: v.number(),
+    isPartialDay: v.boolean(),
+    inputStartDate: v.string(),
+    counts: analyticsResultCountsValidator,
+    cursorShopId: v.optional(v.id("shops")),
+    stepVersion: v.number(),
+    attemptCount: v.number(),
+    retryAttempt: v.number(),
+    retryable: v.boolean(),
+    retryAt: v.optional(v.number()),
+    errorCode: v.optional(v.string()),
+    startedAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
   })
-    .index("by_snapshotDate", ["snapshotDate"])
-    .index("by_runId", ["runId"]),
-
-  analyticsDailyNotificationKpis: defineTable({
-    runId: v.id("analyticsRuns"),
-    snapshotDate: v.string(),
-    scope: v.union(v.literal("service"), v.literal("shop"), v.literal("recruitment")),
-    scopeKey: v.string(),
-    recruitmentId: v.optional(v.id("recruitments")),
-    organizationId: v.optional(v.id("organizations")),
-    shopId: v.optional(v.id("shops")),
-    channel: notificationChannelValidator,
-    kind: analyticsNotificationKindValidator,
-    sentCount: v.number(),
-    failedCount: v.number(),
-    lastFailedAt: v.optional(v.number()),
-    completeness: analyticsCompletenessValidator,
-    computedAt: v.number(),
-  })
-    .index("by_snapshotDate", ["snapshotDate"])
-    .index("by_runId", ["runId"])
-    .index("by_shopId_and_snapshotDate", ["shopId", "snapshotDate"])
-    .index("by_recruitmentId_and_snapshotDate", ["recruitmentId", "snapshotDate"])
-    .index("by_runId_and_scopeKey_and_channel_and_kind", ["runId", "scopeKey", "channel", "kind"]),
-
-  analyticsDailyOrganizationKpis: defineTable({
-    runId: v.id("analyticsRuns"),
-    organizationId: v.id("organizations"),
-    snapshotDate: v.string(),
-    currentPlan: v.optional(analyticsPlanValidator),
-    shopCount: v.number(),
-    kpiEligibleShopCount: v.number(),
-    activeShopCount: v.number(),
-    uniquePersonCount: v.number(),
-    staffMembershipCount: v.number(),
-    unlinkedStaffCount: v.number(),
-    shiftTargetCount: v.number(),
-    managerMembershipCount: v.number(),
-    managerStaffCount: v.number(),
-    milestoneCounts: analyticsMilestoneCountsValidator,
-    healthSignalCounts: analyticsHealthSignalCountsValidator,
-    northStar: analyticsRatePairValidator,
-    deadlineSubmission: analyticsRatePairValidator,
-    finalSubmission: analyticsRatePairValidator,
-    completeness: analyticsCompletenessValidator,
-    computedAt: v.number(),
-  })
-    .index("by_organizationId_and_snapshotDate", ["organizationId", "snapshotDate"])
-    .index("by_snapshotDate", ["snapshotDate"])
-    .index("by_runId", ["runId"]),
-
-  analyticsDailyShopKpis: defineTable({
-    runId: v.id("analyticsRuns"),
-    organizationId: v.id("organizations"),
-    shopId: v.id("shops"),
-    snapshotDate: v.string(),
-    kpiEligible: v.boolean(),
-    staffMembershipCount: v.number(),
-    shiftTargetCount: v.number(),
-    uniquePersonCount: v.number(),
-    unlinkedStaffCount: v.number(),
-    managerMembershipCount: v.number(),
-    managerStaffCount: v.number(),
-    lineLinkedCount: v.number(),
-    lineFollowingCount: v.number(),
-    hasRecentActivity: v.boolean(),
-    cycleCount: v.number(),
-    confirmedCycleCount: v.number(),
-    confirmedBeforeStartCycleCount: v.number(),
-    nextCyclePeriodStart: v.optional(v.string()),
-    issueHealthSignalCount: v.number(),
-    milestoneDates: analyticsMilestoneDatesValidator,
-    healthSignals: v.array(analyticsHealthSignalStateValidator),
-    cadence: analyticsCadenceValidator,
-    northStar: analyticsRatePairValidator,
-    deadlineSubmission: analyticsRatePairValidator,
-    finalSubmission: analyticsRatePairValidator,
-    cumulativeDeadlineSubmission: analyticsRatePairValidator,
-    cumulativeFinalSubmission: analyticsRatePairValidator,
-    cumulativeNotificationSentCount: v.number(),
-    cumulativeNotificationFailedCount: v.number(),
-    confirmationLeadTimeMedianMs: v.optional(v.number()),
-    confirmationLeadTimeP90Ms: v.optional(v.number()),
-    lastNotificationFailedAt: v.optional(v.number()),
-    completeness: analyticsCompletenessValidator,
-    computedAt: v.number(),
-  })
-    .index("by_shopId_and_snapshotDate", ["shopId", "snapshotDate"])
-    .index("by_organizationId_and_snapshotDate", ["organizationId", "snapshotDate"])
-    .index("by_snapshotDate", ["snapshotDate"])
-    .index("by_snapshotDate_and_issueHealthSignalCount", ["snapshotDate", "issueHealthSignalCount"])
-    .index("by_runId", ["runId"]),
-
-  analyticsDailySegmentKpis: defineTable({
-    runId: v.id("analyticsRuns"),
-    snapshotDate: v.string(),
-    dimension: analyticsSegmentDimensionValidator,
-    bucket: v.string(),
-    shopCount: v.number(),
-    kpiEligibleShopCount: v.number(),
-    milestoneCounts: analyticsMilestoneCountsValidator,
-    healthSignalCounts: analyticsHealthSignalCountsValidator,
-    northStar: analyticsRatePairValidator,
-    deadlineSubmission: analyticsRatePairValidator,
-    finalSubmission: analyticsRatePairValidator,
-    completeness: analyticsCompletenessValidator,
-    computedAt: v.number(),
-  })
-    .index("by_snapshotDate_and_dimension_and_bucket", ["snapshotDate", "dimension", "bucket"])
-    .index("by_snapshotDate_and_completeness_and_dimension_and_bucket", [
-      "snapshotDate",
-      "completeness",
-      "dimension",
-      "bucket",
-    ])
-    .index("by_dimension_and_bucket_and_snapshotDate", ["dimension", "bucket", "snapshotDate"])
-    .index("by_runId", ["runId"]),
+    .index("by_date", ["date"])
+    .index("by_status_and_date", ["status", "date"])
+    .index("by_status_and_retryAt", ["status", "retryAt"])
+    .index("by_status_and_updatedAt", ["status", "updatedAt"])
+    .index("by_status_and_retryable_and_inputStartDate", ["status", "retryable", "inputStartDate"]),
 
   legalConsentTokens: defineTable({
     staffId: v.id("staffs"),

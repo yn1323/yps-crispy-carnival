@@ -1,1491 +1,432 @@
 import { v } from "convex/values";
-import type { Doc, Id } from "../_generated/dataModel";
-import type { QueryCtx } from "../_generated/server";
-import { monthJST } from "../_lib/dateFormat";
+import type { Doc } from "../_generated/dataModel";
+import { addDays, dateJST, jstDayRangeMs, subtractCalendarMonths } from "../_lib/dateFormat";
 import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
-import { FEATURE_REQUEST_LIST_LIMIT } from "../constants";
+import { ANALYTICS_DEFINITION_VERSION, analyticsMetricValidator } from "../analytics/model";
+import { listActiveStaffsForOrganizationPerson, resolveCanonicalStaffScope } from "../line/service";
 import type {
-  AnalyticsCompleteness,
-  AnalyticsCountSummaryDto,
-  AnalyticsHealthPointDto,
-  AnalyticsMilestonePointDto,
-  AnalyticsMilestoneRatesDto,
-  AnalyticsOrganizationKpiDto,
-  AnalyticsSegmentRowDto,
-  AnalyticsServiceKpiSnapshotDto,
-  AnalyticsShopKpiDto,
-  AnalyticsShopListRowDto,
+  AnalyticsDayDto,
   AnalyticsShopRowDto,
-  AnalyticsTrendMetric,
-  AnalyticsTrendPointDto,
-  AnalyticsTrendValueDto,
-  CanonicalAnalyticsPlanKey,
+  CycleDetailResponse,
+  OverviewResponse,
+  ShopDetailResponse,
+  ShopsResponse,
+  StaffDetailResponse,
 } from "./dto";
 import {
-  type AnalyticsReadState,
-  type AnalyticsRunRange,
-  bucketDate,
-  classifyShopUsage,
-  combineCompleteness,
-  getAnalyticsReadState,
-  getCompleteRunRange,
-  getLatestOrganizationKpi,
-  getLatestShopKpi,
-  getOrganizationDimension,
-  getShopDimension,
-  hasCompleteRequestedRange,
+  currentShop,
+  cycleRow,
+  deletedShopRow,
+  emptyPageInfo,
   pageInfo,
-  responseMetadata,
-  rowBelongsToCompleteRun,
-  toCycleRowDto,
-  toOrganizationKpiDto,
-  toOrganizationRowDto,
-  toRateDto,
-  toShopKpiDto,
-  toShopRowDto,
-  usageMatches,
+  paginationOptions,
+  recentCycles,
+  shopRow,
+  staffRow,
 } from "./queryHelpers";
-import {
-  ANALYTICS_DASHBOARD_MAX_RANGE_DAYS,
-  ANALYTICS_DASHBOARD_MAX_SCAN_ROWS,
-  ANALYTICS_DASHBOARD_MAX_TREND_POINTS,
-} from "./schemas";
+import { ANALYTICS_DASHBOARD_MAX_SCAN_ROWS, isAnalyticsDate } from "./schemas";
 import {
   cycleDetailResponseValidator,
   featureRequestsResponseValidator,
-  healthResponseValidator,
-  milestonesResponseValidator,
-  organizationDetailResponseValidator,
-  organizationsResponseValidator,
+  nullableString,
   overviewResponseValidator,
-  segmentsResponseValidator,
-  shopCyclesResponseValidator,
+  pageArgs,
   shopDetailResponseValidator,
   shopsResponseValidator,
-  trendsResponseValidator,
+  staffDetailResponseValidator,
 } from "./validators";
 
-const analyticsCompletenessArg = v.union(v.literal("complete"), v.literal("partial"), v.literal("unavailable"));
-const granularityArg = v.union(v.literal("day"), v.literal("week"), v.literal("month"));
-const directionArg = v.union(v.literal("asc"), v.literal("desc"));
-const planArg = v.union(v.literal("trial"), v.literal("free"), v.literal("standard"), v.literal("pro"));
-const nullableStringArg = v.union(v.string(), v.null());
-const nullableCompletenessArg = v.union(analyticsCompletenessArg, v.null());
-const PAGINATION_MAX_BYTES = 256 * 1024;
-
-type RatePair = { numerator: number; denominator: number };
-
-type SeriesSource = {
-  snapshotDate: string;
-  counts: AnalyticsCountSummaryDto;
-  milestoneCounts: Doc<"analyticsDailyServiceKpis">["milestoneCounts"];
-  healthSignalCounts: Doc<"analyticsDailyServiceKpis">["healthSignalCounts"];
-  northStar: RatePair;
-  deadlineSubmission: RatePair;
-  finalSubmission: RatePair;
-  completeness: AnalyticsCompleteness;
-  computedAt: number;
-};
-
-function singletonPageInfo(returnedCount: number) {
-  return pageInfo({ cursor: null, pageSize: Math.max(1, returnedCount), returnedCount });
-}
-
-function pageWarnings(page: { pageStatus?: string | null }) {
-  return page.pageStatus ? ["読み取り上限によりpageが分割されました"] : [];
-}
-
-const FILTERED_PAGE_INCOMPLETE_WARNING = "filtered_page_incomplete: 条件に一致する候補の確認は次のページへ続きます";
-
-function filteredPageWarnings(page: { isDone: boolean; pageStatus?: string | null }, filteredInMemory: boolean) {
-  return [
-    ...pageWarnings(page),
-    ...(filteredInMemory && (!page.isDone || page.pageStatus) ? [FILTERED_PAGE_INCOMPLETE_WARNING] : []),
-  ];
-}
-
-function maxOrNull(values: number[]) {
-  return values.length > 0 ? Math.max(...values) : null;
-}
-
-function maxComputedAt(rows: Array<{ kpis: { computedAt: number } | null }>) {
-  const values = rows.flatMap((row) => (row.kpis ? [row.kpis.computedAt] : []));
-  return maxOrNull(values);
-}
-
-function missingDataWarnings(
-  from: string,
-  to: string,
-  dataStartDate: string | null,
-  latest: string | null,
-  missingDates: readonly string[] = [],
-) {
-  const warnings: string[] = [];
-  if (dataStartDate && from < dataStartDate) warnings.push("データ蓄積開始日より前の期間は値がありません");
-  if (!latest || to > latest) warnings.push("指定期間の末日まで完全なsnapshotがありません");
-  if (missingDates.length > 0) {
-    warnings.push(`選択期間に欠損日があります（${missingDates.length}日、最初: ${missingDates[0]}）`);
-  }
-  return warnings;
-}
-
-function rangeWarnings(state: AnalyticsReadState, requested: { from: string; to: string }, range: AnalyticsRunRange) {
-  const warnings = missingDataWarnings(
-    requested.from,
-    requested.to,
-    state.dataStartDate,
-    state.latestCompleteSnapshotDate,
-    range.missingDates,
-  );
-  if (range.retentionStartDate && requested.from < range.retentionStartDate) {
-    warnings.push(`組織・店舗別の詳細データは${range.retentionStartDate}以降を保持しています`);
-  }
-  return warnings;
-}
-
-function missingBuckets(range: AnalyticsRunRange, granularity: "day" | "week" | "month") {
-  return new Set(range.missingDates.map((date) => bucketDate(date, granularity)));
-}
-
-function requireSeriesWithinPointLimit<T>(series: T[]): T[] {
-  if (series.length > ANALYTICS_DASHBOARD_MAX_TREND_POINTS) {
-    throw new Error("Analytics series point limit exceeded");
-  }
-  return series;
+function dayDto(
+  date: string,
+  startedAt: number | null,
+  result: Doc<"analyticsDailyResults"> | undefined,
+): AnalyticsDayDto {
+  const beforeStart = startedAt !== null && date < dateJST(startedAt);
+  const base = {
+    date,
+    counts: null,
+    observationStartAt: null,
+    observationEndAt: null,
+    computedAt: null,
+    errorCode: null,
+  };
+  if (beforeStart) return { ...base, status: "before_start" };
+  if (!result) return { ...base, status: "pending" };
+  if (result.definitionVersion !== ANALYTICS_DEFINITION_VERSION)
+    return { ...base, status: "failed", errorCode: "definition_mismatch" };
+  return {
+    date,
+    status: result.status === "complete" ? (result.isPartialDay ? "partial" : "complete") : result.status,
+    counts: result.status === "complete" ? result.counts.day : null,
+    observationStartAt: result.observationStartAt,
+    observationEndAt: result.observationEndAt,
+    computedAt: result.completedAt ?? null,
+    errorCode: result.errorCode ?? null,
+  };
 }
 
 export const getOverview = internalQuery({
-  args: {
-    from: v.string(),
-    to: v.string(),
-    compareFrom: nullableStringArg,
-    compareTo: nullableStringArg,
-    organizationId: nullableStringArg,
-    shopId: nullableStringArg,
-  },
-  returns: v.union(overviewResponseValidator, v.null()),
-  handler: async (ctx, args) => {
-    const state = await getAnalyticsReadState(ctx);
-    const detailRetention = args.organizationId !== null || args.shopId !== null;
-    const currentRange = await getCompleteRunRange(ctx, state, args, { detailRetention });
-    const comparisonRange =
-      args.compareFrom && args.compareTo
-        ? await getCompleteRunRange(ctx, state, { from: args.compareFrom, to: args.compareTo }, { detailRetention })
-        : null;
-    const canReadCurrent = state.availability === "available" && hasCompleteRequestedRange(state, args, currentRange);
-    const canReadComparison =
-      state.availability === "available" &&
-      comparisonRange !== null &&
-      args.compareFrom !== null &&
-      args.compareTo !== null &&
-      hasCompleteRequestedRange(state, { from: args.compareFrom, to: args.compareTo }, comparisonRange);
-    const currentRows = canReadCurrent
-      ? await getScopedSeries(ctx, { ...args, range: currentRange })
-      : ([] as SeriesSource[]);
-    if (currentRows === null) return null;
-    const comparisonRows =
-      canReadComparison && args.compareFrom && args.compareTo && comparisonRange
-        ? await getScopedSeries(ctx, {
-            from: args.compareFrom,
-            to: args.compareTo,
-            organizationId: args.organizationId,
-            shopId: args.shopId,
-            range: comparisonRange,
-          })
-        : ([] as SeriesSource[]);
-    if (comparisonRows === null) return null;
-    const current = overviewSnapshot(currentRows);
-    const comparison = overviewSnapshot(comparisonRows);
+  args: { rangeDays: v.union(v.literal(7), v.literal(30), v.literal(90)), asOf: v.number() },
+  returns: overviewResponseValidator,
+  handler: async (ctx, args): Promise<OverviewResponse> => {
+    const today = dateJST(args.asOf);
+    const to = addDays(today, -1);
+    const from = addDays(to, 1 - args.rangeDays);
+    const [state, results] = await Promise.all([
+      ctx.db
+        .query("analyticsState")
+        .withIndex("by_key", (q) => q.eq("key", "usage"))
+        .unique(),
+      ctx.db
+        .query("analyticsDailyResults")
+        .withIndex("by_date", (q) => q.gte("date", from).lte("date", to))
+        .take(90),
+    ]);
+    const byDate = new Map(results.map((row) => [row.date, row]));
+    const startedAt = state?.startedAt ?? null;
+    const series = Array.from({ length: args.rangeDays }, (_, index) =>
+      dayDto(addDays(from, index), startedAt, byDate.get(addDays(from, index))),
+    );
+    const observed = series.filter((day) => day.status !== "before_start");
+    const ready =
+      startedAt !== null &&
+      observed.length > 0 &&
+      observed.every((day) => day.status === "complete" || day.status === "partial");
+    const partial = series.some((day) => day.status === "before_start" || day.status === "partial");
+    const result = byDate.get(to);
+    const todayRunAt = jstDayRangeMs(today).startMs + 3 * 60 * 60 * 1000;
     return {
-      kind: "overview" as const,
-      metadata: responseMetadata({
-        state,
-        availability: canReadCurrent ? "available" : "unavailable",
-        computedAt: maxOrNull([current?.computedAt, comparison?.computedAt].filter((value) => value !== undefined)),
-        pageInfo: singletonPageInfo(current ? 1 : 0),
-        warnings: [
-          ...rangeWarnings(state, args, currentRange),
-          ...(args.compareFrom && args.compareTo && comparisonRange
-            ? rangeWarnings(state, { from: args.compareFrom, to: args.compareTo }, comparisonRange)
-            : []),
-        ],
-      }),
-      current,
-      comparison,
-    };
-  },
-});
-
-function serviceSource(doc: Doc<"analyticsDailyServiceKpis">): SeriesSource {
-  return {
-    snapshotDate: doc.snapshotDate,
-    counts: {
-      organizationCount: doc.organizationCount,
-      shopCount: doc.shopCount,
-      kpiEligibleShopCount: doc.kpiEligibleShopCount,
-      activeShopCount: doc.activeShopCount,
-      personCount: doc.personCount,
-      staffMembershipCount: doc.staffMembershipCount,
-      unlinkedStaffCount: doc.unlinkedStaffCount,
-      shiftTargetCount: doc.shiftTargetCount,
-      managerMembershipCount: doc.managerMembershipCount,
-      managerStaffCount: doc.managerStaffCount,
-    },
-    milestoneCounts: doc.milestoneCounts,
-    healthSignalCounts: doc.healthSignalCounts,
-    northStar: doc.northStar,
-    deadlineSubmission: doc.deadlineSubmission,
-    finalSubmission: doc.finalSubmission,
-    completeness: doc.completeness,
-    computedAt: doc.computedAt,
-  };
-}
-
-function organizationSource(doc: Doc<"analyticsDailyOrganizationKpis">): SeriesSource {
-  return {
-    snapshotDate: doc.snapshotDate,
-    counts: {
-      organizationCount: 1,
-      shopCount: doc.shopCount,
-      kpiEligibleShopCount: doc.kpiEligibleShopCount,
-      activeShopCount: doc.activeShopCount,
-      personCount: doc.uniquePersonCount,
-      staffMembershipCount: doc.staffMembershipCount,
-      unlinkedStaffCount: doc.unlinkedStaffCount,
-      shiftTargetCount: doc.shiftTargetCount,
-      managerMembershipCount: doc.managerMembershipCount,
-      managerStaffCount: doc.managerStaffCount,
-    },
-    milestoneCounts: doc.milestoneCounts,
-    healthSignalCounts: doc.healthSignalCounts,
-    northStar: doc.northStar,
-    deadlineSubmission: doc.deadlineSubmission,
-    finalSubmission: doc.finalSubmission,
-    completeness: doc.completeness,
-    computedAt: doc.computedAt,
-  };
-}
-
-function shopSource(doc: Doc<"analyticsDailyShopKpis">): SeriesSource {
-  const kpiEligible = doc.kpiEligible === true;
-  return {
-    snapshotDate: doc.snapshotDate,
-    counts: {
-      organizationCount: 1,
-      shopCount: 1,
-      kpiEligibleShopCount: kpiEligible ? 1 : 0,
-      activeShopCount: doc.hasRecentActivity ? 1 : 0,
-      personCount: doc.uniquePersonCount,
-      staffMembershipCount: doc.staffMembershipCount,
-      unlinkedStaffCount: doc.unlinkedStaffCount,
-      shiftTargetCount: doc.shiftTargetCount,
-      managerMembershipCount: doc.managerMembershipCount,
-      managerStaffCount: doc.managerStaffCount,
-    },
-    milestoneCounts: {
-      registered: kpiEligible ? 1 : 0,
-      firstRecruitment: kpiEligible && doc.milestoneDates.firstRecruitmentAt !== undefined ? 1 : 0,
-      firstSubmission: kpiEligible && doc.milestoneDates.firstSubmissionAt !== undefined ? 1 : 0,
-      firstConfirmed: kpiEligible && doc.milestoneDates.firstConfirmedAt !== undefined ? 1 : 0,
-      secondConfirmed: kpiEligible && doc.milestoneDates.secondConfirmedAt !== undefined ? 1 : 0,
-    },
-    healthSignalCounts: {
-      hasUpcomingCycle: doc.healthSignals.some((signal) => signal.signal === "hasUpcomingCycle") ? 1 : 0,
-      nextCycleMissing: doc.healthSignals.some((signal) => signal.signal === "nextCycleMissing") ? 1 : 0,
-      cadenceDelayed: doc.healthSignals.some((signal) => signal.signal === "cadenceDelayed") ? 1 : 0,
-      notificationFailure: doc.healthSignals.some((signal) => signal.signal === "notificationFailure") ? 1 : 0,
-      submissionDrop: doc.healthSignals.some((signal) => signal.signal === "submissionDrop") ? 1 : 0,
-      confirmationDelay: doc.healthSignals.some((signal) => signal.signal === "confirmationDelay") ? 1 : 0,
-      longInactive: doc.healthSignals.some((signal) => signal.signal === "longInactive") ? 1 : 0,
-      insufficientData: doc.healthSignals.some((signal) => signal.signal === "insufficientData") ? 1 : 0,
-    },
-    northStar: doc.northStar,
-    deadlineSubmission: doc.deadlineSubmission,
-    finalSubmission: doc.finalSubmission,
-    completeness: doc.completeness,
-    computedAt: doc.computedAt,
-  };
-}
-
-function summedPair(rows: SeriesSource[], select: (row: SeriesSource) => RatePair): RatePair {
-  return rows
-    .filter((row) => row.completeness === "complete")
-    .reduce(
-      (sum, row) => {
-        const value = select(row);
-        return { numerator: sum.numerator + value.numerator, denominator: sum.denominator + value.denominator };
+      kind: "overview",
+      asOf: args.asOf,
+      definitionVersion: ANALYTICS_DEFINITION_VERSION,
+      startedAt,
+      nextAggregationAt:
+        todayRunAt > args.asOf ? todayRunAt : jstDayRangeMs(addDays(today, 1)).startMs + 3 * 60 * 60 * 1000,
+      range: { from, to, days: args.rangeDays },
+      yesterday: series[series.length - 1],
+      series,
+      period: {
+        status: ready ? (partial ? "partial" : "complete") : "unavailable",
+        counts:
+          ready && result?.status === "complete"
+            ? result.counts[args.rangeDays === 7 ? "days7" : args.rangeDays === 30 ? "days30" : "days90"]
+            : null,
+        observedDays: observed.filter((day) => day.status === "complete" || day.status === "partial").length,
+        observationStartAt: startedAt === null ? null : Math.max(startedAt, jstDayRangeMs(from).startMs),
       },
-      { numerator: 0, denominator: 0 },
-    );
-}
-
-function overviewSnapshot(rows: SeriesSource[]): AnalyticsServiceKpiSnapshotDto | null {
-  const first = rows[0];
-  const latest = rows.at(-1);
-  if (!first || !latest) return null;
-  return {
-    snapshotDate: latest.snapshotDate,
-    rateRange: { from: first.snapshotDate, to: latest.snapshotDate },
-    counts: latest.counts,
-    milestoneCounts: latest.milestoneCounts,
-    healthSignalCounts: latest.healthSignalCounts,
-    northStar: toRateDto(summedPair(rows, (row) => row.northStar)),
-    deadlineSubmission: toRateDto(summedPair(rows, (row) => row.deadlineSubmission)),
-    finalSubmission: toRateDto(summedPair(rows, (row) => row.finalSubmission)),
-    completeness: combineCompleteness(rows.map((row) => row.completeness)),
-    computedAt: Math.max(...rows.map((row) => row.computedAt)),
-  };
-}
-
-async function getScopedSeries(
-  ctx: QueryCtx,
-  args: {
-    from: string;
-    to: string;
-    organizationId: string | null;
-    shopId: string | null;
-    range: AnalyticsRunRange;
-  },
-): Promise<SeriesSource[] | null> {
-  const effectiveFrom = args.range.effectiveFrom;
-  const effectiveTo = args.range.effectiveTo;
-  if (!effectiveFrom || !effectiveTo) return [];
-  if (args.shopId) {
-    const shopId = ctx.db.normalizeId("shops", args.shopId);
-    if (!shopId) return null;
-    const shop = await getShopDimension(ctx, shopId);
-    if (!shop || shop.deletedAt !== undefined) return null;
-    const organization = await getOrganizationDimension(ctx, shop.organizationId);
-    if (!organization || organization.deletedAt !== undefined) return null;
-    const rows = await ctx.db
-      .query("analyticsDailyShopKpis")
-      .withIndex("by_shopId_and_snapshotDate", (q) =>
-        q.eq("shopId", shopId).gte("snapshotDate", effectiveFrom).lte("snapshotDate", effectiveTo),
-      )
-      .take(ANALYTICS_DASHBOARD_MAX_RANGE_DAYS + 1);
-    return rows.filter((row) => rowBelongsToCompleteRun(row, args.range)).map(shopSource);
-  }
-  if (args.organizationId) {
-    const organizationId = ctx.db.normalizeId("organizations", args.organizationId);
-    if (!organizationId) return null;
-    const organization = await getOrganizationDimension(ctx, organizationId);
-    if (!organization || organization.deletedAt !== undefined) return null;
-    const rows = await ctx.db
-      .query("analyticsDailyOrganizationKpis")
-      .withIndex("by_organizationId_and_snapshotDate", (q) =>
-        q.eq("organizationId", organizationId).gte("snapshotDate", effectiveFrom).lte("snapshotDate", effectiveTo),
-      )
-      .take(ANALYTICS_DASHBOARD_MAX_RANGE_DAYS + 1);
-    return rows.filter((row) => rowBelongsToCompleteRun(row, args.range)).map(organizationSource);
-  }
-  const rows = await ctx.db
-    .query("analyticsDailyServiceKpis")
-    .withIndex("by_snapshotDate", (q) => q.gte("snapshotDate", effectiveFrom).lte("snapshotDate", effectiveTo))
-    .take(ANALYTICS_DASHBOARD_MAX_RANGE_DAYS + 1);
-  return rows.filter((row) => rowBelongsToCompleteRun(row, args.range)).map(serviceSource);
-}
-
-function groupedSources(rows: SeriesSource[], granularity: "day" | "week" | "month") {
-  const buckets = new Map<string, SeriesSource[]>();
-  for (const row of rows) {
-    const key = bucketDate(row.snapshotDate, granularity);
-    const bucket = buckets.get(key) ?? [];
-    bucket.push(row);
-    buckets.set(key, bucket);
-  }
-  return [...buckets.entries()].sort(([left], [right]) => left.localeCompare(right));
-}
-
-function summedRate(rows: SeriesSource[], select: (row: SeriesSource) => RatePair): AnalyticsTrendValueDto {
-  const completeRows = rows.filter((row) => row.completeness === "complete");
-  if (completeRows.length === 0) return { value: null, numerator: null, denominator: null };
-  const pair = summedPair(completeRows, select);
-  return {
-    value: pair.denominator === 0 ? null : pair.numerator / pair.denominator,
-    numerator: pair.numerator,
-    denominator: pair.denominator,
-  };
-}
-
-function trendPoint(date: string, rows: SeriesSource[], metrics: AnalyticsTrendMetric[]): AnalyticsTrendPointDto {
-  const latest = rows.at(-1);
-  if (!latest) throw new Error("Analytics trend bucket is empty");
-  const values: Partial<Record<AnalyticsTrendMetric, AnalyticsTrendValueDto>> = {};
-  for (const metric of metrics) {
-    if (metric === "northStarRate") values[metric] = summedRate(rows, (row) => row.northStar);
-    else if (metric === "deadlineSubmissionRate") values[metric] = summedRate(rows, (row) => row.deadlineSubmission);
-    else if (metric === "finalSubmissionRate") values[metric] = summedRate(rows, (row) => row.finalSubmission);
-    else {
-      values[metric] = { value: latest.counts[metric] ?? null, numerator: null, denominator: null };
-    }
-  }
-  return {
-    date,
-    values,
-    completeness: combineCompleteness(rows.map((row) => row.completeness)),
-    computedAt: Math.max(...rows.map((row) => row.computedAt)),
-  };
-}
-
-export const getTrends = internalQuery({
-  args: {
-    from: v.string(),
-    to: v.string(),
-    granularity: granularityArg,
-    metrics: v.array(v.string()),
-    organizationId: nullableStringArg,
-    shopId: nullableStringArg,
-  },
-  returns: v.union(trendsResponseValidator, v.null()),
-  handler: async (ctx, args) => {
-    const state = await getAnalyticsReadState(ctx);
-    const range = await getCompleteRunRange(ctx, state, args, {
-      detailRetention: args.organizationId !== null || args.shopId !== null,
-    });
-    const canRead = state.availability === "available" && range.effectiveTo !== null;
-    const rows = canRead ? await getScopedSeries(ctx, { ...args, range }) : ([] as SeriesSource[]);
-    if (rows === null) return null;
-    const metrics = args.metrics as AnalyticsTrendMetric[];
-    const incompleteBuckets = missingBuckets(range, args.granularity);
-    const series = requireSeriesWithinPointLimit(
-      groupedSources(rows, args.granularity)
-        .filter(([date]) => !incompleteBuckets.has(date))
-        .map(([date, bucket]) => trendPoint(date, bucket, metrics)),
-    );
-    return {
-      kind: "trends" as const,
-      metadata: responseMetadata({
-        state,
-        availability: canRead ? "available" : "unavailable",
-        computedAt: series.length > 0 ? Math.max(...series.map((point) => point.computedAt)) : null,
-        pageInfo: singletonPageInfo(series.length),
-        warnings: rangeWarnings(state, args, range),
-      }),
-      range: { from: args.from, to: args.to },
-      granularity: args.granularity,
-      metrics,
-      series,
     };
   },
 });
-
-function milestoneSeries(rows: SeriesSource[], granularity: "day" | "week" | "month") {
-  return groupedSources(rows, granularity).map(([date, bucket]): AnalyticsMilestonePointDto => {
-    const latest = bucket.at(-1);
-    if (!latest) throw new Error("Analytics milestone bucket is empty");
-    return {
-      date,
-      counts: latest.milestoneCounts,
-      rates: milestoneRates(latest.milestoneCounts, latest.counts.kpiEligibleShopCount),
-      completeness: combineCompleteness(bucket.map((row) => row.completeness)),
-      computedAt: Math.max(...bucket.map((row) => row.computedAt)),
-    };
-  });
-}
-
-function milestoneRates(
-  counts: SeriesSource["milestoneCounts"],
-  eligibleShopCount: number,
-): AnalyticsMilestoneRatesDto {
-  const registeredReach = toRateDto({ numerator: counts.registered, denominator: eligibleShopCount });
-  return {
-    registered: {
-      reach: registeredReach,
-      previousStepConversion: registeredReach,
-    },
-    firstRecruitment: {
-      reach: toRateDto({ numerator: counts.firstRecruitment, denominator: eligibleShopCount }),
-      previousStepConversion: toRateDto({ numerator: counts.firstRecruitment, denominator: counts.registered }),
-    },
-    firstSubmission: {
-      reach: toRateDto({ numerator: counts.firstSubmission, denominator: eligibleShopCount }),
-      previousStepConversion: toRateDto({ numerator: counts.firstSubmission, denominator: counts.firstRecruitment }),
-    },
-    firstConfirmed: {
-      reach: toRateDto({ numerator: counts.firstConfirmed, denominator: eligibleShopCount }),
-      previousStepConversion: toRateDto({ numerator: counts.firstConfirmed, denominator: counts.firstSubmission }),
-    },
-    secondConfirmed: {
-      reach: toRateDto({ numerator: counts.secondConfirmed, denominator: eligibleShopCount }),
-      previousStepConversion: toRateDto({ numerator: counts.secondConfirmed, denominator: counts.firstConfirmed }),
-    },
-  };
-}
-
-function healthSeries(rows: SeriesSource[], granularity: "day" | "week" | "month") {
-  return groupedSources(rows, granularity).map(([date, bucket]): AnalyticsHealthPointDto => {
-    const latest = bucket.at(-1);
-    if (!latest) throw new Error("Analytics health bucket is empty");
-    return {
-      date,
-      counts: latest.healthSignalCounts,
-      completeness: combineCompleteness(bucket.map((row) => row.completeness)),
-      computedAt: Math.max(...bucket.map((row) => row.computedAt)),
-    };
-  });
-}
-
-export const getMilestones = internalQuery({
-  args: {
-    from: v.string(),
-    to: v.string(),
-    granularity: granularityArg,
-    organizationId: nullableStringArg,
-    shopId: nullableStringArg,
-  },
-  returns: v.union(milestonesResponseValidator, v.null()),
-  handler: async (ctx, args) => {
-    const state = await getAnalyticsReadState(ctx);
-    const range = await getCompleteRunRange(ctx, state, args, {
-      detailRetention: args.organizationId !== null || args.shopId !== null,
-    });
-    const canRead = state.availability === "available" && range.effectiveTo !== null;
-    const rows = canRead ? await getScopedSeries(ctx, { ...args, range }) : [];
-    if (rows === null) return null;
-    const incompleteBuckets = missingBuckets(range, args.granularity);
-    const series = requireSeriesWithinPointLimit(
-      milestoneSeries(rows, args.granularity).filter((point) => !incompleteBuckets.has(point.date)),
-    );
-    return {
-      kind: "milestones" as const,
-      metadata: responseMetadata({
-        state,
-        availability: canRead ? "available" : "unavailable",
-        computedAt: series.length > 0 ? Math.max(...series.map((point) => point.computedAt)) : null,
-        pageInfo: singletonPageInfo(series.length),
-        warnings: rangeWarnings(state, args, range),
-      }),
-      range: { from: args.from, to: args.to },
-      granularity: args.granularity,
-      current: series.at(-1)?.counts ?? null,
-      currentRates: series.at(-1)?.rates ?? null,
-      series,
-    };
-  },
-});
-
-export const getHealth = internalQuery({
-  args: {
-    from: v.string(),
-    to: v.string(),
-    granularity: granularityArg,
-    organizationId: nullableStringArg,
-    shopId: nullableStringArg,
-  },
-  returns: v.union(healthResponseValidator, v.null()),
-  handler: async (ctx, args) => {
-    const state = await getAnalyticsReadState(ctx);
-    const range = await getCompleteRunRange(ctx, state, args, {
-      detailRetention: args.organizationId !== null || args.shopId !== null,
-    });
-    const canRead = state.availability === "available" && range.effectiveTo !== null;
-    const rows = canRead ? await getScopedSeries(ctx, { ...args, range }) : [];
-    if (rows === null) return null;
-    const incompleteBuckets = missingBuckets(range, args.granularity);
-    const series = requireSeriesWithinPointLimit(
-      healthSeries(rows, args.granularity).filter((point) => !incompleteBuckets.has(point.date)),
-    );
-    return {
-      kind: "health" as const,
-      metadata: responseMetadata({
-        state,
-        availability: canRead ? "available" : "unavailable",
-        computedAt: series.length > 0 ? Math.max(...series.map((point) => point.computedAt)) : null,
-        pageInfo: singletonPageInfo(series.length),
-        warnings: rangeWarnings(state, args, range),
-      }),
-      range: { from: args.from, to: args.to },
-      granularity: args.granularity,
-      current: series.at(-1)?.counts ?? null,
-      series,
-    };
-  },
-});
-
-function paginationOptions(cursor: string | null, limit: number) {
-  return {
-    cursor,
-    numItems: limit,
-    maximumRowsRead: Math.min(limit, ANALYTICS_DASHBOARD_MAX_SCAN_ROWS),
-    maximumBytesRead: PAGINATION_MAX_BYTES,
-  };
-}
-
-async function organizationPage(
-  ctx: QueryCtx,
-  args: {
-    cursor: string | null;
-    limit: number;
-    sort: "registeredAt" | "currentPlan";
-    direction: "asc" | "desc";
-    plan: CanonicalAnalyticsPlanKey | null;
-  },
-) {
-  const options = paginationOptions(args.cursor, args.limit);
-  if (args.sort === "currentPlan") {
-    return await ctx.db
-      .query("analyticsOrganizations")
-      .withIndex("by_deletedAt_and_currentPlan_and_registeredAt", (q) => {
-        const active = q.eq("deletedAt", undefined);
-        return args.plan ? active.eq("currentPlan", args.plan) : active;
-      })
-      .order(args.direction)
-      .paginate(options);
-  }
-  return await ctx.db
-    .query("analyticsOrganizations")
-    .withIndex("by_deletedAt_and_registeredAt", (q) => q.eq("deletedAt", undefined))
-    .order(args.direction)
-    .paginate(options);
-}
-
-export const getOrganizations = internalQuery({
-  args: {
-    from: v.string(),
-    to: v.string(),
-    cursor: nullableStringArg,
-    limit: v.number(),
-    sort: v.union(v.literal("registeredAt"), v.literal("currentPlan")),
-    direction: directionArg,
-    plan: v.union(planArg, v.null()),
-    completeness: nullableCompletenessArg,
-  },
-  returns: organizationsResponseValidator,
-  handler: async (ctx, args) => {
-    const state = await getAnalyticsReadState(ctx);
-    const range = await getCompleteRunRange(ctx, state, args, { detailRetention: true });
-    const latestRun = range.latestCompleteRun;
-    if (state.availability === "unavailable" || !latestRun) {
-      return {
-        kind: "organizations" as const,
-        metadata: responseMetadata({
-          state,
-          availability: "unavailable",
-          computedAt: null,
-          pageInfo: pageInfo({ cursor: args.cursor, pageSize: args.limit, returnedCount: 0 }),
-          warnings: rangeWarnings(state, args, range),
-        }),
-        rows: [],
-      };
-    }
-    const page = await organizationPage(ctx, args);
-    const dimensionRows = page.page.filter((organization) => !args.plan || organization.currentPlan === args.plan);
-    const mapped = await Promise.all(
-      dimensionRows.map(async (organization) => {
-        const kpi = await getLatestOrganizationKpi(ctx, latestRun, organization.organizationId);
-        return toOrganizationRowDto(organization, kpi ? toOrganizationKpiDto(kpi) : null, latestRun.dataStartAt);
-      }),
-    );
-    const rows = mapped.filter((row) => !args.completeness || row.kpis?.completeness === args.completeness);
-    const filteredInMemory = (args.sort !== "currentPlan" && args.plan !== null) || args.completeness !== null;
-    return {
-      kind: "organizations" as const,
-      metadata: responseMetadata({
-        state,
-        computedAt: maxComputedAt(rows),
-        pageInfo: pageInfo({
-          cursor: args.cursor,
-          continueCursor: page.continueCursor,
-          isDone: page.isDone,
-          pageSize: args.limit,
-          returnedCount: rows.length,
-        }),
-        warnings: [...rangeWarnings(state, args, range), ...filteredPageWarnings(page, filteredInMemory)],
-      }),
-      rows,
-    };
-  },
-});
-
-function rollupOrganizationSeries(
-  rows: Doc<"analyticsDailyOrganizationKpis">[],
-  granularity: "day" | "week" | "month",
-) {
-  const buckets = new Map<string, Doc<"analyticsDailyOrganizationKpis">[]>();
-  for (const row of rows) {
-    const key = bucketDate(row.snapshotDate, granularity);
-    const bucket = buckets.get(key) ?? [];
-    bucket.push(row);
-    buckets.set(key, bucket);
-  }
-  return [...buckets.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([date, bucket]): AnalyticsOrganizationKpiDto => {
-      const first = bucket[0];
-      const latest = bucket.at(-1);
-      if (!first || !latest) throw new Error("Analytics organization bucket is empty");
-      const sources = bucket.map(organizationSource);
-      return {
-        ...toOrganizationKpiDto(latest),
-        snapshotDate: date,
-        rateRange: { from: first.snapshotDate, to: latest.snapshotDate },
-        northStar: toRateDto(summedPair(sources, (row) => row.northStar)),
-        deadlineSubmission: toRateDto(summedPair(sources, (row) => row.deadlineSubmission)),
-        finalSubmission: toRateDto(summedPair(sources, (row) => row.finalSubmission)),
-        completeness: combineCompleteness(bucket.map((row) => row.completeness)),
-        computedAt: Math.max(...bucket.map((row) => row.computedAt)),
-      };
-    });
-}
-
-async function organizationShopPage(
-  ctx: QueryCtx,
-  organizationId: Id<"organizations">,
-  cursor: string | null,
-  limit: number,
-) {
-  return await ctx.db
-    .query("analyticsShops")
-    .withIndex("by_organizationId_and_deletedAt_and_registeredAt", (q) =>
-      q.eq("organizationId", organizationId).eq("deletedAt", undefined),
-    )
-    .paginate(paginationOptions(cursor, limit));
-}
-
-export const getOrganization = internalQuery({
-  args: {
-    organizationId: v.string(),
-    from: v.string(),
-    to: v.string(),
-    granularity: granularityArg,
-    cursor: nullableStringArg,
-    limit: v.number(),
-  },
-  returns: v.union(organizationDetailResponseValidator, v.null()),
-  handler: async (ctx, args) => {
-    const state = await getAnalyticsReadState(ctx);
-    const range = await getCompleteRunRange(ctx, state, args, { detailRetention: true });
-    const latestRun = range.latestCompleteRun;
-    const organizationId = ctx.db.normalizeId("organizations", args.organizationId);
-    if (!organizationId) return null;
-    if (state.availability === "unavailable" || !latestRun) {
-      return {
-        kind: "organization" as const,
-        metadata: responseMetadata({
-          state,
-          availability: "unavailable",
-          computedAt: null,
-          pageInfo: pageInfo({ cursor: args.cursor, pageSize: args.limit, returnedCount: 0 }),
-          warnings: rangeWarnings(state, args, range),
-        }),
-        organization: null,
-        series: [],
-        shops: [],
-      };
-    }
-    const organization = await getOrganizationDimension(ctx, organizationId);
-    if (!organization || organization.deletedAt !== undefined) return null;
-    const seriesFrom = range.effectiveFrom;
-    const seriesTo = range.effectiveTo;
-    const seriesDocs =
-      seriesFrom && seriesTo
-        ? await ctx.db
-            .query("analyticsDailyOrganizationKpis")
-            .withIndex("by_organizationId_and_snapshotDate", (q) =>
-              q.eq("organizationId", organizationId).gte("snapshotDate", seriesFrom).lte("snapshotDate", seriesTo),
-            )
-            .take(ANALYTICS_DASHBOARD_MAX_RANGE_DAYS + 1)
-        : [];
-    const visibleSeriesDocs = seriesDocs.filter((row) => rowBelongsToCompleteRun(row, range));
-    const incompleteBuckets = missingBuckets(range, args.granularity);
-    const series = requireSeriesWithinPointLimit(
-      rollupOrganizationSeries(visibleSeriesDocs, args.granularity).filter(
-        (point) => !incompleteBuckets.has(point.snapshotDate),
-      ),
-    );
-    const currentKpi = await getLatestOrganizationKpi(ctx, latestRun, organizationId);
-    const shopsPage = await organizationShopPage(ctx, organizationId, args.cursor, args.limit);
-    const shops = await Promise.all(
-      shopsPage.page.map(async (shop) => {
-        const kpi = await getLatestShopKpi(ctx, latestRun, shop.shopId);
-        return toShopRowDto(shop, organization.displayName, kpi ? toShopKpiDto(kpi) : null);
-      }),
-    );
-    const current = currentKpi ? toOrganizationKpiDto(currentKpi) : null;
-    return {
-      kind: "organization" as const,
-      metadata: responseMetadata({
-        state,
-        computedAt: maxOrNull([
-          ...series.map((row) => row.computedAt),
-          ...shops.flatMap((row) => (row.kpis ? [row.kpis.computedAt] : [])),
-        ]),
-        pageInfo: pageInfo({
-          cursor: args.cursor,
-          continueCursor: shopsPage.continueCursor,
-          isDone: shopsPage.isDone,
-          pageSize: args.limit,
-          returnedCount: shops.length,
-        }),
-        warnings: [...rangeWarnings(state, args, range), ...pageWarnings(shopsPage)],
-      }),
-      organization: toOrganizationRowDto(organization, current, latestRun.dataStartAt),
-      series,
-      shops,
-    };
-  },
-});
-
-function shopSizeMatches(value: number, filter: "1-4" | "5-9" | "10-19" | "20-49" | "50+") {
-  if (filter === "1-4") return value >= 1 && value <= 4;
-  if (filter === "5-9") return value >= 5 && value <= 9;
-  if (filter === "10-19") return value >= 10 && value <= 19;
-  if (filter === "20-49") return value >= 20 && value <= 49;
-  return value >= 50;
-}
-
-function cadenceMatches(
-  kpi: AnalyticsShopKpiDto,
-  filter: "weekly" | "biweekly" | "monthly" | "other" | "insufficientData",
-) {
-  if (filter === "insufficientData") return kpi.cadence.confidence === "insufficientData";
-  const days = kpi.cadence.estimatedDays;
-  if (days === null) return false;
-  if (filter === "weekly") return days <= 9;
-  if (filter === "biweekly") return days > 9 && days <= 18;
-  if (filter === "monthly") return days > 18 && days <= 40;
-  return days > 40;
-}
-
-function lineUsageMatches(kpi: AnalyticsShopKpiDto, filter: "none" | "low" | "medium" | "high") {
-  const rate = kpi.lineLinkedRate;
-  if (filter === "none") return rate === 0;
-  if (rate === null) return false;
-  if (filter === "low") return rate > 0 && rate < 0.5;
-  if (filter === "medium") return rate >= 0.5 && rate < 0.8;
-  return rate >= 0.8;
-}
-
-function shopRowMatches(
-  row: AnalyticsShopRowDto,
-  args: {
-    shopSize: "1-4" | "5-9" | "10-19" | "20-49" | "50+" | null;
-    cohort: string | null;
-    cadence: "weekly" | "biweekly" | "monthly" | "other" | "insufficientData" | null;
-    lineUsage: "none" | "low" | "medium" | "high" | null;
-    health:
-      | "hasUpcomingCycle"
-      | "nextCycleMissing"
-      | "cadenceDelayed"
-      | "notificationFailure"
-      | "submissionDrop"
-      | "confirmationDelay"
-      | "longInactive"
-      | "insufficientData"
-      | "needsAttention"
-      | null;
-    completeness: AnalyticsCompleteness | null;
-  },
-) {
-  if (args.cohort && monthJST(row.registeredAt) !== args.cohort) return false;
-  const kpi = row.kpis;
-  if (!kpi) return !args.shopSize && !args.cadence && !args.lineUsage && !args.health && !args.completeness;
-  if (args.shopSize && !shopSizeMatches(kpi.staffMembershipCount, args.shopSize)) return false;
-  if (args.cadence && !cadenceMatches(kpi, args.cadence)) return false;
-  if (args.lineUsage && !lineUsageMatches(kpi, args.lineUsage)) return false;
-  if (args.completeness && kpi.completeness !== args.completeness) return false;
-  if (args.health === "needsAttention" && kpi.issueHealthSignalCount === 0) return false;
-  if (
-    args.health &&
-    args.health !== "needsAttention" &&
-    !kpi.healthSignals.some((item) => item.signal === args.health)
-  ) {
-    return false;
-  }
-  return true;
-}
-
-type ShopListRowWithUsageComputedAt = {
-  row: AnalyticsShopListRowDto;
-  usageComputedAt: number | null;
-};
-
-async function shopPage(
-  ctx: QueryCtx,
-  args: {
-    cursor: string | null;
-    limit: number;
-    sort: "registeredAt" | "currentPlan" | "latestActivityAt";
-    direction: "asc" | "desc";
-    organizationId: Id<"organizations"> | null;
-    plan: CanonicalAnalyticsPlanKey | null;
-  },
-) {
-  const options = paginationOptions(args.cursor, args.limit);
-  if (args.sort === "currentPlan") {
-    if (args.organizationId) {
-      const organizationId = args.organizationId;
-      return await ctx.db
-        .query("analyticsShops")
-        .withIndex("by_organizationId_and_deletedAt_and_currentPlan_and_registeredAt", (q) => {
-          const active = q.eq("organizationId", organizationId).eq("deletedAt", undefined);
-          return args.plan ? active.eq("currentPlan", args.plan) : active;
-        })
-        .order(args.direction)
-        .paginate(options);
-    }
-    return await ctx.db
-      .query("analyticsShops")
-      .withIndex("by_deletedAt_and_currentPlan_and_registeredAt", (q) => {
-        const active = q.eq("deletedAt", undefined);
-        return args.plan ? active.eq("currentPlan", args.plan) : active;
-      })
-      .order(args.direction)
-      .paginate(options);
-  }
-  if (args.sort === "latestActivityAt") {
-    if (args.organizationId) {
-      const organizationId = args.organizationId;
-      return await ctx.db
-        .query("analyticsShops")
-        .withIndex("by_organizationId_deletedAt_latestActivityAt_registeredAt", (q) =>
-          q.eq("organizationId", organizationId).eq("deletedAt", undefined),
-        )
-        .order(args.direction)
-        .paginate(options);
-    }
-    return await ctx.db
-      .query("analyticsShops")
-      .withIndex("by_deletedAt_and_latestActivityAt_and_registeredAt", (q) => q.eq("deletedAt", undefined))
-      .order(args.direction)
-      .paginate(options);
-  }
-  if (args.organizationId) {
-    const organizationId = args.organizationId;
-    return await ctx.db
-      .query("analyticsShops")
-      .withIndex("by_organizationId_and_deletedAt_and_registeredAt", (q) =>
-        q.eq("organizationId", organizationId).eq("deletedAt", undefined),
-      )
-      .order(args.direction)
-      .paginate(options);
-  }
-  return await ctx.db
-    .query("analyticsShops")
-    .withIndex("by_deletedAt_and_registeredAt", (q) => q.eq("deletedAt", undefined))
-    .order(args.direction)
-    .paginate(options);
-}
 
 export const getShops = internalQuery({
   args: {
-    from: v.string(),
-    to: v.string(),
-    cursor: nullableStringArg,
-    limit: v.number(),
-    sort: v.union(v.literal("registeredAt"), v.literal("currentPlan"), v.literal("latestActivityAt")),
-    direction: directionArg,
-    organizationId: nullableStringArg,
-    plan: v.union(planArg, v.null()),
-    shopSize: v.union(
-      v.literal("1-4"),
-      v.literal("5-9"),
-      v.literal("10-19"),
-      v.literal("20-49"),
-      v.literal("50+"),
-      v.null(),
-    ),
-    cohort: nullableStringArg,
-    cadence: v.union(
-      v.literal("weekly"),
-      v.literal("biweekly"),
-      v.literal("monthly"),
-      v.literal("other"),
-      v.literal("insufficientData"),
-      v.null(),
-    ),
-    lineUsage: v.union(v.literal("none"), v.literal("low"), v.literal("medium"), v.literal("high"), v.null()),
-    health: v.union(
-      v.literal("hasUpcomingCycle"),
-      v.literal("nextCycleMissing"),
-      v.literal("cadenceDelayed"),
-      v.literal("notificationFailure"),
-      v.literal("submissionDrop"),
-      v.literal("confirmationDelay"),
-      v.literal("longInactive"),
-      v.literal("insufficientData"),
-      v.literal("needsAttention"),
-      v.null(),
-    ),
-    usage: v.union(v.literal("candidate"), v.literal("high"), v.literal("possible"), v.literal("unknown"), v.null()),
-    completeness: nullableCompletenessArg,
+    ...pageArgs,
+    asOf: v.number(),
+    search: v.string(),
+    date: nullableString,
+    metric: v.union(analyticsMetricValidator, v.null()),
   },
-  returns: v.union(shopsResponseValidator, v.null()),
-  handler: async (ctx, args) => {
-    const state = await getAnalyticsReadState(ctx);
-    const range = await getCompleteRunRange(ctx, state, args, { detailRetention: true });
-    const displayRun = range.latestCompleteRun;
-    const usageRun = state.latestCompleteRun;
-    if (state.availability === "unavailable" || !displayRun || !usageRun) {
+  returns: shopsResponseValidator,
+  handler: async (ctx, args): Promise<ShopsResponse> => {
+    const options = paginationOptions(args.cursor, args.limit);
+    if (
+      args.search.length > 100 ||
+      (args.date === null) !== (args.metric === null) ||
+      (args.date !== null && !isAnalyticsDate(args.date))
+    )
+      throw new Error("invalid_request");
+    const scope = args.date && args.metric ? { date: args.date, metric: args.metric } : null;
+    const search = args.search.trim().toLocaleLowerCase("ja");
+    if (scope) {
+      const retentionDate = subtractCalendarMonths(dateJST(args.asOf), 25);
+      const result = await ctx.db
+        .query("analyticsDailyResults")
+        .withIndex("by_date", (q) => q.eq("date", scope.date))
+        .unique();
+      const scopeStatus =
+        scope.date < retentionDate
+          ? "outside_retention"
+          : result?.status === "complete" && result.definitionVersion === ANALYTICS_DEFINITION_VERSION
+            ? "available"
+            : "unavailable";
+      if (scopeStatus !== "available")
+        return {
+          kind: "shops",
+          asOf: args.asOf,
+          rows: [],
+          pageInfo: emptyPageInfo(args.cursor, args.limit),
+          scope,
+          scopeStatus,
+        };
+      const page = await ctx.db
+        .query("analyticsShopDays")
+        .withIndex("by_date_and_shopId", (q) => q.eq("date", scope.date))
+        .filter((q) => q.eq(q.field(scope.metric), true))
+        .paginate(options);
+      const rows: AnalyticsShopRowDto[] = [];
+      for (const day of page.page) {
+        const current = await currentShop(ctx, day.shopId);
+        const row = current ? shopRow(current.shop, current.organization) : deletedShopRow(day.shopId);
+        if (!search || row.name.toLocaleLowerCase("ja").includes(search)) rows.push(row);
+      }
       return {
-        kind: "shops" as const,
-        metadata: responseMetadata({
-          state,
-          availability: "unavailable",
-          computedAt: null,
-          pageInfo: pageInfo({ cursor: args.cursor, pageSize: args.limit, returnedCount: 0 }),
-          warnings: rangeWarnings(state, args, range),
-        }),
-        rows: [],
+        kind: "shops",
+        asOf: args.asOf,
+        rows,
+        pageInfo: pageInfo(args.cursor, args.limit, page, rows.length),
+        scope,
+        scopeStatus,
       };
     }
-    const organizationId = args.organizationId ? ctx.db.normalizeId("organizations", args.organizationId) : null;
-    if (args.organizationId && !organizationId) return null;
-    if (organizationId) {
-      const organization = await getOrganizationDimension(ctx, organizationId);
-      if (!organization || organization.deletedAt !== undefined) return null;
+    const page = await ctx.db
+      .query("shops")
+      .filter((q) => q.eq(q.field("isDeleted"), false))
+      .order("desc")
+      .paginate(options);
+    const rows: AnalyticsShopRowDto[] = [];
+    for (const shop of page.page) {
+      if (search && !shop.name.toLocaleLowerCase("ja").includes(search)) continue;
+      const organization = await ctx.db.get(shop.organizationId);
+      if (!organization || organization.isDeleted) continue;
+      rows.push(shopRow(shop, organization));
     }
-    const page = await shopPage(ctx, { ...args, organizationId });
-    const organizations = new Map<Id<"organizations">, ReturnType<typeof getOrganizationDimension>>();
-    const getOrganization = (id: Id<"organizations">) => {
-      const existing = organizations.get(id);
-      if (existing) return existing;
-      const promise = getOrganizationDimension(ctx, id);
-      organizations.set(id, promise);
-      return promise;
-    };
-    const dimensionRows = page.page.filter(
-      (shop) =>
-        (!args.plan || shop.currentPlan === args.plan) && (!args.cohort || monthJST(shop.registeredAt) === args.cohort),
-    );
-    const mapped = await Promise.all(
-      dimensionRows.map(async (shop) => {
-        const displayKpiPromise = getLatestShopKpi(ctx, displayRun, shop.shopId);
-        const usageKpiPromise =
-          displayRun._id === usageRun._id ? displayKpiPromise : getLatestShopKpi(ctx, usageRun, shop.shopId);
-        const [organization, displayKpiDoc, usageKpiDoc] = await Promise.all([
-          getOrganization(shop.organizationId),
-          displayKpiPromise,
-          usageKpiPromise,
-        ]);
-        if (!organization || organization.deletedAt !== undefined) return null;
-        const displayKpis = displayKpiDoc ? toShopKpiDto(displayKpiDoc) : null;
-        const usageKpis =
-          displayRun._id === usageRun._id ? displayKpis : usageKpiDoc ? toShopKpiDto(usageKpiDoc) : null;
-        const row: AnalyticsShopListRowDto = {
-          ...toShopRowDto(shop, organization.displayName, displayKpis),
-          ...classifyShopUsage({
-            cutoffAt: usageRun.cutoffAt,
-            latestActivityAt: shop.latestActivityAt ?? null,
-            kpis: usageKpis,
-          }),
-        };
-        return { row, usageComputedAt: usageKpis?.computedAt ?? null } satisfies ShopListRowWithUsageComputedAt;
-      }),
-    );
-    const matched = mapped
-      .filter((item): item is ShopListRowWithUsageComputedAt => item !== null)
-      .filter((item) => shopRowMatches(item.row, args) && usageMatches(item.row.usageLikelihood, args.usage));
-    const rows = matched.map((item) => item.row);
-    const filteredInMemory =
-      (args.sort !== "currentPlan" && args.plan !== null) ||
-      args.cohort !== null ||
-      args.shopSize !== null ||
-      args.cadence !== null ||
-      args.lineUsage !== null ||
-      args.health !== null ||
-      args.usage !== null ||
-      args.completeness !== null ||
-      mapped.some((item) => item === null);
     return {
-      kind: "shops" as const,
-      metadata: responseMetadata({
-        state,
-        computedAt: maxOrNull(
-          matched.flatMap((item) => [
-            ...(item.row.kpis ? [item.row.kpis.computedAt] : []),
-            ...(item.usageComputedAt === null ? [] : [item.usageComputedAt]),
-          ]),
-        ),
-        pageInfo: pageInfo({
-          cursor: args.cursor,
-          continueCursor: page.continueCursor,
-          isDone: page.isDone,
-          pageSize: args.limit,
-          returnedCount: rows.length,
-        }),
-        warnings: [...rangeWarnings(state, args, range), ...filteredPageWarnings(page, filteredInMemory)],
-      }),
+      kind: "shops",
+      asOf: args.asOf,
       rows,
+      pageInfo: pageInfo(args.cursor, args.limit, page, rows.length),
+      scope: null,
+      scopeStatus: "current",
     };
   },
 });
-
-function rollupShopSeries(rows: Doc<"analyticsDailyShopKpis">[], granularity: "day" | "week" | "month") {
-  const buckets = new Map<string, Doc<"analyticsDailyShopKpis">[]>();
-  for (const row of rows) {
-    const key = bucketDate(row.snapshotDate, granularity);
-    const bucket = buckets.get(key) ?? [];
-    bucket.push(row);
-    buckets.set(key, bucket);
-  }
-  return [...buckets.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([date, bucket]): AnalyticsShopKpiDto => {
-      const first = bucket[0];
-      const latest = bucket.at(-1);
-      if (!first || !latest) throw new Error("Analytics shop bucket is empty");
-      const sources = bucket.map(shopSource);
-      return {
-        ...toShopKpiDto(latest),
-        snapshotDate: date,
-        rateRange: { from: first.snapshotDate, to: latest.snapshotDate },
-        northStar: toRateDto(summedPair(sources, (row) => row.northStar)),
-        deadlineSubmission: toRateDto(summedPair(sources, (row) => row.deadlineSubmission)),
-        finalSubmission: toRateDto(summedPair(sources, (row) => row.finalSubmission)),
-        completeness: combineCompleteness(bucket.map((row) => row.completeness)),
-        computedAt: Math.max(...bucket.map((row) => row.computedAt)),
-      };
-    });
-}
 
 export const getShop = internalQuery({
-  args: {
-    shopId: v.string(),
-    from: v.string(),
-    to: v.string(),
-    granularity: granularityArg,
-  },
-  returns: v.union(shopDetailResponseValidator, v.null()),
-  handler: async (ctx, args) => {
-    const state = await getAnalyticsReadState(ctx);
-    const range = await getCompleteRunRange(ctx, state, args, { detailRetention: true });
-    const latestRun = range.latestCompleteRun;
-    const shopId = ctx.db.normalizeId("shops", args.shopId);
-    if (!shopId) return null;
-    if (state.availability === "unavailable" || !latestRun) {
-      return {
-        kind: "shop" as const,
-        metadata: responseMetadata({
-          state,
-          availability: "unavailable",
-          computedAt: null,
-          pageInfo: singletonPageInfo(0),
-          warnings: rangeWarnings(state, args, range),
-        }),
-        shop: null,
-        series: [],
-      };
+  args: { ...pageArgs, shopId: v.string(), asOf: v.number() },
+  returns: shopDetailResponseValidator,
+  handler: async (ctx, args): Promise<ShopDetailResponse | null> => {
+    const options = paginationOptions(args.cursor, args.limit);
+    const current = await currentShop(ctx, args.shopId);
+    if (!current) return null;
+    const { shop, organization } = current;
+    const to = dateJST(args.asOf);
+    const from = addDays(to, -89);
+    const [staffPage, cycles, state, days, evidence] = await Promise.all([
+      ctx.db
+        .query("staffs")
+        .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
+        .paginate(options),
+      recentCycles(ctx, shop._id),
+      ctx.db
+        .query("analyticsState")
+        .withIndex("by_key", (q) => q.eq("key", "usage"))
+        .unique(),
+      ctx.db
+        .query("analyticsShopDays")
+        .withIndex("by_shopId_and_date", (q) => q.eq("shopId", shop._id).gte("date", from).lte("date", to))
+        .take(90),
+      ctx.db
+        .query("analyticsCycleEvidence")
+        .withIndex("by_shopId_and_lastObservedAt", (q) => q.eq("shopId", shop._id))
+        .order("desc")
+        .take(21),
+    ]);
+    const staff = [];
+    for (const row of staffPage.page) {
+      const dto = await staffRow(ctx, row._id, shop._id);
+      if (dto) staff.push(dto);
     }
-    const shop = await getShopDimension(ctx, shopId);
-    if (!shop || shop.deletedAt !== undefined) return null;
-    const organization = await getOrganizationDimension(ctx, shop.organizationId);
-    if (!organization || organization.deletedAt !== undefined) return null;
-    const seriesFrom = range.effectiveFrom;
-    const seriesTo = range.effectiveTo;
-    const seriesDocs =
-      seriesFrom && seriesTo
-        ? await ctx.db
-            .query("analyticsDailyShopKpis")
-            .withIndex("by_shopId_and_snapshotDate", (q) =>
-              q.eq("shopId", shopId).gte("snapshotDate", seriesFrom).lte("snapshotDate", seriesTo),
-            )
-            .take(ANALYTICS_DASHBOARD_MAX_RANGE_DAYS + 1)
-        : [];
-    const visibleSeriesDocs = seriesDocs.filter((row) => rowBelongsToCompleteRun(row, range));
-    const incompleteBuckets = missingBuckets(range, args.granularity);
-    const series = requireSeriesWithinPointLimit(
-      rollupShopSeries(visibleSeriesDocs, args.granularity).filter(
-        (point) => !incompleteBuckets.has(point.snapshotDate),
-      ),
-    );
-    const currentDoc = await getLatestShopKpi(ctx, latestRun, shopId);
-    const current = currentDoc ? toShopKpiDto(currentDoc) : null;
-    return {
-      kind: "shop" as const,
-      metadata: responseMetadata({
-        state,
-        computedAt: maxOrNull(series.map((row) => row.computedAt)),
-        pageInfo: singletonPageInfo(series.length),
-        warnings: rangeWarnings(state, args, range),
+    const evidenceRows = await Promise.all(
+      evidence.slice(0, 20).map(async (row) => {
+        const recruitment = await ctx.db.get(row.recruitmentId);
+        return {
+          recruitmentId: row.recruitmentId,
+          isDeleted: !recruitment || recruitment.isDeleted || recruitment.shopId !== shop._id,
+          firstSubmittedAt: row.firstSubmittedAt ?? null,
+          lastSubmittedAt: row.lastSubmittedAt ?? null,
+          firstConfirmedAt: row.firstConfirmedAt ?? null,
+          lastConfirmedAt: row.lastConfirmedAt ?? null,
+          confirmedPeriodStartAt: row.confirmedPeriodStartAt ?? null,
+        };
       }),
-      shop: toShopRowDto(shop, organization.displayName, current),
-      series,
+    );
+    return {
+      kind: "shop",
+      asOf: args.asOf,
+      shop: shopRow(shop, organization),
+      regularClosedDays: shop.regularClosedDays,
+      submissionPattern:
+        shop.submissionPattern.kind === "time"
+          ? `時刻で提出（${shop.submissionPattern.startTime}〜${shop.submissionPattern.endTime}）`
+          : shop.submissionPattern.kind === "dateOnly"
+            ? "出勤できる日を提出"
+            : `勤務区分で提出（${shop.submissionPattern.options.map((option) => `${option.name} ${option.startTime}〜${option.endTime}`).join("、")}）`,
+      staff,
+      pageInfo: pageInfo(args.cursor, args.limit, staffPage, staff.length),
+      cycles: cycles.map(cycleRow),
+      activity: {
+        startedAt: state?.startedAt ?? null,
+        from,
+        to,
+        days: days.map(({ date, registered, submitted, confirmed }) => ({ date, registered, submitted, confirmed })),
+        evidence: evidenceRows,
+        hasMoreEvidence: evidence.length > 20,
+      },
     };
   },
 });
 
-export const getShopCycles = internalQuery({
-  args: {
-    shopId: v.string(),
-    from: v.string(),
-    to: v.string(),
-    cursor: nullableStringArg,
-    limit: v.number(),
-    sort: v.literal("periodStart"),
-    direction: directionArg,
-    completeness: nullableCompletenessArg,
-  },
-  returns: v.union(shopCyclesResponseValidator, v.null()),
-  handler: async (ctx, args) => {
-    const state = await getAnalyticsReadState(ctx);
-    const range = await getCompleteRunRange(ctx, state, args);
+export const getStaff = internalQuery({
+  args: { ...pageArgs, shopId: v.string(), staffId: v.string(), asOf: v.number() },
+  returns: staffDetailResponseValidator,
+  handler: async (ctx, args): Promise<StaffDetailResponse | null> => {
+    const options = paginationOptions(args.cursor, args.limit, 50);
     const shopId = ctx.db.normalizeId("shops", args.shopId);
-    if (!shopId) return null;
-    if (state.availability === "unavailable" || !state.latestCompleteRun) {
-      return {
-        kind: "shopCycles" as const,
-        metadata: responseMetadata({
-          state,
-          availability: "unavailable",
-          computedAt: null,
-          pageInfo: pageInfo({ cursor: args.cursor, pageSize: args.limit, returnedCount: 0 }),
-          warnings: rangeWarnings(state, args, range),
-        }),
-        shopId: args.shopId,
-        rows: [],
-      };
-    }
-    const shop = await getShopDimension(ctx, shopId);
-    if (!shop || shop.deletedAt !== undefined) return null;
-    const organization = await getOrganizationDimension(ctx, shop.organizationId);
-    if (!organization || organization.deletedAt !== undefined) return null;
-    const completenessFilter = args.completeness;
-    const page = completenessFilter
-      ? await ctx.db
-          .query("analyticsShiftCycles")
-          .withIndex("by_shopId_and_deletedAt_and_completeness_and_periodStart", (q) =>
-            q
-              .eq("shopId", shopId)
-              .eq("deletedAt", undefined)
-              .eq("completeness", completenessFilter)
-              .gte("periodStart", args.from)
-              .lte("periodStart", args.to),
-          )
-          .order(args.direction)
-          .paginate(paginationOptions(args.cursor, args.limit))
-      : await ctx.db
-          .query("analyticsShiftCycles")
-          .withIndex("by_shopId_and_deletedAt_and_periodStart", (q) =>
-            q.eq("shopId", shopId).eq("deletedAt", undefined).gte("periodStart", args.from).lte("periodStart", args.to),
-          )
-          .order(args.direction)
-          .paginate(paginationOptions(args.cursor, args.limit));
-    const rows = page.page.map((cycle) => toCycleRowDto(cycle, organization.displayName, shop.displayName));
-    return {
-      kind: "shopCycles" as const,
-      metadata: responseMetadata({
-        state,
-        computedAt: rows.length > 0 ? Math.max(...rows.map((row) => row.updatedAt)) : null,
-        pageInfo: pageInfo({
-          cursor: args.cursor,
-          continueCursor: page.continueCursor,
-          isDone: page.isDone,
-          pageSize: args.limit,
-          returnedCount: rows.length,
-        }),
-        warnings: [...rangeWarnings(state, args, range), ...pageWarnings(page)],
+    const staffId = ctx.db.normalizeId("staffs", args.staffId);
+    if (!shopId || !staffId) return null;
+    const scope = await resolveCanonicalStaffScope(ctx, { shopId, staffId });
+    if (!scope) return null;
+    const row = await staffRow(ctx, staffId, shopId);
+    if (!row) return null;
+    const [memberships, cycles, notifications] = await Promise.all([
+      listActiveStaffsForOrganizationPerson(ctx, {
+        organizationId: scope.organization._id,
+        organizationPersonId: scope.person._id,
       }),
-      shopId: args.shopId,
-      rows,
+      recentCycles(ctx, shopId),
+      ctx.db
+        .query("notificationHistory")
+        .withIndex("by_shopId_and_staffId_and_requestedAt", (q) => q.eq("shopId", shopId).eq("staffId", staffId))
+        .order("desc")
+        .paginate(options),
+    ]);
+    const membershipRows = [];
+    for (const member of memberships) {
+      const shop = await ctx.db.get(member.shopId);
+      if (!shop || shop.isDeleted || shop.organizationId !== scope.organization._id) continue;
+      membershipRows.push({
+        shopId: shop._id,
+        shopName: shop.name,
+        staffId: member._id,
+        excludedFromShift: member.excludedFromShift,
+      });
+    }
+    const submissions = await Promise.all(
+      cycles.map(async (cycle) => {
+        const submission = await ctx.db
+          .query("shiftSubmissions")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", cycle._id).eq("staffId", staffId))
+          .unique();
+        return {
+          ...cycleRow(cycle),
+          firstSubmittedAt: submission?.firstSubmittedAt ?? null,
+          submittedAt: submission?.submittedAt ?? null,
+        };
+      }),
+    );
+    return {
+      kind: "staff",
+      asOf: args.asOf,
+      shop: shopRow(scope.shop, scope.organization),
+      staff: { ...row, email: scope.person.email },
+      memberships: membershipRows,
+      submissions,
+      notifications: notifications.page.map((notification) => ({
+        id: notification._id,
+        channel: notification.channel,
+        notificationKind: notification.notificationKind,
+        sendStatus: notification.sendStatus,
+        deliveryStatus: notification.deliveryStatus,
+        requestedAt: notification.requestedAt,
+        sentAt: notification.sentAt ?? null,
+        deliveredAt: notification.deliveredAt ?? null,
+        failedAt: notification.failedAt ?? null,
+      })),
+      pageInfo: pageInfo(args.cursor, args.limit, notifications, notifications.page.length),
     };
   },
 });
 
 export const getCycle = internalQuery({
-  args: { shopId: v.string(), recruitmentId: v.string() },
-  returns: v.union(cycleDetailResponseValidator, v.null()),
-  handler: async (ctx, args) => {
-    const state = await getAnalyticsReadState(ctx);
-    const shopId = ctx.db.normalizeId("shops", args.shopId);
+  args: { shopId: v.string(), recruitmentId: v.string(), asOf: v.number() },
+  returns: cycleDetailResponseValidator,
+  handler: async (ctx, args): Promise<CycleDetailResponse | null> => {
+    const current = await currentShop(ctx, args.shopId);
     const recruitmentId = ctx.db.normalizeId("recruitments", args.recruitmentId);
-    if (!shopId || !recruitmentId) return null;
-    if (state.availability === "unavailable" || !state.latestCompleteRun) {
-      return {
-        kind: "cycle" as const,
-        metadata: responseMetadata({
-          state,
-          availability: "unavailable",
-          computedAt: null,
-          pageInfo: singletonPageInfo(0),
-        }),
-        cycle: null,
-      };
+    const cycle = recruitmentId ? await ctx.db.get(recruitmentId) : null;
+    if (!current || !cycle || cycle.isDeleted || cycle.shopId !== current.shop._id) return null;
+    const candidates = await ctx.db
+      .query("staffs")
+      .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", current.shop._id).eq("isDeleted", false))
+      .take(ANALYTICS_DASHBOARD_MAX_SCAN_ROWS + 1);
+    let denominator = 0;
+    let numerator = 0;
+    const exceedsLimit = candidates.length > ANALYTICS_DASHBOARD_MAX_SCAN_ROWS;
+    if (!exceedsLimit) {
+      for (const staff of candidates) {
+        if (staff.excludedFromShift) continue;
+        if (!(await resolveCanonicalStaffScope(ctx, { staffId: staff._id, shopId: current.shop._id }))) continue;
+        denominator += 1;
+        const submission = await ctx.db
+          .query("shiftSubmissions")
+          .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", cycle._id).eq("staffId", staff._id))
+          .unique();
+        if (submission) numerator += 1;
+      }
     }
-    const cycle = await ctx.db
-      .query("analyticsShiftCycles")
-      .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", recruitmentId))
-      .unique();
-    if (!cycle || cycle.shopId !== shopId || cycle.deletedAt !== undefined) return null;
-    const [shop, organization] = await Promise.all([
-      getShopDimension(ctx, cycle.shopId),
-      getOrganizationDimension(ctx, cycle.organizationId),
-    ]);
-    if (!shop || !organization || shop.deletedAt !== undefined || organization.deletedAt !== undefined) return null;
-    const row = toCycleRowDto(cycle, organization.displayName, shop.displayName);
     return {
-      kind: "cycle" as const,
-      metadata: responseMetadata({
-        state,
-        computedAt: row.updatedAt,
-        pageInfo: singletonPageInfo(1),
-      }),
-      cycle: row,
+      kind: "cycle",
+      asOf: args.asOf,
+      shop: shopRow(current.shop, current.organization),
+      cycle: cycleRow(cycle),
+      currentSubmission: exceedsLimit
+        ? null
+        : { numerator, denominator, rate: denominator > 0 ? numerator / denominator : null },
+      currentSubmissionStatus: exceedsLimit ? "scan_limit" : "available",
+      confirmedBeforeStart:
+        cycle.confirmedAt === undefined ? null : cycle.confirmedAt < jstDayRangeMs(cycle.periodStart).startMs,
+      deadlineSubmissionRate: null,
     };
   },
 });
-
-export const getSegments = internalQuery({
-  args: {
-    from: v.string(),
-    to: v.string(),
-    cursor: nullableStringArg,
-    limit: v.number(),
-    sort: v.literal("dimension"),
-    direction: directionArg,
-    dimension: v.union(
-      v.literal("registrationCohort"),
-      v.literal("plan"),
-      v.literal("organizationShopCount"),
-      v.literal("shopStaffSize"),
-      v.literal("cadence"),
-      v.literal("lineUsage"),
-      v.literal("submissionTrend"),
-      v.literal("adoptionAge"),
-      v.null(),
-    ),
-    completeness: nullableCompletenessArg,
-  },
-  returns: segmentsResponseValidator,
-  handler: async (ctx, args) => {
-    const state = await getAnalyticsReadState(ctx);
-    const range = await getCompleteRunRange(ctx, state, args, { detailRetention: true });
-    const latestRun = range.latestCompleteRun;
-    if (state.availability === "unavailable" || !latestRun) {
-      return {
-        kind: "segments" as const,
-        metadata: responseMetadata({
-          state,
-          availability: "unavailable",
-          computedAt: null,
-          pageInfo: pageInfo({ cursor: args.cursor, pageSize: args.limit, returnedCount: 0 }),
-          warnings: rangeWarnings(state, args, range),
-        }),
-        rows: [],
-      };
-    }
-    const completenessFilter = args.completeness;
-    const page = completenessFilter
-      ? await ctx.db
-          .query("analyticsDailySegmentKpis")
-          .withIndex("by_snapshotDate_and_completeness_and_dimension_and_bucket", (q) => {
-            const complete = q.eq("snapshotDate", latestRun.targetDate).eq("completeness", completenessFilter);
-            return args.dimension ? complete.eq("dimension", args.dimension) : complete;
-          })
-          .filter((q) => q.eq(q.field("runId"), latestRun._id))
-          .order(args.direction)
-          .paginate(paginationOptions(args.cursor, args.limit))
-      : await ctx.db
-          .query("analyticsDailySegmentKpis")
-          .withIndex("by_snapshotDate_and_dimension_and_bucket", (q) =>
-            args.dimension
-              ? q.eq("snapshotDate", latestRun.targetDate).eq("dimension", args.dimension)
-              : q.eq("snapshotDate", latestRun.targetDate),
-          )
-          .filter((q) => q.eq(q.field("runId"), latestRun._id))
-          .order(args.direction)
-          .paginate(paginationOptions(args.cursor, args.limit));
-    const rows: AnalyticsSegmentRowDto[] = page.page.map((row) => {
-      if (row.kpiEligibleShopCount === undefined) throw new Error("analytics_segment_eligibility_missing");
-      return {
-        snapshotDate: row.snapshotDate,
-        dimension: row.dimension,
-        bucket: row.dimension === "plan" ? requireCanonicalSegmentPlan(row.bucket) : row.bucket,
-        shopCount: row.shopCount,
-        kpiEligibleShopCount: row.kpiEligibleShopCount,
-        milestoneCounts: row.milestoneCounts,
-        healthSignalCounts: row.healthSignalCounts,
-        northStar: toRateDto(row.northStar),
-        deadlineSubmission: toRateDto(row.deadlineSubmission),
-        finalSubmission: toRateDto(row.finalSubmission),
-        completeness: row.completeness,
-        computedAt: row.computedAt,
-      };
-    });
-    return {
-      kind: "segments" as const,
-      metadata: responseMetadata({
-        state,
-        computedAt: rows.length > 0 ? Math.max(...rows.map((row) => row.computedAt)) : null,
-        pageInfo: pageInfo({
-          cursor: args.cursor,
-          continueCursor: page.continueCursor,
-          isDone: page.isDone,
-          pageSize: args.limit,
-          returnedCount: rows.length,
-        }),
-        warnings: [...rangeWarnings(state, args, range), ...pageWarnings(page)],
-      }),
-      rows,
-    };
-  },
-});
-
-function requireCanonicalSegmentPlan(bucket: string): CanonicalAnalyticsPlanKey {
-  if (bucket === "trial" || bucket === "free" || bucket === "standard" || bucket === "pro") return bucket;
-  throw new Error("analytics_segment_plan_bucket_not_canonical");
-}
 
 export const getFeatureRequests = internalQuery({
-  args: { cursor: nullableStringArg, limit: v.number() },
+  args: { ...pageArgs, asOf: v.number() },
   returns: featureRequestsResponseValidator,
   handler: async (ctx, args) => {
-    const limit = Math.min(args.limit, FEATURE_REQUEST_LIST_LIMIT);
-    const page = await ctx.db.query("featureRequests").order("desc").paginate(paginationOptions(args.cursor, limit));
+    const page = await ctx.db
+      .query("featureRequests")
+      .order("desc")
+      .paginate(paginationOptions(args.cursor, args.limit, 50));
     const rows = await Promise.all(
       page.page.map(async (request) => {
-        if (request.shopId) {
-          const shop = await ctx.db.get(request.shopId);
-          return {
-            id: request._id,
-            targetKind: "shop" as const,
-            organizationId: null,
-            organizationName: null,
-            shopId: request.shopId,
-            shopName: !shop || shop.isDeleted ? "削除済み店舗" : shop.name,
-            senderType: request.staffId === undefined ? ("manager" as const) : ("staff" as const),
-            comment: request.comment,
-            createdAt: request._creationTime,
-          };
-        }
-
-        const organization = request.organizationId ? await ctx.db.get(request.organizationId) : null;
-        const organizationName = !organization || organization.isDeleted ? "削除済み組織" : organization.name;
+        const shop = request.shopId ? await ctx.db.get(request.shopId) : null;
+        const organizationId = request.organizationId ?? shop?.organizationId;
+        const organization = organizationId ? await ctx.db.get(organizationId) : null;
+        const organizationName = organization && !organization.isDeleted ? organization.name : "削除済み組織";
         return {
           id: request._id,
-          targetKind: "organization" as const,
-          organizationId: request.organizationId ?? null,
+          targetKind: request.shopId ? ("shop" as const) : ("organization" as const),
+          organizationId: organizationId ?? null,
           organizationName,
-          shopId: null,
-          shopName: `${organizationName}（組織全体）`,
+          shopId: request.shopId ?? null,
+          shopName: request.shopId
+            ? !shop || shop.isDeleted || !organization || organization.isDeleted
+              ? "削除済み店舗"
+              : shop.name
+            : `${organizationName}（組織全体）`,
           senderType: request.staffId === undefined ? ("manager" as const) : ("staff" as const),
           comment: request.comment,
           createdAt: request._creationTime,
+          isDeleted: request.isDeleted ?? false,
         };
       }),
     );
-    const requestsPageInfo = pageInfo({
-      cursor: args.cursor,
-      continueCursor: page.continueCursor,
-      isDone: page.isDone,
-      pageSize: limit,
-      returnedCount: rows.length,
-    });
-    const computedAt = maxOrNull(rows.map((row) => row.createdAt));
-    const metadata = {
-      availability: "available" as const,
-      asOf: computedAt,
-      dataStartDate: null,
-      latestCompleteSnapshotDate: null,
-      computedAt,
-      warnings: ["要望データはAnalytics pipelineとは独立した現在値です"],
-      pageInfo: requestsPageInfo,
-    };
     return {
       kind: "requests" as const,
-      metadata,
+      asOf: args.asOf,
       rows,
-      pageInfo: requestsPageInfo,
+      pageInfo: pageInfo(args.cursor, args.limit, page, rows.length),
     };
   },
 });

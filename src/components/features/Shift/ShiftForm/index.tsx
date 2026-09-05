@@ -71,6 +71,7 @@ type ShiftFormProps = {
   validationWarnings?: AssignmentWarning[];
   onDismissValidationIssues?: () => void;
   header?: ShiftFormHeader;
+  action?: ReactNode;
 };
 
 const ShiftFormInner = ({
@@ -103,6 +104,7 @@ const ShiftFormInner = ({
   validationWarnings,
   onDismissValidationIssues,
   header,
+  action,
 }: ShiftFormProps) => {
   useShiftFormInit({
     shopId,
@@ -183,6 +185,7 @@ const ShiftFormInner = ({
           onSelectIssue={handleSelectIssue}
           onDismissValidationIssues={onDismissValidationIssues}
           header={header}
+          action={action}
         >
           {isDateOnlyPattern ? (
             <DateOnlyView />
@@ -219,6 +222,7 @@ const ShiftFormInner = ({
         onSelectIssue={handleSelectIssue}
         onDismissValidationIssues={onDismissValidationIssues}
         header={header}
+        action={action}
       >
         {isDateOnlyPattern ? (
           viewMode === "daily" ? (
@@ -272,6 +276,7 @@ type ShellProps = {
   onSelectIssue: (issue: DisplayIssue) => void;
   onDismissValidationIssues?: () => void;
   header?: ShiftFormHeader;
+  action?: ReactNode;
   children: ReactNode;
 };
 
@@ -293,11 +298,14 @@ const Shell = ({
   onSelectIssue,
   onDismissValidationIssues,
   header,
+  action,
   children,
 }: ShellProps) => (
   <Flex direction="column" h="100%" minH={0}>
     <Grid
-      templateColumns={header ? "minmax(0, 1fr) auto minmax(0, 1fr)" : "minmax(0, 1fr) auto"}
+      templateColumns={
+        header ? (compact ? "minmax(0, 1fr) auto minmax(0, 1fr)" : "auto minmax(0, 1fr) auto") : "minmax(0, 1fr) auto"
+      }
       px={compact ? 3 : 5}
       bg="white"
       borderBottomWidth="1px"
@@ -331,10 +339,20 @@ const Shell = ({
           {compact ? header.mobileTitle : header.desktopTitle}
         </Heading>
       )}
-      {!isReadOnly ? (
+      {!isReadOnly || action ? (
         <Flex justifySelf="end" gap={2} align="center" py={2} flexShrink={0}>
-          <SaveButton compact={compact} isSaving={isSavingDraft} onClick={onSaveDraft} />
-          <ConfirmButton compact={compact} isConfirmed={isConfirmed} isConfirming={isConfirming} onClick={onConfirm} />
+          {action}
+          {!isReadOnly && (
+            <>
+              <SaveButton compact={compact} isSaving={isSavingDraft} onClick={onSaveDraft} />
+              <ConfirmButton
+                compact={compact}
+                isConfirmed={isConfirmed}
+                isConfirming={isConfirming}
+                onClick={onConfirm}
+              />
+            </>
+          )}
         </Flex>
       ) : (
         header && <Box justifySelf="end" minW="44px" />

@@ -98,10 +98,10 @@ crons.cron(
   internal.notificationOutbox.mutations.redactExpiredTerminalData,
 );
 
-// Analyticsは常時projectionせず、JST 03:00に終了済みの前日だけを集計する。
+// Analyticsの日次実績をJST 03:00に自動集計し、未完了分も回収する。
 crons.cron("analytics-nightly-daily", "0 18 * * *", scheduleDailyAnalyticsRef, {});
 
-// 日次と重ならないJST 月曜04:00（UTC 日曜19:00）にredaction、retention、参照整合性監査を行う。
+// JST 月曜04:00（UTC 日曜19:00）にAnalyticsの保持期限処理を行う。
 crons.cron("analytics-weekly-maintenance", "0 19 * * 0", scheduleAnalyticsMaintenanceRef, {});
 
 // スタッフ参加申請の見落とし防止通知（JST 17:00 = UTC 08:00）
