@@ -196,6 +196,31 @@ function selectVrtPaths(result, available) {
   return selected;
 }
 
+function prepareVrtHtml(index, result) {
+  const html = index.toString("utf8");
+  // reg-cli embeds its own result data; editing out.json alone does not change the viewer.
+  const expression =
+    /(<script\b[^>]*>\s*window(?:\[['"]__reg__['"]\]|\.__reg__)\s*=\s*)(\{[\s\S]*?\})(;?\s*<\/script>)/g;
+  const matches = [...html.matchAll(expression)];
+  if (matches.length !== 1) throw new Error("VRT report must contain one embedded result object.");
+  const report = JSON.parse(matches[0][2]);
+  const passed = result.passedItems ?? [];
+  if (
+    !Array.isArray(passed) ||
+    !Array.isArray(report.passedItems) ||
+    JSON.stringify(report.passedItems.map((item) => item?.raw)) !== JSON.stringify(passed)
+  ) {
+    throw new Error("VRT report passed items do not match out.json.");
+  }
+  report.passedItems = [];
+  report.hasPassed = false;
+  const serialized = JSON.stringify(report).replace(/</g, "\\u003c");
+  const rewritten = html.replace(matches[0][0], () => `${matches[0][1]}${serialized}${matches[0][3]}`);
+  if (!/<body\b[^>]*>/i.test(rewritten)) throw new Error("VRT report body is missing.");
+  const note = `<p role="note" style="margin:0;padding:1rem;background:#fff;color:#222;">変更なし${passed.length}件の画像は公開を省略。完全版はGitHub ActionsのArtifactから確認</p>`;
+  return rewritten.replace(/<body\b[^>]*>/i, (body) => `${body}\n${note}`);
+}
+
 function preparePlaywright(index) {
   const html = index.toString("utf8");
   const expression = /data:application\/zip;base64,([A-Za-z0-9+/]+={0,2})/g;
@@ -294,6 +319,7 @@ export async function prepareHostedReport({ reportType, source, destination }) {
     const result = JSON.parse(await readFile(files.get("out.json").absolute, "utf8"));
     if (!result || typeof result !== "object" || Array.isArray(result)) throw new Error("VRT result is invalid.");
     selected = selectVrtPaths(result, new Set(files.keys()));
+    index = prepareVrtHtml(await readFile(files.get("index.html").absolute), result);
   } else {
     const prepared = preparePlaywright(await readFile(files.get("index.html").absolute));
     index = prepared.html;

@@ -249,7 +249,7 @@ async function loadPrepared(output) {
 export async function commentOnReport(request, reportUrl, api, { summary } = {}) {
   if (request.pullRequest === null) return;
   const marker = `<!-- r2-report:${request.reportType} -->`;
-  const title = request.reportType === "vrt" ? "VRT Report" : "Playwright Report";
+  const title = request.reportType === "vrt" ? "VRT Report" : "Playwright Test Report";
   const body = `${marker}\n### ${title}\n\n[公開レポートを開く](${reportUrl})\n\n${summary ? `${summary}\n\n` : ""}完全版は[GitHub ActionsのArtifacts](https://github.com/${SOURCE_REPOSITORY}/actions/runs/${request.runId})からダウンロードできます。公開レポートはPR終了時に削除されます。\n\nCommit: \`${request.sourceSha}\` / Attempt: ${request.runAttempt}`;
   let existing;
   for (let page = 1; ; page += 1) {
@@ -257,7 +257,9 @@ export async function commentOnReport(request, reportUrl, api, { summary } = {})
       `/repos/${SOURCE_REPOSITORY}/issues/${request.pullRequest}/comments?per_page=100&page=${page}`,
     );
     existing ??= comments.find(
-      (comment) => comment.user?.login === "github-actions[bot]" && comment.body?.startsWith(marker),
+      (comment) =>
+        comment.user?.login === "github-actions[bot]" &&
+        (comment.body?.startsWith(marker) || comment.body?.startsWith(`## ${title}\n`)),
     );
     if (comments.length < 100) break;
   }
@@ -415,6 +417,16 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   try {
     const result = await main();
     console.log(JSON.stringify(result));
+    for (const warning of result.warnings ?? []) console.log(`::warning::${warning}`);
+    if (process.env.GITHUB_STEP_SUMMARY) {
+      const lines = ["### R2レポート", "", `状態: ${result.status}`];
+      if (result.report_url) lines.push("", `[公開レポートを開く](${result.report_url})`);
+      if (result.uploadedFiles !== undefined)
+        lines.push("", `転送: ${result.uploadedFiles} files / ${result.uploadedBytes} bytes`);
+      if (result.deletedFiles !== undefined) lines.push("", `削除: ${result.deletedFiles} files`);
+      for (const warning of result.warnings ?? []) lines.push("", `注意: ${warning}`);
+      await appendFile(process.env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
+    }
     if (process.env.GITHUB_OUTPUT) {
       for (const key of ["status", "report_url"])
         if (result[key]) await appendFile(process.env.GITHUB_OUTPUT, `${key}=${result[key]}\n`);

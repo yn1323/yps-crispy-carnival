@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   checkPublicObject,
+  commentOnReport,
   preflight,
   requestFromEvent,
   resultSummary,
@@ -142,6 +143,20 @@ describe("レポートのGitHub出所検証", () => {
 });
 
 describe("公開コメントの集計", () => {
+  it("旧hostingのbotコメントをR2リンクへ更新し、人のコメントを変更しない", async () => {
+    const api = vi
+      .fn()
+      .mockResolvedValueOnce([
+        { id: 1, user: { login: "user" }, body: "## VRT Report\nuser content" },
+        { id: 2, user: { login: "github-actions[bot]" }, body: "## VRT Report\nold hosting link" },
+      ])
+      .mockResolvedValueOnce({});
+    await commentOnReport(request, "https://pub-test.r2.dev/vrt/pr-900/100-2/index.html", api);
+    expect(api).toHaveBeenLastCalledWith(`/repos/${SOURCE_REPOSITORY}/issues/comments/2`, {
+      method: "PATCH",
+      body: expect.stringContaining("https://pub-test.r2.dev/vrt/pr-900/100-2/index.html"),
+    });
+  });
   it("動画を削除しても失敗と件数を隠さない", () => {
     expect(
       resultSummary("playwright", { stats: { expected: 8, unexpected: 1, flaky: 2, skipped: 3 } }, "failure"),

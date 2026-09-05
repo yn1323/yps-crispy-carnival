@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { strToU8, unzipSync, zipSync } from "fflate";
@@ -9,6 +10,10 @@ let directory: string;
 let source: string;
 let destination: string;
 const png = Buffer.from("89504e470d0a1a0a", "hex");
+const require = createRequire(import.meta.url);
+const suitRequire = createRequire(require.resolve("reg-suit/package.json"));
+const coreRequire = createRequire(suitRequire.resolve("reg-suit-core/package.json"));
+const generateVrtReport = coreRequire("reg-cli/dist/report.js").default as (options: Record<string, unknown>) => void;
 
 beforeEach(async () => {
   directory = await mkdtemp(path.join(tmpdir(), "prepare-report-"));
@@ -30,17 +35,28 @@ async function paths(root: string): Promise<string[]> {
     .map((entry) => path.relative(root, path.join(entry.parentPath, entry.name)))
     .sort();
 }
+function vrtHtml(result: { failedItems: string[]; newItems: string[]; deletedItems: string[]; passedItems: string[] }) {
+  // Use the installed reg-cli generator so its embedded HTML contract cannot drift from this fixture.
+  generateVrtReport({
+    ...result,
+    actualItems: [...result.failedItems, ...result.newItems, ...result.passedItems],
+    expectedItems: [...result.failedItems, ...result.deletedItems, ...result.passedItems],
+    diffItems: result.failedItems,
+    actualDir: path.join(source, "actual"),
+    expectedDir: path.join(source, "expected"),
+    diffDir: path.join(source, "diff"),
+    report: path.join(source, "index.html"),
+    json: path.join(source, "out.json"),
+    urlPrefix: "",
+  });
+}
 async function vrt() {
-  await put("index.html", "<html>VRT report</html>");
-  await put(
-    "out.json",
-    JSON.stringify({
-      failedItems: ["changed.png"],
-      newItems: ["added.png"],
-      deletedItems: ["deleted.png"],
-      passedItems: ["unchanged.png"],
-    }),
-  );
+  vrtHtml({
+    failedItems: ["changed.png"],
+    newItems: ["added.png"],
+    deletedItems: ["deleted.png"],
+    passedItems: ["unchanged.png"],
+  });
   await put("assets/app.js", "void 0;");
   for (const file of [
     "actual/changed.png",
@@ -63,6 +79,7 @@ describe("公開用レポートの準備", () => {
     await vrt();
     const originalPaths = await paths(source);
     const originalResult = await readFile(path.join(source, "out.json"));
+    const originalHtml = await readFile(path.join(source, "index.html"), "utf8");
 
     const result = await prepareHostedReport({ reportType: "vrt", source, destination });
 
@@ -80,16 +97,37 @@ describe("公開用レポートの準備", () => {
     expect(result.bytes).toBeGreaterThan(0);
     expect(await paths(source)).toEqual(originalPaths);
     expect(await readFile(path.join(source, "out.json"))).toEqual(originalResult);
+    expect(await readFile(path.join(destination, "out.json"))).toEqual(originalResult);
+    expect(await readFile(path.join(source, "index.html"), "utf8")).toBe(originalHtml);
+    const publicHtml = await readFile(path.join(destination, "index.html"), "utf8");
+    const originalEmbedded = JSON.parse(originalHtml.match(/window\['__reg__'\] = (\{[^\n]*\});/)?.[1] ?? "null");
+    const publicEmbedded = JSON.parse(publicHtml.match(/window\['__reg__'\] = (\{[^\n]*\});/)?.[1] ?? "null");
+    expect(originalEmbedded).not.toBeNull();
+    expect(publicEmbedded).toEqual({ ...originalEmbedded, passedItems: [], hasPassed: false });
+    expect(publicHtml).toContain("変更なし1件の画像は公開を省略。完全版はGitHub ActionsのArtifactから確認");
   });
 
   it("差分ゼロでもHTMLと結果データを公開する", async () => {
-    await put("index.html", "<html>VRT report</html>");
-    await put("out.json", JSON.stringify({ failedItems: [], newItems: [], deletedItems: [] }));
+    vrtHtml({ failedItems: [], newItems: [], deletedItems: [], passedItems: ["unchanged.png"] });
     await put("actual/unchanged.png", png);
 
     await prepareHostedReport({ reportType: "vrt", source, destination });
 
     expect(await paths(destination)).toEqual(["index.html", "out.json"]);
+  });
+
+  it("HTMLと結果の変更なし一覧が異なる場合や未知のHTML形式では公開しない", async () => {
+    await vrt();
+    const html = await readFile(path.join(source, "index.html"), "utf8");
+    await put("index.html", html.replace('"raw":"unchanged.png"', '"raw":"other.png"'));
+    await expect(prepareHostedReport({ reportType: "vrt", source, destination })).rejects.toThrow(
+      "do not match out.json",
+    );
+    await put("index.html", "<html><body>unknown report</body></html>");
+    await expect(prepareHostedReport({ reportType: "vrt", source, destination })).rejects.toThrow(
+      "one embedded result object",
+    );
+    expect(await readdir(directory)).toEqual(["source"]);
   });
 
   it("動画attachmentの本体と参照、未参照dataを除外し、画像とtrace表示資産を残す", async () => {
