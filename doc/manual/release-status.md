@@ -104,6 +104,18 @@ artifactのProduction反映と反映後canaryも別の証跡とし、ローカ�
 - 次の確認条件:
 ```
 
+### 2026-09-05 14:15 JST：VRT基準画像のR2初期移行（CI）
+
+| 項目 | 確認内容 |
+|---|---|
+| 状態・確認者 | develop/mainの基準画像を実R2へ移行済み。Codexによる自動検証。アプリのProductionは対象外 |
+| 対象 | R2バケット`yps-crispy-carnival`。旧hostingのdevelop/mainだけを、GitHub上のrun出所・ancestor・全4capture成功を確認して移行 |
+| develop | run `33731611634` attempt 1、基準画像776件、ZIP 57,769,672 bytes |
+| main | run `33744411833` attempt 1、基準画像776件、ZIP 57,772,356 bytes |
+| 検証 | 両branchとも公開URLから既存のbaseline取得helperで匿名取得し、SHA-256・CRC・画像件数と展開先を検証して776件の展開に成功 |
+| 証跡 | [初期移行run 33945662104 attempt 2](https://github.com/yn1323/yps-crispy-carnival/actions/runs/33945662104/attempts/2)。attempt 1はR2のHTTP 502で失敗し、原因確認後の1回の再実行で成功 |
+| 残る範囲 | PR #900の承認・merge後にdevelop/mainの通常pushによる更新とPR終了時の自動削除へ移行する。設定値は変更していない |
+
 ### 2026-09-05 13:25 JST：レポート用R2接続確認（CI）
 
 | 項目 | 確認内容 |
