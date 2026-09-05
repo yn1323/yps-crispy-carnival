@@ -10,6 +10,7 @@ import {
   HelpNotificationBasicsLinkCard,
   HelpOrganizationStructureLinkCard,
   HelpScenarioLinkCard,
+  HelpShiftExportLinkCard,
 } from "./HelpScenarioCard";
 import { HelpSupport } from "./HelpSupport";
 import { HelpTaskLinkCard } from "./HelpTaskCard";
@@ -72,6 +73,7 @@ function BasicHelpLinks() {
       </Stack>
       <Stack gap={3}>
         <HelpScenarioLinkCard />
+        <HelpShiftExportLinkCard />
         <HelpNotificationBasicsLinkCard />
         <HelpOrganizationStructureLinkCard />
       </Stack>

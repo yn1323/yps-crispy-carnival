@@ -83,6 +83,7 @@ describe("static site manifest", () => {
       expect(routes).toContain("/help/basics/notifications");
       expect(routes).toContain("/help/basics/organization-structure");
       expect(routes).toContain("/help/scenarios/shift-management");
+      expect(routes).toContain("/help/scenarios/shift-export");
       for (const taskRoute of HELP_TASK_ROUTES) {
         expect(routes).toContain(taskRoute);
       }
