@@ -49,7 +49,7 @@ export function buildExportSchedule(data: ShiftExportData): ExportSchedule {
   let bodyLineCount = pattern.kind === "time" ? 2 : 1;
   const rows = data.staffs.map((staff) => ({
     staffId: staff.id,
-    staffName: staff.name,
+    staffName: staff.isRemoved ? `${staff.name}（削除済み）` : staff.name,
     cells: dates.map(({ date, isClosed }) => {
       const assignments = byStaffDate.get(`${staff.id}:${date}`) ?? [];
       if (isClosed || assignments.length === 0) return { lines: ["-"] };

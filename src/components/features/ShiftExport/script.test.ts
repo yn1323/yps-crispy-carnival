@@ -22,6 +22,20 @@ describe("buildExportSchedule", () => {
     data.assignments.push({ ...data.assignments[0], startTime: "22:00", endTime: "26:00" });
     expect(buildExportSchedule(data).rows[0].cells[0].lines).toEqual(["09:00", "26:00"]);
   });
+  it("同名の現スタッフと削除済みスタッフを区別し、保存順と割当を保つ", () => {
+    const data = createExportFixture({
+      staffs: [
+        { id: "staff-2", name: "田中 花子", isRemoved: true },
+        { id: "staff-1", name: "田中 花子", isRemoved: false },
+      ],
+    });
+    const result = buildExportSchedule(data);
+    expect(result.rows.map(({ staffId, staffName }) => ({ staffId, staffName }))).toEqual([
+      { staffId: "staff-2", staffName: "田中 花子（削除済み）" },
+      { staffId: "staff-1", staffName: "田中 花子" },
+    ]);
+    expect(result.rows.map(({ cells }) => cells[0].lines)).toEqual([["09:00", "17:00"], ["-"]]);
+  });
   it("日付指定を1行、勤務区分を重複除去して設定順・全体最大行数にする", () => {
     const data = createExportFixture();
     data.recruitment.submissionPattern = { kind: "dateOnly" };
