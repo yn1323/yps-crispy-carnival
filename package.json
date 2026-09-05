@@ -118,6 +118,7 @@
     "zod": "4.5.4"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1126.0",
     "@biomejs/biome": "catalog:",
     "@clerk/testing": "2.2.10",
     "@edge-runtime/vm": "^5.0.0",
