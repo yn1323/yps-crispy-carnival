@@ -7,6 +7,7 @@ import { seedStaff } from "../_test/scenarioBuilders";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import { ANALYTICS_DEFINITION_VERSION, emptyAnalyticsResultCounts } from "../analytics/model";
+import type { ShopsResponse } from "./dto";
 import {
   getCycleRef,
   getFeatureRequestsRef,
@@ -205,7 +206,7 @@ describe("analyticsDashboardの問い合わせ境界", () => {
     const found: string[] = [];
     let pages = 0;
     do {
-      const page = await t.query(getShopsRef, {
+      const page: ShopsResponse = await t.query(getShopsRef, {
         ...PAGE,
         limit: 1,
         cursor,

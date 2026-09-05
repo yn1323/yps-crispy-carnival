@@ -74,7 +74,9 @@ function analyticsLocalApiPlugin(env: AnalyticsDevEnv): Plugin {
     }
     const send = async (response: Response) => {
       res.statusCode = response.status;
-      response.headers.forEach((value, name) => res.setHeader(name, value));
+      response.headers.forEach((value, name) => {
+        res.setHeader(name, value);
+      });
       res.end(Buffer.from(await response.arrayBuffer()));
     };
     try {

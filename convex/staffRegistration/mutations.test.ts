@@ -1691,18 +1691,7 @@ describe("staffRegistration/mutations", () => {
       name: "既存人物",
     });
     expect(state.scheduled.some((job) => job.name === "line/actions:sendInviteEmail")).toBe(false);
-    expect(state.analytics).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          payload: expect.objectContaining({
-            kind: "staffMembership",
-            staffId,
-            lineLinked: true,
-            lineFollowing: true,
-          }),
-        }),
-      ]),
-    );
+    expect(state.analytics).toEqual([]);
   });
 
   it("最後の所属を外してもretained canonical LINEを承認先で利用する", async () => {
@@ -1805,18 +1794,7 @@ describe("staffRegistration/mutations", () => {
     });
     expect(state.targetAccounts).toEqual([]);
     expect(state.scheduled.some((job) => job.name === "line/actions:sendInviteEmail")).toBe(false);
-    expect(state.analytics).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          payload: expect.objectContaining({
-            kind: "staffMembership",
-            staffId,
-            lineLinked: true,
-            lineFollowing: true,
-          }),
-        }),
-      ]),
-    );
+    expect(state.analytics).toEqual([]);
   });
 
   it("canonical LINEのgeneration不整合では承認をrollbackし、LINE案内を予約しない", async () => {

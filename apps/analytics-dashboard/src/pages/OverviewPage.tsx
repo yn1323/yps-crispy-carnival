@@ -52,7 +52,7 @@ function downloadSummary(data: OverviewResponse) {
     })),
   ];
   const url = URL.createObjectURL(
-    new Blob([rows.map((row) => JSON.stringify(row)).join("\n") + "\n"], {
+    new Blob([`${rows.map((row) => JSON.stringify(row)).join("\n")}\n`], {
       type: "application/x-ndjson;charset=utf-8",
     }),
   );

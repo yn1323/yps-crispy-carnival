@@ -234,7 +234,9 @@ describe("analyticsDashboard/httpActions", () => {
       body: JSON.stringify(body),
     });
     await expectJsonResponse(unauthorized, 401, { error: "unauthorized" });
-    expect(await t.run(async (ctx) => (await ctx.db.get(id))?.isDeleted)).toBeUndefined();
+    const unchanged = await t.run(async (ctx) => await ctx.db.get(id));
+    expect(unchanged?._id).toBe(id);
+    expect(unchanged).not.toHaveProperty("isDeleted");
     const headers = { [SECRET_HEADER]: SERVICE_SECRET, "content-type": "application/json" };
     const malformed = await t.fetch("/analytics-dashboard/mutation", {
       method: "POST",

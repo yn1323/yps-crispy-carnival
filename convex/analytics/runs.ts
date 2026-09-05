@@ -43,7 +43,9 @@ export async function startDailyRun(ctx: MutationCtx, state: Doc<"analyticsState
   if (date < dateJST(state.startedAt) || date >= dateJST(now) || (await getDailyResult(ctx, date))) return;
   const bounds = jstDayRangeMs(date);
   const observationStartAt = Math.max(bounds.startMs, state.startedAt);
-  const inputStartDate = [dateJST(state.startedAt), addDays(date, -89)].sort().at(-1)!;
+  const startDate = dateJST(state.startedAt);
+  const windowStartDate = addDays(date, -89);
+  const inputStartDate = startDate > windowStartDate ? startDate : windowStartDate;
   const expired = inputStartDate < detailRetentionDate(now);
   const runId = await ctx.db.insert("analyticsDailyResults", {
     date,
@@ -118,8 +120,7 @@ export const retry = internalMutation({
     const run = await ctx.db.get(args.runId);
     const now = Date.now();
     if (
-      !run ||
-      run.status !== "failed" ||
+      run?.status !== "failed" ||
       run.stepVersion !== args.stepVersion ||
       !run.retryable ||
       run.retryAt === undefined ||
