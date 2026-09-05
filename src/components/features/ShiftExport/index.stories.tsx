@@ -160,6 +160,7 @@ export const Generating: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     for (const button of canvas.getAllByRole("button")) await expect(button).toBeDisabled();
+    await expect(canvas.getByRole("checkbox", { name: "期間を前半・後半に分ける" })).toBeDisabled();
   },
 };
 

@@ -24,9 +24,10 @@ export function ShiftExportView({ schedule, download, onSplitPeriodChange }: Pro
               <Checkbox.Root
                 checked={schedule.splitPeriod}
                 onCheckedChange={({ checked }) => onSplitPeriodChange(checked === true)}
+                disabled={download.isGenerating}
                 colorPalette="teal"
                 minH="44px"
-                cursor="pointer"
+                cursor={download.isGenerating ? "not-allowed" : "pointer"}
               >
                 <Checkbox.HiddenInput />
                 <Checkbox.Control>
