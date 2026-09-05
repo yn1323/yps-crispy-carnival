@@ -1,5 +1,5 @@
 import dayjs from "dayjs";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RECRUITMENT_PERIOD_DAYS_MAX } from "@/convex/constants";
 import {
   buildRecruitmentComparison,
@@ -250,14 +250,24 @@ describe("createRecruitmentSchema", () => {
 });
 
 describe("createRecruitmentFormSchema (フォームバリデーション)", () => {
-  const today = dayjs().format("YYYY-MM-DD");
-  const tomorrow = dayjs().add(1, "day").format("YYYY-MM-DD");
-  const yesterday = dayjs().subtract(1, "day").format("YYYY-MM-DD");
-  const dayAfterTomorrow = dayjs().add(2, "day").format("YYYY-MM-DD");
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // UTCでは前日になるJST 0時でも、業務日付を基準に検証する。
+    vi.setSystemTime(new Date("2026-09-06T00:00:00+09:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const today = "2026-09-06";
+  const tomorrow = dayjs(today).add(1, "day").format("YYYY-MM-DD");
+  const yesterday = dayjs(today).subtract(1, "day").format("YYYY-MM-DD");
+  const dayAfterTomorrow = dayjs(today).add(2, "day").format("YYYY-MM-DD");
 
   const validData = {
     periodStart: dayAfterTomorrow,
-    periodEnd: dayjs().add(10, "day").format("YYYY-MM-DD"),
+    periodEnd: dayjs(today).add(10, "day").format("YYYY-MM-DD"),
     deadline: tomorrow,
     shopClosedDates: [],
   };
@@ -265,7 +275,7 @@ describe("createRecruitmentFormSchema (フォームバリデーション)", () =
   it("お店のお休みを含むデータを受け入れる", () => {
     const result = createRecruitmentFormSchema.safeParse({
       ...validData,
-      shopClosedDates: [dayjs().add(4, "day").format("YYYY-MM-DD")],
+      shopClosedDates: [dayjs(today).add(4, "day").format("YYYY-MM-DD")],
     });
     expect(result.success).toBe(true);
   });
