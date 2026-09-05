@@ -1,5 +1,11 @@
 # Analytics夜間バッチ簡素化 実装計画
 
+> Archive日: 2026-09-05
+>
+> 理由: `superseded`
+>
+> 後継: [日次利用指標](../../features/analytics.md)、[問い合わせ閲覧](../../features/analytics-dashboard.md)
+
 作成日: 2026-08-08
 状態: approved
 対象: ConvexのAnalytics source fact、夜間集計、保持処理、内部Analytics API

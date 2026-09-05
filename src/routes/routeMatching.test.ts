@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { getWebMeasurementRouteFamily } from "@/src/domains/webMeasurement";
 import { getRouter } from "@/src/router";
 
 const router = getRouter();
@@ -7,7 +8,27 @@ function getLeafRouteId(pathname: string): string | undefined {
   return router.matchRoutes(pathname).at(-1)?.routeId;
 }
 
+function getRepresentativePathname(fullPath: string): string {
+  return fullPath.replace(/\$[^/]+/g, "route_parameter");
+}
+
 describe("app route matching", () => {
+  it("catch-all以外の実routeをnot_foundへ分類しない", () => {
+    const unclassifiedRoutes = [...new Set(Object.values(router.routesById).map((route) => route.fullPath))]
+      .filter((fullPath) => fullPath !== "/$")
+      .flatMap((fullPath) => {
+        const pathname = getRepresentativePathname(fullPath);
+        return [pathname, pathname.toUpperCase()].map((candidatePathname) => ({
+          fullPath,
+          pathname: candidatePathname,
+          routeFamily: getWebMeasurementRouteFamily(candidatePathname),
+        }));
+      })
+      .filter(({ routeFamily }) => routeFamily === "not_found");
+
+    expect(unclassifiedRoutes).toEqual([]);
+  });
+
   it.each([
     ["/help", "/help/"],
     ["/help/tasks/staff-management", "/help/tasks/$taskId"],

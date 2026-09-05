@@ -1402,15 +1402,15 @@ describe("shiftBoard/mutations", () => {
       expect(confirmationJobs).toHaveLength(2);
       expect(confirmationJobs.map((job) => job.args[0]?.isResend)).toEqual([false, true]);
 
-      const analyticsEvents = await t.run(async (ctx) =>
+      const analyticsDays = await t.run(async (ctx) =>
         ctx.db
-          .query("analyticsSourceEvents")
-          .filter((q) => q.eq(q.field("recruitmentId"), recruitmentId))
+          .query("analyticsShopDays")
+          .withIndex("by_shopId_and_date", (q) => q.eq("shopId", shopId))
           .collect(),
       );
-      expect(analyticsEvents.map((event) => event.eventKey).toSorted()).toEqual(
-        [`cycle:${recruitmentId}:confirmed:run:1`, `cycle:${recruitmentId}:confirmed:run:2`].toSorted(),
-      );
+      expect(
+        analyticsDays.map(({ registered, submitted, confirmed }) => ({ registered, submitted, confirmed })),
+      ).toEqual([{ registered: false, submitted: false, confirmed: true }]);
     });
 
     it("再通知は前回通知時点から変更されたスタッフだけを対象にする", async () => {

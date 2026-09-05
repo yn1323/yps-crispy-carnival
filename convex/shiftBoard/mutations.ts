@@ -3,12 +3,12 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
-import { isPastShiftPeriod } from "../_lib/dateFormat";
+import { isPastShiftPeriod, jstDayRangeMs } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
 import { sha256Hex } from "../_lib/sha256";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
 import { normalizeEmail } from "../_lib/validation";
-import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
+import { recordAnalyticsUsage } from "../analytics/record";
 import { NOTIFICATION_FANOUT_SCOPE_LIMIT, SHIFT_ASSIGNMENT_LIMIT, SHIFT_BOARD_STAFF_LIMIT } from "../constants";
 import { getPreviousConfirmationDelivery } from "../notification/confirmationDelivery";
 import {
@@ -469,23 +469,15 @@ export const confirmRecruitment = managerMutation({
       lastConfirmationNotificationOperationKey: operationKey,
       lastConfirmationNotificationRunId: notificationRunId,
     });
-    await recordAnalyticsSourceEvent(ctx, {
-      eventKey: `cycle:${args.recruitmentId}:confirmed:run:${notificationRunId}`,
-      eventType: "cycle.changed",
-      occurredAt: confirmedAt,
-      organizationId: ctx.shop.organizationId,
-      shopId: ctx.shop._id,
-      recruitmentId: args.recruitmentId,
-      payload: {
-        kind: "cycle",
-        status: "confirmed",
-        createdAt: recruitment._creationTime,
-        periodStart: recruitment.periodStart,
-        periodEnd: recruitment.periodEnd,
-        deadline: recruitment.deadline,
-        confirmedAt,
-      },
-    });
+    // 配送だけの再送は利用実績へ加えない。確定後に保存したシフトの再確定は記録する。
+    if (!isResend || (recruitment.draftSavedAt ?? 0) > (recruitment.confirmedAt ?? 0)) {
+      await recordAnalyticsUsage(ctx, {
+        shopId: ctx.shop._id,
+        metric: "confirmed",
+        recruitmentId: args.recruitmentId,
+        confirmedPeriodStartAt: jstDayRangeMs(recruitment.periodStart).startMs,
+      });
+    }
     const notificationOrigin = await getBusinessNotificationOrigin(ctx, { shopId: ctx.shop._id });
     const { operation: fanoutOperation } = await ensureNotificationFanoutOperation(ctx, {
       operationKey,

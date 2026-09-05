@@ -16,9 +16,8 @@ const MANAGER_SUBJECT = "user_manager";
 
 describe("shop/mutations", () => {
   describe("updateShopSettings", () => {
-    it("同じ時刻の複数更新を別の分析source eventとして記録する", async () => {
+    it("店舗設定の更新は日次利用実績に数えない", async () => {
       const occurredAt = Date.parse("2026-08-02T00:00:00.000Z");
-      vi.stubEnv("ANALYTICS_SOURCE_CAPTURE_START_AT", "");
       vi.useFakeTimers();
       vi.setSystemTime(occurredAt);
 
@@ -47,19 +46,14 @@ describe("shop/mutations", () => {
           shopName: "2回目の店舗名",
         });
 
-        const events = await t.run(async (ctx) =>
-          ctx.db
-            .query("analyticsSourceEvents")
-            .withIndex("by_shopId_and_occurredAt", (q) => q.eq("shopId", shopId))
-            .collect(),
-        );
-        expect(events).toHaveLength(2);
-        expect(new Set(events.map((event) => event.eventKey)).size).toBe(2);
-        expect(events.map((event) => event.payload)).toEqual([
-          { kind: "shop", change: "updated", displayName: "1回目の店舗名" },
-          { kind: "shop", change: "updated", displayName: "2回目の店舗名" },
-        ]);
-        expect(events.map((event) => event.occurredAt)).toEqual([occurredAt, occurredAt]);
+        const state = await t.run(async (ctx) => ({
+          shop: await ctx.db.get(shopId),
+          days: await ctx.db.query("analyticsShopDays").collect(),
+          analyticsState: await ctx.db.query("analyticsState").collect(),
+        }));
+        expect(state.shop?.name).toBe("2回目の店舗名");
+        expect(state.days).toEqual([]);
+        expect(state.analyticsState).toEqual([]);
       } finally {
         vi.unstubAllEnvs();
         vi.useRealTimers();

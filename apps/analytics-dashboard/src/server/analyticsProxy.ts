@@ -1,4 +1,10 @@
-import { ANALYTICS_DASHBOARD_MAX_RESPONSE_BYTES } from "../../../../convex/analyticsDashboard/schemas";
+import {
+  ANALYTICS_DASHBOARD_MAX_BODY_BYTES,
+  ANALYTICS_DASHBOARD_MAX_RESPONSE_BYTES,
+  type AnalyticsDashboardRequest,
+  type FeatureRequestUpdateRequest,
+  parseFeatureRequestUpdate,
+} from "../../../../convex/analyticsDashboard/schemas";
 import { matchAnalyticsRoute } from "./analyticsRoutes";
 
 export type AnalyticsProxyEnv = {
@@ -53,9 +59,9 @@ export function withNoindexResponse(response: Response) {
   });
 }
 
-function getConvexEndpoint(baseUrl: string) {
+function getConvexEndpoint(baseUrl: string, mutation: boolean) {
   const normalized = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-  return new URL("analytics-dashboard/query", normalized).toString();
+  return new URL(mutation ? "analytics-dashboard/mutation" : "analytics-dashboard/query", normalized).toString();
 }
 
 function getConvexHttpUrl(convexUrl?: string) {
@@ -75,9 +81,9 @@ function getEnvLabel(env: AnalyticsProxyEnv, fallback: string) {
   return env.ANALYTICS_ENV_LABEL ?? env.CF_PAGES_BRANCH ?? fallback;
 }
 
-async function readBoundedResponse(response: Response) {
+async function readBoundedResponse(response: Response | Request, maxBytes = UPSTREAM_RESPONSE_MAX_BYTES) {
   const contentLength = Number(response.headers.get("content-length") ?? "0");
-  if (Number.isFinite(contentLength) && contentLength > UPSTREAM_RESPONSE_MAX_BYTES) return null;
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) return null;
 
   const reader = response.body?.getReader();
   if (!reader) return "";
@@ -88,7 +94,7 @@ async function readBoundedResponse(response: Response) {
       const { done, value } = await reader.read();
       if (done) break;
       byteLength += value.byteLength;
-      if (byteLength > UPSTREAM_RESPONSE_MAX_BYTES) {
+      if (byteLength > maxBytes) {
         try {
           await reader.cancel();
         } catch {
@@ -142,15 +148,39 @@ function upstreamErrorResponse(response: Response) {
 }
 
 export async function handleAnalyticsApi(request: Request, env: AnalyticsProxyEnv, fallbackEnvLabel: string) {
-  if (request.method !== "GET") {
+  const url = new URL(request.url);
+  const mutation = url.pathname === "/api/requests/update";
+  const allowedMethod = mutation ? "POST" : "GET";
+  if (request.method !== allowedMethod) {
     return jsonResponse(
-      { error: { message: "GETでリクエストしてください" } },
-      { status: 405, headers: { allow: "GET" } },
+      { error: { message: "この操作では利用できない送信方法です" } },
+      { status: 405, headers: { allow: allowedMethod } },
     );
   }
-
-  const route = matchAnalyticsRoute(new URL(request.url));
-  if (!route.ok) return jsonResponse({ error: { message: route.message } }, { status: route.status });
+  let payload: AnalyticsDashboardRequest | FeatureRequestUpdateRequest;
+  if (mutation) {
+    if (request.headers.get("origin") !== url.origin || request.headers.get("sec-fetch-site") === "cross-site") {
+      return jsonResponse({ error: { message: "このページから操作し直してください" } }, { status: 403 });
+    }
+    if (url.search || request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {
+      return jsonResponse({ error: { message: "JSONで送信してください" } }, { status: 415 });
+    }
+    const body = await readBoundedResponse(request, ANALYTICS_DASHBOARD_MAX_BODY_BYTES);
+    if (body === null) return jsonResponse({ error: { message: "送信内容が大きすぎます" } }, { status: 413 });
+    let input: unknown;
+    try {
+      input = JSON.parse(body);
+    } catch {
+      return jsonResponse({ error: { message: "指定内容が正しくありません" } }, { status: 400 });
+    }
+    const parsed = parseFeatureRequestUpdate(input);
+    if (!parsed.ok) return jsonResponse({ error: { message: "指定内容が正しくありません" } }, { status: 400 });
+    payload = parsed.value;
+  } else {
+    const route = matchAnalyticsRoute(url);
+    if (!route.ok) return jsonResponse({ error: { message: route.message } }, { status: route.status });
+    payload = route.request;
+  }
 
   const convexHttpUrl = env.VITE_CONVEX_SITE_URL ?? getConvexHttpUrl(env.VITE_CONVEX_URL);
   if (!convexHttpUrl || !env.SHIFTORI_INTERNAL_API_SECRET) {
@@ -159,7 +189,7 @@ export async function handleAnalyticsApi(request: Request, env: AnalyticsProxyEn
 
   let upstream: Response;
   try {
-    upstream = await fetch(getConvexEndpoint(convexHttpUrl), {
+    upstream = await fetch(getConvexEndpoint(convexHttpUrl, mutation), {
       method: "POST",
       // secret付きのservice requestはredirect先へ追従せず、3xxを下で502に変換する。
       redirect: "manual",
@@ -167,11 +197,11 @@ export async function handleAnalyticsApi(request: Request, env: AnalyticsProxyEn
         "content-type": "application/json",
         "x-shiftori-internal-api-secret": env.SHIFTORI_INTERNAL_API_SECRET,
       },
-      body: JSON.stringify(route.request),
+      body: JSON.stringify(payload),
     });
   } catch (error) {
     console.error("analytics_proxy_fetch_failed", {
-      endpoint: route.request.endpoint,
+      endpoint: payload.endpoint,
       ...safeFetchError(error, env.SHIFTORI_INTERNAL_API_SECRET),
     });
     return jsonResponse({ error: { message: "分析データを読み込めませんでした" } }, { status: 502 });
@@ -180,7 +210,7 @@ export async function handleAnalyticsApi(request: Request, env: AnalyticsProxyEn
   const responseText = await readBoundedResponse(upstream);
   if (responseText === null) {
     console.error("analytics_proxy_upstream_response_unreadable", {
-      endpoint: route.request.endpoint,
+      endpoint: payload.endpoint,
       status: upstream.status,
     });
     return jsonResponse(
@@ -191,7 +221,7 @@ export async function handleAnalyticsApi(request: Request, env: AnalyticsProxyEn
   if (!upstream.ok) {
     if (![400, 404, 413, 415, 429].includes(upstream.status)) {
       console.error("analytics_proxy_upstream_failed", {
-        endpoint: route.request.endpoint,
+        endpoint: payload.endpoint,
         status: upstream.status,
       });
     }
@@ -203,7 +233,7 @@ export async function handleAnalyticsApi(request: Request, env: AnalyticsProxyEn
     data = JSON.parse(responseText) as unknown;
   } catch {
     console.error("analytics_proxy_upstream_invalid_json", {
-      endpoint: route.request.endpoint,
+      endpoint: payload.endpoint,
       status: upstream.status,
     });
     return jsonResponse({ error: { message: "分析データの形式が正しくありません" } }, { status: 502 });
@@ -218,7 +248,7 @@ export async function handleAnalyticsApi(request: Request, env: AnalyticsProxyEn
   const serialized = JSON.stringify(envelope);
   if (new TextEncoder().encode(serialized).byteLength >= ANALYTICS_DASHBOARD_MAX_RESPONSE_BYTES) {
     console.error("analytics_proxy_response_too_large", {
-      endpoint: route.request.endpoint,
+      endpoint: payload.endpoint,
     });
     return jsonResponse({ error: { message: "分析データの応答が大きすぎます" } }, { status: 502 });
   }

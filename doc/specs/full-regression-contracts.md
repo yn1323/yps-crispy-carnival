@@ -190,11 +190,11 @@ E2Eは代表CTAとのbrowser接続だけを守り、対象集合、channel、件
 | `HTTP-LINE-WEBHOOK-01` | P0 | LINEがfollow / unfollow / message eventを反映する | POST raw body → size・event件数・署名 → event dedupe / timestamp順序 → state更新 | webhook receipt、LINE following state | channel選択、定型reply | 署名不正、101件、古いevent、replayで副作用0。PIIをreceiptへ保存しない | messageへの定型reply | HTTP Function | 非該当 | 実装済み | `convex/line/webhook.test.ts`、`convex/_lib/lineSignature.test.ts` |
 | `HTTP-RESEND-WEBHOOK-01` | P0 | Resendが配送状態を履歴とFailureInboxへ反映する | POST raw body → size・Svix署名 → outbox照合 → delivery update / issue | provider event ID、history、failure inbox | 通知履歴、Dashboard不達 | 偽造、重複、古いevent、outbox不一致で状態を汚さない。body・宛先をlogへ出さない | 新規通知なし | HTTP Function | 非該当 | 実装済み | `convex/notificationOutbox/resendWebhook.test.ts`、`convex/_lib/resendWebhookSignature.test.ts` |
 | `HTTP-STRIPE-WEBHOOK-01` | P0 | Stripeが署名済み課金eventを一度だけ処理する | POST raw body（128 KiB以下）→ Stripe署名（header 4096文字以下）・livemode → event保存 / claim → verified state convergence | webhook event、operation、subscription snapshot | entitlement、利用上限 | 過大body・署名、偽造、event replay、別mode、object不整合、古いeventで課金状態を変更しない | シフトリの課金メールは作成しない。Stripeの決済関連通知は外部設定 | HTTP Function | 非該当 | 実装済み | `convex/organizationStripe/webhook.test.ts`、`convex/organizationStripe/processor.test.ts` |
-| `HTTP-ANALYTICS-01` | P0 | 内部BI Workerが固定された12種類の分析queryを呼ぶ | POST → service credential・size・schema・rate limit → internal query → bounded DTO | read-only。rate limit stateだけ更新 | Analytics Dashboard、要望一覧 | secret不一致、任意function、存在しないID、過大response、query失敗を安全なstatusへ変換し、PII・secretをlogへ出さない | なし | HTTP Function | 非該当 | 実装済み | `convex/analyticsDashboard/httpActions.test.ts`、`convex/analyticsDashboard/queries.test.ts` |
+| `HTTP-ANALYTICS-01` | P0 | 内部BI Workerが固定された分析queryと要望flag更新を呼ぶ | POST → service credential・size・schema・rate limit → internal function → bounded DTO | readと要望isDeletedだけの更新。rate limit state | Analytics Dashboard、要望一覧 | secret不一致、任意function、存在しないID、過大responseを拒否。PII・secretをlogへ出さない。要望更新は明示booleanで冪等 | なし | HTTP Function | 非該当 | 実装済み | `convex/analyticsDashboard/httpActions.test.ts`、`convex/analyticsDashboard/queries.test.ts` |
 | `PUBLIC-STATIC-01` | P1 | 未ログイン利用者がTOP、機能、ヘルプ、記事、法務を閲覧する | build時prerender → canonical HTML → browser hydration | 公開contentと生成artifact | 検索、登録、問い合わせ、ヘルプ | draft、CSR shell、noindex routeをsitemapへ含めない。H1、canonical、metadata、404を生成物で検査 | なし | Logic / build検証 | Desktop / MobileをVRTで補助 | 実装済み | `scripts/staticSite.test.ts`、`scripts/sitemap.test.ts`、`src/components/features/ArticleSite/articleContent.test.ts`、公開page Story |
 | `PUBLIC-DEMO-01` | P2 | 未登録利用者がシフト表の入力と確定操作を保存なしで試す | demo開始 → 勤務時間入力・調整 → reset / 確定 | browser内のdemo stateだけ | 機能理解 | 実データ・Convex・通知を変更しない | なし | Behavior | Desktop | 実装済み | `src/components/features/Demo/DemoShiftBoardPage/index.stories.tsx` |
-| `ANALYTICS-PIPELINE-01` | P1 | cron / operatorがsource eventから完全な日次snapshotを作り、失敗後も次日を公開する | source capture → projection → daily run → complete / failed → weekly retention | run、projection、snapshot、generation | 内部BI、利用候補、KPI | running / failedの途中行を公開せず、欠損を0にしない。reset世代を混ぜない | なし | Convex Scenario | 非該当 | 実装済み | `convex/analytics/pipeline.test.ts`、`convex/analytics/invariants.test.ts`、`convex/_scenario/analyticsNightly.test.ts` |
-| `ANALYTICS-DASHBOARD-01` | P1 | 内部担当者が集計をroute別に比較し、JSONLを書き出す | Cloudflare Access → Worker BFF → `HTTP-ANALYTICS-01` | URL queryとlocal download。アプリDBへ書かない | 内部分析 | 本体Full RegressionへUI stateを取り込まず、PII・credentialをJSONLへ出さない | なし | lint / type-check / build | Desktop / Mobile | 対象外（本体UI test対象外）。代替CIは`TEST-ANALYTICS-BUILD-01` | `apps/analytics-dashboard/AGENTS.md`、`doc/features/analytics-dashboard.md` |
+| `ANALYTICS-PIPELINE-01` | P1 | 業務操作とcronが計測を自動開始し日別店舗数を作る | 同一transactionのflag記録 → 日次と固定期間DISTINCT → complete / retry → retention | 開始状態、店舗日別事実、周期観測、日次結果 | 日次KPIと店舗内訳 | 開始前を復元せず、初日・0・欠損を区別。重複pageを拒否し失敗日を再開。保持期限を延長しない | なし | Convex Scenario / Function | 非該当 | 実装済み | `convex/analytics/nightly.test.ts`、`convex/_scenario/analyticsNightly.test.ts` |
+| `ANALYTICS-DASHBOARD-01` | P1 | 内部担当者が日次指標と現在の店舗・スタッフ・募集を調べる | Cloudflare Access → Worker BFF → `HTTP-ANALYTICS-01` | URL query、匿名集計JSONL、要望isDeleted | 内部分析と問い合わせ | 本体UI test対象外。詳細だけに必要なPIIを返し、認証切れでcache破棄。JSONLへ識別子・PII・credentialを出さない | なし | lint / type-check / build | Desktop / Mobile | 対象外（本体UI test対象外）。代替CIは`TEST-ANALYTICS-BUILD-01` | `apps/analytics-dashboard/AGENTS.md`、`doc/features/analytics-dashboard.md` |
 
 ## Browser-only契約とCI gate
 
@@ -236,7 +236,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 | staff / Capability | `/shifts/submit`、`/shifts/submit/completed`、`/shifts/view`、`/shifts/reissue`、`/staff/register`、`/legal/staff/consent`、`/line/callback` | `CAP-SHIFT-SESSION-01`、`SHIFT-SUBMISSION-01`、`SHIFT-VIEW-REISSUE-01`、`STAFF-REGISTRATION-01`、`CAP-LEGAL-01`、`CAP-LINE-LINK-01`。Function、Scenario、代表E2E |
 | 招待 | `/manager-invite` | `MANAGER-INVITATION-01`。本人確認とtoken lifecycleをFunction、Scenario、専用Preview deploymentのE2Eで検証する |
 | 回復・終端 | `/account-deletion-accepted`、`/cache-reset`、未知route | `DELETE-ACCOUNT-01`、`PUBLIC-STATIC-01`。Frontend Unit、build、Deployed Smoke |
-| 内部BI | `/`、`/organizations*`、`/shops*`、`/requests`（`apps/analytics-dashboard/`） | `ANALYTICS-DASHBOARD-01`。本体UI suite対象外、専用lint / type-check / build |
+| 内部BI | `/`、`/shops*`、`/requests`（`apps/analytics-dashboard/`） | `ANALYTICS-DASHBOARD-01`。本体UI suite対象外、専用lint / type-check / build |
 
 認証済みHomeのcanonical URLは`/dashboard`、本人用Accountのcanonical URLは`/account`である。
 `/app`は`/dashboard`へreplaceし、旧`/app/shifts*`、`/app/staff*`、`/app/actions`、`/app/manage*`は対応する正規URLへreplaceする。
@@ -308,7 +308,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 | `POST /staff-registration/submit` | 匿名 + Turnstile | `HTTP-STAFF-REGISTRATION-01` | 実装済み。同上 |
 | `POST /resend/webhook` | Resend / Svix署名 | `HTTP-RESEND-WEBHOOK-01` | 実装済み。`convex/notificationOutbox/resendWebhook.test.ts` |
 | `POST /stripe/webhook` | Stripe署名 | `HTTP-STRIPE-WEBHOOK-01` | 実装済み。`convex/organizationStripe/webhook.test.ts` |
-| `POST /analytics-dashboard/query` | Worker service credential | `HTTP-ANALYTICS-01` | 実装済み。`convex/analyticsDashboard/httpActions.test.ts` |
+| `POST /analytics-dashboard/query`、`POST /analytics-dashboard/mutation` | Worker service credential | `HTTP-ANALYTICS-01` | 実装済み。`convex/analyticsDashboard/httpActions.test.ts` |
 
 ## 未決事項と再評価条件
 

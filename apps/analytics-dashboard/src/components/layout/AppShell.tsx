@@ -1,17 +1,15 @@
 import { Box, Container, Flex, HStack, Link, Stack, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 import { useAnalyticsEnvironment } from "@/app/analyticsEnvironment";
-import { type AppRoute, routePath, withCurrentSearch } from "@/routes/appRoute";
+import { type AppRoute, routePath } from "@/routes/appRoute";
 
 const NAV_ITEMS = [
-  { label: "サマリー", route: { name: "overview" } as const },
-  { label: "組織", route: { name: "organizations" } as const },
-  { label: "店舗", route: { name: "shops" } as const },
+  { label: "日次分析", route: { name: "overview" } as const },
+  { label: "店舗・スタッフ", route: { name: "shops" } as const },
 ];
 
 function activeNavigation(route: AppRoute) {
-  if (route.name === "organization") return "organizations";
-  if (route.name === "shop" || route.name === "cycle") return "shops";
+  if (route.name === "shop" || route.name === "staff" || route.name === "cycle") return "shops";
   return route.name;
 }
 
@@ -29,7 +27,7 @@ export function AppShell({ children, route }: { children: ReactNode; route: AppR
               </Text>
               <HStack gap={2}>
                 <Text color="gray.400" fontSize="xs">
-                  内部BI
+                  本人用
                 </Text>
                 <Text bg="whiteAlpha.200" borderRadius="sm" color="gray.300" fontSize="2xs" px={2} py={0.5}>
                   {environmentLabel ?? "接続先を確認中"}
@@ -49,7 +47,7 @@ export function AppShell({ children, route }: { children: ReactNode; route: AppR
                       color={isActive ? "white" : "gray.300"}
                       fontSize="sm"
                       fontWeight="bold"
-                      href={withCurrentSearch(routePath(item.route), { dropSort: true })}
+                      href={routePath(item.route)}
                       px={4}
                       py={2.5}
                       textDecoration="none"

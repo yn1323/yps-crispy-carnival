@@ -5,7 +5,7 @@ import { getShopActivationReminderAt } from "../_lib/dateFormat";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { normalizeSubmissionPattern } from "../_lib/submissionPattern";
 import { normalizeEmail } from "../_lib/validation";
-import { analyticsPlanForBillingState } from "../analytics/sourceEvents";
+import { recordAnalyticsUsage } from "../analytics/record";
 import { ORGANIZATION_NAME_SUFFIX, ORGANIZATION_SELF_CREATED_LIMIT } from "../constants";
 import { recordStaffLegalConsent } from "../legal/service";
 import { recordOrganizationAuditEvent } from "../organization/audit";
@@ -128,6 +128,7 @@ export async function createOrganizationWithFirstShop(
     submissionPattern: normalizeSubmissionPattern(args.submissionPattern),
     isDeleted: false,
   });
+  await recordAnalyticsUsage(ctx, { shopId, metric: "registered" });
   await ctx.db.insert("organizationBillingStates", {
     organizationId,
     state: billingState,
@@ -185,27 +186,6 @@ export async function createOrganizationWithFirstShop(
           : "trial",
     correlationId: args.correlationId,
     occurredAt: now,
-    analyticsEvent: {
-      eventType: "organization.changed",
-      shopId,
-      subjectId: personId,
-      payload: {
-        kind: "organization",
-        change: "created",
-        displayName: `${args.shopName}${ORGANIZATION_NAME_SUFFIX}`,
-        registeredAt: now,
-        currentPlan: analyticsPlanForBillingState(billingState),
-        initialShop: { shopId, displayName: args.shopName, registeredAt: now },
-        initialPersonId: personId,
-        initialStaff: {
-          staffId,
-          organizationPersonId: personId,
-          shopId,
-          validFrom: now,
-          isShiftTarget: true,
-        },
-      },
-    },
   });
 
   await ctx.scheduler.runAfter(0, internal.line.actions.sendInviteEmail, {

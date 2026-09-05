@@ -1,6 +1,7 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CONVEX_FUNCTION_ERROR_MARKER } from "../_lib/errorObservability";
+import { seedStaff } from "../_test/scenarioBuilders";
 import { seedShop } from "../_test/seed";
 import { modules, schema } from "../_test/setup.test-helper";
 import {
@@ -40,24 +41,6 @@ async function rateLimitRows(t: TestConvex<typeof schema>) {
   return await t.run(async (ctx) =>
     (await ctx.db.query("rateLimits").collect()).map(({ name, key, value, ts }) => ({ name, key, value, ts })),
   );
-}
-
-function expectedResponseKeys(endpoint: AnalyticsDashboardRequest["endpoint"]): string[] {
-  const keys: Record<AnalyticsDashboardRequest["endpoint"], string[]> = {
-    overview: ["comparison", "current", "kind", "metadata"],
-    trends: ["granularity", "kind", "metadata", "metrics", "range", "series"],
-    milestones: ["current", "currentRates", "granularity", "kind", "metadata", "range", "series"],
-    health: ["current", "granularity", "kind", "metadata", "range", "series"],
-    organizations: ["kind", "metadata", "rows"],
-    organization: ["kind", "metadata", "organization", "series", "shops"],
-    shops: ["kind", "metadata", "rows"],
-    shop: ["kind", "metadata", "series", "shop"],
-    shopCycles: ["kind", "metadata", "rows", "shopId"],
-    cycle: ["cycle", "kind", "metadata"],
-    segments: ["kind", "metadata", "rows"],
-    requests: ["kind", "metadata", "pageInfo", "rows"],
-  };
-  return keys[endpoint];
 }
 
 describe("analyticsDashboard/httpActions", () => {
@@ -201,12 +184,11 @@ describe("analyticsDashboard/httpActions", () => {
     expect(await rateLimitRows(t)).toHaveLength(2);
   });
 
-  it("12種類のrequestを固定internal queryへdispatchし、公開DTOのkey集合を固定する", async () => {
+  it("固定されたread queryだけをdispatchし、集計未開始でも問い合わせを返す", async () => {
     const t = convexTest(schema, modules);
     const ids = await t.run(async (ctx) => {
       const shopId = await seedShop(ctx, "Analytics HTTP店舗");
-      const shop = await ctx.db.get(shopId);
-      if (!shop?.organizationId) throw new Error("organizationId is required");
+      const staffId = await seedStaff(ctx, { shopId, name: "HTTPスタッフ", email: "http-staff@example.com" });
       const recruitmentId = await ctx.db.insert("recruitments", {
         shopId,
         periodStart: "2026-08-01",
@@ -217,150 +199,67 @@ describe("analyticsDashboard/httpActions", () => {
         isDeleted: false,
         submissionPattern: { kind: "time", startTime: "09:00", endTime: "22:00" },
       });
-      return { organizationId: shop.organizationId, shopId, recruitmentId };
+      return { shopId, staffId, recruitmentId };
     });
-    const from = "2026-08-01";
-    const to = "2026-08-07";
-    const cases: Array<{ request: AnalyticsDashboardRequest; expected: Record<string, unknown> }> = [
-      {
-        request: {
-          endpoint: "overview",
-          from,
-          to,
-          compareFrom: null,
-          compareTo: null,
-          organizationId: null,
-          shopId: null,
-        },
-        expected: { kind: "overview" },
-      },
-      {
-        request: {
-          endpoint: "trends",
-          from,
-          to,
-          granularity: "day",
-          metrics: ["shopCount"],
-          organizationId: null,
-          shopId: null,
-        },
-        expected: { kind: "trends", range: { from, to }, granularity: "day", metrics: ["shopCount"] },
-      },
-      {
-        request: { endpoint: "milestones", from, to, granularity: "day", organizationId: null, shopId: null },
-        expected: { kind: "milestones", range: { from, to }, granularity: "day" },
-      },
-      {
-        request: { endpoint: "health", from, to, granularity: "day", organizationId: null, shopId: null },
-        expected: { kind: "health", range: { from, to }, granularity: "day" },
-      },
-      {
-        request: {
-          endpoint: "organizations",
-          from,
-          to,
-          cursor: null,
-          limit: 1,
-          sort: "registeredAt",
-          direction: "desc",
-          plan: "pro",
-          completeness: "complete",
-        },
-        expected: { kind: "organizations", metadata: { pageInfo: { cursor: null, pageSize: 1 } }, rows: [] },
-      },
-      {
-        request: {
-          endpoint: "organization",
-          organizationId: ids.organizationId,
-          from,
-          to,
-          granularity: "day",
-          cursor: null,
-          limit: 1,
-        },
-        expected: { kind: "organization", metadata: { pageInfo: { cursor: null, pageSize: 1 } } },
-      },
-      {
-        request: {
-          endpoint: "shops",
-          from,
-          to,
-          cursor: null,
-          limit: 1,
-          sort: "latestActivityAt",
-          direction: "desc",
-          organizationId: ids.organizationId,
-          plan: "standard",
-          shopSize: "50+",
-          cohort: "2026-08",
-          cadence: "weekly",
-          lineUsage: "high",
-          health: "needsAttention",
-          usage: "candidate",
-          completeness: "complete",
-        },
-        expected: { kind: "shops", metadata: { pageInfo: { cursor: null, pageSize: 1 } }, rows: [] },
-      },
-      {
-        request: { endpoint: "shop", shopId: ids.shopId, from, to, granularity: "day" },
-        expected: { kind: "shop" },
-      },
-      {
-        request: {
-          endpoint: "shopCycles",
-          shopId: ids.shopId,
-          from,
-          to,
-          cursor: null,
-          limit: 1,
-          sort: "periodStart",
-          direction: "desc",
-          completeness: "complete",
-        },
-        expected: {
-          kind: "shopCycles",
-          shopId: ids.shopId,
-          metadata: { pageInfo: { cursor: null, pageSize: 1 } },
-        },
-      },
-      {
-        request: { endpoint: "cycle", shopId: ids.shopId, recruitmentId: ids.recruitmentId },
-        expected: { kind: "cycle" },
-      },
-      {
-        request: {
-          endpoint: "segments",
-          from,
-          to,
-          cursor: null,
-          limit: 1,
-          sort: "dimension",
-          direction: "asc",
-          dimension: "plan",
-          completeness: "complete",
-        },
-        expected: { kind: "segments", metadata: { pageInfo: { cursor: null, pageSize: 1 } }, rows: [] },
-      },
-      {
-        request: { endpoint: "requests", cursor: null, limit: 1 },
-        expected: { kind: "requests", pageInfo: { cursor: null, pageSize: 1 } },
-      },
+    const cases: AnalyticsDashboardRequest[] = [
+      { endpoint: "overview", rangeDays: 7 },
+      { endpoint: "shops", cursor: null, limit: 1, search: "", date: null, metric: null },
+      { endpoint: "shop", shopId: ids.shopId, cursor: null, limit: 1 },
+      { endpoint: "staff", shopId: ids.shopId, staffId: ids.staffId, cursor: null, limit: 1 },
+      { endpoint: "cycle", shopId: ids.shopId, recruitmentId: ids.recruitmentId },
+      { endpoint: "requests", cursor: null, limit: 1 },
     ];
-
-    for (const { request, expected } of cases) {
+    for (const request of cases) {
       const response = await post(t, request);
-
       expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
       expect(response.headers.get("cache-control")).toBe("no-store");
       const body = (await response.json()) as Record<string, unknown>;
-      expect(body).toMatchObject(expected);
-      expect(Object.keys(body).sort()).toEqual(expectedResponseKeys(request.endpoint));
+      expect(body.kind).toBe(request.endpoint);
+      expect(body.asOf).toBe(Date.now());
+      if (request.endpoint !== "staff") expect(JSON.stringify(body)).not.toContain("http-staff@example.com");
     }
+  });
 
-    await expect(rateLimitRows(t)).resolves.toEqual([
-      { name: "analyticsDashboardService", key: "service", value: 108, ts: Date.now() },
+  it("要望更新は専用routeに限定し、本人credentialとbooleanを必須にする", async () => {
+    const t = convexTest(schema, modules);
+    const id = await t.run(
+      async (ctx) => await ctx.db.insert("featureRequests", { comment: "本文", requestId: "request" }),
+    );
+    const body = { endpoint: "setFeatureRequestDeleted", id, isDeleted: true };
+    const deniedRead = await post(t, body);
+    await expectJsonResponse(deniedRead, 400, { error: "invalid_request" });
+    const unauthorized = await t.fetch("/analytics-dashboard/mutation", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    await expectJsonResponse(unauthorized, 401, { error: "unauthorized" });
+    const unchanged = await t.run(async (ctx) => await ctx.db.get(id));
+    expect(unchanged?._id).toBe(id);
+    expect(unchanged).not.toHaveProperty("isDeleted");
+    const headers = { [SECRET_HEADER]: SERVICE_SECRET, "content-type": "application/json" };
+    const malformed = await t.fetch("/analytics-dashboard/mutation", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ ...body, isDeleted: "true" }),
+    });
+    await expectJsonResponse(malformed, 400, { error: "invalid_request" });
+    const success = await t.fetch("/analytics-dashboard/mutation", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    await expectJsonResponse(success, 200, { kind: "requestUpdated", id, isDeleted: true });
+    const read = await post(t, { endpoint: "requests", cursor: null, limit: 1 });
+    expect(((await read.json()) as { rows: Array<{ id: string; isDeleted: boolean }> }).rows).toMatchObject([
+      { id, isDeleted: true },
     ]);
+    const missing = await t.fetch("/analytics-dashboard/mutation", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ ...body, id: "missing" }),
+    });
+    await expectJsonResponse(missing, 404, { error: "not_found" });
   });
 
   it("schema上有効でも存在しないIDは内部情報を含まない404へ揃える", async () => {
@@ -369,9 +268,8 @@ describe("analyticsDashboard/httpActions", () => {
     const response = await post(t, {
       endpoint: "shop",
       shopId: "missing-shop",
-      from: "2026-08-01",
-      to: "2026-08-07",
-      granularity: "day",
+      cursor: null,
+      limit: 50,
     });
 
     await expectJsonResponse(response, 404, { error: "not_found" });

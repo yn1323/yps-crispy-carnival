@@ -2076,7 +2076,7 @@ describe("staff/mutations", () => {
           .withIndex("by_staffId_and_isDeleted", (q) => q.eq("staffId", staffId).eq("isDeleted", false))
           .collect(),
         scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
-        analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+        analytics: await ctx.db.query("analyticsShopDays").collect(),
       }));
       expect(state.sourceStaff?.isDeleted).toBe(true);
       expect(state.staff).toMatchObject({
@@ -2094,16 +2094,7 @@ describe("staff/mutations", () => {
       expect(state.provider).toMatchObject({ lineUserId: "U_retained_readd", following: false, isDeleted: false });
       expect(state.targetAccounts).toEqual([]);
       expect(state.scheduled.some((job) => job.name === "line/actions:sendInviteEmail")).toBe(false);
-      expect(state.analytics).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            payload: expect.objectContaining({
-              kind: "staffMembershipBatch",
-              memberships: [expect.objectContaining({ staffId, lineLinked: true, lineFollowing: false })],
-            }),
-          }),
-        ]),
-      );
+      expect(state.analytics).toEqual([]);
     });
 
     it("canonical LINEのgeneration不整合ではaddStaffsをrollbackし、LINE案内を予約しない", async () => {
@@ -2155,7 +2146,7 @@ describe("staff/mutations", () => {
           .collect(),
         lineAccounts: await ctx.db.query("staffLineAccounts").collect(),
         audits: await ctx.db.query("organizationAuditEvents").collect(),
-        analytics: await ctx.db.query("analyticsSourceEvents").collect(),
+        analytics: await ctx.db.query("analyticsShopDays").collect(),
         scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
       }));
       expect(state.sourceStaff).toMatchObject({ _id: seeded.sourceStaffId, isDeleted: false });
@@ -3537,7 +3528,7 @@ describe("staff/mutations", () => {
       ).resolves.toEqual(expected);
       const readEffects = async () =>
         await t.run(async (ctx) => ({
-          analyticsIds: (await ctx.db.query("analyticsSourceEvents").collect()).map((event) => event._id).sort(),
+          analyticsIds: (await ctx.db.query("analyticsShopDays").collect()).map((event) => event._id).sort(),
           auditActions: (await ctx.db.query("organizationAuditEvents").collect()).map((audit) => audit.action).sort(),
           auditIds: (await ctx.db.query("organizationAuditEvents").collect()).map((audit) => audit._id).sort(),
           rateLimits: (await ctx.db.query("rateLimits").collect())
@@ -3556,7 +3547,7 @@ describe("staff/mutations", () => {
         }));
       const afterFirst = await readEffects();
       expect(afterFirst).toEqual({
-        analyticsIds: [expect.any(String)],
+        analyticsIds: [],
         auditActions: ["organization.shop_staff_memberships_changed", "organization.staff_added"],
         auditIds: [expect.any(String), expect.any(String)].sort(),
         rateLimits: [
@@ -4137,81 +4128,6 @@ describe("staff/mutations", () => {
   }
 
   describe("setShiftExclusion", () => {
-    it("同じ時刻の対象外化と復帰を別の分析source eventとして記録する", async () => {
-      const occurredAt = Date.parse("2026-08-02T00:00:00.000Z");
-      vi.stubEnv("ANALYTICS_SOURCE_CAPTURE_START_AT", "");
-      vi.useFakeTimers();
-      vi.setSystemTime(occurredAt);
-
-      try {
-        const t = convexTest(schema, modules);
-        const { personId, shopId, staffId } = await t.run(async (ctx) => {
-          const seeded = await seedOrganizationManagerShop(ctx, {
-            subject: "analytics_shift_target_manager",
-            email: "analytics-shift-target@example.com",
-            shopName: "分析対象店舗",
-            plan: "standard",
-          });
-          const staffId = await ctx.db.insert("staffs", {
-            organizationId: seeded.organizationId,
-            organizationPersonId: seeded.personId,
-            shopId: seeded.shopId,
-            userId: seeded.userId,
-            name: "分析対象スタッフ",
-            email: "analytics-shift-target@example.com",
-            emailNormalized: "analytics-shift-target@example.com",
-            excludedFromShift: false,
-            isDeleted: false,
-          });
-          return { personId: seeded.personId, shopId: seeded.shopId, staffId };
-        });
-        const asManager = t.withIdentity({ subject: "analytics_shift_target_manager" });
-
-        await asManager.mutation(api.staff.mutations.setShiftExclusion, {
-          expectedOrganizationId: await getTestOrganizationId(t, shopId),
-          shopId,
-          staffId,
-          excluded: true,
-        });
-        await asManager.mutation(api.staff.mutations.setShiftExclusion, {
-          expectedOrganizationId: await getTestOrganizationId(t, shopId),
-          shopId,
-          staffId,
-          excluded: false,
-        });
-
-        const events = await t.run(async (ctx) =>
-          ctx.db
-            .query("analyticsSourceEvents")
-            .withIndex("by_shopId_and_occurredAt", (q) => q.eq("shopId", shopId))
-            .collect(),
-        );
-        expect(events).toHaveLength(2);
-        expect(new Set(events.map((event) => event.eventKey)).size).toBe(2);
-        expect(events.map((event) => event.payload)).toEqual([
-          {
-            kind: "staffMembership",
-            staffId,
-            organizationPersonId: personId,
-            status: "active",
-            isShiftTarget: false,
-            validFrom: occurredAt,
-          },
-          {
-            kind: "staffMembership",
-            staffId,
-            organizationPersonId: personId,
-            status: "active",
-            isShiftTarget: true,
-            validFrom: occurredAt,
-          },
-        ]);
-      } finally {
-        vi.unstubAllEnvs();
-        vi.useRealTimers();
-      }
-    });
-
     it("未認証の場合エラーをthrow", async () => {
       const { t, data } = setupShopWithStaff();
       const { shopId, staffId } = await data;

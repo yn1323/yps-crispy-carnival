@@ -5,22 +5,18 @@ import {
   consumeServiceRequestRef,
   getCycleRef,
   getFeatureRequestsRef,
-  getHealthRef,
-  getMilestonesRef,
-  getOrganizationRef,
-  getOrganizationsRef,
   getOverviewRef,
-  getSegmentsRef,
-  getShopCyclesRef,
   getShopRef,
   getShopsRef,
-  getTrendsRef,
+  getStaffRef,
+  setFeatureRequestDeletedRef,
 } from "./refs";
 import {
   ANALYTICS_DASHBOARD_MAX_BODY_BYTES,
   ANALYTICS_DASHBOARD_MAX_RESPONSE_BYTES,
   type AnalyticsDashboardRequest,
   parseAnalyticsDashboardRequest,
+  parseFeatureRequestUpdate,
 } from "./schemas";
 
 const SECRET_HEADER = "x-shiftori-internal-api-secret";
@@ -83,122 +79,37 @@ async function dispatchQuery(
   ctx: Pick<ActionCtx, "runQuery">,
   input: AnalyticsDashboardRequest,
 ): Promise<unknown | null> {
+  const asOf = Date.now();
   switch (input.endpoint) {
     case "overview":
-      return await ctx.runQuery(getOverviewRef, {
-        from: input.from,
-        to: input.to,
-        compareFrom: input.compareFrom,
-        compareTo: input.compareTo,
-        organizationId: input.organizationId,
-        shopId: input.shopId,
-      });
-    case "trends":
-      return await ctx.runQuery(getTrendsRef, {
-        from: input.from,
-        to: input.to,
-        granularity: input.granularity,
-        metrics: input.metrics,
-        organizationId: input.organizationId,
-        shopId: input.shopId,
-      });
-    case "milestones":
-      return await ctx.runQuery(getMilestonesRef, {
-        from: input.from,
-        to: input.to,
-        granularity: input.granularity,
-        organizationId: input.organizationId,
-        shopId: input.shopId,
-      });
-    case "health":
-      return await ctx.runQuery(getHealthRef, {
-        from: input.from,
-        to: input.to,
-        granularity: input.granularity,
-        organizationId: input.organizationId,
-        shopId: input.shopId,
-      });
-    case "organizations":
-      return await ctx.runQuery(getOrganizationsRef, {
-        from: input.from,
-        to: input.to,
-        cursor: input.cursor,
-        limit: input.limit,
-        sort: input.sort,
-        direction: input.direction,
-        plan: input.plan,
-        completeness: input.completeness,
-      });
-    case "organization":
-      return await ctx.runQuery(getOrganizationRef, {
-        organizationId: input.organizationId,
-        from: input.from,
-        to: input.to,
-        granularity: input.granularity,
-        cursor: input.cursor,
-        limit: input.limit,
-      });
+      return await ctx.runQuery(getOverviewRef, { rangeDays: input.rangeDays, asOf });
     case "shops":
       return await ctx.runQuery(getShopsRef, {
-        from: input.from,
-        to: input.to,
         cursor: input.cursor,
         limit: input.limit,
-        sort: input.sort,
-        direction: input.direction,
-        organizationId: input.organizationId,
-        plan: input.plan,
-        shopSize: input.shopSize,
-        cohort: input.cohort,
-        cadence: input.cadence,
-        lineUsage: input.lineUsage,
-        health: input.health,
-        usage: input.usage,
-        completeness: input.completeness,
+        search: input.search,
+        date: input.date,
+        metric: input.metric,
+        asOf,
       });
     case "shop":
-      return await ctx.runQuery(getShopRef, {
+      return await ctx.runQuery(getShopRef, { shopId: input.shopId, cursor: input.cursor, limit: input.limit, asOf });
+    case "staff":
+      return await ctx.runQuery(getStaffRef, {
         shopId: input.shopId,
-        from: input.from,
-        to: input.to,
-        granularity: input.granularity,
-      });
-    case "shopCycles":
-      return await ctx.runQuery(getShopCyclesRef, {
-        shopId: input.shopId,
-        from: input.from,
-        to: input.to,
+        staffId: input.staffId,
         cursor: input.cursor,
         limit: input.limit,
-        sort: input.sort,
-        direction: input.direction,
-        completeness: input.completeness,
+        asOf,
       });
     case "cycle":
-      return await ctx.runQuery(getCycleRef, {
-        shopId: input.shopId,
-        recruitmentId: input.recruitmentId,
-      });
-    case "segments":
-      return await ctx.runQuery(getSegmentsRef, {
-        from: input.from,
-        to: input.to,
-        cursor: input.cursor,
-        limit: input.limit,
-        sort: input.sort,
-        direction: input.direction,
-        dimension: input.dimension,
-        completeness: input.completeness,
-      });
+      return await ctx.runQuery(getCycleRef, { shopId: input.shopId, recruitmentId: input.recruitmentId, asOf });
     case "requests":
-      return await ctx.runQuery(getFeatureRequestsRef, {
-        cursor: input.cursor,
-        limit: input.limit,
-      });
+      return await ctx.runQuery(getFeatureRequestsRef, { cursor: input.cursor, limit: input.limit, asOf });
   }
 }
 
-export const query = httpAction(async (ctx, request) => {
+async function handleRequest(ctx: ActionCtx, request: Request, mode: "query" | "mutation"): Promise<Response> {
   if (request.method !== "POST") {
     return jsonResponse({ error: "invalid_request" }, { status: 405, headers: { allow: "POST" } });
   }
@@ -240,11 +151,14 @@ export const query = httpAction(async (ctx, request) => {
     return jsonResponse({ error: "invalid_request" }, { status: 400 });
   }
 
-  const parsed = parseAnalyticsDashboardRequest(value);
+  const parsed = mode === "query" ? parseAnalyticsDashboardRequest(value) : parseFeatureRequestUpdate(value);
   if (!parsed.ok) return jsonResponse({ error: "invalid_request" }, { status: 400 });
 
   try {
-    const result = await dispatchQuery(ctx, parsed.value);
+    const result =
+      parsed.value.endpoint === "setFeatureRequestDeleted"
+        ? await ctx.runMutation(setFeatureRequestDeletedRef, { id: parsed.value.id, isDeleted: parsed.value.isDeleted })
+        : await dispatchQuery(ctx, parsed.value);
     if (result === null) return notFoundResponse();
     return boundedJsonResponse(result);
   } catch {
@@ -255,4 +169,7 @@ export const query = httpAction(async (ctx, request) => {
     });
     return jsonResponse({ error: "service_unavailable" }, { status: 503 });
   }
-});
+}
+
+export const query = httpAction(async (ctx, request) => await handleRequest(ctx, request, "query"));
+export const mutation = httpAction(async (ctx, request) => await handleRequest(ctx, request, "mutation"));

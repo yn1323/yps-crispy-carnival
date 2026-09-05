@@ -30,11 +30,6 @@ import type { DataModel } from "./dataModel.js";
 type Env = {
   readonly CONVEX_CLOUD_URL: string;
   readonly CONVEX_SITE_URL: string;
-  readonly ANALYTICS_DEPLOYMENT_LABEL: string | undefined;
-  readonly ANALYTICS_EXPECTED_REVISION: string | undefined;
-  readonly ANALYTICS_NIGHTLY_CRON_ENABLED: string | undefined;
-  readonly ANALYTICS_RESET_ENABLED_UNTIL: string | undefined;
-  readonly ANALYTICS_SOURCE_CAPTURE_START_AT: string | undefined;
   readonly APP_URL: string | undefined;
   readonly CLERK_JWT_ISSUER_DOMAIN: string | undefined;
   readonly CLERK_SECRET_KEY: string | undefined;

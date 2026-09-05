@@ -57,7 +57,7 @@ describe("要望受付シナリオ", () => {
       shopId: seeded.shopId,
     });
 
-    const result = await t.query(getFeatureRequestsRef, { cursor: null, limit: 50 });
+    const result = await t.query(getFeatureRequestsRef, { cursor: null, limit: 50, asOf: Date.now() });
     expect(result.rows).toHaveLength(1);
     expect(result.rows[0]).toMatchObject({
       shopId: seeded.shopId,
@@ -87,7 +87,7 @@ describe("要望受付シナリオ", () => {
       requestId,
     });
 
-    const result = await t.query(getFeatureRequestsRef, { cursor: null, limit: 50 });
+    const result = await t.query(getFeatureRequestsRef, { cursor: null, limit: 50, asOf: Date.now() });
     expect(result.rows).toHaveLength(1);
     expect(result.rows[0]).toMatchObject({
       targetKind: "organization",

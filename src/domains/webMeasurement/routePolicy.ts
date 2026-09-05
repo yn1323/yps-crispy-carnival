@@ -20,6 +20,7 @@ export const webMeasurementRouteFamilies = [
   "shop_detail",
   "shift_management",
   "shiftboard",
+  "shift_export",
   "staff_management",
   "staff_detail",
   "staff_shop",
@@ -44,6 +45,7 @@ const fixedRouteFamilies = new Map<string, WebMeasurementRouteFamily>([
   ["/features", "features"],
   ["/forgot-password", "auth"],
   ["/help", "help_index"],
+  ["/help/basics/notifications", "help_guide"],
   ["/help/basics/organization-structure", "help_guide"],
   ["/help/scenarios/shift-management", "help_guide"],
   ["/legal/staff/consent", "capability"],
@@ -72,7 +74,7 @@ export function normalizeMeasurementPathname(value: string): string {
 }
 
 export function getWebMeasurementRouteFamily(value: string): WebMeasurementRouteFamily {
-  const pathname = normalizeMeasurementPathname(value);
+  const pathname = normalizeMeasurementPathname(value).toLowerCase();
   const fixedFamily = fixedRouteFamilies.get(pathname);
   if (fixedFamily) return fixedFamily;
 
@@ -87,6 +89,9 @@ export function getWebMeasurementRouteFamily(value: string): WebMeasurementRoute
   }
   if (/^\/help\/[^/]+$/.test(pathname)) {
     return "help_guide";
+  }
+  if (/^\/shifts\/[^/]+\/export$/.test(pathname)) {
+    return "shift_export";
   }
 
   const appPathname = pathname.startsWith("/app/") ? pathname.slice(4) : pathname;

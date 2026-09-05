@@ -166,13 +166,26 @@ export async function verifyShopLifecycleReadinessExport(exportPath: string) {
   const zipEntries = exportStat.isDirectory() ? undefined : await readZipEntries(exportPath);
   const metadata = await readExportTable(exportPath, "_tables", zipEntries);
   const names = new Set(metadata.map((row, index) => requireString(row, "name", "_tables", index + 1)));
-  const requiredTables = ["shops", "organizationAuditEvents", "analyticsSourceEvents"] as const;
+  const requiredTables = ["shops", "organizationAuditEvents"] as const;
   for (const table of requiredTables) {
     if (!names.has(table)) throw new Error(`${table} is not listed in _tables/documents.jsonl`);
   }
-  const [shops, organizationAuditEvents, analyticsSourceEvents] = await Promise.all(
+  const [shops, organizationAuditEvents] = await Promise.all(
     requiredTables.map(async (table) => await readExportTable(exportPath, table, zipEntries)),
   );
+  const hasCurrentAnalyticsSchema = [
+    "analyticsState",
+    "analyticsShopDays",
+    "analyticsCycleEvidence",
+    "analyticsDailyResults",
+  ].every((table) => names.has(table));
+  if (!names.has("analyticsSourceEvents") && !hasCurrentAnalyticsSchema) {
+    throw new Error("analyticsSourceEvents is not listed in _tables/documents.jsonl");
+  }
+  // 旧exportの検査は維持し、4tableへ置換済みのexportだけ旧source tableの不在を許可する。
+  const analyticsSourceEvents = names.has("analyticsSourceEvents")
+    ? await readExportTable(exportPath, "analyticsSourceEvents", zipEntries)
+    : [];
   return verifyShopLifecycleReadiness({ shops, organizationAuditEvents, analyticsSourceEvents });
 }
 

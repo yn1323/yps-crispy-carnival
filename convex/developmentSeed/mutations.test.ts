@@ -135,7 +135,7 @@ describe("development seed internal mutations", () => {
     configureDevelopmentSeed();
 
     await expect(t.mutation(preflightRef, {})).resolves.toEqual({
-      contractVersion: "development-seed-v4",
+      contractVersion: "development-seed-v5",
       contractFingerprint: DEVELOPMENT_SEED_CONTRACT_FINGERPRINT,
       deploymentUrl: "https://seed-development.convex.cloud",
       today: "2026-08-20",
@@ -150,7 +150,7 @@ describe("development seed internal mutations", () => {
         "free-over-limit",
         "trial-daily",
       ],
-      tableCount: 66,
+      tableCount: 57,
     });
   });
 

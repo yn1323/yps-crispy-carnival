@@ -17,8 +17,8 @@ export const DEVELOPMENT_SEED_SCENARIO_KEYS = [
   "trial-daily",
 ] as const;
 
-export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v4";
-export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 66;
+export const DEVELOPMENT_SEED_CONTRACT_VERSION = "development-seed-v5";
+export const DEVELOPMENT_SEED_EXPECTED_TABLE_COUNT = 57;
 
 export type DevelopmentSeedScenarioKey = (typeof DEVELOPMENT_SEED_SCENARIO_KEYS)[number];
 
@@ -359,19 +359,10 @@ export const DEVELOPMENT_SEED_TABLE_COVERAGE = {
   notificationDeliveryEvents: seeded(PRO_NOTIFICATIONS),
   notificationFailureInbox: seeded(PRO_NOTIFICATIONS),
   notificationUsage: empty("seed通知は実送信ではないため集計しない"),
-  analyticsRuns: empty("nightly analytics workflowを作らない"),
-  analyticsSourceEvents: empty("seed操作をproduct eventとして扱わない"),
-  analyticsOrganizations: empty("derived analyticsはnightly処理が所有する"),
-  analyticsShops: empty("derived analyticsはnightly処理が所有する"),
-  analyticsPeople: empty("derived analyticsはnightly処理が所有する"),
-  analyticsMemberships: empty("derived analyticsはnightly処理が所有する"),
-  analyticsShiftCycles: empty("derived analyticsはnightly処理が所有する"),
-  analyticsShiftCycleOpportunities: empty("derived analyticsはnightly処理が所有する"),
-  analyticsDailyServiceKpis: empty("derived analyticsはnightly処理が所有する"),
-  analyticsDailyNotificationKpis: empty("derived analyticsはnightly処理が所有する"),
-  analyticsDailyOrganizationKpis: empty("derived analyticsはnightly処理が所有する"),
-  analyticsDailyShopKpis: empty("derived analyticsはnightly処理が所有する"),
-  analyticsDailySegmentKpis: empty("derived analyticsはnightly処理が所有する"),
+  analyticsState: empty("seed操作で計測開始を作らない"),
+  analyticsShopDays: empty("seed操作を利用実績として扱わない"),
+  analyticsCycleEvidence: empty("seed操作を募集の観測実績として扱わない"),
+  analyticsDailyResults: empty("日次集計が所有する"),
   legalConsentTokens: empty("実credentialとなる同意tokenを作らない"),
   legalConsentEvents: seeded(OPERATIONS),
 } satisfies Record<TableNames, CoverageDisposition>;

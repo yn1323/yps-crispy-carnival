@@ -60,6 +60,7 @@ overrides:
   yaml@1.10.2: 1.10.3
 
 patchedDependencies:
+  '@storycap-testrun/browser@2.1.1': 75028930afa3e03060aa3fe196789bd333ddcb0cb6d823c4294ebd899ccc54de
   '@tanstack/react-router@1.170.25': 017de7c936a16bbe136153297f25a54d34cec8a53a0b5a3967ef683ad9849b30
 
 importers:
@@ -186,7 +187,7 @@ importers:
         version: 10.5.3(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(@typescript/typescript6@6.0.2)(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rollup@4.59.0)(storybook@10.5.3(@types/react@19.2.17)(prettier@3.6.2)(react@19.2.7))(supports-color@10.2.2)(vite@8.1.5(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
       '@storycap-testrun/browser':
         specifier: ^2.1.1
-        version: 2.1.1(@vitest/browser-playwright@4.1.10)
+        version: 2.1.1(patch_hash=75028930afa3e03060aa3fe196789bd333ddcb0cb6d823c4294ebd899ccc54de)(@vitest/browser-playwright@4.1.10)
       '@tanstack/react-devtools':
         specifier: 0.10.12
         version: 0.10.12(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(solid-js@1.9.9)
@@ -8506,7 +8507,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@storycap-testrun/browser@2.1.1(@vitest/browser-playwright@4.1.10)':
+  '@storycap-testrun/browser@2.1.1(patch_hash=75028930afa3e03060aa3fe196789bd333ddcb0cb6d823c4294ebd899ccc54de)(@vitest/browser-playwright@4.1.10)':
     dependencies:
       '@storycap-testrun/internal': 2.1.1
       '@vitest/browser-playwright': 4.1.10(playwright@1.61.1)(vite@8.1.5(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(vitest@4.1.10)

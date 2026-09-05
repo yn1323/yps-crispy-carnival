@@ -26,7 +26,7 @@ const setupArgs = {
 describe("setup/mutations", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.stubEnv("ANALYTICS_SOURCE_CAPTURE_START_AT", "");
+
     vi.stubEnv("PROMOTION_COMPLIMENTARY_PRO_CODE", "");
   });
   afterEach(() => {
@@ -609,7 +609,7 @@ describe("setup/mutations", () => {
             .query("organizationAuditEvents")
             .withIndex("by_organizationId_and_occurredAt", (q) => q.eq("organizationId", organizationId))
             .collect(),
-          analyticsEvents: await ctx.db.query("analyticsSourceEvents").collect(),
+          analyticsDays: await ctx.db.query("analyticsShopDays").collect(),
           scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
           stripeCustomers: await ctx.db.query("organizationStripeCustomers").collect(),
           stripeSubscriptions: await ctx.db.query("organizationStripeSubscriptions").collect(),
@@ -634,8 +634,8 @@ describe("setup/mutations", () => {
       expect(state.audits.map(({ action, toState }) => ({ action, toState }))).toEqual([
         { action: "organization.created", toState: "complimentary.pro" },
       ]);
-      expect(state.analyticsEvents.map((event) => event.payload)).toEqual([
-        expect.objectContaining({ kind: "organization", change: "created", currentPlan: "pro" }),
+      expect(state.analyticsDays).toEqual([
+        expect.objectContaining({ shopId, registered: true, submitted: false, confirmed: false }),
       ]);
       expect(JSON.stringify(state)).not.toContain("A1B2C3");
       expect(JSON.stringify(state)).not.toContain("a1b2c3");
@@ -671,7 +671,7 @@ describe("setup/mutations", () => {
         legalStates: await ctx.db.query("legalConsentStates").collect(),
         legalEvents: await ctx.db.query("legalConsentEvents").collect(),
         audits: await ctx.db.query("organizationAuditEvents").collect(),
-        analyticsEvents: await ctx.db.query("analyticsSourceEvents").collect(),
+        analyticsDays: await ctx.db.query("analyticsShopDays").collect(),
         scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
       }));
       expect(state).toEqual({
@@ -686,7 +686,7 @@ describe("setup/mutations", () => {
         legalStates: [],
         legalEvents: [],
         audits: [],
-        analyticsEvents: [],
+        analyticsDays: [],
         scheduled: [],
       });
     });
@@ -875,7 +875,7 @@ describe("setup/mutations", () => {
           staffs: await ctx.db.query("staffs").collect(),
           billingStates: await ctx.db.query("organizationBillingStates").collect(),
           audits: await ctx.db.query("organizationAuditEvents").collect(),
-          analyticsEvents: await ctx.db.query("analyticsSourceEvents").collect(),
+          analyticsDays: await ctx.db.query("analyticsShopDays").collect(),
           legalConsents: await ctx.db.query("legalConsentStates").collect(),
           positions: await ctx.db.query("positions").collect(),
           scheduled: await ctx.db.system.query("_scheduled_functions").collect(),
@@ -1183,7 +1183,7 @@ describe("setup/mutations", () => {
           staffs: await ctx.db.query("staffs").collect(),
           billingStates: await ctx.db.query("organizationBillingStates").collect(),
           audits: await ctx.db.query("organizationAuditEvents").collect(),
-          analyticsEvents: await ctx.db.query("analyticsSourceEvents").collect(),
+          analyticsDays: await ctx.db.query("analyticsShopDays").collect(),
           legalConsents: await ctx.db.query("legalConsentStates").collect(),
           positions: await ctx.db.query("positions").collect(),
           outbox: await ctx.db.query("notificationOutbox").collect(),

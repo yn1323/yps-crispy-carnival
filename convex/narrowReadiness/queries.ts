@@ -101,42 +101,6 @@ export const verifyOrganizationAuditShopLifecycle = internalQuery({
   },
 });
 
-/** 店舗archive廃止前に、旧analytics payloadの残件をPIIやrow IDなしで数える。 */
-export const verifyAnalyticsShopLifecycle = internalQuery({
-  args: { paginationOpts: paginationOptsValidator },
-  returns: v.object({
-    ...pageMetadataValidator,
-    anomalies: v.object({
-      shopArchivedChanges: v.number(),
-      shopReactivatedChanges: v.number(),
-      shopStatusDeltas: v.number(),
-    }),
-  }),
-  handler: async (ctx, { paginationOpts }) => {
-    requireBoundedPagination(paginationOpts);
-    const result = await ctx.db.query("analyticsSourceEvents").paginate(paginationOpts);
-    let shopArchivedChanges = 0;
-    let shopReactivatedChanges = 0;
-    let shopStatusDeltas = 0;
-    for (const event of result.page) {
-      const payload = event.payload as unknown;
-      if (!payload || typeof payload !== "object") continue;
-      const legacyPayload = payload as { kind?: unknown; change?: unknown; statusDeltas?: unknown };
-      if (legacyPayload.kind === "shop" && legacyPayload.change === "archived") shopArchivedChanges += 1;
-      if (legacyPayload.kind === "shop" && legacyPayload.change === "reactivated") shopReactivatedChanges += 1;
-      if (legacyPayload.kind !== "plan" || !Array.isArray(legacyPayload.statusDeltas)) continue;
-      shopStatusDeltas += legacyPayload.statusDeltas.filter((delta) => {
-        if (!delta || typeof delta !== "object") return false;
-        return (delta as { kind?: unknown }).kind === "shop";
-      }).length;
-    }
-    return {
-      ...pageMetadata(result),
-      anomalies: { shopArchivedChanges, shopReactivatedChanges, shopStatusDeltas },
-    };
-  },
-});
-
 /** usersの派生メールと、廃止候補roleをPIIなしの件数だけで確認する。 */
 export const verifyUsers = internalQuery({
   args: { paginationOpts: paginationOptsValidator },

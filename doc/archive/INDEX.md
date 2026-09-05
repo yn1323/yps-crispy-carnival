@@ -10,6 +10,14 @@ Archiveには、廃止、置換、棄却された資料と特定時点の監査�
 | [店舗単位課金プランの旧検討](features/billing-plans.md) | `doc/features/billing-plans.md` | `superseded` | 2026-07-23 | [グループ課金、複数店舗、複数管理者](../features/organization-billing.md)、[業務フロー](../specs/organization-billing-business-flow.md) |
 | [店舗単位の請求管理者ロールに関する旧検討](features/manager-billing-roles.md) | `doc/features/manager-billing-roles.md` | `superseded` | 2026-07-23 | [グループ課金、複数店舗、複数管理者](../features/organization-billing.md)、[業務フロー](../specs/organization-billing-business-flow.md) |
 
+| [分析KPI蓄積基盤（convex/analytics/）設計書](plans/2026-07-04_分析KPI蓄積基盤_設計.md) | `doc/plans/2026-07-04_分析KPI蓄積基盤_設計.md` | `superseded` | 2026-09-05 | [日次利用指標](../features/analytics.md)、[内部BI](../features/analytics-dashboard.md) |
+| [分析KPI可視化アプリ設計](plans/2026-07-05_分析KPI可視化アプリ_設計.md) | `doc/plans/2026-07-05_分析KPI可視化アプリ_設計.md` | `superseded` | 2026-09-05 | [日次利用指標](../features/analytics.md)、[内部BI](../features/analytics-dashboard.md) |
+| [分析KPIと内部BI再設計 実装計画](plans/2026-08-02_分析KPIと内部BI再設計_実装計画.md) | `doc/plans/2026-08-02_分析KPIと内部BI再設計_実装計画.md` | `superseded` | 2026-09-05 | [日次利用指標](../features/analytics.md)、[内部BI](../features/analytics-dashboard.md) |
+| [Analytics画面情報設計改善 実装計画](plans/2026-08-03_Analytics画面情報設計改善_実装計画.md) | `doc/plans/2026-08-03_Analytics画面情報設計改善_実装計画.md` | `superseded` | 2026-09-05 | [日次利用指標](../features/analytics.md)、[内部BI](../features/analytics-dashboard.md) |
+| [Analytics夜間バッチ簡素化 実装計画](plans/2026-08-08_Analytics夜間バッチ簡素化_実装計画.md) | `doc/plans/2026-08-08_Analytics夜間バッチ簡素化_実装計画.md` | `superseded` | 2026-09-05 | [日次利用指標](../features/analytics.md)、[内部BI](../features/analytics-dashboard.md) |
+| [Analytics利用候補店舗 実装計画](plans/2026-08-12_Analytics利用候補店舗_実装計画.md) | `doc/plans/2026-08-12_Analytics利用候補店舗_実装計画.md` | `superseded` | 2026-09-05 | [日次利用指標](../features/analytics.md)、[内部BI](../features/analytics-dashboard.md) |
+| [Analyticsの旧reset運用](manual/2026-08-08_analytics-reset-rollout.md) | `doc/manual/analytics-rollout.md` | `superseded` | 2026-09-05 | [Analytics運用](../manual/analytics-rollout.md) |
+
 ## 時点監査
 
 | 資料 | 元のパス | 理由 | Archive日 | 現在の確認先 |

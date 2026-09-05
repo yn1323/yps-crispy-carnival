@@ -10,7 +10,6 @@ import { checkRateLimit, rateLimit } from "../_lib/rateLimits";
 import { sha256Hex } from "../_lib/sha256";
 import { isShopAvailable } from "../_lib/shopAvailability";
 import { normalizeEmail } from "../_lib/validation";
-import { recordAnalyticsSourceEvent } from "../analytics/sourceEvents";
 import {
   CURRENT_SHIFT_NOTIFICATION_LIMIT,
   ORGANIZATION_PERSON_REMOVAL_ASSIGNMENT_LIMIT,
@@ -495,31 +494,6 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
       toState: `active:${ctx.shop._id}:batch:${inserted.length}`,
       correlationId: `${correlationBase}:staff:${index}`,
       occurredAt: now,
-      ...(index === 0
-        ? {
-            analyticsEvent: {
-              eventType: "staffMembership.changed" as const,
-              shopId: ctx.shop._id,
-              payload: {
-                kind: "staffMembershipBatch" as const,
-                memberships: inserted.map((insertedStaffId, insertedIndex) => {
-                  const insertedEntry = staffEntries[insertedIndex];
-                  if (!insertedEntry) throw new ConvexError("スタッフの追加結果を確認できません。");
-                  const lineState = lineStates[insertedIndex];
-                  return {
-                    staffId: insertedStaffId,
-                    organizationPersonId: insertedEntry.organizationPersonId,
-                    personFirstObservedAt: now,
-                    isShiftTarget: true,
-                    validFrom: now,
-                    lineLinked: lineState !== null && lineState.status !== "unlinked",
-                    lineFollowing: lineState?.status === "linked_following",
-                  };
-                }),
-              },
-            },
-          }
-        : {}),
     });
     if (entry.reactivatedPersonId) {
       await recordOrganizationAuditEvent(ctx, {
@@ -533,7 +507,6 @@ async function addStaffEntries(ctx: ManagerStaffMutationCtx, args: AddStaffEntri
         toState: "active",
         correlationId: `${correlationBase}:person:${entry.reactivatedPersonId}`,
         occurredAt: now,
-        suppressAnalyticsEvent: true,
       });
     }
   }
@@ -912,7 +885,6 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
         fromState: shopMembershipChangeReceiptIntentState(intentHash),
         toState: shopMembershipChangeReceiptResultState(result),
         correlationId,
-        suppressAnalyticsEvent: true,
       });
       return result;
     }
@@ -941,22 +913,6 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
         toState: `removed:${membership.shop._id}`,
         correlationId: `${correlationId}:remove:${membership.staff._id}`,
         occurredAt: now,
-        analyticsEvent: {
-          eventType: "staffMembership.changed",
-          shopId: membership.shop._id,
-          subjectId: membership.staff._id,
-          payload: {
-            kind: "staffMembership",
-            staffId: membership.staff._id,
-            organizationPersonId: person._id,
-            status: "removed",
-            isShiftTarget: !membership.staff.excludedFromShift,
-            validFrom: now,
-            validTo: now,
-            lineLinked: false,
-            lineFollowing: false,
-          },
-        },
       });
     }
 
@@ -1005,7 +961,6 @@ export const changeOrganizationPersonShopMemberships = managerMutation({
       toState: shopMembershipChangeReceiptResultState(result),
       correlationId,
       occurredAt: now,
-      suppressAnalyticsEvent: true,
     });
     return result;
   },
@@ -1313,7 +1268,6 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
         fromState: shopStaffMembershipChangeReceiptIntentState(intentHash),
         toState: shopStaffMembershipChangeReceiptResultState(result),
         correlationId,
-        suppressAnalyticsEvent: true,
       });
       return result;
     }
@@ -1354,22 +1308,6 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
         toState: `removed:${ctx.shop._id}`,
         correlationId: `${correlationId}:remove:${staff._id}`,
         occurredAt: now,
-        analyticsEvent: {
-          eventType: "staffMembership.changed",
-          shopId: ctx.shop._id,
-          subjectId: staff._id,
-          payload: {
-            kind: "staffMembership",
-            staffId: staff._id,
-            organizationPersonId: entry.person._id,
-            status: "removed",
-            isShiftTarget: !staff.excludedFromShift,
-            validFrom: now,
-            validTo: now,
-            lineLinked: false,
-            lineFollowing: false,
-          },
-        },
       });
     }
 
@@ -1429,7 +1367,6 @@ export const changeOrganizationShopStaffMemberships = managerMutation({
       toState: shopStaffMembershipChangeReceiptResultState(result),
       correlationId,
       occurredAt: now,
-      suppressAnalyticsEvent: true,
     });
     return result;
   },
@@ -1598,26 +1535,9 @@ export const setShiftExclusion = managerMutation({
     ) {
       throw new ConvexError("Not found");
     }
-    const { staff } = canonicalScope;
     // 削除と異なり、管理者（店舗共通アドレス本人）もシフト対象外にできる（主ユースケース）。
     const now = Date.now();
     await ctx.db.patch(args.staffId, { excludedFromShift: args.excluded });
-    await recordAnalyticsSourceEvent(ctx, {
-      eventKey: `staffMembership:${staff._id}:shiftTarget:${crypto.randomUUID()}`,
-      eventType: "staffMembership.changed",
-      occurredAt: now,
-      organizationId: staff.organizationId,
-      shopId: staff.shopId,
-      subjectId: staff._id,
-      payload: {
-        kind: "staffMembership",
-        staffId: staff._id,
-        organizationPersonId: staff.organizationPersonId,
-        status: "active",
-        isShiftTarget: !args.excluded,
-        validFrom: now,
-      },
-    });
 
     // 対象外にする場合は、発行済みのシフト用セッション・マジックリンクを失効させ、
     // 古いリンクでのシフト閲覧・希望シフト提出を即座に遮断する（LINE連携は他通知で使うため残す）。

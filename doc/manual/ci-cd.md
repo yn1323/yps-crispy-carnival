@@ -82,6 +82,11 @@ PRではマージ先のbaselineと比較し、`develop`から`main`へのPRは`m
 基準画像はPRの承認時には更新せず、`develop`／`main`へのpushで正常に撮影できた全画像を使って更新する。
 差分がある場合は既存の`vrt-approval`を待機させ、公開レポートまたはArtifactで差分を確認してから承認する。
 
+Story間の通知はStorybook共通の開始・終了処理で破棄し、操作中に表示する通知はそのStory内で検証する。
+非同期デコードを使うHero画像は、Storyのplayでデコード完了を待ってから撮影する。
+撮影時はブラウザ本体とStoryのiframeを同じviewportに揃える。
+全ページ撮影の末尾が重複する問題には、`@storycap-testrun/browser`のpnpm patchで実際のスクロール位置に応じた撮影範囲の補正を適用している。依存更新でpatchを外す際は、viewportを超える高さと端数のある高さで末尾・境界・透明領域を確認する。
+
 ## VRT・E2EレポートのR2運用
 
 公開先はR2 Standardの一つのバケットとし、Public Development URL（`r2.dev`）を使う。

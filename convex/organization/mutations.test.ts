@@ -280,7 +280,7 @@ async function readManagerRemovalProtectedState(t: TestConvex<typeof schema>) {
     assignments: await ctx.db.query("shiftAssignments").collect(),
     invitations: await ctx.db.query("organizationInvitations").collect(),
     audits: await ctx.db.query("organizationAuditEvents").collect(),
-    analyticsEvents: await ctx.db.query("analyticsSourceEvents").collect(),
+    analyticsDays: await ctx.db.query("analyticsShopDays").collect(),
     rateLimits: await ctx.db.query("rateLimits").collect(),
     outbox: await ctx.db.query("notificationOutbox").collect(),
     billing: await ctx.db.query("organizationBillingStates").collect(),
