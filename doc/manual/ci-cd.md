@@ -22,13 +22,15 @@ Pull Requestを閉じると、同workflowがプレビューの後処理を行う
 外部forkにはリポジトリのcredentialを渡さないため、同じ条件では実行されない。
 
 認証付きE2Eの必須gateは`pnpm e2e:ci`である。
-このcommandは、実ブラウザ境界を持つ次の14契約だけを実行し、JSON resultから契約ID、project、初回成功、skipなしを検証する。
+このcommandは、実ブラウザ境界を持つ次の16契約だけを実行し、JSON resultから契約ID、project、初回成功、skipなしを検証する。
 
 - `E2E-AUTH-01`：匿名利用者の保護route redirect。
 - `E2E-AUTH-02`：専用actorのlogout後に、同じ保護routeへ再アクセスしたときのredirect。
 - `E2E-SETUP-01`：`/dashboard`から1組織、1店舗、管理者本人、2か月のPro相当Trialを作る初期設定。
 - `E2E-STAFF-01`：スタッフの追加、情報変更、再読み込み、組織からの削除。
 - `E2E-SHIFT-01`：募集、匿名提出、確定、匿名閲覧の代表導線。
+- `E2E-EXPORT-01`：保存済みシフトから別タブを開き、PDF・Excelをダウンロードし、再読み込み後も出力する。
+- `E2E-EXPORT-02`：匿名で出力URLを開いたときのログイン誘導と復帰先の保持。
 - `E2E-TENANT-01`：同じ管理者による2組織の切り替え。
 - `E2E-MEMBERSHIP-01`：対象店舗へのスタッフ所属追加と解除、再読み込み、元店舗の所属維持。
 - `E2E-SHOP-01`：既存組織への店舗追加、切り替え、店舗名と定休日の変更、再読み込み、追加店舗の削除、既存店舗への復帰。
@@ -59,7 +61,7 @@ flake調査はretryを無効にした次のcommandで行う。
 pnpm e2e:burn-in
 ```
 
-このcommandはdesktop 13契約を各10回（計130回）実行した後、mobile 1契約を依存projectなしで10回実行する。
+このcommandはdesktop 15契約を各10回（計150回）実行した後、mobile 1契約を依存projectなしで10回実行する。
 Playwrightのproject dependencyを含む一括`repeat-each`では依存側のdesktopが1回しか反復されないため、2段階を直列実行する。
 各段階は次の段階が`test-results.json`とreportを上書きする前に、contract ID別の反復数、project、初回成功、skip、flakyを結果ゲートで確認し、artifact privacy検査を通す。
 Full Regressionは認証付きE2Eだけで担わず、Logic、Frontend Unit、Behavior、VRT、Convex Function、Convex Scenario、Deployed Smokeへ分担する。
