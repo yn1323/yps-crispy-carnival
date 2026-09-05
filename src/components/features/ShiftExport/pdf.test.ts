@@ -83,6 +83,58 @@ describe("PDFの実ファイル", () => {
     }
   });
 
+  it("分割PDFは前半の全ページから後半へ進み、日付・割当・通しページ番号を一致させる", async () => {
+    const fixture = createExportFixture();
+    fixture.staffs = Array.from({ length: 20 }, (_, index) => ({
+      id: `staff-${index}`,
+      name: `合成スタッフ${String(index + 1).padStart(3, "0")}`,
+      isRemoved: false,
+    }));
+    fixture.assignments = [
+      { staffId: "staff-0", date: "2026-08-16", startTime: "10:00", endTime: "15:00", optionId: null },
+      { staffId: "staff-0", date: "2026-08-17", startTime: "18:00", endTime: "23:00", optionId: null },
+    ];
+    const schedule = buildExportSchedule(fixture, true);
+    const blob = await createShiftPdf(schedule);
+    const document = await getDocument({
+      data: new Uint8Array(await blob.arrayBuffer()),
+      useSystemFonts: false,
+      standardFontDataUrl: `${process.cwd()}/node_modules/pdfjs-dist/standard_fonts/`,
+    }).promise;
+    try {
+      expect(document.numPages).toBe(4);
+      const pages: string[] = [];
+      for (let number = 1; number <= document.numPages; number++) {
+        const page = await document.getPage(number);
+        const viewport = page.getViewport({ scale: 1 });
+        const content = await page.getTextContent();
+        const items = content.items.filter((item) => "str" in item);
+        const expectedDates = number <= 2 ? schedule.dates.slice(0, 16) : schedule.dates.slice(16);
+        expect(items.filter(({ str }) => /^\d+\([日月火水木金土]\)$/.test(str)).map(({ str }) => str)).toEqual(
+          expectedDates.map(({ label }) => label),
+        );
+        const text = items.map(({ str }) => str).join("");
+        expect(text).toContain(`${number} / 4`);
+        for (const item of items) {
+          expect(item.transform[4]).toBeGreaterThanOrEqual(23);
+          expect(item.transform[4] + item.width).toBeLessThanOrEqual(viewport.width - 23);
+        }
+        pages.push(text);
+      }
+      expect(pages[0]).toContain("2026/08/01~08/16 シフトリ駅前店");
+      expect(pages[2]).toContain("2026/08/17~08/31 シフトリ駅前店");
+      expect(pages[0]).toContain("10:0015:00");
+      expect(pages[0]).not.toContain("18:0023:00");
+      expect(pages[2]).toContain("18:0023:00");
+      expect(pages[2]).not.toContain("10:0015:00");
+      for (const periodText of [pages.slice(0, 2).join(""), pages.slice(2).join("")]) {
+        expect(periodText.match(/合成スタッフ\d{3}/g)).toEqual(fixture.staffs.map(({ name }) => name));
+      }
+    } finally {
+      await document.loadingTask.destroy();
+    }
+  });
+
   it("200人・全員非出勤の日付方式でも途中のスタッフ行を落とさない", async () => {
     const fixture = createExportFixture();
     fixture.recruitment.periodEnd = "2026-08-01";

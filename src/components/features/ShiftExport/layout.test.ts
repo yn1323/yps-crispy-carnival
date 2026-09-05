@@ -1,9 +1,72 @@
 import { describe, expect, it } from "vitest";
 import { createExportFixture } from "./fixtures";
-import { fitExportText, getExportLayout } from "./layout";
+import { fitExportText, getExportLayout, getExportPages, getExportPeriods } from "./layout";
 import { buildExportSchedule } from "./script";
 
 describe("シフト表の帳票レイアウト", () => {
+  it.each([
+    [14, [14]],
+    [15, [8, 7]],
+    [16, [8, 8]],
+    [30, [15, 15]],
+    [31, [16, 15]],
+  ])("%i日を分けるとき、15日未満はそのまま、それ以外は前半を切り上げる", (days, expectedCounts) => {
+    const data = createExportFixture();
+    data.recruitment.periodEnd = `2026-08-${String(days).padStart(2, "0")}`;
+    const schedule = buildExportSchedule(data, true);
+    const periods = getExportPeriods(schedule);
+
+    expect(periods.map((period) => period.dates.length)).toEqual(expectedCounts);
+    expect(periods.flatMap((period) => period.dates)).toEqual(schedule.dates);
+    for (const period of periods) {
+      expect(period.periodStart).toBe(period.dates[0].date);
+      expect(period.periodEnd).toBe(period.dates[period.dates.length - 1].date);
+    }
+    expect(getExportPeriods(buildExportSchedule(data))).toEqual([buildExportSchedule(data)]);
+  });
+
+  it.each(["time", "dateOnly", "shiftType"] as const)(
+    "%s方式でも期間ごとに全スタッフを出力し、月をまたいだ日付と勤務欄をずらさない",
+    (mode) => {
+      const data = createExportFixture();
+      data.recruitment.periodStart = "2026-08-25";
+      data.recruitment.periodEnd = "2026-09-24";
+      data.assignments = [];
+      const schedule = buildExportSchedule(data, true);
+      schedule.mode = mode;
+      schedule.rows = Array.from({ length: 200 }, (_, index) => ({
+        staffId: `staff-${index}`,
+        staffName: `スタッフ${index}`,
+        cells: schedule.dates.map(({ date }) => ({ lines: [`${index}:${date}`] })),
+      }));
+      const pages = getExportPages(schedule);
+      const firstHalfPages = pages.filter(({ period }) => period.periodStart === "2026-08-25");
+      const secondHalfPages = pages.filter(({ period }) => period.periodStart === "2026-09-10");
+
+      expect(pages).toEqual([...firstHalfPages, ...secondHalfPages]);
+      expect(firstHalfPages.length).toBeGreaterThan(1);
+      expect(secondHalfPages.length).toBeGreaterThan(1);
+      for (const [index, halfPages] of [firstHalfPages, secondHalfPages].entries()) {
+        expect(halfPages.flatMap(({ rows }) => rows)).toEqual(
+          schedule.rows.map((row) => ({ ...row, cells: index === 0 ? row.cells.slice(0, 16) : row.cells.slice(16) })),
+        );
+        expect(halfPages.map(({ isFirstPage }) => isFirstPage)).toEqual(halfPages.map((_, index) => index === 0));
+        for (const { period, layout, rows, isFirstPage } of halfPages) {
+          expect(
+            layout.staffColumnWidthPt + layout.dateColumnWidthPt * period.dates.length + layout.marginPt * 2,
+          ).toBeCloseTo(layout.pageWidthPt);
+          expect(
+            layout.marginPt * 2 +
+              layout.headerHeightPt +
+              layout.footerHeightPt +
+              (isFirstPage ? layout.titleHeightPt : 0) +
+              rows.length * layout.rowHeightPt,
+          ).toBeLessThanOrEqual(layout.pageHeightPt);
+        }
+      }
+    },
+  );
+
   it.each([1, 7, 15, 31])("%i日をA4横の有効幅に均等配置する", (days) => {
     const fixture = createExportFixture();
     fixture.recruitment.periodEnd = `2026-08-${String(days).padStart(2, "0")}`;

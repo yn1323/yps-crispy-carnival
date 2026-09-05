@@ -46,6 +46,7 @@ export type ExportSchedule = {
   statusLabel: string;
   notificationLabel: string | null;
   mode: ShiftSubmissionPattern["kind"];
+  splitPeriod: boolean;
   bodyLineCount: number;
   dates: ExportDate[];
   rows: ExportStaffRow[];

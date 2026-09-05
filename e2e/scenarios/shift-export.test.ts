@@ -43,7 +43,7 @@ test.describe("シフト表出力", { tag: ["@e2e-core", "@shift-export"] }, () 
       const [exportTab] = await test.step("出力専用ページを別タブで開く", () =>
         Promise.all([
           page.waitForEvent("popup"),
-          page.getByRole("button", { name: "PDF・Excel出力（別タブで開きます）", exact: true }).click(),
+          page.getByRole("button", { name: "PDF・Excel（別タブで開きます）", exact: true }).click(),
         ]));
       const exportPage = new ShiftExportPage(exportTab);
 

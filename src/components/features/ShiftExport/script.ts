@@ -8,7 +8,7 @@ import {
 import { isSupportedShiftTime, minutesToTime, timeToMinutes } from "@/src/domains/shift/time";
 import type { ExportSchedule, ShiftExportData } from "./types";
 
-export function buildExportSchedule(data: ShiftExportData): ExportSchedule {
+export function buildExportSchedule(data: ShiftExportData, splitPeriod = false): ExportSchedule {
   const { recruitment } = data;
   const count = getInclusiveDateCount(recruitment.periodStart, recruitment.periodEnd);
   if (
@@ -101,6 +101,7 @@ export function buildExportSchedule(data: ShiftExportData): ExportSchedule {
     statusLabel,
     notificationLabel: notificationLabels[data.notificationState],
     mode: pattern.kind,
+    splitPeriod: splitPeriod && count >= 15,
     bodyLineCount,
     dates,
     rows,

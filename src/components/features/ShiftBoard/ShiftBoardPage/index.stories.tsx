@@ -260,7 +260,12 @@ export const AppOrganizationScoped: Story = {
   render: renderAppShiftBoard,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(await canvas.findByRole("button", { name: "PDF・Excel出力（別タブで開きます）" })).toBeEnabled();
+    const exportButton = await canvas.findByRole("button", { name: "PDF・Excel（別タブで開きます）" });
+    const saveButton = await canvas.findByRole("button", { name: "下書き保存" });
+
+    await expect(exportButton).toBeEnabled();
+    await expect(exportButton.nextElementSibling).toBe(saveButton);
+    await expect(within(exportButton).getByText("PDF・Excel")).not.toBeVisible();
   },
 };
 
@@ -270,7 +275,12 @@ export const AppOrganizationScopedDesktop: Story = {
   render: renderAppShiftBoard,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(await canvas.findByRole("button", { name: "PDF・Excel出力（別タブで開きます）" })).toBeEnabled();
+    const exportButton = await canvas.findByRole("button", { name: "PDF・Excel（別タブで開きます）" });
+    const saveButton = await canvas.findByRole("button", { name: "下書き保存" });
+
+    await expect(exportButton).toBeEnabled();
+    await expect(exportButton.nextElementSibling).toBe(saveButton);
+    await expect(within(exportButton).getByText("PDF・Excel")).toBeVisible();
   },
 };
 
