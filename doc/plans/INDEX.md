@@ -28,7 +28,7 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
-| [Analyticsの日次利用指標と問い合わせ閲覧](2026-09-05_Analytics日次利用指標と問い合わせ閲覧_設計実装計画.md) | `実装中` | 空のAnalyticsテーブルを前提にmigrationなしで再設計。日次3指標の自動記録・集計、店舗／スタッフ閲覧、既存要望タブの維持とチェックによる論理削除・打ち消し線、画面置換、検証・文書更新・反映が未完了 | [分析KPI蓄積基盤](../features/analytics.md)、[分析KPI可視化アプリ](../features/analytics-dashboard.md)、[要望受付](../features/feature-requests.md) |
+| [Analyticsの日次利用指標と問い合わせ閲覧](2026-09-05_Analytics日次利用指標と問い合わせ閲覧_設計実装計画.md) | `実装済み・反映待ち` | 日次3指標の自動記録・集計、店舗／スタッフ閲覧、要望の論理削除と打ち消し線、画面置換・テスト・文書更新は実装済み。PR #902で検証し、実環境への反映と翌日の集計確認は別作業 | [分析KPI蓄積基盤](../features/analytics.md)、[分析KPI可視化アプリ](../features/analytics-dashboard.md)、[要望受付](../features/feature-requests.md) |
 | [シフト募集の編集仕様](2026-09-05_シフト募集編集_仕様.md)・[実装計画](2026-09-05_シフト募集編集_実装計画.md) | `主要仕様合意済み・実装計画作成済み・未実装` | 提出状態・古い画面からの保存防止・変更通知と催促を既存基盤へ接続する。実装・検証と通知文言の決定は未完了 | [シフト募集管理](../features/shift-recruitment-management.md)、[希望シフト提出](../features/shift-submission.md)、[シフト表](../features/shift-board.md) |
 | [VRT・E2EレポートのR2移行](2026-09-05_VRT_E2Eレポート_R2移行_実装計画.md) | `implementing` | 1公開bucket・キー1組・r2.devで実装済み。実認証・公開URL・削除権限とdevelop/mainのbaseline初期移行を確認。PR #900の検証・承認を経てdevelopへ反映する | [CI/CD運用](../manual/ci-cd.md)、[実環境の証跡](../manual/release-status.md) |
 | [プラン遷移簡素化と支払い失敗対応](2026-08-29_プラン遷移簡素化と支払い失敗対応_変更計画.md) | `rollout verification` | Repository実装と主担当の自動テスト、lint、type-check、buildは完了。Stripe Sandbox canary、顧客向けメール設定と実到着、Production artifact・Convex deployment、CI VRTは未確認 | [課金業務フロー](../specs/organization-billing-business-flow.md)、[グループ課金](../features/organization-billing.md)、[グループ課金の運用](../manual/organization-billing.md)、[リリース状態](../manual/release-status.md) |
