@@ -208,7 +208,7 @@ export function resultSummary(reportType, result, testResult) {
     const fields = ["failedItems", "newItems", "deletedItems", "passedItems"];
     if (fields.some((field) => !Array.isArray(result[field]))) throw new Error("Invalid VRT result counts");
     const [changed, added, deleted, passed] = fields.map((field) => result[field].length);
-    return `変更 ${changed} / 追加 ${added} / 削除 ${deleted} / 変更なし ${passed}。${changed + added + deleted > 0 ? "差分を確認し、必要な場合はVRT承認を行ってください。" : "視覚的な差分はありません。"}`;
+    return `| 変更 | 追加 | 削除 | 変更なし |\n| ---: | ---: | ---: | ---: |\n| ${changed} | ${added} | ${deleted} | ${passed} |`;
   }
   const fields = ["expected", "unexpected", "flaky", "skipped"];
   if (
@@ -217,7 +217,7 @@ export function resultSummary(reportType, result, testResult) {
   )
     throw new Error("Invalid Playwright result counts");
   const [passed, failed, flaky, skipped] = fields.map((field) => result.stats[field]);
-  return `${testResult === "success" ? "テスト成功" : "テスト失敗"}：成功 ${passed} / 失敗 ${failed} / 不安定 ${flaky} / スキップ ${skipped}。`;
+  return `**${testResult === "success" ? "テスト成功" : "テスト失敗"}**\n\n| 成功 | 失敗 | 不安定 | スキップ |\n| ---: | ---: | ---: | ---: |\n| ${passed} | ${failed} | ${flaky} | ${skipped} |`;
 }
 
 async function prepareRequest(request, source, output, baselineSource, summary) {
@@ -256,7 +256,7 @@ export async function commentOnReport(request, reportUrl, api, { summary } = {})
   if (request.pullRequest === null) return;
   const marker = `<!-- r2-report:${request.reportType} -->`;
   const title = request.reportType === "vrt" ? "VRT Report" : "Playwright Test Report";
-  const body = `${marker}\n### ${title}\n\n[公開レポートを開く](${reportUrl})\n\n${summary ? `${summary}\n\n` : ""}完全版は[GitHub ActionsのArtifacts](https://github.com/${SOURCE_REPOSITORY}/actions/runs/${request.runId})からダウンロードできます。公開レポートはPR終了時に削除されます。\n\nCommit: \`${request.sourceSha}\` / Attempt: ${request.runAttempt}`;
+  const body = `${marker}\n### ${title}\n\n[公開レポートを開く](${reportUrl})\n\n${summary ? `${summary}\n\n` : ""}完全版は[GitHub ActionsのArtifacts](https://github.com/${SOURCE_REPOSITORY}/actions/runs/${request.runId})からダウンロードできます。`;
   let existing;
   for (let page = 1; ; page += 1) {
     const comments = await api(
@@ -280,7 +280,7 @@ export async function commentOnReport(request, reportUrl, api, { summary } = {})
 async function publishPrepared(output, api, { bootstrap = false } = {}) {
   const request = await loadPrepared(output);
   const summary = bootstrap ? undefined : (await readSmallJson(path.join(output, "metadata/summary.json"))).summary;
-  if (!bootstrap && (typeof summary !== "string" || summary.length > 500 || /[\r\n<>]/.test(summary)))
+  if (!bootstrap && (typeof summary !== "string" || summary.length > 500 || /[\r<>]/.test(summary)))
     throw new Error("Invalid public report summary");
   const store = createR2ReportStore();
   if (bootstrap && (await readReportManifest(store, request))) return { status: "noop" };

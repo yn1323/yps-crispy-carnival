@@ -176,12 +176,12 @@ describe("公開コメントの集計", () => {
   it("動画を削除しても失敗と件数を隠さない", () => {
     expect(
       resultSummary("playwright", { stats: { expected: 8, unexpected: 1, flaky: 2, skipped: 3 } }, "failure"),
-    ).toBe("テスト失敗：成功 8 / 失敗 1 / 不安定 2 / スキップ 3。");
+    ).toBe("**テスト失敗**\n\n| 成功 | 失敗 | 不安定 | スキップ |\n| ---: | ---: | ---: | ---: |\n| 8 | 1 | 2 | 3 |");
   });
   it("画像を省いた変更なし件数も残す", () => {
-    expect(
-      resultSummary("vrt", { failedItems: ["a"], newItems: [], deletedItems: [], passedItems: ["b", "c"] }),
-    ).toContain("変更なし 2");
+    expect(resultSummary("vrt", { failedItems: ["a"], newItems: [], deletedItems: [], passedItems: ["b", "c"] })).toBe(
+      "| 変更 | 追加 | 削除 | 変更なし |\n| ---: | ---: | ---: | ---: |\n| 1 | 0 | 0 | 2 |",
+    );
   });
 });
 
