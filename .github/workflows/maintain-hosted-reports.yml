@@ -39,7 +39,7 @@ jobs:
       - name: Checkout trusted report maintenance
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: 77a66b5c0837049387dc4e1492f0da71e4f3abf5
+          ref: c0372bfc7fd94f7b95244c4293df7203e7486b27
           path: trusted-tools
           persist-credentials: false
       - name: Install Node.js
