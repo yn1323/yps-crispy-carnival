@@ -7,6 +7,10 @@ const meta = {
   parameters: {
     layout: "fullscreen",
   },
+  play: async ({ canvasElement }) => {
+    // async画像のデコード後に撮影し、画像の影が描画途中の状態で固定されるのを防ぐ。
+    await Promise.all(Array.from(canvasElement.querySelectorAll("img"), (image) => image.decode()));
+  },
 } satisfies Meta<typeof HeroSection>;
 
 export default meta;
