@@ -71,8 +71,9 @@ export const DashboardAnnouncementView = ({
         onClose={dialog.close}
         closeLabel="閉じる"
         onSubmit={onDismiss}
-        submitLabel="削除する"
+        submitLabel="次回以降表示しない"
         submitColorPalette="red"
+        actionLayout="flow"
         mobileFullScreen
         maxW={{ md: "640px" }}
         maxH={{ md: "85dvh" }}
@@ -96,7 +97,7 @@ export const DashboardAnnouncementView = ({
           dangerouslySetInnerHTML={{ __html: sanitizedBodyHtml }}
         />
         <Text fontSize="xs" color="fg.muted" mt={6}>
-          削除すると、このブラウザでは再表示できません。
+          非表示にすると、このブラウザでは再表示できません。
         </Text>
       </Dialog>
     </>
