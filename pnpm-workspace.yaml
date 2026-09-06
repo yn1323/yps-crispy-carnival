@@ -37,5 +37,7 @@ catalog:
   vite: "8.1.5"
 
 patchedDependencies:
+  # Storybook 10.5.3のviewport適用をVitest 5の公開Browser APIへ合わせる。
+  '@storybook/addon-vitest@10.5.3': patches/@storybook__addon-vitest@10.5.3.patch
   '@storycap-testrun/browser@2.1.1': patches/@storycap-testrun__browser@2.1.1.patch
   '@tanstack/react-router@1.170.25': patches/@tanstack__react-router@1.170.25.patch
