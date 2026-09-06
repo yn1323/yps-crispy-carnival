@@ -148,14 +148,14 @@ export const DismissesAnnouncements: Story = {
 
     await userEvent.click(canvas.getByRole("button", { name: /LINE通知の遅延についてを開く/ }));
     const reopenedDialog = within(await page.findByRole("dialog", { name: announcement.title }));
-    await userEvent.click(reopenedDialog.getByRole("button", { name: "削除する" }));
+    await userEvent.click(reopenedDialog.getByRole("button", { name: "次回以降表示しない" }));
     await waitFor(() => expect(page.queryByRole("dialog")).not.toBeInTheDocument());
     await expect(canvas.queryByRole("button", { name: /LINE通知の遅延についてを開く/ })).not.toBeInTheDocument();
     await expect(canvas.getAllByRole("button", { name: /を開く$/ })).toHaveLength(1);
 
     await userEvent.click(canvas.getByRole("button", { name: /現在の事業者向けのお知らせを開く/ }));
     const remainingDialog = within(await page.findByRole("dialog", { name: organizationAnnouncement.title }));
-    await userEvent.click(remainingDialog.getByRole("button", { name: "削除する" }));
+    await userEvent.click(remainingDialog.getByRole("button", { name: "次回以降表示しない" }));
     await waitFor(() => expect(page.queryByRole("dialog")).not.toBeInTheDocument());
     await expect(canvas.queryAllByRole("button", { name: /を開く$/ })).toHaveLength(0);
 
