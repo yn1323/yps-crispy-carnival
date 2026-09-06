@@ -277,6 +277,9 @@ async function enqueueLineFallback(
         : {}),
       purpose: job.purpose,
       ...(job.recruitmentId ? { recruitmentId: job.recruitmentId } : {}),
+      ...(job.recruitmentVersionAtOrigin !== undefined
+        ? { recruitmentVersionAtOrigin: job.recruitmentVersionAtOrigin }
+        : {}),
       ...(job.staffId ? { staffId: job.staffId } : {}),
       ...(job.fanoutOperationId ? { fanoutOperationId: job.fanoutOperationId } : {}),
       ...(job.staffId && fallbackEmail.history ? { history: fallbackEmail.history } : {}),

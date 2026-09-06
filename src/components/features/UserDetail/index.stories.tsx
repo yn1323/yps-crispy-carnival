@@ -384,6 +384,13 @@ export const LineUnfollowedDialog: Story = {
 
 export const LineBillingReadOnlyDialog: Story = {
   args: { activePanel: "line", data: lineBillingReadOnlyData },
+  play: async () => {
+    const dialog = await screen.findByRole("dialog", { name: "LINE連携" });
+    const disconnectButton = within(dialog).getByRole("button", { name: "LINE連携を解除" });
+    await waitFor(() => expect(disconnectButton).toHaveFocus());
+    dialog.focus();
+    await expect(dialog).toHaveFocus();
+  },
 };
 
 export const LineWithoutMembershipDialog: Story = {

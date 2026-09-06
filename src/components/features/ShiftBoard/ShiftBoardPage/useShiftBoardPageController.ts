@@ -27,6 +27,7 @@ import type { ShiftData, StaffType } from "@/src/domains/shift/types";
 import { useDeadlineActive } from "@/src/hooks/useDeadlineActive";
 import { useShopMutation } from "@/src/hooks/useShopMutation";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
+import { getConvexErrorCode } from "@/src/lib/convex/error";
 import { useManagerShopScope } from "@/src/providers/ManagerShopScopeProvider";
 import type { ShiftBoardData } from "../types";
 import { buildShiftData } from "./buildShiftData";
@@ -91,6 +92,10 @@ export const useShiftBoardPageController = (
   recruitmentId: Id<"recruitments">,
 ): ShiftBoardPageViewProps => {
   const managerShopScope = useManagerShopScope();
+  const expectedEditVersion = useRef(data.recruitment.editVersion ?? 0).current;
+  const [hasStaleError, setHasStaleError] = useState(false);
+  const isRecruitmentChanged = hasStaleError || expectedEditVersion !== (data.recruitment.editVersion ?? 0);
+  const isReloadingRef = useRef(false);
   const exportOrganizationId =
     managerShopScope?.shopId === data.shopId ? managerShopScope.expectedOrganizationId : undefined;
   const saveShiftAssignments = useShopMutation(api.shiftBoard.mutations.saveShiftAssignments);
@@ -98,7 +103,7 @@ export const useShiftBoardPageController = (
 
   const confirmedAt = data.recruitment.confirmedAt ? new Date(data.recruitment.confirmedAt) : null;
   const isConfirmed = data.recruitment.status === "confirmed";
-  const isReadOnly = !data.canWriteBusinessData;
+  const isReadOnly = !data.canWriteBusinessData || isRecruitmentChanged;
   const readOnlyReason = isReadOnly ? getShiftBoardReadOnlyReason(data.businessWriteBlockReason) : null;
   const isPastShiftNow = useCallback(() => isPastShiftPeriod(data.recruitment.periodEnd), [data.recruitment.periodEnd]);
 
@@ -245,6 +250,10 @@ export const useShiftBoardPageController = (
   // サーバー側バリデーションエラー（二重防御）をエラー一覧UIへマップする。
   // 構造化エラーでなければ従来通りtoastにフォールバックする
   const handleMutationError = useCallback((error: unknown) => {
+    if (getConvexErrorCode(error) === "RECRUITMENT_CHANGED") {
+      setHasStaleError(true);
+      return true;
+    }
     const issues = parseShiftAssignmentValidationError(error);
     if (issues) {
       hasAttemptedConfirmRef.current = true;
@@ -286,13 +295,25 @@ export const useShiftBoardPageController = (
     const shiftsAtSave = shiftsRef.current;
     pendingWriteCountRef.current += 1;
     try {
-      await saveShiftAssignments({ recruitmentId, assignments: buildSaveAssignments(shiftsAtSave) });
+      await saveShiftAssignments({
+        recruitmentId,
+        expectedEditVersion,
+        assignments: buildSaveAssignments(shiftsAtSave),
+      });
       baselineShiftsRef.current = shiftsAtSave;
       return true;
     } finally {
       pendingWriteCountRef.current -= 1;
     }
-  }, [buildSaveAssignments, isPastShiftNow, isReadOnly, readOnlyReason, recruitmentId, saveShiftAssignments]);
+  }, [
+    buildSaveAssignments,
+    expectedEditVersion,
+    isPastShiftNow,
+    isReadOnly,
+    readOnlyReason,
+    recruitmentId,
+    saveShiftAssignments,
+  ]);
 
   // 確定ボタン押下時: フロントで全件評価する。
   // エラーがあれば確認ダイアログを開かず一覧表示。ワーニングは確定をブロックせず、ダイアログ内のサマリーで知らせる。
@@ -325,10 +346,18 @@ export const useShiftBoardPageController = (
     const shiftsAtSave = shiftsRef.current;
     pendingWriteCountRef.current += 1;
     try {
-      await saveShiftAssignments({ recruitmentId, assignments: buildSaveAssignments(shiftsAtSave) });
+      await saveShiftAssignments({
+        recruitmentId,
+        expectedEditVersion,
+        assignments: buildSaveAssignments(shiftsAtSave),
+      });
       // 保存はこの時点で完了している。後続のconfirmが失敗しても未保存扱い（離脱ブロック）にしない
       baselineShiftsRef.current = shiftsAtSave;
-      const result = await confirmRecruitmentMutation({ recruitmentId, intent: isConfirmed ? "resend" : "confirm" });
+      const result = await confirmRecruitmentMutation({
+        recruitmentId,
+        expectedEditVersion,
+        intent: isConfirmed ? "resend" : "confirm",
+      });
       // 初回確定では直前に確認したwarningを残す。再通知では通知済みになるため編集面のwarningをリセットする
       dismissValidationIssues();
       if (isConfirmed) {
@@ -365,6 +394,7 @@ export const useShiftBoardPageController = (
   // 未保存の変更（ユーザー編集による割り当ての差分）があるか。
   // シフト申請の到着などサーバー由来のデータ変化はatomに反映されないため、ここではdirty扱いにならない
   const hasUnsavedChanges = useCallback(() => {
+    if (isReloadingRef.current) return false;
     if (isReadOnly) return false;
     if (!isFormInitializedRef.current) return false;
     if (shiftsRef.current === baselineShiftsRef.current) return false;
@@ -442,6 +472,7 @@ export const useShiftBoardPageController = (
 
   return {
     viewModel: {
+      isRecruitmentChanged,
       periodLabel,
       confirmedAtLabel: isConfirmed && confirmedAt ? formatDateTime(confirmedAt) : null,
       isConfirmed,
@@ -482,6 +513,10 @@ export const useShiftBoardPageController = (
       },
     },
     intents: {
+      onReload: () => {
+        isReloadingRef.current = true;
+        window.location.reload();
+      },
       onOpenExport: handleOpenExport,
       onShiftsChange: handleShiftsChange,
       onSaveDraft: performSaveDraft,

@@ -10,6 +10,7 @@ import {
   todayJST,
 } from "../_lib/dateFormat";
 import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
+import { getRecruitmentEditVersion } from "../_lib/recruitmentEditing";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
 import { isShopAvailable } from "../_lib/shopAvailability";
 import { buildShiftTimeLabel } from "../_lib/time";
@@ -29,6 +30,7 @@ import {
   canonicalizeConfirmationSnapshotAssignments,
   normalizeConfirmationSnapshotAssignments,
 } from "./confirmationSnapshots";
+import { canSendRecruitmentNotification } from "./recruitmentPolicy";
 
 type AssignmentTime = {
   startTime: string;
@@ -268,19 +270,16 @@ export const getRecruitmentEmailData = internalQuery({
   args: {
     recruitmentId: v.id("recruitments"),
     targetStaffIds: v.optional(v.array(v.id("staffs"))),
+    isUpdate: v.optional(v.boolean()),
   },
-  handler: async (ctx, { recruitmentId, targetStaffIds }) => {
+  handler: async (ctx, { recruitmentId, targetStaffIds, isUpdate }) => {
     if (targetStaffIds && targetStaffIds.length > NOTIFICATION_FANOUT_SCOPE_LIMIT) {
       throw new Error("Notification fanout scope exceeds the supported limit");
     }
     const recruitment = await ctx.db.get(recruitmentId);
     if (!recruitment || recruitment.isDeleted) return null;
     const now = Date.now();
-    if (
-      recruitment.status !== "open" ||
-      now >= getSubmitLinkCutoff(recruitment.periodStart) ||
-      now >= getDeadlineCutoff(recruitment.deadline)
-    ) {
+    if (!canSendRecruitmentNotification(recruitment, isUpdate === true, now)) {
       return null;
     }
 
@@ -311,6 +310,7 @@ export const getRecruitmentEmailData = internalQuery({
       periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
       periodStart: recruitment.periodStart,
       deadline: recruitment.deadline,
+      shopClosedDates: recruitment.shopClosedDates,
       staffEntries: contacts.flatMap((contact) =>
         contact
           ? [
@@ -336,18 +336,15 @@ export const getRecruitmentNotificationDataForStaff = internalQuery({
   args: {
     recruitmentId: v.id("recruitments"),
     staffId: v.id("staffs"),
+    isUpdate: v.optional(v.boolean()),
   },
-  handler: async (ctx, { recruitmentId, staffId }) => {
+  handler: async (ctx, { recruitmentId, staffId, isUpdate }) => {
     const [recruitment, staff] = await Promise.all([ctx.db.get(recruitmentId), ctx.db.get(staffId)]);
     if (!recruitment || recruitment.isDeleted || !staff || !isShiftTargetStaff(staff)) return null;
     if (staff.shopId !== recruitment.shopId) return null;
 
     const now = Date.now();
-    if (
-      recruitment.status !== "open" ||
-      now >= getSubmitLinkCutoff(recruitment.periodStart) ||
-      now >= getDeadlineCutoff(recruitment.deadline)
-    ) {
+    if (!canSendRecruitmentNotification(recruitment, isUpdate === true, now)) {
       return null;
     }
 
@@ -355,14 +352,35 @@ export const getRecruitmentNotificationDataForStaff = internalQuery({
     if (!shop || shop.isDeleted) return null;
     const contact = await resolveCanonicalStaffNotificationContact(ctx, staff);
     if (!contact) return null;
+    // 明示的な不達再通知は最新の編集を使う。旧operationの比較前データは復元しない。
+    const updateOperation = isUpdate
+      ? await ctx.db
+          .query("notificationFanoutOperations")
+          .withIndex("by_operationKey", (q) =>
+            q.eq(
+              "operationKey",
+              `shift.recruitment.update:v1:${recruitmentId}:${getRecruitmentEditVersion(recruitment)}`,
+            ),
+          )
+          .unique()
+      : null;
+    const recruitmentUpdate =
+      updateOperation?.kind === "recruitment" &&
+      updateOperation.purpose === "recruitment_update" &&
+      updateOperation.shopId === recruitment.shopId &&
+      updateOperation.recruitmentId === recruitmentId
+        ? updateOperation.recruitmentUpdate
+        : undefined;
     return {
       shopId: recruitment.shopId,
       shopName: shop.name,
+      ...(recruitmentUpdate === undefined ? {} : { recruitmentUpdate }),
       recruitment: {
         recruitmentId: recruitment._id,
         periodLabel: formatPeriodLabel(recruitment.periodStart, recruitment.periodEnd),
         periodStart: recruitment.periodStart,
         deadline: recruitment.deadline,
+        shopClosedDates: recruitment.shopClosedDates,
       },
       staff: {
         staffId: staff._id,

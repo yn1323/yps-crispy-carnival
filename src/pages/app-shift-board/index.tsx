@@ -92,6 +92,7 @@ function AppShiftBoardQuery({ organizationId, recruitmentId }: Required<Props>) 
     <Animation>
       <ManagerShopScopeProvider shopId={shopScope.shopId} expectedOrganizationId={organizationDocumentId}>
         <ShiftBoardPage
+          key={recruitmentId}
           data={data}
           recruitmentId={recruitmentDocumentId}
           layout="app"

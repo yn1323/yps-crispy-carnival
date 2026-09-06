@@ -263,6 +263,39 @@ describe("shiftBoard/mutations", () => {
       vi.useRealTimers();
     });
 
+    it.each(["保存", "確定"] as const)(
+      "募集条件が変わった旧画面から%sせず、最新版だけ受け付ける",
+      async (operation) => {
+        const t = convexTest(schema, modules);
+        const { shopId, recruitmentId } = await setupTestData(t);
+        const expectedOrganizationId = await getExpectedOrganizationId(t, shopId);
+        await t.run(async (ctx) => {
+          await ctx.db.patch(recruitmentId, { editVersion: 2, draftSavedAt: 1000 });
+        });
+        const before = await t.run((ctx) => ctx.db.get(recruitmentId));
+        const actor = t.withIdentity({ subject: "user_manager" });
+        const invoke = (expectedEditVersion?: number) => {
+          const scope = { shopId, expectedOrganizationId, recruitmentId, expectedEditVersion };
+          return operation === "保存"
+            ? actor.mutation(api.shiftBoard.mutations.saveShiftAssignments, { ...scope, assignments: [] })
+            : actor.mutation(api.shiftBoard.mutations.confirmRecruitment, scope);
+        };
+
+        for (const version of [undefined, 0, 1]) {
+          await expect(invoke(version)).rejects.toThrow("RECRUITMENT_CHANGED");
+        }
+        expect(await t.run((ctx) => ctx.db.get(recruitmentId))).toEqual(before);
+        expect(await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect())).toEqual([]);
+
+        await invoke(2);
+        const result = await t.run((ctx) => ctx.db.get(recruitmentId));
+        expect(result).not.toBeNull();
+        expect(operation === "保存" ? result?.draftSavedAt : result?.status).toBe(
+          operation === "保存" ? Date.now() : "confirmed",
+        );
+      },
+    );
+
     it("URL組織と募集の店舗組織が一致する場合だけ保存し、別組織targetでは書き込まない", async () => {
       const t = convexTest(schema, modules);
       const target = await setupTestData(t);

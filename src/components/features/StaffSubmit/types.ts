@@ -38,6 +38,7 @@ type ExistingSelection =
     };
 
 export type SubmissionData = {
+  editVersion?: number;
   shopName: string;
   staffName: string;
   periodStart: string;

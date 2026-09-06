@@ -43,10 +43,14 @@ export type AnalyticsShopRowDto = {
   registeredAt: number | null;
   isDeleted: boolean;
 };
+export type AnalyticsShopListRowDto = AnalyticsShopRowDto & {
+  staffCount: number | null;
+  latestShift: { periodStart: string; periodEnd: string } | null;
+};
 export type ShopsResponse = {
   kind: "shops";
   asOf: number;
-  rows: AnalyticsShopRowDto[];
+  rows: AnalyticsShopListRowDto[];
   pageInfo: AnalyticsPageInfoDto;
   scope: { date: string; metric: AnalyticsMetric } | null;
   scopeStatus: "current" | "available" | "unavailable" | "outside_retention";

@@ -48,6 +48,7 @@ const fixedRouteFamilies = new Map<string, WebMeasurementRouteFamily>([
   ["/help/basics/notifications", "help_guide"],
   ["/help/basics/organization-structure", "help_guide"],
   ["/help/scenarios/shift-management", "help_guide"],
+  ["/help/scenarios/shift-export", "help_guide"],
   ["/legal/staff/consent", "capability"],
   ["/line/callback", "callback"],
   ["/login", "auth"],

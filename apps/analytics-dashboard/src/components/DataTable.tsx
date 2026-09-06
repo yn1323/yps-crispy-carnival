@@ -1,4 +1,4 @@
-import { Box, Stack, Table, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, NativeSelect, Stack, Table, Text } from "@chakra-ui/react";
 import type { ReactNode } from "react";
 
 export type DataTableColumn<T> = {
@@ -6,8 +6,11 @@ export type DataTableColumn<T> = {
   header: string;
   align?: "left" | "right" | "center";
   width?: string;
+  sortable?: boolean;
   render: (row: T) => ReactNode;
 };
+
+export type DataTableSort = { key: string; direction: "asc" | "desc" };
 
 type DataTableProps<T> = {
   columns: DataTableColumn<T>[];
@@ -18,6 +21,8 @@ type DataTableProps<T> = {
   getRowLabel?: (row: T) => string;
   onNavigate?: (href: string) => void;
   renderMobileRow?: (row: T) => ReactNode;
+  sort?: DataTableSort;
+  onSortChange?: (sort: DataTableSort) => void;
 };
 
 export function DataTable<T>({
@@ -29,6 +34,8 @@ export function DataTable<T>({
   getRowLabel,
   onNavigate,
   renderMobileRow,
+  sort,
+  onSortChange,
 }: DataTableProps<T>) {
   if (rows.length === 0) {
     return (
@@ -44,9 +51,41 @@ export function DataTable<T>({
     if (onNavigate) onNavigate(href);
     else window.location.assign(href);
   };
+  const nextDirection = (key: string) => (sort?.key === key && sort.direction === "asc" ? "desc" : "asc");
 
   return (
     <>
+      {renderMobileRow && sort && onSortChange && (
+        <Flex display={{ base: "flex", lg: "none" }} align="center" gap={2}>
+          <Text fontSize="sm" flexShrink={0}>
+            並び順
+          </Text>
+          <NativeSelect.Root size="sm">
+            <NativeSelect.Field
+              aria-label="並べ替える項目"
+              value={sort.key}
+              onChange={(event) => onSortChange({ key: event.target.value, direction: "asc" })}
+            >
+              {columns
+                .filter((column) => column.sortable)
+                .map((column) => (
+                  <option key={column.key} value={column.key}>
+                    {column.header}
+                  </option>
+                ))}
+            </NativeSelect.Field>
+            <NativeSelect.Indicator />
+          </NativeSelect.Root>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onSortChange({ ...sort, direction: nextDirection(sort.key) })}
+            aria-label={`${sort.direction === "asc" ? "降順" : "昇順"}に並べ替え`}
+          >
+            {sort.direction === "asc" ? "昇順 ↑" : "降順 ↓"}
+          </Button>
+        </Flex>
+      )}
       {renderMobileRow ? (
         <Stack display={{ base: "flex", lg: "none" }} gap={3}>
           {rows.map((row) => {
@@ -110,8 +149,35 @@ export function DataTable<T>({
                   w={column.width}
                   whiteSpace="normal"
                   zIndex={1}
+                  aria-sort={
+                    column.sortable && onSortChange
+                      ? sort?.key === column.key
+                        ? sort.direction === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : "none"
+                      : undefined
+                  }
                 >
-                  {column.header}
+                  {column.sortable && onSortChange ? (
+                    <Button
+                      variant="plain"
+                      size="sm"
+                      px={0}
+                      color="inherit"
+                      fontWeight="inherit"
+                      whiteSpace="normal"
+                      onClick={() => onSortChange({ key: column.key, direction: nextDirection(column.key) })}
+                      aria-label={`${column.header}を${nextDirection(column.key) === "asc" ? "昇順" : "降順"}に並べ替え`}
+                    >
+                      {column.header}
+                      <Box as="span" aria-hidden="true" flexShrink={0}>
+                        {sort?.key === column.key ? (sort.direction === "asc" ? "↑" : "↓") : "↕"}
+                      </Box>
+                    </Button>
+                  ) : (
+                    column.header
+                  )}
                 </Table.ColumnHeader>
               ))}
             </Table.Row>

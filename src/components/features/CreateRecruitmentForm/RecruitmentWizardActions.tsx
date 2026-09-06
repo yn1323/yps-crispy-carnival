@@ -4,9 +4,11 @@ import type { CreateRecruitmentStep } from "./types";
 
 type Props = {
   currentStep: CreateRecruitmentStep;
+  isEditing?: boolean;
   hasShopStep: boolean;
   canContinueFromShop: boolean;
   submitLoading: boolean;
+  submitDisabled?: boolean;
   onCancel?: () => void;
   onGoToShop: () => void;
   onGoToPeriodFromShop: () => void;
@@ -18,9 +20,11 @@ type Props = {
 
 export const RecruitmentWizardActions = ({
   currentStep,
+  isEditing = false,
   hasShopStep,
   canContinueFromShop,
   submitLoading,
+  submitDisabled = false,
   onCancel,
   onGoToShop,
   onGoToPeriodFromShop,
@@ -99,10 +103,10 @@ export const RecruitmentWizardActions = ({
         type="submit"
         colorPalette="teal"
         loading={submitLoading}
-        loadingText="募集をつくる"
-        disabled={submitLoading}
+        loadingText={isEditing ? "変更を保存" : "募集をつくる"}
+        disabled={submitLoading || submitDisabled}
       >
-        募集をつくる
+        {isEditing ? "変更を保存" : "募集をつくる"}
       </Button>
     </>
   );

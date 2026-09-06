@@ -106,8 +106,9 @@ UI test数や静的文言を契約数に数えず、上表のどの失敗境界�
 | 契約ID | 優先 | Actor / 完了 | 起点・状態遷移 | 永続化 | 下流影響 | 負の契約 | 通知 | 主担当層 | 端末 | 状態 | 根拠 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | `RECRUITMENT-01` | P0 | シフト担当者が募集を作成・削除する | 店舗設定snapshot → open募集作成 → 必要な通知・reminder予約。削除でinactive | recruitment、提出方法・時間snapshot | Dashboard、提出、ShiftBoard、通知fanout | 他店舗、日付不正、上限、削除済みの再利用を拒否。削除時に未完了fanoutを停止 | 募集通知、提出催促、確定催促 | Convex Scenario | Desktop Chrome | 実装済み | `convex/recruitment/mutations.test.ts`、`convex/_scenario/shiftRequestCollection.test.ts`、`convex/_scenario/recruitmentDeletion.test.ts` |
+| `RECRUITMENT-EDIT-01` | P0 | 管理者が未確定・開始前・締切前の募集条件を編集する | 旧条件・版の照合 → 対象日差分 → 保存 → 再提出 | 募集の版、提出状態、対象外の希望・割当削除 | 提出人数、下書き、Analytics、既存提出URL | 他店舗・期限後・確定後・古い画面を拒否。削除した希望・割当は再拡張しても復活しない | 変更ごとの通知、新版の催促。変更通知は未確定・開始前なら締切後も送信 | Convex Function | Desktop / MobileをBehaviorで補助 | 実装済み | `convex/recruitment/editing.test.ts`、`convex/_scenario/recruitmentEditing.test.ts`、`src/components/features/CreateRecruitmentForm/index.stories.tsx` |
 | `CAP-SHIFT-SESSION-01` | P0 | 匿名staffが提出または閲覧専用sessionを取得する | magic link → raw tokenを`by_token`で一意照合 → scope付きsession → 用途別の期限・使用済み・失効判定 | raw bearer tokenを`magicLinks.token`へ保存、staff session | 提出query / mutation、確定閲覧 | submitとviewの用途交換、重複token、使用済みview token、失効token、他店舗、削除済みstaff・shop・募集を拒否。rate limit | tokenは募集・確定・再発行通知のCTAに含む。Outbox内のURLはterminal化から30日後にredactする | Convex Function | Mobile ChromeをE2Eで補助 | 実装済み | `convex/staffAuth/mutations.test.ts`、`convex/_scenario/securityBoundaries.test.ts` |
-| `SHIFT-SUBMISSION-01` | P0 | staffが時間指定・日ごと・勤務区分で初回提出・再提出する | valid submit session → 入力 → 全置換保存。提出期限後は未提出者の初回提出だけ許可 | submission headerと方式別明細、firstSubmittedAt | Dashboard回答数、ShiftBoard、Analytics | 用途違いsession、他店舗、期間外、定休日、不正区分、上限超過、利用上限評価不能を既存提出を保って拒否 | なし。募集通知は別契約 | Convex Scenario | Desktop / Mobile Chrome | 実装済み | `convex/shiftSubmission/mutations.test.ts`、`convex/shiftSubmission/queries.test.ts`、`convex/_scenario/shiftRequestCollection.test.ts`、`e2e/scenarios/first-shift-delivery.test.ts`（`E2E-SHIFT-01`）、`e2e/scenarios/release-support-staff-submit.mobile.test.ts`（`E2E-MOBILE-01`） |
+| `SHIFT-SUBMISSION-01` | P0 | staffが時間指定・日ごと・勤務区分で初回提出・再提出する | valid submit session → 入力 → 全置換保存。提出期限後は未確定・開始前の現在未提出者だけ提出可能（編集による再提出待ちを含む） | submission headerと方式別明細、firstSubmittedAt | Dashboard回答数、ShiftBoard、Analytics | 用途違いsession、他店舗、期間外、定休日、不正区分、上限超過、利用上限評価不能を既存提出を保って拒否 | なし。募集通知は別契約 | Convex Scenario | Desktop / Mobile Chrome | 実装済み | `convex/shiftSubmission/mutations.test.ts`、`convex/shiftSubmission/queries.test.ts`、`convex/_scenario/shiftRequestCollection.test.ts`、`e2e/scenarios/first-shift-delivery.test.ts`（`E2E-SHIFT-01`）、`e2e/scenarios/release-support-staff-submit.mobile.test.ts`（`E2E-MOBILE-01`） |
 | `SHIFT-SUBMISSION-RESULT-01` | P0 | 提出直後のstaffがserver事実に基づく完了状態を見る | URLの募集ID → 保存済みsubmit session・staff・shop・募集・提出record照合 → success / unavailable / retry | 新しい保存はしない | 提出完了画面 | 直接URL、無効session、提出recordなしでは成功表示しない。query失敗と対象外を混同しない | なし | Convex Function | Mobile影響あり。Frontend Unitで補助 | 実装済み | `convex/shiftSubmission/queries.test.ts`、`src/pages/staff-shift-submit-completed/index.test.tsx` |
 | `SHIFT-BOARD-DRAFT-01` | P0 | シフト担当者が希望を見て割当を編集し、下書きを保存する | 募集・希望・既存割当読込 → 方式別編集 → validation → 全置換保存 → reload | shiftAssignments | 確定、通知snapshot、staff閲覧 | 他店舗staff / position、期間外、定休日、overlap、不正時刻、終了後保存を拒否。未保存離脱を確認 | なし | Convex Scenario | Desktop / Mobile | 実装済み | `convex/shiftBoard/mutations.test.ts`、`convex/shiftBoard/validation.test.ts`、`convex/_scenario/shiftBoardConfirmation.test.ts`、`src/components/features/ShiftBoard/ShiftBoardPage/index.stories.tsx` |
 | `SHIFT-EXPORT-DATA-01` | P0 | 管理者が所属組織の保存済みシフトを取得する | 認証・組織・店舗・募集の検証 → 保存順・履歴・snapshot・配送状態を投影 | 読み取りのみ | 出力専用ページ | 他組織・非管理者・削除・過大データ・対象外割当を拒否。希望提出へfallbackしない | 新規通知0件 | Convex Function | 非該当 | 実装済み | `convex/shiftExport/queries.test.ts` |
@@ -146,6 +147,7 @@ E2Eは代表CTAとのbrowser接続だけを守り、対象集合、channel、件
 | Trigger / purpose | Channel / 対象 / CTA | 負の契約 | 契約ID | 状態と根拠 |
 |---|---|---|---|---|
 | 募集作成・現在募集中の個別再送 | staffへLINE優先、email fallback。提出CTA | 対象外・削除済み・提出期限後・別店舗へ0件。semantic targetでdedupe | `RECRUITMENT-01`、`NOTIFY-FANOUT-01` | 実装済み。`convex/notification/actions.test.ts`、`convex/_scenario/shiftRequestCollection.test.ts` |
+| 募集条件の変更 | 対象staff全員へ編集ごとの差分を通知。提出期限は常に表示し、既存提出URLへ案内 | 確定後・開始後・削除済み・無効対象へ0件。締切後は許可し、連続編集で差分を混ぜない。再試行・fallbackでも本文を保持し、明示再通知は最新編集を使う | `RECRUITMENT-EDIT-01` | 実装済み。`convex/notification/recruitmentEditing.test.ts`、`convex/notification/templates.test.ts` |
 | 提出期限前のstaff催促 | 未提出staffへLINE優先、email fallback。提出CTA | 提出済み、対象外、削除済み、提出期限条件外へ0件 | `NOTIFY-FANOUT-01` | 実装済み。`convex/notification/reminderQueries.test.ts`、`convex/_scenario/shiftRequestCollection.test.ts` |
 | 確定・変更・現在確定シフトの個別再送 | 変更対象staffへLINE優先、email fallback。view CTA | snapshot同値、旧generation、対象外、削除済みへ0件 | `SHIFT-CONFIRM-01`、`NOTIFY-FANOUT-01` | 実装済み。`convex/notification/confirmationSnapshots.test.ts`、`convex/_scenario/shiftBoardConfirmation.test.ts` |
 | view link再発行 | 一致するstaffへemail / LINEの現行選択。新view CTA | 一致有無を一般化し、短時間連打でjobを増やさない | `SHIFT-VIEW-REISSUE-01` | 実装済み。`convex/staffAuth/mutations.test.ts`、`convex/_scenario/shiftViewReissue.test.ts` |
@@ -244,7 +246,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 
 ## Public Convex surface inventory
 
-2026-09-05時点のpublic query、mutation、actionは116個である。
+2026-09-06時点のpublic query、mutation、actionは117個である。
 同じ業務境界のAPIは一行へまとめるが、公開export名は省略しない。
 
 | Module | Public exports | 対応契約 / 状態 |
@@ -276,7 +278,7 @@ Mobile VRTはviewport指定だけでなく`vrt-mobile1`または`vrt-mobile2` ta
 | `organizationInvitation/mutations` | `issueForOrganization`、`resendForOrganization`、`revokeForOrganization` | `MANAGER-INVITATION-01`。canonical組織境界を再検証し、発行・再送・取消でtoken、上限、tenantを確認する |
 | `organizationInvitation/queries` | `getPreview` | `MANAGER-INVITATION-01`。token、version、期限、失効状態を検証して最小DTOを返す |
 | `organizationStripe/actions` | `cancelPendingCheckoutForOrganization`、`cancelScheduledPlanChangeForOrganization`、`cancelTrialContinuationForOrganization`、`changePaidPlanNowForOrganization`、`getPlanPriceForOrganization`、`inspectPendingCheckoutForOrganization`、`openCustomerPortalForOrganization`、`previewPaidPlanChangeForOrganization`、`schedulePaidPlanChangeForOrganization`、`scheduleServiceStopAtPeriodEndForOrganization`、`startPaidCheckoutForOrganization` | `BILLING-CHECKOUT-01`、`BILLING-PLAN-CHANGE-01`、`BILLING-TRIAL-CANCEL-01`。canonical組織境界で認可、契約状態、Stripe設定、Priceを再確認し、Webhookとinternal workerの収束を維持する |
-| `recruitment/mutations` | `createRecruitment`、`deleteRecruitment` | `RECRUITMENT-01` |
+| `recruitment/mutations` | `createRecruitment`、`updateRecruitment`、`deleteRecruitment` | `RECRUITMENT-01`、`RECRUITMENT-EDIT-01` |
 | `setup/mutations` | `createOrganizationForApp`、`setupShopAndManager`、`verifyPromotionCode` | `ORG-CREATE-01`、`SETUP-ORGANIZATION-01`。初回Setupと追加組織で開始条件、作成プラン、上限を分け、プロモーションコードは作成前と最終Setupで照合する |
 | `shiftBoard/mutations` | `confirmRecruitment`、`saveShiftAssignments` | `SHIFT-BOARD-DRAFT-01`、`SHIFT-CONFIRM-01` |
 | `shiftBoard/queries` | `getShiftBoardData`、`getShiftBoardShopScopeForOrganization` | `SHIFT-BOARD-DRAFT-01`。新appはcanonical組織で店舗scopeを検証する |

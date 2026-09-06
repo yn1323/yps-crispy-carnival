@@ -91,6 +91,32 @@ beforeEach(() => {
 
 afterEach(() => vi.restoreAllMocks());
 
+describe("募集条件の変更検知", () => {
+  it("保存・確定には画面を開いた時点の版を送る", async () => {
+    const versioned = { ...data, recruitment: { ...data.recruitment, editVersion: 3 } };
+    const { result } = renderInitialized(versioned);
+    await act(async () => result.current.intents.onConfirmDialogSubmit());
+    expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ expectedEditVersion: 3 }));
+    expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ expectedEditVersion: 3 }));
+  });
+
+  it("入力中のquery更新では版を追従せず、保存・確定を止めて再読み込みを案内する", async () => {
+    const { result, rerender } = renderHook(({ current }) => useShiftBoardPageController(current, recruitmentId), {
+      wrapper: Scope,
+      initialProps: { current: data },
+    });
+    act(() => result.current.intents.onShiftsChange(result.current.viewModel.shiftForm.initialShifts));
+    rerender({ current: { ...data, recruitment: { ...data.recruitment, editVersion: 1, periodEnd: "2099-01-21" } } });
+    expect(result.current.viewModel.isRecruitmentChanged).toBe(true);
+    await act(async () => {
+      result.current.intents.onSaveDraft();
+      result.current.intents.onConfirmDialogSubmit();
+    });
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(mocks.confirm).not.toHaveBeenCalled();
+  });
+});
+
 describe("シフトボードからの出力", () => {
   it("保存内容を検証済みの組織付きURLで別タブへ開き、保存や通知を行わない", () => {
     const { result } = renderInitialized();
