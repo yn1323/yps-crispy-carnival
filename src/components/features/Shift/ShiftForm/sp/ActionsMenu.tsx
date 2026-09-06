@@ -24,10 +24,9 @@ export function ActionsMenu({ isConfirmed, isSavingDraft, isConfirming, onSaveDr
       <Menu.Trigger asChild>
         <Button
           type="button"
-          size="sm"
+          size="xs"
           variant="outline"
           colorPalette="teal"
-          minH="44px"
           px={3}
           gap={1}
           flexShrink={0}

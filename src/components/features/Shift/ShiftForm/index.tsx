@@ -347,7 +347,7 @@ const Shell = ({
         </Heading>
       )}
       {!isReadOnly || exportAction ? (
-        <Flex justifySelf="end" gap={2} align="center" py={compact ? 0 : 2} flexShrink={0}>
+        <Flex justifySelf="end" gap={2} align="center" py={compact ? 1 : 2} flexShrink={0}>
           {compact && !isReadOnly ? (
             <ActionsMenu
               isConfirmed={isConfirmed}
