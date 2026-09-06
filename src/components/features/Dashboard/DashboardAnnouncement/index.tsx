@@ -7,6 +7,7 @@ import { selectedShopAtom } from "@/src/stores/shop";
 import type { DashboardAnnouncement as DashboardAnnouncementData } from "../types";
 import { DashboardAnnouncementView } from "./DashboardAnnouncementView";
 import { type AnnouncementContext, selectDashboardAnnouncementsForContext } from "./script";
+import { useDismissedAnnouncements } from "./useDismissedAnnouncements";
 
 export type DashboardAnnouncementState = {
   announcements: readonly DashboardAnnouncementData[];
@@ -21,15 +22,17 @@ type Props = {
 };
 
 export const DashboardAnnouncement = ({ announcements, defaultOpen = false, context, children }: Props) => {
+  const { dismissedIds, dismissAnnouncement } = useDismissedAnnouncements();
   const selectedShop = useAtomValue(selectedShopAtom);
   const queriedAnnouncements = useQuery(
     api.dashboard.queries.getActiveDashboardAnnouncementsV2,
     announcements === undefined ? {} : "skip",
   );
-  const resolvedAnnouncements =
+  const matchedAnnouncements =
     announcements === undefined
       ? selectDashboardAnnouncementsForContext(queriedAnnouncements, context ?? selectedShop)
       : (announcements ?? []);
+  const resolvedAnnouncements = matchedAnnouncements.filter((announcement) => !dismissedIds.includes(announcement._id));
   const content =
     resolvedAnnouncements.length > 0 ? (
       <Stack gap={2}>
@@ -38,6 +41,7 @@ export const DashboardAnnouncement = ({ announcements, defaultOpen = false, cont
             key={announcement._id}
             announcement={announcement}
             defaultOpen={defaultOpen && index === 0}
+            onDismiss={() => dismissAnnouncement(announcement._id)}
           />
         ))}
       </Stack>

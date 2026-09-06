@@ -1,8 +1,11 @@
 import { Box } from "@chakra-ui/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
+import { Button } from "@/src/components/ui/Button";
 import type { DashboardAnnouncement as DashboardAnnouncementData } from "../types";
 import { DashboardAnnouncement } from "./index";
+import { DISMISSED_ANNOUNCEMENTS_STORAGE_KEY } from "./useDismissedAnnouncements";
 
 const announcement = {
   _id: "dashboard-announcement-1",
@@ -24,6 +27,10 @@ const meta = {
   component: DashboardAnnouncement,
   parameters: {
     layout: "fullscreen",
+  },
+  beforeEach: () => {
+    localStorage.removeItem(DISMISSED_ANNOUNCEMENTS_STORAGE_KEY);
+    return () => localStorage.removeItem(DISMISSED_ANNOUNCEMENTS_STORAGE_KEY);
   },
   decorators: [
     (Story) => (
@@ -84,6 +91,12 @@ export const ModalOpen: Story = {
   },
 };
 
+export const ModalOpenMobile: Story = {
+  ...ModalOpen,
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
 export const OpensDialog: Story = {
   args: {
     announcements: [announcement, organizationAnnouncement],
@@ -102,5 +115,51 @@ export const OpensDialog: Story = {
       await page.findByText("このお知らせは、現在選択している事業者を対象にしています。"),
     ).toBeInTheDocument();
     await expect(page.queryByRole("dialog", { name: "LINE通知の遅延について" })).not.toBeInTheDocument();
+  },
+};
+
+export const DismissesAnnouncements: Story = {
+  args: {
+    announcements: [announcement, organizationAnnouncement],
+  },
+  parameters: {
+    screenshot: { skip: true },
+  },
+  render: function Render(args) {
+    const [mountKey, setMountKey] = useState(0);
+    return (
+      <>
+        <DashboardAnnouncement key={mountKey} {...args} />
+        <Button mt={4} variant="outline" onClick={() => setMountKey((key) => key + 1)}>
+          お知らせを再読み込み
+        </Button>
+      </>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(await canvas.findByRole("button", { name: /LINE通知の遅延についてを開く/ }));
+    const firstDialog = within(await page.findByRole("dialog", { name: announcement.title }));
+    await userEvent.click(firstDialog.getByText("閉じる", { selector: "button" }));
+    await waitFor(() => expect(page.queryByRole("dialog")).not.toBeInTheDocument());
+    await expect(canvas.getAllByRole("button", { name: /を開く$/ })).toHaveLength(2);
+
+    await userEvent.click(canvas.getByRole("button", { name: /LINE通知の遅延についてを開く/ }));
+    const reopenedDialog = within(await page.findByRole("dialog", { name: announcement.title }));
+    await userEvent.click(reopenedDialog.getByRole("button", { name: "削除する" }));
+    await waitFor(() => expect(page.queryByRole("dialog")).not.toBeInTheDocument());
+    await expect(canvas.queryByRole("button", { name: /LINE通知の遅延についてを開く/ })).not.toBeInTheDocument();
+    await expect(canvas.getAllByRole("button", { name: /を開く$/ })).toHaveLength(1);
+
+    await userEvent.click(canvas.getByRole("button", { name: /現在の事業者向けのお知らせを開く/ }));
+    const remainingDialog = within(await page.findByRole("dialog", { name: organizationAnnouncement.title }));
+    await userEvent.click(remainingDialog.getByRole("button", { name: "削除する" }));
+    await waitFor(() => expect(page.queryByRole("dialog")).not.toBeInTheDocument());
+    await expect(canvas.queryAllByRole("button", { name: /を開く$/ })).toHaveLength(0);
+
+    await userEvent.click(canvas.getByRole("button", { name: "お知らせを再読み込み" }));
+    await expect(canvas.queryAllByRole("button", { name: /を開く$/ })).toHaveLength(0);
   },
 };

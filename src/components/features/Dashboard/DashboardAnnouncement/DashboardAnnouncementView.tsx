@@ -9,9 +9,14 @@ import { sanitizeDashboardAnnouncementHtml } from "./sanitizeAnnouncementHtml";
 export type DashboardAnnouncementViewProps = {
   announcement: DashboardAnnouncementData;
   defaultOpen?: boolean;
+  onDismiss: () => void;
 };
 
-export const DashboardAnnouncementView = ({ announcement, defaultOpen = false }: DashboardAnnouncementViewProps) => {
+export const DashboardAnnouncementView = ({
+  announcement,
+  defaultOpen = false,
+  onDismiss,
+}: DashboardAnnouncementViewProps) => {
   const dialog = useDialog(defaultOpen);
   const displayDate = formatDateWithWeekday(announcement.displayDate);
   const sanitizedBodyHtml = useMemo(
@@ -65,6 +70,9 @@ export const DashboardAnnouncementView = ({ announcement, defaultOpen = false }:
         onOpenChange={dialog.onOpenChange}
         onClose={dialog.close}
         closeLabel="閉じる"
+        onSubmit={onDismiss}
+        submitLabel="削除する"
+        submitColorPalette="red"
         mobileFullScreen
         maxW={{ md: "640px" }}
         maxH={{ md: "85dvh" }}
@@ -87,6 +95,9 @@ export const DashboardAnnouncementView = ({ announcement, defaultOpen = false }:
           // biome-ignore lint/security/noDangerouslySetInnerHtml: DB入稿HTMLはDOMPurifyで許可タグだけにsanitizeしてから表示する
           dangerouslySetInnerHTML={{ __html: sanitizedBodyHtml }}
         />
+        <Text fontSize="xs" color="fg.muted" mt={6}>
+          削除すると、このブラウザでは再表示できません。
+        </Text>
       </Dialog>
     </>
   );
