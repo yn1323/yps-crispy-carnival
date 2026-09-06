@@ -16,13 +16,22 @@ import type {
   TimeRange,
   ViewMode,
 } from "@/src/domains/shift/types";
-import { ConfirmButton, type ReminderStatus, SaveButton, UnsubmittedStrip, ViewTabs } from "./components";
+import {
+  ConfirmButton,
+  ExportButton,
+  type ReminderStatus,
+  SaveButton,
+  type ShiftFormExportAction,
+  UnsubmittedStrip,
+  ViewTabs,
+} from "./components";
 import { useShiftFormInit } from "./hooks/useShiftFormInit";
 import { DailyView } from "./pc/DailyView";
 import { DateOnlyView } from "./pc/DateOnlyView";
 import { OverviewView } from "./pc/OverviewView";
 import { ShiftTypeDailyView } from "./pc/ShiftTypeDailyView";
 import { ShiftTypeOverviewView } from "./pc/ShiftTypeOverviewView";
+import { ActionsMenu } from "./sp/ActionsMenu";
 import { SPDailyView } from "./sp/DailyView";
 import { SPDateOnlyDailyView } from "./sp/DateOnlyDailyView";
 import { SPDateOnlyOverviewView } from "./sp/DateOnlyOverviewView";
@@ -71,7 +80,7 @@ type ShiftFormProps = {
   validationWarnings?: AssignmentWarning[];
   onDismissValidationIssues?: () => void;
   header?: ShiftFormHeader;
-  action?: ReactNode;
+  exportAction?: ShiftFormExportAction;
 };
 
 const ShiftFormInner = ({
@@ -104,7 +113,7 @@ const ShiftFormInner = ({
   validationWarnings,
   onDismissValidationIssues,
   header,
-  action,
+  exportAction,
 }: ShiftFormProps) => {
   useShiftFormInit({
     shopId,
@@ -185,7 +194,7 @@ const ShiftFormInner = ({
           onSelectIssue={handleSelectIssue}
           onDismissValidationIssues={onDismissValidationIssues}
           header={header}
-          action={action}
+          exportAction={exportAction}
         >
           {isDateOnlyPattern ? (
             <DateOnlyView />
@@ -222,7 +231,7 @@ const ShiftFormInner = ({
         onSelectIssue={handleSelectIssue}
         onDismissValidationIssues={onDismissValidationIssues}
         header={header}
-        action={action}
+        exportAction={exportAction}
       >
         {isDateOnlyPattern ? (
           viewMode === "daily" ? (
@@ -276,7 +285,7 @@ type ShellProps = {
   onSelectIssue: (issue: DisplayIssue) => void;
   onDismissValidationIssues?: () => void;
   header?: ShiftFormHeader;
-  action?: ReactNode;
+  exportAction?: ShiftFormExportAction;
   children: ReactNode;
 };
 
@@ -298,14 +307,12 @@ const Shell = ({
   onSelectIssue,
   onDismissValidationIssues,
   header,
-  action,
+  exportAction,
   children,
 }: ShellProps) => (
   <Flex direction="column" h="100%" minH={0}>
     <Grid
-      templateColumns={
-        header ? (compact ? "minmax(0, 1fr) auto minmax(0, 1fr)" : "auto minmax(0, 1fr) auto") : "minmax(0, 1fr) auto"
-      }
+      templateColumns={header && !compact ? "auto minmax(0, 1fr) auto" : "minmax(0, 1fr) auto"}
       px={compact ? 3 : 5}
       bg="white"
       borderBottomWidth="1px"
@@ -323,7 +330,7 @@ const Shell = ({
           <ViewTabs value={viewMode} onChange={setViewMode} compactSpacing={compact && Boolean(header)} />
         )}
       </Flex>
-      {header && (
+      {header && !compact && (
         <Heading
           as="h1"
           alignSelf="stretch"
@@ -332,25 +339,38 @@ const Shell = ({
           justifyContent="center"
           minW={0}
           color="gray.950"
-          fontSize={compact ? "md" : "lg"}
+          fontSize="lg"
           textAlign="center"
           truncate
         >
-          {compact ? header.mobileTitle : header.desktopTitle}
+          {header.desktopTitle}
         </Heading>
       )}
-      {!isReadOnly || action ? (
-        <Flex justifySelf="end" gap={2} align="center" py={2} flexShrink={0}>
-          {action}
-          {!isReadOnly && (
+      {!isReadOnly || exportAction ? (
+        <Flex justifySelf="end" gap={2} align="center" py={compact ? 0 : 2} flexShrink={0}>
+          {compact && !isReadOnly ? (
+            <ActionsMenu
+              isConfirmed={isConfirmed}
+              isSavingDraft={isSavingDraft}
+              isConfirming={isConfirming}
+              onSaveDraft={onSaveDraft}
+              onConfirm={onConfirm}
+              exportAction={exportAction}
+            />
+          ) : (
             <>
-              <SaveButton compact={compact} isSaving={isSavingDraft} onClick={onSaveDraft} />
-              <ConfirmButton
-                compact={compact}
-                isConfirmed={isConfirmed}
-                isConfirming={isConfirming}
-                onClick={onConfirm}
-              />
+              {exportAction && <ExportButton {...exportAction} />}
+              {!isReadOnly && (
+                <>
+                  <SaveButton compact={compact} isSaving={isSavingDraft} onClick={onSaveDraft} />
+                  <ConfirmButton
+                    compact={compact}
+                    isConfirmed={isConfirmed}
+                    isConfirming={isConfirming}
+                    onClick={onConfirm}
+                  />
+                </>
+              )}
             </>
           )}
         </Flex>

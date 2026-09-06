@@ -258,14 +258,18 @@ export const AppOrganizationScoped: Story = {
   },
   parameters: { vrt: { releaseFixedHeader: true } },
   render: renderAppShiftBoard,
+};
+
+export const AppOrganizationScopedActionsOpen: Story = {
+  ...AppOrganizationScoped,
+  name: "App Organization Scoped Actions Open",
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const exportButton = await canvas.findByRole("button", { name: "PDF・Excel（別タブで開きます）" });
-    const saveButton = await canvas.findByRole("button", { name: "下書き保存" });
+    const screen = within(canvasElement.ownerDocument.body);
 
-    await expect(exportButton).toBeEnabled();
-    await expect(exportButton.nextElementSibling).toBe(saveButton);
-    await expect(within(exportButton).getByText("PDF・Excel")).not.toBeVisible();
+    await userEvent.click(await canvas.findByRole("button", { name: "保存・確定・出力" }));
+    const menu = await screen.findByRole("menu");
+    await waitFor(() => expect(menu).toBeVisible());
   },
 };
 
@@ -388,7 +392,8 @@ export const AppConfirmDialogMobile: Story = {
     const canvas = within(canvasElement);
     const screen = within(canvasElement.ownerDocument.body);
 
-    await userEvent.click(await canvas.findByRole("button", { name: "確定" }));
+    await userEvent.click(await canvas.findByRole("button", { name: "保存・確定・出力" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "シフトを確定" }));
 
     await expect(
       await screen.findByRole("dialog", { name: "このシフトをスタッフに通知しますか？" }),
