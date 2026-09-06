@@ -57,6 +57,18 @@ export const DateOnlyMultiplePages: Story = {
   },
 };
 
+const emptyTenDays = createExportFixture({
+  staffs: dateOnly.staffs.slice(0, 50),
+  assignments: [],
+});
+emptyTenDays.recruitment.periodEnd = "2026-08-10";
+emptyTenDays.recruitment.shopClosedDates = ["2026-08-01"];
+export const MobileEmptyTenDays: Story = {
+  args: { schedule: buildExportSchedule(emptyTenDays) },
+  tags: ["vrt-mobile1"],
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+};
+
 const shiftTypes = createExportFixture();
 shiftTypes.staffs[0].name = "とても長いスタッフ名の表示を確認するための名前";
 shiftTypes.recruitment.submissionPattern = {

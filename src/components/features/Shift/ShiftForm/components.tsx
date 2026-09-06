@@ -1,5 +1,6 @@
 import { Box, chakra, Flex, Icon, Stack, Text } from "@chakra-ui/react";
-import { LuSave, LuTriangleAlert } from "react-icons/lu";
+import { LuFileDown, LuSave, LuTriangleAlert } from "react-icons/lu";
+import { Button } from "@/src/components/ui/Button";
 import { Tooltip } from "@/src/components/ui/tooltip";
 import type { StaffType, ViewMode } from "@/src/domains/shift/types";
 
@@ -303,6 +304,28 @@ export const UnsubmittedStrip = ({ names, reminderStatus, onOpenDetails }: Unsub
     </>
   );
 };
+
+export type ShiftFormExportAction = { onClick: () => void; isDisabled: boolean };
+
+export const ExportButton = ({ onClick, isDisabled }: ShiftFormExportAction) => (
+  <Button
+    size="sm"
+    variant="outline"
+    onClick={onClick}
+    disabled={isDisabled}
+    aria-label="PDF・Excel（別タブで開きます）"
+    h={{ base: "28px", lg: "32px" }}
+    minW={{ base: "28px", lg: "auto" }}
+    px={{ base: 2, lg: 3 }}
+  >
+    <Icon boxSize={4} aria-hidden="true">
+      <LuFileDown focusable="false" />
+    </Icon>
+    <Text as="span" display={{ base: "none", lg: "inline" }}>
+      PDF・Excel
+    </Text>
+  </Button>
+);
 
 type SaveButtonProps = { compact?: boolean; isSaving?: boolean; onClick?: () => void };
 

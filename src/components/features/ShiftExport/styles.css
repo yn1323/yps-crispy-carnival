@@ -31,9 +31,10 @@
 }
 .shift-export-table th,
 .shift-export-table td {
-  border: 0.5pt solid #000;
-  /* Match the PDF padding, including the 0.5 pt border in the text-fit budget. */
-  padding: 2pt 1.75pt;
+  /* Subpixel collapsed borders can disappear in iOS WebKit. */
+  border: 1px solid #000;
+  /* Include half of the collapsed border in the 2 pt text-fit padding budget. */
+  padding: 2pt calc(2pt - 0.5px);
   text-align: center;
   vertical-align: middle;
   overflow: hidden;
