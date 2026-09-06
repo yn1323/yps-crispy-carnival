@@ -5,6 +5,7 @@ import type { MutationCtx } from "../_generated/server";
 import { toAuditRequestKey } from "../_lib/auditCorrelation";
 import { isPastShiftPeriod, jstDayRangeMs } from "../_lib/dateFormat";
 import { managerMutation } from "../_lib/functions";
+import { assertRecruitmentEditVersion } from "../_lib/recruitmentEditing";
 import { sha256Hex } from "../_lib/sha256";
 import { normalizeExactAdjacentTimeAssignments } from "../_lib/shiftAssignmentNormalization";
 import { normalizeEmail } from "../_lib/validation";
@@ -181,6 +182,7 @@ async function scheduleSupplementalConfirmationResends(
 export const saveShiftAssignments = managerMutation({
   args: {
     recruitmentId: v.id("recruitments"),
+    expectedEditVersion: v.optional(v.number()),
     assignments: v.array(
       v.object({
         staffId: v.id("staffs"),
@@ -198,6 +200,7 @@ export const saveShiftAssignments = managerMutation({
     if (!recruitment) {
       throw new ConvexError("Not found");
     }
+    assertRecruitmentEditVersion(recruitment, args.expectedEditVersion);
     if (isPastShiftPeriod(recruitment.periodEnd)) {
       throw new ConvexError(PAST_SHIFT_SAVE_ERROR);
     }
@@ -285,6 +288,7 @@ export const saveShiftAssignments = managerMutation({
 export const confirmRecruitment = managerMutation({
   args: {
     recruitmentId: v.id("recruitments"),
+    expectedEditVersion: v.optional(v.number()),
     intent: v.optional(v.union(v.literal("confirm"), v.literal("resend"))),
     requestId: v.optional(v.string()),
   },
@@ -300,6 +304,7 @@ export const confirmRecruitment = managerMutation({
     if (!recruitment) {
       throw new ConvexError("Not found");
     }
+    assertRecruitmentEditVersion(recruitment, args.expectedEditVersion);
     if (args.requestId !== undefined) {
       // client request IDは入力契約だけ検証し、通知operationのidentityには使わない。
       await toAuditRequestKey(args.requestId);

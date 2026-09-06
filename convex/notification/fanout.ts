@@ -2,11 +2,13 @@ import { v } from "convex/values";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { NOTIFICATION_FANOUT_CANCELLATION_BATCH_SIZE, NOTIFICATION_FANOUT_SCOPE_LIMIT } from "../constants";
+import type { RecruitmentUpdate } from "./recruitmentUpdate";
 
 export const notificationFanoutKindValidator = v.union(v.literal("recruitment"), v.literal("confirmation"));
 
 export const notificationFanoutPurposeValidator = v.union(
   v.literal("recruitment"),
+  v.literal("recruitment_update"),
   v.literal("confirmation"),
   v.literal("confirmation_resend"),
 );
@@ -26,7 +28,7 @@ export const notificationFanoutCancelReasonValidator = v.union(
 type EnsureNotificationFanoutOperationArgs = {
   operationKey: string;
   kind: "recruitment" | "confirmation";
-  purpose: "recruitment" | "confirmation" | "confirmation_resend";
+  purpose: "recruitment" | "recruitment_update" | "confirmation" | "confirmation_resend";
   recruitmentId: Id<"recruitments">;
   shopId: Id<"shops">;
   targetStaffIds: readonly Id<"staffs">[];
@@ -37,6 +39,7 @@ type EnsureNotificationFanoutOperationArgs = {
   recruitmentDraftSavedAtAtOrigin?: number | null;
   organizationBillingVersionAtOrigin?: number;
   notificationRunId?: number;
+  recruitmentUpdate?: RecruitmentUpdate;
 };
 
 /**
@@ -148,6 +151,7 @@ export async function ensureNotificationFanoutOperation(
       ? { organizationBillingVersionAtOrigin: args.organizationBillingVersionAtOrigin }
       : {}),
     ...(args.notificationRunId !== undefined ? { notificationRunId: args.notificationRunId } : {}),
+    ...(args.recruitmentUpdate === undefined ? {} : { recruitmentUpdate: args.recruitmentUpdate }),
     createdAt: now,
     updatedAt: now,
   });

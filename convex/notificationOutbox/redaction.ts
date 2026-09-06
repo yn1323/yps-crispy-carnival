@@ -1,3 +1,4 @@
+import { RECRUITMENT_UPDATE_NOTIFICATION_CONTEXT } from "./failureResend";
 import type { NotificationPayload } from "./types";
 
 export function notificationContextForPayload(payload: NotificationPayload, dedupeKey: string): string {
@@ -72,5 +73,10 @@ export function redactNotificationPayload(
 }
 
 function dedupeContext(dedupeKey: string) {
+  const kind = dedupeKey.split(":")[1];
+  if (kind === "recruitmentUpdate" || kind === "failureRetryRecruitmentUpdate") {
+    return RECRUITMENT_UPDATE_NOTIFICATION_CONTEXT;
+  }
+  if (kind === "reminder" || kind === "failureRetryReminder") return "notification.sendReminderEmails";
   return dedupeKey.split(":").slice(0, 2).join(":");
 }

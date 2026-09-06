@@ -3,6 +3,7 @@ import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { observedInternalMutation as internalMutation } from "../_lib/errorObservability";
+import { getRecruitmentEditVersion } from "../_lib/recruitmentEditing";
 import { isShopAvailable } from "../_lib/shopAvailability";
 import { staffAccessKindValidator } from "../_lib/staffAccess";
 import { generateUUID } from "../_lib/uuid";
@@ -183,10 +184,12 @@ export const markReminderSent = internalMutation({
   args: {
     recruitmentId: v.id("recruitments"),
     sentAt: v.number(),
+    recruitmentVersionAtOrigin: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const recruitment = await ctx.db.get(args.recruitmentId);
     if (!recruitment || recruitment.isDeleted || recruitment.status !== "open") return null;
+    if (getRecruitmentEditVersion(recruitment) !== (args.recruitmentVersionAtOrigin ?? 0)) return null;
     await ctx.db.patch(args.recruitmentId, { lastReminderSentAt: args.sentAt });
     return null;
   },
@@ -657,6 +660,7 @@ export const claimNotificationFanoutBatch = internalMutation({
       operationKey: operation.operationKey,
       recruitmentId: operation.recruitmentId,
       purpose: operation.purpose,
+      ...(operation.recruitmentUpdate === undefined ? {} : { recruitmentUpdate: operation.recruitmentUpdate }),
       dedupeSuffix: operation.dedupeSuffix,
       leaseToken,
       cursor: operation.cursor,

@@ -135,6 +135,7 @@ const meta = {
     onCreateClick: noop,
     onOpenShiftBoard: noop,
     onDeleteRecruitment: noop,
+    onEditRecruitment: noop,
     onShowPastRecruitments: noop,
     onLoadMorePastRecruitments: noop,
   },
@@ -151,6 +152,18 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
+
+export const EditRecruitmentMenu: Story = {
+  parameters: { screenshot: { skip: true } },
+  args: { groups: groupsFor([collectingLaterRecruitment]), onEditRecruitment: fn() },
+  play: async ({ canvasElement, args }) => {
+    await userEvent.click(within(canvasElement).getByRole("button", { name: /募集操作メニュー/ }));
+    await userEvent.click(
+      await within(canvasElement.ownerDocument.body).findByRole("menuitem", { name: "募集を編集" }),
+    );
+    await expect(args.onEditRecruitment).toHaveBeenCalledWith(collectingLaterRecruitment);
+  },
+};
 
 export const ActionRequired: Story = {
   args: {

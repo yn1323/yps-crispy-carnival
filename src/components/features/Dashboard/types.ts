@@ -2,6 +2,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import type { RecruitmentLifecycleStatus } from "@/src/domains/shift/recruitmentLifecycle";
 
 export type Recruitment = {
+  editVersion?: number;
   _id: Id<"recruitments">;
   createdAt: number;
   periodStart: string;

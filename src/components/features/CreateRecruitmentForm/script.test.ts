@@ -1,7 +1,8 @@
 import dayjs from "dayjs";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RECRUITMENT_PERIOD_DAYS_MAX } from "@/convex/constants";
 import {
+  buildRecruitmentComparison,
   createRecruitmentFormSchema,
   createRecruitmentSchema,
   deriveShopClosedDatesFromRegularDays,
@@ -10,7 +11,52 @@ import {
   getHolidaySummary,
   getPeriodSelectionMaxDate,
   getPeriodStepValidationError,
+  preserveEditedClosedDates,
 } from "./script";
+
+describe("募集条件の変更前後", () => {
+  const previous = {
+    periodStart: "2026-06-01",
+    periodEnd: "2026-06-14",
+    deadline: "2026-05-31",
+    shopClosedDates: ["2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04"],
+  };
+
+  it("定休日の4日目以降の変更も省略せず表示し、変更した項目だけを区別する", () => {
+    const comparison = buildRecruitmentComparison(previous, {
+      ...previous,
+      shopClosedDates: ["2026-06-01", "2026-06-02", "2026-06-03", "2026-06-05"],
+    });
+    expect(comparison.map((row) => row.changed)).toEqual([false, true, false]);
+    expect(comparison[1]).toMatchObject({
+      before: "6/1(月), 2(火), 3(水), 4(木)",
+      after: "6/1(月), 2(火), 3(水), 5(金)",
+    });
+  });
+
+  it("定休日の並び順だけが違う場合は変更扱いにしない", () => {
+    const comparison = buildRecruitmentComparison(previous, {
+      ...previous,
+      shopClosedDates: [...previous.shopClosedDates].reverse(),
+    });
+    expect(comparison.every((row) => !row.changed && row.before === row.after)).toBe(true);
+  });
+});
+
+describe("編集時の定休日", () => {
+  const previous = { periodStart: "2026-06-01", periodEnd: "2026-06-07", shopClosedDates: ["2026-06-03"] };
+
+  it("既存期間の臨時休業と通常営業日の例外を維持し、延長した日の曜日設定だけを初期選択する", () => {
+    expect(preserveEditedClosedDates(previous, "2026-06-01", "2026-06-14", ["mon"])).toEqual([
+      "2026-06-03",
+      "2026-06-08",
+    ]);
+  });
+
+  it("縮小で範囲外になった定休日を除く", () => {
+    expect(preserveEditedClosedDates(previous, "2026-06-04", "2026-06-07", ["mon"])).toEqual([]);
+  });
+});
 
 describe("deriveShopClosedDatesFromRegularDays", () => {
   it("期間内の定休日曜日を日付リストに展開する", () => {
@@ -204,14 +250,24 @@ describe("createRecruitmentSchema", () => {
 });
 
 describe("createRecruitmentFormSchema (フォームバリデーション)", () => {
-  const today = dayjs().format("YYYY-MM-DD");
-  const tomorrow = dayjs().add(1, "day").format("YYYY-MM-DD");
-  const yesterday = dayjs().subtract(1, "day").format("YYYY-MM-DD");
-  const dayAfterTomorrow = dayjs().add(2, "day").format("YYYY-MM-DD");
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // UTCでは前日になるJST 0時でも、業務日付を基準に検証する。
+    vi.setSystemTime(new Date("2026-09-06T00:00:00+09:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const today = "2026-09-06";
+  const tomorrow = dayjs(today).add(1, "day").format("YYYY-MM-DD");
+  const yesterday = dayjs(today).subtract(1, "day").format("YYYY-MM-DD");
+  const dayAfterTomorrow = dayjs(today).add(2, "day").format("YYYY-MM-DD");
 
   const validData = {
     periodStart: dayAfterTomorrow,
-    periodEnd: dayjs().add(10, "day").format("YYYY-MM-DD"),
+    periodEnd: dayjs(today).add(10, "day").format("YYYY-MM-DD"),
     deadline: tomorrow,
     shopClosedDates: [],
   };
@@ -219,7 +275,7 @@ describe("createRecruitmentFormSchema (フォームバリデーション)", () =
   it("お店のお休みを含むデータを受け入れる", () => {
     const result = createRecruitmentFormSchema.safeParse({
       ...validData,
-      shopClosedDates: [dayjs().add(4, "day").format("YYYY-MM-DD")],
+      shopClosedDates: [dayjs(today).add(4, "day").format("YYYY-MM-DD")],
     });
     expect(result.success).toBe(true);
   });

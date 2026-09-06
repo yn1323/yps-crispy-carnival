@@ -1,11 +1,24 @@
 import { Flex, Link, Stack, Text } from "@chakra-ui/react";
 import type { IconType } from "react-icons";
-import { LuArrowRight, LuBellRing, LuBuilding2, LuSprout } from "react-icons/lu";
+import { LuArrowRight, LuBellRing, LuBuilding2, LuDownload, LuSprout } from "react-icons/lu";
 import { HelpAudienceBadge } from "./HelpAudienceBadge";
 import { SHIFT_MANAGEMENT_SCENARIO } from "./helpScenario";
 import type { HelpAudience } from "./helpTasks";
 import { NOTIFICATION_BASICS_HELP } from "./notificationBasicsHelp";
 import { ORGANIZATION_STRUCTURE_HELP } from "./organizationStructureHelp";
+import { SHIFT_EXPORT_HELP } from "./shiftExportHelp";
+
+export function HelpShiftExportLinkCard() {
+  return (
+    <HelpBasicLinkCard
+      href={SHIFT_EXPORT_HELP.href}
+      title={SHIFT_EXPORT_HELP.cardTitle}
+      description={SHIFT_EXPORT_HELP.cardDescription}
+      audiences={[SHIFT_EXPORT_HELP.audience]}
+      icon={LuDownload}
+    />
+  );
+}
 
 export function HelpScenarioLinkCard() {
   return (

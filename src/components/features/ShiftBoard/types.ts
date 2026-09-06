@@ -7,6 +7,7 @@ export type ShiftBoardData = {
   canWriteBusinessData: boolean;
   businessWriteBlockReason: "paymentResultPending" | "usageLimitExceeded" | "usageLimitEvaluationUnavailable" | null;
   recruitment: {
+    editVersion?: number;
     _id: Id<"recruitments">;
     periodStart: string;
     periodEnd: string;

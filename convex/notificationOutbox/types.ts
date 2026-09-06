@@ -152,6 +152,7 @@ type NotificationHistoryTarget =
     };
 
 type EnqueueNotificationCommon<TPayload extends NotificationPayload> = {
+  recruitmentVersionAtOrigin?: number;
   organizationPersonLineLinkId?: Id<"organizationPersonLineLinks">;
   organizationPersonLineGenerationAtEnqueue?: number;
   organizationBillingVersionAtOrigin?: number;

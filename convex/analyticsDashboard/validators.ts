@@ -56,10 +56,14 @@ export const shopRowValidator = v.object({
   registeredAt: nullableNumber,
   isDeleted: v.boolean(),
 });
+const shopListRowValidator = shopRowValidator.extend({
+  staffCount: nullableNumber,
+  latestShift: v.union(v.object({ periodStart: v.string(), periodEnd: v.string() }), v.null()),
+});
 export const shopsResponseValidator = v.object({
   kind: v.literal("shops"),
   asOf: v.number(),
-  rows: v.array(shopRowValidator),
+  rows: v.array(shopListRowValidator),
   pageInfo: pageInfoValidator,
   scope: v.union(v.object({ date: v.string(), metric: analyticsMetricValidator }), v.null()),
   scopeStatus: v.union(

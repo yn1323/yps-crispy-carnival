@@ -8,7 +8,7 @@ type Session = {
   recruitmentId: string;
 };
 
-export function useSubmitShiftRequests(session: Session) {
+export function useSubmitShiftRequests(session: Session, expectedEditVersion: number) {
   const submitMutation = useMutation(api.shiftSubmission.mutations.submitShiftRequests);
 
   return async (submission: SubmitShiftSelectionInput, acceptedLegal?: boolean) => {
@@ -18,6 +18,7 @@ export function useSubmitShiftRequests(session: Session) {
       recruitmentId: session.recruitmentId as Id<"recruitments">,
       submission,
       acceptedLegal,
+      expectedEditVersion,
     });
   };
 }

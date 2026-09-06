@@ -91,6 +91,7 @@ function ShiftSubmitContent({ session }: { session: { sessionToken: string; recr
 
   return (
     <StaffSubmit
+      key={session.recruitmentId}
       data={data.data}
       session={session}
       headerAction={<StaffFeatureRequestAction sessionToken={session.sessionToken} />}

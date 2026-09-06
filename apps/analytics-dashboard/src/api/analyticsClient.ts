@@ -18,6 +18,7 @@ export class AnalyticsApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly retryAfterMs?: number,
   ) {
     super(message);
     this.name = "AnalyticsApiError";
@@ -60,6 +61,7 @@ async function fetchEndpoint<T>(
     throw new AnalyticsApiError(
       parsed?.error?.message ?? "読み込めませんでした。もう一度お試しください。",
       response.status,
+      response.status === 429 ? Math.max(1, Number(response.headers.get("retry-after")) || 60) * 1000 : undefined,
     );
   if (!parsed || !("data" in parsed) || !parsed.env) throw new AnalyticsApiError("応答を読み取れませんでした。", 502);
   return parsed as AnalyticsApiEnvelope<T>;
@@ -67,11 +69,30 @@ async function fetchEndpoint<T>(
 export function fetchOverview(rangeDays: AnalyticsRangeDays, signal?: AbortSignal) {
   return fetchEndpoint<OverviewResponse>("/api/analytics/overview", { rangeDays }, undefined, signal);
 }
-export function fetchShops(
+export async function fetchShops(
   params: PaginationParams & { search?: string; date?: string | null; metric?: AnalyticsMetric | null },
   signal?: AbortSignal,
 ) {
-  return fetchEndpoint<ShopsResponse>("/api/analytics/shops", params, undefined, signal);
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await fetchEndpoint<ShopsResponse>("/api/analytics/shops", params, undefined, signal);
+    } catch (error) {
+      if (!(error instanceof AnalyticsApiError) || error.status !== 429 || attempt >= 3) throw error;
+      // 全ページ取得中にrate limitへ達しても、取得済みのページを捨てず同じcursorから再開する。
+      await new Promise<void>((resolve, reject) => {
+        signal?.throwIfAborted();
+        const onAbort = () => {
+          clearTimeout(timer);
+          reject(signal?.reason);
+        };
+        const timer = setTimeout(() => {
+          signal?.removeEventListener("abort", onAbort);
+          resolve();
+        }, error.retryAfterMs ?? 60_000);
+        signal?.addEventListener("abort", onAbort, { once: true });
+      });
+    }
+  }
 }
 export function fetchShop(shopId: string, params: PaginationParams = {}, signal?: AbortSignal) {
   return fetchEndpoint<ShopDetailResponse>(

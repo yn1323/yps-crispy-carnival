@@ -13,6 +13,7 @@ import {
   notificationFanoutPurposeValidator,
   notificationFanoutStatusValidator,
 } from "./notification/fanout";
+import { recruitmentUpdateValidator } from "./notification/recruitmentUpdate";
 import {
   notificationCancelReasonValidator,
   notificationChannelValidator,
@@ -714,11 +715,13 @@ const schema = defineSchema({
     periodEnd: v.string(), // "2026-01-26"
     deadline: v.string(), // "2026-01-17"
     shopClosedDates: v.array(v.string()), // 募集期間内でお店を開けない日
+    // 未編集の募集では省略が版0を表す。既存データの書換えは不要。
+    editVersion: v.optional(v.number()),
     status: v.union(v.literal("open"), v.literal("confirmed")),
     confirmedAt: v.optional(v.number()), // Unix ms
     isDeleted: v.boolean(),
     submissionPattern: submissionPatternValidator,
-    // 未提出者への自動催促通知を予約した時刻。既存募集には付与せず、作成時に未来時刻のものだけ保存する。
+    // 未提出者への自動催促の予定時刻。作成・編集時に未来の予定だけ保存する。
     reminderScheduledAt: v.optional(v.number()),
     // 未提出者への自動催促通知を実際に送信した時刻（UI表示・二重送信防止用）
     lastReminderSentAt: v.optional(v.number()),
@@ -796,6 +799,8 @@ const schema = defineSchema({
     staffId: v.id("staffs"),
     firstSubmittedAt: v.number(), // Unix ms（初回提出日時）
     submittedAt: v.number(), // Unix ms（最終提出日時）
+    // 勤務対象日追加後の再提出待ち。省略は現在の条件への提出済みを表す。
+    needsResubmission: v.optional(v.boolean()),
   })
     .index("by_recruitmentId", ["recruitmentId"])
     .index("by_recruitmentId_staffId", ["recruitmentId", "staffId"]),
@@ -917,6 +922,8 @@ const schema = defineSchema({
     cursor: v.number(),
     status: notificationFanoutStatusValidator,
     dedupeSuffix: v.string(),
+    // 募集編集通知の条件比較。変更前を復元できない旧operationと編集以外では未設定。
+    recruitmentUpdate: v.optional(recruitmentUpdateValidator),
     // falseの個別再送は、同じ募集で進行中の全体fanoutを置き換えず並行して配る。
     // rollbackはmanual受付停止後、false operation/Outboxのdrain・cancelと欠落0確認までcompat reader/provider gateを維持する。
     // その確認後にだけbehaviorを戻し、optional field/indexは互換期間中そのまま残す。
@@ -959,6 +966,8 @@ const schema = defineSchema({
     organizationInvitationVersion: v.optional(v.number()),
     purpose: notificationPurposeValidator,
     recruitmentId: v.optional(v.id("recruitments")),
+    // 催促の予約時の募集条件。旧催促の省略は版0とし、変更通知の取消には使わない。
+    recruitmentVersionAtOrigin: v.optional(v.number()),
     staffId: v.optional(v.id("staffs")),
     // canonical LINE recipientのenqueue時snapshot。LINE以外では未設定が正しい。
     organizationPersonLineLinkId: v.optional(v.id("organizationPersonLineLinks")),

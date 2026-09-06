@@ -6,6 +6,7 @@ import type { AssignmentWarning } from "@/src/domains/shift/assignmentWarnings";
 import type { PositionType, ShiftData, StaffType, TimeRange } from "@/src/domains/shift/types";
 
 export type ShiftBoardPageViewModel = {
+  isRecruitmentChanged?: boolean;
   periodLabel: string;
   confirmedAtLabel: string | null;
   isConfirmed: boolean;
@@ -47,6 +48,7 @@ export type ShiftBoardPageViewModel = {
 };
 
 export type ShiftBoardPageIntents = {
+  onReload?: () => void;
   onOpenExport: () => void;
   onShiftsChange: (shifts: ShiftData[]) => void;
   onSaveDraft: () => void;

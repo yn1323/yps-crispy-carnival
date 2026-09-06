@@ -28,9 +28,11 @@ type Props = {
   canLoadMorePastRecruitments: boolean;
   tourRecruitmentId?: Recruitment["_id"];
   getRecruitmentShopName?: (recruitment: Recruitment) => string | undefined;
+  getCanEditRecruitment?: (recruitment: Recruitment) => boolean;
   onCreateClick: () => void;
   onOpenShiftBoard: (recruitmentId: string) => void;
   onDeleteRecruitment: (recruitment: Recruitment) => void;
+  onEditRecruitment?: (recruitment: Recruitment) => void;
   onShowPastRecruitments: () => void;
   onLoadMorePastRecruitments: () => void;
 };
@@ -51,9 +53,11 @@ export const RecruitmentBoard = ({
   canLoadMorePastRecruitments,
   tourRecruitmentId,
   getRecruitmentShopName,
+  getCanEditRecruitment,
   onCreateClick,
   onOpenShiftBoard,
   onDeleteRecruitment,
+  onEditRecruitment,
   onShowPastRecruitments,
   onLoadMorePastRecruitments,
 }: Props) => {
@@ -179,6 +183,8 @@ export const RecruitmentBoard = ({
                     shopName={getRecruitmentShopName?.(r)}
                     onOpenShiftBoard={onOpenShiftBoard}
                     onDeleteRecruitment={onDeleteRecruitment}
+                    onEditRecruitment={onEditRecruitment}
+                    canEdit={!isReadOnly && (getCanEditRecruitment?.(r) ?? true)}
                   />
                 ))}
               </Stack>

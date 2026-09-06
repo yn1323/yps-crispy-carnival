@@ -3,6 +3,7 @@ import type { Doc } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
 import { formatPeriodLabel, getDeadlineCutoff } from "../_lib/dateFormat";
 import { observedInternalQuery as internalQuery } from "../_lib/errorObservability";
+import { getRecruitmentEditVersion, isCurrentSubmission } from "../_lib/recruitmentEditing";
 import { resolveCanonicalStaffScope, resolveStaffLineRecipient } from "../line/service";
 import { toNotificationLineRecipient } from "../notificationOutbox/types";
 import { isShiftTargetStaff } from "../staff/service";
@@ -18,10 +19,11 @@ async function resolveCanonicalReminderContact(ctx: QueryCtx, staff: Doc<"staffs
  * 催促メール送信に必要なデータを取得（未提出スタッフのみ）
  */
 export const getReminderEmailData = internalQuery({
-  args: { recruitmentId: v.id("recruitments") },
-  handler: async (ctx, { recruitmentId }) => {
+  args: { recruitmentId: v.id("recruitments"), recruitmentVersionAtOrigin: v.optional(v.number()) },
+  handler: async (ctx, { recruitmentId, recruitmentVersionAtOrigin }) => {
     const recruitment = await ctx.db.get(recruitmentId);
     if (!recruitment || recruitment.isDeleted) return null;
+    if (getRecruitmentEditVersion(recruitment) !== (recruitmentVersionAtOrigin ?? 0)) return null;
     if (recruitment.status !== "open" || recruitment.lastReminderSentAt || !recruitment.reminderScheduledAt) {
       return null;
     }
@@ -41,7 +43,7 @@ export const getReminderEmailData = internalQuery({
         .collect(),
     ]);
 
-    const submittedStaffIds = new Set(submissions.map((s) => s.staffId));
+    const submittedStaffIds = new Set(submissions.filter(isCurrentSubmission).map((s) => s.staffId));
     // シフト対象外スタッフは募集自体を受け取らないため、催促も送らない。
     const unsubmittedStaffs = staffs.filter((s) => isShiftTargetStaff(s) && !submittedStaffIds.has(s._id));
     const staffEntries = (
@@ -82,11 +84,13 @@ export const getReminderEmailDataForStaff = internalQuery({
   args: {
     recruitmentId: v.id("recruitments"),
     staffId: v.id("staffs"),
+    recruitmentVersionAtOrigin: v.optional(v.number()),
   },
-  handler: async (ctx, { recruitmentId, staffId }) => {
+  handler: async (ctx, { recruitmentId, staffId, recruitmentVersionAtOrigin }) => {
     const [recruitment, staff] = await Promise.all([ctx.db.get(recruitmentId), ctx.db.get(staffId)]);
     if (!recruitment || recruitment.isDeleted || !staff || !isShiftTargetStaff(staff)) return null;
     if (staff.shopId !== recruitment.shopId) return null;
+    if (getRecruitmentEditVersion(recruitment) !== (recruitmentVersionAtOrigin ?? 0)) return null;
     if (recruitment.status !== "open" || !recruitment.reminderScheduledAt) return null;
     if (Date.now() >= getDeadlineCutoff(recruitment.deadline)) return null;
 
@@ -94,7 +98,7 @@ export const getReminderEmailDataForStaff = internalQuery({
       .query("shiftSubmissions")
       .withIndex("by_recruitmentId_staffId", (q) => q.eq("recruitmentId", recruitmentId).eq("staffId", staffId))
       .first();
-    if (submission) return null;
+    if (isCurrentSubmission(submission)) return null;
 
     const shop = await ctx.db.get(recruitment.shopId);
     if (!shop || shop.isDeleted) return null;

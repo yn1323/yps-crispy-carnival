@@ -60,6 +60,7 @@ import { Route as UnregisteredStaffRegisterRouteImport } from './routes/_unregis
 import { Route as ArticlesCategoriesCategorySlugRouteImport } from './routes/articles.categories.$categorySlug'
 import { Route as HelpBasicsNotificationsRouteImport } from './routes/help.basics.notifications'
 import { Route as HelpBasicsOrganizationStructureRouteImport } from './routes/help.basics.organization-structure'
+import { Route as HelpScenariosShiftExportRouteImport } from './routes/help.scenarios.shift-export'
 import { Route as HelpScenariosShiftManagementRouteImport } from './routes/help.scenarios.shift-management'
 import { Route as HelpTasksTaskIdRouteImport } from './routes/help.tasks.$taskId'
 import { Route as AuthAppManageBillingRouteImport } from './routes/_auth/app_.manage_.billing'
@@ -340,6 +341,12 @@ const HelpBasicsOrganizationStructureRoute =
     path: '/basics/organization-structure',
     getParentRoute: () => HelpRoute,
   } as any)
+const HelpScenariosShiftExportRoute =
+  HelpScenariosShiftExportRouteImport.update({
+    id: '/scenarios/shift-export',
+    path: '/scenarios/shift-export',
+    getParentRoute: () => HelpRoute,
+  } as any)
 const HelpScenariosShiftManagementRoute =
   HelpScenariosShiftManagementRouteImport.update({
     id: '/scenarios/shift-management',
@@ -505,6 +512,7 @@ export interface FileRoutesByFullPath {
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
   '/help/basics/notifications': typeof HelpBasicsNotificationsRoute
   '/help/basics/organization-structure': typeof HelpBasicsOrganizationStructureRoute
+  '/help/scenarios/shift-export': typeof HelpScenariosShiftExportRoute
   '/help/scenarios/shift-management': typeof HelpScenariosShiftManagementRoute
   '/help/tasks/$taskId': typeof HelpTasksTaskIdRoute
   '/app/manage/billing': typeof AuthAppManageBillingRoute
@@ -574,6 +582,7 @@ export interface FileRoutesByTo {
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
   '/help/basics/notifications': typeof HelpBasicsNotificationsRoute
   '/help/basics/organization-structure': typeof HelpBasicsOrganizationStructureRoute
+  '/help/scenarios/shift-export': typeof HelpScenariosShiftExportRoute
   '/help/scenarios/shift-management': typeof HelpScenariosShiftManagementRoute
   '/help/tasks/$taskId': typeof HelpTasksTaskIdRoute
   '/app/manage/billing': typeof AuthAppManageBillingRoute
@@ -648,6 +657,7 @@ export interface FileRoutesById {
   '/articles/categories/$categorySlug': typeof ArticlesCategoriesCategorySlugRoute
   '/help/basics/notifications': typeof HelpBasicsNotificationsRoute
   '/help/basics/organization-structure': typeof HelpBasicsOrganizationStructureRoute
+  '/help/scenarios/shift-export': typeof HelpScenariosShiftExportRoute
   '/help/scenarios/shift-management': typeof HelpScenariosShiftManagementRoute
   '/help/tasks/$taskId': typeof HelpTasksTaskIdRoute
   '/_auth/app_/manage_/billing': typeof AuthAppManageBillingRoute
@@ -721,6 +731,7 @@ export interface FileRouteTypes {
     | '/articles/categories/$categorySlug'
     | '/help/basics/notifications'
     | '/help/basics/organization-structure'
+    | '/help/scenarios/shift-export'
     | '/help/scenarios/shift-management'
     | '/help/tasks/$taskId'
     | '/app/manage/billing'
@@ -790,6 +801,7 @@ export interface FileRouteTypes {
     | '/articles/categories/$categorySlug'
     | '/help/basics/notifications'
     | '/help/basics/organization-structure'
+    | '/help/scenarios/shift-export'
     | '/help/scenarios/shift-management'
     | '/help/tasks/$taskId'
     | '/app/manage/billing'
@@ -863,6 +875,7 @@ export interface FileRouteTypes {
     | '/articles/categories/$categorySlug'
     | '/help/basics/notifications'
     | '/help/basics/organization-structure'
+    | '/help/scenarios/shift-export'
     | '/help/scenarios/shift-management'
     | '/help/tasks/$taskId'
     | '/_auth/app_/manage_/billing'
@@ -1270,6 +1283,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HelpBasicsOrganizationStructureRouteImport
       parentRoute: typeof HelpRoute
     }
+    '/help/scenarios/shift-export': {
+      id: '/help/scenarios/shift-export'
+      path: '/scenarios/shift-export'
+      fullPath: '/help/scenarios/shift-export'
+      preLoaderRoute: typeof HelpScenariosShiftExportRouteImport
+      parentRoute: typeof HelpRoute
+    }
     '/help/scenarios/shift-management': {
       id: '/help/scenarios/shift-management'
       path: '/scenarios/shift-management'
@@ -1531,6 +1551,7 @@ interface HelpRouteChildren {
   HelpIndexRoute: typeof HelpIndexRoute
   HelpBasicsNotificationsRoute: typeof HelpBasicsNotificationsRoute
   HelpBasicsOrganizationStructureRoute: typeof HelpBasicsOrganizationStructureRoute
+  HelpScenariosShiftExportRoute: typeof HelpScenariosShiftExportRoute
   HelpScenariosShiftManagementRoute: typeof HelpScenariosShiftManagementRoute
   HelpTasksTaskIdRoute: typeof HelpTasksTaskIdRoute
 }
@@ -1540,6 +1561,7 @@ const HelpRouteChildren: HelpRouteChildren = {
   HelpIndexRoute: HelpIndexRoute,
   HelpBasicsNotificationsRoute: HelpBasicsNotificationsRoute,
   HelpBasicsOrganizationStructureRoute: HelpBasicsOrganizationStructureRoute,
+  HelpScenariosShiftExportRoute: HelpScenariosShiftExportRoute,
   HelpScenariosShiftManagementRoute: HelpScenariosShiftManagementRoute,
   HelpTasksTaskIdRoute: HelpTasksTaskIdRoute,
 }

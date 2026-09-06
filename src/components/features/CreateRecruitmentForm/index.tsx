@@ -1,13 +1,14 @@
 import { type DateValue, parseDate } from "@chakra-ui/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import dayjs from "dayjs";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import type { RegularClosedDay } from "@/convex/shop/schemas";
-import { formatDateWithWeekday } from "@/src/domains/shift/date";
+import { addDays, formatDateWithWeekday, todayJST } from "@/src/domains/shift/date";
 import { useSingleFlight } from "@/src/hooks/useSingleFlight";
 import { CreateRecruitmentFormView } from "./CreateRecruitmentFormView";
 import {
+  buildRecruitmentComparison,
   type CreateRecruitmentData,
   createRecruitmentFormSchema,
   deriveShopClosedDatesFromRegularDays,
@@ -18,6 +19,7 @@ import {
   getPeriodSelectionMaxDate,
   getPeriodStepValidationError,
   isDeadlineInRange,
+  preserveEditedClosedDates,
   pruneHolidaysInRange,
 } from "./script";
 import type { CreateRecruitmentShop, CreateRecruitmentShopTarget, CreateRecruitmentStep } from "./types";
@@ -31,6 +33,7 @@ export type {
 
 type Props = {
   defaultValues?: CreateRecruitmentData;
+  mode?: "create" | "edit";
   regularClosedDays?: RegularClosedDay[];
   shopTarget?: CreateRecruitmentShopTarget;
   displayMode?: "full" | "periodOnly";
@@ -61,6 +64,7 @@ const toMonthStartDateValue = (date?: string): DateValue | undefined => {
 
 export const CreateRecruitmentForm = ({
   defaultValues,
+  mode = "create",
   regularClosedDays = [],
   shopTarget,
   displayMode = "full",
@@ -69,7 +73,7 @@ export const CreateRecruitmentForm = ({
   onSubmittingChange,
   today: todayProp,
 }: Props) => {
-  const today = todayProp ?? dayjs().format("YYYY-MM-DD");
+  const today = todayProp ?? todayJST();
   const tomorrow = dayjs(today).add(1, "day").format("YYYY-MM-DD");
   const isPeriodOnly = displayMode === "periodOnly";
   const hasShopStep = !isPeriodOnly && shopTarget?.mode === "select";
@@ -79,6 +83,9 @@ export const CreateRecruitmentForm = ({
     toDateValues([defaultValues?.periodStart, defaultValues?.periodEnd].filter((date): date is string => !!date)),
   );
   const [selectedHolidays, setSelectedHolidays] = useState<string[]>(defaultValues?.shopClosedDates ?? []);
+  const initialValues = useRef(defaultValues).current;
+  // A range picker emits a partial selection first; keep the last complete range until both ends are chosen.
+  const previousPeriodRef = useRef(defaultValues);
 
   const {
     register,
@@ -135,14 +142,16 @@ export const CreateRecruitmentForm = ({
   const deadlineDesktopMonths = getCalendarMonthCount(today, deadlineMax);
   const holidayInitialFocus = toMonthStartDateValue(periodStart);
   const holidaySummary = getHolidaySummary(selectedHolidays);
+  const reminderAt = deadline ? Date.parse(`${addDays(deadline, -1)}T17:00:00+09:00`) : 0;
 
   useEffect(() => {
+    if (mode === "edit" && (!periodStart || !periodEnd)) return;
     setSelectedHolidays((current) => {
       const nextHolidays = pruneHolidaysInRange(current, periodStart, periodEnd);
       setValue("shopClosedDates", nextHolidays, { shouldDirty: true });
       return nextHolidays;
     });
-  }, [periodStart, periodEnd, setValue]);
+  }, [mode, periodStart, periodEnd, setValue]);
 
   useEffect(() => {
     if (!deadline || isDeadlineInRange(deadline, today, periodStart)) return;
@@ -172,7 +181,21 @@ export const CreateRecruitmentForm = ({
     const nextValue = value.slice(0, 2);
     const start = nextValue[0] ? toIso(nextValue[0]) : "";
     const end = nextValue[1] ? toIso(nextValue[1]) : "";
-    const defaultShopClosedDates = deriveShopClosedDatesFromRegularDays(start, end, activeRegularClosedDays);
+    const previous = previousPeriodRef.current;
+    const defaultShopClosedDates =
+      mode === "edit" && previous
+        ? start && end
+          ? preserveEditedClosedDates(previous, start, end, activeRegularClosedDays)
+          : selectedHolidays
+        : deriveShopClosedDatesFromRegularDays(start, end, activeRegularClosedDays);
+    if (start && end) {
+      previousPeriodRef.current = {
+        periodStart: start,
+        periodEnd: end,
+        deadline,
+        shopClosedDates: defaultShopClosedDates,
+      };
+    }
     setPeriodValue(nextValue);
     setValue("periodStart", start, { shouldDirty: true });
     setValue("periodEnd", end, { shouldDirty: true });
@@ -183,6 +206,7 @@ export const CreateRecruitmentForm = ({
 
   const handleHolidayChange = (value: DateValue[]) => {
     const holidays = pruneHolidaysInRange(value.map(toIso), periodStart, periodEnd);
+    previousPeriodRef.current = { periodStart, periodEnd, deadline, shopClosedDates: holidays };
     setSelectedHolidays(holidays);
     setValue("shopClosedDates", holidays, { shouldDirty: true });
   };
@@ -242,6 +266,7 @@ export const CreateRecruitmentForm = ({
   return (
     <CreateRecruitmentFormView
       currentStep={currentStep}
+      isEditing={mode === "edit"}
       isPeriodOnly={isPeriodOnly}
       hasShopStep={hasShopStep}
       canContinueFromShop={!!selectedShop}
@@ -277,7 +302,27 @@ export const CreateRecruitmentForm = ({
         desktopMonths: deadlineDesktopMonths,
         error: errors.deadline?.message,
       }}
-      confirmation={{ shopName: selectedShop?.shopName, periodLabel, holidaySummary, deadlineLabel }}
+      confirmation={{
+        comparison:
+          mode === "edit" && initialValues
+            ? buildRecruitmentComparison(initialValues, {
+                periodStart,
+                periodEnd,
+                deadline,
+                shopClosedDates: selectedHolidays,
+              })
+            : undefined,
+        shopName: selectedShop?.shopName,
+        periodLabel,
+        holidaySummary,
+        deadlineLabel,
+        reminderDescription:
+          reminderAt > Date.now()
+            ? "提出期限の前日17:00に、未提出のスタッフへ自動催促通知を送ります。"
+            : mode === "edit"
+              ? "自動催促の時刻を過ぎているため、変更通知で提出を依頼します。"
+              : "自動催促の予定はありません。",
+      }}
       shop={shopTarget?.mode === "select" ? { shops: shopTarget.shops, selectedShopId } : undefined}
       onSubmit={submitForm}
       onCancel={onCancel}

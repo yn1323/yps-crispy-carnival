@@ -6,6 +6,8 @@ import { getHelpTaskHref, HELP_TASKS } from "./helpTasks";
 import { NOTIFICATION_BASICS_HELP } from "./notificationBasicsHelp";
 import { ORGANIZATION_STRUCTURE_HELP } from "./organizationStructureHelp";
 
+import { SHIFT_EXPORT_HELP } from "./shiftExportHelp";
+
 const meta = {
   title: "Features/HelpCenter/Index",
   component: HelpIndex,
@@ -54,8 +56,11 @@ export const Desktop: Story = {
     await expect(notificationCard).toHaveAttribute("href", NOTIFICATION_BASICS_HELP.href);
     const basicLinks = within(canvas.getByRole("region", { name: "基本の使い方を見る" })).getAllByRole("link");
     await expect(basicLinks[0]).toHaveAttribute("href", SHIFT_MANAGEMENT_SCENARIO.href);
-    await expect(basicLinks[1]).toHaveAttribute("href", NOTIFICATION_BASICS_HELP.href);
-    await expect(basicLinks[2]).toHaveAttribute("href", ORGANIZATION_STRUCTURE_HELP.href);
+    await expect(basicLinks[1]).toHaveAttribute("href", SHIFT_EXPORT_HELP.href);
+    await expect(within(basicLinks[1]).getByText("管理者")).toBeVisible();
+    await expect(within(basicLinks[1]).getByText(SHIFT_EXPORT_HELP.cardTitle)).toBeVisible();
+    await expect(basicLinks[2]).toHaveAttribute("href", NOTIFICATION_BASICS_HELP.href);
+    await expect(basicLinks[3]).toHaveAttribute("href", ORGANIZATION_STRUCTURE_HELP.href);
     for (const task of HELP_TASKS) {
       await expect(canvas.getByRole("link", { name: task.title })).toHaveAttribute("href", getHelpTaskHref(task.id));
     }
@@ -73,8 +78,9 @@ export const Mobile: Story = {
 
     const basicLinks = within(canvas.getByRole("region", { name: "基本の使い方を見る" })).getAllByRole("link");
     await expect(within(basicLinks[0]).getByText(SHIFT_MANAGEMENT_SCENARIO.cardDescription)).not.toBeVisible();
-    await expect(within(basicLinks[1]).getByText(NOTIFICATION_BASICS_HELP.cardDescription)).not.toBeVisible();
-    await expect(within(basicLinks[2]).getByText(ORGANIZATION_STRUCTURE_HELP.cardDescription)).not.toBeVisible();
+    await expect(within(basicLinks[1]).getByText(SHIFT_EXPORT_HELP.cardDescription)).not.toBeVisible();
+    await expect(within(basicLinks[2]).getByText(NOTIFICATION_BASICS_HELP.cardDescription)).not.toBeVisible();
+    await expect(within(basicLinks[3]).getByText(ORGANIZATION_STRUCTURE_HELP.cardDescription)).not.toBeVisible();
 
     for (const task of HELP_TASKS) {
       const taskDescription = within(canvas.getByRole("link", { name: task.title })).getByText(task.description);

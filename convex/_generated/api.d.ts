@@ -27,6 +27,7 @@ import type * as _lib_notificationDeliveryQueries from "../_lib/notificationDeli
 import type * as _lib_personIdentity from "../_lib/personIdentity.js";
 import type * as _lib_previousWeeklyPattern from "../_lib/previousWeeklyPattern.js";
 import type * as _lib_rateLimits from "../_lib/rateLimits.js";
+import type * as _lib_recruitmentEditing from "../_lib/recruitmentEditing.js";
 import type * as _lib_resend from "../_lib/resend.js";
 import type * as _lib_resendWebhookSignature from "../_lib/resendWebhookSignature.js";
 import type * as _lib_sha256 from "../_lib/sha256.js";
@@ -170,6 +171,8 @@ import type * as notification_failureRecording from "../notification/failureReco
 import type * as notification_fanout from "../notification/fanout.js";
 import type * as notification_mutations from "../notification/mutations.js";
 import type * as notification_queries from "../notification/queries.js";
+import type * as notification_recruitmentPolicy from "../notification/recruitmentPolicy.js";
+import type * as notification_recruitmentUpdate from "../notification/recruitmentUpdate.js";
 import type * as notification_reminderActions from "../notification/reminderActions.js";
 import type * as notification_reminderQueries from "../notification/reminderQueries.js";
 import type * as notification_templates from "../notification/templates.js";
@@ -305,6 +308,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/personIdentity": typeof _lib_personIdentity;
   "_lib/previousWeeklyPattern": typeof _lib_previousWeeklyPattern;
   "_lib/rateLimits": typeof _lib_rateLimits;
+  "_lib/recruitmentEditing": typeof _lib_recruitmentEditing;
   "_lib/resend": typeof _lib_resend;
   "_lib/resendWebhookSignature": typeof _lib_resendWebhookSignature;
   "_lib/sha256": typeof _lib_sha256;
@@ -448,6 +452,8 @@ declare const fullApi: ApiFromModules<{
   "notification/fanout": typeof notification_fanout;
   "notification/mutations": typeof notification_mutations;
   "notification/queries": typeof notification_queries;
+  "notification/recruitmentPolicy": typeof notification_recruitmentPolicy;
+  "notification/recruitmentUpdate": typeof notification_recruitmentUpdate;
   "notification/reminderActions": typeof notification_reminderActions;
   "notification/reminderQueries": typeof notification_reminderQueries;
   "notification/templates": typeof notification_templates;

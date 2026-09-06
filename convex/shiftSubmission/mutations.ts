@@ -3,11 +3,13 @@ import type { Doc, Id } from "../_generated/dataModel";
 import { getDeadlineCutoff, getSubmitLinkCutoff } from "../_lib/dateFormat";
 import { staffSessionMutation } from "../_lib/functions";
 import { rateLimit } from "../_lib/rateLimits";
+import { assertRecruitmentEditVersion, isCurrentSubmission } from "../_lib/recruitmentEditing";
 import type { ShiftSubmissionPattern } from "../_lib/submissionPattern";
 import { timeToMinutes } from "../_lib/time";
 import { recordAnalyticsUsage } from "../analytics/record";
 import { hasCurrentStaffLegalConsent, recordStaffLegalConsent } from "../legal/service";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
+import { isShiftTargetStaff } from "../staff/service";
 import { type SubmitShiftSelection, submitShiftRequestsSchema, submitShiftSelectionSchema } from "./schemas";
 
 type NormalizedShiftRequest = { date: string; startTime: string; endTime: string; optionId?: string };
@@ -127,6 +129,7 @@ function normalizeSubmissionInput(
 export const submitShiftRequests = staffSessionMutation({
   args: {
     recruitmentId: v.id("recruitments"),
+    expectedEditVersion: v.optional(v.number()),
     acceptedLegal: v.optional(v.boolean()),
     submission: shiftSubmissionInputValidator,
   },
@@ -151,6 +154,7 @@ export const submitShiftRequests = staffSessionMutation({
     if (recruitment.status !== "open") {
       throw new ConvexError("Not found");
     }
+    assertRecruitmentEditVersion(recruitment, args.expectedEditVersion);
 
     const now = Date.now();
     if (now >= getSubmitLinkCutoff(recruitment.periodStart)) {
@@ -164,8 +168,9 @@ export const submitShiftRequests = staffSessionMutation({
       )
       .first();
 
-    // 提出期限後は未提出者の初回提出だけを救済し、提出済みの変更は止める。
-    if (now >= getDeadlineCutoff(recruitment.deadline) && existingSubmission) {
+    // 編集で未提出へ戻ったスタッフも、期限後は一度だけ提出できる。
+    const wasSubmitted = isCurrentSubmission(existingSubmission);
+    if (now >= getDeadlineCutoff(recruitment.deadline) && wasSubmitted) {
       throw new ConvexError("Deadline passed");
     }
 
@@ -207,7 +212,7 @@ export const submitShiftRequests = staffSessionMutation({
       .collect();
 
     // 再提出は差分更新ではなく全置換。休みの日は明細を作らないため、
-    // shiftSubmissions 側の存在が「提出済み」の正になる。
+    // 明細の有無と現在の提出済み状態は分けて管理する。
     await Promise.all([
       ...existingSlots.map((r) => ctx.db.delete(r._id)),
       ...existingDates.map((r) => ctx.db.delete(r._id)),
@@ -218,6 +223,7 @@ export const submitShiftRequests = staffSessionMutation({
       await ctx.db.patch(existingSubmission._id, {
         firstSubmittedAt: existingSubmission.firstSubmittedAt,
         submittedAt: now,
+        needsResubmission: undefined,
       });
       submissionId = existingSubmission._id;
     } else {
@@ -259,7 +265,7 @@ export const submitShiftRequests = staffSessionMutation({
       .first();
     if (stats) {
       await ctx.db.patch(stats._id, {
-        submittedCount: existingSubmission ? stats.submittedCount : stats.submittedCount + 1,
+        submittedCount: wasSubmitted ? stats.submittedCount : stats.submittedCount + 1,
         updatedAt: now,
       });
     } else {
@@ -271,11 +277,14 @@ export const submitShiftRequests = staffSessionMutation({
         .query("staffs")
         .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", ctx.shop._id).eq("isDeleted", false))
         .collect();
+      const targetStaffIds = new Set(activeStaffs.filter(isShiftTargetStaff).map((staff) => staff._id));
       await ctx.db.insert("recruitmentStats", {
         recruitmentId: args.recruitmentId,
         shopId: ctx.shop._id,
-        submittedCount: submissions.length,
-        activeStaffCountSnapshot: activeStaffs.length,
+        submittedCount: submissions.filter(
+          (submission) => targetStaffIds.has(submission.staffId) && isCurrentSubmission(submission),
+        ).length,
+        activeStaffCountSnapshot: targetStaffIds.size,
         updatedAt: now,
       });
     }
