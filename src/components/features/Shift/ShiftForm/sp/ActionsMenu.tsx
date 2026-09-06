@@ -27,6 +27,9 @@ export function ActionsMenu({ isConfirmed, isSavingDraft, isConfirming, onSaveDr
           size="xs"
           variant="outline"
           colorPalette="teal"
+          position="relative"
+          // Keep the compact appearance while extending the touch target to 44px.
+          _after={{ content: '""', position: "absolute", insetX: 0, insetY: "-7px" }}
           px={3}
           gap={1}
           flexShrink={0}

@@ -54,6 +54,13 @@ export const SelectActions: Story = {
     const trigger = await canvas.findByRole("button", { name: "保存・確定・出力" });
     const result = canvas.getByRole("status", { name: "操作結果" });
 
+    await expect(canvas.getByRole("heading", { level: 1, name: "1/23" })).toBeInTheDocument();
+    const triggerBounds = trigger.getBoundingClientRect();
+    for (const y of [triggerBounds.top - 5, triggerBounds.bottom + 5]) {
+      const touchTarget = canvasElement.ownerDocument.elementFromPoint(triggerBounds.left + triggerBounds.width / 2, y);
+      await expect(touchTarget).toBe(trigger);
+    }
+
     await userEvent.click(trigger);
     await screen.findByRole("menu");
     await expect(trigger).toHaveAttribute("aria-expanded", "true");

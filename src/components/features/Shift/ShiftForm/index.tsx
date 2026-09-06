@@ -1,4 +1,4 @@
-import { Box, Flex, Grid, Heading, Text, useBreakpointValue } from "@chakra-ui/react";
+import { Box, Flex, Grid, Heading, Text, useBreakpointValue, VisuallyHidden } from "@chakra-ui/react";
 import { Provider, useAtom, useAtomValue, useSetAtom } from "jotai";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -311,6 +311,11 @@ const Shell = ({
   children,
 }: ShellProps) => (
   <Flex direction="column" h="100%" minH={0}>
+    {header && compact && (
+      <VisuallyHidden asChild>
+        <Heading as="h1">{header.mobileTitle}</Heading>
+      </VisuallyHidden>
+    )}
     <Grid
       templateColumns={header && !compact ? "auto minmax(0, 1fr) auto" : "minmax(0, 1fr) auto"}
       px={compact ? 3 : 5}
