@@ -8,8 +8,8 @@
 ## トリガー方式
 
 スタッフ向け提出催促（`reminderScheduledAt` / `sendReminderEmails`）と同じく、募集作成時に`ctx.scheduler.runAt`で提出期限の翌日17:00に予約する。
-予定時刻が募集作成時点より未来の場合だけ予約する。
-募集条件を編集した場合は、新しい提出期限の翌日17:00に予約し直す。  
+募集条件を編集した場合は、新しい提出期限の翌日17:00に予約し直す。
+いずれも予定時刻が操作時点より未来の場合だけ予約する。
 予約時の募集の版を保持し、古い版の予約と送信待ち通知は送らない。送信直前にも、現在の期限を過ぎていることと未確定であることを確認する。
 発火時に募集が削除済みまたは確定済みなら送信しない。
 
@@ -21,7 +21,7 @@
 
 - `convex/shiftConfirmationReminder/queries.ts` — 送信対象（店舗・募集情報・対象店舗所属のactive管理者一覧）を取得。削除済み/確定済みは `null`
 - `convex/shiftConfirmationReminder/actions.ts` — マネージャーへのリマインダーを LINE / メールで enqueue する worker
-- `convex/recruitment/mutations.ts` — `createRecruitment` で提出期限の翌日17:00に `runAt` 予約
+- `convex/recruitment/mutations.ts` — `createRecruitment` と `updateRecruitment` で提出期限の翌日17:00に `runAt` 予約
 - `convex/_lib/dateFormat.ts` — `getManagerConfirmationReminderAt`（提出期限の翌日17:00 JSTのUnix ms）
 - `convex/notification/templates.ts` — `buildShiftConfirmationReminderEmailHtml` / `buildShiftConfirmationReminderLineText` / `SHIFT_CONFIRMATION_REMINDER_SUBJECT`
 - `convex/notificationOutbox/failureSuppress.ts` — failureInbox抑止の context 定数・判定
