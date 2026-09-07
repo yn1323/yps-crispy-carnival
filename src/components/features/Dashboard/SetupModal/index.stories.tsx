@@ -110,12 +110,12 @@ export const ShiftTypeSettingsStep: Story = {
   play: async ({ canvasElement }) => {
     const dialog = await getDialog(canvasElement);
     await inputShopName(dialog);
-    const shiftTypeButton = dialog.getByRole("button", { name: /勤務区分/ });
+    const shiftTypeButton = dialog.getByRole("button", { name: /パターン選択/ });
     await userEvent.click(shiftTypeButton);
     await expect(shiftTypeButton).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(dialog.getByRole("button", { name: "次へ" }));
 
-    await expect(await dialog.findAllByRole("textbox", { name: "区分名" })).toHaveLength(2);
+    await expect(await dialog.findAllByRole("textbox", { name: "パターン名" })).toHaveLength(2);
   },
 };
 

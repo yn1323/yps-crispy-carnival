@@ -704,7 +704,7 @@ describe("notification/templates", () => {
     expect(anchorOpeningTag(reissueHtml, magicLinkUrl)).toContain('rel="noreferrer"');
   });
 
-  it("確定通知メールとLINEに日ごと・勤務区分ラベルを表示する", () => {
+  it("確定通知メールとLINEに日付選択・パターン選択ラベルを表示する", () => {
     const shifts = [
       { date: "1/20(火)", timeLabel: "出勤" },
       { date: "1/21(水)", timeLabel: "遅番（15:00-22:00）" },

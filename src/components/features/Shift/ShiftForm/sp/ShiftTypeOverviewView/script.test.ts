@@ -56,7 +56,7 @@ const shifts: ShiftData[] = [
 ];
 
 describe("buildShiftTypeOverviewViewModel", () => {
-  it("勤務区分順・出勤順・日付状態を描画用の週と行へ変換する", () => {
+  it("勤務パターン順・出勤順・日付状態を描画用の週と行へ変換する", () => {
     const viewModel = buildShiftTypeOverviewViewModel({
       dates: ["2026-06-03", "2026-06-04"],
       holidays: ["2026-06-04"],

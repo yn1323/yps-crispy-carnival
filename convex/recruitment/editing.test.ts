@@ -177,7 +177,7 @@ describe("recruitment/updateRecruitment", () => {
     ).toEqual([{ date: "2026-09-10", startTime: "10:00" }]);
   });
 
-  it("日ごとの希望と割当も定休日に変えた日は削除する", async () => {
+  it("日付選択の希望と割当も定休日に変えた日は削除する", async () => {
     const { t, ids, asManager, args } = await setup();
     await t.run(async (ctx) => {
       await ctx.db.patch(ids.recruitmentId, { submissionPattern: { kind: "dateOnly" } });

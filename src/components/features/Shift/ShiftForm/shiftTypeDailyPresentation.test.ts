@@ -12,7 +12,7 @@ const submissionPattern: ShiftSubmissionPattern = {
 };
 
 describe("buildShiftTypeDailyPresentation", () => {
-  it("区分・件数・希望・割当をPCとSPで共有する表示値へ変換する", () => {
+  it("パターン・件数・希望・割当をPCとSPで共有する表示値へ変換する", () => {
     const submitted: StaffType = { id: "staff-submitted", name: "田中", isSubmitted: true };
     const unsubmitted: StaffType = { id: "staff-unsubmitted", name: "佐藤", isSubmitted: false };
     const shift = shiftData(submitted.id, {
@@ -34,7 +34,7 @@ describe("buildShiftTypeDailyPresentation", () => {
     ]);
     expect(presentation.staffs[0].requestBadges.map(({ key, label }) => ({ key, label }))).toEqual([
       { key: "early", label: "早番" },
-      { key: "removed-option", label: "勤務区分" },
+      { key: "removed-option", label: "勤務パターン" },
     ]);
     expect(presentation.staffs[0].assignments.map(({ key, assigned }) => ({ key, assigned }))).toEqual([
       { key: "early", assigned: true },

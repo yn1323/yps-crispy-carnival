@@ -118,7 +118,7 @@ describe("paintPosition", () => {
     expect(result).toMatchObject({ id: source.id, staffId: source.staffId, date: source.date });
   });
 
-  test("既存バーの中央だけを塗ると前後へ分割し、元の勤務区分IDを保持する", () => {
+  test("既存バーの中央だけを塗ると前後へ分割し、元の勤務パターンIDを保持する", () => {
     const source = shift([seg({ id: "wide", start: "08:00", end: "18:00", shiftTypeOptionId: "morning" })]);
 
     const result = paintPosition({

@@ -572,13 +572,13 @@ describe("shiftBoard/queries", () => {
     ]);
   });
 
-  it("日ごと提出の希望日をシフト表用データとして返す", async () => {
+  it("日付選択提出の希望日をシフト表用データとして返す", async () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId, staffId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_date_only_board", shopName: "テスト店舗" });
       const staffId = await seedStaff(ctx, {
         shopId,
-        name: "日ごとスタッフ",
+        name: "日付選択スタッフ",
         email: "date-only@example.com",
       });
       const recruitmentId = await ctx.db.insert("recruitments", {
@@ -619,13 +619,13 @@ describe("shiftBoard/queries", () => {
     expect(result?.requestedSlots).toEqual([]);
   });
 
-  it("勤務区分募集のsnapshotとoptionIdつき希望・割当を返す", async () => {
+  it("パターン選択の募集のsnapshotとoptionIdつき希望・割当を返す", async () => {
     const t = convexTest(schema, modules);
     const { shopId, recruitmentId, staffId, positionId } = await t.run(async (ctx) => {
       const { shopId } = await seedManagerShop(ctx, { subject: "manager_shift_type_board", shopName: "テスト店舗" });
       const staffId = await seedStaff(ctx, {
         shopId,
-        name: "勤務区分スタッフ",
+        name: "勤務パターンスタッフ",
         email: "shift-type@example.com",
       });
       const positionId = await ctx.db.insert("positions", {

@@ -167,20 +167,20 @@ describe("シフト表作成・確定シナリオ", () => {
     expect(beforeDraftEntry?.shifts.some((shift) => shift.timeLabel === "11:00-17:00")).toBe(true);
   });
 
-  it("日ごと・勤務区分は下書き保存後の再提出で既存割当を勝手に上書きしない", async () => {
+  it("日付選択・パターン選択は下書き保存後の再提出で既存割当を勝手に上書きしない", async () => {
     const t = convexTest(schema, modules);
 
     const cases = [
       {
         kind: "dateOnly" as const,
         managerSubject: `${MANAGER_SUBJECT}_draft_date_only`,
-        shopName: "日ごと下書き店舗",
+        shopName: "日付選択下書き店舗",
         submissionPattern: { kind: "dateOnly" as const },
       },
       {
         kind: "shiftType" as const,
         managerSubject: `${MANAGER_SUBJECT}_draft_shift_type`,
-        shopName: "勤務区分下書き店舗",
+        shopName: "勤務パターン下書き店舗",
         submissionPattern: {
           kind: "shiftType" as const,
           options: [
@@ -299,7 +299,7 @@ describe("シフト表作成・確定シナリオ", () => {
     }
   });
 
-  it("時間指定・日ごと・勤務区分のシフト表を下書き保存し、確定通知と閲覧ページまで通る", async () => {
+  it("時間指定・日付選択・パターン選択のシフト表を下書き保存し、確定通知と閲覧ページまで通る", async () => {
     const t = convexTest(schema, modules);
 
     const cases = [
@@ -315,7 +315,7 @@ describe("シフト表作成・確定シナリオ", () => {
       {
         kind: "dateOnly",
         managerSubject: `${MANAGER_SUBJECT}_board_date_only`,
-        shopName: "日ごとシフト表店舗",
+        shopName: "日付選択シフト表店舗",
         submissionPattern: { kind: "dateOnly" as const },
         assignment: { startTime: "09:00", endTime: "22:00" },
         expected: { startTime: "09:00", endTime: "22:00", optionId: undefined },
@@ -324,7 +324,7 @@ describe("シフト表作成・確定シナリオ", () => {
       {
         kind: "shiftType",
         managerSubject: `${MANAGER_SUBJECT}_board_shift_type`,
-        shopName: "勤務区分シフト表店舗",
+        shopName: "勤務パターンシフト表店舗",
         submissionPattern: {
           kind: "shiftType" as const,
           options: [

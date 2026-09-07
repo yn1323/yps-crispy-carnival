@@ -458,7 +458,7 @@ describe("shiftSubmission/queries", () => {
       });
     });
 
-    it("日付のみ提出の既存希望を workingDates として返す", async () => {
+    it("日付選択での提出の既存希望を workingDates として返す", async () => {
       const t = convexTest(schema, modules);
       const { staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t, {
         submissionPattern: { kind: "dateOnly" },
@@ -481,7 +481,7 @@ describe("shiftSubmission/queries", () => {
       });
     });
 
-    it("日付のみ提出の前回入力は曜日だけのパターンとして返す", async () => {
+    it("日付選択での提出の前回入力は曜日だけのパターンとして返す", async () => {
       const t = convexTest(schema, modules);
       const { shopId, staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t, {
         submissionPattern: { kind: "dateOnly" },
@@ -511,7 +511,7 @@ describe("shiftSubmission/queries", () => {
       });
     });
 
-    it("勤務区分提出の既存希望を optionId として返す", async () => {
+    it("パターン選択での提出の既存希望を optionId として返す", async () => {
       const t = convexTest(schema, modules);
       const { staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t, {
         submissionPattern: {
@@ -551,7 +551,7 @@ describe("shiftSubmission/queries", () => {
       });
     });
 
-    it("勤務区分の時間帯が同じでも保存済みの optionId を優先して返す", async () => {
+    it("勤務パターンの時間帯が同じでも保存済みの optionId を優先して返す", async () => {
       const t = convexTest(schema, modules);
       const { staffId, sessionToken, recruitmentId } = await setupSubmissionPageData(t, {
         submissionPattern: {

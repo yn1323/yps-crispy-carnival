@@ -118,7 +118,7 @@ export function HelpShiftExport() {
                 </Box>
                 <Image
                   src={example.src}
-                  alt={`${example.title}で開いたシフト表。スタッフごとの勤務区分が日付別に表示されています。`}
+                  alt={`${example.title}で開いたシフト表。スタッフごとの勤務パターンが日付別に表示されています。`}
                   width={example.width}
                   height={720}
                   w="full"

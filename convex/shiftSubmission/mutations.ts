@@ -110,11 +110,11 @@ function normalizeSubmissionInput(
     assertValidDateForSubmission(selection.date, recruitment, shopClosedDateSet);
     const option = optionMap.get(selection.optionId);
     if (!option) {
-      throw new ConvexError("勤務区分が見つかりません");
+      throw new ConvexError("勤務パターンが見つかりません");
     }
     const selectionKey = `${selection.date}:${selection.optionId}`;
     if (requestedShiftTypeKeys.has(selectionKey)) {
-      throw new ConvexError("同じ日の勤務区分が重複しています");
+      throw new ConvexError("同じ日の勤務パターンが重複しています");
     }
     requestedShiftTypeKeys.add(selectionKey);
     return { date: selection.date, startTime: option.startTime, endTime: option.endTime, optionId: option.id };

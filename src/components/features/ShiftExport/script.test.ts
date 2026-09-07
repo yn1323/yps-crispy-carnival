@@ -36,7 +36,7 @@ describe("buildExportSchedule", () => {
     ]);
     expect(result.rows.map(({ cells }) => cells[0].lines)).toEqual([["09:00", "17:00"], ["-"]]);
   });
-  it("日付指定を1行、勤務区分を重複除去して設定順・全体最大行数にする", () => {
+  it("日付選択を1行、勤務パターンを重複除去して設定順・全体最大行数にする", () => {
     const data = createExportFixture();
     data.recruitment.submissionPattern = { kind: "dateOnly" };
     expect(buildExportSchedule(data).rows[0].cells[0].lines).toEqual(["○"]);
@@ -52,7 +52,7 @@ describe("buildExportSchedule", () => {
     expect(result.rows[0].cells[0].lines).toEqual(["早番", "遅番"]);
     expect(result.bodyLineCount).toBe(2);
     data.assignments[0].optionId = "missing";
-    expect(() => buildExportSchedule(data)).toThrow("勤務区分");
+    expect(() => buildExportSchedule(data)).toThrow("勤務パターン");
   });
   it("月をまたぐ1日から31日を扱い、範囲外と出力ブロックを拒否する", () => {
     const data = createExportFixture({ assignments: [] });

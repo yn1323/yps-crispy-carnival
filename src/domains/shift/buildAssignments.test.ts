@@ -64,7 +64,7 @@ describe("buildAssignments", () => {
     ]);
   });
 
-  it("時間入力でも空白・異なるポジション・異なるstaffと日付は統合しない", () => {
+  it("時間指定でも空白・異なるポジション・異なるstaffと日付は統合しない", () => {
     const shifts = [
       makeShift({
         positions: [
@@ -123,7 +123,7 @@ describe("buildAssignments", () => {
     expect(buildAssignments(shifts, new Set(), { submissionPatternKind: kind })).toHaveLength(2);
   });
 
-  it("時間方式でも勤務区分IDを持つ割当は統合しない", () => {
+  it("時間指定でも勤務パターンIDを持つ割当は統合しない", () => {
     const shifts = [
       makeShift({
         positions: [
@@ -136,7 +136,7 @@ describe("buildAssignments", () => {
     expect(buildAssignments(shifts, new Set(), { submissionPatternKind: "time" })).toHaveLength(2);
   });
 
-  it("勤務区分IDを一件でも持つセルは他の隣接割当も部分統合しない", () => {
+  it("勤務パターンIDを一件でも持つセルは他の隣接割当も部分統合しない", () => {
     const shifts = [
       makeShift({
         positions: [
@@ -178,7 +178,7 @@ describe("buildAssignments", () => {
     expect(buildAssignments(shifts, new Set(["2026-01-20"]))).toEqual([]);
   });
 
-  it("勤務区分IDがあればoptionIdとして含める", () => {
+  it("勤務パターンIDがあればoptionIdとして含める", () => {
     const shifts = [makeShift({ positions: [segment({ shiftTypeOptionId: "morning" })] })];
     expect(buildAssignments(shifts, new Set())).toEqual([
       {

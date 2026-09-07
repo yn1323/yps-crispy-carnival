@@ -14,7 +14,7 @@ describe("Excelの実ファイル", () => {
     const schedule = buildExportSchedule(createExportFixture());
     schedule.notificationLabel = "前回の通知に失敗あり";
     const formulaLikeName = '=HYPERLINK("https://example.invalid","名前")';
-    const fullShiftName = "省略せずに保持する正式な勤務区分名称";
+    const fullShiftName = "省略せずに保持する正式なパターン名称";
     schedule.rows = Array.from({ length: 200 }, (_, index) => ({
       ...schedule.rows[0],
       staffId: `staff-${index}`,
@@ -94,7 +94,7 @@ describe("Excelの実ファイル", () => {
     expect(sundayFont.querySelector("color")?.getAttribute("rgb")).toBe("FFC62828");
   });
 
-  it("勤務区分の長い正式名称を保持し、最大4区分の折り返しに合わせて全スタッフ行を広げる", async () => {
+  it("勤務パターンの長い正式名称を保持し、最大4パターンの折り返しに合わせて全スタッフ行を広げる", async () => {
     const schedule = buildExportSchedule(createExportFixture());
     const names = ["早", "昼", "夕", "夜"].map((name) => name.repeat(30));
     schedule.mode = "shiftType";
@@ -128,7 +128,7 @@ describe("Excelの実ファイル", () => {
     schedule.rows = Array.from({ length: 50 }, (_, staffIndex) => ({
       staffId: `staff-${staffIndex}`,
       staffName: `スタッフ${staffIndex + 1}`,
-      cells: schedule.dates.map((_, dateIndex) => ({ lines: [`勤務区分${staffIndex + 1}-${dateIndex + 1}`] })),
+      cells: schedule.dates.map((_, dateIndex) => ({ lines: [`勤務パターン${staffIndex + 1}-${dateIndex + 1}`] })),
     }));
     const blob = await createShiftExcel(schedule);
     const files = unzipSync(new Uint8Array(await blob.arrayBuffer()));

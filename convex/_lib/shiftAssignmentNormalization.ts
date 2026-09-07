@@ -17,7 +17,7 @@ function staffDateKey(assignment: NormalizableShiftAssignment): string {
 }
 
 /**
- * 時間入力方式の完全隣接だけを統合する。
+ * 時間指定の完全隣接だけを統合する。
  * 不正・重複・option付きのstaff/dateは一部だけを直さず、元の形で残す。
  */
 export function normalizeExactAdjacentTimeAssignments<T extends NormalizableShiftAssignment>(

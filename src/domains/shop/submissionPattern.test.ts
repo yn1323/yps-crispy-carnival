@@ -35,7 +35,7 @@ describe("希望シフト提出方法", () => {
     });
   });
 
-  it("勤務区分の更新・追加・削除後に表示順を振り直す", () => {
+  it("勤務パターンの更新・追加・削除後に表示順を振り直す", () => {
     expect(updateShiftTypeOptionAt(SHIFT_TYPES, 1, { name: "夜番" })).toEqual([
       { ...SHIFT_TYPES[0], sortOrder: 0 },
       { ...SHIFT_TYPES[1], name: "夜番", sortOrder: 1 },
@@ -57,7 +57,7 @@ describe("希望シフト提出方法", () => {
     expect(normalizeShiftTypeOptions(SHIFT_TYPES).map((option) => option.sortOrder)).toEqual([0, 1]);
   });
 
-  it("勤務区分をsortOrder順で返し、元の設定順は変えない", () => {
+  it("勤務パターンをsortOrder順で返し、元の設定順は変えない", () => {
     const pattern = { kind: "shiftType" as const, options: [SHIFT_TYPES[1], SHIFT_TYPES[0]] };
 
     expect(getOrderedShiftTypeOptions(pattern).map((option) => option.id)).toEqual(["early", "late"]);

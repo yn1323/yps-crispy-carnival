@@ -67,10 +67,10 @@ export function SubmissionPatternSettingsFields({
         endTimeError: getNestedErrorMessage(error, ["options", index, "endTime"]),
         errorMessages: getShiftTypeOptionErrorMessages(error, index),
       }))}
-      emptyMessage={optionsError ?? "勤務区分を追加してください。"}
+      emptyMessage={optionsError ?? "パターンを追加してください。"}
       emptyMessageInvalid={!!optionsError}
       canAdd={canAdd}
-      limitMessage={canAdd ? undefined : `勤務区分は${MAX_SHIFT_TYPE_OPTIONS}件まで登録できます。`}
+      limitMessage={canAdd ? undefined : `勤務パターンは${MAX_SHIFT_TYPE_OPTIONS}件まで登録できます。`}
       onAdd={() => {
         if (!canAdd) return;
         onChange({ kind: "shiftType", options: appendShiftTypeOption(submissionPattern.options) });

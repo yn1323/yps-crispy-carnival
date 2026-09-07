@@ -98,7 +98,7 @@ export const getEarliestAssignedWorkRange = (
   const firstRange = workRanges[0];
   if (!firstRange) return null;
 
-  // 勤務区分を複数設定した場合、13:00-17:00 + 17:00-21:00 は 13:00-21:00 として扱う。
+  // 勤務パターンを複数設定した場合、13:00-17:00 + 17:00-21:00 は 13:00-21:00 として扱う。
   const earliestContinuousRange = { ...firstRange };
   for (const range of workRanges.slice(1)) {
     if (range.startMinutes === earliestContinuousRange.startMinutes) continue;
@@ -154,7 +154,7 @@ export const sortDailyStaffs = ({ staffs, shiftByStaffId, mode }: SortDailyStaff
   });
 
 // 日付ごとに、その日のシフトをもとに日別ビューと同じ「早い順」でスタッフを並べ替える。
-// 一覧タブ（人×時間／人×勤務区分）で日別ビューと並びを揃えるために使う。
+// 一覧タブ（人×時間／人×勤務パターン）で日別ビューと並びを揃えるために使う。
 export const sortDailyStaffsByDate = ({
   staffs,
   shifts,

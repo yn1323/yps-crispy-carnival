@@ -104,7 +104,7 @@ describe("validateShiftAssignments", () => {
     expect(issues.map((i) => i.code)).toEqual(["INVALID_TIME_FORMAT", "INVALID_TIME_FORMAT"]);
   });
 
-  it("勤務区分募集で区分未指定ならSHIFT_TYPE_REQUIRED", () => {
+  it("パターン選択の募集でパターン未指定ならSHIFT_TYPE_REQUIRED", () => {
     const issues = validateShiftAssignments({
       ...baseInput,
       pattern: SHIFT_TYPE_PATTERN,
@@ -113,7 +113,7 @@ describe("validateShiftAssignments", () => {
     expect(issues.map((i) => i.code)).toEqual(["SHIFT_TYPE_REQUIRED"]);
   });
 
-  it("存在しない勤務区分IDならSHIFT_TYPE_NOT_FOUND", () => {
+  it("存在しない勤務パターンIDならSHIFT_TYPE_NOT_FOUND", () => {
     const issues = validateShiftAssignments({
       ...baseInput,
       pattern: SHIFT_TYPE_PATTERN,
@@ -122,7 +122,7 @@ describe("validateShiftAssignments", () => {
     expect(issues.map((i) => i.code)).toEqual(["SHIFT_TYPE_NOT_FOUND"]);
   });
 
-  it("勤務区分の時間と一致しなければSHIFT_TYPE_TIME_MISMATCH", () => {
+  it("勤務パターンの時間と一致しなければSHIFT_TYPE_TIME_MISMATCH", () => {
     const issues = validateShiftAssignments({
       ...baseInput,
       pattern: SHIFT_TYPE_PATTERN,
@@ -131,7 +131,7 @@ describe("validateShiftAssignments", () => {
     expect(issues.map((i) => i.code)).toEqual(["SHIFT_TYPE_TIME_MISMATCH"]);
   });
 
-  it("時間募集で勤務区分IDを指定するとSHIFT_TYPE_NOT_ALLOWED", () => {
+  it("時間指定の募集で勤務パターンIDを指定するとSHIFT_TYPE_NOT_ALLOWED", () => {
     const issues = validateShiftAssignments({
       ...baseInput,
       assignments: [assignment({ optionId: "morning" })],
@@ -169,7 +169,7 @@ describe("validateShiftAssignments", () => {
     expect(issues.map((i) => i.code)).toEqual(["OVERLAP"]);
   });
 
-  it("勤務区分募集では別区分同士の時間重複を許可する", () => {
+  it("パターン選択の募集では別パターン同士の時間重複を許可する", () => {
     const issues = validateShiftAssignments({
       ...baseInput,
       pattern: {
@@ -187,7 +187,7 @@ describe("validateShiftAssignments", () => {
     expect(issues).toEqual([]);
   });
 
-  it("勤務区分募集でも同じ区分の二重登録はOVERLAP", () => {
+  it("パターン選択の募集でも同じパターンの二重登録はOVERLAP", () => {
     const issues = validateShiftAssignments({
       ...baseInput,
       pattern: SHIFT_TYPE_PATTERN,

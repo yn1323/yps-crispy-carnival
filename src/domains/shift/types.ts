@@ -15,8 +15,8 @@ export type ShiftData = {
   date: string;
   // 希望シフト時間（スタッフ提出、読み取り専用）
   requestedTime: ShiftTimeRange | null; // null = 未提出
-  requestedTimes?: ShiftTimeRange[]; // 勤務区分提出では同じ日に複数の希望時間帯を持てる
-  requestedShiftTypeOptionIds?: string[]; // 勤務区分提出で希望された区分ID
+  requestedTimes?: ShiftTimeRange[]; // パターン選択では同じ日に複数の希望時間帯を持てる
+  requestedShiftTypeOptionIds?: string[]; // パターン選択で希望されたパターンID
   positions: PositionSegment[];
 };
 
@@ -28,7 +28,7 @@ export type PositionSegment = {
   color: string; // "#3b82f6"
   start: string; // "10:00"
   end: string; // "14:00"
-  shiftTypeOptionId?: string; // 勤務区分募集で選択された区分ID
+  shiftTypeOptionId?: string; // パターン選択の募集で選択されたパターンID
 };
 
 // ポジション定義

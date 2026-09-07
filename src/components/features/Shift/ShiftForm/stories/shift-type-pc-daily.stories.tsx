@@ -31,7 +31,7 @@ export const Basic: Story = {
   globals: desktopGlobals,
 };
 
-// 確認事項（ワーニング）: DateRailバッジ＋スタッフ名セルの理由アイコン。勤務区分募集レイアウトでの表示確認
+// 確認事項（ワーニング）: DateRailバッジ＋スタッフ名セルの理由アイコン。パターン選択の募集レイアウトでの表示確認
 export const WithValidationWarnings: Story = {
   name: "With Validation Warnings",
   args: shiftTypeValidationWarningArgs,

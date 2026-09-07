@@ -18,14 +18,14 @@ describe("buildSubmissionInput", () => {
     });
   });
 
-  it("日付のみは出勤希望の日付だけを送信payloadにする", () => {
+  it("日付選択は出勤希望の日付だけを送信payloadにする", () => {
     expect(buildSubmissionInput({ kind: "dateOnly" }, dayEntries)).toEqual({
       kind: "dateOnly",
       workingDates: ["2026-04-07", "2026-04-09"],
     });
   });
 
-  it("勤務区分は同じ日の複数選択をoptionIdごとのpayloadに展開する", () => {
+  it("勤務パターンは同じ日の複数選択をoptionIdごとのpayloadに展開する", () => {
     expect(
       buildSubmissionInput(
         {

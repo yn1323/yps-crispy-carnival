@@ -83,7 +83,7 @@ describe("buildWorkingEntryFromPreviousWeeklyPattern", () => {
 });
 
 describe("buildEntriesFromPreviousWeeklyPatternForShiftTypes", () => {
-  it("前回時間が現在の勤務区分に一致する日だけ区分選択済みにする", () => {
+  it("前回時間が現在の勤務パターンに一致する日だけパターン選択済みにする", () => {
     const entries = buildEntriesFromPreviousWeeklyPatternForShiftTypes(
       ["2026-04-13", "2026-04-14", "2026-04-15"],
       {
@@ -115,7 +115,7 @@ describe("buildEntriesFromPreviousWeeklyPatternForShiftTypes", () => {
     ]);
   });
 
-  it("一致する勤務区分がない曜日は休みにする", () => {
+  it("一致する勤務パターンがない曜日は休みにする", () => {
     const entries = buildEntriesFromPreviousWeeklyPatternForShiftTypes(
       ["2026-04-15"],
       pattern,
