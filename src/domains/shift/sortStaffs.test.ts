@@ -167,7 +167,7 @@ describe("sortDailyStaffs", () => {
     ]);
   });
 
-  test("勤務区分の複数勤務は最も早い開始時刻と、その開始時刻に紐づく早い終了時刻で比較する", () => {
+  test("勤務パターンの複数勤務は最も早い開始時刻と、その開始時刻に紐づく早い終了時刻で比較する", () => {
     const shiftByStaffId = indexShiftsByStaffIdForDate(
       [
         shift({
@@ -200,7 +200,7 @@ describe("sortDailyStaffs", () => {
     ).toEqual(["staff-b", "staff-a", "staff-c", "staff-d", "staff-e", "staff-f"]);
   });
 
-  test("勤務区分の連続した複数勤務は1つの勤務時間として終了時刻を比較する", () => {
+  test("勤務パターンの連続した複数勤務は1つの勤務時間として終了時刻を比較する", () => {
     const shiftByStaffId = indexShiftsByStaffIdForDate(
       [
         shift({
@@ -297,7 +297,7 @@ describe("sortDailyStaffs", () => {
     expect(result.has("2026-06-03")).toBe(false);
   });
 
-  test("日ごとは勤務ありグループ内を時間ではなくデフォルト順にする", () => {
+  test("日付選択は勤務ありグループ内を時間ではなくデフォルト順にする", () => {
     const shiftByStaffId = indexShiftsByStaffIdForDate(
       [
         shift({

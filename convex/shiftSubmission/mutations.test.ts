@@ -453,7 +453,7 @@ describe("shiftSubmission/mutations", () => {
       ).rejects.toThrow("定休日には希望シフトを提出できません");
     });
 
-    it("日付のみ提出は日付だけ保存し、時間スロットを作らない", async () => {
+    it("日付選択での提出は日付だけ保存し、時間スロットを作らない", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId, staffId } = await setupTestData(t, {
         submissionPattern: { kind: "dateOnly" },
@@ -498,7 +498,7 @@ describe("shiftSubmission/mutations", () => {
       ).rejects.toThrow("提出方法がこの募集の設定と一致しません");
     });
 
-    it("日付のみ提出で同じ日を重複して提出できない", async () => {
+    it("日付選択での提出で同じ日を重複して提出できない", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId } = await setupTestData(t, {
         submissionPattern: { kind: "dateOnly" },
@@ -514,7 +514,7 @@ describe("shiftSubmission/mutations", () => {
       ).rejects.toThrow("同じ日に登録できる希望シフトは1件だけです。");
     });
 
-    it("日付のみ提出で不正な日付形式は拒否する", async () => {
+    it("日付選択での提出で不正な日付形式は拒否する", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId } = await setupTestData(t, {
         submissionPattern: { kind: "dateOnly" },
@@ -530,7 +530,7 @@ describe("shiftSubmission/mutations", () => {
       ).rejects.toThrow("Invalid request data");
     });
 
-    it("日付のみ提出でも定休日は提出できない", async () => {
+    it("日付選択での提出でも定休日は提出できない", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId } = await setupTestData(t, {
         shopClosedDates: ["2026-04-09"],
@@ -547,7 +547,7 @@ describe("shiftSubmission/mutations", () => {
       ).rejects.toThrow("定休日には希望シフトを提出できません");
     });
 
-    it("勤務区分提出は選んだ区分の時間で希望枠を作成する", async () => {
+    it("パターン選択での提出は選んだパターンの時間で希望枠を作成する", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId, staffId } = await setupTestData(t, {
         submissionPattern: {
@@ -587,7 +587,7 @@ describe("shiftSubmission/mutations", () => {
       ]);
     });
 
-    it("勤務区分提出で同じ日の同じ区分は重複して提出できない", async () => {
+    it("パターン選択で同じ日の同じパターンは重複して提出できない", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId } = await setupTestData(t, {
         submissionPattern: {
@@ -609,10 +609,10 @@ describe("shiftSubmission/mutations", () => {
             ],
           },
         }),
-      ).rejects.toThrow("同じ日の勤務区分が重複しています");
+      ).rejects.toThrow("同じ日の勤務パターンが重複しています");
     });
 
-    it("存在しない勤務区分IDはエラー", async () => {
+    it("存在しない勤務パターンIDはエラー", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId } = await setupTestData(t, {
         submissionPattern: {
@@ -628,10 +628,10 @@ describe("shiftSubmission/mutations", () => {
           recruitmentId,
           submission: { kind: "shiftType", selections: [{ date: "2026-04-07", optionId: "late" }] },
         }),
-      ).rejects.toThrow("勤務区分が見つかりません");
+      ).rejects.toThrow("勤務パターンが見つかりません");
     });
 
-    it("勤務区分提出で不正な日付形式は拒否する", async () => {
+    it("パターン選択で不正な日付形式は拒否する", async () => {
       const t = convexTest(schema, modules);
       const { sessionToken, recruitmentId } = await setupTestData(t, {
         submissionPattern: {

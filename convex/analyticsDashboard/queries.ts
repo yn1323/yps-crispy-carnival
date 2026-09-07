@@ -267,10 +267,10 @@ export const getShop = internalQuery({
       regularClosedDays: shop.regularClosedDays,
       submissionPattern:
         shop.submissionPattern.kind === "time"
-          ? `時刻で提出（${shop.submissionPattern.startTime}〜${shop.submissionPattern.endTime}）`
+          ? `時間指定で提出（${shop.submissionPattern.startTime}〜${shop.submissionPattern.endTime}）`
           : shop.submissionPattern.kind === "dateOnly"
-            ? "出勤できる日を提出"
-            : `勤務区分で提出（${shop.submissionPattern.options.map((option) => `${option.name} ${option.startTime}〜${option.endTime}`).join("、")}）`,
+            ? "日付選択で提出"
+            : `パターン選択で提出（${shop.submissionPattern.options.map((option) => `${option.name} ${option.startTime}〜${option.endTime}`).join("、")}）`,
       staff,
       pageInfo: pageInfo(args.cursor, args.limit, staffPage, staff.length),
       cycles: cycles.map(cycleRow),

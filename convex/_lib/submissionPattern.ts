@@ -80,25 +80,25 @@ export function normalizeSubmissionPattern(pattern: ShiftSubmissionPattern | und
   }));
 
   if (normalized.length === 0) {
-    throw new ConvexError("勤務区分を1つ以上追加してください");
+    throw new ConvexError("勤務パターンを1つ以上追加してください");
   }
   if (normalized.length > MAX_SHIFT_TYPE_OPTIONS) {
-    throw new ConvexError(`勤務区分は${MAX_SHIFT_TYPE_OPTIONS}件まで登録できます`);
+    throw new ConvexError(`勤務パターンは${MAX_SHIFT_TYPE_OPTIONS}件まで登録できます`);
   }
 
   for (const option of normalized) {
-    if (!option.id) throw new ConvexError("勤務区分IDが正しくありません");
-    if (!option.name) throw new ConvexError("勤務区分名を入力してください");
-    if (idSet.has(option.id)) throw new ConvexError("勤務区分IDが重複しています");
-    if (nameSet.has(option.name)) throw new ConvexError(`勤務区分「${option.name}」が重複しています`);
+    if (!option.id) throw new ConvexError("勤務パターンIDが正しくありません");
+    if (!option.name) throw new ConvexError("パターン名を入力してください");
+    if (idSet.has(option.id)) throw new ConvexError("勤務パターンIDが重複しています");
+    if (nameSet.has(option.name)) throw new ConvexError(`勤務パターン「${option.name}」が重複しています`);
     if (!isSupportedShiftTime(option.startTime) || !isSupportedShiftTime(option.endTime)) {
-      throw new ConvexError(`勤務区分「${option.name}」の時間が正しくありません`);
+      throw new ConvexError(`勤務パターン「${option.name}」の時間が正しくありません`);
     }
 
     const start = timeToMinutes(option.startTime);
     const end = timeToMinutes(option.endTime);
     if (end <= start) {
-      throw new ConvexError(`勤務区分「${option.name}」の終了時間が開始時間より前になっています。
+      throw new ConvexError(`勤務パターン「${option.name}」の終了時間が開始時間より前になっています。
 終了時間は開始時間より後にしてください。`);
     }
 

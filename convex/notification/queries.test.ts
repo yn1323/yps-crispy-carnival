@@ -355,10 +355,10 @@ describe("notification/queries", () => {
       ]);
     });
 
-    it("日ごとの確定通知データでは時間ではなく出勤として返す", async () => {
+    it("日付選択の確定通知データでは時間ではなく出勤として返す", async () => {
       const t = convexTest(schema, modules);
       const recruitmentId = await t.run(async (ctx) => {
-        const shopId = await seedShop(ctx, "日ごと店舗");
+        const shopId = await seedShop(ctx, "日付選択店舗");
         const staffId = await seedStaff(ctx, {
           shopId,
           name: "田中太郎",
@@ -401,10 +401,10 @@ describe("notification/queries", () => {
       expect(result?.staffEntries[0].shifts).toEqual([{ date: "1/20(火)", timeLabel: "出勤" }]);
     });
 
-    it("勤務区分の確定通知データでは区分名つきで返す", async () => {
+    it("勤務パターンの確定通知データではパターン名つきで返す", async () => {
       const t = convexTest(schema, modules);
       const recruitmentId = await t.run(async (ctx) => {
-        const shopId = await seedShop(ctx, "勤務区分店舗");
+        const shopId = await seedShop(ctx, "勤務パターン店舗");
         const staffId = await seedStaff(ctx, {
           shopId,
           name: "田中太郎",

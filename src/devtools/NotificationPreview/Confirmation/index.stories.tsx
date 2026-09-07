@@ -79,8 +79,8 @@ export const EmailClosedDay = emailStory(
 );
 
 export const EmailDayBasedShift = emailStory(
-  "メール（日ごと・出勤）",
-  "シフト確定・日ごと・出勤",
+  "メール（日付選択・出勤）",
+  "シフト確定・日付選択・出勤",
   fixtures.shiftsByDay,
   lineCtaHtml,
 );
@@ -96,7 +96,11 @@ export const LINE = lineStory("LINE", "シフト確定", fixtures.shifts);
 
 export const LINEClosedDay = lineStory("LINE（定休日あり）", "シフト確定・定休日あり", fixtures.shiftsWithClosedDay);
 
-export const LINEDayBasedShift = lineStory("LINE（日ごと・出勤）", "シフト確定・日ごと・出勤", fixtures.shiftsByDay);
+export const LINEDayBasedShift = lineStory(
+  "LINE（日付選択・出勤）",
+  "シフト確定・日付選択・出勤",
+  fixtures.shiftsByDay,
+);
 
 export const LINEWorkOptionShift = lineStory(
   "LINE（勤務パターン）",

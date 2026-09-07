@@ -34,7 +34,7 @@ describe("shift assignment normalization", () => {
     expect(normalizeExactAdjacentTimeAssignments(assignments)).toEqual(assignments);
   });
 
-  it("option付きstaff/dateは時間入力方式の自動補正対象にしない", () => {
+  it("option付きstaff/dateは時間指定の自動補正対象にしない", () => {
     const assignments = [
       { ...base, startTime: "09:00", endTime: "10:00", optionId: "early" },
       { ...base, startTime: "10:00", endTime: "11:00" },

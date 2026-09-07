@@ -39,7 +39,7 @@ const shifts: ShiftData[] = [
 ];
 
 describe("buildShiftTypeDailyViewModel", () => {
-  it("勤務区分を並べ替え、件数・希望・割当を描画値へまとめる", () => {
+  it("勤務パターンを並べ替え、件数・希望・割当を描画値へまとめる", () => {
     const viewModel = buildShiftTypeDailyViewModel({
       submissionPattern,
       shifts,
@@ -94,7 +94,7 @@ describe("buildShiftTypeDailyViewModel", () => {
     ]);
   });
 
-  it("設定から削除された希望区分は従来の代替表示を使う", () => {
+  it("設定から削除された希望パターンは従来の代替表示を使う", () => {
     const viewModel = buildShiftTypeDailyViewModel({
       submissionPattern,
       shifts: [
@@ -114,7 +114,7 @@ describe("buildShiftTypeDailyViewModel", () => {
     expect(viewModel.rows[0].requestBadges).toEqual([
       {
         key: "removed-option",
-        label: "勤務区分",
+        label: "勤務パターン",
         bg: "gray.100",
         color: "gray.700",
       },

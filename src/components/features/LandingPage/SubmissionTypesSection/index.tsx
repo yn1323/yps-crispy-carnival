@@ -16,11 +16,11 @@ const submissionTypes: Array<{
 }> = [
   {
     icon: LuCalendarDays,
-    title: "日ごと",
+    title: "日付選択",
     body: "出勤できる日を選ぶ方式",
     badge: "短時間シフト向け",
     imageSrc: dayImage,
-    imageAlt: "日ごとに希望シフトを提出する画面",
+    imageAlt: "日付選択で希望シフトを提出する画面",
   },
   {
     icon: LuClock3,
@@ -32,11 +32,11 @@ const submissionTypes: Array<{
   },
   {
     icon: LuUsers,
-    title: "勤務区分",
-    body: "早番や遅番など、店舗で決めた区分から選ぶ方式",
+    title: "パターン選択",
+    body: "早番や遅番など、店舗で決めた勤務パターンから選ぶ方式",
     badge: "介護・施設向け",
     imageSrc: selectionImage,
-    imageAlt: "勤務区分で希望シフトを提出する画面",
+    imageAlt: "パターン選択で希望シフトを提出する画面",
   },
 ];
 

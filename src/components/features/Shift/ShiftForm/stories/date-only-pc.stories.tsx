@@ -24,8 +24,8 @@ export const Basic: Story = {
   globals: desktopGlobals,
 };
 
-// 確認事項（ワーニング）: 日ごと募集レイアウトでのDateRailバッジ＋スタッフ名セルアイコン表示確認
-// （日ごとは時間・勤務区分の概念がないため NOT_SUBMITTED / OFF_REQUEST のみ）
+// 確認事項（ワーニング）: 日付選択募集レイアウトでのDateRailバッジ＋スタッフ名セルアイコン表示確認
+// （日付選択は時間・勤務パターンの概念がないため NOT_SUBMITTED / OFF_REQUEST のみ）
 export const WithValidationWarnings: Story = {
   name: "With Validation Warnings",
   args: dateOnlyValidationWarningArgs,

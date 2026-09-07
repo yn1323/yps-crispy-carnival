@@ -30,7 +30,7 @@ const baseData: SubmissionData = {
 };
 
 describe("buildInitialEntries", () => {
-  it("日ごとの既存選択を初期値へ変換し、定休日は休みに戻す", () => {
+  it("日付選択の既存選択を初期値へ変換し、定休日は休みに戻す", () => {
     const result = buildInitialEntries(["2026-04-06", "2026-04-07", "2026-04-08"], {
       ...baseData,
       shopClosedDates: ["2026-04-07"],
@@ -52,7 +52,7 @@ describe("buildInitialEntries", () => {
     ]);
   });
 
-  it("勤務区分の複数選択を保ち、存在しない選択肢を除外する", () => {
+  it("勤務パターンの複数選択を保ち、存在しない選択肢を除外する", () => {
     const result = buildInitialEntries(["2026-04-06"], {
       ...baseData,
       submissionPattern: {

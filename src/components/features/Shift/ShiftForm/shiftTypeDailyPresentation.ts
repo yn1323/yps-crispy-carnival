@@ -134,7 +134,7 @@ function buildRequestBadges(
     const item = optionById.get(optionId);
     return {
       key: optionId,
-      label: item?.name ?? "勤務区分",
+      label: item?.name ?? "勤務パターン",
       bg: item?.color.requestedBg ?? "gray.100",
       color: item?.color.accent ?? "gray.700",
     };

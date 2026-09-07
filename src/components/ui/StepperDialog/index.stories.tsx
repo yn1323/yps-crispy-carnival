@@ -140,7 +140,7 @@ const StepperDialogDemo = ({
                 希望シフトの提出方法
               </Text>
               <Text mt={1} fontSize="xs" color="fg.muted">
-                時間指定・日ごと・勤務区分から選べます。
+                時間指定・日付選択・パターン選択から選べます。
               </Text>
             </Box>
           </Stack>

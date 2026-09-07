@@ -12,7 +12,7 @@ const staff: StaffType = { id: "staff1", name: "田中 太郎", isSubmitted: tru
 const timeRange: TimeRange = { start: 9, end: 22, unit: 30 };
 
 describe("dateOnlyAssignments", () => {
-  it("日ごとの割当時間は編集可能時間帯を優先する", () => {
+  it("日付選択の割当時間は編集可能時間帯を優先する", () => {
     expect(
       getDateOnlyAssignmentRange({ start: 5, end: 23, unit: 30, editableStartMinutes: 330, editableEndMinutes: 1350 }),
     ).toEqual({ start: "05:30", end: "22:30" });

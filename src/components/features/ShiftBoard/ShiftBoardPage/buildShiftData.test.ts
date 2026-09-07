@@ -106,7 +106,7 @@ describe("buildShiftData", () => {
     ]);
   });
 
-  it("日付指定の希望を編集可能範囲いっぱいの時間へ変換する", () => {
+  it("日付選択の希望を編集可能範囲いっぱいの時間へ変換する", () => {
     const shifts = buildShiftData(
       makeData({
         submissionPattern: { kind: "dateOnly" },
@@ -130,7 +130,7 @@ describe("buildShiftData", () => {
     });
   });
 
-  it("勤務区分希望はoptionIdを優先し、旧データは時間一致するoptionIdへ復元する", () => {
+  it("勤務パターン希望はoptionIdを優先し、旧データは時間一致するoptionIdへ復元する", () => {
     const shifts = buildShiftData(
       makeData({
         submissionPattern: {
@@ -162,7 +162,7 @@ describe("buildShiftData", () => {
     );
   });
 
-  it("対応する勤務区分がない旧希望は希望時間だけを保持し、誤った割当を生成しない", () => {
+  it("対応する勤務パターンがない旧希望は希望時間だけを保持し、誤った割当を生成しない", () => {
     const shifts = buildShiftData(
       makeData({
         submissionPattern: {
@@ -243,7 +243,7 @@ describe("buildShiftData", () => {
     ]);
   });
 
-  it("時間方式の保存済み割当は同じ実ポジションの完全隣接区間を一本で表示する", () => {
+  it("時間指定の保存済み割当は同じ実ポジションの完全隣接区間を一本で表示する", () => {
     const shifts = buildShiftData(
       makeData({
         shiftAssignments: [
@@ -268,7 +268,7 @@ describe("buildShiftData", () => {
     ]);
   });
 
-  it("時間方式でも空白・別ポジション・重複を正規化で隠さない", () => {
+  it("時間指定でも空白・別ポジション・重複を正規化で隠さない", () => {
     const shifts = buildShiftData(
       makeData({
         shiftAssignments: [
@@ -288,7 +288,7 @@ describe("buildShiftData", () => {
     expect(shifts[1].positions).toHaveLength(3);
   });
 
-  it("保存済み勤務区分割当もoptionIdを優先し、旧データは時間一致で復元する", () => {
+  it("保存済み勤務パターン割当もoptionIdを優先し、旧データは時間一致で復元する", () => {
     const shifts = buildShiftData(
       makeData({
         submissionPattern: {

@@ -79,7 +79,7 @@ describe("computeAssignmentWarnings", () => {
     });
   });
 
-  describe("OUTSIDE_REQUESTED_TIME（時間募集）", () => {
+  describe("OUTSIDE_REQUESTED_TIME（時間指定の募集）", () => {
     it("希望枠内（短い割当）は警告しない", () => {
       const warnings = run(
         [
@@ -156,7 +156,7 @@ describe("computeAssignmentWarnings", () => {
     });
   });
 
-  describe("勤務区分募集", () => {
+  describe("パターン選択の募集", () => {
     const pattern: AssignmentWarningPattern = {
       kind: "shiftType",
       options: [
@@ -165,7 +165,7 @@ describe("computeAssignmentWarnings", () => {
       ],
     };
 
-    it("希望時間外の勤務区分割当を警告（区分名つき）", () => {
+    it("希望時間外の勤務パターン割当を警告（パターン名つき）", () => {
       const warnings = run(
         [
           shift({
@@ -184,7 +184,7 @@ describe("computeAssignmentWarnings", () => {
       ]);
     });
 
-    it("希望どおりの勤務区分は警告しない", () => {
+    it("希望どおりの勤務パターンは警告しない", () => {
       const warnings = run(
         [
           shift({
@@ -197,7 +197,7 @@ describe("computeAssignmentWarnings", () => {
       expect(warnings).toEqual([]);
     });
 
-    it("勤務区分の希望がない日に割当があるとOFF_REQUEST", () => {
+    it("勤務パターンの希望がない日に割当があるとOFF_REQUEST", () => {
       const warnings = run(
         [shift({ requestedShiftTypeOptionIds: [], positions: [seg({ shiftTypeOptionId: "morning" })] })],
         pattern,
@@ -205,7 +205,7 @@ describe("computeAssignmentWarnings", () => {
       expect(warnings.map((w) => w.code)).toEqual(["OFF_REQUEST"]);
     });
 
-    it("希望区分と未希望区分が混在する場合は未希望のみ連結して警告する", () => {
+    it("希望パターンと未希望パターンが混在する場合は未希望のみ連結して警告する", () => {
       const warnings = run(
         [
           shift({
@@ -228,7 +228,7 @@ describe("computeAssignmentWarnings", () => {
     });
   });
 
-  describe("日付のみ募集", () => {
+  describe("日付選択の募集", () => {
     const pattern: AssignmentWarningPattern = { kind: "dateOnly" };
 
     it("希望のない日に勤務が入っているとOFF_REQUEST", () => {

@@ -219,7 +219,7 @@ describe("希望シフト回収シナリオ", () => {
     expect(board?.timeRange.editableEndMinutes).toBe(1320);
   });
 
-  it("日ごと提出は定休日を拒否し、再提出で日付明細だけを全置換する", async () => {
+  it("日付選択提出は定休日を拒否し、再提出で日付明細だけを全置換する", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
@@ -229,17 +229,17 @@ describe("希望シフト回収シナリオ", () => {
       const seeded = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
         email: "manager-date-only@example.com",
-        shopName: "日ごと提出店舗",
+        shopName: "日付選択提出店舗",
       });
       const staffId = await seedStaff(ctx, {
         shopId: seeded.shopId,
-        name: "日ごと提出スタッフ",
+        name: "日付選択提出スタッフ",
         email: "date-only-staff@example.com",
       });
       return { shopId: seeded.shopId, staffId };
     });
     await asManager.updateShopSettings({
-      shopName: "日ごと提出店舗",
+      shopName: "日付選択提出店舗",
       regularClosedDays: [],
       submissionPattern: { kind: "dateOnly" },
     });
@@ -328,13 +328,13 @@ describe("希望シフト回収シナリオ", () => {
     expect(board?.requestedDates).toEqual([{ staffId, date: resubmittedWorkingDate }]);
   });
 
-  it("募集作成時の提出方法スナップショットで勤務区分提出を時間枠化できる", async () => {
+  it("募集作成時の提出方法スナップショットでパターン選択での提出を時間枠化できる", async () => {
     const t = convexTest(schema, modules);
     const scenario = createScenario(t);
     const asManager = scenario.manager(MANAGER_SUBJECT);
     const staff = scenario.staff();
 
-    // Arrange: 勤務区分の店舗設定で募集を作成し、その後に店舗側の勤務区分を別IDへ変える。
+    // Arrange: 勤務パターンの店舗設定で募集を作成し、その後に店舗側の勤務パターンを別IDへ変える。
     const { shopId, staffId } = await t.run(async (ctx) => {
       const seeded = await seedManagerShop(ctx, {
         subject: MANAGER_SUBJECT,
@@ -343,7 +343,7 @@ describe("希望シフト回収シナリオ", () => {
       });
       const staffId = await seedStaff(ctx, {
         shopId: seeded.shopId,
-        name: "区分提出スタッフ",
+        name: "パターン提出スタッフ",
         email: "pattern-staff@example.com",
       });
       return { shopId: seeded.shopId, staffId };
@@ -382,7 +382,7 @@ describe("希望シフト回収シナリオ", () => {
       });
     });
 
-    // Assert: 提出ページは募集作成時点の勤務区分設定を保持する。
+    // Assert: 提出ページは募集作成時点の勤務パターン設定を保持する。
     const submissionPageResult = await staff.getSubmissionPageData({
       sessionToken: "scenario-pattern-snapshot-session",
       recruitmentId,
@@ -398,7 +398,7 @@ describe("希望シフト回収シナリオ", () => {
       ],
     });
 
-    // Act: 変更後の店舗設定にしか存在しない勤務区分IDは拒否され、募集作成時点のIDでは提出できる。
+    // Act: 変更後の店舗設定にしか存在しない勤務パターンIDは拒否され、募集作成時点のIDでは提出できる。
     await expect(
       staff.submitShiftRequests({
         sessionToken: "scenario-pattern-snapshot-session",
@@ -406,7 +406,7 @@ describe("希望シフト回収シナリオ", () => {
         acceptedLegal: true,
         submission: { kind: "shiftType", selections: [{ date: recruitmentInput.periodStart, optionId: "new-late" }] },
       }),
-    ).rejects.toThrow("勤務区分が見つかりません");
+    ).rejects.toThrow("勤務パターンが見つかりません");
     await staff.submitShiftRequests({
       sessionToken: "scenario-pattern-snapshot-session",
       recruitmentId,
@@ -414,7 +414,7 @@ describe("希望シフト回収シナリオ", () => {
       submission: { kind: "shiftType", selections: [{ date: recruitmentInput.periodStart, optionId: "late" }] },
     });
 
-    // Assert: シフト表では勤務区分が時間枠として扱われる。
+    // Assert: シフト表では勤務パターンが時間枠として扱われる。
     const [recruitmentsAfterSubmit, board] = await Promise.all([
       asManager.getDashboardRecruitments(),
       asManager.getShiftBoardData(recruitmentId),

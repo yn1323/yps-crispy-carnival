@@ -63,7 +63,7 @@ const shopNames = new Map<Recruitment["_id"], string>([
 const filterOptions = [
   { value: "shop-main", label: "yn1323店舗" },
   { value: "shop-annex", label: "もて" },
-  { value: "shop-work", label: "勤務区分" },
+  { value: "shop-work", label: "パターン選択" },
 ];
 
 function CombinedBoard() {

@@ -12,7 +12,7 @@ const submissionPattern: ShiftSubmissionPattern = {
 };
 
 describe("buildSPShiftTypeDailyViewModel", () => {
-  it("勤務区分を並べ替え、希望・割当・件数をカード表示値へ変換する", () => {
+  it("勤務パターンを並べ替え、希望・割当・件数をカード表示値へ変換する", () => {
     const staff: StaffType = { id: "staff-1", name: "田中", isSubmitted: true };
     const shifts: ShiftData[] = [
       {

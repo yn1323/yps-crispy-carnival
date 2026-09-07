@@ -41,7 +41,7 @@ describe("PDFの実ファイル", () => {
     schedule.rows[0] = {
       ...schedule.rows[0],
       cells: schedule.rows[0].cells.map((cell, index) =>
-        index === 2 ? { lines: ["○", "長い勤務区分の正式名称"] } : cell,
+        index === 2 ? { lines: ["○", "長い勤務パターンの正式名称"] } : cell,
       ),
     };
     const blob = await createShiftPdf(schedule);
@@ -135,7 +135,7 @@ describe("PDFの実ファイル", () => {
     }
   });
 
-  it("200人・全員非出勤の日付方式でも途中のスタッフ行を落とさない", async () => {
+  it("200人・全員非出勤の日付選択でも途中のスタッフ行を落とさない", async () => {
     const fixture = createExportFixture();
     fixture.recruitment.periodEnd = "2026-08-01";
     fixture.recruitment.submissionPattern = { kind: "dateOnly" };

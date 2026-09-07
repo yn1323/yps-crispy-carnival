@@ -33,7 +33,7 @@ export class ShopLifecyclePage {
     await dialog.getByLabel("お店の名前").fill(shopName);
     await dialog.getByRole("button", { name: "次へ" }).click();
     await expect(dialog.getByText("シフトの提出方法", { exact: true })).toBeVisible();
-    await dialog.getByRole("button", { name: /^日ごと 日ごと/ }).click();
+    await dialog.getByRole("button", { name: /^日付選択 日付選択/ }).click();
     await dialog.getByRole("button", { name: "次へ" }).click();
     await expect(dialog.getByText("毎週休みにする曜日", { exact: true })).toBeVisible();
     await dialog.getByRole("button", { name: "店舗を追加", exact: true }).click();
