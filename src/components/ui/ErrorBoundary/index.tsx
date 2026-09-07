@@ -58,10 +58,6 @@ export function DefaultErrorFallback({ error, onRefresh = reloadPage, minH = "10
   );
 }
 
-export function RouteErrorFallback({ error }: { error: unknown; reset?: () => void }) {
-  return <DefaultErrorFallback error={error} />;
-}
-
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null };
 

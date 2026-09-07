@@ -1,0 +1,250 @@
+.route-error {
+  color-scheme: light;
+  width: 100%;
+  min-height: 100dvh;
+  background: #fff;
+  color: #20292b;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.route-error * {
+  box-sizing: border-box;
+}
+
+.route-error__content {
+  max-width: 650px;
+  margin: 0 auto;
+  padding: 32px 32px 28px;
+}
+
+.route-error__intro {
+  margin-bottom: 27px;
+}
+
+.route-error__symbol {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  background: #fff5e5;
+  color: #9b5b05;
+}
+
+.route-error h1 {
+  margin: 0 0 9px;
+  color: #20292b;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  text-wrap: pretty;
+}
+
+.route-error h2 {
+  margin: 0 0 7px;
+  color: #20292b;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.route-error p {
+  margin: 0;
+  color: #566368;
+}
+
+.route-error__steps {
+  display: grid;
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.route-error__steps > li {
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.route-error__number {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  margin-top: 2px;
+  border-radius: 50%;
+  background: #f6f8f8;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.route-error__reload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  margin-top: 14px;
+  padding: 9px 20px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: #087f78;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.route-error__reload:hover {
+  background: #076b65;
+}
+
+.route-error__reload:active {
+  background: #065e59;
+}
+
+.route-error .route-error__key-help {
+  margin-top: 13px;
+  font-size: 13px;
+}
+
+.route-error__shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px 22px;
+  margin-top: 9px;
+  color: #566368;
+  font-size: 13px;
+}
+
+.route-error kbd {
+  padding: 1px 5px;
+  border: 1px solid #e3e8e8;
+  border-radius: 4px;
+  background: #f6f8f8;
+  color: #20292b;
+  font-family: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.route-error__details > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 14px;
+  padding: 8px 13px;
+  border: 1px solid #e3e8e8;
+  border-radius: 8px;
+  background: #fff;
+  color: #20292b;
+  font-size: 14px;
+  font-weight: 500;
+  list-style: none;
+  cursor: pointer;
+}
+
+.route-error__details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.route-error__details > summary:hover,
+.route-error__details > summary:active {
+  background: #f6f8f8;
+}
+
+.route-error__chevron {
+  font-size: 16px;
+}
+
+.route-error__details[open] .route-error__chevron {
+  transform: rotate(90deg);
+}
+
+.route-error__hide-details,
+.route-error__details[open] .route-error__show-details {
+  display: none;
+}
+
+.route-error__details[open] .route-error__hide-details {
+  display: inline;
+}
+
+.route-error__error-box {
+  margin-top: 12px;
+}
+
+.route-error__error-box p {
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.route-error pre {
+  margin: 0;
+  padding: 14px;
+  border: 1px solid #e3e8e8;
+  border-radius: 8px;
+  background: #f6f8f8;
+  color: #20292b;
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.route-error pre code {
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+.route-error__contact-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 10px;
+  color: #087f78;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.route-error__contact-link:hover,
+.route-error__contact-link:active {
+  color: #076b65;
+}
+
+.route-error__mobile-help {
+  display: none;
+}
+
+@media (max-width: 480px) {
+  .route-error__content {
+    padding: 25px 20px 24px;
+  }
+
+  .route-error h1 {
+    font-size: 21px;
+  }
+
+  .route-error__desktop-help {
+    display: none;
+  }
+
+  .route-error__mobile-help {
+    display: block;
+  }
+
+  .route-error__reload {
+    width: 100%;
+  }
+}

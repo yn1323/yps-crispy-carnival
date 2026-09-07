@@ -1,5 +1,6 @@
 import { createRootRoute, HeadContent, Outlet, Scripts, useRouterState } from "@tanstack/react-router";
 import { type ReactNode, useEffect } from "react";
+import { DocumentErrorFallback } from "@/src/components/ui/RouteErrorFallback";
 import { Toaster } from "@/src/components/ui/toaster";
 import { buildMeta, jsonLdMeta } from "@/src/lib/seo";
 import { trackPageView } from "@/src/lib/webMeasurement";
@@ -98,6 +99,7 @@ export const Route = createRootRoute({
     ],
   }),
   component: RootComponent,
+  errorComponent: DocumentErrorFallback,
 });
 
 function RootComponent() {
