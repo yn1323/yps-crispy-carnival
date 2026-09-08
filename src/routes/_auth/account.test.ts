@@ -84,4 +84,21 @@ describe("アカウント設定URL", () => {
       }),
     ).toBe(true);
   });
+
+  it("等価なエンコードは維持し、値の違いと同値の重複キーは検出する", () => {
+    const validated = { org: "organization a", flow: "connect-google" as const };
+    expect(needsAccountSecuritySearchCanonicalization("?flow=connect-google&org=organization%20a", validated)).toBe(
+      false,
+    );
+    expect(needsAccountSecuritySearchCanonicalization("?flow=connect-google&org=organization+a", validated)).toBe(
+      false,
+    );
+    expect(needsAccountSecuritySearchCanonicalization("?flow=connect-google&org=organization-b", validated)).toBe(true);
+    expect(
+      needsAccountSecuritySearchCanonicalization(
+        "?flow=connect-google&org=organization+a&flow=connect-google",
+        validated,
+      ),
+    ).toBe(true);
+  });
 });

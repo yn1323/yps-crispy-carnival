@@ -1,4 +1,5 @@
 import type { LoginMethodMigrationFlow } from "@/src/components/features/LoginMethods";
+import { areSearchParamsEqual } from "@/src/lib/searchParams";
 
 export type AccountSecuritySearch = {
   org?: string;
@@ -46,7 +47,7 @@ export function needsAccountSecuritySearchCanonicalization(
   rawSearch: string,
   validatedSearch: AccountSecuritySearch,
 ): boolean {
-  return rawSearch !== buildCanonicalAccountSecuritySearchString(validatedSearch);
+  return !areSearchParamsEqual(rawSearch, buildCanonicalAccountSecuritySearchString(validatedSearch));
 }
 
 function isAccountSecurityFlow(value: unknown): value is LoginMethodMigrationFlow {
