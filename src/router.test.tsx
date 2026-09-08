@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,6 +9,7 @@ const failures = vi.hoisted(() => ({
   provider: null as Error | null,
   document: null as Error | null,
   loader: null as Error | null,
+  rootLoader: null as Error | null,
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
@@ -36,6 +37,9 @@ vi.mock("@/src/hooks/useCloseDialogOnBrowserBack", () => ({ registerDialogBackNa
 vi.mock("./routeTree.gen.ts", async () => {
   const { createRoute } = await import("@tanstack/react-router");
   const { Route } = await import("./routes/__root");
+  Route.options.loader = () => {
+    if (failures.rootLoader) throw failures.rootLoader;
+  };
   const indexRoute = createRoute({
     getParentRoute: () => Route,
     path: "/",
@@ -53,6 +57,7 @@ beforeEach(() => {
   failures.provider = null;
   failures.document = null;
   failures.loader = null;
+  failures.rootLoader = null;
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(window, "scrollTo").mockImplementation(() => {});
@@ -128,6 +133,34 @@ describe("ルートと最上位のエラー復旧画面", () => {
       expect(await screen.findByRole("heading", { name: "ページを表示できませんでした", level: 1 })).not.toBeNull();
       expect(screen.queryByText("Something went wrong!")).toBeNull();
       expect(document.body.textContent).toContain(fallbackError.message);
+      expect(document.querySelectorAll("html")).toHaveLength(1);
+    } finally {
+      router.routeTree.update({ errorComponent: originalErrorComponent });
+    }
+  });
+
+  it("rootの一次例外とエラー画面の二次例外を同じ詳細欄へ残す", async () => {
+    const originalError = new Error("Too many redirects");
+    const fallbackError = new Error("Root error fallback failed");
+    const router = getRouter();
+    failures.rootLoader = originalError;
+    const originalErrorComponent = router.routeTree.options.errorComponent;
+    router.routeTree.update({
+      errorComponent: () => {
+        throw fallbackError;
+      },
+    });
+
+    try {
+      await renderRouter(router);
+
+      expect(await screen.findByRole("heading", { name: "ページを表示できませんでした", level: 1 })).not.toBeNull();
+      await waitFor(() => {
+        const details = document.querySelector('pre[data-clarity-mask="true"]');
+        expect(details?.textContent).toContain(fallbackError.message);
+        expect(details?.textContent).toContain(originalError.message);
+        expect(details?.textContent).toContain('"route": "__root__"');
+      });
       expect(document.querySelectorAll("html")).toHaveLength(1);
     } finally {
       router.routeTree.update({ errorComponent: originalErrorComponent });

@@ -61,6 +61,8 @@ LINEアプリ内ブラウザではGoogle OAuthがprovider側で拒否される�
 重複していた`/app/account`は削除し、互換redirectを設けない。
 Google account linkingの帰還先も`/account?flow=connect-google&oauth=google`だけを使う。
 
+許可されたクエリのキーと値が同じであれば、並び順にかかわらず画面を表示する。  `/account`の`org`・`flow`・`oauth`だけでなく、ダッシュボード、シフト、スタッフ、要対応、プランと支払いも同じ扱いとし、順序だけを理由にリダイレクトしない。未知のキー、空値、不正な値は既存の画面別規則で整理する。
+
 このページは組織や店舗に依存しない本人専用画面である。  `?shop=`を引き継がず、店舗一覧取得、selected shop解決、無効店舗による全体blockを行わない。認証、削除済みアカウント判定などの共通契約だけを維持する。
 
 画面はClerkのcurrent User resourceからメールアドレス、パスワード、Google認証の状態を表示する。  メールログインの対象として表示・変更するメールアドレスは、Primaryの1件だけとし、UIでは「メインのメールアドレス」と呼ぶ。  過去から残るsecondary EmailAddressや確認途中のEmailAddressがClerk上にあっても、別のログイン対象行としては表示せず、Primary変更に無関係なresourceを推測削除しない。

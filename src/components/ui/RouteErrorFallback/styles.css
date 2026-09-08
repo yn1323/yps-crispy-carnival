@@ -83,7 +83,7 @@
   font-weight: 500;
 }
 
-.route-error__reload {
+.route-error__action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -98,14 +98,15 @@
   font: inherit;
   font-size: 14px;
   font-weight: 500;
+  text-decoration: none;
   cursor: pointer;
 }
 
-.route-error__reload:hover {
+.route-error__action:hover {
   background: #076b65;
 }
 
-.route-error__reload:active {
+.route-error__action:active {
   background: #065e59;
 }
 
@@ -244,7 +245,7 @@
     display: block;
   }
 
-  .route-error__reload {
+  .route-error__action {
     width: 100%;
   }
 }
