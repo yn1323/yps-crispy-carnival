@@ -40,6 +40,9 @@ export const ErrorDetails: Story = {
     await expect(errorMessage).toHaveTextContent('"route": "__root__"');
     await expect(errorMessage).toHaveTextContent('"message": "Too many redirects"');
     await expect(errorMessage.closest("pre")).toHaveAttribute("data-clarity-mask", "true");
+    const home = await canvas.findByRole("link", { name: "シフトリTOPへ" });
+    await expect(home).toHaveAttribute("href", "https://shiftori.app");
+    await expect(home).not.toHaveAttribute("target");
     const contact = await canvas.findByRole("link", { name: "お問い合わせフォーム（別タブ）" });
     await expect(contact).toHaveAttribute("href", "https://shiftori.app/contact");
     await expect(contact).toHaveAttribute("target", "_blank");

@@ -53,7 +53,7 @@ export function RouteErrorFallback({ error, onRefresh = reloadPage, routerErrors
             <div>
               <h2>ページを再読み込みする</h2>
               <p>まずは、このページの再読み込みをお試しください。</p>
-              <button className="route-error__reload" type="button" onClick={onRefresh}>
+              <button className="route-error__action" type="button" onClick={onRefresh}>
                 <LuRotateCw aria-hidden="true" size={16} />
                 再読み込みする
               </button>
@@ -80,7 +80,18 @@ export function RouteErrorFallback({ error, onRefresh = reloadPage, routerErrors
               2
             </span>
             <div>
-              <h2>改善しない場合</h2>
+              <h2>シフトリTOPから再度ログインする</h2>
+              <a className="route-error__action" href="https://shiftori.app">
+                シフトリTOPへ
+              </a>
+            </div>
+          </li>
+          <li>
+            <span className="route-error__number" aria-hidden="true">
+              3
+            </span>
+            <div>
+              <h2>それでも改善しない場合</h2>
               <p>エラーの詳細を表示し、内容をコピーしてお問い合わせの本文に貼り付けてお送りください。</p>
               <details className="route-error__details">
                 <summary>
