@@ -2,12 +2,11 @@ import { useQuery } from "convex/react";
 import { LuRefreshCw, LuTriangleAlert } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { getExportBlockMessage, ShiftExportPage } from "@/src/components/features/ShiftExport";
+import { ShiftExportPage, useReceivedShiftExport } from "@/src/components/features/ShiftExport";
 import { Button } from "@/src/components/ui/Button";
 import { Empty } from "@/src/components/ui/Empty";
 import { ErrorBoundary } from "@/src/components/ui/ErrorBoundary";
 import { ShiftoriLoading } from "@/src/components/ui/ShiftoriLoading";
-import { useShiftBoardDayKey } from "@/src/hooks/useShiftBoardDayKey";
 
 type Props = { organizationId: string; recruitmentId: string };
 
@@ -22,35 +21,34 @@ export function ShiftExportRoutePage(props: Props) {
 function ShiftExportQuery({ organizationId, recruitmentId }: Props) {
   const organizationDocumentId = organizationId as Id<"organizations">;
   const recruitmentDocumentId = recruitmentId as Id<"recruitments">;
-  const refreshDayKey = useShiftBoardDayKey();
   const scope = useQuery(api.shiftBoard.queries.getShiftBoardShopScopeForOrganization, {
     organizationId: organizationDocumentId,
     recruitmentId: recruitmentDocumentId,
   });
-  const data = useQuery(
-    api.shiftExport.queries.getShiftExportData,
-    scope
-      ? {
-          shopId: scope.shopId,
-          expectedOrganizationId: organizationDocumentId,
-          recruitmentId: recruitmentDocumentId,
-          refreshDayKey,
-        }
-      : "skip",
+  const received = useReceivedShiftExport(
+    { organizationId, recruitmentId, shopId: scope?.shopId },
+    scope === undefined ? undefined : scope !== null,
   );
-  if (scope === null || data === null) return <ExportUnavailable />;
-  if (scope === undefined || data === undefined)
-    return <ShiftoriLoading variant="section" message="シフト表を読み込んでいます" minH="100dvh" />;
-  if (data.exportBlockReason)
+  if (scope === null) return <ExportUnavailable />;
+  if (scope === undefined || !received || (!received.snapshot && !received.error))
+    return <ShiftoriLoading variant="section" message="シフト表を受け取っています" minH="100dvh" />;
+  if (received.error || !received.snapshot)
     return (
       <Empty
         icon={LuTriangleAlert}
-        title="シフト表を出力できません"
-        description={getExportBlockMessage(data.exportBlockReason)}
+        title="シフト表を受け取れませんでした"
+        description={received.error ?? "シフト表から出力画面を開き直してください。"}
         minH="100dvh"
       />
     );
-  return <ShiftExportPage data={data} />;
+  return (
+    <>
+      {!received.storageAvailable && (
+        <p>このブラウザでは一時保存できません。再読み込みせずにダウンロードしてください。</p>
+      )}
+      <ShiftExportPage data={received.snapshot.data} />
+    </>
+  );
 }
 
 function ExportUnavailable({ retry = false }: { retry?: boolean }) {

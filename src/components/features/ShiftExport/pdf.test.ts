@@ -31,8 +31,6 @@ describe("PDFの実ファイル", () => {
 
   it("31日をA4横2ページに配置し、日本語・曜日・全スタッフを各行1回だけ出力する", async () => {
     const schedule = buildExportSchedule(createExportFixture());
-    schedule.statusLabel = "確定済み";
-    schedule.notificationLabel = "前回の通知処理は送信完了";
     schedule.rows = Array.from({ length: 20 }, (_, index) => ({
       ...schedule.rows[0],
       staffId: `staff-${index}`,
@@ -72,8 +70,7 @@ describe("PDFの実ファイル", () => {
         pages.push(text);
       }
       expect(pages[0]).toContain("2026/08/01~08/31 シフトリ駅前店");
-      expect(pages[0]).toContain(schedule.statusLabel);
-      expect(pages[0]).toContain(schedule.notificationLabel);
+      expect(pages.join("")).not.toMatch(/下書き|確定済み|通知/);
       expect(pages[0]).toContain("○");
       expect(pages[0]).toContain("長い…");
       expect(pages[1]).not.toContain("2026/08/01~08/31 シフトリ駅前店");

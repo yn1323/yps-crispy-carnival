@@ -21,17 +21,24 @@ test.describe("シフト表出力", { tag: ["@e2e-core", "@shift-export"] }, () 
       page,
       baseURL,
     }, testInfo) => {
+      // 初回認証済み画面、別タブ、reload、2形式の生成までを同じ契約で検証する。
+      test.setTimeout(60_000);
       const seed = seedManagerScenario<OpenRecruitmentSeed>("testing:seedOpenRecruitmentNotificationScenario", {
         dates: getNextWeekDates(),
+        dateOnly: true,
       });
 
-      await test.step("管理者が募集のシフトを保存する", async () => {
+      await test.step("管理者が未保存の勤務を追加する", async () => {
         await page.goto(`/shifts/${encodeURIComponent(seed.recruitmentId)}/board`, { waitUntil: "domcontentloaded" });
         await expectAppHydrated(page);
         await expect(page.getByRole("button", { name: "下書き保存", exact: true })).toBeEnabled();
-        // 既存seedは未保存の募集を作る。全員非出勤として保存し、保存済み帳票を出力する。
-        await page.getByRole("button", { name: "下書き保存", exact: true }).click();
-        await expect(page.getByText("下書きを保存しました", { exact: true })).toBeVisible();
+        const cell = page
+          .getByRole("button", { name: /勤務なし$/ })
+          .filter({ visible: true })
+          .first();
+        await expect(cell).toBeEnabled();
+        await cell.click();
+        await expect(page.getByRole("button", { name: /勤務あり$/ }).first()).toBeVisible();
       });
 
       await expect(page).toHaveURL(
@@ -54,10 +61,13 @@ test.describe("シフト表出力", { tag: ["@e2e-core", "@shift-export"] }, () 
         attachmentName: "e2e-safe-browser-signals-shift-export",
         action: async () => {
           await exportPage.expectReady(organizationId, seed.recruitmentId);
+          await expect(exportTab.getByRole("cell", { name: "○", exact: true })).toHaveCount(1);
+          await page.close();
           await test.step("PDFをダウンロードする", () => exportPage.download("pdf"));
           await test.step("出力ページを再読み込みしてExcelをダウンロードする", async () => {
             await exportTab.reload({ waitUntil: "domcontentloaded" });
             await exportPage.expectReady(organizationId, seed.recruitmentId);
+            await expect(exportTab.getByRole("cell", { name: "○", exact: true })).toHaveCount(1);
             await exportPage.download("xlsx");
           });
         },

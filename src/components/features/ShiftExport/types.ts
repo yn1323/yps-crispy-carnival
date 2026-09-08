@@ -7,9 +7,6 @@ export type ShiftExportData = {
     periodEnd: string;
     shopClosedDates: string[];
     submissionPattern: ShiftSubmissionPattern;
-    draftSavedAt: number | null;
-    confirmedAt: number | null;
-    isConfirmed: boolean;
   };
   staffs: { id: string; name: string; isRemoved: boolean }[];
   assignments: {
@@ -19,10 +16,6 @@ export type ShiftExportData = {
     endTime: string;
     optionId: string | null;
   }[];
-  confirmationState: "unconfirmed" | "confirmed";
-  contentComparison: "notApplicable" | "same" | "different" | "unknown";
-  notificationState: "notApplicable" | "pending" | "failed" | "sent" | "unknown";
-  exportBlockReason: "noStaffs" | "excludedStaffAssignments" | null;
 };
 
 export type ExportDate = {
@@ -43,8 +36,6 @@ export type ExportSchedule = {
   shopName: string;
   periodStart: string;
   periodEnd: string;
-  statusLabel: string;
-  notificationLabel: string | null;
   mode: ShiftSubmissionPattern["kind"];
   splitPeriod: boolean;
   bodyLineCount: number;

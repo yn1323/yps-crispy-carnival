@@ -1469,6 +1469,7 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
     managerAuthTokenIdentifier: v.string(),
     managerEmail: v.optional(v.string()),
     dates: scenarioDatesValidator,
+    dateOnly: v.optional(v.boolean()),
     managerLineState: v.optional(lineDeliveryStateValidator),
     managerLegalConsentState: v.optional(legalConsentStateValidator),
     managerStaffLegalConsentState: v.optional(legalConsentStateValidator),
@@ -1485,6 +1486,7 @@ export const seedOpenRecruitmentNotificationScenario = internalMutation({
       shopId,
       dates: args.dates,
       status: "open",
+      ...(args.dateOnly ? { submissionPattern: { kind: "dateOnly" as const } } : {}),
       reminderScheduledAt: getReminderScheduledAt(args.dates.deadline),
     });
     await setStaffLineDeliveryState(ctx, {

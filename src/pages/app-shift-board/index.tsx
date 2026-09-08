@@ -4,6 +4,7 @@ import { LuRefreshCw, LuTriangleAlert } from "react-icons/lu";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ShiftBoardPage } from "@/src/components/features/ShiftBoard";
+import { useOpenShiftExport } from "@/src/components/features/ShiftExport";
 import { Animation } from "@/src/components/templates/Animation";
 import { AUTHENTICATED_APP_CONTENT_HEIGHT } from "@/src/components/templates/AuthenticatedAppShell";
 import { Button } from "@/src/components/ui/Button";
@@ -47,6 +48,12 @@ function AppShiftBoardQuery({ organizationId, recruitmentId }: Required<Props>) 
   const shopScope = useQuery(api.shiftBoard.queries.getShiftBoardShopScopeForOrganization, {
     organizationId: organizationDocumentId,
     recruitmentId: recruitmentDocumentId,
+  });
+  const onExport = useOpenShiftExport({
+    organizationId,
+    recruitmentId,
+    shopId: shopScope?.shopId,
+    shopName: shopScope?.shopName,
   });
   const queriedData = useQuery(
     api.shiftBoard.queries.getShiftBoardData,
@@ -94,6 +101,7 @@ function AppShiftBoardQuery({ organizationId, recruitmentId }: Required<Props>) 
         <ShiftBoardPage
           key={recruitmentId}
           data={data}
+          onExport={onExport}
           recruitmentId={recruitmentDocumentId}
           layout="app"
           header={{

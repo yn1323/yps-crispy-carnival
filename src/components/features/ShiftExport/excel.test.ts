@@ -12,7 +12,6 @@ const parseXml = (bytes: Uint8Array) =>
 describe("Excelの実ファイル", () => {
   it("31日・200人を1シートへ出力し、セル型・罫線・色・寸法・印刷設定を保持する", async () => {
     const schedule = buildExportSchedule(createExportFixture());
-    schedule.notificationLabel = "前回の通知に失敗あり";
     const formulaLikeName = '=HYPERLINK("https://example.invalid","名前")';
     const fullShiftName = "省略せずに保持する正式なパターン名称";
     schedule.rows = Array.from({ length: 200 }, (_, index) => ({
@@ -41,22 +40,21 @@ describe("Excelの実ファイル", () => {
 
     expect(blob.type).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     expect(workbook.querySelectorAll("sheet")).toHaveLength(1);
-    expect(sheet.querySelector("dimension")?.getAttribute("ref")).toBe("A1:AF203");
-    expect(sheet.querySelectorAll("sheetData > row")).toHaveLength(203);
+    expect(sheet.querySelector("dimension")?.getAttribute("ref")).toBe("A1:AF202");
+    expect(sheet.querySelectorAll("sheetData > row")).toHaveLength(202);
     expect(value("A1")).toBe("2026/08/01~08/31 シフトリ駅前店");
-    expect(value("A2")).toContain(schedule.statusLabel);
-    expect(value("A2")).toContain(`\n${schedule.notificationLabel}`);
+    expect(sharedStrings.join(" ")).not.toMatch(/下書き|確定済み|通知/);
+    expect(value("A3")).toBe(formulaLikeName);
     expect(value("A4")).toBe(formulaLikeName);
-    expect(value("A5")).toBe(formulaLikeName);
-    expect(value("A203")).toBe("スタッフ199");
-    expect(value("B4")).toBe("09:00\n17:00");
-    expect(value("B5")).toBe(`${fullShiftName}\n=1+1`);
-    expect(value("C4")).toBe("-");
-    expect(cell("A4")?.getAttribute("t")).toBe("s");
-    expect(cell("B5")?.getAttribute("t")).toBe("s");
+    expect(value("A202")).toBe("スタッフ199");
+    expect(value("B3")).toBe("09:00\n17:00");
+    expect(value("B4")).toBe(`${fullShiftName}\n=1+1`);
+    expect(value("C3")).toBe("-");
+    expect(cell("A3")?.getAttribute("t")).toBe("s");
+    expect(cell("B4")?.getAttribute("t")).toBe("s");
     expect(sheet.querySelectorAll("f, hyperlink")).toHaveLength(0);
-    expect(sheet.querySelector('row[r="4"]')?.getAttribute("ht")).toBe(String(layout.rowHeightPt));
-    expect(sheet.querySelector('row[r="203"]')?.getAttribute("ht")).toBe(String(layout.rowHeightPt));
+    expect(sheet.querySelector('row[r="3"]')?.getAttribute("ht")).toBe(String(layout.rowHeightPt));
+    expect(sheet.querySelector('row[r="202"]')?.getAttribute("ht")).toBe(String(layout.rowHeightPt));
     expect(Number(sheet.querySelector('col[min="1"]')?.getAttribute("width"))).toBeCloseTo(
       ((layout.staffColumnWidthPt * 4) / 3 - 5) / 7,
     );
@@ -64,32 +62,32 @@ describe("Excelの実ファイル", () => {
       ((layout.dateColumnWidthPt * 4) / 3 - 5) / 7,
     );
     expect(sheet.querySelector("pane")?.getAttribute("xSplit")).toBe("1");
-    expect(sheet.querySelector("pane")?.getAttribute("ySplit")).toBe("3");
-    expect(sheet.querySelector("pane")?.getAttribute("topLeftCell")).toBe("B4");
+    expect(sheet.querySelector("pane")?.getAttribute("ySplit")).toBe("2");
+    expect(sheet.querySelector("pane")?.getAttribute("topLeftCell")).toBe("B3");
     expect(sheet.querySelector("pageSetup")?.getAttribute("paperSize")).toBe("9");
     expect(sheet.querySelector("pageSetup")?.getAttribute("orientation")).toBe("landscape");
     expect(sheet.querySelector("pageSetup")?.getAttribute("fitToWidth")).toBe("1");
     expect(sheet.querySelector("pageSetup")?.getAttribute("fitToHeight")).toBe("0");
-    expect(workbook.querySelector('definedName[name="_xlnm.Print_Area"]')?.textContent).toBe("'シフト表'!$A1:$AF203");
-    expect(workbook.querySelector('definedName[name="_xlnm.Print_Titles"]')?.textContent).toBe("'シフト表'!$3:$3");
-    const closedFill = styles.querySelectorAll("fills > fill")[Number(style("C4").getAttribute("fillId"))];
+    expect(workbook.querySelector('definedName[name="_xlnm.Print_Area"]')?.textContent).toBe("'シフト表'!$A1:$AF202");
+    expect(workbook.querySelector('definedName[name="_xlnm.Print_Titles"]')?.textContent).toBe("'シフト表'!$2:$2");
+    const closedFill = styles.querySelectorAll("fills > fill")[Number(style("C3").getAttribute("fillId"))];
     expect(closedFill.querySelector("fgColor")?.getAttribute("rgb")).toBe("FFF0F0F0");
-    const border = styles.querySelectorAll("borders > border")[Number(style("B4").getAttribute("borderId"))];
+    const border = styles.querySelectorAll("borders > border")[Number(style("B3").getAttribute("borderId"))];
     for (const side of ["left", "right", "top", "bottom"]) {
       expect(border.querySelector(side)?.getAttribute("style")).toBe("thin");
       expect(border.querySelector(`${side} > color`)?.getAttribute("rgb")).toBe("FF000000");
     }
-    expect(style("B4").querySelector("alignment")?.getAttribute("wrapText")).toBe("1");
-    const timeFont = styles.querySelectorAll("fonts > font")[Number(style("B4").getAttribute("fontId"))];
+    expect(style("B3").querySelector("alignment")?.getAttribute("wrapText")).toBe("1");
+    const timeFont = styles.querySelectorAll("fonts > font")[Number(style("B3").getAttribute("fontId"))];
     expect(timeFont.querySelector("name")?.getAttribute("val")).toBe("Noto Sans JP");
     expect(Number(timeFont.querySelector("sz")?.getAttribute("val"))).toBeGreaterThanOrEqual(6);
     expect(Number(timeFont.querySelector("sz")?.getAttribute("val"))).toBeLessThan(7);
-    expect(style("A4").querySelector("alignment")?.getAttribute("wrapText")).toBeNull();
-    expect(style("A4").querySelector("alignment")?.getAttribute("shrinkToFit")).toBe("1");
-    expect(style("B3").querySelector("alignment")?.getAttribute("wrapText")).toBeNull();
-    expect(style("B3").querySelector("alignment")?.getAttribute("shrinkToFit")).toBe("1");
-    const saturdayFont = styles.querySelectorAll("fonts > font")[Number(style("B3").getAttribute("fontId"))];
-    const sundayFont = styles.querySelectorAll("fonts > font")[Number(style("C3").getAttribute("fontId"))];
+    expect(style("A3").querySelector("alignment")?.getAttribute("wrapText")).toBeNull();
+    expect(style("A3").querySelector("alignment")?.getAttribute("shrinkToFit")).toBe("1");
+    expect(style("B2").querySelector("alignment")?.getAttribute("wrapText")).toBeNull();
+    expect(style("B2").querySelector("alignment")?.getAttribute("shrinkToFit")).toBe("1");
+    const saturdayFont = styles.querySelectorAll("fonts > font")[Number(style("B2").getAttribute("fontId"))];
+    const sundayFont = styles.querySelectorAll("fonts > font")[Number(style("C2").getAttribute("fontId"))];
     expect(saturdayFont.querySelector("color")?.getAttribute("rgb")).toBe("FF1565C0");
     expect(sundayFont.querySelector("color")?.getAttribute("rgb")).toBe("FFC62828");
   });
@@ -106,10 +104,10 @@ describe("Excelの実ファイル", () => {
     const sheet = parseXml(files["xl/worksheets/sheet1.xml"]);
     const strings = parseXml(files["xl/sharedStrings.xml"]).querySelectorAll("si");
     const styles = parseXml(files["xl/styles.xml"]);
-    const cell = sheet.querySelector('c[r="B4"]');
+    const cell = sheet.querySelector('c[r="B3"]');
     const style = styles.querySelectorAll("cellXfs > xf")[Number(cell?.getAttribute("s"))];
     const font = styles.querySelectorAll("fonts > font")[Number(style.getAttribute("fontId"))];
-    const firstHeight = Number(sheet.querySelector('row[r="4"]')?.getAttribute("ht"));
+    const firstHeight = Number(sheet.querySelector('row[r="3"]')?.getAttribute("ht"));
 
     expect(strings[Number(cell?.querySelector("v")?.textContent)].textContent).toBe(names.join("\n"));
     expect(font.querySelector("sz")?.getAttribute("val")).toBe("6");
@@ -117,8 +115,8 @@ describe("Excelの実ファイル", () => {
     // 31 days leave space for three full-width characters at 6 pt: 4 options need 40 rendered lines.
     expect(firstHeight).toBeGreaterThanOrEqual(40 * 6 * 1.65);
     expect(firstHeight).toBeLessThanOrEqual(409);
-    expect(sheet.querySelector('row[r="5"]')?.getAttribute("ht")).toBe(String(firstHeight));
-    expect(sheet.querySelectorAll("sheetData > row")).toHaveLength(schedule.rows.length + 3);
+    expect(sheet.querySelector('row[r="4"]')?.getAttribute("ht")).toBe(String(firstHeight));
+    expect(sheet.querySelectorAll("sheetData > row")).toHaveLength(schedule.rows.length + 2);
   });
 
   it("期間を分けると前半・後半の順に全スタッフを出力し、それぞれの日付と印刷設定を保持する", async () => {
@@ -160,21 +158,21 @@ describe("Excelの実ファイル", () => {
           .map((cell, dateIndex) => (dates[dateIndex].isClosed ? "-" : cell.lines.join("\n"))),
       ]);
       expect(rows[0][0]).toBe(title);
-      expect(rows[2]).toEqual(["スタッフ", ...dates.map((date) => date.label)]);
-      expect(rows.slice(3)).toEqual(expectedRows);
-      expect(sheet.querySelector("dimension")?.getAttribute("ref")).toBe(`A1:${lastColumn}53`);
+      expect(rows[1]).toEqual(["スタッフ", ...dates.map((date) => date.label)]);
+      expect(rows.slice(2)).toEqual(expectedRows);
+      expect(sheet.querySelector("dimension")?.getAttribute("ref")).toBe(`A1:${lastColumn}52`);
       expect(sheet.querySelector("pane")?.getAttribute("xSplit")).toBe("1");
-      expect(sheet.querySelector("pane")?.getAttribute("ySplit")).toBe("3");
-      expect(sheet.querySelector("pane")?.getAttribute("topLeftCell")).toBe("B4");
+      expect(sheet.querySelector("pane")?.getAttribute("ySplit")).toBe("2");
+      expect(sheet.querySelector("pane")?.getAttribute("topLeftCell")).toBe("B3");
       expect(sheet.querySelector("pageSetup")?.getAttribute("fitToWidth")).toBe("1");
       expect(sheet.querySelector("pageSetup")?.getAttribute("fitToHeight")).toBe("0");
       const sheetName = index === 0 ? "シフト表（前半）" : "シフト表（後半）";
       expect(workbook.querySelector(`definedName[name="_xlnm.Print_Area"][localSheetId="${index}"]`)?.textContent).toBe(
-        `'${sheetName}'!$A1:$${lastColumn}53`,
+        `'${sheetName}'!$A1:$${lastColumn}52`,
       );
       expect(
         workbook.querySelector(`definedName[name="_xlnm.Print_Titles"][localSheetId="${index}"]`)?.textContent,
-      ).toBe(`'${sheetName}'!$3:$3`);
+      ).toBe(`'${sheetName}'!$2:$2`);
       widths.push(Number(sheet.querySelector('col[min="2"]')?.getAttribute("width")));
     }
     const fullWidth = ((getExportLayout(schedule).dateColumnWidthPt * 4) / 3 - 5) / 7;

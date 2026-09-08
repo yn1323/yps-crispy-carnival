@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { isPastShiftPeriod } from "../_lib/dateFormat";
 import { managerQuery, organizationQuery } from "../_lib/functions";
@@ -13,6 +13,7 @@ import {
   SHIFT_BOARD_STAFF_LIMIT,
   SHIFT_BOARD_TIME_UNIT_MINUTES,
 } from "../constants";
+import { getOrganizationStaffOrderScope } from "../organization/staffOrder";
 import { getOrganizationAccessPolicy } from "../organizationBilling/service";
 import { getActiveRecruitmentInShop } from "../recruitment/service";
 import { isShiftTargetStaff } from "../staff/service";
@@ -26,6 +27,7 @@ const shiftBoardWriteBlockReasonValidator = v.union(
 
 const shiftBoardDataValidator = v.object({
   shopId: v.id("shops"),
+  exportStaffOrder: v.array(v.id("staffs")),
   canWriteBusinessData: v.boolean(),
   businessWriteBlockReason: shiftBoardWriteBlockReasonValidator,
   recruitment: v.object({
@@ -93,7 +95,7 @@ export const getShiftBoardData = managerQuery({
       ctx.db
         .query("staffs")
         .withIndex("by_shopId_isDeleted", (q) => q.eq("shopId", shop._id).eq("isDeleted", false))
-        .take(SHIFT_BOARD_STAFF_LIMIT),
+        .take(SHIFT_BOARD_STAFF_LIMIT + 1),
       ctx.db
         .query("shiftSubmissionSlots")
         .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
@@ -115,6 +117,9 @@ export const getShiftBoardData = managerQuery({
       throw new Error("Shift assignment scope exceeds the supported limit");
     }
 
+    if (allStaffs.length > SHIFT_BOARD_STAFF_LIMIT) throw new ConvexError("シフト表のスタッフ数が上限を超えています。");
+    if (allStaffs.some((staff) => staff.organizationId !== shop.organizationId)) throw new ConvexError("Not found");
+
     const submissions = await ctx.db
       .query("shiftSubmissions")
       .withIndex("by_recruitmentId", (q) => q.eq("recruitmentId", args.recruitmentId))
@@ -126,11 +131,66 @@ export const getShiftBoardData = managerQuery({
       const removedStaffIds = [...new Set(shiftAssignments.map((assignment) => assignment.staffId))].filter(
         (staffId) => !activeStaffIds.has(staffId),
       );
-      for (const staffId of removedStaffIds.slice(0, SHIFT_BOARD_STAFF_LIMIT - activeShiftTargetStaffs.length)) {
+      if (removedStaffIds.length + activeShiftTargetStaffs.length > SHIFT_BOARD_STAFF_LIMIT) {
+        throw new ConvexError("履歴を含むシフト表のスタッフ数が上限を超えています。");
+      }
+      for (const staffId of removedStaffIds) {
         const removedStaff = await ctx.db.get(staffId);
-        if (removedStaff?.isDeleted && removedStaff.shopId === shop._id) historicalRemovedStaffs.push(removedStaff);
+        if (
+          removedStaff?.isDeleted &&
+          removedStaff.shopId === shop._id &&
+          removedStaff.organizationId === shop.organizationId
+        )
+          historicalRemovedStaffs.push(removedStaff);
       }
     }
+    const orderScope = await getOrganizationStaffOrderScope(ctx, {
+      organizationId: shop.organizationId,
+      shopId: shop._id,
+    });
+    let exportStaffOrder = activeShiftTargetStaffs.map((staff) => staff._id);
+    if (orderScope.mode === "ordered") {
+      const entries = await ctx.db
+        .query("shopStaffOrderEntries")
+        .withIndex("by_shopId_and_displayOrder", (q) => q.eq("shopId", shop._id))
+        .take(SHIFT_BOARD_STAFF_LIMIT + 1);
+      const byId = new Map(allStaffs.map((staff) => [staff._id, staff]));
+      if (
+        entries.length !== allStaffs.length ||
+        new Set(entries.map((entry) => entry.staffId)).size !== entries.length
+      ) {
+        throw new ConvexError("スタッフの並び順を確認できません。");
+      }
+      for (const entry of entries) {
+        const staff = byId.get(entry.staffId);
+        if (
+          !staff ||
+          entry.organizationId !== shop.organizationId ||
+          entry.organizationPersonId !== staff.organizationPersonId
+        ) {
+          throw new ConvexError("Not found");
+        }
+      }
+      const targets = new Set(exportStaffOrder);
+      exportStaffOrder = entries.map((entry) => entry.staffId).filter((id) => targets.has(id));
+    } else {
+      const ranked = await Promise.all(
+        activeShiftTargetStaffs.map(async (staff, index) => {
+          const members = await ctx.db
+            .query("organizationMembers")
+            .withIndex("by_organizationId_and_personId", (q) =>
+              q.eq("organizationId", shop.organizationId).eq("personId", staff.organizationPersonId),
+            )
+            .take(2);
+          return { id: staff._id, index, isManager: members.length === 1 && members[0].status === "active" };
+        }),
+      );
+      exportStaffOrder = ranked
+        .sort((a, b) => Number(b.isManager) - Number(a.isManager) || a.index - b.index)
+        .map(({ id }) => id);
+    }
+    historicalRemovedStaffs.sort((a, b) => a._creationTime - b._creationTime || a._id.localeCompare(b._id));
+    exportStaffOrder.push(...historicalRemovedStaffs.map((staff) => staff._id));
     const submissionByStaffId = new Map(submissions.map((s) => [s.staffId, s]));
     const submittedStaffIds = new Set(submissions.filter(isCurrentSubmission).map((s) => s.staffId));
     const draftSavedAt = recruitment.draftSavedAt ?? null;
@@ -152,6 +212,7 @@ export const getShiftBoardData = managerQuery({
 
     return {
       shopId: shop._id,
+      exportStaffOrder,
       canWriteBusinessData: businessWriteBlockReason === null,
       businessWriteBlockReason,
       recruitment: {

@@ -77,6 +77,9 @@ export function ShiftExportView({ schedule, download, onSplitPeriodChange }: Pro
           </Text>
         )}
       </Box>
+      <Text px={4} pt={3} fontSize="sm" color="fg.muted">
+        出力画面を開いた時点のシフトを表示しています
+      </Text>
       {/* biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard users need to scroll the fixed-width preview. */}
       <section className="shift-export-preview" aria-label="シフト表プレビュー" tabIndex={0}>
         {pages.map(({ period, layout, rows, isFirstPage }, pageIndex) => (
@@ -94,10 +97,6 @@ export function ShiftExportView({ schedule, download, onSplitPeriodChange }: Pro
             {isFirstPage && (
               <div style={{ height: `${layout.titleHeightPt}pt` }}>
                 <h1 className="shift-export-title">{getExportTitle(period)}</h1>
-                <p>
-                  {schedule.statusLabel}
-                  {schedule.notificationLabel ? ` ／ ${schedule.notificationLabel}` : ""}
-                </p>
               </div>
             )}
             <table className="shift-export-table" aria-label="シフト表">

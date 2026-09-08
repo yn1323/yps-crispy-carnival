@@ -12,7 +12,6 @@ export function buildExportSchedule(data: ShiftExportData, splitPeriod = false):
   const { recruitment } = data;
   const count = getInclusiveDateCount(recruitment.periodStart, recruitment.periodEnd);
   if (
-    data.exportBlockReason ||
     !isValidIsoDateString(recruitment.periodStart) ||
     !isValidIsoDateString(recruitment.periodEnd) ||
     count < 1 ||
@@ -30,6 +29,7 @@ export function buildExportSchedule(data: ShiftExportData, splitPeriod = false):
     isClosed: recruitment.shopClosedDates.includes(date),
   }));
   const staffIds = new Set(data.staffs.map((staff) => staff.id));
+  if (staffIds.size !== data.staffs.length) throw new Error("スタッフが重複しています。");
   const dateSet = new Set(dates.map(({ date }) => date));
   const byStaffDate = new Map<string, ShiftExportData["assignments"]>();
   for (const assignment of data.assignments) {
@@ -64,12 +64,18 @@ export function buildExportSchedule(data: ShiftExportData, splitPeriod = false):
           )
         )
           throw new Error("勤務時間を確認できませんでした。");
-        return {
-          lines: [
-            minutesToTime(Math.min(...assignments.map(({ startTime }) => timeToMinutes(startTime)))),
-            minutesToTime(Math.max(...assignments.map(({ endTime }) => timeToMinutes(endTime)))),
-          ],
-        };
+        const intervals = assignments
+          .map(({ startTime, endTime }) => ({ start: timeToMinutes(startTime), end: timeToMinutes(endTime) }))
+          .sort((a, b) => a.start - b.start || a.end - b.end);
+        const merged: { start: number; end: number }[] = [];
+        for (const interval of intervals) {
+          const previous = merged.at(-1);
+          if (previous && interval.start <= previous.end) previous.end = Math.max(previous.end, interval.end);
+          else merged.push({ ...interval });
+        }
+        const lines = merged.flatMap(({ start, end }) => [minutesToTime(start), minutesToTime(end)]);
+        bodyLineCount = Math.max(bodyLineCount, lines.length);
+        return { lines };
       }
       const selected = new Set(assignments.map(({ optionId }) => optionId));
       if ([...selected].some((id) => id === null || !optionIds.has(id)))
@@ -79,27 +85,11 @@ export function buildExportSchedule(data: ShiftExportData, splitPeriod = false):
       return { lines };
     }),
   }));
-  const statusLabel =
-    data.confirmationState === "unconfirmed"
-      ? "下書き"
-      : data.contentComparison === "different"
-        ? "確定後に変更あり"
-        : data.contentComparison === "same"
-          ? "確定済み"
-          : "確定済み（変更状況を確認できません）";
-  const notificationLabels = {
-    notApplicable: null,
-    pending: "前回の通知は処理中",
-    failed: "前回の通知に失敗あり",
-    sent: "前回の通知処理は送信完了",
-    unknown: "前回の通知状況を確認できません",
-  };
+  if (bodyLineCount > 36) throw new Error("1日の勤務区間が多すぎるため、帳票へ収まりません。");
   return {
     shopName: data.shopName,
     periodStart: recruitment.periodStart,
     periodEnd: recruitment.periodEnd,
-    statusLabel,
-    notificationLabel: notificationLabels[data.notificationState],
     mode: pattern.kind,
     splitPeriod: splitPeriod && count >= 15,
     bodyLineCount,
@@ -123,13 +113,4 @@ export function getExportTitle(schedule: ExportSchedule): string {
   const displayedPeriodEnd =
     schedule.periodStart.slice(0, 4) === schedule.periodEnd.slice(0, 4) ? periodEnd.slice(5) : periodEnd;
   return `${periodStart}~${displayedPeriodEnd} ${schedule.shopName}`;
-}
-
-export function getExportBlockMessage(reason: NonNullable<ShiftExportData["exportBlockReason"]>): string {
-  switch (reason) {
-    case "noStaffs":
-      return "出力対象のスタッフがいません。";
-    case "excludedStaffAssignments":
-      return "シフト対象外のスタッフに割当が残っています。スタッフ設定とシフト表を確認してください。";
-  }
 }
