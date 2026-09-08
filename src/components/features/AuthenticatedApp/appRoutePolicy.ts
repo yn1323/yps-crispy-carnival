@@ -1,3 +1,4 @@
+import { areSearchParamsEqual } from "@/src/lib/searchParams";
 import type { AppNavigationKey } from "./AppPrimaryNavigation";
 
 export type AppOrganizationScopedNavigationPath =
@@ -157,7 +158,7 @@ export function validateAppFilteredListRouteSearch(search: Record<string, unknow
   return { ...(org ? { org } : {}), ...(shopFilter ? { shopFilter } : {}) };
 }
 
-/** 認証復帰前にroute別allowlist外と空値を除去し、一意なsearchへ収束させる。 */
+/** 認証復帰前にallowlist外と空値を除去する。順序だけの差では再遷移しない。 */
 export function getCanonicalAppHref(pathname: string, searchStr: string): string | null {
   if (!isAppOrganizationScopedPath(pathname)) return null;
 
@@ -165,7 +166,7 @@ export function getCanonicalAppHref(pathname: string, searchStr: string): string
   const rawSearch = Object.fromEntries(new URLSearchParams(currentSearch));
   const canonicalSearch = buildAppRouteSearchString(pathname, rawSearch);
 
-  return currentSearch === canonicalSearch ? null : `${pathname}${canonicalSearch}`;
+  return areSearchParamsEqual(currentSearch, canonicalSearch) ? null : `${pathname}${canonicalSearch}`;
 }
 
 function getAllowedAppRouteSearchKeys(pathname: string): readonly AppRouteSearchKey[] {

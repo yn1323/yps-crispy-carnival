@@ -9,7 +9,7 @@ import type { DayEntry, SubmissionData } from "../types";
 
 export function getInstructionText(pattern: ShiftSubmissionPattern): string {
   if (pattern.kind === "dateOnly") return "出勤できる日をタップしてください";
-  if (pattern.kind === "shiftType") return "出勤できる日ごとに勤務区分を選んでください";
+  if (pattern.kind === "shiftType") return "出勤できる日と勤務パターンを選んでください";
   return "出勤できる日をタップして、時間を選んでください";
 }
 

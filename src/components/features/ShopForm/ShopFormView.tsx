@@ -44,12 +44,12 @@ const BASE_STEPS: StepperDialogStep<ShopFormStep>[] = [
 
 const getPatternSettingsStep = (kind: ShiftSubmissionPattern["kind"]): StepperDialogStep<ShopFormStep> => ({
   value: "patternSettings",
-  label: kind === "shiftType" ? "勤務区分" : "勤務時間",
+  label: kind === "shiftType" ? "勤務パターン" : "勤務時間",
   icon: kind === "shiftType" ? LuListChecks : LuClock3,
-  title: kind === "shiftType" ? "勤務区分" : "勤務時間",
+  title: kind === "shiftType" ? "勤務パターン" : "勤務時間",
   description:
     kind === "shiftType"
-      ? "スタッフが選べる早番・遅番などの区分を設定します。"
+      ? "スタッフが選べる早番・遅番などのパターンを設定します。"
       : "スタッフが選択できる開始時間と終了時間の範囲を設定します。",
 });
 

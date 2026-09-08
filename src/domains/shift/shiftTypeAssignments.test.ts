@@ -27,7 +27,7 @@ const shift = (overrides: Partial<ShiftData>): ShiftData => ({
 });
 
 describe("shiftTypeAssignments", () => {
-  it("希望勤務区分名を中黒区切りで要約する", () => {
+  it("希望パターン名を中黒区切りで要約する", () => {
     expect(getShiftTypeRequestLabel(shift({ requestedShiftTypeOptionIds: ["morning", "late"] }), options, true)).toBe(
       "早番・遅番",
     );
@@ -35,7 +35,7 @@ describe("shiftTypeAssignments", () => {
     expect(getShiftTypeRequestLabel(undefined, options, false)).toBe("未提出");
   });
 
-  it("勤務区分ごとの割当人数を数える", () => {
+  it("勤務パターンごとの割当人数を数える", () => {
     const counts = countShiftTypeAssignments(
       [
         shift({
@@ -84,7 +84,7 @@ describe("shiftTypeAssignments", () => {
     expect(counts.get("late")).toBe(1);
   });
 
-  it("割当済み勤務区分IDを勤務区分の並び順で返す", () => {
+  it("割当済み勤務パターンIDを勤務パターンの並び順で返す", () => {
     const assignedIds = getAssignedShiftTypeOptionIdsInOptionOrder(
       shift({
         positions: [
@@ -114,7 +114,7 @@ describe("shiftTypeAssignments", () => {
     expect(assignedIds).toEqual(["morning", "middle"]);
   });
 
-  it("セル押下で勤務区分割当を追加・削除する", () => {
+  it("セル押下で勤務パターン割当を追加・削除する", () => {
     const added = toggleShiftTypeAssignment({
       shifts: [],
       staff,

@@ -9,7 +9,7 @@ import type { ShiftData } from "./types";
 export type AssignmentWarningCode =
   | "NOT_SUBMITTED" // 未提出スタッフが勤務に入っている
   | "OFF_REQUEST" // 休み希望の日に勤務が入っている
-  | "OUTSIDE_REQUESTED_TIME"; // 希望時間の枠外にはみ出した勤務（時間募集・勤務区分募集）
+  | "OUTSIDE_REQUESTED_TIME"; // 希望時間の枠外にはみ出した勤務（時間指定の募集・パターン選択の募集）
 
 export type AssignmentWarning = {
   code: AssignmentWarningCode;
@@ -29,7 +29,7 @@ export type AssignmentWarningInput = {
 };
 
 // 各セル（スタッフ×日付）の「割当」と「希望」を比べ、食い違いを1セルあたり最大1件で収集する。
-// NOT_SUBMITTED / OFF_REQUEST / 枠外・区分外 は提出状況と希望有無で自然に排他になる。
+// NOT_SUBMITTED / OFF_REQUEST / 枠外・パターン外 は提出状況と希望有無で自然に排他になる。
 export function computeAssignmentWarnings(input: AssignmentWarningInput): AssignmentWarning[] {
   const isSubmittedById = new Map(input.staffs.map((staff) => [staff.id, staff.isSubmitted]));
   const kind = input.pattern.kind;
@@ -65,7 +65,7 @@ export function computeAssignmentWarnings(input: AssignmentWarningInput): Assign
         ...new Set(
           work
             .filter((position) => position.shiftTypeOptionId && !requestedOptionIds.has(position.shiftTypeOptionId))
-            .map((position) => optionNameById.get(position.shiftTypeOptionId ?? "") ?? "勤務区分"),
+            .map((position) => optionNameById.get(position.shiftTypeOptionId ?? "") ?? "勤務パターン"),
         ),
       ];
       if (unrequestedNames.length > 0) {
@@ -80,7 +80,7 @@ export function computeAssignmentWarnings(input: AssignmentWarningInput): Assign
       continue;
     }
 
-    // 日付のみ募集は時間粒度がないため、枠外判定は行わない
+    // 日付選択の募集は時間粒度がないため、枠外判定は行わない
     if (kind === "dateOnly") continue;
 
     // 希望可能枠（最早の開始〜最遅の終了）を割当がはみ出していれば警告。枠内で短くするのは正常

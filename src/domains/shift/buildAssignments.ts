@@ -70,7 +70,7 @@ const canCanonicalizeCell = (assignments: CanonicalizableTimeAssignment[]): bool
   return true;
 };
 
-// 時間入力方式の保存表現だけを正規化する。
+// 時間指定の保存表現だけを正規化する。
 // 不正時刻や重複を含むセルは手を加えず、後続validationが元の入力を拒否できるようにする。
 export const canonicalizeTimeAssignments = <Assignment extends CanonicalizableTimeAssignment>(
   assignments: readonly Assignment[],

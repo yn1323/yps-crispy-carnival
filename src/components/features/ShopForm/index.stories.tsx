@@ -146,21 +146,21 @@ export const InteractiveStepperFlow: Story = {
 
     await clickButton(root, "戻る");
     await root.findByText("シフトの提出方法");
-    await clickButton(root, "勤務区分");
+    await clickButton(root, "パターン選択");
     await clickButton(root, "次へ");
 
-    await root.findByText("勤務区分を追加");
+    await root.findByText("パターンを追加");
     expect(root.getByDisplayValue("早番")).toBeTruthy();
     expect(root.getByDisplayValue("遅番")).toBeTruthy();
-    await clickButton(root, "勤務区分を追加");
-    await waitFor(() => expect(root.getAllByRole("textbox", { name: "区分名" })).toHaveLength(3));
-    await clickButton(root, "勤務区分を追加");
-    await waitFor(() => expect(root.getAllByRole("textbox", { name: "区分名" })).toHaveLength(4));
-    const shiftTypeNameInputs = root.getAllByRole("textbox", { name: "区分名" });
+    await clickButton(root, "パターンを追加");
+    await waitFor(() => expect(root.getAllByRole("textbox", { name: "パターン名" })).toHaveLength(3));
+    await clickButton(root, "パターンを追加");
+    await waitFor(() => expect(root.getAllByRole("textbox", { name: "パターン名" })).toHaveLength(4));
+    const shiftTypeNameInputs = root.getAllByRole("textbox", { name: "パターン名" });
     await userEvent.type(shiftTypeNameInputs[2], "中番");
     await userEvent.type(shiftTypeNameInputs[3], "深夜");
-    expect(await root.findByText("勤務区分は4件まで登録できます。")).toBeTruthy();
-    expect(root.getByRole("button", { name: /勤務区分を追加/ })).toBeDisabled();
+    expect(await root.findByText("勤務パターンは4件まで登録できます。")).toBeTruthy();
+    expect(root.getByRole("button", { name: /パターンを追加/ })).toBeDisabled();
     await clickButton(root, "次へ");
 
     expect(await root.findByText("現在の設定: 定休日なし")).toBeTruthy();

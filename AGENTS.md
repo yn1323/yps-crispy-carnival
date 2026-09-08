@@ -171,3 +171,6 @@ Convex agent skills for common tasks can be installed by running
   - 閲覧：禁止
   - データ編集：禁止
   - 環境変数編集：禁止
+
+### サブエージェント
+- サブエージェントの利用禁止

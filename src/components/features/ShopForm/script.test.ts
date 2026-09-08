@@ -11,7 +11,7 @@ const DATE_ONLY_PATTERN: ShiftSubmissionPattern = { kind: "dateOnly" };
 const TIME_PATTERN: ShiftSubmissionPattern = { kind: "time", startTime: "09:00", endTime: "22:00" };
 
 describe("店舗フォームのステップ遷移", () => {
-  it("日ごとの場合は勤務時間設定を通らない", () => {
+  it("日付選択の場合は勤務時間設定を通らない", () => {
     expect(getInitialStep("patternSettings", DATE_ONLY_PATTERN)).toBe("regularClosedDays");
     expect(getNextStep("submissionPattern", DATE_ONLY_PATTERN)).toBe("regularClosedDays");
     expect(getPreviousStep("regularClosedDays", DATE_ONLY_PATTERN)).toBe("submissionPattern");
@@ -25,7 +25,7 @@ describe("店舗フォームのステップ遷移", () => {
 });
 
 describe("店舗フォームの送信データ", () => {
-  it("定休日を曜日順、勤務区分を表示順に正規化する", () => {
+  it("定休日を曜日順、勤務パターンを表示順に正規化する", () => {
     expect(
       buildShopFormSubmission(
         {

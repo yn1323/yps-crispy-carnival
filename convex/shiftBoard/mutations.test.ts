@@ -671,7 +671,7 @@ describe("shiftBoard/mutations", () => {
       expect(state.recruitment?.draftSavedAt).toBeUndefined();
     });
 
-    it("勤務区分IDつきのシフト割当を保存できる", async () => {
+    it("勤務パターンIDつきのシフト割当を保存できる", async () => {
       const t = convexTest(schema, modules);
       const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
       await t.run(async (ctx) => {
@@ -711,7 +711,7 @@ describe("shiftBoard/mutations", () => {
       expect(assignments[0].optionId).toBe("morning");
     });
 
-    it("日ごと入力方式では完全隣接区間を時間方式として統合しない", async () => {
+    it("日付選択では完全隣接区間を時間指定として統合しない", async () => {
       const t = convexTest(schema, modules);
       const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
       await t.run(async (ctx) => await ctx.db.patch(recruitmentId, { submissionPattern: { kind: "dateOnly" } }));
@@ -761,7 +761,7 @@ describe("shiftBoard/mutations", () => {
       );
     });
 
-    it("勤務区分募集では勤務区分IDなしの割当を保存できない", async () => {
+    it("パターン選択の募集では勤務パターンIDなしの割当を保存できない", async () => {
       const t = convexTest(schema, modules);
       const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
       await t.run(async (ctx) => {
@@ -791,7 +791,7 @@ describe("shiftBoard/mutations", () => {
       );
     });
 
-    it("存在しない勤務区分IDは保存できない", async () => {
+    it("存在しない勤務パターンIDは保存できない", async () => {
       const t = convexTest(schema, modules);
       const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
       await t.run(async (ctx) => {
@@ -822,7 +822,7 @@ describe("shiftBoard/mutations", () => {
       );
     });
 
-    it("勤務区分IDと時間が一致しない割当は保存できない", async () => {
+    it("勤務パターンIDと時間が一致しない割当は保存できない", async () => {
       const t = convexTest(schema, modules);
       const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
       await t.run(async (ctx) => {
@@ -1048,7 +1048,7 @@ describe("shiftBoard/mutations", () => {
       expect(assignments).toHaveLength(2);
     });
 
-    it("勤務区分募集では同一スタッフ×同一日の隣接する勤務区分を保存できる", async () => {
+    it("パターン選択の募集では同一スタッフ×同一日の隣接する勤務パターンを保存できる", async () => {
       const t = convexTest(schema, modules);
       const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
       await t.run(async (ctx) => {
@@ -1083,7 +1083,7 @@ describe("shiftBoard/mutations", () => {
       expect(assignments.map((assignment) => assignment.optionId).sort()).toEqual(["early", "late"]);
     });
 
-    it("勤務区分募集では同一スタッフ×同一日の重なる別勤務区分を保存できる", async () => {
+    it("パターン選択の募集では同一スタッフ×同一日の重なる別勤務パターンを保存できる", async () => {
       const t = convexTest(schema, modules);
       const { shopId, recruitmentId, staffId1 } = await setupTestData(t);
       await t.run(async (ctx) => {

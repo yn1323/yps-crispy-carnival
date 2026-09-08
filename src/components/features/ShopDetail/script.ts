@@ -13,9 +13,9 @@ export const WEEKDAYS: Array<{ value: RegularClosedDay; label: string }> = [
 ];
 
 const SUBMISSION_PATTERN_LABELS: Record<ShiftSubmissionPattern["kind"], string> = {
-  dateOnly: "日ごと",
+  dateOnly: "日付選択",
   time: "時間指定",
-  shiftType: "勤務区分",
+  shiftType: "パターン選択",
 };
 
 export type ShopBasicInformationRow = {
@@ -47,7 +47,7 @@ export function getShopBasicInformationRows(
 
   if (shop.submissionPattern.kind === "shiftType") {
     rows.push({
-      label: "勤務区分",
+      label: "勤務パターン",
       value: shop.submissionPattern.options
         .map((option) => `${option.name}（${formatShiftClockTimeRange(option.startTime, option.endTime)}）`)
         .join("\n"),

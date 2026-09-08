@@ -118,8 +118,8 @@ describe("シフト表の帳票レイアウト", () => {
     expect(getExportLayout(schedule).pages.map((page) => page.length)).toEqual([firstPageCapacity, 1]);
   });
 
-  it("長い氏名は1行の末尾省略、勤務区分は下限まで縮小してから省略する", () => {
-    expect(fitExportText("長い勤務区分名称", 18, 8, 6)).toEqual({ text: "長い…", fontSizePt: 6 });
+  it("長い氏名は1行の末尾省略、勤務パターンは下限まで縮小してから省略する", () => {
+    expect(fitExportText("長いパターン名称", 18, 8, 6)).toEqual({ text: "長い…", fontSizePt: 6 });
     expect(fitExportText("田中\n花子", 100, 8)).toEqual({ text: "田中 花子", fontSizePt: 8 });
     expect(fitExportText("スタッフの長い名前を末尾まで表示できない", 106, 8)).toEqual({
       text: "スタッフの長い名前を末尾…",

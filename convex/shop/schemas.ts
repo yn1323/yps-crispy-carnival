@@ -9,7 +9,7 @@ export const regularClosedDaysSchema = z.array(regularClosedDaySchema);
 export const shiftSubmissionPatternKindSchema = z.enum(["time", "dateOnly", "shiftType"]);
 export const shopNameSchema = requiredDisplayTextSchema({ label: "店舗名", maxLength: SHOP_NAME_MAX_LENGTH });
 export const shiftTypeNameSchema = requiredDisplayTextSchema({
-  label: "勤務区分名",
+  label: "パターン名",
   maxLength: SHIFT_TYPE_NAME_MAX_LENGTH,
 });
 const startTimeSchema = supportedShiftTimeSchema("開始時間を選択してください", "開始時間が正しくありません");
@@ -59,7 +59,7 @@ export function addShiftSubmissionPatternIssues(
   if (options.length === 0) {
     ctx.addIssue({
       code: "custom",
-      message: "勤務区分を1つ以上追加してください",
+      message: "勤務パターンを1つ以上追加してください",
       path: [...path, "options"],
     });
     return;
@@ -67,7 +67,7 @@ export function addShiftSubmissionPatternIssues(
   if (options.length > MAX_SHIFT_TYPE_OPTIONS) {
     ctx.addIssue({
       code: "custom",
-      message: `勤務区分は${MAX_SHIFT_TYPE_OPTIONS}件まで登録できます`,
+      message: `勤務パターンは${MAX_SHIFT_TYPE_OPTIONS}件まで登録できます`,
       path: [...path, "options"],
     });
   }
@@ -79,14 +79,14 @@ export function addShiftSubmissionPatternIssues(
     if (idSet.has(option.id)) {
       ctx.addIssue({
         code: "custom",
-        message: "勤務区分IDが重複しています",
+        message: "勤務パターンIDが重複しています",
         path: [...path, "options", index, "id"],
       });
     }
     if (name.length > 0 && nameSet.has(name)) {
       ctx.addIssue({
         code: "custom",
-        message: "勤務区分名が重複しています",
+        message: "パターン名が重複しています",
         path: [...path, "options", index, "name"],
       });
     }

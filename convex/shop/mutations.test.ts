@@ -111,7 +111,7 @@ describe("shop/mutations", () => {
       expect(shop?.submissionPattern).toEqual({ kind: "time", startTime: "10:00", endTime: "23:00" });
     });
 
-    it("日ごとの提出方法を更新する", async () => {
+    it("日付選択の提出方法を更新する", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
@@ -312,7 +312,7 @@ describe("shop/mutations", () => {
       expect(recruitment?.submissionPattern).toEqual({ kind: "dateOnly" });
     });
 
-    it("勤務区分の提出方法を開始時間・終了時間順で更新する", async () => {
+    it("パターン選択の提出方法を開始時間・終了時間順で更新する", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
@@ -348,7 +348,7 @@ describe("shop/mutations", () => {
       });
     });
 
-    it("勤務区分 option id の重複は更新できない", async () => {
+    it("勤務パターン option id の重複は更新できない", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
@@ -372,10 +372,10 @@ describe("shop/mutations", () => {
             ],
           },
         }),
-      ).rejects.toThrow("勤務区分IDが重複しています");
+      ).rejects.toThrow("勤務パターンIDが重複しています");
     });
 
-    it("不正な勤務区分時刻は ConvexError", async () => {
+    it("不正な勤務パターン時刻は ConvexError", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
@@ -411,7 +411,7 @@ describe("shop/mutations", () => {
       ).rejects.toThrow(ConvexError);
     });
 
-    it("過長・制御文字入りの勤務区分名は更新できない", async () => {
+    it("過長・制御文字入りのパターン名は更新できない", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
@@ -440,7 +440,7 @@ describe("shop/mutations", () => {
             ],
           },
         }),
-      ).rejects.toThrow("勤務区分名は30文字以内で入力してください");
+      ).rejects.toThrow("パターン名は30文字以内で入力してください");
       await expect(
         t.withIdentity({ subject: MANAGER_SUBJECT }).mutation(api.shop.mutations.updateShopSettings, {
           ...validArgs,
@@ -451,10 +451,10 @@ describe("shop/mutations", () => {
             options: [{ id: "control", name: "早\n番", startTime: "09:00", endTime: "18:00", sortOrder: 0 }],
           },
         }),
-      ).rejects.toThrow("勤務区分名に使用できない文字が含まれています");
+      ).rejects.toThrow("パターン名に使用できない文字が含まれています");
     });
 
-    it("勤務区分は翌12:00まで更新できる", async () => {
+    it("勤務パターンは翌12:00まで更新できる", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
@@ -482,7 +482,7 @@ describe("shop/mutations", () => {
       });
     });
 
-    it("4件を超える勤務区分は更新できない", async () => {
+    it("4件を超える勤務パターンは更新できない", async () => {
       const t = convexTest(schema, modules);
       const shopId = await t.run(async (ctx) => {
         const seeded = await seedManagerShop(ctx, {
@@ -502,14 +502,14 @@ describe("shop/mutations", () => {
             kind: "shiftType",
             options: Array.from({ length: 5 }, (_, index) => ({
               id: `option-${index}`,
-              name: `区分${index + 1}`,
+              name: `パターン${index + 1}`,
               startTime: "09:00",
               endTime: "18:00",
               sortOrder: index,
             })),
           },
         }),
-      ).rejects.toThrow("勤務区分は4件まで登録できます");
+      ).rejects.toThrow("勤務パターンは4件まで登録できます");
     });
   });
 });

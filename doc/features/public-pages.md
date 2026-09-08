@@ -2,7 +2,7 @@
 
 > 文書種別: feature
 >
-> 最終コード照合: 2026-08-30（この変更を含む）
+> 最終コード照合: 2026-09-07（この変更を含む）
 
 公開サイトは、登録前の製品理解と、利用中の疑問解消をつなぐ認証不要のページ群である。
 ルート`/`を入口に、機能紹介、ヘルプ、記事、操作デモへ利用者を案内する。
@@ -159,6 +159,20 @@ Cloudflare Pagesへ配信するのは`dist/client/`だけであり、`dist/serve
 通常の`pnpm build`は`public/sitemap.xml`を書き換えず、sourceまたは配信artifactが生成期待値と異なる場合に失敗する。
 実際のdeployment状態はこの機能文書から推測せず、CI/CDの手順と実行結果で確認する。
 
+### ページを表示できない場合
+
+公開・管理・スタッフ用routeの読み込みや描画に失敗した場合は、「ページを表示できませんでした」と表示し、再読み込み、シフトリTOPからの再ログイン、それでも改善しない場合の問い合わせを3段階で案内する。
+
+「シフトリTOPへ」はボタンの見た目を持つ通常のリンクで、`https://shiftori.app`を同じタブで開く。  Routerの画面遷移処理を使わず、TOPからログインをやり直せるようにする。
+
+Providerの初期化やroot documentの描画が失敗した場合にも、Chakraと通常のstylesheetへ依存しない白背景の画面を使う。  ヘッダーとダークモードは持たない。
+
+エラーのmessageは折りたたみ内にテキストとして表示し、利用者が問い合わせ本文へ貼り付けられるようにする。  クライアントで取得できる場合は、Routerが保持するerror状態のroute識別子とmessageを同じ欄へ追記する。追加情報がなくても、元のエラーは表示する。  元のエラーと追加情報は同じClarityのマスク対象内に表示し、Router全体やURL、認証状態は付加しない。
+
+詳細の開閉はブラウザ標準の`details`、問い合わせは`https://shiftori.app/contact`を別タブで開く通常のリンクを使う。  エラー内容をリンクURLへ付加したり、自動送信したりしない。
+
+再読み込みボタンは現在のページを読み直し、cookieやstorageを削除しない。  この画面の対象はReactが捕捉できる読み込み・描画の例外であり、アプリのJavaScriptが実行される前の配信失敗までは扱わない。
+
 ### URLの正規化
 
 Static Prerenderingは、ルート以外を`dist/client/features.html`のようなフラットなHTMLへ出力する。
@@ -194,6 +208,7 @@ route inventory testは各`Disallow`が実在するCSR routeのprefixまたは�
 - `src/routes/demo.*.tsx`、`src/pages/demo-*/`、`src/components/features/Demo/`：公開デモ
 - `src/components/templates/PublicPageLayout/`：公開ページ共通layout
 - `vite.config.ts`、`src/router.tsx`、`src/client.tsx`：TanStack StartのSSG、CSR shell、hydration
+- `src/components/ui/RouteErrorFallback/`、`src/routes/__root.tsx`：共通のエラー復旧画面とroot document
 - `src/pages/*/meta.ts`、`src/lib/seo/`：ページ別metadataと共通SEO処理
 - `scripts/staticSite.ts`、`scripts/sitemap.ts`、`scripts/prepareStaticDeployment.ts`、`scripts/validateStaticBuild.ts`：公開route、sitemap、静的配信ルール、生成物検証
 - `src/routes/cache-reset.tsx`、`src/routes/$.tsx`：旧cache回復と404

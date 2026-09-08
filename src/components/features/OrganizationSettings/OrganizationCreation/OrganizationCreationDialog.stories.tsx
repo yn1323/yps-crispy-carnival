@@ -56,7 +56,7 @@ export const SubmissionBehavior: Story = {
 
     await userEvent.type(form.getByRole("textbox", { name: "お店の名前" }), "新宿店");
     await userEvent.click(form.getByRole("button", { name: "次へ" }));
-    await userEvent.click(await form.findByRole("button", { name: /^日ごと 日ごと/ }));
+    await userEvent.click(await form.findByRole("button", { name: /^日付選択 日付選択/ }));
     await userEvent.click(form.getByRole("button", { name: "次へ" }));
     await userEvent.click(await form.findByRole("button", { name: "作成する" }));
 

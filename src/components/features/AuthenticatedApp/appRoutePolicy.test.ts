@@ -88,6 +88,15 @@ describe("app route search policy", () => {
     expect(getCanonicalAppHref("/account", "?flow=connect-google&unknown=value")).toBeNull();
   });
 
+  it("等価なエンコードは維持し、重複キーや前後空白は整理する", () => {
+    expect(getCanonicalAppHref("/dashboard", "?shop=shop%20a&org=org-a")).toBeNull();
+    expect(getCanonicalAppHref("/dashboard", "?shop=shop+a&org=org-a")).toBeNull();
+    expect(getCanonicalAppHref("/dashboard", "?org=org-a&shop=shop-a&org=org-a")).toBe(
+      "/dashboard?org=org-a&shop=shop-a",
+    );
+    expect(getCanonicalAppHref("/dashboard", "?shop=shop-a&org=%20org-a%20")).toBe("/dashboard?org=org-a&shop=shop-a");
+  });
+
   it.each([
     "/staff/register",
     "/Staff/Register",

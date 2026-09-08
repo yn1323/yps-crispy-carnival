@@ -44,7 +44,7 @@ export class OrganizationLifecyclePage {
     await dialog.getByRole("textbox", { name: "お店の名前", exact: true }).fill(shopName);
     await dialog.getByRole("button", { name: "次へ", exact: true }).click();
     await expect(dialog.getByText("シフトの提出方法", { exact: true })).toBeVisible();
-    await dialog.getByRole("button", { name: /^日ごと 日ごと/ }).click();
+    await dialog.getByRole("button", { name: /^日付選択 日付選択/ }).click();
     await dialog.getByRole("button", { name: "次へ", exact: true }).click();
     await expect(dialog.getByText("毎週休みにする曜日", { exact: true })).toBeVisible();
     await dialog.getByRole("button", { name: "作成する", exact: true }).click();

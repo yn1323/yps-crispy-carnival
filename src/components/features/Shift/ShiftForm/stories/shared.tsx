@@ -156,7 +156,7 @@ export const dateOnlyArgs = {
   submissionPattern: { kind: "dateOnly" },
 } satisfies ShiftFormArgs;
 
-// 勤務区分募集の確認事項（DateRailバッジ＋スタッフ名セルの理由アイコン）。
+// パターン選択の募集の確認事項（DateRailバッジ＋スタッフ名セルの理由アイコン）。
 // 選択初日(2026-05-21)に2件、翌日(2026-05-22)に1件でバッジの出方も確認できる
 export const shiftTypeValidationWarningArgs = {
   ...shiftTypeArgs,
@@ -183,7 +183,7 @@ export const shiftTypeValidationWarningArgs = {
   onDismissValidationIssues: () => {},
 } satisfies ShiftFormArgs;
 
-// 日ごと募集の確認事項（時間・勤務区分の概念がないため NOT_SUBMITTED / OFF_REQUEST のみ）
+// 日付選択の募集の確認事項（時間・勤務パターンの概念がないため NOT_SUBMITTED / OFF_REQUEST のみ）
 export const dateOnlyValidationWarningArgs = {
   ...dateOnlyArgs,
   validationWarnings: [

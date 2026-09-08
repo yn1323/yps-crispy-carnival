@@ -73,7 +73,7 @@ export function buildExportSchedule(data: ShiftExportData, splitPeriod = false):
       }
       const selected = new Set(assignments.map(({ optionId }) => optionId));
       if ([...selected].some((id) => id === null || !optionIds.has(id)))
-        throw new Error("勤務区分を確認できませんでした。");
+        throw new Error("勤務パターンを確認できませんでした。");
       const lines = options.filter(({ id }) => selected.has(id)).map(({ name }) => name);
       bodyLineCount = Math.max(bodyLineCount, lines.length);
       return { lines };

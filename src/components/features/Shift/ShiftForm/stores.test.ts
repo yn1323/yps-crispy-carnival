@@ -34,7 +34,7 @@ function createShiftStore() {
 }
 
 describe("ShiftForm draft intents", () => {
-  it("日ごとの割当を追加・解除する", () => {
+  it("日付選択の割当を追加・解除する", () => {
     const store = createShiftStore();
 
     store.set(toggleDateOnlyAssignmentAtom, { staff, date });
@@ -50,7 +50,7 @@ describe("ShiftForm draft intents", () => {
     expect(store.get(shiftsAtom)[0]?.positions).toEqual([]);
   });
 
-  it("勤務区分の割当を追加・解除する", () => {
+  it("勤務パターンの割当を追加・解除する", () => {
     const store = createShiftStore();
     const option = { id: "early", name: "早番", startTime: "09:00", endTime: "13:00" };
 

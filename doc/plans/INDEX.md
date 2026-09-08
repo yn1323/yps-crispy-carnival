@@ -28,6 +28,8 @@
 
 | 計画 | 状態 | 未完了条件 | 現在の正本 |
 |---|---|---|---|
+| [URLクエリ順序とエラー復旧画面](2026-09-08_URLクエリ順序とエラー復旧画面_修正計画.md) | `実装済み・検証待ち` | CI・VRT capture・自動レビューと、有効な指摘への対応を完了する | [公開サイト](../features/public-pages.md)、[認証画面](../features/auth-pages.md) |
+| [シフト入力方法の用語統一](2026-09-07_シフト入力方法の用語統一_実装計画.md) | `コード・文書更新済み` | 関連Logic・Convex・PC/SP Behavior・型検査と、今回の変更だけの全体lint・buildは成功。LP画像の差し替え、動画内の旧称確認、VRT・実機確認が残る | [店舗設定](../features/shop-settings.md)、[希望シフト提出](../features/shift-submission.md)、[シフト表](../features/shift-board.md) |
 | [Analyticsの日次利用指標と問い合わせ閲覧](2026-09-05_Analytics日次利用指標と問い合わせ閲覧_設計実装計画.md) | `実装済み・反映待ち` | 日次3指標の自動記録・集計、店舗／スタッフ閲覧、要望の論理削除と打ち消し線、画面置換・テスト・文書更新は実装済み。PR #902で検証し、実環境への反映と翌日の集計確認は別作業 | [分析KPI蓄積基盤](../features/analytics.md)、[分析KPI可視化アプリ](../features/analytics-dashboard.md)、[要望受付](../features/feature-requests.md) |
 | [シフト募集の編集仕様](2026-09-05_シフト募集編集_仕様.md)・[実装計画](2026-09-05_シフト募集編集_実装計画.md) | `実装・ローカル検証完了` | 編集画面、提出状態、古い画面からの保存防止、変更通知と催促の再設定を実装。初期実装の全5,424テスト・buildと、追加した画面比較・通知差分の対象テスト・型検査・lintは成功。実環境への反映は別作業 | [シフト募集管理](../features/shift-recruitment-management.md)、[希望シフト提出](../features/shift-submission.md)、[シフト表](../features/shift-board.md) |
 | [VRT・E2EレポートのR2移行](2026-09-05_VRT_E2Eレポート_R2移行_実装計画.md) | `implementing` | 1公開bucket・キー1組・r2.devで実装済み。実認証・公開URL・削除権限とdevelop/mainのbaseline初期移行を確認。PR #900の検証・承認を経てdevelopへ反映する | [CI/CD運用](../manual/ci-cd.md)、[実環境の証跡](../manual/release-status.md) |

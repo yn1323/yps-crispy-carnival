@@ -62,7 +62,7 @@ export const getShiftTypeRequestLabel = (
   if (requestedIds.length === 0) return "休み";
 
   const optionNameById = new Map(options.map((option) => [option.id, option.name]));
-  return requestedIds.map((optionId) => optionNameById.get(optionId) ?? "勤務区分").join("・");
+  return requestedIds.map((optionId) => optionNameById.get(optionId) ?? "勤務パターン").join("・");
 };
 
 export const toggleShiftTypeAssignment = ({

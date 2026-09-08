@@ -81,7 +81,7 @@ export function ShiftTypePatternFields({
                 alignItems="end"
               >
                 <Field.Root invalid={!!row.nameError} gridColumn={{ base: "1 / -1", md: "auto" }}>
-                  <Field.Label>区分名</Field.Label>
+                  <Field.Label>パターン名</Field.Label>
                   <Input
                     value={row.option.name}
                     maxLength={SHIFT_TYPE_NAME_MAX_LENGTH}
@@ -121,7 +121,7 @@ export function ShiftTypePatternFields({
                 <HStack justify={{ base: "flex-end", md: "start" }} alignSelf="end">
                   <IconButton
                     type="button"
-                    aria-label={`${row.option.name || "勤務区分"}を削除`}
+                    aria-label={`${row.option.name || "パターン"}を削除`}
                     variant="outline"
                     colorPalette="red"
                     bg="white"
@@ -158,7 +158,7 @@ export function ShiftTypePatternFields({
           onClick={onAdd}
         >
           <LuPlus aria-hidden />
-          勤務区分を追加
+          パターンを追加
         </Button>
         {limitMessage && (
           <Text fontSize="xs" color="fg.muted">

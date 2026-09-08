@@ -42,7 +42,7 @@ describe("dayEntryState", () => {
     expect(entry).toEqual({ date: "2026-04-15", isWorking: false, startTime: "11:00", endTime: "19:00" });
   });
 
-  it("複数選択がなければ単一の勤務区分を配列へ変換する", () => {
+  it("複数選択がなければ単一の勤務パターンを配列へ変換する", () => {
     expect(
       getSelectedShiftTypeOptionIds({
         ...baseEntry,
