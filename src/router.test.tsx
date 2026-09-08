@@ -9,6 +9,7 @@ const failures = vi.hoisted(() => ({
   provider: null as Error | null,
   document: null as Error | null,
   loader: null as Error | null,
+  rootLoader: null as Error | null,
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
@@ -36,6 +37,9 @@ vi.mock("@/src/hooks/useCloseDialogOnBrowserBack", () => ({ registerDialogBackNa
 vi.mock("./routeTree.gen.ts", async () => {
   const { createRoute } = await import("@tanstack/react-router");
   const { Route } = await import("./routes/__root");
+  Route.options.loader = () => {
+    if (failures.rootLoader) throw failures.rootLoader;
+  };
   const indexRoute = createRoute({
     getParentRoute: () => Route,
     path: "/",
@@ -53,6 +57,7 @@ beforeEach(() => {
   failures.provider = null;
   failures.document = null;
   failures.loader = null;
+  failures.rootLoader = null;
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(window, "scrollTo").mockImplementation(() => {});
@@ -138,14 +143,9 @@ describe("ルートと最上位のエラー復旧画面", () => {
     const originalError = new Error("Too many redirects");
     const fallbackError = new Error("Root error fallback failed");
     const router = getRouter();
-    const originalOptions = {
-      loader: router.routeTree.options.loader,
-      errorComponent: router.routeTree.options.errorComponent,
-    };
+    failures.rootLoader = originalError;
+    const originalErrorComponent = router.routeTree.options.errorComponent;
     router.routeTree.update({
-      loader: () => {
-        throw originalError;
-      },
       errorComponent: () => {
         throw fallbackError;
       },
@@ -163,7 +163,7 @@ describe("ルートと最上位のエラー復旧画面", () => {
       });
       expect(document.querySelectorAll("html")).toHaveLength(1);
     } finally {
-      router.routeTree.update(originalOptions);
+      router.routeTree.update({ errorComponent: originalErrorComponent });
     }
   });
 });
