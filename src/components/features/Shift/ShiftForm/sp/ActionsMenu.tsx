@@ -1,5 +1,5 @@
 import { Menu, Portal, Stack, Text } from "@chakra-ui/react";
-import { useId } from "react";
+import { useId, useRef } from "react";
 import { LuChevronDown, LuFileDown, LuSave, LuSend } from "react-icons/lu";
 import { Button } from "@/src/components/ui/Button";
 import type { ShiftFormExportAction } from "../components";
@@ -16,12 +16,24 @@ type Props = {
 export function ActionsMenu({ isConfirmed, isSavingDraft, isConfirming, onSaveDraft, onConfirm, exportAction }: Props) {
   const descriptionId = useId();
   const isBusy = isSavingDraft || isConfirming;
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const returnExportFocus = useRef(false);
   const label = `保存・${isConfirmed ? "再送" : "確定"}${exportAction ? "・出力" : ""}`;
   const confirmLabel = isConfirmed ? "確定シフトを再送" : "シフトを確定";
 
   return (
-    <Menu.Root positioning={{ placement: "bottom-end", gutter: 8 }} lazyMount unmountOnExit>
-      <Menu.Trigger asChild>
+    <Menu.Root
+      onExitComplete={() => {
+        if (returnExportFocus.current) {
+          returnExportFocus.current = false;
+          triggerRef.current?.focus();
+        }
+      }}
+      positioning={{ placement: "bottom-end", gutter: 8 }}
+      lazyMount
+      unmountOnExit
+    >
+      <Menu.Trigger ref={triggerRef} asChild>
         <Button
           type="button"
           size="xs"
@@ -51,7 +63,7 @@ export function ActionsMenu({ isConfirmed, isSavingDraft, isConfirming, onSaveDr
               aria-label="下書きを保存"
               aria-describedby={`${descriptionId}-save`}
               disabled={isBusy || !onSaveDraft}
-              onSelect={isBusy ? undefined : onSaveDraft}
+              onClick={isBusy ? undefined : onSaveDraft}
               gap={3}
               px={3}
               py={3}
@@ -71,7 +83,7 @@ export function ActionsMenu({ isConfirmed, isSavingDraft, isConfirming, onSaveDr
               aria-describedby={`${descriptionId}-confirm`}
               data-tour="confirm-button"
               disabled={isBusy || !onConfirm}
-              onSelect={isBusy ? undefined : onConfirm}
+              onClick={isBusy ? undefined : onConfirm}
               gap={3}
               px={3}
               py={3}
@@ -93,7 +105,14 @@ export function ActionsMenu({ isConfirmed, isSavingDraft, isConfirming, onSaveDr
                   aria-label="PDF・Excel出力"
                   aria-describedby={`${descriptionId}-export`}
                   disabled={isBusy || exportAction.isDisabled}
-                  onSelect={isBusy || exportAction.isDisabled ? undefined : exportAction.onClick}
+                  onClick={
+                    isBusy || exportAction.isDisabled
+                      ? undefined
+                      : () => {
+                          returnExportFocus.current = true;
+                          exportAction.onClick();
+                        }
+                  }
                   gap={3}
                   px={3}
                   py={3}
@@ -103,7 +122,7 @@ export function ActionsMenu({ isConfirmed, isSavingDraft, isConfirming, onSaveDr
                   <Stack gap={1} minW={0}>
                     <Menu.ItemText fontWeight="semibold">PDF・Excel出力</Menu.ItemText>
                     <Text id={`${descriptionId}-export`} fontSize="xs" color="fg.muted" whiteSpace="normal">
-                      保存したシフトの出力画面を別タブで開きます
+                      表示中のシフトの出力画面を別タブで開きます
                     </Text>
                   </Stack>
                 </Menu.Item>

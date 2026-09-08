@@ -22,7 +22,7 @@ export const getExportLayout = (schedule: ExportSchedule) => {
   const pageHeightPt = 595.28;
   const marginPt = 24;
   const staffColumnWidthPt = 110;
-  const titleHeightPt = 60;
+  const titleHeightPt = 32;
   const footerHeightPt = 18;
   const headerHeightPt = 24;
   const fontSizePt = 8;

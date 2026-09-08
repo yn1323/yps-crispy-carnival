@@ -51,7 +51,7 @@ export function HelpShiftExport() {
               手順
             </Heading>
             <Text color="gray.700" lineHeight="1.8">
-              シフトを編集中の場合は、変更を保存してからダウンロードしてください。
+              画面に表示されている勤務内容を、未保存の編集も含めてダウンロードできます。
             </Text>
             <List.Root as="ol" gap={4} ps={5} color="gray.700">
               <List.Item lineHeight="1.8">シフト一覧から、ダウンロードしたいシフトを開きます。</List.Item>
@@ -82,7 +82,9 @@ export function HelpShiftExport() {
                   </Link>
                 </Box>
               </List.Item>
-              <List.Item lineHeight="1.8">プレビューで、店舗名・期間・スタッフの勤務内容を確認します。</List.Item>
+              <List.Item lineHeight="1.8">
+                プレビューで、店舗名・期間・スタッフの勤務内容を確認します。スタッフはダッシュボードと同じ順に並びます。
+              </List.Item>
               <List.Item lineHeight="1.8">
                 印刷用なら<strong>PDF</strong>、表を編集して使うなら<strong>Excel</strong>を選択して保存します。
               </List.Item>

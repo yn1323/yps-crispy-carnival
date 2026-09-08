@@ -64,10 +64,6 @@ export const createShiftPdf = async (schedule: ExportSchedule): Promise<Blob> =>
             {isFirstPage && (
               <View style={{ height: layout.titleHeightPt, flexShrink: 0 }}>
                 <Text style={{ fontSize: title.fontSizePt, maxLines: 1, marginBottom: 5 }}>{title.text}</Text>
-                <Text style={{ maxLines: 1, fontSize: 9 }}>{schedule.statusLabel}</Text>
-                {schedule.notificationLabel && (
-                  <Text style={{ fontSize: 8, maxLines: 1, marginTop: 2 }}>{schedule.notificationLabel}</Text>
-                )}
               </View>
             )}
             <View style={{ borderLeftWidth: 0.5, borderTopWidth: 0.5, borderColor: "#000000" }}>

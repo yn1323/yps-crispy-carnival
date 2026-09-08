@@ -255,7 +255,6 @@ import type * as shiftBoard_queries from "../shiftBoard/queries.js";
 import type * as shiftBoard_validation from "../shiftBoard/validation.js";
 import type * as shiftConfirmationReminder_actions from "../shiftConfirmationReminder/actions.js";
 import type * as shiftConfirmationReminder_queries from "../shiftConfirmationReminder/queries.js";
-import type * as shiftExport_queries from "../shiftExport/queries.js";
 import type * as shiftSubmission_mutations from "../shiftSubmission/mutations.js";
 import type * as shiftSubmission_queries from "../shiftSubmission/queries.js";
 import type * as shiftSubmission_schemas from "../shiftSubmission/schemas.js";
@@ -536,7 +535,6 @@ declare const fullApi: ApiFromModules<{
   "shiftBoard/validation": typeof shiftBoard_validation;
   "shiftConfirmationReminder/actions": typeof shiftConfirmationReminder_actions;
   "shiftConfirmationReminder/queries": typeof shiftConfirmationReminder_queries;
-  "shiftExport/queries": typeof shiftExport_queries;
   "shiftSubmission/mutations": typeof shiftSubmission_mutations;
   "shiftSubmission/queries": typeof shiftSubmission_queries;
   "shiftSubmission/schemas": typeof shiftSubmission_schemas;

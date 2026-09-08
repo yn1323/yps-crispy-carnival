@@ -235,6 +235,7 @@ const renderAppShiftBoard = (args: ComponentProps<typeof ShiftBoardPage>) => (
       <Box flex={1} minH={0}>
         <ManagerShopScopeProvider shopId="shop-1" expectedOrganizationId={APP_ORGANIZATION_ID}>
           <ShiftBoardPage
+            onExport={() => {}}
             {...args}
             layout="app"
             header={{

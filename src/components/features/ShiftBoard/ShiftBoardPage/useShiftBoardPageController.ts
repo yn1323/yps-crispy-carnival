@@ -87,9 +87,21 @@ const generatePeriodLabel = (dates: string[]): string => {
   return `${formatDateWithWeekday(dates[0])}〜${formatDateWithWeekday(dates[dates.length - 1])}のシフト`;
 };
 
+export type ShiftBoardExportData = {
+  recruitment: {
+    periodStart: string;
+    periodEnd: string;
+    shopClosedDates: string[];
+    submissionPattern: ShiftBoardData["submissionPattern"];
+  };
+  staffs: { id: string; name: string; isRemoved: boolean }[];
+  assignments: { staffId: string; date: string; startTime: string; endTime: string; optionId: string | null }[];
+};
+
 export const useShiftBoardPageController = (
   data: ShiftBoardData,
   recruitmentId: Id<"recruitments">,
+  onExport?: (data: ShiftBoardExportData) => void,
 ): ShiftBoardPageViewProps => {
   const managerShopScope = useManagerShopScope();
   const expectedEditVersion = useRef(data.recruitment.editVersion ?? 0).current;
@@ -461,14 +473,40 @@ export const useShiftBoardPageController = (
       toaster.create({ title: "保存・確定の処理が完了してから出力してください", type: "info" });
       return;
     }
-    if (hasUnsavedChanges()) {
-      toaster.create({ title: "変更を保存してから出力してください", type: "info" });
+    if (!onExport) return;
+    const order = data.exportStaffOrder;
+    const byId = new Map(data.staffs.map((staff) => [staff._id, staff]));
+    if (
+      !order ||
+      order.length !== byId.size ||
+      new Set(order).size !== order.length ||
+      order.some((id) => !byId.has(id))
+    ) {
+      toaster.create({ title: "スタッフの並び順を確認できません。シフト表を開き直してください", type: "error" });
       return;
     }
-
-    const search = new URLSearchParams({ org: exportOrganizationId });
-    window.open(`/shifts/${encodeURIComponent(recruitmentId)}/export?${search}`, "_blank", "noopener,noreferrer");
-  }, [exportOrganizationId, hasUnsavedChanges, isConfirming, isSavingAndLeaving, isSavingDraft, recruitmentId]);
+    const exportStaffs = order.map((id) => {
+      const staff = byId.get(id);
+      if (!staff) throw new Error("出力対象のスタッフを確認できません。");
+      return { id, name: staff.name, isRemoved: staff.isRemoved ?? false };
+    });
+    onExport({
+      recruitment: {
+        periodStart: data.recruitment.periodStart,
+        periodEnd: data.recruitment.periodEnd,
+        shopClosedDates: [...data.recruitment.shopClosedDates],
+        submissionPattern: structuredClone(data.submissionPattern),
+      },
+      staffs: exportStaffs,
+      assignments: buildSaveAssignments(shiftsRef.current).map(({ staffId, date, startTime, endTime, optionId }) => ({
+        staffId,
+        date,
+        startTime,
+        endTime,
+        optionId: optionId ?? null,
+      })),
+    });
+  }, [exportOrganizationId, isConfirming, isSavingAndLeaving, isSavingDraft, onExport, data, buildSaveAssignments]);
 
   return {
     viewModel: {
@@ -478,7 +516,8 @@ export const useShiftBoardPageController = (
       isConfirmed,
       isReadOnly,
       readOnlyReason,
-      exportAction: exportOrganizationId ? { isDisabled: isSavingDraft || isConfirming || isSavingAndLeaving } : null,
+      exportAction:
+        exportOrganizationId && onExport ? { isDisabled: isSavingDraft || isConfirming || isSavingAndLeaving } : null,
       showTimeInputGuide: data.submissionPattern.kind === "time",
       shiftForm: {
         shopId: data.shopId,

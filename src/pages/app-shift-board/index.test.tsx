@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   queryResults: { scope: undefined as unknown, data: undefined as unknown },
 }));
 
+vi.mock("@/src/components/features/ShiftExport", () => ({ useOpenShiftExport: () => vi.fn() }));
+
 vi.mock("@chakra-ui/react", () => ({
   Box: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Flex: ({ children }: { children: ReactNode }) => <div>{children}</div>,
