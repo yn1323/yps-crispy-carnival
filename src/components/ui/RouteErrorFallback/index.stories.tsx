@@ -13,6 +13,7 @@ const meta = {
   args: {
     error: providerError,
     onRefresh: () => {},
+    routerErrors: [],
   },
 } satisfies Meta<typeof RouteErrorFallback>;
 export default meta;
@@ -27,14 +28,17 @@ export const Mobile: Story = {
 };
 
 export const ErrorDetails: Story = {
+  args: { routerErrors: [{ route: "__root__", message: "Too many redirects" }] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const errorMessage = canvas.getByText(providerError.message);
+    const errorMessage = canvas.getByText(providerError.message, { exact: false, selector: "code" });
     await expect(errorMessage).not.toBeVisible();
 
     await userEvent.click(await canvas.findByText("エラーの詳細を表示"));
 
     await expect(errorMessage).toBeVisible();
+    await expect(errorMessage).toHaveTextContent('"route": "__root__"');
+    await expect(errorMessage).toHaveTextContent('"message": "Too many redirects"');
     await expect(errorMessage.closest("pre")).toHaveAttribute("data-clarity-mask", "true");
     const contact = await canvas.findByRole("link", { name: "お問い合わせフォーム（別タブ）" });
     await expect(contact).toHaveAttribute("href", "https://shiftori.app/contact");
@@ -50,14 +54,32 @@ export const ErrorDetails: Story = {
   },
 };
 
+export const ErrorDetailsWithoutRouterErrors: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByText("エラーの詳細を表示"));
+    const errorMessage = await canvas.findByText(providerError.message, { selector: "code" });
+    await expect(errorMessage).toBeVisible();
+    await expect(errorMessage).not.toHaveTextContent("ルーター内のエラー:");
+  },
+};
+
 export const MobileLongErrorDetails: Story = {
   tags: ["vrt-mobile2"],
   globals: { viewport: { value: "mobile2", isRotated: false } },
-  args: { error: new Error(`Failed to fetch dynamically imported module: /assets/${"module".repeat(35)}.js`) },
+  args: {
+    error: new Error(`Failed to fetch dynamically imported module: /assets/${"module".repeat(35)}.js`),
+    routerErrors: [
+      { route: "__root__", message: "Too many redirects" },
+      { route: "/_auth/dashboard", message: `Failed to load module: /assets/${"dashboard".repeat(35)}.js` },
+    ],
+  },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByText("エラーの詳細を表示"));
-    await expect(canvas.getByText((args.error as Error).message)).toBeVisible();
+    const errorMessage = await canvas.findByText((args.error as Error).message, { exact: false, selector: "code" });
+    await expect(errorMessage).toBeVisible();
+    await expect(errorMessage).toHaveTextContent('"route": "/_auth/dashboard"');
   },
 };
 
