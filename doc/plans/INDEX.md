@@ -150,6 +150,7 @@ Historyの本文には、現在と異なる名称、パス、状態、上限、�
 
 | 計画 | 分類根拠 | 現在の正本 |
 |---|---|---|
+| [ShiftForm表示内容のPDF・Excel出力](2026-09-08_ShiftForm表示内容のPDF_Excel出力_実装計画.md) | 現在値の受け渡し、Dashboard順、状態ラベル削除を実装。静的チェック・型・build・全Logic/Convex・対象UI・E2E 2件が成功。全体UIの失敗1件は変更前でも再現した既存不具合。CI VRT・実機保存・印刷・Productionは未確認 | [シフト表](../features/shift-board.md)、[リリース状態](../manual/release-status.md) |
 | [シフト表のPDF・Excel出力](2026-09-05_シフト表PDF_Excel出力_実装計画.md) | PDF・Excel出力、権限制御、共通モデル、文字幅調整を実装し、自動テスト・lint・型検査・buildとローカルE2E 2件を完了。CI VRT・実機での保存・物理印刷・Productionは未確認として運用文書へ引き渡す | [シフト表](../features/shift-board.md)、[リリース状態](../manual/release-status.md) |
 
 ### 日付形式が異なる既存計画
