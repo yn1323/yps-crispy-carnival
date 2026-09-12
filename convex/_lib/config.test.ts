@@ -34,6 +34,44 @@ describe("debug mode", () => {
 describe("debug notification delivery mode", () => {
   afterEach(() => vi.unstubAllEnvs());
 
+  it.each([
+    ["dry-run", undefined, "live"],
+    [undefined, "dry-run", "dry-run"],
+    ["dry-run", "force-failure", "force-failure"],
+  ] as const)("環境変数オブジェクトの差し替え後は %s → %s を反映する", (before, after, expected) => {
+    vi.stubEnv("DEBUG_MODE", "true");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", before);
+    expect(getDebugNotificationDeliveryMode()).toBe(before ?? "live");
+
+    const previousEnv = process.env;
+    try {
+      process.env = { ...previousEnv };
+      if (after === undefined) delete process.env.DEBUG_NOTIFICATION_DELIVERY_MODE;
+      else process.env.DEBUG_NOTIFICATION_DELIVERY_MODE = after;
+
+      expect(getDebugNotificationDeliveryMode()).toBe(expected);
+    } finally {
+      process.env = previousEnv;
+    }
+  });
+
+  it("環境変数オブジェクトの差し替え後にDEBUG_MODEを無効にすると配送modeを拒否する", () => {
+    vi.stubEnv("DEBUG_MODE", "true");
+    vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "dry-run");
+    expect(getDebugNotificationDeliveryMode()).toBe("dry-run");
+
+    const previousEnv = process.env;
+    try {
+      process.env = { ...previousEnv, DEBUG_MODE: "false" };
+
+      expect(getDebugNotificationDeliveryMode).toThrowError(
+        "DEBUG_NOTIFICATION_DELIVERY_MODE requires DEBUG_MODE=true",
+      );
+    } finally {
+      process.env = previousEnv;
+    }
+  });
+
   it.each(["", "false", "true"])("配送mode未設定ならDEBUG_MODE=%sでもliveにする", (debugMode) => {
     vi.stubEnv("DEBUG_MODE", debugMode);
     vi.stubEnv("DEBUG_NOTIFICATION_DELIVERY_MODE", "");
