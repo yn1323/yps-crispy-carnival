@@ -240,6 +240,9 @@ function LineStatus({ status }: { status: UserDetailData["line"]["status"] }) {
         ) : (
           <Alert.Title>{presentation.label}</Alert.Title>
         )}
+        {status === "linked_unfollowed" && (
+          <Alert.Description whiteSpace="pre-line">{presentation.description}</Alert.Description>
+        )}
       </Alert.Content>
     </Alert.Root>
   );
@@ -286,7 +289,7 @@ export function getLineStatusPresentation(status: UserDetailData["line"]["status
     return {
       label: "LINEで受け取れません",
       description:
-        "LINE連携は残っていますが、現在はLINEへ通知を送れません。再連携すると、この組織の所属店舗に反映されます。",
+        "シフトリ公式アカウントがブロックされているか、友だちに追加されていない可能性があります。\n再連携リンクをスタッフ本人に共有するか、再連携用メールを送信してください。",
       alertStatus: "warning" as const,
       badgeColorPalette: "orange" as const,
     };
