@@ -289,7 +289,7 @@ export function getLineStatusPresentation(status: UserDetailData["line"]["status
     return {
       label: "LINEで受け取れません",
       description:
-        "シフトリ公式アカウントがブロックされているか、友だちに追加されていない可能性があります。\n再連携リンクをスタッフ本人に共有するか、再連携用メールを送信してください。",
+        "シフトリ公式アカウントがブロック、友だちに追加されていない可能性があります。\n下記から再連携リンクを共有するか、再連携用メールを送信してください。",
       alertStatus: "warning" as const,
       badgeColorPalette: "orange" as const,
     };
