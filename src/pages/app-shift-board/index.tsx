@@ -71,7 +71,7 @@ function AppShiftBoardQuery({ organizationId, recruitmentId }: Required<Props>) 
     queriedData,
   );
   if (shopScope === undefined) {
-    return <ShiftoriLoading variant="section" message="シフト表を読み込んでいます" minH="full" />;
+    return <ShiftoriLoading variant="section" message="Loading..." minH="full" />;
   }
   if (shopScope === null) {
     return (
@@ -82,7 +82,7 @@ function AppShiftBoardQuery({ organizationId, recruitmentId }: Required<Props>) 
     );
   }
   if (data === undefined) {
-    return <ShiftoriLoading variant="section" message="シフト表を読み込んでいます" minH="full" />;
+    return <ShiftoriLoading variant="section" message="Loading..." minH="full" />;
   }
   if (data === null) {
     return (
