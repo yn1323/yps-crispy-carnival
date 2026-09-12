@@ -158,12 +158,20 @@ export const ReadOnlyExport: Story = {
 export const KeyboardExport: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const screen = within(canvasElement.ownerDocument.body);
     const trigger = await canvas.findByRole("button", { name: "保存・確定・出力" });
     trigger.focus();
     await userEvent.keyboard("{ArrowDown}");
-    await userEvent.keyboard("{End}{Enter}");
-    await expect(canvas.getByRole("status", { name: "操作結果" })).toHaveTextContent(
-      "下書き保存：0回、確定・再送：0回、出力：1回",
+    const menu = await screen.findByRole("menu");
+    await waitFor(() => expect(menu).toHaveFocus());
+    await userEvent.keyboard("{End}");
+    const exportItem = screen.getByRole("menuitem", { name: "PDF・Excel出力" });
+    await waitFor(() => expect(menu).toHaveAttribute("aria-activedescendant", exportItem.id));
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(canvas.getByRole("status", { name: "操作結果" })).toHaveTextContent(
+        "下書き保存：0回、確定・再送：0回、出力：1回",
+      ),
     );
     await waitFor(() => expect(trigger).toHaveFocus());
   },
