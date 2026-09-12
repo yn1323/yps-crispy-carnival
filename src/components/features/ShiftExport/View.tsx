@@ -37,8 +37,22 @@ export function ShiftExportView({ schedule, download, onSplitPeriodChange }: Pro
               </Checkbox.Root>
             </Box>
           )}
-          <Flex gap={3} marginStart="auto">
+          <Flex gap={3} marginStart="auto" align="center" minW={0}>
+            {download.download && (
+              <Text role="status" fontSize="sm" minW={0}>
+                ダウンロードが始まらない場合、
+                <a
+                  className="shift-export-download-link"
+                  href={download.download.url}
+                  download={download.download.fileName}
+                >
+                  ここ
+                </a>
+                を押して保存してください。
+              </Text>
+            )}
             <Button
+              flexShrink={0}
               colorPalette="teal"
               onClick={() => void download.generate("pdf")}
               disabled={download.isGenerating}
@@ -48,6 +62,7 @@ export function ShiftExportView({ schedule, download, onSplitPeriodChange }: Pro
               PDF
             </Button>
             <Button
+              flexShrink={0}
               variant="outline"
               onClick={() => void download.generate("xlsx")}
               disabled={download.isGenerating}
@@ -61,19 +76,6 @@ export function ShiftExportView({ schedule, download, onSplitPeriodChange }: Pro
         {download.error && (
           <Text role="alert" mt={3} color="fg.error">
             {download.error}
-          </Text>
-        )}
-        {download.download && (
-          <Text role="status" mt={3} fontSize="sm">
-            ダウンロードが始まらない場合、
-            <a
-              className="shift-export-download-link"
-              href={download.download.url}
-              download={download.download.fileName}
-            >
-              ここ
-            </a>
-            を押して保存してください。
           </Text>
         )}
       </Box>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { StaffLayout } from "@/src/components/templates/StaffLayout";
+import { getLineOfficialAccountUrl } from "@/src/configs/lineOfficialAccount";
 import { type LineCallbackStatus, LineCallbackView } from "./LineCallbackView";
 import { useRedeemLineToken } from "./useRedeemLineToken";
 
@@ -27,7 +28,10 @@ export function LineCallback({ code, state }: LineCallbackProps) {
 
   return (
     <StaffLayout shopName="LINE連携">
-      <LineCallbackView status={status} />
+      <LineCallbackView
+        status={status}
+        officialAccountUrl={getLineOfficialAccountUrl(import.meta.env.VITE_LINE_OFFICIAL_ACCOUNT_URL)}
+      />
     </StaffLayout>
   );
 }

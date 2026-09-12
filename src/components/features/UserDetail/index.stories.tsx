@@ -382,6 +382,12 @@ export const LineUnfollowedDialog: Story = {
   args: { activePanel: "line", data: lineUnfollowedData },
 };
 
+export const LineUnfollowedDialogMobile: Story = {
+  ...LineUnfollowedDialog,
+  tags: ["vrt-mobile2"],
+  globals: { viewport: { value: "mobile2", isRotated: false } },
+};
+
 export const LineBillingReadOnlyDialog: Story = {
   args: { activePanel: "line", data: lineBillingReadOnlyData },
   play: async () => {

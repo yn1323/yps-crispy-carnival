@@ -126,7 +126,7 @@ function HelpGuideLoading() {
     <PublicPageLayout>
       <Container maxW="720px" px={4} py={{ base: 12, lg: 20 }}>
         <Text role="status" color="gray.600">
-          ヘルプを読み込んでいます
+          Loading...
         </Text>
       </Container>
     </PublicPageLayout>

@@ -31,12 +31,12 @@ function ShiftExportQuery({ organizationId, recruitmentId }: Props) {
   );
   if (scope === null) return <ExportUnavailable />;
   if (scope === undefined || !received || (!received.snapshot && !received.error))
-    return <ShiftoriLoading variant="section" message="シフト表を受け取っています" minH="100dvh" />;
+    return <ShiftoriLoading variant="section" message="Loading..." minH="100dvh" />;
   if (received.error || !received.snapshot)
     return (
       <Empty
         icon={LuTriangleAlert}
-        title="シフト表を受け取れませんでした"
+        title="シフトの読み込みに失敗しました。"
         description={received.error ?? "シフト表から出力画面を開き直してください。"}
         minH="100dvh"
       />
@@ -55,7 +55,7 @@ function ExportUnavailable({ retry = false }: { retry?: boolean }) {
   return (
     <Empty
       icon={retry ? LuRefreshCw : LuTriangleAlert}
-      title={retry ? "シフト表を読み込めませんでした" : "シフト表が見つかりません"}
+      title={retry ? "シフトの読み込みに失敗しました。" : "シフトが見つかりません"}
       description={
         retry
           ? "通信状態を確認して、もう一度お試しください。"
